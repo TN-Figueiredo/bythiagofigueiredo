@@ -74,10 +74,19 @@ export type SetupOpts = {
   pinned?: Array<Record<string, unknown>> | null; pinnedError?: string; trackedError?: string
   /** O `update` de competitor_videos para esta linha (uuid) devolve erro de banco. */
   failUpdateOf?: string
+  /** (A5) Linhas correntes de competitor_field_versions e de competitor_raw que o banco "já tem"; omitido = nenhuma (primeira execução). */
+  fields?: Record<string, unknown>[]; raws?: Record<string, unknown>[]
+  /** Função SQL (nome sem `rpc:`) que devolve erro de banco. */
+  rpcFail?: string
+  /** Leitura (select) desta tabela devolve erro; para `competitor_channels` falha a trava do canal. */
+  selectFail?: string
+  /** O que as funções de ausência devolvem; omitido = lista vazia / nulo. */
+  missed?: Record<string, unknown>[]; channelMissed?: Record<string, unknown> | null
 }
 
 export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
+    if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
     if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdateOf && c.ops.some(o => o[0] === 'eq' && o[1][1] === opts.failUpdateOf)) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
@@ -95,6 +104,18 @@ export function setup(opts: SetupOpts = {}) {
     if (c.table === 'rpc:apply_competitor_version_plan') {
       if (opts.rpcError) return { data: null, error: { message: 'boom' } }
       return { data: { opened: {}, changes: (c.ops[0]![1][0] as { p_changes: unknown[] }).p_changes.length } }
+    }
+    // (A5) leituras e funções da captura: o que o falso não conhece é nulo, e a captura trata nulo como falha ("nenhuma linha" é lista vazia)
+    if (opts.selectFail && c.table === opts.selectFail && first(c) === 'select') return { data: null, error: { message: 'boom' } }
+    if (c.table === 'competitor_field_versions' && first(c) === 'select') return { data: opts.fields ?? [] }
+    if (c.table === 'competitor_raw' && first(c) === 'select') return { data: opts.raws ?? [] }
+    if (c.table.startsWith('rpc:')) {
+      const name = c.table.slice(4)
+      if (opts.rpcFail === name) return { data: null, error: { message: 'boom' } }
+      if (name === 'competitor_mark_missing') return { data: opts.missed ?? [] }
+      if (name === 'competitor_channel_mark_missing') return { data: opts.channelMissed ?? null }
+      if (name === 'youtube_quota_add') return { data: 1 }
+      return { data: {} }
     }
     return { data: null, error: null }
   })
