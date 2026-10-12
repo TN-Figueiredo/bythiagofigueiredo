@@ -98,10 +98,28 @@ export type SetupOpts = {
   all?: Record<string, unknown>[]; allPages?: Record<string, unknown>[][]; allError?: string; allNull?: boolean
   /** (A5 E2) O `video_limit` do canal (a linha da trava); omitido = 50. */
   videoLimit?: number
+  /**
+   * (A5 E2) A gravação nova que falha com 'boom'. Nome de tabela (`insert`, `update` ou `upsert`), `'<tabela>:insert|update|upsert'`,
+   * `'competitor_channels:patch'` (o `update` do canal que leva `custom_url`, que não é a trava nem o progresso) ou `'rpc:<função>'`.
+   * Falha só uma chamada: a de ordem `failWriteSkip` (0 = a primeira) entre as que casam.
+   */
+  failWrite?: string; failWriteSkip?: number
+}
+
+/** O `failWrite` casa com esta chamada? */
+function writeMatches(spec: string, c: Call): boolean {
+  if (spec.startsWith('rpc:')) return c.table === spec
+  const [table, kind] = spec.split(':') as [string, string | undefined]
+  if (c.table !== table) return false
+  const op = String(first(c))
+  if (kind === 'patch') return op === 'update' && 'custom_url' in (arg(c, 'update') ?? {})
+  return kind ? op === kind : ['insert', 'update', 'upsert'].includes(op)
 }
 
 export function setup(opts: SetupOpts = {}) {
+  let writesSeen = 0
   const db = fakeDb((c) => {
+    if (opts.failWrite && writeMatches(opts.failWrite, c) && writesSeen++ === (opts.failWriteSkip ?? 0)) return { data: null, error: { message: 'boom' } }
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
     if (opts.lockTaken && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [] }
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, video_limit: opts.videoLimit ?? lockRow.video_limit, ...opts.lock }] }
@@ -137,6 +155,7 @@ export function setup(opts: SetupOpts = {}) {
       return { data: have.map(video_id => ({ video_id })) }
     }
     if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
+    if (c.table === 'competitor_video_early' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
     if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
     if (c.table === 'rpc:apply_competitor_version_plan') {
       if (opts.rpcError) return { data: null, error: { message: 'boom' } }

@@ -13,7 +13,7 @@ import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
-import { classifyTiers, type Tier } from '@/lib/youtube/competitor-tiers'
+import { classifyTiers, earlyEligible, type Tier } from '@/lib/youtube/competitor-tiers'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -74,6 +74,8 @@ export interface SyncResult {
   cutByCap?: number
   /** (A5 E2) Vídeos pedidos na passada diária que vieram sem contagem de views: não ganham ponto na série. */
   excludedNoCount?: number
+  /** (A5 E2) Leituras das primeiras horas (vídeo recém-descoberto, até 72 h de vida) enviadas ao banco nesta sincronização. */
+  earlyRecorded?: number
 }
 
 /** (A5) Os contadores de uma sincronização que terminou em erro: o erro lançado não carrega resultado, e o lote só vê o erro. */
@@ -297,6 +299,8 @@ export async function syncCompetitorChannel(
   let channelPartsMissing = 0
   /** (A5 E2) O que a classificação das faixas decidiu nesta sincronização, e os vídeos pedidos na passada diária que vieram sem contagem. */
   let tierChanges = 0, tierCut = 0, excludedNoCount = 0
+  /** (A5 E2) Leituras das primeiras horas gravadas (zero não aparece no resultado). */
+  let earlyRecorded = 0
   /** (A5) A cota é gravada UMA vez, no fim (sucesso ou erro); se a gravação falhar, a sincronização não muda de destino: só marca quotaError. */
   let quotaError = false
   const flushQuota = async (): Promise<void> => {
@@ -332,6 +336,7 @@ export async function syncCompetitorChannel(
     ...(returnedCount() ? { returned: returnedCount() } : {}),
     ...(quotaError ? { quotaError: true as const, quotaUnitsLost: unitsUsed } : {}),
     ...(tierChanges ? { tierChanges } : {}), ...(tierCut ? { cutByCap: tierCut } : {}), ...(excludedNoCount ? { excludedNoCount } : {}),
+    ...(earlyRecorded ? { earlyRecorded } : {}),
   })
   /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
   const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
@@ -640,7 +645,7 @@ export async function syncCompetitorChannel(
       // Batch lookup existing videos
       const { data: existingVideos } = await supabase
         .from('competitor_videos')
-        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short, last_seen_at, missing_since')
+        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short, last_seen_at, missing_since, discovered_at')
         .eq('competitor_channel_id', channelRow.id)
         .in('video_id', videoIds)
       for (const v of existingVideos ?? []) noteRow(v)
@@ -653,6 +658,8 @@ export async function syncCompetitorChannel(
       const touchIds: string[] = []
       /** Os vídeos desta página que têm linha (novos e já gravados), para a captura no fim do laço. */
       const pagePairs: Array<{ uuid: string; item: unknown }> = []
+      /** (A5 E2) Leituras das primeiras horas desta página, uma por vídeo (a mesma chave (video_id, taken_at) não repete na mesma gravação). */
+      const earlyRows = new Map<string, { video_id: string; taken_at: string; site_id: string; views: number; likes: number | null; comments: number | null }>()
 
       // Smart incremental: stop if we hit a known video
       let hitKnownVideo = false
@@ -722,6 +729,13 @@ export async function syncCompetitorChannel(
 
         if (videoUuid) pagePairs.push({ uuid: videoUuid, item: video })
 
+        // Primeiras horas: só vídeo cuja descoberta foi registrada (o novo nasce agora), até 24 h depois de publicado, com menos de 72 h.
+        // Sem contagem de views não há linha (a coluna é not null; ausente nunca vira 0). Os dados ausentes ou malformados de `publishedAt` não elegem.
+        const discoveredAt = existing ? ((existing as { discovered_at?: string | null }).discovered_at ?? null) : nowIso
+        if (videoUuid && observed.hasViews && earlyEligible({ discoveredAt, publishedAt }, nowMs)) {
+          earlyRows.set(videoUuid, { video_id: videoUuid, taken_at: nowIso, site_id: channelRow.site_id, views: observed.patch.view_count as number, likes: observed.patch.like_count ?? null, comments: observed.patch.comment_count ?? null })
+        }
+
         if (!existing) continue
 
         // Update stats
@@ -742,6 +756,12 @@ export async function syncCompetitorChannel(
       if (touchIds.length) {
         const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touchIds)
         fail('touch versions', error)
+      }
+      if (earlyRows.size) {
+        const rows = [...earlyRows.values()]
+        const { error } = await supabase.from('competitor_video_early').upsert(rows, { onConflict: 'video_id,taken_at', ignoreDuplicates: true })
+        // (emenda do portão: S-I5) não lança: as primeiras horas não ficam na frente da série do dia
+        if (!late('não foi possível gravar as primeiras horas', error)) earlyRecorded += rows.length
       }
       await captureFetched(pagePairs)
 
