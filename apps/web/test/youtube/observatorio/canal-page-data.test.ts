@@ -15,7 +15,7 @@ const DIA = 86_400_000
 const DUAS_LINHAS = () => [{ id: O1, name: 'tnFigueiredo', subs: 1160, videos: 35, ultimo: Date.now() - 3 * DIA - 3_600_000 }, { id: O2, name: 'Thiago Figueiredo', subs: 3, videos: 0, ultimo: null }]
 type Linhas = ReturnType<typeof DUAS_LINHAS>
 
-async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; editOk?: boolean; ds?: Dataset | null; loadError?: Error; ownRows?: Linhas; ownError?: Error; cookie?: string | null | 'lança' } = {}) {
+async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; editOk?: boolean; ds?: Dataset | null; loadError?: Error; ownRows?: Linhas; ownError?: Error; cookie?: string | null | 'lança'; editThrows?: Error; realLoader?: boolean } = {}) {
   vi.resetModules()
   const order: string[] = []
   const loadChannelDataset = vi.fn(async (_siteId: string, _channelId: string, _now: number) => {
@@ -26,6 +26,7 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   const captureException = vi.fn()
   const requireSiteScope = vi.fn(async (opts: { mode: string }) => {
     order.push('guard ' + opts.mode)
+    if (opts.mode === 'edit' && o.editThrows) throw o.editThrows
     if (opts.mode === 'edit') return o.editOk === false ? { ok: false, reason: 'insufficient_access' } : { ok: true, user: { id: 'u1' } }
     return o.access ?? { ok: true, user: { id: 'u1' } }
   })
@@ -46,10 +47,13 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   vi.doMock('next/navigation', () => ({ redirect: (url: string) => { throw new Error('REDIRECT ' + url) } }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 'site-1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope }))
-  vi.doMock('@/lib/youtube/observatorio/load-page', () => ({ loadChannelDataset, loadPageRows: vi.fn() }))
-  vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return {} } }))
+  if (!o.realLoader) vi.doMock('@/lib/youtube/observatorio/load-page', () => ({ loadChannelDataset, loadPageRows: vi.fn() }))
+  // o carregador de verdade com um banco que diz "uuid inválido" (22P02) e anota toda tabela consultada
+  const tabelas: string[] = []
+  const cadeia = { select: () => cadeia, eq: () => cadeia, maybeSingle: async () => ({ data: null, error: { code: '22P02', message: 'invalid input syntax for type uuid' } }) }
+  vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return o.realLoader ? { from: (t: string) => { tabelas.push(t); return cadeia } } : {} } }))
   const { openChannelPage } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/page-data')
-  return { openChannelPage, loadChannelDataset, loadOwnMenuRows, requireSiteScope, captureException, order }
+  return { openChannelPage, loadChannelDataset, loadOwnMenuRows, requireSiteScope, captureException, order, tabelas }
 }
 
 describe('openChannelPage', () => {
@@ -166,5 +170,55 @@ describe('openChannelPage', () => {
   it('erro ao ler os canais próprios sobe (nunca uma lista vazia que esconderia o atalho em silêncio)', async () => {
     const { openChannelPage } = await setup({ ownError: new Error('observatório: falha ao ler youtube_channels: boom') })
     await expect(openChannelPage('matt-wolfe')).rejects.toThrow(/youtube_channels/)
+  })
+
+  describe('o dado privado do canal próprio (Tarefa 4 da A4)', () => {
+    it('edicao é o token da guarda de edição (a mesma chamada que dá canEdit; uma só); sem permissão de edição é null', async () => {
+      const sim = await setup()
+      const { EdicaoDoSite } = await import('@/lib/youtube/observatorio/proprio/edicao') // depois do setup: o mesmo grafo de módulos
+      const a = await sim.openChannelPage('c1')
+      expect(a.edicao).toBeInstanceOf(EdicaoDoSite)
+      expect(a.edicao!.siteId).toBe('site-1')
+      expect(a.canEdit).toBe(true)
+      expect(sim.requireSiteScope.mock.calls.filter(c => (c[0] as { mode: string }).mode === 'edit')).toHaveLength(1)
+      const nao = await (await setup({ editOk: false })).openChannelPage('c1')
+      expect(nao.edicao).toBeNull(); expect(nao.canEdit).toBe(false)
+    })
+    it('a guarda de edição lançou: a página abre sem o dado privado (edicao null, canEdit false) e o erro vai ao Sentry; nunca derruba a página', async () => {
+      const { openChannelPage, captureException } = await setup({ editThrows: new Error('auth fora do ar') })
+      const page = await openChannelPage('c1')
+      expect(page.edicao).toBeNull(); expect(page.canEdit).toBe(false)
+      expect(page.obs).not.toBeNull()
+      expect(captureException).toHaveBeenCalledTimes(1)
+    })
+    it('acesso negado à leitura: redireciona antes de provar a edição', async () => {
+      const { openChannelPage, requireSiteScope } = await setup({ access: { ok: false, reason: 'unauthenticated' } })
+      await expect(openChannelPage('c1')).rejects.toThrow('REDIRECT')
+      expect(requireSiteScope.mock.calls.every(c => (c[0] as { mode: string }).mode === 'view')).toBe(true)
+    })
+    it('ownYtIds: os longos acompanhados do canal próprio, do mais novo ao mais antigo; canal de concorrente dá []', async () => {
+      const proprio = oneChannelDataset()
+      proprio.channels[0]!.own = true
+      const id = proprio.channels[0]!.id
+      const esperado = proprio.videos.filter(v => v.tracked && v.fmt === 'long').sort((a, b) => b.pub - a.pub).map(v => v.ytId)
+      expect(esperado.length).toBeGreaterThan(0)
+      expect((await (await setup({ ds: proprio })).openChannelPage(id)).ownYtIds).toEqual(esperado)
+      expect((await (await setup()).openChannelPage(id)).ownYtIds).toEqual([])
+    })
+    it('canal não encontrado: ownYtIds vazio', async () => {
+      expect((await (await setup({ ds: null })).openChannelPage('nao-existe')).ownYtIds).toEqual([])
+    })
+    it('id malformado na URL dá o MESMO "não encontrado" de um id inexistente, no carregador de verdade, sem chegar às tabelas privadas', async () => {
+      const inexistente = await (await setup({ ds: null })).openChannelPage('3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10')
+      for (const id of ['lixo', '<script>', "x'; drop table", '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a1', 'a'.repeat(300)]) {
+        const sim = await setup({ realLoader: true })
+        const page = await sim.openChannelPage(id)
+        expect(page.obs, id).toBeNull()
+        expect(page.ownYtIds, id).toEqual([])
+        expect(page.obs).toEqual(inexistente.obs)
+        expect(sim.captureException).not.toHaveBeenCalled()
+        expect(sim.tabelas.every(t => t === 'competitor_channels'), id).toBe(true)
+      }
+    })
   })
 })
