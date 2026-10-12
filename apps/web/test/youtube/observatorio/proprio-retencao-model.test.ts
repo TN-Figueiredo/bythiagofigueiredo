@@ -90,6 +90,31 @@ describe('13.3 retenção: a tabela por vídeo', () => {
   })
 })
 
+describe('13.3 retenção: fronteiras (os mutantes de >= e de 4 vídeos)', () => {
+  const cinco = (pcts: number[], vpd: number[]) => monta(com(MUNDO, plano(pcts, vpd)))
+  it('faixa com exatamente 4 vídeos com views: sem normal ("precisa de 5"); com 5, tem', () => {
+    const r4 = cinco([50, 50, 50, 50], [1, 2, 4, 5])
+    expect(r4.faixas[0]).toMatchObject({ normal: null, estado: 'poucos', texto: 'poucos vídeos para comparar (4; precisa de 5)' })
+    const r5 = cinco([50, 50, 50, 50, 50], [1, 2, 4, 5, 3])
+    expect(r5.faixas[0]).toMatchObject({ normal: '50%', estado: 'normal' })
+  })
+  it('as views IGUAIS ao normal do canal não são "acima": só estritamente acima conta', () => {
+    // views em 28 dias: 10, 20, 40, 50 e 30 (o do % 40): a mediana é 30, igual ao dele
+    const igual = cinco([50, 50, 50, 50, 40], [1, 2, 4, 5, 3])
+    expect(igual.videos.find(v => v.pct === '40%')).toMatchObject({ views28: '30', alvo: false })
+    expect(igual.relance!.negrito).toBe('')
+    // com 4 views por dia (40 em 28 dias) passa da mediana (que vira 40): ainda igual; com 5, passa
+    const acima = cinco([50, 50, 50, 50, 40], [1, 2, 4, 5, 6])
+    expect(acima.videos.find(v => v.pct === '40%')).toMatchObject({ views28: '60', alvo: true })
+  })
+  it('exatamente 100% não passa de 100: sem a marca; 100,1% passa', () => {
+    const cem = cinco([100, 50, 50, 50, 50], [1, 2, 4, 5, 3])
+    expect(cem.videos.find(v => v.pct === '100%')).toMatchObject({ acimaDe100: false, barra: 1 })
+    const alem = cinco([100.6, 50, 50, 50, 50], [1, 2, 4, 5, 3])
+    expect(alem.videos.find(v => v.pct === '101%')).toMatchObject({ acimaDe100: true, barra: 1 })
+  })
+})
+
 describe('13.3 retenção: a frase de relance', () => {
   it('vídeos com views acima do normal do canal (mediana) e % abaixo do normal da faixa são nomeados, do mais visto ao menos', () => {
     // mediana das views em 28 dias dos 14 vídeos = 55; abaixo: idx6 (120 views, −4), idx0 (90, −5), idx1 (80, −3)
