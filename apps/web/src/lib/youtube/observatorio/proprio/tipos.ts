@@ -36,6 +36,8 @@ export interface AlcanceCanal {
   canalId: string
   relatorios: RelatorioDia[]
   linhas: AlcanceLinha[]
+  /** linhas cujo CTR veio fora de 0 a 1 e foi descartado (a linha ficou com ctr nulo): quem chama avisa o Sentry uma vez por requisição */
+  ctrDescartados: number
 }
 
 export interface DiarioCanal {
