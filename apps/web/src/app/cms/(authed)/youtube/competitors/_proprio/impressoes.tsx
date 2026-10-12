@@ -36,7 +36,8 @@ const PONTO_MIN = 7.5          // abaixo disto por dia não há ponto nem númer
 
 const entre = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v))
 
-interface Estado { sig: string; i: number; ponteiro: boolean }
+/** `semDica`: o dia veio dos botões, que já têm a frase logo abaixo; a dica flutuante só cobriria o gráfico (a coluna segue marcada). */
+interface Estado { sig: string; i: number; ponteiro: boolean; semDica: boolean }
 
 /** Quais colunas levam o texto (número em cima da barra, número dos cliques): da esquerda para a direita, só as que não esbarram na anterior nem passam da borda direita. */
 function quaisCabem(xs: readonly number[], textos: ReadonlyArray<string | null>, limite: number): boolean[] {
@@ -226,7 +227,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
   const W = largura < ESTREITO ? Math.max(MIN_W, largura) : Math.min(MAX_W, largura)
 
   /* ------------------------------------------------------------------ dica e teclado */
-  const mostrar = useCallback((i: number, ponteiro: boolean) => { setEst({ sig, i, ponteiro }) }, [sig])
+  const mostrar = useCallback((i: number, ponteiro: boolean, semDica = false) => { setEst({ sig, i, ponteiro, semDica }) }, [sig])
   const fechar = useCallback(() => { setEst(null) }, [])
   const lembrar = (i: number) => { ultimo.current = { sig, i } }
 
@@ -316,7 +317,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
     if (n === 0 || (dir < 0 && noPrimeiro) || (dir > 0 && noUltimo)) return
     const i = ativo ? entre(ativo.i + dir, 0, n - 1) : dir > 0 ? 0 : n - 1
     lembrar(i)
-    mostrar(i, false)
+    mostrar(i, false, true)
   }
   const onPointerLeave = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return // levantar o dedo não esconde a dica; um toque fora esconde
@@ -357,7 +358,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
               <Desenho view={view} W={W} pid={pid} ativo={ativo ? ativo.i : -1} />
             </div>
           </div>
-          <HoverTip show={coluna != null} anchor={() => svgBox.current?.querySelector(`[data-i="${ativo?.i ?? -1}"]`) ?? null} pref="cima" align="meio" gap={4} maxW={300} className="ic-tip" ariaHidden>
+          <HoverTip show={coluna != null && !ativo?.semDica} anchor={() => svgBox.current?.querySelector(`[data-i="${ativo?.i ?? -1}"]`) ?? null} pref="cima" align="meio" gap={4} maxW={300} className="ic-tip" ariaHidden>
             {coluna?.dica}
           </HoverTip>
           <Legenda view={view} />
