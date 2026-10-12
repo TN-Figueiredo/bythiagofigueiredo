@@ -400,7 +400,7 @@ describe('passoRelatorios: rodadas de revisão (decisões do controlador)', () =
     expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
   })
 
-  it('bytes que não viram gzip (gzip corrompido): o relatório vira erro com texto curto; o passo segue com o próximo', async () => {
+  it('bytes que não abrem como gzip (um download cortado chega assim): continua listado para amanhã, com tentativa erro_http "gzip_invalido"; o passo segue', async () => {
     api.download.mockImplementation(async (url: string) =>
       url.endsWith('/r1') ? empacotarCsv(Buffer.from([0x1f, 0x8b, 1, 2, 3, 4])) : empacotarCsv(CSV))
     const db = bancoComPurge({
@@ -409,9 +409,11 @@ describe('passoRelatorios: rodadas de revisão (decisões do controlador)', () =
     })
     const ctx = ctxDe(db)
     const resumo = await passoRelatorios(ctx)
-    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'gzip_invalido' })
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(rel(db, 'r1')!.error ?? null).toBeNull()
     expect(rel(db, 'r2')!.status).toBe('baixado')
-    expect(resumo).toMatchObject({ baixados: 1, erros_download: 1, pendentes: 0 })
+    expect(resumo).toMatchObject({ baixados: 1, erros_download: 1, pendentes: 1 })
+    expect(db.tables.yt_own_collection_attempts!.find(r => r.scope_type === 'job')).toMatchObject({ outcome: 'erro_http', error: 'gzip_invalido' })
     expect(ctx.falhas).toEqual([])
   })
 
@@ -594,5 +596,115 @@ describe('passoRelatorios: tipo fora da lista habilitada (REPORT_TYPES_ENABLED)'
     expect(api.reportsList).not.toHaveBeenCalled()
     expect(api.download).not.toHaveBeenCalled()
     expect(rel(db, 'fora-1')).toMatchObject({ status: 'listado' })
+  })
+})
+
+describe('passoRelatorios: E12, perda nunca fica em verde', () => {
+  it('relatório que vence sem baixar (por idade e por 404): a execução ganha uma nota com a contagem por tipo', async () => {
+    api.download.mockImplementation(async (url: string) => {
+      if (url.endsWith('/sumiu')) throw new ReportingHttpError(404, null)
+      return empacotarCsv(CSV)
+    })
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [
+        listado('velho', { report_type_id: 'channel_traffic_source_a3', create_time: ha(31), is_backfill: true }),
+        listado('sumiu', { report_type_id: 'channel_traffic_source_a3', create_time: ha(3) }),
+        listado('alcance-velho', { create_time: ha(61) }),
+      ],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(resumo.expirados).toBe(3)
+    expect(resumo.expirados_por_tipo).toEqual({ channel_traffic_source_a3: 2, channel_reach_basic_a1: 1 })
+    expect(ctx.falhas).toEqual(['relatórios: 3 relatório(s) venceram sem baixar nesta execução (channel_traffic_source_a3: 2, channel_reach_basic_a1: 1)'])
+  })
+
+  it('vencido de tipo fora da lista habilitada não vira nota (ninguém ia baixá-lo); nada vencido = nenhuma nota', async () => {
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('fora', { report_type_id: 'channel_annotations_a1', create_time: ha(61) }), listado('ok', { create_time: ha(1) })],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(rel(db, 'fora')!.status).toBe('expirado_sem_baixar')
+    expect(resumo.expirados_por_tipo).toEqual({})
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('acima do teto: erro grande_demais, sem bruto, e a execução diz que o bruto não foi guardado', async () => {
+    api.download.mockResolvedValue({ gz: Buffer.alloc(MAX_GZ_BYTES + 1), sha256: 'x', rowCount: 10 })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais' })
+    expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
+    expect(resumo.maior_bytes).toBe(MAX_GZ_BYTES + 1)
+    expect(ctx.falhas).toEqual([
+      `relatórios: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 1} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`,
+    ])
+  })
+
+  it('mais da metade do teto: o bruto é guardado e a execução avisa antes de perder; exatamente a metade não avisa', async () => {
+    const metade = MAX_GZ_BYTES / 2
+    api.download
+      .mockResolvedValueOnce({ gz: Buffer.alloc(metade + 1), sha256: 'x', rowCount: 10 })
+      .mockResolvedValueOnce({ gz: Buffer.alloc(metade), sha256: 'y', rowCount: 10 })
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('grande', { create_time: ha(3) }), listado('no-limite', { create_time: ha(2) })],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(rel(db, 'grande')!.status).toBe('baixado')
+    expect(rel(db, 'no-limite')!.status).toBe('baixado')
+    expect(db.tables.yt_reporting_report_blobs).toHaveLength(2)
+    expect(resumo.maior_bytes).toBe(metade + 1)
+    expect(ctx.falhas).toEqual([`relatórios: channel_reach_basic_a1 chegou a ${metade + 1} bytes comprimidos, mais da metade do teto de ${MAX_GZ_BYTES}`])
+  })
+
+  it('nenhum download: maior_bytes é 0 e nada ficou para trás (vence_primeiro_em_dias nulo)', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(resumo).toMatchObject({ maior_bytes: 0, pendentes: 0, vence_primeiro_em_dias: null, expirados_por_tipo: {} })
+  })
+
+  it('o que ficou para trás aparece com prazo: pendentes e os dias até o primeiro vencer', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(500, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [
+        listado('corrente', { create_time: ha(1) }),                                                              // vence em 59 dias
+        listado('historico', { report_type_id: 'channel_basic_a3', create_time: ha(10), is_backfill: true }),      // vence em 20 dias
+      ],
+    })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(resumo).toMatchObject({ pendentes: 2, vence_primeiro_em_dias: 20 })
+  })
+
+  it('fila que bate em 1000 linhas: nota de corte, nunca "tudo lido"', async () => {
+    const mil = Array.from({ length: 1000 }, (_, i) => listado(`r-${i}`, { create_time: new Date(AGORA.getTime() - DIA_MS - i * 1000).toISOString() }))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: mil })
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(ctx.falhas).toContain('relatórios: fila de download cortada em 1000 relatórios; a ordem por vencimento não cobre o que ficou de fora')
+  })
+
+  it('mede a listagem e os downloads em separado (item de aceite 97)', async () => {
+    api.reportsList.mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + 700))
+      return { reports: [], nextPageToken: null }
+    })
+    api.download.mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + 1500))
+      return empacotarCsv(CSV)
+    })
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('r1', { create_time: ha(3) }), listado('r2', { create_time: ha(2) })],
+    })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(resumo.ms_listar).toBe(700)
+    expect(resumo.ms_baixar).toBe(3000)
   })
 })
