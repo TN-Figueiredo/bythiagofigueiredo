@@ -49,6 +49,21 @@ export function posicaoNoCanal(vals: ReadonlyArray<{ id: string; x: number | nul
 
 export type NumeroRegua = 'impressoes' | 'views' | 'vpd' | 'engajamento' | 'assistido' | 'curtidas' | 'comentarios' | 'duracao'
 
+export interface TracoRegua {
+  id: string
+  /** 0 a 100 no eixo (a escala já aplicada) */
+  pct: number
+  este: boolean
+  /** O valor como a tela o escreve; é por ele que o empate se decide e é ele que a dica e o leitor de tela falam. */
+  texto: string
+  /** O afastamento do empate, em px (2,6 por vez; o traço deste vídeo fica no valor exato, 0). */
+  dx: number
+  /** O título do vídeo (a dica e o leitor de tela falam dele); o id quando a entrada não traz. */
+  titulo: string
+  /** Para onde Enter e o segundo toque levam; null = sem destino (a entrada não deu `hrefVideo`). */
+  href: string | null
+}
+
 export interface LinhaRegua {
   numero: NumeroRegua
   grupo: 'Alcance' | 'Resposta' | 'Formato'
@@ -65,7 +80,7 @@ export interface LinhaRegua {
   /** A segunda linha do nome ("média dos últimos 28 dias"); null = sem ela. */
   sub: string | null
   /** Um traço por vídeo com o dado, do menor ao maior valor. Vazio quando não há régua. */
-  tracos: Array<{ id: string; pct: number; este: boolean }>
+  tracos: TracoRegua[]
   min: string | null
   max: string | null
   /** Onde a mediana do canal cai no eixo (0 a 100), com a MESMA escala dos traços. */
@@ -109,7 +124,7 @@ export interface DiarioReguas {
 
 export interface EntradaReguas {
   videoId: string
-  videos: ReadonlyArray<{ id: string; ytId: string; views: number | null; likes: number | null; comments: number | null; dur: number | null }>
+  videos: ReadonlyArray<{ id: string; ytId: string; views: number | null; likes: number | null; comments: number | null; dur: number | null; titulo?: string }>
   porVideo: Map<string, AlcanceVideo>
   /** false = o alcance não foi lido (sem permissão, leitura que falhou, sem relatório): nenhuma impressão é "0", todas são "não medidas". */
   alcanceLido: boolean
@@ -120,6 +135,8 @@ export interface EntradaReguas {
   /** As linhas "Views por dia" e "% assistido"; ausente = a régua tem só as seis linhas. */
   diario?: DiarioReguas
   hrefs: { vistos: string; imp: string }
+  /** Para onde Enter e o segundo toque num traço levam (preserva o `back=` da página); sem ele os traços não abrem nada. */
+  hrefVideo?: (id: string) => string
   /** Os formatadores do motor (`obs.fmt`); sem eles, os mesmos da fábrica (o texto é igual). */
   fmt?: Fmt
 }
@@ -153,6 +170,29 @@ const mediana = (xs: readonly number[]): number => {
 
 /** "a", "a e b", "a, b e c". */
 const lista = (xs: readonly string[]): string => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`)
+
+/** O mesmo valor escrito abre 2,6 px para o lado (nas pontas, só para dentro); o traço deste vídeo fica no valor exato e empurra os outros 4,4 px. */
+const PASSO_EMPATE = 2.6
+const PASSO_COM_ESTE = 4.4
+function abrirEmpates(tracos: TracoRegua[]): TracoRegua[] {
+  const grupos = new Map<string, number[]>()
+  tracos.forEach((t, i) => { const g = grupos.get(t.texto); if (g) g.push(i); else grupos.set(t.texto, [i]) })
+  const out = tracos.map(t => ({ ...t }))
+  const ultimo = tracos.length - 1
+  for (const idx of grupos.values()) {
+    if (idx.length < 2) continue
+    const meu = idx.filter(i => out[i]!.este), outros = idx.filter(i => !out[i]!.este)
+    const naPonta = idx.length === tracos.length ? 0 : idx.includes(0) ? 1 : idx.includes(ultimo) ? -1 : 0
+    let base = PASSO_COM_ESTE, resto = outros
+    if (meu.length === 0) { resto = outros.slice(1); base = PASSO_EMPATE }
+    let lado = 1
+    resto.forEach((i, j) => {
+      out[i]!.dx = naPonta !== 0 ? naPonta * (base + j * PASSO_EMPATE) : lado * (base + Math.floor(j / 2) * PASSO_EMPATE)
+      lado = -lado
+    })
+  }
+  return out
+}
 
 const FMT_PADRAO = createFmt(createClock(0, 0, 0))
 
@@ -222,6 +262,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     }
   }
 
+  const titulos = new Map(a.videos.map(v => [v.id, v.titulo] as const))
   const defs = DEFS.filter(d => !DO_DIARIO.includes(d.numero) || a.diario != null)
   const linhas: LinhaRegua[] = defs.map((d): LinhaRegua => {
     const entradas = a.videos.map(v => {
@@ -251,7 +292,10 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const xs = com.map(e => e.x)
     const es = escalar(xs)
     const ordenados = [...com].sort((p, q) => p.x - q.x || (p.id < q.id ? -1 : p.id > q.id ? 1 : 0))
-    const tracos = ordenados.map(e => ({ id: e.id, pct: es.pct(e.x), este: e.id === este.id }))
+    const tracos = abrirEmpates(ordenados.map(e => ({
+      id: e.id, pct: es.pct(e.x), este: e.id === este.id, texto: e.chave, dx: 0,
+      titulo: titulos.get(e.id) ?? e.id, href: a.hrefVideo ? a.hrefVideo(e.id) : null,
+    })))
     const med = mediana(xs)
     const min = texto(d.numero, es.min), max = texto(d.numero, es.max)
     const posTexto = `${pos.pos}º de ${pos.de}` + (pos.empates > 0 ? ` · empate com ${pos.empates}` : '')

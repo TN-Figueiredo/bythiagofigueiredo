@@ -10,6 +10,9 @@ import { buildHistoricoView, historicoTrail } from '@/app/cms/(authed)/youtube/c
 import type { ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 import { provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { DadosDoCanal, DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { VideoBlocosView } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 
 const w = proprioWorld({
   mut: ds => {
@@ -29,6 +32,11 @@ const EDICAO: EdicaoDoSite = await (async () => {
   if (!t) throw new Error('a fixture esperava o token de edição')
   return t
 })()
+/** O que `lerDadosDoVideo` devolve a partir do cenário da fixture (dois `Privado` separados): lido, negado ou erro. */
+function paraVideo(d: DadosDoCanal): Privado<DadosDoVideo> {
+  if (d.alcance.acesso === 'ok' && d.diario.acesso === 'ok') return { acesso: 'ok', dado: { alcance: d.alcance.dado, diario: d.diario.dado } }
+  return { acesso: d.alcance.acesso === 'erro' || d.diario.acesso === 'erro' ? 'erro' : 'negado' }
+}
 const OWNS: OwnMenu = { itens: [{ id: w.canalId, name: 'Meu', nota: 'n', href: '/x' }], principal: null, listaHref: '/l' }
 
 const state = {
@@ -48,7 +56,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu')>()), ownMenuOf: () => OWNS }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   podeVerPrivado: (s: string) => state.edicao(s),
-  lerDadosDoCanal: (a: unknown) => state.dados(a),
+  lerDadosDoVideo: async (a: unknown) => paraVideo(await state.dados(a)),
   longosAcompanhadosDe: (_obs: unknown, id: string) => ['yt-longos-de-' + id],
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: () => state.swipe() }))
@@ -69,6 +77,8 @@ async function rota(id: string, sp: Record<string, string> = {}) {
   return (await VideoPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(sp) })) as Moldura
 }
 const filho = (el: Moldura) => el.props.children
+/** O modelo dos blocos que a rota monta no servidor e entrega ao `VideoBlocos` (a única coisa privada que desce). */
+const blocos = (el: Moldura): VideoBlocosView => (filho(el).props.children as ReactElement<{ view: VideoBlocosView }>).props.view
 const nome = (el: Moldura) => (filho(el).type as { name?: string }).name
 
 beforeEach(() => {
@@ -97,7 +107,7 @@ describe('T11 rota video/[id]: o dono do canal decide', () => {
     await rota(proprioVideo.id, { canal: 'texto-da-url' })
     expect(state.edicao).toHaveBeenCalledTimes(1); expect(state.edicao).toHaveBeenCalledWith('s1')
     expect(state.dados).toHaveBeenCalledTimes(1)
-    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, edicao: EDICAO, agora: w.obs.NOW, longosAcompanhados: ['yt-longos-de-' + w.canalId] })
+    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, ytId: proprioVideo.ytId, edicao: EDICAO, agora: w.obs.NOW, longosAcompanhados: ['yt-longos-de-' + w.canalId] })
   })
 
   it('vídeo de concorrente continua abrindo o Histórico, igual a hoje: mesma view, mesma trilha, SEM tocar a guarda de edição nem o dado privado', async () => {
@@ -140,10 +150,11 @@ describe('T11 rota: quem só lê o site, e a leitura que falha', () => {
     const el = await rota(proprioVideo.id)
     expect(nome(el)).toBe('ProprioVideoScreen')
     expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, edicao: null })
-    const p = filho(el).props as { alcanceNota: string }
-    expect(p.alcanceNota).toBe('Impressões e cliques deste vídeo: só quem edita o site vê este número.')
+    const view = blocos(el)
+    expect(view).toMatchObject({ acesso: 'negado', views: null, impressoes: null, assistido: null })
+    expect(view.nota).toBe('Só quem edita o site vê as views por dia, as impressões e cliques, o % assistido e a posição deste vídeo nessas medidas.')
     const cheio = JSON.stringify(filho(el).props)
-    expect(cheio).not.toMatch(/"imp"|"ctr"|relatorios|linhas/)
+    expect(cheio).not.toMatch(/"imp"|"ctr"|relatorios|"diario"|"alcance"|"cliques"/)
   })
 
   it('quem edita: o token nunca está nas props que vão ao navegador', async () => {
@@ -165,7 +176,8 @@ describe('T11 rota: quem só lê o site, e a leitura que falha', () => {
   it('canal próprio sem relatório: a frase do estado, sem número', async () => {
     state.dados.mockImplementation(async () => DADOS.vazio(w.canalId, w.ytIds, w.hoje))
     const el = await rota(proprioVideo.id)
-    expect((filho(el).props as { alcanceNota: string }).alcanceNota).toBe('Impressões e cliques deste vídeo: ainda sem relatório de alcance deste canal.')
+    expect(blocos(el).impressoes).toMatchObject({ medido: false, grafico: null, taxa: null, frase: 'Ainda não há relatório de alcance deste canal.' })
+    expect(blocos(el).assistido!.partes.map(p => p.t).join('')).toBe('A coleta diária ainda não rodou: sem ela não há % assistido.')
   })
 })
 

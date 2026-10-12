@@ -14,6 +14,8 @@ export const SENTINELAS = {
   imp: '7.919', cliques: '1.584', viewsDia: '1.234', views28: '24.680', pct: '78%',
 } as const
 export const TEXTOS_PRIVADOS = Object.values(SENTINELAS)
+/** A sentinela como TEXTO: não precedida de dígito, ponto ou vírgula (uma coordenada de SVG "23.78%" não é o "78%" do % assistido). */
+export const temSentinela = (texto: string, s: string): boolean => new RegExp('(?<![\\d.,])' + s.replace(/[.%]/g, c => '\\' + c)).test(texto)
 
 export type MundoVideo = ReturnType<typeof proprioWorld> & { foco: { id: string; ytId: string }; outros: string[] }
 

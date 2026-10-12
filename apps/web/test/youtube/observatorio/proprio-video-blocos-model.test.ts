@@ -9,7 +9,7 @@ import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import type { DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
-import { mundoVideo, TEXTOS_PRIVADOS, type MundoVideo } from './proprio-video-fixture'
+import { mundoVideo, temSentinela, TEXTOS_PRIVADOS, type MundoVideo } from './proprio-video-fixture'
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 
@@ -293,12 +293,12 @@ describe('segurança: acesso negado não leva nenhum número privado', () => {
     expect(b).toMatchObject({ acesso: 'negado', views: null, impressoes: null, assistido: null })
     expect(b.nota).toBe('Só quem edita o site vê as views por dia, as impressões e cliques, o % assistido e a posição deste vídeo nessas medidas.')
     const json = JSON.stringify(b)
-    for (const s of TEXTOS_PRIVADOS) expect(json, s).not.toContain(s)
+    for (const s of TEXTOS_PRIVADOS) expect(temSentinela(json, s), s).toBe(false)
   })
 
   it('controle positivo: com acesso o mesmo modelo TEM os textos privados (a negativa não passa em vazio)', () => {
     const json = JSON.stringify(blocos(W))
-    for (const s of TEXTOS_PRIVADOS) expect(json, s).toContain(s)
+    for (const s of TEXTOS_PRIVADOS) expect(temSentinela(json, s), s).toBe(true)
   })
 
   it('as réguas públicas continuam; as linhas privadas dizem quem vê e não têm valor', () => {
