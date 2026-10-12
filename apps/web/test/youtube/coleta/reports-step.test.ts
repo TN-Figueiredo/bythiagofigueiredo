@@ -693,7 +693,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
     expect(resumo.maior_bytes).toBe(MAX_GZ_BYTES + 1)
     expect(ctx.falhas).toEqual([
-      `relatórios: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 1} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`,
+      `relatórios: Canal Um: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 1} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado; vence na origem em 05/12 (UTC)`,
     ])
   })
 
@@ -708,7 +708,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
     expect(resumo).toMatchObject({ erros_download: 1, maior_bytes: MAX_GZ_BYTES + 5, pendentes: 0 })
     expect(ctx.falhas).toEqual([
-      `relatórios: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 5} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`,
+      `relatórios: Canal Um: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 5} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado; vence na origem em 05/12 (UTC)`,
     ])
     // Nunca é "erro de rede": nenhuma tentativa erro_http (que contaria para o aviso de 3 dias e tentaria de novo).
     expect((db.tables.yt_own_collection_attempts ?? []).filter(t => t.scope_type === 'job' && t.outcome === 'erro_http')).toEqual([])
@@ -721,7 +721,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     await passoRelatorios(ctx)
     expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais', bytes: 812 })
     expect(ctx.falhas).toEqual([
-      'relatórios: channel_reach_basic_a1 recusado por tamanho (812 bytes comprimidos descomprimem a mais de 67108864 bytes; teto 67108864 descomprimido): o bruto NÃO foi guardado',
+      'relatórios: Canal Um: channel_reach_basic_a1 recusado por tamanho (812 bytes comprimidos descomprimem a mais de 67108864 bytes; teto 67108864 descomprimido): o bruto NÃO foi guardado; vence na origem em 05/12 (UTC)',
     ])
     expect(api.download).toHaveBeenCalledTimes(1)
     vi.setSystemTime(new Date(AGORA.getTime() + DIA_MS))
@@ -1050,5 +1050,35 @@ describe('E12 onda 5, F2: falha ao gravar o bruto deixa rastro e chega ao alerta
     await passoRelatorios(ctx)
     expect(ctx.falhas).toEqual(['schema_ausente: yt_reporting_report_blobs'])
     expect(rel(db, 'r1')!.status).toBe('listado')
+  })
+})
+
+describe('E12 onda 5, F3: a nota de arquivo grande demais diz o canal e até quando o arquivo existe na origem', () => {
+  const recusa = async (extra: Row) => {
+    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('comprimido', MAX_GZ_BYTES + 5, `${MAX_GZ_BYTES + 5} bytes (Content-Length); teto ${MAX_GZ_BYTES}`))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1', extra)] })
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    return ctx.falhas
+  }
+
+  it('corrente: vence 60 dias depois de criado (criado em 06/10 -> 05/12)', async () => {
+    expect(await recusa({ create_time: ha(1), is_backfill: false })).toEqual([
+      `relatórios: Canal Um: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 5} bytes (Content-Length); teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado; vence na origem em 05/12 (UTC)`,
+    ])
+  })
+
+  it('histórico (is_backfill): vence 30 dias depois de criado (criado em 04/10 -> 03/11)', async () => {
+    const [nota] = await recusa({ create_time: ha(3), is_backfill: true })
+    expect(nota).toContain('Canal Um: channel_reach_basic_a1 recusado')
+    expect(nota!.endsWith('vence na origem em 03/11 (UTC)')).toBe(true)
+  })
+
+  it('create_time ilegível: não inventa prazo (nada de 1970); diz que o prazo é desconhecido', async () => {
+    const [nota] = await recusa({ create_time: 'isto não é data', is_backfill: false })
+    expect(nota).toContain('Canal Um: channel_reach_basic_a1 recusado')
+    expect(nota).toContain('prazo na origem desconhecido')
+    expect(nota).not.toMatch(/\d{2}\/\d{2} \(UTC\)/)
+    expect(nota).not.toContain('1970')
   })
 })

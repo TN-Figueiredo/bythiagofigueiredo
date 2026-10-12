@@ -67,6 +67,8 @@ interface Pendente {
 }
 
 const instante = (s: string): number => new Date(s).getTime()
+/** DD/MM em UTC. */
+const diaMes = (ms: number): string => { const d = new Date(ms).toISOString(); return `${d.slice(8, 10)}/${d.slice(5, 7)}` }
 /** Erro do zlib (bytes que o gzip não aceita): relatório inutilizável, não falha de rede. */
 const ehGzipInvalido = (e: unknown): boolean => {
   const code = (e as { code?: unknown } | null)?.code
@@ -182,7 +184,11 @@ async function baixarUm(
   const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>): Promise<void> => {
     resumo.maior_bytes = Math.max(resumo.maior_bytes, bytes)
     resumo.erros_download++
-    pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} recusado por tamanho (${detalhe}): o bruto NÃO foi guardado`)
+    // Canal e prazo: o dono precisa saber de quem é e até quando o arquivo existe na origem (é o prazo para subir o teto e
+    // devolver o relatório à fila). create_time ilegível não vira data de 1970: o prazo é dito desconhecido.
+    const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
+    const prazo = Number.isNaN(instante(p.create_time)) ? 'prazo na origem desconhecido' : `vence na origem em ${diaMes(venceEm(p))} (UTC)`
+    pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `${p.report_type_id} recusado por tamanho (${detalhe}): o bruto NÃO foi guardado; ${prazo}`)}`)
     conferirBanco(await marcar({ status: 'erro', error: 'grande_demais', bytes, ...extra }), 'yt_reporting_reports', ctx.falhas)
   }
   try {
