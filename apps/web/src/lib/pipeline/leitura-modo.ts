@@ -5,7 +5,8 @@ export interface ConfigLeitura {
   modo: 'aviso' | 'recusa'
   /** Dia de São Paulo (AAAA-MM-DD) em que o modo aviso foi a produção: é o dia 1 dos 14 dias de registro cheio. */
   avisoDesde: string
-  /** Dia de São Paulo em que a janela fechou com 7 dias medidos (ledger). null = aberta. Fechada: leitura com `read` não grava mais. */
+  /** Dia de São Paulo em que a janela fechou com 7 dias medidos (ledger). null = aberta. Fechada: leitura com `read` não grava mais.
+   *  Só se compara com null (a data não é conferida com hoje): fechar é um commit com deploy, e uma data futura fecha na hora. */
   controleFechadoEm: string | null
   /** Só no modo recusa: até este instante (ISO, UTC) toda leitura ACEITA de chave grava a linha de controle. Sem ela, "zero
    *  recusas" não se distingue de "registro mudo" na conferência do dia da promoção. */
