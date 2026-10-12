@@ -11,6 +11,7 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 import { DAY } from '@/lib/youtube/observatorio/time'
 import { ownChannelHref } from '../_chrome/own-channels'
+import type { ExtrasProprio } from '../_proprio/extras'
 import { numerosDoCanal, type AvisoNumero, type Numero, type NumeroId } from './numeros-model'
 
 /** `abre`: o Histórico sabe abrir este vídeo. Vídeo sem data de publicação não está no conjunto do site (`obs.video` não o acha): aparece sem link. O destino do link depende do par e é montado pela tela. */
@@ -63,7 +64,8 @@ const avisarSentry = (avisos: AvisoNumero[]) => {
   Sentry.captureException(avisos[0]!.excecao, { level: 'warning', fingerprint: ['comparar-numero-invalido'], extra: { total: avisos.length, numeros, canais, primeiro: avisos[0]!.erro } })
 }
 
-export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry): CompararPack {
+/** `extras`: as views por dia do canal próprio, lidas no servidor para quem edita o site (ausente = não lidas). */
+export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry, extras?: ExtrasProprio): CompararPack {
   const avisos: AvisoNumero[] = []
   const owns = obs.ownChannels() // lança no conjunto de um canal: é a guarda de escopo
   const F = obs.fmt, D = obs.date
@@ -115,7 +117,7 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
       semVideos, comDatas: vids.length > 0, ultimo: vids.length ? vids.reduce((m, v) => (v.pub > m ? v.pub : m), -Infinity) : null,
       // concorrente sempre tem página (sem vídeos ela diz "ainda não tem vídeos sincronizados"); o canal próprio só com vídeos
       href: ch.own ? (semVideos ? null : ownChannelHref(ch.id)) : link.canal(ch.id),
-      numeros: numerosDoCanal(obs, ch.id, a => avisos.push(a)), top5, top5Nota, pub90, pub90Nota,
+      numeros: numerosDoCanal(obs, ch.id, a => avisos.push(a), extras), top5, top5Nota, pub90, pub90Nota,
     }
   })
 

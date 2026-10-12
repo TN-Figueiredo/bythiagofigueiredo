@@ -4,6 +4,7 @@ import { ownMenuOf } from '../_chrome/own-menu'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { TrailChrome } from '../_chrome/trail-chrome'
 import { CompararScreen } from '../_comparar/comparar-screen'
+import { carregarExtrasProprio } from '../_proprio/carregar-extras'
 import { buildCompararPack } from '../_comparar/pack'
 import { resolverPar } from '../_comparar/par-model'
 
@@ -21,8 +22,10 @@ const primeiro = (v: string | string[] | undefined): string | undefined => (Arra
  * navegador. Só dados simples vão à tela; nenhuma server action (a tela só lê).
  */
 export default async function CompararPage({ searchParams }: { searchParams: Promise<ObsSearchParams> }) {
-  const [sp, { obs, meuCanalLembrado }] = await Promise.all([searchParams, openObservatoryPage()])
-  const pack = buildCompararPack(obs)
+  const [sp, { siteId, now, obs, meuCanalLembrado }] = await Promise.all([searchParams, openObservatoryPage()])
+  // as views por dia do canal próprio: lidas só para quem edita o site, depois da guarda; sem canal próprio no site nada é consultado
+  const extras = await carregarExtrasProprio(obs, siteId, now)
+  const pack = buildCompararPack(obs, undefined, extras)
   const inicial = resolverPar(pack, primeiro(sp?.a), primeiro(sp?.b), meuCanalLembrado)
   return (
     <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs, meuCanalLembrado)}>

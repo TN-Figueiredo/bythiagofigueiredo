@@ -395,7 +395,7 @@ describe('o canal sem vídeos entra no par', () => {
 describe('roda no navegador: não importa o motor nem nada de servidor', () => {
   const dir = resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_comparar')
   /** Os módulos de que o par depende, seguidos até o fim (só os do próprio diretório e os puros de lib). */
-  const PERMITIDOS = /^(\.\/(formatos|numeros-model|pack)|\.\.\/_canal\/numeros|\.\.\/_chrome\/principal|@\/lib\/youtube\/observatorio\/(posicao|time))$/
+  const PERMITIDOS = /^(\.\/(formatos|numeros-model|pack)|\.\.\/_canal\/numeros|\.\.\/_chrome\/principal|@\/lib\/youtube\/observatorio\/(posicao|time|proprio\/vpd)|\.\.\/_proprio\/extras)$/
   const importacoes = (arq: string) => {
     const src = readFileSync(resolve(dir, arq), 'utf8')
     return [...src.matchAll(/^import\s+(type\s+)?[^'"]*from\s+['"]([^'"]+)['"]/gm)].map(m => ({ tipo: !!m[1], de: m[2]! }))

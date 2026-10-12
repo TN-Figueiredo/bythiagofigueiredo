@@ -120,7 +120,7 @@ function VpdLinha({ c }: { c: VpdCell }) {
   const ressalva = c.tail ? c.tail.replace(/^,\s*/, '') : null
   return (
     <span>
-      <span className="big num" data-k="vpd">{c.big}</span>{' '}
+      <span className="big num" data-k="vpd" title={c.title}>{c.big}</span>{' '}
       <span className={'cap2' + (c.weak ? ' weak' : '')}>{c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span>
       {/* a ressalva de dado velho fica à vista (teclado e toque não leem title): o número não parece atual */}
       {ressalva ? <span className="cap2 ressalva" data-ressalva="">{' '}{ressalva}</span> : null}
@@ -136,7 +136,7 @@ export function VpdView({ c, c2, visible }: { c: VpdCell; c2?: VpdCell; visible?
   if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
   return (
     <>
-      <span className="big num" data-k="vpd">{c.big}</span>
+      <span className="big num" data-k="vpd" title={c.title}>{c.big}</span>
       <span className="cap" style={{ whiteSpace: 'normal' }}>
         {c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}
         <span className={c.weak ? 'weak' : ''}>n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span>

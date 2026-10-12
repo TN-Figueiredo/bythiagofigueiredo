@@ -8,12 +8,15 @@
  *   o mesmo canal mostra o mesmo número aqui, na lista de Canais e no cabeçalho do canal. As contas que o cabeçalho
  *   também faz moram em `_canal/numeros.ts` e os dois lugares chamam a mesma função.
  * - Canal em primeira sincronização: só os inscritos são medidos (como o cabeçalho). Canal sem vídeos: "sem vídeos".
- * - Canal próprio: views por dia, views por dia por mil, inscritos em 30 dias e trocas são "não medido" com o motivo
- *   (A4 liga a coleta diária; as trocas ficam no A/B Lab), mesmo que o conjunto traga algum valor: a regra é do canal.
+ * - Canal próprio: inscritos em 30 dias e trocas são "não medido" com o motivo (as trocas ficam no A/B Lab), mesmo que o conjunto
+ *   traga algum valor: a regra é do canal. Views por dia e views por dia por mil vêm do diário (`extras`, A4): com número, a base
+ *   escrita diz a janela de 28 dias; sem número, o motivo de `motivoVpdTexto`; sem `extras` (o dado não foi lido), o de "sem-diario".
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { DAY } from '@/lib/youtube/observatorio/time'
 import { acima2x, durText, duracaoMediana, trocas30, viewsMediana, vpdText } from '../_canal/numeros'
+import { SEM_LEITURA, type ExtrasProprio } from '../_proprio/extras'
+import { baseVpdTexto, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 
 export type NumeroId = 'inscritos' | 'inscritos30' | 'longosAcomp' | 'longos90' | 'ritmo' | 'diasUltimo' | 'medianaViews' | 'vpd' | 'vpdPorMil' | 'engajamento' | 'acima2x' | 'duracao' | 'trocas30'
 
@@ -37,7 +40,8 @@ export type Motivo =
   | { k: 'sem30'; falta: string | null }
   | { k: 'semPercentual' }
   | { k: 'semViewsLongos' }
-  | { k: 'semDiarioProprio' }
+  /** Canal próprio sem views por dia: `texto` é o motivo de `motivoVpdTexto` (sem acesso, leitura falhou, sem coleta, coleta parou…). */
+  | { k: 'semVpdProprio'; texto: string }
   /** Concorrente com longos acompanhados, mas ainda sem o 2º registro diário: o tempo resolve. */
   | { k: 'semDiarioConcorrente' }
   /** Concorrente sem nenhum longo acompanhado (só Shorts, ou nenhum longo no limite): esperar não resolve. A frase é a da lista de Canais. */
@@ -61,8 +65,7 @@ export function motivoTexto(m: Motivo): string {
     case 'sem30': return m.falta == null ? 'sem contagem de 30 dias atrás' : `sem contagem de 30 dias atrás: ${m.falta}`
     case 'semPercentual': return 'sem percentual: o canal não tinha inscritos na contagem anterior'
     case 'semViewsLongos': return 'nenhum longo com contagem de views'
-    // o que falta é esta tela ler a coleta diária do canal próprio (A4); a frase não cita coleta nem data (D-B.1 item 7)
-    case 'semDiarioProprio': return 'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal'
+    case 'semVpdProprio': return m.texto
     case 'semDiarioConcorrente': return 'aguarda o 2º registro diário'
     case 'semLongoAcompanhado': return 'nenhum vídeo longo acompanhado'
     case 'semEngajamento': return 'nenhum longo com curtidas e comentários'
@@ -78,7 +81,7 @@ export function motivoTexto(m: Motivo): string {
 const EXEMPLOS: Record<Motivo['k'], Motivo> = {
   subsOcultos: { k: 'subsOcultos' }, subsZero: { k: 'subsZero' }, primeiraSync: { k: 'primeiraSync' }, semVideos: { k: 'semVideos' },
   semDataVideo: { k: 'semDataVideo' }, sem30: { k: 'sem30', falta: null }, semPercentual: { k: 'semPercentual' },
-  semViewsLongos: { k: 'semViewsLongos' }, semDiarioProprio: { k: 'semDiarioProprio' }, semDiarioConcorrente: { k: 'semDiarioConcorrente' },
+  semViewsLongos: { k: 'semViewsLongos' }, semVpdProprio: { k: 'semVpdProprio', texto: motivoVpdTexto('sem-diario', { ultimoDia: null }, () => '') }, semDiarioConcorrente: { k: 'semDiarioConcorrente' },
   semLongoAcompanhado: { k: 'semLongoAcompanhado' }, semMultiploProprioRecente: { k: 'semMultiploProprioRecente' }, invalido: { k: 'invalido' },
   semEngajamento: { k: 'semEngajamento' }, semMultiplo: { k: 'semMultiplo', proprio: false }, semDuracao: { k: 'semDuracao' }, trocasAbLab: { k: 'trocasAbLab' },
 }
@@ -106,7 +109,7 @@ const umaCasa = (v: number, dec1: (x: number) => string) => (v === 0 ? '0' : dec
 /** O que sai quando um número está em estado inesperado: quem chama manda UM aviso ao Sentry (com a pilha de `excecao`); a tela mostra "não medido" com a frase genérica. */
 export interface AvisoNumero { canal: string; numero: NumeroId; erro: string; excecao: Error }
 
-export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a: AvisoNumero) => void): Record<NumeroId, Numero> {
+export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a: AvisoNumero) => void, extras?: ExtrasProprio): Record<NumeroId, Numero> {
   const ch = obs.channel(channelId)
   if (!ch) throw new Error(`canal desconhecido: ${channelId}`)
   const F = obs.fmt, D = obs.date
@@ -180,19 +183,43 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
     return median == null ? naoMedido({ k: 'semViewsLongos' }) : medido(median, F.num(median))
   }))
 
-  // views por dia: o canal próprio não tem a coleta diária até a A4, e o motivo é dele, não "aguarda o 2º registro"
-  const diario = (f: () => Numero): Numero => com(() => (ch.own ? naoMedido({ k: 'semDiarioProprio' }) : f()))
-  const vpd = seguro('vpd', () => diario(() => {
+  // views por dia. Canal próprio: do diário (`extras`, janela de 28 dias do YouTube); sem `extras` o dado não foi lido (nunca um número). O
+  // concorrente diz a janela dele na nota ("desde 03/10"): a linha põe lado a lado dois métodos e cada lado escreve o seu.
+  const dm = extras?.dm ?? (() => '')
+  const proprio = () => extras?.vpd.get(ch.id) ?? SEM_LEITURA
+  const notaConcorrente = SL.vpdMedian == null ? null : `views por dia ${SL.vpdWindow}, mediana de ${F.plural(SL.vpdN, 'longo', 'longos')}`
+  /** O valor absoluto do canal próprio, ou o motivo de não haver. */
+  const vpdProprio = (): { v: number; nota: string | null } | Numero => {
+    const p = proprio()
+    if (p.valor == null) return naoMedido({ k: 'semVpdProprio', texto: motivoVpdTexto(p.motivo ?? 'sem-diario', p, dm) })
+    return { v: p.valor, nota: baseVpdTexto(p, dm) }
+  }
+  const vpd = seguro('vpd', () => com(() => {
+    if (ch.own) {
+      const p = vpdProprio()
+      if ('motivo' in p) return p
+      const t = vpdText(p.v, F.num)
+      return t == null ? naoMedido({ k: 'invalido' }) : medido(p.v, t, p.nota)
+    }
     const t = vpdText(SL.vpdMedian, F.num)
-    return SL.vpdMedian == null || t == null ? naoMedido(semDiarioMotivo()) : medido(SL.vpdMedian, t)
+    return SL.vpdMedian == null || t == null ? naoMedido(semDiarioMotivo()) : medido(SL.vpdMedian, t, notaConcorrente)
   }))
-  const vpdPorMil = seguro('vpdPorMil', () => diario(() => {
+  const vpdPorMil = seguro('vpdPorMil', () => com(() => {
+    if (ch.own) {
+      const p = vpdProprio()
+      if ('motivo' in p) return p
+      if (ch.subs == null) return naoMedido({ k: 'subsOcultos' })
+      if (ch.subs <= 0) return naoMedido({ k: 'subsZero' })
+      const v = p.v / (ch.subs / 1000)
+      const t = vpdText(v, F.num)
+      return t == null ? naoMedido({ k: 'invalido' }) : medido(v, t, p.nota)
+    }
     if (ch.subs == null) return naoMedido({ k: 'subsOcultos' })
     const v = SL.perMilSubs
     if (v == null) return naoMedido(SL.vpdMedian == null ? semDiarioMotivo() : { k: 'subsZero' })
     // o mesmo formatador da lista, do painel e do cabeçalho (vpdText): zero medido "0", positivo pequeno demais para uma casa "menos de 0,1", nunca "0,0"
     const t = vpdText(v, F.num)
-    return t == null ? naoMedido(semDiarioMotivo()) : medido(v, t)
+    return t == null ? naoMedido(semDiarioMotivo()) : medido(v, t, notaConcorrente)
   }))
 
   // engajamento SEM janela de 90 dias (spec 18.4): o mesmo critério para os dois lados. Comentário nulo fica de fora, não é 0.
