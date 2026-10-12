@@ -93,8 +93,8 @@ export function weeklyThroughout(v: Pick<ObsVideo, 'tierSpans'>, from: number, t
   const spans = v.tierSpans ?? []
   if (!spans.length || from > to) return false
   for (let d = from; d <= to; d++) {
-    const s = spans.find(x => x.from <= d && (x.to == null || x.to >= d))
-    if (!s || s.tier !== 'semanal') return false
+    const cover = spans.filter(x => x.from <= d && (x.to == null || x.to >= d))
+    if (!cover.length || cover.some(x => x.tier !== 'semanal')) return false  // faixas sobrepostas: TODA faixa que cobre o dia tem de ser semanal
   }
   return true
 }
