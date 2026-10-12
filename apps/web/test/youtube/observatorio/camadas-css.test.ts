@@ -86,7 +86,7 @@ describe('Observatório · flutuantes do Histórico não dependem da ordem de ca
 describe('Observatório · tokens das telas novas', () => {
   const tokens = semComentario(read('_chrome/tokens-telas.css'))
   it('cada token do spec 19.2 existe com o valor do spec', () => {
-    const esperado: Record<string, string> = { nm: '#E59CC0', 'nm-line': '#B0678F', 'nm-bg': '#3A2232', 'lado-o': '#FF8240', 'lado-b': '#7CC8F8', 'lado-n': '#D9C08F', 'terco-baixo': '#F2C14E', 'im-cl': '#38BDF8', 'im-zero': '#7A8FA6' }
+    const esperado: Record<string, string> = { nm: '#E59CC0', 'nm-line': '#B0678F', 'nm-bg': '#3A2232', 'lado-o': '#FF8240', 'lado-b': '#7CC8F8', 'lado-n': '#D9C08F', 'terco-baixo': '#F2C14E', 'im-cl': '#F5EFE6', 'im-zero': '#7A8FA6' }
     for (const [k, v] of Object.entries(esperado)) expect(tokens, k).toMatch(new RegExp(`--${k}\\s*:\\s*${v}\\s*[;}]`, 'i'))
   })
   it('"não medido" tem forma além da cor: hachura', () => {

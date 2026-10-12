@@ -106,7 +106,7 @@ describe('os três estados têm forma própria, além da cor', () => {
     expect(Number(zero.getAttribute('y')) + Number(zero.getAttribute('height'))).toBeCloseTo(Number(bar.getAttribute('y')) + Number(bar.getAttribute('height')), 3)
   })
 
-  it('cliques: círculo na base da barra e o número na faixa "cliques" só nos dias com clique; dia sem CTR e dia não medido não ganham número', () => {
+  it('cliques: um ponto por dia com clique e o número na faixa sob as datas; dia sem CTR e dia não medido não ganham ponto nem número', () => {
     const { container } = montar(cheio())
     const dots = container.querySelectorAll('circle.ic-dot')
     expect(dots).toHaveLength(11)
@@ -281,7 +281,9 @@ describe('teclado: uma parada de Tab', () => {
     expect(tips()).toHaveLength(1)
     await user.tab()
     expect(tips()).toHaveLength(0)
-    expect(viva(document)).toBe('')
+    // a região do dia não fica vazia: volta a dizer como ler um dia (a ajuda de mouse e a de toque)
+    expect(viva(document)).toContain('Use os botões para ler um dia de cada vez.')
+    expect(viva(document)).not.toContain(v.colunas[v.colunas.length - 1]!.dica)
     await user.tab({ shift: true })
     expect(tips().map(t => t.textContent)).toEqual([v.colunas[0]!.dica]) // volta pelo começo, não pelo "End" de antes
   })
@@ -475,7 +477,9 @@ describe('Next 16: a mesma árvore com outros dias', () => {
     rerender(<div data-obs=""><Impressoes view={curto} titulo="Impressões por dia deste vídeo" /></div>)
     expect(container.querySelectorAll('rect.ic-hit')).toHaveLength(curto.colunas.length)
     expect(tips()).toHaveLength(0)
-    expect(viva(container)).toBe('')
+    // a região do dia volta a dizer como ler um dia (nenhuma frase de dia da série antiga sobra)
+    expect(viva(container)).toContain('Use os botões para ler um dia de cada vez.')
+    expect(viva(container)).not.toMatch(/\d\d\/\d\d:/)
     expect(document.querySelectorAll('.ic-hit.on')).toHaveLength(0)
     // o foco continua no mesmo grupo (não remontou); a seta parte do começo da série nova, sem índice fora dela
     expect(document.activeElement).toBe(grupo(container))
@@ -623,5 +627,427 @@ describe('regras do CSS', () => {
   })
   it('a caixa do desenho rola por dentro (a tela não)', () => {
     expect(css).toMatch(/\.ic-sc\{[^}]*overflow-x:auto/)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// A4 Tarefa 13.2: faixa própria de cliques, botões "Dia anterior / Dia seguinte", última data sem corte, views por dia, dia da publicação.
+// ---------------------------------------------------------------------------------------------------------------------------------
+const diaCom = (i: number, imp: number, cliques: number | null): DiaAlcance => ({ dia: addDays('2026-09-01', i), situacao: 'com-impressoes', motivo: null, imp, cliques })
+const diaZero = (i: number): DiaAlcance => ({ dia: addDays('2026-09-01', i), situacao: 'zero-medido', motivo: null, imp: 0, cliques: 0 })
+const diaNm = (i: number): DiaAlcance => ({ dia: addDays('2026-09-01', i), situacao: 'nao-medido', motivo: 'sem-relatorio', imp: null, cliques: null })
+const periodoDe = (n: number) => ({ de: '2026-09-01', ate: addDays('2026-09-01', n - 1), dias: n })
+const serie = (dias: DiaAlcance[], o: Partial<Parameters<typeof buildImpressoes>[2]> = {}): ImpressoesView => buildImpressoes(dias, periodoDe(dias.length), { ...O, ...o })
+const trinta = (): DiaAlcance[] => Array.from({ length: 30 }, (_, i) => (i === 7 ? diaZero(i) : i === 8 ? diaNm(i) : diaCom(i, 40 + i * 13, 1 + (i % 5) * 3)))
+const num = (e: Element, a: string) => Number(e.getAttribute(a))
+
+describe('13.2: os cliques moram numa faixa própria sob as datas (a altura não mede nada)', () => {
+  it('todos os pontos na mesma linha, abaixo das datas e fora de qualquer barra, mesmo com cliques e impressões muito diferentes', () => {
+    const dias = [diaCom(0, 400, 40), diaCom(1, 20, 1), diaCom(2, 3000, 1139), diaCom(3, 9, 0.4), diaZero(4), diaCom(5, 90, 12), diaNm(6), diaCom(7, 2500, 5)]
+    const { container } = montar(serie(dias))
+    const dots = [...container.querySelectorAll('circle.ic-dot')]
+    expect(dots).toHaveLength(6)               // 0,4 arredonda a 0 mas é > 0: ponto com "<1"; zero medido, não medido e o dia com 0 clique não têm ponto
+    expect(new Set(dots.map(d => d.getAttribute('cy'))).size).toBe(1)
+    const cy = num(dots[0]!, 'cy')
+    const baseBarras = Math.max(...[...container.querySelectorAll('rect.ic-bar')].map(r => num(r, 'y') + num(r, 'height')))
+    const datas = [...container.querySelectorAll('text.ic-ax-x')].map(t => num(t, 'y'))
+    expect(cy).toBeGreaterThan(baseBarras)
+    expect(cy).toBeGreaterThan(Math.max(...datas))
+    // o número fica LOGO ABAIXO do ponto, todos na mesma linha também
+    const nums = [...container.querySelectorAll('text.ic-cln')]
+    expect(new Set(nums.map(t => t.getAttribute('y'))).size).toBe(1)
+    expect(num(nums[0]!, 'y')).toBeGreaterThan(cy)
+    // nada de ponto dentro de uma barra: a antiga posição (4,5 px acima da base) não existe mais
+    expect(container.querySelector('g[data-situacao="com-impressoes"] circle.ic-dot')).not.toBeNull()
+    for (const d of dots) expect(num(d, 'cy')).not.toBeCloseTo(baseBarras - 4.5, 1)
+  })
+
+  it('o retângulo rebaixado tem 48 px, o rótulo "cliques estimados por dia" dentro e começa logo sob a linha das datas', () => {
+    const { container } = montar(serie(trinta()))
+    const faixa = container.querySelector('rect.ic-strip')!
+    expect(num(faixa, 'height')).toBe(48)
+    const rotulo = container.querySelector('text.ic-stl')!
+    expect(rotulo.textContent).toBe('cliques estimados por dia')
+    const topo = num(faixa, 'y')
+    expect(num(rotulo, 'y')).toBeGreaterThan(topo)
+    expect(num(rotulo, 'y')).toBeLessThan(topo + 48)
+    expect(num(rotulo, 'x')).toBeGreaterThan(num(faixa, 'x'))
+    // o ponto e o número também ficam dentro dela
+    for (const e of container.querySelectorAll('circle.ic-dot')) { expect(num(e, 'cy')).toBeGreaterThan(topo); expect(num(e, 'cy')).toBeLessThan(topo + 48) }
+    for (const e of container.querySelectorAll('text.ic-cln')) { expect(num(e, 'y')).toBeGreaterThan(topo); expect(num(e, 'y')).toBeLessThan(topo + 48) }
+    // a faixa começa depois das datas; o desenho cresce o suficiente para ela caber
+    expect(topo).toBeGreaterThan(Math.max(...[...container.querySelectorAll('text.ic-ax-x')].map(t => num(t, 'y'))))
+    expect(num(svg(), 'height')).toBeGreaterThanOrEqual(topo + 48)
+    // a anotação "cliques" antiga, na margem esquerda, saiu: o rótulo mora dentro da faixa
+    expect([...container.querySelectorAll('text')].filter(t => t.textContent === 'cliques')).toHaveLength(0)
+  })
+
+  it('o número da faixa tem separador de milhar ("1.139") e "<1" para menos de 1 clique', () => {
+    largura = 700
+    const { container } = montar(serie([diaCom(0, 9000, 1139.4), diaCom(1, 9000, 0.3), diaCom(2, 9000, 25)]))
+    expect([...container.querySelectorAll('text.ic-cln')].map(t => t.textContent)).toEqual(['1.139', '<1', '25'])
+  })
+
+  it('números da faixa: só os que não encostam no anterior (3 px de folga) e nenhum passa da borda direita', () => {
+    largura = 390
+    const { container } = montar(serie(trinta()))
+    const W = num(svg(), 'width')
+    const nums = [...container.querySelectorAll('text.ic-cln')]
+    expect(nums.length).toBeGreaterThan(0)
+    expect(nums.length).toBeLessThan(container.querySelectorAll('circle.ic-dot').length + 1)
+    let fim = -Infinity
+    for (const t of nums) {
+      const w = (t.textContent ?? '').length * 7.4
+      const x = num(t, 'x')
+      expect(x - w / 2).toBeGreaterThanOrEqual(fim + 3)
+      expect(x + w / 2).toBeLessThanOrEqual(W)
+      fim = x + w / 2
+    }
+  })
+
+  it('abaixo de 7,5 px por dia não há ponto (nem número); a tabela e a dica seguem com todos os cliques', async () => {
+    largura = 300
+    const dias = Array.from({ length: 45 }, (_, i) => diaCom(i, 100 + i, 3))
+    const { container } = montar(serie(dias))
+    expect(container.querySelectorAll('circle.ic-dot')).toHaveLength(0)
+    expect(container.querySelectorAll('text.ic-cln')).toHaveLength(0)
+    expect(container.querySelector('rect.ic-strip')).not.toBeNull()
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(45)
+  })
+
+  it('dia com impressão e CTR nulo: hachura na faixa e nenhum ponto nem "0"; o não medido hachura a faixa também', () => {
+    const { container } = montar(serie([diaCom(0, 90, null), diaNm(1), diaCom(2, 50, 4)]))
+    const comImp = container.querySelectorAll('g[data-situacao="com-impressoes"]')
+    expect(comImp[0]!.querySelector('rect.ic-nm-cl')!.getAttribute('fill')).toMatch(/^url\(#/)
+    expect(comImp[0]!.querySelector('circle.ic-dot, text.ic-cln')).toBeNull()
+    expect(container.querySelector('g[data-situacao="nao-medido"] rect.ic-nm:nth-of-type(2)')).not.toBeNull()
+    const faixa = container.querySelector('rect.ic-strip')!
+    const hachuras = [...container.querySelectorAll('rect.ic-nm-cl, g[data-situacao="nao-medido"] rect.ic-nm')].filter(r => num(r, 'y') >= num(faixa, 'y'))
+    expect(hachuras).toHaveLength(2)
+    for (const r of hachuras) expect(num(r, 'y') + num(r, 'height')).toBeLessThanOrEqual(num(faixa, 'y') + 48)
+  })
+
+  it('a legenda dos cliques tem amostra neutra e texto curto; a explicação da altura vive no ⓘ', async () => {
+    const user = userEvent.setup()
+    const { container } = montar(serie(trinta()))
+    const itens = [...container.querySelectorAll('.ic-lg')].map(i => i.textContent)
+    expect(itens).toContain('cliques estimados do dia')
+    expect(itens.join(' ')).not.toMatch(/altura/)
+    await user.click(screen.getByRole('button', { name: 'Como ler este gráfico' }))
+    expect(within(flut()!).getByRole('dialog').textContent).toMatch(/a altura do ponto não mede nada/)
+  })
+})
+
+describe('13.2: botões "Dia anterior" e "Dia seguinte" e a frase do dia', () => {
+  const status = (c: ParentNode = document) => c.querySelector<HTMLElement>('[role="status"]')!
+  const botoes = () => ({ ant: screen.getByRole('button', { name: 'Dia anterior' }), seg: screen.getByRole('button', { name: 'Dia seguinte' }) })
+
+  it('há uma região role=status aria-live=polite entre os dois botões, com as duas frases de ajuda (mouse e toque) enquanto nenhum dia está escolhido', () => {
+    const { container } = montar(cheio())
+    const { ant, seg } = botoes()
+    const s = status(container)
+    expect(s.getAttribute('aria-live')).toBe('polite')
+    expect(s.querySelector('.ic-out-m')!.textContent).toBe('Passe o mouse sobre o gráfico ou use as setas para ler um dia.')
+    expect(s.querySelector('.ic-out-t')!.textContent).toBe('Use os botões para ler um dia de cada vez.')
+    // ordem no documento: botão anterior, região, botão seguinte (a frase fica ENTRE os dois), tudo depois do gráfico
+    expect(ant.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(s.compareDocumentPosition(seg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(grupo(container).compareDocumentPosition(ant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ant.getAttribute('type')).toBe('button')
+    expect(container.querySelectorAll('.ic-step button')).toHaveLength(2)
+  })
+
+  it('sem dia escolhido, o seguinte vai ao primeiro dia e o anterior ao último; a frase é a dica do dia', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container } = montar(v)
+    const { ant, seg } = botoes()
+    await user.click(seg)
+    expect(status(container).textContent).toBe(v.colunas[0]!.dica)
+    expect(document.querySelectorAll('.ic-hit.on')).toHaveLength(1)
+    expect(hit(0).getAttribute('class')).toContain('on')
+    cleanup()
+    const v2 = cheio()
+    const m2 = montar(v2)
+    await user.click(botoes().ant)
+    expect(status(m2.container).textContent).toBe(v2.colunas[v2.colunas.length - 1]!.dica)
+    void ant
+  })
+
+  it('o botão anda de dia em dia e para nas pontas com aria-disabled (nunca disabled: o foco não some)', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const n = v.colunas.length
+    const { container } = montar(v)
+    const { ant, seg } = botoes()
+    await user.click(seg)                       // dia 0
+    expect(ant.getAttribute('aria-disabled')).toBe('true')
+    expect(seg.getAttribute('aria-disabled')).toBe('false')
+    expect(ant.hasAttribute('disabled')).toBe(false)
+    await user.click(ant)                       // continua no 0
+    expect(status(container).textContent).toBe(v.colunas[0]!.dica)
+    await user.click(seg); await user.click(seg)
+    expect(status(container).textContent).toBe(v.colunas[2]!.dica)
+    await user.click(ant)
+    expect(status(container).textContent).toBe(v.colunas[1]!.dica)
+    for (let i = 1; i < n; i++) await user.click(seg)
+    expect(status(container).textContent).toBe(v.colunas[n - 1]!.dica)
+    expect(seg.getAttribute('aria-disabled')).toBe('true')
+    expect(ant.getAttribute('aria-disabled')).toBe('false')
+    expect(seg.hasAttribute('disabled')).toBe(false)
+    await user.click(seg)                       // não passa do último
+    expect(status(container).textContent).toBe(v.colunas[n - 1]!.dica)
+    // o botão desabilitado continua alcançável por Tab (foco não some)
+    seg.focus()
+    expect(document.activeElement).toBe(seg)
+  })
+
+  it('a MESMA frase do dia vem pelas setas, pelo botão, pelo mouse e pela tabela (rótulo, valor e cliques do mesmo dia)', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container } = montar(v)
+    const { seg } = botoes()
+    const dias = [0, 3, 8]
+    // pelo botão
+    for (let i = 0; i <= 8; i++) {
+      await user.click(seg)
+      if (dias.includes(i)) expect(status(container).textContent).toBe(v.colunas[i]!.dica)
+    }
+    // pelas setas (com o grupo focado), do mesmo ponto
+    act(() => grupo(container).focus())
+    for (const i of [0, 3, 8]) {
+      await user.keyboard('{Home}')
+      for (let k = 0; k < i; k++) await user.keyboard('{ArrowRight}')
+      expect(status(container).textContent).toBe(v.colunas[i]!.dica)
+    }
+    // pelo mouse
+    fireEvent.pointerMove(hit(3), { pointerType: 'mouse' })
+    expect(status(container).textContent).toBe(v.colunas[3]!.dica)
+    // pela tabela: a mesma linha do dia traz o mesmo rótulo e os mesmos números da frase
+    await user.click(within(container.querySelector('details')!).getByText('Ver como tabela'))
+    for (const i of dias) {
+      const tr = container.querySelectorAll('tbody tr')[i]!
+      const c = v.colunas[i]!
+      expect(c.dica.startsWith(tr.querySelector('th')!.textContent + ':')).toBe(true)
+      if (c.imp) expect(c.dica).toContain(c.imp)
+      expect(tr.querySelectorAll('td')[0]!.textContent).toBe(c.imp ?? 'não medido')
+    }
+  })
+
+  it('o botão guarda o dia para o teclado continuar dele, e o toque numa coluna seguido do botão anda a partir dela', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container } = montar(v)
+    fireEvent.pointerDown(hit(5), { pointerType: 'touch' })
+    expect(status(container).textContent).toBe(v.colunas[5]!.dica)
+    await user.click(botoes().seg)               // o clique no botão (fora do grupo) NÃO fecha o dia tocado: anda a partir dele
+    expect(status(container).textContent).toBe(v.colunas[6]!.dica)
+    await user.click(botoes().ant); await user.click(botoes().ant)
+    expect(status(container).textContent).toBe(v.colunas[4]!.dica)
+  })
+
+  it('Esc no gráfico volta a região para a ajuda; trocar os dias zera a frase (Next 16)', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container, rerender } = montar(v)
+    await user.click(botoes().seg)
+    expect(status(container).textContent).toBe(v.colunas[0]!.dica)
+    rerender(<div data-obs=""><Impressoes view={de(alcanceCurto('c', ['yt1'], HOJE))} titulo={TITULO} /></div>)
+    expect(status(container).textContent).toContain('Use os botões para ler um dia de cada vez.')
+    expect(status(container).textContent).not.toMatch(/\d\d\/\d\d:/)
+  })
+
+  it('sem permissão ou com erro, nem botões nem número: só a frase', () => {
+    const negado = buildImpressoes(montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE)).dias, periodoDe(21), { ...O, acesso: 'negado' })
+    const { container } = montar(negado)
+    expect(screen.queryByRole('button', { name: 'Dia anterior' })).toBeNull()
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(container.querySelector('svg')).toBeNull()
+    expect(container.textContent).toContain('Só quem edita o site vê as impressões.')
+    expect(container.textContent).not.toMatch(/\d{2}\/\d{2}/)
+  })
+
+  it('renderiza no servidor com os dois botões e as duas ajudas (hidratação idêntica)', () => {
+    const html = renderToString(<div data-obs=""><Impressoes view={cheio()} titulo={TITULO} /></div>)
+    expect(html).toContain('aria-label="Dia anterior"')
+    expect(html).toContain('aria-label="Dia seguinte"')
+    expect(html).toContain('role="status"')
+    expect(html).toContain('Use os botões para ler um dia de cada vez.')
+  })
+})
+
+describe('13.2: a última data do eixo nunca sai cortada (bordaFinal), no canal e no vídeo', () => {
+  for (const escopo of ['canal', 'video'] as const) {
+    it(`a 390 px a última etiqueta cabe no SVG e fica a no máximo 9 px do centro da coluna (${escopo})`, () => {
+      largura = 390
+      const dias = Array.from({ length: 30 }, (_, i) => diaCom(i, 20 + i, 2))
+      const { container } = montar(serie(dias, { escopo, alturaArea: escopo === 'video' ? 110 : 180 }))
+      const W = num(svg(), 'width')
+      const rotulos = [...container.querySelectorAll('text.ic-ax-x')]
+      const ultimo = rotulos[rotulos.length - 1]!
+      expect(ultimo.textContent).toBe('30/09')
+      const meia = (ultimo.textContent ?? '').length * 7.2 / 2
+      const x = num(ultimo, 'x')
+      expect(ultimo.getAttribute('text-anchor')).toBe('middle')
+      expect(x + meia).toBeLessThanOrEqual(W)
+      expect(x - meia).toBeGreaterThan(0)
+      const centroColuna = num(hit(29), 'x') + num(hit(29), 'width') / 2
+      expect(Math.abs(centroColuna - x)).toBeLessThanOrEqual(9)
+      // sem encostar na etiqueta anterior
+      const pen = rotulos[rotulos.length - 2]!
+      expect(x - meia - (num(pen, 'x') + meia)).toBeGreaterThanOrEqual(4)
+    })
+  }
+
+  it('com largura sobrando, a etiqueta final fica no centro da coluna (não é puxada)', () => {
+    largura = 760
+    const { container } = montar(serie(Array.from({ length: 10 }, (_, i) => diaCom(i, 20 + i, 2))))
+    const rotulos = [...container.querySelectorAll('text.ic-ax-x')]
+    const ultimo = rotulos[rotulos.length - 1]!
+    const h = hit(9)
+    expect(num(ultimo, 'x')).toBeCloseTo(num(h, 'x') + num(h, 'width') / 2, 3)
+  })
+
+  it('nunca sai do SVG com larguras de 300 a 560 px nem com séries de 1 a 45 dias', () => {
+    for (const w of [300, 334, 360, 390, 430, 520, 559]) {
+      for (const n of [1, 2, 8, 21, 30, 45]) {
+        largura = w
+        const { container, unmount } = montar(serie(Array.from({ length: n }, (_, i) => diaCom(i, 20 + i, 2))))
+        const W = num(svg(), 'width')
+        for (const t of container.querySelectorAll('text.ic-ax-x')) {
+          const meia = (t.textContent ?? '').length * 7.2 / 2
+          expect(num(t, 'x') + meia, `${w}px ${n} dias`).toBeLessThanOrEqual(W)
+          expect(num(t, 'x') - meia, `${w}px ${n} dias`).toBeGreaterThanOrEqual(0)
+        }
+        unmount()
+      }
+    }
+  })
+})
+
+describe('13.2: o mesmo gráfico desenha "Views por dia" (sem faixa de cliques)', () => {
+  const V = { unidade: 'views' as const }
+  const viewsDias = (): DiaAlcance[] => [diaCom(0, 1100, null), diaCom(1, 39, null), diaZero(2), diaNm(3), diaCom(4, 1, null)]
+
+  it('escopo views: sem faixa, sem ponto, sem número de clique, altura de desenho menor; a anotação do eixo diz "views"', () => {
+    const imp = montar(serie(viewsDias()))
+    const alturaImp = num(svg(), 'height')
+    cleanup()
+    const { container } = montar(serie(viewsDias(), V), 'Views por dia, soma dos vídeos')
+    expect(container.querySelector('rect.ic-strip, text.ic-stl, circle.ic-dot, text.ic-cln, rect.ic-nm-cl')).toBeNull()
+    expect(container.querySelector('text.ic-an')!.textContent).toBe('views')
+    expect(num(svg(), 'height')).toBeLessThan(alturaImp - 40)
+    void imp
+  })
+
+  it('os três estados seguem com forma própria: barra cheia, caixa vazada e coluna hachurada (uma só, sem a faixa)', () => {
+    const { container } = montar(serie(viewsDias(), V))
+    const g = (s: string) => container.querySelectorAll(`g[data-situacao="${s}"]`)
+    expect(g('com-impressoes')).toHaveLength(3)
+    expect(g('zero-medido')).toHaveLength(1)
+    expect(g('nao-medido')).toHaveLength(1)
+    expect(g('zero-medido')[0]!.querySelector('rect.ic-zero')!.getAttribute('fill')).toBe('none')
+    expect(g('nao-medido')[0]!.querySelectorAll('rect.ic-nm')).toHaveLength(1)
+    expect(g('nao-medido')[0]!.querySelector('rect.ic-nm')!.getAttribute('fill')).toMatch(/^url\(#/)
+    expect([...container.querySelectorAll('text.ic-val')].map(t => t.textContent)).toContain('1.100')
+  })
+
+  it('a legenda e a tabela falam de views (e não de relatório, impressão ou clique)', async () => {
+    const user = userEvent.setup()
+    const { container } = montar(serie(viewsDias(), V), 'Views por dia, soma dos vídeos')
+    expect([...container.querySelectorAll('.ic-lg')].map(i => i.textContent)).toEqual([
+      'views do dia (barra cheia)', 'zero medido (caixa vazada): o YouTube registrou nenhuma view', 'não medido (hachura): o YouTube não entregou o dia',
+    ])
+    await user.click(within(container.querySelector('details')!).getByText('Ver como tabela'))
+    expect([...container.querySelectorAll('thead th')].map(t => t.textContent)).toEqual(['Dia', 'Views', 'Situação do dia'])
+    const nm = container.querySelector('tr[data-situacao="nao-medido"]')!
+    expect([...nm.querySelectorAll('td')].map(t => t.textContent)).toEqual(['não medido', 'o YouTube não entregou o dia: não medido'])
+    expect(container.textContent).not.toMatch(/relatório|impressõ|clique/i)
+  })
+
+  it('os botões, as setas e a frase do dia funcionam do mesmo jeito em views', async () => {
+    const user = userEvent.setup()
+    const v = serie(viewsDias(), V)
+    const { container } = montar(v)
+    await user.click(screen.getByRole('button', { name: 'Dia seguinte' }))
+    expect(container.querySelector('[role="status"]')!.textContent).toBe('01/09: 1.100 views')
+    await user.click(screen.getByRole('button', { name: 'Dia seguinte' })); await user.click(screen.getByRole('button', { name: 'Dia seguinte' }))
+    expect(container.querySelector('[role="status"]')!.textContent).toBe('03/09: o YouTube registrou nenhuma view (nenhuma view)')
+  })
+
+  it('coleta parada: o aviso de views fala de views, nunca de relatórios', () => {
+    const dias = viewsDias()
+    const v = serie(dias, { ...V, hoje: addDays('2026-09-05', 9) })
+    expect(v.avisos).toContain('A coleta de views parou em 05/09.')
+    expect(v.avisos.join(' ')).not.toMatch(/relatório/)
+    expect(serie(dias, { ...V, hoje: '2026-09-06' }).avisos.join(' ')).not.toMatch(/parou/)
+  })
+
+  it('a última data também cabe a 390 px em views', () => {
+    largura = 390
+    const dias = Array.from({ length: 28 }, (_, i) => diaCom(i, 10 + i, null))
+    const { container } = montar(serie(dias, V))
+    const W = num(svg(), 'width')
+    const rot = [...container.querySelectorAll('text.ic-ax-x')]
+    expect(num(rot[rot.length - 1]!, 'x') + 18).toBeLessThanOrEqual(W)
+  })
+})
+
+describe('13.2: o dia da publicação', () => {
+  it('uma linha tracejada na coluna do dia e o item da legenda, só quando o dia está no período', () => {
+    const dias = Array.from({ length: 10 }, (_, i) => diaCom(i, 10 + i, 1))
+    const { container } = montar(serie(dias, { publicadoEm: addDays('2026-09-01', 4) }))
+    const linhas = container.querySelectorAll('line.ic-pub')
+    expect(linhas).toHaveLength(1)
+    const h = hit(4)
+    expect(num(linhas[0]!, 'x1')).toBeCloseTo(num(h, 'x') + num(h, 'width') / 2, 3)
+    expect([...container.querySelectorAll('.ic-lg')].map(i => i.textContent)).toContain('dia da publicação')
+    expect(container.querySelector('.ic-sw.pub')).not.toBeNull()
+    cleanup()
+    const { container: c2 } = montar(serie(dias, { publicadoEm: '2020-01-01' }))
+    expect(c2.querySelector('line.ic-pub')).toBeNull()
+    expect([...c2.querySelectorAll('.ic-lg')].map(i => i.textContent)).not.toContain('dia da publicação')
+  })
+})
+
+describe('13.2: regras do CSS do desenho aprovado', () => {
+  const dir = path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors')
+  const css = fs.readFileSync(path.join(dir, '_proprio/impressoes.css'), 'utf8')
+  const tokens = fs.readFileSync(path.join(dir, '_chrome/tokens-telas.css'), 'utf8')
+
+  it('cliques estimados: marca clara neutra no escuro e escura no claro, nunca mais o azul', () => {
+    expect(tokens).toMatch(/--im-cl:#F5EFE6/)
+    expect(tokens).toMatch(/\[data-theme="light"\] \[data-obs\]\{[^}]*--im-cl:#231C14/)
+    expect(tokens).not.toMatch(/#38BDF8/i)
+    expect(css).not.toMatch(/#38BDF8|#0B6BA8/i)
+    expect(css).not.toMatch(/--ic-cl:#/)       // a cor vem do token nos dois temas
+  })
+
+  it('botões do passo com 44 x 44 px fixos (não só no toque) e a região do dia com 44 px de altura mínima', () => {
+    expect(css).toMatch(/\.ic-step button\{[^}]*width:44px[^}]*height:44px/)
+    expect(css).toMatch(/\.ic-out\{[^}]*min-height:44px/)
+    expect(css).toMatch(/\.ic-step\{[^}]*grid-template-columns:44px minmax\(0,1fr\) 44px/)
+  })
+
+  it('a ajuda de mouse só aparece com hover e tela larga; a de toque no resto', () => {
+    expect(css).toMatch(/\.ic-out-m\{display:none\}/)
+    expect(css).toMatch(/@media \(min-width:901px\) and \(hover:hover\)\{[^}]*\.ic-out-m\{display:inline\}[^}]*\.ic-out-t\{display:none\}/)
+  })
+
+  it('o botão no limite não some nem usa cor sozinha (aria-disabled, cursor e opacidade)', () => {
+    expect(css).toMatch(/\.ic-step button\[aria-disabled="true"\]\{[^}]*cursor:not-allowed/)
+  })
+
+  it('a faixa, o rótulo e a linha da publicação usam só token (sem color-mix, sem z-index, texto >= 12 px)', () => {
+    expect(css).toMatch(/\.ic-strip\{/)
+    expect(css).toMatch(/\.ic-stl\{/)
+    expect(css).toMatch(/\.ic-pub\{/)
+    expect(css).not.toMatch(/color-mix\(/)
+    expect(css).not.toMatch(/z-index\s*:\s*-?\d/)
+  })
+
+  it('a caixa do desenho não estoura a coluna de 390 px (o contêiner rola por dentro) e o ⓘ tem alvo de 44 px no toque', () => {
+    expect(css).toMatch(/\.ic-sc\{[^}]*overflow-x:auto/)
+    expect(css).toMatch(/@media \(pointer:coarse\)\{[^}]*\.ic-info\{width:44px;height:44px\}/)
   })
 })
