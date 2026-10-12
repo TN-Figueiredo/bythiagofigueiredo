@@ -15,7 +15,7 @@ import type { ObsChannel } from '@/lib/youtube/observatorio/types'
 import { buildCanalVideos, type ChannelVideoView } from '../_canal/videos-model'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import type { ViewerInput } from '../_chrome/thumb-viewer/viewer-model'
-import { descricaoDaOrigem } from '../_historico/origem-canal'
+import { descricaoDaOrigem, veioDoTopDeImpressoes } from '../_historico/origem-canal'
 import type { PagerView, TrailItem } from '../_historico/view-model'
 import type { DadosDoCanal } from './dados'
 import { fraseDoAlcance, FRASE_NADA_LIDO, lerEstado } from './header-model'
@@ -78,7 +78,7 @@ export function validarFaixa(faixa: readonly CelulaVideo[]): void {
 
 const un = (F: Observatory['fmt'], n: number, um: string, muitos: string): string => `${F.int(n)} ${n === 1 ? um : muitos}`
 
-function faixaDe(obs: Observatory, ch: ObsChannel, cv: ChannelVideoView, semData: boolean): CelulaVideo[] {
+function faixaDe(obs: Observatory, cv: ChannelVideoView, semData: boolean): CelulaVideo[] {
   const F = obs.fmt, D = obs.date
   const v = semData ? null : obs.video(cv.id)!
   const { views, likes, comments } = cv
@@ -154,7 +154,6 @@ function faixaDe(obs: Observatory, ch: ObsChannel, cv: ChannelVideoView, semData
     value: cv.durText, missing: cv.durText == null ? 'sem duração' : null,
     conta: cv.durText == null ? 'O YouTube não devolveu a duração deste vídeo, então ela não é medida.' : 'Duração do vídeo no YouTube, lida junto com as views.',
   }
-  void ch
   const faixa = [viewsCel, curtidasCel, comentariosCel, engajamento, multiplo, duracao]
   validarFaixa(faixa)
   return faixa
@@ -165,7 +164,7 @@ function faixaDe(obs: Observatory, ch: ObsChannel, cv: ChannelVideoView, semData
 export function buildProprioVideoHeader(obs: Observatory, videoId: string): ProprioVideoHeader | null {
   const ch = canalProprioDoVideo(obs, videoId)
   if (!ch) return null
-  const cv = buildCanalVideos(obs, ch.id).videos.find(x => x.id === videoId)
+  const cv = buildCanalVideos(obs, ch.id, { soVideo: videoId }).videos.find(x => x.id === videoId)
   if (!cv) return null
   const semData = cv.grupo === 'sem-data'
   const formato = cv.isShort === true ? 'Short' : cv.isShort === false ? 'vídeo longo' : 'formato não confirmado'
@@ -173,7 +172,7 @@ export function buildProprioVideoHeader(obs: Observatory, videoId: string): Prop
   return {
     id: cv.id, ytId: cv.ytId, titulo: cv.title, url: cv.url, thumb: cv.thumbSrc,
     meta: `${quando} · ${formato}`,
-    faixa: faixaDe(obs, ch, cv, semData),
+    faixa: faixaDe(obs, cv, semData),
     canal: { id: ch.id, name: ch.name, href: link.canal(ch.id) },
     viewer: cv.viewer ?? viewerSoAtual(cv),
     semData,
@@ -220,11 +219,12 @@ function paginador(obs: Observatory, ch: ObsChannel, videoId: string, titulo: st
     return first >= 1 && first - 1 + doCanal.length <= tot ? { first, tot } : null
   })()
 
+  const from = p.from === 'canais' ? 'canais' as const : origemDe(p.from)
   const hrefDe = (j: number): string | null => {
     const to = lista[j]
     if (to == null) return null
     return link.historico(to, {
-      ...(p.from === 'canais' || origemDe(p.from) ? { from: p.from as 'canais' } : {}),
+      ...(from ? { from } : {}),
       ...(back ? { back } : {}),
       ...(naLista ? { ids: doCanal } : {}),
       ...(canais ? { canal: ch.id } : {}),
@@ -236,10 +236,16 @@ function paginador(obs: Observatory, ch: ObsChannel, videoId: string, titulo: st
   const agora = k < 0 ? 0 : place ? place.first + k : k + 1
   const de = place ? place.tot : lista.length
 
-  const desc = naLista && canais ? descricaoDaOrigem(back ?? '', { own: true }) : null
+  // a frase só afirma a ordem que o site SABE: a do top de impressões (marcador próprio no back), a de uma lista da grade (descrita pelo back) ou,
+  // sem `ids=`, a do canal por data. Um back que não descreve lista (`?painel=1` de um link antigo) não afirma ordem nenhuma.
+  const descDaLista = canais ? descricaoDaOrigem(back ?? '') : null
+  const ordemDaLista = veioDoTopDeImpressoes(back) ? 'na ordem do top de impressões' : `na ordem da lista: ${descDaLista ?? 'a da lista aberta'}`
+  // sem `ids=` a tela anda pela data do canal: é "a ordem da lista" só quando a lista de origem é essa mesma (sem `back`, ou a grade no padrão)
+  const listaEhPorData = back == null || descDaLista === ORDEM_PADRAO
   const ordem = naLista
-    ? (canais ? `na ordem da lista: ${desc ?? 'a da lista aberta'}` : 'na ordem da lista aberta')
-    : idsDaUrl.length > 0 ? `fora da lista de origem, na ordem do canal: ${ORDEM_PADRAO}` : `na ordem da lista: ${ORDEM_PADRAO}`
+    ? (canais ? ordemDaLista : 'na ordem da lista aberta')
+    : idsDaUrl.length > 0 ? `fora da lista de origem, na ordem do canal: ${ORDEM_PADRAO}`
+      : listaEhPorData ? `na ordem da lista: ${ORDEM_PADRAO}` : `na ordem do canal: ${ORDEM_PADRAO}`
   const position = k < 0 ? 'vídeo sem data de publicação, fora da lista do canal' : `vídeo ${agora} de ${de}, ${ordem}`
 
   // na ponta o botão fica na tela, apagado, com o motivo; se a lista é só uma janela da lista de origem, a ponta dela não é o fim da lista
@@ -258,7 +264,8 @@ function paginador(obs: Observatory, ch: ObsChannel, videoId: string, titulo: st
   }
 }
 
-export function buildProprioVideoPage(obs: Observatory, videoId: string, sp: Params, dados: DadosDoCanal): ProprioVideoPage | null {
+/** A página SEM o dado privado: o modelo que a rota monta ANTES de ler o alcance e o diário (sem modelo não há o que ler). null = o vídeo não é de um canal próprio ou o cartão não se achou. */
+export function buildProprioVideoBase(obs: Observatory, videoId: string, sp: Params): Omit<ProprioVideoPage, 'alcanceNota'> | null {
   const header = buildProprioVideoHeader(obs, videoId)
   const ch = canalProprioDoVideo(obs, videoId)
   if (!header || !ch) return null
@@ -271,11 +278,17 @@ export function buildProprioVideoPage(obs: Observatory, videoId: string, sp: Par
     { text: ch.name, href: canalHref, ...(fromCanal ? { voltaAoCanal: ch.id } : {}) },
     { text: 'Vídeo' },
   ]
+  return { header, crumbs, fromCanal, pager: paginador(obs, ch, videoId, header.titulo, sp, canalHref) }
+}
+
+/** A frase de quando o alcance (impressões e cliques) não pode ser mostrado; null = foi lido. */
+export function alcanceNotaDe(dados: DadosDoCanal): string | null {
   const alc = lerEstado(dados.alcance)
   const frase = alc.estado !== 'ok' ? fraseDoAlcance(alc.estado) : alc.resumo.diasLidos === 0 ? FRASE_NADA_LIDO : null
-  return {
-    header, crumbs, fromCanal,
-    pager: paginador(obs, ch, videoId, header.titulo, sp, canalHref),
-    alcanceNota: frase != null ? `Impressões e cliques deste vídeo: ${frase}.` : null,
-  }
+  return frase != null ? `Impressões e cliques deste vídeo: ${frase}.` : null
+}
+
+export function buildProprioVideoPage(obs: Observatory, videoId: string, sp: Params, dados: DadosDoCanal): ProprioVideoPage | null {
+  const base = buildProprioVideoBase(obs, videoId, sp)
+  return base ? { ...base, alcanceNota: alcanceNotaDe(dados) } : null
 }

@@ -2,16 +2,16 @@
 // A4 Tarefa 11: o modelo da página do VÍDEO próprio — cabeçalho, faixa de seis números com a conta feita, paginador na ordem da lista de
 // origem, trilha e a frase de alcance. Puro: recebe `obs` e o dado privado já lido. Cada número é testado em cada estado de dado ausente
 // (nulo nunca vira zero) e o que aparece é o MESMO texto do cartão da lista (T7) e do motor.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { proprioWorld, primeiroProprio, DADOS } from './proprio-fixture'
 import { a3World } from './a3-fixture'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { Dataset, ObsVideo } from '@/lib/youtube/observatorio/types'
-import { buildCanalVideos } from '@/app/cms/(authed)/youtube/competitors/_canal/videos-model'
+import { buildCanalVideos, numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/videos-model'
 import {
   buildProprioVideoHeader, buildProprioVideoPage, canalProprioDoVideo, validarFaixa, type CelulaVideo,
 } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-model'
-import { descricaoDaOrigem, origemDoCanal } from '@/app/cms/(authed)/youtube/competitors/_historico/origem-canal'
+import { BACK_DO_TOP_IMP, descricaoDaOrigem, origemDoCanal } from '@/app/cms/(authed)/youtube/competitors/_historico/origem-canal'
 
 const DAY = 86_400_000
 const ORDEM = ['views', 'curtidas', 'comentarios', 'engajamento', 'multiplo', 'duracao'] as const
@@ -426,13 +426,13 @@ describe('T11 alcance: a frase do dado privado (a faixa não o usa; o lugar fica
 
 describe('T11 origem do canal próprio (descricaoDaOrigem)', () => {
   it('ordenar por impressões é uma ordem do canal próprio e vira frase; o concorrente continua sem ela', () => {
-    expect(descricaoDaOrigem('?sort=imp', { own: true })).toBe('mais impressões primeiro')
-    expect(descricaoDaOrigem('?sort=imp&dir=asc&fmt=longos&q=abc', { own: true })).toBe('longos, busca “abc”, menos impressões primeiro')
-    expect(descricaoDaOrigem('', { own: true })).toBe('do mais novo ao mais antigo')
+    expect(descricaoDaOrigem('?sort=imp')).toBe('mais impressões primeiro')
+    expect(descricaoDaOrigem('?sort=imp&dir=asc&fmt=longos&q=abc')).toBe('longos, busca “abc”, menos impressões primeiro')
+    expect(descricaoDaOrigem('')).toBe('do mais novo ao mais antigo')
     expect(origemDoCanal('?sort=imp', 'Leo')).toBeNull()      // concorrente: 'imp' não existe (expectativa inalterada)
   })
   it('estados que o canal próprio não escreve numa lista de vídeos dão null (aba, ordem e formato do concorrente)', () => {
-    for (const b of ['?tab=retencao', '?tab=trocas', '?tab=leitura', '?sort=vpd', '?fmt=fixados', '?sort=lixo', 'sem-interrogacao']) expect(descricaoDaOrigem(b, { own: true }), b).toBeNull()
+    for (const b of ['?tab=retencao', '?tab=trocas', '?tab=leitura', '?sort=vpd', '?fmt=fixados', '?sort=lixo', 'sem-interrogacao']) expect(descricaoDaOrigem(b), b).toBeNull()
   })
   it('o do concorrente não mudou', () => {
     expect(origemDoCanal('?fmt=longos&sort=vpd', 'Leo')).toEqual({ of: 'de Leo (longos, mais views por dia primeiro)', outside: 'fora da lista de Leo (longos, mais views por dia primeiro)' })
@@ -446,5 +446,100 @@ describe('T11 concorrente com o mesmo id de vídeo não existe aqui: a rota deci
     const conc = w.obs.videos.find(v => !w.obs.channel(v.ch)!.own)!
     expect(canalProprioDoVideo(w.obs, proprio.id)?.id).toBe(proprio.ch)
     expect(canalProprioDoVideo(w.obs, conc.id)).toBeNull()
+  })
+})
+
+describe('T13.0 H1/H2: a frase do paginador diz a ordem que o site sabe, nunca outra', () => {
+  const origem = { from: 'canais', canal: BASE.canalId, ids: 'v7,v2,v9', pos: '2', tot: '3' }
+  const pag = (id: string, p: Record<string, string>) => buildProprioVideoPage(BASE.obs, id, p, DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje))!.pager
+
+  it('lista por data (grade no padrão): "na ordem da lista: do mais novo ao mais antigo"', () => {
+    expect(pag('v2', { ...origem, back: '' }).position).toBe('vídeo 2 de 3, na ordem da lista: do mais novo ao mais antigo')
+  })
+  it('lista por impressões: "na ordem da lista: mais impressões primeiro"', () => {
+    expect(pag('v2', { ...origem, back: '?sort=imp' }).position).toBe('vídeo 2 de 3, na ordem da lista: mais impressões primeiro')
+  })
+  it('vindo do top de "Como o canal está" (marcador próprio no back): "na ordem do top de impressões", nunca "do mais novo"', () => {
+    const p = pag('v2', { ...origem, back: BACK_DO_TOP_IMP })
+    expect(p.position).toBe('vídeo 2 de 3, na ordem do top de impressões')
+    expect(p.position).not.toMatch(/mais novo/)
+    // o marcador atravessa o Anterior/Próximo: o vizinho continua dizendo a ordem do top
+    expect(p.prev).toBe(link.historico('v7', { from: 'canais', canal: BASE.canalId, back: BACK_DO_TOP_IMP, ids: ['v7', 'v2', 'v9'], pos: 1, tot: 3 }))
+    expect(pag('v9', { ...origem, back: BACK_DO_TOP_IMP, pos: '3' }).position).toBe('vídeo 3 de 3, na ordem do top de impressões')
+  })
+  it('back que só abre a seção (?painel=1, link antigo sem marcador) não descreve lista: o paginador não afirma ordem nenhuma', () => {
+    const p = pag('v2', { ...origem, back: '?painel=1' })
+    expect(p.position).toBe('vídeo 2 de 3, na ordem da lista: a da lista aberta')
+    expect(p.position).not.toMatch(/mais novo/)
+    expect(descricaoDaOrigem('?painel=1')).toBeNull()
+    expect(descricaoDaOrigem(BACK_DO_TOP_IMP)).toBeNull()
+    expect(descricaoDaOrigem('?painel=1&sort=imp')).toBe('mais impressões primeiro')   // painel junto de uma ordenação conhecida: a ordenação vale
+  })
+  it('sem ids=, com back que descreve outra ordem (favorito antigo): a tela anda pela data e diz "na ordem do canal", não "da lista"', () => {
+    const p = pag('v5', { from: 'canais', canal: BASE.canalId, back: '?sort=vistos' })
+    expect(p.position).toBe('vídeo 6 de 35, na ordem do canal: do mais novo ao mais antigo')
+    expect(pag('v5', { from: 'canais', canal: BASE.canalId, back: '?painel=1' }).position).toBe('vídeo 6 de 35, na ordem do canal: do mais novo ao mais antigo')
+    // sem back, ou com a grade no padrão, a lista de origem É a ordem do canal: a frase de antes
+    expect(pag('v5', {}).position).toBe('vídeo 6 de 35, na ordem da lista: do mais novo ao mais antigo')
+    expect(pag('v5', { from: 'canais', canal: BASE.canalId, back: '' }).position).toBe('vídeo 6 de 35, na ordem da lista: do mais novo ao mais antigo')
+  })
+  it('vindo de Outliers/Mudanças/Insights/Comparar o `from` e o `back` seguem nos links do vizinho (sem cast: o tipo é o de link.historico)', () => {
+    const p = pag('v2', { from: 'outliers', back: '?window=7', ids: 'v7,v2,v9' })
+    expect(p.position).toBe('vídeo 2 de 3, na ordem da lista aberta')
+    expect(p.next).toBe(link.historico('v9', { from: 'outliers', back: '?window=7', ids: ['v7', 'v2', 'v9'] }))
+    expect(pag('v5', { from: 'lixo' }).next).toBe(link.historico('v6', {}))
+  })
+})
+
+describe('T13.0 H3: a tela do vídeo monta o cartão de UM vídeo, não o canal inteiro', () => {
+  const w = proprioWorld({
+    mut: ds => {
+      primeiroProprio(ds).undated.push({ id: 'sem-data-h3', ytId: 'ytsdh3', title: 'Sem data', url: 'https://youtu.be/ytsdh3', isShort: false, dur: 125, views: 1500, likes: 5, comments: 1, pinned: false, checkedAt: null })
+    },
+  })
+  const todos = buildCanalVideos(w.obs, w.canalId).videos
+  const alvo = todos.find(c => c.grupo !== 'sem-data')!
+
+  it('devolve só esse cartão, igual ao da lista inteira (datado e sem data); id que não é do canal, lista vazia', () => {
+    expect(todos.length).toBeGreaterThan(3)
+    expect(buildCanalVideos(w.obs, w.canalId, { soVideo: alvo.id }).videos).toEqual([alvo])
+    const semData = todos.find(c => c.id === 'sem-data-h3')!
+    expect(buildCanalVideos(w.obs, w.canalId, { soVideo: 'sem-data-h3' }).videos).toEqual([semData])
+    expect(buildCanalVideos(w.obs, w.canalId, { soVideo: 'nao-e-deste-canal' }).videos).toEqual([])
+    // sem a opção, a lista continua inteira
+    expect(buildCanalVideos(w.obs, w.canalId).videos).toHaveLength(todos.length)
+  })
+  it('o cabeçalho do vídeo consulta as trocas (changesIn) UMA vez, não uma por vídeo do canal', () => {
+    const espia = vi.spyOn(w.obs, 'changesIn')
+    try {
+      buildCanalVideos(w.obs, w.canalId)
+      const inteira = espia.mock.calls.length
+      expect(inteira).toBeGreaterThanOrEqual(todos.filter(c => c.grupo !== 'sem-data').length)
+      espia.mockClear()
+      expect(buildProprioVideoHeader(w.obs, alvo.id)!.id).toBe(alvo.id)
+      expect(espia).toHaveBeenCalledTimes(1)
+      espia.mockClear()
+      expect(buildProprioVideoHeader(w.obs, 'sem-data-h3')!.semData).toBe(true)
+      expect(espia).not.toHaveBeenCalled()
+    } finally { espia.mockRestore() }
+  })
+  it('o cabeçalho montado assim é o mesmo de antes (a faixa não muda)', () => {
+    const h = buildProprioVideoHeader(w.obs, alvo.id)!
+    expect(h.titulo).toBe(alvo.title); expect(h.faixa.find(c => c.key === 'views')!.value).toBe(alvo.viewsText)
+  })
+})
+
+describe('T13.0 H18/NB: o espaço antes de "mil" não quebra linha (U+00A0), na lista, na faixa e nas réguas', () => {
+  it('numNb põe NBSP antes de "mil" e "mi"; abaixo de mil não há espaço nenhum a trocar', () => {
+    const F = { num: (n: number) => (n >= 1_000_000 ? `${n / 1_000_000} mi` : n >= 1000 ? `${n / 1000} mil` : String(n)) }
+    expect(numNb(F, 1500)).toBe('1.5\u00A0mil')
+    expect(numNb(F, 2_000_000)).toBe('2\u00A0mi')
+    expect(numNb(F, 12)).toBe('12')
+  })
+  it('a views de 1.500 do cartão e da faixa saem com NBSP', () => {
+    const w = proprioWorld({ mut: ds => { const v = ds.videos.find(x => x.ch === primeiroProprio(ds).id)!; v.views = 1500 } })
+    const c = buildCanalVideos(w.obs, w.canalId).videos.find(x => x.views === 1500)!
+    expect(c.viewsText).toBe('1,5\u00A0mil')
+    expect(buildProprioVideoHeader(w.obs, c.id)!.faixa.find(x => x.key === 'views')!.value).toBe('1,5\u00A0mil')
   })
 })

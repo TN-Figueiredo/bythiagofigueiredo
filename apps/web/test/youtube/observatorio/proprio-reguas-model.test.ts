@@ -2,6 +2,10 @@
 // A4 Tarefa 12: "Este vídeo no canal" — posição, terço e frase (modelo puro). Nulo nunca vira zero: vídeo sem o dado fica fora da régua e da
 // contagem; empate divide a posição e o terço sai da posição média. A frase diz só o que o dado sustenta (sem número, sem causa).
 import { afterEach, describe, it, expect } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { escalar } from '@/app/cms/(authed)/youtube/competitors/_chrome/regua/regua-model'
+import { foraDosGuardadosFrase } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import { posicaoNoCanal, buildReguas, type EntradaReguas } from '@/app/cms/(authed)/youtube/competitors/_proprio/reguas-model'
 import { buildCanalVideos } from '@/app/cms/(authed)/youtube/competitors/_canal/videos-model'
 import { buildProprioVideoHeader } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-model'
@@ -253,9 +257,56 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
     const naoPrimeiro = buildReguas({ ...base(mk(6), imp(['y0', 5], ['y1', 9], ['y2', 2])), videoId: 'v0' })
     expect(naoPrimeiro.frase).not.toMatch(/poucas/); expect(naoPrimeiro.pouco).not.toBeNull() // o aviso da nota vale para o canal todo
   })
-  it('a nota de pouco volume diz o volume do canal e a janela; o singular de 1 impressão', () => {
-    expect(buildReguas({ ...base(mk(6), imp(['y0', 1], ['y1', 1], ['y2', 1])), videoId: 'v0' }).pouco).toMatch(/^3 impressões no canal de 09\/09 a 07\/10\./)
-    expect(buildReguas({ ...base(mk(6), imp(['y0', 1])), videoId: 'v0' }).pouco).toMatch(/^1 impressão no canal /)
+  it('a nota de pouco volume diz o volume do relatório e a janela; o singular de 1 impressão', () => {
+    expect(buildReguas({ ...base(mk(6), imp(['y0', 1], ['y1', 1], ['y2', 1])), videoId: 'v0' }).pouco).toMatch(/^3 impressões no relatório de 09\/09 a 07\/10\./)
+    expect(buildReguas({ ...base(mk(6), imp(['y0', 1])), videoId: 'v0' }).pouco).toMatch(/^1 impressão no relatório /)
+  })
+  it('T13.0 H16: o total é o do RELATÓRIO, e a nota diz "no relatório"; o que está fora dos guardados é dito pela função única (nunca "no canal")', () => {
+    // 4 vídeos do canal somam 3 impressões; um ytId do relatório que não está em `videos` soma outras 4: o total do relatório é 7
+    const r = buildReguas({ ...base(mk(6), imp(['y0', 1], ['y1', 1], ['y2', 1], ['fora', 4])), videoId: 'v0' })
+    expect(r.pouco).toBe(`7 impressões no relatório de 09/09 a 07/10. ${foraDosGuardadosFrase(1, n => String(n))} Com tão poucas, a posição em impressões muda de um dia para o outro.`)
+    expect(r.pouco).not.toMatch(/no canal/)
+    // a base continua contando só os vídeos guardados (3), e diz isso ao lado
+    expect(r.base).toBe('Entre 3 vídeos com impressões medidas de 09/09 a 07/10.')
+    // dois fora: o plural da mesma função
+    const dois = buildReguas({ ...base(mk(6), imp(['y0', 1], ['y1', 1], ['y2', 1], ['fora', 4], ['fora2', 1])), videoId: 'v0' })
+    expect(dois.pouco).toContain(foraDosGuardadosFrase(2, n => String(n)))
+    expect(dois.pouco).toMatch(/^8 impressões no relatório /)
+    // nada fora: a nota não ganha a frase de "fora dos guardados"
+    expect(buildReguas({ ...base(mk(6), imp(['y0', 1], ['y1', 1], ['y2', 1])), videoId: 'v0' }).pouco).not.toMatch(/guardados/)
+  })
+  it('T13.0 H16: o volume do relatório decide o "pouco": 1.000 só porque o vídeo de fora tem muita impressão deixa de ser pouco', () => {
+    expect(buildReguas({ ...base(mk(6), imp(['y0', 1], ['y1', 1], ['y2', 1], ['fora', 5000])), videoId: 'v0' }).pouco).toBeNull()
+  })
+  it('T13.0 H19: ninguém é "Último do canal" (tom duro); o menor é "O menor do canal", e a base vai junto de toda posição em impressões', () => {
+    const r = buildReguas({ ...base(mk(6), imp(['y0', 2], ['y1', 9], ['y2', 5], ['y3', 7])), videoId: 'v0' })
+    expect(linha(r, 'impressoes').pos).toMatchObject({ pos: 4, de: 4 })
+    expect(r.frase).toMatch(/▼ O menor do canal em impressões/)
+    expect(r.frase).not.toMatch(/[Úú]ltimo do canal/)
+    // a posição em impressões só é afirmada com a base ao lado
+    expect(r.base).toBe('Entre 4 vídeos com impressões medidas de 09/09 a 07/10.')
+    for (const videoId of ['v0', 'v1', 'v2', 'v3']) {
+      const x = buildReguas({ ...base(mk(6), imp(['y0', 2], ['y1', 9], ['y2', 5], ['y3', 7])), videoId })
+      expect(x.frase).not.toMatch(/[Úú]ltimo do canal/)
+      if (/impressões/.test(x.frase)) expect(x.base, videoId).not.toBeNull()
+    }
+  })
+  it('T13.0 H18: a mediana é a MEDIANA, não a média (série que não é progressão aritmética: 1, 2, 100)', () => {
+    const r = buildReguas({ ...base(mk(3, (v, k) => { v.views = [1, 2, 100][k]! })), alcanceLido: false, videoId: 'v1' })
+    const views = linha(r, 'views')
+    expect(views.medianaPct).toBe(escalar([1, 2, 100]).pct(2))
+    expect(views.medianaPct).not.toBe(escalar([1, 2, 100]).pct(103 / 3))   // a média (34,3) cairia noutro ponto do eixo
+    expect(views.sr).toMatch(/mediana 2$/)
+  })
+  it('T13.0 H18: views a partir de 1.000 saem com o espaço que não quebra linha antes de "mil" (numNb), em valor, mínimo e máximo', () => {
+    const r = buildReguas({ ...base(mk(3, (v, k) => { v.views = [1500, 2200, 12000][k]! })), alcanceLido: false, videoId: 'v0' })
+    const views = linha(r, 'views')
+    expect(views.valor).toBe('1,5\u00A0mil')
+    expect(views.min).toBe('1,5\u00A0mil'); expect(views.max).toBe('12\u00A0mil')
+    expect(views.sr).toContain('mediana 2,2\u00A0mil')
+    // as impressões, ao contrário, saem como o cartão da lista as escreve (F.num, sem NBSP)
+    const comImp = buildReguas({ ...base(mk(3), imp(['y0', 1500], ['y1', 2200], ['y2', 12000])), videoId: 'v0' })
+    expect(linha(comImp, 'impressoes').valor).toBe('1,5 mil')
   })
   it('cada oração da frase leva a forma do SEU terço: ▲ em cima, ● no meio, ▼ embaixo', () => {
     const videos = mk(9, (v, k) => { v.likes = k * 10 }) // curtidas: v4 é o 5º de 9 (meio); engajamento e comentários empatam (meio)
@@ -264,7 +315,7 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
     const topo = buildReguas({ ...base(videos), alcanceLido: false, videoId: 'v8' }).frase
     expect(topo).toBe('▲ Primeiro do canal em views, engajamento, curtidas e comentários.')
     const fundo = buildReguas({ ...base(videos), alcanceLido: false, videoId: 'v0' }).frase
-    expect(fundo).toBe('▼ Último do canal em views, engajamento, curtidas e comentários.')
+    expect(fundo).toBe('▼ O menor do canal em views, engajamento, curtidas e comentários.')
   })
   it('a régua tem um traço por vídeo com o dado, do menor ao maior, este marcado; a mediana cai no eixo', () => {
     const r = buildReguas({ ...base(mk(5)), alcanceLido: false, videoId: 'v3' })
@@ -333,5 +384,36 @@ describe('o mesmo número tem o mesmo texto da faixa do vídeo (T11) e do cartã
   it('com e sem `fmt` do motor o texto é o mesmo (os formatadores da fábrica são os do motor)', () => {
     const sem = { ...entrada(cartoes[0]!.id), fmt: undefined }
     expect(buildReguas(sem).linhas.map(l => [l.valor, l.min, l.max])).toEqual(buildReguas(entrada(cartoes[0]!.id)).linhas.map(l => [l.valor, l.min, l.max]))
+  })
+})
+
+describe('T13.0 H20: o modelo é puro de verdade (regra 6: nenhum leitor, nenhuma prova de edição, nenhum dado privado cru)', () => {
+  const DIR = join(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_proprio')
+  const modelos = readdirSync(DIR).filter(n => /-model\.ts$/.test(n))
+  const semComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+  /** Quem importa o leitor, a prova de edição ou o módulo de dados COMO VALOR (import de tipo é apagado na compilação). */
+  const proibidos = (fonte: string): string[] => {
+    const out: string[] = []
+    for (const m of semComentarios(fonte).matchAll(/import\s+(type\s+)?([^'"]*?)\s*from\s*['"]([^'"]+)['"]/g)) {
+      const [, tipo, , de] = m
+      if (tipo) continue
+      if (/proprio\/ler$/.test(de!)) out.push(`importa o leitor (${de})`)
+      if (/proprio\/edicao$/.test(de!)) out.push(`importa a prova de edição (${de})`)
+      if (/(^|\/)dados$/.test(de!)) out.push(`importa o módulo de dados como valor (${de})`)
+    }
+    return out
+  }
+  it('a varredura enxerga os modelos (não passa por varrer a pasta errada)', () => {
+    expect(modelos).toEqual(expect.arrayContaining(['reguas-model.ts', 'video-model.ts', 'impressoes-model.ts', 'como-esta-model.ts', 'header-model.ts']))
+  })
+  it('nenhum modelo de _proprio importa o leitor, a prova de edição ou o módulo de dados como valor', () => {
+    for (const n of modelos) expect(proibidos(readFileSync(join(DIR, n), 'utf8')), n).toEqual([])
+  })
+  it('controles negativos: a varredura pega o que deve pegar', () => {
+    expect(proibidos("import { lerAlcance } from '@/lib/youtube/observatorio/proprio/ler'")).toHaveLength(1)
+    expect(proibidos("import { provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'")).toHaveLength(1)
+    expect(proibidos("import { lerDadosDoCanal } from './dados'")).toHaveLength(1)
+    expect(proibidos("import type { DadosDoCanal } from './dados'")).toEqual([])           // tipo: apagado na compilação
+    expect(proibidos("// import { lerAlcance } from '@/lib/youtube/observatorio/proprio/ler'")).toEqual([])
   })
 })

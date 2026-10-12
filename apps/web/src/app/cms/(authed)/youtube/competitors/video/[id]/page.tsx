@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
@@ -9,12 +10,19 @@ import { HistoricoScreen } from '../../_historico/historico-screen'
 import { Pager } from '../../_historico/pager'
 import '../../_historico/historico.css'
 import { lerDadosDoCanal, longosAcompanhadosDe, podeVerPrivado } from '../../_proprio/dados'
-import { buildProprioVideoPage, canalProprioDoVideo } from '../../_proprio/video-model'
+import { alcanceNotaDe, buildProprioVideoBase, canalProprioDoVideo } from '../../_proprio/video-model'
 import { ProprioVideoScreen } from '../../_proprio/video-screen'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
 import { pinVideo, unpinVideo, syncCompetitorNow } from '../../actions'
 
-export const metadata = { title: 'Histórico do vídeo · Competidores' }
+/** A página e o título pedem o mesmo conjunto: `cache` do React junta as duas chamadas da MESMA requisição em uma leitura só. */
+const abrirPagina = cache(() => openObservatoryPage())
+
+/** O dono do canal do vídeo decide também a aba do navegador: "Vídeo" para o próprio, "Histórico do vídeo" para o resto (o título do concorrente não mudou). */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const [{ id }, { obs }] = await Promise.all([params, abrirPagina()])
+  return { title: canalProprioDoVideo(obs, id) ? 'Vídeo · Competidores' : 'Histórico do vídeo · Competidores' }
+}
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
@@ -22,22 +30,22 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { siteId, obs, savedNiche, meuCanalLembrado, now } = await openObservatoryPage()
+  const { siteId, obs, savedNiche, meuCanalLembrado, now } = await abrirPagina()
   // O dono do canal do vídeo decide a tela (spec 17): vídeo de canal próprio abre a tela do vídeo próprio; o resto continua no Histórico, como sempre.
   // A decisão é do servidor, a partir do canal resolvido do vídeo; nenhum parâmetro da URL entra nela.
   const proprio = canalProprioDoVideo(obs, id)
   if (proprio) {
+    // o modelo da página nasce ANTES de qualquer leitura privada: sem ele não há o que ler, e um vídeo próprio nunca cai no Histórico por acidente
+    const base = buildProprioVideoBase(obs, id, flat)
+    if (!base) throw new Error(`Vídeo próprio ${id}: o cartão não foi achado no conjunto do canal ${proprio.id}`)
     // o dado privado do canal INTEIRO (as réguas precisam de todos os vídeos), depois da guarda de edição; erro de leitura LANÇA (D5)
     const edicao = await podeVerPrivado(siteId)
     const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, edicao })
-    const pv = buildProprioVideoPage(obs, id, flat, dados)
-    if (pv) {
-      return (
-        <TrailChrome crumbs={pv.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={pv.pager} naTrilha />}>
-          <ProprioVideoScreen header={pv.header} pager={pv.pager} alcanceNota={pv.alcanceNota} fromCanal={pv.fromCanal} />
-        </TrailChrome>
-      )
-    }
+    return (
+      <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}>
+        <ProprioVideoScreen header={base.header} pager={base.pager} alcanceNota={alcanceNotaDe(dados)} fromCanal={base.fromCanal} />
+      </TrailChrome>
+    )
   }
   const formParam = parseNiche(flat.niche) ?? undefined
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)
