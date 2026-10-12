@@ -133,8 +133,8 @@ export async function GET(req: NextRequest) {
       // BATCH_SIZE 15 + cron */20: spike S2 (docs/superpowers/plans/2026-10-02-observatorio-spikes-s2.md)
       const BATCH_SIZE = 15
       // A guarda de schema roda ANTES de qualquer canal: sem a migration o sync já lê colunas novas na trava do canal, e a
-      // série diária de todos cairia. Vermelho na primeira linha, nada gravado. (A Tarefa 13 troca 'e1' por 'e1e2'.)
-      const notReady = await schemaReady(supabase, 'e1')
+      // série diária de todos cairia. Vermelho na primeira linha, nada gravado. O sync lê e grava colunas e tabelas da MG2 (faixa da série), então a guarda confere as duas.
+      const notReady = await schemaReady(supabase, 'e1e2')
       if (notReady) {
         await recordCronFailure('sync-youtube-competitors', notReady)
         return { status: 'error' as const, mode: 'competitors', error: notReady, health_written: true }

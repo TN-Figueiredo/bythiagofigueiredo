@@ -12,7 +12,8 @@ import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYou
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
-import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
+import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
+import { classifyTiers, type Tier } from '@/lib/youtube/competitor-tiers'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -67,6 +68,12 @@ export interface SyncResult {
   quotaError?: true
   /** (A5) As unidades que não foram gravadas por causa do quotaError (= unitsUsed); o lote soma e tenta uma vez no fim do disparo. */
   quotaUnitsLost?: number
+  /** (A5 E2) Vídeos que mudaram de faixa de série (diária ou semanal) nesta sincronização. */
+  tierChanges?: number
+  /** (A5 E2) Vídeos da regra diária deixados na semanal pelo teto de segurança (nunca em silêncio). */
+  cutByCap?: number
+  /** (A5 E2) Vídeos pedidos na passada diária que vieram sem contagem de views: não ganham ponto na série. */
+  excludedNoCount?: number
 }
 
 /** (A5) Os contadores de uma sincronização que terminou em erro: o erro lançado não carrega resultado, e o lote só vê o erro. */
@@ -204,33 +211,35 @@ export async function syncCompetitorChannel(
   const partsMissingIds = new Set<string>()
 
   type TrackedRow = { id: string; video_id: string; title: string | null; thumbnail_url: string | null }
-  /** The channel's pinned videos (R118), read once per sync inside the try below. */
+  /** Os fixados do canal (R118), da leitura de todos os vídeos feita no começo do `try`. */
   let pinned: TrackedRow[] = []
-  /** Throws on a query error: a failing read is never "no pinned videos". */
-  const loadPinned = async (): Promise<TrackedRow[]> => {
-    const { data, error } = await supabase
-      .from('competitor_videos')
-      .select('id, video_id, title, thumbnail_url, last_seen_at, missing_since')
-      .eq('competitor_channel_id', channelRow.id)
-      .not('pinned_at', 'is', null)
-    fail('load pinned videos', error)
-    for (const r of data ?? []) noteRow(r)
-    return (data ?? []) as TrackedRow[]
+  /** Tudo o que o Observatório guarda deste canal: a base da faixa de cada vídeo, do "pedido e não veio" e da janela de cada mudança. */
+  type FullRow = TrackedRow & {
+    published_at: string | null; pinned_at: string | null; daily_until: string | null; series_tier: Tier | null; series_tier_since: string | null
+    last_seen_at: string | null; missing_since: string | null; views_hidden: boolean | null; live_broadcast_content: string | null; discovered_at: string | null
   }
-  /** The observed videos: the video_limit most recent ∪ the pinned ones (R118/R119). Throws on a query error. */
-  const loadTracked = async (): Promise<TrackedRow[]> => {
-    const { data, error } = await supabase
-      .from('competitor_videos')
-      .select('id, video_id, title, thumbnail_url, last_seen_at, missing_since')
-      .eq('competitor_channel_id', channelRow.id)
-      .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(videoLimit)
-    fail('load tracked videos', error)
-    for (const r of data ?? []) noteRow(r)
-    const top = (data ?? []) as TrackedRow[]
-    const seen = new Set(top.map(t => t.id))
-    return [...top, ...pinned.filter(p => !seen.has(p.id))]
+  const ALL_COLS = 'id, video_id, title, thumbnail_url, published_at, pinned_at, daily_until, series_tier, series_tier_since, last_seen_at, missing_since, views_hidden, live_broadcast_content, discovered_at'
+  const PAGE = 1000 // max_rows do PostgREST: uma leitura maior viria cortada sem aviso, então pagina até a página curta
+  // a guarda confere as duas chaves de que tudo depende (os dois ids); as outras colunas são anuláveis e chegam como o banco manda.
+  // Uma linha sem id é erro, nunca "canal sem vídeos".
+  const isFullRow = (x: unknown): x is FullRow => isRec(x) && typeof x.id === 'string' && typeof x.video_id === 'string'
+  /** Lança em erro de consulta: uma leitura que falha nunca é "canal sem vídeos". Pré-requisito da passada diária. */
+  const loadAll = async (): Promise<FullRow[]> => {
+    const out: FullRow[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase.from('competitor_videos').select(ALL_COLS).eq('competitor_channel_id', channelRow.id).order('id').range(from, from + PAGE - 1)
+      fail('não foi possível ler os vídeos do canal', error)
+      let page: FullRow[]
+      try { page = rowsAs(data, isFullRow, 'vídeos do canal') } catch (e) { throw new Error('não foi possível ler os vídeos do canal: ' + (e instanceof Error ? e.message : String(e))) }
+      out.push(...page)
+      if (page.length < PAGE) return out
+    }
   }
+  /** Fora das provas de série: sem contagem de views, estreia agendada, ou ausente. Continua sendo pedido (é como se descobre que voltou). */
+  const outOfProof = (r: FullRow): boolean => r.views_hidden === true || r.live_broadcast_content === 'upcoming' || r.missing_since != null
+  const classify = (rows: FullRow[]) => classifyTiers(
+    rows.map(r => ({ id: r.id, publishedAt: r.published_at ? Date.parse(r.published_at) : null, pinned: r.pinned_at != null, dailyUntil: r.daily_until, tier: r.series_tier })),
+    { videoLimit, nowMs, today: spDate(nowMs) })
   /** tracked uuids with no competitor_video_daily row for snapDate */
   const missingDaily = async (uuids: string[], snapDate: string): Promise<string[]> => {
     if (!uuids.length) return []
@@ -286,12 +295,14 @@ export async function syncCompetitorChannel(
     lateFailure ??= e instanceof Error ? e : new Error(String(e))
   }
   let channelPartsMissing = 0
+  /** (A5 E2) O que a classificação das faixas decidiu nesta sincronização, e os vídeos pedidos na passada diária que vieram sem contagem. */
+  let tierChanges = 0, tierCut = 0, excludedNoCount = 0
   /** (A5) A cota é gravada UMA vez, no fim (sucesso ou erro); se a gravação falhar, a sincronização não muda de destino: só marca quotaError. */
   let quotaError = false
   const flushQuota = async (): Promise<void> => {
     try {
       // partes_ausentes vai junto: é o único lugar durável desse número
-      await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors', extra: { partes_ausentes: partsMissingIds.size } })
+      await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors', cut: tierCut, extra: { partes_ausentes: partsMissingIds.size } })
     } catch { quotaError = true }
   }
   const noteRow = (r: { id?: unknown; last_seen_at?: unknown; missing_since?: unknown }): void => {
@@ -320,6 +331,7 @@ export async function syncCompetitorChannel(
     ...(missedStats.missed ? { missed: missedStats.missed } : {}), ...(missedStats.newlyMissing ? { newlyMissing: missedStats.newlyMissing } : {}),
     ...(returnedCount() ? { returned: returnedCount() } : {}),
     ...(quotaError ? { quotaError: true as const, quotaUnitsLost: unitsUsed } : {}),
+    ...(tierChanges ? { tierChanges } : {}), ...(tierCut ? { cutByCap: tierCut } : {}), ...(excludedNoCount ? { excludedNoCount } : {}),
   })
   /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
   const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
@@ -485,12 +497,26 @@ export async function syncCompetitorChannel(
     // (due per video, so a partial record is completed by the next sync).
     const snapDate = spDate(nowMs)
     const hourOk = isDailyRecordDue(nowIso, null).due
-    pinned = await loadPinned()
+    let all = await loadAll()
+    const byId = new Map<string, FullRow>()
+    // `rowInfo` guarda o que se sabia de cada vídeo ANTES desta sincronização: o primeiro registro vale (`has`), os de leituras seguintes só completam.
+    const index = (): void => {
+      byId.clear()
+      for (const r of all) {
+        byId.set(r.id, r)
+        if (!rowInfo.has(r.id)) rowInfo.set(r.id, { lastSeenAt: r.last_seen_at, weeklySince: r.series_tier === 'semanal' ? r.series_tier_since : null, missing: r.missing_since != null })
+      }
+    }
+    index()
+    pinned = all.filter(r => r.pinned_at != null)
     const pinnedUuids = new Set(pinned.map(p => p.id))
+    // A passada diária segue a REGRA (classifyTiers), nunca a faixa gravada: no dia do deploy nenhum vídeo tem faixa, e o vídeo sem faixa
+    // que a regra põe na diária ganha o ponto de hoje como sempre ganhou. Os N mais recentes e os fixados de antes estão sempre nela.
+    let tierPlan = classify(all)
     let dailyDue = false
     if (hourOk) {
-      const tracked = await loadTracked()
-      dailyDue = needsBackfill || (await missingDaily(tracked.map(t => t.id), snapDate)).length > 0
+      const proof = tierPlan.daily.map(id => byId.get(id)!).filter(r => !outOfProof(r))
+      dailyDue = needsBackfill || (await missingDaily(proof.map(r => r.id), snapDate)).length > 0
     }
 
     // ── 1. Channel metadata ──
@@ -738,10 +764,24 @@ export async function syncCompetitorChannel(
       }
     } while (nextPageToken)
 
+    // ── A5 (E2): a faixa de cada vídeo, recalculada a cada sincronização, com os vídeos que a página acabou de inserir ──
+    all = await loadAll()
+    index()
+    tierPlan = classify(all)
+    tierChanges = tierPlan.changes.length
+    tierCut = tierPlan.cut
+    if (tierPlan.changes.length) {
+      const { error } = await supabase.rpc('apply_competitor_tier_plan', { p_site_id: channelRow.site_id, p_channel_id: channelRow.id, p_changes: tierPlan.changes, p_today: snapDate })
+      // a faixa que não grava não impede a passada diária, que usa o plano em memória; o canal termina em erro
+      if (!late('não foi possível gravar a faixa da série', error)) {
+        for (const c of tierPlan.changes) { const r = byId.get(c.video_id); if (r) { r.series_tier = c.tier; r.series_tier_since = snapDate } }
+      }
+    }
+
     // ── Daily views record (12:00 SP), due per video; also the once-a-day pass over older videos (R17) ──
     let dailyFailure: Error | null = null
     if (hourOk) {
-      const tracked = await loadTracked()
+      const tracked = tierPlan.daily.map(id => byId.get(id)!)
       const missing = new Set(await missingDaily(tracked.map(t => t.id), snapDate))
       const todo = tracked.filter(t => missing.has(t.id))
       for (let i = 0; i < todo.length; i += 50) {
@@ -764,6 +804,7 @@ export async function syncCompetitorChannel(
               comments: it.statistics!.commentCount !== undefined ? parseInt(it.statistics!.commentCount, 10) : null,
               taken_at: nowIso,
             }))
+          excludedNoCount += items.length - rows.length
           if (rows.length) {
             const { data: inserted, error } = await supabase
               .from('competitor_video_daily')

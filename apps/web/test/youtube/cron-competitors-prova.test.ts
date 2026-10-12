@@ -40,7 +40,17 @@ describe('cron de concorrentes: guarda de schema', () => {
   it('a guarda pergunta pelo que a etapa em produção precisa', async () => {
     vi.mocked(schemaReady).mockResolvedValue('x')
     await GET(req())
-    expect(vi.mocked(schemaReady)).toHaveBeenCalledWith(expect.anything(), 'e1') // a Tarefa 13 troca para 'e1e2'
+    expect(vi.mocked(schemaReady)).toHaveBeenCalledWith(expect.anything(), 'e1e2') // a E2 (Tarefa 10) lê colunas e tabelas da MG2: a guarda confere as duas
+  })
+  it('MG1 aplicada e MG2 não: o cron fica vermelho com o texto da MG2 e o lote não é chamado', async () => {
+    vi.mocked(schemaReady).mockImplementation(async (_sb, need) => (need === 'e1e2' ? 'migration MG2 não aplicada (competitor_videos): column competitor_videos.series_tier does not exist. Nada foi gravado.' : null))
+    const res = await GET(req())
+    expect(res.status).toBe(500)
+    expect(vi.mocked(runCompetitorBatch)).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/MG2/))
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    expect(vi.mocked(revalidateTag)).not.toHaveBeenCalled()
+    expect((await res.json()).error).toMatch(/MG2/)
   })
   it('a guarda que passa (null) deixa o lote rodar', async () => {
     vi.mocked(schemaReady).mockResolvedValue(null)

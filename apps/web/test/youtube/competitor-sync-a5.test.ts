@@ -802,3 +802,132 @@ describe('A5 E1: cota (item 10)', () => {
     expect(rpcCalls(db, 'youtube_quota_add')).toEqual([])
   })
 })
+
+describe('A5 E2: faixas da série', () => {
+  const DAY = 86_400_000
+  const row = (i: number, ageDays: number, over: Record<string, unknown> = {}) => ({ id: 'v-' + i, video_id: 'vid-' + i, title: 'T' + i, thumbnail_url: null, published_at: new Date(NOW.getTime() - ageDays * DAY).toISOString(), pinned_at: null, daily_until: null, series_tier: null, series_tier_since: null, last_seen_at: null, missing_since: null, views_hidden: null, live_broadcast_content: null, discovered_at: null, ...over })
+  const idsOf = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+  const echo = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T' + id.slice(4) }, statistics: { viewCount: '5', likeCount: '1', commentCount: '0' }, contentDetails: { duration: 'PT10M' } }))
+  const dailyUpsert = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert').flatMap(c => (c.ops[0]![1][0] as Array<{ video_id: string }>).map(r => r.video_id))
+
+  it('item 222: toda sincronização classifica o canal inteiro e grava só o que mudou, numa chamada, com a data de São Paulo', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1), row(2, 400, { series_tier: 'diaria' }), row(3, 500)] }) // 3 vídeos e limite 50: os três são "os N mais recentes"
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')).toEqual([{ p_site_id: 'site-1', p_channel_id: 'cc-1', p_changes: [{ video_id: 'v-1', tier: 'diaria' }, { video_id: 'v-3', tier: 'diaria' }], p_today: '2026-10-24' }])
+    expect(r.tierChanges).toBe(2)
+  })
+  it('nada mudou de faixa: nenhuma chamada', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1, { series_tier: 'diaria' })] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')).toEqual([])
+  })
+  it('item 14: a passada diária pede todos os da faixa diária, inclusive os de até 30 dias fora dos N mais recentes; os semanais não', async () => {
+    const all = [...Array.from({ length: 60 }, (_, i) => row(i + 1, i * 0.4)), row(900, 400)] // 60 em 24 dias, 1 antigo
+    setup({ dailyHave: [], existing: [], all })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+    const asked = log.dailyCalls.flatMap(idsOf)
+    expect(asked).toHaveLength(60)
+    expect(asked).not.toContain('vid-900')
+    expect(asked[0]).toBe('vid-1') // mais recente primeiro
+    expect(r.dailyRecorded).toBe(60)
+  })
+  it('item 18: mais de 200 na regra diária → 200 pedidos, e o corte vai para o resultado e para a linha da cota', async () => {
+    const all = Array.from({ length: 230 }, (_, i) => row(i + 1, i * 0.1))
+    const db = setup({ dailyHave: [], existing: [], all })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+    expect(log.dailyCalls.flatMap(idsOf)).toHaveLength(200)
+    expect(r.cutByCap).toBe(30)
+    expect(rpcCalls(db, 'youtube_quota_add')[0]).toMatchObject({ p_max: { teto_diario_cortados: 30 } })
+  })
+  it('itens 13 e 225: vídeo sem contagem e estreia agendada continuam sendo pedidos, mas não mantêm a passada "devida" nem ganham linha de série; o resultado diz quantos ficaram fora', async () => {
+    const all = [row(1, 1), row(2, 2, { views_hidden: true }), row(3, 0, { live_broadcast_content: 'upcoming' })]
+    const db = setup({ dailyHave: ['v-1'], existing: [], all })
+    const noCount = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'x' }, statistics: {}, contentDetails: {} }))
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: noCount }), ...quiet })
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(false)
+    expect(r.excludedNoCount).toBe(2)
+    expect(updatesOf(db, 'v-2').at(-1)).toMatchObject({ views_hidden: true, view_count: null })
+  })
+  it('erro na leitura dos vídeos do canal lança (nunca "canal sem vídeos") e o canal fica em erro', async () => {
+    const db = setup({ allError: 'boom' })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })).rejects.toThrow('não foi possível ler os vídeos do canal: boom')
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error' })
+    expect(db.calls.some(c => c.table === 'competitor_video_daily')).toBe(false)
+  })
+  it('a leitura sem dado (resposta nula, não lista) é falha da leitura, nunca "canal sem vídeos"', async () => {
+    const db = setup({ lastDaily: '2026-10-23', allNull: true })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null), ...quiet })).rejects.toThrow(/vídeos do canal.*nula/)
+    expect(db.calls.some(c => c.table === 'competitor_video_daily')).toBe(false)
+  })
+  it('canal com mais de 1.000 vídeos guardados: a leitura pagina até a página curta (nenhum corte em 1.000)', async () => {
+    // 1.003 vídeos: os 3 novos e os 47 antigos mais recentes são "os 50 mais recentes"; os 47 já estão em diária, os outros 953 em semanal
+    const big = Array.from({ length: 1000 }, (_, i) => row(i + 1, 400 + i, { series_tier: i < 47 ? 'diaria' : 'semanal' }))
+    const db = setup({ lastDaily: '2026-10-24', existing: [], allPages: [big, [row(2001, 1), row(2002, 2), row(2003, 3)]] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    // duas leituras do canal por sincronização (antes da página e depois dela), cada uma em duas páginas
+    expect(db.calls.filter(c => c.table === 'competitor_videos' && c.ops.some(o => o[0] === 'range')).map(c => c.ops.find(o => o[0] === 'range')![1])).toEqual([[0, 999], [1000, 1999], [0, 999], [1000, 1999]])
+    expect(r.tierChanges).toBe(3) // só os 3 que ainda não tinham faixa
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')[0]!.p_changes as unknown[]).toHaveLength(3)
+  })
+  it('a leitura de uma página exatamente cheia (1.000) pede a seguinte: a página vazia encerra', async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => row(i + 1, 400 + i, { series_tier: 'semanal' }))
+    const db = setup({ lastDaily: '2026-10-24', existing: [], allPages: [full] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(db.calls.filter(c => c.table === 'competitor_videos' && c.ops.some(o => o[0] === 'range')).map(c => c.ops.find(o => o[0] === 'range')![1])).toEqual([[0, 999], [1000, 1999], [0, 999], [1000, 1999]])
+  })
+
+  describe('o dia do deploy: nenhum vídeo tem faixa gravada', () => {
+    it('a série do dia não tem buraco: os vídeos que já eram lidos todo dia ganham o ponto, e as faixas nascem nessa execução', async () => {
+      // limite 2: os 2 mais recentes + o fixado antigo eram os "acompanhados" de antes; v-3 (10 dias) entra pela idade; v-old (400 dias) é semanal
+      const all = [row(1, 1), row(2, 2), row(3, 10), row('pin', 400, { pinned_at: '2026-10-01T00:00:00.000Z' }), row('old', 401)]
+      expect(all.every(r => r.series_tier === null)).toBe(true)
+      const db = setup({ dailyHave: [], existing: [], all, videoLimit: 2 })
+      const log = { dailyCalls: [] as string[] }
+      const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+      const points = dailyUpsert(db)
+      for (const before of ['v-1', 'v-2', 'v-pin']) expect(points).toContain(before)
+      expect(points).not.toContain('v-old')
+      expect(r.dailyRecorded).toBe(points.length)
+      const plan = rpcCalls(db, 'apply_competitor_tier_plan')
+      expect(plan).toHaveLength(1)
+      expect((plan[0]!.p_changes as Array<{ video_id: string; tier: string }>).map(c => c.video_id).sort()).toEqual(['v-1', 'v-2', 'v-3', 'v-old', 'v-pin'])
+      expect((plan[0]!.p_changes as Array<{ video_id: string; tier: string }>).find(c => c.video_id === 'v-old')).toEqual({ video_id: 'v-old', tier: 'semanal' })
+    })
+    it('com a gravação das faixas falhando no banco, a série do dia ainda é gravada (mesmos vídeos) e o canal termina em erro', async () => {
+      const all = [row(1, 1), row(2, 2), row(3, 10)]
+      const db = setup({ dailyHave: [], existing: [], all, rpcFail: 'apply_competitor_tier_plan' })
+      await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet })).rejects.toThrow(/faixa da série/)
+      expect(dailyUpsert(db).sort()).toEqual(['v-1', 'v-2', 'v-3'])
+      const ups = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
+      expect(ups.some(u => 'last_ok_synced_at' in u)).toBe(false)
+      expect(ups.at(-1)).toMatchObject({ sync_status: 'error' })
+    })
+  })
+
+  it('a troca de faixa falhando no banco: a passada diária grava os pontos e o canal termina em erro', async () => {
+    const db = setup({ dailyHave: [], existing: [], all: [row(1, 1)], rpcFail: 'apply_competitor_tier_plan' })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet })).rejects.toThrow(/faixa da série/)
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+  })
+  it('vídeo que passa de diária para semanal: a troca leva a data de São Paulo de hoje (22:00 SP de 24/10 é 25/10 em UTC) e nenhum ponto é apagado', async () => {
+    const lateNight = new Date(NOW.getTime() + 10 * 3_600_000) // 01:00 UTC do dia 25 = 22:00 de 24/10 em São Paulo
+    const db = setup({ lastDaily: '2026-10-24', existing: [], videoLimit: 1, all: [row(1, 1, { series_tier: 'diaria', series_tier_since: '2026-10-01' }), row(2, 100, { series_tier: 'diaria', series_tier_since: '2026-08-01' })] })
+    await syncCompetitorChannel(ch, 'k', { now: lateNight, fetchImpl: apiFetch(null), ...quiet })
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')).toEqual([{ p_site_id: 'site-1', p_channel_id: 'cc-1', p_changes: [{ video_id: 'v-2', tier: 'semanal' }], p_today: '2026-10-24' }])
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && ['delete', 'update'].includes(String(first(c))))).toBe(false)
+  })
+  it('uma sincronização às 12:00 com 50 vídeos diários faz 4 chamadas à API (canal, página, detalhes, 1 lote da passada) e NENHUMA para os semanais', async () => {
+    const all = [...Array.from({ length: 50 }, (_, i) => row(i + 1, i * 0.1, { series_tier: 'diaria' })), ...Array.from({ length: 30 }, (_, i) => row(100 + i, 300 + i, { series_tier: 'semanal' }))]
+    setup({ dailyHave: [], existing: [ROW1], all })
+    const t = traced(apiFetch(page(), 200, { daily: echo }))
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: t.f, ...quiet })
+    const calls = t.api()
+    expect(calls).toHaveLength(4)
+    expect(calls.slice(0, 3)).toEqual(['channels?part=contentDetails,snippet,statistics&id=UC_test', 'playlistItems?part=snippet&playlistId=UU&maxResults=50', 'videos?part=' + VIDEO_PARTS + '&id=vid-1'])
+    expect(idsOf(calls[3]!)).toHaveLength(50)
+    expect(calls[3]).not.toContain('vid-100')
+    expect(r.unitsUsed).toBe(4)
+  })
+})

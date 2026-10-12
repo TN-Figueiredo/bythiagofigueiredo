@@ -70,8 +70,8 @@ export const recent = () => new Date(NOW.getTime() - 86_400_000).toISOString()
 export type SetupOpts = {
   existing?: Record<string, unknown>[]; versions?: Record<string, unknown>[]; lastDaily?: string | null
   tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; rpcError?: boolean; longs?: Array<{ video_id: string }>
-  /** Pinned rows of the channel; null = the query answered without data. Omitted = no pins. */
-  pinned?: Array<Record<string, unknown>> | null; pinnedError?: string; trackedError?: string
+  /** Pinned rows of the channel (entram em `all` quando ele é omitido). Omitido = nenhum fixado. */
+  pinned?: Array<Record<string, unknown>> | null
   /** O `update` de competitor_videos para esta linha (uuid) devolve erro de banco. */
   failUpdateOf?: string
   /** O `update` de competitor_videos destas linhas (uuid) devolve erro de banco com a mensagem dada (para distinguir qual falhou primeiro). */
@@ -94,13 +94,32 @@ export type SetupOpts = {
   failChannelUpdate?: boolean
   /** A trava do canal não é obtida (outro processo sincroniza): o `update … or(…)` devolve lista vazia. */
   lockTaken?: boolean
+  /** (A5 E2) Todos os vídeos do canal como a leitura paginada os devolve; `allPages` = uma lista por página de 1.000; `allError` = a leitura falha. Omitidos: monta de `tracked` e `pinned`. */
+  all?: Record<string, unknown>[]; allPages?: Record<string, unknown>[][]; allError?: string; allNull?: boolean
+  /** (A5 E2) O `video_limit` do canal (a linha da trava); omitido = 50. */
+  videoLimit?: number
 }
 
 export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
     if (opts.lockTaken && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [] }
-    if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, ...opts.lock }] }
+    if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, video_limit: opts.videoLimit ?? lockRow.video_limit, ...opts.lock }] }
+    // (A5 E2) a leitura de TODOS os vídeos do canal (paginada por `range`): primeira linha de competitor_videos no roteiro
+    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')) {
+      if (opts.allNull) return { data: null, error: null }
+      if (opts.allError) return { data: null, error: { message: opts.allError } }
+      if (opts.allPages) return { data: opts.allPages[(c.ops.find(o => o[0] === 'range')![1][0] as number) / 1000] ?? [] }
+      if (opts.all) return { data: opts.all }
+      // sem `all`: monta o canal a partir de `tracked` (recentes, uma hora de diferença entre eles) e `pinned` (antigos), que é como os
+      // testes antigos o descrevem; o que `existing` sabe da mesma linha (last_seen_at, missing_since, discovered_at) entra junto
+      const known = new Map<unknown, Record<string, unknown>>((opts.existing ?? []).map(e => [e.id, e] as const))
+      const tr = (opts.tracked ?? [{ id: 'v-1', video_id: 'vid-1', title: null, thumbnail_url: null }]).map((r, i) => ({ published_at: new Date(NOW.getTime() - (i + 1) * 3_600_000).toISOString(), pinned_at: null, ...(known.get(r.id) ?? {}), ...r }))
+      const seenIds = new Set(tr.map(r => r.id))
+      const pinnedIds = new Set((opts.pinned ?? []).map(p => p.id))
+      const pin = (opts.pinned ?? []).filter(p => !seenIds.has(p.id)).map(p => ({ published_at: new Date(NOW.getTime() - 400 * 86_400_000).toISOString(), pinned_at: '2026-10-01T00:00:00.000Z', ...p }))
+      return { data: [...tr.map(r => (pinnedIds.has(r.id) ? { ...r, pinned_at: '2026-10-01T00:00:00.000Z' } : r)), ...pin] }
+    }
     if (opts.failChannelUpdate && c.table === 'competitor_channels' && first(c) === 'update' && 'miss_streak' in (arg(c, 'update') ?? {})) return { data: null, error: { message: 'boom' } }
     if (opts.failStamp && c.table === 'competitor_videos' && first(c) === 'update' && Object.keys(arg(c, 'update') ?? {}).join() === 'last_seen_at') return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdates) {
@@ -110,9 +129,7 @@ export function setup(opts: SetupOpts = {}) {
     }
     if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdateOf && c.ops.some(o => o[0] === 'eq' && o[1][1] === opts.failUpdateOf)) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'not')) return opts.pinnedError ? { data: null, error: { message: opts.pinnedError } } : { data: opts.pinned === undefined ? [] : opts.pinned, error: null }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'limit')) return opts.trackedError ? { data: null, error: { message: opts.trackedError } } : { data: opts.tracked ?? [{ id: 'v-1', video_id: 'vid-1', title: null, thumbnail_url: null }] }
     if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
     if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
     if (c.table === 'competitor_video_daily' && first(c) === 'select') {
