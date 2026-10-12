@@ -1,7 +1,8 @@
 // O mundo das tarefas da página do canal próprio e do vídeo próprio (A4): o oráculo com os canais próprios do preset e o dado
 // privado (alcance e diário por vídeo) SINTÉTICO. Regras:
 //  - o conjunto base é lido UMA vez por arquivo e por preset (a3-fixture guarda); cada chamada trabalha numa cópia;
-//  - nenhuma data é fixa: tudo é relativo a `agora` (relógio injetado, por padrão Date.now()), no dia do YouTube (Pacífico);
+//  - nenhuma data é fixa: tudo é relativo a `agora` (relógio injetado; por padrão o do oráculo, `obs.NOW`, o MESMO que fixa a idade dos vídeos:
+//    um relógio só, então impressões e diário nunca anteriores à publicação por acaso), no dia do YouTube (Pacífico);
 //  - os presets de canal são os de a3-fixture ('1', '2', '5', 'mix', 'zero') e `semProprio` (0 canais próprios);
 //  - os cenários de dado são `DADOS`: cheio, curto, vazio, parado, negado, erro; cada um é uma função pura de (canal, vídeos, hoje).
 import { a3World } from './a3-fixture'
@@ -173,7 +174,7 @@ export function proprioWorld(o: { preset?: OwnPreset; mut?: (ds: Dataset) => voi
   const w = a3World(ds => { comoEmProducao(ds); o.mut?.(ds) }, o.preset ?? '2')
   const canalId = w.owns[0]
   if (!canalId) throw new Error('o preset não tem canal próprio: use mundoSemProprio()')
-  const hoje = dayPt(new Date(o.agora ?? Date.now()))
+  const hoje = dayPt(new Date(o.agora ?? w.obs.NOW))
   const ytIds = longosAcompanhados(w.obs, canalId)
   const dados: DadosDoCanal = { ...DADOS[o.cenario ?? 'cheio'](canalId, ytIds, hoje), ...o.dados }
   return { obs: w.obs, canalId, ytIds, dados, hoje, dm: dmDia }
