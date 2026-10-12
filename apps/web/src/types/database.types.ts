@@ -11210,9 +11210,9 @@ export type Database = {
       yt_reporting_guarda_conferir: {
         Args: never
         Returns: {
-          brutos: number
           baixados: number
           baixados_sem_bruto: number
+          brutos: number
           brutos_sem_baixado: number
           perdas_reconhecidas: number
         }[]
