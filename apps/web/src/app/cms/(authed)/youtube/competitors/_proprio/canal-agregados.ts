@@ -4,7 +4,7 @@
  * com 0 é zero medido. Sem o que somar, o resultado é nulo com o MOTIVO, nunca 0. % assistido acima de 100 é dado válido (trecho revisto): a
  * média passa de 100 e nada recorta.
  */
-import { addDays } from '@/lib/youtube/coleta/day-pt'
+import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { DiaAlcance, Periodo, ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import { JANELA_ASSISTIDO_DIAS, POUCAS_VIEWS, type MotivoSemAssistido } from '@/lib/youtube/observatorio/proprio/assistido'
 import { taxaComIntervalo, type TaxaComIntervalo } from '@/lib/youtube/observatorio/proprio/taxa'
@@ -107,4 +107,25 @@ export function views28DoVideo(d: Privado<DiarioCanal>, ytId: string): number | 
     achou = true
   }
   return achou ? soma : null
+}
+
+/**
+ * Quantos dos dias esperados a soma de `views28DoVideo` realmente cobre. Esperados = os dias da janela de 28 que o vídeo já existia (da publicação, ou do
+ * começo da janela se publicado antes, até o último dia gravado, os dois contam; no mínimo 1). Medidos = dias distintos do vídeo com views medidas (um dia
+ * com zero view medido conta). Sem nenhuma linha com views: nula, como `views28DoVideo` (não medido nunca vira "0 de 28"). Com `medidos < esperados` as views
+ * dos 28 dias estão SUBCONTADAS e a tela diz quantos dias foram medidos em vez de mostrar o número como se fosse cheio.
+ */
+export function cobertura28DoVideo(d: Privado<DiarioCanal>, ytId: string, publicadoEm: DiaYt | null): { medidos: number; esperados: number } | null {
+  if (d.acesso !== 'ok' || d.dado.ultimoDia == null) return null
+  const ate = d.dado.ultimoDia
+  const de = addDays(ate, -(JANELA_ASSISTIDO_DIAS - 1))
+  const dias = new Set<DiaYt>()
+  for (const l of d.dado.linhas) {
+    if (l.ytId !== ytId || l.views == null || l.dia < de || l.dia > ate) continue
+    dias.add(l.dia)
+  }
+  if (dias.size === 0) return null
+  const comeco = publicadoEm != null && publicadoEm > de ? publicadoEm : de
+  const esperados = Math.max(1, diffDias(comeco, ate) + 1)
+  return { medidos: dias.size, esperados }
 }

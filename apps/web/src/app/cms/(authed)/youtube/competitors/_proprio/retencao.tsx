@@ -38,6 +38,10 @@ function Barra({ v }: { v: LinhaVideo }) {
 
 const ALVO_SR = 'views acima do normal do canal e % assistido abaixo do normal da faixa'
 
+/** As legendas das duas tabelas; as áreas com rolagem horizontal levam o mesmo texto como nome (entram no Tab para a rolagem por teclado). */
+const LEGENDA_FAIXAS = 'Normal de % assistido por faixa de duração'
+const LEGENDA_VIDEOS = 'Vídeos com % assistido, contra o normal da faixa de duração'
+
 export function Retencao({ view }: { view: RetencaoView }) {
   const baseId = useId().replace(/[^A-Za-z0-9_-]/g, '')
   const popId = 'ass' + baseId
@@ -58,9 +62,9 @@ export function Retencao({ view }: { view: RetencaoView }) {
         <div className="ret-vazio"><p>{view.vazio}</p></div>
       ) : (
         <>
-          <div className="tbw ret-faixas">
+          <div className="tbw ret-faixas" tabIndex={0} role="region" aria-label={LEGENDA_FAIXAS}>
             <table className="tb">
-              <caption className="obs-ch-sr">Normal de % assistido por faixa de duração</caption>
+              <caption className="obs-ch-sr">{LEGENDA_FAIXAS}</caption>
               <thead><tr><th scope="col">Faixa de duração</th><th scope="col" className="r">Vídeos</th><th scope="col">Normal da faixa (mediana de % assistido)</th></tr></thead>
               <tbody>
                 {view.faixas.map(f => (
@@ -79,16 +83,16 @@ export function Retencao({ view }: { view: RetencaoView }) {
           </div>
           {view.relance ? <p className="ret-lead">{view.relance.negrito ? <b>{view.relance.negrito}</b> : null}{view.relance.resto}</p> : null}
           {view.semPercentual ? <p className="ret-sempct">{view.semPercentual}</p> : null}
-          <div className="tbw rt">
+          <div className="tbw rt" tabIndex={0} role="region" aria-label={LEGENDA_VIDEOS}>
             <table className="tb tb-v">
-              <caption className="obs-ch-sr">Vídeos com % assistido, contra o normal da faixa de duração</caption>
+              <caption className="obs-ch-sr">{LEGENDA_VIDEOS}</caption>
               <thead><tr><th scope="col">Vídeo</th><th scope="col">Faixa</th><th scope="col" className="r">Views, 28 dias</th><th scope="col">% assistido</th><th scope="col">Contra a faixa</th></tr></thead>
               <tbody>
                 {view.videos.map(v => (
                   <tr key={v.id} className={v.alvo ? 'alvo' : undefined}>
                     <td><Link className="lk" href={v.href} prefetch={false}>{v.titulo}</Link>{v.alvo ? <span className="obs-ch-sr"> ({ALVO_SR})</span> : null}</td>
                     <td>{v.faixa}</td>
-                    <td className="r num">{v.views28}</td>
+                    <td className="r num"><span className="n28">{v.views28}</span>{v.cobertura ? <span className="mut ret-cob">{v.cobertura}</span> : null}</td>
                     <td><Barra v={v} /></td>
                     <td><Contra c={v.contra} /></td>
                   </tr>
@@ -102,6 +106,7 @@ export function Retencao({ view }: { view: RetencaoView }) {
                 <Link href={v.href} prefetch={false}>{v.titulo}</Link>
                 {v.alvo ? <span className="obs-ch-sr">{ALVO_SR}</span> : null}
                 <div className="l2"><span>{v.faixa}</span><span>{v.views28} views em 28 dias</span></div>
+                {v.cobertura ? <div className="mut ret-cob">{v.cobertura}</div> : null}
                 <div><Barra v={v} /></div>
                 <div><Contra c={v.contra} /></div>
               </li>

@@ -4,7 +4,7 @@
 // poucas views = menos de 10; ACIMA de 100% é dado válido (número real, sem recorte). "Não medido" nunca vira zero.
 import { afterEach, describe, it, expect } from 'vitest'
 import { proprioWorld, type CenarioDados } from './proprio-fixture'
-import { comDiario, diarioComPct, duracoesDosLongos, type PlanoDoVideo } from './proprio-assistido-fixture'
+import { comDiario, diarioComPct, duracoesDosLongos, ultimoVideoHa, type PlanoDoVideo } from './proprio-assistido-fixture'
 import { buildRetencao, METODO_ASSISTIDO, type RetencaoView } from '@/app/cms/(authed)/youtube/competitors/_proprio/retencao-model'
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
@@ -17,7 +17,7 @@ const plano = (pcts: Array<number | null>, vpd: number[], dias = 10): PlanoDoVid
 const PCT = [40, 42, 44, 46, 48, 50, 30, 32, 34, 36, 60, 50, 55, 60]
 const VPD = [9, 8, 7, 6, 5, 4, 12, 3, 2, 1, 20, 6, 5, 4]
 const com = (w: World, p: PlanoDoVideo[], cenario?: CenarioDados) => ({ ...w, dados: cenario ? proprioWorld({ cenario, mut: duracoesDosLongos(DUR) }).dados : comDiario(w.dados, diarioComPct(w.canalId, w.ytIds, w.hoje, p)) })
-const monta = (w: World): RetencaoView => buildRetencao(w.obs, w.canalId, w.dados, { dm: w.dm, hoje: w.hoje })
+const monta = (w: World): RetencaoView => buildRetencao(w.obs, w.canalId, w.dados, { dm: w.dm })
 const cheio = () => monta(com(MUNDO, plano(PCT, VPD)))
 
 describe('13.3 retenção: normal por faixa de duração', () => {
@@ -113,6 +113,15 @@ describe('13.3 retenção: fronteiras (os mutantes de >= e de 4 vídeos)', () =>
     const alem = cinco([100.6, 50, 50, 50, 50], [1, 2, 4, 5, 3])
     expect(alem.videos.find(v => v.pct === '101%')).toMatchObject({ acimaDe100: true, barra: 1 })
   })
+  it('a marca "acima de 100%" segue o número ESCRITO: 100,4 aparece como "100%" e sem a marca; 100,5 aparece como "101%" e com ela (nunca "100%" com "acima de 100%")', () => {
+    const quase = cinco([100.4, 50, 50, 50, 50], [1, 2, 4, 5, 3]).videos.find(v => v.pct === '100%')!
+    expect(quase).toMatchObject({ acimaDe100: false, barra: 1, alt: '100% assistido' })
+    const meio = cinco([100.5, 50, 50, 50, 50], [1, 2, 4, 5, 3]).videos.find(v => v.pct === '101%')!
+    expect(meio).toMatchObject({ acimaDe100: true, barra: 1 })
+    expect(meio.alt).toBe('101% assistido, acima de 100%: trecho que muita gente voltou para rever')
+    // do outro lado: 99,5 também aparece como "100%", sem a marca
+    expect(cinco([99.5, 50, 50, 50, 50], [1, 2, 4, 5, 3]).videos.find(v => v.pct === '100%')).toMatchObject({ acimaDe100: false })
+  })
 })
 
 describe('13.3 retenção: a frase de relance', () => {
@@ -129,6 +138,85 @@ describe('13.3 retenção: a frase de relance', () => {
     const um = plano(PCT, VPD); um[0] = { dias: 10, views: 9, pct: 45 }; um[1] = { dias: 10, views: 8, pct: 45 }
     // idx6 continua abaixo (−4) com 120 views
     expect(monta(com(MUNDO, um)).relance!.negrito).toBe('1 vídeo tem')
+  })
+})
+
+describe('13.3 retenção: poucas views ficam fora da comparação e a tela diz quantas (I2a) e fora do normal da faixa (M3)', () => {
+  // dias × views por dia = views em 28 dias: 8 e 9 são "poucas" (menos de 10), 10 já é o limiar
+  const comPoucas = (n: 0 | 1 | 2) => {
+    const p = plano(PCT, VPD)
+    if (n >= 1) p[0] = { dias: 8, views: 1, pct: 70 }
+    if (n >= 2) p[1] = { dias: 9, views: 1, pct: 20 }
+    return monta(com(MUNDO, p))
+  }
+  it('há vídeos com poucas views: a frase de relance diz quantos não entram na comparação, com ou sem vídeo nomeado', () => {
+    const dois = comPoucas(2).relance!
+    expect(dois.resto.endsWith(' 2 vídeos com poucas views não entram na comparação.')).toBe(true)
+    // com vídeo nomeado: a frase antiga fica inteira e a nova vem depois dela
+    expect(dois.negrito).toMatch(/^\d vídeos? (tem|têm)$/)
+    expect(dois.resto).toMatch(/ views acima do normal do canal e % assistido abaixo do normal da faixa: “.+”\. 2 vídeos com poucas views não entram na comparação\.$/)
+    // um só: singular
+    expect(comPoucas(1).relance!.resto.endsWith(' 1 vídeo com poucas views não entra na comparação.')).toBe(true)
+  })
+  it('sem vídeo nomeado, a frase negativa leva a contagem; sem poucas views, nenhuma frase a mais (a frase de antes, letra por letra)', () => {
+    const p = plano(PCT.map(() => 50), VPD); p[0] = { dias: 8, views: 1, pct: 50 }
+    expect(monta(com(MUNDO, p)).relance).toEqual({ negrito: '', resto: 'Nenhum vídeo tem views acima do normal do canal com % assistido abaixo do normal da faixa. 1 vídeo com poucas views não entra na comparação.' })
+    expect(comPoucas(0).relance!.resto).not.toContain('poucas views')
+  })
+  it('exatamente 10 views já entra na comparação (a fronteira): não conta como "poucas"', () => {
+    const p = plano(PCT, VPD); p[0] = { dias: 10, views: 1, pct: 70 }
+    expect(monta(com(MUNDO, p)).relance!.resto).not.toContain('poucas views')
+  })
+  it('só vale para quem tem % assistido: vídeo sem views (sem linha) não é "poucas views" e a negativa não leva contagem', () => {
+    const p = plano(PCT.map(() => 50), VPD.map((v, i) => (i === 0 ? 0 : v)))
+    expect(monta(com(MUNDO, p)).relance!.resto).not.toContain('poucas views')
+  })
+  it('o normal da faixa NÃO inclui vídeo com poucas views: a mediana é dos que têm 10 views ou mais', () => {
+    // faixa "Até 5 min" com 42,44,46,48,50 (mediana 46) e um vídeo de 70% com 8 views, que substitui o de 40%: com ele a mediana seria 47
+    const r = comPoucas(1)
+    expect(r.faixas[0]).toMatchObject({ videos: 6, normal: '46%', estado: 'normal' })
+    // com exatamente 10 views ele entra no normal (mediana de 42,44,46,48,50,70 = 47)
+    const p = plano(PCT, VPD); p[0] = { dias: 10, views: 1, pct: 70 }
+    expect(monta(com(MUNDO, p)).faixas[0]).toMatchObject({ normal: '47%', estado: 'normal' })
+  })
+  it('a contagem de "precisa de 5" é de vídeos com 10 views ou mais; faixa só de poucas views não vira "nenhum vídeo teve views"', () => {
+    const p = plano([50, 50, 50, 50, 50, 50], [1, 2, 4, 5, 1, 1])
+    p[4] = { dias: 8, views: 1, pct: 50 }; p[5] = { dias: 9, views: 1, pct: 50 }
+    expect(monta(com(MUNDO, p)).faixas[0]).toMatchObject({ videos: 6, normal: null, estado: 'poucos', texto: 'poucos vídeos para comparar (4; precisa de 5)' })
+    const so = plano([50, 50, 50, 50, 50, 50], [1, 1, 1, 1, 1, 1]).map(x => ({ ...x, dias: 8 }))
+    expect(monta(com(MUNDO, so)).faixas[0]).toMatchObject({ videos: 6, normal: null, estado: 'poucos', texto: 'poucos vídeos para comparar (0; precisa de 5)' })
+  })
+})
+
+describe('13.3 retenção: cobertura dos 28 dias (Menor 2): views subcontadas dizem quantos dias foram medidos', () => {
+  // o Short mais novo tem 12 dias e o longo mais novo, 14 (publicado em hoje-15 no horário do Pacífico): a janela dele vai da publicação ao último dia gravado (hoje-2), 14 dias
+  const NOVO = proprioWorld({ mut: ds => { duracoesDosLongos(DUR)(ds); ultimoVideoHa(12)(ds) } })
+  const mesmo = (p: PlanoDoVideo[]) => monta(com(NOVO, p))
+  it('diário que cobre só parte dos dias: a linha diz "N de M dias medidos"; cobertura cheia: nada a dizer (nunca o número parcial como se fosse cheio)', () => {
+    const p = plano(PCT, VPD)            // 10 dias de diário em cada vídeo
+    p[10] = { dias: 28, views: 20, pct: 60 }   // este cobre os 28 dias
+    const r = mesmo(p)
+    const cheia = r.videos.find(v => v.views28 === '560')!
+    expect(cheia.cobertura).toBeNull()
+    // um vídeo antigo com 10 dias medidos de 28
+    const antigo = r.videos.filter(v => v.cobertura === '10 de 28 dias medidos')
+    expect(antigo.length).toBeGreaterThan(0)
+    // o longo mais novo (14 dias na janela) com 10 dias medidos: "10 de 14"
+    expect(r.videos.some(v => v.cobertura === '10 de 14 dias medidos')).toBe(true)
+  })
+  it('o vídeo novo com todos os dias da sua vida medidos não leva a frase', () => {
+    const p = plano(PCT, VPD); p[0] = { dias: 14, views: 9, pct: 40 }
+    expect(mesmo(p).videos.some(v => v.cobertura === '10 de 14 dias medidos')).toBe(false)
+    expect(mesmo(p).videos.find(v => v.views28 === '126')!.cobertura).toBeNull()
+    // com 13 dias medidos de 14, a frase volta
+    p[0] = { dias: 13, views: 9, pct: 40 }
+    expect(mesmo(p).videos.find(v => v.views28 === '117')!.cobertura).toBe('13 de 14 dias medidos')
+  })
+  it('só as linhas com views entram na conta; sem views, o vídeo nem aparece (não medido, nunca "0 de 28")', () => {
+    const p = plano(PCT, VPD.map((v, i) => (i === 3 ? 0 : v)))
+    const r = mesmo(p)
+    expect(r.videos.length).toBe(13)
+    expect(r.videos.every(v => v.cobertura === null || /^\d+ de \d+ dias medidos$/.test(v.cobertura))).toBe(true)
   })
 })
 

@@ -15,7 +15,8 @@ import {
   assistidoDoVideo, contraNormal, FAIXAS, faixaDaDuracao, medianaDe, normalDaFaixa, type FaixaId, type LeituraContraNormal, type NormalDaFaixa,
 } from '@/lib/youtube/observatorio/proprio/assistido'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
-import { assistidoDoCanal, views28DoVideo } from './canal-agregados'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
+import { assistidoDoCanal, cobertura28DoVideo, views28DoVideo } from './canal-agregados'
 import type { DadosDoCanal } from './dados'
 import { longosAcompanhados } from './extras'
 import { int } from './impressoes-model'
@@ -49,6 +50,8 @@ export interface LinhaVideo {
   /** "5 a 15 min"; "sem duração" quando o vídeo não tem duração guardada */
   faixa: string
   views28: string
+  /** "10 de 28 dias medidos" quando o diário cobre MENOS dos dias do que a janela pede (as views dos 28 dias estão subcontadas); null = cobertura cheia */
+  cobertura: string | null
   /** "45%" (pode passar de 100) */
   pct: string
   /** a barra de 0 a 1 (recortada em 1 SÓ no desenho: `acimaDe100` marca o resto) */
@@ -104,7 +107,7 @@ function vazia(estado: EstadoRetencao, vazio: string, nota: string): RetencaoVie
   return { estado, titulo: TITULO_ASSISTIDO, nota, vazio, faixas: [], relance: null, videos: [], semPercentual: null }
 }
 
-export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoCanal, o: { dm: (d: DiaYt) => string; hoje: DiaYt }): RetencaoView {
+export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoCanal, o: { dm: (d: DiaYt) => string }): RetencaoView {
   const d = dados.diario
   const ultimo = d.acesso === 'ok' ? d.dado.ultimoDia : null
   const nota = notaDe(ultimo, o.dm)
@@ -122,18 +125,21 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
     const v = porYt.get(yt)
     if (!v) return []
     const a = assistidoDoVideo(d, yt)
-    return [{ v, a, views28: views28DoVideo(d, yt) }]
+    return [{ v, a, views28: views28DoVideo(d, yt), cob: cobertura28DoVideo(d, yt, v.pub != null ? dayPt(new Date(v.pub)) : null) }]
   })
   const comPct = base.filter(x => x.a.pct != null)
   const semPct = base.filter(x => x.a.pct == null && (x.views28 ?? 0) > 0).length
 
-  const normais = normalDaFaixa(base.map(x => ({ dur: x.v.dur, pct: x.a.pct })))
+  // o normal de uma faixa nasce só dos vídeos que a tela COMPARA (10 views ou mais): um vídeo de poucas views, que fica fora da comparação, não puxa a mediana
+  const normais = normalDaFaixa(base.map(x => ({ dur: x.v.dur, pct: x.a.pouco ? null : x.a.pct })))
   const normalDe = (id: FaixaId | null): NormalDaFaixa | undefined => (id ? normais.find(n => n.faixa === id) : undefined)
   const faixas: FaixaLinha[] = FAIXAS.map(f => {
     const n = normalDe(f.id)!
     if (n.normal != null) return { rotulo: f.rotulo, videos: n.videos, normal: pctTexto(n.normal), estado: 'normal', texto: null }
     if (n.videos === 0) return { rotulo: f.rotulo, videos: 0, normal: null, estado: 'nenhum', texto: 'nenhum vídeo nesta faixa' }
-    if (n.comViews === 0) return { rotulo: f.rotulo, videos: n.videos, normal: null, estado: 'sem-views', texto: 'nenhum vídeo desta faixa teve views nos 28 dias' }
+    // "nenhum vídeo desta faixa teve views" só quando NENHUM teve: os de poucas views tiveram, só não bastam para comparar
+    const comAlgumaView = base.some(x => faixaDaDuracao(x.v.dur) === f.id && x.a.pct != null)
+    if (n.comViews === 0 && !comAlgumaView) return { rotulo: f.rotulo, videos: n.videos, normal: null, estado: 'sem-views', texto: 'nenhum vídeo desta faixa teve views nos 28 dias' }
     return { rotulo: f.rotulo, videos: n.videos, normal: null, estado: 'poucos', texto: `poucos vídeos para comparar (${n.comViews}; precisa de 5)` }
   })
 
@@ -141,7 +147,7 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
   const medidas = base.map(x => x.views28).filter((x): x is number => x != null)
   const normalCanal = medianaDe(medidas)
 
-  const linhas = comPct.map(({ v, a, views28 }) => {
+  const linhas = comPct.map(({ v, a, views28, cob }) => {
     const pct = a.pct as number
     const id = faixaDaDuracao(v.dur)
     const normal = normalDe(id)?.normal ?? null
@@ -162,7 +168,8 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
           : { leitura: 'abaixo', sinal: '−', pontos: pontosTexto(abs), texto: `abaixo ${ref}` }
       }
     }
-    const acimaDe100 = pct > 100
+    // a marca segue o número ESCRITO (arredondado): 100,4 aparece como "100%" e não leva a marca "acima de 100%"; 100,5 aparece como "101%" e leva
+    const acimaDe100 = Math.round(pct) > 100
     const alvo = contra.leitura === 'abaixo' && views28 != null && normalCanal != null && views28 > normalCanal
     const titulo = v.title.trim() ? v.title : 'Vídeo sem título'
     return {
@@ -170,7 +177,7 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
       linha: {
         id: v.id, titulo, href: link.historico(v.id, { from: 'canais', canal: canalId }),
         faixa: FAIXAS.find(f => f.id === id)?.rotulo ?? SEM_FAIXA,
-        views28: int(views28 ?? 0), pct: pctTexto(pct), barra: Math.min(pct, 100) / 100, acimaDe100,
+        views28: int(views28 ?? 0), cobertura: cob != null && cob.medidos < cob.esperados ? `${int(cob.medidos)} de ${int(cob.esperados)} dias medidos` : null, pct: pctTexto(pct), barra: Math.min(pct, 100) / 100, acimaDe100,
         normalPos: normal == null ? null : Math.min(normal, 100) / 100,
         nViews: pouco ? `${int(a.n)} ${a.n === 1 ? 'view' : 'views'}` : null,
         alt: `${pctTexto(pct)} assistido${acimaDe100 ? ', acima de 100%: trecho que muita gente voltou para rever' : ''}`,
@@ -182,9 +189,12 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
   const videos = linhas.map(x => x.linha)
 
   const abaixo = videos.filter(v => v.alvo)
+  // vídeo de poucas views não é comparado com a faixa (decisão do dono, 12/10): a frase não os esconde, diz quantos ficaram de fora
+  const poucas = videos.filter(v => v.nViews != null).length
+  const foraDaComparacao = poucas === 0 ? '' : ` ${int(poucas)} ${poucas === 1 ? 'vídeo com poucas views não entra' : 'vídeos com poucas views não entram'} na comparação.`
   const relance = abaixo.length
-    ? { negrito: `${abaixo.length} ${abaixo.length === 1 ? 'vídeo tem' : 'vídeos têm'}`, resto: ` views acima do normal do canal e % assistido abaixo do normal da faixa: ${abaixo.map(v => `“${v.titulo}”`).join(', ')}.` }
-    : { negrito: '', resto: 'Nenhum vídeo tem views acima do normal do canal com % assistido abaixo do normal da faixa.' }
+    ? { negrito: `${abaixo.length} ${abaixo.length === 1 ? 'vídeo tem' : 'vídeos têm'}`, resto: ` views acima do normal do canal e % assistido abaixo do normal da faixa: ${abaixo.map(v => `“${v.titulo}”`).join(', ')}.${foraDaComparacao}` }
+    : { negrito: '', resto: `Nenhum vídeo tem views acima do normal do canal com % assistido abaixo do normal da faixa.${foraDaComparacao}` }
 
   return {
     estado: 'ok', titulo: TITULO_ASSISTIDO, nota, vazio: null, faixas, relance, videos,

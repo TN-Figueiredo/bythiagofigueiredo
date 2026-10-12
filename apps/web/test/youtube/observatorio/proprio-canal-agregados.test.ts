@@ -4,7 +4,7 @@
 // vídeo. Regra de ouro: não medido nunca vira zero; % acima de 100 é dado válido e não é recortado.
 import { describe, it, expect } from 'vitest'
 import {
-  assistidoDoCanal, taxaDoCanal, viewsDoCanalPorDia, views28DoVideo, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS_MEDIA,
+  assistidoDoCanal, cobertura28DoVideo, taxaDoCanal, viewsDoCanalPorDia, views28DoVideo, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS_MEDIA,
 } from '@/app/cms/(authed)/youtube/competitors/_proprio/canal-agregados'
 import type { DiarioCanal, DiarioLinha, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
@@ -84,5 +84,40 @@ describe('views28DoVideo', () => {
     expect(views28DoVideo(ok([L('B', 0, 5, null)]), 'A')).toBeNull()
     expect(views28DoVideo(ok([L('A', 0, 0, null)]), 'A')).toBe(0)
     expect(views28DoVideo({ acesso: 'negado' }, 'A')).toBeNull()
+  })
+})
+
+// 13.3 (Menor 2): as views dos 28 dias só são "dos 28 dias" quando o diário cobre os dias; a tela diz "N de M dias medidos" quando cobre menos.
+describe('cobertura28DoVideo', () => {
+  it('janela cheia: 28 dias esperados para um vídeo publicado antes da janela; mede quantos dias distintos têm views', () => {
+    // 10 dias com views (hoje, -1 … -9)
+    const linhas = Array.from({ length: 10 }, (_, i) => L('A', i, 5, null))
+    expect(cobertura28DoVideo(ok(linhas), 'A', dia(60))).toEqual({ medidos: 10, esperados: 28 })
+    // 28 dias com views: cheia
+    expect(cobertura28DoVideo(ok(Array.from({ length: 28 }, (_, i) => L('A', i, 5, null))), 'A', dia(60))).toEqual({ medidos: 28, esperados: 28 })
+  })
+  it('vídeo publicado dentro da janela: esperados = dias da publicação até o último dia gravado (os dois contam)', () => {
+    // publicado há 11 dias (dia -11): -11 … 0 são 12 dias
+    expect(cobertura28DoVideo(ok(Array.from({ length: 12 }, (_, i) => L('A', i, 5, null))), 'A', dia(11))).toEqual({ medidos: 12, esperados: 12 })
+    expect(cobertura28DoVideo(ok(Array.from({ length: 8 }, (_, i) => L('A', i, 5, null))), 'A', dia(11))).toEqual({ medidos: 8, esperados: 12 })
+    // publicado no último dia gravado: 1 dia esperado
+    expect(cobertura28DoVideo(ok([L('A', 0, 5, null)]), 'A', ULT)).toEqual({ medidos: 1, esperados: 1 })
+  })
+  it('sem data de publicação: a janela inteira de 28 dias', () => {
+    expect(cobertura28DoVideo(ok([L('A', 0, 5, null)]), 'A', null)).toEqual({ medidos: 1, esperados: 28 })
+  })
+  it('conta DIAS distintos com views: dia com view nula, dia fora da janela e linha de outro vídeo não contam; dia com zero view medido conta', () => {
+    const linhas = [L('A', 0, 5, null), L('A', 1, 0, null), L('A', 2, null, null), L('A', 28, 9, null), L('B', 3, 9, null)]
+    expect(cobertura28DoVideo(ok(linhas), 'A', dia(60))).toEqual({ medidos: 2, esperados: 28 })
+  })
+  it('sem nenhuma linha com views: nula (não medido, nunca "0 de 28"); sem acesso ou sem diário também', () => {
+    expect(cobertura28DoVideo(ok([L('A', 0, null, null)]), 'A', dia(60))).toBeNull()
+    expect(cobertura28DoVideo(ok([L('B', 0, 5, null)]), 'A', dia(60))).toBeNull()
+    expect(cobertura28DoVideo({ acesso: 'negado' }, 'A', dia(60))).toBeNull()
+    expect(cobertura28DoVideo({ acesso: 'erro' }, 'A', dia(60))).toBeNull()
+    expect(cobertura28DoVideo(ok([L('A', 0, 5, null)], null), 'A', dia(60))).toBeNull()
+  })
+  it('publicado DEPOIS do último dia gravado (data adiantada): não inventa dias esperados negativos; no mínimo 1', () => {
+    expect(cobertura28DoVideo(ok([L('A', 0, 5, null)]), 'A', '2026-10-20')).toEqual({ medidos: 1, esperados: 1 })
   })
 })
