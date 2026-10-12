@@ -6,6 +6,8 @@ export type Json = null | boolean | number | string | Json[] | { [k: string]: Js
 type Obj = Record<string, unknown>
 export const obj = (x: unknown): Obj | undefined => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Obj) : undefined)
 export const str = (x: unknown): string | null => (typeof x === 'string' && x !== '' ? x : null)
+/** `str` para texto que vai ao banco: sem NUL nem substituto solitário (ver sanitizeForDb). */
+const strDb = (x: unknown): string | null => { const s = str(x); return s === null ? null : cleanText(s) }
 
 /** A counter the API may omit (hidden likes/subscribers): null when absent or not numeric, never 0. */
 export function optCount(v: unknown): number | null {
@@ -14,11 +16,15 @@ export function optCount(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** JSON com as chaves em ordem alfabética em todos os níveis; a ordem das listas é a que veio (reordenar tags É mudança). */
-export function canonicalJson(v: Json): string {
+/**
+ * JSON com as chaves em ordem alfabética em todos os níveis; a ordem das listas é a que veio (reordenar tags É mudança).
+ * `undefined` se comporta como no JSON.stringify: chave de objeto com `undefined` é pulada; em lista (ou solto) vira null.
+ */
+export function canonicalJson(v: Json | undefined): string {
+  if (v === undefined) return 'null'
   if (v === null || typeof v !== 'object') return JSON.stringify(v)
   if (Array.isArray(v)) return '[' + v.map(canonicalJson).join(',') + ']'
-  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canonicalJson(v[k] as Json)).join(',') + '}'
+  return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canonicalJson(v[k])).join(',') + '}'
 }
 export const sha256Hex = (s: string): string => crypto.createHash('sha256').update(s).digest('hex')
 /** O hash de um valor de campo: 16 caracteres, como hashValue de competitor-versions.ts. */
@@ -26,7 +32,37 @@ export const fieldHash = (v: Json): string => sha256Hex(canonicalJson(v)).slice(
 
 /** Acima disto a resposta de um item não é guardada (e a execução acusa): a maior descrição real tem 5 kB. */
 export const RAW_MAX_BYTES = 100_000
-export interface RawCapture { sha: string; raw: Json; bytes: number }
+/** `sanitized`: o texto trazia o que o Postgres rejeita (NUL ou substituto solitário) e foi limpo antes do hash. */
+export interface RawCapture { sha: string; raw: Json; bytes: number; sanitized?: boolean }
+
+/**
+ * O que o `text` e o `jsonb` do Postgres rejeitam: o caractere NUL (U+0000) e, no `jsonb`, metade de par UTF-16 sem a outra.
+ * Um vídeo assim derrubaria a gravação do lote inteiro. NUL sai; o substituto solitário vira U+FFFD; par válido (emoji) fica.
+ */
+const DB_BAD_CHARS = /\u0000|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g
+export const cleanText = (s: string): string => s.replace(DB_BAD_CHARS, c => (c === '\u0000' ? '' : '\ufffd'))
+/** Percorre texto, lista e objeto (valores e chaves). `changed` diz se algo foi tirado ou trocado. */
+export function sanitizeForDb<T>(value: T): { value: T; changed: boolean } {
+  let changed = false
+  const walk = (x: unknown): unknown => {
+    if (typeof x === 'string') {
+      const c = cleanText(x)
+      if (c !== x) changed = true
+      return c
+    }
+    if (Array.isArray(x)) return x.map(walk)
+    if (typeof x === 'object' && x !== null) {
+      const out: Record<string, unknown> = {}
+      for (const k of Object.keys(x)) out[cleanText(k)] = walk((x as Record<string, unknown>)[k])
+      if (Object.keys(out).length !== Object.keys(x).length || Object.keys(x).some(k => cleanText(k) !== k)) changed = true
+      return out
+    }
+    return x
+  }
+  const v = walk(value) as T
+  return { value: v, changed }
+}
+
 /** A resposta como veio, sem o que muda a cada leitura: statistics, etag e concurrentViewers. */
 export function rawOf(item: unknown): RawCapture {
   const src = obj(item) ?? {}
@@ -41,8 +77,10 @@ export function rawOf(item: unknown): RawCapture {
     }
     out[k] = src[k]
   }
-  const text = canonicalJson(out as Json)
-  return { sha: sha256Hex(text), raw: JSON.parse(text) as Json, bytes: Buffer.byteLength(text) }
+  // o hash é do que vai ser gravado: limpa antes de calcular
+  const clean = sanitizeForDb(out)
+  const text = canonicalJson(clean.value as Json)
+  return { sha: sha256Hex(text), raw: JSON.parse(text) as Json, bytes: Buffer.byteLength(text), sanitized: clean.changed }
 }
 
 export interface ObservedField { field: string; value: Json }
@@ -74,16 +112,16 @@ export function videoObservedOf(item: unknown, nowIso: string, durationOf: (iso:
     live_scheduled_start_at: str(live?.scheduledStartTime), live_actual_start_at: str(live?.actualStartTime), live_actual_end_at: str(live?.actualEndTime),
   }
   if (sn) {
-    const tags: Json = Array.isArray(sn.tags) ? sn.tags.filter((t): t is string => typeof t === 'string') : null
-    const lang = str(sn.defaultLanguage), audio = str(sn.defaultAudioLanguage), lbc = str(sn.liveBroadcastContent)
-    fields.push({ field: 'tags', value: tags }, { field: 'category_id', value: str(sn.categoryId) }, { field: 'default_language', value: lang },
+    const tags: Json = Array.isArray(sn.tags) ? sn.tags.filter((t): t is string => typeof t === 'string').map(cleanText) : null
+    const lang = strDb(sn.defaultLanguage), audio = strDb(sn.defaultAudioLanguage), lbc = strDb(sn.liveBroadcastContent)
+    fields.push({ field: 'tags', value: tags }, { field: 'category_id', value: strDb(sn.categoryId) }, { field: 'default_language', value: lang },
       { field: 'default_audio_language', value: audio }, { field: 'live_broadcast_content', value: lbc })
     patch.default_language = lang; patch.default_audio_language = audio; patch.live_broadcast_content = lbc
     // (emenda do portão: S-M2) as mesmas regras que o laço da página usava: sem tags = lista vazia; miniatura = maxres, senão high
     const th = obj(sn.thumbnails)
-    patch.tags = Array.isArray(sn.tags) ? sn.tags.filter((t): t is string => typeof t === 'string') : []
-    patch.category_id = str(sn.categoryId)
-    patch.thumbnail_url = str(obj(th?.maxres)?.url) ?? str(obj(th?.high)?.url)
+    patch.tags = Array.isArray(sn.tags) ? sn.tags.filter((t): t is string => typeof t === 'string').map(cleanText) : []
+    patch.category_id = strDb(sn.categoryId)
+    patch.thumbnail_url = strDb(obj(th?.maxres)?.url) ?? strDb(obj(th?.high)?.url)
   }
   if (cd) {
     const dur = durationOf(typeof cd.duration === 'string' ? cd.duration : undefined)
@@ -108,13 +146,13 @@ export interface ChannelRowPatch {
 
 export function channelObservedOf(item: unknown): { fields: ObservedField[]; patch: ChannelRowPatch } {
   const it = obj(item) ?? {}, sn = obj(it.snippet) ?? {}, st = obj(it.statistics) ?? {}
-  const avatar = str(obj(obj(sn.thumbnails)?.default)?.url)
-  const description = typeof sn.description === 'string' ? sn.description : null
+  const avatar = strDb(obj(obj(sn.thumbnails)?.default)?.url)
+  const description = typeof sn.description === 'string' ? cleanText(sn.description) : null
   const hidden = st.hiddenSubscriberCount === true || optCount(st.subscriberCount) === null
-  const customUrl = str(sn.customUrl), country = str(sn.country)
+  const customUrl = strDb(sn.customUrl), country = strDb(sn.country)
   return {
     fields: [
-      { field: 'name', value: str(sn.title) }, { field: 'custom_url', value: customUrl }, { field: 'description', value: description },
+      { field: 'name', value: strDb(sn.title) }, { field: 'custom_url', value: customUrl }, { field: 'description', value: description },
       { field: 'country', value: country }, { field: 'avatar_url', value: avatar }, { field: 'subscribers_hidden', value: hidden },
       { field: 'availability', value: 'no_ar' },
     ],
