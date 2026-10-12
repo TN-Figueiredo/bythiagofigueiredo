@@ -1532,38 +1532,151 @@ blocoT15('T15 sem canal próprio (o site novo): nenhum atalho "Meu canal"; o can
   }
 } })
 
-blocoT15('T15 quem só lê o site (usuário "reporter"): nenhum número privado aparece nem vem no HTML', { ownPreset: '2', ownL2: 'ativo' }, () => {
-  test('o reporter abre a página, a lista e a comparação com as frases de "só quem edita o site vê"; nenhum valor do dado privado está no DOM nem no HTML do servidor; o admin tem os mesmos valores', async ({ browser, page }) => {
+/* ---- quem só lê (reporter): as sentinelas do dado privado, em todas as formas em que podem viajar */
+type Tela = 'lista' | 'comparação' | 'canal' | 'vídeo'
+type Onde = 'html' | 'dom' | 'rede'
+/** Tudo o que uma pessoa (ou o navegador dela) recebe de uma tela: o HTML bruto do servidor, o DOM depois de hidratar (HTML vivo + texto visível) e todas as respostas de rede
+ *  que NÃO são o documento (fetch/xhr, flight RSC, resposta de server action), mais a carga RSC pedida direto (cabeçalho `RSC: 1`). */
+interface Fonte { html: string; dom: string; rede: string }
+const abrev = (n: number): string => {
+  const dec = (x: number) => { const r = Math.round(x * 10) / 10; return (r % 1 === 0 ? String(r) : r.toFixed(1)).replace('.', ',') }
+  const a = Math.abs(n)
+  return a < 1000 ? String(Math.round(a)) : a < 1e6 ? dec(a / 1e3) + ' mil' : dec(a / 1e6) + ' mi'
+}
+/** O número cru, com separador de milhar e abreviado como a tela escreve ("3,3 mil"). */
+const formasNum = (n: number): string[] => (n >= 1000 ? [String(n), PT(n), abrev(n)] : [String(n)])
+const unicos = (a: string[]): string[] => [...new Set(a)]
+interface Sentinela { grupo: string; formas: string[] }
+function sentinelas(p: Privado, e: ReturnType<typeof esperado>, canalUuid: string): Sentinela[] {
+  const ctrs = unicos(p.reach.filter(r => r.ctr != null).map(r => String(r.ctr)))
+  const viewsPorVideo = new Map<string, number>()
+  for (const r of p.diario) viewsPorVideo.set(r.ytId, (viewsPorVideo.get(r.ytId) ?? 0) + r.views)
+  const vpd = e.vpd!
+  const pref = canalUuid.slice(0, 8)
+  return [
+    { grupo: 'soma das impressões', formas: formasNum(e.imp) },
+    { grupo: 'cliques estimados', formas: formasNum(e.cliques!) },
+    { grupo: 'impressões por vídeo', formas: unicos([...e.porVideo.values()].flatMap(formasNum)) },
+    { grupo: 'impressões por dia', formas: unicos([...e.porDia.values()].flatMap(formasNum)) },
+    { grupo: 'CTR (fração com ponto e com vírgula, e em %)', formas: unicos(ctrs.flatMap(c => [c, c.replace('.', ','), (Number(c) * 100).toFixed(1).replace('.', ',') + '%'])) },
+    { grupo: 'id de vídeo que só existe no relatório', formas: [ORFAO_YT_ID] },
+    { grupo: 'dia e id do relatório (ISO)', formas: unicos(e.dias.flatMap(d => [`${d}T07:00:00`, `seed-${pref}-${d}`, d])) },
+    { grupo: 'views por dia (mediana do diário)', formas: unicos([`${Math.floor(vpd)}/dia, n = ${e.nVpd}`, `${Math.ceil(vpd)}/dia, n = ${e.nVpd}`, String(vpd), String(vpd).replace('.', ',')]) },
+    { grupo: 'views do diário por vídeo (28 dias)', formas: unicos([...viewsPorVideo.values()].filter(n => n > 0).flatMap(formasNum)) },
+  ]
+}
+const ondeEsta = (f: Fonte, s: string): Onde[] => (['html', 'dom', 'rede'] as const).filter(k => f[k].includes(s))
+const trecho = (txt: string, s: string): string => { const i = txt.indexOf(s); return txt.slice(Math.max(0, i - 40), i + s.length + 40).replace(/\s+/g, ' ') }
+const CAPA = (r: { fulfill: (o: { status: number; contentType: string; body: Buffer }) => Promise<void> }) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG })
+
+/** Abre a tela num contexto, registra as respostas de rede do navegador e devolve o que ele recebeu (ver Fonte). `passeio` navega do canal ao vídeo pelo cliente (carga flight). */
+async function coletarTela(ctx: BrowserContext, t: { url: string; espera: string }, passeio = false): Promise<Fonte> {
+  const pg = await ctx.newPage()
+  try {
+    await pg.route(/(ytimg|ggpht)\.com/, CAPA)
+    const corpos: Array<Promise<string>> = []
+    pg.on('response', r => {
+      const tipo = r.request().resourceType(), ct = r.headers()['content-type'] ?? ''
+      if (tipo === 'document' || /\/_next\/static\//.test(r.url()) || /^(image|font)\//.test(ct) || /css|javascript/.test(ct)) return
+      corpos.push(r.text().catch(() => ''))
+    })
+    const bruto = await ctx.request.get(t.url)
+    expect(bruto.status(), `HTML bruto de ${t.url}`).toBe(200)
+    const html = await bruto.text()
+    await pg.goto(t.url)
+    await pg.locator(t.espera).first().waitFor({ timeout: 40_000 })
+    await pg.waitForLoadState('networkidle')
+    if (passeio) {
+      await pg.locator(`${S}:visible ul.cv-grid > li.cv-card a`).first().click()
+      await pg.waitForURL(/\/video\//)
+      await pg.locator(`${V} h1:visible`).first().waitFor({ timeout: 40_000 })
+      await pg.waitForLoadState('networkidle')
+    }
+    const dom = (await pg.content()) + '\n' + (await pg.evaluate(() => document.body.innerText + '\n' + (document.body.textContent ?? '').replace(/\s+/g, ' ')))
+    const rsc = await (await ctx.request.get(t.url, { headers: { RSC: '1' } })).text()
+    const rede = [...(await Promise.all(corpos)), rsc].join('\n')
+    expect(rsc.length, `carga RSC de ${t.url} veio vazia: a prova de rede estaria vazia`).toBeGreaterThan(500)
+    return { html, dom, rede }
+  } finally { await pg.close() }
+}
+
+blocoT15('T15 quem só lê o site (usuário "reporter"): nenhum número privado aparece nem vem no HTML', { ownPreset: '2', ownL2: 'grande' }, () => {
+  test('SENTINELAS: cada valor do dado privado, em todas as formas, aparece para o admin (controle positivo) e NÃO aparece para o reporter no HTML bruto, no DOM nem em nenhuma resposta de rede, nas 4 telas', async ({ browser, page }) => {
+    test.setTimeout(480_000)
+    const sb = localServiceClient(), siteId = await getSeedSiteId()
     const p = await lerPrivado(), e = esperado(p)
-    const privados = [
-      `${PT(e.imp)} impressões`, ...[...e.porVideo.values()].map(n => `${PT(n)} impressões`), ...[...e.porDia.values()].map(n => `${PT(n)} impressões`),
-    ]
-    const vpd = Math.round(e.vpd!)
-    const paginas = [url('?painel=1'), `${ROTA}?niche=todos`, `${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`]
-    // controle: o admin vê (a prova só vale se o detector enxerga o valor quando ele está lá)
-    const admin = await page.context().request.get(paginas[0]!)
-    const htmlAdmin = await admin.text()
-    expect(htmlAdmin, 'o HTML do servidor do admin traz a soma das impressões').toContain(PT(e.imp))
+    expect(e.imp, 'perfil grande: a soma está entre 10 mil e 1 milhão').toBeGreaterThan(10_000)
+    expect(e.cliques).not.toBeNull()
+    // o vídeo para a 4ª tela: o de mais impressões entre os que existem em youtube_videos
+    const melhor = [...e.porVideo.entries()].sort((a, b) => b[1] - a[1]).find(([y]) => p.reach.some(r => r.ytId === y && r.videoId != null))!
+    const idVideo = p.reach.find(r => r.ytId === melhor[0])!.videoId!
+    const telas: Record<Tela, { url: string; espera: string }> = {
+      lista: { url: `${ROTA}?niche=todos`, espera: `[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]` },
+      comparação: { url: `${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`, espera: '[data-obs-screen]:visible tr' },
+      canal: { url: url('?painel=1'), espera: `${S}:visible section.pn` },
+      vídeo: { url: `${ROTA}/video/${idVideo}?from=canais&canal=${PROPRIO()}`, espera: `${V} h1:visible` },
+    }
+    const nomes = Object.keys(telas) as Tela[]
+    const lista = sentinelas(p, e, PROPRIO())
+    const todas = unicos(lista.flatMap(s => s.formas))
+    medida(`sentinelas: ${lista.length} grupos, ${todas.length} formas`)
+
+    // 1) a LINHA DE BASE: as mesmas 4 telas, como admin, SEM nenhum dado privado. O que aparece aqui é público: uma forma que coincide com o público não prova nada e é descartada.
+    const base = {} as Record<Tela, Fonte>
+    let admin = {} as Record<Tela, Fonte>
+    try {
+      await clearOwnL2(siteId, sb)
+      for (const n of nomes) base[n] = await coletarTela(page.context(), telas[n])
+    } finally { await seedOwnL2(siteId, 'grande', '2', sb) }
+    // 2) o admin com o dado: controle positivo
+    for (const n of nomes) admin[n] = await coletarTela(page.context(), telas[n], n === 'canal')
+    // 3) o reporter
+    const ctx = await browser.newContext({ storageState: path.resolve(__dirname, '../../../.auth/reporter.json'), viewport: { width: 1440, height: 900 } })
+    const leitor = {} as Record<Tela, Fonte>
+    try {
+      await ctx.route('**/*', async route => {
+        const r = route.request()
+        if (r.method() === 'POST' && r.headers()['next-action']) { intrusos.push(`${r.headers()['next-action']} ${r.url()}`); await route.abort('blockedbyclient'); return }
+        await route.fallback()
+      })
+      for (const n of nomes) leitor[n] = await coletarTela(ctx, telas[n], n === 'canal')
+    } finally { await ctx.close() }
+
+    // 4) a conta
+    const ambigua = (f: string): boolean => nomes.some(n => ondeEsta(base[n], f).length > 0)
+    const vazou: string[] = [], linhas: string[] = []
+    for (const g of lista) {
+      const validas = g.formas.filter(f => !ambigua(f))
+      const comControle = validas.filter(f => nomes.some(n => ondeEsta(admin[n], f).length > 0))
+      const positivos = unicos(nomes.flatMap(n => comControle.flatMap(f => ondeEsta(admin[n], f).map(o => `${n}/${o}`))))
+      const negativas: string[] = []
+      for (const f of validas) for (const n of nomes) for (const o of ondeEsta(leitor[n], f)) {
+        vazou.push(`SEGURANÇA: "${f}" (${g.grupo}) chegou ao reporter na tela ${n} em ${o}: …${trecho(leitor[n][o], f)}…`)
+        negativas.push(`${n}/${o}`)
+      }
+      linhas.push(`${g.grupo} | formas ${g.formas.length}, públicas descartadas ${g.formas.length - validas.length}, com controle positivo ${comControle.length} | positivo (admin): ${positivos.join(', ') || 'nenhum'} | reporter: ${negativas.length ? 'VAZOU ' + negativas.join(', ') : 'limpo em html, dom e rede, nas 4 telas'}`)
+    }
+    for (const l of linhas) medida(l)
+    // as respostas de rede do reporter foram de fato lidas (uma captura vazia passaria em tudo)
+    for (const n of nomes) medida(`tamanhos (${n}): reporter html ${leitor[n].html.length}, dom ${leitor[n].dom.length}, rede ${leitor[n].rede.length}; admin html ${admin[n].html.length}, dom ${admin[n].dom.length}, rede ${admin[n].rede.length}`)
+    expect(vazou, 'DEFEITO DE SEGURANÇA: dado privado chegou ao usuário só de leitura').toEqual([])
+    // o detector enxerga: cada grupo tem ao menos uma forma não pública que o admin recebe. Exceção medida e fixada: três grupos que o servidor NÃO manda nem ao admin
+    // (a tela só recebe os cliques já calculados, a frase "N vídeos com impressões não estão entre os guardados" sem o id, e a mediana sem as views de cada vídeo).
+    // Para eles só vale a negativa; se um dia o admin passar a recebê-los, esta lista falha e o grupo ganha controle positivo.
+    const semControle = lista.filter(g => !g.formas.some(f => !ambigua(f) && nomes.some(n => ondeEsta(admin[n], f).length > 0))).map(g => g.grupo).sort()
+    medida(`grupos sem controle positivo (o admin também não os recebe): ${semControle.join(' ; ') || 'nenhum'}`)
+    expect(semControle).toEqual(['CTR (fração com ponto e com vírgula, e em %)', 'id de vídeo que só existe no relatório', 'views do diário por vídeo (28 dias)'].sort())
+    // o reporter recebeu as telas com as frases de "só quem edita o site vê" no lugar dos números
+    expect(leitor['canal'].dom).toContain('Só quem edita o site vê as impressões.')
+    expect(leitor['canal'].dom).not.toContain('ic-svg')
+  })
+
+  test('o reporter abre a página, a lista, a comparação e o vídeo com as frases de "só quem edita o site vê"', async ({ browser }) => {
+    test.setTimeout(240_000)
     const ctx = await browser.newContext({ storageState: path.resolve(__dirname, '../../../.auth/reporter.json'), viewport: { width: 1440, height: 900 } })
     const lei = await ctx.newPage()
     try {
-      await lei.route(/(ytimg|ggpht)\.com/, r => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
-      for (const [i, u] of paginas.entries()) {
-        const bruto = await (await ctx.request.get(u)).text()
-        await lei.goto(u)
-        await lei.locator('[data-obs-screen]:visible').first().waitFor({ timeout: 40_000 })
-        await lei.waitForLoadState('networkidle')
-        const dom = await lei.content()
-        for (const v of privados) {
-          expect(bruto, `HTML do servidor (${i}) não traz "${v}"`).not.toContain(v)
-          expect(dom, `DOM (${i}) não traz "${v}"`).not.toContain(v)
-        }
-        expect(bruto, `HTML do servidor (${i}) não traz as views por dia`).not.toContain(`${vpd}/dia, n = ${e.nVpd}`)
-        expect(dom).not.toContain(`/dia, n = ${e.nVpd}`)
-        // nenhum desenho do gráfico
-        expect(dom).not.toContain('ic-svg')
-      }
-      // as frases do spec
+      await lei.route(/(ytimg|ggpht)\.com/, CAPA)
       await lei.goto(url('?painel=1'))
       await lei.locator(`${S}:visible .chead`).first().waitFor()
       const t = await lei.locator(`${S}:visible`).first().innerText()
@@ -1590,6 +1703,91 @@ blocoT15('T15 quem só lê o site (usuário "reporter"): nenhum número privado 
       await lei.goto(url('?painel=1')); await lei.locator(`${S}:visible section.pn`).first().waitFor()
       await lei.screenshot({ path: SHOTS_DADO('leitor-canal-1440-escuro') })
     } finally { await ctx.close() }
+  })
+})
+
+/* ---- números grandes (entre 10 mil e 1 milhão) a 390 px */
+blocoT15('T15 números grandes: impressões de cinco algarismos a 390 px não passam da coluna', { ownPreset: '2', ownL2: 'grande' }, () => {
+  test('o canal com ~50 mil impressões a 390 px, com a seção aberta e a tabela alternativa aberta: nada rola para o lado, nada passa da coluna, o texto mínimo é 12 px', async ({ page }) => {
+    const e = esperado(await lerPrivado())
+    expect(e.imp).toBeGreaterThan(10_000)
+    expect(e.imp).toBeLessThan(1_000_000)
+    await abrirComGrafico(page, { width: 390, height: 844 })
+    const imp = tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).first()
+    await expect(imp.locator('dd')).toHaveText(abrev(e.imp))
+    await tela(page).getByRole('button', { name: /Todos os números/ }).click()
+    await expect(grafico(page).locator('.ic-res')).toContainText(`${PT(e.imp)} impressões`)
+    const medir = async (quando: string) => {
+      const l = await larguras(page)
+      medida(`390 px, ${quando}: docScroll ${l.docScroll}, contScroll ${l.contScroll}, fora: ${l.fora.join(' | ') || 'nenhum'}, menor texto ${l.menor}px`)
+      expect(l.docScroll, `${quando}: rolagem horizontal do documento`).toBeLessThanOrEqual(0)
+      expect(l.contScroll, `${quando}: rolagem horizontal do contêiner`).toBeLessThanOrEqual(0)
+      expect(l.fora, `${quando}: elementos fora da coluna`).toEqual([])
+      expect(l.menor, `${quando}: ${l.quem}`).toBeGreaterThanOrEqual(12)
+      // nenhuma célula, cartão ou legenda esconde texto por estouro
+      const estouros = await tela(page).evaluate(raiz => [...raiz.querySelectorAll<HTMLElement>('.nc, dd, li.cv-card, figure.ic, .ic-res, .ic-leg, .ic-eixo')]
+        .filter(el => el.getClientRects().length > 0 && !el.closest('.fscroll, .nclip, .cv-tw') && el.scrollWidth > el.clientWidth + 1)
+        .map(el => `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 24)} ${el.scrollWidth}>${el.clientWidth}`).slice(0, 6))
+      expect(estouros, `${quando}: texto maior que a caixa`).toEqual([])
+    }
+    await medir('seção aberta')
+    await grafico(page).locator('details.ic-tab summary').click()
+    await medir('tabela alternativa aberta')
+    await tela(page).locator('ul.cv-grid').scrollIntoViewIfNeeded()
+    const cartoes = await tela(page).locator('ul.cv-grid > li.cv-card').evaluateAll(els => els.map(e => (e.textContent ?? '').replace(/\s+/g, ' ')))
+    const maior = [...e.porVideo.values()].sort((a, b) => b - a)[0]!
+    medida(`cartões a 390 px com o maior vídeo (${PT(maior)}): ${cartoes.filter(t => /impressões/.test(t)).slice(0, 2).join(' || ').slice(0, 300)}`)
+    expect(cartoes.some(t => t.includes(`${PT(maior)} impressões`) || t.includes(`${abrev(maior)} impressões`)), `o cartão do maior vídeo (${PT(maior)}) escreve o número, inteiro ou compacto`).toBe(true)
+    await page.screenshot({ path: SHOTS_DADO('canal-grande-390-escuro-cartoes') })
+  })
+})
+
+/* ---- diário com lacunas: vídeo com menos de 7 linhas e vídeo com impressões e sem diário */
+blocoT15('T15 diário com lacunas: o filtro "7 dias ou mais" da mediana e o vídeo com impressões e sem views por dia', { ownPreset: '2', ownL2: 'lacunas' }, () => {
+  test('quatro longos têm só 5 dias de diário: ficam fora da mediana (n menor), e a lista, a comparação e o cabeçalho escrevem o mesmo número sem eles', async ({ page }) => {
+    const p = await lerPrivado(), e = esperado(p)
+    const linhas = new Map<string, number>()
+    for (const r of p.diario) linhas.set(r.ytId, (linhas.get(r.ytId) ?? 0) + 1)
+    const curtos = [...linhas.values()].filter(n => n < 7).length, comDiario = linhas.size
+    expect(curtos, 'o perfil tem vídeos com menos de 7 linhas').toBe(4)
+    expect(e.nVpd, 'o filtro n >= 7 tirou exatamente os curtos').toBe(comDiario - curtos)
+    // o filtro faz diferença: sem ele a mediana seria outra (as views dos curtos são altas)
+    const medias = [...new Map(p.diario.map(r => [r.ytId, 0])).keys()].map(y => { const l = p.diario.filter(r => r.ytId === y); return l.reduce((a, r) => a + r.views, 0) / l.length }).sort((a, b) => a - b)
+    const h = medias.length >> 1
+    const semFiltro = medias.length % 2 ? medias[h]! : (medias[h - 1]! + medias[h]!) / 2
+    expect(semFiltro, 'sem o filtro a mediana seria diferente').not.toBe(e.vpd)
+    const ultimo = p.diario.map(r => r.dia).sort().at(-1)!
+    const janela = `de ${dm(addDiasStr(ultimo, -27))} a ${dm(ultimo)}`
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`)
+    const linhaVpd = page.locator('[data-obs-screen]:visible tr').filter({ hasText: /^Views por dia nos longos/ }).first()
+    await linhaVpd.waitFor({ timeout: 40_000 })
+    const num = await textoDe(linhaVpd.locator('td.cA .v1'))
+    expect(num).toMatch(NUM_VPD(e.vpd!))
+    await expect(linhaVpd.locator('td.cA')).toContainText(`mediana de ${e.nVpd} longos`)
+    await page.goto(`${ROTA}?niche=todos`)
+    const linha = page.locator(`[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]`)
+    await linha.waitFor({ timeout: 40_000 })
+    expect(await textoDe(linha)).toContain(`${num}/dia, n = ${e.nVpd}, ${janela}`)
+    medida(`lacunas: ${comDiario} vídeos com diário, ${curtos} com menos de 7 linhas, n da mediana ${e.nVpd}, mediana ${e.vpd!.toFixed(2)} (sem o filtro seria ${semFiltro.toFixed(2)})`)
+  })
+
+  test('o vídeo com impressões e SEM nenhuma linha de diário: o cartão traz as impressões, a página dele abre em 200 e nada vira NaN, undefined ou "0 views por dia"', async ({ page }) => {
+    const p = await lerPrivado(), e = esperado(p)
+    const comDiario = new Set(p.diario.map(r => r.ytId))
+    const semDiario = [...e.porVideo.entries()].filter(([y]) => !comDiario.has(y) && p.reach.some(r => r.ytId === y && r.videoId != null))
+    expect(semDiario.length, 'o perfil tem vídeo com impressões e sem diário').toBeGreaterThanOrEqual(1)
+    const [yt, tot] = semDiario[0]!
+    const videoId = p.reach.find(r => r.ytId === yt)!.videoId!
+    await abrirComGrafico(page, { width: 1440, height: 900 })
+    const cartao = tela(page).locator(`ul.cv-grid > li.cv-card[data-id="${videoId}"]`)
+    await expect(cartao).toContainText(`${PT(tot)} impressões`)
+    expect(await textoDe(cartao)).not.toMatch(/NaN|undefined|Infinity/)
+    const r = await page.goto(`${ROTA}/video/${videoId}?from=canais&canal=${PROPRIO()}`)
+    expect(r!.status()).toBe(200)
+    await page.locator(`${V} h1:visible`).first().waitFor({ timeout: 40_000 })
+    expect(await page.locator(`${V}:visible`).first().innerText()).not.toMatch(/NaN|undefined|Infinity/)
+    medida(`vídeo ${yt} (${PT(tot)} impressões) sem linha de diário: cartão e página abrem sem erro`)
   })
 })
 
