@@ -13,7 +13,7 @@ import type { CanalState } from './params'
 
 export const FMT_NOME: Record<CanalFmt, string> = { todos: 'Todos', longos: 'Longos', shorts: 'Shorts', fixados: 'Fixados' }
 /** Como o status chama cada ordenação (o mesmo nome do cabeçalho da coluna na Lista). */
-export const SORT_NOME: Record<CanalSort, string> = { recentes: 'Publicado', vistos: 'Views', multiplo: 'Múltiplo', vpd: 'Views/dia' }
+export const SORT_NOME: Record<CanalSort, string> = { recentes: 'Publicado', vistos: 'Views', multiplo: 'Múltiplo', vpd: 'Views/dia', imp: 'Impressões' }
 const SORT_OPCOES: Array<[CanalSort, string]> = [['recentes', 'Mais recentes'], ['vistos', 'Mais vistos'], ['multiplo', 'Maior múltiplo'], ['vpd', 'Mais views por dia']]
 const FMTS: CanalFmt[] = ['todos', 'longos', 'shorts', 'fixados']
 

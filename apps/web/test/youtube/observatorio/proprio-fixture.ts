@@ -108,6 +108,11 @@ export function alcanceCurto(canalId: string, ytIds: readonly string[], hoje: Di
   return alc(canalId, [rel(d(3)), rel(d(2), 'vazio')], linhas)
 }
 
+/** Os relatórios da série cheia (período de 21 dias, 19 lidos) com as linhas de alcance que o teste dita: para casos de um vídeo só. */
+export function alcanceComLinhas(canalId: string, hoje: DiaYt, linhas: AlcanceLinha[]): AlcanceCanal {
+  return { ...alcanceCheio(canalId, [], hoje), linhas }
+}
+
 /** Tabela vazia: nenhum relatório e nenhuma linha (canal novo; o banco local de hoje). */
 export const alcanceVazio = (canalId: string): AlcanceCanal => alc(canalId, [], [])
 

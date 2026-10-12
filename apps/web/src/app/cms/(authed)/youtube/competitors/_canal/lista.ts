@@ -36,6 +36,8 @@ const titleKey = (v: ChannelVideoView) => {
 
 const SEM_VALOR: Record<Exclude<CanalState['sort'], 'recentes'>, string> = {
   vistos: 'Sem contagem de views', multiplo: 'Sem múltiplo ainda', vpd: 'Sem views por dia ainda',
+  // canal próprio: não medido não é zero; o divisor junta quem não apareceu nos relatórios e quem não pôde ser lido
+  imp: 'Sem impressão medida no período',
 }
 const LABEL_ANTIGOS = 'Mais antigos, sem contagem diária'
 const FMT_NOME = { longos: 'vídeo longo', shorts: 'Short', fixados: 'vídeo fixado' } as const
@@ -43,8 +45,20 @@ const FMT_NOME = { longos: 'vídeo longo', shorts: 'Short', fixados: 'vídeo fix
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const porData = (a: ChannelVideoView, b: ChannelVideoView) => (b.pub ?? 0) - (a.pub ?? 0)
 
+/** As impressões vêm só do vídeo do canal próprio (`ProprioVideoView`); o do concorrente não tem o campo e fica sem valor. */
+function impDe(v: ChannelVideoView): number | null {
+  return 'imp' in v && typeof v.imp === 'number' ? v.imp : null
+}
+
 function chave(v: ChannelVideoView, sort: CanalState['sort']): number | null {
-  return sort === 'recentes' ? v.pub : sort === 'vistos' ? v.views : sort === 'multiplo' ? v.mult : v.vpd7
+  switch (sort) {
+    case 'recentes': return v.pub
+    case 'vistos': return v.views
+    case 'multiplo': return v.mult
+    case 'vpd': return v.vpd7
+    case 'imp': return impDe(v)
+    default: { const nunca: never = sort; return nunca }
+  }
 }
 
 function casaFormato(v: ChannelVideoView, fmt: CanalState['fmt']): boolean {

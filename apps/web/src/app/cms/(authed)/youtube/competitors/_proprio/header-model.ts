@@ -66,12 +66,12 @@ export function fraseDoAlcance(e: EstadoAlcance): string | null {
   }
 }
 
-type AlcanceLido =
+export type AlcanceLido =
   | { estado: Exclude<EstadoAlcance, 'ok'> }
   | { estado: 'ok'; periodo: Periodo; resumo: ResumoAlcance; porVideo: ReturnType<typeof alcancePorVideo> }
 
 /** Relatório nenhum (tabela vazia, canal sem linha) é 'sem-relatorio': a série não tem onde começar. */
-function lerEstado(p: Privado<AlcanceCanal>): AlcanceLido {
+export function lerEstado(p: Privado<AlcanceCanal>): AlcanceLido {
   if (p.acesso === 'negado') return { estado: 'negado' }
   if (p.acesso === 'erro') return { estado: 'erro' }
   const { periodo, dias } = montarDias(p.dado)
@@ -82,6 +82,11 @@ function lerEstado(p: Privado<AlcanceCanal>): AlcanceLido {
 /* ---------------------------------------------------------------- pedaços do cabeçalho */
 
 type Fmt = Observatory['fmt']
+
+/** Cliques estimados como texto: arredonda só aqui; positivo que arredonda a 0 diz "menos de 1", nunca "0". O cabeçalho e a linha do vídeo usam esta. */
+export function cliquesTexto(cliques: number, F: Pick<Fmt, 'int'>): string {
+  return cliques > 0 && Math.round(cliques) === 0 ? 'menos de 1' : F.int(Math.round(cliques))
+}
 
 const comContagem = (vids: readonly ObsVideo[]) => vids.filter((v): v is ObsVideo & { views: number } => v.views != null)
 
@@ -158,7 +163,7 @@ export function buildProprioHeader(
   const BASE_CLIQUES = 'Estimado: impressões × CTR de cada dia e vídeo, somados e arredondados uma vez, no total; por isso o total pode diferir da soma das partes escritas. O YouTube não informa cliques.'
   const cliques = cell('cliques', 'cliques estimados no período', {
     // arredonda só o total que aparece; um total positivo que arredondaria para 0 diz "menos de 1", nunca "0"
-    value: cliquesOk && cliquesTotal != null ? (cliquesTotal > 0 && Math.round(cliquesTotal) === 0 ? 'menos de 1' : F.int(Math.round(cliquesTotal))) : null,
+    value: cliquesOk && cliquesTotal != null ? cliquesTexto(cliquesTotal, F) : null,
     missing: cliquesOk ? FRASE_CTR : faltaAlcance(),
     base: cliquesOk && cliquesTotal == null ? `${BASE_CLIQUES} Algum dia com impressão veio sem CTR, então o total não é calculado.` : BASE_CLIQUES,
   })
