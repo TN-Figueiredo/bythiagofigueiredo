@@ -171,6 +171,10 @@ test('ownL2: a semente do dado privado escreve o que o perfil diz (datas relativ
     expect(Math.round(RET_1139.imp * RET_1139.ctr)).toBe(1139)
     expect(p.rels.find(r => String(r.start_time).slice(0, 10) === somaDias(dia1139, -1))!.status).toBe('listado')
     expect(RET_DIA_MAGRO).toBeGreaterThan(18)
+    // as duas pontas da faixa de taxa: um vídeo perto de 0% e outro perto de 100%
+    const taxaDe = (yt: string) => { const l = alcanceDe(yt); const imp = l.reduce((a, r) => a + Number(r.thumbnail_impressions), 0); return l.reduce((a, r) => a + Number(r.thumbnail_impressions) * Number(r.thumbnail_ctr), 0) / imp }
+    expect(taxaDe(RET.taxaBaixa)).toBeLessThan(0.002)
+    expect(taxaDe(RET.taxaAlta)).toBeGreaterThan(0.95)
     // o vídeo novo (publicado há 2 dias) não tem alcance nem diário depois da publicação: o último dia coletado é anterior
     expect(alcanceDe(RET.novo)).toHaveLength(0)
     expect(Object.keys(PERFIS_L2).sort()).toEqual(['ativo', 'cheio', 'curto', 'grande', 'lacunas', 'parado', 'retencao', 'velho'])
