@@ -41,4 +41,10 @@ describe('formato.ts (H21)', () => {
   it('formato.ts é folha: não importa nenhum modelo, nem o leitor privado', () => {
     for (const i of importsDe('_proprio/formato.ts')) expect(i).not.toMatch(/model|proprio\/ler|edicao|dados/)
   })
+  it('M1: o espaço sem quebra tem uma definição só (_canal/formato); a lista de canais importa em vez de repetir', () => {
+    expect(fonte('_canal/formato.ts')).toMatch(/export const NB\b/)
+    expect(fonte('_canais/view-model.ts')).not.toMatch(/const NB\b/)
+    expect(importsDe('_canais/view-model.ts')).toContain('../_canal/formato')
+    expect(fonte('_canais/view-model.ts')).not.toMatch(/replace\(\/ \(mil\|mi\)\$\//)
+  })
 })
