@@ -15,6 +15,7 @@ import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import { alcancePorVideo, montarDias, resumir, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { AlcanceCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { baseVpdTexto, motivoVpdTexto, vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
+import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
 import {
   celulaCrescimento30, celulaInscritos, makeCell, sincronizacaoDoCanal, type MakeCell, type NumCell,
 } from '../_canal/header-model'
@@ -22,8 +23,20 @@ import { durText, duracaoMediana, vpdText } from '../_canal/numeros'
 import { langChip, type LangChip } from '../_chrome/own-channels'
 import type { DadosDoCanal } from './dados'
 import { foraDosGuardadosFrase, longosAcompanhados } from './extras'
+import { assistidoDoCanal, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS, POUCAS_VIEWS_MEDIA, taxaDoCanal, type AssistidoCanal } from './canal-agregados'
+import { pctUm } from './taxa-faixa-model'
 
 export type { NumCell }
+
+/**
+ * Uma célula do cabeçalho do canal próprio: a do concorrente mais o que o mockup de 12/10 acrescenta. `sub` = a segunda linha (a base curta);
+ * `fraco` = o valor sai em cinza (pouca base); `parado` = o canal está parado (forma e palavra, nunca só cor); `semNumero` = há dado, mas pouco
+ * demais para dizer (não é "não medido"); `explicada` = a frase do motivo fica DENTRO da célula (não sobe para a linha de baixo da faixa).
+ */
+export interface ProprioCell extends NumCell { sub: string | null; fraco: boolean; parado: boolean; semNumero: boolean; explicada: boolean }
+
+/** A linha-resumo sob o nome: "Canal parado há 666 dias" (destaque, com a palavra) + "; 18.201 impressões em 29 dias." */
+export interface ResumoCanalView { destaque: string; parado: boolean; resto: string }
 
 /** As posições do canal entre os do nicho (ou no geral, sem nicho), calculadas no servidor com o conjunto do site. null = não calculadas. */
 export interface PosicaoNoNicho {
@@ -37,9 +50,15 @@ export interface PosicaoNoNicho {
 export interface ProprioHeaderView {
   id: string; name: string; handle: string; url: string; avatar: string | null; ini: string; color: string; lang: LangChip | null
   /** 6, nesta ordem: inscritos, videos, viewsSomadas, impressoes, diasComImpressao, diasDesdeUltimo */
-  faixa: NumCell[]
-  /** 11, na ordem de 16.3: cliques, videosComImpressao, medianaViews, maisVisto, engajamento90, engajamentoTodos, duracaoMediana, ritmo, vpdVideo, retencao, inscritos30 */
-  todos: NumCell[]
+  faixa: ProprioCell[]
+  /** 13: cliques, taxaClique, videosComImpressao, medianaViews, maisVisto, engajamento90, engajamentoTodos, duracaoMediana, ritmo, vpdVideo, assistido, retencao, inscritos30 */
+  todos: ProprioCell[]
+  /** A linha sob o nome (null = canal sem vídeo, que não tem página). */
+  resumo: ResumoCanalView | null
+  /** UMA frase com o motivo das células da faixa 1 que não têm número; null = todas têm. */
+  faixaMotivo: string | null
+  /** Idem para a faixa 2. */
+  todosMotivo: string | null
   sync: string
   /** "Entre 14 canais de Viagem: 14º em inscritos, …"; null = as posições não foram calculadas. É a junção de `posicaoItens` (uma fonte só). */
   posicaoLinha: string | null
@@ -114,7 +133,10 @@ export function buildProprioHeader(
   if (!ch || !ch.own) return null
   const F: Fmt = obs.fmt, D = obs.date, R = obs.RULES, { dm } = o
   const noun = (n: number, one: string, many: string) => F.plural(n, one, many)
-  const cell: MakeCell = makeCell(false, R.weakBase)
+  const base0: MakeCell = makeCell(false, R.weakBase)
+  /** A célula com os campos do canal próprio em estado neutro; `x` acerta o que a célula tem de seu. */
+  const pc = (c: NumCell, x: Partial<Omit<ProprioCell, keyof NumCell>> = {}): ProprioCell => ({ sub: null, fraco: false, parado: false, semNumero: false, explicada: false, ...c, ...x })
+  const cell = (key: string, label: string, v: Parameters<MakeCell>[2], x: Partial<Omit<ProprioCell, keyof NumCell>> = {}): ProprioCell => pc(base0(key, label, v), x)
   const vids = obs.videos.filter(v => v.ch === ch.id)
   const total = vids.length + ch.undated.length
   const longos = longosAcompanhados(obs, ch.id)
@@ -126,7 +148,7 @@ export function buildProprioHeader(
   const kl = obs.cadence(ch.id, 'long'), ks = obs.cadence(ch.id, 'short')
 
   /* ---------------------------------------------------------------- faixa */
-  const inscritos: NumCell = { ...celulaInscritos(ch, F, cell), key: 'inscritos' }
+  const inscritos = pc({ ...celulaInscritos(ch, F, cell), key: 'inscritos' })
 
   const nShort = vids.filter(v => v.fmt === 'short').length + ch.undated.filter(u => u.isShort === true).length
   const videos = cell('videos', 'vídeos', {
@@ -155,13 +177,13 @@ export function buildProprioHeader(
   /** A frase quando falta número: a do estado, ou "nada lido" quando há relatório mas nenhum dia foi lido. */
   const faltaAlcance = (): string => fraseDoAlcance(alc.estado) ?? FRASE_NADA_LIDO
 
-  const impressoes = cell('impressoes', periodoTxt ? `impressões ${periodoTxt}` : 'impressões no período', {
+  const impressoes = cell('impressoes', periodoTxt && !nada ? 'impressões' : 'impressões no período', {
     value: alc.estado === 'ok' && !nada ? F.num(alc.resumo.imp ?? 0) : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok'
       ? `Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia lido', 'dias lidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório lido ficam fora da soma` : 'nenhum dia fica sem relatório lido'}. ${DIA_YT}${INCLUI}`
       : 'Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas no período dos relatórios de alcance do canal.',
-  })
+  }, { sub: periodoTxt && !nada ? periodoTxt : null })
 
   const diasComImpressao = cell('diasComImpressao', 'dias com impressão', {
     value: alc.estado === 'ok' && !nada ? `${alc.resumo.diasComImpressao} de ${alc.resumo.diasLidos}` : null,
@@ -173,11 +195,12 @@ export function buildProprioHeader(
 
   // o vídeo mais recente (de qualquer formato) diz há quantos dias o canal não publica
   const ultimo = vids.reduce<ObsVideo | null>((m, v) => (m == null || v.pub > m.pub ? v : m), null)
+  const canalParado = ultimo != null && ultimo.ageDays > DIAS_CANAL_PARADO
   const diasDesdeUltimo = cell('diasDesdeUltimo', 'desde o último vídeo', {
     value: ultimo ? noun(ultimo.ageDays, 'dia', 'dias') : null,
     missing: 'nenhum vídeo guardado',
     base: ultimo ? `publicado em ${D.dmOrDmy(ultimo.pub)} ${D.hm(ultimo.pub)} (São Paulo)` : 'o canal não tem vídeo com data de publicação guardado',
-  })
+  }, { parado: canalParado })
 
   /* ---------------------------------------------------------------- todos os números */
   const cliquesOk = alc.estado === 'ok' && !nada
@@ -188,7 +211,17 @@ export function buildProprioHeader(
     value: cliquesOk && cliquesTotal != null ? cliquesTexto(cliquesTotal, F) : null,
     missing: cliquesOk ? FRASE_CTR : faltaAlcance(),
     base: cliquesOk && cliquesTotal == null ? `${BASE_CLIQUES} Algum dia com impressão veio sem CTR, então o total não é calculado.` : BASE_CLIQUES,
-  })
+  }, { sub: cliquesOk && cliquesTotal != null ? 'impressões × taxa de cada dia' : null })
+
+  // taxa de clique do canal: cliques estimados ÷ impressões do período, com o intervalo de 95% (Wilson); sem impressão não há taxa (nula, nunca 0%)
+  const taxa = cliquesOk ? taxaDoCanal(alc.resumo) : null
+  const taxaClique = cell('taxaClique', 'taxa de clique do canal', {
+    value: taxa ? pctUm(taxa.taxa) : null,
+    missing: !cliquesOk ? faltaAlcance() : alc.estado === 'ok' && alc.resumo.imp === 0 ? 'nenhuma impressão nos dias lidos, então não há taxa' : FRASE_CTR,
+    base: taxa
+      ? `Cliques estimados ÷ impressões, no período ${periodoTxt}. O intervalo de ${pctUm(taxa.lo)} a ${pctUm(taxa.hi)} é o de 95% de confiança (Wilson): com poucas impressões ele é largo. ${taxaLargaFrase(taxa)}`
+      : 'Cliques estimados ÷ impressões, no período dos relatórios de alcance do canal.',
+  }, { sub: taxa ? `entre ${pctUm(taxa.lo)} e ${pctUm(taxa.hi)}` : null })
 
   // o numerador sai do MESMO conjunto do total: linha de vídeo que saiu do canal (apagado, privado) não conta, senão "5 de 3"
   const comImpressao = alc.estado === 'ok' ? [...alc.porVideo.keys()].filter(id => doCanal.has(id)).length : 0
@@ -261,13 +294,17 @@ export function buildProprioHeader(
     value: vpd.valor == null ? null : vpdText(vpd.valor, F.num), n: vpd.n,
     missing: vpd.motivo == null ? '' : motivoVpdTexto(vpd.motivo, vpd, dm),
     base: baseVpdTexto(vpd, dm) ?? 'mediana, entre os longos acompanhados, da média diária dos últimos 28 dias do YouTube com medida',
-  })
+  }, { sub: vpd.valor != null ? 'mediana dos longos, 28 dias' : null })
 
-  const retencao = cell('retencao', 'retenção e percentual assistido', {
-    value: null, missing: 'ainda não coletada', base: 'chega com a coleta de retenção',
-  })
+  // % assistido do canal: média do percentual de cada dia, pesada pelas views, nos 28 dias; com menos de 7 dias com dado não crava número (decisão do dono)
+  const ass = assistidoDoCanal(dados.diario, longos)
+  const assistido = celulaAssistido(ass, cell, dm)
 
-  const inscritos30: NumCell = { ...celulaCrescimento30(obs, ch, SL.growth30, cell), key: 'inscritos30' }
+  const retencao = cell('retencao', 'retenção (curva)', {
+    value: null, missing: 'a curva ainda não é coletada', base: 'a curva de retenção por minuto chega com a coleta de retenção; fica na página de cada vídeo',
+  }, { sub: 'a curva ainda não é coletada', explicada: true })
+
+  const inscritos30 = pc({ ...celulaCrescimento30(obs, ch, SL.growth30, cell), key: 'inscritos30' })
 
   /* ---------------------------------------------------------------- sincronização e posição */
   const tail = total ? ` · ${noun(total, 'vídeo', 'vídeos')}` : ' · nenhum vídeo guardado'
@@ -275,14 +312,94 @@ export function buildProprioHeader(
 
   const posicaoItens = o.posicao ? itensDePosicao(o.posicao, { ch, longos90: recentes.length, vpd, dm, F }) : null
   const many = o.muitosProprios
+  const faixa = [inscritos, videos, viewsSomadas, impressoes, diasComImpressao, diasDesdeUltimo]
+  const todos = [cliques, taxaClique, videosComImpressao, medianaViews, maisVistoCell, engajamento90, engajamentoTodos, duracao, ritmo, vpdVideo, assistido, retencao, inscritos30]
   return {
     id: ch.id, name: ch.name, handle: ch.handle, url: ch.url, avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, lang: langChip(ch.lang, many),
-    faixa: [inscritos, videos, viewsSomadas, impressoes, diasComImpressao, diasDesdeUltimo],
-    todos: [cliques, videosComImpressao, medianaViews, maisVistoCell, engajamento90, engajamentoTodos, duracao, ritmo, vpdVideo, retencao, inscritos30],
+    faixa,
+    resumo: resumoDoCanal(ultimo, canalParado, alc, noun, F),
+    faixaMotivo: motivoDasCelulas(faixa), todosMotivo: motivoDasCelulas(todos),
+    todos,
     sync,
     posicaoLinha: posicaoItens ? juntar(posicaoItens) : null,
     posicaoItens,
   }
+}
+
+/* ---------------------------------------------------------------- resumo, motivo e % assistido */
+
+/** Mais que isto sem publicar e o canal está parado (a linha-resumo diz "Canal parado há N dias"). */
+export const DIAS_CANAL_PARADO = 60
+
+const plural1 = (n: number, um: string, muitos: string, F: Pick<Fmt, 'int'>): string => `${F.int(n)} ${n === 1 ? um : muitos}`
+
+/** A linha sob o nome (mockup 2): "Canal parado há N dias" ou "Último vídeo há N dias", e o que o alcance diz em uma oração. Nenhum número privado sem permissão. */
+function resumoDoCanal(ultimo: ObsVideo | null, parado: boolean, alc: AlcanceLido, noun: (n: number, um: string, muitos: string) => string, F: Pick<Fmt, 'int'>): ResumoCanalView | null {
+  if (!ultimo) return null
+  const destaque = `${parado ? 'Canal parado' : 'Último vídeo'} há ${noun(ultimo.ageDays, 'dia', 'dias')}`
+  let resto: string
+  switch (alc.estado) {
+    case 'negado': resto = '; só quem edita o site vê os números de alcance.'; break
+    case 'erro': resto = '; a leitura do alcance falhou agora; recarregue a página.'; break
+    case 'sem-relatorio': resto = '; ainda sem números de alcance.'; break
+    case 'ok': {
+      const r = alc.resumo
+      if (r.diasLidos === 0 || r.imp == null) resto = '; nenhum dia de alcance foi lido ainda.'
+      else if (r.imp === 0) resto = `; nenhuma impressão em ${plural1(r.diasLidos, 'dia lido', 'dias lidos', F)}.`
+      else resto = `; ${plural1(r.imp, 'impressão', 'impressões', F)} em ${plural1(alc.periodo.dias, 'dia', 'dias', F)}.`
+      break
+    }
+    default: { const nunca: never = alc; return nunca }
+  }
+  return { destaque, parado, resto }
+}
+
+const cap1 = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1)
+
+/**
+ * UMA frase com o motivo das células sem número que não se explicam sozinhas (a pastilha da célula é só o quadradinho hachurado; o motivo sobe para
+ * cá, sem repetir quatro vezes). Sem permissão: só quem vê. Senão: "Não medido: ..." e a lembrança de que não é zero. null = nenhuma célula sem número.
+ */
+export function motivoDasCelulas(cs: readonly ProprioCell[]): string | null {
+  const todos = [...new Set(cs.filter(c => c.value == null && !c.explicada && c.missing).map(c => c.missing as string))]
+  const negados = todos.filter(m => m.startsWith('só quem edita'))
+  const outros = todos.filter(m => !m.startsWith('só quem edita'))
+  const frases = [
+    ...negados.map(m => cap1(m) + '.'),
+    ...(outros.length ? [`Não medido: ${outros.join('; ')}. Nenhum destes números é zero, só falta medir.`] : []),
+  ]
+  return frases.length ? frases.join(' ') : null
+}
+
+/** Na taxa do canal: faixa de mais de 5 pontos não diz se é alta ou baixa. */
+function taxaLargaFrase(t: Parameters<typeof canalLargo>[0]): string {
+  return canalLargo(t) ? 'Ainda não dá para dizer se é alta ou baixa.' : ''
+}
+
+/** O motivo (curto, em minúscula, sem ponto) de não haver % assistido do canal. */
+function motivoAssistido(a: AssistidoCanal, dm: (d: DiaYt) => string): string {
+  switch (a.motivo) {
+    case 'sem-acesso': return FRASE_NEGADO
+    case 'leitura-falhou': return 'a leitura do % assistido falhou agora; recarregue a página'
+    case 'sem-diario': return 'a coleta diária ainda não gravou este canal'
+    case 'sem-views': return a.janela ? `nenhum vídeo teve views nos 28 dias até ${dm(a.janela.ate)}` : 'nenhum vídeo teve views nos 28 dias'
+    case 'sem-percentual': return 'o YouTube ainda não entregou o % assistido'
+    case null: return ''
+    default: { const nunca: never = a.motivo; return nunca }
+  }
+}
+
+const BASE_ASSISTIDO = 'Média do percentual assistido de cada dia, pesada pelas views do dia, nos vídeos longos acompanhados, nos 28 dias que terminam no último dia gravado. Acima de 100%: trecho que muita gente voltou para rever.'
+
+function celulaAssistido(a: AssistidoCanal, cell: (key: string, label: string, v: Parameters<MakeCell>[2], x?: Partial<Omit<ProprioCell, keyof NumCell>>) => ProprioCell, dm: (d: DiaYt) => string): ProprioCell {
+  if (a.pct == null) return cell('assistido', '% assistido', { value: null, missing: motivoAssistido(a, dm), base: BASE_ASSISTIDO })
+  if (a.dias < MIN_DIAS_ASSISTIDO) {
+    // há dado, mas poucos dias: nunca um número cravado em cima de quase nada
+    return cell('assistido', '% assistido', { value: null, missing: 'ainda não dá para dizer', base: `${BASE_ASSISTIDO} Com menos de ${MIN_DIAS_ASSISTIDO} dias com dado a média ainda não diz nada.` },
+      { sub: `só ${a.dias} ${a.dias === 1 ? 'dia' : 'dias'} com dado; precisa de ${MIN_DIAS_ASSISTIDO}`, semNumero: true, explicada: true })
+  }
+  return cell('assistido', '% assistido', { value: `${Math.round(a.pct)}%`, missing: '', base: BASE_ASSISTIDO },
+    { sub: a.n < POUCAS_VIEWS_MEDIA ? `só ${a.n} views: pouco para uma média` : 'média pelas views, 28 dias', fraco: a.n < POUCAS_VIEWS })
 }
 
 /* ---------------------------------------------------------------- a linha de posição */

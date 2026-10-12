@@ -47,7 +47,8 @@ const comDados = (dados: Partial<DadosDoCanal>, mut?: Parameters<typeof proprioW
 const ok = (a: AlcanceCanal): DadosDoCanal['alcance'] => ({ acesso: 'ok', dado: a })
 
 const FAIXA = ['inscritos', 'videos', 'viewsSomadas', 'impressoes', 'diasComImpressao', 'diasDesdeUltimo']
-const TODOS = ['cliques', 'videosComImpressao', 'medianaViews', 'maisVisto', 'engajamento90', 'engajamentoTodos', 'duracaoMediana', 'ritmo', 'vpdVideo', 'retencao', 'inscritos30']
+// 13.3: ganha a taxa de clique do canal e o % assistido; a retenção vira "retenção (curva)"
+const TODOS = ['cliques', 'taxaClique', 'videosComImpressao', 'medianaViews', 'maisVisto', 'engajamento90', 'engajamentoTodos', 'duracaoMediana', 'ritmo', 'vpdVideo', 'assistido', 'retencao', 'inscritos30']
 const PRIVADAS_ALCANCE = ['impressoes', 'diasComImpressao', 'cliques', 'videosComImpressao']
 
 describe('A4.6 cabeçalho próprio: forma', () => {
@@ -58,9 +59,9 @@ describe('A4.6 cabeçalho próprio: forma', () => {
     for (const c of [...h.faixa, ...h.todos]) { expect(c.label, c.key).not.toBe(''); expect(c.base, c.key).not.toBe('') }
   })
 
-  it('"Todos os números": onze células; nenhuma vazia: ou tem valor, ou tem a frase do motivo, nunca os dois nulos (nem os dois escritos)', () => {
+  it('"Todos os números": treze células; nenhuma vazia: ou tem valor, ou tem a frase do motivo, nunca os dois nulos (nem os dois escritos)', () => {
     const h = build(BASE)
-    expect(h.todos).toHaveLength(11)
+    expect(h.todos).toHaveLength(13)
     expect(h.todos.map(c => c.key)).toEqual(TODOS)
     const cenarios: CenarioDados[] = ['cheio', 'curto', 'vazio', 'parado', 'negado', 'erro']
     const mundos: Array<[string, Parameters<typeof proprioWorld>[0]['mut']]> = [['padrão', undefined], ['sem vídeos', semVideos], ['parado', parado], ['sem inscritos', inscritosOcultos], ['sem comentários', semComentarios]]
@@ -101,9 +102,9 @@ describe('A4.6 cabeçalho próprio: o que é público (do motor) mostra o mesmo 
     const h = build(w)
     const c = buildCanalHeader(w.obs, w.canalId)!
     const { key: _a, ...i1 } = por(h.faixa, 'inscritos'), { key: _b, ...i2 } = c.faixa[0]!
-    expect(i1).toEqual(i2)
+    expect(i1).toMatchObject(i2)
     const { key: _c, ...g1 } = por(h.todos, 'inscritos30'), { key: _d, ...g2 } = c.faixa[1]!
-    expect(g1).toEqual(g2)
+    expect(g1).toMatchObject(g2)
     expect(h.sync.startsWith(c.sync.text.split(' · ')[0]!)).toBe(true)
   })
 
@@ -144,9 +145,10 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     const w = BASE
     const c = por(build(w).faixa, 'impressoes')
     const de = addDays(w.hoje, -21), ate = addDays(w.hoje, -1) // o relatório mais novo é o de hoje-1 (por baixar); o mais antigo, hoje-21
-    expect(c.label).toBe(`impressões de ${w.dm(de)} a ${w.dm(ate)}`)
-    expect(c.label).toMatch(/^impressões de \d\d\/\d\d a \d\d\/\d\d$/)
-    expect(c.label).not.toMatch(/28|dias/)
+    // 13.3: o rótulo é curto e o período vai na segunda linha da célula
+    expect(c.label).toBe('impressões')
+    expect(c.sub).toBe(`de ${w.dm(de)} a ${w.dm(ate)}`)
+    expect(c.sub).not.toMatch(/28|dias/)
     medida(c, String(CHEIO.imp))
     expect(c.base).toContain(`de ${w.dm(de)} a ${w.dm(ate)}`)
     expect(c.base).toContain('2 dias sem relatório lido ficam fora da soma') // hoje-2 e hoje-1 ainda por baixar
@@ -194,7 +196,7 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     for (const k of PRIVADAS_ALCANCE) naoMedida(por([...h.faixa, ...h.todos], k), FRASE_NADA_LIDO)
     expect(FRASE_NADA_LIDO).toBe('nenhum dia do período foi lido ainda')
     // o período existe e é escrito, mesmo sem número
-    expect(por(h.faixa, 'impressoes').label).toBe(`impressões de ${w.dm(addDays(w.hoje, -3))} a ${w.dm(addDays(w.hoje, -1))}`)
+    expect(por(h.faixa, 'impressoes').label).toBe('impressões no período')   // 13.3: sem número não há segunda linha; o período mora na base
   })
 
   it('sem permissão de edição: as células privadas dizem "só quem edita o site vê este número"; as públicas não mudam', () => {
@@ -204,7 +206,7 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     expect(FRASE_NEGADO).toBe('só quem edita o site vê este número')
     // views/dia por vídeo é privada também; a frase é a das outras telas (lista e comparação)
     naoMedida(por(neg.todos, 'vpdVideo'), 'só quem edita o site vê as views por dia do seu canal')
-    const privadas = new Set([...PRIVADAS_ALCANCE, 'vpdVideo'])
+    const privadas = new Set([...PRIVADAS_ALCANCE, 'vpdVideo', 'taxaClique', 'assistido'])   // 13.3: a taxa e o % assistido também são privados
     for (const k of [...FAIXA, ...TODOS]) {
       if (privadas.has(k)) continue
       expect(por([...neg.faixa, ...neg.todos], k), k).toEqual(por([...cheio.faixa, ...cheio.todos], k))
@@ -329,11 +331,11 @@ describe('A4.6 cabeçalho próprio: views por dia, retenção e inscritos em 30 
     medida(por(build(comDados({ diario })).todos, 'vpdVideo'), '0')
   })
 
-  it('retenção e percentual assistido: "ainda não coletada"; inscritos em 30 dias: "sem contagem de 30 dias atrás" (D12 b, D17)', () => {
+  it('retenção (curva): "a curva ainda não é coletada" (13.3); inscritos em 30 dias: "sem contagem de 30 dias atrás" (D12 b, D17)', () => {
     const h = build(BASE)
     const r = por(h.todos, 'retencao')
-    naoMedida(r, 'ainda não coletada')
-    expect(r.base).toBe('chega com a coleta de retenção')
+    naoMedida(r, 'a curva ainda não é coletada')
+    expect(r.base).toContain('chega com a coleta de retenção')
     naoMedida(por(h.todos, 'inscritos30'), 'sem contagem de 30 dias atrás')
     expect(por(h.todos, 'inscritos30').base).toContain('precisa de duas contagens de inscritos com 30 dias entre elas')
   })

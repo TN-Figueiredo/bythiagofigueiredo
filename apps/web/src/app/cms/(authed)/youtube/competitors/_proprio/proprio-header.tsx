@@ -13,8 +13,28 @@ import { cliqueSimples } from '../_chrome/clique-simples'
 import { Popover } from '../_chrome/flut/flut'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import { Icon } from '../_chrome/icons'
-import { cap, Cell, Ext } from '../_canal/canal-header'
-import type { PosicaoItem, ProprioHeaderView } from './header-model'
+import { cap, Ext } from '../_canal/canal-header'
+import type { PosicaoItem, ProprioCell, ProprioHeaderView } from './header-model'
+
+/**
+ * Uma célula da faixa (mockup de 12/10): o valor em cima, o rótulo e, sob ele, a segunda linha (`sub`). Sem número ela leva só o quadradinho
+ * hachurado ("não medido"); o motivo sobe para UMA frase sob a faixa (ou fica na segunda linha, quando a célula se explica sozinha). "Parado" tem forma
+ * (as duas barras) e palavra, nunca só cor. No DOM o valor vem antes do rótulo ("11 de 29 dias com impressão").
+ */
+function Celula({ c }: { c: ProprioCell }) {
+  const classe = 'nc' + (c.parado ? ' parado' : '') + (c.fraco ? ' fraco' : '') + (c.semNumero ? ' sem-numero' : '')
+  return (
+    <div className={classe}>
+      {c.value != null
+        ? <dd><b className="num">{c.value}</b>{c.n ? <small className="num"> {c.n}</small> : null}{c.parado ? <span className="parado-tag">parado</span> : null}</dd>
+        : c.semNumero
+          ? <dd className="nf">{c.missing}</dd>
+          : <dd className="nf"><span className="obs-ch-nm nm-q" role="img" aria-label="não medido" /></dd>}
+      <dt>{c.label}</dt>
+      {c.sub ? <dd className="nsub">{c.sub}</dd> : null}
+    </div>
+  )
+}
 
 /** Um item da linha de posição: link para a lista de Canais ordenada quando ela ordena por ele; texto quando não. */
 function Item({ i }: { i: PosicaoItem }) {
@@ -53,11 +73,19 @@ export function ProprioHeader({ h, nums, onToggleNums, compararHref, compararTit
         <a className="obs-ch-btn" href={h.url} target="_blank" rel="noopener noreferrer">Abrir no YouTube<Ext /><span className="obs-ch-sr"> (abre em nova aba)</span></a>
       </div>
 
+      {h.resumo ? (
+        <p className="resumo-canal">
+          {h.resumo.parado ? <span className="dn"><span className="pausa" aria-hidden="true" />{h.resumo.destaque}</span> : h.resumo.destaque}
+          {h.resumo.resto}
+        </p>
+      ) : null}
+
       <div className="nrow">
         <div className="nclip">
-          <dl className="nstrip" aria-label="Números do canal">{h.faixa.map(c => <Cell key={c.key} c={c} />)}</dl>
+          <dl className="nstrip" aria-label="Números do canal">{h.faixa.map(c => <Celula key={c.key} c={c} />)}</dl>
         </div>
       </div>
+      {h.faixaMotivo ? <p className="nm-fr">{h.faixaMotivo}</p> : null}
 
       <div className="lrow">
         <p className="l3"><span>{h.sync}</span></p>
@@ -79,7 +107,8 @@ export function ProprioHeader({ h, nums, onToggleNums, compararHref, compararTit
       {h.posicaoItens ? <div className="prow"><Posicao h={h.posicaoItens} /></div> : null}
 
       <div className="nclip n2" id="canal-nums2" hidden={!nums}>
-        <dl className="nstrip" aria-label="Mais números do canal">{h.todos.map(c => <Cell key={c.key} c={c} />)}</dl>
+        <dl className="nstrip" aria-label="Mais números do canal">{h.todos.map(c => <Celula key={c.key} c={c} />)}</dl>
+        {h.todosMotivo ? <p className="nm-fr">{h.todosMotivo}</p> : null}
       </div>
     </header>
   )

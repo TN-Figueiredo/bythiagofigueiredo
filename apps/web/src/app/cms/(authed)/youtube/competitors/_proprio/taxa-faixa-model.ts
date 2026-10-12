@@ -39,7 +39,9 @@ export interface TaxaFaixaView {
 }
 
 const um = (x: number): string => x.toFixed(1).replace('.', ',')
-const pct = (frac: number): string => um(frac * 100) + '%'
+/** Uma fração como porcentagem com uma casa e vírgula: 0,048 vira "4,8%". */
+export const pctUm = (frac: number): string => um(frac * 100) + '%'
+const pct = pctUm
 const dec = (n: number): string => (Number.isInteger(n) ? String(n) : um(n))
 const entre01 = (x: number): number => Math.max(0, Math.min(1, x))
 
