@@ -6,7 +6,7 @@ import { createClock, type Clock } from './time'
 import { createFmt, type Fmt } from './fmt'
 import { RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, bandOf, winOf, tierOf } from './rules'
 import { median, quant } from './stats'
-import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, assertSiteScope, type Derived, type PeriodRate, type ExpectedCurve } from './series'
+import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, weeklyRate, expectedCurve, assertSiteScope, type Derived, type PeriodRate, type WeeklyRate, type ExpectedCurve } from './series'
 import { diffLines, titleDiff } from './text-diff'
 import { effect, effectAt, type EffectResult } from './effect'
 import { multiplierAt, multiplierCardText, type MultiplierResult, type MultiplierCardText } from './multiplier'
@@ -90,7 +90,7 @@ export interface Observatory {
   channels: ObsChannel[]; videos: (ObsVideo & Derived)[]
   channel(id: string): ObsChannel | undefined; video(id: string): (ObsVideo & Derived) | undefined
   seriesOf(id: string): ObsVideo['series']; viewsAt(id: string, idx: number): number | null; rate(id: string, a: number, b: number): number | null
-  periodRate(id: string, fromMs: number, toMs: number): PeriodRate; expectedCurve(id: string): ExpectedCurve
+  periodRate(id: string, fromMs: number, toMs: number): PeriodRate; weeklyRate(id: string, fromMs: number, toMs: number): WeeklyRate; expectedCurve(id: string): ExpectedCurve
   diffLines: typeof diffLines; titleDiff: typeof titleDiff; rewriteGroups: { id: string; label: string }[]
   change(id: string): ObsChange | undefined; changesIn(o?: Parameters<typeof changesIn>[1]): ObsChange[]; caveats(id: string): string[]
   effect(id: string): EffectResult | null; effectAt(id: string, Lcap: number | null): EffectResult | null
@@ -217,7 +217,7 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
     NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, DAY: 864e5, H: 36e5,
     channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
     seriesOf: id => vid(id).series, viewsAt: (id, idx) => viewsAtIdx(vid(id), idx), rate: (id, a, b) => rate(ctx, vid(id), a, b),
-    periodRate: (id, f, t) => periodRate(ctx, id, f, t), expectedCurve: id => expectedCurve(ctx, id),
+    periodRate: (id, f, t) => periodRate(ctx, id, f, t), weeklyRate: (id, f, t) => weeklyRate(ctx, id, f, t), expectedCurve: id => expectedCurve(ctx, id),
     diffLines, titleDiff, rewriteGroups: REWRITE_GROUPS.map(g => ({ id: g.id, label: g.label })),
     change: id => ctx.CHG.get(id), changesIn: o => changesIn(ctx, o), caveats: id => caveats(ctx, id),
     effect: id => effect(ctx, id), effectAt: (id, L) => effectAt(ctx, id, L),

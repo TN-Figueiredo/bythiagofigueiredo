@@ -11,6 +11,8 @@ import { isObserved } from './observed'
 export type EffectStatus = 'ganhou' | 'perdeu' | 'neutro' | 'inconclusivo' | 'aguardando' | 'sem-serie' | 'sem-antes'
 export interface EffectResult {
   id: string; type: string; status: EffectStatus; label: string; reason: string
+  /** A5 (E2). O vídeo não observado tem série SEMANAL guardada (o estado e o motivo seguem os de hoje). Nenhuma tela lê. */
+  weeklySeries?: true
   k?: number; beforeDays?: number; afterDays?: number; readyOn?: number; readyText?: string | null; readyTextIfPending?: string; firstPointAfter?: number
   daily?: { before: DailyRow[]; changeDay: DailyRow | null; after: DailyRow[] }
   collected?: number; willBeInconclusive?: string | null; willBeInconclusiveShort?: string | null; waitText?: string
@@ -40,8 +42,12 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   const res = { id: c.id, type: c.type } as EffectResult
   const done = (x: Partial<EffectResult>) => { Object.assign(res, x); memo.set(key, res); return res }
   if (c.preSeries) return done({ status: 'sem-serie', label: 'sem série', reason: 'Sem série antes da troca (coleta por vídeo desde ' + S0 + ').' })
-  // R37 + R119: the daily record is read only for observed videos (tracked ∪ pinned), so any other video (and its changes) has no series by design
-  if (!isObserved(v)) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.' })
+  // R37 + R119: the daily record is read only for observed videos (tracked ∪ pinned). A5 (E2): um vídeo não observado em faixa
+  // semanal TEM pontos, mas semanais: o efeito de troca exige pontos diários. O estado continua 'sem-serie' (as telas contam
+  // os 'inconclusivo'); a frase é a do spec.
+  if (!isObserved(v)) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.', ...(v.tier === 'semanal' && v.unobservedSeries?.length ? { weeklySeries: true as const } : {}) })
+  // (emenda do portão: S-I8, pergunta 5) o motivo NÃO muda: a frase "inconclusivo: série semanal" é texto de tela e entra com o mockup
+  // da E5. O tipo do efeito ganha o campo opcional `weeklySeries?: true`, que nenhuma tela lê.
   if (!v.series.length || ch.lastIdx == null) return done({ status: 'sem-serie', label: 'sem série', reason: 'Vídeo sem série diária de views.' })
   const k = clock.snapIdxAtOrAfter(c.at), L = Lcap == null ? ch.lastIdx : Math.min(ch.lastIdx, Lcap)
   const seriesBefore = Math.max(0, Math.min(RULES.effect.maxBeforeDays, (k - 1) - firstRealIdx(v)))
