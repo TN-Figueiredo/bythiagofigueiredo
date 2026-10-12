@@ -1,0 +1,65 @@
+/* O gráfico "Impressões por dia" (spec 16.6; mockup M/impressoes.css). Três estados com forma E cor: barra (--lado-o), traço (--im-zero) e coluna
+   hachurada (--nm, a hachura do kit .obs-ch-nm). Cores só por token; no tema claro os azuis ganham um tom mais escuro (contraste sobre o cartão claro).
+   Sem color-mix, sem z-index numérico, nenhum texto abaixo de 12 px, alvo de toque de 44 px em pointer:coarse. A dica e o ⓘ moram em #flut. */
+.ic{--ic-bar:var(--lado-o);--ic-zero:var(--im-zero);--ic-cl:var(--im-cl);--ic-ring:var(--surface);margin:0;min-width:0;max-width:100%;display:block}
+[data-theme="light"] .ic{--ic-zero:#5B6F86;--ic-cl:#0B6BA8}
+.ic-t{font:600 14px/20px var(--font-sans),system-ui,sans-serif;color:var(--text);margin:0 0 4px}
+.ic-res{margin:0 0 6px;max-width:860px;font:400 13.5px/20px var(--font-sans),system-ui,sans-serif;color:var(--text)}
+.ic-vazio{margin:0;font:400 13px/19px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ic-meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;margin:0 0 6px;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ic-info{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+.ic-info:hover{color:var(--text)}
+.ic-info:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic-info svg{width:16px;height:16px}
+.ic-avisos{list-style:none;margin:0 0 6px;padding:0;display:grid;gap:2px;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ic-sc{overflow-x:auto;max-width:100%;border-radius:4px}
+.ic-grupo{display:block;border-radius:4px;touch-action:pan-x pan-y}
+.ic-grupo:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic-svg{display:block;max-width:none}
+.ic-grid{stroke:var(--border-subtle);stroke-width:1}
+.ic-ax-y,.ic-ax-x{font:400 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--muted)}
+.ic-an{font:400 12px var(--font-sans),system-ui,sans-serif;fill:var(--muted)}
+.ic-an.r{fill:var(--ic-cl)}
+.ic-bar{fill:var(--ic-bar)}
+.ic-val{font:500 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--text)}
+.ic-dot{fill:var(--ic-cl);stroke:var(--ic-ring);stroke-width:1.4}
+.ic-cln{font:600 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--ic-cl)}
+.ic-zero{stroke:var(--ic-zero);stroke-width:3;stroke-linecap:round}
+.ic-hb{fill:var(--nm-bg)}
+.ic-hl{stroke:var(--nm);stroke-width:2}
+.ic-nm,.ic-nm-cl{stroke:none}
+.ic-hit{fill:transparent;stroke:none;cursor:default}
+.ic-hit.on{fill:rgba(127,127,127,.16);stroke:var(--accent);stroke-width:2}
+.ic-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ic-leg{margin:8px 0 0;max-width:860px;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 18px}
+.ic-lg{display:inline-flex;align-items:center;gap:7px}
+.ic-sw{display:inline-block;flex:none}
+.ic-sw.imp{width:12px;height:12px;border-radius:2px;background:var(--ic-bar)}
+.ic-sw.cl{width:11px;height:11px;border-radius:50%;background:var(--ic-cl);box-shadow:0 0 0 1.5px var(--ic-ring),0 0 0 2.5px var(--border-strong)}
+.ic-sw.zero{width:16px;height:3px;border-radius:2px;background:var(--ic-zero)}
+.ic-sw.nm{width:14px;height:14px;padding:0;vertical-align:middle}
+.ic-tab{margin-top:6px;font:400 13px/18px var(--font-sans),system-ui,sans-serif}
+.ic-tab summary{cursor:pointer;color:var(--text);text-decoration:underline;text-underline-offset:2px;width:max-content;min-height:24px;display:inline-flex;align-items:center;list-style:none;border-radius:4px}
+.ic-tab summary::-webkit-details-marker{display:none}
+.ic-tab summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic-tw{overflow:auto;max-width:100%;max-height:320px;margin-top:6px;border:1px solid var(--border-subtle);border-radius:6px}
+.ic-tw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic-tab table{border-collapse:collapse;width:100%;font-size:12.5px}
+.ic-tab th,.ic-tab td{text-align:left;padding:5px 10px;border-bottom:1px solid var(--border-subtle);font-weight:400;color:var(--text)}
+.ic-tab thead th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);font-weight:500}
+.ic-tab .r{text-align:right}
+.ic-tab .num{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.ic-tab .obs-ch-nm{font:400 12px/16px var(--font-sans),system-ui,sans-serif}
+.ic-tab tr.ic-tr-zero-medido td:last-child,.ic-tab tr.ic-tr-nao-medido td:last-child{color:var(--muted)}
+
+/* a dica e o método moram em #flut; a base (cor, borda, sombra) é a de flut.css */
+#flut .obs-fl-tip.ic-tip{max-width:300px;line-height:1.4}
+#flut .obs-fl-pop.ic-pop{width:380px;padding:12px 14px;font-size:13px;max-height:min(70vh,560px);overflow:auto}
+#flut .ic-pop h3{margin:0 0 6px;font:600 13.5px var(--font-sans),system-ui,sans-serif}
+#flut .ic-pop p{margin:0 0 8px;color:var(--muted)}
+#flut .ic-pop p:last-child{margin-bottom:0}
+
+@media (pointer:coarse){
+  .ic-info{width:44px;height:44px}
+  .ic-tab summary{min-height:44px}
+}
