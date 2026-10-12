@@ -15,7 +15,7 @@ type Ctx = Pick<StepCtx, 'supabase' | 'falhas'>
 /** Motivos da Reporting API que ganham aviso de saída quando a chamada volta a passar. `reautorizar` tem saída própria (autorizacao.ts). */
 const MOTIVOS_COM_SAIDA: readonly MotivoAviso[] = ['api_nao_ativada', 'sem_acesso']
 
-/** Entrada e lembrete a cada 7 dias; `tipo_indisponivel` avisa uma vez. */
+/** Entrada e lembrete a cada 7 dias; `tipo_indisponivel` avisa uma vez por tipo. */
 const JANELA: Record<MotivoAviso, string> = {
   api_nao_ativada: '7 days',
   sem_acesso: '7 days',
@@ -26,23 +26,24 @@ const JANELA: Record<MotivoAviso, string> = {
 const TITULO: Record<MotivoAviso | 'saida', string> = {
   api_nao_ativada: 'YouTube Reporting API não ativada',
   sem_acesso: 'YouTube recusou o acesso aos relatórios',
-  tipo_indisponivel: 'Relatório de alcance indisponível',
+  tipo_indisponivel: 'Relatório do YouTube indisponível',
   reautorizar: 'Canal do YouTube perdeu a autorização',
   saida: 'Coleta do YouTube voltou ao normal',
 }
 
-export function chaveAviso(channelUuid: string, motivo: MotivoAviso): string {
-  return `sync-analytics:${channelUuid}:${motivo}`
+/** `tipo` só é usado em `tipo_indisponivel`: um carimbo por tipo de relatório, para cada tipo avisar uma vez. */
+export function chaveAviso(channelUuid: string, motivo: MotivoAviso, tipo?: string): string {
+  return tipo ? `sync-analytics:${channelUuid}:${motivo}:${tipo}` : `sync-analytics:${channelUuid}:${motivo}`
 }
 
-export function textoAviso(motivo: MotivoAviso | 'saida', nome: string): string {
+export function textoAviso(motivo: MotivoAviso | 'saida', nome: string, tipo?: string): string {
   switch (motivo) {
     case 'api_nao_ativada':
       return 'A YouTube Reporting API não está ativada no projeto do Google. Impressões e CTR não estão sendo coletados.'
     case 'sem_acesso':
       return `O YouTube recusou o acesso aos relatórios do canal ${nome}. Impressões e CTR não estão sendo coletados.`
     case 'tipo_indisponivel':
-      return `O YouTube não oferece o relatório de alcance para o canal ${nome}.`
+      return `O YouTube não oferece o relatório ${tipo ?? '(tipo não informado)'} para o canal ${nome}.`
     case 'reautorizar':
       return `O canal ${nome} perdeu a autorização do YouTube. A coleta parou. Reconecte o canal em Configurações.`
     case 'saida':
@@ -79,8 +80,8 @@ async function apagarCarimbo(ctx: Ctx, chave: string): Promise<boolean> {
 }
 
 /** Entrega o aviso. Devolve false (e registra a falha crítica) quando ninguém foi avisado. */
-async function entregar(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso | 'saida'): Promise<boolean> {
-  const nota = `aviso ${motivo} (${ch.name})`
+async function entregar(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso | 'saida', tipo?: string): Promise<boolean> {
+  const nota = `aviso ${motivo}${tipo ? ` ${tipo}` : ''} (${ch.name})`
   try {
     const donos = await getSiteOwners(ctx.supabase, ch.site_id)
     if (donos.length === 0) {
@@ -94,8 +95,8 @@ async function entregar(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso | 'said
       type: `youtube.coleta_${motivo}`,
       priority: 4,
       title: TITULO[motivo],
-      message: textoAviso(motivo, ch.name),
-      dedupKey: `coleta-${motivo}-${ch.id}-${new Date().toISOString().slice(0, 10)}`,
+      message: textoAviso(motivo, ch.name, tipo),
+      dedupKey: `coleta-${motivo}${tipo ? `-${tipo}` : ''}-${ch.id}-${new Date().toISOString().slice(0, 10)}`,
       actionHref: '/cms/youtube',
     })
     if (enviados === 0) {
@@ -112,8 +113,8 @@ async function entregar(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso | 'said
 }
 
 /** Entrada ou lembrete. Nunca lança. */
-export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso): Promise<void> {
-  const chave = chaveAviso(ch.id, motivo)
+export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso, tipo?: string): Promise<void> {
+  const chave = chaveAviso(ch.id, motivo, tipo)
   let abriu: boolean
   try {
     abriu = await claimAlert(ctx.supabase, chave, JANELA[motivo])
@@ -123,7 +124,7 @@ export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: MotivoA
     return
   }
   if (!abriu) return
-  const entregue = await entregar(ctx, ch, motivo)
+  const entregue = await entregar(ctx, ch, motivo, tipo)
   if (!entregue) await apagarCarimbo(ctx, chave)
 }
 

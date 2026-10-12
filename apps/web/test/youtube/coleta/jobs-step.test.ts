@@ -120,10 +120,36 @@ describe('passoJobs: tipos', () => {
     expect(job(db, 'channel_demographics_a1')).toMatchObject({ status: 'desativado' })
     expect(api.jobsCreate).toHaveBeenCalledTimes(3)
     expect(api.jobsCreate.mock.calls.map(c => (c[0] as { reportTypeId: string }).reportTypeId)).not.toContain('channel_demographics_a1')
-    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel')
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_reach_basic_a1')
     expect(resumo.tipo_indisponivel).toEqual(['Canal Um: channel_reach_basic_a1'])
     expect(resumo.acao_do_dono).toEqual([])
     expect(ctx.falhas).toEqual([])
+  })
+
+  it('cada tipo indisponível avisa com o seu nome', async () => {
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.filter(t => t !== 'channel_basic_a3' && t !== 'channel_traffic_source_a3').map(id => ({ id })))
+    const db = fakeSupabase()
+    const resumo = await passoJobs(ctxDe(db))
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_basic_a3')
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_traffic_source_a3')
+    expect([...resumo.tipo_indisponivel].sort()).toEqual(['Canal Um: channel_basic_a3', 'Canal Um: channel_traffic_source_a3'])
+  })
+
+  it('tipo habilitado com data de descontinuação: o job é criado mesmo assim e a data aparece em acao_do_dono', async () => {
+    const quando = new Date(Date.now() + 90 * 86_400_000).toISOString()
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.map(id => (id === 'channel_basic_a3' ? { id, deprecateTime: quando } : { id })))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo' })
+    expect(resumo.acao_do_dono).toEqual([`Canal Um: channel_basic_a3 tem data de descontinuação no YouTube (${quando})`])
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('tipo fora da lista com data de descontinuação: nenhuma nota', async () => {
+    api.reportTypesList.mockResolvedValue([...REPORT_TYPES_ENABLED.map(id => ({ id })), { id: 'channel_annotations_a1', deprecateTime: '2019-01-15T00:00:00Z' }])
+    const resumo = await passoJobs(ctxDe(fakeSupabase()))
+    expect(resumo.acao_do_dono).toEqual([])
   })
 
   it('linha desativado que já existe não é regravada', async () => {
@@ -276,7 +302,7 @@ describe('passoJobs: tempo e 409 sem job', () => {
     const resumo = await passoJobs(ctxDe(db))
     expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'tipo_indisponivel'])))
     expect(resumo.tipo_indisponivel).toHaveLength(4)
-    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel')
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_reach_basic_a1')
   })
 
   it('prazo que acaba no meio da listagem: nao_alcancado_orcamento, jobs intocados, restantes pendentes, sem falha', async () => {

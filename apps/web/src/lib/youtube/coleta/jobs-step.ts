@@ -67,6 +67,13 @@ async function sondarCanal(
   try {
     const [tipos, existentes] = await Promise.all([api.reportTypesList(), api.jobsList()])
     oferecidos = new Set(tipos.map(t => t.id))
+    // O job de um tipo com data de descontinuação é criado mesmo assim (o bruto vale enquanto vier), mas o dono fica
+    // sabendo: quando o YouTube desligar o tipo, os relatórios param e a versão nova precisa entrar na lista.
+    for (const t of tipos) {
+      if (t.deprecateTime && (HABILITADOS as readonly string[]).includes(t.id)) {
+        pushUnico(resumo.acao_do_dono, `${c.name}: ${t.id} tem data de descontinuação no YouTube (${t.deprecateTime})`)
+      }
+    }
     jobs = existentes
   } catch (e) {
     if (e instanceof SemTempoError) throw e
@@ -100,7 +107,7 @@ async function sondarCanal(
         await gravarJob(ctx, c, tipo, { status: 'tipo_indisponivel' })
         await registrarTentativa(ctx, { ...tJob(tipo), outcome: 'ok' })
         pushUnico(resumo.tipo_indisponivel, `${c.name}: ${tipo}`)
-        await avisarEntrada(ctx, c, 'tipo_indisponivel')
+        await avisarEntrada(ctx, c, 'tipo_indisponivel', tipo)
         return
       }
       let job: Job | null = porTipo.get(tipo) ?? null
