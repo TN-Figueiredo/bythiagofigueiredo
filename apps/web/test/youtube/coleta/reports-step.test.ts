@@ -689,6 +689,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     const resumo = await passoRelatorios(ctx)
     expect(resumo.expirados).toBe(3)
     expect(resumo.expirados_por_tipo).toEqual({ channel_traffic_source_a3: 2, channel_reach_basic_a1: 1 })
+    expect(resumo.expirados_sem_cobertura_por_tipo).toEqual({})
     expect(ctx.falhas).toEqual([])
   })
 
@@ -1114,6 +1115,48 @@ describe('uma perda, uma nota por execução (passo + critérios juntos, como no
     expect(await rodar(db)).toEqual([])
   })
 
+  it('404 em relatório criado há 10 dias: a nota segue UMA só, sem trocar de dono em C+14 nem duplicar, e acaba em T+14', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(10) })],
+    })
+    const nota = ['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar']
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 3 * DIA_MS))                // antes de C+14
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 5 * DIA_MS))                // depois de C+14 (regra antiga já calaria)
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 13 * DIA_MS))               // expired_at há 13 dias
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 15 * DIA_MS))               // expired_at há 15 dias: acabou
+    expect(await rodar(db)).toEqual([])
+  })
+
+  it('o 404 chega mas a gravação (marcar) falha: a perda não some, fica a nota do passo hoje; amanhã grava expired_at e o critério assume sem nota dupla', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(20) })],    // nenhuma outra porta cobre: só a MG13 cobriria
+    })
+    const doPasso = /venceram sem baixar nesta execução/
+    db.writeErrors.yt_reporting_reports = { code: '08006', message: 'conexão caiu' }
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'sumiu')!.status).toBe('listado')
+    expect(rel(db, 'sumiu')!.expired_at ?? null).toBeNull()
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(ctx.falhas.filter(f => doPasso.test(f))).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nesta execução (channel_reach_basic_a1: 1)'])
+    db.writeErrors.yt_reporting_reports = undefined
+    vi.setSystemTime(new Date(AGORA.getTime() + 1 * DIA_MS))
+    const amanha = ctxDe(db)
+    await passoRelatorios(amanha)
+    await criteriosRelatorios(amanha)
+    expect(rel(db, 'sumiu')).toMatchObject({ status: 'expirado_sem_baixar', expired_at: new Date(AGORA.getTime() + DIA_MS).toISOString() })
+    expect(amanha.falhas.filter(f => doPasso.test(f))).toEqual([])
+    expect(amanha.falhas.filter(f => NOTAS_DE_PERDA.test(f))).toEqual(['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar'])
+  })
+
   it('404 tardio cujo prazo da origem também passa dentro da janela: continua UMA nota (a agregada não soma o mesmo relatório)', async () => {
     api.download.mockRejectedValue(new ReportingHttpError(404, null))
     const db = bancoComPurge({
@@ -1301,6 +1344,26 @@ describe('E20: estado do download gravado no relatório (MG13)', () => {
     await passoRelatorios(ctxDe(db))
     expect(rel(db, 'sumiu')).toMatchObject({ status: 'expirado_sem_baixar', expired_at: AGORA.toISOString(), last_error_at: AGORA.toISOString(), download_attempts: 3 })
   })
+  it('410 também grava expired_at e last_error_at e soma a tentativa', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(410, null))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('sumiu', { download_attempts: 1 })] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'sumiu')).toMatchObject({ status: 'expirado_sem_baixar', error: 'HTTP 410', expired_at: AGORA.toISOString(), last_error_at: AGORA.toISOString(), download_attempts: 2 })
+  })
+  it('url_inesperada grava a tentativa e last_error_at; expired_at fica nulo', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(0, 'url_inesperada'))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'url_inesperada', download_attempts: 1, last_error_at: AGORA.toISOString() })
+    expect(rel(db, 'r1')!.expired_at ?? null).toBeNull()
+  })
+  it('grande_demais grava a tentativa e last_error_at; expired_at fica nulo', async () => {
+    api.download.mockResolvedValue({ gz: Buffer.alloc(MAX_GZ_BYTES + 1), sha256: 'x', rowCount: 10, lidos: MAX_GZ_BYTES + 1, eraGz: true })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1', { download_attempts: 4 })] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais', download_attempts: 5, last_error_at: AGORA.toISOString() })
+    expect(rel(db, 'r1')!.expired_at ?? null).toBeNull()
+  })
   it('vencido por idade NÃO ganha expired_at (a origem não respondeu nada): continua "sem registro"', async () => {
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('velho', { create_time: ha(61) })] })
     await passoRelatorios(ctxDe(db))
@@ -1330,6 +1393,7 @@ describe('E20: estado do download gravado no relatório (MG13)', () => {
     api.download.mockRejectedValue(new SemTempoError())
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
     await passoRelatorios(ctxDe(db))
+    expect(api.download).toHaveBeenCalled()   // o caminho foi exercitado: sem isto o teste passaria com o prazo esgotado antes
     expect(rel(db, 'r1')!.download_attempts ?? 0).toBe(0)
   })
   it('MG13 não aplicada (a coluna não existe): schema_ausente em falhas, nada é baixado, nada lança', async () => {

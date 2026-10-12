@@ -274,9 +274,11 @@ async function baixarUm(
       if (erro instanceof ReportingHttpError && (erro.status === 404 || erro.status === 410)) {
         // MG13: a origem RESPONDEU 404/410, e só nesse caso o instante é gravado (vencido por idade não ganha expired_at).
         const quando = falhou()
-        conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}`, expired_at: quando.last_error_at, ...quando }), 'yt_reporting_reports', ctx.falhas)
+        const gravou = conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}`, expired_at: quando.last_error_at, ...quando }), 'yt_reporting_reports', ctx.falhas)
         resumo.expirados++
-        contarVencido(resumo, { ...p, expired_at: quando.last_error_at }, Date.now())
+        // O critério persistente só cobre esta perda se `expired_at` ficou gravado: com a gravação falhando, a nota do passo
+        // avisa hoje e amanhã o 404 se repete e grava (o relatório continua `listado`).
+        contarVencido(resumo, gravou === 'ok' ? { ...p, expired_at: quando.last_error_at } : p, Date.now())
         return
       }
       // Erro passageiro: continua `listado` e tenta amanhã. Gzip que não abre entra aqui: um download cortado no meio
