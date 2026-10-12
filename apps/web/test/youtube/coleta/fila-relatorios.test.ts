@@ -61,6 +61,20 @@ describe('ordenarFila', () => {
     ])).toEqual(['trafego', 'basic', 'fora'])
   })
 
+  it('os dois tipos de alcance com o mesmo vencimento: o básico antes do combinado, qualquer que seja a ordem de entrada', () => {
+    const basico = item('basico', 'channel_reach_basic_a1', 3)
+    const combinado = item('combinado', 'channel_reach_combined_a1', 3)
+    expect(ordem([combinado, basico])).toEqual(['basico', 'combinado'])
+    expect(ordem([basico, combinado])).toEqual(['basico', 'combinado'])
+  })
+
+  it('dois relatórios do mesmo tipo: o criado antes vai primeiro, e com o mesmo vencimento a criação mais antiga desempata', () => {
+    expect(ordem([item('novo', 'channel_reach_basic_a1', 1), item('velho', 'channel_reach_basic_a1', 5)])).toEqual(['velho', 'novo'])
+    // histórico criado agora e corrente criado há 30 dias vencem no mesmo instante: o mais antigo de criação vai na frente.
+    expect(ordem([item('historico-novo', 'channel_basic_a3', 0, true), item('corrente-velho', 'channel_basic_a3', 30, false)]))
+      .toEqual(['corrente-velho', 'historico-novo'])
+  })
+
   it('create_time ilegível vai para a frente da fila, nunca para o fim', () => {
     const ruim = { id: 'ruim', report_type_id: 'channel_basic_a3', create_time: 'isto não é data', is_backfill: false }
     expect(ordenarFila([item('alcance', 'channel_reach_basic_a1', 1), ruim], AGORA).map(p => p.id)).toEqual(['ruim', 'alcance'])

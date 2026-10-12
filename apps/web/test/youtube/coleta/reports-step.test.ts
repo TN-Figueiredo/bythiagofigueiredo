@@ -95,6 +95,35 @@ describe('passoRelatorios: listar', () => {
     expect(ctx.falhas).toEqual([])
   })
 
+
+  it('startTime ilegível num job com job_create_time: também prazo curto, nunca o longo', async () => {
+    api.reportsList.mockResolvedValue({ reports: [doGoogle('r-lixo', { startTime: 'isto não é data', endTime: ha(1), createTime: ha(1) })], nextPageToken: null })
+    api.download.mockRejectedValue(new ReportingHttpError(500, null))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r-lixo')).toMatchObject({ is_backfill: true })
+  })
+
+  it('job sem job_create_time: não dá para dizer o que é histórico, então vale o prazo curto (is_backfill true) e vence aos 30 dias', async () => {
+    for (const apagar of ['nulo', 'chave ausente'] as const) {
+      api.reportsList.mockReset()
+      api.reportsList.mockResolvedValue({
+        reports: [
+          doGoogle('r-sem-marca', { startTime: ha(33), endTime: ha(32), createTime: ha(31) }),
+          doGoogle('r-recente', { startTime: ha(2), endTime: ha(1), createTime: ha(1) }),
+        ],
+        nextPageToken: null,
+      })
+      api.download.mockRejectedValue(new ReportingHttpError(500, null))
+      const job = jobRow('channel_reach_basic_a1', { job_create_time: null })
+      if (apagar === 'chave ausente') delete job.job_create_time
+      const db = bancoComPurge({ yt_reporting_jobs: [job] })
+      const ctx = ctxDe(db)
+      await passoRelatorios(ctx)
+      expect(rel(db, 'r-sem-marca'), apagar).toMatchObject({ is_backfill: true, status: 'expirado_sem_baixar' })
+      expect(rel(db, 'r-recente'), apagar).toMatchObject({ is_backfill: true, status: 'listado' })
+    }
+  })
   it('depois: createdAfter = last_create_time − 1 dia, e percorre nextPageToken', async () => {
     api.reportsList
       .mockResolvedValueOnce({ reports: [doGoogle('p1')], nextPageToken: 'tok2' })
