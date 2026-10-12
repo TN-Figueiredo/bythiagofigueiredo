@@ -14,7 +14,7 @@ import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 import { langChip, ownChannelHref, ownTexts, type LangChip } from '../_chrome/own-channels'
-import { principalDoMotor } from '../_chrome/own-menu'
+import { escolherPrincipal, linhasDoMotor, principalDoMotor } from '../_chrome/own-menu'
 import { posicoes, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import {
   BUSCA_NOTA, CONJUNTO_AVISO, PROBLEMAS_NOTA, divisorDe, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
@@ -552,7 +552,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
     if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
   }
-  const peRow = principal ? ownRows.find(r => r.id === principal.id) : undefined
+  // o principal pode estar fora da lista (filtro de nicho de outro canal): a linha presa então fala do canal próprio que a lista mostra, pela mesma regra
+  // (I-11c-1); sem isso ela some, e "Ir até a linha" só pode apontar para uma linha que existe
+  const peRow = principal
+    ? ownRows.find(r => r.id === principal.id) ?? ownRows.find(r => r.id === escolherPrincipal(linhasDoMotor(obs).filter(l => ownRows.some(o => o.id === l.id)), p.lembrado, obs.NOW))
+    : undefined
   const pe = peRow ? { canalId: peRow.id, texto: `seu canal · ${fraseDe(peRow).frase}` } : null
   const np = comps.filter(c => c.sync.state !== 'ok').length
   // F4: competitors with no niche are invisible in a niche tab; say how many and point at the niche editor (same exit as Insights R78)

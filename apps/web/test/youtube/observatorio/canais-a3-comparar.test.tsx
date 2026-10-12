@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(search),
 }))
 
+const DIA = 86_400_000
 const ok = async () => ({ ok: true })
 const view = (obs: Observatory, p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
 const tree = (v: CanaisView) => (
@@ -160,6 +161,40 @@ describe('"Comparar" com vários canais próprios: a regra única, a escolha do 
     const maisRecente = w.obs.ownChannels().map(c => ({ id: c.id, t: Math.max(...w.obs.videos.filter(v => v.ch === c.id).map(v => v.pub)) })).sort((a, b) => b.t - a.t)[0]!
     expect(principal.id).toBe(maisRecente.id)
     for (const a of linksComparar(mount(w.obs).container)) expect(a.getAttribute('href')).toContain('a=' + encodeURIComponent(principal.id))
+  })
+  it('13 (I-11c-3): o canal que publicou por último NÃO é o primeiro nem o maior: a recência decide a lista, o link, o rótulo e a linha presa; a lembrança de outro canal ativo vence, a de canal parado cede', () => {
+    // o MAIOR recua 40 dias (ainda ativo); o menor passa a ser o mais recente. Um mutante que ignora a recência escolheria o maior (o primeiro da lista)
+    const w = a3World(ds => {
+      const [grande] = ds.channels.filter(c => c.own).sort((a, b) => (b.subs ?? 0) - (a.subs ?? 0))
+      for (const v of ds.videos) if (v.ch === grande!.id) v.pub -= 40 * DIA
+    })
+    const [maior, menor] = w.obs.ownChannels() // ordem do motor: inscritos, maior primeiro
+    const ultimo = (id: string) => Math.max(...w.obs.videos.filter(v => v.ch === id).map(v => v.pub))
+    expect(w.obs.channel(maior!.id)!.subs!).toBeGreaterThan(w.obs.channel(menor!.id)!.subs!)
+    expect(ultimo(menor!.id)).toBeGreaterThan(ultimo(maior!.id)) // o ponto de partida: o mais recente é o MENOR
+    expect(w.obs.NOW - ultimo(maior!.id)).toBeLessThan(91 * DIA) // e o maior continua ativo
+    expect(principalDe(w.obs).id).toBe(menor!.id)
+    const v = view(w.obs)
+    expect(v.pe!.canalId).toBe(menor!.id)
+    for (const a of linksComparar(mount(w.obs).container)) {
+      expect(a.getAttribute('href')).toBe(link.comparar(menor!.id, a.closest('tr')!.dataset.id!))
+      expect(a.getAttribute('aria-label')).toContain(`(${menor!.name})`)
+    }
+    cleanup()
+    // a lembrança do canal que NÃO é o mais recente (mas ativo) vence a recência
+    expect(view(w.obs, { lembrado: maior!.id }).pe!.canalId).toBe(maior!.id)
+    expect(principalDe(w.obs, maior!.id).id).toBe(maior!.id)
+    // a lembrança que aponta para o mais recente: ele mesmo
+    expect(view(w.obs, { lembrado: menor!.id }).pe!.canalId).toBe(menor!.id)
+    // lembrança de canal PARADO cede ao ativo: o maior recua 200 dias e o cookie dele não segura
+    const parado = a3World(ds => {
+      const [grande] = ds.channels.filter(c => c.own).sort((a, b) => (b.subs ?? 0) - (a.subs ?? 0))
+      for (const x of ds.videos) if (x.ch === grande!.id) x.pub -= 200 * DIA
+    })
+    const [pMaior, pMenor] = parado.obs.ownChannels()
+    expect(view(parado.obs, { lembrado: pMaior!.id }).pe!.canalId).toBe(pMenor!.id)
+    // o teste que apaga o cookie: sem lembrança, de volta à recência
+    expect(view(w.obs, { lembrado: null }).pe!.canalId).toBe(menor!.id)
   })
   it('com a escolha do dono (cookie) em outro canal ativo: o link, o nome acessível e a linha presa mudam juntos', () => {
     const w = DOIS(), outro = outroDe(w), nome = w.obs.channel(outro)!.name

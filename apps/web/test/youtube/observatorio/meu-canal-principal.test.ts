@@ -2,7 +2,7 @@
 // Tarefa 11c, C2 (design D-C): "meu canal" com N canais próprios. Uma função pura única (`escolherPrincipal`) decide o canal próprio padrão; o dono
 // escolhe pelo menu ou pela comparação e a escolha fica num cookie do navegador. Aqui: a regra (0, 1, 2, N, parado, novo, desempate), o texto das notas
 // do menu, o cookie (valor ruim ignorado, ausente = recência) e a escrita do cookie.
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { a3World } from './a3-fixture'
 import { DAY } from '@/lib/youtube/observatorio/time'
 import { createFmt } from '@/lib/youtube/observatorio/fmt'
@@ -92,6 +92,18 @@ describe('o cookie obs-meu-canal', () => {
       expect(escrito).toBe(`${COOKIE_MEU_CANAL}=${U(7)}; path=/cms; max-age=31536000; samesite=lax`)
       expect(escrito).not.toMatch(/httponly/i)
     } finally { delete (document as unknown as { cookie?: string }).cookie }
+  })
+  it('13 (menor da 11c): o atributo Secure liga em https e não liga em http', () => {
+    const grava = (protocolo: string) => {
+      let escrito = ''
+      Object.defineProperty(document, 'cookie', { configurable: true, get() { return '' }, set(v: string) { escrito = v } })
+      vi.stubGlobal('location', { ...window.location, protocol: protocolo })
+      try { lembrarMeuCanal(U(7)) } finally { vi.unstubAllGlobals(); delete (document as unknown as { cookie?: string }).cookie }
+      return escrito
+    }
+    expect(grava('https:')).toBe(`${COOKIE_MEU_CANAL}=${U(7)}; path=/cms; max-age=31536000; samesite=lax; secure`)
+    expect(grava('http:')).toBe(`${COOKIE_MEU_CANAL}=${U(7)}; path=/cms; max-age=31536000; samesite=lax`)
+    expect(grava('http:')).not.toMatch(/secure/i)
   })
   it('ida e volta no CMS: o que lembrarMeuCanal grava, lerMeuCanalNoNavegador lê; fora do /cms o cookie não é visível (path)', () => {
     window.history.replaceState(null, '', '/cms/youtube/competitors')

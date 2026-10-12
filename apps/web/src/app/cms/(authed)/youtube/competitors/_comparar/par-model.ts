@@ -14,7 +14,6 @@
  *   leitor de tela.
  */
 import { posicoes, conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
-import { DAY } from '@/lib/youtube/observatorio/time'
 import { escolherPrincipal, type LinhaPrincipal } from '../_chrome/principal'
 import type { CanalPack, CompararPack } from './pack'
 import { NO_NICHO, NUMEROS, type Numero, type NumeroId } from './numeros-model'
@@ -26,7 +25,7 @@ export type CorLado = 'o' | 'b' | 'n' // --lado-o (seu canal), --lado-b, --lado-
 
 /**
  * a e b válidos e diferentes. `a` ausente ou inválido = "o meu canal" (`escolherPrincipal`: a escolha do dono, `lembrado`, ou o canal próprio
- * de publicação mais recente; a data vem dos dias desde o último vídeo que o pacote já tem, sem dado novo); sem canal próprio com vídeos, o
+ * de publicação mais recente; a data exata do último vídeo vem do pacote, a mesma entrada da lista); sem canal próprio com vídeos, o
  * maior concorrente. A URL sempre vence: `lembrado` só preenche o que a URL não diz. `b` ausente, inválido ou igual a `a` = o concorrente logo acima de A em inscritos, ou, sem ninguém
  * acima (ou sem a contagem de A), o maior dos outros. null = não há dois canais.
  */
@@ -40,8 +39,9 @@ export function resolverPar(pack: CompararPack, a: string | undefined, b: string
   const padraoA = (excluir: string | undefined): string | undefined => {
     const livres = ordem.filter(id => id !== excluir)
     const proprios = livres.filter(proprio).map((id): LinhaPrincipal => {
-      const c = por.get(id)!, dias = c.numeros.diasUltimo.x
-      return { id, videos: c.semVideos ? 0 : 1, ultimo: dias == null ? null : pack.now - dias * DAY }
+      const c = por.get(id)!
+      // a mesma entrada da lista e do menu (`linhasDoMotor`): vídeo com data conta, e a data é a exata (I-11c-2)
+      return { id, videos: c.semVideos || !c.comDatas ? 0 : 1, ultimo: c.ultimo }
     })
     return escolherPrincipal(proprios, lembrado, pack.now) ?? livres.find(id => !proprio(id)) ?? livres[0]
   }

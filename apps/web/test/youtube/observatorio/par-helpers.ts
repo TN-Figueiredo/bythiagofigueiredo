@@ -14,6 +14,8 @@ export function numero(v: Val | undefined, motivo = 'sem dado'): Numero {
 
 export interface OpcoesCanal {
   name?: string; own?: boolean; niche?: string | null; nicheLabel?: string | null; semVideos?: boolean; comDatas?: boolean
+  /** A data exata do último vídeo (ms). Sem ela: derivada de `n.diasUltimo` (dias inteiros antes de AGORA) ou nula. */
+  ultimo?: number | null
   /** Os números; o que não for dado é "não medido: sem dado". */
   n?: Partial<Record<NumeroId, Val>>
   /** Atalho para n.inscritos. */
@@ -21,15 +23,20 @@ export interface OpcoesCanal {
   motivos?: Partial<Record<NumeroId, string>>
 }
 
+/** O `now` de `pacoteDe`. */
+export const AGORA = 1_800_000_000_000
+
 export function canalDe(id: string, o: OpcoesCanal = {}): CanalPack {
   const numeros = {} as Record<NumeroId, Numero>
   const n = { ...o.n, ...(o.subs !== undefined ? { inscritos: o.subs } : {}) }
   for (const k of NUMEROS) numeros[k] = numero(n[k], o.motivos?.[k] ?? 'sem dado')
+  const dias = numeros.diasUltimo.x
+  const ultimo = o.ultimo !== undefined ? o.ultimo : dias == null ? null : AGORA - dias * 86_400_000
   const niche = o.niche === undefined ? 'viagem' : o.niche
   return {
     id, name: o.name ?? id, own: o.own ?? false, niche, nicheLabel: niche == null ? null : (o.nicheLabel ?? (niche === 'viagem' ? 'Viagem' : niche)),
     avatar: null, ini: (o.name ?? id).slice(0, 1).toUpperCase(), color: '#888888', subsTexto: numeros.inscritos.texto,
-    semVideos: o.semVideos ?? false, comDatas: o.comDatas ?? true, href: `/cms/youtube/competitors/${id}`, numeros,
+    semVideos: o.semVideos ?? false, comDatas: o.comDatas ?? true, ultimo, href: `/cms/youtube/competitors/${id}`, numeros,
     top5: [], top5Nota: 'Este canal não tem vídeos.', pub90: [], pub90Nota: 'ainda sem vídeos sincronizados',
   }
 }
@@ -39,7 +46,7 @@ export function pacoteDe(canais: CanalPack[], semanasRitmo = 13): CompararPack {
   const subs = (c: CanalPack) => c.numeros.inscritos.x
   const comps = canais.filter(c => !c.own).sort((a, b) => (subs(a) == null ? 1 : 0) - (subs(b) == null ? 1 : 0) || (subs(b) ?? 0) - (subs(a) ?? 0) || a.id.localeCompare(b.id))
   return {
-    now: 1_800_000_000_000, inicio90: 1_800_000_000_000 - 90 * 86_400_000, semanasRitmo, eixo: ['01/01', '31/01', '02/03', 'hoje, 01/04'],
+    now: AGORA, inicio90: AGORA - 90 * 86_400_000, semanasRitmo, eixo: ['01/01', '31/01', '02/03', 'hoje, 01/04'],
     canais, ordem: [...canais.filter(c => c.own).map(c => c.id), ...comps.map(c => c.id)],
   }
 }

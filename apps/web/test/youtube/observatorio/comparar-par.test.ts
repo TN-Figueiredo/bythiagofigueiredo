@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { a3World } from './a3-fixture'
-import { canalDe, pacoteDe, type OpcoesCanal } from './par-helpers'
+import { AGORA, canalDe, pacoteDe, type OpcoesCanal } from './par-helpers'
 import { buildCompararPack, type CompararPack } from '@/app/cms/(authed)/youtube/competitors/_comparar/pack'
 import { NUMEROS, NO_NICHO, type NumeroId } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
 import { buildPar, resolverPar, type LinhaPar, type ParView, type Relacao } from '@/app/cms/(authed)/youtube/competitors/_comparar/par-model'
@@ -84,6 +84,28 @@ describe('resolverPar', () => {
     expect(resolverPar(w, 'ca', 'cb', 'eu-grande')).toEqual({ a: 'ca', b: 'cb' })
     // b vem da URL e é o próprio mais recente: o A padrão não pode ser o mesmo canal; cai no seguinte
     expect(resolverPar(w, undefined, 'eu-novo')!.a).toBe('eu-grande')
+  })
+  it('13 (I-11c-2): a data exata do último vídeo decide, não os dias inteiros: no mesmo dia vence quem publicou depois, e a lembrança de 91,5 dias já é parada', () => {
+    const DIA = 86_400_000, A = AGORA
+    // os dois publicaram "há 2 dias" (dias inteiros iguais), o MAIOR um pouco antes: a lista escolhe o menor (publicou depois)
+    const mesmoDia = pacoteDe([mk('eu-grande', { own: true, subs: 3000, ultimo: A - 2.9 * DIA, n: { diasUltimo: 2 } }), mk('eu-novo', { own: true, subs: 40, ultimo: A - 2.1 * DIA, n: { diasUltimo: 2 } }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(mesmoDia, undefined, undefined)!.a).toBe('eu-novo')
+    // a ordem do pacote não pode desempatar quando a data exata separa os dois (nos dois sentidos)
+    const inverso = pacoteDe([mk('eu-grande', { own: true, subs: 3000, ultimo: A - 2.1 * DIA, n: { diasUltimo: 2 } }), mk('eu-novo', { own: true, subs: 40, ultimo: A - 2.9 * DIA, n: { diasUltimo: 2 } }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(inverso, undefined, undefined)!.a).toBe('eu-grande')
+    // a fronteira dos 91 dias: 91,5 dias é parado (a lista diz parado), então a lembrança cede ao canal ativo
+    const fronteira = pacoteDe([mk('eu-lembrado', { own: true, subs: 3000, ultimo: A - 91.5 * DIA, n: { diasUltimo: 91 } }), mk('eu-ativo', { own: true, subs: 40, ultimo: A - 10 * DIA, n: { diasUltimo: 10 } }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(fronteira, undefined, undefined, 'eu-lembrado')!.a).toBe('eu-ativo')
+    // e 90,5 dias ainda é ativo: a lembrança vale
+    const dentro = pacoteDe([mk('eu-lembrado', { own: true, subs: 3000, ultimo: A - 90.5 * DIA, n: { diasUltimo: 90 } }), mk('eu-ativo', { own: true, subs: 40, ultimo: A - 10 * DIA, n: { diasUltimo: 10 } }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(dentro, undefined, undefined, 'eu-lembrado')!.a).toBe('eu-lembrado')
+    // sem data exata (ultimo nulo) o canal nunca é ativo, mesmo com dias no número
+    const semData = pacoteDe([mk('eu-sem', { own: true, subs: 3000, ultimo: null }), mk('eu-ativo', { own: true, subs: 40, ultimo: A - 10 * DIA }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(semData, undefined, undefined, 'eu-sem')!.a).toBe('eu-ativo')
+  })
+  it('13 (I-11c-2): canal próprio só com vídeos sem data não é candidato (como na lista: o motor não o conta)', () => {
+    const w = pacoteDe([mk('eu-sd', { own: true, subs: 3000, comDatas: false, ultimo: null }), mk('eu', { own: true, subs: 40, ultimo: AGORA - 300 * 86_400_000 }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(w, undefined, undefined, 'eu-sd')!.a).toBe('eu')
   })
   it('11c: todos os próprios sem data → a ordem do pacote; canal novo sem vídeos nunca é padrão nem por lembrança', () => {
     const sem = pacoteDe([mk('eu1', { own: true, subs: 500 }), mk('eu2', { own: true, subs: 400 }), mk('ca', { subs: 5000 })])

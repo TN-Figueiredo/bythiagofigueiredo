@@ -10,6 +10,8 @@ import { ownChannelHref } from '@/app/cms/(authed)/youtube/competitors/_chrome/o
 import { link, OBS_BASE } from '@/lib/youtube/observatorio/links'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import { createTestObservatory } from './oracle'
+import { resolverPar } from '@/app/cms/(authed)/youtube/competitors/_comparar/par-model'
+import { principalDoMotor } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 
 beforeEach(() => { sentry.captureMessage.mockClear(); sentry.captureException.mockClear() })
 
@@ -361,5 +363,40 @@ describe('link.comparar', () => {
     expect(link.comparar('x')).toBe(`${OBS_BASE}/comparar?a=x`)
     expect(link.comparar('', '')).toBe(`${OBS_BASE}/comparar`)
     expect(link.comparar('a b', 'c&d')).toBe(`${OBS_BASE}/comparar?a=a+b&b=c%26d`)
+  })
+})
+
+describe('13 (I-11c-2): a data exata do último vídeo viaja no pacote, e a comparação escolhe "o meu canal" como a lista', () => {
+  /** Move TODOS os vídeos do canal para que o mais novo tenha `dias` dias (fração) de idade em relação a NOW. */
+  const ultimoHa = (id: string, dias: number) => (ds: Dataset) => {
+    const vs = ds.videos.filter(v => v.ch === id), agora = createTestObservatory(structuredClone(ds)).NOW
+    const delta = (agora - dias * DAY) - Math.max(...vs.map(v => v.pub))
+    for (const v of vs) v.pub += delta
+  }
+  const mundo = (a: number, b: number) => world(ds => {
+    const [x, y] = ds.channels.filter(c => c.own).sort((p, q) => (q.subs ?? 0) - (p.subs ?? 0)) // x = o maior
+    ultimoHa(x!.id, a)(ds); ultimoHa(y!.id, b)(ds)
+  })
+
+  it('ultimo = a data (ms) do vídeo mais novo com data, de qualquer formato; nulo sem vídeo datado', () => {
+    for (const c of BASE_PACK.canais) {
+      const pubs = BASE.obs.videos.filter(v => v.ch === c.id).map(v => v.pub)
+      expect(c.ultimo, c.id).toBe(pubs.length ? Math.max(...pubs) : null)
+    }
+    const w = world(ds => { semVideos(OWN2)(ds); ds.videos = ds.videos.filter(v => v.ch !== OWN); ds.channels.find(c => c.id === OWN)!.undated = undated(2) })
+    const p = buildCompararPack(w.obs)
+    expect(canal(p, OWN2).ultimo).toBeNull(); expect(canal(p, OWN).ultimo).toBeNull() // sem vídeos / só sem data: nunca um número inventado
+  })
+  it('a lista e a comparação escolhem o mesmo canal: empate no mesmo dia (nos dois sentidos), 91,5 dias, 90,5 dias, com e sem lembrança', () => {
+    const casos: Array<[string, number, number]> = [
+      ['mesmo dia, o maior publicou antes', 2.9, 2.1], ['mesmo dia, o maior publicou depois', 2.1, 2.9],
+      ['91,5 dias o maior, 10 o menor', 91.5, 10], ['90,5 dias o maior, 10 o menor', 90.5, 10], ['os dois parados, 91,5 e 95', 91.5, 95], ['os dois parados, 200 e 91,5', 200, 91.5],
+    ]
+    for (const [nome, a, b] of casos) {
+      const w = mundo(a, b), pack = buildCompararPack(w.obs)
+      for (const lembrado of [null, ...w.obs.ownChannels().map(c => c.id)]) {
+        expect(resolverPar(pack, undefined, undefined, lembrado)!.a, `${nome}, lembrança ${lembrado}`).toBe(principalDoMotor(w.obs, lembrado))
+      }
+    }
   })
 })

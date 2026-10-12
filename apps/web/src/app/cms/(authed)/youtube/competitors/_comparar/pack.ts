@@ -23,6 +23,8 @@ export interface CanalPack {
   semVideos: boolean
   /** Tem ao menos um vídeo com data de publicação: sem isso a faixa de 90 dias não tem o que marcar (spec 18.7). */
   comDatas: boolean
+  /** A data exata (ms) do vídeo mais novo com data, de qualquer formato; `null` sem vídeo datado. É a entrada que a lista e o menu usam para escolher "o meu canal" (`escolherPrincipal`): nunca dias inteiros. */
+  ultimo: number | null
   /** "Abrir o canal …": página do concorrente; painel do canal próprio com vídeos; null sem página (canal próprio sem vídeos). */
   href: string | null
   numeros: Record<NumeroId, Numero>
@@ -110,7 +112,7 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
     return {
       id: ch.id, name: ch.name, own: ch.own, niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null,
       avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, subsTexto: ch.subs == null ? null : F.subs(ch.subs),
-      semVideos, comDatas: vids.length > 0,
+      semVideos, comDatas: vids.length > 0, ultimo: vids.length ? vids.reduce((m, v) => (v.pub > m ? v.pub : m), -Infinity) : null,
       // concorrente sempre tem página (sem vídeos ela diz "ainda não tem vídeos sincronizados"); o canal próprio só com vídeos
       href: ch.own ? (semVideos ? null : ownChannelHref(ch.id)) : link.canal(ch.id),
       numeros: numerosDoCanal(obs, ch.id, a => avisos.push(a)), top5, top5Nota, pub90, pub90Nota,

@@ -6,6 +6,7 @@ import { a3World } from './a3-fixture'
 import { buildCanaisView, type CanaisParams, type CanaisRow, type CanaisSort, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { fraseSeuCanal, motivoTexto, POSICIONADAS, type MotivoSemMedida } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
 import { ownChannelHref } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-channels'
+import { principalDoMotor } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
@@ -381,6 +382,46 @@ describe('A3.2 bloco "Seus canais"', () => {
     expect(all(v).length).toBe(w.obs.channels.length)
     // as posições existem sem canal próprio
     expect(view({ sort: 'subs' }, w.obs).list.ranked[0]!.pos).toEqual({ pos: 1, de: w.obs.channels.length, empate: false })
+  })
+  it('13 (I-11c-1): a linha presa continua no pé quando o canal principal fica fora da lista pelo filtro de nicho; ela fala de um canal que está na lista, com o porquê de não ter posição', () => {
+    // dois canais próprios em nichos diferentes; o de Viagem publica por último (é o principal); o filtro é IA
+    const w = a3World(ds => {
+      const [a, b] = ds.channels.filter(c => c.own)
+      a!.niche = 'viagem'; b!.niche = 'ia'
+      const ultimo = (id: string) => Math.max(...ds.videos.filter(v => v.ch === id).map(v => v.pub))
+      const recuo = ultimo(b!.id) - ultimo(a!.id) + 3 * 86_400_000 // a passa a ter publicado 3 dias depois de b
+      if (recuo > 0) for (const v of ds.videos) if (v.ch === b!.id) v.pub -= recuo
+    })
+    const [a, b] = w.owns
+    const principal = w.obs.channel(principalDoMotor(w.obs, null)!)!
+    expect(principal.niche).toBe('viagem') // o ponto de partida do cenário: o principal é de Viagem
+    const v = view({ niche: 'ia', sort: 'subs' }, w.obs)
+    expect(all(v).map(r => r.id)).not.toContain(principal.id) // fora da lista pelo filtro
+    expect(all(v).map(r => r.id)).toContain(b === principal.id ? a : b) // o outro canal próprio está na lista
+    expect(v.pe, 'a linha presa não pode sumir').not.toBeNull()
+    expect(all(v).map(r => r.id)).toContain(v.pe!.canalId) // "Ir até a linha" tem para onde ir
+    expect(v.pe!.canalId).not.toBe(principal.id)
+    expect(v.pe!.texto).toBe('seu canal · ' + cheia(v, v.pe!.canalId).frase)
+    // o botão "Comparar" continua com o principal global (outra pergunta, outra regra)
+    const conc = all(v).find(r => !r.own)!
+    expect(conc.comparar!.href).toBe(link.comparar(principal.id, conc.id))
+    // o outro canal próprio sem nicho: a linha presa fala dele e diz por que não tem posição (a frase do motivo, nunca vazia)
+    const semNicho = a3World(ds => {
+      const [x, y] = ds.channels.filter(c => c.own)
+      x!.niche = 'viagem'; y!.niche = null
+      const ultimo = (id: string) => Math.max(...ds.videos.filter(vv => vv.ch === id).map(vv => vv.pub))
+      const recuo = ultimo(y!.id) - ultimo(x!.id) + 3 * 86_400_000
+      if (recuo > 0) for (const vv of ds.videos) if (vv.ch === y!.id) vv.pub -= recuo
+    })
+    const vn = view({ niche: 'ia', sort: 'subs' }, semNicho.obs)
+    const yId = semNicho.ds.channels.find(c => c.own && c.niche == null)!.id
+    expect(vn.pe, 'a linha presa não pode sumir').not.toBeNull()
+    expect(vn.pe!.canalId).toBe(yId)
+    expect(byId(vn, yId).pos).toBeNull()
+    expect(vn.pe!.texto).toBe('seu canal · ' + cheia(vn, yId).frase)
+    expect(vn.pe!.texto.length).toBeGreaterThan('seu canal · '.length)
+    // o teste que apaga o filtro: sem nicho a linha volta a falar do principal
+    expect(view({ niche: 'todos', sort: 'subs' }, w.obs).pe!.canalId).toBe(principal.id)
   })
   it('a linha presa fala do primeiro canal próprio com vídeos (D16), com a frase curta', () => {
     const obs = BASE.obs
