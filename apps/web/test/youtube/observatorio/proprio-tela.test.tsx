@@ -11,7 +11,7 @@ import path from 'node:path'
 import { proprioWorld, semVideos, parado, type CenarioDados } from './proprio-fixture'
 import { mountProprio, cartoes, norm, viewDe } from './proprio-mount'
 import { link } from '@/lib/youtube/observatorio/links'
-import { SEM_VIEWS_DIARIAS } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
+import { VIEWS_POR_DIA_BASE } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
 import { ABAS_PROPRIO, ABAS_PROPRIO_NOTA } from '@/app/cms/(authed)/youtube/competitors/_proprio/view-model'
 import { canalQuery } from '@/app/cms/(authed)/youtube/competitors/_canal/params'
 
@@ -157,11 +157,11 @@ describe('T8 abas: Vídeos, Trocas, Leitura e Retenção', () => {
     window.history.back()
   })
 
-  it('a frase das views por dia aparece UMA vez, na linha das abas, não em cada cartão', () => {
+  it('a frase das views por dia aparece UMA vez, na linha das abas, não em cada cartão (13.3: o cartão leva o número, não a frase)', () => {
     mountProprio()
-    expect(screen.getAllByText(/Views por dia de cada vídeo/)).toHaveLength(1)
-    expect(raiz().querySelector('nav.ctabs p.res')!.textContent).toBe(SEM_VIEWS_DIARIAS)
-    for (const c of cartoes()) expect(c.textContent).not.toMatch(/Views por dia de cada vídeo|views\/dia/)
+    expect(screen.getAllByText(/Views por dia: média/)).toHaveLength(1)
+    expect(raiz().querySelector('nav.ctabs p.res')!.textContent).toBe(VIEWS_POR_DIA_BASE)
+    for (const c of cartoes()) expect(c.textContent).not.toMatch(/Views por dia|views\/dia/)
   })
 
   it('com busca, a linha das abas diz o resultado e a frase das views por dia dá lugar a ele', async () => {

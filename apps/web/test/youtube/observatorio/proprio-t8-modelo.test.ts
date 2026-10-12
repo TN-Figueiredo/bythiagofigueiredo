@@ -9,7 +9,7 @@ import { buildProprioView, ABAS_PROPRIO, ABAS_PROPRIO_NOTA } from '@/app/cms/(au
 import { posicaoDoSite } from '@/app/cms/(authed)/youtube/competitors/_proprio/posicao-do-site'
 import { notaDoDivisor } from '@/app/cms/(authed)/youtube/competitors/_canal/grade'
 import { buildCompararPack } from '@/app/cms/(authed)/youtube/competitors/_comparar/pack'
-import { SEM_VIEWS_DIARIAS } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
+import { VIEWS_POR_DIA_BASE } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
 import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import { posicoes } from '@/lib/youtube/observatorio/posicao'
 import { median, quant } from '@/lib/youtube/observatorio/stats'
@@ -259,8 +259,8 @@ describe('T8 buildProprioView', () => {
     expect(v.compararHref).toBeNull()
     expect(v.compararTitulo).toBeNull()
   })
-  it('a frase das views por dia vem uma vez, de D12 (c)', () => {
-    expect(view()!.videos.semViewsDiarias).toBe(SEM_VIEWS_DIARIAS)
+  it('a frase das views por dia vem uma vez (13.3: a base, com o diário cheio)', () => {
+    expect(view()!.videos.viewsPorDiaFrase).toBe(VIEWS_POR_DIA_BASE)
   })
 })
 

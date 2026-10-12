@@ -12,13 +12,13 @@
  * A ordenação por impressões é do cliente, como todas as da lista (`montarLista` roda no navegador sobre `imp`): este modelo só
  * entrega o número bruto. Quem não tem impressão não é zero: vai para o fim nas duas direções.
  *
- * As views por dia de cada vídeo existem (diário por vídeo) mas o cartão não as desenha (D12 c, `SEM_VIEWS_DIARIAS`): o número
- * vai em `vpdDiario*` e a frase de cada vídeo em "Ações do vídeo" (`notas`), uma por vídeo. `vpd7`/`vpdText` do motor ficam nulos.
+ * As views por dia de cada vídeo (diário por vídeo) saem em `vpdDiario*` e o cartão as desenha (A4 13.3); a frase que explica a base, ou o motivo de não haver
+ * (UMA vez, no topo da grade), é `viewsPorDiaFrase`; a de cada vídeo vai em "Ações do vídeo" (`notas`). `vpd7`/`vpdText` do motor ficam nulos.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
-import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd } from '@/lib/youtube/observatorio/proprio/vpd'
+import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { buildCanalVideos, type ChannelVideoView } from '../_canal/videos-model'
 import { vpdText } from '../_canal/numeros'
 import type { DadosDoCanal } from './dados'
@@ -49,14 +49,21 @@ export interface ProprioVideosView {
   /** A nota sob a grade: múltiplo, impressões, cliques e o dia do YouTube; com o motivo de leitura, quando houver. */
   nota: string
   semVideos: string | null
-  /** A frase única das views por dia por vídeo (D12 c): a tela a mostra uma vez, na linha das abas. */
-  semViewsDiarias: string
+  /** A frase única das views por dia por vídeo: a base ("média dos últimos 28 dias com medida") ou o motivo de não haver; a tela a mostra uma vez, na linha das abas. */
+  viewsPorDiaFrase: string
   /** Por que não há impressão nem clique em NENHUM vídeo (negado, erro, sem relatório, nada lido). null = o alcance foi lido. */
   motivoAlcance: string | null
 }
 
-/** D12 (c): a frase das views por dia por vídeo. Uma só na tela. */
-export const SEM_VIEWS_DIARIAS = 'Views por dia de cada vídeo: já são coletadas; o desenho delas nesta tela ainda não existe.'
+/** A base das views por dia que o cartão mostra. Uma só na tela. */
+export const VIEWS_POR_DIA_BASE = 'Views por dia: média dos últimos 28 dias com medida.'
+
+/** O motivo de nenhum vídeo ter views por dia, numa frase só ("Views por dia: …."). Sem permissão e leitura com erro têm a sua palavra curta. */
+export function viewsPorDiaSemDado(m: MotivoSemVpd, c: Pick<VpdCanal, 'ultimoDia'>, dm: (d: DiaYt) => string): string {
+  if (m === 'sem-acesso') return 'Views por dia: só quem edita o site vê.'
+  if (m === 'leitura-falhou') return 'Views por dia: a leitura falhou agora; recarregue a página.'
+  return `Views por dia: ${motivoVpdTexto(m, c, dm)}.`
+}
 
 const SEM_IMPRESSAO = 'sem impressão no período'
 
@@ -169,5 +176,9 @@ export function buildProprioVideos(
     + 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo.'
     + (motivoAlcance != null ? ` Impressões e cliques: ${motivoAlcance}.` : '')
 
-  return { videos, nota, semVideos: base.semVideos, semViewsDiarias: SEM_VIEWS_DIARIAS, motivoAlcance }
+  // a frase única do topo da grade: a base, quando algum cartão tem o número; senão, o motivo (do canal inteiro)
+  const canalVpd = vpdDoCanal(dados.diario, [...longos], o.hoje)
+  const viewsPorDiaFrase = videos.some(v => v.vpdDiarioText != null) || canalVpd.motivo == null ? VIEWS_POR_DIA_BASE : viewsPorDiaSemDado(canalVpd.motivo, canalVpd, dm)
+
+  return { videos, nota, semVideos: base.semVideos, viewsPorDiaFrase, motivoAlcance }
 }
