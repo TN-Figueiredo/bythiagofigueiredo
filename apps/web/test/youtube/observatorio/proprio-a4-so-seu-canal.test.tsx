@@ -210,7 +210,6 @@ const ALL = (v: number): OpcoesCanal['n'] => Object.fromEntries(NUMEROS.map(k =>
 const mk = (id: string, subs: number | null, o: OpcoesCanal = {}) => canalDe(id, { subs, ...o })
 function pacote(soSeuCanal: Record<string, SoSeuCanalDado>): CompararPack {
   return {
-    serieDesde: '03/10',
     ...pacoteDe([
       mk('eu', 1000, { own: true, name: 'tnFigueiredo', n: { ...ALL(10), inscritos: 1000 } }),
       mk('eu2', 400, { own: true, name: 'Thiago Figueiredo', n: { ...ALL(8), inscritos: 400 } }),
