@@ -145,6 +145,7 @@ const SENTINELAS: Sentinela[] = [
   sen('contra a faixa', 'acima do normal da faixa', /acima do normal da faixa/), sen('contra a faixa', 'abaixo do normal da faixa', /abaixo do normal da faixa/),
   sen('views do diário', '103.310'), sen('views do diário', '4.436'), sen('views do diário', '4.476'), sen('views do diário', '3.202'),
   sen('views do diário', '13.574'), sen('views do diário', '60.844'), sen('views do diário', '24.948'), sen('views do diário', '1.988'), sen('views do diário', '1.876'),
+  sen('views do diário', 'N de M dias medidos', cp(/\d+ de \d+ dias medidos/)),
   sen('views por dia', '1,2 mil views por dia', cp(/1,2 mil\s*views por dia/)), sen('views por dia', '2,2 mil views por dia', cp(/2,2 mil\s*views por dia/)),
   sen('views por dia', '891 views por dia', cp(/891 views por dia/)), sen('views por dia', '67 views por dia', cp(/67 views por dia/)),
   sen('views por dia', '891 views/dia por vídeo', cp(/891\s*views\/dia por vídeo/)),
