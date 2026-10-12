@@ -70,7 +70,7 @@ async function sondarCanal(
     // O job de um tipo com data de descontinuação é criado mesmo assim (o bruto vale enquanto vier), mas o dono fica
     // sabendo: quando o YouTube desligar o tipo, os relatórios param e a versão nova precisa entrar na lista.
     for (const t of tipos) {
-      if (t.deprecateTime && (HABILITADOS as readonly string[]).includes(t.id)) {
+      if (t.deprecateTime && HABILITADOS.includes(t.id)) {
         pushUnico(resumo.acao_do_dono, `${c.name}: ${t.id} tem data de descontinuação no YouTube (${t.deprecateTime})`)
       }
     }
@@ -92,6 +92,17 @@ async function sondarCanal(
       pushUnico(resumo.acao_do_dono, `${c.name}: ${estado}`)
       await avisarEntrada(ctx, c, estado)
     }
+    return
+  }
+
+  // Lista vazia (ou sem nenhum tipo habilitado) é "o dado não existe", não "o YouTube não oferece nada": marcar cada tipo
+  // como `tipo_indisponivel` carimbaria por 3650 dias um aviso por tipo, todos falsos, sem aviso de saída. Não se grava
+  // linha nem aviso; é UMA falha do passo e a próxima execução tenta de novo. Tipo isolado ausente de uma lista com
+  // algum habilitado continua sendo `tipo_indisponivel` (abaixo).
+  if (!HABILITADOS.some(t => oferecidos.has(t))) {
+    const texto = 'o YouTube não devolveu a lista de tipos de relatório'
+    pushUnico(ctx.falhas, `jobs: ${channelNote(c.name, texto)}`)
+    await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: null, error: texto })
     return
   }
 
