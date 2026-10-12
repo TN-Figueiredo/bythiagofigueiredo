@@ -149,7 +149,7 @@ describe('GET /api/pipeline/broll-library', () => {
     const res = await listGET(makeListRequest())
     expect(res.status).toBe(403)
     const json = await res.json() as { error: { code: string } }
-    expect(json.error.code).toBe('UNAUTHORIZED')
+    expect(json.error.code).toBe('FORBIDDEN')
   })
 
   it('returns paginated list with meta', async () => {

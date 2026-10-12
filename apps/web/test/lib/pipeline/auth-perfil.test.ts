@@ -13,7 +13,7 @@ vi.mock('@/lib/supabase/service', () => ({
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn().mockRejectedValue(new Error('sem sessão')) }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn() }))
 
-import { authenticatePipeline } from '@/lib/pipeline/auth'
+import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
 
 const pedido = (chave: string) => ({ headers: new Headers({ 'X-Pipeline-Key': chave }) }) as never
 
@@ -50,5 +50,24 @@ describe('authenticatePipeline (E19): o dado não existe', () => {
     linha.atual = { id: 'key-6', site_id: 'site-1', name: 'x', permissions: null }
     const r = await authenticatePipeline(pedido('k-nulo'))
     expect(r.ok && r.auth.permissions).toEqual([])
+  })
+})
+
+describe('authenticatePipeline (E19): permissão por igualdade exata (M4)', () => {
+  it('permissions undefined: autentica com lista vazia, sem read', async () => {
+    linha.atual = { id: 'key-7', site_id: 'site-1', name: 'x', permissions: undefined as unknown as null }
+    const r = await authenticatePipeline(pedido('k-undef'))
+    expect(r.ok && r.auth.permissions).toEqual([])
+    expect(r.ok && requirePermission(r.auth, 'read')).toBe(false)
+  })
+  it("' Read' e 'READ' não concedem leitura por semelhança (comparação exata)", async () => {
+    linha.atual = { id: 'key-8', site_id: 'site-1', name: 'x', permissions: [' Read', 'READ'] }
+    const r = await authenticatePipeline(pedido('k-caixa'))
+    expect(r.ok && requirePermission(r.auth, 'read')).toBe(false)
+  })
+  it("' observatorio_leitura' (com espaço) não é o perfil: não bloqueia por semelhança", async () => {
+    linha.atual = { id: 'key-9', site_id: 'site-1', name: 'x', permissions: [' observatorio_leitura'] }
+    const r = await authenticatePipeline(pedido('k-espaco'))
+    expect(r.ok).toBe(true)
   })
 })
