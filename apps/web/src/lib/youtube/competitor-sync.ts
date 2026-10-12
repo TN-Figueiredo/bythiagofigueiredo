@@ -11,6 +11,7 @@ import {
 import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
+import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
@@ -62,6 +63,10 @@ export interface SyncResult {
   newlyMissing?: number
   /** (A5) Vídeos que estavam marcados como ausentes e o YouTube devolveu de novo. */
   returned?: number
+  /** (A5) A gravação da cota deste canal falhou: a sincronização terminou como terminou, e as unidades gastas ficaram fora da linha do dia. */
+  quotaError?: true
+  /** (A5) As unidades que não foram gravadas por causa do quotaError (= unitsUsed); o lote soma e tenta uma vez no fim do disparo. */
+  quotaUnitsLost?: number
 }
 
 /** (A5) Os contadores de uma sincronização que terminou em erro: o erro lançado não carrega resultado, e o lote só vê o erro. */
@@ -281,6 +286,14 @@ export async function syncCompetitorChannel(
     lateFailure ??= e instanceof Error ? e : new Error(String(e))
   }
   let channelPartsMissing = 0
+  /** (A5) A cota é gravada UMA vez, no fim (sucesso ou erro); se a gravação falhar, a sincronização não muda de destino: só marca quotaError. */
+  let quotaError = false
+  const flushQuota = async (): Promise<void> => {
+    try {
+      // partes_ausentes vai junto: é o único lugar durável desse número
+      await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors', extra: { partes_ausentes: partsMissingIds.size } })
+    } catch { quotaError = true }
+  }
   const noteRow = (r: { id?: unknown; last_seen_at?: unknown; missing_since?: unknown }): void => {
     if (typeof r.id !== 'string' || rowInfo.has(r.id)) return
     rowInfo.set(r.id, { lastSeenAt: typeof r.last_seen_at === 'string' ? r.last_seen_at : null, weeklySince: null, missing: r.missing_since != null })
@@ -306,6 +319,7 @@ export async function syncCompetitorChannel(
     ...(captureSkippedIds.size ? { captureSkipped: captureSkippedIds.size } : {}),
     ...(missedStats.missed ? { missed: missedStats.missed } : {}), ...(missedStats.newlyMissing ? { newlyMissing: missedStats.newlyMissing } : {}),
     ...(returnedCount() ? { returned: returnedCount() } : {}),
+    ...(quotaError ? { quotaError: true as const, quotaUnitsLost: unitsUsed } : {}),
   })
   /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
   const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
@@ -860,8 +874,11 @@ export async function syncCompetitorChannel(
     }
     await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
 
+    await flushQuota()
     return { ...counters(), ...(semDestinatario ? { sem_destinatario: true } : {}) }
   } catch (error) {
+    // a cota gasta até aqui é gravada mesmo com o canal em erro (a chamada que falhou também custou)
+    await flushQuota()
     // os contadores acompanham o erro (syncStatsOf): o lote só vê o erro, e o que faltou/limpou não pode sumir junto
     if (typeof error === 'object' && error !== null) failedStats.set(error, counters())
     // Set error status, preserve partial data
