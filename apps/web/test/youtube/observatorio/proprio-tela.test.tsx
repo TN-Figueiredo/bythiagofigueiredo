@@ -46,10 +46,11 @@ describe('T8 a raiz e o cabeçalho', () => {
     const rotulos = [...dl.querySelectorAll('.nc dt')].map(e => e.textContent)
     expect(rotulos).toEqual(view.header.faixa.map(c => c.label))
     expect(rotulos).toHaveLength(6)
-    expect(rotulos[3]).toMatch(/^impressões de \d\d\/\d\d a \d\d\/\d\d$/)
+    expect(rotulos[3]).toBe('impressões')   // 13.3: o período é a segunda linha da célula
+    expect(dl.querySelectorAll('.nc')[3]!.querySelector('.nsub')!.textContent).toMatch(/^de \d\d\/\d\d a \d\d\/\d\d$/)
   })
 
-  it('"Todos os números" abre as outras onze células sem navegar; o ⓘ lista a base de cada uma', async () => {
+  it('"Todos os números" abre as outras treze células sem navegar; o ⓘ lista a base de cada uma', async () => {
     const user = userEvent.setup()
     const { view } = mountProprio()
     const mais = raiz().querySelector<HTMLElement>('#canal-nums2')!
@@ -57,12 +58,12 @@ describe('T8 a raiz e o cabeçalho', () => {
     await user.click(screen.getByRole('button', { name: /Todos os números/ }))
     expect(mais.hidden).toBe(false)
     expect([...mais.querySelectorAll('.nc dt')].map(e => e.textContent)).toEqual(view.header.todos.map(c => c.label))
-    expect(view.header.todos).toHaveLength(11)
+    expect(view.header.todos).toHaveLength(13)
     expect(urlAtual().get('nums')).toBe('1')
     expect(push).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'De onde vêm os números do canal' }))
     const dica = await screen.findByRole('dialog', { name: 'De onde vêm os números do canal' })
-    expect(within(dica).getAllByRole('listitem')).toHaveLength(17)
+    expect(within(dica).getAllByRole('listitem')).toHaveLength(19)   // 6 da faixa + 13 de "Todos os números" (13.3)
   })
 
   it('a linha de posição: os itens com link vão à lista de Canais ordenada; os sem ordenação equivalente são texto, não link', () => {
@@ -374,8 +375,11 @@ describe('T8 os estados sem dado: 1, 2 e N canais, parado, série cheia, curta e
       for (const c of view.header.faixa) {
         const dd = [...raiz().querySelectorAll('dl[aria-label="Números do canal"] .nc')].find(e => e.querySelector('dt')!.textContent === c.label)!
         if (c.value == null) {
-          expect(dd.querySelector('.obs-ch-nm')!.textContent, c.key).toBe(c.missing)
+          // 13.3: a pastilha é só o quadradinho hachurado (sem texto); o motivo vem UMA vez, na frase sob a faixa
+          expect(dd.querySelector('.obs-ch-nm')!.textContent, c.key).toBe('')
+          expect(dd.querySelector('.obs-ch-nm')!.getAttribute('aria-label'), c.key).toBe('não medido')
           expect(c.missing, c.key).not.toBe('')
+          expect(raiz().querySelector('.chead > .nm-fr')!.textContent, c.key).toBe(view.header.faixaMotivo)
         } else expect(norm(dd.querySelector('dd')!.textContent), c.key).toContain(c.value)
       }
     })
@@ -396,8 +400,10 @@ describe('T8 os estados sem dado: 1, 2 e N canais, parado, série cheia, curta e
 
   it('negado: cada número privado diz "só quem edita o site vê este número" e o cartão "só quem edita vê"', () => {
     mountProprio({ world: proprioWorld({ cenario: 'negado' }) })
-    const nm = [...raiz().querySelectorAll('dl[aria-label="Números do canal"] .obs-ch-nm')].map(e => e.textContent)
-    expect(nm.filter(t => t === 'só quem edita o site vê este número').length).toBe(2) // impressões e dias com impressão
+    // 13.3: dois quadradinhos (impressões e dias com impressão) e a frase UMA vez sob a faixa
+    expect(raiz().querySelectorAll('dl[aria-label="Números do canal"] .nm-q').length).toBe(2)
+    expect(raiz().querySelectorAll('.chead > .nm-fr').length).toBe(1)
+    expect(raiz().querySelector('.chead > .nm-fr')!.textContent).toBe('Só quem edita o site vê este número.')
     for (const c of cartoes()) expect(c.querySelector('.cv-c.nd .obs-ch-nm')!.textContent).toBe('só quem edita vê')
   })
 
