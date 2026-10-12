@@ -19,7 +19,7 @@ import { criarReportingClient, empacotarCsv, deBytea } from '@/lib/youtube/repor
 import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR } from '@/lib/youtube/reporting/types'
 import { SemTempoError, TETOS_MS } from '@/lib/youtube/coleta/clock'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
-import { criteriosRelatorios } from '@/lib/youtube/coleta/criteria'
+import { criteriosRelatorios, criterioJobsEmErro } from '@/lib/youtube/coleta/criteria'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
 const AGORA = new Date('2026-10-07T12:05:00.000Z')
@@ -54,6 +54,8 @@ const ctxDe = (db: FakeDb, prazoMs = 60_000): StepCtx => ({
   supabase: db.client, channels: [{ ...canal }], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
 })
 const rel = (db: FakeDb, id: string) => db.tables.yt_reporting_reports?.find(r => r.report_id === id)
+const NOTA_GRAVACAO = (bytes: number, motivo: string, tipo = 'channel_reach_basic_a1') =>
+  `relatórios: Canal Um: a GRAVAÇÃO do bruto de ${tipo} falhou (${bytes} bytes comprimidos; banco: ${motivo}); o relatório continua na fila`
 const comStatus = (db: FakeDb, status: string) => (db.tables.yt_reporting_reports ?? []).filter(r => r.status === status)
 
 beforeEach(() => {
@@ -576,7 +578,7 @@ describe('passoRelatorios: fix round 1', () => {
     const resumo = await passoRelatorios(ctx)
     expect(rel(db, 'r1')!.status).toBe('listado')
     expect(comStatus(db, 'baixado')).toHaveLength(0)
-    expect(ctx.falhas).toContain('erro de banco ao gravar yt_reporting_report_blobs')
+    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(empacotarCsv(CSV).gz.length, 'conexão caiu')]) // específica: a genérica "erro de banco" sai
     expect(resumo).toMatchObject({ baixados: 0, pendentes: 1 })
   })
 
@@ -984,5 +986,69 @@ describe('uma perda, uma nota por execução (passo + critérios juntos, como no
       vi.setSystemTime(AGORA)
       expect(ctx.falhas.filter(f => NOTAS_DE_PERDA.test(f)).length, `segundos=${segundos}`).toBeGreaterThanOrEqual(1)
     }
+  })
+})
+
+describe('E12 onda 5, F2: falha ao gravar o bruto deixa rastro e chega ao alerta de 3 dias', () => {
+  const BYTES = empacotarCsv(CSV).gz.length
+  const comBlobQuebrado = () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.writeErrors.yt_reporting_report_blobs = { code: '57014', message: 'statement timeout' }
+    return db
+  }
+  const tentativasDoJob = (db: FakeDb) => (db.tables.yt_own_collection_attempts ?? []).filter(t => t.scope_type === 'job' && t.kind === 'relatorio')
+
+  it('grava UMA tentativa erro_http do job, com motivo erro_gravacao, o tipo e os bytes; a nota diz canal, tipo, bytes e que foi a gravação', async () => {
+    const db = comBlobQuebrado()
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    const t = tentativasDoJob(db)
+    expect(t).toHaveLength(1)
+    expect(t[0]).toMatchObject({ scope_id: 'ch-1:channel_reach_basic_a1', outcome: 'erro_http', channel_id: 'ch-1' })
+    expect(String(t[0]!.error)).toMatch(/^erro_gravacao: /)
+    expect(String(t[0]!.error)).toContain('channel_reach_basic_a1')
+    expect(String(t[0]!.error)).toContain(`${BYTES} bytes`)
+    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(BYTES, 'statement timeout')])
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
+    expect(resumo).toMatchObject({ baixados: 0, gravados: 0, erros_download: 1, pendentes: 1 })
+  })
+
+  it('3 dias seguidos de falha de gravação: o critério de jobs alarma, com o motivo; no 2º dia ainda não', async () => {
+    const db = comBlobQuebrado()
+    for (const dia of [0, 1, 2]) {
+      vi.setSystemTime(new Date(AGORA.getTime() + dia * DIA_MS))
+      const ctx = ctxDe(db)
+      await passoRelatorios(ctx)
+      expect(rel(db, 'r1')!.status).toBe('listado') // nunca vira terminal: tenta de novo no dia seguinte
+      const crit = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+      await criterioJobsEmErro(crit)
+      if (dia < 2) expect(crit.falhas).toEqual([])
+      else {
+        expect(crit.falhas).toHaveLength(1)
+        expect(crit.falhas[0]).toMatch(/^jobs: Canal Um não consegue baixar o relatório channel_reach_basic_a1 há 3 dias \(último erro: erro_gravacao: /)
+      }
+    }
+    expect(tentativasDoJob(db)).toHaveLength(3)
+  })
+
+  it('gravação que volta a funcionar: baixa, e o dia seguinte não repete a tentativa de erro', async () => {
+    const db = comBlobQuebrado()
+    await passoRelatorios(ctxDe(db))
+    db.writeErrors.yt_reporting_report_blobs = undefined
+    vi.setSystemTime(new Date(AGORA.getTime() + DIA_MS))
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(resumo).toMatchObject({ baixados: 1, pendentes: 0 })
+    expect(rel(db, 'r1')!.status).toBe('baixado')
+    expect(tentativasDoJob(db).filter(t => t.outcome === 'erro_http')).toHaveLength(1) // só a do dia 1; o dia 2 não gravou erro
+  })
+
+  it('schema ausente na tabela do bruto continua sendo schema_ausente (e não vira erro de gravação)', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.writeErrors.yt_reporting_report_blobs = { code: '42P01', message: 'relation "yt_reporting_report_blobs" does not exist' }
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(ctx.falhas).toEqual(['schema_ausente: yt_reporting_report_blobs'])
+    expect(rel(db, 'r1')!.status).toBe('listado')
   })
 })
