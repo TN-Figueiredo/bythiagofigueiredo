@@ -11,7 +11,7 @@ import {
 import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
-import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, CAPTURE_CHUNK } from '@/lib/youtube/competitor-capture'
+import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -40,19 +40,25 @@ export interface SyncResult {
   channelPartsMissing?: number
   /** (A5) Versões de campo abertas (primeira leitura ou mudança), contando canal e vídeos. */
   fieldsOpened?: number
+  /** (A5) Versões de campo fechadas porque o valor mudou. */
+  fieldsClosed?: number
   /** (A5) Respostas cruas abertas (primeira leitura ou mudança). */
   rawOpened?: number
+  /** (A5) Respostas cruas fechadas porque a resposta mudou. */
+  rawClosed?: number
   /** (A5) Respostas acima do teto de tamanho, não guardadas. */
   rawTooBig?: number
   /** (A5) Itens cujo texto trazia NUL ou substituto solitário e foi limpo antes de gravar. */
   sanitized?: number
   /** (A5) Itens repetidos na mesma resposta (só o primeiro vale). */
   duplicates?: number
-  /** (A5) Itens de vídeo sem id, deixados fora da captura. */
+  /** (A5) Itens de vídeo sem id, deixados fora da captura. Aqui o id é sempre o uuid da linha do vídeo, então hoje é sempre 0 (fica ligado para o dia em que a captura receber item de outra origem). */
   invalid?: number
+  /** (A5) Itens que NÃO foram capturados porque uma captura anterior desta execução falhou (disjuntor por canal): o canal termina em erro com a mensagem da primeira falha. */
+  captureSkipped?: number
   /** (A5) Vídeos pedidos ao YouTube e não devolvidos em nenhuma chamada desta sincronização: cada um soma UMA falta. */
   missed?: number
-  /** (A5) Vídeos que passaram a "sumiu" (a segunda falta seguida). Vem de `markMissing`; ver o relatório da Tarefa 8 sobre o limite desta contagem. */
+  /** (A5) Versões `availability = 'sumiu'` EFETIVAMENTE abertas nesta execução (o plano de campos decidiu e a gravação confirmou); reexecutar a mesma situação dá 0. */
   newlyMissing?: number
   /** (A5) Vídeos que estavam marcados como ausentes e o YouTube devolveu de novo. */
   returned?: number
@@ -253,7 +259,17 @@ export async function syncCompetitorChannel(
   const asked = new Set<string>()
   let missedStats = { missed: 0, newlyMissing: 0 }
   // A captura nunca impede a série do dia: a falha vai para a mesma `lateFailure` (não há segunda variável).
-  const cap = { fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 }
+  const cap = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 }
+  const addCap = (st: CaptureStats): void => { for (const k of Object.keys(cap) as Array<keyof typeof cap>) cap[k] += st[k] }
+  // Disjuntor por canal: depois da PRIMEIRA falha de captura nenhum bloco seguinte lê nem grava captura (o banco doente seria
+  // repetido a cada bloco). O que deixou de ser capturado por isso conta em `captureSkipped`; quem já foi tentado e falhou não conta.
+  let captureBroken = false
+  const captureTried = new Set<string>()
+  const captureSkippedIds = new Set<string>()
+  const captureFailed = (e: unknown): void => {
+    captureBroken = true
+    lateFailure ??= e instanceof Error ? e : new Error(String(e))
+  }
   let channelPartsMissing = 0
   const noteRow = (r: { id?: unknown; last_seen_at?: unknown; missing_since?: unknown }): void => {
     if (typeof r.id !== 'string' || rowInfo.has(r.id)) return
@@ -273,9 +289,11 @@ export async function syncCompetitorChannel(
     videosChecked, changesDetected, dailyRecorded, unitsUsed,
     ...(partsMissingIds.size ? { partsMissing: partsMissingIds.size } : {}),
     ...(channelPartsMissing ? { channelPartsMissing } : {}),
-    ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
+    ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.fieldsClosed ? { fieldsClosed: cap.fieldsClosed } : {}),
+    ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawClosed ? { rawClosed: cap.rawClosed } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
     ...(cap.sanitized ? { sanitized: cap.sanitized } : {}),
     ...(cap.duplicates ? { duplicates: cap.duplicates } : {}), ...(cap.invalid ? { invalid: cap.invalid } : {}),
+    ...(captureSkippedIds.size ? { captureSkipped: captureSkippedIds.size } : {}),
     ...(missedStats.missed ? { missed: missedStats.missed } : {}), ...(missedStats.newlyMissing ? { newlyMissing: missedStats.newlyMissing } : {}),
     ...(returnedCount() ? { returned: returnedCount() } : {}),
   })
@@ -284,6 +302,7 @@ export async function syncCompetitorChannel(
     const todo = pairs.filter(p => !captured.has(p.uuid))
     for (let i = 0; i < todo.length; i += CAPTURE_CHUNK) {
       const chunk = todo.slice(i, i + CAPTURE_CHUNK)
+      if (captureBroken) { for (const p of chunk) if (!captureTried.has(p.uuid)) captureSkippedIds.add(p.uuid); continue }
       try {
         const st = await captureItems(supabase, {
           siteId: channelRow.site_id, channelId: channelRow.id, scope: 'video', nowIso,
@@ -292,12 +311,13 @@ export async function syncCompetitorChannel(
             return { videoId: p.uuid, fields: videoObservedOf(p.item, nowIso, parseIsoDuration).fields, raw: rawOf(p.item), prevSeenAt: info?.lastSeenAt ?? null, weeklySince: info?.weeklySince ?? null }
           }),
         })
-        cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized; cap.duplicates += st.duplicates; cap.invalid += st.invalid
+        addCap(st)
         const { error } = await supabase.from('competitor_videos').update({ last_seen_at: nowIso }).in('id', chunk.map(p => p.uuid))
         fail('não foi possível guardar a última leitura dos vídeos', error)
         for (const p of chunk) captured.add(p.uuid)
       } catch (e) {
-        lateFailure ??= e instanceof Error ? e : new Error(String(e))
+        for (const p of chunk) captureTried.add(p.uuid)
+        captureFailed(e)
       }
     }
   }
@@ -474,7 +494,8 @@ export async function syncCompetitorChannel(
 
     const snippet = channelData.items[0].snippet
     const stats = channelData.items[0].statistics
-    const youtubeVideoCount = parseInt(stats?.videoCount ?? '0', 10)
+    // D2: contagem ausente é nulo, nunca 0 (`statistics: {}` presente não é "o canal tem 0 vídeos"); '0' medido continua 0.
+    const youtubeVideoCount = optCount(stats?.videoCount)
     // Hidden counters are absent from the API: null, never 0 ("sem contagem").
     const subscriberCount = optCount(stats?.hiddenSubscriberCount ? undefined : stats?.subscriberCount)
 
@@ -485,10 +506,10 @@ export async function syncCompetitorChannel(
     try {
       const st = await captureItems(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, scope: 'canal', nowIso,
         items: [{ videoId: null, fields: chObserved.fields, raw: rawOf(channelData.items[0]), prevSeenAt: prevChannelSeenAt, weeklySince: null }] })
-      cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized; cap.duplicates += st.duplicates; cap.invalid += st.invalid
+      addCap(st)
       channelCaptured = true
     } catch (e) {
-      lateFailure ??= e instanceof Error ? e : new Error(String(e))
+      captureFailed(e)
     }
 
     const { error: chErr } = await supabase
@@ -797,6 +818,9 @@ export async function syncCompetitorChannel(
         missedStats = await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
       }
     } catch (e) {
+      // a marca (o rpc) pode já estar no banco quando a versão 'sumiu' falha: o que é conhecido chega ao resultado
+      const progress = missingProgressOf(e)
+      if (progress) missedStats = progress
       lateFailure ??= e instanceof Error ? e : new Error(String(e))
     }
 

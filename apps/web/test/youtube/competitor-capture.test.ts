@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { VIDEO_FIELDS, CHANNEL_FIELDS, assertField } from '@/lib/youtube/observatorio/field-catalog'
-import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES, videoObservedOf, channelObservedOf, sanitizeForDb, precisionOf, planFields, planRaw, captureItems, markMissing, markChannelMissing, rowsAs, type Json, type CaptureItem, type StoredField, type StoredRaw, type MissedRow } from '@/lib/youtube/competitor-capture'
+import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES, videoObservedOf, channelObservedOf, sanitizeForDb, precisionOf, planFields, planRaw, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, type Json, type CaptureItem, type StoredField, type StoredRaw, type MissedRow } from '@/lib/youtube/competitor-capture'
 import { parseIsoDuration } from '@/lib/youtube/competitor-sync'
 
 describe('catálogo de campos', () => {
@@ -512,6 +512,27 @@ describe('markMissing', () => {
     const db = captureDb({ fields: [{ id: 5, video_id: 'v1', field: 'availability', value_hash: fieldHash('sumiu') }], missed: [{ id: 'v1', miss_streak: 5, miss_first_at: '2026-06-09T09:00:00.000Z', missing_since: '2026-06-09', last_seen_at: null }] })
     expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 1, newlyMissing: 0 })
     expect(db.calls.some(c => c.name === 'apply_competitor_field_plan')).toBe(false)
+  })
+  it('newlyMissing = versões "sumiu" abertas por esta chamada, mesmo com miss_streak além de 2 (a execução anterior marcou e não abriu)', async () => {
+    const gone = (id: string, streak: number) => ({ id, miss_streak: streak, miss_first_at: '2026-06-09T09:00:00.000Z', missing_since: '2026-06-09', last_seen_at: null })
+    const db = captureDb({ fields: [{ id: 5, video_id: 'v1', field: 'availability', value_hash: fieldHash('no_ar') }, { id: 6, video_id: 'v2', field: 'availability', value_hash: fieldHash('sumiu') }], missed: [gone('v1', 7), gone('v2', 2)] })
+    expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: ['v1', 'v2'], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 2, newlyMissing: 1 })
+  })
+  it('a gravação falha no 2º lote depois da marca: o erro carrega o que já era conhecido (missed e as versões abertas até ali)', async () => {
+    const rows = Array.from({ length: 51 }, (_, i) => ({ id: 'v' + i, miss_streak: 2, miss_first_at: '2026-06-10T09:00:00.000Z', missing_since: '2026-06-10', last_seen_at: null }))
+    const inner = captureDb({ missed: rows })
+    let plans = 0
+    const base = inner.sb as unknown as { from: unknown; rpc: (n: string, a: unknown) => Promise<unknown> }
+    const sb = { from: base.from, rpc: (name: string, args: unknown) => {
+      if (name === 'apply_competitor_field_plan' && ++plans === 2) return Promise.resolve({ data: null, error: { message: 'boom' } })
+      return base.rpc(name, args)
+    } } as never
+    let err: unknown
+    try { await markMissing(sb, { siteId: 's', channelId: 'c', videoIds: rows.map(r => r.id), nowIso: NOW, weeklySinceOf: () => null }) } catch (e) { err = e }
+    expect((err as Error).message).toMatch(/^não foi possível guardar o histórico de campos/)
+    expect(missingProgressOf(err)).toEqual({ missed: 51, newlyMissing: 50 })
+    expect(missingProgressOf(new Error('x'))).toBeUndefined()
+    expect(missingProgressOf('texto')).toBeUndefined()
   })
   it('lista vazia não chama o banco; erro da função lança', async () => {
     const db = captureDb({})

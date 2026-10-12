@@ -351,6 +351,20 @@ const strOrNull = (x: unknown): boolean => x === null || typeof x === 'string'
 // os três campos de data são conferidos: um nome trocado (undefined) faria `missing_since != null` falhar em silêncio e a versão 'sumiu' nunca abriria
 const isMissedRow = (x: unknown): x is MissedRow => isRec(x) && typeof x.id === 'string' && typeof x.miss_streak === 'number' && strOrNull(x.miss_first_at) && strOrNull(x.missing_since) && strOrNull(x.last_seen_at)
 
+/**
+ * O que `markMissing` já tinha feito quando falhou: a marca de falta (o rpc) está no banco desde antes, e as versões "sumiu"
+ * abertas até a falha também. Quem pegou o erro lê aqui, sem que a assinatura mude.
+ */
+const missingProgress = new WeakMap<object, { missed: number; newlyMissing: number }>()
+export function missingProgressOf(err: unknown): { missed: number; newlyMissing: number } | undefined {
+  return typeof err === 'object' && err !== null ? missingProgress.get(err) : undefined
+}
+
+/**
+ * `newlyMissing` conta as versões availability = "sumiu" que ESTA chamada abriu (o plano de campos decidiu e a gravação confirmou).
+ * Não é o evento "miss_streak chegou a 2": isso se perde numa nova tentativa (a sequência já passou de 2) e se repete entre execuções.
+ * A versão é estado desejado × estado gravado: abre uma vez só, e a execução seguinte conserta a que falhou no meio.
+ */
 export async function markMissing(sb: SupabaseClient, p: { siteId: string; channelId: string; videoIds: readonly string[]; nowIso: string; weeklySinceOf: (id: string) => string | null }): Promise<{ missed: number; newlyMissing: number }> {
   if (!p.videoIds.length) return { missed: 0, newlyMissing: 0 }
   const { data, error } = await sb.rpc('competitor_mark_missing', { p_channel_id: p.channelId, p_video_ids: [...p.videoIds], p_now: p.nowIso })
@@ -359,12 +373,20 @@ export async function markMissing(sb: SupabaseClient, p: { siteId: string; chann
   try { rows = rowsAs(data, isMissedRow, 'competitor_mark_missing') } catch (e) { throw humanErr(MISSING_PHRASE, 'competitor_mark_missing', e instanceof Error ? e.message : String(e)) }
   // estado desejado, não evento: todo vídeo com missing_since tem de ter a versão 'sumiu' (se a gravação falhou antes, conserta agora)
   const gone = rows.filter(r => r.missing_since != null)
-  for (let i = 0; i < gone.length; i += CAPTURE_CHUNK) {
-    await captureItems(sb, { siteId: p.siteId, channelId: p.channelId, scope: 'video', nowIso: p.nowIso, items: gone.slice(i, i + CAPTURE_CHUNK).map(r => ({
-      videoId: r.id, fields: [{ field: 'availability', value: 'sumiu' }], raw: null, prevSeenAt: r.last_seen_at, weeklySince: p.weeklySinceOf(r.id), firstSeenAt: r.miss_first_at ?? p.nowIso,
-    })) })
+  let newlyMissing = 0
+  try {
+    for (let i = 0; i < gone.length; i += CAPTURE_CHUNK) {
+      const st = await captureItems(sb, { siteId: p.siteId, channelId: p.channelId, scope: 'video', nowIso: p.nowIso, items: gone.slice(i, i + CAPTURE_CHUNK).map(r => ({
+        videoId: r.id, fields: [{ field: 'availability', value: 'sumiu' }], raw: null, prevSeenAt: r.last_seen_at, weeklySince: p.weeklySinceOf(r.id), firstSeenAt: r.miss_first_at ?? p.nowIso,
+      })) })
+      newlyMissing += st.fieldsOpened
+    }
+  } catch (e) {
+    // a marca já foi gravada pelo rpc: quem captura o erro ainda sabe quantas faltas foram somadas e quantas versões abriram
+    if (typeof e === 'object' && e !== null) missingProgress.set(e, { missed: rows.length, newlyMissing })
+    throw e
   }
-  return { missed: rows.length, newlyMissing: rows.filter(r => r.miss_streak === 2).length }
+  return { missed: rows.length, newlyMissing }
 }
 
 export async function markChannelMissing(sb: SupabaseClient, p: { siteId: string; channelId: string; nowIso: string }): Promise<{ missingSince: string | null }> {
