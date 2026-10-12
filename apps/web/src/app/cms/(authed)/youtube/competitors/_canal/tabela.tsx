@@ -52,6 +52,8 @@ function Cabecalho({ state, onSort, proprio }: { state: CanalState; onSort: (s: 
 }
 
 const Nm = ({ children }: { children: string }) => <span className="obs-ch-nm">{children}</span>
+/** Zero medido: o alcance foi lido e o vídeo não apareceu em nenhum dia medido. A caixa vazada do gráfico, nunca a hachura de "não medido". */
+const Zero = () => <span className="obs-ch-zero">0<span className="obs-ch-sr"> (zero medido)</span></span>
 
 /** O que a célula diz quando não há views por dia nem múltiplo: o motivo, em poucas palavras (mockup `linha`). */
 function semMedida(v: ChannelVideoView): string {
@@ -93,7 +95,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
       </td>
       <td className={'r num' + on('vistos')} data-label="Views">{v.viewsText ?? <Nm>{v.viewsMissing ?? 'sem contagem'}</Nm>}</td>
       {ehProprio(v) ? (
-        <td className={'r num' + on('imp')} data-label="Impressões">{v.impText ?? <Nm>{v.impMissing ?? 'sem impressão'}</Nm>}</td>
+        <td className={'r num' + on('imp')} data-label="Impressões">{v.impText ?? (v.semImpressao ? <Zero /> : <Nm>{v.impMissing ?? 'não medido'}</Nm>)}</td>
       ) : (
         <td className={'r num' + on('vpd')} data-label="Views/dia">{v.vpdText ?? <Nm>{sem}</Nm>}</td>
       )}
@@ -105,7 +107,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
       <td className="r num" data-label="Curtidas">{v.likesText ?? <Nm>não medido</Nm>}</td>
       <td className="r num" data-label="Comentários">{v.commentsText ?? <Nm>não medido</Nm>}</td>
       {ehProprio(v)
-        ? <td className="r num" data-label="Cliques">{v.cliquesText ?? <Nm>{v.cliquesMissing ?? 'não medido'}</Nm>}</td>
+        ? <td className="r num" data-label="Cliques">{v.cliquesText ?? (v.semImpressao ? <Zero /> : <Nm>{v.cliquesMissing ?? 'não medido'}</Nm>)}</td>
         : <td className="r num" data-label="Trocas">{v.aguardando ? <Nm>{AGUARDANDO}</Nm> : v.swaps}</td>}
       <td className="a"><VideoMenu v={v} onAmpliar={onAmpliar} onTrocas={onTrocas} /></td>
     </tr>

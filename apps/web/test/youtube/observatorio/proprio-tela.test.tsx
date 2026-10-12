@@ -221,12 +221,12 @@ describe('T8 o cartão (Capas) do canal próprio', () => {
     expect(c.textContent).not.toMatch(/%|views\/dia/)
   })
 
-  it('vídeo sem impressão: a coluna do meio diz "sem impressão" em .obs-ch-nm (nunca 0) e a terceira linha "sem impressão no período"', () => {
+  it('vídeo sem impressão em dia medido: a coluna do meio é a caixa vazada "0" (zero medido), sem hachura, e a terceira linha diz "sem impressão no período" (B2)', () => {
     const { all } = mountProprio()
-    const sem = all.find(v => v.imp == null && v.impMissing === 'sem impressão')!
+    const sem = all.find(v => v.imp == null && v.semImpressao)!
     const c = cartoes().find(x => x.dataset.id === sem.id)!
-    const nd = c.querySelector('.cv-c.nd')!
-    expect(nd.querySelector('.obs-ch-nm')!.textContent).toBe('sem impressão')
+    expect(c.querySelector('.cv-nums3 > .cv-c:nth-child(2) .obs-ch-zero')!.textContent).toMatch(/^0/)
+    expect(c.querySelector('.obs-ch-nm')?.textContent).not.toBe('sem impressão')
     expect(norm(c.querySelector('p.cv-n3')!.textContent)).toBe('sem impressão no período')
     expect(c.textContent).not.toMatch(/\b0 impress/)
   })
@@ -299,10 +299,12 @@ describe('T8 a Lista do canal próprio', () => {
       const tr = raiz().querySelector(`tr.cv-row[data-id="${v.id}"]`)!
       const imp = tr.querySelector('td[data-label="Impressões"]')!, cl = tr.querySelector('td[data-label="Cliques"]')!
       if (v.impText != null) expect(norm(imp.textContent)).toBe(v.impText)
+      else if (v.semImpressao) expect(imp.querySelector('.obs-ch-zero')!.textContent).toMatch(/^0/)   // zero medido: caixa vazada, nunca hachura (B2)
       else expect(imp.querySelector('.obs-ch-nm')!.textContent).toBe(v.impMissing)
       if (v.cliquesText != null) expect(norm(cl.textContent)).toBe(v.cliquesText)
+      else if (v.semImpressao) expect(cl.querySelector('.obs-ch-zero')!.textContent).toMatch(/^0/)
       else expect(cl.querySelector('.obs-ch-nm')!.textContent).toBe(v.cliquesMissing)
-      expect(norm(imp.textContent)).not.toBe('0')
+      if (!v.semImpressao) expect(norm(imp.textContent)).not.toBe('0')
       expect(norm(imp.textContent)).not.toBe('—')
     }
   })

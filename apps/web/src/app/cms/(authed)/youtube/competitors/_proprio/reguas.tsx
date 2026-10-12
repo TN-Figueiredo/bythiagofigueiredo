@@ -148,7 +148,11 @@ function Linha({ l, falar }: { l: LinhaRegua; falar: (s: string) => void }) {
     <th scope="row" role="rowheader" className="vb-rg-nm">{l.nome}{l.sub ? <small>{l.sub}</small> : null}</th>
   )
   const valor = (
-    <td role="cell" className="vb-rg-v num">{l.valor != null ? l.valor : <span className="obs-ch-nm">não medido</span>}</td>
+    <td role="cell" className="vb-rg-v num">
+      {l.zeroMedido
+        ? <span className="obs-ch-zero">{l.valor}<span className="obs-ch-sr"> (zero medido)</span></span>
+        : l.valor != null ? l.valor : <span className="obs-ch-nm">não medido</span>}
+    </td>
   )
   const rodape = l.semMedida ? <small className="vb-rg-sm">{l.semMedida}</small> : null
   if (l.semRegua != null || l.pos == null) {

@@ -115,17 +115,18 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     expect(por(v, B).terceira).toBe('1 clique em 1 dia')
   })
 
-  it('vídeo sem linha de alcance: imp null e "sem impressão no período"; nunca 0 impressões', () => {
+  it('vídeo sem linha de alcance em dia medido: ZERO MEDIDO (semImpressao, sem palavra de motivo) e "sem impressão no período" (B2: antes era a hachura "sem impressão")', () => {
     const w = BASE
     const v = build(w) // cheio: só os dois primeiros longos têm linha
     for (const id of w.ytIds.slice(2)) {
       const x = por(v, id)
       expect(x.imp).toBeNull()
       expect(x.impText).toBeNull()
-      expect(x.impMissing).toBe('sem impressão')
+      expect(x.semImpressao).toBe(true)
+      expect(x.impMissing).toBeNull()
       expect(x.cliques).toBeNull()
       expect(x.cliquesText).toBeNull()
-      expect(x.cliquesMissing).toBe('sem impressão')
+      expect(x.cliquesMissing).toBeNull()
       expect(x.terceira).toBe('sem impressão no período')
     }
     // o Short também: o relatório é do canal inteiro, e ele não apareceu
@@ -231,7 +232,8 @@ describe('o dado privado ausente: cada estado, cada coluna', () => {
     expect(v.motivoAlcance).toBeNull()
     for (const x of v.videos) {
       expect(x.imp).toBeNull()
-      expect(x.impMissing).toBe('sem impressão')
+      expect(x.semImpressao).toBe(true)
+      expect(x.impMissing).toBeNull()
       expect(x.terceira).toBe('sem impressão no período')
     }
   })
