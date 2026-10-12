@@ -1,13 +1,11 @@
 /**
- * Modelo da página do VÍDEO próprio (spec 17): cabeçalho, faixa de seis números com a conta feita, paginador na ordem da lista de origem,
- * trilha e a frase de alcance. Puro: recebe `obs` e, para a página, o dado privado JÁ LIDO (`DadosDoCanal`, com os estados ok / negado /
- * erro); não lê banco, não pede a prova de edição e não importa os leitores (uma varredura de teste barra).
+ * Modelo da página do VÍDEO próprio (spec 17): cabeçalho, faixa de seis números com a conta feita, paginador na ordem da lista de origem
+ * e trilha. Puro: recebe só `obs` e a query; NÃO recebe o dado privado (os blocos que o usam são de `video-blocos-model.ts`, montados depois da
+ * guarda de edição); não lê banco, não pede a prova de edição e não importa os leitores (uma varredura de teste barra).
  *
  * A faixa NÃO usa o dado privado: views, curtidas, comentários, engajamento, múltiplo e duração saem do motor (as mesmas fontes e os mesmos
  * formatadores do cartão da lista de vídeos, `buildCanalVideos`), então o mesmo número tem o mesmo texto nas duas telas. Dado ausente é `null`
  * no tipo e uma frase na célula, nunca zero; a conta de cada célula sai feita no ⓘ e `validarFaixa` lança se alguma ficar vazia.
- * O que o dado privado alimenta (impressões, cliques, réguas, gráfico) é das Tarefas 12 e 13: aqui ele vira só `alcanceNota`, a frase de
- * quando o alcance não pode ser mostrado.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
@@ -17,8 +15,6 @@ import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import type { ViewerInput } from '../_chrome/thumb-viewer/viewer-model'
 import { descricaoDaOrigem, veioDoTopDeImpressoes } from '../_historico/origem-canal'
 import type { PagerView, TrailItem } from '../_historico/view-model'
-import type { DadosDoCanal } from './dados'
-import { fraseDoAlcance, FRASE_NADA_LIDO, lerEstado } from './header-model'
 
 export interface CelulaVideo {
   key: 'views' | 'curtidas' | 'comentarios' | 'engajamento' | 'multiplo' | 'duracao'
@@ -48,8 +44,6 @@ export interface ProprioVideoPage {
   header: ProprioVideoHeader
   pager: PagerView
   crumbs: TrailItem[]
-  /** A frase de quando o alcance (impressões e cliques) não pode ser mostrado; null = foi lido. */
-  alcanceNota: string | null
   /** O id do canal quando a pessoa veio da página dele (`from=canais&canal=<este canal>`): a tela guarda daí o último vídeo visto. */
   fromCanal: string | null
 }
@@ -264,8 +258,8 @@ function paginador(obs: Observatory, ch: ObsChannel, videoId: string, titulo: st
   }
 }
 
-/** A página SEM o dado privado: o modelo que a rota monta ANTES de ler o alcance e o diário (sem modelo não há o que ler). null = o vídeo não é de um canal próprio ou o cartão não se achou. */
-export function buildProprioVideoBase(obs: Observatory, videoId: string, sp: Params): Omit<ProprioVideoPage, 'alcanceNota'> | null {
+/** A página, SEM o dado privado: o modelo que a rota monta ANTES de ler o alcance e o diário (sem modelo não há o que ler). null = o vídeo não é de um canal próprio ou o cartão não se achou. */
+export function buildProprioVideoBase(obs: Observatory, videoId: string, sp: Params): ProprioVideoPage | null {
   const header = buildProprioVideoHeader(obs, videoId)
   const ch = canalProprioDoVideo(obs, videoId)
   if (!header || !ch) return null
@@ -281,14 +275,10 @@ export function buildProprioVideoBase(obs: Observatory, videoId: string, sp: Par
   return { header, crumbs, fromCanal, pager: paginador(obs, ch, videoId, header.titulo, sp, canalHref) }
 }
 
-/** A frase de quando o alcance (impressões e cliques) não pode ser mostrado; null = foi lido. */
-export function alcanceNotaDe(dados: DadosDoCanal): string | null {
-  const alc = lerEstado(dados.alcance)
-  const frase = alc.estado !== 'ok' ? fraseDoAlcance(alc.estado) : alc.resumo.diasLidos === 0 ? FRASE_NADA_LIDO : null
-  return frase != null ? `Impressões e cliques deste vídeo: ${frase}.` : null
-}
-
-export function buildProprioVideoPage(obs: Observatory, videoId: string, sp: Params, dados: DadosDoCanal): ProprioVideoPage | null {
-  const base = buildProprioVideoBase(obs, videoId, sp)
-  return base ? { ...base, alcanceNota: alcanceNotaDe(dados) } : null
+/** O destino de um traço da régua: o Histórico do outro vídeo, com a origem (`from`, `back`, `canal`) desta página preservada. A lista de `ids=` não vale para o outro vídeo e fica de fora. */
+export function hrefDeOutroVideo(sp: Params, canalId: string): (id: string) => string {
+  const back = sp.back && sp.back.startsWith('?') ? sp.back : null
+  const canais = sp.from === 'canais' && sp.canal === canalId
+  const from = sp.from === 'canais' ? 'canais' as const : origemDe(sp.from)
+  return id => link.historico(id, { ...(from ? { from } : {}), ...(back ? { back } : {}), ...(canais ? { canal: canalId } : {}) })
 }

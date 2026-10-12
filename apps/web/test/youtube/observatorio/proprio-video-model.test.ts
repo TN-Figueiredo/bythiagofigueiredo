@@ -9,7 +9,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 import type { Dataset, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { buildCanalVideos, numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/videos-model'
 import {
-  buildProprioVideoHeader, buildProprioVideoPage, canalProprioDoVideo, validarFaixa, type CelulaVideo,
+  buildProprioVideoHeader, buildProprioVideoBase, canalProprioDoVideo, validarFaixa, type CelulaVideo,
 } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-model'
 import { BACK_DO_TOP_IMP, descricaoDaOrigem, origemDoCanal } from '@/app/cms/(authed)/youtube/competitors/_historico/origem-canal'
 
@@ -202,7 +202,7 @@ describe('T11 faixa de números (spec 17.2)', () => {
     for (const c of ['cheio', 'curto', 'vazio', 'parado', 'negado', 'erro'] as const) {
       const d = DADOS[c](BASE.canalId, BASE.ytIds, BASE.hoje)
       expect(JSON.stringify(buildProprioVideoHeader(BASE.obs, 'v0')), c).toBe(base)
-      expect(buildProprioVideoPage(BASE.obs, 'v0', {}, d)!.header.faixa.map(x => x.value), c).toEqual(['118', '12', '6', '15,3%', '0,9×', '39:57'])
+      expect(buildProprioVideoBase(BASE.obs, 'v0', {})!.header.faixa.map(x => x.value), c).toEqual(['118', '12', '6', '15,3%', '0,9×', '39:57'])
     }
   })
 
@@ -262,14 +262,14 @@ describe('T11 cabeçalho', () => {
     expect(buildProprioVideoHeader(w.obs, conc.id)).toBeNull()
     expect(canalProprioDoVideo(w.obs, conc.id)).toBeNull()
     expect(canalProprioDoVideo(w.obs, 'nao-existe')).toBeNull()
-    expect(buildProprioVideoPage(w.obs, conc.id, {}, DADOS.cheio(w.canalId, w.ytIds, w.hoje))).toBeNull()
+    expect(buildProprioVideoBase(w.obs, conc.id, {})).toBeNull()
   })
 })
 
 describe('T11 paginador (D11, spec 17.1)', () => {
   const ids = (n: number) => Array.from({ length: n }, (_, i) => 'v' + i)
   const sp = (o: Record<string, string>) => o
-  const pag = (id: string, p: Record<string, string> = {}) => buildProprioVideoPage(BASE.obs, id, p, DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje))!.pager
+  const pag = (id: string, p: Record<string, string> = {}) => buildProprioVideoBase(BASE.obs, id, p)!.pager
   const href = (to: string, extra: Parameters<typeof link.historico>[1]) => link.historico(to, extra)
 
   it('sem ids= na URL: a ordem é do mais novo ao mais antigo do canal; "Anterior" apagado no primeiro, com o motivo', () => {
@@ -317,7 +317,7 @@ describe('T11 paginador (D11, spec 17.1)', () => {
     const conc = w.obs.videos.find(v => !w.obs.channel(v.ch)!.own)!.id
     const d = DADOS.cheio(w.canalId, w.ytIds, w.hoje)
     const meus = w.obs.videos.filter(v => v.ch === w.canalId).map(v => v.id)
-    const p = buildProprioVideoPage(w.obs, meus[1]!, { from: 'canais', canal: w.canalId, ids: [meus[0], conc, 'lixo', meus[1], meus[2]].join(',') }, d)!.pager
+    const p = buildProprioVideoBase(w.obs, meus[1]!, { from: 'canais', canal: w.canalId, ids: [meus[0], conc, 'lixo', meus[1], meus[2]].join(',') })!.pager
     expect(p.prev).toContain('/video/' + encodeURIComponent(meus[0]!))
     expect(p.next).toContain('/video/' + encodeURIComponent(meus[2]!))
     expect(p.prev! + p.next!).not.toContain(conc)
@@ -345,7 +345,7 @@ describe('T11 paginador (D11, spec 17.1)', () => {
 
   it('vídeo sem data: o paginador diz que ele está fora da lista e os dois lados ficam apagados', () => {
     const w = exato((_a, ds) => { primeiroProprio(ds).undated.push({ id: 'sd', ytId: 'ytsd', title: 'x', url: 'https://youtu.be/x', isShort: false, dur: 60, views: 1, likes: 0, comments: 0, pinned: false, checkedAt: null }) })
-    const p = buildProprioVideoPage(w.obs, 'sd', {}, DADOS.cheio(w.canalId, w.ytIds, w.hoje))!.pager
+    const p = buildProprioVideoBase(w.obs, 'sd', {})!.pager
     expect(p.prev).toBeNull(); expect(p.next).toBeNull()
     expect(p.prevOff).toMatch(/não tem data/); expect(p.nextOff).toMatch(/não tem data/)
     expect(p.position).toBe('vídeo sem data de publicação, fora da lista do canal')
@@ -354,7 +354,7 @@ describe('T11 paginador (D11, spec 17.1)', () => {
 
   it('canal com um vídeo só: os dois lados apagados e "vídeo 1 de 1"', () => {
     const w = exato(undefined, 1)
-    const p = buildProprioVideoPage(w.obs, 'v0', {}, DADOS.cheio(w.canalId, w.ytIds, w.hoje))!.pager
+    const p = buildProprioVideoBase(w.obs, 'v0', {})!.pager
     expect(p.position).toMatch(/^vídeo 1 de 1, /)
     expect(p.prev).toBeNull(); expect(p.next).toBeNull(); expect(p.prevOff).toBeDefined(); expect(p.nextOff).toBeDefined()
   })
@@ -366,7 +366,7 @@ describe('T11 paginador (D11, spec 17.1)', () => {
 })
 
 describe('T11 trilha', () => {
-  const pg = (p: Record<string, string>) => buildProprioVideoPage(BASE.obs, 'v3', p, DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje))!
+  const pg = (p: Record<string, string>) => buildProprioVideoBase(BASE.obs, 'v3', p)!
   const nome = BASE.obs.channel(BASE.canalId)!.name
 
   it('"Canais › <canal> › Vídeo"; o item do canal volta com o back= recebido e marca a volta ao canal', () => {
@@ -406,21 +406,11 @@ describe('T11 trilha', () => {
   })
 })
 
-describe('T11 alcance: a frase do dado privado (a faixa não o usa; o lugar fica para "Este vídeo no canal")', () => {
-  const nota = (d: ReturnType<typeof DADOS.cheio>) => buildProprioVideoPage(BASE.obs, 'v0', {}, d)!.alcanceNota
-  it('lido: sem frase; negado, erro, sem relatório e nada lido: cada um com a sua, nunca número', () => {
-    expect(nota(DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje))).toBeNull()
-    expect(nota(DADOS.negado(BASE.canalId, BASE.ytIds, BASE.hoje))).toBe('Impressões e cliques deste vídeo: só quem edita o site vê este número.')
-    expect(nota(DADOS.erro(BASE.canalId, BASE.ytIds, BASE.hoje))).toBe('Impressões e cliques deste vídeo: a leitura do alcance falhou agora; recarregue a página.')
-    expect(nota(DADOS.vazio(BASE.canalId, BASE.ytIds, BASE.hoje))).toBe('Impressões e cliques deste vídeo: ainda sem relatório de alcance deste canal.')
-  })
-
-  it('negado: nada do dado privado na página montada (nem número, nem série)', () => {
-    const cheio = DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje)
-    const a = JSON.stringify(buildProprioVideoPage(BASE.obs, 'v0', {}, DADOS.negado(BASE.canalId, BASE.ytIds, BASE.hoje)))
-    const b = JSON.stringify(buildProprioVideoPage(BASE.obs, 'v0', {}, { alcance: { acesso: 'negado' }, diario: cheio.diario }))
-    expect(a).toBe(b)
-    expect(a).not.toMatch(/187|"imp"|ctr/)
+describe('T13.4 H4: a frase de alcance saiu do modelo (o bloco "Impressões e cliques" a substitui)', () => {
+  it('a página do vídeo não tem `alcanceNota` e o modelo não recebe o dado privado', () => {
+    const p = buildProprioVideoBase(BASE.obs, 'v0', {})!
+    expect(Object.keys(p).sort()).toEqual(['crumbs', 'fromCanal', 'header', 'pager'])
+    expect(JSON.stringify(p)).not.toMatch(/Impressões e cliques deste vídeo/)
   })
 })
 
@@ -451,7 +441,7 @@ describe('T11 concorrente com o mesmo id de vídeo não existe aqui: a rota deci
 
 describe('T13.0 H1/H2: a frase do paginador diz a ordem que o site sabe, nunca outra', () => {
   const origem = { from: 'canais', canal: BASE.canalId, ids: 'v7,v2,v9', pos: '2', tot: '3' }
-  const pag = (id: string, p: Record<string, string>) => buildProprioVideoPage(BASE.obs, id, p, DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje))!.pager
+  const pag = (id: string, p: Record<string, string>) => buildProprioVideoBase(BASE.obs, id, p)!.pager
 
   it('lista por data (grade no padrão): "na ordem da lista: do mais novo ao mais antigo"', () => {
     expect(pag('v2', { ...origem, back: '' }).position).toBe('vídeo 2 de 3, na ordem da lista: do mais novo ao mais antigo')

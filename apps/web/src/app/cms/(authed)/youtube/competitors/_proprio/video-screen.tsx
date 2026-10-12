@@ -3,9 +3,9 @@
  * A página do vídeo próprio (spec 17, mockup video-proprio.html): miniatura, título, a meta, a faixa de seis números com UM ⓘ (a base de cada
  * número, com a conta feita), "Abrir no YouTube" e "Ampliar thumbnail". O paginador mora na linha da trilha (a página o põe em `aside` da
  * moldura, como o Histórico); esta tela continua sendo quem decide o foco depois de Anterior/Próximo e quem atende `[` e `]`, então procura os
- * botões em toda a moldura (`[data-obs]`). `children` é onde as Tarefas 12 e 13 encaixam "Este vídeo no canal", o gráfico e os cartões.
+ * botões em toda a moldura (`[data-obs]`). `children` é onde a página encaixa os blocos (`VideoBlocos`): views por dia, impressões e cliques, % assistido, retenção, "Este vídeo no canal" e o cartão da forja.
  *
- * Recebe só o que o modelo montou: nenhum dado privado além da frase de alcance, e o token de edição não tem como chegar aqui. Next 16 pode
+ * Recebe só o que o modelo montou: nenhum dado privado (os blocos privados vêm em `children`, já em texto), e o token de edição não tem como chegar aqui. Next 16 pode
  * manter este componente quando só o `[id]` ou a query mudam: tudo que depende do vídeo é relido pelo `header.id`; o botão usado no pager vive
  * FORA do componente (`pager-usado.ts`), para o foco sobreviver a uma remontagem.
  */
@@ -36,11 +36,10 @@ function Celula({ c }: { c: CelulaVideo }) {
   )
 }
 
-export function ProprioVideoScreen({ header, pager, alcanceNota, fromCanal, children }: {
+export function ProprioVideoScreen({ header, pager, fromCanal, children }: {
   header: ProprioVideoHeader
   /** O mesmo paginador que a página pôs na trilha: aqui só para os atalhos [ e ] e o anúncio. */
   pager: PagerView | null
-  alcanceNota: string | null
   /** O id do canal quando a pessoa veio da página dele: o último vídeo visto é guardado para o Voltar pôr o foco no cartão. */
   fromCanal: string | null
   children?: ReactNode
@@ -133,7 +132,6 @@ export function ProprioVideoScreen({ header, pager, alcanceNota, fromCanal, chil
           </div>
         </div>
       </header>
-      {alcanceNota ? <p className="vp-alc" data-alcance-nota="">{alcanceNota}</p> : null}
       {children}
       {viewerNode}
     </div>
