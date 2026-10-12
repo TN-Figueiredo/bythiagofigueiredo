@@ -13,7 +13,8 @@ import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
-import { classifyTiers, earlyEligible, type Tier } from '@/lib/youtube/competitor-tiers'
+import { classifyTiers, earlyEligible, weeklyDue, addDays, type Tier } from '@/lib/youtube/competitor-tiers'
+import { RULES } from '@/lib/youtube/observatorio/rules'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -149,11 +150,58 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-export async function syncCompetitorChannel(
-  channelRow: { id: string; channel_id: string; site_id: string },
+/** (A5 E2, OP-15) O que a leitura semanal de UM canal fez. */
+export interface WeeklyResult {
+  /** vídeos semanais devidos hoje neste canal */
+  due: number
+  /** pontos gravados na série nesta visita */
+  recorded: number
+  /** devidos que o relógio não deixou conferir: continuam devidos pelo dado */
+  deferred: number
+  promoted: number
+  unitsUsed: number
+  changesDetected: number
+  longWindowChanges: number
+  /** true = nada ficou adiado E todo vídeo do canal já tem faixa; o canal foi carimbado com weekly_pass_date = hoje.
+   *  Canal com vídeo ainda sem faixa nunca é carimbado: a passada dele não está completa (dia do deploy, canal novo). */
+  complete: boolean
+  /** o canal está sendo sincronizado agora por outro processo: nada foi feito */
+  skipped?: boolean
+  /** miniaturas que não puderam ser conferidas ou guardadas nesta visita (sonda ou download falharam): contadas, sem custar o ponto nem a linha do vídeo */
+  thumbFailed?: number
+}
+
+type ChannelRef = { id: string; channel_id: string; site_id: string }
+type RunMode = 'slot' | 'weekly'
+type RunOpts = {
+  now?: Date; fetchImpl?: typeof fetch; probeBudget?: ProbeBudget; deferBackfill?: boolean
+  /** true = pare de começar vídeo novo (só a leitura semanal) */
+  deadline?: () => boolean
+  /** false = não confere a miniatura na leitura semanal */
+  thumbs?: boolean
+}
+export async function syncCompetitorChannel(channelRow: ChannelRef, apiKey: string, opts: Omit<RunOpts, 'deadline' | 'thumbs'> = {}): Promise<SyncResult> {
+  const r = await runChannel(channelRow, apiKey, opts, 'slot')
+  if (r.kind !== 'slot') throw new Error('runChannel: modo trocado')
+  return r.result
+}
+/**
+ * A leitura semanal de UM canal (A5 E2, OP-15): os vídeos em faixa semanal que são devidos hoje. Chamada pela fase semanal do
+ * lote (Tarefa 13) e, na E16, pela tarefa serie_semanal. Não faz channels.list nem lê a página de uploads, não mexe em
+ * last_synced_at nem em sync_status, e não põe o canal em erro: se lançar, quem chama conta o erro e tenta no disparo seguinte.
+ */
+export async function syncCompetitorWeekly(channelRow: ChannelRef, apiKey: string, opts: Pick<RunOpts, 'now' | 'fetchImpl' | 'deadline' | 'thumbs'> = {}): Promise<WeeklyResult> {
+  const r = await runChannel(channelRow, apiKey, opts, 'weekly')
+  if (r.kind !== 'weekly') throw new Error('runChannel: modo trocado')
+  return r.result
+}
+
+async function runChannel(
+  channelRow: ChannelRef,
   apiKey: string,
-  opts: { now?: Date; fetchImpl?: typeof fetch; probeBudget?: ProbeBudget; deferBackfill?: boolean } = {},
-): Promise<SyncResult> {
+  opts: RunOpts,
+  mode: RunMode,
+): Promise<{ kind: 'slot'; result: SyncResult } | { kind: 'weekly'; result: WeeklyResult }> {
   const supabase = getSupabaseServiceClient()
   const now = opts.now ?? new Date()
   const nowIso = now.toISOString()
@@ -168,39 +216,60 @@ export async function syncCompetitorChannel(
   const ensureControl = async () => { if (!controlDone) { controlDone = true; await runControlProbe(supabase, probeBudget, f) } }
   const api = (url: string): Promise<Response> => { unitsUsed++; return f(url, { signal: AbortSignal.timeout(10_000) }) }
 
-  // ── CAS Lock: acquire or skip ──
-  const { data: locked, error: lockError } = await supabase
-    .from('competitor_channels')
-    .update({
-      sync_status: 'syncing',
-      sync_started_at: nowIso,
-      sync_progress: 0,
-      sync_error: null,
-      last_synced_at: nowIso, // the cursor: start of this attempt
-    })
-    .eq('id', channelRow.id)
-    .or(`sync_status.neq.syncing,sync_started_at.lt.${new Date(nowMs - 10 * 60_000).toISOString()}`)
-    .select('id, sync_mode, full_sync_completed_at, video_limit, last_ok_synced_at, sync_error_since, last_seen_at')
+  // Estado do canal que o resto da função lê. No modo 'slot' vem da trava (CAS); no 'weekly', da leitura abaixo, sem tomar a trava.
+  let prevOkAt: string | null = null
+  let prevErrorSince: string | null = null
+  let prevChannelSeenAt: string | null = null
+  let syncMode = 'incremental'
+  let fullSyncDone: string | null = null
+  let videoLimit = 50
+  let needsBackfill = false
 
-  // Um erro aqui (coluna que não existe, banco fora) não é "outro processo está sincronizando": lança.
-  if (lockError) throw new Error('trava do canal: ' + (lockError.message ?? 'erro do banco'))
-  if (!locked || locked.length === 0) {
-    return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true }
+  if (mode === 'weekly') {
+    // Não toma a trava do canal nem mexe no cursor: só não entra enquanto outro processo o sincroniza (o conjunto de vídeos
+    // é disjunto do da sincronização: lá, a faixa diária e a página; aqui, só a faixa semanal).
+    const { data, error } = await supabase.from('competitor_channels').select('sync_status, sync_started_at, video_limit, last_ok_synced_at').eq('id', channelRow.id)
+    if (error) throw new Error('não foi possível ler o estado do canal para a leitura semanal: ' + (error.message ?? 'erro do banco'))
+    const st = rowsAs(data, isRec, 'estado do canal na leitura semanal')[0]
+    if (!st) throw new Error('não foi possível ler o estado do canal para a leitura semanal: canal não encontrado')
+    const busy = st.sync_status === 'syncing' && typeof st.sync_started_at === 'string' && Date.parse(st.sync_started_at) > nowMs - 10 * 60_000
+    if (busy) return { kind: 'weekly', result: { due: 0, recorded: 0, deferred: 0, promoted: 0, unitsUsed: 0, changesDetected: 0, longWindowChanges: 0, complete: false, skipped: true } }
+    prevOkAt = typeof st.last_ok_synced_at === 'string' ? st.last_ok_synced_at : null
+    videoLimit = typeof st.video_limit === 'number' ? st.video_limit : 50
+  } else {
+    // ── CAS Lock: acquire or skip ──
+    const { data: locked, error: lockError } = await supabase
+      .from('competitor_channels')
+      .update({
+        sync_status: 'syncing',
+        sync_started_at: nowIso,
+        sync_progress: 0,
+        sync_error: null,
+        last_synced_at: nowIso, // the cursor: start of this attempt
+      })
+      .eq('id', channelRow.id)
+      .or(`sync_status.neq.syncing,sync_started_at.lt.${new Date(nowMs - 10 * 60_000).toISOString()}`)
+      .select('id, sync_mode, full_sync_completed_at, video_limit, last_ok_synced_at, sync_error_since, last_seen_at')
+
+    // Um erro aqui (coluna que não existe, banco fora) não é "outro processo está sincronizando": lança.
+    if (lockError) throw new Error('trava do canal: ' + (lockError.message ?? 'erro do banco'))
+    if (!locked || locked.length === 0) {
+      return { kind: 'slot', result: { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true } }
+    }
+    prevOkAt = (locked[0] as { last_ok_synced_at?: string | null }).last_ok_synced_at ?? null
+    prevErrorSince = (locked[0] as { sync_error_since?: string | null }).sync_error_since ?? null
+    prevChannelSeenAt = (locked[0] as { last_seen_at?: string | null }).last_seen_at ?? null
+    syncMode = (locked[0] as { sync_mode: string }).sync_mode
+    fullSyncDone = (locked[0] as { full_sync_completed_at: string | null }).full_sync_completed_at
+    videoLimit = (locked[0] as { video_limit: number | null }).video_limit ?? 50
+
+    const { count: syncedCount } = await supabase
+      .from('competitor_videos')
+      .select('id', { count: 'exact', head: true })
+      .eq('competitor_channel_id', channelRow.id)
+    needsBackfill = (syncedCount ?? 0) < videoLimit
   }
-  const prevOkAt = (locked[0] as { last_ok_synced_at?: string | null }).last_ok_synced_at ?? null
-  const prevErrorSince = (locked[0] as { sync_error_since?: string | null }).sync_error_since ?? null
-  const prevChannelSeenAt = (locked[0] as { last_seen_at?: string | null }).last_seen_at ?? null
-
-  const syncMode = (locked[0] as { sync_mode: string }).sync_mode
-  const fullSyncDone = (locked[0] as { full_sync_completed_at: string | null }).full_sync_completed_at
-  const videoLimit = (locked[0] as { video_limit: number | null }).video_limit ?? 50
   const maxIncrementalPages = Math.max(1, Math.ceil(videoLimit / 50))
-
-  const { count: syncedCount } = await supabase
-    .from('competitor_videos')
-    .select('id', { count: 'exact', head: true })
-    .eq('competitor_channel_id', channelRow.id)
-  const needsBackfill = (syncedCount ?? 0) < videoLimit
 
   let videosChecked = 0
   let changesDetected = 0
@@ -252,6 +321,26 @@ export async function syncCompetitorChannel(
     }
     return uuids.filter(u => !have.has(u))
   }
+  type Point = { date: string; views: number }
+  const isPointRow = (x: unknown): x is { video_id: string; snap_date: string; views: number | string } =>
+    isRec(x) && typeof x.video_id === 'string' && typeof x.snap_date === 'string' && (typeof x.views === 'number' || typeof x.views === 'string')
+  /** Os dois pontos mais recentes de cada vídeo nos últimos 8 dias. 100 ids × até 9 datas = 900 linhas: abaixo do corte de 1.000. */
+  const loadRecentPoints = async (uuids: string[], today: string): Promise<Map<string, { last: Point; prev: Point | null }>> => {
+    const out = new Map<string, { last: Point; prev: Point | null }>()
+    const from = addDays(today, -RULES.series.weeklyMaxGapDays)
+    for (let i = 0; i < uuids.length; i += 100) {
+      const { data, error } = await supabase.from('competitor_video_daily').select('video_id, snap_date, views').in('video_id', uuids.slice(i, i + 100)).gte('snap_date', from).order('snap_date', { ascending: true })
+      // sem ponto lido não se sabe o que é devido: falha (nunca "nenhum ponto", que releria tudo)
+      fail('não foi possível ler os pontos recentes da série', error)
+      const rows = rowsAs(data, isPointRow, 'pontos recentes')
+      if (rows.length >= 1000) throw new Error('não foi possível ler os pontos recentes da série: 1000 linhas ou mais numa leitura (corte do banco)')
+      for (const r of rows) { // ordem crescente: o último visto é o mais recente, e o anterior a ele fica em prev
+        const p = { date: r.snap_date, views: Number(r.views) }
+        out.set(r.video_id, { last: p, prev: out.get(r.video_id)?.last ?? null })
+      }
+    }
+    return out
+  }
   const loadCurrent = async (uuids: string[]): Promise<Map<string, StoredVersion[]>> => {
     const map = new Map<string, StoredVersion[]>()
     if (!uuids.length) return map
@@ -301,6 +390,8 @@ export async function syncCompetitorChannel(
   let tierChanges = 0, tierCut = 0, excludedNoCount = 0
   /** (A5 E2) Leituras das primeiras horas gravadas (zero não aparece no resultado). */
   let earlyRecorded = 0
+  /** (A5 E2, leitura semanal) Mudanças vistas com a janela de mais de 8 dias (gravadas, mas fora do aviso) e miniaturas que não puderam ser conferidas. */
+  let longWindowChanges = 0, thumbFailed = 0
   /** (A5) A cota é gravada UMA vez, no fim (sucesso ou erro); se a gravação falhar, a sincronização não muda de destino: só marca quotaError. */
   let quotaError = false
   const flushQuota = async (): Promise<void> => {
@@ -367,20 +458,27 @@ export async function syncCompetitorChannel(
   const reconcileVideo = async (
     videoUuid: string, videoId: string,
     o: { apiTitle: string; apiDescription: string | undefined; thumbnailUrl: string | null; viewCount: number | null; existingTitle: string | null; existingThumbUrl: string | null },
-    current: StoredVersion[], touchIds: string[],
+    current: StoredVersion[], touchIds: string[], w: { weekly: boolean } = { weekly: false },
   ): Promise<void> => {
     reconciled.add(videoUuid)
     const prevThumb = current.find(v => v.field === 'thumb') ?? null
     let probe: ThumbProbe | null = null
-    try {
-      probe = await probeThumb(videoId, prevThumb ? { etag: prevThumb.thumb_etag, dhash: prevThumb.thumb_dhash } : null, f)
-    } catch {
-      probe = null // network failure: skip the thumbnail this round
+    // A miniatura do vídeo semanal também é conferida (a sonda é só um cabeçalho: não custa cota); `thumbs: false` desliga só no semanal.
+    if (opts.thumbs !== false || !w.weekly) {
+      try {
+        probe = await probeThumb(videoId, prevThumb ? { etag: prevThumb.thumb_etag, dhash: prevThumb.thumb_dhash } : null, f)
+        // cabeçalho que respondeu sem indício nenhum, ou imagem que não pôde ser baixada: a sonda não conferiu nada
+        if (w.weekly && (!probe.etag && !probe.dhash)) thumbFailed++
+      } catch {
+        probe = null // network failure: skip the thumbnail this round
+        if (w.weekly) thumbFailed++
+      }
     }
     const action: ThumbAction = probe ? classifyThumb(prevThumb, probe) : 'skip'
 
     if (probe && prevThumb && action === 'heal') {
       const blobUrl = await archiveThumb(videoUuid, probe).catch(() => null)
+      if (w.weekly && !blobUrl) thumbFailed++
       const { error } = await supabase.from('competitor_video_versions').update({
         thumb_dhash: probe.dhash, thumb_etag: probe.etag, last_seen_at: nowIso,
         ...(blobUrl ? { thumb_blob_url: blobUrl } : {}),
@@ -406,6 +504,16 @@ export async function syncCompetitorChannel(
     )
     const plan = dropFields(rawPlan, current, skip)
 
+    // (emenda do portão: S-M8) Um vídeo semanal é visto a cada 7 dias. Se a versão anterior foi vista há mais de 8, a coleta
+    // ficou parada (ou o vídeo nunca tinha sido relido): a versão e a linha de mudança são gravadas com a janela verdadeira,
+    // como qualquer outra (a tela e o Cowork contam igual, D3), mas isso não é "troca desta semana": não entra na conta do aviso.
+    let longHere = 0
+    if (w.weekly && plan.changes.length) {
+      const floor = nowMs - RULES.series.weeklyMaxGapDays * 86_400_000
+      longHere = plan.changes.filter(c => c.window_start == null || Date.parse(c.window_start) < floor).length
+      longWindowChanges += longHere
+    }
+
     touchIds.push(...plan.touch)
     if (!plan.close.length && !plan.open.length && !plan.changes.length) return
 
@@ -413,6 +521,7 @@ export async function syncCompetitorChannel(
     const openRows = []
     for (const op of plan.open) {
       const blobUrl = op.field === 'thumb' && op.thumb ? await archiveThumb(videoUuid, op.thumb).catch(() => null) : null
+      if (w.weekly && op.field === 'thumb' && op.thumb?.bytes && !blobUrl) thumbFailed++
       const lm = op.thumb?.lastModified ? Date.parse(op.thumb.lastModified) : NaN
       openRows.push({
         field: op.field,
@@ -450,16 +559,19 @@ export async function syncCompetitorChannel(
       p_video_id: videoUuid, p_close: plan.close, p_open: openRows, p_changes: changeRows,
     })
     fail('apply version plan', error)
-    changesDetected += (data as { changes?: number } | null)?.changes ?? 0
+    changesDetected += Math.max(0, ((data as { changes?: number } | null)?.changes ?? 0) - longHere)
   }
 
   type FetchedItem = { id: string; snippet?: Record<string, unknown>; statistics?: Record<string, string> }
   /** Reconciles videos.list items against their stored rows, skipping what this sync already reconciled (daily pass and R123). */
-  const reconcileFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
+  const reconcileFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>, o: { weekly?: boolean; stop?: () => boolean } = {}): Promise<FetchedItem[]> => {
     const pending = items.filter(it => byYt.has(it.id) && !reconciled.has(byYt.get(it.id)!.id))
     const currentMap = await loadCurrent(pending.map(it => byYt.get(it.id)!.id))
     const touch: string[] = []
+    /** Os conferidos (o relógio da leitura semanal pode cortar no meio): só eles ganham o ponto. */
+    const done: FetchedItem[] = []
     for (const it of pending) {
+      if (o.stop?.()) break
       const row = byYt.get(it.id)!
       const sn = it.snippet ?? {}
       const thumbs = sn.thumbnails as { maxres?: { url?: string }; high?: { url?: string } } | undefined
@@ -470,12 +582,14 @@ export async function syncCompetitorChannel(
         viewCount: optCount(it.statistics?.viewCount),
         existingTitle: row.title,
         existingThumbUrl: row.thumbnail_url,
-      }, currentMap.get(row.id) ?? [], touch)
+      }, currentMap.get(row.id) ?? [], touch, { weekly: o.weekly === true })
+      done.push(it)
     }
     if (touch.length) {
       const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touch)
       fail('touch versions', error)
     }
+    return done
   }
   /**
    * A linha do vídeo é regravada toda vez que o YouTube o devolve, em qualquer chamada (página, passada diária, fixados):
@@ -494,6 +608,73 @@ export async function syncCompetitorChannel(
       // (emenda do portão: S-I5) não lança: a série do dia vem antes; o erro é guardado e o canal termina em erro
       if (late('não foi possível atualizar a linha do vídeo', error)) continue
       patched.add(row.id)
+    }
+  }
+
+  if (mode === 'weekly') {
+    // ── A leitura semanal (OP-15): fora do `try` da sincronização de propósito. Um erro aqui sobe a quem chamou SEM tocar no estado do
+    // canal (sem `sync_status = 'error'`, sem cursor): a fase semanal do lote conta o erro e tenta no disparo seguinte. ──
+    const today = spDate(nowMs)
+    const stop = (): boolean => opts.deadline?.() === true
+    let recorded = 0, deferred = 0, dueCount = 0
+    try {
+      const all = await loadAll() // paginada: lista acima de 1.000 vem inteira ou falha, nunca cortada em silêncio
+      for (const r of all) if (!rowInfo.has(r.id)) rowInfo.set(r.id, { lastSeenAt: r.last_seen_at, weeklySince: r.series_tier === 'semanal' ? r.series_tier_since : null, missing: r.missing_since != null })
+      const weeklyRows = all.filter(r => r.series_tier === 'semanal')
+      const points = await loadRecentPoints(weeklyRows.map(r => r.id), today)
+      // O PONTO É O RECIBO: o vídeo que já tem o ponto de hoje não é devido (não relê); o que o relógio cortou continua sem ponto, logo devido.
+      const due = weeklyRows.filter(r => weeklyDue({ ytId: r.video_id, lastPoint: points.get(r.id)?.last.date ?? null, tierSince: r.series_tier_since }, today))
+      dueCount = due.length
+      for (let i = 0; i < due.length; i += 50) {
+        // o relógio é conferido ANTES de cada chamada ao YouTube, nunca depois
+        if (stop()) { deferred += due.length - i; break }
+        const chunk = due.slice(i, i + 50)
+        const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+        if (!res.ok) throw new Error(`YouTube API ${res.status} for weekly statistics`)
+        // 200 sem a lista (ou com `error`) é falha da chamada, como um 500: ninguém é marcado ausente, ninguém ganha ponto
+        const body = await res.json()
+        const returned = videoItemsOf(body)
+        const byYt = new Map(chunk.map(c => [c.video_id, c]))
+        const items = (returned as FetchedItem[]).filter(it => isRec(it) && typeof it.id === 'string' && byYt.has(it.id))
+        // pedido e devolvido: nunca conta como ausente, mesmo que o relógio não deixe conferir
+        for (const c of chunk) asked.add(c.id)
+        for (const it of items) seen.add(byYt.get(it.id)!.id)
+        // um vídeo por vez, com o relógio conferido antes de cada um (título, descrição e miniatura)
+        const done = await reconcileFetched(items, byYt, { weekly: true, stop })
+        await patchFetched(done, byYt)
+        await captureFetched(done.map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
+        // Só o vídeo conferido ganha o ponto de hoje. Contagem ausente (ou ilegível) é "não medido": sem ponto, nunca zero; '0' é zero medido.
+        const rows = done.flatMap(it => {
+          const views = optCount(it.statistics?.viewCount)
+          if (views === null) return []
+          return [{ video_id: byYt.get(it.id)!.id, snap_date: today, views, likes: optCount(it.statistics?.likeCount), comments: optCount(it.statistics?.commentCount), taken_at: nowIso }]
+        })
+        if (rows.length) {
+          const { data: inserted, error } = await supabase.from('competitor_video_daily').upsert(rows, { onConflict: 'video_id,snap_date', ignoreDuplicates: true }).select('video_id')
+          fail('não foi possível gravar a leitura semanal', error)
+          recorded += (inserted ?? []).length
+        }
+        const cut = items.length - done.length
+        if (cut > 0) { deferred += cut + Math.max(0, due.length - i - chunk.length); break }
+      }
+      // pedido e NÃO devolvido numa chamada que respondeu: uma falta (a mesma função da sincronização)
+      const missedIds = [...asked].filter(id => !seen.has(id))
+      if (missedIds.length) await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
+      const promoted = 0 // a Tarefa 11c troca esta linha pela promoção por estado
+      if (lateFailure) throw lateFailure // linha do vídeo ou captura que não gravou: não carimba; o disparo seguinte refaz
+      // Canal em que ainda há vídeo SEM faixa não fecha a passada: quem grava a faixa é a sincronização do canal, e até lá não se
+      // sabe o que é devido (dia do deploy, canal novo, troca de faixa que falhou). Canal sem vídeo nenhum não tem o que esperar.
+      const complete = deferred === 0 && !all.some(r => r.series_tier == null)
+      if (complete) {
+        const { error } = await supabase.from('competitor_channels').update({ weekly_pass_date: today }).eq('id', channelRow.id)
+        fail('não foi possível carimbar a passada semanal do canal', error)
+      }
+      return { kind: 'weekly', result: { due: dueCount, recorded, deferred, promoted, unitsUsed, changesDetected, longWindowChanges, complete, ...(thumbFailed ? { thumbFailed } : {}) } }
+    } finally {
+      // a cota gasta é gravada mesmo quando a leitura falha (a chamada que falhou também custou); o teto que cortou registra quantos cortou
+      try {
+        await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors_semanal', extra: { mudancas_janela_longa: longWindowChanges }, max: { semanais_adiados: deferred } })
+      } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'competitors-weekly-quota' } }) }
     }
   }
 
@@ -940,7 +1121,7 @@ export async function syncCompetitorChannel(
     await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
 
     await flushQuota()
-    return { ...counters(), ...(semDestinatario ? { sem_destinatario: true } : {}) }
+    return { kind: 'slot', result: { ...counters(), ...(semDestinatario ? { sem_destinatario: true } : {}) } }
   } catch (error) {
     // a cota gasta até aqui é gravada mesmo com o canal em erro (a chamada que falhou também custou)
     await flushQuota()
