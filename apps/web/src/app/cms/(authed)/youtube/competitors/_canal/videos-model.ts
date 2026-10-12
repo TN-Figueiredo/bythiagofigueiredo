@@ -13,6 +13,7 @@ import { tierOf } from '@/lib/youtube/observatorio/rules'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { viewsMissingText } from '../_chrome/views-text'
 import { vpdText } from './numeros'
+import { durText, numNb } from './formato'
 import type { ViewerInput } from '../_chrome/thumb-viewer/viewer-model'
 import { viewerOfVideo } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 
@@ -49,18 +50,9 @@ export interface CanalVideosView { videos: ChannelVideoView[]; nota: string; sem
 
 /** A frase de quando o canal ainda está na primeira sincronização (a mesma do cabeçalho). */
 export const AGUARDANDO = 'quando a sincronização terminar'
-const NB = '\u00A0'
 const WORD = { mid: 'alto', high: 'muito alto', top: 'topo' } as const
 
-export function durText(sec: number | null): string | null {
-  if (sec == null) return null
-  const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
-  const p2 = (n: number) => (n < 10 ? '0' : '') + n
-  return h ? `${h}:${p2(m)}:${p2(r)}` : `${p2(m)}:${p2(r)}`
-}
-
-/** O número como o cartão e a faixa do vídeo o escrevem: o espaço antes de "mil"/"mi" não quebra linha. */
-export const numNb = (F: Pick<Fmt, 'num'>, n: number): string => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
+export { durText, numNb }
 
 /**
  * `soVideo`: monta só o cartão desse vídeo (a tela do vídeo próprio precisa de um e não do canal inteiro: cada cartão consulta as trocas do motor).

@@ -37,6 +37,9 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
       ...ytIds.flatMap(y => Array.from({ length: 28 }, (_, k) => ({ youtube_video_id: y, day_pt: d(k + 3), site_id: siteId, channel_id: canalId, views: k === 0 ? 0 : k, metric_version: mv }))),
       { youtube_video_id: 'seedoutro01', day_pt: d(3), site_id: outroSite, channel_id: outroCanal, views: 99, metric_version: mv },
       { youtube_video_id: ytIds[0], day_pt: d(300), site_id: siteId, channel_id: canalId, views: 7, metric_version: mv },
+      // % assistido e duração média: numeric do Postgres, na unidade da coleta (pontos de 0 a 100)
+      { youtube_video_id: 'seedpct0001', day_pt: d(4), site_id: siteId, channel_id: canalId, views: 40, avg_view_percentage: 51.5, avg_view_duration_seconds: 212.25, metric_version: mv },
+      { youtube_video_id: 'seedpct0001', day_pt: d(5), site_id: siteId, channel_id: canalId, views: 0, avg_view_percentage: null, avg_view_duration_seconds: null, metric_version: mv },
     ])
     await ins('yt_own_video_reach_daily', [
       { youtube_video_id: ytIds[0], day_pt: d(3), site_id: siteId, channel_id: canalId, thumbnail_impressions: 120, thumbnail_ctr: 0.0425, source_report_id: 'seed-r1', report_create_time: new Date().toISOString(), metric_version: mv },
@@ -69,6 +72,15 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.ultimoDia).toBe(d(3))
     expect(r.dado.linhas.find(l => l.ytId === ytIds[0] && l.dia === d(3))?.views).toBe(0)
     expect(r.dado.linhas.some(l => l.dia === d(300))).toBe(false)
+  })
+  it('diário: avg_view_percentage e avg_view_duration_seconds (numeric) chegam como número, na unidade da coleta (51,5 continua 51,5) e dia sem view fica nulo', async () => {
+    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: ['seedpct0001'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.linhas).toEqual([
+      { ytId: 'seedpct0001', dia: d(5), views: 0, pctAssistido: null, duracaoMediaSeg: null },
+      { ytId: 'seedpct0001', dia: d(4), views: 40, pctAssistido: 51.5, duracaoMediaSeg: 212.25 },
+    ])
+    expect(r.dado.descartados).toBe(0)
   })
   it('diário: o id de um canal de outro site não alcança o dado dele', async () => {
     const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: ['seedoutro01'] })
