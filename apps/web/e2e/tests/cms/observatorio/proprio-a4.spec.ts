@@ -135,16 +135,19 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     expect(rotulos).toHaveLength(6)
     // tabelas privadas vazias: o alcance diz o motivo (banco local), com a cor estável de "não medido"
     const imp = tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).first()
-    await expect(imp.locator('.obs-ch-nm')).toHaveText('ainda sem relatório de alcance deste canal')
-    await expect(imp.locator('dd')).not.toHaveText(/^0$/)
+    // A4 (13.3): a célula sem número leva só o quadradinho hachurado ("não medido", com nome acessível) e o motivo sobe para UMA frase sob a faixa
+    await expect(imp.locator('dd.nf .obs-ch-nm')).toHaveAttribute('aria-label', 'não medido')
+    await expect(imp.locator('dd.nf')).not.toHaveText(/\d/)
+    await expect(tela(page).locator('.nm-fr').first()).toContainText('ainda sem relatório de alcance deste canal')
     // cartões: três colunas, a coluna do meio sem número diz "sem relatório" em .obs-ch-nm; a terceira linha não existe sem leitura
     const cartao = tela(page).locator('ul.cv-grid > li.cv-card').first()
     await expect(cartao.locator('.cv-c.nd .obs-ch-nm').first()).toHaveText('sem relatório')
     await expect(cartao.locator('p.cv-n3')).toHaveCount(0)
     await expect(cartao).not.toContainText(/\b0 impress/)
     // a frase das views por dia: UMA vez, na linha das abas
-    await expect(tela(page).getByText(/Views por dia de cada vídeo/)).toHaveCount(1)
-    await expect(tela(page).locator('nav.ctabs p.res')).toContainText('o desenho delas nesta tela ainda não existe')
+    // A4 (13.3): o desenho das views por dia existe; sem diário a linha das abas diz o motivo, uma vez só
+    await expect(tela(page).getByText('Views por dia: a coleta diária ainda não gravou este canal.')).toHaveCount(1)
+    await expect(tela(page).locator('nav.ctabs p.res')).toHaveText('Views por dia: a coleta diária ainda não gravou este canal.')
     medida(`cartões: ${await tela(page).locator('ul.cv-grid > li.cv-card').count()}`)
   })
 
@@ -152,9 +155,10 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     await abrir(page)
     const abas = tela(page).locator('nav.ctabs')
     await expect(abas.locator('li a')).toHaveText([/^Vídeos\s*\d+$/, 'Trocas', 'Leitura', 'Retenção'])
-    for (const [nome, frase] of [['Trocas', 'Trocas dos seus vídeos ainda não são lidas nesta tela.'], ['Leitura', 'A leitura da forja para o seu canal ainda não existe.'], ['Retenção', 'Retenção ainda não coletada.']] as const) {
+    for (const [nome, frase] of [['Trocas', 'Trocas dos seus vídeos ainda não são lidas nesta tela.'], ['Leitura', 'A leitura da forja para o seu canal ainda não existe.'], ['Retenção', 'A coleta diária ainda não rodou para este canal: não há % assistido de nenhum vídeo.']] as const) {
       await abas.getByRole('link', { name: nome }).click()
-      await expect(tela(page).locator('.cv-empty p').first()).toHaveText(frase)
+      // A4 (13.3): a aba Retenção virou "% assistido" e a frase vem na própria aba (`.ret-vazio`), não em `.cv-empty`
+      await expect(tela(page).locator(nome === 'Retenção' ? '.ret-vazio p' : '.cv-empty p').first()).toHaveText(frase)
       await expect(tela(page).locator('ul.cv-grid')).toHaveCount(0)
     }
     expect(query(page).get('tab')).toBe('retencao')
@@ -247,14 +251,17 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     await expect(page.locator('[data-obs-screen="canais"]:visible').first()).toBeVisible()
   })
 
-  test('"Todos os números" abre as onze células e o ⓘ lista a base das 17; as de alcance dizem o motivo', async ({ page }) => {
+  test('"Todos os números" abre as treze células e o ⓘ lista a base das 19; as de alcance dizem o motivo', async ({ page }) => {
     await abrir(page)
     await tela(page).getByRole('button', { name: /Todos os números/ }).click()
-    await expect(tela(page).locator('#canal-nums2 .nc')).toHaveCount(11)
+    // A4 (13.3): 11 viraram 13 (entram a taxa de clique do canal, "views/dia por vídeo" ficou, "% assistido" e "retenção (curva)" são novas); 6 + 13 = 19 no ⓘ
+    await expect(tela(page).locator('#canal-nums2 .nc')).toHaveCount(13)
     expect(query(page).get('nums')).toBe('1')
-    await expect(tela(page).locator('#canal-nums2 .nc').filter({ hasText: 'cliques estimados' }).locator('.obs-ch-nm')).toHaveText('ainda sem relatório de alcance deste canal')
+    const cel = tela(page).locator('#canal-nums2 .nc').filter({ hasText: 'cliques estimados' })
+    await expect(cel.locator('dd.nf .obs-ch-nm')).toHaveAttribute('aria-label', 'não medido')
+    await expect(tela(page).locator('#canal-nums2 .nm-fr')).toContainText('ainda sem relatório de alcance deste canal')
     await tela(page).getByRole('button', { name: 'De onde vêm os números do canal' }).click()
-    await expect(page.locator('#canal-tip li')).toHaveCount(17)
+    await expect(page.locator('#canal-tip li')).toHaveCount(19)
   })
 })
 
@@ -408,11 +415,15 @@ test.describe('T10 a seção "Como o canal está" na página do canal próprio',
     const corpo = secao(page).locator('.pn-b')
     await expect(corpo).toBeVisible()
     await expect(corpo.locator('.pn-lead')).toHaveCount(0)   // o gráfico já diz a frase: não se repete no topo
-    await expect(corpo.locator('.ic-vazio')).toHaveText(SEM_RELATORIO)
-    await expect(corpo.locator('.pn-vazio')).toHaveText('Sem relatório de alcance, não há vídeo para listar.')
-    await expect(corpo.getByRole('heading', { level: 3 })).toHaveText(['Vídeos que mais apareceram', 'No nicho', 'O que ainda não é medido'])
-    await expect(corpo.locator('dl.pn-nm dt')).toHaveText(['Views por dia de cada vídeo', 'Percentual assistido e retenção', 'Origem do tráfego'])
-    await expect(corpo.locator('dl.pn-nm dd').first()).toHaveText('já são coletadas; o desenho delas nesta tela ainda não existe.')
+    await expect(grafico(page).locator('.ic-vazio')).toHaveText(SEM_RELATORIO)
+    // A4 (13.3): o painel ganhou a taxa de clique e o gráfico de views por dia; sem diário o de views diz o motivo dele
+    await expect(graficoViews(page).locator('.ic-vazio')).toHaveText('Ainda não há dia medido de views.')
+    await expect(corpo.locator('.pn-vazio').filter({ hasText: 'não há vídeo para listar' })).toHaveText('Sem relatório de alcance, não há vídeo para listar.')
+    await expect(corpo.locator('.pn-vazio').filter({ hasText: 'não há como calcular a taxa' })).toHaveText('Sem relatório de alcance não há como calcular a taxa.')
+    await expect(corpo.getByRole('heading', { level: 3 })).toHaveText(['Taxa de clique do canal', 'Vídeos que mais apareceram', 'No nicho', 'O que ainda não é medido'])
+    // "O que ainda não é medido" ficou enxuto: views por dia e % assistido saíram (agora são medidos); sobram a curva e a origem do tráfego
+    await expect(corpo.locator('dl.pn-nm dt')).toHaveText(['Curva de retenção', 'Origem do tráfego'])
+    await expect(corpo.locator('dl.pn-nm dd')).toHaveText(['ainda não é coletada.', 'ainda não aparece aqui.'])
     await expect(corpo).not.toContainText(/\b(lote|L2|L3|pacote|dataset|day_pt)\b/)
     await expect(corpo).not.toContainText(/\b0 impress/)
   })
@@ -572,8 +583,12 @@ test.describe('T11 o vídeo próprio abre, com cabeçalho, faixa e paginador', (
     await expect(t.locator('.own-seal')).toHaveText('seu canal')
     await expect(t.locator('dl.nstrip .nc')).toHaveCount(6)
     await expect(t.locator('dl.nstrip .nc dt')).toHaveText([/^views/, /^curtidas/, /^comentários/, /^engajamento/, /^o normal do canal/, /^duração/])
-    await expect(t.locator('.ibtn')).toHaveCount(1)
-    await expect(t.locator('[data-alcance-nota]')).toHaveText(NOTA_SEM_RELATORIO)
+    // A4 (13.4): um ⓘ na faixa de seis e um em cada seção nova (% assistido, retenção, escala das réguas); a nota `data-alcance-nota` (H4) saiu e
+    // quem a substitui é a seção "Impressões e cliques", que diz o motivo e o dia não medido
+    await expect(t.locator('.vp-nrow .ibtn')).toHaveCount(1)
+    await expect(t.locator('.ibtn')).toHaveCount(4)
+    await expect(t.locator('[data-alcance-nota]')).toHaveCount(0)
+    await expect(t.locator('section[aria-labelledby="vb-imp-h"] .vb-nml p')).toHaveText(SEM_RELATORIO)
     await expect(page.locator('.crumbs li:visible')).toHaveText(['Canais', /.+/, 'Vídeo'])
     await expect(page.locator('.obs-tr-aside [data-pager-pos]:visible')).toContainText('vídeo 3 de ')
     await expect(page.locator('.obs-tr-aside [data-pager-pos]:visible')).toContainText('na ordem da lista: do mais novo ao mais antigo')
@@ -583,7 +598,7 @@ test.describe('T11 o vídeo próprio abre, com cabeçalho, faixa e paginador', (
 
   test('o ⓘ abre a base dos seis números com a conta feita, e Esc devolve o foco ao botão', async ({ page }) => {
     await abrirPeloCartao(page, 2)
-    const b = video(page).locator('.ibtn')
+    const b = video(page).locator('.vp-nrow .ibtn')
     await b.click()
     const dlg = page.locator('#flut [role="dialog"]')
     await expect(dlg).toBeVisible()
@@ -648,7 +663,7 @@ test.describe('T11 o vídeo próprio abre, com cabeçalho, faixa e paginador', (
       await page.waitForURL(new RegExp('/video/' + lista0[3 + k]))
       await expect(page.locator('.obs-tr-aside [data-pager-next]:visible')).toBeFocused()
     }
-    await expect(video(page).locator('[role="status"]')).toContainText('Vídeo 6 de ')
+    await expect(video(page).locator('p.obs-ch-sr[role="status"]').first()).toContainText('Vídeo 6 de ')
     await page.goBack()
     await pronta(page)
     expect(new URL(page.url()).pathname).toContain('/canal/')
@@ -738,7 +753,7 @@ for (const [nome, size] of [['390', { width: 390, height: 844 }], ['1440', { wid
       expect(l.fora).toEqual([])
       expect(l.menor, l.quem).toBeGreaterThanOrEqual(12)
       await page.screenshot({ path: path.join(SHOTS, `video-${nome}-${tema}.png`) })
-      await video(page).locator('.ibtn').click()
+      await video(page).locator('.vp-nrow .ibtn').click()
       await expect(page.locator('#flut [role="dialog"]')).toBeVisible()
       await page.screenshot({ path: path.join(SHOTS, `video-${nome}-${tema}-i.png`) })
       await page.keyboard.press('Escape')
@@ -850,7 +865,9 @@ function blocoT15(nome: string, seed: SeedOptions, corpo: () => void, opcoes: { 
   })
 }
 const SHOTS_DADO = (nome: string) => path.join(SHOTS, `com-dado-${nome}.png`)
-const grafico = (page: Page) => tela(page).locator('figure.ic')
+// A4: a página tem DUAS figuras `figure.ic` (impressões e, abaixo, views por dia, soma dos vídeos): cada helper pega a sua pelo título
+const grafico = (page: Page) => tela(page).locator('figure.ic').filter({ has: page.locator('.ic-t', { hasText: 'Impressões por dia do canal' }) })
+const graficoViews = (page: Page) => tela(page).locator('figure.ic').filter({ has: page.locator('.ic-t', { hasText: 'Views por dia, soma dos vídeos' }) })
 const grupoGrafico = (page: Page) => grafico(page).locator('.ic-grupo')
 /** Abre a página do canal próprio com a seção "Como o canal está" aberta e espera o gráfico desenhado. */
 async function abrirComGrafico(page: Page, size?: { width: number; height: number }, qs = '?painel=1'): Promise<void> {
@@ -876,7 +893,7 @@ blocoT15('T15 tabelas privadas vazias (sem ownL2): nenhuma frase de número, nen
     await expect(grafico(page).locator('svg.ic-svg')).toHaveCount(0)
     const t = await tela(page).innerText()
     expect(t).not.toMatch(/\b0 impress|impressões? de \d|\b0 cliques/)
-    await expect(tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).locator('dd')).not.toHaveText(/^\d/)
+    await expect(tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).locator('dd:not(.nsub)')).not.toHaveText(/^\d/)
     // a lista: a célula de views por dia do canal próprio diz o motivo (a coleta ainda não gravou), com o estilo de "não medido", nunca 0
     await page.goto(`${ROTA}?niche=todos`)
     const linha = page.locator(`[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]`)
@@ -901,7 +918,7 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
     const celulas = tela(page).locator('dl[aria-label="Números do canal"] .nc')
     await expect(celulas).toHaveCount(6)
     for (const c of await celulas.all()) {
-      await expect(c.locator('dd')).not.toBeEmpty()
+      await expect(c.locator('dd:not(.nsub)')).not.toBeEmpty()
       await expect(c.locator('dt')).not.toBeEmpty()
     }
     // nenhuma célula da faixa está "não medido": o canal tem relatório e diário
@@ -909,9 +926,9 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
     const imp = celulas.filter({ hasText: 'impressões' }).first()
     // 3.316 impressões: a soma das linhas do banco, escrita compacta (3,3 mil) e com o período
     expect(e.imp).toBeGreaterThan(1000)
-    await expect(imp.locator('dd')).toHaveText(new RegExp('^' + (e.imp / 1000).toFixed(1).replace('.', ',') + ' mil$'))
+    await expect(imp.locator('dd:not(.nsub)')).toHaveText(new RegExp('^' + (e.imp / 1000).toFixed(1).replace('.', ',') + ' mil$'))
     await expect(imp).toContainText(`de ${dm(e.primeiroRel!)} a ${dm(e.ultimoRel!)}`)
-    await expect(celulas.filter({ hasText: 'dias com impressão' }).locator('dd')).toHaveText(`${e.comImp.length} de ${e.comImp.length + e.zeros.length}`)
+    await expect(celulas.filter({ hasText: 'dias com impressão' }).locator('dd:not(.nsub)')).toHaveText(`${e.comImp.length} de ${e.comImp.length + e.zeros.length}`)
     // os cartões: cada vídeo com impressão mostra o número do banco; "cliques: não medido" onde o CTR faltou
     const cartoes = tela(page).locator('ul.cv-grid > li.cv-card')
     const comImpressoes = await cartoes.filter({ hasText: /impressões/ }).count()
@@ -960,14 +977,14 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
         const fig = [...document.querySelectorAll('figure.ic')].find(f => f.getClientRects().length > 0)!
         // luminância de cinza (0 a 255) de uma cor 'rgb(r, g, b)': o que sobra com o filtro de cinza ligado
         const cinza = (c: string): number | null => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c); return m ? Math.round(0.2126 * +m[1]! + 0.7152 * +m[2]! + 0.0722 * +m[3]!) : null }
-        const por: Record<string, { n: number; tipo: string; stroke: string; sw: number; h: number; hMax: number; w: number; cinzaFill: number | null; cinzaStroke: number | null }> = {}
+        const por: Record<string, { n: number; tipo: string; stroke: string; sw: number; h: number; hMax: number; w: number; cinzaFill: number | null; cinzaStroke: number | null; base: number[] }> = {}
         for (const g of fig.querySelectorAll<SVGGElement>('g.ic-col')) {
           const sit = g.getAttribute('data-situacao')!
           const r = g.querySelector<SVGRectElement>(sit === 'com-impressoes' ? 'rect.ic-bar' : sit === 'zero-medido' ? 'rect.ic-zero' : 'rect.ic-nm')!
           const cs = getComputedStyle(r), bb = r.getBoundingClientRect()
           const tipo = cs.fill.startsWith('url(') ? 'hachura' : cs.fill === 'none' ? 'vazada' : 'cheia'
-          const a = por[sit] ?? { n: 0, tipo, stroke: cs.stroke, sw: parseFloat(cs.strokeWidth) || 0, h: bb.height, hMax: 0, w: bb.width, cinzaFill: cinza(cs.fill), cinzaStroke: cinza(cs.stroke) }
-          a.n++; a.hMax = Math.max(a.hMax, bb.height); por[sit] = a
+          const a = por[sit] ?? { n: 0, tipo, stroke: cs.stroke, sw: parseFloat(cs.strokeWidth) || 0, h: bb.height, hMax: 0, w: bb.width, cinzaFill: cinza(cs.fill), cinzaStroke: cinza(cs.stroke), base: [] }
+          a.n++; a.hMax = Math.max(a.hMax, bb.height); a.base.push(Math.round(bb.bottom * 10) / 10); por[sit] = a
         }
         // a hachura é um padrão: a cor das linhas e do fundo vêm das classes .ic-hb / .ic-hl (tokens do "não medido")
         const hb = fig.querySelector('.ic-hb'), hl = fig.querySelector('.ic-hl')
@@ -978,11 +995,16 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
       expect(P['com-impressoes']!.tipo).toBe('cheia')
       expect(P['zero-medido']!.tipo).toBe('vazada')
       expect(P['nao-medido']!.tipo).toBe('hachura')
-      // formas diferentes: cheia sobe até a medida; vazada fica baixa (caixa de 6 px) e tem contorno; hachura ocupa a altura toda e não tem contorno
+      // formas diferentes: cheia sobe até a medida; vazada fica baixa (caixa de 6 px) e tem contorno; hachura é um BLOCO baixo, sem contorno
+      // (A4, ruling da 13.2 / I4: o mockup aprovado desenha o "não medido" como um bloco de até 24 px assentado na linha de base, e não de cima a baixo)
       expect(P['zero-medido']!.sw, 'a caixa vazada tem contorno').toBeGreaterThan(0)
       expect(P['zero-medido']!.hMax, 'a caixa vazada é baixa').toBeLessThanOrEqual(8)
-      expect(P['nao-medido']!.hMax, 'a hachura vai de cima a baixo').toBeGreaterThan(P['com-impressoes']!.hMax - 1)
-      expect(P['nao-medido']!.hMax).toBeGreaterThan(40)
+      expect(P['nao-medido']!.hMax, 'a hachura é um bloco de até 24 px').toBeLessThanOrEqual(24.5)
+      expect(P['nao-medido']!.hMax, 'e é mais alta que a caixa vazada: as duas formas não se confundem').toBeGreaterThan(P['zero-medido']!.hMax + 6)
+      expect(P['nao-medido']!.hMax, 'e bem mais baixa que a barra cheia: não faz o dia parecer medido').toBeLessThan(P['com-impressoes']!.hMax)
+      // o bloco assenta na mesma linha de base da caixa vazada e da barra (nenhum bloco flutua)
+      const baseZero = P['zero-medido']!.base[0]!
+      for (const b of [...P['nao-medido']!.base, ...P['com-impressoes']!.base]) expect(Math.abs(b - baseZero), 'todas as formas assentam na mesma linha de base').toBeLessThanOrEqual(1)
       expect(P['com-impressoes']!.hMax).toBeGreaterThan(P['zero-medido']!.hMax * 3)
       medida(`formas ${nome}: cheia ${P['com-impressoes']!.n} (até ${P['com-impressoes']!.hMax.toFixed(0)} px), vazada ${P['zero-medido']!.n} (${P['zero-medido']!.hMax.toFixed(1)} px, contorno ${P['zero-medido']!.sw}), hachura ${P['nao-medido']!.n} (${P['nao-medido']!.hMax.toFixed(0)} px); cinza: barra ${P['com-impressoes']!.cinzaFill}, contorno ${P['zero-medido']!.cinzaStroke}, hachura fundo ${formas.hachuraFundo} linha ${formas.hachuraLinha}`)
       // com o filtro de cinza ligado nada muda de forma: as três continuam três formas
@@ -1142,18 +1164,22 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
     } finally { await ctx.close() }
   })
 
-  test('cabeçalho recolhido com no máximo 150 px e sem rolagem horizontal da página em 1440, 1024, 768 e 390', async ({ page }) => {
+  test('cabeçalho recolhido: do topo dele ao topo da seção dentro do que o mockup aprovado mede (197 px na coluna larga, 304 na estreita) e sem rolagem horizontal da página em 1440, 1024, 768 e 390', async ({ page }) => {
     for (const [w, h] of [[1440, 900], [1024, 768], [768, 1024], [390, 844]] as const) {
       await abrir(page, '', { width: w, height: h })
       const alt = await tela(page).locator('header.chead').evaluate(e => Math.round(e.getBoundingClientRect().height))
+      // A4: o cabeçalho ganhou a linha-resumo e a segunda linha das células; o desenho aprovado mede a distância do topo do cabeçalho ao topo da seção "Como o canal está"
+      // (197 px a 1440 e a 1024, canal.html cheio e magro, recolhido: medido no mockup congelado de 12/10). É essa a distância que a tela tem de respeitar.
+      const ateSecao = await tela(page).evaluate(r => Math.round(r.querySelector('section.pn')!.getBoundingClientRect().top - r.querySelector('header.chead')!.getBoundingClientRect().top))
       const l = await larguras(page)
       const sec = await tela(page).locator('section.pn').evaluate(e => Math.round(e.getBoundingClientRect().height))
-      medida(`${w} px: cabeçalho ${alt} px, seção recolhida ${sec} px, docScroll ${l.docScroll}, contScroll ${l.contScroll}, fora: ${l.fora.join(' | ') || 'nenhum'}`)
+      medida(`${w} px: cabeçalho ${alt} px, do topo dele ao topo da seção ${ateSecao} px, seção recolhida ${sec} px, docScroll ${l.docScroll}, contScroll ${l.contScroll}, fora: ${l.fora.join(' | ') || 'nenhum'}`)
       expect(l.docScroll, `${w}: rolagem horizontal do documento`).toBeLessThanOrEqual(0)
       expect(l.contScroll, `${w}: rolagem horizontal do contêiner`).toBeLessThanOrEqual(0)
       expect(l.fora, `${w}: elementos fora da coluna`).toEqual([])
       expect(l.menor, `${w}: ${l.quem}`).toBeGreaterThanOrEqual(12)
-      if (w >= 1024) expect(alt, `${w}: cabeçalho recolhido`).toBeLessThanOrEqual(150)
+      // o mockup aprovado: 197 px com a coluna larga (1440) e 304 px quando a coluna estreita (medido a 860, 780 e 700 px no canal.html cheio e magro); a 1024 px a coluna do CMS é estreita
+      if (w >= 1024) expect(ateSecao, `${w}: do topo do cabeçalho ao topo da seção, recolhido`).toBeLessThanOrEqual(w >= 1440 ? 197 : 304)
     }
   })
 
@@ -1239,7 +1265,7 @@ blocoT15('T15 views por dia reais (canal ativo): a lista, a comparação e o cab
     // 3) o cabeçalho do canal: "Todos os números" e a linha de posição escrevem os mesmos números
     await page.goto(url()); await pronta(page)
     await tela(page).getByRole('button', { name: /Todos os números/ }).click()
-    await expect(tela(page).locator('#canal-nums2 .nc').filter({ hasText: 'views/dia por vídeo' }).locator('dd')).toHaveText(cmpVpd)
+    await expect(tela(page).locator('#canal-nums2 .nc').filter({ hasText: 'views/dia por vídeo' }).locator('dd:not(.nsub)')).toHaveText(cmpVpd)
     await expect(tela(page).locator('.chead p.pos')).toContainText(`Views/dia por mil inscritos: `)
     await expect(tela(page).locator('.chead p.pos')).toContainText(new RegExp(`com ${cmpMil.replace(/[.,]/g, m => '\\' + m)}\\.`))
     medida(`views por dia (mesmo texto): comparação "${cmpVpd}", por mil "${cmpMil}", janela ${janela}, n ${e.nVpd}; esperado do banco ${e.vpd!.toFixed(2)}`)
@@ -1251,7 +1277,7 @@ blocoT15('T15 views por dia reais (canal ativo): a lista, a comparação e o cab
     await abrirComGrafico(page, { width: 1440, height: 900 })
     await expect(grafico(page).locator('.ic-res')).toContainText(`${PT(e.imp)} impressões e ${PT(e.cliques!)} cliques estimados`)
     await tela(page).getByRole('button', { name: /Todos os números/ }).click()
-    await expect(tela(page).locator('#canal-nums2 .nc').filter({ hasText: 'cliques estimados' }).locator('dd')).toHaveText(PT(e.cliques!))
+    await expect(tela(page).locator('#canal-nums2 .nc').filter({ hasText: 'cliques estimados' }).locator('dd:not(.nsub)')).toHaveText(PT(e.cliques!))
     await expect(grafico(page).locator('.ic-nm-cl')).toHaveCount(0)   // nenhum dia com impressão ficou sem a medida de cliques
   })
 
@@ -1313,17 +1339,17 @@ blocoT15('T15 canal parado (29 relatórios vazios, diário de zeros, nenhum víd
     await expect(grafico(page).locator('.ic-nm, .ic-nm-cl')).toHaveCount(0)
     // a faixa: impressões é "0" (valor, não "não medido")
     const imp = tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).first()
-    await expect(imp.locator('dd')).toHaveText('0')
+    await expect(imp.locator('dd:not(.nsub)')).toHaveText('0')
     await expect(imp.locator('.obs-ch-nm')).toHaveCount(0)
-    await expect(tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'dias com impressão' }).locator('dd')).toHaveText('0 de 29')
+    await expect(tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'dias com impressão' }).locator('dd:not(.nsub)')).toHaveText('0 de 29')
     await tela(page).getByRole('button', { name: /Todos os números/ }).click()
     const nums = tela(page).locator('#canal-nums2')
-    await expect(nums.locator('.nc').filter({ hasText: 'longos + Shorts por semana' }).locator('dd')).toHaveText('parado: nenhum em 13 semanas')
+    await expect(nums.locator('.nc').filter({ hasText: 'longos + Shorts por semana' }).locator('dd:not(.nsub)')).toHaveText('parado: nenhum em 13 semanas')
     await expect(nums.locator('.nc').filter({ hasText: 'longos + Shorts por semana' }).locator('.obs-ch-nm')).toHaveCount(0)
-    await expect(nums.locator('.nc').filter({ hasText: 'views/dia por vídeo' }).locator('dd')).toHaveText('0')
+    await expect(nums.locator('.nc').filter({ hasText: 'views/dia por vídeo' }).locator('dd:not(.nsub)')).toHaveText('0')
     await expect(nums.locator('.nc').filter({ hasText: 'views/dia por vídeo' }).locator('.obs-ch-nm')).toHaveCount(0)
-    await expect(nums.locator('.nc').filter({ hasText: 'cliques estimados' }).locator('dd')).toHaveText('0')
-    await tela(page).locator('figure.ic').scrollIntoViewIfNeeded()
+    await expect(nums.locator('.nc').filter({ hasText: 'cliques estimados' }).locator('dd:not(.nsub)')).toHaveText('0')
+    await grafico(page).scrollIntoViewIfNeeded()
     await page.screenshot({ path: SHOTS_DADO('canal-parado-1440-escuro') })
     // a lista: "0/dia, n = …" medido, não "não medido"
     await page.goto(`${ROTA}?niche=todos`)
@@ -1665,7 +1691,9 @@ blocoT15('T15 quem só lê o site (usuário "reporter"): nenhum número privado 
     // Para eles só vale a negativa; se um dia o admin passar a recebê-los, esta lista falha e o grupo ganha controle positivo.
     const semControle = lista.filter(g => !g.formas.some(f => !ambigua(f) && nomes.some(n => ondeEsta(admin[n], f).length > 0))).map(g => g.grupo).sort()
     medida(`grupos sem controle positivo (o admin também não os recebe): ${semControle.join(' ; ') || 'nenhum'}`)
-    expect(semControle).toEqual(['CTR (fração com ponto e com vírgula, e em %)', 'id de vídeo que só existe no relatório', 'views do diário por vídeo (28 dias)'].sort())
+    // A4 (13.3/13.4): "views do diário por vídeo (28 dias)" ganhou controle positivo (a Retenção e os cartões escrevem as views de 28 dias de cada vídeo);
+    // o CTR por dia e o id órfão seguem sem tela que os escreva (a taxa de clique agregada e seus extremos têm o controle na prova de `proprio-a4-seguranca.spec.ts`)
+    expect(semControle).toEqual(['CTR (fração com ponto e com vírgula, e em %)', 'id de vídeo que só existe no relatório'].sort())
     // o reporter recebeu as telas com as frases de "só quem edita o site vê" no lugar dos números
     expect(leitor['canal'].dom).toContain('Só quem edita o site vê as impressões.')
     expect(leitor['canal'].dom).not.toContain('ic-svg')
@@ -1684,7 +1712,7 @@ blocoT15('T15 quem só lê o site (usuário "reporter"): nenhum número privado 
       expect(t).toContain('Só quem edita o site vê as impressões.')
       expect(t).toContain('Só quem edita o site vê os vídeos que mais apareceram.')
       expect(t).toContain('só quem edita o site vê as views por dia do seu canal')
-      await expect(lei.locator(`${S}:visible section.pn .ic-vazio`)).toHaveText('Só quem edita o site vê as impressões.')
+      await expect(lei.locator(`${S}:visible section.pn .ic-vazio`)).toHaveText(['Só quem edita o site vê as impressões.', 'Só quem edita o site vê as views.'])
       await lei.goto(`${ROTA}?niche=todos`)
       await lei.locator(`[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]`).waitFor({ timeout: 40_000 })
       expect(await textoDe(lei.locator(`[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]`))).toMatch(/só quem edita o site vê as views por dia do seu canal/i)
@@ -1714,7 +1742,7 @@ blocoT15('T15 números grandes: impressões de cinco algarismos a 390 px não pa
     expect(e.imp).toBeLessThan(1_000_000)
     await abrirComGrafico(page, { width: 390, height: 844 })
     const imp = tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).first()
-    await expect(imp.locator('dd')).toHaveText(abrev(e.imp))
+    await expect(imp.locator('dd:not(.nsub)')).toHaveText(abrev(e.imp))
     await tela(page).getByRole('button', { name: /Todos os números/ }).click()
     await expect(grafico(page).locator('.ic-res')).toContainText(`${PT(e.imp)} impressões`)
     const medir = async (quando: string) => {
@@ -1791,14 +1819,11 @@ blocoT15('T15 diário com lacunas: o filtro "7 dias ou mais" da mediana e o víd
   })
 })
 
-/* ---- o que espera a Tarefa 13 e a Tarefa 14 (as telas ainda não existem: ficam esperando o mockup aprovado). Cada título guarda o que será provado. */
-test.describe('T15 pendentes: espera a Tarefa 13/14', () => {
-  test.fixme('espera a Tarefa 13: "Este vídeo no canal" na tela do vídeo próprio: posição, terço e a frase, com a régua e o gráfico de impressões do vídeo (zero medido quando o relatório não trouxe o vídeo)', async () => { /* a tela do vídeo ainda não desenha a régua nem o gráfico */ })
-  test.fixme('espera a Tarefa 13: o gráfico "Impressões por dia" do VÍDEO: barra cheia, caixa vazada para o dia medido sem o vídeo e hachura para o dia não medido; teclado e toque a 390 px', async () => { /* idem */ })
-  test.fixme('espera a Tarefa 13: alvos de toque de 44 px a 390 px nos traços da régua em foco da tela do vídeo', async () => { /* a régua do vídeo ainda não existe */ })
-  test.fixme('espera a Tarefa 14: a comparação de um canal seu com um concorrente mostra o cartão "Só o seu canal mede" com impressões e cliques estimados', async () => { /* o cartão ainda não existe */ })
-  test.fixme('alvo de toque de 44 px por dia no gráfico a 390 px: hoje cada uma das 29 colunas tem 8,5 px de largura (cabem 5,2 colunas num alvo de 44 px); espera a decisão do dono no mockup: botões "dia anterior / dia seguinte"', async () => { /* medido em "alvo de toque por coluna, 390"; a dica abre pelo toque exato e a tabela alternativa cumpre, mas a coluna sozinha não é um alvo de 44 px */ })
-  test.fixme('espera a Tarefa 14: com dois canais seus o cartão "Só o seu canal mede" mostra os dois lados; sem canal próprio ele não existe', async () => { /* idem */ })
+/* ---- o que ainda espera a Tarefa 14. As quatro que esperavam as telas 13.3 e 13.4 ("Este vídeo no canal", o gráfico do vídeo, os 44 px nos traços da régua e o alvo de toque por dia)
+   foram destravadas e reescritas para o desenho aprovado em `proprio-a4-telas.spec.ts` (15b). */
+test.describe('T15 pendentes: espera a Tarefa 14 (cartão "Só o seu canal mede" da comparação, que espera a aprovação visual do dono)', () => {
+  test.fixme('espera a Tarefa 14: a comparação de um canal seu com um concorrente mostra o cartão "Só o seu canal mede" com quatro linhas: impressões, cliques estimados, taxa com intervalo e % assistido', async () => { /* o cartão ainda não existe: a Tarefa 14 espera a aprovação visual do dono */ })
+  test.fixme('espera a Tarefa 14: com dois canais seus o cartão "Só o seu canal mede" mostra os dois lados (dois cartões); sem canal próprio ele não existe', async () => { /* idem */ })
 })
 
 test('T15 nenhum POST de server action em nenhuma destas telas (a soma de todos os testes acima)', async () => {
