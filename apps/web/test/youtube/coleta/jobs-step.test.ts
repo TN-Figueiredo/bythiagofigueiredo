@@ -147,6 +147,26 @@ describe('passoJobs: tipos', () => {
     expect(ctx.falhas).toEqual([])
   })
 
+  it('data de descontinuação NO PASSADO: o job é criado mesmo assim e a nota traz a data como veio (legível para o dono)', async () => {
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.map(id => (id === 'channel_basic_a3' ? { id, deprecateTime: '2019-01-15T00:00:00Z' } : { id })))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo' })
+    expect(resumo.acao_do_dono).toEqual(['Canal Um: channel_basic_a3 tem data de descontinuação no YouTube (2019-01-15T00:00:00Z)'])
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('data de descontinuação ilegível: o passo não quebra e a nota sai com o texto cru', async () => {
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.map(id => (id === 'channel_basic_a3' ? { id, deprecateTime: 'em breve' } : { id })))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo' })
+    expect(resumo.acao_do_dono).toEqual(['Canal Um: channel_basic_a3 tem data de descontinuação no YouTube (em breve)'])
+    expect(ctx.falhas).toEqual([])
+  })
+
   it('tipo fora da lista com data de descontinuação: nenhuma nota', async () => {
     api.reportTypesList.mockResolvedValue([...REPORT_TYPES_ENABLED.map(id => ({ id })), { id: 'channel_annotations_a1', deprecateTime: '2019-01-15T00:00:00Z' }])
     const resumo = await passoJobs(ctxDe(fakeSupabase()))

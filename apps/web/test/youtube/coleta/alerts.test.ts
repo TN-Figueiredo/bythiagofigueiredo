@@ -64,7 +64,11 @@ describe('textos e chave', () => {
     expect(textoAviso('api_nao_ativada', 'Canal Um')).toBe('A YouTube Reporting API não está ativada no projeto do Google. Impressões e CTR não estão sendo coletados.')
     expect(textoAviso('sem_acesso', 'Canal Um')).toBe('O YouTube recusou o acesso aos relatórios do canal Canal Um. Impressões e CTR não estão sendo coletados.')
     expect(textoAviso('tipo_indisponivel', 'Canal Um', 'channel_cards_a1')).toBe('O YouTube não oferece o relatório channel_cards_a1 para o canal Canal Um.')
-    expect(textoAviso('tipo_indisponivel', 'Canal Um')).toBe('O YouTube não oferece o relatório (tipo não informado) para o canal Canal Um.')
+    // O tipo é obrigatório em tipo_indisponivel: sem ele a chave cairia no carimbo antigo, comum a todos os tipos (3650 dias).
+    // @ts-expect-error tipo_indisponivel sem o tipo não compila
+    expect(() => textoAviso('tipo_indisponivel', 'Canal Um')).toThrow(/exige o tipo/)
+    // @ts-expect-error idem para a chave do carimbo
+    expect(() => chaveAviso('ch-1', 'tipo_indisponivel')).toThrow(/exige o tipo/)
     expect(chaveAviso('ch-1', 'tipo_indisponivel', 'channel_cards_a1')).toBe('sync-analytics:ch-1:tipo_indisponivel:channel_cards_a1')
     expect(textoAviso('saida', 'Canal Um')).toBe('A coleta do canal Canal Um voltou ao normal.')
     expect(chaveAviso('ch-1', 'sem_acesso')).toBe('sync-analytics:ch-1:sem_acesso')
