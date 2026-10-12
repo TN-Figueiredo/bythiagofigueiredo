@@ -66,6 +66,8 @@ interface JobLinha {
   job_create_time: string | null
   /** not null no banco: a idade de reserva quando a API não informou job_create_time. */
   created_at: string | null
+  /** O maior `createTime` que a listagem já viu neste job. Nulo = nunca listou relatório nenhum. */
+  last_create_time: string | null
 }
 
 const ESTADOS_DO_DONO: readonly string[] = ['sem_acesso', 'api_nao_ativada', 'tipo_indisponivel']
@@ -153,6 +155,28 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
+  // Em erro, de tipo habilitado que NÃO é de alcance (o de alcance está na leitura lá de cima), nos últimos 14 dias.
+  // Esses tipos só guardam o bruto: `erro` aqui é bruto que não foi guardado (grande_demais, url_inesperada).
+  const outros = HABILITADOS.filter(t => !ALCANCE.includes(t))
+  if (outros.length > 0) {
+    const err = await ctx.supabase
+      .from('yt_reporting_reports')
+      .select('report_id, channel_id, report_type_id, status, create_time, error')
+      .eq('status', 'erro')
+      .in('report_type_id', outros)
+      .gte('create_time', corte14)
+      .limit(LIMITE_LEITURA)
+    if (leituraOk(err, 'yt_reporting_reports', 'relatórios em erro', ctx.falhas)) {
+      const lidos = (err.data ?? []) as Array<Recente & { error: string | null }>
+      if (lidos.length >= LIMITE_LEITURA) {
+        naoAvaliou(ctx.falhas, `relatórios em erro (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
+      }
+      for (const r of lidos) {
+        pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório ${r.report_type_id} em erro (${r.error ?? 'sem texto'})`)
+      }
+    }
+  }
+
   // Listado há mais de 14 dias: tem conserto (baixar), então é falha enquanto durar. Só tipo habilitado: o listado
   // de um tipo desligado nunca será baixado, e contá-lo deixaria o cron vermelho até o relatório expirar.
   const atras = await ctx.supabase
@@ -171,12 +195,12 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   }
 
   // Perdidos: sem conserto. Manter o vermelho para sempre esconderia as falhas novas.
-  // Erro só conta em tipo de alcance (os outros não entram nos critérios); expirado conta em qualquer tipo.
+  // Erro conta em qualquer tipo habilitado (depois da E12 todos guardam bruto); expirado conta em qualquer tipo.
   const perdErro = await ctx.supabase
     .from('yt_reporting_reports')
     .select('report_id', { count: 'exact', head: true })
     .eq('status', 'erro')
-    .in('report_type_id', [...ALCANCE])
+    .in('report_type_id', [...HABILITADOS])
     .lt('create_time', corte14)
   const perdExp = await ctx.supabase
     .from('yt_reporting_reports')
@@ -193,10 +217,38 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
+  // Tipo HABILITADO cuja linha está em `desativado`: o passo de jobs não passou por este canal (sem token, sem tempo
+  // ou exceção) e o job não foi criado. Sem job não há relatório, e cada dia sem job é um dia de histórico que não volta.
+  const semJob = await ctx.supabase
+    .from('yt_reporting_jobs')
+    .select('channel_id, report_type_id')
+    .eq('status', 'desativado')
+    .in('report_type_id', [...HABILITADOS])
+    .limit(LIMITE_LEITURA)
+  if (leituraOk(semJob, 'yt_reporting_jobs', 'tipos habilitados sem job', ctx.falhas)) {
+    const linhas = (semJob.data ?? []) as Array<{ channel_id: string; report_type_id: string }>
+    if (linhas.length >= LIMITE_LEITURA) {
+      naoAvaliou(ctx.falhas, `tipos habilitados sem job (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
+    }
+    const porCanal = new Map<string, string[]>()
+    for (const l of linhas) {
+      const canal = ctx.channels.find(c => c.id === l.channel_id)
+      if (!canal || !canal.sync_enabled) continue // canal desligado não pede job
+      porCanal.set(l.channel_id, [...(porCanal.get(l.channel_id) ?? []), l.report_type_id])
+    }
+    for (const [id, tipos] of porCanal) {
+      const canal = ctx.channels.find(c => c.id === id)!
+      const texto = `${canal.name} tem ${tipos.length} tipo(s) de relatório habilitado(s) sem job: ${[...tipos].sort().join(', ')}`
+      // Canal que perdeu a autorização: só o dono resolve (reconectar); já sai como "<canal>: reautorizar".
+      if (canal.collection_status === 'reautorizar') out.acao_do_dono!.push(`${texto} (o canal precisa ser reconectado)`)
+      else pushUnico(ctx.falhas, `jobs: ${texto}`)
+    }
+  }
+
   // Jobs: uma leitura só (no máximo canais x tipos linhas) serve ao critério de 6 dias e à lista do dono.
   const jobs = await ctx.supabase
     .from('yt_reporting_jobs')
-    .select('channel_id, report_type_id, status, job_create_time, created_at')
+    .select('channel_id, report_type_id, status, job_create_time, created_at, last_create_time')
     .neq('status', 'desativado')
     .limit(LIMITE_LEITURA)
   if (!leituraOk(jobs, 'yt_reporting_jobs', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
@@ -208,6 +260,19 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
 
   for (const j of linhasJob) {
     if (ESTADOS_DO_DONO.includes(j.status)) out.acao_do_dono!.push(`${nome(j.channel_id)}: ${j.report_type_id} em ${j.status}`)
+  }
+
+  // Tipos que só guardam bruto: job ativo há mais de 6 dias cuja listagem não vê relatório novo há mais de 6 dias.
+  // Usa a marca do próprio job (`last_create_time`), sem ler relatórios: o YouTube gera relatório todo dia, mesmo só
+  // com cabeçalho, então job ativo sem relatório é job parado, não "nada a baixar". Marca nula = nunca chegou nenhum.
+  for (const j of linhasJob) {
+    if (j.status !== 'ativo' || ALCANCE.includes(j.report_type_id) || !HABILITADOS.includes(j.report_type_id)) continue
+    const canal = ctx.channels.find(c => c.id === j.channel_id)
+    if (!canal || !canal.sync_enabled || canal.collection_status === 'reautorizar') continue
+    const idade = j.job_create_time ?? j.created_at
+    if (!idade || Date.parse(idade) >= corte6) continue
+    if (j.last_create_time && Date.parse(j.last_create_time) >= corte6) continue
+    pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
   }
 
   // Job de alcance ativo há mais de 6 dias sem relatório novo, em canal que publicou nos últimos 90 dias.
