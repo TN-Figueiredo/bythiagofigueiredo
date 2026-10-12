@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { criteriosRelatorios, criterioJobsEmErro, criterioOrcamento, criterioMetadados } from '@/lib/youtube/coleta/criteria'
+import { REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { fakeSupabase, type FakeDb, type FakeErr, type Row } from './fake-supabase'
 
 const AGORA = new Date('2026-10-07T12:05:00.000Z')
@@ -165,7 +166,7 @@ describe('criteriosRelatorios', () => {
   })
 
   it('tipo tirado de REPORT_TYPES_ENABLED: o listado antigo e o expirado dele não deixam o cron vermelho (ninguém vai baixá-los)', async () => {
-    const FORA = 'channel_demographics_a1'
+    const FORA = 'channel_annotations_a1'
     const db = fakeSupabase({
       yt_reporting_reports: [rel('a', 'listado', 15, FORA), rel('b', 'listado', 40, FORA), rel('c', 'expirado_sem_baixar', 2, FORA)],
     })
@@ -244,7 +245,7 @@ describe('criteriosRelatorios: venceu sem baixar, aviso que persiste e termina',
 
   it('nada venceu, ou só tipo fora da lista, ou só baixado/erro: sem nota (ausência de perda é o estado saudável, dito aqui)', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [
-      vencido('a', 40, 'channel_demographics_a1', true),                 // tipo desligado: ninguém baixaria
+      vencido('a', 40, 'channel_annotations_a1', true),                // tipo desligado: ninguém baixaria
       vencido('b', 40, 'channel_basic_a3', true, 'baixado'),
       vencido('c', 40, 'channel_basic_a3', true, 'listado'),
     ] })
@@ -737,12 +738,12 @@ describe('fix round 1', () => {
     expect(r.acao_do_dono).toEqual([])
   })
 
-  it('job ativo de tipo que só guarda bruto, há mais de 6 dias, sem relatório novo (marca nula ou velha): falha; com marca recente, não', async () => {
+  it('job ativo de tipo que só guarda bruto, há mais de 6 dias, cuja marca de relatório ficou velha: falha; com marca recente, não', async () => {
     const job = (tipo: string, marca: string | null): Row => ({
       channel_id: 'ch-1', report_type_id: tipo, status: 'ativo', job_id: `j-${tipo}`, job_create_time: ha(10), created_at: ha(10), last_create_time: marca,
     })
     const ctx = ctxDe(fakeSupabase({
-      yt_reporting_jobs: [job('channel_basic_a3', null), job('channel_traffic_source_a3', ha(7)), { ...job('channel_annotations_a1', null) }],
+      yt_reporting_jobs: [job('channel_basic_a3', ha(8)), job('channel_traffic_source_a3', ha(7)), { ...job('channel_annotations_a1', null) }],
     }))
     await criteriosRelatorios(ctx)
     expect(ctx.falhas).toEqual([
@@ -776,7 +777,7 @@ describe('fix round 1', () => {
 describe('E12 onda 2, D1: job de tipo que só guarda bruto sem relatório novo e a conexão do canal', () => {
   const MSG = 'relatórios: Canal Um está sem relatório novo de channel_basic_a3 há mais de 6 dias'
   const CONEXAO = 'Canal Um: sem conexão com o YouTube'
-  const jobBruto = (idadeDias: number, marca: string | null = null): Row => ({
+  const jobBruto = (idadeDias: number, marca: string | null = ha(idadeDias)): Row => ({
     channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'ativo', job_id: 'j', job_create_time: ha(idadeDias), created_at: ha(idadeDias), last_create_time: marca,
   })
   const rodar = async (tabelas: Record<string, Row[]>, canalAjustado: Partial<typeof canal> = {}) => {
@@ -855,7 +856,7 @@ describe('E12 onda 2, D1: job de tipo que só guarda bruto sem relatório novo e
 })
 
 describe('E12 onda 2, D4: tipo habilitado sem NENHUMA linha de job', () => {
-  const TIPOS = ['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_basic_a3', 'channel_traffic_source_a3']
+  const TIPOS: string[] = [...REPORT_TYPES_ENABLED]
   const linha = (tipo: string, status = 'ativo'): Row => ({ channel_id: 'ch-1', report_type_id: tipo, status, job_id: `j-${tipo}`, job_create_time: ha(1), created_at: ha(1), last_create_time: ha(0) })
   const sondagemOk = (dias = 0): Row => tentativa('canal', 'ch-1', 'sondagem', 'ok', dias)
   const rodar = async (tabelas: Record<string, Row[]>, canalAjustado: Partial<typeof canal> = {}, erros: Record<string, FakeErr> = {}) => {
@@ -876,7 +877,7 @@ describe('E12 onda 2, D4: tipo habilitado sem NENHUMA linha de job', () => {
 
   it('nenhuma linha de job nenhuma, depois de uma sondagem ok: todos os tipos habilitados aparecem', async () => {
     const { ctx } = await rodar({ yt_own_collection_attempts: [sondagemOk(2)] })
-    expect(ctx.falhas).toEqual([`jobs: Canal Um tem 4 tipo(s) de relatório habilitado(s) sem job: ${[...TIPOS].sort().join(', ')}`])
+    expect(ctx.falhas).toEqual([`jobs: Canal Um tem ${TIPOS.length} tipo(s) de relatório habilitado(s) sem job: ${[...TIPOS].sort().join(', ')}`])
   })
 
   it('o passo de jobs nunca rodou para o canal (nenhuma sondagem ok): ainda é cedo, silêncio', async () => {
@@ -889,7 +890,9 @@ describe('E12 onda 2, D4: tipo habilitado sem NENHUMA linha de job', () => {
 
   it('linha desativado e linha ausente do mesmo canal viram UMA nota com os dois tipos', async () => {
     const { ctx } = await rodar({
-      yt_reporting_jobs: [linha('channel_reach_basic_a1'), linha('channel_reach_combined_a1', 'desativado'), linha('channel_traffic_source_a3')],
+      yt_reporting_jobs: TIPOS
+        .filter(t => t !== 'channel_basic_a3') // este é o ausente
+        .map(t => linha(t, t === 'channel_reach_combined_a1' ? 'desativado' : 'ativo')),
       yt_own_collection_attempts: [sondagemOk(1)],
     })
     expect(ctx.falhas).toEqual(['jobs: Canal Um tem 2 tipo(s) de relatório habilitado(s) sem job: channel_basic_a3, channel_reach_combined_a1'])
@@ -899,13 +902,13 @@ describe('E12 onda 2, D4: tipo habilitado sem NENHUMA linha de job', () => {
     const tabelas = { yt_own_collection_attempts: [sondagemOk(3)] }
     const a = await rodar(tabelas, { collection_status: 'reautorizar' })
     expect(a.ctx.falhas).toEqual([])
-    expect(a.r.acao_do_dono).toEqual([`Canal Um tem 4 tipo(s) de relatório habilitado(s) sem job: ${[...TIPOS].sort().join(', ')} (o canal precisa ser reconectado)`])
+    expect(a.r.acao_do_dono).toEqual([`Canal Um tem ${TIPOS.length} tipo(s) de relatório habilitado(s) sem job: ${[...TIPOS].sort().join(', ')} (o canal precisa ser reconectado)`])
     const b = await rodar(tabelas, { sync_enabled: false })
     expect(b.ctx.falhas).toEqual([])
     expect(b.r.acao_do_dono).toEqual([])
   })
 
-  it('os quatro tipos com linha: nada (a ausência só é falha quando falta de fato)', async () => {
+  it('todos os tipos habilitados com linha: nada (a ausência só é falha quando falta de fato)', async () => {
     const { ctx } = await rodar({ yt_reporting_jobs: TIPOS.map(t => linha(t)), yt_own_collection_attempts: [sondagemOk(0)] })
     expect(ctx.falhas).toEqual([])
   })
@@ -913,5 +916,95 @@ describe('E12 onda 2, D4: tipo habilitado sem NENHUMA linha de job', () => {
   it('a leitura das sondagens falha: não avaliou (nunca verde)', async () => {
     const { ctx } = await rodar({ yt_reporting_jobs: [linha('channel_reach_basic_a1')] }, {}, { yt_own_collection_attempts: ERRO })
     expect(naoAvaliou(ctx.falhas, 'tipos habilitados sem job (yt_own_collection_attempts)')).toBe(true)
+  })
+})
+
+describe('E12 onda 4, E1: "nunca gerou relatório" é aviso do dono; "gerou e parou" é falha', () => {
+  const NUNCA = (tipo: string, desde: string) =>
+    `Canal Um: ${tipo} nunca gerou relatório desde ${desde}; confira se o YouTube gera esse tipo para este canal`
+  const PAROU = (tipo: string) => `relatórios: Canal Um está sem relatório novo de ${tipo} há mais de 6 dias`
+  const job = (tipo: string, idadeDias: number, marca: string | null): Row => ({
+    channel_id: 'ch-1', report_type_id: tipo, status: 'ativo', job_id: `j-${tipo}`, job_create_time: ha(idadeDias), created_at: ha(idadeDias), last_create_time: marca,
+  })
+  const rodar = async (tabelas: Record<string, Row[]>, canalAjustado: Partial<typeof canal> = {}) => {
+    const ctx = { supabase: fakeSupabase(tabelas).client, falhas: [] as string[], channels: [{ ...canal, ...canalAjustado }] }
+    const r = await criteriosRelatorios(ctx)
+    return { ctx, r }
+  }
+
+  it('job novo ativo há 10 dias que NUNCA gerou relatório: acao_do_dono com tipo, canal e data; não deixa o cron vermelho', async () => {
+    const { ctx, r } = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 10, null)] })
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual([NUNCA('channel_basic_a3', ha(10).slice(0, 10))])
+  })
+
+  it('o aviso NÃO some em silêncio: aparece de novo a cada execução enquanto o relatório não chega (dias seguidos)', async () => {
+    const tabelas = { yt_reporting_jobs: [job('channel_basic_a3', 10, null)] }
+    const a = await rodar(tabelas)
+    expect(a.r.acao_do_dono).toHaveLength(1)
+    vi.setSystemTime(new Date(AGORA.getTime() + DIA_MS))
+    const b = await rodar(tabelas)
+    expect(b.r.acao_do_dono).toEqual([NUNCA('channel_basic_a3', ha(10).slice(0, 10))]) // a data é a da criação do job, não a de hoje
+    expect(b.ctx.falhas).toEqual([])
+  })
+
+  it('job que JÁ gerou relatório e parou há mais de 6 dias: falha (vermelho), como antes, e nada em acao_do_dono', async () => {
+    const { ctx, r } = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 20, ha(8))] })
+    expect(ctx.falhas).toEqual([PAROU('channel_basic_a3')])
+    expect(r.acao_do_dono).toEqual([])
+  })
+
+  it('os dois casos juntos, no mesmo canal, saem cada um no seu lugar', async () => {
+    const { ctx, r } = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 10, null), job('channel_traffic_source_a3', 10, ha(7))] })
+    expect(ctx.falhas).toEqual([PAROU('channel_traffic_source_a3')])
+    expect(r.acao_do_dono).toEqual([NUNCA('channel_basic_a3', ha(10).slice(0, 10))])
+  })
+
+  it('fronteira da idade: criado há 6 dias e 1 hora com marca nula avisa; há 5 dias e 23 horas, silêncio', async () => {
+    const hora = 3_600_000
+    const com = (msAtras: number): Row => ({ ...job('channel_basic_a3', 0, null), job_create_time: new Date(AGORA.getTime() - msAtras).toISOString() })
+    const velho = await rodar({ yt_reporting_jobs: [com(6 * DIA_MS + hora)] })
+    expect(velho.r.acao_do_dono).toHaveLength(1)
+    expect(velho.ctx.falhas).toEqual([])
+    const novo = await rodar({ yt_reporting_jobs: [com(6 * DIA_MS - hora)] })
+    expect(novo.r.acao_do_dono).toEqual([])
+    expect(novo.ctx.falhas).toEqual([])
+  })
+
+  it('fronteira da marca: último relatório há 5 dias e 23 horas, silêncio; há 6 dias e 1 hora, falha (e não aviso)', async () => {
+    const hora = 3_600_000
+    const marca = (msAtras: number) => new Date(AGORA.getTime() - msAtras).toISOString()
+    const ok = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 30, marca(6 * DIA_MS - hora))] })
+    expect(ok.ctx.falhas).toEqual([])
+    expect(ok.r.acao_do_dono).toEqual([])
+    const parou = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 30, marca(6 * DIA_MS + hora))] })
+    expect(parou.ctx.falhas).toEqual([PAROU('channel_basic_a3')])
+    expect(parou.r.acao_do_dono).toEqual([])
+  })
+
+  it('canal sem conexão hoje: só a nota de conexão (o "nunca gerou" é consequência, não vai junto)', async () => {
+    const { ctx, r } = await rodar({
+      yt_reporting_jobs: [job('channel_basic_a3', 10, null)],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 0)],
+    })
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual(['Canal Um: sem conexão com o YouTube'])
+  })
+
+  it('canal desligado ou em reautorizar: silêncio, como antes', async () => {
+    const a = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 10, null)] }, { sync_enabled: false })
+    expect(a.r.acao_do_dono).toEqual([])
+    const b = await rodar({ yt_reporting_jobs: [job('channel_basic_a3', 10, null)] }, { collection_status: 'reautorizar' })
+    expect(b.r.acao_do_dono).toEqual([])
+    expect(b.ctx.falhas).toEqual([])
+  })
+
+  it('tipos de alcance não mudam: job de alcance há 10 dias, marca nula, sem relatório e canal que publicou, continua falha', async () => {
+    const { ctx, r } = await rodar({
+      yt_reporting_jobs: [{ ...jobAtivo(10), last_create_time: null }],
+      youtube_videos: [{ id: 'v1', channel_id: 'ch-1', published_at: ha(30) }],
+    })
+    expect(ctx.falhas).toEqual([PAROU('channel_reach_basic_a1')])
+    expect(r.acao_do_dono).toEqual([])
   })
 })
