@@ -22,7 +22,7 @@ describe('lerAlcance', () => {
   })
   it('tabelas vazias: ok com listas vazias (o modelo decide a frase), nunca um zero', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [] })
-    expect(await lerAlcance(db.client, pedido)).toEqual({ acesso: 'ok', dado: { canalId: C, relatorios: [], linhas: [] } })
+    expect(await lerAlcance(db.client, pedido)).toEqual({ acesso: 'ok', dado: { canalId: C, relatorios: [], linhas: [], ctrDescartados: 0 } })
   })
   it('os três estados chegam ao modelo como vieram do banco', async () => {
     const db = fakeSupabase({
@@ -136,11 +136,36 @@ describe('lerDiario', () => {
 })
 
 describe('contrato da fonte (unidade do CTR e linha repetida)', () => {
-  it('CTR fora de 0 a 1 (percentual, negativo) é LANÇADO: não passa calado nem vira clique', async () => {
+  it('CTR fora de 0 a 1 (percentual, negativo) NÃO derruba a leitura: a linha passa com CTR nulo e a impressão fica', async () => {
     for (const ctr of [5.2, 1.0001, -0.1]) {
       const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 100, ctr)] })
-      await expect(lerAlcance(db.client, pedido)).rejects.toThrow(/thumbnail_ctr/)
+      const r = await lerAlcance(db.client, pedido)
+      if (r.acesso !== 'ok') throw new Error('esperava ok')
+      expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: 100, ctr: null }])
+      expect(r.dado.ctrDescartados).toBe(1)
     }
+  })
+  it('a contagem de CTR descartado soma só as linhas estragadas: boas, nulas e extremos não entram', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [
+      alcance('v1', d(3), 100, 33.3), alcance('v2', d(3), 100, 0.04), alcance('v3', d(3), 100, null), alcance('v4', d(3), 100, 0), alcance('v5', d(3), 100, 1), alcance('v6', d(2), 50, -1),
+    ] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.ctrDescartados).toBe(2)
+    expect(r.dado.linhas.map(l => l.ctr).sort()).toEqual([0, 0.04, 1, null, null, null].sort())
+  })
+  it('linha repetida: só a que vence conta no descarte (a perdedora estragada não)', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [
+      alcance('v1', d(3), 10, 0.1, { collected_at: '2026-10-11T10:00:00Z' }), alcance('v1', d(3), 20, 9, { collected_at: '2026-10-09T10:00:00Z' }),
+    ] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: 10, ctr: 0.1 }])
+    expect(r.dado.ctrDescartados).toBe(0)
+  })
+  it('erro de consulta continua lançando mesmo com CTR estragado na outra tabela', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [alcance('v1', d(3), 100, 5)] }, { failOn: 'yt_reporting_reports' })
+    await expect(lerAlcance(db.client, pedido)).rejects.toThrow()
   })
   it('CTR nos extremos 0 e 1 passa (zero medido é zero)', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 100, 0), alcance('v2', d(3), 1, 1)] })

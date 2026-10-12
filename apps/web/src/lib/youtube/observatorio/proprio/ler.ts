@@ -5,7 +5,6 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { readAll } from '../load'
-import { ObservatoryLoadError } from '../niches-db'
 import { JANELA_ALCANCE_DIAS } from './dias'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
@@ -45,14 +44,14 @@ function umaPorVideoDia<T extends { youtube_video_id: string; day_pt: string; co
   return [...por.values()]
 }
 
-/** CTR é fração de 0 a 1 (migration L2). Fora disso o contrato da fonte quebrou: lança, não passa calado nem vira percentual. */
-function ctrDe(x: unknown): number | null {
+/** CTR é fração de 0 a 1 (migration L2). Fora disso o valor não é confiável: vira nulo (não medido) e `descartado` avisa quem chama. */
+function ctrDe(x: unknown): { ctr: number | null; descartado: boolean } {
   const n = num(x)
-  if (n != null && (n < 0 || n > 1)) throw new ObservatoryLoadError('yt_own_video_reach_daily', undefined, `thumbnail_ctr fora de 0 a 1: ${n}`)
-  return n
+  if (n != null && (n < 0 || n > 1)) return { ctr: null, descartado: true }
+  return { ctr: n, descartado: false }
 }
 
-/** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_ALCANCE_DIAS + 5 dias. Erro de banco é LANÇADO. */
+/** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_ALCANCE_DIAS + 5 dias. Erro de banco é LANÇADO; CTR fora de 0 a 1 não lança (vira nulo e entra em `ctrDescartados`). */
 export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado<AlcanceCanal>> {
   if (!p.podeEditar) return { acesso: 'negado' }
   const desde = addDays(p.hoje, -(JANELA_ALCANCE_DIAS + 5))
@@ -67,8 +66,13 @@ export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado
       .gte('day_pt', desde).order('day_pt').order('youtube_video_id')),
   ])
   const relatorios: RelatorioDia[] = rels.map(r => ({ dia: r.start_time.slice(0, 10), status: statusDe(r.status), normalizado: r.normalized_at != null }))
-  const out: AlcanceLinha[] = umaPorVideoDia(linhas).map(r => ({ ytId: r.youtube_video_id, dia: r.day_pt, imp: num(r.thumbnail_impressions), ctr: ctrDe(r.thumbnail_ctr) }))
-  return { acesso: 'ok', dado: { canalId: p.canalId, relatorios, linhas: out } }
+  let ctrDescartados = 0
+  const out: AlcanceLinha[] = umaPorVideoDia(linhas).map(r => {
+    const { ctr, descartado } = ctrDe(r.thumbnail_ctr)
+    if (descartado) ctrDescartados++
+    return { ytId: r.youtube_video_id, dia: r.day_pt, imp: num(r.thumbnail_impressions), ctr }
+  })
+  return { acesso: 'ok', dado: { canalId: p.canalId, relatorios, linhas: out, ctrDescartados } }
 }
 
 /** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos últimos JANELA_DIARIO_DIAS + 10 dias. */
