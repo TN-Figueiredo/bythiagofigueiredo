@@ -19,7 +19,7 @@ import {
   type MotivoSemMedida,
 } from './posicao-model'
 import { effView } from '../_chrome/effect-view'
-import { vpdText } from '../_canal/numeros'
+import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 
 const NB = ' '
@@ -257,11 +257,12 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   }
   const outs = (c: ObsChannel, f: Fmt) => obs.outliers({ channel: c.id, fmt: f, niche: 'todos', includeOwn: c.own })
   const ch30 = (c: ObsChannel) => (c.own ? [] : obs.changesIn({ days: 30, channel: c.id }))
-  const groupsOf = (list: ObsChange[]) => {
+  /** `soTituloEThumb`: o resumo da coluna Trocas da lista não nomeia descrição (nem como par da mesma janela); o painel lateral, que lista cada evento, nomeia. */
+  const groupsOf = (list: ObsChange[], soTituloEThumb = false) => {
     const seen = new Set<string>(), gs: ObsChange[][] = []
     for (const x of list) {
       if (seen.has(x.id)) continue
-      const items = [x, ...x.sameWindow.map(id => obs.change(id)).filter((y): y is ObsChange => !!y)]
+      const items = [x, ...x.sameWindow.map(id => obs.change(id)).filter((y): y is ObsChange => !!y)].filter(i => !soTituloEThumb || contaComoTroca(i))
       items.forEach(i => seen.add(i.id)); gs.push(items)
     }
     return gs
@@ -410,7 +411,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       outliers: semShorts || bf ? null : S.outliers90,
       growth: S.growth30.pending ? null : S.growth30.pct,
       vpd: semShorts || bf ? null : vpdVal(S),
-      swaps: bf || c.own ? null : ch30(c).length,
+      swaps: bf || c.own ? null : trocas30(obs, c.id), // a mesma conta do cabeçalho do canal e da comparação: título e thumbnail
       subs: c.subs,
     }
     valCache.set(c.id, v)
@@ -439,10 +440,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const S2 = todos ? stats(c.id, 'short') : null
     const cells2 = S2 ? { cadence2: cadenceCell(c, 'short', bf, false, true), vpd2: vpdCell(c, 'short', S2, bf, false, true), out2: outCell(c, 'short', S2, bf, false, true) } : {}
     const nulos = obs.videos.filter(x => x.ch === c.id && x.tracked && x.isShort == null).length
-    const list = ch30(c), g = groupsOf(list)[0]
+    const trocas = c.own ? [] : trocasDe30(obs, c.id), g = groupsOf(trocas, true)[0]
     const swap: SwapCell = c.own ? { kind: 'na', text: 'Suas trocas ficam no A/B Lab.' }
       : bf ? { kind: 'na', text: 'Trocas são detectadas a partir de agora.' }
-        : { kind: 'ok', n: list.length, last: g ? groupText(g) : `nenhuma em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
+        : { kind: 'ok', n: trocas.length, last: g ? groupText(g) : `nenhuma em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
     const growth = growthCell(c, S.growth30)
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count

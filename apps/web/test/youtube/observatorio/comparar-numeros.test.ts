@@ -556,12 +556,13 @@ describe('views por dia: o MESMO texto na lista de Canais, no cabeçalho do cana
     const r2 = [...v.list.ranked, ...v.list.unranked].find(r => r.id === 'leo-khev')!
     expect(r2.cells.vpd.kind === 'ok' && sem(r2.cells.vpd.abs ?? '')).toBe(nums(mundo.obs, 'leo-khev').vpd.texto)
   })
-  it('a contagem de Trocas da lista NÃO muda (conta a descrição, coluna de produção); a comparação conta título e thumbnail', () => {
+  it('a contagem de Trocas da lista é a da comparação: título e thumbnail, sem descrição (11b B3; antes a lista contava a descrição)', () => {
     const id = 'matt-wolfe'
     const lista = [...buildCaisLista(BASE.obs)].find(r => r.id === id)!
     const todas = BASE.obs.changesIn({ days: 30, channel: id }).length
-    expect(lista.cells.swap.kind === 'ok' && lista.cells.swap.n).toBe(todas)
-    expect(Number(nums(BASE.obs, id).trocas30.texto)).toBeLessThan(todas)
+    const n = Number(nums(BASE.obs, id).trocas30.texto)
+    expect(lista.cells.swap.kind === 'ok' && lista.cells.swap.n).toBe(n)
+    expect(n).toBeLessThan(todas)
   })
 })
 function buildCaisLista(obs: Observatory) {

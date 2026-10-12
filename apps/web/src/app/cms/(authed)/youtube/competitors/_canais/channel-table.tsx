@@ -24,7 +24,7 @@ const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boole
   { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem' },
   { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 118 },
   { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias' },
-  { k: 'swaps', label: 'Trocas', unit: '30 d, por evento, longos e Shorts' },
+  { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts' },
   { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true },
 ]
 

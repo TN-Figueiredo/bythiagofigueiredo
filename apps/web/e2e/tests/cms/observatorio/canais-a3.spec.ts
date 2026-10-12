@@ -1111,3 +1111,49 @@ for (const fmt of ['longos', 'shorts', 'todos'] as const) {
     expect(r.pequenos, 'nenhum texto alargado abaixo de 11,5 px').toEqual([])
   })
 }
+
+/* ================================================================== 11b B3 */
+test('11b B3 a coluna Trocas da lista conta título e thumbnail (sem descrição): o cabeçalho diz isso e cada canal mostra o mesmo número da linha "Trocas de título e thumbnail em 30 dias" da comparação', async ({ page }) => {
+  await abrir(page, '?fmt=longos')
+  const th = page.locator(`${S}:visible thead th[data-k="swaps"]`).first()
+  const unidade = ((await th.locator('.unit').textContent()) ?? '').trim()
+  medida(`B3 cabeçalho da coluna Trocas: "${((await th.locator('button').textContent()) ?? '').trim()}" / "${unidade}"`)
+  expect(unidade).toBe('título e thumbnail, 30 d, longos e Shorts')
+  expect(unidade).not.toMatch(/descri/i)
+  // o número que a lista desenha para cada concorrente (a primeira sincronização e o canal próprio dizem uma frase, não um número)
+  const lista = await page.evaluate(() => {
+    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+    return [...raiz.querySelectorAll<HTMLElement>('tbody tr.row')].map(tr => ({ id: tr.dataset.id!, n: tr.querySelector('.swap [data-k="sw"]')?.textContent ?? null, frase: tr.querySelector('td .na')?.textContent ?? null }))
+  })
+  const comNumero = lista.filter(l => l.n != null)
+  medida(`B3 lista: ${comNumero.length} concorrentes com número; ${lista.length - comNumero.length} sem (frase de não medido)`)
+  expect(comNumero.length).toBeGreaterThan(3)
+  for (const l of comNumero) expect(l.n, l.id).toMatch(/^\d+$/)
+  // o canal que o oráculo faz mudar de 7 para 6 e o que tinha só troca de descrição (de 1 para 0): a lista e a comparação concordam
+  const nomes = ['matt-wolfe', 'nate-herk', 'paddy-doyle']
+  const doOraculo: Record<string, string> = { 'matt-wolfe': '6', 'nate-herk': '0', 'paddy-doyle': '1' }
+  const lido: string[] = []
+  for (const nome of nomes) {
+    const id = ids.channel(nome)
+    const naLista = comNumero.find(l => l.id === id)
+    expect(naLista, `${nome} está na lista com número`).toBeTruthy()
+    await page.goto(`${ROTA}/comparar?a=${idDoPrimeiroProprio()}&b=${id}`)
+    await page.locator(`[data-obs-screen="comparar"]:visible table`).first().waitFor({ timeout: 60_000 })
+    const linha = page.locator(`[data-obs-screen="comparar"]:visible tbody tr:not(.grp)`).filter({ has: page.locator('th.rl', { hasText: 'Trocas de título e thumbnail em 30 dias' }) }).first()
+    const txt = ((await linha.locator('td.cB').first().innerText()) ?? '').replace(/\s+/g, ' ')
+    const naComparacao = /(\d+)/.exec(txt)?.[1]
+    lido.push(`${nome}: lista ${naLista!.n}, comparação ${naComparacao} ("${txt.slice(0, 40)}")`)
+    expect(naComparacao, `${nome}: a comparação diz o mesmo número que a lista`).toBe(naLista!.n)
+    expect(naLista!.n, `${nome}: sem a troca de descrição`).toBe(doOraculo[nome])
+  }
+  medida(`B3 ${lido.join(' | ')}`)
+  // ordenar por Trocas: o primeiro da fila tem o maior número da lista
+  await abrir(page, '?fmt=longos&sort=swaps&dir=desc')
+  const ordem = await page.evaluate(() => {
+    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+    return [...raiz.querySelectorAll<HTMLElement>('tbody tr.row')].map(tr => Number(tr.querySelector('.swap [data-k="sw"]')?.textContent ?? NaN)).filter(n => !Number.isNaN(n))
+  })
+  medida(`B3 ordem por Trocas (maior primeiro): ${ordem.join(', ')}`)
+  expect(ordem).toEqual([...ordem].sort((a, b) => b - a))
+  expect(ordem[0]).toBe(Math.max(...comNumero.map(l => Number(l.n))))
+})

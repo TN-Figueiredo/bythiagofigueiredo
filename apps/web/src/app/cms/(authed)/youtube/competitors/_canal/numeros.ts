@@ -1,4 +1,5 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
+import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { Fmt, ObsVideo } from '@/lib/youtube/observatorio/types'
 
 /** Views por dia (spec 19.3): zero medido é "0"; abaixo de 10, uma casa; de 10 a 999, inteiro; milhar depois. */
@@ -36,9 +37,17 @@ export function duracaoMediana(obs: Pick<Observatory, 'median'>, vids: readonly 
   return { median: obs.median(xs), n: xs.length }
 }
 
+/** Só a troca de título e a de thumbnail contam como "troca" nos números do canal (a de descrição não: emenda 44.2, e o dono, 11/10, para a lista de Canais). */
+export const contaComoTroca = (c: Pick<ObsChange, 'type'>): boolean => c.type === 'title' || c.type === 'thumb'
+
+/** As trocas de título e thumbnail dos últimos 30 dias, da mais recente para a mais antiga. É a base de TODA contagem de trocas em 30 dias (lista, cabeçalho, comparação). */
+export function trocasDe30(obs: Pick<Observatory, 'changesIn'>, channelId: string): ObsChange[] {
+  return obs.changesIn({ days: 30, channel: channelId }).filter(contaComoTroca)
+}
+
 /** Trocas de título e thumbnail nos últimos 30 dias (a troca de descrição não conta: emenda 44.2). */
 export function trocas30(obs: Pick<Observatory, 'changesIn'>, channelId: string): number {
-  return obs.changesIn({ days: 30, channel: channelId }).filter(c => c.type === 'title' || c.type === 'thumb').length
+  return trocasDe30(obs, channelId).length
 }
 
 /** "k de n": os longos de até 90 dias com 2× ou mais. null = nenhum longo com múltiplo, não há de quê contar (o zero medido é "0 de n"). */
