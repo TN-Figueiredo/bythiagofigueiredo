@@ -276,26 +276,56 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
-  // Tipo HABILITADO cuja linha está em `desativado`: o passo de jobs não passou por este canal (sem token, sem tempo
-  // ou exceção) e o job não foi criado. Sem job não há relatório, e cada dia sem job é um dia de histórico que não volta.
+  // Tipo HABILITADO sem job: (a) a linha está em `desativado` (o passo de jobs não passou por este canal: sem token, sem
+  // tempo ou exceção) ou (b) NÃO HÁ LINHA nenhuma. Sem job não há relatório, e cada dia sem job é um dia de histórico que
+  // não volta. A ausência da linha é o caso "o dado não existe": só vale depois de o passo de jobs ter rodado ao menos
+  // uma vez para o canal (sondagem `ok` registrada), porque antes disso é só cedo demais e o próprio passo cria a linha.
   const semJob = await ctx.supabase
     .from('yt_reporting_jobs')
-    .select('channel_id, report_type_id')
-    .eq('status', 'desativado')
+    .select('channel_id, report_type_id, status')
     .in('report_type_id', [...HABILITADOS])
     .limit(LIMITE_LEITURA)
   if (leituraOk(semJob, 'yt_reporting_jobs', 'tipos habilitados sem job', ctx.falhas)) {
-    const linhas = (semJob.data ?? []) as Array<{ channel_id: string; report_type_id: string }>
-    if (linhas.length >= LIMITE_LEITURA) {
-      naoAvaliou(ctx.falhas, `tipos habilitados sem job (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
+    const linhas = (semJob.data ?? []) as Array<{ channel_id: string; report_type_id: string; status: string }>
+    const cortada = linhas.length >= LIMITE_LEITURA
+    if (cortada) naoAvaliou(ctx.falhas, `tipos habilitados sem job (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
+    const porCanal = new Map<string, Set<string>>()
+    const acrescentar = (canalId: string, tipo: string): void => {
+      porCanal.set(canalId, (porCanal.get(canalId) ?? new Set<string>()).add(tipo))
     }
-    const porCanal = new Map<string, string[]>()
     for (const l of linhas) {
+      if (l.status !== 'desativado') continue
       const canal = ctx.channels.find(c => c.id === l.channel_id)
       if (!canal || !canal.sync_enabled) continue // canal desligado não pede job
-      porCanal.set(l.channel_id, [...(porCanal.get(l.channel_id) ?? []), l.report_type_id])
+      acrescentar(l.channel_id, l.report_type_id)
     }
-    for (const [id, tipos] of porCanal) {
+    // Sem linha: só com a leitura inteira (cortada, "ausente" poderia ser "não lido").
+    const comLinha = (canalId: string): Set<string> => new Set(linhas.filter(l => l.channel_id === canalId).map(l => l.report_type_id))
+    const comAusencia = cortada
+      ? []
+      : ctx.channels.filter(c => c.sync_enabled && HABILITADOS.some(t => !comLinha(c.id).has(t)))
+    if (comAusencia.length > 0) {
+      const desde = addDays(utcDay(new Date()), -30)
+      const son = await ctx.supabase
+        .from('yt_own_collection_attempts')
+        .select('scope_id')
+        .eq('scope_type', 'canal')
+        .eq('kind', 'sondagem')
+        .eq('outcome', 'ok')
+        .gte('attempt_day', desde)
+        .in('scope_id', comAusencia.map(c => c.id))
+        .limit(LIMITE_LEITURA)
+      if (leituraOk(son, 'yt_own_collection_attempts', 'tipos habilitados sem job', ctx.falhas)) {
+        const rodou = new Set(((son.data ?? []) as Array<{ scope_id: string }>).map(r => r.scope_id))
+        for (const c of comAusencia) {
+          if (!rodou.has(c.id)) continue
+          const tem = comLinha(c.id)
+          for (const t of HABILITADOS) if (!tem.has(t)) acrescentar(c.id, t)
+        }
+      }
+    }
+    for (const [id, conjunto] of porCanal) {
+      const tipos = [...conjunto]
       const canal = ctx.channels.find(c => c.id === id)!
       const texto = `${canal.name} tem ${tipos.length} tipo(s) de relatório habilitado(s) sem job: ${[...tipos].sort().join(', ')}`
       // Canal que perdeu a autorização: só o dono resolve (reconectar); já sai como "<canal>: reautorizar".
