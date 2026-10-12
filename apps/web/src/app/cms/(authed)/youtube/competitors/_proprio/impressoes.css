@@ -1,8 +1,9 @@
-/* O gráfico "Impressões por dia" (spec 16.6; mockup M/impressoes.css). Três estados com forma E cor: barra cheia (--lado-o), caixa vazada (--im-zero) e coluna
-   hachurada (--nm, a hachura do kit .obs-ch-nm). Cores só por token; no tema claro os azuis ganham um tom mais escuro (contraste sobre o cartão claro).
+/* O gráfico por dia (impressões e views; spec 16.6; mockup aprovado em 12/10, a4.css .ic-*). Três estados com forma E cor: barra cheia (--lado-o), caixa vazada
+   (--im-zero) e coluna hachurada (--nm, a hachura do kit .obs-ch-nm). Os cliques estimados são uma marca clara neutra (--im-cl, que o tema claro escurece) numa faixa
+   própria sob as datas: não é azul e não é escala. Cores só por token; no tema claro o azul do zero medido ganha um tom mais escuro (contraste sobre o cartão claro).
    Sem color-mix, sem z-index numérico, nenhum texto abaixo de 12 px, alvo de toque de 44 px em pointer:coarse. A dica e o ⓘ moram em #flut. */
 .ic{--ic-bar:var(--lado-o);--ic-zero:var(--im-zero);--ic-cl:var(--im-cl);--ic-ring:var(--surface);margin:0;min-width:0;max-width:100%;display:block}
-[data-theme="light"] .ic{--ic-zero:#5B6F86;--ic-cl:#0B6BA8}
+[data-theme="light"] .ic{--ic-zero:#5B6F86}
 .ic-t{font:600 14px/20px var(--font-sans),system-ui,sans-serif;color:var(--text);margin:0 0 4px}
 .ic-res{margin:0 0 6px;max-width:860px;font:400 13.5px/20px var(--font-sans),system-ui,sans-serif;color:var(--text)}
 .ic-vazio{margin:0;font:400 13px/19px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
@@ -19,11 +20,13 @@
 .ic-grid{stroke:var(--border-subtle);stroke-width:1}
 .ic-ax-y,.ic-ax-x{font:400 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--muted)}
 .ic-an{font:400 12px var(--font-sans),system-ui,sans-serif;fill:var(--muted)}
-.ic-an.r{fill:var(--ic-cl)}
 .ic-bar{fill:var(--ic-bar)}
 .ic-val{font:500 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--text)}
-.ic-dot{fill:var(--ic-cl);stroke:var(--ic-ring);stroke-width:1.4}
+.ic-dot{fill:var(--ic-cl);stroke:var(--ic-ring);stroke-width:1.6}
 .ic-cln{font:600 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--ic-cl)}
+.ic-strip{fill:var(--sunk);stroke:var(--border-subtle);stroke-width:1}
+.ic-stl{font:400 12px var(--font-sans),system-ui,sans-serif;fill:var(--muted)}
+.ic-pub{stroke:var(--text);stroke-width:1.5;stroke-dasharray:3 3;fill:none}
 .ic-zero{stroke:var(--ic-zero);fill:none}   /* caixa vazada de 6 px: a barra mínima (3 px) é cheia, e o não medido é hachurado */
 .ic-hb{fill:var(--nm-bg)}
 .ic-hl{stroke:var(--nm);stroke-width:2}
@@ -37,8 +40,20 @@
 .ic-sw.imp{width:12px;height:12px;border-radius:2px;background:var(--ic-bar)}
 .ic-sw.cl{width:11px;height:11px;border-radius:50%;background:var(--ic-cl);box-shadow:0 0 0 1.5px var(--ic-ring),0 0 0 2.5px var(--border-strong)}
 .ic-sw.zero{width:16px;height:7px;box-sizing:border-box;border-radius:2px;border:1.5px solid var(--ic-zero);background:none}
+.ic-sw.pub{width:0;height:14px;border-left:1.5px dashed var(--text)}
 .ic-sw.nm{width:14px;height:14px;padding:0;vertical-align:middle}
-.ic-tab{margin-top:6px;font:400 13px/18px var(--font-sans),system-ui,sans-serif}
+.ic-step{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;margin-top:8px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--sunk);padding:0 4px}
+@media (min-width:901px){.ic-step{max-width:560px}}
+.ic-step button{width:44px;height:44px;border:0;background:none;padding:0;color:var(--text);cursor:pointer;border-radius:6px;display:grid;place-items:center}
+.ic-step button:hover{background:var(--surface-2)}
+.ic-step button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ic-step button[aria-disabled="true"]{color:var(--dim);cursor:not-allowed;background:none;opacity:.7}
+.ic-step button svg{width:18px;height:18px}
+.ic-out{margin:0;font:400 13px/18px var(--font-sans),system-ui,sans-serif;text-align:center;padding:6px 2px;min-height:44px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0 6px;color:var(--text)}
+.ic-out.vazio{color:var(--muted)}
+.ic-out-m{display:none}
+@media (min-width:901px) and (hover:hover){.ic-out-m{display:inline}.ic-out-t{display:none}}
+.ic-tab{margin-top:8px;font:400 13px/18px var(--font-sans),system-ui,sans-serif}
 .ic-tab summary{cursor:pointer;color:var(--text);text-decoration:underline;text-underline-offset:2px;width:max-content;min-height:24px;display:inline-flex;align-items:center;list-style:none;border-radius:4px}
 .ic-tab summary::-webkit-details-marker{display:none}
 .ic-tab summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

@@ -271,7 +271,7 @@ describe('legenda e método', () => {
     const v = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, O)
     expect(v.legenda.map(l => l.situacao)).toEqual(['com-impressoes', 'cliques', 'zero-medido', 'nao-medido'])
     expect(v.legenda.map(l => l.texto)).toEqual([
-      'impressões do dia (barra cheia)', 'cliques estimados', 'zero medido (caixa vazada): relatório vazio', 'não medido (hachura): relatório ausente, não baixado, com erro ou expirado',
+      'impressões do dia (barra cheia)', 'cliques estimados do dia', 'zero medido (caixa vazada): relatório vazio', 'não medido (hachura): relatório ausente, não baixado, com erro ou expirado',
     ])
   })
   it('no vídeo, o zero medido da legenda fala do vídeo', () => {
@@ -321,5 +321,117 @@ describe('palavras internas e nulo', () => {
   it('a view é só dado simples (serializável para o cliente)', () => {
     const v = buildImpressoes(montarDias(alcanceCheio('c', ['a', 'b'], HOJE)).dias, periodo, O)
     expect(JSON.parse(JSON.stringify(v))).toEqual(v)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// A4 Tarefa 13.2: o gráfico por dia no desenho aprovado em 12/10 (faixa própria de cliques, views por dia, dia da publicação).
+// ---------------------------------------------------------------------------------------------------------------------------------
+describe('13.2: faixa de cliques, milhar e dia da publicação', () => {
+  it('a view diz se o gráfico leva a faixa de cliques: sim para impressões, não para views', () => {
+    const com = buildImpressoes([dia('2026-10-01', 9, 1)], periodo, O)
+    expect(com.faixaCliques).toBe(true)
+    expect(com.unidade).toBe('impressoes')
+    const views = buildImpressoes([dia('2026-10-01', 9, null)], periodo, { ...O, unidade: 'views' })
+    expect(views.faixaCliques).toBe(false)
+    expect(views.unidade).toBe('views')
+  })
+
+  it('o número da faixa tem separador de milhar ("1.139") e "<1" abaixo de meio clique; nada na faixa sem clique', () => {
+    const c = buildImpressoes([dia('2026-10-01', 9000, 1139.4), dia('2026-10-02', 9000, 0.3), dia('2026-10-03', 9000, 0), dia('2026-10-04', 9000, null)], periodo, O).colunas
+    expect(c[0]!.cliquesFaixa).toBe('1.139')
+    expect(c[1]!.cliquesFaixa).toBe('<1')
+    expect(c[2]!.cliquesFaixa).toBeNull()
+    expect(c[3]!.cliquesFaixa).toBeNull()   // CTR nulo: o componente desenha hachura, nunca "0"
+    expect(c[3]!.cliques).toBeNull()
+  })
+
+  it('a legenda dos cliques não carrega a explicação da altura (ela mora no ⓘ, que a diz por extenso)', () => {
+    const v = buildImpressoes([dia('2026-10-01', 9, 1)], periodo, O)
+    expect(v.legenda.find(l => l.situacao === 'cliques')!.texto).toBe('cliques estimados do dia')
+    expect(v.legenda.map(l => l.texto).join(' ')).not.toMatch(/altura/)
+    const metodo = v.metodo.join(' ')
+    expect(metodo).toMatch(/faixa sob as datas/i)
+    expect(metodo).toMatch(/a altura do ponto não mede nada/)
+    expect(metodo).toMatch(/Dia anterior/)
+  })
+
+  it('dia da publicação: a coluna marcada e o item da legenda só existem quando o dia está no período', () => {
+    const dentro = buildImpressoes([dia('2026-10-01', 9, 1), dia('2026-10-02', 0)], periodo, { ...O, publicadoEm: '2026-10-02' })
+    expect(dentro.colunas.map(c => c.publicacao)).toEqual([false, true])
+    expect(dentro.legenda.map(l => l.situacao)).toContain('publicacao')
+    expect(dentro.legenda.find(l => l.situacao === 'publicacao')!.texto).toBe('dia da publicação')
+    const fora = buildImpressoes([dia('2026-10-01', 9, 1)], periodo, { ...O, publicadoEm: '2026-08-01' })
+    expect(fora.colunas.map(c => c.publicacao)).toEqual([false])
+    expect(fora.legenda.map(l => l.situacao)).not.toContain('publicacao')
+    expect(buildImpressoes([dia('2026-10-01', 9, 1)], periodo, O).legenda.map(l => l.situacao)).not.toContain('publicacao')
+  })
+
+  it('a dica do dia da publicação diz que é o dia da publicação (forma e palavra, não só a linha)', () => {
+    const c = buildImpressoes([dia('2026-10-01', 9, 1)], periodo, { ...O, publicadoEm: '2026-10-01' }).colunas[0]!
+    expect(c.dica).toBe('01/10: 9 impressões, 1 clique estimado. Dia da publicação do vídeo')
+  })
+})
+
+describe('13.2: o mesmo gráfico para views por dia (sem faixa de cliques)', () => {
+  const V = { ...O, unidade: 'views' as const }
+  const v = (arr: DiaAlcance[], o: Partial<typeof V> = {}) => buildImpressoes(arr, periodo, { ...V, ...o })
+
+  it('escopo views: nenhuma coluna leva cliques, a dica fala de views e o singular é "1 view"', () => {
+    const r = v([dia('2026-10-01', 12, null), dia('2026-10-02', 1, null)])
+    expect(r.colunas.map(c => c.cliquesFaixa)).toEqual([null, null])
+    expect(r.colunas.map(c => c.cliques)).toEqual([null, null])
+    expect(r.colunas.map(c => c.dica)).toEqual(['01/10: 12 views', '02/10: 1 view'])
+    expect(r.colunas.map(c => c.situacaoTexto)).toEqual(['com views', 'com views'])
+    expect(r.legenda.map(l => l.situacao)).not.toContain('cliques')
+    expect(r.rotuloValor).toBe('Views')
+    expect(r.rotuloEixo).toBe('views')
+  })
+
+  it('zero medido de views: "ninguém viu neste dia" (vídeo) e "o YouTube registrou nenhuma view" (canal); nunca "relatório"', () => {
+    const video = v([dia('2026-10-01', 0, null)], { escopo: 'video' })
+    expect(video.colunas[0]!.dica).toBe('01/10: ninguém viu neste dia (nenhuma view)')
+    expect(video.legenda.find(l => l.situacao === 'zero-medido')!.texto).toBe('zero medido (caixa vazada): ninguém viu neste dia')
+    const canal = v([dia('2026-10-01', 0, null)])
+    expect(canal.colunas[0]!.dica).toBe('01/10: o YouTube registrou nenhuma view (nenhuma view)')
+    expect(canal.legenda.find(l => l.situacao === 'zero-medido')!.texto).toBe('zero medido (caixa vazada): o YouTube registrou nenhuma view')
+    for (const t of [...video.metodo, ...canal.metodo, ...video.colunas.map(c => c.dica)]) expect(t).not.toMatch(/relatório|impressõ|clique/i)
+  })
+
+  it('não medido de views nunca vira zero: coluna da área inteira, sem número, "o YouTube não entregou o dia"', () => {
+    const r = v([dia('2026-10-01', null, null, 'sem-relatorio'), dia('2026-10-02', 5, null)])
+    const nm = r.colunas[0]!
+    expect(nm.situacao).toBe('nao-medido')
+    expect(nm.alturaPx).toBe(180)
+    expect(nm.imp).toBeNull()
+    expect(nm.dica).toBe('01/10: o YouTube não entregou o dia (não medido)')
+    expect(nm.situacaoTexto).toBe('o YouTube não entregou o dia: não medido')
+    expect(r.legenda.find(l => l.situacao === 'nao-medido')!.texto).toBe('não medido (hachura): o YouTube não entregou o dia')
+  })
+
+  it('o resumo de views soma só os dias medidos e diz quantos não foram; o chamador pode trazer a frase própria', () => {
+    const r = v([dia('2026-10-01', 1100, null), dia('2026-10-02', 39, null), dia('2026-10-03', 0, null), dia('2026-10-04', null, null)])
+    expect(r.resumo).toBe('1.139 views em 3 dias medidos (1 dia não medido): 2 dias com view e 1 dia medido em zero.')
+    expect(v([dia('2026-10-01', 7, null)], { resumo: 'Frase de quem chama.' }).resumo).toBe('Frase de quem chama.')
+    expect(v([dia('2026-10-01', 7, null)], { resumo: null }).resumo).toBeNull()
+  })
+
+  it('views sem nenhum dia medido: a frase diz que nada foi medido (não é uma linha de zeros)', () => {
+    const r = v([dia('2026-10-01', null, null), dia('2026-10-02', null, null)])
+    expect(r.resumo).toBe('Nenhum dos 2 dias do período foi medido: views não medidas.')
+  })
+
+  it('o método de views não fala de relatório, de impressão nem de taxa de cliques', () => {
+    const m = v([dia('2026-10-01', 7, null)]).metodo.join(' ')
+    expect(m).toMatch(/Pacífico/)
+    expect(m).toMatch(/Barra cheia/)
+    expect(m).toMatch(/Caixa vazada/)
+    expect(m).toMatch(/Coluna hachurada/)
+    expect(m).not.toMatch(/relatório|impressõ|clique|CTR/i)
+  })
+
+  it('sem permissão ou com erro, views seguem sem número nenhum', () => {
+    expect(v([dia('2026-10-01', 7777, null)], { acesso: 'negado' }).colunas).toEqual([])
+    expect(JSON.stringify(v([dia('2026-10-01', 7777, null)], { acesso: 'negado' }))).not.toContain('7.777')
   })
 })
