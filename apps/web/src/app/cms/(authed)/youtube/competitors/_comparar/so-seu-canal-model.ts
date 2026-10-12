@@ -15,7 +15,7 @@ import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import { montarDias, resumir } from '@/lib/youtube/observatorio/proprio/dias'
 import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { AlcanceCanal, DiarioCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
-import { assistidoDoCanal, POUCAS_VIEWS, POUCAS_VIEWS_MEDIA, taxaDoCanal, type MotivoAssistidoCanal } from '../_proprio/canal-agregados'
+import { assistidoDoCanal, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS, POUCAS_VIEWS_MEDIA, taxaDoCanal, type MotivoAssistidoCanal } from '../_proprio/canal-agregados'
 import { pctUm } from '../_proprio/taxa-faixa-model'
 
 export type ChaveLinha = 'impressoes' | 'cliques' | 'taxa' | 'assistido'
@@ -89,6 +89,8 @@ function notaSemAssistido(m: MotivoAssistidoCanal | null): string | null {
 function linhaAssistido(diario: Privado<DiarioCanal>, longos: readonly string[], semNota: boolean): LinhaSoSeuCanal {
   const a = assistidoDoCanal(diario, longos)
   if (a.pct == null) return linha('assistido', '% assistido', SUB.assistidoSemNumero, null, semNota ? null : notaSemAssistido(a.motivo))
+  // há dado, mas menos de 7 dias: o mesmo veredito do cabeçalho do canal (header-model.ts), nunca um número cravado em cima de quase nada
+  if (a.dias < MIN_DIAS_ASSISTIDO) return linha('assistido', '% assistido', SUB.assistidoSemNumero, null, `só ${a.dias} ${a.dias === 1 ? 'dia' : 'dias'} com dado; precisa de ${MIN_DIAS_ASSISTIDO}`)
   // acima de 100 é dado válido (trecho revisto): o número real, sem recortar
   const nota = a.n < POUCAS_VIEWS_MEDIA ? `só ${a.n} ${a.n === 1 ? 'view' : 'views'}: pouco para uma média` : null
   return linha('assistido', '% assistido', SUB.assistido, `${Math.round(a.pct)}%`, nota, a.n < POUCAS_VIEWS)
@@ -110,18 +112,18 @@ export function montarSoSeuCanalDado(a: {
   const lido = periodo != null && resumo.diasLidos > 0
 
   if (!lido) {
-    // nenhum relatório lido: "Não medido." e as linhas do alcance só com o quadradinho; sem nota, a frase já diz que falta medir
+    // nenhum relatório lido: "Não medido." e as três linhas do alcance só com o quadradinho (sem nota: a frase já diz que falta medir); o % assistido segue o estado dele
     return {
       acesso: 'ok',
       view: {
         canal: a.nome,
-        frase: `${PREFIXO_NAO_MEDIDO} As impressões, a taxa de clique e o % assistido só chegam ao dono do canal, e os números de alcance de ${a.nome} ainda não chegaram: falta medir, não é zero.`,
+        frase: `${PREFIXO_NAO_MEDIDO} As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal, e os números de alcance de ${a.nome} ainda não chegaram: falta medir, não é zero.`,
         naoMedido: true,
         linhas: [
           linha('impressoes', 'Impressões', SUB.impressoesSemDado),
           linha('cliques', 'Cliques estimados', SUB.cliques),
           linha('taxa', 'Taxa de clique', SUB.taxa),
-          linhaAssistido(a.diario, a.longos, true),
+          linhaAssistido(a.diario, a.longos, false),
         ],
         taxa: null,
       },
@@ -149,28 +151,31 @@ export function montarSoSeuCanalDado(a: {
   }
 }
 
+/** A View de um canal seu na tela: o id do canal é a chave da lista (dois canais podem ter o mesmo nome). */
+export type SoSeuCanalCartao = SoSeuCanalView & { id: string }
+
 interface LadoDoPar { id: string; name: string; own: boolean }
 
 /** A View de um canal seu que não chegou com número: só a frase do motivo, sem linhas. */
-const semNumero = (canal: string, frase: string): SoSeuCanalView => ({ canal, frase, naoMedido: false, linhas: [], taxa: null })
+const semNumero = (id: string, canal: string, frase: string): SoSeuCanalCartao => ({ id, canal, frase, naoMedido: false, linhas: [], taxa: null })
 
 /**
  * NAVEGADOR. Um cartão por lado que é canal seu (na ordem A, B); nenhum lado seu = []. Canal seu que o pacote não trouxe, ou com `acesso: 'ok'` sem
  * View, é leitura que não chegou ("a leitura falhou"), nunca "zero" nem cartão sumido. A frase de quem tem número diz, quando o outro lado é um
  * concorrente, que ele não tem esses números "não porque sejam zero".
  */
-export function buildSoSeuCanal(par: { a: LadoDoPar; b: LadoDoPar }, dados: Record<string, SoSeuCanalDado>): SoSeuCanalView[] {
-  const out: SoSeuCanalView[] = []
+export function buildSoSeuCanal(par: { a: LadoDoPar; b: LadoDoPar }, dados: Record<string, SoSeuCanalDado>): SoSeuCanalCartao[] {
+  const out: SoSeuCanalCartao[] = []
   for (const [lado, outro] of [[par.a, par.b], [par.b, par.a]] as const) {
     if (!lado.own) continue
     const dado = dados[lado.id]
-    if (dado?.acesso === 'negado') { out.push(semNumero(lado.name, FRASE_NEGADO_CARTAO)); continue }
-    if (!dado || dado.acesso === 'erro' || dado.view == null) { out.push(semNumero(lado.name, FRASE_ERRO_CARTAO)); continue }
+    if (dado?.acesso === 'negado') { out.push(semNumero(lado.id, lado.name, FRASE_NEGADO_CARTAO)); continue }
+    if (!dado || dado.acesso === 'erro' || dado.view == null) { out.push(semNumero(lado.id, lado.name, FRASE_ERRO_CARTAO)); continue }
     const v = dado.view
     const frase = !v.naoMedido && !outro.own
       ? `${v.frase} ${outro.name} não tem esses números aqui porque o YouTube não os entrega, ${NEGRITO_NAO_ZERO}.`
       : v.frase
-    out.push({ ...v, canal: lado.name, frase })
+    out.push({ ...v, id: lado.id, canal: lado.name, frase })
   }
   return out
 }
