@@ -202,12 +202,13 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     expect(href.searchParams.get('ids')!.split(',')[2]).toBe(id)
     await alvo.locator('a.cv-lnk').click()
     await page.waitForURL(/\/video\//)
+    await page.locator('[data-obs-screen="video-proprio"] h1:visible').first().waitFor({ timeout: 30_000 })
+    await page.waitForLoadState('networkidle')      // a tela do vídeo hidrata e grava o último vídeo visto; voltar antes disso não tem o que lembrar
     await page.goBack()
     await pronta(page)
     await expect(page.locator(`${S}:visible a.cv-lnk[id="cv-lnk-${id}"]`)).toBeVisible()
-    // o FOCO no cartão depende de o Histórico registrar o último vídeo; para vídeo de canal próprio isso é da Tarefa 11 (a tela do vídeo próprio):
-    // hoje `_historico/view-model.ts` trata `from=canais&canal=<próprio>` pelo ramo sem `canal: true`, e o registro não é gravado. Lacuna anotada.
-    medida(`foco depois do Voltar do vídeo próprio: ${await page.evaluate(id2 => document.activeElement?.id === 'cv-lnk-' + id2, id)} (esperado falso até a Tarefa 11)`)
+    // T11 fechou a lacuna da T8: a tela do vídeo próprio grava o último vídeo visto, e o Voltar põe o foco no cartão dele
+    await expect.poll(() => page.evaluate(id2 => document.activeElement?.id === 'cv-lnk-' + id2, id)).toBe(true)
   })
 
   test('"Comparar com…" leva à comparação com o concorrente logo acima; o title diz qual; o Voltar devolve o foco ao botão', async ({ page }) => {
@@ -527,6 +528,239 @@ test('T10 390 px com toque: o botão da seção, o select, o botão Comparar e o
     }
     medida(`como-esta alvos de toque (${vistos} medidos) menores que 44 px: ${pequenos.length ? pequenos.join(' | ') : 'nenhum'}`)
     expect(vistos).toBeGreaterThanOrEqual(4)
+    expect(pequenos).toEqual([])
+  } finally { await ctx.close() }
+})
+
+
+/* ---------------------------------------------------------------- T11 a página do VÍDEO próprio (banco local sem dado privado: o alcance diz o motivo) */
+const V = '[data-obs-screen="video-proprio"]'
+const video = (page: Page) => page.locator(`${V}:visible`).first()
+const NOTA_SEM_RELATORIO = 'Impressões e cliques deste vídeo: ainda sem relatório de alcance deste canal.'
+async function videoPronto(page: Page): Promise<void> {
+  await page.locator(`${V} h1:visible`).first().waitFor({ timeout: 30_000 })
+  await page.waitForLoadState('networkidle')
+  await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' })
+}
+/** Os ids dos cartões na ordem da página do canal. */
+async function idsDosCartoes(page: Page): Promise<string[]> {
+  return page.locator(`${S}:visible ul.cv-grid > li.cv-card`).evaluateAll(els => els.map(e => e.getAttribute('data-id')!))
+}
+/** Abre o vídeo do N-ésimo cartão (1 = primeiro) com um clique de mouse de verdade. */
+async function abrirPeloCartao(page: Page, n: number, qs = ''): Promise<string> {
+  await abrir(page, qs)
+  const ids2 = await idsDosCartoes(page)
+  const id = ids2[n - 1]!
+  await page.locator(`${S}:visible a#cv-lnk-${id}`).click()
+  await page.waitForURL(/\/video\//)
+  await videoPronto(page)
+  return id
+}
+const focoId = (page: Page) => page.evaluate(() => document.activeElement?.id ?? '')
+
+test.describe('T11 o vídeo próprio abre, com cabeçalho, faixa e paginador', () => {
+  test('clicar no cartão abre a tela nova: selo, título, seis números, um ⓘ só, trilha "Canais › canal › Vídeo", a frase de alcance e o pager na trilha', async ({ page }) => {
+    const id = await abrirPeloCartao(page, 3)
+    expect(new URL(page.url()).pathname).toContain('/video/' + id)
+    const t = video(page)
+    await expect(t.locator('h1')).toBeVisible()
+    await expect(t.locator('.own-seal')).toHaveText('seu canal')
+    await expect(t.locator('dl.nstrip .nc')).toHaveCount(6)
+    await expect(t.locator('dl.nstrip .nc dt')).toHaveText([/^views/, /^curtidas/, /^comentários/, /^engajamento/, /^o normal do canal/, /^duração/])
+    await expect(t.locator('.ibtn')).toHaveCount(1)
+    await expect(t.locator('[data-alcance-nota]')).toHaveText(NOTA_SEM_RELATORIO)
+    await expect(page.locator('.crumbs li:visible')).toHaveText(['Canais', /.+/, 'Vídeo'])
+    await expect(page.locator('.obs-tr-aside [data-pager-pos]:visible')).toContainText('vídeo 3 de ')
+    await expect(page.locator('.obs-tr-aside [data-pager-pos]:visible')).toContainText('na ordem da lista: do mais novo ao mais antigo')
+    // nenhum número do alcance aparece: o banco local não tem linha nas tabelas privadas
+    expect(await t.innerText()).not.toMatch(/impressões? \d|\d+ impressões/)
+  })
+
+  test('o ⓘ abre a base dos seis números com a conta feita, e Esc devolve o foco ao botão', async ({ page }) => {
+    await abrirPeloCartao(page, 2)
+    const b = video(page).locator('.ibtn')
+    await b.click()
+    const dlg = page.locator('#flut [role="dialog"]')
+    await expect(dlg).toBeVisible()
+    await expect(dlg.locator('li')).toHaveCount(6)
+    await expect(dlg).toContainText(/\(\d+ curtidas? \+ \d+ comentários?\) ÷ [\d.]+ views = \d+,\d%|Falta a contagem|sem views/)
+    await expect(dlg).toContainText(/mediana de views dos outros \d+ vídeos|poucos|sem comparação|mediana dos outros/i)
+    await page.keyboard.press('Escape')
+    await expect(dlg).toBeHidden()
+    await expect(b).toBeFocused()
+  })
+
+  test('"Ampliar thumbnail" abre o visualizador e Esc o fecha com o foco no botão', async ({ page }) => {
+    await abrirPeloCartao(page, 1)
+    const b = video(page).getByRole('button', { name: 'Ampliar thumbnail' })
+    await b.click()
+    await expect(page.getByRole('dialog').first()).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(b).toBeFocused()
+  })
+
+  test('nas pontas o botão fica na tela, apagado, com o motivo; clicar não navega', async ({ page }) => {
+    await abrirPeloCartao(page, 1)
+    const ant = page.locator('.obs-tr-aside [data-pager-prev]:visible')
+    await expect(ant).toHaveAttribute('aria-disabled', 'true')
+    await expect(ant).toHaveAttribute('aria-label', 'Não há vídeo anterior: este é o primeiro da lista')
+    const antes = page.url()
+    await ant.click({ force: true })      // o Playwright recusa o clique em aria-disabled; força para provar que, mesmo com ele, nada navega
+    await page.waitForTimeout(400)
+    expect(page.url()).toBe(antes)
+    // o último de uma lista pequena (ids= de 3 vídeos tirados da página do canal)
+    await abrir(page)
+    const [a, b2, c] = (await idsDosCartoes(page)).slice(0, 3)
+    await page.goto(`${ROTA}/video/${c}?from=canais&canal=${PROPRIO()}&ids=${a},${b2},${c}&pos=3&tot=3`)
+    await videoPronto(page)
+    const prox = page.locator('.obs-tr-aside [data-pager-next]:visible')
+    await expect(prox).toHaveAttribute('aria-disabled', 'true')
+    await expect(prox).toHaveAttribute('aria-label', 'Não há próximo vídeo: este é o último da lista')
+    await expect(page.locator('.obs-tr-aside [data-pager-prev]:visible')).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('a ordem do pager é a da lista de onde a pessoa veio (sort=imp): Anterior/Próximo andam pelos ids dos cartões', async ({ page }) => {
+    await abrir(page, '?sort=imp')
+    const lista = await idsDosCartoes(page)
+    await page.locator(`${S}:visible a#cv-lnk-${lista[1]}`).click()
+    await page.waitForURL(/\/video\//); await videoPronto(page)
+    await expect(page.locator('.obs-tr-aside [data-pager-pos]:visible')).toContainText('vídeo 2 de ')
+    await expect(page.locator('.obs-tr-aside [data-pager-pos]:visible')).toContainText('mais impressões primeiro')
+    expect(await page.locator('.obs-tr-aside [data-pager-prev]:visible').getAttribute('href')).toContain('/video/' + lista[0])
+    expect(await page.locator('.obs-tr-aside [data-pager-next]:visible').getAttribute('href')).toContain('/video/' + lista[2])
+    // o item do canal na trilha volta com o back= (a ordenação sobrevive)
+    expect(await page.locator('.crumbs li:visible a').nth(1).getAttribute('href')).toContain('sort=imp')
+  })
+
+  test('Anterior/Próximo trocam o vídeo sem encher o histórico: UM Voltar leva à página do canal, e o foco vai ao botão usado', async ({ page }) => {
+    const lista0 = await (async () => { await abrir(page); return idsDosCartoes(page) })()
+    await page.locator(`${S}:visible a#cv-lnk-${lista0[2]}`).click()
+    await page.waitForURL(/\/video\//); await videoPronto(page)
+    for (let k = 0; k < 3; k++) {
+      await page.locator('.obs-tr-aside [data-pager-next]:visible').click()
+      await expect(video(page).locator('h1')).not.toHaveText('')
+      await page.waitForURL(new RegExp('/video/' + lista0[3 + k]))
+      await expect(page.locator('.obs-tr-aside [data-pager-next]:visible')).toBeFocused()
+    }
+    await expect(video(page).locator('[role="status"]')).toContainText('Vídeo 6 de ')
+    await page.goBack()
+    await pronta(page)
+    expect(new URL(page.url()).pathname).toContain('/canal/')
+  })
+})
+
+test.describe('T11 o Voltar põe o foco no cartão do ÚLTIMO vídeo visto (pendência da Tarefa 8)', () => {
+  test('mouse: cartão → Próximo duas vezes → Voltar do navegador → foco no cartão do vídeo em que a pessoa parou', async ({ page }) => {
+    await abrir(page)
+    const lista = await idsDosCartoes(page)
+    await page.locator(`${S}:visible a#cv-lnk-${lista[1]}`).click()
+    await page.waitForURL(/\/video\//); await videoPronto(page)
+    await page.locator('.obs-tr-aside [data-pager-next]:visible').click()
+    await page.waitForURL(new RegExp('/video/' + lista[2]))
+    await page.locator('.obs-tr-aside [data-pager-next]:visible').click()
+    await page.waitForURL(new RegExp('/video/' + lista[3]))
+    await page.goBack()
+    await pronta(page)
+    await expect.poll(() => focoId(page), { message: 'foco no cartão do último vídeo visto' }).toBe('cv-lnk-' + lista[3])
+  })
+
+  test('mouse: o item do canal na trilha também volta com o foco no cartão', async ({ page }) => {
+    await abrir(page)
+    const lista = await idsDosCartoes(page)
+    await page.locator(`${S}:visible a#cv-lnk-${lista[4]}`).click()
+    await page.waitForURL(/\/video\//); await videoPronto(page)
+    await page.locator('.crumbs li:visible a').nth(1).click()
+    await page.waitForURL(/\/canal\//); await pronta(page)
+    await expect.poll(() => focoId(page)).toBe('cv-lnk-' + lista[4])
+  })
+
+  test('teclado: Enter no cartão, ] com o foco no título, [ de volta, Enter no item do canal da trilha → foco no cartão', async ({ page }) => {
+    await abrir(page)
+    const lista = await idsDosCartoes(page)
+    await page.locator(`${S}:visible a#cv-lnk-${lista[1]}`).focus()
+    await page.keyboard.press('Enter')
+    await page.waitForURL(/\/video\//); await videoPronto(page)
+    await expect(video(page).locator('h1')).toBeFocused()
+    await page.keyboard.press(']')
+    await page.waitForURL(new RegExp('/video/' + lista[2]))
+    await expect(page.locator('.obs-tr-aside [data-pager-next]:visible')).toBeFocused()
+    await page.keyboard.press(']')           // o foco está no pager: continua valendo
+    await page.waitForURL(new RegExp('/video/' + lista[3]))
+    await expect(page.locator('.obs-tr-aside [data-pager-next]:visible')).toBeFocused()
+    await page.keyboard.press('[')
+    await page.waitForURL(new RegExp('/video/' + lista[2]))
+    await expect(page.locator('.obs-tr-aside [data-pager-prev]:visible')).toBeFocused()
+    // [ e ] só valem com o foco no título ou no pager: no botão "Ampliar thumbnail" nada acontece
+    await video(page).getByRole('button', { name: 'Ampliar thumbnail' }).focus()
+    const antes = page.url()
+    await page.keyboard.press(']')
+    await page.waitForTimeout(400)
+    expect(page.url()).toBe(antes)
+    // o item do canal da trilha, por teclado
+    const canal = page.locator('.crumbs li:visible a').nth(1)
+    await canal.focus()
+    await page.keyboard.press('Enter')
+    await page.waitForURL(/\/canal\//); await pronta(page)
+    await expect.poll(() => focoId(page)).toBe('cv-lnk-' + lista[2])
+  })
+
+  test('na vista Lista o foco volta à LINHA do vídeo', async ({ page }) => {
+    await abrir(page, '?ver=lista')
+    const linha = tela(page).locator('table.cv-lst a.cv-tl').nth(2)
+    const id = (await linha.getAttribute('id'))!.replace('cv-lnk-', '')
+    await linha.click()
+    await page.waitForURL(/\/video\//); await videoPronto(page)
+    await page.goBack(); await pronta(page)
+    await expect.poll(() => focoId(page)).toBe('cv-lnk-' + id)
+  })
+})
+
+for (const [nome, size] of [['390', { width: 390, height: 844 }], ['1440', { width: 1440, height: 900 }]] as const) {
+  for (const tema of ['dark', 'light'] as const) {
+    test(`T11 vídeo próprio ${nome} px, tema ${tema}: sem rolagem para o lado, nenhum texto abaixo de 12 px, captura salva`, async ({ page }) => {
+      await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3099' }])
+      await page.setViewportSize(size)
+      await page.goto(url(''))
+      await pronta(page)
+      const ids2 = await idsDosCartoes(page)
+      await page.goto(`${ROTA}/video/${ids2[2]}?from=canais&canal=${PROPRIO()}&ids=${ids2.slice(0, 8).join(',')}&pos=3&tot=8`)
+      await videoPronto(page)
+      const l = await larguras(page)
+      medida(`vídeo ${nome}/${tema}: docScroll ${l.docScroll}, contScroll ${l.contScroll}, tela ${l.telaW}px, menor texto ${l.menor}px (${l.quem}), fora: ${l.fora.join(' | ') || 'nenhum'}`)
+      expect(l.docScroll).toBeLessThanOrEqual(0)
+      expect(l.contScroll).toBeLessThanOrEqual(0)
+      expect(l.fora).toEqual([])
+      expect(l.menor, l.quem).toBeGreaterThanOrEqual(12)
+      await page.screenshot({ path: path.join(SHOTS, `video-${nome}-${tema}.png`) })
+      await video(page).locator('.ibtn').click()
+      await expect(page.locator('#flut [role="dialog"]')).toBeVisible()
+      await page.screenshot({ path: path.join(SHOTS, `video-${nome}-${tema}-i.png`) })
+      await page.keyboard.press('Escape')
+    })
+  }
+}
+
+test('T11 390 px com toque: os botões do pager, o ⓘ e as ações têm 44 px', async ({ browser }) => {
+  const ctx = await browser.newContext({ storageState: ADMIN_STATE, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  await ctx.addCookies([{ name: 'btf_theme', value: 'dark', url: 'http://localhost:3099' }])
+  const page = await ctx.newPage()
+  try {
+    await page.route(/(ytimg|ggpht)\.com/, r => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
+    await page.goto(url()); await pronta(page)
+    const lista = await idsDosCartoes(page)
+    await page.goto(`${ROTA}/video/${lista[2]}?from=canais&canal=${PROPRIO()}&ids=${lista.slice(0, 5).join(',')}&pos=3&tot=5`)
+    await videoPronto(page)
+    // a migalha é link de texto da moldura (altura 44, largura do texto): a regra dela é da moldura, não desta tela
+    const alvos = [`${V} .ibtn`, `${V} .vp-a .obs-ch-btn`, '.obs-tr-aside .pager .btn']
+    const pequenos: string[] = []
+    for (const sel of alvos) {
+      for (const el of await page.locator(sel).elementHandles()) {
+        const b = await el.boundingBox()
+        if (b && b.width > 0 && Math.min(b.height, b.width) < 43.5) pequenos.push(`${sel} ${Math.round(b.width)}x${Math.round(b.height)}`)
+      }
+    }
+    medida(`vídeo: alvos de toque menores que 44 px: ${pequenos.length ? pequenos.join(' | ') : 'nenhum'}`)
     expect(pequenos).toEqual([])
   } finally { await ctx.close() }
 })

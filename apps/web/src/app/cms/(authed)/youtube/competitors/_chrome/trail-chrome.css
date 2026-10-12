@@ -25,5 +25,12 @@
 [data-obs] .obs-tr-aside .pager .btn[aria-disabled="true"],[data-obs] .obs-tr-aside .pager .btn[aria-disabled="true"]:hover{opacity:.55;cursor:default;background:transparent;color:var(--muted)}
 [data-obs] .obs-tr-aside .pager :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 @media (pointer:coarse),(max-width:900px){[data-obs] .obs-tr-aside .pager .btn{min-height:44px}}
+/* pager compacto (página do vídeo próprio): em tela estreita Anterior e Próximo lado a lado e a frase da ordem numa linha abaixo */
+@media (max-width:700px){
+  [data-obs] .obs-tr-aside .pager[data-pager-compacto]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 4px;width:100%}
+  [data-obs] .obs-tr-aside .pager[data-pager-compacto] .btn{justify-content:flex-start}
+  [data-obs] .obs-tr-aside .pager[data-pager-compacto] [data-pager-next]{justify-content:flex-end}
+  [data-obs] .obs-tr-aside .pager[data-pager-compacto] [data-pager-pos]{grid-column:1/-1;grid-row:2;padding:0 6px 6px}
+}
 /* sem espaço para a trilha, o pager e a nota na mesma linha, o pager desce para uma linha própria, à direita */
 @media (max-width:1180px){[data-obs] .obs-tr-top .obs-tr-aside{order:3;flex-basis:100%}}
