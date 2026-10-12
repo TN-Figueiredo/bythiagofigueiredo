@@ -23,7 +23,7 @@ import {
 import { effView } from '../_chrome/effect-view'
 import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
-import { SEM_LEITURA, type ExtrasProprio } from '../_proprio/extras'
+import { SEM_LEITURA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
 import { baseVpdTexto, motivoVpdTexto, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 
 const NB = ' '
@@ -398,7 +398,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     if (v == null && c.own && S.tracked > 0) {
       // com o dado lido, a célula diz o motivo da ausência (a mesma frase da posição); sem ele, a de sempre
       if (o.ev && extras) { const t = cap(motivoVpdTexto(o.ev.motivo ?? 'sem-diario', o.ev, extras.dm)) + '.'; return { kind: 'na', text: t, title: t } }
-      return { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
+      // Shorts e a segunda linha de "Todos": com o dado lido, a medida do canal próprio é só dos longos, e a célula diz o mesmo que o bloco
+      if (extras && f !== 'long') { const t = cap(VPD_SO_LONGOS) + '.'; return { kind: 'na', text: t, title: t } }
+      return { kind: 'na', text: 'Sem views diárias do seu canal.', title: SEM_VPD_PROPRIO_DICA }
     }
     // tracked videos of this format but no per-day median yet: say what is really missing (the engine's own wording,
     // series.ts periodRate), never "nenhum acompanhado" with a title that contradicts it
@@ -470,7 +472,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   /** A frase do motivo quando o canal próprio fica sem views por dia (só com `extras`; sem eles vale a de "sem-diario" em `motivoTexto`). */
   function semMedidaTextoOf(c: ObsChannel, S: CStats, m: MotivoSemMedida | null): string | null {
     if (m !== 'sem-views-dia-proprio' || !c.own || !extras) return null
-    if (fmt !== 'long') return 'as views por dia do seu canal só são medidas nos vídeos longos'
+    if (fmt !== 'long') return VPD_SO_LONGOS
     const o = vpdOf(c, fmt, S)
     if (o.ev == null) return null
     if (o.ev.valor != null) return 'o canal ainda não tem inscritos' // há valor e não há posição: só o por mil sem inscritos

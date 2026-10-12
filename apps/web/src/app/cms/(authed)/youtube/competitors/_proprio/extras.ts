@@ -25,3 +25,12 @@ export function longosAcompanhados(obs: Pick<Observatory, 'videos'>, canalId: st
     .sort((a, b) => b.pub - a.pub || (a.ytId < b.ytId ? -1 : 1))
     .map(v => v.ytId)
 }
+
+/**
+ * A frase única de "as views por dia do seu canal só valem nos longos": o bloco "Seu canal", a célula da lista (Shorts e segunda
+ * linha de "Todos") e a dica dizem EXATAMENTE isto. Minúscula, sem ponto: quem a usa no começo de uma frase a capitaliza.
+ */
+export const VPD_SO_LONGOS = 'as views por dia do seu canal só são medidas nos vídeos longos'
+
+/** A dica das telas que ainda não leem o diário do canal próprio (Insights; a lista sem o dado lido): o diário existe, mora na página do canal. */
+export const SEM_VPD_PROPRIO_DICA = 'As views por dia do seu canal ficam na página do seu canal, e só nos vídeos longos.'

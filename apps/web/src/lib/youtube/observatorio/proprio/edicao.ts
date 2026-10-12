@@ -15,6 +15,12 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 /** Só este módulo conhece a chave: `new EdicaoDoSite(...)`, `Reflect.construct` e `super()` de fora não a têm. */
 const CHAVE = Symbol('EdicaoDoSite')
 
+/**
+ * O brand check, fora da classe: não é propriedade de ninguém, então não se regrava (nem `EdicaoDoSite.ehEdicao = …` existe mais).
+ * Atribuído uma vez, no bloco estático abaixo, o único lugar onde `#siteId in e` é legal.
+ */
+let marca: (e: unknown) => boolean = () => false
+
 export class EdicaoDoSite {
   readonly #siteId: string
   private constructor(siteId: string, chave: symbol) {
@@ -25,8 +31,8 @@ export class EdicaoDoSite {
   get siteId(): string { return this.#siteId }
 
   /** Brand check pelo campo privado: só uma instância construída acima passa (nem protótipo, nem propriedade própria enganam). */
-  static ehEdicao(e: unknown): e is EdicaoDoSite {
-    return typeof e === 'object' && e !== null && #siteId in e
+  static {
+    marca = (e: unknown): boolean => typeof e === 'object' && e !== null && #siteId in e
   }
 
   /** O token do site, ou null (não edita, sem sessão, ou a guarda falhou: falha fechada, avisada ao Sentry). Nunca lança. */
@@ -41,8 +47,11 @@ export class EdicaoDoSite {
   }
 }
 
+// a classe congelada: nem `provar` se troca por fora
+Object.freeze(EdicaoDoSite)
+
 /** A única porta: quem chama é o módulo de dados (`_proprio/dados.ts`); uma varredura de teste barra qualquer outro. */
 export const provarEdicao = (siteId: string): Promise<EdicaoDoSite | null> => EdicaoDoSite.provar(siteId)
 
 /** Em tempo de execução: o valor foi construído por `provar` (brand check do campo privado; um objeto forjado, ainda que com cast, não passa). */
-export const edicaoValida = (e: unknown): e is EdicaoDoSite => EdicaoDoSite.ehEdicao(e)
+export const edicaoValida = (e: unknown): e is EdicaoDoSite => marca(e)

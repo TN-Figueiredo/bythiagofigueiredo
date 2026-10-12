@@ -147,7 +147,8 @@ describe('A4.5 lista: o canal próprio entra na posição de Views/dia', () => {
     const r = byId(v, OWN1)
     expect(r.valor.vpd).toBeCloseTo(3 / (subs / 1000), 10)
     expect(r.cells.vpd).toMatchObject({ kind: 'ok', big: vpdText(3 / (subs / 1000), BASE.obs.fmt.num)!.replace(/ (mil|mi)$/, ' $1') })
-    if (r.cells.vpd.kind === 'ok') expect(r.cells.vpd.abs).toBe('3,0') // a mesma medida absoluta, ao lado
+    if (r.cells.vpd.kind !== 'ok') throw new Error('a célula deveria ter o número')
+    expect(r.cells.vpd.abs).toBe('3,0') // a mesma medida absoluta, ao lado
     expect(r.pos).not.toBeNull()
     // inscritos ocultos: não há por mil; o motivo é o dos concorrentes ("inscritos ocultos"), e o absoluto continua medido
     const oculto = a3World(ds => { semDiario(ds); ds.channels.find(c => c.id === OWN1)!.subs = null })
@@ -181,19 +182,76 @@ describe('A4.5 lista: o canal próprio entra na posição de Views/dia', () => {
     expect(byId(v2, OWN1).cells.vpd).toMatchObject({ kind: 'ok', big: '5,5' }); expect(byId(v2, OWN2).cells.vpd).toMatchObject({ kind: 'ok', big: '1,2' })
   })
 
+  const FRASE_LONGOS = 'as views por dia do seu canal só são medidas nos vídeos longos'
+
   it('no filtro Shorts o número dos longos NÃO entra na posição dos Shorts; a frase diz que a medida é dos longos', () => {
     const w = a3World(semDiario) // produção: o motor não tem série do canal próprio
     const v = view({ sort: 'vpd', fmt: 'shorts', scale: 'abs' }, w.obs, extras({ [OWN1]: medido(7), [OWN2]: medido(7) }))
     for (const id of [OWN1, OWN2]) {
       const r = byId(v, id)
       expect(r.pos, id).toBeNull()
-      expect(r.valor.vpd, id).not.toBe(7)
-      if (r.semMedida === 'sem-views-dia-proprio') expect(cheia(v, id).frase).toBe('Ainda sem views por dia medidas: as views por dia do seu canal só são medidas nos vídeos longos. Sem posição nesta ordenação.')
+      expect(r.valor.vpd, id).toBeNull()
+      expect(r.semMedida, id).toBe('sem-views-dia-proprio')
+      expect(cheia(v, id).frase, id).toBe(`Ainda sem views por dia medidas: ${FRASE_LONGOS}. Sem posição nesta ordenação.`)
     }
-    // Todos: ordena pelos longos (o número entra) e a medida dos Shorts é a de hoje
+    // Todos: ordena pelos longos (o número entra) e a medida dos Shorts é outra: a segunda linha da célula diz o mesmo que o bloco
     const t = view({ sort: 'vpd', fmt: 'todos', scale: 'abs' }, w.obs, extras({ [OWN1]: medido(7) }))
-    expect(byId(t, OWN1).valor.vpd).toBe(7)
-    if (t.list.ranked.length) expect(byId(t, OWN1).cells.vpd2 === undefined || byId(t, OWN1).cells.vpd2!.kind === 'na').toBe(true)
+    const r = byId(t, OWN1)
+    expect(r.valor.vpd).toBe(7)
+    expect(t.list.ranked).toContain(r)
+    expect(r.cells.vpd).toMatchObject({ kind: 'ok', big: '7,0' })
+    expect(r.cells.vpd2).toMatchObject({ kind: 'na' })
+  })
+
+  it('a célula do canal próprio nos Shorts e na segunda linha de "Todos" diz a mesma frase do bloco, no texto e na dica; a frase velha ("só dos concorrentes") não existe', () => {
+    const w = a3World(semDiario)
+    const ex = extras({ [OWN1]: medido(7), [OWN2]: medido(7) })
+    const FRASE = 'As views por dia do seu canal só são medidas nos vídeos longos.'
+    // Shorts: a célula principal
+    const s = view({ sort: 'vpd', fmt: 'shorts', scale: 'abs' }, w.obs, ex)
+    const rs = byId(s, OWN1)
+    expect(rs.cells.vpd).toEqual({ kind: 'na', text: FRASE, title: FRASE })
+    // a mesma frase do bloco "Seu canal" (que a escreve em minúscula, no meio da sua frase)
+    expect(cheia(s, OWN1).frase.toLowerCase()).toContain(FRASE.slice(0, -1).toLowerCase())
+    // Todos: a segunda linha (Shorts) do canal que TEM Short; a primeira (longos) segue com o número
+    const t = view({ sort: 'vpd', fmt: 'todos', scale: 'abs' }, w.obs, ex)
+    const rt = byId(t, OWN1)
+    expect(rt.cells.vpd).toMatchObject({ kind: 'ok', big: '7,0' })
+    expect(rt.cells.vpd2).toEqual({ kind: 'na', text: FRASE, title: FRASE })
+    // nenhuma célula do canal próprio, em nenhum formato, repete a frase velha
+    for (const fmt of ['todos', 'longos', 'shorts'] as const) {
+      const json = JSON.stringify(view({ sort: 'vpd', fmt, scale: 'abs' }, w.obs, ex))
+      expect(json, fmt).not.toMatch(/só dos concorrentes|Sem views diárias do seu canal/)
+    }
+    // o concorrente não muda: a mesma célula de Shorts com e sem extras
+    const sem = view({ sort: 'vpd', fmt: 'shorts', scale: 'abs' }, w.obs)
+    for (const r of all(sem).filter(x => !x.own)) expect(byId(s, r.id).cells, r.id).toEqual(r.cells)
+  })
+
+  it('as posições dos concorrentes antes e depois de o canal próprio ficar medido: nenhum número muda; a posição renumera só para quem ficou atrás dele', () => {
+    const w = a3World(semDiario)
+    const antes = view({ sort: 'vpd', scale: 'abs' }, w.obs)
+    const comp = all(antes).filter(r => !r.own && r.valor.vpd != null)
+    expect(comp.length).toBeGreaterThan(8)
+    const ordem = comp.map(r => r.valor.vpd!).sort((x, y) => x - y)
+    const X = ordem[ordem.length >> 1]! + 0.37 // entre dois concorrentes, num valor que nenhum escreve igual
+    const txt = (n: number) => vpdText(n, w.obs.fmt.num)
+    const depois = view({ sort: 'vpd', scale: 'abs' }, w.obs, extras({ [OWN1]: medido(X), [OWN2]: semValor('sem-diario') }))
+    let atras = 0, adiante = 0
+    for (const r of comp) {
+      const d = byId(depois, r.id)
+      expect(d.valor, r.id).toEqual(r.valor)       // o número do concorrente não muda
+      expect(d.cells, r.id).toEqual(r.cells)
+      expect(r.pos, r.id).not.toBeNull(); expect(d.pos, r.id).not.toBeNull()
+      const sobe = X > r.valor.vpd! && txt(X) !== txt(r.valor.vpd!) // o próprio passa à frente deste concorrente
+      expect(d.pos!.de, r.id).toBe(r.pos!.de + 1)  // o conjunto ganhou um canal medido
+      expect(d.pos!.pos, r.id).toBe(r.pos!.pos + (sobe ? 1 : 0))
+      expect(d.pos!.empate, r.id).toBe(r.pos!.empate || txt(X) === txt(r.valor.vpd!))
+      if (sobe) atras++; else adiante++
+    }
+    expect(atras).toBeGreaterThan(0); expect(adiante).toBeGreaterThan(0) // o laço viu os dois lados
+    // o próprio entrou no lugar certo: 1 + quantos concorrentes têm valor maior
+    expect(byId(depois, OWN1).pos).toEqual({ pos: 1 + adiante, de: comp.length + 1, empate: false })
   })
 
   it('o dado novo só mexe no canal próprio: as linhas dos concorrentes saem iguais com e sem extras', () => {
@@ -208,8 +266,7 @@ describe('A4.5 lista: o canal próprio entra na posição de Views/dia', () => {
   it('a célula do canal próprio escreve a base: a janela do diário, e a ressalva do canal parado continua', () => {
     const v = view({ sort: 'vpd', scale: 'abs' }, BASE.obs, extras({ [OWN1]: medido(0, 2) }))
     const c = byId(v, OWN1).cells.vpd
-    expect(c.kind).toBe('ok')
-    if (c.kind !== 'ok') return
+    if (c.kind !== 'ok') throw new Error('a célula deveria ter o número')
     expect(c.big).toBe('0'); expect(c.n).toBe(2); expect(c.weak).toBe(true) // 2 vídeos é base fraca
     expect(c.tail ?? '').toContain('de 11/09 a 08/10')
     expect(c.title).toBe('média dos últimos 28 dias do YouTube com medida (de 11/09 a 08/10), mediana de 2 longos')
