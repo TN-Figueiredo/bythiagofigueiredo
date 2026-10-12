@@ -68,9 +68,11 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
   })
   it('diário: o id de um canal de outro site não alcança o dado dele', async () => {
     const r = await lerDiario(sb, { siteId, canalId, hoje: HOJE, podeEditar: true, ytIds: ['seedoutro01'] })
-    expect(r).toEqual({ acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [] } })
+    // nenhuma linha do vídeo de outro site; o último dia é o do PRÓPRIO canal (consulta sem janela e sem filtro de vídeo)
+    expect(r).toEqual({ acesso: 'ok', dado: { canalId, ultimoDia: d(3), linhas: [], descartados: 0 } })
     const r2 = await lerDiario(sb, { siteId, canalId: outroCanal, hoje: HOJE, podeEditar: true, ytIds: ['seedoutro01'] })
     expect(r2.acesso === 'ok' && r2.dado.linhas.length).toBe(0)
+    expect(r2.acesso === 'ok' && r2.dado.ultimoDia).toBeNull() // o dia 'd(3)' do outro site não vaza
   })
   it('alcance: relatórios com os três estados, linhas com bigint/numeric já como número, só do site e canal', async () => {
     const r = await lerAlcance(sb, { siteId, canalId, hoje: HOJE, podeEditar: true })

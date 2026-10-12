@@ -4,7 +4,7 @@ import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 
-const S = 'site-a', C = 'canal-1', HOJE = dayPt(new Date())
+const S = 'site-a', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', HOJE = dayPt(new Date())
 const d = (n: number) => addDays(HOJE, -n)
 const relatorio = (dia: string, status: string, norm: boolean, over: Row = {}): Row => ({
   report_id: 'r-' + dia + '-' + status, site_id: S, channel_id: C, report_type_id: TIPO_ALCANCE, status,
@@ -22,7 +22,7 @@ describe('lerAlcance', () => {
   })
   it('tabelas vazias: ok com listas vazias (o modelo decide a frase), nunca um zero', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [] })
-    expect(await lerAlcance(db.client, pedido)).toEqual({ acesso: 'ok', dado: { canalId: C, relatorios: [], linhas: [], ctrDescartados: 0 } })
+    expect(await lerAlcance(db.client, pedido)).toEqual({ acesso: 'ok', dado: { canalId: C, relatorios: [], linhas: [], ultimoRelatorio: null, descartados: 0 } })
   })
   it('os três estados chegam ao modelo como vieram do banco', async () => {
     const db = fakeSupabase({
@@ -74,10 +74,57 @@ describe('lerAlcance', () => {
     expect(r.dado.linhas).toHaveLength(2300)
     expect(db.trips.filter(t => t === 'yt_own_video_reach_daily').length).toBeGreaterThanOrEqual(3)
   })
+  it('coleta parada há 60 dias: série vazia na janela, mas o último relatório é aquele dia (não "nunca coletado")', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(60), 'baixado', true), relatorio(d(61), 'vazio', true)], yt_own_video_reach_daily: [alcance('v1', d(60), 5, 0.1)] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.relatorios).toEqual([]); expect(r.dado.linhas).toEqual([]); expect(r.dado.ultimoRelatorio).toBe(d(60))
+  })
+  it('o último relatório só olha o site, o canal e o tipo (relatório de outro canal ou tipo mais novo não conta) e pede uma linha', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(50), 'baixado', true), relatorio(d(1), 'baixado', true, { report_id: 'x1', channel_id: 'outro' }), relatorio(d(1), 'baixado', true, { report_id: 'x2', site_id: 'outro' }), relatorio(d(1), 'baixado', true, { report_id: 'x3', report_type_id: 'channel_basic_a3' })], yt_own_video_reach_daily: [] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.ultimoRelatorio).toBe(d(50))
+    expect(db.ranges.some(x => x.table === 'yt_reporting_reports' && x.range?.[0] === 0 && x.range?.[1] === 0)).toBe(true)
+  })
+  it('fronteira da janela do alcance: o dia -35 entra, o -36 não (relatório e linha)', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(35), 'baixado', true), relatorio(d(36), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(35), 5, 0.1), alcance('v2', d(36), 5, 0.1)] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.relatorios.map(x => x.dia)).toEqual([d(35)])
+    expect(r.dado.linhas.map(l => l.ytId)).toEqual(['v1'])
+  })
+  it('o dia do relatório é a data UTC de start_time, qualquer que seja o fuso da sessão do banco', async () => {
+    const dia = d(3)
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(dia, 'baixado', true, { start_time: addDays(dia, -1) + 'T23:00:00-08:00' })], yt_own_video_reach_daily: [] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.relatorios).toEqual([{ dia, status: 'baixado', normalizado: true }])
+    expect(r.dado.ultimoRelatorio).toBe(dia)
+  })
+  it('start_time inválido: o relatório é descartado e contado, nenhuma exceção; os outros ficam', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true), relatorio(d(4), 'baixado', true, { report_id: 'ruim', start_time: 'lixo' })], yt_own_video_reach_daily: [] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.relatorios).toEqual([{ dia: d(3), status: 'baixado', normalizado: true }])
+    expect(r.dado.descartados).toBe(1)
+  })
+  it('impressão negativa vira nula e conta como descartada; uma linha com impressão e CTR ruins conta uma vez', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), -5, 0.1), alcance('v2', d(3), -5, 7), alcance('v3', d(3), 9, 0.1)] })
+    const r = await lerAlcance(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: null, ctr: 0.1 }, { ytId: 'v2', dia: d(3), imp: null, ctr: null }, { ytId: 'v3', dia: d(3), imp: 9, ctr: 0.1 }])
+    expect(r.dado.descartados).toBe(2)
+  })
+  it('canalId que não é uuid: negado, sem consulta e sem lançar', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [] })
+    expect(await lerAlcance(db.client, { ...pedido, canalId: "x'; drop" })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
   it('toda consulta pede só colunas que o leitor usa (nunca select *)', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [] })
     await lerAlcance(db.client, pedido)
-    expect(db.selects.length).toBe(2)
+    expect(db.selects.length).toBe(3)
     for (const s of db.selects) expect(s.cols).not.toContain('*')
   })
 })
@@ -86,12 +133,12 @@ describe('lerDiario', () => {
   it('negado sem consulta; lista de vídeos vazia não consulta', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)] })
     expect(await lerDiario(db.client, { ...pedido, podeEditar: false, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [] } })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], descartados: 0 } })
     expect(db.trips).toEqual([])
   })
   it('tabela vazia com vídeos pedidos: ok, ultimoDia null, nenhuma linha', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [] })
-    expect(await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [] } })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], descartados: 0 } })
   })
   it('linha com views 0 é ZERO medido (0, não null); views nulas ficam null; dia sem linha não existe na resposta', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 0), diario('v1', d(4), null), diario('v1', d(6), 9)] })
@@ -129,6 +176,44 @@ describe('lerDiario', () => {
     expect(r.dado.linhas).toHaveLength(1900)
     expect(db.trips.length).toBeGreaterThanOrEqual(2)
   })
+  it('coleta parada há 60 dias: nenhuma linha na janela, mas ultimoDia é aquele dia (não "nunca coletado")', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(60), 3), diario('v1', d(61), 3)] })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.linhas).toEqual([]); expect(r.dado.ultimoDia).toBe(d(60))
+    expect(db.ranges.some(x => x.table === 'yt_own_video_daily' && x.range?.[0] === 0 && x.range?.[1] === 0)).toBe(true)
+  })
+  it('ultimoDia só olha o site e o canal: dia mais novo de outro site ou canal não conta', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(10), 3), diario('v9', d(1), 3, { site_id: 'outro' }), diario('v9', d(2), 3, { channel_id: 'outro' })] })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.ultimoDia).toBe(d(10))
+  })
+  it('fronteira da janela do diário: o dia -38 entra, o -39 não', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(38), 1), diario('v1', d(39), 1)] })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.linhas.map(l => l.dia)).toEqual([d(38)])
+    expect(r.dado.ultimoDia).toBe(d(38))
+  })
+  it('views negativas viram nulas e contam como descartadas', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), -4), diario('v1', d(4), 6)] })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(4), views: 6 }, { ytId: 'v1', dia: d(3), views: null }])
+    expect(r.dado.descartados).toBe(1)
+  })
+  it('canalId que não é uuid: negado, sem consulta e sem lançar', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [] })
+    expect(await lerDiario(db.client, { ...pedido, canalId: 'canal-1', ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+  it('nenhuma consulta do diário pede select *', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [] })
+    await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    expect(db.selects.length).toBe(2)
+    for (const x of db.selects) expect(x.cols).not.toContain('*')
+  })
   it('erro do banco é lançado', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [] }, { failOn: 'yt_own_video_daily' })
     await expect(lerDiario(db.client, { ...pedido, ytIds: ['v1'] })).rejects.toThrow()
@@ -142,7 +227,7 @@ describe('contrato da fonte (unidade do CTR e linha repetida)', () => {
       const r = await lerAlcance(db.client, pedido)
       if (r.acesso !== 'ok') throw new Error('esperava ok')
       expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: 100, ctr: null }])
-      expect(r.dado.ctrDescartados).toBe(1)
+      expect(r.dado.descartados).toBe(1)
     }
   })
   it('a contagem de CTR descartado soma só as linhas estragadas: boas, nulas e extremos não entram', async () => {
@@ -151,7 +236,7 @@ describe('contrato da fonte (unidade do CTR e linha repetida)', () => {
     ] })
     const r = await lerAlcance(db.client, pedido)
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.ctrDescartados).toBe(2)
+    expect(r.dado.descartados).toBe(2)
     expect(r.dado.linhas.map(l => l.ctr).sort()).toEqual([0, 0.04, 1, null, null, null].sort())
   })
   it('linha repetida: só a que vence conta no descarte (a perdedora estragada não)', async () => {
@@ -161,7 +246,7 @@ describe('contrato da fonte (unidade do CTR e linha repetida)', () => {
     const r = await lerAlcance(db.client, pedido)
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: 10, ctr: 0.1 }])
-    expect(r.dado.ctrDescartados).toBe(0)
+    expect(r.dado.descartados).toBe(0)
   })
   it('erro de consulta continua lançando mesmo com CTR estragado na outra tabela', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [alcance('v1', d(3), 100, 5)] }, { failOn: 'yt_reporting_reports' })
