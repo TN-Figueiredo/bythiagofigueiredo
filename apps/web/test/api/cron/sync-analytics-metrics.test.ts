@@ -535,6 +535,19 @@ describe('autorização e linha da execução (L1b)', () => {
     expect(new Date(runsDeletes[0]!).getTime()).toBeLessThan(Date.now() - 89 * 86_400_000)
   })
 
+  it('grava resumo.guarda no TOPO do resumo (a guarda relê blobs_guardados nesse nível) e o tempo dela em ms_passos.guarda', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { ms: { metadados: 10 } } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { guarda: { blobs_guardados: 176, blobs_guardados_ao_abrir: 150, blobs_guardados_antes: 160 }, ms: { relatorios: 7, guarda: 42 } } })
+    await pedir()
+    expect(runsInseridos).toHaveLength(1)
+    const resumo = runsInseridos[0]!.resumo as { guarda?: { blobs_guardados?: unknown } }
+    expect(resumo.guarda?.blobs_guardados).toBe(176)
+    expect(runsInseridos[0]!.ms_passos).toMatchObject({ metadados: 10, relatorios: 7, guarda: 42 })
+  })
+
   it('coluna collection_status ausente (código no ar sem a migration): relê os canais sem ela, a parte antiga e as duas fases rodam, e o veredito é schema_ausente', async () => {
     const canal = { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1', subscriber_count: 1000, name: null }
     const selects: string[] = []
