@@ -107,21 +107,22 @@ export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado
   return { acesso: 'ok', dado: { canalId: p.canalId, relatorios, linhas: out, ultimoRelatorio: diaUtc(recente?.start_time), descartados } }
 }
 
-/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos últimos JANELA_DIARIO_DIAS + 10 dias. */
+/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos últimos JANELA_DIARIO_DIAS + 10 dias. Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
 export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonly string[] }): Promise<Privado<DiarioCanal>> {
   if (semConsulta(p)) return { acesso: 'negado' }
   const ytIds = p.ytIds.slice(0, TETO_VIDEOS_DIARIO)
-  if (ytIds.length === 0) return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia: null, linhas: [], descartados: 0 } }
   const desde = addDays(p.hoje, -(JANELA_DIARIO_DIAS + 10))
+  // SEM janela e sem filtro de vídeo: o último dia gravado do canal, mesmo parado há meses (a série é que é limitada).
+  // Roda também com a lista de vídeos vazia: um canal sem longo acompanhado com o diário cheio não é "nunca coletado".
+  const ultimoQ = () => primeiraLinha<{ day_pt: string }>('yt_own_video_daily', sb.from('yt_own_video_daily').select('day_pt')
+    .eq('site_id', p.siteId).eq('channel_id', p.canalId)
+    .order('day_pt', { ascending: false }).range(0, 0))
   const [rows, ultimo] = await Promise.all([
-    readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
+    ytIds.length === 0 ? Promise.resolve<DiarioRow[]>([]) : readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
       .select('youtube_video_id, day_pt, views, collected_at')
       .eq('site_id', p.siteId).eq('channel_id', p.canalId)
       .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id')),
-    // SEM janela e sem filtro de vídeo: o último dia gravado do canal, mesmo parado há meses (a série é que é limitada)
-    primeiraLinha<{ day_pt: string }>('yt_own_video_daily', sb.from('yt_own_video_daily').select('day_pt')
-      .eq('site_id', p.siteId).eq('channel_id', p.canalId)
-      .order('day_pt', { ascending: false }).range(0, 0)),
+    ultimoQ(),
   ])
   let descartados = 0
   const linhas: DiarioLinha[] = umaPorVideoDia(rows).map(r => {
