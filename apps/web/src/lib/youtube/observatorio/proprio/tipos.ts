@@ -36,14 +36,19 @@ export interface AlcanceCanal {
   canalId: string
   relatorios: RelatorioDia[]
   linhas: AlcanceLinha[]
-  /** linhas cujo CTR veio fora de 0 a 1 e foi descartado (a linha ficou com ctr nulo): quem chama avisa o Sentry uma vez por requisição */
-  ctrDescartados: number
+  /** o dia do relatório mais novo do canal, SEM janela: com a série vazia na janela, "parou em dd/mm" e não "nunca coletado" */
+  ultimoRelatorio: DiaYt | null
+  /** linhas ou relatórios com valor ruim (CTR fora de 0 a 1, número negativo, data inválida) que viraram nulo ou foram descartados: quem chama avisa o Sentry uma vez por requisição */
+  descartados: number
 }
 
 export interface DiarioCanal {
   canalId: string
+  /** o último dia gravado do canal, SEM janela (a série é que é limitada): é ele que diz "parou em dd/mm" */
   ultimoDia: DiaYt | null
   linhas: DiarioLinha[]
+  /** linhas com views negativas, que viraram nulas: quem chama avisa o Sentry uma vez por requisição */
+  descartados: number
 }
 
 /** 'negado' = quem pede não edita o site (nada foi consultado); 'erro' = a leitura falhou (só onde D5 permite). */
