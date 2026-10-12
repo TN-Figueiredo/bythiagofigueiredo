@@ -46,7 +46,7 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   // semanal TEM pontos, mas semanais: o efeito de troca exige pontos diários. O estado continua 'sem-serie' (as telas contam
   // os 'inconclusivo'); a frase é a do spec.
   if (!isObserved(v)) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.', ...(v.tier === 'semanal' && v.unobservedSeries?.length ? { weeklySeries: true as const } : {}) })
-  // (emenda do portão: S-I8, pergunta 5) o motivo NÃO muda: a frase "inconclusivo: série semanal" é texto de tela e entra com o mockup
+  // (emenda do portão: S-I8, pergunta 5) o motivo NÃO muda: a frase de tela para série semanal ainda não existe e entra com o mockup
   // da E5. O tipo do efeito ganha o campo opcional `weeklySeries?: true`, que nenhuma tela lê.
   if (!v.series.length || ch.lastIdx == null) return done({ status: 'sem-serie', label: 'sem série', reason: 'Vídeo sem série diária de views.' })
   const k = clock.snapIdxAtOrAfter(c.at), L = Lcap == null ? ch.lastIdx : Math.min(ch.lastIdx, Lcap)
