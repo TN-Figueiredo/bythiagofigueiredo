@@ -190,7 +190,9 @@ describe('T8 a linha de posição vira itens estruturados (pendência (b) da Tar
     const nicho = BASE.obs.channel(BASE.canalId)!.niche
     const alvo = (sort: 'subs' | 'vpd') => link.canais({ niche: nicho ?? 'todos', sort })
     expect(p.itens.find(i => i.chave === 'inscritos')!.href).toBe(alvo('subs'))
-    expect(p.itens.find(i => i.chave === 'vpdPorMil')!.href).toBe(alvo('vpd'))
+    // T9 (M1): o link do item de views/dia por mil só existe COM posição (aqui não há: os concorrentes não entram sem as views por dia); o caso com posição está em proprio-t9-cabecalho.test.ts
+    expect(p.itens.find(i => i.chave === 'vpdPorMil')!.href).toBeNull()
+    expect(alvo('vpd')).toMatch(/sort=vpd/)
     expect(p.itens.find(i => i.chave === 'medianaViews')!.href).toBeNull()
     expect(p.itens.find(i => i.chave === 'longos90')!.href).toBeNull()
   })

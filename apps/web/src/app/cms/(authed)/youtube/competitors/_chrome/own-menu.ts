@@ -60,7 +60,8 @@ export function linhasDoMotor(obs: Observatory): Linha[] {
     contagem.set(v.ch, (contagem.get(v.ch) ?? 0) + 1)
     if (v.pub > (ultimo.get(v.ch) ?? -Infinity)) ultimo.set(v.ch, v.pub)
   }
-  return obs.ownChannels().map(c => ({ id: c.id, name: c.name, subs: c.subs, videos: contagem.get(c.id) ?? 0, ultimo: ultimo.get(c.id) ?? null }))
+  // vídeo sem data conta (canalTemVideos): `videos` é o que o canal guarda, e `ultimo` só olha os que têm data
+  return obs.ownChannels().map(c => ({ id: c.id, name: c.name, subs: c.subs, videos: (contagem.get(c.id) ?? 0) + c.undated.length, ultimo: ultimo.get(c.id) ?? null }))
 }
 
 /** O id do "meu canal" para as telas que leem o site (a lista de Canais usa o mesmo que o atalho). */

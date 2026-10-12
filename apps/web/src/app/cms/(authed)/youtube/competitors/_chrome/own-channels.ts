@@ -2,6 +2,7 @@
  * Own channels on the Observatório screens (port of canais.html LANG / langTag / OWN_TXT). Pure: used by Canais and
  * by Insights. A site may have zero, one or many own channels; the sentences agree with how many there are.
  */
+import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 
 export interface LangChip { code: string; title: string }
@@ -41,4 +42,20 @@ export function listPt(xs: readonly string[]): string {
  */
 export function ownChannelHref(id: string): string {
   return link.canal(id)
+}
+
+/**
+ * O critério ÚNICO de "o canal tem vídeos" (e, para canal próprio, "tem página", spec 16.8): vídeo guardado conta, com ou sem data. O vídeo sem
+ * data fica fora de `obs.videos` e vive em `canal.undated`; a rota, o redirecionamento de `?channel=`, a lista de Canais, o menu "Meu canal"
+ * e a comparação perguntam aqui, nunca contam por conta própria.
+ */
+/** Na linha do canal próprio sem vídeos (lista de Canais): o motivo de a linha não abrir nada (spec 16.8: "sem vídeos"; o menu "Meu canal" diz o mesmo). */
+export const SEM_PAGINA_LINHA = 'sem vídeos: ainda sem página'
+/** A frase da moldura de `canal/<id>` do canal próprio sem vídeos (D10). */
+export const SEM_VIDEOS_FRASE = 'Este canal ainda não tem vídeos. A página aparece com o primeiro vídeo sincronizado.'
+
+export function canalTemVideos(obs: Pick<Observatory, 'channel' | 'videos'>, id: string): boolean {
+  const c = obs.channel(id)
+  if (!c) return false
+  return c.undated.length > 0 || obs.videos.some(v => v.ch === id)
 }

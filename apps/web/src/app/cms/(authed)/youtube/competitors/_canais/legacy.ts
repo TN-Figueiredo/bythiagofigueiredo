@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { Observatory } from '@/lib/youtube/observatorio'
+import { canalTemVideos } from '../_chrome/own-channels'
 
 /** Old dashboard links used ?tab=<name>; each tab is now its own route. "canais" and anything else stay on Canais. */
 export function legacyTabRedirect(tab: string | undefined): void {
@@ -19,7 +20,7 @@ export function competitorChannelRedirect(obs: Pick<Observatory, 'channel' | 'vi
   const c = obs.channel(channel)
   if (!c) return
   if (!c.own) redirect(link.canal(c.id))
-  if (obs.videos.some(v => v.ch === c.id) || c.undated.length > 0) redirect(link.canal(c.id))
+  if (canalTemVideos(obs, c.id)) redirect(link.canal(c.id))
 }
 
 /**

@@ -72,9 +72,10 @@ describe('T8 a raiz e o cabeçalho', () => {
     expect(norm(pos.textContent)).toBe(norm(view.header.posicaoLinha))
     const links = [...pos.querySelectorAll('a')]
     expect(links.map(a => a.getAttribute('href'))).toEqual(view.header.posicaoItens!.itens.map(i => i.href).filter((h): h is string => h != null))
-    expect(links.length).toBe(2)
+    // T9 (M1): o item só liga quando tem posição; sem as views por dia dos concorrentes a posição em views/dia por mil não existe, e então não é link
+    expect(links.length).toBe(1)
     expect(links[0]!.getAttribute('href')).toMatch(/sort=subs/)
-    expect(links[1]!.getAttribute('href')).toMatch(/sort=vpd/)
+    expect(view.header.posicaoItens!.itens.find(i => i.chave === 'vpdPorMil')!.href).toBeNull()
   })
 
   it('"Comparar com…" fica ao lado de "Abrir no YouTube"; leva à comparação com o concorrente logo acima; o title diz qual', () => {

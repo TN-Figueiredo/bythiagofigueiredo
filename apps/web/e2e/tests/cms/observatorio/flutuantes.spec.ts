@@ -382,21 +382,19 @@ test.describe('teclado', () => {
     expect(await page.locator(btn).evaluate(e => document.activeElement === e), 'Shift+Tab: o foco devia estar no ⋯; está em ' + await descFoco(page)).toBe(true)
   })
 
-  test('menu da linha de Canais: Esc fecha o menu e a gaveta aberta fica', async ({ page }) => {
-    // a gaveta só abre para o canal próprio (o concorrente tem página): é o botão, não o link. O canal próprio é de Viagem: em Todos ele aparece
-    // no alto, e no nicho salvo por outra prova (IA) ele sairia da tabela
+  test('menu da linha de Canais: Esc fecha o menu e devolve o foco ao botão ⋯ (a gaveta não abre mais por clique, A4)', async ({ page }) => {
+    // A4 (I1 da revisão da T8): nenhuma linha abre a gaveta (o concorrente e o próprio com vídeos têm página); o Esc com menu E gaveta juntos continua provado em jsdom
+    // (canais-screen.test.tsx). Aqui fica o que o navegador prova: o menu abre no botão da linha, o Esc o fecha e o foco volta.
     await page.goto('/cms/youtube/competitors?niche=todos')
     await page.locator('[data-obs-screen="canais"] tbody tr').first().waitFor()
     await page.waitForLoadState('networkidle')
-    await page.locator('[data-obs-screen="canais"] button.nmbtn[data-open]').first().click()
-    await expect(page.locator('.cn-drawer')).toBeVisible()
-    await page.locator('[data-obs-screen="canais"] [data-menu]').first().click()
+    await expect(page.locator('[data-obs-screen="canais"] button.nmbtn[data-open]')).toHaveCount(0)
+    const menu = page.locator('[data-obs-screen="canais"] [data-menu]').first()
+    await menu.click()
     await expect(page.locator('#flut .cn-menu')).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.locator('#flut .cn-menu')).toHaveCount(0)
-    await expect(page.locator('.cn-drawer'), 'o Esc que fechou o menu fechou também a gaveta').toBeVisible()
-    // o segundo Esc fecha a gaveta
-    await page.keyboard.press('Escape')
+    expect(await menu.evaluate(e => document.activeElement === e), 'Esc devia devolver o foco ao ⋯; está em ' + await descFoco(page)).toBe(true)
     await expect(page.locator('.cn-drawer')).toHaveCount(0)
   })
 })

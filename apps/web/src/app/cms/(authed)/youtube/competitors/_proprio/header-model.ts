@@ -104,10 +104,10 @@ export function buildProprioHeader(
   o: {
     hoje: DiaYt; dm: (d: DiaYt) => string; posicao: PosicaoNoNicho | null
     /**
-     * O site tem mais de um canal próprio (decide o selo de idioma). A página do canal lê um conjunto de UM canal, onde `ownChannels()` LANÇA: quem monta
-     * a página passa o que sabe do menu "Meu canal". Ausente = pergunta ao conjunto (só serve onde ele é o do site inteiro).
+     * O site tem mais de um canal próprio (decide o selo de idioma). OBRIGATÓRIO: a página do canal lê um conjunto de UM canal, onde `ownChannels()`
+     * LANÇA; quem monta a página passa o que sabe do menu "Meu canal" (a prova de tipo está em header-model.type-test.ts).
      */
-    muitosProprios?: boolean
+    muitosProprios: boolean
   },
 ): ProprioHeaderView | null {
   const ch: ObsChannel | undefined = obs.channel(canalId)
@@ -274,7 +274,7 @@ export function buildProprioHeader(
   const sync = sincronizacaoDoCanal(obs, ch, tail).text
 
   const posicaoItens = o.posicao ? itensDePosicao(o.posicao, { ch, longos90: recentes.length, vpd, dm, F }) : null
-  const many = o.muitosProprios ?? obs.ownChannels().length > 1
+  const many = o.muitosProprios
   return {
     id: ch.id, name: ch.name, handle: ch.handle, url: ch.url, avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, lang: langChip(ch.lang, many),
     faixa: [inscritos, videos, viewsSomadas, impressoes, diasComImpressao, diasDesdeUltimo],
@@ -321,13 +321,14 @@ function itensDePosicao(
   const emp = (q: Posicao) => (q.empate ? ' (empate)' : '')
   const niche = nichoDoLink(p.conjunto)
   const itens: PosicaoItem[] = [
-    { chave: 'inscritos', href: link.canais({ niche, sort: 'subs' }),
+    // só liga quando HÁ posição: sem ela o clique levaria a uma lista ordenada onde este canal está sem valor
+    { chave: 'inscritos', href: p.inscritos ? link.canais({ niche, sort: 'subs' }) : null,
       texto: p.inscritos ? `${pos(p.inscritos)} em inscritos${emp(p.inscritos)}` : `sem posição em inscritos${x.ch.subs == null ? ' (ocultos pelo canal)' : ''}` },
     { chave: 'medianaViews', href: null,
       texto: p.medianaViews ? `${pos(p.medianaViews)} em mediana de views${emp(p.medianaViews)}` : 'sem posição em mediana de views (sem contagem)' },
     { chave: 'longos90', href: null,
       texto: p.longos90 ? `${pos(p.longos90)} em longos em 90 dias${x.longos90 === 0 ? ' (nenhum)' : ''}${emp(p.longos90)}` : 'sem posição em longos em 90 dias' },
-    { chave: 'vpdPorMil', href: link.canais({ niche, sort: 'vpd' }), texto: `Views/dia por mil inscritos: ${porMil(p.vpdPorMil, de, x)}` },
+    { chave: 'vpdPorMil', href: p.vpdPorMil ? link.canais({ niche, sort: 'vpd' }) : null, texto: `Views/dia por mil inscritos: ${porMil(p.vpdPorMil, de, x)}` },
   ]
   const intro = todas.length ? `${entreTexto(p.conjunto, de, F)}:` : `Sem posição calculada ${conjuntoTexto(p.conjunto)}:`
   return { intro, itens }

@@ -16,6 +16,7 @@ import { useCanalState } from '../_canal/use-canal-state'
 import { aposRestaurar, pararRestauracao, useRolagemAoVoltar } from '../_canal/use-rolagem-ao-voltar'
 import { precisaTrazer } from '../_canal/cartao-a-vista'
 import type { ChannelVideoView } from '../_canal/videos-model'
+import { SEM_VIDEOS_FRASE } from '../_chrome/own-channels'
 import { descartarGatilhoSeNaoVoltou, lerGatilho } from '../_chrome/gatilho-volta'
 import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
@@ -44,7 +45,7 @@ export function ProprioSemVideos({ nome, canaisHref }: { nome: string; canaisHre
     <div data-obs-screen="canal" data-own="1">
       <div className="cv-empty">
         <p><b>{nome}</b></p>
-        <p>Este canal ainda não tem vídeos. A página aparece com o primeiro vídeo sincronizado.</p>
+        <p>{SEM_VIDEOS_FRASE}</p>
         <Link className="obs-ch-btn" href={canaisHref}>Voltar para Canais</Link>
       </div>
     </div>
