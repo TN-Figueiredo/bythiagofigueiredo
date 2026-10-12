@@ -615,6 +615,44 @@ describe('E12 onda 2, D3: linha desativada que é religada conta os 6 dias a par
   })
 })
 
+describe('E12 onda 6, G3: ausência nunca sobrescreve a data de criação que já está gravada', () => {
+  const AGORA = new Date('2026-10-20T12:00:00.000Z')
+  const GRAVADA = '2026-10-08T12:01:00.000Z'
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  /** Produção no D0: o job já está `ativo` com a data gravada, e o canal não está completo (faltam os tipos novos), então a sondagem passa por ele. */
+  const bancoDeProducao = (): FakeDb => fakeSupabase({
+    yt_reporting_jobs: [{
+      site_id: 'site-1', channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'ativo', job_id: 'job-channel_basic_a3',
+      job_create_time: GRAVADA, last_create_time: '2026-10-19T10:00:00.000Z',
+    }],
+  })
+
+  it('jobs.list devolve o job ativo SEM createTime: a data gravada fica, e o job_id também', async () => {
+    api.jobsList.mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3' }])
+    const db = bancoDeProducao()
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_id: 'job-channel_basic_a3', job_create_time: GRAVADA })
+  })
+
+  it('jobs.list devolve createTime: vale o da API (corrige o gravado)', async () => {
+    api.jobsList.mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3', createTime: '2026-10-08T12:01:05Z' }])
+    const db = bancoDeProducao()
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ job_create_time: '2026-10-08T12:01:05Z' })
+  })
+
+  it('o mesmo vale para o job adotado depois de um 409 (a lista de novo vem sem createTime)', async () => {
+    // Linha ativa com data gravada, mas fora da primeira listagem: o create dá 409, a segunda listagem acha o job sem data.
+    api.jobsList.mockResolvedValueOnce([]).mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3' }])
+    api.jobsCreate.mockRejectedValue(new ReportingHttpError(409, null))
+    const db = bancoDeProducao()
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: GRAVADA })
+  })
+})
+
 describe('E12 onda 4, E3: tipo que sumiu da lista do YouTube', () => {
   const SUMIU = 'channel_basic_a3'
   const MSG = `jobs: Canal Um: o tipo ${SUMIU} sumiu da lista do YouTube; se repetir, foi descontinuado`
