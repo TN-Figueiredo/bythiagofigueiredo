@@ -1,7 +1,7 @@
 // @vitest-environment node
 // A3 Tarefa 2: posição no nicho e no geral, lista única (canal próprio na posição dele), divisor "Ainda sem medida
 // para ordenar (N)", bloco "Seus canais" e linha presa (modelo, sem tela).
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect } from 'vitest'
 import { a3World } from './a3-fixture'
 import { buildCanaisView, type CanaisParams, type CanaisRow, type CanaisSort, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { fraseSeuCanal, motivoTexto, POSICIONADAS, type MotivoSemMedida } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
@@ -70,6 +70,10 @@ function mundoSemMedida() {
   })
   return { ...w, aguarda: aguarda!, bf: bf!, oculto: oculto!, semSh: semSh!, propria: w.owns[0]! }
 }
+
+// Este arquivo é todo síncrono e pesado (no CI passa de 60 s). Sem uma volta do laço de eventos entre os testes, o processo do Vitest não responde ao
+// executor e a suíte inteira fecha com "Timeout calling onTaskUpdate" mesmo com todos os testes verdes (visto no CI em 12/10). Uma macrotarefa por teste basta.
+afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 
 describe('A3.2 lista única', () => {
   it('lista única: os canais próprios ficam NA POSIÇÃO deles entre os concorrentes, em qualquer ordenação e direção', () => {
