@@ -120,6 +120,22 @@ describe('os três estados têm forma própria, além da cor', () => {
     expect(container.querySelector('g[data-situacao="nao-medido"] circle, g[data-situacao="zero-medido"] circle')).toBeNull()
   })
 
+  it('D2 (fecho da A4): a 300 px (colunas de ~8 px) o MAIOR valor da série, no meio, fica com rótulo de impressões e de cliques; os rótulos que sobram não se sobrepõem', () => {
+    largura = 300
+    const dias: DiaAlcance[] = []
+    for (let i = 0; i < 29; i++) dias.push({ dia: addDays('2026-09-01', i), situacao: 'com-impressoes', motivo: null, imp: i === 10 ? 19983 : 120 + (i % 5), cliques: i === 10 ? 1139 : 3 + (i % 4) })
+    const { container } = montar(buildImpressoes(dias, { de: '2026-09-01', ate: '2026-09-29', dias: 29 }, O))
+    const imp = [...container.querySelectorAll('text.ic-val')].map(t => t.textContent)
+    const cl = [...container.querySelectorAll('text.ic-cln')].map(t => t.textContent)
+    expect(imp, 'impressões: o maior tem rótulo').toContain('19.983')
+    expect(cl, 'cliques: o maior tem rótulo').toContain('1.139')
+    expect(imp.length, 'os outros entram enquanto couberem').toBeGreaterThan(1)
+    expect(imp.length).toBeLessThan(29)
+    // sem sobreposição: cada rótulo ocupa o seu intervalo de x (largura = caracteres × 7,4) separado do vizinho por 3 px
+    const caixas = [...container.querySelectorAll<SVGTextElement>('text.ic-val')].map(t => { const x = Number(t.getAttribute('x')), w = (t.textContent ?? '').length * 7.4; return [x - w / 2, x + w / 2] as const }).sort((a, b) => a[0] - b[0])
+    for (let i = 1; i < caixas.length; i++) expect(caixas[i]![0], `rótulo ${i} esbarra no anterior`).toBeGreaterThanOrEqual(caixas[i - 1]![1] + 3 - 1e-9)
+  })
+
   it('I3 (revisão da T9) contraria o mockup: o zero medido tem FORMA própria (caixa vazada), diferente da barra mínima (cheia) e da coluna hachurada, mesmo com os rótulos omitidos', () => {
     // 29 dias em 300 px: ~8 px por coluna, os números em cima da barra somem
     largura = 300

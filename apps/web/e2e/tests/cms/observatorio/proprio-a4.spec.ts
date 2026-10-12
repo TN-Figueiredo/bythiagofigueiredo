@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { ADMIN_STATE, clearSeeded, ensureSeeded, seedIdsOf } from './fidelity'
 import { resetViewerPrefs, localServiceClient, ownSeedUuid, fixarPublicacaoProprio, seedOwnL2, clearOwnL2, ORACLE_NOW, ORFAO_YT_ID, type SeedOptions } from '../../../fixtures/observatorio-seed'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
+import { taxaComIntervalo } from '@/lib/youtube/observatorio/proprio/taxa'
 
 test.use({ storageState: ADMIN_STATE })
 let ids: ReturnType<typeof seedIdsOf>
@@ -1819,11 +1820,142 @@ blocoT15('T15 diário com lacunas: o filtro "7 dias ou mais" da mediana e o víd
   })
 })
 
-/* ---- o que ainda espera a Tarefa 14. As quatro que esperavam as telas 13.3 e 13.4 ("Este vídeo no canal", o gráfico do vídeo, os 44 px nos traços da régua e o alvo de toque por dia)
-   foram destravadas e reescritas para o desenho aprovado em `proprio-a4-telas.spec.ts` (15b). */
-test.describe('T15 pendentes: espera a Tarefa 14 (cartão "Só o seu canal mede" da comparação, que espera a aprovação visual do dono)', () => {
-  test.fixme('espera a Tarefa 14: a comparação de um canal seu com um concorrente mostra o cartão "Só o seu canal mede" com quatro linhas: impressões, cliques estimados, taxa com intervalo e % assistido', async () => { /* o cartão ainda não existe: a Tarefa 14 espera a aprovação visual do dono */ })
-  test.fixme('espera a Tarefa 14: com dois canais seus o cartão "Só o seu canal mede" mostra os dois lados (dois cartões); sem canal próprio ele não existe', async () => { /* idem */ })
+/* ---- A Tarefa 14 (cartão "Só o seu canal mede" da comparação), destravada na 15c com o desenho aprovado em 12/10. As quatro que esperavam as telas 13.3 e 13.4
+   ("Este vídeo no canal", o gráfico do vídeo, os 44 px nos traços da régua e o alvo de toque por dia) estão em `proprio-a4-telas.spec.ts` (15b). */
+const SO = '[data-so-seu-canal]'
+/** O que o cartão deve dizer, contado das LINHAS DO BANCO (nunca copiado da tela): impressões, cliques, taxa com intervalo e % assistido (média pelas views, 28 dias, longos). */
+async function esperadoDoCartao(canalOracle = 'tnfigueiredo') {
+  const p = await lerPrivado(canalOracle)
+  const e = esperado(p)
+  const sb = localServiceClient(), siteId = await getSeedSiteId(), canal = ids.own(canalOracle)
+  const r = await sb.from('youtube_videos').select('youtube_video_id, duration_seconds').eq('site_id', siteId).eq('channel_id', canal).limit(5000)
+  if (r.error) throw new Error('youtube_videos: ' + r.error.message)
+  const longos = new Set(LinhasSchema.parse(r.data).filter(v => Number(v.duration_seconds) > 60).map(v => String(v.youtube_video_id)))
+  const d = await sb.from('yt_own_video_daily').select('youtube_video_id, day_pt, views, avg_view_percentage').eq('site_id', siteId).eq('channel_id', canal).limit(5000)
+  if (d.error) throw new Error('yt_own_video_daily: ' + d.error.message)
+  const linhas = LinhasSchema.parse(d.data).map(x => ({ yt: String(x.youtube_video_id), dia: String(x.day_pt), views: Number(x.views), pct: x.avg_view_percentage == null ? null : Number(x.avg_view_percentage) }))
+  const ultimo = linhas.map(l => l.dia).sort().at(-1) ?? null
+  let soma = 0, n = 0
+  const dias = new Set<string>()
+  if (ultimo) {
+    const de = addDiasStr(ultimo, -27)
+    for (const l of linhas) if (longos.has(l.yt) && l.dia >= de && l.dia <= ultimo && l.views > 0 && l.pct != null) { soma += l.pct * l.views; n += l.views; dias.add(l.dia) }
+  }
+  const t = e.cliques == null ? null : taxaComIntervalo(p.reach.reduce((a, x) => a + x.imp * (x.ctr ?? 0), 0), e.imp)
+  return { e, p, t, assistido: n > 0 ? Math.round(soma / n) : null, diasAssistido: dias.size, viewsAssistido: n }
+}
+const pct1 = (f: number): string => (f * 100).toFixed(1).replace('.', ',') + '%'
+
+blocoT15('T14 comparação: o cartão "Só o seu canal mede" (canal seu × concorrente), com dado completo', { ownPreset: '2', ownL2: 'ativo' }, () => {
+  test('quatro linhas na ordem do mockup (impressões, cliques estimados, taxa de clique com intervalo e faixa, % assistido), os valores do banco, a frase "não porque sejam zero" e o cartão logo abaixo dos dois lados e antes de "Número a número"', async ({ page }) => {
+    const x = await esperadoDoCartao()
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`)
+    const cartao = page.locator(`[data-obs-screen="comparar"]:visible ${SO}`)
+    await cartao.waitFor({ timeout: 40_000 })
+    await expect(cartao).toHaveCount(1)
+    await expect(cartao.locator('h2')).toContainText('Só o seu canal mede')
+    const outro = (await textoDe(page.locator('[data-obs-screen="comparar"]:visible .cp-side[data-lado="B"] h2').first())).trim()
+    expect(outro.length).toBeGreaterThan(2)
+    const frase = await textoDe(cartao.locator('.so-lead'))
+    expect(frase).toBe(`Impressões, taxa de clique e % assistido só chegam ao dono do canal. ${outro} não tem esses números aqui porque o YouTube não os entrega, não porque sejam zero.`)
+    expect(await cartao.locator('.so-lead b').allTextContents()).toEqual(['não porque sejam zero'])
+    const linhas = cartao.locator('ul.so-linhas > li')
+    expect(await linhas.evaluateAll(els => els.map(e => e.getAttribute('data-linha')))).toEqual(['impressoes', 'cliques', 'taxa', 'assistido'])
+    expect(await linhas.locator('.so-rt').evaluateAll(els => els.map(e => (e.firstChild?.textContent ?? '').trim()))).toEqual(['Impressões', 'Cliques estimados', 'Taxa de clique', '% assistido'])
+    const sub = (k: string) => textoDe(cartao.locator(`li[data-linha="${k}"] .so-rt small`))
+    expect(await sub('impressoes')).toMatch(/^de \d\d\/\d\d a \d\d\/\d\d$/)
+    expect(await sub('cliques')).toBe('impressões × taxa de cada dia')
+    expect(await sub('taxa')).toBe('com intervalo de 95%')
+    expect(await sub('assistido')).toBe('média pelas views, 28 dias')
+    const valor = (k: string) => cartao.locator(`li[data-linha="${k}"] .so-vl`).evaluate(el => (el.firstChild?.textContent ?? '').trim())
+    expect(await valor('impressoes')).toBe(PT(x.e.imp))
+    expect(x.e.cliques, 'o perfil ativo tem CTR em todo dia').not.toBeNull()
+    expect(await valor('cliques')).toBe(PT(x.e.cliques!))
+    expect(x.t).not.toBeNull()
+    expect(await valor('taxa')).toBe(pct1(x.t!.taxa))
+    expect(await textoDe(cartao.locator('li[data-linha="taxa"] .so-vl small'))).toContain(`entre ${pct1(x.t!.lo)} e ${pct1(x.t!.hi)}`)
+    // a faixa em SVG (o componente do canal), com o nome acessível que diz a taxa e o intervalo
+    const faixa = cartao.locator('li[data-linha="taxa"] .tf')
+    await expect(faixa).toHaveCount(1)
+    expect(await faixa.locator('svg').count(), 'a faixa é desenhada em SVG').toBeGreaterThanOrEqual(1)
+    expect(x.assistido, 'o perfil ativo tem % assistido').not.toBeNull()
+    expect(x.diasAssistido).toBeGreaterThanOrEqual(7)
+    expect(await valor('assistido')).toBe(`${x.assistido}%`)
+    // a posição: depois dos dois lados e antes de "Número a número"
+    const ordem = await page.locator('[data-obs-screen="comparar"]:visible').first().evaluate(raiz => {
+      const num = [...raiz.querySelectorAll('h2')].find(h => /^Número a número/.test(h.textContent ?? ''))
+      const lados = raiz.querySelector('.cp-sides')
+      const c = raiz.querySelector('[data-so-seu-canal]')!
+      return { depoisDosLados: !!lados && !!(lados.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING), antesDoNumero: !!num && !!(num.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING) }
+    })
+    expect(ordem.depoisDosLados, 'o cartão vem depois dos dois lados').toBe(true)
+    expect(ordem.antesDoNumero, 'o cartão vem antes de "Número a número"').toBe(true)
+    medida(`cartão: impressões ${PT(x.e.imp)}, cliques ${PT(x.e.cliques!)}, taxa ${pct1(x.t!.taxa)} (${pct1(x.t!.lo)} a ${pct1(x.t!.hi)}), % assistido ${x.assistido}% (${x.diasAssistido} dias, ${x.viewsAssistido} views)`)
+  })
+
+  test('trocar o seletor para um par SEM canal seu tira o cartão, e voltar o traz de volta, sem nenhuma requisição de documento nem de RSC; "Inverter lados" mantém o cartão', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`)
+    const tela = page.locator('[data-obs-screen="comparar"]:visible')
+    await tela.locator(SO).waitFor({ timeout: 40_000 })
+    await page.waitForLoadState('networkidle')
+    const pedidos: string[] = []
+    page.on('request', r => { if (r.resourceType() === 'document' || /[?&]_rsc=/.test(r.url()) || r.headers()['rsc']) pedidos.push(r.url()) })
+    await tela.getByRole('button', { name: /Inverter lados/ }).click()
+    await expect(tela.locator(SO)).toHaveCount(1)
+    await expect(tela.locator('.cp-side[data-lado="A"] .cp-seal'), 'depois de inverter, o canal seu está no lado B').toHaveCount(0)
+    await expect(tela.locator('.cp-side[data-lado="B"] .cp-seal')).toHaveCount(1)
+    await tela.getByRole('button', { name: /Inverter lados/ }).click()
+    // o lado A sai do canal seu e vai para um concorrente: nenhum lado é seu, nenhum cartão
+    await tela.locator('.cp-side[data-lado="A"] select').selectOption(ids.channel('leo-khev'))
+    await expect(tela.locator(SO)).toHaveCount(0)
+    await tela.locator('.cp-side[data-lado="A"] select').selectOption(PROPRIO())
+    await expect(tela.locator(SO)).toHaveCount(1)
+    expect(pedidos, 'trocar o seletor e inverter não vão ao servidor').toEqual([])
+  })
+})
+
+blocoT15('T14 comparação: dois canais seus (dois cartões) e nenhum canal seu (nenhum cartão)', { ownPreset: '5', ownL2: 'cheio' }, () => {
+  test('com dois canais seus o cartão aparece duas vezes, cada um com o nome do canal: o que tem relatório traz o número e o outro diz "Não medido."; um concorrente × um concorrente não tem cartão', async ({ page }) => {
+    const x = await esperadoDoCartao()
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${ROTA}/comparar?a=${ids.own('tnfigueiredo')}&b=${ids.own('tnfigueiredo-en')}`)
+    const tela = page.locator('[data-obs-screen="comparar"]:visible')
+    await tela.locator(SO).first().waitFor({ timeout: 40_000 })
+    await expect(tela.locator(SO)).toHaveCount(2)
+    const titulos = await tela.locator(`${SO} h2`).evaluateAll(els => els.map(e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent ?? '').join('').trim()))
+    expect(titulos).toHaveLength(2)
+    for (const t of titulos) expect(t).toMatch(/^Só o seu canal mede: .{3,}/)
+    expect(new Set(titulos).size, 'cada cartão leva o nome do SEU canal').toBe(2)
+    // o primeiro (com relatório): o número do banco; sem "não porque sejam zero" (o outro lado também é seu)
+    const primeiro = tela.locator(SO).nth(0), segundo = tela.locator(SO).nth(1)
+    await expect(primeiro.locator('li[data-linha="impressoes"] .so-vl')).toContainText(PT(x.e.imp))
+    expect(await textoDe(primeiro.locator('.so-lead'))).not.toContain('não porque sejam zero')
+    // o segundo (sem relatório): "Não medido.", as três linhas do alcance só com o quadradinho hachurado, nenhum dígito de impressão
+    expect(await textoDe(segundo.locator('.so-lead'))).toMatch(/^Não medido\. /)
+    await expect(segundo.locator('.so-lead b')).toHaveText('Não medido.')
+    expect(await segundo.locator('li[data-linha="impressoes"] .obs-ch-nm[role="img"]').getAttribute('aria-label')).toBe('não medido')
+    await expect(segundo.locator('li[data-linha="impressoes"] .so-vl')).toHaveCount(0)
+    await expect(segundo.locator('li[data-linha="cliques"] .so-vl')).toHaveCount(0)
+    await expect(segundo.locator('li[data-linha="taxa"] .so-vl')).toHaveCount(0)
+    await expect(segundo.locator('li[data-linha="taxa"] .tf')).toHaveCount(0)
+    // dois concorrentes: nenhum cartão
+    await page.goto(`${ROTA}/comparar?a=${ids.channel('matt-wolfe')}&b=${ids.channel('leo-khev')}`)
+    await tela.locator('table tr').first().waitFor({ timeout: 40_000 })
+    await expect(tela.locator(SO)).toHaveCount(0)
+  })
+})
+
+blocoT15('T14 comparação: sem nenhum canal seu (o site novo) o cartão não existe', { ownPreset: '1' }, () => {
+  test('dois concorrentes: nenhum cartão "Só o seu canal mede" no DOM', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${ROTA}/comparar?a=${ids.channel('matt-wolfe')}&b=${ids.channel('leo-khev')}`)
+    const tela = page.locator('[data-obs-screen="comparar"]:visible')
+    await tela.locator('table tr').first().waitFor({ timeout: 40_000 })
+    await expect(tela.locator(SO)).toHaveCount(0)
+    expect(await tela.innerText()).not.toContain('Só o seu canal mede')
+  })
 })
 
 test('T15 nenhum POST de server action em nenhuma destas telas (a soma de todos os testes acima)', async () => {

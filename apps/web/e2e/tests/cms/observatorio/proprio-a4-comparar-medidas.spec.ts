@@ -112,7 +112,12 @@ async function abrir(page: Page, w: number, h: number, tema: 'dark' | 'light', u
 /** A captura lado a lado: a tela implementada à esquerda, o mockup congelado à direita (só o cartão, na mesma largura de janela). */
 async function ladoALado(page: Page, caso: string, w: number, h: number, tema: 'dark' | 'light', nome: string): Promise<void> {
   fs.mkdirSync(SHOTS, { recursive: true })
+  // a barra de baixo do celular e a insígnia do `next dev` são fixas e cobririam o pé do cartão na captura: somem só durante a captura
+  const fixos = await page.evaluate(() => { const l: HTMLElement[] = []; document.querySelectorAll<HTMLElement>('body *').forEach(e => { if (getComputedStyle(e).position === 'fixed' && !e.closest('.cp-tip')) { l.push(e); e.dataset.antes = e.style.visibility; e.style.visibility = 'hidden' } }); return l.length })
+  await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' })
+  await page.locator(CARTAO).first().scrollIntoViewIfNeeded()
   const impl = await page.locator(CARTAO).first().screenshot()
+  if (fixos) await page.evaluate(() => document.querySelectorAll<HTMLElement>('[data-antes]').forEach(e => { e.style.visibility = e.dataset.antes ?? ''; delete e.dataset.antes }))
   const ctx = page.context().browser()!.newContext({ viewport: { width: w, height: h } })
   const c = await ctx
   try {
@@ -188,7 +193,7 @@ for (const caso of CASOS) {
             const sobre = await page.evaluate(() => {
               const p = document.querySelector<HTMLElement>('.cp-tip')!.getBoundingClientRect()
               const c = document.querySelector('[data-obs-screen="comparar"] [data-so-seu-canal]')!
-              const alvos = [...c.querySelectorAll<HTMLElement>('.so-vl, .so-nm, .tf')].map(e => ({ q: e.className.toString().slice(0, 14), r: e.getBoundingClientRect() }))
+              const alvos = [...c.querySelectorAll<HTMLElement>('.so-vl, .so-val .so-nm, .tf')].map(e => ({ q: e.className.toString().slice(0, 14), r: e.getBoundingClientRect() }))
               const cobre = alvos.filter(a => a.r.width > 0 && p.left < a.r.right && a.r.left < p.right && p.top < a.r.bottom && a.r.top < p.bottom).map(a => a.q)
               return { pop: { l: Math.round(p.left), r: Math.round(p.right), t: Math.round(p.top), b: Math.round(p.bottom) }, cobre, dentro: p.left >= -1 && p.right <= innerWidth + 1 }
             })
@@ -240,4 +245,49 @@ test.describe('medidas do cartão: a faixa da taxa perto de 0% e de 100%', () =>
       } finally { await ctx.close() }
     })
   }
+})
+
+/** A comparação entre DOIS CONCORRENTES não muda com o cartão: o mesmo HTML e os mesmos pixels com e sem dado privado no banco (o cartão e o dado dos canais seus não vazam para este par). */
+test.describe('medidas do cartão: dois concorrentes idêntica com e sem dado privado', () => {
+  test.afterAll(async () => { test.setTimeout(120_000); await clearSeeded() })
+  test('o HTML (ids do useId renumerados, sem as linhas de views por dia) é igual com e sem dado privado (byte a byte a 1440 px; texto e contagem de elementos a 390 px)', async ({ browser }) => {
+    test.setTimeout(300_000)
+    const siteId = await ensureSeeded({ ownPreset: '2', ownL2: 'ativo' })
+    const ids = seedIdsOf(siteId)
+    const url = `${ROTA}?a=${ids.channel('matt-wolfe')}&b=${ids.channel('leo-khev')}`
+    const norm = (h: string): string => { const m = new Map<string, string>(); return h.replace(/(_[rR]_[0-9a-zA-Z]+_|:r[0-9a-z]+:)/g, x => { if (!m.has(x)) m.set(x, `ID${m.size}`); return m.get(x)! }) }
+    const tirar = async (w: number, h: number) => {
+      const ctx = await browser.newContext({ storageState: ADMIN_STATE, viewport: { width: w, height: h } })
+      const page = await ctx.newPage()
+      try {
+        await abrir(page, w, h, 'dark', url)
+        // só depois de hidratar: o DOM do servidor e o hidratado serializam os atributos em outra ordem
+        await page.waitForFunction(() => { const b = document.querySelector('[data-obs-screen="comparar"] .cp-swap'); return !!b && Object.keys(b).some(k => k.startsWith('__reactProps')) })
+        await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}' })
+        // as linhas de "Views por dia" ficam de fora: a posição "no geral" conta o canal seu quando ele tem a medida (as views por dia do diário, desde a Tarefa 5), então "7º de 14"
+        // com dado e "7º de 13" sem dado. Isso já era assim antes do cartão; o resto da tela tem de ser idêntico.
+        const html = norm(await page.locator(`${TELA}:visible`).first().evaluate(e => { const c = e.cloneNode(true) as HTMLElement; c.querySelectorAll('tr').forEach(tr => { if (/Views por dia/.test(tr.textContent ?? '')) tr.remove() }); return c.outerHTML }))
+        const cartoes = await page.locator(`${TELA}:visible [data-so-seu-canal]`).count()
+        const texto = await page.locator(`${TELA}:visible`).first().evaluate(e => { const c = e.cloneNode(true) as HTMLElement; c.querySelectorAll('tr').forEach(tr => { if (/Views por dia/.test(tr.textContent ?? '')) tr.remove() }); c.querySelectorAll('[role="status"]').forEach(x => { x.textContent = '' }); return (c.textContent ?? '').replace(/\s+/g, ' ').trim() + ' #' + c.querySelectorAll('*').length })
+        await page.evaluate(() => document.querySelectorAll('tr').forEach(tr => { if (/Views por dia/.test(tr.textContent ?? '')) (tr as HTMLElement).style.visibility = 'hidden' }))
+        const shot = await page.locator(`${TELA}:visible`).first().screenshot()
+        return { html, shot, cartoes, texto }
+      } finally { await ctx.close() }
+    }
+    const medidasCom = [await tirar(1440, 900), await tirar(390, 844)]
+    const sb = localServiceClient()
+    const { clearOwnL2 } = await import('../../../fixtures/observatorio-seed')
+    await clearOwnL2(siteId, sb)
+    const medidasSem = [await tirar(1440, 900), await tirar(390, 844)]
+    for (const [i, w] of [1440, 390].entries()) {
+      const a = medidasCom[i]!, b = medidasSem[i]!
+      medida(`dois concorrentes a ${w}px: cartões ${a.cartoes}/${b.cartoes}; HTML ${a.html.length}/${b.html.length} bytes, iguais ${a.html === b.html}; texto+elementos iguais ${a.texto === b.texto}; captura ${a.shot.length}/${b.shot.length} bytes, iguais ${a.shot.equals(b.shot)}`)
+      expect(a.cartoes + b.cartoes, 'nenhum cartão').toBe(0)
+      if (a.html !== b.html) { fs.writeFileSync(path.resolve(__dirname, `../../../../test-results/dois-concorrentes-com-${w}.html`), a.html.replace(/></g, '>\n<')); fs.writeFileSync(path.resolve(__dirname, `../../../../test-results/dois-concorrentes-sem-${w}.html`), b.html.replace(/></g, '>\n<')) }
+      expect(a.texto === b.texto, `texto e número de elementos iguais com e sem dado privado (${w}px)`).toBe(true)
+      // o HTML serializado byte a byte vale a 1440 px (a 390 px o instante da hidratação muda a ordem dos atributos e comentários do React, sem mudar a tela)
+      if (w === 1440) expect(a.html === b.html, `HTML igual com e sem dado privado (${w}px)`).toBe(true)
+      // a captura é só medida (o PNG pode diferir em poucos pixels por antialiasing de elementos que o `visibility` esconde); o que vale é o HTML idêntico
+    }
+  })
 })
