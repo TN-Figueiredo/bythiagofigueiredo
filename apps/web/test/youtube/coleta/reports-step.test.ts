@@ -713,12 +713,94 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(resumo).toMatchObject({ pendentes: 2, vence_primeiro_em_dias: 20 })
   })
 
-  it('fila que bate em 1000 linhas: nota de corte, nunca "tudo lido"', async () => {
-    const mil = Array.from({ length: 1000 }, (_, i) => listado(`r-${i}`, { create_time: new Date(AGORA.getTime() - DIA_MS - i * 1000).toISOString() }))
-    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: mil })
-    const ctx = ctxDe(db)
-    await passoRelatorios(ctx)
-    expect(ctx.falhas).toContain('relatórios: fila de download cortada em 1000 relatórios; a ordem por vencimento não cobre o que ficou de fora')
+  describe('fila longa: lida inteira, em páginas de 1000 (o PostgREST nunca devolve mais que isso por resposta)', () => {
+    const NOTA_CORTE = /^relatórios: fila de download cortada em \d+ relatórios/
+    const pendentesDe = (n: number, extra: (i: number) => Row = () => ({})): Row[] =>
+      Array.from({ length: n }, (_, i) => listado(`r-${String(i).padStart(5, '0')}`, {
+        report_type_id: 'channel_traffic_source_a3', create_time: new Date(AGORA.getTime() - 40 * DIA_MS + i * 1000).toISOString(), ...extra(i),
+      }))
+    const banco = (linhas: Row[]) => bancoComPurge({ yt_reporting_jobs: [jobRow('channel_traffic_source_a3')], yt_reporting_reports: linhas })
+
+    it('mais de 1000 pendentes: um histórico (30 dias) criado DEPOIS de 1200 correntes (60 dias) que vence antes é baixado primeiro, não cortado', async () => {
+      // 1200 correntes criados há 40 dias vencem em ~20 dias; o histórico criado há 20 dias vence em 10. Por create_time ele é o 1201º.
+      const historico = listado('historico-recente', { report_type_id: 'channel_basic_a3', is_backfill: true, create_time: ha(20) })
+      const db = banco([...pendentesDe(1200), historico])
+      const ctx = ctxDe(db)
+      const resumo = await passoRelatorios(ctx)
+      expect(rel(db, 'historico-recente')!.status).toBe('baixado')
+      expect(api.download.mock.calls[0]![0]).toBe('https://dl.test/historico-recente')
+      expect(ctx.falhas.filter(f => NOTA_CORTE.test(f))).toEqual([])
+      expect(resumo).toMatchObject({ baixados: 100, pendentes: 1101 })
+      // O primeiro a vencer entre os que sobraram é o dos correntes (20 dias).
+      expect(resumo.vence_primeiro_em_dias).toBe(20)
+    })
+
+    it.each([999, 1000, 1001])('%i pendentes: lidos inteiros, sem nota de corte; a conta de pendentes bate', async (n) => {
+      const db = banco(pendentesDe(n))
+      const ctx = ctxDe(db)
+      const resumo = await passoRelatorios(ctx)
+      expect(ctx.falhas.filter(f => NOTA_CORTE.test(f))).toEqual([])
+      expect(resumo).toMatchObject({ baixados: 100, pendentes: n - 100 })
+      expect(comStatus(db, 'listado')).toHaveLength(n - 100)
+    })
+
+    it('5000 pendentes (o limite de leitura) ainda não é corte; 5001 é, e a nota diz quantos ficaram de fora', async () => {
+      const cheia = banco(pendentesDe(5000))
+      const c1 = ctxDe(cheia)
+      await passoRelatorios(c1)
+      expect(c1.falhas.filter(f => NOTA_CORTE.test(f))).toEqual([])
+
+      const db = banco(pendentesDe(5100))
+      const c2 = ctxDe(db)
+      const resumo = await passoRelatorios(c2)
+      expect(c2.falhas).toContain('relatórios: fila de download cortada em 5000 relatórios (ficaram de fora 100); a ordem por vencimento não cobre o que ficou de fora')
+      // O corte é só da leitura: os 100 baixados são os que vencem primeiro entre os 5000 lidos, e a contagem é a real.
+      expect(resumo).toMatchObject({ baixados: 100, pendentes: 5000 })
+    })
+
+    it('contagem (count) ausente não vira zero: vale o número de linhas lidas', async () => {
+      api.download.mockRejectedValue(new ReportingHttpError(500, null))
+      const db = banco(pendentesDe(3))
+      db.semContagem.yt_reporting_reports = true
+      const ctx = ctxDe(db)
+      const resumo = await passoRelatorios(ctx)
+      expect(resumo).toMatchObject({ erros_download: 3, pendentes: 3 })
+      expect(resumo.vence_primeiro_em_dias).toBe(20)
+      expect(ctx.falhas).toEqual([])
+    })
+
+    it('contagem ausente com a leitura no limite: nota de corte sem inventar número, nunca "tudo lido"', async () => {
+      const db = banco(pendentesDe(5000))
+      db.semContagem.yt_reporting_reports = true
+      const ctx = ctxDe(db)
+      await passoRelatorios(ctx)
+      expect(ctx.falhas).toContain('relatórios: fila de download cortada em 5000 relatórios (contagem indisponível: pode haver mais); a ordem por vencimento não cobre o que ficou de fora')
+    })
+
+    it('a leitura que conta os pendentes (passo 5) falha: nota vermelha e vence_primeiro_em_dias null, nunca "fila vazia"', async () => {
+      // Calibra: quantos selects a tabela recebe numa execução normal; o último é o do passo 5.
+      const calibra = banco(pendentesDe(2))
+      await passoRelatorios(ctxDe(calibra))
+      const ultima = calibra.leituras.yt_reporting_reports!
+      expect(ultima).toBeGreaterThanOrEqual(2)
+
+      const db = banco(pendentesDe(2))
+      db.erroNaLeitura = (tabela, n) => (tabela === 'yt_reporting_reports' && n === ultima ? { code: '57014', message: 'timeout' } : undefined)
+      const ctx = ctxDe(db)
+      const resumo = await passoRelatorios(ctx)
+      expect(comStatus(db, 'baixado')).toHaveLength(2) // o passo 3 leu e baixou
+      expect(ctx.falhas).toContain('erro de banco ao ler yt_reporting_reports')
+      expect(resumo.vence_primeiro_em_dias).toBeNull()
+    })
+
+    it('a leitura da fila (passo 3) falha: nota vermelha, nenhum download', async () => {
+      const db = banco(pendentesDe(2))
+      db.erroNaLeitura = (tabela) => (tabela === 'yt_reporting_reports' ? { code: '57014', message: 'timeout' } : undefined)
+      const ctx = ctxDe(db)
+      await passoRelatorios(ctx)
+      expect(api.download).not.toHaveBeenCalled()
+      expect(ctx.falhas).toContain('erro de banco ao ler yt_reporting_reports')
+    })
   })
 
   it('mede a listagem e os downloads em separado (item de aceite 97)', async () => {
