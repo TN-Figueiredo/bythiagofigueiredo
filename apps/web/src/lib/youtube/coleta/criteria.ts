@@ -348,10 +348,15 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   }
 
   // Tipos que só guardam bruto: job ativo há mais de 6 dias cuja listagem não vê relatório novo há mais de 6 dias.
-  // Usa a marca do próprio job (`last_create_time`), sem ler relatórios: o YouTube gera relatório todo dia, mesmo só
-  // com cabeçalho, inclusive para canal sem publicação (leitura de produção de 12/10/2026), então job ativo sem
-  // relatório é job parado, não "nada a baixar". Por isso NÃO há filtro `publicou` aqui, de propósito. Marca nula =
-  // nunca chegou nenhum. Canal desligado (`sync_enabled=false`) ou em `reautorizar` fica fora, como no critério de alcance.
+  // Usa a marca do próprio job (`last_create_time`), sem ler relatórios. Canal desligado (`sync_enabled=false`) ou em
+  // `reautorizar` fica fora, como no critério de alcance. Dois casos, que NÃO são a mesma coisa:
+  //  - marca VELHA ("gerou e parou"): o YouTube já gerou relatório para esse job e parou. Quebrou: falha (vermelho).
+  //  - marca NULA ("nunca gerou"): nenhum relatório chegou desde a criação/religação. A premissa "o YouTube gera
+  //    relatório todo dia" só foi medida nos 4 tipos antigos (leitura de produção de 12/10/2026); para os outros ninguém
+  //    sabe, e um tipo que o YouTube nunca gera para o canal deixaria o cron vermelho para sempre, sem conserto. Vai
+  //    para acao_do_dono, a cada execução enquanto durar (nunca em silêncio e nunca em falhas). Se o dono confirmar que
+  //    o tipo não existe para o canal, o conserto é tirá-lo de REPORT_TYPES_ENABLED.
+  // Por isso NÃO há filtro `publicou` aqui, de propósito.
   const paradosBruto = linhasJob.filter(j => {
     if (j.status !== 'ativo' || ALCANCE.includes(j.report_type_id) || !HABILITADOS.includes(j.report_type_id)) return false
     const canal = ctx.channels.find(c => c.id === j.channel_id)
@@ -371,7 +376,12 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
       }
       for (const j of paradosBruto) {
         if (sem.semConexao.has(j.channel_id)) continue
-        pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
+        if (!j.last_create_time) {
+          const desde = (j.job_create_time ?? j.created_at ?? '').slice(0, 10)
+          pushUnico(out.acao_do_dono!, `${nome(j.channel_id)}: ${j.report_type_id} nunca gerou relatório desde ${desde}; confira se o YouTube gera esse tipo para este canal`)
+        } else {
+          pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
+        }
       }
     }
   }
