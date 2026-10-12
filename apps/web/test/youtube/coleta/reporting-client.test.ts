@@ -222,9 +222,34 @@ describe('download: tetos de tamanho (comprimido no fio, descomprimido na memór
   }
   const baixar = (res: Response) => criarReportingClient('tok', vi.fn().mockResolvedValue(res) as unknown as typeof fetch).download(URL_OK)
 
-  it('os tetos: 10 MB comprimido e 64 MB descomprimido (a conta está no relatório da onda 3)', () => {
-    expect(MAX_GZ_BYTES).toBe(10 * MB)
+  it('os tetos: 2 MB lidos do corpo e 64 MB de CSV descomprimido (decisão do dono, 12/10; memória medida no relatório da onda 5)', () => {
+    expect(MAX_GZ_BYTES).toBe(2 * MB)
     expect(MAX_CSV_BYTES).toBe(64 * MB)
+  })
+
+  it('empacotarCsv conta as linhas de dado como antes: sem cabeçalho, ignora linha em branco, aceita CRLF e a última linha sem quebra', () => {
+    const conta = (s: string) => empacotarCsv(Buffer.from(s)).rowCount
+    expect(conta('')).toBe(0)
+    expect(conta('date,views\n')).toBe(0)
+    expect(conta('date,views')).toBe(0)
+    expect(conta('date,views\n20261005,1\n20261005,2\n')).toBe(2)
+    expect(conta('date,views\n20261005,1\n20261005,2')).toBe(2)        // sem quebra no fim
+    expect(conta('date,views\r\n20261005,1\r\n20261005,2\r\n')).toBe(2)  // CRLF
+    expect(conta('date,views\n\n  \n\t\r\n20261005,1\n\n')).toBe(1)   // linhas só de espaço não contam
+    expect(conta('date,views\n20261005,\u00e1\u00e9\u00ed\n')).toBe(1)   // multibyte
+    expect(conta('\n\n\n')).toBe(0)
+  })
+
+  it('empacotarCsv não materializa o CSV como string (a memória fica em ~N, não em 5N a 13N): nenhum toString utf8 do CSV', () => {
+    const csv = Buffer.from('date,views\n20261005,1\n20261005,2\n')
+    const espiao = vi.spyOn(Buffer.prototype, 'toString')
+    try {
+      const p = empacotarCsv(gzipSync(csv))
+      expect(p.rowCount).toBe(2)
+      expect(espiao.mock.calls.filter(([enc]) => enc === undefined || enc === 'utf8' || enc === 'utf-8')).toEqual([])
+    } finally {
+      espiao.mockRestore()
+    }
   })
 
   it('Content-Length acima do teto: recusa ANTES de ler o corpo (nenhum pedaço puxado) e cancela a resposta', async () => {

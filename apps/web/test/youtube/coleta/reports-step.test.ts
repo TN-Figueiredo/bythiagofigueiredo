@@ -252,8 +252,8 @@ describe('passoRelatorios: baixar', () => {
     expect(MAX_DOWNLOADS * MS_POR_DOWNLOAD + MS_LISTAGEM).toBeLessThanOrEqual(TETOS_MS.relatorios)
   })
 
-  it('o teto de tamanho é 10 MB comprimido', () => {
-    expect(MAX_GZ_BYTES).toBe(10 * 1024 * 1024)
+  it('o teto de tamanho é 2 MB lidos do corpo (decisão do dono, 12/10: ninguém provou a gravação de 10 MB; estourar é falha segura)', () => {
+    expect(MAX_GZ_BYTES).toBe(2 * 1024 * 1024)
   })
 
   it('ordem de drenagem: o que vence em até 7 dias, depois o alcance, depois o resto pelo vencimento; o tipo só desempata', async () => {
