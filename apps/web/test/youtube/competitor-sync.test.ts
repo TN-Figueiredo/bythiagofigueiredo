@@ -18,9 +18,9 @@ import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
+import { fakeDb, setup, apiFetch, traced, updatesOf, first, arg, rpcs, NOW, NOW_ISO, EARLY, ch, lockRow, recent, quiet, type FetchLog } from './competitor-sync-harness'
 import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from '../helpers/fake-owner-db'
 
-type Payload = { p_video_id: string; p_close: string[]; p_open: Array<Record<string, unknown>>; p_changes: Array<Record<string, unknown>> }
 
 describe('isDailyRecordDue (12:00 São Paulo)', () => {
   it('before 12:00 SP is not due', () => {
@@ -78,94 +78,6 @@ describe('dropFields (R10c)', () => {
   })
 })
 
-// ── fake supabase: recorded, thenable chains, scripted results ──
-interface Call { table: string; ops: Array<[string, unknown[]]> }
-type Script = (c: Call) => Record<string, unknown> | undefined
-function fakeDb(script: Script) {
-  const calls: Call[] = []
-  const from = (table: string) => {
-    const call: Call = { table, ops: [] }
-    calls.push(call)
-    const b: Record<string, unknown> = {}
-    const proxy: unknown = new Proxy(b, {
-      get(_t, prop: string) {
-        if (prop === 'then') {
-          const res = script(call) ?? { data: null, error: null }
-          return (ok: (v: unknown) => unknown) => Promise.resolve(res).then(ok)
-        }
-        return (...args: unknown[]) => { call.ops.push([prop, args]); return proxy }
-      },
-    })
-    return proxy
-  }
-  const rpc = (name: string, args: unknown) => {
-    const call: Call = { table: 'rpc:' + name, ops: [['rpc', [args]]] }
-    calls.push(call)
-    return Promise.resolve(script(call) ?? { data: null, error: null })
-  }
-  return { client: { from, rpc }, calls }
-}
-const rpcs = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'rpc:apply_competitor_version_plan').map(c => c.ops[0]![1][0] as Payload)
-const first = (c: Call) => c.ops[0]![0]
-const arg = (c: Call, op: string) => c.ops.find(o => o[0] === op)?.[1][0] as Record<string, unknown> | undefined
-const NOW = new Date('2026-10-24T15:00:00.000Z') // 12:00 SP
-const NOW_ISO = NOW.toISOString()
-const ch = { id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }
-const lockRow = { id: 'cc-1', sync_mode: 'incremental', full_sync_completed_at: null, video_limit: 50, last_ok_synced_at: '2026-10-24T09:00:00.000Z', sync_error_since: null }
-
-interface FetchLog { dailyCalls: string[] }
-function apiFetch(video: Record<string, unknown> | null, status = 200, extra: { daily?: (call: number, url: string) => Response | Record<string, unknown>[]; noUploads?: boolean; log?: FetchLog } = {}): typeof fetch {
-  let dailyN = 0
-  return (async (input: RequestInfo | URL) => {
-    const u = String(input)
-    if (status !== 200) return { ok: false, status }
-    if (u.includes('/channels?')) {
-      return Response.json({ items: [{ contentDetails: { relatedPlaylists: extra.noUploads ? {} : { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
-    }
-    if (u.includes('/playlistItems?')) return Response.json({ items: video ? [{ snippet: { resourceId: { videoId: video.id } } }] : [] })
-    if (u.includes('part=snippet,statistics&')) {
-      dailyN++
-      extra.log?.dailyCalls.push(u)
-      if (extra.daily) {
-        const r = extra.daily(dailyN, u)
-        return r instanceof Response ? r : Response.json({ items: r })
-      }
-      return Response.json({ items: video ? [{ ...video, statistics: { viewCount: '7' } }] : [] })
-    }
-    return Response.json({ items: video ? [video] : [] })
-  }) as typeof fetch
-}
-const recent = () => new Date(NOW.getTime() - 86_400_000).toISOString()
-
-function setup(opts: {
-  existing?: Record<string, unknown>[]; versions?: Record<string, unknown>[]; lastDaily?: string | null
-  tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; rpcError?: boolean; longs?: Array<{ video_id: string }>
-  /** Pinned rows of the channel; null = the query answered without data. Omitted = no pins. */
-  pinned?: Array<Record<string, unknown>> | null; pinnedError?: string; trackedError?: string
-} = {}) {
-  const db = fakeDb((c) => {
-    if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'not')) return opts.pinnedError ? { data: null, error: { message: opts.pinnedError } } : { data: opts.pinned === undefined ? [] : opts.pinned, error: null }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'limit')) return opts.trackedError ? { data: null, error: { message: opts.trackedError } } : { data: opts.tracked ?? [{ id: 'v-1', video_id: 'vid-1', title: null, thumbnail_url: null }] }
-    if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
-    if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
-    if (c.table === 'competitor_video_daily' && first(c) === 'select') {
-      const have = opts.dailyHave ?? (opts.lastDaily === '2026-10-24' ? ['v-1', 'v-new'] : [])
-      return { data: have.map(video_id => ({ video_id })) }
-    }
-    if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
-    if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
-    if (c.table === 'rpc:apply_competitor_version_plan') {
-      if (opts.rpcError) return { data: null, error: { message: 'boom' } }
-      return { data: { opened: {}, changes: (c.ops[0]![1][0] as { p_changes: unknown[] }).p_changes.length } }
-    }
-    return { data: null, error: null }
-  })
-  vi.mocked(getSupabaseServiceClient).mockReturnValue(db.client as never)
-  return db
-}
 
 beforeEach(() => {
   vi.mocked(probeThumb).mockReset()
@@ -611,18 +523,9 @@ describe('reclassifyStoredShorts — backfill (R109)', () => {
 
 // ── Fixar vídeo (R118, R123) ──
 describe('syncCompetitorChannel — vídeos fixados', () => {
-  const EARLY = new Date(NOW.getTime() - 6 * 3_600_000) // 06:00 SP: not the daily pass
   const LATER = new Date(NOW.getTime() - 3_600_000)     // 11:00 SP, same SP day: still not the daily pass
   const OLD = new Date(NOW.getTime() - 400 * 86_400_000).toISOString()
-  const quiet = { probeBudget: { remaining: 0 }, deferBackfill: true } // no Shorts probe: only the API calls under test
   const idsOf = (url: string) => decodeURIComponent(url.match(/[?&]id=([^&]*)/)![1]!).split(',')
-  /** Wraps a fetch and lists the YouTube Data API calls it saw, in order, without host and key. */
-  function traced(inner: typeof fetch) {
-    const urls: string[] = []
-    const f = (async (input: RequestInfo | URL, init?: RequestInit) => { urls.push(String(input)); return inner(input, init) }) as typeof fetch
-    const api = () => urls.filter(u => u.includes('googleapis.com/youtube/v3/')).map(u => u.split('/youtube/v3/')[1]!.replace(/&key=.*$/, ''))
-    return { f, api }
-  }
   const CH_CALL = 'channels?part=contentDetails,snippet,statistics&id=UC_test'
   const PL_CALL = 'playlistItems?part=snippet&playlistId=UU&maxResults=50'
   const DETAILS = 'videos?part=snippet,statistics,contentDetails&id=vid-1'
@@ -632,10 +535,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
   const PIN = { id: 'v-pin', video_id: 'vid-pin', title: 'Fixado', thumbnail_url: null }
   const VPIN = { id: 'tvp', video_id: 'v-pin', field: 'title', value_text: 'Fixado', value_hash: hashValue('Fixado'), thumb_etag: null, thumb_dhash: null, last_seen_at: '2026-10-24T03:00:00.000Z' }
   const pinApi = (title: string) => ({ id: 'vid-pin', snippet: { title, publishedAt: OLD }, statistics: { viewCount: '3' } })
-  /** The stats updates written to competitor_videos for one row (payloads, in order). */
-  const statsOf = (db: ReturnType<typeof setup>, uuid: string) => db.calls
-    .filter(c => c.table === 'competitor_videos' && first(c) === 'update' && c.ops.some(o => o[0] === 'eq' && o[1][0] === 'id' && o[1][1] === uuid))
-    .map(c => arg(c, 'update'))
+  const statsOf = updatesOf
   const lastChannelUpdate = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).at(-1)
 
   it('sem fixados: exatamente as chamadas de hoje, fora do passo diário e no passo diário', async () => {
