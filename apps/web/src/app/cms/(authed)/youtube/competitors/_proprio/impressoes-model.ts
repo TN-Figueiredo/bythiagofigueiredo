@@ -108,6 +108,42 @@ export function tetoDoEixo(max: number): number {
   return max <= 4 ? 4 : max <= 10 ? 10 : Math.ceil(max / 20) * 20
 }
 
+/** A largura de um dígito em 12 px mono: os rótulos de valor do gráfico não podem se atropelar. */
+export const PX_POR_CARACTERE = 7.4
+
+/**
+ * Quais colunas levam o rótulo de valor (número em cima da barra, número dos cliques). Sem prioridade: da esquerda para a direita, só as que não esbarram
+ * na anterior nem passam da borda direita. Com `prioridade` (o índice do MAIOR valor da série): essa coluna é reservada primeiro, se couber dentro do
+ * desenho, e os demais entram da esquerda para a direita enquanto couberem sem sobrepor nenhum rótulo já escolhido (à esquerda ou à direita dela).
+ */
+export function quaisCabem(xs: readonly number[], textos: ReadonlyArray<string | null>, limite: number, prioridade: number | null = null): boolean[] {
+  const largura = (i: number): number => (textos[i] ?? '').length * PX_POR_CARACTERE
+  const escolhidas: number[] = []
+  const livre = (i: number): boolean => escolhidas.every(j => xs[i]! + largura(i) / 2 + 3 <= xs[j]! - largura(j) / 2 || xs[i]! - largura(i) / 2 >= xs[j]! + largura(j) / 2 + 3)
+  const naBorda = (i: number): boolean => xs[i]! + largura(i) / 2 > limite
+  const resultado = xs.map(() => false)
+  if (prioridade != null && prioridade >= 0 && prioridade < xs.length && textos[prioridade] != null && !naBorda(prioridade)) {
+    escolhidas.push(prioridade)
+    resultado[prioridade] = true
+  }
+  for (let i = 0; i < xs.length; i++) {
+    if (resultado[i] || textos[i] == null || naBorda(i) || !livre(i)) continue
+    escolhidas.push(i)
+    resultado[i] = true
+  }
+  return resultado
+}
+
+/** O índice do MAIOR valor numa série de rótulos ("1.139", "<1", null). Empate fica com o primeiro; sem nenhum valor positivo, null. */
+export function indiceDoMaior(textos: ReadonlyArray<string | null>): number | null {
+  let melhor: number | null = null, maior = 0
+  textos.forEach((t, i) => {
+    const n = t == null ? 0 : Number(t.replace(/\./g, ''))
+    if (Number.isFinite(n) && n > maior) { maior = n; melhor = i }
+  })
+  return melhor
+}
+
 /** Inteiro com ponto de milhar, igual no servidor e no cliente (sem Intl). */
 export function int(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
