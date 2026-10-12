@@ -92,11 +92,14 @@ export type SetupOpts = {
   failStamp?: boolean
   /** O `update` da linha do canal (o que leva `miss_streak`) devolve erro de banco. */
   failChannelUpdate?: boolean
+  /** A trava do canal não é obtida (outro processo sincroniza): o `update … or(…)` devolve lista vazia. */
+  lockTaken?: boolean
 }
 
 export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
+    if (opts.lockTaken && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [] }
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, ...opts.lock }] }
     if (opts.failChannelUpdate && c.table === 'competitor_channels' && first(c) === 'update' && 'miss_streak' in (arg(c, 'update') ?? {})) return { data: null, error: { message: 'boom' } }
     if (opts.failStamp && c.table === 'competitor_videos' && first(c) === 'update' && Object.keys(arg(c, 'update') ?? {}).join() === 'last_seen_at') return { data: null, error: { message: 'boom' } }

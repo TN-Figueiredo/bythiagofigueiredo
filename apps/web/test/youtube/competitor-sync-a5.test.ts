@@ -438,6 +438,18 @@ describe('A5 E1 (D2 no retrato do canal): resposta sem statistics não grava um 
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: {} }] }), ...quiet })
     expect(snapshots(db2)).toHaveLength(1)
   })
+  it('basta UMA contagem para gravar o retrato (as outras seguem nulas, nunca zero)', async () => {
+    for (const [stats, expected] of [
+      [{ viewCount: '99' }, { subscriber_count: null, video_count: null, view_count: 99 }],
+      [{ videoCount: '0' }, { subscriber_count: null, video_count: 0, view_count: null }],
+      [{ subscriberCount: '10' }, { subscriber_count: 10, video_count: null, view_count: null }],
+    ] as Array<[Record<string, unknown>, Record<string, unknown>]>) {
+      const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: stats }] }), ...quiet })
+      expect(snapshots(db)).toHaveLength(1)
+      expect(arg(snapshots(db)[0]!, 'upsert')).toMatchObject(expected)
+    }
+  })
 })
 
 describe('A5 E1 (conserto da Tarefa 7): captura fora da página, primeiro erro, disjuntor e contadores', () => {
@@ -696,5 +708,84 @@ describe('A5 E1 (revisão da Tarefa 8, I1 e I2): só a resposta com a lista de i
     const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: videosBody(apiFetch(page()), 1, { items: [] }), ...quiet })
     expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([{ p_channel_id: 'cc-1', p_video_ids: ['v-1'], p_now: EARLY.toISOString() }])
+  })
+})
+
+describe('A5 E1: cota (item 10)', () => {
+  it('a sincronização grava as unidades gastas, uma vez, com o site e o modo', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page()), ...quiet })
+    expect(rpcCalls(db, 'youtube_quota_add')).toEqual([expect.objectContaining({ p_site_id: 'site-1', p_units: r.unitsUsed, p_add: { competitors: r.unitsUsed } })])
+    expect(r.unitsUsed).toBe(4)
+  })
+  it('a sincronização que falha também grava o que gastou', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 500), ...quiet })).rejects.toThrow()
+    expect(rpcCalls(db, 'youtube_quota_add')).toEqual([expect.objectContaining({ p_units: 1 })])
+  })
+  it('a gravação da cota falhando não derruba a sincronização, e o resultado diz quotaError', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], rpcFail: 'youtube_quota_add' })
+    expect(await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })).toMatchObject({ quotaError: true })
+  })
+  it('quotaError traz as unidades que não foram gravadas (quotaUnitsLost), e sem falha nenhum dos dois aparece', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], rpcFail: 'youtube_quota_add' })
+    const bad = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect(bad).toMatchObject({ quotaError: true, quotaUnitsLost: bad.unitsUsed })
+    expect(bad.unitsUsed).toBeGreaterThan(0)
+    setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const ok = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect('quotaError' in ok).toBe(false)
+    expect('quotaUnitsLost' in ok).toBe(false)
+  })
+  it('a cota que falha NÃO custa a série do dia: a passada diária é gravada antes, e o canal termina bem', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], rpcFail: 'youtube_quota_add' })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page()), ...quiet })
+    expect(r.dailyRecorded).toBeGreaterThan(0)
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+    const last = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)
+    expect(last).toMatchObject({ sync_status: 'idle', sync_error: null })
+  })
+  it('canal que termina em erro de gravação tardia: a cota gasta até ali é gravada UMA vez (e a série do dia também)', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], failUpdateOf: 'v-1' })
+    const err = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page()), ...quiet }).catch(e => e as Error)
+    expect(err).toBeInstanceOf(Error)
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+    expect(rpcCalls(db, 'youtube_quota_add')).toEqual([expect.objectContaining({ p_units: 4, p_add: { competitors: 4 } })])
+  })
+  it('a chamada que falha com custo conta: HTTP 500 em videos.list e rede caída (a chamada foi feita)', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const inner = apiFetch(page())
+    let n = 0
+    const f = (async (input: RequestInfo | URL, init?: RequestInit) => { n++; if (String(input).includes('/videos?')) throw new Error('fetch failed'); return inner(input, init) }) as typeof fetch
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })).rejects.toThrow(/fetch failed/)
+    // canal + uploads + videos (a que caiu): três chamadas feitas, três unidades
+    expect(n).toBe(3)
+    expect(rpcCalls(db, 'youtube_quota_add')).toEqual([expect.objectContaining({ p_units: 3 })])
+  })
+  it('o erro ao gravar a cota de um canal em erro não troca o erro do canal, e chega nos contadores (syncStatsOf)', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], rpcFail: 'youtube_quota_add' })
+    const err = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 500), ...quiet }).catch(e => e as Error)
+    expect((err as Error).message).toMatch(/YouTube API 500/)
+    expect(syncStatsOf(err)).toMatchObject({ quotaError: true, quotaUnitsLost: 1 })
+  })
+  it('o dia da cota é o do Pacífico (verão e inverno de lá), não o de São Paulo', async () => {
+    // 03:30 em São Paulo (06:30Z): ainda é o dia anterior no Pacífico, com e sem horário de verão
+    for (const [iso, day] of [['2026-09-10T06:30:00Z', '2026-09-09'], ['2026-01-10T06:30:00Z', '2026-01-09']] as const) {
+      const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+      await syncCompetitorChannel(ch, 'k', { now: new Date(iso), fetchImpl: apiFetch(page()), ...quiet })
+      expect(rpcCalls(db, 'youtube_quota_add')).toEqual([expect.objectContaining({ p_day: day })])
+    }
+  })
+  it('partes_ausentes vai junto na linha do dia (o único lugar durável desse número)', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const { statistics: _s, ...noStats } = page()
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(noStats), ...quiet })
+    expect(rpcCalls(db, 'youtube_quota_add')).toEqual([expect.objectContaining({ p_add: expect.objectContaining({ partes_ausentes: 1 }) })])
+  })
+  it('a sincronização pulada (outro processo segura a trava) não gasta nem grava cota', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1], lockTaken: true })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect(r).toMatchObject({ skipped: true, unitsUsed: 0 })
+    expect(rpcCalls(db, 'youtube_quota_add')).toEqual([])
   })
 })

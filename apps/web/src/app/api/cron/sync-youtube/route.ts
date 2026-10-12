@@ -6,6 +6,7 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
 import { runCompetitorBatch, batchHealth, type BatchResult } from '@/lib/youtube/competitor-sync-batch'
+import { schemaReady } from '@/lib/youtube/competitor-health'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
@@ -131,6 +132,13 @@ export async function GET(req: NextRequest) {
     if (mode === 'competitors') {
       // BATCH_SIZE 15 + cron */20: spike S2 (docs/superpowers/plans/2026-10-02-observatorio-spikes-s2.md)
       const BATCH_SIZE = 15
+      // A guarda de schema roda ANTES de qualquer canal: sem a migration o sync já lê colunas novas na trava do canal, e a
+      // série diária de todos cairia. Vermelho na primeira linha, nada gravado. (A Tarefa 13 troca 'e1' por 'e1e2'.)
+      const notReady = await schemaReady(supabase, 'e1')
+      if (notReady) {
+        await recordCronFailure('sync-youtube-competitors', notReady)
+        return { status: 'error' as const, mode: 'competitors', error: notReady, health_written: true }
+      }
       let result: BatchResult
       try {
         result = await runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: 200_000 })
