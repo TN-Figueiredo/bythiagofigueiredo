@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { HoverTip, Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
-import { int, type ColunaView, type ImpressoesView } from './impressoes-model'
+import { indiceDoMaior, int, PX_POR_CARACTERE, quaisCabem, type ColunaView, type ImpressoesView } from './impressoes-model'
 import './impressoes.css'
 
 /** Largura de partida: a do servidor e do primeiro render do cliente (hidratação idêntica). Depois da montagem vale a medida. */
@@ -32,7 +32,6 @@ const CR = 48     // a faixa própria dos cliques (retângulo rebaixado sob as d
 const B = 6
 const R = 6
 const COLUNA_MAX = 56
-const PX_POR_CARACTERE = 7.4   // 12 px em fonte mono: a largura de um dígito, para os rótulos não se atropelarem
 const PX_DATA = 7.2            // a largura de um caractere da data (12 px, mono), para a última etiqueta não sair do desenho
 const PONTO_MIN = 7.5          // abaixo disto por dia não há ponto nem número na faixa
 
@@ -40,19 +39,6 @@ const entre = (v: number, a: number, b: number): number => Math.max(a, Math.min(
 
 /** `semDica`: o dia veio dos botões, que já têm a frase logo abaixo; a dica flutuante só cobriria o gráfico (a coluna segue marcada). */
 interface Estado { sig: string; i: number; ponteiro: boolean; semDica: boolean }
-
-/** Quais colunas levam o texto (número em cima da barra, número dos cliques): da esquerda para a direita, só as que não esbarram na anterior nem passam da borda direita. */
-function quaisCabem(xs: readonly number[], textos: ReadonlyArray<string | null>, limite: number): boolean[] {
-  let fim = -Infinity
-  return xs.map((x, i) => {
-    const t = textos[i]
-    if (t == null) return false
-    const w = t.length * PX_POR_CARACTERE
-    if (x - w / 2 < fim + 3 || x + w / 2 > limite) return false
-    fim = x + w / 2
-    return true
-  })
-}
 
 /** A altura do bloco hachurado do "não medido": a do mockup aprovado (A.serieDia: round(min(24, altura da área * 0,25))). */
 const blocoNaoMedido = (alturaArea: number): number => Math.round(Math.min(24, alturaArea * 0.25))
@@ -70,9 +56,12 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
   const y = (v: number) => T + PH - v * PH / teto
   const cx = (i: number) => L + i * bw + bw / 2
   const xs = colunas.map((_, i) => cx(i))
-  const mostraImp = quaisCabem(xs, colunas.map(c => (c.situacao === 'com-impressoes' ? c.imp : null)), W)
+  // o MAIOR valor da série tem prioridade para ficar com rótulo (a escolha comum é da esquerda para a direita e o deixava sem número a 390 px)
+  const textosImp = colunas.map(c => (c.situacao === 'com-impressoes' ? c.imp : null))
+  const mostraImp = quaisCabem(xs, textosImp, W, indiceDoMaior(textosImp))
   const comPonto = faixaCliques && bw >= PONTO_MIN
-  const mostraCl = quaisCabem(xs, colunas.map(c => (comPonto ? c.cliquesFaixa : null)), W)
+  const textosCl = colunas.map(c => (comPonto ? c.cliquesFaixa : null))
+  const mostraCl = quaisCabem(xs, textosCl, W, indiceDoMaior(textosCl))
   const hach = `url(#${pid})`
   const hFaixaNm = CR - 22                    // a hachura da faixa começa abaixo do rótulo
   const hNm = blocoNaoMedido(PH)

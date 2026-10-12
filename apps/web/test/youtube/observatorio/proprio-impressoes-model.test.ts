@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { montarDias, motivoDiaTexto, resumir, type DiaAlcance, type MotivoDia, type Periodo } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
-import { buildImpressoes, tetoDoEixo, type ImpressoesView } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
+import { buildImpressoes, indiceDoMaior, quaisCabem, PX_POR_CARACTERE, tetoDoEixo, type ImpressoesView } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
 import { alcanceCheio, alcanceCurto, alcanceNadaLido, alcanceSoVazios, alcanceVazio } from './proprio-fixture'
 
 const dm = (d: DiaYt) => d.slice(8, 10) + '/' + d.slice(5, 7)
@@ -443,5 +443,57 @@ describe('13.2: o mesmo gráfico para views por dia (sem faixa de cliques)', () 
   it('sem permissão ou com erro, views seguem sem número nenhum', () => {
     expect(v([dia('2026-10-01', 7777, null)], { acesso: 'negado' }).colunas).toEqual([])
     expect(JSON.stringify(v([dia('2026-10-01', 7777, null)], { acesso: 'negado' }))).not.toContain('7.777')
+  })
+})
+
+describe('D2 (fecho da A4): rótulos de valor — o maior valor da série tem prioridade para ficar com rótulo', () => {
+  const colunas = (n: number, passo: number, x0 = 60): number[] => Array.from({ length: n }, (_, i) => x0 + i * passo)
+  const sobrepoe = (xs: number[], textos: Array<string | null>, ficam: boolean[]): boolean => {
+    const f = ficam.map((b, i) => (b ? i : -1)).filter(i => i >= 0)
+    return f.some((i, k) => k > 0 && xs[i]! - textos[i]!.length * PX_POR_CARACTERE / 2 < xs[f[k - 1]!]! + textos[f[k - 1]!]!.length * PX_POR_CARACTERE / 2 + 3 - 1e-9)
+  }
+
+  it('sem prioridade a escolha é a de antes: da esquerda para a direita, só as que não esbarram na anterior nem passam da borda', () => {
+    const xs = colunas(8, 8.3), textos = ['120', '143', '131', '1.139', '189', '138', '101', '99']
+    expect(quaisCabem(xs, textos, 200)).toEqual([true, false, false, false, true, false, false, true])
+    expect(quaisCabem(xs, textos, 200, null)).toEqual(quaisCabem(xs, textos, 200))
+  })
+
+  it('a 390 px (colunas de 8,3 px) o maior valor da série ("1.139") fica com rótulo, mesmo na quarta coluna; os demais entram enquanto cabem, sem sobrepor', () => {
+    const xs = colunas(8, 8.3), textos = ['120', '143', '131', '1.139', '189', '138', '101', '99']
+    const sem = quaisCabem(xs, textos, 200)
+    expect(sem[3], 'o defeito de antes: o maior não tinha rótulo').toBe(false)
+    const com = quaisCabem(xs, textos, 200, 3)
+    expect(com[3]).toBe(true)
+    expect(sobrepoe(xs, textos, com)).toBe(false)
+    expect(com.filter(Boolean).length, 'o resto continua entrando enquanto couber').toBeGreaterThanOrEqual(2)
+  })
+
+  it('o maior no meio, rodeado: o vizinho que esbarraria nele sai (também à esquerda), nunca o contrário', () => {
+    const xs = colunas(6, 20), textos = ['1.000', '2.000', '19.983', '3.000', '4.000', '5.000']
+    const com = quaisCabem(xs, textos, 400, 2)
+    expect(com[2]).toBe(true)
+    expect(sobrepoe(xs, textos, com)).toBe(false)
+  })
+
+  it('o maior passa da borda direita mesmo sozinho: fica sem rótulo (nunca sai do desenho) e os outros seguem a regra de antes', () => {
+    const xs = [10, 18, 26], textos = ['5', '6', '1.139']
+    expect(quaisCabem(xs, textos, 28, 2)).toEqual(quaisCabem(xs, textos, 28))
+    expect(quaisCabem(xs, textos, 28, 2)[2]).toBe(false)
+  })
+
+  it('o maior sem texto (dia não medido) não reserva nada; prioridade fora da série é ignorada', () => {
+    const xs = colunas(3, 40), textos: Array<string | null> = ['1', null, '3']
+    expect(quaisCabem(xs, textos, 400, 1)).toEqual([true, false, true])
+    expect(quaisCabem(xs, textos, 400, 9)).toEqual([true, false, true])
+  })
+
+  it('indiceDoMaior: o maior número da série (texto com ponto de milhar); "<1" e null contam como zero; empate fica com o primeiro; sem nenhum positivo = null', () => {
+    expect(indiceDoMaior(['120', '1.139', '189', null])).toBe(1)
+    expect(indiceDoMaior(['19.983', '2.000'])).toBe(0)
+    expect(indiceDoMaior(['<1', '3', '<1'])).toBe(1)
+    expect(indiceDoMaior(['7', '7'])).toBe(0)
+    expect(indiceDoMaior(['<1', null, '0'])).toBeNull()
+    expect(indiceDoMaior([])).toBeNull()
   })
 })
