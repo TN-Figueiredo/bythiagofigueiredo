@@ -836,6 +836,49 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(resumo.corpos_gz).toBe(1)
   })
 
+  describe('E12 onda 6, G4: execução sobreposta não rebaixa um relatório que a outra acabou de baixar', () => {
+    /** Entre a leitura da fila e a marcação, a OUTRA execução baixa o relatório r1 e grava o bruto. */
+    const outraExecucaoBaixa = (db: FakeDb, falha: () => Error) => api.download.mockImplementation(async () => {
+      const r = rel(db, 'r1')!
+      r.status = 'baixado'
+      r.downloaded_at = AGORA.toISOString()
+      r.bytes = 123
+      throw falha()
+    })
+    const rodar = async () => {
+      const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+      return { db, rodou: (falha: () => Error) => { outraExecucaoBaixa(db, falha); return passoRelatorios(ctxDe(db)) } }
+    }
+
+    it('404/410 (expirado_sem_baixar) não sobrescreve um baixado', async () => {
+      const { db, rodou } = await rodar()
+      await rodou(() => new ReportingHttpError(404, null))
+      expect(rel(db, 'r1')).toMatchObject({ status: 'baixado', bytes: 123 })
+      expect(rel(db, 'r1')!.error ?? null).toBeNull()
+    })
+
+    it('grande_demais (erro) não sobrescreve um baixado', async () => {
+      const { db, rodou } = await rodar()
+      await rodou(() => new ArquivoGrandeDemaisError('corpo', MAX_GZ_BYTES + 5, 'x'))
+      expect(rel(db, 'r1')).toMatchObject({ status: 'baixado', bytes: 123 })
+      expect(rel(db, 'r1')!.error ?? null).toBeNull()
+    })
+
+    it('url_inesperada (erro) não sobrescreve um baixado', async () => {
+      const { db, rodou } = await rodar()
+      await rodou(() => new ReportingHttpError(0, 'url_inesperada'))
+      expect(rel(db, 'r1')).toMatchObject({ status: 'baixado', bytes: 123 })
+      expect(rel(db, 'r1')!.error ?? null).toBeNull()
+    })
+
+    it('controle: sem a outra execução, o mesmo 404 marca expirado_sem_baixar', async () => {
+      const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+      api.download.mockRejectedValue(new ReportingHttpError(404, null))
+      await passoRelatorios(ctxDe(db))
+      expect(rel(db, 'r1')).toMatchObject({ status: 'expirado_sem_baixar' })
+    })
+  })
+
   it('nenhum download: maior_bytes é 0 e nada ficou para trás (vence_primeiro_em_dias nulo)', async () => {
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
     const resumo = await passoRelatorios(ctxDe(db))
