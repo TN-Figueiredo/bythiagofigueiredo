@@ -136,7 +136,7 @@ const cp = (re: RegExp) => new RegExp('(?<![\\d.,])' + re.source)
  */
 const SENTINELAS: Sentinela[] = [
   sen('impressões', '13.579'), sen('impressões', '7.919'), sen('impressões', '3.847'), sen('impressões', '1.813'),
-  sen('impressões', '7,9 mil impressões', cp(/7,9 mil\s*impressões/)), sen('impressões', '13,6 mil impressões', cp(/13,6 mil\s*impressões/)),
+  sen('impressões', '7,9 mil impressões', cp(/7,9\smil\s*impressões/)), sen('impressões', '13,6 mil impressões', cp(/13,6\smil\s*impressões/)),
   sen('cliques', '2.059'), sen('cliques', '1.584'), sen('cliques', '1584 cliques'), sen('cliques', '385 cliques'), sen('cliques', '91 cliques'),
   sen('taxa', '15,2%'), sen('taxa', '14,6%'), sen('taxa', '15,8%'),
   sen('% assistido', '59%% assistido', cp(/59%% assistido/)), sen('% assistido', '61%'), sen('% assistido', '45%'), sen('% assistido', '78%'),
@@ -146,7 +146,7 @@ const SENTINELAS: Sentinela[] = [
   sen('views do diário', '103.310'), sen('views do diário', '4.436'), sen('views do diário', '4.476'), sen('views do diário', '3.202'),
   sen('views do diário', '13.574'), sen('views do diário', '60.844'), sen('views do diário', '24.948'), sen('views do diário', '1.988'), sen('views do diário', '1.876'),
   sen('views do diário', 'N de M dias medidos', cp(/\d+ de \d+ dias medidos/)),
-  sen('views por dia', '1,2 mil views por dia', cp(/1,2 mil\s*views por dia/)), sen('views por dia', '2,2 mil views por dia', cp(/2,2 mil\s*views por dia/)),
+  sen('views por dia', '1,2 mil views por dia', cp(/1,2\smil\s*views por dia/)), sen('views por dia', '2,2 mil views por dia', cp(/2,2\smil\s*views por dia/)),
   sen('views por dia', '891 views por dia', cp(/891 views por dia/)), sen('views por dia', '67 views por dia', cp(/67 views por dia/)),
   sen('views por dia', '891 views/dia por vídeo', cp(/891\s*views\/dia por vídeo/)),
 ]

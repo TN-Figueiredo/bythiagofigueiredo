@@ -14,6 +14,7 @@ import {
 import { buildProprioHeader, FRASE_ERRO, FRASE_NADA_LIDO, FRASE_NEGADO, FRASE_SEM_RELATORIO } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 import { VPD_SO_LONGOS, dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import { vpdText } from '@/app/cms/(authed)/youtube/competitors/_canal/numeros'
+import { numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/formato'
 import { montarLista } from '@/app/cms/(authed)/youtube/competitors/_canal/lista'
 import { CANAL_DEFAULT, parseCanalState, canalQuery } from '@/app/cms/(authed)/youtube/competitors/_canal/params'
 import { link } from '@/lib/youtube/observatorio/links'
@@ -80,6 +81,13 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     expect(por(v, A).terceira).toBe('1 clique em 1 dia')
     expect(por(v, A).cliquesText).toBe('1')
     expect(por(v, A).impText).toBe('5')
+  })
+
+  it('impressões de quatro algarismos ou mais: o espaço entre o número e "mil" é NBSP (a coluna do cartão não quebra "22,6 / mil"), e a nota de ações continua com espaço comum', () => {
+    const v = build(BASE, com(alcanceComLinhas(BASE.canalId, BASE.hoje, [linha(A, 5, 22600, 0.05)])))
+    expect(por(v, A).impText).toBe('22,6\u00A0mil')
+    expect(por(v, A).impText).not.toContain('22,6 mil')
+    expect(por(v, A).notas.join(' ')).toContain('Impressões: 22,6 mil em 1 dia')
   })
 
   it('CTR zero medido: "nenhum clique" e o número é "0"; clique positivo que arredonda a zero é "menos de 1" (como o cabeçalho)', () => {
@@ -163,7 +171,8 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     expect(soma).toBe(CHEIO.imp)
     // o mesmo número, o mesmo texto: cabeçalho e linha do vídeo usam o mesmo formatador
     expect(cab.faixa.find(c => c.key === 'impressoes')!.value).toBe(F.num(soma))
-    for (const x of view.videos) if (x.imp != null) expect(x.impText).toBe(F.num(x.imp))
+    // o espaço entre o número e "mil"/"mi" não quebra linha (15b: o cartão do próprio escrevia as impressões com espaço comum)
+    for (const x of view.videos) if (x.imp != null) expect(x.impText).toBe(numNb(F, x.imp))
     const cliquesSoma = view.videos.reduce((s, x) => s + (x.cliques ?? 0), 0)
     expect(cliquesSoma).toBeCloseTo(CHEIO.cliques, 8)
     expect(cab.todos.find(c => c.key === 'cliques')!.value).toBe(F.int(Math.round(cliquesSoma)))
