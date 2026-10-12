@@ -192,8 +192,8 @@ export interface StoredRaw { id: number; video_id: string | null; raw_sha256: st
 export interface PlanClose { id: number; last_seen_at: string | null }
 export interface FieldOpen { video_id: string | null; field: string; value: Json; value_hash: string; first_seen_at: string; window_start: string | null; precision: FieldPrecision }
 export interface RawOpen { video_id: string | null; raw_sha256: string; first_seen_at: string; raw: Json }
-/** sanitized: itens cujo texto trazia NUL ou substituto solitário e foi limpo (M-4). */
-export interface CaptureStats { fieldsOpened: number; fieldsClosed: number; rawOpened: number; rawClosed: number; rawTooBig: number; sanitized: number }
+/** sanitized: itens cujo texto trazia NUL ou substituto solitário e foi limpo (M-4). duplicates: itens repetidos no lote (o primeiro vale). invalid: itens de vídeo sem videoId (ficam fora do plano). */
+export interface CaptureStats { fieldsOpened: number; fieldsClosed: number; rawOpened: number; rawClosed: number; rawTooBig: number; sanitized: number; duplicates: number; invalid: number }
 export interface MissedRow { id: string; miss_streak: number; miss_first_at: string | null; missing_since: string | null; last_seen_at: string | null }
 
 const HOUR = 3_600_000
@@ -247,8 +247,13 @@ export const CAPTURE_CHUNK = 50
 const MAX_ROWS = 1000
 /** Corpo máximo de uma gravação de raw. */
 const RPC_MAX_BYTES = 1_000_000
+/** Mensagem que chega ao dono: a frase em português primeiro, o nome técnico depois, entre parênteses, para quem opera. */
+const CANT_READ: Record<string, string> = { competitor_field_versions: 'ler o histórico de campos', competitor_raw: 'ler o texto bruto' }
+const CANT_WRITE: Record<string, string> = { apply_competitor_field_plan: 'guardar o histórico de campos', apply_competitor_raw_plan: 'guardar o texto bruto' }
+const MISSING_PHRASE = 'marcar o que deixou de vir do YouTube'
+const humanErr = (phrase: string, tech: string, detail: string): Error => new Error('não foi possível ' + phrase + ' (' + tech + ': ' + detail + ')')
 const fail = (what: string, error: { message?: string } | null | undefined): void => {
-  if (error) throw new Error('captura: ' + what + ': ' + (error.message ?? 'erro do banco'))
+  if (error) throw humanErr(CANT_READ[what] ?? CANT_WRITE[what] ?? 'guardar a captura', what, error.message ?? 'erro do banco')
 }
 
 // (emenda do portão: S-I3) Sem cast duplo para o tipo da linha: a forma de cada linha lida é CONFERIDA, não afirmada.
@@ -275,30 +280,40 @@ async function readCurrent<T>(sb: SupabaseClient, table: 'competitor_field_versi
   const q = sb.from(table).select(cols).eq('competitor_channel_id', channelId).eq('is_current', true)
   const { data, error } = await (scope === 'canal' ? q.is('video_id', null) : q.in('video_id', ids))
   fail(table, error)
-  const rows = rowsAs(data, guard, 'captura: ' + table)
-  if (rows.length >= MAX_ROWS) throw new Error('captura: ' + table + ' devolveu ' + MAX_ROWS + ' linhas ou mais numa leitura (1000 é o teto do PostgREST): lote grande demais')
+  let rows: T[]
+  try { rows = rowsAs(data, guard, table) } catch (e) { throw humanErr(CANT_READ[table] ?? 'ler a captura', table, e instanceof Error ? e.message : String(e)) }
+  if (rows.length >= MAX_ROWS) throw humanErr(CANT_READ[table] ?? 'ler a captura', table, 'devolveu ' + MAX_ROWS + ' linhas ou mais numa leitura (1000 é o teto do PostgREST): lote grande demais')
   return rows
 }
 
 export async function captureItems(sb: SupabaseClient, p: { siteId: string; channelId: string; scope: FieldScope; items: readonly CaptureItem[]; nowIso: string }): Promise<CaptureStats> {
-  const stats: CaptureStats = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0 }
+  const stats: CaptureStats = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 }
   if (!p.items.length) return stats
-  if (p.items.length > CAPTURE_CHUNK) throw new Error('captura: no máximo ' + CAPTURE_CHUNK + ' itens por chamada (vieram ' + p.items.length + ')')
-  stats.sanitized = p.items.filter(i => i.raw?.sanitized).length // texto com NUL ou substituto solitário que o rawOf limpou: visível, não silencioso
-  const ids = p.items.map(i => i.videoId).filter((x): x is string => x != null)
+  if (p.items.length > CAPTURE_CHUNK) throw new Error('não foi possível guardar a captura: no máximo ' + CAPTURE_CHUNK + ' itens por chamada (vieram ' + p.items.length + ')')
+  // item de vídeo sem id não tem onde gravar; o repetido (mesmo escopo e id) vale só na primeira vez: os dois abririam a mesma versão e o índice único derrubaria o lote em toda rodada
+  const seen = new Set<string>(), valid: CaptureItem[] = []
+  for (const it of p.items) {
+    if (p.scope === 'video' && (it.videoId == null || it.videoId === '')) { stats.invalid++; continue }
+    const k = p.scope === 'canal' ? '' : it.videoId!
+    if (seen.has(k)) { stats.duplicates++; continue }
+    seen.add(k); valid.push(it)
+  }
+  if (!valid.length) return stats
+  stats.sanitized = valid.filter(i => i.raw?.sanitized).length // texto com NUL ou substituto solitário que o rawOf limpou: visível, não silencioso
+  const ids = valid.map(i => i.videoId).filter((x): x is string => x != null)
   const curFields = await readCurrent(sb, 'competitor_field_versions', 'id, video_id, field, value_hash', p.channelId, p.scope, ids, isStoredField)
   const curRaw = await readCurrent(sb, 'competitor_raw', 'id, video_id, raw_sha256', p.channelId, p.scope, ids, isStoredRaw)
-  const fp = planFields(p.scope, curFields, p.items, p.nowIso)
+  const fp = planFields(p.scope, curFields, valid, p.nowIso)
   if (fp.close.length || fp.open.length) {
     const { error } = await sb.rpc('apply_competitor_field_plan', { p_site_id: p.siteId, p_channel_id: p.channelId, p_close: fp.close, p_open: fp.open })
     fail('apply_competitor_field_plan', error)
     stats.fieldsOpened = fp.open.length; stats.fieldsClosed = fp.close.length
   }
-  const rp = planRaw(curRaw, p.items, p.nowIso)
+  const rp = planRaw(curRaw, valid, p.nowIso)
   stats.rawTooBig = rp.tooBig
   // lotes de até 1 MB: o fecho de um vídeo vai no mesmo lote da abertura dele (a função fecha antes de abrir)
   const prevId = new Map(curRaw.map(c => [c.video_id ?? '', c.id]))
-  const bytesOf = new Map(p.items.filter(i => i.raw).map(i => [i.videoId ?? '', i.raw!.bytes]))
+  const bytesOf = new Map(valid.filter(i => i.raw).map(i => [i.videoId ?? '', i.raw!.bytes]))
   let batch: RawOpen[] = [], size = 0
   const flush = async () => {
     if (!batch.length) return
@@ -324,8 +339,9 @@ const isMissedRow = (x: unknown): x is MissedRow => isRec(x) && typeof x.id === 
 export async function markMissing(sb: SupabaseClient, p: { siteId: string; channelId: string; videoIds: readonly string[]; nowIso: string; weeklySinceOf: (id: string) => string | null }): Promise<{ missed: number; newlyMissing: number }> {
   if (!p.videoIds.length) return { missed: 0, newlyMissing: 0 }
   const { data, error } = await sb.rpc('competitor_mark_missing', { p_channel_id: p.channelId, p_video_ids: [...p.videoIds], p_now: p.nowIso })
-  if (error) throw new Error('ausência: ' + (error.message ?? 'erro do banco'))
-  const rows = rowsAs(data, isMissedRow, 'ausência')
+  if (error) throw humanErr(MISSING_PHRASE, 'competitor_mark_missing', error.message ?? 'erro do banco')
+  let rows: MissedRow[]
+  try { rows = rowsAs(data, isMissedRow, 'competitor_mark_missing') } catch (e) { throw humanErr(MISSING_PHRASE, 'competitor_mark_missing', e instanceof Error ? e.message : String(e)) }
   // estado desejado, não evento: todo vídeo com missing_since tem de ter a versão 'sumiu' (se a gravação falhou antes, conserta agora)
   const gone = rows.filter(r => r.missing_since != null)
   for (let i = 0; i < gone.length; i += CAPTURE_CHUNK) {
@@ -338,9 +354,9 @@ export async function markMissing(sb: SupabaseClient, p: { siteId: string; chann
 
 export async function markChannelMissing(sb: SupabaseClient, p: { siteId: string; channelId: string; nowIso: string }): Promise<{ missingSince: string | null }> {
   const { data, error } = await sb.rpc('competitor_channel_mark_missing', { p_channel_id: p.channelId, p_now: p.nowIso })
-  if (error) throw new Error('ausência do canal: ' + (error.message ?? 'erro do banco'))
+  if (error) throw humanErr(MISSING_PHRASE, 'competitor_channel_mark_missing', error.message ?? 'erro do banco')
   // a função documenta nulo (canal que não existe mais); qualquer outra coisa fora da forma é falha, não "sem ausência"
-  if (data !== null && !isMissedRow(data)) throw new Error('ausência do canal: resposta do banco fora da forma esperada')
+  if (data !== null && !isMissedRow(data)) throw humanErr(MISSING_PHRASE, 'competitor_channel_mark_missing', 'resposta do banco fora da forma esperada')
   const r = data
   if (r?.missing_since) {
     await captureItems(sb, { siteId: p.siteId, channelId: p.channelId, scope: 'canal', nowIso: p.nowIso, items: [{
