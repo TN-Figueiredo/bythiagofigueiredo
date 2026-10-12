@@ -184,7 +184,8 @@ describe('a frase-resumo (acima do gráfico)', () => {
     expect(v.resumo).toBe('Nenhuma impressão nos 2 dias medidos (1 sem relatório lido): 0 dias com impressão e 2 dias medidos em zero.')
     expect(v.resumo).not.toMatch(/em 3 dias/)
     const um = buildImpressoes([zero('2026-10-01'), naoMedido('2026-10-02')], periodo, O)
-    expect(um.resumo).toBe('Nenhuma impressão no 1 dia medido (1 sem relatório lido): 0 dias com impressão e 1 dia medido em zero.')
+    expect(um.resumo).toBe('Nenhuma impressão em 1 dia medido (1 sem relatório lido): 0 dias com impressão e 1 dia medido em zero.')
+    expect(um.resumo).not.toMatch(/\bno 1 /)
   })
   it('cliques de algum dia sem CTR: o resumo diz que os cliques não foram medidos em algum dia (nunca soma parcial)', () => {
     const v = buildImpressoes([dia('2026-10-01', 9, null), dia('2026-10-02', 4, 1)], periodo, O)
@@ -407,6 +408,15 @@ describe('13.2: o mesmo gráfico para views por dia (sem faixa de cliques)', () 
     expect(nm.dica).toBe('01/10: o YouTube não entregou o dia (não medido)')
     expect(nm.situacaoTexto).toBe('o YouTube não entregou o dia: não medido')
     expect(r.legenda.find(l => l.situacao === 'nao-medido')!.texto).toBe('não medido (hachura): o YouTube não entregou o dia')
+  })
+
+  it('concordância: com um único dia medido e zero views a frase diz "em 1 dia medido" (nunca "no 1 dia medido"); com vários, "nos N dias medidos"', () => {
+    const zero = (d: DiaYt): DiaAlcance => ({ dia: d, situacao: 'zero-medido', motivo: null, imp: 0, cliques: null })
+    const naoMedido = (d: DiaYt): DiaAlcance => ({ dia: d, situacao: 'nao-medido', motivo: 'nao-baixado', imp: null, cliques: null })
+    const um = v([zero('2026-10-01'), naoMedido('2026-10-02')])
+    expect(um.resumo).toBe('Nenhuma view em 1 dia medido (1 dia não medido): 0 dias com view e 1 dia medido em zero.')
+    expect(um.resumo).not.toMatch(/\bno 1 /)
+    expect(v([zero('2026-10-01'), zero('2026-10-02'), naoMedido('2026-10-03')]).resumo).toBe('Nenhuma view nos 2 dias medidos (1 dia não medido): 0 dias com view e 2 dias medidos em zero.')
   })
 
   it('o resumo de views soma só os dias medidos e diz quantos não foram; o chamador pode trazer a frase própria', () => {

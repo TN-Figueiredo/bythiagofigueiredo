@@ -182,7 +182,7 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
     case 'erro': return vazio(ERRO_ALCANCE)
     case 'sem-relatorio': return vazio('Sem relatório de alcance, não há vídeo para listar.')
     case 'nada-lido': return vazio('Nenhum dia do período foi lido ainda, então nenhum vídeo aparece aqui.')
-    case 'zero': return vazio(`Nenhum vídeo teve impressão ${a.resumo.diasLidos === 1 ? 'no' : 'nos'} ${plural(a.resumo.diasLidos, 'dia lido', 'dias lidos')}.`)
+    case 'zero': return vazio(`Nenhum vídeo teve impressão ${a.resumo.diasLidos === 1 ? 'em' : 'nos'} ${plural(a.resumo.diasLidos, 'dia lido', 'dias lidos')}.`)
     case 'ok': break
     default: { const nunca: never = estado; return nunca }
   }
