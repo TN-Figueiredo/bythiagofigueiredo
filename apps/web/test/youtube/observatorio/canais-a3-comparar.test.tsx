@@ -250,6 +250,8 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
   /** O jsdom não tem layout: a raiz "está à vista" quando devolve um retângulo. */
   const comLayout = () => vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) { return [{}] as unknown as DOMRectList })
   const voltar = () => act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
+  /** O foco chega num quadro de animação depois do Voltar; no CI (máquina lenta, cartões pesados) o segundo padrão do waitFor não basta. */
+  const FOCO_ESPERA = { timeout: 5000 }
 
   it('o gatilho usado é lembrado; ao voltar (popstate) a lista põe o foco no "Comparar" daquela linha', async () => {
     comLayout()
@@ -263,7 +265,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
     expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toContain(id)
     ;(document.activeElement as HTMLElement | null)?.blur()
     voltar()
-    await waitFor(() => expect(document.activeElement).toBe(alvo))
+    await waitFor(() => expect(document.activeElement).toBe(alvo), FOCO_ESPERA)
     expect(lerGatilho('canais'), 'o registro vale um Voltar só').toBeNull()
   })
   it('a tela REMONTADA depois de um Voltar (o Next remonta a rota, às vezes dentro do próprio popstate) também põe o foco no gatilho', async () => {
@@ -338,7 +340,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
     await user.click(alvo)
     ;(document.activeElement as HTMLElement | null)?.blur()
     voltar()
-    await waitFor(() => expect(document.activeElement).toBe(alvo))
+    await waitFor(() => expect(document.activeElement).toBe(alvo), FOCO_ESPERA)
   })
   it('sem registro, a tela volta como hoje: o foco não se mexe', async () => {
     comLayout()
@@ -425,7 +427,7 @@ describe('cabeçalho do concorrente', () => {
     expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toContain(chId)
     ;(document.activeElement as HTMLElement | null)?.blur()
     act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
-    await waitFor(() => expect(document.activeElement).toBe(b))
+    await waitFor(() => expect(document.activeElement).toBe(b), FOCO_ESPERA)
   })
   it('I-1: a página do canal montada SEM Voltar apaga o registro que ficou de uma saída por outro caminho (um Voltar de um vídeo não perde o foco do último vídeo visto)', async () => {
     vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) { return [{}] as unknown as DOMRectList })
