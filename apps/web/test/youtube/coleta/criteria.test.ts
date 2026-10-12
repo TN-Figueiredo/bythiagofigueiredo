@@ -772,3 +772,84 @@ describe('fix round 1', () => {
     expect(ctx.falhas).toContain('critérios: não foi possível avaliar jobs de alcance sem relatório novo (yt_reporting_jobs)')
   })
 })
+
+describe('E12 onda 2, D1: job de tipo que só guarda bruto sem relatório novo e a conexão do canal', () => {
+  const MSG = 'relatórios: Canal Um está sem relatório novo de channel_basic_a3 há mais de 6 dias'
+  const CONEXAO = 'Canal Um: sem conexão com o YouTube'
+  const jobBruto = (idadeDias: number, marca: string | null = null): Row => ({
+    channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'ativo', job_id: 'j', job_create_time: ha(idadeDias), created_at: ha(idadeDias), last_create_time: marca,
+  })
+  const rodar = async (tabelas: Record<string, Row[]>, canalAjustado: Partial<typeof canal> = {}) => {
+    const ctx = { supabase: fakeSupabase(tabelas).client, falhas: [] as string[], channels: [{ ...canal, ...canalAjustado }] }
+    const r = await criteriosRelatorios(ctx)
+    return { ctx, r }
+  }
+
+  it('canal com sync desligado: silêncio total (igual ao critério de alcance)', async () => {
+    const { ctx, r } = await rodar({ yt_reporting_jobs: [jobBruto(10)] }, { sync_enabled: false })
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual([])
+  })
+
+  it('canal em reautorizar: nada em falhas e nada em acao_do_dono (o alarme "reautorizar" é o de rodarColeta)', async () => {
+    const { ctx, r } = await rodar({ yt_reporting_jobs: [jobBruto(10)] }, { collection_status: 'reautorizar' })
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual([])
+  })
+
+  it('canal sem conexão HOJE (nunca conectado): vai para acao_do_dono e não para falhas', async () => {
+    const { ctx, r } = await rodar({
+      yt_reporting_jobs: [jobBruto(10)],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 0)],
+    })
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual([CONEXAO])
+  })
+
+  it('tentativa sem_autorizacao hoje: nem falha nem "sem conexão" (a nota reautorizar vem de rodarColeta)', async () => {
+    const { ctx, r } = await rodar({
+      yt_reporting_jobs: [jobBruto(10)],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_autorizacao', 0)],
+    })
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual([])
+  })
+
+  it('sem_conexao de ontem não vale: o canal voltou e o alarme volta', async () => {
+    const { ctx, r } = await rodar({
+      yt_reporting_jobs: [jobBruto(10)],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 1)],
+    })
+    expect(ctx.falhas).toEqual([MSG])
+    expect(r.acao_do_dono).toEqual([])
+  })
+
+  it('canal sem conexão com job de alcance E de tipo bruto parados: a nota de conexão sai uma vez só', async () => {
+    const { r } = await rodar({
+      yt_reporting_jobs: [jobBruto(10), jobAtivo(10)],
+      youtube_videos: [{ id: 'v1', channel_id: 'ch-1', published_at: ha(30) }],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 0)],
+    })
+    expect(r.acao_do_dono).toEqual([CONEXAO])
+  })
+
+  it('a leitura das tentativas falha: não avaliou (nunca verde) e sem falha de parada inventada', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [jobBruto(10)] })
+    db.errors.yt_own_collection_attempts = ERRO
+    const ctx = { supabase: db.client, falhas: [] as string[], channels: [canal] }
+    await criteriosRelatorios(ctx)
+    expect(naoAvaliou(ctx.falhas, 'jobs de tipos brutos sem relatório novo (yt_own_collection_attempts)')).toBe(true)
+    expect(ctx.falhas).not.toContain(MSG)
+  })
+
+  it('DECISÃO: canal sem publicação há mais de 90 dias, job sem relatório há 7 dias, ainda alarma (o YouTube gera relatório todo dia, inclusive para canal parado)', async () => {
+    const { ctx } = await rodar({
+      yt_reporting_jobs: [jobBruto(7)],
+      youtube_videos: [{ id: 'velho', channel_id: 'ch-1', published_at: ha(120) }],
+    })
+    expect(ctx.falhas).toEqual([MSG])
+    // e o mesmo canal sem nenhum vídeo registrado
+    const { ctx: semVideo } = await rodar({ yt_reporting_jobs: [jobBruto(7)] })
+    expect(semVideo.falhas).toEqual([MSG])
+  })
+})
