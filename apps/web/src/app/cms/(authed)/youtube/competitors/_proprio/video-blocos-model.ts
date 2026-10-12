@@ -9,15 +9,16 @@
  *  - acesso `negado`/`erro`: nenhum bloco privado é montado; só a nota única e a parte pública das réguas (views, curtidas…), com as linhas
  *    privadas dizendo quem vê;
  *  - taxa de clique: intervalo de Wilson, veredito só quando as faixas se separam; nunca "capa boa" nem "capa ruim", nunca cor de direção;
- *  - % assistido: o número real, mesmo acima de 100; abaixo de 10 views não compara; "na média" é até 2 pontos (`contraNormal`, a função única);
+ *  - % assistido: o número real, mesmo acima de 100; abaixo de 10 views não compara; "na média" é até 2 pontos (`contraNormal`, a função única); o normal é a
+ *    mediana do CANAL (os outros vídeos com views, mínimo de 5), não a da faixa de duração (a faixa é da aba Retenção do canal);
  *  - nada de troca de título/thumbnail e nada de curva de retenção com dado (A5): só os estados "ainda não coletado" e "ainda não registrado".
  */
-import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
+import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
-import { assistidoDoVideo, contraNormal, FAIXAS, faixaDaDuracao, MIN_VIDEOS_FAIXA, normalDaFaixa, POUCAS_VIEWS, type FaixaId } from '@/lib/youtube/observatorio/proprio/assistido'
+import { assistidoDoVideo, contraNormal, MIN_VIDEOS_FAIXA, normalDoCanal, POUCAS_VIEWS } from '@/lib/youtube/observatorio/proprio/assistido'
 import { montarDias, resumir, type DiaAlcance, type Periodo } from '@/lib/youtube/observatorio/proprio/dias'
-import { serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
+import { DIAS_DE_VIDA_MIN, serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
 import { taxaComIntervalo, veredito, type TaxaComIntervalo, type Veredito } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { MIN_DIAS_VPD, vpdDoVideo } from '@/lib/youtube/observatorio/proprio/vpd'
@@ -66,15 +67,17 @@ export interface BlocoAssistido {
   pctTexto: string | null
   /** o tamanho da barra, de 0 a 100 (acima de 100% não estoura) */
   barraPct: number | null
-  /** o normal da faixa de duração, em pontos (para a marca); null = não compara */
+  /** o normal do canal (mediana do % assistido dos outros vídeos), em pontos (para a marca); null = não compara */
   normalPct: number | null
   normalTexto: string | null
   /** a posição da marca na barra, de 0 a 100 */
   marcaPct: number | null
+  /** onde o rótulo "normal do canal: NN%" se prende: no meio, sob a marca; nas pontas ele fica dentro da barra (perto de 0% ou de 100% centrado estouraria); null = sem marca */
+  rotuloAncora: 'inicio' | 'meio' | 'fim' | null
   /** "Perto do normal do canal (…)." etc.; null = não compara */
   contra: string | null
   direcao: DirecaoAssistido | null
-  /** por que não há normal para comparar ("Poucos vídeos para comparar nesta faixa de duração (1; precisa de 5).") */
+  /** por que não há normal para comparar ("Poucos outros vídeos do canal com % assistido para comparar (3; precisa de 5).") */
   semNormal: string | null
   /** "0:00", metade e fim da barra; null = o vídeo não tem duração */
   marcas: [string, string, string] | null
@@ -133,11 +136,14 @@ const NOTA_DIARIO_VAZIO = 'Sem a leitura diária não há como posicionar este v
 
 const FRASE_VIDEO_NOVO_VIEWS = 'Vídeo novo: o YouTube entrega as views de cada dia com 2 a 3 dias de atraso, então com menos de 3 dias de vida ainda não há dia fechado.'
 const FRASE_SEM_DIARIO_VIEWS = 'A coleta diária de views ainda não rodou para este canal. Nenhum dia é zero: falta medir.'
+const FRASE_VIDEO_NOVO_IMPRESSOES = 'Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.'
 const POUCO_IMPRESSAO = 100
 const FRASE_POUCA_IMPRESSAO = 'É pouco para dizer se a capa funciona: leia como contagem.'
 const SEM_TAXA_CTR = 'A taxa de clique deste vídeo não é medida: o YouTube não devolveu a taxa de algum dia com impressão.'
 const ALTURA_GRAFICO = 110
 const MINUS = '−'
+/** Dentro desta distância de 0% ou de 100% o rótulo da marca (cerca de 20% da largura de uma tela de 390 px) deixa de ficar centrado nela. */
+const ANCORA_PONTA = 20
 
 const plural = (n: number, um: string, muitos: string): string => `${int(n)} ${n === 1 ? um : muitos}`
 
@@ -216,7 +222,14 @@ function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Obse
 function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
   const lido = lerEstado({ acesso: 'ok', dado: alcance })
   if (lido.estado !== 'ok') return { medido: false, frase: SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
-  const { periodo, dias } = montarDias(alcance, o.ytId)
+  const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
+  // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
+  if (o.pubDia != null && diffDias(o.pubDia, o.hoje) < DIAS_DE_VIDA_MIN) return novo
+  const montado = montarDias(alcance, o.ytId)
+  const desdePub = o.pubDia != null ? montado.dias.filter(d => d.dia >= o.pubDia!) : montado.dias
+  if (montado.periodo == null || desdePub.length === 0) return novo
+  const dias = desdePub
+  const periodo: Periodo = dias.length === montado.dias.length ? montado.periodo : { de: dias[0]!.dia, ate: montado.periodo.ate, dias: dias.length }
   const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje }
   const r = resumir(dias)
   let grafico = buildImpressoes(dias, periodo, base)
@@ -235,22 +248,20 @@ const METODO_ASSISTIDO = [
   '% assistido: do total de tempo de vídeo possível, quanto foi assistido. É a média do percentual de cada dia, pesada pelas views do dia (dá o mesmo valor que o YouTube calcula para o período).',
   'Janela: os 28 dias que terminam no último dia gravado do canal.',
   'Poucas views: abaixo de 10 views o valor sai com a contagem ao lado, em cinza, e sem comparar com o normal do canal.',
-  'O normal do canal é a mediana do % assistido dos vídeos da mesma faixa de duração (até 5 min, 5 a 15 min, acima de 15 min), só com 5 ou mais vídeos com views. Perto do normal: até 2 pontos para cima ou para baixo.',
+  'O normal do canal é a mediana do % assistido dos outros vídeos do canal que tiveram views, só com 5 ou mais. Perto do normal: até 2 pontos para cima ou para baixo.',
   'Acima de 100%: trecho que muita gente voltou para rever.',
 ]
 
 function assistidoNaoMedido(frase: string): BlocoAssistido {
   return {
-    estado: 'nao-medido', partes: [{ t: frase }], pctTexto: null, barraPct: null, normalPct: null, normalTexto: null, marcaPct: null, contra: null, direcao: null, semNormal: null,
+    estado: 'nao-medido', partes: [{ t: frase }], pctTexto: null, barraPct: null, normalPct: null, normalTexto: null, marcaPct: null, rotuloAncora: null, contra: null, direcao: null, semNormal: null,
     marcas: null, alt: frase, metodo: METODO_ASSISTIDO,
   }
 }
 
-const rotuloFaixa = (id: FaixaId): string => FAIXAS.find(f => f.id === id)!.rotulo.toLowerCase()
-
 function assistidoDe(
   diario: Privado<DiarioCanal>, serie: SerieVideo,
-  o: { ytId: string; dur: number | null; pctPorVideo: ReadonlyMap<string, number | null>; durPorVideo: ReadonlyArray<{ ytId: string; dur: number | null }>; dm: (d: DiaYt) => string; F: Observatory['fmt'] },
+  o: { ytId: string; dur: number | null; pctDosOutros: ReadonlyArray<number | null>; dm: (d: DiaYt) => string; F: Observatory['fmt'] },
 ): BlocoAssistido {
   if (serie.estado === 'video-novo') return assistidoNaoMedido('Vídeo novo: o YouTube só entrega o % assistido depois de fechar o dia, então com menos de 3 dias de vida ainda não há valor.')
   if (serie.estado === 'sem-diario') return assistidoNaoMedido('A coleta diária ainda não rodou: sem ela não há % assistido.')
@@ -261,7 +272,10 @@ function assistidoDe(
   }
   const pct = a.pct
   const pctTexto = o.F.int(pct) + '%'
-  const duracao = o.dur != null ? ` (${durText(pct / 100 * o.dur)} de ${durText(o.dur)})` : ''
+  // acima de 100% o tempo assistido passa da duração: "(13:56 de 10:00)" pareceria erro; a frase diz por quê
+  const duracao = Math.round(pct) > 100
+    ? (o.dur != null ? `: ${durText(pct / 100 * o.dur)} assistidos num vídeo de ${durText(o.dur)}, porque as pessoas reviram trechos` : ': as pessoas reviram trechos')
+    : o.dur != null ? ` (${durText(pct / 100 * o.dur)} de ${durText(o.dur)})` : ''
   const pouco = a.pouco
   const partes: Parte[] = [{ t: 'Quem assiste vê em média ' }, { t: pctTexto, b: true }, { t: ` do vídeo${duracao}.` }]
   partes.push({ t: pouco
@@ -270,22 +284,20 @@ function assistidoDe(
   const marcas: [string, string, string] | null = o.dur != null ? ['0:00', durText(o.dur / 2) ?? '', durText(o.dur) ?? ''] : null
   const barraPct = Math.max(0, Math.min(100, Math.round(pct)))
   const base: BlocoAssistido = {
-    estado: pouco ? 'pouco' : 'ok', partes, pctTexto, barraPct, normalPct: null, normalTexto: null, marcaPct: null, contra: null, direcao: null, semNormal: null, marcas,
+    estado: pouco ? 'pouco' : 'ok', partes, pctTexto, barraPct, normalPct: null, normalTexto: null, marcaPct: null, rotuloAncora: null, contra: null, direcao: null, semNormal: null, marcas,
     alt: `${pctTexto} do vídeo assistido em média${pouco ? ', com poucas views' : ''}`, metodo: METODO_ASSISTIDO,
   }
   if (pouco) return base
-  const faixa = faixaDaDuracao(o.dur)
-  if (faixa == null) return { ...base, semNormal: 'Sem a duração do vídeo não há faixa de duração para comparar.' }
-  const normais = normalDaFaixa(o.durPorVideo.map(v => ({ dur: v.dur, pct: o.pctPorVideo.get(v.ytId) ?? null })))
-  const da = normais.find(n => n.faixa === faixa)!
-  if (da.normal == null) return { ...base, semNormal: `Poucos vídeos para comparar nesta faixa de duração (${da.comViews}; precisa de ${MIN_VIDEOS_FAIXA}).` }
-  const c = contraNormal(pct, da.normal)!
-  const normalTexto = o.F.int(da.normal) + '%'
-  const onde = `${normalTexto}, faixa ${rotuloFaixa(faixa)}`
-  const contra = c.leitura === 'na-media' ? `Perto do normal do canal (${onde}).`
-    : c.leitura === 'acima' ? `Acima do normal do canal (${onde}): +${Math.abs(c.dif)} pontos.`
-      : `Abaixo do normal do canal (${onde}): ${MINUS}${Math.abs(c.dif)} pontos.`
-  return { ...base, normalPct: da.normal, normalTexto, marcaPct: Math.max(0, Math.min(100, Math.round(da.normal))), contra, direcao: c.leitura }
+  const { comViews, normal } = normalDoCanal(o.pctDosOutros)
+  if (normal == null) return { ...base, semNormal: `Poucos outros vídeos do canal com % assistido para comparar (${int(comViews)}; precisa de ${MIN_VIDEOS_FAIXA}).` }
+  const c = contraNormal(pct, normal)!
+  const normalTexto = o.F.int(normal) + '%'
+  const contra = c.leitura === 'na-media' ? `Perto do normal do canal (${normalTexto}).`
+    : c.leitura === 'acima' ? `Acima do normal do canal (${normalTexto}): +${Math.abs(c.dif)} pontos.`
+      : `Abaixo do normal do canal (${normalTexto}): ${MINUS}${Math.abs(c.dif)} pontos.`
+  const marcaPct = Math.max(0, Math.min(100, Math.round(normal)))
+  const rotuloAncora = marcaPct < ANCORA_PONTA ? 'inicio' : marcaPct > 100 - ANCORA_PONTA ? 'fim' : 'meio'
+  return { ...base, normalPct: normal, normalTexto, marcaPct, rotuloAncora, contra, direcao: c.leitura }
 }
 
 /* ---------------------------------------------------------------- retenção, forja, o que falta */
@@ -336,6 +348,12 @@ function views28(linhas: readonly DiarioLinha[], ultimoDia: DiaYt): number {
   return s
 }
 
+/** "K dos M outros medidos ficam abaixo de 1 view por dia; N sem medida." Só os medidos entram em K e M. */
+export function fraseOutrosAbaixoDe1(k: number, medidos: number, semMedida: number): string {
+  if (medidos === 0) return 'nenhum outro vídeo do canal tem views por dia medidas.'
+  return `${int(k)} dos ${int(medidos)} outros medidos ficam abaixo de 1 view por dia${semMedida > 0 ? `; ${int(semMedida)} sem medida` : ''}.`
+}
+
 export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const { obs, videoId, dm, hoje } = a
   const ch = canalProprioDoVideo(obs, videoId)
@@ -371,18 +389,18 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
 
   /* contas do diário, uma vez por vídeo que tem linha */
   const grupos = porVideo(diario)
-  const pctPorVideo = new Map<string, number | null>()
   const vpdPorId = new Map<string, number | null>()
   const pctPorId = new Map<string, number | null>()
   for (const v of videos) {
     const linhas = grupos.get(v.ytId)
-    if (!linhas) { vpdPorId.set(v.id, null); pctPorId.set(v.id, null); pctPorVideo.set(v.ytId, null); continue }
+    if (!linhas) { vpdPorId.set(v.id, null); pctPorId.set(v.id, null); continue }
     const parcial: DiarioCanal = { ...diario, linhas }
     const pct = assistidoDoVideo({ acesso: 'ok', dado: parcial }, v.ytId).pct
-    pctPorId.set(v.id, pct); pctPorVideo.set(v.ytId, pct)
+    pctPorId.set(v.id, pct)
     vpdPorId.set(v.id, vpdDoVideo(parcial, v.ytId).vpd)
   }
-  const assistido = assistidoDe(diarioPriv, serie, { ytId: este.ytId, dur: este.dur, pctPorVideo, durPorVideo: videos, dm, F })
+  const pctDosOutros = videos.filter(v => v.id !== este.id).map(v => pctPorId.get(v.id) ?? null)
+  const assistido = assistidoDe(diarioPriv, serie, { ytId: este.ytId, dur: este.dur, pctDosOutros, dm, F })
 
   /* as duas linhas novas da régua: só com leitura diária deste vídeo (vídeo novo e coleta que não rodou dizem uma frase no lugar) */
   const lidoAlcance = lerEstado({ acesso: 'ok', dado: alcance })
@@ -395,12 +413,15 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     const v28 = diario.ultimoDia != null ? views28(grupos.get(este.ytId) ?? [], diario.ultimoDia) : 0
     const meuVpd = vpdPorId.get(este.id) ?? null
     const outros = videos.filter(v => v.id !== este.id)
-    const abaixoDe1 = outros.filter(v => { const x = vpdPorId.get(v.id) ?? null; return x == null || x < 1 }).length
+    // só os MEDIDOS entram na conta: "não medido" (sem diário, short, menos de 7 dias) nunca vira "abaixo de 1"; os sem medida aparecem à parte
+    const medidosVpd = outros.map(v => vpdPorId.get(v.id) ?? null).filter((x): x is number => x != null)
+    const abaixoDe1 = medidosVpd.filter(x => x < 1).length
+    const semMedidaVpd = outros.length - medidosVpd.length
     const meuPct = assistidoDoVideo(diarioPriv, este.ytId)
     diarioReguas = {
       vpd: vpdPorId, pct: pctPorId,
       naoPosicionaVpd: meuVpd != null && v28 < POUCAS_VIEWS
-        ? `Com ${int(v28)} ${v28 === 1 ? 'view' : 'views'} em 28 dias não dá para posicionar este vídeo: ${int(abaixoDe1)} dos ${int(outros.length)} outros também ficam abaixo de 1 view por dia.` : null,
+        ? `Com ${int(v28)} ${v28 === 1 ? 'view' : 'views'} em 28 dias não dá para posicionar este vídeo: ${fraseOutrosAbaixoDe1(abaixoDe1, medidosVpd.length, semMedidaVpd)}` : null,
       naoPosicionaPct: meuPct.pct != null && meuPct.pouco ? `Com só ${int(meuPct.n)} ${meuPct.n === 1 ? 'view' : 'views'} não dá para posicionar o % assistido.` : null,
       semVpd: `sem ${MIN_DIAS_VPD} dias de medida`,
       semPct: 'sem views nos 28 dias',

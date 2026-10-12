@@ -99,6 +99,79 @@ describe('impressões e cliques', () => {
   })
 })
 
+/** O vídeo mais novo do canal passa a ter `dias` de vida (publicado há `dias` dias) e UMA linha de alcance por dia a partir da publicação (nunca antes). */
+function comVidaDe(dias: number) {
+  const DIA = 86_400_000
+  let alvo = ''
+  const w = mundoVideo({ mut: ds => {
+    umaFaixa(ds)
+    const dono = ds.channels.find(c => c.own)!.id
+    const novo = ds.videos.filter(v => v.ch === dono).sort((a, b) => b.pub - a.pub)[0]!
+    alvo = novo.id
+    novo.pub = ds.now - dias * DIA
+    novo.ageDays = dias
+  } })
+  const v = w.obs.videos.find(x => x.id === alvo)!
+  const a = dadoDe(w).alcance
+  const linhas = [...a.linhas]
+  for (let n = dias; n >= 3; n--) linhas.push({ ytId: v.ytId, dia: addDays(w.hoje, -n), imp: 400, ctr: 0.05 })
+  return { w, id: v.id, dados: ok(w, { alcance: { ...a, linhas } }) }
+}
+
+describe('impressões de vídeo recente: o dia anterior à publicação não existe (I1)', () => {
+  it('vídeo de 1 dia: a frase do mockup, nenhum gráfico, nenhuma taxa e nenhum "zero medido"', () => {
+    const { w, id, dados } = comVidaDe(1)
+    const b = blocos(w, dados, id).impressoes!
+    expect(b).toMatchObject({ medido: false, grafico: null, taxa: null, semTaxa: null })
+    expect(b.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
+    expect(JSON.stringify(b)).not.toMatch(/zero|medidos em/i)
+  })
+
+  it('vídeo de 2 dias (o "vídeo novo" da fixture): a mesma frase', () => {
+    const b = blocos(W, ok(W), novoId).impressoes!
+    expect(b).toMatchObject({ medido: false, grafico: null })
+    expect(b.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
+  })
+
+  it('vídeo de 3 dias: um dia só no gráfico (o da publicação), o resto não existe; 400 impressões, 20 cliques', () => {
+    const { w, id, dados } = comVidaDe(3)
+    const b = blocos(w, dados, id).impressoes!
+    expect(b.medido).toBe(true)
+    const g = b.grafico!
+    expect(g.colunas).toHaveLength(1)
+    expect(g.colunas[0]!.situacao).toBe('com-impressoes')
+    expect(g.resumo).toBe('400 impressões e 20 cliques estimados em 1 dia: 1 dia com impressão, 0 dias medidos em zero e 0 dias não medidos.')
+    expect(g.periodoTexto).toMatch(/^de \d\d\/\d\d a \d\d\/\d\d · 1 dia/)
+    expect(g.periodoTexto).toBe(`de ${dmDia(addDays(w.hoje, -3))} a ${dmDia(addDays(w.hoje, -3))} · 1 dia · dia do YouTube`)
+  })
+
+  it('vídeo de 5 dias: só os 3 dias desde a publicação (hoje-5 a hoje-3), nunca os 14 dias antes dele como "zero medido"', () => {
+    const { w, id, dados } = comVidaDe(5)
+    const g = blocos(w, dados, id).impressoes!.grafico!
+    expect(g.colunas).toHaveLength(3)
+    expect(g.colunas.every(c => c.situacao === 'com-impressoes')).toBe(true)
+    expect(g.resumo).toBe('1.200 impressões e 60 cliques estimados em 3 dias: 3 dias com impressão, 0 dias medidos em zero e 0 dias não medidos.')
+    expect(g.periodoTexto).toContain(`de ${dmDia(addDays(w.hoje, -5))} a ${dmDia(addDays(w.hoje, -3))} · 3 dias`)
+    expect(g.legenda.map(l => l.situacao)).toContain('publicacao')
+  })
+
+  it('vídeo de 5 dias sem nenhuma impressão: dias desde a publicação em zero medido (só 3, não 19); a taxa não existe', () => {
+    const { w, id } = comVidaDe(5)
+    const sem = ok(w, { alcance: { ...dadoDe(w).alcance, linhas: dadoDe(w).alcance.linhas.filter(l => l.ytId !== w.obs.videos.find(v => v.id === id)!.ytId) } })
+    const b = blocos(w, sem, id).impressoes!
+    expect(b.grafico!.colunas).toHaveLength(3)
+    expect(b.grafico!.colunas.every(c => c.situacao === 'zero-medido')).toBe(true)
+    expect(b.taxa).toBeNull()
+  })
+
+  it('vídeo de 30 dias: nada muda, o período inteiro de 19 relatórios', () => {
+    const { w, id, dados } = comVidaDe(30)
+    const g = blocos(w, dados, id).impressoes!.grafico!
+    expect(g.colunas).toHaveLength(19)
+    expect(g.colunas.filter(c => c.situacao === 'com-impressoes')).toHaveLength(19)
+  })
+})
+
 describe('taxa de clique deste vídeo', () => {
   it('caso cheio: "X% das impressões viraram clique (k de n)", o intervalo e o veredito "acima da taxa do canal… mesmo contando a incerteza"; a faixa do canal por baixo da do vídeo', () => {
     const t = blocos(W).impressoes!.taxa!
@@ -176,34 +249,72 @@ describe('% assistido', () => {
     expect(blocos(mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 9, diasFoco: 1 } })).assistido!.estado).toBe('pouco')
   })
 
-  it('acima de 100% é dado válido: o número real na frase, a barra não estoura, e o ⓘ explica', () => {
+  it('acima de 100% é dado válido: o número real na frase, a frase diz que reviram trechos, a barra não estoura, e o ⓘ explica', () => {
     const a = blocos(mundoVideo({ mut: umaFaixa, diario: { pctFoco: 139.38 } })).assistido!
-    expect(a.partes.map(p => p.t).join('')).toMatch(/^Quem assiste vê em média 139% do vídeo/)
+    expect(a.partes.map(p => p.t).join('')).toBe('Quem assiste vê em média 139% do vídeo: 13:56 assistidos num vídeo de 10:00, porque as pessoas reviram trechos. Baseado em 24.680 views.')
+    expect(a.partes.map(p => p.t).join('')).not.toMatch(/\(13:56 de 10:00\)/)
     expect(a.barraPct).toBe(100)
     expect(a.metodo.join(' ')).toContain('Acima de 100%: trecho que muita gente voltou para rever.')
   })
 
-  it('"Perto do normal do canal" só até 2 pontos; 3 pontos já diz acima ou abaixo (o normal da faixa é 60%: os outros longos têm todos 60%)', () => {
+  it('"Perto do normal do canal" só até 2 pontos; 3 pontos já diz acima ou abaixo (o normal do canal é 60%: os outros vídeos têm todos 60%)', () => {
     const com = (pct: number) => blocos(mundoVideo({ mut: umaFaixa, diario: { pctFoco: pct, pctOutros: 60 } })).assistido!
     expect(com(62).normalPct).toBe(60)
-    expect(com(62).contra).toBe('Perto do normal do canal (60%, faixa 5 a 15 min).')
+    expect(com(62).contra).toBe('Perto do normal do canal (60%).')
     expect(com(58).contra).toMatch(/^Perto do normal do canal/)
-    expect(com(63).contra).toBe('Acima do normal do canal (60%, faixa 5 a 15 min): +3 pontos.')
-    expect(com(57).contra).toBe('Abaixo do normal do canal (60%, faixa 5 a 15 min): −3 pontos.')
+    expect(com(63).contra).toBe('Acima do normal do canal (60%): +3 pontos.')
+    expect(com(57).contra).toBe('Abaixo do normal do canal (60%): −3 pontos.')
     expect([com(63).direcao, com(57).direcao, com(60).direcao, com(62).direcao]).toEqual(['acima', 'abaixo', 'na-media', 'na-media'])
   })
 
-  it('faixa de duração com menos de 5 vídeos com views: nada de normal e a frase diz quantos há', () => {
-    // todos os longos em 20 min, menos o foco (3 min): a faixa "até 5 min" só tem ele
+  it('o normal é o do CANAL, não o da faixa de duração: um vídeo de 3 min compara com a mediana de todos os outros, mesmo sozinho na faixa dele (I2)', () => {
+    // todos os longos em 20 min (pct 40, 43, 46…), menos o foco (3 min), sozinho na faixa "até 5 min"
     const w = mundoVideo({ mut: ds => {
       const dono = ds.channels.find(c => c.own)!.id
       const longos = ds.videos.filter(x => x.ch === dono && x.fmt === 'long')
       for (const v of longos) v.dur = 1200
       longos.filter(x => x.tracked && x.ageDays >= 20).sort((a, b) => b.pub - a.pub)[0]!.dur = 180
-    } })
+    }, diario: { pctOutros: 60 } })
     const a = blocos(w).assistido!
-    expect(a).toMatchObject({ normalPct: null, contra: null, direcao: null })
-    expect(a.semNormal).toBe('Poucos vídeos para comparar nesta faixa de duração (1; precisa de 5).')
+    expect(a).toMatchObject({ normalPct: 60, semNormal: null, direcao: 'acima' })
+    expect(a.contra).toBe('Acima do normal do canal (60%): +18 pontos.')
+    expect(JSON.stringify(a)).not.toMatch(/faixa/i)
+  })
+
+  it('menos de 5 outros vídeos com % assistido: nada de normal e a frase diz quantos há (nunca um padrão)', () => {
+    const w = mundoVideo({ mut: umaFaixa })
+    const dado = dadoDe(w)
+    const manter = new Set(w.outros.slice(0, 3))
+    const diario = { ...dado.diario, linhas: dado.diario.linhas.filter(l => l.ytId === w.foco.ytId || manter.has(l.ytId)) }
+    const a = blocos(w, ok(w, { diario })).assistido!
+    expect(a).toMatchObject({ normalPct: null, contra: null, direcao: null, marcaPct: null })
+    expect(a.semNormal).toBe('Poucos outros vídeos do canal com % assistido para comparar (3; precisa de 5).')
+  })
+
+  it('exatamente 5 outros vídeos com % assistido já tem normal; 4 não', () => {
+    const w = mundoVideo({ mut: umaFaixa, diario: { pctOutros: 60 } })
+    const dado = dadoDe(w)
+    const com = (n: number) => {
+      const manter = new Set(w.outros.slice(0, n))
+      return blocos(w, ok(w, { diario: { ...dado.diario, linhas: dado.diario.linhas.filter(l => l.ytId === w.foco.ytId || manter.has(l.ytId)) } })).assistido!
+    }
+    expect(com(5).normalPct).toBe(60)
+    expect(com(4).normalPct).toBeNull()
+  })
+
+  it('o vídeo não entra na própria mediana (só os outros)', () => {
+    // foco 90%; cinco outros a 50%: a mediana é 50, não puxada para cima pelo foco
+    const a = blocos(mundoVideo({ mut: umaFaixa, diario: { pctFoco: 90, pctOutros: 50 } })).assistido!
+    expect(a.normalPct).toBe(50)
+  })
+
+  it('o rótulo da marca não passa da barra: perto de 0% ou de 100% ele ancora na ponta (inicio/fim); no meio fica sob a marca', () => {
+    const lado = (outros: number) => blocos(mundoVideo({ mut: umaFaixa, diario: { pctOutros: outros } })).assistido!
+    expect(lado(60).rotuloAncora).toBe('meio')
+    expect(lado(3).rotuloAncora).toBe('inicio')
+    expect(lado(97).rotuloAncora).toBe('fim')
+    expect(lado(20).rotuloAncora).toBe('meio')
+    expect(lado(80).rotuloAncora).toBe('meio')
   })
 
   it('sem views nos 28 dias, vídeo novo e coleta que não rodou: cada um com a sua frase de não medido', () => {
@@ -268,7 +379,31 @@ describe('"Este vídeo no canal"', () => {
     const l = blocos(w).canal.reguas.linhas.find(x => x.numero === 'vpd')!
     expect(l.valor).toBe('1,0')
     expect(l.pos).toBeNull()
-    expect(l.semRegua).toMatch(/^Com 8 views em 28 dias não dá para posicionar este vídeo: \d+ dos \d+ outros também ficam abaixo de 1 view por dia\.$/)
+    expect(l.semRegua).toMatch(/^Com 8 views em 28 dias não dá para posicionar este vídeo: \d+ dos \d+ outros medidos ficam abaixo de 1 view por dia(; \d+ sem medida)?\.$/)
+  })
+
+  it('a trava conta só vídeo MEDIDO: zerado entra em K, sem medida (sem diário, short, curto demais) não é "abaixo de 1" e aparece à parte (I3)', () => {
+    const w = mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 1, diasFoco: 8 } })
+    const dado = dadoDe(w)
+    const zerados = new Set(w.outros.slice(0, 2)), semLinha = new Set(w.outros.slice(2, 5))
+    const linhas = dado.diario.linhas
+      .filter(l => !semLinha.has(l.ytId))
+      .map(l => (zerados.has(l.ytId) ? { ...l, views: 0 } : l))
+    const total = w.obs.videos.filter(v => v.ch === w.canalId).length + (w.obs.channel(w.canalId)?.undated?.length ?? 0)
+    const outros = total - 1
+    const medidos = w.outros.length - semLinha.size            // os que têm diário com 7+ dias, menos os que tiraram a linha
+    const semMedida = outros - medidos
+    expect(semMedida).toBeGreaterThanOrEqual(3)
+    const l = blocos(w, ok(w, { diario: { ...dado.diario, linhas } })).canal.reguas.linhas.find(x => x.numero === 'vpd')!
+    expect(l.semRegua).toBe(`Com 8 views em 28 dias não dá para posicionar este vídeo: 2 dos ${medidos} outros medidos ficam abaixo de 1 view por dia; ${semMedida} sem medida.`)
+  })
+
+  it('sem nenhum outro vídeo medido: diz isso, em vez de "0 dos 0"', () => {
+    const w = mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 1, diasFoco: 8 } })
+    const dado = dadoDe(w)
+    const linhas = dado.diario.linhas.filter(l => l.ytId === w.foco.ytId)
+    const l = blocos(w, ok(w, { diario: { ...dado.diario, linhas } })).canal.reguas.linhas.find(x => x.numero === 'vpd')!
+    expect(l.semRegua).toBe('Com 8 views em 28 dias não dá para posicionar este vídeo: nenhum outro vídeo do canal tem views por dia medidas.')
   })
 
   it('% assistido com poucas views: "Com só N views não dá para posicionar o % assistido."', () => {

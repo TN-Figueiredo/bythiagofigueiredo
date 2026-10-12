@@ -34,7 +34,7 @@ function SecViews({ b }: { b: BlocoViews }) {
 function Taxa({ t }: { t: BlocoTaxa }) {
   return (
     <div className="vb-ctr">
-      <h3>Taxa de clique deste vídeo <InfoDica titulo="Como a taxa é calculada" paragrafos={t.metodo} /></h3>
+      <div className="vb-h"><h3>Taxa de clique deste vídeo</h3><InfoDica titulo="Como a taxa é calculada" paragrafos={t.metodo} /></div>
       <p className="vb-fr"><Partes partes={t.partes} /></p>
       <TaxaFaixa view={t.faixa} />
     </div>
@@ -57,7 +57,7 @@ function SecAssistido({ a }: { a: BlocoAssistido }) {
   const pouco = a.estado === 'pouco'
   return (
     <section className="vb-sec" aria-labelledby="vb-as-h">
-      <h2 id="vb-as-h">Quanto do vídeo as pessoas assistem <InfoDica titulo="De onde vem o % assistido" paragrafos={a.metodo} /></h2>
+      <div className="vb-h"><h2 id="vb-as-h">Quanto do vídeo as pessoas assistem</h2><InfoDica titulo="De onde vem o % assistido" paragrafos={a.metodo} /></div>
       {a.estado === 'nao-medido' ? <NaoMedido frase={a.partes.map(p => p.t).join('')} /> : (
         <div className="vb-as">
           <p className="vb-fr"><Partes partes={a.partes} pouco={pouco} /></p>
@@ -66,7 +66,11 @@ function SecAssistido({ a }: { a: BlocoAssistido }) {
             {a.marcaPct != null ? <s style={{ left: `${a.marcaPct}%` }} /> : null}
           </div>
           {a.marcas ? <div className="vb-as-tk" aria-hidden="true"><span>{a.marcas[0]}</span><span>{a.marcas[1]}</span><span>{a.marcas[2]}</span></div> : null}
-          {a.marcaPct != null ? <div className="vb-as-med" aria-hidden="true"><span style={{ left: `${a.marcaPct}%` }}>normal do canal: {a.normalTexto}</span></div> : null}
+          {a.marcaPct != null ? (
+            <div className="vb-as-med" aria-hidden="true">
+              <span className={'vb-as-med-' + (a.rotuloAncora ?? 'meio')} style={a.rotuloAncora === 'meio' ? { left: `${a.marcaPct}%` } : undefined}>normal do canal: {a.normalTexto}</span>
+            </div>
+          ) : null}
           {a.contra && a.direcao ? <p className={'vb-nt vb-dir-' + a.direcao}><span aria-hidden="true">{SIMBOLO[a.direcao]}</span> {a.contra}</p> : null}
           {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
         </div>
@@ -79,7 +83,7 @@ function SecRetencao({ r }: { r: BlocoRetencao }) {
   const [primeira, ...resto] = r.frase.split('. ')
   return (
     <section className="vb-sec" aria-labelledby="vb-ret-h">
-      <h2 id="vb-ret-h">Retenção <InfoDica titulo="De onde vem a curva" paragrafos={r.metodo} /></h2>
+      <div className="vb-h"><h2 id="vb-ret-h">Retenção</h2><InfoDica titulo="De onde vem a curva" paragrafos={r.metodo} /></div>
       <div className="vb-nml"><span className="obs-ch-nm">não medido</span><p><b>{primeira}.</b> {resto.join('. ')}</p></div>
     </section>
   )
@@ -91,12 +95,12 @@ export function VideoBlocos({ view }: { view: VideoBlocosView }) {
       {view.acesso === 'ok' && view.views ? <SecViews b={view.views} /> : null}
       {view.acesso === 'ok' && view.impressoes ? <SecImpressoes b={view.impressoes} /> : null}
       {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} /> : null}
-      {view.nota ? <p className="vb-privado" data-privado-nota="">{view.nota}</p> : null}
+      {view.nota ? <div className="vb-nml vb-privado"><span className="obs-ch-nm">não medido</span><p data-privado-nota="">{view.nota}</p></div> : null}
       <SecRetencao r={view.retencao} />
       <section className="vb-sec" aria-labelledby="vb-canal-h">
         <h2 id="vb-canal-h">Este vídeo no canal</h2>
         <Reguas view={view.canal.reguas} />
-        {view.canal.notaDiario ? (view.acesso === 'ok' ? <NaoMedido frase={view.canal.notaDiario} /> : <p className="vb-nt">{view.canal.notaDiario}</p>) : null}
+        {view.canal.notaDiario ? <NaoMedido frase={view.canal.notaDiario} /> : null}
       </section>
       <ForjaIndisponivelVideo view={view.forja} />
       <section className="vb-sec" aria-labelledby="vb-ainda-h">
