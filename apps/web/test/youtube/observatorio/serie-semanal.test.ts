@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { rowsToDataset, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type DailyRow, type SpanRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { weeklyThroughout } from '@/lib/youtube/observatorio/series'
 
 const DAY = 864e5, H = 36e5
 const sp = (s: string) => Date.parse(s + '-03:00')
@@ -137,5 +138,35 @@ describe('item 20: nada do que as telas leem hoje muda', () => {
     const walk = (dir: string): void => { for (const e of readdirSync(dir, { withFileTypes: true })) { const p = join(dir, e.name); if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name) && /unobservedSeries|tierSpans/.test(readFileSync(p, 'utf8'))) hits.push(p.replace(/\\/g, '/')) } }
     walk(root)
     expect(hits.sort()).toEqual(['src/lib/youtube/observatorio/effect.ts', 'src/lib/youtube/observatorio/load.ts', 'src/lib/youtube/observatorio/series.ts', 'src/lib/youtube/observatorio/types.ts'])
+  })
+})
+
+describe('Lote 2 (revisão da T16): ramo semanal isolado e faixas de borda', () => {
+  const sp2 = (...x: [number, number | null, 'diaria' | 'semanal'][]) => x.map(([from, to, tier]) => ({ from, to, tier }))
+  it('vídeo OBSERVADO com faixa semanal: o ramo semanal não vaza para periodRate (weeklyRate aceita, periodRate recusa)', () => {
+    const r = rows({ channels: [channel()], videos: [video('a', 10, { series_tier: 'semanal' })], daily: [pt('a', 17, 50_000), pt('a', 24, 57_000)], spans: [span('a', 5, null, 'semanal')] })
+    const obs = obsOf(r)
+    expect(obs.weeklyRate('a', noon(17), noon(24))).toMatchObject({ weekly: true })
+    expect(obs.periodRate('a', noon(17), noon(24)).vpd).toBeNull()
+  })
+  it('weeklyThroughout: só o PRIMEIRO dia do buraco é semanal -> falso', () => {
+    expect(weeklyThroughout({ tierSpans: sp2([10, 15, 'diaria'], [16, 16, 'semanal'], [17, null, 'diaria']) }, 16, 18)).toBe(false)
+    expect(weeklyThroughout({ tierSpans: sp2([10, 16, 'semanal'], [17, null, 'diaria']) }, 16, 18)).toBe(false)
+  })
+  it('weeklyThroughout: só o ÚLTIMO dia do buraco é semanal -> falso', () => {
+    expect(weeklyThroughout({ tierSpans: sp2([10, 17, 'diaria'], [18, null, 'semanal']) }, 16, 18)).toBe(false)
+    expect(weeklyThroughout({ tierSpans: sp2([10, 17, 'diaria'], [18, 18, 'semanal'], [19, null, 'diaria']) }, 16, 18)).toBe(false)
+  })
+  it('weeklyRate: buraco que cruza a fronteira diária/semanal no meio é recusado, nos dois sentidos', () => {
+    const a = obsOf(rows({ channels: [channel()], videos: [video('a', 10)], daily: [pt('a', 15, 1000), pt('a', 22, 8000)], spans: [span('a', 5, 17, 'diaria'), span('a', 18, null, 'semanal')] }))
+    expect(a.weeklyRate('a', noon(15), noon(22))).toMatchObject({ vpd: null, weekly: false })
+    const b = obsOf(rows({ channels: [channel()], videos: [video('a', 10)], daily: [pt('a', 15, 1000), pt('a', 22, 8000)], spans: [span('a', 5, 17, 'semanal'), span('a', 18, null, 'diaria')] }))
+    expect(b.weeklyRate('a', noon(15), noon(22))).toMatchObject({ vpd: null, weekly: false })
+  })
+  it('faixas sobrepostas no mesmo dia: só conta como semanal se TODA faixa que o cobre for semanal', () => {
+    expect(weeklyThroughout({ tierSpans: sp2([10, null, 'semanal'], [15, 20, 'diaria']) }, 16, 18)).toBe(false)
+    expect(weeklyThroughout({ tierSpans: sp2([15, 20, 'diaria'], [10, null, 'semanal']) }, 16, 18)).toBe(false)
+    expect(weeklyThroughout({ tierSpans: sp2([10, null, 'semanal'], [12, 30, 'semanal']) }, 16, 18)).toBe(true)
+    expect(weeklyThroughout({ tierSpans: sp2([10, 12, 'semanal']) }, 16, 18)).toBe(false) // nenhuma faixa cobre: como hoje
   })
 })
