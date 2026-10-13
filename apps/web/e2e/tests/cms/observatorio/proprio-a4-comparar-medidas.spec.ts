@@ -264,6 +264,14 @@ test.describe('medidas do cartão: dois concorrentes idêntica com e sem dado pr
         // só depois de hidratar: o DOM do servidor e o hidratado serializam os atributos em outra ordem
         await page.waitForFunction(() => { const b = document.querySelector('[data-obs-screen="comparar"] .cp-swap'); return !!b && Object.keys(b).some(k => k.startsWith('__reactProps')) })
         await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}' })
+        // o estado certo, não um tempo fixo: a tela só vale quando o HTML serializado para de mudar (a hidratação do resto da árvore e as fontes assentaram): duas leituras seguidas iguais
+        let anterior = ''
+        await expect.poll(async () => {
+          const atual = await page.locator(`${TELA}:visible`).first().evaluate(e => e.outerHTML)
+          const igual = atual === anterior
+          anterior = atual
+          return igual
+        }, { message: 'o HTML da tela deixou de mudar (hidratação concluída)', timeout: 20_000, intervals: [150, 250, 400] }).toBe(true)
         // as linhas de "Views por dia" ficam de fora: a posição "no geral" conta o canal seu quando ele tem a medida (as views por dia do diário, desde a Tarefa 5), então "7º de 14"
         // com dado e "7º de 13" sem dado. Isso já era assim antes do cartão; o resto da tela tem de ser idêntico.
         const html = norm(await page.locator(`${TELA}:visible`).first().evaluate(e => { const c = e.cloneNode(true) as HTMLElement; c.querySelectorAll('tr').forEach(tr => { if (/Views por dia/.test(tr.textContent ?? '')) tr.remove() }); return c.outerHTML }))
