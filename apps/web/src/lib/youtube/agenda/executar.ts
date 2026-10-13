@@ -15,6 +15,7 @@ import { codigoDoMotivo, fraseDoMotivo, resumoTecnico } from './motivos'
 import { chaveDoPeriodo } from './periodo'
 import { BANCO_MS, LIMITE_FUNCAO_MS, comPrazo } from './relogio'
 import type { ContextoTarefa, Lido, ResultadoTarefa, Tarefa } from './tipos'
+import { anularIdentidade } from './tarefas/anular-identidade'
 
 /**
  * A rota do cron entrega o disparo a este arquivo quando a agenda está ligada (`executarAgenda`), e chama `rodarAntesDoLoteAntigo` quando o
@@ -29,8 +30,8 @@ const AVISO_MAX_MS = 8_000
 const FOLGA_FIM_MS = 3_000
 const FRASE_MIGRATION = 'migration MG10 não aplicada: a agenda não rodou; o lote antigo rodou no lugar'
 
-/** As tarefas que rodam ANTES do lote antigo quando a agenda não roda (`OBS_AGENDA=off` ou a MG10 ausente). Vazia nesta ordem: a E14 acrescenta `anular_identidade`. */
-export const antesDoLoteAntigo: readonly Tarefa[] = []
+/** As tarefas que rodam ANTES do lote antigo quando a agenda não roda (`OBS_AGENDA=off` ou a MG10 ausente). Só `anular_identidade` (E14): a obrigação de LGPD. */
+export const antesDoLoteAntigo: readonly Tarefa[] = [anularIdentidade]
 
 export type CaminhoSemAgenda = 'interruptor' | 'guarda_mg10'
 export interface AntesDoLote { tarefas: EstadoFinalTarefa[]; problemas: string[]; notas: string[] }

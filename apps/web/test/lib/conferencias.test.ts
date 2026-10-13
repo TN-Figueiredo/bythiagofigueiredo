@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E1_E2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE1E2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E1_E2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE1E2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
@@ -221,6 +221,61 @@ describe('conferências de E8 (coleta da retenção, relativas ao dia do envio)'
     if (E8_COLETA_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E8_COLETA_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
+
+// A5 E14 (Tarefa 12): as conferências dos comentários de destaque dependem do dia da promoção a `main` (D), que o controlador
+// preenche em E14_DEPLOY no commit do envio. Sem a data, a lista NÃO tem as entradas: nada vence e o cron não fica vermelho por elas.
+describe('conferências de E14 (comentários de destaque, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const ehData = (x: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(x) && new Date(`${x}T00:00:00.000Z`).toISOString().slice(0, 10) === x
+  const IDS = ['e14-d1', 'e14-d7', 'e14-d29', 'e14-d31']
+
+  it('conferenciasE14: nulo não dá entrada e nada vence; data válida dá as quatro, nas datas D+1, D+7, D+29 e D+31; data malformada dá a entrada vencida', () => {
+    expect(conferenciasE14(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE14(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE14(null))).toEqual([])
+    const l = conferenciasE14(dia(-40))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual([1, 7, 29, 31].map(n => dia(-40 + n)))
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E14')
+      expect(x.onde.length, x.id).toBeGreaterThan(20)
+    }
+    for (const ruim of ['amanhã', '2026-13-45', '12/10/2026', '']) {
+      const m = conferenciasE14(ruim)
+      expect(m.map(x => x.id), ruim).toEqual(['e14-deploy-invalido'])
+      expect(m[0]!.etapa).toBe('E14')
+      expect(m[0]!.onde).toContain('E14_DEPLOY')
+      expect(conferenciasVencidas(dia(0), m).map(x => x.id), ruim).toEqual(['e14-deploy-invalido'])
+      expect(conferenciasEmFalha(dia(0), m).map(x => x.id), ruim).toEqual(['e14-deploy-invalido'])
+    }
+  })
+  it('o que cada uma manda olhar: a reconciliação da cota, a soma dos retratos, os 28 dias da primeira anulação e a identidade zerada', () => {
+    const por = Object.fromEntries(conferenciasE14(dia(0)).map(x => [x.id, x.onde]))
+    expect(por['e14-d1']).toMatch(/youtube_quota_usage[\s\S]*units_used/)
+    expect(por['e14-d1']).toMatch(/competitor_video_comment_snaps/)
+    expect(por['e14-d7']).toMatch(/proibido/)
+    expect(por['e14-d29']).toMatch(/apagadas > 0[\s\S]*anular_identidade/)
+    expect(por['e14-d31']).toMatch(/author_purged_at/)
+    expect(por['e14-d31']).toMatch(/retratos_perdidos_7d/)
+  })
+  it('vence no dia seguinte à data, e com 8 dias de atraso deixa o cron vermelho', () => {
+    const l = conferenciasE14(dia(0))
+    expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual([])
+    expect(conferenciasVencidas(dia(2), l).map(x => x.id)).toEqual(['e14-d1'])
+    expect(conferenciasEmFalha(dia(9), l).map(x => x.id)).toEqual(['e14-d1'])
+  })
+  it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as quatro)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e14-')).map(x => x.id)
+    if (E14_DEPLOY === null) expect(publicadas).toEqual([])
+    else {
+      expect(ehData(E14_DEPLOY)).toBe(true)
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
   })

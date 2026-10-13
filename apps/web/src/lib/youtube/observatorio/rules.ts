@@ -1,3 +1,5 @@
+import { COMMENT_RULES } from './comentarios/regras'
+
 /** Port of dados.js:113-133 (single source of rules) + tierOf + NICHES. */
 export const RULES = {
   outlierMin: 2,
@@ -42,6 +44,8 @@ export const RULES = {
   promotion: { minViews: 1000, minShare: 0.05, days: 28 },
   // New (A5, E15; leitura horária dos vídeos novos). Valores do plano 2026-10-12-a5-e16-e15-parte-1 (Tarefa 4); quem lê cada chave é a leitura horária.
   hourly: { ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5 },
+  // New (A5, E14; comentários de destaque dos vídeos de concorrentes). Os números moram em `comentarios/regras.ts`; aqui só a leitura única.
+  comments: COMMENT_RULES,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
