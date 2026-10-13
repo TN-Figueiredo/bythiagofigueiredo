@@ -160,7 +160,7 @@ async function rodarUmaAntes(
 }
 
 /**
- * Roda, antes do lote antigo, as tarefas `nuncaDesliga` da lista (hoje vazia). Quem chama é a rota, nos dois caminhos sem agenda
+ * Roda, antes do lote antigo, as tarefas `nuncaDesliga` da lista (hoje só `anular_identidade`). Quem chama é a rota, nos dois caminhos sem agenda
  * (`interruptor`: `OBS_AGENDA=off`; `guarda_mg10`: a migration da agenda ausente). Nunca lança. Lista vazia: devolve na hora, sem ida ao
  * banco nem ao Sentry. `OBS_AGENDA_TASKS_OFF` não vale para estas tarefas.
  */
@@ -213,11 +213,22 @@ export async function executarAgenda(o: {
     logCron({ job: JOB, run_id: runId, status: 'locked' })
     return { resposta: Response.json({ status: 'locked' }) }
   }
+  // O arrendamento que FALHA (não o que está ocupado) tem dois destinos. Causa dura (`schema_ausente`, `erro_do_banco`: função faltando, sem
+  // EXECUTE, erro de SQL): a agenda não consegue trabalhar, então depois da guarda a rota cai no lote antigo (a coleta roda e o cron fica
+  // vermelho com a frase). Causa incerta (prazo, exceção, forma inválida): não dá para saber se outro disparo tem o arrendamento; a agenda
+  // segue (cada tarefa se garante pela tomada, que é atômica), o lote antigo NÃO roda em paralelo e o problema entra no vermelho do disparo.
+  let falhaDura: string | null = null
+  const problemasAntes: string[] = []
   if ('porque' in arrendamento) {
     notas.push(`arrendamento não tomado (${arrendamento.porque})`)
     // Com a migration ausente isto é esperado (a guarda abaixo acusa, em vermelho, a cada disparo): sem alarme repetido ao Sentry.
     if (arrendamento.causa !== 'schema_ausente') {
       Sentry.captureMessage('agenda: arrendamento não tomado', { level: 'warning', tags: { component: 'sync-youtube', mode: 'agenda' }, extra: { causa: arrendamento.causa ?? null } })
+    }
+    if (arrendamento.causa === 'schema_ausente' || arrendamento.causa === 'erro_do_banco') {
+      falhaDura = `não foi possível tomar o arrendamento da agenda (${arrendamento.porque}); o lote antigo rodou no lugar`
+    } else {
+      problemasAntes.push(`não foi possível confirmar o arrendamento da agenda (${arrendamento.porque})`)
     }
   }
 
@@ -240,9 +251,18 @@ export async function executarAgenda(o: {
       }
     }
 
+    // 4b. As tabelas existem, mas o arrendamento falhou de forma dura (migration aplicada pela metade): sem agenda, a coleta vai pelo lote antigo.
+    if (falhaDura !== null) {
+      // Com `erro_do_banco` o Sentry já foi avisado acima; `schema_ausente` com as tabelas presentes é migration pela metade, e a guarda não acusa.
+      const causaDura = 'porque' in arrendamento ? arrendamento.causa : undefined
+      if (causaDura === 'schema_ausente') {
+        Sentry.captureMessage('agenda: arrendamento não tomado', { level: 'warning', tags: { component: 'sync-youtube', mode: 'agenda' }, extra: { causa: causaDura } })
+      }
+      return { resposta: null, semAgenda: falhaDura }
+    }
+
     // 5. Os canais, com prazo próprio: a consulta pendurada não segura a leitura horária nem a série do dia.
     let linhas: BatchRow[] | null = null
-    const problemasAntes: string[] = []
     try {
       const lidas = await comPrazo(carregarLinhas(sb), BANCO_MS)
       if ('estourou' in lidas) problemasAntes.push(`não foi possível ler os canais: o banco não respondeu em ${Math.round(BANCO_MS / 1000)} s`)
