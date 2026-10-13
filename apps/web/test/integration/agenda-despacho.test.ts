@@ -34,10 +34,19 @@ vi.mock('@/lib/youtube/agenda/estado', async importOriginal => {
   const real = await importOriginal<typeof import('@/lib/youtube/agenda/estado')>()
   return { ...real, tomarArrendamento: vi.fn((sb: Parameters<typeof real.tomarArrendamento>[0], holder: string) => (gancho.tomar ? gancho.tomar() : real.tomarArrendamento(sb, holder))) }
 })
-/** O item (e): a rota chama `executarAgenda`; o espião delega ao de verdade. */
+/**
+ * O item (e): a rota chama `executarAgenda`; o espião delega ao de verdade. `rodarAntesDoLoteAntigo` (a anulação de identidade, que a rota roda
+ * com a agenda desligada) é espiado e recebe a lista VAZIA: com a lista real ele anularia a identidade de autores de TODOS os sites no banco
+ * compartilhado e deixaria `anular_identidade | <dia> | ok` em `competitor_agenda_runs` (portão final, dados I5). A lista vazia devolve na hora,
+ * sem ida ao banco; o que o caso prova (a rota não chama `executarAgenda`, o lote antigo roda, `agenda_desligada`) não depende dela.
+ */
 vi.mock('@/lib/youtube/agenda/executar', async importOriginal => {
   const real = await importOriginal<typeof import('@/lib/youtube/agenda/executar')>()
-  return { ...real, executarAgenda: vi.fn(real.executarAgenda) }
+  return {
+    ...real,
+    executarAgenda: vi.fn(real.executarAgenda),
+    rodarAntesDoLoteAntigo: vi.fn((o: Parameters<typeof real.rodarAntesDoLoteAntigo>[0]) => real.rodarAntesDoLoteAntigo({ ...o, lista: [] })),
+  }
 })
 /** Só o lote antigo é falso (o teste da rota com a agenda desligada não pode sincronizar canais alheios). */
 vi.mock('@/lib/youtube/competitor-sync-batch', async importOriginal => {
@@ -56,7 +65,7 @@ vi.mock('../../lib/logger', async importOriginal => {
 
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { executarAgenda } from '@/lib/youtube/agenda/executar'
+import { executarAgenda, rodarAntesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import { DEFINICOES, TODAS_AS_DEFINICOES } from '@/lib/youtube/agenda/catalogo'
 import { leituraHoraria } from '@/lib/youtube/agenda/tarefas/leitura-horaria'
 import { lerEstado } from '@/lib/youtube/agenda/estado'
@@ -875,10 +884,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
   })
 
   it('OBS_AGENDA=off: a rota não chama executarAgenda e o lote antigo roda (item e)', async () => {
+    // (portão final, dados I5) O caso não pode deixar linha de tarefa de produção no banco compartilhado: conta antes e depois.
+    const linhasDeProducao = (): Promise<number> => n(`select count(*) as n from public.competitor_agenda_runs where task = 'anular_identidade'`)
+    const antes = await linhasDeProducao()
     vi.stubEnv('OBS_AGENDA', 'off')
     vi.stubEnv('CRON_SECRET', 'segredo-de-teste')
     vi.stubEnv('YOUTUBE_API_KEY', 'chave-de-teste')
     vi.mocked(executarAgenda).mockClear()
+    vi.mocked(rodarAntesDoLoteAntigo).mockClear()
     vi.mocked(runCompetitorBatch).mockReset()
     vi.mocked(runCompetitorBatch).mockRejectedValueOnce(new Error('lote antigo rodou'))
     vi.mocked(recordCronFailure).mockClear()
@@ -887,6 +900,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
       const res = await rotaSyncYoutube(req)
       const corpo = (await res.json()) as Record<string, unknown>
       expect(executarAgenda).not.toHaveBeenCalled()
+      expect(rodarAntesDoLoteAntigo).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(rodarAntesDoLoteAntigo).mock.calls[0]![0].caminho).toBe('interruptor')
       expect(runCompetitorBatch).toHaveBeenCalledTimes(1)
       expect(corpo).toMatchObject({ status: 'error', mode: 'competitors', error: 'lote antigo rodou' })
       expect(corpo.agenda_desligada).toEqual(TODAS_AS_DEFINICOES.filter(d => !d.nuncaDesliga).map(d => d.rotulo))
@@ -896,5 +911,6 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
     }
     // a agenda não deixou rastro: nenhuma linha de tarefa de catálogo de produção foi tocada por este caso
     expect(await n(`select count(*) as n from public.competitor_agenda_lease where name = 'despachante'`)).toBe(0)
+    expect(await linhasDeProducao()).toBe(antes)
   })
 })
