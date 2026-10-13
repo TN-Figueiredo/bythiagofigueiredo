@@ -16,7 +16,8 @@
  * (UMA vez, no topo da grade), é `viewsPorDiaFrase`; a de cada vídeo vai em "Ações do vídeo" (`notas`). `vpd7`/`vpdText` do motor ficam nulos.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import type { AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
+import { montarDias, resumir, type AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { buildCanalVideos, type ChannelVideoView } from '../_canal/videos-model'
@@ -108,7 +109,7 @@ export function buildProprioVideos(
   const F = obs.fmt, { dm } = o
   const base = buildCanalVideos(obs, canalId)
 
-  const alc = lerEstado(dados.alcance)
+  const alc = lerEstado(dados.alcance, o.hoje)
   const estado: EstadoVideos = alc.estado !== 'ok' ? alc.estado : alc.resumo.diasLidos === 0 ? 'nada-lido' : 'ok'
   const motivoAlcance = estado === 'ok' ? null : estado === 'nada-lido' ? FRASE_NADA_LIDO : fraseDoAlcance(estado)
   const periodoTxt = alc.estado === 'ok' ? `de ${dm(alc.periodo.de)} a ${dm(alc.periodo.ate)}` : null
@@ -119,6 +120,12 @@ export function buildProprioVideos(
   const leitura = vpdDoCanal(dados.diario, [], o.hoje)
   const motivoLeitura = leitura.motivo != null && MOTIVOS_DE_LEITURA.includes(leitura.motivo) ? leitura.motivo : null
 
+  /** Os dias que valem para o vídeo (a partir da publicação, D e D-1 sem linha fora do zero): a mesma regra do gráfico do vídeo. */
+  const diasDoVideo = (v: { ytId: string; pub: number | null }) => {
+    if (dados.alcance.acesso !== 'ok') return { periodo: null, resumo: resumir([]) }
+    const m = montarDias(dados.alcance.dado, { hoje: o.hoje, ytId: v.ytId, publicadoEm: v.pub != null ? dayPt(new Date(v.pub)) : null })
+    return { periodo: m.periodo, resumo: resumir(m.dias) }
+  }
   const videos = base.videos.map((v): ProprioVideoView => {
     const notas = [...v.notas]
 
@@ -132,11 +139,19 @@ export function buildProprioVideos(
       const a = porVideo?.get(v.ytId) ?? null
       terceira = terceiraLinha(a)
       if (a == null) {
-        // o alcance tem dia medido (estado 'ok' aqui exclui "nada lido") e o vídeo não apareceu em nenhum: zero medido, não "não medido"
-        semImpressao = true
-        const medidos = alc.estado === 'ok' ? alc.resumo.diasLidos : 0
-        const sem = alc.estado === 'ok' && alc.resumo.diasNaoMedidos > 0 ? ` (${plural(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório)` : ''
-        notas.push(`Impressões: nenhuma ${medidos === 1 ? 'em' : 'nos'} ${plural(medidos, 'dia medido', 'dias medidos')}${sem}, ${periodoTxt}.`)
+        const dv = diasDoVideo(v)
+        if (dv.resumo.diasLidos === 0) {
+          // nenhum dia valeu para ESTE vídeo (publicado depois do último dia medido, ou só D e D-1): ainda não há o que dizer, e zero seria inventar
+          impMissing = cliquesMissing = palavraDaColuna('nada-lido')
+          terceira = ''
+        } else {
+          // há dia medido desde a publicação (D e D-1 não contam) e o vídeo não apareceu em nenhum: zero medido, não "não medido"
+          semImpressao = true
+          const medidos = dv.resumo.diasLidos
+          const sem = dv.resumo.diasNaoMedidos > 0 ? ` (${plural(dv.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório)` : ''
+          const periodoDoVideo = dv.periodo != null ? `de ${dm(dv.periodo.de)} a ${dm(dv.periodo.ate)}` : periodoTxt
+          notas.push(`Impressões: nenhuma ${medidos === 1 ? 'em' : 'nos'} ${plural(medidos, 'dia medido', 'dias medidos')}${sem}, ${periodoDoVideo}.`)
+        }
       } else {
         imp = a.imp
         impText = numNb(F, a.imp)   // o espaço antes de "mil"/"mi" não quebra linha, como nas views do cartão

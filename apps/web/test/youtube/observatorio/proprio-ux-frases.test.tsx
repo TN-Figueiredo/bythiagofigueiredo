@@ -24,7 +24,7 @@ const { obs, canalId, ytIds, hoje, dm } = W
 const F = obs.fmt
 const alcance = () => ({ acesso: 'ok' as const, dado: alcanceComLinhas(canalId, hoje, [{ ytId: ytIds[0]!, dia: addDays(hoje, -5), imp: 100, ctr: 0.03 }]) })
 const dadoCom = (dias: number) => montarSoSeuCanalDado({
-  nome: 'tnFigueiredo', alcance: alcance(), diario: { acesso: 'ok', dado: diarioComPct(canalId, ytIds, hoje, [{ dias, views: 40, pct: 61 }]) }, longos: ytIds, dm, F,
+  nome: 'tnFigueiredo', alcance: alcance(), diario: { acesso: 'ok', dado: diarioComPct(canalId, ytIds, hoje, [{ dias, views: 40, pct: 61 }]) }, longos: ytIds, dm, F, hoje,
 })
 const assistido = (dias: number) => dadoCom(dias).view!.linhas.find(l => l.chave === 'assistido')!
 
@@ -35,7 +35,7 @@ describe('M1: o % assistido do cartão com poucos dias diz "ainda não dá para 
   })
   it('7 dias já dá número; o "não medido" de verdade (diário vazio) NÃO é aindaNaoDa', () => {
     expect(assistido(7)).toMatchObject({ valor: '61%', aindaNaoDa: false })
-    const vazio = montarSoSeuCanalDado({ nome: 'x', alcance: alcance(), diario: { acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [], descartados: 0 } }, longos: ytIds, dm, F })
+    const vazio = montarSoSeuCanalDado({ nome: 'x', alcance: alcance(), diario: { acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [], descartados: 0 } }, longos: ytIds, dm, F, hoje })
     expect(vazio.view!.linhas.find(l => l.chave === 'assistido')).toMatchObject({ valor: null, aindaNaoDa: false, nota: 'ainda não há coleta diária deste canal' })
   })
   it('na tela: nenhum quadradinho nessa linha, só a frase; a linha de não medido de verdade mantém o quadradinho', () => {
@@ -48,7 +48,7 @@ describe('M1: o % assistido do cartão com poucos dias diz "ainda não dá para 
     expect(li.textContent).toContain('Ainda não dá para dizer: só 2 dias com dado; precisa de 7.')
     expect(mk(dadoCom(2))).toHaveLength(1)
     cleanup()
-    const vazio = montarSoSeuCanalDado({ nome: 'x', alcance: alcance(), diario: { acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [], descartados: 0 } }, longos: ytIds, dm, F })
+    const vazio = montarSoSeuCanalDado({ nome: 'x', alcance: alcance(), diario: { acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [], descartados: 0 } }, longos: ytIds, dm, F, hoje })
     const r2 = render(<SoSeuCanal pack={{ soSeuCanal: { eu: vazio } } as never} par={par} />)
     expect(r2.container.querySelector('li[data-linha="assistido"] .obs-ch-nm[aria-label="não medido"]')).not.toBeNull()
   })
@@ -59,7 +59,7 @@ describe('item 6: as frases trocadas, por inteiro', () => {
     expect(FRASE_CTR).toBe('não medido: o YouTube não informou a taxa de clique de algum dia com impressões')
     const v = montarSoSeuCanalDado({
       nome: 'x', alcance: { acesso: 'ok', dado: alcanceComLinhas(canalId, hoje, [{ ytId: ytIds[0]!, dia: addDays(hoje, -5), imp: 100, ctr: null }]) },
-      diario: { acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [], descartados: 0 } }, longos: ytIds, dm, F,
+      diario: { acesso: 'ok', dado: { canalId, ultimoDia: null, linhas: [], descartados: 0 } }, longos: ytIds, dm, F, hoje,
     }).view!
     expect(v.linhas.find(l => l.chave === 'cliques')!.nota).toBe(FRASE_CTR)
     expect(v.linhas.find(l => l.chave === 'taxa')!.nota).toBe(FRASE_CTR)
@@ -67,7 +67,7 @@ describe('item 6: as frases trocadas, por inteiro', () => {
   it('nenhuma impressão: "nos dias medidos" (não "lidos")', () => {
     const v = montarSoSeuCanalDado({
       nome: 'x', alcance: { acesso: 'ok', dado: alcanceComLinhas(canalId, hoje, [{ ytId: ytIds[0]!, dia: addDays(hoje, -5), imp: 0, ctr: null }]) },
-      diario: { acesso: 'negado' }, longos: ytIds, dm, F,
+      diario: { acesso: 'negado' }, longos: ytIds, dm, F, hoje,
     }).view!
     expect(v.linhas.find(l => l.chave === 'taxa')!.nota).toBe('nenhuma impressão nos dias medidos, então não há taxa')
   })

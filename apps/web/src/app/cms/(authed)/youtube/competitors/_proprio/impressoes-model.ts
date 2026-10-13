@@ -195,6 +195,8 @@ function naoMedidoTexto(m: MotivoDia | null): string {
       return 'relatório com erro: não medido'
     case 'expirado':
       return 'relatório expirado sem baixar: não medido'
+    case 'recente':
+      return 'dia recente, ainda chegando: não medido'
     default: {
       const _nunca: never = m
       return _nunca

@@ -41,7 +41,7 @@ const diarioPct = (plano: Array<{ dias: number; views: number; pct: number | nul
 const DIARIO_CHEIO = (): Privado<DiarioCanal> => diarioPct([{ dias: 28, views: 6, pct: 55 }])
 
 const monta = (alcance: Privado<AlcanceCanal>, diario: Privado<DiarioCanal>, nome = 'tnFigueiredo'): SoSeuCanalDado =>
-  montarSoSeuCanalDado({ nome, alcance, diario, longos: ytIds, dm, F })
+  montarSoSeuCanalDado({ nome, alcance, diario, longos: ytIds, dm, F, hoje })
 const viewDe = (dado: SoSeuCanalDado): SoSeuCanalView => { if (!dado.view) throw new Error('sem view'); return dado.view }
 const linha = (v: SoSeuCanalView, chave: SoSeuCanalView['linhas'][number]['chave']) => v.linhas.find(l => l.chave === chave)!
 

@@ -43,11 +43,11 @@ afterEach(() => {
 })
 
 const cheio = (o: Partial<Parameters<typeof buildImpressoes>[2]> = {}): ImpressoesView => {
-  const { dias, periodo } = montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE))
+  const { dias, periodo } = montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE), { hoje: HOJE })
   return buildImpressoes(dias, periodo, { ...O, ...o })
 }
 const de = (a: ReturnType<typeof alcanceCheio>, o: Partial<Parameters<typeof buildImpressoes>[2]> = {}): ImpressoesView => {
-  const { dias, periodo } = montarDias(a)
+  const { dias, periodo } = montarDias(a, { hoje: HOJE })
   return buildImpressoes(dias, periodo, { ...O, ...o })
 }
 const montar = (view: ImpressoesView, titulo = TITULO) => render(<div data-obs=""><Impressoes view={view} titulo={titulo} /></div>)
@@ -528,7 +528,7 @@ describe('estados da série', () => {
   })
 
   it('acesso negado: "Só quem edita o site vê as impressões." e nenhum desenho', () => {
-    const v = buildImpressoes(montarDias(alcanceCheio('c', ['yt1'], HOJE)).dias, null, { ...O, acesso: 'negado' })
+    const v = buildImpressoes(montarDias(alcanceCheio('c', ['yt1'], HOJE), { hoje: HOJE }).dias, null, { ...O, acesso: 'negado' })
     const { container } = montar(v)
     expect(screen.getByText('Só quem edita o site vê as impressões.')).toBeTruthy()
     expect(container.querySelector('svg, details, [role="group"]')).toBeNull()
@@ -581,7 +581,7 @@ describe('estados da série', () => {
   })
 
   it('coleta parada: o aviso "parou em dd/mm" aparece', () => {
-    const { dias, periodo } = montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE))
+    const { dias, periodo } = montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE), { hoje: HOJE })
     const v = buildImpressoes(dias, periodo, { ...O, hoje: addDays(HOJE, 15) })
     montar(v)
     expect(screen.getByText(`A coleta de relatórios deste canal parou em ${dm(periodo!.ate)}.`)).toBeTruthy()
@@ -901,7 +901,7 @@ describe('13.2: botões "Dia anterior" e "Dia seguinte" e a frase do dia', () =>
   })
 
   it('sem permissão ou com erro, nem botões nem número: só a frase', () => {
-    const negado = buildImpressoes(montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE)).dias, periodoDe(21), { ...O, acesso: 'negado' })
+    const negado = buildImpressoes(montarDias(alcanceCheio('c', ['yt1', 'yt2'], HOJE), { hoje: HOJE }).dias, periodoDe(21), { ...O, acesso: 'negado' })
     const { container } = montar(negado)
     expect(screen.queryByRole('button', { name: 'Dia anterior' })).toBeNull()
     expect(container.querySelector('[role="status"]')).toBeNull()

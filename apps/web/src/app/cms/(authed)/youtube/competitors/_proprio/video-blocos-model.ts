@@ -220,16 +220,16 @@ function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Obse
 }
 
 function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
-  const lido = lerEstado({ acesso: 'ok', dado: alcance })
+  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje)
   if (lido.estado !== 'ok') return { medido: false, frase: SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
   const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
   if (o.pubDia != null && diffDias(o.pubDia, o.hoje) < DIAS_DE_VIDA_MIN) return novo
-  const montado = montarDias(alcance, o.ytId)
-  const desdePub = o.pubDia != null ? montado.dias.filter(d => d.dia >= o.pubDia!) : montado.dias
-  if (montado.periodo == null || desdePub.length === 0) return novo
-  const dias = desdePub
-  const periodo: Periodo = dias.length === montado.dias.length ? montado.periodo : { de: dias[0]!.dia, ate: montado.periodo.ate, dias: dias.length }
+  // a regra dos dias que valem para o vídeo (a partir da publicação; D e D-1 sem linha são "não medido") é a de `montarDias`, a mesma da régua e do cartão
+  const montado = montarDias(alcance, { hoje: o.hoje, ytId: o.ytId, publicadoEm: o.pubDia })
+  if (montado.periodo == null || montado.dias.length === 0) return novo
+  const dias = montado.dias
+  const periodo: Periodo = montado.periodo
   const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje }
   const r = resumir(dias)
   let grafico = buildImpressoes(dias, periodo, base)
@@ -237,7 +237,7 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
   if (r.imp == null || r.imp <= 0) return { medido: true, frase: null, grafico, taxa: null, semTaxa: null }
   const tv = taxaComIntervalo(r.cliques, r.imp)
   if (tv == null) return { medido: true, frase: null, grafico, taxa: null, semTaxa: SEM_TAXA_CTR }
-  const rc = resumir(montarDias(alcance).dias)
+  const rc = resumir(montarDias(alcance, { hoje: o.hoje }).dias)
   const tc = taxaComIntervalo(rc.cliques, rc.imp)
   return { medido: true, frase: null, grafico, taxa: taxaDe(tv, tc, o.F), semTaxa: null }
 }
@@ -403,7 +403,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const assistido = assistidoDe(diarioPriv, serie, { ytId: este.ytId, dur: este.dur, pctDosOutros, dm, F })
 
   /* as duas linhas novas da régua: só com leitura diária deste vídeo (vídeo novo e coleta que não rodou dizem uma frase no lugar) */
-  const lidoAlcance = lerEstado({ acesso: 'ok', dado: alcance })
+  const lidoAlcance = lerEstado({ acesso: 'ok', dado: alcance }, hoje)
   const periodoTexto = lidoAlcance.estado === 'ok' ? `de ${dm(lidoAlcance.periodo.de)} a ${dm(lidoAlcance.periodo.ate)}` : null
   const temDiarioDoVideo = serie.estado !== 'video-novo' && serie.estado !== 'sem-diario'
   let diarioReguas: DiarioReguas | undefined
@@ -427,9 +427,21 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
       semPct: 'sem views nos 28 dias',
     }
   }
+  // os dias que valem para CADA vídeo da régua: a partir da publicação dele, D e D-1 sem linha fora do zero (a regra de `montarDias`, a mesma do gráfico)
+  const pubDiaDe = new Map(obs.videos.filter(v => v.ch === ch.id).map(v => [v.id, dayPt(new Date(v.pub))] as const))
+  const memoDias = new Map<string, { medidos: number; semRelatorio: number }>()
+  const diasDoVideo = (id: string): { medidos: number; semRelatorio: number } => {
+    const hit = memoDias.get(id)
+    if (hit) return hit
+    const v = videos.find(x => x.id === id)
+    const r = v ? resumir(montarDias(alcance, { hoje, ytId: v.ytId, publicadoEm: pubDiaDe.get(id) ?? null }).dias) : null
+    const out = { medidos: r?.diasLidos ?? 0, semRelatorio: r?.diasNaoMedidos ?? 0 }
+    memoDias.set(id, out)
+    return out
+  }
   const reguas = buildReguas({
     videoId, videos, porVideo: lidoAlcance.estado === 'ok' ? lidoAlcance.porVideo : new Map(), alcanceLido: lidoAlcance.estado === 'ok',
-    dias: lidoAlcance.estado === 'ok' ? { medidos: lidoAlcance.resumo.diasLidos, semRelatorio: lidoAlcance.resumo.diasNaoMedidos } : { medidos: 0, semRelatorio: 0 }, periodoTexto, hrefs, hrefVideo: a.hrefVideo, fmt: F,
+    dias: lidoAlcance.estado === 'ok' ? { medidos: lidoAlcance.resumo.diasLidos, semRelatorio: lidoAlcance.resumo.diasNaoMedidos } : { medidos: 0, semRelatorio: 0 }, diasDe: diasDoVideo, periodoTexto, hrefs, hrefVideo: a.hrefVideo, fmt: F,
     ...(diarioReguas ? { diario: diarioReguas } : {}),
   })
 

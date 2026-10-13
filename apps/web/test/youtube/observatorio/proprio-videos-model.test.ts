@@ -18,7 +18,7 @@ import { numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/formato'
 import { montarLista } from '@/app/cms/(authed)/youtube/competitors/_canal/lista'
 import { CANAL_DEFAULT, parseCanalState, canalQuery } from '@/app/cms/(authed)/youtube/competitors/_canal/params'
 import { link } from '@/lib/youtube/observatorio/links'
-import { addDays } from '@/lib/youtube/coleta/day-pt'
+import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { DadosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import type { AlcanceLinha } from '@/lib/youtube/observatorio/proprio/tipos'
 
@@ -129,9 +129,11 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
       expect(x.cliquesMissing).toBeNull()
       expect(x.terceira).toBe('sem impressão no período')
     }
-    // o Short também: o relatório é do canal inteiro, e ele não apareceu
+    // o Short (publicado ontem, depois do último dia medido): nenhum dia vale para ele ainda, então NÃO é zero medido (zero só a partir da publicação)
     expect(por(v, SHORT).imp).toBeNull()
-    expect(por(v, SHORT).terceira).toBe('sem impressão no período')
+    expect(por(v, SHORT).semImpressao).toBe(false)
+    expect(por(v, SHORT).impMissing).toBe('ainda não lido')
+    expect(por(v, SHORT).terceira).toBe('')
     expect(v.videos.some(x => x.impText === '0')).toBe(false)
   })
 
@@ -230,12 +232,24 @@ describe('o dado privado ausente: cada estado, cada coluna', () => {
     const dados: DadosDoCanal = { alcance: { acesso: 'ok', dado: alcanceSoVazios(BASE.canalId, BASE.hoje) }, diario: BASE.dados.diario }
     const v = build(BASE, dados)
     expect(v.motivoAlcance).toBeNull()
+    // zero medido só para quem já estava publicado no último dia medido (hoje-3): o publicado depois dele ainda não tem dia que valha
+    const ultimoMedido = d(3)
+    const publicadoEm = (ytId: string) => dayPt(new Date(BASE.obs.videos.find(y => y.ytId === ytId)!.pub))
+    let zeros = 0
     for (const x of v.videos) {
       expect(x.imp).toBeNull()
-      expect(x.semImpressao).toBe(true)
-      expect(x.impMissing).toBeNull()
-      expect(x.terceira).toBe('sem impressão no período')
+      if (publicadoEm(x.ytId) <= ultimoMedido) {
+        zeros++
+        expect(x.semImpressao).toBe(true)
+        expect(x.impMissing).toBeNull()
+        expect(x.terceira).toBe('sem impressão no período')
+      } else {
+        expect(x.semImpressao).toBe(false)
+        expect(x.impMissing).toBe('ainda não lido')
+        expect(x.terceira).toBe('')
+      }
     }
+    expect(zeros).toBeGreaterThan(0)
   })
 
   it('série cheia lida: nenhum motivo de leitura', () => {

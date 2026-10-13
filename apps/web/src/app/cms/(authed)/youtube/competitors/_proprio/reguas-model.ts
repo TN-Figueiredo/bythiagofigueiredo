@@ -135,6 +135,12 @@ export interface EntradaReguas {
    * (`medidos > 0`: houve dia medido e ele não apareceu) ou se ainda não dá para dizer (`medidos === 0`: nenhum dia foi medido). Alcance não lido: 0 e 0.
    */
   dias: { medidos: number; semRelatorio: number }
+  /**
+   * Os mesmos dois números, mas SÓ dos dias que valem para o vídeo `id` (a partir da publicação dele; D e D-1 sem linha não são zero medido). O dia
+   * anterior à publicação não existe para o vídeo: não entra nem em `medidos` nem em `semRelatorio`. Ausente = `dias` (os do canal) vale para todos;
+   * a tela do vídeo SEMPRE o passa.
+   */
+  diasDe?: (id: string) => { medidos: number; semRelatorio: number }
   /** "de 09/09 a 07/10", como a tela o escreve; null = sem período. */
   periodoTexto: string | null
   /** Por que as impressões não foram lidas ("só quem edita o site vê as impressões"); sem ele, a frase é a de "impressões não medidas". Só vale com `alcanceLido: false`. */
@@ -215,6 +221,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   const F = a.fmt ?? FMT_PADRAO
   const este = a.videos.find(v => v.id === a.videoId)
   if (!este) throw new Error(`réguas: o vídeo ${a.videoId} não está entre os vídeos do canal`)
+  const diasDe = (id: string): { medidos: number; semRelatorio: number } => a.diasDe ? a.diasDe(id) : a.dias
 
   /* o valor cru de cada número, vídeo a vídeo: null = o vídeo não tem o dado */
   const engajamentoDe = (v: EntradaReguas['videos'][number]): number | null => {
@@ -263,7 +270,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   /** Por que ESTE vídeo não tem o dado. */
   const semODado = (numero: NumeroRegua): string => {
     switch (numero) {
-      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : a.dias.medidos === 0 ? 'ainda não há dia de alcance medido' : fraseZeroImpressao(a.dias, nImpressao)
+      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : diasDe(este.id).medidos === 0 ? 'ainda não há dia de alcance medido' : fraseZeroImpressao(diasDe(este.id), nImpressao)
       case 'views': return 'sem contagem de views'
       case 'vpd': return a.diario?.semVpd ?? 'sem medida'
       case 'assistido': return a.diario?.semPct ?? 'sem medida'
@@ -280,7 +287,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   /** Quantos vídeos têm impressão medida: a base da posição ("5º de 5 com impressão") e da frase do vídeo sem impressão. */
   const nImpressao = a.videos.filter(v => cru('impressoes', v) != null).length
   /** Impressões com dia medido: o vídeo ausente do relatório é ZERO MEDIDO. Sem dia medido (nada lido) ou sem alcance, é "não medido". */
-  const zeroPossivel = a.alcanceLido && a.dias.medidos > 0
+  const zeroPossivel = (id: string): boolean => a.alcanceLido && diasDe(id).medidos > 0
 
   const titulos = new Map(a.videos.map(v => [v.id, v.titulo] as const))
   const defs = DEFS.filter(d => !DO_DIARIO.includes(d.numero) || a.diario != null)
@@ -293,8 +300,13 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const eu = com.find(e => e.id === este.id) ?? null
     const n = com.length
     const semMedidaN = a.videos.length - n
-    const impZero = d.numero === 'impressoes' && zeroPossivel
-    const semMedida = semMedidaN > 0 && !(d.numero === 'impressoes' && !a.alcanceLido) ? `${semMedidaN} ${impZero ? 'sem impressão no período' : 'sem medida'}` : null
+    const impZero = d.numero === 'impressoes' && zeroPossivel(este.id)
+    // quem não tem impressão e teve dia medido desde a publicação é zero medido; quem ainda não teve nenhum dia que valha (recém-publicado) é "sem medida"
+    const semImp = d.numero === 'impressoes' ? a.videos.filter(v => cru('impressoes', v) == null) : []
+    const nZero = semImp.filter(v => zeroPossivel(v.id)).length
+    const semMedida = d.numero === 'impressoes'
+      ? (a.alcanceLido && semImp.length > 0 ? [nZero > 0 ? `${nZero} sem impressão no período` : null, semImp.length - nZero > 0 ? `${semImp.length - nZero} sem medida` : null].filter(x => x != null).join(', ') : null)
+      : semMedidaN > 0 ? `${semMedidaN} sem medida` : null
     const neutro = d.numero === 'duracao'
     const nomeBaixo = d.nome.toLowerCase()
     const zeroMedido = impZero && eu == null
