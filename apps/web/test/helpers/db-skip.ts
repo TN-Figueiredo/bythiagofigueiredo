@@ -31,3 +31,15 @@ export function getLocalJwtSecret(): string {
   if (process.env.SUPABASE_JWT_SECRET) return process.env.SUPABASE_JWT_SECRET
   return 'super-secret-jwt-token-with-at-least-32-characters-long'
 }
+
+/** Padrão do `supabase start` local. */
+export const LOCAL_SUPABASE_URL_DEFAULT = 'http://127.0.0.1:54321'
+
+/**
+ * URL da API do banco local dos testes de integração. Vem de NEXT_PUBLIC_SUPABASE_URL (a mesma variável que o código sob
+ * teste lê, ver `test/setup.ts`), para um banco de outra porta (`bythiago_int`, 54421) funcionar; sem ela, o padrão.
+ */
+export function localSupabaseUrl(env: Record<string, string | undefined> = process.env): string {
+  const v = env.NEXT_PUBLIC_SUPABASE_URL
+  return v && v.length > 0 ? v : LOCAL_SUPABASE_URL_DEFAULT
+}

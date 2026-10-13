@@ -27,10 +27,44 @@ const PLANO_E12 = 'docs/superpowers/plans/2026-10-12-a5-e12-relatorios-em-lote-p
 const PLANO_E19 = 'docs/superpowers/plans/2026-10-12-a5-e19-leitura-do-pipeline-plan.md, Tarefas 8 a 10'
 const PLANO_E20 = 'docs/superpowers/plans/2026-10-12-a5-e20-guarda-do-bruto-plan.md, "Conferências depois do envio"'
 
+// E1 e E2 (coleta dos concorrentes, lote de 12/10/2026): as datas dependem do dia do envio, que ainda não existe.
+// O controlador preenche `E1_E2_DEPLOY` (dia de São Paulo, AAAA-MM-DD, o da promoção para `main`) no commit do envio.
+// Enquanto for `null`, as seis entradas NÃO existem (nada vence, nada deixa o cron vermelho). As entradas usam a etapa `E1`
+// (o formato `E<n>` do guardião); o plano e o parecer de dados do portão final chamam o conjunto de "E1 e E2".
+/** Dia de São Paulo (AAAA-MM-DD) em que o lote E1 e E2 foi promovido a `main`. `null` = ainda não enviado. */
+export const E1_E2_DEPLOY: string | null = '2026-10-13'
+
+const PLANO_E1E2 = 'docs/superpowers/plans/2026-10-12-a5-e1-e2-coleta-concorrentes-plan.md, seção 10 (consultas K1 a K17 e R1); parecer .superpowers/sdd/a5-e1-e2/portao-final-dados.md, item 10'
+const dataReal = (d: string): boolean => {
+  const t = Date.parse(`${d}T00:00:00.000Z`)
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === d
+}
+const somaDias = (dia: string, n: number): string => new Date(Date.UTC(Number(dia.slice(0, 4)), Number(dia.slice(5, 7)) - 1, Number(dia.slice(8, 10)) + n)).toISOString().slice(0, 10)
+
+/**
+ * As conferências de E1 e E2 a partir do dia do envio. `null` = sem entradas. Data malformada não some em silêncio:
+ * vira uma entrada de 1970 (vermelha) que manda corrigir a constante.
+ */
+export function conferenciasE1E2(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e1e2-deploy-invalido', etapa: 'E1', data: '1970-01-01', responsavel: 'agente', onde: `E1_E2_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e1e2-${id}`, etapa: 'E1', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E1E2}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, depois das 19:10 de SP: select count(*) from competitor_raw (esperado 690 ou mais); K5 com as 9 e as 13 chaves, vermelhas em 0; K9 e K17: nenhum "(sem faixa)", cerca de 676 na faixa diária e 714 na semanal; completa_hoje em todos os canais; K16 (correntes_sem_copia) = 0; K12: tempo por canal (base 16 s; acima de 30 s, refazer a conta do disparo); K3: uma linha de cota'),
+    e('d1', 1, 'D+1, depois das 12:45: K5; K6 (fechadas abaixo de 2% das correntes; se passar há campo volátil no raw: abrir conserto no mesmo dia); K7; K3 (cota do dia do Pacífico fechado entre 195 e 215); K16 = 0; K11'),
+    e('d3', 3, 'D+3: K8 vazia (8 leituras ou mais por vídeo novo); K6 abaixo de 5%; K13; decidir I-7 (partes gratuitas da API não pedidas) com o raw estável em dias'),
+    e('d7', 7, 'D+7, depois das 19:10: K5; K16; select count(*) from competitor_videos where daily_until >= current_date; todo semanal com ponto; videos_sem_versao_de_miniatura só de ausentes e sem contagem'),
+    e('d8', 8, 'D+8, depois das 19:10: K5 (semanal_atrasados = 0); K11; R1 com o mesmo corte de antes do deploy (igual ao de antes); tamanho real das tabelas contra a tabela do parecer'),
+    e('d9', 9, 'D+9: K5 (semanal_atrasados_9d = 0 e sem_miniatura_9d = 0); K16 (correntes_sem_copia = 0)'),
+  ]
+}
+
 // Em ordem de data. Datas das etapas já em produção: E12 com D0 = 13/10/2026 (primeiro cron depois do deploy de 12/10);
 // E19 com `avisoDesde` = 12/10/2026 (lote 1 enviado em 12/10, dia de São Paulo); E20 com o envio antes do cron de 13/10.
 // Se o envio da E20 atrasar, deslocar `e20-segundo-cron` e corrigir .superpowers/sdd/a5/conferencias-com-data.md.
-export const CONFERENCIAS: readonly Conferencia[] = [
+const BASE: readonly Conferencia[] = [
   { id: 'e19-d1', etapa: 'E19', data: '2026-10-13', responsavel: 'agente', onde: `${PLANO_E19}: contagem do dia 0 por chave, painel do CMS e /admin/audit sem as linhas, tamanho de audit_log (base: 204.800 bytes, 140 linhas)`, feitaEm: null },
   { id: 'e20-segundo-cron', etapa: 'E20', data: '2026-10-14', responsavel: 'agente', onde: `${PLANO_E20}: resumo do segundo cron depois do envio (consulta B do runbook da coleta): guarda.blobs_guardados_antes é número, baixados_sem_bruto = 0, conferencias_vencidas = [], ms_total e ms_passos.guarda; conta exata blobs_guardados = antes + baixados + vazios`, feitaEm: null },
   { id: 'e12-d3', etapa: 'E12', data: '2026-10-16', responsavel: 'agente', onde: `${PLANO_E12}: D+3: quais dos 9 tipos novos o YouTube gera (consulta C, zero relatórios de um tipo é "não ok"), maior_lido_por_tipo contra os tetos (um tipo recusado por tamanho só tem conserto enquanto o arquivo existe na origem) e ms_passos.relatorios`, feitaEm: null },
@@ -47,6 +81,9 @@ export const CONFERENCIAS: readonly Conferencia[] = [
   { id: 'e20-prova-90d', etapa: 'E20', data: '2027-01-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 > 0 (item 205)`, feitaEm: null },
   { id: 'e20-prova-180d', etapa: 'E20', data: '2027-04-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 maior que em janeiro`, feitaEm: null },
 ]
+
+/** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

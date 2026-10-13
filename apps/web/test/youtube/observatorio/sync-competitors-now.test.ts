@@ -27,6 +27,8 @@ async function load(o: { allowed?: boolean; noYtId?: string; loadMs?: number; sy
   vi.doMock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { throw new Error('no db in this test') } }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncFn }))
+  // a guarda de schema (MG1 + MG2) das ações que sincronizam tem teste próprio (competitor-actions-schema-guard.test.ts): aqui o schema está pronto
+  vi.doMock('@/lib/youtube/competitor-sync-guard', () => ({ syncSchemaBlock: async () => null }))
   vi.doMock('@/lib/youtube/observatorio/load', () => ({
     loadRows: async () => { if (o.loadMs) vi.setSystemTime(Date.now() + o.loadMs); return { channels: comps.map(c => ({ id: c.id, channel_id: c.id === o.noYtId ? '' : 'UC-' + c.id })) } },
     rowsToDataset: () => structuredClone(ds),

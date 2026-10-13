@@ -10,6 +10,7 @@ import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getCompetitorRemovalImpact, type CompetitorRemovalImpact } from '@/lib/youtube/competitor-removal-impact'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { syncSchemaBlock } from '@/lib/youtube/competitor-sync-guard'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
@@ -67,6 +68,10 @@ export async function addCompetitorChannel(
 
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
+
+  // o primeiro sync lê e grava colunas da MG2: sem as migrations, nada é gravado nem pedido ao YouTube
+  const notReady = await syncSchemaBlock()
+  if (notReady) return { ok: false, error: notReady }
 
   const supabase = getSupabaseServiceClient()
   // the site's niches (table absent → the two built-in). A read error is not "invalid niche": the niche could not be
@@ -162,12 +167,16 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   return { ok: true }
 }
 
-export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boolean; result?: { videosChecked: number; changesDetected: number } }> {
+export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boolean; error?: string; result?: { videosChecked: number; changesDetected: number } }> {
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
 
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) return { ok: false }
+
+  // o sync lê e grava colunas da MG2: sem as migrations, nada é gravado nem pedido ao YouTube
+  const notReady = await syncSchemaBlock()
+  if (notReady) return { ok: false, error: notReady }
 
   const supabase = getSupabaseServiceClient()
   const { data: channel } = await supabase
@@ -249,6 +258,10 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
 
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) return { ok: false, error: 'API key not configured' }
+
+  // antes de qualquer escrita (o sync_mode abaixo é uma): sem as migrations da MG1 e da MG2, nada é gravado nem pedido ao YouTube
+  const notReady = await syncSchemaBlock()
+  if (notReady) return { ok: false, error: notReady }
 
   const supabase = getSupabaseServiceClient()
 
@@ -372,6 +385,10 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
   try { siteId = await requireEditAccess() } catch { return { ok: false, text: 'Sem permissão para sincronizar os concorrentes.', problems: [], outOfRound: [] } }
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) return { ok: false, text: 'A chave da API do YouTube não está configurada.', problems: [], outOfRound: [] }
+
+  // o sync lê e grava colunas da MG2: sem as migrations, nada é gravado nem pedido ao YouTube
+  const notReady = await syncSchemaBlock()
+  if (notReady) return { ok: false, text: notReady, problems: [], outOfRound: [] }
 
   const now = observatoryNow()
   const rows = await loadRows({ siteId, now })

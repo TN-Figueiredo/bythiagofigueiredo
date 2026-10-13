@@ -44,6 +44,8 @@ function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: bo
   vi.doMock('next/server', () => ({ after: (fn: () => unknown) => { queued.push(fn) } }))
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncMock }))
+  // a guarda de schema (MG1 + MG2) das ações que sincronizam tem teste próprio (competitor-actions-schema-guard.test.ts): aqui o schema está pronto
+  vi.doMock('@/lib/youtube/competitor-sync-guard', () => ({ syncSchemaBlock: async () => null }))
   vi.doMock('@/lib/youtube/competitor-slots', () => ({ getChannelSlots: async () => slots, UNLOCK_STEP: 25 }))
   const chain = (data: unknown) => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data }) }) }) }) })
   vi.doMock('@/lib/supabase/service', () => ({
