@@ -27,6 +27,8 @@ const SP_OFFSET_MS = 3 * HORA_MS
 const PARADA_H = 2
 /** A cobertura de 24 horas só é cobrada depois de 25 horas de leitura (as 24 da janela mais uma de folga). */
 const COBERTURA_H = 25
+/** Menos horas lidas que isto nas últimas 24 encerradas é problema (sem e-mail); com isto ou mais, só nota. Vem de `RULES.hourly.minReadHours24`. */
+export const HORAS_LIDAS_MINIMAS_24H = RULES.hourly.minReadHours24
 const JANELA_MS = 24 * HORA_MS
 const NEGADOS_LINHAS_MAX = 25
 const TAREFA_PADRAO = 'leitura_horaria'
@@ -263,7 +265,11 @@ export function veredictoHorario(p: ProvaHoraria | null, o: OpcoesHorario): Heal
       }
       if (p.horas_lidas_24h < 24 && !leituraParada) {
         const m = p.videos_abaixo_de_22h > 0 ? '; ' + plural(p.videos_abaixo_de_22h, 'vídeo', 'vídeos') + ' com menos de 22 leituras' : ''
-        notes.push(plural(24 - p.horas_lidas_24h, 'hora', 'horas') + ' sem leitura nas últimas 24 (lidas ' + p.horas_lidas_24h + ' de 24)' + m)
+        // Decisão do dono (pergunta 28): abaixo do mínimo é problema, mas SEM aviso por e-mail (por isso não entra em `paradas`).
+        // Só cobra com vídeo na lista (sem o que ler, 0 hora lida não é falha) e depois das 25 horas de história (bloco acima).
+        if (p.videos_na_lista > 0 && p.horas_lidas_24h < HORAS_LIDAS_MINIMAS_24H) {
+          problems.push('só ' + p.horas_lidas_24h + ' das últimas 24 horas ' + (p.horas_lidas_24h === 1 ? 'teve' : 'tiveram') + ' leitura (o mínimo é ' + HORAS_LIDAS_MINIMAS_24H + ')' + m)
+        } else notes.push(plural(24 - p.horas_lidas_24h, 'hora', 'horas') + ' sem leitura nas últimas 24 (lidas ' + p.horas_lidas_24h + ' de 24)' + m)
       }
     } else {
       notes.push('cobertura de 24 horas cobrada a partir de ' + textoSP(desdeMs + COBERTURA_H * HORA_MS))
