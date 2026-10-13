@@ -188,6 +188,45 @@ describe('lerContadores', () => {
     }
   })
 
+  it('depois de um 403 de cota a onda seguinte não começa: os ids que sobraram são contados', async () => {
+    const f = falso(() => resposta({ error: { code: 403, errors: [{ reason: 'quotaExceeded' }] } }, 403))
+    const lista = ids(450) // 9 blocos: ondas de 4, 4 e 1
+    const r = await ler(lista, f)
+    expect(r.chamadas).toBe(4)
+    expect(f.urls).toHaveLength(4)
+    expect(r.cotaEsgotada).toBe(true)
+    expect(r.idsQueFicaram).toEqual(lista)
+    expect(r.idsQueFicaram).toHaveLength(450)
+  })
+
+  it('403 de cota no meio da onda: os blocos em voo terminam, a onda seguinte não começa', async () => {
+    const f = falso((url, n) => (n === 1 ? resposta({ error: { errors: [{ reason: 'dailyLimitExceeded' }] } }, 403) : todosOk(url)))
+    const lista = ids(250) // 5 blocos: onda de 4 + 1
+    const r = await ler(lista, f)
+    expect(r.chamadas).toBe(4)
+    expect(r.contagens).toHaveLength(150)
+    expect(r.cotaEsgotada).toBe(true)
+    expect(r.idsQueFicaram).toEqual([...lista.slice(50, 100), ...lista.slice(200)])
+  })
+
+  it('viewCount negativo não vira contagem', async () => {
+    const f = falso(url => resposta({ items: pedidosDe(url).map(id => item(id, { statistics: { viewCount: '-5', likeCount: '1' } })) }))
+    const r = await ler(ids(2), f)
+    expect(r.contagens).toEqual([])
+    expect(r.semContagem).toBe(2)
+    expect(r.naoDevolvidos).toBe(0)
+  })
+
+  it('os ids vão codificados na URL e não injetam parâmetro', async () => {
+    const f = falso(todosOk)
+    const r = await ler(['a&part=snippet', 'b c', 'ok1'], f)
+    const url = f.urls[0]!
+    expect(url).toContain('id=a%26part%3Dsnippet,b%20c,ok1&key=')
+    expect(new URL(url).searchParams.getAll('part')).toEqual(['statistics,liveStreamingDetails,status'])
+    expect(pedidosDe(url)).toEqual(['a&part=snippet', 'b c', 'ok1'])
+    expect(r.contagens.map(c => c.ytId)).toEqual(['a&part=snippet', 'b c', 'ok1'])
+  })
+
   it('403 proibido não é cota', async () => {
     const f = falso(() => resposta({ error: { code: 403, errors: [{ reason: 'forbidden' }] } }, 403))
     const r = await ler(ids(3), f)

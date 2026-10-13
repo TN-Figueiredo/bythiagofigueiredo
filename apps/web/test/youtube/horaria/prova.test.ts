@@ -245,7 +245,8 @@ describe('veredictoHorario', () => {
     expect(nunca.ok).toBe(false)
     expect(nunca.avisos).toHaveLength(1)
     // agenda nova: a carência vale também para o dono
-    expect(veredictoHorario(prova({ proprios_cobrados: 1, proprios_ultima_leitura: null }), opcoes({ agendaDesde: atras(30 * MIN) })).problems).toEqual([])
+    // (sem `desde` gravado: uma leitura de 3 dias provaria o contrário)
+    expect(veredictoHorario(prova({ desde: null, videos_na_lista: 0, proprios_cobrados: 1, proprios_ultima_leitura: null }), opcoes({ agendaDesde: atras(30 * MIN) })).problems).toEqual([])
   })
 
   it('canal do dono em concorrentes', () => {
@@ -377,8 +378,53 @@ describe('veredictoHorario', () => {
     expect(v.notes.join('|')).toMatch(/1 vídeo do seu canal saiu do ar/)
   })
 
+  describe('idade da agenda: o menor instante entre agendaDesde, desde e proprios_desde', () => {
+    const dono = (p: Partial<ProvaHoraria> = {}): ProvaHoraria =>
+      prova({ desde: null, videos_na_lista: 0, proprios_cobrados: 2, proprios_abaixo_do_lido: 2, proprios_ultima_leitura: atras(5 * H), proprios_desde: atras(3 * 24 * H), ...p })
+
+    it('dono parado há 5 h com agendaDesde nulo: a leitura já gravada prova a agenda velha (2 problemas e aviso)', () => {
+      const v = veredictoHorario(dono(), opcoes({ agendaDesde: null }))
+      expect(v.ok).toBe(false)
+      expect(v.problems).toEqual(['leitura horária do seu canal parada há 5 h', '2 vídeos do seu canal com leituras faltando nas últimas 24 horas'])
+      expect(v.avisos.map(a => a.chave)).toEqual(['leitura_horaria_parada'])
+    })
+
+    it('o mesmo vale quando só `desde` (concorrentes) prova a idade', () => {
+      const v = veredictoHorario(dono({ desde: atras(3 * 24 * H), ultima_leitura: atras(10 * MIN), videos_na_lista: 55, proprios_desde: null }), opcoes({ agendaDesde: null }))
+      expect(v.problems).toEqual(['leitura horária do seu canal parada há 5 h', '2 vídeos do seu canal com leituras faltando nas últimas 24 horas'])
+      expect(v.avisos).toHaveLength(1)
+    })
+
+    it('agendaDesde recente não esconde uma leitura antiga: vale o menor', () => {
+      const v = veredictoHorario(dono(), opcoes({ agendaDesde: atras(10 * MIN) }))
+      expect(v.problems).toHaveLength(2)
+    })
+
+    it('nenhuma das três existe: a carência continua, com a nota de hoje', () => {
+      const v = veredictoHorario(
+        dono({ proprios_desde: null, proprios_ultima_leitura: null }),
+        opcoes({ agendaDesde: null }),
+      )
+      expect(v.problems).toEqual([])
+      expect(v.avisos).toEqual([])
+    })
+
+    it('desde e proprios_desde ilegíveis não contam; sem agendaDesde a carência continua', () => {
+      const v = veredictoHorario(dono({ desde: 'lixo', proprios_desde: 'lixo' }), opcoes({ agendaDesde: null }))
+      expect(v.problems).toEqual([])
+    })
+
+    it('agendaDesde ilegível (não nulo) conta como agenda velha', () => {
+      const v = veredictoHorario(dono({ proprios_desde: null }), opcoes({ agendaDesde: 'isto-nao-e-data' }))
+      expect(v.problems).toEqual(['leitura horária do seu canal parada há 5 h', '2 vídeos do seu canal com leituras faltando nas últimas 24 horas'])
+      const vazia = veredictoHorario(prova({ desde: null, ultima_leitura: null, horas_lidas_24h: 0 }), opcoes({ agendaDesde: 'isto-nao-e-data' }))
+      expect(vazia.ok).toBe(false)
+    })
+  })
+
   it('a agenda nova não cobra o dono em 25 h, e a agenda de 26 h cobra', () => {
-    const p = prova({ proprios_cobrados: 1, proprios_abaixo_do_lido: 1, proprios_ultima_leitura: atras(10 * MIN) })
+    // sem `desde` gravado: uma leitura de 3 dias provaria a agenda velha (menor instante entre as três datas)
+    const p = prova({ desde: null, videos_na_lista: 0, proprios_cobrados: 1, proprios_abaixo_do_lido: 1, proprios_ultima_leitura: atras(10 * MIN) })
     expect(veredictoHorario(p, opcoes({ agendaDesde: atras(24 * H) })).problems).toEqual([])
     expect(veredictoHorario(p, opcoes({ agendaDesde: atras(26 * H) })).problems).toHaveLength(1)
   })
