@@ -16,7 +16,7 @@
  * (UMA vez, no topo da grade), é `viewsPorDiaFrase`; a de cada vídeo vai em "Ações do vídeo" (`notas`). `vpd7`/`vpdText` do motor ficam nulos.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import { montarDias, resumir, videoNovo, type AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
+import { montarDias, publicacoesDe, resumir, videoNovo, type AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
@@ -110,7 +110,7 @@ export function buildProprioVideos(
   const F = obs.fmt, { dm } = o
   const base = buildCanalVideos(obs, canalId)
 
-  const alc = lerEstado(dados.alcance, o.hoje)
+  const alc = lerEstado(dados.alcance, o.hoje, publicacoesDe(base.videos))
   const estado: EstadoVideos = alc.estado !== 'ok' ? alc.estado : alc.resumo.diasLidos === 0 ? 'nada-lido' : 'ok'
   const motivoAlcance = estado === 'ok' ? null : estado === 'nada-lido' ? FRASE_NADA_LIDO : fraseDoAlcance(estado)
   const periodoTxt = alc.estado === 'ok' ? `de ${dm(alc.periodo.de)} a ${dm(alc.periodo.ate)}` : null

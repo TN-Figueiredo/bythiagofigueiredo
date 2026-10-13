@@ -6,7 +6,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 import { BACK_DO_TOP_IMP } from '@/app/cms/(authed)/youtube/competitors/_historico/origem-canal'
 import { foraDosGuardadosFrase } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import type { Posicao } from '@/lib/youtube/observatorio/posicao'
-import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import { alcancePorVideo, montarDias, publicacoesDe, resumir, type AlcanceVideo, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { PosicaoItens, PosicaoNoNicho } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 import { SEM_PERMISSAO, SEM_RELATORIO } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
@@ -354,7 +354,7 @@ describe('T10 montarComoEsta: a seção e o gráfico saem do mesmo dado, pela me
   const header = buildProprioHeader(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm, posicao, muitosProprios: false })!
   const videos = w.obs.videos.filter(x => x.ch === w.canalId).map(x => ({ id: x.id, ytId: x.ytId, title: x.title, thumb: null }))
   const monta = (dados = w.dados, hoje = w.hoje) => montarComoEsta({
-    dados, hoje, dm: w.dm, posicao, posicaoItens: header.posicaoItens, videos, concorrentes: concorrentesDoSite(w.obs, w.canalId), canalId: w.canalId,
+    dados, hoje, dm: w.dm, posicao, posicaoItens: header.posicaoItens, videos, concorrentes: concorrentesDoSite(w.obs, w.canalId), canalId: w.canalId, publicacoes: publicacoesDe(w.obs.videos.filter(x => x.ch === w.canalId)),
   })
 
   it('série cheia: os números da seção batem com a soma do gráfico e com o alcance por vídeo da fixture', () => {
@@ -366,7 +366,7 @@ describe('T10 montarComoEsta: a seção e o gráfico saem do mesmo dado, pela me
     expect(grafico.vazio).toBeNull()
     // a fixture dá 11 dias com impressão para os 2 vídeos acompanhados; o 1º tem 12 por dia (132) e o 2º, 5 por dia (55)
     expect(view.top.map(t => t.imp)).toEqual(['132 impressões', '55 impressões'])
-    const porVideo = alcancePorVideo((w.dados.alcance as { dado: Parameters<typeof alcancePorVideo>[0] }).dado)
+    const porVideo = alcancePorVideo((w.dados.alcance as { dado: Parameters<typeof alcancePorVideo>[0] }).dado, publicacoesDe(w.obs.videos.filter(x => x.ch === w.canalId)))
     expect([...porVideo.values()].reduce((s, x) => s + x.imp, 0)).toBe(187)
   })
 

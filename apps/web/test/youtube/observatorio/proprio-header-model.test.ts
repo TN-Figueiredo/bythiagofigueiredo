@@ -608,7 +608,8 @@ describe('A4.6 cabeçalho próprio: os números públicos batem com a conta à m
 describe('A4.6 cabeçalho próprio: vídeos com impressão, cliques e views/dia na janela certa', () => {
   const d = (n: number) => addDays(BASE.hoje, -n)
   const linha = (ytId: string, n: number, imp: number, ctr: number | null) => ({ ytId, dia: d(n), imp, ctr })
-  const SHORT = proprios(BASE).find(v => v.fmt === 'short')!.ytId
+  // um Short publicado antes do dia da linha (5 dias atrás): o dia anterior à publicação não existe, então um Short mais novo não teria essa linha
+  const SHORT = proprios(BASE).find(v => v.fmt === 'short' && v.ageDays > 5)!.ytId
   const [A] = BASE.ytIds as [string]
   const vi = (linhas: ReturnType<typeof linha>[]) => por(build(comDados({ alcance: ok(alcanceComLinhas(BASE.canalId, BASE.hoje, linhas)) })).todos, 'videosComImpressao')
 
