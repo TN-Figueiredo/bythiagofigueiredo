@@ -420,7 +420,11 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: a junção do sync com o banco l
       const ser = parseSeriesHealth((await sb.rpc('competitor_series_health', { p_site_id: site, p_now: nowIso })).data)!
       expect(cap).toMatchObject({ videos_vistos_sem_raw: 0, canais_vistos_sem_raw: 0, canais_vistos_dia_pacifico: 1, videos_ausentes: 0, canais_ausentes: 0, canais_em_erro_12h: 0, canais_em_erro_3d: 0 })
       const q = await quotaRow(site, pacificDate(sp(day(14), '19:30').getTime()))
-      expect(cap.cota_dia_pacifico).toBe(q!.units_used)
+      // MG9 (emenda S-I2): a prova passou a ler só a parcela da sincronização (`operations.competitors`), não o total do dia;
+      // a série semanal e a leitura horária somam na mesma linha e não podem calar o alarme "cota do dia não registrada".
+      expect(cap.cota_dia_pacifico).toBe(q!.operations.competitors)
+      expect(q!.operations.competitors).toBeGreaterThan(0)
+      expect(q!.units_used).toBeGreaterThanOrEqual(q!.operations.competitors!)
       expect(ser).toMatchObject({ hoje: day(14), hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, sem_miniatura_9d: 0, diaria_total: 3, semanal_total: 0 })
     })
 
