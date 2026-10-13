@@ -142,6 +142,54 @@ function scrubDataRecord(obj: Record<string, unknown> | undefined): void {
   redigirValorProfundo(obj)
 }
 
+// A5 · E14: as rotas `comments`, `commentThreads` e `channels` da YouTube Data API
+// levam na consulta o id de comentário (`Ugx…`) e o id de canal de AUTOR (`UC…`) de
+// terceiros. O SDK do Sentry não põe a consulta na URL: ela vai em `http.query` /
+// `url.query`, e a URL completa em `http.url` / `url.full`. A regra é POR CAMPO e
+// ancorada no CAMINHO, não no host (o teste de HTTP de verdade usa 127.0.0.1).
+// `videos`, `playlistItems` e as demais rotas ficam como estão.
+const ROTA_COMENTARIOS_RE = /\/youtube\/v3\/(?:comments|commentThreads|channels)(?:[?#\s]|$)/
+const REDIGIDO = '[REDACTED]'
+const CAMPOS_URL_COMENTARIOS = ['url', 'http.url', 'url.full'] as const
+const CAMPOS_CONSULTA_COMENTARIOS = ['http.query', 'url.query', 'http.fragment', 'url.fragment'] as const
+
+/** Corta tudo depois do primeiro `?` (ou `#`, se não houver `?`) de uma URL ou descrição. */
+function cortarConsulta(texto: string): string {
+  return texto.replace(/[?#][\s\S]*$/, (m) => m[0] + REDIGIDO)
+}
+
+/**
+ * Se `data` ou a descrição apontam para uma das rotas de comentário, redige a consulta
+ * e o fragmento em `data` (no lugar) e devolve a descrição já cortada. Sem casamento,
+ * não muda nada. Roda ANTES de `scrubDataRecord`. Pode lançar: quem chama está dentro
+ * de `secao`, que descarta o campo (fail-closed).
+ */
+function redigirConsultaDeComentarios(
+  data: Record<string, unknown> | undefined,
+  descricao?: string,
+): string | undefined {
+  const urls: string[] = []
+  if (data) {
+    for (const campo of CAMPOS_URL_COMENTARIOS) {
+      const v = data[campo]
+      if (typeof v === 'string') urls.push(v)
+    }
+  }
+  if (typeof descricao === 'string') urls.push(descricao)
+  if (!urls.some((u) => ROTA_COMENTARIOS_RE.test(u))) return descricao
+  if (data) {
+    for (const campo of CAMPOS_URL_COMENTARIOS) {
+      const v = data[campo]
+      if (typeof v === 'string') data[campo] = cortarConsulta(v)
+    }
+    for (const campo of CAMPOS_CONSULTA_COMENTARIOS) {
+      // Qualquer tipo (texto, objeto, lista): o que não é texto também sai inteiro.
+      if (campo in data) data[campo] = REDIGIDO
+    }
+  }
+  return typeof descricao === 'string' ? cortarConsulta(descricao) : descricao
+}
+
 /**
  * Mutates an event in-place, replacing PII substrings in message,
  * exception values, breadcrumb messages + data, and the attached request
@@ -204,6 +252,11 @@ export function scrubEventPii<T extends ScrubbableEvent>(event: T): T {
     () => {
       if (event.spans) {
         for (const span of event.spans) {
+          if (typeof span.description === 'string') {
+            span.description = redigirConsultaDeComentarios(span.data, span.description) ?? span.description
+          } else {
+            redigirConsultaDeComentarios(span.data)
+          }
           if (span.description) span.description = scrubPiiString(span.description)
           scrubDataRecord(span.data)
           redigirValorProfundo(span.tags)
@@ -263,6 +316,7 @@ export function scrubBreadcrumbPii<T extends ScrubbableBreadcrumb>(
   })
   secao(
     () => {
+      redigirConsultaDeComentarios(breadcrumb.data)
       scrubDataRecord(breadcrumb.data)
     },
     () => {
