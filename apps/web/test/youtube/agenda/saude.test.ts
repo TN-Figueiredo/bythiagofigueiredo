@@ -5,14 +5,14 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import { avaliarAgenda, lerAgendaDoVigia, type ItemAgenda } from '@/lib/youtube/agenda/saude'
 import { lerEstado } from '@/lib/youtube/agenda/estado'
-import { DEFINICOES } from '@/lib/youtube/agenda/catalogo'
+import { TODAS_AS_DEFINICOES } from '@/lib/youtube/agenda/definicoes'
 import { chaveDoPeriodo } from '@/lib/youtube/agenda/periodo'
 import { buildCronHealthReport, resolveCronName } from '@/lib/ops/cron-health-report'
 import type { EstadoAgenda, LinhaTarefa } from '@/lib/youtube/agenda/tipos'
@@ -92,12 +92,12 @@ describe('avaliarAgenda (puro)', () => {
     expect(rel.lateNames).toContain('agenda:tarefa_inventada_agora')
     // OP-5: o mapa de nomes de cron não conhece nenhum nome do catálogo, nem do real nem do de teste.
     const fonte = readFileSync(resolve(__dirname, '../../../src/lib/ops/cron-health-report.ts'), 'utf8')
-    for (const nome of [...cat.map(c => c.nome), ...DEFINICOES.map(d => d.nome)]) {
+    for (const nome of [...cat.map(c => c.nome), ...TODAS_AS_DEFINICOES.map(d => d.nome)]) {
       expect(fonte.includes(`'${nome}'`), nome).toBe(false)
       expect(resolveCronName(`/api/cron/sync-youtube?mode=${nome}`)).toBe('sync-youtube')
     }
     const vercel = readFileSync(resolve(__dirname, '../../../vercel.json'), 'utf8')
-    for (const d of DEFINICOES) expect(vercel.includes(d.nome), d.nome).toBe(false)
+    for (const d of TODAS_AS_DEFINICOES) expect(vercel.includes(d.nome), d.nome).toBe(false)
   })
 
   it('tarefa em OBS_AGENDA_TASKS_OFF aparece como desligada', () => {
@@ -183,8 +183,8 @@ function sbRpc(resp: () => Promise<Resp>) {
 const respostaDaAgenda = (oks: Record<string, string | null>, desde: string | null): Resp => ({
   data: {
     agora: iso(AGORA), desde,
-    tarefas: DEFINICOES.map(d => linha(d.nome, oks[d.nome] ?? null)).map(l => ({ ...l, period_key: chaveDoPeriodo(
-      DEFINICOES.find(d => d.nome === l.task)!.periodo, AGORA) })),
+    tarefas: TODAS_AS_DEFINICOES.map(d => linha(d.nome, oks[d.nome] ?? null)).map(l => ({ ...l, period_key: chaveDoPeriodo(
+      TODAS_AS_DEFINICOES.find(d => d.nome === l.task)!.periodo, AGORA) })),
   },
   error: null,
 })
@@ -198,14 +198,14 @@ describe('lerAgendaDoVigia', () => {
     expect(chamadas).toHaveLength(1)
     expect(chamadas[0]!.fn).toBe('competitor_agenda_state')
     const a = chamadas[0]!.args as { p_tasks: string[]; p_period_keys: string[] }
-    expect(a.p_tasks).toEqual(DEFINICOES.map(d => d.nome))
-    expect(a.p_period_keys).toEqual(DEFINICOES.map(d => chaveDoPeriodo(d.periodo, AGORA)))
+    expect(a.p_tasks).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
+    expect(a.p_period_keys).toEqual(TODAS_AS_DEFINICOES.map(d => chaveDoPeriodo(d.periodo, AGORA)))
   })
 
   it('tabela vazia: todas unknown, nenhuma ok', async () => {
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({}, null)))
     const r = await lerAgendaDoVigia(sb as never, AGORA, {})
-    expect(r.itens).toHaveLength(DEFINICOES.length)
+    expect(r.itens).toHaveLength(TODAS_AS_DEFINICOES.length)
     expect(r.itens.every(i => i.status === 'unknown')).toBe(true)
     expect(r.nota).toBeNull()
   })
@@ -285,17 +285,105 @@ describe('lerAgendaDoVigia', () => {
     expect(await lerEstado(s2 as never, [])).toMatchObject({ causa: 'excecao' })
   })
 
-  it('OBS_AGENDA=off com a leitura falhando: só desligadas, sem entrada de leitura', async () => {
+  it('OBS_AGENDA=off com a leitura falhando: as desligadas ficam como estão; a anulação de identidade (nuncaDesliga) não se desliga, então a leitura que falhou é acusada', async () => {
     const { sb } = sbRpc(() => Promise.reject(new Error('x')))
     const r = await lerAgendaDoVigia(sb as never, AGORA, { OBS_AGENDA: 'off' })
-    expect(r.itens).toHaveLength(DEFINICOES.length)
-    expect(r.itens.every(i => i.status === 'desligada')).toBe(true)
+    expect(r.itens.filter(i => i.status === 'desligada').map(i => i.nome)).toEqual(TODAS_AS_DEFINICOES.filter(d => !d.nuncaDesliga).map(d => d.nome))
+    expect(r.itens.filter(i => i.status !== 'desligada')).toEqual([expect.objectContaining({ nome: 'leitura', status: 'late' })])
   })
 
   it('OBS_AGENDA=off: desligadas, mesmo com a tabela ausente', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: 'PGRST202' } }))
     const r = await lerAgendaDoVigia(sb as never, AGORA, { OBS_AGENDA: 'off' })
-    expect(r.itens.every(i => i.status === 'desligada' && i.motivo === 'agenda off')).toBe(true)
+    const desligadas = r.itens.filter(i => i.status === 'desligada')
+    expect(desligadas.length).toBe(TODAS_AS_DEFINICOES.filter(d => !d.nuncaDesliga).length)
+    expect(desligadas.every(i => i.motivo === 'agenda off')).toBe(true)
+  })
+})
+
+// ---- a junção com a E14: o vigia enxerga as CINCO tarefas ------------------------------------------------------------
+
+describe('o vigia enxerga as cinco tarefas (as duas da E14 inclusive)', () => {
+  const HORAS = (n: number) => iso(AGORA - n * H)
+  const CINCO = ['leitura_horaria', 'anular_identidade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+
+  it('o padrão do vigia são as cinco, na ordem do catálogo', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(CINCO)
+  })
+
+  it('a anulação de identidade (LGPD) parada além da tolerância (36 h): late, nomeada; dentro dela: ok', async () => {
+    const { sb: velho } = sbRpc(() => Promise.resolve(respostaDaAgenda({ anular_identidade: HORAS(36 * 1 + 1) }, HORAS(60))))
+    const a = await lerAgendaDoVigia(velho as never, AGORA, {})
+    expect(a.itens.find(i => i.nome === 'anular_identidade')).toMatchObject({ status: 'late', toleranciaH: 36 })
+    const { sb: bom } = sbRpc(() => Promise.resolve(respostaDaAgenda({ anular_identidade: HORAS(35) }, HORAS(60))))
+    const b = await lerAgendaDoVigia(bom as never, AGORA, {})
+    expect(b.itens.find(i => i.nome === 'anular_identidade')).toMatchObject({ status: 'ok' })
+  })
+
+  it('a anulação que nunca rodou numa agenda com mais de 36 h: late "sem leitura"; os retratos também', async () => {
+    const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({}, HORAS(40))))
+    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    for (const nome of ['anular_identidade', 'retratos_comentarios']) expect(r.itens.find(i => i.nome === nome), nome).toMatchObject({ status: 'late', motivo: 'sem leitura' })
+  })
+
+  it('OBS_AGENDA_TASKS_OFF: os retratos saem "desligada"; a anulação continua cobrada (late se parada)', async () => {
+    const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({}, HORAS(60))))
+    const r = await lerAgendaDoVigia(sb as never, AGORA, { OBS_AGENDA_TASKS_OFF: 'retratos_comentarios,anular_identidade' })
+    expect(r.itens.find(i => i.nome === 'retratos_comentarios')).toMatchObject({ status: 'desligada', motivo: 'tarefa desligada (OBS_AGENDA_TASKS_OFF)' })
+    expect(r.itens.find(i => i.nome === 'anular_identidade')).toMatchObject({ status: 'late' })
+  })
+})
+
+// ---- o vigia não alcança o código pesado -----------------------------------------------------------------------------
+
+describe('o grafo de imports do vigia', () => {
+  const SRC = resolve(__dirname, '../../../src')
+  const resolverImport = (de: string, alvo: string): string | null => {
+    const base = alvo.startsWith('@/') ? join(SRC, alvo.slice(2)) : alvo.startsWith('.') ? resolve(dirname(de), alvo) : null
+    if (base === null) return null
+    for (const c of [base + '.ts', base + '.tsx', join(base, 'index.ts')]) { try { if (statSync(c).isFile()) return c } catch { /* tenta o próximo */ } }
+    return null
+  }
+  const importsDe = (f: string): string[] => {
+    const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    const out: string[] = []
+    for (const m of src.matchAll(/(?:^|\n)\s*(?:import|export)\s+(?!type\b)[^'"]*?from\s+['"]([^'"]+)['"]/g)) out.push(m[1]!)
+    for (const m of src.matchAll(/(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g)) out.push(m[1]!)
+    return out.map(a => resolverImport(f, a)).filter((x): x is string => x !== null)
+  }
+  const alcanca = (inicio: string): Set<string> => {
+    const visto = new Set<string>()
+    const pilha = [inicio]
+    while (pilha.length > 0) {
+      const f = pilha.pop()!
+      if (visto.has(f)) continue
+      visto.add(f)
+      pilha.push(...importsDe(f))
+    }
+    return visto
+  }
+  const rel = (s: Set<string>): string[] => [...s].map(f => f.slice(SRC.length + 1))
+
+  it('saude.ts não alcança a coleta de comentários, a anulação, a leitura horária, o catálogo com código nem o disparo', () => {
+    const r = rel(alcanca(join(SRC, 'lib/youtube/agenda/saude.ts')))
+    for (const proibido of [
+      'lib/youtube/observatorio/comentarios/coletar.ts', 'lib/youtube/observatorio/comentarios/anular.ts', 'lib/youtube/horaria/executar.ts',
+      'lib/youtube/agenda/catalogo.ts', 'lib/youtube/agenda/executar.ts', 'lib/youtube/agenda/despachante.ts',
+    ]) expect(r, proibido).not.toContain(proibido)
+    expect(r.filter(f => f.startsWith('lib/youtube/agenda/tarefas/'))).toEqual([])
+  })
+
+  it('o módulo leve das definições não importa catalogo, executar, despachante nem as tarefas (nenhum ciclo)', () => {
+    const r = rel(alcanca(join(SRC, 'lib/youtube/agenda/definicoes.ts')))
+    for (const proibido of ['lib/youtube/agenda/catalogo.ts', 'lib/youtube/agenda/executar.ts', 'lib/youtube/agenda/despachante.ts', 'lib/youtube/agenda/saude.ts']) expect(r, proibido).not.toContain(proibido)
+    expect(r.filter(f => f.startsWith('lib/youtube/agenda/tarefas/'))).toEqual([])
+  })
+
+  it('competitor-sync-batch.ts e competitor-health.ts continuam sem importar catalogo, definicoes nem executar', () => {
+    for (const f of ['lib/youtube/competitor-sync-batch.ts', 'lib/youtube/competitor-health.ts']) {
+      const r = rel(alcanca(join(SRC, f)))
+      for (const proibido of ['lib/youtube/agenda/catalogo.ts', 'lib/youtube/agenda/definicoes.ts', 'lib/youtube/agenda/executar.ts']) expect(r, `${f} -> ${proibido}`).not.toContain(proibido)
+    }
   })
 })
 
@@ -311,7 +399,7 @@ describe('nenhuma chave de cron_health por tarefa (OP-5)', () => {
     return out
   }
   it('recordCronSuccess( e recordCronFailure( nunca levam o nome de uma tarefa do catálogo', () => {
-    const nomes = [...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'soma_do_mapa', 'podas']
+    const nomes = [...TODAS_AS_DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'soma_do_mapa', 'podas']
     const achados: string[] = []
     for (const f of arquivos(resolve(__dirname, '../../../src'))) {
       const linhas = readFileSync(f, 'utf8').split('\n')
@@ -368,7 +456,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }>; unknownNames: string[]; disabledNames: string[] }
     expect(res.status).toBe(200)
     expect(corpo.status).toBe('ok')
-    for (const d of DEFINICOES) expect(corpo.unknownNames).toContain(`agenda:${d.nome}`)
+    for (const d of TODAS_AS_DEFINICOES) expect(corpo.unknownNames).toContain(`agenda:${d.nome}`)
     expect(corpo.disabledNames).toEqual([])
     const texto = JSON.stringify(corpo)
     expect(texto).not.toContain('SENTINELA')
@@ -399,7 +487,18 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve({ data: null, error: { code: 'PGRST202' } })) as never)
     const off = await (await healthGET(reqHealth())).json() as { status: string; disabledNames: string[] }
     expect(off.status).toBe('ok')
-    expect(off.disabledNames).toEqual(DEFINICOES.map(d => `agenda:${d.nome}`))
+    expect(off.disabledNames).toEqual(TODAS_AS_DEFINICOES.filter(d => !d.nuncaDesliga).map(d => `agenda:${d.nome}`))
+  })
+
+  it('/api/health com a anulação parada: degraded e agenda:anular_identidade nomeada', async () => {
+    mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
+      leitura_horaria: iso(Date.now() - H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H),
+      retratos_comentarios: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
+    }, iso(Date.now() - 60 * H)))) as never)
+    const res = await healthGET(reqHealth())
+    const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }
+    expect(corpo.status).toBe('degraded')
+    expect(corpo.crons.filter(c => c.name.startsWith('agenda:') && c.status === 'late').map(c => c.name)).toEqual(['agenda:anular_identidade'])
   })
 
   it('cron-watchdog antes da MG10: ok e nenhum push', async () => {

@@ -28,6 +28,7 @@ import { runCompetitorBatch, runWeeklyPhase, BATCH_BUDGET_MS, type BatchRow, typ
 import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { executarLeituraHoraria } from '@/lib/youtube/horaria/executar'
 import { CATALOGO, DEFINICOES, tarefasDesligadas } from '@/lib/youtube/agenda/catalogo'
+import { TODAS_AS_DEFINICOES } from '@/lib/youtube/agenda/definicoes'
 import { antesDoLoteAntigo, rodarAntesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import { despachar, type OpsAgenda } from '@/lib/youtube/agenda/despachante'
 import { lerEstado, tomar, fechar, esgotar } from '@/lib/youtube/agenda/estado'
@@ -224,10 +225,9 @@ describe('o catálogo real e a lista obedecem ao contrato de registro', () => {
       expect(typeof t.rodar, t.nome).toBe('function')
     }
   })
-  it('o catálogo tem o código das três definições, na mesma ordem (mais as duas tarefas da E14, que declaram a Tarefa inteira)', () => {
-    const daAgenda = CATALOGO.filter(t => DEFINICOES.some(d => d.nome === t.nome))
-    expect(daAgenda.map(t => t.nome)).toEqual(DEFINICOES.map(d => d.nome))
-    for (const [i, d] of DEFINICOES.entries()) expect(daAgenda[i]).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs })
+  it('o catálogo tem o código das cinco definições da lista única (a do vigia), na mesma ordem', () => {
+    expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
+    for (const d of TODAS_AS_DEFINICOES) expect(CATALOGO.find(t => t.nome === d.nome)).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs, toleranciaVigiaH: d.toleranciaVigiaH, periodo: d.periodo })
     expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios'].sort())
   })
   it('toda tarefa da lista é nuncaDesliga com fimAteMs ≤ LEVE_FIM_MS, e o maior da lista também (que é < BATCH_BUDGET_MS)', () => {
