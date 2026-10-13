@@ -224,6 +224,21 @@ describe('executarAgenda: o arrendamento', () => {
     expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith('agenda: arrendamento não tomado', expect.objectContaining({ level: 'warning' }))
   })
 
+  // F-1 do lote B: erro transitório do banco (timeout do servidor 57014, schema cache indisponível PGRST002) não é falha estrutural:
+  // só a classe 42 (permissão e objeto) derruba para o lote antigo. O resto segue como "incerto".
+  it.each(['57014', 'PGRST002'])('F-1 erro transitório do banco no arrendamento (%s): a agenda segue, sem lote antigo, problema registrado', async codigo => {
+    banco = falhaDoArrendamento(codigo)
+    const rodar = vi.fn(okPadrao)
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: rodar }) })
+    expect(r.resposta).not.toBeNull()
+    expect(r.semAgenda).toBeUndefined()
+    expect(rodar).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordCronFailure)).toHaveBeenCalledTimes(1)
+    expect(mensagem()).toContain(`não foi possível confirmar o arrendamento da agenda (erro do banco (código ${codigo}))`)
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    expect(JSON.stringify(await corpo(r))).not.toContain(SENTINELA)
+  })
+
   it('I-3 exceção ao chamar o arrendamento: igual ao prazo (agenda segue, problema registrado, sem lote antigo)', async () => {
     const sb = { rpc: (fn: string, a: Record<string, unknown>) => {
       if (fn === 'competitor_agenda_lease_take') throw new Error(SENTINELA)
