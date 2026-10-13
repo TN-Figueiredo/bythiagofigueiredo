@@ -10,7 +10,10 @@ import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { BANCO_MS, HORARIA_FIM_MS, HORARIA_ULTIMA_ONDA_MS, comPrazo } from '@/lib/youtube/agenda/relogio'
 import type { Lido, ResultadoTarefa } from '@/lib/youtube/agenda/tipos'
 import { RULES } from '@/lib/youtube/observatorio/rules'
-import { completarCurva, contarNegadosCobraveis, ErroDeLeitura, gravarLeituras, jaLidosNaHora, lerCandidatos } from './gravar'
+import {
+  completarCurva, contarNegadosCobraveis, ErroDeLeitura, gravarLeituras, jaLidosNaHora, lerCandidatos, relatarSeguro,
+  type RelatarHoraria,
+} from './gravar'
 import { lerContadores, type ResultadoLeitura } from './leitura'
 import { montarLista, type Alvo } from './lista'
 
@@ -26,6 +29,8 @@ export interface ContextoHoraria {
   agora: () => number
   guarda: () => Promise<null | { tipo: 'ausente' | 'nao_conferido' }>
   fetchImpl?: typeof fetch
+  /** Opcional: a mesma forma de `OpsAgenda.relatar`. Só código de catálogo e `{ classe, sqlstate }`; sem ele, nada é relatado. */
+  relatar?: RelatarHoraria
 }
 
 const SEM_LEITURA: ResultadoLeitura = {
@@ -72,7 +77,8 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   let guarda: Awaited<ReturnType<ContextoHoraria['guarda']>>
   try {
     guarda = await c.guarda()
-  } catch {
+  } catch (e) {
+    relatarSeguro(c.relatar, 'schema_nao_conferido', e)
     return erro('schema_nao_conferido')
   }
   if (guarda) return erro(guarda.tipo === 'ausente' ? 'schema_ausente' : 'schema_nao_conferido')
@@ -83,7 +89,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   const horaIso = new Date(horaMs).toISOString()
   let candidatos: Awaited<ReturnType<typeof lerCandidatos>>
   try {
-    candidatos = await lerCandidatos(c.sb, inicio)
+    candidatos = await lerCandidatos(c.sb, inicio, c.relatar)
   } catch (e) {
     return erro(e instanceof ErroDeLeitura && e.codigo === 'lista_cortada' ? 'lista_cortada' : 'lista_falhou')
   }
@@ -101,7 +107,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   // (3) o que a hora já tem
   let ja: Awaited<ReturnType<typeof jaLidosNaHora>>
   try {
-    ja = await jaLidosNaHora(c.sb, horaIso)
+    ja = await jaLidosNaHora(c.sb, horaIso, c.relatar)
   } catch {
     return erro('ja_lidos_falhou')
   }
@@ -110,7 +116,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   d.pedidos = pedidosAlvos.length
 
   // (4) a curva que falhou antes, a partir da crua, sem chamar o YouTube
-  const completada = await completarCurva(c.sb, alvos, ja, { agoraMs: c.agora(), podeGravar })
+  const completada = await completarCurva(c.sb, alvos, ja, { agoraMs: c.agora(), podeGravar, relatar: c.relatar })
   d.curva_completada = completada.curva + completada.curvaProprio
   const curvaFalhouAntes = completada.falhou
 
@@ -143,7 +149,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   }
 
   // (6) a gravação
-  const g = await gravarLeituras(c.sb, pedidosAlvos, leitura.contagens, { agoraMs: c.agora(), podeGravar })
+  const g = await gravarLeituras(c.sb, pedidosAlvos, leitura.contagens, { agoraMs: c.agora(), podeGravar, relatar: c.relatar })
   const feitas = g.cruas + g.cruasProprio
   d.cruas = feitas
   d.proprios_cruas = g.cruasProprio
@@ -163,7 +169,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   if (negados.size > 0) {
     let lido: Lido<number>
     try {
-      const r = await comPrazo(contarNegadosCobraveis(c.sb, [...negados], c.agora()), prazoDoBanco())
+      const r = await comPrazo(contarNegadosCobraveis(c.sb, [...negados], c.agora(), c.relatar), prazoDoBanco())
       lido = 'valor' in r ? r.valor : { porque: 'prazo' }
     } catch {
       lido = { porque: 'falhou' }
@@ -172,7 +178,8 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
     else d.proprios_negados_sem_classe = negados.size
   }
 
-  // (7) a cota, uma vez por site; nunca muda o estado, só o contador
+  // (7) a cota, uma vez por site; não muda o estado do trabalho: o contador `cota_nao_registrada` vai ao detalhe e o
+  // despachante o torna problema (vermelho, item 227 do plano), com as leituras gravadas intactas
   if (leitura.chamadas > 0) {
     const blocos: string[][] = []
     for (let i = 0; i < ids.length; i += BLOCO_API) blocos.push(ids.slice(i, i + BLOCO_API))
@@ -189,8 +196,10 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
           recordQuota(c.sb, { siteId, nowMs, units, mode: 'horario', extra: { horario_lidos: lidosPorSite.get(siteId) ?? 0, horario_chamadas: units } }),
           prazoDoBanco(),
         )
+        if (!('valor' in r)) relatarSeguro(c.relatar, 'cota_nao_registrada')
         return 'valor' in r ? 0 : units
-      } catch {
+      } catch (e) {
+        relatarSeguro(c.relatar, 'cota_nao_registrada', e)
         return units
       }
     }))

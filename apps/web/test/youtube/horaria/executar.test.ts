@@ -42,12 +42,38 @@ interface Q {
   gte: (c: string, v: string) => Q
   lt: (c: string, v: string) => Q
   in: (c: string, v: unknown[]) => Q
+  or: (expr: string) => Q
   not: (c: string, op: string, v: unknown) => Q
   order: (c: string, o?: { ascending?: boolean }) => Q
   range: (de: number, ate: number) => Q
   abortSignal: (s: AbortSignal) => Q
   upsert: (linhas: Linha[], o: { onConflict: string; ignoreDuplicates?: boolean }) => Q
   then: (ok: (r: Resposta) => unknown, err?: (e: unknown) => unknown) => Promise<unknown>
+}
+
+/** PostgREST `or(...)` mínimo: termos `col.op.valor` (gt, is.null) e `and(termo,termo)`, separados por vírgula fora de parênteses. */
+function avaliarOr(expr: string, r: Record<string, unknown>): boolean {
+  const partes = (s: string): string[] => {
+    const out: string[] = []
+    let nivel = 0, ini = 0
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '(') nivel++
+      else if (s[i] === ')') nivel--
+      else if (s[i] === ',' && nivel === 0) { out.push(s.slice(ini, i)); ini = i + 1 }
+    }
+    out.push(s.slice(ini))
+    return out
+  }
+  const termo = (t: string): boolean => {
+    if (t.startsWith('and(') && t.endsWith(')')) return partes(t.slice(4, -1)).every(termo)
+    const i = t.indexOf('.'), j = t.indexOf('.', i + 1)
+    const col = t.slice(0, i), op = t.slice(i + 1, j), val = t.slice(j + 1)
+    const v = r[col]
+    if (op === 'is' && val === 'null') return v === null || v === undefined
+    if (op === 'gt') return typeof v === 'string' && v > val
+    throw new Error(`or() do banco falso não conhece ${op}`)
+  }
+  return partes(expr).some(termo)
 }
 
 function criarBanco(): Banco {
@@ -104,6 +130,7 @@ function criarBanco(): Banco {
         gte: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) >= v); nomes.push(`gte:${c}`); return q },
         lt: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) < v); nomes.push(`lt:${c}`); return q },
         in: (c, v) => { filtros.push(r => v.includes(r[c])); nomes.push(`in:${c}`); return q },
+        or: expr => { filtros.push(r => avaliarOr(expr, r)); nomes.push(`or:${expr.split('.')[0]}`); return q },
         not: (c, _op, _v) => { filtros.push(r => r[c] !== null && r[c] !== undefined); nomes.push(`not:${c}`); return q },
         order: (c, o) => { ordem.push({ col: c, asc: o?.ascending !== false }); return q },
         range: (de, ate) => { faixa = [de, ate]; return q },
@@ -210,10 +237,12 @@ function youtube(o: OpFetch = {}): Falso {
 }
 
 type Guarda = () => Promise<null | { tipo: 'ausente' | 'nao_conferido' }>
-async function rodar(b: Banco, f: Falso, o: { guarda?: Guarda } = {}): Promise<ResultadoTarefa> {
+type Relatar = (tarefa: string, o: { codigo: string; tecnico?: { classe: string; sqlstate: string | null } }) => void
+async function rodar(b: Banco, f: Falso, o: { guarda?: Guarda; relatar?: Relatar } = {}): Promise<ResultadoTarefa> {
   return executarLeituraHoraria({
     sb: b.sb, apiKey: CHAVE, t0: relogio.t, agora: () => relogio.t,
     guarda: o.guarda ?? (async () => null), fetchImpl: f.fetchImpl,
+    ...(o.relatar ? { relatar: o.relatar } : {}),
   })
 }
 const det = (r: ResultadoTarefa): Record<string, number> => r.detalhe ?? {}
@@ -764,6 +793,65 @@ describe('executarLeituraHoraria: a cota', () => {
     expect(chamadas.reduce((s, c) => s + c.units, 0)).toBe(2)
     // bloco 1: 50 ids (25 de cada site) = empate -> site-a; bloco 2: 10 ids de site-a
     expect(chamadas).toEqual([{ site: 'site-a', units: 2 }])
+  })
+})
+
+describe('executarLeituraHoraria: o que o conserto da T6/T9 exige', () => {
+  it('vídeo sem published_at não some em silêncio: fora_sem_data conta (e ele não é lido)', async () => {
+    const b = criarBanco(); conc(b, 2)
+    b.tabelas.get('competitor_videos')?.push({
+      id: 'u-sem-data', video_id: 'yt-sem-data', competitor_channel_id: 'canal-1', published_at: null,
+      discovered_at: iso(relogio.t - H), live_broadcast_content: null, missing_since: null,
+      competitor_channels: { site_id: SITE, missing_since: null },
+    })
+    const f = youtube()
+    const r = await rodar(b, f)
+    expect(r.estado).toBe('ok')
+    expect(det(r).fora_sem_data).toBe(1)
+    expect(det(r).lista).toBe(2)
+    expect(f.pedidos.flat()).not.toContain('yt-sem-data')
+  })
+
+  it('o sqlstate de cada falha do banco chega ao relatar, sem o texto', async () => {
+    const casos: Array<{ tabela: string; op: 'select' | 'upsert'; codigo: string; monta: (b: Banco) => void }> = [
+      { tabela: 'competitor_videos', op: 'select', codigo: 'lista_falhou', monta: b => { conc(b, 2) } },
+      { tabela: 'competitor_video_hourly', op: 'select', codigo: 'ja_lidos_falhou', monta: b => { conc(b, 2) } },
+      { tabela: 'competitor_video_hourly', op: 'upsert', codigo: 'gravacao_falhou', monta: b => { conc(b, 2) } },
+    ]
+    for (const c of casos) {
+      const b = criarBanco(); c.monta(b)
+      b.falha = (t, op) => (t === c.tabela && op === c.op ? 'erro' : undefined)
+      const relatos: Array<{ tarefa: string; codigo: string; tecnico?: { classe: string; sqlstate: string | null } }> = []
+      await rodar(b, youtube(), { relatar: (tarefa, o) => { relatos.push({ tarefa, ...o }) } })
+      expect(relatos.find(x => x.codigo === c.codigo), c.codigo).toMatchObject({ tarefa: 'leitura_horaria', tecnico: { sqlstate: 'XX000' } })
+      expect(JSON.stringify(relatos)).not.toContain(SENTINELA)
+    }
+  })
+
+  it('a classificação dos negados e a cota que falham também relatam', async () => {
+    const b = criarBanco(); const [id] = prop(b, 1)
+    b.falha = t => (t === 'yt_own_video_meta_daily' ? 'erro' : undefined)
+    vi.mocked(recordQuota).mockRejectedValue(Object.assign(new Error(SENTINELA), { code: '57014' }))
+    const relatos: Array<{ tarefa: string; codigo: string; tecnico?: { classe: string; sqlstate: string | null } }> = []
+    const r = await rodar(b, youtube({ priv: { [id as string]: 'private' } }), { relatar: (tarefa, o) => { relatos.push({ tarefa, ...o }) } })
+    expect(r.estado).toBe('ok')
+    expect(relatos.find(x => x.codigo === 'classificacao_falhou')).toMatchObject({ tecnico: { sqlstate: 'XX000' } })
+    expect(relatos.find(x => x.codigo === 'cota_nao_registrada')).toMatchObject({ tecnico: { classe: 'Error', sqlstate: '57014' } })
+    expect(JSON.stringify(relatos)).not.toContain(SENTINELA)
+  })
+
+  it('sem relatar, tudo funciona como antes (falha da lista continua lista_falhou)', async () => {
+    const b = criarBanco(); conc(b, 2)
+    b.falha = t => (t === 'competitor_videos' ? 'erro' : undefined)
+    expect((await rodar(b, youtube())).motivo).toBe('lista_falhou')
+  })
+
+  it('a cota não registrada fica no detalhe com o estado do trabalho; quem a torna vermelha é o despachante', async () => {
+    const b = criarBanco(); conc(b, 5)
+    vi.mocked(recordQuota).mockRejectedValue(new Error(SENTINELA))
+    const r = await rodar(b, youtube())
+    expect(r.estado).toBe('ok')
+    expect(det(r).cota_nao_registrada).toBe(1)
   })
 })
 
