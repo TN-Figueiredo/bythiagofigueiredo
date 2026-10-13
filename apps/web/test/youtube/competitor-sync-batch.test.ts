@@ -71,6 +71,33 @@ describe('batchHealth', () => {
   it('is ok when nothing was attempted', () => {
     expect(batchHealth(base).ok).toBe(true)
   })
+
+  // ── (portão final, dados I-2) canal em erro há mais de 3 dias não deixa o resumo do lote vermelho; metade ou mais deles, sim ──
+  const known = (synced: number, errors: number, errorsKnown: number, channelsLongError: number, channelsActive = 15) =>
+    batchHealth({ ...base, synced, errors, errorsKnown, channelsLongError, channelsActive })
+  it('1 sadio + 1 canal em erro permanente (a entrada medida às 18:20): verde', () => {
+    expect(known(1, 1, 1, 1, 15)).toEqual({ ok: true })
+    expect(known(1, 1, 1, 1, 2)).toMatchObject({ ok: false, message: '1 de 2 canais em erro há mais de 3 dias' }) // 1 de 2 já é metade: pane
+  })
+  it('fronteiras da metade dos canais ativos: 1 de 15 e 7 de 15 verdes; 8 de 15 e 15 de 15 vermelhos', () => {
+    expect(known(14, 1, 1, 1)).toEqual({ ok: true })
+    expect(known(8, 7, 7, 7)).toEqual({ ok: true })
+    expect(known(7, 8, 8, 8)).toEqual({ ok: false, message: '8 de 15 canais em erro há mais de 3 dias' })
+    expect(known(0, 15, 15, 15)).toEqual({ ok: false, message: '15 de 15 canais em erro há mais de 3 dias' })
+    expect(known(1, 1, 1, 1, 1)).toEqual({ ok: false, message: '1 de 1 canal em erro há mais de 3 dias' })
+  })
+  it('a metade conta os canais em erro no BANCO (channelsLongError), tenham sido tentados neste disparo ou não', () => {
+    expect(known(0, 0, 0, 8)).toMatchObject({ ok: false })
+    expect(known(0, 0, 0, 7)).toEqual({ ok: true })
+  })
+  it('erro NOVO (canal sem 3 dias de erro) segue a regra de hoje, e o erro conhecido sai da conta e do denominador', () => {
+    expect(known(1, 2, 1, 1)).toEqual({ ok: false, message: '1 de 2 canais falhou' }) // 1 novo, 1 sadio
+    expect(known(5, 2, 1, 1)).toEqual({ ok: true })                                    // 1 novo entre 5 sadios
+    expect(known(1, 3, 1, 1)).toEqual({ ok: false, message: '2 de 3 canais falharam' })
+  })
+  it('sem os campos novos (chamada antiga) vale a regra de antes', () => {
+    expect(batchHealth({ ...base, synced: 1, errors: 1 })).toMatchObject({ ok: false })
+  })
 })
 describe('error channels never starve the cursor', () => {
   it('syncs healthy channels ahead of erroring ones', async () => {
@@ -366,7 +393,7 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
    */
   const world = (o: { syncMs: number; videoMs: number; due: number[]; failWeeklyUntil?: number; lastSync?: string; unclassified?: boolean; stampUnclassified?: boolean; noReopen?: boolean; weeklyThrows?: Record<string, () => Error> }) => {
     let clock = 0
-    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), last_ok_synced_at: null, sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null }))
+    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), last_ok_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null })) // canais que já sincronizaram bem
     const left = new Map(rows.map((r, i) => [r.id, o.due[i]!]))
     const order: string[] = []
     const breakers: unknown[] = []
@@ -387,7 +414,7 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
       WeeklyVersionError,
       syncCompetitorChannel: vi.fn(async (r: { id: string }) => {
         const row = rows.find(x => x.id === r.id)!
-        row.last_synced_at = new Date(clock).toISOString(); clock += o.syncMs
+        row.last_synced_at = new Date(clock).toISOString(); row.last_ok_synced_at = row.last_synced_at; clock += o.syncMs
         if (!classified.has(r.id)) { classified.add(r.id); if (!o.noReopen) row.weekly_pass_date = null }
         return { unitsUsed: 3 }
       }),
@@ -604,6 +631,49 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
     const r = await w.fire('12:40')
     // o erro mais antigo primeiro: é o que está esperando o dono há mais tempo
     expect(r.acao_do_dono).toEqual(['canal Canal 3 em erro há 5 dias: erro sem mensagem registrada', 'canal Canal 0 em erro há 4 dias: não encontrado no YouTube (404)'])
+  })
+  // (portão final, I-4 de software / dados) canal novo pelo CMS: a primeira sincronização roda num after() de 60 s e pode ficar pela metade
+  // (status 'syncing', last_synced_at de agora, sem sincronização boa). Sem isto ele só voltaria na próxima faixa de 6 h, com a prova vermelha.
+  it('I-4: o canal que ainda não teve a PRIMEIRA sincronização boa é devido no disparo seguinte, mesmo já tendo last_synced_at da faixa; os outros seguem a faixa', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [0, 0, 0, 0, 0], lastSync: '12:10' })
+    // 12:10 já é da faixa das 12:00: ninguém é devido por faixa. c0 = parcial (syncing), c1 = parcial parado (idle), c2 = parcial em erro, c3 = parcial ausente
+    Object.assign(w.rows[0]!, { sync_status: 'syncing', last_ok_synced_at: null })
+    Object.assign(w.rows[1]!, { sync_status: 'idle', last_ok_synced_at: null })
+    Object.assign(w.rows[2]!, { sync_status: 'error', last_ok_synced_at: null, sync_error_since: new Date(at(DAY, '12:00')).toISOString() })
+    Object.assign(w.rows[3]!, { last_ok_synced_at: null, missing_since: '2026-10-20' })
+    const sync = await import('@/lib/youtube/competitor-sync')
+    const r = await w.fire('12:40', false)
+    expect(r.synced).toBe(2)
+    expect(vi.mocked(sync.syncCompetitorChannel).mock.calls.map(c => (c[0] as { id: string }).id)).toEqual(['c00', 'c01'])
+    expect(r.remainingDue).toBe(0)
+    // a sincronização boa (o mock grava last_ok) tira o canal da regra: o disparo seguinte volta à faixa
+    const r2 = await w.fire('13:00', false)
+    expect(r2.synced).toBe(0)
+  })
+  it('I-4: o canal em erro desde o começo (nunca sincronizou bem) NÃO é puxado a cada disparo: segue a faixa, como o erro permanente', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [0], lastSync: '12:10' })
+    Object.assign(w.rows[0]!, { sync_status: 'error', last_ok_synced_at: null, sync_error_since: new Date(at(DAY, '12:00')).toISOString() })
+    expect((await w.fire('12:40', false)).synced).toBe(0)
+  })
+  it('I-2 do portão (dados): o canal em erro permanente tentado de novo e que falha de novo NÃO deixa o resumo vermelho; o novo erro (menos de 3 dias) sim', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [0, 0] })
+    const ago = (d: number) => new Date(at(DAY, '12:40') - d * 86_400_000).toISOString()
+    const sync = await import('@/lib/youtube/competitor-sync')
+    const { batchHealth } = await import('@/lib/youtube/competitor-sync-batch')
+    vi.mocked(sync.syncCompetitorChannel).mockImplementation(async (r: { id: string }) => {
+      if (r.id === w.rows[0]!.id) throw new Error('boom')
+      return { unitsUsed: 3 } as never
+    })
+    Object.assign(w.rows[0]!, { sync_status: 'error', sync_error: 'boom', sync_error_since: ago(4), last_ok_synced_at: ago(4.2) })
+    const r = await w.fire('12:40', false)
+    expect(r).toMatchObject({ synced: 1, errors: 1, errorsKnown: 1, channelsLongError: 1, channelsActive: 2 })
+    // 1 de 2 ativos é metade: vermelho pela pane, não pelo erro isolado
+    expect(batchHealth(r)).toMatchObject({ ok: false, message: '1 de 2 canais em erro há mais de 3 dias' })
+    // o mesmo canal com 2 dias de erro é o erro novo da regra de hoje
+    Object.assign(w.rows[0]!, { sync_status: 'error', sync_error_since: ago(2) })
+    const r2 = await w.fire('13:00', false)
+    expect(r2).toMatchObject({ errors: 1, errorsKnown: 0, channelsLongError: 0 })
+    expect(batchHealth(r2)).toMatchObject({ ok: false, message: '1 de 2 canais falhou' })
   })
   it('E: a nota some sozinha quando o canal deixa de estar em erro (recalculada do banco a cada execução)', async () => {
     const w = world({ syncMs: 21_000, videoMs: 1_050, due: [0] })
