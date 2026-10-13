@@ -12,7 +12,7 @@ import {
   CARENCIA_COBERTURA_DIAS, CARENCIA_NORMALIZAR_DIAS, PRAZO_DA_PROVA_MS,
   chamarProva, configE11, type ConfigE11, type ProvaE11, type ResultadoProva,
 } from './e11-config'
-import { pushUnico } from './schema'
+import { ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 
 export type CriteriosE11Ctx = {
   supabase: SupabaseClient
@@ -47,9 +47,28 @@ function ddmm(dia: string): string {
   return `${dia.slice(8, 10)}/${dia.slice(5, 7)}`
 }
 
-function motivoDaProva(r: Extract<ResultadoProva, { ok: false }>): string {
+/**
+ * `schema_ausente` pode ser a MG7 (a função da prova) ou a MG14 (a tabela de cobertura de que a MG7 depende).
+ * Um select de 1 linha na cobertura decide qual migration falta; se ele não responde, vale a MG7. Sem texto do Postgres.
+ */
+async function qualMigrationFalta(sb: SupabaseClient): Promise<string> {
+  const mg7 = 'migration MG7 não aplicada: falta a função yt_own_dim_prova'
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const limite = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), PRAZO_DA_PROVA_MS) })
+    const res = (await Promise.race([Promise.resolve(sb.from('yt_own_video_coverage').select('youtube_video_id').limit(1)), limite])) as
+      { error: ErroBanco | null } | null
+    return res && ehSchemaAusente(res.error) ? 'migration MG14 não aplicada: falta a tabela yt_own_video_coverage' : mg7
+  } catch {
+    return mg7
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function motivoDaProva(r: Extract<ResultadoProva, { ok: false }>, sb: SupabaseClient): Promise<string> {
   switch (r.motivo) {
-    case 'schema_ausente': return 'schema ausente: yt_own_dim_prova'
+    case 'schema_ausente': return qualMigrationFalta(sb)
     case 'sem_resposta': return 'sem resposta em 5 s'
     case 'erro_de_banco': return 'erro de banco'
     case 'forma_inesperada': return `forma inesperada: ${r.campo && r.campo !== '(resposta)' ? r.campo : 'resposta'}`
@@ -99,7 +118,7 @@ export async function criteriosE11(ctx: CriteriosE11Ctx): Promise<CriteriosE11Re
     if (!r.ok) {
       provas[site] = null
       todasInteiras = false
-      pushUnico(falhas, `dimensões: prova não avaliada (${motivoDaProva(r)})${suf(site)}`)
+      pushUnico(falhas, `dimensões: prova não avaliada (${await motivoDaProva(r, ctx.supabase)})${suf(site)}`)
       continue
     }
     const p = r.prova
