@@ -151,7 +151,7 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     expect(c.sub).not.toMatch(/28|dias/)
     medida(c, String(CHEIO.imp))
     expect(c.base).toContain(`de ${w.dm(de)} a ${w.dm(ate)}`)
-    expect(c.base).toContain('2 dias sem relatório ficam fora da soma') // hoje-2 e hoje-1 ainda por baixar
+    expect(c.base).toContain('2 dias sem dado ficam fora da soma') // hoje-2 e hoje-1 ainda por baixar
     expect(c.base).toContain('horário do Pacífico')
   })
 

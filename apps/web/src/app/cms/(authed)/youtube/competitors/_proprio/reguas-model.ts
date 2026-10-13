@@ -124,6 +124,10 @@ export interface DiarioReguas {
   semPct: string
 }
 
+/** A palavra curta do vídeo com menos de DIAS_DE_VIDA_MIN dias de vida (pastilha da coluna) e a frase que a explica: as mesmas no cartão, na lista e na régua. */
+export const PALAVRA_VIDEO_NOVO = 'vídeo novo'
+export const FRASE_VIDEO_NOVO = 'vídeo novo: o alcance chega com 2 a 3 dias de atraso'
+
 export interface EntradaReguas {
   videoId: string
   videos: ReadonlyArray<{ id: string; ytId: string; views: number | null; likes: number | null; comments: number | null; dur: number | null; titulo?: string }>
@@ -140,7 +144,7 @@ export interface EntradaReguas {
    * anterior à publicação não existe para o vídeo: não entra nem em `medidos` nem em `semRelatorio`. Ausente = `dias` (os do canal) vale para todos;
    * a tela do vídeo SEMPRE o passa.
    */
-  diasDe?: (id: string) => { medidos: number; semRelatorio: number }
+  diasDe?: (id: string) => { medidos: number; semRelatorio: number; novo?: boolean }
   /** "de 09/09 a 07/10", como a tela o escreve; null = sem período. */
   periodoTexto: string | null
   /** Por que as impressões não foram lidas ("só quem edita o site vê as impressões"); sem ele, a frase é a de "impressões não medidas". Só vale com `alcanceLido: false`. */
@@ -212,8 +216,8 @@ const FMT_PADRAO = createFmt(createClock(0, 0, 0))
 /** A frase do vídeo ausente de relatório MEDIDO: zero medido, com os dias medidos, os dias sem relatório e a base de comparação. */
 function fraseZeroImpressao(d: EntradaReguas['dias'], nCom: number): string {
   const onde = d.medidos === 1 ? 'em 1 dia medido' : `nos ${d.medidos} dias medidos`
-  const sem = d.semRelatorio > 0 ? ` (${d.semRelatorio === 1 ? '1 dia' : `${d.semRelatorio} dias`} sem relatório)` : ''
-  const base = nCom > 0 ? ` Abaixo ${nCom === 1 ? 'do 1 vídeo' : `dos ${nCom} vídeos`} com impressão.` : ''
+  const sem = d.semRelatorio > 0 ? ` (${d.semRelatorio === 1 ? '1 dia' : `${d.semRelatorio} dias`} sem dado)` : ''
+  const base = nCom > 0 ? ` ${nCom === 1 ? 'O 1 vídeo com impressão fica acima dele.' : `Os ${nCom} vídeos com impressão ficam acima dele.`}` : ''
   return `Nenhuma impressão ${onde}${sem}.${base}`
 }
 
@@ -221,7 +225,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   const F = a.fmt ?? FMT_PADRAO
   const este = a.videos.find(v => v.id === a.videoId)
   if (!este) throw new Error(`réguas: o vídeo ${a.videoId} não está entre os vídeos do canal`)
-  const diasDe = (id: string): { medidos: number; semRelatorio: number } => a.diasDe ? a.diasDe(id) : a.dias
+  const diasDe = (id: string): { medidos: number; semRelatorio: number; novo?: boolean } => a.diasDe ? a.diasDe(id) : a.dias
 
   /* o valor cru de cada número, vídeo a vídeo: null = o vídeo não tem o dado */
   const engajamentoDe = (v: EntradaReguas['videos'][number]): number | null => {
@@ -270,7 +274,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   /** Por que ESTE vídeo não tem o dado. */
   const semODado = (numero: NumeroRegua): string => {
     switch (numero) {
-      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : diasDe(este.id).medidos === 0 ? 'ainda não há dia de alcance medido' : fraseZeroImpressao(diasDe(este.id), nImpressao)
+      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : diasDe(este.id).novo ? FRASE_VIDEO_NOVO : diasDe(este.id).medidos === 0 ? 'ainda não há dia de alcance medido' : fraseZeroImpressao(diasDe(este.id), nImpressao)
       case 'views': return 'sem contagem de views'
       case 'vpd': return a.diario?.semVpd ?? 'sem medida'
       case 'assistido': return a.diario?.semPct ?? 'sem medida'

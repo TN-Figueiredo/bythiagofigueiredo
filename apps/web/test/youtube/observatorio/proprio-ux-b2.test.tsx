@@ -41,17 +41,17 @@ describe('B2 régua: vídeo ausente de relatório medido é ZERO MEDIDO', () => 
     expect(l.valor).toBe('0')
     expect(l.zeroMedido).toBe(true)
     expect(l.pos).toBeNull()
-    expect(l.semRegua).toBe('Nenhuma impressão nos 19 dias medidos (10 dias sem relatório). Abaixo dos 5 vídeos com impressão.')
+    expect(l.semRegua).toBe('Nenhuma impressão nos 19 dias medidos (10 dias sem dado). Os 5 vídeos com impressão ficam acima dele.')
     // os outros vídeos que também não aparecem são zero, não "sem medida"
     expect(l.semMedida).toBe('1 sem impressão no período')
   })
   it('sem dia sem relatório: sem parêntese; um dia só: singular', () => {
-    expect(impLinha(entrada({ videoId: 'v0', dias: { medidos: 29, semRelatorio: 0 } })).semRegua).toBe('Nenhuma impressão nos 29 dias medidos. Abaixo dos 5 vídeos com impressão.')
-    expect(impLinha(entrada({ videoId: 'v0', dias: { medidos: 1, semRelatorio: 1 } })).semRegua).toBe('Nenhuma impressão em 1 dia medido (1 dia sem relatório). Abaixo dos 5 vídeos com impressão.')
+    expect(impLinha(entrada({ videoId: 'v0', dias: { medidos: 29, semRelatorio: 0 } })).semRegua).toBe('Nenhuma impressão nos 29 dias medidos. Os 5 vídeos com impressão ficam acima dele.')
+    expect(impLinha(entrada({ videoId: 'v0', dias: { medidos: 1, semRelatorio: 1 } })).semRegua).toBe('Nenhuma impressão em 1 dia medido (1 dia sem dado). Os 5 vídeos com impressão ficam acima dele.')
   })
   it('nenhum vídeo com impressão: a frase não inventa "abaixo dos 0 vídeos"', () => {
     const l = impLinha(entrada({ videoId: 'v0', porVideo: new Map() }))
-    expect(l).toMatchObject({ valor: '0', zeroMedido: true, semRegua: 'Nenhuma impressão nos 19 dias medidos (10 dias sem relatório).' })
+    expect(l).toMatchObject({ valor: '0', zeroMedido: true, semRegua: 'Nenhuma impressão nos 19 dias medidos (10 dias sem dado).' })
   })
   it('nada lido (relatórios existem, nenhum foi medido): NÃO é zero. valor nulo, sem zeroMedido, e a frase diz que falta medir', () => {
     const l = impLinha(entrada({ videoId: 'v0', porVideo: new Map(), dias: { medidos: 0, semRelatorio: 3 } }))
@@ -99,7 +99,7 @@ describe('B2 régua na tela: zero medido é caixa vazada, não pastilha hachurad
     const celula = container.querySelector('tr[data-numero="impressoes"] td.vb-rg-v')!
     expect(celula.querySelector('.obs-ch-zero')!.textContent).toMatch(/^0/)
     expect(celula.querySelector('.obs-ch-nm')).toBeNull()
-    expect(norm(container.querySelector('tr[data-numero="impressoes"] .vb-rg-sem')!.textContent)).toContain('Nenhuma impressão nos 19 dias medidos (10 dias sem relatório).')
+    expect(norm(container.querySelector('tr[data-numero="impressoes"] .vb-rg-sem')!.textContent)).toContain('Nenhuma impressão nos 19 dias medidos (10 dias sem dado).')
     expect(container.querySelector('tr[data-numero="comentarios"] td.vb-rg-v .obs-ch-nm')!.textContent).toBe('não medido')
   })
   it('nada lido: a célula mantém a hachura "não medido" (não há zero a mostrar)', () => {
@@ -120,22 +120,22 @@ describe('V3 e B2 frase do gráfico: um nome para o mesmo dia, sem repetir', () 
 
   it('nenhuma impressão nos dias medidos: só a contagem dos dias, sem "0 dias com impressão e N medidos em zero"', () => {
     const dias = [dia('2026-09-24', 0), dia('2026-09-25', 0), dia('2026-09-26', null)]
-    expect(buildImpressoes(dias, per, O).resumo).toBe('Nenhuma impressão nos 2 dias medidos (1 dia sem relatório).')
-    expect(buildImpressoes([dia('2026-09-24', 0), dia('2026-09-25', null)], per, O).resumo).toBe('Nenhuma impressão em 1 dia medido (1 dia sem relatório).')
+    expect(buildImpressoes(dias, per, O).resumo).toBe('Nenhuma impressão nos 2 dias medidos (1 dia sem dado).')
+    expect(buildImpressoes([dia('2026-09-24', 0), dia('2026-09-25', null)], per, O).resumo).toBe('Nenhuma impressão em 1 dia medido (1 dia sem dado).')
     expect(buildImpressoes([dia('2026-09-24', 0), dia('2026-09-25', 0)], per, O).resumo).toBe('Nenhuma impressão em 2 dias.')
   })
   it('com impressão e com buracos: "dias medidos", "outros N sem relatório" e "N sem impressão"', () => {
     const dias = [dia('2026-09-24', 18), ...[25, 26, 27, 28, 29].map(n => dia('2026-09-' + n, 0)), ...[30].map(() => dia('2026-09-30', null))]
     const r = buildImpressoes(dias, per, O).resumo!
-    expect(r).toBe('18 impressões e nenhum clique estimado em 6 dias medidos (outro dia sem relatório): 1 dia com impressão e 5 sem impressão.')
+    expect(r).toBe('18 impressões e nenhum clique estimado em 6 dias medidos (outro dia sem dado): 1 dia com impressão e 5 sem impressão.')
     expect(r).not.toMatch(/relatório lido|medidos em zero/)
   })
-  it('vários buracos: "(outros 10 sem relatório)"', () => {
+  it('vários buracos: "(outros 10 sem dado)"', () => {
     const dias = [dia('2026-09-24', 18), ...Array.from({ length: 10 }, (_, k) => dia(`2026-10-${String(k + 1).padStart(2, '0')}`, null))]
-    expect(buildImpressoes(dias, { de: '2026-09-24', ate: '2026-10-10', dias: 17 }, O).resumo).toBe('18 impressões e nenhum clique estimado em 1 dia medido (outros 10 sem relatório): 1 dia com impressão.')
+    expect(buildImpressoes(dias, { de: '2026-09-24', ate: '2026-10-10', dias: 17 }, O).resumo).toBe('18 impressões e nenhum clique estimado em 1 dia medido (outros 10 sem dado): 1 dia com impressão.')
   })
-  it('todos os dias medidos têm impressão: "todos com impressão"', () => {
-    expect(buildImpressoes([dia('2026-09-24', 3), dia('2026-09-25', 4)], per, O).resumo).toBe('7 impressões e nenhum clique estimado em 2 dias: todos com impressão.')
+  it('todos os dias medidos têm impressão: "impressão em todos"', () => {
+    expect(buildImpressoes([dia('2026-09-24', 3), dia('2026-09-25', 4)], per, O).resumo).toBe('7 impressões e nenhum clique estimado em 2 dias medidos: impressão em todos.')
   })
   it('views (C3): a contagem zerada não é recitada', () => {
     const v = { ...O, escopo: 'canal' as const, unidade: 'views' as const }
@@ -145,9 +145,9 @@ describe('V3 e B2 frase do gráfico: um nome para o mesmo dia, sem repetir', () 
   it('legendas do gráfico sem jargão (S2): o que o YouTube enviou e o que não entregou', () => {
     const l = (escopo: 'canal' | 'video') => buildImpressoes([dia('2026-09-24', 0)], per, { ...O, escopo }).legenda.map(x => x.texto)
     expect(l('canal')).toContain('zero medido (caixa vazada): o YouTube enviou o dia sem impressões')
-    expect(l('canal')).toContain('não medido (hachura): o YouTube não entregou o relatório do dia')
+    expect(l('canal')).toContain('não medido (hachura): o dia ainda não chegou')
     expect(l('video')).toContain('zero medido (caixa vazada): o YouTube enviou o dia sem impressões deste vídeo')
-    expect(l('video')).toContain('não medido (hachura): o YouTube não entregou o relatório do dia')
+    expect(l('video')).toContain('não medido (hachura): o dia ainda não chegou')
   })
 })
 
@@ -162,7 +162,7 @@ describe('B2 modelo dos vídeos: sem impressão em dia medido é zero medido, nu
     // um vídeo já publicado no primeiro dia do período (hoje-21): o mais novo (1 dia de vida) não tem dia que valha e NÃO é zero medido (ver proprio-zero-medido.test.ts)
     const sem = m.videos.find(v => v.imp == null && v.pub != null && v.pub <= w.obs.NOW - 23 * 86_400_000)!
     expect(sem).toMatchObject({ semImpressao: true, impText: null, impMissing: null, cliquesText: null, cliquesMissing: null, terceira: 'sem impressão no período' })
-    expect(sem.notas).toContain('Impressões: nenhuma nos 19 dias medidos (2 dias sem relatório), de ' + w.dm(addDays(w.hoje, -21)) + ' a ' + w.dm(addDays(w.hoje, -1)) + '.')
+    expect(sem.notas).toContain('Impressões: nenhuma nos 19 dias medidos (2 dias sem dado), de ' + w.dm(addDays(w.hoje, -21)) + ' a ' + w.dm(addDays(w.hoje, -1)) + '.')
     const com = m.videos.find(v => v.imp != null)!
     expect(com.semImpressao).toBe(false)
   })

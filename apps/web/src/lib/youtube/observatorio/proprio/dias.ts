@@ -16,6 +16,17 @@ export type MotivoDia = 'sem-relatorio' | 'nao-baixado' | 'erro' | 'expirado' | 
  */
 export const DIAS_RECENTES = 2
 
+/**
+ * Menos que isto de vida (hoje menos o dia da publicação) e o vídeo é NOVO: o alcance dele chega com 2 a 3 dias de atraso, então ainda não há
+ * dia fechado e a ausência de linha nunca é zero. UM limite só, para a página do vídeo, o cartão, a lista e a régua.
+ */
+export const DIAS_DE_VIDA_MIN = 3
+
+/** O vídeo é novo (menos de DIAS_DE_VIDA_MIN dias de vida)? Sem data de publicação (`null`) nunca é novo. */
+export function videoNovo(publicadoEm: DiaYt | null | undefined, hoje: DiaYt): boolean {
+  return publicadoEm != null && diffDias(publicadoEm, hoje) < DIAS_DE_VIDA_MIN
+}
+
 /** O dia é hoje (D) ou ontem (D-1)? `hoje` é o dia do YouTube (Pacífico), o mesmo das datas dos relatórios. */
 export function diaRecente(dia: DiaYt, hoje: DiaYt): boolean {
   return dia >= addDays(hoje, -(DIAS_RECENTES - 1))
@@ -238,7 +249,7 @@ export function motivoDiaTexto(m: MotivoDia): string {
     case 'expirado':
       return 'o relatório deste dia expirou sem ser baixado (não medido)'
     case 'recente':
-      return 'dia recente: o YouTube ainda entrega os dados (não medido)'
+      return 'dia recente: o YouTube ainda está entregando; não medido'
     default: {
       const _nunca: never = m
       return _nunca

@@ -17,8 +17,8 @@ import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 import { assistidoDoVideo, contraNormal, MIN_VIDEOS_FAIXA, normalDoCanal, POUCAS_VIEWS } from '@/lib/youtube/observatorio/proprio/assistido'
-import { montarDias, resumir, type DiaAlcance, type Periodo } from '@/lib/youtube/observatorio/proprio/dias'
-import { DIAS_DE_VIDA_MIN, serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
+import { montarDias, resumir, videoNovo, type DiaAlcance, type Periodo } from '@/lib/youtube/observatorio/proprio/dias'
+import { serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
 import { taxaComIntervalo, veredito, type TaxaComIntervalo, type Veredito } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { MIN_DIAS_VPD, vpdDoVideo } from '@/lib/youtube/observatorio/proprio/vpd'
@@ -224,9 +224,10 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
   if (lido.estado !== 'ok') return { medido: false, frase: SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
   const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
-  if (o.pubDia != null && diffDias(o.pubDia, o.hoje) < DIAS_DE_VIDA_MIN) return novo
   // a regra dos dias que valem para o vídeo (a partir da publicação; D e D-1 sem linha são "não medido") é a de `montarDias`, a mesma da régua e do cartão
   const montado = montarDias(alcance, { hoje: o.hoje, ytId: o.ytId, publicadoEm: o.pubDia })
+  // vídeo novo (menos de DIAS_DE_VIDA_MIN dias de vida) SEM linha de alcance desde a publicação: a seção diz "vídeo novo". Com linha, o dado existe e a seção o mostra (a mesma regra do cartão e da régua)
+  if (videoNovo(o.pubDia, o.hoje) && !montado.dias.some(x => x.situacao === 'com-impressoes')) return novo
   if (montado.periodo == null || montado.dias.length === 0) return novo
   const dias = montado.dias
   const periodo: Periodo = montado.periodo
@@ -429,13 +430,17 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   }
   // os dias que valem para CADA vídeo da régua: a partir da publicação dele, D e D-1 sem linha fora do zero (a regra de `montarDias`, a mesma do gráfico)
   const pubDiaDe = new Map(obs.videos.filter(v => v.ch === ch.id).map(v => [v.id, dayPt(new Date(v.pub))] as const))
-  const memoDias = new Map<string, { medidos: number; semRelatorio: number }>()
-  const diasDoVideo = (id: string): { medidos: number; semRelatorio: number } => {
+  const memoDias = new Map<string, { medidos: number; semRelatorio: number; novo: boolean }>()
+  const diasDoVideo = (id: string): { medidos: number; semRelatorio: number; novo: boolean } => {
     const hit = memoDias.get(id)
     if (hit) return hit
     const v = videos.find(x => x.id === id)
-    const r = v ? resumir(montarDias(alcance, { hoje, ytId: v.ytId, publicadoEm: pubDiaDe.get(id) ?? null }).dias) : null
-    const out = { medidos: r?.diasLidos ?? 0, semRelatorio: r?.diasNaoMedidos ?? 0 }
+    const pub = pubDiaDe.get(id) ?? null
+    const dias = v ? montarDias(alcance, { hoje, ytId: v.ytId, publicadoEm: pub }).dias : []
+    // vídeo novo e sem linha desde a publicação: nenhum dia vale ainda (a mesma regra do cartão e da página); com linha, os dias dele contam como sempre
+    const novo = v != null && videoNovo(pub, hoje) && !dias.some(x => x.situacao === 'com-impressoes')
+    const r = v && !novo ? resumir(dias) : null
+    const out = { medidos: r?.diasLidos ?? 0, semRelatorio: r?.diasNaoMedidos ?? 0, novo }
     memoDias.set(id, out)
     return out
   }

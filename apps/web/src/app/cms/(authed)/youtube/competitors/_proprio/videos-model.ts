@@ -16,7 +16,7 @@
  * (UMA vez, no topo da grade), é `viewsPorDiaFrase`; a de cada vídeo vai em "Ações do vídeo" (`notas`). `vpd7`/`vpdText` do motor ficam nulos.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import { montarDias, resumir, type AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
+import { montarDias, resumir, videoNovo, type AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
@@ -26,6 +26,7 @@ import { vpdText } from '../_canal/numeros'
 import type { DadosDoCanal } from './dados'
 import { cliquesTexto, FRASE_NADA_LIDO, fraseDoAlcance, lerEstado } from './header-model'
 import { VPD_SO_LONGOS, longosAcompanhados } from './extras'
+import { FRASE_VIDEO_NOVO, PALAVRA_VIDEO_NOVO } from './reguas-model'
 
 export interface ProprioVideoView extends ChannelVideoView {
   /**
@@ -121,9 +122,9 @@ export function buildProprioVideos(
   const motivoLeitura = leitura.motivo != null && MOTIVOS_DE_LEITURA.includes(leitura.motivo) ? leitura.motivo : null
 
   /** Os dias que valem para o vídeo (a partir da publicação, D e D-1 sem linha fora do zero): a mesma regra do gráfico do vídeo. */
-  const diasDoVideo = (v: { ytId: string; pub: number | null }) => {
+  const diasDoVideo = (v: { ytId: string }, publicadoEm: DiaYt | null) => {
     if (dados.alcance.acesso !== 'ok') return { periodo: null, resumo: resumir([]) }
-    const m = montarDias(dados.alcance.dado, { hoje: o.hoje, ytId: v.ytId, publicadoEm: v.pub != null ? dayPt(new Date(v.pub)) : null })
+    const m = montarDias(dados.alcance.dado, { hoje: o.hoje, ytId: v.ytId, publicadoEm })
     return { periodo: m.periodo, resumo: resumir(m.dias) }
   }
   const videos = base.videos.map((v): ProprioVideoView => {
@@ -139,16 +140,22 @@ export function buildProprioVideos(
       const a = porVideo?.get(v.ytId) ?? null
       terceira = terceiraLinha(a)
       if (a == null) {
-        const dv = diasDoVideo(v)
-        if (dv.resumo.diasLidos === 0) {
-          // nenhum dia valeu para ESTE vídeo (publicado depois do último dia medido, ou só D e D-1): ainda não há o que dizer, e zero seria inventar
-          impMissing = cliquesMissing = palavraDaColuna('nada-lido')
+        const publicadoEm = v.pub != null ? dayPt(new Date(v.pub)) : null
+        const dv = diasDoVideo(v, publicadoEm)
+        if (videoNovo(publicadoEm, o.hoje)) {
+          // menos de 3 dias de vida (o mesmo limite da página e da régua): o alcance chega com 2 a 3 dias de atraso, então ausência de linha nunca é zero
+          impMissing = cliquesMissing = PALAVRA_VIDEO_NOVO
+          terceira = ''
+          notas.push(`Impressões e cliques: ${FRASE_VIDEO_NOVO}.`)
+        } else if (dv.resumo.diasLidos === 0) {
+          // nenhum dia valeu para ESTE vídeo (o último dia medido é anterior à publicação dele): ainda não há o que dizer, e zero seria inventar
+          impMissing = cliquesMissing = 'não medido'
           terceira = ''
         } else {
           // há dia medido desde a publicação (D e D-1 não contam) e o vídeo não apareceu em nenhum: zero medido, não "não medido"
           semImpressao = true
           const medidos = dv.resumo.diasLidos
-          const sem = dv.resumo.diasNaoMedidos > 0 ? ` (${plural(dv.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório)` : ''
+          const sem = dv.resumo.diasNaoMedidos > 0 ? ` (${plural(dv.resumo.diasNaoMedidos, 'dia', 'dias')} sem dado)` : ''
           const periodoDoVideo = dv.periodo != null ? `de ${dm(dv.periodo.de)} a ${dm(dv.periodo.ate)}` : periodoTxt
           notas.push(`Impressões: nenhuma ${medidos === 1 ? 'em' : 'nos'} ${plural(medidos, 'dia medido', 'dias medidos')}${sem}, ${periodoDoVideo}.`)
         }

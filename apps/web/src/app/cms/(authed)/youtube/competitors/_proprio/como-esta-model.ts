@@ -130,7 +130,7 @@ function fraseDoTopo(estado: Estado, a: EntradaComoEsta): string {
     case 'zero': {
       const base = zeroBase(r)
       if (r.diasNaoMedidos === 0) return base
-      return `${base} ${r.diasNaoMedidos === 1 ? 'O 1 dia sem relatório não entra' : `Os ${int(r.diasNaoMedidos)} dias sem relatório não entram`} na conta.`
+      return `${base} ${r.diasNaoMedidos === 1 ? 'O 1 dia sem dado não entra' : `Os ${int(r.diasNaoMedidos)} dias sem dado não entram`} na conta.`
     }
     case 'ok': {
       const imp = plural(r.imp ?? 0, 'impressão', 'impressões')

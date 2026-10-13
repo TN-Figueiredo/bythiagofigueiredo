@@ -196,7 +196,7 @@ function naoMedidoTexto(m: MotivoDia | null): string {
     case 'expirado':
       return 'relatório expirado sem baixar: não medido'
     case 'recente':
-      return 'dia recente, ainda chegando: não medido'
+      return 'dia recente: o YouTube ainda está entregando; não medido'
     default: {
       const _nunca: never = m
       return _nunca
@@ -275,15 +275,17 @@ function resumoTexto(r: ResumoAlcance, total: number): string {
   // a frase só fala dos dias MEDIDOS: o dia sem relatório não entra na soma e a manchete não finge que entrou (nem que não houve impressão nele)
   const buracos = r.diasNaoMedidos > 0
   const zero = r.diasLidos - r.diasComImpressao
-  const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
+  // "impressão em todos" fala dos dias medidos; sem buraco o total é o mesmo número, mas a frase diz "medidos" para não parecer "todos os vídeos"
+  const todosComImpressao = zero === 0 && r.diasComImpressao !== 1
+  const dias = buracos || todosComImpressao ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
   if (r.imp === 0) {
     // um único dia medido: "em 1 dia medido" (nunca "no 1 dia medido"); vários: "nos N dias medidos"
     const onde = buracos && r.diasLidos !== 1 ? `nos ${dias}` : `em ${dias}`
-    const sem = buracos ? ` (${plural(r.diasNaoMedidos, 'dia', 'dias')} sem relatório)` : ''
+    const sem = buracos ? ` (${plural(r.diasNaoMedidos, 'dia', 'dias')} sem dado)` : ''
     return `Nenhuma impressão ${onde}${sem}.`
   }
-  const sem = buracos ? ` (${r.diasNaoMedidos === 1 ? 'outro dia' : `outros ${int(r.diasNaoMedidos)}`} sem relatório)` : ''
-  const partes = partesDosDias(r.diasComImpressao, zero, 'dia com impressão', 'dias com impressão', 'sem impressão', 'todos com impressão')
+  const sem = buracos ? ` (${r.diasNaoMedidos === 1 ? 'outro dia' : `outros ${int(r.diasNaoMedidos)}`} sem dado)` : ''
+  const partes = partesDosDias(r.diasComImpressao, zero, 'dia com impressão', 'dias com impressão', 'sem impressão', 'impressão em todos')
   const imp = plural(r.imp, 'impressão', 'impressões')
   if (r.cliques == null) return `${imp} em ${dias}${sem}, com cliques estimados não medidos em algum dia: ${partes}.`
   const cliques = r.cliques <= 0 ? 'nenhum clique estimado' : Math.round(r.cliques) === 0 ? 'menos de 1 clique estimado' : plural(Math.round(r.cliques), 'clique estimado', 'cliques estimados')
@@ -315,7 +317,7 @@ function legendaDe(escopo: 'canal' | 'video', unidade: Unidade): LegendaItem[] {
     { situacao: 'com-impressoes', texto: 'impressões do dia (barra cheia)' },
     { situacao: 'cliques', texto: 'cliques estimados do dia' },
     { situacao: 'zero-medido', texto: escopo === 'video' ? 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões deste vídeo' : 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões' },
-    { situacao: 'nao-medido', texto: 'não medido (hachura): o YouTube não entregou o relatório do dia' },
+    { situacao: 'nao-medido', texto: 'não medido (hachura): o dia ainda não chegou' },
   ]
 }
 

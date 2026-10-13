@@ -57,7 +57,7 @@ describe('as réguas do vídeo', () => {
   })
   it('vídeo sem impressão em dia medido: ZERO MEDIDO ("0", sem régua e sem posição) com a frase dos dias medidos; a frase abre com "Sem impressão no período." (B2: antes era valor nulo e "sem impressão de 09/09 a 07/10")', () => {
     const r = buildReguas({ ...base, videoId: 'v5' })
-    expect(r.linhas[0]).toMatchObject({ valor: '0', zeroMedido: true, pos: null, tracos: [], semRegua: 'Nenhuma impressão nos 19 dias medidos (2 dias sem relatório). Abaixo dos 4 vídeos com impressão.' })
+    expect(r.linhas[0]).toMatchObject({ valor: '0', zeroMedido: true, pos: null, tracos: [], semRegua: 'Nenhuma impressão nos 19 dias medidos (2 dias sem dado). Os 4 vídeos com impressão ficam acima dele.' })
     expect(r.frase.startsWith('Sem impressão no período.')).toBe(true)
   })
   it('alcance não lido: a linha de impressões diz o motivo e a frase não fala de impressões', () => {
@@ -216,13 +216,13 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
   })
   it('lido mas sem nenhum vídeo com impressão: zero medido na linha (sem "abaixo dos 0"), sem base e sem "pouco" (nada a comparar) (B2)', () => {
     const r = buildReguas({ ...base(mk(6), new Map(), true), videoId: 'v0' })
-    expect(linha(r, 'impressoes')).toMatchObject({ valor: '0', zeroMedido: true, pos: null, semRegua: 'Nenhuma impressão nos 19 dias medidos (2 dias sem relatório).' })
+    expect(linha(r, 'impressoes')).toMatchObject({ valor: '0', zeroMedido: true, pos: null, semRegua: 'Nenhuma impressão nos 19 dias medidos (2 dias sem dado).' })
     expect(r.base).toBeNull(); expect(r.pouco).toBeNull()
     expect(r.frase.startsWith('Sem impressão no período.')).toBe(true)
   })
   it('lido, sem período escrito: a frase dos dias medidos não depende do período (B2); sem nenhum dia medido, "ainda não há dia de alcance medido" e nunca zero', () => {
     const r = buildReguas({ ...base(mk(6), new Map(), true), periodoTexto: null, videoId: 'v0' })
-    expect(linha(r, 'impressoes').semRegua).toBe('Nenhuma impressão nos 19 dias medidos (2 dias sem relatório).')
+    expect(linha(r, 'impressoes').semRegua).toBe('Nenhuma impressão nos 19 dias medidos (2 dias sem dado).')
     const nada = buildReguas({ ...base(mk(6), new Map(), true), dias: { medidos: 0, semRelatorio: 3 }, videoId: 'v0' })
     expect(linha(nada, 'impressoes')).toMatchObject({ valor: null, zeroMedido: false, semRegua: 'ainda não há dia de alcance medido' })
   })
