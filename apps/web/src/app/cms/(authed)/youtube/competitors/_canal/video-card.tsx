@@ -86,11 +86,13 @@ function Selos({ v }: { v: ChannelVideoView }) {
   )
 }
 
-export function VideoCard({ v, sort, href, onAmpliar, onTrocas }: {
+export function VideoCard({ v, sort, href, onAmpliar, onTrocas, oculto = false }: {
   v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
+  /** Além da página atual do "Mostrar mais" do celular: o CSS esconde o cartão a 480 px ou menos (`grade-paginacao.ts`). */
+  oculto?: boolean
 }) {
   return (
-    <li className="cv-card" data-id={v.id}>
+    <li className="cv-card" data-id={v.id} data-pag-oculto={oculto ? '' : undefined}>
       <Link prefetch={false} className="cv-lnk" id={'cv-lnk-' + v.id} href={href}>
         <span className="cv-thumb">{v.thumbSrc ? <img src={v.thumbSrc} alt="" width={320} height={180} loading="lazy" decoding="async" /> : null}</span>
         <span className="cv-ttl obs-ch-ttl">{v.title}</span>

@@ -25,27 +25,38 @@ export function notaDoDivisor(d: Divisor, sort: CanalSort): string {
   }
 }
 
-export function Grade({ lista, sort, nome, hrefDe, onAmpliar, onTrocas }: {
+/**
+ * `limite` é o teto de cartões da página atual do "Mostrar mais" do celular (lotes × 24, `grade-paginacao.ts`). Os cartões além dele continuam no
+ * documento, marcados com `data-pag-oculto`: o CSS só os esconde a 480 px ou menos, então em tela larga a grade segue inteira. O divisor cujo primeiro
+ * cartão está escondido também se esconde. Quem mostra o botão e conta os lotes é quem chama.
+ */
+export function Grade({ lista, sort, nome, hrefDe, onAmpliar, onTrocas, limite = Infinity }: {
   lista: ListaView; sort: CanalSort; nome: string
   hrefDe: (v: ChannelVideoView) => string
   onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
+  limite?: number
 }) {
+  let pos = 0
   return (
     <ul className="cv-grid" data-ord={sort} aria-label={'Vídeos de ' + nome}>
-      {lista.secoes.map((s, i) => (
-        <SecaoGrade key={s.divisor?.key ?? 'main' + i} divisor={s.divisor} sort={sort}>
-          {s.itens.map(v => <VideoCard key={v.id} v={v} sort={sort} href={hrefDe(v)} onAmpliar={onAmpliar} onTrocas={onTrocas} />)}
-        </SecaoGrade>
-      ))}
+      {lista.secoes.map((s, i) => {
+        const inicio = pos
+        pos += s.itens.length
+        return (
+          <SecaoGrade key={s.divisor?.key ?? 'main' + i} divisor={s.divisor} sort={sort} oculto={inicio >= limite}>
+            {s.itens.map((v, j) => <VideoCard key={v.id} v={v} sort={sort} href={hrefDe(v)} onAmpliar={onAmpliar} onTrocas={onTrocas} oculto={inicio + j >= limite} />)}
+          </SecaoGrade>
+        )
+      })}
     </ul>
   )
 }
 
-function SecaoGrade({ divisor, sort, children }: { divisor: Divisor | null; sort: CanalSort; children: ReactNode }) {
+function SecaoGrade({ divisor, sort, oculto, children }: { divisor: Divisor | null; sort: CanalSort; oculto: boolean; children: ReactNode }) {
   return (
     <>
       {divisor ? (
-        <li className="cv-div"><h3>{divisor.label} ({divisor.count})</h3><small>{notaDoDivisor(divisor, sort)}</small></li>
+        <li className="cv-div" data-pag-oculto={oculto ? '' : undefined}><h3>{divisor.label} ({divisor.count})</h3><small>{notaDoDivisor(divisor, sort)}</small></li>
       ) : null}
       {children}
     </>

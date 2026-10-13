@@ -26,6 +26,7 @@ import { CanalHeader } from './canal-header'
 import { CarregarMais } from './carregar-mais'
 import { Controles, FMT_NOME, SORT_NOME } from './controles'
 import { Grade } from './grade'
+import { paginarGrade, TAMANHO_PAGINA } from './grade-paginacao'
 import { Tabela } from './tabela'
 import { Trocas } from './trocas'
 import { montarLista, type ListaView } from './lista'
@@ -209,6 +210,15 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
     anunciar(() => `${FMT_NOME.todos}, ${contagem(l.visiveis.length)}`)
   }
 
+  /* "Mostrar mais" da grade a 480 px ou menos (24 em 24, `grade-paginacao.ts`): quantos lotes a pessoa pediu. Filtro, ordem, direção e busca recomeçam na
+     primeira página (o estado é trocado durante o render, no padrão do React para estado derivado de prop). Em tela larga o CSS ignora tudo isto. */
+  const chavePag = `${state.fmt}|${state.sort}|${state.dir}|${state.q}`
+  const [pag, setPag] = useState({ chave: chavePag, lotes: 1 })
+  if (pag.chave !== chavePag) setPag({ chave: chavePag, lotes: 1 })
+  const lotes = pag.chave === chavePag ? pag.lotes : 1
+  const pagina = paginarGrade(lista.visiveis.length, lotes)
+  const naGrade = state.ver !== 'lista'
+
   /* "Carregar mais": o foco vai para o primeiro cartão novo (sem rolar) e o status diz quantos vieram */
   const focoNoNovo = useRef<string | null>(null)
   useLayoutEffect(() => {
@@ -223,9 +233,19 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
     const antes = new Set(lista.visiveis)
     const novos = depois.visiveis.filter(id => !antes.has(id))
     focoNoNovo.current = novos[0] ?? null
+    setPag({ chave: chavePag, lotes: Math.max(lotes, Math.ceil(depois.visiveis.length / TAMANHO_PAGINA)) })   // o lote novo de antigos aparece inteiro
     set({ n })
     anunciar(() => `Mostrando ${depois.visiveis.length} de ${depois.mais?.total ?? depois.visiveis.length} vídeos. `
       + `${plural(novos.length, 'vídeo antigo carregado', 'vídeos antigos carregados')}${depois.mais ? '.' : '. Não falta nenhum.'}`)
+  }
+
+  /* "Mostrar mais" da grade: o foco vai ao primeiro cartão novo (sem rolar: ele só aparece embaixo do que já se viu) e o status diz quantos vieram */
+  const onMostrar = () => {
+    const depois = paginarGrade(lista.visiveis.length, lotes + 1)
+    const novos = lista.visiveis.slice(pagina.mostrando, depois.mostrando)
+    focoNoNovo.current = novos[0] ?? null
+    setPag({ chave: chavePag, lotes: lotes + 1 })
+    anunciar(() => `Mostrando ${depois.mostrando} de ${lista.mais?.total ?? lista.visiveis.length} vídeos. ${plural(novos.length, 'vídeo novo', 'vídeos novos')}${depois.ocultos ? '.' : '. Não falta nenhum.'}`)
   }
 
   const verTrocas = (v: ChannelVideoView) => set({ tab: 'trocas', video: v.id })
@@ -257,7 +277,7 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
           {lista.secoes.length
             ? state.ver === 'lista'
               ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} proprio={proprio} />
-              : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={onAmpliar} onTrocas={verTrocas} />
+              : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={onAmpliar} onTrocas={verTrocas} limite={pagina.limite} />
             : null}
           <div id="cv-fim" tabIndex={-1} />
           {lista.vazio ? (
@@ -271,7 +291,11 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
               ) : null}
             </div>
           ) : null}
-          {lista.mais ? <CarregarMais mais={lista.mais} onMais={onMais} /> : null}
+          {naGrade && pagina.botao ? (
+            <CarregarMais mais={{ mostrando: pagina.mostrando, total: lista.mais?.total ?? lista.visiveis.length, frase: pagina.frase!, botao: pagina.botao }}
+              onMais={onMostrar} rotulo="Mostrar mais vídeos" marca="cv-pag" />
+          ) : null}
+          {lista.mais ? <CarregarMais mais={lista.mais} onMais={onMais} espera={naGrade && pagina.ocultos > 0} /> : null}
           <p className="cv-foot" id="cv-foot">{videos.nota}</p>
         </>
       ) : (
