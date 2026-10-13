@@ -434,7 +434,7 @@ describe('E14: as duas tarefas dos comentários de destaque', () => {
       const antes = await ANTES('interruptor')
       expect(JSON.stringify(antes)).not.toContain('sentinela')
       expect(JSON.stringify(vi.mocked(fechar).mock.calls.map(c => c[1]))).not.toContain('sentinela')
-      expect(antes.problemas).toEqual(['anular identidade de autores: retratos falharam com erro inesperado (ver Sentry)'])
+      expect(antes.problemas).toEqual(['anular identidade de autores: a anulação falhou com erro inesperado (ver Sentry)']) // m-7: frase própria da anulação
       expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain('sentinela')
     })
     it('o motivo devolvido é sempre um item de CODIGOS_EXECUCAO ou schema_nao_conferido, no formato da agenda (sem dois-pontos)', async () => {
@@ -479,7 +479,8 @@ describe('E14: as duas tarefas dos comentários de destaque', () => {
       for (const nome of NOMES) {
         const t = tarefa(nome)
         for (const c of Object.keys(t.motivos)) expect(Object.hasOwn(MOTIVOS_COMUNS, c), `${nome}/${c}`).toBe(false)
-        for (const [c, f] of Object.entries(t.motivos)) expect(f, `${nome}/${c}`).toBe(FRASES_FIXAS[c as keyof typeof FRASES_FIXAS])
+        // m-7: a única exceção é o `inesperado` da anulação, que tem frase própria (a da E14 fala de "retratos")
+        for (const [c, f] of Object.entries(t.motivos)) expect(f, `${nome}/${c}`).toBe(nome === 'anular_identidade' && c === 'inesperado' ? 'a anulação falhou com erro inesperado (ver Sentry)' : FRASES_FIXAS[c as keyof typeof FRASES_FIXAS])
         expect(Object.keys(t.motivos).length).toBe(Object.keys(FRASES_FIXAS).length - Object.keys(FRASES_FIXAS).filter(c => Object.hasOwn(MOTIVOS_COMUNS, c)).length)
       }
     })
@@ -554,12 +555,26 @@ describe('E14: as duas tarefas dos comentários de destaque', () => {
       expect(relatos()).toEqual(['comentarios: anular: prova_ilegivel'])
       expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain('sentinela')
     })
-    it('tarefa que lança: a frase é a fixa "<rótulo>: retratos falharam com erro inesperado (ver Sentry)", sem "undefined"', async () => {
+    it('tarefa que lança: a frase é a fixa do `inesperado` da tarefa ("retratos falharam…" nos retratos, "a anulação falhou…" na anulação; m-7), sem "undefined"', async () => {
+      const esperada: Record<string, string> = {
+        anular_identidade: 'a anulação falhou com erro inesperado (ver Sentry)',
+        retratos_comentarios: 'retratos falharam com erro inesperado (ver Sentry)',
+      }
       for (const nome of NOMES) {
         mod(nome).mockRejectedValueOnce(new Error(SENT))
         const r = await rodarTarefa(nome)
-        expect(fraseDoMotivo(tarefa(nome), r.motivo, r.detalhe)).toBe(`${tarefa(nome).rotulo}: retratos falharam com erro inesperado (ver Sentry)`)
+        expect(fraseDoMotivo(tarefa(nome), r.motivo, r.detalhe)).toBe(`${tarefa(nome).rotulo}: ${esperada[nome]}`)
+        // mesmo com o detalhe numérico do retrato, a anulação não fala de "retratos"
+        expect(fraseDoMotivo(tarefa('anular_identidade'), 'inesperado', { inesperados: 3 })).toBe('anular identidade de autores: a anulação falhou com erro inesperado (ver Sentry)')
       }
+    })
+    it('m-7: as outras frases da anulação são as 18 da E14, sem mudança (só `inesperado` tem frase própria)', () => {
+      const def = tarefa('anular_identidade')
+      for (const [codigo, frase] of Object.entries(FRASES_FIXAS)) {
+        if (codigo === 'inesperado' || Object.hasOwn(MOTIVOS_COMUNS, codigo)) continue
+        expect(def.motivos[codigo], codigo).toBe(frase)
+      }
+      expect(Object.keys(def.motivos).sort()).toEqual(Object.keys(FRASES_FIXAS).filter(c => !Object.hasOwn(MOTIVOS_COMUNS, c)).sort())
     })
     it('a coleta com COMMENT_SINCE a decidir (o valor de hoje) é vermelha e visível: inicio_nao_decidido, sem chamar o YouTube nem o banco', async () => {
       vi.mocked(runRetratosComentarios).mockRestore()

@@ -379,6 +379,28 @@ describe('o grafo de imports do vigia', () => {
     expect(r.filter(f => f.startsWith('lib/youtube/agenda/tarefas/'))).toEqual([])
   })
 
+  // m-4 do portão final: as definições são "leves de propósito", mas importavam VALOR de competitor-sync-batch.ts (Sentry, cliente de serviço,
+  // sync, captura, cota, notificações, classificador de Shorts) e por isso `/api/health` e o `cron-watchdog` carregavam a coleta inteira.
+  it('saude.ts e definicoes.ts não alcançam competitor-sync-batch.ts (as constantes de tempo moram num módulo só de constantes)', () => {
+    for (const f of ['lib/youtube/agenda/saude.ts', 'lib/youtube/agenda/definicoes.ts']) {
+      const r = rel(alcanca(join(SRC, f)))
+      expect(r, f).not.toContain('lib/youtube/competitor-sync-batch.ts')
+      expect(r, f).toContain('lib/youtube/competitor-batch-constantes.ts')
+    }
+  })
+
+  it('o módulo de constantes não importa nada (nem a coleta), e competitor-sync-batch.ts continua exportando os mesmos valores', async () => {
+    const r = rel(alcanca(join(SRC, 'lib/youtube/competitor-batch-constantes.ts')))
+    expect(r).toEqual(['lib/youtube/competitor-batch-constantes.ts'])
+    const constantes = await import('@/lib/youtube/competitor-batch-constantes')
+    const lote = await import('@/lib/youtube/competitor-sync-batch')
+    expect(constantes.BATCH_BUDGET_MS).toBe(200_000)
+    expect(constantes.WEEKLY_DEADLINE_MS).toBe(210_000)
+    for (const nome of ['COMPETITORS_MAX_DURATION_S', 'PROOF_TIMEOUT_MS', 'RECORD_RESERVE_MS', 'FINISH_RESERVE_MS', 'CHANNEL_CALL_WORST_MS', 'WEEKLY_CALL_WORST_MS', 'BATCH_BUDGET_MS', 'WEEKLY_DEADLINE_MS'] as const) {
+      expect(lote[nome], nome).toBe(constantes[nome])
+    }
+  })
+
   it('competitor-sync-batch.ts e competitor-health.ts continuam sem importar catalogo, definicoes nem executar', () => {
     for (const f of ['lib/youtube/competitor-sync-batch.ts', 'lib/youtube/competitor-health.ts']) {
       const r = rel(alcanca(join(SRC, f)))

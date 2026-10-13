@@ -269,6 +269,20 @@ describe('a lista que roda antes do lote antigo, na rota', () => {
     })
   })
 
+  // m-6 do portão final: as notas do caminho sem agenda ("estado da agenda não lido", "tomada não confirmada", "não foi possível gravar o fecho")
+  // eram descartadas; agora chegam à resposta, e só quando existem.
+  it('as notas da lista que roda antes do lote chegam à resposta em notas_antes (sucesso e saída antecipada); sem nota a chave não existe', async () => {
+    vi.mocked(rodarAntesDoLoteAntigo).mockResolvedValue({ tarefas: [], problemas: [], notas: ['anulação de identidade: estado da agenda não lido (o banco não respondeu)'] })
+    const ok = await (await GET(req())).json()
+    expect(ok.notas_antes).toEqual(['anulação de identidade: estado da agenda não lido (o banco não respondeu)'])
+    vi.mocked(runCompetitorBatch).mockRejectedValue(new Error('X'))
+    const erro = await (await GET(req())).json()
+    expect(erro.notas_antes).toEqual(['anulação de identidade: estado da agenda não lido (o banco não respondeu)'])
+    vi.mocked(rodarAntesDoLoteAntigo).mockResolvedValue(agendaVazia)
+    vi.mocked(runCompetitorBatch).mockResolvedValue(lote() as never)
+    expect('notas_antes' in await (await GET(req())).json()).toBe(false)
+  })
+
   it('lista vazia: a resposta com OBS_AGENDA=off é a de hoje mais a chave agenda_desligada; antes_do_lote não existe', async () => {
     const c = await (await GET(req())).json()
     expect(c).toMatchObject({ mode: 'competitors', synced: 0, prova: { ok: true } })
