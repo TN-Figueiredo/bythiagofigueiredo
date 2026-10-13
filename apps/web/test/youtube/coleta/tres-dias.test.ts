@@ -48,7 +48,7 @@ import { criarReportingClient, empacotarCsv, type ReportingClient } from '@/lib/
 import { REACH_TYPES, REPORT_TYPES_ENABLED, ReportingHttpError, type Job, type Report } from '@/lib/youtube/reporting/types'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getSiteOwners } from '@/lib/notifications/get-site-owners'
-import { comReachApply, fakeSupabase, type FakeDb, type Row } from './fake-supabase'
+import { comE11Padrao, comReachApply, fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
 const DIA_MS = 86_400_000
 // O cron roda às 12:00 UTC. Três execuções em dias seguidos.
@@ -66,10 +66,12 @@ const TOTAL_HISTORICO = N_JOBS * HISTORICO_POR_JOB
 const ALCANCE_POR_CANAL = REACH_TYPES.length * HISTORICO_POR_JOB
 
 // Os dois canais de produção: um sem nenhum vídeo, outro com vídeos cuja última publicação é antiga.
-const SEM_VIDEO = { id: 'ch-vazio', channel_id: 'UCvazio', site_id: 'site-1', name: 'Canal Sem Vídeo', sync_enabled: true, collection_status: 'ok' as const, video_count: 0 }
-const ANTIGO = { id: 'ch-antigo', channel_id: 'UCantigo', site_id: 'site-1', name: 'Canal Antigo', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
+// (A5 E11: os ids têm a FORMA real, `UC` + 22 caracteres e vídeo com 11: o leitor dos dois relatórios da E11 recusa linha com id fora da forma.)
+const SEM_VIDEO = { id: 'ch-vazio', channel_id: 'UCvazio'.padEnd(24, '0'), site_id: 'site-1', name: 'Canal Sem Vídeo', sync_enabled: true, collection_status: 'ok' as const, video_count: 0 }
+const ANTIGO = { id: 'ch-antigo', channel_id: 'UCantigo'.padEnd(24, '0'), site_id: 'site-1', name: 'Canal Antigo', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
+const idDoVideo = (canal: string, n: number): string => `ytv${canal === 'ch-antigo' ? 'Antigo' : 'Vazio0'}${String(n).padStart(2, '0')}`
 const video = (n: number, canal: string, publicadoEm: string): Row => ({
-  id: `v-${canal}-${n}`, youtube_video_id: `yt-${canal}-${n}`, channel_id: canal, site_id: 'site-1',
+  id: `v-${canal}-${n}`, youtube_video_id: idDoVideo(canal, n), channel_id: canal, site_id: 'site-1',
   title: `Título ${n}`, description: `Descrição ${n}`, tags: ['a'], duration_seconds: 600, published_at: publicadoEm,
 })
 // Mais de 90 dias antes do dia 1.
@@ -82,8 +84,21 @@ const csvComDado = (uc: string, videoId: string, dia: string, colunaExtra = fals
     ? `${CABECALHO_ALCANCE},extra\n${dia},${uc},${videoId},100,0.05,x\n`
     : `${CABECALHO_ALCANCE}\n${dia},${uc},${videoId},100,0.05\n`)
 const csvSoCabecalho = (): Buffer => Buffer.from(`${CABECALHO_ALCANCE}\n`)
-/** O primeiro vídeo do canal dono do UC… (para ANTIGO, `yt-ch-antigo-1`). */
-const primeiroVideoDe = (uc: string): string => `yt-${uc === ANTIGO.channel_id ? ANTIGO.id : SEM_VIDEO.id}-1`
+// A5 E11: os dois tipos de E11 têm normalizador de verdade, então o CSV de cada um precisa ter o cabeçalho do SEU tipo (antes, todo tipo
+// vinha com o cabeçalho do alcance básico e só o básico era lido). Só o alcance básico leva a coluna extra do teste "cabeçalho muda".
+const CABECALHO_COMBINADO = 'date,channel_id,video_id,device_type,operating_system,traffic_source_type,traffic_source_detail,video_thumbnail_impressions,video_thumbnail_impressions_ctr'
+const CABECALHO_TRAFEGO = 'date,channel_id,video_id,live_or_on_demand,subscribed_status,country_code,traffic_source_type,traffic_source_detail,views,engaged_views,watch_time_minutes,average_view_duration_seconds,average_view_duration_percentage,red_views,red_watch_time_minutes'
+const csvDoTipo = (tipo: string, uc: string, videoId: string, dia: string, semDado: boolean, colunaExtra: boolean): Buffer => {
+  if (tipo === 'channel_reach_combined_a1') {
+    return Buffer.from(semDado ? `${CABECALHO_COMBINADO}\n` : `${CABECALHO_COMBINADO}\n${dia},${uc},${videoId},102,2,5,XXXX,100,0.05\n`)
+  }
+  if (tipo === 'channel_traffic_source_a3') {
+    return Buffer.from(semDado ? `${CABECALHO_TRAFEGO}\n` : `${CABECALHO_TRAFEGO}\n${dia},${uc},${videoId},on_demand,not_subscribed,BR,4,XXXX,3,2,1.5,30,0.5,0,0\n`)
+  }
+  return semDado ? csvSoCabecalho() : csvComDado(uc, videoId, dia, colunaExtra && tipo === 'channel_reach_basic_a1')
+}
+/** O primeiro vídeo do canal dono do UC…. */
+const primeiroVideoDe = (uc: string): string => idDoVideo(uc === ANTIGO.channel_id ? ANTIGO.id : SEM_VIDEO.id, 1)
 
 /** O lado do Google, em memória. Um job por (canal, tipo); os relatórios pertencem ao job. */
 class Google {
@@ -148,7 +163,7 @@ class Google {
             downloadUrl: url,
           })
           const dia = new Date(fim - DIA_MS).toISOString().slice(0, 10).replaceAll('-', '')
-          this.csv.set(url, this.semDado.has(uc) ? csvSoCabecalho() : csvComDado(uc, primeiroVideoDe(uc), dia, this.colunaExtra))
+          this.csv.set(url, csvDoTipo(job.reportTypeId, uc, primeiroVideoDe(uc), dia, this.semDado.has(uc), this.colunaExtra))
         }
         this.relatorios.set(job.id, lista)
       }
@@ -158,12 +173,12 @@ class Google {
 
 /** Banco em memória com as sete tabelas novas vazias, a limpeza do bruto, a função de alcance e o carimbo de aviso (janela em dias). */
 function banco(videos: Row[]): FakeDb {
-  const db = comReachApply(fakeSupabase({
+  const db = comE11Padrao(comReachApply(fakeSupabase({
     youtube_channels: [SEM_VIDEO, ANTIGO],
     youtube_videos: videos,
     yt_own_video_meta_daily: [], yt_reporting_jobs: [], yt_reporting_reports: [], yt_reporting_report_blobs: [], yt_own_collection_attempts: [],
     yt_own_video_daily: [], yt_own_video_reach_daily: [],
-  }))
+  })))
   db.rpcHandlers.yt_reporting_blobs_purge = () => ({ data: 0, error: null })
   db.rpcHandlers.ops_alert_claim = (a) => {
     const t = (db.tables.ops_alert_state ??= [])
@@ -521,5 +536,132 @@ describe('primeiro dia do deploy da E12: estado de produção (4 tipos ativos, 9
     for (const j of db.tables.yt_reporting_jobs!) if (j.report_type_id === ANTIGOS[2]) j.status = 'erro'
     const d = await rodarDia(db, DIA_1)
     expect(d.falhas.filter(n => n.includes('sem job'))).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// A5 E11 (Tarefa 10): os dois passos novos e os critérios, no cron de verdade, nos três dias do cenário (a).
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+describe('E11 no cron, passos e critérios de verdade', () => {
+  const TIPOS_E11_RELATORIO = ['channel_traffic_source_a3', 'channel_reach_combined_a1']
+  const FUNCOES_MG7 = ['yt_own_dim_prova', 'yt_own_dim_cover_idle', 'yt_own_dim_apply', 'yt_own_traffic_detail_apply', 'yt_own_reach_dim_apply']
+  const PGRST202 = { code: 'PGRST202', message: 'Could not find the function' }
+  /** Relatórios dos dois tipos da E11 já baixados e ainda sem normalizar. */
+  const naFila = (db: FakeDb) => (db.tables.yt_reporting_reports ?? [])
+    .filter(r => TIPOS_E11_RELATORIO.includes(r.report_type_id as string) && ['baixado', 'vazio'].includes(r.status as string) && r.normalized_at == null).length
+
+  /** Os três dias do cenário (a), com o Google novo. Devolve os dias e o banco. */
+  async function tresDias(db: FakeDb): Promise<Dia[]> {
+    google = new Google()
+    vi.mocked(criarReportingClient).mockImplementation((token) => google.cliente(token.slice('tok:'.length)))
+    google.semDado.add(SEM_VIDEO.channel_id)
+    const d1 = await rodarDia(db, DIA_1)
+    google.publicar(DIA_2, HISTORICO_POR_JOB, 'hist')
+    const d2 = await rodarDia(db, DIA_2)
+    google.publicar(DIA_3, 1, 'dia3')
+    const d3 = await rodarDia(db, DIA_3)
+    return [d1, d2, d3]
+  }
+  afterEach(() => { delete process.env.YT_OWN_STEPS_OFF })
+
+  it('com a MG7 (respostas padrão): os relatórios dos dois tipos são normalizados, a prova roda duas vezes por execução (a segunda vê o que o passo gravou) e o cron fica verde', async () => {
+    delete process.env.YT_OWN_STEPS_OFF
+    const db = banco(VIDEOS_ANTIGOS)
+    const vistas: number[] = []
+    db.rpcHandlers.yt_own_dim_prova = (a) => {
+      vistas.push(naFila(db))
+      return {
+        data: {
+          faltando_cobertura: 0, videos_com_base: 1, videos_base_antes_do_inicio: 0, videos_sem_base: 0, base_ate: a.p_hoje,
+          dias_dois_relatorios_detalhe: 0, dias_dois_relatorios_alcance: 0, pendentes_normalizar: naFila(db),
+        },
+        error: null,
+      }
+    }
+    const [d1, d2, d3] = await tresDias(db)
+    for (const d of [d1, d2, d3]) {
+      expect(d.falhas).toEqual([])
+      expect(d.acao_do_dono).toEqual([])
+    }
+    // Duas chamadas à prova por execução da fase 'depois' (a da guarda do passo e a dos critérios), três execuções.
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_dim_prova')).toHaveLength(6)
+    // Dia 2: a guarda do passo (1ª) vê relatórios na fila, os critérios (2ª) já não vêem nenhum. Dia 1 e 3: não há o que ver.
+    expect(vistas[2]).toBeGreaterThan(0)
+    expect(vistas[3]).toBe(0)
+    expect(d2.depois.normalizadores).toMatchObject({ por_tipo: expect.anything() })
+    const n = d2.depois.normalizadores as { por_tipo: Record<string, { normalizados: number; vazios: number }> }
+    expect(n.por_tipo.detalhe!.normalizados + n.por_tipo.detalhe!.vazios).toBeGreaterThan(0)
+    expect(n.por_tipo.alcance_dim!.normalizados + n.por_tipo.alcance_dim!.vazios).toBeGreaterThan(0)
+    expect(d2.depois.e11).toMatchObject({ avaliados: ['dimensoes', 'normalizadores'], desligados: [] })
+    expect(naFila(db)).toBe(0)
+    const tent = (db.tables.yt_own_collection_attempts ?? []).filter(t => ['dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim'].includes(t.kind as string))
+    expect(tent.length).toBeGreaterThan(0)
+    expect(tent.filter(t => t.outcome !== 'ok')).toEqual([])
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_traffic_detail_apply').length).toBeGreaterThan(0)
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_reach_dim_apply').length).toBeGreaterThan(0)
+  })
+
+  it('ANTES DA MIGRATION (MG7 ausente em produção): os passos novos dão schema_ausente com o nome da migration, e o resumo e o banco dos passos antigos são IDÊNTICOS aos de antes do código novo', async () => {
+    // Referência = o código antigo: os dois passos desligados por YT_OWN_STEPS_OFF fazem o cron se comportar como antes da E11.
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes,normalizadores'
+    const base = banco(VIDEOS_ANTIGOS)
+    const antes = await tresDias(base)
+    delete process.env.YT_OWN_STEPS_OFF
+    expect(base.rpcCalls.filter(c => FUNCOES_MG7.includes(c.name))).toEqual([])
+
+    const db = banco(VIDEOS_ANTIGOS)
+    for (const f of FUNCOES_MG7) db.errors[`rpc:${f}`] = PGRST202
+    const depois = await tresDias(db)
+
+    const VELHOS = ['relatorios', 'alcance', 'diario', 'perdidos', 'atrasados', 'vazios_sem_publicacao', 'desconhecido', 'autorizados', 'negados', 'reautorizar', 'guarda', 'conferencias_vencidas'] as const
+    for (let i = 0; i < 3; i++) {
+      for (const k of VELHOS) expect(depois[i]!.depois[k], `dia ${i + 1}, resumo.${k}`).toEqual(antes[i]!.depois[k])
+      expect(depois[i]!.antes.metadados).toEqual(antes[i]!.antes.metadados)
+      expect(depois[i]!.antes.jobs).toEqual(antes[i]!.antes.jobs)
+    }
+    // O banco dos passos antigos é o mesmo (os relatórios dos tipos da E11 ficam sem normalizar: a MG7 não existe).
+    for (const t of ['yt_reporting_jobs', 'yt_own_video_meta_daily', 'yt_own_video_daily', 'yt_own_video_reach_daily', 'yt_own_video_coverage'] as const) {
+      expect(db.tables[t] ?? [], t).toEqual(base.tables[t] ?? [])
+    }
+    const semE11 = (rs: Row[] | undefined) => (rs ?? []).filter(r => !TIPOS_E11_RELATORIO.includes(r.report_type_id as string)).map(r => ({ ...r }))
+    expect(semE11(db.tables.yt_reporting_reports)).toEqual(semE11(base.tables.yt_reporting_reports))
+    expect((db.tables.yt_reporting_reports ?? []).filter(r => TIPOS_E11_RELATORIO.includes(r.report_type_id as string) && r.status === 'erro')).toEqual([])
+    expect(naFila(db)).toBeGreaterThan(0)
+    const velhas = (db: FakeDb) => (db.tables.yt_own_collection_attempts ?? []).filter(t => !['dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim'].includes(t.kind as string))
+    expect(velhas(db)).toEqual(velhas(base))
+
+    // Os passos novos: vermelho com o nome da migration, em TODA execução, e só isso a mais.
+    for (const d of depois) {
+      expect(d.falhas).toEqual(expect.arrayContaining(['schema_ausente: MG7 não aplicada (yt_own_dim_prova)']))
+      expect(d.falhas.filter(n => !n.startsWith('schema_ausente') && !n.includes('MG7'))).toEqual([])
+    }
+    // Referência: nenhuma falha (é o cenário verde (a)).
+    for (const d of antes) expect(d.falhas).toEqual([])
+    // E o cron do dia 2 não gravou nada nas tabelas novas (elas nem existem).
+    expect(db.tables.yt_own_video_dim_daily ?? []).toEqual([])
+  })
+
+  it('YT_OWN_STEPS_OFF=dimensoes,normalizadores: os passos não chamam nada, nem a prova, e o critério de desligados registra o estado (nota até a 7ª execução, vermelho da 8ª)', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes,normalizadores'
+    const db = banco(VIDEOS_ANTIGOS)
+    const [d1] = await tresDias(db)
+    expect(db.rpcCalls.filter(c => FUNCOES_MG7.includes(c.name))).toEqual([])
+    expect(d1.depois.dimensoes).toEqual({ desligado: true })
+    expect(d1.depois.normalizadores).toEqual({ desligado: true })
+    expect(d1.depois.e11).toMatchObject({ avaliados: [], desligados: ['dimensoes', 'normalizadores'] })
+    expect(d1.falhas).toEqual([])
+    expect(d1.acao_do_dono).toEqual(expect.arrayContaining([
+      'dimensoes: passo desligado por YT_OWN_STEPS_OFF (há 1 execuções)',
+      'normalizadores: passo desligado por YT_OWN_STEPS_OFF (há 1 execuções)',
+    ]))
+
+    // A 8ª execução seguida desligada: vermelho. As 7 anteriores estão em yt_own_collection_runs.
+    const db2 = banco(VIDEOS_ANTIGOS)
+    db2.tables.yt_own_collection_runs = Array.from({ length: 7 }, (_, i) => ({
+      ran_at: new Date(DIA_1.getTime() - (i + 1) * 3_600_000).toISOString(),
+      resumo: { dimensoes: { desligado: true }, normalizadores: { desligado: true } },
+    }))
+    const d = await rodarDia(db2, DIA_1)
+    expect(d.falhas.filter(n => n.includes('desligado há 8 execuções ou mais'))).toHaveLength(2)
   })
 })

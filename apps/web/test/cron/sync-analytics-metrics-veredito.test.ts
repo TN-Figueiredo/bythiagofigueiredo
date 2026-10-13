@@ -38,7 +38,8 @@ import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { detectViral } from '@/lib/youtube/analytics-sync'
 import { detectFatigue } from '@/lib/youtube/ab-fatigue'
 import { rodarColeta } from '@/lib/youtube/coleta'
-import { CHAVES_UNICAS_L1A, fakeSupabase, type FakeDb, type Row } from '../youtube/coleta/fake-supabase'
+import { addDays, dayPt, ontemPt } from '@/lib/youtube/coleta/day-pt'
+import { CHAVES_UNICAS_L1A, comE11Padrao, fakeSupabase, type FakeDb, type Row } from '../youtube/coleta/fake-supabase'
 
 // Publicado há muito tempo: fica fora das janelas de marco (24h/48h/7d/30d).
 const PUBLICADO = new Date(Date.now() - 400 * 86_400_000).toISOString()
@@ -598,5 +599,63 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(rodarColeta).not.toHaveBeenCalled()
     expect(recordCronSuccess).not.toHaveBeenCalled()
     expect(recordCronFailure).not.toHaveBeenCalled()
+  })
+})
+
+// A5 E11 (Tarefa 10): a nota dos critérios da E11 chega ao veredito. Aqui a fase 'depois' é o rodarColeta DE VERDADE (os passos e os
+// critérios de verdade, contra o banco em memória); só a fase 'antes' e a rede continuam simuladas.
+describe('sync-analytics-metrics: os critérios da E11 no veredito', () => {
+  async function comColetaReal(prova: Record<string, unknown>): Promise<FakeDb> {
+    const real = await vi.importActual<typeof import('@/lib/youtube/coleta')>('@/lib/youtube/coleta')
+    const hoje = dayPt(new Date())
+    const ontem = ontemPt(new Date())
+    const db = comE11Padrao(banco({
+      youtube_channels: [canal], youtube_videos: [video],
+      yt_own_video_meta_daily: [{ youtube_video_id: 'yt-1', channel_id: 'ch-1', day_pt: ontem }],
+    }))
+    db.rpcHandlers.yt_reporting_blobs_purge = () => ({ data: 0, error: null })
+    db.rpcHandlers.yt_own_dim_prova = () => ({
+      data: {
+        faltando_cobertura: 0, videos_com_base: 1, videos_base_antes_do_inicio: 0, videos_sem_base: 0, base_ate: hoje,
+        dias_dois_relatorios_detalhe: 0, dias_dois_relatorios_alcance: 0, pendentes_normalizar: 0, ...prova,
+      },
+      error: null,
+    })
+    vi.mocked(rodarColeta).mockImplementation(async (ctx) =>
+      ctx.fase === 'antes'
+        ? { falhas: [], resumo: { metadados: { day_pt: ontem, dias_sem_meta: { 'ch-1': 0 } } } }
+        // Datas relativas a hoje: a coleta foi ligada há 5 dias (a carência de 3 dias da cobertura já passou).
+        : real.rodarColeta({ ...ctx, e11: { desde: addDays(hoje, -15), ligadoEm: addDays(hoje, -5) } }))
+    return db
+  }
+
+  it('nota da E11 deixa o cron vermelho: recordCronFailure com o texto da nota, recordCronSuccess nenhuma', async () => {
+    await comColetaReal({ faltando_cobertura: 3 })
+    const res = await GET(pedido() as never)
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalledTimes(1)
+    expect(nota()).toContain('dimensões: 3 par(es) vídeo e conjunto sem cobertura até')
+    expect(body.falhas).toEqual([expect.stringContaining('dimensões: 3 par(es) vídeo e conjunto sem cobertura')])
+  })
+
+  it('prova limpa não deixa: recordCronSuccess, nenhuma falha', async () => {
+    await comColetaReal({})
+    const res = await GET(pedido() as never)
+    const body = await res.json()
+    expect(body.falhas).toBeUndefined()
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('MG7 ausente (código novo antes da migration): vermelho com o nome da migration, e a parte antiga grava normalmente', async () => {
+    const db = await comColetaReal({})
+    db.errors['rpc:yt_own_dim_prova'] = { code: 'PGRST202', message: 'Could not find the function' }
+    const res = await GET(pedido() as never)
+    expect(res.status).toBe(200)
+    expect(db.tables.youtube_video_analytics).toHaveLength(1)
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    expect(nota()).toContain('schema_ausente: MG7 não aplicada (yt_own_dim_prova)')
   })
 })

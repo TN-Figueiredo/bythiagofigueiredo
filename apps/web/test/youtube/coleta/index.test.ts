@@ -8,6 +8,10 @@ vi.mock('@/lib/youtube/coleta/reports-step', () => ({ passoRelatorios: vi.fn() }
 vi.mock('@/lib/youtube/coleta/alcance-step', () => ({ passoAlcance: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/diario-step', () => ({ passoDiario: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-l2', () => ({ criteriosL2: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/dimensoes-step', () => ({ passoDimensoes: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/normalizadores-step', () => ({ passoNormalizadores: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/criteria-e11', () => ({ criteriosE11: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/criteria-desligados', () => ({ criterioDesligados: vi.fn() }))
 // Item 246: a lista publicada de conferências é trocada por uma lista de teste (mutável, esvaziada a cada teste).
 const conferenciasDeTeste = vi.hoisted(() => [] as Array<{ id: string; etapa: string; data: string; responsavel: 'agente' | 'dono'; onde: string; feitaEm: string | null }>)
 vi.mock('@/lib/conferencias', async (orig) => ({ ...(await orig<typeof import('@/lib/conferencias')>()), CONFERENCIAS: conferenciasDeTeste }))
@@ -25,6 +29,11 @@ import { passoRelatorios } from '@/lib/youtube/coleta/reports-step'
 import { passoAlcance } from '@/lib/youtube/coleta/alcance-step'
 import { passoDiario } from '@/lib/youtube/coleta/diario-step'
 import { criteriosL2 } from '@/lib/youtube/coleta/criteria-l2'
+import { passoDimensoes, type DimensoesResumo } from '@/lib/youtube/coleta/dimensoes-step'
+import { passoNormalizadores, type NormalizadoresResumo } from '@/lib/youtube/coleta/normalizadores-step'
+import { criteriosE11 } from '@/lib/youtube/coleta/criteria-e11'
+import { criterioDesligados } from '@/lib/youtube/coleta/criteria-desligados'
+import { DIMENSOES_DESDE, DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import { criteriosRelatorios, criterioJobsEmErro, criterioOrcamento, criterioMetadados } from '@/lib/youtube/coleta/criteria'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import { GUARDA_PRAZO_MS } from '@/lib/youtube/coleta/guarda'
@@ -39,6 +48,15 @@ const canais = [
   { id: 'ch-2', channel_id: 'UC2', site_id: 'site-1', name: 'Canal Dois', sync_enabled: false, slug: 'dois' },
 ]
 const resumoVazio = { gravados: 0, tentativas: {}, pendentes: 0 }
+const dimResumo = (o: Partial<DimensoesResumo> = {}): DimensoesResumo => ({
+  ...resumoVazio, ate: '2026-10-07', desde: DIMENSOES_DESDE, consultas: 0, consultas_cortadas: 0, videos_com_view: 0,
+  conjuntos_cobertos_sem_api: 0, dias_mantidos: 0, dias_em_revisao: 0, fora_do_teto: 0, valores_invalidos: 0,
+  estendidas_recusadas: 0, base_ate: null, ...o,
+})
+const zeradoDoTipo = { normalizados: 0, vazios: 0, superados: 0, erros: 0, sem_par: 0, descartadas_zeradas: 0, codigos_fora_do_catalogo: 0 }
+const normResumo = (o: Partial<NormalizadoresResumo> = {}): NormalizadoresResumo => ({
+  ...resumoVazio, por_tipo: { detalhe: { ...zeradoDoTipo }, alcance_dim: { ...zeradoDoTipo } }, ...o,
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -55,9 +73,15 @@ beforeEach(() => {
   vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 2, atrasados: 0, acao_do_dono: ['Canal Um: x em sem_acesso'] })
   vi.mocked(criterioMetadados).mockResolvedValue({ desconhecido: [] })
   vi.mocked(criteriosL2).mockResolvedValue(undefined)
+  vi.mocked(passoDimensoes).mockResolvedValue(dimResumo({ gravados: 4 }))
+  vi.mocked(passoNormalizadores).mockResolvedValue(normResumo({ gravados: 2 }))
+  vi.mocked(criteriosE11).mockResolvedValue({ provas: {}, avaliados: ['dimensoes', 'normalizadores'], desligados: [] })
+  vi.mocked(criterioDesligados).mockResolvedValue([])
+  delete process.env.YT_OWN_STEPS_OFF
 })
 afterEach(() => {
   vi.useRealTimers()
+  delete process.env.YT_OWN_STEPS_OFF
 })
 
 describe('rodarColeta', () => {
@@ -93,7 +117,7 @@ describe('rodarColeta', () => {
       acao_do_dono: ['Canal Um: x em sem_acesso'],
       desconhecido: [],
     })
-    expect(criterioOrcamento).toHaveBeenCalledWith(expect.anything(), ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario'])
+    expect(criterioOrcamento).toHaveBeenCalledWith(expect.anything(), ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim'])
   })
 
   it('fase depois: vazios_sem_publicacao do critério chega ao resumo; ausente vira lista vazia, e nunca entra em falhas', async () => {
@@ -241,7 +265,7 @@ describe('rodarColeta: L2 (alcance e diário)', () => {
     expect(seq).toEqual([...seq].sort((a, b) => a - b))
     expect(new Set(seq).size).toBe(5)
     expect(r.resumo).toMatchObject({ alcance: { normalizados: 2 }, diario: { gravados: 9 } })
-    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'guarda', 'relatorios'])
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'dimensoes', 'guarda', 'normalizadores', 'relatorios'])
     expect(r.falhas).toEqual([])
   })
 
@@ -444,7 +468,7 @@ describe('rodarColeta: L1b', () => {
   it('fase depois: ms dos passos relatorios, alcance e diario; reautorizar e a nota somam ao acao_do_dono do critério', async () => {
     const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' })] })
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
-    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'guarda', 'relatorios'])
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'dimensoes', 'guarda', 'normalizadores', 'relatorios'])
     expect(r.resumo.reautorizar).toEqual(['ch-1'])
     expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x em sem_acesso', 'Canal Um: reautorizar'])
   })
@@ -758,5 +782,217 @@ describe('rodarColeta: L1b', () => {
       expect(b.falhas).toEqual(['coleta: unexpected error (Error)'])
       expect(b.resumo).not.toHaveProperty('guarda')
     })
+  })
+})
+
+describe('rodarColeta: E11 (dimensões e normalizadores)', () => {
+  // vi.clearAllMocks não desfaz implementações: o que um teste de cima fez falhar voltaria a falhar aqui.
+  beforeEach(() => {
+    vi.mocked(criterioJobsEmErro).mockReset()
+    vi.mocked(criterioOrcamento).mockReset()
+  })
+
+  const ordem = (f: unknown) => (f as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder[0]!
+  const rodar = (extra: Partial<Parameters<typeof rodarColeta>[0]> = {}, canaisDb: unknown[] = canais) =>
+    rodarColeta({ supabase: fakeSupabase({ youtube_channels: canaisDb as never }).client, relogio: criarRelogio(), fase: 'depois', ...extra })
+
+  it('ordem: diário → dimensões → normalizadores → critérios do L2 → critérios da E11 → desligados → metadados → orçamento', async () => {
+    const r = await rodar()
+    const seq = [passoDiario, passoDimensoes, passoNormalizadores, criteriosL2, criteriosE11, criterioDesligados, criterioMetadados, criterioOrcamento].map(ordem)
+    expect(seq).toEqual([...seq].sort((a, b) => a - b))
+    expect(new Set(seq).size).toBe(8)
+    expect(r.falhas).toEqual([])
+  })
+
+  it('cada passo recebe o seu teto de fim; dimensões recebe a configuração padrão e o dia do Pacífico', async () => {
+    await rodar()
+    const d = vi.mocked(passoDimensoes).mock.calls[0]![0]
+    const n = vi.mocked(passoNormalizadores).mock.calls[0]![0]
+    expect(d.deadline - Date.now()).toBe(30_000)
+    expect(n.deadline - Date.now()).toBe(20_000)
+    expect(d.e11).toEqual({ desde: DIMENSOES_DESDE, ligadoEm: DIMENSOES_LIGADO_EM })
+    expect(d.hoje).toBe('2026-10-07')
+    expect(d.channels.map(c => c.id)).toEqual(['ch-1', 'ch-2'])
+  })
+
+  it('o resumo leva dimensoes, normalizadores e e11 (provas, avaliados, desligados) e os tempos dos dois passos', async () => {
+    vi.mocked(criteriosE11).mockResolvedValue({ provas: { 'site-1': null }, avaliados: [], desligados: [] })
+    const r = await rodar()
+    expect(r.resumo).toMatchObject({
+      dimensoes: { gravados: 4 }, normalizadores: { gravados: 2 },
+      e11: { provas: { 'site-1': null }, avaliados: [], desligados: [] },
+    })
+    expect(Object.keys(r.resumo.ms as object)).toEqual(expect.arrayContaining(['dimensoes', 'normalizadores']))
+  })
+
+  it('ctx.e11 sobrescreve o padrão, nos passos e nos critérios', async () => {
+    const e11 = { desde: '2026-10-01', ligadoEm: '2026-10-03' }
+    await rodar({ e11 })
+    expect(vi.mocked(passoDimensoes).mock.calls[0]![0].e11).toEqual(e11)
+    expect(vi.mocked(criteriosE11).mock.calls[0]![0].e11).toEqual(e11)
+  })
+
+  it('o dia dos critérios e do passo é o do PACÍFICO, não o de São Paulo: na virada de São Paulo ainda é o dia anterior', async () => {
+    // 05:00 UTC de 08/10: em São Paulo já é 02:00 de 08/10; no Pacífico (UTC-7) ainda são 22:00 de 07/10.
+    vi.setSystemTime(new Date('2026-10-08T05:00:00.000Z'))
+    await rodar()
+    expect(vi.mocked(passoDimensoes).mock.calls[0]![0].hoje).toBe('2026-10-07')
+    expect(vi.mocked(criteriosE11).mock.calls[0]![0].hoje).toBe('2026-10-07')
+    // 07:30 UTC: virou no Pacífico também.
+    vi.setSystemTime(new Date('2026-10-08T07:30:00.000Z'))
+    await rodar()
+    expect(vi.mocked(criteriosE11).mock.calls[1]![0].hoje).toBe('2026-10-08')
+    expect(vi.mocked(passoDimensoes).mock.calls[1]![0].hoje).toBe('2026-10-08')
+  })
+
+  it('os critérios da E11 recebem o site dos canais ligados (sem repetir) e os dois passos ligados', async () => {
+    const tres = [
+      { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Um', sync_enabled: true },
+      { id: 'ch-2', channel_id: 'UC2', site_id: 'site-1', name: 'Dois', sync_enabled: true },
+      { id: 'ch-3', channel_id: 'UC3', site_id: 'site-2', name: 'Três', sync_enabled: true },
+      { id: 'ch-4', channel_id: 'UC4', site_id: 'site-9', name: 'Quatro', sync_enabled: false },
+    ]
+    await rodar({}, tres)
+    const c = vi.mocked(criteriosE11).mock.calls[0]![0]
+    expect(c.sites).toEqual(['site-1', 'site-2'])
+    expect(c.desligados).toEqual({ dimensoes: false, normalizadores: false })
+    expect(c.falhas).toBeDefined()
+  })
+
+  it('sem nenhum canal ligado (ou nenhum canal): os critérios da E11 NÃO rodam, para não acusar "nenhum site" para sempre', async () => {
+    const r1 = await rodar({}, [{ ...canais[0]!, sync_enabled: false }])
+    const r2 = await rodar({}, [])
+    expect(criteriosE11).not.toHaveBeenCalled()
+    expect(r1.falhas).toEqual([])
+    expect(r2.falhas).toEqual([])
+    expect(r1.resumo.e11).toBeUndefined()
+    // Os outros critérios continuam.
+    expect(criterioOrcamento).toHaveBeenCalledTimes(2)
+    expect(criterioMetadados).toHaveBeenCalledTimes(2)
+  })
+
+  it('YT_OWN_STEPS_OFF=dimensoes: o passo não é chamado, o resumo diz desligado, e o nome vai a criterioDesligados e aos critérios', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes'
+    const r = await rodar()
+    expect(passoDimensoes).not.toHaveBeenCalled()
+    expect(passoNormalizadores).toHaveBeenCalledTimes(1)
+    expect(r.resumo.dimensoes).toEqual({ desligado: true })
+    expect(vi.mocked(criterioDesligados).mock.calls[0]![1]).toEqual(['dimensoes'])
+    expect(vi.mocked(criteriosE11).mock.calls[0]![0].desligados).toEqual({ dimensoes: true, normalizadores: false })
+    // Nenhuma tentativa foi gravada para um passo desligado.
+    expect(vi.mocked(passoDimensoes).mock.calls).toHaveLength(0)
+  })
+
+  it('os dois desligados (com espaço e maiúscula): nenhum passo roda, os dois nomes vão a criterioDesligados', async () => {
+    process.env.YT_OWN_STEPS_OFF = ' Dimensoes , NORMALIZADORES '
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(passoDimensoes).not.toHaveBeenCalled()
+    expect(passoNormalizadores).not.toHaveBeenCalled()
+    expect(r.resumo.dimensoes).toEqual({ desligado: true })
+    expect(r.resumo.normalizadores).toEqual({ desligado: true })
+    expect(vi.mocked(criterioDesligados).mock.calls[0]![1]).toEqual(['dimensoes', 'normalizadores'])
+    expect((db.tables.yt_own_collection_attempts ?? []).filter(t => ['dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim'].includes(t.kind as string))).toEqual([])
+    expect(r.falhas).toEqual([])
+  })
+
+  it('sem a variável (apagada): os dois passos rodam e criterioDesligados recebe lista vazia', async () => {
+    delete process.env.YT_OWN_STEPS_OFF
+    const r = await rodar()
+    expect(passoDimensoes).toHaveBeenCalledTimes(1)
+    expect(passoNormalizadores).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(criterioDesligados).mock.calls[0]![1]).toEqual([])
+    expect(r.resumo.dimensoes).not.toHaveProperty('desligado')
+  })
+
+  it('o interruptor vale mesmo sem canal ligado (o resumo registra o desligado)', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'normalizadores'
+    const r = await rodar({}, [])
+    expect(r.resumo.normalizadores).toEqual({ desligado: true })
+    expect(vi.mocked(criterioDesligados).mock.calls[0]![1]).toEqual(['normalizadores'])
+  })
+
+  it('as notas de passo desligado (não vermelhas) de criterioDesligados vão para acao_do_dono, sem duplicar', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes'
+    vi.mocked(criterioDesligados).mockResolvedValue(['dimensoes: passo desligado por YT_OWN_STEPS_OFF (há 2 execuções)'])
+    vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 0, atrasados: 0, acao_do_dono: ['Canal Um: x'] })
+    const r = await rodar()
+    expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x', 'dimensoes: passo desligado por YT_OWN_STEPS_OFF (há 2 execuções)'])
+    expect(r.falhas).toEqual([])
+  })
+
+  it('criterioDesligados recebe supabase, falhas e o relógio da execução', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes'
+    const relogio = criarRelogio()
+    await rodar({ relogio })
+    const c = vi.mocked(criterioDesligados).mock.calls[0]![0]
+    expect(c.relogio).toBe(relogio)
+    expect(Array.isArray(c.falhas)).toBe(true)
+  })
+
+  it('nome desconhecido na variável: UMA nota em falhas (a de notaNomesDesconhecidos), e o passo conhecido segue desligado', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes,retencoa'
+    const r = await rodar()
+    expect(r.falhas).toEqual(['YT_OWN_STEPS_OFF tem nome desconhecido: retencoa'])
+    expect(passoDimensoes).not.toHaveBeenCalled()
+  })
+
+  it('a fase antes não roda nenhum dos dois passos, nem os critérios da E11, nem lê a variável como nota', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes,xx'
+    const r = await rodar({ fase: 'antes' })
+    expect(passoDimensoes).not.toHaveBeenCalled()
+    expect(passoNormalizadores).not.toHaveBeenCalled()
+    expect(criteriosE11).not.toHaveBeenCalled()
+    expect(criterioDesligados).not.toHaveBeenCalled()
+    expect(r.falhas).toEqual([])
+    expect(r.resumo).not.toHaveProperty('dimensoes')
+  })
+
+  it('sem tempo: os dois não rodam; dimensões grava nao_alcancado_orcamento por canal ligado e o resumo diz sem_tempo; normalizadores não grava (o passo grava as próprias)', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    expect(passoDimensoes).not.toHaveBeenCalled()
+    expect(passoNormalizadores).not.toHaveBeenCalled()
+    expect(r.resumo.dimensoes).toMatchObject({ sem_tempo: true, pendentes: 1, tentativas: { nao_alcancado_orcamento: 1 } })
+    expect(r.resumo.normalizadores).toMatchObject({ sem_tempo: true })
+    const t = db.tables.yt_own_collection_attempts ?? []
+    expect(t.filter(x => x.kind === 'dimensoes')).toEqual([expect.objectContaining({ scope_id: 'ch-1', outcome: 'nao_alcancado_orcamento' })])
+    expect(t.filter(x => String(x.kind).startsWith('normalizador'))).toEqual([])
+  })
+
+  it('um passo novo que lança não derruba o outro, os critérios nem a nota de conferências, que continua a última', async () => {
+    const hoje = new Date('2026-10-07T12:00:00.000Z')
+    const antes = (d: number) => new Date(hoje.getTime() - d * 86_400_000).toISOString().slice(0, 10)
+    conferenciasDeTeste.push({ id: 'de-9-dias', etapa: 'ET', data: antes(9), responsavel: 'agente', onde: 'x', feitaEm: null })
+    vi.mocked(passoDimensoes).mockRejectedValue(new Error('boom'))
+    vi.mocked(passoNormalizadores).mockRejectedValue(new Error('boom'))
+    const r = await rodar()
+    expect(r.falhas.slice(0, 2)).toEqual(['dimensoes: unexpected error (Error)', 'normalizadores: unexpected error (Error)'])
+    expect(r.falhas.at(-1)).toMatch(/^conferências vencidas/)
+    expect(r.falhas).toHaveLength(3)
+    expect(criteriosL2).toHaveBeenCalledTimes(1)
+    expect(criteriosE11).toHaveBeenCalledTimes(1)
+    expect(criterioDesligados).toHaveBeenCalledTimes(1)
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('criteriosE11 que lança (por exemplo, a lista de desligados indefinida): nota VERMELHA em falhas, nunca engolida, e o resto segue', async () => {
+    vi.mocked(criteriosE11).mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'dimensoes')"))
+    const r = await rodar()
+    expect(r.falhas).toHaveLength(1)
+    expect(r.falhas[0]).toMatch(/^critérios da E11: /)
+    expect(r.resumo.e11).toBeUndefined()
+    expect(criterioDesligados).toHaveBeenCalledTimes(1)
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('criterioDesligados que lança: nota em falhas e metadados e orçamento ainda rodam', async () => {
+    vi.mocked(criterioDesligados).mockRejectedValue(new Error('statement timeout'))
+    const r = await rodar()
+    expect(r.falhas).toEqual(['critérios de passos desligados: database error'])
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
   })
 })
