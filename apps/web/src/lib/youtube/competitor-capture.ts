@@ -61,25 +61,28 @@ export interface RawCapture { sha: string; raw: Json; bytes: number; sanitized?:
  */
 const DB_BAD_CHARS = /\u0000|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g
 export const cleanText = (s: string): string => s.replace(DB_BAD_CHARS, c => (c === '\u0000' ? '' : '\ufffd'))
-/** Percorre texto, lista e objeto (valores e chaves). `changed` diz se algo foi tirado ou trocado. */
+/** Profundidade máxima que a limpeza percorre: a resposta real do YouTube tem menos de 8 níveis. Abaixo disto o valor vira null (e `changed` diz): a limpeza nunca lança. */
+const SANITIZE_MAX_DEPTH = 64
+/** Percorre texto, lista e objeto (valores e chaves). `changed` diz se algo foi tirado, trocado ou cortado. Pura e sem exceção (profundidade limitada). */
 export function sanitizeForDb<T>(value: T): { value: T; changed: boolean } {
   let changed = false
-  const walk = (x: unknown): unknown => {
+  const walk = (x: unknown, depth: number): unknown => {
     if (typeof x === 'string') {
       const c = cleanText(x)
       if (c !== x) changed = true
       return c
     }
-    if (Array.isArray(x)) return x.map(walk)
     if (typeof x === 'object' && x !== null) {
+      if (depth >= SANITIZE_MAX_DEPTH) { changed = true; return null }
+      if (Array.isArray(x)) return x.map(e => walk(e, depth + 1))
       const out: Record<string, unknown> = {}
-      for (const k of Object.keys(x)) out[cleanText(k)] = walk((x as Record<string, unknown>)[k])
+      for (const k of Object.keys(x)) out[cleanText(k)] = walk((x as Record<string, unknown>)[k], depth + 1)
       if (Object.keys(out).length !== Object.keys(x).length || Object.keys(x).some(k => cleanText(k) !== k)) changed = true
       return out
     }
     return x
   }
-  const v = walk(value) as T
+  const v = walk(value, 0) as T
   return { value: v, changed }
 }
 

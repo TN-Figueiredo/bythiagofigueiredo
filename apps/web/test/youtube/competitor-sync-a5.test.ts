@@ -2312,3 +2312,124 @@ describe('A5 E2 (11c): a extensão da promoção na sincronização diária', ()
     })
   })
 })
+
+// Conserto do achado da 14a: toda resposta do YouTube é limpa UMA vez, logo depois do json(). Título, descrição e nome do canal iam crus
+// à linha do vídeo, ao plano de versões e à linha do canal; um NUL ou um substituto solitário derrubava a gravação em toda sincronização.
+describe('A5 E1 (14a): texto sujo da API é limpo no ponto de entrada', () => {
+  const BAD = [['NUL', '\u0000', ''], ['substituto alto', '\ud800', '�'], ['substituto baixo', '\udc00', '�']] as const
+  /** Tudo o que o sync mandou ao banco, em JSON: um NUL aparece como `\u0000`; um substituto solitário, como `\ud8xx`/`\udcxx` (par válido sai como o caractere). */
+  const sent = (db: { calls: Call[] }) => JSON.stringify(db.calls.map(c => [c.table, c.ops]))
+  const RUIM = /\\u0000|\\ud[89a-f][0-9a-f]{2}/i
+  const chOf = (name: string, desc: string) => [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: name, description: desc }, statistics: { subscriberCount: '10' } }]
+  const dirtyVideo = (id: string, bad: string, over: Record<string, unknown> = {}) => page({ id, snippet: { title: 'T' + bad + 'x', description: 'D' + bad + 'y', publishedAt: recent(), tags: ['a' + bad], categoryId: '19' }, ...over })
+
+  describe.each(BAD)('%s', (_n, bad, fix) => {
+    it('página (vídeo novo): título, descrição e nome do canal chegam limpos à linha do vídeo, ao plano de versões e à linha do canal', async () => {
+      const db = setup({ lastDaily: '2026-10-24', existing: [] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(dirtyVideo('vid-1', bad), 200, { channelItems: chOf('Canal' + bad + 'z', 'Desc' + bad) }), ...quiet })
+      expect(sent(db)).not.toMatch(RUIM)
+      expect(inserts(db)[0]).toMatchObject({ title: 'T' + fix + 'x', tags: ['a' + fix] })
+      const plan = rpcs(db)[0]!
+      expect(plan.p_open.map(o => [o.field, o.value_text])).toEqual(expect.arrayContaining([['title', 'T' + fix + 'x'], ['desc', 'D' + fix + 'y']]))
+      expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).some(u => u.channel_name === 'Canal' + fix + 'z')).toBe(true)
+    })
+    it('vídeo já gravado na página: a linha e o plano chegam limpos', async () => {
+      const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(dirtyVideo('vid-1', bad)), ...quiet })
+      expect(sent(db)).not.toMatch(RUIM)
+      expect(updatesOf(db, 'v-1').some(u => u.title === 'T' + fix + 'x')).toBe(true)
+    })
+    it('passada diária: título e descrição limpos no plano de versões', async () => {
+      const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+      await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: () => [dirtyVideo('vid-1', bad)] }), ...quiet })
+      expect(sent(db)).not.toMatch(RUIM)
+      expect(rpcs(db).flatMap(p => p.p_open).map(o => o.value_text)).toEqual(expect.arrayContaining(['T' + fix + 'x']))
+    })
+    it('fixados: título e descrição limpos no plano de versões', async () => {
+      const db = setup({ pinned: [PIN], existing: [ROW1], lastDaily: '2026-10-24' })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [dirtyVideo('vid-pin', bad)] }), ...quiet })
+      expect(sent(db)).not.toMatch(RUIM)
+      expect(rpcs(db).filter(p => p.p_video_id === 'v-pin').flatMap(p => p.p_open).map(o => o.value_text)).toEqual(expect.arrayContaining(['T' + fix + 'x', 'D' + fix + 'y']))
+    })
+    it('leitura semanal: título e descrição limpos no plano de versões e na captura', async () => {
+      const day = (() => { let d = '2026-10-24'; while (dayNumber(d) % 7 !== weekSlotOf('vid-7')) d = addDays(d, 1); return d })()
+      const db = setup({ all: [row(7, 400, { series_tier: 'semanal', series_tier_since: '2026-09-01' })] })
+      await syncCompetitorWeekly(ch, 'k', { now: new Date(day + 'T15:00:00.000Z'), fetchImpl: apiFetch(null, 200, { daily: () => [dirtyVideo('vid-7', bad)] }) })
+      expect(sent(db)).not.toMatch(RUIM)
+      expect(rpcs(db).flatMap(p => p.p_open).map(o => o.value_text)).toEqual(expect.arrayContaining(['T' + fix + 'x']))
+    })
+  })
+
+  it('par UTF-16 válido (emoji) fica intacto no título, na descrição e no nome do canal', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { title: 'oi 😀', description: 'd 😀', publishedAt: recent() } }), 200, { channelItems: chOf('Canal 😀', 'x') }), ...quiet })
+    expect(inserts(db)[0]!.title).toBe('oi 😀')
+    expect(rpcs(db)[0]!.p_open.map(o => o.value_text)).toEqual(expect.arrayContaining(['oi 😀', 'd 😀']))
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).some(u => u.channel_name === 'Canal 😀')).toBe(true)
+  })
+
+  it('sanitized conta o ITEM uma vez (vídeo e canal), mesmo que a limpeza da captura já tenha visto o texto; sem texto sujo não há contagem', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(dirtyVideo('vid-1', '\u0000'), 200, { channelItems: chOf('C\u0000', 'd\ud800') }), ...quiet })
+    expect(r.sanitized).toBe(2)
+    setup({ lastDaily: '2026-10-24', existing: [] })
+    expect((await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })).sanitized).toBeUndefined()
+  })
+  it('sanitized: o mesmo vídeo sujo pedido na página E na passada diária conta uma vez', async () => {
+    setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(dirtyVideo('vid-1', '\u0000'), 200, { daily: () => [dirtyVideo('vid-1', '\u0000')] }), ...quiet })
+    expect(r.sanitized).toBe(1)
+  })
+
+  it('o raw e o hash não mudam para entrada limpa: o item fixado da captura dá o hash de antes do conserto', async () => {
+    // o mesmo item e o mesmo hash de competitor-capture.test.ts ("o hash de uma entrada SEM undefined não mudou")
+    const sample = { kind: 'youtube#video', etag: 'e1', id: 'vid', snippet: { title: 'Título é', tags: ['a', 'b'], publishedAt: '2026-01-01T00:00:00Z' }, contentDetails: { duration: 'PT1M30S' }, liveStreamingDetails: { actualStartTime: '2026-01-01T00:00:00Z', concurrentViewers: '3' } }
+    const db = setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, video_id: 'vid' }] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(sample), ...quiet })
+    const raw = rpcCalls(db, 'apply_competitor_raw_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>).find(o => o.video_id === 'v-1')!
+    expect(raw.raw_sha256).toBe('7cbdf3929c5cb64feead316f1ed53e6923912d815eb7a754605714bb6dec764c')
+  })
+  it('o raw sujo grava o mesmo hash do item já limpo', async () => {
+    const dbA = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(dirtyVideo('vid-1', '\u0000')), ...quiet })
+    const dbB = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(dirtyVideo('vid-1', '')), ...quiet })
+    const sha = (db: { calls: Call[] }) => rpcCalls(db, 'apply_competitor_raw_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>).find(o => o.video_id === 'v-1')!.raw_sha256
+    expect(sha(dbA)).toBe(sha(dbB))
+  })
+
+  it('título gravado ANTES do conserto (cru, mas sem NUL) contra o mesmo título de agora: zero versões novas', async () => {
+    const title = 'Título 😀 — "cru" �', desc = 'linha 1\n\nlinha 2 😀'
+    const versions = [
+      { id: 'tv1', video_id: 'v-1', field: 'title', value_text: title, value_hash: hashValue(title), thumb_etag: null, thumb_dhash: null, last_seen_at: recent() },
+      { id: 'tv2', video_id: 'v-1', field: 'desc', value_text: desc, value_hash: hashValue(desc), thumb_etag: null, thumb_dhash: null, last_seen_at: recent() },
+    ]
+    const db = setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, title }], versions })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { title, description: desc, publishedAt: recent() } })), ...quiet })
+    expect(rpcs(db).flatMap(p => p.p_open.filter(o => o.field === 'title' || o.field === 'desc'))).toEqual([])
+    expect(rpcs(db).flatMap(p => p.p_changes)).toEqual([])
+  })
+
+  it('o texto de erro gravado em sync_error não leva NUL nem substituto solitário (a mensagem de uma falha de rede ou do corpo de erro)', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const f = (async () => { throw new Error('rede\u0000 caiu\ud800') }) as typeof fetch
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })).rejects.toThrow()
+    expect(sent(db)).not.toMatch(RUIM)
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).at(-1)).toMatchObject({ sync_status: 'error', sync_error: 'rede caiu\ufffd' })
+  })
+
+  it('a limpeza não custa a série do dia: um corpo muito aninhado não lança e o ponto do dia é gravado', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    const item = { id: 'vid-1', snippet: { title: 'T', description: 'd', publishedAt: recent() }, statistics: { viewCount: '5' }, contentDetails: { duration: 'PT10M' } }
+    // JSON de 20.000 níveis: Response.json não o serializa; o corpo vai como texto
+    const text = '{"items":[' + JSON.stringify(item).slice(0, -1) + ',"deep":' + '{"n":'.repeat(20_000) + '"x"' + '}'.repeat(20_000) + '}]}'
+    const f = (async (input: RequestInfo | URL) => {
+      const u = String(input)
+      if (u.includes('/channels?')) return Response.json({ items: chOf('Canal', 'd') })
+      if (u.includes('/playlistItems?')) return Response.json({ items: [] })
+      return new Response(text, { headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f, ...quiet })
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+  })
+})

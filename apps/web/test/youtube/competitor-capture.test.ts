@@ -85,6 +85,17 @@ describe('(M-4) sanitizeForDb: o que o jsonb e o text do Postgres rejeitam', () 
     expect(sanitizeForDb({ a: ['t\u0000', 1, null, true], 'k\u0000': { d: '\ud83d' } })).toEqual({ value: { a: ['t', 1, null, true], k: { d: '\ufffd' } }, changed: true })
     expect(sanitizeForDb({ a: [1, 'x'], b: null })).toEqual({ value: { a: [1, 'x'], b: null }, changed: false })
   })
+  it('(14a) objeto absurdamente aninhado: não lança, corta no limite de profundidade e diz changed; o aninhamento normal passa', () => {
+    let deep: unknown = 'x'
+    for (let i = 0; i < 50_000; i++) deep = { n: deep }
+    let r: ReturnType<typeof sanitizeForDb> | undefined
+    expect(() => { r = sanitizeForDb({ id: 'v', deep }) }).not.toThrow()
+    expect(r!.changed).toBe(true)
+    expect((r!.value as { id: string }).id).toBe('v')
+    expect(() => rawOf({ id: 'v', snippet: { deep } })).not.toThrow()
+    const ok = { a: { b: { c: [{ d: ['t'] }] } } }
+    expect(sanitizeForDb(ok)).toEqual({ value: ok, changed: false })
+  })
   it('rawOf: NUL no título e substituto solitário na descrição são limpos ANTES do hash, e sanitized diz', () => {
     const dirty = rawOf({ id: 'v', snippet: { title: 'a\u0000b', description: 'corte\ud83d' } })
     expect(dirty.raw).toEqual({ id: 'v', snippet: { title: 'ab', description: 'corte\ufffd' } })
