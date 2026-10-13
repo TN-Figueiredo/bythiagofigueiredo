@@ -1,6 +1,7 @@
 # TikTok: viabilidade de acesso a dado (conta própria e terceiros)
 
 Data: 13/10/2026. Todas as páginas citadas foram acessadas em 13/10/2026; a data ao lado do URL é a da própria página, quando ela mostra uma.
+**Decisão do dono (13/10/2026): não construir agora; revisar no futuro. Recomendação dos engenheiros, solução para consulta pessoal e gatilhos de retomada: seção 9. Onde as seções 7 e 8 recomendam a opção 1, vale a seção 9.**
 Natureza: pesquisa de viabilidade. **Não é spec nem plano**: o spec depende da escolha de escopo do dono (seção 7) e das respostas da seção 8.
 Material de base (detalhe, trechos copiados, tentativas): `.superpowers/sdd/tiktok-viabilidade/varredura-*.md` e `verificacao-*.md`.
 Método de leitura: todas as páginas foram lidas por leitor que converte a página em texto e responde com trechos (WebFetch), não pelo HTML cru. Isso vale para o pesquisador, para os céticos e para os revisores. "Confirmado" quer dizer que leitores independentes receberam o mesmo trecho da mesma página oficial; não quer dizer que alguém conferiu o HTML. A única exceção é a LGPD, lida no HTML do planalto.gov.br.
@@ -447,3 +448,63 @@ Comparação de esforço: P, M ou G em relação ao que já foi feito para o You
 12. **As páginas legais do site já falam de dado de rede social conectada?** Padrão: revisar e ajustar antes da revisão do app. Trava: T7.
 13. **Perguntar ao suporte do TikTok for Developers antes de escrever código (T5b)?** Padrão: sim. Trava: a decisão de construir a conexão, a tela e as páginas legais que a revisão exige.
 14. **`tiktok` entra no tipo `Provider` (vira rede do Social Hub, toca cerca de 10 arquivos de publicação) ou ganha um tipo próprio de conexão só de leitura?** Padrão: tipo próprio, porque só se pediu leitura. Trava: a migration e o desenho da conexão.
+
+---
+
+## 9. Decisão do dono e recomendação dos engenheiros (13/10/2026)
+
+**Decisão do dono (13/10/2026): não construir agora. Fica anotado para revisão futura, quando se confere se passou a justificar.** Nenhum spec, plano ou código nasce desta verificação até essa revisão.
+
+O que ele disse depois de ler o documento: o ideal é saber o alcance dos **concorrentes**; a performance própria ele provavelmente vê pelo app; queria saber se justifica desenvolver sem "business", o que custa conseguir "business" (CNPJ etc.) e qual é a solução para consulta pessoal.
+
+Os engenheiros de dados e de software responderam em separado e chegaram à mesma recomendação. Pareceres completos (pasta ignorada pelo git, pode não existir mais na data da revisão): `.superpowers/sdd/tiktok-viabilidade/recomendacao-dados.md` e `recomendacao-software.md`. O essencial está copiado abaixo. As marcas de estado são as da legenda do topo; o que veio só dos pareceres, lido por um engenheiro sem cético, está como **[O]** ou **[pista]**.
+
+### 9.1 Por que não construir agora
+
+- **O dado que tem valor para o dono (concorrentes) não tem via oficial** (seção 3-B) **[C]**. O que tem via oficial (conta própria, 4 contadores por vídeo) o TikTok Studio já mostra, e mais.
+- **O site acrescentaria pouco à conta própria:** versões de capa e legenda, detecção de vídeo removido e cruzamento com o YouTube. O engenheiro de software reestimou o esforço da opção 1 para **M alto**, acima do "P a M" da seção 7.
+- **A revisão do app segue apontando para recusa:** a regra "Apps must not be for private or personal use" foi relida em 13/10/2026 (página com "Last updated 4/8/2026"), sem exceção nem teto de usuários **[C]**. Abrir a conexão a outros criadores só é honesto se virar produto real (esforço G: conexão por usuário, LGPD de terceiros, suporte); como artifício para passar na revisão é maquiar o pedido.
+
+### 9.2 "Business" não resolve concorrentes, em nenhum dos três sentidos
+
+| "Business" | Exige CNPJ? | O que dá | O que custa |
+|---|---|---|---|
+| Conta Business no app | não; pessoa física pode **[O]** | nada de concorrente | perde a biblioteca de músicas, fica só a Commercial Music Library **[O]**; talvez o Programa de Recompensas **[pista]** |
+| Accounts API (desenvolvedor no TikTok API for Business) | empresa e e-mail de domínio; pessoa física não entra **[pista]** (o portal `business-api.tiktok.com` segue não lido: falha de DNS) | métrica rica só da conta própria **[NC]** | cadastro de empresa; MEI talvez não sirva para criador **[pista]** |
+| Business Center / verificação de empresa | documento de empresa **[O]** | só anúncio | — |
+
+### 9.3 Concorrentes sem raspagem: só por tela, sem API
+
+- **TikTok One (Creator Marketplace):** mostra mediana de views, engajamento, crescimento e audiência, mas só de criadores inscritos nele, e exige conta Business mais verificação de empresa **[O]**. O conteúdo das telas (métricas exatas, Brasil, login) não foi lido **[NC]**.
+- **Creative Center:** público, sem login **[O]**; é anúncio e hashtag (Top Ads é anúncio, não orgânico). Serve para descobrir contas, não para série de criador. O filtro Brasil não foi conferido **[NC]**.
+- **Parceiros oficiais:** as categorias do selo são Agency, Creative, Measurement e Marketing Technology **[O]**; não há categoria de dado de concorrente.
+- **Alcance e impressões de terceiro não existem em lugar nenhum.** O que é público são views por vídeo e seguidores.
+- Raspagem e provedor pago seguem não recomendados (seção 3-C e opção 3).
+
+### 9.4 Solução recomendada para consulta pessoal (sem código, sem risco de termos)
+
+- **Concorrentes:** planilha manual com 8 a 10 contas, leitura semanal de seguidores e das views dos vídeos novos; 15 a 30 minutos por semana (estimativa dos engenheiros). Guardar só o @ e os contadores; descarte móvel de 12 meses (sugestão do engenheiro de dados).
+- **Conta própria:** export do TikTok Studio. Há **[pista]** de que ele guarda e exporta até 365 dias por vez, o que tornaria um export por trimestre suficiente; o formato do arquivo é **[NC]** (teste T2).
+- **O que se perde:** a curva dos vídeos de concorrentes. Com leitura semanal fica 1 de 7 pontos e somem as primeiras 72 horas (estimativa: cerca de 40 vídeos novos por semana com 10 contas). É o dado sem via limpa.
+- **Degrau seguinte, se a planilha virar hábito:** um formulário manual no CMS (esforço P, sem API).
+- **Período de avaliação:** o engenheiro de software sugeriu 4 semanas, o de dados 8. Posição do controlador: 8, porque 4 leituras é pouco para saber se o hábito pegou.
+
+Estes são passos **recomendados**; o dono ainda não disse se vai fazê-los.
+
+### 9.5 Primeiros passos sugeridos ao dono (nenhum cria conta nem app)
+
+1. Baixar 365 dias no TikTok Studio web e ver se vem linha por vídeo e por dia (T2).
+2. Conferir no app que a conta é Pessoal e não trocar (T4).
+3. Listar 8 a 10 contas e criar a planilha.
+4. Enviar ao suporte do TikTok for Developers a pergunta sobre uso pessoal (T5b; texto na seção 6).
+
+### 9.6 Gatilhos para reabrir (o que conferir na revisão)
+
+A coleta automática volta à mesa se qualquer um destes acontecer:
+
+1. O suporte do TikTok responde por escrito que app de um único criador é aprovável (T5b).
+2. O dono decide ter produto para criadores, ou o TikTok vira canal do Social Hub (aí o app deixa de ser uso pessoal de forma honesta).
+3. Depois do período de planilha, o dono pede série e gráfico, ou a curva das 72 horas.
+4. Surge via oficial de dado público de terceiros aberta a criador ou a uso comercial no Brasil (hoje não existe).
+
+**Na revisão, antes de decidir:** reler as páginas oficiais (tudo aqui é de 13/10/2026 e as APIs do TikTok mudam), tentar de novo o portal `business-api.tiktok.com` (teste T1), e perguntar: a planilha foi usada? o que faltou nela? Se nenhum gatilho ocorreu e a planilha não foi usada, a resposta continua sendo não construir.
