@@ -939,6 +939,7 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
     let achados = 0
     for (const tot of totais) if (vistos.some(t => t.includes(PT(tot) + ' impressões') || t.includes(PT(tot) + ' impressão'))) achados++
     medida(`cartões com impressão achados pelo número do banco: ${achados} de ${totais.length}`)
+    if (achados !== totais.length) medida(`diagnóstico: totais do banco ${JSON.stringify([...e.porVideo.entries()])}; cartões com impressão: ${JSON.stringify(vistos.filter(t => /impress/.test(t)).map(t => t.slice(0, 160)))}`)
     expect(achados).toBe(totais.length)
     await page.screenshot({ path: SHOTS_DADO('canal-cheio-1440-escuro-recolhido') })
   })
@@ -1423,10 +1424,10 @@ blocoT15('T15 vídeo próprio com dado: a grade por impressões, o paginador na 
     await page.goBack()
     await pronta(page)
     await expect.poll(() => focoId(page), { message: 'foco no cartão do último vídeo visto (o 5º)' }).toBe('cv-lnk-' + idsGrade[4])
-    const depois = await rolagemMain(page)
+    // a rolagem é devolvida DEPOIS do foco (a restauração do Voltar corre por último): espera o estado certo (a rolagem de antes), sem tempo fixo; ler uma vez logo após o foco pegava 0
+    let depois = await rolagemMain(page)
+    await expect.poll(async () => { depois = await rolagemMain(page); return Math.abs(depois - antes) }, { message: `rolagem antes ${antes}: a rolagem de volta`, timeout: 10_000 }).toBeLessThanOrEqual(8)
     medida(`Voltar com dado: rolagem ${antes} -> ${depois}; foco no cartão ${idsGrade[4]}`)
-    // a rolagem volta à de ANTES de abrir o 4º vídeo (medido: 150 -> 150)
-    expect(Math.abs(depois - antes), `rolagem antes ${antes} depois ${depois}`).toBeLessThanOrEqual(8)
     await expect(page.locator(`${S}:visible a#cv-lnk-${idsGrade[4]}`)).toBeInViewport()
   })
 
@@ -1695,7 +1696,10 @@ blocoT15('T15 quem só lê o site (usuário "reporter"): nenhum número privado 
     medida(`grupos sem controle positivo (o admin também não os recebe): ${semControle.join(' ; ') || 'nenhum'}`)
     // A4 (13.3/13.4): "views do diário por vídeo (28 dias)" ganhou controle positivo (a Retenção e os cartões escrevem as views de 28 dias de cada vídeo);
     // o CTR por dia e o id órfão seguem sem tela que os escreva (a taxa de clique agregada e seus extremos têm o controle na prova de `proprio-a4-seguranca.spec.ts`)
-    expect(semControle).toEqual(['CTR (fração com ponto e com vírgula, e em %)', 'id de vídeo que só existe no relatório'].sort())
+    // O CTR por dia pode ou não ter controle positivo: uma taxa agregada escrita na tela (ex. "4,5%") coincide por acaso com o CTR de uma linha da semente (que depende das datas de publicação,
+    // porque nenhuma linha antecede a publicação do vídeo). Coincidência não é vazamento: a negativa acima (`vazou`) vale nos dois casos. O id órfão nunca tem tela, e nada mais pode ficar sem controle.
+    const CTR_GRUPO = 'CTR (fração com ponto e com vírgula, e em %)'
+    expect(semControle.filter(g => g !== CTR_GRUPO)).toEqual(['id de vídeo que só existe no relatório'])
     // o reporter recebeu as telas com as frases de "só quem edita o site vê" no lugar dos números
     expect(leitor['canal'].dom).toContain('Só quem edita o site vê as impressões.')
     expect(leitor['canal'].dom).not.toContain('ic-svg')
