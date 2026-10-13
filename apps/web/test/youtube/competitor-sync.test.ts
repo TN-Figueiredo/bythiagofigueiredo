@@ -13,7 +13,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
 
 import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
 import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
-import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
+import { probeThumb, archiveThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -92,6 +92,24 @@ describe('syncCompetitorChannel', () => {
     expect(err).toMatchObject({ sync_error_since: NOW_ISO })
   })
 
+  // (portão final, software I-5) as regras de 12 horas e de 3 dias contam do PRIMEIRO erro: falha seguida não reinicia a data,
+  // e sincronização boa zera. Sem isto, um canal que falha a cada 6 h nunca chegaria a 12 h e o cron ficaria verde.
+  it('sync_error_since é PRESERVADO entre falhas seguidas (a data do primeiro erro, não a de agora)', async () => {
+    const primeiroErro = '2026-10-20T00:00:00.000Z'
+    expect(primeiroErro).not.toBe(NOW_ISO)
+    const db = setup({ lock: { sync_error_since: primeiroErro } })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 500) })).rejects.toThrow('YouTube API 500')
+    const err = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).filter(u => u?.sync_status === 'error')
+    expect(err).toHaveLength(1)
+    expect(err[0]).toMatchObject({ sync_status: 'error', sync_error_since: primeiroErro })
+  })
+  it('sync_error_since zera quando o canal sincroniza bem', async () => {
+    const db = setup({ lastDaily: '2026-10-24', lock: { sync_error_since: '2026-10-20T00:00:00.000Z' } })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null) })
+    const updates = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update'))
+    expect(updates.at(-1)).toMatchObject({ sync_status: 'idle', sync_error_since: null })
+  })
+
   it('R13: a channels call failing with 404 still advances the cursor, keeps last_ok, sets sync_error_since', async () => {
     const db = setup()
     await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 404) })).rejects.toThrow('YouTube API 404')
@@ -166,6 +184,21 @@ describe('syncCompetitorChannel', () => {
     expect(arg(heal, 'update')).toMatchObject({ thumb_dhash: 'ffffffffffffffff', thumb_etag: '"e9"', thumb_blob_url: 'https://blob.test/t.jpg' })
     expect(r.changesDetected).toBe(0)
     expect(rpcs(db).every(p => p.p_changes.length === 0 && p.p_open.every(x => x.field !== 'thumb'))).toBe(true)
+  })
+
+  // (portão final, dados M-1) cópia que falha no Blob não pode virar "já copiada": o indício (etag/dhash) fica de fora, e a leitura seguinte refaz
+  it('(a) heal com a cópia falhando no Blob NÃO grava dhash nem etag (a leitura seguinte tenta de novo)', async () => {
+    vi.mocked(probeThumb).mockResolvedValue({ etag: '"e9"', lastModified: null, dhash: 'ffffffffffffffff', bytes: Buffer.from('x'), url: 'u' })
+    vi.mocked(archiveThumb).mockRejectedValueOnce(new Error('blob fora'))
+    const db = setup({
+      lastDaily: '2026-10-24',
+      existing: [{ id: 'v-1', video_id: 'vid-1', title: 'T', description_hash: 'x', thumbnail_url: null, view_count: 1 }],
+      versions: [{ id: 'tv1', video_id: 'v-1', field: 'thumb', value_hash: 'h', thumb_etag: null, thumb_dhash: null }],
+    })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'T', description: '', publishedAt: recent() }, statistics: {} }) })
+    const ups = db.calls.filter(c => c.table === 'competitor_video_versions' && first(c) === 'update').map(c => arg(c, 'update')!)
+    expect(ups.some(u => 'thumb_dhash' in u || 'thumb_etag' in u || 'thumb_blob_url' in u)).toBe(false)
+    expect(ups.some(u => 'last_seen_at' in u)).toBe(true) // a versão continua sendo vista
   })
 
   it('(b) etag moved within DHASH_MAX_SAME updates only thumb_etag', async () => {
