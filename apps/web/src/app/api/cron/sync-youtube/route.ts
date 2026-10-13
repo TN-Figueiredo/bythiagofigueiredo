@@ -5,8 +5,8 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
-import { runCompetitorBatch, batchHealth, type BatchResult } from '@/lib/youtube/competitor-sync-batch'
-import { schemaReady } from '@/lib/youtube/competitor-health'
+import { runCompetitorBatch, batchHealth, BATCH_BUDGET_MS, type BatchResult } from '@/lib/youtube/competitor-sync-batch'
+import { schemaReady, readSiteHealth, type HealthVerdict } from '@/lib/youtube/competitor-health'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
@@ -16,7 +16,50 @@ import type { YouTubeChannelRow, SyncMode } from '@/lib/youtube/types'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
+/** A prova tem teto de tempo: se a consulta demorar, o disparo grava a FALHA em vez de morrer mudo aos 300 s. */
+const PROOF_TIMEOUT_MS = 20_000
+/** `cron_health.last_error` é cortado em 500 caracteres mais adiante; a mensagem do cron fica abaixo disso. */
+const CRON_MESSAGE_MAX = 480
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const plural = (n: number, one: string, many: string): string => n + ' ' + (n === 1 ? one : many)
+
+/**
+ * A mensagem de falha do cron: cada frase VERMELHA inteira, na ordem (a do lote, as da prova, a da cota). Se não couber em
+ * CRON_MESSAGE_MAX, o corte é entre frases e fecha com "e mais N avisos": nunca meia frase, e nota nenhuma entra na frente de vermelho.
+ */
+function failureMessage(batch: string | null, problems: string[], quota: string | null): string {
+  const tokens: Array<{ sep: string; text: string }> = [
+    ...(batch ? [{ sep: ' | ', text: batch }] : []),
+    ...problems.map((p, i) => ({ sep: i === 0 ? ' | ' : '; ', text: (i === 0 ? 'série e captura: ' : '') + p })),
+    ...(quota ? [{ sep: ' | ', text: quota }] : []),
+  ]
+  const more = (n: number): string => ' | e mais ' + plural(n, 'aviso', 'avisos')
+  let out = '', used = 0
+  for (const [i, t] of tokens.entries()) {
+    const candidate = out + (out ? t.sep : '') + t.text
+    const left = tokens.length - i - 1
+    if (candidate.length + (left ? more(left).length : 0) > CRON_MESSAGE_MAX) break
+    out = candidate; used++
+  }
+  if (used === 0) return tokens[0]!.text.slice(0, CRON_MESSAGE_MAX - 1) + '…'
+  return used < tokens.length ? out + more(tokens.length - used) : out
+}
+
+/** Roda a leitura da prova com teto de tempo; passou do teto (ou lançou), a resposta é uma FALHA, nunca verde. */
+async function readProofWithin(read: () => Promise<HealthVerdict>): Promise<HealthVerdict> {
+  const unread: HealthVerdict = { ok: false, problems: ['não foi possível ler a prova da captura e da série'], notes: [] }
+  const slow: HealthVerdict = { ok: false, problems: ['não foi possível ler a prova da captura e da série (passou de 20 s)'], notes: [] }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([read(), new Promise<HealthVerdict>(resolve => { timer = setTimeout(() => resolve(slow), PROOF_TIMEOUT_MS) })])
+  } catch {
+    return unread
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -141,7 +184,8 @@ export async function GET(req: NextRequest) {
       }
       let result: BatchResult
       try {
-        result = await runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: 200_000 })
+        // `weekly: true` liga a fase semanal do disparo; trocar por `false` a desliga sem tocar em mais nada (a volta de uma linha)
+        result = await runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: true })
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors' } })
@@ -149,16 +193,35 @@ export async function GET(req: NextRequest) {
         return { status: 'error' as const, mode: 'competitors', error: message, health_written: true }
       }
       const health = batchHealth(result)
-      if (!health.ok) {
-        await recordCronFailure('sync-youtube-competitors', health.message ?? 'batch failed')
+      // A prova é lida do banco a CADA disparo (mesmo sem canal devido): uma perda fica vermelha até ser consertada.
+      // Só cobra "diária devida sem ponto" quando a faixa do disparo terminou: sem canal devido sobrando e sem ter parado por tempo.
+      const slotDone = result.remainingDue === 0 && !result.stoppedForTime
+      const nowIso = new Date().toISOString()
+      let prova: { ok: boolean; problems: string[]; notes: string[] }
+      if (!Array.isArray(result.healthSiteIds)) {
+        // a lista de sites não veio: não dá para saber o que ler, e "nada lido" nunca é verde
+        prova = { ok: false, problems: ['não foi possível ler a lista de sites da prova'], notes: [] }
+      } else if (result.healthSiteIds.length === 0) {
+        // [].every() é verdadeiro: lista vazia tem que ser decidida de propósito. Lote que tentou canais com a lista vazia é leitura que falhou.
+        prova = result.synced + result.errors + result.skipped > 0
+          ? { ok: false, problems: ['não foi possível ler a lista de sites da prova (veio vazia com canais tentados)'], notes: [] }
+          : { ok: true, problems: [], notes: ['nenhum canal de concorrente ativo'] }
+      } else {
+        const verdicts = await Promise.all(result.healthSiteIds.map(siteId => readProofWithin(() => readSiteHealth(supabase, siteId, nowIso, { slotDone, e2: true }))))
+        prova = { ok: verdicts.every(v => v.ok), problems: [...new Set(verdicts.flatMap(v => v.problems))], notes: [...new Set(verdicts.flatMap(v => v.notes))] }
+      }
+      // Cota que nem a nova tentativa do fim do disparo conseguiu gravar: o cron só tem verde e vermelho, e verde mudo é o que não pode
+      const quota = result.quotaLost ? plural(result.quotaLost, 'unidade', 'unidades') + ' de cota ' + (result.quotaLost === 1 ? 'não registrada' : 'não registradas') : null
+      if (!health.ok || !prova.ok || quota) {
+        await recordCronFailure('sync-youtube-competitors', failureMessage(health.ok ? null : (health.message ?? 'batch failed'), prova.ok ? [] : prova.problems, quota))
       } else {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }
       if (result.synced > 0) revalidatePath('/cms/youtube/competitors', 'layout')
       // the cached heavy rows of every site this run wrote to (errored channels keep partial data)
-      const { siteIds, ...summary } = result
+      const { siteIds, healthSiteIds: _healthSiteIds, ...summary } = result
       for (const siteId of siteIds) invalidateObservatory(siteId)
-      return { status: 'ok' as const, mode: 'competitors', ...summary, health_written: true }
+      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, health_written: true }
     }
 
     let query = supabase
