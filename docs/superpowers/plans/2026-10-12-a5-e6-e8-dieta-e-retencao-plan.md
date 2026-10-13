@@ -984,6 +984,8 @@ export function lerCurva(pontos: readonly PontoCurva[]): LeituraDaCurva | null  
 
 **Pronto quando:** os testes passam.
 
+(emenda 4, 13/10: revisão da Tarefa 12a, I-2) O contrato de `meio` mudou: `meio` é uma união `{ tipo: 'cruza'; t } | { tipo: 'nunca_cruza' } | { tipo: 'indeterminado' }`, e `LeituraDaCurva` é `CurvaCompleta | CurvaParcial` (discriminada por `completa`). "Completa" = exatamente 100 pontos com o i-ésimo em t = (i+1)/100 (folga de 1e-6). Só a curva completa tem `meio` decidido (`cruza` ou `nunca_cruza`), `saidas`, `revistos` e `pico`; a parcial só tem `pontos`, `relativa` e `meio: indeterminado`, e o tipo nem tem os outros campos. Código e testes em `retencao-curva.ts` e `proprio-retencao-curva.test.ts`.
+
 ### Tarefa 12b: o leitor da retenção
 
 **Depois da A4 fechada. Não toca `ler.ts` e não espera a Tarefa 5** (emenda do portão: I-8).
@@ -1037,7 +1039,7 @@ export interface RetencaoDoVideo {
 
 | Estado | Quando | Texto (do mockup ou do spec) |
 |---|---|---|
-| `coletada` | há curva `vida` | frase: "Metade das pessoas já saiu aos **m:ss** (N% do vídeo)." ou "Mais da metade das pessoas ficou até o fim."; lista "Maiores saídas: m:ss a m:ss, de X% para Y%; …" e "Trechos revistos: m:ss a m:ss; …" (cada item só aparece se houver); aviso: "Curva da vida inteira do vídeo, coletada em dd/mm. O % assistido da seção anterior é dos últimos dias." Com menos de 100 pontos, acrescenta "Curva com N pontos." |
+| `coletada` | há curva `vida` | frase: "Metade das pessoas já saiu aos **m:ss** (N% do vídeo)." ou "Mais da metade das pessoas ficou até o fim."; lista "Maiores saídas: m:ss a m:ss, de X% para Y%; …" e "Trechos revistos: m:ss a m:ss; …" (cada item só aparece se houver); aviso: "Curva da vida inteira do vídeo, coletada em dd/mm. O % assistido da seção anterior é dos últimos dias." Com menos de 100 pontos, acrescenta "Curva com N pontos." (emenda 4, 13/10: revisão da Tarefa 12a, I-2: a frase "Mais da metade das pessoas ficou até o fim." só vale com `meio.tipo = nunca_cruza`, que só existe em curva completa; `indeterminado` diz "não dá para dizer", e curva incompleta não mostra "Maiores saídas" nem "Trechos revistos") |
 | `sem-curva` | sem linha e **`ultimaResposta`** = `sem_dado_na_janela`, mesmo que a última tentativa de todas tenha sido um erro (emenda do portão: m2) | "**O YouTube não devolveu curva para este vídeo (poucas views).** Tentamos de novo quando o vídeo ganhar views. Última resposta: dd/mm." (a data é a de `ultimaResposta`) |
 | `nao-coletada` | sem linha e `ultimaResposta` nulo | o texto de hoje: "Ainda não coletamos esta curva. Quando coletarmos, esta seção mostra onde as pessoas saem do vídeo e onde voltam." |
 | `erro` | a leitura falhou | "A leitura da curva falhou agora; recarregue a página." |
@@ -1056,6 +1058,7 @@ export interface RetencaoDoVideo {
 |---|---|
 | coletada: a frase traz o minuto certo para uma curva e uma duração conhecidas | "aos 2:06 (35% do vídeo)", conta escrita no teste |
 | nunca cruza | "Mais da metade das pessoas ficou até o fim." |
+| (emenda 4, 13/10: revisão da Tarefa 12a, I-2) curva incompleta (por exemplo 37 pontos) | `meio.tipo = indeterminado`: a tela diz "não dá para dizer", **nunca** "Mais da metade das pessoas ficou até o fim.", e não mostra saídas, trechos revistos nem pico |
 | a data da leitura está na tela (item 64) | "coletada em dd/mm" |
 | sem saídas e sem revistos | as duas linhas não aparecem (nada de "Maiores saídas: .") |
 | 37 pontos | "Curva com 37 pontos." |
