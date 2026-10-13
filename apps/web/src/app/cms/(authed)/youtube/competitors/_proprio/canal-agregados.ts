@@ -9,7 +9,7 @@ import type { DiaAlcance, Periodo, ResumoAlcance } from '@/lib/youtube/observato
 import { JANELA_ASSISTIDO_DIAS, POUCAS_VIEWS, type MotivoSemAssistido } from '@/lib/youtube/observatorio/proprio/assistido'
 import { taxaComIntervalo, type TaxaComIntervalo } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
-import { MIN_DIAS_VPD } from '@/lib/youtube/observatorio/proprio/vpd'
+import { foraDoTetoDe, MIN_DIAS_VPD } from '@/lib/youtube/observatorio/proprio/vpd'
 
 /** Decisão do dono: com menos dias com dado que isto a tela diz que ainda não dá para dizer, em vez de cravar um número. */
 export const MIN_DIAS_ASSISTIDO = MIN_DIAS_VPD
@@ -34,12 +34,14 @@ export interface AssistidoCanal {
   videos: number
   janela: { de: DiaYt; ate: DiaYt } | null
   motivo: MotivoAssistidoCanal | null
+  /** dos vídeos pedidos, quantos ficaram além do teto do diário e NÃO foram lidos: o % é só dos lidos e a tela diz */
+  foraDoTeto: number
 }
 
 /** Os motivos do vídeo mais um: há views na janela, mas o YouTube não entregou o % assistido de nenhum dia (a coleta dele ainda não rodou). */
 export type MotivoAssistidoCanal = MotivoSemAssistido | 'sem-percentual'
 
-const SEM_PCT = { pct: null, n: 0, dias: 0, videos: 0 } as const
+const SEM_PCT = { pct: null, n: 0, dias: 0, videos: 0, foraDoTeto: 0 } as const
 
 /**
  * O % assistido do canal: a média do percentual de cada dia, pesada pelas views do dia, entre os vídeos pedidos, nos 28 dias que terminam no
@@ -50,6 +52,7 @@ export function assistidoDoCanal(d: Privado<DiarioCanal>, ytIds: readonly string
   if (d.acesso === 'erro') return { ...SEM_PCT, janela: null, motivo: 'leitura-falhou' }
   const { ultimoDia } = d.dado
   if (ultimoDia == null) return { ...SEM_PCT, janela: null, motivo: 'sem-diario' }
+  const foraDoTeto = foraDoTetoDe(d.dado, ytIds)
   const de = addDays(ultimoDia, -(JANELA_ASSISTIDO_DIAS - 1))
   const janela = { de, ate: ultimoDia }
   const pedidos = new Set(ytIds)
@@ -67,16 +70,16 @@ export function assistidoDoCanal(d: Privado<DiarioCanal>, ytIds: readonly string
     dias.add(l.dia)
     videos.add(l.ytId)
   }
-  if (n === 0) return { ...SEM_PCT, janela, motivo: viuSemPct ? 'sem-percentual' : 'sem-views' }
-  return { pct: soma / n, n, dias: dias.size, videos: videos.size, janela, motivo: null }
+  if (n === 0) return { ...SEM_PCT, foraDoTeto, janela, motivo: viuSemPct ? 'sem-percentual' : 'sem-views' }
+  return { pct: soma / n, n, dias: dias.size, videos: videos.size, janela, motivo: null, foraDoTeto }
 }
 
 /**
  * Views por dia, soma dos vídeos pedidos, nos 28 dias que terminam no último dia gravado. Dia com alguma linha de views é medido (a soma pode ser 0:
  * zero medido); dia sem linha com views é NÃO medido (nunca zero). Os dias saem no formato do gráfico por dia (`DiaAlcance`, o valor em `imp`, sem cliques).
  */
-export function viewsDoCanalPorDia(d: Privado<DiarioCanal>, ytIds: readonly string[]): { periodo: Periodo | null; dias: DiaAlcance[] } {
-  if (d.acesso !== 'ok' || d.dado.ultimoDia == null) return { periodo: null, dias: [] }
+export function viewsDoCanalPorDia(d: Privado<DiarioCanal>, ytIds: readonly string[]): { periodo: Periodo | null; dias: DiaAlcance[]; foraDoTeto: number } {
+  if (d.acesso !== 'ok' || d.dado.ultimoDia == null) return { periodo: null, dias: [], foraDoTeto: 0 }
   const ate = d.dado.ultimoDia
   const de = addDays(ate, -(JANELA_ASSISTIDO_DIAS - 1))
   const pedidos = new Set(ytIds)
@@ -91,7 +94,7 @@ export function viewsDoCanalPorDia(d: Privado<DiarioCanal>, ytIds: readonly stri
     if (v == null) dias.push({ dia, situacao: 'nao-medido', motivo: 'sem-relatorio', imp: null, cliques: null })
     else dias.push({ dia, situacao: v === 0 ? 'zero-medido' : 'com-impressoes', motivo: null, imp: v, cliques: null })
   }
-  return { periodo: { de, ate, dias: JANELA_ASSISTIDO_DIAS }, dias }
+  return { periodo: { de, ate, dias: JANELA_ASSISTIDO_DIAS }, dias, foraDoTeto: foraDoTetoDe(d.dado, ytIds) }
 }
 
 /** As views dos 28 dias que terminam no último dia gravado, de um vídeo. Nula quando ele não tem nenhuma linha com views (não medido, nunca 0). */

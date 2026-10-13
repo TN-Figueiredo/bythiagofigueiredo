@@ -82,7 +82,7 @@ describe('lerDadosDoCanal', () => {
   it('canal parado e sem longo acompanhado: ultimoDia é o real (a frase "parou em dd/mm" funciona), com zero linhas na série', async () => {
     com(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [diario('curto', d(60), 4)] }))
     const r = await lerDadosDoCanal({ canalId: BOM, longosAcompanhados: [], agora: AGORA, edicao: await token() })
-    expect(r.diario).toEqual({ acesso: 'ok', dado: { canalId: BOM, ultimoDia: d(60), linhas: [], descartados: 0 } })
+    expect(r.diario).toEqual({ acesso: 'ok', dado: { canalId: BOM, ultimoDia: d(60), linhas: [], foraDoTeto: [], descartados: 0 } })
   })
   it('linhas descartadas (CTR fora de 0 a 1, número negativo): UM aviso ao Sentry para a requisição, com a soma das duas leituras', async () => {
     com(fakeSupabase({

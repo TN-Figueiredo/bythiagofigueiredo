@@ -46,7 +46,7 @@ describe('views por dia de um vídeo', () => {
 describe('views por dia do canal', () => {
   it('mediana entre os longos acompanhados que têm o número', () => {
     const c = vpdDoCanal(ok([...serie('a', Array(7).fill(1)), ...serie('b', Array(7).fill(3)), ...serie('x', Array(7).fill(100)), ...serie('poucos', [9])]), ['a', 'b', 'poucos'], HOJE)
-    expect(c).toEqual({ valor: 2, motivo: null, n: 2, janela: { de: d(27), ate: ULT }, ultimoDia: ULT })
+    expect(c).toEqual({ valor: 2, motivo: null, n: 2, janela: { de: d(27), ate: ULT }, ultimoDia: ULT, foraDoTeto: 0 })
   })
   it('mediana de número ímpar de vídeos é o do meio; um vídeo com zero medido entra como 0', () => {
     const c = vpdDoCanal(ok([...serie('a', Array(7).fill(0)), ...serie('b', Array(7).fill(4)), ...serie('c', Array(7).fill(9))]), ['a', 'b', 'c'], HOJE)

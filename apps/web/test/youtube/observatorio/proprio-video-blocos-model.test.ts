@@ -229,7 +229,7 @@ describe('taxa de clique deste vídeo', () => {
   it('CTR nulo em algum dia com impressão: a taxa é "não medida", nunca 0%', () => {
     const b = blocos(mundoVideo({ mut: umaFaixa, alcance: { impFoco: 500, ctrFoco: null } })).impressoes!
     expect(b.taxa).toBeNull()
-    expect(b.semTaxa).toBe('Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de pelo menos um dia com impressões.')
+    expect(b.semTaxa).toBe('Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de clique de 1 dia com impressões.')
     expect(JSON.stringify(b)).not.toMatch(/0,0%/)
   })
 })

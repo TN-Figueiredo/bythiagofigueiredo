@@ -12,7 +12,7 @@
  * nulo, nota nula) e a frase começa por "Não medido."; zero impressão em dia lido é "0" (zero medido).
  */
 import type { Fmt } from '@/lib/youtube/observatorio/fmt'
-import { montarDias, resumir } from '@/lib/youtube/observatorio/proprio/dias'
+import { JANELA_LEITURA_ALCANCE_DIAS, montarDias, resumir } from '@/lib/youtube/observatorio/proprio/dias'
 import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { AlcanceCanal, DiarioCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { assistidoDoCanal, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS, POUCAS_VIEWS_MEDIA, taxaDoCanal, type MotivoAssistidoCanal } from '../_proprio/canal-agregados'
@@ -117,13 +117,17 @@ export function montarSoSeuCanalDado(a: {
   const resumo = resumir(dias)
   const lido = periodo != null && resumo.diasLidos > 0
 
+  // o relatório mais novo é mais antigo que a janela lida: a coleta PAROU, e a frase diz desde quando (nunca "ainda não chegaram")
+  const parouEm = periodo == null ? a.alcance.dado.ultimoRelatorio : null
   if (!lido) {
     // nenhum relatório lido: "Não medido." e as três linhas do alcance só com o quadradinho (sem nota: a frase já diz que falta medir); o % assistido segue o estado dele
     return {
       acesso: 'ok',
       view: {
         canal: a.nome,
-        frase: `${PREFIXO_NAO_MEDIDO} As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal, e os números de alcance de ${a.nome} ainda não chegaram: falta medir, não é zero.`,
+        frase: `${PREFIXO_NAO_MEDIDO} As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal, e ${parouEm
+          ? `a coleta de relatórios de ${a.nome} parou em ${a.dm(parouEm)}; nenhum dia dos últimos ${JANELA_LEITURA_ALCANCE_DIAS} foi medido`
+          : `os números de alcance de ${a.nome} ainda não chegaram`}: falta medir, não é zero.`,
         naoMedido: true,
         linhas: [
           linha('impressoes', 'Impressões', SUB.impressoesSemDado),

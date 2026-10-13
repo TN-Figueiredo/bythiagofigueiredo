@@ -24,7 +24,7 @@ import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/obs
 import { MIN_DIAS_VPD, vpdDoVideo } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { DadosDoVideo } from './dados'
 import { cliquesTexto, lerEstado } from './header-model'
-import { buildImpressoes, int, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
+import { buildImpressoes, int, SEM_RELATORIO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
 import { buildReguas, type DiarioReguas, type ReguasView } from './reguas-model'
 import { buildTaxaFaixa, type TaxaFaixaView } from './taxa-faixa-model'
 import { canalProprioDoVideo } from './video-model'
@@ -139,7 +139,7 @@ const FRASE_SEM_DIARIO_VIEWS = 'A coleta diária de views ainda não rodou para 
 const FRASE_VIDEO_NOVO_IMPRESSOES = 'Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.'
 const POUCO_IMPRESSAO = 100
 const FRASE_POUCA_IMPRESSAO = 'É pouco para dizer se a capa funciona: leia como contagem.'
-const SEM_TAXA_CTR = 'Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de pelo menos um dia com impressões.'
+const semTaxaCtr = (dias: number): string => `Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de clique de ${plural(dias, 'dia', 'dias')} com impressões.`
 const ALTURA_GRAFICO = 110
 const MINUS = '−'
 /** Dentro desta distância de 0% ou de 100% o rótulo da marca (cerca de 20% da largura de uma tela de 390 px) deixa de ficar centrado nela. */
@@ -221,14 +221,18 @@ function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Obse
 
 function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; publicacoes: PublicacoesPorYtId; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
   const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje, o.publicacoes)
-  if (lido.estado !== 'ok') return { medido: false, frase: SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
+  if (lido.estado !== 'ok') return { medido: false, frase: lido.estado === 'sem-relatorio' ? semRelatorioFrase(lido.parouEm, o.dm) : SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
   const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
   // a regra dos dias que valem para o vídeo (a partir da publicação; D e D-1 sem linha são "não medido") é a de `montarDias`, a mesma da régua e do cartão
   const montado = montarDias(alcance, { hoje: o.hoje, ytId: o.ytId, publicadoEm: o.pubDia })
   // vídeo novo (menos de DIAS_DE_VIDA_MIN dias de vida) SEM linha de alcance desde a publicação: a seção diz "vídeo novo". Com linha, o dado existe e a seção o mostra (a mesma regra do cartão e da régua)
   if (videoNovo(o.pubDia, o.hoje) && !montado.dias.some(x => x.situacao === 'com-impressoes')) return novo
-  if (montado.periodo == null || montado.dias.length === 0) return novo
+  // sem nenhum dia que valha para o vídeo, e a linha acima já tirou o vídeo novo (a regra única de `videoNovo`, a do cartão): o último relatório é anterior à publicação,
+  // a coleta atrasou. O cartão diz "não medido"; a página dá a mesma causa, com o último dia recebido, e nunca "vídeo novo".
+  if (montado.periodo == null || montado.dias.length === 0) {
+    return { ...novo, frase: `O último dia de alcance recebido é ${o.dm(lido.periodo.ate)}, anterior à publicação deste vídeo: ainda não medido.` }
+  }
   const dias = montado.dias
   const periodo: Periodo = montado.periodo
   const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje }
@@ -237,7 +241,7 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
   if (r.imp != null && r.imp > 0 && r.imp < POUCO_IMPRESSAO && grafico.resumo != null) grafico = buildImpressoes(dias, periodo, { ...base, resumo: `${grafico.resumo} ${FRASE_POUCA_IMPRESSAO}` })
   if (r.imp == null || r.imp <= 0) return { medido: true, frase: null, grafico, taxa: null, semTaxa: null }
   const tv = taxaComIntervalo(r.cliques, r.imp)
-  if (tv == null) return { medido: true, frase: null, grafico, taxa: null, semTaxa: SEM_TAXA_CTR }
+  if (tv == null) return { medido: true, frase: null, grafico, taxa: null, semTaxa: semTaxaCtr(r.diasSemCtr) }
   const rc = resumir(montarDias(alcance, { hoje: o.hoje }).dias)
   const tc = taxaComIntervalo(rc.cliques, rc.imp)
   return { medido: true, frase: null, grafico, taxa: taxaDe(tv, tc, o.F), semTaxa: null }
@@ -246,7 +250,7 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
 /* ---------------------------------------------------------------- % assistido */
 
 const METODO_ASSISTIDO = [
-  '% assistido: do total de tempo de vídeo possível, quanto foi assistido. É a média do percentual de cada dia, pesada pelas views do dia (dá o mesmo valor que o YouTube calcula para o período).',
+  '% assistido: do total de tempo de vídeo possível, quanto foi assistido. É a média do percentual de cada dia, pesada pelas views do dia.',
   'Janela: os 28 dias que terminam no último dia medido do canal.',
   'Poucas views: abaixo de 10 views o valor sai com a contagem ao lado, em cinza, e sem comparar com o normal do canal.',
   'O normal do canal é a mediana do % assistido dos outros vídeos do canal que tiveram views, e só vale com 5 ou mais vídeos. Perto do normal: até 2 pontos para cima ou para baixo.',
@@ -427,7 +431,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
         ? `Com ${int(v28)} ${v28 === 1 ? 'view' : 'views'} em 28 dias não dá para posicionar este vídeo: ${fraseOutrosAbaixoDe1(abaixoDe1, medidosVpd.length, semMedidaVpd)}` : null,
       naoPosicionaPct: meuPct.pct != null && meuPct.pouco ? `Com só ${int(meuPct.n)} ${meuPct.n === 1 ? 'view' : 'views'} não dá para posicionar o % assistido.` : null,
       semVpd: `sem ${MIN_DIAS_VPD} dias de medida`,
-      semPct: 'sem views nos 28 dias',
+      semPct: 'sem medida',
     }
   }
   // os dias que valem para CADA vídeo da régua: a partir da publicação dele, D e D-1 sem linha fora do zero (a regra de `montarDias`, a mesma do gráfico)

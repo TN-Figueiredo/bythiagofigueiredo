@@ -16,6 +16,7 @@ import {
 } from '@/lib/youtube/observatorio/proprio/assistido'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
+import { foraDaLeituraFrase } from '@/lib/youtube/observatorio/proprio/vpd'
 import { assistidoDoCanal, cobertura28DoVideo, views28DoVideo } from './canal-agregados'
 import type { DadosDoCanal } from './dados'
 import { longosAcompanhados } from './extras'
@@ -89,7 +90,7 @@ const SEM_FAIXA = 'sem duração'
 
 /** O ⓘ "De onde vem o % assistido": texto estático (nada do dado do canal). */
 export const METODO_ASSISTIDO: readonly string[] = [
-  '% assistido de um vídeo: média do percentual de cada dia, pesada pelas views do dia. Dá o mesmo resultado que o YouTube calcula para a janela inteira.',
+  '% assistido de um vídeo: média do percentual de cada dia, pesada pelas views do dia.',
   'Normal da faixa: mediana dos vídeos da faixa. Só aparece com 5 ou mais vídeos com views no período.',
   'Na média: uma diferença de até 2 pontos para cima ou para baixo é ruído e não ganha cor; de 3 pontos em diante é “acima” ou “abaixo”.',
   'Poucas views: abaixo de 10 views o valor aparece com a contagem ao lado, porque uma ou duas pessoas mudam o resultado. Acima de 100%: trecho que muita gente voltou para rever.',
@@ -110,12 +111,14 @@ function vazia(estado: EstadoRetencao, vazio: string, nota: string): RetencaoVie
 export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoCanal, o: { dm: (d: DiaYt) => string }): RetencaoView {
   const d = dados.diario
   const ultimo = d.acesso === 'ok' ? d.dado.ultimoDia : null
-  const nota = notaDe(ultimo, o.dm)
+  const nota0 = notaDe(ultimo, o.dm)
   if (d.acesso === 'negado') return vazia('negado', 'Só quem edita o site vê o % assistido.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO)
   if (d.acesso === 'erro') return vazia('erro', 'A leitura do % assistido falhou agora; recarregue a página.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO)
 
   const ytIds = longosAcompanhados(obs, canalId)
   const canal = assistidoDoCanal(d, ytIds)
+  // os longos além do teto do diário não foram lidos: a aba não os mostra, e a nota diz quantos são
+  const nota = canal.foraDoTeto > 0 ? `${nota0} ${foraDaLeituraFrase(canal.foraDoTeto)}` : nota0
   if (canal.motivo === 'sem-diario') return vazia('sem-diario', 'A coleta diária ainda não rodou para este canal: não há % assistido de nenhum vídeo.', nota)
   if (canal.motivo === 'sem-views') return vazia('sem-views', `Nenhum vídeo teve views nos 28 dias até ${ultimo ? o.dm(ultimo) : 'o último dia medido'}. Sem views não há % assistido para comparar. Os vídeos voltam a aparecer aqui assim que tiverem views.`, nota)
   if (canal.motivo === 'sem-percentual') return vazia('sem-percentual', 'O YouTube ainda não entregou o % assistido de nenhum vídeo.', nota)

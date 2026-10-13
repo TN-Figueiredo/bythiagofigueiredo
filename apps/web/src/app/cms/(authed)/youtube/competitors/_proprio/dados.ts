@@ -11,7 +11,7 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { edicaoValida, provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
-import type { AlcanceCanal, DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import { TETO_VIDEOS_DIARIO, type AlcanceCanal, type DiarioCanal, type Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { longosAcompanhados } from './extras'
 
 /** Canais lidos ao mesmo tempo na lista de Canais e na comparação. */
@@ -34,6 +34,13 @@ function avisarDescartados(siteId: string, descartados: number): void {
 }
 const descartadosDe = (p: Privado<AlcanceCanal> | Privado<DiarioCanal>): number => (p.acesso === 'ok' ? p.dado.descartados : 0)
 
+/** Vídeos longos além do teto do diário, que a leitura NÃO fez (a tela diz que ficaram de fora): UM aviso por requisição, com a soma. */
+function avisarForaDoTeto(siteId: string, foraDoTeto: number): void {
+  if (foraDoTeto <= 0) return
+  Sentry.captureMessage('observatório: o diário do canal próprio passou do teto de vídeos', { level: 'warning', tags: TAGS, extra: { siteId, foraDoTeto, teto: TETO_VIDEOS_DIARIO } })
+}
+const foraDoTetoDe = (p: Privado<DiarioCanal>): number => (p.acesso === 'ok' ? (p.dado.foraDoTeto?.length ?? 0) : 0)
+
 /**
  * Página do canal e do vídeo próprio: erro de leitura é LANÇADO (D5; a `error.tsx` da rota aparece, nunca um canal vazio).
  * `longosAcompanhados` = os ytIds de `longosAcompanhadosDe`. Sem token: as duas respostas são 'negado', sem consulta.
@@ -44,6 +51,7 @@ export async function lerDadosDoCanal(a: { canalId: string; longosAcompanhados: 
   const pedido = { edicao: a.edicao, canalId: a.canalId, hoje: dayPt(new Date(a.agora)) }
   const [alcance, diario] = await Promise.all([lerAlcance(sb, pedido), lerDiario(sb, { ...pedido, ytIds: a.longosAcompanhados })])
   avisarDescartados(a.edicao.siteId, descartadosDe(alcance) + descartadosDe(diario))
+  avisarForaDoTeto(a.edicao.siteId, foraDoTetoDe(diario))
   return { alcance, diario }
 }
 
@@ -95,6 +103,7 @@ export async function lerDiarioDosCanais(
     ;(avisar ?? padrao)(falhas[0], falhas.length)
   }
   avisarDescartados(siteId, lidos.reduce((s, l) => s + descartadosDe(l), 0))
+  avisarForaDoTeto(siteId, lidos.reduce((s, l) => s + foraDoTetoDe(l), 0))
   return out
 }
 
