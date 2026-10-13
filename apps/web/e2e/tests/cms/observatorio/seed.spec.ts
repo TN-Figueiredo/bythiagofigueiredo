@@ -5,7 +5,7 @@ import '../../../fixtures/server-only-shim' // first: load.ts imports 'server-on
 import { test, expect } from '@playwright/test'
 import { loadDataset } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
-import { seedObservatory, seedOwnL2, clearObservatory, localServiceClient, ORACLE_NOW, PERFIS_L2, MAPA_RETENCAO, RET, RET_1139, RET_MAGRO, RET_DIA_1139, RET_DIA_MAGRO, diaYoutube, somaDias, ownSeedUuid } from '../../../fixtures/observatorio-seed'
+import { seedObservatory, seedOwnL2, clearObservatory, localServiceClient, ORACLE_NOW, PERFIS_L2, MAPA_RETENCAO, RET, RET_1139, RET_MAGRO, RET_DIA_1139, RET_DIA_MAGRO, RECENTE_IMP_B_EM_D1, diaYoutube, somaDias, ownSeedUuid } from '../../../fixtures/observatorio-seed'
 import { clearSeeded } from './fidelity'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
 
@@ -65,8 +65,13 @@ test('ownL2: a semente do dado privado escreve o que o perfil diz (datas relativ
     expect([por('baixado').length, por('vazio').length, por('listado').length]).toEqual([11, 8, 10])
     for (const r of por('listado')) expect(r.normalized_at).toBeNull()
     for (const r of [...por('baixado'), ...por('vazio')]) expect(r.normalized_at).not.toBeNull()
-    // alcance: 6 vídeos, só nos 11 dias baixados, um CTR nulo, todos apontando para um relatório semeado e baixado
-    expect(new Set(p.reach.map(r => r.youtube_video_id)).size).toBe(6)
+    // alcance: só nos 11 dias baixados, um CTR nulo, todos apontando para um relatório semeado e baixado. Nenhuma linha antecede a publicação do vídeo (o dia anterior à
+    // publicação não existe, como em produção); por isso dos 6 vídeos mais novos só os que já existiam num dia baixado têm linha (4 no oráculo: os dois mais novos quase não aparecem)
+    const pubs = await supabase.from('youtube_videos').select('youtube_video_id, published_at').eq('site_id', siteId).eq('channel_id', canal)
+    const pubDia = new Map((pubs.data ?? []).map(v => [String(v.youtube_video_id), diaYoutube(Date.parse(String(v.published_at)))]))
+    for (const r of p.reach) expect(String(r.day_pt) >= pubDia.get(String(r.youtube_video_id))!, `linha de ${r.youtube_video_id} em ${r.day_pt} antes da publicação`).toBe(true)
+    expect(new Set(p.reach.map(r => r.youtube_video_id)).size).toBeGreaterThanOrEqual(4)
+    expect(new Set(p.reach.map(r => r.youtube_video_id)).size).toBeLessThanOrEqual(6)
     const baixados = new Set(por('baixado').map(r => String(r.start_time).slice(0, 10)))
     expect(new Set(p.reach.map(r => r.day_pt))).toEqual(baixados)
     expect(p.reach.filter(r => r.thumbnail_ctr == null)).toHaveLength(1)
@@ -177,7 +182,17 @@ test('ownL2: a semente do dado privado escreve o que o perfil diz (datas relativ
     expect(taxaDe(RET.taxaAlta)).toBeGreaterThan(0.95)
     // o vídeo novo (publicado há 2 dias) não tem alcance nem diário depois da publicação: o último dia coletado é anterior
     expect(alcanceDe(RET.novo)).toHaveLength(0)
-    expect(Object.keys(PERFIS_L2).sort()).toEqual(['ativo', 'cheio', 'curto', 'grande', 'lacunas', 'parado', 'retencao', 'velho'])
+    // recente: os relatórios vão até HOJE (D); D-3 baixado, D-2 vazio, D-1 baixado com a linha de UM vídeo só, D vazio (hachurado: o dia recente nunca é zero)
+    await seedObservatory(siteId, { ownL2: 'recente' }, supabase)
+    p = await privado(supabase, siteId, canal)
+    const st = new Map(p.rels.map(r => [String(r.start_time).slice(0, 10), String(r.status)]))
+    expect([3, 2, 1, 0].map(n => st.get(somaDias(hoje, -n)))).toEqual(['baixado', 'vazio', 'baixado', 'vazio'])
+    expect(p.rels).toHaveLength(29)
+    const emD1 = p.reach.filter(r => String(r.day_pt) === somaDias(hoje, -1))
+    expect(emD1.map(r => Number(r.thumbnail_impressions))).toEqual([RECENTE_IMP_B_EM_D1])
+    expect(new Set(p.reach.map(r => r.youtube_video_id)).size).toBe(2)
+    expect(p.reach.filter(r => [0, 2].some(n => String(r.day_pt) === somaDias(hoje, -n)))).toHaveLength(0)
+    expect(Object.keys(PERFIS_L2).sort()).toEqual(['ativo', 'cheio', 'curto', 'grande', 'lacunas', 'parado', 'recente', 'retencao', 'velho'])
   } finally {
     await clearObservatory(siteId, supabase)
     const depois = await privado(supabase, siteId, canal)
