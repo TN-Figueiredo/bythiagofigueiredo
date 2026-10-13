@@ -45,7 +45,7 @@ Nada disto é verdade em 13/10. Cada linha é uma **conferência pendente** (só
 | A1 | A MG14 está em produção | CP1 traz a versão dela; `to_regclass('public.yt_own_video_coverage')` não nulo | a MG17a recusaria sozinha; esperar o lote C |
 | A2 | O `check` de `source` é o que o Apêndice A espera | CP10 | corrigir o bloco 1 do Apêndice A antes do `db:new` |
 | A3 | O ensaio da MG17a rodou duas vezes no `bythiago_int` | Tarefa 1, saída guardada | emenda |
-| A4 | Nenhuma migration destrutiva pendente no repositório | o ledger comum `.superpowers/sdd/a5/` não tem linha "pendente: db push bloqueado" | esperar |
+| A4 | Nenhuma migration destrutiva pendente no repositório | a fila do `db push`, `.superpowers/sdd/a5/fila-do-db-push.md` (reconciliação 13/10, emenda 1: D-m8, S-m3), não tem linha "pendente: db push bloqueado" | esperar |
 | A5 | Acordo dos dois especialistas sobre este plano e sobre o SQL rodado | pareceres | emenda |
 | A6 (emenda 1: S-m-8) | O lote do plano E18 com as Tarefas 5, 6 e 7 dele está em `main` | `git log origin/main --oneline -- apps/web/src/lib/youtube/coleta/versoes-step.ts` traz os commits | a MG17a pode ser aplicada assim mesmo (é inerte); o **push do código** (passos 6 a 8 da Tarefa 13) espera |
 
@@ -62,8 +62,10 @@ Nada disto é verdade em 13/10. Cada linha é uma **conferência pendente** (só
 | P7 | As voltas B e C foram ensaiadas hoje no banco local | Tarefa 9 verde no dia | não soltar |
 | P8 | O leitor tolerante continua em `main` | G1 do plano P3, rodado de novo | não soltar |
 | P9 | O teste do item 191 aceita a tabela ausente | CP17 | ajustar a lista do plano E17 antes do push da Tarefa 14 |
-| P10 | Nenhuma outra migration pendente; a MG17 não está armada | `npx supabase migration list --linked`; ledger comum | **parar** |
+| P10 | Nenhuma outra migration pendente; a MG17 não está armada | `npx supabase migration list --linked`; a fila do `db push`, `.superpowers/sdd/a5/fila-do-db-push.md` (reconciliação 13/10, emenda 1: D-m8) | **parar** |
 | P11 | Acordo dos dois especialistas | pareceres | emenda |
+
+**(reconciliação 13/10, emenda 1: D-I2) Conferência a mais do portão P, antes do `db:new`, sem número para não mexer em P1 a P11:** ~~com o SQL de ensaio da MG16 aplicado no `bythiago_int`~~ (reconciliação 13/10, emenda 2: D2-m3) dentro da mesma transação desfeita (`begin; … rollback;`) em que o teste da Tarefa 14 aplica o ensaio, rodando ali a consulta de catálogo de cada teste (eles abrem conexão própria e não enxergam a transação); nunca aplicar a MG16 de forma persistente em banco local antes de produção verde. Assim conferidos, os testes de lista fechada da E10 (`observatorio-a5-e10-lista-fechada.test.ts`) e os dois do passo 0 da E17 (`observatorio-a5-e17-p0-doze.test.ts`, `-reporter-banco.test.ts`), se existirem, passam. Vermelho: acertar a lista no commit do arquivo (Tarefa 14), antes de armar.
 
 **Portão D (MG17).**
 
@@ -76,10 +78,12 @@ Nada disto é verdade em 13/10. Cada linha é uma **conferência pendente** (só
 | D5 | Sabe-se quanto sai e nada tem teste A/B que surpreenda | CP3 e CP4, com os números no ledger | os números vão ao dono na pergunta 1 |
 | D6 | Nada mais no banco lê a tabela | CP7: só a lista esperada | ler a função nova antes |
 | D7 | O ensaio local rodou duas vezes, e o ensaio com o CSV real (R2) fechou | Tarefas 8 e 10 | sem R2, o que fica sem prova está dito em "o que nenhum teste prova" |
-| D8 | As variáveis estão no padrão | CP9: `YT_OWN_META_DIETA_OFF` ausente; `YT_OWN_STEPS_OFF` sem `versoes` | corrigir e contar de novo |
+| D8 | As variáveis estão no padrão | CP9: `YT_OWN_META_DIETA_OFF` ausente; `YT_OWN_STEPS_OFF` sem `versoes`. **(reconciliação 13/10, emenda 1: D-m6) A CP9 lê a configuração da Vercel, e a variável só vale para deploy feito depois dela: conferir também o deploy em pé, pelo resumo da última execução, que não pode trazer `desligado` para `versoes` nem para a dieta** | corrigir e contar de novo |
 | D9 | Nenhuma outra migration pendente; a MG16 não está armada | como P10 | **parar** |
 | D10 | A pergunta 1 foi ao dono com os números | ledger | sem resposta vale o padrão (seguir) |
 | D11 | Acordo dos dois especialistas | pareceres | emenda |
+
+**(reconciliação 13/10, emenda 1: D-I2) Conferência a mais do portão D, antes do `db:new`, sem número para não mexer em D1 a D11:** ~~com o SQL de ensaio da MG17 aplicado no `bythiago_int`~~ (reconciliação 13/10, emenda 2: D2-m3) dentro da mesma transação desfeita (`begin; … rollback;`) em que o teste da Tarefa 15 aplica o ensaio, rodando ali a consulta de catálogo de cada teste; nunca aplicar a MG17 de forma persistente em banco local antes de produção verde (aplicada antes, deixaria o corpo novo de `yt_own_meta_cover` no banco que os outros testes usam). Assim conferido, `observatorio-a5-e10-lista-fechada.test.ts` passa **já com o par `(yt_own_meta_cover, yt_own_video_meta_daily)`**, e os dois testes do passo 0 da E17 passam. No dia da MG17 a fila do `db push` está travada para todos: a lista se acerta antes de armar, não depois.
 
 ### 0.3 Avisos de topo
 
@@ -110,7 +114,7 @@ Nenhuma trava o início. O plano segue com o padrão.
 
 ## 2. O que é do dono
 
-**Três aplicações, em três dias diferentes, cada uma sozinha no `db push` (a MG17a pode ir junto do lote C, se o carimbo dela for posterior ao da MG14).**
+**Três aplicações, em três dias diferentes, cada uma sozinha no `db push` (a MG17a pode ir junto do lote C, se o carimbo dela for posterior ao da MG14).** **(reconciliação 13/10: R15) Se for junto, ela é a sexta e última do lote: o arquivo é criado depois do da MG12 (ordem do lote: MG14, MG11, MG5, MG7, MG12, MG17a; reconciliação 13/10, emenda 1: D-C1, S-C1: com o lote C partido, a MG17a é a terceira e última do C2, depois de MG11 e MG12, e a MG14 já está em produção desde o C1), e a janela do `db:push:prod` passa a ser a do lote, fora de 11:30 a 13:00 UTC (a da MG11), não a de 11:55 a 12:15 da linha a2 abaixo. O nome MG17a fica; está na tabela única de migrations de `docs/superpowers/plans/2026-10-13-a5-onda-2-reconciliacao.md`.**
 
 | Passo | Quem | O quê | Se inverter ou pular |
 |---|---|---|---|
@@ -500,7 +504,7 @@ Uma função auxiliar (`yt_own_daily_bkp_soltar(p_agora)`, criada, chamada e apa
 | CSV com menos linhas que a AD | a migration não sabe do CSV | a R1 compara e **para antes do passo d5** |
 | API do YouTube 403, 429 ou 500 | não se aplica às migrations; o efeito indireto (captura falhou ontem) aparece como execução não limpa só se o passo acusar | recusa, acima |
 
-**Interruptor.** `YT_OWN_META_DIETA_OFF` (variável da Vercel; lida a cada chamada, nunca no import): `1`, `true` ou `sim` desligam o enxugamento; ausente ou vazia = ligado. A cobertura continua sendo gravada com a dieta desligada. A variável só chega a deploy novo: desligar de verdade na hora é o roteiro SQL (seção 2, "Como desfazer"). (emenda 1: S-I-3) Desligado pelo roteiro, o cron também fica vermelho todo dia (linha 14b), até o roteiro de religar.
+**Interruptor.** `YT_OWN_META_DIETA_OFF` (variável da Vercel; lida a cada chamada, nunca no import): `1`, `true` ou `sim` desligam o enxugamento; ausente ou vazia = ligado. A cobertura continua sendo gravada com a dieta desligada. A variável só chega a deploy novo: desligar de verdade na hora é o roteiro SQL (seção 2, "Como desfazer"). (emenda 1: S-I-3) Desligado pelo roteiro, o cron também fica vermelho todo dia (linha 14b), até o roteiro de religar. **(reconciliação 13/10: R16) A Tarefa 12 acrescenta a linha de `YT_OWN_META_DIETA_OFF` em `docs/ops/env-vars.md` (o `CLAUDE.md` do projeto manda a lista completa morar lá; o plano só citava o runbook).**
 
 ---
 
@@ -862,14 +866,18 @@ commit;
 
 ### Tarefa 13: o arquivo da MG17a e o envio do código (portão A)
 
-**Passos.** (1) Portão A verde. (2) `npm run db:new observatorio_a5_e18p2_cobertura_de_metadados`; carimbo posterior ao da MG14; colar o Apêndice A; `diff` contra o ensaio: vazio; rodar a Tarefa 1 lendo o arquivo. (3) Commit local por caminho. (4) O dono aplica (sozinha, ou no `db push` do lote C). (5) VA1 a VA4, no ledger. (6) (emenda 1: S-I-1; o passo antigo, que conferia depois do fato se o commit da Tarefa 3 já tinha ido a `staging`, saiu) **Só agora** a Tarefa 3 é escrita, testada e commitada, com a CP21 respondida. (7) Data em `E18P2_COBERTURA_DEPLOY`. (8) Push em `staging` por lista explícita de commits (o arquivo da MG17a, o teste da Tarefa 1, as Tarefas 2, 3, 4, 5 e 11), no mesmo dia do commit da Tarefa 3; CI verde; promoção a `main` fora de 11:55 a 12:15 UTC.
+**(reconciliação 13/10, emenda 1: S-I3, D-I2) No mesmo commit do arquivo da MG17a:** (a) o par `(yt_own_meta_cover_set, yt_own_video_coverage)` entra em `observatorio-a5-e10-lista-fechada.test.ts` (E10, Tarefa 10), porque a função tem `delete from public.yt_own_video_coverage` (Apêndice A) e o teste lê do catálogo toda função `yt_*` com `delete from`; (b) as três funções novas são classificadas nas listas dos testes `-doze` e `-reporter-banco` do passo 0 da E17. Se algum desses testes ainda não existir, a obrigação vai para `.superpowers/sdd/a5/fila-do-db-push.md`, seção "pares e classificações pendentes". Antes do `db:new`, os três testes passam no `bythiago_int` com o ensaio aplicado.
+
+**Passos.** (1) Portão A verde. (2) `npm run db:new observatorio_a5_e18p2_cobertura_de_metadados`; carimbo posterior ao da MG14; colar o Apêndice A; `diff` contra o ensaio: vazio; rodar a Tarefa 1 lendo o arquivo. (3) Commit local por caminho. (4) O dono aplica (sozinha, ou no `db push` do lote C). (5) VA1 a VA4, no ledger. (6) (emenda 1: S-I-1; o passo antigo, que conferia depois do fato se o commit da Tarefa 3 já tinha ido a `staging`, saiu) **Só agora** a Tarefa 3 é escrita, testada e commitada, com a CP21 respondida. (7) Data em `E18P2_COBERTURA_DEPLOY`. (8) Push em `staging` por lista explícita de commits (o arquivo da MG17a, o teste da Tarefa 1, as Tarefas 2, 3, 4, 5 e 11), no mesmo dia do commit da Tarefa 3; CI verde; promoção a `main` fora de 11:55 a 12:15 UTC (reconciliação 13/10, emenda 2: S2-m4: esta é a janela da **promoção de código**, em volta do cron das 12:00 UTC; a do `db:push:prod` é outra, a janela comum da reconciliação: fora de 11:30 a 13:00 UTC e dos minutos 0, 20 e 40).
 **Tem de estar em `main` antes:** MG14 aplicada; o lote do plano E18 com as Tarefas 5, 6 e 7 dele (linha A6 do portão: emenda 1, S-m-8).
 **Volta.** Reverter os commits das Tarefas 3 e 5. A migration fica.
 **Pronto quando:** CI verde, deploy pronto, `e18p2-cob-d0` com `feitaEm`.
 
 ### Tarefa 14: o dia da MG16 (portão P)
 
-**Ordem que não pode inverter:** portão P → linha no ledger comum → `db:new observatorio_a5_e6_p4_soltar_backup_do_diario`, cola o Apêndice B, `diff`, Tarefa 9 lendo o arquivo → commit local → o dono confere o CSV, tira o CSV do backup e põe a marca → AP → `db:push:prod` → VP1 a VP4 → o dono retira a marca → par do item 231, se o teste existir (`(arquivo da MG16, yt_own_video_daily_zeros_bkp)`, linha 7 da tabela de 9.2) → data em `E6_P4_APLICADA`, commit, push, CI, promoção.
+**(reconciliação 13/10, emenda 1: D-I2) No commit do arquivo da MG16, antes de armar:** a tabela `yt_own_video_daily_zeros_bkp` deixa de existir depois desta migration; as listas dos testes `-doze` e `-reporter-banco` do passo 0 da E17 têm de aceitá-la ausente (é o que a P9 confere) e a conferência a mais do portão P tem de estar verde. O par de arquivo `(arquivo da MG16, yt_own_video_daily_zeros_bkp)` não tem lugar em nenhum dos dois testes da E10: fica declarado em `.superpowers/sdd/a5/fila-do-db-push.md`.
+
+**Ordem que não pode inverter:** portão P → linha em `.superpowers/sdd/a5/fila-do-db-push.md` → `db:new observatorio_a5_e6_p4_soltar_backup_do_diario`, cola o Apêndice B, `diff`, Tarefa 9 lendo o arquivo → commit local → o dono confere o CSV, tira o CSV do backup e põe a marca → AP → `db:push:prod` → VP1 a VP4 → o dono retira a marca → par do item 231, se o teste existir (`(arquivo da MG16, yt_own_video_daily_zeros_bkp)`, linha 7 da tabela de 9.2) → data em `E6_P4_APLICADA`, commit, push, CI, promoção.
 **Bancos locais, só depois de produção verde:** no `bythiago_int` e no banco do navegador a migration não recusa (backup ausente, ou vazio e sem comentário); se algum deles tiver backup com linhas e sem o comentário da MG15, o controlador solta a tabela à mão antes, avisando os outros terminais.
 **Recusa que não é reaplicada no dia:** o arquivo sai por um commit que o remove; o ritual recomeça no outro dia. (emenda 1: S-m-12) **Depois de qualquer recusa**, o controlador roda a leitura "Depois de uma recusa" do Apêndice E: se `yt_own_daily_bkp_soltar` ficou no banco (o cliente não aplicou o arquivo numa transação só), o dono roda a linha de `drop function` antes da nova tentativa.
 **Pronto quando:** CI verde; `e6-p4-d0` com `feitaEm`; o ledger traz a AP **com o comentário inteiro do backup** (ele não existe mais em lugar nenhum), VP1 a VP4, o `sha256` dos dois CSVs e a saída do `db push`.
@@ -877,9 +885,9 @@ commit;
 ### Tarefa 15: o dia da MG17 (portão D)
 
 **Passos, nesta ordem.**
-1. Portão D verde, rodado no dia (a execução das 12:00 UTC do dia entra na conta).
+1. Portão D verde, rodado no dia (a execução das 12:00 UTC do dia entra na conta). **(reconciliação 13/10, emenda 1: D-I2) O par `(yt_own_meta_cover, yt_own_video_meta_daily)` em `observatorio-a5-e10-lista-fechada.test.ts` e a classificação da função nos dois testes do passo 0 da E17 entram no commit do arquivo (passo 3), não no passo 9: no passo 9 a fila do `db push` já está travada e um push vermelho ali é conserto com a fila parada. O passo 9 passa a ser só a conferência de que entraram.**
 2. Fixture: uma das 14 linhas da CP14 (só `falhas`, `resumo.metadados` e `resumo.versoes`, nomes de canal trocados por `canal`) em `test/youtube/coleta/fixtures/e18p2-execucao-real.json`; acrescentar à Tarefa 6 o caso `14 cópias da execução real de produção são reconhecidas como limpas`, **escrito antes de qualquer mudança no SQL**. Se falhar, a regra está errada para o formato real: corrigir o Apêndice C, o ensaio, e rodar as Tarefas 6 e 10 de novo.
-3. Linha "MG17 pendente: db push bloqueado, e não rodar `migration up` no banco local 54321" no ledger comum; `npm run db:new observatorio_a5_e18p2_dieta_de_metadados`; colar o Apêndice C; `diff` contra o ensaio: vazio; Tarefas 6 e 7 lendo o arquivo.
+3. Linha "MG17 pendente: db push bloqueado, e não rodar `migration up` no banco local 54321" em `.superpowers/sdd/a5/fila-do-db-push.md` (reconciliação 13/10, emenda 1: D-m8); `npm run db:new observatorio_a5_e18p2_dieta_de_metadados`; colar o Apêndice C; `diff` contra o ensaio: vazio; Tarefas 6 e 7 lendo o arquivo.
 4. O dono: CSV, `shasum`, contagem, marca (Apêndice E; `wc -l` não serve aqui, a descrição tem quebras de linha).
 5. O controlador: AD; R1; R2 (Tarefa 8, caso 5).
 6. O dono: `db:push:prod`.
@@ -1013,14 +1021,14 @@ select public.competitor_hourly_health(:site, now(), 14, 25);
 ### Dívida registrada
 
 - **Linha nova na tabela de 9.2 do spec `06`** (pedido ao controlador): "`yt_own_meta_cover` | a linha do meio de uma sequência de dias idênticos de `yt_own_video_meta_daily`, e o intervalo de cobertura que se funde a outro | este plano (desvio 4); a cobertura guarda o dia | não: só o instante de captura do dia some".
-- **Linha nova na tabela de migrations do spec `00`:** "MG17a | E18, parte 2 | alarga o `check` de `source` da cobertura, funções de cobertura de metadados e carga | MG14 | lote C ou sozinha".
-- **Os pares do item 231:** `(arquivo da MG16, yt_own_video_daily_zeros_bkp)`, `(arquivo da MG17, yt_own_video_meta_daily)`, `(yt_own_meta_cover, yt_own_video_meta_daily)`. O teste da E10 varre `.delete()` no código; os três apagamentos daqui estão em SQL, fora do alcance dele: avisar o dono do teste.
-- **A frase errada do plano E18** ("vale na execução seguinte, sem deploy"): corrigir lá.
+- **Linha nova na tabela de migrations do spec `00`:** "MG17a | E18, parte 2 | alarga o `check` de `source` da cobertura, funções de cobertura de metadados e carga | MG14 | lote C ou sozinha". **(reconciliação 13/10: R5: a linha existe na tabela única de migrations do documento de reconciliação, seção 1, com o nome MG17a.)**
+- **Os pares do item 231:** `(arquivo da MG16, yt_own_video_daily_zeros_bkp)`, `(arquivo da MG17, yt_own_video_meta_daily)`, `(yt_own_meta_cover, yt_own_video_meta_daily)`. O teste da E10 varre `.delete()` no código; os três apagamentos daqui estão em SQL, fora do alcance dele: avisar o dono do teste. **(reconciliação 13/10: R6) Correção: a E10 tem dois testes.** O estático varre `.delete()` no TypeScript; o de integração (`observatorio-a5-e10-lista-fechada.test.ts`) lê do catálogo toda função `yt_*` com `delete from`. `yt_own_meta_cover` passa a ter `delete` com a MG17 (e com o roteiro de religar, que instala o mesmo corpo): **esse teste cai** se o par `(yt_own_meta_cover, yt_own_video_meta_daily)` não entrar nele no commit da Tarefa 15. As funções temporárias da MG16 e da MG17 somem no fim do arquivo e nenhum teste as vê: os dois pares de arquivo ficam declarados no ledger comum (o plano da E10 foi avisado).
+- **A frase errada do plano E18** ("vale na execução seguinte, sem deploy"): corrigir lá. **(reconciliação 13/10: R4: corrigida no plano da E18, no interruptor da seção 6, na saída de emergência da Tarefa 7 e em "Como voltar".)**
 - **A contagem de idas do teste 19 do plano E18** sobe de 43 para 45 com a Tarefa 5.
 - **O roteiro "refazer a derivação de versões do zero"** em produção.
 - **Um ritual único no runbook** para as três migrations destrutivas da dieta.
 - **Alarme de tamanho de `yt_own_video_meta_daily`** no sinal de tamanho do banco da E10 (risco 10).
-- **(emenda 1: S-m-11; prioridade alta: pedir antes de o arquivo da MG14 nascer)** **Pedir ao plano irmão** que a MG14 já nasça com `data_api` e `imagem` no `check` de `source`, se o arquivo dela ainda não existir no dia do portão A (o bloco 1 da MG17a vira nada a fazer). Com isso some também a trava exclusiva que cada transação de teste das Tarefas 1, 6, 7 e 8 segura em `yt_own_video_coverage`.
+- **(emenda 1: S-m-11; prioridade alta: pedir antes de o arquivo da MG14 nascer)** **Pedir ao plano irmão** que a MG14 já nasça com `data_api` e `imagem` no `check` de `source`, se o arquivo dela ainda não existir no dia do portão A (o bloco 1 da MG17a vira nada a fazer). Com isso some também a trava exclusiva que cada transação de teste das Tarefas 1, 6, 7 e 8 segura em `yt_own_video_coverage`. **(reconciliação 13/10: R15) Decisão: a MG14 nasce como foi provada (`analytics_api`, `reporting_api`).** Ela é o SQL de ensaio de um plano já em execução (`.superpowers/sdd/a5-e6-e8/sql/mg14.sql:29`), e o bloco 1 da MG17a funciona nos dois casos; trocar o `check` lá pediria nova prova do plano irmão para poupar uma trava de teste. O custo fica: os testes das Tarefas 1, 6, 7 e 8 rodam em série no `bythiago_int`, sem outro teste de E6, E8 ou E11 ao mesmo tempo. O controlador pode rever antes do `db:new` da MG14; se rever, a CP10 daqui já cobre.
 
 ### O que nenhum teste vai provar (declarado)
 
