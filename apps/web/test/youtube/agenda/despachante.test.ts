@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { despachar, type OpsAgenda, type ResumoDisparo } from '@/lib/youtube/agenda/despachante'
 import type { ContextoTarefa, EstadoAgenda, LinhaTarefa, Lido, ResultadoTarefa, Tarefa } from '@/lib/youtube/agenda/tipos'
 import { chaveDoPeriodo } from '@/lib/youtube/agenda/periodo'
-import { DEFINICOES } from '@/lib/youtube/agenda/catalogo'
+import { CATALOGO, DEFINICOES } from '@/lib/youtube/agenda/catalogo'
 import { LEVE_COMECA_ATE_MS, LIMITE_FUNCAO_MS } from '@/lib/youtube/agenda/relogio'
 
 // Um dia fixo no passado serve de âncora; o que importa é a hora do relógio de São Paulo (UTC−3).
@@ -765,5 +765,112 @@ describe('despachante: o resumo', () => {
     const r = await m.rodar()
     expect(final(r, 'a_leve').extra).toEqual({ videos: 3 })
     expect(m.ops.fechar.mock.calls[0][0]).not.toHaveProperty('extra')
+  })
+})
+
+// ---- A5 E14, Tarefa 12: o catálogo da ordem 6 (as cinco tarefas reais, com `rodar` falso) -------------------------------------
+describe('despachante: as tarefas dos comentários de destaque no catálogo real', () => {
+  /** O catálogo real do HEAD (definições de verdade), sem o código: `rodar` é do teste e `devidaPeloDado` não entra. */
+  function catalogoReal(rodar: Record<string, Tarefa['rodar']> = {}): Tarefa[] {
+    return CATALOGO.map(t => {
+      const { rodar: _codigo, devidaPeloDado: _dado, ...definicao } = t
+      return { ...definicao, rodar: rodar[t.nome] ?? okPadrao }
+    })
+  }
+  const sinc = () => CATALOGO.find(t => t.nome === 'sincronizar_canais')!
+
+  it('ordem: anular_identidade antes de retratos_comentarios no mesmo disparo (item 155)', async () => {
+    const t0 = sp(13, 0)
+    // a sincronização já tem ok na faixa: a vaga da pesada fica livre para a coleta de comentários
+    const m = montar({ catalogo: catalogoReal(), t0, estado: estadoDe([linha(sinc(), t0, { status: 'ok', runs: 1 })], t0) })
+    await m.rodar()
+    const n = nomes(m.chamadas)
+    expect(n).toContain('anular_identidade')
+    expect(n).toContain('retratos_comentarios')
+    expect(n.indexOf('leitura_horaria')).toBe(0)
+    expect(n.indexOf('anular_identidade')).toBeLessThan(n.indexOf('retratos_comentarios'))
+  })
+
+  it('a anulação falha: a coleta do mesmo disparo roda, e a anulação é o problema (com o código, não o texto)', async () => {
+    const t0 = sp(13, 0)
+    const m = montar({
+      catalogo: catalogoReal({ anular_identidade: async () => ({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'banco' }) }), t0,
+      estado: estadoDe([linha(sinc(), t0, { status: 'ok', runs: 1 })], t0),
+    })
+    const r = await m.rodar()
+    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'retratos_comentarios'])
+    expect(final(r, 'anular_identidade')).toMatchObject({ estado: 'erro', motivo: 'banco' })
+    expect(final(r, 'retratos_comentarios').estado).toBe('ok')
+    expect(r.problemas).toEqual(['anular identidade de autores: o banco não respondeu a tempo ou recusou'])
+  })
+
+  /** Cada `rodar` leva a tarefa até o `fimAteMs` dela, contado de t0, e devolve parcial (o pior caso). */
+  function noPiorCaso(t0: number, estado: Lido<EstadoAgenda>) {
+    let relogio: { agora: number } = { agora: t0 }
+    const pior: Record<string, Tarefa['rodar']> = {}
+    for (const t of CATALOGO) {
+      pior[t.nome] = async (): Promise<ResultadoTarefa> => {
+        relogio.agora = Math.max(relogio.agora, t0 + t.fimAteMs)
+        return { estado: 'parcial', feitas: 1, deixadas: 3, motivo: 'sobrou' }
+      }
+    }
+    const m = montar({ catalogo: catalogoReal(pior), t0, estado })
+    relogio = m.relogio
+    return m
+  }
+  const PESADAS = new Set(['sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+
+  it('nunca duas pesadas, com cada tarefa no pior caso; relógio final ≤ 300 s (às 13:00, estado vazio)', async () => {
+    const t0 = sp(13, 0)
+    const m = noPiorCaso(t0, estadoDe([], t0))
+    await m.rodar()
+    expect(m.chamadas.filter(c => PESADAS.has(c.nome))).toHaveLength(1)
+    for (const c of m.chamadas) expect(c.em - t0, c.nome).toBeLessThanOrEqual(CATALOGO.find(t => t.nome === c.nome)!.comecaAteMs)
+    expect(m.relogio.agora - t0).toBeLessThanOrEqual(LIMITE_FUNCAO_MS)
+  })
+
+  it('nunca duas pesadas, com a coleta de comentários no pior caso: termina em 225 s e deixa os 20 s da prova e os 15 s do registro', async () => {
+    const t0 = sp(13, 0)
+    const m = noPiorCaso(t0, estadoDe([linha(sinc(), t0, { status: 'ok', runs: 1 })], t0))
+    const r = await m.rodar()
+    expect(m.chamadas.filter(c => PESADAS.has(c.nome)).map(c => c.nome)).toEqual(['retratos_comentarios'])
+    expect(final(r, 'serie_semanal')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+    // anular termina em 85 s; a coleta começa aí (≤ 130 s) e vai a 225 s
+    const anular = m.chamadas.find(c => c.nome === 'anular_identidade')!
+    const coleta = m.chamadas.find(c => c.nome === 'retratos_comentarios')!
+    expect(coleta.em - t0).toBeGreaterThanOrEqual(anular.em - t0)
+    expect(coleta.em - t0).toBeLessThanOrEqual(130_000)
+    expect(m.relogio.agora - t0).toBe(225_000)
+    expect(m.relogio.agora - t0).toBeLessThanOrEqual(LIMITE_FUNCAO_MS - 20_000 - 15_000)
+  })
+
+  it('a vaga da pesada às 13:00: com as duas sãs e a sincronização feita, ganha retratos_comentarios (ordem 7), e a semanal espera', async () => {
+    const t0 = sp(13, 0)
+    const m = montar({ catalogo: catalogoReal(), t0, estado: estadoDe([linha(sinc(), t0, { status: 'ok', runs: 1 })], t0) })
+    const r = await m.rodar()
+    expect(m.chamadas.filter(c => PESADAS.has(c.nome)).map(c => c.nome)).toEqual(['retratos_comentarios'])
+    expect(final(r, 'serie_semanal')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+  })
+
+  it('armadilha: com a coleta de comentários QUEBRADA, a semanal não fica sem rodar; no disparo seguinte, sem pesada sã, a quebrada roda', async () => {
+    const t0 = sp(13, 0)
+    const coleta = CATALOGO.find(t => t.nome === 'retratos_comentarios')!
+    const semanal = CATALOGO.find(t => t.nome === 'serie_semanal')!
+    const quebrada = linha(coleta, t0, { status: 'erro', runs: 2, attempts: 2, last_run_status: 'erro', last_run_done_n: 0 })
+    const sincOk = linha(sinc(), t0, { status: 'ok', runs: 1 })
+
+    const a = montar({ catalogo: catalogoReal(), t0, estado: estadoDe([sincOk, quebrada], t0) })
+    const ra = await a.rodar()
+    expect(a.chamadas.filter(c => PESADAS.has(c.nome)).map(c => c.nome)).toEqual(['serie_semanal'])
+    expect(final(ra, 'retratos_comentarios')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+
+    // a semanal já tem ok no dia: sem outra pesada sã, a coleta quebrada tem a vaga (não fica parada o dia inteiro)
+    const t1 = sp(13, 20)
+    const b = montar({
+      catalogo: catalogoReal(), t0: t1,
+      estado: estadoDe([linha(sinc(), t1, { status: 'ok', runs: 1 }), linha(coleta, t1, { status: 'erro', runs: 2, attempts: 2, last_run_status: 'erro', last_run_done_n: 0 }), linha(semanal, t1, { status: 'ok', runs: 1 })], t1),
+    })
+    await b.rodar()
+    expect(b.chamadas.filter(c => PESADAS.has(c.nome)).map(c => c.nome)).toEqual(['retratos_comentarios'])
   })
 })

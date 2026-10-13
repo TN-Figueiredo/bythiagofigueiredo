@@ -4,6 +4,8 @@ import { HORARIA_FIM_MS, HORARIA_ULTIMA_ONDA_MS, PESADA_FIM_MS } from './relogio
 import { leituraHoraria } from './tarefas/leitura-horaria'
 import { sincronizarCanais } from './tarefas/sincronizar-canais'
 import { serieSemanal } from './tarefas/serie-semanal'
+import { anularIdentidade } from './tarefas/anular-identidade'
+import { retratosComentarios } from './tarefas/retratos-comentarios'
 
 /** Uma tarefa sem o que é código (`rodar`, `devidaPeloDado`): o que o vigia, o despachante e os testes leem sem carregar a coleta. */
 export type Definicao = Omit<Tarefa, 'rodar' | 'devidaPeloDado'>
@@ -64,7 +66,9 @@ function definicao(nome: string): Definicao {
  */
 export const CATALOGO: readonly Tarefa[] = [
   { ...definicao('leitura_horaria'), ...leituraHoraria },
+  anularIdentidade,
   { ...definicao('sincronizar_canais'), ...sincronizarCanais },
+  retratosComentarios,
   { ...definicao('serie_semanal'), ...serieSemanal },
 ]
 
