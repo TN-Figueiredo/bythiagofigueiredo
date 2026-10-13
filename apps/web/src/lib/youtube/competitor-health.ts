@@ -122,7 +122,13 @@ const n = (count: number, one: string, many: string) => count + ' ' + (count ===
  * `slotDone` = nenhum canal ficou devido nesta faixa (só então "sem ponto hoje" pode ser cobrado).
  * `thumbs: false` = a miniatura dos semanais não é coletada (pergunta 1): `sem_miniatura_9d` não é cobrado.
  */
-export interface VerdictOpts { slotDone: boolean; e2: boolean; thumbs?: boolean }
+export interface VerdictOpts {
+  slotDone: boolean; e2: boolean; thumbs?: boolean
+  /** false = a fase semanal do disparo está desligada: os semanais (devidos hoje, 8º e 9º dia) não são cobrados, e uma nota diz isso. Omitido = ligada, cobra. */
+  weekly?: boolean
+}
+/** Totais de série zerados com canal lido no dia deixam de ser "esperado" (dia da ativação) e viram vermelho a partir desta hora de São Paulo, com a faixa terminada. */
+export const CLASSIFIED_BY_HOUR_SP = 19
 
 /**
  * O veredito é lido do ESTADO do banco a cada disparo: uma perda fica vermelha até ser consertada (ou, no caso do
@@ -143,24 +149,32 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
     if (c.videos_ausentes || c.canais_ausentes) notes.push(n(c.videos_ausentes, 'vídeo', 'vídeos') + ' e ' + n(c.canais_ausentes, 'canal', 'canais') + ' não vêm mais do YouTube')
   }
   if (o.e2) {
+    if (o.weekly === false) notes.push('fase semanal desligada')
     if (!s) problems.push('não foi possível ler a prova da série')
     else {
       if (s.sem_faixa) problems.push(n(s.sem_faixa, 'vídeo', 'vídeos') + ' sem faixa de série')
       if (s.diaria_buracos_3d) problems.push(n(s.diaria_buracos_3d, 'buraco', 'buracos') + ' na série diária nos últimos 3 dias')
       // (emenda do portão: D-I3, D-m1) a faixa semanal. O 9º dia é perda e é vermelho a qualquer hora. O 8º dia e os devidos
       // de hoje só são falha depois das 19:00 de São Paulo com a faixa inteira tentada: antes disso a fase semanal ainda vai ler.
-      const weeklyLate = s.hora_sp >= WEEKLY_DUE_FROM_HOUR_SP && o.slotDone
-      if (s.semanal_atrasados_9d) problems.push(n(s.semanal_atrasados_9d, 'vídeo', 'vídeos') + ' da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)')
-      const eighth = Math.max(0, s.semanal_atrasados - s.semanal_atrasados_9d)
-      if (eighth) (weeklyLate ? problems : notes).push(n(eighth, 'vídeo', 'vídeos') + ' da faixa semanal no 8º dia sem ponto')
-      if (s.semanal_devidos_hoje && weeklyLate) problems.push(n(s.semanal_devidos_hoje, 'vídeo', 'vídeos') + ' da faixa semanal devidos hoje e ainda sem ponto')
+      // `weekly: false` (fase desligada): ninguém lê os semanais, então cobrá-los deixaria o cron vermelho todo dia às 19:00; a nota diz por que não cobra.
+      if (o.weekly !== false) {
+        const weeklyLate = s.hora_sp >= WEEKLY_DUE_FROM_HOUR_SP && o.slotDone
+        if (s.semanal_atrasados_9d) problems.push(n(s.semanal_atrasados_9d, 'vídeo', 'vídeos') + ' da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)')
+        const eighth = Math.max(0, s.semanal_atrasados - s.semanal_atrasados_9d)
+        if (eighth) (weeklyLate ? problems : notes).push(n(eighth, 'vídeo', 'vídeos') + ' da faixa semanal no 8º dia sem ponto')
+        if (s.semanal_devidos_hoje && weeklyLate) problems.push(n(s.semanal_devidos_hoje, 'vídeo', 'vídeos') + ' da faixa semanal devidos hoje e ainda sem ponto')
+      }
       // (emenda do portão: D-I4) a imagem que a origem sobrescreve: toda leitura confere a miniatura, então 9 dias sem cópia é falha
       if (s.sem_miniatura_9d && o.thumbs !== false) problems.push(n(s.sem_miniatura_9d, 'vídeo', 'vídeos') + ' sem cópia da miniatura depois de 9 dias')
       // só depois das 18:00 de São Paulo e com todos os canais da faixa tentados: antes disso faltar ponto é o esperado
       if (s.diaria_sem_ponto_hoje && s.hora_sp >= DAILY_DUE_FROM_HOUR_SP && o.slotDone) problems.push(n(s.diaria_sem_ponto_hoje, 'vídeo', 'vídeos') + ' da faixa diária sem ponto hoje')
-      // Os totais com faixa (diaria_total e semanal_total) em zero, com canal lido hoje, é a classificação sem ter feito nada: nota, nunca verde mudo.
-      // Esperada só no dia da ativação, antes da faixa das 18:00 gravar as faixas; depois disso a nota continua aparecendo.
-      if (c && c.canais_vistos_dia_pacifico > 0 && s.diaria_total === 0 && s.semanal_total === 0) notes.push('nenhum vídeo com faixa ainda (esperado só no dia da ativação, antes das 18:00)')
+      // Os totais com faixa (diaria_total e semanal_total) em zero, com canal lido hoje, é a classificação sem ter feito nada.
+      // No dia da ativação, antes da faixa das 18:00 gravar as faixas, é esperado (nota). Daí em diante, com a faixa terminada, é a coleta
+      // que não está classificando: vermelho, nunca verde mudo.
+      if (c && c.canais_vistos_dia_pacifico > 0 && s.diaria_total === 0 && s.semanal_total === 0) {
+        if (s.hora_sp >= CLASSIFIED_BY_HOUR_SP && o.slotDone) problems.push('nenhum vídeo com faixa de série: a coleta não está classificando')
+        else notes.push('nenhum vídeo com faixa ainda (esperado só no dia da ativação, antes das 18:00)')
+      }
       if (s.fora_da_prova) notes.push(s.fora_da_prova + ' fora da prova de série (sem contagem, estreia agendada ou ausente)')
     }
   }

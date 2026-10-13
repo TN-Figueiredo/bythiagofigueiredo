@@ -58,7 +58,12 @@ describe('runCompetitorBatch', () => {
 describe('batchHealth', () => {
   const base = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [] as string[] }
   it('fails when at least half of the attempted channels errored', () => {
-    expect(batchHealth({ ...base, synced: 1, errors: 14 })).toEqual({ ok: false, message: '14 of 15 channels failed' })
+    expect(batchHealth({ ...base, synced: 1, errors: 14 })).toEqual({ ok: false, message: '14 de 15 canais falharam' })
+  })
+  it('item 9: a mensagem é em português, no singular e no plural', () => {
+    expect(batchHealth({ ...base, synced: 2, errors: 3 }).message).toBe('3 de 5 canais falharam')
+    expect(batchHealth({ ...base, synced: 1, errors: 1 }).message).toBe('1 de 2 canais falhou')
+    expect(batchHealth({ ...base, synced: 0, errors: 1 }).message).toBe('1 de 1 canal falhou')
   })
   it('is ok with a single error among many', () => {
     expect(batchHealth({ ...base, synced: 14, errors: 1 }).ok).toBe(true)
@@ -206,6 +211,17 @@ describe('A5: tetos de tempo do disparo (a conta presa)', () => {
     // o último canal começa no máximo aos 200 s; o maior medido em produção leva 27 s (12/10/2026): cabem dois e sobra
     expect(COMPETITORS_MAX_DURATION_S * 1000 - BATCH_BUDGET_MS).toBeGreaterThanOrEqual(60_000 + 30_000)
   })
+  it('I-4: a conta do pior caso é feita com constantes nomeadas: nenhuma operação longa começa sem caber no que resta menos a reserva do fim', async () => {
+    const m = await import('@/lib/youtube/competitor-sync-batch')
+    const LIMIT = m.COMPETITORS_MAX_DURATION_S * 1000
+    expect(m.FINISH_RESERVE_MS).toBe(m.PROOF_TIMEOUT_MS + m.RECORD_RESERVE_MS)
+    // o último canal começa aos BATCH_BUDGET_MS e pode levar CHANNEL_CALL_WORST_MS; a reserva do fim vem depois
+    expect(m.BATCH_BUDGET_MS + m.CHANNEL_CALL_WORST_MS + m.FINISH_RESERVE_MS).toBeLessThanOrEqual(LIMIT)
+    // a última chamada semanal começa aos WEEKLY_DEADLINE_MS e pode levar WEEKLY_CALL_WORST_MS (a sonda com arquivo)
+    expect(m.WEEKLY_DEADLINE_MS + m.WEEKLY_CALL_WORST_MS + m.FINISH_RESERVE_MS).toBeLessThanOrEqual(LIMIT)
+    expect(m.WEEKLY_CALL_WORST_MS).toBeGreaterThanOrEqual(55_000)
+    expect(m.PROOF_TIMEOUT_MS).toBe(20_000)
+  })
   it('a rota declara a mesma duração máxima e o mesmo orçamento do lote', async () => {
     const src = (await import('node:fs')).readFileSync('src/app/api/cron/sync-youtube/route.ts', 'utf8')
     expect(src).toMatch(/export const maxDuration = 300\b/)
@@ -308,13 +324,15 @@ describe('A5: a cota que um canal não conseguiu gravar é tentada de novo no fi
   const NOW = Date.UTC(2026, 9, 24, 15, 2)
   const world = (recordQuota: (sb: unknown, p: Record<string, unknown>) => Promise<void>) => {
     vi.resetModules()
-    vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+    const captureException = vi.fn()
+    vi.doMock('@sentry/nextjs', () => ({ captureException, captureMessage: vi.fn() }))
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (r: { id: string }) => ({ unitsUsed: 4, quotaError: true as const, quotaUnitsLost: r.id === 'b' ? 5 : 4 })), syncCompetitorWeekly: vi.fn(), syncStatsOf: () => undefined, WeeklyVersionError: class extends Error {}, spDate: () => '2026-10-24' }))
     vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
     vi.doMock('@/lib/youtube/competitor-quota', () => ({ recordQuota: vi.fn(recordQuota), pacificDate: () => '2026-10-24' }))
     const rows = [{ id: 'a', channel_id: 'A', site_id: 's1', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's1', last_synced_at: null }, { id: 'c', channel_id: 'C', site_id: 's2', last_synced_at: null }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    return { captureException }
   }
   it('uma tentativa por site, com a soma e erros_cota; passou: quotaLost fica indefinido', async () => {
     const calls: Array<Record<string, unknown>> = []
@@ -326,10 +344,13 @@ describe('A5: a cota que um canal não conseguiu gravar é tentada de novo no fi
     expect(r.totals.quotaUnitsLost).toBe(13)
   })
   it('a nova tentativa também falha: quotaLost soma o que ficou de fora (só do site que falhou)', async () => {
-    world(async (_sb, p) => { if (p.siteId === 's1') throw new Error('banco fora') })
+    const { captureException } = world(async (_sb, p) => { if (p.siteId === 's1') throw new Error('banco fora') })
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => NOW })
     expect(r.quotaLost).toBe(9)
+    // item 8: a perda de cota vai ao Sentry (antes o catch engolia o erro), com o site e as unidades perdidas
+    expect(captureException).toHaveBeenCalledTimes(1)
+    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: 'banco fora' }), expect.objectContaining({ tags: expect.objectContaining({ component: 'sync-youtube', mode: 'competitors-quota' }), extra: expect.objectContaining({ siteId: 's1', unitsLost: 9 }) }))
   })
 })
 
@@ -439,6 +460,28 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
     await w.fire('12:40')
     expect(calls.findIndex(c => c.startsWith('weekly:'))).toBe(3)
     expect(calls.slice(0, 3).every(c => c.startsWith('sync:'))).toBe(true)
+  })
+  it('I-5: a fase NUNCA começa com canal devido sobrando: 15 canais a 19 s, o laço para aos ~209 s com 4 devidos, e nenhuma visita semanal acontece naquele disparo', async () => {
+    const w = world({ syncMs: 19_000, videoMs: 1_050, due: MEASURED })
+    const r = await w.fire('12:40')
+    expect(r.synced).toBe(11)
+    expect(r.remainingDue).toBe(4)
+    expect(r.stoppedForTime).toBe(true)
+    expect(r.weekly.ran).toBe(false)
+    expect(w.order).toEqual([])
+    // o disparo seguinte sincroniza os 4 que sobraram e, agora sem devido sobrando, a fase roda
+    const r2 = await w.fire('13:00')
+    expect(r2.remainingDue).toBe(0)
+    expect(r2.weekly.ran).toBe(true)
+    expect(w.order.length).toBeGreaterThan(0)
+  })
+  it('I-5: o lote cheio (batchSize) com devido sobrando também não abre a fase', async () => {
+    const w = world({ syncMs: 1_000, videoMs: 1_050, due: MEASURED })
+    const { runCompetitorBatch, BATCH_BUDGET_MS } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 10, budgetMs: BATCH_BUDGET_MS, now: () => at(DAY, '12:40'), weekly: true })
+    expect(r.remainingDue).toBe(5)
+    expect(r.weekly.ran).toBe(false)
+    expect(w.order).toEqual([])
   })
   it('a dívida mais antiga é lida primeiro: nunca antes de todos, depois o mais antigo; canal já carimbado hoje é pulado', async () => {
     const w = world({ syncMs: 21_000, videoMs: 1_050, due: [5, 5, 5, 5, 5] })
@@ -586,7 +629,13 @@ describe('E: o aviso ao dono quando o canal cruza o 3º dia em erro, e um lembre
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async () => ({})), syncCompetitorWeekly: vi.fn(), syncStatsOf: () => undefined, WeeklyVersionError: class extends Error {}, spDate: () => '2026-10-24' }))
     vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
-    const create = vi.fn(o.create ?? (async () => ({ success: true, notificationId: 'n1' })))
+    // o que foi criado fica gravado: o disparo seguinte (again) consulta a trava e acha o que o anterior criou
+    const stored = new Set(o.existing ?? [])
+    const create = vi.fn(async (input: { dedup_key: string }) => {
+      const r = await (o.create ?? (async () => ({ success: true, notificationId: 'n1' })))() as { success?: boolean; suppressed?: boolean }
+      if (r.success && !r.suppressed) stored.add(input.dedup_key)
+      return r
+    })
     vi.doMock('@/lib/notifications/create', () => ({ createNotification: create }))
     const logSem = vi.fn()
     const owners = o.owners ?? { s1: [{ userId: 'u1', email: null }] }
@@ -598,13 +647,14 @@ describe('E: o aviso ao dono quando o canal cruza o 3º dia em erro, e um lembre
       if (t === 'notifications') return { select: () => ({ in: (_col: string, keys: string[]) => {
         lookups.push(keys)
         if (o.lookup === 'throws') throw new Error('rede')
-        return Promise.resolve(o.lookup === 'error' ? { data: null, error: { message: 'banco fora' } } : { data: (o.existing ?? []).filter(k => keys.includes(k)).map(dedup_key => ({ dedup_key })), error: null })
+        return Promise.resolve(o.lookup === 'error' ? { data: null, error: { message: 'banco fora' } } : { data: [...stored].filter(k => keys.includes(k)).map(dedup_key => ({ dedup_key })), error: null })
       } }) }
       return { select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }
     } }) }))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
-    const result = await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => NOW })
-    return { result, create, logSem, lookups, captureException }
+    const again = () => runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => NOW })
+    const result = await again()
+    return { result, create, logSem, lookups, captureException, again }
   }
   const since = (days: number) => ago(days).slice(0, 10)
 
@@ -678,6 +728,40 @@ describe('E: o aviso ao dono quando o canal cruza o 3º dia em erro, e um lembre
   it('são no máximo 5 avisos por disparo (o resto vai no seguinte), para o aviso nunca atrasar o disparo', async () => {
     const w = await world(Array.from({ length: 8 }, (_, i) => erro('x' + i, 4)))
     expect(w.create).toHaveBeenCalledTimes(5)
-    expect(w.lookups[0]).toHaveLength(5)
+    expect(w.lookups[0]).toHaveLength(8) // I-3: a trava é consultada para TODOS os candidatos; o teto de 5 vem depois do filtro
+  })
+  it('I-3: 7 canais em erro, dois disparos: 5 no primeiro, os 2 que sobraram no segundo, e nenhum aviso repetido no terceiro', async () => {
+    const w = await world(Array.from({ length: 7 }, (_, i) => erro('x' + i, 10 - i * 0.5)))
+    expect(w.create).toHaveBeenCalledTimes(5)
+    await w.again()
+    expect(w.create).toHaveBeenCalledTimes(7)
+    const keys = w.create.mock.calls.map(c => (c[0] as { dedup_key: string }).dedup_key)
+    expect(new Set(keys).size).toBe(7)
+    await w.again()
+    expect(w.create).toHaveBeenCalledTimes(7)
+  })
+  it('I-3: 6 canais em erro e os 5 mais antigos já avisados: o 6º é avisado (antes ficava preso para sempre)', async () => {
+    const days = [10, 9.5, 9, 8.5, 8, 7.5]
+    const key = (i: number) => 'competitor-channel-error-x' + i + '-' + since(days[i]!) + '-' + Math.floor((days[i]! - 3) / 7)
+    const w = await world(days.map((d, i) => erro('x' + i, d)), { existing: [0, 1, 2, 3, 4].map(key) })
+    expect(w.create).toHaveBeenCalledTimes(1)
+    expect((w.create.mock.calls[0]![0] as { dedup_key: string }).dedup_key).toBe(key(5))
+  })
+  it('item 1 (I-2): o aviso vai também por E-MAIL (defaultChannels), o mesmo caminho do system.token_expired, e o corpo diz onde olhar no CMS', async () => {
+    const w = await world([erro('a', 4)])
+    const input = w.create.mock.calls[0]![0] as { defaultChannels?: string[]; title: string; message: string; action_href: string }
+    expect(input.defaultChannels).toEqual(['email'])
+    expect(input.title).toBe('O canal Canal a está em erro há 4 dias')
+    expect(input.message).toContain('o canal Canal a há 4 dias')
+    expect(input.message).toContain('Motivo: não encontrado no YouTube (404)')
+    expect(input.message).toContain(input.action_href) // o e-mail não tem botão: o caminho da lista de canais vai escrito no corpo
+    expect(input.message).toContain('/cms/youtube/competitors')
+  })
+  it('item 1: o lembrete semanal também sai por e-mail, com o caminho no corpo', async () => {
+    const w = await world([erro('a', 10.5)])
+    const input = w.create.mock.calls[0]![0] as { defaultChannels?: string[]; title: string; message: string; action_href: string }
+    expect(input.title).toBe('Lembrete: o canal Canal a continua em erro (10 dias)')
+    expect(input.defaultChannels).toEqual(['email'])
+    expect(input.message).toContain(input.action_href)
   })
 })

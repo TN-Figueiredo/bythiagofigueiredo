@@ -11,19 +11,41 @@ import { newProbeBudget, type ShortProbeStats } from '@/lib/youtube/short-classi
 import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 
+/**
+ * A conta de tempo do disparo (A5, Tarefa 13 / I-4). A função morre aos 300 s (um teste confere o `maxDuration` da rota). Nenhuma operação
+ * longa COMEÇA sem caber no que resta depois de descontar a reserva do fim e o pior caso dela mesma:
+ *   canal:           começa até BATCH_BUDGET_MS       = 300 - FINISH_RESERVE - CHANNEL_CALL_WORST = 200 s
+ *   visita semanal:  começa até WEEKLY_DEADLINE_MS    = 300 - FINISH_RESERVE - WEEKLY_CALL_WORST  = 210 s
+ *   backfill:        começa até BACKFILL_DEADLINE_MS  = 230 s (cauda de até 8 s, só sondas curtas)
+ * e o fim tem uma reserva fixa: a prova (teto PROOF_TIMEOUT_MS), e o registro do cron + invalidação + partida da função (RECORD_RESERVE_MS).
+ * O aviso ao dono (até 8 s) roda ANTES dos canais, dentro da conta do `started`: ele só encurta a lista, nunca empurra o fim.
+ */
+/** A duração máxima da função do cron (`export const maxDuration` da rota). Um teste confere os dois. */
+export const COMPETITORS_MAX_DURATION_S = 300
+/** A prova da captura e da série tem teto próprio: estourou, é vermelho ("não foi possível ler a prova a tempo"). */
+export const PROOF_TIMEOUT_MS = 20_000
+/** Gravar o resumo no `cron_health`, invalidar o cache, a partida da função e uma folga (a rota só chega aqui depois da prova). */
+export const RECORD_RESERVE_MS = 15_000
+/** O que o fim do disparo precisa inteiro: a prova no seu teto e a gravação. */
+export const FINISH_RESERVE_MS = PROOF_TIMEOUT_MS + RECORD_RESERVE_MS
+/** O pior caso de um canal sincronizado (medido: 13 a 27 s em produção; ~34 s estimado com a E1 nova; margem para o dobro). A sincronização do canal não tem relógio. */
+export const CHANNEL_CALL_WORST_MS = 65_000
+/** O pior caso de UMA chamada da fase semanal com download: sonda da miniatura 45 s (HEAD 10 + GET 15 + 2 cópias de 10) e a cauda no banco. */
+export const WEEKLY_CALL_WORST_MS = 55_000
+
 /** Depois disso o backfill de Shorts não começa (e o rodízio para): folga contra maxDuration = 300 s. */
 export const BACKFILL_DEADLINE_MS = 230_000
 
 /** Depois disso o lote não começa canal novo. (Era o literal 200_000 da rota.) */
-export const BATCH_BUDGET_MS = 200_000
+export const BATCH_BUDGET_MS = COMPETITORS_MAX_DURATION_S * 1000 - FINISH_RESERVE_MS - CHANNEL_CALL_WORST_MS
 // O corte fixo de 150 s saiu: ele era contado do início do disparo, e a ordem dos canais é a mesma todo dia, então os canais das
 // posições 7 a 11 nunca leriam os semanais. A leitura semanal é uma FASE do disparo.
-/** Depois disso a fase semanal não começa vídeo novo. Fica entre "começar canal" (200 s) e o backfill de Shorts (230 s). */
-export const WEEKLY_DEADLINE_MS = 210_000
+/** Depois disso a fase semanal não começa vídeo novo: o que resta é menor que o pior caso de uma chamada com download mais a reserva do fim. */
+export const WEEKLY_DEADLINE_MS = COMPETITORS_MAX_DURATION_S * 1000 - FINISH_RESERVE_MS - WEEKLY_CALL_WORST_MS
 /** O máximo de uma visita da fase semanal a um canal: um canal grande não tira a vez dos outros. */
 export const WEEKLY_CHANNEL_BUDGET_MS = 60_000
-/** A duração máxima da função do cron (`export const maxDuration` da rota). Um teste confere os dois. */
-export const COMPETITORS_MAX_DURATION_S = 300
+/** Passadas 2 h do começo da faixa, a prova cobra a diária de qualquer jeito: uma faixa que nunca termina (por capacidade) não pode deixar o cron verde para sempre. */
+export const SLOT_COVER_LIMIT_MS = 2 * 3_600_000
 /** O aviso ao dono tem teto de tempo e de quantidade por disparo: ele nunca atrasa a coleta. */
 const OWNER_NOTICE_TIMEOUT_MS = 8_000
 const OWNER_NOTICE_MAX = 5
@@ -118,7 +140,7 @@ export interface BatchResult {
 export function batchHealth(r: Pick<BatchResult, 'synced' | 'errors'>): { ok: boolean; message?: string } {
   const attempted = r.errors + r.synced
   if (r.errors > 0 && r.errors >= r.synced) {
-    return { ok: false, message: `${r.errors} of ${attempted} channels failed` }
+    return { ok: false, message: `${r.errors} de ${attempted} ${attempted === 1 ? 'canal' : 'canais'} ${r.errors === 1 ? 'falhou' : 'falharam'}` }
   }
   return { ok: true }
 }
@@ -219,34 +241,41 @@ function longErrors(rows: BatchRow[], nowMs: number): LongError[] {
 async function noticeOwners(sb: ReturnType<typeof getSupabaseServiceClient>, rows: BatchRow[], nowMs: number): Promise<{ sent: number; failed: number }> {
   const counts = { sent: 0, failed: 0 }
   if (process.env.COMPETITOR_NOTIFICATIONS_ENABLED === 'false') return counts
-  const todo = longErrors(rows, nowMs).slice(0, OWNER_NOTICE_MAX).map(e => {
+  // TODOS os candidatos (do mais antigo ao mais novo): o teto de OWNER_NOTICE_MAX vem DEPOIS de tirar os já avisados (I-3), senão os
+  // mesmos 5 mais antigos, já avisados, seguram a fila para sempre e o 6º canal nunca é avisado.
+  const candidates = longErrors(rows, nowMs).map(e => {
     const week = Math.floor((nowMs - e.sinceMs - 3 * DAY_MS) / (7 * DAY_MS))
     return { ...e, week, dedup: 'competitor-channel-error-' + e.row.id + '-' + new Date(e.sinceMs).toISOString().slice(0, 10) + '-' + week }
   })
-  if (!todo.length) return counts
+  if (!candidates.length) return counts
+  const where = link.canais({ filter: 'problemas' })
   const work = async (): Promise<void> => {
     let already = new Set<string>()
     try {
-      const { data, error } = await sb.from('notifications').select('dedup_key').in('dedup_key', todo.map(t => t.dedup))
+      const { data, error } = await sb.from('notifications').select('dedup_key').in('dedup_key', candidates.map(t => t.dedup))
       if (!error && Array.isArray(data)) already = new Set(data.flatMap(d => (typeof d === 'object' && d !== null && 'dedup_key' in d && typeof d.dedup_key === 'string' ? [d.dedup_key] : [])))
     } catch { /* sem a consulta, tenta criar: o índice único do banco impede a repetição */ }
+    const todo = candidates.filter(t => !already.has(t.dedup)).slice(0, OWNER_NOTICE_MAX)
     const owners = new Map<string, Awaited<ReturnType<typeof getSiteOwners>>>()
     for (const t of todo) {
-      if (already.has(t.dedup)) continue
       const name = nameOf(t.row)
       if (!owners.has(t.row.site_id)) owners.set(t.row.site_id, await getSiteOwners(sb, t.row.site_id))
       const list = owners.get(t.row.site_id) ?? []
       if (!list.length) { logSemDestinatario('competitor-sync-batch', t.row.site_id); continue }
       for (const owner of list) {
         try {
+          // E-mail por padrão (defaultChannels), como o system.token_expired: o sino do CMS sozinho não é visto (0 de 32 lidos em produção).
+          // Só vale enquanto o dono não configurou preferência de canal; havendo preferência, ela manda (consentimento).
+          // O e-mail leva `title` como assunto e `message` como corpo e não tem botão: por isso o caminho da lista de canais vai escrito no corpo.
           const r = await createNotification({
             site_id: t.row.site_id, user_id: owner.userId, type: 'youtube.competitor_channel_error', domain: 'youtube', priority: 3,
             title: t.week === 0 ? 'O canal ' + name + ' está em erro há ' + t.days + ' dias' : 'Lembrete: o canal ' + name + ' continua em erro (' + t.days + ' dias)',
             message: t.week === 0
-              ? 'O Observatório não consegue atualizar o canal ' + name + ' há ' + t.days + ' dias. Motivo: ' + t.reason + '. Confira o canal: se ele saiu do YouTube ou mudou de endereço, vale trocar ou remover.'
-              : 'O canal ' + name + ' continua sem atualizar há ' + t.days + ' dias. Motivo: ' + t.reason + '. Confira o canal no Observatório.',
-            action_href: link.canais({ filter: 'problemas' }),
+              ? 'O Observatório não consegue atualizar o canal ' + name + ' há ' + t.days + ' dias. Motivo: ' + t.reason + '. Confira o canal: se ele saiu do YouTube ou mudou de endereço, vale trocar ou remover. A lista de canais com problema está no CMS, em ' + where + '.'
+              : 'O canal ' + name + ' continua sem atualizar há ' + t.days + ' dias. Motivo: ' + t.reason + '. Confira o canal: a lista de canais com problema está no CMS, em ' + where + '.',
+            action_href: where,
             dedup_key: t.dedup,
+            defaultChannels: ['email'],
           })
           if (!r.success) { counts.failed++; Sentry.captureMessage('aviso de canal em erro não criado: ' + (r.error ?? 'sem detalhe'), { level: 'warning', tags: { component: 'sync-youtube', mode: 'competitors-notice' } }) }
           else if (!r.suppressed) counts.sent++
@@ -346,7 +375,8 @@ export async function runCompetitorBatch(opts: {
     }
   }
   // ── A5 (E2): a fase semanal. Depois dos canais devidos (a série diária vem sempre antes), antes do backfill de Shorts. ──
-  if (opts.weekly === true) {
+  // I-5: só começa se NENHUM canal devido sobrou (por tempo ou por batchSize): a série diária vem sempre antes, sem exceção.
+  if (opts.weekly === true && due.length - taken === 0) {
     res.weekly = await runWeeklyPhase(rows, { apiKey: opts.apiKey, started, now, thumbs: opts.thumbs })
     const w = res.weekly
     t.weeklyRecorded += w.recorded; t.weeklyDeferred += w.deferred; t.promoted += w.promoted; t.unitsUsed += w.unitsUsed
@@ -358,7 +388,11 @@ export async function runCompetitorBatch(opts: {
   for (const [siteId, lost] of lostBySite) {
     if (lost.units <= 0) continue
     try { await recordQuota(sb, { siteId, nowMs: now(), units: lost.units, mode: 'competitors', extra: { erros_cota: lost.errors } }) }
-    catch { res.quotaLost = (res.quotaLost ?? 0) + lost.units }
+    catch (err) {
+      res.quotaLost = (res.quotaLost ?? 0) + lost.units
+      // o cron fica vermelho com a frase da cota; o Sentry guarda o erro do banco que a causou (antes o catch o engolia)
+      Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors-quota' }, extra: { siteId, unitsLost: lost.units, errors: lost.errors } })
+    }
   }
   // Backfill só depois de todos os vídeos novos (R114), em rodízio entre os canais sincronizados.
   try {

@@ -320,13 +320,37 @@ describe('readSiteHealth', () => {
 
 describe('H: os totais da série (diaria_total e semanal_total) entram no veredito', () => {
   const NOTE = 'nenhum vídeo com faixa ainda (esperado só no dia da ativação, antes das 18:00)'
-  it('totais em zero com canal lido no dia: nota, nunca verde mudo, e nunca vermelho', () => {
-    const v = healthVerdict(C, { ...S, diaria_total: 0, semanal_total: 0 }, done)
+  it('totais em zero com canal lido no dia, antes das 19:00: nota, nunca verde mudo, e nunca vermelho (a partir das 19:00 é o item 6, abaixo)', () => {
+    const v = healthVerdict(C, { ...S, hora_sp: 12, diaria_total: 0, semanal_total: 0 }, done)
     expect(v.notes).toContain(NOTE)
     expect(v.ok).toBe(true)
   })
-  it('a nota vale em qualquer hora (o veredito não esconde o zero depois das 18:00)', () => {
-    for (const hora_sp of [0, 12, 17, 18, 19, 23]) expect(healthVerdict(C, { ...S, hora_sp, diaria_total: 0, semanal_total: 0 }, done).notes).toContain(NOTE)
+  it('a nota vale antes das 19:00 de São Paulo (dia da ativação: a faixa das 18:00 ainda vai classificar)', () => {
+    for (const hora_sp of [0, 12, 17, 18]) {
+      const v = healthVerdict(C, { ...S, hora_sp, diaria_total: 0, semanal_total: 0 }, done)
+      expect(v.notes).toContain(NOTE)
+      expect(v.ok).toBe(true)
+    }
+  })
+  it('item 6: a partir das 19:00 com a faixa terminada, totais zerados com canal lido no dia é VERMELHO (a coleta não está classificando), e a nota some', () => {
+    for (const hora_sp of [19, 20, 23]) {
+      const v = healthVerdict(C, { ...S, hora_sp, diaria_total: 0, semanal_total: 0 }, done)
+      expect(v.ok).toBe(false)
+      expect(v.problems).toEqual(['nenhum vídeo com faixa de série: a coleta não está classificando'])
+      expect(v.notes).not.toContain(NOTE)
+    }
+  })
+  it('item 6: às 19:00 mas com a faixa NÃO terminada (slotDone falso) continua nota, não vermelho', () => {
+    const v = healthVerdict(C, { ...S, hora_sp: 19, diaria_total: 0, semanal_total: 0 }, { slotDone: false, e2: true })
+    expect(v.ok).toBe(true)
+    expect(v.notes).toContain(NOTE)
+  })
+  it('item 6: diária zero mas semanal com vídeos (a coleta classificou; só não há vídeo novo): não é vermelho', () => {
+    const v = healthVerdict(C, { ...S, hora_sp: 22, diaria_total: 0, semanal_total: 40 }, done)
+    expect(v.ok).toBe(true)
+  })
+  it('item 6: sem canal lido no dia, totais zerados às 20:00 não são vermelho (nada para classificar)', () => {
+    expect(healthVerdict({ ...C, canais_vistos_dia_pacifico: 0 }, { ...S, hora_sp: 20, diaria_total: 0, semanal_total: 0 }, done).ok).toBe(true)
   })
   it('sem nenhum canal lido no dia (nada para classificar) não há nota', () => {
     expect(healthVerdict({ ...C, canais_vistos_dia_pacifico: 0 }, { ...S, diaria_total: 0, semanal_total: 0 }, done).notes).not.toContain(NOTE)
@@ -342,5 +366,42 @@ describe('H: os totais da série (diaria_total e semanal_total) entram no veredi
   })
   it('E1 sozinha (e2: false) não olha a série, então não tem a nota', () => {
     expect(healthVerdict(C, { ...S, diaria_total: 0, semanal_total: 0 }, { slotDone: true, e2: false }).notes).not.toContain(NOTE)
+  })
+})
+
+describe('item 7: weekly: false (a fase semanal desligada) não deixa a prova vermelha todo dia às 19:00', () => {
+  const late = { ...S, hora_sp: 21, semanal_devidos_hoje: 6, semanal_atrasados: 4, semanal_atrasados_9d: 2 }
+  it('ligada (padrão, e weekly: true): os semanais devidos, o 8º e o 9º dia continuam vermelhos', () => {
+    for (const o of [done, { ...done, weekly: true }]) {
+      const v = healthVerdict(C, late, o)
+      expect(v.ok).toBe(false)
+      expect(v.problems.join(' | ')).toMatch(/devidos hoje/)
+      expect(v.problems.join(' | ')).toMatch(/9 dias ou mais/)
+      expect(v.problems.join(' | ')).toMatch(/8º dia/)
+      expect(v.notes).not.toContain('fase semanal desligada')
+    }
+  })
+  it('desligada: nenhum dos três semanais é cobrado e a nota "fase semanal desligada" aparece', () => {
+    const v = healthVerdict(C, late, { ...done, weekly: false })
+    expect(v.ok).toBe(true)
+    expect(v.problems).toEqual([])
+    expect(v.notes).toContain('fase semanal desligada')
+  })
+  it('desligada: a nota está em toda execução (em qualquer hora, com a faixa terminada ou não), e a série diária continua cobrada', () => {
+    for (const hora_sp of [3, 12, 19]) for (const slotDone of [true, false]) {
+      expect(healthVerdict(C, { ...S, hora_sp }, { slotDone, e2: true, weekly: false }).notes).toContain('fase semanal desligada')
+    }
+    const v = healthVerdict(C, { ...S, hora_sp: 21, diaria_sem_ponto_hoje: 3, diaria_buracos_3d: 1 }, { ...done, weekly: false })
+    expect(v.ok).toBe(false)
+    expect(v.problems.join(' | ')).toMatch(/da faixa diária sem ponto hoje/)
+    expect(v.problems.join(' | ')).toMatch(/buraco/)
+  })
+  it('desligada, mas a prova da série não veio: a nota aparece e o vermelho "não foi possível ler" continua', () => {
+    const v = healthVerdict(C, null, { ...done, weekly: false })
+    expect(v.ok).toBe(false)
+    expect(v.notes).toContain('fase semanal desligada')
+  })
+  it('E1 sozinha (e2: false) não fala da fase semanal', () => {
+    expect(healthVerdict(C, S, { slotDone: true, e2: false, weekly: false }).notes).not.toContain('fase semanal desligada')
   })
 })
