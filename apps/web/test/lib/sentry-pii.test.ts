@@ -309,3 +309,199 @@ describe('rede secundária: prefixo real do token (gate §7)', () => {
     expect(scrubPiiString(`stored token ${prefixed} rejected`)).not.toContain(prefixed)
   })
 })
+
+// A5 · E14 · Tarefa 7a — ids de autor (UC…) e de comentário (Ugx…) nas chamadas
+// às rotas `comments`, `commentThreads` e `channels` da YouTube Data API. As
+// formas abaixo são as do SDK instalado (breadcrumb de fetch do Node: `url` sem
+// query e a query em `http.query`; span `http.client`: `http.url`, `url.full`,
+// `http.query`, `url.query`). Só dado inventado.
+describe('A5 E14 — consulta das rotas de comentário some por campo', () => {
+  const API = 'https://www.googleapis.com/youtube/v3'
+  const ID_COMENTARIO = 'UgxSENTINELAcomentario01'
+  const ID_AUTOR = 'UCsentinelaAUTOR000000001'
+  const CONSULTA_COMENTARIOS = `?part=snippet&id=${ID_COMENTARIO},UgxB&textFormat=plainText&key=K`
+  const CONSULTA_CANAIS = `?part=statistics&id=${ID_AUTOR}&key=K`
+
+  it('1. breadcrumb http real: http.query vira [REDACTED] e a sentinela não sobra', () => {
+    const b = scrubBreadcrumbPii({
+      category: 'http',
+      data: {
+        url: `${API}/comments`,
+        'http.method': 'GET',
+        'http.query': CONSULTA_COMENTARIOS,
+      },
+    } as { category: string; data: Record<string, unknown> })
+    expect(b.data['http.query']).toBe('[REDACTED]')
+    expect(b.data['http.method']).toBe('GET')
+    expect(b.data.url).toBe(`${API}/comments`)
+    expect(JSON.stringify(b)).not.toContain('UgxSENTINELA')
+  })
+
+  it('2. span http.client real: os quatro campos e a descrição ficam sem o id', () => {
+    const cheia = `${API}/channels${CONSULTA_CANAIS}`
+    const ev = scrubEventPii({
+      spans: [
+        {
+          op: 'http.client',
+          description: `GET ${cheia}`,
+          data: {
+            'http.url': cheia,
+            'url.full': cheia,
+            'http.query': CONSULTA_CANAIS,
+            'url.query': CONSULTA_CANAIS,
+            'http.fragment': `#${ID_AUTOR}`,
+            'url.fragment': `#${ID_AUTOR}`,
+          },
+        } as { description: string; data: Record<string, unknown> },
+      ],
+    })
+    const span = ev.spans![0]
+    expect(span.data!['http.url']).toBe(`${API}/channels?[REDACTED]`)
+    expect(span.data!['url.full']).toBe(`${API}/channels?[REDACTED]`)
+    expect(span.data!['http.query']).toBe('[REDACTED]')
+    expect(span.data!['url.query']).toBe('[REDACTED]')
+    expect(span.data!['http.fragment']).toBe('[REDACTED]')
+    expect(span.data!['url.fragment']).toBe('[REDACTED]')
+    expect(span.description).toBe(`GET ${API}/channels?[REDACTED]`)
+    expect(JSON.stringify(ev)).not.toContain('sentinelaAUTOR')
+  })
+
+  it('3. commentThreads: a query some inteira', () => {
+    const q = '?part=snippet&videoId=VID123&allThreadsRelatedToChannelId=UCsentinelaAUTOR000000001&key=K'
+    const b = scrubBreadcrumbPii({
+      data: { url: `${API}/commentThreads`, 'http.query': q },
+    })
+    expect(b.data!['http.query']).toBe('[REDACTED]')
+    expect(JSON.stringify(b)).not.toContain('sentinelaAUTOR')
+  })
+
+  it('3b. sentinela do mesmo id em seis lugares do evento: nenhum sobra na serialização', () => {
+    const cheia = `${API}/comments${CONSULTA_COMENTARIOS}&parentId=${ID_COMENTARIO}`
+    const ev = scrubEventPii({
+      breadcrumbs: [
+        { category: 'http', data: { url: cheia, 'http.query': CONSULTA_COMENTARIOS } },
+      ],
+      spans: [
+        {
+          description: `GET ${cheia}`,
+          data: { 'http.url': cheia, 'url.full': cheia, 'url.query': CONSULTA_COMENTARIOS },
+        },
+      ],
+    })
+    expect(JSON.stringify(ev)).not.toContain('SENTINELA')
+    expect(JSON.stringify(ev)).not.toContain('UgxB')
+  })
+
+  it('3c. id com codificação de URL (%2C entre vários ids) também some', () => {
+    const q = `?part=snippet&id=${ID_COMENTARIO}%2CUgxB%2CUgxC&key=K`
+    const b = scrubBreadcrumbPii({ data: { url: `${API}/comments${q}` } })
+    expect(JSON.stringify(b)).not.toContain('UgxSENTINELA')
+    expect(JSON.stringify(b)).not.toContain('UgxB')
+  })
+
+  it('4. videos e playlistItems: http.query continua lá (sem a chave)', () => {
+    for (const rota of ['videos', 'playlistItems']) {
+      const b = scrubBreadcrumbPii({
+        data: { url: `${API}/${rota}`, 'http.query': '?part=snippet&id=VID123&key=K' },
+      })
+      expect(b.data!['http.query']).toContain('id=VID123')
+      expect(b.data!.url).toBe(`${API}/${rota}`)
+    }
+    const ev = scrubEventPii({
+      spans: [
+        {
+          description: `GET ${API}/videos?part=snippet&id=VID123`,
+          data: { 'http.url': `${API}/videos?id=VID123`, 'url.query': '?id=VID123' },
+        },
+      ],
+    })
+    expect(ev.spans![0].description).toBe(`GET ${API}/videos?part=snippet&id=VID123`)
+    expect(ev.spans![0].data!['url.query']).toBe('?id=VID123')
+  })
+
+  it('4b. rota que só começa igual (commentsX, channelsX) não casa', () => {
+    const b = scrubBreadcrumbPii({
+      data: { url: `${API}/commentsX`, 'http.query': '?id=VID123' },
+    })
+    expect(b.data!['http.query']).toBe('?id=VID123')
+  })
+
+  it('5. breadcrumb sem data, span sem data, data.url que não é texto: não lança e não muda nada', () => {
+    expect(() => scrubBreadcrumbPii({ message: 'oi' })).not.toThrow()
+    expect(scrubBreadcrumbPii({ message: 'oi' })).toEqual({ message: 'oi' })
+    expect(() => scrubEventPii({ spans: [{ description: 'x' }] })).not.toThrow()
+    expect(scrubEventPii({ spans: [{ description: 'x' }] }).spans).toEqual([{ description: 'x' }])
+    expect(scrubEventPii({})).toEqual({})
+    const b = scrubBreadcrumbPii({
+      data: { url: 42, 'http.url': null, 'url.full': { a: 1 }, 'http.query': ['?id=x'] },
+    })
+    expect(b.data).toEqual({ url: 42, 'http.url': null, 'url.full': { a: 1 }, 'http.query': ['?id=x'] })
+  })
+
+  it('5b. valor que não é texto numa rota de comentário: o dado cru nunca sobra', () => {
+    const circular: Record<string, unknown> = { url: `${API}/comments` }
+    circular.self = circular
+    circular['http.query'] = { id: ID_COMENTARIO }
+    circular['url.query'] = [ID_COMENTARIO]
+    const b = scrubBreadcrumbPii({ data: circular })
+    expect(() => scrubBreadcrumbPii({ data: circular })).not.toThrow()
+    // Sem texto para redigir, o campo estranho sai inteiro (fail-closed) ou fica redigido.
+    const saida = b.data as Record<string, unknown> | undefined
+    expect(JSON.stringify(saida ?? null, (_k, v) => (v === circular ? '[ciclo]' : v)))
+      .not.toContain('UgxSENTINELA')
+  })
+
+  it('5c. getter que lança dentro de data: o breadcrumb sai sem data, nunca com dado cru', () => {
+    const data: Record<string, unknown> = { 'http.query': `?id=${ID_COMENTARIO}` }
+    Object.defineProperty(data, 'url', {
+      enumerable: true,
+      get() {
+        throw new Error('boom')
+      },
+    })
+    const b = scrubBreadcrumbPii({ data })
+    expect(b.data).toBeUndefined()
+  })
+
+  it('5d. evento com span de getter que lança: sai sem spans, sem lançar', () => {
+    const data: Record<string, unknown> = { 'url.query': `?id=${ID_COMENTARIO}` }
+    Object.defineProperty(data, 'http.url', {
+      enumerable: true,
+      get() {
+        throw new Error('boom')
+      },
+    })
+    const ev = scrubEventPii({ spans: [{ description: `GET ${API}/comments`, data }] })
+    expect(ev.spans).toBeUndefined()
+  })
+
+  it('5e. profundidade grande em data: não lança e a sentinela não sobra', () => {
+    let fundo: Record<string, unknown> = { x: `${API}/comments?id=${ID_COMENTARIO}` }
+    for (let i = 0; i < 200; i++) fundo = { n: fundo }
+    const b = scrubBreadcrumbPii({
+      data: { url: `${API}/comments`, 'http.query': CONSULTA_COMENTARIOS, fundo },
+    })
+    expect(b.data!['http.query']).toBe('[REDACTED]')
+    expect(JSON.stringify(b)).not.toContain('UgxSENTINELA')
+  })
+
+  it('6. host diferente com o mesmo caminho (127.0.0.1:PORTA) também é redigido', () => {
+    const b = scrubBreadcrumbPii({
+      data: {
+        url: `http://127.0.0.1:41234/youtube/v3/comments`,
+        'http.query': CONSULTA_COMENTARIOS,
+      },
+    })
+    expect(b.data!['http.query']).toBe('[REDACTED]')
+    const ev = scrubEventPii({
+      spans: [
+        {
+          description: `GET http://127.0.0.1:41234/youtube/v3/commentThreads${CONSULTA_COMENTARIOS}`,
+          data: { 'http.url': `http://127.0.0.1:41234/youtube/v3/commentThreads${CONSULTA_COMENTARIOS}` },
+        },
+      ],
+    })
+    expect(JSON.stringify(ev)).not.toContain('UgxSENTINELA')
+  })
+
+})
