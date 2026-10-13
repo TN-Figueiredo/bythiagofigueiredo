@@ -11,6 +11,13 @@ Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
 Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
 YouTube A/B Lab: `AB_AUTO_APPLY_WINNER` (default off — a confiança bayesiana do teste roda sobre cliques que são sempre zero, então o vencedor é só sugerido e espera confirmação humana antes de ser aplicado no canal)
 
+## Agenda do cron de concorrentes (A5, `sync-youtube`)
+
+Variável de ambiente na Vercel só vale para deployment novo: mudar a variável **e fazer um redeploy** (sem mudar código). Plano: `docs/superpowers/plans/2026-10-12-a5-e16-e15-parte-1-plan.md`.
+
+- `OBS_AGENDA`: desliga a agenda SÓ com o valor exato `off` (`OFF`, `0`, vazio e espaço deixam ligada; ausente = ligada). Desligada, a rota volta ao lote antigo inteiro e a leitura horária para (a hora não lida não volta). **Roda mesmo assim, antes do lote antigo, só `anular_identidade`** (obrigação de LGPD: apaga a identidade de autores de comentários aos 28 dias); as demais tarefas aparecem como `agenda_desligada`. **Aviso (E14): desligada por mais de 48 h, perde retratos de comentários que não voltam (cerca de 4 por dia por marco).**
+- `OBS_AGENDA_TASKS_OFF`: nomes de tarefa separados por vírgula (nome exato, minúsculo; espaços e vazios ignorados). Aceitos: `leitura_horaria`, `sincronizar_canais`, `serie_semanal`, `retratos_comentarios` (E14) e `anular_identidade` (E14). Nome desconhecido é ignorado e aparece numa nota. **`anular_identidade` é `nuncaDesliga`: o nome é aceito, mas a tarefa continua ligada e a nota diz que foi ignorado.** **Aviso (E14): `retratos_comentarios` desligada por mais de 48 h perde retratos de comentários que não voltam (cerca de 4 por dia por marco).** Também pede redeploy.
+
 ## Variáveis por app
 
 ### Web (`apps/web/.env.local`)
