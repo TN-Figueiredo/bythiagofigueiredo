@@ -986,6 +986,8 @@ export function lerCurva(pontos: readonly PontoCurva[]): LeituraDaCurva | null  
 
 (emenda 4, 13/10: revisão da Tarefa 12a, I-2) O contrato de `meio` mudou: `meio` é uma união `{ tipo: 'cruza'; t } | { tipo: 'nunca_cruza' } | { tipo: 'indeterminado' }`, e `LeituraDaCurva` é `CurvaCompleta | CurvaParcial` (discriminada por `completa`). "Completa" = exatamente 100 pontos com o i-ésimo em t = (i+1)/100 (folga de 1e-6). Só a curva completa tem `meio` decidido (`cruza` ou `nunca_cruza`), `saidas`, `revistos` e `pico`; a parcial só tem `pontos`, `relativa` e `meio: indeterminado`, e o tipo nem tem os outros campos. Código e testes em `retencao-curva.ts` e `proprio-retencao-curva.test.ts`.
 
+(emenda 5, 13/10: revisão da Tarefa 12b, I-1) O contrato de `RetencaoDoVideo` ganhou dois campos aditivos: `tabelaAusente` (a migration MG5 não está neste banco: vazio por falta de tabela, não por falta de coleta) e `janelasIlegiveis: Janela[]` (a leitura mais recente da janela existe mas a curva foi descartada por forma ruim; sem isso a curva sumia e a tela diria 'Ainda não coletamos'). Curva ausente com a janela em `janelasIlegiveis` = estado de erro. A tentativa mais recente com dia ilegível lança `ObservatoryLoadError`, em vez de promover a seguinte.
+
 ### Tarefa 12b: o leitor da retenção
 
 **Depois da A4 fechada. Não toca `ler.ts` e não espera a Tarefa 5** (emenda do portão: I-8).

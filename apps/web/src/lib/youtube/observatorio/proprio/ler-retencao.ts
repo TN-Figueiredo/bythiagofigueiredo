@@ -69,6 +69,11 @@ export interface RetencaoDoVideo {
   descartados: number
   /** a tabela da curva não existe neste banco (migration não aplicada): vazio por falta de tabela, não por falta de coleta */
   tabelaAusente: boolean
+  /**
+   * Janelas cuja leitura mais recente existe mas é ilegível (curva descartada). Ausente de `curvas` por dado ruim, NÃO por falta de coleta:
+   * a tela mostra erro de leitura, nunca "ainda não coletamos". Sempre uma lista (vazia quando nenhuma).
+   */
+  janelasIlegiveis: Janela[]
 }
 
 interface Erro { code?: string; message: string }
@@ -96,7 +101,8 @@ function diaValido(x: unknown): x is DiaYt {
   const t = Date.parse(x + 'T00:00:00Z')
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === x
 }
-const instanteValido = (x: unknown): x is string => typeof x === 'string' && Number.isFinite(Date.parse(x))
+/** Instante ISO ('AAAA-MM-DD' seguido de T ou espaço): `Date.parse('12')` existe no V8 e não é instante. */
+const instanteValido = (x: unknown): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}[T ]/.test(x) && Number.isFinite(Date.parse(x))
 
 /** bigint/numeric chegam como número ou texto; nulo, vazio, não finito e negativo viram nulo (não se sabia), nunca 0. */
 function views(x: unknown): number | null {
@@ -150,7 +156,7 @@ export async function lerRetencao(sb: SupabaseClient, p: Pedido & { ytId: string
   if (typeof p.ytId !== 'string' || !YT_ID.test(p.ytId)) return { acesso: 'negado' }
   const ytId = p.ytId
   const vazio = (tabelaAusente: boolean): RetencaoDoVideo => ({
-    ytId, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente,
+    ytId, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente, janelasIlegiveis: [],
   })
 
   const doVideo = (colunas: string) => sb.from('yt_own_video_retention').select(colunas)
@@ -178,13 +184,14 @@ export async function lerRetencao(sb: SupabaseClient, p: Pedido & { ytId: string
 
   let descartados = 0
   const curvas: Partial<Record<Janela, CurvaLida>> = {}
+  const janelasIlegiveis: Janela[] = []
   JANELAS.forEach((j, i) => {
     const linha = porJanela[i]!
     if (linha.ausente) return
     const primeira: unknown = linha.linhas[0]
     if (primeira === undefined) return
     const c = ehObjeto(primeira) ? curvaValida(j, primeira) : null
-    if (c == null) { descartados++; return }
+    if (c == null) { descartados++; janelasIlegiveis.push(j); return }
     curvas[j] = c
   })
 
@@ -206,8 +213,12 @@ export async function lerRetencao(sb: SupabaseClient, p: Pedido & { ytId: string
   let ultimaTentativa: RetencaoDoVideo['ultimaTentativa'] = null
   let ultimaResposta: RetencaoDoVideo['ultimaResposta'] = null
   const resposta = (x: unknown): x is Resposta => (RESPONDEU as readonly unknown[]).includes(x)
-  for (const t of lidas) {
-    if (!ehObjeto(t) || !diaValido(t.attempt_day)) { descartados++; continue }
+  for (const [i, t] of lidas.entries()) {
+    if (!ehObjeto(t) || !diaValido(t.attempt_day)) {
+      // A mais nova ilegível não deixa a seguinte virar "última" em silêncio (a curva ruim também não cai para a anterior).
+      if (i === 0) throw new ObservatoryLoadError('yt_own_collection_attempts', undefined, 'dia da tentativa mais recente ilegível')
+      descartados++; continue
+    }
     const resultado = typeof t.outcome === 'string' ? t.outcome : 'desconhecido'
     if (ultimaTentativa == null) ultimaTentativa = { dia: t.attempt_day, resultado }
     if (resposta(t.outcome)) { ultimaResposta = { dia: t.attempt_day, resultado: t.outcome }; break }
@@ -223,5 +234,5 @@ export async function lerRetencao(sb: SupabaseClient, p: Pedido & { ytId: string
     }
   }
 
-  return { acesso: 'ok', dado: { ytId, curvas, leituras, leiturasCortadas, ultimaTentativa, ultimaResposta, descartados, tabelaAusente: false } }
+  return { acesso: 'ok', dado: { ytId, curvas, leituras, leiturasCortadas, ultimaTentativa, ultimaResposta, descartados, tabelaAusente: false, janelasIlegiveis } }
 }

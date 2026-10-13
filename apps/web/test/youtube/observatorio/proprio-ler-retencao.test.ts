@@ -124,7 +124,7 @@ describe('o que acontece quando o dado não existe', () => {
   it('tabelas vazias: sem curva, sem leitura, sem tentativa (nada vira zero)', async () => {
     const db = fakeSupabase({ yt_own_video_retention: [], yt_own_collection_attempts: [] })
     expect(await ok(db)).toEqual({
-      ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false,
+      ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false, janelasIlegiveis: [],
     })
     expect(captureMessage).not.toHaveBeenCalled()
   })
@@ -171,10 +171,14 @@ describe('o que acontece quando o dado não existe', () => {
     const faixas = db.ranges.filter(r => r.table === 'yt_own_collection_attempts').map(r => r.range)
     expect(faixas[0]).toEqual([0, TETO_TENTATIVAS - 1])
   })
-  it('tentativa com dia ilegível: ignorada e contada; a seguinte vira a última', async () => {
-    const db = fakeSupabase({ yt_own_collection_attempts: [tent('ontem', 'ok', { last_attempt_at: d(0) + 'T23:00:00Z' }), tent(d(3), 'erro_http')] })
+  it('a tentativa MAIS NOVA com dia ilegível lança: a seguinte não vira "última" em silêncio (M-1)', async () => {
+    const db = fakeSupabase({ yt_own_collection_attempts: [tent('zzzz', 'ok', { last_attempt_at: d(0) + 'T23:00:00Z' }), tent(d(3), 'erro_http')] })
+    await expect(lerRetencao(db.client, pedido)).rejects.toBeInstanceOf(ObservatoryLoadError)
+  })
+  it('tentativa mais antiga com dia ilegível: ignorada e contada; a legível mais nova segue como última', async () => {
+    const db = fakeSupabase({ yt_own_collection_attempts: [tent(d(1), 'erro_http'), tent('2026-02-30', 'ok')] })
     const r = await ok(db)
-    expect(r.ultimaTentativa).toEqual({ dia: d(3), resultado: 'erro_http' })
+    expect(r.ultimaTentativa).toEqual({ dia: d(1), resultado: 'erro_http' })
     expect(r.descartados).toBe(1)
   })
   it('resultado que não é texto: "desconhecido", nunca "ok"', async () => {
@@ -246,7 +250,7 @@ describe('as curvas', () => {
     expect((await ok(db)).curvas.vida!.pontos).toEqual([{ t: 0.5, ratio: 1.3, relative: 0.4 }, { t: 1, ratio: 0, relative: 0 }])
   })
   it('views_at_read nulo fica nulo (não se sabia), nunca 0; texto numérico (bigint) vira número; lixo vira nulo', async () => {
-    for (const [entrada, saida] of [[null, null], ['4096', 4096], [77, 77], [-5, null], ['abc', null], [Number.NaN, null], ['', null]] as const) {
+    for (const [entrada, saida] of [[null, null], [0, 0], ['0', 0], ['4096', 4096], [77, 77], [-5, null], ['abc', null], [Number.NaN, null], ['', null]] as const) {
       const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(1), { views_at_read: entrada })] })
       expect((await ok(db)).curvas.vida!.viewsAtRead, String(entrada)).toBe(saida)
     }
@@ -296,6 +300,7 @@ describe('ponto em forma ruim: a curva inteira é tratada como ausente e descart
       const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(1), { points: pontos, point_count: 2 })] })
       const r = await ok(db)
       expect(r.curvas).toEqual({})
+      expect(r.janelasIlegiveis).toEqual(['vida'])
       expect(r.descartados).toBe(1)
       // a leitura continua na lista (existe, só não é desenhável)
       expect(r.leituras).toHaveLength(1)
@@ -308,12 +313,33 @@ describe('ponto em forma ruim: a curva inteira é tratada como ausente e descart
     }
   })
   it('linha com metrics_returned, datas ou coleta ilegíveis: curva ausente, descartados', async () => {
-    for (const over of [{ metrics_returned: null }, { metrics_returned: [1, 2] }, { metrics_returned: 'x' }, { window_end: 'amanhã' }, { window_start: null }, { window_start: '2026-02-30' }, { collected_at: 'ontem' }, { collected_at: null }]) {
+    for (const over of [{ metrics_returned: null }, { metrics_returned: [1, 2] }, { metrics_returned: 'x' }, { window_end: 'amanhã' }, { window_start: null }, { window_start: '2026-02-30' }, { collected_at: 'ontem' }, { collected_at: null }, { collected_at: '12' }, { collected_at: '2026' }]) {
       const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(1), over)] })
       const r = await ok(db)
       expect(r.curvas, JSON.stringify(over)).toEqual({})
       expect(r.descartados, JSON.stringify(over)).toBeGreaterThanOrEqual(1)
     }
+  })
+  for (const [kind, janela] of [['vida', 'vida'], ['primeiros_7_dias', 'primeiros_7_dias'], ['primeiros_30_dias', 'primeiros_30_dias']] as const) {
+    it(`I-1: a curva mais recente de ${janela} ilegível entra em janelasIlegiveis (não é "não coletada")`, async () => {
+      const db = fakeSupabase({ yt_own_video_retention: [ret(kind, d(1), { points: [{ t: 1, ratio: 'x', relative: null }], point_count: 1 })], yt_own_collection_attempts: [tent(d(1), 'ok')] })
+      const r = await ok(db)
+      expect(r.curvas).toEqual({})
+      expect(r.janelasIlegiveis).toEqual([janela])
+      expect(r.ultimaResposta).toEqual({ dia: d(1), resultado: 'ok' })
+    })
+  }
+  it('I-1: sem nenhuma ilegível, janelasIlegiveis é lista vazia (nunca undefined), com e sem curva', async () => {
+    for (const linhas of [[], [ret('vida', d(1))]]) {
+      const r = await ok(fakeSupabase({ yt_own_video_retention: linhas }))
+      expect(r.janelasIlegiveis).toEqual([])
+    }
+  })
+  it('I-1: janela sem leitura NÃO é ilegível; só a que tem linha ruim', async () => {
+    const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(1), { points: null }), ret('primeiros_30_dias', d(1))] })
+    const r = await ok(db)
+    expect(r.janelasIlegiveis).toEqual(['vida'])
+    expect(Object.keys(r.curvas)).toEqual(['primeiros_30_dias'])
   })
   it('a ruim de uma janela não derruba a boa de outra', async () => {
     const db = fakeSupabase({ yt_own_video_retention: [
@@ -356,7 +382,7 @@ describe('erro de banco e tabela ausente', () => {
       const base = fakeSupabase({ yt_own_collection_attempts: [tent(d(1), 'ok')] })
       const sb = comErroNaTabela(base.client, 'yt_own_video_retention', code)
       const r = await lerRetencao(sb, pedido)
-      expect(r, code).toEqual({ acesso: 'ok', dado: { ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: true } })
+      expect(r, code).toEqual({ acesso: 'ok', dado: { ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: true, janelasIlegiveis: [] } })
       expect(captureMessage, code).toHaveBeenCalledTimes(1)
       expect(base.trips, code).toEqual([])
       captureMessage.mockClear()
