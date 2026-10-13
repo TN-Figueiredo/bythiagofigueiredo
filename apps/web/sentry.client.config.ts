@@ -62,6 +62,10 @@ function initSentryCore(): void {
     sendDefaultPii: false,
     integrations: [],
     beforeSend: scrubEventPii,
+    // A5: com o consentimento de analytics o browserTracingIntegration (anexado
+    // depois) emite transações cujos spans de fetch levam `http.query`/`url.full`;
+    // sem este gancho elas pulariam o scrubber. Só redige; não liga nem desliga nada.
+    beforeSendTransaction: scrubEventPii,
     beforeBreadcrumb: scrubBreadcrumbPii,
   })
   coreInitialized = true
