@@ -6,7 +6,10 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
 import { runCompetitorBatch, batchHealth, currentSlotStart, BATCH_BUDGET_MS, COMPETITORS_MAX_DURATION_S, PROOF_TIMEOUT_MS, RECORD_RESERVE_MS, SLOT_COVER_LIMIT_MS, type BatchResult } from '@/lib/youtube/competitor-sync-batch'
-import { schemaReady, readSiteHealth, type HealthVerdict } from '@/lib/youtube/competitor-health'
+import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
+import { CATALOGO, agendaLigada } from '@/lib/youtube/agenda/catalogo'
+import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo, type AntesDoLote, type CaminhoSemAgenda } from '@/lib/youtube/agenda/executar'
+import { PROOF_MIN_MS, failureMessage, plural, readProofWithin } from '@/lib/youtube/agenda/fecho'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
@@ -16,8 +19,6 @@ import type { YouTubeChannelRow, SyncMode } from '@/lib/youtube/types'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-/** A prova tem teto de tempo próprio (PROOF_TIMEOUT_MS) e nunca menos que isto, mesmo quando o lote já gastou quase tudo. */
-const PROOF_MIN_MS = 3_000
 /** O que o disparo inteiro pode durar: o `maxDuration` abaixo, em ms (um teste confere os dois). */
 const FUNCTION_LIMIT_MS = COMPETITORS_MAX_DURATION_S * 1000
 /**
@@ -26,58 +27,7 @@ const FUNCTION_LIMIT_MS = COMPETITORS_MAX_DURATION_S * 1000
  * Com ela desligada também deixa de rodar a promoção nova de vídeo semanal que cresce (ela só acontece na visita semanal).
  */
 const WEEKLY_PHASE: boolean = true
-/** `cron_health.last_error` é cortado em 500 caracteres mais adiante; a mensagem do cron fica abaixo disso. */
-const CRON_MESSAGE_MAX = 480
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const plural = (n: number, one: string, many: string): string => n + ' ' + (n === 1 ? one : many)
-
-/**
- * A mensagem de falha do cron: cada frase VERMELHA inteira, na ordem (a do lote, as da prova, a da cota). Se não couber em
- * CRON_MESSAGE_MAX, o corte é entre frases e fecha com "e mais N avisos": nunca meia frase, e nota nenhuma entra na frente de vermelho.
- * A frase da cota é vermelha e é a única que a prova não repete na resposta: ela NÃO é a primeira a ser cortada. O espaço dela é
- * reservado antes e quem perde as últimas frases é a prova (as frases do lote e da prova vêm antes dela no texto, mas o corte as alcança primeiro).
- */
-function failureMessage(batch: string | null, problems: string[], quota: string | null): string {
-  const tokens: Array<{ sep: string; text: string }> = [
-    ...(batch ? [{ sep: ' | ', text: batch }] : []),
-    ...problems.map((p, i) => ({ sep: i === 0 ? ' | ' : '; ', text: (i === 0 ? 'série e captura: ' : '') + p })),
-  ]
-  const more = (n: number): string => ' | e mais ' + plural(n, 'aviso', 'avisos')
-  const qLen = quota ? (tokens.length ? ' | '.length : 0) + quota.length : 0
-  let out = '', used = 0
-  for (const [i, t] of tokens.entries()) {
-    const candidate = out + (out ? t.sep : '') + t.text
-    const left = tokens.length - i - 1
-    // o que ainda precisa caber depois desta frase: a cota (sempre) e o "e mais N" (se sobrar frase de fora)
-    if (candidate.length + qLen + (left ? more(left).length : 0) > CRON_MESSAGE_MAX) break
-    out = candidate; used++
-  }
-  if (used === 0 && tokens.length) {
-    // nem a primeira frase cabe com a cota: a primeira é cortada com reticências e a cota segue inteira
-    const room = CRON_MESSAGE_MAX - qLen
-    const head = tokens[0]!.text.length > room ? tokens[0]!.text.slice(0, Math.max(0, room - 1)) + '…' : tokens[0]!.text
-    return quota ? head + ' | ' + quota : head
-  }
-  const tail = used < tokens.length ? more(tokens.length - used) : ''
-  // ordem final: frases ditas, a cota, e por último o "e mais N avisos"
-  return out + (quota ? (out ? ' | ' : '') + quota : '') + tail
-}
-
-/** Roda a leitura da prova com teto de tempo; passou do teto (ou lançou), a resposta é uma FALHA, nunca verde. */
-async function readProofWithin(read: () => Promise<HealthVerdict>, timeoutMs: number): Promise<HealthVerdict> {
-  const unread: HealthVerdict = { ok: false, problems: ['não foi possível ler a prova da captura e da série'], notes: [] }
-  const slow: HealthVerdict = { ok: false, problems: ['não foi possível ler a prova a tempo (passou de ' + Math.round(timeoutMs / 1000) + ' s)'], notes: [] }
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([read(), new Promise<HealthVerdict>(resolve => { timer = setTimeout(() => resolve(slow), timeoutMs) })])
-  } catch {
-    return unread
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -129,6 +79,29 @@ export async function GET(req: NextRequest) {
   // precise key) is what stops the wrapper from writing a second, possibly
   // contradictory, time.
   const jobTag = mode === 'ab-poll' ? 'sync-youtube-ab-poll' : mode === 'competitors' ? 'sync-youtube-competitors' : 'sync-youtube'
+
+  // Os concorrentes (A5 E16): o relógio do disparo nasce AQUI, antes de tudo, e a agenda (ou a lista que roda antes do lote antigo) conta dele.
+  // `agendaLigada()` decide antes de `executarAgenda`: com `OBS_AGENDA=off` a agenda NÃO é chamada e o lote antigo roda inteiro, como era.
+  const t0 = Date.now()
+  let semAgenda: string | undefined
+  let antes: AntesDoLote = { tarefas: [], problemas: [], notas: [] }
+  let caminho: CaminhoSemAgenda | undefined
+  if (mode === 'competitors') {
+    if (agendaLigada()) {
+      const r = await executarAgenda({ supabase, apiKey, runId, t0 })
+      if (r.resposta) return r.resposta
+      semAgenda = r.semAgenda // a guarda da MG10 falhou: o lote antigo coleta no lugar e o cron fica vermelho com esta frase
+      caminho = 'guarda_mg10'
+    } else {
+      caminho = 'interruptor'
+    }
+    antes = await rodarAntesDoLoteAntigo({ supabase, apiKey, runId, t0, caminho })
+  }
+  // O que a resposta do lote antigo acrescenta (neutro quando a lista rodou nada e a agenda não é a causa): ver o ponto (iv) da Tarefa 12.
+  const alemDoLote = (): Record<string, unknown> => ({
+    ...(antes.tarefas.length > 0 ? { antes_do_lote: antes.tarefas } : {}),
+    ...(caminho === 'interruptor' ? { agenda_desligada: CATALOGO.filter(t => !antesDoLoteAntigo.some(a => a.nome === t.nome)).map(t => t.rotulo) } : {}),
+  })
 
   return withCronLock(supabase, lockKey, runId, jobTag, async () => {
     // AB Lab poll mode — separate flow
@@ -197,23 +170,24 @@ export async function GET(req: NextRequest) {
       // série diária de todos cairia. Vermelho na primeira linha, nada gravado. O sync lê e grava colunas e tabelas da MG2 (faixa da série), então a guarda confere as duas.
       const notReady = await schemaReady(supabase, 'e1e2')
       if (notReady) {
-        await recordCronFailure('sync-youtube-competitors', notReady)
-        return { status: 'error' as const, mode: 'competitors', error: notReady, health_written: true }
+        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: antes.problemas, lote: notReady, prova: [], cota: null }))
+        return { status: 'error' as const, mode: 'competitors', error: notReady, ...alemDoLote(), health_written: true }
       }
       let result: BatchResult
-      const t0 = Date.now() // o relógio da FUNÇÃO: a prova e a gravação do resumo descontam o que o lote já gastou
+      // `t0` (o relógio da FUNÇÃO) nasce acima, antes da agenda: a prova e a gravação do resumo descontam o que o disparo já gastou
       let batchTimer: ReturnType<typeof setTimeout> | undefined
       try {
         // Se o lote não voltar a tempo (uma operação sem teto travou), o disparo grava a falha em vez de morrer aos 300 s sem registro nenhum.
-        const late = new Promise<never>((_, reject) => { batchTimer = setTimeout(() => reject(new Error('o disparo passou do tempo: o lote não terminou em ' + Math.round((FUNCTION_LIMIT_MS - RECORD_RESERVE_MS) / 1000) + ' s')), FUNCTION_LIMIT_MS - RECORD_RESERVE_MS) })
+        // O prazo conta de `t0`, não do começo do lote: o que a lista antes do lote gastou sai dele (senão o lote pendurado morreria sem `cron_health`).
+        const late = new Promise<never>((_, reject) => { batchTimer = setTimeout(() => reject(new Error('o disparo passou do tempo: o lote não terminou em ' + Math.round((FUNCTION_LIMIT_MS - RECORD_RESERVE_MS) / 1000) + ' s')), Math.max(0, FUNCTION_LIMIT_MS - RECORD_RESERVE_MS - (Date.now() - t0))) })
         late.catch(() => undefined) // a corrida abaixo é quem trata; sem isto a rejeição tardia (lote que terminou antes) viraria erro solto
         // `weekly: WEEKLY_PHASE` liga a fase semanal do disparo; a volta é UMA linha (a constante acima), que também avisa a prova
-        result = await Promise.race([runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: WEEKLY_PHASE }), late])
+        result = await Promise.race([runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: WEEKLY_PHASE, started: t0 }), late])
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors' } })
-        await recordCronFailure('sync-youtube-competitors', message)
-        return { status: 'error' as const, mode: 'competitors', error: message, health_written: true }
+        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: antes.problemas, lote: message, prova: [], cota: null }))
+        return { status: 'error' as const, mode: 'competitors', error: message, ...alemDoLote(), health_written: true }
       } finally {
         clearTimeout(batchTimer)
       }
@@ -242,8 +216,8 @@ export async function GET(req: NextRequest) {
       }
       // Cota que nem a nova tentativa do fim do disparo conseguiu gravar: o cron só tem verde e vermelho, e verde mudo é o que não pode
       const quota = result.quotaLost ? plural(result.quotaLost, 'unidade', 'unidades') + ' de cota ' + (result.quotaLost === 1 ? 'não registrada' : 'não registradas') : null
-      if (!health.ok || !prova.ok || quota) {
-        await recordCronFailure('sync-youtube-competitors', failureMessage(health.ok ? null : (health.message ?? 'batch failed'), prova.ok ? [] : prova.problems, quota))
+      if (!health.ok || !prova.ok || quota || semAgenda || antes.problemas.length > 0) {
+        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: antes.problemas, lote: health.ok ? null : (health.message ?? 'batch failed'), prova: prova.ok ? [] : prova.problems, cota: quota }))
       } else {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }
@@ -251,7 +225,7 @@ export async function GET(req: NextRequest) {
       // the cached heavy rows of every site this run wrote to (errored channels keep partial data)
       const { siteIds, healthSiteIds: _healthSiteIds, ...summary } = result
       for (const siteId of siteIds) invalidateObservatory(siteId)
-      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, health_written: true }
+      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, ...alemDoLote(), health_written: true }
     }
 
     let query = supabase
