@@ -14,6 +14,54 @@ const E2: Array<[string, string]> = [
   ['competitor_video_early', 'video_id'],
 ]
 const NOT_CHECKED = (table: string, why: string): string => 'não foi possível conferir o schema (' + table + '): ' + why + '. Nada foi gravado.'
+export type SchemaGrupo = [nome: string, tabelas: Array<[string, string]>]
+export type SchemaFalha = { tipo: 'ausente' | 'nao_conferido'; texto: string; codigo: string | null }
+
+/** Os grupos de tabelas que a guarda de cada etapa confere, na ordem em que a primeira falta é acusada. */
+export function schemaGroups(need: 'e1' | 'e1e2'): SchemaGrupo[] {
+  return [['MG1', E1], ...(need === 'e1e2' ? [['MG2', E2] as SchemaGrupo] : [])]
+}
+
+/** O SQLSTATE de 5 caracteres (ou o `PGRST…` do PostgREST): a única parte do erro do banco que pode sair daqui sem o texto. */
+const CODIGO_DO_BANCO = /^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/
+const codigoDe = (code: unknown): string | null => (typeof code === 'string' && CODIGO_DO_BANCO.test(code) ? code : null)
+
+async function conferirTabela(sb: SupabaseClient, name: string, table: string, cols: string, signal: AbortSignal | undefined): Promise<SchemaFalha | null> {
+  let res: { data?: unknown; error?: { message?: string; code?: string } | null } | null | undefined
+  try {
+    const consulta = sb.from(table).select(cols).limit(1)
+    res = await (signal ? consulta.abortSignal(signal) : consulta)
+  } catch (e) {
+    return { tipo: 'nao_conferido', texto: NOT_CHECKED(table, e instanceof Error ? e.message : 'a consulta falhou'), codigo: null }
+  }
+  if (typeof res !== 'object' || res === null) return { tipo: 'nao_conferido', texto: NOT_CHECKED(table, 'o banco não respondeu'), codigo: null }
+  const { data, error } = res
+  if (error) {
+    // (emenda do portão: S-M4) só "coluna ou tabela que não existe" é migration ausente: 42703 e 42P01 (Postgres),
+    // PGRST204 e PGRST205 (o PostgREST não acha a coluna ou a tabela). Rede ou banco fora têm outra frase.
+    const code = error.code ?? ''
+    if (['42703', '42P01', 'PGRST204', 'PGRST205'].includes(code)) {
+      return { tipo: 'ausente', texto: 'migration ' + name + ' não aplicada (' + table + '): ' + (error.message ?? code) + '. Nada foi gravado.', codigo: codigoDe(code) }
+    }
+    return { tipo: 'nao_conferido', texto: NOT_CHECKED(table, error.message ?? 'erro do banco'), codigo: codigoDe(code) }
+  }
+  // um select que deu certo devolve a lista (vazia ou não): qualquer outra forma é leitura que não dá para confiar
+  if (!Array.isArray(data)) return { tipo: 'nao_conferido', texto: NOT_CHECKED(table, 'resposta fora da forma esperada'), codigo: null }
+  return null
+}
+
+/**
+ * (A5 E16, Tarefa 12) A guarda de schema por grupos de tabelas. As tabelas são consultadas EM PARALELO e a falha devolvida é a da primeira
+ * tabela, na ordem da lista, que falhou (determinístico mesmo em paralelo). Com `signal`, cada consulta o leva: guarda pendurada não segura
+ * o disparo. `codigo` é o SQLSTATE (ou o `PGRST…`) do erro da tabela que falhou, ou nulo: é a única parte do erro do banco que sai daqui
+ * sem passar pelo `texto`. Nunca lança.
+ */
+export async function schemaTablesReady(sb: SupabaseClient, grupos: SchemaGrupo[], o?: { signal?: AbortSignal }): Promise<SchemaFalha | null> {
+  const itens = grupos.flatMap(([name, tabelas]) => tabelas.map(([table, cols]) => ({ name, table, cols })))
+  const falhas = await Promise.all(itens.map(i => conferirTabela(sb, i.name, i.table, i.cols, o?.signal)))
+  return falhas.find((f): f is SchemaFalha => f !== null) ?? null
+}
+
 /**
  * O código da E1 e da E2 grava colunas e tabelas novas. Sem a migration, parte dessas gravações falharia sem ninguém
  * ver; por isso o cron pergunta antes e para em vermelho. null = pronto.
@@ -22,28 +70,8 @@ const NOT_CHECKED = (table: string, why: string): string => 'não foi possível 
  * sem a lista de linhas, ou erro sem ser de coluna/tabela ausente. Nada disso é "pronto": o texto diz que não deu para conferir.
  */
 export async function schemaReady(sb: SupabaseClient, need: 'e1' | 'e1e2'): Promise<string | null> {
-  for (const [name, list] of [['MG1', E1], ...(need === 'e1e2' ? [['MG2', E2]] : [])] as Array<[string, Array<[string, string]>]>) {
-    for (const [table, cols] of list) {
-      let res: { data?: unknown; error?: { message?: string; code?: string } | null } | null | undefined
-      try {
-        res = await sb.from(table).select(cols).limit(1)
-      } catch (e) {
-        return NOT_CHECKED(table, e instanceof Error ? e.message : 'a consulta falhou')
-      }
-      if (typeof res !== 'object' || res === null) return NOT_CHECKED(table, 'o banco não respondeu')
-      const { data, error } = res
-      if (error) {
-        // (emenda do portão: S-M4) só "coluna ou tabela que não existe" é migration ausente: 42703 e 42P01 (Postgres),
-        // PGRST204 e PGRST205 (o PostgREST não acha a coluna ou a tabela). Rede ou banco fora têm outra frase.
-        const code = error.code ?? ''
-        if (['42703', '42P01', 'PGRST204', 'PGRST205'].includes(code)) return 'migration ' + name + ' não aplicada (' + table + '): ' + (error.message ?? code) + '. Nada foi gravado.'
-        return NOT_CHECKED(table, error.message ?? 'erro do banco')
-      }
-      // um select que deu certo devolve a lista (vazia ou não): qualquer outra forma é leitura que não dá para confiar
-      if (!Array.isArray(data)) return NOT_CHECKED(table, 'resposta fora da forma esperada')
-    }
-  }
-  return null
+  const r = await schemaTablesReady(sb, schemaGroups(need))
+  return r?.texto ?? null
 }
 
 // ───────── Tarefa 12: a prova embutida (o que o cron lê do banco a cada disparo) ─────────
