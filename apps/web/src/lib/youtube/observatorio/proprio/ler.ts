@@ -6,13 +6,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { readAll } from '../load'
 import { ObservatoryLoadError } from '../niches-db'
-import { JANELA_ALCANCE_DIAS } from './dias'
+import { JANELA_LEITURA_ALCANCE_DIAS } from './dias'
 import { edicaoValida, type EdicaoDoSite } from './edicao'
+import { TETO_VIDEOS_DIARIO } from './tipos'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
 export const TIPO_ALCANCE = 'channel_reach_basic_a1'
 export const JANELA_DIARIO_DIAS = 28
-export const TETO_VIDEOS_DIARIO = 50
+export { TETO_VIDEOS_DIARIO }
 
 /**
  * O acesso ao dado privado é a PROVA de edição do site (`EdicaoDoSite`, de `./edicao`), não um booleano: ela só nasce depois
@@ -91,11 +92,11 @@ function pctDe(x: unknown): { v: number | null; ruim: boolean } {
   return n != null && (n < 0 || n > PCT_ASSISTIDO_MAX) ? { v: null, ruim: true } : { v: n, ruim: false }
 }
 
-/** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_ALCANCE_DIAS + 5 dias. Erro de banco é LANÇADO; valor ruim (CTR fora de 0 a 1, negativo, data inválida) não lança: vira nulo ou é descartado e entra em `descartados`. */
+/** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_LEITURA_ALCANCE_DIAS dias. Erro de banco é LANÇADO; valor ruim (CTR fora de 0 a 1, negativo, data inválida) não lança: vira nulo ou é descartado e entra em `descartados`. */
 export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado<AlcanceCanal>> {
   const siteId = siteAutorizado(p)
   if (siteId == null) return { acesso: 'negado' }
-  const desde = addDays(p.hoje, -(JANELA_ALCANCE_DIAS + 5))
+  const desde = addDays(p.hoje, -JANELA_LEITURA_ALCANCE_DIAS)
   const filtroRel = () => sb.from('yt_reporting_reports').select('report_id, status, start_time, normalized_at')
     .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
   const [rels, linhas, recente] = await Promise.all([
@@ -124,11 +125,13 @@ export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado
   return { acesso: 'ok', dado: { canalId: p.canalId, relatorios, linhas: out, ultimoRelatorio: diaUtc(recente?.start_time), descartados } }
 }
 
-/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos JANELA_DIARIO_DIAS + 10 dias que terminam no ÚLTIMO dia gravado do canal (não em hoje: a coleta atrasa e o canal pode estar parado). Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
+/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto NÃO é lido e volta em `foraDoTeto`) dos JANELA_DIARIO_DIAS + 10 dias que terminam no ÚLTIMO dia gravado do canal (não em hoje: a coleta atrasa e o canal pode estar parado). Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
 export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonly string[] }): Promise<Privado<DiarioCanal>> {
   const siteId = siteAutorizado(p)
   if (siteId == null) return { acesso: 'negado' }
   const ytIds = p.ytIds.slice(0, TETO_VIDEOS_DIARIO)
+  // o que passa do teto não é lido: sai dito no dado (nunca em silêncio), para quem soma poder avisar
+  const foraDoTeto = p.ytIds.slice(TETO_VIDEOS_DIARIO)
   // SEM janela e sem filtro de vídeo: o último dia gravado do canal, mesmo parado há meses (a série é que é limitada).
   // Roda também com a lista de vídeos vazia: um canal sem longo acompanhado com o diário cheio não é "nunca coletado".
   const ultimoQ = () => primeiraLinha<{ day_pt: string }>('yt_own_video_daily', sb.from('yt_own_video_daily').select('day_pt')
@@ -147,5 +150,5 @@ export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonl
     if (views.ruim || pct.ruim || duracao.ruim) descartados++
     return { ytId: r.youtube_video_id, dia: r.day_pt, views: views.v, pctAssistido: pct.v, duracaoMediaSeg: duracao.v }
   })
-  return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia: ultimo?.day_pt ?? null, linhas, descartados } }
+  return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia: ultimo?.day_pt ?? null, linhas, foraDoTeto, descartados } }
 }

@@ -65,7 +65,7 @@ describe('13.3 bloco "Taxa de clique do canal"', () => {
     const base = alcanceCheio(w.canalId, w.ytIds, w.hoje)
     expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: { ...base, linhas: [] } } }).view.taxa).toMatchObject({ frase: null, vazio: 'Nenhuma impressão nos dias medidos, então não há taxa.' })
     const semCtr = { ...base, linhas: base.linhas.map((l, i) => (i === 0 ? { ...l, ctr: null } : l)) }
-    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: semCtr } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'Não dá para calcular a taxa: o YouTube não informou a taxa de clique de pelo menos um dia com impressões.' })
+    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: semCtr } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'Não dá para calcular a taxa: o YouTube não informou a taxa de clique de 1 dia com impressões.' })
   })
 
   it('usuário só de leitura: a view do bloco não leva nenhum dígito (sentinelas)', () => {

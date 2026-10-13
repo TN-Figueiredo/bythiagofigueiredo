@@ -164,13 +164,13 @@ describe('lerDiario', () => {
   })
   it('lista de vídeos vazia: não lê linhas, mas lê o último dia do canal (canal sem longo acompanhado com o diário cheio não é "nunca coletado")', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4), diario('v1', d(9), 2), diario('v9', d(1), 1, { site_id: 'outro' }), diario('v8', d(1), 1, { channel_id: 'outro' })] })
-    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: d(3), linhas: [], descartados: 0 } })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: d(3), linhas: [], foraDoTeto: [], descartados: 0 } })
     expect(db.trips).toEqual(['yt_own_video_daily'])
     expect(db.ranges.map(r => r.range)).toEqual([[0, 0]])
   })
   it('lista de vídeos vazia e diário vazio: ultimoDia null (nunca coletado de verdade)', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v9', d(1), 1, { site_id: 'outro' })] })
-    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], descartados: 0 } })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], foraDoTeto: [], descartados: 0 } })
   })
   it('lista de vídeos vazia e erro de banco: lança', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [] }, { failOn: 'yt_own_video_daily' })
@@ -178,7 +178,7 @@ describe('lerDiario', () => {
   })
   it('tabela vazia com vídeos pedidos: ok, ultimoDia null, nenhuma linha', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [] })
-    expect(await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], descartados: 0 } })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], foraDoTeto: [], descartados: 0 } })
   })
   it('linha com views 0 é ZERO medido (0, não null); views nulas ficam null; dia sem linha não existe na resposta', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 0), diario('v1', d(4), null), diario('v1', d(6), 9)] })

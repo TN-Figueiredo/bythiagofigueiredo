@@ -86,11 +86,11 @@ describe('CTR ausente e linha órfã', () => {
 describe('resumo e por vídeo', () => {
   const a = canal([rel('2026-10-01'), rel('2026-10-02', 'vazio'), rel('2026-10-03', 'listado', false)], [lin('v1', '2026-10-01', 10, 0.1), lin('v2', '2026-10-01', 5, 0.2)])
   it('conta dias lidos, com impressão e não medidos; o não medido não entra na soma', () => {
-    expect(resumir(montarDias(a, { hoje: HOJE }).dias)).toEqual({ imp: 15, cliques: 2, diasComImpressao: 1, diasLidos: 2, diasNaoMedidos: 1 })
+    expect(resumir(montarDias(a, { hoje: HOJE }).dias)).toEqual({ imp: 15, cliques: 2, diasComImpressao: 1, diasLidos: 2, diasNaoMedidos: 1, diasSemCtr: 0 })
   })
   it('nenhum dia lido: impressões e cliques são null, não 0', () => {
-    expect(resumir(montarDias(canal([rel('2026-10-01', 'listado', false)], []), { hoje: HOJE }).dias)).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 1 })
-    expect(resumir([])).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 0 })
+    expect(resumir(montarDias(canal([rel('2026-10-01', 'listado', false)], []), { hoje: HOJE }).dias)).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 1, diasSemCtr: 0 })
+    expect(resumir([])).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 0, diasSemCtr: 0 })
   })
   it('por vídeo: só quem teve impressão; fora do período não conta', () => {
     const m = alcancePorVideo(canal([rel('2026-10-01'), rel('2026-10-02')], [lin('v1', '2026-10-01', 10, 0.1), lin('v1', '2026-10-02', 2, 0.5), lin('v1', '2026-08-01', 99, 1), lin('v3', '2026-10-02', 0, 0)]), new Map())
@@ -109,7 +109,7 @@ describe('buracos da revisão da Tarefa 1', () => {
     const a = { dia: '2026-10-01', ...com, imp: 10, cliques: 3 }
     const b = { dia: '2026-10-02', ...com, imp: 20, cliques: null }
     for (const dias of [[a, b], [b, a]]) {
-      expect(resumir(dias)).toEqual({ imp: 30, cliques: null, diasComImpressao: 2, diasLidos: 2, diasNaoMedidos: 0 })
+      expect(resumir(dias)).toEqual({ imp: 30, cliques: null, diasComImpressao: 2, diasLidos: 2, diasNaoMedidos: 0, diasSemCtr: 1 })
     }
     expect(resumir([b]).cliques).toBeNull()
     expect(resumir([a]).cliques).toBe(3)
@@ -147,6 +147,6 @@ describe('buracos da revisão da Tarefa 1', () => {
     const a = canal([rel('2026-10-01', 'vazio'), rel('2026-10-02', 'baixado'), rel('2026-10-03', 'vazio')], [])
     const { dias } = montarDias(a, { hoje: HOJE })
     expect(dias.every(d => d.situacao === 'zero-medido')).toBe(true)
-    expect(resumir(dias)).toEqual({ imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 3, diasNaoMedidos: 0 })
+    expect(resumir(dias)).toEqual({ imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 3, diasNaoMedidos: 0, diasSemCtr: 0 })
   })
 })

@@ -13,7 +13,7 @@
  * views fala de relatório, de impressão ou de clique.
  */
 import { diffDias } from '@/lib/youtube/coleta/day-pt'
-import { motivoDiaTexto, resumir, type DiaAlcance, type MotivoDia, type Periodo, type ResumoAlcance, type Situacao } from '@/lib/youtube/observatorio/proprio/dias'
+import { JANELA_LEITURA_ALCANCE_DIAS, motivoDiaTexto, resumir, type DiaAlcance, type MotivoDia, type Periodo, type ResumoAlcance, type Situacao } from '@/lib/youtube/observatorio/proprio/dias'
 import { DIARIO_PARADO_DIAS } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 
@@ -88,9 +88,19 @@ export interface OpcoesImpressoes {
    * a prova de tipo está em impressoes.type-test.ts.
    */
   hoje: DiaYt
+  /** O dia do relatório mais novo do canal, sem janela: com o período vazio a frase diz desde quando a coleta parou, em vez de "ainda não há relatório". Ausente = nunca houve. */
+  parouEm?: DiaYt | null
 }
 
 export const SEM_RELATORIO = 'Ainda não há relatório de alcance deste canal.'
+
+/**
+ * A frase de "sem relatório no período": com um relatório mais antigo que a janela lida (`parouEm`), a coleta PAROU e a frase tem a data; sem nenhum
+ * relatório (`null`), é "ainda não há". Nunca "ainda não há" para um canal que já teve relatório.
+ */
+export function semRelatorioFrase(parouEm: DiaYt | null | undefined, dm: (d: DiaYt) => string): string {
+  return parouEm ? `A coleta de relatórios deste canal parou em ${dm(parouEm)}; nenhum dia dos últimos ${JANELA_LEITURA_ALCANCE_DIAS} foi medido.` : SEM_RELATORIO
+}
 export const SEM_PERMISSAO = 'Só quem edita o site vê as impressões.'
 export const ERRO_ALCANCE = 'A leitura do alcance falhou agora; recarregue a página.'
 export const SEM_VIEWS = 'Ainda não há dia medido de views.'
@@ -377,7 +387,7 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   const views = unidade === 'views'
   if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o)
   if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
-  if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : SEM_RELATORIO, o)
+  if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : semRelatorioFrase(o.parouEm, o.dm), o)
   const dias = diasIn.map(semValorViraNaoMedido)
 
   let max = 0

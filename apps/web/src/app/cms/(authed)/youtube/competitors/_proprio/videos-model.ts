@@ -109,7 +109,7 @@ export function buildProprioVideos(
 
   const alc = lerEstado(dados.alcance, o.hoje, publicacoesDe(base.videos))
   const estado: EstadoVideos = alc.estado !== 'ok' ? alc.estado : alc.resumo.diasLidos === 0 ? 'nada-lido' : 'ok'
-  const motivoAlcance = estado === 'ok' ? null : estado === 'nada-lido' ? FRASE_NADA_LIDO : fraseDoAlcance(estado)
+  const motivoAlcance = estado === 'ok' ? null : estado === 'nada-lido' ? FRASE_NADA_LIDO : fraseDoAlcance(estado, alc.estado === 'sem-relatorio' ? { parouEm: alc.parouEm, dm } : undefined)
   const periodoTxt = alc.estado === 'ok' ? `de ${dm(alc.periodo.de)} a ${dm(alc.periodo.ate)}` : null
   const porVideo = alc.estado === 'ok' && estado === 'ok' ? alc.porVideo : null
 

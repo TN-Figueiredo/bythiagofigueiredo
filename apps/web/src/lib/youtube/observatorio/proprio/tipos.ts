@@ -49,11 +49,22 @@ export interface AlcanceCanal {
   descartados: number
 }
 
+/**
+ * Quantos vídeos o diário lê por canal (os mais novos da lista pedida). O resto NÃO é lido: o leitor devolve quais ficaram de fora
+ * (`DiarioCanal.foraDoTeto`) para nenhum total sair menor sem aviso.
+ */
+export const TETO_VIDEOS_DIARIO = 50
+
 export interface DiarioCanal {
   canalId: string
   /** o último dia gravado do canal, SEM janela (a série é que é limitada): é ele que diz "parou em dd/mm" */
   ultimoDia: DiaYt | null
   linhas: DiarioLinha[]
+  /**
+   * Os ytIds pedidos que ficaram além de TETO_VIDEOS_DIARIO e por isso NÃO foram lidos (o fim da lista: os mais antigos). Vídeo daqui não tem linha por causa do
+   * corte, não porque o YouTube não mediu: quem soma ou compara diz que ele ficou de fora, e nunca o chama de "sem views" nem de "poucos dias". Ausente = nenhum corte.
+   */
+  foraDoTeto?: readonly string[]
   /** linhas com views negativas, % assistido negativo ou acima de 999,99 ou duração negativa, que viraram nulos: quem chama avisa o Sentry uma vez por requisição */
   descartados: number
 }

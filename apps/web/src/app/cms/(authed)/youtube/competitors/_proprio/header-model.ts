@@ -12,9 +12,9 @@ import type { ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import { link } from '@/lib/youtube/observatorio/links'
 import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
-import { alcancePorVideo, montarDias, publicacoesDe, resumir, type Periodo, type PublicacoesPorYtId, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import { alcanceAntesDaPublicacao, alcancePorVideo, JANELA_LEITURA_ALCANCE_DIAS, montarDias, publicacoesDe, resumir, type Periodo, type PublicacoesPorYtId, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { AlcanceCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
-import { baseVpdTexto, motivoVpdTexto, vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
+import { baseVpdTexto, foraDaLeituraFrase, motivoVpdTexto, vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
 import {
   celulaCrescimento30, celulaInscritos, makeCell, sincronizacaoDoCanal, type MakeCell, type NumCell,
@@ -83,19 +83,31 @@ export const FRASE_SEM_RELATORIO = 'ainda sem relatório de alcance deste canal'
 export const FRASE_NADA_LIDO = 'nenhum dia do período foi medido ainda'
 export const FRASE_CTR = 'não medido: o YouTube não informou a taxa de clique de algum dia com impressões'
 
-/** A frase de cada estado em que não há número; `ok` não tem frase. Switch exaustivo: um estado novo não compila sem a sua frase. */
-export function fraseDoAlcance(e: EstadoAlcance): string | null {
+/** A célula quando o último relatório é mais antigo que a janela lida: a coleta parou, com a data. Sem data (nunca houve relatório): `FRASE_SEM_RELATORIO`. */
+export function fraseSemRelatorioCelula(parouEm: DiaYt | null | undefined, dm: (d: DiaYt) => string): string {
+  return parouEm ? `a coleta de relatórios deste canal parou em ${dm(parouEm)}; nenhum dia dos últimos ${JANELA_LEITURA_ALCANCE_DIAS} foi medido` : FRASE_SEM_RELATORIO
+}
+
+/** O que o total do canal soma e o de cada vídeo não: impressões de dias anteriores à publicação do vídeo (`alcanceAntesDaPublicacao`). Só se diz quando `imp` > 0. */
+export function antesDaPublicacaoFrase(imp: number): string {
+  return `O total do canal inclui ${imp.toLocaleString('pt-BR')} ${imp === 1 ? 'impressão' : 'impressões'} de dias anteriores à publicação do vídeo; o total de cada vídeo começa no dia da publicação, então a soma dos vídeos pode ser menor.`
+}
+
+/** A frase de cada estado em que não há número; `ok` não tem frase. Switch exaustivo: um estado novo não compila sem a sua frase. `parado` (sem-relatorio com data) troca a frase de "ainda não há" pela da coleta parada. */
+export function fraseDoAlcance(e: EstadoAlcance, parado?: { parouEm: DiaYt | null; dm: (d: DiaYt) => string }): string | null {
   switch (e) {
     case 'negado': return FRASE_NEGADO
     case 'erro': return FRASE_ERRO
-    case 'sem-relatorio': return FRASE_SEM_RELATORIO
+    case 'sem-relatorio': return parado ? fraseSemRelatorioCelula(parado.parouEm, parado.dm) : FRASE_SEM_RELATORIO
     case 'ok': return null
     default: { const nunca: never = e; return nunca }
   }
 }
 
 export type AlcanceLido =
-  | { estado: Exclude<EstadoAlcance, 'ok'> }
+  | { estado: 'negado' | 'erro' }
+  /** `parouEm`: o dia do relatório mais novo do canal (sem janela); com ele, a coleta PAROU antes da janela lida. */
+  | { estado: 'sem-relatorio'; parouEm: DiaYt | null }
   | { estado: 'ok'; periodo: Periodo; resumo: ResumoAlcance; porVideo: ReturnType<typeof alcancePorVideo> }
 
 /** Relatório nenhum (tabela vazia, canal sem linha) é 'sem-relatorio': a série não tem onde começar. */
@@ -103,7 +115,7 @@ export function lerEstado(p: Privado<AlcanceCanal>, hoje: DiaYt, publicacoes: Pu
   if (p.acesso === 'negado') return { estado: 'negado' }
   if (p.acesso === 'erro') return { estado: 'erro' }
   const { periodo, dias } = montarDias(p.dado, { hoje })
-  if (periodo == null) return { estado: 'sem-relatorio' }
+  if (periodo == null) return { estado: 'sem-relatorio', parouEm: p.dado.ultimoRelatorio }
   return { estado: 'ok', periodo, resumo: resumir(dias), porVideo: alcancePorVideo(p.dado, publicacoes) }
 }
 
@@ -168,14 +180,15 @@ export function buildProprioHeader(
   // que não têm cartão nem entram em "vídeos com impressão"; a base diz quantos são, para a soma dos cartões não parecer erro
   const doCanal = new Set<string>([...vids.map(v => v.ytId), ...ch.undated.map(u => u.ytId)])
   const foraDoCanal = alc.estado === 'ok' ? [...alc.porVideo.keys()].filter(id => !doCanal.has(id)).length : 0
-  const INCLUI = foraDoCanal ? ` O total é o do relatório. ${foraDosGuardadosFrase(foraDoCanal, F.int)}` : ''
+  const antes = dados.alcance.acesso === 'ok' ? alcanceAntesDaPublicacao(dados.alcance.dado, publicacoesDe(vids)) : { linhas: 0, imp: 0 }
+  const INCLUI = (foraDoCanal ? ` O total é o do relatório. ${foraDosGuardadosFrase(foraDoCanal, F.int)}` : '') + (antes.imp > 0 ? ` ${antesDaPublicacaoFrase(antes.imp)}` : '')
 
   const DIA_YT = 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo.'
   const periodoTxt = alc.estado === 'ok' ? `de ${dm(alc.periodo.de)} a ${dm(alc.periodo.ate)}` : null
   const lidos = alc.estado === 'ok' ? alc.resumo.diasLidos : 0
   const nada = alc.estado === 'ok' && alc.resumo.diasLidos === 0
   /** A frase quando falta número: a do estado, ou "nada lido" quando há relatório mas nenhum dia foi lido. */
-  const faltaAlcance = (): string => fraseDoAlcance(alc.estado) ?? FRASE_NADA_LIDO
+  const faltaAlcance = (): string => fraseDoAlcance(alc.estado, alc.estado === 'sem-relatorio' ? { parouEm: alc.parouEm, dm } : undefined) ?? FRASE_NADA_LIDO
 
   const impressoes = cell('impressoes', periodoTxt && !nada ? 'impressões' : 'impressões no período', {
     value: alc.estado === 'ok' && !nada ? F.num(alc.resumo.imp ?? 0) : null,
@@ -317,7 +330,7 @@ export function buildProprioHeader(
   return {
     id: ch.id, name: ch.name, handle: ch.handle, url: ch.url, avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, lang: langChip(ch.lang, many),
     faixa,
-    resumo: resumoDoCanal(ultimo, canalParado, alc, noun, F),
+    resumo: resumoDoCanal(ultimo, canalParado, alc, noun, F, dm),
     faixaMotivo: motivoDasCelulas(faixa), todosMotivo: motivoDasCelulas(todos),
     todos,
     sync,
@@ -334,7 +347,7 @@ export const DIAS_CANAL_PARADO = 60
 const plural1 = (n: number, um: string, muitos: string, F: Pick<Fmt, 'int'>): string => `${F.int(n)} ${n === 1 ? um : muitos}`
 
 /** A linha sob o nome (mockup 2): "Canal parado há N dias" ou "Último vídeo há N dias", e o que o alcance diz em uma oração. Nenhum número privado sem permissão. */
-function resumoDoCanal(ultimo: ObsVideo | null, parado: boolean, alc: AlcanceLido, noun: (n: number, um: string, muitos: string) => string, F: Pick<Fmt, 'int'>): ResumoCanalView | null {
+function resumoDoCanal(ultimo: ObsVideo | null, parado: boolean, alc: AlcanceLido, noun: (n: number, um: string, muitos: string) => string, F: Pick<Fmt, 'int'>, dm: (d: DiaYt) => string): ResumoCanalView | null {
   if (!ultimo) return null
   // vídeo de hoje: "há 0 dias" soaria a erro
   const destaque = ultimo.ageDays === 0 ? 'Último vídeo hoje' : `${parado ? 'Canal parado' : 'Último vídeo'} há ${noun(ultimo.ageDays, 'dia', 'dias')}`
@@ -342,7 +355,7 @@ function resumoDoCanal(ultimo: ObsVideo | null, parado: boolean, alc: AlcanceLid
   switch (alc.estado) {
     case 'negado': resto = '; só quem edita o site vê os números de alcance.'; break
     case 'erro': resto = '; a leitura do alcance falhou agora; recarregue a página.'; break
-    case 'sem-relatorio': resto = '; ainda sem números de alcance.'; break
+    case 'sem-relatorio': resto = alc.parouEm ? `; a coleta de relatórios parou em ${dm(alc.parouEm)}.` : '; ainda sem números de alcance.'; break
     case 'ok': {
       const r = alc.resumo
       if (r.diasLidos === 0 || r.imp == null) resto = '; ainda não há dia de alcance medido.'
@@ -393,13 +406,15 @@ function motivoAssistido(a: AssistidoCanal, dm: (d: DiaYt) => string): string {
 const BASE_ASSISTIDO = 'Média do percentual assistido de cada dia, pesada pelas views do dia, nos vídeos longos acompanhados, nos 28 dias que terminam no último dia medido. Acima de 100%: trecho que muita gente voltou para rever.'
 
 function celulaAssistido(a: AssistidoCanal, cell: (key: string, label: string, v: Parameters<MakeCell>[2], x?: Partial<Omit<ProprioCell, keyof NumCell>>) => ProprioCell, dm: (d: DiaYt) => string): ProprioCell {
-  if (a.pct == null) return cell('assistido', '% assistido', { value: null, missing: motivoAssistido(a, dm), base: BASE_ASSISTIDO })
+  // os longos além do teto do diário não entraram na média: a base diz quantos
+  const BASE = a.foraDoTeto > 0 ? `${BASE_ASSISTIDO} ${foraDaLeituraFrase(a.foraDoTeto)}` : BASE_ASSISTIDO
+  if (a.pct == null) return cell('assistido', '% assistido', { value: null, missing: motivoAssistido(a, dm), base: BASE })
   if (a.dias < MIN_DIAS_ASSISTIDO) {
     // há dado, mas poucos dias: nunca um número cravado em cima de quase nada
-    return cell('assistido', '% assistido', { value: null, missing: 'ainda não dá para dizer', base: `${BASE_ASSISTIDO} Com menos de ${MIN_DIAS_ASSISTIDO} dias com dado a média ainda não diz nada.` },
+    return cell('assistido', '% assistido', { value: null, missing: 'ainda não dá para dizer', base: `${BASE} Com menos de ${MIN_DIAS_ASSISTIDO} dias com dado a média ainda não diz nada.` },
       { sub: `só ${a.dias} ${a.dias === 1 ? 'dia' : 'dias'} com dado; precisa de ${MIN_DIAS_ASSISTIDO}`, semNumero: true, explicada: true })
   }
-  return cell('assistido', '% assistido', { value: `${Math.round(a.pct)}%`, missing: '', base: BASE_ASSISTIDO },
+  return cell('assistido', '% assistido', { value: `${Math.round(a.pct)}%`, missing: '', base: BASE },
     { sub: a.n < POUCAS_VIEWS_MEDIA ? `só ${a.n} views: pouco para uma média` : 'média pelas views, 28 dias', fraco: a.n < POUCAS_VIEWS })
 }
 

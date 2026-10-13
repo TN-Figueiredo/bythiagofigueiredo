@@ -6,6 +6,8 @@ import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { AlcanceCanal, AlcanceLinha, DiaYt, RelatorioDia } from './tipos'
 
 export const JANELA_ALCANCE_DIAS = 30
+/** Quantos dias para trás, contando de hoje, o leitor do alcance procura relatório (a janela de 30 dias mais 5 de folga). Sem relatório aqui dentro, a tela diz desde quando a coleta parou. */
+export const JANELA_LEITURA_ALCANCE_DIAS = JANELA_ALCANCE_DIAS + 5
 
 export type Situacao = 'com-impressoes' | 'zero-medido' | 'nao-medido'
 export type MotivoDia = 'sem-relatorio' | 'nao-baixado' | 'erro' | 'expirado' | 'recente'
@@ -71,6 +73,8 @@ export interface ResumoAlcance {
   diasComImpressao: number
   diasLidos: number
   diasNaoMedidos: number
+  /** Dias com impressões cujo CTR não veio (um só deles derruba os cliques e a taxa do período inteiro): a frase diz quantos foram. */
+  diasSemCtr: number
 }
 
 export interface AlcanceVideo {
@@ -208,6 +212,7 @@ export function resumir(dias: readonly DiaAlcance[]): ResumoAlcance {
   let diasComImpressao = 0
   let diasLidos = 0
   let diasNaoMedidos = 0
+  let diasSemCtr = 0
   for (const d of dias) {
     if (d.situacao === 'nao-medido') {
       diasNaoMedidos++
@@ -217,12 +222,12 @@ export function resumir(dias: readonly DiaAlcance[]): ResumoAlcance {
     imp += d.imp ?? 0
     if (d.situacao === 'com-impressoes') {
       diasComImpressao++
-      if (d.cliques == null) cliquesNaoMedidos = true
+      if (d.cliques == null) { cliquesNaoMedidos = true; diasSemCtr++ }
       else cliques += d.cliques
     }
   }
-  if (diasLidos === 0) return { imp: null, cliques: null, diasComImpressao, diasLidos, diasNaoMedidos }
-  return { imp, cliques: cliquesNaoMedidos ? null : cliques, diasComImpressao, diasLidos, diasNaoMedidos }
+  if (diasLidos === 0) return { imp: null, cliques: null, diasComImpressao, diasLidos, diasNaoMedidos, diasSemCtr }
+  return { imp, cliques: cliquesNaoMedidos ? null : cliques, diasComImpressao, diasLidos, diasNaoMedidos, diasSemCtr }
 }
 
 /**
@@ -249,6 +254,26 @@ export function alcancePorVideo(a: AlcanceCanal, publicacoes: PublicacoesPorYtId
     if (v) v.cliques = null
   }
   return saida
+}
+
+/**
+ * O que o corte por vídeo (`inicioDoVideo`) descarta: as linhas de alcance com impressão de um dia ANTERIOR à publicação do vídeo, dentro do período. Só conta, nunca
+ * muda um total por vídeo (`alcancePorVideo` segue cortando igual). O total do CANAL soma essas linhas, então fica maior que a soma dos vídeos; a tela diz isso, e só quando
+ * este número é maior que zero. Mesmo filtro de `alcancePorVideo`: se um mudar, o outro muda junto.
+ */
+export function alcanceAntesDaPublicacao(a: AlcanceCanal, publicacoes: PublicacoesPorYtId): { linhas: number; imp: number } {
+  const periodo = periodoDoAlcance(a.relatorios)
+  if (!periodo) return { linhas: 0, imp: 0 }
+  let linhas = 0
+  let imp = 0
+  for (const l of a.linhas) {
+    if (l.dia > periodo.ate || l.dia < periodo.de) continue
+    if (l.dia >= inicioDoVideo(periodo.de, publicacoes.get(l.ytId))) continue
+    if (l.imp == null || l.imp <= 0) continue
+    linhas++
+    imp += l.imp
+  }
+  return { linhas, imp }
 }
 
 export function motivoDiaTexto(m: MotivoDia): string {

@@ -8,15 +8,17 @@
  * e todos os dias em zero são cinco frases diferentes, e só o último é zero medido.
  */
 import { link } from '@/lib/youtube/observatorio/links'
+import { foraDaLeituraFrase } from '@/lib/youtube/observatorio/proprio/vpd'
 import { conjuntoTexto } from '@/lib/youtube/observatorio/posicao'
-import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type PublicacoesPorYtId, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import { alcanceAntesDaPublicacao, alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type PublicacoesPorYtId, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { DadosDoCanal } from './dados'
 import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-model'
 import { BACK_DO_TOP_IMP } from '../_historico/origem-canal'
 import { foraDosGuardadosFrase } from './extras'
 import { POUCO_VOLUME } from './formato'
-import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
+import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
+import { antesDaPublicacaoFrase } from './header-model'
 import { taxaDoCanal, viewsDoCanalPorDia } from './canal-agregados'
 import { buildTaxaFaixa, pctUm, type TaxaFaixaView } from './taxa-faixa-model'
 import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
@@ -84,6 +86,10 @@ export interface EntradaComoEsta {
   dm: (d: DiaYt) => string
   /** O dia de hoje (dia do YouTube). OBRIGATÓRIO: sem ele a coleta parada não seria dita (falha em verde por omissão). */
   hoje: DiaYt
+  /** O dia do relatório mais novo do canal, sem janela (`AlcanceCanal.ultimoRelatorio`): com o período vazio, "parou em dd/mm" em vez de "ainda não há relatório". OBRIGATÓRIO pelo mesmo motivo. */
+  parouEm: DiaYt | null
+  /** Impressões do relatório de dias anteriores à publicação do vídeo, que o total do canal soma e o de cada vídeo não (`alcanceAntesDaPublicacao`). Ausente = nenhuma. */
+  antesDaPublicacao?: { linhas: number; imp: number }
 }
 
 type Estado = 'negado' | 'erro' | 'sem-relatorio' | 'nada-lido' | 'zero' | 'ok'
@@ -122,7 +128,7 @@ function fraseDoTopo(estado: Estado, a: EntradaComoEsta): string {
   switch (estado) {
     case 'negado': return SEM_PERMISSAO
     case 'erro': return ERRO_ALCANCE
-    case 'sem-relatorio': return SEM_RELATORIO
+    case 'sem-relatorio': return semRelatorioFrase(a.parouEm, a.dm)
     case 'nada-lido':
       return p && p.dias === 1
         ? 'Ainda não há dia medido: o dia do período não tem impressões nem cliques medidos.'
@@ -148,7 +154,7 @@ function alcanceRecolhido(estado: Estado, a: EntradaComoEsta): string {
   switch (estado) {
     case 'negado': return 'Só quem edita o site vê as impressões e os cliques.'
     case 'erro': return ERRO_ALCANCE
-    case 'sem-relatorio': return SEM_RELATORIO
+    case 'sem-relatorio': return semRelatorioFrase(a.parouEm, a.dm)
     case 'nada-lido': return fraseDoTopo(estado, a)
     case 'zero': return zeroBase(a.resumo)
     case 'ok': return alcanceFrase(a.resumo, a.periodo!)
@@ -208,7 +214,8 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
     imp: plural(r.imp, 'impressão', 'impressões'), cliques: cliquesDoVideo(r.cliques), dias: `em ${plural(r.diasComImpressao, 'dia', 'dias')} com impressão`,
     thumb: v.thumb ?? null,
   }))
-  const topNota = fora === 0 ? null : foraDosGuardadosFrase(fora, int)
+  const partes = [fora === 0 ? null : foraDosGuardadosFrase(fora, int), a.antesDaPublicacao && a.antesDaPublicacao.imp > 0 ? antesDaPublicacaoFrase(a.antesDaPublicacao.imp) : null].filter((x): x is string => x != null)
+  const topNota = partes.length === 0 ? null : partes.join(' ')
   return { top, topVazio: null, topNota }
 }
 
@@ -234,7 +241,7 @@ function taxaBloco(estado: Estado, a: EntradaComoEsta): TaxaBlocoView {
     default: { const nunca: never = estado; return nunca }
   }
   const t = taxaDoCanal(a.resumo)
-  if (!t) return sem('Não dá para calcular a taxa: o YouTube não informou a taxa de clique de pelo menos um dia com impressões.')
+  if (!t) return sem(`Não dá para calcular a taxa: o YouTube não informou a taxa de clique de ${plural(a.resumo.diasSemCtr, 'dia', 'dias')} com impressões.`)
   const frase: TrechoFrase[] = [
     { t: pctUm(t.taxa), b: true }, { t: ` das impressões viraram clique (${int(Math.round(t.cliques))} de ${int(t.imp)}). Com este volume, a taxa real fica entre ` },
     { t: pctUm(t.lo), b: true }, { t: ' e ' }, { t: pctUm(t.hi), b: true },
@@ -280,14 +287,18 @@ export function montarComoEsta(a: {
   const dias = lido?.dias ?? []
   const periodo = lido?.periodo ?? null
   const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado, a.publicacoes) : new Map<string, AlcanceVideo>()
-  const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje })
+  const parouEm = al.acesso === 'ok' ? al.dado.ultimoRelatorio : null
+  const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje, parouEm })
   // views por dia, soma dos vídeos longos acompanhados: do diário, que tem o seu próprio acesso (e o seu próprio "dia mais novo")
   const ytIds = a.videos.map(v => v.ytId)
   const vs = viewsDoCanalPorDia(a.dados.diario, ytIds)
   const graficoViews = buildImpressoes(vs.dias, vs.periodo, { escopo: 'canal', alturaArea: ALTURA_VIEWS, unidade: 'views', dm: a.dm, acesso: a.dados.diario.acesso, hoje: a.hoje })
+  // o corte dos 50 longos mais novos do diário: a soma não é do canal inteiro e o gráfico diz
+  if (vs.foraDoTeto > 0) graficoViews.avisos.push(foraDaLeituraFrase(vs.foraDoTeto))
   const view = buildComoEsta({
     resumo: resumir(dias), periodo, acesso: al.acesso, porVideo, videos: a.videos, posicao: a.posicao, posicaoItens: a.posicaoItens,
-    concorrentes: a.concorrentes, canalId: a.canalId, dm: a.dm, hoje: a.hoje,
+    concorrentes: a.concorrentes, canalId: a.canalId, dm: a.dm, hoje: a.hoje, parouEm,
+    antesDaPublicacao: al.acesso === 'ok' ? alcanceAntesDaPublicacao(al.dado, a.publicacoes) : undefined,
   })
   return { view, grafico, graficoViews }
 }

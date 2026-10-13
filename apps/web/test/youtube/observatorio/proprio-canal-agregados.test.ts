@@ -73,7 +73,7 @@ describe('viewsDoCanalPorDia', () => {
     expect(r.dias.find(d => d.dia === ULT)).toMatchObject({ situacao: 'nao-medido', imp: null })
   })
   it('sem acesso, com erro ou sem diário: sem período e sem dias', () => {
-    for (const p of [{ acesso: 'negado' } as const, { acesso: 'erro' } as const, ok([], null)]) expect(viewsDoCanalPorDia(p, ['A'])).toEqual({ periodo: null, dias: [] })
+    for (const p of [{ acesso: 'negado' } as const, { acesso: 'erro' } as const, ok([], null)]) expect(viewsDoCanalPorDia(p, ['A'])).toEqual({ periodo: null, dias: [], foraDoTeto: 0 })
   })
 })
 

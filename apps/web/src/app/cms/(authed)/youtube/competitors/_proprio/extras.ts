@@ -16,7 +16,7 @@ export interface ExtrasProprio {
 export const dmDia = (d: DiaYt): string => d.slice(8, 10) + '/' + d.slice(5, 7)
 
 /** O canal que o mapa não traz vale como "não lido". */
-export const SEM_LEITURA: VpdCanal = { valor: null, motivo: 'sem-diario', n: 0, janela: null, ultimoDia: null }
+export const SEM_LEITURA: VpdCanal = { valor: null, motivo: 'sem-diario', n: 0, janela: null, ultimoDia: null, foraDoTeto: 0 }
 
 /** Os ytIds dos longos acompanhados de um canal, na ordem do motor (mais novo primeiro): a base das views por dia. Puro: o servidor e os modelos usam esta. */
 export function longosAcompanhados(obs: Pick<Observatory, 'videos'>, canalId: string): string[] {
