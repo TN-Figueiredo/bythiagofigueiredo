@@ -44,7 +44,7 @@ export interface ProprioVideoView extends ChannelVideoView {
   /** Arredondado só aqui, pela mesma função do cabeçalho. */
   cliquesText: string | null
   cliquesMissing: string | null
-  /** A terceira linha: "2 cliques em 6 dias" | "nenhum clique em 4 dias" | "sem impressão no período" | "cliques: não medido". '' = alcance não lido (o motivo está em `motivoAlcance`, uma vez). Nunca tem percentual. */
+  /** A terceira linha: "2 cliques em 6 dias" | "nenhum clique em 4 dias" | "cliques: não medido". '' = alcance não lido (o motivo está em `motivoAlcance`, uma vez). Nunca tem percentual. */
   terceira: string
   /** Views por dia deste vídeo (média dos dias com medida nos 28 do YouTube que terminam no último dia gravado, 7 dias no mínimo). 0 é zero medido. */
   vpdDiario: number | null
@@ -73,13 +73,10 @@ export function viewsPorDiaSemDado(m: MotivoSemVpd, c: Pick<VpdCanal, 'ultimoDia
   return `Views por dia: ${motivoVpdTexto(m, c, dm)}.`
 }
 
-const SEM_IMPRESSAO = 'sem impressão no período'
-
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
 
-/** A terceira linha do cartão (spec 16.4): a contagem, sem corte e sem percentual. null = o vídeo não aparece nos relatórios lidos. */
-export function terceiraLinha(a: AlcanceVideo | null): string {
-  if (a == null) return SEM_IMPRESSAO
+/** A terceira linha do cartão (spec 16.4): a contagem, sem corte e sem percentual. Vídeo que não aparece nos relatórios (zero medido) não tem terceira linha: a caixa "0" já diz. */
+export function terceiraLinha(a: AlcanceVideo): string {
   if (a.cliques == null) return 'cliques: não medido'
   const n = Math.round(a.cliques)
   return `${n === 0 ? 'nenhum clique' : plural(n, 'clique', 'cliques')} em ${plural(a.diasComImpressao, 'dia', 'dias')}`
@@ -138,7 +135,7 @@ export function buildProprioVideos(
       impMissing = cliquesMissing = palavraDaColuna(estado)
     } else {
       const a = porVideo?.get(v.ytId) ?? null
-      terceira = terceiraLinha(a)
+      terceira = a == null ? '' : terceiraLinha(a)
       if (a == null) {
         const publicadoEm = v.pub != null ? dayPt(new Date(v.pub)) : null
         const dv = diasDoVideo(v, publicadoEm)
@@ -204,7 +201,8 @@ export function buildProprioVideos(
     + 'De 2 a 5, alto; de 5 a 10, muito alto; 10 ou mais, topo. '
     + `Impressões = vezes em que a miniatura do vídeo apareceu no YouTube, somadas ${periodoTxt ?? 'no período dos relatórios de alcance'}. `
     + 'Cliques = impressões × taxa de clique de cada dia, somados e arredondados só no fim; é contagem, nunca percentual. '
-    + 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo.'
+    + 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo. '
+    + 'Caixa vazada com 0: o YouTube mediu o período e o vídeo não apareceu. Hachura: ainda não medido.'
     + (motivoAlcance != null ? ` Impressões e cliques: ${motivoAlcance}.` : '')
 
   // a frase única do topo da grade: a base, quando algum cartão tem o número; senão, o motivo (do canal inteiro)

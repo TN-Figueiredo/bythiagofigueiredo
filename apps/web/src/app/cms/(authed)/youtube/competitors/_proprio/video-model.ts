@@ -84,12 +84,12 @@ function faixaDe(obs: Observatory, cv: ChannelVideoView, semData: boolean): Celu
     value: cv.viewsText, missing: cv.viewsText == null ? cv.viewsMissing ?? 'sem contagem de views' : null,
     conta: cv.viewsText == null
       ? `${cv.viewsMissing ?? 'sem contagem de views'}. Sem a contagem, as views não entram em nenhuma conta desta faixa; nunca valem 0.`
-      : `Contagem pública de views do YouTube${v?.viewsAt != null ? `, lida em ${D.dmhm(v.viewsAt)}` : ''}.`,
+      : `Contagem pública de views do YouTube${v?.viewsAt != null ? `, atualizada em ${D.dmhm(v.viewsAt)}` : ''}.`,
   }
 
   /* curtidas e comentários */
-  const contaPublica = (o: string) => `Contagem de ${o} do YouTube, lida junto com as views.`
-  const naoMedida = (o: string) => `O YouTube não devolveu a contagem de ${o} deste vídeo (ou ela ainda não foi lida), então ela não é medida; nunca vale 0.`
+  const contaPublica = (o: string) => `Contagem de ${o} do YouTube, atualizada junto com as views.`
+  const naoMedida = (o: string) => `O YouTube não devolveu a contagem de ${o} deste vídeo (ou ela ainda não foi recebida), então ela não é medida; nunca vale 0.`
   const curtidasCel: CelulaVideo = {
     key: 'curtidas', label: 'curtidas', sub: null,
     value: cv.likesText, missing: cv.likesText == null ? 'não medido' : null, conta: cv.likesText == null ? naoMedida('curtidas') : contaPublica('curtidas'),
@@ -138,7 +138,7 @@ function faixaDe(obs: Observatory, cv: ChannelVideoView, semData: boolean): Celu
     } else if (m.n === 0) {
       multiplo = mult(null, 'poucos vídeos para comparar', `O múltiplo é views deste vídeo ÷ mediana dos outros ${formato} do canal da mesma faixa de idade, e não há nenhum outro vídeo para servir de comparação.`)
     } else {
-      multiplo = mult(null, 'sem comparação', `O motor não calculou o múltiplo deste vídeo${m.reason ? ` (${m.reason})` : ''}.`)
+      multiplo = mult(null, 'sem comparação', `Não foi possível calcular o múltiplo deste vídeo${m.reason ? ` (${m.reason})` : ''}.`)
     }
   }
 
@@ -146,7 +146,7 @@ function faixaDe(obs: Observatory, cv: ChannelVideoView, semData: boolean): Celu
   const duracao: CelulaVideo = {
     key: 'duracao', label: 'duração', sub: null,
     value: cv.durText, missing: cv.durText == null ? 'sem duração' : null,
-    conta: cv.durText == null ? 'O YouTube não devolveu a duração deste vídeo, então ela não é medida.' : 'Duração do vídeo no YouTube, lida junto com as views.',
+    conta: cv.durText == null ? 'O YouTube não devolveu a duração deste vídeo, então ela não é medida.' : 'Duração do vídeo no YouTube, atualizada junto com as views.',
   }
   const faixa = [viewsCel, curtidasCel, comentariosCel, engajamento, multiplo, duracao]
   validarFaixa(faixa)

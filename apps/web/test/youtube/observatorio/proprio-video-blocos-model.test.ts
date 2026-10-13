@@ -328,7 +328,7 @@ describe('% assistido', () => {
   it('sem views nos 28 dias, vídeo novo e coleta que não rodou: cada um com a sua frase de não medido', () => {
     const semViews = blocos(mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 0 } })).assistido!
     expect(semViews).toMatchObject({ estado: 'nao-medido', pctTexto: null })
-    expect(semViews.partes.map(p => p.t).join('')).toMatch(/^Nenhuma view nos 28 dias até \d\d\/\d\d: sem views não há % assistido\.$/)
+    expect(semViews.partes.map(p => p.t).join('')).toMatch(/^Nenhum dia medido com % assistido nos 28 dias até \d\d\/\d\d: ainda não há valor\.$/)
     expect(blocos(W, ok(W), novoId).assistido!.partes.map(p => p.t).join('')).toBe('Vídeo novo: o YouTube só entrega o % assistido depois de fechar o dia, então com menos de 3 dias de vida ainda não há valor.')
     const vazio = ok(W, { diario: { canalId: W.canalId, ultimoDia: null, linhas: [], descartados: 0 } })
     expect(blocos(W, vazio).assistido!.partes.map(p => p.t).join('')).toBe('A coleta diária ainda não rodou: sem ela não há % assistido.')
