@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DEFINICOES, agendaLigada, tarefasDesligadas } from './catalogo'
+import { TODAS_AS_DEFINICOES, agendaLigada, tarefasDesligadas } from './definicoes'
 import { lerEstado } from './estado'
 import { chaveDoPeriodo } from './periodo'
 import { BANCO_MS, comPrazo } from './relogio'
@@ -8,6 +8,9 @@ import type { EstadoAgenda, Lido, Tarefa } from './tipos'
 /**
  * O vigia (relatório de saúde dos crons) enxerga cada tarefa da agenda. Esta é a SEGUNDA fonte do relatório:
  * a primeira é `cron_health` (uma chave por cron, nunca por tarefa: OP-5). Aqui nada grava; só lê e avalia.
+ *
+ * O padrão do vigia é a lista única de definições (`definicoes.ts`: as cinco tarefas, a anulação de identidade da LGPD inclusive). Este arquivo
+ * NÃO importa `catalogo` (nem, por ele, a coleta de comentários ou a leitura horária): `/api/health` precisa só de nome, período e tolerância.
  *
  * Todo texto que sai daqui é frase fixa do código. Nenhum texto do banco, nenhum código de erro do banco, nenhum id.
  */
@@ -96,7 +99,7 @@ export async function lerAgendaDoVigia(
   sb: SupabaseClient,
   agoraMs: number,
   env: NodeJS.ProcessEnv,
-  catalogo: readonly Pick<Tarefa, 'nome' | 'periodo' | 'toleranciaVigiaH' | 'nuncaDesliga'>[] = DEFINICOES,
+  catalogo: readonly Pick<Tarefa, 'nome' | 'periodo' | 'toleranciaVigiaH' | 'nuncaDesliga'>[] = TODAS_AS_DEFINICOES,
 ): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
   try {
     const pares = catalogo.map(t => ({ task: t.nome, period_key: chaveDoPeriodo(t.periodo, agoraMs) }))
