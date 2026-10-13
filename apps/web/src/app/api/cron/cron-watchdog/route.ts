@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { withCronLock, newRunId } from '@/lib/logger'
 import { sendNtfyAlert, isTerminalRefusal } from '@/lib/ops/ntfy'
 import { claimAlert } from '@/lib/ops/alert-state'
-import { buildCronHealthReport, CRON_HEALTH_COLUMNS } from '@/lib/ops/cron-health-report'
+import { buildCronHealthReport, lerAgendaParaRelatorio, CRON_HEALTH_COLUMNS } from '@/lib/ops/cron-health-report'
 
 // Vercel Cron: { "path": "/api/cron/cron-watchdog", "schedule": "*/15 * * * *" }
 //
@@ -57,7 +57,11 @@ export async function POST(req: Request): Promise<Response> {
     // `status: 'ok'` aqui seria declarar saúde sem ter olhado.
     if (error) throw new Error(`cron_health query failed: ${error.message}`)
 
-    const report = buildCronHealthReport(rows ?? [], new Date())
+    // A agenda é a segunda fonte (A5 E16, Tarefa 11): uma tarefa atrasada entra em `lateNames` como `agenda:<nome>`.
+    // A leitura nunca lança; sem resposta do banco o relatório sai só com os crons de sempre e a nota vai ao log.
+    const now = new Date()
+    const agenda = await lerAgendaParaRelatorio(supabase, now)
+    const report = buildCronHealthReport(rows ?? [], now, agenda.itens)
 
     if (report.status === 'ok') {
       return {
@@ -65,6 +69,7 @@ export async function POST(req: Request): Promise<Response> {
         late: 0,
         unknown: report.unknownCount,
         alerted: false,
+        ...(agenda.nota === null ? {} : { agendaNota: agenda.nota }),
       }
     }
 
@@ -88,6 +93,7 @@ export async function POST(req: Request): Promise<Response> {
         unknown: report.unknownCount,
         alerted: false,
         reason: 'deduped',
+        ...(agenda.nota === null ? {} : { agendaNota: agenda.nota }),
       }
     }
 
@@ -123,6 +129,7 @@ export async function POST(req: Request): Promise<Response> {
       late: report.lateNames.length,
       lateNames: report.lateNames,
       unknown: report.unknownCount,
+      ...(agenda.nota === null ? {} : { agendaNota: agenda.nota }),
       ...result,
     }
   })
