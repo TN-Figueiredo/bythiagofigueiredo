@@ -36,10 +36,14 @@ describe('periodo (São Paulo, UTC−3 fixo)', () => {
     expect([f(0, 0), f(5, 59), f(6, 0), f(12, 0), f(18, 0), f(23, 59)]).toEqual(['00', '00', '06', '12', '18', '18'])
   })
 
-  it('a mudança de semana: domingo para segunda não muda o formato, só o dia', () => {
-    // 12/10/2026 é segunda; 11/10 é domingo
-    expect(chaveDoPeriodo('dia', sp(-1, 23, 59, 59))).toBe('2026-10-11')
-    expect(chaveDoPeriodo('dia', sp(0, 0, 0, 0))).toBe('2026-10-12')
+  it('instante inválido (NaN, Infinity, data inválida) lança erro de mensagem fixa, não RangeError cru', () => {
+    for (const v of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, new Date('x').getTime()]) {
+      for (const p of ['hora', 'faixa', 'dia'] as const) {
+        expect(() => chaveDoPeriodo(p, v), `${p} ${v}`).toThrow('instante inválido para a chave do período')
+      }
+    }
+    // fora do alcance de Date também não vaza o RangeError do toISOString
+    expect(() => chaveDoPeriodo('dia', 8.64e15 + 4 * 3_600_000)).toThrow('instante inválido para a chave do período')
   })
 
   it('mês e ano viram: 31/12 23:59 SP e 01/01 00:00 SP', () => {
@@ -84,6 +88,15 @@ describe('comPrazo', () => {
 
   it('rejeição ANTES do prazo propaga (não é por causa do prazo)', async () => {
     await expect(comPrazo(Promise.reject(new Error('antes')), 50)).rejects.toThrow('antes')
+  })
+
+  it('prazo zero estoura na hora: sem esperar temporizador nenhum', async () => {
+    vi.useFakeTimers()
+    const eterna = new Promise<string>(() => undefined)
+    // com relógio falso, esperar um temporizador travaria: só a resposta imediata passa
+    await expect(comPrazo(eterna, 0)).resolves.toEqual({ estourou: true })
+    await expect(comPrazo(eterna, -1)).resolves.toEqual({ estourou: true })
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('prazo zero ou negativo: estourou na hora, sem lançar, e a promessa que perde não vira erro solto', async () => {
