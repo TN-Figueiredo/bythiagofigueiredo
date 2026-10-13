@@ -274,7 +274,7 @@ export function montarComoEsta(a: {
   videos: EntradaComoEsta['videos']; concorrentes: ReadonlyArray<OpcaoConcorrente>; canalId: string
 }): { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView } {
   const al = a.dados.alcance
-  const lido = al.acesso === 'ok' ? montarDias(al.dado) : null
+  const lido = al.acesso === 'ok' ? montarDias(al.dado, { hoje: a.hoje }) : null
   const dias = lido?.dias ?? []
   const periodo = lido?.periodo ?? null
   const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado) : new Map<string, AlcanceVideo>()

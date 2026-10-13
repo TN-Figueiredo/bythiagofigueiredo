@@ -159,7 +159,8 @@ describe('B2 modelo dos vídeos: sem impressão em dia medido é zero medido, nu
   it('cheio: o vídeo que não aparece no relatório tem semImpressao, nenhuma palavra de motivo e a nota dos dias medidos', () => {
     const w = mundo('cheio')
     const m = buildProprioVideos(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm })!
-    const sem = m.videos.find(v => v.imp == null)!
+    // um vídeo já publicado no primeiro dia do período (hoje-21): o mais novo (1 dia de vida) não tem dia que valha e NÃO é zero medido (ver proprio-zero-medido.test.ts)
+    const sem = m.videos.find(v => v.imp == null && v.pub != null && v.pub <= w.obs.NOW - 23 * 86_400_000)!
     expect(sem).toMatchObject({ semImpressao: true, impText: null, impMissing: null, cliquesText: null, cliquesMissing: null, terceira: 'sem impressão no período' })
     expect(sem.notas).toContain('Impressões: nenhuma nos 19 dias medidos (2 dias sem relatório), de ' + w.dm(addDays(w.hoje, -21)) + ' a ' + w.dm(addDays(w.hoje, -1)) + '.')
     const com = m.videos.find(v => v.imp != null)!

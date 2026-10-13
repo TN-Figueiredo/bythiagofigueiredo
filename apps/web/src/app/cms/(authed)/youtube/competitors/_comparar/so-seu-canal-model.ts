@@ -108,10 +108,12 @@ function linhaAssistido(diario: Privado<DiarioCanal>, longos: readonly string[],
 export function montarSoSeuCanalDado(a: {
   nome: string; alcance: Privado<AlcanceCanal>; diario: Privado<DiarioCanal>; longos: readonly string[]
   dm: (d: DiaYt) => string; F: Pick<Fmt, 'int'>
+  /** Hoje no dia do YouTube: D e D-1 sem linha são "não medido", nunca zero. */
+  hoje: DiaYt
 }): SoSeuCanalDado {
   if (a.alcance.acesso === 'negado') return { acesso: 'negado', view: null }
   if (a.alcance.acesso === 'erro') return { acesso: 'erro', view: null }
-  const { periodo, dias } = montarDias(a.alcance.dado)
+  const { periodo, dias } = montarDias(a.alcance.dado, { hoje: a.hoje })
   const resumo = resumir(dias)
   const lido = periodo != null && resumo.diasLidos > 0
 

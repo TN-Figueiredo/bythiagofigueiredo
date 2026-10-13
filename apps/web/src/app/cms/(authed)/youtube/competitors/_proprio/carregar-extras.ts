@@ -55,7 +55,7 @@ export async function carregarProprioDaComparacao(
   const soSeuCanal: Record<string, SoSeuCanalDado> = {}
   for (const c of owns) {
     const alcance: Privado<AlcanceCanal> = alcances.get(c.id) ?? NEGADO
-    soSeuCanal[c.id] = montarSoSeuCanalDado({ nome: c.name, alcance, diario: diarios.get(c.id) ?? NEGADO, longos: longos.get(c.id) ?? [], dm: dmDia, F: obs.fmt })
+    soSeuCanal[c.id] = montarSoSeuCanalDado({ nome: c.name, alcance, diario: diarios.get(c.id) ?? NEGADO, longos: longos.get(c.id) ?? [], dm: dmDia, F: obs.fmt, hoje })
   }
   return { extras: { vpd, dm: dmDia }, soSeuCanal }
 }

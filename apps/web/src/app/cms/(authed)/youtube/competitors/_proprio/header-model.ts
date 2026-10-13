@@ -99,10 +99,10 @@ export type AlcanceLido =
   | { estado: 'ok'; periodo: Periodo; resumo: ResumoAlcance; porVideo: ReturnType<typeof alcancePorVideo> }
 
 /** Relatório nenhum (tabela vazia, canal sem linha) é 'sem-relatorio': a série não tem onde começar. */
-export function lerEstado(p: Privado<AlcanceCanal>): AlcanceLido {
+export function lerEstado(p: Privado<AlcanceCanal>, hoje: DiaYt): AlcanceLido {
   if (p.acesso === 'negado') return { estado: 'negado' }
   if (p.acesso === 'erro') return { estado: 'erro' }
-  const { periodo, dias } = montarDias(p.dado)
+  const { periodo, dias } = montarDias(p.dado, { hoje })
   if (periodo == null) return { estado: 'sem-relatorio' }
   return { estado: 'ok', periodo, resumo: resumir(dias), porVideo: alcancePorVideo(p.dado) }
 }
@@ -141,7 +141,7 @@ export function buildProprioHeader(
   const total = vids.length + ch.undated.length
   const longos = longosAcompanhados(obs, ch.id)
 
-  const alc = lerEstado(dados.alcance)
+  const alc = lerEstado(dados.alcance, o.hoje)
   const vpd: VpdCanal = vpdDoCanal(dados.diario, longos, o.hoje)
 
   const SL = obs.channelStats(ch.id, 'long')

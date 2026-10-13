@@ -72,7 +72,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
   })
 
   it('nenhum dia lido: a frase diz que ainda não há dia medido e a recolhida não escreve "0 impressões"', () => {
-    const { dias, periodo } = montarDias(alcanceNadaLido(CANAL, HOJE))
+    const { dias, periodo } = montarDias(alcanceNadaLido(CANAL, HOJE), { hoje: HOJE })
     const r = resumir(dias)
     expect(r.imp).toBeNull()
     const x = v({ resumo: r, periodo })
@@ -85,7 +85,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
   })
 
   it('sem relatório nenhum: a frase do gráfico ("Ainda não há relatório de alcance deste canal."), sem número e sem "0"', () => {
-    const { dias, periodo } = montarDias(alcanceVazio(CANAL))
+    const { dias, periodo } = montarDias(alcanceVazio(CANAL), { hoje: HOJE })
     expect(periodo).toBeNull()
     const x = v({ resumo: resumir(dias), periodo })
     expect(x.frase).toBe(SEM_RELATORIO)
@@ -94,7 +94,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
   })
 
   it('todos os dias lidos em zero: "Nenhuma impressão em D dias lidos." (zero medido, dito como zero)', () => {
-    const { dias, periodo } = montarDias(alcanceSoVazios(CANAL, HOJE, 10))
+    const { dias, periodo } = montarDias(alcanceSoVazios(CANAL, HOJE, 10), { hoje: HOJE })
     const r = resumir(dias)
     expect(r).toMatchObject({ imp: 0, diasLidos: 10, diasComImpressao: 0 })
     const x = v({ resumo: r, periodo })
@@ -119,13 +119,13 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     expect(x.recolhida).toBe('140 impressões e 3 cliques estimados em 19 dos 29 dias. 14º de 14 canais de Viagem em inscritos.')
     expect(x.frase).toBe('Com 140 impressões em 19 dos 29 dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
     // com a série cheia da fixture (19 lidos, 2 não medidos): a base é a lida, nunca o período inteiro
-    const { dias, periodo } = montarDias(alcanceCheio(CANAL, ['yt1', 'yt2'], HOJE))
+    const { dias, periodo } = montarDias(alcanceCheio(CANAL, ['yt1', 'yt2'], HOJE), { hoje: HOJE })
     const cheio = v({ resumo: resumir(dias), periodo })
     expect(cheio.recolhida).toContain('187 impressões e 24 cliques estimados em 19 dos 21 dias.')
   })
 
   it('série curta (2 dias lidos): o número aparece com a base escrita, sem virar média do período', () => {
-    const { dias, periodo } = montarDias(alcanceCurto(CANAL, ['yt1'], HOJE))
+    const { dias, periodo } = montarDias(alcanceCurto(CANAL, ['yt1'], HOJE), { hoje: HOJE })
     const r = resumir(dias)
     expect(r.diasLidos).toBe(2)
     const x = v({ resumo: r, periodo })
@@ -142,7 +142,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     expect(v({ hoje: '2026-10-15' }).recolhida).toContain('A coleta parou em 07/10.')
     expect(v().recolhida).not.toContain('parou')   // o dia do último relatório é ontem
     // também no zero medido e no nada lido
-    const { dias, periodo } = montarDias(alcanceSoVazios(CANAL, '2026-10-01', 10))
+    const { dias, periodo } = montarDias(alcanceSoVazios(CANAL, '2026-10-01', 10), { hoje: '2026-10-01' })
     expect(v({ resumo: resumir(dias), periodo, hoje: '2026-10-30' }).recolhida).toMatch(/Nenhuma impressão em 10 dias medidos\. A coleta parou em \d\d\/\d\d\./)
   })
 

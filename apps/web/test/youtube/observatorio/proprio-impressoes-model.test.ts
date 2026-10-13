@@ -127,7 +127,7 @@ describe('os três estados nunca se confundem', () => {
 
 describe('eixo de datas e período', () => {
   it('poucas marcas legíveis: a primeira, a última e a cada 7 dias (sem colar na última)', () => {
-    const dias = montarDias(alcanceCheio('c', ['a', 'b'], HOJE)).dias
+    const dias = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE }).dias
     const v = buildImpressoes(dias, periodo, O)
     const marcadas = v.colunas.map((c, i) => (c.marca ? i : -1)).filter(i => i >= 0)
     expect(v.colunas).toHaveLength(21)
@@ -139,7 +139,7 @@ describe('eixo de datas e período', () => {
     expect(buildImpressoes([dia('2026-10-01', 3), dia('2026-10-02', 3), dia('2026-10-03', 3)], periodo, O).colunas.map(c => c.marca)).toEqual([true, false, true])
   })
   it('o período é escrito com as duas datas e o número de dias, e diz que o dia é o do YouTube', () => {
-    const v = buildImpressoes(montarDias(alcanceCheio('c', ['a'], HOJE)).dias, { de: '2026-09-12', ate: '2026-10-02', dias: 21 }, O)
+    const v = buildImpressoes(montarDias(alcanceCheio('c', ['a'], HOJE), { hoje: HOJE }).dias, { de: '2026-09-12', ate: '2026-10-02', dias: 21 }, O)
     expect(v.periodoTexto).toBe('de 12/09 a 02/10 · 21 dias · dia do YouTube')
     expect(buildImpressoes([dia('2026-10-01', 3)], { de: '2026-10-01', ate: '2026-10-01', dias: 1 }, O).periodoTexto).toBe('de 01/10 a 01/10 · 1 dia · dia do YouTube')
   })
@@ -147,7 +147,7 @@ describe('eixo de datas e período', () => {
 
 describe('a frase-resumo (acima do gráfico)', () => {
   it('série cheia (2 dos 21 dias sem relatório): só fala dos dias MEDIDOS e diz quantos ficaram sem relatório', () => {
-    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE))
+    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
     expect(v.resumo).toBe('187 impressões e 24 cliques estimados em 19 dias medidos (outros 2 sem relatório): 11 dias com impressão e 8 sem impressão.')
     expect(v.resumo).not.toContain('em 21 dias')
@@ -166,14 +166,14 @@ describe('a frase-resumo (acima do gráfico)', () => {
     expect(v.resumo).toBe('1 impressão e 1 clique estimado em 1 dia medido (outro dia sem relatório): 1 dia com impressão.')
   })
   it('nenhum dia lido: não diz "0 impressões"; diz que nada foi medido', () => {
-    const { dias, periodo: p } = montarDias(alcanceNadaLido('c', HOJE))
+    const { dias, periodo: p } = montarDias(alcanceNadaLido('c', HOJE), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
     expect(v.resumo).toBe('Nenhum dos 3 dias do período foi medido: impressões e cliques não medidos.')
     expect(v.resumo).not.toMatch(/\b0 impress/)
     expect(v.colunas.every(c => c.situacao === 'nao-medido' && c.imp === null)).toBe(true)
   })
   it('todos os dias lidos em zero e nenhum dia sem medida: "Nenhuma impressão", zero medido dito como zero', () => {
-    const { dias, periodo: p } = montarDias(alcanceSoVazios('c', HOJE, 10))
+    const { dias, periodo: p } = montarDias(alcanceSoVazios('c', HOJE, 10), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
     expect(v.resumo).toBe('Nenhuma impressão em 10 dias.')
   })
@@ -192,7 +192,7 @@ describe('a frase-resumo (acima do gráfico)', () => {
     expect(v.resumo).toBe('13 impressões em 2 dias, com cliques estimados não medidos em algum dia: todos com impressão.')
   })
   it('os números continuam os de `resumir` (a soma ignora o dia não medido)', () => {
-    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE))
+    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE })
     const r = resumir(dias)
     const v = buildImpressoes(dias, p, O)
     expect(v.resumo).toContain(`${r.imp} impressões`)
@@ -204,7 +204,7 @@ describe('a frase-resumo (acima do gráfico)', () => {
 
 describe('estados da série, cada um com o seu aviso', () => {
   it('sem período (nenhum relatório): nenhuma coluna e vazio = "Ainda não há relatório de alcance deste canal."', () => {
-    const { dias, periodo: p } = montarDias(alcanceVazio('c'))
+    const { dias, periodo: p } = montarDias(alcanceVazio('c'), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
     expect(p).toBeNull()
     expect(v.colunas).toEqual([])
@@ -241,24 +241,24 @@ describe('estados da série, cada um com o seu aviso', () => {
     expect(v.avisos).toContain('Menos de 7 dias medidos (1): ainda é pouco para ver um padrão.')
   })
   it('série curta (2 dias de coleta): aviso com o número de dias medidos', () => {
-    const { dias, periodo: p } = montarDias(alcanceCurto('c', ['a'], HOJE))
+    const { dias, periodo: p } = montarDias(alcanceCurto('c', ['a'], HOJE), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
     expect(v.colunas).toHaveLength(2)
     expect(v.avisos).toEqual(['Menos de 7 dias medidos (2): ainda é pouco para ver um padrão.'])
   })
   it('série com buracos: o aviso diz que o dia não medido não é zero, e a contagem de lidos não inclui os buracos', () => {
-    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE))
+    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
     expect(v.avisos).toContain('Dias não medidos não contam como zero nem entram nas somas.')
     expect(v.avisos.some(a => a.startsWith('Menos de 7'))).toBe(false)
     expect(v.colunas.filter(c => c.situacao === 'nao-medido')).toHaveLength(2)
   })
   it('sem buracos não há o aviso de buracos', () => {
-    const { dias, periodo: p } = montarDias(alcanceSoVazios('c', HOJE, 10))
+    const { dias, periodo: p } = montarDias(alcanceSoVazios('c', HOJE, 10), { hoje: HOJE })
     expect(buildImpressoes(dias, p, O).avisos.some(a => a.includes('não contam como zero'))).toBe(false)
   })
   it('coleta parada: com `hoje` a mais de 7 dias do último relatório, "parou em dd/mm"; até 7 dias não avisa', () => {
-    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE))
+    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE })
     const ate = p!.ate
     const parada = buildImpressoes(dias, p, { ...O, hoje: addDays(ate, 8) })
     expect(parada.avisos).toContain(`A coleta de relatórios deste canal parou em ${dm(ate)}.`)
@@ -309,8 +309,8 @@ describe('legenda e método', () => {
 describe('palavras internas e nulo', () => {
   it('nenhum texto de tela traz palavra interna (L2, L3, lote, pack, dataset, motor, day_pt, Reporting, Analytics API)', () => {
     const casos = [
-      buildImpressoes(montarDias(alcanceCheio('c', ['a', 'b'], HOJE)).dias, periodo, { ...O, hoje: '2026-12-01' }),
-      buildImpressoes(montarDias(alcanceNadaLido('c', HOJE)).dias, periodo, { ...O, escopo: 'video' }),
+      buildImpressoes(montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE }).dias, periodo, { ...O, hoje: '2026-12-01' }),
+      buildImpressoes(montarDias(alcanceNadaLido('c', HOJE), { hoje: HOJE }).dias, periodo, { ...O, escopo: 'video' }),
       buildImpressoes([], null, O),
       buildImpressoes([], null, { ...O, acesso: 'negado' }),
     ]
@@ -320,7 +320,7 @@ describe('palavras internas e nulo', () => {
     }
   })
   it('a view é só dado simples (serializável para o cliente)', () => {
-    const v = buildImpressoes(montarDias(alcanceCheio('c', ['a', 'b'], HOJE)).dias, periodo, O)
+    const v = buildImpressoes(montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE }).dias, periodo, O)
     expect(JSON.parse(JSON.stringify(v))).toEqual(v)
   })
 })
