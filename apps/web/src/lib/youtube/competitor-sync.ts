@@ -13,7 +13,7 @@ import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
-import { classifyTiers, earlyEligible, weeklyDue, shouldPromote, addDays, type Tier } from '@/lib/youtube/competitor-tiers'
+import { classifyTiers, earlyEligible, weeklyDue, shouldPromote, addDays, dayNumber, type Tier } from '@/lib/youtube/competitor-tiers'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
@@ -77,6 +77,8 @@ export interface SyncResult {
   excludedNoCount?: number
   /** (A5 E2) Leituras das primeiras horas (vídeo recém-descoberto, até 72 h de vida) enviadas ao banco nesta sincronização. */
   earlyRecorded?: number
+  /** (A5 E2, 11c) Vídeos promovidos à leitura diária que continuaram crescendo acima da regra e tiveram `daily_until` estendido (gravados no banco). */
+  promotionExtended?: number
 }
 
 /** (A5) Os contadores de uma sincronização que terminou em erro: o erro lançado não carrega resultado, e o lote só vê o erro. */
@@ -407,6 +409,57 @@ async function runChannel(
     }
     return ids.size
   }
+  /**
+   * (A5 E2, 11c, lacuna I-1 do plano) A extensão da promoção, na sincronização DIÁRIA: o vídeo promovido cujo `daily_until` vence hoje ou amanhã
+   * (dia de São Paulo) e que continua crescendo ganha mais `RULES.promotion.days` dias. A decisão é dos pontos já gravados, sem chamada ao YouTube:
+   * o ponto de hoje contra o ponto de cerca de 7 dias atrás (o mais próximo dentro da janela de `shouldPromote`; ponto sem views legível não vale)
+   * pela mesma `shouldPromote`. Gravação NOVA: usa `late` (nunca custa a série do dia). Reexecutar no mesmo dia chega à mesma data. Só os candidatos são
+   * lidos (poucos), em lotes de 100 ids por 9 dias de pontos, abaixo do corte de 1.000 linhas.
+   */
+  const extendPromotions = async (rows: FullRow[], today: string): Promise<void> => {
+    const tomorrow = addDays(today, 1)
+    const cand = rows.filter(r => r.daily_until != null && r.daily_until >= today && r.daily_until <= tomorrow && !outOfProof(r))
+    if (!cand.length) return
+    const from = addDays(today, -RULES.series.weeklyMaxGapDays)
+    const pointsOf = new Map<string, Array<{ date: string; views: number }>>()
+    const readFail = 'não foi possível ler os pontos para estender a promoção'
+    for (let i = 0; i < cand.length; i += 100) {
+      const { data, error } = await supabase.from('competitor_video_daily').select('video_id, snap_date, views')
+        .in('video_id', cand.slice(i, i + 100).map(r => r.id)).gte('snap_date', from).order('snap_date', { ascending: true })
+      if (late(readFail, error)) return
+      if (!Array.isArray(data)) { late(readFail, { message: 'resposta do banco fora da forma esperada' }); return }
+      if (data.length >= 1000) { late(readFail, { message: '1000 linhas ou mais numa leitura (corte do banco)' }); return }
+      for (const r of data) {
+        if (!isRec(r) || typeof r.video_id !== 'string' || typeof r.snap_date !== 'string') continue
+        // views nulo, ausente ou ilegível = não medido (NaN): o ponto existe, mas não decide
+        const views = typeof r.views === 'number' ? r.views : typeof r.views === 'string' && r.views.trim() !== '' ? Number(r.views) : NaN
+        const list = pointsOf.get(r.video_id) ?? []
+        list.push({ date: r.snap_date.slice(0, 10), views })
+        pointsOf.set(r.video_id, list)
+      }
+    }
+    const ids: string[] = []
+    for (const r of cand) {
+      const pts = pointsOf.get(r.id) ?? []
+      const cur = pts.find(p => p.date === today)
+      if (!cur) continue
+      let prev: { date: string; views: number } | null = null, bestDist = Infinity, bestGap = Infinity
+      for (const p of pts) {
+        const gap = dayNumber(today) - dayNumber(p.date)
+        if (gap < 1 || gap > RULES.series.weeklyMaxGapDays) continue
+        const dist = Math.abs(gap - RULES.series.weeklyEveryDays)
+        if (dist < bestDist || (dist === bestDist && gap < bestGap)) { prev = p; bestDist = dist; bestGap = gap }
+      }
+      if (shouldPromote(prev, { views: cur.views }, today)) ids.push(r.id)
+    }
+    const until = addDays(today, RULES.promotion.days)
+    for (let i = 0; i < ids.length; i += 100) {
+      const batch = ids.slice(i, i + 100)
+      const { error } = await supabase.from('competitor_videos').update({ daily_until: until }).in('id', batch)
+      if (late('não foi possível estender a promoção do vídeo à leitura diária', error)) return // a próxima execução refaz pelo estado gravado
+      promotionExtended += batch.length
+    }
+  }
   const loadCurrent = async (uuids: string[]): Promise<Map<string, StoredVersion[]>> => {
     const map = new Map<string, StoredVersion[]>()
     if (!uuids.length) return map
@@ -456,6 +509,8 @@ async function runChannel(
   let tierChanges = 0, tierCut = 0, excludedNoCount = 0
   /** (A5 E2) Leituras das primeiras horas gravadas (zero não aparece no resultado). */
   let earlyRecorded = 0
+  /** (A5 E2, 11c) Promoções estendidas e gravadas nesta sincronização. */
+  let promotionExtended = 0
   /** (A5 E2, leitura semanal) Mudanças vistas com a janela de mais de 8 dias (gravadas, mas fora do aviso) e miniaturas que não puderam ser conferidas. */
   let longWindowChanges = 0, thumbFailed = 0, thumbSkipped = 0
   const thumbBreaker: ThumbBreaker = opts.thumbBreaker ?? { failures: 0 }
@@ -497,7 +552,7 @@ async function runChannel(
     ...(returnedCount() ? { returned: returnedCount() } : {}),
     ...(quotaError ? { quotaError: true as const, quotaUnitsLost: unitsUsed } : {}),
     ...(tierChanges ? { tierChanges } : {}), ...(tierCut ? { cutByCap: tierCut } : {}), ...(excludedNoCount ? { excludedNoCount } : {}),
-    ...(earlyRecorded ? { earlyRecorded } : {}),
+    ...(earlyRecorded ? { earlyRecorded } : {}), ...(promotionExtended ? { promotionExtended } : {}),
   })
   /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
   const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
@@ -1199,6 +1254,11 @@ async function runChannel(
       }
     } catch {
       // a sonda nunca derruba o sync
+    }
+
+    // ── A5 E2 (11c): a extensão da promoção dos que continuam crescendo. Gravação nova, depois da série do dia (e dos fixados): falhar aqui vira `lateFailure`. ──
+    if (hourOk) {
+      try { await extendPromotions(all, snapDate) } catch (e) { late('não foi possível estender a promoção do vídeo à leitura diária', { message: e instanceof Error ? e.message : String(e) }) }
     }
 
     // Notifications (unchanged from original)
