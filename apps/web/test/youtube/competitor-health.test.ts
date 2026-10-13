@@ -37,7 +37,7 @@ describe('schemaReady (a ordem migration → código não pode falhar em verde)'
     expect(await schemaReady(sbOf(half).sb, 'e1')).toBeNull()
     expect(await schemaReady(sbOf(half).sb, 'e1e2')).toMatch(/MG2/)
   })
-  it('nenhuma das duas aplicada: a MG1 é acusada primeiro, nas duas guardas, e nada além da primeira falta é perguntado', async () => {
+  it('nenhuma das duas aplicada: a MG1 é acusada primeiro, nas duas guardas, e a guarda da E1 pergunta só pelas tabelas da E1', async () => {
     const none = () => sbOf({
       competitor_videos: { code: '42703', message: 'column competitor_videos.discovered_at does not exist' },
       competitor_channels: { code: '42703', message: 'column does not exist' },
@@ -47,7 +47,8 @@ describe('schemaReady (a ordem migration → código não pode falhar em verde)'
     })
     const a = none()
     expect(await schemaReady(a.sb, 'e1')).toMatch(/MG1.*competitor_videos/)
-    expect(a.asked).toHaveLength(1)
+    // as consultas partem em paralelo (A5 E16, Tarefa 12): a afirmação é sobre o CONJUNTO perguntado, e o texto é o da primeira tabela da lista
+    expect(a.asked.map(q => q.split(':')[0]).sort()).toEqual(['competitor_channels', 'competitor_field_versions', 'competitor_raw', 'competitor_videos'])
     expect(await schemaReady(none().sb, 'e1e2')).toMatch(/MG1/)
   })
   it('cada código de "coluna ou tabela que não existe" diz "migration … não aplicada"; erro sem código (rede) diz "não foi possível conferir o schema"', async () => {
