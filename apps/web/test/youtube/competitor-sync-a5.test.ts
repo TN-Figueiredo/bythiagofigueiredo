@@ -2028,6 +2028,26 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
       expect(r.promoted).toBe(150)
     })
 
+    it('a leitura dos pontos pede snap_date >= hoje - 8 dias, nas duas fases (a do começo e a da promoção): é o que limita as linhas lidas (e o corte de 1.000)', async () => {
+      const day = slotDate('vid-7')
+      const pts = par(day, 7, 4000, 5000)
+      const db = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts })
+      await roda(day)
+      const lidas = db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte'))
+      expect(lidas).toHaveLength(2)                                              // a do começo e a da promoção
+      for (const c of lidas) expect(c.ops.find(o => o[0] === 'gte')![1]).toEqual(['snap_date', addDays(day, -8)])
+    })
+    it('o harness separa as duas fases pelo que a leitura é, não pela ordem: com mais de 100 semanais, a 2ª caixa de 100 do começo ainda vê o estado de ANTES dos pontos', async () => {
+      const todos = Array.from({ length: 3000 }, (_, i) => weeklyRow(30_000 + i, { series_tier_since: '2026-10-24' })).filter(r => dayNumber('2026-10-24') % 7 !== weekSlotOf(r.video_id as string)).slice(0, 150)
+      const alvo = todos[120]!                                                   // cai na 2ª caixa de 100
+      const day = '2026-10-24'
+      // ANTES: nenhum ponto. DEPOIS (só a promoção deveria ver): o alvo com ponto hoje e ganho de sobra
+      const db = setup({ all: todos, recentDailyAfter: par(day, 7, 4000, 5000, alvo.id as string) })
+      const r = await roda(day)
+      expect(r).toMatchObject({ due: 0, promoted: 0, complete: true })           // se a 2ª caixa do começo visse o "depois", o alvo seria candidato e promovido
+      expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte'))).toHaveLength(2) // só as 2 caixas do começo
+    })
+
     describe('a promoção é gravação NOVA: não custa o ponto, e uma nova tentativa chega à mesma decisão', () => {
       it('a gravação falhando: a visita lança em português, o ponto FICA gravado, o canal não é carimbado, e a cota é gravada', async () => {
         const day = slotDate('vid-7')
@@ -2138,5 +2158,157 @@ describe('A5 E2 (11c): o vídeo promovido na passada diária', () => {
     expect(lidos.has('vid-61')).toBe(true)
     expect(rpcCalls(db, 'apply_competitor_tier_plan')[0]!.p_changes).toEqual(Array.from({ length: 10 }, (_, k) => ({ video_id: 'v-' + (51 + k), tier: 'semanal' })))
     expect(rpcCalls(db, 'youtube_quota_add')[0]).toMatchObject({ p_max: { teto_diario_cortados: 10 } })
+  })
+})
+
+// ── Consertos 11c, item 7: o promovido que CONTINUA crescendo é estendido na sincronização diária (lacuna do plano, decisão do controlador) ──
+describe('A5 E2 (11c): a extensão da promoção na sincronização diária', () => {
+  const HOJE = '2026-10-24'
+  const ontem = (n: number) => addDays(HOJE, -n)
+  const promovido = (i: number, venceEm: number, over: Record<string, unknown> = {}) => row(i, 400 + i, { series_tier: 'diaria', daily_until: addDays(HOJE, venceEm), ...over })
+  const topo = row(1, 1, { series_tier: 'diaria' })
+  const pts = (id: string, prev: unknown, cur: unknown, back = 7) => [{ video_id: id, snap_date: ontem(back), views: prev }, { video_id: id, snap_date: HOJE, views: cur }]
+  const rodar = (db: ReturnType<typeof setup>, now: Date = NOW) => { void db; return syncCompetitorChannel(ch, 'k', { now, fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet }) }
+  const extensoes = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'update' && 'daily_until' in (arg(c, 'update') ?? {}))
+  const idsEstendidos = (db: { calls: Call[] }) => extensoes(db).flatMap(c => c.ops.find(o => o[0] === 'in')![1][1] as string[])
+  const leiturasDePontos = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte'))
+  const montar = (all: Record<string, unknown>[], recentDaily: Record<string, unknown>[], extra: Partial<SetupOpts> = {}) => setup({ all, recentDaily, dailyHave: all.map(r => r.id as string), existing: [], videoLimit: 1, ...extra })
+
+  it('(a) promovido que cresce acima da regra (1.000 views e 5% em 7 dias) e vence amanhã: daily_until vira hoje + 28; e o que vence hoje também', async () => {
+    for (const venceEm of [1, 0]) {
+      const db = montar([topo, promovido(900, venceEm)], pts('v-900', 4000, 5000))
+      const r = await rodar(db)
+      expect(extensoes(db).map(c => arg(c, 'update'))).toEqual([{ daily_until: addDays(HOJE, 28) }])
+      expect(idsEstendidos(db)).toEqual(['v-900'])
+      expect(r.promotionExtended).toBe(1)
+    }
+  })
+  it('sem chamada nova ao YouTube: a extensão decide pelos pontos gravados', async () => {
+    const db = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000))
+    const t = traced(apiFetch(null, 200, { daily: echo }))
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: t.f, ...quiet })
+    expect(t.api().filter(a => a.startsWith('videos?'))).toHaveLength(0)     // todos já tinham o ponto: nenhuma videos.list
+    expect(idsEstendidos(db)).toEqual(['v-900'])
+  })
+  it('sem ponto exatamente a 7 dias usa o mais próximo que shouldPromote aceita (6 e 8 dias); acima de 8 não há ponto na leitura, e não estende', async () => {
+    for (const back of [6, 8]) {
+      const db = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000, back))
+      await rodar(db)
+      expect(idsEstendidos(db)).toEqual(['v-900'])
+    }
+    const db = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000, 9))
+    const r = await rodar(db)
+    expect(extensoes(db)).toEqual([])
+    expect(r.promotionExtended).toBeUndefined()
+  })
+  it('com vários pontos na janela vale o mais próximo de 7 dias, não o de ontem', async () => {
+    const todos = [{ video_id: 'v-900', snap_date: ontem(7), views: 4000 }, { video_id: 'v-900', snap_date: ontem(1), views: 4950 }, { video_id: 'v-900', snap_date: HOJE, views: 5000 }]
+    const db = montar([topo, promovido(900, 1)], todos)
+    await rodar(db)
+    expect(idsEstendidos(db)).toEqual(['v-900'])                              // contra o de ontem seriam 50 views: não passaria
+    // e não o MAIS ANTIGO: o de 8 dias (4.600) daria só 400 de ganho; o de 7 dias (4.000), 1.000
+    const db2 = montar([topo, promovido(900, 1)], [{ video_id: 'v-900', snap_date: ontem(8), views: 4600 }, { video_id: 'v-900', snap_date: ontem(7), views: 4000 }, { video_id: 'v-900', snap_date: HOJE, views: 5000 }])
+    await rodar(db2)
+    expect(idsEstendidos(db2)).toEqual(['v-900'])
+  })
+  it('(b) cresce abaixo da regra: não estende; no dia seguinte ao vencimento volta à semanal', async () => {
+    for (const [prev, cur] of [[4000, 4500], [100_000, 104_000]]) {              // menos de 1.000 views; 1.000+ mas menos de 5%
+      const db = montar([topo, promovido(900, 0)], pts('v-900', prev, cur))
+      const r = await rodar(db)
+      expect(extensoes(db)).toEqual([])
+      expect(r.promotionExtended).toBeUndefined()
+    }
+    const amanha = new Date(NOW.getTime() + 86_400_000)
+    const db2 = setup({ all: [topo, promovido(900, 0)], recentDaily: [], dailyHave: [], existing: [], videoLimit: 1 })
+    await rodar(db2, amanha)
+    expect(rpcCalls(db2, 'apply_competitor_tier_plan')).toEqual([{ p_site_id: 'site-1', p_channel_id: 'cc-1', p_changes: [{ video_id: 'v-900', tier: 'semanal' }], p_today: addDays(HOJE, 1) }])
+  })
+  it('(c) views nulo, ilegível ou ausente em um dos dois pontos: não estende (e nada lança)', async () => {
+    const casos: Array<[string, Record<string, unknown>[]]> = [
+      ['views de hoje nulo', pts('v-900', 4000, null)],
+      ['views de 7 dias atrás nulo', pts('v-900', null, 5000)],
+      ['views em texto não numérico', pts('v-900', 'abc', 5000)],
+      ['só o ponto de 7 dias atrás (hoje não tem ponto)', [pts('v-900', 4000, 5000)[0]!]],
+      ['só o ponto de hoje (nenhum anterior)', [pts('v-900', 4000, 5000)[1]!]],
+      ['nenhum ponto', []],
+    ]
+    for (const [nome, dados] of casos) {
+      const db = montar([topo, promovido(900, 1)], dados)
+      const r = await rodar(db)
+      expect(extensoes(db), nome).toEqual([])
+      expect(r.promotionExtended, nome).toBeUndefined()
+    }
+    const db = montar([topo, promovido(900, 1)], pts('v-900', '4000', '5000'))   // texto numérico lê como número
+    await rodar(db)
+    expect(idsEstendidos(db)).toEqual(['v-900'])
+  })
+  it('(d) a reexecução no mesmo dia não estende duas vezes: com a linha já em hoje + 28 não há candidato, nem leitura de pontos; com a linha velha, a data gravada é a mesma', async () => {
+    const db1 = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000))
+    await rodar(db1)
+    const db1b = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000))     // a linha ainda velha (a gravação anterior não chegou à leitura)
+    await rodar(db1b)
+    expect(extensoes(db1b).map(c => arg(c, 'update'))).toEqual(extensoes(db1).map(c => arg(c, 'update')))
+    const db2 = montar([topo, promovido(900, 28)], pts('v-900', 4000, 5000))     // como o banco ficou depois da 1ª execução
+    const r = await rodar(db2)
+    expect(extensoes(db2)).toEqual([])
+    expect(leiturasDePontos(db2)).toHaveLength(0)
+    expect(r.promotionExtended).toBeUndefined()
+  })
+  it('só candidato com vencimento hoje ou amanhã, dentro da prova: vence depois de amanhã, fora da prova e semanal sem promoção não são lidos nem estendidos', async () => {
+    const all = [topo, promovido(900, 2), promovido(901, 1, { views_hidden: true }), promovido(902, 1, { live_broadcast_content: 'upcoming' }), promovido(903, 1, { missing_since: '2026-10-01T00:00:00.000Z' }), row(904, 404, { series_tier: 'semanal' })]
+    const dados = [900, 901, 902, 903, 904].flatMap(i => pts('v-' + i, 4000, 5000))
+    const db = montar(all, dados)
+    await rodar(db)
+    expect(extensoes(db)).toEqual([])
+    expect(leiturasDePontos(db)).toHaveLength(0)
+  })
+  it('as idas ao banco: nenhuma sem candidato; UMA leitura de pontos para poucos candidatos num canal grande; lotes de 100 acima disso', async () => {
+    const grande = Array.from({ length: 300 }, (_, i) => row(100 + i, 400 + i, { series_tier: 'semanal' }))
+    const tres = [promovido(900, 1), promovido(901, 0), promovido(902, 1)]
+    const dados = tres.flatMap(r => pts(r.id as string, 4000, 5000))
+    const db = montar([topo, ...grande, ...tres], dados)
+    const r = await rodar(db)
+    expect(leiturasDePontos(db)).toHaveLength(1)
+    expect(leiturasDePontos(db)[0]!.ops.find(o => o[0] === 'gte')![1]).toEqual(['snap_date', addDays(HOJE, -8)])
+    expect([...(leiturasDePontos(db)[0]!.ops.find(o => o[0] === 'in')![1][1] as string[])].sort()).toEqual(['v-900', 'v-901', 'v-902'])
+    expect(r.promotionExtended).toBe(3)
+    expect(extensoes(db)).toHaveLength(1)                                        // uma gravação para os três
+    const muitos = Array.from({ length: 150 }, (_, i) => promovido(2000 + i, 1))
+    const db2 = montar([topo, ...muitos], muitos.flatMap(r => pts(r.id as string, 4000, 5000)))
+    const r2 = await rodar(db2)
+    expect(leiturasDePontos(db2)).toHaveLength(2)                                // 150 ids = 100 + 50
+    expect(extensoes(db2).map(c => (c.ops.find(o => o[0] === 'in')![1][1] as string[]).length)).toEqual([100, 50])
+    expect(r2.promotionExtended).toBe(150)
+  })
+  it('não roda fora da passada do dia (antes das 12:00 SP o ponto de hoje ainda não existe): nenhuma leitura de pontos', async () => {
+    const db = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000))
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet })
+    expect(leiturasDePontos(db)).toHaveLength(0)
+    expect(extensoes(db)).toEqual([])
+  })
+  describe('(e) é gravação nova: nunca a custa da série do dia', () => {
+    it('falha da gravação: o ponto do dia é gravado, o canal vai para erro com a frase certa, e na execução seguinte (sem falha) a promoção é estendida', async () => {
+      const db = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000), { dailyHave: [], failWrite: 'competitor_videos:daily_until' })
+      await expect(rodar(db)).rejects.toThrow('não foi possível estender a promoção do vídeo à leitura diária: boom')
+      expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)      // a série do dia saiu
+      expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update' && arg(c, 'update')?.sync_status === 'error')).toBe(true)
+      expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update' && arg(c, 'update')?.sync_status === 'idle')).toBe(false) // não carimba
+      const db2 = montar([topo, promovido(900, 1)], pts('v-900', 4000, 5000), { dailyHave: ['v-1', 'v-900'] })
+      const r = await rodar(db2)
+      expect(idsEstendidos(db2)).toEqual(['v-900'])
+      expect(r.promotionExtended).toBe(1)
+    })
+    it('a leitura dos pontos falhando também é gravação nova: a série sai, o canal termina em erro', async () => {
+      const db = montar([topo, promovido(900, 1)], [], { dailyHave: [], recentDailyError: 'boom' })
+      await expect(rodar(db)).rejects.toThrow('não foi possível ler os pontos para estender a promoção: boom')
+      expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+    })
+    it('o que já foi estendido acompanha o erro: com 150 candidatos e a 2ª gravação falhando, syncStatsOf(erro).promotionExtended é 100', async () => {
+      const muitos = Array.from({ length: 150 }, (_, i) => promovido(2000 + i, 1))
+      const db = montar([topo, ...muitos], muitos.flatMap(r => pts(r.id as string, 4000, 5000)), { failWrite: 'competitor_videos:daily_until', failWriteSkip: 1 })
+      const e = await rodar(db).then(() => null, (x: unknown) => x)
+      expect(e).toBeInstanceOf(Error)
+      expect(syncStatsOf(e)?.promotionExtended).toBe(100)
+    })
   })
 })

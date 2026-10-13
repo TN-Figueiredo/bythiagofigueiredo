@@ -108,7 +108,7 @@ export type SetupOpts = {
   failWrite?: string; failWriteSkip?: number
   /** (A5 E2, leitura semanal) Os pontos de competitor_video_daily dos últimos 8 dias (a leitura com `gte` em snap_date); omitido = nenhum. */
   recentDaily?: Record<string, unknown>[]; recentDailyError?: string
-  /** (A5 E2, 11c) Os mesmos pontos como estão DEPOIS de gravados os desta visita: a leitura da promoção é a segunda leitura com `gte` (e as seguintes); omitido = os de `recentDaily`. */
+  /** (A5 E2, 11c) Os mesmos pontos como estão DEPOIS de gravados os desta visita: a leitura da promoção é a que vem DEPOIS das leituras do começo (uma por caixa de 100 semanais de `all`/`allPages`); omitido = os de `recentDaily`. */
   recentDailyAfter?: Record<string, unknown>[]; recentDailyAfterError?: string
   /** (A5 E2, 11c) A leitura das trocas recentes falha com este texto. */
   recentChangesError?: string; recentChangesNull?: boolean
@@ -131,6 +131,11 @@ function writeMatches(spec: string, c: Call): boolean {
 
 export function setup(opts: SetupOpts = {}) {
   let writesSeen = 0, pointReads = 0
+  // (11c, M-1) As leituras de pontos da leitura semanal têm duas fases: a do COMEÇO (uma caixa de 100 por vez, cobrindo todos os semanais do canal) e a da
+  // promoção (depois dos pontos). A fase é decidida pelo canal, não pela ordem solta das chamadas: as primeiras ceil(semanais / 100) são do começo.
+  // Sem `all`/`allPages` o canal não diz quantos são semanais: vale a ordem antiga (a 1ª leitura é a do começo).
+  const channelRows = opts.allPages ? opts.allPages.flat() : opts.all
+  const startReads = channelRows ? Math.ceil(channelRows.filter(r => r.series_tier === 'semanal').length / 100) : 1
   const db = fakeDb((c) => {
     if (opts.failWrite && writeMatches(opts.failWrite, c) && writesSeen++ === (opts.failWriteSkip ?? 0)) return { data: null, error: { message: 'boom' } }
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
@@ -166,9 +171,9 @@ export function setup(opts: SetupOpts = {}) {
     if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
     if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
     // (A5 E2) os pontos recentes da leitura semanal (o único select de competitor_video_daily com `gte`)
-    // a primeira leitura é a do começo da visita; da segunda em diante, a da promoção (depois dos pontos)
+    // as primeiras `startReads` leituras são as do começo da visita; as seguintes, as da promoção (depois dos pontos)
     if (c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')) {
-      const after = pointReads++ >= 1
+      const after = pointReads++ >= startReads
       if (after && opts.recentDailyAfterError) return { data: null, error: { message: opts.recentDailyAfterError } }
       if (opts.recentDailyError) return { data: null, error: { message: opts.recentDailyError } }
       const ids = c.ops.find(o => o[0] === 'in' && o[1][0] === 'video_id')?.[1][1] as unknown[] | undefined // como o banco: só os vídeos pedidos
