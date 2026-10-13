@@ -41,6 +41,8 @@ export const RULES = {
   // New (A5, E2; pergunta 6 ao dono, padrão do spec). Um vídeo semanal que ganha `minViews` E `minShare` do total numa semana,
   // ou que troca de título ou descrição, vai para a diária por `days` dias.
   promotion: { minViews: 1000, minShare: 0.05, days: 28 },
+  // New (A5, E15; leitura horária dos vídeos novos). Valores do plano 2026-10-12-a5-e16-e15-parte-1 (Tarefa 4); quem lê cada chave é a leitura horária.
+  hourly: { ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5 },
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
