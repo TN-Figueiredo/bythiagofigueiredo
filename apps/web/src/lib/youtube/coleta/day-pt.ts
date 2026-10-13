@@ -3,6 +3,9 @@
 //  - Reporting API: UTC-8 fixo → boundsReporting.
 // Nunca deslocamento fixo para achar o dia do Pacífico, nunca toISOString(): só Intl.
 
+/** Dia do Pacífico, `AAAA-MM-DD`. Os contratos de `coleta/` usam este nome (nenhum arquivo daqui importa de `observatorio/`). */
+export type DiaPt = string
+
 const FORMATO_PT = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Los_Angeles',
   year: 'numeric',

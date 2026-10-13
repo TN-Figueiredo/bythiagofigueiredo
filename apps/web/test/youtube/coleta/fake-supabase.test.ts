@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { fakeSupabase, comReachApply } from './fake-supabase'
+import { COLLECTION_KINDS } from '@/lib/youtube/coleta/kinds'
 
 const rpcArgs = { p_site_id: 's', p_scope_type: 'video', p_scope_id: 'v', p_kind: 'meta', p_outcome: 'ok' }
 
@@ -18,6 +19,17 @@ describe('fakeSupabase estrito', () => {
     }
     await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_error: 'a'.repeat(600) })
     expect((db.tables.yt_own_collection_attempts![0]!.error as string).length).toBe(500)
+  })
+  it('yt_own_attempt_record aceita todo valor de COLLECTION_KINDS e recusa kind fora do catálogo com 23514', async () => {
+    for (const k of COLLECTION_KINDS) {
+      const db = fakeSupabase()
+      const r = await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_kind: k })
+      expect(r.error, k).toBeNull()
+      expect(db.tables.yt_own_collection_attempts![0]!.kind).toBe(k)
+    }
+    const db = fakeSupabase()
+    expect((await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_kind: 'Ruim!' })).error).toMatchObject({ code: '23514' })
+    expect((await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_kind: 'retencao_7d ' })).error).toMatchObject({ code: '23514' })
   })
   it('embaralharEmpates: empates saem em ordem diferente a cada leitura; com desempate total a ordem é sempre a mesma; desligado é estável', async () => {
     const linhas = Array.from({ length: 50 }, (_, i) => ({ k: 1, id: `id-${String(i).padStart(2, '0')}` }))

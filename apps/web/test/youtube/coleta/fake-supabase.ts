@@ -9,6 +9,7 @@
 // insert/upsert em lote de chaves heterogêneas: a chave ausente numa linha vira null nela (defaultToNull do supabase-js);
 // ordenação padrão do Postgres (NULLs por último no asc, primeiro no desc); neq exclui nulos.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ehKind } from '@/lib/youtube/coleta/kinds'
 
 export type Row = Record<string, unknown>
 export interface FakeErr { code: string; message: string }
@@ -228,7 +229,6 @@ class Consulta implements PromiseLike<Resposta> {
 }
 
 const SCOPES = ['video', 'canal', 'job']
-const KINDS = ['sondagem', 'meta', 'thumbnail', 'relatorio', 'diario', 'retencao_vida']
 const OUTCOMES_OK = ['ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao', 'erro_http', 'nao_alcancado_orcamento', 'schema_ausente']
 
 export function fakeSupabase(
@@ -243,7 +243,7 @@ export function fakeSupabase(
   // Mesmo comportamento de public.yt_own_attempt_record: uma linha por escopo, kind e dia UTC; soma attempts.
   db.rpcHandlers.yt_own_attempt_record = (a) => {
     if (a.p_site_id == null) return { data: null, error: { code: '23502', message: 'null value in column "site_id"' } }
-    if (!SCOPES.includes(a.p_scope_type as string) || !KINDS.includes(a.p_kind as string) || !OUTCOMES_OK.includes(a.p_outcome as string)) {
+    if (!SCOPES.includes(a.p_scope_type as string) || !ehKind(a.p_kind) || !OUTCOMES_OK.includes(a.p_outcome as string)) {
       return { data: null, error: { code: '23514', message: 'violates check constraint on yt_own_collection_attempts' } }
     }
     const t = (db.tables.yt_own_collection_attempts ??= [])

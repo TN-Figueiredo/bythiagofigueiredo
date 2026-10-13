@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   criarRelogio, restante, fetchComPrazo, emParalelo, comPrazo, SemTempoError,
-  RELOGIO_GLOBAL_MS, TETOS_MS, FETCH_TIMEOUT_MS, PARALELO,
+  RELOGIO_GLOBAL_MS, TETOS_MS, TETOS_DE_FIM_MS, LIMITE_DA_FUNCAO_MS, prazoDoCriterio, FETCH_TIMEOUT_MS, PARALELO,
 } from '@/lib/youtube/coleta/clock'
 
 afterEach(() => {
@@ -23,6 +23,45 @@ describe('relógio da coleta', () => {
     const RESERVA_PARTE_ANTIGA_MS = 30_000
     const soma = Object.values(TETOS_MS).reduce((s, n) => s + n, 0)
     expect(soma + RESERVA_PARTE_ANTIGA_MS).toBeLessThanOrEqual(RELOGIO_GLOBAL_MS)
+  })
+
+  it('TETOS_DE_FIM_MS tem as três chaves e não entra na soma de TETOS_MS', () => {
+    expect(TETOS_DE_FIM_MS).toEqual({ retencao: 20_000, dimensoes: 30_000, normalizadores: 20_000 })
+    expect(Object.keys(TETOS_MS)).not.toContain('retencao')
+    expect(Object.keys(TETOS_MS)).not.toContain('dimensoes')
+    expect(Object.keys(TETOS_MS)).not.toContain('normalizadores')
+  })
+
+  it('prazoDoCriterio: 3 s à frente com 250 s decorridos; corta nos 296 s; já passado com 297 s', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const r = criarRelogio()
+    expect(LIMITE_DA_FUNCAO_MS).toBe(296_000)
+    vi.setSystemTime(r.inicio + 250_000)
+    expect(prazoDoCriterio(r, 3_000) - Date.now()).toBe(3_000)
+    vi.setSystemTime(r.inicio + 294_000)
+    expect(prazoDoCriterio(r, 3_000) - Date.now()).toBe(2_000)
+    expect(prazoDoCriterio(r, 3_000)).toBe(r.inicio + 296_000)
+    vi.setSystemTime(r.inicio + 297_000)
+    expect(prazoDoCriterio(r, 3_000)).toBe(r.inicio + 296_000)
+    expect(prazoDoCriterio(r, 3_000)).toBeLessThan(Date.now())
+    expect(restante(prazoDoCriterio(r, 3_000))).toBe(0)
+  })
+
+  it('prazoDoCriterio com 269 s decorridos vai até 272 s: passa dos 270 s, ao contrário de relogio.prazo', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const r = criarRelogio()
+    vi.setSystemTime(r.inicio + 269_000)
+    expect(prazoDoCriterio(r, 3_000)).toBe(r.inicio + 272_000)
+    expect(r.prazo(3_000)).toBe(r.fim)
+    expect(r.fim).toBe(r.inicio + 270_000)
+    expect(prazoDoCriterio(r, 3_000)).toBeGreaterThan(r.fim)
+  })
+
+  it('prazoDoCriterio: duração zero ou negativa não adianta o relógio', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const r = criarRelogio()
+    expect(prazoDoCriterio(r, 0)).toBe(Date.now())
+    expect(restante(prazoDoCriterio(r, -5_000))).toBe(0)
   })
 
   it('prazo do passo = min(teto, o que resta do relógio global)', () => {
