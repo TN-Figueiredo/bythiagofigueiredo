@@ -169,12 +169,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (item 89): nenhum GET de api/pipeline
     // ao menos um handler respondeu 2xx com o site do teste (o teste não está só batendo em 401/404)
     expect(Object.values(status).filter(s => s >= 200 && s < 300).length).toBeGreaterThan(0)
   })
-  // ACHADO (fora do código da E11, apanhado por este teste de ponta): `GET /api/pipeline/youtube/videos` responde 500 `DB_ERROR` para um canal
-  // do site. Causa: `youtube_videos` tem DUAS chaves para `youtube_categories` (`category_id` e `auto_suggested_category_id`, esta da migration
-  // 20260922000002) e o embed `youtube_categories(slug)` em `src/lib/pipeline/services/youtube.ts:1970` fica ambíguo (PGRST201 do PostgREST).
-  // Correção proposta (vai para revisão, não é desta tarefa): `youtube_categories!youtube_videos_category_id_fkey(slug)`. Quando for consertado,
-  // este `it.fails` falha e deve virar `it`.
-  it.fails('nenhum GET do YouTube responde 5xx para um canal do site do teste (hoje `videos` responde 500: embed ambíguo de categorias)', async () => {
+  // Este teste achou um defeito de produção (desde a migration 20260922000002): `GET /api/pipeline/youtube/videos` respondia 500 `DB_ERROR`,
+  // porque `youtube_videos` tem DUAS chaves para `youtube_categories` (`category_id` e `auto_suggested_category_id`) e o embed sem a chave
+  // nomeada era ambíguo (PGRST201). Consertado em `src/lib/pipeline/services/youtube.ts` com `youtube_categories!youtube_videos_category_id_fkey(slug)`.
+  it('nenhum GET do YouTube responde 5xx para um canal do site do teste (o embed de categorias nomeia a chave)', async () => {
     const { status } = await chamarTodos()
     expect(Object.entries(status).filter(([, s]) => s >= 500).map(([p]) => p)).toEqual([])
   })
