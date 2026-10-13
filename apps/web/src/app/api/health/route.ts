@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { buildCronHealthReport, CRON_HEALTH_COLUMNS } from '@/lib/ops/cron-health-report'
+import { buildCronHealthReport, lerAgendaParaRelatorio, CRON_HEALTH_COLUMNS } from '@/lib/ops/cron-health-report'
 
 // Dead-man-switch endpoint. The dono do repo mora fora do país por mais de um
 // ano e não vai ler logs — este endpoint é o que um watchdog externo (ver
@@ -41,7 +41,10 @@ export async function GET(req: NextRequest): Promise<Response> {
     return Response.json({ error: 'cron_health query failed', detail: error.message }, { status: 500 })
   }
 
-  const report = buildCronHealthReport(rows ?? [], new Date())
+  const now = new Date()
+  // A agenda é a segunda fonte (A5 E16, Tarefa 11); nunca lança e nunca derruba o resto.
+  const agenda = await lerAgendaParaRelatorio(supabase, now)
+  const report = buildCronHealthReport(rows ?? [], now, agenda.itens)
 
   return Response.json(
     {
@@ -51,6 +54,10 @@ export async function GET(req: NextRequest): Promise<Response> {
       // Ausencia de informacao, reportada a parte — ver aggregateStatus na lib.
       unknownCount: report.unknownCount,
       unknownNames: report.unknownNames,
+      // Tarefas da agenda desligadas de propósito: fora do status, mas à vista.
+      disabledNames: report.disabledNames,
+      // Só quando a agenda não pôde ser conferida (o banco não respondeu); ausente no caso normal.
+      ...(agenda.nota === null ? {} : { agendaNota: agenda.nota }),
     },
     { status: report.status === 'down' ? 503 : 200 },
   )
