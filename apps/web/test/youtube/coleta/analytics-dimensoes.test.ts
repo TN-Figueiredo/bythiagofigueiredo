@@ -2,7 +2,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { AnalyticsApiError } from '@/lib/youtube/coleta/analytics-diario'
 import {
+  AnalyticsDimensaoError,
   DIMENSOES_DA_FAMILIA,
+  UsoInvalidoDimensoesError,
   MODO_DA_FAMILIA,
   dimensaoDoVideo,
   type Familia,
@@ -208,8 +210,8 @@ describe('dimensaoDoVideo', () => {
     ['subscribed_status', 'day,subscribedStatus'],
     ['country', 'country'],
   ])('a URL (%s)', async (familia, dimensions) => {
-    const f = vi.fn().mockResolvedValue(resp({ columnHeaders: cab('day'), rows: [] }))
     const porDia = familia === 'country'
+    const f = vi.fn().mockResolvedValue(resp({ columnHeaders: cab(...dimensions.split(','), 'views'), rows: [] }))
     await dimensaoDoVideo(base(f, { familia, ...(porDia ? { inicio: '2026-10-05', fim: '2026-10-05' } : {}) }))
     const [url, init] = f.mock.calls[0]!
     const u = new URL(String(url))
@@ -221,6 +223,181 @@ describe('dimensaoDoVideo', () => {
     expect(u.searchParams.get('dimensions')).toBe(dimensions)
     expect(u.searchParams.get('metrics')).toBe('views,estimatedMinutesWatched,engagedViews')
     expect(u.searchParams.has('maxResults')).toBe(false)
+    expect(u.searchParams.get('sort')).toBe(porDia ? null : 'day')
     expect((init as RequestInit).headers).toEqual({ Authorization: 'Bearer tok' })
+  })
+})
+
+const cabTrafego = cab('day', 'insightTrafficSourceType', 'views', 'estimatedMinutesWatched')
+const umaLinha = (linha: unknown[], extra: Partial<Entrada> = {}) =>
+  dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({ columnHeaders: cabTrafego, rows: [linha] })), extra))
+
+describe('conserto da revisão: chamadas gastas', () => {
+  it('sucesso simples gasta 1; engagedViews recusada gasta 2', async () => {
+    const f = vi.fn().mockResolvedValue(resp({ columnHeaders: cabTrafego, rows: [] }))
+    expect((await dimensaoDoVideo(base(f))).chamadas).toBe(1)
+    const g = vi.fn()
+      .mockResolvedValueOnce(resp(DAY_COUNTRY_400, 400))
+      .mockResolvedValueOnce(resp({ columnHeaders: cabTrafego, rows: [] }))
+    const r = await dimensaoDoVideo(base(g))
+    expect(r.estendidas).toBe('recusadas')
+    expect(r.chamadas).toBe(2)
+  })
+
+  it('o erro diz quantas chamadas gastou', async () => {
+    const dois = vi.fn().mockImplementation(async () => resp(DAY_COUNTRY_400, 400))
+    const e400 = await dimensaoDoVideo(base(dois)).catch((x: unknown) => x)
+    expect(e400).toBeInstanceOf(AnalyticsApiError)
+    expect(e400).toBeInstanceOf(AnalyticsDimensaoError)
+    expect(e400).toMatchObject({ status: 400, reason: 'badRequest', chamadas: 2 })
+
+    const um = vi.fn().mockResolvedValue(resp({ error: { errors: [{ reason: 'quotaExceeded' }] } }, 403))
+    expect(await dimensaoDoVideo(base(um)).catch((x: unknown) => x)).toMatchObject({ status: 403, chamadas: 1 })
+
+    const ilegivel = vi.fn().mockResolvedValue(new Response('<html>', { status: 200 }))
+    expect(await dimensaoDoVideo(base(ilegivel)).catch((x: unknown) => x)).toMatchObject({ reason: 'corpo_invalido', chamadas: 1 })
+
+    const recusaEForma = vi.fn()
+      .mockResolvedValueOnce(resp(DAY_COUNTRY_400, 400))
+      .mockResolvedValueOnce(resp({}))
+    expect(await dimensaoDoVideo(base(recusaEForma)).catch((x: unknown) => x))
+      .toMatchObject({ reason: 'corpo_sem_cabecalho', chamadas: 2 })
+
+    const linhaRuim = vi.fn().mockResolvedValue(resp({ columnHeaders: cabTrafego, rows: [['2026-10-02', 'A', null, 1]] }))
+    expect(await dimensaoDoVideo(base(linhaRuim)).catch((x: unknown) => x)).toMatchObject({ reason: 'corpo_invalido', chamadas: 1 })
+  })
+})
+
+describe('conserto da revisão: views é obrigatória na linha', () => {
+  it.each<[string, unknown[]]>([
+    ['ausente', ['2026-10-02', 'A']],
+    ['nula', ['2026-10-02', 'A', null, 5]],
+    ['texto vazio', ['2026-10-02', 'A', '', 5]],
+    ['texto em branco', ['2026-10-02', 'A', '  ', 5]],
+    ['não numérica', ['2026-10-02', 'A', 'abc', 5]],
+    ['booleana', ['2026-10-02', 'A', true, 5]],
+    ['NaN em texto', ['2026-10-02', 'A', 'NaN', 5]],
+    ['negativa', ['2026-10-02', 'A', -3, 5]],
+  ])('views %s lança erro de forma, sem virar zero', async (_nome, linha) => {
+    const e = await umaLinha(linha).catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(AnalyticsApiError)
+    expect(e).toMatchObject({ status: 200, reason: 'corpo_invalido' })
+    expect(String((e as Error).message)).not.toContain('2026-10-02')
+  })
+
+  it('zero legítimo e número em texto passam', async () => {
+    expect((await umaLinha(['2026-10-02', 'A', 0, 5])).linhas).toEqual([{ day: '2026-10-02', valor: 'A', views: 0, watch_time_minutes: 5 }])
+    expect((await umaLinha(['2026-10-02', 'A', '7', 5])).linhas[0]).toMatchObject({ views: 7 })
+  })
+
+  it('texto vazio ou nulo nas outras métricas fica ausente, nunca zero', async () => {
+    const r = await dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'insightTrafficSourceType', 'views', 'estimatedMinutesWatched', 'engagedViews'),
+      rows: [['2026-10-02', 'A', 4, '', null]],
+    }))))
+    expect(r.linhas).toEqual([{ day: '2026-10-02', valor: 'A', views: 4 }])
+  })
+
+  it('linha de valor inválido continua sendo só descartada e contada', async () => {
+    const r = await umaLinha(['2026-10-02', 'YT SEARCH'])
+    expect(r.linhas).toEqual([])
+    expect(r.invalidas).toBe(1)
+  })
+})
+
+describe('conserto da revisão: cabeçalho conferido mesmo sem linha', () => {
+  it('cabeçalho diferente do pedido e zero linhas é erro de forma', async () => {
+    const semRows = (nomes: string[], extra: Partial<Entrada> = {}, rows?: unknown[][]) =>
+      dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp(rows ? { columnHeaders: cab(...nomes), rows } : { columnHeaders: cab(...nomes) })), extra))
+    await expect(semRows(['day', 'views'])).rejects.toMatchObject({ status: 200, reason: 'sem_coluna_insightTrafficSourceType' })
+    await expect(semRows(['insightTrafficSourceType', 'views'], {}, [])).rejects.toMatchObject({ reason: 'sem_coluna_day' })
+    await expect(semRows(['day', 'insightTrafficSourceType'], {}, [])).rejects.toMatchObject({ reason: 'sem_coluna_views' })
+    await expect(semRows(['day', 'views'], { familia: 'country', inicio: '2026-10-05', fim: '2026-10-05' }, []))
+      .rejects.toMatchObject({ reason: 'sem_coluna_country' })
+    await expect(semRows(['day', 'deviceType', 'views'], { familia: 'device_os' }, []))
+      .rejects.toMatchObject({ reason: 'sem_coluna_operatingSystem' })
+  })
+
+  it('cabeçalho certo e rows ausente, nulo ou vazio é legítimo', async () => {
+    for (const corpo of [
+      { columnHeaders: cabTrafego },
+      { columnHeaders: cabTrafego, rows: null },
+      { columnHeaders: cabTrafego, rows: [] },
+    ]) {
+      const r = await dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp(corpo))))
+      expect(r).toEqual({ linhas: [], estendidas: 'ok', invalidas: 0, chamadas: 1 })
+    }
+  })
+})
+
+describe('conserto da revisão: forma estranha é erro tipado, nunca TypeError', () => {
+  it('corpo null ou que não é objeto', async () => {
+    for (const corpo of [null, 5, 'texto', true, []]) {
+      const e = await dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp(corpo)))).catch((x: unknown) => x)
+      expect(e).toBeInstanceOf(AnalyticsApiError)
+      expect(e).toMatchObject({ status: 200, reason: 'corpo_sem_cabecalho', chamadas: 1 })
+    }
+  })
+
+  it('cabeçalho com item nulo não estoura', async () => {
+    const e = await dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({ columnHeaders: [null, { name: 'day' }], rows: [] })))).catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(AnalyticsApiError)
+  })
+
+  it('rows que não é lista', async () => {
+    for (const rows of [{ a: 1 }, 'x', 7]) {
+      const e = await dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({ columnHeaders: cabTrafego, rows })))).catch((x: unknown) => x)
+      expect(e).toBeInstanceOf(AnalyticsApiError)
+      expect(e).toMatchObject({ reason: 'corpo_invalido' })
+    }
+  })
+
+  it('linha que não é lista', async () => {
+    for (const linha of [null, 'x', 5, { a: 1 }]) {
+      const e = await umaLinha(linha as unknown as unknown[]).catch((x: unknown) => x)
+      expect(e).toBeInstanceOf(AnalyticsApiError)
+      expect(e).toMatchObject({ reason: 'corpo_invalido' })
+    }
+  })
+
+  it('duplicata (day, valor) é erro de forma', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cabTrafego,
+      rows: [['2026-10-02', 'A', 1, 1], ['2026-10-03', 'A', 1, 1], ['2026-10-02', 'A', 2, 2]],
+    }))
+    const e = await dimensaoDoVideo(base(f)).catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(AnalyticsApiError)
+    expect(e).toMatchObject({ reason: 'corpo_invalido' })
+    expect(String((e as Error).message)).not.toContain('2026-10-02')
+  })
+
+  it('mesmo valor em dias diferentes ou valores diferentes no mesmo dia não são duplicata', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cabTrafego,
+      rows: [['2026-10-02', 'A', 1, 1], ['2026-10-03', 'A', 1, 1], ['2026-10-02', 'B', 2, 2]],
+    }))
+    expect((await dimensaoDoVideo(base(f))).linhas).toHaveLength(3)
+  })
+
+  it('parte da dimensão com | é erro de forma (a junção de device_os seria ambígua)', async () => {
+    const cabDev = cab('day', 'deviceType', 'operatingSystem', 'views')
+    const f = vi.fn().mockResolvedValue(resp({ columnHeaders: cabDev, rows: [['2026-10-02', 'A|B', 'C', 1], ['2026-10-02', 'A', 'B|C', 1]] }))
+    const e = await dimensaoDoVideo(base(f, { familia: 'device_os' })).catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(AnalyticsApiError)
+    expect(e).toMatchObject({ reason: 'corpo_invalido' })
+    const g = vi.fn().mockResolvedValue(resp({ columnHeaders: cabTrafego, rows: [['2026-10-02', 'A|B', 1, 1]] }))
+    expect(await dimensaoDoVideo(base(g)).catch((x: unknown) => x)).toMatchObject({ reason: 'corpo_invalido' })
+  })
+})
+
+describe('conserto da revisão: uso inválido é erro tipado em português', () => {
+  it('por_dia com inicio diferente de fim', async () => {
+    const f = vi.fn()
+    const e = await dimensaoDoVideo(base(f, { familia: 'country', inicio: '2026-10-05', fim: '2026-10-06' })).catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(UsoInvalidoDimensoesError)
+    expect(e).toMatchObject({ codigo: 'uso_invalido', chamadas: 0 })
+    expect((e as Error).message).toMatch(/consultada por dia/)
+    expect((e as Error).message).not.toMatch(/\b(is|must|the)\b/)
+    expect(f).not.toHaveBeenCalled()
   })
 })
