@@ -12,7 +12,7 @@ vi.mock('@/lib/logger', () => ({
 }))
 vi.mock('@/lib/youtube/sync', () => ({ syncChannel: vi.fn(), YouTubeQuotaError: class extends Error {} }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
-vi.mock('@/lib/youtube/competitor-sync-batch', () => ({ runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })) }))
+vi.mock('@/lib/youtube/competitor-sync-batch', () => ({ runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })), BATCH_BUDGET_MS: 200_000 }))
 vi.mock('@/lib/youtube/competitor-health', () => ({ schemaReady: vi.fn(async () => null), readSiteHealth: vi.fn(async () => ({ ok: true, problems: [], notes: [] })) }))
 
 import { GET } from '@/app/api/cron/sync-youtube/route'
@@ -21,7 +21,8 @@ import { runCompetitorBatch } from '@/lib/youtube/competitor-sync-batch'
 
 const batch = vi.mocked(runCompetitorBatch), tag = vi.mocked(revalidateTag)
 const req = () => new NextRequest('http://localhost/api/cron/sync-youtube?mode=competitors', { headers: { authorization: 'Bearer test-secret' } })
-const result = (o: { synced: number; errors: number; siteIds: string[] }) => ({ skipped: 0, remainingDue: 0, stoppedForTime: false, ...o })
+const ZERO = { unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, weeklyDeferred: 0, earlyRecorded: 0, fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, missed: 0, newlyMissing: 0, returned: 0, tierChanges: 0, cutByCap: 0, excludedNoCount: 0, promoted: 0, longWindowChanges: 0, partsMissing: 0, quotaErrors: 0 }
+const result = (o: { synced: number; errors: number; siteIds: string[] }) => ({ skipped: 0, remainingDue: 0, stoppedForTime: false, healthSiteIds: [], totals: ZERO, ...o })
 
 describe('cron de competidores invalida o cache do Observatório', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key') })

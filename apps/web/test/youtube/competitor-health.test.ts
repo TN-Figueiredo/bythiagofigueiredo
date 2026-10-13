@@ -317,3 +317,30 @@ describe('readSiteHealth', () => {
     expect(v.problems).toEqual(RED_CAP)
   })
 })
+
+describe('H: os totais da série (diaria_total e semanal_total) entram no veredito', () => {
+  const NOTE = 'nenhum vídeo com faixa ainda (esperado só no dia da ativação, antes das 18:00)'
+  it('totais em zero com canal lido no dia: nota, nunca verde mudo, e nunca vermelho', () => {
+    const v = healthVerdict(C, { ...S, diaria_total: 0, semanal_total: 0 }, done)
+    expect(v.notes).toContain(NOTE)
+    expect(v.ok).toBe(true)
+  })
+  it('a nota vale em qualquer hora (o veredito não esconde o zero depois das 18:00)', () => {
+    for (const hora_sp of [0, 12, 17, 18, 19, 23]) expect(healthVerdict(C, { ...S, hora_sp, diaria_total: 0, semanal_total: 0 }, done).notes).toContain(NOTE)
+  })
+  it('sem nenhum canal lido no dia (nada para classificar) não há nota', () => {
+    expect(healthVerdict({ ...C, canais_vistos_dia_pacifico: 0 }, { ...S, diaria_total: 0, semanal_total: 0 }, done).notes).not.toContain(NOTE)
+  })
+  it('qualquer um dos dois totais acima de zero: sem nota', () => {
+    expect(healthVerdict(C, { ...S, diaria_total: 0, semanal_total: 5 }, done).notes).not.toContain(NOTE)
+    expect(healthVerdict(C, { ...S, diaria_total: 3, semanal_total: 0 }, done).notes).not.toContain(NOTE)
+  })
+  it('sem a prova da captura (nula) a nota não aparece: o problema "não foi possível ler" já é vermelho', () => {
+    const v = healthVerdict(null, { ...S, diaria_total: 0, semanal_total: 0 }, done)
+    expect(v.notes).not.toContain(NOTE)
+    expect(v.ok).toBe(false)
+  })
+  it('E1 sozinha (e2: false) não olha a série, então não tem a nota', () => {
+    expect(healthVerdict(C, { ...S, diaria_total: 0, semanal_total: 0 }, { slotDone: true, e2: false }).notes).not.toContain(NOTE)
+  })
+})

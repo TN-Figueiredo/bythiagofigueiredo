@@ -21,8 +21,6 @@ import { runCompetitorBatch, batchHealth } from '@/lib/youtube/competitor-sync-b
 import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
-void batchHealth; void readSiteHealth // a Tarefa 13 acrescenta testes que usam os dois
-
 const req = () => new NextRequest('http://localhost/api/cron/sync-youtube?mode=competitors', { headers: { authorization: 'Bearer test-secret' } })
 
 describe('cron de concorrentes: guarda de schema', () => {
@@ -58,5 +56,211 @@ describe('cron de concorrentes: guarda de schema', () => {
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(vi.mocked(runCompetitorBatch)).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('cron de concorrentes: a prova lida a cada disparo', () => {
+  const ZERO = { unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, weeklyDeferred: 0, earlyRecorded: 0, fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, missed: 0, newlyMissing: 0, returned: 0, tierChanges: 0, cutByCap: 0, excludedNoCount: 0, promoted: 0, longWindowChanges: 0, partsMissing: 0, quotaErrors: 0 }
+  const WEEKLY_ZERO = { ran: false, visited: 0, complete: 0, pending: 0, recorded: 0, deferred: 0, promoted: 0, errors: 0, unitsUsed: 0 }
+  const result = (o: Record<string, unknown> = {}) => ({ synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [], healthSiteIds: ['s1'], totals: ZERO, weekly: WEEKLY_ZERO, acao_do_dono: [], ...o })
+  const OK = { ok: true, problems: [], notes: [] }
+  const failMsg = () => vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+  beforeEach(() => {
+    vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key')
+    vi.mocked(schemaReady).mockResolvedValue(null)
+    vi.mocked(batchHealth).mockReturnValue({ ok: true })
+    vi.mocked(readSiteHealth).mockResolvedValue(OK)
+  })
+  it('sem nenhum canal devido a prova é lida do mesmo jeito, e um problema deixa o cron vermelho com o texto', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+    vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: ['2 vídeos da faixa semanal sem ponto há mais de 8 dias'], notes: ['3 fora da prova de série (sem contagem, estreia agendada ou ausente)'] })
+    const body = await (await GET(req())).json()
+    expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', 'série e captura: 2 vídeos da faixa semanal sem ponto há mais de 8 dias')
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    expect(body.prova).toEqual({ ok: false, problems: ['2 vídeos da faixa semanal sem ponto há mais de 8 dias'], notes: ['3 fora da prova de série (sem contagem, estreia agendada ou ausente)'] })
+    expect('healthSiteIds' in body).toBe(false)
+    expect('siteIds' in body).toBe(false)
+  })
+  it('lote e prova em ordem: sucesso gravado, e a resposta traz os totais, a fase semanal e a ação do dono', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result({ synced: 2, siteIds: ['s1'], totals: { ...ZERO, unitsUsed: 8, weeklyRecorded: 3 } }) as never)
+    const body = await (await GET(req())).json()
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledWith('sync-youtube-competitors', 'info')
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+    expect(body).toMatchObject({ mode: 'competitors', synced: 2, totals: { unitsUsed: 8, weeklyRecorded: 3 }, weekly: WEEKLY_ZERO, acao_do_dono: [], prova: { ok: true } })
+  })
+  it('I: a rota liga a fase semanal (weekly: true) e passa o orçamento do lote', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+    await GET(req())
+    expect(vi.mocked(runCompetitorBatch)).toHaveBeenCalledWith(expect.objectContaining({ weekly: true, budgetMs: 200_000, batchSize: 15 }))
+  })
+  it('uma prova por site com canal', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: ['s1', 's2'] }) as never)
+    await GET(req())
+    expect(vi.mocked(readSiteHealth).mock.calls.map(c => [c[1], c[3]])).toEqual([['s1', { slotDone: true, e2: true }], ['s2', { slotDone: true, e2: true }]])
+  })
+  describe('A: slotDone — a diária devida sem ponto só é cobrada quando a faixa do disparo terminou', () => {
+    it.each([
+      ['parou por tempo com canais devidos sobrando (o disparo das 18:00)', { remainingDue: 2, stoppedForTime: true }, false],
+      ['sobrou canal devido por causa do tamanho do lote, sem parar por tempo', { remainingDue: 4, stoppedForTime: false }, false],
+      ['parou por tempo, mesmo sem canal sobrando', { remainingDue: 0, stoppedForTime: true }, false],
+      ['terminou a faixa (o disparo das 18:20)', { remainingDue: 0, stoppedForTime: false }, true],
+    ] as Array<[string, Record<string, unknown>, boolean]>)('%s → slotDone %s', async (_n, o, expected) => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result(o) as never)
+      await GET(req())
+      expect(vi.mocked(readSiteHealth).mock.calls[0]![3]).toEqual({ slotDone: expected, e2: true })
+    })
+    it('o disparo das 18:00 que parou por tempo não fica vermelho por "diária sem ponto" (a prova não cobra), e o das 18:20 que fecha a faixa cobra', async () => {
+      // a prova de verdade devolve problema só quando recebe slotDone: true; aqui o falso obedece o mesmo contrato
+      vi.mocked(readSiteHealth).mockImplementation(async (_sb, _site, _now, o) => (o.slotDone ? { ok: false, problems: ['13 vídeos da faixa diária sem ponto hoje'], notes: [] } : OK))
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ remainingDue: 2, stoppedForTime: true }) as never)
+      await GET(req())
+      expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ remainingDue: 0, stoppedForTime: false }) as never)
+      await GET(req())
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', 'série e captura: 13 vídeos da faixa diária sem ponto hoje')
+    })
+  })
+  describe('B: a lista de sites vazia nunca é verde por acaso', () => {
+    it('nenhum canal de concorrente ativo (lote sem erro, nada tentado): verde com nota explícita, e a prova não é lida', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: [] }) as never)
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(readSiteHealth)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+      expect(body.prova).toEqual({ ok: true, problems: [], notes: ['nenhum canal de concorrente ativo'] })
+    })
+    it('lista vazia, mas o lote tentou canais: a leitura dos sites falhou — vermelho', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: [], synced: 3 }) as never)
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+      expect(failMsg()).toMatch(/lista de sites/)
+      expect(body.prova.ok).toBe(false)
+    })
+    it('lista de sites ausente ou fora da forma: vermelho', async () => {
+      for (const bad of [undefined, null, 'x']) {
+        vi.clearAllMocks(); vi.mocked(schemaReady).mockResolvedValue(null); vi.mocked(batchHealth).mockReturnValue({ ok: true })
+        vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: bad }) as never)
+        await GET(req())
+        expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+        expect(failMsg()).toMatch(/lista de sites/)
+      }
+    })
+  })
+  it('lote com metade dos canais em erro E prova com problema: uma falha só, com os dois textos', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result({ synced: 1, errors: 14 }) as never)
+    vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '14 of 15 channels failed' })
+    vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: ['cota do dia não registrada (15 canais lidos)'], notes: [] })
+    await GET(req())
+    expect(vi.mocked(recordCronFailure).mock.calls).toEqual([['sync-youtube-competitors', '14 of 15 channels failed | série e captura: cota do dia não registrada (15 canais lidos)']])
+  })
+  it('vários sites com a mesma frase fixa: a frase aparece uma vez', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: ['s1', 's2'] }) as never)
+    vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: ['não foi possível ler a prova da captura'], notes: [] })
+    const body = await (await GET(req())).json()
+    expect(body.prova.problems).toEqual(['não foi possível ler a prova da captura'])
+  })
+  describe('F: a mensagem do cron cabe em 480 caracteres, e o corte nunca esconde um vermelho atrás de nota', () => {
+    const phrase = (i: number) => 'problema número ' + i + ' com texto comprido'
+    it('o pior caso (11 frases, 535 caracteres) é cortado em frase inteira, com "e mais N avisos", e a primeira frase vermelha está lá', async () => {
+      const problems = [
+        '8 vídeos lidos sem resposta guardada', '3 canais lidos sem resposta guardada', 'cota do dia não registrada (15 canais lidos)', '2 canais em erro há mais de 12 h',
+        '120 vídeos sem faixa de série', '4 buracos na série diária nos últimos 3 dias', '5 vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)',
+        '6 vídeos da faixa semanal no 8º dia sem ponto', '7 vídeos da faixa semanal devidos hoje e ainda sem ponto', '9 vídeos sem cópia da miniatura depois de 9 dias', '13 vídeos da faixa diária sem ponto hoje',
+      ]
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 12 }) as never)
+      vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems, notes: ['uma nota qualquer'] })
+      await GET(req())
+      const msg = failMsg()
+      expect(msg.length).toBeLessThanOrEqual(480)
+      expect(msg.startsWith('série e captura: 8 vídeos lidos sem resposta guardada; 3 canais lidos')).toBe(true)
+      expect(msg).toMatch(/ \| e mais \d+ avisos?$/)
+      expect(msg).not.toContain('uma nota qualquer')
+      // quantas frases foram ditas + quantas ficaram para o "e mais N" = o total (11 da prova + a da cota)
+      const said = problems.filter(p => msg.includes(p)).length
+      const n = Number(/e mais (\d+) avisos?$/.exec(msg)![1])
+      expect(said + n).toBe(12)
+      // o corte é entre frases: nenhuma frase aparece pela metade
+      for (const p of problems) { const head = p.slice(0, 20); if (msg.includes(head)) expect(msg).toContain(p) }
+    })
+    it('40 frases longas: cabem 480, a primeira vai inteira, e o fim diz quantas ficaram de fora', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: Array.from({ length: 40 }, (_, i) => phrase(i)), notes: [] })
+      await GET(req())
+      const msg = failMsg()
+      expect(msg.length).toBeLessThanOrEqual(480)
+      expect(msg.startsWith('série e captura: ' + phrase(0) + '; ' + phrase(1))).toBe(true)
+      const n = Number(/e mais (\d+) avisos$/.exec(msg)![1])
+      expect(msg.split('; ').length + n).toBe(40)
+    })
+    it('mensagem que cabe não é tocada', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: [phrase(1), phrase(2)], notes: [] })
+      await GET(req())
+      expect(failMsg()).toBe('série e captura: ' + phrase(1) + '; ' + phrase(2))
+    })
+    it('o texto do lote (vermelho) e o da cota vêm sem sumir quando cabem, e o da prova é que perde as últimas frases', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 5 }) as never)
+      vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '14 of 15 channels failed' })
+      vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: Array.from({ length: 40 }, (_, i) => phrase(i)), notes: [] })
+      await GET(req())
+      const msg = failMsg()
+      expect(msg.startsWith('14 of 15 channels failed | série e captura: ' + phrase(0))).toBe(true)
+      expect(msg.length).toBeLessThanOrEqual(480)
+    })
+    it('uma frase sozinha maior que o limite é cortada com reticências, nunca passa de 480', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: ['x'.repeat(900)], notes: [] })
+      await GET(req())
+      expect(failMsg().length).toBe(480)
+      expect(failMsg().endsWith('…')).toBe(true)
+    })
+  })
+  it('a prova que lança (banco fora) não vira verde: o cron falha', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+    vi.mocked(readSiteHealth).mockRejectedValue(new Error('rede'))
+    await GET(req())
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/não foi possível ler a prova/))
+  })
+  it('a prova que demora mais de 20 s: falha gravada com "passou de 20 s"', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(readSiteHealth).mockReturnValue(new Promise(() => undefined))
+      const pending = GET(req())
+      await vi.advanceTimersByTimeAsync(20_000)
+      await pending
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/passou de 20 s/))
+    } finally { vi.useRealTimers() }
+  })
+  it('E: canal em erro há mais de 3 dias: o cron fica VERDE e a resposta traz acao_do_dono em toda execução', async () => {
+    vi.mocked(runCompetitorBatch).mockResolvedValue(result({ acao_do_dono: ['canal X em erro há 4 dias: não encontrado no YouTube (404)'] }) as never)
+    vi.mocked(readSiteHealth).mockResolvedValue({ ok: true, problems: [], notes: ['1 canal em erro há mais de 3 dias (ver acao_do_dono)'] })
+    const body = await (await GET(req())).json()
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+    expect(body.acao_do_dono).toEqual(['canal X em erro há 4 dias: não encontrado no YouTube (404)'])
+    expect(body.prova.notes).toEqual(['1 canal em erro há mais de 3 dias (ver acao_do_dono)'])
+  })
+  describe('D: a cota que não foi registrada nunca é verde mudo', () => {
+    it('depois da nova tentativa ainda faltam unidades: o cron falha com a frase "N unidades de cota não registradas"', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 12 }) as never)
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', '12 unidades de cota não registradas')
+      expect(body.quotaLost).toBe(12)
+    })
+    it('1 unidade: singular', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 1 }) as never)
+      await GET(req())
+      expect(failMsg()).toBe('1 unidade de cota não registrada')
+    })
+    it('a cota recuperada na nova tentativa (quotaLost indefinido) não suja o cron, mas os totais mostram o que aconteceu', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ totals: { ...ZERO, quotaErrors: 2, quotaUnitsLost: 8 } }) as never)
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+      expect(body.totals).toMatchObject({ quotaErrors: 2, quotaUnitsLost: 8 })
+    })
   })
 })
