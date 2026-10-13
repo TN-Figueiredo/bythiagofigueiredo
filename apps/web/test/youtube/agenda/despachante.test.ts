@@ -337,6 +337,25 @@ describe('despachante: ordem e pesadas', () => {
     expect(devidaPeloDado).not.toHaveBeenCalled()
   })
 
+  // m-5 do portão final: documenta (NÃO muda) o desempate da vaga da pesada. É a prioridade do spec: quem já tem andamento e está sã
+  // continua na vaga até terminar. Com `retratos_comentarios` em `parcial` COM progresso a cada disparo, a `serie_semanal` (mesma ordem de
+  // período, `ordem` 8 contra 7) fica adiada enquanto isso durar; o que vigia o custo é a conferência D+1 ("a série semanal fechou ok no dia").
+  it('fome da vaga: retratos em parcial com progresso levam a vaga e a série semanal fica adiada (prioridade do spec; a conferência D+1 vigia)', async () => {
+    const t0 = sp(14, 0)
+    const retratos = pesada('retratos_comentarios', 7, { aPartirDaHoraSP: 13 })
+    const sem = pesada('serie_semanal', 8, { aPartirDaHoraSP: 12 })
+    const estado = estadoDe([linha(retratos, t0, {
+      status: 'parcial', attempts: 2, runs: 2, unfinished_n: 2, last_run_status: 'parcial', last_run_done_n: 40, done_n: 40, left_n: 300,
+    })], t0)
+    for (const dt of [0, 20, 40]) {
+      const t = t0 + dt * 60_000
+      const m = montar({ catalogo: [retratos, sem], t0: t, estado })
+      const r = await m.rodar()
+      expect(nomes(m.chamadas), `disparo +${dt} min`).toEqual(['retratos_comentarios'])
+      expect(final(r, 'serie_semanal')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+    }
+  })
+
   it('esgotada de outra pesada não segura a vaga: a outra roda', async () => {
     const t0 = sp(14, 0)
     const sinc = pesada('sincronizar_canais', 6, { periodo: 'faixa' })
@@ -377,6 +396,12 @@ describe('despachante: o que a tarefa devolve', () => {
       const r = await montar({ catalogo: cat, t0 }).rodar()
       expect(r.problemas, estado).toContain('leitura horaria: 2 unidades de cota não registradas')
     }
+  })
+
+  it('uma única unidade de cota não registrada já é problema (fronteira do > 0; m-2 do portão final, mutante M08)', async () => {
+    const cat = [sempre('leitura_horaria', 1, { rodar: async (): Promise<ResultadoTarefa> => ({ estado: 'ok', feitas: 55, deixadas: 0, detalhe: { cota_nao_registrada: 1 } }) })]
+    const r = await montar({ catalogo: cat, t0: sp(14, 40) }).rodar()
+    expect(r.problemas).toContain('leitura horaria: 1 unidades de cota não registradas')
   })
 
   it('sem cota não registrada (ausente ou zero) não há problema', async () => {
