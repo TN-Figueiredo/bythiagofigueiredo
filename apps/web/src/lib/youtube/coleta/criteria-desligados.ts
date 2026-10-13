@@ -6,6 +6,7 @@
 // a leitura veio inteira. Nenhuma nota leva texto do Postgres.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { comPrazo, prazoDoCriterio, restante, type Relogio } from './clock'
+import { PASSOS_COM_INTERRUPTOR, type PassoComInterruptor } from './passos-desligados'
 import { conferirBanco, pushUnico } from './schema'
 
 /** Execuções seguidas (contando a de hoje) em que o passo pode ficar desligado sem o cron ficar vermelho. */
@@ -34,15 +35,20 @@ function desligadoNoResumo(resumo: unknown, passo: string): boolean {
 }
 
 /**
- * `desligados` = os passos que ESTA execução deixou de rodar por `YT_OWN_STEPS_OFF`; aceita os nomes de
- * `PassoComInterruptor` e também o `desligados: string[]` que `criteriosE11` devolve (sem adaptação).
+ * `desligados` = os passos que ESTA execução deixou de rodar por `YT_OWN_STEPS_OFF` (o tipo é o de `criteriosE11`).
  * Devolve as notas de passo desligado que NÃO são vermelho (a integração as põe em `acao_do_dono`); o vermelho vai direto
- * para `ctx.falhas`. Lista vazia: não lê nada.
+ * para `ctx.falhas`. Defesa em runtime: um nome que não está em `PASSOS_COM_INTERRUPTOR` (erro de digitação que o tipo não
+ * pegou) vira vermelho em `falhas` e não entra na leitura; os nomes válidos seguem avaliados. Lista vazia: não lê nada.
  */
-export async function criterioDesligados(ctx: CriterioDesligadosCtx, desligados: readonly string[]): Promise<string[]> {
-  const passos = [...new Set(desligados)]
-  if (passos.length === 0) return []
+export async function criterioDesligados(ctx: CriterioDesligadosCtx, desligados: readonly PassoComInterruptor[]): Promise<string[]> {
   const { supabase, falhas, relogio } = ctx
+  const conhecidos: readonly string[] = PASSOS_COM_INTERRUPTOR
+  const passos: PassoComInterruptor[] = []
+  for (const p of new Set(desligados)) {
+    if (conhecidos.includes(p)) passos.push(p)
+    else pushUnico(falhas, `critérios: passo desconhecido em desligados (${String(p).slice(0, 40)})`)
+  }
+  if (passos.length === 0) return []
 
   const semTempo = (): string[] => {
     for (const p of passos) naoAvaliou(falhas, p, 'sem tempo')

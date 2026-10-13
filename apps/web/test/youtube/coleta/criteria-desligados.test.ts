@@ -1,10 +1,10 @@
 // @vitest-environment node
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 import { criterioDesligados, EXECUCOES_ATE_O_VERMELHO } from '@/lib/youtube/coleta/criteria-desligados'
 import { criarRelogio, LIMITE_DA_FUNCAO_MS } from '@/lib/youtube/coleta/clock'
-import { PASSOS_COM_INTERRUPTOR } from '@/lib/youtube/coleta/passos-desligados'
+import { PASSOS_COM_INTERRUPTOR, type PassoComInterruptor } from '@/lib/youtube/coleta/passos-desligados'
 import { criteriosE11 } from '@/lib/youtube/coleta/criteria-e11'
 
 const DIA_MS = 86_400_000
@@ -18,7 +18,7 @@ const VERMELHO = (p: string, n: number) =>
   `${p}: passo desligado há ${n} execuções ou mais por YT_OWN_STEPS_OFF; religue (tire o nome da variável na Vercel e faça um deploy) ou tire o passo por commit`
 const SEM_AVALIAR = (p: string, motivo: string) => `critérios: não foi possível avaliar há quanto tempo o passo ${p} está desligado (${motivo})`
 
-async function rodar(db: FakeDb, desligados: readonly string[], relogio = criarRelogio()) {
+async function rodar(db: FakeDb, desligados: readonly PassoComInterruptor[], relogio = criarRelogio()) {
   const falhas: string[] = []
   const notas = await criterioDesligados({ supabase: db.client, falhas, relogio }, desligados)
   return { notas, falhas }
@@ -226,5 +226,51 @@ describe('A5 E6/E8 · criterioDesligados', () => {
     type Entrada = Awaited<ReturnType<typeof criteriosE11>>['desligados']
     const f = (d: Entrada) => criterioDesligados({ supabase: fakeSupabase({}).client, falhas: [], relogio: criarRelogio() }, d)
     expect(typeof f).toBe('function')
+    expectTypeOf<Entrada>().toEqualTypeOf<PassoComInterruptor[]>()
+  })
+
+  describe('nome de passo desconhecido (erro de digitação) é vermelho, nunca silêncio', () => {
+    const erroDeDigitacao = (nome: string): PassoComInterruptor => nome as PassoComInterruptor
+    const DESCONHECIDO = (p: string) => `critérios: passo desconhecido em desligados (${p})`
+
+    it('nome fora de PASSOS_COM_INTERRUPTOR vai para falhas, sem nota "há 1 execuções"', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: seguidas('retencao', 12) })
+      const { notas, falhas } = await rodar(db, [erroDeDigitacao('retençao')])
+      expect(falhas).toEqual([DESCONHECIDO('retençao')])
+      expect(notas).toEqual([])
+    })
+
+    it('só nomes desconhecidos: não lê a tabela', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: seguidas('retencao', 3) })
+      await rodar(db, [erroDeDigitacao('Retencao'), erroDeDigitacao('')])
+      expect(db.leituras.yt_own_collection_runs ?? 0).toBe(0)
+    })
+
+    it('mistura: o nome certo continua avaliado (vermelho há 8), o errado vai para falhas', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: seguidas('retencao', 7) })
+      const { notas, falhas } = await rodar(db, [erroDeDigitacao('retençao'), 'retencao', 'dimensoes'])
+      expect(falhas).toEqual([DESCONHECIDO('retençao'), VERMELHO('retencao', 8)])
+      expect(notas).toEqual([NOTA('dimensoes', 1)])
+      expect(db.leituras.yt_own_collection_runs).toBe(1)
+    })
+
+    it('nome longo é cortado em 40 caracteres e o repetido conta uma vez', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: [] })
+      const longo = 'x'.repeat(100)
+      const { falhas } = await rodar(db, [erroDeDigitacao(longo), erroDeDigitacao(longo)])
+      expect(falhas).toEqual([DESCONHECIDO('x'.repeat(40))])
+    })
+  })
+
+  it('não depende da ordem em que o banco devolve as linhas: reordena por ran_at (mais recente primeiro)', async () => {
+    // Fora de ordem de propósito: a 5ª anterior (não desligada) vem primeiro; sem o `sort`, a sequência seria 0.
+    const linhas = [execucao(5), execucao(1, ['retencao']), execucao(3, ['retencao']), execucao(2, ['retencao'])]
+    const supabase = {
+      from: () => ({ select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: linhas, error: null }) }) }) }),
+    } as unknown as SupabaseClient
+    const falhas: string[] = []
+    const notas = await criterioDesligados({ supabase, falhas, relogio: criarRelogio() }, ['retencao'])
+    expect(notas).toEqual([NOTA('retencao', 4)])
+    expect(falhas).toEqual([])
   })
 })
