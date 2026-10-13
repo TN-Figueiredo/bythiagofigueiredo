@@ -8,6 +8,10 @@ import { join, relative, sep } from 'node:path'
 const SRC = join(__dirname, '../../../src')
 const EDICAO = 'lib/youtube/observatorio/proprio/edicao.ts'
 const LER = 'lib/youtube/observatorio/proprio/ler.ts'
+/** O leitor da curva de retenção (A5 E8, Tarefa 12b): o único arquivo fora da coleta que consulta `yt_own_video_retention`. */
+const LER_RETENCAO = 'lib/youtube/observatorio/proprio/ler-retencao.ts'
+/** A coleta ESCREVE a curva (service role, passo `retencao`); a leitura da tela é só do leitor acima. */
+const COLETA_DIR = 'lib/youtube/coleta/'
 const DADOS = 'app/cms/(authed)/youtube/competitors/_proprio/dados.ts'
 /** A prova de tipo do token (compilada pelo tsc do web, nunca executada): o único outro arquivo que nomeia a classe como valor. */
 const TIPOS = 'lib/youtube/observatorio/proprio/edicao.type-test.ts'
@@ -19,7 +23,7 @@ const importaComoValor = (s: string) =>
 const importaNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*proprio\/edicao['"]|import\s*\(\s*['"][^'"]*proprio\/edicao['"]\s*\)|require\s*\(\s*['"][^'"]*proprio\/edicao['"]\s*\)/.test(s)
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
 const PODE_PROVAR = new Set([EDICAO, DADOS])
-const PODE_LER = new Set([LER, DADOS])
+const PODE_LER = new Set([LER, LER_RETENCAO, DADOS])
 
 function arquivos(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) {
@@ -43,9 +47,10 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== EDICAO && arq !== TIPOS && importaNamespace(s)) v.push(`${arq}: importa o módulo do token por namespace ou dinâmico`)
     if (arq !== TIPOS && /edicao\.type-test['"]/.test(s)) v.push(`${arq}: importa a prova de tipo (ela não roda)`)
     if (!PODE_PROVAR.has(arq) && /\bprovarEdicao\s*\(/.test(s)) v.push(`${arq}: pede a prova de edição fora do módulo da guarda`)
-    if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
-    if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
-    if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/edicao|_proprio\/dados)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
+    if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
+    if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler(-retencao)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
+    if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/edicao|_proprio\/dados)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
+    if (arq !== LER_RETENCAO && !arq.startsWith(COLETA_DIR) && /yt_own_video_retention/.test(s)) v.push(`${arq}: consulta a tabela da curva de retenção fora do leitor`)
     if ((arq === LER || arq === DADOS) && /\bpodeEditar\b/.test(s)) v.push(`${arq}: volta a usar um booleano no lugar do token`)
   }
   return v
@@ -59,7 +64,7 @@ describe('varredura: o dado privado do canal próprio', () => {
     expect(violacoes(reais)).toEqual([])
   })
   it('a varredura enxerga os arquivos do módulo (não passa por varrer uma pasta errada)', () => {
-    for (const a of [EDICAO, LER, DADOS]) expect(Object.keys(reais), a).toContain(a)
+    for (const a of [EDICAO, LER, LER_RETENCAO, DADOS]) expect(Object.keys(reais), a).toContain(a)
     expect(Object.keys(reais).length).toBeGreaterThan(300)
   })
   it('a prova de tipo do token está no tsc do web: 3 diretivas, uma única função exportada, nada fora dela', () => {
@@ -78,6 +83,12 @@ describe('varredura: o dado privado do canal próprio', () => {
     expect(s).toMatch(/requireSiteScope\(\s*\{[^}]*mode:\s*'edit'/)
     expect(s).not.toMatch(/mode:\s*'view'/)
   })
+  it('só o leitor da retenção consulta yt_own_video_retention fora da coleta (que a escreve)', () => {
+    const donos = Object.entries(reais).filter(([, f]) => /yt_own_video_retention/.test(semComentarios(f))).map(([a]) => a)
+    expect(donos.filter(a => !a.startsWith(COLETA_DIR))).toEqual([LER_RETENCAO])
+    // a coleta é o único outro dono, e só dentro da pasta da coleta
+    expect(donos.filter(a => a.startsWith(COLETA_DIR)).length).toBeGreaterThan(0)
+  })
   it('só os leitores e o módulo de dados falam com as duas tabelas privadas', () => {
     const donos = Object.entries(reais).filter(([, s]) => /yt_own_video_daily|yt_own_video_reach_daily/.test(semComentarios(s))).map(([a]) => a)
     // as migrations e a coleta (escrita) vivem em outros lugares; aqui só se confere que nenhuma tela lê as tabelas direto
@@ -89,6 +100,16 @@ describe('varredura: o dado privado do canal próprio', () => {
     it('chamar um leitor fora do módulo', () => {
       expect(violacoes({ ...base, 'app/x/page.tsx': 'await lerDiario(sb, p)' })).toEqual(['app/x/page.tsx: chama um leitor do dado privado'])
       expect(violacoes({ ...base, 'app/x/page.tsx': 'await lerAlcance(sb, p)' })).toHaveLength(1)
+    })
+    it('retenção: chamar o leitor da curva, importá-lo ou consultar a tabela fora do módulo', () => {
+      expect(violacoes({ ...base, 'app/x/page.tsx': 'await lerRetencao(sb, p)' })).toEqual(['app/x/page.tsx: chama um leitor do dado privado'])
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { lerRetencao } from '@/lib/youtube/observatorio/proprio/ler-retencao'" })).toEqual(['app/x/a.ts: importa os leitores do dado privado'])
+      expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport { x } from '@/lib/youtube/observatorio/proprio/ler-retencao'" })).toEqual(['app/x/c.tsx: importa os leitores do dado privado', 'app/x/c.tsx: componente cliente importa o módulo do dado privado'])
+      expect(violacoes({ ...base, 'app/x/a.ts': "sb.from('yt_own_video_retention').select('points')" })).toEqual(['app/x/a.ts: consulta a tabela da curva de retenção fora do leitor'])
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/outro.ts': "sb.from('yt_own_video_retention')" })).toHaveLength(1)
+    })
+    it('retenção: o leitor e a coleta podem (não se acusam)', () => {
+      expect(violacoes({ ...base, [LER_RETENCAO]: "sb.from('yt_own_video_retention'); export async function lerRetencao(sb: X) {}", 'lib/youtube/coleta/retencao-step.ts': "ctx.supabase.from('yt_own_video_retention').upsert(x)", [DADOS]: 'await lerRetencao(sb, p)' })).toEqual([])
     })
     it('fabricar o token', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': 'const t = new EdicaoDoSite("s")' })).toHaveLength(1)
