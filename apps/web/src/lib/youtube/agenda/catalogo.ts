@@ -1,6 +1,9 @@
 import type { Tarefa } from './tipos'
 import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS } from '@/lib/youtube/competitor-sync-batch'
 import { HORARIA_FIM_MS, HORARIA_ULTIMA_ONDA_MS, PESADA_FIM_MS } from './relogio'
+import { leituraHoraria } from './tarefas/leitura-horaria'
+import { sincronizarCanais } from './tarefas/sincronizar-canais'
+import { serieSemanal } from './tarefas/serie-semanal'
 
 /** Uma tarefa sem o que é código (`rodar`, `devidaPeloDado`): o que o vigia, o despachante e os testes leem sem carregar a coleta. */
 export type Definicao = Omit<Tarefa, 'rodar' | 'devidaPeloDado'>
@@ -45,6 +48,24 @@ export const DEFINICOES: readonly Definicao[] = [
       sobrou: 'ficaram visitas para o próximo disparo',
     },
   },
+]
+
+/** A definição de `nome` (que tem de existir: o teste do catálogo confere), sem o código. */
+function definicao(nome: string): Definicao {
+  const d = DEFINICOES.find(x => x.nome === nome)
+  if (!d) throw new Error('definição ausente: ' + nome)
+  return d
+}
+
+/**
+ * O catálogo com o código (`rodar`), na ordem de `DEFINICOES`. Quem registra uma tarefa nova escreve `agenda/tarefas/<nome>.ts`
+ * exportando uma `Tarefa` inteira (ou, como as três daqui, só o código, montado com a definição) e acrescenta UMA importação e UMA
+ * entrada abaixo. Os arquivos das tarefas não importam este arquivo (ciclo).
+ */
+export const CATALOGO: readonly Tarefa[] = [
+  { ...definicao('leitura_horaria'), ...leituraHoraria },
+  { ...definicao('sincronizar_canais'), ...sincronizarCanais },
+  { ...definicao('serie_semanal'), ...serieSemanal },
 ]
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */

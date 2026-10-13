@@ -25,15 +25,18 @@ type Resp = { data: unknown; error: { message?: string; code?: string } | null }
 function bancoDeTabelas(resp: Record<string, Resp>, sinal?: AbortSignal) {
   const partidas: string[] = []
   const resolvidas: string[] = []
+  const eventos: string[] = []
   const sb = {
     from: (tabela: string) => ({
       select: (_cols: string) => ({
         limit: () => {
           partidas.push(tabela)
+          eventos.push('parte ' + tabela)
           const r: Resp = tabela in resp ? resp[tabela]! : { data: [], error: null }
           const p = new Promise<unknown>((resolve, reject) => {
             queueMicrotask(() => {
               resolvidas.push(tabela)
+              eventos.push('resolve ' + tabela)
               if (r === 'lanca') reject(new Error('fetch failed ' + SENTINELA))
               else if (r !== 'pendura') resolve(r)
             })
@@ -48,7 +51,7 @@ function bancoDeTabelas(resp: Record<string, Resp>, sinal?: AbortSignal) {
     }),
   } as unknown as SupabaseClient
   void sinal
-  return { sb, partidas, resolvidas }
+  return { sb, partidas, resolvidas, eventos }
 }
 
 describe('schemaTablesReady', () => {
@@ -81,6 +84,7 @@ describe('schemaTablesReady', () => {
     const r = await schemaTablesReady(a.sb, grupos, { signal: new AbortController().signal })
     // as 3 consultas partiram antes de qualquer uma resolver
     expect(a.partidas).toEqual(['t1', 't2', 't3'])
+    expect(a.eventos.slice(0, 3)).toEqual(['parte t1', 'parte t2', 'parte t3'])
     expect(a.resolvidas.length).toBe(3)
     expect(r).toMatchObject({ tipo: 'ausente' })
     expect(r?.texto).toContain('(t2)')
@@ -308,6 +312,14 @@ describe('fecharDisparo', () => {
     }))
     expect(f.mensagem).toBe('sincronização dos canais: o lote de canais falhou | série semanal: 2 erros na passada | 14 de 15 canais falharam | 3 unidades de cota não registradas')
     expect(f.lote).toBe(lote)
+  })
+
+  it('cota perdida sozinha (lote verde, prova verde) continua uma falha, com a frase inteira', async () => {
+    const lote = { synced: 3, errors: 0, errorsKnown: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: ['s1'], healthSiteIds: ['s1'], quotaLost: 3, channelsActive: 15, channelsLongError: 0 }
+    const f = await fecharDisparo(entrada({ tarefas: [final('leitura_horaria', 'ok'), final('sincronizar_canais', 'ok', { extra: lote }), final('serie_semanal', 'nao_devida')] }))
+    expect(f.vermelho).toBe(true)
+    expect(f.mensagem).toBe('3 unidades de cota não registradas')
+    expect(f.cota).toBe('3 unidades de cota não registradas')
   })
 
   it('tarefa esgotada neste disparo gera um aviso por site, com o teto da tarefa', async () => {
