@@ -102,6 +102,10 @@ describe('varredura: o código das telas da A4 não volta a escrever as palavras
     [/reviram trechos/, 'o "porque" causal do % acima de 100'],
     [/estava quando você abr/, '"na ordem em que a lista estava": é "de onde você veio"'],
     [/foi lido ainda|foi lida? ainda/, '"foi lido ainda": é "foi medido ainda"'],
+    [/O motor não calculou/, '"O motor": é "Não foi possível calcular o múltiplo deste vídeo" (K4)'],
+    [/o relatório foi lido/, '"o relatório foi lido": é "foi recebido" (K4)'],
+    [/lida? junto com as views|ainda não foi lida|, lida em /, '"lida": é "atualizada" ou "recebida" (K4)'],
+    [/Nenhuma view nos 28 dias/, '"Nenhuma view" no % assistido: o motivo pode ser linha ausente, é "Nenhum dia medido com % assistido" (K2)'],
     [/A taxa não é calculada/, 'a taxa "não é calculada": é "Não dá para calcular a taxa"'],
   ]
   it.each(ARQUIVOS)('%s', f => {

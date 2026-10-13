@@ -1,6 +1,6 @@
 // apps/web/e2e/tests/cms/observatorio/proprio-a4-recente.spec.ts
 // D e D-1 (hoje e ontem, dia do Pacífico) em navegador, com o perfil de semente `recente` (relatórios até HOJE; nenhum outro perfil tem relatório em D ou D-1):
-//   - D-1 lido SEM linha do vídeo `a`          -> "não medido" (hachura), com a legenda "o dia ainda não chegou"
+//   - D-1 lido SEM linha do vídeo `a`          -> "não medido" (hachura), com a legenda "o YouTube não entregou o dia"
 //   - D-1 lido COM linha do vídeo `b` (77)     -> o valor aparece (dado que existe nunca se esconde), no vídeo `b` e no gráfico do canal
 //   - D-2 lido e vazio                          -> zero medido (caixa vazada)
 //   - D lido e vazio                            -> "não medido" (recente)
@@ -16,7 +16,7 @@ const S = '[data-obs-screen="canal"][data-own="1"]'
 const V = '[data-obs-screen="video-proprio"]'
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
 const TEXTO_RECENTE = 'dia recente: o YouTube ainda está entregando; não medido'
-const LEGENDA_NAO_MEDIDO = 'não medido (hachura): o dia ainda não chegou'
+const LEGENDA_NAO_MEDIDO = 'não medido (hachura): o YouTube não entregou o dia'
 
 const HOJE = diaYoutube(ORACLE_NOW)
 const rotulo = (n: number): string => { const [, m, d] = somaDias(HOJE, -n).split('-'); return `${d}/${m}` }
@@ -105,7 +105,7 @@ test.describe('D e D-1 em navegador: perfil `recente`', () => {
     return fig
   }
 
-  test('canal: D hachurado, D-1 com o valor do vídeo b, D-2 zero medido; a legenda diz "o dia ainda não chegou"', async ({ browser }) => {
+  test('canal: D hachurado, D-1 com o valor do vídeo b, D-2 zero medido; a legenda diz "o YouTube não entregou o dia"', async ({ browser }) => {
     test.setTimeout(120_000)
     const { ctx, page } = await contexto(browser)
     try {

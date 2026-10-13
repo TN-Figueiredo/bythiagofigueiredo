@@ -145,9 +145,9 @@ describe('V3 e B2 frase do gráfico: um nome para o mesmo dia, sem repetir', () 
   it('legendas do gráfico sem jargão (S2): o que o YouTube enviou e o que não entregou', () => {
     const l = (escopo: 'canal' | 'video') => buildImpressoes([dia('2026-09-24', 0)], per, { ...O, escopo }).legenda.map(x => x.texto)
     expect(l('canal')).toContain('zero medido (caixa vazada): o YouTube enviou o dia sem impressões')
-    expect(l('canal')).toContain('não medido (hachura): o dia ainda não chegou')
+    expect(l('canal')).toContain('não medido (hachura): o YouTube não entregou o dia')
     expect(l('video')).toContain('zero medido (caixa vazada): o YouTube enviou o dia sem impressões deste vídeo')
-    expect(l('video')).toContain('não medido (hachura): o dia ainda não chegou')
+    expect(l('video')).toContain('não medido (hachura): o YouTube não entregou o dia')
   })
 })
 
@@ -161,7 +161,7 @@ describe('B2 modelo dos vídeos: sem impressão em dia medido é zero medido, nu
     const m = buildProprioVideos(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm })!
     // um vídeo já publicado no primeiro dia do período (hoje-21): o mais novo (1 dia de vida) não tem dia que valha e NÃO é zero medido (ver proprio-zero-medido.test.ts)
     const sem = m.videos.find(v => v.imp == null && v.pub != null && v.pub <= w.obs.NOW - 23 * 86_400_000)!
-    expect(sem).toMatchObject({ semImpressao: true, impText: null, impMissing: null, cliquesText: null, cliquesMissing: null, terceira: 'sem impressão no período' })
+    expect(sem).toMatchObject({ semImpressao: true, impText: null, impMissing: null, cliquesText: null, cliquesMissing: null, terceira: '' })
     expect(sem.notas).toContain('Impressões: nenhuma nos 19 dias medidos (2 dias sem dado), de ' + w.dm(addDays(w.hoje, -21)) + ' a ' + w.dm(addDays(w.hoje, -1)) + '.')
     const com = m.videos.find(v => v.imp != null)!
     expect(com.semImpressao).toBe(false)
@@ -182,7 +182,7 @@ describe('B2 modelo dos vídeos: sem impressão em dia medido é zero medido, nu
 })
 
 describe('B2 cartões e lista: zero medido na caixa vazada, "não medido" só sem dia medido', () => {
-  it('cartão do vídeo sem impressão: a coluna do meio é "0 impressões" com a caixa vazada, sem hachura; a terceira linha diz "sem impressão no período"', () => {
+  it('cartão do vídeo sem impressão: a coluna do meio é "0 impressões" com a caixa vazada, sem hachura; sem terceira linha (K5: a frase "sem impressão no período" saiu; fica a caixa "0" com title)', () => {
     const { all } = mountProprio()
     const sem = all.find(v => v.semImpressao)!
     const c = cartoes().find(x => x.dataset.id === sem.id)!
@@ -191,7 +191,9 @@ describe('B2 cartões e lista: zero medido na caixa vazada, "não medido" só se
     expect(meio.querySelector('.obs-ch-zero')!.textContent).toMatch(/^0/)
     expect(norm(meio.textContent)).toMatch(/^0.*impressões$/)
     expect(meio.querySelector('.obs-ch-nm')).toBeNull()
-    expect(norm(c.querySelector('p.cv-n3')!.textContent)).toBe('sem impressão no período')
+    expect(c.querySelector('p.cv-n3')).toBeNull()
+    expect(c.textContent).not.toMatch(/sem impressão no período/)
+    expect(meio.querySelector('.obs-ch-zero')!.getAttribute('title')).toBe('zero medido: o YouTube mediu e o vídeo não apareceu')
     // nenhuma pastilha "sem impressão" em lugar nenhum do cartão
     expect(c.textContent).not.toMatch(/não medidosem impressão|sem impressãoimpress/)
     expect([...c.querySelectorAll('.obs-ch-nm')].some(n => /sem impressão/.test(n.textContent ?? ''))).toBe(false)

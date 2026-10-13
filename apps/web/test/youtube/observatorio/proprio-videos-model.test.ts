@@ -115,7 +115,7 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     expect(por(v, B).terceira).toBe('1 clique em 1 dia')
   })
 
-  it('vídeo sem linha de alcance em dia medido: ZERO MEDIDO (semImpressao, sem palavra de motivo) e "sem impressão no período" (B2: antes era a hachura "sem impressão")', () => {
+  it('vídeo sem linha de alcance em dia medido: ZERO MEDIDO (semImpressao, sem palavra de motivo) e SEM terceira linha (K5: a caixa "0" basta; a frase "sem impressão no período" saiu do cartão)', () => {
     const w = BASE
     const v = build(w) // cheio: só os dois primeiros longos têm linha
     for (const id of w.ytIds.slice(2)) {
@@ -127,7 +127,7 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
       expect(x.cliques).toBeNull()
       expect(x.cliquesText).toBeNull()
       expect(x.cliquesMissing).toBeNull()
-      expect(x.terceira).toBe('sem impressão no período')
+      expect(x.terceira).toBe('')
     }
     // o Short (publicado ontem, depois do último dia medido): nenhum dia vale para ele ainda, então NÃO é zero medido (zero só a partir da publicação)
     expect(por(v, SHORT).imp).toBeNull()
@@ -137,10 +137,18 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     expect(v.videos.some(x => x.impText === '0')).toBe(false)
   })
 
+  it('K5: a nota da grade explica as duas formas uma vez só ("Caixa vazada com 0" e "Hachura"), e nenhum texto de cartão traz "sem impressão no período"', () => {
+    const v = build()
+    const frase = 'Caixa vazada com 0: o YouTube mediu o período e o vídeo não apareceu. Hachura: ainda não medido.'
+    expect(v.nota.split(frase)).toHaveLength(2)
+    expect(textos(v).some(t => t.includes('sem impressão no período'))).toBe(false)
+  })
+
   it('linha de alcance com impressão nula ou zero não vira "0 impressões": é vídeo sem impressão', () => {
     const v = build(BASE, com(alcanceComLinhas(BASE.canalId, BASE.hoje, [linha(A, 5, 0, 0.1), linha(B, 5, null, null), linha(C, 5, 4, 0.5)])))
     expect(por(v, A).imp).toBeNull()
-    expect(por(v, A).terceira).toBe('sem impressão no período')
+    expect(por(v, A).terceira).toBe('')
+    expect(por(v, A).semImpressao).toBe(true)
     expect(por(v, B).imp).toBeNull()
     expect(por(v, B).impText).toBeNull()
     expect(por(v, C).imp).toBe(4)
@@ -162,7 +170,8 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     for (const x of view.videos) expect(x.terceira).not.toMatch(/%/)
     // a série cheia tem vídeos com cada uma das formas (contagem e ausência)
     expect(view.videos.filter(x => x.imp != null)).toHaveLength(CHEIO.videosCom)
-    expect(view.videos.some(x => x.terceira === 'sem impressão no período')).toBe(true)
+    expect(view.videos.some(x => x.semImpressao && x.terceira === '')).toBe(true)
+    expect(view.videos.some(x => x.terceira === 'sem impressão no período')).toBe(false)
   })
 
   it('série cheia: impressões e cliques por vídeo somam ao cabeçalho, com o mesmo texto', () => {
@@ -228,7 +237,7 @@ describe('o dado privado ausente: cada estado, cada coluna', () => {
     }
   })
 
-  it('dias lidos e todos vazios (zero medido): não há motivo de leitura; cada vídeo diz "sem impressão no período"', () => {
+  it('dias lidos e todos vazios (zero medido): não há motivo de leitura; cada vídeo mostra o zero medido e nenhuma terceira linha (K5)', () => {
     const dados: DadosDoCanal = { alcance: { acesso: 'ok', dado: alcanceSoVazios(BASE.canalId, BASE.hoje) }, diario: BASE.dados.diario }
     const v = build(BASE, dados)
     expect(v.motivoAlcance).toBeNull()
@@ -242,7 +251,7 @@ describe('o dado privado ausente: cada estado, cada coluna', () => {
         zeros++
         expect(x.semImpressao).toBe(true)
         expect(x.impMissing).toBeNull()
-        expect(x.terceira).toBe('sem impressão no período')
+        expect(x.terceira).toBe('')
       } else {
         expect(x.semImpressao).toBe(false)
         expect(x.impMissing).toBe('vídeo novo')

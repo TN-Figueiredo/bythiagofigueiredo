@@ -269,7 +269,7 @@ function assistidoDe(
   const a = assistidoDoVideo(diario, o.ytId)
   if (a.pct == null) {
     const ate = a.janela ? ` até ${o.dm(a.janela.ate)}` : ''
-    return assistidoNaoMedido(`Nenhuma view nos 28 dias${ate}: sem views não há % assistido.`)
+    return assistidoNaoMedido(`Nenhum dia medido com % assistido nos 28 dias${ate}: ainda não há valor.`)
   }
   const pct = a.pct
   const pctTexto = o.F.int(pct) + '%'

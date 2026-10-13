@@ -196,7 +196,7 @@ describe('% assistido', () => {
       expect(s.querySelector('.vb-as-barra')).toBeNull()
       expect(s.querySelector('.obs-ch-nm')!.textContent).toBe('não medido')
       if (frase) expect(texto(s)).toMatch(frase)
-      else expect(texto(s)).toMatch(/Nenhuma view nos 28 dias até \d\d\/\d\d: sem views não há % assistido\./)
+      else expect(texto(s)).toMatch(/Nenhum dia medido com % assistido nos 28 dias até \d\d\/\d\d: ainda não há valor\./)
       cleanup()
     }
   })
