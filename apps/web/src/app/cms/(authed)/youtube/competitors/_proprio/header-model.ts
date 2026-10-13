@@ -181,7 +181,7 @@ export function buildProprioHeader(
     value: alc.estado === 'ok' && !nada ? F.num(alc.resumo.imp ?? 0) : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok'
-      ? `Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia medido', 'dias medidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório ficam fora da soma` : 'nenhum dia fica sem relatório'}. ${DIA_YT}${INCLUI}`
+      ? `Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia medido', 'dias medidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem dado ficam fora da soma` : 'nenhum dia fica sem relatório'}. ${DIA_YT}${INCLUI}`
       : 'Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas no período dos relatórios de alcance do canal.',
   }, { sub: periodoTxt && !nada ? periodoTxt : null })
 
@@ -189,7 +189,7 @@ export function buildProprioHeader(
     value: alc.estado === 'ok' && !nada ? `${alc.resumo.diasComImpressao} de ${alc.resumo.diasLidos}` : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok'
-      ? `Dos ${noun(lidos, 'dia medido', 'dias medidos')} ${periodoTxt}, ${alc.resumo.diasComImpressao} trouxeram impressões e ${lidos - alc.resumo.diasComImpressao} vieram vazios. ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório ficam fora da conta. ` : ''}${DIA_YT}`
+      ? `Dos ${noun(lidos, 'dia medido', 'dias medidos')} ${periodoTxt}, ${alc.resumo.diasComImpressao} trouxeram impressões e ${lidos - alc.resumo.diasComImpressao} vieram vazios. ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem dado ficam fora da conta. ` : ''}${DIA_YT}`
       : 'Dias do período em que algum vídeo teve impressões, sobre os dias com relatório de alcance lido.',
   })
 

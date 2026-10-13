@@ -3,12 +3,12 @@
 // tem linha, ou a linha tem views nulas). Dia sem linha NUNCA vira zero. Só entram os dias a partir da publicação.
 import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { DiarioCanal, DiaYt, Privado } from './tipos'
-import { inicioDoVideo } from './dias'
+import { DIAS_DE_VIDA_MIN, inicioDoVideo } from './dias'
 import { DIARIO_PARADO_DIAS } from './vpd'
 
 export const JANELA_SERIE_DIAS = 28
-/** Menos que isto de vida (hoje menos o dia da publicação) e o vídeo é novo: ainda não há dia fechado. */
-export const DIAS_DE_VIDA_MIN = 3
+/** Menos que isto de vida (hoje menos o dia da publicação) e o vídeo é novo: ainda não há dia fechado. O limite mora em `dias.ts` (um só para toda tela). */
+export { DIAS_DE_VIDA_MIN }
 
 export type EstadoDiaVideo = 'com-views' | 'zero-medido' | 'nao-medido'
 export type EstadoSerie = 'ok' | 'video-novo' | 'sem-acesso' | 'leitura-falhou' | 'sem-diario' | 'sem-medida'

@@ -132,7 +132,7 @@ describe('terceira linha: a contagem do que as impressões permitem afirmar', ()
     // o Short (publicado ontem, depois do último dia medido): nenhum dia vale para ele ainda, então NÃO é zero medido (zero só a partir da publicação)
     expect(por(v, SHORT).imp).toBeNull()
     expect(por(v, SHORT).semImpressao).toBe(false)
-    expect(por(v, SHORT).impMissing).toBe('ainda não lido')
+    expect(por(v, SHORT).impMissing).toBe('vídeo novo')
     expect(por(v, SHORT).terceira).toBe('')
     expect(v.videos.some(x => x.impText === '0')).toBe(false)
   })
@@ -245,7 +245,7 @@ describe('o dado privado ausente: cada estado, cada coluna', () => {
         expect(x.terceira).toBe('sem impressão no período')
       } else {
         expect(x.semImpressao).toBe(false)
-        expect(x.impMissing).toBe('ainda não lido')
+        expect(x.impMissing).toBe('vídeo novo')
         expect(x.terceira).toBe('')
       }
     }
