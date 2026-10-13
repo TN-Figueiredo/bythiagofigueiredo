@@ -14,6 +14,8 @@ vi.mock('@/lib/youtube/sync', () => ({ syncChannel: vi.fn(), YouTubeQuotaError: 
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
 vi.mock('@/lib/youtube/competitor-sync-batch', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/youtube/competitor-sync-batch')>()), runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })) }))
 vi.mock('@/lib/youtube/competitor-health', () => ({ schemaReady: vi.fn(async () => null), readSiteHealth: vi.fn(async () => ({ ok: true, problems: [], notes: [] })) }))
+// OBS_AGENDA=off (abaixo): a rota roda o lote antigo inteiro. A lista que roda antes dele é falso de módulo, só arranjo (não afirmação).
+vi.mock('@/lib/youtube/agenda/executar', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/agenda/executar')>()), rodarAntesDoLoteAntigo: vi.fn(async () => ({ tarefas: [], problemas: [], notas: [] })) }))
 
 import { GET } from '@/app/api/cron/sync-youtube/route'
 import { revalidateTag, revalidatePath } from 'next/cache'
@@ -25,7 +27,7 @@ const ZERO = { unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, weeklyDeferred
 const result = (o: { synced: number; errors: number; siteIds: string[] }) => ({ skipped: 0, remainingDue: 0, stoppedForTime: false, healthSiteIds: [], totals: ZERO, ...o })
 
 describe('cron de competidores invalida o cache do Observatório', () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key') })
+  beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key'); vi.stubEnv('OBS_AGENDA', 'off') })
 
   it('nada sincronizado: nenhuma tag invalidada', async () => {
     batch.mockResolvedValue(result({ synced: 0, errors: 0, siteIds: [] }))
