@@ -210,8 +210,8 @@ describe('base_ate (hoje − 4)', () => {
     expect((await rodar(montar(com({ base_ate: '2026-10-09' })).db)).falhas).toEqual([])
   })
   it('virada de mês e de ano', async () => {
-    expect((await rodar(montar(com({ base_ate: '2026-12-26' })).db, { hoje: '2027-01-01' })).falhas).toEqual(['dimensões: a cobertura do diário (base) parou em 26/12 no canal mais atrasado'])
-    expect((await rodar(montar(com({ base_ate: '2026-12-28' })).db, { hoje: '2027-01-01' })).falhas).toEqual([])
+    expect((await rodar(montar(com({ base_ate: '2025-12-26' })).db, { hoje: '2026-01-01' })).falhas).toEqual(['dimensões: a cobertura do diário (base) parou em 26/12 no canal mais atrasado'])
+    expect((await rodar(montar(com({ base_ate: '2025-12-28' })).db, { hoje: '2026-01-01' })).falhas).toEqual([])
   })
 })
 
