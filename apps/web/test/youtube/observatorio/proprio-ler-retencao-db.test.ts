@@ -128,7 +128,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
   })
 
   it('vídeo sem nenhuma linha: vazio verdadeiro, sem curva e sem tentativa', async () => {
-    expect(await ok(V_VAZIO)).toEqual({ ytId: V_VAZIO, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false })
+    expect(await ok(V_VAZIO)).toEqual({ ytId: V_VAZIO, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false, janelasIlegiveis: [] })
   })
 
   it('201 leituras: 200 na lista e leiturasCortadas (range de verdade)', async () => {
