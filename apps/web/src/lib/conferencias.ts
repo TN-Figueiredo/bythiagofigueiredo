@@ -113,6 +113,36 @@ export function conferenciasE14(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E16 e E15 (agenda de tarefas do cron `sync-youtube` e leitura horária dos vídeos novos): as datas dependem do dia da promoção a `main` (D0),
+// que ainda não existe. O controlador preenche `E16_E15_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio (Tarefa 15). Enquanto for
+// `null`, as oito entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapas `E16` e `E15` (o formato `E<n>` do guardião).
+/** Dia de São Paulo (AAAA-MM-DD) em que a E16 e a E15 foram promovidas a `main`. `null` = ainda não enviadas. */
+export const E16_E15_DEPLOY: string | null = null
+
+const PLANO_E16E15 = 'docs/superpowers/plans/2026-10-12-a5-e16-e15-parte-1-plan.md (seção 7 e Tarefa 15; consultas K1 a K10 da seção 11); anotar o resultado em .superpowers/sdd/a5-e16-e15/progress.md'
+
+/**
+ * As conferências da agenda e da captura horária a partir do dia do envio (D0). `null` = sem entradas. Data malformada não some em
+ * silêncio: vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE16E15(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e16-e15-deploy-invalido', etapa: 'E16', data: '1970-01-01', responsavel: 'agente', onde: `E16_E15_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (etapa: 'E16' | 'E15', id: string, mais: number, onde: string): Conferencia => ({ id: `${etapa.toLowerCase()}-${id}`, etapa, data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E16E15}: ${onde}`, feitaEm: null })
+  return [
+    e('E16', 'd1', 1, 'D0 + 1: K2 e K3: três disparos reais com tudo devido, as cinco tarefas da agenda, sem `adiada` por `sem_tempo` (item 158); duração por tarefa; V3 (item 150); item 216 = 0; `diff` de `vercel.json` vazio; nenhum `reason` fora do formato de código (K11); se houve aviso, o e-mail chegou (perguntar ao dono). Disputa da vaga da pesada (portão, m-5): a série semanal fechou `ok` no dia (`retratos_comentarios` ou `sincronizar_canais` em `parcial` não podem tê-la deixado sem rodar; se não fechou, desempatar pela execução mais antiga no período)'),
+    e('E16', 'k1', 1, 'D0 + 1: K1 depois de uma faixa das 18:00: disparos por faixa e segundos por canal. Se a faixa pediu 3 disparos ou mais, `naoTerminouVermelhoEm` de `sincronizar_canais` passa a "disparos + 2"; senão volta a 3. Mudança de uma linha em `catalogo.ts` (emenda do portão S-I10)'),
+    e('E15', 'np-d3', 3, 'D0 + 3: K4: a prova horária em três dias seguidos (item 128), `videos_abaixo_do_lido = 0` e `horas_lidas_24h` de cada dia; K10: as horas distintas da curva de 72 horas de um vídeo descoberto depois do deploy (item 139, segunda frase: 60 em 72)'),
+    e('E15', 'atraso-d7', 7, 'D0 + 7: K5: mediana e percentil 95 do atraso de `taken_at` sobre a hora cheia, nas 24 horas (item 220); acima de 5 minutos reabre o limiar'),
+    e('E15', 'medicao-d14', 14, 'D0 + 14: item 140: K6 (zero seguido de salto por contador e por faixa de tamanho), K7 (dias de vídeo com as 24 horas limpas), duas leituras com 5 minutos de distância, duração de cada tarefa (K2). Resultado ao dono com as perguntas 17 e 20. As duas leituras são dois `curl` de `videos.list` com a chave de API passada por variável do terminal: sem token OAuth (`obterToken` e `ensureFreshToken` NÃO são chamados: gravariam o token renovado em produção), sem módulo do app, sem banco; 2 unidades de cota (emenda do portão R6)'),
+    e('E16', '14-dias', 14, 'D0 + 14: K2 limpa em 14 dias: propor ao dono tirar o lote antigo e `OBS_AGENDA`'),
+    e('E15', 'tamanho-d30', 30, 'D0 + 30: K8: tamanho das tabelas novas e bytes por linha, por `count(*)`, contra os 170 B medidos (item 139; emendas D-m5 e D-m6); projeção de 12 meses contra o teto do plano do Supabase (portão de dados, m7: nada do lote é apagado, fora a identidade)'),
+    e('E15', 'bruto-d60', 60, 'D0 + 60: K9: `min(hour_slot)` anterior a 59 dias (item 218)'),
+  ]
+}
+
 // Em ordem de data. Datas das etapas já em produção: E12 com D0 = 13/10/2026 (primeiro cron depois do deploy de 12/10);
 // E19 com `avisoDesde` = 12/10/2026 (lote 1 enviado em 12/10, dia de São Paulo); E20 com o envio antes do cron de 13/10.
 // Se o envio da E20 atrasar, deslocar `e20-segundo-cron` e corrigir .superpowers/sdd/a5/conferencias-com-data.md.
@@ -135,7 +165,7 @@ const BASE: readonly Conferencia[] = [
 ]
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
