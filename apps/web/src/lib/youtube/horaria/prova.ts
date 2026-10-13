@@ -216,9 +216,15 @@ export function veredictoHorario(p: ProvaHoraria | null, o: OpcoesHorario): Heal
   if (!o.ligada) { notes.push('leitura horária desligada'); return pronto() }
   if (!p) { problems.push('não foi possível ler a prova da leitura horária'); return pronto() }
 
-  // idade da agenda: "mais de X" só se prova com a agenda conhecida; uma data ilegível não dá carência a ninguém
-  const agendaMs = o.agendaDesde === null ? null : Date.parse(o.agendaDesde)
-  const agendaMaisDe = (h: number): boolean => agendaMs !== null && (Number.isNaN(agendaMs) || o.agoraMs - agendaMs > h * HORA_MS)
+  // idade da agenda: o MENOR instante entre `agendaDesde`, `desde` e `proprios_desde` (uma leitura já gravada prova que a agenda é pelo
+  // menos tão velha quanto ela, mesmo sem `agendaDesde`). `agendaDesde` ilegível conta como agenda velha; `desde`/`proprios_desde`
+  // ilegíveis não contam. Nenhum dos três: sem agenda conhecida, a carência continua.
+  const agendaIlegivel = o.agendaDesde !== null && Number.isNaN(Date.parse(o.agendaDesde))
+  const instantes = [o.agendaDesde, p.desde, p.proprios_desde]
+    .map(x => (x === null ? Number.NaN : Date.parse(x)))
+    .filter(n => !Number.isNaN(n))
+  const agendaMs: number | null = instantes.length > 0 ? Math.min(...instantes) : null
+  const agendaMaisDe = (h: number): boolean => agendaIlegivel || (agendaMs !== null && o.agoraMs - agendaMs > h * HORA_MS)
   const horasDesde = (ms: number): number => Math.max(0, Math.floor((o.agoraMs - ms) / HORA_MS))
   const idadeMs = (iso: string | null): number | null => { if (iso === null) return null; const t = Date.parse(iso); return Number.isNaN(t) ? null : o.agoraMs - t }
 
@@ -243,7 +249,7 @@ export function veredictoHorario(p: ProvaHoraria | null, o: OpcoesHorario): Heal
   // ── dono: parada (sem os negados que a captura ainda diz públicos)
   const donoUltima = idadeMs(p.proprios_ultima_leitura)
   if (p.proprios_cobrados - negados > 0 && (p.proprios_ultima_leitura === null || (donoUltima !== null && donoUltima > PARADA_H * HORA_MS)) && agendaMaisDe(PARADA_H)) {
-    const h = donoUltima !== null ? Math.floor(donoUltima / HORA_MS) : agendaMs !== null && !Number.isNaN(agendaMs) ? horasDesde(agendaMs) : 0
+    const h = donoUltima !== null ? Math.floor(donoUltima / HORA_MS) : agendaMs !== null ? horasDesde(agendaMs) : 0
     const f = 'leitura horária do seu canal parada há ' + h + ' h'
     problems.push(f); paradas.push(f); leituraParada = true
   }
