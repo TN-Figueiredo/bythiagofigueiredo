@@ -2,12 +2,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { DEFINICOES, agendaLigada, tarefasDesligadas } from '@/lib/youtube/agenda/catalogo'
+import { DEFINICOES, agendaLigada, tarefasDesligadas, notaDoInterruptorDaAgenda } from '@/lib/youtube/agenda/catalogo'
 import {
   LIMITE_FUNCAO_MS, ARRENDAMENTO_TTL_S, HORARIA_ULTIMA_ONDA_MS, HORARIA_CHAMADA_MS, HORARIA_FIM_MS, BANCO_MS,
   LEVE_COMECA_ATE_MS, LEVE_FIM_MS, PESADA_FIM_MS, RODANDO_VENCE_MIN,
 } from '@/lib/youtube/agenda/relogio'
-import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS, COMPETITORS_MAX_DURATION_S, RECORD_RESERVE_MS } from '@/lib/youtube/competitor-sync-batch'
+import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS, COMPETITORS_MAX_DURATION_S, RECORD_RESERVE_MS, CHANNEL_CALL_WORST_MS, WEEKLY_CALL_WORST_MS } from '@/lib/youtube/competitor-sync-batch'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const guardado = { a: process.env.OBS_AGENDA, t: process.env.OBS_AGENDA_TASKS_OFF }
@@ -34,6 +34,29 @@ describe('OBS_AGENDA', () => {
     expect(agendaLigada()).toBe(false)
     process.env.OBS_AGENDA = ''
     expect(agendaLigada()).toBe(true)
+  })
+})
+
+describe('nota do interruptor da agenda', () => {
+  const NOTA = 'valor não reconhecido em OBS_AGENDA; a agenda segue ligada'
+  it('sem nota com a variável apagada, vazia ou exatamente off (lê process.env)', () => {
+    delete process.env.OBS_AGENDA
+    expect(notaDoInterruptorDaAgenda()).toBeNull()
+    expect(notaDoInterruptorDaAgenda({})).toBeNull()
+    expect(notaDoInterruptorDaAgenda({ OBS_AGENDA: '' })).toBeNull()
+    expect(notaDoInterruptorDaAgenda({ OBS_AGENDA: 'off' })).toBeNull()
+    process.env.OBS_AGENDA = 'off'
+    expect(notaDoInterruptorDaAgenda()).toBeNull()
+  })
+  it('qualquer outro valor: nota fixa, sem o valor, e a agenda segue ligada', () => {
+    for (const v of ['OFF', ' off', 'off\n', 'off ', '0', 'false', 'disabled', ' ', 'on']) {
+      const n = notaDoInterruptorDaAgenda({ OBS_AGENDA: v })
+      expect(n, JSON.stringify(v)).toBe(NOTA)
+      expect(agendaLigada({ OBS_AGENDA: v }), JSON.stringify(v)).toBe(true)
+    }
+    process.env.OBS_AGENDA = 'segredo-xyz'
+    expect(notaDoInterruptorDaAgenda()).toBe(NOTA)
+    expect(notaDoInterruptorDaAgenda()).not.toContain('segredo')
   })
 })
 
@@ -76,6 +99,15 @@ describe('OBS_AGENDA_TASKS_OFF', () => {
     const r = tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'a,b' }, cat)
     expect([...r.desligadas]).toEqual(['a'])
     expect(r.desconhecidas).toEqual([])
+    expect(r.ignoradas).toEqual(['b'])
+  })
+  it('ignoradas: só as nuncaDesliga pedidas, sem repetir; vazia quando nenhuma', () => {
+    const cat = [{ nome: 'a' }, { nome: 'b', nuncaDesliga: true }, { nome: 'c', nuncaDesliga: true }]
+    expect(tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'b,a,b,x' }, cat).ignoradas).toEqual(['b'])
+    expect(tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'c,b' }, cat).ignoradas).toEqual(['c', 'b'])
+    expect(tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'a' }, cat).ignoradas).toEqual([])
+    expect(tarefasDesligadas({}, cat).ignoradas).toEqual([])
+    expect(tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'b' }, cat).desligadas.has('b')).toBe(false)
   })
 })
 
@@ -104,6 +136,10 @@ describe('limites de tempo e definições', () => {
       if (d.peso === 'pesada') expect(d.fimAteMs, d.nome).toBeLessThanOrEqual(PESADA_FIM_MS)
       else expect(d.fimAteMs, d.nome).toBeLessThanOrEqual(LEVE_FIM_MS)
     }
+  })
+  it('começo mais a pior chamada cabe no fim, para cada definição', () => {
+    const pior = (n: string): number => n === 'sincronizar_canais' ? CHANNEL_CALL_WORST_MS : n === 'serie_semanal' ? WEEKLY_CALL_WORST_MS : HORARIA_CHAMADA_MS
+    for (const d of DEFINICOES) expect(d.comecaAteMs + pior(d.nome), d.nome).toBeLessThanOrEqual(d.fimAteMs)
   })
   it('as três linhas da tabela, valor por valor', () => {
     const por = (n: string) => DEFINICOES.find(d => d.nome === n)!
