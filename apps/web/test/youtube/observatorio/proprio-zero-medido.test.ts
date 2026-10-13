@@ -8,9 +8,10 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import {
-  DIAS_RECENTES, diaRecente, inicioDoVideo, montarDias, motivoDiaTexto, resumir,
+  DIAS_DE_VIDA_MIN as MIN_DIAS_DE_VIDA, DIAS_RECENTES, diaRecente, inicioDoVideo, montarDias, motivoDiaTexto, resumir, videoNovo,
 } from '@/lib/youtube/observatorio/proprio/dias'
-import { serieDoVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
+import { buildImpressoes } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
+import { DIAS_DE_VIDA_MIN, serieDoVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
 import type { AlcanceCanal, AlcanceLinha, DiaYt, DiarioCanal, Privado, RelatorioDia } from '@/lib/youtube/observatorio/proprio/tipos'
 import { lerEstado } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 import { buildProprioVideos } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
@@ -23,6 +24,8 @@ import { mundoVideo, type MundoVideo } from './proprio-video-fixture'
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 
 const DIA_MS = 86_400_000
+const TEXTO_RECENTE = 'dia recente: o YouTube ainda está entregando; não medido'
+const FRASE_NOVO = 'vídeo novo: o alcance chega com 2 a 3 dias de atraso'
 
 /* ================================================================ a função do dia (pura)  */
 
@@ -99,8 +102,8 @@ describe('D e D-1: a ausência de linha nunca é zero medido', () => {
     expect(l.resumo).toMatchObject({ diasLidos: 4, diasNaoMedidos: 1, imp: 0 })
   })
 
-  it('o motivo "recente" tem a sua frase, que diz "não medido" e não promete download', () => {
-    expect(motivoDiaTexto('recente')).toBe('dia recente: o YouTube ainda entrega os dados (não medido)')
+  it('o motivo "recente" tem UMA frase só (a mesma na dica e no texto da situação), que diz "não medido" e não promete download', () => {
+    expect(motivoDiaTexto('recente')).toBe(TEXTO_RECENTE)
   })
 
   it('o "hoje" é parâmetro: a mesma entrada com outro hoje dá outra classificação', () => {
@@ -176,12 +179,12 @@ describe('zero só a partir da publicação', () => {
 /* ================================================================ os modelos (cartão, lista, régua, gráfico, frases)  */
 
 /** Um vídeo longo acompanhado é "republicado" `idade` dias antes do relógio do dataset; os outros ficam como estão. */
-function comVideoPublicadoHa(idade: number) {
+function comVideoPublicadoHa(idade: number, horas = 0) {
   const alvo = { id: '', ytId: '' }
   const mut = (ds: Dataset): void => {
     const canalId = ds.channels.find(c => c.own)!.id
     const v = ds.videos.filter(x => x.ch === canalId && x.fmt === 'long' && x.tracked).sort((p, q) => q.ageDays - p.ageDays)[0]!
-    v.pub = ds.now - idade * DIA_MS
+    v.pub = ds.now - idade * DIA_MS - horas * 3_600_000
     v.ageDays = idade
     alvo.id = v.id
     alvo.ytId = v.ytId
@@ -223,18 +226,18 @@ describe('vídeo publicado no meio da janela (10 dias de vida): régua, cartão,
     expect(relatorios.at(-1)).toMatchObject({ dia: dd(1), status: 'vazio', normalizado: true })
   })
 
-  it('RÉGUA do vídeo: "Nenhuma impressão nos N dias medidos (1 dia sem relatório)" com N só dos dias desde a publicação e sem D-1', () => {
+  it('RÉGUA do vídeo: "Nenhuma impressão nos N dias medidos (1 dia sem dado)" com N só dos dias desde a publicação e sem D-1', () => {
     const linha = blocosDe(W, alcance, A.alvo.id).canal.reguas.linhas.find(l => l.numero === 'impressoes')!
     expect(linha.zeroMedido).toBe(true)
     expect(linha.valor).toBe('0')
-    expect(linha.semRegua).toBe(`Nenhuma impressão nos ${K - 1} dias medidos (1 dia sem relatório). Abaixo do 1 vídeo com impressão.`)
+    expect(linha.semRegua).toBe(`Nenhuma impressão nos ${K - 1} dias medidos (1 dia sem dado). O 1 vídeo com impressão fica acima dele.`)
   })
 
   it('RÉGUA de um vídeo antigo sem linha: todos os dias do período, menos D-1 (que é não medido)', () => {
     const linha = blocosDe(W, alcance, antigoSem.id).canal.reguas.linhas.find(l => l.numero === 'impressoes')!
     expect(linha.zeroMedido).toBe(true)
     // período do canal: de (publicação - 6) a D-1 = K + 6 dias; os fechados são K + 5, o D-1 fica de fora
-    expect(linha.semRegua).toBe(`Nenhuma impressão nos ${K + 5} dias medidos (1 dia sem relatório). Abaixo do 1 vídeo com impressão.`)
+    expect(linha.semRegua).toBe(`Nenhuma impressão nos ${K + 5} dias medidos (1 dia sem dado). O 1 vídeo com impressão fica acima dele.`)
   })
 
   it('RÉGUA, rodapé "N sem impressão no período": só quem já tinha dia que valesse entra, o publicado depois do último dia vai para "sem medida"', () => {
@@ -246,7 +249,7 @@ describe('vídeo publicado no meio da janela (10 dias de vida): régua, cartão,
     // o vídeo de ontem: nenhum dia valeu ainda, então não é zero medido e a frase diz a verdade
     expect(l.zeroMedido).toBe(false)
     expect(l.valor).toBeNull()
-    expect(l.semRegua).toBe('ainda não há dia de alcance medido')
+    expect(l.semRegua).toBe(FRASE_NOVO)
     expect(l.semMedida).toMatch(/^\d+ sem impressão no período, [1-9]\d* sem medida$/)
   })
 
@@ -256,11 +259,11 @@ describe('vídeo publicado no meio da janela (10 dias de vida): régua, cartão,
     expect(x.semImpressao).toBe(true)
     expect(x.imp).toBeNull()
     expect(x.terceira).toBe('sem impressão no período')
-    expect(x.notas).toContain(`Impressões: nenhuma nos ${K - 1} dias medidos (1 dia sem relatório), de ${dmDia(PUB)} a ${dmDia(dd(1))}.`)
+    expect(x.notas).toContain(`Impressões: nenhuma nos ${K - 1} dias medidos (1 dia sem dado), de ${dmDia(PUB)} a ${dmDia(dd(1))}.`)
     // um vídeo antigo: o período inteiro do canal, sem D-1
     const o = v.videos.find(y => y.ytId === antigoSem.ytId)!
     expect(o.semImpressao).toBe(true)
-    expect(o.notas).toContain(`Impressões: nenhuma nos ${K + 5} dias medidos (1 dia sem relatório), de ${dmDia(dd(K + 6))} a ${dmDia(dd(1))}.`)
+    expect(o.notas).toContain(`Impressões: nenhuma nos ${K + 5} dias medidos (1 dia sem dado), de ${dmDia(dd(K + 6))} a ${dmDia(dd(1))}.`)
   })
 
   it('GRÁFICO do vídeo: começa na publicação; D-1 é a única coluna não medida; a frase conta N e M certos', () => {
@@ -268,7 +271,7 @@ describe('vídeo publicado no meio da janela (10 dias de vida): régua, cartão,
     expect(g.colunas).toHaveLength(K)
     expect(g.colunas.slice(0, -1).every(c => c.situacao === 'zero-medido')).toBe(true)
     expect(g.colunas.at(-1)!.situacao).toBe('nao-medido')
-    expect(g.resumo).toBe(`Nenhuma impressão nos ${K - 1} dias medidos (1 dia sem relatório).`)
+    expect(g.resumo).toBe(`Nenhuma impressão nos ${K - 1} dias medidos (1 dia sem dado).`)
   })
 })
 
@@ -280,15 +283,15 @@ describe('vídeo publicado depois do último dia medido (1 dia de vida)', () => 
   const relatorios: RelatorioDia[] = Array.from({ length: 8 }, (_, i) => rel(dd(10 - i), 'vazio'))
   const alcance: AlcanceCanal = { canalId: W.canalId, relatorios, linhas: [lin(velhoQueNaoE(W, A.alvo.ytId), dd(5), 20)], ultimoRelatorio: dd(3), descartados: 0 }
 
-  it('CARTÃO e LISTA: não é zero medido; a coluna diz "ainda não lido" e a terceira linha fica vazia (mesmo estado de "nada lido")', () => {
+  it('CARTÃO e LISTA: não é zero medido; a coluna diz "vídeo novo" e a terceira linha fica vazia', () => {
     const v = buildProprioVideos(W.obs, W.canalId, dadosOk(W, alcance), { hoje: W.hoje, dm: dmDia })!
     const x = v.videos.find(y => y.ytId === A.alvo.ytId)!
     expect(x.imp).toBeNull()
     expect(x.semImpressao).toBe(false)
-    expect(x.impMissing).toBe('ainda não lido')
-    expect(x.cliquesMissing).toBe('ainda não lido')
+    expect(x.impMissing).toBe('vídeo novo')
+    expect(x.cliquesMissing).toBe('vídeo novo')
     expect(x.terceira).toBe('')
-    expect(x.notas.some(n => n.startsWith('Impressões:'))).toBe(false)
+    expect(x.notas).toContain('Impressões e cliques: ' + FRASE_NOVO + '.')
   })
 
   it('o vídeo mais antigo do mesmo canal continua zero medido (a regra é por vídeo)', () => {
@@ -306,12 +309,144 @@ describe('dois dias de vida: publicado em D-2, relatórios até D-1 lidos e vazi
   const relatorios: RelatorioDia[] = Array.from({ length: 10 }, (_, i) => rel(dd(10 - i), 'vazio')) // d(10) a d(1)
   const alcance: AlcanceCanal = { canalId: W.canalId, relatorios, linhas: [lin(velhoQueNaoE(W, A.alvo.ytId), dd(5), 20)], ultimoRelatorio: dd(1), descartados: 0 }
 
-  it('1 dia medido (o da publicação, D-2) e 1 sem relatório (D-1): "nenhuma em 1 dia medido (1 dia sem relatório)"', () => {
+  it('2 dias de vida é "vídeo novo" (só D e D-1 de dados), nunca zero medido, mesmo com o dia da publicação já fechado', () => {
     const v = buildProprioVideos(W.obs, W.canalId, dadosOk(W, alcance), { hoje: W.hoje, dm: dmDia })!
     const x = v.videos.find(y => y.ytId === A.alvo.ytId)!
     const pub = dayPt(new Date(W.obs.video(A.alvo.id)!.pub))
     expect(diffDias(pub, W.hoje)).toBe(2)
-    expect(x.semImpressao).toBe(true)
-    expect(x.notas).toContain(`Impressões: nenhuma em 1 dia medido (1 dia sem relatório), de ${dmDia(pub)} a ${dmDia(dd(1))}.`)
+    expect(x.semImpressao).toBe(false)
+    expect(x.impMissing).toBe('vídeo novo')
+  })
+})
+
+/* ================================================================ N1: "vídeo novo" diz a MESMA coisa na página, no cartão, na lista e na régua  */
+
+describe('N1: um limite só para "vídeo novo" (menos de DIAS_DE_VIDA_MIN dias de vida)', () => {
+  it('a constante é uma só (a da série de views da página) e vale 3; videoNovo corta nela', () => {
+    expect(MIN_DIAS_DE_VIDA).toBe(3)
+    expect(DIAS_DE_VIDA_MIN).toBe(MIN_DIAS_DE_VIDA)
+    expect(videoNovo(d(0), HOJE)).toBe(true)
+    expect(videoNovo(d(1), HOJE)).toBe(true)
+    expect(videoNovo(d(2), HOJE)).toBe(true)
+    expect(videoNovo(d(3), HOJE)).toBe(false)
+    expect(videoNovo(null, HOJE)).toBe(false)   // sem data de publicação: nunca "novo" (o que o código já fazia)
+  })
+
+  // 17 h, 2 dias e 3 dias de vida; relatórios lidos de d(10) a d(3); só um vídeo antigo tem linha
+  const CASOS = [
+    { nome: '17 horas', mk: () => comVideoPublicadoHa(0, 17), novo: true },
+    { nome: '2 dias', mk: () => comVideoPublicadoHa(2), novo: true },
+    { nome: '3 dias', mk: () => comVideoPublicadoHa(3), novo: false },
+  ] as const
+  for (const c of CASOS) {
+    describe(`vídeo de ${c.nome}, sem linha de alcance`, () => {
+      const A = c.mk()
+      const W = mundoVideo({ mut: A.mut })
+      const dd = (n: number) => addDays(W.hoje, -n)
+      const relatorios: RelatorioDia[] = Array.from({ length: 8 }, (_, i) => rel(dd(10 - i), 'vazio'))
+      const alcance: AlcanceCanal = { canalId: W.canalId, relatorios, linhas: [lin(velhoQueNaoE(W, A.alvo.ytId), dd(5), 20)], ultimoRelatorio: dd(3), descartados: 0 }
+      const cartao = () => buildProprioVideos(W.obs, W.canalId, dadosOk(W, alcance), { hoje: W.hoje, dm: dmDia })!.videos.find(y => y.ytId === A.alvo.ytId)!
+      const blocos = () => blocosDe(W, alcance, A.alvo.id)
+      const regua = () => blocos().canal.reguas.linhas.find(l => l.numero === 'impressoes')!
+
+      if (c.novo) {
+        it('PÁGINA: a seção diz "vídeo novo" e não desenha dia nenhum', () => {
+          const b = blocos().impressoes!
+          expect(b.medido).toBe(false)
+          expect(b.grafico).toBeNull()
+          expect(b.frase).toMatch(/^Vídeo novo: /)
+        })
+        it('CARTÃO e LISTA: a palavra da coluna é "vídeo novo"; não é zero, não é "0"; a terceira linha fica vazia e a nota diz o motivo', () => {
+          const x = cartao()
+          expect(x.imp).toBeNull()
+          expect(x.semImpressao).toBe(false)
+          expect(x.impMissing).toBe('vídeo novo')
+          expect(x.cliquesMissing).toBe('vídeo novo')
+          expect(x.terceira).toBe('')
+          expect(x.notas).toContain('Impressões e cliques: ' + FRASE_NOVO + '.')
+        })
+        it('RÉGUA: sem valor, sem zero medido, e a frase é a do vídeo novo', () => {
+          const l = regua()
+          expect(l.valor).toBeNull()
+          expect(l.zeroMedido).toBe(false)
+          expect(l.semRegua).toBe(FRASE_NOVO)
+        })
+      } else {
+        it('PÁGINA, CARTÃO, LISTA e RÉGUA concordam: 1 dia medido (o da publicação), zero medido', () => {
+          const pub = diaDaPub(W, A.alvo.id)
+          expect(diffDias(pub, W.hoje)).toBe(3)
+          const g = blocos().impressoes!.grafico!
+          expect(g.colunas).toHaveLength(1)
+          expect(g.colunas[0]!.situacao).toBe('zero-medido')
+          const x = cartao()
+          expect(x.semImpressao).toBe(true)
+          expect(x.impMissing).toBeNull()
+          expect(x.notas).toContain(`Impressões: nenhuma em 1 dia medido, de ${dmDia(pub)} a ${dmDia(pub)}.`)
+          expect(regua().zeroMedido).toBe(true)
+          expect(regua().semRegua).toBe('Nenhuma impressão em 1 dia medido. O 1 vídeo com impressão fica acima dele.')
+        })
+      }
+    })
+  }
+
+  describe('vídeo de 17 horas COM linha no relatório: o número aparece em todo lugar e nenhuma frase o nega', () => {
+    const A = comVideoPublicadoHa(0, 17)
+    const W = mundoVideo({ mut: A.mut })
+    const pub = diaDaPub(W, A.alvo.id)
+    const dd = (n: number) => addDays(W.hoje, -n)
+    const ate = diffDias(pub, W.hoje) // 0 ou 1
+    // relatórios lidos de d(10) até o dia anterior à publicação; o da publicação veio "baixado" com 40 impressões do vídeo
+    const relatorios: RelatorioDia[] = [...Array.from({ length: 10 - ate - 1 }, (_, i) => rel(dd(10 - i), 'vazio')), rel(pub, 'baixado')]
+    const alcance: AlcanceCanal = { canalId: W.canalId, relatorios, linhas: [lin(A.alvo.ytId, pub, 40, 0.1), lin(velhoQueNaoE(W, A.alvo.ytId), dd(5), 20)], ultimoRelatorio: pub, descartados: 0 }
+
+    it('CARTÃO: 40 impressões; RÉGUA: valor "40"; PÁGINA: o gráfico existe e não diz "ainda não há dia deste vídeo"', () => {
+      const x = buildProprioVideos(W.obs, W.canalId, dadosOk(W, alcance), { hoje: W.hoje, dm: dmDia })!.videos.find(y => y.ytId === A.alvo.ytId)!
+      expect(x.imp).toBe(40)
+      expect(x.impMissing).toBeNull()
+      const b = blocosDe(W, alcance, A.alvo.id)
+      expect(b.canal.reguas.linhas.find(l => l.numero === 'impressoes')!.valor).toBe('40')
+      expect(b.impressoes!.medido).toBe(true)
+      expect(b.impressoes!.frase).toBeNull()
+      expect(b.impressoes!.grafico!.colunas.some(c => c.situacao === 'com-impressoes')).toBe(true)
+    })
+  })
+})
+
+/* ================================================================ N2: os textos de D e D-1 não mentem  */
+
+describe('N2: legenda, resumo e dica não dizem que o relatório falhou quando o dia só ainda não chegou', () => {
+  const O = { escopo: 'canal' as const, alturaArea: 180, dm: dmDia, acesso: 'ok' as const, hoje: HOJE }
+  const mont = (a: AlcanceCanal) => { const m = montarDias(a, { hoje: HOJE }); return buildImpressoes(m.dias, m.periodo, O) }
+
+  it('legenda do "não medido" é a do mockup: "o dia ainda não chegou"', () => {
+    const v = mont(canal(lidos(8, 1), [lin('a', d(5), 10)]))
+    const t = v.legenda.find(l => l.situacao === 'nao-medido')!.texto
+    expect(t).toBe('não medido (hachura): o dia ainda não chegou')
+  })
+
+  it('resumo com buraco: "(outro dia sem dado)", "(outros N sem dado)" e "(N dias sem dado)"', () => {
+    // d(8) a d(2) lidos (7 dias), D-1 não medido; impressão em 2 dias
+    expect(mont(canal(lidos(8, 1), [lin('a', d(5), 10), lin('a', d(4), 10)])).resumo)
+      .toBe('20 impressões e 2 cliques estimados em 7 dias medidos (outro dia sem dado): 2 dias com impressão e 5 sem impressão.')
+    expect(mont(canal(lidos(8, 0), [lin('a', d(5), 10)])).resumo).toContain('(outros 2 sem dado)')
+    expect(mont(canal(lidos(8, 1))).resumo).toBe('Nenhuma impressão nos 7 dias medidos (1 dia sem dado).')
+  })
+
+  it('tudo medido com impressão em todos os dias: "em N dias medidos: impressão em todos"', () => {
+    const linhas = [3, 4, 5].map(n => lin('a', d(n), 10))
+    expect(mont(canal(lidos(5, 3), linhas)).resumo).toBe('30 impressões e 3 cliques estimados em 3 dias medidos: impressão em todos.')
+  })
+
+  it('a dica e o texto da situação do dia recente são UMA frase só', () => {
+    const v = mont(canal(lidos(5, 1)))
+    const ult = v.colunas.at(-1)!
+    expect(ult.situacaoTexto).toBe(TEXTO_RECENTE)
+    expect(ult.dica.endsWith(TEXTO_RECENTE)).toBe(true)
+  })
+
+  it('dia mais antigo SEM relatório lido continua com a frase de sem relatório', () => {
+    const v = mont(canal([...lidos(8, 5), ...lidos(3, 1)]))   // d(4) sem relatório nenhum
+    const col = v.colunas.find(c => c.dia === d(4))!
+    expect(col.situacaoTexto).toBe('sem relatório: não medido')
   })
 })

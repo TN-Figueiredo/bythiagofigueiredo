@@ -956,7 +956,7 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
     const g = grafico(page)
     await g.locator('svg.ic-svg').waitFor()
     await expect(g.locator('.ic-res')).toContainText(`${PT(e.imp)} impressões`)
-    await expect(g.locator('.ic-res')).toContainText(`${medidos} dias medidos (outros ${e.naoMedidos.length} sem relatório)`)
+    await expect(g.locator('.ic-res')).toContainText(`${medidos} dias medidos (outros ${e.naoMedidos.length} sem dado)`)
     await expect(g.locator('.ic-res')).toContainText(`${e.comImp.length} dias com impressão e ${e.zeros.length} sem impressão`)
     await expect(g.locator('.ic-per')).toContainText(`de ${dm(e.primeiroRel!)} a ${dm(e.ultimoRel!)} · ${total} dias · dia do YouTube`)
     await expect(g.locator('.ic-avisos li').first()).toHaveText('Dias não medidos não contam como zero nem entram nas somas.')

@@ -158,7 +158,7 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     const g = blocos(w, dados, id).impressoes!.grafico!
     expect(g.colunas).toHaveLength(3)
     expect(g.colunas.every(c => c.situacao === 'com-impressoes')).toBe(true)
-    expect(g.resumo).toBe('1.200 impressões e 60 cliques estimados em 3 dias: todos com impressão.')
+    expect(g.resumo).toBe('1.200 impressões e 60 cliques estimados em 3 dias medidos: impressão em todos.')
     expect(g.periodoTexto).toContain(`de ${dmDia(addDays(w.hoje, -5))} a ${dmDia(addDays(w.hoje, -3))} · 3 dias`)
     expect(g.legenda.map(l => l.situacao)).toContain('publicacao')
   })

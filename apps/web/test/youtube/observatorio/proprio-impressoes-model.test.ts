@@ -146,15 +146,15 @@ describe('eixo de datas e período', () => {
 })
 
 describe('a frase-resumo (acima do gráfico)', () => {
-  it('série cheia (2 dos 21 dias sem relatório): só fala dos dias MEDIDOS e diz quantos ficaram sem relatório', () => {
+  it('série cheia (2 dos 21 dias sem dado): só fala dos dias MEDIDOS e diz quantos ficaram sem relatório', () => {
     const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE })
     const v = buildImpressoes(dias, p, O)
-    expect(v.resumo).toBe('187 impressões e 24 cliques estimados em 19 dias medidos (outros 2 sem relatório): 11 dias com impressão e 8 sem impressão.')
+    expect(v.resumo).toBe('187 impressões e 24 cliques estimados em 19 dias medidos (outros 2 sem dado): 11 dias com impressão e 8 sem impressão.')
     expect(v.resumo).not.toContain('em 21 dias')
   })
   it('todos os dias do período medidos: "em N dias", sem parêntese e com a contagem dos três estados', () => {
     const v = buildImpressoes([dia('2026-10-01', 1, 1), dia('2026-10-02', 4, 1)], periodo, O)
-    expect(v.resumo).toBe('5 impressões e 2 cliques estimados em 2 dias: todos com impressão.')
+    expect(v.resumo).toBe('5 impressões e 2 cliques estimados em 2 dias medidos: impressão em todos.')
   })
   it('um dia só: singular em tudo', () => {
     const v = buildImpressoes([dia('2026-10-01', 1, 1)], { de: '2026-10-01', ate: '2026-10-01', dias: 1 }, O)
@@ -163,7 +163,7 @@ describe('a frase-resumo (acima do gráfico)', () => {
   it('um dia medido e um sem relatório: singular dos dois lados', () => {
     const naoMedido: DiaAlcance = { dia: '2026-10-02', situacao: 'nao-medido', motivo: 'sem-relatorio', imp: null, cliques: null }
     const v = buildImpressoes([dia('2026-10-01', 1, 1), naoMedido], periodo, O)
-    expect(v.resumo).toBe('1 impressão e 1 clique estimado em 1 dia medido (outro dia sem relatório): 1 dia com impressão.')
+    expect(v.resumo).toBe('1 impressão e 1 clique estimado em 1 dia medido (outro dia sem dado): 1 dia com impressão.')
   })
   it('nenhum dia lido: não diz "0 impressões"; diz que nada foi medido', () => {
     const { dias, periodo: p } = montarDias(alcanceNadaLido('c', HOJE), { hoje: HOJE })
@@ -181,15 +181,15 @@ describe('a frase-resumo (acima do gráfico)', () => {
     const naoMedido = (d: string): DiaAlcance => ({ dia: d, situacao: 'nao-medido', motivo: 'nao-baixado', imp: null, cliques: null })
     const zero = (d: string): DiaAlcance => ({ dia: d, situacao: 'zero-medido', motivo: null, imp: 0, cliques: 0 })
     const v = buildImpressoes([zero('2026-10-01'), zero('2026-10-02'), naoMedido('2026-10-03')], { de: '2026-10-01', ate: '2026-10-03', dias: 3 }, O)
-    expect(v.resumo).toBe('Nenhuma impressão nos 2 dias medidos (1 dia sem relatório).')
+    expect(v.resumo).toBe('Nenhuma impressão nos 2 dias medidos (1 dia sem dado).')
     expect(v.resumo).not.toMatch(/em 3 dias/)
     const um = buildImpressoes([zero('2026-10-01'), naoMedido('2026-10-02')], periodo, O)
-    expect(um.resumo).toBe('Nenhuma impressão em 1 dia medido (1 dia sem relatório).')
+    expect(um.resumo).toBe('Nenhuma impressão em 1 dia medido (1 dia sem dado).')
     expect(um.resumo).not.toMatch(/\bno 1 /)
   })
   it('cliques de algum dia sem CTR: o resumo diz que os cliques não foram medidos em algum dia (nunca soma parcial)', () => {
     const v = buildImpressoes([dia('2026-10-01', 9, null), dia('2026-10-02', 4, 1)], periodo, O)
-    expect(v.resumo).toBe('13 impressões em 2 dias, com cliques estimados não medidos em algum dia: todos com impressão.')
+    expect(v.resumo).toBe('13 impressões em 2 dias medidos, com cliques estimados não medidos em algum dia: impressão em todos.')
   })
   it('os números continuam os de `resumir` (a soma ignora o dia não medido)', () => {
     const { dias, periodo: p } = montarDias(alcanceCheio('c', ['a', 'b'], HOJE), { hoje: HOJE })
@@ -197,7 +197,7 @@ describe('a frase-resumo (acima do gráfico)', () => {
     const v = buildImpressoes(dias, p, O)
     expect(v.resumo).toContain(`${r.imp} impressões`)
     expect(v.resumo).toContain(`${r.diasLidos} dias medidos`)
-    expect(v.resumo).toContain(`(outros ${r.diasNaoMedidos} sem relatório)`)
+    expect(v.resumo).toContain(`(outros ${r.diasNaoMedidos} sem dado)`)
     expect(v.resumo).toContain(`${r.diasComImpressao} dias com impressão`)
   })
 })
@@ -272,7 +272,7 @@ describe('legenda e método', () => {
     const v = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, O)
     expect(v.legenda.map(l => l.situacao)).toEqual(['com-impressoes', 'cliques', 'zero-medido', 'nao-medido'])
     expect(v.legenda.map(l => l.texto)).toEqual([
-      'impressões do dia (barra cheia)', 'cliques estimados do dia', 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões', 'não medido (hachura): o YouTube não entregou o relatório do dia',
+      'impressões do dia (barra cheia)', 'cliques estimados do dia', 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões', 'não medido (hachura): o dia ainda não chegou',
     ])
   })
   it('no vídeo, o zero medido da legenda fala do vídeo', () => {
