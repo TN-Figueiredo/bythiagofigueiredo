@@ -2,10 +2,12 @@
 // Regras: só leitura; sempre janela de datas (o diário tem ~97 mil linhas em produção); paginados por readAll
 // (limite de 1000 do PostgREST); erro de banco é LANÇADO, nunca vira lista vazia; nulo nunca vira zero.
 import 'server-only'
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { readAll } from '../load'
 import { ObservatoryLoadError } from '../niches-db'
+import { materializarZeros, type IntervaloCoberto } from './cobertura-leitor'
 import { JANELA_LEITURA_ALCANCE_DIAS } from './dias'
 import { edicaoValida, type EdicaoDoSite } from './edicao'
 import { TETO_VIDEOS_DIARIO } from './tipos'
@@ -125,30 +127,81 @@ export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado
   return { acesso: 'ok', dado: { canalId: p.canalId, relatorios, linhas: out, ultimoRelatorio: diaUtc(recente?.start_time), descartados } }
 }
 
-/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto NÃO é lido e volta em `foraDoTeto`) dos JANELA_DIARIO_DIAS + 10 dias que terminam no ÚLTIMO dia gravado do canal (não em hoje: a coleta atrasa e o canal pode estar parado). Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
+/** 42P01 tabela (Postgres) e PGRST205 tabela fora do schema cache (PostgREST). Coluna ausente (42703) NÃO entra: é outro defeito. */
+const TABELA_AUSENTE = new Set(['42P01', 'PGRST205'])
+interface CoberturaRow { youtube_video_id: unknown; covered_from: unknown; covered_to: unknown }
+
+/**
+ * Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto NÃO é lido e volta em `foraDoTeto`) dos JANELA_DIARIO_DIAS + 10 dias que terminam no ÚLTIMO dia do canal (não em hoje: a coleta atrasa e o canal pode estar parado). Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal.
+ *
+ * O diário tolera os dois estados do banco (A5 E6, D13). Antes da dieta cada (vídeo, dia) tinha linha, com `views: 0` nos dias sem atividade;
+ * depois dela só os dias com atividade têm, e a cobertura (`yt_own_video_coverage`, conjunto `base`) diz quais dias foram coletados. O leitor
+ * devolve os zeros apagados (`materializarZeros`), então a tela recebe as mesmas linhas nos dois estados. `ultimoDia` é o maior entre a última
+ * linha do diário e o maior `covered_to` do canal. Tabela da cobertura ausente (MG14 não aplicada): segue sem cobertura e avisa o Sentry uma vez;
+ * qualquer outro erro é lançado.
+ */
 export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonly string[] }): Promise<Privado<DiarioCanal>> {
   const siteId = siteAutorizado(p)
   if (siteId == null) return { acesso: 'negado' }
   const ytIds = p.ytIds.slice(0, TETO_VIDEOS_DIARIO)
   // o que passa do teto não é lido: sai dito no dado (nunca em silêncio), para quem soma poder avisar
   const foraDoTeto = p.ytIds.slice(TETO_VIDEOS_DIARIO)
+  let coberturaAusente = false
+  /** Uma leitura da cobertura: tabela ausente = `null` (segue sem cobertura); outro erro sobe. */
+  const comCobertura = async <T>(leitura: () => Promise<T>): Promise<T | null> => {
+    try { return await leitura() }
+    catch (e) {
+      if (e instanceof ObservatoryLoadError && e.table === 'yt_own_video_coverage' && e.code != null && TABELA_AUSENTE.has(e.code)) { coberturaAusente = true; return null }
+      throw e
+    }
+  }
   // SEM janela e sem filtro de vídeo: o último dia gravado do canal, mesmo parado há meses (a série é que é limitada).
   // Roda também com a lista de vídeos vazia: um canal sem longo acompanhado com o diário cheio não é "nunca coletado".
   const ultimoQ = () => primeiraLinha<{ day_pt: string }>('yt_own_video_daily', sb.from('yt_own_video_daily').select('day_pt')
     .eq('site_id', siteId).eq('channel_id', p.canalId)
     .order('day_pt', { ascending: false }).range(0, 0))
-  const ultimo = await ultimoQ()
-  // Âncora no último dia gravado: a janela de 28 dias do % assistido e da série termina nele, não em hoje. Sem dia gravado não há o que ler.
-  const desde = ultimo == null ? null : addDays(ultimo.day_pt, -(JANELA_DIARIO_DIAS + 10))
-  const rows = ytIds.length === 0 || desde == null ? [] : await readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
-    .select('youtube_video_id, day_pt, views, avg_view_percentage, avg_view_duration_seconds, collected_at')
-    .eq('site_id', siteId).eq('channel_id', p.canalId)
-    .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id'))
+  // o maior dia coberto do canal (conjunto base): com o diário enxuto a última linha pode ser anterior ao último dia coletado
+  const ultimaCoberturaQ = () => comCobertura(() => primeiraLinha<{ covered_to: string }>('yt_own_video_coverage', sb.from('yt_own_video_coverage').select('covered_to')
+    .eq('site_id', siteId).eq('channel_id', p.canalId).eq('metric_set', 'base')
+    .order('covered_to', { ascending: false }).range(0, 0)))
+  const [ultimo, ultimaCobertura] = await Promise.all([ultimoQ(), ultimaCoberturaQ()])
+  const diaLinha = ultimo?.day_pt ?? null
+  const diaCobertura = typeof ultimaCobertura?.covered_to === 'string' ? ultimaCobertura.covered_to : null
+  const ultimoDia = diaLinha != null && diaCobertura != null ? (diaCobertura > diaLinha ? diaCobertura : diaLinha) : (diaLinha ?? diaCobertura)
+  // Âncora no último dia: a janela de 28 dias do % assistido e da série termina nele, não em hoje. Sem dia gravado nem coberto não há o que ler.
+  const desde = ultimoDia == null ? null : addDays(ultimoDia, -(JANELA_DIARIO_DIAS + 10))
+  const ler = ytIds.length > 0 && desde != null
+  const [rows, intervalosLidos] = await Promise.all([
+    ler ? readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
+      .select('youtube_video_id, day_pt, views, avg_view_percentage, avg_view_duration_seconds, collected_at')
+      .eq('site_id', siteId).eq('channel_id', p.canalId)
+      .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id')) : Promise.resolve<DiarioRow[]>([]),
+    ler && !coberturaAusente ? comCobertura(() => readAll<CoberturaRow>('yt_own_video_coverage', () => sb.from('yt_own_video_coverage')
+      .select('youtube_video_id, covered_from, covered_to')
+      .eq('site_id', siteId).eq('channel_id', p.canalId).eq('metric_set', 'base')
+      .in('youtube_video_id', ytIds).gte('covered_to', desde)
+      // chave (vídeo, conjunto, início): o desempate total evita repetir e perder linha entre páginas
+      .order('youtube_video_id').order('covered_from'))) : Promise.resolve<CoberturaRow[] | null>([]),
+  ])
+  if (coberturaAusente) {
+    // sem conteúdo do banco, sem id de vídeo, sem canal: só o fato
+    Sentry.captureMessage('observatorio-proprio: tabela yt_own_video_coverage ausente (migration MG14 não aplicada)', {
+      level: 'warning', tags: { component: 'observatorio-proprio', step: 'cobertura-ausente' },
+    })
+  }
   let descartados = 0
-  const linhas: DiarioLinha[] = umaPorVideoDia(rows).map(r => {
+  const lidas: DiarioLinha[] = umaPorVideoDia(rows).map(r => {
     const views = medida(r.views), pct = pctDe(r.avg_view_percentage), duracao = medida(r.avg_view_duration_seconds)
     if (views.ruim || pct.ruim || duracao.ruim) descartados++
     return { ytId: r.youtube_video_id, dia: r.day_pt, views: views.v, pctAssistido: pct.v, duracaoMediaSeg: duracao.v }
   })
-  return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia: ultimo?.day_pt ?? null, linhas, foraDoTeto, descartados } }
+  // Intervalo ilegível (coluna nula ou fora do formato) não vira zero nem some em silêncio: é dado ruim, lança como as outras leituras.
+  const intervalos: IntervaloCoberto[] = (intervalosLidos ?? []).map(r => {
+    if (typeof r.youtube_video_id !== 'string' || typeof r.covered_from !== 'string' || typeof r.covered_to !== 'string') {
+      throw new ObservatoryLoadError('yt_own_video_coverage', undefined, 'intervalo de cobertura ilegível')
+    }
+    return { ytId: r.youtube_video_id, de: r.covered_from, ate: r.covered_to }
+  })
+  const linhas = desde == null || ultimoDia == null ? lidas : materializarZeros(lidas, intervalos, { desde, ate: ultimoDia })
+  return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia, linhas, foraDoTeto, descartados } }
 }
