@@ -15,13 +15,13 @@ export interface ContextoVeredito {
   so?: 'identidade'
 }
 
-const CHAVES_CONTAGEM = [
+export const CHAVES_CONTAGEM = [
   'identidade_vencida', 'identidade_prazo_errado', 'identidade_de_criador', 'respostas_de_terceiros', 'retratos_atrasados',
   'retratos_em_erro', 'retratos_na_janela', 'retratos_perdidos_7d', 'retratos_total', 'retratos_ok', 'comentarios_total',
   'identidades_total', 'comentarios_ausentes_sem_decisao',
 ] as const
-const CHAVES_MAPA = ['erros_por_motivo', 'perdidos_por_motivo'] as const
-const CHAVES_DATA = ['primeira_coleta', 'ultima_coleta'] as const
+export const CHAVES_MAPA = ['erros_por_motivo', 'perdidos_por_motivo'] as const
+export const CHAVES_DATA = ['primeira_coleta', 'ultima_coleta'] as const
 
 const ILEGIVEL: Veredito = { vermelhos: [{ codigo: 'prova_ilegivel', n: 1 }], numeros: {} }
 

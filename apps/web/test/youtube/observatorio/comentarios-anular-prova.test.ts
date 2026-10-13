@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 const captureMessage = vi.hoisted(() => vi.fn())
 vi.mock('@sentry/nextjs', () => ({ captureMessage }))
 
-import { veredito } from '@/lib/youtube/observatorio/comentarios/prova'
+import { CHAVES_CONTAGEM, CHAVES_DATA, CHAVES_MAPA, veredito } from '@/lib/youtube/observatorio/comentarios/prova'
 import { runAnularIdentidade } from '@/lib/youtube/observatorio/comentarios/anular'
 import { CODIGOS_EXECUCAO, COMMENT_RULES, MOTIVOS, MOTIVOS_PASSAGEIROS } from '@/lib/youtube/observatorio/comentarios/regras'
 import { fraseDe } from '@/lib/youtube/observatorio/comentarios/frases'
@@ -97,6 +97,33 @@ describe('veredito', () => {
         expect(r.vermelhos, JSON.stringify(ruim)).toEqual([{ codigo: 'prova_ilegivel', n: 1 }])
         expect(r.numeros).toEqual({})
       }
+    }
+  })
+
+  it('cada uma das 17 chaves da prova é exigida, uma a uma: ausente, texto, nulo, -1 ou 1.5 é prova_ilegivel, nunca verde (guarda de LGPD)', () => {
+    expect(CHAVES_CONTAGEM).toHaveLength(13)
+    expect(CHAVES_MAPA).toHaveLength(2)
+    expect(CHAVES_DATA).toHaveLength(2)
+    const ILEGIVEL = [{ codigo: 'prova_ilegivel', n: 1 }]
+    const ctxs = [FILA_ZERADA, FILA_PENDENTE, { filaZerada: false, so: 'identidade' as const }]
+    const checa = (k: string, valor: unknown, ausente: boolean): void => {
+      const ruim: Record<string, unknown> = { ...ZERO }
+      if (ausente) delete ruim[k]
+      else ruim[k] = valor
+      for (const ctx of ctxs) {
+        const r = veredito(ruim as unknown as ProvaComentarios, ctx)
+        expect(r.vermelhos, `${k} = ${ausente ? 'ausente' : JSON.stringify(valor)}`).toEqual(ILEGIVEL)
+        expect(r.numeros).toEqual({})
+      }
+    }
+    for (const k of [...CHAVES_CONTAGEM, ...CHAVES_MAPA]) {
+      checa(k, undefined, true)
+      for (const v of ['texto', null, -1, 1.5]) checa(k, v, false)
+    }
+    // data: nula e texto são válidos; o que não pode é faltar ou ter outro tipo
+    for (const k of CHAVES_DATA) {
+      checa(k, undefined, true)
+      for (const v of [7, -1, 1.5, {}]) checa(k, v, false)
     }
   })
 
