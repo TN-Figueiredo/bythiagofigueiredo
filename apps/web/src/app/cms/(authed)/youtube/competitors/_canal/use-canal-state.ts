@@ -24,7 +24,11 @@ export function escreverUrl(next: CanalState, modo: 'replace' | 'push' = 'replac
   } catch { /* a URL é conforto */ }
 }
 
-export function useCanalState(initial: CanalState): [CanalState, (patch: Partial<CanalState>) => void] {
+/**
+ * `own`: a página é a do canal próprio. Sem ele a ressincronização da URL leria `?sort=imp&tab=retencao` como de concorrente e os
+ * devolveria ao padrão, em silêncio (Next 16 não remonta quando só a query muda).
+ */
+export function useCanalState(initial: CanalState, own: boolean): [CanalState, (patch: Partial<CanalState>) => void] {
   const [state, setState] = useState(initial)
   // o último estado, lido na hora: dois patches seguidos no mesmo evento não perdem o primeiro
   const ref = useRef(state)
@@ -46,7 +50,7 @@ export function useCanalState(initial: CanalState): [CanalState, (patch: Partial
     const primeira = chaveAnterior.current === null
     if (!primeira && chaveAnterior.current === chave) return
     chaveAnterior.current = chave
-    const daUrl = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
+    const daUrl = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)), { own })
     if (primeira && canalQuery(daUrl) === chave) return
     if (canalQuery(daUrl) === canalQuery(ref.current)) return
     ref.current = daUrl
@@ -56,12 +60,12 @@ export function useCanalState(initial: CanalState): [CanalState, (patch: Partial
   // o Voltar/Avançar do navegador: a URL é a verdade, o estado a relê
   useEffect(() => {
     const onPop = () => {
-      const next = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
+      const next = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)), { own })
       ref.current = next
       setState(next)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [])
+  }, [own])
   return [state, set]
 }

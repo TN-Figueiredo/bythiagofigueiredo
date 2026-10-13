@@ -124,7 +124,7 @@ describe('I2: o anúncio de ordenação diz o motivo do modelo, não "sem medida
     const dono = [...vB.list.ranked, ...vB.list.unranked].find(r => r.id === vB.pe!.canalId)!
     expect(dono.pos).toBeNull()
     expect(dono.semMedida).toBe('sem-views-dia-proprio')
-    expect(anuncio(container)).toBe(`${vB.sortNote}. Ainda sem views por dia medidas: a coleta diária do seu canal começa em breve. Sem posição nesta ordenação.`)
+    expect(anuncio(container)).toBe(`${vB.sortNote}. Ainda sem views por dia medidas: ainda não há coleta diária deste canal. Sem posição nesta ordenação.`)
   })
 })
 

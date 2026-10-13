@@ -1,0 +1,49 @@
+/* Página do vídeo próprio (spec 17; mockup M/video-proprio.html + canal.css `#screen.vp`, rodada 12). A raiz é [data-obs-screen="video-proprio"] e NÃO a
+   do canal: o gatilho da volta ao canal (use-rolagem-ao-voltar.ts) procura a tela [data-obs-screen="canal"] visível, e esta tela, enquanto a
+   pessoa ainda está nela, não pode ser tomada pela do canal. Por isso as poucas regras da faixa de números que o canal tem presas à raiz dele
+   são repetidas aqui. Tokens do [data-obs] da moldura; hex e rgba literais; sem mistura de cor por função, nenhum z-index numérico, nenhum texto abaixo de
+   12 px, alvo de toque de 44 px em pointer:coarse. O ⓘ mora em #flut e reaproveita `.canal-tip` de canal.css (importado pela tela). */
+[data-obs-screen="video-proprio"]{color:var(--text);font:14px/1.45 var(--font-sans),Inter,system-ui,sans-serif;padding:0 0 72px;min-width:0}
+[data-obs-screen="video-proprio"] .num{font-family:var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+[data-obs-screen="video-proprio"] svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+
+/* cabeçalho: miniatura à esquerda, título, meta, faixa e ações à direita */
+[data-obs-screen="video-proprio"] .vp-h{display:grid;grid-template-columns:280px minmax(0,1fr);gap:8px 20px;align-items:start;margin:6px 0 14px}
+[data-obs-screen="video-proprio"] .vp-h img,[data-obs-screen="video-proprio"] .vp-sem-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;background:var(--sunk,var(--surface-2))}
+[data-obs-screen="video-proprio"] .vp-sem-thumb{display:grid;place-items:center;font-size:12.5px;color:var(--muted);border:1px dashed var(--border-strong)}
+[data-obs-screen="video-proprio"] .vp-t{min-width:0}
+[data-obs-screen="video-proprio"] h1{font:600 22px/1.25 var(--font-fraunces-var),Fraunces,Georgia,serif;letter-spacing:-.01em;margin:0 0 6px;font-variation-settings:"opsz" 72;overflow-wrap:anywhere}
+[data-obs-screen="video-proprio"] h1:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+[data-obs-screen="video-proprio"] .vp-m{margin:0 0 10px;font-size:13px;line-height:20px;color:var(--muted);display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap}
+[data-obs-screen="video-proprio"] .own-seal{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:5px;border:1px solid var(--accent);color:var(--accent);font:500 12.5px var(--font-sans),system-ui,sans-serif;white-space:nowrap}
+
+/* a faixa de seis números: valor em cima (mono), rótulo embaixo, fio vertical entre as células; um ⓘ só no fim */
+[data-obs-screen="video-proprio"] .vp-nrow{display:flex;align-items:flex-start;gap:0 6px;margin:0 0 10px;min-width:0}
+[data-obs-screen="video-proprio"] .nclip{overflow:hidden;min-width:0;flex:0 1 auto}
+[data-obs-screen="video-proprio"] .ntools{display:flex;align-items:center;flex:none;align-self:flex-start;margin-top:-2px}
+[data-obs-screen="video-proprio"] .ibtn{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+[data-obs-screen="video-proprio"] .ibtn:hover{color:var(--text)}
+[data-obs-screen="video-proprio"] .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="video-proprio"] .ibtn svg{width:16px;height:16px}
+[data-obs-screen="video-proprio"] .nstrip{display:flex;flex-wrap:wrap;gap:12px 0;margin:0 0 0 -21px;padding:0}
+[data-obs-screen="video-proprio"] .nstrip .nc{display:flex;flex-direction:column;justify-content:flex-start;padding:0 20px;border-left:1px solid var(--border-subtle);min-width:0}
+[data-obs-screen="video-proprio"] .nstrip dd{margin:0;font:500 15px/20px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+[data-obs-screen="video-proprio"] .nstrip dd b{font-weight:500}
+[data-obs-screen="video-proprio"] .nstrip dd.nf{font:400 12.5px/20px var(--font-sans),system-ui,sans-serif;white-space:normal;max-width:30ch}
+[data-obs-screen="video-proprio"] .nstrip dt{font:400 12px/16px var(--font-sans),system-ui,sans-serif;color:var(--muted);white-space:nowrap}
+[data-obs-screen="video-proprio"] .nstrip dt .nsub{display:block;font-size:12px;line-height:16px;color:var(--muted);white-space:normal;max-width:25ch}
+
+[data-obs-screen="video-proprio"] .vp-a{display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap}
+
+@media (max-width:900px){
+  [data-obs-screen="video-proprio"] .vp-h{grid-template-columns:minmax(0,1fr)}
+  [data-obs-screen="video-proprio"] .vp-h img,[data-obs-screen="video-proprio"] .vp-sem-thumb{max-width:360px}
+  [data-obs-screen="video-proprio"] .nstrip{margin-left:-15px}
+  [data-obs-screen="video-proprio"] .nstrip .nc{padding:0 14px;flex:0 0 50%;box-sizing:border-box}
+  [data-obs-screen="video-proprio"] .nstrip dt{white-space:normal}
+}
+@media (pointer:coarse),(max-width:900px){
+  [data-obs-screen="video-proprio"] .ibtn{width:44px;height:44px}
+  [data-obs-screen="video-proprio"] .ntools{margin-left:-10px}
+  [data-obs-screen="video-proprio"] .vp-a .obs-ch-btn{min-height:44px}
+}

@@ -13,12 +13,17 @@ import type { CanalState } from './params'
 
 export const FMT_NOME: Record<CanalFmt, string> = { todos: 'Todos', longos: 'Longos', shorts: 'Shorts', fixados: 'Fixados' }
 /** Como o status chama cada ordenação (o mesmo nome do cabeçalho da coluna na Lista). */
-export const SORT_NOME: Record<CanalSort, string> = { recentes: 'Publicado', vistos: 'Views', multiplo: 'Múltiplo', vpd: 'Views/dia' }
+export const SORT_NOME: Record<CanalSort, string> = { recentes: 'Publicado', vistos: 'Views', multiplo: 'Múltiplo', vpd: 'Views/dia', imp: 'Impressões' }
 const SORT_OPCOES: Array<[CanalSort, string]> = [['recentes', 'Mais recentes'], ['vistos', 'Mais vistos'], ['multiplo', 'Maior múltiplo'], ['vpd', 'Mais views por dia']]
+/** Canal próprio (spec 16.4): "Mais impressões no período" entra no lugar de "Mais views por dia"; não tem Fixados. */
+const SORT_OPCOES_PROPRIO: Array<[CanalSort, string]> = [['recentes', 'Mais recentes'], ['vistos', 'Mais vistos'], ['multiplo', 'Maior múltiplo'], ['imp', 'Mais impressões no período']]
 const FMTS: CanalFmt[] = ['todos', 'longos', 'shorts', 'fixados']
+const FMTS_PROPRIO: CanalFmt[] = ['todos', 'longos', 'shorts']
 
-export function Controles({ state, counts, barRef, inputRef, onFmt, onSort, onQ, onClearQ, onVer }: {
+export function Controles({ state, counts, barRef, inputRef, onFmt, onSort, onQ, onClearQ, onVer, proprio = false }: {
   state: CanalState; counts: ListaView['counts']
+  /** A página do canal próprio: ordenação por impressões e formato sem Fixados. */
+  proprio?: boolean
   barRef: RefObject<HTMLDivElement | null>; inputRef: RefObject<HTMLInputElement | null>
   onFmt: (f: CanalFmt) => void; onSort: (s: CanalSort) => void; onQ: (q: string) => void; onClearQ: () => void; onVer: (v: CanalState['ver']) => void
 }) {
@@ -26,7 +31,7 @@ export function Controles({ state, counts, barRef, inputRef, onFmt, onSort, onQ,
     <div className="cv-ctl" ref={barRef}>
       <div className="cv-fscroll">
         <div className="cv-seg" role="group" aria-label="Formato">
-          {FMTS.map(k => (
+          {(proprio ? FMTS_PROPRIO : FMTS).map(k => (
             <button key={k} type="button" aria-pressed={state.fmt === k} aria-label={`${FMT_NOME[k]}, ${counts[k]}`} onClick={() => onFmt(k)}>
               {FMT_NOME[k]} <span className="n" aria-hidden="true">{counts[k]}</span>
             </button>
@@ -36,7 +41,7 @@ export function Controles({ state, counts, barRef, inputRef, onFmt, onSort, onQ,
       <span className="cv-sel">
         <label className="obs-ch-sr" htmlFor="cv-sort">Ordenar</label>
         <select id="cv-sort" value={state.sort} onChange={e => onSort(e.target.value as CanalSort)}>
-          {SORT_OPCOES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+          {(proprio ? SORT_OPCOES_PROPRIO : SORT_OPCOES).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
         </select>
         {Icon.chev()}
       </span>

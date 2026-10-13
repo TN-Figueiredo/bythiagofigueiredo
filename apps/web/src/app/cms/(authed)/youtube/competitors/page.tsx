@@ -6,8 +6,9 @@ import { ObservatoryChromeServer } from './_chrome/chrome-server'
 import { openObservatoryPage } from './_chrome/page-data'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
-import { competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
+import { canalDoPainel, competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
 import { buildCanaisView } from './_canais/view-model'
+import { carregarExtrasProprio } from './_proprio/carregar-extras'
 import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
@@ -31,19 +32,21 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const sp = await searchParams
   // The channel drawer reuses ?tab=outliers together with ?channel=; only a bare ?tab= is a legacy dashboard link.
   if (!one(sp.channel)) legacyTabRedirect(one(sp.tab))
-  const { rows, obs, savedNiche, meuCanalLembrado, extra: canUnlock } = await openObservatoryPage(canUnlockChannels)
-  // a competitor has a page of its own; the drawer (?channel=) only serves an own channel. The panel's tab has no equivalent there.
+  const { siteId, now, rows, obs, savedNiche, meuCanalLembrado, extra: canUnlock } = await openObservatoryPage(canUnlockChannels)
+  // a channel with a page (a competitor, or an own channel with videos) is sent there; an own channel without videos opens the list with no panel.
   competitorChannelRedirect(obs, one(sp.channel))
   // The chrome persists a valid ?niche= and drops an invalid one; here it is only read. parseNiche checks the form;
   // the engine says whether the niche exists (a saved or linked niche that no longer exists opens in Todos, without error).
   const parsed = parseNiche(one(sp.niche))
   const urlNiche = parsed != null && obs.scopeOf(parsed) === parsed ? parsed : null
   const niche = urlNiche ?? obs.scopeOf(savedNiche)
+  // as views por dia do canal próprio vêm do diário, só para quem edita o site, DEPOIS da guarda de acesso; sem canal próprio nada é lido
+  const extras = await carregarExtrasProprio(obs, siteId, now)
   const view = buildCanaisView(obs, {
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
-    channel: one(sp.channel), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),
+    channel: canalDoPainel(obs, one(sp.channel)), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),
     layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor),
-  })
+  }, extras)
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
       <CanaisScreen

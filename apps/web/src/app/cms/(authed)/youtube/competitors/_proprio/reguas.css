@@ -1,0 +1,72 @@
+/* "Este vídeo no canal" (spec 17.3; mockup M/regua.css e MC/a4.css `.rgl`). Prefixo vb-rg-. Tokens do [data-obs] da moldura (cores por terço: --tier-high,
+   --tier-mid, --terco-baixo); hex e rgba literais, sem mistura de cor por função, nenhum z-index numérico, nenhum texto abaixo de 12 px, alvo de toque
+   de 44 px em pointer:coarse. Cor nunca é o único sinal: o terço tem forma (▲ ● ▼) e a posição vem escrita. */
+.vb-rg-tudo{display:grid;gap:8px;min-width:0}
+.vb-rg-fr{margin:0;font-size:14px;line-height:21px;max-width:88ch}
+.vb-rg-base-t,.vb-rg-pouco{margin:0;font-size:12.5px;line-height:18px;color:var(--muted);max-width:88ch}
+.vb-rg-tw{min-width:0}
+.vb-rg-tb{width:100%;border-collapse:collapse;table-layout:fixed}
+.vb-rg-tb th,.vb-rg-tb td{padding:0;text-align:left;vertical-align:middle;font-weight:400}
+.vb-rg-tb thead th{font-size:12px;line-height:16px;color:var(--muted);padding:0 8px 4px 0}
+.vb-rg-tb thead .vb-rg-hv{width:112px}
+.vb-rg-tb thead .vb-rg-hp{width:158px}
+.vb-rg-tb tbody:not(:first-of-type) .vb-rg-g th{padding-top:10px}
+.vb-rg-g th{font-size:12px;line-height:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:6px 0 2px;border-top:1px solid var(--border-subtle)}
+.vb-rg-r{border-top:1px solid var(--border-subtle)}
+.vb-rg-nm{width:150px;font-size:13px;line-height:18px;padding:10px 8px 10px 0}
+.vb-rg-nm small{display:block;color:var(--muted);font-size:12px;line-height:16px}
+.vb-rg-v{width:112px;font-size:14px;padding-right:8px;white-space:nowrap}
+.vb-rg-v .obs-ch-nm{font-size:12px;padding:1px 4px}
+.vb-rg-sem{font-size:13px;line-height:19px;color:var(--muted);padding:8px 0}
+.vb-rg-c{padding:4px 12px 4px 0;min-width:0}
+.vb-rg-p{width:158px;font-size:12.5px;line-height:18px;color:var(--muted);padding-left:4px}
+.vb-rg-p a{color:var(--text);text-underline-offset:2px}
+.vb-rg-sm{display:block;color:var(--muted);font-size:12px;line-height:16px}
+.vb-rg-pt{margin-left:6px}
+.vb-rg-mk,.vb-rg-mk0{display:inline-block;width:14px;text-align:center;font-size:12px;line-height:16px;vertical-align:middle}
+.vb-rg-mk0{height:16px}
+.vb-rg-mk.t-cima{color:var(--tier-high)}
+.vb-rg-mk.t-meio{color:var(--tier-mid)}
+.vb-rg-mk.t-baixo{color:var(--terco-baixo)}
+
+/* a régua: um traço por vídeo; o deste vídeo é maior, com contorno e a cor do terço; o triângulo sob a linha é a mediana */
+.vb-rg-w{position:relative;min-width:0}
+.vb-rg{position:relative;display:block;width:100%;height:44px;border-radius:4px;touch-action:auto;cursor:default}
+.vb-rg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vb-rg-in{position:absolute;left:6px;right:6px;top:0;bottom:0}
+.vb-rg-base{position:absolute;left:0;right:0;bottom:14px;height:1px;background:var(--border-strong)}
+.vb-rg-t{position:absolute;bottom:15px;left:calc(var(--x,0%) + var(--dx,0px));width:2px;height:12px;margin-left:-1px;background:var(--dim);border-radius:1px}
+.vb-rg-t.vb-rg-on{background:var(--text)}
+.vb-rg-t.vb-rg-este{width:4px;height:26px;margin-left:-2px;border-radius:1px;background:var(--text);box-shadow:0 0 0 1px var(--surface);z-index:var(--z-marca)}
+.vb-rg-t.vb-rg-este[data-terco="cima"]{background:var(--tier-high)}
+.vb-rg-t.vb-rg-este[data-terco="meio"]{background:var(--tier-mid)}
+.vb-rg-t.vb-rg-este[data-terco="baixo"]{background:var(--terco-baixo)}
+.vb-rg-t.vb-rg-este.vb-rg-on{box-shadow:0 0 0 1px var(--surface),0 0 0 3px var(--muted)}
+.vb-rg-med{position:absolute;bottom:3px;left:var(--x,0%);width:0;height:0;margin-left:-5px;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--text)}
+.vb-rg-pontas{display:flex;justify-content:space-between;font-size:12px;line-height:16px;color:var(--muted);padding:0 6px}
+#flut .obs-fl-tip.vb-rg-tip{max-width:300px;line-height:1.4}
+#flut .obs-fl-tip.vb-rg-tip .vb-rg-tip-t{display:block;font-weight:500;margin-bottom:2px}
+#flut .obs-fl-tip.vb-rg-tip .vb-rg-tip-s{display:block;color:var(--muted)}
+
+/* legenda */
+.vb-rg-leg{margin:4px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;font-size:12px;line-height:16px;color:var(--muted)}
+.vb-rg-lg{display:inline-flex;align-items:center;gap:6px}
+.vb-rg-ex{display:inline-block;width:2px;height:12px;background:var(--dim);border-radius:1px}
+.vb-rg-ex-este{width:4px;height:18px;background:var(--text);box-shadow:0 0 0 1px var(--surface)}
+.vb-rg-ex-med{display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--text)}
+
+/* estreito: cada linha vira um cartão (nome e valor em cima, a régua na largura toda, a posição embaixo); nenhuma rolagem horizontal */
+@media (max-width:760px){
+  .vb-rg-tb,.vb-rg-tb tbody,.vb-rg-tb tr,.vb-rg-tb th,.vb-rg-tb td{display:block;width:auto}
+  .vb-rg-tb thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .vb-rg-r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:8px 0}
+  .vb-rg-nm{width:auto;padding:0}
+  .vb-rg-v{width:auto;padding:0;text-align:right}
+  .vb-rg-c{grid-column:1/3;padding:0}
+  .vb-rg-p{grid-column:1/3;width:auto;padding:0}
+  .vb-rg-sem{grid-column:1/3;padding:0}
+}
+@media (pointer:coarse){
+  .vb-rg{height:48px}
+  .vb-rg-p a{display:inline-flex;align-items:center;min-height:44px}
+}

@@ -117,6 +117,10 @@ describe('link.canal', () => {
     expect(link.canal('abc', { fmt: 'fixados', sort: 'vistos', dir: 'asc', q: 'são joão', ver: 'lista', n: 80, nums: 1 }))
       .toBe('/cms/youtube/competitors/canal/abc?fmt=fixados&sort=vistos&dir=asc&q=s%C3%A3o+jo%C3%A3o&ver=lista&n=80&nums=1')
   })
+  it('canal próprio: sort=imp e tab=retencao entram na URL; os padrões continuam fora', () => {
+    expect(link.canal('abc', { sort: 'imp', dir: 'asc' })).toBe('/cms/youtube/competitors/canal/abc?sort=imp&dir=asc')
+    expect(link.canal('abc', { tab: 'retencao', sort: 'recentes' })).toBe('/cms/youtube/competitors/canal/abc?tab=retencao')
+  })
   it('id com caractere especial é codificado', () => {
     expect(link.canal('a/b?c')).toBe('/cms/youtube/competitors/canal/a%2Fb%3Fc')
   })

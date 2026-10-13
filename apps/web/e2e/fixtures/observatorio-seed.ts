@@ -73,7 +73,15 @@ export interface SeedOptions {
    * nulo. As duas trocas no mesmo vídeo já existem (matt-opus55: 3 títulos e 4 thumbnails).
    */
   canalCompleto?: boolean
+  /**
+   * Dado PRIVADO do PRIMEIRO canal próprio do preset (alcance e diário por vídeo, só no banco local). Ausente = nenhuma linha (as telas dizem
+   * "ainda sem relatório"). Os perfis estão em `PERFIS_L2`: `cheio` (29 dias de relatório, 11 com impressão, 8 vazios, 10 `listado`),
+   * `curto` (2 dias), `parado` (29 relatórios vazios e diário de zeros) e, além do brief, `ativo` (como `cheio`, mas sem CTR nulo e com views na
+   * maioria dos longos: a mediana de views por dia não é zero) e `velho` (como `cheio`, terminando 12 dias antes do relógio: a coleta "parou").
+   */
+  ownL2?: OwnL2
 }
+export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas' | 'retencao' | 'recente'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
 export const CANAL_COMPLETO = { canal: 'matt-wolfe', fixadoAntigo: 'matt-wolfe-l150', shortNulo: 'matt-wolfe-l5', comentariosNulo: 'matt-wolfe-l6', semData: 'canal-completo-sem-data' } as const
 export type NicheTone = 'ameixa' | 'rosa' | 'lima' | 'ardosia'
@@ -252,6 +260,8 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
   // cascades: competitor_videos → versions, daily; snapshots
   await check('delete competitor_channels', sb.from('competitor_channels').delete().eq('site_id', siteId))
   await check('delete competitor_settings', sb.from('competitor_settings').delete().eq('site_id', siteId))
+  // as tabelas privadas do canal próprio (FK `on delete restrict` para youtube_channels): só as dos canais que a semente escreve
+  await clearOwnL2(siteId, sb, ownIds)
   await check('delete youtube_videos', sb.from('youtube_videos').delete().eq('site_id', siteId).in('channel_id', ownIds))
   await check('delete youtube_channels', sb.from('youtube_channels').delete().eq('site_id', siteId).in('id', ownIds))
   // last (the FKs demand it): the niches the owner created. Viagem and IA stay (every site has them). A niche still
@@ -269,6 +279,292 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
  */
 export async function resetViewerPrefs(siteId: string, client?: SupabaseClient): Promise<void> {
   await check('delete competitor_user_prefs', clientOf(client).from('competitor_user_prefs').delete().eq('site_id', siteId))
+}
+
+/* ------------------------------------------------------------------ dado privado do canal próprio (L2) */
+/**
+ * Apaga as tabelas privadas (alcance, diário, relatórios, jobs) dos canais próprios que a semente escreve (`ownIds`): nada mais.
+ * Vem ANTES de apagar youtube_channels (a chave de yt_own_video_* é `on delete restrict`). Só no banco local (clientOf).
+ */
+export async function clearOwnL2(siteId: string, client?: SupabaseClient, ownIds?: string[]): Promise<void> {
+  const sb = clientOf(client)
+  const ids = ownIds ?? ['tnfigueiredo', ...OWN_EXTRA_IDS].map(id => ownSeedUuid(siteId, id))
+  for (const t of ['yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
+    await check('delete ' + t, sb.from(t).delete().eq('site_id', siteId).in('channel_id', ids))
+  }
+}
+
+/** Um perfil de dado privado. `relatorios`: um caractere por dia, do mais antigo ao mais novo (I = baixado com impressões, V = vazio, L = listado, nunca baixado). */
+interface PerfilL2 {
+  /** dias entre o último dia coletado (dia do YouTube, Pacífico) e o relógio do oráculo */
+  fimDias: number
+  relatorios: string
+  /** um vídeo, num dia com impressão, vem sem CTR */
+  ctrNulo: boolean
+  diarioDias: number
+  /** `tres`: só os três longos mais novos têm views; `maioria`: metade dos longos; `zeros`: nenhuma view */
+  diario: 'tres' | 'maioria' | 'zeros'
+  /** somado às impressões de toda linha de alcance: números grandes (e improváveis) para a prova do usuário só de leitura e para o layout a 390 px */
+  impBase?: number
+  /** quantos dos longos MAIS ANTIGOS têm só 5 dias de diário (menos de 7: fora da mediana de views por dia), com views altas para o filtro fazer diferença */
+  diarioCurtos?: number
+  /** o primeiro longo entre os 6 vídeos com alcance fica SEM nenhuma linha de diário (impressões sem views por dia) */
+  semDiarioPrimeiro?: boolean
+  /** uma linha de alcance de um vídeo que NÃO existe em youtube_videos (video_id nulo, id só no relatório): detector de vazamento do id cru */
+  orfao?: boolean
+  /** `retencao`: alcance e diário DESENHADOS, vídeo a vídeo, para a aba Retenção e para a tela do vídeo (veja MAPA_RETENCAO e `linhasAlcanceRetencao`) */
+  mapa?: 'retencao'
+  /**
+   * `recente`: o relatório vai até HOJE (D). Dois longos antigos (`a` = o mais novo e `b` = o seguinte, entre os de 35 dias ou mais; `ytIdsAlcance` devolve [a, b]) têm impressão em todo relatório baixado, EXCETO o de D-1, em que só o `b`
+   * aparece: o `a` fica sem linha num dia lido (hachurado, "o YouTube não entregou o dia"), o `b` mostra o valor, D-2 é lido e vazio (zero medido) e D é lido e vazio (hachurado).
+   */
+  recente?: true
+}
+/** Os dois vídeos do perfil `recente` (escolhidos entre os longos com 35 dias ou mais de vida, os dois mais novos), e o valor do `b` em D-1. */
+export const RECENTE_IMP_B_EM_D1 = 77
+/** O id do vídeo que só existe no relatório de alcance do perfil `grande` (sem linha em youtube_videos). */
+export const ORFAO_YT_ID = 'orfaoRel001'
+const REL_CHEIO = 'ILIVVILIVVLIVLIIVLILLILVILVLI'.slice(0, 29)
+export const PERFIS_L2: Record<OwnL2, PerfilL2> = {
+  cheio: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: true, diarioDias: 28, diario: 'tres' },
+  curto: { fimDias: 3, relatorios: 'IV', ctrNulo: false, diarioDias: 2, diario: 'tres' },
+  parado: { fimDias: 3, relatorios: 'V'.repeat(29), ctrNulo: false, diarioDias: 28, diario: 'zeros' },
+  ativo: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria' },
+  velho: { fimDias: 12, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'tres' },
+  grande: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', impBase: 2713, orfao: true },
+  lacunas: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', diarioCurtos: 4, semDiarioPrimeiro: true },
+  retencao: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'tres', mapa: 'retencao' },
+  // 29 relatórios até hoje: os 25 primeiros alternam I/V; D-3 = I, D-2 = V (zero medido), D-1 = I (só o vídeo `b`), D = V (recente, hachurado)
+  recente: { fimDias: 0, relatorios: 'IV'.repeat(13).slice(0, 25) + 'IVIV', ctrNulo: false, diarioDias: 28, diario: 'tres', recente: true },
+}
+
+/** Os vídeos do canal `tnfigueiredo` do oráculo que o perfil `retencao` usa (ids do YouTube; a semente falha alto se o oráculo mudar). */
+export const RET = {
+  /** longo publicado há 2 dias do relógio do oráculo: depois do último dia coletado, então "vídeo novo" (sem dia de alcance nem de diário válido) */
+  novo: 'RPdOoDA127j',
+  /** longo de 886 s: UM dia de alcance com 18 impressões e 2 cliques estimados (taxa 11,1%, de 3,1% a 32,8%: "ainda não conclui") */
+  magro: 'Fv7Orf5gRqx',
+  /** longo de 554 s: volume alto (taxa de 6,6% contra a do canal): veredito "acima"; no dia 2 do relatório é o único com impressão (19.983, 1.139 cliques) ao lado de um dia não medido */
+  volumeAlto: 'DvP4RC_VIjz',
+  /** curto com volume alto e taxa baixa (3%): puxa a taxa do canal para baixo para o vídeo acima se separar dela */
+  volumeBaixo: 'yDSmNLUJxTZ',
+  /** curto publicado há 14 dias: taxa de clique perto de 0% (0,1%): a faixa colada no começo do eixo */
+  taxaBaixa: 'yXGNu4kxWgP',
+  /** curto de 167 dias: dois dias de alcance com taxa de 97%: a faixa colada no fim do eixo (dado extremo, só para a medida de layout) */
+  taxaAlta: 'dNVq3MzoX4L',
+} as const
+/** O dia (índice no relatório) do alcance de 18 impressões do vídeo magro e o dia do 1.139: ambos depois da publicação de cada um. */
+export const RET_DIA_MAGRO = 24
+export const RET_DIA_1139 = 2
+export const RET_1139 = { imp: 19983, ctr: 0.057 } as const
+export const RET_MAGRO = { imp: 18, ctr: 0.1111 } as const
+export interface VideoRetencao {
+  yt: string
+  /** % assistido de todo dia com view (pontos; 112,5 passa de 100) */
+  pct: number
+  /** o diário só cobre os últimos N dias (os de antes não têm linha) */
+  ultimosDias?: number
+  /** só estas views por dia-índice (resto zero medido): o vídeo com menos de 10 views na janela */
+  poucas?: Record<number, number>
+  /** um dia (índice 0..27) com este % acima de 100, com views */
+  diaCem?: { dia: number; pct: number }
+}
+/**
+ * Faixa "5 a 15 min": 5 vídeos com views (normal 50 = a mediana de 38, 45, 50, 52, 53: 52 fica a 2 pontos, "na média"; 53 a 3, "acima"), mais um com 7 views.
+ * Faixa "Acima de 15 min": só 4 vídeos com views ("poucos vídeos para comparar (4; precisa de 5)"); um passa de 100% sempre e outro tem um dia de 139,38%.
+ */
+export const MAPA_RETENCAO: readonly VideoRetencao[] = [
+  { yt: 'Fv7Orf5gRqx', pct: 50 },
+  { yt: 'DvP4RC_VIjz', pct: 52 },
+  { yt: 'cY76nv73Qkf', pct: 53 },
+  { yt: 'lqqH14-w84j', pct: 38 },
+  { yt: 'zSvhy3lJc4u', pct: 45, ultimosDias: 14 },
+  { yt: 'YSsFxMlqbOA', pct: 61, poucas: { 20: 2, 22: 3, 25: 2 } },
+  { yt: 'DNxcPR2DNIV', pct: 60, diaCem: { dia: 20, pct: 139.38 } },
+  { yt: 'F1llCrDzvR2', pct: 55 },
+  { yt: 'xsi7iiX5Hvd', pct: 112.5 },
+  { yt: 'bsUv93jytXZ', pct: 41 },
+]
+/** Alcance do perfil `retencao` num dia baixado (índice `i` do relatório): [índice em `ids`, impressões, CTR]. */
+function linhasAlcanceRetencao(i: number): Array<[string, number, number]> {
+  if (i === RET_DIA_1139) return [[RET.volumeAlto, RET_1139.imp, RET_1139.ctr]]
+  const l: Array<[string, number, number]> = [
+    [RET.volumeAlto, 700 + ((i * 37) % 300), 0.085],
+    [RET.volumeBaixo, 2000 + ((i * 53) % 500), 0.03],
+  ]
+  if (i >= 18) l.push([RET.taxaBaixa, 120 + ((i * 11) % 60), 0.001])
+  if (i === 14 || i === 15) l.push([RET.taxaAlta, 40, 0.97])
+  if (i === RET_DIA_MAGRO) l.push([RET.magro, RET_MAGRO.imp, RET_MAGRO.ctr])
+  return l
+}
+/** % assistido de um dia e a duração média em segundos (a coluna é `numeric`; nulos num dia sem view, como na coleta). */
+function assistidoDoDia(pct: number, durSeg: number): { avg_view_percentage: number; avg_view_duration_seconds: number } {
+  return { avg_view_percentage: Math.round(pct * 100) / 100, avg_view_duration_seconds: Math.round((pct / 100) * durSeg * 100) / 100 }
+}
+const PACIFICO = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
+/** O dia do YouTube (Pacífico) em que o instante cai: o mesmo `hoje` que as páginas usam. */
+export function diaYoutube(ms: number): string {
+  const p = PACIFICO.formatToParts(new Date(ms)), v = (t: string) => p.find(x => x.type === t)!.value
+  return `${v('year')}-${v('month')}-${v('day')}`
+}
+export function somaDias(dia: string, n: number): string {
+  const [y, m, d] = dia.split('-').map(Number)
+  return new Date(Date.UTC(y!, m! - 1, d! + n)).toISOString().slice(0, 10)
+}
+/** O id (do oráculo) do primeiro canal próprio do preset: o dono do dado privado. */
+function primeiroProprio(preset?: OwnPreset): string { return preset ? OWN_PRESETS[preset].ids[0]! : 'tnfigueiredo' }
+
+/**
+ * Semeia o dado privado de UM canal próprio (o primeiro do preset), tudo relativo ao relógio do oráculo. Substitui o que já houver
+ * (limpa as tabelas privadas antes). Os ytIds vêm dos vídeos que a semente já escreve em youtube_videos.
+ */
+export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPreset, client?: SupabaseClient): Promise<{ canalId: string; ytIdsAlcance: string[]; ytIdsDiario: string[]; ultimoDia: string; primeiroDia: string }> {
+  const P = PERFIS_L2[perfil]
+  if (!P) throw new Error('observatorio-seed: ownL2 desconhecido ' + JSON.stringify(perfil))
+  const sb = clientOf(client)
+  const { O } = loadOracleData(preset)
+  const oid = primeiroProprio(preset), canalId = ownSeedUuid(siteId, oid)
+  const vids = O.videos.filter(v => v.ch === oid).sort((a, b) => b.pub - a.pub || (a.ytId < b.ytId ? -1 : 1))
+  if (vids.length < 6) throw new Error('observatorio-seed: o canal ' + oid + ' tem menos de 6 vídeos no oráculo; ownL2 precisa de 6')
+  const vuuid = (v: OVideo) => seedUuid(siteId, 'own-video', v.id)
+  await clearOwnL2(siteId, sb)
+
+  const ultimo = somaDias(diaYoutube(O.NOW), -P.fimDias)
+  const n = P.relatorios.length, primeiro = somaDias(ultimo, -(n - 1))
+  const pref = canalId.slice(0, 8)
+  await check('yt_reporting_jobs', sb.from('yt_reporting_jobs').insert({
+    site_id: siteId, channel_id: canalId, report_type_id: 'channel_reach_basic_a1', job_id: 'seed-job-' + pref, job_create_time: iso(O.NOW - 60 * DAY),
+    status: 'ativo', last_listed_at: iso(O.NOW - P.fimDias * DAY), last_create_time: iso(O.NOW - P.fimDias * DAY),
+  }))
+  const seis = vids.slice(0, 6)
+  const porYt = new Map(vids.map(v => [v.ytId, v]))
+  if (P.mapa === 'retencao') {
+    // o perfil desenhado depende destes vídeos do oráculo: se o oráculo mudar, falha alto em vez de semear outra coisa
+    for (const yt of [...Object.values(RET), ...MAPA_RETENCAO.map(m => m.yt)]) if (!porYt.has(yt)) throw new Error('observatorio-seed: o perfil retencao precisa do vídeo ' + yt + ' no canal ' + oid)
+  }
+  const reports: object[] = [], reach: object[] = []
+  for (let i = 0; i < n; i++) {
+    const dia = somaDias(primeiro, i), kind = P.relatorios[i]!
+    const id = `seed-${pref}-${dia}`, create = `${somaDias(dia, 1)}T09:00:00Z`
+    reports.push({
+      report_id: id, site_id: siteId, job_id: 'seed-job-' + pref, channel_id: canalId, report_type_id: 'channel_reach_basic_a1',
+      start_time: `${dia}T07:00:00Z`, end_time: `${somaDias(dia, 1)}T07:00:00Z`, create_time: create, download_url: 'https://example.invalid/seed/' + id, is_backfill: false,
+      status: kind === 'I' ? 'baixado' : kind === 'V' ? 'vazio' : 'listado', row_count: kind === 'I' ? 1 : kind === 'V' ? 0 : null,
+      downloaded_at: kind === 'L' ? null : create, normalized_at: kind === 'L' ? null : create,
+    })
+    if (kind !== 'I') continue
+    if (P.recente) {
+      const antigos = vids.filter(v => v.fmt === 'long' && v.ageDays >= 35)
+      if (antigos.length < 2) throw new Error('observatorio-seed: o perfil recente precisa de 2 longos com 35 dias ou mais no canal ' + oid)
+      const [a, b] = antigos as [OVideo, OVideo]
+      const dB = dia === somaDias(ultimo, -1)
+      const linhas: Array<[OVideo, number, number]> = dB ? [[b, RECENTE_IMP_B_EM_D1, 0.1]] : [[a, 30 + (i % 7), 0.05], [b, 50 + (i % 9), 0.08]]
+      for (const [v, imp, ctr] of linhas) {
+        reach.push({
+          youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, thumbnail_impressions: imp, thumbnail_ctr: ctr,
+          source_report_id: id, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
+        })
+      }
+      continue
+    }
+    if (P.mapa === 'retencao') {
+      for (const [yt, imp, ctr] of linhasAlcanceRetencao(i)) {
+        const v = porYt.get(yt)!
+        reach.push({
+          youtube_video_id: yt, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, thumbnail_impressions: imp, thumbnail_ctr: ctr,
+          source_report_id: id, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
+        })
+      }
+      continue
+    }
+    const quantos = 1 + (i % 3), inicio = i % 6
+    // o dia anterior à publicação não existe para o vídeo: nenhum relatório real traz linha dele antes de ser publicado (as telas cortam por isso).
+    // Um relatório "baixado" nunca fica sem linha: se todos os escolhidos ainda não existiam naquele dia, entra o primeiro da fila que já existia.
+    const escolhidos = Array.from({ length: quantos }, (_, j) => seis[(inicio + j) % 6]!).filter(v => dia >= diaYoutube(v.pub))
+    if (escolhidos.length === 0) {
+      const primeiro = Array.from({ length: 6 }, (_, j) => seis[(inicio + quantos + j) % 6]!).find(v => dia >= diaYoutube(v.pub))
+      if (primeiro) escolhidos.push(primeiro)
+    }
+    for (const v of escolhidos) {
+      const vi = seis.indexOf(v)
+      reach.push({
+        youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId,
+        thumbnail_impressions: (P.impBase ?? 0) + 40 + ((i * 37 + vi * 91) % 260),
+        thumbnail_ctr: P.ctrNulo && i === 11 && v === escolhidos[0] ? null : (20 + ((i * 7 + vi * 13) % 55)) / 1000,
+        source_report_id: id, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
+      })
+    }
+  }
+  if (P.orfao) {
+    const i = [...P.relatorios].findIndex(k => k === 'I'), dia = somaDias(primeiro, i), create = `${somaDias(dia, 1)}T09:00:00Z`
+    reach.push({
+      youtube_video_id: ORFAO_YT_ID, day_pt: dia, site_id: siteId, video_id: null, channel_id: canalId, thumbnail_impressions: 3571, thumbnail_ctr: 0.0333,
+      source_report_id: `seed-${pref}-${dia}`, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
+    })
+  }
+  await insertAll(sb, 'yt_reporting_reports', reports)
+  await insertAll(sb, 'yt_own_video_reach_daily', reach)
+
+  // diário: os longos acompanhados (mais novo primeiro, no máximo 50, como o leitor), uma linha por dia (zero é medido)
+  const longos = vids.filter(v => v.fmt === 'long').slice(0, 50)
+  const comViews = P.diario === 'tres' ? 3 : P.diario === 'maioria' ? Math.floor(longos.length / 2) + 1 : 0
+  const diario: object[] = []
+  const semDiario = P.semDiarioPrimeiro ? seis.find(v => v.fmt === 'long') : undefined
+  if (P.semDiarioPrimeiro && !semDiario) throw new Error('observatorio-seed: semDiarioPrimeiro precisa de um vídeo longo entre os 6 com alcance')
+  if (P.mapa === 'retencao') {
+    MAPA_RETENCAO.forEach((m, mi) => {
+      const v = porYt.get(m.yt)!, durSeg = durSeconds(v.dur)
+      for (let d = 0; d < P.diarioDias; d++) {
+        if (m.ultimosDias != null && d < P.diarioDias - m.ultimosDias) continue
+        const dia = somaDias(ultimo, -(P.diarioDias - 1 - d))
+        const views = m.poucas ? (m.poucas[d] ?? 0) : (d + mi) % 4 !== 0 ? 15 + ((d * 29 + mi * 47) % 70) : 0
+        const pct = m.diaCem && m.diaCem.dia === d ? m.diaCem.pct : m.pct
+        diario.push({
+          youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, views, source: 'analytics_api', metric_version: 'views_desde_2026-08-27',
+          ...(views > 0 ? assistidoDoDia(pct, durSeg) : { avg_view_percentage: null, avg_view_duration_seconds: null }),
+        })
+      }
+    })
+    await insertAll(sb, 'yt_own_video_daily', diario)
+    return { canalId, ytIdsAlcance: [...new Set(reach.map(r => (r as { youtube_video_id: string }).youtube_video_id))], ytIdsDiario: MAPA_RETENCAO.map(m => m.yt), ultimoDia: ultimo, primeiroDia: primeiro }
+  }
+  for (let d = 0; d < P.diarioDias; d++) {
+    const dia = somaDias(ultimo, -(P.diarioDias - 1 - d))
+    longos.forEach((v, li) => {
+      if (semDiario && v.ytId === semDiario.ytId) return
+      const curto = li >= longos.length - (P.diarioCurtos ?? 0)
+      if (curto && d < P.diarioDias - 5) return
+      const views = curto ? 400 + ((d * 13 + li * 7) % 90) : li < comViews && (d + li) % 4 !== 0 ? 15 + ((d * 29 + li * 47) % 70) : 0
+      // % assistido e duração média: nulos em dia sem view (como na coleta); o segundo vídeo tem UM dia acima de 100% (trecho revisto)
+      const pct = li === 1 && d === P.diarioDias - 10 ? 139.38 : 30 + ((li * 11 + d * 3) % 45)
+      diario.push({
+        youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, views, source: 'analytics_api', metric_version: 'views_desde_2026-08-27',
+        ...(views > 0 ? assistidoDoDia(pct, durSeconds(v.dur)) : { avg_view_percentage: null, avg_view_duration_seconds: null }),
+      })
+    })
+  }
+  await insertAll(sb, 'yt_own_video_daily', diario)
+  const ytIdsAlcance = P.recente ? vids.filter(v => v.fmt === 'long' && v.ageDays >= 35).slice(0, 2).map(v => v.ytId) : seis.map(v => v.ytId)
+  return { canalId, ytIdsAlcance, ytIdsDiario: longos.map(v => v.ytId), ultimoDia: ultimo, primeiroDia: primeiro }
+}
+
+/**
+ * Põe a data de publicação dos vídeos de um canal próprio em `data do oráculo - dias` (valor ABSOLUTO, a partir do relógio do oráculo: rodar duas vezes dá o mesmo
+ * resultado, ao contrário de um deslocamento sobre o valor atual). Só no banco local. Devolve a publicação mais nova gravada (ms), para o teste conferir a janela.
+ */
+export async function fixarPublicacaoProprio(siteId: string, canalOracle: string, dias: number, preset?: OwnPreset, client?: SupabaseClient): Promise<number> {
+  const sb = clientOf(client)
+  const { O } = loadOracleData(preset)
+  const canal = ownSeedUuid(siteId, canalOracle)
+  const vids = O.videos.filter(v => v.ch === canalOracle)
+  if (!vids.length) throw new Error('observatorio-seed: o canal ' + canalOracle + ' não tem vídeos no oráculo')
+  let maisNovo = 0
+  for (const v of vids) {
+    const alvo = v.pub - dias * DAY
+    maisNovo = Math.max(maisNovo, alvo)
+    await check('fixarPublicacaoProprio', sb.from('youtube_videos').update({ published_at: iso(alvo) }).eq('site_id', siteId).eq('channel_id', canal).eq('youtube_video_id', v.ytId))
+  }
+  return maisNovo
 }
 
 /* ------------------------------------------------------------------ seed */
@@ -512,4 +808,6 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
       { site_id: siteId, last_poll_at: iso(machinePoll), capabilities: ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] },
       { onConflict: 'site_id' }))
   }
+  // dado privado do primeiro canal próprio do preset (os canais e vídeos acima já existem)
+  if (opts.ownL2) await seedOwnL2(siteId, opts.ownL2, opts.ownPreset, sb)
 }

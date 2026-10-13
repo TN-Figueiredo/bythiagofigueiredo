@@ -11,12 +11,15 @@ import type { CanalSort } from '@/lib/youtube/observatorio/links'
 import { notaDoDivisor } from './grade'
 import type { ListaView } from './lista'
 import type { CanalState } from './params'
+import { ehProprio } from '../_proprio/eh-proprio'
 import { AGUARDANDO, type ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
 
 /** Coluna ordenável -> ordenação (a mesma do select "Ordenar"). */
 const COLUNAS: Array<[CanalSort, string]> = [['recentes', 'Publicado'], ['vistos', 'Views'], ['vpd', 'Views/dia'], ['multiplo', 'Múltiplo']]
-const NCOLS = 9   // Vídeo, as quatro ordenáveis, Curtidas, Comentários, Trocas, Ações
+/** Canal próprio (spec 16.4): Impressões no lugar de Views/dia; no fim, Cliques no lugar de Trocas. */
+const COLUNAS_PROPRIO: Array<[CanalSort, string]> = [['recentes', 'Publicado'], ['vistos', 'Views'], ['imp', 'Impressões'], ['multiplo', 'Múltiplo']]
+const NCOLS = 9   // Vídeo, as quatro ordenáveis, Curtidas, Comentários, Trocas (ou Cliques), Ações
 
 function Seta({ dir }: { dir: 'asc' | 'desc' }) {
   return (
@@ -26,12 +29,12 @@ function Seta({ dir }: { dir: 'asc' | 'desc' }) {
   )
 }
 
-function Cabecalho({ state, onSort }: { state: CanalState; onSort: (s: CanalSort) => void }) {
+function Cabecalho({ state, onSort, proprio }: { state: CanalState; onSort: (s: CanalSort) => void; proprio: boolean }) {
   return (
     <thead>
       <tr>
         <th scope="col">Vídeo</th>
-        {COLUNAS.map(([sort, nome]) => {
+        {(proprio ? COLUNAS_PROPRIO : COLUNAS).map(([sort, nome]) => {
           const on = state.sort === sort
           return (
             <th key={sort} scope="col" className="r" aria-sort={on ? (state.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
@@ -41,7 +44,7 @@ function Cabecalho({ state, onSort }: { state: CanalState; onSort: (s: CanalSort
         })}
         <th scope="col" className="r">Curtidas</th>
         <th scope="col" className="r">Comentários</th>
-        <th scope="col" className="r">Trocas</th>
+        <th scope="col" className="r">{proprio ? 'Cliques' : 'Trocas'}</th>
         <th scope="col"><span className="obs-ch-sr">Ações</span></th>
       </tr>
     </thead>
@@ -49,6 +52,8 @@ function Cabecalho({ state, onSort }: { state: CanalState; onSort: (s: CanalSort
 }
 
 const Nm = ({ children }: { children: string }) => <span className="obs-ch-nm">{children}</span>
+/** Zero medido: o alcance foi lido e o vídeo não apareceu em nenhum dia medido. A caixa vazada do gráfico, nunca a hachura de "não medido". */
+const Zero = () => <span className="obs-ch-zero">0<span className="obs-ch-sr"> (zero medido)</span></span>
 
 /** O que a célula diz quando não há views por dia nem múltiplo: o motivo, em poucas palavras (mockup `linha`). */
 function semMedida(v: ChannelVideoView): string {
@@ -89,7 +94,11 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
         {v.pub == null ? <Nm>sem data</Nm> : <time dateTime={v.pubISO ?? undefined}>{v.ageText}<span className="obs-ch-sr"> ({v.pubTitle})</span></time>}
       </td>
       <td className={'r num' + on('vistos')} data-label="Views">{v.viewsText ?? <Nm>{v.viewsMissing ?? 'sem contagem'}</Nm>}</td>
-      <td className={'r num' + on('vpd')} data-label="Views/dia">{v.vpdText ?? <Nm>{sem}</Nm>}</td>
+      {ehProprio(v) ? (
+        <td className={'r num' + on('imp')} data-label="Impressões">{v.impText ?? (v.semImpressao ? <Zero /> : <Nm>{v.impMissing ?? 'não medido'}</Nm>)}</td>
+      ) : (
+        <td className={'r num' + on('vpd')} data-label="Views/dia">{v.vpdText ?? <Nm>{sem}</Nm>}</td>
+      )}
       <td className={'r num' + on('multiplo')} data-label="Múltiplo">
         {v.multText != null
           ? <span className={v.multTier ? 't-' + v.multTier : undefined}>{v.multText}{v.multWord ? <> <span className="lv">{v.multWord}</span></> : null}</span>
@@ -97,14 +106,18 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
       </td>
       <td className="r num" data-label="Curtidas">{v.likesText ?? <Nm>não medido</Nm>}</td>
       <td className="r num" data-label="Comentários">{v.commentsText ?? <Nm>não medido</Nm>}</td>
-      <td className="r num" data-label="Trocas">{v.aguardando ? <Nm>{AGUARDANDO}</Nm> : v.swaps}</td>
+      {ehProprio(v)
+        ? <td className="r num" data-label="Cliques">{v.cliquesText ?? (v.semImpressao ? <Zero /> : <Nm>{v.cliquesMissing ?? 'não medido'}</Nm>)}</td>
+        : <td className="r num" data-label="Trocas">{v.aguardando ? <Nm>{AGUARDANDO}</Nm> : v.swaps}</td>}
       <td className="a"><VideoMenu v={v} onAmpliar={onAmpliar} onTrocas={onTrocas} /></td>
     </tr>
   )
 }
 
-export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar, onTrocas }: {
+export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar, onTrocas, proprio = false }: {
   lista: ListaView; state: CanalState; nome: string
+  /** A Lista do canal próprio: colunas Impressões e Cliques. */
+  proprio?: boolean
   /** O id da nota fixa da tela, que descreve a tabela. */
   descrito?: string
   hrefDe: (v: ChannelVideoView) => string
@@ -115,7 +128,7 @@ export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar
     <div className="cv-tw">
       <table className="cv-lst" aria-describedby={descrito}>
         <caption className="obs-ch-sr">Vídeos de {nome}</caption>
-        <Cabecalho state={state} onSort={onSort} />
+        <Cabecalho state={state} onSort={onSort} proprio={proprio} />
         {lista.secoes.map((s, i) => (
           <tbody key={s.divisor?.key ?? 'main' + i}>
             {s.divisor ? (

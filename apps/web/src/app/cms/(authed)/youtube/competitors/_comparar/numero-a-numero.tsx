@@ -131,6 +131,8 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
   const mediana = par.conjunto.tipo === 'nicho' ? 'No nicho' : 'No geral'
   const comprimidas = par.linhas.filter(l => reguas.get(l.id)?.comprimida).map(l => l.nome)
   const [ca, cb] = par.cores
+  // "Views por dia nos longos": o canal seu mede 28 dias do diário e o concorrente, desde o começo da série dele; com um canal seu de um lado só, as janelas diferem
+  const janelasDiferentes = par.a.own !== par.b.own && par.linhas.some(l => l.id === 'vpd')
   return (
     <section className="cp-sec" aria-labelledby={titulo}>
       <h2 id={titulo}>
@@ -178,6 +180,12 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
           ))}
         </table>
       </div>
+      {janelasDiferentes ? (
+        <p className="cp-aviso" data-janelas-aviso="">
+          <span className="cp-aviso-i" aria-hidden="true">{Icon.info()}</span>
+          <span>As duas janelas de tempo são diferentes: 28 dias de um lado, desde {pack.serieDesde} do outro. Maior não quer dizer melhor: são canais de tamanhos diferentes.</span>
+        </p>
+      ) : null}
       <p className="cp-n">{par.rodape}</p>
     </section>
   )

@@ -7,9 +7,13 @@ describe('estado da página do canal na URL', () => {
     const s = { ...CANAL_DEFAULT, tab: 'trocas' as const, video: 'v1' }
     expect(parseCanalState(Object.fromEntries(new URLSearchParams(canalQuery(s))))).toEqual(s)
   })
-  it('parâmetros inválidos caem no padrão, sem erro', () => {
+  it('parâmetros inválidos caem no padrão, sem erro (canal de concorrente: retencao e imp também são inválidos)', () => {
     const s = parseCanalState({ tab: 'retencao', fmt: 'xyz', sort: 'imp', dir: 'cima', ver: 'mosaico', n: '-5', nums: '2' })
     expect(s).toEqual(CANAL_DEFAULT)
+  })
+  it('canal próprio: retencao e imp valem; fixados e vpd não', () => {
+    expect(parseCanalState({ tab: 'retencao', sort: 'imp' }, { own: true })).toEqual({ ...CANAL_DEFAULT, tab: 'retencao', sort: 'imp' })
+    expect(parseCanalState({ fmt: 'fixados', sort: 'vpd' }, { own: true })).toEqual(CANAL_DEFAULT)
   })
   it('n vira o múltiplo de 40 abaixo e tem teto', () => {
     expect(parseCanalState({ n: '37' }).n).toBe(0)

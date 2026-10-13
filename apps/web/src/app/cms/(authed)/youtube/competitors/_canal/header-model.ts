@@ -34,6 +34,74 @@ export interface CanalHeaderView {
 
 const WAIT = 'quando a sincronização terminar'
 
+/** O que uma célula recebe para ser montada: `value` null = sem dado (a frase vai em `missing`). */
+export interface CellInput { value: string | null; missing: string; n?: number | null; base: string }
+export type MakeCell = (key: string, label: string, v: CellInput) => NumCell
+
+/** Em sincronização inicial nenhuma célula (fora os inscritos) tem número: a frase única, e a base segue escrita. `weakBase` marca "n = k". */
+export function makeCell(backfill: boolean, weakBase: number): MakeCell {
+  const weak = (n: number) => (n < weakBase ? `n = ${n}` : null)
+  return (key, label, v) => {
+    if (backfill && key !== 'subs') return { key, value: null, missing: WAIT, label, n: null, base: v.base }
+    if (v.value == null) return { key, value: null, missing: v.missing, label, n: null, base: v.base }
+    return { key, value: v.value, missing: null, label, n: v.n != null ? weak(v.n) : null, base: v.base }
+  }
+}
+
+/** Inscritos: a contagem do YouTube, ou a frase de "inscritos ocultos". Dividida com o cabeçalho do canal próprio. */
+export function celulaInscritos(ch: Pick<ObsChannel, 'subs'>, F: Observatory['fmt'], cell: MakeCell): NumCell {
+  return cell('subs', 'inscritos', {
+    value: ch.subs == null ? null : F.subs(ch.subs), missing: 'inscritos ocultos pelo canal',
+    base: ch.subs == null ? 'o canal esconde a contagem de inscritos no YouTube' : 'arredondado pelo YouTube a 3 algarismos',
+  })
+}
+
+/** Inscritos em 30 dias a partir das duas contagens do canal; sem elas, "sem contagem de 30 dias atrás". Dividida com o cabeçalho do canal próprio. */
+export function celulaCrescimento30(obs: Observatory, ch: ObsChannel, g: ReturnType<Observatory['channelStats']>['growth30'], cell: MakeCell): NumCell {
+  const F = obs.fmt, D = obs.date
+  const gSnap = (t: number | undefined) => ch.snapshots.find(x => x.t === t)
+  const gFrom = gSnap(g.from), gTo = gSnap(g.to)
+  const gValue = g.pending ? null
+    : g.withinRounding ? '≈ 0'
+    : g.pct == null ? null
+    : g.pct === 0 ? '0,0%' : `${g.pct > 0 ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`
+  return cell('growth30', 'inscritos em 30 dias', {
+    value: gValue,
+    missing: g.pending ? 'sem contagem de 30 dias atrás' : 'sem percentual: o canal não tinha inscritos na contagem anterior',
+    base: g.pending
+      ? `precisa de duas contagens de inscritos com 30 dias entre elas (${g.pending})`
+      : `de ${gFrom ? F.int(gFrom.subs) : '?'} em ${D.dm(g.from!)} para ${gTo ? F.int(gTo.subs) : '?'} em ${D.dm(g.to!)}; arredondamento do YouTube: ${g.roundingText}`,
+  })
+}
+
+/** A linha de sincronização, o aviso e o instante da última sincronização boa; `tail` é o que vai depois (a contagem de vídeos). Dividida com o cabeçalho do canal próprio. */
+export function sincronizacaoDoCanal(obs: Observatory, ch: ObsChannel, tail: string): CanalHeaderView['sync'] {
+  const D = obs.date
+  const s = ch.sync, last = s.last
+  const stamp = (t: number) => `${D.dm(t)} ${D.hm(t)}`
+  let tone: CanalHeaderView['sync']['tone'] = 'ok', text: string, banner: string | null = null, atText: string | null = null
+  if (s.state === 'backfill') {
+    const p = s.backfill
+    text = p ? `Sincronizando: ${p.done} de ${p.total} vídeos` : 'Sincronizando os vídeos do canal'
+    banner = `${p ? `Sincronizando: ${p.done} de ${p.total} vídeos` : 'Sincronizando os vídeos do canal'}. Os números aparecem quando a sincronização terminar.`
+  } else if (s.state === 'erro') {
+    tone = 'danger'
+    const reason = ch.sync.problemLabel ?? 'erro sem mensagem registrada'
+    atText = last == null ? null : stamp(last)
+    text = `Erro: ${reason}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `A última sincronização boa foi ${stamp(last)}.`}${tail}`
+    banner = `Erro: a última sincronização falhou${s.errorSince != null ? ` em ${stamp(s.errorSince)}` : ''}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `Os números são de ${D.dm(last)}.`}`
+  } else if (s.state === 'atrasado') {
+    tone = 'warn'
+    atText = last == null ? null : stamp(last)
+    text = last == null ? `Sincronização atrasada: este canal nunca sincronizou com sucesso${tail}` : `Sincronização atrasada: a última foi ${stamp(last)}${tail}`
+    banner = last == null ? 'Atenção: este canal nunca sincronizou com sucesso. A sincronização está atrasada.' : `Atenção: dados de ${stamp(last)}. A sincronização está atrasada.`
+  } else {
+    atText = last == null ? null : `${D.ago(last)} (${stamp(last)})`
+    text = last == null ? `Este canal nunca sincronizou com sucesso${tail}` : `Sincronizado ${atText}${tail}`
+  }
+  return { tone, text, banner, at: last == null || s.state === 'backfill' ? null : new Date(last).toISOString(), atText }
+}
+
 export function buildCanalHeader(obs: Observatory, channelId: string): CanalHeaderView | null {
   const ch: ObsChannel | undefined = obs.channel(channelId)
   if (!ch) return null
@@ -46,35 +114,12 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
 
   const SL = obs.channelStats(ch.id, 'long'), SS = obs.channelStats(ch.id, 'short')
   const kl = obs.cadence(ch.id, 'long'), ks = obs.cadence(ch.id, 'short')
-  const weak = (n: number) => (n < R.weakBase ? `n = ${n}` : null)
-
-  /** Em sincronização inicial nenhuma célula (fora os inscritos) tem número: a frase única, e a base segue escrita. */
-  const cell = (key: string, label: string, v: { value: string | null; missing: string; n?: number | null; base: string }): NumCell => {
-    if (backfill && key !== 'subs') return { key, value: null, missing: WAIT, label, n: null, base: v.base }
-    if (v.value == null) return { key, value: null, missing: v.missing, label, n: null, base: v.base }
-    return { key, value: v.value, missing: null, label, n: v.n != null ? weak(v.n) : null, base: v.base }
-  }
+  const cell = makeCell(backfill, R.weakBase)
 
   /* ---------------------------------------------------------------- faixa */
-  const subs = cell('subs', 'inscritos', {
-    value: ch.subs == null ? null : F.subs(ch.subs), missing: 'inscritos ocultos pelo canal',
-    base: ch.subs == null ? 'o canal esconde a contagem de inscritos no YouTube' : 'arredondado pelo YouTube a 3 algarismos',
-  })
+  const subs = celulaInscritos(ch, F, cell)
 
-  const g = SL.growth30
-  const gSnap = (t: number | undefined) => ch.snapshots.find(x => x.t === t)
-  const gFrom = gSnap(g.from), gTo = gSnap(g.to)
-  const gValue = g.pending ? null
-    : g.withinRounding ? '≈ 0'
-    : g.pct == null ? null
-    : g.pct === 0 ? '0,0%' : `${g.pct > 0 ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`
-  const growth30 = cell('growth30', 'inscritos em 30 dias', {
-    value: gValue,
-    missing: g.pending ? 'sem contagem de 30 dias atrás' : 'sem percentual: o canal não tinha inscritos na contagem anterior',
-    base: g.pending
-      ? `precisa de duas contagens de inscritos com 30 dias entre elas (${g.pending})`
-      : `de ${gFrom ? F.int(gFrom.subs) : '?'} em ${D.dm(g.from!)} para ${gTo ? F.int(gTo.subs) : '?'} em ${D.dm(g.to!)}; arredondamento do YouTube: ${g.roundingText}`,
-  })
+  const growth30 = celulaCrescimento30(obs, ch, SL.growth30, cell)
 
   const ritmo = cell('ritmo', 'longos + Shorts por semana', {
     value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`, missing: '',
@@ -200,28 +245,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   if (counts.undated) parts.push(`${counts.undated} sem data de publicação`)
   const tail = counts.total ? ` · ${noun(counts.total, 'vídeo', 'vídeos')}: ${parts.join(', ')}` : ' · nenhum vídeo guardado'
 
-  const s = ch.sync, last = s.last
-  const stamp = (t: number) => `${D.dm(t)} ${D.hm(t)}`
-  let tone: CanalHeaderView['sync']['tone'] = 'ok', text: string, banner: string | null = null, atText: string | null = null
-  if (s.state === 'backfill') {
-    const p = s.backfill
-    text = p ? `Sincronizando: ${p.done} de ${p.total} vídeos` : 'Sincronizando os vídeos do canal'
-    banner = `${p ? `Sincronizando: ${p.done} de ${p.total} vídeos` : 'Sincronizando os vídeos do canal'}. Os números aparecem quando a sincronização terminar.`
-  } else if (s.state === 'erro') {
-    tone = 'danger'
-    const reason = ch.sync.problemLabel ?? 'erro sem mensagem registrada'
-    atText = last == null ? null : stamp(last)
-    text = `Erro: ${reason}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `A última sincronização boa foi ${stamp(last)}.`}${tail}`
-    banner = `Erro: a última sincronização falhou${s.errorSince != null ? ` em ${stamp(s.errorSince)}` : ''}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `Os números são de ${D.dm(last)}.`}`
-  } else if (s.state === 'atrasado') {
-    tone = 'warn'
-    atText = last == null ? null : stamp(last)
-    text = last == null ? `Sincronização atrasada: este canal nunca sincronizou com sucesso${tail}` : `Sincronização atrasada: a última foi ${stamp(last)}${tail}`
-    banner = last == null ? 'Atenção: este canal nunca sincronizou com sucesso. A sincronização está atrasada.' : `Atenção: dados de ${stamp(last)}. A sincronização está atrasada.`
-  } else {
-    atText = last == null ? null : `${D.ago(last)} (${stamp(last)})`
-    text = last == null ? `Este canal nunca sincronizou com sucesso${tail}` : `Sincronizado ${atText}${tail}`
-  }
+  const sync = sincronizacaoDoCanal(obs, ch, tail)
 
   const all = [...vids.map(v => v.isShort), ...undated.map(u => u.isShort)]
   const nLong = all.filter(x => x === false).length, nShort = all.filter(x => x === true).length, nUnk = all.filter(x => x == null).length
@@ -233,6 +257,6 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, handle: ch.handle ? ch.handle : null, url: ch.url,
     faixa: [subs, growth30, ritmo, vpd, engajamento, acima2x],
     todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMedianaCell, viewsSomadas, medianaViews, tema],
-    sync: { tone, text, banner, at: last == null || s.state === 'backfill' ? null : new Date(last).toISOString(), atText }, counts, result, backfill: backfill ? s.backfill : null,
+    sync, counts, result, backfill: backfill ? ch.sync.backfill : null,
   }
 }

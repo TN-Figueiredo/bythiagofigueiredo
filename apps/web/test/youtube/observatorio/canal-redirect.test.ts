@@ -1,10 +1,12 @@
 // @vitest-environment node
-// Task 9: a página de Canais com ?channel=<concorrente> leva à página do canal; o painel só serve o canal próprio.
+// Task 9 (A3) e Tarefa 8 (A4): a página de Canais com ?channel=<canal> leva à página do canal, de concorrente ou PRÓPRIO com vídeos;
+// o painel lateral só abre para o que não tem página (nenhum caso hoje: o próprio sem vídeos abre a lista sem painel).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadOracleOwns, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 
-const obs = createObservatory(datasetFromOracle(loadOracleOwns('2')))
+const obsCheio = createObservatory(datasetFromOracle(loadOracleOwns('2')))
+let obs = obsCheio
 const COMP = 'luke-damant', OWN = 'tnfigueiredo'
 const CANAL = (id: string) => '/cms/youtube/competitors/canal/' + id
 
@@ -29,7 +31,7 @@ async function page(sp: Record<string, string | string[] | undefined>) {
   return CompetitorsPage({ searchParams: Promise.resolve(sp) })
 }
 
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => { vi.clearAllMocks(); obs = obsCheio })
 
 describe('Canais com ?channel=', () => {
   it('?channel=<concorrente> redireciona para a página do canal', async () => {
@@ -42,9 +44,22 @@ describe('Canais com ?channel=', () => {
     await expect(page({ channel: COMP, tab: 'outliers' })).rejects.toThrow('REDIRECT ' + CANAL(COMP))
     await expect(page({ channel: COMP, tab: 'trocas', niche: 'ia' })).rejects.toThrow('REDIRECT ' + CANAL(COMP))
   })
-  it('?channel=<canal próprio> NÃO redireciona: o painel abre como hoje', async () => {
+  it('?channel=<canal próprio com vídeos> redireciona para canal/<id> (A4, D9): o painel lateral não abre mais para ele', async () => {
     expect(obs.channel(OWN)!.own).toBe(true)
-    await expect(page({ channel: OWN })).resolves.toBeTruthy()
+    expect(obs.videos.some(v => v.ch === OWN)).toBe(true)
+    await expect(page({ channel: OWN })).rejects.toThrow('REDIRECT ' + CANAL(OWN))
+    await expect(page({ channel: OWN, tab: 'outliers' })).rejects.toThrow('REDIRECT ' + CANAL(OWN))
+    expect(CANAL(OWN)).toBe(obs.link.canal(OWN))
+  })
+  it('?channel=<canal próprio SEM vídeos> abre a lista sem painel e sem erro (canal sem vídeo não tem página, D10)', async () => {
+    const ds = datasetFromOracle(loadOracleOwns('2'))
+    ds.videos = ds.videos.filter(v => v.ch !== OWN)
+    for (const c of ds.channels) if (c.id === OWN) c.undated = []
+    obs = createObservatory(ds)
+    expect(obs.videos.some(v => v.ch === OWN)).toBe(false)
+    const el = await page({ channel: OWN }) as { props: { children: { props: { view: { drawer: unknown } } } } }
+    expect(obs.channel(OWN)!.own).toBe(true)
+    expect(el.props.children.props.view.drawer).toBeNull() // a lista abre sem o painel lateral
   })
   it('?channel=<id desconhecido> não redireciona nem dá erro (o painel some, como hoje)', async () => {
     await expect(page({ channel: 'nao-existe' })).resolves.toBeTruthy()

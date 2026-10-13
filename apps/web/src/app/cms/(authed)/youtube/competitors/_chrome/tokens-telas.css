@@ -3,17 +3,32 @@
 [data-obs]{
   --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;
   --lado-o:#FF8240;--lado-b:#7CC8F8;--lado-n:#D9C08F;--on-lado:#16130F;
-  --terco-baixo:#F2C14E;--im-cl:#38BDF8;--im-zero:#7A8FA6;
+  --terco-baixo:#F2C14E;--im-cl:#F5EFE6;--im-zero:#7A8FA6;
+  /* direção (só direção, sempre com forma e palavra): subindo/acima, descendo/abaixo, na média */
+  --dir-up:#22C55E;--dir-dn:#F59E0B;--dir-eq:#A89D88;
 }
 /* "não medido": a hachura é a forma, o rosa é o reforço. Sempre com o texto do motivo dentro ou ao lado. */
 [data-obs] .obs-ch-nm{display:inline-block;padding:1px 6px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);
   background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(229,156,192,.14) 6px 8px)}
 
 /* Tema claro: só os tokens que a página do canal usa (plano da A1, D7). Cor a confirmar com o dono. */
-[data-theme="light"] [data-obs]{--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC}
+[data-theme="light"] [data-obs]{--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--im-zero:#5B6F86}
 [data-theme="light"] [data-obs] .obs-ch-nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(142,42,98,.10) 6px 8px)}
+
+/* O QUADRADINHO de "não medido" (nm-q do cabeçalho, so-nm do cartão da comparação, a marca da leitura rápida e a legenda do gráfico): sem texto dentro,
+   a hachura É a forma, então a listra é a cor cheia (--nm) em 2 px, como o .nm-h do mockup de 12/10 (listra 7,76:1 contra o fundo no escuro). A pastilha
+   COM texto (.obs-ch-nm acima) pode ter listra fraca; o quadrado não. Fica DEPOIS das regras acima e com seletor de mesma força: o tema claro não a desfaz.
+   Os valores saem dos tokens (--nm, --nm-bg), que mudam com o tema; nada de color-mix. */
+[data-obs] .nm-q.obs-ch-nm,[data-obs] .so-nm.obs-ch-nm,[data-obs] .lr-s.nmk .obs-ch-nm,[data-obs] .ic-sw.nm.obs-ch-nm{
+  border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}
+[data-theme="light"] [data-obs] .nm-q.obs-ch-nm,[data-theme="light"] [data-obs] .so-nm.obs-ch-nm,[data-theme="light"] [data-obs] .lr-s.nmk .obs-ch-nm,[data-theme="light"] [data-obs] .ic-sw.nm.obs-ch-nm{
+  border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}
+
+/* ZERO MEDIDO (o dia/relatório foi lido e o número é 0): caixa vazada em --im-zero, a mesma do gráfico (.ic-zero); nunca a hachura de "não medido". */
+[data-obs] .obs-ch-zero{display:inline-block;min-width:1.7em;padding:0 5px;border:1.5px solid var(--im-zero);border-radius:3px;background:none;text-align:center;line-height:1.25}
 
 /* Cores dos lados no tema claro (plano da A3, Tarefa 7). As do tema escuro, sobre o cartão claro, ficam abaixo de 3:1 (laranja 2,5; azul 1,7):
    aqui são escurecidas até >= 3:1 como traço sobre --surface e >= 4,5:1 com a letra branca (--on-lado) em cima. Contraste calculado no teste
    regua-css.test.ts. O que separa os lados continua sendo o matiz, a letra A/B e o filete: a cor nunca é o único sinal. */
-[data-theme="light"] [data-obs]{--lado-o:#B8481A;--lado-b:#0B6BA8;--lado-n:#7A5C14;--on-lado:#FFFFFF}
+[data-theme="light"] [data-obs]{--lado-o:#B8481A;--lado-b:#0B6BA8;--lado-n:#7A5C14;--on-lado:#FFFFFF;--im-cl:#231C14}
+[data-theme="light"] [data-obs]{--dir-up:#11692F;--dir-dn:#8A5A00;--dir-eq:#5E5240}

@@ -364,7 +364,7 @@ describe('A3.2 bloco "Seus canais"', () => {
     expect(v.sort).toBe('vpd')
     for (const id of w.owns) {
       const l = cheia(v, id)
-      expect(l.frase).toBe('Ainda sem views por dia medidas: a coleta diária do seu canal começa em breve. Sem posição nesta ordenação.')
+      expect(l.frase).toBe('Ainda sem views por dia medidas: ainda não há coleta diária deste canal. Sem posição nesta ordenação.')
       expect(l.vizinhos).toBeNull()
       expect(byId(v, id).pos).toBeNull()
       expect(v.list.unranked.map(r => r.id)).toContain(id)
@@ -476,9 +476,9 @@ describe('A3.2 formato, filtro e busca', () => {
 })
 
 describe('A3.2 invariantes', () => {
-  it('invariante: toda linha cheia do bloco tem abrirHref = ownChannelHref(id) e o canal existe em list', () => {
+  it('invariante: toda linha cheia do bloco tem abrirHref = ownChannelHref(id) = a página do canal e o canal existe em list', () => {
     const mundos: Array<[string, OwnPreset]> = [['1', '1'], ['2', '2'], ['5', '5'], ['mix', 'mix'], ['zero', 'zero']]
-    expect(ownChannelHref('abc')).toBe(link.canais({ channel: 'abc' }))
+    expect(ownChannelHref('abc')).toBe(link.canal('abc')) // A4: a página do canal (na A3 era o painel, link.canais({ channel }))
     let linhas = 0
     for (const [, preset] of mundos) {
       const obs = a3World(undefined, preset).obs

@@ -3,9 +3,9 @@ import type { Fmt } from './types'
 
 export const OBS_BASE = '/cms/youtube/competitors'
 
-export type CanalTab = 'videos' | 'trocas' | 'leitura'
+export type CanalTab = 'videos' | 'trocas' | 'leitura' | 'retencao'
 export type CanalFmt = 'todos' | 'longos' | 'shorts' | 'fixados'
-export type CanalSort = 'recentes' | 'vistos' | 'multiplo' | 'vpd'
+export type CanalSort = 'recentes' | 'vistos' | 'multiplo' | 'vpd' | 'imp'
 export interface CanalLinkParams {
   tab?: CanalTab
   fmt?: CanalFmt
@@ -85,7 +85,9 @@ export const link = {
   /**
    * Link to canais screen.
    */
-  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts' }): string {
+  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts'
+    /** A lista já ordenada (maior primeiro) pelas duas ordenações que têm posição escrita: inscritos e views/dia. */
+    sort?: 'subs' | 'vpd' }): string {
     const cleaned = cleanLink(p)
     const query = buildQuery(cleaned)
     return OBS_BASE + query

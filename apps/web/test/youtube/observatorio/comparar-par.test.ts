@@ -103,9 +103,13 @@ describe('resolverPar', () => {
     const semData = pacoteDe([mk('eu-sem', { own: true, subs: 3000, ultimo: null }), mk('eu-ativo', { own: true, subs: 40, ultimo: A - 10 * DIA }), mk('ca', { subs: 5000 })])
     expect(resolverPar(semData, undefined, undefined, 'eu-sem')!.a).toBe('eu-ativo')
   })
-  it('13 (I-11c-2): canal próprio só com vídeos sem data não é candidato (como na lista: o motor não o conta)', () => {
+  it('13 (I-11c-2, critério único `canalTemVideos` da revisão da T9): canal próprio só com vídeos sem data É candidato (como na lista e no menu), mas sem data exata nunca é ativo', () => {
     const w = pacoteDe([mk('eu-sd', { own: true, subs: 3000, comDatas: false, ultimo: null }), mk('eu', { own: true, subs: 40, ultimo: AGORA - 300 * 86_400_000 }), mk('ca', { subs: 5000 })])
-    expect(resolverPar(w, undefined, undefined, 'eu-sd')!.a).toBe('eu')
+    // a lembrança vale: ele é candidato, e nenhum candidato está ativo
+    expect(resolverPar(w, undefined, undefined, 'eu-sd')!.a).toBe('eu-sd')
+    // com um ativo, o sem data (nunca ativo) cede, como antes
+    const ativo = pacoteDe([mk('eu-sd', { own: true, subs: 3000, comDatas: false, ultimo: null }), mk('eu', { own: true, subs: 40, ultimo: AGORA - 10 * 86_400_000 }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(ativo, undefined, undefined, 'eu-sd')!.a).toBe('eu')
   })
   it('11c: todos os próprios sem data → a ordem do pacote; canal novo sem vídeos nunca é padrão nem por lembrança', () => {
     const sem = pacoteDe([mk('eu1', { own: true, subs: 500 }), mk('eu2', { own: true, subs: 400 }), mk('ca', { subs: 5000 })])
@@ -395,7 +399,7 @@ describe('o canal sem vídeos entra no par', () => {
 describe('roda no navegador: não importa o motor nem nada de servidor', () => {
   const dir = resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_comparar')
   /** Os módulos de que o par depende, seguidos até o fim (só os do próprio diretório e os puros de lib). */
-  const PERMITIDOS = /^(\.\/(formatos|numeros-model|pack)|\.\.\/_canal\/numeros|\.\.\/_chrome\/principal|@\/lib\/youtube\/observatorio\/(posicao|time))$/
+  const PERMITIDOS = /^(\.\/(formatos|numeros-model|pack)|\.\.\/_canal\/numeros|\.\.\/_chrome\/principal|@\/lib\/youtube\/observatorio\/(posicao|time|proprio\/vpd)|\.\.\/_proprio\/extras)$/
   const importacoes = (arq: string) => {
     const src = readFileSync(resolve(dir, arq), 'utf8')
     return [...src.matchAll(/^import\s+(type\s+)?[^'"]*from\s+['"]([^'"]+)['"]/gm)].map(m => ({ tipo: !!m[1], de: m[2]! }))

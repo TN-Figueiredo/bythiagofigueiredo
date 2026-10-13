@@ -48,13 +48,18 @@ describe('"Carregar mais"', () => {
     expect(within(bloco).getByText('Mais 40 vídeos antigos, sem contagem diária. Depois deste lote faltam 42.')).not.toBeNull()
   })
 
-  it('o botão é o único preenchido da tela e tem 44 px de altura', () => {
+  it('o botão é o único preenchido VISÍVEL da tela e tem 44 px de altura (o "Mostrar mais" de 24 em 24 do celular é outro bloco, que o CSS nunca deixa junto com este)', () => {
     mountCanal({ mut: comAntigos(ANT) })
-    const preenchidos = document.querySelectorAll('.pri')
-    expect(preenchidos).toHaveLength(1)
-    expect(preenchidos[0]).toBe(screen.getByRole('button', { name: 'Carregar mais 40 vídeos' }))
+    const preenchidos = [...document.querySelectorAll('.pri')]
+    // ajuste final de UX (13/10): a grade paginada a 480 px ou menos traz o seu "Mostrar mais" (`.cv-pag`); o dos antigos espera (`.cv-pag-espera`)
+    expect(preenchidos).toHaveLength(2)
+    const dosAntigos = preenchidos.filter(b => !b.closest('.cv-pag'))
+    expect(dosAntigos).toHaveLength(1)
+    expect(dosAntigos[0]).toBe(screen.getByRole('button', { name: 'Carregar mais 40 vídeos' }))
+    expect(dosAntigos[0]!.closest('.cv-more')!.classList.contains('cv-pag-espera')).toBe(true)
     const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canal/canal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).toMatch(/\.cv-more \.pri\{[^}]*min-height:44px/)
+    expect(css).toMatch(/\.cv-more\.cv-pag-espera,[^{]*\.cv-soantigos\.cv-pag-espera\{display:none\}/)   // B1: o aviso dos antigos some junto do botão
   })
 
   it('o clique revela 40 sob o divisor "Mais antigos, sem contagem diária (82)", com o aviso da contagem antiga', () => {

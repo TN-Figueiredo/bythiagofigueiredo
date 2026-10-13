@@ -7,11 +7,13 @@
  * `multiplier`, `multiplierCard`, `changesIn`, `fmt`, `date`, `RULES` e `SERIES_START_LABEL`.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
+import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import type { ObsChannel, ObsVideo, UndatedVideo } from '@/lib/youtube/observatorio/types'
 import { tierOf } from '@/lib/youtube/observatorio/rules'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { viewsMissingText } from '../_chrome/views-text'
 import { vpdText } from './numeros'
+import { durText, numNb } from './formato'
 import type { ViewerInput } from '../_chrome/thumb-viewer/viewer-model'
 import { viewerOfVideo } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 
@@ -48,17 +50,15 @@ export interface CanalVideosView { videos: ChannelVideoView[]; nota: string; sem
 
 /** A frase de quando o canal ainda está na primeira sincronização (a mesma do cabeçalho). */
 export const AGUARDANDO = 'quando a sincronização terminar'
-const NB = ' '
 const WORD = { mid: 'alto', high: 'muito alto', top: 'topo' } as const
 
-function durText(sec: number | null): string | null {
-  if (sec == null) return null
-  const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
-  const p2 = (n: number) => (n < 10 ? '0' : '') + n
-  return h ? `${h}:${p2(m)}:${p2(r)}` : `${p2(m)}:${p2(r)}`
-}
+export { durText, numNb }
 
-export function buildCanalVideos(obs: Observatory, channelId: string): CanalVideosView {
+/**
+ * `soVideo`: monta só o cartão desse vídeo (a tela do vídeo próprio precisa de um e não do canal inteiro: cada cartão consulta as trocas do motor).
+ * O cartão é o mesmo da lista inteira; um id que não é deste canal devolve a lista vazia.
+ */
+export function buildCanalVideos(obs: Observatory, channelId: string, o: { soVideo?: string } = {}): CanalVideosView {
   const ch: ObsChannel | undefined = obs.channel(channelId)
   const F = obs.fmt, D = obs.date
   const nota = 'Múltiplo = views do vídeo ÷ mediana dos outros vídeos do mesmo formato e da mesma faixa de idade do canal. '
@@ -66,7 +66,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
     + `Views por dia = média entre a primeira e a última contagem diária dos últimos 7 dias; a contagem diária existe desde ${obs.SERIES_START_LABEL} e só para os vídeos acompanhados.`
   if (!ch) return { videos: [], nota, semVideos: 'Este canal ainda não tem vídeos sincronizados.' }
 
-  const num = (n: number | null) => (n == null ? null : F.num(n).replace(/ (mil|mi)$/, NB + '$1'))
+  const num = (n: number | null) => (n == null ? null : numNb(F, n))
   const thumbOf = (ytId: string, cur?: string | null) => cur ?? (ytId ? `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg` : null)
   const swapsOf = (id: string) => obs.changesIn({ days: 30, video: id }).filter(c => c.type !== 'desc').length
   const noTitle = 'sem título'
@@ -77,6 +77,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
   const out: ChannelVideoView[] = []
 
   for (const dv of dated) {
+    if (o.soVideo != null && dv.id !== o.soVideo) continue
     const v: ObsVideo = dv
     const grupo: Grupo = v.tracked ? 'acompanhado' : v.pinned ? 'fixado-antigo' : 'antigo'
     const pinned = v.pinned === true
@@ -128,6 +129,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
   }
 
   for (const u of ch.undated as UndatedVideo[]) {
+    if (o.soVideo != null && u.id !== o.soVideo) continue
     const notas = ['sem data de publicação: sem idade nem múltiplo']
     if (u.comments == null) notas.push('Comentários: o YouTube não devolveu a contagem.')
     if (u.pinned) notas.push('Fixado: sem data de publicação, sem views por dia.')

@@ -2,6 +2,7 @@
  * Own channels on the Observatório screens (port of canais.html LANG / langTag / OWN_TXT). Pure: used by Canais and
  * by Insights. A site may have zero, one or many own channels; the sentences agree with how many there are.
  */
+import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 
 export interface LangChip { code: string; title: string }
@@ -36,9 +37,25 @@ export function listPt(xs: readonly string[]): string {
 }
 
 /**
- * Para onde "Abrir meu canal" leva. A3: o painel lateral da lista de Canais (o canal próprio ainda não tem página);
- * a A4 troca esta linha por `link.canal(id)`. Todo link para "o meu canal" passa por aqui.
+ * Para onde "Abrir meu canal" leva: a PÁGINA do canal (A4, D9; na A3 era o painel lateral de Canais, porque o canal próprio ainda não tinha página).
+ * Todo link para "o meu canal" passa por aqui. Canal sem vídeos não tem página: quem monta o link já o deixa de fora.
  */
 export function ownChannelHref(id: string): string {
-  return link.canais({ channel: id })
+  return link.canal(id)
+}
+
+/** Na linha do canal próprio sem vídeos (lista de Canais): o motivo de a linha não abrir nada (spec 16.8: "sem vídeos"; o menu "Meu canal" diz o mesmo). */
+export const SEM_PAGINA_LINHA = 'sem vídeos: ainda sem página'
+/** A frase da moldura de `canal/<id>` do canal próprio sem vídeos (D10). */
+export const SEM_VIDEOS_FRASE = 'Este canal ainda não tem vídeos. A página aparece com o primeiro vídeo sincronizado.'
+
+/**
+ * O critério ÚNICO de "o canal tem vídeos" (e, para canal próprio, "tem página", spec 16.8): vídeo guardado conta, com ou sem data. O vídeo sem
+ * data fica fora de `obs.videos` e vive em `canal.undated`; a rota, o redirecionamento de `?channel=`, a lista de Canais, o menu "Meu canal"
+ * e a comparação perguntam aqui, nunca contam por conta própria.
+ */
+export function canalTemVideos(obs: Pick<Observatory, 'channel' | 'videos'>, id: string): boolean {
+  const c = obs.channel(id)
+  if (!c) return false
+  return c.undated.length > 0 || obs.videos.some(v => v.ch === id)
 }

@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event'
 import { loadOracle, loadOracleOwns, datasetFromOracle } from './oracle'
 import type { OwnPreset } from '../../fixtures/observatorio/own-presets'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { comGavetaNoProprio } from './canais-gaveta-helper'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen, type CanaisScreenProps } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
@@ -184,7 +185,7 @@ describe('CanaisScreen', () => {
   })
   it('drawer (below 1280 px = modal): Esc closes it and returns the focus to the row button', async () => {
     const user = userEvent.setup()
-    mountOwns('2', {}, { channel: 'tnfigueiredo' })
+    mountOwns('2', {}, { channel: 'tnfigueiredo' }, true)
     const d = screen.getByRole('dialog', { name: 'tnFigueiredo' })
     expect(d).toHaveAttribute('aria-modal', 'true')
     expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Fechar detalhes do canal' }))
@@ -340,15 +341,17 @@ describe('CanaisScreen — concorrente leva à página do canal', () => {
     expect(push).toHaveBeenCalledWith(CANAL('luke-damant'))
     expect(replace).not.toHaveBeenCalled()
   })
-  it('nome de canal próprio continua sendo o botão "Abrir detalhes de <nome>" e abre o painel', async () => {
+  it('nome e avatar de canal próprio COM vídeos são links para a página do canal (A4, I1 da T8): nenhum botão, nenhuma gaveta, nenhum ?channel=', async () => {
     const user = userEvent.setup()
     mountOwns('2')
     const row = rowOf('tnfigueiredo')
-    expect(within(row).queryByRole('link', { name: /^Abrir a página de/ })).toBeNull()
-    expect(row.querySelector('a[data-avatar-link]')).toBeNull()
-    await user.click(within(row).getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
-    expect(push).not.toHaveBeenCalled()
+    expect(within(row).getByRole('link', { name: 'Abrir a página de tnFigueiredo' })).toHaveAttribute('href', CANAL('tnfigueiredo'))
+    expect(row.querySelector('a[data-avatar-link]')).toHaveAttribute('href', CANAL('tnfigueiredo'))
+    expect(within(row).queryByRole('button', { name: /^Abrir detalhes de/ })).toBeNull()
+    await user.click(within(row).getByRole('link', { name: 'Abrir a página de tnFigueiredo' }))
+    expect(replace).not.toHaveBeenCalled()
+    expect(push.mock.calls.filter(c => String(c[0]).includes('channel='))).toEqual([])
+    expect(document.querySelector('.cn-drawer')).toBeNull()
   })
   it('o "?" dos inscritos e o menu da linha continuam na linha do concorrente', () => {
     mount()
@@ -378,6 +381,13 @@ describe('CanaisScreen — concorrente leva à página do canal', () => {
       vi.advanceTimersByTime(150)
       expect(prefetch).toHaveBeenCalledWith(CANAL('matt-wolfe'))
     })
+    it('canal próprio COM vídeos pré-carrega a página como o concorrente (A4); o painel não é mais pré-carregado por nenhuma linha', () => {
+      mountOwns('2')
+      fireEvent.mouseEnter(screen.getByRole('link', { name: 'Abrir a página de tnFigueiredo' }))
+      vi.advanceTimersByTime(150)
+      expect(prefetch).toHaveBeenCalledTimes(1)
+      expect(prefetch).toHaveBeenCalledWith(CANAL('tnfigueiredo'))
+    })
     it('sair (mouse ou foco) antes de 150 ms não chama', () => {
       mount()
       fireEvent.mouseEnter(link('luke-damant')); vi.advanceTimersByTime(100); fireEvent.mouseLeave(link('luke-damant'))
@@ -400,12 +410,6 @@ describe('CanaisScreen — concorrente leva à página do canal', () => {
       vi.advanceTimersByTime(150)
       expect(prefetch).toHaveBeenCalledTimes(4)
       expect(prefetch).toHaveBeenLastCalledWith(CANAL(IDS[3]!))
-    })
-    it('canal próprio não pré-carrega nada (não há página)', () => {
-      mountOwns('2')
-      fireEvent.mouseEnter(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
-      vi.advanceTimersByTime(500)
-      expect(prefetch).not.toHaveBeenCalled()
     })
   })
 })
@@ -437,8 +441,9 @@ describe('CanaisScreen — drawer Outliers of a backfilling channel', () => {
 // Plano "N canais próprios", Task 7: grupo "Seus canais", nicho editável nos canais próprios, chip de idioma
 const engines = new Map<OwnPreset, ReturnType<typeof createObservatory>>()
 const obsOf = (preset: OwnPreset) => { let o = engines.get(preset); if (!o) { o = createObservatory(datasetFromOracle(loadOracleOwns(preset))); engines.set(preset, o) } return o }
-function mountOwns(preset: OwnPreset, props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}) {
-  const v = buildCanaisView(obsOf(preset), { niche: 'todos', limit: 75, fmt: 'longos', ...p })
+function mountOwns(preset: OwnPreset, props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}, gaveta = false) {
+  const base = buildCanaisView(obsOf(preset), { niche: 'todos', limit: 75, fmt: 'longos', ...p })
+  const v = gaveta ? comGavetaNoProprio(base) : base   // A4: a gaveta só abre por clique na linha SINTÉTICA (canais-gaveta-helper.ts)
   return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 const toastTitle = (t: string) => screen.findByText(t, { selector: '.obs-ch-toast b' })

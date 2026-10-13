@@ -7,6 +7,8 @@
  */
 import Link from 'next/link'
 import type { CanalSort } from '@/lib/youtube/observatorio/links'
+import { ehProprio } from '../_proprio/eh-proprio'
+import type { ProprioVideoView } from '../_proprio/videos-model'
 import type { ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
 
@@ -23,7 +25,36 @@ function Nd({ rotulo }: { rotulo: string }) {
   return <span className="cv-c nd"><span className="obs-ch-sr">{rotulo}: </span><span className="obs-ch-nm">não medido</span> <i aria-hidden="true">{rotulo}</i></span>
 }
 
+/**
+ * Canal próprio (spec 16.4): três colunas, views, impressões e múltiplo (o do motor). Impressão ausente diz a palavra curta do motivo em
+ * `.obs-ch-nm` (nunca 0). A terceira linha diz o que as impressões permitem afirmar (a contagem de cliques, sem corte e sem percentual); sem
+ * leitura do alcance ela não existe (o motivo mora uma vez, na nota sob a grade).
+ */
+function NumerosProprios({ v, sort }: { v: ProprioVideoView; sort: CanalSort }) {
+  const views = v.viewsText == null
+    ? <span className="cv-c nd"><span className="obs-ch-sr">views: </span><span className="obs-ch-nm">{v.viewsMissing}</span> <i aria-hidden="true">views</i></span>
+    : <Cell valor={v.viewsText} rotulo="views" on={sort === 'vistos'} />
+  // zero medido (o alcance foi lido e o vídeo não apareceu): "0" na caixa vazada, a mesma do gráfico; a hachura é só de "não medido" de verdade
+  const imp = v.impText != null
+    ? <Cell valor={v.impText} rotulo={v.imp === 1 ? 'impressão' : 'impressões'} on={sort === 'imp'} />
+    : v.semImpressao
+    ? <span className={'cv-c' + (sort === 'imp' ? ' on' : '')}><b className="num"><span className="obs-ch-zero" title="zero medido: o YouTube mediu e o vídeo não apareceu">0<span className="obs-ch-sr"> (zero medido)</span></span></b> <i>impressões</i></span>
+    : <span className="cv-c nd"><span className="obs-ch-sr">impressões: </span><span className="obs-ch-nm">{v.impMissing}</span> <i aria-hidden="true">impressões</i></span>
+  const mult = v.multText != null
+    ? <Cell valor={v.multText} rotulo={v.multWord ?? 'múltiplo'} on={sort === 'multiplo'} tier={v.multTier} sr={v.multWord ? ' (múltiplo)' : undefined} />
+    : <Nd rotulo="múltiplo" />
+  return (
+    <>
+      <p className="cv-nums cv-nums3">{views}{imp}{mult}</p>
+      {/* 13.3: as views por dia do diário (média dos 28 dias com medida) ficam LOGO ABAIXO das views, como no mockup aprovado; sem o número a linha não existe e o motivo mora uma vez, no topo da grade */}
+      {v.vpdDiarioText != null ? <p className="cv-vpd"><b className="num">{v.vpdDiarioText}</b> views por dia</p> : null}
+      {v.terceira ? <p className="cv-n3">{v.terceira}</p> : null}
+    </>
+  )
+}
+
 function Numeros({ v, sort }: { v: ChannelVideoView; sort: CanalSort }) {
+  if (ehProprio(v)) return <NumerosProprios v={v} sort={sort} />
   if (v.viewsText == null) {
     return <p className="cv-nums"><span className="cv-c s3 txt"><span className="obs-ch-nm">{v.viewsMissing}</span></span></p>
   }
@@ -55,11 +86,13 @@ function Selos({ v }: { v: ChannelVideoView }) {
   )
 }
 
-export function VideoCard({ v, sort, href, onAmpliar, onTrocas }: {
+export function VideoCard({ v, sort, href, onAmpliar, onTrocas, oculto = false }: {
   v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
+  /** Além da página atual do "Mostrar mais" do celular: o CSS esconde o cartão a 480 px ou menos (`grade-paginacao.ts`). */
+  oculto?: boolean
 }) {
   return (
-    <li className="cv-card" data-id={v.id}>
+    <li className="cv-card" data-id={v.id} data-pag-oculto={oculto ? '' : undefined}>
       <Link prefetch={false} className="cv-lnk" id={'cv-lnk-' + v.id} href={href}>
         <span className="cv-thumb">{v.thumbSrc ? <img src={v.thumbSrc} alt="" width={320} height={180} loading="lazy" decoding="async" /> : null}</span>
         <span className="cv-ttl obs-ch-ttl">{v.title}</span>

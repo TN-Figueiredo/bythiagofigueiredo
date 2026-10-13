@@ -11,6 +11,7 @@ import type { CompararPack } from './pack'
 import { buildPar } from './par-model'
 import { Lados } from './lados'
 import { NumeroANumero } from './numero-a-numero'
+import { SoSeuCanal } from './so-seu-canal'
 import { MaisVistos } from './mais-vistos'
 import { Publicacao } from './publicacao'
 import { ForjaIndisponivel } from './forja-indisponivel'
@@ -61,6 +62,9 @@ function ComPar({ pack, inicial }: { pack: CompararPack; inicial: { a: string; b
       <NumeroANumero pack={pack} par={par} />
       <MaisVistos par={par} />
       <Publicacao par={par} pack={pack} />
+      {/* decisão do dono (12/10): "Só o seu canal mede" não compara nada (só um lado tem os números), então fica no fim, depois de "Número a número"
+          e do resto da comparação; o cartão da forja segue sendo o último filho da tela */}
+      <SoSeuCanal pack={pack} par={par} />
       <ForjaIndisponivel par={par} />
     </div>
   )
