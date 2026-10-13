@@ -116,4 +116,18 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: RLS das tabelas novas com GUC fo
     const pub = await pg.query(`select f from unnest($1::text[]) as f where exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where p.oid = f::regprocedure and a.grantee = 0)`, [FUNCTIONS as readonly string[]])
     expect(pub.rows).toEqual([])
   })
+
+  // MG2b: as três funções de partição eram security definer chamáveis por anon/authenticated. Só a conferência de privilégio: NUNCA chamar a função
+  // como anon/authenticated (neste Postgres local isso derruba o servidor se a função tiver EXECUTE).
+  it('MG2b: funções de partição (security definer) não têm EXECUTE para anon, authenticated nem PUBLIC; o service_role mantém', async () => {
+    const PART = ['public.create_link_clicks_partition(text, text, text)', 'public.create_linktree_events_partition(text, text, text)', 'public.create_monthly_partitions(integer)']
+    const r = await pg.query(`select f,
+        has_function_privilege('anon', f::regprocedure, 'execute') as anon,
+        has_function_privilege('authenticated', f::regprocedure, 'execute') as authenticated,
+        has_function_privilege('service_role', f::regprocedure, 'execute') as service_role,
+        exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where p.oid = f::regprocedure and a.grantee = 0) as public_ok
+      from unnest($1::text[]) as f`, [PART])
+    expect(r.rows).toHaveLength(3)
+    expect(r.rows.map((x) => [x.f, x.anon, x.authenticated, x.service_role, x.public_ok])).toEqual(PART.map((f) => [f, false, false, true, false]))
+  })
 })
