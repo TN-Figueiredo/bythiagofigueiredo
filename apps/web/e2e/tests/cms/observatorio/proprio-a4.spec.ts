@@ -1336,7 +1336,8 @@ blocoT15('T15 canal parado (29 relatórios vazios, diário de zeros, nenhum víd
     // o gráfico: 29 caixas vazadas, nenhuma hachura, nenhuma barra; a frase diz zero medido
     await expect(grafico(page).locator('g.ic-col[data-situacao="zero-medido"]')).toHaveCount(29)
     await expect(grafico(page).locator('g.ic-col[data-situacao="nao-medido"], g.ic-col[data-situacao="com-impressoes"]')).toHaveCount(0)
-    await expect(grafico(page).locator('.ic-res')).toContainText('Nenhuma impressão em 29 dias: 0 dias com impressão, 29 dias medidos em zero e 0 dias não medidos.')
+    // V3 (onda de UX de 12/10): sem relatório faltando a frase não conta "dias com impressão / medidos em zero / não medidos"; fica só "Nenhuma impressão em 29 dias."
+    await expect(grafico(page).locator('.ic-res')).toHaveText('Nenhuma impressão em 29 dias.')
     await expect(grafico(page).locator('.ic-nm, .ic-nm-cl')).toHaveCount(0)
     // a faixa: impressões é "0" (valor, não "não medido")
     const imp = tela(page).locator('dl[aria-label="Números do canal"] .nc').filter({ hasText: 'impressões' }).first()
