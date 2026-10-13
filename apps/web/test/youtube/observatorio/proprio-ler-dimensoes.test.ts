@@ -52,6 +52,21 @@ function comErroNaTabela(sb: SupabaseClient, tabela: string, code: string): Supa
   } as unknown as SupabaseClient
 }
 
+/** Um cliente que responde `data: null` SEM erro numa tabela (resposta que não é lista). */
+function comDataNula(sb: SupabaseClient, tabela: string): SupabaseClient {
+  return {
+    from: (t: string) => {
+      if (t !== tabela) return sb.from(t)
+      const vazio = { data: null, error: null }
+      const q: Record<string, unknown> = {}
+      for (const m of ['select', 'eq', 'in', 'gte', 'lte', 'order', 'neq', 'is']) q[m] = () => q
+      q.range = async () => vazio
+      q.then = (ok: (r: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(vazio).then(ok, ko)
+      return q
+    },
+  } as unknown as SupabaseClient
+}
+
 // `desde` recuado: os dias de teto são relativos a hoje, e o padrão do código é uma data fixa (testada à parte, sem este campo)
 const DESDE_ANTIGO = Object.fromEntries(['trafego', 'dispositivo', 'pais', 'inscrito', 'detalhe', 'alcance_dim'].map(c => [c, '2020-01-01']))
 let pedido: PedidoDimensoes
@@ -123,6 +138,37 @@ describe('janela e teto de vídeos', () => {
     const r = await lerDimensoes(db.client, { ...pedido, ytIds: ids })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.conjuntos.pais.videos.map(v => v.ytId)).toEqual(ids.slice(0, TETO_VIDEOS_DIMENSOES))
+  })
+})
+
+describe('teto de vídeos e teto de linhas (conserto da revisão, m-2)', () => {
+  it('o teto de vídeos é 50 (literal, não a constante): 60 pedidos = 50 vídeos, e 50 pedidos = 50', async () => {
+    const db = fakeSupabase({})
+    const ids = Array.from({ length: 60 }, (_, i) => 'vid' + String(i).padStart(8, '0'))
+    const r = await lerDimensoes(db.client, { ...pedido, ytIds: ids })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.conjuntos.pais.videos).toHaveLength(50)
+    expect(TETO_VIDEOS_DIMENSOES).toBe(50)
+    const d2 = await lerDetalheDaOrigem(db.client, { ...pedido, ytIds: ids })
+    if (d2.acesso !== 'ok') throw new Error('esperava ok')
+    expect(d2.dado.conjunto.videos).toHaveLength(50)
+  })
+  it.each([[Number.NaN], [Number.POSITIVE_INFINITY], [0], [-5]])('teto de linhas %s é recusado antes de qualquer consulta (não desliga o limite em silêncio)', async (teto) => {
+    const db = fakeSupabase({})
+    await expect(lerDimensoes(db.client, { ...pedido, tetoLinhas: teto })).rejects.toThrow(/teto de linhas/i)
+    await expect(lerDetalheDaOrigem(db.client, { ...pedido, tetoLinhas: teto })).rejects.toThrow(/teto de linhas/i)
+    expect(db.trips).toEqual([])
+  })
+  it('teto inválido com token ruim continua negado (a recusa do teto não vaza antes da prova)', async () => {
+    const db = fakeSupabase({})
+    expect(await lerDimensoes(db.client, { ...pedido, edicao: null, tetoLinhas: Number.NaN })).toEqual({ acesso: 'negado' })
+  })
+  it('teto 1 e uma linha passa; resposta sem lista (data nula, sem erro) NÃO é lista vazia: lança', async () => {
+    const db = fakeSupabase({ yt_own_video_dim_daily: [dim(V, d(3), 'country', 'BR', 5)] })
+    expect((await lerDimensoes(db.client, { ...pedido, tetoLinhas: 1 })).acesso).toBe('ok')
+    const err = await lerDimensoes(comDataNula(db.client, 'yt_own_video_dim_daily'), pedido).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ErroLeituraDimensoes)
+    expect(err).toMatchObject({ tabela: 'yt_own_video_dim_daily', motivo: 'erro_de_banco' })
   })
 })
 
@@ -242,6 +288,33 @@ describe('os estados do conjunto', () => {
     expect(r.dado.conjuntos.pais.estado).toEqual({ tipo: 'passo_desligado', comDados: true })
     expect(estadoDoDiaLido(dia(r, 'pais', 3)).de('BR')).toMatchObject({ tipo: 'valor', views: 5 })
   })
+  it('passo desligado com a última coleta em erro: o tipo é passo_desligado, mas o erro e o dia da tentativa ficam no estado', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes'
+    const db = fakeSupabase({
+      yt_own_collection_attempts: [tentativa('dimensoes', d(2), 'erro_http', { error: 'http_403' }), tentativa('normalizador_alcance_dim', d(1), 'ok')],
+      yt_own_video_coverage: [cob(V, 'pais', d(6), d(2))],
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.conjuntos.pais.estado).toEqual({ tipo: 'passo_desligado', comDados: true, ultimoErro: { outcome: 'erro_http', dia: d(2) } })
+    expect(r.dado.conjuntos.trafego.estado).toMatchObject({ tipo: 'passo_desligado', ultimoErro: { outcome: 'erro_http' } })
+    // o alcance_dim é de outro passo: não está desligado e a última coleta dele foi ok
+    expect(r.dado.conjuntos.alcance_dim.estado.tipo).toBe('nao_coletado')
+  })
+  it('passo desligado com a última coleta ok: sem ultimoErro', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'dimensoes'
+    const db = fakeSupabase({ yt_own_collection_attempts: [tentativa('dimensoes', d(2), 'ok')] })
+    const r = await lerDimensoes(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.conjuntos.pais.estado).toEqual({ tipo: 'passo_desligado', comDados: false })
+  })
+  it('detalhe desligado com a última coleta em erro também expõe os dois', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'normalizadores'
+    const db = fakeSupabase({ yt_own_collection_attempts: [tentativa('normalizador_trafego', d(3), 'sem_conexao')] })
+    const r = await lerDetalheDaOrigem(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.conjunto.estado).toEqual({ tipo: 'passo_desligado', comDados: false, ultimoErro: { outcome: 'sem_conexao', dia: d(3) } })
+  })
   it('coleta em erro: a tentativa mais recente do kind com erro; "ok" mais antigo não a esconde', async () => {
     const db = fakeSupabase({
       yt_own_collection_attempts: [tentativa('dimensoes', d(3), 'ok'), tentativa('dimensoes', d(1), 'erro_http', { error: 'http_403', scope_id: 'outro' }), tentativa('normalizador_alcance_dim', d(1), 'ok')],
@@ -280,6 +353,46 @@ describe('os dias: nunca zero por ausência', () => {
     expect(d3.de('BR')).toEqual({ tipo: 'valor', views: 5, minutos: 2.5 })
     expect(d3.de('US')).toEqual({ tipo: 'zero_medido' })
     expect(estadoDoDiaLido(dia(r, 'pais', 4)).de('BR')).toEqual({ tipo: 'zero_medido' })
+  })
+  it('diário com views NULO num dia coberto = não medido (base_nao_medida), NUNCA zero medido; sem linha do diário continua zero medido', async () => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: cobertura,
+      yt_own_video_daily: [diario(V, d(3), null)],
+      yt_own_video_dim_daily: [dim(V, d(4), 'country', 'BR', 0)],
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    const nulo = dia(r, 'pais', 3)
+    expect(nulo.baseMedida).toBe(false)
+    expect(estadoDoDiaLido(nulo).de('BR')).toEqual({ tipo: 'nao_medido', motivo: 'base_nao_medida', desde: null })
+    expect(estadoDoDiaLido(nulo).de('BR').tipo).not.toBe('zero_medido')
+    // o dia 5 não tem linha nenhuma no diário e está coberto: o dia foi medido sem atividade
+    expect(dia(r, 'pais', 5).baseMedida).toBe(true)
+    expect(estadoDoDiaLido(dia(r, 'pais', 5)).de('BR')).toEqual({ tipo: 'zero_medido' })
+  })
+  it('diário com views NEGATIVO também é não medido (e conta em descartados)', async () => {
+    const db = fakeSupabase({ yt_own_video_coverage: cobertura, yt_own_video_daily: [diario(V, d(3), -7)] })
+    const r = await lerDimensoes(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(estadoDoDiaLido(dia(r, 'pais', 3)).de('BR')).toMatchObject({ tipo: 'nao_medido', motivo: 'base_nao_medida' })
+    expect(r.dado.descartados).toBeGreaterThanOrEqual(1)
+  })
+  it('diário com views em texto numérico e zero MEDIDO (0) continua base medida 0 = zero medido', async () => {
+    const db = fakeSupabase({ yt_own_video_coverage: cobertura, yt_own_video_daily: [diario(V, d(3), 0), diario(V, d(4), '0' as unknown as number)] })
+    const r = await lerDimensoes(db.client, pedido)
+    expect(estadoDoDiaLido(dia(r, 'pais', 3)).de('BR')).toEqual({ tipo: 'zero_medido' })
+    expect(estadoDoDiaLido(dia(r, 'pais', 4)).de('BR')).toEqual({ tipo: 'zero_medido' })
+  })
+  it('alcance por dimensão: impressões NULAS no alcance básico do dia (relatório normalizado) = base não medida, não zero', async () => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: [cob(V, 'alcance_dim', d(6), d(2))],
+      yt_reporting_reports: [relatorio(d(3), true), relatorio(d(4), true)],
+      yt_own_video_reach_daily: [alcanceBase(V, d(3), null), alcanceBase(V, d(4), 10)],
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    const nulo = dia(r, 'alcance_dim', 3)
+    expect(nulo.baseMedida).toBe(false)
+    expect(estadoDoDiaLido(nulo).de('5|104|4')).toMatchObject({ tipo: 'nao_medido', motivo: 'base_nao_medida' })
+    expect(dia(r, 'alcance_dim', 4).baseMedida).toBe(true)
   })
   it('soma abaixo da base = zero ou abaixo do limiar; acima = em revisão', async () => {
     const db = fakeSupabase({
@@ -427,6 +540,14 @@ describe('lerDetalheDaOrigem', () => {
     expect(r.dado.conjunto.estado).toEqual({ tipo: 'schema_ausente' })
     expect(r.dado.conjunto.videos).toEqual([])
   })
+  it('diário com views NULO num dia coberto = base não medida também no detalhe', async () => {
+    const db = fakeSupabase({ yt_own_video_coverage: cobDet, yt_own_video_daily: [diario(V, d(3), null)] })
+    const r = await lerDetalheDaOrigem(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    const dias = r.dado.conjunto.videos[0]!.dias
+    expect(estadoDoDiaLido(dias.find(y => y.dia === d(3))!).de('x')).toMatchObject({ tipo: 'nao_medido', motivo: 'base_nao_medida' })
+    expect(estadoDoDiaLido(dias.find(y => y.dia === d(4))!).de('x')).toEqual({ tipo: 'zero_medido' })
+  })
   it('filtra por site e canal', async () => {
     const db = fakeSupabase({
       yt_own_video_coverage: cobDet,
@@ -435,5 +556,100 @@ describe('lerDetalheDaOrigem', () => {
     const r = await lerDetalheDaOrigem(db.client, pedido)
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.conjunto.videos[0]!.dias.find(y => y.dia === d(3))!.linhas.map(l => l.detail)).toEqual(['meu'])
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------
+// Conserto da revisão (m-1): cada uma das 9 consultas filtra por site E por canal. Para cada tabela há uma linha de OUTRO site
+// com o MESMO canal e uma de OUTRO canal com o MESMO site; tirar um dos dois filtros faz a linha alheia aparecer. O cliente
+// real é o de serviço (ignora RLS): a única proteção é o token mais estes dois filtros.
+// ---------------------------------------------------------------------------------------------------------------
+describe('as 9 consultas filtram por site e por canal (cada filtro sozinho é provado)', () => {
+  const ALHEIOS: Row[] = [{ site_id: 'outro-site' }, { channel_id: OUTRO_CANAL }]
+  const cobProprio = [cob(V, 'base', d(6), d(2)), cob(V, 'pais', d(6), d(2)), cob(V, 'alcance_dim', d(6), d(2))]
+
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('cobertura de %s não cobre dias do canal', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: [...cobProprio, cob(V, 'pais', d(1), d(1), alheio), cob(V, 'base', d(1), d(1), alheio), cob(V, 'trafego', d(6), d(1), alheio)],
+      yt_own_video_daily: [diario(V, d(1), 3)],
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    expect(estadoDoDiaLido(dia(r, 'pais', 1)).de('BR')).toMatchObject({ tipo: 'nao_medido', motivo: 'fora_da_cobertura' })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    // `trafego` só tem cobertura alheia: o conjunto continua não coletado
+    expect(r.dado.conjuntos.trafego.estado).toEqual({ tipo: 'nao_coletado' })
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('diário de %s não vira a base do canal', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: cobProprio,
+      yt_own_video_daily: [diario(V, d(3), 5), diario(V, d(3), 99, alheio), diario(V, d(4), 99, alheio)],
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    expect(dia(r, 'pais', 3).base).toBe(5)
+    expect(dia(r, 'pais', 4).base).toBeNull()
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('dimensões de %s não aparecem', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: cobProprio, yt_own_video_daily: [diario(V, d(3), 5)],
+      yt_own_video_dim_daily: [dim(V, d(3), 'country', 'BR', 5), dim(V, d(3), 'country', 'US', 9, null, alheio)],
+    })
+    expect(dia(await lerDimensoes(db.client, pedido), 'pais', 3).linhas.map(l => l.valor)).toEqual(['BR'])
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('alcance por dimensão de %s não aparece', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: cobProprio, yt_reporting_reports: [relatorio(d(3), true)], yt_own_video_reach_daily: [alcanceBase(V, d(3), 10)],
+      yt_own_video_reach_dim_daily: [alcanceDim(V, d(3), '5', '104', '4', 10), { ...alcanceDim(V, d(3), '7', '102', '9', 3), ...alheio }],
+    })
+    expect(dia(await lerDimensoes(db.client, pedido), 'alcance_dim', 3).linhas.map(l => l.valor)).toEqual(['5|104|4'])
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('relatório de %s não normaliza o dia do canal', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: cobProprio,
+      yt_reporting_reports: [relatorio(d(3), false), { ...relatorio(d(3), true), report_id: 'alheio', ...alheio }],
+      yt_own_video_reach_daily: [alcanceBase(V, d(3), 10)],
+    })
+    expect(dia(await lerDimensoes(db.client, pedido), 'alcance_dim', 3).baseMedida).toBe(false)
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('impressões do alcance básico de %s não somam na base', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: cobProprio, yt_reporting_reports: [relatorio(d(3), true)],
+      yt_own_video_reach_daily: [alcanceBase(V, d(3), 10), { ...alcanceBase(V, d(3), 500), ...alheio }],
+    })
+    expect(dia(await lerDimensoes(db.client, pedido), 'alcance_dim', 3).base).toBe(10)
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('tentativa de %s: o dia mais recente é só o do canal', async (_nome, alheio) => {
+    // o canal falhou no dia 2; a tentativa alheia (ok) é do dia 1, mais recente: se vazar na 1.ª consulta, o erro some
+    const db = fakeSupabase({
+      yt_own_collection_attempts: [tentativa('dimensoes', d(2), 'erro_http'), tentativa('dimensoes', d(1), 'ok', alheio)],
+      yt_own_video_coverage: cobProprio,
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.conjuntos.pais.estado).toMatchObject({ tipo: 'coleta_em_erro', outcome: 'erro_http' })
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('tentativa de %s: o resultado do dia é só o do canal', async (_nome, alheio) => {
+    // o canal foi ok no dia 2; a alheia falhou no MESMO dia: se vazar na 2.ª consulta, aparece um erro que não é do canal
+    const db = fakeSupabase({
+      yt_own_collection_attempts: [tentativa('dimensoes', d(2), 'ok'), tentativa('dimensoes', d(2), 'erro_http', { scope_id: 'outro', ...alheio })],
+      yt_own_video_coverage: cobProprio,
+    })
+    const r = await lerDimensoes(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.conjuntos.pais.estado).toEqual({ tipo: 'coletado' })
+  })
+  it.each(ALHEIOS.map((o, i) => [i === 0 ? 'outro site' : 'outro canal', o] as const))('detalhe de %s não aparece (as consultas do detalhe também filtram)', async (_nome, alheio) => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: [cob(V, 'base', d(6), d(2)), cob(V, 'detalhe', d(6), d(2)), cob(V, 'detalhe', d(1), d(1), alheio)],
+      yt_own_video_daily: [diario(V, d(3), 6), diario(V, d(3), 99, alheio)],
+      yt_own_video_traffic_detail_daily: [detalhe(V, d(3), '5', 'meu', 'a'.repeat(64), 6), detalhe(V, d(3), '5', 'alheio', 'b'.repeat(64), 9, null, alheio)],
+      yt_own_collection_attempts: [tentativa('normalizador_trafego', d(2), 'erro_http'), tentativa('normalizador_trafego', d(1), 'ok', alheio)],
+    })
+    const r = await lerDetalheDaOrigem(db.client, pedido)
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    const dias = r.dado.conjunto.videos[0]!.dias
+    expect(dias.find(y => y.dia === d(3))!.linhas.map(l => l.detail)).toEqual(['meu'])
+    expect(dias.find(y => y.dia === d(3))!.base).toBe(6)
+    expect(dias.find(y => y.dia === d(1))!.coberto).toBe(false)
+    expect(r.dado.conjunto.estado).toMatchObject({ tipo: 'coleta_em_erro', outcome: 'erro_http' })
   })
 })
