@@ -256,6 +256,8 @@ describe('fecharDisparo', () => {
   it.each([
     ['faixa parcial às 18:10', 'parcial', Date.parse('2026-10-12T21:10:00Z'), false],
     ['faixa ok', 'ok', Date.parse('2026-10-12T21:10:00Z'), true],
+    // m-1 do portão final (mutante M16): `nao_devida` é o estado de 17 em cada 18 disparos da faixa; sem ele, a diária devida sem ponto só seria cobrada 2 h depois do começo
+    ['faixa nao_devida às 18:10 (já fechou ok neste período)', 'nao_devida', Date.parse('2026-10-12T21:10:00Z'), true],
     ['faixa parcial às 20:01 (passaram 2 h do começo)', 'parcial', Date.parse('2026-10-12T23:01:00Z'), true],
   ] as const)('slotDone vem da linha da faixa: %s', async (_n, estado, agora, esperado) => {
     expect(currentSlotStart(agora)).toBe(Date.parse('2026-10-12T21:00:00Z')) // 18:00 em São Paulo

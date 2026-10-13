@@ -255,6 +255,18 @@ describe('executarAgenda: o arrendamento', () => {
   })
 })
 
+describe('executarAgenda: o relato ao Sentry que o despachante recebe (ledger: mutante relatar: () => undefined)', () => {
+  it('uma tarefa que lança é relatada com a tarefa e o código, e o texto da exceção não sai', async () => {
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: async () => { throw new Error(SENTINELA) } }) })
+    expect(r.resposta?.status).toBe(200)
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith(
+      'agenda: leitura_horaria: excecao',
+      expect.objectContaining({ level: 'error', tags: { component: 'sync-youtube', mode: 'agenda', tarefa: 'leitura_horaria' } }),
+    )
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain(SENTINELA)
+  })
+})
+
 describe('executarAgenda: exceções inesperadas (emenda S-I3)', () => {
   const FRASE = 'o disparo da agenda falhou com erro inesperado (ver Sentry)'
   const trio = async (r: Awaited<ReturnType<typeof executarAgenda>>) => {
@@ -581,6 +593,22 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
       const lenta = async (): Promise<ResultadoTarefa> => { avancar(280_000); return { estado: 'ok', feitas: 0, deixadas: 0 } }
       await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: lenta }) })
       expect(vi.mocked(avisarDono).mock.calls[0]![2].prazoMs).toBe(8_000)
+    })
+    // m-3 do portão final (mutante M14): o piso AVISO_MIN_MS. Restante = 300 s − 3 s − gasto; com 3 s sobrando o aviso sai, com 2.999 ms não.
+    it('com 294 s gastos sobram exatos 3 s: o aviso é tentado, com prazo de 3 s (o piso é inclusivo)', async () => {
+      esgotada()
+      const lenta = async (): Promise<ResultadoTarefa> => { avancar(294_000); return { estado: 'ok', feitas: 0, deixadas: 0 } }
+      await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: lenta }) })
+      expect(vi.mocked(avisarDono)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(avisarDono).mock.calls[0]![2].prazoMs).toBe(3_000)
+    })
+    it('com 294 s e 1 ms gastos sobram 2.999 ms: abaixo do piso, o aviso não é tentado e o cron_health já foi gravado', async () => {
+      esgotada()
+      const lenta = async (): Promise<ResultadoTarefa> => { avancar(294_001); return { estado: 'ok', feitas: 0, deixadas: 0 } }
+      const r = await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: lenta }) })
+      expect(r.resposta?.status).toBe(200)
+      expect(vi.mocked(avisarDono)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledTimes(1)
     })
     it('com 291 s gastos o prazo é 6 s (297 − 291)', async () => {
       esgotada()
