@@ -3,6 +3,7 @@
  * em ondas de até 4 blocos em paralelo.
  *
  * Este módulo não chama o Sentry e não devolve texto: a falha é um tipo de uma lista fechada mais o número do HTTP.
+ * Depois de um 403 de cota nenhuma onda nova começa (os ids que sobraram vão para `idsQueFicaram`).
  * A chave de API só existe dentro da URL passada ao `fetch`; a URL e o corpo do erro nunca saem daqui.
  * Dado ausente: contagem que a API não deu é nula (ou `semContagem`), nunca zero; HTTP 200 sem lista de itens é
  * falha do bloco, não "ninguém foi devolvido".
@@ -71,7 +72,7 @@ async function lerBloco(ids: string[], apiKey: string, fetchImpl: typeof fetch, 
 
   let res: Response
   try {
-    res = await fetchImpl(`${YOUTUBE_API_BASE}/videos?part=${PARTES}&id=${ids.join(',')}&key=${encodeURIComponent(apiKey)}`, {
+    res = await fetchImpl(`${YOUTUBE_API_BASE}/videos?part=${PARTES}&id=${ids.map(encodeURIComponent).join(',')}&key=${encodeURIComponent(apiKey)}`, {
       signal: AbortSignal.timeout(HORARIA_CHAMADA_MS),
     })
   } catch (e) {
@@ -103,7 +104,7 @@ async function lerBloco(ids: string[], apiKey: string, fetchImpl: typeof fetch, 
 
     const st = isRec(it.statistics) ? it.statistics : undefined
     const views = st ? optCount(st.viewCount) : null
-    if (views === null) { b.semContagem++; continue }
+    if (views === null || views < 0) { b.semContagem++; continue }
 
     const status = isRec(it.status) ? it.status : undefined
     b.contagens.push({
@@ -155,6 +156,11 @@ export async function lerContadores(
       for (const id of b.ids) {
         if (!b.devolvidos.has(id)) { r.naoDevolvidos++; r.idsNaoDevolvidos.push(id) }
       }
+    }
+    // cota esgotada: os blocos em voo terminaram acima; nenhuma onda nova começa e o que sobrou é contado
+    if (r.cotaEsgotada) {
+      for (const b of blocos.slice(i + ONDA)) r.idsQueFicaram.push(...b)
+      break
     }
   }
   return r
