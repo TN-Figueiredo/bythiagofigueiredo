@@ -2,6 +2,15 @@ import { getEmailService } from '@/lib/email/service'
 import type { IChannelAdapter, ChannelResult, IUserProfile } from './interface'
 import type { INotification } from '../types'
 
+// O html é montado por concatenação: título e mensagem podem trazer texto de fora (nome de canal do
+// YouTube, erro do banco). Escapa tudo o que é interpolado; o assunto perde quebras e controles.
+export function escapeHtml(v: string | null | undefined): string {
+  return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+export function safeSubject(v: string | null | undefined): string {
+  return String(v ?? '').replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, ' ').trim()
+}
+
 export class EmailAdapter implements IChannelAdapter {
   readonly channel = 'email' as const
 
@@ -26,8 +35,8 @@ export class EmailAdapter implements IChannelAdapter {
       await getEmailService().send({
         from: { email: `noreply@${fromDomain}`, name: 'Notifications' },
         to: user.email,
-        subject: notification.title,
-        html: `<p>${notification.message ?? notification.title}</p>`,
+        subject: safeSubject(notification.title),
+        html: `<p>${escapeHtml(notification.message ?? notification.title)}</p>`,
         text: notification.message ?? notification.title,
       })
 

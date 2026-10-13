@@ -669,6 +669,15 @@ describe('E: o aviso ao dono quando o canal cruza o 3º dia em erro, e um lembre
     expect(String(input.action_href)).toMatch(/^\/cms\/youtube\/competitors/)
     expect(w.result.ownerNotices).toEqual({ sent: 2, failed: 0 })
   })
+  it('nome do canal e motivo gigantes são cortados com reticências, sem controle no título', async () => {
+    const w = await world([erro('a', 3.2, { channel_name: 'N\r\nBcc: x' + 'n'.repeat(500), sync_error: 'e'.repeat(2000) })])
+    const input = w.create.mock.calls[0]![0] as { title: string; message: string }
+    expect(input.title).not.toMatch(/[\r\n]/)
+    expect(input.title.length).toBeLessThan(200)
+    expect(input.title).toContain('…')
+    expect(input.message.length).toBeLessThan(900)
+    expect(input.message).toContain('…')
+  })
   it('a trava é o estado gravado: com a chave da semana já em notifications, nada é criado', async () => {
     const w = await world([erro('a', 4)], { existing: ['competitor-channel-error-a-' + since(4) + '-0'] })
     expect(w.create).not.toHaveBeenCalled()
