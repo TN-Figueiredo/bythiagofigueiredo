@@ -22,8 +22,8 @@ export function humanizeSyncError(msg: string): string {
   // o 404 que não conseguiu registrar a falta traz a frase junto: ela não pode ser engolida pelo 404
   if (/YouTube API 404|\b404\b/.test(msg) && msg.includes('a falta não foi registrada')) return 'não encontrado no YouTube (404), e a falta não foi registrada'
   if (/YouTube API 404|\b404\b/.test(msg)) return 'não encontrado no YouTube (404)'
-  if (/quotaExceeded|403/.test(msg)) return 'cota diária da API do YouTube esgotada'
-  if (/timeout|aborted/i.test(msg)) return 'tempo de resposta do YouTube esgotado'
+  if (/quotaExceeded|\b403\b/.test(msg)) return 'cota diária da API do YouTube esgotada'
+  if (/timeout|aborted/i.test(msg) && !msg.startsWith('não foi possível')) return 'tempo de resposta do YouTube esgotado'
   return msg
 }
 

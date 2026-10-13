@@ -34,6 +34,13 @@ describe('humanizeSyncError', () => {
   it('404 in prose', () => expect(humanizeSyncError('Canal não encontrado no YouTube (404). Mudou de handle?')).toBe('não encontrado no YouTube (404)'))
   it('quota', () => expect(humanizeSyncError('YouTube API 403 quotaExceeded')).toBe('cota diária da API do YouTube esgotada'))
   it('quotaExceeded alone', () => expect(humanizeSyncError('quotaExceeded')).toBe('cota diária da API do YouTube esgotada'))
+  // (portão final, software M-1) o motivo vai no e-mail do 3º dia: erro do banco não é culpa do YouTube e um "403" dentro de um id não é cota
+  it('403 dentro do id do canal não é cota', () => expect(humanizeSyncError('YouTube API 500 for channel UCab403xyz')).toBe('YouTube API 500 for channel UCab403xyz'))
+  it('403 como número solto continua sendo cota', () => expect(humanizeSyncError('YouTube API 403 for channel UCx')).toBe('cota diária da API do YouTube esgotada'))
+  it('timeout do BANCO (frase "não foi possível guardar…") não vira "tempo de resposta do YouTube"', () => {
+    const m = 'não foi possível guardar o histórico de campos (apply_competitor_field_plan: canceling statement due to statement timeout)'
+    expect(humanizeSyncError(m)).toBe(m)
+  })
   it('timeout', () => expect(humanizeSyncError('request timeout')).toBe('tempo de resposta do YouTube esgotado'))
   it('aborted', () => expect(humanizeSyncError('The operation was Aborted')).toBe('tempo de resposta do YouTube esgotado'))
   it('404 que não conseguiu registrar a falta: a frase da falta não é engolida pelo 404', () => {
