@@ -398,7 +398,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
   })
 
   // ───────────────────────── 2 ─────────────────────────
-  it('2. identidade no tempo: vencida, a coleta recusa; a anulação apaga e prova; o comentário que volta não ganha identidade; o destaque fica', async () => {
+  it('2. identidade no tempo: vencida, a coleta recusa; a anulação apaga e prova; o comentário que volta não ganha identidade; o motivo do destaque fica e o vínculo com o canal é zerado (pergunta 30)', async () => {
     const b = await cenario(30)
     const acompanhado = await novoCanal(b.site)
     const tag = 't2' + uid()
@@ -437,9 +437,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
     // a anulação é idempotente
     expect(await anular(b.site)).toMatchObject({ status: 'ok', feitos: 0, numeros: { apagadas: 0, restantes: 0 } })
 
-    // o destaque guardado é o de antes (a faixa e o vínculo não são identidade)
+    // pergunta 30 (dono, 13/10): o motivo e as faixas do destaque ficam, mas featured_channel_id (liga o comentário ao canal do autor) é zerado
     const depois = await cm(b.video.id, idDe(tag, 6))
-    expect(depois).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: acompanhado.id, featured_size_band: null, featured_ratio_band: null })
+    expect(depois).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: null, featured_size_band: null, featured_ratio_band: null })
     expect(depois.author_purged_at).not.toBeNull()
 
     // a coleta do marco 30 (o vídeo tem 29 dias + 30 h = 726 h) roda; os mesmos comentários voltam e NÃO ganham identidade; um novo ganha
@@ -450,7 +450,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
     const apos = await q(`select c.youtube_comment_id from public.competitor_video_comment_authors a join public.competitor_video_comments c on c.id = a.comment_id where a.site_id = $1`, [b.site])
     expect(apos.map((x) => x.youtube_comment_id), 'só o comentário NOVO tem identidade').toEqual([idDe(tag, 7)])
     expect((await cm(b.video.id, idDe(tag, 1))).author_purged_at, 'o carimbo continua').not.toBeNull()
-    expect(await cm(b.video.id, idDe(tag, 6))).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: acompanhado.id })
+    expect(await cm(b.video.id, idDe(tag, 6)), 'o marco 30 depois da anulação não regrava o vínculo').toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: null })
   })
 
   // ───────────────────────── 3 (b) e (c) ─────────────────────────
@@ -885,7 +885,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
   })
 
   // ───────────────────────── (f) LGPD de ponta a ponta ─────────────────────────
-  it('f. LGPD de ponta a ponta: grava com sentinelas de autor, envelhece 28 dias, anula, e a varredura por catálogo não acha identidade em lugar nenhum (só ficam o texto e o vínculo do destaque)', async () => {
+  it('f. LGPD de ponta a ponta: grava com sentinelas de autor, envelhece 28 dias, anula, e a varredura por catálogo não acha identidade em lugar nenhum (só ficam o texto e o motivo do destaque; o vínculo com o canal é zerado)', async () => {
     const b = await cenario(30)
     const acompanhado = await novoCanal(b.site)
     const sent = (): string => 'zq' + uid()
@@ -926,7 +926,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
     expect(depois[sentCriador]).toEqual([])
     expect(depois[sentRespostaDoCriador]).toEqual([])
     expect(depois[corpo], 'o que o plano declara que fica: o texto').toEqual(['competitor_video_comments.body'])
-    expect(await cm(b.video.id, idDe(tag, 6))).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: acompanhado.id })
+    expect(await cm(b.video.id, idDe(tag, 6))).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: null })
     expect(Number((await q('select count(*) as n from public.competitor_video_comment_authors where site_id = $1', [b.site]))[0]!.n)).toBe(0)
 
     // a coleta do marco 30 devolve os mesmos autores: nenhum ganha identidade de volta; um comentário NOVO ganha
