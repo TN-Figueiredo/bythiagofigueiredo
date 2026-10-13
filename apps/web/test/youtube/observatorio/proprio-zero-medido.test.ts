@@ -258,7 +258,7 @@ describe('vídeo publicado no meio da janela (10 dias de vida): régua, cartão,
     const x = v.videos.find(y => y.ytId === A.alvo.ytId)!
     expect(x.semImpressao).toBe(true)
     expect(x.imp).toBeNull()
-    expect(x.terceira).toBe('sem impressão no período')
+    expect(x.terceira).toBe('')
     expect(x.notas).toContain(`Impressões: nenhuma nos ${K - 1} dias medidos (1 dia sem dado), de ${dmDia(PUB)} a ${dmDia(dd(1))}.`)
     // um vídeo antigo: o período inteiro do canal, sem D-1
     const o = v.videos.find(y => y.ytId === antigoSem.ytId)!
@@ -418,10 +418,10 @@ describe('N2: legenda, resumo e dica não dizem que o relatório falhou quando o
   const O = { escopo: 'canal' as const, alturaArea: 180, dm: dmDia, acesso: 'ok' as const, hoje: HOJE }
   const mont = (a: AlcanceCanal) => { const m = montarDias(a, { hoje: HOJE }); return buildImpressoes(m.dias, m.periodo, O) }
 
-  it('legenda do "não medido" é a do mockup: "o dia ainda não chegou"', () => {
+  it('legenda do "não medido" do gráfico de impressões é a MESMA do gráfico de views (K3): "o YouTube não entregou o dia"', () => {
     const v = mont(canal(lidos(8, 1), [lin('a', d(5), 10)]))
     const t = v.legenda.find(l => l.situacao === 'nao-medido')!.texto
-    expect(t).toBe('não medido (hachura): o dia ainda não chegou')
+    expect(t).toBe('não medido (hachura): o YouTube não entregou o dia')
   })
 
   it('resumo com buraco: "(outro dia sem dado)", "(outros N sem dado)" e "(N dias sem dado)"', () => {

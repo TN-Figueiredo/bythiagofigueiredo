@@ -10,7 +10,8 @@ import path from 'node:path'
 const DIR = path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors')
 const semComentario = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '')
 const read = (f: string) => semComentario(fs.readFileSync(path.join(DIR, f), 'utf8'))
-const MOCKUP = path.resolve(__dirname, '../../../../../.superpowers/sdd/2026-10-12-telas-a4-canal-proprio-plan/mockup-congelado-12-10/a4.css')
+// A regra `.nm-h` do mockup congelado (a4.css, 12/10), copiada para cá: o arquivo original mora em `.superpowers/` (pasta ignorada pelo git), que não existe na CI.
+const MOCKUP_NM_H = '.nm-h{display:inline-block;width:14px;height:14px;border-radius:3px;flex:none;border:1px solid var(--nm-line);vertical-align:middle;background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}'
 
 const lum = (hex: string) => {
   const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
@@ -30,7 +31,7 @@ describe('B1: o quadradinho de "não medido" tem a hachura do mockup (listra de 
   const QUADRADOS = ['.nm-q', '.so-nm', '.lr-s.nmk .obs-ch-nm', '.ic-sw.nm']
 
   it('o mockup congelado usa exatamente esta hachura em .nm-h (a fonte dos valores)', () => {
-    const m = fs.readFileSync(MOCKUP, 'utf8').match(/\.nm-h\{[^}]*\}/)![0].replace(/\s/g, '')
+    const m = MOCKUP_NM_H.replace(/\s/g, '')
     expect(m).toContain(FORMA)
   })
 

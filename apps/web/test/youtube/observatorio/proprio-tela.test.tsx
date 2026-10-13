@@ -221,13 +221,14 @@ describe('T8 o cartão (Capas) do canal próprio', () => {
     expect(c.textContent).not.toMatch(/%|views\/dia/)
   })
 
-  it('vídeo sem impressão em dia medido: a coluna do meio é a caixa vazada "0" (zero medido), sem hachura, e a terceira linha diz "sem impressão no período" (B2)', () => {
+  it('vídeo sem impressão em dia medido: a coluna do meio é a caixa vazada "0" (zero medido), sem hachura, e não há terceira linha (K5: a frase saiu)', () => {
     const { all } = mountProprio()
     const sem = all.find(v => v.imp == null && v.semImpressao)!
     const c = cartoes().find(x => x.dataset.id === sem.id)!
     expect(c.querySelector('.cv-nums3 > .cv-c:nth-child(2) .obs-ch-zero')!.textContent).toMatch(/^0/)
     expect(c.querySelector('.obs-ch-nm')?.textContent).not.toBe('sem impressão')
-    expect(norm(c.querySelector('p.cv-n3')!.textContent)).toBe('sem impressão no período')
+    expect(c.querySelector('p.cv-n3')).toBeNull()
+    expect(c.textContent).not.toMatch(/sem impressão no período/)
     expect(c.textContent).not.toMatch(/\b0 impress/)
   })
 

@@ -317,7 +317,7 @@ function legendaDe(escopo: 'canal' | 'video', unidade: Unidade): LegendaItem[] {
     { situacao: 'com-impressoes', texto: 'impressões do dia (barra cheia)' },
     { situacao: 'cliques', texto: 'cliques estimados do dia' },
     { situacao: 'zero-medido', texto: escopo === 'video' ? 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões deste vídeo' : 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões' },
-    { situacao: 'nao-medido', texto: 'não medido (hachura): o dia ainda não chegou' },
+    { situacao: 'nao-medido', texto: `não medido (hachura): ${NAO_ENTREGUE}` },
   ]
 }
 
@@ -334,8 +334,8 @@ function metodoDe(escopo: 'canal' | 'video', unidade: Unidade): string[] {
     'Cada coluna é um dia fechado pelo YouTube no horário do Pacífico, não em São Paulo.',
     'A escala é linear, de 0 até o teto do eixo (4, 10 ou um múltiplo de 20). Uma barra de 1 impressão tem no mínimo 3 px, para não sumir ao lado de um dia grande.',
     escopo === 'video'
-      ? 'Barra cheia: o relatório do dia trouxe impressões deste vídeo. Caixa vazada: o relatório foi lido e não trouxe este vídeo (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.'
-      : 'Barra cheia: o relatório do dia trouxe impressões. Caixa vazada: o relatório foi lido e veio vazio (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.',
+      ? 'Barra cheia: o relatório do dia trouxe impressões deste vídeo. Caixa vazada: o relatório foi recebido e não trouxe este vídeo (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.'
+      : 'Barra cheia: o relatório do dia trouxe impressões. Caixa vazada: o relatório foi recebido e veio vazio (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.',
     'Cliques estimados são impressões × taxa de clique de cada vídeo no dia, somados e arredondados só na hora de escrever. O total pode diferir da soma dos números escritos.',
     'A faixa sob as datas mostra os cliques estimados do dia: um ponto por dia com clique, todos na mesma linha, e o número embaixo (a altura do ponto não mede nada; quem mede é o número). Dia com impressões e sem taxa de cliques fica hachurado na faixa.',
     'Use os botões Dia anterior e Dia seguinte, as setas do teclado ou a tabela para ler um dia de cada vez.',

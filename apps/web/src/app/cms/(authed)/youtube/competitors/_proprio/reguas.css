@@ -8,14 +8,15 @@
 .vb-rg-tb{width:100%;border-collapse:collapse;table-layout:fixed}
 .vb-rg-tb th,.vb-rg-tb td{padding:0;text-align:left;vertical-align:middle;font-weight:400}
 .vb-rg-tb thead th{font-size:12px;line-height:16px;color:var(--muted);padding:0 8px 4px 0}
-.vb-rg-tb thead .vb-rg-hv{width:96px}
+.vb-rg-tb thead .vb-rg-hv{width:112px}
 .vb-rg-tb thead .vb-rg-hp{width:158px}
 .vb-rg-tb tbody:not(:first-of-type) .vb-rg-g th{padding-top:10px}
 .vb-rg-g th{font-size:12px;line-height:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:6px 0 2px;border-top:1px solid var(--border-subtle)}
 .vb-rg-r{border-top:1px solid var(--border-subtle)}
 .vb-rg-nm{width:150px;font-size:13px;line-height:18px;padding:10px 8px 10px 0}
 .vb-rg-nm small{display:block;color:var(--muted);font-size:12px;line-height:16px}
-.vb-rg-v{width:96px;font-size:14px;padding-right:8px;white-space:nowrap}
+.vb-rg-v{width:112px;font-size:14px;padding-right:8px;white-space:nowrap}
+.vb-rg-v .obs-ch-nm{font-size:12px;padding:1px 4px}
 .vb-rg-sem{font-size:13px;line-height:19px;color:var(--muted);padding:8px 0}
 .vb-rg-c{padding:4px 12px 4px 0;min-width:0}
 .vb-rg-p{width:158px;font-size:12.5px;line-height:18px;color:var(--muted);padding-left:4px}

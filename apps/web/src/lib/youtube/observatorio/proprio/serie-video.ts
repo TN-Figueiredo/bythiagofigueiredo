@@ -3,7 +3,7 @@
 // tem linha, ou a linha tem views nulas). Dia sem linha NUNCA vira zero. Só entram os dias a partir da publicação.
 import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { DiarioCanal, DiaYt, Privado } from './tipos'
-import { DIAS_DE_VIDA_MIN, inicioDoVideo } from './dias'
+import { DIAS_DE_VIDA_MIN, inicioDoVideo, videoNovo } from './dias'
 import { DIARIO_PARADO_DIAS } from './vpd'
 
 export const JANELA_SERIE_DIAS = 28
@@ -49,7 +49,7 @@ export function serieDoVideo(d: Privado<DiarioCanal>, a: { ytId: string; publica
   const { ultimoDia } = d.dado
   if (ultimoDia == null) return vazia('sem-diario', a.publicadoEm)
   const parado = diffDias(ultimoDia, a.hoje) > DIARIO_PARADO_DIAS
-  if (a.publicadoEm != null && diffDias(a.publicadoEm, a.hoje) < DIAS_DE_VIDA_MIN) return vazia('video-novo', a.publicadoEm, ultimoDia, parado)
+  if (videoNovo(a.publicadoEm, a.hoje)) return vazia('video-novo', a.publicadoEm, ultimoDia, parado)
   const inicioJanela = addDays(ultimoDia, -(JANELA_SERIE_DIAS - 1))
   const de = inicioDoVideo(inicioJanela, a.publicadoEm)
   if (de > ultimoDia) return vazia('sem-medida', a.publicadoEm, ultimoDia, parado)

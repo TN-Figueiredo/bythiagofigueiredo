@@ -316,7 +316,7 @@ interface PerfilL2 {
   mapa?: 'retencao'
   /**
    * `recente`: o relatório vai até HOJE (D). Dois longos antigos (`a` = o mais novo e `b` = o seguinte, entre os de 35 dias ou mais; `ytIdsAlcance` devolve [a, b]) têm impressão em todo relatório baixado, EXCETO o de D-1, em que só o `b`
-   * aparece: o `a` fica sem linha num dia lido (hachurado, "o dia ainda não chegou"), o `b` mostra o valor, D-2 é lido e vazio (zero medido) e D é lido e vazio (hachurado).
+   * aparece: o `a` fica sem linha num dia lido (hachurado, "o YouTube não entregou o dia"), o `b` mostra o valor, D-2 é lido e vazio (zero medido) e D é lido e vazio (hachurado).
    */
   recente?: true
 }
