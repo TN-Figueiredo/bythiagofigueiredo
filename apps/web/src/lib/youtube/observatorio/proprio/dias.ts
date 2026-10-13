@@ -8,7 +8,27 @@ import type { AlcanceCanal, AlcanceLinha, DiaYt, RelatorioDia } from './tipos'
 export const JANELA_ALCANCE_DIAS = 30
 
 export type Situacao = 'com-impressoes' | 'zero-medido' | 'nao-medido'
-export type MotivoDia = 'sem-relatorio' | 'nao-baixado' | 'erro' | 'expirado'
+export type MotivoDia = 'sem-relatorio' | 'nao-baixado' | 'erro' | 'expirado' | 'recente'
+
+/**
+ * Quantos dias, contando de hoje para trás, o YouTube ainda está entregando (hoje = D e ontem = D-1): o relatório de um dia chega com
+ * atraso e pode vir vazio ou parcial, então a AUSÊNCIA de linha nesses dois dias nunca é zero medido. Linha com valor é mostrada.
+ */
+export const DIAS_RECENTES = 2
+
+/** O dia é hoje (D) ou ontem (D-1)? `hoje` é o dia do YouTube (Pacífico), o mesmo das datas dos relatórios. */
+export function diaRecente(dia: DiaYt, hoje: DiaYt): boolean {
+  return dia >= addDays(hoje, -(DIAS_RECENTES - 1))
+}
+
+/**
+ * A regra única de "os dias que valem para este vídeo": o primeiro é o da publicação (ou o início da janela, se for depois). O dia anterior à
+ * publicação NÃO existe para o vídeo: não é zero, não é "não medido", não entra em total, denominador nem frase. Publicação sem data
+ * (`null`): nenhum corte, vale a janela inteira (o que as séries do vídeo já faziam).
+ */
+export function inicioDoVideo(inicioJanela: DiaYt, publicadoEm: DiaYt | null | undefined): DiaYt {
+  return publicadoEm != null && publicadoEm > inicioJanela ? publicadoEm : inicioJanela
+}
 
 export interface DiaAlcance {
   dia: DiaYt
@@ -103,10 +123,26 @@ function comImpressao(l: AlcanceLinha): boolean {
   return l.imp != null && l.imp > 0
 }
 
-/** Sem `ytId`: o canal. Com `ytId`: só aquele vídeo (dia medido em que ele não veio é zero medido). */
-export function montarDias(a: AlcanceCanal, ytId?: string): { periodo: Periodo | null; dias: DiaAlcance[]; avisos: string[] } {
-  const periodo = periodoDoAlcance(a.relatorios)
-  if (!periodo) return { periodo: null, dias: [], avisos: [] }
+export interface OpcoesDias {
+  /** Hoje (D) no dia do YouTube: obrigatório, para a regra de D e D-1 nunca depender do relógio da máquina. */
+  hoje: DiaYt
+  /** Sem `ytId`: o canal. Com `ytId`: só aquele vídeo (dia medido em que ele não veio é zero medido). */
+  ytId?: string
+  /** O dia da publicação do vídeo (só com `ytId`); null/ausente = sem corte. */
+  publicadoEm?: DiaYt | null
+}
+
+/**
+ * O ponto ÚNICO em que o dia do alcance é classificado. Zero medido = relatório lido, dia que já valia para o vídeo e que não é D nem D-1;
+ * D e D-1 sem linha são "não medido", com relatório lido ou não. Linha com valor, em qualquer dia, é sempre mostrada.
+ */
+export function montarDias(a: AlcanceCanal, o: OpcoesDias): { periodo: Periodo | null; dias: DiaAlcance[]; avisos: string[] } {
+  const { hoje, ytId } = o
+  const base = periodoDoAlcance(a.relatorios)
+  if (!base) return { periodo: null, dias: [], avisos: [] }
+  const de = ytId !== undefined ? inicioDoVideo(base.de, o.publicadoEm) : base.de
+  if (de > base.ate) return { periodo: null, dias: [], avisos: [] }
+  const periodo: Periodo = de === base.de ? base : { de, ate: base.ate, dias: diffDias(de, base.ate) + 1 }
 
   const relPorDia = new Map<DiaYt, RelatorioDia[]>()
   for (const r of a.relatorios) {
@@ -135,10 +171,10 @@ export function montarDias(a: AlcanceCanal, ytId?: string): { periodo: Periodo |
       let imp = 0
       for (const l of linhas) imp += l.imp ?? 0
       dias.push({ dia, situacao: 'com-impressoes', motivo: null, imp, cliques: cliquesDe(linhas) })
-    } else if (temMedido) {
+    } else if (temMedido && !diaRecente(dia, hoje)) {
       dias.push({ dia, situacao: 'zero-medido', motivo: null, imp: 0, cliques: 0 })
     } else {
-      dias.push({ dia, situacao: 'nao-medido', motivo: motivoDoDia(rels), imp: null, cliques: null })
+      dias.push({ dia, situacao: 'nao-medido', motivo: temMedido ? 'recente' : motivoDoDia(rels), imp: null, cliques: null })
     }
   }
   return { periodo, dias, avisos }
@@ -201,6 +237,8 @@ export function motivoDiaTexto(m: MotivoDia): string {
       return 'o relatório deste dia deu erro (não medido)'
     case 'expirado':
       return 'o relatório deste dia expirou sem ser baixado (não medido)'
+    case 'recente':
+      return 'dia recente: o YouTube ainda entrega os dados (não medido)'
     default: {
       const _nunca: never = m
       return _nunca

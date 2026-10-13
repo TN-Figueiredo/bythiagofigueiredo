@@ -21,7 +21,7 @@ const alcOk = (): Privado<AlcanceCanal> => ok(alcanceCheio(canalId, ytIds, hoje)
 const alcVazio = (): Privado<AlcanceCanal> => ok(alcanceVazio(canalId))
 
 const viewDe = (alcance: Privado<AlcanceCanal>, diario: Privado<DiarioCanal>): SoSeuCanalView => {
-  const dado = montarSoSeuCanalDado({ nome: 'tn', alcance, diario, longos: ytIds, dm, F: obs.fmt })
+  const dado = montarSoSeuCanalDado({ nome: 'tn', alcance, diario, longos: ytIds, dm, F: obs.fmt, hoje })
   if (!dado.view) throw new Error('sem view')
   return dado.view
 }

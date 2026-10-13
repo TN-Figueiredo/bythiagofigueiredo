@@ -359,7 +359,7 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
 describe('o mesmo número tem o mesmo texto da faixa do vídeo (T11) e do cartão (T7)', () => {
   const w = proprioWorld()
   const cartoes = buildCanalVideos(w.obs, w.canalId).videos
-  const alc = lerEstado(w.dados.alcance)
+  const alc = lerEstado(w.dados.alcance, w.hoje)
   const porVideo = alc.estado === 'ok' ? alc.porVideo : new Map()
   const entrada = (videoId: string): EntradaReguas => ({
     videoId, videos: cartoes.map(c => ({ id: c.id, ytId: c.ytId, views: c.views, likes: c.likes, comments: c.comments, dur: c.dur })),
