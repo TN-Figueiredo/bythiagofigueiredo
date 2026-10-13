@@ -117,7 +117,7 @@ export function conferenciasE14(deploy: string | null): Conferencia[] {
 // que ainda não existe. O controlador preenche `E16_E15_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio (Tarefa 15). Enquanto for
 // `null`, as oito entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapas `E16` e `E15` (o formato `E<n>` do guardião).
 /** Dia de São Paulo (AAAA-MM-DD) em que a E16 e a E15 foram promovidas a `main`. `null` = ainda não enviadas. */
-export const E16_E15_DEPLOY: string | null = null
+export const E16_E15_DEPLOY: string | null = '2026-10-13'
 
 const PLANO_E16E15 = 'docs/superpowers/plans/2026-10-12-a5-e16-e15-parte-1-plan.md (seção 7 e Tarefa 15; consultas K1 a K10 da seção 11); anotar o resultado em .superpowers/sdd/a5-e16-e15/progress.md'
 
