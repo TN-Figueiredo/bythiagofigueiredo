@@ -11,7 +11,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import jwt from 'jsonwebtoken'
-import { getLocalJwtSecret } from './db-skip'
+import { getLocalJwtSecret, localSupabaseUrl } from './db-skip'
 import { getSupabaseServiceClient } from '../../lib/supabase/service'
 
 // Direct postgres URL — matches supabase start local defaults.
@@ -58,7 +58,7 @@ export async function deleteAuthUser(id: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Local Supabase CLI default constants (not secrets — published defaults).
 // ─────────────────────────────────────────────────────────────────────────────
-export const SUPABASE_URL = 'http://127.0.0.1:54321'
+export const SUPABASE_URL = localSupabaseUrl()
 export const ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
 export const SERVICE_KEY =
