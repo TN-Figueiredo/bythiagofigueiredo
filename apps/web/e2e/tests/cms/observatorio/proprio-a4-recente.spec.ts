@@ -137,8 +137,8 @@ test.describe('D e D-1 em navegador: perfil `recente`', () => {
       expect(l[rotulo(1)], 'D-1 lido SEM linha deste vídeo: não medido, não zero').toMatchObject({ situacao: 'nao-medido', imp: 'não medido', texto: TEXTO_RECENTE })
       expect(l[rotulo(2)], 'D-2 lido sem linha: zero medido').toMatchObject({ situacao: 'zero-medido', imp: '0' })
       await expect(fig.locator('.ic-leg')).toContainText(LEGENDA_NAO_MEDIDO)
-      // nenhuma frase diz que o relatório falhou
-      const texto = (await fig.innerText()).toLowerCase()
+      // nenhuma frase diz que o relatório falhou: a legenda do não medido (K3, a mesma das views) é a única que fala em "não entregou", e fala do dia, não do relatório
+      const texto = (await fig.innerText()).toLowerCase().replace(LEGENDA_NAO_MEDIDO.toLowerCase(), '')
       expect(texto).not.toContain('não entregou')
     } finally { await ctx.close() }
   })
