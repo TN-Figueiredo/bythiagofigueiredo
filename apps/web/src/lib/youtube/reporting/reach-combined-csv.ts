@@ -41,10 +41,18 @@ export interface AlcanceDimDoDia {
   clicksEst: number | null
 }
 
-export type AlcanceDimAgregado = AlcanceDimDoDia[] & { descartadasZeradas: number }
+/** Linhas agregadas e a contagem das chaves de 0 impressões que saíram. Objeto simples: sobrevive a `.map`, spread e JSON. */
+export interface AlcanceDimAgregado {
+  linhas: AlcanceDimDoDia[]
+  descartadasZeradas: number
+}
 
 const DATA = /^(\d{4})(\d{2})(\d{2})$/
 const INTEIRO = /^\d+$/
+/** Decimal simples: sem sinal, hexadecimal, binário nem notação científica (igual ao leitor de tráfego). */
+const NUMERO = /^\d+(\.\d+)?$/
+const ID_VIDEO = /^[A-Za-z0-9_-]{11}$/
+const ID_CANAL = /^UC[A-Za-z0-9_-]{22}$/
 const CODIGO = /^[A-Za-z0-9_]{1,40}$/
 
 /** Confere ano, mês e dia pelo calendário (20260229 e 20261345 não existem). */
@@ -69,22 +77,27 @@ export function lerAlcanceCombinado(csv: string): LinhaAlcanceCombinado[] {
     const c = l.split(',').map(x => x.trim())
     if (c.length !== cab.length || l.includes('"')) throw new CsvAlcanceCombinadoError('linha_invalida')
     const d = DATA.exec(c[iData]!)
-    if (!d || !dataExiste(Number(d[1]), Number(d[2]), Number(d[3])) || !c[iCanal] || !c[iVideo] || !INTEIRO.test(c[iImp]!)
+    if (!d || !dataExiste(Number(d[1]), Number(d[2]), Number(d[3])) || !ID_CANAL.test(c[iCanal]!) || !ID_VIDEO.test(c[iVideo]!) || !INTEIRO.test(c[iImp]!)
       || !CODIGO.test(c[iAparelho]!) || !CODIGO.test(c[iSo]!) || !CODIGO.test(c[iOrigem]!)) throw new CsvAlcanceCombinadoError('linha_invalida')
+    const impressions = Number(c[iImp])
+    if (!Number.isSafeInteger(impressions)) throw new CsvAlcanceCombinadoError('linha_invalida')
     const bruto = c[iCtr]!
+    if (bruto !== '' && !NUMERO.test(bruto)) throw new CsvAlcanceCombinadoError('linha_invalida')
     const ctr = bruto === '' ? null : Number(bruto)
     if (ctr !== null && (!Number.isFinite(ctr) || ctr < 0 || ctr > 1)) throw new CsvAlcanceCombinadoError('linha_invalida')
     return {
       day: `${d[1]}-${d[2]}-${d[3]}`, channelId: c[iCanal]!, videoId: c[iVideo]!,
       deviceType: c[iAparelho]!, operatingSystem: c[iSo]!, trafficSourceType: c[iOrigem]!,
-      impressions: Number(c[iImp]), ctr,
+      impressions, ctr,
     }
   })
 }
 
 /** Não separa por canal: quem chama confere o canal das linhas antes de agregar.
  *  Chave: (vídeo, dia, origem, aparelho, sistema). Impressões somam; `clicksEst` = soma de impressões × taxa,
- *  ou nulo se alguma linha da chave veio sem taxa. Chave com 0 impressões sai e é contada em `descartadasZeradas`. */
+ *  ou nulo se alguma linha da chave COM impressões veio sem taxa. Linha de 0 impressões contribui 0 cliques com
+ *  qualquer taxa (inclusive nula) e por isso não anula a chave: desvio deliberado da letra do plano, a favor do dado.
+ *  Chave com 0 impressões sai e é contada em `descartadasZeradas`. */
 export function agregarAlcanceCombinado(linhas: readonly LinhaAlcanceCombinado[]): AlcanceDimAgregado {
   const grupos = new Map<string, AlcanceDimDoDia>()
   for (const l of linhas) {
@@ -94,10 +107,12 @@ export function agregarAlcanceCombinado(linhas: readonly LinhaAlcanceCombinado[]
       operatingSystem: l.operatingSystem, impressions: 0, clicksEst: 0 as number | null,
     }
     g.impressions += l.impressions
-    g.clicksEst = g.clicksEst === null || l.ctr === null ? null : g.clicksEst + l.impressions * l.ctr
+    if (l.impressions > 0) {
+      g.clicksEst = g.clicksEst === null || l.ctr === null ? null : g.clicksEst + l.impressions * l.ctr
+    }
     grupos.set(chave, g)
   }
   const todas = [...grupos.values()]
   const uteis = todas.filter(g => g.impressions > 0)
-  return Object.assign(uteis, { descartadasZeradas: todas.length - uteis.length })
+  return { linhas: uteis, descartadasZeradas: todas.length - uteis.length }
 }
