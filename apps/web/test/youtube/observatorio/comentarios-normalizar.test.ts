@@ -205,6 +205,30 @@ describe('loteDe', () => {
   })
 })
 
+describe('data que o Postgres recusaria (M-1)', () => {
+  const inexistentes = ['2026-02-30T10:00:00Z', '2026-13-01T10:00:00Z', '2026-04-31T00:00:00Z', '2025-02-29T00:00:00Z', '12']
+  it('publishedAt de dia inexistente ou fora do formato descarta a conversa', () => {
+    for (const publicadoEm of inexistentes) expect(conversaDe(conversa(1, { publicadoEm }), 0, CANAL_DO_VIDEO), publicadoEm).toBeNull()
+  })
+  it('dia existente passa, inclusive 29 de fevereiro de ano bissexto', () => {
+    for (const publicadoEm of ['2024-02-29T10:00:00Z', '2026-01-31T23:59:59Z', '2026-02-28T00:00:00.000Z']) {
+      expect(conversaDe(conversa(1, { publicadoEm }), 0, CANAL_DO_VIDEO)?.publicadoEm, publicadoEm).toBe(publicadoEm)
+    }
+  })
+  it('updatedAt de dia inexistente vira editadoEm nulo (a conversa fica)', () => {
+    const c = ok(conversa(2, { editadoEm: '2026-02-30T10:00:00Z' }))
+    expect(c.editadoEm).toBeNull()
+  })
+  it('porIdDe: updatedAt de dia inexistente vira editadoEm nulo; publishedAt de dia inexistente também', () => {
+    const m = porIdDe(corpoPorId([
+      comentarioPorId('a', { editadoEm: '2026-02-30T10:00:00Z', publicadoEm: iso(T0) }),
+      comentarioPorId('b', { editadoEm: iso(T0 + 5 * H), publicadoEm: '2026-02-30T10:00:00Z' }),
+    ]))!
+    expect(m.get('a')!.editadoEm).toBeNull()
+    expect(m.get('b')!.editadoEm).toBeNull()
+  })
+})
+
 describe('porIdDe', () => {
   it('14. 10 pedidos, 9 devolvidos: mapa com 9; sem items: nulo', () => {
     const itens = Array.from({ length: 9 }, (_, i) => comentarioPorId(`Ugx-id-${i}`, { curtidas: i, texto: `Texto ${i}` }))

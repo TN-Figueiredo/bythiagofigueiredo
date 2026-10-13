@@ -9,6 +9,8 @@ const BASE_PADRAO = 'https://www.googleapis.com/youtube/v3'
 const IDS_MAX = 50
 const RAZAO_OK = /^[A-Za-z]{1,40}$/
 const RAZOES_DE_COTA: ReadonlySet<string> = new Set(['quotaExceeded', 'dailyLimitExceeded'])
+/** Limite por segundo ou por usuário: passa sozinho, então NUNCA vira `proibido` (perda aceita). */
+const RAZOES_DE_TAXA: ReadonlySet<string> = new Set(['rateLimitExceeded', 'userRateLimitExceeded'])
 
 export interface ApiComentarios {
   conversas(videoId: string): Promise<unknown>
@@ -26,7 +28,10 @@ function tempoEsgotado(e: unknown): boolean {
   return nome === 'TimeoutError' || nome === 'AbortError'
 }
 
-/** `error.errors[0].reason` do corpo de erro, só se tiver a forma de um código (letras, até 40). Corpo ilegível: null. */
+/**
+ * `error.errors[0].reason` do corpo de erro, só se tiver a forma de um código (letras, até 40). Corpo ilegível: null.
+ * Corpo que estoura o tempo ao ser lido NÃO é "ilegível": lança `tempo_esgotado` (senão um 403 viraria `proibido`, perda aceita).
+ */
 async function razaoDe(res: Response): Promise<string | null> {
   try {
     const corpo: unknown = await res.json()
@@ -35,7 +40,8 @@ async function razaoDe(res: Response): Promise<string | null> {
     const primeiro: unknown = lista[0]
     const razao = ehRec(primeiro) ? primeiro.reason : undefined
     return typeof razao === 'string' && RAZAO_OK.test(razao) ? razao : null
-  } catch {
+  } catch (e) {
+    if (tempoEsgotado(e)) throw new ComentariosErro('tempo_esgotado', res.status)
     return null
   }
 }
@@ -44,9 +50,11 @@ function classificar(status: number, razao: string | null): CodigoComentariosErr
   if (status === 403) {
     if (razao === 'commentsDisabled') return 'comentarios_desligados'
     if (razao !== null && RAZOES_DE_COTA.has(razao)) return 'cota_esgotada'
+    if (razao !== null && RAZOES_DE_TAXA.has(razao)) return 'limite_de_taxa'
     return 'proibido'
   }
   if (status === 429) return 'limite_de_taxa'
+  if (status === 408) return 'tempo_esgotado'
   if (status === 404 && razao === 'videoNotFound') return 'video_nao_encontrado'
   if (status === 400) return 'http_400'
   if (status >= 500) return 'http_5xx'
@@ -58,8 +66,12 @@ export function criarApi(o: { apiKey: string; fetchImpl?: typeof fetch; timeoutM
   const base = o.base ?? BASE_PADRAO
   let unidades = 0
 
-  /** Uma chamada: soma a unidade ANTES do fetch, classifica o erro, limpa o corpo, exige `items` em lista. */
-  async function chamar(caminho: string, params: string): Promise<{ items: unknown[] } & Rec> {
+  /**
+   * Uma chamada: soma a unidade ANTES do fetch, classifica o erro, limpa o corpo, exige `items` em lista.
+   * `semItemsSeVazio`: só `channels.list` omite `items` quando nenhum id existe; com `pageInfo.totalResults === 0` (e sem `error`)
+   * isso é "nenhum canal encontrado" (`items: []`). Sem o zero explícito continua sendo falha.
+   */
+  async function chamar(caminho: string, params: string, semItemsSeVazio = false): Promise<{ items: unknown[] } & Rec> {
     unidades++
     const url = `${base}/${caminho}?${params}&key=${encodeURIComponent(o.apiKey)}`
     let res: Response
@@ -79,6 +91,9 @@ export function criarApi(o: { apiKey: string; fetchImpl?: typeof fetch; timeoutM
     }
     if (!ehRec(corpo)) throw new ComentariosErro('resposta_ilegivel', res.status)
     const limpo = sanitizeForDb(corpo).value
+    if (limpo.error === undefined && semItemsSeVazio && limpo.items === undefined && ehRec(limpo.pageInfo) && limpo.pageInfo.totalResults === 0) {
+      return { ...limpo, items: [] }
+    }
     if (limpo.error !== undefined || !Array.isArray(limpo.items)) throw new ComentariosErro('resposta_sem_lista', res.status)
     return { ...limpo, items: limpo.items }
   }
@@ -95,7 +110,7 @@ export function criarApi(o: { apiKey: string; fetchImpl?: typeof fetch; timeoutM
     async inscritos(ids) {
       idsValidos(ids)
       if (ids.length === 0) return { items: [] }
-      return chamar('channels', `part=statistics&id=${lista(ids)}`)
+      return chamar('channels', `part=statistics&id=${lista(ids)}`, true)
     },
     async porId(ids) {
       idsValidos(ids)
