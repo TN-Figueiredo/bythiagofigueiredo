@@ -1,0 +1,282 @@
+{
+ "index.html?caso=cheio|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=cheio|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=cheio|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=cheio|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=extremo|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=extremo|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=extremo|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=extremo|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=recente|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=recente|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=recente|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=recente|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=magro|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=magro|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=magro|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=magro|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=zero|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=zero|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=zero|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=zero|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=naomedido|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=naomedido|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=naomedido|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=naomedido|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=semanal|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=semanal|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=semanal|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=semanal|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=saiu|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=saiu|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=saiu|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=saiu|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=mantido|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=mantido|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=mantido|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=mantido|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=aovivo|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=aovivo|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=aovivo|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=aovivo|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=vazio|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=vazio|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=vazio|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=vazio|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=carregando|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=carregando|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=carregando|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=carregando|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=erro|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=erro|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=erro|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=erro|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=leitura|1440|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=leitura|1440|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=leitura|390|escuro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ },
+ "index.html?caso=leitura|390|claro": {
+  "rolagem": 0,
+  "fontesMenores": [],
+  "alvosMenores": []
+ }
+}

@@ -1,0 +1,240 @@
+/* c20.css: peças novas do mockup 20 (comentários de destaque), prefixo cd-. Tokens do a4.css; nenhum matiz novo; sem color-mix() (fundos suaves são rgba literal). */
+:root{
+  --cd-c-bg:rgba(234,217,178,.13);--cd-k-bg:rgba(90,174,230,.15);--cd-a-bg:rgba(167,139,250,.16);--cd-g-bg:rgba(224,115,92,.17);
+}
+:root[data-theme="light"]{
+  --cd-c-bg:rgba(92,71,16,.09);--cd-k-bg:rgba(27,120,186,.09);--cd-a-bg:rgba(109,40,217,.08);--cd-g-bg:rgba(180,69,47,.09);
+}
+/* a cor e o símbolo de cada motivo: uma tabela só, usada na casa, no selo, na legenda e na borda do cartão */
+.g-c{--cd:var(--lado-n);--cd-bg:var(--cd-c-bg)}
+.g-k{--cd:var(--lado-b);--cd-bg:var(--cd-k-bg)}
+.g-a{--cd:var(--tier-high);--cd-bg:var(--cd-a-bg)}
+.g-g{--cd:var(--tier-top);--cd-bg:var(--cd-g-bg)}
+
+.cd-novo{margin:26px 4px 14px;padding:14px 12px 16px}
+.cd-nv11{margin-top:30px}
+.cd-nvrl{margin-top:30px}
+.cd{display:grid;gap:14px;min-width:0}
+.cd-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cd-top h2{font:600 19px/1.25 var(--serif);letter-spacing:-.01em;font-variation-settings:"opsz" 48}
+.cd-top .ibtn,.cd-fr .ibtn,.cd-m11 h2 .ibtn{margin:-10px 0}
+.cd-dim{color:var(--muted);font-size:12.5px;line-height:17px}
+.cd-vh{margin-top:10px}
+.cd-m13{display:flex;gap:10px;align-items:flex-start;margin:0 0 6px;padding:10px 14px;border:1px dashed var(--dim);border-radius:7px;background:var(--sunk);color:var(--muted);font-size:13px;line-height:19px}
+.cd-m13 b{color:var(--text);font-weight:500}
+.cd-m13 svg{margin-top:2px}
+
+/* ---- a frase-resumo (um span só) */
+.cd-fr{margin:0;font-size:15px;line-height:23px;max-width:88ch}
+.cd-fr b{font-weight:600}
+
+/* ---- as três idades: cada aba mostra a forma do seu estado */
+.cd-abas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-width:760px}
+.cd-tab{display:flex;align-items:center;gap:10px;min-height:56px;padding:6px 12px;border:1.5px solid var(--dim);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;text-align:left;font:inherit;min-width:0}
+.cd-tab:hover{background:var(--surface-2)}
+.cd-tab[aria-selected="true"]{border-color:var(--accent);background:var(--accent-subtle);box-shadow:inset 0 -3px 0 var(--accent)}
+.cd-tt{display:grid;gap:1px;min-width:0}
+.cd-tt b{font:600 14px/19px var(--sans)}
+.cd-tt span{font-size:12.5px;line-height:17px;color:var(--muted);overflow-wrap:anywhere}
+.cd-tab[aria-selected="true"] .cd-tt span{color:var(--text)}
+.cd-painel{display:grid;gap:14px;min-width:0}
+
+/* ---- as formas dos estados: zero medido (caixa vazada com 0), não medido (hachura), ainda não existe (pontilhado) */
+.cd-eb{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:8px;flex:none;color:var(--muted)}
+.cd-eb.mini{width:30px;height:30px;border-radius:6px}
+.cd-eb svg{width:20px;height:20px}
+.cd-eb.mini svg{width:16px}
+.cd-eb.ok{border:1.5px solid var(--dim);color:var(--text)}
+.cd-eb.zero{border:2px solid var(--im-zero);background:transparent;color:var(--text)}
+.cd-eb.zero b{font:500 17px/1 var(--mono)}
+.cd-eb.mini.zero b{font-size:14px}
+.cd-eb.nm-h2{border:1px solid var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.cd-eb.fecha{border:1.5px dotted var(--dim);color:var(--muted);background:transparent}
+.cd-z{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 4px;border:2px solid var(--im-zero);border-radius:4px;font:500 12px/1 var(--mono);color:var(--text);flex:none;vertical-align:middle}
+.cd-nmt{font-size:12.5px}
+.cd-mo{font-size:12.5px;color:var(--text)}
+.cd-zt,.cd-ft{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text)}
+.cd-ft{border:1.5px dotted var(--dim);border-radius:4px;padding:1px 8px}
+.cd-pe{display:flex;gap:14px;align-items:flex-start;padding:14px;border-radius:9px;background:var(--surface);border:1px solid var(--border)}
+.cd-pe.fecha{border:1.5px dotted var(--dim);background:transparent}
+.cd-pe.zero{border-color:var(--im-zero)}
+.cd-pe.desligados,.cd-pe.tarde,.cd-pe.falhou,.cd-pe.antes{border-color:var(--nm-line)}
+.cd-pb{display:grid;gap:8px;min-width:0}
+.cd-pb p{margin:0}
+.cd-tg{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.cd-pt{font-size:13.5px;line-height:20px;color:var(--muted);max-width:76ch}
+
+/* ---- a amostra e a fileira de casas */
+.cd-am{display:flex;align-items:center;gap:12px;max-width:560px}
+.cd-am-t{font-size:13px;white-space:nowrap}
+.cd-am-b{flex:1;height:10px;border-radius:5px;background:var(--sunk);border:1px solid var(--dim);overflow:hidden}
+.cd-am-b i{display:block;height:100%;background:var(--muted)}
+.cd-casas{display:flex;gap:6px;margin:0;padding:0;list-style:none;max-width:860px}
+.cd-casas li{flex:1 1 0;min-width:0;max-width:72px}
+.cd-casa{display:grid;place-items:center;width:100%;min-height:44px;border:2px solid var(--cd);border-radius:8px;background:var(--cd-bg);color:var(--cd);text-decoration:none}
+a.cd-casa:hover{background:var(--hit)}
+.cd-casa svg{width:19px;height:19px}
+.cd-casa.mini{width:28px;min-height:28px;height:28px;border-radius:6px;flex:none}
+.cd-casa.mini svg{width:15px;height:15px}
+.cd-casa.zero{background:transparent;border:2px solid var(--im-zero);color:var(--muted)}
+.cd-casa.nmx{border:1px solid var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.cd-leg{display:flex;flex-wrap:wrap;gap:8px 22px;margin:0;padding:0;list-style:none}
+.cd-lg{display:inline-flex;align-items:center;gap:9px;min-height:30px;font-size:13.5px;line-height:19px}
+.cd-lg b{font-weight:600}
+
+/* ---- o que entrou e o que saiu dos 12 */
+.cd-mvl{display:grid;gap:4px;margin:0}
+.cd-mvt{margin:0;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13.5px}
+.cd-mvs{display:inline-flex;align-items:center;gap:7px}
+.cd-mvs b{font-weight:600}
+.cd-sai summary{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;font-size:13.5px;color:var(--text);text-decoration:underline;text-underline-offset:3px}
+.cd-sai ul{margin:0 0 6px;padding:0;list-style:none;display:grid;gap:6px}
+.cd-sai li{display:grid;gap:2px;padding:8px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface)}
+.cd-sx{font-size:13.5px;line-height:19px;overflow-wrap:anywhere}
+
+/* ---- o cartão de um comentário */
+.cd-lista{display:grid;gap:12px}
+.cd-it{border:1px solid var(--border);border-left:5px solid var(--cd,var(--border-strong));border-radius:9px;background:var(--surface);overflow:hidden;min-width:0}
+.cd-it[hidden]{display:none}
+.cd-it.ref{border-left-color:var(--cd,var(--dim))}
+.cd-hd{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 14px;border-bottom:1px solid var(--border-subtle);background:var(--surface-2)}
+.cd-n{font-size:12.5px;color:var(--muted)}
+.cd-mot{display:inline-flex;align-items:center;gap:7px;min-height:26px;padding:0 10px;border-radius:6px;border:1.5px solid var(--cd);background:var(--cd-bg);color:var(--text);font:500 13px/1.2 var(--sans)}
+.cd-mot svg{color:var(--cd)}
+.cd-mv{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);border:1px solid var(--dim);border-radius:5px;padding:2px 8px}
+.cd-bd{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:12px 28px;padding:12px 14px 14px}
+.cd-bl{display:grid;gap:10px;min-width:0;align-content:start}
+.cd-chk{color:var(--text);border-color:var(--lado-b);gap:5px}
+.cd-chk svg{color:var(--lado-b);width:13px;height:13px}
+.cd-au{display:flex;align-items:center;gap:10px;min-width:0}
+.cd-an{display:grid;gap:0;min-width:0}
+.cd-an b{font-weight:600;font-size:14px;line-height:20px;overflow-wrap:anywhere}
+.cd-av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font:600 14px/1 var(--sans);color:var(--text)}
+.cd-av svg{width:18px;height:18px}
+.cd-av.foto{color:rgba(255,255,255,.78);border:1px solid var(--border)}
+.cd-av.ini{background:var(--surface-2);border:1px solid var(--dim)}
+.cd-av.esp{background:var(--sunk);border:1px dashed var(--dim);color:var(--muted)}
+.cd-av.canal{color:#fff;border:1px solid var(--border)}
+.cd-av.gr{border:2px solid var(--tier-top);color:var(--tier-top);background:var(--cd-g-bg)}
+.cd-av.mini{width:22px;height:22px;font-size:12px}
+
+/* a base do canal grande: duas escadas de 3 degraus, sempre em faixa */
+.cd-base{display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--sunk);width:fit-content;max-width:100%}
+.cd-bi{display:inline-flex;align-items:center;gap:8px;font-size:13px;line-height:18px;min-width:0;flex-wrap:wrap}
+.cd-esc-s{flex:none}
+.cd-esc-s .on{fill:var(--tier-top)}
+.cd-esc-s .off{fill:none;stroke:var(--dim);stroke-width:1.2}
+.cd-base .ibtn{margin:-8px 0}
+
+/* o texto de terceiros: como veio, sem cor, nunca link */
+.cd-tx{margin:0;padding:10px 12px;border-radius:7px;background:var(--sunk);border:1px solid var(--border-subtle);font:400 14.5px/22px var(--sans),"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;max-width:78ch;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap}
+.cd-txi.cl{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.cd-txf{margin:-4px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.cd-vt{min-width:44px}
+.cd-corte{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);border:1px solid var(--dim);border-radius:4px;padding:1px 8px}
+.cd-ad{margin:0;display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:18px;color:var(--muted)}
+.cd-ad svg{margin-top:1px}
+.cd-meta{margin:0;font-size:12.5px;line-height:20px;color:var(--muted);display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+.cd-saiu{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 12px;border:1.5px dashed var(--text);border-radius:7px;font-size:13px;line-height:19px}
+.cd-saiu a.btn{text-decoration:none;color:var(--text)}
+
+/* a resposta do criador, presa ao comentário; "não vimos" (caixa vazada) e "não sabemos" (hachura) têm forma própria */
+.cd-re{margin:0;display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:20px;min-width:0}
+.cd-re svg{margin-top:2px}
+.cd-re.sim{margin-left:10px;padding:8px 12px;border-left:3px solid var(--lado-b);border-radius:0 7px 7px 0;background:var(--cd-k-bg)}
+.cd-re.sim>svg{color:var(--lado-b)}
+.cd-re.sim.res{align-items:center}
+.cd-rb{display:grid;gap:4px;min-width:0}
+.cd-rh{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.cd-rt{margin:0;max-width:72ch;overflow-wrap:anywhere}
+.cd-re.nao{padding:8px 12px;border:2px solid var(--im-zero);border-radius:7px;align-items:center}
+.cd-re.ns{padding:8px 12px;border:1px solid var(--nm-line);border-radius:7px;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.cd-re.ns>svg{color:var(--nm)}
+.cd-res{display:flex;gap:10px;align-items:center;padding:14px 12px;border-radius:7px;background:var(--sunk);border:1px solid var(--dim);font-size:13.5px;line-height:20px;color:var(--text)}
+.cd-av-l{margin:0;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--dim);border-radius:7px;background:var(--sunk);font-size:13.5px;line-height:20px;max-width:90ch}
+.cd-av-l svg{margin-top:2px}
+
+/* as curtidas nas três idades (a aberta fica marcada) */
+.cd-ida{display:grid;gap:6px;margin:0;align-content:start}
+.cd-i{display:grid;grid-template-columns:54px minmax(0,1fr);align-items:center;gap:8px;min-height:30px;padding:2px 8px;border-radius:6px;border:1px solid transparent}
+.cd-i.sel{border-color:var(--dim);background:var(--sunk)}
+.cd-i dt{font-size:12.5px;color:var(--muted)}
+.cd-i dd{margin:0;display:flex;align-items:center;gap:10px;min-width:0}
+.cd-i b{font:500 14px/20px var(--mono);min-width:48px}
+.cd-bar{flex:1;height:8px;border-radius:4px;background:var(--sunk);border:1px solid var(--dim);overflow:hidden;display:block;min-width:30px}
+.cd-bar u{display:block;height:100%;background:var(--muted);text-decoration:none}
+.cd-fora{font-size:12.5px}
+.cd-fc{display:inline-flex;align-items:center;gap:6px;border:1.5px dotted var(--dim);border-radius:4px;padding:1px 8px;font-size:12.5px;color:var(--text)}
+
+/* mais comentários */
+.cd-mais{margin:0}
+.cd-ld{margin:0;display:flex;gap:10px;align-items:center;font-size:14px}
+.cd-sk{display:grid;gap:8px;padding:14px;border:1px solid var(--border);border-radius:9px;background:var(--surface)}
+.cd-sk i{display:block;height:14px;border-radius:4px;background:var(--sunk);border:1px solid var(--border-subtle)}
+.cd-sk .a{width:34%}.cd-sk .b{width:92%}.cd-sk .c{width:70%}
+.cd-er{margin:0;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:12px 14px;border:1.5px solid var(--danger);border-radius:8px;background:var(--danger-subtle);font-size:14px;line-height:21px}
+.cd-er svg{color:var(--danger-text);width:20px;height:20px}
+.cd-er>span:first-of-type{flex:1;min-width:220px}
+
+/* página do canal: M11 e a lista */
+.cd-m11,.cd-rl{display:grid;gap:12px}
+.cd-m11 h2,.cd-rl h2{font:600 19px/1.25 var(--serif);display:flex;align-items:center;gap:10px;flex-wrap:wrap;letter-spacing:-.01em}
+.cd-casas.m11 li{max-width:52px}
+.cd-casa.m11{min-height:44px}
+.cd-casa.m11.sim{border:2px solid var(--lado-b);background:var(--cd-k-bg);color:var(--lado-b)}
+.cd-casa.m11.nao{border:2px solid var(--im-zero);background:transparent}
+.cd-casa.m11.antes{border:1px solid var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.cd-casa.m11.fe{border:2px dotted var(--dim);background:transparent;color:var(--muted)}
+.cd-casa.mini.m11.sim{border-color:var(--lado-b)}
+.cd-gap{flex:0 0 14px!important}
+.cd-rls{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.cd-ri{display:grid;gap:8px;padding:12px 14px;border:1px solid var(--border);border-radius:9px;background:var(--surface);min-width:0}
+.cd-ri p{margin:0}
+.cd-rv{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;font-size:14px}
+.cd-rv a{color:var(--text);font-weight:500;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:44px}
+.cd-rc{font-size:14px;line-height:21px;max-width:78ch;padding:8px 12px;border-radius:7px;background:var(--sunk);border:1px solid var(--border-subtle);overflow-wrap:anywhere}
+.cd-rr{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:flex-start;margin-left:10px!important;padding:8px 12px;border-left:3px solid var(--lado-b);border-radius:0 7px 7px 0;background:var(--cd-k-bg);font-size:13.5px;line-height:20px}
+.cd-rr>svg{color:var(--lado-b);margin-top:2px}
+.cd-rrh{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cd-rr .cd-rt{flex:1 1 100%;max-width:72ch}
+
+/* referência fora da tela */
+.cd-fg2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:1000px}
+.cd-it.ref .cd-bd{grid-template-columns:minmax(0,1fr)}
+
+@media (max-width:900px){
+  .cd-bd{grid-template-columns:minmax(0,1fr)}
+  .cd-ida{max-width:340px}
+  .cd-fg2{grid-template-columns:minmax(0,1fr)}
+  .cd-novo{margin:26px 0 14px;padding:14px 8px 16px}
+}
+@media (max-width:600px){
+  .cd-abas{gap:6px}
+  .cd-tab{flex-direction:column;align-items:flex-start;gap:6px;padding:8px 10px;min-height:84px}
+  .cd-casas{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+  .cd-casas li{max-width:none}
+  .cd-casas.m11{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .cd-gap{display:none}
+  .cd-pe{flex-direction:column}
+  .cd-hd{padding:8px 10px}
+  .cd-bd{padding:12px 10px 14px}
+  .cd-tx{padding:8px 10px}
+}
+
+.crumbs a{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
+.cd-casa.mini.m11{min-height:28px;height:28px}
+
+/* ---- rodada 2 da revisão de UX */
+/* B3: o cartão que recebe o foco por programa mostra o anel (teclado) */
+.cd-it:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cd-it:focus:not(:focus-visible){outline:0}
+/* melhoria 2: o 0 dentro da casa "não vimos resposta" do M11 (zero medido, igual à convenção 6) */
+.cd-casa.m11.nao .num{font:500 13px/1 var(--mono);color:var(--text)}
+.cd-casa.mini.m11.nao .num{font-size:12px}
+/* melhoria 8: a 390 px o ⓘ fica colado ao título; a marca "exemplo" (do mockup, não do produto) é que desce para a linha de baixo */
+@media (max-width:600px){ .cd-top .ex{order:3} .cd-top{gap:4px 8px} }
+
+/* ---- r4: texto reservado na lista dos que saíram; nota de data fora da tela */
+.cd-sx-res{display:inline-flex;align-items:center;gap:8px;color:var(--text)}
+.cd-sx-res .i{width:16px;height:16px;flex:none}
+.cd-notaex{margin:0;max-width:78ch;font-size:13.5px;line-height:20px;color:var(--text)}
