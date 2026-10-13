@@ -394,16 +394,69 @@ describe('passoRetencao: erros', () => {
     expect(ctx.falhas.join('|')).toContain('retenção: Canal Um: 1 de 1 leituras com erro')
   })
 
-  it('cota estourada (403 quotaExceeded) é erro do vídeo, não perda de autorização; os outros seguem', async () => {
+  it('cota estourada (403 quotaExceeded) é erro do vídeo, não perda de autorização; quem estava em voo termina', async () => {
+    // 4 vídeos = os 4 em voo (PARALELO): nenhum ficou esperando a vez.
     fetchFalso({ [idDoVideo(2)]: () => erroGoogle(403, 'quotaExceeded') })
-    const db = bd(lidosHoje(5))
+    const db = bd(lidosHoje(4))
     const ctx = ctxDe(db)
     const r = await passoRetencao(ctx)
     expect(tentVideo(db, idDoVideo(2))).toMatchObject({ outcome: 'erro_http', http_status: 403, error: 'http_403_quotaExceeded' })
     expect(ctx.channels[0]!.collection_status).toBe('ok')
-    expect(r.gravados).toBe(4)
-    expect(ctx.falhas).toContain('retenção: Canal Um: 1 de 5 leituras com erro (o YouTube recusou por cota (403))')
+    expect(r.gravados).toBe(3)
+    expect(ctx.falhas).toContain('retenção: Canal Um: 1 de 4 leituras com erro (o YouTube recusou por cota (403))')
     expect(tentCanal(db)).toMatchObject({ outcome: 'ok' })
+  })
+
+  // M2 (revisão das Tarefas 9 e 10): depois de uma cota, quem ainda não começou NÃO chama a API (como o passo `dimensoes`).
+  describe('cota: o canal para de chamar a API para quem ainda não começou', () => {
+    const quota = (status: number, reason: string) => () => erroGoogle(status, reason)
+    const devagar = async (): Promise<Response> => { await new Promise(r => setTimeout(r, 30)); return json(curva()) }
+    it.each([
+      ['403 quotaExceeded', 403, 'quotaExceeded', 'http_403_quotaExceeded'],
+      ['403 rateLimitExceeded', 403, 'rateLimitExceeded', 'http_403_rateLimitExceeded'],
+      ['429', 429, 'rateLimitExceeded', 'http_429_rateLimitExceeded'],
+    ])('%s: os 3 em voo terminam, os 4 que esperavam a vez ficam nao_alcancado_orcamento e contam em pendentes', async (_n, status, reason, codigo) => {
+      // 8 vídeos, 4 em voo: o 1º devolve a cota na hora; o 2º ao 4º demoram e terminam bem.
+      const f = fetchFalso({
+        [idDoVideo(1)]: quota(status, reason), [idDoVideo(2)]: devagar, [idDoVideo(3)]: devagar, [idDoVideo(4)]: devagar,
+      })
+      const db = bd(lidosHoje(8))
+      const ctx = ctxDe(db)
+      const r = await passoRetencao(ctx)
+      expect(idsChamados(f).sort()).toEqual([1, 2, 3, 4].map(idDoVideo))
+      expect(tentVideo(db, idDoVideo(1))).toMatchObject({ outcome: 'erro_http', http_status: status, error: codigo })
+      for (const n of [2, 3, 4]) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'ok' })
+      for (const n of [5, 6, 7, 8]) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+      expect(r.gravados).toBe(3)
+      expect(r.pendentes).toBe(4)
+      expect(r.chamadas).toBe(4)
+      expect(retencoes(db)).toHaveLength(3)
+      // o canal fica vermelho pela cota E marcado como não alcançado (a próxima execução refaz os 4)
+      expect(ctx.falhas).toEqual([expect.stringMatching(/^retenção: Canal Um: 1 de 8 leituras com erro \(/)])
+      expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+      expect(ctx.channels[0]!.collection_status).toBe('ok')
+    })
+
+    it('a parada é do canal em curso: o canal seguinte começa de novo (a cota é lida de novo por quem a recebe)', async () => {
+      const f = fetchFalso({ [idDoVideo(1)]: quota(403, 'quotaExceeded'), [idDoVideo(2)]: devagar, [idDoVideo(3)]: devagar, [idDoVideo(4)]: devagar })
+      const um = lidosHoje(8)
+      const dois = [fato(101, { ultimo_dia_com_view: addDays(HOJE, -1) })]
+      const db = bd({ 'ch-1': um, 'ch-2': dois }, [canal1, canal2])
+      const r = await passoRetencao(ctxDe(db, [canal1, canal2]))
+      expect(idsChamados(f)).toContain(idDoVideo(101))
+      expect(tentVideo(db, idDoVideo(101))).toMatchObject({ outcome: 'ok' })
+      expect(tentCanal(db, 'ch-2')).toMatchObject({ outcome: 'ok' })
+      expect(r.pendentes).toBe(4)
+    })
+
+    it('403 que NÃO é cota (reason fora do catálogo) e 404 não param o canal: todos os 8 são chamados', async () => {
+      const f = fetchFalso({ [idDoVideo(1)]: quota(403, 'segredoDoReasonXYZ'), [idDoVideo(2)]: quota(404, 'notFound'), [idDoVideo(3)]: devagar, [idDoVideo(4)]: devagar })
+      const db = bd(lidosHoje(8))
+      const r = await passoRetencao(ctxDe(db))
+      expect(f).toHaveBeenCalledTimes(8)
+      expect(r.pendentes).toBe(0)
+      expect(r.gravados).toBe(6)
+    })
   })
 
   it('erro no 2º de 5 vídeos: os outros seguem e o canal fecha ok', async () => {
@@ -663,6 +716,8 @@ describe('passoRetencao: notas', () => {
     const r = await passoRetencao(ctx)
     expect(ctx.falhas.find(x => x.includes('sem diário em dia'))).toBeUndefined()
     expect(ctx.falhas.find(x => x.includes('não devolve mais'))).toBeUndefined()
+    // M5: NENHUMA nota, de nenhum texto, vai a `falhas` (a asserção de duas frases deixava passar uma nota de outro texto).
+    expect(ctx.falhas).toEqual([])
     expect(r.sem_resposta_do_youtube).toEqual([`retenção: Canal Um: 1 vídeo(s) que o YouTube não devolve mais (${idDoVideo(1)}); a curva não é lida`])
     expect(r.sem_diario_em_dia).toBe(0)
   })
@@ -672,8 +727,10 @@ describe('passoRetencao: notas', () => {
     const um = [fato(1, { fonte_ate: addDays(HOJE, -20), diario_falhas_4d: 4 }), ...Array.from({ length: 20 }, (_, k) => fato(k + 2))]
     const dois = [fato(60, { fonte_ate: addDays(HOJE, -20), diario_falhas_4d: 4 }), ...Array.from({ length: 20 }, (_, k) => fato(k + 61))]
     const db = bd({ 'ch-1': um, 'ch-2': dois }, [canal1, canal2])
-    const r = await passoRetencao(ctxDe(db, [canal1, canal2]))
+    const ctx2 = ctxDe(db, [canal1, canal2])
+    const r = await passoRetencao(ctx2)
     expect(r.sem_resposta_do_youtube).toHaveLength(2)
+    expect(ctx2.falhas).toEqual([])
     expect(r.sem_resposta_do_youtube[0]).toContain('Canal Um')
     expect(r.sem_resposta_do_youtube[1]).toContain('Canal Dois')
   })

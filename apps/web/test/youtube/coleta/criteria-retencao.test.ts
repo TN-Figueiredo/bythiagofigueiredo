@@ -427,6 +427,118 @@ describe('A5 E8 · criteriosRetencao', () => {
     })
   })
 
+  // B (conserto da revisão das Tarefas 9 e 10): `fatos = []` só é "tabela vazia" quando o canal de fato não tem vídeo. Com vídeo
+  // cadastrado, a lista vazia é defeito da função (filtro quebrado, cliente sem service_role) e o alarme (D) não tem sobre quem disparar.
+  describe('lista de fatos vazia: o canal tem vídeos? (verde falso)', () => {
+    const video = (n: number, o: Record<string, unknown> = {}) =>
+      ({ id: `uuid-${n}`, channel_id: 'ch-1', published_at: D(-30) + 'T10:00:00Z', ...o })
+    const dbVazio = (videos: Array<Record<string, unknown>>): FakeDb => {
+      const db = fakeSupabase({ youtube_videos: videos })
+      db.rpcHandlers[FN] = () => ({ data: [], error: null })
+      return db
+    }
+    const semAvaliar = (n: number): string => naoAvaliou('Canal A', `lista vazia, mas o canal tem ${n} ${n === 1 ? 'vídeo' : 'vídeos'}`)
+
+    it('VERMELHO: lista vazia e 2 vídeos cadastrados: "não foi possível avaliar", com a contagem', async () => {
+      expect(await rodar(dbVazio([video(1), video(2)]))).toEqual([semAvaliar(2)])
+    })
+
+    it('VERMELHO: 1 vídeo: singular', async () => {
+      expect(await rodar(dbVazio([video(1)]))).toEqual([semAvaliar(1)])
+    })
+
+    it('VERDE legítimo: lista vazia e nenhum vídeo no canal (a contagem foi feita)', async () => {
+      const db = dbVazio([])
+      expect(await rodar(db)).toEqual([])
+      expect(db.leituras.youtube_videos).toBe(1)
+    })
+
+    it('só conta o vídeo DESTE canal e com published_at (os da lista de fatos); o resto é verde', async () => {
+      const db = dbVazio([video(1, { channel_id: 'ch-2' }), video(2, { published_at: null }), video(3, { published_at: undefined })])
+      expect(await rodar(db)).toEqual([])
+    })
+
+    it('a lista de fatos NÃO vazia não olha youtube_videos', async () => {
+      const db = fakeSupabase({ youtube_videos: [video(1)] })
+      db.rpcHandlers[FN] = () => ({ data: [comLinha('a', 0, { vida_window_end: D(-2) })], error: null })
+      expect(await rodar(db)).toEqual([])
+      expect(db.leituras.youtube_videos).toBeUndefined()
+    })
+
+    it('a contagem falha (erro de banco): nunca verde, e o texto do Postgres não vai à nota', async () => {
+      const db = dbVazio([video(1)])
+      db.errors.youtube_videos = { code: 'XX000', message: 'senha=hunter2' }
+      const falhas = await rodar(db)
+      expect(falhas).toEqual(['erro de banco ao ler youtube_videos', naoAvaliou()])
+      expect(falhas.join('|')).not.toContain('hunter2')
+    })
+
+    it('a tabela youtube_videos some (schema ausente): nunca verde', async () => {
+      const db = dbVazio([])
+      db.errors.youtube_videos = { code: '42P01', message: 'relation does not exist' }
+      expect(await rodar(db)).toEqual(['schema_ausente: youtube_videos', naoAvaliou()])
+    })
+
+    it('a contagem vem ausente (nem número nem erro): nunca verde', async () => {
+      const db = dbVazio([video(1)])
+      const from = db.client.from.bind(db.client)
+      vi.spyOn(db.client, 'from').mockImplementation((t: string) => {
+        if (t === 'youtube_videos') return { select: () => ({ eq: () => ({ not: () => Promise.resolve({ data: null, error: null, count: null }) }) }) } as never
+        return from(t)
+      })
+      expect(await rodar(db)).toEqual([naoAvaliou('Canal A', 'contagem de vídeos ausente')])
+    })
+
+    it('a contagem lança: erro de banco, sem o texto da exceção', async () => {
+      const db = dbVazio([video(1)])
+      const from = db.client.from.bind(db.client)
+      vi.spyOn(db.client, 'from').mockImplementation((t: string) => {
+        if (t === 'youtube_videos') throw new Error('senha=hunter2')
+        return from(t)
+      })
+      const falhas = await rodar(db)
+      expect(falhas).toEqual(['erro de banco ao ler youtube_videos', naoAvaliou()])
+      expect(falhas.join('|')).not.toContain('hunter2')
+    })
+
+    it('a contagem não volta no prazo: "(sem tempo)", nunca verde', async () => {
+      const db = dbVazio([video(1)])
+      const from = db.client.from.bind(db.client)
+      vi.spyOn(db.client, 'from').mockImplementation((t: string) => {
+        if (t === 'youtube_videos') return { select: () => ({ eq: () => ({ not: () => new Promise(() => {}) }) }) } as never
+        return from(t)
+      })
+      const falhas: string[] = []
+      const p = criteriosRetencao({ supabase: db.client, channels: [CANAL], falhas, relogio: criarRelogio() })
+      await vi.advanceTimersByTimeAsync(3_100)
+      await p
+      expect(falhas).toEqual([naoAvaliou('Canal A', 'sem tempo')])
+    })
+
+    it('a leitura da lista gastou o prazo: a contagem nem é pedida, "(sem tempo)"', async () => {
+      const db = fakeSupabase({ youtube_videos: [video(1)] })
+      db.rpcHandlers[FN] = () => Promise.resolve().then(() => { vi.setSystemTime(Date.now() + 3_500); return { data: [], error: null } })
+      const falhas = await rodar(db)
+      expect(falhas).toEqual([naoAvaliou('Canal A', 'sem tempo')])
+      expect(db.leituras.youtube_videos).toBeUndefined()
+    })
+
+    it('dois canais: o vazio com vídeos fica vermelho, o vazio sem vídeo fica verde, e cada um é contado pelo seu id', async () => {
+      const db = fakeSupabase({ youtube_videos: [video(1, { channel_id: 'ch-2' }), video(2, { channel_id: 'ch-2' })] })
+      db.rpcHandlers[FN] = () => ({ data: [], error: null })
+      expect(await rodar(db, [CANAL, OUTRO])).toEqual([naoAvaliou('Canal B', 'lista vazia, mas o canal tem 2 vídeos')])
+    })
+
+    it('executar duas vezes não duplica a nota', async () => {
+      const db = dbVazio([video(1)])
+      const falhas: string[] = []
+      const ctx = { supabase: db.client, channels: [CANAL], falhas, relogio: criarRelogio() }
+      await criteriosRetencao(ctx)
+      await criteriosRetencao(ctx)
+      expect(falhas).toEqual([semAvaliar(1)])
+    })
+  })
+
   describe('o tempo', () => {
     it('leitura que não volta em 3 s: "(sem tempo)" e nenhuma nota de atraso', async () => {
       const db = fakeSupabase()
