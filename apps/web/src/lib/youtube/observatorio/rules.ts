@@ -1,4 +1,5 @@
 import { COMMENT_RULES } from './comentarios/regras'
+import { CONTEXTO_IA_RULES } from './contexto-ia/regras'
 
 /** Port of dados.js:113-133 (single source of rules) + tierOf + NICHES. */
 export const RULES = {
@@ -49,6 +50,8 @@ export const RULES = {
     minReadHours24: 20 },
   // New (A5, E14; comentários de destaque dos vídeos de concorrentes). Os números moram em `comentarios/regras.ts`; aqui só a leitura única.
   comments: COMMENT_RULES,
+  // New (A5, E17 degrau 1; botão "Perguntar a uma IA"). Os números moram em `contexto-ia/regras.ts`; aqui só a leitura única.
+  contextoIa: CONTEXTO_IA_RULES,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
