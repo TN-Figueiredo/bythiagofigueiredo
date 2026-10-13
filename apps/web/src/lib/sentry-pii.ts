@@ -158,6 +158,26 @@ function cortarConsulta(texto: string): string {
   return texto.replace(/[?#][\s\S]*$/, (m) => m[0] + REDIGIDO)
 }
 
+const PROFUNDIDADE_ROTA_COMENTARIOS = 4
+
+/**
+ * Endurecimento (7a): em `data`, QUALQUER valor texto que case uma das rotas perde o que vem
+ * depois do primeiro `?` (ou `#`), seja qual for a chave. Objetos e listas rasos entram até
+ * `PROFUNDIDADE_ROTA_COMENTARIOS`; o que não é texto é ignorado. Só estas três rotas.
+ */
+function cortarRotasEmQualquerChave(valor: unknown, nivel: number): void {
+  if (nivel > PROFUNDIDADE_ROTA_COMENTARIOS || valor === null || typeof valor !== 'object') return
+  const reg = valor as Record<string, unknown>
+  for (const k of Object.keys(reg)) {
+    const v = reg[k]
+    if (typeof v === 'string') {
+      if (ROTA_COMENTARIOS_RE.test(v)) reg[k] = cortarConsulta(v)
+    } else {
+      cortarRotasEmQualquerChave(v, nivel + 1)
+    }
+  }
+}
+
 /**
  * Se `data` ou a descrição apontam para uma das rotas de comentário, redige a consulta
  * e o fragmento em `data` (no lugar) e devolve a descrição já cortada. Sem casamento,
@@ -170,6 +190,7 @@ function redigirConsultaDeComentarios(
 ): string | undefined {
   const urls: string[] = []
   if (data) {
+    cortarRotasEmQualquerChave(data, 0)
     for (const campo of CAMPOS_URL_COMENTARIOS) {
       const v = data[campo]
       if (typeof v === 'string') urls.push(v)
