@@ -189,7 +189,13 @@ test.describe('fecho A4 (2ª passada): perfil retencao (vídeo de 2 dias, grade,
         await comZero.scrollIntoViewIfNeeded()
         const tz = (await comZero.innerText()).replace(/\s+/g, ' ').trim()
         medida(`${sufixo} S5 cartão com zero: "${tz.slice(0, 200)}"`)
-        expect(tz).toContain('sem impressão no período')
+        // K5 (UX rodada 3): o cartão tem só a caixa "0" (com o title do zero medido); a frase "sem impressão no período" saiu do cartão e a legenda da grade explica a caixa
+        expect(tz, 'a frase antiga não está mais no cartão').not.toContain('sem impressão no período')
+        const caixaZero = comZero.locator('.obs-ch-zero').first()
+        expect((await caixaZero.innerText()).replace(/\s+/g, ' ').trim()).toMatch(/^0\b/)
+        await expect(caixaZero).toHaveAttribute('title', 'zero medido: o YouTube mediu e o vídeo não apareceu')
+        expect(await comZero.locator('p.cv-n3').count(), 'sem terceira linha no cartão com zero medido').toBe(0)
+        expect(await page.locator(S).first().innerText(), 'a legenda da grade explica a caixa vazada e a hachura').toContain('Caixa vazada com 0: o YouTube mediu o período e o vídeo não apareceu. Hachura: ainda não medido.')
         const zeroPng = await comZero.screenshot()
         let mockZero: Buffer | null = null
         try { mockZero = await mockShot(browser, 'canal.html', 'caso=cheio', vp.w, vp.h, tema, 'article.vc:has-text("sem impressão no período")') } catch { mockZero = null }
