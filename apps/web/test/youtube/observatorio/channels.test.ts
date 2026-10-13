@@ -36,6 +36,11 @@ describe('humanizeSyncError', () => {
   it('quotaExceeded alone', () => expect(humanizeSyncError('quotaExceeded')).toBe('cota diária da API do YouTube esgotada'))
   it('timeout', () => expect(humanizeSyncError('request timeout')).toBe('tempo de resposta do YouTube esgotado'))
   it('aborted', () => expect(humanizeSyncError('The operation was Aborted')).toBe('tempo de resposta do YouTube esgotado'))
+  it('404 que não conseguiu registrar a falta: a frase da falta não é engolida pelo 404', () => {
+    const msg = 'YouTube API 404 for channel UCx (e a falta não foi registrada: não foi possível marcar o que deixou de vir do YouTube (competitor_channel_mark_missing: erro do banco))'
+    expect(humanizeSyncError(msg)).toBe('não encontrado no YouTube (404), e a falta não foi registrada')
+  })
+  it('404 comum continua igual (sem a frase da falta)', () => expect(humanizeSyncError('YouTube API 404 for channel UCx')).toBe('não encontrado no YouTube (404)'))
   it('unknown text is kept, never hidden', () => expect(humanizeSyncError('weird thing')).toBe('weird thing'))
 })
 describe('syncLabel', () => {
