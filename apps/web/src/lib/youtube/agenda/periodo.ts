@@ -15,6 +15,10 @@ export function horaSP(agoraMs: number): number { return sp(agoraMs).getUTCHours
 
 /** '2026-10-12T21' (hora) | '2026-10-12#18' (faixa de 6 h) | '2026-10-12' (dia). */
 export function chaveDoPeriodo(p: Periodo, agoraMs: number): string {
+  // NaN, Infinity ou fora do alcance de Date: erro de mensagem fixa (nunca o RangeError cru do toISOString).
+  if (!Number.isFinite(agoraMs) || !Number.isFinite(agoraMs - SP_OFFSET_MS) || Number.isNaN(sp(agoraMs).getTime())) {
+    throw new RangeError('instante inválido para a chave do período')
+  }
   const d = sp(agoraMs)
   const dia = d.toISOString().slice(0, 10)
   const h = d.getUTCHours()
