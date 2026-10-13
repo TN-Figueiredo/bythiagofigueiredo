@@ -26,7 +26,7 @@ export interface VpdCanal {
 
 /** A frase única do corte do teto, para toda tela que soma ou compara vários vídeos do diário. `k` > 0. */
 export function foraDaLeituraFrase(k: number): string {
-  return `A leitura diária cobre só os ${TETO_VIDEOS_DIARIO} longos mais novos; ${k} ${k === 1 ? 'longo mais antigo ficou' : 'longos mais antigos ficaram'} de fora.`
+  return `A leitura diária cobre só os ${TETO_VIDEOS_DIARIO} vídeos longos mais novos; ${k} ${k === 1 ? 'vídeo longo mais antigo ficou' : 'vídeos longos mais antigos ficaram'} de fora.`
 }
 
 /** Dos `ytIds` pedidos, quantos o leitor deixou além do teto (não lidos). Diário sem a lista (ausente) = nenhum corte. */
@@ -95,7 +95,7 @@ export function motivoVpdTexto(m: MotivoSemVpd, c: Pick<VpdCanal, 'ultimoDia'>, 
     case 'diario-parado': return c.ultimoDia == null ? 'a coleta diária deste canal parou' : `a coleta diária deste canal parou em ${dm(c.ultimoDia)}`
     case 'sem-longos': return 'nenhum vídeo longo acompanhado'
     case 'poucos-dias': return `menos de ${MIN_DIAS_VPD} dias medidos nos últimos ${JANELA_VPD_DIAS}`
-    case 'fora-da-leitura': return `este vídeo ficou fora da leitura diária, que cobre só os ${TETO_VIDEOS_DIARIO} longos mais novos`
+    case 'fora-da-leitura': return `este vídeo ficou fora da leitura diária, que cobre só os ${TETO_VIDEOS_DIARIO} vídeos longos mais novos`
     default: { const _nunca: never = m; return _nunca }
   }
 }
@@ -103,6 +103,6 @@ export function motivoVpdTexto(m: MotivoSemVpd, c: Pick<VpdCanal, 'ultimoDia'>, 
 /** A base escrita do número: a janela e quantos vídeos. Sem valor, não há base. */
 export function baseVpdTexto(c: VpdCanal, dm: (d: DiaYt) => string): string | null {
   if (c.valor == null || c.janela == null) return null
-  const fora = c.foraDoTeto > 0 ? `; ${c.foraDoTeto} ${c.foraDoTeto === 1 ? 'longo mais antigo ficou' : 'longos mais antigos ficaram'} de fora da leitura` : ''
+  const fora = c.foraDoTeto > 0 ? `; ${c.foraDoTeto} ${c.foraDoTeto === 1 ? 'vídeo longo mais antigo ficou' : 'vídeos longos mais antigos ficaram'} de fora da leitura` : ''
   return `média dos últimos ${JANELA_VPD_DIAS} dias do YouTube com medida (de ${dm(c.janela.de)} a ${dm(c.janela.ate)}), mediana de ${c.n} ${c.n === 1 ? 'longo' : 'longos'}${fora}`
 }

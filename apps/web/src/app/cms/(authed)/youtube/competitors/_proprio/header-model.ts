@@ -88,9 +88,9 @@ export function fraseSemRelatorioCelula(parouEm: DiaYt | null | undefined, dm: (
   return parouEm ? `a coleta de relatórios deste canal parou em ${dm(parouEm)}; nenhum dia dos últimos ${JANELA_LEITURA_ALCANCE_DIAS} foi medido` : FRASE_SEM_RELATORIO
 }
 
-/** O que o total do canal soma e o de cada vídeo não: impressões de dias anteriores à publicação do vídeo (`alcanceAntesDaPublicacao`). Só se diz quando `imp` > 0. */
+/** O que o total do canal soma e o de cada vídeo não: impressões de dias anteriores à publicação de cada vídeo (`alcanceAntesDaPublicacao`). Só se diz quando `imp` > 0. */
 export function antesDaPublicacaoFrase(imp: number): string {
-  return `O total do canal inclui ${imp.toLocaleString('pt-BR')} ${imp === 1 ? 'impressão' : 'impressões'} de dias anteriores à publicação do vídeo; o total de cada vídeo começa no dia da publicação, então a soma dos vídeos pode ser menor.`
+  return `O total do canal inclui ${imp.toLocaleString('pt-BR')} ${imp === 1 ? 'impressão' : 'impressões'} de dias anteriores à publicação de cada vídeo; o total de cada vídeo começa no dia da publicação, então a soma dos vídeos pode ser menor.`
 }
 
 /** A frase de cada estado em que não há número; `ok` não tem frase. Switch exaustivo: um estado novo não compila sem a sua frase. `parado` (sem-relatorio com data) troca a frase de "ainda não há" pela da coleta parada. */
