@@ -2,7 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { DEFINICOES, agendaLigada, tarefasDesligadas, notaDoInterruptorDaAgenda } from '@/lib/youtube/agenda/catalogo'
+import { CATALOGO, DEFINICOES, agendaLigada, tarefasDesligadas, notaDoInterruptorDaAgenda } from '@/lib/youtube/agenda/catalogo'
+import { DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES } from '@/lib/youtube/agenda/definicoes'
 import {
   LIMITE_FUNCAO_MS, ARRENDAMENTO_TTL_S, HORARIA_ULTIMA_ONDA_MS, HORARIA_CHAMADA_MS, HORARIA_FIM_MS, BANCO_MS,
   LEVE_COMECA_ATE_MS, LEVE_FIM_MS, PESADA_FIM_MS, RODANDO_VENCE_MIN,
@@ -162,4 +163,55 @@ describe('RULES.hourly', () => {
   it('os quatro valores do plano', () => {
     expect(RULES.hourly).toEqual({ ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5 })
   })
+})
+
+describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
+  it('são cinco, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 6, 7, 8])
+    expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
+    expect(DEFINICOES.length).toBe(3)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length)
+  })
+  it('as duas da E14, valor por valor', () => {
+    const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
+    expect(por('anular_identidade')).toMatchObject({ rotulo: 'anular identidade de autores', ordem: 2, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 3, tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null, nuncaDesliga: true })
+    expect(por('retratos_comentarios')).toMatchObject({ rotulo: 'retratos de comentários', ordem: 7, peso: 'pesada', periodo: 'dia', aPartirDaHoraSP: 13, tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: 6, cedeA: ['sincronizar_canais'] })
+    expect(por('retratos_comentarios').nuncaDesliga).toBeUndefined()
+  })
+  it('a Tarefa do catálogo carrega a definição inteira da lista única (nada diverge entre o que roda e o que o vigia cobra)', () => {
+    expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
+    for (const d of TODAS_AS_DEFINICOES) {
+      const t = CATALOGO.find(x => x.nome === d.nome)!
+      const { fraseDe: _f, ...semFuncao } = d
+      expect(t, d.nome).toMatchObject(semFuncao)
+      expect(typeof t.rodar, d.nome).toBe('function')
+    }
+  })
+  it('começo antes do fim e fim dentro do teto do peso, também para as duas da E14', () => {
+    for (const d of DEFINICOES_COMENTARIOS) {
+      expect(d.comecaAteMs, d.nome).toBeLessThan(d.fimAteMs)
+      expect(d.fimAteMs, d.nome).toBeLessThanOrEqual(d.peso === 'pesada' ? PESADA_FIM_MS : LEVE_FIM_MS)
+    }
+  })
+})
+
+describe('OBS_AGENDA_TASKS_OFF e as duas tarefas da E14 (o catálogo real e a lista do vigia)', () => {
+  const dois = [
+    ['o catálogo real', CATALOGO.map(t => ({ nome: t.nome, nuncaDesliga: t.nuncaDesliga }))],
+    ['a lista do vigia', TODAS_AS_DEFINICOES.map(d => ({ nome: d.nome, nuncaDesliga: d.nuncaDesliga }))],
+  ] as const
+  for (const [quem, cat] of dois) {
+    it(`${quem}: anular_identidade (nuncaDesliga) é ignorada e vai em "ignoradas"; retratos_comentarios desliga`, () => {
+      const r = tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'anular_identidade,retratos_comentarios' }, cat)
+      expect(r.ignoradas).toEqual(['anular_identidade'])
+      expect([...r.desligadas]).toEqual(['retratos_comentarios'])
+      expect(r.desconhecidas).toEqual([])
+    })
+    it(`${quem}: só a anulação no interruptor: nada desliga, uma nota`, () => {
+      const r = tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: ' anular_identidade ,anular_identidade' }, cat)
+      expect(r.ignoradas).toEqual(['anular_identidade'])
+      expect(r.desligadas.size).toBe(0)
+    })
+  }
 })
