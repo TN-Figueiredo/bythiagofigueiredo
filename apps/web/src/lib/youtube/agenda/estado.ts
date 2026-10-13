@@ -24,14 +24,14 @@ type Objeto = Record<string, unknown>
 const ehObjeto = (v: unknown): v is Objeto => typeof v === 'object' && v !== null && !Array.isArray(v)
 const tem = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
 
-const falha = (porque: string, causa: CausaDaFalha): { porque: string; causa: CausaDaFalha } => ({ porque, causa })
+const falha = (porque: string, causa: CausaDaFalha, codigo?: string): { porque: string; causa: CausaDaFalha; codigo?: string } => (codigo === undefined ? { porque, causa } : { porque, causa, codigo })
 
-function falhaDoErro(erro: { code?: unknown } | null | undefined): { porque: string; causa: CausaDaFalha } {
+function falhaDoErro(erro: { code?: unknown } | null | undefined): { porque: string; causa: CausaDaFalha; codigo?: string } {
   const codigo = erro && typeof erro.code === 'string' ? erro.code : ''
   // Prazo estourado: o cliente não lança, devolve `AbortError` com código vazio. Tratado como "não respondeu" (idem erro de transporte).
   if (!CODIGO_DO_BANCO_RE.test(codigo)) return falha(P_NAO_RESPONDEU, 'prazo')
-  if (CODIGOS_SCHEMA_AUSENTE.includes(codigo)) return falha(`migration da agenda não aplicada (código ${codigo})`, 'schema_ausente')
-  return falha(`erro do banco (código ${codigo})`, 'erro_do_banco')
+  if (CODIGOS_SCHEMA_AUSENTE.includes(codigo)) return falha(`migration da agenda não aplicada (código ${codigo})`, 'schema_ausente', codigo)
+  return falha(`erro do banco (código ${codigo})`, 'erro_do_banco', codigo)
 }
 
 /** Uma ida a uma função do banco: o dado cru, ou o porquê. Nunca lança. */

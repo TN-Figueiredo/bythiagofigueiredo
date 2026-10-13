@@ -213,9 +213,10 @@ export async function executarAgenda(o: {
     logCron({ job: JOB, run_id: runId, status: 'locked' })
     return { resposta: Response.json({ status: 'locked' }) }
   }
-  // O arrendamento que FALHA (não o que está ocupado) tem dois destinos. Causa dura (`schema_ausente`, `erro_do_banco`: função faltando, sem
-  // EXECUTE, erro de SQL): a agenda não consegue trabalhar, então depois da guarda a rota cai no lote antigo (a coleta roda e o cron fica
-  // vermelho com a frase). Causa incerta (prazo, exceção, forma inválida): não dá para saber se outro disparo tem o arrendamento; a agenda
+  // O arrendamento que FALHA (não o que está ocupado) tem dois destinos. Causa dura (`schema_ausente`, ou `erro_do_banco` de CLASSE 42 do
+  // Postgres = permissão e objeto: função faltando, sem EXECUTE, erro de SQL): a agenda não consegue trabalhar, então depois da guarda a rota
+  // cai no lote antigo (a coleta roda e o cron fica vermelho com a frase). Causa incerta (prazo, exceção, forma inválida, e `erro_do_banco`
+  // transitório fora da classe 42, como 57014 ou PGRST002): não dá para saber se outro disparo tem o arrendamento; a agenda
   // segue (cada tarefa se garante pela tomada, que é atômica), o lote antigo NÃO roda em paralelo e o problema entra no vermelho do disparo.
   let falhaDura: string | null = null
   const problemasAntes: string[] = []
@@ -225,7 +226,7 @@ export async function executarAgenda(o: {
     if (arrendamento.causa !== 'schema_ausente') {
       Sentry.captureMessage('agenda: arrendamento não tomado', { level: 'warning', tags: { component: 'sync-youtube', mode: 'agenda' }, extra: { causa: arrendamento.causa ?? null } })
     }
-    if (arrendamento.causa === 'schema_ausente' || arrendamento.causa === 'erro_do_banco') {
+    if (arrendamento.causa === 'schema_ausente' || (arrendamento.causa === 'erro_do_banco' && arrendamento.codigo?.startsWith('42'))) {
       falhaDura = `não foi possível tomar o arrendamento da agenda (${arrendamento.porque}); o lote antigo rodou no lugar`
     } else {
       problemasAntes.push(`não foi possível confirmar o arrendamento da agenda (${arrendamento.porque})`)

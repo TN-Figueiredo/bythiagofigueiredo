@@ -11,8 +11,8 @@ export type Periodo = 'hora' | 'faixa' | 'dia'
  * `forma_invalida` = resposta nula ou fora da forma esperada, ou entrada inválida do chamador.
  */
 export type CausaDaFalha = 'schema_ausente' | 'prazo' | 'excecao' | 'erro_do_banco' | 'forma_invalida'
-/** Uma leitura que pode falhar: o valor, ou o motivo (em português) para o resumo do disparo. `causa` é opcional: quem não a preenche continua compilando. */
-export type Lido<T> = { valor: T } | { porque: string; causa?: CausaDaFalha }
+/** Uma leitura que pode falhar: o valor, ou o motivo (em português) para o resumo do disparo. `causa` é opcional: quem não a preenche continua compilando. `codigo` é o código do banco, só nas causas que o têm (`schema_ausente`, `erro_do_banco`). */
+export type Lido<T> = { valor: T } | { porque: string; causa?: CausaDaFalha; codigo?: string }
 
 export interface LinhaTarefa {
   task: string
