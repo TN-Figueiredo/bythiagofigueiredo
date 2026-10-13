@@ -44,7 +44,9 @@ export const RULES = {
   // ou que troca de título ou descrição, vai para a diária por `days` dias.
   promotion: { minViews: 1000, minShare: 0.05, days: 28 },
   // New (A5, E15; leitura horária dos vídeos novos). Valores do plano 2026-10-12-a5-e16-e15-parte-1 (Tarefa 4); quem lê cada chave é a leitura horária.
-  hourly: { ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5 },
+  hourly: { ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5,
+    /** Decisão do dono (13/10, pergunta 28): menos de tantas horas lidas nas últimas 24 encerradas é problema (vermelho, sem e-mail). */
+    minReadHours24: 20 },
   // New (A5, E14; comentários de destaque dos vídeos de concorrentes). Os números moram em `comentarios/regras.ts`; aqui só a leitura única.
   comments: COMMENT_RULES,
 }
