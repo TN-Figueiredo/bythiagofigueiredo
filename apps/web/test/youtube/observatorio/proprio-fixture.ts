@@ -35,6 +35,21 @@ export function comoEmProducao(ds: Dataset): void {
   for (const v of ds.videos) if (ids.has(v.ch)) { v.series = []; v.firstIdx = null }
 }
 
+/**
+ * Os relatórios sintéticos (`alcanceCheio`: 21 dias de alcance, e o diário de 28) cobrem uma janela maior que a vida que o oráculo dá aos longos mais
+ * novos (2, 13 e 30 dias): um vídeo de 2 dias com impressões de 3 semanas atrás é o que nenhum relatório do YouTube traz, e o dia anterior à publicação
+ * não existe para o vídeo (`inicioDoVideo`). Os longos acompanhados com menos de 31 dias passam a ter 31, 32, 33... (a ordem entre eles não muda).
+ */
+export function vidaDoAlcance(ds: Dataset): void {
+  const id = primeiroProprio(ds).id
+  const novos = ds.videos.filter(v => v.ch === id && v.tracked && v.fmt === 'long' && v.ageDays < 31).sort((a, b) => b.pub - a.pub)
+  novos.forEach((v, i) => {
+    const alvo = 31 + i
+    v.pub -= (alvo - v.ageDays) * DIA_MS
+    v.ageDays = alvo
+  })
+}
+
 /** Canal novo, sem vídeo nenhum. */
 export function semVideos(ds: Dataset): void {
   const id = primeiroProprio(ds).id
@@ -182,7 +197,7 @@ export const DADOS: Record<CenarioDados, (canalId: string, longos: readonly stri
 export function proprioWorld(o: { preset?: OwnPreset; mut?: (ds: Dataset) => void; dados?: Partial<DadosDoCanal>; cenario?: CenarioDados; agora?: number } = {}): {
   obs: Observatory; canalId: string; ytIds: string[]; dados: DadosDoCanal; hoje: DiaYt; dm: (d: DiaYt) => string
 } {
-  const w = a3World(ds => { comoEmProducao(ds); o.mut?.(ds) }, o.preset ?? '2')
+  const w = a3World(ds => { comoEmProducao(ds); vidaDoAlcance(ds); o.mut?.(ds) }, o.preset ?? '2')
   const canalId = w.owns[0]
   if (!canalId) throw new Error('o preset não tem canal próprio: use mundoSemProprio()')
   const hoje = dayPt(new Date(o.agora ?? w.obs.NOW))

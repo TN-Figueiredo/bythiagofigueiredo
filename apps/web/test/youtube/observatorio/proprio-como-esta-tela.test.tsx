@@ -16,6 +16,7 @@ import { buildProprioHeader } from '@/app/cms/(authed)/youtube/competitors/_prop
 import { concorrentesDoSite, posicaoDoSite } from '@/app/cms/(authed)/youtube/competitors/_proprio/posicao-do-site'
 import type { DadosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import { alcanceVazio, proprioWorld } from './proprio-fixture'
+import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 
 const W = proprioWorld()
 const { posicao } = posicaoDoSite(W.obs, W.canalId)
@@ -27,6 +28,7 @@ function secao(dados: DadosDoCanal = W.dados, o: { semConcorrente?: boolean; hoj
   return montarComoEsta({
     dados, hoje: o.hoje ?? W.hoje, dm: W.dm, posicao, posicaoItens: HEADER.posicaoItens, videos: VIDEOS,
     concorrentes: o.semConcorrente ? [] : concorrentesDoSite(W.obs, W.canalId), canalId: W.canalId,
+    publicacoes: publicacoesDe(W.obs.videos.filter(x => x.ch === W.canalId)),
   })
 }
 type Props = Parameters<typeof ComoEsta>[0]

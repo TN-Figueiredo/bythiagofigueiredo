@@ -17,6 +17,7 @@ import { lerDadosDoCanal } from '../../_proprio/dados'
 import { ComoEsta } from '../../_proprio/como-esta'
 import { montarComoEsta } from '../../_proprio/como-esta-model'
 import { dmDia } from '../../_proprio/extras'
+import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 import { concorrentesDoSite, posicaoDoSite } from '../../_proprio/posicao-do-site'
 import { ProprioScreen, ProprioSemVideos } from '../../_proprio/proprio-screen'
 import { buildProprioView } from '../../_proprio/view-model'
@@ -66,6 +67,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
         dados, hoje, dm: dmDia, posicao, posicaoItens: pv.header.posicaoItens, canalId: proprio.id,
         videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
         concorrentes: concorrentesDoSite(site.obs, proprio.id),
+        publicacoes: publicacoesDe(obs.videos.filter(v => v.ch === proprio.id)),
       })
       return (
         <TrailChrome crumbs={crumbs} owns={owns} atual={proprio.id}>

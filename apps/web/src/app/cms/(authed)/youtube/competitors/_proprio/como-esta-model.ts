@@ -9,7 +9,7 @@
  */
 import { link } from '@/lib/youtube/observatorio/links'
 import { conjuntoTexto } from '@/lib/youtube/observatorio/posicao'
-import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type PublicacoesPorYtId, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { DadosDoCanal } from './dados'
 import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-model'
@@ -272,12 +272,14 @@ export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
 export function montarComoEsta(a: {
   dados: DadosDoCanal; hoje: DiaYt; dm: (d: DiaYt) => string; posicao: PosicaoNoNicho | null; posicaoItens: PosicaoItens | null
   videos: EntradaComoEsta['videos']; concorrentes: ReadonlyArray<OpcaoConcorrente>; canalId: string
+  /** O dia da publicação de cada vídeo do canal (`publicacoesDe`): o total de cada um começa nele. OBRIGATÓRIO: sem ele o corte seria esquecido em silêncio. */
+  publicacoes: PublicacoesPorYtId
 }): { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView } {
   const al = a.dados.alcance
   const lido = al.acesso === 'ok' ? montarDias(al.dado, { hoje: a.hoje }) : null
   const dias = lido?.dias ?? []
   const periodo = lido?.periodo ?? null
-  const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado) : new Map<string, AlcanceVideo>()
+  const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado, a.publicacoes) : new Map<string, AlcanceVideo>()
   const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje })
   // views por dia, soma dos vídeos longos acompanhados: do diário, que tem o seu próprio acesso (e o seu próprio "dia mais novo")
   const ytIds = a.videos.map(v => v.ytId)

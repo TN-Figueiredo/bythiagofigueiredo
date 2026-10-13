@@ -12,7 +12,7 @@ import type { ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import { link } from '@/lib/youtube/observatorio/links'
 import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
-import { alcancePorVideo, montarDias, resumir, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import { alcancePorVideo, montarDias, publicacoesDe, resumir, type Periodo, type PublicacoesPorYtId, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { AlcanceCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { baseVpdTexto, motivoVpdTexto, vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
@@ -99,12 +99,12 @@ export type AlcanceLido =
   | { estado: 'ok'; periodo: Periodo; resumo: ResumoAlcance; porVideo: ReturnType<typeof alcancePorVideo> }
 
 /** Relatório nenhum (tabela vazia, canal sem linha) é 'sem-relatorio': a série não tem onde começar. */
-export function lerEstado(p: Privado<AlcanceCanal>, hoje: DiaYt): AlcanceLido {
+export function lerEstado(p: Privado<AlcanceCanal>, hoje: DiaYt, publicacoes: PublicacoesPorYtId): AlcanceLido {
   if (p.acesso === 'negado') return { estado: 'negado' }
   if (p.acesso === 'erro') return { estado: 'erro' }
   const { periodo, dias } = montarDias(p.dado, { hoje })
   if (periodo == null) return { estado: 'sem-relatorio' }
-  return { estado: 'ok', periodo, resumo: resumir(dias), porVideo: alcancePorVideo(p.dado) }
+  return { estado: 'ok', periodo, resumo: resumir(dias), porVideo: alcancePorVideo(p.dado, publicacoes) }
 }
 
 /* ---------------------------------------------------------------- pedaços do cabeçalho */
@@ -141,7 +141,7 @@ export function buildProprioHeader(
   const total = vids.length + ch.undated.length
   const longos = longosAcompanhados(obs, ch.id)
 
-  const alc = lerEstado(dados.alcance, o.hoje)
+  const alc = lerEstado(dados.alcance, o.hoje, publicacoesDe(vids))
   const vpd: VpdCanal = vpdDoCanal(dados.diario, longos, o.hoje)
 
   const SL = obs.channelStats(ch.id, 'long')
