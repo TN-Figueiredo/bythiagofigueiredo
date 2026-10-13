@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidateTag: vi.fn(), revalidatePath: vi.fn() }))
@@ -12,12 +12,13 @@ vi.mock('@/lib/logger', () => ({
 }))
 vi.mock('@/lib/youtube/sync', () => ({ syncChannel: vi.fn(), YouTubeQuotaError: class extends Error {} }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
-vi.mock('@/lib/youtube/competitor-sync-batch', () => ({ runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })), BATCH_BUDGET_MS: 200_000 }))
+// as constantes e currentSlotStart são as de verdade (a rota as usa para a conta de tempo); só o lote e o veredito do lote são falsos
+vi.mock('@/lib/youtube/competitor-sync-batch', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/youtube/competitor-sync-batch')>()), runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })) }))
 vi.mock('@/lib/youtube/competitor-health', () => ({ schemaReady: vi.fn(), readSiteHealth: vi.fn() }))
 
 import { GET } from '@/app/api/cron/sync-youtube/route'
 import { revalidateTag } from 'next/cache'
-import { runCompetitorBatch, batchHealth } from '@/lib/youtube/competitor-sync-batch'
+import { runCompetitorBatch, batchHealth, currentSlotStart } from '@/lib/youtube/competitor-sync-batch'
 import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
@@ -99,6 +100,9 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
     expect(vi.mocked(readSiteHealth).mock.calls.map(c => [c[1], c[3]])).toEqual([['s1', { slotDone: true, e2: true }], ['s2', { slotDone: true, e2: true }]])
   })
   describe('A: slotDone — a diária devida sem ponto só é cobrada quando a faixa do disparo terminou', () => {
+    // o limite de 2 h (item 5) depende da hora do dia: estes casos rodam 30 min depois do começo de uma faixa
+    beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(currentSlotStart(Date.now()) + 30 * 60_000) })
+    afterEach(() => { vi.useRealTimers() })
     it.each([
       ['parou por tempo com canais devidos sobrando (o disparo das 18:00)', { remainingDue: 2, stoppedForTime: true }, false],
       ['sobrou canal devido por causa do tamanho do lote, sem parar por tempo', { remainingDue: 4, stoppedForTime: false }, false],
@@ -148,10 +152,10 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
   })
   it('lote com metade dos canais em erro E prova com problema: uma falha só, com os dois textos', async () => {
     vi.mocked(runCompetitorBatch).mockResolvedValue(result({ synced: 1, errors: 14 }) as never)
-    vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '14 of 15 channels failed' })
+    vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '14 de 15 canais falharam' })
     vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: ['cota do dia não registrada (15 canais lidos)'], notes: [] })
     await GET(req())
-    expect(vi.mocked(recordCronFailure).mock.calls).toEqual([['sync-youtube-competitors', '14 of 15 channels failed | série e captura: cota do dia não registrada (15 canais lidos)']])
+    expect(vi.mocked(recordCronFailure).mock.calls).toEqual([['sync-youtube-competitors', '14 de 15 canais falharam | série e captura: cota do dia não registrada (15 canais lidos)']])
   })
   it('vários sites com a mesma frase fixa: a frase aparece uma vez', async () => {
     vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: ['s1', 's2'] }) as never)
@@ -175,10 +179,12 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
       expect(msg.startsWith('série e captura: 8 vídeos lidos sem resposta guardada; 3 canais lidos')).toBe(true)
       expect(msg).toMatch(/ \| e mais \d+ avisos?$/)
       expect(msg).not.toContain('uma nota qualquer')
-      // quantas frases foram ditas + quantas ficaram para o "e mais N" = o total (11 da prova + a da cota)
+      // item 8: a frase da cota (vermelha, e a única que a prova não repete) NUNCA é a primeira cortada: perdem as últimas frases da prova
+      expect(msg).toContain('12 unidades de cota não registradas')
+      // quantas frases da prova foram ditas + quantas ficaram para o "e mais N" = as 11 da prova
       const said = problems.filter(p => msg.includes(p)).length
       const n = Number(/e mais (\d+) avisos?$/.exec(msg)![1])
-      expect(said + n).toBe(12)
+      expect(said + n).toBe(11)
       // o corte é entre frases: nenhuma frase aparece pela metade
       for (const p of problems) { const head = p.slice(0, 20); if (msg.includes(head)) expect(msg).toContain(p) }
     })
@@ -200,11 +206,11 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
     })
     it('o texto do lote (vermelho) e o da cota vêm sem sumir quando cabem, e o da prova é que perde as últimas frases', async () => {
       vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 5 }) as never)
-      vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '14 of 15 channels failed' })
+      vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '14 de 15 canais falharam' })
       vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: Array.from({ length: 40 }, (_, i) => phrase(i)), notes: [] })
       await GET(req())
       const msg = failMsg()
-      expect(msg.startsWith('14 of 15 channels failed | série e captura: ' + phrase(0))).toBe(true)
+      expect(msg.startsWith('14 de 15 canais falharam | série e captura: ' + phrase(0))).toBe(true)
       expect(msg.length).toBeLessThanOrEqual(480)
     })
     it('uma frase sozinha maior que o limite é cortada com reticências, nunca passa de 480', async () => {
@@ -213,6 +219,116 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
       await GET(req())
       expect(failMsg().length).toBe(480)
       expect(failMsg().endsWith('…')).toBe(true)
+    })
+  })
+  describe('item 8: a cota perdida é vermelha e sobrevive ao corte da mensagem', () => {
+    it('com 40 frases da prova, a cota e o lote vão inteiros, a prova perde as últimas frases e o fim diz quantas', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 37 }) as never)
+      vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '3 de 5 canais falharam' })
+      vi.mocked(readSiteHealth).mockResolvedValue({ ok: false, problems: Array.from({ length: 40 }, (_, i) => 'problema número ' + i + ' com texto comprido'), notes: ['uma nota'] })
+      await GET(req())
+      const msg = failMsg()
+      expect(msg.length).toBeLessThanOrEqual(480)
+      expect(msg.startsWith('3 de 5 canais falharam | série e captura: problema número 0 com texto comprido')).toBe(true)
+      expect(msg).toContain(' | 37 unidades de cota não registradas')
+      expect(msg).toMatch(/ \| e mais \d+ avisos$/)
+      expect(msg).not.toContain('uma nota')
+      expect(msg.indexOf('37 unidades')).toBeGreaterThan(msg.indexOf('problema número 0'))
+    })
+    it('cota perdida sozinha (sem lote nem prova vermelhos) continua uma falha, com a frase inteira', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 4 }) as never)
+      await GET(req())
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+      expect(failMsg()).toBe('4 unidades de cota não registradas')
+    })
+    it('lote e cota sem prova vermelha: o lote vem primeiro', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ quotaLost: 1 }) as never)
+      vi.mocked(batchHealth).mockReturnValue({ ok: false, message: '3 de 5 canais falharam' })
+      await GET(req())
+      expect(failMsg()).toBe('3 de 5 canais falharam | 1 unidade de cota não registrada')
+    })
+  })
+  describe('item 4 (I-4): a prova e a gravação do resumo têm relógio', () => {
+    const T0 = Date.parse('2026-10-24T15:00:00.000Z')
+    beforeEach(() => { vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }); vi.setSystemTime(T0) })
+    afterEach(() => { vi.useRealTimers() })
+    it('o lote que terminou aos 270 s deixa 15 s para a prova (300 - 15 de reserva - 270), não 20: estourou, vermelho "a tempo", e o registro do cron é gravado', async () => {
+      vi.mocked(runCompetitorBatch).mockImplementation(async () => { vi.setSystemTime(T0 + 270_000); return result() as never })
+      vi.mocked(readSiteHealth).mockReturnValue(new Promise(() => undefined))
+      const pending = GET(req())
+      await vi.advanceTimersByTimeAsync(14_999)
+      expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      const res = await pending
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/não foi possível ler a prova a tempo.*passou de 15 s/))
+      expect(res.status).toBe(200) // a resposta do cron sai, com a prova vermelha
+    })
+    it('o lote que terminou tarde demais (290 s): a prova ainda tem o mínimo de 3 s, nunca zero', async () => {
+      vi.mocked(runCompetitorBatch).mockImplementation(async () => { vi.setSystemTime(T0 + 290_000); return result() as never })
+      vi.mocked(readSiteHealth).mockReturnValue(new Promise(() => undefined))
+      const pending = GET(req())
+      await vi.advanceTimersByTimeAsync(2_999)
+      expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await pending
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/a tempo.*passou de 3 s/))
+    })
+    it('lote rápido (5 s): a prova tem o teto cheio de 20 s', async () => {
+      vi.mocked(runCompetitorBatch).mockImplementation(async () => { vi.setSystemTime(T0 + 5_000); return result() as never })
+      vi.mocked(readSiteHealth).mockReturnValue(new Promise(() => undefined))
+      const pending = GET(req())
+      await vi.advanceTimersByTimeAsync(19_999)
+      expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await pending
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/a tempo.*passou de 20 s/))
+    })
+    it('o lote que não volta até 285 s (300 - 15 de reserva): o cron grava "o disparo passou do tempo" em vez de morrer sem registro, e a prova não é lida', async () => {
+      vi.mocked(runCompetitorBatch).mockReturnValue(new Promise(() => undefined))
+      const pending = GET(req())
+      await vi.advanceTimersByTimeAsync(284_999)
+      expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      const res = await pending
+      expect(res.status).toBe(500)
+      expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/disparo passou do tempo/))
+      expect(vi.mocked(readSiteHealth)).not.toHaveBeenCalled()
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    })
+  })
+  describe('item 5: a faixa que nunca termina não deixa a diária sem cobrança para sempre', () => {
+    const SLOT = Date.parse('2026-10-24T21:00:00.000Z') // 18:00 em São Paulo
+    beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }) })
+    afterEach(() => { vi.useRealTimers() })
+    const run = async (minAfterSlot: number, o: Record<string, unknown>) => {
+      vi.mocked(readSiteHealth).mockClear()
+      vi.setSystemTime(SLOT + minAfterSlot * 60_000)
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result(o) as never)
+      await GET(req())
+      return (vi.mocked(readSiteHealth).mock.calls[0]![3] as { slotDone: boolean }).slotDone
+    }
+    it('faixa não terminada (canais devidos sobrando): até 2 h depois do começo não cobra; passadas 2 h cobra de qualquer jeito', async () => {
+      expect(await run(119, { remainingDue: 3, stoppedForTime: true })).toBe(false)
+      expect(await run(120, { remainingDue: 3, stoppedForTime: true })).toBe(false) // exatamente 2 h: ainda não
+      expect(await run(121, { remainingDue: 3, stoppedForTime: true })).toBe(true)
+      expect(await run(300, { remainingDue: 3, stoppedForTime: false })).toBe(true)
+    })
+    it('a faixa terminada cobra em qualquer minuto', async () => {
+      expect(await run(1, { remainingDue: 0, stoppedForTime: false })).toBe(true)
+    })
+  })
+  describe('item 7: a fase semanal desligada não deixa a prova vermelha todo dia', () => {
+    it('a rota usa UMA constante para ligar a fase e para a prova (weekly: true no lote; só um false chegaria à prova)', async () => {
+      const src = (await import('node:fs')).readFileSync('src/app/api/cron/sync-youtube/route.ts', 'utf8')
+      expect(src).toMatch(/const WEEKLY_PHASE: boolean = true/)
+      expect(src).toMatch(/weekly: WEEKLY_PHASE\b/)
+      expect(src).toMatch(/\.\.\.\(WEEKLY_PHASE \? \{\} : \{ weekly: false \}\)/)
+    })
+    it('ligada (o padrão), a prova NÃO recebe a opção weekly: o contrato de "omitido = cobra" fica como era', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      await GET(req())
+      expect(vi.mocked(readSiteHealth).mock.calls[0]![3]).not.toHaveProperty('weekly')
     })
   })
   it('a prova que lança (banco fora) não vira verde: o cron falha', async () => {
