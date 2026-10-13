@@ -147,6 +147,11 @@ export function batchHealth(r: Pick<BatchResult, 'synced' | 'errors'>): { ok: bo
 
 const spHour = (ms: number): number => new Date(ms - SP_OFFSET).getUTCHours()
 const DAY_MS = 86_400_000
+// Texto de fora (nome do canal, erro do banco) que vai para o aviso: sem controles, cortado com reticências.
+const clip = (v: string, max: number): string => {
+  const t = v.replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, ' ').trim()
+  return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t
+}
 const nameOf = (r: BatchRow): string => r.channel_name ?? r.channel_id
 
 /**
@@ -258,7 +263,8 @@ async function noticeOwners(sb: ReturnType<typeof getSupabaseServiceClient>, row
     const todo = candidates.filter(t => !already.has(t.dedup)).slice(0, OWNER_NOTICE_MAX)
     const owners = new Map<string, Awaited<ReturnType<typeof getSiteOwners>>>()
     for (const t of todo) {
-      const name = nameOf(t.row)
+      const name = clip(nameOf(t.row), 120)
+      const reason = clip(t.reason, 300)
       if (!owners.has(t.row.site_id)) owners.set(t.row.site_id, await getSiteOwners(sb, t.row.site_id))
       const list = owners.get(t.row.site_id) ?? []
       if (!list.length) { logSemDestinatario('competitor-sync-batch', t.row.site_id); continue }
@@ -271,8 +277,8 @@ async function noticeOwners(sb: ReturnType<typeof getSupabaseServiceClient>, row
             site_id: t.row.site_id, user_id: owner.userId, type: 'youtube.competitor_channel_error', domain: 'youtube', priority: 3,
             title: t.week === 0 ? 'O canal ' + name + ' está em erro há ' + t.days + ' dias' : 'Lembrete: o canal ' + name + ' continua em erro (' + t.days + ' dias)',
             message: t.week === 0
-              ? 'O Observatório não consegue atualizar o canal ' + name + ' há ' + t.days + ' dias. Motivo: ' + t.reason + '. Confira o canal: se ele saiu do YouTube ou mudou de endereço, vale trocar ou remover. A lista de canais com problema está no CMS, em ' + where + '.'
-              : 'O canal ' + name + ' continua sem atualizar há ' + t.days + ' dias. Motivo: ' + t.reason + '. Confira o canal: a lista de canais com problema está no CMS, em ' + where + '.',
+              ? 'O Observatório não consegue atualizar o canal ' + name + ' há ' + t.days + ' dias. Motivo: ' + reason + '. Confira o canal: se ele saiu do YouTube ou mudou de endereço, vale trocar ou remover. A lista de canais com problema está no CMS, em ' + where + '.'
+              : 'O canal ' + name + ' continua sem atualizar há ' + t.days + ' dias. Motivo: ' + reason + '. Confira o canal: a lista de canais com problema está no CMS, em ' + where + '.',
             action_href: where,
             dedup_key: t.dedup,
             defaultChannels: ['email'],
