@@ -47,6 +47,8 @@ export function ProprioVideoScreen({ header, pager, fromCanal, children }: {
   const root = useRef<HTMLDivElement>(null)
   const titulo = useRef<HTMLHeadingElement>(null)
   const ibtn = useRef<HTMLButtonElement>(null)
+  /** A linha da faixa de números: o popover do ⓘ é medido nela (abre ABAIXO da faixa inteira), não no botão, que está na altura dos valores e deixaria o popover sobre a linha de rótulos (H13). */
+  const nrow = useRef<HTMLDivElement>(null)
   const [tip, setTip] = useState(false)
   const [live, setLive] = useState('')
   const router = useRouter()
@@ -111,7 +113,7 @@ export function ProprioVideoScreen({ header, pager, fromCanal, children }: {
           <h1 ref={titulo} tabIndex={-1}>{header.titulo}</h1>
           <p className="vp-m"><span className="own-seal">seu canal</span><span>{header.meta}</span></p>
 
-          <div className="vp-nrow">
+          <div className="vp-nrow" ref={nrow}>
             <div className="nclip">
               <dl className="nstrip" aria-label="Números deste vídeo">{header.faixa.map(c => <Celula key={c.key} c={c} />)}</dl>
             </div>
@@ -119,7 +121,7 @@ export function ProprioVideoScreen({ header, pager, fromCanal, children }: {
               <button ref={ibtn} type="button" className="ibtn" aria-expanded={tip} aria-controls="video-tip" aria-label="De onde vêm os números deste vídeo" onClick={() => setTip(o => !o)}>
                 {Icon.info()}
               </button>
-              <Popover open={tip} anchor={() => ibtn.current} onClose={() => setTip(false)} id="video-tip" role="dialog" labelledBy="video-tip-t" className="canal-tip" pref="baixo" align="fim" maxW={380}>
+              <Popover open={tip} anchor={() => ibtn.current} posAnchor={() => nrow.current} onClose={() => setTip(false)} id="video-tip" role="dialog" labelledBy="video-tip-t" className="canal-tip" pref="baixo" align="fim" maxW={380}>
                 <h3 id="video-tip-t">De onde vêm os números deste vídeo</h3>
                 <ul>{header.faixa.map(c => <li key={c.key}><b>{cap(c.label)}:</b> {c.conta}</li>)}</ul>
               </Popover>
