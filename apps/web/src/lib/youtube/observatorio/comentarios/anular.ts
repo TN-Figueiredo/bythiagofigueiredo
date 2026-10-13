@@ -14,7 +14,8 @@ import { relatarComentarios } from './relato'
 import type { TarefaCtx, TarefaSaida } from './tipos'
 
 export async function runAnularIdentidade(ctx: Pick<TarefaCtx, 'sb' | 'now' | 'siteId'>): Promise<TarefaSaida> {
-  // 1. Apaga. Falha aqui = nada foi apagado (uma instrução) e a prova de depois não diria nada de novo.
+  // 1. Apaga. Falha aqui NÃO prova que nada foi apagado: com erro do banco o DELETE (uma instrução) não valeu, mas com AbortError
+  // (prazo) ou resposta ilegível ele pode ter rodado no servidor. O resultado é vermelho (`banco`) e nunca afirma o contrário.
   let resultado: Awaited<ReturnType<typeof anular>>
   try {
     resultado = await anular(ctx.sb, ctx.siteId)
