@@ -42,6 +42,12 @@ const CH = () => ids.channel(CANAL_COMPLETO.canal)
 const url = (qs = '', id = CH()) => `/cms/youtube/competitors/canal/${id}${qs}`
 const SCREEN = '[data-obs-screen="canal"]'
 
+/** A 480 px ou menos a grade mostra 24 cartões e o "Mostrar mais" (ajuste final de UX, 13/10): para chegar a um cartão fundo, clica até ele aparecer. */
+async function revelar(page: Page, card: Locator): Promise<void> {
+  const mais = page.locator(`${SCREEN}:visible .cv-more.cv-pag button`)
+  for (let i = 0; i < 12 && !(await card.first().isVisible()) && (await mais.isVisible()); i++) await mais.click()
+}
+
 /**
  * Nota: depois de um Voltar de navegação o Next 16 mantém a árvore anterior da rota escondida (`hidden`) ao lado da visível; por isso os
  * localizadores de conteúdo da tela usam `:visible` + `.first()`.
@@ -303,7 +309,7 @@ test('A1.5 a URL reproduz o estado: recarregar mantém filtro, ordenação, busc
 /* ================================================================== A1.6 */
 test('A1.6 "Carregar mais": 40 por clique, a rolagem não muda, o foco vai ao primeiro cartão novo, n na URL', async ({ page }) => {
   await abrir(page, '', { width: 1440, height: 900 })
-  const botao = page.locator(`${SCREEN} .cv-more .pri`)
+  const botao = page.locator(`${SCREEN} .cv-more:not(.cv-pag) .pri`)
   await botao.scrollIntoViewIfNeeded()
   await expect(botao).toHaveText('Carregar mais 40 vídeos')
   const antes = await page.locator(`${SCREEN} .cv-card`).evaluateAll(els => els.map(e => e.getAttribute('data-id')!))
@@ -317,8 +323,8 @@ test('A1.6 "Carregar mais": 40 por clique, a rolagem não muda, o foco vai ao pr
   expect(await page.evaluate(() => document.activeElement?.id)).toBe('cv-lnk-' + primeiroNovo)
   expect(new URL(page.url()).searchParams.get('n')).toBe('40')
   // o segundo clique traz mais 40 (o lote é sempre 40 enquanto sobram)
-  await page.locator(`${SCREEN} .cv-more .pri`).scrollIntoViewIfNeeded()
-  await page.locator(`${SCREEN} .cv-more .pri`).click()
+  await page.locator(`${SCREEN} .cv-more:not(.cv-pag) .pri`).scrollIntoViewIfNeeded()
+  await page.locator(`${SCREEN} .cv-more:not(.cv-pag) .pri`).click()
   await expect(page.locator(`${SCREEN} .cv-card`)).toHaveCount(antes.length + 80)
   expect(new URL(page.url()).searchParams.get('n')).toBe('80')
   // o status anuncia
@@ -327,8 +333,8 @@ test('A1.6 "Carregar mais": 40 por clique, a rolagem não muda, o foco vai ao pr
 
 test('A1.6 Voltar do Histórico reabre a grade com os mesmos cartões e a mesma rolagem', async ({ page }) => {
   await abrir(page, '', { width: 1440, height: 900 })
-  await page.locator(`${SCREEN} .cv-more .pri`).scrollIntoViewIfNeeded()
-  await page.locator(`${SCREEN} .cv-more .pri`).click()
+  await page.locator(`${SCREEN} .cv-more:not(.cv-pag) .pri`).scrollIntoViewIfNeeded()
+  await page.locator(`${SCREEN} .cv-more:not(.cv-pag) .pri`).click()
   await expect(page.locator(`${SCREEN} .cv-card`)).toHaveCount(await page.locator(`${SCREEN} .cv-card`).count())
   const total = await page.locator(`${SCREEN} .cv-card`).count()
   // rola até um cartão do meio da grade e abre o Histórico por ele
@@ -939,6 +945,7 @@ test('"Ver trocas" de um cartão fundo na grade: o título da aba Trocas fica de
     // do mais antigo para o mais novo: matt-opus55 (3 títulos e 4 thumbnails) fica no fim da grade
     await abrir(page, '?sort=recentes&dir=asc&fmt=longos', size)
     const card = page.locator(`${SCREEN} .cv-card[data-id="${ids.video('matt-opus55')}"]`)
+    await revelar(page, card)
     await card.scrollIntoViewIfNeeded()
     await card.evaluate(e => e.scrollIntoView({ block: 'end' }))
     const fundo = await rolagem(page)
