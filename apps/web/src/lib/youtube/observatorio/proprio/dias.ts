@@ -2,7 +2,7 @@
 // não medido), cliques estimados e resumo. Puro, sem banco.
 // Nulo nunca vira zero: dia não medido tem imp/cliques null e fica fora de toda soma.
 
-import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
+import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { AlcanceCanal, AlcanceLinha, DiaYt, RelatorioDia } from './tipos'
 
 export const JANELA_ALCANCE_DIAS = 30
@@ -39,6 +39,16 @@ export function diaRecente(dia: DiaYt, hoje: DiaYt): boolean {
  */
 export function inicioDoVideo(inicioJanela: DiaYt, publicadoEm: DiaYt | null | undefined): DiaYt {
   return publicadoEm != null && publicadoEm > inicioJanela ? publicadoEm : inicioJanela
+}
+
+/** O dia da publicação de cada vídeo, por `ytId` (o dia do YouTube). Vídeo ausente ou `null` = sem data: nenhum corte. */
+export type PublicacoesPorYtId = ReadonlyMap<string, DiaYt | null>
+
+/** Monta as publicações a partir dos vídeos do canal (`pub` em milissegundos, como o motor guarda). Sem `pub` finito: sem data. */
+export function publicacoesDe(videos: Iterable<{ ytId: string; pub: number | null | undefined }>): PublicacoesPorYtId {
+  const m = new Map<string, DiaYt | null>()
+  for (const v of videos) m.set(v.ytId, v.pub != null && Number.isFinite(v.pub) ? dayPt(new Date(v.pub)) : null)
+  return m
 }
 
 export interface DiaAlcance {
@@ -215,14 +225,17 @@ export function resumir(dias: readonly DiaAlcance[]): ResumoAlcance {
   return { imp, cliques: cliquesNaoMedidos ? null : cliques, diasComImpressao, diasLidos, diasNaoMedidos }
 }
 
-/** Só vídeos com alguma impressão no período. */
-export function alcancePorVideo(a: AlcanceCanal): Map<string, AlcanceVideo> {
+/**
+ * Só vídeos com alguma impressão no período. O total de cada vídeo começa no primeiro dia que vale para ELE (`inicioDoVideo`, a mesma regra de
+ * `montarDias` com `ytId`): linha anterior à publicação não existe, em lugar nenhum. `publicacoes` é obrigatório para ninguém esquecer o corte.
+ */
+export function alcancePorVideo(a: AlcanceCanal, publicacoes: PublicacoesPorYtId): Map<string, AlcanceVideo> {
   const periodo = periodoDoAlcance(a.relatorios)
   const saida = new Map<string, AlcanceVideo>()
   if (!periodo) return saida
   const cliquesNulos = new Set<string>()
   for (const l of a.linhas) {
-    if (l.dia < periodo.de || l.dia > periodo.ate) continue
+    if (l.dia < inicioDoVideo(periodo.de, publicacoes.get(l.ytId)) || l.dia > periodo.ate) continue
     if (l.imp == null || l.imp <= 0) continue
     const atual = saida.get(l.ytId) ?? { imp: 0, cliques: 0 as number | null, diasComImpressao: 0 }
     atual.imp += l.imp

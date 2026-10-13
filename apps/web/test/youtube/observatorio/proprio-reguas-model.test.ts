@@ -12,6 +12,7 @@ import { buildProprioVideoHeader } from '@/app/cms/(authed)/youtube/competitors/
 import { buildProprioVideos } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
 import { lerEstado } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 import { proprioWorld } from './proprio-fixture'
+import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 
 // o arquivo é todo síncrono: devolve o controle ao vitest entre os testes (o limite de 60 s por executor da CI)
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
@@ -359,7 +360,7 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
 describe('o mesmo número tem o mesmo texto da faixa do vídeo (T11) e do cartão (T7)', () => {
   const w = proprioWorld()
   const cartoes = buildCanalVideos(w.obs, w.canalId).videos
-  const alc = lerEstado(w.dados.alcance, w.hoje)
+  const alc = lerEstado(w.dados.alcance, w.hoje, publicacoesDe(w.obs.videos.filter(x => x.ch === w.canalId)))
   const porVideo = alc.estado === 'ok' ? alc.porVideo : new Map()
   const entrada = (videoId: string): EntradaReguas => ({
     videoId, videos: cartoes.map(c => ({ id: c.id, ytId: c.ytId, views: c.views, likes: c.likes, comments: c.comments, dur: c.dur })),

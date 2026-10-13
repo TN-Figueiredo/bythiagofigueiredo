@@ -11,13 +11,14 @@ import { concorrentesDoSite, posicaoDoSite } from '@/app/cms/(authed)/youtube/co
 import type { DadosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import { METODO_TAXA_CANAL } from '@/app/cms/(authed)/youtube/competitors/_proprio/taxa-faixa-model'
 import { SEM_PERMISSAO_VIEWS, ERRO_VIEWS, SEM_VIEWS } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
+import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 const w = proprioWorld()
 const { posicao } = posicaoDoSite(w.obs, w.canalId)
 const header = buildProprioHeader(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm, posicao, muitosProprios: false })!
 const videos = w.obs.videos.filter(x => x.ch === w.canalId).map(x => ({ id: x.id, ytId: x.ytId, title: x.title, thumb: null }))
-const monta = (dados: DadosDoCanal = w.dados) => montarComoEsta({ dados, hoje: w.hoje, dm: w.dm, posicao, posicaoItens: header.posicaoItens, videos, concorrentes: concorrentesDoSite(w.obs, w.canalId), canalId: w.canalId })
+const monta = (dados: DadosDoCanal = w.dados) => montarComoEsta({ dados, hoje: w.hoje, dm: w.dm, posicao, posicaoItens: header.posicaoItens, videos, concorrentes: concorrentesDoSite(w.obs, w.canalId), canalId: w.canalId, publicacoes: publicacoesDe(w.obs.videos.filter(x => x.ch === w.canalId)) })
 const texto = (t: NonNullable<ComoEstaView['taxa']['frase']>): string => t.map(x => x.t).join('')
 
 describe('13.3 bloco "Taxa de clique do canal"', () => {

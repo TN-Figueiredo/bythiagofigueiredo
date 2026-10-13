@@ -10,13 +10,14 @@ import { buildProprioHeader } from '@/app/cms/(authed)/youtube/competitors/_prop
 import { concorrentesDoSite, posicaoDoSite } from '@/app/cms/(authed)/youtube/competitors/_proprio/posicao-do-site'
 import type { DadosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import { proprioWorld } from './proprio-fixture'
+import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 
 const W = proprioWorld()
 const { posicao } = posicaoDoSite(W.obs, W.canalId)
 const HEADER = buildProprioHeader(W.obs, W.canalId, W.dados, { hoje: W.hoje, dm: W.dm, posicao, muitosProprios: false })!
 const VIDEOS = W.obs.videos.filter(x => x.ch === W.canalId).map(x => ({ id: x.id, ytId: x.ytId, title: x.title, thumb: null }))
 function montar(dados: DadosDoCanal = W.dados) {
-  const s = montarComoEsta({ dados, hoje: W.hoje, dm: W.dm, posicao, posicaoItens: HEADER.posicaoItens, videos: VIDEOS, concorrentes: concorrentesDoSite(W.obs, W.canalId), canalId: W.canalId })
+  const s = montarComoEsta({ dados, hoje: W.hoje, dm: W.dm, posicao, posicaoItens: HEADER.posicaoItens, videos: VIDEOS, concorrentes: concorrentesDoSite(W.obs, W.canalId), canalId: W.canalId, publicacoes: publicacoesDe(W.obs.videos.filter(x => x.ch === W.canalId)) })
   return { ...s, ...render(<ComoEsta view={s.view} grafico={s.grafico} graficoViews={s.graficoViews} painel="1" canalId={W.canalId} />) }
 }
 const corpo = () => document.querySelector<HTMLElement>('.pn-b')!

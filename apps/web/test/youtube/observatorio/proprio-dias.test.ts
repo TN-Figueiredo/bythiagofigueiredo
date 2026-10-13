@@ -93,7 +93,7 @@ describe('resumo e por vídeo', () => {
     expect(resumir([])).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 0 })
   })
   it('por vídeo: só quem teve impressão; fora do período não conta', () => {
-    const m = alcancePorVideo(canal([rel('2026-10-01'), rel('2026-10-02')], [lin('v1', '2026-10-01', 10, 0.1), lin('v1', '2026-10-02', 2, 0.5), lin('v1', '2026-08-01', 99, 1), lin('v3', '2026-10-02', 0, 0)]))
+    const m = alcancePorVideo(canal([rel('2026-10-01'), rel('2026-10-02')], [lin('v1', '2026-10-01', 10, 0.1), lin('v1', '2026-10-02', 2, 0.5), lin('v1', '2026-08-01', 99, 1), lin('v3', '2026-10-02', 0, 0)]), new Map())
     expect([...m.keys()]).toEqual(['v1'])
     expect(m.get('v1')).toEqual({ imp: 12, cliques: 2, diasComImpressao: 2 })
   })
@@ -119,12 +119,12 @@ describe('buracos da revisão da Tarefa 1', () => {
       lin('v1', '2026-10-01', 10, 0.1), lin('v1', '2026-10-02', 20, null), lin('v1', '2026-10-03', 10, 0.1),
       lin('v2', '2026-10-01', 10, 0.5),
     ])
-    const m = alcancePorVideo(a)
+    const m = alcancePorVideo(a, new Map())
     expect(m.get('v1')).toEqual({ imp: 40, cliques: null, diasComImpressao: 3 })
     expect(m.get('v2')).toEqual({ imp: 10, cliques: 5, diasComImpressao: 1 })
     // o CTR nulo vindo primeiro ou por último dá o mesmo
     const b = canal([rel('2026-10-01'), rel('2026-10-02')], [lin('v1', '2026-10-01', 20, null), lin('v1', '2026-10-02', 10, 0.1)])
-    expect(alcancePorVideo(b).get('v1')?.cliques).toBeNull()
+    expect(alcancePorVideo(b, new Map()).get('v1')?.cliques).toBeNull()
   })
   it('dois relatórios não medidos no mesmo dia: nao-baixado vence erro, que vence expirado (as três combinações, nas duas ordens)', () => {
     const motivo = (...status: RelatorioDia['status'][]) => {

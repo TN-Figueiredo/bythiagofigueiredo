@@ -190,7 +190,15 @@ describe('13.3 retenção: poucas views ficam fora da comparação e a tela diz 
 
 describe('13.3 retenção: cobertura dos 28 dias (Menor 2): views subcontadas dizem quantos dias foram medidos', () => {
   // o Short mais novo tem 12 dias e o longo mais novo, 14 (publicado em hoje-15 no horário do Pacífico): a janela dele vai da publicação ao último dia medido (hoje-2), 14 dias
-  const NOVO = proprioWorld({ mut: ds => { duracoesDosLongos(DUR)(ds); ultimoVideoHa(12)(ds) } })
+  const NOVO = proprioWorld({
+    mut: ds => {
+      duracoesDosLongos(DUR)(ds); ultimoVideoHa(12)(ds)
+      // a fixture dá 31+ dias de vida aos longos mais novos (`vidaDoAlcance`, para o alcance sintético não anteceder a publicação); este cenário é do longo de 14 dias
+      const id = ds.channels.find(c => c.own)!.id
+      const novo = ds.videos.filter(v => v.ch === id && v.tracked && v.fmt === 'long').sort((a, b) => b.pub - a.pub || (a.ytId < b.ytId ? -1 : 1))[0]!
+      novo.pub += (novo.ageDays - 14) * 86_400_000; novo.ageDays = 14
+    },
+  })
   const mesmo = (p: PlanoDoVideo[]) => monta(com(NOVO, p))
   it('diário que cobre só parte dos dias: a linha diz "N de M dias medidos"; cobertura cheia: nada a dizer (nunca o número parcial como se fosse cheio)', () => {
     const p = plano(PCT, VPD)            // 10 dias de diário em cada vídeo

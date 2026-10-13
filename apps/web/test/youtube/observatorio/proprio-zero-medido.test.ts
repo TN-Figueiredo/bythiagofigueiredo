@@ -8,7 +8,7 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import {
-  DIAS_DE_VIDA_MIN as MIN_DIAS_DE_VIDA, DIAS_RECENTES, diaRecente, inicioDoVideo, montarDias, motivoDiaTexto, resumir, videoNovo,
+  DIAS_DE_VIDA_MIN as MIN_DIAS_DE_VIDA, DIAS_RECENTES, alcancePorVideo, diaRecente, inicioDoVideo, montarDias, motivoDiaTexto, resumir, videoNovo,
 } from '@/lib/youtube/observatorio/proprio/dias'
 import { buildImpressoes } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
 import { DIAS_DE_VIDA_MIN, serieDoVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
@@ -448,5 +448,60 @@ describe('N2: legenda, resumo e dica não dizem que o relatório falhou quando o
     const v = mont(canal([...lidos(8, 5), ...lidos(3, 1)]))   // d(4) sem relatório nenhum
     const col = v.colunas.find(c => c.dia === d(4))!
     expect(col.situacaoTexto).toBe('sem relatório: não medido')
+  })
+})
+
+/* ================================================================ o TOTAL do vídeo também só começa na publicação (preocupação 4 do relatório do zero medido)  */
+
+describe('linha de alcance ANTERIOR à publicação: nenhum total a soma (cartão, lista, régua, página e alcancePorVideo dão o mesmo número)', () => {
+  const A = comVideoPublicadoHa(10)
+  const W = mundoVideo({ mut: A.mut })
+  const PUB = diaDaPub(W, A.alvo.id)
+  const K = diffDias(PUB, W.hoje)
+  const dd = (n: number) => addDays(W.hoje, -n)
+  const outro = velhoQueNaoE(W, A.alvo.ytId)
+  const relatorios: RelatorioDia[] = Array.from({ length: K + 6 - 2 + 1 }, (_, i) => rel(dd(K + 6 - i), 'baixado')) // d(K+6) a d(2)
+  // 111 impressões em K+3 (antes da publicação: dado que em produção não existe) e 22 em K-2 (depois); o outro vídeo dá base à régua
+  const alcance: AlcanceCanal = {
+    canalId: W.canalId, relatorios, ultimoRelatorio: dd(2), descartados: 0,
+    linhas: [lin(A.alvo.ytId, dd(K + 3), 111, 0.1), lin(A.alvo.ytId, dd(K - 2), 22, 0.5), lin(outro, dd(5), 20)],
+  }
+  const pubs = new Map<string, DiaYt | null>([[A.alvo.ytId, PUB]])
+
+  it('premissa: a publicação é depois de duas das linhas e a janela do canal começa antes dela', () => {
+    expect(dd(K + 3) < PUB).toBe(true)
+    expect(relatorios[0]!.dia < PUB).toBe(true)
+  })
+
+  it('alcancePorVideo com a publicação: só a linha desde a publicação (22, 1 dia); sem a publicação do vídeo: nenhum corte (o que o vídeo sem data faz)', () => {
+    const v = alcancePorVideo(alcance, pubs).get(A.alvo.ytId)!
+    expect(v.imp).toBe(22)
+    expect(v.diasComImpressao).toBe(1)
+    expect(v.cliques).toBeCloseTo(11, 9)
+    expect(alcancePorVideo(alcance, new Map()).get(A.alvo.ytId)!.imp).toBe(133)
+    expect(alcancePorVideo(alcance, new Map([[A.alvo.ytId, null]])).get(A.alvo.ytId)!.imp).toBe(133)
+    // o outro vídeo não é afetado
+    expect(alcancePorVideo(alcance, pubs).get(outro)!.imp).toBe(20)
+  })
+
+  it('o vídeo só com linha ANTES da publicação deixa de ter impressão nenhuma', () => {
+    const so = { ...alcance, linhas: [lin(A.alvo.ytId, dd(K + 3), 111, 0.1), lin(outro, dd(5), 20)] }
+    expect(alcancePorVideo(so, pubs).has(A.alvo.ytId)).toBe(false)
+  })
+
+  it('CARTÃO e LISTA, RÉGUA e PÁGINA: o mesmo total, 22 (e a nota do cartão diz 1 dia)', () => {
+    const x = buildProprioVideos(W.obs, W.canalId, dadosOk(W, alcance), { hoje: W.hoje, dm: dmDia })!.videos.find(y => y.ytId === A.alvo.ytId)!
+    expect(x.imp).toBe(22)
+    expect(x.notas.some(n => n.startsWith('Impressões: 22 em 1 dia, '))).toBe(true)
+    const b = blocosDe(W, alcance, A.alvo.id)
+    expect(b.canal.reguas.linhas.find(l => l.numero === 'impressoes')!.valor).toBe('22')
+    const g = b.impressoes!.grafico!
+    expect(g.colunas[0]!.dia).toBe(PUB)
+    expect(g.colunas.filter(c => c.situacao === 'com-impressoes').map(c => c.imp)).toEqual(['22'])
+  })
+
+  it('o cabeçalho do canal e a lista de vídeos leem a mesma coisa de lerEstado (porVideo cortado pela publicação)', () => {
+    const lido = lerEstado({ acesso: 'ok', dado: alcance }, W.hoje, pubs)
+    expect(lido.estado === 'ok' && lido.porVideo.get(A.alvo.ytId)!.imp).toBe(22)
   })
 })

@@ -17,7 +17,7 @@ import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 import { assistidoDoVideo, contraNormal, MIN_VIDEOS_FAIXA, normalDoCanal, POUCAS_VIEWS } from '@/lib/youtube/observatorio/proprio/assistido'
-import { montarDias, resumir, videoNovo, type DiaAlcance, type Periodo } from '@/lib/youtube/observatorio/proprio/dias'
+import { montarDias, publicacoesDe, resumir, videoNovo, type DiaAlcance, type Periodo, type PublicacoesPorYtId } from '@/lib/youtube/observatorio/proprio/dias'
 import { serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
 import { taxaComIntervalo, veredito, type TaxaComIntervalo, type Veredito } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -219,8 +219,8 @@ function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Obse
   return { partes, faixa: { ...faixa, alt }, inconclusiva: v.inconclusivo, metodo: METODO_TAXA }
 }
 
-function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
-  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje)
+function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; publicacoes: PublicacoesPorYtId; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
+  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje, o.publicacoes)
   if (lido.estado !== 'ok') return { medido: false, frase: SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
   const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
@@ -382,11 +382,13 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   }
 
   const { alcance, diario } = a.dados.dado
+  // o dia da publicação de cada vídeo do canal: o total de impressões de cada um começa nele (a mesma regra do gráfico, do cartão e da lista)
+  const publicacoes = publicacoesDe(obs.videos.filter(v => v.ch === ch.id))
   const diarioPriv: Privado<DiarioCanal> = { acesso: 'ok', dado: diario }
   const serie = serieDoVideo(diarioPriv, { ytId: este.ytId, publicadoEm: pubDia, hoje })
 
   const views = viewsDe(serie, { pubDia, dm, hoje, F })
-  const impressoes = impressoesDe(alcance, { ytId: este.ytId, pubDia, dm, hoje, F })
+  const impressoes = impressoesDe(alcance, { ytId: este.ytId, pubDia, publicacoes, dm, hoje, F })
 
   /* contas do diário, uma vez por vídeo que tem linha */
   const grupos = porVideo(diario)
@@ -404,7 +406,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const assistido = assistidoDe(diarioPriv, serie, { ytId: este.ytId, dur: este.dur, pctDosOutros, dm, F })
 
   /* as duas linhas novas da régua: só com leitura diária deste vídeo (vídeo novo e coleta que não rodou dizem uma frase no lugar) */
-  const lidoAlcance = lerEstado({ acesso: 'ok', dado: alcance }, hoje)
+  const lidoAlcance = lerEstado({ acesso: 'ok', dado: alcance }, hoje, publicacoes)
   const periodoTexto = lidoAlcance.estado === 'ok' ? `de ${dm(lidoAlcance.periodo.de)} a ${dm(lidoAlcance.periodo.ate)}` : null
   const temDiarioDoVideo = serie.estado !== 'video-novo' && serie.estado !== 'sem-diario'
   let diarioReguas: DiarioReguas | undefined
