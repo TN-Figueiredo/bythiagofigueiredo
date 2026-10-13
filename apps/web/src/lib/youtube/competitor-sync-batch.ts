@@ -11,6 +11,13 @@ import { link } from '@/lib/youtube/observatorio/links'
 import { newProbeBudget, type ShortProbeStats } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
+import { WEEKLY_DEADLINE_MS } from '@/lib/youtube/competitor-batch-constantes'
+
+// As constantes de tempo moram num módulo sem imports (m-4 do portão final); os nomes continuam exportados daqui.
+export {
+  COMPETITORS_MAX_DURATION_S, PROOF_TIMEOUT_MS, RECORD_RESERVE_MS, FINISH_RESERVE_MS, CHANNEL_CALL_WORST_MS, WEEKLY_CALL_WORST_MS,
+  BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS,
+} from '@/lib/youtube/competitor-batch-constantes'
 
 /**
  * A conta de tempo do disparo (A5, Tarefa 13 / I-4). A função morre aos 300 s (um teste confere o `maxDuration` da rota). Nenhuma operação
@@ -21,28 +28,9 @@ import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
  * e o fim tem uma reserva fixa: a prova (teto PROOF_TIMEOUT_MS), e o registro do cron + invalidação + partida da função (RECORD_RESERVE_MS).
  * O aviso ao dono (até 8 s) roda ANTES dos canais, dentro da conta do `started`: ele só encurta a lista, nunca empurra o fim.
  */
-/** A duração máxima da função do cron (`export const maxDuration` da rota). Um teste confere os dois. */
-export const COMPETITORS_MAX_DURATION_S = 300
-/** A prova da captura e da série tem teto próprio: estourou, é vermelho ("não foi possível ler a prova a tempo"). */
-export const PROOF_TIMEOUT_MS = 20_000
-/** Gravar o resumo no `cron_health`, invalidar o cache, a partida da função e uma folga (a rota só chega aqui depois da prova). */
-export const RECORD_RESERVE_MS = 15_000
-/** O que o fim do disparo precisa inteiro: a prova no seu teto e a gravação. */
-export const FINISH_RESERVE_MS = PROOF_TIMEOUT_MS + RECORD_RESERVE_MS
-/** O pior caso de um canal sincronizado (medido: 13 a 27 s em produção; ~34 s estimado com a E1 nova; margem para o dobro). A sincronização do canal não tem relógio. */
-export const CHANNEL_CALL_WORST_MS = 65_000
-/** O pior caso de UMA chamada da fase semanal com download: sonda da miniatura 45 s (HEAD 10 + GET 15 + 2 cópias de 10) e a cauda no banco. */
-export const WEEKLY_CALL_WORST_MS = 55_000
-
 /** Depois disso o backfill de Shorts não começa (e o rodízio para): folga contra maxDuration = 300 s. */
 export const BACKFILL_DEADLINE_MS = 230_000
 
-/** Depois disso o lote não começa canal novo. (Era o literal 200_000 da rota.) */
-export const BATCH_BUDGET_MS = COMPETITORS_MAX_DURATION_S * 1000 - FINISH_RESERVE_MS - CHANNEL_CALL_WORST_MS
-// O corte fixo de 150 s saiu: ele era contado do início do disparo, e a ordem dos canais é a mesma todo dia, então os canais das
-// posições 7 a 11 nunca leriam os semanais. A leitura semanal é uma FASE do disparo.
-/** Depois disso a fase semanal não começa vídeo novo: o que resta é menor que o pior caso de uma chamada com download mais a reserva do fim. */
-export const WEEKLY_DEADLINE_MS = COMPETITORS_MAX_DURATION_S * 1000 - FINISH_RESERVE_MS - WEEKLY_CALL_WORST_MS
 /** O máximo de uma visita da fase semanal a um canal: um canal grande não tira a vez dos outros. */
 export const WEEKLY_CHANNEL_BUDGET_MS = 60_000
 /** Passadas 2 h do começo da faixa, a prova cobra a diária de qualquer jeito: uma faixa que nunca termina (por capacidade) não pode deixar o cron verde para sempre. */

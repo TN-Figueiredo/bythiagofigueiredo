@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
   // O que a resposta do lote antigo acrescenta (neutro quando a lista rodou nada e a agenda não é a causa): ver o ponto (iv) da Tarefa 12.
   const alemDoLote = (): Record<string, unknown> => ({
     ...(antes.tarefas.length > 0 ? { antes_do_lote: antes.tarefas } : {}),
+    ...(antes.notas.length > 0 ? { notas_antes: antes.notas } : {}),
     ...(caminho === 'interruptor' ? { agenda_desligada: CATALOGO.filter(t => !antesDoLoteAntigo.some(a => a.nome === t.nome)).map(t => t.rotulo) } : {}),
   })
 

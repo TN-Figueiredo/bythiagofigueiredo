@@ -1,5 +1,5 @@
 import type { Tarefa } from './tipos'
-import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS } from '@/lib/youtube/competitor-sync-batch'
+import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS } from '@/lib/youtube/competitor-batch-constantes'
 import { COMMENT_RULES, WORST_END_FROM_T0_MS } from '@/lib/youtube/observatorio/comentarios/regras'
 import { FRASES_FIXAS, fraseDe } from '@/lib/youtube/observatorio/comentarios/frases'
 import { MOTIVOS_COMUNS } from './motivos'
@@ -68,7 +68,9 @@ export const DEFINICAO_ANULAR_IDENTIDADE: Definicao = {
   nome: 'anular_identidade', rotulo: 'anular identidade de autores', ordem: 2, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 3,
   tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
   comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000, nuncaDesliga: true,
-  motivos: MOTIVOS_E14, fraseDe: (codigo, detalhe) => fraseDe(codigo, detalhe),
+  // m-7: o `inesperado` da E14 diz "retratos falharam"; na anulação a frase é própria (sem número: `fraseDe` não a substitui).
+  motivos: { ...MOTIVOS_E14, inesperado: 'a anulação falhou com erro inesperado (ver Sentry)' },
+  fraseDe: (codigo, detalhe) => (codigo === 'inesperado' ? undefined : fraseDe(codigo, detalhe)),
 }
 
 /**
