@@ -59,7 +59,7 @@ describe('"Carregar mais"', () => {
     expect(dosAntigos[0]!.closest('.cv-more')!.classList.contains('cv-pag-espera')).toBe(true)
     const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canal/canal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).toMatch(/\.cv-more \.pri\{[^}]*min-height:44px/)
-    expect(css).toMatch(/\.cv-more\.cv-pag-espera\{display:none\}/)
+    expect(css).toMatch(/\.cv-more\.cv-pag-espera,[^{]*\.cv-soantigos\.cv-pag-espera\{display:none\}/)   // B1: o aviso dos antigos some junto do botão
   })
 
   it('o clique revela 40 sob o divisor "Mais antigos, sem contagem diária (82)", com o aviso da contagem antiga', () => {

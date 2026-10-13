@@ -244,7 +244,7 @@
 @media (max-width:480px){
   [data-obs-screen="canal"] .cv-grid > :is(.cv-card,.cv-div)[data-pag-oculto]{display:none}
   [data-obs-screen="canal"] .cv-more.cv-pag{display:flex}
-  [data-obs-screen="canal"] .cv-more.cv-pag-espera{display:none}
+  [data-obs-screen="canal"] .cv-more.cv-pag-espera,[data-obs-screen="canal"] .cv-soantigos.cv-pag-espera{display:none}
 }
 
 /* vazios e nota fixa */
