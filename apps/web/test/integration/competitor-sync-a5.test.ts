@@ -475,10 +475,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: a junção do sync com o banco l
     let site = ''
     beforeAll(async () => { site = await mkSite() })
     let n = 0
-    // ACHADO (Tarefa 14a, ver o relatório): o título e a descrição do vídeo e o nome do canal vão ao banco SEM a limpeza (só raw, campos,
-    // tags, descrição e custom_url do canal passam por ela). NUL derruba a gravação com "unsupported Unicode escape sequence" e o substituto
-    // solitário com "Empty or invalid json": o canal termina em erro em toda sincronização. Quando o conserto entrar, tire a entrada daqui.
-    const KNOWN_RED = new Set(['título do vídeo', 'descrição do vídeo', 'nome do canal'])
+    // ACHADO da Tarefa 14a (consertado): título e descrição do vídeo e nome do canal iam ao banco sem limpeza. Agora toda resposta da API é limpa
+    // UMA vez, logo depois do json() (ponto único de entrada em competitor-sync.ts). O conjunto fica vazio: se um dia voltar uma lacuna, entra aqui.
+    const KNOWN_RED = new Set<string>()
     for (const c of cases) for (const bad of BAD) {
       const label = bad.includes('\u0000') ? 'NUL' : bad.includes('\ud800') ? 'substituto alto solitário' : 'substituto baixo solitário'
       if (KNOWN_RED.has(c.name)) { it.todo(`${c.name} com ${label}: ACHADO, ver relatório`); continue }

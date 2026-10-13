@@ -12,7 +12,7 @@ import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYou
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
-import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
+import { optCount, videoObservedOf, channelObservedOf, rawOf, sanitizeForDb, cleanText, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats, type RawCapture } from '@/lib/youtube/competitor-capture'
 import { classifyTiers, earlyEligible, weeklyDue, shouldPromote, addDays, dayNumber, type Tier } from '@/lib/youtube/competitor-tiers'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 export { optCount } from '@/lib/youtube/competitor-capture'
@@ -142,6 +142,9 @@ export function parseIsoDuration(durationStr: string | undefined): number | null
  * O corpo de um videos.list só vale se trouxe a lista (`items` é array) e nenhum `error`: um 200 `{}` ou com `error` (proxy, cota)
  * não é "nenhum vídeo devolvido". É falha da chamada, igual a um 500, e nunca conta ninguém como ausente.
  */
+/** O tipo que `Response.json()` devolve (o corpo da API, lido por caminho opcional como sempre foi). */
+type ApiJson = Awaited<ReturnType<Response['json']>>
+
 function videoItemsOf(body: unknown): unknown[] {
   const b = (typeof body === 'object' && body !== null ? body : {}) as { items?: unknown; error?: unknown }
   if (b.error != null || !Array.isArray(b.items)) throw new Error('YouTube API: resposta sem a lista de vídeos')
@@ -240,6 +243,37 @@ async function runChannel(
   let controlDone = !standalone
   const ensureControl = async () => { if (!controlDone) { controlDone = true; await runControlProbe(supabase, probeBudget, f) } }
   const api = (url: string): Promise<Response> => { unitsUsed++; return f(url, { signal: AbortSignal.timeout(10_000) }) }
+  /**
+   * PONTO ÚNICO DE ENTRADA do texto da API (conserto da 14a): toda resposta do YouTube (channels, playlistItems, videos: sincronização,
+   * passada diária, fixados e leitura semanal) é limpa UMA vez, logo depois do `json()`. NUL sai e substituto solitário vira U+FFFD (o
+   * Postgres rejeita os dois); par válido (emoji) fica. Dali em diante todo texto (título, descrição, nome do canal, tags, idioma, URL)
+   * já está limpo e nenhum consumidor precisa lembrar de limpar. Pura e sem exceção (a profundidade é limitada em sanitizeForDb).
+   * `dirty`: os ids dos itens (vídeo ou canal) que traziam texto sujo, para `sanitized` contar o ITEM uma vez, já que o raw
+   * que a captura monta vem limpo e não sabe mais.
+   */
+  const dirty = new Set<string>()
+  const cleanApi = (body: unknown): unknown => {
+    if (isRec(body) && Array.isArray(body.items)) {
+      const { items, ...rest } = body
+      const head = sanitizeForDb(rest).value
+      return {
+        ...head,
+        items: items.map(it => {
+          const c = sanitizeForDb(it)
+          if (c.changed && isRec(it) && typeof it.id === 'string') dirty.add(it.id)
+          return c.value
+        }),
+      }
+    }
+    return sanitizeForDb(body).value
+  }
+  /** O corpo JSON da resposta, já limpo (ver cleanApi). Lança como `res.json()` se o corpo não for JSON. */
+  const jsonOf = async (res: Response): Promise<ApiJson> => cleanApi(await res.json()) as ApiJson
+  /** O raw de um item: o hash e o conteúdo vêm do item já limpo; `sanitized` é a lembrança do que a entrada limpou. */
+  const rawFor = (item: unknown): RawCapture => {
+    const r = rawOf(item)
+    return isRec(item) && typeof item.id === 'string' && dirty.has(item.id) ? { ...r, sanitized: true } : r
+  }
 
   // Estado do canal que o resto da função lê. No modo 'slot' vem da trava (CAS); no 'weekly', da leitura abaixo, sem tomar a trava.
   let prevOkAt: string | null = null
@@ -565,7 +599,7 @@ async function runChannel(
           siteId: channelRow.site_id, channelId: channelRow.id, scope: 'video', nowIso,
           items: chunk.map(p => {
             const info = rowInfo.get(p.uuid)
-            return { videoId: p.uuid, fields: videoObservedOf(p.item, nowIso, parseIsoDuration).fields, raw: rawOf(p.item), prevSeenAt: info?.lastSeenAt ?? null, weeklySince: info?.weeklySince ?? null }
+            return { videoId: p.uuid, fields: videoObservedOf(p.item, nowIso, parseIsoDuration).fields, raw: rawFor(p.item), prevSeenAt: info?.lastSeenAt ?? null, weeklySince: info?.weeklySince ?? null }
           }),
         })
         addCap(st)
@@ -799,7 +833,7 @@ async function runChannel(
           const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
           if (!res.ok) throw new Error(`YouTube API ${res.status} for weekly statistics`)
           // 200 sem a lista (ou com `error`) é falha da chamada, como um 500: ninguém é marcado ausente, ninguém ganha ponto
-          const body = await res.json()
+          const body = await jsonOf(res)
           const returned = videoItemsOf(body)
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
           const items = (returned as FetchedItem[]).filter(it => isRec(it) && typeof it.id === 'string' && byYt.has(it.id))
@@ -899,7 +933,7 @@ async function runChannel(
     )
     if (!channelRes.ok) throw new Error(`YouTube API ${channelRes.status} for channel ${channelRow.channel_id}`)
 
-    const channelData = await channelRes.json()
+    const channelData = await jsonOf(channelRes)
     // Só sumiço de verdade marca ausência do canal: `items` lista vazia, ou sem `items` com `pageInfo.totalResults === 0`.
     // Corpo sem `items`, com `error` ou fora da forma é falha da chamada (igual a um 500) e lança antes de qualquer marca.
     {
@@ -936,7 +970,7 @@ async function runChannel(
     let channelCaptured = false
     try {
       const st = await captureItems(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, scope: 'canal', nowIso,
-        items: [{ videoId: null, fields: chObserved.fields, raw: rawOf(channelData.items[0]), prevSeenAt: prevChannelSeenAt, weeklySince: null }] })
+        items: [{ videoId: null, fields: chObserved.fields, raw: rawFor(channelData.items[0]), prevSeenAt: prevChannelSeenAt, weeklySince: null }] })
       addCap(st)
       channelCaptured = true
     } catch (e) {
@@ -996,7 +1030,7 @@ async function runChannel(
       const playlistRes = await api(playlistUrl)
       if (!playlistRes.ok) throw new Error(`YouTube API ${playlistRes.status} for playlist ${uploadsPlaylistId}`)
 
-      const playlistData = await playlistRes.json()
+      const playlistData = await jsonOf(playlistRes)
       const videoIds = (playlistData.items ?? [])
         .map((item: Record<string, unknown>) => {
           const snip = item.snippet as Record<string, unknown> | undefined
@@ -1013,7 +1047,7 @@ async function runChannel(
       )
       if (!videosRes.ok) throw new Error(`YouTube API ${videosRes.status} for video details`)
 
-      const videosData = await videosRes.json()
+      const videosData = await jsonOf(videosRes)
       videoItemsOf(videosData) // antes de qualquer `asked`: corpo malformado não vira falta
 
       // Batch lookup existing videos
@@ -1184,7 +1218,7 @@ async function runChannel(
         try {
           const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
           if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
-          const body = await res.json()
+          const body = await jsonOf(res)
           videoItemsOf(body)
           for (const c of chunk) asked.add(c.id) // a chamada respondeu: o que não veio nela conta como pedido e não devolvido
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
@@ -1237,7 +1271,7 @@ async function runChannel(
       const chunk = pinnedLeft.slice(i, i + 50)
       const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
       if (!res.ok) throw new Error(`YouTube API ${res.status} for pinned videos`)
-      const body = await res.json()
+      const body = await jsonOf(res)
       videoItemsOf(body)
       for (const c of chunk) asked.add(c.id)
       const fetched = (body.items ?? []) as FetchedItem[], byYt = new Map(chunk.map(c => [c.video_id, c]))
@@ -1331,7 +1365,7 @@ async function runChannel(
       .from('competitor_channels')
       .update({
         sync_status: 'error',
-        sync_error: error instanceof Error ? error.message : 'Unknown sync error',
+        sync_error: cleanText(error instanceof Error ? error.message : 'Unknown sync error'),
         sync_error_since: prevErrorSince ?? nowIso,
       })
       .eq('id', channelRow.id)
