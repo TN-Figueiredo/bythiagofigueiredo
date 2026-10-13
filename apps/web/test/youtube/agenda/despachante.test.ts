@@ -351,6 +351,43 @@ describe('despachante: ordem e pesadas', () => {
 // ---- o fecho e os problemas ------------------------------------------------------------------------------------
 
 describe('despachante: o que a tarefa devolve', () => {
+  it('o adiar das pesadas que cederam vem DEPOIS da leitura horária (não gasta o tempo dela)', async () => {
+    const t0 = sp(13, 0)
+    const ordem: string[] = []
+    const cat = catalogoCompleto().map(t => (t.nome === 'leitura_horaria'
+      ? { ...t, rodar: async (): Promise<ResultadoTarefa> => { ordem.push('horaria'); return { estado: 'ok', feitas: 1, deixadas: 0 } } }
+      : t))
+    const m = montar({ catalogo: cat, t0 })
+    m.ops.adiar.mockImplementation(async (a) => { ordem.push(`adiar:${a.task}`) })
+    const r = await m.rodar()
+    expect(ordem[0]).toBe('horaria')
+    expect(ordem.some(x => x.startsWith('adiar:'))).toBe(true)
+    expect(ordem.indexOf('horaria')).toBeLessThan(ordem.findIndex(x => x.startsWith('adiar:')))
+    // o resultado e o resumo não mudam
+    expect(final(r, 'serie_semanal')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+    expect(m.ops.adiar).toHaveBeenCalledWith({ task: 'serie_semanal', period_key: '2026-10-12', motivo: 'uma_pesada_por_disparo' })
+  })
+
+  it('cota não registrada no detalhe é problema mesmo com a tarefa em ok ou parcial (item 227: vermelho)', async () => {
+    const t0 = sp(14, 40)
+    for (const estado of ['ok', 'parcial'] as const) {
+      const cat = [sempre('leitura_horaria', 1, { rodar: async (): Promise<ResultadoTarefa> => ({
+        estado, feitas: 55, deixadas: 0, ...(estado === 'parcial' ? { motivo: 'sobrou' } : {}), detalhe: { cota_nao_registrada: 2, chamadas: 2 },
+      }) })]
+      const r = await montar({ catalogo: cat, t0 }).rodar()
+      expect(r.problemas, estado).toContain('leitura horaria: 2 unidades de cota não registradas')
+    }
+  })
+
+  it('sem cota não registrada (ausente ou zero) não há problema', async () => {
+    const t0 = sp(14, 40)
+    for (const detalhe of [{ chamadas: 2 }, { cota_nao_registrada: 0 }]) {
+      const cat = [sempre('leitura_horaria', 1, { rodar: async (): Promise<ResultadoTarefa> => ({ estado: 'ok', feitas: 55, deixadas: 0, detalhe }) })]
+      const r = await montar({ catalogo: cat, t0 }).rodar()
+      expect(r.problemas).toEqual([])
+    }
+  })
+
   it('tarefa que estoura para e as seguintes rodam (item 152)', async () => {
     const t0 = sp(13, 0)
     const a = tarefa('a_leve', 1, { rodar: async () => ({ estado: 'parcial', feitas: 2, deixadas: 7, motivo: 'sobrou' }) })

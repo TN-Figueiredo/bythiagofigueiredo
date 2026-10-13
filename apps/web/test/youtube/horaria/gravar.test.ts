@@ -35,12 +35,38 @@ interface Q {
   gte: (c: string, v: string) => Q
   lt: (c: string, v: string) => Q
   in: (c: string, v: unknown[]) => Q
+  or: (expr: string) => Q
   not: (c: string, op: string, v: unknown) => Q
   order: (c: string, o?: { ascending?: boolean }) => Q
   range: (de: number, ate: number) => Q
   abortSignal: (s: AbortSignal) => Q
   upsert: (linhas: Linha[], o: { onConflict: string; ignoreDuplicates?: boolean }) => Q
   then: (ok: (r: Resposta) => unknown, err?: (e: unknown) => unknown) => Promise<unknown>
+}
+
+/** PostgREST `or(...)` mínimo: termos `col.op.valor` (gt, is.null) e `and(termo,termo)`, separados por vírgula fora de parênteses. */
+function avaliarOr(expr: string, r: Record<string, unknown>): boolean {
+  const partes = (s: string): string[] => {
+    const out: string[] = []
+    let nivel = 0, ini = 0
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '(') nivel++
+      else if (s[i] === ')') nivel--
+      else if (s[i] === ',' && nivel === 0) { out.push(s.slice(ini, i)); ini = i + 1 }
+    }
+    out.push(s.slice(ini))
+    return out
+  }
+  const termo = (t: string): boolean => {
+    if (t.startsWith('and(') && t.endsWith(')')) return partes(t.slice(4, -1)).every(termo)
+    const i = t.indexOf('.'), j = t.indexOf('.', i + 1)
+    const col = t.slice(0, i), op = t.slice(i + 1, j), val = t.slice(j + 1)
+    const v = r[col]
+    if (op === 'is' && val === 'null') return v === null || v === undefined
+    if (op === 'gt') return typeof v === 'string' && v > val
+    throw new Error(`or() do banco falso não conhece ${op}`)
+  }
+  return partes(expr).some(termo)
 }
 
 function criarBanco(): Banco {
@@ -97,6 +123,7 @@ function criarBanco(): Banco {
         gte: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) >= v); nomes.push(`gte:${c}`); return q },
         lt: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) < v); nomes.push(`lt:${c}`); return q },
         in: (c, v) => { filtros.push(r => v.includes(r[c])); nomes.push(`in:${c}`); return q },
+        or: expr => { filtros.push(r => avaliarOr(expr, r)); nomes.push(`or:${expr.split('.')[0]}`); return q },
         not: (c, _op, _v) => { filtros.push(r => r[c] !== null && r[c] !== undefined); nomes.push(`not:${c}`); return q },
         order: (c, o) => { ordem.push({ col: c, asc: o?.ascending !== false }); return q },
         range: (de, ate) => { faixa = [de, ate]; return q },
@@ -152,7 +179,26 @@ describe('lerCandidatos', () => {
     const { conc } = await lerCandidatos(b.sb, AGORA)
     expect(conc.map(c => c.id)).toEqual(['novo'])
     expect(b.idas.some(i => i.tabela === 'yt_own_video_meta_daily')).toBe(false)
-    expect(idasEm(b, 'competitor_videos', 'select')[0]?.filtros).toContain('gt:published_at')
+    // a janela é `published_at > corte` OU `published_at nulo` com descoberta dentro da janela: o nulo precisa chegar a montarLista
+    expect(idasEm(b, 'competitor_videos', 'select')[0]?.filtros).toContain('or:published_at')
+  })
+
+  it('vídeo sem published_at, descoberto na janela, chega aos candidatos (nunca some em silêncio); o nulo antigo não', async () => {
+    const b = criarBanco()
+    const base = { competitor_channel_id: 'c', live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null } }
+    semear(b, 'competitor_videos', [
+      { id: 'sem-data', video_id: 'a', published_at: null, discovered_at: iso(AGORA - 2 * H), ...base },
+      { id: 'sem-data-antigo', video_id: 'b', published_at: null, discovered_at: iso(AGORA - 20 * DIA), ...base },
+      { id: 'com-data', video_id: 'c', published_at: iso(AGORA - H), discovered_at: null, ...base },
+    ])
+    semear(b, 'youtube_videos', [
+      { id: 'p-sem-data', youtube_video_id: 'pa', channel_id: 'd', site_id: 's', published_at: null, created_at: iso(AGORA - 2 * H) },
+      { id: 'p-sem-data-antigo', youtube_video_id: 'pb', channel_id: 'd', site_id: 's', published_at: null, created_at: iso(AGORA - 20 * DIA) },
+    ])
+    const { conc, prop } = await lerCandidatos(b.sb, AGORA)
+    expect(conc.map(c => c.id).sort()).toEqual(['com-data', 'sem-data'])
+    expect(prop.map(p => p.id)).toEqual(['p-sem-data'])
+    expect(conc.find(c => c.id === 'sem-data')?.publishedAt).toBeNull()
   })
 
   it('5.000 linhas exatas passam (seis consultas, a sexta vazia); mais que isso é lista_cortada', async () => {
@@ -392,5 +438,95 @@ describe('contarNegadosCobraveis', () => {
     const ids250 = Array.from({ length: 250 }, (_, i) => `v${i}`)
     semear(b2, 'yt_own_video_meta_daily', ids250.flatMap(id => [0, 1, 2, 3].map(d => cap(id, d, 'public'))))
     expect('porque' in (await contarNegadosCobraveis(b2.sb, ids250, AGORA))).toBe(true)
+  })
+})
+
+// ───────────────────────── o código do Postgres chega ao relato ─────────────────────────
+describe('relatar: só o código do Postgres e o código de catálogo, nunca o texto', () => {
+  type Relato = { tarefa: string; codigo: string; tecnico?: { classe: string; sqlstate: string | null } }
+  const novoRelator = (): { relatos: Relato[]; relatar: (tarefa: string, o: { codigo: string; tecnico?: { classe: string; sqlstate: string | null } }) => void } => {
+    const relatos: Relato[] = []
+    return { relatos, relatar: (tarefa, o) => { relatos.push({ tarefa, ...o }) } }
+  }
+  const semTexto = (relatos: Relato[]): void => {
+    const s = JSON.stringify(relatos)
+    expect(s).not.toContain(SENTINELA)
+    expect(s).not.toContain('message')
+  }
+
+  it('lerCandidatos: erro do banco relata lista_falhou com o sqlstate; sem o texto', async () => {
+    const b = criarBanco(); b.falha = t => (t === 'youtube_videos' ? 'erro' : undefined)
+    const { relatos, relatar } = novoRelator()
+    await expect(lerCandidatos(b.sb, AGORA, relatar)).rejects.toMatchObject({ codigo: 'lista_falhou' })
+    expect(relatos).toEqual([{ tarefa: 'leitura_horaria', codigo: 'lista_falhou', tecnico: { classe: 'Error', sqlstate: 'XX000' } }])
+    semTexto(relatos)
+  })
+
+  it('lerCandidatos: exceção relata a classe, sem sqlstate; resposta nula relata sem sqlstate', async () => {
+    for (const modo of ['lanca', 'nulo'] as const) {
+      const b = criarBanco(); b.falha = t => (t === 'competitor_videos' ? modo : undefined)
+      const { relatos, relatar } = novoRelator()
+      await expect(lerCandidatos(b.sb, AGORA, relatar)).rejects.toMatchObject({ codigo: 'lista_falhou' })
+      expect(relatos).toHaveLength(1)
+      expect(relatos[0]).toMatchObject({ tarefa: 'leitura_horaria', codigo: 'lista_falhou', tecnico: { sqlstate: null } })
+      semTexto(relatos)
+    }
+  })
+
+  it('lerCandidatos: lista cortada relata lista_cortada', async () => {
+    const mk = (n: number): Linha[] => Array.from({ length: n }, (_, i) => ({
+      id: `u${String(i).padStart(5, '0')}`, video_id: `y${i}`, competitor_channel_id: 'c', published_at: iso(AGORA - H), discovered_at: null,
+      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null },
+    }))
+    const b = criarBanco(); semear(b, 'competitor_videos', mk(5001))
+    const { relatos, relatar } = novoRelator()
+    await expect(lerCandidatos(b.sb, AGORA, relatar)).rejects.toMatchObject({ codigo: 'lista_cortada' })
+    expect(relatos.map(r => r.codigo)).toEqual(['lista_cortada'])
+  })
+
+  it('jaLidosNaHora: erro do banco relata ja_lidos_falhou com o sqlstate', async () => {
+    const b = criarBanco(); b.falha = (t, op) => (t === 'competitor_video_early' && op === 'select' ? 'erro' : undefined)
+    const { relatos, relatar } = novoRelator()
+    await expect(jaLidosNaHora(b.sb, iso(HORA), relatar)).rejects.toMatchObject({ codigo: 'ja_lidos_falhou' })
+    expect(relatos).toEqual([{ tarefa: 'leitura_horaria', codigo: 'ja_lidos_falhou', tecnico: { classe: 'Error', sqlstate: 'XX000' } }])
+    semTexto(relatos)
+  })
+
+  it('gravarLeituras e completarCurva: bloco recusado relata gravacao_falhou com o sqlstate', async () => {
+    const a = alvo(1, 'concorrente')
+    const b = criarBanco(); b.falha = (t, op) => (t === 'competitor_video_hourly' && op === 'upsert' ? 'erro' : undefined)
+    const { relatos, relatar } = novoRelator()
+    const r = await gravarLeituras(b.sb, [a], [contagem(a)], { ...SEMPRE, relatar })
+    expect(r.falhouCruas).toBe(true)
+    expect(relatos).toEqual([{ tarefa: 'leitura_horaria', codigo: 'gravacao_falhou', tecnico: { classe: 'Error', sqlstate: 'XX000' } }])
+
+    const b2 = criarBanco(); b2.falha = (t, op) => (t === 'competitor_video_early' && op === 'upsert' ? 'lanca' : undefined)
+    const ja: JaLidos = { cruas: new Map([[`concorrente:${a.uuid}`, { lidoEm: iso(AGORA), views: 1, likes: null, comments: null }]]), comCurva: new Set() }
+    const outro = novoRelator()
+    const c = await completarCurva(b2.sb, [a], ja, { ...SEMPRE, relatar: outro.relatar })
+    expect(c.falhou).toBe(true)
+    expect(outro.relatos).toHaveLength(1)
+    expect(outro.relatos[0]).toMatchObject({ codigo: 'gravacao_falhou', tecnico: { sqlstate: null } })
+    semTexto([...relatos, ...outro.relatos])
+  })
+
+  it('contarNegadosCobraveis: erro do banco relata classificacao_falhou com o sqlstate e devolve { porque }', async () => {
+    const b = criarBanco(); b.falha = t => (t === 'yt_own_video_meta_daily' ? 'erro' : undefined)
+    const { relatos, relatar } = novoRelator()
+    const r = await contarNegadosCobraveis(b.sb, ['x'], AGORA, relatar)
+    expect('porque' in r).toBe(true)
+    expect(relatos).toEqual([{ tarefa: 'leitura_horaria', codigo: 'classificacao_falhou', tecnico: { classe: 'Error', sqlstate: 'XX000' } }])
+    semTexto(relatos)
+    // exceção também
+    const b2 = criarBanco(); b2.falha = t => (t === 'yt_own_video_meta_daily' ? 'lanca' : undefined)
+    const o2 = novoRelator()
+    expect('porque' in await contarNegadosCobraveis(b2.sb, ['x'], AGORA, o2.relatar)).toBe(true)
+    expect(o2.relatos).toHaveLength(1)
+    semTexto(o2.relatos)
+  })
+
+  it('um relatar que lança não derruba a leitura nem muda o resultado', async () => {
+    const b = criarBanco(); b.falha = t => (t === 'youtube_videos' ? 'erro' : undefined)
+    await expect(lerCandidatos(b.sb, AGORA, () => { throw new Error('relato quebrou') })).rejects.toMatchObject({ codigo: 'lista_falhou' })
   })
 })

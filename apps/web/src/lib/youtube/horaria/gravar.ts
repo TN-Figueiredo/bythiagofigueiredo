@@ -10,6 +10,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { isRec, rowsAs } from '@/lib/youtube/competitor-capture'
 import { pacificDate } from '@/lib/youtube/competitor-quota'
 import { earlyEligible } from '@/lib/youtube/competitor-tiers'
+import type { OpsAgenda } from '@/lib/youtube/agenda/despachante'
+import { resumoTecnico } from '@/lib/youtube/agenda/motivos'
 import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
 import type { Lido } from '@/lib/youtube/agenda/tipos'
 import { RULES } from '@/lib/youtube/observatorio/rules'
@@ -25,6 +27,18 @@ export class ErroDeLeitura extends Error {
     this.name = 'ErroDeLeitura'
     this.codigo = codigo
   }
+}
+
+/**
+ * O relato opcional das falhas do banco: a MESMA forma de `OpsAgenda.relatar` (a rota passa `ops.relatar` direto).
+ * Vai só o código de catálogo e `{ classe, sqlstate }` de `resumoTecnico`; nunca `message`, `details`, `hint` nem dado.
+ */
+export type RelatarHoraria = OpsAgenda['relatar']
+export const TAREFA_HORARIA = 'leitura_horaria'
+/** O relato nunca derruba a leitura nem muda o resultado. */
+export function relatarSeguro(relatar: RelatarHoraria | undefined, codigo: string, err?: unknown): void {
+  if (!relatar) return
+  try { relatar(TAREFA_HORARIA, err === undefined ? { codigo } : { codigo, tecnico: resumoTecnico(err) }) } catch { /* o relato nunca derruba a leitura */ }
 }
 
 const HORA_MS = 3_600_000
@@ -50,19 +64,25 @@ async function paginar<T>(
   falha: CodigoLeitura,
   cortada: CodigoLeitura,
   oQue: string,
+  relatar?: RelatarHoraria,
 ): Promise<T[]> {
   const out: T[] = []
   for (let p = 0; p <= PAGINAS; p++) {
     let linhas: T[]
     try {
       const { data, error } = await pagina(p * PAGINA, p * PAGINA + PAGINA - 1)
-      if (error) throw new Error('banco')
+      if (error) throw error
       linhas = rowsAs(data, guarda, oQue)
-    } catch {
+    } catch (e) {
+      // o texto do erro morre aqui; só o sqlstate (5 caracteres) e a classe seguem para o relato
+      relatarSeguro(relatar, falha, e)
       throw new ErroDeLeitura(falha)
     }
     if (p === PAGINAS) {
-      if (linhas.length > 0) throw new ErroDeLeitura(cortada)
+      if (linhas.length > 0) {
+        relatarSeguro(relatar, cortada)
+        throw new ErroDeLeitura(cortada)
+      }
       break
     }
     out.push(...linhas)
@@ -104,24 +124,33 @@ const COLUNAS_CONCORRENTE: string = 'id, video_id, competitor_channel_id, publis
 const COLUNAS_PROPRIO: string = 'id, youtube_video_id, channel_id, site_id, published_at, created_at'
 
 /**
+ * A janela é `published_at > corte` OU `published_at` nulo com a descoberta (ou o cadastro) dentro da janela: o vídeo sem
+ * data precisa chegar a `montarLista`, que o conta em `fora.semData`, em vez de sumir em silêncio no banco. O limite pela
+ * descoberta impede que nulos antigos se acumulem para sempre e estourem as 5.000 linhas.
+ */
+const janelaComNulo = (corte: string, colunaDeEntrada: 'discovered_at' | 'created_at'): string =>
+  `published_at.gt.${corte},and(published_at.is.null,${colunaDeEntrada}.gt.${corte})`
+
+/**
  * Todo vídeo publicado na janela (concorrentes e dono), em ordem estável, até 5.000 por tabela.
  * A captura diária de privacidade do dono NÃO é lida aqui: quem decide se a leitura é gravada é a resposta do YouTube.
  */
 export async function lerCandidatos(
   sb: SupabaseClient,
   agoraMs: number,
+  relatar?: RelatarHoraria,
 ): Promise<{ conc: CandConcorrente[]; prop: CandProprio[] }> {
   const corte = new Date(agoraMs - RULES.hourly.ageDays * DIA_MS).toISOString()
   const [conc, prop] = await Promise.all([
     paginar(
-      (de, ate) => sb.from('competitor_videos').select(COLUNAS_CONCORRENTE).gt('published_at', corte)
+      (de, ate) => sb.from('competitor_videos').select(COLUNAS_CONCORRENTE).or(janelaComNulo(corte, 'discovered_at'))
         .order('published_at', { ascending: false }).order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eLinhaConcorrente, 'lista_falhou', 'lista_cortada', 'competitor_videos',
+      eLinhaConcorrente, 'lista_falhou', 'lista_cortada', 'competitor_videos', relatar,
     ),
     paginar(
-      (de, ate) => sb.from('youtube_videos').select(COLUNAS_PROPRIO).gt('published_at', corte)
+      (de, ate) => sb.from('youtube_videos').select(COLUNAS_PROPRIO).or(janelaComNulo(corte, 'created_at'))
         .order('published_at', { ascending: false }).order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eLinhaProprio, 'lista_falhou', 'lista_cortada', 'youtube_videos',
+      eLinhaProprio, 'lista_falhou', 'lista_cortada', 'youtube_videos', relatar,
     ),
   ])
   return {
@@ -158,29 +187,29 @@ const eCurvaProprio = (x: unknown): x is CurvaProprio => isRec(x) && typeof x.yo
  * As leituras e os pontos de curva que a hora cheia `horaIso` já tem. Quatro consultas em paralelo, FILTRADAS PELA HORA
  * (nunca `.in()` com os ids dos alvos). Falha de leitura lança `ja_lidos_falhou`: nunca "ninguém lido" (gastaria a cota em dobro).
  */
-export async function jaLidosNaHora(sb: SupabaseClient, horaIso: string): Promise<JaLidos> {
+export async function jaLidosNaHora(sb: SupabaseClient, horaIso: string, relatar?: RelatarHoraria): Promise<JaLidos> {
   const fim = new Date(Date.parse(horaIso) + HORA_MS).toISOString()
   const colunas = 'taken_at, views, likes, comments'
   const [cConc, cProp, eConc, eProp] = await Promise.all([
     paginar(
       (de, ate) => sb.from('competitor_video_hourly').select(`video_id, ${colunas}`).eq('hour_slot', horaIso)
         .order('video_id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eCruaConcorrente, 'ja_lidos_falhou', 'ja_lidos_falhou', 'competitor_video_hourly',
+      eCruaConcorrente, 'ja_lidos_falhou', 'ja_lidos_falhou', 'competitor_video_hourly', relatar,
     ),
     paginar(
       (de, ate) => sb.from('yt_own_public_video_hourly').select(`youtube_video_id, ${colunas}`).eq('hour_slot', horaIso)
         .order('youtube_video_id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eCruaProprio, 'ja_lidos_falhou', 'ja_lidos_falhou', 'yt_own_public_video_hourly',
+      eCruaProprio, 'ja_lidos_falhou', 'ja_lidos_falhou', 'yt_own_public_video_hourly', relatar,
     ),
     paginar(
       (de, ate) => sb.from('competitor_video_early').select('video_id, taken_at').gte('taken_at', horaIso).lt('taken_at', fim)
         .order('video_id').order('taken_at').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eCurvaConcorrente, 'ja_lidos_falhou', 'ja_lidos_falhou', 'competitor_video_early',
+      eCurvaConcorrente, 'ja_lidos_falhou', 'ja_lidos_falhou', 'competitor_video_early', relatar,
     ),
     paginar(
       (de, ate) => sb.from('yt_own_public_video_early').select('youtube_video_id, taken_at').gte('taken_at', horaIso).lt('taken_at', fim)
         .order('youtube_video_id').order('taken_at').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eCurvaProprio, 'ja_lidos_falhou', 'ja_lidos_falhou', 'yt_own_public_video_early',
+      eCurvaProprio, 'ja_lidos_falhou', 'ja_lidos_falhou', 'yt_own_public_video_early', relatar,
     ),
   ])
   const ja: JaLidos = { cruas: new Map(), comCurva: new Set() }
@@ -193,7 +222,7 @@ export async function jaLidosNaHora(sb: SupabaseClient, horaIso: string): Promis
 
 // ─────────────────────────── a gravação ───────────────────────────
 type Linha = Record<string, string | number | null>
-interface OpcoesGravacao { agoraMs: number; podeGravar: () => boolean }
+interface OpcoesGravacao { agoraMs: number; podeGravar: () => boolean; relatar?: RelatarHoraria }
 
 /** A chave de um alvo em `JaLidos`. */
 const chaveDe = (a: Alvo): string => `${a.tipo}:${a.tipo === 'proprio' ? a.ytId : a.uuid}`
@@ -219,7 +248,7 @@ function linhaCurva(a: Alvo, d: { takenAt: string; views: number; likes: number 
  * vira `falhou`. `gravadas` conta só os blocos que o banco aceitou.
  */
 async function gravarEmBlocos(
-  sb: SupabaseClient, tabela: string, linhas: readonly Linha[], onConflict: string, podeGravar: () => boolean,
+  sb: SupabaseClient, tabela: string, linhas: readonly Linha[], onConflict: string, podeGravar: () => boolean, relatar?: RelatarHoraria,
 ): Promise<{ gravadas: number; fim: 'ok' | 'sem_tempo' | 'falhou' }> {
   let gravadas = 0
   for (let i = 0; i < linhas.length; i += BLOCO_GRAVACAO) {
@@ -227,8 +256,12 @@ async function gravarEmBlocos(
     const bloco = linhas.slice(i, i + BLOCO_GRAVACAO)
     try {
       const { error } = await sb.from(tabela).upsert(bloco, { onConflict, ignoreDuplicates: true }).abortSignal(AbortSignal.timeout(BANCO_MS))
-      if (error) return { gravadas, fim: 'falhou' }
-    } catch {
+      if (error) {
+        relatarSeguro(relatar, 'gravacao_falhou', error)
+        return { gravadas, fim: 'falhou' }
+      }
+    } catch (e) {
+      relatarSeguro(relatar, 'gravacao_falhou', e)
       return { gravadas, fim: 'falhou' }
     }
     gravadas += bloco.length
@@ -264,20 +297,20 @@ export async function gravarLeituras(
   }
 
   // as cruas primeiro; erro nelas e a curva nem é tentada
-  const c1 = await gravarEmBlocos(sb, 'competitor_video_hourly', cruasConc, 'video_id,hour_slot', o.podeGravar)
+  const c1 = await gravarEmBlocos(sb, 'competitor_video_hourly', cruasConc, 'video_id,hour_slot', o.podeGravar, o.relatar)
   r.cruas = c1.gravadas
   if (c1.fim === 'falhou') { r.falhouCruas = true; return r }
   if (c1.fim === 'sem_tempo') { r.semTempo = true; return r }
-  const c2 = await gravarEmBlocos(sb, 'yt_own_public_video_hourly', cruasProp, 'youtube_video_id,hour_slot', o.podeGravar)
+  const c2 = await gravarEmBlocos(sb, 'yt_own_public_video_hourly', cruasProp, 'youtube_video_id,hour_slot', o.podeGravar, o.relatar)
   r.cruasProprio = c2.gravadas
   if (c2.fim === 'falhou') { r.falhouCruas = true; return r }
   if (c2.fim === 'sem_tempo') { r.semTempo = true; return r }
 
-  const e1 = await gravarEmBlocos(sb, 'competitor_video_early', curvaConc, 'video_id,taken_at', o.podeGravar)
+  const e1 = await gravarEmBlocos(sb, 'competitor_video_early', curvaConc, 'video_id,taken_at', o.podeGravar, o.relatar)
   r.curva = e1.gravadas
   if (e1.fim === 'falhou') { r.falhouCurva = true; return r }
   if (e1.fim === 'sem_tempo') { r.semTempo = true; return r }
-  const e2 = await gravarEmBlocos(sb, 'yt_own_public_video_early', curvaProp, 'youtube_video_id,taken_at', o.podeGravar)
+  const e2 = await gravarEmBlocos(sb, 'yt_own_public_video_early', curvaProp, 'youtube_video_id,taken_at', o.podeGravar, o.relatar)
   r.curvaProprio = e2.gravadas
   if (e2.fim === 'falhou') r.falhouCurva = true
   if (e2.fim === 'sem_tempo') r.semTempo = true
@@ -304,10 +337,10 @@ export async function completarCurva(
     else conc.push(linha)
   }
   const r = { curva: 0, curvaProprio: 0, falhou: false }
-  const e1 = await gravarEmBlocos(sb, 'competitor_video_early', conc, 'video_id,taken_at', o.podeGravar)
+  const e1 = await gravarEmBlocos(sb, 'competitor_video_early', conc, 'video_id,taken_at', o.podeGravar, o.relatar)
   r.curva = e1.gravadas
   if (e1.fim !== 'ok') { r.falhou = true; return r }
-  const e2 = await gravarEmBlocos(sb, 'yt_own_public_video_early', prop, 'youtube_video_id,taken_at', o.podeGravar)
+  const e2 = await gravarEmBlocos(sb, 'yt_own_public_video_early', prop, 'youtube_video_id,taken_at', o.podeGravar, o.relatar)
   r.curvaProprio = e2.gravadas
   if (e2.fim !== 'ok') r.falhou = true
   return r
@@ -330,7 +363,7 @@ function diaMenos(dia: string, n: number): string {
  * Esta leitura nunca decide se uma leitura é gravada; só classifica o que já foi negado. Nenhuma chamada à API.
  * Falha, resposta nula, fora da forma, prazo ou mais de 250 ids: `{ porque }` (sem desconto).
  */
-export async function contarNegadosCobraveis(sb: SupabaseClient, ytIds: readonly string[], agoraMs: number): Promise<Lido<number>> {
+export async function contarNegadosCobraveis(sb: SupabaseClient, ytIds: readonly string[], agoraMs: number, relatar?: RelatarHoraria): Promise<Lido<number>> {
   const ids = [...new Set(ytIds)]
   if (ids.length === 0) return { valor: 0 }
   if (ids.length > NEGADOS_MAX) return { porque: 'negados demais para classificar' }
@@ -338,7 +371,10 @@ export async function contarNegadosCobraveis(sb: SupabaseClient, ytIds: readonly
     const desde = diaMenos(pacificDate(agoraMs), JANELA_CAPTURA_DIAS)
     const { data, error } = await sb.from('yt_own_video_meta_daily').select('youtube_video_id, day_pt, privacy_status')
       .in('youtube_video_id', ids).not('privacy_status', 'is', null).gte('day_pt', desde).abortSignal(AbortSignal.timeout(BANCO_MS))
-    if (error) return { porque: 'a captura diária não pôde ser lida' }
+    if (error) {
+      relatarSeguro(relatar, 'classificacao_falhou', error)
+      return { porque: 'a captura diária não pôde ser lida' }
+    }
     const linhas = rowsAs(data, eCaptura, 'yt_own_video_meta_daily')
     // 1.000 linhas é o teto do banco: com menos de 4 por id isso não acontece; se acontecer, pode ter cortado
     if (linhas.length >= PAGINA) return { porque: 'a captura diária veio cortada' }
@@ -350,7 +386,8 @@ export async function contarNegadosCobraveis(sb: SupabaseClient, ytIds: readonly
     let valor = 0
     for (const l of ultima.values()) if (l.privacy_status === 'public') valor++
     return { valor }
-  } catch {
+  } catch (e) {
+    relatarSeguro(relatar, 'classificacao_falhou', e)
     return { porque: 'a captura diária não pôde ser lida' }
   }
 }
