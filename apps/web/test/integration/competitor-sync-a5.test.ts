@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { writeFileSync } from 'node:fs'
-import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { skipIfNoLocalDb, localSupabaseUrl } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 
 vi.mock('@vercel/blob', () => ({ put: vi.fn(async () => ({ url: 'https://blob.test/x.jpg' })) }))
@@ -38,7 +38,7 @@ const RUN = !skipIfNoLocalDb()
 if (RUN) vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 })
 if (RUN) {
   globalThis.fetch = ((...a: Parameters<typeof fetch>) => {
-    if (String(a[0]).includes(':54321')) dbCalls.n++
+    if (String(a[0]).startsWith(localSupabaseUrl())) dbCalls.n++
     return realFetch(...a)
   }) as typeof fetch
 }
@@ -388,8 +388,16 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: a junção do sync com o banco l
       // daily de DAY11 a DAY14 (as provas cobram buraco de 3 dias nos diários), depois a semanal do dia fixo com 9.000 views
       for (const n of [11, 12, 13, 14]) await sync(ch, w, sp(day(n), '12:00'))
       w.videos.find(v => v.id === WK)!.views = 9000
+      // (portão final, dados I-3) o título muda entre duas leituras e só a leitura semanal o vê (as sincronizações da página já passaram)
+      w.videos.find(v => v.id === WK)!.title = 'Semanal (novo título)'
+      const hashBefore = (await vrow(m[WK]!, 'title, description_hash')).description_hash
       const r = await weekly(ch, w, sp(day(14), '12:40'))
       expect(r).toMatchObject({ due: 1, recorded: 1, promoted: 1 })
+      const rowAfter = await vrow(m[WK]!, 'title, description_hash')
+      expect(rowAfter.title).toBe('Semanal (novo título)') // a linha acompanha a versão gravada (o leitor das telas prefere a linha)
+      expect(rowAfter.description_hash).toBe(hashBefore) // a descrição não mudou: o hash é o mesmo
+      const tv = await sb.from('competitor_video_versions').select('value_text').eq('video_id', m[WK]!).eq('field', 'title').eq('is_current', true).single()
+      expect(tv.data!.value_text).toBe('Semanal (novo título)')
       expect(await pointsOf(m[WK]!)).toEqual([{ snap_date: day(7), views: 4000 }, { snap_date: day(14), views: 9000 }])
       expect((await vrow(m[WK]!, 'daily_until')).daily_until).toBe(addDays(day(14), 28))
       // reexecução no mesmo dia: a data não muda
@@ -796,27 +804,34 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: a junção do sync com o banco l
       expect(v.ok).toBe(true)
     })
 
-    it('MG2b (a): videos_vistos_sem_raw vale 0 quando o site não tem NENHUM raw, mesmo com vídeo lido', async () => {
-      // MG2b: inverter quando a migration corretiva entrar (o esperado certo é 1: o vídeo foi lido e não tem raw)
+    // MG2b aplicada (migration 20261012000004). Sem nenhum `raw` no site, as contas valem DESDE o rastro mais antigo que só o código novo deixa
+    // (primeira versão de campo, primeira faixa de série, primeira linha de cota): antes de qualquer rastro valem 0 (o estado legítimo entre o
+    // deploy e a primeira sincronização), depois dele a captura que nunca gravou o primeiro `raw` fica vermelha.
+    it('MG2b (a): videos_vistos_sem_raw e canais_vistos_sem_raw: sem rastro do código novo valem 0; com uma linha de cota e nenhum raw valem o que foi lido', async () => {
       const site = await mkSite(), ch = await mkChannel(site, 'a5defa', { last_ok_synced_at: iso(new Date()) })
       const ins = await sb.from('competitor_videos').insert({ competitor_channel_id: ch.id, video_id: 'defavid0001', last_checked_at: iso(new Date()) })
       expect(ins.error).toBeNull()
-      const cap = parseCaptureHealth((await sb.rpc('competitor_capture_health', { p_site_id: site, p_now: iso(new Date()) })).data)!
-      expect(cap.videos_vistos_sem_raw).toBe(0) // MG2b: inverter quando a migration corretiva entrar
-      expect(cap.canais_vistos_sem_raw).toBe(0) // idem, para o canal
+      const capOf = async () => parseCaptureHealth((await sb.rpc('competitor_capture_health', { p_site_id: site, p_now: iso(new Date()) })).data)!
+      const sem = await capOf()
+      expect(sem.videos_vistos_sem_raw).toBe(0) // vídeo lido pelo código ANTIGO (às 12:00 do deploy): sem raw e sem rastro, é o estado esperado
+      expect(sem.canais_vistos_sem_raw).toBe(0)
+      const q = await sb.rpc('youtube_quota_add', { p_site_id: site, p_day: pacificDate(Date.now()), p_units: 3, p_add: { competitors: 3 }, p_max: {} })
+      expect(q.error).toBeNull()
+      const com = await capOf()
+      expect(com.videos_vistos_sem_raw).toBe(1) // o código novo já rodou (a cota é gravada por caminho independente da captura) e o raw nunca nasceu
+      expect(com.canais_vistos_sem_raw).toBe(1)
     })
 
-    it('MG2b (b): diaria_sem_ponto_hoje conta o vídeo com miss_streak > 0 (foi pedido e não veio)', async () => {
-      // MG2b: inverter quando a migration corretiva entrar (o vídeo pedido e não devolvido não deveria entrar na conta)
+    it('MG2b (b): diaria_sem_ponto_hoje NÃO conta o vídeo com miss_streak > 0 (foi pedido e não veio)', async () => {
       const site = await mkSite(), ch = await mkChannel(site, 'a5defb', { last_ok_synced_at: iso(new Date()) })
       const ins = await sb.from('competitor_videos').insert({ competitor_channel_id: ch.id, video_id: 'defbvid0001', series_tier: 'diaria', series_tier_since: TODAY, miss_streak: 1 }).select('id').single()
       expect(ins.error).toBeNull()
       const ser = parseSeriesHealth((await sb.rpc('competitor_series_health', { p_site_id: site, p_now: iso(new Date()) })).data)!
-      expect(ser.diaria_sem_ponto_hoje).toBe(1) // MG2b: inverter quando a migration corretiva entrar
-      // o veredito às 19:00 de SP com a faixa terminada vira vermelho por causa dele
+      expect(ser.diaria_sem_ponto_hoje).toBe(0)
+      // o veredito às 19:00 de SP com a faixa terminada não fica vermelho por causa dele
       const cap = parseCaptureHealth((await sb.rpc('competitor_capture_health', { p_site_id: site, p_now: iso(new Date()) })).data)
       const v = healthVerdict(cap, { ...ser, hora_sp: 19 }, { slotDone: true, e2: true })
-      expect(v.problems.some(p => p.includes('sem ponto hoje'))).toBe(true)
+      expect(v.problems.some(p => p.includes('sem ponto hoje'))).toBe(false)
     })
   })
 

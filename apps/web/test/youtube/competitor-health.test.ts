@@ -80,8 +80,8 @@ describe('schemaReady (a ordem migration → código não pode falhar em verde)'
 })
 
 // ───────── Tarefa 12: a prova embutida ─────────
-const C: CaptureHealth = { videos_vistos_sem_raw: 0, canais_vistos_sem_raw: 0, canais_vistos_dia_pacifico: 15, cota_dia_pacifico: 200, videos_ausentes: 0, canais_ausentes: 0, canais_em_erro_12h: 0, canais_em_erro_3d: 0 }
-const S: SeriesHealth = { hoje: '2026-06-10', hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, sem_miniatura_9d: 0, diaria_total: 674, semanal_total: 716 }
+const C: CaptureHealth = { videos_vistos_sem_raw: 0, canais_vistos_sem_raw: 0, canais_vistos_dia_pacifico: 15, cota_dia_pacifico: 200, videos_ausentes: 0, canais_ausentes: 0, canais_em_erro_12h: 0, canais_em_erro_3d: 0, canais_total: 15 }
+const S: SeriesHealth = { hoje: '2026-06-10', hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, sem_miniatura_9d: 0, diaria_total: 674, semanal_total: 716, fora_canal_em_erro_3d: 0 }
 const done = { slotDone: true, e2: true }
 
 describe('healthVerdict', () => {
@@ -136,7 +136,7 @@ describe('healthVerdict', () => {
     expect(healthVerdict(C, { ...S, sem_miniatura_9d: 687 }, { ...done, thumbs: false }).ok).toBe(true)
   })
   it('ausentes e fora da prova são nota (o dono vê o número), não falha', () => {
-    expect(healthVerdict({ ...C, videos_ausentes: 2, canais_ausentes: 1 }, { ...S, fora_da_prova: 3 }, done)).toEqual({ ok: true, problems: [], notes: ['2 vídeos e 1 canal não vêm mais do YouTube', '3 fora da prova de série (sem contagem, estreia agendada ou ausente)'] })
+    expect(healthVerdict({ ...C, videos_ausentes: 2, canais_ausentes: 1 }, { ...S, fora_da_prova: 3 }, done)).toEqual({ ok: true, problems: [], notes: ['2 vídeos e 1 canal não vêm mais do YouTube', '3 fora da prova de série (sem contagem, estreia agendada, ausente ou de canal em erro há mais de 3 dias)'] })
   })
   // ── as regras de tempo vivem em constantes com nome, e as fronteiras são testadas ──
   it('as horas de cobrança são 18 (diária) e 19 (semanal), em constantes', () => {
@@ -227,8 +227,56 @@ describe('parse', () => {
     expect(parseSeriesHealth({ ...S, outra_coisa: 'x' })).toEqual(S)
   })
   it('a forma REAL devolvida pelo banco local (medida em 12/10) passa', () => {
-    expect(parseCaptureHealth({ canais_ausentes: 0, videos_ausentes: 1, canais_em_erro_3d: 0, cota_dia_pacifico: 0, canais_em_erro_12h: 0, canais_vistos_sem_raw: 0, videos_vistos_sem_raw: 1, canais_vistos_dia_pacifico: 0 })).not.toBeNull()
-    expect(parseSeriesHealth({ hoje: '2026-10-12', hora_sp: 20, sem_faixa: 0, diaria_total: 1, fora_da_prova: 1, semanal_total: 0, sem_miniatura_9d: 1, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, diaria_sem_ponto_hoje: 1 })).not.toBeNull()
+    expect(parseCaptureHealth({ canais_ausentes: 0, videos_ausentes: 1, canais_em_erro_3d: 0, cota_dia_pacifico: 0, canais_em_erro_12h: 0, canais_vistos_sem_raw: 0, videos_vistos_sem_raw: 1, canais_vistos_dia_pacifico: 0, canais_total: 1 })).not.toBeNull()
+    expect(parseSeriesHealth({ hoje: '2026-10-12', hora_sp: 20, sem_faixa: 0, diaria_total: 1, fora_da_prova: 1, semanal_total: 0, sem_miniatura_9d: 1, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, diaria_sem_ponto_hoje: 1, fora_canal_em_erro_3d: 0 })).not.toBeNull()
+  })
+})
+
+describe('MG2b: as duas chaves novas são OBRIGATÓRIAS (a guarda da migration corretiva)', () => {
+  const done = { slotDone: true, e2: true }
+  it('captura sem canais_total e série sem fora_canal_em_erro_3d → nulo (nunca 0 adivinhado)', () => {
+    const { canais_total: _c, ...oldC } = C
+    const { fora_canal_em_erro_3d: _s, ...oldS } = S
+    void _c; void _s
+    expect(parseCaptureHealth(oldC)).toBeNull()
+    expect(parseSeriesHealth(oldS)).toBeNull()
+  })
+  it('sem a corretiva aplicada, o leitor diz em português "migration corretiva das provas não aplicada" e fica vermelho', async () => {
+    const { canais_total: _c, ...oldC } = C
+    const { fora_canal_em_erro_3d: _s, ...oldS } = S
+    void _c; void _s
+    const sb = { rpc: (name: string) => Promise.resolve({ data: name === 'competitor_capture_health' ? oldC : oldS, error: null }) } as never
+    const v = await readSiteHealth(sb, 's', '2026-10-12T22:00:00.000Z', done)
+    expect(v.ok).toBe(false)
+    expect(v.problems).toEqual(['não foi possível ler a prova da captura', 'não foi possível ler a prova da série'])
+    expect(v.notes.join(' | ')).toContain('prova da captura: migration corretiva das provas não aplicada')
+    expect(v.notes.join(' | ')).toContain('prova da série: migration corretiva das provas não aplicada')
+  })
+  it('só uma das duas chaves faltando também é a migration corretiva (cada prova se explica sozinha)', async () => {
+    const { canais_total: _c, ...oldC } = C
+    void _c
+    const sb = { rpc: (name: string) => Promise.resolve({ data: name === 'competitor_capture_health' ? oldC : S, error: null }) } as never
+    const v = await readSiteHealth(sb, 's', '2026-10-12T22:00:00.000Z', done)
+    expect(v.problems).toEqual(['não foi possível ler a prova da captura'])
+    expect(v.notes.join(' | ')).toContain('migration corretiva das provas não aplicada')
+  })
+  it('fora_canal_em_erro_3d vira nota: "N vídeos de canal em erro há mais de 3 dias fora da prova"', () => {
+    expect(healthVerdict(C, { ...S, fora_da_prova: 4, fora_canal_em_erro_3d: 4 }, done)).toEqual({
+      ok: true, problems: [],
+      notes: ['4 fora da prova de série (sem contagem, estreia agendada, ausente ou de canal em erro há mais de 3 dias)', '4 vídeos de canal em erro há mais de 3 dias fora da prova'],
+    })
+    expect(healthVerdict(C, { ...S, fora_da_prova: 1, fora_canal_em_erro_3d: 1 }, done).notes).toContain('1 vídeo de canal em erro há mais de 3 dias fora da prova')
+    expect(healthVerdict(C, S, done).notes.some(x => x.includes('fora da prova'))).toBe(false) // zero: sem nota
+  })
+  it('metade ou mais dos canais em erro há mais de 3 dias é vermelho ("N de M"): pane geral, não canal isolado', () => {
+    const at = (erro3d: number, total: number) => healthVerdict({ ...C, canais_em_erro_12h: erro3d, canais_em_erro_3d: erro3d, canais_total: total }, S, done)
+    expect(at(1, 15).ok).toBe(true)
+    expect(at(7, 15).ok).toBe(true)
+    expect(at(8, 15)).toMatchObject({ ok: false, problems: ['8 de 15 canais em erro há mais de 3 dias'] })
+    expect(at(15, 15)).toMatchObject({ ok: false, problems: ['15 de 15 canais em erro há mais de 3 dias'] })
+    expect(at(1, 2)).toMatchObject({ ok: false, problems: ['1 de 2 canais em erro há mais de 3 dias'] })
+    expect(at(1, 1)).toMatchObject({ ok: false, problems: ['1 de 1 canal em erro há mais de 3 dias'] })
+    expect(at(0, 0).ok).toBe(true) // sem canais: nada a dizer
   })
 })
 

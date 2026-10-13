@@ -103,12 +103,12 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
   })
   it('as duas provas respondem com todas as chaves, em números', async () => {
     const c = (await sb.rpc('competitor_capture_health', { p_site_id: siteId, p_now: at(7) })).data as Record<string, unknown>
-    for (const k of ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d']) expect(typeof c[k]).toBe('number')
-    expect(Object.keys(c)).toHaveLength(8)
+    for (const k of ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d', 'canais_total']) expect(typeof c[k]).toBe('number')
+    expect(Object.keys(c)).toHaveLength(9)
     expect(c.videos_ausentes).toBe(1) // v1
     const s = (await sb.rpc('competitor_series_health', { p_site_id: siteId, p_now: at(7) })).data as Record<string, unknown>
-    for (const k of ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total']) expect(typeof s[k]).toBe('number')
-    expect(Object.keys(s)).toHaveLength(12)
+    for (const k of ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total', 'fora_canal_em_erro_3d']) expect(typeof s[k]).toBe('number')
+    expect(Object.keys(s)).toHaveLength(13)
     expect(s.fora_da_prova).toBe(1) // v1 ausente fica fora de todas as contas
   })
   it('competitor_channel_removal_impact conta as quatro tabelas novas e mantém as chaves antigas', async () => {
@@ -228,7 +228,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
     await sb.from('competitor_channels').update({ missing_since: today() }).eq('id', c)
     const last = await health()
     expect(last).toMatchObject({ canais_em_erro_12h: 0, canais_em_erro_3d: 0 })
-    expect(Object.keys(last)).toHaveLength(8)
+    expect(Object.keys(last)).toHaveLength(9)
   })
 
   it('D-I2: estreia agendada sem ponto não é buraco; dia sem ponto depois de um ponto é', async () => {

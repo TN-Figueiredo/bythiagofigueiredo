@@ -48,8 +48,12 @@ export async function schemaReady(sb: SupabaseClient, need: 'e1' | 'e1e2'): Prom
 
 // ───────── Tarefa 12: a prova embutida (o que o cron lê do banco a cada disparo) ─────────
 
-export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number; canais_em_erro_3d: number }
-export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; semanal_atrasados_9d: number; semanal_devidos_hoje: number; sem_miniatura_9d: number; diaria_total: number; semanal_total: number }
+export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number; canais_em_erro_3d: number
+  /** MG2b: todos os canais do site (ausentes inclusive). Obrigatória: é a guarda da migration corretiva. */
+  canais_total: number }
+export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; semanal_atrasados_9d: number; semanal_devidos_hoje: number; sem_miniatura_9d: number; diaria_total: number; semanal_total: number
+  /** MG2b: vídeos de canal em erro há mais de 3 dias (já contados em fora_da_prova). Obrigatória: é a guarda da migration corretiva. */
+  fora_canal_em_erro_3d: number }
 export interface HealthVerdict { ok: boolean; problems: string[]; notes: string[] }
 
 /**
@@ -62,8 +66,8 @@ export const DAILY_DUE_FROM_HOUR_SP = 18
 /** "Devidos hoje" e "8º dia sem ponto" da faixa semanal só são cobrados a partir desta hora (e com a faixa inteira tentada). */
 export const WEEKLY_DUE_FROM_HOUR_SP = 19
 
-const CAPTURE_KEYS = ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d'] as const
-const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total'] as const
+const CAPTURE_KEYS = ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d', 'canais_total'] as const
+const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total', 'fora_canal_em_erro_3d'] as const
 const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 0
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -91,15 +95,25 @@ function counts<K extends string>(d: Record<string, unknown>, keys: readonly K[]
   return { value: out as Record<K, number> } // todas as chaves foram preenchidas no laço acima
 }
 
+/**
+ * (MG2b) A migration corretiva das provas só troca o corpo de duas funções: não há coluna nem tabela para o `schemaReady` conferir.
+ * A guarda é a chave nova: sem ela a função ainda é a de antes e o cron fica vermelho, com o motivo escrito, em vez de verde.
+ */
+const MG2B_WHY = 'migration corretiva das provas não aplicada (falta o campo '
+const hasKey = (d: Record<string, unknown>, k: string): boolean => k in d && d[k] !== undefined
+
 function readCapture(data: unknown): Read<CaptureHealth> {
   const o = asObject(data)
-  return 'why' in o ? o : counts(o.value, CAPTURE_KEYS)
+  if ('why' in o) return o
+  if (!hasKey(o.value, 'canais_total')) return { why: MG2B_WHY + 'canais_total)' }
+  return counts(o.value, CAPTURE_KEYS)
 }
 function readSeries(data: unknown): Read<SeriesHealth> {
   const o = asObject(data)
   if ('why' in o) return o
   const d = o.value
   if (typeof d.hoje !== 'string' || !DATE_RE.test(d.hoje)) return { why: 'o campo hoje não é uma data AAAA-MM-DD (veio ' + shown(d.hoje) + ')' }
+  if (!hasKey(d, 'fora_canal_em_erro_3d')) return { why: MG2B_WHY + 'fora_canal_em_erro_3d)' }
   const c = counts(d, SERIES_KEYS)
   if ('why' in c) return c
   if (c.value.hora_sp > 23) return { why: 'o campo hora_sp está fora de 0 a 23 (veio ' + c.value.hora_sp + ')' }
@@ -145,7 +159,11 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
     // (emenda do portão: D-I1, CTRL-d) o vermelho tem fim: do 3º dia em diante é nota, e a rota põe o nome do canal em acao_do_dono
     const errNew = Math.max(0, c.canais_em_erro_12h - c.canais_em_erro_3d)
     if (errNew) problems.push(n(errNew, 'canal', 'canais') + ' em erro há mais de 12 h')
-    if (c.canais_em_erro_3d) notes.push(n(c.canais_em_erro_3d, 'canal', 'canais') + ' em erro há mais de 3 dias (ver acao_do_dono)')
+    // (portão final, dados I-2) a decisão 53 vale para UM canal que saiu do YouTube. Metade ou mais dos canais em erro há mais de
+    // 3 dias é pane (chave revogada, cota, banco): vermelho, nunca nota. `canais_total` conta todos os canais do site.
+    const allDown = c.canais_total > 0 && c.canais_em_erro_3d * 2 >= c.canais_total
+    if (allDown) problems.push(c.canais_em_erro_3d + ' de ' + n(c.canais_total, 'canal', 'canais') + ' em erro há mais de 3 dias')
+    if (c.canais_em_erro_3d && !allDown) notes.push(n(c.canais_em_erro_3d, 'canal', 'canais') + ' em erro há mais de 3 dias (ver acao_do_dono)')
     if (c.videos_ausentes || c.canais_ausentes) notes.push(n(c.videos_ausentes, 'vídeo', 'vídeos') + ' e ' + n(c.canais_ausentes, 'canal', 'canais') + ' não vêm mais do YouTube')
   }
   if (o.e2) {
@@ -175,7 +193,8 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
         if (s.hora_sp >= CLASSIFIED_BY_HOUR_SP && o.slotDone) problems.push('nenhum vídeo com faixa de série: a coleta não está classificando')
         else notes.push('nenhum vídeo com faixa ainda (esperado só no dia da ativação, antes das 18:00)')
       }
-      if (s.fora_da_prova) notes.push(s.fora_da_prova + ' fora da prova de série (sem contagem, estreia agendada ou ausente)')
+      if (s.fora_da_prova) notes.push(s.fora_da_prova + ' fora da prova de série (sem contagem, estreia agendada, ausente ou de canal em erro há mais de 3 dias)')
+      if (s.fora_canal_em_erro_3d) notes.push(n(s.fora_canal_em_erro_3d, 'vídeo', 'vídeos') + ' de canal em erro há mais de 3 dias fora da prova')
     }
   }
   return { ok: problems.length === 0, problems, notes }
