@@ -160,8 +160,8 @@ describe('limites de tempo e definições', () => {
 })
 
 describe('RULES.hourly', () => {
-  it('os quatro valores do plano', () => {
-    expect(RULES.hourly).toEqual({ ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5 })
+  it('os cinco valores (quatro do plano e o mínimo de horas lidas, pergunta 28)', () => {
+    expect(RULES.hourly).toEqual({ ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5, minReadHours24: 20 })
   })
 })
 

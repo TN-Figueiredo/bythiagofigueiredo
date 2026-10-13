@@ -9,9 +9,11 @@ import {
   lerProvaHoraria,
   veredictoHorario,
   lerNegadosDoDono,
+  HORAS_LIDAS_MINIMAS_24H,
   type ProvaHoraria,
 } from '@/lib/youtube/horaria/prova'
 import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
+import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const MIN = 60_000
 const H = 3_600_000
@@ -208,6 +210,94 @@ describe('veredictoHorario', () => {
     expect(v.ok).toBe(true)
     expect(v.problems).toEqual([])
     expect(v.notes).toContain('3 horas sem leitura nas últimas 24 (lidas 21 de 24); 55 vídeos com menos de 22 leituras')
+  })
+
+  describe('decisão do dono (pergunta 28): menos de 20 horas lidas nas últimas 24 é problema, sem e-mail', () => {
+    const FRASE = (n: number): string => `só ${n} das últimas 24 horas ${n === 1 ? 'teve' : 'tiveram'} leitura (o mínimo é ${HORAS_LIDAS_MINIMAS_24H})`
+    const velha = { desde: atras(3 * 24 * H), ultima_leitura: atras(10 * MIN) }
+
+    it('o limite é 20 (constante nomeada, fixada)', () => {
+      expect(HORAS_LIDAS_MINIMAS_24H).toBe(20)
+      expect(RULES.hourly.minReadHours24).toBe(20)
+    })
+
+    it('19 lidas: vermelho, com a frase em português, SEM aviso de e-mail', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 19 }), opcoes())
+      expect(v.ok).toBe(false)
+      expect(v.problems).toEqual([FRASE(19)])
+      expect(v.avisos).toEqual([])
+    })
+
+    it('19 lidas com vídeos abaixo de 22 leituras: a frase leva o detalhe', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 19, videos_abaixo_de_22h: 4 }), opcoes())
+      expect(v.problems).toEqual([FRASE(19) + '; 4 vídeos com menos de 22 leituras'])
+      expect(v.avisos).toEqual([])
+    })
+
+    it('20 lidas: verde, com a nota das 4 horas perdidas (decisão 61 segue)', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 20 }), opcoes())
+      expect(v.ok).toBe(true)
+      expect(v.problems).toEqual([])
+      expect(v.notes).toContain('4 horas sem leitura nas últimas 24 (lidas 20 de 24)')
+      expect(v.avisos).toEqual([])
+    })
+
+    it('24 lidas: verde, sem nota de horas perdidas', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 24 }), opcoes())
+      expect(v.ok).toBe(true)
+      expect(v.problems).toEqual([])
+      expect(v.notes.filter(n => n.includes('sem leitura nas últimas 24'))).toEqual([])
+    })
+
+    it('0 lidas com a leitura recente e história de sobra: vermelho', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 0 }), opcoes())
+      expect(v.ok).toBe(false)
+      expect(v.problems).toEqual([FRASE(0)])
+      expect(v.avisos).toEqual([])
+    })
+
+    it('1 hora lida: a frase vai no plural certo', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 1 }), opcoes())
+      expect(v.problems).toEqual([FRASE(1)])
+    })
+
+    it('menos de 25 horas de história: nunca vermelho (nota de quando a cobrança começa)', () => {
+      for (const idade of [2 * H, 10 * H, 24 * H, 25 * H]) {
+        const v = veredictoHorario(prova({ desde: atras(idade), horas_lidas_24h: 3 }), opcoes({ agendaDesde: atras(idade) }))
+        expect(v.ok).toBe(true)
+        expect(v.problems).toEqual([])
+        expect(v.notes.some(n => n.startsWith('cobertura de 24 horas cobrada a partir de'))).toBe(true)
+      }
+    })
+
+    it('com 25 horas e 1 minuto de história a cobrança começa', () => {
+      const v = veredictoHorario(prova({ desde: atras(25 * H + MIN), horas_lidas_24h: 19 }), opcoes())
+      expect(v.problems).toEqual([FRASE(19)])
+    })
+
+    it('sem história nenhuma (desde nulo): não cobra', () => {
+      const v = veredictoHorario(prova({ desde: null, ultima_leitura: null, horas_lidas_24h: 0 }), opcoes({ agendaDesde: atras(10 * MIN) }))
+      expect(v.problems).toEqual([])
+    })
+
+    it('tarefa desligada ou agenda off (ligada=false): a regra não cobra', () => {
+      const v = veredictoHorario(prova({ ...velha, horas_lidas_24h: 0 }), opcoes({ ligada: false }))
+      expect(v.ok).toBe(true)
+      expect(v.problems).toEqual([])
+      expect(v.notes).toEqual(['leitura horária desligada'])
+    })
+
+    it('sem vídeo elegível na lista não há o que ler: não cobra (fica a nota)', () => {
+      const v = veredictoHorario(prova({ ...velha, videos_na_lista: 0, videos_cobrados: 0, horas_lidas_24h: 0 }), opcoes({ listaDoDisparo: 0 }))
+      expect(v.ok).toBe(true)
+      expect(v.problems).toEqual([])
+    })
+
+    it('leitura parada junto com poucas horas: um vermelho só (o da parada), com e-mail', () => {
+      const v = veredictoHorario(prova({ ...velha, ultima_leitura: atras(3 * H), horas_lidas_24h: 5 }), opcoes())
+      expect(v.problems).toEqual(['leitura horária parada há 3 h'])
+      expect(v.avisos.map(a => a.chave)).toEqual(['leitura_horaria_parada'])
+    })
   })
 
   it('buraco geral e a leitura parada de novo: vermelho de novo', () => {
