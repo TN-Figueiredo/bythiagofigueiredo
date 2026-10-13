@@ -336,6 +336,47 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     expect(await leitura(c.id, 7)).toMatchObject({ creator_replied: null, slot: null, likes: 70 })
   })
 
+  it('pergunta 30 (a): a anulação de identidade zera featured_channel_id do comentário de autor que é canal acompanhado, e só dele', async () => {
+    const t1 = NOW - 30 * D
+    const a = await base({ takenMs: t1 })
+    const acomp = await novoCanal(a.site)
+    await grava(pg, a.video.id, 1, snapDe(1, t1), [
+      topo('p30a', { featured_reason: 'canal_acompanhado', featured_channel_id: acomp.id, slot: 'destaque', author: autorDe('s30a') }),
+      topo('p30n', { featured_reason: null, featured_channel_id: null, author: autorDe('s30n') }),
+    ])
+    expect(await comentario(a.video.id, 'p30a'), 'antes da anulação o vínculo existe').toMatchObject({ featured_channel_id: acomp.id })
+    expect((await purga(pg, a.site)).apagadas).toBe(2)
+    expect(await comentario(a.video.id, 'p30a')).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: null })
+    expect((await comentario(a.video.id, 'p30a')).author_purged_at).not.toBeNull()
+    expect(await comentario(a.video.id, 'p30n')).toMatchObject({ featured_reason: null, featured_channel_id: null })
+  })
+
+  it('pergunta 30 (b): o marco de 30 dias que roda DEPOIS da anulação não regrava featured_channel_id (o canal virou acompanhado tarde)', async () => {
+    const t1 = NOW - 30 * D
+    const a = await base({ takenMs: t1 })
+    const acomp = await novoCanal(a.site)
+    await grava(pg, a.video.id, 1, snapDe(1, t1), [topo('p30b', { featured_reason: null, featured_channel_id: null, author: autorDe('s30b') })])
+    expect((await purga(pg, a.site)).apagadas).toBe(1)
+    const t2 = t1 - 30 * H + 720 * H
+    await grava(pg, a.video.id, 30, snapDe(30, t2), [topo('p30b', { featured_reason: 'canal_acompanhado', featured_channel_id: acomp.id, slot: 'destaque', author: autorDe('s30b') })])
+    const c = await comentario(a.video.id, 'p30b')
+    expect(c.author_purged_at, 'continua anulado').not.toBeNull()
+    expect(c.featured_channel_id, 'o vínculo não volta').toBeNull()
+    expect((await contagem(a.video.id)).identidades, 'a identidade também não volta').toBe(0)
+  })
+
+  it('pergunta 30 (c): comentário ainda não anulado continua ganhando featured_channel_id no marco posterior', async () => {
+    const t1 = NOW - 12 * D
+    const a = await base({ takenMs: t1 })
+    const acomp = await novoCanal(a.site)
+    await grava(pg, a.video.id, 1, snapDe(1, t1), [topo('p30c', { featured_reason: null, featured_channel_id: null, author: autorDe('s30c') })])
+    const t2 = t1 - 30 * H + 192 * H
+    await grava(pg, a.video.id, 7, snapDe(7, t2), [topo('p30c', { featured_reason: 'canal_acompanhado', featured_channel_id: acomp.id, slot: 'destaque', author: autorDe('s30c') })])
+    const c = await comentario(a.video.id, 'p30c')
+    expect(c.author_purged_at).toBeNull()
+    expect(c).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: acomp.id })
+  })
+
   it('escrita: achado por id atualiza texto e curtidas com posição nula; id que não existe no banco não vira comentário', async () => {
     const t1 = NOW - 12 * D
     const b = await base({ takenMs: t1 })
@@ -1053,9 +1094,11 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     expect(await varredura(s.sentCriador)).toEqual([])
     // o que sobra do autor que é canal acompanhado: SÓ o cadastro do canal acompanhado (competitor_channels.channel_id), que é do dono
     expect(await varredura(s.sentAcomp)).toEqual(['competitor_channels.channel_id'])
-    // e o vínculo featured_channel_id (um uuid do canal acompanhado, não o nome nem o id do autor)
+    // decisão do dono (13/10, pergunta 30): a anulação também zera o vínculo featured_channel_id (liga o comentário ao canal do autor);
+    // o motivo do destaque fica, o texto fica, e o vínculo não sobrevive
     const c = await comentario(s.b.video.id, 'lgacomp')
-    expect(c).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: s.acompanhado.id })
+    expect(c).toMatchObject({ featured_reason: 'canal_acompanhado', featured_channel_id: null })
+    expect(c.author_purged_at).not.toBeNull()
     // o texto do comentário fica
     expect(await varredura(s.corpo)).toEqual(['competitor_video_comments.body'])
     // a identidade que não venceu continua inteira

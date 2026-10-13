@@ -146,8 +146,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: SQL da agenda e da lei
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and (p.proname like 'competitor\\_agenda\\_%' or p.proname in ('competitor_hourly_health', 'competitor_channel_removal_impact', 'youtube_channel_removal_impact', 'competitor_capture_health')) order by 1`))
     const antes = await defs(pg)
     const aqui = fileURLToPath(new URL('.', import.meta.url))
-    for (const arq of ['mg10.sql', 'mg9.sql']) {
-      const sql = readFileSync(new URL(`../../../../.superpowers/sdd/a5-e16-e15/${arq}`, import.meta.url), 'utf8')
+    for (const arq of ['20261013000001_observatorio_a5_e16_agenda_despacho.sql', '20261013000002_observatorio_a5_e15_leitura_horaria.sql']) {
+      const sql = readFileSync(new URL(`../../../../supabase/migrations/${arq}`, import.meta.url), 'utf8')
       expect(sql.length, `${arq} lido de ${aqui}`).toBeGreaterThan(1000)
       await pg.query('begin')
       try {
@@ -497,23 +497,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: SQL da agenda e da lei
   }
   const SOBE_EM_K9 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
 
-  // ACHADO (Tarefa 2a): a MG9 escreve `m.captured_at < p_now - interval '26 hours'` (estrito). Com a captura numa hora cheia e p_now
-  // exatamente 26 h depois, o vídeo AINDA NÃO é cobrado (sobe com 27 h). A tabela do plano diz "1 às 26 h". Os dois testes abaixo
-  // escrevem o que o PLANO diz e estão em `it.fails` (hoje falham de verdade); o par com 1 s de folga, logo depois, passa.
-  // Quando o SQL passar a `<=` (ou o plano disser 27 h), tirar o `.fails`.
-  it.fails('prova do dono: vídeo novo com leitura completa nunca sobe, hora a hora (plano: cobrado a partir de k = 9, 26 h exatas)', async () => {
-    const r = await horaAHora(0)
-    expect(r.abaixo).toEqual(Array(13).fill(0))
-    expect(r.cobrados).toEqual(SOBE_EM_K9)
-  })
-
-  it.fails('prova do dono: sobe às 26 horas da captura, não antes (plano: 1 às 26 h exatas)', async () => {
-    const site = await novoSite()
-    await donoNovo(site, 2)
-    expect(await prova(site, CAP_DONO + 26 * HORA - 60_000)).toMatchObject({ proprios_cobrados: 0 })
-    expect(await prova(site, CAP_DONO + 26 * HORA)).toMatchObject({ proprios_cobrados: 1, proprios_abaixo_de_22h: 1 })
-  })
-
+  // Fronteira das 26 h: a MG9 escreve `m.captured_at < p_now - interval '26 hours'` (estrito), então o vídeo passa a ser cobrado
+  // DEPOIS de 26 h (às 26 h exatas ainda não). Decisão do portão final (ruling, 13/10): fica assim; os dois `it.fails` que escreviam
+  // "26 h exatas" saíram e valem os pares com 1 s de folga abaixo.
   it('prova do dono: vídeo novo com leitura completa nunca sobe, hora a hora (com 1 s de folga depois das 26 h)', async () => {
     const r = await horaAHora(1000)
     expect(r.abaixo).toEqual(Array(13).fill(0))
