@@ -15,6 +15,8 @@ vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFail
 // as constantes e currentSlotStart são as de verdade (a rota as usa para a conta de tempo); só o lote e o veredito do lote são falsos
 vi.mock('@/lib/youtube/competitor-sync-batch', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/youtube/competitor-sync-batch')>()), runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })) }))
 vi.mock('@/lib/youtube/competitor-health', () => ({ schemaReady: vi.fn(), readSiteHealth: vi.fn() }))
+// OBS_AGENDA=off (abaixo): a rota roda o lote antigo inteiro. A lista que roda antes dele é falso de módulo, só arranjo (não afirmação).
+vi.mock('@/lib/youtube/agenda/executar', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/agenda/executar')>()), rodarAntesDoLoteAntigo: vi.fn(async () => ({ tarefas: [], problemas: [], notas: [] })) }))
 
 import { GET } from '@/app/api/cron/sync-youtube/route'
 import { revalidateTag } from 'next/cache'
@@ -25,7 +27,7 @@ import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 const req = () => new NextRequest('http://localhost/api/cron/sync-youtube?mode=competitors', { headers: { authorization: 'Bearer test-secret' } })
 
 describe('cron de concorrentes: guarda de schema', () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key') })
+  beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key'); vi.stubEnv('OBS_AGENDA', 'off') })
   it('migration ausente: para antes do lote, grava a falha com o texto, não invalida nada', async () => {
     vi.mocked(schemaReady).mockResolvedValue('migration MG1 não aplicada (competitor_videos): column does not exist. Nada foi gravado.')
     const res = await GET(req())
@@ -67,7 +69,7 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
   const OK = { ok: true, problems: [], notes: [] }
   const failMsg = () => vi.mocked(recordCronFailure).mock.calls[0]![1] as string
   beforeEach(() => {
-    vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key')
+    vi.clearAllMocks(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key'); vi.stubEnv('OBS_AGENDA', 'off')
     vi.mocked(schemaReady).mockResolvedValue(null)
     vi.mocked(batchHealth).mockReturnValue({ ok: true })
     vi.mocked(readSiteHealth).mockResolvedValue(OK)
