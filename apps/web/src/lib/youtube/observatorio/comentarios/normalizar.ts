@@ -8,10 +8,20 @@ type Obj = Record<string, unknown>
 const obj = (x: unknown): Obj | null => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Obj) : null)
 /** Texto não vazio, sem NUL nem substituto solitário (o Postgres os recusa). */
 const str = (x: unknown): string | null => (typeof x === 'string' && x !== '' ? cleanText(x) : null)
-/** Data que `Date.parse` aceita: uma data ilegível derrubaria a escrita do retrato inteiro, a cada tentativa. */
+/**
+ * Data que vai para coluna timestamptz: o texto como veio se começa por AAAA-MM-DD, o JS o entende e o dia EXISTE; senão nulo.
+ * `Date.parse` sozinho aceita '12' e rola '2026-02-30' para março, e o Postgres recusa os dois (derrubaria a gravação do lote a cada
+ * tentativa). Ida e volta: ano, mês e dia do texto têm de ser os da data que eles formam.
+ */
 const dataValida = (x: unknown): string | null => {
   const s = str(x)
-  return s !== null && Number.isFinite(Date.parse(s)) ? s : null
+  if (s === null || !Number.isFinite(Date.parse(s))) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?!\d)/.exec(s)
+  if (!m) return null
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3])
+  const volta = new Date(0)
+  volta.setUTCFullYear(y, mo - 1, d)
+  return volta.getUTCFullYear() === y && volta.getUTCMonth() === mo - 1 && volta.getUTCDate() === d ? s : null
 }
 /** Contagem lida da API: nula quando ausente ou ilegível (nunca 0), e nula quando negativa. */
 const contagem = (x: unknown): number | null => {
