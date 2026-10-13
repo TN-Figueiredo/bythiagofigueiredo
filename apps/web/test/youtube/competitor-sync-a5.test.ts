@@ -1270,7 +1270,7 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     expect(log.dailyCalls.flatMap(idsOf)).toEqual(expected)
     expect(r.due).toBe(expected.length)
     expect(db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')).length).toBe(2)
-    expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')).length).toBe(12) // 1200 ids / 100
+    expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')).length).toBe(24) // 1200 ids / 100 no começo da visita + 1200 / 100 na promoção (11c: a promoção relê o estado depois dos pontos)
   })
   describe('a reconciliação de versões de UM vídeo falhando (11b, preocupação 1): isolada por vídeo', () => {
     const DIA = '2026-10-24'
@@ -1548,5 +1548,281 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
     expect(r).toMatchObject({ recorded: 1, complete: true })
     expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+  })
+
+  // ── Tarefa 11c: a promoção de semanal para diária, decidida pelo estado GRAVADO (emenda S-I6) ──
+  describe('a promoção de semanal para diária (11c)', () => {
+    const promoOf = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'update' && 'daily_until' in (arg(c, 'update') ?? {}))
+    const promotedIds = (db: { calls: Call[] }) => promoOf(db).flatMap(c => (c.ops.find(o => o[0] === 'in')![1][1] as string[]))
+    const iso = (ms: number) => new Date(ms).toISOString()
+    const D = 86_400_000
+    /** Os dois pontos de um vídeo: o de `back` dias atrás com `prev` views e o de hoje com `cur`. */
+    const par = (day: string, back: number, prev: unknown, cur: unknown, id = 'v-7') => [{ video_id: id, snap_date: addDays(day, -back), views: prev }, { video_id: id, snap_date: day, views: cur }]
+    const roda = (day: string, daily: (n: number, u: string) => Response | Record<string, unknown>[] = echo) => syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily }) })
+
+    it('item 17 (a): semanal que ganhou 1.000 views e 5% numa semana ganha daily_until = hoje + 28', async () => {
+      const day = slotDate('vid-7')
+      // depois do upsert desta visita, a leitura dos pontos devolve o de hoje e o de 7 dias atrás
+      const db = setup({ all: [weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }], recentDailyAfter: par(day, 7, 4000, 5000) })
+      const up = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: { viewCount: '5000' }, contentDetails: {} }))
+      const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: up }) })
+      expect(promoOf(db).map(c => arg(c, 'update'))).toEqual([{ daily_until: addDays(day, 28) }])
+      expect(promoOf(db)[0]!.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['v-7']])
+      expect(r.promoted).toBe(1)
+    })
+    it('S-I6: a visita anterior MORREU depois do ponto (o vídeo já tem ponto hoje e não é mais devido): esta visita promove assim mesmo', async () => {
+      const day = slotDate('vid-7')
+      const pts = par(day, 7, 4000, 5000)
+      const db = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts })
+      const log = { dailyCalls: [] as string[] }
+      const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+      expect(log.dailyCalls).toEqual([])                       // nada devido: nenhuma chamada à API
+      expect(promoOf(db)).toHaveLength(1)                       // e mesmo assim a promoção sai, pelo estado
+      expect(r).toMatchObject({ due: 0, promoted: 1, complete: true })
+    })
+    it('item 17 (b): troca de título, descrição ou miniatura vista nos últimos 7 dias, com janela de até 8, promove; a de janela longa não', async () => {
+      const day = slotDate('vid-7'), now = at12(day).getTime()
+      const pts = [{ video_id: 'v-7', snap_date: day, views: 10 }, { video_id: 'v-8', snap_date: day, views: 10 }]
+      const db = setup({ all: [weeklyRow(7), weeklyRow(8)], recentDaily: pts, recentDailyAfter: pts, recentChanges: [
+        { video_id: 'v-7', field: 'thumb', precision: '1d', first_seen_at: iso(now - 3_600_000), window_start: iso(now - 7 * D) },
+        { video_id: 'v-8', field: 'title', precision: '1d', first_seen_at: iso(now - 3_600_000), window_start: iso(now - 60 * D) },
+      ] })
+      const r = await roda(day)
+      expect(promoOf(db)[0]!.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['v-7']])
+      expect(r.promoted).toBe(1)
+    })
+    it('já promovido (daily_until no futuro), sem ponto hoje, ou fora da prova: não é promovido de novo', async () => {
+      const day = slotDate('vid-7')
+      const pts = par(day, 7, 1, 100_000)
+      for (const over of [{ daily_until: addDays(day, 5) }, { daily_until: day }, { views_hidden: true }, { live_broadcast_content: 'upcoming' }, { missing_since: '2026-10-01T00:00:00.000Z' }]) {
+        const db = setup({ all: [weeklyRow(7, over)], recentDaily: pts, recentDailyAfter: pts })
+        const r = await roda(day)
+        expect(promoOf(db)).toEqual([])
+        expect(r.promoted).toBe(0)
+      }
+      // sem ponto hoje (só o de 7 dias atrás): nada a promover, mesmo com uma troca recente aberta
+      const antes = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 1 }]
+      const db = setup({ all: [weeklyRow(7)], recentDaily: antes, recentDailyAfter: antes, recentChanges: [{ video_id: 'v-7', field: 'title', precision: '1d', first_seen_at: iso(at12(day).getTime() - 3_600_000), window_start: iso(at12(day).getTime() - 2 * D) }] })
+      await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: (_n, u) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: {}, contentDetails: {} })) }) }) // hoje sem contagem: sem ponto
+      expect(pointsOf(db)).toEqual([])
+      expect(promoOf(db)).toEqual([])
+    })
+    it('daily_until vencido (ontem) ou nulo: o vídeo é elegível de novo, e a data nova é hoje + 28', async () => {
+      const day = slotDate('vid-7')
+      const pts = par(day, 7, 4000, 5000)
+      for (const over of [{ daily_until: addDays(day, -1) }, { daily_until: null }]) {
+        const db = setup({ all: [weeklyRow(7, over)], recentDaily: pts, recentDailyAfter: pts })
+        const r = await roda(day)
+        expect(promoOf(db).map(c => arg(c, 'update'))).toEqual([{ daily_until: addDays(day, 28) }])
+        expect(r.promoted).toBe(1)
+      }
+    })
+
+    describe('dado ausente e fronteiras do ganho (a regra é a de shouldPromote: 1.000 views E 5%, a no máximo 8 dias)', () => {
+      const casos: Array<[string, (day: string) => Record<string, unknown>[], boolean]> = [
+        ['um ponto só (não há ganho)', day => [{ video_id: 'v-7', snap_date: day, views: 50_000 }], false],
+        ['ponto anterior ilegível (views não numérico)', day => par(day, 7, 'x', 5000), false],
+        ['ganho negativo', day => par(day, 7, 9000, 5000), false],
+        ['ganho zero', day => par(day, 7, 5000, 5000), false],
+        ['pontos a 14 dias um do outro (buraco de coleta não é ganho de uma semana)', day => par(day, 14, 1000, 50_000), false],
+        ['pontos a 9 dias um do outro', day => par(day, 9, 1000, 50_000), false],
+        ['pontos a 8 dias um do outro (a fronteira de dentro)', day => par(day, 8, 4000, 5000), true],
+        ['ganho de 999 (um a menos que o mínimo)', day => par(day, 7, 4001, 5000), false],
+        ['ganho de 1.000 e 5% exatos', day => par(day, 7, 19_000, 20_000), true],
+        ['ganho de 1.000 mas menos de 5% do total', day => par(day, 7, 99_000, 100_000), false],
+        ['views como texto numérico (bigint do banco)', day => par(day, 7, '4000', '5000'), true],
+      ]
+      it.each(casos)('%s', async (_nome, pts, promove) => {
+        const day = slotDate('vid-7')
+        const lista = pts(day)
+        const db = setup({ all: [weeklyRow(7)], recentDaily: lista, recentDailyAfter: lista })
+        const r = await roda(day)
+        expect(promotedIds(db)).toEqual(promove ? ['v-7'] : [])
+        expect(r.promoted).toBe(promove ? 1 : 0)
+      })
+      it('hoje sem contagem (contador oculto): nenhum ponto novo, nenhuma promoção, e o ponto anterior sozinho não promove', async () => {
+        const day = slotDate('vid-7')
+        const antes = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 1 }]
+        const db = setup({ all: [weeklyRow(7)], recentDaily: antes, recentDailyAfter: antes })
+        const r = await roda(day, (_n, u) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: { likeCount: '3' }, contentDetails: {} })))
+        expect(pointsOf(db)).toEqual([])
+        expect(promoOf(db)).toEqual([])
+        expect(r).toMatchObject({ recorded: 0, promoted: 0 })
+      })
+      it('ponto anterior com views NULO (a coluna é not null: um dado assim é defeito do banco): a leitura falha com texto claro e nada é promovido nem carimbado', async () => {
+        const day = slotDate('vid-7')
+        const db = setup({ all: [weeklyRow(7)], recentDaily: par(day, 7, 1, 5), recentDailyAfter: par(day, 7, null, 50_000) })
+        await expect(roda(day)).rejects.toThrow(/pontos recentes/)
+        expect(promoOf(db)).toEqual([])
+        expect(stamp(db)).toEqual([])
+      })
+    })
+
+    describe('fronteiras da troca (b)', () => {
+      const comTroca = async (mut: (now: number) => Record<string, unknown>): Promise<string[]> => {
+        const day = slotDate('vid-7'), now = at12(day).getTime()
+        const pts = [{ video_id: 'v-7', snap_date: day, views: 10 }]
+        const db = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts, recentChanges: [{ video_id: 'v-7', field: 'title', precision: '1d', first_seen_at: iso(now - 3_600_000), window_start: iso(now - 3_600_000 - 2 * D), ...mut(now) }] })
+        await roda(day)
+        return promotedIds(db)
+      }
+      it('janela de exatamente 8 dias promove; 8 dias e 1 ms não (S-M8)', async () => {
+        expect(await comTroca(now => ({ first_seen_at: iso(now - 1000), window_start: iso(now - 1000 - 8 * D) }))).toEqual(['v-7'])
+        expect(await comTroca(now => ({ first_seen_at: iso(now - 1000), window_start: iso(now - 1000 - 8 * D - 1) }))).toEqual([])
+      })
+      it('vista há exatamente 7 dias ainda conta; há 7 dias e 1 ms não (a leitura do banco filtra, e o código confere de novo)', async () => {
+        expect(await comTroca(now => ({ first_seen_at: iso(now - 7 * D), window_start: iso(now - 8 * D) }))).toEqual(['v-7'])
+        expect(await comTroca(now => ({ first_seen_at: iso(now - 7 * D - 1), window_start: iso(now - 8 * D) }))).toEqual([])
+      })
+      it('linha de base (precision first), janela sem começo e data ilegível não promovem', async () => {
+        expect(await comTroca(() => ({ precision: 'first' }))).toEqual([])
+        expect(await comTroca(() => ({ window_start: null }))).toEqual([])
+        expect(await comTroca(() => ({ first_seen_at: 'ontem' }))).toEqual([])
+        expect(await comTroca(() => ({ window_start: 'ontem' }))).toEqual([])
+      })
+      it('as trocas são pedidas só dos vídeos com ponto hoje que o ganho não promoveu, com a janela de 7 dias e sem a linha de base', async () => {
+        const day = slotDate('vid-7'), now = at12(day).getTime()
+        const pts = [...par(day, 7, 4000, 5000), { video_id: 'v-8', snap_date: day, views: 10 }, { video_id: 'v-9', snap_date: addDays(day, -3), views: 10 }]
+        const db = setup({ all: [weeklyRow(7), weeklyRow(8), weeklyRow(9)], recentDaily: pts, recentDailyAfter: pts })
+        await roda(day)
+        const q = db.calls.filter(c => c.table === 'competitor_video_versions' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte' && o[1][0] === 'first_seen_at'))
+        expect(q).toHaveLength(1)
+        expect(q[0]!.ops.find(o => o[0] === 'in')![1]).toEqual(['video_id', ['v-8']])   // v-7 já promoveu pelo ganho; v-9 não tem ponto hoje
+        expect(q[0]!.ops.find(o => o[0] === 'gte')![1]).toEqual(['first_seen_at', iso(now - 7 * D)])
+        expect(q[0]!.ops.find(o => o[0] === 'neq')![1]).toEqual(['precision', 'first'])
+      })
+    })
+
+    it('só vídeo de faixa semanal é promovido, e o que a gravação leva é só daily_until (nenhum vídeo que hoje é diário deixa de ser)', async () => {
+      const day = slotDate('vid-7')
+      const pts = [...par(day, 7, 4000, 5000), ...par(day, 7, 4000, 5000, 'v-1')]
+      const db = setup({ all: [dailyRow, weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts })
+      await roda(day)
+      expect(promotedIds(db)).toEqual(['v-7'])
+      expect(promoOf(db).map(c => Object.keys(arg(c, 'update')!))).toEqual([['daily_until']])
+      expect(db.calls.some(c => c.table === 'rpc:apply_competitor_tier_plan')).toBe(false) // a troca de faixa é da sincronização do canal, não desta função
+    })
+    it('mais de 100 promovidos: a gravação vai em lotes de 100 (nenhuma URL gigante), todos promovidos, uma data só', async () => {
+      const day = slotDate('vid-7')
+      const rows = dueRows(day, 150)
+      expect(rows).toHaveLength(150)
+      const pts = rows.flatMap(r => par(day, 7, 4000, 5000, r.id as string))
+      const db = setup({ all: rows, recentDaily: pts, recentDailyAfter: pts })
+      const r = await roda(day)
+      expect(promoOf(db).map(c => (c.ops.find(o => o[0] === 'in')![1][1] as string[]).length)).toEqual([100, 50])
+      expect(new Set(promoOf(db).map(c => arg(c, 'update')!.daily_until))).toEqual(new Set([addDays(day, 28)]))
+      expect(r.promoted).toBe(150)
+    })
+
+    describe('a promoção é gravação NOVA: não custa o ponto, e uma nova tentativa chega à mesma decisão', () => {
+      it('a gravação falhando: a visita lança em português, o ponto FICA gravado, o canal não é carimbado, e a cota é gravada', async () => {
+        const day = slotDate('vid-7')
+        const pts = par(day, 7, 4000, 5000)
+        const db = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, failWrite: 'competitor_videos:daily_until' })
+        await expect(roda(day)).rejects.toThrow('não foi possível promover o vídeo à leitura diária: boom')
+        expect(pointsOf(db)).toEqual(['v-7'])
+        expect(stamp(db)).toEqual([])
+        expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_units: 1 })
+      })
+      it('recuperação: a visita seguinte, com o ponto já gravado e nada devido, promove uma vez só e carimba', async () => {
+        const day = slotDate('vid-7')
+        const pts = par(day, 7, 4000, 5000)
+        // 1ª visita: o ponto sai, a promoção falha
+        const db1 = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, failWrite: 'competitor_videos:daily_until' })
+        await expect(roda(day)).rejects.toThrow(/promover/)
+        expect(pointsOf(db1)).toEqual(['v-7'])
+        // 2ª visita: o banco agora diz que o ponto de hoje existe; a linha ainda não tem daily_until
+        const log = { dailyCalls: [] as string[] }
+        const db2 = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts })
+        const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+        expect(log.dailyCalls).toEqual([])
+        expect(pointsOf(db2)).toEqual([])
+        expect(promotedIds(db2)).toEqual(['v-7'])
+        expect(r).toMatchObject({ due: 0, promoted: 1, complete: true })
+        expect(stamp(db2)).toEqual([{ weekly_pass_date: day }])
+        // 3ª visita (a promoção gravou): já promovido, não promove nem estende
+        const db3 = setup({ all: [weeklyRow(7, { daily_until: addDays(day, 28) })], recentDaily: pts, recentDailyAfter: pts })
+        const r3 = await roda(day)
+        expect(promoOf(db3)).toEqual([])
+        expect(r3).toMatchObject({ promoted: 0, complete: true })
+      })
+      it('a leitura dos pontos (depois dos pontos gravados) ou das trocas falhando: lança em português, nada é promovido nem carimbado', async () => {
+        const day = slotDate('vid-7')
+        const pts = par(day, 7, 4000, 5000)
+        const db = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts, recentDailyAfterError: 'boom' })
+        await expect(roda(day)).rejects.toThrow('não foi possível ler os pontos recentes da série: boom')
+        expect(promoOf(db)).toEqual([])
+        expect(stamp(db)).toEqual([])
+        const pt2 = [{ video_id: 'v-7', snap_date: day, views: 10 }]
+        const db2 = setup({ all: [weeklyRow(7)], recentDaily: pt2, recentDailyAfter: pt2, recentChangesError: 'boom' })
+        await expect(roda(day)).rejects.toThrow('não foi possível ler as trocas recentes dos vídeos: boom')
+        expect(promoOf(db2)).toEqual([])
+        expect(stamp(db2)).toEqual([])
+      })
+      it('a leitura da promoção com resposta nula é falha, nunca "ninguém para promover"', async () => {
+        const day = slotDate('vid-7')
+        const pts = [{ video_id: 'v-7', snap_date: day, views: 10 }]
+        const db = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts, recentChangesNull: true })
+        await expect(roda(day)).rejects.toThrow(/trocas recentes/)
+        expect(promoOf(db)).toEqual([])
+      })
+      it('a promoção sai MESMO com outra gravação nova falhando (captura): o canal não é carimbado, mas a promoção estava devida e foi gravada', async () => {
+        const day = slotDate('vid-7')
+        const pts = par(day, 7, 4000, 5000)
+        const db = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, failWrite: 'rpc:apply_competitor_field_plan' })
+        await expect(roda(day)).rejects.toThrow(/histórico de campos/)
+        expect(promotedIds(db)).toEqual(['v-7'])
+        expect(stamp(db)).toEqual([])
+      })
+      it('`promoted` sobrevive ao erro da versão: WeeklyVersionError.result.promoted e a gravação estão lá, e o canal é carimbado', async () => {
+        const day = slotDate('vid-7')
+        const pts = par(day, 7, 4000, 5000)
+        const db = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, versionPlanFailOf: ['v-7'] })
+        const e = await roda(day).then(() => null, (x: unknown) => x)
+        expect(e).toBeInstanceOf(WeeklyVersionError)
+        expect((e as WeeklyVersionError).result).toMatchObject({ recorded: 1, promoted: 1, versionFailed: 1, complete: true })
+        expect(promotedIds(db)).toEqual(['v-7'])
+        expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+      })
+    })
+  })
+})
+
+// ── Tarefa 11c: o efeito da promoção na sincronização DIÁRIA (o que `daily_until` gravado faz na faixa) ──
+describe('A5 E2 (11c): o vídeo promovido na passada diária', () => {
+  const HOJE = '2026-10-24' // o dia de São Paulo de NOW
+  const pedidos = (log: { dailyCalls: string[] }) => log.dailyCalls.flatMap(idsOf)
+  it('semanal com daily_until no futuro entra na faixa diária e é lido na passada; o plano de faixa leva a data de São Paulo', async () => {
+    const all = [row(1, 1, { series_tier: 'diaria' }), row(900, 400, { series_tier: 'semanal', daily_until: addDays(HOJE, 28) }), row(901, 401, { series_tier: 'semanal' })]
+    const db = setup({ dailyHave: [], existing: [], all, videoLimit: 1 }) // limite 1: só o mais recente é "top"; o resto depende de daily_until
+    const log = { dailyCalls: [] as string[] }
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+    expect(pedidos(log)).toContain('vid-900')
+    expect(pedidos(log)).not.toContain('vid-901')                   // o semanal sem promoção continua fora
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')).toEqual([{ p_site_id: 'site-1', p_channel_id: 'cc-1', p_changes: [{ video_id: 'v-900', tier: 'diaria' }], p_today: HOJE }])
+  })
+  it('daily_until vencido ontem: volta a semanal e não é lido; vencendo hoje: ainda é diário (a data é inclusiva)', async () => {
+    const all = [row(1, 1, { series_tier: 'diaria' }), row(900, 400, { series_tier: 'diaria', daily_until: addDays(HOJE, -1) }), row(902, 402, { series_tier: 'diaria', daily_until: HOJE })]
+    const db = setup({ dailyHave: [], existing: [], all, videoLimit: 1 })
+    const log = { dailyCalls: [] as string[] }
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')).toEqual([{ p_site_id: 'site-1', p_channel_id: 'cc-1', p_changes: [{ video_id: 'v-900', tier: 'semanal' }], p_today: HOJE }])
+    expect(pedidos(log)).toContain('vid-902')
+    expect(pedidos(log)).not.toContain('vid-900')
+  })
+  it('o teto de 200 conta o corte: com 210 promovidos antigos, saem primeiro os que vencem antes, e o resultado e a cota dizem quantos', async () => {
+    // 210 vídeos antigos, todos promovidos, cada um com um vencimento diferente; os 50 mais recentes são "top" e nunca saem
+    const all = Array.from({ length: 210 }, (_, i) => row(i + 1, 400 + i, { series_tier: 'diaria', daily_until: addDays(HOJE, 1 + i) }))
+    const db = setup({ dailyHave: [], existing: [], all })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+    const lidos = new Set(pedidos(log))
+    expect(lidos.size).toBe(200)
+    expect(r.cutByCap).toBe(10)
+    for (let i = 51; i <= 60; i++) expect(lidos.has('vid-' + i)).toBe(false)     // os de vencimento mais próximo fora dos 50 mais recentes
+    expect(lidos.has('vid-1')).toBe(true)
+    expect(lidos.has('vid-61')).toBe(true)
+    expect(rpcCalls(db, 'apply_competitor_tier_plan')[0]!.p_changes).toEqual(Array.from({ length: 10 }, (_, k) => ({ video_id: 'v-' + (51 + k), tier: 'semanal' })))
+    expect(rpcCalls(db, 'youtube_quota_add')[0]).toMatchObject({ p_max: { teto_diario_cortados: 10 } })
   })
 })
