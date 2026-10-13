@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { CODIGOS_SCHEMA_AUSENTE } from '@/lib/youtube/coleta/schema'
 import { CODIGO_RE } from './motivos'
 import { ARRENDAMENTO_TTL_S, BANCO_MS, RODANDO_VENCE_MIN } from './relogio'
-import type { EstadoAgenda, Lido, LinhaTarefa } from './tipos'
+import type { CausaDaFalha, EstadoAgenda, Lido, LinhaTarefa } from './tipos'
 
 /**
  * O estado da agenda no banco (MG10): uma função por RPC. Regras:
@@ -24,31 +24,33 @@ type Objeto = Record<string, unknown>
 const ehObjeto = (v: unknown): v is Objeto => typeof v === 'object' && v !== null && !Array.isArray(v)
 const tem = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
 
-function porqueDoErro(erro: { code?: unknown } | null | undefined): string {
+const falha = (porque: string, causa: CausaDaFalha): { porque: string; causa: CausaDaFalha } => ({ porque, causa })
+
+function falhaDoErro(erro: { code?: unknown } | null | undefined): { porque: string; causa: CausaDaFalha } {
   const codigo = erro && typeof erro.code === 'string' ? erro.code : ''
-  // Prazo estourado: o cliente não lança, devolve `AbortError` com código vazio. Tratado como "não respondeu".
-  if (!CODIGO_DO_BANCO_RE.test(codigo)) return P_NAO_RESPONDEU
-  if (CODIGOS_SCHEMA_AUSENTE.includes(codigo)) return `migration da agenda não aplicada (código ${codigo})`
-  return `erro do banco (código ${codigo})`
+  // Prazo estourado: o cliente não lança, devolve `AbortError` com código vazio. Tratado como "não respondeu" (idem erro de transporte).
+  if (!CODIGO_DO_BANCO_RE.test(codigo)) return falha(P_NAO_RESPONDEU, 'prazo')
+  if (CODIGOS_SCHEMA_AUSENTE.includes(codigo)) return falha(`migration da agenda não aplicada (código ${codigo})`, 'schema_ausente')
+  return falha(`erro do banco (código ${codigo})`, 'erro_do_banco')
 }
 
 /** Uma ida a uma função do banco: o dado cru, ou o porquê. Nunca lança. */
 async function chamar(sb: SupabaseClient, fn: string, args: Objeto): Promise<Lido<unknown>> {
   try {
     const { data, error } = await sb.rpc(fn, args).abortSignal(AbortSignal.timeout(BANCO_MS))
-    if (error) return { porque: porqueDoErro(error) }
+    if (error) return falhaDoErro(error)
     const cru: unknown = data
-    if (cru === null || cru === undefined) return { porque: P_NAO_RESPONDEU }
+    if (cru === null || cru === undefined) return falha(P_NAO_RESPONDEU, 'forma_invalida')
     return { valor: cru }
   } catch {
-    return { porque: P_NAO_RESPONDEU }
+    return falha(P_NAO_RESPONDEU, 'excecao')
   }
 }
 
 async function chamarBooleano(sb: SupabaseClient, fn: string, args: Objeto): Promise<Lido<boolean>> {
   const r = await chamar(sb, fn, args)
   if ('porque' in r) return r
-  return typeof r.valor === 'boolean' ? { valor: r.valor } : { porque: P_FORMA }
+  return typeof r.valor === 'boolean' ? { valor: r.valor } : falha(P_FORMA, 'forma_invalida')
 }
 
 const tetoValido = (teto: unknown): teto is number => typeof teto === 'number' && Number.isInteger(teto) && teto > 0 && teto <= TETO_MAX
@@ -107,16 +109,16 @@ export async function lerEstado(sb: SupabaseClient, pares: Array<{ task: string;
   })
   if ('porque' in r) return r
   const d = r.valor
-  if (!ehObjeto(d) || !tem(d, 'agora') || !tem(d, 'desde') || !tem(d, 'tarefas')) return { porque: P_FORMA }
+  if (!ehObjeto(d) || !tem(d, 'agora') || !tem(d, 'desde') || !tem(d, 'tarefas')) return falha(P_FORMA, 'forma_invalida')
   const agora = d.agora
-  if (typeof agora !== 'string' || Number.isNaN(Date.parse(agora))) return { porque: P_FORMA }
+  if (typeof agora !== 'string' || Number.isNaN(Date.parse(agora))) return falha(P_FORMA, 'forma_invalida')
   const desde = instanteOuNulo(d.desde)
-  if (desde === undefined) return { porque: P_FORMA }
-  if (!Array.isArray(d.tarefas) || d.tarefas.length !== pares.length) return { porque: P_FORMA }
+  if (desde === undefined) return falha(P_FORMA, 'forma_invalida')
+  if (!Array.isArray(d.tarefas) || d.tarefas.length !== pares.length) return falha(P_FORMA, 'forma_invalida')
   const tarefas: LinhaTarefa[] = []
   for (const [i, par] of pares.entries()) {
     const linha = lerLinha(d.tarefas[i], par)
-    if (!linha) return { porque: P_FORMA }
+    if (!linha) return falha(P_FORMA, 'forma_invalida')
     tarefas.push(linha)
   }
   return { valor: { agora, desde, tarefas } }
@@ -140,14 +142,14 @@ export async function soltarArrendamento(sb: SupabaseClient, holder: string): Pr
 const VALIDADE_DA_LINHA = `${RODANDO_VENCE_MIN} minutes`
 
 export function tomar(sb: SupabaseClient, t: { task: string; period_key: string; teto: number; reabrir: boolean }): Promise<Lido<boolean>> {
-  if (!tetoValido(t.teto)) return Promise.resolve({ porque: P_TETO })
+  if (!tetoValido(t.teto)) return Promise.resolve(falha(P_TETO, 'forma_invalida'))
   return chamarBooleano(sb, 'competitor_agenda_claim', {
     p_task: t.task, p_period_key: t.period_key, p_max_attempts: t.teto, p_stale: VALIDADE_DA_LINHA, p_reopen: t.reabrir === true,
   })
 }
 
 export function esgotar(sb: SupabaseClient, t: { task: string; period_key: string; teto: number }): Promise<Lido<boolean>> {
-  if (!tetoValido(t.teto)) return Promise.resolve({ porque: P_TETO })
+  if (!tetoValido(t.teto)) return Promise.resolve(falha(P_TETO, 'forma_invalida'))
   return chamarBooleano(sb, 'competitor_agenda_exhaust', {
     p_task: t.task, p_period_key: t.period_key, p_max_attempts: t.teto, p_stale: VALIDADE_DA_LINHA,
   })
@@ -170,7 +172,7 @@ export function fechar(
   const estadoOk = t.estado === 'ok' || t.estado === 'parcial' || t.estado === 'erro'
   const deixadasOk = t.deixadas === null || (inteiro(t.deixadas) && t.deixadas >= 0)
   const msOk = typeof t.ms === 'number' && Number.isFinite(t.ms) && t.ms >= 0
-  if (!estadoOk || !inteiro(t.feitas) || t.feitas < 0 || !deixadasOk || !msOk) return Promise.resolve({ porque: P_FECHO })
+  if (!estadoOk || !inteiro(t.feitas) || t.feitas < 0 || !deixadasOk || !msOk) return Promise.resolve(falha(P_FECHO, 'forma_invalida'))
   // Duas barreiras (a outra é o banco): só código passa; texto livre vira 'motivo_invalido'.
   const motivo = t.motivo === undefined ? null : CODIGO_RE.test(t.motivo) ? t.motivo : 'motivo_invalido'
   return chamarBooleano(sb, 'competitor_agenda_finish', {
