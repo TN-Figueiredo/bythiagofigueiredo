@@ -32,3 +32,13 @@ export function paginarGrade(total: number, lotes: number): PaginaGrade {
   const frase = `${faltam} ${depois === 0 ? (ocultos === 1 ? 'Depois dele não falta nenhum.' : 'Depois deles não falta nenhum.') : depois === 1 ? `Depois dos próximos ${proximo} falta 1.` : `Depois dos próximos ${proximo} faltam ${depois}.`}`
   return { limite, mostrando, ocultos, proximo, botao, frase }
 }
+
+/**
+ * Quantos lotes de 24 a grade precisa mostrar para incluir o cartão de índice `indice` (0 = o primeiro) numa lista de `total` cartões: `ceil((indice + 1) / 24)`.
+ * `null` quando o cartão não existe na lista (índice negativo, fracionário, NaN, ou além do fim): quem chama não inventa lote. É o que o Voltar do Histórico
+ * usa a 480 px ou menos, quando o último vídeo visto está além da página que a grade recém-montada mostra (B1 da revisão de UX dos ajustes finais).
+ */
+export function lotesParaMostrar(indice: number, total: number): number | null {
+  if (!Number.isInteger(indice) || !Number.isInteger(total) || indice < 0 || indice >= total) return null
+  return Math.ceil((indice + 1) / TAMANHO_PAGINA)
+}

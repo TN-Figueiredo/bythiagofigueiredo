@@ -11,6 +11,8 @@ import Link from 'next/link'
 import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
 import { AbaVideos, porId } from '../_canal/canal-screen'
 import { montarLista } from '../_canal/lista'
+import { lotesParaMostrar } from '../_canal/grade-paginacao'
+import { usePaginaGrade } from '../_canal/use-pagina-grade'
 import { LOTE, parseCanalState, type CanalState } from '../_canal/params'
 import { useCanalState } from '../_canal/use-canal-state'
 import { aposRestaurar, pararRestauracao, useRolagemAoVoltar } from '../_canal/use-rolagem-ao-voltar'
@@ -86,6 +88,7 @@ function Abas({ view, state, resumo, onAba }: { view: ProprioView; state: CanalS
 export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?: ReactNode; children?: never }) {
   const h = view.header
   const [state, set] = useCanalState(view.state, true)
+  const pg = usePaginaGrade(state)
   const raiz = useRef<HTMLDivElement>(null)
   const todos = view.videos.videos
 
@@ -97,10 +100,21 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
   const ampliarVideo = useCallback((v: ChannelVideoView, trigger: HTMLElement | null) => { const vw = v.viewer ?? viewerSoAtual(v); if (vw) abrirViewer(vw, trigger) }, [abrirViewer])
 
   /* O Voltar da comparação e do Histórico (spec 3): o foco volta ao botão "Comparar com…" ou ao cartão do ÚLTIMO vídeo visto, e `n` cresce até incluí-lo. */
-  const focoNoUltimo = useRef<{ id: string; n: number; ate: number } | null>(null)
-  const focarUltimo = (id: string): void => {
+  const focoNoUltimo = useRef<{ id: string; n: number; lotes: number; ate: number } | null>(null)
+  const focarUltimo = (id: string, est: CanalState): void => {
     const el = porId(raiz, 'cv-lnk-' + id)
     if (!el) return
+    /* B1: a 480 px ou menos a grade recém-montada mostra 24 cartões e o resto está sob display:none, onde focus() não faz nada e o foco cai no body.
+       Sobe os lotes até incluir o cartão e deixa o foco para o efeito logo abaixo, que roda quando o render com eles estiver pronto. */
+    if (el.closest('li') && getComputedStyle(el.closest('li')!).display === 'none') {
+      const visiveis = montarLista(todos, est).visiveis
+      const preciso = lotesParaMostrar(visiveis.indexOf(id), visiveis.length)
+      if (preciso != null && preciso > pg.lotes) {
+        focoNoUltimo.current = { id, n: est.n, lotes: preciso, ate: Date.now() + 5000 }
+        pg.setLotes(preciso)
+        return
+      }
+    }
     el.focus({ preventScroll: true })
     aposRestaurar(() => {
       const caixa = el.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
@@ -124,8 +138,8 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
     let n = atual.n
     while (n <= todos.length + LOTE && !montarLista(todos, { ...atual, n }).visiveis.includes(reg.id)) n += LOTE
     if (n > todos.length + LOTE) return
-    if (n === atual.n) { focarUltimo(reg.id); return }
-    focoNoUltimo.current = { id: reg.id, n, ate: Date.now() + 5000 }
+    if (n === atual.n) { focarUltimo(reg.id, atual); return }
+    focoNoUltimo.current = { id: reg.id, n, lotes: 0, ate: Date.now() + 5000 }
     set({ n })
   }
   useRolagemAoVoltar(raiz, aoVoltar, () => chegouPelaTrilha(h.id))
@@ -135,8 +149,9 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
     if (!alvo) return
     if (Date.now() > alvo.ate) { focoNoUltimo.current = null; return }
     if (state.tab !== 'videos' || state.n < alvo.n) return
+    if (pg.lotes < alvo.lotes) { pg.setLotes(alvo.lotes); return }   // a página reiniciou por um filtro que mudou no caminho: pede de novo
     focoNoUltimo.current = null
-    focarUltimo(alvo.id)
+    focarUltimo(alvo.id, state)
   })
 
   const lista = useMemo(() => montarLista(todos, state), [todos, state.fmt, state.sort, state.dir, state.q, state.n])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -169,7 +184,7 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
       <ProprioHeader h={h} nums={state.nums} onToggleNums={() => set({ nums: !state.nums })} compararHref={view.compararHref} compararTitulo={view.compararTitulo} />
       {comoEsta ?? null}
       <Abas view={view} state={state} resumo={resumo} onAba={irParaAba} />
-      <AbaVideos videos={view.videos} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onAmpliar={ampliarVideo} raiz={raiz} proprio />
+      <AbaVideos videos={view.videos} state={state} lista={lista} pg={pg} set={setAba} nome={h.name} channelId={h.id} onAmpliar={ampliarVideo} raiz={raiz} proprio />
       {state.tab === 'retencao' ? <Retencao view={view.retencao} /> : null}
       {state.tab === 'trocas' || state.tab === 'leitura' ? (
         <AbaSemConteudo id="pr-h2" titulo={TITULOS[state.tab]} frase={view.abas[state.tab]} nota={view.abasNota[state.tab]} />

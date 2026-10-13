@@ -14,13 +14,13 @@ export function CarregarMais({ mais, onMais, rotulo = 'Carregar mais vídeos', m
   rotulo?: string
   /** Classe extra do grupo (`cv-pag`: o bloco da paginação do celular). */
   marca?: string
-  /** O bloco dos antigos fica escondido a 480 px ou menos enquanto a grade ainda tem cartões por mostrar (`cv-pag-espera`). */
+  /** O bloco dos antigos (e o aviso que o explica) fica escondido a 480 px ou menos enquanto a grade ainda tem cartões por mostrar (`cv-pag-espera`). */
   espera?: boolean
 }) {
   const pct = mais.total ? Math.round((mais.mostrando / mais.total) * 100) : 0
   return (
     <>
-      {mais.soAntigos ? <p className="cv-soantigos">{mais.soAntigos}</p> : null}
+      {mais.soAntigos ? <p className={'cv-soantigos' + (espera ? ' cv-pag-espera' : '')}>{mais.soAntigos}</p> : null}
       <div className={'cv-more' + (marca ? ' ' + marca : '') + (espera ? ' cv-pag-espera' : '')} role="group" aria-label={rotulo}>
         <div className="cv-more-bar" role="progressbar" aria-label="Vídeos na tela" aria-valuemin={0} aria-valuemax={mais.total} aria-valuenow={mais.mostrando}><i style={{ width: pct + '%' }} /></div>
         <p className="cv-more-t"><b>Mostrando {mais.mostrando} de {mais.total} vídeos</b></p>

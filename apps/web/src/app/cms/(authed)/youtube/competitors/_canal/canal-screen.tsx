@@ -26,7 +26,8 @@ import { CanalHeader } from './canal-header'
 import { CarregarMais } from './carregar-mais'
 import { Controles, FMT_NOME, SORT_NOME } from './controles'
 import { Grade } from './grade'
-import { paginarGrade, TAMANHO_PAGINA } from './grade-paginacao'
+import { lotesParaMostrar, paginarGrade, TAMANHO_PAGINA } from './grade-paginacao'
+import { usePaginaGrade, type PaginaGradeEstado } from './use-pagina-grade'
 import { Tabela } from './tabela'
 import { Trocas } from './trocas'
 import { montarLista, type ListaView } from './lista'
@@ -135,8 +136,10 @@ function AbasNav({ view, state, resumo, onAba }: { view: CanalView; state: Canal
  * impressões, formato sem Fixados, colunas de alcance; o cartão e a linha escolhem as colunas pelo dado). `onSync` ausente = sem o botão de sincronizar
  * (o canal próprio sincroniza pelo Painel).
  */
-export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, onAmpliar, raiz, proprio = false }: {
+export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSync, onAmpliar, raiz, proprio = false }: {
   videos: CanalVideosView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync?: () => void
+  /** Os lotes de 24 da grade (`usePaginaGrade`): moram na tela, que os sobe no Voltar do Histórico. */
+  pg: PaginaGradeEstado
   onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void
   raiz: RefObject<HTMLElement | null>
   proprio?: boolean
@@ -210,12 +213,9 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
     anunciar(() => `${FMT_NOME.todos}, ${contagem(l.visiveis.length)}`)
   }
 
-  /* "Mostrar mais" da grade a 480 px ou menos (24 em 24, `grade-paginacao.ts`): quantos lotes a pessoa pediu. Filtro, ordem, direção e busca recomeçam na
-     primeira página (o estado é trocado durante o render, no padrão do React para estado derivado de prop). Em tela larga o CSS ignora tudo isto. */
-  const chavePag = `${state.fmt}|${state.sort}|${state.dir}|${state.q}`
-  const [pag, setPag] = useState({ chave: chavePag, lotes: 1 })
-  if (pag.chave !== chavePag) setPag({ chave: chavePag, lotes: 1 })
-  const lotes = pag.chave === chavePag ? pag.lotes : 1
+  /* "Mostrar mais" da grade a 480 px ou menos (24 em 24, `grade-paginacao.ts`): quantos lotes a pessoa pediu mora na tela (`pg`, `use-pagina-grade.ts`).
+     Em tela larga o CSS ignora tudo isto. */
+  const { lotes, setLotes } = pg
   const pagina = paginarGrade(lista.visiveis.length, lotes)
   const naGrade = state.ver !== 'lista'
 
@@ -233,7 +233,7 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
     const antes = new Set(lista.visiveis)
     const novos = depois.visiveis.filter(id => !antes.has(id))
     focoNoNovo.current = novos[0] ?? null
-    setPag({ chave: chavePag, lotes: Math.max(lotes, Math.ceil(depois.visiveis.length / TAMANHO_PAGINA)) })   // o lote novo de antigos aparece inteiro
+    setLotes(Math.max(lotes, Math.ceil(depois.visiveis.length / TAMANHO_PAGINA)))   // o lote novo de antigos aparece inteiro
     set({ n })
     anunciar(() => `Mostrando ${depois.visiveis.length} de ${depois.mais?.total ?? depois.visiveis.length} vídeos. `
       + `${plural(novos.length, 'vídeo antigo carregado', 'vídeos antigos carregados')}${depois.mais ? '.' : '. Não falta nenhum.'}`)
@@ -244,7 +244,7 @@ export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, 
     const depois = paginarGrade(lista.visiveis.length, lotes + 1)
     const novos = lista.visiveis.slice(pagina.mostrando, depois.mostrando)
     focoNoNovo.current = novos[0] ?? null
-    setPag({ chave: chavePag, lotes: lotes + 1 })
+    setLotes(lotes + 1)
     anunciar(() => `Mostrando ${depois.mostrando} de ${lista.mais?.total ?? lista.visiveis.length} vídeos. ${plural(novos.length, 'vídeo novo', 'vídeos novos')}${depois.ocultos ? '.' : '. Não falta nenhum.'}`)
   }
 
@@ -316,6 +316,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
   const router = useRouter(), toast = useToast()
   const h = view.header
   const [state, set] = useCanalState(view.state, false)
+  const pg = usePaginaGrade(state)
   const raiz = useRef<HTMLDivElement>(null)
   const todos = view.videos.videos
   /* O visualizador de thumbnail (spec 6.3, gatilhos 5 e 6). Se o gatilho sumir com o diálogo aberto (a aba mudou, a lista mudou), o foco vai ao
@@ -329,8 +330,8 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
   /* O Voltar do Histórico (spec 3): o foco no cartão do ÚLTIMO vídeo visto (Anterior/Próximo substituem a entrada do histórico, então a URL que
      volta é a de antes do primeiro), e `n` cresce até incluí-lo. A rolagem é a de antes (use-rolagem-ao-voltar). Sem registro, a página volta
      como volta o navegador. O registro vale um Voltar só. Se `n` precisa crescer, o foco espera o render com ele (efeito logo abaixo). */
-  const focoNoUltimo = useRef<{ reg: UltimoVideo; tab: CanalTab; n: number; ate: number } | null>(null)
-  const focarUltimo = (alvo: { reg: UltimoVideo; tab: CanalTab }): void => {
+  const focoNoUltimo = useRef<{ reg: UltimoVideo; tab: CanalTab; n: number; lotes: number; ate: number } | null>(null)
+  const focarUltimo = (alvo: { reg: UltimoVideo; tab: CanalTab }, est: CanalState): void => {
     const r = raiz.current, { reg } = alvo
     let el: HTMLElement | null | undefined
     if (alvo.tab === 'trocas') {
@@ -340,6 +341,17 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
       el = linha?.querySelector<HTMLElement>('a.ct-rowgo') ?? card?.querySelector<HTMLElement>('a.ct-go')
     } else el = porId(raiz, 'cv-lnk-' + reg.id)
     if (!el) return
+    /* B1: a 480 px ou menos a grade recém-montada mostra 24 cartões e o resto está sob display:none, onde focus() não faz nada e o foco cai no body.
+       Sobe os lotes até incluir o cartão e deixa o foco para o efeito logo abaixo, que roda quando o render com eles estiver pronto. */
+    if (alvo.tab === 'videos' && el.closest('li') && getComputedStyle(el.closest('li')!).display === 'none') {
+      const visiveis = montarLista(todos, est).visiveis
+      const preciso = lotesParaMostrar(visiveis.indexOf(reg.id), visiveis.length)
+      if (preciso != null && preciso > pg.lotes) {
+        focoNoUltimo.current = { reg, tab: 'videos', n: est.n, lotes: preciso, ate: Date.now() + 5000 }
+        pg.setLotes(preciso)
+        return
+      }
+    }
     el.focus({ preventScroll: true })
     // depois de a rolagem restaurada assentar: o cartão pode estar fora da área visível de <main> (a pessoa andou vários vídeos com o pager)
     aposRestaurar(() => {
@@ -363,13 +375,13 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     esquecerUltimoVideo(h.id)
     const id = reg.id
     const atual = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)), { own: false })
-    if (atual.tab === 'trocas') { focarUltimo({ reg, tab: 'trocas' }); return }
+    if (atual.tab === 'trocas') { focarUltimo({ reg, tab: 'trocas' }, atual); return }
     if (atual.tab !== 'videos') return
     let n = atual.n
     while (n <= todos.length + LOTE && !montarLista(todos, { ...atual, n }).visiveis.includes(id)) n += LOTE
     if (n > todos.length + LOTE) return   // o vídeo não está nesta lista (outro filtro, outra busca): nada a focar
-    if (n === atual.n) { focarUltimo({ reg, tab: 'videos' }); return }
-    focoNoUltimo.current = { reg, tab: 'videos', n, ate: Date.now() + 5000 }
+    if (n === atual.n) { focarUltimo({ reg, tab: 'videos' }, atual); return }
+    focoNoUltimo.current = { reg, tab: 'videos', n, lotes: 0, ate: Date.now() + 5000 }
     set({ n })
   }
   /* Por onde a pessoa saiu da aba Trocas (link da troca, botão do cartão, clique na linha): o Voltar devolve o foco ali. Só clique simples. */
@@ -396,8 +408,9 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     if (!alvo) return
     if (Date.now() > alvo.ate) { focoNoUltimo.current = null; return }
     if (state.tab !== alvo.tab || state.n < alvo.n) return
+    if (pg.lotes < alvo.lotes) { pg.setLotes(alvo.lotes); return }   // a página reiniciou por um filtro que mudou no caminho: pede de novo
     focoNoUltimo.current = null
-    focarUltimo(alvo)
+    focarUltimo(alvo, state)
   })
   const nums = state.nums
   // a lista (filtro, ordem, busca, n) é montada aqui: a aba Vídeos a desenha e o resumo à direita das abas a lê
@@ -497,7 +510,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
-            <AbaVideos videos={view.videos} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} />
+            <AbaVideos videos={view.videos} state={state} lista={lista} pg={pg} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} />
           </PinProvider>
           {state.tab === 'trocas' ? (
             <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}
