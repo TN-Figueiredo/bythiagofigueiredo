@@ -1,0 +1,170 @@
+/* ce.css: acréscimos do mockup 17a sobre a4.css e cd-base.css (cópia de comparar-direcao.css, mockup 9 aprovado). Só tokens existentes; sem color-mix(); sem z-index; texto >= 12 px. */
+
+/* faixa de exemplo no topo */
+.ce-top{margin:0 0 12px}
+
+/* estado do canal (M8) no cartão de cada lado */
+.ce-est{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:12px 0 0;font-size:13px;line-height:18px}
+.ce-est-p{display:inline-flex;align-items:center;gap:7px;min-height:28px;padding:0 10px 0 8px;border-radius:14px;border:1.5px solid var(--dim);color:var(--text)}
+.ce-est-p b{font-weight:600}
+.ce-est-s{color:var(--muted)}
+.ce-bol{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.ce-est.parado .ce-est-p{border-color:var(--dir-dn);color:var(--dir-dn)}
+.ce-est.parado .ce-est-p b{color:var(--text)}
+.ce-est.queda .ce-est-p{border-color:var(--dir-dn);color:var(--dir-dn)}
+.ce-est.queda .ce-est-p b{color:var(--text)}
+.ce-est.fdo .ce-est-p{border-color:var(--danger);background:var(--danger-subtle);color:var(--danger)}
+.ce-est.fdo .ce-est-p b{color:var(--text)}
+.ce-estnm{display:flex;align-items:flex-start;gap:7px;margin:6px 0 0;font-size:12.5px;line-height:17px;color:var(--muted)}
+.ce-estnm .nm-h{margin-top:1px}
+.lado .ibtn{margin:-10px -6px -10px 0}
+
+/* lado vazio */
+.lado.ce-vazio{border-style:dashed;border-top-style:dashed;background:transparent;display:grid;align-content:start}
+.ce-vz{margin-top:12px;display:grid;gap:8px;justify-items:start}
+.ce-vz p{margin:0}
+.ce-vz-s{color:var(--muted);font-size:13px}
+
+/* leitura principal e de apoio */
+.ce-tag{display:inline-flex;align-items:center;gap:5px;margin:0 6px 4px 0;min-height:20px;padding:0 7px;border-radius:4px;border:1.5px solid var(--dim);color:var(--text);font:500 12px/16px var(--sans)}/* neutro: o laranja é de "seu canal", da ação e do foco */
+.cd-t tr.prin .rl{font-size:14px;font-weight:600}
+.cd-t tr.prin .rl>small{font-weight:400}
+.cd-t tr.prin td.cA,.cd-t tr.prin td.cB{padding-top:14px;padding-bottom:14px}
+.cd-t tr.ce-aph th{padding:12px 0 2px;border-bottom:0;font-weight:500;font-size:13px;color:var(--text)}
+.ce-aph-n{color:var(--muted);font-weight:400}
+.cd-t tr.apoio .rl{font-size:13px;font-weight:400;color:var(--muted)}
+.cd-t tr.apoio td{padding-top:8px;padding-bottom:8px}
+.cd-t tr.apoio .dr b{font-weight:500;font-size:13px}
+.cd-t tr.apoio .dr .pc{font-size:13px}
+.dr.ap .sy{background:transparent;border:2px solid var(--d);color:var(--d);width:20px;height:20px;font-size:12px}
+.dr.ap{gap:7px}
+.cd-lr .sy.er{background:var(--danger-subtle);border:1.5px solid var(--danger);color:var(--danger)}
+.ce-marcaw{display:block;margin-top:4px}
+.ce-marca{display:inline-flex;align-items:flex-start;gap:6px;font-size:12px;line-height:16px;color:var(--muted)}
+.ce-marca svg{margin-top:0;color:var(--dir-dn)}
+
+/* "ainda não existe": contorno pontilhado (nunca a hachura de não medido) */
+.ce-nao{display:inline-block;padding:1px 8px;border:1.5px dotted var(--dim);border-radius:4px;color:var(--muted);font:400 12px/16px var(--sans);white-space:nowrap}
+.cd-t td.nd .why{margin-top:4px}
+.ce-rel-nao{display:flex;gap:6px;align-items:flex-start;font-size:12.5px;line-height:17px;color:var(--muted)}
+.ce-rel-nao svg{margin-top:1px}
+.ce-rel-dif{display:inline;font-size:13px;line-height:19px}
+.ce-rel-dif .sy2{display:inline-block;margin-right:6px;font-weight:700;color:var(--muted)}
+
+/* zero medido: caixa vazada com o 0 dentro */
+.zbox{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 4px;border:2px solid var(--im-zero);border-radius:4px;background:transparent;color:var(--text);font:600 14px/1 var(--mono);vertical-align:middle}
+.zbox.s{min-width:20px;height:20px;font-size:12px;border-width:1.5px}
+
+/* erro */
+.ce-er{display:inline-flex;align-items:center;gap:6px;min-height:22px;padding:0 8px;border:1.5px solid var(--danger);border-radius:4px;background:var(--danger-subtle);color:var(--text);font:400 12px/16px var(--sans)}
+.ce-er svg{color:var(--danger)}
+.ce-banner{display:flex;align-items:center;gap:12px 14px;flex-wrap:wrap;margin:14px 0 0;padding:10px 14px;border:1.5px solid var(--danger);border-radius:8px;background:var(--danger-subtle)}
+.ce-banner>div{flex:1 1 260px;display:grid;gap:2px;font-size:13.5px;line-height:19px}
+.ce-banner b{font-weight:600}
+.ce-banner span{color:var(--muted)}
+.ce-banner .ce-bic{flex:none;color:var(--danger);display:inline-grid}
+.ce-banner svg.i{width:20px;height:20px}
+.ce-banner>div span{color:var(--muted)}
+.lados+.ce-banner+.cd-lr,.lados+.cd-lr{margin-top:14px}
+
+/* M4: casas por vídeo */
+.ce-m4{display:flex;align-items:center;gap:6px}
+.ce-m4 .v1d{font:400 14px/22px var(--sans);color:var(--muted)}
+.ce-m4 .v1p{font:500 14px/22px var(--mono);color:var(--muted);margin-left:6px}
+.cd-t td .ce-m4 .v1{font-size:17px}
+.ce-cs{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 6px;max-width:300px}
+.ce-c{display:inline-block;width:14px;height:14px;box-sizing:border-box;border:1.5px solid var(--dim);border-radius:3px;flex:none;vertical-align:middle}
+.ce-c.hit{background:var(--c);border-color:var(--c)}
+.ce-c.fail{background:linear-gradient(to top right,transparent 44%,var(--dim) 44% 56%,transparent 56%)}
+.ce-leg{align-items:center}
+.ce-lg{display:inline-flex;align-items:center;gap:6px;margin-right:12px;font-size:12.5px;color:var(--muted)}
+
+/* M7: rótulo da idade da leitura */
+.ce-ids{display:flex;flex-wrap:wrap;gap:4px 6px;margin:4px 0 2px}
+.ce-id{display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 8px;border-radius:4px;font:500 12px/16px var(--sans);color:var(--text);border:1.5px solid var(--dim);white-space:normal}
+.ce-id svg{flex:none}
+.ce-id.ok svg{color:var(--text)}
+.ce-id.hoje{border-style:dashed}
+.ce-id.so{border-color:var(--dir-dn)}
+.ce-id.so svg{color:var(--dir-dn)}
+
+/* barras pareadas dos primeiros dias */
+.pb{display:grid;gap:6px;margin-top:4px}
+.pb-r{display:flex;align-items:center;gap:8px;height:22px}
+.pb-r .cb-lado{flex:none}
+.pb-b{display:block;height:14px;border-radius:2px;min-width:4px}
+.pb-nm{display:inline-flex;align-items:center;gap:6px;font:400 12px/16px var(--sans);color:var(--nm)}
+
+/* régua compacta (uma marca) e fora da escala */
+.rg.compacta{height:52px}
+.rg.compacta.dir{height:70px}
+.rg.compacta .rg-t{top:34px}
+.rg.compacta .rg-b.a{top:-34px}
+.rg-b{display:inline-flex;align-items:center;gap:2px}
+.rg-b.f-ex{margin-left:-12px}
+.rg-b.f-ex.f-e{margin-left:-2px}
+.rg-b.f-ex.f-d{margin-left:-32px}
+.rg-ar{font-style:normal;font-size:12px;line-height:1;color:var(--text)}
+.sub-n b{font-weight:600;color:var(--text)}
+
+/* nota quando nenhum lado é o seu canal */
+.ce-semprop{display:flex;gap:8px;align-items:flex-start;margin:14px 0 0;font-size:13px;line-height:19px;color:var(--muted);max-width:92ch}
+.ce-semprop svg{margin-top:2px}
+
+/* cartão privado (só leitura) */
+.so.ce-priv{border-left-color:var(--dim)}
+.ce-lock{display:flex;gap:10px;align-items:flex-start}
+.ce-lockic{display:inline-grid;place-items:center;width:28px;height:28px;border:1.5px solid var(--dim);border-radius:6px;color:var(--text);flex:none}
+.ce-lock .ce-lockic{margin-top:-2px}
+.ce-sem{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.ce-sem .ce-lockic{width:22px;height:22px;border-radius:5px}
+.ce-sem .ce-lockic svg{width:13px;height:13px}
+.ce-priv-n{margin:10px 0 0;font-size:13px;color:var(--muted)}
+
+/* esqueleto do estado vazio */
+.ce-sk{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}
+.ce-sk li{display:grid;gap:8px;padding:12px 14px;border:1.5px dotted var(--dim);border-radius:8px;font-size:14px;color:var(--muted)}
+.ce-sk i{display:block;height:10px;border-radius:5px;border:1.5px dotted var(--dim);width:60%}
+
+/* Leitura rápida: título h2 (era h3 dentro do h2 do canal), fecho das outras leituras em símbolo, símbolo de "sem direção" com traço de 2 px */
+.cd-lr h2{font:600 13.5px var(--sans);margin:0 0 8px}
+.cd-lr h2 .ex{margin-left:8px;font-weight:400}
+.cd-lr .sy.nmk{color:var(--nm);border-color:var(--nm-line)}
+.cd-lr .sy.nmk svg{width:14px;height:14px}
+.lr-of{color:var(--muted)}
+.lr-ap{display:inline-flex;align-items:center;gap:4px;font-weight:600;white-space:nowrap}
+.lr-ap>span:first-child{font-weight:700}
+.lr-ap.nm{color:var(--nm);font-weight:400}
+.lr-ap-d{color:var(--muted);font-size:13px}
+/* título do popover (era h3 dentro de h2) */
+.pop .pop-t{margin:0 0 6px;font:600 13.5px var(--sans);color:var(--text)}
+
+@media (max-width:860px){
+  .ce-t tr.prin td.cA,.ce-t tr.prin td.cB{padding-top:2px}
+  .cd-t tr.ce-aph{display:block}
+  .cd-t tr.ce-aph th{padding:10px 0 0}
+  .ce-cs{max-width:100%}
+  .ce-est-p{min-height:32px}
+}
+@media (max-width:640px){
+  .lados{grid-template-columns:minmax(0,1fr);gap:10px}
+  /* cartões compactos: a Leitura rápida (a resposta) tem de aparecer na primeira tela */
+  .lado{position:relative;padding:12px 14px 12px}
+  .lado>.cb-lado{position:absolute;top:12px;right:14px}
+  .lado .id{margin-top:0;padding-right:34px}
+  .lado .m-ac{display:none}
+  .ce-est{gap:0 6px;margin-top:8px}
+  .ce-est .ibtn{order:1}
+  .ce-est-s{order:2;flex:1 0 100%;margin-top:6px}
+  /* a primeira tela tem de mostrar as duas frases da Leitura rápida: inscritos ficam na tabela e a queda não medida, no ⓘ da pastilha */
+  .lado .m-in,.ce-estnm{display:none}
+  .lado.ce-vazio>.cb-lado{position:static}
+  .ce-banner .btn{width:100%}
+}
+@media (pointer:coarse){
+  .cd-t td .ibtn,.cd-t th .ibtn{margin:-8px 0}
+}
+
+/* fecha o fundo da página quando o conteúdo é mais curto que a janela (estado vazio) */
+html{background:var(--bg)}
+.lado.ce-vazio .cb-lado{justify-self:start}

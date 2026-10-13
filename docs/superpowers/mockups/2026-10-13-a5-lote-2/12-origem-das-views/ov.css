@@ -1,0 +1,223 @@
+/* ov.css: mockup 12 (origem das views). Prefixo ov-. Usa só os tokens do a4.css (nenhum matiz novo). Sem color-mix(): rgba e hex literais. */
+
+/* ---- o grupo novo inteiro leva a marca "+ novo" (c2-novo) */
+.ov-novo{margin:22px 4px 18px;padding:0;display:grid;gap:14px;outline-offset:6px}
+.ov-novo>*{min-width:0}
+.ov-sec{margin:0}
+.ov-sec.ov-card{display:flex;flex-direction:column;gap:0}
+.ov-h{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;margin-bottom:6px}
+.ov-h h2,.ov-card h2{display:flex;align-items:center;gap:0;flex-wrap:wrap}
+.ov-h3{font:600 14px/20px var(--sans);margin:0 0 4px;display:flex;align-items:center;flex-wrap:wrap}
+.ov-sub{margin-top:18px;padding-top:14px;border-top:1px solid var(--border-subtle)}
+.ov-sec .ibtn{margin:-10px 0 -10px -2px}
+
+/* ---- seletor de período */
+.ov-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px}
+.ov-pes{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ov-pl{font-size:13px;color:var(--muted);margin-right:2px}
+.ov-pe{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 13px;border-radius:6px;border:1px solid var(--dim);background:var(--surface);color:var(--text);font:500 13px/1.2 var(--sans);text-decoration:none;white-space:nowrap}
+.ov-pe:hover{background:var(--surface-2)}
+.ov-pe[aria-current="true"]{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text);background:var(--surface-2);font-weight:600}
+.ov-pe svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ov-lem{margin:0;font-size:12.5px;line-height:18px;color:var(--muted)}
+.ov-lem .lk{min-height:24px}
+
+/* ---- frase-resumo (um span só) */
+.ov-fr{display:flex;gap:10px;align-items:flex-start;margin:6px 0 10px;font-size:15px;line-height:23px;max-width:84ch}
+.ov-fr b{font-weight:600}
+.ov-fr>span:last-child{min-width:0;overflow-wrap:anywhere}
+
+/* ---- símbolo + cor por origem. Cor estável, símbolo sempre junto */
+.o-pesq{--c:var(--tier-mid)}.o-sug{--c:var(--tier-high)}.o-nav{--c:var(--tier-top)}.o-sh{--c:var(--lado-n)}.o-ext{--c:var(--lado-b)}.o-out{--c:var(--dim)}
+.ov-own{--c:var(--lado-o)}.i-cheio{--c:var(--lado-o)}.i-vaz{--c:var(--lado-o)}
+:root{--ov-pt:rgba(22,19,15,.32);--ov-sub:rgba(255,130,64,.22);--ov-tint:rgba(255,130,64,.16)}
+:root[data-theme="light"]{--ov-pt:rgba(255,255,255,.38);--ov-sub:rgba(184,72,26,.18);--ov-tint:rgba(184,72,26,.12)}
+.ov-g{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ov-sw{flex:none;width:22px;height:22px;border-radius:5px;display:inline-grid;place-items:center;background:var(--c,transparent);color:var(--on-lado)}
+.ov-sw.g{width:26px;height:26px;border-radius:6px;margin-top:-1px}
+.ov-sw.o-ext,.ov-sg.o-ext{background-image:radial-gradient(circle,var(--ov-pt) 1.3px,transparent 1.7px);background-size:6px 6px}
+.ov-sw.o-out,.ov-sg.o-out{background:repeating-linear-gradient(90deg,var(--dim) 0 2px,var(--surface-2) 2px 5px);color:var(--text)}
+.ov-sw.o-out svg{background:var(--surface-2);border-radius:3px;padding:1px;width:16px;height:16px;color:var(--text)}
+.ov-sw.i-vaz,.ov-sg.i-vaz{background:var(--ov-sub);box-shadow:inset 0 0 0 2px var(--lado-o);color:var(--text)}
+.ov-sw.om,.ov-sg.om{background:transparent;border:2px dashed var(--muted);color:var(--text)}
+.ov-sw.om{width:22px;height:22px}
+.ov-sig{font:600 12px/1 var(--mono);letter-spacing:.02em}
+.ov-sw.g .ov-sig{color:var(--on-lado)}
+.ov-sw.ov-own{background:var(--lado-o)}
+.ov-sw.g.om{width:26px;height:26px}
+
+/* ---- barra empilhada: a coisa memorável */
+.ov-pil{display:flex;gap:2px;height:40px;border-radius:5px;overflow:hidden;min-width:0;margin:2px 0 4px;max-width:760px}
+.ov-pil.ovmn{height:20px;margin:6px 0 2px;max-width:420px}
+.ov-sg{flex:var(--v) 1 0%;min-width:3px;display:grid;place-items:center;background:var(--c);color:var(--on-lado);overflow:hidden;box-sizing:border-box}
+.ov-sg.om{flex:var(--v) 1 0%;border-radius:0}
+.ov-sg.ov-own{background:var(--lado-o)}
+.ov-sg .ov-g{width:15px;height:15px}
+.ov-pil.ovmn .ov-sg .ov-g{width:12px;height:12px}
+
+/* ---- lista-legenda (também é a tabela de números) */
+.ov-lg{list-style:none;margin:8px 0 0;padding:0;display:grid;max-width:760px}
+.ov-r{display:grid;grid-template-columns:22px minmax(0,1fr) auto 52px;gap:0 10px;align-items:center;min-height:38px;padding:3px 0;border-top:1px solid var(--border-subtle);font-size:13.5px}
+.ov-r:first-child{border-top:0}
+.ov-r .ov-n{min-width:0;line-height:18px}
+.ov-r .ov-n small{display:block;font-size:12px;line-height:16px;color:var(--muted)}
+.ov-v{font:500 14px/20px var(--mono);text-align:right}
+.ov-p{font:400 13px/20px var(--mono);text-align:right;color:var(--muted)}
+.ov-r.tot{border-top:1px solid var(--border);margin-top:2px;font-weight:600}
+.ov-r.tot .ov-p{color:var(--text)}
+.ov-vtot{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.ov-vtot b{color:var(--text);font-weight:500}
+
+/* ---- linhas com barra (aparelho, país, termos) */
+.ov-lg2{list-style:none;margin:6px 0 0;padding:0;display:grid}
+.ov-hb{display:grid;grid-template-columns:22px minmax(0,1fr) auto 46px;gap:2px 10px;align-items:center;padding:7px 0 8px;border-top:1px solid var(--border-subtle);font-size:13.5px}
+.ov-hb:first-child{border-top:0}
+.ov-hb .ov-ic{display:grid;place-items:center;color:var(--text);width:22px;height:22px}
+.ov-hb .ov-ic .ov-g{width:17px;height:17px}
+.ov-hb .ov-n{min-width:0;line-height:18px;overflow-wrap:anywhere}
+.ov-tr{grid-column:2/5;height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden;display:block}
+.ov-tr i{display:block;height:100%;background:var(--lado-o);border-radius:4px}
+.ov-tr.om{background:transparent;border:1.5px dashed var(--muted);height:10px}
+.ov-tr.om i{background:var(--muted);opacity:.5}
+.ov-hb.om .ov-n{color:var(--muted)}
+.ov-sig{display:inline-grid;place-items:center;min-width:22px}
+
+/* ---- cobertura: quantos dos dias pedidos foram medidos */
+.ov-cob{margin:2px 0 14px;max-width:760px}
+.ov-cb{margin:0 0 6px;font-size:13px;color:var(--muted)}
+.ov-cb b{color:var(--text);font-weight:500}
+.ov-trk{position:relative;display:flex;gap:2px;height:14px;border-radius:3px}
+.ov-nmseg{display:block;border-radius:3px;border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px);min-width:2px}
+.ov-okseg{display:block;border-radius:3px;background:var(--muted);min-width:3px}
+.ov-quebra{flex:none;font:600 12px/14px var(--mono);color:var(--muted);width:14px;text-align:center}
+.ov-mk{position:absolute;top:-6px;bottom:-4px;width:0;border-left:2px solid var(--text);transform:translateX(-1px)}
+.ov-mk svg{position:absolute;top:-8px;left:-8px;width:14px;height:14px;fill:var(--text);stroke:var(--bg);stroke-width:1.2}
+.ov-ext{display:flex;justify-content:space-between;font:12px/16px var(--mono);color:var(--muted);margin-top:3px}
+.ov-cl{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:2px 16px;font-size:12.5px;line-height:18px;color:var(--muted)}
+.ov-cl li{display:inline-flex;align-items:center;gap:6px}
+.ov-okdot{width:14px;height:8px;border-radius:2px;background:var(--muted);flex:none;display:inline-block}
+.ov-mkl{fill:var(--text);flex:none}
+.ov-cb1{display:flex;align-items:center;gap:7px;margin:8px 0 0;font-size:12.5px;line-height:18px;color:var(--muted)}
+.ov-cob.tudo .ov-trk{height:16px}
+.ov-cob.tudo .ov-ext{margin-top:4px}
+
+/* ---- formas dos estados ausentes (cada uma diferente) */
+.ov-nm{display:grid;gap:10px;margin-top:4px}
+.ov-hach{height:40px;border-radius:5px;border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px);max-width:760px}
+.ov-nm .nml p{font-size:13.5px;line-height:20px;max-width:70ch}
+.ov-zero-w{display:grid;gap:8px;margin-top:4px}
+.ov-zero{height:40px;border:2px solid var(--im-zero);border-radius:5px;display:flex;align-items:center;justify-content:center;max-width:760px;background:transparent}
+.ov-zero b{font:500 16px/1 var(--mono);color:var(--text)}
+.ov-zero.ovmn{height:22px;width:22px;border-width:2px;display:inline-flex;max-width:none;flex:none}
+.ov-zero.ovmn b{font-size:12px}
+.ov-zt{margin:0;font-size:13.5px;line-height:20px;max-width:70ch}
+.ov-vz,.ov-bq,.ov-om-b{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:6px;max-width:760px}
+.ov-vz{border:2px dotted var(--dim)}
+.ov-vz p,.ov-bq p,.ov-om-b p{margin:0;font-size:13.5px;line-height:20px;max-width:70ch}
+.ov-vz-i,.ov-bq-i{flex:none;width:22px;height:22px;display:grid;place-items:center;color:var(--text)}
+.ov-vz-i .ov-g,.ov-bq-i .ov-g{width:18px;height:18px}
+.ov-bq{background:var(--sunk);border:1px solid var(--border-strong)}
+.ov-bq-q{margin-top:6px!important;color:var(--muted)}
+.ov-bq-q b{color:var(--text);font-weight:500}
+.ov-om-b{border:2px dashed var(--muted)}
+.ov-vzs,.ov-bqs{flex:none;width:22px;height:22px;display:grid;place-items:center}
+.ov-vzs{border:2px dotted var(--dim);border-radius:5px}.ov-bqs{background:var(--sunk);border:1px solid var(--border-strong);border-radius:5px}
+.ov-vzs .ov-g,.ov-bqs .ov-g{width:13px;height:13px}
+.nm-h.big{width:22px;height:22px}
+
+/* ---- erro */
+.ov-er{display:flex;gap:12px;padding:14px 16px;border:1px solid var(--danger);border-left-width:4px;border-radius:8px;background:var(--danger-subtle)}
+.ov-er-i{flex:none;color:var(--danger);display:grid;place-items:center;width:24px;height:24px}
+.ov-er-i .ov-g{width:20px;height:20px}
+.ov-er p{margin:0 0 6px;font-size:13.5px;line-height:20px;max-width:72ch}
+.ov-er-t{font-size:15px!important}
+.ov-er-b{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px!important}
+
+/* ---- grade dos três cartões e termos/sites */
+.ov-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+@media (max-width:1180px){.ov-grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.ov-grade{grid-template-columns:minmax(0,1fr)}}
+.ov-dois{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 32px;margin-top:4px}
+@media (max-width:900px){.ov-dois{grid-template-columns:minmax(0,1fr)}}
+.ov-ts{min-width:0}
+.ov-priv{gap:6px;min-height:24px;border-color:var(--dim);color:var(--text)}
+.ov-priv .ov-g{width:13px;height:13px}
+.ov-mes{margin:0 0 6px;align-self:flex-start;border-style:dashed;color:var(--text)}
+.ov-lg2.tm .ov-tm{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:7px 0 8px;border-top:1px solid var(--border-subtle);font-size:13.5px}
+.ov-lg2.tm .ov-tm:first-child{border-top:0}
+.ov-tm .ov-tr{grid-column:1/-1}
+.ov-tm .ov-n{overflow-wrap:anywhere;line-height:18px;min-width:0}
+.ov-tm .ov-n.url{font-family:var(--mono);font-size:12.5px}
+.ov-mini{margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle)}
+.ov-mini>p{margin:0 0 4px;font-size:13px;line-height:19px;color:var(--muted)}
+.ov-mini b{color:var(--text);font-weight:500}
+.ov-mini .ov-pil{height:20px;max-width:480px}
+.ov-mini .ov-pil .ov-g{display:none}
+
+/* ---- o que ainda não é medido (encolhe) */
+.ov-falta{margin:0 4px 14px}
+.ov-fm{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+
+/* ---- cartão "Só o seu canal mede": linhas novas */
+.so .linhas li.ov-nl{position:relative;padding-top:16px}
+.so .linhas li.ov-nl .c2-tag{position:static;margin:0 0 4px;display:inline-flex;vertical-align:middle}
+.so .linhas li.ov-nl .ov-rt{display:block;font-size:13px}
+.so .linhas li.ov-nl .vl{display:block;color:var(--text);font:400 13.5px/20px var(--sans)}
+.so .linhas li.ov-nl .vl small{display:block;margin:0;font-size:12.5px}
+.so .linhas li.ov-nl .vl b{font:500 14px var(--mono)}
+.ov-m-s{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+.ov-bq-m,.ov-vz-m,.ov-nm-m,.ov-zero-m,.ov-om-m{display:flex;align-items:center;gap:8px;font-size:13px;line-height:19px;color:var(--text);min-height:22px}
+.ov-bq-m .ov-g,.ov-vz-m .ov-g,.ov-om-m .ov-g{width:16px;height:16px;flex:none}
+.ov-bq-m{padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--sunk);width:fit-content;max-width:100%}
+.ov-vz-m{padding:5px 10px;border:2px dotted var(--dim);border-radius:6px;width:fit-content;max-width:100%}
+.ov-om-m{padding:5px 10px;border:2px dashed var(--muted);border-radius:6px;width:fit-content;max-width:100%}
+.ov-zero-m b{flex:none;display:inline-grid;place-items:center;min-width:26px;height:22px;border:2px solid var(--im-zero);border-radius:4px;font:500 12px var(--mono);padding:0 4px}
+
+/* ---- referência fora da tela */
+.ov-ref{max-width:620px}
+.fora-h{font:600 13.5px var(--sans);margin:18px 0 6px}
+.fora-h:first-of-type{margin-top:0}
+.fora .tb{max-width:620px}
+.fora .ov-r{grid-template-columns:22px minmax(0,1fr)}
+
+/* ---- 390 px e ponteiro grosso */
+@media (max-width:640px),(pointer:coarse){
+  .ov-pe{min-height:44px}
+  .ov-fr{font-size:14.5px;line-height:22px}
+  .ov-novo{margin-left:2px;margin-right:2px}
+  .ov-r{grid-template-columns:22px minmax(0,1fr) auto 46px;gap:0 8px}
+  .ov-pil{height:44px}
+  .ov-dois{gap:22px}
+  .so .linhas li.ov-nl{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  .ov-h{gap:2px 8px}
+  .ov-lem{width:100%}
+}
+
+.ov-sem{color:var(--muted);font-family:var(--mono)}
+.ov-sw.nmsw{background:transparent;width:26px;height:26px}
+.ov-sw.nmsw .nm-h{width:22px;height:22px}
+.ov-sw.g{display:grid;place-items:center;line-height:1}
+.ov-sw.g .ov-g{width:16px;height:16px}
+.ov-sw.g .ov-sig{display:block;line-height:1;min-width:0}
+
+/* ---- carregando: esqueleto liso (cinza, sem hachura, sem pontilhado) com o contorno da barra e da lista */
+.ov-sk{display:grid;gap:10px;margin-top:4px}
+.ov-sk-t{margin:0;display:flex;align-items:center;gap:8px;font-size:13.5px;line-height:20px;color:var(--text)}
+.ov-sk-i{flex:none;width:22px;height:22px;display:grid;place-items:center;border:1.5px solid var(--dim);border-radius:5px;background:var(--surface-2);color:var(--text)}
+.ov-sk-i .ov-g{width:14px;height:14px}
+.ov-sk-bar{height:40px;max-width:760px;border-radius:5px;border:1.5px solid var(--dim);background:var(--surface-2)}
+.ov-sk-l{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-width:760px}
+.ov-sk-l li{height:14px;display:flex;align-items:center;border-radius:3px;background:var(--surface-2);border:1.5px solid var(--dim)}
+.ov-sk-l li:nth-child(2){width:84%}.ov-sk-l li:nth-child(3){width:62%}
+.ov-sk-bar,.ov-sk-l li{animation:ov-pulso 1.6s ease-in-out infinite}
+@keyframes ov-pulso{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.ov-sk-bar,.ov-sk-l li{animation:none}}
+
+/* r3: erro e carregando nas linhas novas do cartão da comparação (mesma pegada das outras formas pequenas; sem hachura e sem pontilhado) */
+.ov-er-m,.ov-ca-m{display:flex;align-items:center;gap:8px;font-size:13px;line-height:19px;color:var(--text);min-height:22px;padding:5px 10px;border-radius:6px;width:fit-content;max-width:100%}
+.ov-er-m{border:1.5px solid var(--danger);background:var(--danger-subtle)}
+.ov-er-m .ov-g{width:16px;height:16px;flex:none;color:var(--danger)}
+.ov-ca-m{border:1.5px solid var(--dim);background:var(--surface-2)}
+.ov-ca-m .ov-g{width:16px;height:16px;flex:none}

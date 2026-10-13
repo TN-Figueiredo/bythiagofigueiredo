@@ -1,0 +1,981 @@
+[
+ {
+  "nome": "tipico-video",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-video",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-video-tudo",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-video-tudo",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-7",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-7",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-28",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-28",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-90",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-90",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-tudo",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "tipico-canal-tudo",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "extremo-canal",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 238x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "extremo-canal",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 238x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "magro-canal",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 198x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "magro-canal",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 198x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "magro-canal-7",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 198x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "magro-canal-7",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 198x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "zero-video",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "zero-video",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 358x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "zero-video-tudo",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "zero-video-tudo",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 358x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "nao-medido-video",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "nao-medido-video",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "nao-medido-canal",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "nao-medido-canal",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "nao-medido-canal-90",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "nao-medido-canal-90",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "vazio-video",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "vazio-video",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "erro-video",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "erro-video",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "erro-canal",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "erro-canal",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "leitura-sem-termos",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "leitura-sem-termos",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "leitura-so-total",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "leitura-so-total",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "leitura-canal-so-total",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "leitura-canal-so-total",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "carregando-canal",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "carregando-canal",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "revisao-video",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "A 76x20",
+   "H1 920x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "revisao-video",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "revisao-canal",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "H1 144x26",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "revisao-canal",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "H1 144x26"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-tipico",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-tipico",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-extremo",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-extremo",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-magro",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-magro",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-zero",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-zero",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-vazio",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-vazio",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-nao-medido",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-nao-medido",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-erro",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-erro",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-carregando",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-carregando",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-revisao",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-revisao",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-leitura",
+  "w": 1440,
+  "tema": "escuro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [
+   "A 41x20",
+   "ibtn compacto 28x28"
+  ],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "nome": "cartao-leitura",
+  "w": 390,
+  "tema": "claro",
+  "rolagem": 0,
+  "fontes": [],
+  "alvos": [],
+  "erros": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ }
+]

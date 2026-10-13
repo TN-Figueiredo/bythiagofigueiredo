@@ -1,0 +1,193 @@
+/* m14.css: mockup 14, a leitura M10 ("Estourou e parou" / "Muitas views, pouco sinal de que agradou"). Prefixo lm-.
+   Só usa os tokens do lote 1 (a4.css). Sem color-mix(): tudo hex ou rgba literal. Duas cores locais, só para a faixa "bate" das réguas (opacas, neutras, sem matiz). */
+:root{--lm-vale:#6F6659;--lm-vale-b:#6F6659}
+:root[data-theme="light"]{--lm-vale:#8A7D68;--lm-vale-b:#8A7D68}
+
+/* ---------------------------------------------------------------- aviso do topo (só exemplo até 2027) */
+.lm-ban{display:flex;gap:10px;align-items:flex-start;border:2px dotted var(--muted);border-radius:6px;padding:10px 14px;margin:0 0 6px;font-size:13.5px;line-height:20px}
+.lm-ban .i{width:16px;height:16px;flex:none;margin-top:2px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.lm-ban b{font-weight:600}
+.lm-ban small{display:block;font-size:12.5px;line-height:18px;color:var(--muted)}
+.lm-opt{margin:0 0 4px;font-size:12.5px;color:var(--muted)}
+.lm-opt b{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:4px;border:1px solid var(--dim);color:var(--text);font-weight:600;margin-right:6px}
+.lm-dois{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:34px 22px;align-items:start}
+@media (max-width:1100px){.lm-dois{grid-template-columns:minmax(0,1fr)}}
+.lm-dois>div{min-width:0}
+
+/* ---------------------------------------------------------------- o bloco */
+.lm{container-type:inline-size;margin:22px 4px 16px;padding:18px 16px 16px;background:var(--surface);border-radius:6px;display:grid;gap:14px;min-width:0}
+.lm-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0}
+.lm-h h2{font:600 17px/1.3 var(--sans);margin:0;min-width:0}
+.lm-h .ibtn{margin:-10px -6px -10px -4px}
+.lm-ind{display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 9px 0 7px;border:1.5px solid var(--text);border-radius:999px;font:500 12px/16px var(--sans);color:var(--text);white-space:nowrap}
+.lm-ind svg{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* as três casas: o desenho que se repete no bloco e na lista */
+.lm-casas{display:inline-flex;gap:4px;flex:none;vertical-align:middle}
+.lm-cs{width:22px;height:22px;border-radius:5px;display:inline-grid;place-items:center;font:600 13px/1 var(--mono);flex:none}
+.lm-cs.v{background:var(--text);color:var(--bg)}
+.lm-cs.v::after{content:"\2713"}
+.lm-cs.n{border:2px solid var(--muted);color:var(--text)}
+.lm-cs.n::after{content:"\2715"}
+.lm-cs.m{border:1px solid var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 5px,var(--nm-fio) 5px 7px)}
+.lm-cs.m::after{content:"\2013"}
+.lm-cs.p{border:2px dotted var(--muted)}
+.lm-cs.sm{width:16px;height:16px;border-radius:4px;font-size:11px}
+.lm-cs.sm.n,.lm-cs.sm.p{border-width:1.5px}
+
+.lm-fr{display:flex;gap:12px;align-items:flex-start;margin:0;font-size:15px;line-height:23px}
+.lm-fr .lm-casas{margin-top:1px}
+.lm-fr b{font-weight:600}
+.lm-fr .ex{margin-left:6px;vertical-align:1px}
+
+/* os três cartões */
+.lm-cards{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+@container (min-width:860px){.lm-cards{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(7,auto);row-gap:0}
+  .lm-c{grid-row:span 6;grid-template-rows:subgrid;row-gap:10px;align-self:start}
+  .lm-c:nth-child(2){grid-row:span 7}}
+.lm-c{display:grid;gap:10px;align-content:start;padding:12px 14px 14px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);min-width:0}
+.lm-ch{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 10px}
+.lm-tt{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
+.lm-ch h3{font:600 14px/20px var(--sans);margin:0}
+.lm-st{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 9px;border-radius:5px;font:600 12.5px/16px var(--sans);white-space:nowrap}
+.lm-st.sm{min-height:22px;padding:0 7px;font-size:12px}
+.lm-rz.com-selo{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 8px}
+.lm-sb{font:500 12.5px/16px var(--sans);color:var(--muted)}
+.lm-rot{font-weight:400;color:var(--muted)}
+.lm-st.v{background:var(--text);color:var(--bg)}
+.lm-st.n{border:2px solid var(--muted);color:var(--text)}
+.lm-st.m{border:1px solid var(--nm-line);color:var(--nm);font-weight:400;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.lm-n{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;min-height:34px}
+.lm-n b{font:600 24px/1.2 var(--mono);letter-spacing:-.01em}
+.lm-n .u{font-size:13px;line-height:18px;color:var(--muted)}
+.lm-z{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 4px;border:2px solid var(--im-zero);border-radius:5px;font:600 20px/1 var(--mono);color:var(--text)}
+.lm-rz{margin:0;font-size:13px;line-height:19px;color:var(--muted)}
+.lm-rz b{color:var(--text);font-weight:600}
+.lm-vl{margin:0;font-size:13px;line-height:19px}
+.lm-vl b{font-weight:600}
+.lm-sub{display:grid;gap:8px;padding-top:10px;border-top:1px dashed var(--border-strong)}
+.lm-sub .lm-tt{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
+.lm-ch h3{font-size:13.5px}
+.lm-e{margin:0;font:600 12.5px/16px var(--sans);color:var(--muted)}
+
+/* a régua: trilho, faixa que vale, limite, normal do canal, este vídeo */
+.lm-reg{padding:8px 10px 0}
+.lm-trk{position:relative;height:26px;border-radius:4px;background:var(--sunk);border:1px solid var(--dim)}
+.lm-vale{position:absolute;top:0;bottom:0;background:var(--lm-vale)}
+.lm-lim{position:absolute;top:-4px;bottom:-4px;width:0;border-left:3px dashed var(--text);margin-left:-1px}
+.lm-nor{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--muted);margin-left:-1px}
+.lm-mk{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--lado-b);border:2px solid var(--text)}
+.lm-mk.clip{margin-left:-14px;border:0;border-radius:0;clip-path:polygon(0 0,100% 50%,0 100%)}
+.lm-mk.zero{background:var(--sunk);border:2px solid var(--im-zero);border-radius:3px}
+.lm-key{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr) minmax(0,1.3fr);gap:4px 8px;margin:10px 0 0;padding:0;list-style:none;font-size:12px;line-height:16px}
+.lm-key.dois{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lm-key li{display:grid;grid-template-columns:14px minmax(0,1fr);column-gap:6px;align-items:start;min-width:0}
+.lm-key .g{position:relative;height:16px;width:14px}
+.lm-key .g.mk::before{content:"";position:absolute;left:1px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--lado-b)}
+.lm-key .g.lim::before{content:"";position:absolute;left:5px;top:0;bottom:0;border-left:3px dashed var(--text)}
+.lm-key .g.nor::before{content:"";position:absolute;left:6px;top:0;bottom:0;border-left:2px solid var(--muted)}
+.lm-key .k{color:var(--muted)}
+.lm-key .vv{grid-column:2;font:500 12.5px/16px var(--mono);color:var(--text);overflow-wrap:anywhere}
+
+/* texto obrigatório: no corpo, frase por frase, com a forma de cada tipo de afirmação */
+.lm-txt{border:1.5px solid var(--text);border-radius:8px;padding:12px 14px 6px;background:var(--sunk);display:grid;gap:8px}
+.lm-txt-t{margin:0;font:600 15px/22px var(--sans)}
+.lm-txt ul{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.lm-txt li{display:grid;grid-template-columns:22px minmax(0,1fr);column-gap:10px;row-gap:2px;padding:8px 0;border-top:1px solid var(--border);align-items:start}
+.lm-txt li .si{grid-row:1/3;width:22px;height:22px;fill:none;stroke:var(--text);stroke-width:1.6;stroke-linecap:round;margin-top:1px}
+.lm-txt .k{font:600 12.5px/17px var(--sans);color:var(--muted)}
+.lm-txt .f{font-size:14px;line-height:21px;max-width:78ch;margin:0}
+@container (min-width:760px){
+  .lm-txt li{grid-template-columns:22px 190px minmax(0,1fr)}
+  .lm-txt li .si{grid-row:auto}
+  .lm-txt .k{padding-top:2px}
+}
+
+/* não medido: motivo, o que falta e quando passa a existir */
+.lm-nmp{display:grid;gap:12px;padding:14px 16px;border:1px solid var(--nm-line);border-radius:8px;background:var(--nm-fio)}
+.lm-nmp .t{margin:0;font:600 14.5px/21px var(--sans)}
+.lm-nmp .q{margin:0;font-size:13.5px;line-height:20px;color:var(--muted)}
+.lm-nmp .q b{color:var(--text);font-weight:600}
+.lm-falta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lm-bar{position:relative;flex:1 1 220px;max-width:420px;height:16px;border-radius:4px;border:1.5px dotted var(--muted)}
+.lm-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px 0 0 3px;background:var(--text)}
+.lm-bolas{display:inline-flex;gap:5px}
+.lm-bolas i{width:22px;height:22px;border-radius:50%}
+.lm-bolas i.on{background:var(--text)}
+.lm-bolas i.off{border:2px dotted var(--muted)}
+
+/* sem dado: a leitura ainda não existe (contorno pontilhado, nunca hachura) */
+.lm-sd{display:grid;gap:12px;padding:14px 16px;border:2px dotted var(--muted);border-radius:8px}
+.lm-sd .t{margin:0;font:600 14.5px/21px var(--sans)}
+.lm-tl{position:relative;height:56px;margin:4px 8px 0}
+.lm-tl .trk{position:absolute;left:0;right:0;top:12px;height:0;border-top:2px dotted var(--muted)}
+.lm-tl .m{position:absolute;top:2px;width:0;height:22px;border-left:2px solid var(--text)}
+.lm-tl .m.ex2{border-left-style:dashed}
+.lm-tl .l{position:absolute;top:30px;font-size:12.5px;line-height:16px;white-space:nowrap}
+.lm-tl .l.r{transform:translateX(-100%);text-align:right}
+.lm-tl .l.c{transform:translateX(-50%)}
+
+/* erro e carregando */
+.lm-err{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;padding:12px 14px;border:1.5px solid var(--danger);border-radius:8px;background:var(--danger-subtle)}
+.lm-err .i{width:18px;height:18px;flex:none;color:var(--danger);stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-top:2px}
+.lm-err .tx{flex:1 1 260px;min-width:0;display:grid;gap:2px;font-size:14px;line-height:21px}
+.lm-err .tx b{font-weight:600}
+.lm-err .tx span{color:var(--muted);font-size:13px;line-height:19px}
+.lm-sk{display:grid;gap:10px}
+.lm-sk > i{display:block;height:92px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2)}
+.lm-sk .lm-fr{align-items:center}
+
+/* ---------------------------------------------------------------- hospedeiro: Histórico do vídeo */
+.lm-viz{margin:14px 4px 0;border:1px dashed var(--border-strong);border-radius:6px;padding:20px 14px;color:var(--muted);font-size:13px;text-align:center}
+.lm-host-h{margin:0 0 2px}
+.lm-vh .l2 .chip{color:var(--text)}
+
+/* ---------------------------------------------------------------- hospedeiro: Outliers */
+.lm-fil{display:flex;flex-wrap:wrap;gap:6px 8px;margin:0 0 12px;font-size:13px;color:var(--muted)}
+.lm-fil span{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border:1px solid var(--border);border-radius:6px}
+.lm-seg{display:flex;flex-wrap:wrap;gap:8px}
+.lm-f{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--dim);border-radius:7px;background:var(--surface);color:var(--text);text-decoration:none;font:500 13px/1.2 var(--sans)}
+.lm-f:hover{background:var(--surface-2)}
+.lm-f[aria-current="true"]{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text);background:var(--surface-2)}
+.lm-f .num{font:600 13px var(--mono)}
+.lm-f .lm-z{min-width:24px;height:22px;font-size:13px;border-width:2px}
+.lm-cob{display:flex;height:22px;border-radius:5px;overflow:hidden;border:1px solid var(--dim);gap:0;background:var(--sunk)}
+.lm-cob i{display:block;height:100%;min-width:0}
+.lm-cob .p{background:var(--text)}
+.lm-cob .n{background:var(--surface);border-left:2px solid var(--muted);border-right:2px solid var(--muted)}
+.lm-cob .m{background:repeating-linear-gradient(135deg,var(--nm) 0 3px,var(--nm-bg) 3px 6px)}
+.lm-lista{list-style:none;margin:0;padding:0;border-top:1px solid var(--border)}
+.lm-li{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px 12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)}
+.lm-li .lt{display:grid;gap:2px;min-width:0}
+.lm-li .lt b{font:500 14px/20px var(--sans);overflow-wrap:anywhere}
+.lm-li .lc{font-size:12.5px;line-height:18px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center}
+.lm-li .lm-x{grid-column:2;display:flex;align-items:baseline;gap:6px;font-size:12.5px;color:var(--muted)}
+.lm-li .lm-x b{font:600 14px var(--mono);color:var(--text)}
+.lm-li .ll{grid-column:1/3;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-width:0}
+.lm-li .ll .tx{display:grid;gap:2px;min-width:0;font-size:13px;line-height:18px}
+.lm-li .ll .tx a{color:var(--text);font-weight:600;text-underline-offset:2px;display:inline-flex;align-items:center;min-height:44px}
+.lm-li .ll .mu{color:var(--muted);font-size:12.5px}
+@container (min-width:760px){
+  .lm-li{grid-template-columns:64px minmax(0,1fr) 150px 330px}
+  .lm-li .lm-x{grid-column:auto;flex-direction:column;align-items:flex-start;gap:0}
+  .lm-li .ll{grid-column:auto}
+}
+.lm-sepl{margin:8px 0 0;font-size:12.5px;line-height:18px;color:var(--muted)}
+.lm-vazio{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2)}
+.lm-vazio .tx{flex:1 1 260px;display:grid;gap:4px;font-size:14px;line-height:21px}
+.lm-vazio .tx span{color:var(--muted);font-size:13px;line-height:19px}
+
+/* toque: 44 x 44 */
+@media (max-width:640px),(pointer:coarse){
+  .lm-f{min-height:44px}
+  .lm-li .ll .tx a{min-height:44px}
+  .lm-tt{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
+.lm-ch h3{font-size:14.5px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* migalha com nome curto (Leo, Lodir) ficava com menos de 44 px de largura no toque */
+@media (max-width:900px),(pointer:coarse){.crumbs a{min-width:44px;justify-content:center}}
+
+/* texto obrigatório no Outliers: a linha que diz a que vídeos ele se refere */
+.lm-ant{margin:0;font-size:13.5px;line-height:20px;color:var(--muted)}
+.lm-ant b{color:var(--text);font-weight:600}

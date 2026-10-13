@@ -1,0 +1,4322 @@
+{
+ "tipico|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    234,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    173,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    97,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    88,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    86,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    89,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    99,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   121
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   400
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 92
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 363,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    234,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    173,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    97,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    88,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    86,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    89,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    99,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   121
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   400
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 92
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 363,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "completo|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    234,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    173,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    97,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    88,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    86,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    89,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    99,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   121
+  ],
+  "bar": [
+   {
+    "t": "▲4subindo",
+    "w": 186,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 233,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 233,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "1não medido",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 4 subindo, 5 descendo (1 em queda sustentada).",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "completo|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   357,
+   400
+  ],
+  "bar": [
+   {
+    "t": "▲4subindo",
+    "w": 70,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 88,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 88,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "1não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 4 subindo, 5 descendo (1 em queda sustentada).",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "completo|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    234,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    173,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    97,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    88,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    86,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    89,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    99,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   121
+  ],
+  "bar": [
+   {
+    "t": "▲4subindo",
+    "w": 186,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 233,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 233,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "1não medido",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 4 subindo, 5 descendo (1 em queda sustentada).",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "completo|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   357,
+   400
+  ],
+  "bar": [
+   {
+    "t": "▲4subindo",
+    "w": 70,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 88,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 88,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "1não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 4 subindo, 5 descendo (1 em queda sustentada).",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "extremo|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    194,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    159,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    92,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    91,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    91,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    71,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    84,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    240,
+    89
+   ],
+   [
+    "Com o meu canal",
+    70,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   97,
+   143
+  ],
+  "bar": [
+   {
+    "t": "▲0subindo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 217,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼7descendo",
+    "w": 304,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 130,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "4 canais parados, 7 descendo (3 em queda sustentada), nenhum subindo. 1 canal saiu do YouTube em 04/12. 1 canal em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "extremo|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   357,
+   495
+  ],
+  "bar": [
+   {
+    "t": "▲0subindo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 76,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼7descendo",
+    "w": 106,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "4 canais parados, 7 descendo (3 em queda sustentada), nenhum subindo. 1 canal saiu do YouTube em 04/12. 1 canal em erro.",
+   "h": 92
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 407,
+  "barH": 363,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "extremo|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    194,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    159,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    92,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    91,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    91,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    71,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    84,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    240,
+    89
+   ],
+   [
+    "Com o meu canal",
+    70,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   97,
+   143
+  ],
+  "bar": [
+   {
+    "t": "▲0subindo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 217,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼7descendo",
+    "w": 304,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 130,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "4 canais parados, 7 descendo (3 em queda sustentada), nenhum subindo. 1 canal saiu do YouTube em 04/12. 1 canal em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "extremo|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   357,
+   495
+  ],
+  "bar": [
+   {
+    "t": "▲0subindo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "＝5sem mudança",
+    "w": 76,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼7descendo",
+    "w": 106,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "4 canais parados, 7 descendo (3 em queda sustentada), nenhum subindo. 1 canal saiu do YouTube em 04/12. 1 canal em erro.",
+   "h": 92
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 407,
+  "barH": 363,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    208,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    176,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    99,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    92,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    91,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    93,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    106,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   105
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 325,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 243,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "1não medido",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   357,
+   360
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 104,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 78,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "1não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    208,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    176,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    99,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    92,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    91,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    93,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    106,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   105
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 325,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 243,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "1não medido",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   357,
+   360
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 104,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 78,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "1não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "magro|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    234,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    173,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    97,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    88,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    86,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    89,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    99,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   121
+  ],
+  "bar": [
+   {
+    "t": "▲3subindo",
+    "w": 122,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝1sem mudança",
+    "w": 84,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "11não medidofecham de 17/10 a ",
+    "w": 446,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados. Direção medida em 4 de 15 canais. Em queda sustentada: só a partir de 14/12.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 185,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "magro|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   382
+  ],
+  "bar": [
+   {
+    "t": "▲3subindo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝1sem mudança",
+    "w": 64,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "11não medidofecham de 17/10 a ",
+    "w": 118,
+    "h": 93,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados. Direção medida em 4 de 15 canais. Em queda sustentada: só a partir de 14/12.",
+   "h": 69
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 356,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "magro|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    234,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    173,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    97,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    88,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    86,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    89,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    88,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    140,
+    89
+   ],
+   [
+    "Com o meu canal",
+    99,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   121
+  ],
+  "bar": [
+   {
+    "t": "▲3subindo",
+    "w": 122,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝1sem mudança",
+    "w": 84,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "11não medidofecham de 17/10 a ",
+    "w": 446,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados. Direção medida em 4 de 15 canais. Em queda sustentada: só a partir de 14/12.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 185,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "magro|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   382
+  ],
+  "bar": [
+   {
+    "t": "▲3subindo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝1sem mudança",
+    "w": 64,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "11não medidofecham de 17/10 a ",
+    "w": 118,
+    "h": 93,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados. Direção medida em 4 de 15 canais. Em queda sustentada: só a partir de 14/12.",
+   "h": 69
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 356,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "erro|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    207,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    164,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    90,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    75,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    68,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    77,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    86,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    246,
+    89
+   ],
+   [
+    "Com o meu canal",
+    79,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   143
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "erro|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   495
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 115
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 407,
+  "barH": 386,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "erro|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    207,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    164,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    90,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    75,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    68,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    77,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    86,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    246,
+    89
+   ],
+   [
+    "Com o meu canal",
+    79,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   143
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "erro|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   495
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 115
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 407,
+  "barH": 386,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "fora|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    229,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    171,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    96,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    86,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    83,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    87,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    87,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    157,
+    89
+   ],
+   [
+    "Com o meu canal",
+    96,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   137
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝3sem mudança",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "4não medido",
+    "w": 196,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 1 canal saiu do YouTube em 04/10.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "fora|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   400
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝3sem mudança",
+    "w": 64,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "4não medido",
+    "w": 81,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 1 canal saiu do YouTube em 04/10.",
+   "h": 115
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 387,
+  "barH": 386,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "fora|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    229,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    171,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    96,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    86,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    83,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    87,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    87,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    157,
+    89
+   ],
+   [
+    "Com o meu canal",
+    96,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   137
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝3sem mudança",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "4não medido",
+    "w": 196,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 1 canal saiu do YouTube em 04/10.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "fora|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   400
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝3sem mudança",
+    "w": 64,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "4não medido",
+    "w": 81,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 1 canal saiu do YouTube em 04/10.",
+   "h": 115
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 387,
+  "barH": 386,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "leitura|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    207,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    164,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    90,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    75,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    68,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    77,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    86,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    246,
+    89
+   ],
+   [
+    "Com o meu canal",
+    79,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   151
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 465,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "leitura|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   483
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 115
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 458,
+  "barH": 386,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "leitura|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    33,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    207,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    164,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    90,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    75,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    68,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    77,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    86,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    246,
+    89
+   ],
+   [
+    "Com o meu canal",
+    79,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   86,
+   151
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 465,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "leitura|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   483
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12. 2 canais em erro.",
+   "h": 115
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 511,
+  "barH": 386,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "muitos-nicho-IA|1440|escuro": {
+  "cols": [
+   [
+    "Posição",
+    35,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    212,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    143,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    91,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    78,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    71,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    79,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    86,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    249,
+    89
+   ],
+   [
+    "Com o meu canal",
+    83,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   85,
+   143
+  ],
+  "bar": [
+   {
+    "t": "▲7subindo",
+    "w": 303,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝2sem mudança",
+    "w": 87,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 216,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 130,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "Em IA: 1 canal parado, 7 subindo, 5 descendo. 1 canal em erro.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 17 canais. Cada casa filtra a lista."
+  ]
+ },
+ "muitos-nicho-IA|390|claro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   477
+  ],
+  "bar": [
+   {
+    "t": "▲7subindo",
+    "w": 106,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝2sem mudança",
+    "w": 64,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 76,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "Em IA: 1 canal parado, 7 subindo, 5 descendo. 1 canal em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 407,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 17 canais. Cada casa filtra a lista."
+  ]
+ },
+ "muitos-nicho-IA|1440|claro": {
+  "cols": [
+   [
+    "Posição",
+    35,
+    89
+   ],
+   [
+    "Canalnicho, inscri",
+    212,
+    89
+   ],
+   [
+    "+ novoDireção view",
+    143,
+    89
+   ],
+   [
+    "Ritmouploads por s",
+    91,
+    89
+   ],
+   [
+    "Views/dia ▼mediana",
+    78,
+    89
+   ],
+   [
+    "Outliers2× ou mais",
+    71,
+    89
+   ],
+   [
+    "Trocastítulo e thu",
+    79,
+    89
+   ],
+   [
+    "Crescimentoinscrit",
+    86,
+    89
+   ],
+   [
+    "Sincronizaçãoe víd",
+    249,
+    89
+   ],
+   [
+    "Com o meu canal",
+    83,
+    89
+   ],
+   [
+    "Ações",
+    48,
+    89
+   ]
+  ],
+  "rows": [
+   85,
+   143
+  ],
+  "bar": [
+   {
+    "t": "▲7subindo",
+    "w": 303,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝2sem mudança",
+    "w": 87,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 216,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 130,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "Em IA: 1 canal parado, 7 subindo, 5 descendo. 1 canal em erro.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 17 canais. Cada casa filtra a lista."
+  ]
+ },
+ "muitos-nicho-IA|390|escuro": {
+  "cols": [
+   [
+    "Posição",
+    0,
+    0
+   ],
+   [
+    "Canalnicho, inscri",
+    0,
+    0
+   ],
+   [
+    "+ novoDireção view",
+    0,
+    0
+   ],
+   [
+    "Ritmouploads por s",
+    0,
+    0
+   ],
+   [
+    "Views/dia ▼mediana",
+    0,
+    0
+   ],
+   [
+    "Outliers2× ou mais",
+    0,
+    0
+   ],
+   [
+    "Trocastítulo e thu",
+    0,
+    0
+   ],
+   [
+    "Crescimentoinscrit",
+    0,
+    0
+   ],
+   [
+    "Sincronizaçãoe víd",
+    0,
+    0
+   ],
+   [
+    "Com o meu canal",
+    0,
+    0
+   ],
+   [
+    "Ações",
+    0,
+    0
+   ]
+  ],
+  "rows": [
+   342,
+   477
+  ],
+  "bar": [
+   {
+    "t": "▲7subindo",
+    "w": 106,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝2sem mudança",
+    "w": 64,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼5descendo",
+    "w": 76,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "Em IA: 1 canal parado, 7 subindo, 5 descendo. 1 canal em erro.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 407,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 17 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico-filtro-queda|1440|escuro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico-filtro-queda|390|claro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 92
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 370,
+  "barH": 363,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico-filtro-queda|1440|claro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 245,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 196,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 147,
+    "h": 61,
+    "bg": "rgb(138, 90, 0)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "3não medido",
+    "w": 147,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 403,
+  "barH": 191,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "tipico-filtro-queda|390|escuro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲5subindo",
+    "w": 101,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝4sem mudança",
+    "w": 81,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼3descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgb(245, 158, 11)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "3não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "2 canais parados, 5 subindo, 3 descendo. Em queda sustentada (3 períodos de 28 dias seguidos) só dá para medir a partir de 14/12.",
+   "h": 92
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 370,
+  "barH": 363,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero-filtro-parados|1440|escuro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 325,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 243,
+    "h": 61,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "1não medido",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero-filtro-parados|390|claro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 104,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 78,
+    "h": 77,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "1não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 370,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero-filtro-parados|1440|claro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 325,
+    "h": 61,
+    "bg": "rgb(17, 105, 47)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 243,
+    "h": 61,
+    "bg": "rgb(94, 82, 64)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(91, 111, 134)"
+   },
+   {
+    "t": "1não medido",
+    "w": 84,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(142, 42, 98)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 403,
+  "barH": 169,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "zero-filtro-parados|390|escuro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "▲8subindo",
+    "w": 104,
+    "h": 61,
+    "bg": "rgb(34, 197, 94)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "＝6sem mudança",
+    "w": 78,
+    "h": 77,
+    "bg": "rgb(168, 157, 136)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "▼0descendo",
+    "w": 64,
+    "h": 61,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(122, 143, 166)"
+   },
+   {
+    "t": "1não medido",
+    "w": 64,
+    "h": 77,
+    "bg": "rgba(0, 0, 0, 0)",
+    "fg": "rgb(229, 156, 192)"
+   }
+  ],
+  "fr": {
+   "t": "Nenhum canal parado, descendo ou em queda sustentada; 8 subindo.",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": null,
+  "barTop": 370,
+  "barH": 317,
+  "aria": [
+   "Canais por direção, de 15 canais. Cada casa filtra a lista."
+  ]
+ },
+ "carregando|1440|escuro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   }
+  ],
+  "fr": {
+   "t": "Contando os canais e lendo a direção de cada um…",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 101,
+  "aria": [
+   null
+  ]
+ },
+ "carregando|390|claro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   }
+  ],
+  "fr": {
+   "t": "Contando os canais e lendo a direção de cada um…",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 124,
+  "aria": [
+   null
+  ]
+ },
+ "carregando|1440|claro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   },
+   {
+    "t": "",
+    "w": 184,
+    "h": 40,
+    "bg": "rgb(201, 187, 163)",
+    "fg": "rgb(255, 255, 255)"
+   }
+  ],
+  "fr": {
+   "t": "Contando os canais e lendo a direção de cada um…",
+   "h": 23
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 403,
+  "barH": 101,
+  "aria": [
+   null
+  ]
+ },
+ "carregando|390|escuro": {
+  "cols": [],
+  "rows": [
+   null,
+   null
+  ],
+  "bar": [
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   },
+   {
+    "t": "",
+    "w": 78,
+    "h": 40,
+    "bg": "rgb(64, 56, 45)",
+    "fg": "rgb(22, 19, 15)"
+   }
+  ],
+  "fr": {
+   "t": "Contando os canais e lendo a direção de cada um…",
+   "h": 46
+  },
+  "scrollPage": 0,
+  "scrollTw": 0,
+  "barTop": 370,
+  "barH": 124,
+  "aria": [
+   null
+  ]
+ }
+}
