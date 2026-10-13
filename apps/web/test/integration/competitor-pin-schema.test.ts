@@ -53,7 +53,7 @@ describe.skipIf(skipIfNoLocalDb())('fixar vídeo: schema e contagem (banco local
   it('a função conta vídeos, fixados, versões e dias distintos de registro; sem troca salva, bookmarks é zero', async () => {
     const { data, error } = await sb.rpc('competitor_channel_removal_impact', { p_site_id: siteId, p_channel_id: chId })
     expect(error).toBeNull()
-    expect(data).toEqual({ status: 'ok', name: 'Canal Schema', videos: 3, pinned: 1, versions: 4, daily_days: 2, bookmarks: 0, field_versions: 0, raw: 0, early: 0, tier_spans: 0 })
+    expect(data).toEqual({ status: 'ok', name: 'Canal Schema', videos: 3, pinned: 1, versions: 4, daily_days: 2, bookmarks: 0, field_versions: 0, raw: 0, early: 0, tier_spans: 0, hourly: 0, hour_map: 0, hour_fold_log: 0 }) // as três últimas vieram com a MG9 (leitura horária)
   })
 
   it('trocas salvas do canal entram na conta; as não salvas não', async () => {

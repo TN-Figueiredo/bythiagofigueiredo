@@ -14,7 +14,11 @@
  * send-scheduled-newsletters — e o próprio cron-watchdog.
  */
 import { describe, it, expect } from 'vitest'
-import { evaluateCron, buildCronHealthReport, type ICronHealthRow } from '@/lib/ops/cron-health-report'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { evaluateCron, buildCronHealthReport, groupCronSchedules, aggregateStatus, type ICronHealthRow, type ICronHealthItem } from '@/lib/ops/cron-health-report'
+import vercelConfig from '../../../vercel.json'
+import type { ItemAgenda } from '@/lib/youtube/agenda/saude'
 
 // Fixo e em UTC: a avaliação é toda em UTC e a virada de hora muda quais
 // ocorrências existem, então uma fixture relativa tornaria o teste instável.
@@ -107,5 +111,89 @@ describe('agregado', () => {
       AGORA,
     )
     expect(critical.status).toBe('down')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// A5 E16, Tarefa 11: a segunda fonte (a agenda). Só aditiva.
+// ---------------------------------------------------------------------------
+describe('agenda como segunda fonte do relatório', () => {
+  const item = (nome: string, status: ItemAgenda['status'], motivo?: string): ItemAgenda => ({
+    nome, status, ultimoOk: null, toleranciaH: 2, ...(motivo ? { motivo } : {}),
+  })
+  // Todos os crons do vercel.json em dia: o retrato base de "tudo verde".
+  const TODOS_EM_DIA = Array.from(groupCronSchedules(vercelConfig.crons).keys()).map(n => linha({ cron_name: n }))
+
+  it('sem o parâmetro da agenda o relatório é o de hoje', () => {
+    const antigo = buildCronHealthReport(TODOS_EM_DIA, AGORA)
+    const vazio = buildCronHealthReport(TODOS_EM_DIA, AGORA, [])
+    const indefinido = buildCronHealthReport(TODOS_EM_DIA, AGORA, undefined)
+    expect(vazio).toEqual(antigo)
+    expect(indefinido).toEqual(antigo)
+    expect(antigo.crons).toHaveLength(groupCronSchedules(vercelConfig.crons).size)
+    expect(antigo.crons.some(c => c.name.startsWith('agenda:'))).toBe(false)
+    expect(antigo.status).toBe('ok')
+    expect(antigo.lateNames).toEqual([])
+    expect(antigo.unknownNames).toEqual([])
+    expect(antigo.disabledNames).toEqual([])
+  })
+
+  it('cada item entra como agenda:<nome>, sem schedules, severidade info; late vira degraded', () => {
+    const r = buildCronHealthReport(TODOS_EM_DIA, AGORA, [item('leitura_horaria', 'late', 'x'), item('serie_semanal', 'ok')])
+    const c = r.crons.find(x => x.name === 'agenda:leitura_horaria')
+    expect(c).toMatchObject({ name: 'agenda:leitura_horaria', status: 'late', schedules: [], severity: 'info', motivo: 'x' })
+    expect(r.crons.find(x => x.name === 'agenda:serie_semanal')?.status).toBe('ok')
+    expect(r.status).toBe('degraded')
+    expect(r.lateNames).toEqual(['agenda:leitura_horaria'])
+  })
+
+  it('unknown vai a unknownNames e não aciona alarme', () => {
+    const r = buildCronHealthReport(TODOS_EM_DIA, AGORA, [item('leitura_horaria', 'unknown', 'sem leitura')])
+    expect(r.status).toBe('ok')
+    expect(r.unknownNames).toEqual(['agenda:leitura_horaria'])
+    expect(r.unknownCount).toBe(1)
+  })
+
+  it('tarefa desligada não muda o status agregado (S-I8)', () => {
+    const uma = buildCronHealthReport(TODOS_EM_DIA, AGORA, [item('leitura_horaria', 'desligada', 'agenda off'), item('serie_semanal', 'ok')])
+    expect(uma.status).toBe('ok')
+    const tres = buildCronHealthReport(TODOS_EM_DIA, AGORA, ['leitura_horaria', 'sincronizar_canais', 'serie_semanal'].map(n => item(n, 'desligada', 'agenda off')))
+    expect(tres.status).toBe('ok')
+    expect(tres.disabledNames).toEqual(['agenda:leitura_horaria', 'agenda:sincronizar_canais', 'agenda:serie_semanal'])
+    expect(tres.lateNames).toEqual([])
+    expect(tres.unknownNames).toEqual([])
+  })
+
+  it('tarefa desligada não esconde uma atrasada (S-I8)', () => {
+    const r = buildCronHealthReport(TODOS_EM_DIA, AGORA, [item('leitura_horaria', 'desligada', 'agenda off'), item('serie_semanal', 'late')])
+    expect(r.status).toBe('degraded')
+    expect(r.lateNames).toEqual(['agenda:serie_semanal'])
+    expect(r.disabledNames).toEqual(['agenda:leitura_horaria'])
+  })
+
+  it('aggregateStatus ignora desligada, e o cron de verdade atrasado continua valendo', () => {
+    const base = (name: string, status: ICronHealthItem['status'], severity = 'info'): ICronHealthItem => ({
+      name, status, schedules: [], severity, lastSuccessAt: null, lastFailureAt: null, lastError: null,
+      consecutiveFailures: null, expectedLastRun: null, graceMinutes: null,
+    })
+    expect(aggregateStatus([base('a', 'desligada'), base('b', 'ok')])).toBe('ok')
+    expect(aggregateStatus([base('a', 'desligada'), base('b', 'late', 'critical')])).toBe('down')
+  })
+
+  it('a agenda não toca nos crons que não são dela', () => {
+    const sem = buildCronHealthReport([{ ...PARADO_HA_30_DIAS, cron_name: 'publish-scheduled' }], AGORA)
+    const com = buildCronHealthReport([{ ...PARADO_HA_30_DIAS, cron_name: 'publish-scheduled' }], AGORA, [item('leitura_horaria', 'ok')])
+    expect(com.crons.filter(c => !c.name.startsWith('agenda:'))).toEqual(sem.crons)
+    expect(com.lateNames).toEqual(sem.lateNames)
+    expect(com.status).toBe(sem.status)
+  })
+})
+
+describe('o vigia carrega a leitura da agenda por import estático', () => {
+  it('sem import() dinâmico: se o módulo não carregar o build quebra (barulho), nunca um item "unknown" em silêncio', () => {
+    const fonte = readFileSync(resolve(__dirname, '../../../src/lib/ops/cron-health-report.ts'), 'utf8')
+    expect(fonte).not.toMatch(/import\s*\(/)
+    expect(fonte).toMatch(/^import \{[^}]*lerAgendaDoVigia[^}]*\} from '@\/lib\/youtube\/agenda\/saude'/m)
+    expect(fonte).not.toContain('leitura_da_agenda')
   })
 })

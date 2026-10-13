@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
 import { createFakeNextCache, type FakeNextCache } from '../../helpers/fake-next-cache'
 import { buildTables, ids, spDate, heavyTrips } from './load-fixture'
-import { loadChannelLiveRows } from '@/lib/youtube/observatorio/load'
+import { loadChannelLiveRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -18,7 +18,7 @@ function merged(...sets: Array<Record<string, Row[]>>): Record<string, Row[]> {
   for (const s of sets) for (const [k, v] of Object.entries(s)) out[k] = [...(out[k] ?? []), ...v]
   return out
 }
-async function setup(tables: Record<string, Row[]>, o: { failOn?: string; budget?: number } = {}) {
+async function setup(tables: Record<string, Row[]>, o: { failOn?: string; budget?: number; forceOmit?: boolean } = {}) {
   vi.resetModules()
   captureMessage.mockClear()
   const cache: FakeNextCache = createFakeNextCache(), db = fakeSupabase(tables, { failOn: o.failOn })
@@ -26,6 +26,11 @@ async function setup(tables: Record<string, Row[]>, o: { failOn?: string; budget
   vi.doMock('@sentry/nextjs', () => ({ captureMessage }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => db.client }))
   if (o.budget != null) vi.doMock('@/lib/youtube/observatorio/pack', async () => ({ ...(await vi.importActual<typeof import('@/lib/youtube/observatorio/pack')>('@/lib/youtube/observatorio/pack')), PACK_BUDGET: o.budget }))
+  // forceOmit: the budget decision is taken as "does not fit" (a real channel over 2 MB of weekly series is too big to build here): the wiring after it is what is tested
+  if (o.forceOmit) vi.doMock('@/lib/youtube/observatorio/pack', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/youtube/observatorio/pack')>('@/lib/youtube/observatorio/pack')
+    return { ...actual, packWithinBudget: (rows: import('@/lib/youtube/observatorio/pack').ChannelRows, observed: ReadonlySet<string>) => ({ packed: actual.packChannel({ ...rows, daily: rows.daily.filter(d => observed.has(d.video_id)), spans: [], weeklyOmitted: true }), weeklyOmitted: true }) }
+  })
   const mod = await import('@/lib/youtube/observatorio/load-page')
   return { cache, db, ...mod }
 }
@@ -193,10 +198,19 @@ describe('loadPageRows — cache por canal', () => {
   it('mudar o limite de vídeos do canal lê um pacote novo, sem invalidação', async () => {
     const tables = buildTables({ siteId: 'a', now: NOW })
     const { loadPageRows, cache } = await setup(tables)
-    expect(new Set((await loadPageRows('a', NOW)).daily.map(d => d.video_id)).size).toBe(6)
+    const seriesOf = (rows: Awaited<ReturnType<typeof loadPageRows>>) => rowsToDataset(rows, NOW).videos.filter(v => v.series.length > 0).length
+    const first = await loadPageRows('a', NOW)
+    expect(new Set(first.daily.map(d => d.video_id)).size).toBe(6)
+    expect(seriesOf(first)).toBe(6)
+    const missesBefore = cache.misses.length
     for (const c of tables.competitor_channels!) c.video_limit = 1
-    // the limit is part of the key: one tracked video per channel now, read from the database, with no tag invalidated
-    expect(new Set((await loadPageRows('a', NOW)).daily.map(d => d.video_id)).size).toBe(2)
+    // the limit is part of the key: a new pack is read from the database, with no tag invalidated. A5: the daily records of EVERY
+    // dated video are read now (6, as before in this fixture, whose database still holds the 3 videos of the old limit), and what
+    // the limit changes is which of them the engine observes: one tracked video per channel
+    const second = await loadPageRows('a', NOW)
+    expect(cache.misses.length - missesBefore).toBe(2)
+    expect(new Set(second.daily.map(d => d.video_id)).size).toBe(6)
+    expect(seriesOf(second)).toBe(2)
     expect(cache.invalidated).toEqual([])
   })
   it('entrada ilegível (outro formato): lê o banco, nunca devolve canal vazio, e avisa', async () => {
@@ -226,13 +240,35 @@ describe('loadPageRows — cache por canal', () => {
     const first = await loadPageRows('a', NOW)
     expect(cache.rejected).toHaveLength(1)
     expect(cache.entries.size).toBe(0)
-    expect(captureMessage.mock.calls[0]![0]).toMatch(/passou do orçamento do cache/)
+    // the repacked pack (only the observed series) is still over the entry limit: the old warning stands, after the new one
+    expect(captureMessage.mock.calls.map(c => String(c[0])).some(m => /passou do orçamento do cache/.test(m))).toBe(true)
     const once = heavy(db)
     const second = await loadPageRows('a', NOW)
     expect(heavy(db)).toBe(2 * once)
     expect(second.versions).toEqual(first.versions)
     expect(second.versions.filter(v => v.field === 'desc').every(v => (v.value_text ?? '').length >= 1_600_000)).toBe(true)
   }, 30_000)
+  it('A5: a série semanal que não coube fica de fora do pacote, o Sentry é avisado e a tela recebe a marca por canal', async () => {
+    const { loadPageRows, db } = await setup(buildTables({ siteId: 'a', now: NOW, weekly: true }), { forceOmit: true })
+    const rows = await loadPageRows('a', NOW)
+    expect(captureMessage.mock.calls.map(c => String(c[0])).filter(m => /série semanal do canal .* não coube no pacote do cache/.test(m))).toHaveLength(2)
+    expect(rows.weeklyOmitted).toEqual([ids.channel('a', 0), ids.channel('a', 1)])
+    expect(rows.spans).toEqual([])
+    expect(new Set(rows.daily.map(d => d.video_id)).size).toBe(6) // só a série dos observados ficou
+    expect(rowsToDataset(rows, NOW).channels.filter(c => c.id.startsWith('a-ch')).map(c => c.weeklyOmitted)).toEqual([true, true])
+    // the pack that was stored carries the mark: the next render needs no database and gives the same
+    const once = heavy(db)
+    const again = await loadPageRows('a', NOW)
+    expect(heavy(db)).toBe(once)
+    expect(again.weeklyOmitted).toEqual(rows.weeklyOmitted)
+    expect(again.daily).toEqual(rows.daily)
+  })
+  it('A5: tabela de faixas indisponível (banco sem a migration): lança e não guarda nada, nunca um conjunto vazio', async () => {
+    const { loadPageRows, cache } = await setup(buildTables({ siteId: 'a', now: NOW, weekly: true }), { failOn: 'competitor_video_tier_spans' })
+    await expect(loadPageRows('a', NOW)).rejects.toThrow(/competitor_video_tier_spans/)
+    expect(cache.entries.size).toBe(0)
+    await expect(loadPageRows('a', NOW)).rejects.toThrow(/competitor_video_tier_spans/)
+  })
   it('pacote dentro do orçamento: nenhum aviso', async () => {
     const { loadPageRows } = await setup(buildTables({ siteId: 'a', now: NOW }))
     await loadPageRows('a', NOW)

@@ -11,9 +11,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Dataset } from './types'
-import { loadLiveRows, loadChannelLiveRows, mapLimit, rowsToDataset, type ChannelRow, type ObservatoryRows } from './load'
+import { loadLiveRows, loadChannelLiveRows, mapLimit, rowsToDataset, observedVideoIds, type ChannelRow, type ObservatoryRows } from './load'
 import { loadChannelRows, assembleRows } from './load-channel'
-import { packChannel, unpackChannel, PACK_VERSION, PACK_BUDGET, type ChannelRows } from './pack'
+import { packWithinBudget, unpackChannel, PACK_VERSION, PACK_BUDGET, type ChannelRows } from './pack'
 import { observatoryTag } from './cache-tag'
 import { observatoryNow } from './now'
 
@@ -52,7 +52,9 @@ const warn = (message: string, extra: Record<string, unknown>) => {
 async function buildPack(siteId: string, channelId: string, videoLimit: number, seriesStart: number | null, okSyncedAt: string): Promise<string> {
   void okSyncedAt
   // a database error throws here and nothing is stored: a failed read is never cached as an empty channel
-  const packed = packChannel(await loadChannelRows(getSupabaseServiceClient(), { channelId, videoLimit, seriesStart, now: observatoryNow() }))
+  const rows = await loadChannelRows(getSupabaseServiceClient(), { channelId, videoLimit, seriesStart, now: observatoryNow() })
+  const { packed, weeklyOmitted } = packWithinBudget(rows, new Set(observedVideoIds([{ id: channelId, video_limit: videoLimit }], rows.videos)))
+  if (weeklyOmitted) warn('observatório: a série semanal do canal ' + channelId + ' não coube no pacote do cache e ficou de fora', { siteId, channelId, size: packed.length })
   // Next will not store it (and says so only in a console.warn): every render of this channel reads the database again
   if (packed.length > PACK_BUDGET) warn('observatório: o pacote do canal ' + channelId + ' passou do orçamento do cache (' + packed.length + ' de ' + PACK_BUDGET + ' caracteres)', { siteId, channelId, size: packed.length })
   return packed

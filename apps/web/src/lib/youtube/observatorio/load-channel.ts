@@ -5,8 +5,8 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { spDateOf } from './time'
 import {
-  readAll, readIn, observedVideoIds, dailyReadFrom, snapshotReadFrom, VIDEO_COLS, VERSION_COLS, SNAPSHOT_COLS,
-  type VideoRow, type VersionRow, type DailyRow, type SnapshotRow, type LiveRows, type ObservatoryRows,
+  readAll, readIn, datedVideoIds, dailyReadFrom, snapshotReadFrom, VIDEO_COLS, VERSION_COLS, SNAPSHOT_COLS, SPAN_COLS,
+  type VideoRow, type SpanRow, type VersionRow, type DailyRow, type SnapshotRow, type LiveRows, type ObservatoryRows,
 } from './load'
 import type { ChannelRows } from './pack'
 
@@ -26,13 +26,14 @@ export async function loadChannelRows(sb: SupabaseClient, c: ChannelLoad): Promi
       .eq('competitor_channel_id', c.channelId).gte('snapshot_date', snapshotReadFrom(c.now)).order('id')),
   ])
   const videoIds = videos.map(v => v.id)
-  // observed = tracked ∪ pinned (R119), the same set loadRows reads
-  const dailyIds = observedVideoIds([{ id: c.channelId, video_limit: c.videoLimit }], videos)
-  const [plain, descMeta, daily] = await Promise.all([
+  // A5: the series of every dated video, the same set loadRows reads (rowsToDataset separates observed from unobserved)
+  const dailyIds = datedVideoIds(videos)
+  const [plain, descMeta, daily, spans] = await Promise.all([
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).neq('field', 'desc').order('id')),
     readIn<Omit<VersionRow, 'value_text'>>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(DESC_META_COLS).in('video_id', ids).eq('field', 'desc').order('id')),
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select(DAILY_COLS)
       .in('video_id', ids).gte('snap_date', dailyReadFrom(seriesStart, c.now)).lte('snap_date', spDateOf(c.now)).order('video_id').order('snap_date')),
+    readIn<SpanRow>('competitor_video_tier_spans', dailyIds, ids => sb.from('competitor_video_tier_spans').select(SPAN_COLS).in('video_id', ids).order('video_id').order('from_date')),
   ])
   // The description text is only ever read to compare two consecutive versions (changes.ts diffLines): it is fetched
   // for the videos whose description changed, and left out for the rest (most of the bytes of a version read).
@@ -42,7 +43,7 @@ export async function loadChannelRows(sb: SupabaseClient, c: ChannelLoad): Promi
   const texts = new Map((await readIn<{ id: string; value_text: string | null }>('competitor_video_versions', changedIds, ids => sb.from('competitor_video_versions').select('id, value_text').in('id', ids).order('id'))).map(t => [t.id, t.value_text]))
   // a changed description whose text did not come is marked omitted too: rowsToDataset refuses it out loud
   const descs: VersionRow[] = descMeta.map(d => (texts.has(d.id) ? { ...d, value_text: texts.get(d.id) ?? null } : { ...d, value_text: null, text_omitted: true }))
-  return { videos, versions: [...plain, ...descs], daily, snapshots }
+  return { videos, versions: [...plain, ...descs], daily, snapshots, spans }
 }
 
 /**
@@ -50,6 +51,7 @@ export async function loadChannelRows(sb: SupabaseClient, c: ChannelLoad): Promi
  * render: the date windows are applied again with this render's clock, so the result equals a fresh read.
  */
 export function assembleRows(live: LiveRows, parts: readonly ChannelRows[], seriesStart: number | null, now: number): ObservatoryRows {
+  const omitted = parts.flatMap((p, i) => (p.weeklyOmitted ? [live.channels[i]!.id] : []))
   const snapFrom = snapshotReadFrom(now), dailyFrom = dailyReadFrom(seriesStart ?? now, now), dailyTo = spDateOf(now)
   return {
     ...live,
@@ -57,5 +59,9 @@ export function assembleRows(live: LiveRows, parts: readonly ChannelRows[], seri
     versions: parts.flatMap(p => p.versions),
     daily: parts.flatMap(p => p.daily).filter(d => d.snap_date >= dailyFrom && d.snap_date <= dailyTo),
     snapshots: parts.flatMap(p => p.snapshots).filter(s => s.snapshot_date >= snapFrom),
+    spans: parts.flatMap(p => p.spans),
+    // the parts come in the order of live.channels (loadPageRows and loadChannelDataset map them in place); the key is
+    // left out when no channel omitted its weekly series, so the rows equal loadRows' (which never omits)
+    ...(omitted.length > 0 ? { weeklyOmitted: omitted } : {}),
   }
 }

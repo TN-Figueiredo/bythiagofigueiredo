@@ -34,6 +34,11 @@ describe('quem escreve no que o Observatório guarda em cache', () => {
     expect(callers.map(f => f.file).sort()).toEqual(['app/api/cron/sync-youtube/route.ts', ACTIONS])
     for (const f of callers) expect({ file: f.file, invalidates: f.text.includes('invalidateObservatory(') }).toEqual({ file: f.file, invalidates: true })
   })
+  it('o caminho da agenda invalida: o disparo da agenda (lib/youtube/agenda/executar.ts) roda a sincronização e invalida o site e o layout', () => {
+    const text = ALL.find(f => f.file === 'lib/youtube/agenda/executar.ts')!.text
+    expect(text).toContain('invalidateObservatory(')
+    expect(text).toContain('revalidatePath(')
+  })
   it('em actions.ts cada sincronização e cada escrita (fixar, desafixar, remover canal) tem a sua invalidação', () => {
     const text = ALL.find(f => f.file === ACTIONS)!.text
     const count = (re: RegExp) => (text.match(re) ?? []).length

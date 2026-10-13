@@ -30,7 +30,7 @@ export function classifyTiers(videos: readonly TierVideo[], o: { videoLimit: num
     v.pinned ? 'fixado'
       : top.has(v.id) ? 'top'
         : v.dailyUntil != null && v.dailyUntil >= o.today ? 'promovido'
-          : v.publishedAt != null && o.nowMs - v.publishedAt <= RULES.series.dailyAgeDays * DAY ? 'idade' : null]))
+          : v.publishedAt != null && o.nowMs - v.publishedAt <= (RULES.series.dailyAgeDays + RULES.series.dailyGraceDays) * DAY ? 'idade' : null]))
   // Teto de segurança: os fixados não contam; saem primeiro os de "idade" mais antigos, depois os "promovidos" que
   // vencem antes; os N mais recentes nunca saem. Quem sai vai para a semanal, e o número é devolvido (nunca em silêncio).
   const counted = ordered.filter(v => { const w = why.get(v.id); return w != null && w !== 'fixado' })

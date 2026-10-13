@@ -64,13 +64,26 @@ describe('classifyTiers (4.3)', () => {
     expect(q.daily).toEqual(['v0001', 'v0002'])
     expect(q.weekly).toEqual(['v0003'])
   })
-  it('idade: fora dos N, o vídeo com até dailyAgeDays dias é diária (exato inclui); com mais, semanal', () => {
-    const A = RULES.series.dailyAgeDays
-    const p = classifyTiers([vid(1, 1), vid(2, A - 1), vid(3, A), vid(4, A + 1)], { videoLimit: 1, nowMs: NOW, today: TODAY })
-    expect(p.daily).toEqual(['v0001', 'v0002', 'v0003'])
-    expect(p.weekly).toEqual(['v0004'])
-    // idade bem maior que 30 e menor que 299 não é diária por idade
+  it('a folga é RULES.series.dailyGraceDays (2) e a fronteira é dailyAgeDays mais a folga', () => {
+    expect(RULES.series.dailyGraceDays).toBe(2)
+    expect(RULES.series.dailyAgeDays).toBe(30)
+  })
+  it('idade: com exatamente 32 dias é diária; com 32 dias e 1 ms é semanal', () => {
+    const F = RULES.series.dailyAgeDays + RULES.series.dailyGraceDays
+    const exact = classifyTiers([vid(1, 1), vid(2, F - 1), vid(3, F), vid(4, F + 1)], { videoLimit: 1, nowMs: NOW, today: TODAY })
+    expect(exact.daily).toEqual(['v0001', 'v0002', 'v0003'])
+    expect(exact.weekly).toEqual(['v0004'])
+    // 1 ms a mais que a fronteira: semanal
+    const justOver = classifyTiers([vid(1, 1), vid(2, F, { publishedAt: NOW - F * DAY - 1 })], { videoLimit: 1, nowMs: NOW, today: TODAY })
+    expect(justOver.weekly).toEqual(['v0002'])
+    // idade bem maior que a fronteira e menor que 299 não é diária por idade
     expect(classifyTiers([vid(1, 1), vid(2, 90)], { videoLimit: 1, nowMs: NOW, today: TODAY }).weekly).toEqual(['v0002'])
+  })
+  it('com 30 dias e 1 ms o vídeo fora dos N continua diário (a leitura do dia seguinte ao 30º)', () => {
+    const A = RULES.series.dailyAgeDays
+    const p = classifyTiers([vid(1, 1), vid(2, A, { publishedAt: NOW - A * DAY - 1 })], { videoLimit: 1, nowMs: NOW, today: TODAY })
+    expect(p.daily).toEqual(['v0001', 'v0002'])
+    expect(p.weekly).toEqual([])
   })
   it('corte de promovidos: com o teto estourado só por promovidos, saem os que vencem antes; os N recentes ficam', () => {
     const promoted = Array.from({ length: 210 }, (_, i) => vid(100 + i, 400 + i, { dailyUntil: addDays(TODAY, 1 + i) }))

@@ -85,19 +85,74 @@ export function viewsAtAge(ctx: EngineCtx, u: ObsVideo, ageMs: number, tMax: num
   return va + (vb - va) * (T - ta) / (tb - ta)
 }
 
-interface Interval { a: number; b: number; vpd: number; idxTo: number }
-function intervalsOf(ctx: EngineCtx, v: ObsVideo): Interval[] {
+export type IntervalKind = 'diario' | 'semanal'
+export interface Interval { a: number; b: number; vpd: number; idxTo: number; kind: IntervalKind }
+
+/** Todos os dias de `from` a `to` (índices de dia, inclusive) estavam em faixa semanal? Dia sem faixa gravada: não. */
+export function weeklyThroughout(v: Pick<ObsVideo, 'tierSpans'>, from: number, to: number): boolean {
+  const spans = v.tierSpans ?? []
+  if (!spans.length || from > to) return false
+  for (let d = from; d <= to; d++) {
+    const cover = spans.filter(x => x.from <= d && (x.to == null || x.to >= d))
+    if (!cover.length || cover.some(x => x.tier !== 'semanal')) return false  // faixas sobrepostas: TODA faixa que cobre o dia tem de ser semanal
+  }
+  return true
+}
+
+/**
+ * Os intervalos entre pontos seguidos. Sem `weekly` é exatamente o de sempre: só dias vizinhos; um dia sem ponto é
+ * buraco. Com `weekly`, um salto de 2 a 8 dias de calendário vale como "taxa média da semana" SE todos os dias sem
+ * leitura estavam em faixa semanal (a faixa gravada no tempo, não a distância: um cron parado por 3 dias num vídeo
+ * diário continua sendo buraco). Vídeo sem faixa gravada nunca tem intervalo semanal.
+ */
+export function intervalsOf(ctx: EngineCtx, v: ObsVideo, opts: { weekly?: boolean } = {}): Interval[] {
   if (!v.series.length) return []
   const out: Interval[] = [], a0 = earliestIdx(v, ctx.ds.seriesStart), last = lastIdxOf(v)
   for (let i = a0; i < last; i++) {
-    const ya = pointViews(ctx, v, i), yb = pointViews(ctx, v, i + 1)
-    if (ya == null || yb == null) continue // a hole: no interval across a missing day
-    const ta = pointTime(ctx, v, i), tb = pointTime(ctx, v, i + 1)
-    const r = ratePerDay(yb - ya, tb - ta)
-    if (r == null) continue // too short (or non-positive) an interval: no average rather than a wild or negative one
-    out.push({ a: ta, b: tb, vpd: r, idxTo: i + 1 })
+    const ya = pointViews(ctx, v, i)
+    if (ya == null) continue
+    const yb = pointViews(ctx, v, i + 1)
+    if (yb != null) {
+      const ta = pointTime(ctx, v, i), tb = pointTime(ctx, v, i + 1)
+      const r = ratePerDay(yb - ya, tb - ta)
+      if (r == null) continue // too short (or non-positive) an interval: no average rather than a wild or negative one
+      out.push({ a: ta, b: tb, vpd: r, idxTo: i + 1, kind: 'diario' })
+      continue
+    }
+    if (!opts.weekly) continue // a hole: no interval across a missing day
+    const max = Math.min(last, i + RULES.series.weeklyMaxGapDays)
+    let j = i + 2
+    while (j <= max && viewsAtIdx(v, j) == null) j++
+    if (j > max) continue                            // nenhum ponto em até 8 dias: buraco
+    if (!weeklyThroughout(v, i + 1, j - 1)) continue  // os dias sem leitura não estavam em faixa semanal: buraco
+    const ta = pointTime(ctx, v, i), tb = pointTime(ctx, v, j)
+    const r = ratePerDay(viewsAtIdx(v, j)! - ya, tb - ta)
+    if (r == null) continue
+    out.push({ a: ta, b: tb, vpd: r, idxTo: j, kind: 'semanal' })
   }
   return out
+}
+
+/** A série que se lê de um vídeo: a dele; ou, se não é observado, os pontos guardados à parte. */
+const withUnobserved = <T extends ObsVideo>(v: T): T =>
+  v.series.length || !v.unobservedSeries?.length ? v : { ...v, series: v.unobservedSeries, firstIdx: v.unobservedSeries[0]!.idx }
+
+export interface WeeklyRate extends PeriodRate { weekly: boolean }
+/**
+ * Como periodRate, aceitando intervalo semanal e a série de um vídeo não observado. `weekly` = pelo menos um intervalo
+ * semanal entrou na conta, e então o número é a TAXA MÉDIA DA SEMANA (a frase diz). NENHUMA tela chama isto ainda (E5).
+ */
+export function weeklyRate(ctx: EngineCtx, videoId: string, fromMs: number, toMs: number): WeeklyRate {
+  const stored = ctx.V.get(videoId)
+  if (!stored) throw new Error('weeklyRate: unknown video ' + videoId)
+  const none = (text: string): WeeklyRate => ({ vpd: null, sharedDay: false, onlySinceDays: null, coveredHours: 0, text, weekly: false })
+  if (toMs - fromMs < DAY) return none('menos de 1 dia no ar, sem média')
+  const iv = intervalsOf(ctx, withUnobserved(stored), { weekly: true })
+  let s = 0, w = 0, weekly = false
+  for (const x of iv) { const o = Math.min(toMs, x.b) - Math.max(fromMs, x.a); if (o > 0) { s += x.vpd * o; w += o; if (x.kind === 'semanal') weekly = true } }
+  if (w < DAY) return none('sem registro no período')
+  const vpd = s / w
+  return { vpd, sharedDay: false, onlySinceDays: null, coveredHours: w / H, weekly, text: '≈ ' + ctx.fmt.num(vpd) + (weekly ? ' (taxa média da semana)' : '') }
 }
 
 export interface PeriodRate { vpd: number | null; sharedDay: boolean; onlySinceDays: number | null; coveredHours: number; text: string }

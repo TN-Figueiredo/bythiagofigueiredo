@@ -84,8 +84,8 @@ describe('R121: testRun em deriveChanges', () => {
     const runs = [...new Map(obs.changes.filter(c => c.testRun).map(c => [c.testRun!.id, c.testRun!])).values()].map(r => [r.id, r.n]).sort()
     expect(runs).toEqual([['matt-opus55/thumb/seq1', 3], ['matt-opus55/title/seq1', 2], ['nomade-turcomenistao/thumb/seq1', 2]])
   })
-  it('testRun é derivado depois de desempacotar: o pacote em cache não muda de versão', () => {
-    expect(PACK_VERSION).toBe(1)
+  it('o pacote em cache está na versão 2 (A5); testRun segue derivado depois de desempacotar', () => {
+    expect(PACK_VERSION).toBe(2)
   })
 })
 

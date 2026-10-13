@@ -1,4 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import vercelConfig from '../../../vercel.json'
+import { lerAgendaDoVigia, type ItemAgenda } from '@/lib/youtube/agenda/saude'
 
 // Avaliação de saúde dos crons do `vercel.json`, extraída de
 // `src/app/api/health/route.ts` (2026-09-18) sem mudança de comportamento.
@@ -222,7 +224,9 @@ export function computeGraceMinutes(lastRun: Date, previousRun: Date | null): nu
 // -----------------------------------------------------------------------
 // Avaliação por cron
 // -----------------------------------------------------------------------
-export type CronItemStatus = 'ok' | 'late' | 'unknown'
+// 'desligada' (A5 E16, Tarefa 11): tarefa da agenda que o dono desligou de propósito. Como 'unknown', fica de fora do
+// agregado (ver aggregateStatus), mas tem lista própria (disabledNames) para não passar por saudável.
+export type CronItemStatus = 'ok' | 'late' | 'unknown' | 'desligada'
 
 export interface ICronHealthRow {
   cron_name: string
@@ -244,6 +248,8 @@ export interface ICronHealthItem {
   consecutiveFailures: number | null
   expectedLastRun: string | null
   graceMinutes: number | null
+  /** Só nos itens da agenda: frase fixa do código, nunca texto do banco. */
+  motivo?: string
 }
 
 export function evaluateCron(name: string, schedules: string[], row: ICronHealthRow | undefined, now: Date): ICronHealthItem {
@@ -328,7 +334,7 @@ export function evaluateCron(name: string, schedules: string[], row: ICronHealth
 // que algo quebrou: uma linha com severity 'critical' que esta atrasada ou
 // cuja ultima execucao falhou.
 export function aggregateStatus(items: ICronHealthItem[]): 'ok' | 'degraded' | 'down' {
-  const known = items.filter((i) => i.status !== 'unknown')
+  const known = items.filter((i) => i.status !== 'unknown' && i.status !== 'desligada')
   const unhealthy = known.filter((i) => i.status !== 'ok')
   if (unhealthy.length === 0) return 'ok'
   const hasCriticalDown = unhealthy.some((i) => i.status === 'late' && i.severity === 'critical')
@@ -349,15 +355,36 @@ export interface ICronHealthReport {
   unknownNames: string[]
   /** Nomes com `status: 'late'`, que é o que um alerta precisa nomear. */
   lateNames: string[]
+  /** Tarefas da agenda desligadas de propósito (`desligada`): fora do agregado, mas nunca invisíveis. */
+  disabledNames: string[]
 }
 
-export function buildCronHealthReport(rows: ICronHealthRow[], now: Date): ICronHealthReport {
+/** Um item da agenda como linha do relatório: `agenda:<nome>` não colide com nome de rota (OP-5: nenhuma chave de cron_health por tarefa). */
+function itemDaAgenda(a: ItemAgenda): ICronHealthItem {
+  return {
+    name: `agenda:${a.nome}`,
+    status: a.status,
+    schedules: [],
+    severity: 'info',
+    lastSuccessAt: a.ultimoOk,
+    lastFailureAt: null,
+    lastError: null,
+    consecutiveFailures: null,
+    expectedLastRun: null,
+    graceMinutes: a.toleranciaH * 60,
+    ...(a.motivo === undefined ? {} : { motivo: a.motivo }),
+  }
+}
+
+/** `agenda` é a segunda fonte (aditiva): sem ela, o resultado é o de sempre. */
+export function buildCronHealthReport(rows: ICronHealthRow[], now: Date, agenda?: ItemAgenda[]): ICronHealthReport {
   const rowsByName = new Map<string, ICronHealthRow>(rows.map((r) => [r.cron_name, r]))
   const groups = groupCronSchedules(cronEntries)
 
   const crons = Array.from(groups.entries())
     .map(([name, schedules]) => evaluateCron(name, schedules, rowsByName.get(name), now))
     .sort((a, b) => a.name.localeCompare(b.name))
+    .concat((agenda ?? []).map(itemDaAgenda))
 
   const unknownCrons = crons.filter((c) => c.status === 'unknown')
 
@@ -368,9 +395,19 @@ export function buildCronHealthReport(rows: ICronHealthRow[], now: Date): ICronH
     unknownCount: unknownCrons.length,
     unknownNames: unknownCrons.map((c) => c.name),
     lateNames: crons.filter((c) => c.status === 'late').map((c) => c.name),
+    disabledNames: crons.filter((c) => c.status === 'desligada').map((c) => c.name),
   }
 }
 
 /** Colunas que `buildCronHealthReport` consome — uma só fonte para os dois selects. */
 export const CRON_HEALTH_COLUMNS =
   'cron_name, last_success_at, last_failure_at, last_error, consecutive_failures, severity'
+
+/**
+ * A leitura da agenda para as duas rotas (`/api/health` e `cron-watchdog`). `lerAgendaDoVigia` nunca lança: o que não
+ * puder ser lido sai como a entrada `agenda:leitura` (late) ou como `nota`, e o relatório dos crons de sempre sai inteiro.
+ * O módulo é importado de forma ESTÁTICA: se ele não carregar, o build quebra (falha barulhenta), nunca um item mudo.
+ */
+export function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
+  return lerAgendaDoVigia(sb, now.getTime(), process.env)
+}

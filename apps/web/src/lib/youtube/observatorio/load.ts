@@ -3,7 +3,7 @@ import { isCertainShort } from '@/lib/youtube/short-classifier'
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo } from './types'
+import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo, SeriesTier, TierSpan } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
@@ -27,7 +27,11 @@ export interface VideoRow {
   tags: string[] | null; thumbnail_url: string | null
   /** Optional in the type so a row built without it reads as "not pinned"; the DB read always selects it. */
   pinned_at?: string | null
+  /** A5 (E2). competitor_videos.series_tier; ausente = ainda não classificado. */
+  series_tier?: string | null
 }
+/** A5 (E2). Uma faixa no tempo de um vídeo (competitor_video_tier_spans). */
+export interface SpanRow { video_id: string; from_date: string; to_date: string | null; tier: string }
 export interface OwnVideoRow {
   id: string; channel_id: string; youtube_video_id: string; title: string; view_count: number; like_count: number; comment_count: number
   duration_seconds: number; published_at: string; updated_at: string; tags: string[]
@@ -64,6 +68,10 @@ export interface ObservatoryRows {
   readings: ReadingRow[]; tasks: TaskRow[]; heartbeat: HeartbeatRow | null
   /** Os nichos do site (youtube_niches). null / ausente = a tabela ainda não existe neste banco: valem os dois de fábrica. */
   niches?: NicheRow[] | null
+  /** As faixas no tempo. Ausente = nenhuma lida. */
+  spans?: SpanRow[]
+  /** Canais cujo pacote ficou sem a série dos não observados. */
+  weeklyOmitted?: string[]
   /**
    * Present only when `channels` holds ONE channel of the site (loadChannelLiveRows): the values that belong to the whole
    * site and cannot be derived from the rows at hand. When present they win over what would be derived from `channels`
@@ -83,7 +91,9 @@ export interface SiteScope {
 
 /* ------------------------------------------------------------------ constants */
 const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at'
-export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at'
+export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier'
+/** A5 (E2). As colunas de uma faixa no tempo (competitor_video_tier_spans). */
+export const SPAN_COLS = 'video_id, from_date, to_date, tier'
 export const SNAPSHOT_COLS = 'id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count'
 export const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
@@ -239,6 +249,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const dailyBy = groupBy(rows.daily, d => d.video_id)
   const videosBy = groupBy(rows.videos, v => v.competitor_channel_id)
   const snapsBy = groupBy(rows.snapshots, s => s.competitor_channel_id)
+  const spansBy = groupBy(rows.spans ?? [], s => s.video_id), omitted = new Set(rows.weeklyOmitted ?? [])
   const channels: ObsChannel[] = [], videos: ObsVideo[] = []
 
   // the order the channels were added (dados.js lists them so; every per-channel list follows it), never the uuid
@@ -268,12 +279,20 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       // the instant of a record is its real taken_at (any rate / elapsed-time math needs it: a read at 14:40 is not a
       // read at 12:00). The nominal 12:00 SP of the snap_date is only the day label and the fallback for a row without a
       // usable taken_at (missing, unparseable, or outside its own SP day).
-      const series: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => {
+      const observed = k < nTracked || v.pinned_at != null // o mesmo que isObserved: acompanhado ou fixado
+      const points: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => {
         const idx = dayIndex(d.snap_date), nominal = snap0 + idx * DAY
         return { idx, t: realReadAt(d, spDateStart(d.snap_date)) ?? nominal, views: Number(d.views) }
       })
         .sort((a, b) => a.idx - b.idx)
+      // Só o vídeo observado tem `series` (como sempre). Os pontos dos outros vão para um campo à parte: nada que as telas leem muda.
+      const series: SeriesPoint[] = observed ? points : []
       for (const p of series) if (lastIdx == null || p.idx > lastIdx) lastIdx = p.idx
+      const tier: SeriesTier | null = v.series_tier === 'diaria' || v.series_tier === 'semanal' ? v.series_tier : null
+      const tierSpans: TierSpan[] = (spansBy.get(v.id) ?? [])
+        .filter((s): s is SpanRow & { tier: SeriesTier } => s.tier === 'diaria' || s.tier === 'semanal')
+        .map(s => ({ from: dayIndex(s.from_date), to: s.to_date ? dayIndex(s.to_date) : null, tier: s.tier }))
+        .sort((a, b) => a.from - b.from)
       const realTitles: TitleVersion[] = (versionsBy.get(v.id + '|title') ?? []).map(r => ({ ...baseOf(r), text: r.value_text ?? '' }))
       let titles = withLegacy<TitleVersion>(legacyBy.get(v.id + '|title') ?? [], realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }), (l, r) => r.text === (l.new_title ?? ''))
       if (!titles.length) titles = [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title ?? '' }]
@@ -298,6 +317,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count,
         series, firstIdx: series.length ? series[0]!.idx : null, titles, thumbs, descs,
+        ...(tier ? { tier } : {}), ...(tierSpans.length ? { tierSpans } : {}), ...(!observed && points.length ? { unobservedSeries: points } : {}),
         ...(cappedFrom != null && pub >= seriesStart && pub < cappedFrom ? { truncated: true } : {}),
       })
     })
@@ -316,6 +336,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       activity: activityOf(vs.map(x => x.pub), now),
       lastIdx: state === 'backfill' ? null : lastIdx,
       snapshots, undated,
+      ...(omitted.has(c.id) ? { weeklyOmitted: true } : {}),
     })
   }
 
@@ -509,6 +530,10 @@ export function observedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'vid
   for (const v of videos) if (v.pinned_at != null && loaded.has(v.competitor_channel_id) && ms(v.published_at) != null) out.add(v.id)
   return [...out]
 }
+/** Os vídeos cuja série é lida: todos os que têm data de publicação (um vídeo sem data não entra no conjunto de dados). */
+export function datedVideoIds(videos: readonly Pick<VideoRow, 'id' | 'published_at'>[]): string[] {
+  return videos.filter(v => ms(v.published_at) != null).map(v => v.id)
+}
 /**
  * The competitor videos of the given channels. A missing column (pinned_at before its migration reached this database)
  * THROWS ObservatoryLoadError: there is deliberately no reread without it, a pin must never read as "not pinned".
@@ -634,14 +659,16 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
       .in('competitor_channel_id', ids).gte('snapshot_date', snapshotReadFrom(now)).order('id')),
   ])
   const videoIds = videos.map(v => v.id)
-  // daily points only for OBSERVED videos (tracked ∪ pinned; the engine ignores the series of the others), from dailyReadFrom to today (SP)
-  const dailyIds = observedVideoIds(channels, videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
-  const [versions, daily] = await Promise.all([
+  // A5: the series of EVERY dated video is read (the weekly ones too), from dailyReadFrom to today (SP); rowsToDataset separates
+  // the OBSERVED videos (tracked ∪ pinned, whose series the screens read) from the others (unobservedSeries)
+  const dailyIds = datedVideoIds(videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
+  const [versions, daily, spans] = await Promise.all([
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).order('id')),
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')
       .in('video_id', ids).gte('snap_date', dailyFrom).lte('snap_date', dailyTo).order('video_id').order('snap_date')),
+    readIn<SpanRow>('competitor_video_tier_spans', dailyIds, ids => sb.from('competitor_video_tier_spans').select(SPAN_COLS).in('video_id', ids).order('video_id').order('from_date')),
   ])
-  return { ...live, videos, versions, daily, snapshots }
+  return { ...live, videos, versions, daily, snapshots, spans }
 }
 
 export async function loadDataset(opts: LoadOptions): Promise<Dataset> {

@@ -1,3 +1,5 @@
+import { COMMENT_RULES } from './comentarios/regras'
+
 /** Port of dados.js:113-133 (single source of rules) + tierOf + NICHES. */
 export const RULES = {
   outlierMin: 2,
@@ -36,10 +38,17 @@ export const RULES = {
   // New (A5, E2; spec 4.3). Faixas da série dos concorrentes: diária até `dailyAgeDays` de idade (além dos N mais
   // recentes, dos fixados e dos promovidos); o resto é lido a cada `weeklyEveryDays` e nunca fica mais de
   // `weeklyMaxGapDays` sem ponto; as primeiras `earlyHours` de um vídeo descoberto até `earlyDiscoverHours` depois de publicado.
-  series: { dailyAgeDays: 30, weeklyEveryDays: 7, weeklyMaxGapDays: 8, earlyHours: 72, earlyDiscoverHours: 24 },
+  // New (A5, E4): folga para existir a leitura do dia seguinte ao 30º (a faixa diária por idade vai até dailyAgeDays + dailyGraceDays).
+  series: { dailyAgeDays: 30, dailyGraceDays: 2, weeklyEveryDays: 7, weeklyMaxGapDays: 8, earlyHours: 72, earlyDiscoverHours: 24 },
   // New (A5, E2; pergunta 6 ao dono, padrão do spec). Um vídeo semanal que ganha `minViews` E `minShare` do total numa semana,
   // ou que troca de título ou descrição, vai para a diária por `days` dias.
   promotion: { minViews: 1000, minShare: 0.05, days: 28 },
+  // New (A5, E15; leitura horária dos vídeos novos). Valores do plano 2026-10-12-a5-e16-e15-parte-1 (Tarefa 4); quem lê cada chave é a leitura horária.
+  hourly: { ageDays: 14, videosMax: 25, bufferDays: 60, emptyAnswerMin: 5,
+    /** Decisão do dono (13/10, pergunta 28): menos de tantas horas lidas nas últimas 24 encerradas é problema (vermelho, sem e-mail). */
+    minReadHours24: 20 },
+  // New (A5, E14; comentários de destaque dos vídeos de concorrentes). Os números moram em `comentarios/regras.ts`; aqui só a leitura única.
+  comments: COMMENT_RULES,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
