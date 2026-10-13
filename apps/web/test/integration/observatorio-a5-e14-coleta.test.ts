@@ -4,7 +4,8 @@
  * `runRetratosComentarios` e `runAnularIdentidade`, sem banco falso: o que um banco falso escondia (CHECK, FK, SQLSTATE, o relógio do
  * banco calculando a idade do vídeo, a trava de linha das execuções simultâneas) aparece aqui.
  *
- * Banco: SÓ o `bythiago_int`. Rodar com:
+ * Banco: SÓ o `bythiago_int` na máquina de quem desenvolve; na CI (variável `CI=true` do GitHub Actions), o banco
+ * descartável que o próprio job cria com `supabase start` e `db reset` (127.0.0.1:54321 e :54322). Rodar com:
  *   HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
  *   npx vitest run test/integration/observatorio-a5-e14-coleta.test.ts --no-file-parallelism
  *
@@ -49,8 +50,12 @@ import {
 } from '../youtube/observatorio/comentarios-fixtures'
 
 const URL_BANCO = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-const PG_URL = process.env.SUPABASE_DB_URL ?? ''
-const HOST_BANCO = '127.0.0.1:54421'
+// Na CI o banco é o que o job de integração acabou de criar e vai jogar fora; fora dela, só o `bythiago_int`. O 54321 de
+// uma máquina de desenvolvimento é o banco do navegador, com dado de uso, e continua recusado (lá `CI` não existe).
+const NA_CI = process.env.CI === 'true'
+const HOST_BANCO = NA_CI ? '127.0.0.1:54321' : '127.0.0.1:54421'
+const PORTA_PG = NA_CI ? ':54322/' : ':54422/'
+const PG_URL = process.env.SUPABASE_DB_URL ?? (NA_CI ? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' : '')
 const BASE_API = 'http://api-falsa.invalid/youtube/v3'
 const CHAVE = 'CHAVE-FALSA-DE-TESTE-9f8e7d'
 const D = 24 * H
@@ -70,7 +75,7 @@ const idas = {
 }
 const fetchDoBanco: typeof fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input))
-  if (url.host !== HOST_BANCO) throw new Error('host fora do bythiago_int: ' + url.host)
+  if (url.host !== HOST_BANCO) throw new Error('host fora do banco de integração (' + HOST_BANCO + '): ' + url.host)
   idas.n += 1
   idas.urls.push(url.pathname)
   const falha = idas.falhar?.(url, init)
@@ -158,8 +163,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
 
   beforeAll(async () => {
     // a trava: este arquivo só roda contra o banco de integração
-    if (new URL(URL_BANCO).host !== HOST_BANCO) throw new Error('NEXT_PUBLIC_SUPABASE_URL não aponta para o bythiago_int (127.0.0.1:54421)')
-    if (!PG_URL.includes(':54422/')) throw new Error('SUPABASE_DB_URL não aponta para o bythiago_int (:54422)')
+    if (new URL(URL_BANCO).host !== HOST_BANCO) throw new Error('NEXT_PUBLIC_SUPABASE_URL não aponta para o banco de integração (' + HOST_BANCO + ')')
+    if (!PG_URL.includes(PORTA_PG)) throw new Error('SUPABASE_DB_URL não aponta para o banco de integração (' + PORTA_PG + ')')
     sb = createClient(URL_BANCO, process.env.SUPABASE_SERVICE_ROLE_KEY ?? SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       global: { fetch: fetchDoBanco },
