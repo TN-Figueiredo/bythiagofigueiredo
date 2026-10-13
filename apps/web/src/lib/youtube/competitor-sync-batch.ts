@@ -68,6 +68,17 @@ export function isDue(lastSyncedAt: string | null, nowMs: number): boolean {
   return lastSyncedAt === null || Date.parse(lastSyncedAt) < currentSlotStart(nowMs)
 }
 
+/**
+ * Canal que ainda não teve a PRIMEIRA sincronização boa (`last_ok_synced_at` nulo) e não está em erro nem ausente: é devido em todo disparo
+ * até ela terminar. O canal novo do CMS roda a primeira sincronização num `after()` de 60 s e pode parar no meio (`syncing`, `last_synced_at`
+ * de agora, vídeos lidos sem resposta guardada): sem isto ele esperaria a faixa seguinte (até 6 h) com a prova vermelha. Não muda a ordem da
+ * fila (o filtro só acrescenta o canal; a ordem continua a da consulta, com o canal em erro por último). Canal em erro desde o começo
+ * (nunca sincronizou bem) fica de fora: seguiria tentando a cada 20 minutos um erro que a faixa e o aviso do 3º dia já tratam.
+ */
+export function firstSyncPending(r: Pick<BatchRow, 'last_ok_synced_at' | 'sync_status' | 'missing_since'>): boolean {
+  return r.last_ok_synced_at === null && r.missing_since == null && r.sync_status !== 'error'
+}
+
 /** A linha de canal que o lote lê: o necessário para escolher os devidos, a fase semanal e a nota do dono. */
 export type BatchRow = {
   id: string; channel_id: string; channel_name: string | null; site_id: string
@@ -118,6 +129,15 @@ const emptyWeekly = (): WeeklyPhaseResult => ({ ran: false, visited: 0, complete
 export interface BatchResult {
   synced: number
   errors: number
+  /**
+   * Dos `errors`, os de canais que JÁ estavam em erro há mais de 3 dias quando o disparo começou. Depois do 3º dia o cron volta a
+   * verde (decisão do dono): o aviso segue por e-mail e na nota `acao_do_dono`. Ausente = 0 (conta como erro novo).
+   */
+  errorsKnown?: number
+  /** Canais não ausentes (a base da regra "metade ou mais em erro há mais de 3 dias é pane"). */
+  channelsActive?: number
+  /** Canais em erro há mais de 3 dias, no banco (os mesmos de `acao_do_dono`). */
+  channelsLongError?: number
   skipped: number
   remainingDue: number
   stoppedForTime: boolean
@@ -136,11 +156,20 @@ export interface BatchResult {
   quotaLost?: number
 }
 
-/** Health verdict: fail when at least half of the attempted channels errored. */
-export function batchHealth(r: Pick<BatchResult, 'synced' | 'errors'>): { ok: boolean; message?: string } {
-  const attempted = r.errors + r.synced
-  if (r.errors > 0 && r.errors >= r.synced) {
-    return { ok: false, message: `${r.errors} de ${attempted} ${attempted === 1 ? 'canal' : 'canais'} ${r.errors === 1 ? 'falhou' : 'falharam'}` }
+/**
+ * Health verdict. Falha quando metade ou mais das tentativas NOVAS erraram. O canal em erro há mais de 3 dias (`errorsKnown`) sai da
+ * conta: um canal que saiu do YouTube não pode deixar o cron vermelho para sempre (decisão do dono). A contrapartida: metade ou mais
+ * dos canais ativos em erro há mais de 3 dias é pane (chave revogada, cota, banco), não canal isolado: vermelho.
+ */
+export function batchHealth(r: Pick<BatchResult, 'synced' | 'errors' | 'errorsKnown' | 'channelsActive' | 'channelsLongError'>): { ok: boolean; message?: string } {
+  const longErr = r.channelsLongError ?? 0, active = r.channelsActive ?? 0
+  if (longErr > 0 && active > 0 && longErr * 2 >= active) {
+    return { ok: false, message: `${longErr} de ${active} ${active === 1 ? 'canal' : 'canais'} em erro há mais de 3 dias` }
+  }
+  const fresh = Math.max(0, r.errors - (r.errorsKnown ?? 0))
+  const attempted = fresh + r.synced
+  if (fresh > 0 && fresh >= r.synced) {
+    return { ok: false, message: `${fresh} de ${attempted} ${attempted === 1 ? 'canal' : 'canais'} ${fresh === 1 ? 'falhou' : 'falharam'}` }
   }
   return { ok: true }
 }
@@ -327,15 +356,18 @@ export async function runCompetitorBatch(opts: {
   // never starve the cursor. Array.sort is stable, so the oldest-first order
   // (nulls first) is kept within each group.
   const due = rows
-    .filter((r) => isDue(r.last_synced_at, started))
+    .filter((r) => isDue(r.last_synced_at, started) || firstSyncPending(r))
     .sort((a, b) => Number(a.sync_status === 'error') - Number(b.sync_status === 'error'))
   const probeBudget = newProbeBudget() // 60 sondas de Short por execução, divididas entre os canais
   // Sonda de controle uma vez por execução, antes das demais (I-2).
   if (due.length) await runControlProbe(sb, probeBudget, fetch)
+  const long = longErrors(rows, started)
+  const longIds = new Set(long.map(e => e.row.id))
   const res: BatchResult = {
-    synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [],
+    synced: 0, errors: 0, errorsKnown: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [],
     totals: zeroTotals(), healthSiteIds: [...new Set(rows.map(r => r.site_id))], weekly: emptyWeekly(),
-    acao_do_dono: longErrors(rows, started).map(e => 'canal ' + nameOf(e.row) + ' em erro há ' + e.days + ' dias: ' + e.reason),
+    acao_do_dono: long.map(e => 'canal ' + nameOf(e.row) + ' em erro há ' + e.days + ' dias: ' + e.reason),
+    channelsActive: rows.filter(r => r.missing_since == null).length, channelsLongError: long.length,
     ownerNotices: { sent: 0, failed: 0 },
   }
   // O aviso vem antes dos canais de propósito: os tetos de tempo são contados do começo do disparo, então o aviso (limitado a 8 s) só
@@ -366,6 +398,7 @@ export async function runCompetitorBatch(opts: {
       else { res.synced++; syncedIds.push(row.id); touchedSites.add(row.site_id); add(r); lose(row.site_id, r) }
     } catch (err) {
       res.errors++
+      if (longIds.has(row.id)) res.errorsKnown = (res.errorsKnown ?? 0) + 1
       touchedSites.add(row.site_id)
       // os contadores acompanham o erro: o canal que terminou em erro também leu, limpou e perdeu cota
       const stats = syncStatsOf(err)
