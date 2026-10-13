@@ -125,9 +125,9 @@ export function montarSoSeuCanalDado(a: {
       acesso: 'ok',
       view: {
         canal: a.nome,
-        frase: `${PREFIXO_NAO_MEDIDO} As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal, e ${parouEm
-          ? `a coleta de relatórios de ${a.nome} parou em ${a.dm(parouEm)}; nenhum dia dos últimos ${JANELA_LEITURA_ALCANCE_DIAS} foi medido`
-          : `os números de alcance de ${a.nome} ainda não chegaram`}: falta medir, não é zero.`,
+        frase: `${PREFIXO_NAO_MEDIDO} As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal. ${parouEm
+          ? `A coleta de relatórios de ${a.nome} parou em ${a.dm(parouEm)}; nenhum dia dos últimos ${JANELA_LEITURA_ALCANCE_DIAS} foi medido`
+          : `Os números de alcance de ${a.nome} ainda não chegaram`}: falta medir, não é zero.`,
         naoMedido: true,
         linhas: [
           linha('impressoes', 'Impressões', SUB.impressoesSemDado),

@@ -431,7 +431,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
         ? `Com ${int(v28)} ${v28 === 1 ? 'view' : 'views'} em 28 dias não dá para posicionar este vídeo: ${fraseOutrosAbaixoDe1(abaixoDe1, medidosVpd.length, semMedidaVpd)}` : null,
       naoPosicionaPct: meuPct.pct != null && meuPct.pouco ? `Com só ${int(meuPct.n)} ${meuPct.n === 1 ? 'view' : 'views'} não dá para posicionar o % assistido.` : null,
       semVpd: `sem ${MIN_DIAS_VPD} dias de medida`,
-      semPct: 'sem medida',
+      semPct: 'não medido',
     }
   }
   // os dias que valem para CADA vídeo da régua: a partir da publicação dele, D e D-1 sem linha fora do zero (a regra de `montarDias`, a mesma do gráfico)

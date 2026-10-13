@@ -276,8 +276,8 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     switch (numero) {
       case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : diasDe(este.id).novo ? FRASE_VIDEO_NOVO : diasDe(este.id).medidos === 0 ? 'ainda não há dia de alcance medido' : fraseZeroImpressao(diasDe(este.id), nImpressao)
       case 'views': return 'sem contagem de views'
-      case 'vpd': return a.diario?.semVpd ?? 'sem medida'
-      case 'assistido': return a.diario?.semPct ?? 'sem medida'
+      case 'vpd': return a.diario?.semVpd ?? 'não medido'
+      case 'assistido': return a.diario?.semPct ?? 'não medido'
       case 'engajamento':
         if (num(este.views) == null) return 'sem contagem de views'
         if (num(este.likes) == null || num(este.comments) == null) return 'não medido'

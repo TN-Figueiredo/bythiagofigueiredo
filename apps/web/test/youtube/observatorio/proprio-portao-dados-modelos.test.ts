@@ -40,7 +40,7 @@ const cel = (h: ReturnType<typeof header>, key: string) => {
 }
 const comoEsta = (dados: DadosDoCanal) => montarComoEsta({ dados, hoje: W.hoje, dm, posicao: null, posicaoItens: null, videos: VIDEOS, concorrentes: [], canalId: W.canalId, publicacoes: PUBS })
 
-const FRASE_FORA = (k: number) => `A leitura diária cobre só os 50 longos mais novos; ${k} ${k === 1 ? 'longo mais antigo ficou' : 'longos mais antigos ficaram'} de fora.`
+const FRASE_FORA = (k: number) => `A leitura diária cobre só os 50 vídeos longos mais novos; ${k} ${k === 1 ? 'vídeo longo mais antigo ficou' : 'vídeos longos mais antigos ficaram'} de fora.`
 
 /* ---------------------------------------------------------------- I1 */
 
@@ -59,7 +59,7 @@ describe('I1: o corte dos 50 longos mais novos é dito, nunca silencioso', () =>
     expect(v.motivo).toBeNull()
     expect(v.n).toBe(2)
     expect(v.foraDoTeto).toBe(1)
-    expect(baseVpdTexto(v, dm)).toContain('1 longo mais antigo ficou de fora da leitura')
+    expect(baseVpdTexto(v, dm)).toContain('1 vídeo longo mais antigo ficou de fora da leitura')
     const sem = vpdDoCanal(comCorte([]).diario, [A, B, C], W.hoje)
     expect(sem.foraDoTeto).toBe(0)
     expect(baseVpdTexto(sem, dm)).not.toContain('de fora')
@@ -69,7 +69,7 @@ describe('I1: o corte dos 50 longos mais novos é dito, nunca silencioso', () =>
     const v = vpdDoCanal(di, [C], W.hoje)
     expect(v.valor).toBeNull()
     expect(v.motivo).toBe('fora-da-leitura')
-    expect(motivoVpdTexto('fora-da-leitura', v, dm)).toBe('este vídeo ficou fora da leitura diária, que cobre só os 50 longos mais novos')
+    expect(motivoVpdTexto('fora-da-leitura', v, dm)).toBe('este vídeo ficou fora da leitura diária, que cobre só os 50 vídeos longos mais novos')
     // o vídeo lido, sem linhas, continua sendo "poucos dias" (a causa verdadeira dele)
     const lidoSemLinha: Privado<DiarioCanal> = { acesso: 'ok', dado: { ...diarioOk(), linhas: [], foraDoTeto: [C] } }
     expect(vpdDoCanal(lidoSemLinha, [A], W.hoje).motivo).toBe('poucos-dias')
@@ -91,7 +91,7 @@ describe('I1: o corte dos 50 longos mais novos é dito, nunca silencioso', () =>
   it('cabeçalho: a base do % assistido e a das views por dia dizem quantos longos ficaram de fora', () => {
     const h = header(comCorte([C]))
     expect(cel(h, 'assistido').base).toContain(FRASE_FORA(1))
-    expect(cel(h, 'vpdVideo').base).toContain('1 longo mais antigo ficou de fora da leitura')
+    expect(cel(h, 'vpdVideo').base).toContain('1 vídeo longo mais antigo ficou de fora da leitura')
     const sem = header(comCorte([]))
     expect(cel(sem, 'assistido').base).not.toContain('de fora')
   })
@@ -102,7 +102,7 @@ describe('I1: o corte dos 50 longos mais novos é dito, nunca silencioso', () =>
   it('cartão do vídeo cortado: a causa é o corte, nunca "menos de 7 dias medidos"', () => {
     const v = buildProprioVideos(W.obs, W.canalId, comCorte([C]), { hoje: W.hoje, dm })!
     const cartao = v.videos.find(x => x.ytId === C)!
-    expect(cartao.vpdDiarioMissing).toBe('este vídeo ficou fora da leitura diária, que cobre só os 50 longos mais novos')
+    expect(cartao.vpdDiarioMissing).toBe('este vídeo ficou fora da leitura diária, que cobre só os 50 vídeos longos mais novos')
     expect(cartao.vpdDiarioText).toBeNull()
     expect(cartao.notas.join(' ')).not.toContain('menos de 7 dias')
     const outro = v.videos.find(x => x.ytId === A)!
@@ -161,9 +161,12 @@ describe('I3: coleta de alcance parada há mais de 35 dias diz desde quando', ()
     const parado = montarSoSeuCanalDado({ ...base, alcance: { acesso: 'ok', dado: paradoHa(36) } })
     expect(parado.view?.frase).toContain(`parou em ${dm(d(36))}; nenhum dia dos últimos 35 foi medido`)
     expect(parado.view?.frase).not.toContain('ainda não chegaram')
+    // M3 do revisor de UX: duas frases (a primeira diz o que só o dono vê; a segunda, o que houve com a coleta), sem juntar três pontuações numa só
+    expect(parado.view?.frase).toBe(`Não medido. As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal. A coleta de relatórios de Meu canal parou em ${dm(d(36))}; nenhum dia dos últimos 35 foi medido: falta medir, não é zero.`)
     expect(parado.view?.naoMedido).toBe(true)
     const nunca = montarSoSeuCanalDado({ ...base, alcance: { acesso: 'ok', dado: alcanceVazio(W.canalId) } })
     expect(nunca.view?.frase).toContain('ainda não chegaram')
+    expect(nunca.view?.frase).toBe('Não medido. As impressões, os cliques estimados e a taxa de clique só chegam ao dono do canal. Os números de alcance de Meu canal ainda não chegaram: falta medir, não é zero.')
   })
 })
 
@@ -199,7 +202,7 @@ describe('I4: o total do canal inclui o que veio antes da publicação, e isso �
     expect(com).toEqual(sem)
   })
   it('o ⓘ das impressões e dos cliques do cabeçalho diz que o total do canal inclui impressões de antes da publicação (e quantas)', () => {
-    const frase = 'O total do canal inclui 50 impressões de dias anteriores à publicação do vídeo; o total de cada vídeo começa no dia da publicação, então a soma dos vídeos pode ser menor.'
+    const frase = 'O total do canal inclui 50 impressões de dias anteriores à publicação de cada vídeo; o total de cada vídeo começa no dia da publicação, então a soma dos vídeos pode ser menor.'
     expect(celula(h(antes(50)), 'impressoes').base).toContain(frase)
     expect(celula(h(antes(50)), 'cliques').base).toContain(frase)
     expect(celula(h(antes(1)), 'impressoes').base).toContain('O total do canal inclui 1 impressão de dias anteriores')
@@ -246,12 +249,12 @@ describe('M3: o CTR nulo derruba a taxa e a frase diz de quantos dias', () => {
 })
 
 describe('M4: as frases de causa não afirmam o que não foi lido', () => {
-  it('a régua do vídeo: sem % assistido diz "sem medida" (a mesma frase vale para Short e para vídeo além do teto, que não foram lidos)', () => {
+  it('a régua do vídeo: sem % assistido diz "não medido" (a mesma frase vale para Short e para vídeo além do teto, que não foram lidos)', () => {
     const w = mundoVideo({ diario: { viewsFoco: 0 } })
     const b = buildVideoBlocos({ obs: w.obs, videoId: w.foco.id, dados: { acesso: 'ok', dado: { alcance: (w.dados.alcance as { dado: AlcanceCanal }).dado, diario: (w.dados.diario as { dado: DiarioCanal }).dado } }, hoje: w.hoje, dm })
     const l = b.canal.reguas.linhas.find(x => x.numero === 'assistido')!
     expect(l.valor).toBeNull()
-    expect(l.semRegua).toBe('sem medida')
+    expect(l.semRegua).toBe('não medido')
   })
   // o vídeo mais novo do canal passa a ter `idade` dias de vida; o último relatório de alcance é de hoje-10 (a coleta atrasou)
   const paginaDoNovo = (idade: number) => {
