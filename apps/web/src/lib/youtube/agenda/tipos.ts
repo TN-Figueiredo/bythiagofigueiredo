@@ -4,8 +4,15 @@ import type { BatchRow } from '@/lib/youtube/competitor-sync-batch'
 /** Só tipos da agenda. Nenhuma outra tarefa declara tipo que outra importa: tudo o que duas tarefas usam nasce aqui. Não importa nada de `agenda/` nem de `horaria/`. */
 export type Peso = 'sempre' | 'leve' | 'pesada'
 export type Periodo = 'hora' | 'faixa' | 'dia'
-/** Uma leitura que pode falhar: o valor, ou o motivo (em português) para o resumo do disparo. */
-export type Lido<T> = { valor: T } | { porque: string }
+/**
+ * Por que uma leitura da agenda falhou (conjunto FECHADO; quem decide o que fazer decide por isto, nunca pelo texto de `porque`):
+ * `schema_ausente` = a migration da agenda ainda não foi aplicada; `prazo` = o banco não respondeu a tempo (ou erro de transporte);
+ * `excecao` = a chamada lançou; `erro_do_banco` = o banco respondeu com um erro de código (permissão, timeout do servidor...);
+ * `forma_invalida` = resposta nula ou fora da forma esperada, ou entrada inválida do chamador.
+ */
+export type CausaDaFalha = 'schema_ausente' | 'prazo' | 'excecao' | 'erro_do_banco' | 'forma_invalida'
+/** Uma leitura que pode falhar: o valor, ou o motivo (em português) para o resumo do disparo. `causa` é opcional: quem não a preenche continua compilando. */
+export type Lido<T> = { valor: T } | { porque: string; causa?: CausaDaFalha }
 
 export interface LinhaTarefa {
   task: string
