@@ -407,8 +407,10 @@ for (const [nome, largura, altura] of TAMANHOS) for (const tema of ['dark', 'lig
           // "1.139" ao lado de dia não medido, a 390 px: o rótulo existe, tem halo e cabe (o conferirSvgs já provou: dentro, sem sobrepor)
           const rot = await page.evaluate(() => [...document.querySelectorAll<SVGTextElement>('svg.ic-svg text.ic-cln')].map(t => t.textContent))
           // desde a 15c o MAIOR valor da série tem prioridade para ficar com rótulo (`quaisCabem` com prioridade; provado em jsdom em proprio-impressoes.test.tsx): o 1.139 deve
-          // aparecer; a medida registra (sem afirmar: esta corrida ainda não rodou em navegador depois do conserto)
+          // aparecer; a medida registra e a asserção logo abaixo afirma (provado em navegador no fecho da A4)
           medida(`${nome}/${tema}: rótulos da faixa de cliques a 390 px: ${rot.join(', ')}; "1.139" ${rot.includes(PT(Math.round(RET_1139.imp * RET_1139.ctr))) ? 'aparece' : 'É OMITIDO (esperado: aparece)'}`)
+          // provado em navegador (fecho da A4, 12/10): o rótulo do MAIOR valor da faixa de cliques aparece a 390 px, nos dois temas
+          expect(rot, `${nome}/${tema}: o rótulo do maior valor (1.139) da faixa de cliques a 390 px`).toContain(PT(Math.round(RET_1139.imp * RET_1139.ctr)))
         }
       }
     } finally { await ctx.close() }
