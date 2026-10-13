@@ -169,9 +169,18 @@ export interface WeeklyResult {
   skipped?: boolean
   /** miniaturas que não puderam ser conferidas ou guardadas nesta visita (sonda ou download falharam): contadas, sem custar o ponto nem a linha do vídeo */
   thumbFailed?: number
+  /** miniaturas que NÃO foram conferidas porque o disjuntor estava aberto (3 falhas seguidas da sonda ou do download): o vídeo ganhou o ponto e a linha, sem a miniatura; a próxima leitura tenta de novo */
+  thumbSkipped?: number
   /** vídeos cuja reconciliação de versões falhou nesta visita: o ponto foi gravado, a linha ficou sem a miniatura, e a leitura termina com `WeeklyVersionError` */
   versionFailed?: number
 }
+/**
+ * (A5 E2, 11b I-1) Disjuntor da miniatura na leitura semanal: falhas SEGUIDAS da sonda ou do download. Com `THUMB_BREAKER_LIMIT` falhas
+ * a sonda é desligada no resto. Quem lê vários canais no mesmo disparo passa o MESMO objeto a todos (a queda do host de imagens é de todos);
+ * sem ele, cada leitura começa do zero.
+ */
+export interface ThumbBreaker { failures: number }
+const THUMB_BREAKER_LIMIT = 3
 /**
  * (A5 E2) A leitura semanal TERMINOU (os pontos devidos estão gravados e o canal foi carimbado, porque o recibo é o ponto), mas a
  * versão de ao menos um vídeo não gravou. Quem chama conta o erro como o de qualquer outra falha da fase; `result` é o que foi feito.
@@ -191,8 +200,10 @@ type RunOpts = {
   deadline?: () => boolean
   /** false = não confere a miniatura na leitura semanal */
   thumbs?: boolean
+  /** (só a leitura semanal) o disjuntor da miniatura, compartilhado entre os canais de um disparo; omitido = um novo por leitura */
+  thumbBreaker?: ThumbBreaker
 }
-export async function syncCompetitorChannel(channelRow: ChannelRef, apiKey: string, opts: Omit<RunOpts, 'deadline' | 'thumbs'> = {}): Promise<SyncResult> {
+export async function syncCompetitorChannel(channelRow: ChannelRef, apiKey: string, opts: Omit<RunOpts, 'deadline' | 'thumbs' | 'thumbBreaker'> = {}): Promise<SyncResult> {
   const r = await runChannel(channelRow, apiKey, opts, 'slot')
   if (r.kind !== 'slot') throw new Error('runChannel: modo trocado')
   return r.result
@@ -202,7 +213,7 @@ export async function syncCompetitorChannel(channelRow: ChannelRef, apiKey: stri
  * lote (Tarefa 13) e, na E16, pela tarefa serie_semanal. Não faz channels.list nem lê a página de uploads, não mexe em
  * last_synced_at nem em sync_status, e não põe o canal em erro: se lançar, quem chama conta o erro e tenta no disparo seguinte.
  */
-export async function syncCompetitorWeekly(channelRow: ChannelRef, apiKey: string, opts: Pick<RunOpts, 'now' | 'fetchImpl' | 'deadline' | 'thumbs'> = {}): Promise<WeeklyResult> {
+export async function syncCompetitorWeekly(channelRow: ChannelRef, apiKey: string, opts: Pick<RunOpts, 'now' | 'fetchImpl' | 'deadline' | 'thumbs' | 'thumbBreaker'> = {}): Promise<WeeklyResult> {
   const r = await runChannel(channelRow, apiKey, opts, 'weekly')
   if (r.kind !== 'weekly') throw new Error('runChannel: modo trocado')
   return r.result
@@ -362,8 +373,10 @@ async function runChannel(
    * dele, que não é linha de base, foi vista pela primeira vez na última semana com janela de até 8 dias (a de janela longa não promove, S-M8).
    * Se a visita anterior morreu depois do ponto, esta lê o mesmo estado e chega à mesma conclusão; quem já tem `daily_until` no futuro não volta.
    */
-  const promoteByState = async (weeklyRows: FullRow[], today: string): Promise<number> => {
-    const cand = weeklyRows.filter(r => !outOfProof(r) && (r.daily_until == null || r.daily_until < today))
+  const promoteByState = async (weeklyRows: FullRow[], today: string, gotPointToday: ReadonlySet<string>): Promise<number> => {
+    // Só quem TEM ponto hoje pode ter acabado de cruzar a regra (a leitura do começo da visita já o via, ou esta visita o gravou): a releitura
+    // não varre o canal inteiro (1.200 vídeos eram +12 consultas por visita).
+    const cand = weeklyRows.filter(r => gotPointToday.has(r.id) && !outOfProof(r) && (r.daily_until == null || r.daily_until < today))
     if (!cand.length) return 0
     const pts = await loadRecentPoints(cand.map(r => r.id), today) // depois dos pontos desta visita: lê o estado, não a memória
     const withToday = cand.filter(r => pts.get(r.id)?.last.date === today)
@@ -444,7 +457,8 @@ async function runChannel(
   /** (A5 E2) Leituras das primeiras horas gravadas (zero não aparece no resultado). */
   let earlyRecorded = 0
   /** (A5 E2, leitura semanal) Mudanças vistas com a janela de mais de 8 dias (gravadas, mas fora do aviso) e miniaturas que não puderam ser conferidas. */
-  let longWindowChanges = 0, thumbFailed = 0
+  let longWindowChanges = 0, thumbFailed = 0, thumbSkipped = 0
+  const thumbBreaker: ThumbBreaker = opts.thumbBreaker ?? { failures: 0 }
   /** (A5 E2, leitura semanal) Vídeos cuja reconciliação de versões falhou: o ponto sai, mas a linha NÃO leva os campos que a versão cobre (miniatura). */
   const versionFailedIds = new Set<string>()
   let versionFailure: Error | null = null
@@ -510,21 +524,39 @@ async function runChannel(
     }
   }
 
-  /** Reconciles one video's versions and applies the plan. Throws on any database error (compensating first). */
+  type ReconcileInput = { apiTitle: string; apiDescription: string | undefined; thumbnailUrl: string | null; viewCount: number | null; existingTitle: string | null; existingThumbUrl: string | null }
+  /**
+   * Reconciles one video's versions and applies the plan. Throws on any database error (compensating first).
+   * Na leitura semanal, o resultado da miniatura do vídeo alimenta o disjuntor: falha da sonda ou do download = +1 na sequência; sondou e deu certo = zera.
+   */
   const reconcileVideo = async (
-    videoUuid: string, videoId: string,
-    o: { apiTitle: string; apiDescription: string | undefined; thumbnailUrl: string | null; viewCount: number | null; existingTitle: string | null; existingThumbUrl: string | null },
+    videoUuid: string, videoId: string, o: ReconcileInput,
     current: StoredVersion[], touchIds: string[], w: { weekly: boolean } = { weekly: false },
+  ): Promise<void> => {
+    if (!w.weekly) return reconcileVideoBody(videoUuid, videoId, o, current, touchIds, w, { probed: false })
+    const failedBefore = thumbFailed
+    const ran = { probed: false }
+    try { await reconcileVideoBody(videoUuid, videoId, o, current, touchIds, w, ran) } finally {
+      if (ran.probed) thumbBreaker.failures = thumbFailed > failedBefore ? thumbBreaker.failures + 1 : 0
+    }
+  }
+  const reconcileVideoBody = async (
+    videoUuid: string, videoId: string, o: ReconcileInput,
+    current: StoredVersion[], touchIds: string[], w: { weekly: boolean }, ran: { probed: boolean },
   ): Promise<void> => {
     reconciled.add(videoUuid)
     const prevThumb = current.find(v => v.field === 'thumb') ?? null
     let probe: ThumbProbe | null = null
     // A miniatura do vídeo semanal também é conferida (a sonda é só um cabeçalho: não custa cota); `thumbs: false` desliga só no semanal.
-    if (opts.thumbs !== false || !w.weekly) {
+    // Disjuntor (11b, I-1): depois de THUMB_BREAKER_LIMIT falhas seguidas o resto da leitura não sonda (cada falha custa até 10 s): o vídeo ganha o ponto e a linha, fica sem cópia e conta em thumbSkipped.
+    if (w.weekly && opts.thumbs !== false && thumbBreaker.failures >= THUMB_BREAKER_LIMIT) {
+      thumbSkipped++
+    } else if (opts.thumbs !== false || !w.weekly) {
+      ran.probed = w.weekly
       try {
         probe = await probeThumb(videoId, prevThumb ? { etag: prevThumb.thumb_etag, dhash: prevThumb.thumb_dhash } : null, f)
-        // cabeçalho que respondeu sem indício nenhum, ou imagem que não pôde ser baixada: a sonda não conferiu nada
-        if (w.weekly && (!probe.etag && !probe.dhash)) thumbFailed++
+        // cabeçalho que respondeu sem indício nenhum, ou imagem que não pôde ser baixada (ETag novo e nenhuma imagem; ETag igual ao guardado é "nada a baixar"): a sonda não conferiu nada
+        if (w.weekly && ((!probe.etag && !probe.dhash) || (probe.etag && !probe.dhash && !probe.bytes && probe.etag !== prevThumb?.thumb_etag))) thumbFailed++
       } catch {
         probe = null // network failure: skip the thumbnail this round
         if (w.weekly) thumbFailed++
@@ -693,46 +725,72 @@ async function runChannel(
       for (const r of all) if (!rowInfo.has(r.id)) rowInfo.set(r.id, { lastSeenAt: r.last_seen_at, weeklySince: r.series_tier === 'semanal' ? r.series_tier_since : null, missing: r.missing_since != null })
       const weeklyRows = all.filter(r => r.series_tier === 'semanal')
       const points = await loadRecentPoints(weeklyRows.map(r => r.id), today)
+      // Quem tem o ponto de hoje: o que a leitura do começo já via, mais o que esta visita grava (a promoção só olha esses).
+      const gotPointToday = new Set(weeklyRows.filter(r => points.get(r.id)?.last.date === today).map(r => r.id))
       // O PONTO É O RECIBO: o vídeo que já tem o ponto de hoje não é devido (não relê); o que o relógio cortou continua sem ponto, logo devido.
-      const due = weeklyRows.filter(r => weeklyDue({ ytId: r.video_id, lastPoint: points.get(r.id)?.last.date ?? null, tierSince: r.series_tier_since }, today))
+      // Vídeo que NÃO PODE ganhar ponto hoje (sem contagem, estreia agendada, ausente) é pedido só no dia fixo dele (é como se descobre que voltou);
+      // a prova SQL (semanal_devidos_hoje) o exclui, e pedi-lo todo dia gastaria a sonda e a linha à toa (11b, I-2).
+      const due = weeklyRows.filter(r => outOfProof(r)
+        ? weeklyDue({ ytId: r.video_id, lastPoint: null, tierSince: null }, today)
+        : weeklyDue({ ytId: r.video_id, lastPoint: points.get(r.id)?.last.date ?? null, tierSince: r.series_tier_since }, today))
       dueCount = due.length
-      for (let i = 0; i < due.length; i += 50) {
-        // o relógio é conferido ANTES de cada chamada ao YouTube, nunca depois
-        if (stop()) { deferred += due.length - i; break }
-        const chunk = due.slice(i, i + 50)
-        const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
-        if (!res.ok) throw new Error(`YouTube API ${res.status} for weekly statistics`)
-        // 200 sem a lista (ou com `error`) é falha da chamada, como um 500: ninguém é marcado ausente, ninguém ganha ponto
-        const body = await res.json()
-        const returned = videoItemsOf(body)
-        const byYt = new Map(chunk.map(c => [c.video_id, c]))
-        const items = (returned as FetchedItem[]).filter(it => isRec(it) && typeof it.id === 'string' && byYt.has(it.id))
-        // pedido e devolvido: nunca conta como ausente, mesmo que o relógio não deixe conferir
-        for (const c of chunk) asked.add(c.id)
-        for (const it of items) seen.add(byYt.get(it.id)!.id)
-        // um vídeo por vez, com o relógio conferido antes de cada um (título, descrição e miniatura)
-        const done = await reconcileFetched(items, byYt, { weekly: true, stop })
-        await patchFetched(done, byYt)
-        await captureFetched(done.map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
-        // Só o vídeo conferido ganha o ponto de hoje. Contagem ausente (ou ilegível) é "não medido": sem ponto, nunca zero; '0' é zero medido.
-        const rows = done.flatMap(it => {
-          const views = optCount(it.statistics?.viewCount)
-          if (views === null) return []
-          return [{ video_id: byYt.get(it.id)!.id, snap_date: today, views, likes: optCount(it.statistics?.likeCount), comments: optCount(it.statistics?.commentCount), taken_at: nowIso }]
-        })
-        if (rows.length) {
-          const { data: inserted, error } = await supabase.from('competitor_video_daily').upsert(rows, { onConflict: 'video_id,snap_date', ignoreDuplicates: true }).select('video_id')
-          fail('não foi possível gravar a leitura semanal', error)
-          recorded += (inserted ?? []).length
+      // Uma chamada que lança no meio não perde a falta já apurada dos blocos anteriores (11b, M-4): a marca vai antes de o erro subir.
+      let loopError: { error: unknown } | null = null
+      try {
+        for (let i = 0; i < due.length; i += 50) {
+          // o relógio é conferido ANTES de cada chamada ao YouTube, nunca depois
+          if (stop()) { deferred += due.length - i; break }
+          const chunk = due.slice(i, i + 50)
+          const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+          if (!res.ok) throw new Error(`YouTube API ${res.status} for weekly statistics`)
+          // 200 sem a lista (ou com `error`) é falha da chamada, como um 500: ninguém é marcado ausente, ninguém ganha ponto
+          const body = await res.json()
+          const returned = videoItemsOf(body)
+          const byYt = new Map(chunk.map(c => [c.video_id, c]))
+          const items = (returned as FetchedItem[]).filter(it => isRec(it) && typeof it.id === 'string' && byYt.has(it.id))
+          // pedido e devolvido: nunca conta como ausente, mesmo que o relógio não deixe conferir
+          for (const c of chunk) asked.add(c.id)
+          for (const it of items) seen.add(byYt.get(it.id)!.id)
+          // um vídeo por vez, com o relógio conferido antes de cada um (título, descrição e miniatura)
+          const done = await reconcileFetched(items, byYt, { weekly: true, stop })
+          await patchFetched(done, byYt)
+          await captureFetched(done.map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
+          // Só o vídeo conferido ganha o ponto de hoje. Contagem ausente (ou ilegível) é "não medido": sem ponto, nunca zero; '0' é zero medido.
+          const rows = done.flatMap(it => {
+            const views = optCount(it.statistics?.viewCount)
+            if (views === null) return []
+            return [{ video_id: byYt.get(it.id)!.id, snap_date: today, views, likes: optCount(it.statistics?.likeCount), comments: optCount(it.statistics?.commentCount), taken_at: nowIso }]
+          })
+          if (rows.length) {
+            const { data: inserted, error } = await supabase.from('competitor_video_daily').upsert(rows, { onConflict: 'video_id,snap_date', ignoreDuplicates: true }).select('video_id')
+            fail('não foi possível gravar a leitura semanal', error)
+            recorded += (inserted ?? []).length
+            for (const r of rows) gotPointToday.add(r.video_id)
+          }
+          const cut = items.length - done.length
+          if (cut > 0) { deferred += cut + Math.max(0, due.length - i - chunk.length); break }
         }
-        const cut = items.length - done.length
-        if (cut > 0) { deferred += cut + Math.max(0, due.length - i - chunk.length); break }
-      }
+      } catch (e) { loopError = { error: e } }
       // pedido e NÃO devolvido numa chamada que respondeu: uma falta (a mesma função da sincronização)
       const missedIds = [...asked].filter(id => !seen.has(id))
+      if (loopError) {
+        // o erro da chamada é o que sobe; a marca de ausência do que já foi apurado é feita antes, e a falha dela não o esconde
+        if (missedIds.length) { try { await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null }) } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'competitors-weekly-missing' } }) } }
+        throw loopError.error
+      }
       if (missedIds.length) await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
       // a promoção vem DEPOIS dos pontos e ANTES do carimbo: se lança, o canal não é carimbado e a visita seguinte a refaz pelo estado gravado
-      const promoted = await promoteByState(weeklyRows, today)
+      let promoted = 0
+      try { promoted = await promoteByState(weeklyRows, today, gotPointToday) } catch (e) {
+        // falha de versão já apurada nesta visita: nada se perde. Sobe a PRIMEIRA falha (a da versão) com os contadores; a da promoção fica em `cause`.
+        if (versionFailure) {
+          const partial: WeeklyResult = { due: dueCount, recorded, deferred, promoted: 0, unitsUsed, changesDetected, longWindowChanges, complete: false, ...(thumbFailed ? { thumbFailed } : {}), ...(thumbSkipped ? { thumbSkipped } : {}), ...(versionFailedIds.size ? { versionFailed: versionFailedIds.size } : {}) }
+          const err = new WeeklyVersionError((versionFailure as Error).message, partial)
+          err.cause = e
+          throw err
+        }
+        throw e
+      }
       if (lateFailure) throw lateFailure // linha do vídeo ou captura que não gravou: não carimba; o disparo seguinte refaz
       // Canal em que ainda há vídeo SEM faixa não fecha a passada: quem grava a faixa é a sincronização do canal, e até lá não se
       // sabe o que é devido (dia do deploy, canal novo, troca de faixa que falhou). Canal sem vídeo nenhum não tem o que esperar.
@@ -741,7 +799,7 @@ async function runChannel(
         const { error } = await supabase.from('competitor_channels').update({ weekly_pass_date: today }).eq('id', channelRow.id)
         fail('não foi possível carimbar a passada semanal do canal', error)
       }
-      const result: WeeklyResult = { due: dueCount, recorded, deferred, promoted, unitsUsed, changesDetected, longWindowChanges, complete, ...(thumbFailed ? { thumbFailed } : {}), ...(versionFailedIds.size ? { versionFailed: versionFailedIds.size } : {}) }
+      const result: WeeklyResult = { due: dueCount, recorded, deferred, promoted, unitsUsed, changesDetected, longWindowChanges, complete, ...(thumbFailed ? { thumbFailed } : {}), ...(thumbSkipped ? { thumbSkipped } : {}), ...(versionFailedIds.size ? { versionFailed: versionFailedIds.size } : {}) }
       // a versão de algum vídeo não gravou: o ponto dele saiu e o canal está carimbado (o recibo é o ponto), mas o erro não passa em verde
       if (versionFailure) throw new WeeklyVersionError((versionFailure as Error).message, result)
       return { kind: 'weekly', result }
