@@ -50,9 +50,10 @@ export function conferenciasE1E2(deploy: string | null): Conferencia[] {
   if (!dataReal(deploy)) {
     return [{ id: 'e1e2-deploy-invalido', etapa: 'E1', data: '1970-01-01', responsavel: 'agente', onde: `E1_E2_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
   }
-  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e1e2-${id}`, etapa: 'E1', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E1E2}: ${onde}`, feitaEm: null })
+  // `feitaEm` só vale para o envio REAL (13/10/2026): a e1e2-d0 foi conferida às 19:45 desse dia (D0 do Lote 1 verde, ledger a5-e1-e2).
+  const e = (id: string, mais: number, onde: string, feitaEm: string | null = null): Conferencia => ({ id: `e1e2-${id}`, etapa: 'E1', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E1E2}: ${onde}`, feitaEm: deploy === '2026-10-13' ? feitaEm : null })
   return [
-    e('d0', 0, 'D0, depois das 19:10 de SP: select count(*) from competitor_raw (esperado 690 ou mais); K5 com as 9 e as 13 chaves, vermelhas em 0; K9 e K17: nenhum "(sem faixa)", cerca de 676 na faixa diária e 714 na semanal; completa_hoje em todos os canais; K16 (correntes_sem_copia) = 0; K12: tempo por canal (base 16 s; acima de 30 s, refazer a conta do disparo); K3: uma linha de cota'),
+    e('d0', 0, 'D0, depois das 19:10 de SP: select count(*) from competitor_raw (esperado 690 ou mais); K5 com as 9 e as 13 chaves, vermelhas em 0; K9 e K17: nenhum "(sem faixa)", cerca de 676 na faixa diária e 714 na semanal; completa_hoje em todos os canais; K16 (correntes_sem_copia) = 0; K12: tempo por canal (base 16 s; acima de 30 s, refazer a conta do disparo); K3: uma linha de cota', '2026-10-13'),
     e('d1', 1, 'D+1, depois das 12:45: K5; K6 (fechadas abaixo de 2% das correntes; se passar há campo volátil no raw: abrir conserto no mesmo dia); K7; K3 (cota do dia do Pacífico fechado entre 195 e 215); K16 = 0; K11'),
     e('d3', 3, 'D+3: K8 vazia (8 leituras ou mais por vídeo novo); K6 abaixo de 5%; K13; decidir I-7 (partes gratuitas da API não pedidas) com o raw estável em dias'),
     e('d7', 7, 'D+7, depois das 19:10: K5; K16; select count(*) from competitor_videos where daily_until >= current_date; todo semanal com ponto; videos_sem_versao_de_miniatura só de ausentes e sem contagem'),

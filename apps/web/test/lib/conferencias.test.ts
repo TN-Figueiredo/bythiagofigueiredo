@@ -147,6 +147,13 @@ describe('conferências de E1 e E2 (relativas ao dia do envio)', () => {
     expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e1e2-d0'])
     expect(conferenciasEmFalha(dia(8), l).map(x => x.id)).toEqual(['e1e2-d0'])
   })
+  it('com o deploy real (E1_E2_DEPLOY): a e1e2-d0 foi feita em 13/10/2026 (D0 do Lote 1 verde) e as demais e1e2-* seguem sem feitaEm', () => {
+    const l = CONFERENCIAS.filter(x => x.id.startsWith('e1e2-'))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : null)
+    // a data é fato do envio real: um envio hipotético (outra data de deploy) não herda a conferência como feita
+    expect(conferenciasE1E2(dia(-10)).every(x => x.feitaEm === null)).toBe(true)
+  })
   it('SEM o dia do envio (indefinido): nenhuma entrada, nada vence e o cron não fica vermelho, por mais longe que esteja o dia', () => {
     expect(conferenciasE1E2(null)).toEqual([])
     expect(conferenciasVencidas(dia(4000), conferenciasE1E2(null))).toEqual([])
