@@ -41,6 +41,21 @@ export class AnalyticsRetencaoError extends AnalyticsApiError {
   }
 }
 
+/**
+ * Chamada com id que não tem a forma do YouTube. Erro NOSSO de uso (nenhuma chamada foi gasta): o código do catálogo
+ * é `excecao` (`motivoDoErro` devolve o mesmo), e a mensagem em português não leva o valor recusado.
+ */
+export class UsoInvalidoRetencaoError extends Error {
+  readonly codigo = 'excecao'
+  constructor(campo: 'videoId' | 'canalUc') {
+    super(`${campo} inválido para a consulta de retenção`)
+    this.name = 'UsoInvalidoRetencaoError'
+  }
+}
+
+const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/
+const CANAL_UC_RE = /^UC[A-Za-z0-9_-]{22}$/
+
 type Entrada = { token: string; canalUc: string; videoId: string; inicio: string; fim: string; f: typeof fetch }
 
 function pedir(i: Entrada, metricas: readonly string[]): Promise<Response> {
@@ -59,6 +74,8 @@ function pedir(i: Entrada, metricas: readonly string[]): Promise<Response> {
 const finito = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
 export async function retencaoDoVideo(i: Entrada): Promise<RespostaRetencao> {
+  if (!CANAL_UC_RE.test(i.canalUc)) throw new UsoInvalidoRetencaoError('canalUc')
+  if (!VIDEO_ID_RE.test(i.videoId)) throw new UsoInvalidoRetencaoError('videoId')
   let chamadas = 1
   let basicas = false
   let repetiu500 = false
@@ -76,6 +93,8 @@ export async function retencaoDoVideo(i: Entrada): Promise<RespostaRetencao> {
       throw new AnalyticsRetencaoError(res.status, await motivoDoGoogle(res), chamadas)
     }
     chamadas += 1
+    // A resposta descartada não fica com a conexão pendurada.
+    void res.body?.cancel().catch(() => undefined)
     res = await pedir(i, basicas ? METRICAS_RETENCAO_BASICAS : METRICAS_RETENCAO)
   }
 
@@ -90,7 +109,8 @@ export async function retencaoDoVideo(i: Entrada): Promise<RespostaRetencao> {
   }
   if (corpo === null || typeof corpo !== 'object' || Array.isArray(corpo)) throw forma()
   const { columnHeaders, rows } = corpo as { columnHeaders?: unknown; rows?: unknown }
-  if (!Array.isArray(columnHeaders) || !Array.isArray(rows)) throw forma()
+  // `rows` ausente (chave não veio) com o cabeçalho certo é "sem curva", como `rows: []`; null ou não-lista é forma estranha.
+  if (!Array.isArray(columnHeaders) || (rows !== undefined && !Array.isArray(rows))) throw forma()
 
   // As colunas são conferidas ANTES de olhar as linhas: cabeçalho diferente do pedido é deriva de forma, mesmo vazio.
   const nomes = (columnHeaders as unknown[]).map(c =>
@@ -114,7 +134,7 @@ export async function retencaoDoVideo(i: Entrada): Promise<RespostaRetencao> {
 
   const vistos = new Set<number>()
   const pontos: PontoRetencao[] = []
-  for (const linha of rows as unknown[]) {
+  for (const linha of (rows ?? []) as unknown[]) {
     if (!Array.isArray(linha)) throw forma()
     const t = linha[posT]
     const ratio = linha[posRatio]
