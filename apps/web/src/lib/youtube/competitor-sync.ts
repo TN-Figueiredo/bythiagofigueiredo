@@ -13,7 +13,7 @@ import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats } from '@/lib/youtube/competitor-capture'
-import { classifyTiers, earlyEligible, weeklyDue, addDays, type Tier } from '@/lib/youtube/competitor-tiers'
+import { classifyTiers, earlyEligible, weeklyDue, shouldPromote, addDays, type Tier } from '@/lib/youtube/competitor-tiers'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
@@ -353,6 +353,47 @@ async function runChannel(
     }
     return out
   }
+  const isChangeRow = (x: unknown): x is { video_id: string; precision: string; first_seen_at: string; window_start: string | null } =>
+    isRec(x) && typeof x.video_id === 'string' && typeof x.precision === 'string' && typeof x.first_seen_at === 'string' && (x.window_start === null || typeof x.window_start === 'string')
+  /**
+   * (A5 E2, 11c) A promoção de semanal para diária, decidida pelo que está GRAVADO e não pelo que esta visita fez (emenda S-I6): o vídeo
+   * semanal (dentro da prova, `daily_until` nulo ou vencido) que TEM ponto hoje é promovido quando (a) os dois últimos pontos gravados
+   * satisfazem `shouldPromote` (1.000 views e 5%, a no máximo 8 dias um do outro), ou (b) uma versão de título, descrição ou miniatura
+   * dele, que não é linha de base, foi vista pela primeira vez na última semana com janela de até 8 dias (a de janela longa não promove, S-M8).
+   * Se a visita anterior morreu depois do ponto, esta lê o mesmo estado e chega à mesma conclusão; quem já tem `daily_until` no futuro não volta.
+   */
+  const promoteByState = async (weeklyRows: FullRow[], today: string): Promise<number> => {
+    const cand = weeklyRows.filter(r => !outOfProof(r) && (r.daily_until == null || r.daily_until < today))
+    if (!cand.length) return 0
+    const pts = await loadRecentPoints(cand.map(r => r.id), today) // depois dos pontos desta visita: lê o estado, não a memória
+    const withToday = cand.filter(r => pts.get(r.id)?.last.date === today)
+    if (!withToday.length) return 0
+    const ids = new Set<string>()
+    for (const r of withToday) {
+      const p = pts.get(r.id)!
+      if (shouldPromote(p.prev, { views: p.last.views }, today)) ids.add(r.id)
+    }
+    const sinceMs = nowMs - RULES.series.weeklyEveryDays * 86_400_000
+    const maxWindow = RULES.series.weeklyMaxGapDays * 86_400_000
+    const rest = withToday.map(r => r.id).filter(id => !ids.has(id))
+    for (let i = 0; i < rest.length; i += 100) {
+      const { data, error } = await supabase.from('competitor_video_versions').select('video_id, precision, first_seen_at, window_start')
+        .in('video_id', rest.slice(i, i + 100)).gte('first_seen_at', new Date(sinceMs).toISOString()).neq('precision', 'first')
+      fail('não foi possível ler as trocas recentes dos vídeos', error)
+      for (const c of rowsAs(data, isChangeRow, 'trocas recentes')) {
+        const seen = Date.parse(c.first_seen_at), start = c.window_start == null ? NaN : Date.parse(c.window_start)
+        // o banco já filtra; o código confere de novo (linha de base, fora da semana, janela sem começo ou longa não promovem)
+        if (c.precision !== 'first' && seen >= sinceMs && seen - start <= maxWindow) ids.add(c.video_id)
+      }
+    }
+    if (!ids.size) return 0
+    const all = [...ids]
+    for (let i = 0; i < all.length; i += 100) { // lotes de 100: a lista de ids vai na URL do pedido
+      const { error } = await supabase.from('competitor_videos').update({ daily_until: addDays(today, RULES.promotion.days) }).in('id', all.slice(i, i + 100))
+      fail('não foi possível promover o vídeo à leitura diária', error)
+    }
+    return ids.size
+  }
   const loadCurrent = async (uuids: string[]): Promise<Map<string, StoredVersion[]>> => {
     const map = new Map<string, StoredVersion[]>()
     if (!uuids.length) return map
@@ -690,7 +731,8 @@ async function runChannel(
       // pedido e NÃO devolvido numa chamada que respondeu: uma falta (a mesma função da sincronização)
       const missedIds = [...asked].filter(id => !seen.has(id))
       if (missedIds.length) await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
-      const promoted = 0 // a Tarefa 11c troca esta linha pela promoção por estado
+      // a promoção vem DEPOIS dos pontos e ANTES do carimbo: se lança, o canal não é carimbado e a visita seguinte a refaz pelo estado gravado
+      const promoted = await promoteByState(weeklyRows, today)
       if (lateFailure) throw lateFailure // linha do vídeo ou captura que não gravou: não carimba; o disparo seguinte refaz
       // Canal em que ainda há vídeo SEM faixa não fecha a passada: quem grava a faixa é a sincronização do canal, e até lá não se
       // sabe o que é devido (dia do deploy, canal novo, troca de faixa que falhou). Canal sem vídeo nenhum não tem o que esperar.

@@ -108,6 +108,10 @@ export type SetupOpts = {
   failWrite?: string; failWriteSkip?: number
   /** (A5 E2, leitura semanal) Os pontos de competitor_video_daily dos últimos 8 dias (a leitura com `gte` em snap_date); omitido = nenhum. */
   recentDaily?: Record<string, unknown>[]; recentDailyError?: string
+  /** (A5 E2, 11c) Os mesmos pontos como estão DEPOIS de gravados os desta visita: a leitura da promoção é a segunda leitura com `gte` (e as seguintes); omitido = os de `recentDaily`. */
+  recentDailyAfter?: Record<string, unknown>[]; recentDailyAfterError?: string
+  /** (A5 E2, 11c) A leitura das trocas recentes falha com este texto. */
+  recentChangesError?: string; recentChangesNull?: boolean
   /** (A5 E2, leitura semanal) O estado do canal que a leitura semanal lê (select, sem trava); omitidos = 'idle' e sem início. */
   channelStatus?: string; channelStartedAt?: string | null
   /** (A5 E2) As versões de campo abertas recentemente (a leitura com `gte` em first_seen_at; a Tarefa 11c usa). */
@@ -121,11 +125,12 @@ function writeMatches(spec: string, c: Call): boolean {
   if (c.table !== table) return false
   const op = String(first(c))
   if (kind === 'patch') return op === 'update' && 'custom_url' in (arg(c, 'update') ?? {})
+  if (kind === 'daily_until') return op === 'update' && 'daily_until' in (arg(c, 'update') ?? {}) // (11c) a gravação da promoção
   return kind ? op === kind : ['insert', 'update', 'upsert'].includes(op)
 }
 
 export function setup(opts: SetupOpts = {}) {
-  let writesSeen = 0
+  let writesSeen = 0, pointReads = 0
   const db = fakeDb((c) => {
     if (opts.failWrite && writeMatches(opts.failWrite, c) && writesSeen++ === (opts.failWriteSkip ?? 0)) return { data: null, error: { message: 'boom' } }
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
@@ -161,14 +166,21 @@ export function setup(opts: SetupOpts = {}) {
     if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
     if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
     // (A5 E2) os pontos recentes da leitura semanal (o único select de competitor_video_daily com `gte`)
-    if (c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')) return opts.recentDailyError ? { data: null, error: { message: opts.recentDailyError } } : { data: opts.recentDaily ?? [] }
+    // a primeira leitura é a do começo da visita; da segunda em diante, a da promoção (depois dos pontos)
+    if (c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')) {
+      const after = pointReads++ >= 1
+      if (after && opts.recentDailyAfterError) return { data: null, error: { message: opts.recentDailyAfterError } }
+      if (opts.recentDailyError) return { data: null, error: { message: opts.recentDailyError } }
+      const ids = c.ops.find(o => o[0] === 'in' && o[1][0] === 'video_id')?.[1][1] as unknown[] | undefined // como o banco: só os vídeos pedidos
+      return { data: ((after ? opts.recentDailyAfter : undefined) ?? opts.recentDaily ?? []).filter(r => !ids || ids.includes(r.video_id)) }
+    }
     if (c.table === 'competitor_video_daily' && first(c) === 'select') {
       const have = opts.dailyHave ?? (opts.lastDaily === '2026-10-24' ? ['v-1', 'v-new'] : [])
       return { data: have.map(video_id => ({ video_id })) }
     }
     if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
     if (c.table === 'competitor_video_early' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
-    if (c.table === 'competitor_video_versions' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte' && o[1][0] === 'first_seen_at')) return { data: opts.recentChanges ?? [] }
+    if (c.table === 'competitor_video_versions' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte' && o[1][0] === 'first_seen_at')) return opts.recentChangesNull ? { data: null, error: null } : opts.recentChangesError ? { data: null, error: { message: opts.recentChangesError } } : { data: opts.recentChanges ?? [] }
     if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
     if (c.table === 'rpc:apply_competitor_version_plan') {
       if (opts.rpcError) return { data: null, error: { message: 'boom' } }
