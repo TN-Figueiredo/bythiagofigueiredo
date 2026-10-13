@@ -121,6 +121,7 @@ export async function despachar(d: EntradaDespacho): Promise<ResumoDisparo> {
   // 2. A vaga da pesada (N5): uma só por disparo.
   const pesadas = devidas.filter(x => x.t.peso === 'pesada')
   let escolhida: Devida | null = null
+  const cederam: Devida[] = []
   if (pesadas.length > 0) {
     const candidatas = pesadas.filter(p => !(p.t.cedeA ?? []).some(nome => {
       const outra = devidas.find(x => x.t.nome === nome)
@@ -136,9 +137,10 @@ export async function despachar(d: EntradaDespacho): Promise<ResumoDisparo> {
       return porData !== 0 ? porData : a.t.ordem - b.t.ordem
     })
     escolhida = lista[0] ?? null
+    // o estado vale já; a ida ao banco (`adiar`) só depois do laço das tarefas, para não gastar o tempo da leitura horária
     for (const p of pesadas) {
       if (p === escolhida) continue
-      await adiar(p.t, p.chave, 'uma_pesada_por_disparo')
+      cederam.push(p)
       marcar(p.t, { estado: 'adiada', ms: 0, feitas: null, deixadas: null, motivo: 'uma_pesada_por_disparo' })
     }
   }
@@ -196,6 +198,10 @@ export async function despachar(d: EntradaDespacho): Promise<ResumoDisparo> {
       ...(detalhe !== undefined ? { detalhe } : {}),
       ...(r.extra !== undefined ? { extra: r.extra } : {}),
     })
+
+    // cota que não pôde ser registrada: as leituras ficam, mas o contador do dia está subcontado — vermelho, qualquer que seja o estado
+    const semCota = detalhe?.cota_nao_registrada
+    if (typeof semCota === 'number' && semCota > 0) problemas.push(`${t.rotulo}: ${semCota} unidades de cota não registradas`)
 
     if (r.estado === 'erro') {
       problemas.push(fraseDoMotivo(t, r.motivo, detalhe))
@@ -262,6 +268,7 @@ export async function despachar(d: EntradaDespacho): Promise<ResumoDisparo> {
     ...(escolhida ? [escolhida] : []),
   ]
   for (const x of fila) await executar(x)
+  for (const p of cederam) await adiar(p.t, p.chave, 'uma_pesada_por_disparo')
 
   const tarefas = catalogo.map(t => finais.get(t.nome)).filter((f): f is EstadoFinalTarefa => f !== undefined)
   return { tarefas, problemas, notas }
