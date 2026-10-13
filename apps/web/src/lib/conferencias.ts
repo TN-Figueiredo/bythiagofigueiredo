@@ -61,6 +61,32 @@ export function conferenciasE1E2(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E8 (coleta da curva de retenção, lote E8-coleta): as datas dependem do dia da promoção a `main` (R), que ainda não existe.
+// O controlador preenche `E8_COLETA_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as quatro
+// entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E8` (o formato `E<n>` do guardião).
+/** Dia de São Paulo (AAAA-MM-DD) em que o lote E8-coleta foi promovido a `main`. `null` = ainda não enviado. */
+export const E8_COLETA_DEPLOY: string | null = null
+
+const PLANO_E8 = 'docs/superpowers/plans/2026-10-12-a5-e6-e8-dieta-e-retencao-plan.md (Tarefa 11a; consultas K6 e K7 do apêndice); anotar o resultado em .superpowers/sdd/a5-e6-e8/progress.md'
+
+/**
+ * As conferências da coleta da retenção a partir do dia do envio (R). `null` = sem entradas. Data malformada não some em
+ * silêncio: vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE8Coleta(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e8-coleta-deploy-invalido', etapa: 'E8', data: '1970-01-01', responsavel: 'agente', onde: `E8_COLETA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e8-${id}`, etapa: 'E8', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E8}: ${onde}`, feitaEm: null })
+  return [
+    e('primeira-execucao', 1, 'R + 1: o resumo do primeiro cron depois do envio: resumo.retencao (gravados, vazios, chamadas, adiados_pela_leva, sem_resposta_do_youtube), ms_passos.retencao, quantas leituras vieram vazias e quantas com curva'),
+    e('tres-dias', 3, 'R + 3: a consulta K7 em três dias seguidos (uma linha de curva por vídeo lido, nenhuma tentativa sem resposta repetida), e falhas do cron sem nota de retenção'),
+    e('tempo-real', 3, 'R + 3: resumo.ms das 3 primeiras execuções, inclusive ms.cauda, e a duração da invocação no painel da Vercel; o maior total passando de 250 s manda cortar os prazos dos três critérios para 2 s, 2 s e 1 s e o teto de fim da retenção para 10 s antes do envio do lote seguinte (plano, seção 5, "Orçamento da cauda")'),
+    e('primeira-leva', 8, 'R + 8: a consulta K6: a primeira leva terminou (todo vídeo com diário em dia foi tentado ao menos uma vez) e o critério da retenção nunca ficou vermelho'),
+  ]
+}
+
 // Em ordem de data. Datas das etapas já em produção: E12 com D0 = 13/10/2026 (primeiro cron depois do deploy de 12/10);
 // E19 com `avisoDesde` = 12/10/2026 (lote 1 enviado em 12/10, dia de São Paulo); E20 com o envio antes do cron de 13/10.
 // Se o envio da E20 atrasar, deslocar `e20-segundo-cron` e corrigir .superpowers/sdd/a5/conferencias-com-data.md.
@@ -83,7 +109,7 @@ const BASE: readonly Conferencia[] = [
 ]
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

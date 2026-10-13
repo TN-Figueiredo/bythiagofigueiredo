@@ -665,3 +665,111 @@ describe('E11 no cron, passos e critérios de verdade', () => {
     expect(d.falhas.filter(n => n.includes('desligado há 8 execuções ou mais'))).toHaveLength(2)
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// A5 E8 (Tarefa 11a): o passo da retenção e o critério dela no cron de verdade, nos três dias do cenário (a).
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+describe('E8 no cron, passo e critério de verdade', () => {
+  const PGRST202 = { code: 'PGRST202', message: 'Could not find the function' }
+  const FUNCOES_MG5 = ['yt_own_retention_facts']
+  const doTipoRetencao = (t: Row): boolean => String(t.kind).startsWith('retencao')
+
+  async function tresDias(db: FakeDb): Promise<Dia[]> {
+    google = new Google()
+    vi.mocked(criarReportingClient).mockImplementation((token) => google.cliente(token.slice('tok:'.length)))
+    google.semDado.add(SEM_VIDEO.channel_id)
+    const d1 = await rodarDia(db, DIA_1)
+    google.publicar(DIA_2, HISTORICO_POR_JOB, 'hist')
+    const d2 = await rodarDia(db, DIA_2)
+    google.publicar(DIA_3, 1, 'dia3')
+    const d3 = await rodarDia(db, DIA_3)
+    return [d1, d2, d3]
+  }
+  afterEach(() => { delete process.env.YT_OWN_STEPS_OFF })
+
+  it('com o falso padrão (nenhum vídeo precisa de leitura): o passo e o critério rodam nos três dias, o cron fica verde e a retenção não pede nada à API', async () => {
+    delete process.env.YT_OWN_STEPS_OFF
+    const db = banco(VIDEOS_ANTIGOS)
+    const dias = await tresDias(db)
+    for (const [i, d] of dias.entries()) {
+      expect(d.falhas, `dia ${i + 1}`).toEqual([])
+      expect(d.depois.retencao, `dia ${i + 1}`).toMatchObject({ gravados: 0, chamadas: 0, vazios: 0, sem_resposta_do_youtube: [] })
+      expect(d.depois.retencao).not.toHaveProperty('desligado')
+      expect(typeof (d.depois.ms as Record<string, unknown>).retencao).toBe('number')
+      expect(typeof (d.depois.ms as Record<string, unknown>).cauda).toBe('number')
+    }
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_retention_facts').length).toBeGreaterThanOrEqual(6)
+    expect((db.tables.yt_own_video_retention ?? [])).toEqual([])
+  })
+
+  it('ANTES DA MIGRATION (MG5 ausente em produção): o passo e o critério dão schema_ausente com o nome da migration, e os resumos e o banco dos passos que já rodam hoje são IDÊNTICOS aos de antes do código novo', async () => {
+    // Referência = o código antigo: o passo desligado por YT_OWN_STEPS_OFF faz o cron se comportar como antes da E8.
+    process.env.YT_OWN_STEPS_OFF = 'retencao'
+    const base = banco(VIDEOS_ANTIGOS)
+    const antes = await tresDias(base)
+    delete process.env.YT_OWN_STEPS_OFF
+    expect(base.rpcCalls.filter(c => FUNCOES_MG5.includes(c.name))).toEqual([])
+
+    const db = banco(VIDEOS_ANTIGOS)
+    for (const f of FUNCOES_MG5) db.errors[`rpc:${f}`] = PGRST202
+    const depois = await tresDias(db)
+
+    const VELHOS = ['relatorios', 'alcance', 'diario', 'dimensoes', 'normalizadores', 'e11', 'perdidos', 'atrasados', 'vazios_sem_publicacao', 'desconhecido', 'autorizados', 'negados', 'reautorizar', 'guarda', 'conferencias_vencidas'] as const
+    for (let i = 0; i < 3; i++) {
+      for (const k of VELHOS) expect(depois[i]!.depois[k], `dia ${i + 1}, resumo.${k}`).toEqual(antes[i]!.depois[k])
+      expect(depois[i]!.antes.metadados).toEqual(antes[i]!.antes.metadados)
+      expect(depois[i]!.antes.jobs).toEqual(antes[i]!.antes.jobs)
+    }
+    for (const t of ['yt_reporting_jobs', 'yt_reporting_reports', 'yt_own_video_meta_daily', 'yt_own_video_daily', 'yt_own_video_reach_daily', 'yt_own_video_coverage'] as const) {
+      expect(db.tables[t] ?? [], t).toEqual(base.tables[t] ?? [])
+    }
+    const velhas = (b: FakeDb) => (b.tables.yt_own_collection_attempts ?? []).filter(t => !doTipoRetencao(t))
+    expect(velhas(db)).toEqual(velhas(base))
+    expect((db.tables.yt_own_video_retention ?? [])).toEqual([])
+
+    // O passo novo: vermelho com o nome da migration em TODA execução, e só isso a mais.
+    for (const [i, d] of depois.entries()) {
+      expect(d.falhas, `dia ${i + 1}`).toEqual(expect.arrayContaining([
+        'schema_ausente: yt_own_retention_facts',
+        'critérios: não foi possível avaliar retenção de Canal Sem Vídeo (migration MG5 não aplicada: falta a função yt_own_retention_facts)',
+        'critérios: não foi possível avaliar retenção de Canal Antigo (migration MG5 não aplicada: falta a função yt_own_retention_facts)',
+      ]))
+      expect(d.falhas.filter(n => !n.includes('yt_own_retention_facts') && !n.includes('retenção')), `dia ${i + 1}`).toEqual([])
+    }
+    for (const d of antes) expect(d.falhas).toEqual([])
+    // O passo gravou a tentativa de cada canal como schema_ausente, e só do tipo da retenção.
+    const novas = (db.tables.yt_own_collection_attempts ?? []).filter(doTipoRetencao)
+    expect(novas.length).toBeGreaterThan(0)
+    for (const t of novas) expect(t).toMatchObject({ kind: 'retencao_vida', outcome: 'schema_ausente' })
+  })
+
+  it('YT_OWN_STEPS_OFF=retencao: o passo não chama nada, o critério da retenção não é avaliado e o de desligados registra o estado (nota até a 7ª execução)', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'retencao'
+    const db = banco(VIDEOS_ANTIGOS)
+    const [d1] = await tresDias(db)
+    expect(db.rpcCalls.filter(c => FUNCOES_MG5.includes(c.name))).toEqual([])
+    expect(d1!.depois.retencao).toEqual({ desligado: true })
+    expect(d1!.falhas).toEqual([])
+    expect(d1!.acao_do_dono).toEqual(expect.arrayContaining(['retencao: passo desligado por YT_OWN_STEPS_OFF (há 1 execuções)']))
+    expect((db.tables.yt_own_collection_attempts ?? []).filter(doTipoRetencao)).toEqual([])
+  })
+
+  it('desligado pela 8ª execução seguida: a nota vai para falhas (as 7 anteriores estão em yt_own_collection_runs)', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'retencao'
+    const db = banco(VIDEOS_ANTIGOS)
+    db.tables.yt_own_collection_runs = Array.from({ length: 7 }, (_, i) => ({
+      ran_at: new Date(DIA_1.getTime() - (i + 1) * 3_600_000).toISOString(),
+      resumo: { retencao: { desligado: true } },
+    }))
+    const d = await rodarDia(db, DIA_1)
+    expect(d.falhas.filter(n => n.includes('retencao: passo desligado há 8 execuções ou mais'))).toHaveLength(1)
+  })
+
+  it('desligado e a leitura das execuções falha: "não foi possível avaliar há quanto tempo…", em falhas', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'retencao'
+    const db = banco(VIDEOS_ANTIGOS)
+    db.errors.yt_own_collection_runs = { code: '57014', message: 'statement timeout' }
+    const d = await rodarDia(db, DIA_1)
+    expect(d.falhas).toEqual(expect.arrayContaining(['critérios: não foi possível avaliar há quanto tempo o passo retencao está desligado (yt_own_collection_runs)']))
+  })
+})

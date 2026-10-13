@@ -381,6 +381,8 @@ describe('A5 E8 · criteriosRetencao', () => {
 
     it('sem manipulador nenhum (a função não existe no falso): a mesma nota, nunca verde', async () => {
       const db = fakeSupabase()
+      // A Tarefa 11a instalou o manipulador padrão no falso; a função ausente agora é pedida por `errors['rpc:…']` (que tem precedência).
+      db.errors[`rpc:${FN}`] = { code: 'PGRST202', message: `Could not find the function public.${FN}` }
       const falhas = await rodar(db)
       expect(falhas).toEqual([
         `schema_ausente: ${FN}`,

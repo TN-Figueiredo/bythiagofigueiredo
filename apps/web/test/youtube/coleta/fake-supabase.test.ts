@@ -2,6 +2,8 @@
 import { describe, it, expect } from 'vitest'
 import { fakeSupabase, comReachApply, type Row } from './fake-supabase'
 import { COLLECTION_KINDS } from '@/lib/youtube/coleta/kinds'
+import { atrasadosDaRetencao } from '@/lib/youtube/coleta/criteria-retencao'
+import { decidirRetencao, lerFatos } from '@/lib/youtube/coleta/retencao-regra'
 
 const rpcArgs = { p_site_id: 's', p_scope_type: 'video', p_scope_id: 'v', p_kind: 'meta', p_outcome: 'ok' }
 
@@ -13,6 +15,30 @@ describe('fakeSupabase estrito', () => {
   })
   it('o manipulador padrão de yt_own_daily_apply está instalado', () => {
     expect(typeof fakeSupabase().rpcHandlers.yt_own_daily_apply).toBe('function')
+  })
+  it('o manipulador padrão de yt_own_retention_facts: sem nada semeado devolve [] (nenhum vídeo, nenhuma nota)', async () => {
+    const db = fakeSupabase()
+    expect(typeof db.rpcHandlers.yt_own_retention_facts).toBe('function')
+    const r = await db.client.rpc('yt_own_retention_facts', { p_channel_id: 'ch-1', p_hoje_utc: '2026-10-07' })
+    expect(r).toEqual({ data: [], error: null })
+  })
+  it('yt_own_retention_facts com vídeos semeados: um fato "em dia" por vídeo do canal (nada a ler, nada vencido), na forma que lerFatos aceita; vídeo sem published_at e de outro canal ficam fora', async () => {
+    const db = fakeSupabase({ youtube_videos: [
+      { id: 'v1', youtube_video_id: 'yt1', channel_id: 'ch-1', site_id: 's', duration_seconds: 300, published_at: '2026-09-01T10:00:00.000Z' },
+      { id: 'v2', youtube_video_id: 'yt2', channel_id: 'ch-1', site_id: 's', duration_seconds: null, published_at: null },
+      { id: 'v3', youtube_video_id: 'yt3', channel_id: 'ch-2', site_id: 's', duration_seconds: 10, published_at: '2026-09-01T10:00:00.000Z' },
+    ] })
+    const r = await db.client.rpc('yt_own_retention_facts', { p_channel_id: 'ch-1', p_hoje_utc: '2026-10-07' })
+    const fatos = lerFatos(r.data)
+    expect(fatos.map(f => f.youtube_video_id)).toEqual(['yt1'])
+    expect(decidirRetencao(fatos, { hojePt: '2026-10-07', hojeUtc: '2026-10-07' })).toMatchObject({ ler: [], semDiarioEmDia: [], novos: [] })
+    expect(atrasadosDaRetencao(fatos, { hojePt: '2026-10-07', hojeUtc: '2026-10-07' })).toEqual([])
+  })
+  it('db.errors[rpc:yt_own_retention_facts] vale mais que o manipulador padrão (função ausente)', async () => {
+    const db = fakeSupabase()
+    db.errors['rpc:yt_own_retention_facts'] = { code: 'PGRST202', message: 'Could not find the function' }
+    const r = await db.client.rpc('yt_own_retention_facts', { p_channel_id: 'ch-1', p_hoje_utc: '2026-10-07' })
+    expect(r.error).toMatchObject({ code: 'PGRST202' })
   })
   it('rpc de nome desconhecido continua devolvendo PGRST202, e errors[rpc:<nome>] vale mais que o manipulador', async () => {
     const db = fakeSupabase()
