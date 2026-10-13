@@ -72,7 +72,14 @@ function makeSupabase(rows: IRow[], opts: { selectError?: string; claim?: boolea
       upsert: vi.fn(() => Promise.resolve({ error: null })),
     }
   })
-  const rpc = vi.fn(() => Promise.resolve({ data: opts.claim ?? true, error: null }))
+  // A agenda (A5 E16) é lida por `competitor_agenda_state`, com `.abortSignal(...)`: aqui responde "schema ausente"
+  // (PGRST202), o estado real de produção antes da migration MG10. As demais chamadas são o lock do cron.
+  const rpc = vi.fn((fn?: string) => {
+    if (fn === 'competitor_agenda_state') {
+      return { abortSignal: () => Promise.resolve({ data: null, error: { code: 'PGRST202', message: 'função ausente' } }) }
+    }
+    return Promise.resolve({ data: opts.claim ?? true, error: null })
+  })
   return { from, rpc }
 }
 

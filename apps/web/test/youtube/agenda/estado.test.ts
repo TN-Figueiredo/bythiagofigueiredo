@@ -135,9 +135,9 @@ describe('estado', () => {
       semPortugues((r as { porque: string }).porque)
     }
     const r = await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: '57014' } })).sb, PARES)
-    expect(r).toEqual({ porque: 'erro do banco (código 57014)' })
-    expect(await lerEstado(falso(() => ({ data: null, error: null })).sb, PARES)).toEqual({ porque: 'o banco não respondeu' })
-    expect(await lerEstado(falso(() => ({ data: [], error: null })).sb, PARES)).toEqual({ porque: 'resposta fora da forma esperada' })
+    expect(r).toMatchObject({ porque: 'erro do banco (código 57014)' })
+    expect(await lerEstado(falso(() => ({ data: null, error: null })).sb, PARES)).toMatchObject({ porque: 'o banco não respondeu' })
+    expect(await lerEstado(falso(() => ({ data: [], error: null })).sb, PARES)).toMatchObject({ porque: 'resposta fora da forma esperada' })
   })
 
   it('estado: manda as duas listas na mesma ordem dos pares', async () => {
@@ -148,7 +148,7 @@ describe('estado', () => {
 
   it('estado: falta uma tarefa pedida', async () => {
     const f = falso(() => ({ data: estadoBom([linha(PARES[0])]), error: null }))
-    expect(await lerEstado(f.sb, PARES)).toEqual({ porque: 'resposta fora da forma esperada' })
+    expect(await lerEstado(f.sb, PARES)).toMatchObject({ porque: 'resposta fora da forma esperada' })
     const sobra = falso(() => ({ data: estadoBom([linha(PARES[0]), linha(PARES[1]), linha(PARES[1])]), error: null }))
     expect('porque' in await lerEstado(sobra.sb, PARES)).toBe(true)
   })
@@ -202,7 +202,7 @@ describe('estado', () => {
   it('estado: status desconhecido', async () => {
     for (const status of ['feito', '', 7, true]) {
       const f = falso(() => ({ data: estadoBom([linha(PARES[0], { status }), linha(PARES[1])]), error: null }))
-      expect(await lerEstado(f.sb, PARES), String(status)).toEqual({ porque: 'resposta fora da forma esperada' })
+      expect(await lerEstado(f.sb, PARES), String(status)).toMatchObject({ porque: 'resposta fora da forma esperada' })
     }
   })
 
@@ -364,5 +364,75 @@ describe('tomar, fechar, adiar, esgotar', () => {
     await tomarArrendamento(f.sb, 'h')
     expect(espia).toHaveBeenCalledWith(BANCO_MS)
     espia.mockRestore()
+  })
+})
+
+// ---- a CAUSA da falha (conserto da revisão 5-11-16): o vigia classifica pela causa, nunca pela frase ---------------
+
+describe('causa da falha', () => {
+  const ok = (): Resposta => ({ data: true, error: null })
+  const CHAMADAS: Array<{ nome: string; chamar: (sb: SupabaseClient) => Promise<unknown> }> = [
+    { nome: 'lerEstado', chamar: sb => lerEstado(sb, PARES) },
+    { nome: 'tomarArrendamento', chamar: sb => tomarArrendamento(sb, 'h') },
+    { nome: 'tomar', chamar: sb => tomar(sb, { task: 't', period_key: 'p', teto: 3, reabrir: false }) },
+    { nome: 'esgotar', chamar: sb => esgotar(sb, { task: 't', period_key: 'p', teto: 3 }) },
+    { nome: 'fechar', chamar: sb => fechar(sb, { task: 't', period_key: 'p', estado: 'ok', feitas: 1, deixadas: null, ms: 10 }) },
+  ]
+  const causaDe = (r: unknown): unknown => (r as { causa?: unknown }).causa
+
+  describe.each(CHAMADAS)('$nome', ({ chamar }) => {
+    it.each(['PGRST202', 'PGRST205', '42P01', '42883'])('código %s: schema_ausente', async code => {
+      expect(causaDe(await chamar(falso(() => ({ data: null, error: { message: 'x', code } })).sb))).toBe('schema_ausente')
+    })
+    it('AbortError (código vazio, prazo estourado): prazo', async () => {
+      expect(causaDe(await chamar(falso(() => ({ data: null, error: { message: 'AbortError', code: '' } })).sb))).toBe('prazo')
+    })
+    it('código com forma inválida (transporte): prazo', async () => {
+      expect(causaDe(await chamar(falso(() => ({ data: null, error: { message: 'fetch failed', code: 'x' } })).sb))).toBe('prazo')
+    })
+    it('erro do banco com código (permissão, timeout do servidor): erro_do_banco', async () => {
+      for (const code of ['42501', '57014', '23514']) {
+        expect(causaDe(await chamar(falso(() => ({ data: null, error: { message: 'x', code } })).sb)), code).toBe('erro_do_banco')
+      }
+    })
+    it('exceção (assíncrona ou na montagem): excecao', async () => {
+      expect(causaDe(await chamar(falso(() => { throw new Error('boom') }).sb))).toBe('excecao')
+      expect(causaDe(await chamar(quemLanca(new Error('boom')).sb))).toBe('excecao')
+    })
+    it('resposta nula: forma_invalida', async () => {
+      expect(causaDe(await chamar(falso(() => ({ data: null, error: null })).sb))).toBe('forma_invalida')
+    })
+  })
+
+  it('lerEstado: resposta de outra forma é forma_invalida', async () => {
+    for (const data of [[], 'texto', { agora: 'x' }, { agora: new Date().toISOString(), desde: null, tarefas: [] }]) {
+      expect(causaDe(await lerEstado(falso(() => ({ data, error: null })).sb, PARES))).toBe('forma_invalida')
+    }
+  })
+
+  it('resposta boa não leva causa', async () => {
+    expect(await tomarArrendamento(falso(ok).sb, 'h')).toEqual({ valor: true })
+  })
+
+  it('boolean: resposta que não é boolean é forma_invalida', async () => {
+    expect(causaDe(await tomar(falso(() => ({ data: 't', error: null })).sb, { task: 't', period_key: 'p', teto: 3, reabrir: false }))).toBe('forma_invalida')
+  })
+
+  it('entrada inválida do chamador (teto, contadores do fecho): forma_invalida, sem chamar o banco', async () => {
+    const f = falso(ok)
+    expect(causaDe(await tomar(f.sb, { task: 't', period_key: 'p', teto: 0, reabrir: false }))).toBe('forma_invalida')
+    expect(causaDe(await fechar(f.sb, { task: 't', period_key: 'p', estado: 'ok', feitas: 1.5, deixadas: null, ms: 1 }))).toBe('forma_invalida')
+    expect(f.chamadas).toHaveLength(0)
+  })
+
+  it('a causa é campo à parte: a frase do porque não mudou', async () => {
+    expect(await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: 'PGRST202' } })).sb, PARES))
+      .toEqual({ porque: 'migration da agenda não aplicada (código PGRST202)', causa: 'schema_ausente' })
+    expect(await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: '' } })).sb, PARES))
+      .toEqual({ porque: 'o banco não respondeu', causa: 'prazo' })
+    expect(await lerEstado(falso(() => { throw new Error('b') }).sb, PARES))
+      .toEqual({ porque: 'o banco não respondeu', causa: 'excecao' })
+    expect(await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: '57014' } })).sb, PARES))
+      .toEqual({ porque: 'erro do banco (código 57014)', causa: 'erro_do_banco' })
   })
 })

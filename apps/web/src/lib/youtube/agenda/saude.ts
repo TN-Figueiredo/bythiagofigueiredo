@@ -28,10 +28,8 @@ export const MOTIVO_NAO_LIDO = 'não foi possível ler a agenda'
 export const MOTIVO_SCHEMA_AUSENTE = 'não conferida (schema ausente)'
 export const MOTIVO_SEM_LEITURA = 'sem leitura'
 export const NOTA_SEM_RESPOSTA = 'agenda não conferida: o banco não respondeu'
-
-// As duas frases que `estado.ts` devolve e que mudam a decisão. O teste de `saude.test.ts` fixa o acoplamento.
-const PREFIXO_SCHEMA_AUSENTE = 'migration da agenda não aplicada'
-const PORQUE_SEM_RESPOSTA = 'o banco não respondeu'
+/** O item único que acusa a leitura que falhou: no relatório sai como `agenda:leitura`. */
+export const NOME_DA_LEITURA = 'leitura'
 
 const instante = (s: string | null): number | null => {
   if (s === null) return null
@@ -42,8 +40,9 @@ const instante = (s: string | null): number | null => {
 /**
  * Uma entrada por tarefa DO CATÁLOGO (o laço percorre o catálogo, nunca uma lista escrita à mão).
  * Ordem das regras: desligada (agenda off, ou a tarefa em OBS_AGENDA_TASKS_OFF) → estado não lido
- * (schema ausente = não conferida; qualquer outro = late) → ok dentro da tolerância → late além dela →
- * sem nenhum ok: late se a agenda já existe há mais que a tolerância, senão unknown ("sem leitura").
+ * (causa `schema_ausente` = tarefas "não conferida"; QUALQUER outra causa, ou nenhuma, = UMA entrada `leitura` late,
+ * além das desligadas) → ok dentro da tolerância → late além dela → sem nenhum ok: late se a agenda já existe há mais
+ * que a tolerância, senão unknown ("sem leitura"). A decisão usa `causa`, nunca o texto de `porque`.
  */
 export function avaliarAgenda(e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa[], agoraMs: number, env: NodeJS.ProcessEnv): ItemAgenda[] {
   const ligada = agendaLigada(env)
@@ -51,18 +50,27 @@ export function avaliarAgenda(e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa
   const linhas = 'valor' in e ? new Map(e.valor.tarefas.map(l => [l.task, l])) : null
   const desde = 'valor' in e ? instante(e.valor.desde) : null
 
+  if (!linhas) {
+    const causa = 'causa' in e ? e.causa : undefined
+    const itens = catalogo.map((t): ItemAgenda => {
+      const base = { nome: t.nome, toleranciaH: t.toleranciaVigiaH, ultimoOk: null }
+      if (!ligada && !t.nuncaDesliga) return { ...base, status: 'desligada', motivo: MOTIVO_AGENDA_OFF }
+      if (desligadas.has(t.nome)) return { ...base, status: 'desligada', motivo: MOTIVO_TAREFA_OFF }
+      return { ...base, status: 'unknown', motivo: MOTIVO_SCHEMA_AUSENTE }
+    })
+    if (causa === 'schema_ausente') return itens
+    // Qualquer outra causa: o vigia acusa. Só as desligadas (fato de configuração) ficam como estão; as demais viram UMA entrada.
+    const desligadasItens = itens.filter(i => i.status === 'desligada')
+    if (desligadasItens.length === itens.length) return desligadasItens
+    return [...desligadasItens, { nome: NOME_DA_LEITURA, status: 'late', ultimoOk: null, toleranciaH: 0, motivo: MOTIVO_NAO_LIDO }]
+  }
+
   return catalogo.map((t): ItemAgenda => {
     const base = { nome: t.nome, toleranciaH: t.toleranciaVigiaH }
-    const ultimoOk = linhas?.get(t.nome)?.last_ok_at ?? null
+    const ultimoOk = linhas.get(t.nome)?.last_ok_at ?? null
 
     if (!ligada && !t.nuncaDesliga) return { ...base, status: 'desligada', ultimoOk, motivo: MOTIVO_AGENDA_OFF }
     if (desligadas.has(t.nome)) return { ...base, status: 'desligada', ultimoOk, motivo: MOTIVO_TAREFA_OFF }
-
-    if (!linhas) {
-      const porque = 'porque' in e ? e.porque : ''
-      if (porque.startsWith(PREFIXO_SCHEMA_AUSENTE)) return { ...base, status: 'unknown', ultimoOk: null, motivo: MOTIVO_SCHEMA_AUSENTE }
-      return { ...base, status: 'late', ultimoOk: null, motivo: MOTIVO_NAO_LIDO }
-    }
 
     const toleranciaMs = t.toleranciaVigiaH * HORA_MS
     const okMs = instante(ultimoOk)
@@ -76,16 +84,13 @@ export function avaliarAgenda(e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa
   })
 }
 
-/** "Desligada" é fato de configuração, não do banco: sem resposta do banco, só ela continua no relatório. */
-const soDesligadas = (e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa[], agoraMs: number, env: NodeJS.ProcessEnv): ItemAgenda[] =>
-  avaliarAgenda(e, catalogo, agoraMs, env).filter(i => i.status === 'desligada')
-
 /**
  * A leitura do estado e a avaliação, para as duas rotas. NUNCA lança e nunca passa de `BANCO_MS + 1 s`.
- * - estado lido, ou ilegível por motivo do banco (permissão, forma): `avaliarAgenda` (ilegível = late, visível);
+ * - estado lido: `avaliarAgenda` por tarefa;
  * - schema da agenda ausente (a migration ainda não foi aplicada): as tarefas saem "não conferida", sem alarme;
- * - o banco não respondeu (prazo, transporte, exceção): `itens` vazio e uma `nota` visível. Sem resposta é AUSÊNCIA de
- *   informação, não evidência de falha (a mesma regra de `unknown` em cron-health-report); o resto do relatório sai inteiro.
+ * - QUALQUER outra falha (prazo, transporte, exceção, resposta nula, erro do banco, forma inválida): UMA entrada
+ *   `agenda:leitura` late, "não foi possível ler a agenda". O vigia acusa; a agenda nunca some do relatório.
+ *   `nota` só acompanha a falta de resposta do banco (prazo, exceção), como detalhe, não como único sinal.
  */
 export async function lerAgendaDoVigia(
   sb: SupabaseClient,
@@ -96,10 +101,12 @@ export async function lerAgendaDoVigia(
   try {
     const pares = catalogo.map(t => ({ task: t.nome, period_key: chaveDoPeriodo(t.periodo, agoraMs) }))
     const r = await comPrazo(lerEstado(sb, pares), BANCO_MS + 1_000)
-    const estado: Lido<EstadoAgenda> = 'estourou' in r ? { porque: PORQUE_SEM_RESPOSTA } : r.valor
-    if ('porque' in estado && estado.porque === PORQUE_SEM_RESPOSTA) return { itens: soDesligadas(estado, catalogo, agoraMs, env), nota: NOTA_SEM_RESPOSTA }
-    return { itens: avaliarAgenda(estado, catalogo, agoraMs, env), nota: null }
+    const estado: Lido<EstadoAgenda> = 'estourou' in r ? { porque: 'o banco não respondeu', causa: 'prazo' } : r.valor
+    const causa = 'porque' in estado ? estado.causa : undefined
+    const semResposta = causa === 'prazo' || causa === 'excecao'
+    return { itens: avaliarAgenda(estado, catalogo, agoraMs, env), nota: semResposta ? NOTA_SEM_RESPOSTA : null }
   } catch {
-    return { itens: [], nota: NOTA_SEM_RESPOSTA }
+    // Nada que possa lançar de novo: o item é escrito à mão.
+    return { itens: [{ nome: NOME_DA_LEITURA, status: 'late', ultimoOk: null, toleranciaH: 0, motivo: MOTIVO_NAO_LIDO }], nota: NOTA_SEM_RESPOSTA }
   }
 }

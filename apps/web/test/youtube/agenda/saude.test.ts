@@ -122,22 +122,47 @@ describe('avaliarAgenda (puro)', () => {
     expect(porNome(itens, 'anular_identidade').status).toBe('late')
   })
 
-  it('estado que não pôde ser lido: todas late, com o motivo, sem o texto do banco', () => {
-    const itens = avaliarAgenda({ porque: 'erro do banco (código 42501)' }, CAT, AGORA, {})
-    expect(itens.every(i => i.status === 'late')).toBe(true)
-    for (const i of itens) expect(i.motivo).toBe('não foi possível ler a agenda')
-    expect(JSON.stringify(itens)).not.toContain('42501')
+  it('ok exatamente na tolerância ainda é ok; um milissegundo além é late (fronteira do <=)', () => {
+    const noLimite = avaliarAgenda(estado({ leitura_horaria: iso(AGORA - 2 * H) }, iso(AGORA - 9 * H)), CAT, AGORA, {})
+    expect(porNome(noLimite, 'leitura_horaria').status).toBe('ok')
+    const alem = avaliarAgenda(estado({ leitura_horaria: iso(AGORA - 2 * H - 1) }, iso(AGORA - 9 * H)), CAT, AGORA, {})
+    expect(porNome(alem, 'leitura_horaria').status).toBe('late')
+  })
+
+  it.each(['prazo', 'excecao', 'erro_do_banco', 'forma_invalida'] as const)(
+    'estado não lido (causa %s): UMA entrada agenda:leitura late, sem o texto do banco; as tarefas não viram "ok"',
+    causa => {
+      const itens = avaliarAgenda({ porque: 'erro do banco (código 42501)', causa }, CAT, AGORA, {})
+      expect(itens).toHaveLength(1)
+      expect(itens[0]).toMatchObject({ nome: 'leitura', status: 'late', motivo: 'não foi possível ler a agenda' })
+      expect(JSON.stringify(itens)).not.toContain('42501')
+      const rel = buildCronHealthReport([], new Date(AGORA), itens)
+      expect(rel.lateNames).toEqual(['agenda:leitura'])
+      expect(rel.status).toBe('degraded')
+    },
+  )
+
+  it('estado não lido SEM causa (campo opcional ausente): trata como falha, nunca como schema ausente', () => {
+    const itens = avaliarAgenda({ porque: 'migration da agenda não aplicada (código PGRST202)' }, CAT, AGORA, {})
+    expect(itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
+  })
+
+  it('estado não lido com as desligadas: elas continuam à vista, mais a entrada de leitura', () => {
+    const itens = avaliarAgenda({ porque: 'o banco não respondeu', causa: 'prazo' }, CAT, AGORA, { OBS_AGENDA_TASKS_OFF: 'serie_semanal' })
+    expect(itens.map(i => [i.nome, i.status])).toEqual([['serie_semanal', 'desligada'], ['leitura', 'late']])
   })
 
   it('schema da agenda ausente (antes da MG10): não conferida, nunca late', () => {
-    const itens = avaliarAgenda({ porque: 'migration da agenda não aplicada (código PGRST202)' }, CAT, AGORA, {})
+    const itens = avaliarAgenda({ porque: 'qualquer frase', causa: 'schema_ausente' }, CAT, AGORA, {})
+    expect(itens).toHaveLength(3)
     expect(itens.every(i => i.status === 'unknown')).toBe(true)
     for (const i of itens) expect(i.motivo).toBe('não conferida (schema ausente)')
     expect(JSON.stringify(itens)).not.toContain('PGRST')
   })
 
   it('agenda off vale mesmo com o estado ilegível: desligada, não late', () => {
-    const itens = avaliarAgenda({ porque: 'erro do banco (código 42501)' }, CAT, AGORA, { OBS_AGENDA: 'off' })
+    const itens = avaliarAgenda({ porque: 'erro do banco (código 42501)', causa: 'erro_do_banco' }, CAT, AGORA, { OBS_AGENDA: 'off' })
+    expect(itens).toHaveLength(3)
     expect(itens.every(i => i.status === 'desligada')).toBe(true)
   })
 })
@@ -194,34 +219,55 @@ describe('lerAgendaDoVigia', () => {
     }
   })
 
-  it('o banco não respondeu (lança): o relatório sai sem a agenda, com nota visível', async () => {
+  it('o banco não respondeu (lança): UMA entrada agenda:leitura late, nota visível, sem texto do banco', async () => {
     const { sb } = sbRpc(() => Promise.reject(new Error('TEXTO-SENTINELA-DO-BANCO')))
     const r = await lerAgendaDoVigia(sb as never, AGORA, {})
-    expect(r.itens).toEqual([])
+    expect(r.itens.map(i => [i.nome, i.status, i.motivo])).toEqual([['leitura', 'late', 'não foi possível ler a agenda']])
     expect(r.nota).toBe('agenda não conferida: o banco não respondeu')
     expect(JSON.stringify(r)).not.toContain('SENTINELA')
   })
 
-  it('o banco não responde nunca: o prazo corta e o resto do relatório sai', async () => {
+  it('AbortError do prazo (cliente devolve código vazio, não lança): late, não some do relatório', async () => {
+    const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: '', message: 'AbortError: The operation was aborted due to timeout' } }))
+    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
+    const rel = buildCronHealthReport([], new Date(AGORA), r.itens)
+    expect(rel.lateNames).toEqual(['agenda:leitura'])
+  })
+
+  it('erro de transporte (código sem forma de código do banco): late', async () => {
+    const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: 'ECONNRESET', message: 'fetch failed' } }))
+    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
+  })
+
+  it('resposta nula sem erro: late (a agenda não pôde ser lida)', async () => {
+    const { sb } = sbRpc(() => Promise.resolve({ data: null, error: null }))
+    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
+  })
+
+  it('o banco não responde nunca: o prazo corta e a agenda aparece late', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const { sb } = sbRpc(() => new Promise<Resp>(() => undefined))
     const p = lerAgendaDoVigia(sb as never, AGORA, {})
     await vi.advanceTimersByTimeAsync(10_000)
     const r = await p
-    expect(r.itens).toEqual([])
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
     expect(r.nota).toBe('agenda não conferida: o banco não respondeu')
   })
 
   it('cliente sem rpc (lança ao chamar): mesma saída, nunca propaga', async () => {
     const r = await lerAgendaDoVigia({} as never, AGORA, {})
-    expect(r.itens).toEqual([])
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
     expect(r.nota).not.toBeNull()
   })
 
   it('erro do banco com código (permissão): late, visível, sem o texto do banco', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: '42501', message: 'TEXTO-SENTINELA-DO-BANCO' } }))
     const r = await lerAgendaDoVigia(sb as never, AGORA, {})
-    expect(r.itens.every(i => i.status === 'late')).toBe(true)
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
+    expect(r.nota).toBeNull()
     expect(JSON.stringify(r)).not.toContain('SENTINELA')
     expect(JSON.stringify(r)).not.toContain('42501')
   })
@@ -229,14 +275,21 @@ describe('lerAgendaDoVigia', () => {
   it('resposta fora da forma: late (não é "tudo ok")', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: { agora: 'x' }, error: null }))
     const r = await lerAgendaDoVigia(sb as never, AGORA, {})
-    expect(r.itens.every(i => i.status === 'late')).toBe(true)
+    expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
   })
 
-  it('acoplamento com estado.ts: as frases de lerEstado que a classificação reconhece', async () => {
+  it('a classificação é pela causa que lerEstado devolve, não pela frase', async () => {
     const { sb: s1 } = sbRpc(() => Promise.resolve({ data: null, error: { code: 'PGRST202' } }))
-    expect(await lerEstado(s1 as never, [])).toEqual({ porque: expect.stringMatching(/^migration da agenda não aplicada/) })
+    expect(await lerEstado(s1 as never, [])).toMatchObject({ causa: 'schema_ausente' })
     const { sb: s2 } = sbRpc(() => Promise.reject(new Error('x')))
-    expect(await lerEstado(s2 as never, [])).toEqual({ porque: 'o banco não respondeu' })
+    expect(await lerEstado(s2 as never, [])).toMatchObject({ causa: 'excecao' })
+  })
+
+  it('OBS_AGENDA=off com a leitura falhando: só desligadas, sem entrada de leitura', async () => {
+    const { sb } = sbRpc(() => Promise.reject(new Error('x')))
+    const r = await lerAgendaDoVigia(sb as never, AGORA, { OBS_AGENDA: 'off' })
+    expect(r.itens).toHaveLength(DEFINICOES.length)
+    expect(r.itens.every(i => i.status === 'desligada')).toBe(true)
   })
 
   it('OBS_AGENDA=off: desligadas, mesmo com a tabela ausente', async () => {
@@ -322,13 +375,14 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     expect(texto).not.toContain('PGRST')
   })
 
-  it('/api/health com a agenda sem resposta: status 200 como antes, crons só os do vercel.json, nota visível', async () => {
+  it('/api/health com a agenda sem resposta: o vigia ACUSA (agenda:leitura late, degraded), os demais crons como antes', async () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.reject(new Error('x'))) as never)
     const res = await healthGET(reqHealth())
-    const corpo = await res.json() as { status: string; crons: Array<{ name: string }>; agendaNota?: string }
+    const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }>; agendaNota?: string }
     expect(res.status).toBe(200)
-    expect(corpo.status).toBe('ok')
-    expect(corpo.crons.some(c => c.name.startsWith('agenda:'))).toBe(false)
+    expect(corpo.status).toBe('degraded')
+    expect(corpo.crons.filter(c => c.status === 'late').map(c => c.name)).toEqual(['agenda:leitura'])
+    expect(corpo.crons.filter(c => c.name.startsWith('agenda:')).map(c => c.name)).toEqual(['agenda:leitura'])
     expect(corpo.agendaNota).toBe('agenda não conferida: o banco não respondeu')
   })
 
@@ -356,6 +410,16 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     expect(corpo.status).toBe('ok')
     expect(corpo.alerted).toBe(false)
     expect(push).not.toHaveBeenCalled()
+  })
+
+  it('cron-watchdog com a leitura da agenda estourando o prazo: avisa por agenda:leitura (não fica cego)', async () => {
+    const push = vi.fn((_u: unknown, _i?: unknown) => Promise.resolve(new Response(null, { status: 200 })))
+    vi.stubGlobal('fetch', push)
+    mock.mockReturnValue(sbDasRotas(() => Promise.resolve({ data: null, error: { code: '', message: 'AbortError' } })) as never)
+    const corpo = await (await watchdogGET(reqWatchdog())).json() as { status: string; lateNames?: string[] }
+    expect(corpo.status).toBe('degraded')
+    expect(corpo.lateNames).toEqual(['agenda:leitura'])
+    expect(push).toHaveBeenCalledTimes(1)
   })
 
   it('cron-watchdog com a leitura horária atrasada: avisa pelo nome da tarefa', async () => {

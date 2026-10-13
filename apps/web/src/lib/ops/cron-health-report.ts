@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import vercelConfig from '../../../vercel.json'
-import type { ItemAgenda } from '@/lib/youtube/agenda/saude'
+import { lerAgendaDoVigia, type ItemAgenda } from '@/lib/youtube/agenda/saude'
 
 // Avaliação de saúde dos crons do `vercel.json`, extraída de
 // `src/app/api/health/route.ts` (2026-09-18) sem mudança de comportamento.
@@ -404,19 +404,10 @@ export const CRON_HEALTH_COLUMNS =
   'cron_name, last_success_at, last_failure_at, last_error, consecutive_failures, severity'
 
 /**
- * A leitura da agenda para as duas rotas (`/api/health` e `cron-watchdog`). NUNCA lança: o que não puder ser lido sai
- * como item visível ou como `nota`, e o relatório dos crons de sempre sai inteiro. O módulo da agenda é carregado sob
- * demanda e dentro do `try`: ele puxa a coleta de concorrentes (Sentry, cliente de serviço), peso que o vigia não paga
- * quando a agenda não é lida, e uma falha de carga não derruba a rota.
+ * A leitura da agenda para as duas rotas (`/api/health` e `cron-watchdog`). `lerAgendaDoVigia` nunca lança: o que não
+ * puder ser lido sai como a entrada `agenda:leitura` (late) ou como `nota`, e o relatório dos crons de sempre sai inteiro.
+ * O módulo é importado de forma ESTÁTICA: se ele não carregar, o build quebra (falha barulhenta), nunca um item mudo.
  */
-export async function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
-  try {
-    const { lerAgendaDoVigia } = await import('@/lib/youtube/agenda/saude')
-    return await lerAgendaDoVigia(sb, now.getTime(), process.env)
-  } catch {
-    return {
-      itens: [{ nome: 'leitura_da_agenda', status: 'unknown', ultimoOk: null, toleranciaH: 0, motivo: 'não foi possível carregar a leitura da agenda' }],
-      nota: null,
-    }
-  }
+export function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
+  return lerAgendaDoVigia(sb, now.getTime(), process.env)
 }

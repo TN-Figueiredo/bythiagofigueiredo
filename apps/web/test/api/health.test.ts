@@ -26,6 +26,14 @@ vi.mock('../../vercel.json', () => ({
   },
 }));
 
+// A agenda de tarefas (A5 E16) é a segunda fonte do relatório e tem os testes dela (test/youtube/agenda/saude.test.ts).
+// Este arquivo prova os crons do vercel.json (contagens e nomes): aqui a agenda não acrescenta itens. Só a leitura é
+// trocada; o resto do módulo é o real.
+vi.mock('@/lib/youtube/agenda/saude', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/youtube/agenda/saude')>()),
+  lerAgendaDoVigia: vi.fn(async () => ({ itens: [], nota: null })),
+}));
+
 import { GET } from '../../src/app/api/health/route';
 import { getSupabaseServiceClient } from '@/lib/supabase/service';
 
