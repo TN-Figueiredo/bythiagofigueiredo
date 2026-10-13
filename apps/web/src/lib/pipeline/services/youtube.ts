@@ -1967,7 +1967,7 @@ export async function listVideos(
 
   let query = supabase
     .from('youtube_videos')
-    .select('id, youtube_video_id, title, view_count, like_count, comment_count, ctr, avg_view_percentage, published_at, category_id, thumbnail_url, duration_seconds, is_featured, youtube_categories(slug)')
+    .select('id, youtube_video_id, title, view_count, like_count, comment_count, ctr, avg_view_percentage, published_at, category_id, thumbnail_url, duration_seconds, is_featured, youtube_categories!youtube_videos_category_id_fkey(slug)')
     .eq('channel_id', filters.channelId)
     .eq('is_hidden', false)
     .order('published_at', { ascending: false })
