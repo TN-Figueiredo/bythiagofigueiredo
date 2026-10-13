@@ -2,7 +2,7 @@
 // As MEDIDAS do cartão "Só o seu canal mede" da comparação em navegador (Tarefa 14, conferida na 15c), nos três casos do mockup aprovado de 12/10 (magro, cheio, sem dado), em
 // 1440, 1100, 640 e 390 px, tema escuro e claro: sem rolagem horizontal, texto de 12 px ou mais (inclusive SVG), alvo de toque de 44 px no ⓘ, uma coluna por linha a 640 px e abaixo,
 // a faixa da taxa perto de 0% e de 100%, a nota "só N dias com dado; precisa de 7", o popover do ⓘ (não cobre o valor), a posição do cartão e a comparação entre dois concorrentes
-// IDÊNTICA com e sem dado privado no banco. As capturas lado a lado (tela implementada × mockup congelado) vão para docs/.../shots/a4-fecho (não commitadas).
+// IDÊNTICA com e sem dado privado no banco. As capturas lado a lado (tela implementada × mockup congelado) vão para docs/.../shots/a4-fecho-2 (não commitadas).
 // Caso do mockup → perfil da semente: magro = `curto` (2 dias de relatório e de diário), cheio = `ativo` (29 dias, CTR em todo dia), sem dado = nenhuma linha privada.
 import fs from 'node:fs'
 import path from 'node:path'
@@ -16,7 +16,7 @@ const TELA = '[data-obs-screen="comparar"]'
 const CARTAO = `${TELA}:visible [data-so-seu-canal]`
 const ROTA = '/cms/youtube/competitors/comparar'
 const MEDIDAS = path.resolve(__dirname, '../../../../test-results/proprio-a4-comparar-medidas.txt')
-const SHOTS = path.resolve(__dirname, '../../../../../../docs/superpowers/mockups/2026-10-12-a4-proprio-e-ajustes/shots/a4-fecho')
+const SHOTS = path.resolve(__dirname, '../../../../../../docs/superpowers/mockups/2026-10-12-a4-proprio-e-ajustes/shots/a4-fecho-2')
 const MOCKUP = '.superpowers/sdd/2026-10-12-telas-a4-canal-proprio-plan/mockup-congelado-12-10/comparar-so-seu-canal.html'
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
 const VPS = [{ w: 1440, h: 900 }, { w: 1100, h: 800 }, { w: 640, h: 900 }, { w: 390, h: 844 }] as const
