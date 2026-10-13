@@ -52,25 +52,33 @@ export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.OBS_AGENDA !== 'off'
 }
 
+/** Nota fixa (sem o valor da variável) para `OBS_AGENDA` que não é ausente, vazia nem exatamente 'off'; `null` nos demais casos. `agendaLigada` não muda. */
+export function notaDoInterruptorDaAgenda(env: NodeJS.ProcessEnv = process.env): string | null {
+  const v = env.OBS_AGENDA
+  if (v === undefined || v === '' || v === 'off') return null
+  return 'valor não reconhecido em OBS_AGENDA; a agenda segue ligada'
+}
+
 /**
  * `OBS_AGENDA_TASKS_OFF`: nomes de tarefa separados por vírgula (espaços e vazios ignorados; o nome é exato, minúsculo).
- * Nome que não é do catálogo vai em `desconhecidas` (o chamador põe numa nota visível); tarefa `nuncaDesliga` é ignorada e continua ligada.
+ * Nome que não é do catálogo vai em `desconhecidas` (o chamador põe numa nota visível); tarefa `nuncaDesliga` é ignorada, continua ligada e vai em `ignoradas` (o chamador mostra a nota).
  */
 export function tarefasDesligadas(
   env: NodeJS.ProcessEnv,
   catalogo: readonly Pick<Tarefa, 'nome' | 'nuncaDesliga'>[],
-): { desligadas: Set<string>; desconhecidas: string[] } {
+): { desligadas: Set<string>; desconhecidas: string[]; ignoradas: string[] } {
   const desligadas = new Set<string>()
   const desconhecidas: string[] = []
+  const ignoradas: string[] = []
   const cru = env.OBS_AGENDA_TASKS_OFF
-  if (typeof cru !== 'string') return { desligadas, desconhecidas }
+  if (typeof cru !== 'string') return { desligadas, desconhecidas, ignoradas }
   for (const parte of cru.split(',')) {
     const nome = parte.trim()
     if (nome === '') continue
     const t = catalogo.find(c => c.nome === nome)
     if (!t) { if (!desconhecidas.includes(nome)) desconhecidas.push(nome); continue }
-    if (t.nuncaDesliga) continue
+    if (t.nuncaDesliga) { if (!ignoradas.includes(nome)) ignoradas.push(nome); continue }
     desligadas.add(nome)
   }
-  return { desligadas, desconhecidas }
+  return { desligadas, desconhecidas, ignoradas }
 }
