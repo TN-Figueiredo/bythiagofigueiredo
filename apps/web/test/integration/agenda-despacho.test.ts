@@ -57,7 +57,7 @@ vi.mock('../../lib/logger', async importOriginal => {
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { executarAgenda } from '@/lib/youtube/agenda/executar'
-import { DEFINICOES } from '@/lib/youtube/agenda/catalogo'
+import { DEFINICOES, TODAS_AS_DEFINICOES } from '@/lib/youtube/agenda/catalogo'
 import { leituraHoraria } from '@/lib/youtube/agenda/tarefas/leitura-horaria'
 import { lerEstado } from '@/lib/youtube/agenda/estado'
 import { lerAgendaDoVigia } from '@/lib/youtube/agenda/saude'
@@ -889,7 +889,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
       expect(executarAgenda).not.toHaveBeenCalled()
       expect(runCompetitorBatch).toHaveBeenCalledTimes(1)
       expect(corpo).toMatchObject({ status: 'error', mode: 'competitors', error: 'lote antigo rodou' })
-      expect(corpo.agenda_desligada).toEqual(DEFINICOES.map(d => d.rotulo))
+      expect(corpo.agenda_desligada).toEqual(TODAS_AS_DEFINICOES.filter(d => !d.nuncaDesliga).map(d => d.rotulo))
       expect(recordCronFailure).toHaveBeenCalledTimes(1)
     } finally {
       vi.unstubAllEnvs()
