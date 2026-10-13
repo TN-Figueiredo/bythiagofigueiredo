@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createHash } from 'node:crypto'
 
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
@@ -1316,6 +1317,27 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
       expect(r).not.toHaveProperty('versionFailed')
       expect(lidos(db, a!.id as string)[0]).toHaveProperty('thumbnail_url')
     })
+    // (portão final, dados I-3) o leitor das telas prefere o título da linha à versão: a linha acompanha a versão gravada
+    it('I-3: a versão de título e descrição gravada leva título e description_hash novos à linha; a versão que falhou deixa a linha como estava', async () => {
+      const [a, b] = dueRows(DIA, 2)
+      const comTexto = (n: number, u: string) => comMiniatura(n, u).map(it => ({ ...it, snippet: { ...it.snippet, title: 'Novo ' + it.id, description: 'Descrição nova ' + it.id } }))
+      const db = setup({ all: [a!, b!], versionPlanFailOf: [b!.id as string] })
+      await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: comTexto }) }).then(() => null, (x: unknown) => x)
+      const hash = (t: string) => createHash('sha256').update(t).digest('hex').slice(0, 16)
+      expect(lidos(db, a!.id as string)[0]).toMatchObject({ title: 'Novo ' + (a!.video_id as string), description_hash: hash('Descrição nova ' + (a!.video_id as string)) })
+      const falhou = lidos(db, b!.id as string)[0]!
+      expect(falhou).toHaveProperty('view_count')                       // o ponto e as contagens saem...
+      expect(falhou).not.toHaveProperty('title')                        // ...mas título e descrição só entram com a versão que os registra
+      expect(falhou).not.toHaveProperty('description_hash')
+    })
+    it('I-3: sem título na resposta (ou vazio) a linha mantém o título; sem descrição, mantém o hash', async () => {
+      const [a] = dueRows(DIA, 1)
+      const db = setup({ all: [a!] })
+      await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: '' }, statistics: { viewCount: '5' }, contentDetails: { duration: 'PT10M' } })) }) })
+      const u = lidos(db, a!.id as string)[0]!
+      expect(u).not.toHaveProperty('title')
+      expect(u).not.toHaveProperty('description_hash')
+    })
     it('falha de captura (gravação que não é de versão) continua sem carimbar: só a versão isolada tem o recibo pelo ponto', async () => {
       const [a, b] = dueRows(DIA, 2)
       const db = setup({ all: [a!, b!], versionPlanFailOf: [a!.id as string], failWrite: 'rpc:apply_competitor_field_plan' })
@@ -1460,7 +1482,8 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     const day = slotDate('vid-7')
     const db = setup({ all: [weeklyRow(7, { missing_since: '2026-10-01T00:00:00.000Z' })] })
     const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
-    expect(updatesOf(db, 'v-7')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: at12(day).toISOString(), view_count: 5, like_count: 1, comment_count: 0, views_hidden: false, likes_hidden: false, comments_disabled: false, duration_seconds: 600 }])
+    // o mesmo patch do diário, mais o título da resposta (portão final, dados I-3: a linha acompanha a versão gravada; o `echo` não traz descrição)
+    expect(updatesOf(db, 'v-7')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: at12(day).toISOString(), view_count: 5, like_count: 1, comment_count: 0, views_hidden: false, likes_hidden: false, comments_disabled: false, duration_seconds: 600, title: 'T7' }])
     expect(r).toMatchObject({ recorded: 1, complete: true })
   })
   it('regra 6: sem miniatura utilizável na resposta a chave thumbnail_url fica fora do patch (o gravado não é anulado)', async () => {
@@ -2310,6 +2333,24 @@ describe('A5 E2 (11c): a extensão da promoção na sincronização diária', ()
       expect(e).toBeInstanceOf(Error)
       expect(syncStatsOf(e)?.promotionExtended).toBe(100)
     })
+  })
+})
+
+// (portão final, dados M-3 / software M-6) a passada diária lia a contagem com parseInt cru: viewCount '' ou ilegível virava NaN → nulo →
+// violação de not null → os 50 do bloco perdiam o ponto e o canal terminava em erro. Agora é "não medido": sem ponto, contado, sem erro.
+describe('passada diária: contagem ilegível é não medido, não erro', () => {
+  const bad = (vc: string) => (_n: number, _u: string) => [{ id: 'vid-1', snippet: { title: 'T' }, statistics: { viewCount: vc, likeCount: 'x', commentCount: '2' }, contentDetails: { duration: 'PT10M' } }]
+  it.each([['vazio', ''], ['texto', 'abc']])('viewCount %s: nenhum ponto gravado, contado em excludedNoCount, o canal não termina em erro', async (_n, vc) => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: bad(vc) }), ...quiet })
+    expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toEqual([])
+    expect(r).toMatchObject({ dailyRecorded: 0, excludedNoCount: 1 })
+  })
+  it('likeCount ilegível com viewCount bom: o ponto sai com likes nulo (nunca NaN) e comentários lidos', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: (_n: number, _u: string) => [{ id: 'vid-1', snippet: { title: 'T' }, statistics: { viewCount: '9', likeCount: 'x', commentCount: '2' }, contentDetails: { duration: 'PT10M' } }] }), ...quiet })
+    const up = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!
+    expect(arg(up, 'upsert')).toEqual([expect.objectContaining({ video_id: 'v-1', views: 9, likes: null, comments: 2 })])
   })
 })
 

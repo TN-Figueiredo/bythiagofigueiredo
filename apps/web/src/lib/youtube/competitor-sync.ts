@@ -656,10 +656,11 @@ async function runChannel(
     if (probe && prevThumb && action === 'heal') {
       const blobUrl = await archiveThumb(videoUuid, probe).catch(() => null)
       if (w.weekly && !blobUrl) thumbFailed++
-      const { error } = await supabase.from('competitor_video_versions').update({
-        thumb_dhash: probe.dhash, thumb_etag: probe.etag, last_seen_at: nowIso,
-        ...(blobUrl ? { thumb_blob_url: blobUrl } : {}),
-      }).eq('id', prevThumb.id)
+      // (portão final, dados M-1) sem a cópia, o indício (dhash/etag) NÃO entra: gravado, a versão pareceria "já copiada" (etag igual, nada a baixar)
+      // e a cópia nunca seria refeita. Sem ele a leitura seguinte baixa de novo e cai neste mesmo ramo.
+      const { error } = await supabase.from('competitor_video_versions').update(blobUrl
+        ? { thumb_dhash: probe.dhash, thumb_etag: probe.etag, last_seen_at: nowIso, thumb_blob_url: blobUrl }
+        : { last_seen_at: nowIso }).eq('id', prevThumb.id)
       fail('heal thumb version', error)
     } else if (probe && prevThumb && action === 'etag') {
       const { error } = await supabase.from('competitor_video_versions').update({
@@ -784,7 +785,7 @@ async function runChannel(
    * contagens, sinalizadores (D2: contagem ausente é nulo mais o sinalizador, nunca 0), ao vivo, e a sequência de faltas
    * zerada. Uma vez por sincronização. Erro de gravação nunca é "ok": é guardado (late) e o canal termina em erro, depois da série do dia.
    */
-  const patchFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
+  const patchFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>, textOpts: { withText?: boolean } = {}): Promise<void> => {
     for (const it of items) {
       const row = byYt.get(it.id)
       if (!row) continue
@@ -793,9 +794,16 @@ async function runChannel(
       const o = observedOf(it)
       if (o.partsMissing.length) partsMissingIds.add(it.id)
       // vídeo cuja versão não gravou: a linha NÃO muda nos campos que a versão cobre (nada de miniatura nova sem a versão que a registra).
-      // A linha do vídeo só tem a miniatura entre eles: título e descrição só a página regrava, e a leitura semanal não passa por ela.
       const patch: Record<string, unknown> = { ...o.patch }
       if (versionFailedIds.has(row.id)) delete patch.thumbnail_url
+      else if (textOpts.withText) {
+        // (portão final, dados I-3) Leitura semanal: o leitor das telas prefere o título da linha à versão, e a leitura semanal grava a versão
+        // mas não passa pela página de uploads. Quando a versão de título/descrição deste vídeo foi GRAVADA, a linha a acompanha (como a página
+        // faz); sem título/descrição na resposta, a linha fica como está. (A passada diária e os fixados seguem como antes: dívida registrada.)
+        const sn = it.snippet ?? {}
+        if (typeof sn.title === 'string' && sn.title) patch.title = sn.title
+        if (typeof sn.description === 'string') patch.description_hash = crypto.createHash('sha256').update(sn.description).digest('hex').slice(0, 16)
+      }
       const { error } = await supabase.from('competitor_videos').update(patch).eq('id', row.id)
       // (emenda do portão: S-I5) não lança: a série do dia vem antes; o erro é guardado e o canal termina em erro
       if (late('não foi possível atualizar a linha do vídeo', error)) continue
@@ -842,7 +850,7 @@ async function runChannel(
           for (const it of items) seen.add(byYt.get(it.id)!.id)
           // um vídeo por vez, com o relógio conferido antes de cada um (título, descrição e miniatura)
           const done = await reconcileFetched(items, byYt, { weekly: true, stop })
-          await patchFetched(done, byYt)
+          await patchFetched(done, byYt, { withText: true })
           await captureFetched(done.map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
           // Só o vídeo conferido ganha o ponto de hoje. Contagem ausente (ou ilegível) é "não medido": sem ponto, nunca zero; '0' é zero medido.
           const rows = done.flatMap(it => {
@@ -1223,16 +1231,20 @@ async function runChannel(
           for (const c of chunk) asked.add(c.id) // a chamada respondeu: o que não veio nela conta como pedido e não devolvido
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
           const items = ((body.items ?? []) as FetchedItem[]).filter(it => byYt.has(it.id))
-          const rows = items
-            .filter(it => it.statistics?.viewCount !== undefined)
-            .map(it => ({
+          // (portão final, dados M-3) contagem lida com optCount, como a leitura semanal: ilegível é "não medido" (sem ponto, contado em
+          // excludedNoCount), nunca NaN/0, e não derruba o bloco de 50 por violação de not null.
+          const rows = items.flatMap(it => {
+            const views = optCount(it.statistics?.viewCount)
+            if (views === null) return []
+            return [{
               video_id: byYt.get(it.id)!.id,
               snap_date: snapDate,
-              views: parseInt(it.statistics!.viewCount!, 10),
-              likes: it.statistics!.likeCount !== undefined ? parseInt(it.statistics!.likeCount, 10) : null,
-              comments: it.statistics!.commentCount !== undefined ? parseInt(it.statistics!.commentCount, 10) : null,
+              views,
+              likes: optCount(it.statistics?.likeCount),
+              comments: optCount(it.statistics?.commentCount),
               taken_at: nowIso,
-            }))
+            }]
+          })
           excludedNoCount += items.length - rows.length
           if (rows.length) {
             const { data: inserted, error } = await supabase
