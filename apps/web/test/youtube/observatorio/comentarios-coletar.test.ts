@@ -529,6 +529,19 @@ describe('marcos 7 e 30: a conferência dos guardados', () => {
     expect(s.status).toBe('ok')
   })
 
+  it('11b. curtida nula na conferência por id: o id não vira ausente e nada vira zero (o item não é enviado, o guardado fica como está)', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 5 }))
+    mundo.guardados = () => ok([...lote3.map((id) => g(id)), g('G-NULA')])
+    roteiro = ({ rota }) => (rota === 'comments' ? okApi(corpoPorId([comentarioPorId('G-NULA', { curtidas: null })])) : padrao({ rota, params: new URLSearchParams(), n: 0 }))
+    const s = await rodar()
+    const e = sbDe('apply_competitor_comment_snap')[0] as ChamadaSb
+    const achado = comentariosDe(e).find((c) => c.youtube_comment_id === 'G-NULA')
+    expect(achado).toBeUndefined()
+    expect(comentariosDe(e).filter((c) => c.via === 'id' && c.likes === 0)).toHaveLength(0)
+    expect(e.args?.p_missing).toEqual([])
+    expect(s.status).toBe('ok')
+  })
+
   it('12. a chamada por id falha: nenhum ausente, conferencias_falhas 1, conferencia_falhou no pool_stats, retrato gravado', async () => {
     mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 5 }))
     mundo.guardados = () => ok([...lote3.map((id) => g(id)), g('G-ACHADO'), g('G-SUMIU')])
@@ -894,6 +907,16 @@ describe('falhas e estado da execução', () => {
     expect(s.ficaram).toBe(10)
     expect(s.motivo).toBeUndefined()
     expect(s.numeros.retratos_atrasados).toBe(31)
+  })
+
+  it('22b1. com um inesperado a fila NÃO conta como zerada: o atraso não vira vermelho a mais (numeros.vermelhos 1, só inesperado)', async () => {
+    mundo.linhas = lista(3)
+    roteiro = (c) => { if (c.rota === 'commentThreads' && c.n === 1) clock.explode = true; return padrao(c) }
+    mundo.provas = [PROVA, { ...PROVA, retratos_atrasados: 1 }]
+    const s = comFrase(await rodar())
+    expect(s.motivo).toBe('inesperado')
+    expect(s.numeros.inesperados).toBe(1)
+    expect(s.numeros.vermelhos).toBe(1)
   })
 
   it('22b2. a fila zerou mas uma gravação falhou (o retrato continua sem retrato): não é "atrasado" que se cobra duas vezes, e o erro é banco', async () => {
