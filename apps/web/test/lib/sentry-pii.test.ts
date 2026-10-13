@@ -505,3 +505,59 @@ describe('A5 E14 — consulta das rotas de comentário some por campo', () => {
   })
 
 })
+
+describe('A5 E14 — 7a endurecimento: qualquer chave com URL de rota de comentário perde a consulta', () => {
+  const API = 'https://www.googleapis.com/youtube/v3'
+  const CONS = '?part=snippet&id=UgxSENTINELAx01,UCsentinelaAUTOR0001&key=K'
+
+  it('H1. span: next.span_name e http.target com a URL saem sem consulta', () => {
+    const ev = scrubEventPii({
+      spans: [
+        {
+          description: 'GET x',
+          data: {
+            'next.span_name': `fetch GET ${API}/comments${CONS}`,
+            'http.target': `/youtube/v3/commentThreads${CONS}`,
+            'outra.chave': `${API}/channels${CONS}#frag`,
+          },
+        },
+      ],
+    })
+    expect(JSON.stringify(ev)).not.toContain('Sentinela')
+    expect(JSON.stringify(ev)).not.toContain('sentinela')
+    expect(ev.spans![0].data!['next.span_name']).toBe(`fetch GET ${API}/comments?[REDACTED]`)
+    expect(ev.spans![0].data!['outra.chave']).toBe(`${API}/channels?[REDACTED]`)
+  })
+
+  it('H2. breadcrumb sem campo de URL conhecido: chave arbitrária também', () => {
+    const b = scrubBreadcrumbPii({ data: { qualquer: `GET ${API}/commentThreads${CONS}` } })
+    expect(b.data!.qualquer).toBe(`GET ${API}/commentThreads?[REDACTED]`)
+  })
+
+  it('H3. sem ? corta no primeiro #; sem nenhum, fica igual', () => {
+    const b = scrubBreadcrumbPii({
+      data: { a: `${API}/comments#UgxSENTINELAx01`, b: `${API}/comments` },
+    })
+    expect(b.data!.a).toBe(`${API}/comments#[REDACTED]`)
+    expect(b.data!.b).toBe(`${API}/comments`)
+  })
+
+  it('H4. videos, playlistItems e valores não-string ficam como estão', () => {
+    const v = `${API}/videos?part=snippet&id=abc`
+    const p = `${API}/playlistItems?playlistId=PLabc`
+    const b = scrubBreadcrumbPii({ data: { v, p, n: 42, o: null } })
+    expect(b.data!.v).toBe(v)
+    expect(b.data!.p).toBe(p)
+    expect(b.data!.n).toBe(42)
+    expect(b.data!.o).toBeNull()
+  })
+
+  it('H5. aninhado em objeto raso é coberto; profundidade enorme não lança', () => {
+    let fundo: Record<string, unknown> = { x: `${API}/comments${CONS}` }
+    for (let i = 0; i < 200; i++) fundo = { n: fundo }
+    const b = scrubBreadcrumbPii({
+      data: { raso: { y: `${API}/comments${CONS}` }, fundo },
+    })
+    expect((b.data!.raso as Record<string, string>).y).toBe(`${API}/comments?[REDACTED]`)
+  })
+})
