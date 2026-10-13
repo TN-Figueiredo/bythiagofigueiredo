@@ -164,15 +164,85 @@ describe('executarAgenda: o arrendamento', () => {
     expect(banco.vezes('competitor_agenda_state')).toHaveLength(0)
   })
 
-  it('arrendamento com erro: segue, com nota', async () => {
-    banco = bancoDaAgenda({ competitor_agenda_lease_take: () => ({ data: null, error: { code: '57014', message: SENTINELA } }) })
+  // I-3 do portão final: o arrendamento que FALHA (diferente do arrendamento OCUPADO acima) nunca pode parar a coleta.
+  // Tabelas da agenda presentes (a guarda passa: `schemaTablesReady` devolve null) e a função do arrendamento inutilizável.
+  const falhaDoArrendamento = (code: string | undefined) => bancoDaAgenda({
+    competitor_agenda_lease_take: () => ({ data: null, error: { code, message: SENTINELA } }),
+  })
+
+  it('I-3 schema_ausente (função faltando com as tabelas presentes): a agenda não roda e a rota cai no lote antigo, com a frase', async () => {
+    banco = falhaDoArrendamento('42883')
+    const rodar = vi.fn(okPadrao)
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: rodar, sincronizar_canais: rodar }) })
+    expect(r.resposta).toBeNull()
+    expect(r.semAgenda).toBe('não foi possível tomar o arrendamento da agenda (migration da agenda não aplicada (código 42883)); o lote antigo rodou no lugar')
+    expect(rodar).not.toHaveBeenCalled()
+    expect(vi.mocked(lerEstado)).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled() // quem grava o vermelho é a rota, com o lote antigo
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    expect(vi.mocked(soltarArrendamento)).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(r)).not.toContain(SENTINELA)
+    // migration pela metade é um defeito de operação: avisa o Sentry (diferente da MG10 inteira ausente, onde a guarda acusa)
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith('agenda: arrendamento não tomado', expect.objectContaining({ level: 'warning' }))
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain(SENTINELA)
+  })
+
+  it('I-3 erro_do_banco (sem EXECUTE para o service_role, 42501): o mesmo, com o código na frase', async () => {
+    banco = falhaDoArrendamento('42501')
     const rodar = vi.fn(okPadrao)
     const r = await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: rodar }) })
+    expect(r.resposta).toBeNull()
+    expect(r.semAgenda).toBe('não foi possível tomar o arrendamento da agenda (erro do banco (código 42501)); o lote antigo rodou no lugar')
+    expect(rodar).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+    expect(vi.mocked(soltarArrendamento)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith('agenda: arrendamento não tomado', expect.objectContaining({ level: 'warning' }))
+    expect(JSON.stringify(r)).not.toContain(SENTINELA)
+  })
+
+  it('I-3 schema_ausente com a guarda também ausente (MG10 inteira ausente): a frase continua a da guarda, a do arrendamento não a substitui', async () => {
+    banco = falhaDoArrendamento('42883')
+    vi.mocked(schemaTablesReady).mockResolvedValue({ tipo: 'ausente', texto: 'x', codigo: '42P01' })
+    const r = await rodarAgenda()
+    expect(r).toEqual({ resposta: null, semAgenda: 'migration MG10 não aplicada: a agenda não rodou; o lote antigo rodou no lugar' })
+    expect(vi.mocked(Sentry.captureMessage)).not.toHaveBeenCalled()
+  })
+
+  it('I-3 prazo (o banco não respondeu ao arrendamento): não dá para saber se outro disparo o tem; a agenda segue (cada tarefa se garante pela tomada), o lote antigo NÃO roda em paralelo e o problema fica registrado', async () => {
+    banco = falhaDoArrendamento(undefined)
+    const rodar = vi.fn(okPadrao)
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: rodar }) })
+    expect(r.resposta).not.toBeNull()
+    expect(r.semAgenda).toBeUndefined()
     expect(rodar).toHaveBeenCalledTimes(1)
     const c = await corpo(r)
     expect((c.notas as string[]).some(n => /^arrendamento não tomado \(/.test(n))).toBe(true)
     expect(JSON.stringify(c)).not.toContain(SENTINELA)
+    expect(vi.mocked(recordCronFailure)).toHaveBeenCalledTimes(1)
+    expect(mensagem()).toContain('não foi possível confirmar o arrendamento da agenda (o banco não respondeu)')
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
     expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith('agenda: arrendamento não tomado', expect.objectContaining({ level: 'warning' }))
+  })
+
+  it('I-3 exceção ao chamar o arrendamento: igual ao prazo (agenda segue, problema registrado, sem lote antigo)', async () => {
+    const sb = { rpc: (fn: string, a: Record<string, unknown>) => {
+      if (fn === 'competitor_agenda_lease_take') throw new Error(SENTINELA)
+      return banco.sb.rpc(fn, a)
+    } } as unknown as SupabaseClient
+    const rodar = vi.fn(okPadrao)
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: rodar }) }, sb)
+    expect(r.resposta).not.toBeNull()
+    expect(rodar).toHaveBeenCalledTimes(1)
+    expect(mensagem()).toContain('não foi possível confirmar o arrendamento da agenda (o banco não respondeu)')
+    expect(JSON.stringify(await corpo(r))).not.toContain(SENTINELA)
+  })
+
+  it('I-3 arrendamento OCUPADO por outro disparo continua saindo limpo (locked), nunca cai no lote antigo', async () => {
+    banco = bancoDaAgenda({ competitor_agenda_lease_take: () => ({ data: false, error: null }) })
+    const r = await rodarAgenda()
+    expect(r.resposta?.status).toBe(200)
+    expect(r.semAgenda).toBeUndefined()
+    expect(await corpo(r)).toEqual({ status: 'locked' })
   })
 
   it('o arrendamento é solto com o holder do disparo, mesmo quando uma tarefa lança', async () => {
