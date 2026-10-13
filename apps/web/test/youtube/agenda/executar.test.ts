@@ -316,7 +316,9 @@ describe('executarAgenda: o catálogo desta ordem, de verdade (tarefas reais com
   it('sem as linhas, quando a sincronização já está ok, a série fecha erro canais_nao_lidos', async () => {
     vi.mocked(loadBatchRows).mockRejectedValue(new Error('Failing row contains (UCsentinela)'))
     banco.estados.set('sincronizar_canais', { status: 'ok' })
-    const r = await rodarAgenda()
+    // Catálogo injetado só com a sincronização e a série reais: o assunto é o comportamento da série semanal, não a disputa pela vaga
+    // da pesada (essa tem o teste dela, abaixo, com o catálogo inteiro).
+    const r = await rodarAgenda({ catalogo: CATALOGO.filter(t => t.nome === 'sincronizar_canais' || t.nome === 'serie_semanal') })
     const t = (await corpo(r)).tarefas as Array<{ tarefa: string; estado: string; motivo?: string }>
     expect(t.find(x => x.tarefa === 'serie_semanal')).toMatchObject({ estado: 'erro', motivo: 'canais_nao_lidos' })
     expect(vi.mocked(runWeeklyPhase)).not.toHaveBeenCalled()
@@ -330,6 +332,73 @@ describe('executarAgenda: o catálogo desta ordem, de verdade (tarefas reais com
       expect(dentro).not.toContain('sentinela')
       expect(dentro).not.toContain('Failing row')
     }
+  })
+})
+
+// A ordem de fato entre as três pesadas do catálogo REAL (ordem, período, `cedeA` e peso vêm de CATALOGO; só o código de cada tarefa é
+// trocado por um espião, e `devidaPeloDado` sai, para o estado do banco falso decidir sozinho quem é devido). 18:10 em SP: as três
+// são devidas pela hora (série a partir das 12, retratos a partir das 13).
+describe('executarAgenda: quem leva a vaga da pesada, com o catálogo real', () => {
+  const PESADAS = ['sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const espioes = (): Record<string, ReturnType<typeof vi.fn>> => Object.fromEntries(CATALOGO.map(t => [t.nome, vi.fn(okPadrao)]))
+  const catalogoReal = (e: Record<string, ReturnType<typeof vi.fn>>): Tarefa[] =>
+    CATALOGO.map(t => ({ ...t, devidaPeloDado: undefined, rodar: e[t.nome]! }))
+  const estadosDe = async (r: Awaited<ReturnType<typeof executarAgenda>>) =>
+    Object.fromEntries(((await corpo(r)).tarefas as Array<{ tarefa: string; estado: string; motivo?: string }>).map(x => [x.tarefa, x]))
+  const adiadasNoBanco = (): string[] => banco.vezes('competitor_agenda_defer').map(c => `${c.args.p_task}:${c.args.p_reason}`).sort()
+
+  it('as três devidas e sãs: a sincronização roda; retratos e série cedem a vez e são adiadas', async () => {
+    const e = espioes()
+    const t = await estadosDe(await rodarAgenda({ catalogo: catalogoReal(e) }))
+    expect(e.sincronizar_canais).toHaveBeenCalledTimes(1)
+    expect(e.retratos_comentarios).not.toHaveBeenCalled()
+    expect(e.serie_semanal).not.toHaveBeenCalled()
+    expect(t.retratos_comentarios).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+    expect(t.serie_semanal).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+    expect(adiadasNoBanco()).toEqual(['retratos_comentarios:uma_pesada_por_disparo', 'serie_semanal:uma_pesada_por_disparo'])
+  })
+
+  it('sincronização já ok no período: retratos (ordem 7) leva a vaga; a série (ordem 8) é adiada com motivo; as leves e a horária rodam', async () => {
+    banco.estados.set('sincronizar_canais', { status: 'ok' })
+    const e = espioes()
+    const t = await estadosDe(await rodarAgenda({ catalogo: catalogoReal(e) }))
+    expect(e.retratos_comentarios).toHaveBeenCalledTimes(1)
+    expect(e.serie_semanal).not.toHaveBeenCalled()
+    expect(e.sincronizar_canais).not.toHaveBeenCalled()
+    expect(t.retratos_comentarios).toMatchObject({ estado: 'ok' })
+    expect(t.serie_semanal).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+    expect(t.sincronizar_canais).toMatchObject({ estado: 'nao_devida' })
+    expect(e.anular_identidade).toHaveBeenCalledTimes(1)
+    expect(e.leitura_horaria).toHaveBeenCalledTimes(1)
+    expect(adiadasNoBanco()).toEqual(['serie_semanal:uma_pesada_por_disparo'])
+  })
+
+  it('sem fome permanente: no disparo seguinte (retratos já ok), a série preterida roda', async () => {
+    banco.estados.set('sincronizar_canais', { status: 'ok' })
+    banco.estados.set('retratos_comentarios', { status: 'ok' })
+    banco.estados.set('serie_semanal', { status: 'adiada', reason: 'uma_pesada_por_disparo' })
+    const e = espioes()
+    const t = await estadosDe(await rodarAgenda({ catalogo: catalogoReal(e) }))
+    expect(e.serie_semanal).toHaveBeenCalledTimes(1)
+    expect(e.retratos_comentarios).not.toHaveBeenCalled()
+    expect(t.serie_semanal).toMatchObject({ estado: 'ok' })
+    expect(t.retratos_comentarios).toMatchObject({ estado: 'nao_devida' })
+    expect(adiadasNoBanco()).toEqual([])
+  })
+
+  it('retratos com a última execução em erro perde a vaga para a série sã (a sã vem primeiro)', async () => {
+    banco.estados.set('sincronizar_canais', { status: 'ok' })
+    banco.estados.set('retratos_comentarios', { status: 'erro', last_run_status: 'erro' })
+    const e = espioes()
+    const t = await estadosDe(await rodarAgenda({ catalogo: catalogoReal(e) }))
+    expect(e.serie_semanal).toHaveBeenCalledTimes(1)
+    expect(e.retratos_comentarios).not.toHaveBeenCalled()
+    expect(t.retratos_comentarios).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
+  })
+
+  it('as três pesadas do catálogo real são exatamente estas, e só a sincronização não cede a ninguém', () => {
+    expect(CATALOGO.filter(t => t.peso === 'pesada').map(t => t.nome).sort()).toEqual([...PESADAS].sort())
+    expect(CATALOGO.filter(t => t.peso === 'pesada' && (t.cedeA ?? []).length === 0).map(t => t.nome)).toEqual(['sincronizar_canais'])
   })
 })
 
@@ -490,14 +559,18 @@ describe('rodarAntesDoLoteAntigo', () => {
   const CHAVE_DIA = chaveDoPeriodo('dia', T0)
   const comErro = (over: Partial<Tarefa> = {}) => tarefa('anular_identidade', { rodar: vi.fn(async () => ({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'falhou' }) as ResultadoTarefa), ...over })
 
-  it('lista vazia: devolve o vazio sem nenhuma ida ao banco nem ao Sentry; a real nasce vazia', async () => {
+  it('lista vazia (injetada): devolve o vazio sem nenhuma ida ao banco nem ao Sentry', async () => {
     const r = await chamar([])
     expect(r).toEqual({ tarefas: [], problemas: [], notas: [] })
     expect(banco.chamadas).toHaveLength(0)
     expect(vi.mocked(Sentry.captureMessage)).not.toHaveBeenCalled()
-    expect(antesDoLoteAntigo).toEqual([])
-    expect(await rodarAntesDoLoteAntigo({ supabase: banco.sb, apiKey: 'chave', runId: 'r', t0: T0, caminho: 'interruptor' })).toEqual({ tarefas: [], problemas: [], notas: [] })
-    expect(banco.chamadas).toHaveLength(0)
+  })
+
+  it('a lista REAL traz exatamente anular_identidade (a obrigação de LGPD), e ela é nuncaDesliga', () => {
+    expect(antesDoLoteAntigo.map(t => t.nome)).toEqual(['anular_identidade'])
+    expect(antesDoLoteAntigo.every(t => t.nuncaDesliga === true)).toBe(true)
+    // é a mesma tarefa do catálogo (um só objeto, uma só definição)
+    expect(CATALOGO.find(t => t.nome === 'anular_identidade')).toBe(antesDoLoteAntigo[0])
   })
 
   it('tarefa da lista, caminho interruptor: com tomada, fecho e problema', async () => {
