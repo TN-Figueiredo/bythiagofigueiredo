@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncCompetitorChannel, syncCompetitorWeekly, syncStatsOf, spDate, WeeklyVersionError, type SyncResult, type ThumbBreaker } from '@/lib/youtube/competitor-sync'
 import { missingProgressOf, rowsAs } from '@/lib/youtube/competitor-capture'
@@ -267,6 +268,27 @@ function longErrors(rows: BatchRow[], nowMs: number): LongError[] {
   return out.sort((a, b) => a.sinceMs - b.sinceMs || (a.row.id < b.row.id ? -1 : 1))
 }
 
+/** A frase de `acao_do_dono`: o que só o dono resolve (canal em erro há mais de 3 dias), recalculada das linhas a cada disparo. */
+export function ownerActions(rows: BatchRow[], nowMs: number): string[] {
+  return longErrors(rows, nowMs).map(e => 'canal ' + nameOf(e.row) + ' em erro há ' + e.days + ' dias: ' + e.reason)
+}
+
+/** Quantos canais elegíveis (não ausentes) ainda não têm a passada semanal de hoje: a dívida que a fase semanal cobra. */
+export function weeklyPendingCount(rows: BatchRow[], nowMs: number): number {
+  const today = spDate(nowMs)
+  return rows.filter(r => r.missing_since == null && r.weekly_pass_date !== today).length
+}
+
+/** Os canais que o lote lê, do mais antigo ao mais novo (nulo primeiro). Resposta nula ou fora da forma é falha de leitura (lança), nunca "nenhum canal". */
+export async function loadBatchRows(sb: SupabaseClient): Promise<BatchRow[]> {
+  const { data, error } = await sb
+    .from('competitor_channels')
+    .select('id, channel_id, channel_name, site_id, last_synced_at, last_ok_synced_at, sync_status, sync_error, sync_error_since, missing_since, weekly_pass_date')
+    .order('last_synced_at', { ascending: true, nullsFirst: true })
+  if (error) throw new Error(`competitor batch: ${error.message}`)
+  return rowsAs(data, isBatchRow, 'competitor batch')
+}
+
 /**
  * O aviso ao dono: UMA notificação quando o canal cruza o 3º dia em erro e um lembrete por semana enquanto durar. A trava é o estado
  * gravado: a chave (canal, dia em que o erro começou, número da semana desde o 3º dia) é única por dono em `notifications`
@@ -341,17 +363,15 @@ export async function runCompetitorBatch(opts: {
   weekly?: boolean
   /** false = a fase semanal não confere a miniatura */
   thumbs?: boolean
+  /** O instante em que o disparo começou (padrão: agora). Os limites de tempo do lote contam dele, não da chamada. */
+  started?: number
 }): Promise<BatchResult> {
   const now = opts.now ?? Date.now
-  const started = now()
+  // `started` (A5 E16): o relógio do disparo inteiro, quando a agenda já gastou tempo antes do lote; todos os limites contam dele.
+  const started = opts.started ?? now()
   const sb = getSupabaseServiceClient()
-  const { data, error } = await sb
-    .from('competitor_channels')
-    .select('id, channel_id, channel_name, site_id, last_synced_at, last_ok_synced_at, sync_status, sync_error, sync_error_since, missing_since, weekly_pass_date')
-    .order('last_synced_at', { ascending: true, nullsFirst: true })
-  if (error) throw new Error(`competitor batch: ${error.message}`)
   // Resposta nula ou fora da forma é falha de leitura, nunca "nenhum canal" (lista vazia só quando o banco diz que é vazia).
-  const rows = rowsAs(data, isBatchRow, 'competitor batch')
+  const rows = await loadBatchRows(sb)
   // Defensive: channels stuck in 'error' go after the healthy ones so they can
   // never starve the cursor. Array.sort is stable, so the oldest-first order
   // (nulls first) is kept within each group.
@@ -366,7 +386,7 @@ export async function runCompetitorBatch(opts: {
   const res: BatchResult = {
     synced: 0, errors: 0, errorsKnown: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [],
     totals: zeroTotals(), healthSiteIds: [...new Set(rows.map(r => r.site_id))], weekly: emptyWeekly(),
-    acao_do_dono: long.map(e => 'canal ' + nameOf(e.row) + ' em erro há ' + e.days + ' dias: ' + e.reason),
+    acao_do_dono: ownerActions(rows, started),
     channelsActive: rows.filter(r => r.missing_since == null).length, channelsLongError: long.length,
     ownerNotices: { sent: 0, failed: 0 },
   }
