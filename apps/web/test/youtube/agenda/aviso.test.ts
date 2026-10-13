@@ -200,15 +200,15 @@ describe('avisarDono', () => {
     expect(createNotification).not.toHaveBeenCalled()
   })
 
-  it('a variável apagada liga o aviso (padrão); "false" desliga', async () => {
+  it('COMPETITOR_NOTIFICATIONS_ENABLED=false NÃO suprime o aviso: ele só desliga troca de título/miniatura, alarme sempre sai', async () => {
     const { sb } = banco()
     delete process.env.COMPETITOR_NOTIFICATIONS_ENABLED
     expect((await avisarDono(sb, [aviso()], O)).enviados).toBe(1)
     process.env.COMPETITOR_NOTIFICATIONS_ENABLED = 'false'
     createNotification.mockClear()
-    const r = await avisarDono(sb, [aviso()], O)
-    expect(createNotification).not.toHaveBeenCalled()
-    expect(r.enviados).toBe(0)
+    const r = await avisarDono(sb, [aviso({ chave: 'tarefa_esgotada', tarefa: 'Comparações', frase: 'Comparações: sem tempo' }), aviso()], O)
+    expect(createNotification).toHaveBeenCalledTimes(2)
+    expect(r).toMatchObject({ enviados: 2, suprimidos: 0, falharam: 0 })
   })
 
   it('o texto só tem frase fixa, rótulo e número', async () => {

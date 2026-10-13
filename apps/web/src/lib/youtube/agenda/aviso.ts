@@ -54,8 +54,8 @@ export async function avisarDono(
 ): Promise<ContagemAviso> {
   const contagem: ContagemAviso = { enviados: 0, suprimidos: 0, falharam: 0, semDestinatario: 0 }
   if (avisos.length === 0) return contagem
-  // O mesmo interruptor do aviso de canal em erro: 'false' desliga (apagada a variável, liga).
-  if (process.env.COMPETITOR_NOTIFICATIONS_ENABLED === 'false') { contagem.suprimidos = avisos.length; return contagem }
+  // SEM interruptor: COMPETITOR_NOTIFICATIONS_ENABLED desliga as notificações de troca de título/miniatura e não pode calar
+  // alarme ("leitura horária parada", "tarefa esgotada"). Estes dois avisos são sempre enviados.
 
   let cancelado = false
   const falhou = (a: Aviso, err?: unknown): void => {

@@ -14,6 +14,8 @@
  * send-scheduled-newsletters — e o próprio cron-watchdog.
  */
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { evaluateCron, buildCronHealthReport, groupCronSchedules, aggregateStatus, type ICronHealthRow, type ICronHealthItem } from '@/lib/ops/cron-health-report'
 import vercelConfig from '../../../vercel.json'
 import type { ItemAgenda } from '@/lib/youtube/agenda/saude'
@@ -184,5 +186,14 @@ describe('agenda como segunda fonte do relatório', () => {
     expect(com.crons.filter(c => !c.name.startsWith('agenda:'))).toEqual(sem.crons)
     expect(com.lateNames).toEqual(sem.lateNames)
     expect(com.status).toBe(sem.status)
+  })
+})
+
+describe('o vigia carrega a leitura da agenda por import estático', () => {
+  it('sem import() dinâmico: se o módulo não carregar o build quebra (barulho), nunca um item "unknown" em silêncio', () => {
+    const fonte = readFileSync(resolve(__dirname, '../../../src/lib/ops/cron-health-report.ts'), 'utf8')
+    expect(fonte).not.toMatch(/import\s*\(/)
+    expect(fonte).toMatch(/^import \{[^}]*lerAgendaDoVigia[^}]*\} from '@\/lib\/youtube\/agenda\/saude'/m)
+    expect(fonte).not.toContain('leitura_da_agenda')
   })
 })
