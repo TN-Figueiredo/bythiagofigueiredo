@@ -1270,7 +1270,9 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     expect(log.dailyCalls.flatMap(idsOf)).toEqual(expected)
     expect(r.due).toBe(expected.length)
     expect(db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')).length).toBe(2)
-    expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')).length).toBe(24) // 1200 ids / 100 no começo da visita + 1200 / 100 na promoção (11c: a promoção relê o estado depois dos pontos)
+    // 1200 ids / 100 no começo da visita + os candidatos da promoção em lotes de 100 (só quem tem ponto hoje: aqui os devidos gravados agora; antes da onda de consertos eram os 1200)
+    const candidatos = expected.length
+    expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')).length).toBe(12 + Math.ceil(candidatos / 100))
   })
   describe('a reconciliação de versões de UM vídeo falhando (11b, preocupação 1): isolada por vídeo', () => {
     const DIA = '2026-10-24'
@@ -1350,7 +1352,7 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     const due = dueRows(day, 34)
     const db = setup({ all: due })
     let checked = 0
-    vi.mocked(probeThumb).mockImplementation(async () => { checked++; return { etag: null, lastModified: null, dhash: null, bytes: null, url: '' } })
+    vi.mocked(probeThumb).mockImplementation(async () => { checked++; return { etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: '' } }) // host de imagens saudável: uma sonda sem indício nenhum é falha e abriria o disjuntor
     const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), deadline: () => checked >= 10 })
     expect(r).toMatchObject({ due: 34, recorded: 10, deferred: 24, complete: false })
     expect(pointsOf(db)).toEqual(due.slice(0, 10).map(x => x.id))        // só os 10 conferidos têm ponto
@@ -1368,6 +1370,7 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     const due = dueRows(day, 120)                                          // 50 + 50 + 20
     const log = { dailyCalls: [] as string[] }
     const db = setup({ all: due })
+    vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: 'u' }) // host de imagens saudável: o padrão (sem indício nenhum) é falha e abriria o disjuntor
     // o relógio fecha depois do 100º vídeo conferido, isto é, entre a 2ª e a 3ª chamada
     const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), deadline: () => vi.mocked(probeThumb).mock.calls.length >= 100 })
     expect(log.dailyCalls).toHaveLength(2)
@@ -1549,6 +1552,317 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     expect(r).toMatchObject({ recorded: 1, complete: true })
     expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
   })
+
+  // ── Onda de consertos das Tarefas 11b e 11c ──
+  describe('a miniatura dos semanais tem disjuntor (11b, I-1)', () => {
+    const DIA = '2026-10-24'
+    const OK = { etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: 'https://i.ytimg.com/vi/x/hqdefault.jpg' }
+    const FORA = new Error('i.ytimg.com fora do ar')
+    const rodar = (opts: Partial<Parameters<typeof syncCompetitorWeekly>[2]> = {}) => syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), ...opts })
+    const sondados = () => vi.mocked(probeThumb).mock.calls.length
+    it('3 falhas SEGUIDAS da sonda: a sonda é desligada no resto; os outros ganham o ponto e a linha, sem miniatura, e contam em thumbSkipped', async () => {
+      vi.mocked(probeThumb).mockRejectedValue(FORA)
+      const due = dueRows(DIA, 5)
+      const db = setup({ all: due })
+      const r = await rodar()
+      expect(sondados()).toBe(3)
+      expect(pointsOf(db)).toEqual(due.map(x => x.id))                                  // os 5 têm o ponto
+      expect(due.every(x => updatesOf(db, x.id as string).some(u => u.view_count === 5))).toBe(true) // e a linha
+      expect(r).toMatchObject({ due: 5, recorded: 5, deferred: 0, complete: true, thumbFailed: 3, thumbSkipped: 2 })
+      expect(stamp(db)).toEqual([{ weekly_pass_date: DIA }])
+      // sem cópia: nenhum dos cinco abriu versão de miniatura (a prova sem_miniatura_9d o cobra, e a próxima leitura tenta de novo)
+      expect(rpcs(db).flatMap(p => p.p_open).some(o => o.field === 'thumb')).toBe(false)
+    })
+    it('2 falhas não bastam: o terceiro vídeo ainda é sondado', async () => {
+      vi.mocked(probeThumb).mockRejectedValueOnce(FORA).mockRejectedValueOnce(FORA).mockResolvedValue(OK)
+      setup({ all: dueRows(DIA, 5) })
+      const r = await rodar()
+      expect(sondados()).toBe(5)
+      expect(r).toMatchObject({ thumbFailed: 2 })
+      expect(r.thumbSkipped).toBeUndefined()
+    })
+    it('um sucesso zera a sequência: falha, falha, sucesso, falha, falha, falha abre o disjuntor só no sexto; o sétimo e o oitavo são pulados', async () => {
+      const seq = [false, false, true, false, false, false]
+      let n = 0
+      vi.mocked(probeThumb).mockImplementation(async () => { if (!seq[n++]) throw FORA; return OK })
+      setup({ all: dueRows(DIA, 8) })
+      const r = await rodar()
+      expect(sondados()).toBe(6)
+      expect(r).toMatchObject({ recorded: 8, thumbFailed: 5, thumbSkipped: 2 })
+    })
+    it('o download sem imagem (cabeçalho respondeu com ETag, a imagem não veio) conta como falha e abre o disjuntor', async () => {
+      vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: null, bytes: null, url: 'u' })
+      setup({ all: dueRows(DIA, 5) })
+      const r = await rodar()
+      expect(sondados()).toBe(3)
+      expect(r).toMatchObject({ thumbFailed: 3, thumbSkipped: 2 })
+    })
+    it('M-3: UM download que falha com o ETag presente entra em thumbFailed, e o ponto e a linha saem', async () => {
+      vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: null, bytes: null, url: 'u' })
+      const db = setup({ all: dueRows(DIA, 1) })
+      const r = await rodar()
+      expect(r).toMatchObject({ recorded: 1, complete: true, thumbFailed: 1 })
+      expect(pointsOf(db)).toHaveLength(1)
+    })
+    it('ETag igual ao guardado (nada a baixar) NÃO é falha, mesmo sem dhash guardado', async () => {
+      const [a] = dueRows(DIA, 1)
+      vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: null, bytes: null, url: 'u' })
+      setup({ all: [a!], versions: [{ id: 'th', video_id: a!.id, field: 'thumb', value_text: null, value_hash: null, thumb_etag: '"e1"', thumb_dhash: null, last_seen_at: NOW.toISOString() }] })
+      const r = await rodar()
+      expect(r.thumbFailed).toBeUndefined()
+    })
+    it('o arquivo da cópia falhando (Blob fora) também conta: 3 vídeos seguidos com sonda boa e cópia ruim abrem o disjuntor', async () => {
+      vi.mocked(probeThumb).mockResolvedValue(OK)
+      vi.mocked(archiveThumb).mockRejectedValue(new Error('blob fora'))
+      try {
+        setup({ all: dueRows(DIA, 5) })
+        const r = await rodar()
+        expect(sondados()).toBe(3)
+        expect(r).toMatchObject({ recorded: 5, thumbFailed: 3, thumbSkipped: 2 })
+      } finally { vi.mocked(archiveThumb).mockResolvedValue('https://blob.test/t.jpg') }
+    })
+    it('thumbs: false não sonda e não conta como pulado (foi o chamador que desligou)', async () => {
+      setup({ all: dueRows(DIA, 5) })
+      const r = await rodar({ thumbs: false, thumbBreaker: { failures: 3 } }) // disjuntor já aberto por outro canal: não muda nada para quem desligou a sonda
+      expect(sondados()).toBe(0)
+      expect(r.thumbSkipped).toBeUndefined()
+    })
+    it('sem falha nenhuma: nenhum campo novo no resultado, e todos são sondados', async () => {
+      vi.mocked(probeThumb).mockResolvedValue(OK)
+      setup({ all: dueRows(DIA, 5) })
+      const r = await rodar()
+      expect(sondados()).toBe(5)
+      expect(r).not.toHaveProperty('thumbFailed')
+      expect(r).not.toHaveProperty('thumbSkipped')
+    })
+    it('o estado pode ser compartilhado entre canais do mesmo disparo (thumbBreaker): com 2 falhas já contadas, uma falha abre; sem ele, cada canal começa do zero', async () => {
+      vi.mocked(probeThumb).mockRejectedValue(FORA)
+      const breaker = { failures: 2 }
+      setup({ all: dueRows(DIA, 3) })
+      const r = await rodar({ thumbBreaker: breaker })
+      expect(sondados()).toBe(1)
+      expect(r).toMatchObject({ thumbFailed: 1, thumbSkipped: 2 })
+      expect(breaker.failures).toBe(3)
+      setup({ all: dueRows(DIA, 3) })   // outro canal, mesmo disparo: já nasce desligado
+      const r2 = await rodar({ thumbBreaker: breaker })
+      expect(sondados()).toBe(1)
+      expect(r2).toMatchObject({ recorded: 3, thumbSkipped: 3 })
+      expect(r2.thumbFailed).toBeUndefined()
+      vi.mocked(probeThumb).mockClear()
+      setup({ all: dueRows(DIA, 3) })   // sem o objeto: padrão por canal
+      await rodar()
+      expect(sondados()).toBe(3)
+    })
+  })
+
+  describe('vídeo que não pode ganhar ponto hoje só é pedido no dia fixo (11b, I-2)', () => {
+    const slot = slotDate('vid-7')
+    const off = addDays(slot, 1)
+    const velho = addDays(slot, -20)
+    it.each([
+      ['contagem oculta', { views_hidden: true }],
+      ['estreia agendada', { live_broadcast_content: 'upcoming' }],
+      ['ausente do YouTube', { missing_since: '2026-10-01T00:00:00.000Z' }],
+    ])('%s, faixa há 20 dias e nenhum ponto: fora do dia fixo não é pedido (e o canal é carimbado); no dia fixo é pedido', async (_nome, over) => {
+      const log = { dailyCalls: [] as string[] }
+      const db = setup({ all: [weeklyRow(7, { series_tier_since: velho, ...over })] })
+      const r = await syncCompetitorWeekly(ch, 'k', { now: at12(off), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+      expect(log.dailyCalls).toEqual([])
+      expect(r).toMatchObject({ due: 0, unitsUsed: 0, complete: true })
+      expect(stamp(db)).toEqual([{ weekly_pass_date: off }])
+      const log2 = { dailyCalls: [] as string[] }
+      const db2 = setup({ all: [weeklyRow(7, { series_tier_since: velho, ...over })] })
+      const r2 = await syncCompetitorWeekly(ch, 'k', { now: at12(slot), fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }) })
+      expect(log2.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+      expect(r2).toMatchObject({ due: 1, recorded: 1, complete: true })        // devolveu contagem: ganha o ponto
+      expect(pointsOf(db2)).toEqual(['v-7'])
+    })
+    it('o último ponto de 8 dias atrás não torna devido o vídeo fora da prova (só o dia fixo); o mesmo vídeo fora da prova NÃO é o caso comum: o que está na prova segue a regra normal', async () => {
+      const ponto = [{ video_id: 'v-7', snap_date: addDays(off, -8), views: 100 }]
+      const log = { dailyCalls: [] as string[] }
+      setup({ all: [weeklyRow(7, { views_hidden: true })], recentDaily: ponto })
+      await syncCompetitorWeekly(ch, 'k', { now: at12(off), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+      expect(log.dailyCalls).toEqual([])
+      const log2 = { dailyCalls: [] as string[] }
+      setup({ all: [weeklyRow(7)], recentDaily: ponto })                       // na prova: 8 dias sem ponto é devido todo dia
+      await syncCompetitorWeekly(ch, 'k', { now: at12(off), fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }) })
+      expect(log2.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+    })
+    it('o mesmo vídeo DENTRO da prova (faixa há 20 dias, nenhum ponto) segue devido todo dia: é o fluxo normal', async () => {
+      const log = { dailyCalls: [] as string[] }
+      setup({ all: [weeklyRow(7, { series_tier_since: velho })] })
+      await syncCompetitorWeekly(ch, 'k', { now: at12(off), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+      expect(log.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+    })
+  })
+
+  describe('os buracos de teste da revisão da 11b (mutantes J, L, N, T)', () => {
+    const DIA = '2026-10-24'
+    const OK = { etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: 'u' }
+    it('J: o relógio corta no MEIO do 1º de 3 blocos: o resto do bloco e os dois blocos seguintes contam como adiados, e o canal não é carimbado', async () => {
+      let n = 0
+      vi.mocked(probeThumb).mockImplementation(async () => { n++; return OK })
+      const due = dueRows(DIA, 120)                                            // 50 + 50 + 20
+      const db = setup({ all: due })
+      const log = { dailyCalls: [] as string[] }
+      const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), deadline: () => n >= 10 })
+      expect(log.dailyCalls).toHaveLength(1)
+      expect(r).toMatchObject({ due: 120, recorded: 10, deferred: 110, unitsUsed: 1, complete: false })   // 40 do resto do bloco + 70 dos outros dois
+      expect(stamp(db)).toEqual([])
+      expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_max: { semanais_adiados: 110 } })
+    })
+    describe('L: a fronteira de 8 dias da janela de uma troca (8 dias exatos conta para o aviso; mais de 8 é janela longa)', () => {
+      const troca = async (idade: number) => {
+        const day = slotDate('vid-7')
+        const lastSeen = new Date(at12(day).getTime() - idade).toISOString()
+        setup({ all: [weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
+        return syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+      }
+      const D = 86_400_000
+      it('8 dias exatos: conta', async () => { expect(await troca(8 * D)).toMatchObject({ changesDetected: 1, longWindowChanges: 0 }) })
+      it('8 dias e 1 minuto: janela longa', async () => { expect(await troca(8 * D + 60_000)).toMatchObject({ changesDetected: 0, longWindowChanges: 1 }) })
+      it('9 dias: janela longa', async () => { expect(await troca(9 * D)).toMatchObject({ changesDetected: 0, longWindowChanges: 1 }) })
+    })
+    describe('N: a leitura dos pontos olha 8 dias para trás (um ponto de 8 dias conta; de 9, não)', () => {
+      const off = addDays(slotDate('vid-7'), 1)
+      const visita = async (idade: number) => {
+        const log = { dailyCalls: [] as string[] }
+        // faixa desde hoje: sem o ponto lido, o vídeo não seria devido (a faixa antiga mascararia o corte)
+        const db = setup({ all: [weeklyRow(7, { series_tier_since: off })], recentDaily: [{ video_id: 'v-7', snap_date: addDays(off, -idade), views: 100 }] })
+        const r = await syncCompetitorWeekly(ch, 'k', { now: at12(off), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+        return { log, db, r }
+      }
+      it('o ponto de 8 dias atrás é lido e torna o vídeo devido (8 dias sem ponto)', async () => {
+        const { log, r } = await visita(8)
+        expect(log.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+        expect(r).toMatchObject({ due: 1, recorded: 1 })
+      })
+      it('o ponto de 9 dias atrás está fora da leitura: o vídeo (na faixa desde hoje) não é devido', async () => {
+        const { log, r } = await visita(9)
+        expect(log.dailyCalls).toEqual([])
+        expect(r.due).toBe(0)
+      })
+      it('a consulta pede snap_date >= hoje - 8 dias', async () => {
+        const { db } = await visita(8)
+        const q = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'select')!
+        expect(q.ops.find(o => o[0] === 'gte')![1]).toEqual(['snap_date', addDays(off, -8)])
+      })
+    })
+    describe('T: a cota é gravada UMA vez por execução, com sucesso ou com erro (afirma sobre TODAS as gravações, não só a última)', () => {
+      const day = slotDate('vid-7')
+      const cotas = (db: { calls: Call[] }) => rpcCalls(db, 'youtube_quota_add')
+      it('sucesso', async () => {
+        const db = setup({ all: [weeklyRow(7)] })
+        await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+        expect(cotas(db)).toHaveLength(1)
+      })
+      it('HTTP 500 na 2ª chamada', async () => {
+        const db = setup({ all: dueRows(DIA, 60) })
+        await expect(syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: (n, u) => (n === 1 ? echo(n, u) : new Response('x', { status: 500 })) }) })).rejects.toThrow(/500/)
+        expect(cotas(db)).toHaveLength(1)
+      })
+      it('gravação nova falhando (linha do vídeo) e relógio fechado', async () => {
+        const db = setup({ all: [weeklyRow(7)], failUpdateOf: 'v-7' })
+        await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })).rejects.toThrow(/linha do vídeo/)
+        expect(cotas(db)).toHaveLength(1)
+        const db2 = setup({ all: [weeklyRow(7)] })
+        await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }), deadline: () => true })
+        expect(cotas(db2)).toHaveLength(1)
+      })
+      it('erro de versão e promoção falhando', async () => {
+        const pts = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }, { video_id: 'v-7', snap_date: day, views: 5000 }]
+        const db = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, versionPlanFailOf: ['v-7'], failWrite: 'competitor_videos:daily_until' })
+        await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: (_n, u) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: { viewCount: '5000' }, contentDetails: {} })) }) })).rejects.toBeInstanceOf(Error)
+        expect(cotas(db)).toHaveLength(1)
+      })
+    })
+  })
+
+  describe('a falta contada num bloco não se perde quando o bloco SEGUINTE lança (11b, M-4)', () => {
+    it('o vídeo pedido e não devolvido no 1º bloco recebe a falta, mesmo com o 2º bloco dando HTTP 500; o erro continua subindo e ninguém é carimbado', async () => {
+      const DIA = '2026-10-24'
+      const due = dueRows(DIA, 60)
+      const sumido = due[7]!
+      const db = setup({ all: due })
+      const daily = (n: number, u: string) => (n === 1 ? echo(n, u).filter(it => it.id !== sumido.video_id) : new Response('x', { status: 500 }))
+      await expect(syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily }) })).rejects.toThrow(/500/)
+      expect(rpcCalls(db, 'competitor_mark_missing')).toHaveLength(1)
+      expect(rpcCalls(db, 'competitor_mark_missing')[0]!.p_video_ids).toEqual([sumido.id])
+      expect(stamp(db)).toEqual([])
+    })
+    it('a falha da própria marca de ausência não esconde o erro original', async () => {
+      const DIA = '2026-10-24'
+      const due = dueRows(DIA, 60)
+      setup({ all: due, rpcFail: 'competitor_mark_missing' })
+      const daily = (n: number, u: string) => (n === 1 ? echo(n, u).slice(1) : new Response('x', { status: 500 }))
+      await expect(syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily }) })).rejects.toThrow(/500/)
+    })
+  })
+
+  describe('a promoção relê só os candidatos que têm ponto HOJE (11c, preocupação 1)', () => {
+    const DIA = '2026-10-24'
+    const naoSlot = (n: number) => Array.from({ length: 4000 }, (_, i) => weeklyRow(20_000 + i, { series_tier_since: DIA })).filter(r => dayNumber(DIA) % 7 !== weekSlotOf(r.video_id as string)).slice(0, n)
+    const leiturasDePontos = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte'))
+    it('canal de 1.200 vídeos, nada devido, 3 com ponto hoje: 12 leituras no começo e UMA na promoção, só com os 3 ids; o que cruzou a regra é promovido', async () => {
+      const todos = naoSlot(1200)
+      expect(todos).toHaveLength(1200)
+      const tres = [todos[5]!, todos[600]!, todos[1100]!]
+      const hoje = tres.map(r => ({ video_id: r.id, snap_date: DIA, views: 5000 }))
+      const antes = [{ video_id: tres[0]!.id, snap_date: addDays(DIA, -7), views: 4000 }]
+      const pts = [...hoje, ...antes]
+      const db = setup({ allPages: [todos.slice(0, 1000), todos.slice(1000)], recentDaily: pts, recentDailyAfter: pts })
+      const log = { dailyCalls: [] as string[] }
+      const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+      expect(log.dailyCalls).toEqual([])
+      const lidas = leiturasDePontos(db)
+      expect(lidas).toHaveLength(13)                                           // 1200 / 100 no começo + 1 na promoção (antes: 24)
+      expect((lidas.at(-1)!.ops.find(o => o[0] === 'in')![1][1] as string[]).sort()).toEqual(tres.map(x => x.id as string).sort())
+      expect(r).toMatchObject({ due: 0, promoted: 1, complete: true })         // só o primeiro ganhou 1.000 views e 5%
+    })
+    it('o candidato é quem ganhou o ponto NESTA visita: só os gravados agora entram na releitura', async () => {
+      const [a, b, c] = dueRows(DIA, 3)
+      const outros = naoSlot(300)                                              // 300 vídeos sem ponto hoje e não devidos: nenhum é relido
+      const db = setup({ all: [a!, b!, c!, ...outros] })
+      const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }) })
+      const lidas = leiturasDePontos(db)
+      expect(r.recorded).toBe(3)
+      expect(lidas).toHaveLength(5)                                            // 303 ids = 4 lotes no começo + 1 da promoção
+      expect((lidas.at(-1)!.ops.find(o => o[0] === 'in')![1][1] as string[]).sort()).toEqual([a!.id, b!.id, c!.id].sort())
+    })
+    it('nenhum ponto hoje (nada devido, nada gravado): a promoção não lê nada', async () => {
+      const todos = naoSlot(250)
+      const db = setup({ all: todos })
+      await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }) })
+      expect(leiturasDePontos(db)).toHaveLength(3)                             // só as 3 leituras do começo (250 ids)
+    })
+  })
+
+  describe('a promoção falhando DEPOIS de uma falha de versão: nada se perde (11c, preocupação 3)', () => {
+    it('o erro é WeeklyVersionError com os contadores já apurados, a mensagem é a da PRIMEIRA falha (a da versão), e o canal não é carimbado', async () => {
+      const day = slotDate('vid-7')
+      const pts = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }, { video_id: 'v-7', snap_date: day, views: 5000 }]
+      const db = setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, versionPlanFailOf: ['v-7'], failWrite: 'competitor_videos:daily_until' })
+      const up = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: { viewCount: '5000' }, contentDetails: {} }))
+      const e = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: up }) }).then(() => null, (x: unknown) => x)
+      expect(e).toBeInstanceOf(WeeklyVersionError)
+      const w = e as WeeklyVersionError
+      expect(w.message).toMatch(/^não foi possível gravar as versões do vídeo vid-7: /)
+      expect(w.message).not.toMatch(/promover/)
+      expect(w.result).toMatchObject({ due: 1, recorded: 1, versionFailed: 1, promoted: 0, complete: false, unitsUsed: 1 })
+      expect((w.cause as Error).message).toMatch(/não foi possível promover o vídeo à leitura diária: boom/) // a falha da promoção não some
+      expect(pointsOf(db)).toEqual(['v-7'])
+      expect(stamp(db)).toEqual([])
+    })
+    it('sem falha de versão, a promoção falhando segue sendo o erro comum (como antes)', async () => {
+      const day = slotDate('vid-7')
+      const pts = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }, { video_id: 'v-7', snap_date: day, views: 5000 }]
+      setup({ all: [weeklyRow(7)], recentDaily: [pts[0]!], recentDailyAfter: pts, failWrite: 'competitor_videos:daily_until' })
+      const e = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) }).then(() => null, (x: unknown) => x)
+      expect(e).not.toBeInstanceOf(WeeklyVersionError)
+      expect((e as Error).message).toMatch(/^não foi possível promover o vídeo/)
+    })
+  })
+
 
   // ── Tarefa 11c: a promoção de semanal para diária, decidida pelo estado GRAVADO (emenda S-I6) ──
   describe('a promoção de semanal para diária (11c)', () => {

@@ -172,7 +172,8 @@ export function setup(opts: SetupOpts = {}) {
       if (after && opts.recentDailyAfterError) return { data: null, error: { message: opts.recentDailyAfterError } }
       if (opts.recentDailyError) return { data: null, error: { message: opts.recentDailyError } }
       const ids = c.ops.find(o => o[0] === 'in' && o[1][0] === 'video_id')?.[1][1] as unknown[] | undefined // como o banco: só os vídeos pedidos
-      return { data: ((after ? opts.recentDailyAfter : undefined) ?? opts.recentDaily ?? []).filter(r => !ids || ids.includes(r.video_id)) }
+      const from = c.ops.find(o => o[0] === 'gte' && o[1][0] === 'snap_date')?.[1][1] as string | undefined // como o banco: só de `from` em diante
+      return { data: ((after ? opts.recentDailyAfter : undefined) ?? opts.recentDaily ?? []).filter(r => (!ids || ids.includes(r.video_id)) && (from === undefined || String(r.snap_date) >= from)).sort((a, b) => String(a.snap_date).localeCompare(String(b.snap_date))) } // como o banco: `order('snap_date', ascending)`
     }
     if (c.table === 'competitor_video_daily' && first(c) === 'select') {
       const have = opts.dailyHave ?? (opts.lastDaily === '2026-10-24' ? ['v-1', 'v-new'] : [])
