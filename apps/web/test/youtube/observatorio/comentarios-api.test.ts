@@ -247,6 +247,60 @@ describe('criarApi: classificação do erro', () => {
   })
 })
 
+describe('criarApi: conserto da revisão das Tarefas 3 a 6', () => {
+  it('I-1: inscritos com 200 sem items e totalResults 0 é "nenhum canal encontrado": items vazio', async () => {
+    const corpo = await mk([{ status: 200, body: { kind: 'youtube#channelListResponse', pageInfo: { totalResults: 0, resultsPerPage: 5 } } }]).api.inscritos(['UC1'])
+    expect(corpo).toMatchObject({ items: [] })
+  })
+
+  it('I-1: sem items e SEM totalResults 0 continua falha (resposta_sem_lista), inclusive em inscritos', async () => {
+    const corpos: unknown[] = [{}, { pageInfo: {} }, { pageInfo: { totalResults: 3 } }, { pageInfo: { totalResults: '0' } },
+      { pageInfo: { totalResults: 0 }, error: { code: 500 } }, { items: null, pageInfo: { totalResults: 0 } }, { items: 'x', pageInfo: { totalResults: 0 } }]
+    for (const body of corpos) {
+      const r = await codigoDoErro(mk([{ status: 200, body }]).api.inscritos(['UC1']))
+      expect(r.codigo, JSON.stringify(body)).toBe('resposta_sem_lista')
+    }
+  })
+
+  it('I-1: o atalho de totalResults 0 vale só para inscritos (conversas, porId e contagem seguem exigindo items)', async () => {
+    const body = { pageInfo: { totalResults: 0 } }
+    expect((await codigoDoErro(mk([{ status: 200, body }]).api.conversas('v'))).codigo).toBe('resposta_sem_lista')
+    expect((await codigoDoErro(mk([{ status: 200, body }]).api.porId(['c1']))).codigo).toBe('resposta_sem_lista')
+    expect((await codigoDoErro(mk([{ status: 200, body }]).api.contagem('v'))).codigo).toBe('resposta_sem_lista')
+  })
+
+  it('I-2: 403 rateLimitExceeded e userRateLimitExceeded são limite_de_taxa (passageiro), não proibido', async () => {
+    for (const reason of ['rateLimitExceeded', 'userRateLimitExceeded']) {
+      const r = await codigoDoErro(mk([erroApi(403, reason)]).api.conversas('v'))
+      expect(r.codigo, reason).toBe('limite_de_taxa')
+      expect(r.err.http).toBe(403)
+    }
+    expect((await codigoDoErro(mk([erroApi(403, 'forbidden')]).api.conversas('v'))).codigo).toBe('proibido')
+  })
+
+  it('M-3: corpo de erro que estoura o tempo ao ser lido é tempo_esgotado, não proibido', async () => {
+    for (const nome of ['TimeoutError', 'AbortError']) {
+      const fetchImpl = (async () => ({
+        ok: false, status: 403,
+        json: () => Promise.reject(new DOMException('demorou', nome)),
+      })) as unknown as typeof fetch
+      const api = criarApi({ apiKey: CHAVE, fetchImpl, timeoutMs: 1000 })
+      const r = await codigoDoErro(api.conversas('v'))
+      expect(r.codigo, nome).toBe('tempo_esgotado')
+      expect(api.unidades()).toBe(1)
+    }
+    // corpo ilegível por outro motivo continua só pelo status
+    const fetchImpl = (async () => ({ ok: false, status: 403, json: () => Promise.reject(new SyntaxError('x')) })) as unknown as typeof fetch
+    expect((await codigoDoErro(criarApi({ apiKey: CHAVE, fetchImpl, timeoutMs: 1000 }).conversas('v'))).codigo).toBe('proibido')
+  })
+
+  it('M-4: 408 é passageiro (tempo_esgotado), 429 é limite_de_taxa; 401 segue http_4xx (o catálogo não tem código de chave)', async () => {
+    expect((await codigoDoErro(mk([erroApi(408, null)]).api.conversas('v'))).codigo).toBe('tempo_esgotado')
+    expect((await codigoDoErro(mk([erroApi(429, null)]).api.conversas('v'))).codigo).toBe('limite_de_taxa')
+    expect((await codigoDoErro(mk([erroApi(401, null)]).api.conversas('v'))).codigo).toBe('http_4xx')
+  })
+})
+
 describe('criarApi: a mensagem de todo erro é só o código', () => {
   const casos: Array<[string, Resp, 'conversas' | 'contagem']> = [
     ['403 desligados', { status: 403, body: { error: { code: 403, message: SENTINELA, errors: [{ reason: 'commentsDisabled', message: SENTINELA }] } } }, 'conversas'],

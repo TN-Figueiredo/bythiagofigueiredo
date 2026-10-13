@@ -169,6 +169,30 @@ describe('selecionar', () => {
     expect(s).toHaveLength(5)
   })
 
+  it('M-5: o mesmo comentário elegível como criador, como destaque e como curtido aparece UMA vez, no grupo criador', () => {
+    const l = lote(20)
+    l[0] = conv('c000', { curtidas: 5000, posicao: 0, doCriador: true, criadorRespondeu: true })
+    const d = new Map<string, Destaque>([['c000', dest('inscritos', '10m_mais')]])
+    const s = selecionar(l, d)
+    expect(ids(s).filter((x) => x === 'c000')).toHaveLength(1)
+    expect(s.find((x) => x.conversa.id === 'c000')?.grupo).toBe('criador')
+    expect(new Set(ids(s)).size).toBe(s.length)
+    expect(s).toHaveLength(12)
+  })
+
+  it('M-5: linha repetida na entrada de um comentário do criador ou de destaque entra uma vez só', () => {
+    const base = lote(20)
+    const criador = conv('cr', { curtidas: 7, posicao: 30, doCriador: true })
+    const grande = conv('gr', { curtidas: 6, posicao: 31 })
+    const d = new Map<string, Destaque>([['gr', dest('inscritos', '1m_10m')]])
+    const s = selecionar([...base, criador, { ...criador }, grande, { ...grande }], d)
+    expect(ids(s).filter((x) => x === 'cr')).toHaveLength(1)
+    expect(ids(s).filter((x) => x === 'gr')).toHaveLength(1)
+    expect(s.find((x) => x.conversa.id === 'cr')?.grupo).toBe('criador')
+    expect(s.find((x) => x.conversa.id === 'gr')?.grupo).toBe('destaque')
+    expect(new Set(ids(s)).size).toBe(s.length)
+  })
+
   it('não altera a entrada', () => {
     const l = embaralhar(lote(30), rng(7))
     const copia = JSON.stringify(l)
