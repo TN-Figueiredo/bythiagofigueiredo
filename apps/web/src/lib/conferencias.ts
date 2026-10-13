@@ -32,7 +32,7 @@ const PLANO_E20 = 'docs/superpowers/plans/2026-10-12-a5-e20-guarda-do-bruto-plan
 // Enquanto for `null`, as seis entradas NÃO existem (nada vence, nada deixa o cron vermelho). As entradas usam a etapa `E1`
 // (o formato `E<n>` do guardião); o plano e o parecer de dados do portão final chamam o conjunto de "E1 e E2".
 /** Dia de São Paulo (AAAA-MM-DD) em que o lote E1 e E2 foi promovido a `main`. `null` = ainda não enviado. */
-export const E1_E2_DEPLOY: string | null = null
+export const E1_E2_DEPLOY: string | null = '2026-10-13'
 
 const PLANO_E1E2 = 'docs/superpowers/plans/2026-10-12-a5-e1-e2-coleta-concorrentes-plan.md, seção 10 (consultas K1 a K17 e R1); parecer .superpowers/sdd/a5-e1-e2/portao-final-dados.md, item 10'
 const dataReal = (d: string): boolean => {
