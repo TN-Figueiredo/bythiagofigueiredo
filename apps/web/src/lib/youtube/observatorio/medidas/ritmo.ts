@@ -15,7 +15,7 @@ export function ritmo(publicacoesMs: readonly number[], o: { agoraMs: number; pa
   const minimo = MEASURE_RULES.rhythm.minPosts
   if (naJanela.length < minimo) return naoMedido('poucas_publicacoes', { n: naJanela.length, minimo })
   const intervalos = naJanela.slice(1).map((t, i) => (t - naJanela[i]!) / DAY)
-  const semanasCom = new Set(naJanela.map(t => Math.floor((o.agoraMs - t) / sem(1)))).size
+  const semanasCom = new Set(naJanela.map(t => Math.min(semanas - 1, Math.floor((o.agoraMs - t) / sem(1))))).size
   const nasLargas = validas.filter(t => o.agoraMs - t <= sem(MEASURE_RULES.rhythm.gapWeeks))
   const folgas = nasLargas.slice(1).map((t, i) => (t - nasLargas[i]!) / DAY)
   const ultima = nasLargas[nasLargas.length - 1]!

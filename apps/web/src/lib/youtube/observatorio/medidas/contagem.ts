@@ -3,7 +3,7 @@ import { MEASURE_RULES } from './regras'
 const DIA_SP = /^\d{4}-\d{2}-\d{2}$/
 
 function exigeDia(dia: string): void {
-  if (typeof dia !== 'string' || !DIA_SP.test(dia) || Number.isNaN(Date.parse(dia + 'T00:00:00Z'))) {
+  if (typeof dia !== 'string' || !DIA_SP.test(dia) || Number.isNaN(Date.parse(dia + 'T00:00:00Z')) || new Date(dia + 'T00:00:00Z').toISOString().slice(0, 10) !== dia) {
     throw new Error('dia_malformado')
   }
 }

@@ -56,6 +56,12 @@ describe('M6: ritmo', () => {
     expect(ritmo(pubs(4, 7), { agoraMs: AGORA, parcial: false }).estado).toBe('medido')
     expect(ritmo(pubs(3, 7), { agoraMs: AGORA, parcial: false })).toMatchObject({ motivo: 'poucas_publicacoes', n: 3, minimo: 4 })
   })
+  // (revisão Yannis 14/10, M-3) publicação exatamente no limite de 91 dias não cria uma 14ª semana
+  it('14 publicações a cada 7 dias, a mais antiga exatamente 91 dias atrás: no máximo 13 semanas com publicação', () => {
+    const r = ritmo(pubs(14, 7, 0), { agoraMs: AGORA, parcial: false })
+    expect(r.estado === 'medido' && r.valor.semanasComPublicacao).toBe(13)
+    expect(r.estado === 'medido' && r.valor.semanas).toBe(13)
+  })
   it('conta à mão: a cada 7 dias', () => {
     const r = ritmo(pubs(13, 7), { agoraMs: AGORA, parcial: false })
     expect(r).toMatchObject({ estado: 'medido', valor: { porSemana: 1, intervaloMedianoDias: 7, semanasComPublicacao: 13, semanas: 13, maiorBuracoDias: 7 } })
