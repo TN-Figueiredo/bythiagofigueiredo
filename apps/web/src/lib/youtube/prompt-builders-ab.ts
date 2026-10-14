@@ -191,6 +191,7 @@ Rate each variant 1-5 and recommend the best one to test first.`,
 }
 
 function formatLearningTag(t: AbBriefingLearning): string {
+  if (t.avgLift === null) return `${t.tag} (lift não medido, ${t.wins} wins, ${t.kind})`
   const lift = t.avgLift > 0 ? `+${t.avgLift.toFixed(1)}%` : `${t.avgLift.toFixed(1)}%`
   return `${t.tag} (${lift} avg lift, ${t.wins} wins, ${t.kind})`
 }

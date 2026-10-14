@@ -32,7 +32,7 @@ function StrengthBar({ wins, maxWins }: { wins: number; maxWins: number }) {
 }
 
 function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
-  const isNegative = tag.negative || tag.avgLift < 0
+  const isNegative = tag.negative || (tag.avgLift !== null && tag.avgLift < 0)
 
   return (
     <div className="flex items-center gap-[10px]">
@@ -50,7 +50,7 @@ function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
         className="font-mono text-[12px] font-bold w-[44px] text-right"
         style={{ color: isNegative ? 'var(--cms-red, #ef4444)' : 'var(--green, var(--cms-green))' }}
       >
-        {tag.avgLift >= 0 ? '+' : ''}{Math.round(tag.avgLift)}%
+        {tag.avgLift === null ? '' : `${tag.avgLift >= 0 ? '+' : ''}${Math.round(tag.avgLift)}%`}
       </span>
     </div>
   )

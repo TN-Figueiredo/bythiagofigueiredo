@@ -150,7 +150,7 @@ export const AB_BRIEFING_PROMPT_VERSION = 'yt-ab-v3' as const
 
 export interface AbBriefingLearning {
   tag: string
-  avgLift: number
+  avgLift: number | null
   wins: number
   kind: 'thumb' | 'title' | 'desc'
   negative?: boolean

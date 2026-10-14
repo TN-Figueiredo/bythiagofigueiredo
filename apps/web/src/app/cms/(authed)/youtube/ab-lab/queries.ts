@@ -570,7 +570,7 @@ function wilsonScore(wins: number, total: number, z = 1.96): number {
   return (center - spread) / denom
 }
 
-function aggregateTags(
+export function aggregateTags(
   winners: Array<{ id: unknown; metadata: unknown }>,
   tests: TestForLearning[],
   allVariants?: Array<{ id: unknown; metadata: unknown }>,
@@ -626,7 +626,7 @@ function aggregateTags(
       wins: data.wins,
       total: data.total,
       confidence: wilsonScore(data.wins, data.total),
-      avgLift: data.liftMedidos > 0 ? data.totalLift / data.liftMedidos : 0,
+      avgLift: data.liftMedidos > 0 ? data.totalLift / data.liftMedidos : null,
       kind: data.kind,
       negative: data.liftMedidos > 0 && (data.totalLift / data.liftMedidos) < 0 ? true : undefined,
     }))
@@ -643,7 +643,7 @@ function buildInsightText(tags: LearningsTag[]): string {
     parts.push(`Padrões que funcionam: ${positive.map(t => `"${t.tag}" (${t.wins}×)`).join(', ')}`)
   }
   if (negative.length) {
-    parts.push(`Evitar: ${negative.map(t => `"${t.tag}" (${Math.abs(Math.round(t.avgLift))}% queda)`).join(', ')}`)
+    parts.push(`Evitar: ${negative.map(t => `"${t.tag}" (${t.avgLift === null ? 'lift não medido' : `${Math.abs(Math.round(t.avgLift))}% queda`})`).join(', ')}`)
   }
   return parts.join('. ') || 'Not enough data for insights'
 }

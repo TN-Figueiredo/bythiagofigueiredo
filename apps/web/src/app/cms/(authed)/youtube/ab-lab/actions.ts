@@ -1600,12 +1600,12 @@ export async function fetchAbBriefingData(
     if (learningsData) {
       const winning = learningsData.tags
         .filter(t => !t.negative)
-        .sort((a, b) => b.avgLift - a.avgLift)
+        .sort((a, b) => (a.avgLift === null ? 1 : 0) - (b.avgLift === null ? 1 : 0) || (b.avgLift ?? 0) - (a.avgLift ?? 0))
         .slice(0, 5)
         .map(t => ({ tag: t.tag, avgLift: t.avgLift, wins: t.wins, kind: t.kind as 'thumb' | 'title' | 'desc' }))
       const losing = learningsData.tags
         .filter(t => t.negative === true)
-        .sort((a, b) => a.avgLift - b.avgLift)
+        .sort((a, b) => (a.avgLift === null ? 1 : 0) - (b.avgLift === null ? 1 : 0) || (a.avgLift ?? 0) - (b.avgLift ?? 0))
         .slice(0, 3)
         .map(t => ({ tag: t.tag, avgLift: t.avgLift, wins: t.wins, kind: t.kind as 'thumb' | 'title' | 'desc', negative: true as const }))
       if (winning.length > 0 || losing.length > 0) {

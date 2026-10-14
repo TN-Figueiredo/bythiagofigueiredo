@@ -350,7 +350,8 @@ export interface LearningsTag {
   wins: number
   total?: number
   confidence?: number
-  avgLift: number
+  /** null = nenhuma vitória com lift medido (nunca 0). */
+  avgLift: number | null
   kind: 'thumb' | 'title' | 'desc'
   negative?: boolean
 }
