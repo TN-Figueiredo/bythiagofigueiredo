@@ -117,6 +117,12 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     expect(eventos).toHaveLength(1)
     expect(eventos[0]![1]).toMatchObject({ tags: TAGS, extra: { siteId: SITE, motivo: 'guarda_falhou' } })
   })
+  it('as duas guardas lançam (autenticação fora do ar): um único evento no Sentry por requisição, e ainda nao_foi_possivel_conferir', async () => {
+    requireSiteScope.mockRejectedValue(new Error('auth fora do ar'))
+    expect(await provarAcessoPrivado(SITE)).toEqual({ leitura: null, edita: false, negativa: 'nao_foi_possivel_conferir' })
+    expect(captureException).toHaveBeenCalledTimes(1)
+    expect(captureException.mock.calls[0]![1]).toMatchObject({ tags: { step: 'provar-edicao' } })
+  })
   it('siteId que não é uuid: sem token, sem chamar a guarda de leitura nem o banco', async () => {
     soLe()
     expect(await provarAcessoPrivado('site-1')).toEqual({ leitura: null, edita: false, negativa: 'sem_direito' })

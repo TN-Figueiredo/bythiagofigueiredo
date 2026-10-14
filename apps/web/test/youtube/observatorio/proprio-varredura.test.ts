@@ -76,7 +76,7 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== EDICAO && arq !== TIPOS && importaComoValor(s)) v.push(`${arq}: importa a classe do token como valor (só \`import type\`)`)
     if (arq !== EDICAO && arq !== TIPOS && importaNamespace(s)) v.push(`${arq}: importa o módulo do token por namespace ou dinâmico`)
     if (arq !== TIPOS && /edicao\.type-test['"]/.test(s)) v.push(`${arq}: importa a prova de tipo (ela não roda)`)
-    if (!PODE_PROVAR.has(arq) && /\bprovarEdicao\s*\(/.test(s)) v.push(`${arq}: pede a prova de edição fora do módulo da guarda`)
+    if (!PODE_PROVAR.has(arq) && /\bprovarEdicao(ComAviso)?\s*\(/.test(s)) v.push(`${arq}: pede a prova de edição fora do módulo da guarda`)
     if (arq !== LEITURA && arq !== TIPOS_LEITURA && /\bnew\s+LeituraPrivadaDoSite\b|\bLeituraPrivadaDoSite\.provar\b/.test(s)) v.push(`${arq}: constrói o token de leitura`)
     if (arq !== LEITURA && arq !== TIPOS_LEITURA && USO_LEITURA_COMO_VALOR.test(s)) v.push(`${arq}: usa a classe do token de leitura como valor (estender, protótipo, Reflect.construct, Object.create, typeof, instanceof)`)
     if (arq !== LEITURA && arq !== TIPOS_LEITURA && importaLeituraComoValor(s)) v.push(`${arq}: importa a classe do token de leitura como valor (só \`import type\`)`)
@@ -177,6 +177,7 @@ describe('varredura: o dado privado do canal próprio', () => {
     })
     it('pedir a prova de edição fora do módulo', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': 'const t = await provarEdicao(siteId)' })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': 'const t = await provarEdicaoComAviso(siteId)' })).toHaveLength(1)
       // dados.ts não pede mais a prova de edição: quem pede é a leitura privada
       expect(violacoes({ ...base, [DADOS]: 'const t = await provarEdicao(siteId)' })).toEqual([`${DADOS}: pede a prova de edição fora do módulo da guarda`])
     })

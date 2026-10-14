@@ -13,7 +13,7 @@ import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { edicaoValida, provarEdicao } from './edicao'
+import { edicaoValida, provarEdicaoComAviso } from './edicao'
 
 const PRAZO_MS = 5_000
 const CHAVE = Symbol('LeituraPrivadaDoSite')
@@ -56,7 +56,7 @@ const codigoDe = (e: unknown): string | undefined => {
 
 /** A única porta: nunca lança. O `extra` leva o código do erro, nunca a mensagem crua nem o id da pessoa. */
 export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado> {
-  const edicao = await provarEdicao(siteId)
+  const { token: edicao, avisou: edicaoAvisou } = await provarEdicaoComAviso(siteId)
   if (edicaoValida(edicao)) return { leitura: fabricar(edicao.siteId), edita: true, negativa: null }
   if (!UUID.test(siteId)) return semDireito
   const avisar = (motivo: MotivoSentry, e?: unknown): void => {
@@ -71,7 +71,8 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
     if (!guarda.ok) return semDireito
     userId = guarda.user.id
   } catch (e) {
-    avisar('guarda_falhou', e)
+    // um evento por requisição: se a guarda de edição já caiu e avisou, a de leitura (mesma causa) não repete
+    if (!edicaoAvisou) avisar('guarda_falhou', e)
     return semResposta
   }
   // prazo de 5 s (m-2 do portão de dados): se o banco travar, a página abre com `nao_foi_possivel_conferir`, não espera a função inteira
