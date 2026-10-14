@@ -1,0 +1,86 @@
+// @vitest-environment node
+/**
+ * Manutenção M2 (spec 06 §18, itens 15, 71 e 119). Sem banco: lê os arquivos.
+ * 71: se alguma migration define obs_archive_uncovered ou obs_db_size_record, a ÚLTIMA definição sabe de partição.
+ * 119: migration desta fase que cita obs_archive_is_site_admin exige que alguma migration a defina.
+ * 15: nenhum código lê OBS_HOURLY_RAW_PURGE (pedido 5).
+ */
+import { describe, it, expect } from 'vitest'
+import { mkdtempSync, writeFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { lerMigrations, ultimaDefinicao, migrationsDaFase } from '../helpers/migrations'
+
+const RAIZ = resolve(__dirname, '../../../..')
+
+function pastaFalsa(arquivos: Record<string, string>): string {
+  const d = mkdtempSync(join(tmpdir(), 'm2-migs-'))
+  for (const [nome, sql] of Object.entries(arquivos)) writeFileSync(join(d, nome), sql)
+  return d
+}
+
+export function regra71(dir?: string): string[] {
+  const migs = lerMigrations(dir)
+  const erros: string[] = []
+  const u = ultimaDefinicao(migs, 'obs_archive_uncovered')
+  if (u && !/relispartition/.test(u.corpo)) erros.push(`obs_archive_uncovered em ${u.arquivo} sem relispartition (pedido 1)`)
+  const s = ultimaDefinicao(migs, 'obs_db_size_record')
+  if (s && !/relispartition/.test(s.corpo)) erros.push(`obs_db_size_record em ${s.arquivo} sem relispartition (pedido 3)`)
+  if (s && !/relkind\s+in\s*\(\s*'r'\s*,\s*'p'/.test(s.corpo)) erros.push(`obs_db_size_record em ${s.arquivo} sem relkind in ('r','p') (pedido 3)`)
+  return erros
+}
+
+export function regra119(dir?: string): string[] {
+  const migs = lerMigrations(dir)
+  const define = migs.some(m => /create\s+(or\s+replace\s+)?function\s+(public\.)?obs_archive_is_site_admin\s*\(/i.test(m.sql))
+  if (define) return []
+  return migrationsDaFase(migs).filter(m => /obs_archive_is_site_admin/.test(m.sql)).map(m => `${m.arquivo} cita obs_archive_is_site_admin e nenhuma migration a define`)
+}
+
+describe('item 71: a última definição das duas funções da E10 sabe de partição', () => {
+  // MG6 da E10 já está em produção sem as cláusulas; a M2 (Task 4) as recria. Reativado na Task 4, lendo o rascunho junto.
+  it.skip('no repositório', () => { expect(regra71()).toEqual([]) })
+  it('pega a definição sem a cláusula', () => {
+    const d = pastaFalsa({ '20990101000001_e10.sql': 'create or replace function public.obs_archive_uncovered() returns text[] language sql as $$ select 1 $$;' })
+    expect(regra71(d)).toEqual(['obs_archive_uncovered em 20990101000001_e10.sql sem relispartition (pedido 1)'])
+  })
+  it('vale a ÚLTIMA definição: consertada e depois quebrada acusa', () => {
+    const d = pastaFalsa({
+      '20990101000001_a.sql': "create or replace function public.obs_db_size_record(p timestamptz) returns jsonb language sql as $$ select 1 where relispartition and relkind in ('r', 'p') $$;",
+      '20990101000002_b.sql': "create or replace function public.obs_db_size_record(p timestamptz) returns jsonb language sql as $$ select 1 where relkind = 'r' $$;",
+    })
+    expect(regra71(d)).toHaveLength(2)
+  })
+  it('sem definição nenhuma não acusa', () => { expect(regra71(pastaFalsa({ '20990101000001_x.sql': 'select 1;' }))).toEqual([]) })
+})
+
+describe('item 119: obs_archive_is_site_admin citada pela fase só se alguma migration a define', () => {
+  it('no repositório', () => { expect(regra119()).toEqual([]) })
+  it('acusa a migration da fase que cita sem definição', () => {
+    const d = pastaFalsa({ '20990101000001_manutencao_m3b.sql': 'select public.obs_archive_is_site_admin(null, null);' })
+    expect(regra119(d)).toEqual(['20990101000001_manutencao_m3b.sql cita obs_archive_is_site_admin e nenhuma migration a define'])
+  })
+  it('migration de fora da fase não conta', () => {
+    expect(regra119(pastaFalsa({ '20990101000001_e10.sql': 'select public.obs_archive_is_site_admin(null, null);' }))).toEqual([])
+  })
+})
+
+describe('item 15: ninguém lê OBS_HOURLY_RAW_PURGE (pedido 5)', () => {
+  it('nenhum arquivo de código cita a variável', () => {
+    const raizes = ['apps/web/src', 'apps/api/src', 'packages', 'supabase/migrations', 'scripts'].map(p => join(RAIZ, p))
+    const achados: string[] = []
+    const varrer = (d: string): void => {
+      let nomes: string[]
+      try { nomes = readdirSync(d) } catch { return }
+      for (const n of nomes) {
+        if (n === 'node_modules' || n === 'dist' || n.startsWith('.')) continue
+        const p = join(d, n)
+        if (statSync(p).isDirectory()) { varrer(p); continue }
+        if (!/\.(ts|tsx|js|mjs|cjs|sql|sh|json)$/.test(n)) continue
+        if (readFileSync(p, 'utf8').includes('OBS_HOURLY_RAW_PURGE')) achados.push(p.slice(RAIZ.length + 1))
+      }
+    }
+    for (const r of raizes) varrer(r)
+    expect(achados).toEqual([])
+  })
+})
