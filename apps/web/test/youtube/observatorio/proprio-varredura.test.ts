@@ -30,6 +30,11 @@ const USO_LEITURA_COMO_VALOR = /\bextends\s+LeituraPrivadaDoSite\b|\bLeituraPriv
 const importaLeituraComoValor = (s: string) =>
   [...s.matchAll(/import\s*(?!type\b)\{([^}]*)\}\s*from\s*['"][^'"]*proprio\/leitura-privada['"]/g)].some(m => m[1]!.split(',').some(n => /^\s*LeituraPrivadaDoSite\b/.test(n)))
 const importaLeituraNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*proprio\/leitura-privada['"]|import\s*\(\s*['"][^'"]*proprio\/leitura-privada['"]\s*\)|require\s*\(\s*['"][^'"]*proprio\/leitura-privada['"]\s*\)/.test(s)
+/** Degrau 2: a segunda porta do token (pela prova da chave do perfil) e quem fabrica a prova da chave. */
+const ROTA_MCP = 'app/api/mcp/route.ts'
+const PROVA_CHAVE = 'lib/youtube/observatorio/acesso-ia/prova.ts'
+const PORTA_CHAVE = 'lib/youtube/observatorio/acesso-ia/porta.ts'
+const TIPOS_CHAVE = 'lib/youtube/observatorio/acesso-ia/prova.type-test.ts'
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
 const PODE_PROVAR = new Set([EDICAO, LEITURA])
 const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
@@ -98,6 +103,8 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== LEITURA && arq !== TIPOS_LEITURA && importaLeituraNamespace(s)) v.push(`${arq}: importa o módulo do token de leitura por namespace ou dinâmico`)
     if (arq !== TIPOS_LEITURA && /leitura-privada\.type-test['"]/.test(s)) v.push(`${arq}: importa a prova de tipo da leitura (ela não roda)`)
     if (arq !== LEITURA && arq !== DADOS && /\b(provarAcessoPrivado|provarLeituraPrivada)\s*\(/.test(s)) v.push(`${arq}: pede a prova de leitura privada fora do módulo da guarda`)
+    if (arq !== LEITURA && arq !== ROTA_MCP && /\bprovarAcessoPrivadoDaChave\s*\(/.test(s)) v.push(`${arq}: pede a leitura privada pela chave fora da rota do MCP`)
+    if (arq !== PROVA_CHAVE && arq !== PORTA_CHAVE && arq !== TIPOS_CHAVE && /\bnew\s+ChaveDoPerfilProvada\b|\bChaveDoPerfilProvada\s*\.\s*fabricar\b|\bfabricarProva\b/.test(s)) v.push(`${arq}: fabrica a prova da chave do perfil`)
     if (arq !== LEITURA && /can_view_private_site_as/.test(s)) v.push(`${arq}: cita a função do direito fora do módulo da leitura privada`)
     if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
@@ -301,6 +308,15 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': "sb.rpc('can_view_private_site_as', {})" })).toEqual(['app/x/a.ts: cita a função do direito fora do módulo da leitura privada'])
       expect(violacoes({ ...base, [LEITURA]: "sb.rpc('can_view_private_site_as', {})" })).toEqual([])
       expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'" })).toEqual(['app/x/c.tsx: componente cliente importa o módulo da leitura privada'])
+    })
+    it('segunda porta: provarAcessoPrivadoDaChave só em leitura-privada.ts e na rota do MCP', () => {
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await provarAcessoPrivadoDaChave(prova)' })).toEqual(['app/x/a.ts: pede a leitura privada pela chave fora da rota do MCP'])
+      expect(violacoes({ ...base, [ROTA_MCP]: 'await provarAcessoPrivadoDaChave(prova)', [LEITURA]: 'export async function provarAcessoPrivadoDaChave(p) {}' })).toEqual([])
+    })
+    it('a prova da chave só é fabricada em prova.ts e porta.ts', () => {
+      for (const codigo of ['new ChaveDoPerfilProvada(a)', 'ChaveDoPerfilProvada.fabricar(a)', 'fabricarProva(a, b, c, d)'])
+        expect(violacoes({ ...base, 'app/x/a.ts': codigo }), codigo).toEqual(['app/x/a.ts: fabrica a prova da chave do perfil'])
+      expect(violacoes({ ...base, [PROVA_CHAVE]: 'export const fabricarProva = () => ChaveDoPerfilProvada.fabricar(a)', [PORTA_CHAVE]: 'fabricarProva(a, b, c, d)' })).toEqual([])
     })
     it('o módulo da leitura privada pode (não acusa a si mesmo)', () => {
       expect(violacoes({ ...base, [LEITURA]: 'new LeituraPrivadaDoSite(s, k); provarAcessoPrivado(s)', [TIPOS_LEITURA]: "class S extends LeituraPrivadaDoSite {}" })).toEqual([])
