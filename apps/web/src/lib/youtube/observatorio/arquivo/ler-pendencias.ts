@@ -45,6 +45,7 @@ async function lerMiniaturas(sb: SupabaseClient, agoraMs: number): Promise<Parte
       .eq('table_name', 'competitor_channels')
       .not('deleted_at', 'is', null)
       .not('blob_urls_pending', 'is', null)
+      .not('blob_urls_pending', 'eq', '{}')
       .limit(LOTES_MAX)
       .abortSignal(AbortSignal.timeout(TETO_LEITURA_MS))
     if (typeof res !== 'object' || res === null) return { porque: 'forma_invalida' }

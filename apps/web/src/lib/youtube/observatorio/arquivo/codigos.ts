@@ -25,13 +25,13 @@ const DO_BANCO: ReadonlySet<string> = new Set<CodigoE10>([
 const MENSAGEM_E10 = /^E10:([a-z_]+):/
 
 /**
- * O código de um erro do banco. Olha o `code` ANTES da mensagem: `57014` (instrução cancelada por tempo) é `demorou_demais`;
+ * O código de um erro do banco. Olha o `code` ANTES da mensagem: `57014` (instrução cancelada por tempo) e `55P03` (trava esperou além do lock_timeout) é `demorou_demais`;
  * função que não existe (`PGRST202`, `42883`) é `schema_ausente`. Depois, só o que casa com `^E10:([a-z_]+):` e está no catálogo.
  * Qualquer outra coisa (mensagem sem o prefixo, código desconhecido, nulo) é `inesperado`.
  */
 export function codigoE10(erro: { message?: string; code?: string } | null | undefined): CodigoE10 {
   if (!erro) return 'inesperado'
-  if (erro.code === '57014') return 'demorou_demais'
+  if (erro.code === '57014' || erro.code === '55P03') return 'demorou_demais'
   if (erro.code === 'PGRST202' || erro.code === '42883') return 'schema_ausente'
   const m = typeof erro.message === 'string' ? MENSAGEM_E10.exec(erro.message) : null
   if (m && DO_BANCO.has(m[1]!)) return m[1] as CodigoE10

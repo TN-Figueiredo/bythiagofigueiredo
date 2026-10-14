@@ -46,6 +46,8 @@ describe('A5 E10 T3: lerPendenciasDoArquivo', () => {
     expect(f.rpcs).toEqual(['obs_archive_uncovered'])
     expect(f.lotes[0]!.filtros).toContainEqual(['eq', 'table_name', 'competitor_channels'])
     expect(f.lotes[0]!.filtros).toContainEqual(['not', 'deleted_at', 'is', null])
+    // o banco grava '{}' (nunca nulo) quando zera: a leitura exclui os vazios, senão eles ocupam o limite
+    expect(f.lotes[0]!.filtros).toContainEqual(['not', 'blob_urls_pending', 'eq', '{}'])
     expect(f.lotes[0]!.limite).toBeGreaterThan(0)
   })
 

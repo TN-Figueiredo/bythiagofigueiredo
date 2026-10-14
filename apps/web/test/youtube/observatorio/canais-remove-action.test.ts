@@ -12,6 +12,7 @@ const updates: unknown[] = []
 const syncMock = vi.fn()
 let negado: { ok: false; error: string } | null = null
 let pausadoNaLinha = false
+let linhasAlteradas: Array<{ id: string }> = [{ id: 'c1' }]
 
 function carregar() {
   vi.resetModules()
@@ -37,7 +38,7 @@ function carregar() {
       return {
         from: () => ({
           select: () => ({ eq: () => ({ eq: () => ({ gt: async () => ({ count: 0 }), single: leitura.single, maybeSingle: leitura.single }), single: leitura.single }) }),
-          update: (v: unknown) => { updates.push(v); return { eq: () => ({ eq: async () => ({ error: null }) }) } },
+          update: (v: unknown) => { updates.push(v); return { eq: () => ({ eq: () => ({ is: () => ({ select: async () => ({ data: linhasAlteradas, error: null }) }) }) }) } },
         }),
       }
     },
@@ -46,7 +47,7 @@ function carregar() {
 }
 
 beforeEach(() => {
-  remover.mockReset(); revalidateTag.mockClear(); syncMock.mockReset(); negado = null; pausadoNaLinha = false
+  remover.mockReset(); revalidateTag.mockClear(); syncMock.mockReset(); negado = null; pausadoNaLinha = false; linhasAlteradas = [{ id: 'c1' }]
   process.env.YOUTUBE_API_KEY = 'k'
 })
 
@@ -70,6 +71,12 @@ describe('removeCompetitorChannel (E10 T11b)', () => {
     expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: true })
     expect(remover.mock.calls[0]![1]).toEqual({ siteId: 's1', canalId: 'c1', actorId: 'u1' })
     expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+  })
+  it('removido no banco com miniaturas ainda pendentes: a tela recebe ok (o canal já saiu) e o cache é invalidado', async () => {
+    remover.mockResolvedValue({ ok: true, lote: 'l1', linhas: 3, miniaturasPendentes: 4000, foraDoPrefixo: 0 })
+    const a = await carregar()
+    expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: true })
+    expect(revalidateTag).toHaveBeenCalledTimes(1)
   })
   it('o delete direto não existe mais', () => {
     const t = readFileSync(resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/actions.ts'), 'utf8')
@@ -95,6 +102,21 @@ describe('canal pausado nas ações de sincronização (E10 T11b)', () => {
     expect(r.error).toMatch(/pausada/)
     expect(updates).toEqual([])
     expect(syncMock).not.toHaveBeenCalled()
+  })
+  it('histórico completo: a pausa gravada entre a leitura e o update deixa zero linhas e a sincronização não roda', async () => {
+    linhasAlteradas = []
+    const a = await carregar()
+    const r = await a.syncFullHistory('c1')
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/pausada/)
+    expect(syncMock).not.toHaveBeenCalled()
+  })
+  it('histórico completo: a sincronização que volta "paused" não vira ok', async () => {
+    syncMock.mockResolvedValue({ videosChecked: 0, changesDetected: 0, skipped: true, paused: true })
+    const a = await carregar()
+    const r = await a.syncFullHistory('c1')
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/pausada/)
   })
   it('histórico completo de canal ativo continua gravando sync_mode e sincronizando', async () => {
     syncMock.mockResolvedValue({})

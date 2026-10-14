@@ -50,6 +50,12 @@ describe('A5 E10 T5: codigos', () => {
     expect(codigoE10({ code: '57014', message: 'E10:sem_lote: x' })).toBe('demorou_demais')
   })
 
+  it('55P03 (trava esperou além do lock_timeout) vira demorou_demais e a frase diz que nada foi apagado', () => {
+    const c = codigoE10({ code: '55P03', message: 'canceling statement due to lock timeout' })
+    expect(c).toBe('demorou_demais')
+    expect(FRASES_E10[c]).toContain('nada foi apagado')
+  })
+
   it('nenhuma frase de FRASES_E10 contém a palavra "lote" nem "MB" (a palavra de tela é "exportação")', () => {
     for (const c of TODOS) {
       expect(FRASES_E10[c], c).not.toMatch(/\blotes?\b/i)

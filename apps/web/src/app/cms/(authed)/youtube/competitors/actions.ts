@@ -294,14 +294,19 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
   if (channel.collection_paused_at != null) return { ok: false, error: FRASE_PAUSADA }
 
   // Set sync_mode to full
-  await supabase
+  // a trava vai no próprio update: uma pausa gravada entre a leitura e aqui deixa zero linhas alteradas
+  const { data: marcado } = await supabase
     .from('competitor_channels')
     .update({ sync_mode: 'full', full_sync_completed_at: null })
     .eq('id', channelRowId)
     .eq('site_id', siteId)
+    .is('collection_paused_at', null)
+    .select('id')
+  if (!Array.isArray(marcado) || marcado.length === 0) return { ok: false, error: FRASE_PAUSADA }
 
   try {
-    await syncCompetitorChannel(channel, apiKey)
+    const r = await syncCompetitorChannel(channel, apiKey)
+    if (r.paused) return { ok: false, error: FRASE_PAUSADA }
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' }

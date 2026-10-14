@@ -18,7 +18,10 @@ export type { CodigoE10 }
 export const PREFIXO_DAS_MINIATURAS = 'observatorio/thumbs/'
 const BLOCO = 100
 
-export interface DepsDoBlob { apagarDoBlob?: (urls: string[]) => Promise<void> }
+/** `prazoMs`: quanto a remoção pode gastar no Blob depois do commit (padrão 15 s); o que não coube fica pendente para a tarefa diária. `agora`: relógio injetável. */
+export interface DepsDoBlob { apagarDoBlob?: (urls: string[]) => Promise<void>; prazoMs?: number; agora?: () => number }
+
+export const PRAZO_DO_BLOB_NA_REMOCAO_MS = 15_000
 
 async function apagarDoBlobPadrao(urls: string[]): Promise<void> {
   const token = process.env.BLOB_READ_WRITE_TOKEN
@@ -87,7 +90,10 @@ export async function removerCanalArquivado(
   let apagadas = 0
   if (apagar.length > 0 && !e2e()) {
     const apagarDoBlob = deps.apagarDoBlob ?? apagarDoBlobPadrao
+    const agora = deps.agora ?? Date.now
+    const fim = agora() + (deps.prazoMs ?? PRAZO_DO_BLOB_NA_REMOCAO_MS)
     for (let i = 0; i < apagar.length; i += BLOCO) {
+      if (agora() >= fim) { relatar('blob_prazo_da_remocao', { restantes: apagar.length - i }); break }
       const bloco = apagar.slice(i, i + BLOCO)
       try {
         await apagarDoBlob(bloco)
@@ -127,6 +133,7 @@ export async function retentarMiniaturasPendentes(
       .eq('table_name', 'competitor_channels')
       .not('deleted_at', 'is', null)
       .not('blob_urls_pending', 'is', null)
+      .not('blob_urls_pending', 'eq', '{}') // o banco grava '{}' (nunca nulo) ao zerar: sem isto os esvaziados ocupam os 50 primeiros
       .order('deleted_at', { ascending: true })
       .limit(50)
     if (lido.error) return { porque: 'leitura_falhou' }
@@ -145,7 +152,7 @@ export async function retentarMiniaturasPendentes(
       const baixadas: string[] = []
       for (let i = 0; i < apagar.length && !corte; i += BLOCO) {
         const folga = o.maximo - apagadas
-        if (folga <= 0 || Date.now() >= fim) { corte = true; break }
+        if (folga <= 0 || (deps.agora ?? Date.now)() >= fim) { corte = true; break }
         const bloco = apagar.slice(i, i + Math.min(BLOCO, folga))
         try {
           await apagarDoBlob(bloco)
