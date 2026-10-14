@@ -1171,7 +1171,7 @@ Não é mockup: é a tela implementada (E8, Tarefa 13; mockup de origem: o 6), m
 
 ## 19d. Peça 4: o interruptor do automático
 
-Estado: **corrigida em 14/10/2026 pela revisão 1 de Logan e Naksu (A1 a A9, C1 a C3); falta a conferência dos dois e a aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seções "Peça 4" e "Revisão peça4-1").
+Estado: **aprovado pelo dono no Opera em 14/10/2026**, depois da revisão 1 de Logan e Naksu e da conferência dos dois (`CONFERENCIA-*-PECA4-1.md`, acordo). **corrigida em 14/10/2026 pela revisão 1 de Logan e Naksu (A1 a A9, C1 a C3); falta a conferência dos dois e a aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seções "Peça 4" e "Revisão peça4-1").
 
 ### 1. O que a tela responde
 "Está ligado? Vai tirar algo sem eu ver? Parou por quê? Como paro ou ligo de novo?"
@@ -1185,7 +1185,7 @@ Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-
 
 ### 3. Decisões do dono (14/10/2026) e o que ainda pede a ele
 Já decididas, e levadas ao fecho do spec 04: há um botão "Desligar" no painel ligado (confirma sem frase, dizendo que o que já saiu continua saído); o fim dos 90 dias é aviso neutro, sem triângulo nem chip.
-Ainda a confirmar: (1) depois de "Desligar", ligar de novo exige só a regra e a frase, sem simulação nova (foi você quem parou); (2) o botão "Ligar o automático…" tem o peso máximo da tela, como "Tirar o mês"; (3) o ⓘ da configuração do site manda "deixar para o Claude Code ou o Cowork".
+Confirmadas pelo dono em 14/10/2026 ("Ta aprovado"): (1) depois de "Desligar", ligar de novo exige só a regra e a frase, sem simulação nova (foi você quem parou); (2) o botão "Ligar o automático…" tem o peso máximo da tela, como "Tirar o mês"; (3) o ⓘ da configuração do site manda "deixar para o Claude Code ou o Cowork". O ⓘ da configuração cita só o Claude Code: o Cowork não muda variável do Vercel (dono).
 
 ### 4. Melhorias que os revisores sugeriram e não bloqueiam
 Naksu S3 (cadeado em "ainda não dá" e "travado", só se o teste mostrar confusão com "desligado"); Logan S4 ("a cada 5 meses" sem "duas a três vezes por ano", frase do spec); Naksu S2 (cortar "(1 de 3)" da frase do "ainda não dá"; Logan aprovou o texto).
@@ -1194,4 +1194,4 @@ Naksu S3 (cadeado em "ainda não dá" e "travado", só se o teste mostrar confus
 Opera real, leitor de tela (anúncio do status da frase), aparelho real, o filtro de cinza do macOS.
 
 ### 6. Retorno do dono e do uso real
-Ainda não testado pelo dono.
+14/10/2026: aprovado no Opera ("Ta aprovado"), testados o painel parado pelo chip e o painel ligado ("Ver a regra", "Desligar").
