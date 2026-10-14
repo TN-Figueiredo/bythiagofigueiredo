@@ -87,7 +87,8 @@ export default defineConfig({
     pool: 'forks',
     poolOptions: {
       forks: {
-        maxForks: 4,
+        // Na CI (runner privado de 2 núcleos) 4 processos disputam a CPU e os testes pesados estouram o tempo.
+        maxForks: process.env.CI ? 2 : 4,
       },
     },
     // Coverage thresholds. v8 provider keeps runtime cheap (no Babel
