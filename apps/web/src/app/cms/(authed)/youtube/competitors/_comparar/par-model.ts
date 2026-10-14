@@ -136,7 +136,7 @@ const POSS: Record<Genero, string> = { o: 'seu', a: 'sua', os: 'seus', as: 'suas
 /* ================================================================================================================== a conta */
 
 /** Maior só a partir de 10% de diferença; "×" só a partir de 2×. */
-const LIMITE_IGUAL = 1.1
+export const LIMITE_IGUAL = 1.1
 
 type Cmp =
   | { t: 'doisZero' }
