@@ -141,6 +141,15 @@ export async function exportarCanal(o: {
   // 3 ── a leitura, e as recusas do banco ANTES de criar a pasta
   let aberta = false
   const desfazer = async (): Promise<void> => { if (aberta) { aberta = false; await fechar(sql, 'rollback').catch(() => undefined) } }
+  // Os caminhos que ESTA execução gravou. Saída `ok: false` antes do manifesto completo apaga só estes (nunca lista a pasta e apaga
+  // às cegas, regra do passo 2): sem isso a pasta fica com arquivo e sem manifesto, e o mesmo nome nunca mais serve (revisão Yannis 14/10, I2).
+  const gravados: string[] = []
+  const gravar = async (rel: string, d: Uint8Array): Promise<void> => { gravados.push(rel); await disco.gravar(juntar(pasta, rel), d) }
+  const limparGravados = async (): Promise<void> => {
+    for (const rel of gravados.splice(0)) await disco.apagar(juntar(pasta, rel)).catch(() => undefined)
+  }
+  const recusarLimpando = async (codigo: string, detalhe?: string[]): Promise<ResultadoExport> => { await limparGravados(); return recusa(codigo, detalhe) }
+  let manifestoCompleto = false
   try {
     await abrirLeitura(sql)
     aberta = true
@@ -195,12 +204,12 @@ export async function exportarCanal(o: {
         })
         if (lido.linhas !== k.linhas || (k.soma !== null && lido.soma !== null && lido.soma !== k.soma)) {
           await desfazer()
-          return recusa('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas}, arquivo ${lido.linhas}`])
+          return recusarLimpando('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas}, arquivo ${lido.linhas}`])
         }
         const gz = gzipSync(lido.csv, { level: 9 })
         const caminho = caminhoDoArquivo(e.tabela, o.canalId, periodo)
         await disco.criarPasta(diretorioDe(juntar(pasta, caminho)), MODO_DA_PASTA)
-        await disco.gravar(juntar(pasta, caminho), gz)
+        await gravar(caminho, gz)
         arquivos.push({
           tabela: e.tabela, canal: o.canalId, periodo,
           periodStart: unico ? '1970-01-01' : k.inicio, periodEnd: unico ? '1970-01-01' : ultimoDiaDoMes(k.inicio),
@@ -219,9 +228,9 @@ export async function exportarCanal(o: {
     const usados = new Set<string>()
     const baixadas = await baixarMiniaturas(urls.map(u => u.url), { baixar: o.baixar, paralelo: 4, tentativas: 3 })
     const falhas = baixadas.filter(b => b.status !== 200 && b.status !== 404)
-    if (falhas.length > 0) return recusa('miniaturas_nao_baixaram', [`${falhas.length} miniatura(s) sem resposta útil (estados: ${[...new Set(falhas.map(f => f.status))].sort().join(', ')})`])
+    if (falhas.length > 0) return recusarLimpando('miniaturas_nao_baixaram', [`${falhas.length} miniatura(s) sem resposta útil (estados: ${[...new Set(falhas.map(f => f.status))].sort().join(', ')})`])
     const ausentes = baixadas.filter(b => b.status === 404).length
-    if (ausentes > 0 && !o.aceitarMiniaturasAusentes) return recusa('miniaturas_ausentes', [`${ausentes} miniatura(s) ausente(s)`])
+    if (ausentes > 0 && !o.aceitarMiniaturasAusentes) return recusarLimpando('miniaturas_ausentes', [`${ausentes} miniatura(s) ausente(s)`])
     const miniaturas: MiniaturaDoManifesto[] = []
     for (let i = 0; i < urls.length; i++) {
       const u = urls[i]!
@@ -232,7 +241,7 @@ export async function exportarCanal(o: {
       }
       const caminho = caminhoDaMiniatura(u.url, u.video, usados)
       await disco.criarPasta(diretorioDe(juntar(pasta, caminho)), MODO_DA_PASTA)
-      await disco.gravar(juntar(pasta, caminho), b.corpo)
+      await gravar(caminho, b.corpo)
       miniaturas.push({ url: u.url, caminhoNoBlob: caminhoNoBlobDe(u.url), caminho, bytes: b.corpo.byteLength, sha256: sha256(b.corpo), ausente: false })
     }
 
@@ -244,8 +253,9 @@ export async function exportarCanal(o: {
       arquivos, tabelasSemLinha, tabelasAusentes, excluidas, miniaturas, esquema,
     }
     const json = Buffer.from(JSON.stringify(manifesto, null, 2) + '\n', 'utf8')
-    await disco.gravar(juntar(pasta, 'manifesto.json'), json)
-    await disco.gravar(juntar(pasta, 'manifesto.sha256'), Buffer.from(textoDoSha256(manifesto, sha256(json)), 'utf8'))
+    await gravar('manifesto.json', json)
+    await gravar('manifesto.sha256', Buffer.from(textoDoSha256(manifesto, sha256(json)), 'utf8'))
+    manifestoCompleto = true
 
     // 9 ── o registro, numa segunda transação (de escrita): o banco confere as contagens de novo
     try {
@@ -264,6 +274,7 @@ export async function exportarCanal(o: {
     }
   } catch (err) {
     await desfazer()
+    if (!manifestoCompleto) await limparGravados()
     const c = codigoE10(err as { message?: string; code?: string })
     return recusa(c === 'inesperado' ? 'erro_do_banco' : c)
   }

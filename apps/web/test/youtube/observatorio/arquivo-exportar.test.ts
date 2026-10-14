@@ -347,6 +347,82 @@ describe('A5 E10 T6: --refazer', () => {
   })
 })
 
+describe('A5 E10: exportarCanal, recusa depois de criar a pasta não envenena o nome (revisão Yannis 14/10, I2)', () => {
+  const arquivosDe = (d: ReturnType<typeof montar>['d']): string[] => [...d.arquivos.keys()].sort()
+
+  it('404 sem a opção e depois com a opção na MESMA pasta termina ok', async () => {
+    const m = montar({ urls: TRES }, { respostas: { [URL_B]: 404 } })
+    const r1 = await m.exportar()
+    expect(r1).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    expect(arquivosDe(m.d)).toEqual([]) // nada do que a execução gravou ficou
+    const r2 = await m.exportar({ aceitarMiniaturasAusentes: true })
+    expect(r2).toMatchObject({ ok: true, miniaturas: 2, miniaturasAusentes: 1 })
+  })
+
+  it('404 sem a opção e depois com --refazer e a opção na MESMA pasta também termina ok', async () => {
+    const m = montar({ urls: TRES }, { respostas: { [URL_B]: 404 } })
+    expect(await m.exportar()).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    expect(await m.exportar({ refazer: true, aceitarMiniaturasAusentes: true })).toMatchObject({ ok: true, miniaturasAusentes: 1 })
+  })
+
+  it('--refazer que falha no passo 7 não deixa lixo, e repetir com a opção termina ok', async () => {
+    const respostas: Record<string, number | 'lanca'> = {}
+    const m = montar({ urls: TRES }, { respostas })
+    await m.exportar()
+    respostas[URL_B] = 404
+    expect(await m.exportar({ refazer: true })).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    expect(arquivosDe(m.d)).toEqual([]) // o lote antigo saiu pelo --refazer (dívida M2) e o novo, incompleto, foi limpo
+    expect(await m.exportar({ refazer: true, aceitarMiniaturasAusentes: true })).toMatchObject({ ok: true, miniaturasAusentes: 1 })
+  })
+
+  it('a limpeza apaga SÓ o que esta execução gravou: o arquivo do dono na pasta continua', async () => {
+    const respostas: Record<string, number | 'lanca'> = {}
+    const m = montar({ urls: TRES }, { respostas })
+    await m.exportar()
+    m.d.arquivos.set(`${PASTA}/anotacao-do-dono.txt`, Buffer.from('meu texto'))
+    respostas[URL_B] = 404
+    expect(await m.exportar({ refazer: true })).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    expect(arquivosDe(m.d)).toEqual([`${PASTA}/anotacao-do-dono.txt`])
+    const gravados = m.d.eventos.filter(e => e.startsWith('gravar ')).map(e => e.slice(7))
+    const apagados = m.d.eventos.filter(e => e.startsWith('apagar ')).map(e => e.slice(7))
+    expect(apagados).not.toContain(`${PASTA}/anotacao-do-dono.txt`)
+    expect(gravados).not.toContain(`${PASTA}/anotacao-do-dono.txt`)
+  })
+
+  it('contagem_do_arquivo_difere, miniaturas_nao_baixaram e erro do banco no passo 5 também limpam o que foi gravado', async () => {
+    // contagem difere no SEGUNDO arquivo: o primeiro já foi gravado e tem de sair
+    const a = montar()
+    const original = a.b.sql.query.bind(a.b.sql)
+    let n = 0
+    a.b.sql.query = async (t, p) => {
+      const r = await original(t, p)
+      if (/^fetch forward/.test(t.trim()) && r.rows.length === 3 && ++n === 1) return { rows: r.rows.slice(0, 2) }
+      return r
+    }
+    expect(await a.exportar()).toMatchObject({ ok: false, codigo: 'contagem_do_arquivo_difere' })
+    expect(arquivosDe(a.d)).toEqual([])
+    // miniatura que não baixa: os CSV.gz já gravados saem
+    const b = montar({ urls: TRES }, { respostas: { [URL_B]: 500 } })
+    expect(await b.exportar()).toMatchObject({ ok: false, codigo: 'miniaturas_nao_baixaram' })
+    expect(arquivosDe(b.d)).toEqual([])
+    // erro do banco no meio do passo 5
+    let k = 0
+    const c = montar({ falhaEm: t => (/^declare/.test(t.trim()) && ++k === 3 ? new Error('SEGREDO do banco') : null) })
+    expect(await c.exportar()).toMatchObject({ ok: false, codigo: 'erro_do_banco' })
+    expect(arquivosDe(c.d)).toEqual([])
+    // e as miniaturas já gravadas quando a segunda falha (200, 200 e 404 sem a opção: não grava; 200 e depois lança: nada fica)
+    const e = montar({ urls: TRES }, { respostas: { [URL_C]: 404 } })
+    expect(await e.exportar()).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    expect(arquivosDe(e.d)).toEqual([])
+  })
+
+  it('o registro recusa no passo 9: os arquivos e o manifesto ficam (a limpeza é só antes do manifesto)', async () => {
+    const m = montar({ erroDoRegistro: { message: 'E10:banco_difere_do_manifesto: x' } })
+    expect(await m.exportar()).toMatchObject({ ok: false, codigo: 'banco_difere_do_manifesto' })
+    expect(m.d.arquivos.has(`${PASTA}/manifesto.json`)).toBe(true)
+  })
+})
+
 describe('A5 E10 T6: miniaturas.ts e sessao.ts', () => {
   it('baixarMiniaturas: ordem das URLs, até 4 ao mesmo tempo, 3 tentativas só para o que pode ser passageiro', async () => {
     const urls = Array.from({ length: 10 }, (_, i) => `https://blob.example.test/${i}.jpg`)
