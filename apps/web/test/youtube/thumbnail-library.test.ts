@@ -232,7 +232,7 @@ describe('checkAndPersistLongevity', () => {
     expect(upsertOpts[0]).toEqual({ onConflict: 'library_id,checkpoint_days' })
   })
 
-  it('triggers fatigue alert when status is fading', async () => {
+  it('resultado fading grava a longevidade e não lê nem insere alerta de fadiga', async () => {
     const upsertedData: unknown[] = []
 
     const fromMock = vi.fn((table: string) => {
@@ -259,6 +259,10 @@ describe('checkAndPersistLongevity', () => {
       status: 'fading',
       change_percent: -30,
     })
+    const tabelas = fromMock.mock.calls.map((c) => c[0])
+    expect(tabelas).toContain('thumbnail_longevity')
+    expect(tabelas).not.toContain('youtube_fatigue_alerts')
+    expect(tabelas).not.toContain('thumbnail_library')
   })
 })
 

@@ -29,7 +29,6 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   updateAbSiteSettings: vi.fn().mockResolvedValue({ ok: true }),
-  dismissFatigueAlert: vi.fn().mockResolvedValue({ ok: true }),
   batchStartTests: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
@@ -356,7 +355,6 @@ describe('AbLabDashboard', () => {
     settings: baseSettings,
     siteId: 'site-1',
     eligibleVideos: [],
-    fatigueAlerts: [],
   }
 
   beforeEach(() => {

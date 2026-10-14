@@ -148,16 +148,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
-    if (table === 'youtube_fatigue_alerts') {
-      return {
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-      }
-    }
-
     // Fallback
     return {
       select: vi.fn().mockReturnThis(),

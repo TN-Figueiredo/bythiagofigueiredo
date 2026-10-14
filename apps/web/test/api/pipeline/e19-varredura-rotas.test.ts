@@ -5,7 +5,7 @@
 //  - O MCP (`app/api/mcp/route.ts`) tem autenticação própria (`resolveMcpAuth`, que exige `read` em route.ts) e não usa os
 //    helpers de `authenticate*`; a chave `observatorio_leitura` ainda fica aberta lá (pendência da E17, item 235). O caso
 //    "o alcance é app/api/pipeline" no fim do arquivo prende esse limite por asserção.
-//  - Os pisos de 91 rotas e 129 handlers são PISOS (>=): rota removida não falha aqui; rota nova entra sozinha pelo glob.
+//  - Os pisos de 89 rotas e 127 handlers são PISOS (>=): rota removida não falha aqui; rota nova entra sozinha pelo glob.
 //  - O rótulo textual do helper é o da primeira chamada dentro do corpo do handler (até o `}` na coluna 0); o fechamento real
 //    é o dinâmico (403 em modo recusa), que não depende do rótulo.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -107,8 +107,8 @@ beforeEach(async () => {
 
 describe('E19: todo route.ts de app/api/pipeline', () => {
   it('o glob achou as rotas (se vier vazio, a prova não prova nada)', () => {
-    expect(Object.keys(modulos).length).toBeGreaterThanOrEqual(91)
-    expect(handlers.length).toBeGreaterThanOrEqual(129)
+    expect(Object.keys(modulos).length).toBeGreaterThanOrEqual(89)
+    expect(handlers.length).toBeGreaterThanOrEqual(127)
   })
 
   it('todo handler autentica por um dos quatro helpers; nenhum chama authenticatePipeline direto', () => {
@@ -188,7 +188,7 @@ describe('E19: todo route.ts de app/api/pipeline', () => {
     estado.permissions = ['read']
     const barrados: string[] = []
     const leitura = handlers.filter(h => h.helper === 'authenticateRead')
-    expect(leitura.length).toBeGreaterThanOrEqual(57)
+    expect(leitura.length).toBeGreaterThanOrEqual(55)
     for (const h of leitura) {
       const d = await desfechoDe(h)
       if (d === 401 || d === 403) barrados.push(`${h.metodo} ${h.rota} -> ${d}`)

@@ -72,10 +72,8 @@ const YOUTUBE_RESOURCE_URIS = [
   'pipeline://youtube/ab-tests',
   'pipeline://youtube/ab-learnings',
   'pipeline://youtube/ab-suggestions',
-  'pipeline://youtube/ab-fatigue',
   'pipeline://youtube/ab-dashboard',
   'pipeline://youtube/thumbnails/library',
-  'pipeline://youtube/thumbnails/fatigue',
   'pipeline://youtube/competitors/channels',
   'pipeline://youtube/competitors/changes',
   'pipeline://youtube/competitors/outliers',
@@ -242,7 +240,7 @@ describe('YouTube MCP Resources — registration', () => {
     const ytResources = resources.filter(r =>
       r.uri.startsWith('pipeline://youtube/'),
     )
-    expect(ytResources.length).toBe(19)
+    expect(ytResources.length).toBe(17)
   })
 
   it('resource URIs match the expected patterns', async () => {
@@ -277,19 +275,6 @@ describe('YouTube MCP Resources — registration', () => {
     expect(thumbLib).toBeDefined()
   })
 
-  it('thumbnail fatigue resource is registered at correct URI', async () => {
-    pair = await createTestMcpPair({
-      setupServer: (s) => {
-        registerYoutubeTools(s)
-        registerYoutubeResources(s)
-      },
-    })
-
-    const { resources } = await pair.client.listResources()
-    const thumbFatigue = resources.find(r => r.uri === 'pipeline://youtube/thumbnails/fatigue')
-    expect(thumbFatigue).toBeDefined()
-  })
-
   it('all competitor resources are registered (4 resources)', async () => {
     pair = await createTestMcpPair({
       setupServer: (s) => {
@@ -317,7 +302,7 @@ describe('YouTube MCP Resources — registration', () => {
     const abResources = resources.filter(r =>
       r.uri.startsWith('pipeline://youtube/ab-'),
     )
-    expect(abResources.length).toBe(6)
+    expect(abResources.length).toBe(5)
   })
 
   it('all resources have application/json mimeType', async () => {

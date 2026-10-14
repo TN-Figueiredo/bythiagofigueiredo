@@ -9,7 +9,7 @@
 O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 - Diagnósticos por vídeo (fraquezas, oportunidades)
 - Coaching cards (recomendações priorizadas por eixo)
-- Notificações acionáveis (grade drops, CTR drops, viral detection)
+- Notificações acionáveis (grade drops, CTR drops, monitoramento)
 - Sugestões de A/B tests (thumb, title, description, combo)
 
 ---
@@ -50,9 +50,7 @@ Retorna snapshot completo de inteligência do canal.
         "external": 12,
         "direct": 5,
         "notifications": 3
-      },
-      "view_count_yesterday": 150,
-      "view_count_delta_today": 45
+      }
     }
   ],
   "grade_history": [
@@ -194,7 +192,6 @@ unmonitored -> flagged -> diagnosed -> test_suggested -> testing -> post_test_mo
 | ab_test_completed | 3 | A/B test tem vencedor declarado |
 | retest_suggested | 3 | Ciclo volta para diagnosed |
 | optimization_available | 3 | Nova recomendação disponível |
-| trending_viral | 2 | views48h >= 5x channelAvg48h |
 | optimization_resolved | 1 | Ciclo encerrado com sucesso |
 
 **Dedup:** Unique index em (site_id, dedup_key). Mesma notificação não é criada 2x.

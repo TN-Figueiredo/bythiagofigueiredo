@@ -4,10 +4,7 @@ import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/
 import { classificarErroDeToken, marcarAutorizado, marcarReautorizar } from '@/lib/youtube/coleta/autorizacao'
 import { ehPerdaDeAutorizacao, motivoDoGoogle } from '@/lib/youtube/coleta/google-erro'
 import type { ColetaChannel, Tentativa } from '@/lib/youtube/coleta/types'
-import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
-import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
-import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/lib/cron/failure-note'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
@@ -57,8 +54,6 @@ interface ParteAntiga {
   skippedNoConnection: number
   /** Canais pulados porque perderam a autorização do YouTube (collection_status = 'reautorizar'). */
   semAutorizacao: number
-  notifications: number
-  fatigueAlerts: number
   errorDetails: string[]
 }
 
@@ -73,8 +68,8 @@ function comoCanalDaColeta(c: ChannelRow, jaMarcado: boolean): ColetaChannel {
 
 /**
  * O que o cron já fazia antes da coleta dos canais próprios: analytics por janela, marcos de
- * views, avisos e fadiga. O laço não foi refatorado; mudou só: (a) o fetch leva timeout de
- * min(15 s, o que resta do relógio global); (b) toda escrita, e toda leitura que decide alguma
+ * views e o aviso de canal sem conexão. O laço não foi refatorado; mudou só: (a) o fetch leva timeout
+ * de min(15 s, o que resta do relógio global); (b) toda escrita, e toda leitura que decide alguma
  * coisa, confere `error` e registra em `falhas`; (c) não chama mais recordCron* — quem dá o
  * veredito é a última linha de GET.
  */
@@ -109,7 +104,6 @@ async function parteAntiga(
   // estado legítimo, não falha. Pula, conta e avisa o dono; os demais canais seguem.
   const skippedNoConnection: Array<{ channelId: string; siteId: string; label: string }> = []
   const errorDetails: string[] = []
-  const notifications: Array<{ siteId: string; payload: ReturnType<typeof buildNotification> }> = []
   const processedVideos: Array<{ id: string; published_at: string | null; view_count: number }> = []
 
   for (const channel of channels) {
@@ -176,18 +170,13 @@ async function parteAntiga(
 
       const videosLidos = await supabase
         .from('youtube_videos')
-        .select('id, youtube_video_id, title, view_count, view_count_yesterday, view_count_delta_today, published_at')
+        .select('id, youtube_video_id, view_count, published_at')
         .eq('channel_id', channel.id)
       // Leitura que falhou não é "canal sem vídeos": sem isto o canal contava como sincronizado sem gravar nada.
       if (conferirBanco(videosLidos, 'youtube_videos', falhas, 'ler') !== 'ok') continue
       const videos = videosLidos.data
 
       const videoMap = new Map((videos ?? []).map(v => [v.youtube_video_id, v]))
-
-      const channelTotalDelta = (videos ?? []).reduce((s, v) => s + (v.view_count_delta_today ?? 0), 0)
-      const channelAvg48h = (videos ?? []).length > 0
-        ? (channelTotalDelta + (videos ?? []).reduce((s, v) => s + (v.view_count_yesterday ?? 0), 0)) / (videos ?? []).length
-        : 0
 
       const today = new Date().toISOString().split('T')[0]!
 
@@ -203,12 +192,8 @@ async function parteAntiga(
         const shares = Number(row[6])
         const subsGained = Number(row[7])
 
-        const previousPeriod = dbVideo.view_count_delta_today ?? 0
-
         const gravouVideo = await supabase.from('youtube_videos').update({
           avg_view_duration_seconds: avgDuration,
-          view_count_delta_today: views,
-          view_count_yesterday: previousPeriod,
           last_analytics_sync_at: new Date().toISOString(),
         }).eq('id', dbVideo.id)
         conferirBanco(gravouVideo, 'youtube_videos', falhas)
@@ -225,20 +210,6 @@ async function parteAntiga(
           subscribers_gained: subsGained,
         }, { onConflict: 'youtube_video_id,date' })
         conferirBanco(gravouAnalytics, 'youtube_video_analytics', falhas)
-
-        if (detectViral(views, previousPeriod, channelAvg48h)) {
-          notifications.push({
-            siteId: channel.site_id,
-            payload: buildNotification({
-              type: 'trending_viral',
-              videoId: dbVideo.id,
-              videoTitle: dbVideo.title ?? 'Video',
-              views48h: views + previousPeriod,
-              channelAvg48h,
-              weekIso: getIsoWeek(new Date()),
-            }),
-          })
-        }
 
         processedVideos.push({
           id: dbVideo.id,
@@ -309,29 +280,6 @@ async function parteAntiga(
     }
   }
 
-  for (const { siteId, payload } of notifications) {
-    // Aviso que não saiu é falha visível, e não derruba os marcos já gravados nem a fadiga.
-    try {
-      await fanOutToSiteAdmins({
-        siteId,
-        domain: 'youtube',
-        type: `youtube.${payload.type}`,
-        priority: payload.priority,
-        title: payload.title,
-        message: payload.message,
-        dedupKey: payload.dedup_key,
-        payload: {
-          ...(payload.video_id ? { videoId: payload.video_id } : {}),
-        },
-        suggestedAction: payload.suggested_action,
-        actionHref: payload.action_href,
-      })
-    } catch (e) {
-      Sentry.captureException(e)
-      pushUnico(falhas, `aviso de vídeo em alta: ${describeCronCause(e)}`)
-    }
-  }
-
   // O pulo precisa ser VISTO: um aviso por site e por dia (dedup), não um alarme de cron.
   const skippedBySite = new Map<string, string[]>()
   for (const k of skippedNoConnection) {
@@ -355,89 +303,12 @@ async function parteAntiga(
     }
   }
 
-  // Phase 3: Fatigue detection (once per site, after all channels processed)
-  let fatigueAlerts = 0
-  const siteIds = [...new Set(channels.map(c => c.site_id))]
-
-  for (const siteId of siteIds) {
-    try {
-      // Leitura que falhou não é "nada a fazer": sem os vídeos não há candidatos, e sem os testes
-      // A/B todo vídeo em teste viraria candidato. Nos dois casos o site fica de fora e vira falha.
-      const videosDoSite = await supabase
-        .from('youtube_videos')
-        .select('id, published_at, view_count')
-        .eq('site_id', siteId)
-        .not('published_at', 'is', null)
-      if (conferirBanco(videosDoSite, 'youtube_videos', falhas, 'ler') !== 'ok') continue
-      const allVideos = videosDoSite.data
-
-      const testesAtivos = await supabase
-        .from('ab_tests')
-        .select('youtube_video_id')
-        .eq('site_id', siteId)
-        .in('status', ['active', 'draft', 'paused', 'queued'])
-      if (conferirBanco(testesAtivos, 'ab_tests', falhas, 'ler') !== 'ok') continue
-      const activeTestVideos = testesAtivos.data
-
-      const activeVideoIds = new Set((activeTestVideos ?? []).map(t => t.youtube_video_id))
-      const candidates = filterFatigueCandidates(allVideos ?? [], activeVideoIds)
-
-      for (const candidate of candidates) {
-        const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10)
-        const metricasLidas = await supabase
-          .from('youtube_video_analytics')
-          .select('date, views')
-          .eq('youtube_video_id', candidate.id)
-          .gte('date', sixtyDaysAgo)
-          .order('date', { ascending: true })
-        if (conferirBanco(metricasLidas, 'youtube_video_analytics', falhas, 'ler') !== 'ok') continue
-        const metrics = metricasLidas.data
-
-        if (!metrics?.length) continue
-
-        const result = detectFatigue(
-          metrics.map(m => ({ date: m.date as string, views: (m.views as number | null) ?? 0 })),
-          candidate.published_at,
-        )
-
-        if (result?.isFatigued) {
-          const alertaLido = await supabase
-            .from('youtube_fatigue_alerts')
-            .select('id')
-            .eq('video_id', candidate.id)
-            .eq('status', 'pending')
-            .limit(1)
-            .maybeSingle()
-          // Sem saber se já há alerta pendente, não insere: leitura falha não é "não existe".
-          if (conferirBanco(alertaLido, 'youtube_fatigue_alerts', falhas, 'ler') !== 'ok') continue
-          const existing = alertaLido.data
-
-          if (!existing) {
-            const gravouAlerta = await supabase.from('youtube_fatigue_alerts').insert({
-              video_id: candidate.id,
-              site_id: siteId,
-              z_score: result.zScore,
-              expected_ctr: result.expectedViews,
-              actual_ctr: result.actualViews,
-            })
-            if (conferirBanco(gravouAlerta, 'youtube_fatigue_alerts', falhas) === 'ok') fatigueAlerts++
-          }
-        }
-      }
-    } catch (e) {
-      Sentry.captureException(e)
-      pushUnico(falhas, `fadiga: ${describeCronCause(e)}`)
-    }
-  }
-
   return {
     synced,
     errors,
     emptyReports,
     skippedNoConnection: skippedNoConnection.length,
     semAutorizacao,
-    notifications: notifications.length,
-    fatigueAlerts,
     errorDetails,
   }
 }
@@ -629,8 +500,6 @@ export async function GET(req: NextRequest) {
         emptyReports: antiga?.emptyReports ?? 0,
         skipped_no_connection: antiga?.skippedNoConnection ?? 0,
         sem_autorizacao: antiga?.semAutorizacao ?? 0,
-        notifications: antiga?.notifications ?? 0,
-        fatigueAlerts: antiga?.fatigueAlerts ?? 0,
         ...(antiga && antiga.errorDetails.length > 0 && { errorDetails: antiga.errorDetails }),
         ...extras,
       }

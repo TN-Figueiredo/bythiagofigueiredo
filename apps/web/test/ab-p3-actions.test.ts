@@ -47,7 +47,6 @@ import {
   cancelGracePeriod,
   revertWinner,
   batchStartTests,
-  dismissFatigueAlert,
 } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
@@ -753,51 +752,5 @@ describe('batchStartTests', () => {
     const result = await batchStartTests(['vid-1', 'vid-2', 'vid-3'])
 
     expect(result).toEqual({ ok: false, created: 0, error: 'All videos already have active tests' })
-  })
-})
-
-// ===========================================================================
-// dismissFatigueAlert
-// ===========================================================================
-
-describe('dismissFatigueAlert', () => {
-  function setupDismissMock() {
-    const fromMock = vi.fn((table: string) => {
-      if (table === 'youtube_fatigue_alerts') {
-        return {
-          update: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-            })),
-          })),
-        }
-      }
-      return makeChain({ data: null, error: null })
-    })
-
-    const client = { from: fromMock }
-    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
-    return { fromMock }
-  }
-
-  it('happy path: updates status to dismissed', async () => {
-    setupDismissMock()
-
-    const result = await dismissFatigueAlert('alert-1')
-
-    expect(result).toEqual({ ok: true })
-    expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
-  })
-
-  it('returns ok: false on auth failure', async () => {
-    ;(requireSiteScope as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      reason: 'unauthenticated',
-    })
-    setupDismissMock()
-
-    const result = await dismissFatigueAlert('alert-1')
-
-    expect(result).toEqual({ ok: false })
   })
 })

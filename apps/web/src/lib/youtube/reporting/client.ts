@@ -155,6 +155,16 @@ function urlDeDownloadPermitida(url: string): boolean {
   return ['googleapis.com', 'google.com'].some(d => u.hostname === d || u.hostname.endsWith(`.${d}`))
 }
 
+/** `Retry-After` em ms: segundos inteiros ou data HTTP. Ausente, ilegível ou negativo = null. */
+export function lerRetryAfter(res: Response, agora: number = Date.now()): number | null {
+  const v = res.headers?.get?.('retry-after')
+  if (!v) return null
+  const seg = Number(v)
+  if (Number.isFinite(seg)) return seg >= 0 ? Math.round(seg * 1000) : null
+  const t = new Date(v).getTime()
+  return Number.isNaN(t) ? null : Math.max(0, t - agora)
+}
+
 export function classificarErro(e: unknown): 'api_nao_ativada' | 'sem_acesso' | 'nao_encontrado' | 'url_inesperada' | 'outro' {
   if (!(e instanceof ReportingHttpError)) return 'outro'
   if (e.reason === 'url_inesperada') return 'url_inesperada'
@@ -213,7 +223,7 @@ export function criarReportingClient(accessToken: string, f: typeof fetch): Repo
     async download(downloadUrl) {
       if (!urlDeDownloadPermitida(downloadUrl)) throw new ReportingHttpError(0, 'url_inesperada')
       const res = await f(downloadUrl, { headers: { ...headers, 'Accept-Encoding': 'gzip' } })
-      if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoGoogle(res))
+      if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoGoogle(res), lerRetryAfter(res))
       return empacotarCsv(await lerCorpoLimitado(res))
     },
   }

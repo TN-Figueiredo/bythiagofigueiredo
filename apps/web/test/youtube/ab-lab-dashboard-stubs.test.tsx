@@ -13,7 +13,6 @@ import type {
   ChannelLearningsData,
   SuggestedVideo,
 } from '@/lib/youtube/ab-types'
-import type { FatigueAlert } from '@/app/cms/(authed)/youtube/ab-lab/queries'
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                              */
@@ -56,7 +55,6 @@ vi.mock('@/lib/youtube/format', () => ({
 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   updateAbSiteSettings: vi.fn().mockResolvedValue({ ok: true }),
-  dismissFatigueAlert: vi.fn().mockResolvedValue({ ok: true }),
   batchStartTests: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
@@ -100,12 +98,6 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/empty-state', () => ({
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/settings-drawer', () => ({
   SettingsDrawer: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="settings-drawer"><button onClick={onClose}>close</button></div>
-  ),
-}))
-
-vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/fatigue-card', () => ({
-  FatigueCard: ({ alert }: { alert: FatigueAlert }) => (
-    <div data-testid={`fatigue-${alert.id}`}>{alert.videoTitle}</div>
   ),
 }))
 
@@ -184,7 +176,6 @@ function defaultProps(overrides: Partial<AbLabDashboardProps> = {}): AbLabDashbo
     settings: makeSettings(),
     siteId: 'site-1',
     eligibleVideos: [],
-    fatigueAlerts: [],
     ...overrides,
   }
 }
@@ -192,6 +183,14 @@ function defaultProps(overrides: Partial<AbLabDashboardProps> = {}): AbLabDashbo
 /* ------------------------------------------------------------------ */
 /*  Static analysis / honesty tests                                    */
 /* ------------------------------------------------------------------ */
+
+describe('ab-lab-dashboard sem fadiga', () => {
+  it('o painel não mostra cartão nem texto de fadiga', () => {
+    render(<AbLabDashboard {...defaultProps()} />)
+    expect(screen.queryAllByText(/fadiga/i)).toHaveLength(0)
+    expect(screen.queryAllByText(/CTR em declínio/i)).toHaveLength(0)
+  })
+})
 
 describe('ab-lab-dashboard honesty', () => {
   const src = readFileSync(

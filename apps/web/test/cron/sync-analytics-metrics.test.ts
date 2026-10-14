@@ -81,8 +81,6 @@ interface VideoRow {
   youtube_video_id: string
   title: string
   view_count: number
-  view_count_yesterday: number
-  view_count_delta_today: number
   published_at: string
 }
 
@@ -113,7 +111,6 @@ function makeSupabase(opts: {
       }),
       then: (resolve: (v: unknown) => void) => {
         if (filterChannelId) return resolve({ data: videosByChannelId[filterChannelId] ?? [] })
-        if (filterSiteId) return resolve({ data: [] }) // fatigue loop: no candidates in these tests
         return resolve({ data: [] })
       },
     }
@@ -247,8 +244,6 @@ describe('GET /api/cron/sync-analytics-metrics — non-empty report syncs', () =
       youtube_video_id: 'yt-vid-1',
       title: 'Test video',
       view_count: 100,
-      view_count_yesterday: 0,
-      view_count_delta_today: 0,
       published_at: OLD_PUBLISHED_AT,
     }
     const supabase = makeSupabase({
@@ -304,8 +299,6 @@ describe('GET /api/cron/sync-analytics-metrics — non-empty report syncs', () =
       youtube_video_id: 'yt-vid-1',
       title: 'Test video',
       view_count: 100,
-      view_count_yesterday: 0,
-      view_count_delta_today: 0,
       published_at: OLD_PUBLISHED_AT,
     }
     const supabase = makeSupabase({
@@ -334,7 +327,7 @@ describe('GET /api/cron/sync-analytics-metrics — non-empty report syncs', () =
 describe('GET /api/cron/sync-analytics-metrics — canal sem conexão OAuth é pulado, não é erro', () => {
   const video: VideoRow = {
     id: 'vid-db-1', youtube_video_id: 'yt-vid-1', title: 'Test video', view_count: 100,
-    view_count_yesterday: 0, view_count_delta_today: 0, published_at: OLD_PUBLISHED_AT,
+    published_at: OLD_PUBLISHED_AT,
   }
   const withOauth: Channel = { id: 'ch-db-1', channel_id: 'UC1', site_id: 'site-1', subscriber_count: 10 }
   const noOauth: Channel = { id: 'ch-db-2', channel_id: 'UC2', site_id: 'site-1', subscriber_count: 0, name: 'Canal Viagem' }

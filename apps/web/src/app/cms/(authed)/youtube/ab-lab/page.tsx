@@ -5,7 +5,6 @@ import {
   getChannelLearnings,
   getSuggestedVideos,
   getEligibleVideosForPicker,
-  getFatigueAlerts,
   toCardView,
   toDraftList,
   computeDashboardStats,
@@ -19,13 +18,12 @@ export const dynamic = 'force-dynamic'
 export default async function AbLabPage() {
   const { siteId } = await getSiteContext()
 
-  const [tests, settings, channelLearnings, suggested, eligibleVideos, fatigueAlerts] = await Promise.all([
+  const [tests, settings, channelLearnings, suggested, eligibleVideos] = await Promise.all([
     getAbTestsForSite(),
     getAbSiteSettings(),
     getChannelLearnings(siteId),
     getSuggestedVideos(siteId),
     getEligibleVideosForPicker(),
-    getFatigueAlerts(siteId),
   ])
 
   const stats = computeDashboardStats(tests.active, tests.completed)
@@ -47,7 +45,6 @@ export default async function AbLabPage() {
       suggested={suggested}
       settings={settings}
       eligibleVideos={eligibleVideos}
-      fatigueAlerts={fatigueAlerts}
     />
   )
 }

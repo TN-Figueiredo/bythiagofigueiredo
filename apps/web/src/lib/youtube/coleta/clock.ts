@@ -36,6 +36,9 @@ export function prazoDoCriterio(relogio: Relogio, proprioMs: number): number {
   return Math.min(Date.now() + proprioMs, relogio.inicio + LIMITE_DA_FUNCAO_MS)
 }
 
+/** Espera `ms` (setTimeout). Fica aqui para os testes dirigirem o relógio. */
+export const dormir = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms))
+
 /** Milissegundos que faltam até o prazo; nunca negativo. */
 export function restante(deadline: number): number {
   return Math.max(0, deadline - Date.now())
@@ -60,7 +63,9 @@ export function fetchComPrazo(deadline: number, f: typeof fetch = fetch): typeof
     } catch (e) {
       // O prazo do passo acabou com a chamada no ar: não é erro de rede, é falta de tempo.
       // Se sobrou tempo (estourou só o limite de 15 s da chamada, ou outro erro), o erro original segue.
-      if (restante(deadline) <= 0) throw new SemTempoError()
+      // O timer do Node dispara até ~1 ms antes de `Date.now()` chegar ao prazo (1 em 10, medido): se quem cortou foi o
+      // prazo do passo (ms < 15 s), é falta de tempo mesmo com `restante` em 1 ms (A5, 14/10, vídeo da retenção).
+      if (restante(deadline) <= 0 || (prazo.aborted && ms < FETCH_TIMEOUT_MS)) throw new SemTempoError()
       throw e
     }
   }) as typeof fetch

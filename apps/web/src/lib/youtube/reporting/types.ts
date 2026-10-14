@@ -60,6 +60,8 @@ export class ReportingHttpError extends Error {
   constructor(
     public readonly status: number,
     public readonly reason: string | null,
+    /** `Retry-After` da resposta, em ms (só vem em 429/503). null = a resposta não trouxe ou veio ilegível. */
+    public readonly retryAfterMs: number | null = null,
   ) {
     super(`YouTube Reporting API HTTP ${status}`)
     this.name = 'ReportingHttpError'

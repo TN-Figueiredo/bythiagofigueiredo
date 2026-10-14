@@ -1644,49 +1644,6 @@ export async function getAbSuggestions(
 }
 
 // ---------------------------------------------------------------------------
-// A/B Tests — fatigue alerts
-// ---------------------------------------------------------------------------
-
-export interface AbFatigueAlertsResponse {
-  alerts: Array<{
-    id: string
-    videoId: string
-    title: string
-    zScore: number
-    expectedCtr: number
-    actualCtr: number
-    createdAt: string
-  }>
-}
-
-/** Get pending fatigue alerts for videos with declining CTR. */
-export async function getAbFatigueAlerts(
-  ctx: ServiceContext,
-): Promise<ServiceResult<AbFatigueAlertsResponse>> {
-  const { supabase, siteId } = ctx
-
-  const { data } = await supabase
-    .from('youtube_fatigue_alerts')
-    .select('id, video_id, z_score, expected_ctr, actual_ctr, detected_at, youtube_videos!inner(id, title)')
-    .eq('site_id', siteId)
-    .eq('status', 'pending')
-    .order('detected_at', { ascending: false })
-    .limit(20)
-
-  const alerts = (data ?? []).map(alert => ({
-    id: alert.id as string,
-    videoId: alert.video_id as string,
-    title: ((alert as Record<string, unknown>).youtube_videos as { title: string } | null)?.title ?? 'Video',
-    zScore: alert.z_score as number,
-    expectedCtr: alert.expected_ctr as number,
-    actualCtr: alert.actual_ctr as number,
-    createdAt: alert.detected_at as string,
-  }))
-
-  return ok({ alerts })
-}
-
-// ---------------------------------------------------------------------------
 // A/B Tests — dashboard stats
 // ---------------------------------------------------------------------------
 
@@ -1859,60 +1816,6 @@ export async function getThumbnailLibrary(
   })
 
   return ok({ thumbnails })
-}
-
-// ---------------------------------------------------------------------------
-// Thumbnail Fatigue Alerts — GET
-// ---------------------------------------------------------------------------
-
-export interface ThumbnailFatigueAlert {
-  videoId: string
-  title: string
-  zScore: number
-  expectedCtr: number
-  actualCtr: number
-  daysSinceChange: number
-}
-
-export interface ThumbnailFatigueResponse {
-  alerts: ThumbnailFatigueAlert[]
-}
-
-/** Fetch pending fatigue alerts with longevity checkpoint data. */
-export async function getThumbnailFatigueAlerts(
-  ctx: ServiceContext,
-): Promise<ServiceResult<ThumbnailFatigueResponse>> {
-  const { supabase, siteId } = ctx
-
-  // Fetch pending fatigue alerts with video info
-  const { data: alertData, error: alertError } = await supabase
-    .from('youtube_fatigue_alerts')
-    .select('id, video_id, z_score, expected_ctr, actual_ctr, detected_at, youtube_videos!inner(id, title)')
-    .eq('site_id', siteId)
-    .eq('status', 'pending')
-    .order('detected_at', { ascending: false })
-    .limit(20)
-
-  if (alertError) return err('DB_ERROR', 'Failed to load fatigue alerts', 500)
-
-  const now = Date.now()
-
-  const alerts: ThumbnailFatigueAlert[] = (alertData ?? []).map(alert => {
-    const video = (alert as Record<string, unknown>).youtube_videos as { title: string } | null
-    const detectedAt = new Date(alert.detected_at as string).getTime()
-    const daysSinceChange = Math.floor((now - detectedAt) / 86400000)
-
-    return {
-      videoId: alert.video_id as string,
-      title: video?.title ?? 'Video',
-      zScore: alert.z_score as number,
-      expectedCtr: alert.expected_ctr as number,
-      actualCtr: alert.actual_ctr as number,
-      daysSinceChange,
-    }
-  })
-
-  return ok({ alerts })
 }
 
 // ---------------------------------------------------------------------------

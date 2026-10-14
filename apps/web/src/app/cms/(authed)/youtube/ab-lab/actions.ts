@@ -57,29 +57,6 @@ export async function getVideoTestHistory(
   return _getVideoTestHistory(...args)
 }
 
-// ---------------------------------------------------------------------------
-// dismissFatigueAlert
-// ---------------------------------------------------------------------------
-
-export async function dismissFatigueAlert(alertId: string): Promise<{ ok: boolean }> {
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch {
-    return { ok: false }
-  }
-
-  const supabase = getSupabaseServiceClient()
-  await supabase
-    .from('youtube_fatigue_alerts')
-    .update({ status: 'dismissed' })
-    .eq('id', alertId)
-    .eq('site_id', siteId)
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
-}
-
 const CHANNEL_NOT_IDENTIFIED = CHANNEL_NOT_IDENTIFIED_MESSAGE
 
 /**
@@ -260,13 +237,6 @@ export async function createAbTest(
     await supabase.from('ab_tests').delete().eq('id', test.id)
     return { ok: false, error: variantError.message }
   }
-
-  // Auto-resolve any pending fatigue alert for this video
-  await supabase
-    .from('youtube_fatigue_alerts')
-    .update({ status: 'resolved', resolved_by_test_id: test.id })
-    .eq('video_id', input.youtube_video_id)
-    .eq('status', 'pending')
 
   revalidateTag('youtube', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')

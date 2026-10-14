@@ -112,7 +112,6 @@ curl -s -X DELETE -H "X-Pipeline-Key: $KEY" \
 curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/ab-performance" | jq '.data'
 curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/ab-tests/learnings" | jq '.data'
 curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/ab-tests/suggestions" | jq '.data'
-curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/ab-tests/fatigue-alerts" | jq '.data'
 curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/ab-tests/dashboard" | jq '.data'
 ```
 
@@ -120,7 +119,6 @@ curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/ab-tests/dashboard
 
 ```bash
 # 27-28. Thumbnails
-curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/thumbnails/fatigue" | jq '.data'
 curl -s -H "X-Pipeline-Key: $KEY" "$BASE/api/pipeline/youtube/thumbnails/library" | jq '.data'
 
 # 29. Submit intelligence (PATCH, write permission)
@@ -248,7 +246,6 @@ curl -s -H "X-Pipeline-Key: invalid" "$BASE/api/pipeline/youtube/competitors/cha
 | 1 | Cowork | Call `youtube_analytics` with `action: "get_grades"` | Videos sorted by score; identify grade C/D videos |
 | 2 | Cowork | Call `youtube_videos` with `action: "get"` for a low-grade video | Full detail with CTR, retention, traffic sources |
 | 3 | Cowork | Call `manage_ab_test` with `action: "get_suggestions"` | Video appears in suggestions list |
-| 4 | Cowork | Call `manage_ab_test` with `action: "get_fatigue_alerts"` | Check if video has declining CTR alert |
 | 5 | Cowork | Invoke `ab-ideate` prompt with `test_type: "thumbnail"` | Briefing prompt with channel context and test history |
 | 6 | Cowork | Call `manage_ab_test` with `action: "upsert_variants"`, `test_id`, `variants: [...]`, `dry_run: true` | Dry-run preview: shows current variant count + proposed |
 | 7 | Cowork | Resend with `dry_run: false` | Variants persisted, confirmation returned |
@@ -285,8 +282,6 @@ Rating: LOW / MED / HIGH. Auth = is it properly gated? Data = cross-site leak ri
 | 23 | `GET ab-performance` | LOW | LOW | MED | Scans all completed tests, no cursor |
 | 24 | `GET ab-tests/learnings` | LOW | LOW | MED | Aggregates all completed tests |
 | 25 | `GET ab-tests/suggestions` | LOW | LOW | MED | Cross-refs videos with test history |
-| 26-27 | `GET fatigue-alerts / dashboard` | LOW | LOW | LOW | |
-| 28-29 | `GET thumbnails/fatigue,library` | LOW | LOW | LOW | |
 | 30 | MCP `youtube_observatory` | LOW | LOW | LOW | Mirrors REST, inherits key auth |
 | 31 | MCP `youtube_analytics` | LOW | MED | MED | `get_grades` CPU-bound scoring |
 | 32 | MCP `youtube_videos` | LOW | LOW | LOW | |

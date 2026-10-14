@@ -53,24 +53,6 @@ vi.mock('@/lib/youtube/coleta/autorizacao', () => ({
   marcarReautorizar: vi.fn(async () => undefined),
 }))
 
-vi.mock('@/lib/youtube/analytics-sync', () => ({
-  detectViral: vi.fn(() => false),
-  getIsoWeek: vi.fn(() => '2026-W21'),
-}))
-
-vi.mock('@/lib/youtube/notification-service', () => ({
-  buildNotification: vi.fn(() => ({
-    type: 'trending_viral',
-    priority: 2,
-    title: 'Viral!',
-    message: 'Test',
-    dedup_key: 'test-key',
-    video_id: 'v-1',
-    suggested_action: null,
-    action_href: null,
-  })),
-}))
-
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
   fanOutToSiteAdmins: vi.fn().mockResolvedValue(1),
 }))
@@ -125,26 +107,10 @@ function channelsQuery(data: unknown[] | null) {
   }
 }
 
-// Leitura de youtube_videos: `select().eq()` (laço por canal) e `select().eq().not()` (fadiga).
-// O resultado do eq é aguardável E tem .not, como o builder de verdade.
-function videosRead(data: unknown[] | null) {
-  const res = { data, error: null }
-  return Object.assign(Promise.resolve(res), { not: vi.fn().mockResolvedValue(res) })
-}
-
-// Fadiga: `from('ab_tests').select().eq().in()` — nenhum teste A/B ativo.
-function abTestsQuery() {
-  return {
-    select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }),
-    }),
-  }
-}
-
 function videosQuery(data: unknown[] | null) {
   return {
     select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockImplementation(() => videosRead(data)),
+      eq: vi.fn().mockResolvedValue({ data, error: null }),
     }),
     update: vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
@@ -223,8 +189,6 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
       youtube_video_id: 'vid-abc',
       title: 'Test Video',
       view_count: 100,
-      view_count_yesterday: 10,
-      view_count_delta_today: 5,
     }
 
     mockEnsureFreshToken.mockResolvedValue({ accessToken: 'yt-token' })
@@ -243,7 +207,6 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
       if (table === 'youtube_channels') return channelsQuery([fakeChannel])
       if (table === 'youtube_videos') return videosQuery([fakeVideo])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     mockRpc.mockResolvedValue({ error: null })
@@ -255,7 +218,7 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     const body = await res.json()
     expect(body.synced).toBe(1)
     expect(body.errors).toBe(0)
-    // O caminho feliz tem de terminar verde de verdade: nenhum bloco (fadiga inclusive) lançou.
+    // O caminho feliz tem de terminar verde de verdade: nenhum bloco lançou.
     expect(body.falhas).toBeUndefined()
     expect(Sentry.captureException).not.toHaveBeenCalled()
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
@@ -280,9 +243,7 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
 
     mockFrom.mockImplementation((table: string) => {
       if (table === 'youtube_channels') return channelsQuery([fakeChannel])
-      // A fadiga roda mesmo com o canal em erro: os mocks dela devolvem vazio em vez de lançar.
       if (table === 'youtube_videos') return videosQuery([])
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
 
@@ -295,7 +256,7 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     expect(body.errors).toBe(1)
     expect(body.errorDetails).toBeDefined()
     expect(Sentry.captureMessage).toHaveBeenCalled()
-    // A única falha é a do canal (403); nada da fadiga.
+    // A única falha é a do canal (403).
     expect(Sentry.captureException).not.toHaveBeenCalled()
     expect(body.falhas).toEqual(body.errorDetails)
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
@@ -307,7 +268,7 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
 describe('autorização e linha da execução (L1b)', () => {
   const video = {
     id: 'v-1', youtube_video_id: 'vid-abc', title: 'Test Video',
-    view_count: 100, view_count_yesterday: 10, view_count_delta_today: 5,
+    view_count: 100,
   }
   const AVISO_ANTIGO = 'youtube.channel_skipped_no_connection'
   const avisosAntigos = () => vi.mocked(fanOutToSiteAdmins).mock.calls.filter(c => c[0].type === AVISO_ANTIGO)
@@ -319,7 +280,6 @@ describe('autorização e linha da execução (L1b)', () => {
       if (table === 'youtube_channels') return channelsQuery([canal])
       if (table === 'youtube_videos') return videosQuery([video])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
   }
@@ -488,7 +448,6 @@ describe('autorização e linha da execução (L1b)', () => {
       }
       if (table === 'youtube_videos') return videosQuery([video])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     mockEnsureFreshToken.mockImplementation(async (siteId: string, _p: string, acc?: string) => {
@@ -566,7 +525,6 @@ describe('autorização e linha da execução (L1b)', () => {
       }
       if (table === 'youtube_videos') return videosQuery([video])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })

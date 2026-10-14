@@ -217,7 +217,6 @@ unmonitored → flagged → diagnosed → test_suggested → testing
 | ab_test_completed | 3 | Teste tem vencedor |
 | retest_suggested | 3 | Ciclo volta para diagnosed |
 | optimization_available | 3 | Nova recomendação disponível |
-| trending_viral | 2 | views48h ≥ 5x channelAvg48h |
 | playoff_created | 3 | Playoff criado automaticamente |
 
 ---
