@@ -159,7 +159,7 @@ Lista completa, flags operacionais e o detalhe de cada variável: **`docs/ops/en
 - `PIPELINE_MCP_HMAC_SECRET`: setar a variável (`.env.local` e Vercel) **antes** do deploy do código; invertido, as tools MCP caem.
 - `META_REQUEST_INSIGHTS_SCOPES`: desligado; um escopo indisponível BLOQUEIA o diálogo da Meta inteiro. Só ligar após App Review.
 - `LGPD_CRON_SWEEP_ENABLED`: válvula de segurança de deleção irreversível.
-- `AB_AUTO_APPLY_WINNER`: default off; vencedor de A/B é só sugerido, espera confirmação humana.
+- A/B Lab: o cron não declara nem aplica vencedor (desde 10/2026); escolher o que fica no ar é decisão humana. Não religar avaliação automática sem métrica de entrega real.
 - Produção: `NEXT_PUBLIC_APP_URL=https://bythiagofigueiredo.com`, `NEXT_PUBLIC_API_URL=https://bythiagofigueiredo-api.vercel.app`.
 - Instagram OAuth (ordem dos 8 commits, rollback de C2 com passo de banco obrigatório): `docs/ops/instagram-oauth-entrega-2026-09-06.md`.
 

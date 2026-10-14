@@ -93,8 +93,8 @@ ainda não foram para prod, este é o momento de resolver isso também, no mesmo
 
 ### 0.4 — Env vars da Vercel presentes em Production
 
-Diff `origin/main..origin/staging` de `process.env.*` mostra só duas novas — ambas
-**opcionais** (têm default/off): `AB_AUTO_APPLY_WINNER` e `YT_ANALYTICS_SYNC_WINDOW_DAYS`.
+Diff `origin/main..origin/staging` de `process.env.*` mostra só uma nova —
+**opcional** (tem default/off): `YT_ANALYTICS_SYNC_WINDOW_DAYS`.
 Nenhuma env nova é *exigida*. O que muda é que 3 call-sites de e-mail que antes eram no-op
 (Resend não estava no lockfile, nunca enviavam nada) agora enviam de verdade via SES — então as
 vars de SES, que já deveriam existir por causa de newsletter/contact/waitlists no `main`,
