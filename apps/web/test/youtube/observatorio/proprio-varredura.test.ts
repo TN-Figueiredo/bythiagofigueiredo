@@ -21,8 +21,15 @@ const USO_COMO_VALOR = /\bextends\s+EdicaoDoSite\b|\bEdicaoDoSite\s*\.\s*(protot
 const importaComoValor = (s: string) =>
   [...s.matchAll(/import\s*(?!type\b)\{([^}]*)\}\s*from\s*['"][^'"]*proprio\/edicao['"]/g)].some(m => m[1]!.split(',').some(n => /^\s*EdicaoDoSite\b/.test(n)))
 const importaNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*proprio\/edicao['"]|import\s*\(\s*['"][^'"]*proprio\/edicao['"]\s*\)|require\s*\(\s*['"][^'"]*proprio\/edicao['"]\s*\)/.test(s)
+/** O token de LEITURA do desempenho privado (E17 passo 0) e a prova de tipo dele. */
+const LEITURA = 'lib/youtube/observatorio/proprio/leitura-privada.ts'
+const TIPOS_LEITURA = 'lib/youtube/observatorio/proprio/leitura-privada.type-test.ts'
+const USO_LEITURA_COMO_VALOR = /\bextends\s+LeituraPrivadaDoSite\b|\bLeituraPrivadaDoSite\s*\.\s*(prototype|ehLeitura)\b|\bReflect\s*\.\s*construct\s*\([^)]*\bLeituraPrivadaDoSite\b|\bObject\s*\.\s*create\s*\([^)]*\bLeituraPrivadaDoSite\b|\btypeof\s+LeituraPrivadaDoSite\b|\binstanceof\s+LeituraPrivadaDoSite\b/
+const importaLeituraComoValor = (s: string) =>
+  [...s.matchAll(/import\s*(?!type\b)\{([^}]*)\}\s*from\s*['"][^'"]*proprio\/leitura-privada['"]/g)].some(m => m[1]!.split(',').some(n => /^\s*LeituraPrivadaDoSite\b/.test(n)))
+const importaLeituraNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*proprio\/leitura-privada['"]|import\s*\(\s*['"][^'"]*proprio\/leitura-privada['"]\s*\)|require\s*\(\s*['"][^'"]*proprio\/leitura-privada['"]\s*\)/.test(s)
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
-const PODE_PROVAR = new Set([EDICAO, DADOS])
+const PODE_PROVAR = new Set([EDICAO, DADOS, LEITURA])
 const PODE_LER = new Set([LER, LER_RETENCAO, DADOS])
 
 function arquivos(dir: string, out: string[] = []): string[] {
@@ -47,6 +54,14 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== EDICAO && arq !== TIPOS && importaNamespace(s)) v.push(`${arq}: importa o módulo do token por namespace ou dinâmico`)
     if (arq !== TIPOS && /edicao\.type-test['"]/.test(s)) v.push(`${arq}: importa a prova de tipo (ela não roda)`)
     if (!PODE_PROVAR.has(arq) && /\bprovarEdicao\s*\(/.test(s)) v.push(`${arq}: pede a prova de edição fora do módulo da guarda`)
+    if (arq !== LEITURA && arq !== TIPOS_LEITURA && /\bnew\s+LeituraPrivadaDoSite\b|\bLeituraPrivadaDoSite\.provar\b/.test(s)) v.push(`${arq}: constrói o token de leitura`)
+    if (arq !== LEITURA && arq !== TIPOS_LEITURA && USO_LEITURA_COMO_VALOR.test(s)) v.push(`${arq}: usa a classe do token de leitura como valor (estender, protótipo, Reflect.construct, Object.create, typeof, instanceof)`)
+    if (arq !== LEITURA && arq !== TIPOS_LEITURA && importaLeituraComoValor(s)) v.push(`${arq}: importa a classe do token de leitura como valor (só \`import type\`)`)
+    if (arq !== LEITURA && arq !== TIPOS_LEITURA && importaLeituraNamespace(s)) v.push(`${arq}: importa o módulo do token de leitura por namespace ou dinâmico`)
+    if (arq !== TIPOS_LEITURA && /leitura-privada\.type-test['"]/.test(s)) v.push(`${arq}: importa a prova de tipo da leitura (ela não roda)`)
+    if (arq !== LEITURA && arq !== DADOS && /\b(provarAcessoPrivado|provarLeituraPrivada)\s*\(/.test(s)) v.push(`${arq}: pede a prova de leitura privada fora do módulo da guarda`)
+    if (arq !== LEITURA && /can_view_private_site_as/.test(s)) v.push(`${arq}: cita a função do direito fora do módulo da leitura privada`)
+    if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
     if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler(-retencao)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
     if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/edicao|_proprio\/dados)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
@@ -77,6 +92,22 @@ describe('varredura: o dado privado do canal próprio', () => {
     // nada de statement no topo além do import e da função (nenhuma chamada, nenhum new fora da função)
     const fora = s.replace(/^export function provasDeTipo\(\): void \{[\s\S]*\n\}\s*$/m, '').replace(/^import .*$/gm, '').trim()
     expect(fora).toBe('')
+  })
+  it('a prova de tipo do token de leitura está no tsc do web: 5 diretivas, uma única função exportada, nada fora dela', () => {
+    expect(Object.keys(reais)).toContain(TIPOS_LEITURA)
+    const bruto = reais[TIPOS_LEITURA]!
+    expect(bruto.match(/^\s*\/\/ @ts-expect-error/gm)).toHaveLength(5)
+    const s = semComentarios(bruto)
+    expect(s.match(/^export\b/gm)).toEqual(['export'])
+    expect(s).toMatch(/^export function provasDeTipo\(/m)
+    const fora = s.replace(/^export function provasDeTipo\([\s\S]*\n\}\s*$/m, '').replace(/^import .*$/gm, '').trim()
+    expect(fora).toBe('')
+  })
+  it('a leitura privada pede a guarda com mode "view" e nunca "edit" (quem pede edição é edicao.ts)', () => {
+    expect(Object.keys(reais)).toContain(LEITURA)
+    const s = semComentarios(reais[LEITURA]!)
+    expect(s).toMatch(/requireSiteScope\(\s*\{[^}]*mode:\s*'view'/)
+    expect(s).not.toMatch(/mode:\s*'edit'/)
   })
   it('a prova de edição pede a guarda com mode "edit" e nenhum outro', () => {
     const s = semComentarios(reais[EDICAO]!)
@@ -148,6 +179,29 @@ describe('varredura: o dado privado do canal próprio', () => {
     })
     it('a prova de tipo pode nomear a classe (não acusa a si mesma)', () => {
       expect(violacoes({ ...base, [TIPOS]: "import { EdicaoDoSite } from './edicao'\nclass S extends EdicaoDoSite {}\nnew EdicaoDoSite('s', Symbol())" })).toEqual([])
+    })
+    it('token de leitura: construir, usar a classe como valor, importá-la como valor ou por namespace, importar a prova de tipo', () => {
+      expect(violacoes({ ...base, 'app/x/a.ts': 'const t = new LeituraPrivadaDoSite("s")' })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await LeituraPrivadaDoSite.provar("s")' })).toHaveLength(1)
+      for (const codigo of ['class F extends LeituraPrivadaDoSite {}', 'Object.create(LeituraPrivadaDoSite.prototype)', 'Reflect.construct(LeituraPrivadaDoSite, ["s"])', 'const k = typeof LeituraPrivadaDoSite', 'if (x instanceof LeituraPrivadaDoSite) {}'])
+        expect(violacoes({ ...base, 'app/x/a.ts': codigo }), codigo).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "import * as L from '@/lib/youtube/observatorio/proprio/leitura-privada'" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "const m = await import('@/lib/youtube/observatorio/proprio/leitura-privada')" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { provasDeTipo } from '@/lib/youtube/observatorio/proprio/leitura-privada.type-test'" })).toHaveLength(1)
+      // como TIPO é permitido
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'" })).toEqual([])
+    })
+    it('token de leitura: pedir a prova fora do módulo e de dados.ts, citar a função do direito, importar num componente cliente', () => {
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await provarAcessoPrivado(siteId)' })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await provarLeituraPrivada(siteId)' })).toHaveLength(1)
+      expect(violacoes({ ...base, [DADOS]: 'await provarAcessoPrivado(siteId)' })).toEqual([])
+      expect(violacoes({ ...base, 'app/x/a.ts': "sb.rpc('can_view_private_site_as', {})" })).toEqual(['app/x/a.ts: cita a função do direito fora do módulo da leitura privada'])
+      expect(violacoes({ ...base, [LEITURA]: "sb.rpc('can_view_private_site_as', {})" })).toEqual([])
+      expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'" })).toEqual(['app/x/c.tsx: componente cliente importa o módulo da leitura privada'])
+    })
+    it('o módulo da leitura privada pode (não acusa a si mesmo)', () => {
+      expect(violacoes({ ...base, [LEITURA]: 'new LeituraPrivadaDoSite(s, k); provarAcessoPrivado(s)', [TIPOS_LEITURA]: "class S extends LeituraPrivadaDoSite {}" })).toEqual([])
     })
     it('voltar ao booleano', () => {
       expect(violacoes({ ...base, [DADOS]: 'a: { podeEditar: boolean }' })).toHaveLength(1)
