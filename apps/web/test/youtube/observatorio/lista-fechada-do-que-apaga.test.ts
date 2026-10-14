@@ -24,6 +24,8 @@ const LISTA: ParDaLista[] = [
   { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'competitor_channel_snapshots', disparo: 'cron', classe: 'retrato de canal com mais de 365 dias', excecao: 'R-A' },
   // Fora do Observatório (A/B Lab), mas na pasta varrida: classificado para não sair da lista sem aviso.
   { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'ab_test_polls', disparo: 'cron', classe: 'leitura do A/B Lab com mais de 7 dias (não é do Observatório)' },
+  // Linha 17 (E10 T11a): o único `del` do Blob do Observatório. Prefixo `observatorio/thumbs/`, conferido por `soMiniaturasDoObservatorio`.
+  { arquivo: 'src/lib/youtube/observatorio/arquivo/remover.ts', tabela: 'blob', disparo: 'dono', classe: 'miniatura de canal removido, com cópia conferida no arquivo (prefixo observatorio/thumbs/; nova tentativa diária das pendências)' },
   // Poda do acesso externo da IA (E17, MG11): a tabela chega por parâmetro de `podarTabela`, resolvido em PARAMETROS_RESOLVIDOS.
   { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_access_log', disparo: 'cron', classe: 'registro de acesso da IA com mais de 400 dias' },
   { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_rate', disparo: 'cron', classe: 'contador de taxa da IA com mais de 2 dias' },
