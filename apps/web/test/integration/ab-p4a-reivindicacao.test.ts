@@ -167,7 +167,7 @@ describe.skipIf(skipIfNoLocalDb())('migration da P4a', () => {
     expect(c0.end_reason).toBe('pausa')
   })
 
-  it('Phil PODE: ab_rotate_commit repetido com o mesmo seq e a mesma chamada devolve o mesmo ciclo e deixa um aberto só', async () => {
+  it('Phil R1-1: ab_rotate_commit repetido com o mesmo seq devolve o mesmo ciclo e deixa um aberto só', async () => {
     const s = clienteServico()
     const args = { p_test_id: t.testId, p_seq: 0, p_variant_id: t.varB, p_cycle_number: 1, p_applied_metadata: { x: 1 } }
     const a = await s.rpc('ab_rotate_commit', args)
@@ -178,18 +178,36 @@ describe.skipIf(skipIfNoLocalDb())('migration da P4a', () => {
     const c = (await s.from('ab_test_cycles').select('cycle_number, ended_at, applied_metadata').eq('test_id', t.testId).order('cycle_number')).data!
     expect(c).toHaveLength(2)
     expect(c.filter(x => x.ended_at === null).map(x => x.cycle_number)).toEqual([1])
-    expect(c[1]!.applied_metadata).toMatchObject({ x: 1 })
+    expect(c[1]!.applied_metadata).toMatchObject({ x: 1, _rotate: 0 })
   })
 
-  it('Phil PODE: rotações seguintes legítimas (mesmo seq, p_cycle_number novo, mesma variante) abrem ciclo novo', async () => {
+  it('Phil R1-1: retry com p_cycle_number diferente e o mesmo seq devolve o mesmo ciclo e deixa um só', async () => {
     const s = clienteServico()
     const base = { p_test_id: t.testId, p_seq: 0, p_variant_id: t.varB, p_applied_metadata: {} }
-    await s.rpc('ab_rotate_commit', { ...base, p_cycle_number: 1 })
-    const r = await s.rpc('ab_rotate_commit', { ...base, p_cycle_number: 2 })
-    expect(r.data).toBeTruthy()
+    const a = await s.rpc('ab_rotate_commit', { ...base, p_cycle_number: 1 })
+    const b = await s.rpc('ab_rotate_commit', { ...base, p_cycle_number: 7 })
+    expect(a.error).toBeNull(); expect(b.error).toBeNull()
+    expect(b.data).toBe(a.data)
     const c = (await s.from('ab_test_cycles').select('cycle_number, ended_at').eq('test_id', t.testId).order('cycle_number')).data!
+    expect(c.map(x => x.cycle_number)).toEqual([0, 1])
+    expect(c.filter(x => x.ended_at === null)).toHaveLength(1)
+  })
+
+  it('Phil R1-1: rotações legítimas (restore_seq avança entre as chamadas) abrem ciclo novo; seq velho depois devolve nulo', async () => {
+    const s = clienteServico()
+    const base = { p_test_id: t.testId, p_variant_id: t.varB, p_cycle_number: 1, p_applied_metadata: {} }
+    await s.rpc('ab_rotate_commit', { ...base, p_seq: 0 })
+    await s.from('ab_tests').update({ restore_seq: 1 }).eq('id', t.testId)
+    const r = await s.rpc('ab_rotate_commit', { ...base, p_seq: 1 })
+    expect(r.error).toBeNull()
+    expect(r.data).toBeTruthy()
+    const velho = await s.rpc('ab_rotate_commit', { ...base, p_seq: 0 })
+    expect(velho.error).toBeNull()
+    expect(velho.data).toBeNull()
+    const c = (await s.from('ab_test_cycles').select('cycle_number, ended_at, applied_metadata').eq('test_id', t.testId).order('cycle_number')).data!
     expect(c.map(x => x.cycle_number)).toEqual([0, 1, 2])
     expect(c.filter(x => x.ended_at === null).map(x => x.cycle_number)).toEqual([2])
+    expect(c[2]!.applied_metadata).toMatchObject({ _rotate: 1 })
   })
 
   // Phil DEVE 3: os p_extra da tabela 3.1 (encerrado, duracao_maxima, drift, falha_api).
