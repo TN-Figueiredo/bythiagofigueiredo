@@ -2360,3 +2360,282 @@ begin
 end $$;
 revoke all on function public.obs_archive_plan(uuid, boolean, text) from public, anon, authenticated;
 grant execute on function public.obs_archive_plan(uuid, boolean, text) to service_role;
+
+-- M3B PARTE 6: a fatia 12a (02 §10.5, "O destino do arquivo na remoção de canal"; 02 §11.3)
+
+create or replace function public.obs_archive_mark_purged(p_site uuid, p_ref text, p_actor uuid)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  update public.obs_archive_units set purged_at = now(), purged_by = p_actor, purge_ref = 'remocao:' || p_ref
+   where site_id = p_site and channel_ref = p_ref and purged_at is null;
+  get diagnostics n = row_count;
+  update public.obs_archive_summaries set purged_at = now(), purged_by = p_actor, purge_ref = 'remocao:' || p_ref
+   where site_id = p_site and channel_ref = p_ref and purged_at is null;
+  -- itens da E9 de vídeo e de comentário do canal (D15): concluídos com a anotação; a condição 10 deixa de contá-los
+  update public.competitor_removed_items set archive_pending = false, archive_note = 'canal apagado inteiro'
+   where site_id = p_site and competitor_channel_id::text = p_ref and kind in ('video', 'comentario') and archive_pending;
+  return n;
+end $$;
+revoke all on function public.obs_archive_mark_purged(uuid, text, uuid) from public, anon, authenticated, service_role;
+
+-- 02 §10.5: o mês video_antigo em que só sobra unidade retirada (dropped_at) de canal que continua ganha dropped_at.
+create or replace function public.obs_archive_video_antigo_months(p_site uuid, p_ref_removido text)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  with corrente as (
+    select distinct on (u.table_name, u.channel_ref, u.month) u.*
+      from public.obs_archive_units u
+     where u.site_id = p_site and u.class = 'video_antigo'
+     order by u.table_name, u.channel_ref, u.month, u.version desc
+  ), vivas as (
+    select c.* from corrente c
+     where c.purged_at is null and c.channel_ref <> coalesce(p_ref_removido, '')
+       and exists (select 1 from public.competitor_channels k where k.id::text = c.channel_ref and k.site_id = p_site)
+       and not exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = c.channel_ref)
+  ), meses as (
+    select v.month from vivas v group by v.month having count(*) > 0 and bool_and(v.dropped_at is not null)
+  )
+  update public.obs_archive_months m set dropped_at = now()
+    from meses x where m.site_id = p_site and m.class = 'video_antigo' and m.month = x.month and m.dropped_at is null;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.obs_archive_video_antigo_months(uuid, text) from public, anon, authenticated, service_role;
+
+-- As imagens no Blob de um canal: as online (versões de vídeo) e as dos anexos do registro. Uma só conta para a remoção, a decisão e o diálogo.
+create or replace function public.obs_archive_channel_blobs(p_site uuid, p_ref text)
+returns text[] language sql stable security definer set search_path = '' as $$
+  select coalesce(array_agg(distinct x.url), '{}'::text[]) from (
+    select vv.thumb_blob_url as url from public.competitor_video_versions vv
+      join public.competitor_videos v on v.id = vv.video_id
+      join public.competitor_channels ch on ch.id = v.competitor_channel_id
+     where ch.id::text = p_ref and ch.site_id = p_site and vv.thumb_blob_url is not null
+    union
+    select a.blob_url from public.obs_archive_unit_attachments a where a.site_id = p_site and a.channel_ref = p_ref and a.blob_url is not null
+  ) x
+$$;
+revoke all on function public.obs_archive_channel_blobs(uuid, text) from public, anon, authenticated, service_role;
+
+create or replace function public.competitor_channel_remove(p_site uuid, p_channel uuid, p_decision text, p_via text, p_actor uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_ch record; v_ref text := p_channel::text; v_units integer; v_bytes bigint; v_first date; v_last date; v_blobs text[];
+begin
+  if p_decision is null or p_decision not in ('apagar', 'guardar') then raise exception 'decisao_invalida' using errcode = 'P0001'; end if;
+  if p_via is null or p_via not in ('botao', 'fila', 'e10_export') then raise exception 'decisao_invalida' using errcode = 'P0001'; end if;   -- Yannis M9
+  if p_decision = 'guardar' and p_via <> 'e10_export' then raise exception 'guardar_so_pela_e10' using errcode = 'P0001'; end if;
+  if not public.obs_archive_is_site_admin(p_site, p_actor) then raise exception 'sem_direito' using errcode = 'P0001'; end if;
+  select c.id, c.channel_id, c.channel_name into v_ch from public.competitor_channels c where c.id = p_channel and c.site_id = p_site for update;
+  if not found then raise exception 'canal_nao_encontrado' using errcode = 'P0001'; end if;
+  -- unidades do conjunto corrente (a maior versão por classe, tabela e mês; Phil I8); bytes de todas as versões (o que está no disco)
+  select count(*) filter (where u.version = (select max(x.version) from public.obs_archive_units x where x.site_id = u.site_id and x.class = u.class
+                                               and x.table_name = u.table_name and x.channel_ref = u.channel_ref and x.month = u.month)),
+         coalesce(sum(u.file_bytes), 0), min(u.month), max(u.month)
+    into v_units, v_bytes, v_first, v_last
+    from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = v_ref and u.purged_at is null;
+  v_blobs := public.obs_archive_channel_blobs(p_site, v_ref);
+  insert into public.obs_archive_channel_removals (site_id, channel_ref, youtube_channel_id, name_at_removal, removed_at, removed_by, removed_via,
+         archive_decision, decided_at, decided_by, units_at_removal, bytes_at_removal, first_month, last_month, blobs_pending, online_thumbs_known, declared_xid)
+  values (p_site, v_ref, v_ch.channel_id, v_ch.channel_name, now(), p_actor, p_via, p_decision, now(), p_actor, v_units, v_bytes, v_first, v_last,
+          v_blobs, true, pg_current_xact_id());
+  if p_decision = 'apagar' then perform public.obs_archive_mark_purged(p_site, v_ref, p_actor); end if;
+  perform public.obs_archive_video_antigo_months(p_site, v_ref);
+  delete from public.competitor_channels where id = p_channel and site_id = p_site;   -- o gatilho da M6 (mês destacado) e o abaixo disparam aqui
+  return jsonb_build_object('status', 'ok', 'decisao', p_decision, 'unidades', v_units, 'blobs_pendentes', coalesce(array_length(v_blobs, 1), 0));
+end $$;
+revoke all on function public.competitor_channel_remove(uuid, uuid, text, text, uuid) from public, anon, authenticated;
+grant execute on function public.competitor_channel_remove(uuid, uuid, text, text, uuid) to service_role;
+
+create or replace function public.obs_archive_destino_declarado() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'TRUNCATE' then
+    if exists (select 1 from public.obs_archive_units) then
+      raise exception 'destino_do_arquivo_nao_declarado' using errcode = 'P0001', detail = 'truncate com unidade no registro';
+    end if;
+    return null;
+  end if;
+  if exists (select 1 from public.obs_archive_units u where u.site_id = old.site_id and u.channel_ref = old.id::text)
+     and not exists (select 1 from public.obs_archive_channel_removals r
+                      where r.site_id = old.site_id and r.channel_ref = old.id::text and r.declared_xid = pg_current_xact_id()) then
+    raise exception 'destino_do_arquivo_nao_declarado' using errcode = 'P0001', detail = old.id::text;
+  end if;
+  return old;
+end $$;
+revoke all on function public.obs_archive_destino_declarado() from public, anon, authenticated, service_role;
+drop trigger if exists obs_archive_z_destino_declarado on public.competitor_channels;
+create trigger obs_archive_z_destino_declarado before delete on public.competitor_channels for each row execute function public.obs_archive_destino_declarado();
+drop trigger if exists obs_archive_z_truncate on public.competitor_channels;
+create trigger obs_archive_z_truncate before truncate on public.competitor_channels for each statement execute function public.obs_archive_destino_declarado();
+
+-- 02 l.206-207: purged_* só com remoção 'apagar' e lost_* só em canal removido, por gatilho, e não só por check (Phil I5, K3).
+create or replace function public.obs_archive_mark_guard() returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if new.purged_at is not null and old.purged_at is null and not exists (select 1 from public.obs_archive_channel_removals r
+       where r.site_id = new.site_id and r.channel_ref = new.channel_ref and r.archive_decision = 'apagar') then
+    raise exception 'purga_sem_decisao_apagar' using errcode = 'P0001', detail = new.channel_ref;
+  end if;
+  if tg_table_name = 'obs_archive_units' and new.lost_at is not null and old.lost_at is null then
+    if exists (select 1 from public.competitor_channels c where c.id::text = new.channel_ref) then
+      raise exception 'perda_de_canal_que_existe' using errcode = 'P0001', detail = new.channel_ref;
+    end if;
+    if (new.lost_reason = 'nunca_recebida') <> (new.received_at is null) then
+      raise exception 'perda_incoerente' using errcode = 'P0001', detail = new.lost_reason;
+    end if;
+  end if;
+  return new;
+end $$;
+revoke all on function public.obs_archive_mark_guard() from public, anon, authenticated, service_role;
+drop trigger if exists obs_archive_mark_guard on public.obs_archive_units;
+create trigger obs_archive_mark_guard before update of purged_at, lost_at on public.obs_archive_units for each row execute function public.obs_archive_mark_guard();
+drop trigger if exists obs_archive_mark_guard on public.obs_archive_summaries;
+create trigger obs_archive_mark_guard before update of purged_at on public.obs_archive_summaries for each row execute function public.obs_archive_mark_guard();
+
+-- A decisão de apagar de um canal já removido: troca o `guardar` por `apagar`, ou cria a linha da vigia para o canal ausente sem destino (a UI é da M9).
+-- Dois cliques ao mesmo tempo: um `ok`, o outro `ja_pedido`. A trava da linha da remoção pelo expurgo é `for share` (record_core).
+create or replace function public.obs_archive_channel_removal_decide(p_site uuid, p_channel_ref text, p_actor uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_n integer; v_blobs text[];
+begin
+  if not public.obs_archive_is_site_admin(p_site, p_actor) then raise exception 'sem_direito' using errcode = 'P0001'; end if;
+  if exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = p_channel_ref) then
+    update public.obs_archive_channel_removals set archive_decision = 'apagar', decided_at = now(), decided_by = p_actor
+     where site_id = p_site and channel_ref = p_channel_ref and archive_decision = 'guardar';
+    get diagnostics v_n = row_count;
+    if v_n = 0 then return jsonb_build_object('status', 'ja_pedido'); end if;
+  else
+    if not exists (select 1 from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = p_channel_ref)
+       or exists (select 1 from public.competitor_channels c where c.id::text = p_channel_ref) then
+      raise exception 'canal_nao_encontrado' using errcode = 'P0001';
+    end if;
+    v_blobs := public.obs_archive_channel_blobs(p_site, p_channel_ref);
+    insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, decided_by, blobs_pending, online_thumbs_known, thumbs_unknown_ack_at)
+    values (p_site, p_channel_ref, 'vigia', 'apagar', now(), p_actor, v_blobs, false, now())
+    on conflict do nothing;
+    get diagnostics v_n = row_count;
+    if v_n = 0 then return jsonb_build_object('status', 'ja_pedido'); end if;
+  end if;
+  perform public.obs_archive_mark_purged(p_site, p_channel_ref, p_actor);
+  perform public.obs_archive_video_antigo_months(p_site, null);
+  insert into public.audit_log (actor_user_id, action, resource_type, site_id, after_data)
+  values (p_actor, 'obs_archive_channel_removal_decide', 'obs_archive_channel_removal', p_site, jsonb_build_object('channel_ref', p_channel_ref, 'decisao', 'apagar'));
+  return jsonb_build_object('status', 'ok');
+end $$;
+revoke all on function public.obs_archive_channel_removal_decide(uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_channel_removal_decide(uuid, text, uuid) to service_role;
+
+-- A lista derivada dos canais removidos (02 §10.5): as remoções mais as unidades de canal ausente sem remoção (sem_destino). Nunca o nome do canal.
+create or replace function public.obs_archive_removed_channel_list(p_site uuid)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  with ausentes as (
+    select u.channel_ref from public.obs_archive_units u
+     where u.site_id = p_site and not exists (select 1 from public.competitor_channels k where k.id::text = u.channel_ref and k.site_id = p_site)
+     group by u.channel_ref
+  ), refs as (
+    select r.channel_ref from public.obs_archive_channel_removals r where r.site_id = p_site
+    union select a.channel_ref from ausentes a
+  ), cur as (
+    select distinct on (u.class, u.table_name, u.month, u.channel_ref) u.channel_ref, u.class, u.month, u.row_count
+      from public.obs_archive_units u
+     where u.site_id = p_site and u.channel_ref in (select channel_ref from refs)
+     order by u.class, u.table_name, u.month, u.channel_ref, u.version desc
+  ), agg as (
+    select c.channel_ref, min(c.month) filter (where c.row_count > 0) as primeiro, max(c.month) filter (where c.row_count > 0) as ultimo,
+           count(distinct c.month) filter (where c.row_count > 0) as meses, coalesce(sum(c.row_count), 0) as registros, array_agg(distinct c.class order by c.class) as classes
+      from cur c group by c.channel_ref
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'channel_ref', f.channel_ref,
+      'estado', case when r.channel_ref is null then 'sem_destino'
+                     when not exists (select 1 from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = f.channel_ref)
+                          and not exists (select 1 from public.obs_archive_summaries s where s.site_id = p_site and s.channel_ref = f.channel_ref) then 'sem_arquivo'
+                     when r.archive_decision = 'guardar' then 'guardado'
+                     else 'pedido' end,
+      'decided_at', r.decided_at, 'nas_absent_at', r.nas_absent_at, 'b2_absent_at', r.b2_absent_at, 'snapshots_clear_on', r.snapshots_clear_on,
+      'reappeared_at', r.reappeared_at, 'reappeared_count', coalesce(r.reappeared_count, 0), 'online_thumbs_known', r.online_thumbs_known,
+      'thumbs_unknown_ack_at', r.thumbs_unknown_ack_at, 'blobs_pendentes', coalesce(array_length(r.blobs_pending, 1), 0), 'youtube_channel_id', r.youtube_channel_id,
+      'primeiro_mes', case when r.channel_ref is null then to_char(a.primeiro, 'YYYY-MM') end, 'ultimo_mes', case when r.channel_ref is null then to_char(a.ultimo, 'YYYY-MM') end,
+      'meses', case when r.channel_ref is null then coalesce(a.meses, 0) end, 'registros', case when r.channel_ref is null then coalesce(a.registros, 0) end,
+      'classes', case when r.channel_ref is null then to_jsonb(coalesce(a.classes, '{}'::text[])) end
+    ) order by f.channel_ref), '[]'::jsonb)
+    from refs f
+    left join public.obs_archive_channel_removals r on r.site_id = p_site and r.channel_ref = f.channel_ref
+    left join agg a on a.channel_ref = f.channel_ref
+$$;
+revoke all on function public.obs_archive_removed_channel_list(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_removed_channel_list(uuid) to service_role;
+
+-- P55: o que a restauração pergunta de um canal. Existe: não removido. Ausente com remoção: a decisão. Ausente sem remoção: sem destino.
+create or replace function public.obs_archive_channel_is_removed(p_site uuid, p_channel_ref text)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare v_dec text;
+begin
+  if exists (select 1 from public.competitor_channels c where c.id::text = p_channel_ref and c.site_id = p_site) then
+    return jsonb_build_object('removido', false, 'decisao', null, 'sem_destino', false);
+  end if;
+  select r.archive_decision into v_dec from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = p_channel_ref;
+  if found then return jsonb_build_object('removido', true, 'decisao', v_dec, 'sem_destino', false); end if;
+  return jsonb_build_object('removido', true, 'decisao', null, 'sem_destino', true);
+end $$;
+revoke all on function public.obs_archive_channel_is_removed(uuid, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_channel_is_removed(uuid, text) to service_role;
+
+-- A vigia da remoção (item 160): c1 órfãos sem remoção, c2 remoção com canal ainda existente, c3 apagar com unidade ou resumo sem purged_at, c4 concluído com o prefixo de volta.
+create or replace function public.obs_archive_vigia_remocao(p_site uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'c1', (select count(distinct u.channel_ref) from public.obs_archive_units u
+            where u.site_id = p_site and not exists (select 1 from public.competitor_channels k where k.id::text = u.channel_ref and k.site_id = p_site)
+              and not exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = u.channel_ref)),
+    'c2', (select count(*) from public.obs_archive_channel_removals r where r.site_id = p_site and exists (select 1 from public.competitor_channels k where k.id::text = r.channel_ref and k.site_id = p_site)),
+    'c3', (select count(*) from public.obs_archive_channel_removals r where r.site_id = p_site and r.archive_decision = 'apagar'
+            and (exists (select 1 from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = r.channel_ref and u.purged_at is null)
+                 or exists (select 1 from public.obs_archive_summaries s where s.site_id = p_site and s.channel_ref = r.channel_ref and s.purged_at is null))),
+    'c4', (select count(*) from public.obs_archive_channel_removals r where r.site_id = p_site and r.completed_at is not null and r.reappeared_at > r.completed_at))
+$$;
+revoke all on function public.obs_archive_vigia_remocao(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_vigia_remocao(uuid) to service_role;
+
+-- Os vermelhos da remoção, lidos por obs_archive_vermelhos (parte 5): canais sem destino e cada consulta da vigia com valor.
+create or replace function public.obs_archive_vermelhos_remocao(p_site uuid) returns text[]
+language plpgsql stable security definer set search_path = '' as $$
+declare v jsonb := public.obs_archive_vigia_remocao(p_site); r text[] := '{}';
+begin
+  if (v->>'c1')::int > 0 then r := array_append(r, format('%s canais removidos sem destino do arquivo', v->>'c1')); end if;
+  if (v->>'c2')::int > 0 then r := array_append(r, format('vigia da remoção: consulta 2 com %s', v->>'c2')); end if;
+  if (v->>'c3')::int > 0 then r := array_append(r, format('vigia da remoção: consulta 3 com %s', v->>'c3')); end if;
+  if (v->>'c4')::int > 0 then r := array_append(r, format('vigia da remoção: consulta 4 com %s', v->>'c4')); end if;
+  return r;
+end $$;
+revoke all on function public.obs_archive_vermelhos_remocao(uuid) from public, anon, authenticated, service_role;
+
+-- O que o diálogo de remover diz (Tarefa 12): o conjunto corrente do canal, o que já está fora do banco, os vídeos retirados e as imagens do Blob.
+create or replace function public.obs_archive_channel_archive_impact(p_site uuid, p_channel uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare v_ref text := p_channel::text; j jsonb;
+begin
+  if not exists (select 1 from public.competitor_channels c where c.id = p_channel and c.site_id = p_site) then
+    return jsonb_build_object('status', 'nao_encontrado');
+  end if;
+  with cur as (
+    select distinct on (u.class, u.table_name, u.month) u.class, u.table_name, u.month, u.row_count
+      from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = v_ref and u.purged_at is null
+     order by u.class, u.table_name, u.month, u.version desc
+  ), cheios as (select * from cur where row_count > 0),
+  fora as (
+    select c.month from cheios c where exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = c.class and m.table_name = c.table_name and m.month = c.month
+                                                 and (m.dropped_at is not null or m.detached_at is not null))
+  ), vr as (
+    select v.published_at from public.competitor_videos v where v.competitor_channel_id = p_channel and v.archive_dropped_at is not null
+  )
+  select jsonb_build_object('status', 'ok',
+      'meses', (select count(distinct month) from cheios), 'de', (select to_char(min(month), 'YYYY-MM') from cheios), 'ate', (select to_char(max(month), 'YYYY-MM') from cheios),
+      'registros', (select coalesce(sum(row_count), 0) from cheios),
+      'fora_do_banco', jsonb_build_object('meses', (select count(distinct month) from fora), 'de', (select to_char(min(month), 'YYYY-MM') from fora), 'ate', (select to_char(max(month), 'YYYY-MM') from fora)),
+      'videos_retirados', jsonb_build_object('n', (select count(*) from vr), 'de', (select min(published_at)::date::text from vr), 'ate', (select max(published_at)::date::text from vr)),
+      'imagens_blob', coalesce(array_length(public.obs_archive_channel_blobs(p_site, v_ref), 1), 0))
+    into j;
+  return j;
+end $$;
+revoke all on function public.obs_archive_channel_archive_impact(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_channel_archive_impact(uuid, uuid) to service_role;

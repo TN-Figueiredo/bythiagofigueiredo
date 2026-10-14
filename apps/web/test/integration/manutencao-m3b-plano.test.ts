@@ -254,7 +254,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
     const a = await semearCanal(c, { site: randomUUID(), videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     const u = await unidade(a.site, DAILY, a.canal); await unidade(a.site, EARLY, a.canal)
     await c.query(`insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month, last_ok_at, last_ok_file_id) values ($1, $2, 'serie', $3::date, now(), $4)`, [a.site, `u:${u.id}`, MES, FID(5)])
-    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known) values ($1, $2, 'e10_export', 'guardar', now(), true)`, [a.site, a.canal])
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid) values ($1, $2, 'e10_export', 'guardar', now(), true, pg_current_xact_id())`, [a.site, a.canal])
     await c.query(`delete from public.competitor_channels where id = $1`, [a.canal])
     expect((await plano(a.site)).aguardando_dono).toEqual([])                          // recebida e em dia no NAS: nada a procurar
     await c.query(`update public.obs_archive_units set nas_withdrawn_at = now(), nas_withdrawn_reason = 'ausente' where id = $1`, [u.id])
@@ -267,6 +267,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
   it('unidade expurgada exportada e não recebida vem em a_apagar, sob _recebendo/; há 31 dias, não (Phil M4)', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     const d = await unidade(a.site, DAILY, a.canal, false)
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known)
+      select distinct site_id, channel_ref, 'botao', 'apagar', now(), true from public.obs_archive_units where site_id = $1 on conflict do nothing`, [a.site])
     await c.query(`update public.obs_archive_units set purged_at = now() - interval '1 day', purged_by = $2, purge_ref = 'teste' where id = $1`, [d.id, randomUUID()])
     const p = await plano(a.site)
     expect(p.a_apagar).toHaveLength(1)
@@ -421,6 +423,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
     // o NAS volta (batimento bom): a volta fica registrada; a execução anterior foi cortada
     await batida(site, 'copiador')
     expect(await escalar(c, `select nas_back_at is not null from public.obs_archive_sweeps where site_id = $1 and finished_at is null`, [site])).toBe(true)
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known)
+      select distinct site_id, channel_ref, 'botao', 'apagar', now(), true from public.obs_archive_units where site_id = $1 on conflict do nothing`, [site])
     await c.query(`update public.obs_archive_units set purged_at = now(), purged_by = $2, purge_ref = 'teste' where site_id = $1 and id in (select id from public.obs_archive_units where site_id = $1 order by id limit 5)`, [site, randomUUID()])   // expurgada: não segura
     await c.query(`update public.obs_archive_units set nas_reported_at = now() + interval '1 minute' where site_id = $1 and id in (select id from public.obs_archive_units where site_id = $1 and purged_at is null order by id limit 700)`, [site])
     const restantes = await plano(site)                                                // silêncio já < 24 h: continua só com as que faltam

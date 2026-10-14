@@ -334,6 +334,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
   it('ilegivel de canal removido não volta a devida (K4)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31); SITE_DE_TESTE = a.site
     const { daily } = await unidadesDoCanal(a.site, a.canal)
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
+      select distinct site_id, channel_ref, 'botao', 'apagar', now(), true, pg_current_xact_id() from public.obs_archive_units where site_id = $1 on conflict do nothing`, [a.site])      // o destino declarado (parte 6): o gatilho deixa apagar
     await c.query(`delete from public.competitor_channels where id = $1`, [a.canal])
     await attest(a.site, [{ arquivo_id: daily.arquivo_id, resultado: 'ilegivel' }])
     expect(await q1(c, `select nas_withdrawn_reason, redo_reason from public.obs_archive_units where id = $1`, [daily.arquivo_id!.slice(2)])).toEqual({ nas_withdrawn_reason: 'divergente', redo_reason: null })
@@ -348,6 +350,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
   it('tudo purged: sem dado a guardar (item 158)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     await unidadesDoCanal(a.site, a.canal)
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
+      select distinct site_id, channel_ref, 'botao', 'apagar', now(), true, pg_current_xact_id() from public.obs_archive_units where site_id = $1 on conflict do nothing`, [a.site])
     await c.query(`update public.obs_archive_units set purged_at = now(), purged_by = gen_random_uuid(), purge_ref = 'teste' where site_id = $1`, [a.site])
     const m = await manifestoPelaRota({ site: a.site, classe: 'serie', mes: MES })
     expect(m.rows.arquivos.map(x => x.estado)).toEqual(['expurgada', 'expurgada'])
@@ -466,7 +470,24 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     expect(ids).toEqual([`p:${p.id}:01`, `p:${p.id}:02`])
   }))
 
-  it.skip('a corrida com a remoção, 20 vezes em cada forma (item 159): liga na Tarefa 8, quando competitor_channel_remove existir', () => undefined)
+  it('remover o canal antes do recebimento: unit/received devolve canal_removido e não grava (item 159; a corrida de 20 rodadas está em manutencao-m3b-remocao.test.ts)', async () => {
+    await c.query('begin')
+    try {
+      await aplicarM2(c); await c.query(readFileSync(M10A_SQL, 'utf8')); await aplicarM3b(c, 6)
+      await c.query(`select set_config('obs_archive.hoje', '2026-11-28', true)`)
+      const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
+      const u = await unidadePelaRota({ site: a.site, classe: 'serie', tabela: DAILY, canal: a.canal, mes: MES })
+      const admin = randomUUID()
+      const org = (await c.query(`select org_id from public.sites where id = $1`, [a.site])).rows[0].org_id as string
+      await c.query(`insert into auth.users (id, instance_id, aud, role, email) values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`, [admin, `m3b-${admin}@t.test`])
+      await c.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, admin])
+      expect((await c.query(`select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3) as r`, [a.site, a.canal, admin])).rows[0].r.status).toBe('ok')
+      const r = await receber(a.site, [item(u)])
+      expect(r.itens[0]?.resultado).toBe('canal_removido')
+      expect(await escalar(c, `select received_at is null from public.obs_archive_units where id = $1`, [u.arquivo_id!.slice(2)])).toBe(true)
+      expect((await unidadePelaRota({ site: a.site, classe: 'serie', tabela: DAILY, canal: a.canal, mes: MES })).status).toBe('canal_removido')
+    } finally { await c.query('rollback') }
+  })
 
   it('a rede: insert direto de unidade de canal apagar recusa (K3)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 0 })
@@ -539,6 +560,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
   it('unit/received de unidade com purged_at devolve canal_removido e não grava (item 159)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     const u = await unidadePelaRota({ site: a.site, classe: 'serie', tabela: DAILY, canal: a.canal, mes: MES })
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
+      select distinct site_id, channel_ref, 'botao', 'apagar', now(), true, pg_current_xact_id() from public.obs_archive_units where site_id = $1 on conflict do nothing`, [a.site])
     await c.query(`update public.obs_archive_units set purged_at = now(), purged_by = gen_random_uuid(), purge_ref = 't' where id = $1`, [u.arquivo_id!.slice(2)])
     const r = await receber(a.site, [item(u)])
     expect(r.itens[0]?.resultado).toBe('canal_removido')
