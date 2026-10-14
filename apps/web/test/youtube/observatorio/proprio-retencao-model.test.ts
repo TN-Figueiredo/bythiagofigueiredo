@@ -278,4 +278,13 @@ describe('E5b T15: os três períodos na aba', () => {
     const vazio = proprioWorld({ cenario: 'vazio' })
     expect(buildRetencao(vazio.obs, vazio.canalId, vazio.dados, { dm: vazio.dm, periodos: p }).periodos).toBe(p)
   })
+  it('diário negado ou com erro: periodos some (a frase de acesso sai uma vez só; Yannis m-9)', () => {
+    const w = com(MUNDO, plano(PCT, VPD))
+    const p = buildAssistidoPeriodos({ tela: 'canal', acesso: 'negado', normais: NORMAIS, faixas: null, videoPct: null, buracos: { inteiro: null, '90': null, '28': null }, diarioDesde: null, ultimoDia: null, dm: w.dm, dmy: w.dm })
+    for (const acesso of ['negado', 'erro'] as const) {
+      const r = buildRetencao(w.obs, w.canalId, { ...w.dados, diario: { acesso } }, { dm: w.dm, periodos: p })
+      expect(r.estado).toBe(acesso)
+      expect(r.periodos).toBeNull()
+    }
+  })
 })

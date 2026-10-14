@@ -112,8 +112,9 @@ function vazia(estado: EstadoRetencao, vazio: string, nota: string, periodos: As
 }
 
 export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoCanal, o: { dm: (d: DiaYt) => string; periodos?: AssistidoPeriodosView | null }): RetencaoView {
-  const periodos = o.periodos ?? null
   const d = dados.diario
+  // negado/erro: a frase de acesso já sai em `vazio`; os cartões repetiriam a mesma frase (Yannis m-9)
+  const periodos = d.acesso === 'ok' ? (o.periodos ?? null) : null
   const ultimo = d.acesso === 'ok' ? d.dado.ultimoDia : null
   const nota0 = notaDe(ultimo, o.dm)
   if (d.acesso === 'negado') return vazia('negado', 'Só quem edita o site vê o % assistido.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO, periodos)
