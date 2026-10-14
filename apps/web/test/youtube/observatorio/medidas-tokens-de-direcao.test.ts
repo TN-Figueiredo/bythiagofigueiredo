@@ -25,4 +25,11 @@ describe('tokens de direção (E5a T3)', () => {
       '_proprio/video-blocos.css',
     ])
   })
+  it('em medidas.css, --dir-* só aparece em seletor de direção (.obs-md-dir*, .obs-md-rg*, .em_queda): parado e pausado têm cor própria', () => {
+    const txt = fs.readFileSync(path.join(DIR, '_chrome/medidas/medidas.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const regras = [...txt.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => /--dir-(up|dn|eq)/.test(m[2]!))
+    expect(regras.length).toBeGreaterThan(0)
+    for (const m of regras) expect(m[1]!.trim(), m[1]).toMatch(/^(\[data-obs\]\s+)?\.(obs-md-dir|obs-md-rg|obs-md-pas\.em_queda)/)
+    expect(txt).not.toMatch(/\.obs-md-pas\.(parado|pausado)[^{]*\{[^}]*--dir-/)
+  })
 })

@@ -2,9 +2,11 @@
 import { medido, naoMedido, type Medida } from '@/lib/youtube/observatorio/medidas/tipos'
 import type { ValorDirecaoCanal } from '@/lib/youtube/observatorio/medidas/direcao'
 import type { M8DoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
-import type { EstadoDoCanal } from '@/lib/youtube/observatorio/medidas/estado-canal'
+import { estadoDoCanal, type EstadoDoCanal } from '@/lib/youtube/observatorio/medidas/estado-canal'
 import type { ExtrasDoCanal } from '@/lib/youtube/observatorio/medidas-telas/ler-extras-dos-canais'
 import type { MedidasParaLista } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
+import { spDateOf } from '@/lib/youtube/observatorio/time'
+import { ritmo } from '@/lib/youtube/observatorio/medidas/ritmo'
 import type { Observatory } from '@/lib/youtube/observatorio'
 
 export const JANELA = { de: '2026-08-25', ate: '2026-10-13', dias: 56 }
@@ -38,12 +40,23 @@ export function medidasDoMotor(obs: Pick<Observatory, 'channels'>, sobre: PorCan
   return { porCanal, extras: extrasNaoLidos ? { lido: false, causa: 'erro_do_banco' } : { lido: true, dados: extras } }
 }
 
-/** O oráculo não tem retratos: o M8 sintético diz "parado" para os canais que o motor chama de parados, com os mesmos dias (`pausedDays`). */
-export function medidasDoOraculo(obs: Pick<Observatory, 'channels' | 'videos'>): MedidasParaLista {
+/**
+ * O oráculo não tem retratos. O M8 sintético é calculado AQUI, de forma independente do motor: `estadoDoCanal` (a regra nova: parado se
+ * os dias sem publicar passam de max(28, 4 × intervalo mediano das 13 semanas)) sobre as datas dos vídeos do canal, sem olhar `activity.state`.
+ * Antes (T5) a fixture copiava o `activity.state` do motor (30 dias), o que tornava as duas regras iguais por construção e escondia a
+ * diferença no retrato da T0b (Phil, portão T0b-T4, I2).
+ */
+export function medidasDoOraculo(obs: Pick<Observatory, 'channels' | 'videos' | 'NOW'>): MedidasParaLista {
   const sobre: PorCanal = {}
   for (const c of obs.channels) {
     if (c.own) continue
-    sobre[c.id] = c.activity.state === 'parado' ? { m8: m8De('parado', { dias: c.activity.pausedDays ?? 40, limite: 28, ultimaEm: Math.max(...obs.videos.filter(v => v.ch === c.id).map(v => v.pub)) }) } : {}
+    const pubs = obs.videos.filter(v => v.ch === c.id).map(v => v.pub)
+    const r = ritmo(pubs, { agoraMs: obs.NOW, parcial: false })
+    const e = estadoDoCanal({
+      missingSince: null, ultimaPublicacaoMs: pubs.length ? Math.max(...pubs) : null, intervaloMedianoDias: r.estado === 'medido' ? r.valor.intervaloMedianoDias : null,
+      retratos: [], hojeSP: spDateOf(obs.NOW), agoraMs: obs.NOW, collectionPausedAt: null,
+    })
+    sobre[c.id] = e.estado === 'parado' && e.parado.estado === 'medido' ? { m8: m8De('parado', { dias: e.parado.valor.dias, limite: e.parado.valor.limite, ultimaEm: e.parado.valor.ultimaEm }) } : {}
   }
   return medidasDoMotor(obs, sobre)
 }

@@ -45,6 +45,7 @@ export function celulaDeDirecao(
   }
   const { ganhoRecente, ganhoAnterior } = m3a.valor
   const pct = pctDosGanhos(ganhoRecente, ganhoAnterior)
+  if (pct === null) return { tipo: 'nao_medido', motivo: 'base_zero', curta: FRASE_SEM_VIEWS, longa: FRASES.base_zero({}).longa }
   const x = direcaoExibida(pct / 100)
   const reg = posicaoNaRegua(pct, 50, (ganhoRecente - ganhoAnterior) / ganhoAnterior)
   return {

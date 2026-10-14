@@ -215,11 +215,69 @@ describe('E5a T2: erro, cache e prazo', () => {
     await carregarMedidasDoSite(f.sb, { siteId: 's1', obs: obsDe(['a'], [], LAST + MIN), canais: ['a'], agoraMs: T0 })
     expect(doCanal(f, 'competitor_videos')).toBe(2)
   })
-  it('duas falhas da mesma medida e causa em canais diferentes saem com a mesma impressão digital', async () => {
-    const f = falsoPostgrest(tabelas(['a', 'b'], false))
-    await carregarMedidasDoSite(f.sb, { siteId: 's1', obs: obsDe(['a', 'b']), canais: ['a', 'b'], agoraMs: T0 })
+  it('14 canais com a mesma falha de marcas geram UM evento, com canais = 14 e a mesma impressão digital', async () => {
+    const ids = Array.from({ length: 14 }, (_, k) => 'c' + k)
+    const f = falsoPostgrest(tabelas(ids, false))
+    const r = await carregarMedidasDoSite(f.sb, { siteId: 's1', obs: obsDe(ids), canais: ids, agoraMs: T0 })
+    expect(r.falhas.filter((x) => x.medida === 'marcas').length).toBe(14) // a tela continua sabendo canal a canal
+    const evs = sentry.captureMessage.mock.calls as Array<[string, { fingerprint: string[]; extra: { canais: number; exemplo: string[] } }]>
+    const marcas = evs.filter((c) => JSON.stringify(c[1].fingerprint) === JSON.stringify(['medidas-telas', 'marcas', 'schema_ausente']))
+    expect(marcas.length).toBe(1)
+    expect(marcas[0]![1].extra.canais).toBe(14)
+    expect(marcas[0]![1].extra.exemplo.length).toBeLessThanOrEqual(5)
+  })
+  it('duas causas diferentes geram dois eventos; a mesma causa em dois canais, um só', async () => {
+    const f = falsoPostgrest(tabelas(['a', 'b'], false), { colunasAusentes: { competitor_channels: ['subscribers_hidden'] } })
+    const r = await carregarMedidasDoSite(f.sb, { siteId: 's1', obs: obsDe(['a', 'b']), canais: ['a', 'b'], agoraMs: T0 })
+    expect(r.extras.lido).toBe(false)
+    const dedos = sentry.captureMessage.mock.calls.map((c) => JSON.stringify((c[1] as { fingerprint: string[] }).fingerprint)).sort()
+    expect(dedos).toContain(JSON.stringify(['medidas-telas', 'marcas', 'schema_ausente']))
+    expect(dedos).toContain(JSON.stringify(['medidas-telas', 'extras', 'schema_ausente']))
+    expect(new Set(dedos).size).toBe(dedos.length)
+  })
+  it('erro de código no cálculo vai ao Sentry com causa própria, e o canal sai não carregou', async () => {
+    const f = falsoPostgrest(tabelas(['a']))
+    const obs = { channels: obsDe(['a']).channels, get videos(): never { throw new Error('bug no cálculo') } } as unknown as IObservatorioDeMedidas
+    const r = await carregarMedidasDoSite(f.sb, { siteId: 's1', obs, canais: ['a'], agoraMs: T0 })
+    expect(r.porCanal.get('a')).toEqual({ naoCarregou: 'erro_do_banco' })
+    expect(r.falhas).toContainEqual({ canal: 'a', medida: 'leitura', classe: 'calculo_falhou' })
     const dedos = sentry.captureMessage.mock.calls.map((c) => JSON.stringify((c[1] as { fingerprint: string[] }).fingerprint))
-    expect(dedos.filter((d) => d === JSON.stringify(['medidas-telas', 'marcas', 'schema_ausente'])).length).toBe(2)
+    expect(dedos).toContain(JSON.stringify(['medidas-telas', 'leitura', 'calculo_falhou']))
+  })
+  it('extras presos: o conjunto volta no prazo com extras tempo_esgotado e o canal saudável medido', async () => {
+    vi.useFakeTimers()
+    const f = falsoPostgrest(tabelas(['a']))
+    // a consulta dos extras é a de competitor_channels sem eq de id
+    const preso = espiar(f.sb, (t, eqs, seguir) => (t === 'competitor_channels' && !eqs.includes('a') ? new Promise(() => undefined) : seguir()))
+    const prom = carregarMedidasDoSite(preso, { siteId: 's1', obs: obsDe(['a']), canais: ['a'], agoraMs: T0 })
+    await vi.advanceTimersByTimeAsync(12_001)
+    const r = await prom
+    expect(r.extras).toEqual({ lido: false, causa: 'tempo_esgotado' })
+    const a = r.porCanal.get('a')
+    expect(a !== undefined && !('naoCarregou' in a)).toBe(true)
+    const dedos = sentry.captureMessage.mock.calls.map((c) => JSON.stringify((c[1] as { fingerprint: string[] }).fingerprint))
+    expect(dedos).toContain(JSON.stringify(['medidas-telas', 'extras', 'tempo_esgotado']))
+  })
+  it('leitura que estourou o prazo e falha depois não grava falha nem avisa depois da resposta', async () => {
+    vi.useFakeTimers()
+    const f = falsoPostgrest(tabelas(['a', 'b'], false))
+    const tardio = espiar(f.sb, (t, eqs, seguir) => (t === 'competitor_channels' && eqs.includes('b') ? new Promise((res) => { setTimeout(() => res(seguir()), 20_000) }) : seguir()))
+    const prom = carregarMedidasDoSite(tardio, { siteId: 's1', obs: obsDe(['a', 'b']), canais: ['a', 'b'], agoraMs: T0 })
+    await vi.advanceTimersByTimeAsync(12_001)
+    const r = await prom
+    const falhasNaResposta = JSON.stringify(r.falhas)
+    const eventos = sentry.captureMessage.mock.calls.length
+    await vi.advanceTimersByTimeAsync(200_000) // a leitura abandonada (cada consulta do b demora 20 s) termina, com marcas ausentes, depois da resposta
+    expect(JSON.stringify(r.falhas)).toBe(falhasNaResposta)
+    expect(sentry.captureMessage.mock.calls.length).toBe(eventos)
+  })
+  it('entrada de cache acima de ~1,5 MB gera aviso no Sentry (acima_do_orcamento)', async () => {
+    const t = tabelas(['a'])
+    t.competitor_videos = Array.from({ length: 4000 }, (_, k) => ({ ...videoRow('a' + k, 'a', 10 + (k % 80)), titulo_extra: 'x'.repeat(300) }))
+    const f = falsoPostgrest(t)
+    await carregarMedidasDoSite(f.sb, { siteId: 's1', obs: obsDe(['a']), canais: ['a'], agoraMs: T0 })
+    const dedos = sentry.captureMessage.mock.calls.map((c) => JSON.stringify((c[1] as { fingerprint: string[] }).fingerprint))
+    expect(dedos).toContain(JSON.stringify(['medidas-telas', 'cache', 'acima_do_orcamento']))
   })
 })
 

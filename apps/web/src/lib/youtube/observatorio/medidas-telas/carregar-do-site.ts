@@ -34,7 +34,7 @@ export interface IObservatorioDeMedidas extends IMotorDeMultiplos {
 
 export interface MedidasDoSite {
   porCanal: Map<string, MedidasDoCanal | { naoCarregou: CausaDeFalha }>
-  extras: Parte<Map<string, ExtrasDoCanal>>
+  extras: Parte<Map<string, ExtrasDoCanal>> | { lido: false; causa: 'tempo_esgotado' }
   falhas: Array<{ canal: string; medida: string; classe: string }>
   esgotou: number
 }
@@ -72,10 +72,14 @@ async function lerPartes(sb: SupabaseClient, o: { siteId: string; channelId: str
 
 const tudoLido = (p: InsumosPlanos): boolean => p.canal.lido && p.videos.lido && p.marcas.lido && p.retratos.lido
 
-async function lerParaOCache(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }): Promise<EntradaDoCanal> {
+/** A entrada do cache passou de ~1,5 MB: o Next recusa acima de 2 MB (e só avisa no console), e toda abertura do canal vira fria. */
+export const ORCAMENTO_DA_ENTRADA = 1_500_000
+
+async function lerParaOCache(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, avisos: Avisos): Promise<EntradaDoCanal> {
   const planos = await lerPartes(sb, o)
   // o que não foi lido por inteiro não é guardado
   if (!tudoLido(planos)) throw new LeituraParcial(planos)
+  if (JSON.stringify(planos).length > ORCAMENTO_DA_ENTRADA) avisos.add('cache', 'acima_do_orcamento', o.channelId)
   return { lidoEm: o.agoraMs, planos }
 }
 
@@ -88,10 +92,36 @@ const naoLidas = (p: InsumosPlanos): Array<{ medida: string; causa: CausaNaoLida
   return out
 }
 
-function avisar(medida: string, causa: string, canal: string): void {
-  Sentry.captureMessage('observatório: medida das telas não carregou (' + medida + ': ' + causa + ')', {
-    level: 'warning', fingerprint: ['medidas-telas', medida, causa], tags: { component: 'observatorio', step: 'medidas-telas' }, extra: { canal },
-  })
+/**
+ * Falhas de uma abertura, agrupadas: UM evento por par medida/causa ao fechar, com o nº de canais (cada captureMessage conta na cota
+ * do Sentry; uma falha persistente por canal e por abertura a esgotaria). Depois de fechado, escritas tardias (leitura que estourou o
+ * prazo) são descartadas.
+ */
+interface Avisos { add(medida: string, causa: string, canal: string): void; fechar(): void; readonly fechado: boolean }
+
+function novosAvisos(): Avisos {
+  const grupos = new Map<string, { medida: string; causa: string; canais: Set<string> }>()
+  let fechado = false
+  return {
+    get fechado() { return fechado },
+    add(medida, causa, canal) {
+      if (fechado) return
+      const k = medida + '|' + causa
+      const g = grupos.get(k) ?? { medida, causa, canais: new Set<string>() }
+      g.canais.add(canal)
+      grupos.set(k, g)
+    },
+    fechar() {
+      if (fechado) return
+      fechado = true
+      for (const g of grupos.values()) {
+        Sentry.captureMessage('observatório: medida das telas não carregou (' + g.medida + ': ' + g.causa + ')', {
+          level: 'warning', fingerprint: ['medidas-telas', g.medida, g.causa], tags: { component: 'observatorio', step: 'medidas-telas' },
+          extra: { canais: g.canais.size, exemplo: [...g.canais].slice(0, 5) },
+        })
+      }
+    },
+  }
 }
 
 function comPrazo<T>(p: Promise<T>, ms: number): Promise<T | 'tempo_esgotado'> {
@@ -140,6 +170,13 @@ async function lerExtras(sb: SupabaseClient, siteId: string, agoraMs: number): P
 
 export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedidas): Promise<MedidasDoSite> {
   const falhas: MedidasDoSite['falhas'] = []
+  const avisos = novosAvisos()
+  /** Registra a falha de um canal (tela) e a soma ao aviso do par medida/causa; nada depois do fechamento. */
+  const falhou = (canal: string, medida: string, classe: string): void => {
+    if (avisos.fechado) return
+    falhas.push({ canal, medida, classe })
+    avisos.add(medida, classe, canal)
+  }
   const porCanal: MedidasDoSite['porCanal'] = new Map()
   let esgotou = 0
   const proprios = new Set(p.obs.channels.filter((c) => c.own).map((c) => c.id))
@@ -152,23 +189,21 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     let planos: InsumosPlanos
     try {
       let entrada: EntradaDoCanal
-      if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o)
+      if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o, avisos)
       else {
-        const guardada = await unstable_cache(() => lerParaOCache(sb, o), ['medidas-telas', String(MEDIDAS_TELAS_V), p.siteId, channelId, String(last)], { tags: [observatoryTag(p.siteId)], revalidate: VALIDADE_S })()
-        entrada = p.agoraMs - guardada.lidoEm > VALIDADE_MS ? await lerParaOCache(sb, o) : guardada
+        const guardada = await unstable_cache(() => lerParaOCache(sb, o, avisos), ['medidas-telas', String(MEDIDAS_TELAS_V), p.siteId, channelId, String(last)], { tags: [observatoryTag(p.siteId)], revalidate: VALIDADE_S })()
+        entrada = p.agoraMs - guardada.lidoEm > VALIDADE_MS ? await lerParaOCache(sb, o, avisos) : guardada
       }
       planos = entrada.planos
     } catch (err) {
       if (!(err instanceof LeituraParcial)) {
-        falhas.push({ canal: channelId, medida: 'leitura', classe: 'erro_do_banco' })
-        avisar('leitura', 'erro_do_banco', channelId)
+        falhou(channelId, 'leitura', 'erro_do_banco')
         return { naoCarregou: 'erro_do_banco' }
       }
       planos = err.insumos
     }
     for (const f of naoLidas(planos)) {
-      falhas.push({ canal: channelId, medida: f.medida, classe: f.causa })
-      avisar(f.medida, f.causa, channelId)
+      falhou(channelId, f.medida, f.causa)
     }
     if (!planos.canal.lido) return { naoCarregou: planos.canal.causa }
     const insumos = remontar(planos)
@@ -179,16 +214,15 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     insumos.multiplos = multiplosDoCanal(p.obs, channelId, p.agoraMs)
     const m = medidasDoCanal(insumos, { agoraMs: p.agoraMs })
     for (const f of m.falhas) {
-      falhas.push({ canal: channelId, medida: f.medida, classe: f.classe })
-      avisar(f.medida, f.classe, channelId)
+      falhou(channelId, f.medida, f.classe)
     }
     return m
   }
 
   // um prazo só para o conjunto (a página tem 60 s): fim = início + PRAZO, e não 12 s por canal
   const fim = Date.now() + PRAZO_DAS_MEDIDAS_MS
-  const [extras] = await Promise.all([
-    lerExtras(sb, p.siteId, p.agoraMs),
+  const [extrasLidos] = await Promise.all([
+    comPrazo(lerExtras(sb, p.siteId, p.agoraMs), Math.max(1, fim - Date.now())),
     mapaComLimite(aLer, CANAIS_AO_MESMO_TEMPO, async (id) => {
       let r: Awaited<ReturnType<typeof lerUm>> | 'tempo_esgotado'
       const restante = fim - Date.now()
@@ -197,18 +231,21 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
         try {
           r = await comPrazo(lerUm(id), restante)
         } catch {
+          // lançou fora das leituras (cálculo): erro de código, não do banco; vai ao Sentry com causa própria
           r = { naoCarregou: 'erro_do_banco' }
-          falhas.push({ canal: id, medida: 'leitura', classe: 'erro_do_banco' })
+          falhou(id, 'leitura', 'calculo_falhou')
         }
       }
       if (r === 'tempo_esgotado') {
         esgotou++
-        falhas.push({ canal: id, medida: 'leitura', classe: 'tempo_esgotado' })
-        avisar('leitura', 'tempo_esgotado', id)
+        falhou(id, 'leitura', 'tempo_esgotado')
         r = { naoCarregou: 'tempo_esgotado' }
       }
       porCanal.set(id, r)
     }),
   ])
+  const extras: MedidasDoSite['extras'] = extrasLidos === 'tempo_esgotado' ? { lido: false, causa: 'tempo_esgotado' } : extrasLidos
+  if (!extras.lido) avisos.add('extras', extras.causa, '-')
+  avisos.fechar()
   return { porCanal, extras, falhas, esgotou }
 }

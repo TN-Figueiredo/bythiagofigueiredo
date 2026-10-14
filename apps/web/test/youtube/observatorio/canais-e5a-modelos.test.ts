@@ -25,6 +25,11 @@ function m8(estado: 'ativo' | 'parado' | 'em_queda' | 'pausado' | 'fora_do_ar', 
 const quedaOk = (v: number[]) => medido({ janelas: v }, 4, J)
 
 describe('E5a T5: célula de direção', () => {
+  it('ganho anterior zero medido não lança: vira não medido (base_zero)', () => {
+    const m = medido<ValorDirecaoCanal>({ variacao: 0, direcao: 'igual', ganhoRecente: 10, ganhoAnterior: 0 }, 3, J)
+    const c = celulaDeDirecao(m, EX)
+    expect(c.tipo).toBe('nao_medido')
+  })
   it('medida: o percentual sai dos dois ganhos inteiros, com símbolo e régua', () => {
     const c = celulaDeDirecao(dir(2171, 1840), EX)
     expect(c).toMatchObject({ tipo: 'medido', pct: 18, simbolo: 'sobe', texto: '+18%', ganhoRecente: 2171, ganhoAnterior: 1840 })

@@ -20,10 +20,11 @@ export function direcaoExibida(variacao: number): { pct: number; simbolo: Simbol
   return { pct, simbolo, texto }
 }
 
-/** O mesmo percentual a partir dos dois ganhos inteiros de M3(a). Base zero não tem percentual: quem chama não chama. */
-export function pctDosGanhos(ganhoRecente: number, ganhoAnterior: number): number {
-  if (!(ganhoAnterior > 0)) throw new RangeError('base_zero')
-  return arredonda((ganhoRecente - ganhoAnterior) / ganhoAnterior)
+/** O mesmo percentual a partir dos dois ganhos inteiros de M3(a). Base zero (ou valor não finito) não tem percentual: nulo, nunca lança no render. */
+export function pctDosGanhos(ganhoRecente: number, ganhoAnterior: number): number | null {
+  if (!(ganhoAnterior > 0)) return null
+  const v = (ganhoRecente - ganhoAnterior) / ganhoAnterior
+  return Number.isFinite(v) ? arredonda(v) : null
 }
 
 /** A régua vai de −limite a +limite, desenhada de 5% a 95% da largura; fora disso a ponta encosta e o valor verdadeiro segue no texto. */

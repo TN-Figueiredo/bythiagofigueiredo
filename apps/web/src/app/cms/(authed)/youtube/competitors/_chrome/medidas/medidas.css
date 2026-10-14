@@ -18,7 +18,10 @@
 /* Estado do canal (pastilhas sob o nome). "Ativo" não tem pastilha. */
 [data-obs] .obs-md-est{display:grid;gap:3px;justify-items:start;min-width:0;max-width:228px}
 [data-obs] .obs-md-pas{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:2px 9px;border-radius:6px;font:500 12.5px/1.25 var(--sans,sans-serif);color:var(--text);border:1.5px solid var(--c,var(--muted));background:transparent}
-[data-obs] .obs-md-pas.parado,[data-obs] .obs-md-pas.em_queda,[data-obs] .obs-md-pas.pausado{--c:var(--dir-dn)}
+[data-obs] .obs-md-pas.em_queda{--c:var(--dir-dn)}
+/* parado e coleta pausada são estado, não direção: cor própria (item 241 reserva --dir-* à direção) */
+[data-obs] .obs-md-pas.parado{--c:var(--lado-n)}
+[data-obs] .obs-md-pas.pausado{--c:var(--im-zero)}
 [data-obs] .obs-md-pas.fora_do_ar{--c:var(--danger,#C0392B)}
 [data-obs] .obs-md-pas.sem_videos{--c:var(--muted);border-style:dotted}
 [data-obs] .obs-md-pas-i{display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--c);font-size:12px;line-height:1}

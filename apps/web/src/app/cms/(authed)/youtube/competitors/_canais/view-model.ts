@@ -224,7 +224,7 @@ export interface CanaisDrawerForja {
 /** As medidas do site que a lista lê (M3a e M8 de cada canal e os campos do canal). `MedidasDoSite` serve; ausente ou nulo = não carregaram. */
 export interface MedidasParaLista {
   porCanal: ReadonlyMap<string, Pick<MedidasDoCanal, 'm3a' | 'm8'> | { naoCarregou: string }>
-  extras: Parte<ReadonlyMap<string, ExtrasDoCanal>>
+  extras: Parte<ReadonlyMap<string, ExtrasDoCanal>> | { lido: false; causa: 'tempo_esgotado' }
 }
 const MEASURE_QUEDA_JANELAS = MEASURE_RULES.decline.windows, MEASURE_JANELA_DIAS = MEASURE_RULES.direction.windowDays
 export type DirecaoFiltro = 'sobe' | 'estavel' | 'desce' | 'nao-medido'

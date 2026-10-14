@@ -30,8 +30,10 @@ describe('direção exibida (E5a T1)', () => {
       expect(d.texto).toBe('0%'); expect(d.simbolo).toBe('estavel')
     }
   })
-  it('pctDosGanhos recusa base zero em vez de inventar número', () => {
-    expect(() => pctDosGanhos(10, 0)).toThrow()
+  it('pctDosGanhos com base zero ou inválida devolve nulo, nunca lança nem inventa número', () => {
+    expect(pctDosGanhos(10, 0)).toBeNull()
+    expect(pctDosGanhos(10, -5)).toBeNull()
+    expect(pctDosGanhos(Number.NaN, 5)).toBeNull()
   })
   it('fora da escala encosta na ponta e guarda o valor', () => {
     const acima = posicaoNaRegua(217, 60), abaixo = posicaoNaRegua(-63, 60)
