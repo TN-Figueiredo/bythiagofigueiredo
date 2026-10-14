@@ -761,7 +761,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4 Tarefa 9: a MG4, função por função
     await dentro(async () => {
       const c = await cena()
       const { v, agora, ini, fim } = await videoComBuraco(c)
-      await pausa(c, ini + 60_000, fim - 8 * H)
+      await pausa(c, ini, fim - 8 * H - 60_000) // (revisão Phil 14/10, I1) um só trecho de 8 h 01 min depois da pausa
       expect(await cruza(v, 1, agora)).toBe(false)
     })
   })
@@ -772,6 +772,37 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4 Tarefa 9: a MG4, função por função
       const { v, agora, ini } = await videoComBuraco(c)
       await pausa(c, ini + H, ini + 105 * H) // 104 h
       await pausa(c, ini + 49 * H, ini + 105 * H) // 56 h, toda dentro da primeira: a soma (160 h) passaria do buraco, a união (104 h) deixa 16 h
+      expect(await cruza(v, 1, agora)).toBe(false)
+    })
+  })
+
+  // (revisão Phil 14/10, I1) o critério é o MAIOR trecho sem leitura fora da pausa, não a soma dos trechos: cada lado da pausa é limitado
+  // pela cadência da leitura. Dois trechos curtos cuja soma passa do limite e nenhum passa sozinho: o par cruza.
+  it('despausado: dois trechos curtos fora da pausa (soma acima do limite, cada um abaixo) cruzam, idade 1', async () => {
+    await dentro(async () => {
+      const c = await cena()
+      const { v, agora, ini, fim } = await videoComBuraco(c)
+      await pausa(c, ini + 5 * H, fim - 5 * H) // sobram 5 h antes e 5 h depois: soma 10 h > 8 h, maior 5 h <= 8 h
+      expect(await cruza(v, 1, agora)).toBe(true)
+    })
+  })
+
+  it('despausado: dois trechos de 20 h fora da pausa (soma 40 h acima de 36 h) cruzam, idade 7', async () => {
+    await dentro(async () => {
+      const c = await cena()
+      const v = await video(c)
+      const a = ANCORA + 7 * DAY - 60 * H, b = a + 120 * H // o alvo da idade 7 fica no meio do buraco
+      await diaria(v, a, 100); await diaria(v, b, 500)
+      await pausa(c, a + 20 * H, b - 20 * H)
+      expect(await cruza(v, 7, ANCORA + 12 * DAY)).toBe(true)
+    })
+  })
+
+  it('despausado: um dos trechos fora da pausa acima do limite não cruza, mesmo com o outro curto', async () => {
+    await dentro(async () => {
+      const c = await cena()
+      const { v, agora, ini, fim } = await videoComBuraco(c)
+      await pausa(c, ini + 9 * H, fim - 1 * H) // 9 h antes (acima de 8 h) e 1 h depois
       expect(await cruza(v, 1, agora)).toBe(false)
     })
   })

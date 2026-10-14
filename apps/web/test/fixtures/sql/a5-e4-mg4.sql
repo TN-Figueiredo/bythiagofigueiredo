@@ -146,10 +146,10 @@ language sql stable security invoker set search_path = '' as $$
        and cp.paused_at < l.fim and coalesce(cp.resumed_at, p_now) > l.ini
      group by l.video_id, l.age_days, l.ini, l.fim
   ), cruz as (
-    -- a pausa só explica o buraco se o tempo NÃO pausado dele coubesse no limite do par
+    -- a pausa só explica o buraco se o MAIOR trecho NÃO pausado dele coubesse no limite do par (revisão Phil 14/10, I1: cada lado da pausa é limitado pela cadência da leitura; a soma dos trechos absolvia de menos)
     select q.video_id, q.age_days,
            (q.n_pausas > 0
-            and (q.fim - q.ini) - coalesce((select sum(upper(r) - lower(r)) from unnest(q.mr) r), interval '0') <= p.gap) as gap_crossed_pause
+            and coalesce((select max(upper(r) - lower(r)) from unnest(tstzmultirange(tstzrange(q.ini, q.fim)) - q.mr) r), interval '0') <= p.gap) as gap_crossed_pause
       from pausas q
       join pend p on p.video_id = q.video_id and p.age_days = q.age_days
   )
