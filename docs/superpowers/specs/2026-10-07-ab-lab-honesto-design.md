@@ -708,3 +708,20 @@ Cada uma já está escrita no corpo do jeito recomendado. Um "pode" geral aceita
 | 8 | O que fazer com os alertas de fadiga pendentes e os 10 avisos "vídeo viral" já enviados? | Marcar os pendentes como dispensados; deixar os avisos no histórico | Apagar os avisos: some o registro de que foram enviados; não fazer nada: sem efeito na tela |
 | 9 | A longevidade de thumbnail sai junto com a fadiga? | Não agora: só deixa de gerar alerta; vai para o backlog | Tirar já: P1 cresce. [INFERÊNCIA] ela compara views acumuladas, que só crescem |
 | 10 | Tirar já, sem mockup, os quatro números fabricados de 4.2.1? | Sim, em P2, como remoção pura com frase fixa | Esperar a etapa de telas: os números inventados ficam na tela até lá |
+
+### Respostas do dono (13/10/2026) e perguntas novas
+
+Planejamento retomado em 13/10 com parecer da Hanna (PO). P1 e P2 são planejadas já, sem esperar a
+emenda v7; a v7 cobre só P3, P4 e a etapa de telas.
+
+| # | Resposta |
+|---|---|
+| 7 | **Sim**, pela recomendação: em P2 o pipeline entrega `null` com aviso. Impressão real por variante fica para a medição nova |
+| 8 | **Sim**, pela recomendação: pendentes viram dispensados por um comando que o dono cola; os 10 avisos ficam no histórico |
+| 9 | **Sim**, pela recomendação: a longevidade fica; só deixa de gerar alerta |
+| 10 | **Sim**, pela recomendação, estendida pela Hanna: saem sem mockup os quatro números fabricados (P2) **e o cartão e o selo de fadiga (P1)**; o dono vê as capturas de antes e depois |
+| 11 (nova) | P2 tira `AB_AUTO_APPLY_WINNER` do código **e do `CLAUDE.md`**: **sim**. No lugar, uma linha dizendo que o A/B não declara nem aplica vencedor |
+| 12 (nova) | O dono pretende rodar teste A/B? **"Em algumas semanas, sim."** Logo a ordem depois de P2 continua P3 → P4, e P4 tem de estar em produção antes do primeiro teste |
+
+Continuam abertas, para a v7: 1, 3, 4, 5 (reescrita contra a E18) e 6. A pergunta 2 sai da parte 1: é da
+etapa de telas e será reescrita depois da MG14.
