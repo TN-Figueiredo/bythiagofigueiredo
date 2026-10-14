@@ -96,18 +96,13 @@ describe.skipIf(skipIfNoLocalDb())('LGPD RPCs', () => {
     await admin.from('audit_log').delete().eq('id', row!.id)
   })
 
-  it('reassign_authors moves authors.user_id with permission check', async () => {
+  it('reassign_authors moves authors.user_id when called by service_role', async () => {
     // The RPC does `UPDATE authors SET user_id = p_to WHERE user_id = p_from`.
     // p_to (editorAId) already has an authors row → unique violation unless we
     // clear editorAId's user_id first so the reassignment has room to land.
     await admin.from('authors').update({ user_id: null }).eq('user_id', scenario.editorAId)
 
-    const { jwt } = signUserJwt(scenario.superAdminId)
-    const client = createClient(SUPABASE_URL, ANON_KEY, {
-      auth: { persistSession: false },
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    })
-    const { error } = await client.rpc('reassign_authors', {
+    const { error } = await admin.rpc('reassign_authors', {
       p_from: scenario.reporterAId,
       p_to: scenario.editorAId,
     })
@@ -116,20 +111,22 @@ describe.skipIf(skipIfNoLocalDb())('LGPD RPCs', () => {
     expect((data ?? []).length).toBe(0)
   })
 
-  it('reassign_authors denied for non-admin user', async () => {
-    const { jwt } = signUserJwt(scenario.randomId)
+  // 20261014000007: reassign_authors is SECURITY DEFINER with no client caller; EXECUTE is
+  // revoked from anon/authenticated, so even a super_admin session is refused (42501).
+  it.each([
+    ['super_admin', () => scenario.superAdminId],
+    ['non-admin', () => scenario.randomId],
+  ])('reassign_authors refused for a %s session (EXECUTE revoked)', async (_label, who) => {
+    const { jwt } = signUserJwt(who())
     const client = createClient(SUPABASE_URL, ANON_KEY, {
       auth: { persistSession: false },
       global: { headers: { Authorization: `Bearer ${jwt}` } },
     })
-    // Random has no author-linked blog_posts so the loop over sites is empty.
-    // Test with a user that has authored content instead.
     const { error } = await client.rpc('reassign_authors', {
       p_from: scenario.editorAId,
       p_to: scenario.reporterAId,
     })
-    // Either succeeds trivially (no posts) OR raises insufficient_access depending on state.
-    expect(error === null || error.message.includes('insufficient_access') || error.code === 'P0001').toBeTruthy()
+    expect(error?.code).toBe('42501')
   })
 
   it('cancel_account_deletion_in_grace: wrong token returns cancelled=false', async () => {
