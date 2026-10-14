@@ -21,7 +21,11 @@ describe('constantes', () => {
     expect([...REPORT_TYPES_ENABLED]).toEqual([...ANTIGOS, ...NOVOS])
     expect(new Set(REPORT_TYPES_ENABLED).size).toBe(13)
     expect([...REACH_TYPES]).toEqual(['channel_reach_basic_a1', 'channel_reach_combined_a1'])
-    expect(SEM_NORMALIZADOR).toEqual([...ANTIGOS, ...NOVOS].filter(t => t !== 'channel_reach_basic_a1'))
+    // A5 E11: os dois tipos de E11 também têm normalizador (origem de tráfego com detalhe; alcance por origem, aparelho e sistema).
+    expect(SEM_NORMALIZADOR).toEqual([...ANTIGOS, ...NOVOS].filter(t => !['channel_reach_basic_a1', 'channel_traffic_source_a3', 'channel_reach_combined_a1'].includes(t)))
+    expect(SEM_NORMALIZADOR).not.toContain('channel_traffic_source_a3')
+    expect(SEM_NORMALIZADOR).not.toContain('channel_reach_combined_a1')
+    expect(SEM_NORMALIZADOR).toContain('channel_basic_a3')
     expect(REPORTING_BASE).toBe('https://youtubereporting.googleapis.com/v1')
   })
 
