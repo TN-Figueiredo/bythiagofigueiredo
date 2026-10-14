@@ -1,12 +1,9 @@
 import { link } from '@/lib/youtube/observatorio/links'
-import { openObservatoryPage } from '../_chrome/page-data'
 import { ownMenuOf } from '../_chrome/own-menu'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { TrailChrome } from '../_chrome/trail-chrome'
 import { CompararScreen } from '../_comparar/comparar-screen'
-import { carregarProprioDaComparacao } from '../_proprio/carregar-extras'
-import { buildCompararPack } from '../_comparar/pack'
-import { resolverPar } from '../_comparar/par-model'
+import { montarComparar } from '../_comparar/montar'
 
 export const metadata = { title: 'Comparar canais · Competidores' }
 export const dynamic = 'force-dynamic'
@@ -22,12 +19,8 @@ const primeiro = (v: string | string[] | undefined): string | undefined => (Arra
  * navegador. Só dados simples vão à tela; nenhuma server action (a tela só lê).
  */
 export default async function CompararPage({ searchParams }: { searchParams: Promise<ObsSearchParams> }) {
-  const [sp, { siteId, now, obs, meuCanalLembrado }] = await Promise.all([searchParams, openObservatoryPage()])
-  // as views por dia e o cartão "Só o seu canal mede" dos canais próprios: lidos só para quem edita o site, depois da guarda; sem canal próprio no site
-  // nada é consultado, e quem só lê recebe 'negado' sem nenhum número
-  const { extras, soSeuCanal } = await carregarProprioDaComparacao(obs, siteId, now)
-  const pack = buildCompararPack(obs, undefined, extras, soSeuCanal)
-  const inicial = resolverPar(pack, primeiro(sp?.a), primeiro(sp?.b), meuCanalLembrado)
+  const sp = await searchParams
+  const { pagina: { obs, meuCanalLembrado }, pack, inicial } = await montarComparar({ a: primeiro(sp?.a), b: primeiro(sp?.b) })
   return (
     <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs, meuCanalLembrado)}>
       <CompararScreen pack={pack} inicial={inicial} />
