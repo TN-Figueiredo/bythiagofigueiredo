@@ -1,0 +1,152 @@
+/* rc.css: diálogo "Remover canal" com a linha do arquivo (fase de manutenção, M4, prioridade 1). Prefixo rc-. Só hex e rgba literais; sem mistura de cor calculada (o Opera a mostra transparente).
+   Os tokens são os de chrome.css / tokens-telas.css (CONVENCOES §3), copiados com o mesmo valor: nenhuma cor nova. */
+:root{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--surface-hover:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;
+  --accent:#FF8240;--accent-hover:#FF9A60;--on-accent:#1A120A;
+  --success:#22c55e;--warning:#f59e0b;--warning-text:#f59e0b;--danger:#F26B6B;--danger-text:#F26B6B;--on-danger:#1A120A;
+  --warn-subtle:rgba(245,158,11,.12);--danger-subtle:rgba(239,68,68,.12);
+  --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);--im-zero:#7A8FA6;
+  --shadow:0 12px 32px rgba(0,0,0,.45);--hit:rgba(127,127,127,.16);--veil:rgba(0,0,0,.55);
+  --sans:Inter,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--surface-hover:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;
+  --accent:#B8481A;--accent-hover:#A23E14;--on-accent:#FFF8F1;
+  --success:#11692F;--warning:#B45309;--warning-text:#92400E;--danger:#B42318;--danger-text:#B42318;--on-danger:#FFFFFF;
+  --warn-subtle:rgba(180,83,9,.10);--danger-subtle:rgba(180,35,24,.08);
+  --nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);--im-zero:#5B6F86;
+  --shadow:0 12px 32px rgba(60,40,10,.14);--hit:rgba(80,60,20,.12);--veil:rgba(35,28,20,.42);
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;min-height:100dvh}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.rc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
+.rc-num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------------------------------------------------------------- barra "Estados do mockup" (fora da tela) */
+#mock{position:relative;z-index:200;background:var(--surface);border-bottom:1px dashed var(--border-strong);font-size:12.5px}
+#mock summary{padding:9px 16px;cursor:pointer;color:var(--muted);min-height:40px;display:flex;align-items:center}
+#mock summary b{color:var(--text);font-weight:600;margin-left:6px}
+.rc-mk-in{padding:0 16px 12px;display:grid;gap:8px}
+.rc-mk-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:6px 10px;align-items:start}
+.rc-mk-lbl{color:var(--muted);padding-top:6px}
+.rc-mk-items{display:flex;gap:6px;flex-wrap:wrap}
+.rc-mk{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border:1px solid var(--border-strong);border-radius:6px;color:var(--text);text-decoration:none;background:transparent}
+.rc-mk:hover{background:var(--hit)}
+.rc-mk[aria-current="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+.rc-mk-nota{margin:0;color:var(--muted);line-height:1.5;max-width:110ch}
+@media (max-width:600px){.rc-mk-row{grid-template-columns:minmax(0,1fr)}.rc-mk-lbl{padding-top:0}.rc-mk{min-height:36px}}
+
+/* ---------------------------------------------------------------- a tela Canais atrás do diálogo (resumida, só para dar contexto) */
+#rc-scr{padding:22px 24px 80px;max-width:960px}
+#rc-scr h1{font:600 24px/1.2 "Fraunces",Georgia,serif;margin:0 0 4px}
+#rc-scr .rc-sub{color:var(--muted);margin:0 0 16px}
+.rc-rows{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.rc-rows li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--border-subtle)}
+.rc-rows li:first-child{border-top:0}
+.rc-av{width:32px;height:32px;border-radius:50%;background:var(--sunk);border:1px solid var(--border);display:grid;place-items:center;font-size:12px;color:var(--muted);flex:none}
+.rc-rows .rc-n{flex:1;min-width:0;overflow-wrap:anywhere}
+.rc-rows .rc-n small{display:block;color:var(--muted);font-size:12px}
+
+/* ---------------------------------------------------------------- botões */
+.btn{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;font:500 13.5px/1.2 var(--sans);text-decoration:none}
+.btn:hover{background:var(--surface-hover)}
+.btn.small{min-height:32px;padding:0 10px;font-size:12.5px}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:var(--on-danger);font-weight:600}
+.btn.danger:hover{background:var(--danger);filter:brightness(1.06)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn[aria-disabled="true"],.btn[aria-disabled="true"]:hover{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted);filter:none}
+
+/* ---------------------------------------------------------------- o diálogo */
+.rc-modal{position:fixed;left:0;right:0;bottom:0;top:var(--rc-top,0px);z-index:90;display:grid;place-items:center;background:var(--veil);padding:16px}
+.rc-box{width:min(480px,100%);max-height:100%;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.rc-body{padding:20px 20px 4px;overflow:auto;overscroll-behavior:contain;min-height:0}
+.rc-body h2{margin:0 0 8px;font:600 16px/1.35 var(--sans);overflow-wrap:anywhere}
+.rc-body p{margin:0 0 10px;font-size:13.5px;line-height:1.55;color:var(--muted)}
+.rc-body p.rc-never,.rc-body .rc-h{color:var(--text)}
+.rc-h{margin:0 0 4px;font-weight:600;font-size:13.5px}
+.rc-acts{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 16px;background:var(--surface);border-top:1px solid var(--border-subtle);flex:none}
+.rc-acts .btn{min-width:0}
+.rc-big{display:inline-grid}                              /* reserva a largura do rótulo mais longo: o botão não muda de lugar quando a contagem chega */
+.rc-big>span{grid-area:1/1;visibility:hidden;white-space:nowrap}
+.rc-big>span.on{visibility:visible}
+@media (max-width:820px){
+  .rc-modal{padding:12px}
+  .rc-acts{flex-direction:column-reverse;align-items:stretch;padding:12px 16px 14px}
+  .rc-acts .btn{min-height:44px;width:100%}
+  .rc-body{padding:16px 16px 4px}
+}
+
+/* lista de perdas: a de hoje, mais uma linha */
+.rc-loss{margin:0 0 12px;padding:0;list-style:none;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.rc-loss li{display:grid;grid-template-columns:84px minmax(0,1fr);gap:0 12px;align-items:baseline;padding:8px 12px;font-size:13px;line-height:1.5;color:var(--muted)}
+.rc-loss li+li{border-top:1px solid var(--border-subtle)}
+.rc-loss b{font:500 15px/1.3 var(--mono);font-variant-numeric:tabular-nums;color:var(--text);text-align:right}
+.rc-loss b.rc-wait{font:400 13px/1.5 var(--sans);color:var(--muted)}
+.rc-loss b small{display:block;font:400 12px/1.2 var(--sans);color:var(--muted)}
+.rc-loss span span{display:block;font-size:12px}
+.rc-loss .rc-arq{display:inline-flex;align-items:center;gap:6px;color:var(--text);font-weight:500}
+.rc-loss li.rc-arqrow{background:var(--surface-2)}
+.rc-ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
+.rc-zero{display:inline-block;padding:0 7px;border:2px solid var(--im-zero);border-radius:3px;color:var(--text);font:500 14px/20px var(--mono)}
+.rc-loss li.rc-nm{display:flex;gap:10px;align-items:center;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);border-color:var(--nm-line);color:var(--nm);flex-wrap:wrap}
+.rc-nmh{display:inline-block;width:14px;height:14px;border-radius:3px;flex:none;border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}
+.rc-loss li.rc-nm span{color:var(--nm);flex:1 1 200px}
+
+/* listas curtas: "O que acontece" */
+.rc-ul{margin:0 0 12px;padding:0 0 0 20px;display:grid;gap:4px;font-size:13.5px;line-height:1.5;color:var(--muted)}
+.rc-ul li::marker{color:var(--dim)}
+.rc-ul li.rc-casa{list-style:none;margin-left:-20px;display:flex;gap:8px;align-items:flex-start;color:var(--text)}
+.rc-ul li.rc-casa svg{margin-top:3px}
+.rc-ibtn{display:inline-grid;place-items:center;width:24px;height:24px;margin:-4px 0 -4px 2px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;vertical-align:middle}
+.rc-ibtn:hover{background:var(--hit);color:var(--text)}
+.rc-ibtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5}
+@media (pointer:coarse),(max-width:820px){.rc-ibtn{width:44px;height:44px;margin:-10px -8px -10px -6px}}
+.rc-info{margin:0 0 12px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--sunk);font-size:12.5px;line-height:1.5;color:var(--muted)}
+.rc-msg{display:flex;gap:9px;align-items:flex-start;margin:0 0 12px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;line-height:1.5;color:var(--text)}
+.rc-msg svg{margin-top:2px}
+.rc-msg.rc-pont{border:1.5px dotted var(--dim);background:transparent}
+.rc-msg.rc-amar{border-color:var(--warning);background:var(--warn-subtle)}
+.rc-msg.rc-verm{border-color:var(--danger);background:var(--danger-subtle)}
+.rc-body p.rc-msg{color:var(--text)}
+.rc-ic-am{color:var(--warning-text)}
+.rc-ic-vm{color:var(--danger-text)}
+.rc-ic-pt{color:var(--dim)}
+.rc-ic-ok{color:var(--success)}
+.rc-body a.rc-lnk{color:var(--accent);text-decoration:underline;text-underline-offset:2px;display:inline-block;padding:2px 0}
+@media (max-width:820px){.rc-body a.rc-lnk{min-height:44px;line-height:40px}}
+
+/* D4: o mês que só existe no arquivo: digitar o nome do canal. Sem cor nova: caixa de arquivo e contorno forte */
+.rc-d4{margin:0 0 12px;padding:10px 12px;border:1.5px solid var(--border-strong);border-radius:8px;background:var(--bg)}
+.rc-d4 p{margin:0 0 8px;color:var(--text)}
+.rc-d4 p:last-of-type{margin-bottom:6px}
+.rc-d4 .rc-nome{display:block;margin:0 0 10px;padding:6px 8px;border-radius:6px;background:var(--sunk);border:1px solid var(--border);font-weight:700;color:var(--text);overflow-wrap:anywhere;user-select:all}
+.rc-d4 label{display:block;font-size:12.5px;color:var(--muted);margin:0 0 4px}
+.rc-d4 input{width:100%;min-height:40px;border:1px solid var(--border-strong);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;font:14px var(--sans)}
+.rc-d4 input:focus{outline:2px solid var(--accent);outline-offset:1px}
+@media (max-width:820px){.rc-d4 input{min-height:44px;font-size:16px}}
+.rc-st{margin:6px 0 0;font-size:12.5px;line-height:1.4;color:var(--muted);display:flex;gap:6px;align-items:center}
+.rc-st.ok{color:var(--text)}
+.rc-st.ok svg{color:var(--success)}
+
+/* ---------------------------------------------------------------- o retorno depois do clique (toast persistente, com o prazo de 30 dias) */
+.rc-toast{position:fixed;right:16px;bottom:16px;z-index:150;width:min(420px,calc(100% - 32px));background:var(--surface);border:1px solid var(--border-strong);border-left:4px solid var(--dim);border-radius:8px;box-shadow:var(--shadow);padding:12px 14px;display:grid;gap:8px}
+.rc-toast.ok{border-left-color:var(--success)}
+.rc-toast h3{margin:0;font:600 14px/1.35 var(--sans);display:flex;gap:8px;align-items:flex-start}
+.rc-toast h3 svg{margin-top:2px}
+.rc-toast p{margin:0;font-size:13.5px;line-height:1.5;color:var(--text)}
+.rc-toast .rc-t-a{display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap}
+.rc-toast .rc-t-n{margin-right:auto;font-size:12px;color:var(--muted)}
+@media (max-width:820px){.rc-toast{right:12px;left:12px;bottom:12px;width:auto}.rc-toast .btn{min-height:44px}}
+@media (max-width:820px){.btn.small{min-height:44px}}
+
+.rc-body h2.rc-clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}

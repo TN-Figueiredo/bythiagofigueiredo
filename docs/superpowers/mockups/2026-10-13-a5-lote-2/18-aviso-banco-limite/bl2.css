@@ -1,0 +1,87 @@
+/* bl2.css: 18-v2 (fase de manutenção, M4). Prefixo v2-. Só hex e rgba literais; sem mistura de cor calculada (o Opera a mostra transparente). Acrescenta ao bl.css; não o altera. */
+:root{--v2-a:#f59e0b;--v2-r:#F26B6B;--v2-neu:rgba(168,157,136,.60);--v2-lis:rgba(0,0,0,.40)}
+:root[data-theme="light"]{--v2-a:#B45309;--v2-r:#B42318;--v2-neu:rgba(94,82,64,.60);--v2-lis:rgba(255,255,255,.45)}
+
+/* segundo marcador da barra: o preenchimento de hoje continua; a extensão vazada vai até onde o banco chega antes da próxima saída */
+.v2-gh{position:absolute;top:2px;bottom:2px;border:2px dashed var(--warning);border-left:0;border-radius:0 4px 4px 0;background:transparent;box-sizing:border-box}
+.v2-gh.vermelho{border-color:var(--danger)}
+.v2-pk{position:relative;height:30px;margin-top:2px}
+.v2-tk{position:absolute;top:0;width:2px;height:9px;margin-left:-1px;background:var(--warning)}
+.v2-tk.vermelho{background:var(--danger)}
+.v2-pt{position:absolute;top:9px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font:500 13px/18px var(--sans);color:var(--text)}
+.v2-pt.f{transform:translateX(-100%)}
+.v2-pt.amarelo{color:var(--warning-text)}
+.v2-pt.vermelho{color:var(--danger-text)}
+@media (max-width:640px){.v2-pt{white-space:normal;width:max-content;max-width:min(230px,calc(100vw - 48px));line-height:16px}.v2-pk{height:44px}}
+
+/* régua de dois marcos */
+.v2-rg{position:relative;height:96px;max-width:640px}
+.v2-rg .v2-tr{position:absolute;left:0;right:0;top:28px}
+.v2-ap{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(90deg,var(--v2-lis) 0 2px,transparent 2px 6px),linear-gradient(90deg,var(--v2-a),var(--v2-r))}
+.v2-mm{position:absolute;top:27px;width:16px;height:16px;margin-left:-8px;display:grid;place-items:center}
+.v2-mm i{width:12px;height:12px;transform:rotate(45deg);background:var(--danger);box-shadow:0 0 0 2px var(--bg)}
+.v2-trc{position:absolute;top:21px;height:48px;width:3px;margin-left:-1.5px;background:var(--text);box-shadow:0 0 0 1px var(--bg)}
+.v2-ax{position:absolute;left:0;right:0;top:47px;margin:0;height:16px}
+.v2-l1,.v2-l2{position:absolute;white-space:nowrap;font:600 13px/18px var(--mono)}
+.v2-l1{top:3px}
+.v2-l2{top:71px}
+.v2-l1.c,.v2-l2.c{transform:translateX(-50%)}
+.v2-l1.f,.v2-l2.f{transform:translateX(-100%)}
+.v2-l2{padding-left:6px}.v2-l2.f{padding-left:0;padding-right:6px}.v2-l2.c{padding:0}
+.v2-aper{margin:0;display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:20px}
+.v2-aper svg{flex:none;margin-top:2px}
+.v2-aper.calmo{color:var(--muted)}
+.v2-lg-d{display:inline-block;width:11px;height:11px;transform:rotate(45deg);background:var(--danger);margin:0 3px 0 2px}
+.v2-lg-t{display:inline-block;width:3px;height:14px;background:var(--text);margin:0 5px 0 4px}
+.v2-ico{display:inline-flex;vertical-align:-3px;margin-right:6px}
+.v2-ico svg,.v2-arq{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* a linha da cópia (no lugar do "Backup no NAS ... ainda não existe") */
+.v2-cp{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:640px;font-size:13.5px;line-height:20px}
+.v2-cp p{margin:0}
+.v2-ci{flex:none;display:inline-flex;margin-top:2px}
+.v2-cp.ok{color:var(--muted)}
+.v2-cp.ok .v2-ci{color:var(--success)}
+.v2-cp.ok p{color:var(--text)}
+.v2-cp.nunca{border:1.5px dotted var(--dim);background:transparent;color:var(--muted)}
+.v2-cp.nunca .v2-ci{color:var(--dim)}
+.v2-cp.amar{border-color:var(--warning);background:var(--warn-subtle)}
+.v2-cp.verm{border-color:var(--danger);background:var(--danger-subtle)}
+.v2-cp.nm{border-color:var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);color:var(--nm)}
+.v2-cp.nm p{color:var(--nm)}
+.v2-lb{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:3px}
+.v2-lb li{padding-left:12px;position:relative}
+.v2-lb li::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;background:var(--muted)}
+.v2-porta{color:var(--accent);text-decoration:underline;text-underline-offset:2px;display:inline-block;padding:2px 0}
+@media (pointer:coarse),(max-width:640px){.v2-porta{min-height:44px;line-height:40px;padding:0 4px}}
+
+/* O que libera espaço (V5) */
+.v2-lib{margin:0;padding-left:22px;display:grid;gap:7px;font-size:13.5px;line-height:20px;max-width:640px}
+.v2-lt{font-weight:600}
+
+/* O que fazer (V8): itens, não parágrafo */
+.v2-faz{max-width:640px}
+.v2-faz p{margin:0 0 4px;font-size:14px;line-height:21px}
+.v2-faz ol{margin:0;padding-left:22px;display:grid;gap:5px;font-size:14px;line-height:21px}
+
+/* notas de V6 e V7 */
+.v2-nt{margin:0;display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:21px;max-width:84ch;color:var(--text)}
+.v2-nt .v2-ico{margin-top:2px;color:var(--muted)}
+
+/* sub-linha do mês fora das telas, dentro de Concorrentes */
+.bl-tb tr.sub th{white-space:normal;padding-left:28px;font-weight:400;color:var(--muted);font-size:12.5px}
+.bl-tb tr.sub td{color:var(--muted)}
+.v2-pont{width:14px;height:14px;fill:none;stroke:var(--dim);stroke-width:1.5;vertical-align:-2px;margin-right:6px}
+
+/* chips ao lado da pastilha: borda neutra literal, texto --text; a forma é que diz a gravidade */
+.v2-ch{display:inline-flex;align-items:center;gap:7px;min-height:28px;padding:0 8px;border:1.5px solid var(--v2-neu);border-radius:5px;color:var(--text);font-size:13px;text-decoration:none;white-space:nowrap}
+.v2-ch:hover{background:var(--hit)}
+.v2-ch.cinza svg{color:var(--muted)}
+@media (pointer:coarse),(max-width:640px){.v2-ch{min-height:44px}}
+@media (max-width:640px){.v2-ch{white-space:normal}}
+
+/* V2-3: no tema claro a porta sobre o fundo âmbar/vermelho usa o accent-hover (5,34:1) */
+.v2-cp.amar .v2-porta,.v2-cp.verm .v2-porta{color:var(--accent-hover)}
+
+/* V-N1 (Naksu, rodada 2): o traço do próximo mês não corta o rótulo "90 dias" a 390 px */
+.v2-ax span:nth-child(2){background:var(--surface);padding:0 3px;z-index:2}

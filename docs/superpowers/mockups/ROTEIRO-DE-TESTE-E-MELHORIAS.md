@@ -766,6 +766,76 @@ Sem registro de aprovação. (a preencher conforme o uso)
 
 ---
 
+## M4a. Diálogo "Remover canal" com a linha do arquivo (fase de manutenção)
+
+Estado: **aprovado pelo dono em 14/10/2026** (acordo de Logan e Naksu na rodada 3). Pasta: `2026-10-14-manutencao-nas/remover-canal/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+
+### 1. O que a tela responde
+"Se eu remover este canal, o que se perde, o que não volta e o que ainda falta fazer no arquivo?" A lista de perdas ganha a linha "meses no arquivo"; o aviso depois do clique diz o prazo de 30 dias para apagar o arquivo.
+
+### 2. Roteiro de teste
+Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/remover-canal/index.html?e=d3` (barra "Estados do mockup" fechada; `&barra=aberta` a abre; `&tema=claro`). Um item de cada vez:
+1. `e=d3` a 390 px, claro: o botão e "Cancelar" ficam à vista sem rolar; "Não dá para desfazer" vem antes de "O que acontece:"; a lista lê-se de relance.
+2. Alternar Comando e Bloco na barra: a frase muda e nunca promete data que não existe.
+3. `e=d4a`: o botão fica tracejado (desabilitado) até o nome bater; testar sem acento, sem o emoji, com maiúscula, colando; repetir com `nome=longo` (100 caracteres: o título corta em 3 linhas e o nome inteiro está na caixa).
+4. `e=d5`: sem botão de confirmar; "Tentar de novo" mostra "Lendo o arquivo..."; nada diz "0 meses" nem "0".
+5. `e=d7` como administra e como só edita (`quem=ed`, `dt=depois`, `n=2`); `e=d9` (conexão caiu, "Recarregar a lista").
+6. `e=d6&cap=ss&casa=fora`: a frase da casa fora aparece antes do clique.
+7. Clicar em "Remover..." em D1, D2 e D3: o retorno muda (R1, R2, R3); em R3 `cap=ss` o aviso não some sozinho, diz "até 13/11 (30 dias)" e tem "Ver os comandos" ao lado de "Entendi" (o botão não navega no mockup). A 390 px os dois botões cabem lado a lado e têm 44 px.
+8. Tab, Shift+Tab, Esc (fecha) e o foco inicial em "Cancelar".
+9. Tema claro e escuro; 390 e 1440 px.
+
+### 3. Decisões pedidas ao dono (NOTAS "Em aberto")
+1. Quais contagens têm parcela só no arquivo (versões e dias de registros): do Phil.
+2. Aviso persistente (toast, o desenhado) ou faixa fixa no topo da tela (proposta do Logan) para o caso Sim|Sim.
+3. A régua de quatro etapas em miniatura sob "O que acontece" (sugestão do Logan, não desenhada): vale?
+Respostas do dono: não registradas.
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Logan S7: o D4 a 390 px abre rolado até o campo, sem aviso de que há conteúdo acima (sombra no topo do corpo); S6 do 18-v2 (palavra "lido") para o próximo lote. Naksu: a 390x667 a rolagem automática esconde o título e a lista de perdas acima do campo.
+
+### 5. O que ninguém conferiu
+Opera real, leitor de tela (o `title` do título do D4), aparelho real, rede lenta. Números (14 meses, 31.402 registros, 9 imagens, datas) são exemplo. O destino de "Ver os comandos" (bloco Canais removidos da página do Arquivo) não foi desenhado.
+
+### 6. Retorno do dono e do uso real
+**APROVADO pelo dono em 14/10/2026**, no Opera, sem pedido de mudança. Confirmou junto: aviso persistente com "Entendi" (não faixa no topo) e a régua de quatro etapas fica para quando o comando de limpeza existir.
+
+---
+
+## 18-v2. Aviso do banco, versão da fase de manutenção
+
+Estado: **aprovado pelo dono em 14/10/2026** (acordo de Logan e Naksu, rodada 3); o 18 aprovado não é tocado. Pasta: `2026-10-13-a5-lote-2/18-aviso-banco-limite/` (`18-v2.html`, `NOTAS-18-v2.md`).
+
+### 1. O que a tela responde
+"Quando o banco aperta, e quando o espaço volta?" A cor passa a ser a do mais alto que o banco chega antes da próxima saída; a régua mostra o aperto e a saída do próximo mês; há linha da cópia para o NAS e para o B2.
+
+### 2. Roteiro de teste
+Abrir no Opera: `http://127.0.0.1:47701/2026-10-13-a5-lote-2/18-aviso-banco-limite/18-v2.html?caso=<estado>&tema=claro` (estados também pela barra). Um por vez:
+1. `caso=v1` ao lado do `index.html?caso=verde` do 18 aprovado: nada mudou no estado calmo.
+2. `caso=v2` (66% hoje): pastilha âmbar, sem a palavra "pico"; a frase "chega a 78% antes da próxima saída" fica em duas linhas a 390 px.
+3. `caso=v4`: de longe, o losango vem antes do traço; a faixa âmbar a vermelho aparece; a 390 px o traço não corta o rótulo "90 dias" (também em `v2` e `v6`).
+4. `caso=v5`: "O que libera espaço" sem nenhuma linha de plano pago.
+5. `caso=v6`: o número cai, a cor não fica verde.
+6. `caso=v8` a 390 px: "O que fazer:" é uma lista de três itens, não parágrafo; `v8a`, `v8b`, `v8c` mudam a primeira frase.
+7. `caso=v0`, `v1a` e `v1n`: a linha da cópia nunca mostra "visto" sem dado (antes da 1ª cópia, atrasada, não medida).
+8. `caso=v9` e `v10`: Exportações e séries aparecem como "não medido", nunca "0 exportações".
+9. `caso=v11` e `v12` (12, 34 e 64 dias), `v12n`: chips ao lado da pastilha; a forma (caixa, triângulo, octógono) diz a gravidade.
+10. "Abrir o Arquivo" no tema claro sobre âmbar e vermelho: legível. Celular 390 px, claro e escuro.
+
+### 3. Decisões pedidas ao dono
+As alavancas de reserva do V5 (6%, 11%, 3% por canal) são exemplo; o texto real vem da seção 8.4 do spec 01. Respostas do dono: não registradas.
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Logan S6: "não foi lido por inteiro" e "Volta quando o banco puder ser lido." (V10) trocam por "não respondeu por inteiro" e "Volta quando o banco responder." no próximo lote. V5: com o losango em "já passou" o traço quase cola em "hoje".
+
+### 5. O que ninguém conferiu
+Opera real, leitor de tela, aparelho real, rede lenta; a tabela de coerência por estado (`window.BL`) não foi refeita; V1a, V1b, V2, V4, V5, V6 na revisão do Logan não foram reabertos. Dado real: tudo exemplo.
+
+### 6. Retorno do dono e do uso real
+**APROVADO pelo dono em 14/10/2026**, no Opera, sem pedido de mudança.
+
+---
+
 # LOTE 1 (aprovado em 13/10/2026, decisão 62)
 
 Fonte: `docs/superpowers/mockups/2026-10-13-a5-lote-1/` (`LEIAME.md`, `PLANO-UX.md`, `REVISAO-UX.md`, `AJUSTES-UX-2.md`). Esta pasta não separa `NOTAS.md` por tela: o `LEIAME.md` traz a ordem de abertura, o que mudou por rodada, as "tabelinhas que fecham" e a dívida declarada; o `PLANO-UX.md` traz a pergunta de 3 segundos de cada tela; a `REVISAO-UX.md` traz o veredito por tela. Faltam, por tela, uma lista própria de "dúvidas ao dono" (as duas perguntas do lote 1 foram decididas pelo dono em 12/10 e já constam no `LEIAME.md`) e a extração das sugestões da `REVISAO-UX.md` (seções A a E): não extraí aqui; consultar o arquivo se uma melhoria for reaberta. O que o dono disse ao aprovar o lote 1: não registrado nas pastas (só o número da decisão, 62).
