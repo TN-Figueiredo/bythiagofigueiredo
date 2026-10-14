@@ -58,6 +58,15 @@ describe('requirePermission', () => {
     expect(requirePermission(auth, 'write')).toBe(false)
     expect(requirePermission(auth, 'admin')).toBe(false)
   })
+  it('archive_* keys (seeded in M3a, before the M3b routes) grant none of the existing scopes', () => {
+    for (const p of ['archive_copy', 'archive_read', 'archive_b2']) {
+      const auth = makeAuth([p])
+      expect(requirePermission(auth, 'read')).toBe(false)
+      expect(requirePermission(auth, 'write')).toBe(false)
+      expect(requirePermission(auth, 'admin')).toBe(false)
+      expect(requirePermission(auth, 'intelligence')).toBe(false)
+    }
+  })
 })
 
 describe('getRateLimitHeaders', () => {
