@@ -9,8 +9,10 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { buildCanalHeader } from '@/app/cms/(authed)/youtube/competitors/_canal/header-model'
 import { numerosDoCanal, NUMEROS } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
+import { medidasDoOraculo } from './canais-e5a-fixture'
 
 const obs = createObservatory(datasetFromOracle(loadOracle()))
+const medidas = medidasDoOraculo(obs)
 const ESCOPOS = ['todos', 'viagem', 'ia'] as const
 const TIPOS = ['title', 'thumb', 'desc'] as const
 const J = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
@@ -23,11 +25,11 @@ export function montarRetrato() {
   }))
   const canais = obs.channels.map(c => {
     const lista = (fmt: 'longos' | 'shorts' | 'todos') => {
-      const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt })
+      const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt, medidas })
       const r = [...v.list.ranked, ...v.list.unranked].find(x => x.id === c.id)
       return r ? { vpd: r.vpd, pw: r.pw, growth: r.growth, growthTitle: r.growthTitle, mud: r.changes.n, out: r.outliers.n, cells: r.cells } : null
     }
-    const painel = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: c.id, tab: 'trocas' }).drawer
+    const painel = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: c.id, tab: 'trocas', medidas }).drawer
     const cab = buildCanalHeader(obs, c.id)
     const comparar = Object.fromEntries(NUMEROS.map(id => [id, numerosDoCanal(obs, c.id)[id]]))
     return {
