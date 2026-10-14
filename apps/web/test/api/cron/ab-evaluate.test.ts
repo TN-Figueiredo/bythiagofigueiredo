@@ -204,7 +204,7 @@ describe('GET /api/cron/ab-evaluate', () => {
     expect(body.evaluated).toBe(0)
   })
 
-  it('evaluates active tests and updates consecutive confidence counter', async () => {
+  it('avalia os testes ativos (sem mais cálculo bayesiano nem contador de confiança)', async () => {
     const test = makeTest()
 
     mockFrom.mockImplementation((table: string) => {
@@ -223,14 +223,22 @@ describe('GET /api/cron/ab-evaluate', () => {
     const body = await res.json()
     expect(body.status).toBe('ok')
     expect(body.evaluated).toBe(1)
-    expect(calculateBayesianConfidence).toHaveBeenCalled()
+    expect(calculateBayesianConfidence).not.toHaveBeenCalled()
   })
 
-  it('captures Sentry exception when a test evaluation throws', async () => {
-    const badTest = makeTest({ variants: 'invalid' })
-
+  it('a leitura de ab_tests falha: conta erro no cron e captura a exceção no Sentry', async () => {
     mockFrom.mockImplementation((table: string) => {
-      if (table === 'ab_tests') return activeTestsQuery([badTest])
+      if (table === 'ab_tests') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn((col: string, val: string) =>
+              col === 'status' && val === 'active'
+                ? Promise.resolve({ data: null, error: { message: 'boom' } })
+                : chainableMock()),
+            not: vi.fn().mockReturnValue(chainableMock()),
+          }),
+        }
+      }
       return {}
     })
 
@@ -239,6 +247,7 @@ describe('GET /api/cron/ab-evaluate', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.evaluated).toBe(0)
+    expect(body.errors).toBe(1)
     expect(Sentry.captureException).toHaveBeenCalled()
   })
 })

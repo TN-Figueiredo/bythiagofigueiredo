@@ -5,8 +5,6 @@ import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import {
   phaseAutoStartPlayoffs,
   phaseEvaluateActiveTests,
-  phaseRetryFailedApplies,
-  phaseDetectPlayoffEligibility,
 } from '@/lib/youtube/ab-evaluate-phases'
 import { runLongevityChecks } from '@/lib/youtube/thumbnail-library'
 import { checkAndEscalate } from '@/lib/youtube/ab-escalation'
@@ -23,8 +21,6 @@ export async function GET(req: NextRequest) {
 
   const playoffs = await phaseAutoStartPlayoffs(supabase)
   const evaluation = await phaseEvaluateActiveTests(supabase)
-  const retries = await phaseRetryFailedApplies(supabase)
-  const playoffEligibility = await phaseDetectPlayoffEligibility(supabase)
 
   // Phase 5: Longevity checks
   let longevityChecked = 0
@@ -42,7 +38,7 @@ export async function GET(req: NextRequest) {
     Sentry.captureException(err, { extra: { context: 'longevity-checks' } })
   }
 
-  const totalErrors = evaluation.errors + playoffs.errors + retries.errors + playoffEligibility.errors
+  const totalErrors = evaluation.errors + playoffs.errors
 
   if (totalErrors === 0) {
     await recordCronSuccess('ab-evaluate', 'critical')
@@ -69,11 +65,9 @@ export async function GET(req: NextRequest) {
   return Response.json({
     status: 'ok',
     evaluated: evaluation.evaluated,
-    resolved: evaluation.resolved + retries.resolved,
+    resolved: evaluation.resolved,
     errors: totalErrors,
-    applies_retried: retries.processed,
     playoffs_started: playoffs.processed,
-    playoffs_created: playoffEligibility.processed,
     longevity_checked: longevityChecked,
   })
 }
