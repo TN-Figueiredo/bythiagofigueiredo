@@ -2341,6 +2341,8 @@ Anotar no ledger o `<ts>` (a M10a depende dele) e "TRAVA M2-1 solta em <data hor
   - Pedidos 5 e 6 (§17): texto entregue ao controlador da A5. Recusa ou demora não bloqueia: o teste do item 15 e o `obs_part.dependentes` na migration neutralizam do lado desta fase.
   - Entrega à E10 (Tarefa 4) gravada e confirmada no ledger.
   - No `migration list`, `20261013000001` (agenda) aparece aplicada. Sem ela, o invariante fica vermelho 72 h depois da conversão (`ultimoOk` nunca é gravado): não aplicar a M2 antes.
+  - Os três md5 dos corpos instalados em produção (item 1c do LEIAME) conferidos pelo dono (Yannis I-2 / Phil M-1), e a leitura de bytes (item 1b-bytes, `cabe` = `t`, Phil I-2) anotada no ledger.
+  - `grep -lE "obs_archive_uncovered|obs_db_size_record|competitor_channel_remove_archived" supabase/migrations/*` mostra que a Migration 0 do A/B Lab (quando existir) não cita as três funções; se citar, ler o corpo antes: toda redefinição de `competitor_channel_remove_archived` depois da M2 parte do corpo instalado (com `pg_partition_tree`), nunca da fixture da MG6 (a `regra71` acusa).
   - Nenhuma migration nova da A5 que crie dependente das três séries desde 14/10: `grep -l "competitor_video_\(daily\|early\|hourly\)" supabase/migrations/*` depois de `20261013000006`; se houver, ler: view, FK ou função `begin atomic` que as cite faz a migration recusar com `M2:dependente_novo`, e é melhor saber antes.
 
 - [ ] **Step 2: Escrever os comandos do dono no LEIAME**
@@ -2361,6 +2363,16 @@ npx supabase migration list --linked
 npx supabase db query --linked "select 'competitor_video_daily' t, count(*) n, coalesce(sum(views),0) soma, min(snap_date)::text de, max(snap_date)::text ate, (select pg_get_userbyid(relowner) from pg_class where oid='public.competitor_video_daily'::regclass) dona from public.competitor_video_daily union all select 'competitor_video_early', count(*), coalesce(sum(views),0), min((taken_at at time zone 'America/Sao_Paulo')::date)::text, max((taken_at at time zone 'America/Sao_Paulo')::date)::text, (select pg_get_userbyid(relowner) from pg_class where oid='public.competitor_video_early'::regclass) from public.competitor_video_early union all select 'competitor_video_hourly', count(*), coalesce(sum(views),0), min((hour_slot at time zone 'America/Sao_Paulo')::date)::text, max((hour_slot at time zone 'America/Sao_Paulo')::date)::text, (select pg_get_userbyid(relowner) from pg_class where oid='public.competitor_video_hourly'::regclass) from public.competitor_video_hourly;"
 ```
 Deve dar: `dona` = `postgres` nas três; `ate` no máximo hoje. Se a dona for outra, pare e me mande.
+1b-bytes. Os bytes das três séries contra o teto de 500 MB (a conversão deixa as `_antiga` por 7 dias: o banco guarda as duas cópias). Regra de parada: `cabe` = `f` e o push não sai; me mande a saída.
+```
+npx supabase db query --linked "select pg_size_pretty(pg_database_size(current_database())) banco, pg_size_pretty(sum(pg_total_relation_size(c))) series, pg_database_size(current_database()) + sum(pg_total_relation_size(c)) < 450*1024*1024 cabe from unnest(array['public.competitor_video_daily','public.competitor_video_early','public.competitor_video_hourly']::regclass[]) c;"
+```
+Deve dar: `cabe` = `t`. O `competitor_bytes` do `obs_db_size_daily` sobe até o sétimo dia e cai na Tarefa 9: o salto é esperado (as `_antiga` casam com `competitor\_%`).
+1c. Os três corpos instalados em produção (se divergirem, a M2 recusa com `M2:…_divergente` e a janela se perde). Um veredito por linha.
+```
+npx supabase db query --linked "select p.proname, md5(p.prosrc) md5, p.prosrc ~ 'relispartition|pg_partition_tree' as ja_consertada, md5(p.prosrc) = case p.proname when 'obs_archive_uncovered' then '04acb555daf84c61933b740e13a85e21' when 'obs_db_size_record' then '3b6daeff58c7e884d8b6e944c8e234a7' when 'competitor_channel_remove_archived' then '467d3bc3c887af98196c8e415780d40b' end as bate from pg_proc p where p.oid in ('public.obs_archive_uncovered()'::regprocedure, 'public.obs_db_size_record(timestamptz)'::regprocedure, 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure);"
+```
+Deve dar: `bate` = `t` nas três linhas (ou `ja_consertada` = `t`). Qualquer `f` nas duas colunas: pare e me mande a saída.
 2. Aplicar (pede YES).
 ```
 npm run db:push:prod
@@ -2386,7 +2398,7 @@ Deve dar: `rows_copied` e `views_sum` iguais a `n` e `soma` do item 1b, tabela a
 4. Abrir o Observatório no site e uma página de canal: a página de um canal mostra o ponto de hoje na série diária (o mesmo número de views que aparecia antes do push, ou maior).
 
 Se o passo 2 falhar: nada mudou (a conversão é uma transação só). Me mande a mensagem; o código `M2:…` diz o porquê.
-Duas falhas não têm código M2: "lock timeout" (alguém estava gravando; nada mudou: repita em outro minuto permitido) e "no partition of relation … found for row" (há linha fora da faixa: me mande a saída do item 1b).
+Três falhas não têm código M2: "lock timeout" ou "deadlock detected" (alguém estava gravando; nada mudou: repita em outro minuto permitido) e "no partition of relation … found for row" (há linha fora da faixa: me mande a saída do item 1b).
 
 Depois que eu promover a tarefa diária (Tarefas 6 e 7): o `/api/health` pode mostrar `agenda:particoes_a_frente` atrasada (`degraded`) até a primeira rodada depois das 06:00 de São Paulo. É esperado; vermelho não é.
 
@@ -2410,6 +2422,8 @@ Deve dar: três linhas com `"feito": true`. As séries voltam a tabelas comuns, 
 ---
 
 ### Task 9: no sétimo dia, remover as tabelas antigas
+
+> **Contrato vindo do portão da M2 (Phil M-2), é desta tarefa e da etapa do arquivo que destaca partição, não da M2:** a partição destacada (`detach`) mantém a FK com `on delete cascade` e entra no fecho de cascata; `obs_archive_uncovered()` a acusa e a remoção de canal fica bloqueada com `E10:tabela_sem_export`. Conserto: no MESMO passo do `detach`, `alter table obs_part.<x>_saida drop constraint <fk>`, com teste que confira `obs_archive_uncovered() = '{}'` depois do destaque. (Nota N-2 do Yannis: a `_antiga` não tem FK; canal removido nos 7 dias fica com linhas na `_antiga` até esta tarefa.)
 
 **Files:**
 - Create (só no sétimo dia depois do push da Tarefa 8, por `npm run db:new manutencao_m2_remove_antigas`): `supabase/migrations/<ts>_manutencao_m2_remove_antigas.sql`

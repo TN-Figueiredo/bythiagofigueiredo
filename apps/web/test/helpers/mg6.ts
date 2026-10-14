@@ -12,6 +12,7 @@ import type { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { M2_BLOCO_11 } from './m2'
 
 export const MG6_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e10-mg6.sql', import.meta.url))
 
@@ -34,6 +35,8 @@ function codigoDoErro(e: unknown): string {
 /** Aplica o ensaio da MG6 na transação aberta (idempotente: pode ser aplicada de novo sobre uma MG6 já aplicada). */
 export async function garantirMg6(c: Client): Promise<void> {
   await c.query(lerSqlDaMg6())
+  // a fixture é a MG6 de produção byte a byte e recria duas funções sem saber de partição; o bloco 11 da M2 as recria com o conserto
+  await c.query(M2_BLOCO_11)
 }
 
 /**
