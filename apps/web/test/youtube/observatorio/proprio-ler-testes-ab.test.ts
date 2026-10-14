@@ -73,6 +73,13 @@ describe('E5b T20b: lerTestesAb', () => {
     await expect(lerTestesAb(fakeSupabase({ ab_tests: mk(TETO_TESTES_AB + 1), ab_test_cycles: [] }).client, ped())).rejects.toBeInstanceOf(ObservatoryLoadError)
     expect((await ok(fakeSupabase({ ab_tests: mk(TETO_TESTES_AB), ab_test_cycles: [] }))).testes).toHaveLength(TETO_TESTES_AB)
   })
+  it('50 iniciados e 1 rascunho: lê os 50 e não lança (o rascunho não entra na conta do teto)', async () => {
+    const ini = Array.from({ length: TETO_TESTES_AB }, (_, i) => teste('t' + String(i).padStart(3, '0'), { started_at: `2026-0${1 + (i % 8)}-${String(1 + i % 28).padStart(2, '0')}T10:00:00+00:00` }))
+    const rascunho = teste('rascunho', { status: 'draft', started_at: null })
+    const d = await ok(fakeSupabase({ ab_tests: [...ini, rascunho], ab_test_cycles: [] }))
+    expect(d.testes).toHaveLength(TETO_TESTES_AB)
+    expect(d.descartados).toBe(0)
+  })
   it('ciclos acima do teto: lança, nunca corta; no teto: lê', async () => {
     const mk = (n: number) => Array.from({ length: n }, (_, i) => ciclo('t1', i + 1, { id: 'c' + String(i).padStart(5, '0'), started_at: '2026-09-01T10:00:00Z', ended_at: null }))
     await expect(lerTestesAb(fakeSupabase({ ab_tests: [teste('t1')], ab_test_cycles: mk(TETO_CICLOS_AB + 1) }).client, ped())).rejects.toBeInstanceOf(ObservatoryLoadError)
