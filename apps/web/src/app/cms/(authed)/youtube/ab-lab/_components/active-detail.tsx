@@ -222,7 +222,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[16px]">
+      <div className={`grid grid-cols-1 ${view.outlier || view.daysRemaining ? 'md:grid-cols-2' : ''} gap-[16px] mb-[16px]`}>
         <SignalCard
           live={livePoll?.delta ? {
             viewsDelta: livePoll.delta.views,
@@ -312,7 +312,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>)}
 
       {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">
+      <div className={`grid grid-cols-1 ${semMedicao ? '' : 'md:grid-cols-2'} gap-[16px] mb-[24px]`}>
         {/* Rotação ABBA */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">

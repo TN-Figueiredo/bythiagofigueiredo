@@ -152,7 +152,7 @@ describe('PlayoffDetail (sem medição)', () => {
   it('não mostra barras de probabilidade sobre views; mostra a frase fixa', () => {
     const { container } = render(<PlayoffDetail view={makePlayoffView()} />)
     expect(container.querySelector('[data-rank-bar]')).toBeNull()
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
   })
 })
 
@@ -177,7 +177,7 @@ describe('PlayoffDetail: encerrado sem vencedor e sem playoff real (P2 I1)', () 
     expect(container.textContent).not.toMatch(/o sistema afunila/)
     expect(container.textContent).not.toMatch(/empatou/)
     expect(screen.getByText('Encerrado sem vencedor')).toBeDefined()
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.')).toBeDefined()
   })
 
   it('placar sem a coluna nem o rótulo de chance de vencer', () => {

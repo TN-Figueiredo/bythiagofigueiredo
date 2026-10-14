@@ -32,6 +32,6 @@ describe('EarlyDetail (primeiro estado de todo teste novo)', () => {
     const { container } = render(<EarlyDetail view={makeEarlyView()} />)
     const texto = container.textContent ?? ''
     expect(texto).not.toMatch(/confian|chance de vencer|bayes|motor|credível|credivel/i)
-    expect(texto).toContain('Sem medição de entrega por enquanto')
+    expect(texto).toContain('CTR ainda não medido. Você decide o vencedor.')
   })
 })

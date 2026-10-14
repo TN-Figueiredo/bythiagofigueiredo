@@ -21,7 +21,7 @@ export function HeroBand({ leader, trend, semMedicao }: HeroBandProps) {
     ? `${leader.label} consolidando a liderança`
     : trend === 'down'
       ? `${leader.label} perdendo força`
-      : 'estável'
+      : 'sem dados'
 
   return (
     <div

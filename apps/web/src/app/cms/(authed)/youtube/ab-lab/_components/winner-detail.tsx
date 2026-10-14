@@ -11,7 +11,7 @@ import { VariantTable } from './variant-table'
 import { SectionLabel } from './ab-primitives'
 import { revertWinner, archiveAbTest } from '../actions'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
-import { Copy, Archive, Download, Trophy, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
+import { Copy, Archive, Download, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -101,16 +101,6 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           </div>
         </div>
       )}
-
-      {/* 3. "Por que {winner} venceu": sem medição de entrega, só a frase fixa */}
-      <section data-testid="why-won" className="mb-[16px]">
-        <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-          <div className="flex items-center gap-[9px] mb-[8px]">
-            <Trophy size={17} className="text-cms-accent" aria-hidden="true" />
-            <h3 className="text-[19px] font-semibold text-cms-text m-0">Vencedor escolhido por você</h3>
-          </div>
-        </div>
-      </section>
 
       {/* 4. ComoEstaAgora + LiveMonitorCard (conditional) */}
       {view.monitor && (

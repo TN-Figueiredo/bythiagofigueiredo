@@ -23,7 +23,7 @@ export function EarlyHero({ checkpoints, pipelineId }: EarlyHeroProps) {
           <i aria-hidden="true" />
         </div>
         <h2 className="display text-[22px] font-semibold text-cms-text leading-[1.25] m-0 mb-[10px]">
-          Coletando dados
+          Teste começou
         </h2>
         <p className="text-[13px] text-cms-text leading-[1.55] max-w-[360px] m-0">
           {SEM_MEDICAO_DE_ENTREGA}

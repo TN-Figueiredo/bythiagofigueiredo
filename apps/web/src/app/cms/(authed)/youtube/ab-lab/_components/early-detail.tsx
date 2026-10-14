@@ -18,14 +18,14 @@ function buildCheckpoints(view: AbTestActiveView): EarlyCheckpoint[] {
 
   return [
     {
-      label: 'Primeiro ciclo ABBA',
+      label: 'Primeira troca de thumbnail',
       reached: cyclesDone >= 1,
       eta: cyclesDone >= 1 ? null : '~6h',
       reachedAt: null,
       isSoon: cyclesDone < 1,
     },
     {
-      label: 'Burn-in completo',
+      label: 'Fim do período inicial',
       reached: cyclesDone >= 4,
       eta: cyclesDone >= 4 ? null : '~48h',
       reachedAt: null,

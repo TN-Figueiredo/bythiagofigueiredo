@@ -14,7 +14,6 @@ import type {
   SuggestedVideo,
 } from '@/lib/youtube/ab-types'
 import { KPI } from './kpi'
-import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { ActiveTestCard } from './active-test-card'
 import { CompletedRow } from './completed-row'
 import { DraftsBlock } from './drafts-block'
@@ -221,18 +220,16 @@ export function AbLabDashboard({
           />
           {stats.winRate === null ? (
             <KPI
-              label="Win rate"
-              value={SEM_MEDICAO_DE_ENTREGA}
+              label="Vencedores escolhidos"
+              value="—"
               icon={Trophy}
-              compact
             />
           ) : (
             <KPI
-              label="Win rate"
-              value={Math.round(stats.winRate)}
-              suffix="%"
+              label="Vencedores escolhidos"
+              value={`${stats.testsWon} de ${stats.winRateBase} testes`}
               icon={Trophy}
-              trend={stats.winRateBase > 0 ? `${stats.testsWon} de ${stats.winRateBase} testes` : undefined}
+              compact
             />
           )}
         </div>

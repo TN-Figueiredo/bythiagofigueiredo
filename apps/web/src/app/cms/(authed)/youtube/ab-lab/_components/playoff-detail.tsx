@@ -65,7 +65,9 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
                 : 'Encerrado sem vencedor'}
             </div>
             <div className="text-[12.5px] text-cms-text mt-[3px] leading-[1.5] max-w-[680px]">
-              {SEM_MEDICAO_DE_ENTREGA}
+              {temPlayoff
+                ? SEM_MEDICAO_DE_ENTREGA
+                : 'Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.'}
             </div>
           </div>
         </div>

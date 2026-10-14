@@ -121,14 +121,32 @@ describe('WinnerBanner', () => {
       <WinnerBanner
         winnerLabel="B"
         winnerColor="#E8823C"
-        lift={15.3}
-        confidence={97.2}
-        stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: null }}
+        lift={null}
+        confidence={null}
+        stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: null }}
       />,
     )
     const banner = screen.getByTestId('winner-banner')
-    expect(banner.textContent).toContain('Sem medição de entrega por enquanto')
+    expect(banner.textContent).toContain('CTR ainda não medido. Você decide o vencedor.')
+    expect(banner.textContent).toContain('Vencedor: B')
+    expect(banner.textContent).toContain('Escolhido por você')
     expect(banner.textContent).not.toMatch(/cliques\/mes a mais/)
+  })
+
+  it('sem medição a célula "Ganho estimado" não existe e o "—" do lift não aparece ao lado do vencedor', () => {
+    render(
+      <WinnerBanner
+        winnerLabel="B"
+        winnerColor="#E8823C"
+        lift={null}
+        confidence={null}
+        stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 100, abbaCycles: 1, monthlyExtraClicks: null }}
+      />,
+    )
+    const banner = screen.getByTestId('winner-banner')
+    expect(banner.textContent).not.toContain('Ganho estimado')
+    expect(screen.queryByTestId('winner-lift')).toBeNull()
+    expect(banner.textContent).not.toContain('Vencedor declarado')
   })
 
   it('renders trophy icon', () => {
@@ -232,7 +250,7 @@ describe('WinnerDetail', () => {
     render(<WinnerDetail view={view} />)
     expect(screen.getByTestId('winner-detail')).toBeDefined()
     expect(screen.getByTestId('winner-banner')).toBeDefined()
-    expect(screen.getByTestId('why-won')).toBeDefined()
+    expect(screen.queryByTestId('why-won')).toBeNull()
     expect(screen.getByTestId('confidence-section')).toBeDefined()
     expect(screen.getByTestId('scoreboard')).toBeDefined()
     // ClickMoment is rendered (contains "Home" context button)
@@ -244,19 +262,19 @@ describe('WinnerDetail', () => {
     render(<WinnerDetail view={view} />)
     expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
     expect(screen.queryAllByText(/de confianca/i)).toHaveLength(0)
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
   })
 
   it('"Por que venceu" não mostra barras de probabilidade sobre views, só a frase fixa', () => {
     const { container } = render(<WinnerDetail view={makeWinnerView()} />)
     expect(container.querySelector('[data-rank-bar]')).toBeNull()
     expect(screen.queryByText(/93% de chance/)).toBeNull()
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
   })
 
   it('o vencedor é decisão humana: sem texto de automação, sem confiança, sem coluna de chance', () => {
     const { container } = render(<WinnerDetail view={makeWinnerView({ winnerLabel: 'B' })} />)
-    expect(screen.getByText('Vencedor escolhido por você')).toBeDefined()
+    expect(screen.getByText('Escolhido por você')).toBeDefined()
     const t = container.textContent ?? ''
     expect(t).not.toMatch(/o sistema cravou/)
     expect(t).not.toMatch(/empate que vira playoff/)
@@ -265,7 +283,7 @@ describe('WinnerDetail', () => {
     expect(t).not.toMatch(/aplicado no YouTube/)
     expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()
     expect(t).not.toMatch(/ordenado por chance de vencer/)
-    expect(screen.getByTestId('winner-lift').textContent).toBe('—')
+    expect(screen.queryByTestId('winner-lift')).toBeNull()
   })
 
   it('shows Duplicar and Download actions', () => {

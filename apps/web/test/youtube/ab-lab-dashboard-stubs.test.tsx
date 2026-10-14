@@ -355,6 +355,6 @@ describe('AbLabDashboard behavioral', () => {
     const cards = [makeCard('1')]
     render(<AbLabDashboard {...defaultProps({ cards })} />)
     expect(screen.getByTestId('kpi-Testes ativos')).toBeDefined()
-    expect(screen.getByTestId('kpi-Win rate')).toBeDefined()
+    expect(screen.getByTestId('kpi-Vencedores escolhidos')).toBeDefined()
   })
 })

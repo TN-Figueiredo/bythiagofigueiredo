@@ -21,7 +21,7 @@ import type { AbTestResults, AbTestWinnerView, AbTestActiveView, FullChartVarian
 
 afterEach(() => cleanup())
 
-const FRASE = 'Sem medição de entrega por enquanto'
+const FRASE = 'CTR ainda não medido. Você decide o vencedor.'
 
 function stats(id: string, label: string, imp: number, clicks: number, orig: boolean): VariantStats {
   return {

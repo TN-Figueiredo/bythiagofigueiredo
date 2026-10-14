@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
+import { VARIANT_COLORS, SEM_MEDICAO_CURTA } from './ab-constants'
 import { VChip, Badge, TypeBadge } from './ab-primitives'
 import { ChevronRight, Swords, Clock } from 'lucide-react'
 
@@ -139,7 +139,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
             </span>
           </div>
           <div className={`text-[10.5px] ${test.lift === null ? 'text-cms-text' : 'text-cms-text-dim'} mt-[5px]`}>
-            {test.lift === null ? SEM_MEDICAO_DE_ENTREGA : `lift ${test.lift > 0 ? '+' : ''}${Math.round(test.lift)}%`}
+            {test.lift === null ? SEM_MEDICAO_CURTA : `lift ${test.lift > 0 ? '+' : ''}${Math.round(test.lift)}%`}
           </div>
         </div>
         <div className="py-[13px] px-[16px] border-l border-cms-border">

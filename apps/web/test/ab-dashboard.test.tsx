@@ -105,7 +105,7 @@ describe('ActiveTestCard', () => {
     const test = makeCardView({ confidence: null, lift: null })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
     expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CTR não medido').length).toBeGreaterThan(0)
   })
 
   it('calls onOpen when clicked', () => {
@@ -375,7 +375,7 @@ describe('AbLabDashboard', () => {
     const kpiStrip = container.querySelector('[data-kpi-strip]')
     expect(kpiStrip).toBeTruthy()
     expect(screen.getAllByText('Testes ativos').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Win rate')).toBeTruthy()
+    expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
     expect(screen.queryAllByText(/confiança média/i)).toHaveLength(0)
     expect(screen.queryAllByText(/lift médio/i)).toHaveLength(0)
   })
@@ -385,8 +385,9 @@ describe('AbLabDashboard', () => {
       <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
         cards={[makeCardView()]} completed={[makeCompleted()]} />,
     )
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
     expect(screen.queryAllByText('0')).toHaveLength(0)
+    expect(screen.queryByText(/Win rate/)).toBeNull()
   })
 
   it('win rate numérico aparece com o percentual', () => {
@@ -394,7 +395,7 @@ describe('AbLabDashboard', () => {
       <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: 50, completedTests: 3, winRateBase: 2, testsWon: 1 }}
         cards={[makeCardView()]} completed={[makeCompleted()]} />,
     )
-    expect(screen.getByText('50')).toBeTruthy()
+    expect(screen.queryByText('50')).toBeNull()
     expect(screen.getByText('1 de 2 testes')).toBeTruthy()
   })
 

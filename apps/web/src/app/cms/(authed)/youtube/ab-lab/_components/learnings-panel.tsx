@@ -100,7 +100,7 @@ export function LearningsPanel({ learnings, channelLearnings, totalTests = 0 }: 
           </p>
           <div className="mt-2 h-1.5 w-32 rounded-full bg-cms-surface-hover">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all"
+              className="h-full rounded-full bg-cms-accent transition-all"
               style={{ width: `${Math.min((totalTests / 3) * 100, 100)}%` }}
             />
           </div>

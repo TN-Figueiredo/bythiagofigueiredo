@@ -2,7 +2,9 @@ import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 export type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 
-export const SEM_MEDICAO_DE_ENTREGA = 'Sem medição de entrega por enquanto'
+export const SEM_MEDICAO_DE_ENTREGA = 'CTR ainda não medido. Você decide o vencedor.'
+/** Versão curta para cartões e linhas pequenas. */
+export const SEM_MEDICAO_CURTA = 'CTR não medido'
 
 export const VARIANT_COLORS = {
   A: '#8A8F98',

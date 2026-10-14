@@ -20,7 +20,7 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
 
 afterEach(() => cleanup())
 
-const FRASE = 'Sem medição de entrega por enquanto'
+const FRASE = 'CTR ainda não medido. Você decide o vencedor.'
 const vz = (label: 'A' | 'B'): FullChartVariant => ({ label, color: '#888', ctr: 0, impressions: 0, clicks: 0, pBest: 0.5 })
 const thumbs = [
   { label: 'A' as const, color: '#888', thumbUrl: null, isOriginal: true },
@@ -41,7 +41,7 @@ describe('emenda P1-P6 (Gio)', () => {
 
   it('P3 + P2 (card): frase da coluna Líder com text-cms-text e Líder mostra "—"', () => {
     render(<ActiveTestCard test={makeCardView({ confidence: null, lift: null })} onOpen={vi.fn()} />)
-    const frase = screen.getByText(FRASE)
+    const frase = screen.getByText('CTR não medido')
     expect(frase.className).toMatch(/text-cms-text(?![-\w])/)
     expect(frase.className).not.toMatch(/text-cms-text-(dim|muted)/)
     expect(screen.getByText('—')).toBeTruthy()

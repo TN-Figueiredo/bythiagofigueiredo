@@ -3,7 +3,7 @@
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 import { VChip, TypeBadge, Badge } from './ab-primitives'
-import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
+import { SEM_MEDICAO_CURTA } from './ab-constants'
 import { ChevronRight, Swords } from 'lucide-react'
 
 export interface CompletedRowProps {
@@ -59,7 +59,7 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
       {/* Result */}
       <div className="text-right shrink-0">
         {semMedicao ? (
-          <div className="text-[10.5px] text-cms-text">{SEM_MEDICAO_DE_ENTREGA}</div>
+          <div className="text-[10.5px] text-cms-text">{SEM_MEDICAO_CURTA}</div>
         ) : isInconclusive ? (
           <>
             <Badge tone="amber">playoff agendado</Badge>

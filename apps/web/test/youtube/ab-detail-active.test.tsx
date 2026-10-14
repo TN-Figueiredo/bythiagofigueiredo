@@ -114,7 +114,7 @@ describe('ActiveDetail', () => {
     for (const texto of [/watch time/i, /comentários/i, /compartilh/i, /receita estimada/i, /raio-x/i]) {
       expect(screen.queryAllByText(texto), String(texto)).toHaveLength(0)
     }
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
   })
 
   it('o banner de carência não promete aplicação automática', () => {
@@ -140,7 +140,7 @@ describe('ActiveDetail', () => {
     expect(screen.queryAllByText(/10,000 min/)).toHaveLength(0)
     expect(container.textContent).not.toContain('5/6 ok')
     expect(screen.queryAllByText(/Critérios de resolução automática/i)).toHaveLength(0)
-    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
   })
 
   it('não mostra o bloco "Chance de vencer" (probabilidade sobre views)', () => {
@@ -156,7 +156,7 @@ describe('ActiveDetail', () => {
     expect(container.textContent).not.toMatch(/meta 95%/)
     expect(container.textContent).not.toMatch(/curva de confiança/i)
     expect(container.textContent).not.toMatch(/Confiança ao longo do tempo/)
-    const frase = screen.getAllByText('Sem medição de entrega por enquanto')
+    const frase = screen.getAllByText('CTR ainda não medido. Você decide o vencedor.')
     for (const el of frase) {
       expect(el.className).not.toMatch(/text-cms-text-(dim|muted)/)
     }
@@ -171,7 +171,7 @@ describe('ActiveDetail', () => {
     expect(hero.textContent).not.toMatch(/0,0%/)
     expect(hero.textContent).not.toMatch(/chance de vencer/i)
     expect(hero.textContent).toContain('—')
-    expect(hero.textContent).toContain('Sem medição de entrega por enquanto')
+    expect(hero.textContent).toContain('CTR ainda não medido. Você decide o vencedor.')
   })
 
   it('ABBATimeline receives seq data and renders cycle count', () => {
@@ -185,7 +185,7 @@ describe('ActiveDetail', () => {
     const lockSection = container.querySelector('[data-section="lock-countdown"]')
     expect(lockSection).not.toBeNull()
     // Contains the lock text
-    expect(lockSection?.textContent).toContain('Teste travado até a duração máxima')
+    expect(lockSection?.textContent).toContain('Roda até 14 dias ou até você encerrar. Ao encerrar, você escolhe o vencedor.')
     expect(lockSection?.textContent).not.toContain('critérios de resolução')
   })
 

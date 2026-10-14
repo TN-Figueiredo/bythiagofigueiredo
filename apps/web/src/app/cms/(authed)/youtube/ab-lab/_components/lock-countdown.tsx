@@ -35,7 +35,7 @@ export function LockCountdown({
           {/* Row 1: title + countdown */}
           <div className="flex items-center justify-between gap-[12px] mb-[8px]">
             <span className="text-[13px] font-semibold text-cms-text">
-              Teste travado até a duração máxima
+              Roda até {durationDays} dias ou até você encerrar. Ao encerrar, você escolhe o vencedor.
             </span>
             <span className="font-mono text-[12px] text-cms-text-dim shrink-0">
               {Math.max(0, durationDays - dayOf)} dias até o fim · {cyclesRemaining} ciclos restantes
