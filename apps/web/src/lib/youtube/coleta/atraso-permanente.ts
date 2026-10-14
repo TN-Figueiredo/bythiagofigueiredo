@@ -24,6 +24,7 @@ export interface TentativaDoDiario {
 }
 
 const STATUS_DE_VIDEO_AUSENTE: readonly number[] = [403, 404, 410]
+// Sem `/i` de propósito: igual ao `!~` (e não `!~*`) do SQL de `diario_falhas_4d`; 'limitexceeded' em minúsculas não é de cota.
 const ERRO_DE_COTA = /(quota|Limit)Exceeded/
 
 /**

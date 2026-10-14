@@ -12,6 +12,7 @@ import {
   CARENCIA_COBERTURA_DIAS, CARENCIA_NORMALIZAR_DIAS, PRAZO_DA_PROVA_MS,
   chamarProva, configE11, type ConfigE11, type ProvaE11, type ResultadoProva,
 } from './e11-config'
+import type { PassoComInterruptor } from './passos-desligados'
 import { ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 
 export type CriteriosE11Ctx = {
@@ -31,7 +32,7 @@ export type CriteriosE11Resultado = {
   /** Passos cujos critérios rodaram com a prova inteira em todos os sites. */
   avaliados: string[]
   /** Passos desligados: o orquestrador grava `desligado`, nunca "ok". */
-  desligados: string[]
+  desligados: PassoComInterruptor[]
 }
 
 const FORMATO_DIA = /^\d{4}-\d{2}-\d{2}$/
@@ -80,7 +81,7 @@ export async function criteriosE11(ctx: CriteriosE11Ctx): Promise<CriteriosE11Re
   const dimLigado = !ctx.desligados.dimensoes
   const normLigado = !ctx.desligados.normalizadores
   const desligados = [ctx.desligados.dimensoes ? 'dimensoes' : null, ctx.desligados.normalizadores ? 'normalizadores' : null]
-    .filter((x): x is string => x !== null)
+    .filter((x): x is PassoComInterruptor => x !== null)
   const provas: Record<string, ProvaE11 | null> = {}
   if (!dimLigado && !normLigado) return { provas, avaliados: [], desligados }
 
