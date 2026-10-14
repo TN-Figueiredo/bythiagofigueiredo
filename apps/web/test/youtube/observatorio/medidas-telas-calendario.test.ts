@@ -45,6 +45,12 @@ describe('calendário das medidas (E5a T1)', () => {
     expect(avisoDeContagem({ de: '2026-08-24', ate: '2026-10-19', dias: 56 })).toBeNull()
     expect(avisoDeContagem({ de: null, ate: null, dias: null })).toBeNull()
   })
+  it('o predicado de cruzamento também usa as regras passadas (countChange trocado)', () => {
+    const outras = { ...MEASURE_RULES, countChange: '2026-09-10' }
+    // a janela 01/09..26/10 só cruza a data trocada (10/09), não a de 24/08
+    expect(avisoDeContagem({ de: '2026-09-01', ate: '2026-10-26', dias: 56 }, outras)).toEqual({ ate: '2026-11-04' })
+    expect(avisoDeContagem({ de: '2026-09-01', ate: '2026-10-26', dias: 56 })).toBeNull()
+  })
   it('primeiras 24 horas: sem a constante de envio não há data', () => {
     expect(primeiras24hDesde()).toBe('2026-10-13')
     deploy.valor = null

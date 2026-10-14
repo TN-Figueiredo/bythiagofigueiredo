@@ -15,8 +15,8 @@ export function countRuleOf(dia: string): 'ate_2026-08-23' | 'desde_2026-08-24' 
 }
 
 /** Verdadeiro quando `de < 24/08/2026 <= ate` (a janela começa antes da mudança e termina no dia dela ou depois). */
-export function cruzaMudancaDeContagem(de: string, ate: string): boolean {
+export function cruzaMudancaDeContagem(de: string, ate: string, corte: string = MEASURE_RULES.countChange): boolean {
   exigeDia(de)
   exigeDia(ate)
-  return de < MEASURE_RULES.countChange && MEASURE_RULES.countChange <= ate
+  return de < corte && corte <= ate
 }

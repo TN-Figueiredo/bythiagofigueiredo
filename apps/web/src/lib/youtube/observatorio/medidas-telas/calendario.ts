@@ -59,7 +59,7 @@ export function fraseDasPrimeiras24h(): string {
  */
 export function avisoDeContagem(janela: Janela, regras: RegrasDoCalendario = MEASURE_RULES): { ate: string } | null {
   if (!janela.de || !janela.ate) return null
-  if (!cruzaMudancaDeContagem(janela.de, janela.ate)) return null
+  if (!cruzaMudancaDeContagem(janela.de, janela.ate, regras.countChange)) return null
   const dias = janela.dias ?? Math.round((Date.parse(janela.ate + 'T00:00:00Z') - Date.parse(janela.de + 'T00:00:00Z')) / MS_DIA)
   return { ate: somaDias(regras.countChange, dias - 1) }
 }

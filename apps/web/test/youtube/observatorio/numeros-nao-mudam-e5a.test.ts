@@ -51,12 +51,29 @@ describe('E5a T0b: o retrato antes dos números', () => {
     expect(retrato.mudancasPorTipo.viagem).toEqual({ title: 3, thumb: 4, desc: 1 })
     expect(retrato.mudancasPorTipo.ia).toEqual({ title: 4, thumb: 4, desc: 2 })
   })
-  it('o retrato de hoje é o gravado antes, campo a campo, com uma exceção: abas.*.mud (desvio 12)', () => {
+  it('o retrato de hoje é o gravado antes, campo a campo, com as exceções declaradas: abas.*.mud (desvio 12), texto (13) e o canal que a regra nova de parado solta (14)', () => {
     const antes = JSON.parse(readFileSync(new URL('./fixtures/e5a-retrato-antes.json', import.meta.url), 'utf8')) as typeof retrato
     const esperado = J(antes)
     esperado.abas.todos.mud = 15; esperado.abas.viagem.mud = 7; esperado.abas.ia.mud = 8
     // Desvio 13 (A5 E5a T5, Naksu/Logan 14/10): só TEXTO mudou, nunca número: frase de outlier ausente mais curta, "(±N)" no crescimento
     // dentro do arredondamento (a explicação completa foi para o title) e "Sem Shorts/longos em 90 d.".
+    // Desvio 14 (A5 E5a, portão de Phil, I2): a fixture agora calcula o M8 pela regra NOVA (parado se os dias sem publicar passam de
+    // max(28, 4 × intervalo mediano das 13 semanas)), sem copiar o `activity.state` de 30 dias do motor. Os dois discordam em UM canal:
+    // 'bald-and-bankrupt' (último vídeo há 35 dias, mas publica a cada ~14 dias: o limite novo é 56). Para ele, e só para ele, somem os textos de
+    // "parado" (célula de cadência, cauda do views/dia, subtítulos do painel); nenhum número muda.
+    const discordam = obs.channels.filter(c => !c.own && c.activity.state === 'parado' && (() => { const m = medidas.porCanal.get(c.id); return m !== undefined && !('naoCarregou' in m) && m.m8.estado.estado === 'medido' && m.m8.estado.valor !== 'parado' })()).map(c => c.id)
+    expect(discordam).toEqual(['bald-and-bankrupt'])
+    const bb = esperado.canais.find(c => c.id === 'bald-and-bankrupt')!
+    type Cel = { cadence: { paused: string | null; sub: string | null }; vpd: { tail: string | null } }
+    for (const f of ['longos', 'shorts', 'todos'] as const) {
+      const cel = (bb.lista[f] as unknown as { cells: Cel }).cells
+      cel.cadence.paused = null; cel.vpd.tail = f === 'shorts' ? cel.vpd.tail : null
+    }
+    ;(bb.lista.longos as unknown as { cells: Cel }).cells.cadence.sub = 'sem Shorts'
+    ;(bb.lista.shorts as unknown as { cells: Cel }).cells.cadence.sub = 'e 0,5 longos/sem'
+    const st = (bb.painel as unknown as { stats: Array<{ sub: string; subWeak: boolean }> }).stats
+    st[0]!.sub = 'longos + Shorts por semana'; st[0]!.subWeak = false
+    st[1]!.sub = st[1]!.sub.replace(/\s+até o registro diário de .*$/u, '') // sai só a cauda do "parado"
     const texto = JSON.stringify(esperado)
       .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90\u00a0d\. Maior:/g, 'Nenhum com 2×. Maior:')
       .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90 d\. Maior:/g, 'Nenhum com 2×. Maior:')
