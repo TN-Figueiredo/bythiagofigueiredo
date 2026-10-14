@@ -9,8 +9,8 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, mkdtempSync, writeFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { lerMigrations, ultimaDefinicao, migrationsDaFase, PASTA_DAS_MIGRATIONS } from '../helpers/migrations'
-import { M2_EM_MIGRATION, M2_SQL_CAMINHO } from '../helpers/m2'
+import { lerMigrations, ultimaDefinicao, migrationsDaFase, PASTA_DAS_MIGRATIONS, type Migration } from '../helpers/migrations'
+import { M2_EM_MIGRATION, M2_SQL_CAMINHO, M2_SQL } from '../helpers/m2'
 
 const RAIZ = resolve(__dirname, '../../../..')
 
@@ -20,8 +20,8 @@ function pastaFalsa(arquivos: Record<string, string>): string {
   return d
 }
 
-export function regra71(dir?: string): string[] {
-  const migs = lerMigrations(dir)
+export function regra71(dir?: string, extras: Migration[] = []): string[] {
+  const migs = [...lerMigrations(dir), ...extras]
   const erros: string[] = []
   const u = ultimaDefinicao(migs, 'obs_archive_uncovered')
   if (u && !/relispartition/.test(u.corpo)) erros.push(`obs_archive_uncovered em ${u.arquivo} sem relispartition (pedido 1)`)
@@ -39,8 +39,11 @@ export function regra119(dir?: string): string[] {
 }
 
 describe('item 71: a última definição das duas funções da E10 sabe de partição', () => {
-  // MG6 da E10 já está em produção sem as cláusulas; a M2 (Task 4) as recria. Reativado na Task 4, lendo o rascunho junto.
-  it.skip('no repositório', () => { expect(regra71()).toEqual([]) })
+  // A MG6 da E10 já está em produção sem as cláusulas; a M2 as recria. Até o dia do push a M2 é o rascunho (TRAVA M2-1): entra como a última migration.
+  it('no repositório (com o rascunho da M2 como última migration, até o dia do push)', () => {
+    const extras: Migration[] = M2_EM_MIGRATION ? [] : [{ arquivo: 'rascunhos/m2.sql', sql: M2_SQL }]
+    expect(regra71(undefined, extras)).toEqual([])
+  })
   it('pega a definição sem a cláusula', () => {
     const d = pastaFalsa({ '20990101000001_e10.sql': 'create or replace function public.obs_archive_uncovered() returns text[] language sql as $$ select 1 $$;' })
     expect(regra71(d)).toEqual(['obs_archive_uncovered em 20990101000001_e10.sql sem relispartition (pedido 1)'])

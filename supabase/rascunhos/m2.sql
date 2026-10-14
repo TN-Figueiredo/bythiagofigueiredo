@@ -474,6 +474,112 @@ revoke all on function public.obs_partitions_months_ahead() from public, anon, a
 grant execute on function public.obs_partitions_ensure(integer) to service_role;
 grant execute on function public.obs_partitions_months_ahead() to service_role;
 
+-- 11. Pedidos 1 e 3: se a MG6 da E10 já estiver aplicada sem o conserto, recria as duas funções com ele.
+--     Função ausente: nada (o teste das migrations segura a ordem inversa). Corpo diferente do conhecido e sem o conserto: recusa.
+do $$
+declare
+  v_src text;
+begin
+  select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.obs_archive_uncovered()');
+  if v_src is not null and v_src !~ 'relispartition' then
+    if pg_catalog.md5(v_src) <> '04acb555daf84c61933b740e13a85e21' then
+      raise exception 'M2:obs_archive_uncovered_divergente' using errcode = 'P0001',
+        detail = 'o corpo instalado não é o da fixture de 14/10: copiar o corpo instalado com a cláusula do pedido 1 para esta migration';
+    end if;
+    execute $f$
+create or replace function public.obs_archive_uncovered()
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $b$
+  with recursive alvo (rel) as (
+    select 'public.competitor_channels'::regclass::oid
+    union
+    select k.conrelid
+      from pg_catalog.pg_constraint k
+      join alvo a on k.confrelid = a.rel
+     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+  )
+  select coalesce(array_agg(c.relname::text order by c.relname::text), '{}'::text[])
+    from alvo a
+    join pg_catalog.pg_class c on c.oid = a.rel
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+   where not c.relispartition
+     and not (n.nspname = 'public' and c.relname::text in (select r.table_name from public.obs_archive_registry() r))
+     and not (n.nspname = 'public' and c.relname::text in (select e.table_name from public.obs_archive_excluded() e));
+$b$;
+$f$;
+  end if;
+
+  select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.obs_db_size_record(timestamp with time zone)');
+  if v_src is not null and v_src !~ 'relispartition' then
+    if pg_catalog.md5(v_src) <> '3b6daeff58c7e884d8b6e944c8e234a7' then
+      raise exception 'M2:obs_db_size_record_divergente' using errcode = 'P0001',
+        detail = 'o corpo instalado não é o da fixture de 14/10: copiar o corpo instalado com o conserto do pedido 3 para esta migration';
+    end if;
+    execute $f$
+create or replace function public.obs_db_size_record(p_now timestamptz default now())
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $b$
+declare
+  v_day date;
+  v_db bigint;
+  v_comp bigint;
+  v_own bigint;
+  v_top jsonb;
+begin
+  if p_now is null then
+    raise exception 'E10:parametro_nulo: obs_db_size_record' using errcode = '22023';
+  end if;
+  v_day := (p_now at time zone 'America/Sao_Paulo')::date;
+  v_db := pg_catalog.pg_database_size(pg_catalog.current_database());
+  select coalesce(sum(pg_catalog.pg_total_relation_size(c.oid)) filter (where m.mae like 'competitor\_%'), 0)::bigint,
+         coalesce(sum(pg_catalog.pg_total_relation_size(c.oid)) filter (where m.mae like 'yt\_own\_%' or m.mae like 'yt\_reporting\_%'), 0)::bigint
+    into v_comp, v_own
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    cross join lateral (
+      select case
+               when c.relispartition then (select r.relname::text from pg_catalog.pg_class r where r.oid = pg_catalog.pg_partition_root(c.oid))
+               when n.nspname = 'obs_part' then pg_catalog.regexp_replace(c.relname::text, '_[0-9]{6}_saida$', '')
+               else c.relname::text
+             end as mae
+    ) m
+   where n.nspname in ('public', 'obs_part') and c.relkind in ('r', 'p');
+  select coalesce(jsonb_object_agg(z.nome, z.bytes), '{}'::jsonb) into v_top
+    from (
+      select y.nome, sum(y.bytes)::bigint as bytes
+        from (
+          select case
+                   when c.relispartition then 'public.' || (select r.relname::text from pg_catalog.pg_class r where r.oid = pg_catalog.pg_partition_root(c.oid))
+                   when n.nspname = 'obs_part' then 'public.' || pg_catalog.regexp_replace(c.relname::text, '_[0-9]{6}_saida$', '')
+                   else n.nspname || '.' || c.relname
+                 end as nome,
+                 pg_catalog.pg_total_relation_size(c.oid) as bytes
+            from pg_catalog.pg_class c
+            join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+           where c.relkind in ('r', 'm', 'p') and n.nspname not in ('pg_catalog', 'information_schema')
+        ) y
+       group by y.nome
+       order by 2 desc, 1
+       limit 30
+    ) z;
+  insert into public.obs_db_size_daily as d (day, db_bytes, competitor_bytes, own_bytes, measured_at, top_relations)
+  values (v_day, v_db, v_comp, v_own, p_now, v_top)
+  on conflict (day) do update
+    set db_bytes = excluded.db_bytes, competitor_bytes = excluded.competitor_bytes, own_bytes = excluded.own_bytes,
+        measured_at = excluded.measured_at, top_relations = excluded.top_relations;
+  return jsonb_build_object('day', v_day, 'db_bytes', v_db, 'competitor_bytes', v_comp, 'own_bytes', v_own, 'measured_at', p_now);
+end $b$;
+$f$;
+  end if;
+end $$;
+
 -- 12. A conversão das três séries: um só bloco, uma só transação (se uma falhar, nenhuma muda).
 do $$
 begin
