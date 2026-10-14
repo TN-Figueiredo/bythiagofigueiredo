@@ -84,7 +84,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
         />
       </div>
 
-      {/* 4. "Por que empatou" + "P(top 2)" — two separate cards side by side */}
+      {/* 4. "Por que empatou" + "P(melhor)" — two separate cards side by side */}
       <section className="mb-[30px]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
           {/* Left: Por que empatou */}
@@ -103,26 +103,26 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
             <CredibleInterval variants={view.variants} />
           </div>
 
-          {/* Right: P(top 2) por variante */}
+          {/* Right: Probabilidade de ser a melhor, por variante */}
           <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
             <div className="flex items-end justify-between gap-[14px] mb-[16px]">
               <div>
                 <div className="flex items-center gap-[9px]">
                   <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
                   <h3 className="text-[19px] font-semibold text-cms-text m-0">
-                    P(top 2) por variante
+                    Probabilidade de ser a melhor, por variante
                     <span className="relative inline-flex align-middle ml-[5px]">
                       <span className="size-[15px] rounded-full border border-cms-border text-cms-text-muted text-[9.5px] font-bold inline-flex items-center justify-center cursor-help font-mono">?</span>
                     </span>
                   </h3>
                 </div>
                 <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                  Probabilidade de estar entre as 2 melhores — o critério do playoff.
+                  Probabilidade de cada variante ser a melhor, pelos cliques observados.
                 </p>
               </div>
             </div>
             <div className="mt-[6px]">
-              <RankBars variants={view.variants} metric="pTop2" />
+              <RankBars variants={view.variants} />
             </div>
           </div>
         </div>
@@ -143,7 +143,6 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
         </div>
         <VariantTable
           variants={view.variants}
-          metric="pTop2"
           finalists={view.finalists.map(f => f.label)}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}

@@ -2,6 +2,8 @@ import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 export type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 
+export const SEM_MEDICAO_DE_ENTREGA = 'Sem medição de entrega por enquanto'
+
 export const VARIANT_COLORS = {
   A: '#8A8F98',
   B: '#E8823C',

@@ -29,9 +29,9 @@ import type {
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
-import { computeOutlierScore, computeRevenueRange, computeDaysRemaining } from '@/lib/youtube/ab-computed'
+import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
-import { latestRow, latestRowPerVideo } from '@/lib/youtube/rolling-window'
+import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -426,7 +426,8 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   const leaderIsOriginal = leaderVariant?.is_original ?? false
 
   // Lift: use result_metadata if available
-  const lift = test.result_metadata?.ctr_lift_percent ?? 0
+  // Sem medição de lift gravada, o campo fica nulo: nunca vira 0.
+  const lift = test.result_metadata?.ctr_lift_percent ?? null
 
   // dayOf: days since started_at (use completed_at for finished tests)
   const endTime = test.completed_at ? new Date(test.completed_at).getTime() : Date.now()
@@ -434,7 +435,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     ? Math.floor((endTime - new Date(test.started_at).getTime()) / 86400000)
     : 0
 
-  const confidence = (test.confidence_at_completion ?? 0) * 100
+  const confidence = test.confidence_at_completion == null ? null : test.confidence_at_completion * 100
 
   const variants = test.variants.map(v => ({
     label: toDisplayLabel(v.label, v.is_original),
@@ -574,7 +575,7 @@ function aggregateTags(
   tests: TestForLearning[],
   allVariants?: Array<{ id: unknown; metadata: unknown }>,
 ): LearningsTag[] {
-  const tagMap = new Map<string, { wins: number; total: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
+  const tagMap = new Map<string, { wins: number; total: number; totalLift: number; liftMedidos: number; kind: 'thumb' | 'title' | 'desc' }>()
 
   // Count wins (tag appeared on the winning variant)
   for (const test of tests) {
@@ -582,14 +583,18 @@ function aggregateTags(
     if (!winner) continue
     const meta = winner.metadata as Record<string, unknown> | null
     const tags = (meta?.thumbnail_tags as string[]) ?? []
-    const lift = ((test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? 0
+    const liftBruto = (test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent
+    const lift = typeof liftBruto === 'number' ? liftBruto : null
     const testType = (test.test_type as string | undefined) ?? 'thumbnail'
     const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
 
     for (const tag of tags) {
-      const existing = tagMap.get(tag) ?? { wins: 0, total: 0, totalLift: 0, kind }
+      const existing = tagMap.get(tag) ?? { wins: 0, total: 0, totalLift: 0, liftMedidos: 0, kind }
       existing.wins += 1
-      existing.totalLift += lift
+      if (lift !== null) {
+        existing.totalLift += lift
+        existing.liftMedidos += 1
+      }
       tagMap.set(tag, existing)
     }
   }
@@ -621,9 +626,9 @@ function aggregateTags(
       wins: data.wins,
       total: data.total,
       confidence: wilsonScore(data.wins, data.total),
-      avgLift: data.wins > 0 ? data.totalLift / data.wins : 0,
+      avgLift: data.liftMedidos > 0 ? data.totalLift / data.liftMedidos : 0,
       kind: data.kind,
-      negative: data.wins > 0 && (data.totalLift / data.wins) < 0 ? true : undefined,
+      negative: data.liftMedidos > 0 && (data.totalLift / data.liftMedidos) < 0 ? true : undefined,
     }))
     .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
 }
@@ -947,7 +952,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     impressions: v.total_impressions,
     clicks: v.total_clicks,
     pBest: 0,
-    pTop2: 0,
   }))
 
   // Compute Bayesian probabilities if enough data
@@ -959,20 +963,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       )?.variant_id
       if (variantId && bayesian.probabilities[variantId]) {
         v.pBest = bayesian.probabilities[variantId]!
-      }
-    }
-
-    // Approximate pTop2 from pBest ranking
-    if (variants.length === 2) {
-      // Trivially both are in top 2 of 2
-      for (const v of variants) v.pTop2 = 1.0
-    } else {
-      // For 3+ variants, top 2 by pBest get boosted probability, rest get reduced
-      const sorted = [...variants].sort((a, b) => b.pBest - a.pBest)
-      for (let i = 0; i < sorted.length; i++) {
-        sorted[i]!.pTop2 = i < 2
-          ? Math.min(1, sorted[i]!.pBest + (1 - sorted[i]!.pBest) * 0.3)
-          : sorted[i]!.pBest * 0.5
       }
     }
   }
@@ -1145,7 +1135,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       .single()
 
     let outlier: AbTestActiveView['outlier'] = undefined
-    let revenue: AbTestActiveView['revenue'] = undefined
     let daysRemaining: AbTestActiveView['daysRemaining'] = undefined
 
     if (videoStats) {
@@ -1208,21 +1197,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         )
       }
 
-      // Revenue: the video's rolling-window view total, annualized.
-      // Every row is already the total over the window, so the newest row IS
-      // views-in-window. Summing the rows multiplied it by the number of syncs
-      // (17x on production, 2026-09-22) and the error went straight into a
-      // revenue figure shown to the owner.
-      const { data: recentViews } = await supabase
-        .from('youtube_video_analytics')
-        .select('date, views')
-        .eq('youtube_video_id', test.youtube_video_id)
-        .gte('date', new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10))
-
-      const newestRecent = latestRow((recentViews ?? []) as Array<{ date: string; views: number | null }>)
-      const views28d = newestRecent?.views ?? 0
-      revenue = computeRevenueRange(views28d * 13) // annualize: 28d × 13 ≈ 365d
-
       // Days remaining stays unknown. `computeDaysRemaining` fits a DECAY curve
       // to a series of daily view counts; `youtube_video_analytics` holds
       // overlapping rolling-window totals, which decay only when a busier day
@@ -1258,7 +1232,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         polledAt: lastPolledAt,
       } : undefined,
       outlier,
-      revenue,
       daysRemaining,
       statusNote: test.status_note ?? null,
       driftAcknowledgedAt: test.drift_acknowledged_at ?? null,
@@ -1269,7 +1242,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }
 
   if (test.completed_reason === 'inconclusive' && test.playoff_test_id) {
-    const finalistLabels = [...variants].sort((a, b) => b.pTop2 - a.pTop2).slice(0, 2)
+    const finalistLabels = [...variants].sort((a, b) => b.pBest - a.pBest).slice(0, 2)
     return {
       ...base,
       status: 'completed' as const,
@@ -1323,7 +1296,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     winnerLabel,
     winnerColor,
     lift,
-    confidence: results.confidence * 100,
+    // A confiança calculada sobre views não é medição de entrega: a tela mostra a frase fixa.
+    confidence: null,
     resultMeta: {
       ctrBefore: originalCtr * 100,
       ctrAfter: winnerCtr * 100,

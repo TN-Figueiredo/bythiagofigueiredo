@@ -3,14 +3,13 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS } from './ab-constants'
+import { VARIANT_COLORS, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
 import { VariantTable } from './variant-table'
 import { ConfidenceChart } from './confidence-chart'
-import { RadarChart } from './radar-chart'
 import { CredibleInterval } from './credible-interval'
 import { RankBars } from './rank-bars'
 import { MultiLine } from './multi-line'
@@ -27,7 +26,7 @@ import { AbEndTestDialog } from './ab-end-test-dialog'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   Pause, Square, Settings,
-  TrendingUp, Crosshair, BarChart3, RefreshCw, Filter, Zap,
+  TrendingUp, BarChart3, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
 export interface ActiveDetailProps {
@@ -71,13 +70,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
 
   const leaderVariant = view.variants.find(v => v.label === data.leader)
   const originalVariant = view.variants.find(v => v.label === 'A')
-
-  const radarVariants = view.variants.map(v => ({
-    ...v,
-    watchTime: (v.retention ?? 0.4) * 600,
-    comments: Math.round(v.clicks * 0.02),
-    shares: Math.round(v.clicks * 0.008),
-  }))
 
 
   const actionButtons = (
@@ -135,7 +127,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-amber-300">
-                Vencedor detectado — aplicação automática em{' '}
+                Vencedor detectado — carência termina em{' '}
                 {Math.max(0, Math.ceil((new Date(view.graceExpiresAt).getTime() - Date.now()) / 3600000))}h
               </p>
             </div>
@@ -268,15 +260,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 </span>
               </div>
             )}
-            {view.revenue && (
-              <div>
-                <span className="eyebrow">Receita estimada</span>
-                <span className="block font-mono text-[22px] font-bold leading-none tracking-tight text-cms-green mt-[4px]">
-                  +R$ {Math.round((view.revenue.low + view.revenue.high) / 2 / 12).toLocaleString('pt-BR')}
-                  <span className="text-[11px] font-normal text-cms-text-dim">/mês</span>
-                </span>
-              </div>
-            )}
             {view.daysRemaining && (
               <div>
                 <span className="eyebrow">Conclusão em</span>
@@ -286,9 +269,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 </span>
               </div>
             )}
-            {!view.outlier && !view.revenue && !view.daysRemaining && (
-              <span className="text-[12px] text-cms-text-dim py-2">Coletando dados...</span>
-            )}
+            <p className="text-[12px] text-cms-text-dim py-2">{SEM_MEDICAO_DE_ENTREGA}</p>
           </div>
         </div>
       </div>
@@ -297,7 +278,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       <section data-section="variant-performance" className="mb-[24px]">
         <VariantTable
           variants={view.variants}
-          metric="pBest"
           leaderId={data.leader}
           activeNow={view.activeNow ?? undefined}
           thumbs={view.variantThumbs}
@@ -323,17 +303,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             </div>
           </div>
 
-          {/* Raio-X das variantes */}
-          <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
-            <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-              <Crosshair size={15} className="text-cms-text-dim" aria-hidden="true" />
-              <span className="text-[13px] font-semibold text-cms-text">Raio-X das variantes</span>
-              <span className="text-[11.5px] text-cms-text-dim ml-auto">6 eixos</span>
-            </div>
-            <div className="px-[16px] py-[14px]">
-              <RadarChart variants={radarVariants} />
-            </div>
-          </div>
+          <p className="text-[12px] text-cms-text-dim py-2">{SEM_MEDICAO_DE_ENTREGA}</p>
         </div>
       </section>
 
@@ -359,7 +329,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <span className="text-[11.5px] text-cms-text-dim ml-auto">P(melhor) · 10 mil simulações</span>
           </div>
           <div className="px-[16px] py-[14px]">
-            <RankBars variants={view.variants} metric="pBest" />
+            <RankBars variants={view.variants} />
           </div>
         </div>
       </div>

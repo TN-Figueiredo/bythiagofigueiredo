@@ -14,7 +14,6 @@ import { Gauge } from '@/app/cms/(authed)/youtube/ab-lab/_components/gauge'
 import { CredibleInterval } from '@/app/cms/(authed)/youtube/ab-lab/_components/credible-interval'
 import { RankBars } from '@/app/cms/(authed)/youtube/ab-lab/_components/rank-bars'
 import type { DisplayLabel, StatsVariant } from '@/lib/youtube/ab-types'
-import { RadarChart } from '@/app/cms/(authed)/youtube/ab-lab/_components/radar-chart'
 import { FunnelRow } from '@/app/cms/(authed)/youtube/ab-lab/_components/funnel-row'
 import { BayesCurves } from '@/app/cms/(authed)/youtube/ab-lab/_components/bayes-curves'
 import { Dots } from '@/app/cms/(authed)/youtube/ab-lab/_components/dots'
@@ -297,8 +296,8 @@ describe('CredibleInterval', () => {
 
 describe('RankBars', () => {
   const variants = [
-    { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0.15, pTop2: 0.45 },
-    { label: 'B' as DisplayLabel, color: '#E8823C', pBest: 0.85, pTop2: 0.95 },
+    { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0.15 },
+    { label: 'B' as DisplayLabel, color: '#E8823C', pBest: 0.85 },
   ]
 
   it('renders bars sorted descending by pBest', () => {
@@ -308,15 +307,9 @@ describe('RankBars', () => {
     expect(chips[1]?.textContent).toBe('A')
   })
 
-  it('uses pTop2 when metric is pTop2', () => {
-    const { container } = render(<RankBars variants={variants} metric="pTop2" />)
-    const bars = container.querySelectorAll('[data-rank-bar]')
-    expect(bars.length).toBe(2)
-  })
-
   it('gives 0% bars a minimum 2px width', () => {
     const zeroVariants = [
-      { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0, pTop2: 0 },
+      { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0 },
     ]
     const { container } = render(<RankBars variants={zeroVariants} />)
     const bar = container.querySelector('[data-rank-bar]')
@@ -325,54 +318,11 @@ describe('RankBars', () => {
 
   it('clamps values over 100 to 100%', () => {
     const over = [
-      { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 1.5, pTop2: 0.5 },
+      { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 1.5 },
     ]
     const { container } = render(<RankBars variants={over} />)
     const bar = container.querySelector('[data-rank-bar]')
     expect(bar).toBeTruthy()
-  })
-})
-
-describe('RadarChart', () => {
-  const variants = [
-    { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: 0.05, impressions: 10000,
-      clicks: 500, pBest: 0.3, pTop2: 0.6, linkCtr: 0.02, retention: 0.45 },
-    { label: 'B' as DisplayLabel, color: '#E8823C', ctr: 0.07, impressions: 10000,
-      clicks: 700, pBest: 0.7, pTop2: 0.9, linkCtr: 0.03, retention: 0.55 },
-  ]
-
-  it('renders 4 grid rings', () => {
-    const { container } = render(<RadarChart variants={variants} />)
-    const polygons = container.querySelectorAll('polygon[data-grid]')
-    expect(polygons.length).toBe(4)
-  })
-
-  it('renders one data polygon per variant', () => {
-    const { container } = render(<RadarChart variants={variants} />)
-    const polygons = container.querySelectorAll('polygon[data-variant]')
-    expect(polygons.length).toBe(2)
-  })
-
-  it('renders nothing with fewer than 2 axes', () => {
-    const { container } = render(
-      <RadarChart variants={variants} axes={[{ key: 'ctr', label: 'CTR' }]} />,
-    )
-    expect(container.querySelector('svg')).toBeNull()
-  })
-
-  it('renders axis labels', () => {
-    const { getByText } = render(<RadarChart variants={variants} />)
-    expect(getByText('CTR')).toBeTruthy()
-    expect(getByText('Retenção')).toBeTruthy()
-    expect(getByText('Compartilh.')).toBeTruthy()
-  })
-
-  it('handles axisMax=0 by mapping to center', () => {
-    const zeroVariants = [
-      { ...variants[0]!, ctr: 0, clicks: 0, pBest: 0, pTop2: 0 },
-    ]
-    const { container } = render(<RadarChart variants={zeroVariants} />)
-    expect(container.querySelector('svg')).toBeTruthy()
   })
 })
 

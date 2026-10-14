@@ -136,7 +136,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             {/* Right: Rank Bars */}
             <div>
               <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">Chance de ser o melhor</div>
-              <RankBars variants={view.variants} metric="pBest" />
+              <RankBars variants={view.variants} />
               <p className="text-[11.5px] text-cms-text-dim mt-[12px] leading-[1.5]">
                 As faixas <b className="text-cms-text">não se sobrepõem</b> — por isso o sistema cravou o vencedor, diferente do empate que vira playoff.
               </p>
@@ -209,7 +209,6 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         </div>
         <VariantTable
           variants={view.variants}
-          metric="pBest"
           winnerId={view.winnerLabel}
           videoTitle={view.videoTitle}
           thumbs={view.variantThumbs}

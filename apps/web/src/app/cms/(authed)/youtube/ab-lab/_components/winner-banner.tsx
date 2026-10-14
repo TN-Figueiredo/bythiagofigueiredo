@@ -1,7 +1,7 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import { formatPercent, formatCompact } from './ab-constants'
+import { formatPercent, formatCompact, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { Trophy } from 'lucide-react'
 
@@ -9,7 +9,7 @@ export interface WinnerBannerProps {
   winnerLabel: DisplayLabel
   winnerColor: string
   lift: number
-  confidence: number
+  confidence: number | null
   stats: {
     ctrBefore: number
     ctrAfter: number
@@ -57,7 +57,8 @@ export function WinnerBanner({
             </span>
           </div>
           <div className="text-[11.5px] text-cms-text-muted mt-2">
-            {formatPercent(confidence, 1)} de confianca · aplicado no YouTube
+            {confidence === null ? <span>{SEM_MEDICAO_DE_ENTREGA}</span> : <span>{formatPercent(confidence, 1)} de confianca</span>}
+            <span> · aplicado no YouTube</span>
           </div>
         </div>
 

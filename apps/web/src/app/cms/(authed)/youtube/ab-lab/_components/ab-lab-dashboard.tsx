@@ -300,7 +300,7 @@ export function AbLabDashboard({
                   <div className="flex-1 min-w-0">
                     <h4 className="text-[14px] font-semibold text-cms-text truncate m-0">{card.name}</h4>
                     <span className="text-[12px] text-cms-text-dim mt-[4px] block">
-                      Dia {card.dayOf} &middot; {Math.round(card.confidence)}% confiança
+                      Dia {card.dayOf}{card.confidence === null ? '' : <> &middot; {Math.round(card.confidence)}% confiança</>}
                     </span>
                   </div>
                   {card.statusNote && (

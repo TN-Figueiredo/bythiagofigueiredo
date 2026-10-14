@@ -286,7 +286,7 @@ describe('CredibleInterval logic — computeCI', () => {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('RankBars logic', () => {
-  type RankVariant = { label: DisplayLabel; color: string; pBest: number; pTop2: number }
+  type RankVariant = { label: DisplayLabel; color: string; pBest: number }
 
   it('empty array renders fallback', () => {
     const variants: RankVariant[] = []
@@ -295,25 +295,15 @@ describe('RankBars logic', () => {
 
   it('sorts by pBest descending (default metric)', () => {
     const variants: RankVariant[] = [
-      { label: 'A', color: '#8A8F98', pBest: 0.2, pTop2: 0.5 },
-      { label: 'B', color: '#E8823C', pBest: 0.7, pTop2: 0.9 },
-      { label: 'C', color: '#3FA9C0', pBest: 0.1, pTop2: 0.3 },
+      { label: 'A', color: '#8A8F98', pBest: 0.2 },
+      { label: 'B', color: '#E8823C', pBest: 0.7 },
+      { label: 'C', color: '#3FA9C0', pBest: 0.1 },
     ]
     const metric = 'pBest' as const
     const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
     expect(sorted[0]!.label).toBe('B')
     expect(sorted[1]!.label).toBe('A')
     expect(sorted[2]!.label).toBe('C')
-  })
-
-  it('sorts by pTop2 when metric is pTop2', () => {
-    const variants: RankVariant[] = [
-      { label: 'A', color: '#8A8F98', pBest: 0.1, pTop2: 0.9 },
-      { label: 'B', color: '#E8823C', pBest: 0.9, pTop2: 0.3 },
-    ]
-    const sorted = [...variants].sort((a, b) => b.pTop2 - a.pTop2)
-    expect(sorted[0]!.label).toBe('A') // pTop2 = 0.9
-    expect(sorted[1]!.label).toBe('B') // pTop2 = 0.3
   })
 
   it('bar width percentages clamp to 100%', () => {
@@ -404,10 +394,10 @@ describe('toCardView — maps AbTestWithVariants → AbTestCardView', () => {
     expect(card.confidence).toBe(92)
   })
 
-  it('confidence is 0 when confidence_at_completion is null', () => {
+  it('confidence é nula (nunca 0) quando confidence_at_completion é nulo', () => {
     const test = makeTestWithVariants({ confidence: undefined })
     const card = toCardView(test)
-    expect(card.confidence).toBe(0)
+    expect(card.confidence).toBeNull()
   })
 
   it('hasPlayoff is true when playoff_test_id is set', () => {
@@ -428,11 +418,11 @@ describe('toCardView — maps AbTestWithVariants → AbTestCardView', () => {
     expect(card.lift).toBe(18.5)
   })
 
-  it('lift defaults to 0 when result_metadata is null', () => {
+  it('lift é nulo (nunca 0) quando result_metadata é nulo', () => {
     const test = makeTestWithVariants()
     test.result_metadata = null
     const card = toCardView(test)
-    expect(card.lift).toBe(0)
+    expect(card.lift).toBeNull()
   })
 })
 

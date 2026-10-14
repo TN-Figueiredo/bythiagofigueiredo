@@ -271,7 +271,6 @@ export interface StatsVariant extends ChartVariant {
 
 export interface RankedVariant extends ChartVariant {
   pBest: number
-  pTop2: number
 }
 
 export interface FullChartVariant extends StatsVariant, RankedVariant {
@@ -298,8 +297,8 @@ export interface AbTestCardView {
   type: TestType
   status: AbTestStatus
   dayOf: number
-  confidence: number
-  lift: number
+  confidence: number | null
+  lift: number | null
   leader: DisplayLabel
   leaderColor: string
   leaderThumbUrl: string | null
@@ -455,7 +454,6 @@ export interface AbTestActiveView extends AbTestBaseView {
   }
   pollData?: { viewsDelta: number; likesDelta: number; polledAt: string }
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
-  revenue?: { low: number; high: number; currency: 'BRL'; isDefault: boolean }
   daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
   statusNote: string | null
   driftAcknowledgedAt: string | null
@@ -470,7 +468,7 @@ export interface AbTestWinnerView extends AbTestBaseView {
   winnerLabel: DisplayLabel
   winnerColor: string
   lift: number
-  confidence: number
+  confidence: number | null
   resultMeta: {
     ctrBefore: number
     ctrAfter: number

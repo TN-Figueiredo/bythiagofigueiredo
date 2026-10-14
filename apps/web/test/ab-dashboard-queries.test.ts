@@ -8,16 +8,17 @@ describe('toCardView', () => {
     const card = toCardView(test)
     expect(card.leader).toBeDefined()
     expect(card.leaderColor).toBeTruthy()
-    expect(card.confidence).toBeGreaterThanOrEqual(0)
+    expect(card.confidence).toBeNull()
   })
   it('calculates lift as percentage', () => {
     const test = makeTestWithVariants()
+    test.result_metadata = { ctr_lift_percent: 7.5, winner_label: 'B', total_impressions: 100, estimated_monthly_extra_clicks: 1 }
     const card = toCardView(test)
-    expect(typeof card.lift).toBe('number')
+    expect(card.lift).toBe(7.5)
   })
-  it('returns 0 lift when no data', () => {
+  it('lift é nulo (nunca 0) quando não há medição', () => {
     const test = makeTestWithVariants()
-    expect(toCardView(test).lift).toBe(0)
+    expect(toCardView(test).lift).toBeNull()
   })
   it('computes dayOf from started_at', () => {
     const test = makeTestWithVariants({ startedDaysAgo: 5 })

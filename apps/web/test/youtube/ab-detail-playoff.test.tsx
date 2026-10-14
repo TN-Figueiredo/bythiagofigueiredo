@@ -26,7 +26,6 @@ function makeVariant(label: 'A' | 'B' | 'C' | 'D', overrides?: Partial<FullChart
     impressions: 10000,
     clicks: 500,
     pBest: 0.5,
-    pTop2: 0.8,
     ...overrides,
   }
 }
@@ -59,9 +58,9 @@ function makePlayoffView(overrides?: Partial<AbTestPlayoffView>): AbTestPlayoffV
       { label: 'B', color: '#E8823C', ctr: 5.0, thumbnailUrl: null },
     ],
     variants: [
-      makeVariant('A', { ctr: 5.1, pBest: 0.35, pTop2: 0.85, impressions: 15000 }),
-      makeVariant('B', { ctr: 5.0, pBest: 0.40, pTop2: 0.82, impressions: 15000 }),
-      makeVariant('C', { ctr: 4.2, pBest: 0.25, pTop2: 0.33, impressions: 15000 }),
+      makeVariant('A', { ctr: 5.1, pBest: 0.35, impressions: 15000 }),
+      makeVariant('B', { ctr: 5.0, pBest: 0.40, impressions: 15000 }),
+      makeVariant('C', { ctr: 4.2, pBest: 0.25, impressions: 15000 }),
     ],
     variantThumbs: [makeThumb('A', true), makeThumb('B'), makeThumb('C')],
     confTrend: [40, 55, 65, 72, 78, 82],
@@ -168,9 +167,9 @@ describe.skip('PlayoffDetail', () => { // TODO: broken by component redesign
     expect(screen.getByText(/95%/)).toBeDefined()
   })
 
-  it('renders VariantTable with pTop2 metric', () => {
+  it('renders VariantTable ordenado por chance de vencer (pBest), sem Top 2', () => {
     render(<PlayoffDetail view={makePlayoffView()} />)
-    // VariantTable header should show "Top 2" not "Chance to win"
-    expect(screen.getByText('Top 2')).toBeDefined()
+    expect(screen.getByText('Chance de vencer')).toBeDefined()
+    expect(screen.queryAllByText(/top ?2/i)).toHaveLength(0)
   })
 })

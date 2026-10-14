@@ -305,7 +305,7 @@ describe('Mock views type safety', () => {
         expect(v).toHaveProperty('impressions')
         expect(v).toHaveProperty('clicks')
         expect(v).toHaveProperty('pBest')
-        expect(v).toHaveProperty('pTop2')
+        expect(v).not.toHaveProperty('pTop2')
       }
     })
     it('has monitor with sparkline and checkpoints', () => {

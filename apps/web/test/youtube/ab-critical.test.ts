@@ -169,7 +169,7 @@ describe('toDetailView — status discrimination', () => {
     expect('outcome' in view && view.outcome).toBe('winner')
     if ('outcome' in view && view.outcome === 'winner') {
       expect(view.winnerLabel).toBe('B')
-      expect(view.confidence).toBeCloseTo(97, 0)
+      expect(view.confidence).toBeNull() // confiança calculada sobre views não é medição de entrega
     }
   })
 

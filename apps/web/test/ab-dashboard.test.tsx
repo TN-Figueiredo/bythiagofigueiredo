@@ -101,6 +101,13 @@ describe('ActiveTestCard', () => {
     expect(screen.getByText('Dia 7/14')).toBeTruthy()
   })
 
+  it('confidence nula não vira "0%": mostra a frase fixa', () => {
+    const test = makeCardView({ confidence: null, lift: null })
+    render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
+    expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+  })
+
   it('calls onOpen when clicked', () => {
     const test = makeCardView()
     const onOpen = vi.fn()

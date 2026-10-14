@@ -11,7 +11,7 @@ afterEach(() => cleanup())
 const ORIGINAL = 'Sukhumvit Road: Um mergulho profundo na rua mais selvagem de Bangkok'
 
 function variant(label: 'A' | 'B' | 'C' | 'D', pBest: number): FullChartVariant {
-  return { label, color: '#fff', ctr: 0, impressions: 0, clicks: 0, pBest, pTop2: 0 }
+  return { label, color: '#fff', ctr: 0, impressions: 0, clicks: 0, pBest }
 }
 
 function thumb(label: 'A' | 'B' | 'C' | 'D', titleText: string | null, isOriginal = false): VariantThumb {
@@ -34,7 +34,7 @@ describe('VariantTable — per-variant title', () => {
     ]
 
     render(
-      <VariantTable variants={variants} metric="pBest" thumbs={thumbs} videoTitle={ORIGINAL} />,
+      <VariantTable variants={variants} thumbs={thumbs} videoTitle={ORIGINAL} />,
     )
 
     // Each distinct variant title must be on screen

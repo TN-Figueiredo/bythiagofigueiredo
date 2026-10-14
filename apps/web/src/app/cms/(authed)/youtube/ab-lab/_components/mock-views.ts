@@ -10,10 +10,10 @@ import type {
 import { VARIANT_COLORS } from './ab-constants'
 
 const VARIANTS: FullChartVariant[] = [
-  { label: 'A', color: VARIANT_COLORS.A, ctr: 0.052, impressions: 26000, clicks: 1352, pBest: 0.03, pTop2: 0.16, linkCtr: 0.012, retention: 0.45 },
-  { label: 'B', color: VARIANT_COLORS.B, ctr: 0.064, impressions: 26000, clicks: 1664, pBest: 0.93, pTop2: 0.97, linkCtr: 0.018, retention: 0.52 },
-  { label: 'C', color: VARIANT_COLORS.C, ctr: 0.053, impressions: 13000, clicks: 689, pBest: 0.03, pTop2: 0.71, linkCtr: 0.014, retention: 0.48 },
-  { label: 'D', color: VARIANT_COLORS.D, ctr: 0.060, impressions: 13000, clicks: 780, pBest: 0.01, pTop2: 0.73, linkCtr: 0.016, retention: 0.50 },
+  { label: 'A', color: VARIANT_COLORS.A, ctr: 0.052, impressions: 26000, clicks: 1352, pBest: 0.03, linkCtr: 0.012, retention: 0.45 },
+  { label: 'B', color: VARIANT_COLORS.B, ctr: 0.064, impressions: 26000, clicks: 1664, pBest: 0.93, linkCtr: 0.018, retention: 0.52 },
+  { label: 'C', color: VARIANT_COLORS.C, ctr: 0.053, impressions: 13000, clicks: 689, pBest: 0.03, linkCtr: 0.014, retention: 0.48 },
+  { label: 'D', color: VARIANT_COLORS.D, ctr: 0.060, impressions: 13000, clicks: 780, pBest: 0.01, linkCtr: 0.016, retention: 0.50 },
 ]
 
 const THUMBS: VariantThumb[] = [
@@ -120,10 +120,10 @@ export const MOCK_PLAYOFF: AbTestPlayoffView = {
     { name: 'stability', passed: false, value: 'Instável', hint: 'Queda > 20% detectada' },
   ],
   variants: [
-    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.048, impressions: 13000, clicks: 624, pBest: 0.02, pTop2: 0.16, linkCtr: 0.010, retention: 0.42 },
-    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.061, impressions: 13000, clicks: 793, pBest: 0.45, pTop2: 0.71, linkCtr: 0.017, retention: 0.51 },
-    { label: 'C', color: VARIANT_COLORS.C, ctr: 0.053, impressions: 13000, clicks: 689, pBest: 0.08, pTop2: 0.13, linkCtr: 0.013, retention: 0.46 },
-    { label: 'D', color: VARIANT_COLORS.D, ctr: 0.060, impressions: 13000, clicks: 780, pBest: 0.45, pTop2: 0.73, linkCtr: 0.015, retention: 0.49 },
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.048, impressions: 13000, clicks: 624, pBest: 0.02, linkCtr: 0.010, retention: 0.42 },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.061, impressions: 13000, clicks: 793, pBest: 0.45, linkCtr: 0.017, retention: 0.51 },
+    { label: 'C', color: VARIANT_COLORS.C, ctr: 0.053, impressions: 13000, clicks: 689, pBest: 0.08, linkCtr: 0.013, retention: 0.46 },
+    { label: 'D', color: VARIANT_COLORS.D, ctr: 0.060, impressions: 13000, clicks: 780, pBest: 0.45, linkCtr: 0.015, retention: 0.49 },
   ],
 }
 
@@ -134,8 +134,8 @@ export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
   status: 'completed',
   outcome: 'winner',
   variants: [
-    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.051, impressions: 1200, clicks: 61, pBest: 0.07, pTop2: 0.07, linkCtr: 0.009, retention: 0.40 },
-    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1200, clicks: 63, pBest: 0.93, pTop2: 0.93, linkCtr: 0.010, retention: 0.41 },
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.051, impressions: 1200, clicks: 61, pBest: 0.07, linkCtr: 0.009, retention: 0.40 },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1200, clicks: 63, pBest: 0.93, linkCtr: 0.010, retention: 0.41 },
   ],
   variantThumbs: [
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
@@ -188,8 +188,8 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
   status: 'completed',
   outcome: 'playoff',
   variants: [
-    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.050, impressions: 1500, clicks: 75, pBest: 0.30, pTop2: 0.45, linkCtr: undefined, retention: undefined },
-    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1500, clicks: 78, pBest: 0.70, pTop2: 0.55, linkCtr: undefined, retention: undefined },
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.050, impressions: 1500, clicks: 75, pBest: 0.30, linkCtr: undefined, retention: undefined },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.052, impressions: 1500, clicks: 78, pBest: 0.70, linkCtr: undefined, retention: undefined },
   ],
   variantThumbs: [
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
@@ -226,8 +226,8 @@ export const MOCK_EARLY: AbTestActiveView = {
   flag: 'thumbnail',
   status: 'active',
   variants: [
-    { label: 'A', color: VARIANT_COLORS.A, ctr: 0, impressions: 0, clicks: 0, pBest: 0, pTop2: 0, linkCtr: undefined, retention: undefined },
-    { label: 'B', color: VARIANT_COLORS.B, ctr: 0, impressions: 0, clicks: 0, pBest: 0, pTop2: 0, linkCtr: undefined, retention: undefined },
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0, impressions: 0, clicks: 0, pBest: 0, linkCtr: undefined, retention: undefined },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0, impressions: 0, clicks: 0, pBest: 0, linkCtr: undefined, retention: undefined },
   ],
   variantThumbs: [
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },
@@ -272,8 +272,8 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
   flag: 'title',
   status: 'active',
   variants: [
-    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.051, impressions: 800, clicks: 41, pBest: 0.35, pTop2: 0.35, linkCtr: undefined, retention: undefined },
-    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.054, impressions: 800, clicks: 43, pBest: 0.65, pTop2: 0.65, linkCtr: undefined, retention: undefined },
+    { label: 'A', color: VARIANT_COLORS.A, ctr: 0.051, impressions: 800, clicks: 41, pBest: 0.35, linkCtr: undefined, retention: undefined },
+    { label: 'B', color: VARIANT_COLORS.B, ctr: 0.054, impressions: 800, clicks: 43, pBest: 0.65, linkCtr: undefined, retention: undefined },
   ],
   variantThumbs: [
     { label: 'A', color: VARIANT_COLORS.A, thumbUrl: null, isOriginal: true, titleText: null },

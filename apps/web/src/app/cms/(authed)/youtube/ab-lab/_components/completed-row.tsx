@@ -3,6 +3,7 @@
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 import { VChip, TypeBadge, Badge } from './ab-primitives'
+import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { ChevronRight, Swords } from 'lucide-react'
 
 export interface CompletedRowProps {
@@ -11,7 +12,8 @@ export interface CompletedRowProps {
 }
 
 export function CompletedRow({ test, onOpen }: CompletedRowProps) {
-  const isInconclusive = Math.abs(test.lift) < 0.1 && test.confidence < 90
+  const semMedicao = test.lift === null || test.confidence === null
+  const isInconclusive = !semMedicao && Math.abs(test.lift ?? 0) < 0.1 && (test.confidence ?? 0) < 90
 
   return (
     <div
@@ -56,11 +58,13 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
 
       {/* Result */}
       <div className="text-right shrink-0">
-        {isInconclusive ? (
+        {semMedicao ? (
+          <div className="text-[10.5px] text-cms-text-dim">{SEM_MEDICAO_DE_ENTREGA}</div>
+        ) : isInconclusive ? (
           <>
             <Badge tone="amber">playoff agendado</Badge>
             <div className="text-[10.5px] text-cms-text-dim mt-[4px]">
-              {Math.round(test.confidence)}% — sem vencedor claro
+              {Math.round(test.confidence ?? 0)}% — sem vencedor claro
             </div>
           </>
         ) : (
@@ -68,11 +72,11 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
             <div className="inline-flex items-center gap-[6px]">
               <VChip label={test.leader} size={18} />
               <span className="font-mono text-[16px] font-bold text-cms-green">
-                +{brDec(test.lift, 1)}%
+                +{brDec(test.lift ?? 0, 1)}%
               </span>
             </div>
             <div className="text-[10.5px] text-cms-text-dim mt-[4px]">
-              {brDec(test.confidence, 1)}% confiança
+              {brDec(test.confidence ?? 0, 1)}% confiança
             </div>
           </>
         )}

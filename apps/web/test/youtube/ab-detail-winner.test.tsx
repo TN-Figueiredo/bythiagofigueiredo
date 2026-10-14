@@ -47,8 +47,7 @@ function makeVariant(label: 'A' | 'B' | 'C' | 'D', overrides?: Partial<FullChart
     impressions: 10000,
     clicks: 500,
     pBest: 0.5,
-    pTop2: 0.8,
-    ...overrides,
+        ...overrides,
   }
 }
 
@@ -223,6 +222,14 @@ describe('WinnerDetail', () => {
     expect(screen.getByTestId('scoreboard')).toBeDefined()
     // ClickMoment is rendered (contains "Home" context button)
     expect(screen.getByText('Home')).toBeDefined()
+  })
+
+  it('teste encerrado sem confiança medida não mostra "0%" nem confiança calculada; mostra a frase fixa', () => {
+    const view = makeWinnerView({ confidence: null })
+    render(<WinnerDetail view={view} />)
+    expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
+    expect(screen.queryAllByText(/de confianca/i)).toHaveLength(0)
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
   })
 
   it('renders "Por que B venceu" section heading', () => {

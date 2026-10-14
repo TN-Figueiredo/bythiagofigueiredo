@@ -9,7 +9,6 @@ import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react'
 
 export interface VariantTableProps {
   variants: FullChartVariant[]
-  metric: 'pBest' | 'pTop2'
   winnerId?: string
   leaderId?: string
   activeNow?: string
@@ -18,9 +17,9 @@ export interface VariantTableProps {
   videoTitle?: string
 }
 
-export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
+export function VariantTable({ variants, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
-  const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
+  const sorted = [...variants].sort((a, b) => b.pBest - a.pBest)
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
   const toggle = useCallback((label: string) => {
@@ -71,7 +70,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
           const isHighlighted = isWinner || isLeader
           const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
           const isExpanded = expandedLabel === variant.label
-          const chance = variant[metric]
+          const chance = variant.pBest
 
           const variantA = variants.find(v => v.label === 'A')
           const canLift = variantA != null && variantA.ctr > 0 && variant.label !== 'A'

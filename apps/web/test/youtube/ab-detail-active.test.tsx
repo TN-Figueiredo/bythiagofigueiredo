@@ -50,8 +50,8 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
   return {
     id: 'test-1', videoTitle: 'My YouTube Video', flag: 'thumbnail', status: 'active',
     variants: [
-      { label: 'A', color: '#8A8F98', ctr: 0.05, impressions: 10000, clicks: 500, pBest: 0.3, pTop2: 0.6 },
-      { label: 'B', color: '#E8823C', ctr: 0.07, impressions: 10000, clicks: 700, pBest: 0.7, pTop2: 0.9 },
+      { label: 'A', color: '#8A8F98', ctr: 0.05, impressions: 10000, clicks: 500, pBest: 0.3 },
+      { label: 'B', color: '#E8823C', ctr: 0.07, impressions: 10000, clicks: 700, pBest: 0.7 },
     ],
     variantThumbs: [
       { label: 'A', color: '#8A8F98', thumbUrl: null, isOriginal: true },
@@ -108,6 +108,20 @@ describe('ActiveDetail', () => {
     } finally {
       siteAdmin.value = true
     }
+  })
+
+  it('não mostra watch time, comentários, compartilh., receita estimada nem Raio-X; mostra a frase fixa', () => {
+    render(<ActiveDetail view={makeActiveView({ revenue: { low: 1200, high: 3600, currency: 'BRL', isDefault: false } } as Partial<AbTestActiveView>)} />)
+    for (const texto of [/watch time/i, /comentários/i, /compartilh/i, /receita estimada/i, /raio-x/i]) {
+      expect(screen.queryAllByText(texto), String(texto)).toHaveLength(0)
+    }
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+  })
+
+  it('o banner de carência não promete aplicação automática', () => {
+    const view = makeActiveView({ graceExpiresAt: new Date(Date.now() + 5 * 3600000).toISOString(), winnerAppliedAt: null })
+    render(<ActiveDetail view={view} />)
+    expect(screen.queryAllByText(/aplicação automática/i)).toHaveLength(0)
   })
 
   it('SignalCard renders "Sinal ao vivo" heading', () => {
