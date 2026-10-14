@@ -592,6 +592,29 @@ test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ata
     } finally { await ctx.close() }
   })
 
+  test('celular estreito (360 e 320 px): a página não rola de lado, o gráfico cabe na seção e o texto do gráfico continua com 12 px ou mais na tela', async ({ browser }) => {
+    test.fail(true, 'ACHADO G-3 (corrige): abaixo de ~390 px o SVG (largura mínima 300) encolhe para caber e o texto do gráfico sai com menos de 12 px na tela (360 px: 10,8 px). Tire este test.fail quando for consertado.')
+    test.setTimeout(240_000)
+    for (const largura of [360, 320]) {
+      const t: Tela = { nome: `${largura}-escuro`, largura, altura: 740, tema: 'dark' }
+      const { ctx, page } = await contexto(browser, t)
+      try {
+        await abrir(page, RET_CURVA.completa)
+        const m = await page.evaluate(sel => {
+          const sec = [...document.querySelectorAll<HTMLElement>(sel)].find(e => e.getClientRects().length > 0)!
+          const svg = sec.querySelector<SVGSVGElement>('svg.rc-svg')!
+          const vb = svg.viewBox.baseVal.width, w = svg.getBoundingClientRect().width
+          const textos = [...svg.querySelectorAll<SVGTextElement>('text')].map(x => parseFloat(getComputedStyle(x).fontSize) * (w / vb))
+          return { secW: Math.round(sec.getBoundingClientRect().width), svgW: Math.round(w), vb, menorNaTela: Math.round(Math.min(...textos) * 10) / 10, docScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth }
+        }, SEC_CSS)
+        medida(`${largura}px: seção ${m.secW}, svg ${m.svgW} (viewBox ${m.vb}), menor texto do gráfico NA TELA ${m.menorNaTela}px, rolagem de lado ${m.docScroll}`)
+        expect(m.docScroll, `${largura}px: a página rola de lado`).toBeLessThanOrEqual(0)
+        expect(m.svgW, `${largura}px: o SVG cabe na seção`).toBeLessThanOrEqual(m.secW)
+        expect.soft(m.menorNaTela, `${largura}px: o texto do gráfico encolheu com o SVG`).toBeGreaterThanOrEqual(12)
+      } finally { await ctx.close() }
+    }
+  })
+
   test('virada do dia: 02:59:59Z é 23:59 de ontem em São Paulo, 03:00:00Z já é o dia seguinte; o aviso segue o relógio de SP', async ({ browser }) => {
     test.setTimeout(240_000)
     const { ctx, page } = await contexto(browser, TELAS[0]!)
