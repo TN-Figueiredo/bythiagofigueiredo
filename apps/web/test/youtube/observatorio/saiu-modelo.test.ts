@@ -91,7 +91,7 @@ describe('A5 E9 T3: modelo', () => {
   })
 
   it('todo desfecho tem frase não vazia', () => {
-    for (const d of ['apagado', 'apagando', 'no_ar', 'forja_em_andamento', 'not_found', 'mudou', 'mantido', 'nada', 'sem_permissao', 'palavra_errada', 'erro'] as const) {
+    for (const d of ['apagado', 'apagando', 'no_ar', 'forja_em_andamento', 'not_found', 'mudou', 'mantido', 'respondido', 'nada', 'sem_permissao', 'palavra_errada', 'erro'] as const) {
       expect(fraseDoDesfecho(d, { tipo: 'canal', janelaMin: 30 }).length).toBeGreaterThan(5)
     }
   })

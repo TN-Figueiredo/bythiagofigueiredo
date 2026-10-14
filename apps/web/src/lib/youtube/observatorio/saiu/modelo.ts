@@ -167,7 +167,7 @@ export function fraseDoErro(codigo: CodigoDeErro): string {
 }
 
 export type Desfecho =
-  | 'apagado' | 'apagando' | 'no_ar' | 'forja_em_andamento' | 'not_found' | 'mudou' | 'mantido' | 'nada' | 'sem_permissao' | 'palavra_errada' | 'erro'
+  | 'apagado' | 'apagando' | 'no_ar' | 'forja_em_andamento' | 'not_found' | 'mudou' | 'mantido' | 'respondido' | 'nada' | 'sem_permissao' | 'palavra_errada' | 'erro'
 
 export interface OpcoesDaFrase {
   tipo: TipoDeItem
@@ -198,6 +198,7 @@ export function fraseDoDesfecho(d: Desfecho, o: OpcoesDaFrase): string {
     case 'not_found': return 'Este item não está mais na fila.'
     case 'mudou': return 'A lista mudou; confira de novo.'
     case 'mantido': return 'Mantido para análise.'
+    case 'respondido': return 'Resposta registrada.'
     case 'nada': return 'Nada mudou.'
     case 'sem_permissao': return 'Só quem administra o site pode responder.'
     case 'palavra_errada': return `Digite ${PALAVRA} para confirmar.`
