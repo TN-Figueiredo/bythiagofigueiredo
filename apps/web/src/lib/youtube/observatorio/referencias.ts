@@ -41,11 +41,13 @@ export function referenciaDoCanal(c: ObsChannel, videos: readonly ObsVideo[], p:
   // Janela de 90 dias só em parte coberta: o canal tem tantos vídeos acompanhados quanto o limite e o mais velho não chega a 90 dias.
   // Vale para todo k (portão Phil P1): com poucos vídeos do escopo, "sem vídeos" ou "poucos vídeos" seria afirmação falsa.
   const acompanhados = videos.filter(v => v.tracked)
+  // "só desde dd/mm" nunca mostra data futura: vídeo com ageDays < 0 (agendado, ou relógio da tela antes dos dados) não ancora a janela
+  const datados = acompanhados.filter(v => v.ageDays >= 0)
   const limite = Math.min(c.video_limit, 200)
   let desdeParcial: number | null = null
   if (acompanhados.length >= limite && acompanhados.length > 0) {
-    const maisVelho = acompanhados.reduce((a, b) => (b.pub < a.pub ? b : a))
-    if (maisVelho.ageDays < R.janelaDias) desdeParcial = maisVelho.pub
+    const maisVelho = datados.length > 0 ? datados.reduce((a, b) => (b.pub < a.pub ? b : a)) : null
+    if (maisVelho && maisVelho.ageDays < R.janelaDias) desdeParcial = maisVelho.pub
   }
   if (k < R.minVideosProvisoria && desdeParcial != null) return nm('janela_parcial', k, desdeParcial)
   if (k === 0) return nm(lidos.length > 0 ? 'so_videos_novos' : 'sem_videos_90d', 0)

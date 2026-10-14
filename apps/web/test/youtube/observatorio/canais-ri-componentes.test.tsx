@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within, act } from '@testing-library/react'
 import type { RiLinhaIns, RiLinhaRef, RiView } from '@/app/cms/(authed)/youtube/competitors/_canais/ri-tipos'
 
 const replace = vi.fn(), refresh = vi.fn()
@@ -95,6 +95,23 @@ describe('RI · dado apagado', () => {
     cleanup()
     const c2 = render(<RiSecoes ri={view({ aviso: 'Mostrando os dados de 11/10.' })} ocupada={false} />)
     expect(c2.container.querySelector('.ri-aviso')?.textContent).toBe('Mostrando os dados de 11/10.')
+  })
+  it('estado antigo: "Sem conexão. " só com navigator.onLine falso, e acompanha os eventos online/offline (R.2, M3)', () => {
+    const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    try {
+      const { container } = render(<RiSecoes ri={view({ aviso: 'Mostrando os dados de 11/10.' })} ocupada={false} />)
+      expect(container.querySelector('.ri-aviso')?.textContent).toBe('Sem conexão. Mostrando os dados de 11/10.')
+      spy.mockReturnValue(true)
+      act(() => { window.dispatchEvent(new Event('online')) })
+      expect(container.querySelector('.ri-aviso')?.textContent).toBe('Mostrando os dados de 11/10.')
+      spy.mockReturnValue(false)
+      act(() => { window.dispatchEvent(new Event('offline')) })
+      expect(container.querySelector('.ri-aviso')?.textContent).toBe('Sem conexão. Mostrando os dados de 11/10.')
+    } finally { spy.mockRestore() }
+  })
+  it('online: sem o prefixo', () => {
+    const { container } = render(<RiSecoes ri={view({ aviso: 'Mostrando os dados de 11/10.' })} ocupada={false} />)
+    expect(container.querySelector('.ri-aviso')?.textContent).not.toContain('Sem conexão')
   })
 })
 
@@ -284,6 +301,18 @@ describe('RI · CSS', () => {
   it('ri.css não redefine .btn, .sec, .pop nem h1/h2', () => {
     const seletores = [...semComentario.matchAll(/([^{}]+)\{/g)].flatMap((m) => m[1].split(',').map((s) => s.trim()))
     for (const proibido of ['.btn', '.sec', '.pop', 'h1', 'h2']) expect(seletores, proibido).not.toContain(proibido)
+  })
+  it('"Ver todos" ganha do .btn da tela (especificidade) e o topo grudado tem o token no escopo da tela (Gio 1 e 2)', () => {
+    expect(semComentario).toMatch(/\[data-obs-screen="canais"\] \.ri \.ri-more\{display:none\}/)
+    expect(semComentario).toMatch(/@media[^{]*max-width:899px\)\{[\s\S]*\[data-obs-screen="canais"\] \.ri \.ri-more\{display:inline-flex/)
+    expect(semComentario).not.toMatch(/(^|\n)\.ri \.ri-more/)
+    const tela = fs.readFileSync(path.join(DIR, 'canais.css'), 'utf8')
+    expect(tela).toMatch(/--obs-topbar-h:52px/)
+    const canal = fs.readFileSync(path.join(DIR, '..', '_canal', 'canal.css'), 'utf8')
+    expect(canal).toMatch(/--obs-topbar-h:52px/)
+  })
+  it('.ri-val small usa a fonte sem serifa do mockup', () => {
+    expect(semComentario).toMatch(/\.ri-val small\{[^}]*font:400 12px\/16px var\(--font-sans\)/)
   })
   it('as âncoras e a linha de atalhos existem', () => {
     expect(css).toMatch(/\.ri-atalhos/)

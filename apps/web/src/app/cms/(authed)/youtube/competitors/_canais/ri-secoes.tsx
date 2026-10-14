@@ -38,10 +38,24 @@ function Nome({ nome, proprio, rank }: { nome: string; proprio: boolean; rank: n
   )
 }
 
+/** `navigator.onLine` só existe no cliente: o servidor e a 1ª pintura saem sem o prefixo (sem divergência de hidratação). */
+function useOffline(): boolean {
+  const [off, setOff] = useState(false)
+  useEffect(() => {
+    const atualiza = () => setOff(navigator.onLine === false)
+    atualiza()
+    window.addEventListener('online', atualiza)
+    window.addEventListener('offline', atualiza)
+    return () => { window.removeEventListener('online', atualiza); window.removeEventListener('offline', atualiza) }
+  }, [])
+  return off
+}
+
 function Aviso({ texto }: { texto: string }) {
+  const off = useOffline()
   return (
     <p className="ri-aviso" role="status">
-      {texto}
+      {off ? 'Sem conexão. ' : ''}{texto}
     </p>
   )
 }

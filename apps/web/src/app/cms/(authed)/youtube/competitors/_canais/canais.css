@@ -3,6 +3,8 @@
    ([data-theme="light"]), like chrome.css. Additions for the production layout are at the end. */
 /* tokens of this screen; the shared ones come from the chrome */
 [data-obs-screen="canais"]{
+  /* barra de topo da casca do CMS (52 px, presa): mesmo valor de _canal/canal.css; a régua e as abas grudadas do ri.css descem por ela */
+  --obs-topbar-h:52px;
   --warning-subtle:var(--warn-subtle);
   --mid:var(--tier-mid);--high:var(--tier-high);--top:var(--tier-top);
   --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);

@@ -167,6 +167,14 @@ describe('referenciaDoCanal: janela parcial com poucos vídeos do escopo (portã
     const r = ref(canal({ video_limit: 52 }), lista, 'long')
     expect(r).toMatchObject({ tipo: 'nm', motivo: 'janela_parcial', k: 2 })
   })
+  it('data futura nunca vira "desde": vídeo com idade negativa não ancora a janela parcial (Gio, "só desde 19/10" com hoje 14/10)', () => {
+    const lista = Array.from({ length: 5 }, (_, i) => video(2400 + i, { dias: -(1 + i), views: 9 }))
+    const r = ref(canal({ video_limit: 5 }), lista)
+    expect(r).not.toHaveProperty('desde')
+    expect(r).not.toMatchObject({ motivo: 'janela_parcial' })
+    const misto = [...lista, video(2410, { dias: 6, views: 9 })]
+    expect(ref(canal({ video_limit: 6 }), misto)).toMatchObject({ motivo: 'janela_parcial', desde: misto[5]!.pub })
+  })
   it('só vídeos novos com janela parcial: janela_parcial', () => {
     const lista = Array.from({ length: 5 }, (_, i) => video(2300 + i, { dias: 1 + i, views: 9 }))
     expect(ref(canal({ video_limit: 5 }), lista)).toMatchObject({ tipo: 'nm', motivo: 'janela_parcial', k: 0 })

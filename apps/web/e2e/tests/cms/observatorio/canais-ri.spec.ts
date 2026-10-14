@@ -15,6 +15,8 @@ const COMBOS: Array<{ w: number; tema: 'dark' | 'light' }> = [
 let siteId = ''
 const erros: string[] = []
 
+// ATENÇÃO (Gio, "só desde 19/10" com hoje 14/10): a semente ancora no relógio do oráculo (24/10); o servidor TEM subir pelo playwright.config
+// (OBS_E2E=1 + OBS_NOW_OVERRIDE). Um `next dev` já aberto (reuseExistingServer) usa o relógio real e põe as datas no futuro: feche-o antes.
 test.beforeAll(async () => {
   test.setTimeout(240_000)
   await clearSeeded()
@@ -24,6 +26,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => { test.setTimeout(120_000); await clearSeeded() })
 
 async function abrir(page: Page, w: number, tema: 'dark' | 'light'): Promise<void> {
+  // sem rede externa: as capas do YouTube respondem 204 (o Gio viu o 404 de i.ytimg.com no console)
+  await page.route('**://i.ytimg.com/**', r => r.fulfill({ status: 204, body: '' }))
   page.on('console', m => { if (m.type() === 'error') erros.push(m.text()) })
   await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3099' }])
   await page.setViewportSize({ width: w, height: 900 })
@@ -93,6 +97,10 @@ for (const { w, tema } of COMBOS) {
       await expect(page.locator(INS).getByRole('button', { name: 'Ganho em inscritos' })).toHaveAttribute('aria-pressed', 'true')
       await page.locator(INS).getByRole('button', { name: 'Ganho em %' }).click()
       await expect(page.locator(INS).getByRole('button', { name: 'Ganho em %' })).toHaveAttribute('aria-pressed', 'true')
+      if (w >= 900) {
+        // Gio 1: "Ver todos os N" só existe abaixo de 900 px; a 1440 a regra da tela (.btn) não pode vencê-la
+        await expect(page.locator(REF).getByRole('button', { name: /^Ver todos os \d+$/ })).toBeHidden()
+      }
       if (w < 900) {
         await secao(page, w, 'ref')
         const mais = page.locator(REF).getByRole('button', { name: /^Ver todos os \d+$/ })
