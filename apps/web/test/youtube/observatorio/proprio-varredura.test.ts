@@ -8,6 +8,8 @@ import { join, relative, sep } from 'node:path'
 const SRC = join(__dirname, '../../../src')
 const EDICAO = 'lib/youtube/observatorio/proprio/edicao.ts'
 const LER = 'lib/youtube/observatorio/proprio/ler.ts'
+/** O leitor das dimensões (A5 E11): lê `yt_own_video_dim_daily` e companhia; entra na regra "quem pode chamar um leitor" (E17 passo 0, Tarefa 6). */
+const LER_DIMENSOES = 'lib/youtube/observatorio/proprio/ler-dimensoes.ts'
 /** O leitor da curva de retenção (A5 E8, Tarefa 12b): o único arquivo fora da coleta que consulta `yt_own_video_retention`. */
 const LER_RETENCAO = 'lib/youtube/observatorio/proprio/ler-retencao.ts'
 /** A coleta ESCREVE a curva (service role, passo `retencao`); a leitura da tela é só do leitor acima. */
@@ -29,8 +31,10 @@ const importaLeituraComoValor = (s: string) =>
   [...s.matchAll(/import\s*(?!type\b)\{([^}]*)\}\s*from\s*['"][^'"]*proprio\/leitura-privada['"]/g)].some(m => m[1]!.split(',').some(n => /^\s*LeituraPrivadaDoSite\b/.test(n)))
 const importaLeituraNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*proprio\/leitura-privada['"]|import\s*\(\s*['"][^'"]*proprio\/leitura-privada['"]\s*\)|require\s*\(\s*['"][^'"]*proprio\/leitura-privada['"]\s*\)/.test(s)
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
-const PODE_PROVAR = new Set([EDICAO, DADOS, LEITURA])
-const PODE_LER = new Set([LER, LER_RETENCAO, DADOS])
+const PODE_PROVAR = new Set([EDICAO, LEITURA])
+const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
+/** Os leitores e o módulo de dados pedem o token de LEITURA: citar o de edição neles é voltar atrás. */
+const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
 
 function arquivos(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) {
@@ -62,8 +66,9 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== LEITURA && arq !== DADOS && /\b(provarAcessoPrivado|provarLeituraPrivada)\s*\(/.test(s)) v.push(`${arq}: pede a prova de leitura privada fora do módulo da guarda`)
     if (arq !== LEITURA && /can_view_private_site_as/.test(s)) v.push(`${arq}: cita a função do direito fora do módulo da leitura privada`)
     if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
-    if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
-    if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler(-retencao)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
+    if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
+    if (LEITORES_E_DADOS.has(arq) && /\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: o leitor voltou ao token de edição`)
+    if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
     if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/edicao|_proprio\/dados)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
     if (arq !== LER_RETENCAO && !arq.startsWith(COLETA_DIR) && /yt_own_video_retention/.test(s)) v.push(`${arq}: consulta a tabela da curva de retenção fora do leitor`)
     if ((arq === LER || arq === DADOS) && /\bpodeEditar\b/.test(s)) v.push(`${arq}: volta a usar um booleano no lugar do token`)
@@ -79,7 +84,7 @@ describe('varredura: o dado privado do canal próprio', () => {
     expect(violacoes(reais)).toEqual([])
   })
   it('a varredura enxerga os arquivos do módulo (não passa por varrer uma pasta errada)', () => {
-    for (const a of [EDICAO, LER, LER_RETENCAO, DADOS]) expect(Object.keys(reais), a).toContain(a)
+    for (const a of [EDICAO, LEITURA, LER, LER_RETENCAO, LER_DIMENSOES, DADOS]) expect(Object.keys(reais), a).toContain(a)
     expect(Object.keys(reais).length).toBeGreaterThan(300)
   })
   it('a prova de tipo do token está no tsc do web: 3 diretivas, uma única função exportada, nada fora dela', () => {
@@ -148,6 +153,18 @@ describe('varredura: o dado privado do canal próprio', () => {
     })
     it('pedir a prova de edição fora do módulo', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': 'const t = await provarEdicao(siteId)' })).toHaveLength(1)
+      // dados.ts não pede mais a prova de edição: quem pede é a leitura privada
+      expect(violacoes({ ...base, [DADOS]: 'const t = await provarEdicao(siteId)' })).toEqual([`${DADOS}: pede a prova de edição fora do módulo da guarda`])
+    })
+    it('dimensões: chamar os leitores da E11 ou importá-los fora do módulo de dados; e os leitores voltarem ao token de edição', () => {
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await lerDimensoes(sb, p)' })).toEqual(['app/x/a.ts: chama um leitor do dado privado'])
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await lerDetalheDaOrigem(sb, p)' })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { lerDimensoes } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'" })).toEqual(['app/x/a.ts: importa os leitores do dado privado'])
+      expect(violacoes({ ...base, [LER_DIMENSOES]: 'export async function lerDimensoes() {}' })).toEqual([])
+      for (const arq of [LER, LER_RETENCAO, LER_DIMENSOES, DADOS]) {
+        expect(violacoes({ ...base, [arq]: "import { edicaoValida } from './edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
+        expect(violacoes({ ...base, [arq]: 'p: EdicaoDoSite | null' }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
+      }
     })
     it('importar o leitor, ou o módulo do dado privado num componente cliente', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': "import { lerDiario } from '@/lib/youtube/observatorio/proprio/ler'" })).toHaveLength(1)
@@ -210,7 +227,7 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': '// chama lerDiario(sb) depois\n/* provarEdicao( */' })).toEqual([])
     })
     it('o módulo da guarda pode (não acusa a si mesmo)', () => {
-      expect(violacoes({ ...base, [DADOS]: 'await lerDiario(sb, p); provarEdicao(s)', [EDICAO]: 'new EdicaoDoSite(s)' })).toEqual([])
+      expect(violacoes({ ...base, [DADOS]: 'await lerDiario(sb, p); provarAcessoPrivado(s)', [EDICAO]: 'new EdicaoDoSite(s)' })).toEqual([])
     })
   })
 })

@@ -9,7 +9,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 import { buildHistoricoView, historicoTrail } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import type { ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
-import { provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import { provarLeituraPrivada, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { DadosDoCanal, DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { VideoBlocosView } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
@@ -23,12 +23,12 @@ const w = proprioWorld({
 })
 const proprioVideo = w.obs.videos.find(v => v.ch === w.canalId)!
 const concorrente = w.obs.videos.find(v => !w.obs.channel(v.ch)!.own)!
-// o token é o REAL (o que nasce em `provarEdicao`, com a guarda de edição simulada a dizer sim): nada de objeto forjado com cast
+// o token é o REAL (o que nasce em `provarLeituraPrivada`, com a guarda de edição simulada a dizer sim): nada de objeto forjado com cast
 const guarda = vi.hoisted(() => ({ ok: true }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => (guarda.ok ? { ok: true, user: { id: 'u1' } } : { ok: false, reason: 'insufficient_access' }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
-const EDICAO: EdicaoDoSite = await (async () => {
-  const t = await provarEdicao('site-secreto-t11')
+const EDICAO: LeituraPrivadaDoSite = await (async () => {
+  const t = await provarLeituraPrivada('site-secreto-t11')
   if (!t) throw new Error('a fixture esperava o token de edição')
   return t
 })()
@@ -41,7 +41,7 @@ const OWNS: OwnMenu = { itens: [{ id: w.canalId, name: 'Meu', nota: 'n', href: '
 
 const state = {
   abrir: vi.fn(),
-  edicao: vi.fn(async (_s: string): Promise<EdicaoDoSite | null> => EDICAO),
+  leitura: vi.fn(async (_s: string): Promise<LeituraPrivadaDoSite | null> => EDICAO),
   dados: vi.fn(async (_a: unknown) => w.dados),
   swipe: vi.fn(async () => []),
   /** `buildProprioVideoBase` da vez: por padrão o de verdade (a factory do mock o guarda em `real`); um teste troca para simular o cartão que não se achou. */
@@ -55,7 +55,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu')>()), ownMenuOf: () => OWNS }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
-  podeVerPrivado: (s: string) => state.edicao(s),
+  podeVerPrivado: (s: string) => state.leitura(s),
   lerDadosDoVideo: async (a: unknown) => paraVideo(await state.dados(a)),
   longosAcompanhadosDe: (_obs: unknown, id: string) => ['yt-longos-de-' + id],
 }))
@@ -83,7 +83,7 @@ const nome = (el: Moldura) => (filho(el).type as { name?: string }).name
 
 beforeEach(() => {
   vi.clearAllMocks()
-  state.edicao.mockImplementation(async () => EDICAO)
+  state.leitura.mockImplementation(async () => EDICAO)
   state.dados.mockImplementation(async () => w.dados)
   state.base.mockImplementation((...a: Parameters<NonNullable<typeof state.real.base>>) => state.real.base!(...a))
 })
@@ -105,9 +105,9 @@ describe('T11 rota video/[id]: o dono do canal decide', () => {
 
   it('o dado privado do canal INTEIRO é lido com o token da página e o id RESOLVIDO do canal do vídeo (nunca texto da URL)', async () => {
     await rota(proprioVideo.id, { canal: 'texto-da-url' })
-    expect(state.edicao).toHaveBeenCalledTimes(1); expect(state.edicao).toHaveBeenCalledWith('s1')
+    expect(state.leitura).toHaveBeenCalledTimes(1); expect(state.leitura).toHaveBeenCalledWith('s1')
     expect(state.dados).toHaveBeenCalledTimes(1)
-    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, ytId: proprioVideo.ytId, edicao: EDICAO, agora: w.obs.NOW, longosAcompanhados: ['yt-longos-de-' + w.canalId] })
+    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, ytId: proprioVideo.ytId, leitura: EDICAO, agora: w.obs.NOW, longosAcompanhados: ['yt-longos-de-' + w.canalId] })
   })
 
   it('vídeo de concorrente continua abrindo o Histórico, igual a hoje: mesma view, mesma trilha, SEM tocar a guarda de edição nem o dado privado', async () => {
@@ -116,7 +116,7 @@ describe('T11 rota video/[id]: o dono do canal decide', () => {
     const esperado = buildHistoricoView(w.obs, concorrente.id, { from: 'canais', canal: concorrente.ch, niche: 'todos' })
     expect(el.props.crumbs).toEqual(historicoTrail(esperado.crumbs))
     expect((filho(el).props as { view: { video: { id: string } } }).view.video.id).toBe(concorrente.id)
-    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+    expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
   })
 
   it('a decisão NÃO vem da URL: ?canal=<canal próprio> num vídeo de concorrente continua no Histórico; ?canal=<concorrente> num vídeo próprio continua na tela nova', async () => {
@@ -131,7 +131,7 @@ describe('T11 rota video/[id]: o dono do canal decide', () => {
       expect(nome(el), id).toBe('HistoricoScreen')
       expect((filho(el).props as { view: { state: string; video: unknown } }).view).toMatchObject({ state: 'not-found', video: null })
     }
-    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+    expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
   })
 
   it('vídeo próprio SEM data abre a tela nova (faixa sem múltiplo, pager apagado dos dois lados)', async () => {
@@ -144,12 +144,12 @@ describe('T11 rota video/[id]: o dono do canal decide', () => {
 })
 
 describe('T11 rota: quem só lê o site, e a leitura que falha', () => {
-  it('sem permissão de edição: a página abre; o leitor recebe edicao null (devolve "negado"); a frase certa; nenhum dado privado nas props', async () => {
-    state.edicao.mockImplementation(async () => null)
+  it('sem permissão de edição: a página abre; o leitor recebe leitura null (devolve "negado"); a frase certa; nenhum dado privado nas props', async () => {
+    state.leitura.mockImplementation(async () => null)
     state.dados.mockImplementation(async () => DADOS.negado(w.canalId, w.ytIds, w.hoje))
     const el = await rota(proprioVideo.id)
     expect(nome(el)).toBe('ProprioVideoScreen')
-    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, edicao: null })
+    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, leitura: null })
     const view = blocos(el)
     expect(view).toMatchObject({ acesso: 'negado', views: null, impressoes: null, assistido: null })
     expect(view.nota).toBe('Só quem edita o site vê as views por dia, as impressões e cliques, o % assistido e a posição deste vídeo nessas medidas.')
@@ -164,7 +164,7 @@ describe('T11 rota: quem só lê o site, e a leitura que falha', () => {
   })
 
   it('a guarda de edição que falha (null) é como não ter permissão: nenhuma exceção sobe', async () => {
-    state.edicao.mockImplementation(async () => null)
+    state.leitura.mockImplementation(async () => null)
     await expect(rota(proprioVideo.id)).resolves.toBeTruthy()
   })
 
@@ -189,7 +189,7 @@ describe('T13.0 H5/H7/H8 rota: título, concorrente sem data, modelo antes do da
     expect(await generateMetadata({ params: Promise.resolve({ id: concorrente.id }) })).toEqual({ title: 'Histórico do vídeo · Competidores' })
     expect(await generateMetadata({ params: Promise.resolve({ id: 'nao-existe' }) })).toEqual({ title: 'Histórico do vídeo · Competidores' })
     // o título não lê dado privado nem pede a guarda de edição
-    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+    expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
   })
 
   it('H7: vídeo de CONCORRENTE sem data continua "Vídeo não encontrado" na moldura (como em produção), sem tocar a guarda nem o dado privado', async () => {
@@ -198,19 +198,19 @@ describe('T13.0 H5/H7/H8 rota: título, concorrente sem data, modelo antes do da
     const el = await rota('conc-sem-data-1', { from: 'canais' })
     expect(nome(el)).toBe('HistoricoScreen')
     expect((filho(el).props as { view: { state: string; video: unknown } }).view).toMatchObject({ state: 'not-found', video: null })
-    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+    expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
   })
 
   it('H8: o modelo da página nasce ANTES de qualquer leitura privada (a guarda e o diário só rodam com o modelo na mão)', async () => {
     await rota(proprioVideo.id)
     expect(state.base).toHaveBeenCalledTimes(1)
-    expect(state.base.mock.invocationCallOrder[0]!).toBeLessThan(state.edicao.mock.invocationCallOrder[0]!)
+    expect(state.base.mock.invocationCallOrder[0]!).toBeLessThan(state.leitura.mock.invocationCallOrder[0]!)
     expect(state.base.mock.invocationCallOrder[0]!).toBeLessThan(state.dados.mock.invocationCallOrder[0]!)
   })
 
   it('H8: se o modelo não se acha para um vídeo próprio, a rota LANÇA (nunca cai no Histórico) e nenhum dado privado foi lido', async () => {
     state.base.mockImplementation(() => null)
     await expect(rota(proprioVideo.id)).rejects.toThrow(/vídeo próprio/i)
-    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+    expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
   })
 })

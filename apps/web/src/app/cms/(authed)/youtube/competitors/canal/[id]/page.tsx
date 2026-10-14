@@ -40,7 +40,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { obs, siteId, owns, now, edicao, ownYtIds } = await openChannelPage(id)
+  const { obs, siteId, owns, now, leitura: leituraPrivada, ownYtIds } = await openChannelPage(id)
   // o carregador casa o id sem distinguir maiúsculas; o canal é achado do mesmo jeito, e a partir daqui só vale o id RESOLVIDO dele
   const proprio = obs ? (obs.channel(id.toLowerCase()) ?? obs.channel(id)) : undefined
   if (obs && proprio?.own) {
@@ -54,10 +54,10 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
       )
     }
     // erro de leitura LANÇA (D5): a error.tsx da rota aparece, nunca um canal sem número
-    const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: ownYtIds, agora: now, edicao })
+    const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: ownYtIds, agora: now, leitura: leituraPrivada })
     // as posições precisam do conjunto do site: lido só neste ramo, com o diário do próprio canal já lido (sem segunda guarda, sem segunda leitura)
     const site = await openObservatoryPage()
-    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { edicao, canalId: proprio.id, diario: dados.diario })
+    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario })
     const { posicao, concorrenteAcima } = posicaoDoSite(site.obs, proprio.id, extras)
     const hoje = dayPt(new Date(now))
     const pv = buildProprioView(obs, proprio.id, flat, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })

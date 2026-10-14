@@ -193,11 +193,11 @@ describe('A4.5 comparação: a página lê o diário só quando há canal própr
     await pagina()
     expect(ordem).toEqual(['guarda', 'prova', 'diario'])
     expect(dados.lerDiarioDosCanais).toHaveBeenCalledTimes(1)
-    const arg = dados.lerDiarioDosCanais.mock.calls[0]![0] as { canais: Array<{ id: string; longosAcompanhados: string[] }>; agora: number; edicao: unknown }
+    const arg = dados.lerDiarioDosCanais.mock.calls[0]![0] as { canais: Array<{ id: string; longosAcompanhados: string[] }>; agora: number; leitura: unknown }
     expect(arg.canais.map(c => c.id)).toEqual(BASE.obs.ownChannels().map(c => c.id))
     expect(arg.canais[0]!.longosAcompanhados).toEqual([`yt-${arg.canais[0]!.id}`])
     expect(arg.agora).toBe(BASE.obs.NOW)
-    expect(arg.edicao).toEqual({ siteId: 'site-1' })
+    expect(arg.leitura).toEqual({ siteId: 'site-1' })
   })
 
   it('quem só lê o site (sem prova): nenhum número do canal próprio na página, o motivo é "só quem edita o site vê…"', async () => {

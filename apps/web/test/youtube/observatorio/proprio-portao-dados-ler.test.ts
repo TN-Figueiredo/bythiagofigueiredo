@@ -3,8 +3,8 @@
 // (`foraDoTeto`) e os dados.ts avisam o Sentry uma vez por requisição. Banco falso, sem rede.
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
-import { edicaoDe } from './edicao-teste'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import { leituraDe } from './leitura-teste'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerDiario, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 
@@ -22,8 +22,8 @@ const AGORA = Date.now(), HOJE = dayPt(new Date(AGORA))
 const d = (n: number) => addDays(HOJE, -n)
 const diario = (yt: string, dia: string, views: number | null, canal = C): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: canal, views })
 const ids = (n: number) => Array.from({ length: n }, (_, k) => 'v' + k)
-let pedido: { edicao: EdicaoDoSite | null; canalId: string; hoje: string }
-beforeAll(async () => { requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } }); pedido = { edicao: await edicaoDe(S), canalId: C, hoje: HOJE } })
+let pedido: { leitura: LeituraPrivadaDoSite | null; canalId: string; hoje: string }
+beforeAll(async () => { requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } }); pedido = { leitura: await leituraDe(S), canalId: C, hoje: HOJE } })
 beforeEach(() => { captureMessage.mockReset(); getSupabaseServiceClient.mockReset(); requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } }) })
 
 describe('I1: lerDiario diz quais vídeos o teto deixou de fora', () => {
@@ -65,19 +65,19 @@ describe('I1: o aviso ao Sentry (uma vez por requisição)', () => {
   it('canal com 80 longos: UM aviso com o número de vídeos de fora; com 50, nenhum', async () => {
     const lista = ids(80)
     com(fakeSupabase({ yt_own_video_daily: lista.map(y => diario(y, d(3), 1)) }))
-    await lerDadosDoCanal({ canalId: C, longosAcompanhados: lista, agora: AGORA, edicao: pedido.edicao })
+    await lerDadosDoCanal({ canalId: C, longosAcompanhados: lista, agora: AGORA, leitura: pedido.leitura })
     const avisos = captureMessage.mock.calls.filter(c => String(c[0]).includes('teto'))
     expect(avisos).toHaveLength(1)
     expect(avisos[0]![1]).toMatchObject({ level: 'warning', extra: { siteId: S, foraDoTeto: 30, teto: 50 } })
     captureMessage.mockReset()
     com(fakeSupabase({ yt_own_video_daily: ids(50).map(y => diario(y, d(3), 1)) }))
-    await lerDadosDoCanal({ canalId: C, longosAcompanhados: ids(50), agora: AGORA, edicao: pedido.edicao })
+    await lerDadosDoCanal({ canalId: C, longosAcompanhados: ids(50), agora: AGORA, leitura: pedido.leitura })
     expect(captureMessage.mock.calls.filter(c => String(c[0]).includes('teto'))).toHaveLength(0)
   })
   it('vários canais: UM aviso com a soma', async () => {
     const todos = [...ids(60).map(y => diario(y, d(3), 1)), ...ids(70).map(y => diario(y, d(3), 1, C2))]
     com(fakeSupabase({ yt_own_video_daily: todos }))
-    await lerDiarioDosCanais({ canais: [{ id: C, longosAcompanhados: ids(60) }, { id: C2, longosAcompanhados: ids(70) }], agora: AGORA, edicao: pedido.edicao })
+    await lerDiarioDosCanais({ canais: [{ id: C, longosAcompanhados: ids(60) }, { id: C2, longosAcompanhados: ids(70) }], agora: AGORA, leitura: pedido.leitura })
     const avisos = captureMessage.mock.calls.filter(c => String(c[0]).includes('teto'))
     expect(avisos).toHaveLength(1)
     expect(avisos[0]![1]).toMatchObject({ extra: { siteId: S, foraDoTeto: 30 } })

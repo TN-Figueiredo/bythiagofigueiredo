@@ -80,13 +80,13 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 vi.mock('@/lib/youtube/competitor-admin', () => ({ canAdminSiteUsers: async () => { admin.chamadas++; return false } }))
 // as duas páginas-base leem o conjunto PÚBLICO do site (sem o dado privado). `openChannelPage` repete o que a real faz com a edição: UMA prova, pela guarda REAL
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', async () => {
-  const { podeVerPrivado, longosAcompanhadosDe } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')
+  const { acessoPrivado, longosAcompanhadosDe } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')
   return {
     openChannelPage: async (id: string) => {
-      const edicao = await podeVerPrivado(S)
+      const acesso = await acessoPrivado(S)
       const p = w.obs.channel(id.toLowerCase()) ?? w.obs.channel(id)
       return {
-        siteId: S, now: w.obs.NOW, obs: p ? w.obs : null, canEdit: edicao != null, edicao, ownYtIds: p?.own ? longosAcompanhadosDe(w.obs, p.id) : [], meuCanalLembrado: null,
+        siteId: S, now: w.obs.NOW, obs: p ? w.obs : null, canEdit: acesso.edita, leitura: acesso.leitura, ownYtIds: p?.own ? longosAcompanhadosDe(w.obs, p.id) : [], meuCanalLembrado: null,
         owns: { itens: [{ id: CANAL, name: 'Meu', nota: 'n', href: '/x' }], principal: null, listaHref: '/l' },
       }
     },
@@ -219,10 +219,11 @@ describe('13.3 segurança do canal próprio: quem edita × quem só lê', () => 
     }
   })
 
-  it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (uma só) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
+  it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (edição e leitura, nada além) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
     guarda.ok = false
     await rota(w.canalId)
-    expect(guarda.chamadas).toBe(1)
+    // E17 passo 0: a prova de leitura privada pergunta a edição e, negada, a leitura (2 guardas, nenhuma a mais); depois disso nada
+    expect(guarda.chamadas).toBe(2)
     expect(db.trips).toEqual([])
     expect(servico.criado).toBe(0)
   })

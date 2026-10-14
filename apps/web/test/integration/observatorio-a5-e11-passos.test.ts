@@ -48,7 +48,7 @@ import { metricVersion } from '@/lib/youtube/coleta/metric-version'
 import { paraBytea } from '@/lib/youtube/reporting/client'
 import { CABECALHO_TRAFEGO, lerTrafego, agregarTrafego } from '@/lib/youtube/reporting/traffic-source-csv'
 import { CABECALHO_ALCANCE_COMBINADO, lerAlcanceCombinado, agregarAlcanceCombinado } from '@/lib/youtube/reporting/reach-combined-csv'
-import { provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'
+import { provarLeituraPrivada } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerDimensoes, lerDetalheDaOrigem, type PedidoDimensoes } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import { estadoDoDiaLido } from '@/lib/youtube/observatorio/proprio/dimensoes-estado'
 import type { ColetaChannel } from '@/lib/youtube/coleta/types'
@@ -638,8 +638,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
       for (const s of SETS) expect(await coberturaDe(v, s)).toEqual([[desde, p(-1)]])
       expect((await criterios(c, { desde, ligadoEm: p(-8) })).falhas).toEqual([])
       // o leitor: o dia tem 10 views no diário e nenhuma linha → abaixo do limiar (omitido 10), nunca um zero medido
-      const edicao = await provarEdicao(c.site)
-      const lido = await lerDimensoes(sb, { edicao, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-8), ate: p(-1), desde: { trafego: desde, dispositivo: desde, pais: desde, inscrito: desde, alcance_dim: desde } })
+      const leitura = await provarLeituraPrivada(c.site)
+      const lido = await lerDimensoes(sb, { leitura, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-8), ate: p(-1), desde: { trafego: desde, dispositivo: desde, pais: desde, inscrito: desde, alcance_dim: desde } })
       if (lido.acesso !== 'ok') throw new Error('leitura negada')
       for (const conj of ['trafego', 'dispositivo', 'pais', 'inscrito'] as const) {
         const dia = lido.dado.conjuntos[conj].videos[0]!.dias.find(x => x.dia === p(-6))!
@@ -826,8 +826,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
 
     it('o leitor sem a tabela de dimensões: estado `schema_ausente` e NENHUM vídeo/dia (ausente não vira zero)', async () => {
       const c = await cenario(); const v = await video(c)
-      const edicao = await provarEdicao(c.site)
-      const lido = await lerDimensoes(semSchema({ from: ['yt_own_video_dim_daily'] }), { edicao, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-5), ate: p(-1) })
+      const leitura = await provarLeituraPrivada(c.site)
+      const lido = await lerDimensoes(semSchema({ from: ['yt_own_video_dim_daily'] }), { leitura, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-5), ate: p(-1) })
       if (lido.acesso !== 'ok') throw new Error('leitura negada')
       for (const conj of ['trafego', 'dispositivo', 'pais', 'inscrito'] as const) {
         expect(lido.dado.conjuntos[conj].estado).toEqual({ tipo: 'schema_ausente' })
@@ -938,8 +938,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
         { day_pt: p(-2), dim_value: 'YT_SEARCH', views: 3, metric_version: mv(p(-2)) },
       ])
       await apply('device_os', [{ day_pt: p(-4), dim_value: 'MOBILE|ANDROID', views: null, engaged_views: 5, metric_version: mv(p(-4)) }])
-      const edicao = await provarEdicao(c.site)
-      const pedido: PedidoDimensoes = { edicao, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-10), ate: p(-1), desde: { trafego: desde, dispositivo: desde, pais: desde, inscrito: desde, alcance_dim: desde } }
+      const leitura = await provarLeituraPrivada(c.site)
+      const pedido: PedidoDimensoes = { leitura, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-10), ate: p(-1), desde: { trafego: desde, dispositivo: desde, pais: desde, inscrito: desde, alcance_dim: desde } }
       const lido = await lerDimensoes(sb, pedido)
       if (lido.acesso !== 'ok') throw new Error('leitura negada')
       const dia = (conj: 'trafego' | 'dispositivo', d: string) => estadoDoDiaLido(lido.dado.conjuntos[conj].videos[0]!.dias.find(x => x.dia === d)!)
@@ -978,7 +978,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
       await diario(c, v, [[p(-4), 6]])
       instalarApi({ views: { [v.yt]: { [p(-4)]: 6 } } })
       expect((await dim(c, { desde })).ctx.falhas).toEqual([])
-      const lido = await lerDimensoes(sb, { edicao: await provarEdicao(c.site), canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-6), ate: p(-1), desde: { trafego: desde, dispositivo: desde, pais: desde, inscrito: desde, alcance_dim: desde } })
+      const lido = await lerDimensoes(sb, { leitura: await provarLeituraPrivada(c.site), canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-6), ate: p(-1), desde: { trafego: desde, dispositivo: desde, pais: desde, inscrito: desde, alcance_dim: desde } })
       if (lido.acesso !== 'ok') throw new Error('leitura negada')
       const e = (conj: 'trafego' | 'pais', d: string) => estadoDoDiaLido(lido.dado.conjuntos[conj].videos[0]!.dias.find(x => x.dia === d)!)
       expect(e('trafego', p(-4)).de('YT_SEARCH')).toMatchObject({ tipo: 'valor', views: 6, minutos: 3 })
@@ -992,7 +992,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
       await relatorio(c, { tipo: TIPO_DETALHE, dia, csv: csvTrafego(c.uc, dia, [{ video: v.yt, origem: '4', detalhe: SENTINELA, views: 6, min: 2 }]) })
       expect((await norm(c)).falhas).toEqual([])
       const base = { canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: p(-5), ate: p(-1), desde: { detalhe: p(-10) } }
-      const com = await lerDetalheDaOrigem(sb, { ...base, edicao: await provarEdicao(c.site) })
+      const com = await lerDetalheDaOrigem(sb, { ...base, leitura: await provarLeituraPrivada(c.site) })
       if (com.acesso !== 'ok') throw new Error('leitura negada a quem tem o token')
       const linha = com.dado.conjunto.videos[0]!.dias.find(x => x.dia === dia)!.linhas
       expect(linha).toHaveLength(1)
@@ -1000,15 +1000,15 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
       expect(linha[0]!.valor).toBe(`4|${sha256(SENTINELA)}`) // a chave de tela é o hash, nunca o texto
       // sem o token (a guarda de edição não passou): negado, sem consultar nada
       guarda.edita = false
-      const semToken = await provarEdicao(c.site)
+      const semToken = await provarLeituraPrivada(c.site)
       expect(semToken).toBeNull()
-      const neg = await lerDetalheDaOrigem(sb, { ...base, edicao: semToken })
+      const neg = await lerDetalheDaOrigem(sb, { ...base, leitura: semToken })
       expect(neg).toEqual({ acesso: 'negado' })
       expect(JSON.stringify(neg)).not.toContain(SENTINELA)
       guarda.edita = true
       // o token de OUTRO site, com o canal deste: o filtro por site devolve vazio (nada vaza por trocar o canal)
       const outro = await cenario()
-      const cruzado = await lerDetalheDaOrigem(sb, { ...base, edicao: await provarEdicao(outro.site) })
+      const cruzado = await lerDetalheDaOrigem(sb, { ...base, leitura: await provarLeituraPrivada(outro.site) })
       if (cruzado.acesso !== 'ok') throw new Error('leitura negada')
       expect(JSON.stringify(cruzado)).not.toContain(SENTINELA)
       expect(cruzado.dado.conjunto.videos[0]!.dias.every(x => x.linhas.length === 0)).toBe(true)

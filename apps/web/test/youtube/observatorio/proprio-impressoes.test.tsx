@@ -620,12 +620,16 @@ describe('servidor e cliente', () => {
     expect(container.querySelector('svg.ic-svg')!.getAttribute('width')).toBe('760')
   })
 
+  const PROIBIDO_IMPORTAR = /proprio\/ler|proprio\/(edicao|leitura-privada)|_proprio\/dados|server-only/
+  it('controle: um import do módulo da leitura privada conta como violação', () => {
+    expect("import { leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'").toMatch(PROIBIDO_IMPORTAR)
+  })
   it('o componente e o modelo não usam new Date nem Date.now (o dia é a data UTC que já veio pronta)', () => {
     const dir = path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_proprio')
     for (const f of ['impressoes.tsx', 'impressoes-model.ts']) {
       const src = fs.readFileSync(path.join(dir, f), 'utf8')
       expect(src, f).not.toMatch(/new Date\(|Date\.now\(/)
-      expect(src, f).not.toMatch(/proprio\/ler|proprio\/edicao|_proprio\/dados|server-only/)
+      expect(src, f).not.toMatch(PROIBIDO_IMPORTAR)
     }
   })
 })

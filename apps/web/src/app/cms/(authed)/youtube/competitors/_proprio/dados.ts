@@ -1,7 +1,7 @@
 // A entrada do dado privado do canal próprio (alcance e diário por vídeo) para as páginas. É o ÚNICO módulo, fora de
-// `lib/.../proprio/`, que pede a prova de edição e chama os leitores (uma varredura de teste garante). Fluxo:
-//   página → guarda de leitura (openObservatoryPage/openChannelPage) → `podeVerPrivado(siteId)` (guarda de EDIÇÃO) →
-//   token `EdicaoDoSite` → leitores. Sem token, nada é consultado e nem o cliente de serviço (sem RLS) é criado.
+// `lib/.../proprio/`, que pede a prova de leitura privada e chama os leitores (uma varredura de teste garante). Fluxo:
+//   página → guarda de leitura (openObservatoryPage/openChannelPage) → `acessoPrivado(siteId)` (quem edita, ou quem tem o direito) →
+//   token `LeituraPrivadaDoSite` → leitores. Sem token, nada é consultado e nem o cliente de serviço (sem RLS) é criado.
 // O token e o que ele abre são objetos de servidor: para um componente cliente só vão dados já montados pelos modelos.
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
@@ -10,8 +10,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { mapLimit } from '@/lib/youtube/observatorio/load'
-import { edicaoValida, provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
+import { leituraValida, provarAcessoPrivado, type AcessoPrivado, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerRetencao, type RetencaoDoVideo } from '@/lib/youtube/observatorio/proprio/ler-retencao'
 import { TETO_VIDEOS_DIARIO, type AlcanceCanal, type DiarioCanal, type Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { longosAcompanhados } from './extras'
@@ -20,9 +20,14 @@ import { longosAcompanhados } from './extras'
 const CANAIS_EM_VOO = 4
 const TAGS = { component: 'observatorio-proprio' }
 
-/** A prova de que quem pede edita o site (o critério da RLS das tabelas privadas), ou null: sem sessão, sem permissão ou guarda fora do ar. Nunca lança. */
-export async function podeVerPrivado(siteId: string): Promise<EdicaoDoSite | null> {
-  return provarEdicao(siteId)
+/** O acesso ao dado privado: a leitura (quem edita ou tem o direito), se quem pede edita, e por que não (`negativa`). Nunca lança. */
+export function acessoPrivado(siteId: string): Promise<AcessoPrivado> {
+  return provarAcessoPrivado(siteId)
+}
+
+/** A prova de que quem pede pode ler o desempenho privado do site, ou null: sem sessão, sem direito ou guarda fora do ar. Nunca lança. */
+export async function podeVerPrivado(siteId: string): Promise<LeituraPrivadaDoSite | null> {
+  return (await acessoPrivado(siteId)).leitura
 }
 
 export interface DadosDoCanal { alcance: Privado<AlcanceCanal>; diario: Privado<DiarioCanal> }
@@ -47,17 +52,17 @@ const foraDoTetoDe = (p: Privado<DiarioCanal>): number => (p.acesso === 'ok' ? (
  * Página do canal e do vídeo próprio: erro de leitura é LANÇADO (D5; a `error.tsx` da rota aparece, nunca um canal vazio).
  * `longosAcompanhados` = os ytIds de `longosAcompanhadosDe`. Sem token: as duas respostas são 'negado', sem consulta.
  */
-export async function lerDadosDoCanal(a: { canalId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite | null }): Promise<DadosDoCanal> {
-  if (!edicaoValida(a.edicao)) return NEGADO
-  return lerDoCanal(getSupabaseServiceClient(), { ...a, edicao: a.edicao })
+export async function lerDadosDoCanal(a: { canalId: string; longosAcompanhados: readonly string[]; agora: number; leitura: LeituraPrivadaDoSite | null }): Promise<DadosDoCanal> {
+  if (!leituraValida(a.leitura)) return NEGADO
+  return lerDoCanal(getSupabaseServiceClient(), { ...a, leitura: a.leitura })
 }
 
 /** A leitura de `lerDadosDoCanal` com o cliente de serviço já criado (a tela do vídeo cria UM e o reparte com a leitura da retenção). */
-async function lerDoCanal(sb: SupabaseClient, a: { canalId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite }): Promise<DadosDoCanal> {
-  const pedido = { edicao: a.edicao, canalId: a.canalId, hoje: dayPt(new Date(a.agora)) }
+async function lerDoCanal(sb: SupabaseClient, a: { canalId: string; longosAcompanhados: readonly string[]; agora: number; leitura: LeituraPrivadaDoSite }): Promise<DadosDoCanal> {
+  const pedido = { leitura: a.leitura, canalId: a.canalId, hoje: dayPt(new Date(a.agora)) }
   const [alcance, diario] = await Promise.all([lerAlcance(sb, pedido), lerDiario(sb, { ...pedido, ytIds: a.longosAcompanhados })])
-  avisarDescartados(a.edicao.siteId, descartadosDe(alcance) + descartadosDe(diario))
-  avisarForaDoTeto(a.edicao.siteId, foraDoTetoDe(diario))
+  avisarDescartados(a.leitura.siteId, descartadosDe(alcance) + descartadosDe(diario))
+  avisarForaDoTeto(a.leitura.siteId, foraDoTetoDe(diario))
   return { alcance, diario }
 }
 
@@ -76,16 +81,16 @@ export interface DadosDoVideo { alcance: AlcanceCanal; diario: DiarioCanal; rete
  * Sentry, sem conteúdo do banco (só o site e a mensagem). Valor ruim que o leitor descartou: UM aviso com a soma. Sem prova de edição o leitor nem é
  * chamado (`lerDadosDoVideo` devolve 'negado' antes).
  */
-async function lerRetencaoDoVideo(sb: SupabaseClient, a: { canalId: string; ytId: string; agora: number; edicao: EdicaoDoSite }): Promise<Privado<RetencaoDoVideo>> {
+async function lerRetencaoDoVideo(sb: SupabaseClient, a: { canalId: string; ytId: string; agora: number; leitura: LeituraPrivadaDoSite }): Promise<Privado<RetencaoDoVideo>> {
   try {
-    const r = await lerRetencao(sb, { edicao: a.edicao, canalId: a.canalId, hoje: dayPt(new Date(a.agora)), ytId: a.ytId })
+    const r = await lerRetencao(sb, { leitura: a.leitura, canalId: a.canalId, hoje: dayPt(new Date(a.agora)), ytId: a.ytId })
     if (r.acesso === 'ok' && r.dado.descartados > 0) {
-      Sentry.captureMessage('observatório: a leitura da retenção do vídeo próprio descartou valores ruins', { level: 'warning', tags: TAGS, extra: { siteId: a.edicao.siteId, descartados: r.dado.descartados } })
+      Sentry.captureMessage('observatório: a leitura da retenção do vídeo próprio descartou valores ruins', { level: 'warning', tags: TAGS, extra: { siteId: a.leitura.siteId, descartados: r.dado.descartados } })
     }
     return r
   } catch (e) {
     Sentry.captureMessage('observatório: a leitura da retenção do vídeo próprio falhou', {
-      level: 'warning', tags: TAGS, extra: { siteId: a.edicao.siteId, primeiroErro: e instanceof Error ? e.message : String(e) },
+      level: 'warning', tags: TAGS, extra: { siteId: a.leitura.siteId, primeiroErro: e instanceof Error ? e.message : String(e) },
     })
     return { acesso: 'erro' }
   }
@@ -97,13 +102,13 @@ async function lerRetencaoDoVideo(sb: SupabaseClient, a: { canalId: string; ytId
  * Sem token: 'negado' e nenhum cliente de serviço (nenhum número). Erro de leitura do alcance ou do diário é LANÇADO (D5), nunca 'erro' nem vazio;
  * só a retenção, que é uma seção à parte, vira `{ acesso: 'erro' }` sem derrubar o resto.
  */
-export async function lerDadosDoVideo(a: { canalId: string; ytId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite | null }): Promise<Privado<DadosDoVideo>> {
-  if (!edicaoValida(a.edicao)) return { acesso: 'negado' }
+export async function lerDadosDoVideo(a: { canalId: string; ytId: string; longosAcompanhados: readonly string[]; agora: number; leitura: LeituraPrivadaDoSite | null }): Promise<Privado<DadosDoVideo>> {
+  if (!leituraValida(a.leitura)) return { acesso: 'negado' }
   const ytIds = [a.ytId, ...a.longosAcompanhados.filter(y => y !== a.ytId)]
   const sb = getSupabaseServiceClient()
   const [{ alcance, diario }, retencao] = await Promise.all([
-    lerDoCanal(sb, { canalId: a.canalId, longosAcompanhados: ytIds, agora: a.agora, edicao: a.edicao }),
-    lerRetencaoDoVideo(sb, { canalId: a.canalId, ytId: a.ytId, agora: a.agora, edicao: a.edicao }),
+    lerDoCanal(sb, { canalId: a.canalId, longosAcompanhados: ytIds, agora: a.agora, leitura: a.leitura }),
+    lerRetencaoDoVideo(sb, { canalId: a.canalId, ytId: a.ytId, agora: a.agora, leitura: a.leitura }),
   ])
   // com token válido as duas leituras são 'ok' ou lançam; isto só fecha o tipo (e se um dia não for, é 'erro', nunca 'negado')
   if (alcance.acesso !== 'ok' || diario.acesso !== 'ok') return { acesso: 'erro' }
@@ -116,22 +121,22 @@ export async function lerDadosDoVideo(a: { canalId: string; ytId: string; longos
  * descartadas. Sem canal próprio ou sem token: nenhuma consulta. No máximo 4 canais em voo.
  */
 export async function lerDiarioDosCanais(
-  a: { canais: ReadonlyArray<{ id: string; longosAcompanhados: readonly string[] }>; agora: number; edicao: EdicaoDoSite | null },
+  a: { canais: ReadonlyArray<{ id: string; longosAcompanhados: readonly string[] }>; agora: number; leitura: LeituraPrivadaDoSite | null },
   avisar?: (e: unknown, n: number) => void,
 ): Promise<Map<string, Privado<DiarioCanal>>> {
   const out = new Map<string, Privado<DiarioCanal>>()
-  if (!edicaoValida(a.edicao)) {
+  if (!leituraValida(a.leitura)) {
     for (const c of a.canais) out.set(c.id, { acesso: 'negado' })
     return out
   }
   if (a.canais.length === 0) return out
-  const { siteId } = a.edicao
-  const edicao = a.edicao
+  const { siteId } = a.leitura
+  const leitura = a.leitura
   const sb = getSupabaseServiceClient()
   const hoje = dayPt(new Date(a.agora))
   const falhas: unknown[] = []
   const lidos = await mapLimit(a.canais, CANAIS_EM_VOO, async (c): Promise<Privado<DiarioCanal>> => {
-    try { return await lerDiario(sb, { edicao, canalId: c.id, hoje, ytIds: c.longosAcompanhados }) } catch (e) { falhas.push(e); return { acesso: 'erro' } }
+    try { return await lerDiario(sb, { leitura, canalId: c.id, hoje, ytIds: c.longosAcompanhados }) } catch (e) { falhas.push(e); return { acesso: 'erro' } }
   })
   a.canais.forEach((c, i) => out.set(c.id, lidos[i]!))
   if (falhas.length > 0) {
@@ -148,26 +153,26 @@ export async function lerDiarioDosCanais(
 /**
  * O alcance de TODOS os canais próprios do site (o cartão "Só o seu canal mede" da comparação). A mesma regra de `lerDiarioDosCanais`: sem token
  * nada é consultado e o cliente de serviço nem é criado; um canal que falha vira { acesso: 'erro' } (a tela não cai por causa do dado privado) e UM
- * aviso para a requisição inteira, com a contagem de falhas; no máximo 4 canais em voo. Pede o token (`edicao`), não um booleano: o critério de
- * edição só nasce em `podeVerPrivado`.
+ * aviso para a requisição inteira, com a contagem de falhas; no máximo 4 canais em voo. Pede o token (`leitura`), não um booleano: o critério de
+ * leitura privada só nasce em `acessoPrivado`.
  */
 export async function lerAlcanceDosCanais(
-  a: { canalIds: readonly string[]; agora: number; edicao: EdicaoDoSite | null },
+  a: { canalIds: readonly string[]; agora: number; leitura: LeituraPrivadaDoSite | null },
   avisar?: (e: unknown, n: number) => void,
 ): Promise<Map<string, Privado<AlcanceCanal>>> {
   const out = new Map<string, Privado<AlcanceCanal>>()
-  if (!edicaoValida(a.edicao)) {
+  if (!leituraValida(a.leitura)) {
     for (const id of a.canalIds) out.set(id, { acesso: 'negado' })
     return out
   }
   if (a.canalIds.length === 0) return out
-  const { siteId } = a.edicao
-  const edicao = a.edicao
+  const { siteId } = a.leitura
+  const leitura = a.leitura
   const sb = getSupabaseServiceClient()
   const hoje = dayPt(new Date(a.agora))
   const falhas: unknown[] = []
   const lidos = await mapLimit(a.canalIds, CANAIS_EM_VOO, async (canalId): Promise<Privado<AlcanceCanal>> => {
-    try { return await lerAlcance(sb, { edicao, canalId, hoje }) } catch (e) { falhas.push(e); return { acesso: 'erro' } }
+    try { return await lerAlcance(sb, { leitura, canalId, hoje }) } catch (e) { falhas.push(e); return { acesso: 'erro' } }
   })
   a.canalIds.forEach((id, i) => out.set(id, lidos[i]!))
   if (falhas.length > 0) {

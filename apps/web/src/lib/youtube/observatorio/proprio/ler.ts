@@ -9,7 +9,7 @@ import { readAll } from '../load'
 import { ObservatoryLoadError } from '../niches-db'
 import { materializarZeros, type IntervaloCoberto } from './cobertura-leitor'
 import { JANELA_LEITURA_ALCANCE_DIAS } from './dias'
-import { edicaoValida, type EdicaoDoSite } from './edicao'
+import { leituraValida, type LeituraPrivadaDoSite } from './leitura-privada'
 import { TETO_VIDEOS_DIARIO } from './tipos'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
@@ -18,16 +18,17 @@ export const JANELA_DIARIO_DIAS = 28
 export { TETO_VIDEOS_DIARIO }
 
 /**
- * O acesso ao dado privado é a PROVA de edição do site (`EdicaoDoSite`, de `./edicao`), não um booleano: ela só nasce depois
- * da guarda `can_edit_site` (o critério da RLS das tabelas) e leva o `siteId` dentro. Sem prova (null) ou com um objeto
- * que não veio da guarda, o leitor devolve 'negado' SEM consultar nada. `canalId` é o canal próprio do site já resolvido
+ * O acesso ao dado privado é a prova de leitura privada do site (`LeituraPrivadaDoSite`, de `./leitura-privada`), não um booleano:
+ * ela só nasce depois da guarda (quem edita o site, ou quem tem o direito de ver o desempenho privado: o critério da RLS das
+ * tabelas) e leva o `siteId` dentro. Sem prova (null) ou com um objeto que não veio da guarda (um `EdicaoDoSite`, por exemplo),
+ * o leitor devolve 'negado' SEM consultar nada. `canalId` é o canal próprio do site já resolvido
  * pela página (nunca o texto cru da URL); toda consulta filtra por site E por canal.
  */
-export interface Pedido { edicao: EdicaoDoSite | null; canalId: string; hoje: DiaYt }
+export interface Pedido { leitura: LeituraPrivadaDoSite | null; canalId: string; hoje: DiaYt }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** O site da prova de edição, ou null: sem prova, ou id que não é uuid (o Postgres lançaria 22P02) = 'negado', sem consulta e sem número. A página resolve o canal ANTES e dá "não encontrado" ao id malformado. */
-const siteAutorizado = (p: Pedido): string | null => (edicaoValida(p.edicao) && UUID.test(p.canalId) ? p.edicao.siteId : null)
+/** O site da prova de leitura, ou null: sem prova, ou id que não é uuid (o Postgres lançaria 22P02) = 'negado', sem consulta e sem número. A página resolve o canal ANTES e dá "não encontrado" ao id malformado. */
+const siteAutorizado = (p: Pedido): string | null => (leituraValida(p.leitura) && UUID.test(p.canalId) ? p.leitura.siteId : null)
 
 const STATUS = new Set<string>(['listado', 'baixado', 'vazio', 'erro', 'expirado_sem_baixar'])
 const statusDe = (s: unknown): StatusRelatorio => (typeof s === 'string' && STATUS.has(s) ? (s as StatusRelatorio) : 'desconhecido')

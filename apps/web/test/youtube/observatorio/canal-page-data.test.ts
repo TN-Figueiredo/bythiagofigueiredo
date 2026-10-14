@@ -15,7 +15,7 @@ const DIA = 86_400_000
 const DUAS_LINHAS = () => [{ id: O1, name: 'tnFigueiredo', subs: 1160, videos: 35, ultimo: Date.now() - 3 * DIA - 3_600_000 }, { id: O2, name: 'Thiago Figueiredo', subs: 3, videos: 0, ultimo: null }]
 type Linhas = ReturnType<typeof DUAS_LINHAS>
 
-async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; editOk?: boolean; ds?: Dataset | null; loadError?: Error; ownRows?: Linhas; ownError?: Error; cookie?: string | null | 'lança'; editThrows?: Error; realLoader?: boolean } = {}) {
+async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; editOk?: boolean; ds?: Dataset | null; loadError?: Error; ownRows?: Linhas; ownError?: Error; cookie?: string | null | 'lança'; editThrows?: Error; realLoader?: boolean; siteId?: string; rpcData?: unknown; rpcThrows?: Error } = {}) {
   vi.resetModules()
   const order: string[] = []
   const loadChannelDataset = vi.fn(async (_siteId: string, _channelId: string, _now: number) => {
@@ -45,13 +45,13 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   vi.doMock('@/lib/youtube/observatorio/own-menu', () => ({ loadOwnMenuRows }))
   vi.doMock('@sentry/nextjs', () => ({ captureException }))
   vi.doMock('next/navigation', () => ({ redirect: (url: string) => { throw new Error('REDIRECT ' + url) } }))
-  vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 'site-1' }) }))
+  vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: o.siteId ?? 'site-1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope }))
   if (!o.realLoader) vi.doMock('@/lib/youtube/observatorio/load-page', () => ({ loadChannelDataset, loadPageRows: vi.fn() }))
   // o carregador de verdade com um banco que diz "uuid inválido" (22P02) e anota toda tabela consultada
   const tabelas: string[] = []
   const cadeia = { select: () => cadeia, eq: () => cadeia, maybeSingle: async () => ({ data: null, error: { code: '22P02', message: 'invalid input syntax for type uuid' } }) }
-  vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return o.realLoader ? { from: (t: string) => { tabelas.push(t); return cadeia } } : {} } }))
+  vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return o.realLoader ? { from: (t: string) => { tabelas.push(t); return cadeia } } : { rpc: async () => { if (o.rpcThrows) throw o.rpcThrows; return { data: o.rpcData ?? null, error: null } } } } }))
   const { openChannelPage } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/page-data')
   return { openChannelPage, loadChannelDataset, loadOwnMenuRows, requireSiteScope, captureException, order, tabelas }
 }
@@ -173,21 +173,48 @@ describe('openChannelPage', () => {
   })
 
   describe('o dado privado do canal próprio (Tarefa 4 da A4)', () => {
-    it('edicao é o token da guarda de edição (a mesma chamada que dá canEdit; uma só); sem permissão de edição é null', async () => {
+    it('leitura nasce da guarda de edição quando a pessoa edita (a mesma chamada que dá canEdit; uma só); sem edição e sem o direito é null', async () => {
       const sim = await setup()
-      const { EdicaoDoSite } = await import('@/lib/youtube/observatorio/proprio/edicao') // depois do setup: o mesmo grafo de módulos
+      const { LeituraPrivadaDoSite } = await import('@/lib/youtube/observatorio/proprio/leitura-privada') // depois do setup: o mesmo grafo de módulos
       const a = await sim.openChannelPage('c1')
-      expect(a.edicao).toBeInstanceOf(EdicaoDoSite)
-      expect(a.edicao!.siteId).toBe('site-1')
+      expect(a.leitura).toBeInstanceOf(LeituraPrivadaDoSite)
+      expect(a.leitura!.siteId).toBe('site-1')
       expect(a.canEdit).toBe(true)
       expect(sim.requireSiteScope.mock.calls.filter(c => (c[0] as { mode: string }).mode === 'edit')).toHaveLength(1)
       const nao = await (await setup({ editOk: false })).openChannelPage('c1')
-      expect(nao.edicao).toBeNull(); expect(nao.canEdit).toBe(false)
+      expect(nao.leitura).toBeNull(); expect(nao.canEdit).toBe(false)
     })
-    it('a guarda de edição lançou: a página abre sem o dado privado (edicao null, canEdit false) e o erro vai ao Sentry; nunca derruba a página', async () => {
+    const SITE_UUID = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a77'
+    it('quem só tem o direito: leitura presente e canEdit false', async () => {
+      const sim = await setup({ editOk: false, siteId: SITE_UUID, rpcData: true })
+      const { LeituraPrivadaDoSite } = await import('@/lib/youtube/observatorio/proprio/leitura-privada')
+      const page = await sim.openChannelPage('c1')
+      expect(page.leitura).toBeInstanceOf(LeituraPrivadaDoSite)
+      expect(page.leitura!.siteId).toBe(SITE_UUID)
+      expect(page.canEdit).toBe(false)
+    })
+    it('quem edita: leitura presente e canEdit true', async () => {
+      const sim = await setup({ siteId: SITE_UUID })
+      const { LeituraPrivadaDoSite } = await import('@/lib/youtube/observatorio/proprio/leitura-privada')
+      const page = await sim.openChannelPage('c1')
+      expect(page.leitura).toBeInstanceOf(LeituraPrivadaDoSite)
+      expect(page.canEdit).toBe(true)
+    })
+    it('quem não tem nada: leitura null e canEdit false', async () => {
+      const page = await (await setup({ editOk: false, siteId: SITE_UUID, rpcData: false })).openChannelPage('c1')
+      expect(page.leitura).toBeNull(); expect(page.canEdit).toBe(false)
+    })
+    it('a prova falha (a função do banco lança): leitura null, canEdit false, a página abre', async () => {
+      const sim = await setup({ editOk: false, siteId: SITE_UUID, rpcThrows: new Error('rede') })
+      const page = await sim.openChannelPage('c1')
+      expect(page.leitura).toBeNull(); expect(page.canEdit).toBe(false)
+      expect(page.obs).not.toBeNull()
+      expect(sim.captureException).toHaveBeenCalledTimes(1)
+    })
+    it('a guarda de edição lançou: a página abre sem o dado privado (leitura null, canEdit false) e o erro vai ao Sentry; nunca derruba a página', async () => {
       const { openChannelPage, captureException } = await setup({ editThrows: new Error('auth fora do ar') })
       const page = await openChannelPage('c1')
-      expect(page.edicao).toBeNull(); expect(page.canEdit).toBe(false)
+      expect(page.leitura).toBeNull(); expect(page.canEdit).toBe(false)
       expect(page.obs).not.toBeNull()
       expect(captureException).toHaveBeenCalledTimes(1)
     })

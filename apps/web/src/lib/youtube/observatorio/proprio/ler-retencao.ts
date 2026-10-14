@@ -1,6 +1,6 @@
 // A5 · E8 · Tarefa 12b: leitor de servidor da curva de retenção do vídeo próprio. Só leitura, sem tela (a tela é a Tarefa 13).
 // O molde é o de `ler.ts` e `ler-dimensoes.ts`:
-//   - o acesso é a PROVA de edição do site (`EdicaoDoSite`): sem prova (ou objeto forjado), canal que não é uuid ou ytId fora do
+//   - o acesso é a PROVA de leitura privada do site (`LeituraPrivadaDoSite`): sem prova (ou objeto forjado), canal que não é uuid ou ytId fora do
 //     formato = 'negado' SEM consultar nada. A guarda é a mesma de `ler.ts` (escrita aqui, sem editar aquele arquivo);
 //   - toda consulta filtra por site (o da prova), canal e vídeo;
 //   - erro de banco é LANÇADO (`ObservatoryLoadError`); resposta que não é lista também. Nunca lista vazia disfarçada;
@@ -13,7 +13,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Janela } from '@/lib/youtube/coleta/retencao-regra'
 import { ObservatoryLoadError } from '../niches-db'
-import { edicaoValida } from './edicao'
+import { leituraValida } from './leitura-privada'
 import type { Pedido } from './ler'
 import type { PontoCurva } from './retencao-curva'
 import type { DiaYt, Privado } from './tipos'
@@ -141,7 +141,7 @@ function curvaValida(janela: Janela, r: Record<string, unknown>): CurvaLida | nu
 }
 
 /** O site da prova de edição, ou null: sem prova, ou canal que não é uuid (o Postgres lançaria 22P02) = 'negado', sem consulta. A mesma regra de `ler.ts`. */
-const siteAutorizado = (p: Pedido): string | null => (edicaoValida(p.edicao) && UUID.test(p.canalId) ? p.edicao.siteId : null)
+const siteAutorizado = (p: Pedido): string | null => (leituraValida(p.leitura) && UUID.test(p.canalId) ? p.leitura.siteId : null)
 
 interface LinhaLista { window_kind: unknown; window_end: unknown; collected_at: unknown }
 interface LinhaTentativa { attempt_day: unknown; outcome: unknown }

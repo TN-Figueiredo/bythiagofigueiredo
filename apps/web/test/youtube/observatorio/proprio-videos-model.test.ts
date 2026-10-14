@@ -505,6 +505,7 @@ describe('o que não pode vazar para a tela', () => {
     // controles: o detector pega cada uma das violações
     expect(violacoesDeImport(`import { lerAlcance } from '@/lib/youtube/observatorio/proprio/ler'`)).toHaveLength(1)
     expect(violacoesDeImport(`import { provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'`)).toHaveLength(1)
+    expect(violacoesDeImport(`import { leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'`)).toHaveLength(1)
     expect(violacoesDeImport(`import { podeVerPrivado } from './dados'`)).toHaveLength(1)
     expect(violacoesDeImport(`import 'server-only'`)).toHaveLength(1)
     expect(violacoesDeImport(`import type { DadosDoCanal } from './dados'`)).toEqual([])
@@ -524,7 +525,7 @@ describe('o que não pode vazar para a tela', () => {
 function violacoesDeImport(src: string): string[] {
   const v: string[] = []
   if (/from\s+['"][^'"]*proprio\/ler['"]/.test(src)) v.push('importa os leitores')
-  if (/from\s+['"][^'"]*proprio\/edicao['"]/.test(src)) v.push('importa a prova de edição')
+  if (/from\s+['"][^'"]*proprio\/(edicao|leitura-privada)['"]/.test(src)) v.push('importa a prova de edição ou de leitura privada')
   if (/import\s+(?!type\b)[^'"]*from\s+['"]\.\/dados['"]/.test(src)) v.push('importa valor do módulo de servidor')
   if (/import\s+['"]server-only['"]/.test(src)) v.push('marca o modelo como módulo de servidor')
   return v

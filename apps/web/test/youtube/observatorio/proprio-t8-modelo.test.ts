@@ -294,7 +294,12 @@ describe('T8 estado negado: nenhum dado privado vai nas props (a tela é client 
     })
   }
   it('o token nunca está no modelo: a view serializa sem campo de edição', () => {
-    expect(JSON.stringify(cheio)).not.toMatch(/edicao|EdicaoDoSite|siteId/)
+    // `"leitura":` sozinho casa com o texto legítimo `abas.leitura` ("A leitura da forja..."); o campo do token serializa como objeto ou null
+    const PROIBIDO = /edicao|EdicaoDoSite|LeituraPrivadaDoSite|"leitura":(\{|null)|leitura-privada|siteId/
+    expect(JSON.stringify(cheio)).not.toMatch(PROIBIDO)
+    // controles: os nomes do token de leitura contam como violação
+    expect(JSON.stringify({ leitura: { siteId: 's' } })).toMatch(PROIBIDO)
+    expect('LeituraPrivadaDoSite').toMatch(PROIBIDO)
   })
 })
 

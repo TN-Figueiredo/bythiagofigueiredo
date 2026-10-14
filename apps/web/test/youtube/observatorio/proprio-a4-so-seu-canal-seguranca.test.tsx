@@ -178,10 +178,11 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     expect(arvore).not.toMatch(/"eixo":\[\{"pos"|"loTxt"|"hiTxt"|"inconclusiva"|"taxa":\{"cliques"/)
   })
 
-  it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (uma só) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
+  it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (edição e leitura, nada além) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
     guarda.ok = false
     await rota(PAR_PROPRIO)
-    expect(guarda.chamadas).toBe(1)
+    // E17 passo 0: a prova de leitura privada pergunta a edição e, negada, a leitura (2 guardas, nenhuma a mais); depois disso nada
+    expect(guarda.chamadas).toBe(2)
     expect(db.trips).toEqual([])
     expect(servico.criado).toBe(0)
   })

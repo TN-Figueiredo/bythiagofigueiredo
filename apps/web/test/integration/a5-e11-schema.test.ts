@@ -25,7 +25,7 @@ import { COLLECTION_KINDS } from '@/lib/youtube/coleta/kinds'
 import { lerProva, chamarProva, schemaE11, janelaDoConjunto } from '@/lib/youtube/coleta/e11-config'
 import { CABECALHO_TRAFEGO, lerTrafego, agregarTrafego } from '@/lib/youtube/reporting/traffic-source-csv'
 import { CABECALHO_ALCANCE_COMBINADO, lerAlcanceCombinado, agregarAlcanceCombinado } from '@/lib/youtube/reporting/reach-combined-csv'
-import { provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'
+import { provarLeituraPrivada } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerDimensoes, lerDetalheDaOrigem } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
@@ -1044,9 +1044,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (MG7): schema, funções SQL e o Type
       expect(aplicado).toMatchObject({ status: 'gravado', gravadas: 2, dias_em_revisao: 0 })
 
       // o leitor real, com o token real (guarda simulada), contra o banco
-      const edicao = await provarEdicao(c.site)
-      expect(edicao).not.toBeNull()
-      const pedido = { edicao, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: d(-8), ate: d(-1), desde: { trafego: d(-30), dispositivo: d(-30), pais: d(-30), inscrito: d(-30), detalhe: d(-30), alcance_dim: d(-30) } }
+      const leitura = await provarLeituraPrivada(c.site)
+      expect(leitura).not.toBeNull()
+      const pedido = { leitura, canalId: c.canal, hoje: HOJE, ytIds: [v.yt], de: d(-8), ate: d(-1), desde: { trafego: d(-30), dispositivo: d(-30), pais: d(-30), inscrito: d(-30), detalhe: d(-30), alcance_dim: d(-30) } }
       const lido = await lerDimensoes(sb, pedido)
       expect(lido.acesso).toBe('ok')
       if (lido.acesso !== 'ok') return
