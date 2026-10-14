@@ -382,7 +382,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
   it('tabela de concessões vazia: só quem edita lê (o estado do dia do deploy)', async () => {
     await emTransacao(async () => {
       const c = await garantirEMontar({ comConcessoes: false })
-      expect((await pg.query(`select count(*)::int as n from public.site_private_viewers`)).rows[0].n).toBe(0)
+      expect((await pg.query(`select count(*)::int as n from public.site_private_viewers where site_id = any($1::uuid[])`, [[c.a, c.b]])).rows[0].n, 'concessões dos sites deste teste').toBe(0)
       for (const t of c.tabelas.filter((n) => DOZE.includes(n as (typeof DOZE)[number]))) {
         for (const q of ['leitora', 'reporter', 'revogada', 'exmembro', 'sem'] as const) expect(await contar(c, q, t), `${q} em ${t}`).toBe(0)
         for (const q of ['editor', 'orgadmin'] as const) expect(await contar(c, q, t), `${q} em ${t}`).toBe(1)
@@ -402,7 +402,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
       expect((await pg.query(`select user_id from public.obs_ai_access_log where key_id = $1`, [chave])).rows[0].user_id).toBeNull()
       // quem concedeu e quem retirou (o mesmo "dono") é apagado: as duas colunas anulam, as linhas ficam
       await pg.query('delete from auth.users where id = $1', [c.dono])
-      const r = await pg.query(`select count(*)::int as total, count(*) filter (where granted_by is null)::int as sem_autor, count(*) filter (where revoked_by is null)::int as sem_quem_retirou from public.site_private_viewers`)
+      const r = await pg.query(`select count(*)::int as total, count(*) filter (where granted_by is null)::int as sem_autor, count(*) filter (where revoked_by is null)::int as sem_quem_retirou from public.site_private_viewers where site_id = any($1::uuid[])`, [[c.a, c.b]])
       expect(r.rows[0]).toEqual({ total: 2, sem_autor: 2, sem_quem_retirou: 2 })
     })
   })
@@ -411,11 +411,11 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
     await emTransacao(async () => {
       const c = await garantirEMontar()
       const rastro = async (): Promise<Record<string, number>> => {
-        const r = await pg.query<{ action: string; n: number }>(`select action, count(*)::int as n from public.audit_log where resource_type = 'site_private_viewers' group by 1`)
+        const r = await pg.query<{ action: string; n: number }>(`select action, count(*)::int as n from public.audit_log where resource_type = 'site_private_viewers' and site_id = any($1::uuid[]) group by 1`, [[c.a, c.b]])
         return Object.fromEntries(r.rows.map((x) => [x.action, x.n]))
       }
       expect(await rastro()).toEqual({ private_view_granted: 3, private_view_revoked: 1 })
-      expect((await pg.query(`select bool_and(org_id is not null) as ok from public.audit_log where resource_type = 'site_private_viewers'`)).rows[0].ok).toBe(true)
+      expect((await pg.query(`select bool_and(org_id is not null) as ok from public.audit_log where resource_type = 'site_private_viewers' and site_id = any($1::uuid[])`, [[c.a, c.b]])).rows[0].ok).toBe(true)
       // conceder a quem já tem: a instrução do runbook não altera linha (a cláusula where) e o rastro fica igual
       const conceder = `insert into public.site_private_viewers (site_id, user_id, granted_by) values ($1, $2, $3)
         on conflict (site_id, user_id) do update set revoked_at = null, revoked_by = null, granted_by = excluded.granted_by, granted_at = now() where public.site_private_viewers.revoked_at is not null returning 1`
@@ -425,19 +425,19 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
       expect((await pg.query(conceder, [c.a, c.u.revogada, c.dono])).rowCount).toBe(1)
       expect((await pg.query(`update public.site_private_viewers set revoked_at = now(), revoked_by = $3 where site_id = $1 and user_id = $2 and revoked_at is null`, [c.a, c.u.leitora, c.dono])).rowCount).toBe(1)
       expect(await rastro()).toEqual({ private_view_granted: 4, private_view_revoked: 2 })
-      expect((await pg.query(`select bool_and(org_id is not null) as ok from public.audit_log where resource_type = 'site_private_viewers'`)).rows[0].ok).toBe(true)
+      expect((await pg.query(`select bool_and(org_id is not null) as ok from public.audit_log where resource_type = 'site_private_viewers' and site_id = any($1::uuid[])`, [[c.a, c.b]])).rows[0].ok).toBe(true)
     })
   })
 
   it('apagar quem concedeu, e apagar quem retirou, não grava linha nenhuma em audit_log; granted_by e revoked_by ficam nulos', async () => {
     await emTransacao(async () => {
       const c = await garantirEMontar()
-      const contagem = async (): Promise<number> => Number((await pg.query(`select count(*)::int as n from public.audit_log where resource_type = 'site_private_viewers'`)).rows[0].n)
+      const contagem = async (): Promise<number> => Number((await pg.query(`select count(*)::int as n from public.audit_log where resource_type = 'site_private_viewers' and site_id = any($1::uuid[])`, [[c.a, c.b]])).rows[0].n)
       const antes = await contagem()
       expect(antes).toBeGreaterThan(0)
       await pg.query('delete from auth.users where id = $1', [c.dono])
       expect(await contagem(), 'contagem de audit_log antes e depois do delete from auth.users').toBe(antes)
-      const r = await pg.query(`select count(*) filter (where granted_by is not null)::int as g, count(*) filter (where revoked_by is not null)::int as v from public.site_private_viewers`)
+      const r = await pg.query(`select count(*) filter (where granted_by is not null)::int as g, count(*) filter (where revoked_by is not null)::int as v from public.site_private_viewers where site_id = any($1::uuid[])`, [[c.a, c.b]])
       expect(r.rows[0]).toEqual({ g: 0, v: 0 })
     })
   })
@@ -458,7 +458,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
     await emTransacao(async () => {
       const c = await garantirEMontar()
       const t = c.tabelas.find((n) => DOZE.includes(n as (typeof DOZE)[number]))!
-      const rastro = async (): Promise<number> => Number((await pg.query(`select count(*)::int as n from public.audit_log where resource_type = 'site_private_viewers'`)).rows[0].n)
+      const rastro = async (): Promise<number> => Number((await pg.query(`select count(*)::int as n from public.audit_log where resource_type = 'site_private_viewers' and site_id = any($1::uuid[])`, [[c.a, c.b]])).rows[0].n)
       // revogada: retirada, com o autor anulado à mão
       await pg.query(`update public.site_private_viewers set revoked_by = null where site_id = $1 and user_id = $2`, [c.a, c.u.revogada])
       // leitora: em vigor, com quem concedeu anulado à mão
