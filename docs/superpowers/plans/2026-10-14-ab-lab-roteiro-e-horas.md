@@ -78,3 +78,4 @@ do banco e a árvore dividida com o outro terminal pesam mais que as horas.
 - 14/10/2026 (tarde): respostas do dono. B1 sim (o original é relido ao iniciar). B2: o agente escolhe um vídeo antigo e de pouca view, o dono aprova, e o script do portão (P4-0) roda depois da revisão do Yannis. B3 sim (a nova tentativa repete o sim). 14: sem data; P3 e depois P4a.
 - 14/10/2026: vídeo do portão B2 (P4-0) aprovado pelo dono: "Lolzin D5" (6jL-jeux_1Y, 2015, público, 0 view em 30 dias). Reserva: WDRy_uldCI8.
 - 14/10/2026: ensaio do portão (P4-0) verde: maxresdefault 1280×720, teste a 60 bits, limite 6, cota 101 (151 pior caso). Comando para valer entregue ao dono.
+- 14/10/2026: portão (P4-0) rodando: troca no YouTube às 17:57 UTC (inicio_utc 17:57Z); a primeira sonda já via o teste (dTeste 1). Janela de ruído do retrato diário (E18) para o Lolzin D5: de 14/10 17:57 UTC até a conferência da volta.
