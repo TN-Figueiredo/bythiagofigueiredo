@@ -497,3 +497,114 @@ describe('D2 (fecho da A4): rótulos de valor — o maior valor da série tem pr
     expect(indiceDoMaior([])).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------------------------------------------------
+// E5b Tarefa 13: "ainda cedo" (lote 1, tela A). O vídeo novo e o ainda-cedo trocam o gráfico pela faixa de 7 casas; o dia 7 com tudo 0
+// mostra só o 0 medido, sem eixo inventado e sem faixa de cliques; sem a opção `cedo` a saída é a de sempre.
+// ---------------------------------------------------------------------------------------------------------------------
+import { estadoCedo } from '@/lib/youtube/observatorio/proprio/cedo'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
+
+describe('E5b T13: faixa de 7 casas', () => {
+  const HJ = dayPt(new Date())
+  const d = (n: number) => addDays(HJ, -n)
+  const med = (n: number, imp: number): DiaAlcance => dia(d(n), imp)
+  const nm = (n: number): DiaAlcance => dia(d(n), null, 0, 'recente')
+  const O2 = { escopo: 'video' as const, alturaArea: 110, dm, acesso: 'ok' as const, hoje: HJ }
+  const per = (idade: number): Periodo => ({ de: d(idade), ate: HJ, dias: idade + 1 })
+  const dias = (idade: number): DiaAlcance[] => Array.from({ length: idade + 1 }, (_, i) => { const a = idade - i; return a <= 1 ? nm(a) : med(a, 0) })
+
+  it('17 horas (idade 1): "Vídeo novo", sem gráfico, faltam 5 dias, em publicação + 6', () => {
+    const cedo = estadoCedo({ publicadoEm: d(1), hojePt: HJ, dias: dias(1) })
+    const v = buildImpressoes(dias(1), per(1), { ...O2, cedo, viewsDoVideo: 12 })
+    expect(v.cedo?.tipo).toBe('video-novo')
+    expect(v.cedo?.frase).toContain('Vídeo novo.')
+    expect(v.cedo?.frase).toContain(`em ${dm(addDays(d(1), 6))} (faltam 5 dias), a última casa da faixa.`)
+    expect(v.cedo?.frase).toContain('O YouTube entrega as impressões de cada dia 2 a 3 dias depois.')
+    expect(v.cedo?.casas).toHaveLength(7)
+    expect(v.colunas).toEqual([])
+    expect(v.vazio).toBeNull()
+  })
+  it('3 dias, zeros: "Ainda cedo", 2 dias medidos, todos com 0, e as views do vídeo; "falta 1 dia, amanhã" aos 5 dias', () => {
+    const c3 = estadoCedo({ publicadoEm: d(3), hojePt: HJ, dias: dias(3) })
+    const v3 = buildImpressoes(dias(3), per(3), { ...O2, cedo: c3, viewsDoVideo: 598 })
+    expect(v3.cedo?.frase).toContain('Ainda cedo para ler as impressões. 2 dias medidos, todos com 0;')
+    expect(v3.cedo?.frase).toContain('o vídeo já teve 598 views, o relatório de alcance é que chega atrasado.')
+    expect(v3.cedo?.frase).toContain('(faltam 3 dias)')
+    const c5 = estadoCedo({ publicadoEm: d(5), hojePt: HJ, dias: dias(5) })
+    expect(buildImpressoes(dias(5), per(5), { ...O2, cedo: c5 }).cedo?.frase).toContain('(falta 1 dia, amanhã)')
+  })
+  it('sem views conhecidas a frase não inventa o número', () => {
+    const c = estadoCedo({ publicadoEm: d(3), hojePt: HJ, dias: dias(3) })
+    const f = buildImpressoes(dias(3), per(3), { ...O2, cedo: c, viewsDoVideo: null }).cedo!.frase
+    expect(f).not.toMatch(/já teve/)
+    expect(f).toContain('o relatório de alcance chega atrasado.')
+  })
+  it('as casas: zero medido com "0", hoje e ontem "não medido", depois "ainda não existe"', () => {
+    const cedo = estadoCedo({ publicadoEm: d(3), hojePt: HJ, dias: dias(3) })
+    const v = buildImpressoes(dias(3), per(3), { ...O2, cedo })
+    expect(v.cedo!.casas.map(c => c.estado)).toEqual(['zero-medido', 'zero-medido', 'dia-nao-chegou', 'dia-nao-chegou', 'ainda-nao-existe', 'ainda-nao-existe', 'ainda-nao-existe'])
+    expect(v.cedo!.casas.map(c => c.texto)).toEqual(['0', '0', 'ontem', 'hoje', '', '', ''])
+    expect(v.cedo!.casas[0]!.aria).toContain('zero medido')
+    expect(v.cedo!.casas[2]!.aria).toContain('não medido: o dia ainda não chegou (ontem)')
+    expect(v.cedo!.casas[6]!.aria).toContain('neste dia o gráfico volta')
+    expect(v.cedo!.casas.map(c => c.numero)).toEqual([1, 2, 3, 4, 5, 6, 7])
+  })
+  it('a legenda tem os quatro estados', () => {
+    const cedo = estadoCedo({ publicadoEm: d(3), hojePt: HJ, dias: dias(3) })
+    const v = buildImpressoes(dias(3), per(3), { ...O2, cedo })
+    expect(v.cedo!.legenda.map(l => l.tipo)).toEqual(['zero', 'com', 'nm', 'fut'])
+  })
+  it('dia 7 com tudo 0: gráfico só com o 0, sem eixo inventado, sem faixa de cliques, com a frase do mockup', () => {
+    const cedo = estadoCedo({ publicadoEm: d(6), hojePt: HJ, dias: dias(6) })
+    const v = buildImpressoes(dias(6), per(6), { ...O2, cedo, viewsDoVideo: 598 })
+    expect(cedo).toMatchObject({ tipo: 'grafico', soZeros: true })
+    expect(v.cedo).toBeNull()
+    expect(v.soZeros).toBe(true)
+    expect(v.ticks).toEqual([0])
+    expect(v.faixaCliques).toBe(false)
+    expect(v.resumo).toBe('Nenhuma impressão nos 5 dias medidos, mas o vídeo teve 598 views. O relatório de alcance do YouTube pode estar incompleto: os 0 são o que ele mandou. Ontem e hoje ainda não chegaram.')
+    expect(v.colunas.filter(c => c.situacao === 'zero-medido')).toHaveLength(5)
+  })
+  it('o resumo trazido por quem chama vence o do soZeros', () => {
+    const cedo = estadoCedo({ publicadoEm: d(6), hojePt: HJ, dias: dias(6) })
+    expect(buildImpressoes(dias(6), per(6), { ...O2, cedo, resumo: 'minha' }).resumo).toBe('minha')
+  })
+  it('gráfico com número: tudo como antes (eixo de três marcas e faixa de cliques)', () => {
+    const ds = dias(4).map((x, i) => (i === 1 ? med(3, 109) : x))
+    const cedo = estadoCedo({ publicadoEm: d(4), hojePt: HJ, dias: ds })
+    const v = buildImpressoes(ds, per(4), { ...O2, cedo })
+    expect(cedo).toMatchObject({ tipo: 'grafico', soZeros: false })
+    expect(v.cedo).toBeNull()
+    expect(v.soZeros).toBe(false)
+    expect(v.faixaCliques).toBe(true)
+    expect(v.ticks).toHaveLength(3)
+  })
+  it('nao-medido: a saída é a de sempre (sem faixa, sem soZeros)', () => {
+    const v = buildImpressoes(dias(4), per(4), { ...O2, cedo: { tipo: 'nao-medido' } })
+    expect(v.cedo).toBeNull()
+    expect(v.soZeros).toBe(false)
+    const sem = buildImpressoes(dias(4), per(4), O2)
+    expect(JSON.stringify(v)).toBe(JSON.stringify(sem))
+  })
+  it('sem a opção cedo a saída é a de hoje, byte a byte (soZeros falso, cedo nulo)', () => {
+    const v = buildImpressoes([dia('2026-10-01', 0)], periodo, O)
+    expect(v.cedo).toBeNull()
+    expect(v.soZeros).toBe(false)
+  })
+  it('acesso negado ou erro vencem a faixa: nenhum dado entra', () => {
+    const cedo = estadoCedo({ publicadoEm: d(3), hojePt: HJ, dias: dias(3) })
+    for (const acesso of ['negado', 'erro'] as const) {
+      const v = buildImpressoes(dias(3), per(3), { ...O2, cedo, acesso })
+      expect(v.cedo).toBeNull()
+      expect(v.vazio).not.toBeNull()
+    }
+  })
+  it('vídeo novo com lista de dias vazia ainda mostra a faixa', () => {
+    const cedo = estadoCedo({ publicadoEm: d(0), hojePt: HJ, dias: [] })
+    const v = buildImpressoes([], null, { ...O2, cedo })
+    expect(v.cedo?.tipo).toBe('video-novo')
+    expect(v.cedo?.frase).toContain('Publicado hoje.')
+    expect(v.cedo?.frase).toContain('(faltam 6 dias)')
+  })
+})

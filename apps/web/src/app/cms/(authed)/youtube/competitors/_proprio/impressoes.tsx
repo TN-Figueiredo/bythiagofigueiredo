@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { HoverTip, Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
-import { indiceDoMaior, int, PX_POR_CARACTERE, quaisCabem, type ColunaView, type ImpressoesView } from './impressoes-model'
+import { indiceDoMaior, int, PX_POR_CARACTERE, quaisCabem, type CedoView, type ColunaView, type ImpressoesView } from './impressoes-model'
 import './impressoes.css'
 
 /** Largura de partida: a do servidor e do primeiro render do cliente (hidratação idêntica). Depois da montagem vale a medida. */
@@ -187,6 +187,32 @@ function Legenda({ view }: { view: ImpressoesView }) {
   )
 }
 
+/** A faixa dos 7 primeiros dias (tela A do lote 1): no lugar do gráfico enquanto o vídeo é novo ou os relatórios só trouxeram zeros. */
+function FaixaCedo({ cedo }: { cedo: CedoView }) {
+  return (
+    <div className="ic-cedo">
+      <p className="ic-cedo-fr">{cedo.frase}</p>
+      <ol className="ic-cedo-faixa" aria-label="Os 7 primeiros dias do vídeo, um por casa">
+        {cedo.casas.map(c => (
+          <li key={c.dia} className="ic-cedo-d">
+            <span className={'ic-cedo-c ' + (c.estado === 'zero-medido' ? 'zero' : c.estado === 'com-impressoes' ? 'com' : c.estado === 'dia-nao-chegou' ? 'nm obs-ch-nm' : 'fut')} data-estado={c.estado} role="img" aria-label={c.aria}>{c.texto}</span>
+            <span className="ic-cedo-n">dia {c.numero}</span>
+            <span className="ic-cedo-dt">{c.rotulo}</span>
+          </li>
+        ))}
+      </ol>
+      <ul className="ic-cedo-leg" aria-label="Legenda da faixa">
+        {cedo.legenda.map(l => (
+          <li key={l.tipo}>
+            <i className={'ic-cedo-sw ' + (l.tipo === 'nm' ? 'nm obs-ch-nm' : l.tipo)} aria-hidden="true" />
+            {l.texto}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: string }) {
   const baseId = useId().replace(/[^A-Za-z0-9_-]/g, '')
   const pid = 'ich' + baseId
@@ -347,7 +373,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
   return (
     <figure className="ic" ref={raiz} aria-labelledby={tid}>
       <div className="ic-t" id={tid}>{titulo}</div>
-      {view.vazio ? <p className="ic-vazio">{view.vazio}</p> : (
+      {view.vazio ? <p className="ic-vazio">{view.vazio}</p> : view.cedo ? <FaixaCedo cedo={view.cedo} /> : (
         <>
           {view.resumo ? <p className="ic-res">{view.resumo}</p> : null}
           <div className="ic-meta">
