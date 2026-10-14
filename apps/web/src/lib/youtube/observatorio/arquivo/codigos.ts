@@ -13,13 +13,13 @@ export type CodigoE10 =
   | 'demorou_demais' | 'forja_em_andamento' | 'canal_nao_encontrado' | 'nao_pausado' | 'sem_lote' | 'lote_nao_conferido'
   | 'lote_nao_confirmado' | 'despausado_depois_do_export' | 'banco_difere_do_manifesto' | 'tabela_sem_export' | 'sobrou_linha'
   | 'sem_direito' | 'pausa_recente' | 'sincronizando' | 'lote_ja_apagado' | 'pausa_sem_remendo' | 'parametro_nulo'
-  | 'schema_ausente' | 'inesperado'
+  | 'schema_ausente' | 'apagou_alem_do_arquivo' | 'inesperado'
 
 /** Os códigos que o banco (MG6) levanta com `E10:<codigo>:`. `demorou_demais`, `schema_ausente` e `inesperado` nascem do código do erro, nunca da mensagem. */
 const DO_BANCO: ReadonlySet<string> = new Set<CodigoE10>([
   'forja_em_andamento', 'canal_nao_encontrado', 'nao_pausado', 'sem_lote', 'lote_nao_conferido', 'lote_nao_confirmado',
   'despausado_depois_do_export', 'banco_difere_do_manifesto', 'tabela_sem_export', 'sobrou_linha', 'sem_direito', 'pausa_recente',
-  'sincronizando', 'lote_ja_apagado', 'pausa_sem_remendo', 'parametro_nulo',
+  'sincronizando', 'lote_ja_apagado', 'pausa_sem_remendo', 'parametro_nulo', 'apagou_alem_do_arquivo',
 ])
 
 const MENSAGEM_E10 = /^E10:([a-z_]+):/
@@ -57,5 +57,6 @@ export const FRASES_E10: Record<CodigoE10, string> = {
   pausa_sem_remendo: 'A migration da pausa não está completa: alguma função da coleta não conhece a pausa. Nada foi pausado.',
   parametro_nulo: 'Faltou um dado no pedido. Nada foi feito.',
   schema_ausente: 'A migration da exportação ainda não foi aplicada neste banco. Nada foi feito.',
+  apagou_alem_do_arquivo: 'Ao apagar, o banco contou mais linhas do que as da exportação, ou não conseguiu contar. A operação foi desfeita e nada foi apagado.',
   inesperado: 'Algo inesperado aconteceu e nada foi apagado. A causa foi registrada; tente de novo mais tarde.',
 }

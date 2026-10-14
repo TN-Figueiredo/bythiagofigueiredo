@@ -102,9 +102,10 @@ quebra de linha', now() - interval '3 days', '{a,"b,c","d e",""}', 9007199254740
          array[9007199254740993::bigint] || array_fill(1::bigint, array[167]), array_fill(2, array[168]), array_fill(3, array[168]),
          array[0.1::real, 0.30000001::real, 1e-05::real] || array_fill(0.5::real, array[165]), array_fill(0.25::real, array[168]), array_fill(0.125::real, array[168]), array_fill(1, array[168]))`,
       [c.canalA, c.site])
+    // taken_at dentro da própria hora de hour_slot (a restrição da tabela): antes era `now() - 110 min`, que sai da hora quando o minuto é >= 50
     await pg.query(
       `insert into public.competitor_video_hourly (video_id, hour_slot, taken_at, site_id, views)
-       values ($1, date_trunc('hour', now()) - interval '2 hours', now() - interval '110 minutes' + interval '0.123456 seconds', $2, 100)`, [c.videoA, c.site])
+       values ($1, date_trunc('hour', now()) - interval '2 hours', date_trunc('hour', now()) - interval '2 hours' + interval '10 minutes 0.123456 seconds', $2, 100)`, [c.videoA, c.site])
   }
 
   async function exportar(c: Cena, raiz: string, extra: { refazer?: boolean; baixar?: (u: string) => Promise<{ status: number; corpo: Uint8Array | null }> } = {}): Promise<ResultadoExport> {

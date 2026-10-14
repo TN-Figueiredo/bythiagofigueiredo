@@ -13,7 +13,7 @@ const DO_BANCO = TODOS.filter(c => !['demorou_demais', 'schema_ausente', 'inespe
 
 describe('A5 E10 T5: codigos', () => {
   it('um teste por código: a frase vem do catálogo e nenhuma parte da mensagem do banco aparece', () => {
-    expect(DO_BANCO).toHaveLength(16)
+    expect(DO_BANCO).toHaveLength(17)
     for (const c of DO_BANCO) {
       const mensagem = `E10:${c}: competitor_video_daily 2026-10 banco=3 arquivo=2 SEGREDO`
       const codigo = codigoE10({ message: mensagem, code: 'P0001' })
@@ -57,8 +57,8 @@ describe('A5 E10 T5: codigos', () => {
     }
   })
 
-  it('toda frase é uma frase: começa em maiúscula, termina em ponto, e o catálogo cobre os 19 códigos', () => {
-    expect(TODOS).toHaveLength(19)
+  it('toda frase é uma frase: começa em maiúscula, termina em ponto, e o catálogo cobre os 20 códigos', () => {
+    expect(TODOS).toHaveLength(20)
     for (const c of TODOS) {
       expect(FRASES_E10[c], c).toMatch(/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/)
       expect(FRASES_E10[c], c).toMatch(/[.]$/)

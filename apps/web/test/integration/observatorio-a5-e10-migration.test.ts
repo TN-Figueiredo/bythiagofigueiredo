@@ -374,6 +374,50 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
     })
   })
 
+  // (revisão Phil 14/10, I-2) A remoção se conferia só com o registro que ela mesma usa: um filtro errado dava verde nas três conferências.
+  // A guarda independente conta, pelo próprio Postgres (pg_stat_xact_user_tables), quantas linhas cada tabela do fecho perdeu na
+  // transação e exige igual ao que o lote arquivou. Aqui o registro é QUEBRADO de propósito (filtro que devolve zero linha), o lote
+  // nasce sem aquela tabela, as três conferências do registro passam, e só a guarda sabe.
+  it('a guarda independente: filtro quebrado em QUALQUER entrada do registro faz a remoção parar com apagou_alem_do_arquivo, e nada é apagado', async () => {
+    const nomes = (await pg.query(`select table_name from (values ${[
+      'competitor_channels', 'competitor_collection_pauses', 'competitor_channel_snapshots', 'competitor_channel_hour_map', 'competitor_videos',
+      'competitor_field_versions', 'competitor_raw', 'competitor_video_versions', 'competitor_changes', 'competitor_video_tier_spans', 'competitor_video_daily',
+      'competitor_video_early', 'competitor_video_hourly', 'competitor_hour_fold_log', 'competitor_video_comment_snaps', 'competitor_video_comments',
+      'competitor_video_comment_marks', 'competitor_readings', 'youtube_intelligence_tasks'].map(n => `('${n}')`).join(', ')}) v(table_name)`)).rows.map((r: { table_name: string }) => r.table_name)
+    expect(nomes).toHaveLength(19)
+    const falhas: string[] = []
+    for (const tabela of nomes) {
+      await dentro(async () => {
+        const c = await semearCena(pg)
+        const def = await escalar<string>(pg, `select pg_get_functiondef('public.obs_archive_registry()'::regprocedure)`)
+        const quebrado = def.replace(new RegExp(`\\('${tabela}',(\\s*)'([^']*)'`), (_m, esp: string, filtro: string) => `('${tabela}',${esp}'(${filtro}) and $1 is null'`)
+        expect(quebrado, `o registro de ${tabela} não foi encontrado para quebrar`).not.toBe(def)
+        await pg.query(quebrado)
+        await exportarConferirConfirmar(pg, c, c.canalA, 'lote-x') // as três conferências do registro passam: o lote simplesmente não tem a tabela
+        const antes = await existe(c.canalA)
+        const t = await tenta(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
+        const codigo = t.ok ? 'removeu' : (codigoE10(t.message) ?? `fora-da-E10:${t.code}`)
+        if (codigo !== 'apagou_alem_do_arquivo') falhas.push(`${tabela}: ${codigo}`)
+        else {
+          expect(t.ok ? '' : t.message, tabela).toContain(tabela)
+          expect(await existe(c.canalA)).toBe(antes) // a transação da função desfez: o canal continua
+          expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_batches where channel_ref = $1 and deleted_at is not null`, [c.canalA])).toBe(0)
+        }
+      })
+    }
+    expect(falhas).toEqual([])
+  })
+
+  it('a guarda independente não atrapalha a remoção correta, e a exclusão declarada (autores) não conta', async () => {
+    await dentro(async () => {
+      const c = await semearCena(pg)
+      await exportarConferirConfirmar(pg, c, c.canalA, 'lote-x')
+      const r = (await q1(pg, `select public.competitor_channel_remove_archived($1, $2, $3) as r`, [c.site, c.canalA, c.admin])).r as { status: string }
+      expect(r.status).toBe('removido')
+      expect(await existe(c.canalA)).toBe(0)
+    })
+  })
+
   it('remoção com lote confirmado: apaga A, marca os arquivos, audita uma vez e o registro continua', async () => {
     await dentro(async () => {
       const c = await semearCena(pg)

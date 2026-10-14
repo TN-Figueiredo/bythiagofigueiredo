@@ -196,7 +196,7 @@ describe('A5 E10 T7: rodar, pausar, despausar, exportar, conferir', () => {
     expect(tudo(await rodar(cmd(`despausar --canal ${CANAL} --por ${EMAIL}`), dinheiro({ sql: n.sql })))).toContain('não estava pausada')
   })
 
-  const CODIGOS_DO_BANCO: CodigoE10[] = ['forja_em_andamento', 'canal_nao_encontrado', 'nao_pausado', 'sem_lote', 'lote_nao_conferido', 'lote_nao_confirmado', 'despausado_depois_do_export', 'banco_difere_do_manifesto', 'tabela_sem_export', 'sobrou_linha', 'sem_direito', 'pausa_recente', 'sincronizando', 'lote_ja_apagado', 'pausa_sem_remendo', 'parametro_nulo']
+  const CODIGOS_DO_BANCO: CodigoE10[] = ['forja_em_andamento', 'canal_nao_encontrado', 'nao_pausado', 'sem_lote', 'lote_nao_conferido', 'lote_nao_confirmado', 'despausado_depois_do_export', 'banco_difere_do_manifesto', 'tabela_sem_export', 'sobrou_linha', 'sem_direito', 'pausa_recente', 'sincronizando', 'lote_ja_apagado', 'pausa_sem_remendo', 'parametro_nulo', 'apagou_alem_do_arquivo']
   it.each(CODIGOS_DO_BANCO)('código do banco vira frase do catálogo: %s', async codigo => {
     const m = roteirizado([rotaSite, rotaUsuario, [/competitor_channel_pause\(/, () => Object.assign(new Error(`E10:${codigo}: competitor_video_daily 2026-09-01 banco=3 arquivo=2 SEGREDO`), { code: 'P0001' })]])
     const r = await rodar(cmd(`pausar --canal ${CANAL} --por ${EMAIL}`), dinheiro({ sql: m.sql }))

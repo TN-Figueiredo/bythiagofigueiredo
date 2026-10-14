@@ -1215,6 +1215,8 @@ Nenhum item da etapa ficou sem tarefa. Ficam **fora, por decisão escrita**: as 
 
 ### Apêndice A: MG6 (rodado duas vezes antes da emenda 1; as seis mudanças marcadas `emenda 1` e a marcada `emenda 2` ainda não foram rodadas: seção 11)
 
+**(revisão Phil 14/10, I-2)** A função `competitor_channel_remove_archived` ganhou uma guarda independente do registro: `pg_stat_xact_user_tables.n_tup_del` de cada tabela do fecho de cascata (tirado do catálogo) antes e depois do `delete`, exigindo igual ao que o lote arquivou (autores de comentário, a exclusão declarada, ficam de fora); diferença levanta `E10:apagou_alem_do_arquivo` e a transação desfaz. Rodada em 14/10 no `bythiago_int`: o roteiro do Apêndice B deu a mesma saída guardada, duas vezes, e a integração quebra o filtro de cada uma das 19 entradas existentes do registro e vê a guarda disparar. O código novo entra em `FRASES_E10` (`codigos.ts`).
+
 ```sql
 -- MG6 (A5, E10): registro dos lotes de export, pausa de coleta e sinal de tamanho do banco.
 -- Depende de: MG13 (yt_reporting_blobs_purge devolve 0: esta migration NÃO a toca), MG2b/MG9 (competitor_series_health,
@@ -1847,6 +1849,8 @@ declare
   v_linhas bigint;
   v_arquivos integer;
   v_featured integer;
+  v_base jsonb;       -- (revisão Phil 14/10, I-2) n_tup_del de cada tabela do fecho de cascata, antes do delete
+  v_t record;
   v_now timestamptz := pg_catalog.clock_timestamp();
 begin
   if p_site is null or p_channel is null or p_actor is null then
@@ -1896,7 +1900,54 @@ begin
     from public.obs_archive_batches b
    where b.site_id = p_site and b.batch = v_batch and b.channel_ref = p_channel::text and b.deleted_at is null;
 
+  -- (revisão Phil 14/10, I-2) Conferência INDEPENDENTE do registro. `obs_archive_diff` e `sobrou_linha` usam `obs_archive_registry()`, a mesma
+  -- lista que fez o export: um filtro errado numa entrada dava verde nas três conferências e a cascata apagava linha que nunca foi para o
+  -- arquivo. Aqui o próprio Postgres conta, por transação (pg_stat_xact_user_tables.n_tup_del, que inclui a cascata), quantas linhas cada
+  -- tabela do fecho perdeu, e o fecho vem do CATÁLOGO (chaves estrangeiras em cascata), não do registro. Cada tabela tem de perder
+  -- exatamente o que o lote arquivou; a exceção declarada (obs_archive_excluded, os autores de comentário) fica de fora. Diferiu: a
+  -- transação inteira desfaz. Sem track_counts a contagem é sempre zero e não vale: recusa também.
+  if pg_catalog.current_setting('track_counts') <> 'on' then
+    raise exception 'E10:apagou_alem_do_arquivo: track_counts desligado' using errcode = 'P0001';
+  end if;
+  with recursive alvo (rel) as (
+    select 'public.competitor_channels'::regclass::oid
+    union
+    select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+  )
+  select coalesce(jsonb_object_agg(c.relname::text, coalesce(s.n_tup_del, 0)), '{}'::jsonb) into v_base
+    from alvo a
+    join pg_catalog.pg_class c on c.oid = a.rel
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    left join pg_catalog.pg_stat_xact_user_tables s on s.relid = c.oid
+   where n.nspname = 'public';
+
   delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;
+
+  for v_t in
+    with recursive alvo (rel) as (
+      select 'public.competitor_channels'::regclass::oid
+      union
+      select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+       where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+    )
+    select c.relname::text as nome,
+           coalesce(s.n_tup_del, 0) - coalesce((v_base ->> c.relname::text)::bigint, 0) as apagadas,
+           coalesce((select sum(b.row_count) from public.obs_archive_batches b
+                      where b.site_id = p_site and b.batch = v_batch and b.channel_ref = p_channel::text
+                        and b.table_name = c.relname::text and b.deleted_at is null), 0) as arquivadas
+      from alvo a
+      join pg_catalog.pg_class c on c.oid = a.rel
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+      left join pg_catalog.pg_stat_xact_user_tables s on s.relid = c.oid
+     where n.nspname = 'public'
+       and c.relname::text not in (select e.table_name from public.obs_archive_excluded() e)
+     order by 1
+  loop
+    if v_t.apagadas <> v_t.arquivadas then
+      raise exception 'E10:apagou_alem_do_arquivo: % apagadas=% arquivadas=%', v_t.nome, v_t.apagadas, v_t.arquivadas using errcode = 'P0001';
+    end if;
+  end loop;
 
   if exists (select 1 from public.obs_archive_channel_counts(p_channel)) then
     raise exception 'E10:sobrou_linha: uma tabela do registro não apaga em cascata' using errcode = 'P0001';
