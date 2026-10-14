@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { brDec } from '@/lib/youtube/format'
-import { Plus, Filter, Settings, FlaskConical, Crosshair, Trophy, TrendingUp, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
+import { Plus, Filter, Settings, FlaskConical, Trophy, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
 import type {
   AbTestCardView,
   AbTestDraft,
@@ -15,6 +14,7 @@ import type {
   SuggestedVideo,
 } from '@/lib/youtube/ab-types'
 import { KPI } from './kpi'
+import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { ActiveTestCard } from './active-test-card'
 import { CompletedRow } from './completed-row'
 import { DraftsBlock } from './drafts-block'
@@ -219,27 +219,22 @@ export function AbLabDashboard({
             value={stats.activeTests}
             icon={FlaskConical}
           />
-          <KPI
-            label="Confiança média"
-            value={Math.round(stats.avgConfidence)}
-            suffix="%"
-            icon={Crosshair}
-            spark={undefined}
-          />
-          <KPI
-            label="Win rate"
-            value={Math.round(stats.winRate)}
-            suffix="%"
-            icon={Trophy}
-            trend={stats.completedTests > 0 ? `${stats.testsWon} de ${stats.completedTests} testes` : undefined}
-          />
-          <KPI
-            label="CTR lift médio"
-            value={stats.avgLift > 0 ? `+${brDec(stats.avgLift, 1)}` : '0'}
-            suffix="%"
-            icon={TrendingUp}
-            trend={stats.avgLift > 0 ? `média dos testes concluídos` : undefined}
-          />
+          {stats.winRate === null ? (
+            <KPI
+              label="Win rate"
+              value={SEM_MEDICAO_DE_ENTREGA}
+              icon={Trophy}
+              compact
+            />
+          ) : (
+            <KPI
+              label="Win rate"
+              value={Math.round(stats.winRate)}
+              suffix="%"
+              icon={Trophy}
+              trend={stats.completedTests > 0 ? `${stats.testsWon} de ${stats.completedTests} testes` : undefined}
+            />
+          )}
         </div>
       )}
 

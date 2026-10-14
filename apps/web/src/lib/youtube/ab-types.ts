@@ -292,9 +292,8 @@ export interface FullChartVariant extends StatsVariant, RankedVariant {
 
 export interface DashboardStats {
   activeTests: number
-  avgConfidence: number
-  winRate: number
-  avgLift: number
+  /** % de vitórias humanas entre os testes que contam; null quando nenhum conta. */
+  winRate: number | null
   completedTests: number
   testsWon: number
 }
@@ -483,7 +482,7 @@ export interface AbTestWinnerView extends AbTestBaseView {
     ctrAfter: number
     totalImpressions: number
     abbaCycles: number
-    monthlyExtraClicks: number
+    monthlyExtraClicks: number | null
   }
   monitor?: LiveMonitor
   learning?: string

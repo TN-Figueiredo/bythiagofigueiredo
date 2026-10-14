@@ -3,10 +3,10 @@ import type { DashboardStats, AbTestDraft, SuggestedVideo, LearningsData, Learni
 
 describe('Dashboard types', () => {
   it('DashboardStats has all required fields', () => {
-    const s: DashboardStats = { activeTests: 2, avgConfidence: 87, winRate: 60, avgLift: 12.3 }
+    const s: DashboardStats = { activeTests: 2, winRate: 60, completedTests: 5, testsWon: 3 }
     expect(s.activeTests).toBe(2)
-    expect(s.avgConfidence).toBeGreaterThanOrEqual(0)
-    expect(s.avgConfidence).toBeLessThanOrEqual(100)
+    expect(s.winRate).toBeGreaterThanOrEqual(0)
+    expect(s.winRate).toBeLessThanOrEqual(100)
   })
   it('AbTestCardView lift is percentage', () => {
     const c = { lift: 15.2 } as AbTestCardView

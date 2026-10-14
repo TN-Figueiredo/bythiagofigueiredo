@@ -1,7 +1,7 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
+import { AB_SITE_SETTINGS_DEFAULTS, ehVitoriaHumana } from '@/lib/youtube/ab-types'
 import type {
   AbTestWithVariants,
   AbTestVariantRow,
@@ -522,33 +522,16 @@ export function computeDashboardStats(
 ): DashboardStats {
   const activeTests = active.length
 
-  // avgConfidence: from completed tests, exclude nulls
-  const confidenceValues = completed
-    .map(t => t.confidence_at_completion)
-    .filter((v): v is number => v !== null)
-  const avgConfidence =
-    confidenceValues.length > 0
-      ? (confidenceValues.reduce((sum, v) => sum + v, 0) / confidenceValues.length) * 100
-      : 0
-
-  // Exclude playoff children (parent_test_id !== null)
+  // Mesma regra do pipeline (E10): só raiz (sem filho de playoff); conta quando uma pessoa (ou o limite de
+  // duração) encerrou; o veredito da máquina (auto_resolve) e razão desconhecida ficam fora do numerador e
+  // do denominador. Sem teste que conte, winRate é null, nunca 0. Confiança e lift médios saíram (eram
+  // calculados sobre views, sem medição de entrega).
   const rootCompleted = completed.filter(t => t.parent_test_id === null)
+  const contam = rootCompleted.filter(t => t.completed_reason !== null && t.completed_reason !== 'auto_resolve')
+  const testsWon = contam.filter(t => ehVitoriaHumana(t)).length
+  const winRate = contam.length > 0 ? (testsWon / contam.length) * 100 : null
 
-  // winRate: % of root completed tests with a winner
-  const winnerCount = rootCompleted.filter(t => t.winner_variant_id !== null).length
-  const winRate =
-    rootCompleted.length > 0 ? (winnerCount / rootCompleted.length) * 100 : 0
-
-  // avgLift: from root completed tests with winners
-  const liftValues = rootCompleted
-    .filter(t => t.winner_variant_id !== null && t.result_metadata !== null)
-    .map(t => t.result_metadata!.ctr_lift_percent)
-  const avgLift =
-    liftValues.length > 0
-      ? liftValues.reduce((sum, v) => sum + v, 0) / liftValues.length
-      : 0
-
-  return { activeTests, avgConfidence, winRate, avgLift, completedTests: rootCompleted.length, testsWon: winnerCount }
+  return { activeTests, winRate, completedTests: contam.length, testsWon }
 }
 
 // ---------------------------------------------------------------------------
@@ -1303,7 +1286,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       ctrAfter: winnerCtr * 100,
       totalImpressions: results.variants.reduce((sum, v) => sum + v.total_impressions, 0),
       abbaCycles: totalCycles,
-      monthlyExtraClicks: test.result_metadata?.estimated_monthly_extra_clicks ?? 0,
+      monthlyExtraClicks: test.result_metadata?.estimated_monthly_extra_clicks ?? null,
     },
     learning: test.status_note ?? undefined,
     revertExpiresAt: test.revert_expires_at,

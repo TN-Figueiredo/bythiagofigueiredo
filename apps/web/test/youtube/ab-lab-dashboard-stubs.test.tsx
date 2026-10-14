@@ -120,9 +120,7 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/ab-create-wizard', () => 
 function makeStats(overrides: Partial<DashboardStats> = {}): DashboardStats {
   return {
     activeTests: 2,
-    avgConfidence: 72,
     winRate: 60,
-    avgLift: 1.5,
     completedTests: 5,
     testsWon: 3,
     ...overrides,

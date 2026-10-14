@@ -209,13 +209,18 @@ describe('toDetailView — status discrimination', () => {
 /*  3. computeDashboardStats handles empty arrays                      */
 /* ================================================================== */
 
+function concluidoHumano(comVencedor: boolean) {
+  const t = makeTestWithVariants({ hasWinner: comVencedor })
+  t.status = 'completed'
+  t.completed_reason = comVencedor ? 'manual_apply' : 'max_duration'
+  return t
+}
+
 describe('computeDashboardStats — empty arrays', () => {
-  it('returns all zeros for empty active and completed arrays', () => {
+  it('sem testes: winRate null e sem avgConfidence/avgLift', () => {
     const stats = computeDashboardStats([], [])
     expect(stats.activeTests).toBe(0)
-    expect(stats.avgConfidence).toBe(0)
-    expect(stats.winRate).toBe(0)
-    expect(stats.avgLift).toBe(0)
+    expect(stats.winRate).toBeNull()
     expect(stats.completedTests).toBe(0)
     expect(stats.testsWon).toBe(0)
   })
@@ -228,42 +233,27 @@ describe('computeDashboardStats — empty arrays', () => {
   })
 
   it('returns correct completed stats with empty active', () => {
-    const c1 = makeTestWithVariants({ hasWinner: true, confidence: 0.97 })
-    c1.status = 'completed'
-    c1.result_metadata = {
-      ctr_lift_percent: 20,
-      winner_label: 'B',
-      total_impressions: 10000,
-      estimated_monthly_extra_clicks: 300,
-    }
-    const stats = computeDashboardStats([], [c1])
+    const stats = computeDashboardStats([], [concluidoHumano(true)])
     expect(stats.activeTests).toBe(0)
     expect(stats.completedTests).toBe(1)
     expect(stats.testsWon).toBe(1)
     expect(stats.winRate).toBe(100)
-    expect(stats.avgLift).toBe(20)
   })
 
   it('excludes playoff children from completedTests count', () => {
-    const parent = makeTestWithVariants({ hasWinner: true, confidence: 0.97 })
-    parent.status = 'completed'
-    const child = makeTestWithVariants({ hasWinner: true, confidence: 0.98 })
-    child.status = 'completed'
+    const parent = concluidoHumano(true)
+    const child = concluidoHumano(true)
     child.parent_test_id = parent.id
     const stats = computeDashboardStats([], [parent, child])
     expect(stats.completedTests).toBe(1) // only parent counts
   })
 
-  it('computes avgConfidence from completed tests with non-null confidence', () => {
-    const c1 = makeTestWithVariants({ confidence: 0.95 })
-    c1.status = 'completed'
-    const c2 = makeTestWithVariants({ confidence: 0.85 })
-    c2.status = 'completed'
-    const c3 = makeTestWithVariants() // null confidence
-    c3.status = 'completed'
-    const stats = computeDashboardStats([], [c1, c2, c3])
-    // avg of 0.95 and 0.85 in percentage = 90
-    expect(stats.avgConfidence).toBeCloseTo(90, 0)
+  it('não devolve confiança média nem lift médio', () => {
+    const c1 = concluidoHumano(true)
+    c1.confidence_at_completion = 0.95
+    const stats = computeDashboardStats([], [c1])
+    expect(stats).not.toHaveProperty('avgConfidence')
+    expect(stats).not.toHaveProperty('avgLift')
   })
 })
 

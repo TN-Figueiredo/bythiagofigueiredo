@@ -15,7 +15,7 @@ export interface WinnerBannerProps {
     ctrAfter: number
     totalImpressions: number
     abbaCycles: number
-    monthlyExtraClicks: number
+    monthlyExtraClicks: number | null
   }
 }
 
@@ -85,7 +85,12 @@ export function WinnerBanner({
         {/* Col 4: Ganho estimado */}
         <div className="bg-cms-surface py-[22px] px-[22px]">
           <div className="eyebrow mb-[8px]">Ganho estimado</div>
-          {stats.monthlyExtraClicks > 0 ? (
+          {stats.monthlyExtraClicks === null ? (
+            <>
+              <div className="text-[24px] font-bold font-mono leading-none text-cms-text-muted tnum">—</div>
+              <div className="text-[11px] text-cms-text-muted mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>
+            </>
+          ) : stats.monthlyExtraClicks > 0 ? (
             <>
               <div className="text-[24px] font-bold font-mono leading-none tnum">
                 <span className="text-cms-green">+{formatCompact(stats.monthlyExtraClicks)}</span>
