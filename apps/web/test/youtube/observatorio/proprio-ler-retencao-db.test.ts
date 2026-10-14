@@ -21,7 +21,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
   const d = (n: number) => addDays(HOJE, -n)
   const sites: string[] = []
   const canais: string[] = []
-  let siteId = '', canalId = '', outroSite = '', outroCanal = ''
+  let siteId = '', canalId = '', outroSite = '', outroCanal = '', canalIrmao = ''
   // ids de 11 caracteres, únicos desta execução (a chave primária da curva é global: video, janela, segmento, fim)
   const sufixo = Math.random().toString(36).slice(2, 6)
   const V = 'rt' + sufixo + '00001'
@@ -55,6 +55,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
     outroSite = (await seedSite(sb)).siteId; sites.push(outroSite)
     canalId = (await seedYoutubeChannelAndVideo(sb, siteId)).channelId; canais.push(canalId)
     outroCanal = (await seedYoutubeChannelAndVideo(sb, outroSite)).channelId; canais.push(outroCanal)
+    canalIrmao = (await seedYoutubeChannelAndVideo(sb, siteId)).channelId; canais.push(canalIrmao) // OUTRO canal do MESMO site
     await inserir('yt_own_video_retention', [
       linha(V, 'vida', d(10), siteId, canalId),
       linha(V, 'vida', d(3), siteId, canalId, { points: pontos(37), point_count: 37, views_at_read: null }),
@@ -62,6 +63,8 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
       // o MESMO id de vídeo em OUTRO site e OUTRO canal, com o fim mais novo: ganharia de todas se o filtro faltasse
       linha(V, 'vida', d(1), outroSite, outroCanal, { points: pontos(10), point_count: 10 }),
       linha(V, 'primeiros_30_dias', d(2), outroSite, outroCanal),
+      // o MESMO id de vídeo em outro CANAL do mesmo site, com o fim mais novo de todos
+      linha(V, 'vida', d(0), siteId, canalIrmao, { points: pontos(5), point_count: 5 }),
       // 201 leituras de vida para o teto de 200 (pontos pequenos)
       ...Array.from({ length: TETO_LEITURAS + 1 }, (_, k) => linha(V_MUITAS, 'vida', d(k + 1), siteId, canalId, { points: pontos(1), point_count: 1 })),
     ])
@@ -70,6 +73,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
       tentativa(V, d(8), 'sem_dado_na_janela', siteId, canalId),
       tentativa(V, d(0), 'ok', outroSite, outroCanal),
       tentativa(V, d(2), 'ok', siteId, canalId, { kind: 'diario' }),
+      tentativa(V, d(4), 'ok', siteId, canalIrmao), // um dia livre: a chave primária da tentativa não leva o canal
       // 30 falhas recentes e uma resposta antiga: a busca à parte
       ...Array.from({ length: TETO_TENTATIVAS }, (_, k) => tentativa(V_TENT, d(k + 1), 'erro_http', siteId, canalId, { http_status: 500 })),
       tentativa(V_TENT, d(300), 'ok', siteId, canalId),
@@ -120,6 +124,33 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
     expect(lado.curvas.primeiros_30_dias?.windowEnd).toBe(d(2))
   })
 
+  it('T4: as três leituras da vida do SEU canal chegam em historicoVida, da mais nova para a mais velha, com pontos; nada de outro site nem de outro canal', async () => {
+    // V tem vida em d(3) e d(10) (a de d(1) é de outro site, a de d(0) é de outro canal do mesmo site)
+    const r = await ok(V)
+    expect(r.historicoVida.map(c => c.windowEnd)).toEqual([d(3), d(10)])
+    expect(r.historicoVida.map(c => c.pontos.length)).toEqual([37, 100])
+    expect(r.historicoCortado).toBe(false)
+  })
+
+  it('T4: outro canal do mesmo site não aparece (curva, lista, histórico e tentativas)', async () => {
+    const r = await ok(V)
+    expect(r.curvas.vida?.windowEnd).toBe(d(3))
+    expect(r.leituras.some(l => l.windowEnd === d(0))).toBe(false)
+    expect(r.historicoVida.some(c => c.windowEnd === d(0))).toBe(false)
+    expect(r.tentativas.vida.ultimaResposta).toEqual({ dia: d(8), resultado: 'sem_dado_na_janela' })
+    const irmao = await ok(V, canalIrmao)
+    expect(irmao.historicoVida.map(c => c.windowEnd)).toEqual([d(0)])
+    expect(irmao.tentativas.vida.ultima).toEqual({ dia: d(4), resultado: 'ok' })
+  })
+
+  it('T4: outro site com o mesmo vídeo não aparece no histórico nem nas tentativas por janela', async () => {
+    const lado = await ok(V, outroCanal, outroSite)
+    expect(lado.historicoVida.map(c => c.windowEnd)).toEqual([d(1)])
+    expect(lado.tentativas.vida.ultima).toEqual({ dia: d(0), resultado: 'ok' })
+    const meu = await ok(V)
+    expect(meu.tentativas.vida.ultima).toEqual({ dia: d(1), resultado: 'erro_http' })
+  })
+
   it('a prova do site A com o canal do site B: nada do B aparece', async () => {
     const r = await ok(V, outroCanal, siteId)
     expect(r.curvas).toEqual({})
@@ -128,7 +159,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
   })
 
   it('vídeo sem nenhuma linha: vazio verdadeiro, sem curva e sem tentativa', async () => {
-    expect(await ok(V_VAZIO)).toEqual({ ytId: V_VAZIO, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false, janelasIlegiveis: [] })
+    expect(await ok(V_VAZIO)).toMatchObject({ ytId: V_VAZIO, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false, janelasIlegiveis: [], historicoVida: [], historicoCortado: false })
   })
 
   it('201 leituras: 200 na lista e leiturasCortadas (range de verdade)', async () => {
