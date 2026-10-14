@@ -13,6 +13,11 @@ const GLIFO: Record<DirecaoFiltro, string> = { sobe: '▲', estavel: '＝', desc
 const GLIFO_FILTRO: Partial<Record<FiltroDeEstado, string>> = { parados: '⏸', 'em-queda': '▼', sairam: '✕', problemas: '⚠' }
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 
+/** Os números da frase-resumo em peso 600 (o destaque único do topo). */
+function destacarNumeros(frase: string): ReactNode {
+  return frase.split(/(\d+(?:[.,]\d+)?)/).map((p, i) => (i % 2 ? <strong key={i}>{p}</strong> : p))
+}
+
 function Numero({ n }: { n: number | null }): ReactNode {
   if (n === null) return <NaoCarregou />
   return n === 0 ? <ZeroMedido /> : <b className="num">{n}</b>
@@ -27,10 +32,10 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
   return (
     <section className="obs-cn-res" aria-label="Resumo dos canais" data-k="resumo">
       <p className="obs-cn-frase" data-k="resumo-frase">
-        {resumo.frase || 'Sem canais para resumir.'}{' '}
+        {resumo.frase ? destacarNumeros(resumo.frase) : 'Sem canais para resumir.'}{' '}
         <Tip label="Como o resumo e o estado são calculados">
           Parado: dias sem publicar acima do maior entre 28 dias e 4 vezes o intervalo habitual do canal. Canal que publica por temporada pode parecer parado.
-          Em queda: ▼ em 3 períodos de 28 dias seguidos, só depois da mudança de contagem de 24/08/2026. Saiu do YouTube: o YouTube não achou o canal em duas
+          Em queda (sustentada): descendo em 3 períodos de 28 dias seguidos, só depois da mudança de contagem de 24/08/2026. Parado e descendo são medidas diferentes: um canal pode ser os dois. Saiu do YouTube: o YouTube não achou o canal em duas
           leituras seguidas; os números param na data. Não medido: menos de 56 dias de registro, dia sem registro, ou a contagem não existe. No seu canal, o
           YouTube não dá o número por dia. Cálculo do Observatório sobre dados públicos do YouTube.
         </Tip>

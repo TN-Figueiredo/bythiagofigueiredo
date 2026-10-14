@@ -89,7 +89,7 @@ describe('E5a T5: dado ausente', () => {
     const r = rowsOf(v).find(x => x.id === 'matt-wolfe')!
     expect(r.estado).toMatchObject({ pastilha: 'ativo', extrasNaoLidos: true })
     const { container } = mount({ medidas: medidasDoMotor(obs, {}, true) })
-    expect(container.querySelector('[data-extras-nao-lidos]')?.textContent).toMatch(/Não carregou/)
+    expect(container.querySelector('[data-extras-nao-lidos]')?.textContent).toMatch(/Não deu para ver se o canal saiu do YouTube/)
     expect(container.textContent).not.toMatch(/Saiu do YouTube em/)
   })
   it('canal próprio: direção e estado dizem o motivo dele; fica fora das casas e da contagem; a frase não diz que um canal não carregou', () => {
@@ -123,7 +123,7 @@ describe('E5a T5: dado ausente', () => {
     for (const id of concorrentes) sobre[id] = { m3a: naoMedido('sem_registro_recente'), extras: { lastOkSyncedAt: '2026-10-01T15:00:00Z' } }
     const v = vw({ medidas: medidasDoMotor(obs, sobre) })
     expect(v.resumo.semRetrato).toEqual({ desde: '2026-10-01' })
-    expect(v.resumo.frase).toContain('Sem retrato desde 01/10.')
+    expect(v.resumo.frase).toContain('Sem dados novos desde 01/10.')
     expect(vw({ medidas: medidasDoMotor(obs) }).resumo.semRetrato).toBeNull()
   })
 })
@@ -157,7 +157,7 @@ describe('E5a T5: calendário', () => {
     for (const id of comps) sobre[id] = { m8: m8De('ativo', { queda: { estado: 'medido', valor: { janelas: [0.2, 0.2, 0.2] }, n: 4, janela: { de: null, ate: null, dias: 84 }, notas: [] } }) }
     const v = vw({ medidas: medidasDoMotor(w.obs, sobre) }, w.obs)
     expect(v.resumo.contagem.queda).toEqual({ tipo: 'numero', emQueda: 0, quedaMedidaEm: comps.length, canais: comps.length })
-    expect(v.resumo.frase).toContain(`Nenhum dos ${comps.length} canais está em queda sustentada.`)
+    expect(v.resumo.frase).toContain(`Nenhum dos ${comps.length} canais está em queda.`)
     const { container } = mount({ medidas: medidasDoMotor(w.obs, sobre) }, {}, w.obs)
     expect(container.querySelectorAll('.obs-cn-filtro .obs-ch-zero').length).toBeGreaterThan(0)
   })

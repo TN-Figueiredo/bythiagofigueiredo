@@ -180,7 +180,7 @@ export function SwapView({ c }: { c: SwapCell }) {
 
 export function GrowthView({ c }: { c: GrowthCell }) {
   if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
-  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></>
+  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth" title={c.kind === 'flat' ? c.title : undefined}>{c.cap}</span></span></>
   return (
     <>
       <span className={`big num ${c.up ? 'up' : 'down'}`} title={c.title}><Ic n={c.up ? 'up' : 'down'} /> {c.big}</span>

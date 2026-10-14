@@ -55,6 +55,23 @@ describe('E5a T0b: o retrato antes dos números', () => {
     const antes = JSON.parse(readFileSync(new URL('./fixtures/e5a-retrato-antes.json', import.meta.url), 'utf8')) as typeof retrato
     const esperado = J(antes)
     esperado.abas.todos.mud = 15; esperado.abas.viagem.mud = 7; esperado.abas.ia.mud = 8
-    expect(retrato).toEqual(esperado)
+    // Desvio 13 (A5 E5a T5, Naksu/Logan 14/10): só TEXTO mudou, nunca número: frase de outlier ausente mais curta, "(±N)" no crescimento
+    // dentro do arredondamento (a explicação completa foi para o title) e "Sem Shorts/longos em 90 d.".
+    const texto = JSON.stringify(esperado)
+      .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90\u00a0d\. Maior:/g, 'Nenhum com 2×. Maior:')
+      .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90 d\. Maior:/g, 'Nenhum com 2×. Maior:')
+      .replace(/Não publicou (longos|Shorts) em 90(\u00a0| )d\./g, 'Sem $1 em 90$2d.')
+      .replace(/("(?:cap|growthTitle)":"?\s*")\(dentro do arredondamento do YouTube, (±[^)]*)\)/g, '$1($2)')
+    const novo = JSON.parse(texto) as typeof retrato
+    const comTitle = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(comTitle); return }
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>
+        if (r.kind === 'flat' && typeof r.cap === 'string') r.title = `≈ 0 (dentro do arredondamento do YouTube, ${(r.cap.match(/±[^)]*/) ?? [''])[0]})`
+        Object.values(r).forEach(comTitle)
+      }
+    }
+    comTitle(novo)
+    expect(retrato).toEqual(novo)
   })
 })

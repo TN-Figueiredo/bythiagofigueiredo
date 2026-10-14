@@ -84,7 +84,7 @@ export function estadoDaLinha(
     const limite = parado.estado === 'medido' ? parado.valor.limite : null
     const passo = MEASURE_RULES.stalled.factor
     // TEXTO-A-REVISAR (Logan/Naksu): o intervalo habitual só é recuperável quando o limite passa do piso de 28 dias
-    const apoio = limite !== null && limite > MEASURE_RULES.stalled.floorDays ? `Publica a cada ${diasTxt(Math.round(limite / passo))}.` : null
+    const apoio = limite !== null && limite > MEASURE_RULES.stalled.floorDays ? `Costuma publicar a cada ${diasTxt(Math.round(limite / passo))}.` : null
     return { ...base, pastilha: 'parado', dataOuDias: dias, apoio, extrasNaoLidos, quedaMedida, quedaNaoMedida, quedaLinha,
       // o canal parado que também está em queda: só a pastilha de parado, mais uma frase curta (o mockup 16, decisão 5)
       tambemEmQueda: quedaMedida && queda.valor.janelas.length > 0 && queda.valor.janelas.every(x => direcaoDe(x) === 'descendo') }

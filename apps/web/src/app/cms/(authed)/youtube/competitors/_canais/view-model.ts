@@ -64,7 +64,7 @@ export type OutCell =
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
   | { kind: 'na'; text: string; title: string }
-  | { kind: 'flat'; big: string; cap: string }
+  | { kind: 'flat'; big: string; cap: string; title?: string }
   | { kind: 'ok'; up: boolean; big: string; cap: string; title: string }
 export interface SyncCell {
   state: SyncState; label: string; labelTitle: string | null; cov: string | null; covTitle: string | null
@@ -241,7 +241,7 @@ export interface ResumoView {
   /** Todos os canais do recorte sem registro recente: a coleta de retratos parou. `desde` é o dia da última leitura boa mais recente (nulo se nenhuma foi lida). A página manda o evento ao Sentry. */
   semRetrato: { desde: string | null } | null
   /** O filtro de estado ou de direção esvaziou a lista: a explicação (zero medido, não medido ou ainda não existe) e o botão de limpar. */
-  vazio: { titulo: string; apoio: string; forma: 'zero' | 'nao_medido' | 'ainda_nao_existe'; limpar: { texto: string; href: string } } | null
+  vazio: { titulo: string; apoio: string; acaoDescendo?: boolean; forma: 'zero' | 'nao_medido' | 'ainda_nao_existe'; limpar: { texto: string; href: string } } | null
   /** O dono pode agir (sincronizar, adicionar, remover): a tela repete a frase de só leitura quando não. Preenchido pela tela. */
 }
 
@@ -416,7 +416,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   function growthCell(c: ObsChannel, g: Growth): GrowthCell {
     if (g.pending) return { kind: 'na', text: g.pending.replace(/ \(.*\)/, ''), title: `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}` }
     const until = c.sync.state !== 'ok' && !isBf(c) && g.to != null ? `, até ${D.dmhm(g.to)}` : ''
-    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `${(g.text ?? '').replace(/^≈ 0 /, '')}, 30${NB}d` }
+    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `(${(g.text ?? '').match(/±[^)]*/)?.[0] ?? ''}), 30${NB}d`, title: g.text ?? undefined }
     const capText = `${(g.text ?? '').replace(/ (mil|mi)/g, NB + '$1')} em 30${NB}d${until}`
     // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent and no arrow, only the absolute
     if (g.pct == null) return { kind: 'na', text: capText, title: 'Sem percentual: o canal não tinha inscritos na contagem anterior.' }
@@ -491,9 +491,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     if (empty) return { kind: 'na', text: 'Nada para comparar sem vídeo longo recente.', weak: null, upnext: 'Planejar em Próximos' }
     if (!o) {
       const top = S.maxMultBelowMin
-      return !top ? { kind: 'na', text: `Não publicou ${fmtName} em 90${NB}d.`, weak: null, upnext: null }
+      return !top ? { kind: 'na', text: `Sem ${fmtName} em 90${NB}d.`, weak: null, upnext: null }
         : top.weak ? { kind: 'na', text: `Nenhum ${one} com ${R.outlierMin}× ou mais.`, weak: `Base fraca (${NEQ(top.n)}).`, upnext: null }
-          : { kind: 'na', text: `Nenhum ${one} com ${R.outlierMin}× ou mais em 90${NB}d. Maior: ${top.label}.`, weak: null, upnext: null }
+          : { kind: 'na', text: `Nenhum com ${R.outlierMin}×. Maior: ${top.label}.`, weak: null, upnext: null }
     }
     const m = o.mult, a = ageOf(o.video)
     return {
@@ -713,7 +713,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       filtroDe('em-queda', 'Em queda', q.tipo === 'numero' ? q.emQueda : null),
       filtroDe('sairam', 'Saíram do YouTube', contagem.saiu), filtroDe('problemas', 'Em erro', contagem.emErro),
     ]
-    const nomeFiltro: Partial<Record<FiltroDeEstado, string>> = { parados: 'parado', 'em-queda': 'em queda', sairam: 'que saiu do YouTube', problemas: 'em erro', 'sem-videos': 'sem vídeos' }
+    const nomeFiltro: Partial<Record<FiltroDeEstado, string>> = { parados: 'parado', 'em-queda': 'em queda', sairam: 'saiu do YouTube', problemas: 'em erro', 'sem-videos': 'sem vídeos' }
     const nomeDirecao: Record<DirecaoFiltro, string> = { sobe: 'subindo', estavel: 'sem mudança', desce: 'descendo', 'nao-medido': 'com direção não medida' }
     const apoioZero: Partial<Record<FiltroDeEstado, string>> = {
       parados: `Todos os ${linhasDoNicho.length} canais publicaram dentro do prazo habitual de cada um.`,
@@ -730,18 +730,19 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
         const dataBR = `${q.existeEm.slice(8, 10)}/${q.existeEm.slice(5, 7)}/${q.existeEm.slice(0, 4)}`
         vazio = {
           forma: 'ainda_nao_existe', titulo: 'Em queda ainda não pode ser medido.', limpar,
-          apoio: `Essa leitura pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos depois da mudança de contagem de 24/08/2026. O primeiro dia possível é ${dataBR}, daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}. Até lá, só dá para ver quem está descendo (▼) neste período: ${dirRes.desce ?? 0} ${dirRes.desce === 1 ? 'canal' : 'canais'}.`,
+          acaoDescendo: true,
+          apoio: `Em queda pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos, e a contagem de views mudou em 24/08/2026. Só a partir de ${dataBR} (daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}) dá para medir. Enquanto isso, ${dirRes.desce ?? 0} ${dirRes.desce === 1 ? 'canal está descendo' : 'canais estão descendo'} neste período.`,
         }
       } else if (filter === 'em-queda' && q.tipo === 'nao_medido') {
         vazio = { forma: 'nao_medido', titulo: 'Em queda ainda não foi medido.', apoio: `${FRASES[q.motivo]({}, 'canais').longa}.`, limpar } // TEXTO-A-REVISAR
       } else if (tudoNaoCarregou) {
-        vazio = { forma: 'nao_medido', titulo: 'Não foi possível contar: as medidas não carregaram.', apoio: 'Nenhum canal aparece no filtro até as medidas voltarem.', limpar } // TEXTO-A-REVISAR
+        vazio = { forma: 'nao_medido', titulo: 'Não deu para contar: as medidas não carregaram.', apoio: 'Recarregue a página em alguns minutos.', limpar }
       } else if (filter !== 'todos' && dirNome === null) {
         vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? 'neste filtro'}`, apoio: apoioZero[filter] ?? '', limpar }
       } else if (filter === 'todos' && dirNome !== null) {
         vazio = { forma: 'zero', titulo: `Nenhum canal ${dirNome}`, apoio: direcaoFiltro === 'desce' ? `Nenhum dos ${linhasDoNicho.length} canais perdeu 10% ou mais de views neste período.` : '', limpar }
       } else {
-        vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? ''} e ${dirNome ?? ''}`.replace(/\s+/g, ' ').trim(), apoio: '', limpar } // TEXTO-A-REVISAR
+        vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? ''} e ${dirNome ?? ''}.`.replace(/\s+/g, ' ').trim(), apoio: 'Nenhum canal tem as duas condições. Tire um dos filtros.', limpar }
       }
     }
     const semRetrato = linhasDoNicho.length > 0 && celulas.every(c => c.tipo === 'nao_medido' && c.motivo === 'sem_registro_recente')
@@ -750,7 +751,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const aviso = celulas.flatMap(c => (c.tipo === 'medido' && c.avisoDeContagem ? [c.avisoDeContagem.ate] : [])).sort().pop()
     return {
       // TEXTO-A-REVISAR (Logan/Naksu): "sem retrato desde dd/mm" é a forma do plano (d:m7)
-      frase: fraseDoResumo(dirRes, contagem) + (semRetrato ? (semRetrato.desde ? ` Sem retrato desde ${semRetrato.desde.slice(8, 10)}/${semRetrato.desde.slice(5, 7)}.` : ' Sem retrato recente.') : ''),
+      frase: fraseDoResumo(dirRes, contagem) + (semRetrato ? (semRetrato.desde ? ` Sem dados novos desde ${semRetrato.desde.slice(8, 10)}/${semRetrato.desde.slice(5, 7)}.` : ' Sem dados recentes.') : ''),
       carregou, casas, filtros, avisoDeContagem: aviso ? { ate: aviso } : null, contagem, direcao: dirRes, semRetrato, vazio,
     } satisfies ResumoView
   })()

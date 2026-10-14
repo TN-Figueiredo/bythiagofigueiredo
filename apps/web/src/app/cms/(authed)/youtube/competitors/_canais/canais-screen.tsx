@@ -308,7 +308,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const vazioDoFiltro = !ql && view.resumo.vazio && !(view.filter === 'problemas' && !view.resumo.casas.some(c => c.pressed)) ? view.resumo.vazio : null
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
-    : vazioDoFiltro ? <VazioDoFiltro v={vazioDoFiltro} onLimpar={() => { go({ filter: null, direcao: null }, { busy: true }) }} />
+    : vazioDoFiltro ? <VazioDoFiltro v={vazioDoFiltro} onLimpar={() => { go({ filter: null, direcao: null }, { busy: true }) }} onDescendo={() => { go({ filter: null, direcao: 'desce' }, { busy: true }) }} />
     : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
 
   /** Rola o contêiner que rola até a linha do canal e põe o foco nela. */
@@ -546,10 +546,14 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 }
 
 /** O vazio explicado do filtro: zero medido (caixa vazada), não medido (hachura) ou ainda não existe (tracejado), cada um com a sua forma. */
-function VazioDoFiltro({ v, onLimpar }: { v: NonNullable<CanaisView['resumo']['vazio']>; onLimpar: () => void }) {
+function VazioDoFiltro({ v, onLimpar, onDescendo }: { v: NonNullable<CanaisView['resumo']['vazio']>; onLimpar: () => void; onDescendo: () => void }) {
+  const i = v.acaoDescendo ? v.apoio.lastIndexOf('descendo') : -1
+  const apoio = i < 0 ? v.apoio : (
+    <>{v.apoio.slice(0, i)}<button type="button" className="btn small link" data-k="vazio-descendo" onClick={onDescendo}>descendo</button>{v.apoio.slice(i + 'descendo'.length)}</>
+  )
   return (
     <span className={`obs-cn-vazio ${v.forma}`} data-vazio={v.forma}>
-      <b>{v.titulo}</b>{' '}{v.apoio}{' '}
+      <b>{v.titulo}</b>{' '}{apoio}{' '}
       <button type="button" className="btn small link" onClick={onLimpar}>{v.limpar.texto}</button>
     </span>
   )

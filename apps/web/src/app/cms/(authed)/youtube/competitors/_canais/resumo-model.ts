@@ -12,22 +12,20 @@ export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): stri
   const out: string[] = []
   const parados = c.parados !== null && c.parados > 0 ? pl(c.parados, 'canal parado', 'canais parados') : ''
   const dirTxt = dir.frase.replace(/\.$/, '')
-  if (dir.medidos > 0 && dir.frase) out.push([parados, dirTxt].filter(Boolean).join(', ') + '.')
-  else {
-    if (parados) out.push(parados + '.')
-    if (dir.frase) out.push(dir.frase)
-  }
+  // Logan (14/10): direção e estado são medidas diferentes; "parado" vai em frase própria, depois da direção.
+  if (dir.frase) out.push(dir.medidos > 0 ? dirTxt + '.' : dir.frase)
+  if (parados) out.push(parados + '.')
   const q = c.queda
   if (q.tipo === 'ainda_nao_existe') {
-    out.push(`Em queda sustentada (${MEASURE_RULES.decline.windows} períodos de ${MEASURE_RULES.direction.windowDays} dias seguidos) só dá para medir a partir de ${dm(q.existeEm)}.`)
+    out.push(`Em queda (${MEASURE_RULES.decline.windows} períodos de ${MEASURE_RULES.direction.windowDays} dias seguidos): só dá para medir a partir de ${dm(q.existeEm)}.`)
   } else if (q.tipo === 'nao_medido') {
-    out.push(`Em queda sustentada: não medido (${FRASES[q.motivo]({}, 'canais').curta}).`)
+    out.push(`Em queda: não medido (${FRASES[q.motivo]({}, 'canais').curta}).`)
   } else if (q.emQueda > 0) {
-    out.push(`${q.emQueda} em queda sustentada${q.quedaMedidaEm < q.canais ? ` (medido em ${q.quedaMedidaEm} de ${q.canais} canais)` : ''}.`)
+    out.push(`${q.emQueda} em queda${q.quedaMedidaEm < q.canais ? ` (medido em ${q.quedaMedidaEm} de ${q.canais} canais)` : ''}.`)
   } else {
     out.push(q.quedaMedidaEm < q.canais
-      ? `Nenhum canal em queda sustentada entre os ${q.quedaMedidaEm} medidos de ${q.canais}.`
-      : `Nenhum dos ${q.canais} canais está em queda sustentada.`)
+      ? `Nenhum canal em queda entre os ${q.quedaMedidaEm} medidos de ${q.canais}.`
+      : `Nenhum dos ${q.canais} canais está em queda.`)
   }
   if (c.saiu !== null && c.saiu > 0) out.push(`${pl(c.saiu, 'canal saiu', 'canais saíram')} do YouTube.`)
   if (c.emErro > 0) out.push(`${pl(c.emErro, 'canal', 'canais')} em erro.`)

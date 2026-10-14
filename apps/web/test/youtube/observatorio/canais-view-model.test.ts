@@ -277,7 +277,7 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     expect(o.videos.some(x => x.ch === 'mochila-leve' && x.fmt === 'short')).toBe(false)
     const r = rowsOf(buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'short' })).find(x => x.id === 'mochila-leve')!
     expect(r.cells.vpd.kind).toBe('na')
-    expect(r.cells.out).toMatchObject({ kind: 'na', text: 'Não publicou Shorts em 90\u00a0d.' })
+    expect(r.cells.out).toMatchObject({ kind: 'na', text: 'Sem Shorts em 90\u00a0d.' })
     expect(JSON.stringify(r.cells)).not.toMatch(/a mediana|▼|NaN|undefined/)
   })
   it('lang só nos canais próprios; concorrente nunca tem chip', () => {
