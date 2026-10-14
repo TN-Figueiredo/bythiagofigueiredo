@@ -162,12 +162,37 @@ describe('passoMetadados: thumbnail', () => {
     expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http' })
   })
 
-  it('imagem igual à última (distância ≤ 6): não arquiva e repete a URL', async () => {
-    vi.mocked(probeThumb).mockResolvedValue(probe('fffffffffffffffe'))
+  it('dHash idêntico ao da véspera: não arquiva e repete a URL (o comportamento de sempre)', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('ffffffffffffffff'))
     const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
     await passoMetadados(ctxDe(db))
     expect(archiveThumb).not.toHaveBeenCalled()
-    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: 'fffffffffffffffe', thumbnail_blob_url: 'https://blob.test/antiga.jpg' })
+    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: 'ffffffffffffffff', thumbnail_blob_url: 'https://blob.test/antiga.jpg' })
+  })
+
+  // E18 T5: antes, até 6 bits de diferença não arquivavam; agora qualquer dHash diferente arquiva (a imagem do retoque não se perde).
+  it('dHash a 3 bits da véspera: arquiva e a linha leva a URL nova', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('fffffffffffffff8'))
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
+    await passoMetadados(ctxDe(db))
+    expect(archiveThumb).toHaveBeenCalledTimes(1)
+    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: 'fffffffffffffff8', thumbnail_blob_url: 'https://blob.test/nova.jpg' })
+  })
+
+  it('dHash a 7 bits da véspera: arquiva (como antes)', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('ffffffffffffff80'))
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
+    await passoMetadados(ctxDe(db))
+    expect(archiveThumb).toHaveBeenCalledTimes(1)
+  })
+
+  it('arquivamento que falha com dHash a 3 bits: a linha sai sem os campos de thumbnail e com a tentativa erro_http', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('fffffffffffffff8'))
+    vi.mocked(archiveThumb).mockResolvedValue(null)
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
+    await passoMetadados(ctxDe(db))
+    nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture')
+    expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http' })
   })
 
   it('imagem diferente (distância > 6): arquiva e grava a URL nova', async () => {

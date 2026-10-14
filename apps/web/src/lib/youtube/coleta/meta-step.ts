@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { createHash } from 'node:crypto'
 import { describeCronCause } from '@/lib/cron/failure-note'
 import { classifyShort, needsShortProbe, newProbeBudget, probeShortsBatch } from '@/lib/youtube/short-classifier'
-import { archiveThumb, DHASH_MAX_SAME, hamming, probeThumb, type ThumbProbe } from '@/lib/youtube/thumb-fingerprint'
+import { archiveThumb, probeThumb, type ThumbProbe } from '@/lib/youtube/thumb-fingerprint'
 import { calcularAbDoDia, type AbCycle, type AbDia, type AbTest } from './ab-seconds'
 import { marcarAutorizado, marcarReautorizar, obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa } from './attempts'
@@ -149,7 +149,8 @@ async function capturarThumb(ctx: StepCtx, v: VideoRow, ant: Anterior | null, f:
     return falha(describeCronCause(e))
   }
   if (!probe.dhash || !probe.bytes) return falha('a thumbnail não baixou')
-  const mudou = !ant?.thumbnail_dhash || !repetida || hamming(ant.thumbnail_dhash, probe.dhash) > DHASH_MAX_SAME
+  // E18 T5: qualquer dHash diferente do da véspera guarda a cópia (o nome no Blob leva o dHash, nada é sobrescrito); a imagem de um retoque não se perde.
+  const mudou = !ant?.thumbnail_dhash || !repetida || ant.thumbnail_dhash !== probe.dhash
   let blobUrl = repetida
   if (mudou) {
     try {
