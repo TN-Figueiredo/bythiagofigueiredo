@@ -449,7 +449,7 @@ const LEGENDA_CEDO: CedoLegendaItem[] = [
 
 function cedoView(e: Extract<EstadoCedo, { tipo: 'video-novo' | 'ainda-cedo' }>, o: OpcoesImpressoes): CedoView {
   const quando = quandoVolta(e.dia7, e.faltam, o.dm)
-  const idade = 6 - e.faltam
+  const idade = e.idade
   const views = o.viewsDoVideo
   const frase = e.tipo === 'video-novo'
     ? `Vídeo novo. ${publicadoHa(idade)} O YouTube entrega as impressões de cada dia 2 a 3 dias depois. ${quando}`
@@ -474,7 +474,7 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o)
   if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
   // vídeo novo e ainda cedo: a faixa de 7 casas no lugar do gráfico (antes da checagem de "sem relatório": o vídeo novo ainda não tem nenhum)
-  if (o.cedo && (o.cedo.tipo === 'video-novo' || o.cedo.tipo === 'ainda-cedo')) {
+  if (!views && o.cedo && (o.cedo.tipo === 'video-novo' || o.cedo.tipo === 'ainda-cedo')) {
     return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o) }
   }
   if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : semRelatorioFrase(o.parouEm, o.dm), o)

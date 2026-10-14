@@ -514,6 +514,25 @@ describe('E5b T13: faixa de 7 casas', () => {
   const per = (idade: number): Periodo => ({ de: d(idade), ate: HJ, dias: idade + 1 })
   const dias = (idade: number): DiaAlcance[] => Array.from({ length: idade + 1 }, (_, i) => { const a = idade - i; return a <= 1 ? nm(a) : med(a, 0) })
 
+  it('unidade views com cedo ainda-cedo: cedo null e o gráfico de views de sempre (I-2 do portão)', () => {
+    const cedo = estadoCedo({ publicadoEm: d(3), hojePt: HJ, dias: dias(3) })
+    expect(cedo.tipo).toBe('ainda-cedo')
+    const v = buildImpressoes(dias(3), per(3), { ...O2, cedo, unidade: 'views', viewsDoVideo: 12 })
+    expect(v.cedo).toBeNull()
+    expect(v.unidade).toBe('views')
+    expect(v.colunas.length).toBe(4)
+  })
+
+  it('o estado do cedo carrega a idade (m-10): a frase não reconstrói o 6 de cedo.ts', () => {
+    for (const idade of [0, 1, 3, 5]) {
+      const e = estadoCedo({ publicadoEm: d(idade), hojePt: HJ, dias: dias(idade) })
+      if (e.tipo === 'video-novo' || e.tipo === 'ainda-cedo') expect(e.idade).toBe(idade)
+    }
+    const e1 = estadoCedo({ publicadoEm: d(1), hojePt: HJ, dias: dias(1) })
+    expect(e1.tipo).toBe('video-novo')
+    expect(e1.tipo === 'video-novo' && e1.idade).toBe(1)
+  })
+
   it('17 horas (idade 1): "Vídeo novo", sem gráfico, faltam 5 dias, em publicação + 6', () => {
     const cedo = estadoCedo({ publicadoEm: d(1), hojePt: HJ, dias: dias(1) })
     const v = buildImpressoes(dias(1), per(1), { ...O2, cedo, viewsDoVideo: 12 })

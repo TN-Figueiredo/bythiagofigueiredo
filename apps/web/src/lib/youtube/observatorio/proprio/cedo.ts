@@ -18,8 +18,8 @@ export interface Casa {
 }
 
 export type EstadoCedo =
-  | { tipo: 'video-novo'; casas: Casa[]; dia7: DiaYt; faltam: number }
-  | { tipo: 'ainda-cedo'; casas: Casa[]; dia7: DiaYt; faltam: number; diasMedidos: number }
+  | { tipo: 'video-novo'; casas: Casa[]; dia7: DiaYt; faltam: number; idade: number }
+  | { tipo: 'ainda-cedo'; casas: Casa[]; dia7: DiaYt; faltam: number; idade: number; diasMedidos: number }
   | { tipo: 'grafico'; soZeros: boolean; diasMedidos: number }
   | { tipo: 'nao-medido' }
 
@@ -43,9 +43,9 @@ export function estadoCedo(p: { publicadoEm: DiaYt | null; hojePt: DiaYt; dias: 
     return { dia, estado: x.imp === 0 ? 'zero-medido' : 'com-impressoes', valor: x.imp }
   })
 
-  if (idade < DIAS_DE_VIDA_MIN) return { tipo: 'video-novo', casas: casas(), dia7, faltam }
+  if (idade < DIAS_DE_VIDA_MIN) return { tipo: 'video-novo', casas: casas(), dia7, faltam, idade }
   if (diasMedidos === 0) return { tipo: 'nao-medido' }
   const soZeros = medidos.every(x => x.imp === 0)
-  if (idade < IDADE_DO_GRAFICO && soZeros) return { tipo: 'ainda-cedo', casas: casas(), dia7, faltam, diasMedidos }
+  if (idade < IDADE_DO_GRAFICO && soZeros) return { tipo: 'ainda-cedo', casas: casas(), dia7, faltam, idade, diasMedidos }
   return { tipo: 'grafico', soZeros, diasMedidos }
 }
