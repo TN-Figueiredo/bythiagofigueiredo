@@ -6,7 +6,7 @@
 export const MARCA = '│ '
 
 // Além de \r e \n: NEL (U+0085), VT (U+000B) e FF (U+000C), que `splitlines()` e vários leitores de texto também tratam como fim de linha.
-const FIM_DE_LINHA = /\r\n|[\r\n\u0085\u000b\u000c\u2028\u2029]/
+const FIM_DE_LINHA = /\r\n|[\r\n\u0085\u000b\u000c\u001c-\u001e\u2028\u2029]/
 const ABRE_COM_MARCA = /^[│\s]+/
 const TRES_CRASES_OU_MAIS = /`{3,}/g
 
