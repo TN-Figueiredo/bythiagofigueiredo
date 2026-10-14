@@ -6,7 +6,6 @@ import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { MotivoNaoMedido } from '@/lib/youtube/observatorio/medidas/tipos'
 import { aindaNaoExiste } from '@/lib/youtube/observatorio/medidas-telas/calendario'
 import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
-import { spDateOf } from '@/lib/youtube/observatorio/time'
 
 export type PastilhaDaLinha =
   | 'fora_do_ar' | 'pausado' | 'sem_videos' | 'parado' | 'em_queda' | 'ativo'
@@ -55,7 +54,8 @@ export function estadoDaLinha(
   const extrasNaoLidos = extras === null
   if (m8 === null) return { ...base, pastilha: 'nao_carregou', motivo: 'leitura_falhou', extrasNaoLidos, linha: 'Não carregou' }
   const e = m8.estado
-  const saiuEm = extras?.missingSince ? spDateOf(Date.parse(extras.missingSince)) : null
+  // `missing_since` é coluna `date` (AAAA-MM-DD): é um dia de calendário, não um instante. Date.parse a leria como meia-noite UTC e São Paulo mostraria o dia anterior.
+  const saiuEm = extras?.missingSince ? extras.missingSince.slice(0, 10) : null
   if (saiuEm !== null || (e.estado === 'medido' && e.valor === 'fora_do_ar')) {
     return { ...base, pastilha: 'fora_do_ar', dataOuDias: saiuEm, extrasNaoLidos, apoio: 'Sem resposta do YouTube em 2 leituras.' }
   }
@@ -108,7 +108,8 @@ export type ContagemDeQueda =
 
 export interface LinhaParaContagem { proprio: boolean; estado: EstadoDaLinha; emErro: boolean }
 export interface ContagemDosFiltros {
-  todos: number; parados: number; saiu: number; emErro: number; queda: ContagemDeQueda
+  /** `parados` e `saiu` são nulos quando o estado não carregou em nenhuma linha: nulo nunca vira zero. */
+  todos: number; parados: number | null; saiu: number | null; emErro: number; queda: ContagemDeQueda
 }
 
 /** O canal próprio não entra em nenhuma contagem. O filtro "em queda" inclui o canal parado que também está em queda. */
@@ -128,9 +129,11 @@ export function contagemDosFiltros(linhas: readonly LinhaParaContagem[], hojeSP:
       queda = { tipo: 'numero', emQueda: ls.filter(l => l.estado.pastilha === 'em_queda' || l.estado.tambemEmQueda).length, quedaMedidaEm: medidos, canais: ls.length }
     }
   }
+  // o estado não carregou em nenhuma linha: "0 parados" seria dado inventado
+  const semEstado = ls.length > 0 && ls.every(l => l.estado.pastilha === 'nao_carregou')
   return {
-    todos: ls.length, parados: ls.filter(l => l.estado.pastilha === 'parado').length,
-    saiu: ls.filter(l => l.estado.pastilha === 'fora_do_ar').length, emErro: ls.filter(l => l.emErro).length, queda,
+    todos: ls.length, parados: semEstado ? null : ls.filter(l => l.estado.pastilha === 'parado').length,
+    saiu: semEstado ? null : ls.filter(l => l.estado.pastilha === 'fora_do_ar').length, emErro: ls.filter(l => l.emErro).length, queda,
   }
 }
 

@@ -52,6 +52,12 @@ describe('E5a T5: dado ausente', () => {
     const { container } = mount({ medidas: null })
     expect(container.querySelectorAll('.obs-cn-casa .obs-ch-zero').length).toBe(0)
     expect(container.querySelectorAll('.obs-cn-casa .obs-md-nc').length).toBe(4)
+    // D3: com o estado também sem leitura, Parados e Saíram não dizem 0 medido: dizem "não carregou"
+    const f = (ch: string) => v.resumo.filtros.find(x => x.chave === ch)!
+    expect(f('parados').n).toBeNull()
+    expect(f('sairam').n).toBeNull()
+    expect(f('parados').leitor).toContain('não carregou')
+    expect(container.querySelectorAll('.obs-cn-filtro .obs-ch-zero').length).toBe(0)
   })
   it('canal sem 56 dias: "fecha em dd/mm" na linha e a data na casa "não medido"', () => {
     const v = vw({ medidas: medidasDoMotor(obs, { 'matt-wolfe': { m3a: naoMedido('fecha_em', { fechaEm: '2026-10-17' }) } }) })

@@ -30,7 +30,7 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
       <div><div className="l" style={{ marginBottom: 4 }}>Outliers, até 90{' '}d</div><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} visible /></div>
       <div className="kv">
         <div><div className="l">Trocas de título e thumbnail, 30{' '}d</div><SwapView c={c.swap} /></div>
-        <div className="sync"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></div>
+        <div className="sync"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></div>
       </div>
       {r.comparar ? <div className="cmp-card"><CompararLink r={r} texto="Comparar com o meu canal" /></div> : null}
       {r.own ? null : <div><button type="button" className="btn small" data-menu={r.id} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} disabled={h.somenteLeitura} onClick={() => h.menu(r.id)}>Mais ações</button></div>}

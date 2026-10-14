@@ -25,7 +25,7 @@ export interface RowHandlers {
 /** `fm`: a coluna depende do formato (em "Todos" tem duas medidas e o rótulo sobe para o cabeçalho). */
 const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean }> = [
   { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem' },
-  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 118 },
+  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 88 },
   { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias' },
   { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts' },
   { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true },
@@ -60,7 +60,7 @@ function Row({ r, h, todos, ordenacaoComPosicao, comparar }: { r: CanaisRow; h: 
       <td className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} /></td>
       <td><SwapView c={c.swap} /></td>
       <td className="r grow c-hide"><GrowthView c={c.growth} /></td>
-      <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
+      <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></td>
       {comparar ? <td className="cmp">{r.own ? <><span aria-hidden="true">–</span><span className="sr">seu canal, sem comparação</span></> : <CompararLink r={r} texto="Comparar" />}</td> : null}
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id} disabled={h.somenteLeitura}

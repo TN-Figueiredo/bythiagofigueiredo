@@ -73,6 +73,15 @@ function useWide(): boolean {
     () => true,
   )
 }
+/** Tela estreita (celular): a tabela de 11 colunas não cabe; o mockup 16 manda o cartão, com a Direção em largura total. */
+const NARROW = '(max-width: 700px)'
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    cb => { if (typeof window === 'undefined' || !window.matchMedia) return () => {}; const m = window.matchMedia(NARROW); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb) },
+    () => (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(NARROW).matches),
+    () => false,
+  )
+}
 /**
  * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
  * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
@@ -147,7 +156,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const shellRow = opt.channel && !drawer && closedDrawer !== opt.channel ? rowOf(opt.channel) : null
   const shell: DrawerShell | null = shellRow
   const panel = drawer ?? shell
-  const layout = opt.layout ?? view.layout
+  const narrow = useNarrow()
+  const layout = narrow ? 'cards' : (opt.layout ?? view.layout)
   const listBusy = (navPending && opt.busy) || undefined
   const addOpen = (opt.add ?? view.addOpen) && !addClosed
   const nicheOpen = view.nicheEditorOpen && !nicheClosed
@@ -434,10 +444,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <button type="button" aria-pressed={scale === 'abs'} onClick={() => pickScale('abs')}>Absoluto</button>
               <button type="button" aria-pressed={scale === 'per-mil'} onClick={() => pickScale('per-mil')}>Por mil inscritos</button>
             </div>
+            {narrow ? null : (
             <div className="seg" role="group" aria-label="Visualização">
               <button type="button" aria-pressed={layout === 'table'} onClick={() => pickLayout('table')}>Tabela</button>
               <button type="button" aria-pressed={layout === 'cards'} onClick={() => pickLayout('cards')}>Cards</button>
             </div>
+            )}
             <label className="cardsort"><span className="sr">Ordenar cards por</span>
               <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
                 <option value="vpd">Views/dia</option><option value="subs">Inscritos</option><option value="active">Ritmo</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>

@@ -190,7 +190,7 @@ export function GrowthView({ c }: { c: GrowthCell }) {
 }
 
 export type LocalSync = 'now' | 'just' | 'queued' | undefined
-export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void }) {
+export function SyncView({ c, local, onRetry, onRemove, somenteLeitura = false }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void; somenteLeitura?: boolean }) {
   // "Administrar o site" step: removing a channel is for admins.
   const canAdminSite = useCanAdminSite()
   const cov = c.cov ? <div className="cov" title={c.covTitle ?? undefined}>{c.cov}</div> : null
@@ -202,14 +202,14 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
     <>
       <div className="st" style={{ color: 'var(--warning-text)' }}><Ic n="clock" /><span title={c.labelTitle ?? undefined}>{c.label}</span></div>
       {c.msg ? <div className="msg late">{c.msg}</div> : null}
-      {c.canRetry ? <div className="act"><button type="button" className="btn small" onClick={onRetry}>Tentar de novo</button></div> : null}
+      {c.canRetry ? <div className="act"><button type="button" className="btn small" onClick={onRetry} disabled={somenteLeitura} title={somenteLeitura ? 'Você só pode ler esta lista.' : undefined}>Tentar de novo</button></div> : null}
     </>
   )
   if (c.state === 'erro') return (
     <>
       <div className="st" style={{ color: 'var(--danger-text)' }}><Ic n="warn" /><span>{c.label}</span></div>
       {c.msg ? <div className="msg">{c.msg}</div> : null}
-      {c.canRemove && canAdminSite ? <div className="act"><button type="button" className="btn small" onClick={onRemove}>Remover canal…</button></div> : null}
+      {c.canRemove && canAdminSite ? <div className="act"><button type="button" className="btn small" onClick={onRemove} disabled={somenteLeitura} title={somenteLeitura ? 'Você só pode ler esta lista.' : undefined}>Remover canal…</button></div> : null}
       {c.canRemove && !canAdminSite ? <div className="msg" role="note" data-testid="admin-only-note">{siteAdminOnlyText('remover um canal')}</div> : null}
     </>
   )

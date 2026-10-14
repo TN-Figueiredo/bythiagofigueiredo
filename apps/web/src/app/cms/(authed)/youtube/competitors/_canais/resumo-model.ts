@@ -10,7 +10,7 @@ const pl = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? 
 // TEXTO-A-REVISAR (Logan/Naksu): as frases abaixo seguem o mockup 16 (tabela de frases, seção 2); as que o mockup não escreve são marcadas.
 export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): string {
   const out: string[] = []
-  const parados = c.parados > 0 ? pl(c.parados, 'canal parado', 'canais parados') : ''
+  const parados = c.parados !== null && c.parados > 0 ? pl(c.parados, 'canal parado', 'canais parados') : ''
   const dirTxt = dir.frase.replace(/\.$/, '')
   if (dir.medidos > 0 && dir.frase) out.push([parados, dirTxt].filter(Boolean).join(', ') + '.')
   else {
@@ -29,7 +29,7 @@ export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): stri
       ? `Nenhum canal em queda sustentada entre os ${q.quedaMedidaEm} medidos de ${q.canais}.`
       : `Nenhum dos ${q.canais} canais está em queda sustentada.`)
   }
-  if (c.saiu > 0) out.push(`${pl(c.saiu, 'canal saiu', 'canais saíram')} do YouTube.`)
+  if (c.saiu !== null && c.saiu > 0) out.push(`${pl(c.saiu, 'canal saiu', 'canais saíram')} do YouTube.`)
   if (c.emErro > 0) out.push(`${pl(c.emErro, 'canal', 'canais')} em erro.`)
   return out.join(' ')
 }

@@ -706,7 +706,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const ainda = chave === 'em-queda' && q.tipo === 'ainda_nao_existe' ? q.existeEm : null
       const naoMedido = chave === 'em-queda' && q.tipo === 'nao_medido' ? FRASES[q.motivo]({}, 'canais').curta : null
       return { chave, rotulo, n: ainda || naoMedido ? null : n, ainda, naoMedido, pressed, href: chave === 'todos' ? hrefDe('todos', direcaoFiltro) : pressed ? hrefDe('todos', direcaoFiltro) : hrefDe(chave, direcaoFiltro),
-        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : `${rotulo}: ${n ?? 0}` }
+        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : n === null ? `${rotulo}: não carregou` : `${rotulo}: ${n}` }
     }
     const filtros = [
       filtroDe('todos', 'Todos', contagem.todos), filtroDe('parados', 'Parados', contagem.parados),

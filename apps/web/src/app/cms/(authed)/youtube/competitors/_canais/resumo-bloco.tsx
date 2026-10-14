@@ -10,6 +10,7 @@ import { AindaNaoExiste, NaoCarregou, ZeroMedido } from '../_chrome/medidas/marc
 import { Tip } from './cells'
 
 const GLIFO: Record<DirecaoFiltro, string> = { sobe: '▲', estavel: '＝', desce: '▼', 'nao-medido': '' }
+const GLIFO_FILTRO: Partial<Record<FiltroDeEstado, string>> = { parados: '⏸', 'em-queda': '▼', sairam: '✕', problemas: '⚠' }
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 
 function Numero({ n }: { n: number | null }): ReactNode {
@@ -36,9 +37,10 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
       </p>
       <div className="obs-cn-casas" role="group" aria-label="Filtrar canais por direção">
         {casas.map(c => (
-          <button key={c.chave} type="button" className={`obs-cn-casa ${c.chave}`} aria-pressed={c.pressed} aria-label={c.leitor}
+          <button key={c.chave} type="button" className={`obs-cn-casa ${c.chave}${c.n === null ? ' sk' : c.n === 0 ? ' z' : ''}`} aria-pressed={c.pressed} aria-label={c.leitor}
+            style={c.n ? { flex: `${c.n} 1 0` } : undefined}
             onClick={() => onDirecao(c.pressed ? null : c.chave)}>
-            <span className="obs-cn-casa-n" aria-hidden="true">
+            <span className="obs-cn-casa-b" aria-hidden="true">
               {GLIFO[c.chave] ? <span className="obs-cn-casa-g">{GLIFO[c.chave]}</span> : null}
               <Numero n={c.n} />
             </span>
@@ -51,9 +53,10 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
         {filtros.map(f => (
           <button key={f.chave} type="button" className="obs-cn-filtro" aria-pressed={f.pressed} aria-label={f.leitor}
             onClick={() => onFiltro(f.pressed || f.chave === 'todos' ? null : f.chave)}>
+            {GLIFO_FILTRO[f.chave] ? <span className={`obs-cn-filtro-i ${f.chave}`} aria-hidden="true">{GLIFO_FILTRO[f.chave]}</span> : null}
             <span aria-hidden="true">{f.rotulo}</span>{' '}
             <span className="obs-cn-filtro-n" aria-hidden="true">
-              {f.ainda ? <AindaNaoExiste existeEm={f.ainda} /> : f.naoMedido ? <span className="obs-ch-nm">{f.naoMedido}</span> : f.n === null ? null : f.n === 0 ? <ZeroMedido /> : <b className="num">{f.n}</b>}
+              {f.ainda ? <AindaNaoExiste existeEm={f.ainda} /> : f.naoMedido ? <span className="obs-ch-nm">{f.naoMedido}</span> : f.n === null ? <NaoCarregou /> : f.n === 0 ? <ZeroMedido /> : <b className="num">{f.n}</b>}
             </span>
           </button>
         ))}
@@ -61,10 +64,10 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
       <div className="obs-cn-faixa">
         <p><b>Direção:</b> views dos últimos 28 dias contra os 28 anteriores, cada canal contra ele mesmo.</p>
         <ul className="obs-cn-legenda">
-          <li><span aria-hidden="true">▲</span> subindo, +10% ou mais</li>
-          <li><span aria-hidden="true">＝</span> sem mudança</li>
-          <li><span aria-hidden="true">▼</span> descendo, −10% ou menos</li>
-          <li><span className="obs-ch-nm" aria-hidden="true">&nbsp;</span> não medido, com o motivo</li>
+          <li><span className="obs-cn-sy sobe" aria-hidden="true">▲</span> subindo, +10% ou mais</li>
+          <li><span className="obs-cn-sy estavel" aria-hidden="true">＝</span> sem mudança</li>
+          <li><span className="obs-cn-sy desce" aria-hidden="true">▼</span> descendo, −10% ou menos</li>
+          <li><span className="obs-cn-sy nm obs-ch-nm" aria-hidden="true" /> não medido, com o motivo</li>
         </ul>
         {resumo.avisoDeContagem ? (
           <p className="obs-cn-aviso" data-k="aviso-contagem">Até {dm(resumo.avisoDeContagem.ate)} os 56 dias cruzam a mudança de contagem de 24/08/2026.</p>

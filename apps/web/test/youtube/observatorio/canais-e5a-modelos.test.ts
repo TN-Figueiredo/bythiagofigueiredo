@@ -1,5 +1,5 @@
 // A5 · E5a, Tarefa 5: os dois modelos puros da lista de Canais (direção e estado) e a contagem dos filtros.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { celulaDeDirecao, resumoDeDirecao, type CelulaDeDirecao } from '@/app/cms/(authed)/youtube/competitors/_canais/direcao-model'
 import { contagemDosFiltros, estadoDaLinha, linhaNoFiltro, type LinhaParaContagem } from '@/app/cms/(authed)/youtube/competitors/_canais/estado-model'
 import { FRASES } from '@/lib/youtube/observatorio/medidas-telas/frases'
@@ -180,4 +180,19 @@ describe('E5a T5: contagem dos filtros', () => {
     const ls = [L(m8('ativo'), { ex: { ...EX, missingSince: '2026-10-04T12:00:00Z' } }), L(m8('ativo'), { emErro: true })]
     expect(contagemDosFiltros(ls, DEPOIS)).toMatchObject({ saiu: 1, emErro: 1 })
   })
+  it('D1: missing_since é data pura (date): vira o mesmo dia 04/10, sem passar por fuso, com relógio perto da meia-noite UTC', () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-14T02:30:00Z'))
+    const ex = { ...EX, missingSince: '2026-10-04' }
+    const e = estadoDaLinha(m8('ativo'), ex, 10, { hojeSP: HOJE })
+    expect(e).toMatchObject({ pastilha: 'fora_do_ar', dataOuDias: '2026-10-04' })
+    expect(celulaDeDirecao(dir(10, 10), ex)).toMatchObject({ curta: 'saiu do YouTube em 04/10' })
+  })
+  it('D3: se o estado não carregou em nenhuma linha, parados e saiu são nulos, nunca 0', () => {
+    const ls = [L(null), L(null)]
+    const c = contagemDosFiltros(ls, DEPOIS)
+    expect(c.parados).toBeNull()
+    expect(c.saiu).toBeNull()
+    expect(c.todos).toBe(2)
+  })
 })
+afterEach(() => { vi.useRealTimers() })
