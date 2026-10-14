@@ -1,7 +1,6 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Database } from '@/types/database.types'
 import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import type {
   AbTestWithVariants,
@@ -910,7 +909,7 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
   scored.sort((a, b) => b.score - a.score)
   const top = scored.slice(0, 5)
 
-  // 8. Map to SuggestedVideo[] with updated reason text
+  // 8. Map to SuggestedVideo[]: nota (grade) do vídeo e texto do motivo (score + queda abaixo da média do canal, ou alcance sem teste)
   return top.map(v => {
     const ratio = channelAvgCtr > 0 && v.hasCtr ? v.ctr / channelAvgCtr : 0
     const belowPercent = Math.round((1 - ratio) * 100)

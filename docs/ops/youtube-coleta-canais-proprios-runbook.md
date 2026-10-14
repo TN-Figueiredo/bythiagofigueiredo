@@ -450,7 +450,7 @@ npx supabase db query --linked "delete from youtube_videos where youtube_video_i
 |---|---|---|
 | `<Nome (UC…)>: <causa>` ou `YouTube API nnn …` | a chamada do analytics por janela de um canal falhou | Sentry; `errorDetails` repete a nota |
 | `all N channel(s) returned an empty analytics report for the <N>-day window` (N = `YT_ANALYTICS_SYNC_WINDOW_DAYS`, padrão 90) | todos os canais voltaram vazios, sem erro HTTP | suspeitar de perda de escopo OAuth ou mudança na API |
-| `aviso de vídeo em alta: <causa>` / `aviso de canal sem conexão: <causa>` | o aviso da parte antiga não saiu | Sentry |
+| `aviso de canal sem conexão: <causa>` | o aviso da parte antiga não saiu | Sentry |
 | `parte existente: <causa>` | exceção não prevista na parte antiga | Sentry (fase `existente`) |
 | `coleta (antes\|depois): <causa>` / `coleta: <causa>` | exceção não prevista na coleta inteira | Sentry (tag `passo: coleta`) |
 | `metadados: <causa>` / `jobs: <causa>` / `relatorios: <causa>` / `alcance: <causa>` / `diario: <causa>` / `orçamento: <causa>` | exceção não prevista dentro de um passo ou critério (o prefixo é o nome do passo, escrito `relatorios` e `diario` sem acento e `orçamento` com) | Sentry (tag `passo`) |
