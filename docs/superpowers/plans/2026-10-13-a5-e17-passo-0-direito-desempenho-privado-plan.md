@@ -318,6 +318,8 @@ Não há cron nem e-mail neste plano. "O que o dono vê" é a tela ou o Sentry. 
 
 ---
 
+- **Desvio do portão 14/10 (Yannis I4):** com o token de leitura, quem só tem o direito privado passa a ler `attempt_day` e `outcome` de `yt_own_collection_attempts`, que a T3 classificou como só de quem edita. Decisão do controlador: aceito, porque é metadado operacional de coleta, sem número do canal. Limite: só essas duas colunas. A varredura barra qualquer outra coluna lida dessa tabela com o token de leitura.
+
 ## 9. Arquivos, tarefas, ordem e paralelismo
 
 Caminhos relativos a `apps/web/`, salvo os que começam por `supabase/`, `docs/` ou `.superpowers/`. "Novo" = arquivo criado por esta etapa. **A lista de cada tarefa é fechada:** se a tarefa precisar de outro arquivo, para e avisa.
