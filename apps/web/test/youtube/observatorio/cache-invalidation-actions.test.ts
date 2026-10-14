@@ -13,7 +13,8 @@ vi.mock('@/lib/cms/auth-guards', () => ({
 const revalidateTag = vi.fn()
 /** Any chain of supabase calls resolves to `result`. */
 const chain = (result: unknown): unknown => new Proxy(function () {}, {
-  get: (_t, k) => (k === 'then' ? (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(result).then(ok, ko) : () => chain(result)),
+  // `update(...).select('id')` devolve a lista das linhas alteradas (o histórico completo confere que alterou uma)
+  get: (_t, k) => (k === 'then' ? (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(result).then(ok, ko) : k === 'update' ? () => chain({ data: [{ id: 'c1' }], error: null }) : () => chain(result)),
 })
 async function load(o: { allowed?: boolean; sync?: () => Promise<unknown>; channel?: unknown } = {}) {
   vi.resetModules(); revalidateTag.mockClear()

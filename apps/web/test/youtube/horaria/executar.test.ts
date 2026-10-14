@@ -168,7 +168,7 @@ function conc(b: Banco, n: number, o: OpConc = {}): string[] {
       discovered_at: o.descobertoApos === null ? null : iso(pub + (o.descobertoApos ?? H)),
       live_broadcast_content: o.lbc ?? null,
       missing_since: null,
-      competitor_channels: { site_id: o.site ?? SITE, missing_since: null },
+      competitor_channels: { site_id: o.site ?? SITE, missing_since: null, collection_paused_at: null },
     })
     ids.push(yt)
   }
@@ -802,7 +802,7 @@ describe('executarLeituraHoraria: o que o conserto da T6/T9 exige', () => {
     b.tabelas.get('competitor_videos')?.push({
       id: 'u-sem-data', video_id: 'yt-sem-data', competitor_channel_id: 'canal-1', published_at: null,
       discovered_at: iso(relogio.t - H), live_broadcast_content: null, missing_since: null,
-      competitor_channels: { site_id: SITE, missing_since: null },
+      competitor_channels: { site_id: SITE, missing_since: null, collection_paused_at: null },
     })
     const f = youtube()
     const r = await rodar(b, f)
@@ -810,6 +810,25 @@ describe('executarLeituraHoraria: o que o conserto da T6/T9 exige', () => {
     expect(det(r).fora_sem_data).toBe(1)
     expect(det(r).lista).toBe(2)
     expect(f.pedidos.flat()).not.toContain('yt-sem-data')
+  })
+
+  it('(A5 E10) 15 vídeos, um de canal pausado: 14 ids pedidos ao YouTube e fora_pausado 1', async () => {
+    const b = criarBanco(); const ids = conc(b, 15)
+    b.tabelas.get('competitor_videos')![6]!.competitor_channels = { site_id: SITE, missing_since: null, collection_paused_at: iso(relogio.t - 86_400_000) }
+    const f = youtube()
+    const r = await rodar(b, f)
+    expect(r.estado).toBe('ok')
+    expect(det(r).fora_pausado).toBe(1)
+    expect(det(r).lista).toBe(14)
+    expect(f.pedidos.flat()).toHaveLength(14)
+    expect(f.pedidos.flat()).not.toContain(ids[6])
+  })
+
+  it('(A5 E10) nenhum pausado: fora_pausado 0 e a lista igual à de antes', async () => {
+    const b = criarBanco(); conc(b, 3)
+    const r = await rodar(b, youtube())
+    expect(det(r).fora_pausado).toBe(0)
+    expect(det(r).lista).toBe(3)
   })
 
   it('o sqlstate de cada falha do banco chega ao relatar, sem o texto', async () => {

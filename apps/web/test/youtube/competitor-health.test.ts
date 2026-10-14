@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { schemaReady, healthVerdict, parseCaptureHealth, parseSeriesHealth, readSiteHealth, WEEKLY_DUE_FROM_HOUR_SP, DAILY_DUE_FROM_HOUR_SP, type CaptureHealth, type SeriesHealth } from '@/lib/youtube/competitor-health'
+import { schemaReady, schemaTablesReady, schemaGroups, healthVerdict, parseCaptureHealth, parseSeriesHealth, readSiteHealth, WEEKLY_DUE_FROM_HOUR_SP, DAILY_DUE_FROM_HOUR_SP, type CaptureHealth, type SeriesHealth } from '@/lib/youtube/competitor-health'
 
 type Fail = { message: string; code?: string }
 // o falso responde por tabela; `failing[t]` = erro do banco, `weird[t]` = a forma devolvida no lugar de { data, error }
@@ -48,7 +48,7 @@ describe('schemaReady (a ordem migration → código não pode falhar em verde)'
     const a = none()
     expect(await schemaReady(a.sb, 'e1')).toMatch(/MG1.*competitor_videos/)
     // as consultas partem em paralelo (A5 E16, Tarefa 12): a afirmação é sobre o CONJUNTO perguntado, e o texto é o da primeira tabela da lista
-    expect(a.asked.map(q => q.split(':')[0]).sort()).toEqual(['competitor_channels', 'competitor_field_versions', 'competitor_raw', 'competitor_videos'])
+    expect(a.asked.map(q => q.split(':')[0]).sort()).toEqual(['competitor_channels', 'competitor_channels', 'competitor_field_versions', 'competitor_raw', 'competitor_videos']) // (A5 E10) a segunda de competitor_channels é a da MG6
     expect(await schemaReady(none().sb, 'e1e2')).toMatch(/MG1/)
   })
   it('cada código de "coluna ou tabela que não existe" diz "migration … não aplicada"; erro sem código (rede) diz "não foi possível conferir o schema"', async () => {
@@ -77,6 +77,14 @@ describe('schemaReady (a ordem migration → código não pode falhar em verde)'
       expect(await schemaReady(sbOf({}, { competitor_video_early: { data: null, error: null } }).sb, 'e1e2')).toMatch(/não foi possível conferir o schema \(competitor_video_early\)/)
       expect(await schemaReady(sbOf({}, { competitor_video_early: { data: null, error: null } }).sb, 'e1')).toBeNull() // a da E1 não pergunta
     })
+  })
+  it('(A5 E10) coluna collection_paused_at ausente: o texto diz MG6 e o tipo é "ausente", nas duas guardas', async () => {
+    const sbSemMg6 = () => ({ from: (t: string) => ({ select: (cols: string) => ({ limit: () => Promise.resolve(t === 'competitor_channels' && cols === 'collection_paused_at' ? { data: null, error: { code: '42703', message: 'column competitor_channels.collection_paused_at does not exist' } } : { data: [], error: null }) }) }) })
+    for (const need of ['e1', 'e1e2'] as const) {
+      expect(await schemaReady(sbSemMg6() as never, need)).toMatch(/migration MG6 não aplicada \(competitor_channels\).*collection_paused_at/)
+      const f = await schemaTablesReady(sbSemMg6() as never, schemaGroups(need))
+      expect(f?.tipo).toBe('ausente')
+    }
   })
 })
 

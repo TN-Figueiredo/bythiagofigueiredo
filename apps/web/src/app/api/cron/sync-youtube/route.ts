@@ -10,6 +10,7 @@ import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
 import { CATALOGO, agendaLigada } from '@/lib/youtube/agenda/catalogo'
 import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo, type AntesDoLote, type CaminhoSemAgenda } from '@/lib/youtube/agenda/executar'
 import { PROOF_MIN_MS, failureMessage, plural, readProofWithin } from '@/lib/youtube/agenda/fecho'
+import { lerArquivoSemAgenda, type ArquivoSemAgenda } from '@/lib/youtube/agenda/arquivo-sem-agenda'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
@@ -86,6 +87,8 @@ export async function GET(req: NextRequest) {
   let semAgenda: string | undefined
   let antes: AntesDoLote = { tarefas: [], problemas: [], notas: [] }
   let caminho: CaminhoSemAgenda | undefined
+  // (A5 E10) o tamanho do banco e as pendências do arquivo no caminho sem agenda; nulo = a agenda rodou e respondeu (a rota já voltou)
+  let arquivo: ArquivoSemAgenda | null = null
   if (mode === 'competitors') {
     if (agendaLigada()) {
       const r = await executarAgenda({ supabase, apiKey, runId, t0 })
@@ -96,11 +99,16 @@ export async function GET(req: NextRequest) {
       caminho = 'interruptor'
     }
     antes = await rodarAntesDoLoteAntigo({ supabase, apiKey, runId, t0, caminho })
+    arquivo = await lerArquivoSemAgenda({ supabase })
   }
+  // as frases vermelhas que entram na mensagem do cron: as da lista antes do lote e as do arquivo (uma constante, os três pontos usam)
+  const problemasAntes: string[] = [...antes.problemas, ...(arquivo?.problemas ?? [])]
   // O que a resposta do lote antigo acrescenta (neutro quando a lista rodou nada e a agenda não é a causa): ver o ponto (iv) da Tarefa 12.
   const alemDoLote = (): Record<string, unknown> => ({
     ...(antes.tarefas.length > 0 ? { antes_do_lote: antes.tarefas } : {}),
-    ...(antes.notas.length > 0 ? { notas_antes: antes.notas } : {}),
+    ...(antes.notas.length + (arquivo?.notas.length ?? 0) > 0 ? { notas_antes: [...antes.notas, ...(arquivo?.notas ?? [])] } : {}),
+    ...(arquivo && Object.keys(arquivo.banco).length > 0 ? { banco: arquivo.banco } : {}),
+    ...(arquivo && arquivo.acao.length > 0 ? { acao_do_dono_arquivo: arquivo.acao } : {}),
     ...(caminho === 'interruptor' ? { agenda_desligada: CATALOGO.filter(t => !antesDoLoteAntigo.some(a => a.nome === t.nome)).map(t => t.rotulo) } : {}),
   })
 
@@ -171,7 +179,7 @@ export async function GET(req: NextRequest) {
       // série diária de todos cairia. Vermelho na primeira linha, nada gravado. O sync lê e grava colunas e tabelas da MG2 (faixa da série), então a guarda confere as duas.
       const notReady = await schemaReady(supabase, 'e1e2')
       if (notReady) {
-        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: antes.problemas, lote: notReady, prova: [], cota: null }))
+        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: problemasAntes, lote: notReady, prova: [], cota: null }))
         return { status: 'error' as const, mode: 'competitors', error: notReady, ...alemDoLote(), health_written: true }
       }
       let result: BatchResult
@@ -187,7 +195,7 @@ export async function GET(req: NextRequest) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors' } })
-        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: antes.problemas, lote: message, prova: [], cota: null }))
+        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: problemasAntes, lote: message, prova: [], cota: null }))
         return { status: 'error' as const, mode: 'competitors', error: message, ...alemDoLote(), health_written: true }
       } finally {
         clearTimeout(batchTimer)
@@ -217,8 +225,8 @@ export async function GET(req: NextRequest) {
       }
       // Cota que nem a nova tentativa do fim do disparo conseguiu gravar: o cron só tem verde e vermelho, e verde mudo é o que não pode
       const quota = result.quotaLost ? plural(result.quotaLost, 'unidade', 'unidades') + ' de cota ' + (result.quotaLost === 1 ? 'não registrada' : 'não registradas') : null
-      if (!health.ok || !prova.ok || quota || semAgenda || antes.problemas.length > 0) {
-        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: antes.problemas, lote: health.ok ? null : (health.message ?? 'batch failed'), prova: prova.ok ? [] : prova.problems, cota: quota }))
+      if (!health.ok || !prova.ok || quota || semAgenda || problemasAntes.length > 0) {
+        await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: problemasAntes, lote: health.ok ? null : (health.message ?? 'batch failed'), prova: prova.ok ? [] : prova.problems, cota: quota }))
       } else {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }

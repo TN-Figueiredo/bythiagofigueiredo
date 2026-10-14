@@ -94,6 +94,10 @@ export type SetupOpts = {
   failStamp?: boolean
   /** O `update` da linha do canal (o que leva `miss_streak`) devolve erro de banco. */
   failChannelUpdate?: boolean
+  /** (A5 E10) O canal está com a coleta pausada desde esta data: a trava (`.is('collection_paused_at', null)`) volta vazia e as leituras de estado trazem a data. */
+  paused?: string
+  /** (A5 E10) A leitura única que diz se foi a pausa que segurou a trava falha. */
+  pausedReadFails?: boolean
   /** A trava do canal não é obtida (outro processo sincroniza): o `update … or(…)` devolve lista vazia. */
   lockTaken?: boolean
   /** (A5 E2) Todos os vídeos do canal como a leitura paginada os devolve; `allPages` = uma lista por página de 1.000; `allError` = a leitura falha. Omitidos: monta de `tracked` e `pinned`. */
@@ -139,10 +143,13 @@ export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
     if (opts.failWrite && writeMatches(opts.failWrite, c) && writesSeen++ === (opts.failWriteSkip ?? 0)) return { data: null, error: { message: 'boom' } }
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
+    // (A5 E10) o banco só toma a trava se a condição `.is('collection_paused_at', null)` estiver no update: sem ela o canal pausado seria tomado
+    if (opts.paused && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or') && c.ops.some(o => o[0] === 'is' && o[1][0] === 'collection_paused_at' && o[1][1] === null)) return { data: [] }
+    if (c.table === 'competitor_channels' && first(c) === 'select' && c.ops.some(o => o[0] === 'select' && o[1][0] === 'collection_paused_at')) return opts.pausedReadFails ? { data: null, error: { message: 'boom' } } : { data: [{ collection_paused_at: opts.paused ?? null }] }
     if (opts.lockTaken && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [] }
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, video_limit: opts.videoLimit ?? lockRow.video_limit, ...opts.lock }] }
     // (A5 E2) a leitura semanal lê o estado do canal sem tomar a trava
-    if (c.table === 'competitor_channels' && first(c) === 'select') return { data: [{ ...lockRow, sync_status: opts.channelStatus ?? 'idle', sync_started_at: opts.channelStartedAt ?? null, video_limit: opts.videoLimit ?? lockRow.video_limit }] }
+    if (c.table === 'competitor_channels' && first(c) === 'select') return { data: [{ ...lockRow, sync_status: opts.channelStatus ?? 'idle', sync_started_at: opts.channelStartedAt ?? null, collection_paused_at: opts.paused ?? null, video_limit: opts.videoLimit ?? lockRow.video_limit }] }
     // (A5 E2) a leitura de TODOS os vídeos do canal (paginada por `range`): primeira linha de competitor_videos no roteiro
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')) {
       if (opts.allNull) return { data: null, error: null }

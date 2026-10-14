@@ -89,7 +89,7 @@ export interface PendenteDeMarca {
   commentsDisabled: boolean | null
   primeiraLeituraAt: number | null
   ultimaLeituraAt: number | null
-  /** campo `gap_crossed_pause` da leitura pendente de marcas (MG4): o buraco cruza uma pausa de coleta feita de propósito. */
+  /** `gap_crossed_pause` de `competitor_marks_pending`: o buraco cruza uma pausa de coleta feita de propósito. */
   cruzouPausa: boolean
   leituras: Leitura[]
 }
@@ -175,6 +175,8 @@ export interface MarcaLida {
   views: number
   likes: number | null
   comments: number | null
+  /** `likes_hidden` gravado com a marca (M12): verdadeiro = curtidas ocultas pelo canal; nulo/ausente = não se sabe. */
+  likesHidden?: boolean | null
   readBeforeAt: number
   readAfterAt: number
   /** `age_base_at` gravado com a marca (ms). */

@@ -253,3 +253,22 @@ describe('avisarDono', () => {
     expect(vistos).not.toContain('segredo-do-banco')
   })
 })
+
+describe('avisarDono: periodo e título por chave (A5 E10, T9)', () => {
+  it('chave por semana ISO e por mês de São Paulo; sem periodo, a chave de sempre (byte a byte)', async () => {
+    const chaves = async (a: Partial<Aviso>) => { createNotification.mockClear(); await avisarDono(banco().sb, [aviso(a)], O); return createNotification.mock.calls[0]![0].dedup_key as string }
+    expect(await chaves({ chave: 'banco_no_limite', tarefa: 'tamanho do banco', periodo: 'semana' })).toBe(`obs-agenda-banco_no_limite-tamanho do banco-${S1}-2026-W03`)
+    expect(await chaves({ chave: 'banco_no_limite', tarefa: 'tamanho do banco', periodo: 'mes' })).toBe(`obs-agenda-banco_no_limite-tamanho do banco-${S1}-2026-01`)
+    expect(await chaves({ chave: 'tarefa_esgotada', tarefa: 'retratos' })).toBe(`obs-agenda-tarefa_esgotada-retratos-${S1}-2026-01-15`)
+    expect(await chaves({ chave: 'tarefa_esgotada', tarefa: 'retratos', periodo: 'dia' })).toBe(`obs-agenda-tarefa_esgotada-retratos-${S1}-2026-01-15`)
+  })
+  it('as duas chaves novas têm título próprio, sem "esgotou as tentativas"', async () => {
+    for (const chave of ['banco_no_limite', 'coleta_pausada_esquecida'] as const) {
+      createNotification.mockClear()
+      await avisarDono(banco().sb, [aviso({ chave, tarefa: 'x', frase: 'uma frase.' })], O)
+      const arg = createNotification.mock.calls[0]![0]
+      expect(arg.title).not.toContain('esgotou as tentativas')
+      expect(arg.message).not.toContain('não roda de novo')
+    }
+  })
+})

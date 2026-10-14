@@ -143,6 +143,38 @@ export function conferenciasE14(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E10 (arquivo, pausa e sinal de limite do banco): as datas dependem do dia da promoção a `main` (D). O controlador preenche `E10_DEPLOY` (dia de
+// São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E10`.
+/** Dia de São Paulo (AAAA-MM-DD) em que a E10 foi promovida a `main`. `null` = ainda não enviada. */
+export const E10_DEPLOY: string | null = '2026-10-14'
+
+const PLANO_E10 = 'docs/superpowers/plans/2026-10-13-a5-e10-export-pausa-e-sinal-de-limite-plan.md (Tarefa 14); runbook docs/ops/observatorio-arquivo-runbook.md; anotar o resultado em .superpowers/sdd/a5-e10/progress.md'
+
+/**
+ * As conferências da E10 a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio: vira uma entrada de 1970
+ * (vermelha) que manda corrigir a constante. `e10-cms-1` e `e10-miniaturas` não têm data própria (dependem da 1ª remoção): ficam em D e D+3 e se
+ * adiam por quem as fizer, preenchendo `feitaEm` só quando feitas. Em ordem de data.
+ */
+export function conferenciasE10(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e10-deploy-invalido', etapa: 'E10', data: '1970-01-01', responsavel: 'agente', onde: `E10_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string, responsavel: Conferencia['responsavel'] = 'agente'): Conferencia => ({ id: `e10-${id}`, etapa: 'E10', data: somaDias(deploy, mais), responsavel, onde: `${PLANO_E10}: ${onde}`, feitaEm: null })
+  return [
+    e('i4', 0, 'D, ANTES do 1º `pausar` (portão I-4): `git fetch origin && git grep -q "collection_paused_at == null" origin/main -- apps/web/src/lib/youtube/competitor-sync-batch.ts && git grep -q "fora_pausado" origin/main -- apps/web/src/lib/youtube/horaria/executar.ts && echo ok` devolve `ok` (confere o CONTEÚDO do código da pausa em main, T4a e T4b; não o SHA, que muda na cópia do envio). O código antigo não respeita a pausa; nenhum canal é pausado antes disto'),
+    e('d0', 0, 'D, depois da promoção, só leitura, 4 leituras: (1) o 1º disparo de concorrentes depois do deploy: sem "migration MG6", `fora_pausado: 0` no `detalhe` da horária, `nota_pausa` ausente, campo `banco` presente, tarefa `tamanho_do_banco` com `ok` (se o deploy foi depois das 05:00 de SP); (2) `select count(*), max(day) from public.obs_db_size_daily;` dá 1 e hoje; (3) `select count(*) from public.competitor_collection_pauses;` dá 0 (V5); (4) `select db_bytes, competitor_bytes, own_bytes from public.obs_db_size_daily order by day desc limit 1;` comparado com os 170,7 MB de 12/10 (diferença acima de 30% refaz a OP-9) e com o painel do Supabase (C2); anotar as 10 maiores de `top_relations`'),
+    e('cms-1', 0, 'ANTES da 1ª remoção pelo botão do CMS, em produção, leitura: `explain (analyze, buffers) select count(*) from public.obs_archive_channel_counts(\'<uuid do maior canal>\');` MENOR que 1,5 s = o CMS serve; acima = remover só pelo comando e o runbook diz isso. A 1ª remoção, por qualquer caminho, é cronometrada e anotada na seção 10 do runbook'),
+    e('d1', 1, 'D+1: `select count(*), max(day) from obs_db_size_daily` = 2 e hoje; a tarefa `tamanho_do_banco` com `ok` duas vezes em `competitor_agenda_runs`; o vigia mostra `tamanho_do_banco` em dia; nenhum e-mail de banco (salvo acima de 70% do limite); V5 = 0'),
+    e('miniaturas', 3, 'D+3 (ou até 3 dias depois da 1ª remoção, o que vier depois): `select batch, cardinality(blob_urls_pending) from public.obs_archive_batches where table_name=\'competitor_channels\' and deleted_at is not null;` dá 0 em até ceil(N/200) dias; `detalhe.miniaturas_apagadas` da tarefa diária bate com o número de URLs pendentes do lote. Sem nenhuma remoção até esta data: anotar "sem remoção" e adiar'),
+    e('d7', 7, 'D+7: 8 linhas em `obs_db_size_daily`, sem dia faltando; crescimento médio por dia contra a estimativa (com 13 a 15 canais, cerca de 0,6 MB por dia: ESTIMATIVA); as relações que mais cresceram entre `top_relations` de D e de D+7, para fechar "de onde vêm os 20 MB por ano do site"'),
+    e('d14', 14, 'D+14: a projeção deixou de ser "não medida"; anotar a data de chegada ao limite que o sinal diz'),
+    e('ensaio', 14, 'D+14, responsável o dono: o ensaio do item 82 (pausar, exportar, conferir, confirmar no NAS, remover por um canal de teste) feito e anotado no runbook', 'dono'),
+    e('d28', 28, 'D+28: a reta usa a janela inteira de medidas; a tabela da OP-9 do runbook é refeita com ela'),
+  ]
+}
+
+
 // E16 e E15 (agenda de tarefas do cron `sync-youtube` e leitura horária dos vídeos novos): as datas dependem do dia da promoção a `main` (D0),
 // que ainda não existe. O controlador preenche `E16_E15_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio (Tarefa 15). Enquanto for
 // `null`, as oito entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapas `E16` e `E15` (o formato `E<n>` do guardião).
@@ -176,6 +208,8 @@ export function conferenciasE16E15(deploy: string | null): Conferencia[] {
 // Em ordem de data. Datas das etapas já em produção: E12 com D0 = 13/10/2026 (primeiro cron depois do deploy de 12/10);
 // E19 com `avisoDesde` = 12/10/2026 (lote 1 enviado em 12/10, dia de São Paulo); E20 com o envio antes do cron de 13/10.
 // Se o envio da E20 atrasar, deslocar `e20-segundo-cron` e corrigir .superpowers/sdd/a5/conferencias-com-data.md.
+const PLANO_E4 = 'docs/superpowers/plans/2026-10-13-a5-e4-medidas-e-marcas-plan.md, Tarefa 12 (conferência com data); anotar o resultado em .superpowers/sdd/a5/conferencias-com-data.md'
+
 const BASE: readonly Conferencia[] = [
   { id: 'e19-d1', etapa: 'E19', data: '2026-10-13', responsavel: 'agente', onde: `${PLANO_E19}: contagem do dia 0 por chave, painel do CMS e /admin/audit sem as linhas, tamanho de audit_log (base: 204.800 bytes, 140 linhas)`, feitaEm: null },
   { id: 'e20-segundo-cron', etapa: 'E20', data: '2026-10-14', responsavel: 'agente', onde: `${PLANO_E20}: resumo do segundo cron depois do envio (consulta B do runbook da coleta): guarda.blobs_guardados_antes é número, baixados_sem_bruto = 0, conferencias_vencidas = [], ms_total e ms_passos.guarda; conta exata blobs_guardados = antes + baixados + vazios`, feitaEm: null },
@@ -189,6 +223,7 @@ const BASE: readonly Conferencia[] = [
   { id: 'e12-d9', etapa: 'E12', data: '2026-10-22', responsavel: 'agente', onde: `${PLANO_E12}: D+9: tipo que gerou histórico e parou de gerar diário (o cron deve estar vermelho: runbook da coleta, seção 10); consulta C`, feitaEm: null },
   { id: 'e19-15o-dia', etapa: 'E19', data: '2026-10-26', responsavel: 'agente', onde: `${PLANO_E19}: se a recusa não subiu, avisar o dono (o registro já está reduzido) e dizer por que a janela não fechou`, feitaEm: null },
   { id: 'e12-item95-a', etapa: 'E12', data: '2026-11-01', responsavel: 'agente', onde: `${PLANO_E12}: item 95, antes do primeiro vencimento na origem: listado_velho = 0 e vencidos_depois_do_deploy = 0 (nada vence sem baixar)`, feitaEm: null },
+  { id: 'e4-dia31', etapa: 'E4', data: '2026-11-03', responsavel: 'agente', onde: `${PLANO_E4}: a consulta da Tarefa 12 (vídeos de 30 a 32 dias com ponto diário hoje), depois das 13 h de São Paulo: as duas contagens iguais em todo canal; diferentes = o teto de 200 diários cortou os da folga (olhar \`cut\`) ou a tarefa não está em produção`, feitaEm: null },
   { id: 'e12-item95-b', etapa: 'E12', data: '2026-11-08', responsavel: 'agente', onde: `${PLANO_E12}: item 95, depois do primeiro vencimento da fila atual (08/11 02:34 UTC e 10:40 UTC), a partir das 12:10 UTC: as mesmas duas consultas, esperado 0 e 0`, feitaEm: null },
   { id: 'e19-30o-dia', etapa: 'E19', data: '2026-11-11', responsavel: 'dono', onde: `${PLANO_E19}: se a janela ainda está aberta, escolher entre subir a recusa e congelar o controle (controleFechadoEm)`, feitaEm: null },
   { id: 'e20-tamanho-30d', etapa: 'E20', data: '2026-11-12', responsavel: 'agente', onde: `${PLANO_E20}: tamanho das duas tabelas, 30 dias`, feitaEm: null },
@@ -198,7 +233,7 @@ const BASE: readonly Conferencia[] = [
 ]
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
