@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/youtube/ab-youtube', () => ({
   setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
@@ -7,18 +7,13 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
 vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('@/lib/youtube/ab-templates', () => ({
-  resolveTemplates: vi.fn((desc: string) => desc),
-}))
-vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: () => ({
-    from: () => ({ select: () => ({ eq: () => Promise.resolve({ data: [] }) }) }),
-  }),
-}))
 
 import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { setThumbnail } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
+import type { TestType } from '@/lib/youtube/ab-types'
+
+beforeEach(() => { vi.clearAllMocks() })
 
 describe('applyVariantToYouTube', () => {
   it('applies thumbnail only for thumbnail test', async () => {
@@ -43,7 +38,7 @@ describe('applyVariantToYouTube', () => {
   it('applies both for combo test', async () => {
     const result = await applyVariantToYouTube({
       youtubeVideoId: 'YT123', accessToken: 'tok',
-      testType: 'combo', variant: { blob_url: 'https://b/i.jpg', title_text: 'T', description_text: 'D' },
+      testType: 'combo', variant: { blob_url: 'https://b/i.jpg', title_text: 'T' },
     })
     expect(result.ok).toBe(true)
   })
@@ -83,5 +78,28 @@ describe('applyVariantToYouTube', () => {
       testType: 'thumbnail', variant: { blob_url: null },
     })
     expect(result.ok).toBe(true)
+  })
+
+  it.each(['title', 'combo', 'thumbnail', 'description'] as const)(
+    'tipo %s: nunca chama updateVideoMetadata com descrição',
+    async (testType) => {
+      await applyVariantToYouTube({
+        youtubeVideoId: 'YT1', accessToken: 'tok', testType: testType as TestType,
+        // variante antiga com descrição gravada no banco: o campo chega por cast, e é ignorado
+        variant: { id: 'v1', blob_url: null, title_text: 'Novo', ...({ description_text: 'DESC NOVA' } as object) },
+        originalTitle: 'Antigo',
+      })
+      for (const call of vi.mocked(updateVideoMetadata).mock.calls) {
+        expect(call).toHaveLength(3)
+        expect(call.join('|')).not.toContain('DESC NOVA')
+      }
+    },
+  )
+
+  it('tipo description não escreve nada no YouTube', async () => {
+    const r = await applyVariantToYouTube({ youtubeVideoId: 'YT1', accessToken: 'tok', testType: 'description' as TestType, variant: { id: 'v1', title_text: null } })
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ ok: true, appliedThumbnail: false, appliedMetadata: false })
   })
 })

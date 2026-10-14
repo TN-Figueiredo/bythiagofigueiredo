@@ -16,7 +16,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({
   recordCronSuccess: vi.fn().mockResolvedValue(undefined),
@@ -34,7 +33,6 @@ import {
   fetchVariantImageBuffer,
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { recordCronSuccess } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
@@ -236,9 +234,6 @@ beforeEach(() => {
     buffer: Buffer.from('img'),
     contentType: 'image/jpeg',
   })
-  ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation(
-    (text: string) => text
-  )
 })
 
 afterEach(() => {
@@ -312,41 +307,6 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      null,
-      'fresh-token-123'
-    )
-    expect(setThumbnail).not.toHaveBeenCalled()
-  })
-
-  it('rotates a description test with link templates', async () => {
-    const test = makeTest({
-      test_type: 'description',
-      variants: [
-        { id: 'v1', sort_order: 0, description_text: 'Desc A {{link:newsletter}}' },
-        { id: 'v2', sort_order: 1, description_text: 'Desc B {{link:curso}}' },
-      ],
-    })
-    const trackedLinks = [
-      { template_name: 'curso', short_code: 'AbC123' },
-    ]
-    buildSupabaseMock({ tests: [test], trackedLinks })
-    ;(resolveTemplates as ReturnType<typeof vi.fn>).mockReturnValue(
-      'Desc B https://go.test.com/AbC123'
-    )
-
-    const req = createCronRequest('test-secret')
-    const res = await GET(req)
-    const body = await res.json()
-
-    expect(body.processed).toBe(1)
-    expect(resolveTemplates).toHaveBeenCalledWith(
-      'Desc B {{link:curso}}',
-      { curso: 'https://go.test.com/AbC123' }
-    )
-    expect(updateVideoMetadata).toHaveBeenCalledWith(
-      'YT_VIDEO_123',
-      null,
-      'Desc B https://go.test.com/AbC123',
       'fresh-token-123'
     )
     expect(setThumbnail).not.toHaveBeenCalled()
@@ -388,7 +348,6 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      'Desc B',
       'fresh-token-123'
     )
   })

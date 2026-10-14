@@ -107,8 +107,6 @@ export const DRIFT_STATUS_NOTE = 'Thumbnail alterado externamente' as const
 export interface AppliedMetadata {
   thumbnail_set?: boolean
   title_set?: string | null
-  description_set?: string | null
-  links_resolved?: Record<string, string>
   youtube_thumbnail_url?: string
 }
 

@@ -408,7 +408,6 @@ describe('applyWinnerNow', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VID_001',
       'New Winner Title',
-      null,
       'fresh-token',
     )
     // Should NOT call setThumbnail since it's a title test with no blob_url
@@ -597,7 +596,7 @@ describe('revertWinner', () => {
     expect(setThumbnail).not.toHaveBeenCalled()
   })
 
-  it('restores original title and description for title test (no setThumbnail)', async () => {
+  it('restores original title for title test (no setThumbnail)', async () => {
     setupRevertMock({
       test_type: 'title',
       original_thumbnail_url: null,
@@ -606,11 +605,10 @@ describe('revertWinner', () => {
     const result = await revertWinner('test-1')
 
     expect(result).toEqual({ ok: true })
-    // Should call updateVideoMetadata with original title + description
+    // Should call updateVideoMetadata with original title only
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VID_001',
       'Orig Title',
-      'Orig Desc',
       'fresh-token',
     )
     // Should NOT call setThumbnail since it's a title test
@@ -638,7 +636,6 @@ describe('revertWinner', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VID_001',
       'Orig Title',
-      'Orig Desc',
       'fresh-token',
     )
   })

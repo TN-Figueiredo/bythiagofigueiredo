@@ -767,7 +767,7 @@ export async function resumeAbTest(
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, original_description, config')
+    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, config')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -780,7 +780,7 @@ export async function resumeAbTest(
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, title_text, description_text, sort_order')
+    .select('id, label, is_original, blob_url, title_text, sort_order')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -808,7 +808,7 @@ export async function resumeAbTest(
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
-    const testType = (test.test_type ?? 'thumbnail') as 'thumbnail' | 'title' | 'description' | 'combo'
+    const testType = (test.test_type ?? 'thumbnail') as TestType
     const applyResult = await applyVariantToYouTube({
       youtubeVideoId,
       accessToken,
@@ -817,10 +817,8 @@ export async function resumeAbTest(
         id: nextVariant.id,
         blob_url: nextVariant.blob_url,
         title_text: nextVariant.title_text,
-        description_text: nextVariant.description_text,
       },
       originalTitle: test.original_title,
-      originalDescription: test.original_description,
     })
     if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
     appliedMeta = applyResult.meta
@@ -1177,7 +1175,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, test_type, original_title, original_description, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
+    .select('id, site_id, status, youtube_video_id, test_type, original_title, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'active')
@@ -1213,7 +1211,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   const nextCycle = (count ?? 0) + 1
 
-  const variants = (test.variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null; description_text: string | null }>)
+  const variants = (test.variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null }>)
     .sort((a, b) => a.sort_order - b.sort_order)
 
   const config = test.config as Record<string, unknown> | null
@@ -1235,15 +1233,13 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
   const applyResult = await applyVariantToYouTube({
     youtubeVideoId,
     accessToken,
-    testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+    testType: testType as TestType,
     variant: {
       id: nextVariant.id,
       blob_url: nextVariant.blob_url,
       title_text: nextVariant.title_text,
-      description_text: nextVariant.description_text,
     },
     originalTitle: test.original_title as string | null,
-    originalDescription: test.original_description as string | null,
   })
 
   if (!applyResult.ok) return { ok: false, error: applyResult.error ?? 'apply failed' }
@@ -1297,7 +1293,7 @@ export async function applyWinnerNow(
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, original_description, grace_expires_at, winner_applied_at')
+    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, grace_expires_at, winner_applied_at')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -1309,7 +1305,7 @@ export async function applyWinnerNow(
   // Get winner variant
   const { data: variant } = await supabase
     .from('ab_test_variants')
-    .select('id, blob_url, title_text, description_text, is_original')
+    .select('id, blob_url, title_text, is_original')
     .eq('id', test.winner_variant_id)
     .single()
 
@@ -1339,15 +1335,13 @@ export async function applyWinnerNow(
   const applyResult = await applyVariantToYouTube({
     youtubeVideoId: video.youtube_video_id as string,
     accessToken: preflight.accessToken,
-    testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+    testType: testType as TestType,
     variant: {
       id: variant.id as string,
       blob_url: variant.blob_url as string | null,
       title_text: variant.title_text as string | null,
-      description_text: variant.description_text as string | null,
     },
     originalTitle: test.original_title as string | null,
-    originalDescription: test.original_description as string | null,
   })
 
   if (!applyResult.ok) {
@@ -1468,7 +1462,7 @@ export async function revertWinner(
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, original_description, revert_expires_at, winner_applied_at')
+    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, revert_expires_at, winner_applied_at')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -1504,13 +1498,8 @@ export async function revertWinner(
       const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url as string)
       await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
     }
-    if (testType === 'title' || testType === 'description' || testType === 'combo') {
-      await updateVideoMetadata(
-        video.youtube_video_id as string,
-        test.original_title as string | null,
-        test.original_description as string | null,
-        preflight.accessToken,
-      )
+    if ((testType === 'title' || testType === 'combo') && test.original_title) {
+      await updateVideoMetadata(video.youtube_video_id as string, test.original_title as string, preflight.accessToken)
     }
   } catch (err) {
     return { ok: false, error: `YouTube API error: ${(err as Error).message}` }

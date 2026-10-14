@@ -23,7 +23,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({
   getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }),
@@ -57,7 +56,6 @@ import {
   fetchVariantImageBuffer,
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
@@ -194,9 +192,6 @@ beforeEach(() => {
     buffer: Buffer.from('img'),
     contentType: 'image/jpeg',
   })
-  ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation(
-    (text: string) => text,
-  )
 })
 
 afterEach(() => {
@@ -239,7 +234,6 @@ describe('forceRotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      null,
       'fresh-token-123',
     )
     expect(setThumbnail).not.toHaveBeenCalled()
@@ -249,8 +243,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'combo',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/a.jpg', is_original: true, title_text: 'Title A', description_text: 'Desc A' },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/b.jpg', is_original: false, title_text: 'Title B', description_text: 'Desc B' },
+        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/a.jpg', is_original: true, title_text: 'Title A' },
+        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/b.jpg', is_original: false, title_text: 'Title B' },
       ],
     })
     buildSupabaseMock({ test })
@@ -267,7 +261,6 @@ describe('forceRotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      'Desc B',
       'fresh-token-123',
     )
   })

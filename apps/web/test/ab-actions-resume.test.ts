@@ -216,7 +216,6 @@ describe('resumeAbTest', () => {
           blob_url: 'https://blob.example/thumb-b.jpg',
         }),
         originalTitle: 'Original Title',
-        originalDescription: 'Original Description',
       }),
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
