@@ -83,7 +83,6 @@ vi.mock('@/lib/cron-health', () => ({
 
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-evaluate/route'
-import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function makeRequest(authHeader?: string): NextRequest {
@@ -223,7 +222,8 @@ describe('GET /api/cron/ab-evaluate', () => {
     const body = await res.json()
     expect(body.status).toBe('ok')
     expect(body.evaluated).toBe(1)
-    expect(calculateBayesianConfidence).not.toHaveBeenCalled()
+    expect(body.resolved).toBe(0)
+    expect(body.errors).toBe(0)
   })
 
   it('a leitura de ab_tests falha: conta erro no cron e captura a exceção no Sentry', async () => {

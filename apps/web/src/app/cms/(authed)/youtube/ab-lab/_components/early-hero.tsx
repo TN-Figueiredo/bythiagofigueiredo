@@ -1,6 +1,7 @@
 'use client'
 
 import type { EarlyCheckpoint } from './early-types'
+import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { Sparkles, Check, Clock } from 'lucide-react'
 
 export interface EarlyHeroProps {
@@ -24,10 +25,8 @@ export function EarlyHero({ checkpoints, pipelineId }: EarlyHeroProps) {
         <h2 className="display text-[22px] font-semibold text-cms-text leading-[1.25] m-0 mb-[10px]">
           Coletando dados
         </h2>
-        <p className="text-[13px] text-cms-text-dim leading-[1.55] max-w-[360px] m-0">
-          O motor Bayesiano precisa de pelo menos um ciclo ABBA completo
-          para começar a calcular confiança. Os primeiros sinais aparecem
-          em poucas horas.
+        <p className="text-[13px] text-cms-text leading-[1.55] max-w-[360px] m-0">
+          {SEM_MEDICAO_DE_ENTREGA}
         </p>
         {pipelineId && (
           <button

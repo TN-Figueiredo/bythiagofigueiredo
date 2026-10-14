@@ -7,6 +7,7 @@ import { EarlyHero } from './early-hero'
 import { EarlyVariantTable } from './early-variant-table'
 import { EmptyChart } from './empty-chart'
 import type { EarlyCheckpoint } from './early-types'
+import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { LayoutGrid } from 'lucide-react'
 
 export interface EarlyDetailProps {
@@ -16,7 +17,6 @@ export interface EarlyDetailProps {
 /** Default checkpoints for early state — computed from view data. */
 function buildCheckpoints(view: AbTestActiveView): EarlyCheckpoint[] {
   const cyclesDone = view.cycles.done
-  const confidence = view.confirmedData.confidence
 
   return [
     {
@@ -32,13 +32,6 @@ function buildCheckpoints(view: AbTestActiveView): EarlyCheckpoint[] {
       eta: cyclesDone >= 4 ? null : '~48h',
       reachedAt: null,
       isSoon: cyclesDone >= 1 && cyclesDone < 4,
-    },
-    {
-      label: 'Confianca minima (5%)',
-      reached: confidence >= 5,
-      eta: confidence >= 5 ? null : '~7 dias',
-      reachedAt: null,
-      isSoon: cyclesDone >= 4 && confidence < 5,
     },
   ]
 }
@@ -97,8 +90,8 @@ export function EarlyDetail({ view }: EarlyDetailProps) {
               <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
               <h3 className="text-[19px] font-semibold text-cms-text m-0">Placar das variantes</h3>
             </div>
-            <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-              CTR e chance de vencer aparecem apos o primeiro ciclo ABBA completo.
+            <p className="text-[12.5px] text-cms-text mt-[5px] max-w-[540px] m-0">
+              {SEM_MEDICAO_DE_ENTREGA}
             </p>
           </div>
         </div>
@@ -109,25 +102,7 @@ export function EarlyDetail({ view }: EarlyDetailProps) {
       </section>
 
       {/* 4x Empty Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[36px]">
-        <EmptyChart
-          icon="TrendingUp"
-          title="Confianca ao longo do tempo"
-          message="O grafico aparece quando o motor acumular dados suficientes dos ciclos ABBA."
-          eta="~48h"
-        />
-        <EmptyChart
-          icon="Crosshair"
-          title="Raio-X das variantes"
-          message="O radar comparativo precisa de pelo menos um ciclo completo por variante."
-          eta="~48h"
-        />
-        <EmptyChart
-          icon="BarChart3"
-          title="Faixa provavel de CTR"
-          message="O intervalo credivel Bayesiano requer dados de impressoes e cliques."
-          eta="~7 dias"
-        />
+      <div className="grid grid-cols-1 gap-[16px] mb-[36px]">
         <EmptyChart
           icon="LineChart"
           title="CTR diario por variante"
