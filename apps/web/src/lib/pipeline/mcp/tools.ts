@@ -728,6 +728,8 @@ export const YoutubeObservatoryShape = {
     .describe('Max results for get_changes and get_outliers'),
   fmt: z.enum(['long', 'short']).optional()
     .describe('get_outliers: long videos (default) or Shorts — never mixed in one comparison'),
+  campos: z.enum(['todos']).optional()
+    .describe('get_changes: also return field changes (tags, category, duration, language, channel name and others)'),
 }
 
 // ---- 18. youtube_analytics ----
