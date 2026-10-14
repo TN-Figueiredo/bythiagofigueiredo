@@ -4,7 +4,7 @@ import { CheckCircle } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import { Badge, VChip } from './ab-primitives'
-import { VARIANT_COLORS, TYPE_META, ROTULO_TIPO_DESCONHECIDO } from './ab-constants'
+import { VARIANT_COLORS, TYPE_META, ROTULO_TIPO_DESCONHECIDO_CURTO } from './ab-constants'
 import { ClickMoment } from './click-moment'
 
 /* ------------------------------------------------------------------ */
@@ -48,7 +48,7 @@ function buildSummaryText(
   config: WizardConfig,
 ): string {
   const parts: string[] = [
-    `${variants.length} variantes ${TYPE_LABELS_PT[type as TestType] ?? ROTULO_TIPO_DESCONHECIDO.toLowerCase()}`,
+    `${variants.length} variantes ${TYPE_LABELS_PT[type as TestType] ?? ROTULO_TIPO_DESCONHECIDO_CURTO}`,
     `rotação ${ROTATION_LABELS[config.rotation]}`,
     `${config.duration} dias`,
   ]

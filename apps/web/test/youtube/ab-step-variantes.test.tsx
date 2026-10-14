@@ -147,4 +147,15 @@ describe('StepVariantes', () => {
     render(<StepVariantes {...defaultProps({ type: 'combo' })} />)
     expect(screen.getByLabelText('Title for variant B')).toBeDefined()
   })
+
+  it('"Titulo mantido" aparece só no tipo thumbnail', () => {
+    const { unmount } = render(<StepVariantes {...defaultProps({ type: 'thumbnail' })} />)
+    expect(screen.getByText(/Titulo mantido/)).toBeDefined()
+    unmount()
+    for (const type of ['title', 'combo'] as const) {
+      const r = render(<StepVariantes {...defaultProps({ type })} />)
+      expect(screen.queryByText(/Titulo mantido/)).toBeNull()
+      r.unmount()
+    }
+  })
 })

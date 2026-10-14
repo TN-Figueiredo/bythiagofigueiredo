@@ -13,7 +13,10 @@ export const VARIANT_COLORS = {
   D: '#A77CE8',
 } as const satisfies Record<DisplayLabel, string>
 
-export const ROTULO_TIPO_DESCONHECIDO = 'Tipo antigo'
+export const ROTULO_TIPO_DESCONHECIDO = 'Teste de descrição (tipo retirado)'
+/** Para frases corridas ("Testar tipo antigo"). */
+export const ROTULO_TIPO_DESCONHECIDO_CURTO = 'tipo antigo'
+export const DICA_TIPO_DESCONHECIDO = 'A descrição não é mais testada no A/B Lab. Este teste fica só para consulta.'
 export const FRASE_COMBO = 'Se ganhar, você não vai saber se foi o título ou a thumbnail.'
 
 export const TYPE_META: Record<TestType, { icon: string; label: string; hint: string }> = {
@@ -25,7 +28,7 @@ export const TYPE_META: Record<TestType, { icon: string; label: string; hint: st
 /** Tipo lido do banco pode estar fora dos três (teste antigo de descrição): nunca undefined. */
 export function tipoMeta(t: string): { icon: string; label: string; hint: string } {
   return (TYPE_META as Record<string, { icon: string; label: string; hint: string }>)[t]
-    ?? { icon: 'HelpCircle', label: ROTULO_TIPO_DESCONHECIDO, hint: '' }
+    ?? { icon: 'HelpCircle', label: ROTULO_TIPO_DESCONHECIDO, hint: DICA_TIPO_DESCONHECIDO }
 }
 
 export function toDisplayLabel(dbLabel: string, isOriginal?: boolean): DisplayLabel {

@@ -405,9 +405,11 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                   >
                     {variant.titleText || 'No title'}
                   </div>
-                  <p style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)', marginTop: 6, margin: '6px 0 0 0' }}>
-                    Titulo mantido — so a thumbnail esta sendo testada.
-                  </p>
+                  {type === 'thumbnail' && (
+                    <p style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)', marginTop: 6, margin: '6px 0 0 0' }}>
+                      Titulo mantido — so a thumbnail esta sendo testada.
+                    </p>
+                  )}
                 </>
               ) : (
                 <>

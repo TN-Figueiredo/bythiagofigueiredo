@@ -30,7 +30,7 @@ export function VChip({ label, size = 22, ring, onClick }: VChipProps) {
 
 /* --- Badge --- */
 const BADGE_TONES = {
-  neutral: 'text-cms-text-dim',
+  neutral: 'text-cms-text-muted',
   accent:  'bg-cms-accent-subtle text-cms-accent',
   green:   'bg-cms-green-subtle text-cms-green',
   amber:   'bg-cms-amber-subtle text-cms-amber',
@@ -45,15 +45,16 @@ export interface BadgeProps {
   children: React.ReactNode
   dot?: boolean
   className?: string
+  title?: string
 }
 
-export function Badge({ tone = 'neutral', children, dot, className = '' }: BadgeProps) {
+export function Badge({ tone = 'neutral', children, dot, className = '', title }: BadgeProps) {
   const toneClass = tone === 'cowork'
     ? `bg-[var(--cms-cowork-subtle)] ${BADGE_TONES.cowork}`
     : BADGE_TONES[tone]
   const bgStyle = tone === 'neutral' ? { background: 'var(--cms-surface-3, var(--cms-surface-hover))' } : undefined
   return (
-    <span className={`inline-flex items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight font-mono ${toneClass} ${className}`} style={bgStyle}>
+    <span className={`inline-flex items-center gap-[5px] rounded-full px-[9px] py-[3px] text-[10.5px] font-semibold tracking-[0.06em] uppercase leading-tight font-mono ${toneClass} ${className}`} style={bgStyle} title={title}>
       {dot && <span className="size-1.5 rounded-full bg-current animate-ab-slot-pulse" />}
       {children}
     </span>
@@ -132,7 +133,7 @@ export function TypeBadge({ type }: TypeBadgeProps) {
   const meta = tipoMeta(type)
   const Icon = TYPE_ICONS[type as TestType] ?? HelpCircle
   return (
-    <Badge tone="neutral">
+    <Badge tone="neutral" title={meta.hint && !(type in TYPE_ICONS) ? meta.hint : undefined}>
       <Icon size={11} aria-hidden="true" className="-translate-y-px" />
       {meta.label}
     </Badge>

@@ -23,7 +23,7 @@ describe('VChip', () => {
 
 describe('Badge', () => {
   it('renders children', () => { render(<Badge>Active</Badge>); expect(screen.getByText('Active')).toBeDefined() })
-  it('applies neutral tone by default', () => { const { container } = render(<Badge>X</Badge>); expect(container.firstElementChild?.className).toContain('text-cms-text-dim') })
+  it('applies neutral tone by default', () => { const { container } = render(<Badge>X</Badge>); expect(container.firstElementChild?.className).toContain('text-cms-text-muted') })
   it('applies accent tone', () => { const { container } = render(<Badge tone="accent">X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-accent-subtle') })
   it('applies green tone', () => { const { container } = render(<Badge tone="green">X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-green-subtle') })
   it('applies amber tone', () => { const { container } = render(<Badge tone="amber">X</Badge>); expect(container.firstElementChild?.className).toContain('bg-cms-amber-subtle') })
@@ -87,8 +87,11 @@ describe('TypeBadge', () => {
   it('renders title label', () => { render(<TypeBadge type="title" />); expect(screen.getByText('Title')).toBeDefined() })
   it('tipo antigo (description) não lança e mostra o rótulo de reserva', () => {
     render(<TypeBadge type={'description' as TestType} />)
-    expect(screen.getByText('Tipo antigo')).toBeDefined()
+    expect(screen.getByText('Teste de descrição (tipo retirado)')).toBeDefined()
     expect(screen.getByTestId('icon-HelpCircle')).toBeDefined()
+    const badge = screen.getByText('Teste de descrição (tipo retirado)').closest('span')!
+    expect(badge.getAttribute('title')).toBe('A descrição não é mais testada no A/B Lab. Este teste fica só para consulta.')
+    expect(badge.className).toContain('text-cms-text-muted')
   })
   it('renders combo label', () => { render(<TypeBadge type="combo" />); expect(screen.getByText('Título + thumbnail')).toBeDefined() })
 })

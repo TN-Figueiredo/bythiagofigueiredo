@@ -55,7 +55,7 @@ describe('StepTipo', () => {
   it('o cartão do combo traz a frase fechada pelo Logan e a introdução nova', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
     expect(screen.getByText('Se ganhar, você não vai saber se foi o título ou a thumbnail.')).toBeDefined()
-    expect(screen.getByText('Título e thumbnail mudam juntos')).toBeDefined()
+    expect(screen.getByText('Os dois mudam juntos.')).toBeDefined()
     expect(screen.getByText('Escolha o que vai ser rotacionado no YouTube.')).toBeDefined()
   })
 

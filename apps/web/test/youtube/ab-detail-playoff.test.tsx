@@ -222,4 +222,14 @@ describe.skip('PlayoffDetail', () => { // TODO: broken by component redesign
     expect(screen.getByText('Chance de vencer')).toBeDefined()
     expect(screen.queryAllByText(/top ?2/i)).toHaveLength(0)
   })
+
+  it('teste de tipo retirado (description) não oferece Duplicar', () => {
+    render(<PlayoffDetail view={makePlayoffView({ flag: 'description' as never })} />)
+    expect(screen.queryByText('Duplicar')).toBeNull()
+  })
+
+  it('teste combo ainda oferece Duplicar', () => {
+    render(<PlayoffDetail view={makePlayoffView({ flag: 'combo' })} />)
+    expect(screen.getByText('Duplicar')).toBeDefined()
+  })
 })

@@ -31,8 +31,8 @@ describe('TYPE_META', () => {
     expect(FRASE_COMBO).toBe('Se ganhar, você não vai saber se foi o título ou a thumbnail.')
   })
   it('tipoMeta: tipo fora dos três tem rótulo de reserva, nunca undefined', () => {
-    expect(ROTULO_TIPO_DESCONHECIDO).toBe('Tipo antigo')
-    expect(tipoMeta('description').label).toBe('Tipo antigo')
+    expect(ROTULO_TIPO_DESCONHECIDO).toBe('Teste de descrição (tipo retirado)')
+    expect(tipoMeta('description').label).toBe('Teste de descrição (tipo retirado)')
     expect(tipoMeta('xyz').icon).toBe('HelpCircle')
     expect(tipoMeta('title')).toBe(TYPE_META.title)
   })

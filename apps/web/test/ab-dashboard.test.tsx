@@ -207,7 +207,7 @@ describe('DraftsBlock', () => {
   it('rascunho antigo de descrição mostra "Tipo antigo", nunca "description" cru', () => {
     const draft = makeDraft({ type: 'description' as never })
     const { container } = render(<DraftsBlock drafts={[draft]} onContinue={vi.fn()} />)
-    expect(screen.getByText('Tipo antigo')).toBeTruthy()
+    expect(screen.getByText('Teste de descrição (tipo retirado)')).toBeTruthy()
     expect(container.textContent).not.toContain('description')
   })
 
@@ -420,6 +420,15 @@ describe('AbLabDashboard', () => {
       />,
     )
     expect(screen.getByText('Nenhum teste ativo')).toBeTruthy()
+  })
+
+  it('menu de filtro usa o token --cms-surface (sem o inexistente surface-2)', () => {
+    render(<AbLabDashboard {...baseProps} cards={[makeCardView()]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Todos os tipos/ }))
+    const opcao = screen.getAllByRole('button', { name: 'Título + thumbnail' }).pop()!
+    const menu = opcao.parentElement as HTMLElement
+    expect(menu.getAttribute('style')).toContain('var(--cms-surface)')
+    expect(menu.getAttribute('style')).not.toContain('surface-2')
   })
 
   it('opens Settings drawer when Settings button is clicked', () => {

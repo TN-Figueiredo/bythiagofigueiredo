@@ -166,7 +166,7 @@ export function AbLabDashboard({
               {filterOpen && (
                 <div
                   className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-[10px] border border-cms-border overflow-hidden shadow-lg"
-                  style={{ background: 'var(--cms-surface-2, #272219)' }}
+                  style={{ background: 'var(--cms-surface)' }}
                 >
                   {(Object.keys(TYPE_FILTER_LABELS) as Array<typeof typeFilter>).map(key => (
                     <button

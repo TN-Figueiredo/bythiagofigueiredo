@@ -30,10 +30,12 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           hasPlayoff={view.hasPlayoff}
           actions={
             <div className="flex gap-[9px] shrink-0">
-              <button type="button" className={BTN}>
-                <Copy size={14} aria-hidden="true" />
-                Duplicar
-              </button>
+              {(view.flag === 'title' || view.flag === 'thumbnail' || view.flag === 'combo') && (
+                <button type="button" className={BTN}>
+                  <Copy size={14} aria-hidden="true" />
+                  Duplicar
+                </button>
+              )}
               <button type="button" className={BTN}>
                 <Archive size={14} aria-hidden="true" />
                 Arquivar

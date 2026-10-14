@@ -607,8 +607,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between py-[16px] px-[24px] shrink-0" style={{ borderTop: '1px solid var(--cms-border, #332D25)', background: 'var(--cms-bg-side)' }}>
-          <span className="text-[11.5px] text-cms-text-dim">
+        <div className="flex flex-wrap items-center justify-between gap-x-[12px] gap-y-[10px] py-[16px] px-[16px] sm:px-[24px] shrink-0" style={{ borderTop: '1px solid var(--cms-border, #332D25)', background: 'var(--cms-bg-side)' }}>
+          <span className="text-[12px] text-cms-text-muted">
             {state.error ? (
               <span className="text-red-400">{state.error}</span>
             ) : state.step === 1 ? (
@@ -617,7 +617,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               `Passo ${state.step + 1} de 5`
             )}
           </span>
-          <div className="flex items-center gap-[10px]">
+          <div className="flex flex-col-reverse min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-end gap-[10px] w-full min-[480px]:w-auto ml-auto">
             {state.step === 0 ? (
               <button
                 onClick={onClose}
@@ -639,7 +639,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             {state.step === 1 && (
               <button
                 onClick={goNext}
-                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
+                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
                 style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
               >
                 Pular
@@ -650,7 +650,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               <button
                 onClick={goNext}
                 disabled={!canAdvance || isPending}
-                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
               >
                 Próximo
@@ -670,7 +670,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={isPending || state.isLaunching}
-                  className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40"
+                  className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40"
                   style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
                 >
                   <Play size={14} aria-hidden="true" />
@@ -731,12 +731,12 @@ function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepCli
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                 ) : visualIdx + 1}
               </span>
-              <span className="text-[13px]" style={{ fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--cms-text)' : 'var(--cms-text-dim)' }}>
+              <span className={`text-[13px] ${isActive ? '' : 'hidden sm:inline'}`} style={{ fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--cms-text)' : 'var(--cms-text-dim)' }}>
                 {label}
               </span>
             </div>
             {visualIdx < VISIBLE_STEPS.length - 1 && (
-              <div className="flex-1 h-px mx-[12px]" style={{ background: 'var(--cms-border, #332D25)' }} />
+              <div className="flex-1 min-w-[8px] h-px mx-[6px] sm:mx-[12px]" style={{ background: 'var(--cms-border, #332D25)' }} />
             )}
           </div>
         )

@@ -18,7 +18,7 @@ const TYPES: Array<{
   desc: string
   extra?: string
 }> = [
-  { type: 'combo',     icon: Layers, title: 'Título + thumbnail', desc: 'Título e thumbnail mudam juntos', extra: FRASE_COMBO },
+  { type: 'combo',     icon: Layers, title: 'Título + thumbnail', desc: 'Os dois mudam juntos.', extra: FRASE_COMBO },
   { type: 'thumbnail', icon: Image,  title: 'Thumbnail',          desc: 'Só a miniatura muda' },
   { type: 'title',     icon: Type,   title: 'Título',             desc: 'Só o título muda' },
 ]
@@ -50,10 +50,10 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
         ref={containerRef}
         role="radiogroup"
         aria-label="Tipo de teste"
-        className="grid grid-cols-2 gap-[14px]"
+        className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-[14px]"
         onKeyDown={handleKeyDown}
       >
-        {TYPES.map(({ type, icon: Icon, title, desc, extra }) => {
+        {TYPES.map(({ type, icon: Icon, title, desc, extra }, index) => {
           const isSelected = selected === type
           return (
             <button
@@ -63,7 +63,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
               aria-checked={isSelected}
               tabIndex={isSelected || (selected === null && type === TYPES[0]?.type) ? 0 : -1}
               onClick={() => onSelect(type)}
-              className="text-left rounded-[12px] p-[18px] cursor-pointer transition-[0.15s] focus:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent relative"
+              className={`text-left rounded-[12px] p-[18px] cursor-pointer transition-[0.15s] focus:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent relative${index === 0 ? ' min-[480px]:col-span-2' : ''}`}
               style={{
                 border: isSelected ? '1.5px solid var(--cms-accent)' : '1.5px solid var(--cms-border, #332D25)',
                 background: isSelected ? 'var(--accent-soft, rgba(255,130,64,0.08))' : 'var(--cms-surface-hover)',
@@ -86,7 +86,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
               </div>
               <div className="text-[12.5px] text-cms-text-dim">{desc}</div>
               {extra && (
-                <div className="text-[11.5px] text-cms-text-dim mt-[6px] opacity-80">{extra}</div>
+                <div className="text-[12.5px] text-cms-text-muted mt-[6px]">{extra}</div>
               )}
             </button>
           )

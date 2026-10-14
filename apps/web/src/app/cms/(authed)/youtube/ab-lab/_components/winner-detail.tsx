@@ -37,10 +37,12 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           hasPlayoff={view.hasPlayoff}
           actions={
             <div className="flex gap-[9px] shrink-0">
-              <button type="button" className={BTN}>
-                <Copy size={14} aria-hidden="true" />
-                Duplicar
-              </button>
+              {(view.flag === 'title' || view.flag === 'thumbnail' || view.flag === 'combo') && (
+                <button type="button" className={BTN}>
+                  <Copy size={14} aria-hidden="true" />
+                  Duplicar
+                </button>
+              )}
               <button type="button" onClick={async () => {
                 if (!confirm('Arquivar este teste? Os dados serão preservados mas o teste sairá da lista principal.')) return
                 const result = await archiveAbTest(view.id)

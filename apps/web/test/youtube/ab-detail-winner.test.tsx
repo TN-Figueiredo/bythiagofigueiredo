@@ -320,4 +320,14 @@ describe('WinnerDetail', () => {
     const variantTable = tables.find(t => t.getAttribute('aria-label') === 'Variant comparison')
     expect(variantTable).toBeDefined()
   })
+
+  it('teste de tipo retirado (description) não oferece Duplicar', () => {
+    render(<WinnerDetail view={makeWinnerView({ flag: 'description' as never })} />)
+    expect(screen.queryByText('Duplicar')).toBeNull()
+  })
+
+  it('teste combo ainda oferece Duplicar', () => {
+    render(<WinnerDetail view={makeWinnerView({ flag: 'combo' })} />)
+    expect(screen.getByText('Duplicar')).toBeDefined()
+  })
 })

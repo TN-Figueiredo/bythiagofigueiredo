@@ -55,7 +55,7 @@ describe('StepTipo', () => {
   it('o cartão do combo traz a frase fechada pelo Logan e a introdução nova', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
     expect(screen.getByText('Se ganhar, você não vai saber se foi o título ou a thumbnail.')).toBeDefined()
-    expect(screen.getByText('Título e thumbnail mudam juntos')).toBeDefined()
+    expect(screen.getByText('Os dois mudam juntos.')).toBeDefined()
     expect(screen.getByText('Escolha o que vai ser rotacionado no YouTube.')).toBeDefined()
   })
 
@@ -101,5 +101,25 @@ describe('StepTipo', () => {
     const radios = screen.getAllByRole('radio')
     fireEvent.click(radios[1]!)
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
+  })
+
+  it('frase do combo: 12.5px, text-muted, sem opacity; linha vira "Os dois mudam juntos."', () => {
+    render(<StepTipo selected={null} onSelect={vi.fn()} />)
+    expect(screen.getByText('Os dois mudam juntos.')).toBeDefined()
+    expect(screen.queryByText('Título e thumbnail mudam juntos')).toBeNull()
+    const frase = screen.getByText('Se ganhar, você não vai saber se foi o título ou a thumbnail.')
+    expect(frase.className).toContain('text-[12.5px]')
+    expect(frase.className).toContain('text-cms-text-muted')
+    expect(frase.className).not.toContain('opacity')
+  })
+
+  it('grade: 1 coluna abaixo de 480px, 2 acima; combo ocupa a largura toda', () => {
+    render(<StepTipo selected={null} onSelect={vi.fn()} />)
+    const grid = screen.getByRole('radiogroup')
+    expect(grid.className).toContain('grid-cols-1')
+    expect(grid.className).toContain('min-[480px]:grid-cols-2')
+    const radios = screen.getAllByRole('radio')
+    expect(radios[0]!.className).toContain('min-[480px]:col-span-2')
+    expect(radios[1]!.className).not.toContain('col-span-2')
   })
 })
