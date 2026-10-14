@@ -61,9 +61,34 @@ describe('prova que não existe = vermelho com motivo, nunca verde', () => {
   it('função ausente (schema): nota com o motivo', async () => {
     const db = fakeSupabase({}) // sem handler: PGRST202
     const { falhas, r } = await rodar(db)
-    expect(falhas).toEqual(['dimensões: prova não avaliada (schema ausente: yt_own_dim_prova)'])
+    expect(falhas).toEqual(['dimensões: prova não avaliada (migration MG7 não aplicada: falta a função yt_own_dim_prova)'])
     expect(r.provas).toEqual({ 'site-1': null })
     expect(r.avaliados).toEqual([])
+  })
+
+  it('função ausente e tabela de cobertura ausente: o nome da MG14, não o da MG7', async () => {
+    const db = fakeSupabase({})
+    db.errors['yt_own_video_coverage'] = { code: '42P01', message: 'relation "public.yt_own_video_coverage" does not exist' }
+    const { falhas, r } = await rodar(db)
+    expect(falhas).toEqual(['dimensões: prova não avaliada (migration MG14 não aplicada: falta a tabela yt_own_video_coverage)'])
+    expect(falhas.join(' ')).not.toContain('relation')
+    expect(r.provas).toEqual({ 'site-1': null })
+  })
+
+  it('função ausente com a cobertura em erro que não é de schema: continua sendo a MG7', async () => {
+    const db = fakeSupabase({})
+    db.errors['yt_own_video_coverage'] = { code: '57014', message: 'timeout' }
+    expect((await rodar(db)).falhas).toEqual(['dimensões: prova não avaliada (migration MG7 não aplicada: falta a função yt_own_dim_prova)'])
+  })
+
+  it('função ausente e a cobertura nunca responde: MG7 em 5 s, sem travar', async () => {
+    vi.useFakeTimers()
+    const db = fakeSupabase({})
+    const real = db.client.from.bind(db.client)
+    db.client.from = ((t: string) => (t === 'yt_own_video_coverage' ? { select: () => ({ limit: () => new Promise(() => {}) }) } : real(t))) as typeof db.client.from
+    const p = rodar(db)
+    await vi.advanceTimersByTimeAsync(5_001)
+    expect((await p).falhas).toEqual(['dimensões: prova não avaliada (migration MG7 não aplicada: falta a função yt_own_dim_prova)'])
   })
 
   it('resposta nula (data null sem erro): forma inesperada', async () => {
@@ -282,7 +307,7 @@ describe('passo desligado', () => {
   it('prova que falha com só os normalizadores ligados: nota, nunca verde', async () => {
     const db = fakeSupabase({})
     const { falhas } = await rodar(db, { desligados: { dimensoes: true, normalizadores: false } })
-    expect(falhas).toEqual(['dimensões: prova não avaliada (schema ausente: yt_own_dim_prova)'])
+    expect(falhas).toEqual(['dimensões: prova não avaliada (migration MG7 não aplicada: falta a função yt_own_dim_prova)'])
   })
 })
 
