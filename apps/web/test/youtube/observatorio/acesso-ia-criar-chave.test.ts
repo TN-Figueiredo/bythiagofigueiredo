@@ -9,8 +9,14 @@ import { e19ConferidaParaChave } from '@/lib/youtube/observatorio/acesso-ia/inte
 import { conferenciaDeVencimento } from '@/lib/youtube/observatorio/acesso-ia/vencimento'
 import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
 
-const AGORA = Date.parse('2030-03-10T15:00:00Z')
 const DIA = 86_400_000
+/** Sempre 15:00 UTC do dia de hoje: datas relativas, nunca ano fixo (o guardião de higiene reprova). */
+const AGORA = Math.floor(Date.now() / DIA) * DIA + 15 * 3_600_000
+const ymd = (ms: number): string => new Date(ms - 3 * 3_600_000).toISOString().slice(0, 10)
+const HOJE = ymd(AGORA).replace(/-/g, '')
+const ANT = ymd(AGORA - 60 * DIA).replace(/-/g, '')
+const ANTES = ymd(AGORA - 9 * DIA)
+const MUITO_ANTES = ymd(AGORA - 70 * DIA)
 const SITE_A = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
 const SITE_B = '4a2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a11'
 const ANA = '9a1b2c3d-0000-4000-8000-00000000aaaa'
@@ -20,7 +26,7 @@ const EMAIL = 'ana@example.test'
 const PERFIL = 'observatorio_leitura'
 
 interface Chave { name?: string; site_id: string; user_id: string | null; expires_at: string | null; permissions: string[]; revoked_at: string | null }
-const chave = (o: Partial<Chave> = {}): Chave => ({ name: 'observatorio-20291201-abcd', site_id: SITE_A, user_id: ANA, expires_at: new Date(AGORA + 100 * DIA).toISOString(), permissions: [PERFIL], revoked_at: null, ...o })
+const chave = (o: Partial<Chave> = {}): Chave => ({ name: `observatorio-${MUITO_ANTES.replace(/-/g, '')}-abcd`, site_id: SITE_A, user_id: ANA, expires_at: new Date(AGORA + 100 * DIA).toISOString(), permissions: [PERFIL], revoked_at: null, ...o })
 
 interface Cenario {
   usuarios: Array<{ id: string; email: string }>
@@ -64,7 +70,7 @@ function fazer(c: Partial<Cenario> = {}) {
     sb: sb as never,
     agora: () => AGORA,
     e19: () => ({ ok: true }),
-    excecaoEm: '2030-03-01',
+    excecaoEm: ANTES,
     aleatorio: (k) => Buffer.alloc(k, ++n === 1 ? 0xab : 0x01 * n),
   }
   return { cen, deps, inserts, paginas }
@@ -86,7 +92,7 @@ describe('criarChaveDoPerfil: o caminho feliz', () => {
     expect(l.site_id).toBe(SITE_A)
     expect(l.created_by).toBeNull()
     expect(l.expires_at).toBe(new Date(AGORA + 180 * DIA).toISOString())
-    expect(l.name).toMatch(/^observatorio-20300310-[0-9a-f]{4}$/)
+    expect(l.name).toMatch(new RegExp(`^observatorio-${HOJE}-[0-9a-f]{4}$`))
     expect(r.nome).toBe(l.name)
     expect(r.chave.startsWith('obs_')).toBe(true)
     expect(r.chave.length).toBe(4 + 43)
@@ -202,11 +208,11 @@ describe('criarChaveDoPerfil: as recusas (cada uma com zero inserts)', () => {
   it('o nome gerado já existe numa chave ativa, ou REVOGADA: nome_repetido', async () => {
     const c = fazer()
     // o aleatório injetado repete: primeiro valor 0xab 0xab -> abab
-    const nome = 'observatorio-20300310-abab'
+    const nome = `observatorio-${HOJE}-abab`
     c.cen.chaves.push(chave({ name: nome, site_id: SITE_B }))
     expect(await recusa(c)).toBe('nome_repetido')
     const d = fazer()
-    d.cen.chaves.push(chave({ name: nome, revoked_at: '2030-01-01T00:00:00Z', permissions: ['read'] }))
+    d.cen.chaves.push(chave({ name: nome, revoked_at: new Date(AGORA - 70 * DIA).toISOString(), permissions: ['read'] }))
     expect(await recusa(d)).toBe('nome_repetido')
   })
   it('validade: dias 0, 367, 1,5, negativo, NaN: validade_invalida', async () => {
@@ -226,12 +232,12 @@ describe('criarChaveDoPerfil: as recusas (cada uma com zero inserts)', () => {
   })
   it('chave vencida não é ativa: duas outras pessoas ativas e a pessoa só com chave vencida (não é "renovando"): teto_de_chaves', async () => {
     const c = fazer()
-    c.cen.chaves.push(chave({ expires_at: new Date(AGORA - DIA).toISOString() }), chave({ user_id: BIA, name: 'observatorio-20300101-0001' }), chave({ user_id: CAI, name: 'observatorio-20300101-0002' }))
+    c.cen.chaves.push(chave({ expires_at: new Date(AGORA - DIA).toISOString() }), chave({ user_id: BIA, name: `observatorio-${ANT}-0001` }), chave({ user_id: CAI, name: `observatorio-${ANT}-0002` }))
     expect(await recusa(c)).toBe('teto_de_chaves')
   })
   it('a pessoa já tem duas ativas (renovou e a antiga ainda não venceu): ja_tem_chave', async () => {
     const c = fazer()
-    c.cen.chaves.push(chave({ name: 'observatorio-20300301-0001', expires_at: new Date(AGORA + 5 * DIA).toISOString() }), chave({ name: 'observatorio-20300302-0002' }))
+    c.cen.chaves.push(chave({ name: `observatorio-${ANT}-0001`, expires_at: new Date(AGORA + 5 * DIA).toISOString() }), chave({ name: `observatorio-${ANT}-0002` }))
     expect(await recusa(c)).toBe('ja_tem_chave')
   })
   it('o filtro de site: a mesma pessoa com chave ativa em outro site pode criar neste', async () => {
@@ -239,7 +245,7 @@ describe('criarChaveDoPerfil: as recusas (cada uma com zero inserts)', () => {
     expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
   })
   it('chave revogada da pessoa não conta como ativa', async () => {
-    const c = fazer(); c.cen.chaves.push(chave({ revoked_at: '2030-02-01T00:00:00Z' }))
+    const c = fazer(); c.cen.chaves.push(chave({ revoked_at: new Date(AGORA - 40 * DIA).toISOString() }))
     expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
   })
   it('chave de outro perfil (read, intelligence, read+write+admin) não conta como ativa do perfil', async () => {
@@ -248,25 +254,25 @@ describe('criarChaveDoPerfil: as recusas (cada uma com zero inserts)', () => {
   })
   it('já existem duas PESSOAS com chave ativa e chega a terceira: teto_de_chaves', async () => {
     const c = fazer({ ve: { [ANA]: [SITE_A], [BIA]: [SITE_A], [CAI]: [SITE_A] }, usuarios: [{ id: ANA, email: EMAIL }] })
-    c.cen.chaves.push(chave({ user_id: BIA, name: 'observatorio-20300101-0001' }), chave({ user_id: CAI, name: 'observatorio-20300101-0002' }))
+    c.cen.chaves.push(chave({ user_id: BIA, name: `observatorio-${ANT}-0001` }), chave({ user_id: CAI, name: `observatorio-${ANT}-0002` }))
     expect(await recusa(c)).toBe('teto_de_chaves')
   })
   it('duas pessoas, uma delas renovando (três linhas ativas, duas pessoas): a renovação da segunda é aceita', async () => {
     const c = fazer()
     c.cen.chaves.push(
-      chave({ user_id: ANA, expires_at: new Date(AGORA + 10 * DIA).toISOString(), name: 'observatorio-20300101-0001' }),
-      chave({ user_id: BIA, name: 'observatorio-20300101-0002' }),
+      chave({ user_id: ANA, expires_at: new Date(AGORA + 10 * DIA).toISOString(), name: `observatorio-${ANT}-0001` }),
+      chave({ user_id: BIA, name: `observatorio-${ANT}-0002` }),
     )
     expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
   })
   it('chave ativa com user_id NULO (pessoa apagada, chave não revogada) não conta no teto', async () => {
     const c = fazer()
-    c.cen.chaves.push(chave({ user_id: BIA, name: 'observatorio-20300101-0001' }), chave({ user_id: null, name: 'observatorio-20300101-0002' }))
+    c.cen.chaves.push(chave({ user_id: BIA, name: `observatorio-${ANT}-0001` }), chave({ user_id: null, name: `observatorio-${ANT}-0002` }))
     expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
   })
   it('duas pessoas com chave ativa mais uma linha de user_id nulo, e chega a terceira pessoa: teto_de_chaves', async () => {
     const c = fazer()
-    c.cen.chaves.push(chave({ user_id: BIA, name: 'observatorio-20300101-0001' }), chave({ user_id: CAI, name: 'observatorio-20300101-0002' }), chave({ user_id: null, name: 'observatorio-20300101-0003' }))
+    c.cen.chaves.push(chave({ user_id: BIA, name: `observatorio-${ANT}-0001` }), chave({ user_id: CAI, name: `observatorio-${ANT}-0002` }), chave({ user_id: null, name: `observatorio-${ANT}-0003` }))
     expect(await recusa(c)).toBe('teto_de_chaves')
   })
   it('o insert falha: ok false e NENHUMA chave no retorno', async () => {
@@ -346,8 +352,8 @@ describe('estrutura: o comando só insere, e o preparo não abre nada', () => {
     }
     expect(exige(null, { scripts: {} }, 'sem a frase')).toBe(true)
     expect(exige(null, { scripts: { 'observatorio:acesso': 'x' } }, 'sem a frase')).toBe(false)
-    expect(exige('2030-03-01', { scripts: { 'observatorio:acesso': 'x' } }, 'npm run observatorio:acesso')).toBe(true)
-    expect(exige('2030-03-01', { scripts: {} }, 'npm run observatorio:acesso')).toBe(false)
-    expect(exige('2030-03-01', { scripts: { 'observatorio:acesso': 'x' } }, 'sem a frase')).toBe(false)
+    expect(exige(ANTES, { scripts: { 'observatorio:acesso': 'x' } }, 'npm run observatorio:acesso')).toBe(true)
+    expect(exige(ANTES, { scripts: {} }, 'npm run observatorio:acesso')).toBe(false)
+    expect(exige(ANTES, { scripts: { 'observatorio:acesso': 'x' } }, 'sem a frase')).toBe(false)
   })
 })

@@ -310,8 +310,61 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
   return [{ id: 'e17d1-nucleo-d1', etapa: 'E17', data: somaDias(envio, 1), responsavel: 'agente', onde: `${PLANO_E17D1}: Sentry sem evento novo nos sete page.tsx refeitos pela extração montar (Tarefas 8a e 8b)`, feitaEm: null }]
 }
 
+// E17 degrau 2 ("acesso direto pelo Claude Code"): três marcos, cada um com a sua constante, todas `null` até o controlador preenchê-las no commit
+// do dia. Enquanto forem `null`, as entradas NÃO existem. Etapa `E17`, ids `e17d2-`. As consultas K1 a K11 estão na seção 11 do plano.
+/** Dia de São Paulo (AAAA-MM-DD) em que o código do degrau 2 foi para `main`, com a variável AUSENTE (lote 2). `null` = ainda não enviado. */
+export const E17_D2_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono abriu o acesso (A0: chave criada, variável `on`, redeploy). `null` = fechado. */
+export const E17_D2_ABERTURA: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) do envio do lote 3 (a tarefa de poda na agenda). `null` = ainda não enviado. */
+export const E17_D2_PODA_DEPLOY: string | null = null
+
+const PLANO_E17D2 = 'docs/superpowers/plans/2026-10-13-a5-e17-degrau-2-acesso-pelo-claude-code-plan.md (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e17-d2/progress.md'
+
+/** D0, D+1 e D+7 do envio com a variável ausente. Data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasE17D2(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e17d2-deploy-invalido', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D2_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, 20 minutos depois do deploy: K1 e K6 (0 chaves do perfil; as três chaves existentes com `last_used_at` da forja da fila avançando; `expires_at` e `user_id` nulos nas três); `curl` sem chave em /api/mcp dá 401 com a frase de hoje; `OBSERVATORIO_IA_EXTERNA` ausente nos três ambientes da Vercel'),
+    e('d1', 1, 'D+1: K4 e K5 (nenhuma linha de origem `mcp`; contador vazio)'),
+    e('d7', 7, 'D+7: K1 e K6 (os mesmos de D0); `OBSERVATORIO_IA_EXTERNA` continua ausente na Vercel'),
+  ]
+}
+
+/** A0, A0+1, A0+7 e A0+30 do dia em que o dono abriu o acesso. */
+export function conferenciasE17D2Abertura(abertura: string | null): Conferencia[] {
+  if (abertura === null) return []
+  if (!dataReal(abertura)) {
+    return [{ id: 'e17d2-abertura-invalida', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D2_ABERTURA (apps/web/src/lib/conferencias.ts) está malformada: "${abertura}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono abriu o acesso) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(abertura, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
+  return [
+    e('a0', 0, 'A0, 10 minutos depois da primeira consulta: K8 e K9 (linhas `mcp` com `result = ok`, uma por chamada; `output_chars` abaixo de 60.000; duração por chamada)'),
+    e('a0-1', 1, 'A0+1: K8 (`limite` e `recusado` em zero ou explicados)'),
+    e('a0-7', 7, "A0+7: K10 (o contador com no máximo 2 dias de linhas) e K11 (tamanho do registro e bytes por linha, contra 300 a 450). Leitura a mais, do controlador, só leitura: `select (at at time zone 'UTC')::date as dia, result, count(*) from obs_ai_access_log where at > now() - interval '7 days' group by 1, 2 order by 1`. Nenhuma linha devolvida quer dizer 'ninguém usou', não 'taxa folgada'. Linhas `limite` em mais de 2 dos dias devolvidos: levar ao dono a pergunta de subir a taxa, com a contagem; o plano não sobe o número sozinho"),
+    e('a0-30', 30, 'A0+30: K11 de novo (projeção de 400 dias contra o teto do banco)'),
+  ]
+}
+
+/** P+1 e P+7 do envio do lote 3 (a tarefa `poda_acesso_ia`): K7. */
+export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
+  if (envio === null) return []
+  if (!dataReal(envio)) {
+    return [{ id: 'e17d2-poda-deploy-invalido', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D2_PODA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${envio}". Corrigir para AAAA-MM-DD (dia de São Paulo do envio da poda) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(envio, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
+  return [
+    e('poda-p1', 1, 'P+1: K7 (a primeira execução de `poda_acesso_ia` com `ok` e os dois totais). Nenhuma linha = a tarefa não rodou: parar e avisar, nunca "nada a podar"'),
+    e('poda-p7', 7, 'P+7: K7 (7 execuções da poda sem vermelho)'),
+  ]
+}
+
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

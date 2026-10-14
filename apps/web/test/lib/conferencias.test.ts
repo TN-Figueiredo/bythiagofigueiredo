@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE1E2, conferenciasE6P2, conferenciasE6P3, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE1E2, conferenciasE6P2, conferenciasE6P3, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -584,5 +584,52 @@ describe.each([
       expect(ehData(publicada)).toBe(true)
       expect(publicadas).toContain(ids[0])
     }
+  })
+})
+
+// E17 degrau 2 (acesso pelo Claude Code, Tarefa 16): datas relativas ao AGORA com timers falsos, como o resto do arquivo.
+describe('E17 degrau 2: conferências de envio, abertura e poda', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('com as constantes nulas (o valor real publicado), nenhuma entrada de E17 do degrau 2 existe', () => {
+    expect(E17_D2_DEPLOY).toBeNull()
+    expect(E17_D2_ABERTURA).toBeNull()
+    expect(E17_D2_PODA_DEPLOY).toBeNull()
+    expect(CONFERENCIAS.filter(x => x.id.startsWith('e17d2-'))).toEqual([])
+    expect(conferenciasE17D2(null)).toEqual([])
+    expect(conferenciasE17D2Abertura(null)).toEqual([])
+    expect(conferenciasE17D2Poda(null)).toEqual([])
+  })
+  it('com uma data, as entradas saem em ordem e com data absoluta: D0, D+1, D+7; A0, A0+1, A0+7, A0+30; P+1, P+7', () => {
+    const d = conferenciasE17D2(dia(-10))
+    expect(d.map(x => x.id)).toEqual(['e17d2-d0', 'e17d2-d1', 'e17d2-d7'])
+    expect(d.map(x => x.data)).toEqual([dia(-10), dia(-9), dia(-3)])
+    const a = conferenciasE17D2Abertura(dia(-10))
+    expect(a.map(x => x.id)).toEqual(['e17d2-a0', 'e17d2-a0-1', 'e17d2-a0-7', 'e17d2-a0-30'])
+    expect(a.map(x => x.data)).toEqual([dia(-10), dia(-9), dia(-3), dia(20)])
+    const p = conferenciasE17D2Poda(dia(-10))
+    expect(p.map(x => x.id)).toEqual(['e17d2-poda-p1', 'e17d2-poda-p7'])
+    expect(p.map(x => x.data)).toEqual([dia(-9), dia(-3)])
+    for (const x of [...d, ...a, ...p]) { expect(x.etapa).toBe('E17'); expect(x.feitaEm).toBeNull(); expect(x.onde).toContain('a5-e17-d2') }
+  })
+  it('a K10 só está em A0+7 (não em A0+1) e a leitura a mais traz a consulta por dia de UTC e a frase "ninguém usou"', () => {
+    const a = Object.fromEntries(conferenciasE17D2Abertura(dia(-10)).map(x => [x.id, x.onde]))
+    expect(a['e17d2-a0-7']).toMatch(/K10/)
+    expect(a['e17d2-a0-1']).not.toMatch(/K10/)
+    expect(a['e17d2-a0-7']).toMatch(/at at time zone 'UTC'/)
+    expect(a['e17d2-a0-7']).toMatch(/ninguém usou/)
+    expect(a['e17d2-a0-7']).toMatch(/o plano não sobe o número sozinho/)
+  })
+  it('data malformada vira a entrada de 1970, vermelha, nas três', () => {
+    for (const [f, id] of [[conferenciasE17D2, 'e17d2-deploy-invalido'], [conferenciasE17D2Abertura, 'e17d2-abertura-invalida'], [conferenciasE17D2Poda, 'e17d2-poda-deploy-invalido']] as const) {
+      const l = f('2026-02-30')
+      expect(l.map(x => x.id)).toEqual([id])
+      expect(l[0]!.data).toBe('1970-01-01')
+    }
+  })
+  it('com E17_D2_PODA_DEPLOY nula, nenhuma entrada da K7 existe; com data, saem P+1 e P+7', () => {
+    expect(conferenciasE17D2Poda(null)).toEqual([])
+    expect(conferenciasE17D2Poda(dia(0)).map(x => x.onde.includes('K7'))).toEqual([true, true])
   })
 })
