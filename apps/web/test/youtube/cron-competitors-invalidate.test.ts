@@ -13,6 +13,7 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/youtube/sync', () => ({ syncChannel: vi.fn(), YouTubeQuotaError: class extends Error {} }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
 vi.mock('@/lib/youtube/competitor-sync-batch', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/youtube/competitor-sync-batch')>()), runCompetitorBatch: vi.fn(), batchHealth: vi.fn(() => ({ ok: true })) }))
+vi.mock('@/lib/youtube/agenda/arquivo-sem-agenda', () => ({ lerArquivoSemAgenda: vi.fn(async () => ({ problemas: [], notas: [], acao: [], banco: {} })) }))
 vi.mock('@/lib/youtube/competitor-health', () => ({ schemaReady: vi.fn(async () => null), readSiteHealth: vi.fn(async () => ({ ok: true, problems: [], notes: [] })) }))
 // OBS_AGENDA=off (abaixo): a rota roda o lote antigo inteiro. A lista que roda antes dele é falso de módulo, só arranjo (não afirmação).
 vi.mock('@/lib/youtube/agenda/executar', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/agenda/executar')>()), rodarAntesDoLoteAntigo: vi.fn(async () => ({ tarefas: [], problemas: [], notas: [] })) }))

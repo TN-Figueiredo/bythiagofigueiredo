@@ -225,10 +225,10 @@ describe('o catálogo real e a lista obedecem ao contrato de registro', () => {
       expect(typeof t.rodar, t.nome).toBe('function')
     }
   })
-  it('o catálogo tem o código das cinco definições da lista única (a do vigia), na mesma ordem', () => {
+  it('o catálogo tem o código das seis definições da lista única (a do vigia), na mesma ordem', () => {
     expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
     for (const d of TODAS_AS_DEFINICOES) expect(CATALOGO.find(t => t.nome === d.nome)).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs, toleranciaVigiaH: d.toleranciaVigiaH, periodo: d.periodo })
-    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios'].sort())
+    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco'].sort())
   })
   it('toda tarefa da lista é nuncaDesliga com fimAteMs ≤ LEVE_FIM_MS, e o maior da lista também (que é < BATCH_BUDGET_MS)', () => {
     for (const t of antesDoLoteAntigo) {

@@ -292,14 +292,14 @@ export function notasDePausa(rows: BatchRow[], nowMs: number): NotasDePausa {
   for (const r of pausados) {
     const desde = Date.parse(r.collection_paused_at ?? '')
     if (Number.isNaN(desde)) {
-      acao.push('canal ' + nameOf(r) + ' com a coleta pausada há tempo desconhecido e ainda não removido: remover ou despausar')
+      acao.push('canal ' + clip(nameOf(r), 60) + ' com a coleta pausada há tempo desconhecido e ainda não removido: remover ou despausar')
       continue
     }
     const ms = nowMs - desde
     if (ms > limite) {
       const dias = Math.floor(ms / DAY_MS)
-      acao.push('canal ' + nameOf(r) + ' com a coleta pausada há ' + dias + ' dias e ainda não removido: remover ou despausar')
-      esquecidos.push({ siteId: r.site_id, canalId: r.id, nome: nameOf(r), dias })
+      acao.push('canal ' + clip(nameOf(r), 60) + ' com a coleta pausada há ' + dias + ' dias e ainda não removido: remover ou despausar')
+      esquecidos.push({ siteId: r.site_id, canalId: r.id, nome: clip(nameOf(r), 60), dias })
     }
   }
   const n = pausados.length
