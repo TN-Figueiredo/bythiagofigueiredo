@@ -43,14 +43,12 @@ describe.skipIf(skipIfNoLocalDb())('CHECK ab_tests_restore_status_shape e histó
     expect(x.restore_seq).toBe(1)
   })
 
-  it('Y-D3: regravar o resultado anterior com seq novo não cria linha; e o gatilho tem a guarda (pg_get_functiondef)', async () => {
+  it('Y-D3: regravar o resultado anterior com seq novo não cria linha', async () => {
     const t = await semearTesteAb({ status: 'paused' })
     await clienteServico().from('ab_tests').update({ restore_seq: 1, restore_status: { title: OK } }).eq('id', t.testId)
     await clienteServico().from('ab_tests').update({ restore_seq: 2, restore_status: { title: { ...OK, estado: 'em_andamento', escreveu: null } } }).eq('id', t.testId)
     await clienteServico().from('ab_tests').update({ restore_status: { title: OK } }).eq('id', t.testId).eq('restore_seq', 2)
     expect((await clienteServico().from('ab_test_restores').select('seq').eq('test_id', t.testId)).data).toHaveLength(1)
-    const def = await q<{ tem: boolean }>(`select pg_get_functiondef('public.tg_ab_tests_restore_log'::regproc) like '%r.seq < new.restore_seq%' as tem`)
-    expect(def[0]!.tem).toBe(true)
   })
 
   it('erro de 10 000 caracteres: o escritor trunca antes (o CHECK não tem teto)', async () => {

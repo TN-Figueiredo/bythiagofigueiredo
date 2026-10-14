@@ -153,6 +153,80 @@ describe.skipIf(skipIfNoLocalDb())('migration da P4a', () => {
     expect(abertos).toEqual([{ cycle_number: 1 }])
   })
 
+  it('R1 (Phil DEVE 1): ciclo aberto há 3 dias, teste pausado há 2 → retomar fecha o antigo em paused_at com end_reason pausa (não em now)', async () => {
+    const s = clienteServico()
+    const DIA = 86_400_000
+    const pausadoEm = new Date(Date.now() - 2 * DIA).toISOString()
+    await s.from('ab_test_cycles').delete().eq('test_id', t.testId)
+    await s.from('ab_test_cycles').insert({ test_id: t.testId, variant_id: t.varA, cycle_number: 0, started_at: new Date(Date.now() - 3 * DIA).toISOString() })
+    await s.from('ab_tests').update({ status: 'paused', restore_seq: 5, paused_at: pausadoEm }).eq('id', t.testId)
+    const r = await s.rpc('ab_resume_commit', { p_test_id: t.testId, p_seq: 5, p_de: 'paused', p_variant_id: t.varB, p_applied_metadata: {} })
+    expect(r.error).toBeNull()
+    const c0 = (await s.from('ab_test_cycles').select('ended_at, end_reason').eq('test_id', t.testId).eq('cycle_number', 0).single()).data!
+    expect(new Date(c0.ended_at).getTime()).toBe(new Date(pausadoEm).getTime())
+    expect(c0.end_reason).toBe('pausa')
+  })
+
+  it('Phil PODE: ab_rotate_commit repetido com o mesmo seq e a mesma chamada devolve o mesmo ciclo e deixa um aberto só', async () => {
+    const s = clienteServico()
+    const args = { p_test_id: t.testId, p_seq: 0, p_variant_id: t.varB, p_cycle_number: 1, p_applied_metadata: { x: 1 } }
+    const a = await s.rpc('ab_rotate_commit', args)
+    const b = await s.rpc('ab_rotate_commit', args)
+    expect(a.error).toBeNull(); expect(b.error).toBeNull()
+    expect(a.data).toBeTruthy()
+    expect(b.data).toBe(a.data)
+    const c = (await s.from('ab_test_cycles').select('cycle_number, ended_at, applied_metadata').eq('test_id', t.testId).order('cycle_number')).data!
+    expect(c).toHaveLength(2)
+    expect(c.filter(x => x.ended_at === null).map(x => x.cycle_number)).toEqual([1])
+    expect(c[1]!.applied_metadata).toMatchObject({ x: 1 })
+  })
+
+  it('Phil PODE: rotações seguintes legítimas (mesmo seq, p_cycle_number novo, mesma variante) abrem ciclo novo', async () => {
+    const s = clienteServico()
+    const base = { p_test_id: t.testId, p_seq: 0, p_variant_id: t.varB, p_applied_metadata: {} }
+    await s.rpc('ab_rotate_commit', { ...base, p_cycle_number: 1 })
+    const r = await s.rpc('ab_rotate_commit', { ...base, p_cycle_number: 2 })
+    expect(r.data).toBeTruthy()
+    const c = (await s.from('ab_test_cycles').select('cycle_number, ended_at').eq('test_id', t.testId).order('cycle_number')).data!
+    expect(c.map(x => x.cycle_number)).toEqual([0, 1, 2])
+    expect(c.filter(x => x.ended_at === null).map(x => x.cycle_number)).toEqual([2])
+  })
+
+  // Phil DEVE 3: os p_extra da tabela 3.1 (encerrado, duracao_maxima, drift, falha_api).
+  it.each([
+    { nome: 'encerrado', de: 'active', para: 'completed', reason: 'encerrado', extra: { completed_reason: 'manual_winner', limpar_confianca: true } },
+    { nome: 'duracao_maxima', de: 'active', para: 'completed', reason: 'duracao_maxima', extra: { completed_reason: 'max_duration' } },
+    { nome: 'drift', de: 'active', para: 'paused', reason: 'pausa', extra: { limpar_drift_ack: true, status_note: 'drift' } },
+    { nome: 'falha_api (paused -> paused)', de: 'paused', para: 'paused', reason: 'falha_api', extra: { consecutive_failures: 3 } },
+  ])('ab_settle_claim p_extra: $nome grava as colunas certas', async ({ de, para, reason, extra }) => {
+    const s = clienteServico()
+    const antes = new Date(Date.now() - 86_400_000).toISOString()
+    await s.from('ab_tests').update({
+      status: de, paused_at: de === 'paused' ? antes : null,
+      confidence_at_completion: 0.9, drift_acknowledged_at: antes, config: { consecutive_failures: 1 },
+    }).eq('id', t.testId)
+    const ex = para === 'completed' && extra.completed_reason === 'manual_winner' ? { ...extra, winner_variant_id: t.varB } : extra
+    const r = await s.rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 0, p_de: [de], p_para: para, p_end_reason: reason, p_restore_status: {}, p_extra: ex })
+    expect(r.error).toBeNull()
+    expect(r.data?.[0]?.claimed_seq).toBe(1)
+    const x = (await s.from('ab_tests').select('status, paused_at, completed_at, completed_reason, winner_variant_id, confidence_at_completion, drift_acknowledged_at, status_note, config').eq('id', t.testId).single()).data!
+    expect(x.status).toBe(para)
+    if (para === 'completed') {
+      expect(x.completed_at).not.toBeNull()
+      expect(x.completed_reason).toBe((extra as { completed_reason: string }).completed_reason)
+      expect(x.winner_variant_id).toBe('winner_variant_id' in ex ? t.varB : null)
+      if ('limpar_confianca' in extra) expect(x.confidence_at_completion).toBeNull()
+      else expect(x.confidence_at_completion).toBe(0.9)
+    }
+    if ('limpar_drift_ack' in extra) { expect(x.drift_acknowledged_at).toBeNull(); expect(x.status_note).toBe('drift') }
+    else expect(x.drift_acknowledged_at).not.toBeNull()
+    if ('consecutive_failures' in extra) expect(x.config).toMatchObject({ consecutive_failures: 3 })
+    else expect(x.config).toMatchObject({ consecutive_failures: 1 })
+    if (de === 'paused') expect(new Date(x.paused_at).getTime()).toBe(new Date(antes).getTime())   // paused -> paused não muda paused_at
+    const c = (await s.from('ab_test_cycles').select('end_reason').eq('test_id', t.testId).single()).data!
+    expect(c.end_reason).toBe(reason)
+  })
+
   it('histórico: claim não grava linha; o passo 4 com o seq reivindicado grava as duas do combo', async () => {
     const s = clienteServico()
     const em = { title: andamento('original'), thumbnail: andamento('original') }
@@ -170,5 +244,11 @@ describe.skipIf(skipIfNoLocalDb())('migration da P4a', () => {
     await s.rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 1, p_de: ['paused'], p_para: 'paused', p_end_reason: null, p_restore_status: { title: a, thumbnail: a }, p_extra: {} })   // seq 2
     await s.from('ab_tests').update({ restore_status: { title: OK, thumbnail: OK } }).eq('id', t.testId).eq('restore_seq', 2)   // a falha regrava o anterior
     expect((await s.from('ab_test_restores').select('id').eq('test_id', t.testId)).data).toHaveLength(2)
+    // Phil DEVE 2: lado "não engole": resultado novo (em diferente) com seq novo GRAVA (2 campos x seq 1 e 2).
+    await s.from('ab_tests').update({ restore_seq: 3, restore_status: { title: a, thumbnail: a } }).eq('id', t.testId)
+    await s.from('ab_tests').update({ restore_status: { title: { ...OK, em: '2026-10-13T08:03:00Z' }, thumbnail: { ...OK, em: '2026-10-13T08:03:00Z' } } }).eq('id', t.testId).eq('restore_seq', 3)
+    const h = (await s.from('ab_test_restores').select('seq, campo').eq('test_id', t.testId)).data!
+    expect(h).toHaveLength(4)
+    expect(h.filter(x => x.seq === 3)).toHaveLength(2)
   })
 })
