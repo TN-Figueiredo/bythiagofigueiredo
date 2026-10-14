@@ -51,6 +51,9 @@ jobs:
       - name: Build workspace packages
         run: npm run build:packages
       - name: Typecheck ${{ matrix.workspace }}
+        # Runner de repositório privado: 2 núcleos e 7 GB; o heap padrão do Node (~2 GB) estoura no apps/web.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: cd ${{ matrix.workspace }} && npx tsc --noEmit
 
   test-api:
@@ -71,9 +74,15 @@ jobs:
       - run: npm run test:api
 
   test-web:
-    name: Test — Web
+    name: Test — Web (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: ecosystem-pinning
+    # Runner de repositório privado: 2 núcleos. A suíte inteira num runner só leva ~40 min e os testes pesados
+    # estouram o tempo limite; em duas partes, com 2 processos cada (vitest.config.ts), cada teste tem um núcleo.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -85,7 +94,7 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Build workspace packages
         run: npm run build:packages
-      - run: npm run test:web
+      - run: npm run test -w apps/web -- --shard=${{ matrix.shard }}/2
 
   test-packages:
     name: Test — Packages
