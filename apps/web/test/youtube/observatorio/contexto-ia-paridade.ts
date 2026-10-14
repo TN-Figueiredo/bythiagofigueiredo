@@ -210,3 +210,32 @@ export async function expandirTela(raiz: HTMLElement): Promise<string> {
   }
   return estados.join('\n')
 }
+
+/**
+ * (E17 degrau 1, pendência F da revisão) A prova do "excluído não vaza": cada teste de tela com dado privado monta o pacote duas vezes,
+ * `incluido` e `excluido`, e chama esta função. Toda cadeia privada do `incluido` (células de número e de terceiros de tabela privada, foco, bloco citado,
+ * definição e aviso com a bandeira) tem de ser ausente do texto E do JSON do `excluido`. Cadeia curta demais (menos de 4 letras) não
+ * prova nada e lança, em vez de passar em verde.
+ */
+export function provarQueExcluidoNaoVaza(incluido: PacoteModelo, textoDoExcluido: string, jsonDoExcluido: string): void {
+  const privadas: string[] = []
+  for (const t of incluido.tabelas) {
+    if (!t.privada) continue
+    // rótulo e base ("01/10", "por dia") repetem-se nas tabelas públicas e dariam falso vazamento: só número e texto de terceiros
+    for (const linha of t.linhas) for (const c of linha) if (c.papel === 'numero' || c.papel === 'terceiros') privadas.push(textoDaCelulaPrivada(c))
+  }
+  for (const f of incluido.foco) if (f.privado) privadas.push(f.detalhe)
+  for (const b of incluido.citados) if (b.privado) privadas.push(b.texto)
+  for (const d of incluido.definicoes) if (d.privado) privadas.push(d.frase)
+  for (const a of incluido.avisosPrivados ?? []) privadas.push(a)
+  const uteis = privadas.filter((p) => p.length >= 4)
+  if (uteis.length === 0) throw new Error('provarQueExcluidoNaoVaza: o modelo incluído não tem nenhuma cadeia privada com 4 letras ou mais; a prova não provaria nada')
+  for (const p of uteis) {
+    if (textoDoExcluido.includes(p)) throw new Error(`o pacote excluído tem a cadeia privada "${p}" no texto`)
+    if (jsonDoExcluido.includes(JSON.stringify(p).slice(1, -1))) throw new Error(`o pacote excluído tem a cadeia privada "${p}" no JSON`)
+  }
+}
+
+function textoDaCelulaPrivada(c: Celula): string {
+  return c.papel === 'numero' ? (c.estado === 'nao_medido' ? c.motivo : c.texto) : c.texto
+}
