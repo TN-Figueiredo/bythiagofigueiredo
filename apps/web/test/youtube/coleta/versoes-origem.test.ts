@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { atribuirOrigem, type CicloAb, type LeituraAb, type TesteAb } from '@/lib/youtube/coleta/versoes-origem'
+import type { CompletedReason } from '@/lib/youtube/ab-types'
 import type { AberturaSemOrigem } from '@/lib/youtube/coleta/versoes-derivar'
 
 const T = (min: number): string => new Date(Date.UTC(2026, 2, 10, 12, 0, 0) + min * 60_000).toISOString()
@@ -99,7 +100,7 @@ describe('atribuirOrigem', () => {
   })
 
   it('15. thumbnail, encerrado sem vencedor (manual_archive): restauro; 1 ms fora: fora_do_sistema; motivo nulo ou fora da lista: fora', () => {
-    const t = (concl: string, motivo: string | null) => ab([teste({ tipo: 'thumbnail', concluidoEm: concl, motivoConclusao: motivo })])
+    const t = (concl: string, motivo: CompletedReason | null) => ab([teste({ tipo: 'thumbnail', concluidoEm: concl, motivoConclusao: motivo })])
     expect(atribuirOrigem(thumb(), t(T(1000), 'manual_archive'))).toMatchObject({ eventoAb: 'restauro', instante: T(1000), abTestId: 't-1', abVariantId: null })
     expect(atribuirOrigem(thumb(), t(new Date(Date.parse(JANELA.ate) + 1).toISOString(), 'manual_archive'))).toEqual(fora)
     expect(atribuirOrigem(thumb(), t(T(1000), null))).toEqual(fora)
@@ -136,7 +137,7 @@ describe('atribuirOrigem', () => {
   })
 
   it('21. manual_no_apply e inconclusive: sem ciclo, restauro; com ciclo thumbAplicada na janela, nao_se_sabe incerta; ciclo 1 ms fora volta a restauro', () => {
-    for (const motivo of ['manual_no_apply', 'inconclusive']) {
+    for (const motivo of ['manual_no_apply', 'inconclusive'] as const) {
       const t = teste({ tipo: 'thumbnail', concluidoEm: T(1000), motivoConclusao: motivo })
       expect(atribuirOrigem(thumb(), ab([t])).eventoAb).toBe('restauro')
       expect(atribuirOrigem(thumb(), ab([t], [ciclo({ thumbAplicada: true })]))).toEqual({
@@ -170,5 +171,25 @@ describe('atribuirOrigem', () => {
     for (const c of casos) expect(c.abTestId).toBe('t-1')
     expect(casos[1]!.abVariantId).toBeNull()
     expect(casos[2]!.abVariantId).toBeNull()
+  })
+
+  it('25. (portão 14/10, Phil I-2) inconclusive de teste de título ou descrição não explica a thumbnail; de thumbnail e combo, sim', () => {
+    for (const tipo of ['title', 'description'] as const) {
+      expect(atribuirOrigem(thumb(), ab([teste({ tipo, concluidoEm: T(1000), motivoConclusao: 'inconclusive' })]))).toEqual(fora)
+    }
+    for (const tipo of ['thumbnail', 'combo'] as const) {
+      expect(atribuirOrigem(thumb(), ab([teste({ tipo, concluidoEm: T(1000), motivoConclusao: 'inconclusive' })])).eventoAb).toBe('restauro')
+    }
+  })
+
+  it('26. (portão 14/10, Phil m-5) 4b com dois testes na janela: o mais recente, em qualquer ordem de leitura', () => {
+    const a = teste({ id: 't-a', tipo: 'title', concluidoEm: T(500), motivoConclusao: 'manual_winner' })
+    const b = teste({ id: 't-b', tipo: 'description', concluidoEm: T(900), motivoConclusao: 'manual_winner' })
+    expect(atribuirOrigem(thumb(), ab([a, b])).abTestId).toBe('t-b')
+    expect(atribuirOrigem(thumb(), ab([b, a])).abTestId).toBe('t-b')
+  })
+
+  it('27. (portão 14/10, Yannis M8) espaços nas pontas do título não escondem o restauro', () => {
+    expect(atribuirOrigem(abertura({ tituloOuNulo: 'Original ' }), ab([teste({ pausadoEm: T(5) })])).eventoAb).toBe('restauro')
   })
 })
