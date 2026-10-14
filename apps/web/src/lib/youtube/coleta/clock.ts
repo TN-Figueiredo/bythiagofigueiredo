@@ -36,6 +36,9 @@ export function prazoDoCriterio(relogio: Relogio, proprioMs: number): number {
   return Math.min(Date.now() + proprioMs, relogio.inicio + LIMITE_DA_FUNCAO_MS)
 }
 
+/** Espera `ms` (setTimeout). Fica aqui para os testes dirigirem o relógio. */
+export const dormir = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms))
+
 /** Milissegundos que faltam até o prazo; nunca negativo. */
 export function restante(deadline: number): number {
   return Math.max(0, deadline - Date.now())

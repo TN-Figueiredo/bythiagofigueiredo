@@ -477,7 +477,7 @@ export async function criterioJobsEmErro(ctx: Ctx): Promise<void> {
   const desde = addDays(utcDay(new Date()), -10)
   const t = await ctx.supabase
     .from('yt_own_collection_attempts')
-    .select('scope_id, kind, attempt_day, outcome, error')
+    .select('scope_id, kind, attempt_day, outcome, error, http_status')
     .eq('scope_type', 'job')
     .in('scope_id', jobs.map(j => scopeJob(j.channel_id, j.report_type_id)))
     .in('kind', ['sondagem', 'relatorio'])
@@ -485,7 +485,7 @@ export async function criterioJobsEmErro(ctx: Ctx): Promise<void> {
     .order('attempt_day', { ascending: false })
     .limit(LIMITE_LEITURA)
   if (!leituraOk(t, 'yt_own_collection_attempts', 'jobs em erro', ctx.falhas)) return
-  const linhas = (t.data ?? []) as Array<{ scope_id: string; kind: string; attempt_day: string; outcome: string; error: string | null }>
+  const linhas = (t.data ?? []) as Array<{ scope_id: string; kind: string; attempt_day: string; outcome: string; error: string | null; http_status?: number | null }>
   if (linhas.length >= LIMITE_LEITURA) {
     naoAvaliou(ctx.falhas, `jobs em erro (yt_own_collection_attempts): leitura cortada em ${LIMITE_LEITURA}`)
     return
@@ -498,6 +498,8 @@ export async function criterioJobsEmErro(ctx: Ctx): Promise<void> {
     const dias = new Map<string, { http: boolean; ok: boolean; erro: string | null }>()
     for (const l of linhas) {
       if (l.scope_id !== escopo || !kinds.includes(l.kind)) continue
+      // 429 é limite de cota por minuto, não defeito do relatório: não conta como dia de erro (E12).
+      if (l.http_status === 429) continue
       const d = dias.get(l.attempt_day) ?? { http: false, ok: false, erro: null }
       if (l.outcome === 'erro_http') { d.http = true; d.erro ??= l.error }
       if (l.outcome === 'ok') d.ok = true

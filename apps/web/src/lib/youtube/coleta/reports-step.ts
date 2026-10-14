@@ -7,7 +7,7 @@ import { classificarErro, criarReportingClient, MAX_GZ_BYTES, paraBytea, type Pa
 import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube/reporting/types'
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
-import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
+import { dormir, emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
 import { DIA_MS, VALIDADE_DIAS, ordenarFila, perdaCobertaPorCriterios, venceEm, type ItemDaFila } from './fila-relatorios'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
@@ -16,6 +16,12 @@ import type { ColetaChannel, StepCtx, StepResumo } from './types'
 // Tetos da E12 (A5). Medida de produção, 09 a 12/10/2026: até 0,90 s por download (um por vez) e o maior relatório
 // com 564 bytes comprimidos. 100 downloads + a listagem cabem em TETOS_MS.relatorios; reports-step.test.ts refaz a conta.
 export const MAX_DOWNLOADS = 100
+/** O limite da Reporting API é POR MINUTO (medido em 14/10: 37 downloads em ~30 s, 429 por ~30 s, e volta a passar). */
+export const ESPERA_429_PADRAO_MS = 60_000
+/** Teto da espera pedida por `Retry-After`: acima disto o passo para em vez de dormir. */
+export const ESPERA_429_MAX_MS = 90_000
+/** Depois de esperar tem de sobrar isto do prazo do passo (para baixar ao menos alguns e fechar). */
+export const FOLGA_APOS_ESPERA_MS = 10_000
 /** Acima disto o relatório vira `erro: grande_demais` e o bruto NÃO é guardado. O teto vale no cliente (Content-Length e
  *  leitura limitada) e há um segundo, do CSV descomprimido (MAX_CSV_BYTES): reporting/client.ts. Reexportado aqui. */
 export { MAX_GZ_BYTES }
@@ -50,7 +56,17 @@ export interface RelatoriosResumo extends StepResumo {
   vence_primeiro_em_dias: number | null
   ms_listar: number
   ms_baixar: number
+  /** O laço de download parou por 429 (ou por não caber a espera): o resto fica `listado` para a próxima execução. */
+  parou_por_limite: boolean
+  /** Quantas vezes o passo esperou o minuto seguinte por causa de 429, e quanto tempo gastou nisso. */
+  esperas_429: number
+  ms_espera_429: number
+  /** Itens do alvo desta execução que o laço não baixou por ter parado no limite (o item que levou o 429 não conta). */
+  nao_tentados: number
 }
+
+/** 429 no download: o relatório não tem defeito. Nada é gravado nele; quem decide esperar ou parar é o laço. */
+interface LimiteDeCota { limite: true; retryAfterMs: number | null }
 
 interface JobRow {
   site_id: string
@@ -194,7 +210,7 @@ async function baixarUm(
   urls: Map<string, string>,
   renovados: Set<string>,
   resumo: RelatoriosResumo,
-): Promise<'sem_tempo' | void> {
+): Promise<'sem_tempo' | LimiteDeCota | void> {
   // Toda marcação de estado só vale para quem ainda está `listado`: com duas execuções sobrepostas, a que chega depois não
   // rebaixa (para `erro` ou `expirado_sem_baixar`) nem regrava um relatório que a outra acabou de baixar.
   const marcar = (campos: Record<string, unknown>) =>
@@ -251,6 +267,9 @@ async function baixarUm(
         erro = e
       }
     }
+
+    // Limite de cota por minuto: não é erro do relatório (sem download_attempts, sem last_error_at, sem erro gravado).
+    if (erro instanceof ReportingHttpError && erro.status === 429) return { limite: true, retryAfterMs: erro.retryAfterMs }
 
     // O prazo do passo acabou no meio do relatório: ele continua `listado`, intocado. O abort do prazo durante a LEITURA do
     // corpo chega como TimeoutError/AbortError (só o `fetch` é embrulhado em SemTempoError): sem prazo sobrando, é falta de tempo.
@@ -400,10 +419,23 @@ async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<Fi
   return { resposta: ultima, linhas, total, cortada }
 }
 
+/** Relatórios gravados por dia, média de 3 dias (janela de 3 dias + 6 h: o cron roda 1x/dia e os downloads de D-3 caem
+ * minutos antes de `agora − 72 h`). null = leitura falhou (não vira zero). */
+async function vazaoDiaria(ctx: StepCtx, idsDosCanais: string[]): Promise<number | null> {
+  const r = await ctx.supabase
+    .from('yt_reporting_reports')
+    .select('report_id', { count: 'exact', head: true })
+    .in('channel_id', idsDosCanais)
+    .gte('downloaded_at', new Date(Date.now() - 3 * DIA_MS - 6 * 3_600_000).toISOString())
+  if (r.error || r.count === null || r.count === undefined) return null
+  return r.count / 3
+}
+
 export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const resumo: RelatoriosResumo = {
     gravados: 0, tentativas: {}, pendentes: 0, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
     maior_bytes: 0, maior_lido_por_tipo: {}, corpos_gz: 0, expirados_por_tipo: {}, expirados_sem_cobertura_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
+    parou_por_limite: false, esperas_429: 0, ms_espera_429: 0, nao_tentados: 0,
   }
   const fechar = (): RelatoriosResumo => {
     // Em toda saída do passo: o que venceu sem baixar nesta execução e nenhum critério persistente cobre vira nota, com a
@@ -516,8 +548,37 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   for (let i = 0; i < alvo.length && !semTempo; i++) {
     const p = alvo[i]!
     // Um de cada vez: o buffer do relatório anterior já foi liberado.
-    const r = restante(ctx.deadline) <= 0 ? 'sem_tempo' : await baixarUm(ctx, clientes.get(p.channel_id)!, p, urls, renovados, resumo)
-    if (r === 'sem_tempo') {
+    let item429 = false
+    let r = restante(ctx.deadline) <= 0 ? 'sem_tempo' : await baixarUm(ctx, clientes.get(p.channel_id)!, p, urls, renovados, resumo)
+    if (typeof r === 'object') {
+      // 429: espera o próximo minuto (Retry-After, senão 60 s) e repete o MESMO item uma vez; se não couber no prazo, se o
+      // Retry-After passar do teto ou se o segundo também for 429, para o laço. Os itens seguintes ficam intocados (`listado`,
+      // sem tentativa somada). O 429 NÃO vai para yt_own_collection_attempts: a linha do dia é "última escrita vence" e
+      // apagaria um erro real do mesmo job; a visibilidade fica em parou_por_limite/esperas_429/nao_tentados.
+      item429 = true
+      for (let volta = 0; volta < 1 && typeof r === 'object'; volta++) {
+        if (r.retryAfterMs !== null && r.retryAfterMs > ESPERA_429_MAX_MS) break // pediu mais que o teto: não é limite por minuto
+        const espera = r.retryAfterMs ?? ESPERA_429_PADRAO_MS
+        if (restante(ctx.deadline) - espera < FOLGA_APOS_ESPERA_MS) break
+        const t = Date.now()
+        await dormir(espera)
+        resumo.esperas_429++
+        resumo.ms_espera_429 += Date.now() - t
+        r = restante(ctx.deadline) <= 0 ? 'sem_tempo' : await baixarUm(ctx, clientes.get(p.channel_id)!, p, urls, renovados, resumo)
+      }
+      if (typeof r === 'object') {
+        resumo.parou_por_limite = true
+        resumo.nao_tentados = alvo.length - i - 1
+        break
+      }
+    }
+    if (r === 'sem_tempo' && resumo.esperas_429 > 0) {
+      // O relógio acabou DEPOIS de uma espera de 429: a causa é a cota por minuto, não o orçamento do passo.
+      // Não registra nao_alcancado_orcamento (o critério de orçamento pintaria o cron por um falso alarme).
+      semTempo = true
+      resumo.parou_por_limite = true
+      resumo.nao_tentados = alvo.length - i - (item429 ? 1 : 0)
+    } else if (r === 'sem_tempo') {
       semTempo = true
       // Só o relógio conta como nao_alcancado_orcamento; o teto de downloads e a fila não.
       const afetados = new Set(alvo.slice(i).map(x => x.channel_id))
@@ -543,6 +604,23 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     resumo.pendentes += resta.total ?? resta.linhas.length
     if (resta.linhas.length > 0) {
       resumo.vence_primeiro_em_dias = Math.floor((Math.min(...resta.linhas.map(venceEm)) - Date.now()) / DIA_MS)
+    }
+    // 429 só vira vermelho quando ameaça o prazo: vence em até 7 dias, ou os dias para zerar a fila (pendentes / vazão média
+    // de 3 dias) passam de (dias até vencer − 5); vazão 0 com pendentes ameaça. Fora disso é só o resumo (parou_por_limite).
+    if (resumo.parou_por_limite && resumo.pendentes > 0) {
+      const vence = resumo.vence_primeiro_em_dias
+      const vazao = await vazaoDiaria(ctx, idsDosCanais)
+      const vencePerto = vence !== null && vence <= 7
+      if (vazao === null && !vencePerto) {
+        pushUnico(ctx.falhas, 'relatórios: o limite de cota parou os downloads e a vazão não pôde ser lida; não avaliei se a fila alcança o vencimento')
+      }
+      const ameaca = vencePerto || (vazao !== null && (vazao === 0 || (vence !== null && resumo.pendentes / vazao > vence - 5)))
+      if (resumo.esperas_429 > 0 && resumo.gravados === 0) {
+        pushUnico(ctx.falhas, 'relatórios: o 429 persiste depois de esperar o minuto e nada foi baixado; não é o limite por minuto (teto diário ou bloqueio?)')
+      }
+      if (ameaca) {
+        pushUnico(ctx.falhas, `relatórios: o limite de cota por minuto da Reporting API parou os downloads (${resumo.nao_tentados} sem tentar, ${resumo.pendentes} pendentes${resumo.vence_primeiro_em_dias !== null ? `, o primeiro vence em ${resumo.vence_primeiro_em_dias} dia(s)` : ''}${vazao !== null ? `, vazão de ~${Math.round(vazao)}/dia` : ''})`)
+      }
     }
   }
 

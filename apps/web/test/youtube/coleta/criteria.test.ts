@@ -312,6 +312,20 @@ describe('criterioJobsEmErro', () => {
     expect(c2.falhas).toEqual([])
   })
 
+  it('E12: 3 dias só de 429 (limite de cota por minuto) não pintam o cron; 3 dias de 500 pintam', async () => {
+    const ativo: Row = { ...jobErro, status: 'ativo' }
+    const com = (status: number) => fakeSupabase({
+      yt_reporting_jobs: [ativo],
+      yt_own_collection_attempts: [0, 1, 2].map(d => ({ ...tentativa('job', escopo, 'relatorio', 'erro_http', d), http_status: status })),
+    })
+    const c429 = ctxDe(com(429))
+    await criterioJobsEmErro(c429)
+    expect(c429.falhas).toEqual([])
+    const c500 = ctxDe(com(500))
+    await criterioJobsEmErro(c500)
+    expect(c500.falhas).toHaveLength(1)
+  })
+
   it('job ativo não é olhado', async () => {
     const db = fakeSupabase({ yt_reporting_jobs: [{ ...jobErro, status: 'ativo' }], yt_own_collection_attempts: [0, 1, 2].map(d => tentativa('job', escopo, 'sondagem', 'erro_http', d)) })
     const ctx = ctxDe(db)
