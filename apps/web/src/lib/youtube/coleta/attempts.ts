@@ -1,13 +1,18 @@
 // Registro de tentativas em yt_own_collection_attempts, pela função do banco (o PostgREST não soma
 // num upsert). Toda tentativa é gravada, inclusive `ok`: sem linha = nunca tentado.
-import { conferirBanco, type ErroBanco } from './schema'
+import { ehKind } from './kinds'
+import { conferirBanco, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, Outcome, StepCtx, Tentativa } from './types'
 
-/** Nunca lança: erro ao gravar a tentativa vira item de `falhas[]`. */
+/** Nunca lança: erro ao gravar a tentativa vira item de `falhas[]`. `kind` fora do catálogo não chega ao banco. */
 export async function registrarTentativa(
   ctx: Pick<StepCtx, 'supabase' | 'falhas' | 'tentativas'>,
   t: Tentativa,
 ): Promise<void> {
+  if (!ehKind(t.kind)) {
+    pushUnico(ctx.falhas, `tentativa com kind fora do catálogo: ${String(t.kind).slice(0, 40)}`)
+    return
+  }
   ctx.tentativas.push(t)
   let res: { error: ErroBanco | null }
   try {

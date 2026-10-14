@@ -236,7 +236,7 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   }
 
   // Em erro, de tipo habilitado que NÃO é de alcance (o de alcance está na leitura lá de cima), nos últimos 14 dias.
-  // Esses tipos só guardam o bruto: `erro` aqui é bruto que não foi guardado (grande_demais, url_inesperada).
+  // Tipos sem normalizador, mais os dois da E11 quando o erro é de conteúdo (ver normalizadores-step.ts): `erro` aqui é bruto que não foi guardado (grande_demais, url_inesperada) ou relatório que o normalizador recusou.
   const outros = HABILITADOS.filter(t => !ALCANCE.includes(t))
   if (outros.length > 0) {
     const err = await ctx.supabase

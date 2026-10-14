@@ -9,6 +9,9 @@
 // insert/upsert em lote de chaves heterogêneas: a chave ausente numa linha vira null nela (defaultToNull do supabase-js);
 // ordenação padrão do Postgres (NULLs por último no asc, primeiro no desc); neq exclui nulos.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
+import { ehKind } from '@/lib/youtube/coleta/kinds'
+import { comDailyApply } from './fake-daily-apply'
 
 export type Row = Record<string, unknown>
 export interface FakeErr { code: string; message: string }
@@ -228,7 +231,6 @@ class Consulta implements PromiseLike<Resposta> {
 }
 
 const SCOPES = ['video', 'canal', 'job']
-const KINDS = ['sondagem', 'meta', 'thumbnail', 'relatorio', 'diario', 'retencao_vida']
 const OUTCOMES_OK = ['ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao', 'erro_http', 'nao_alcancado_orcamento', 'schema_ausente']
 
 export function fakeSupabase(
@@ -243,7 +245,7 @@ export function fakeSupabase(
   // Mesmo comportamento de public.yt_own_attempt_record: uma linha por escopo, kind e dia UTC; soma attempts.
   db.rpcHandlers.yt_own_attempt_record = (a) => {
     if (a.p_site_id == null) return { data: null, error: { code: '23502', message: 'null value in column "site_id"' } }
-    if (!SCOPES.includes(a.p_scope_type as string) || !KINDS.includes(a.p_kind as string) || !OUTCOMES_OK.includes(a.p_outcome as string)) {
+    if (!SCOPES.includes(a.p_scope_type as string) || !ehKind(a.p_kind) || !OUTCOMES_OK.includes(a.p_outcome as string)) {
       return { data: null, error: { code: '23514', message: 'violates check constraint on yt_own_collection_attempts' } }
     }
     const t = (db.tables.yt_own_collection_attempts ??= [])
@@ -279,6 +281,12 @@ export function fakeSupabase(
     }
   }
 
+  // Tarefa 3 (E6): a gravação do diário pela função. `db.errors['rpc:yt_own_daily_apply']` tem precedência (função ausente).
+  comDailyApply(db)
+
+  // Tarefa 11a (E8): os fatos da retenção. `db.errors['rpc:yt_own_retention_facts']` tem precedência (função ausente).
+  comRetencaoFatosPadrao(db)
+
   db.client = {
     from: (tabela: string) => new Consulta(db, tabela),
     rpc: (name: string, args: Row = {}) => {
@@ -289,6 +297,37 @@ export function fakeSupabase(
       return Promise.resolve(h ? h(args) : { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name}` } })
     },
   } as unknown as SupabaseClient
+  return db
+}
+
+/**
+ * A5 E8 (Tarefa 11a): `yt_own_retention_facts` do falso. Sem vídeo semeado devolve `[]` (nenhum vídeo, nenhuma nota). Com vídeos
+ * em `youtube_videos` (com `published_at`, como a função de verdade lista), devolve um fato "em dia" por vídeo do canal: diário em
+ * dia, curva da vida lida hoje, janelas de 7 e 30 dias já gravadas. Ou seja, nada a ler e nada vencido: o passo não toca a API e o
+ * critério não acusa. Uma lista vazia COM vídeos é, corretamente, defeito da função para o critério (vermelho), então o falso
+ * não pode devolver `[]` para um canal que tem vídeo. A lógica de verdade é testada contra o Postgres (Tarefa 9b). Teste que quer
+ * fatos específicos troca `db.rpcHandlers.yt_own_retention_facts`; teste que quer a função ausente usa `db.errors['rpc:…']`.
+ */
+function comRetencaoFatosPadrao(db: FakeDb): FakeDb {
+  db.rpcHandlers.yt_own_retention_facts = (a) => {
+    const hoje = typeof a.p_hoje_utc === 'string' ? a.p_hoje_utc : new Date().toISOString().slice(0, 10)
+    const videos = (db.tables.youtube_videos ?? []).filter(v => v.channel_id === a.p_channel_id && v.published_at != null)
+    return {
+      data: videos.map(v => ({
+        youtube_video_id: v.youtube_video_id, video_id: v.id, site_id: v.site_id,
+        duration_seconds: typeof v.duration_seconds === 'number' ? v.duration_seconds : null,
+        publicado_dia_pt: String(v.published_at).slice(0, 10),
+        fonte_ate: hoje, views_total: null, ultimo_dia_com_view: null, views_7d: null, views_30d: null,
+        vida_window_end: hoje, vida_collected_at: `${hoje}T12:00:00.000Z`, vida_views_at_read: null,
+        tem_7d: true, tem_30d: true, primeira_tent_dia: hoje, leva_ancora_dia: hoje,
+        diario_tent_dia: hoje, diario_tent_resultado: 'ok', diario_falhas_4d: 0,
+        vida_tent_dia: hoje, vida_tent_resultado: 'ok', vida_resposta_dia: hoje,
+        d7_tent_dia: null, d7_tent_resultado: null, d7_resposta_dia: null,
+        d30_tent_dia: null, d30_tent_resultado: null, d30_resposta_dia: null,
+      })),
+      error: null,
+    }
+  }
   return db
 }
 
@@ -335,6 +374,55 @@ export function comReachApply(db: FakeDb): FakeDb {
       }
     }
     return { data: n, error: null }
+  }
+  return db
+}
+
+/**
+ * A5 E11 (Tarefa 10): as funções da MG7 com a resposta de um banco sem nada a avisar. A lógica de verdade é testada contra o
+ * Postgres (Tarefa 12). Opt-in, no molde de `comReachApply` (e NÃO instalado em `fakeSupabase`): os testes da E11 afirmam a
+ * função AUSENTE (PGRST202) justamente por não terem manipulador. A prova padrão devolve as oito chaves em zero, com um vídeo
+ * com `base` e `base_ate` = o dia pedido; a gravação aceita tudo; os normalizadores marcam `normalized_at`, como a função faz
+ * na mesma transação. Teste que quer a função ausente depois disto usa `db.errors['rpc:<nome>']`.
+ */
+export function comE11Padrao(db: FakeDb): FakeDb {
+  db.rpcHandlers.yt_own_dim_prova = (a) => ({
+    data: {
+      faltando_cobertura: 0, videos_com_base: 1, videos_base_antes_do_inicio: 0, videos_sem_base: 0,
+      base_ate: typeof a.p_hoje === 'string' ? a.p_hoje : null,
+      dias_dois_relatorios_detalhe: 0, dias_dois_relatorios_alcance: 0, pendentes_normalizar: 0,
+    },
+    error: null,
+  })
+  db.rpcHandlers.yt_own_dim_cover_idle = () => ({ data: { videos_com_base: 0, conjuntos_cobertos: 0, videos_com_view: 0 }, error: null })
+  db.rpcHandlers.yt_own_dim_apply = (a) => ({
+    data: { status: 'gravado', gravadas: Array.isArray(a.p_rows) ? a.p_rows.length : 0, apagadas: 0, fora_do_teto: 0, dias_mantidos: 0, dias_em_revisao: 0 },
+    error: null,
+  })
+  const normalizar = (a: Row) => {
+    for (const r of db.tables.yt_reporting_reports ?? []) if (r.report_id === a.p_report_id) r.normalized_at = new Date().toISOString()
+    return { data: { status: 'gravado', gravadas: Array.isArray(a.p_rows) ? a.p_rows.length : 0 }, error: null }
+  }
+  db.rpcHandlers.yt_own_traffic_detail_apply = normalizar
+  db.rpcHandlers.yt_own_reach_dim_apply = normalizar
+  return db
+}
+
+/**
+ * A5 E6 (Tarefa 11b): uma linha de cobertura `base` EM DIA por vídeo (do dia da publicação, no Pacífico, até `hoje`). Com o critério de
+ * cobertura no cron, a tabela vazia e um vídeo antigo é, corretamente, "todos atrasados, vermelho": o teste que tem vídeo antigo e
+ * afirma `falhas` vazia semeia a cobertura. Opt-in, como `comReachApply` e `comE11Padrao`. `hoje` é o dia do Pacífico ('AAAA-MM-DD');
+ * vídeo sem data de publicação cobre só `hoje` (o começo nunca é inventado). Lista vazia não semeia nada.
+ */
+export function semearCobertura(db: FakeDb, videos: readonly Row[], hoje: string): FakeDb {
+  if (videos.length === 0) return db
+  const t = (db.tables.yt_own_video_coverage ??= [])
+  for (const v of videos) {
+    const pub = typeof v.published_at === 'string' && !Number.isNaN(Date.parse(v.published_at)) ? dayPt(new Date(v.published_at)) : hoje
+    t.push({
+      youtube_video_id: v.youtube_video_id, metric_set: 'base', covered_from: pub < hoje ? pub : hoje, covered_to: hoje,
+      site_id: v.site_id, channel_id: v.channel_id, video_id: v.id ?? null, source: 'analytics_api', collected_at: new Date().toISOString(),
+    })
   }
   return db
 }

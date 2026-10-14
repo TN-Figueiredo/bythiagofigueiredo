@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { fakeSupabase, comReachApply } from './fake-supabase'
+import { fakeSupabase, comReachApply, semearCobertura, type Row } from './fake-supabase'
+import { COLLECTION_KINDS } from '@/lib/youtube/coleta/kinds'
+import { atrasadosDaRetencao } from '@/lib/youtube/coleta/criteria-retencao'
+import { decidirRetencao, lerFatos } from '@/lib/youtube/coleta/retencao-regra'
 
 const rpcArgs = { p_site_id: 's', p_scope_type: 'video', p_scope_id: 'v', p_kind: 'meta', p_outcome: 'ok' }
 
@@ -10,6 +13,39 @@ describe('fakeSupabase estrito', () => {
     expect(r.error).toMatchObject({ code: 'PGRST202' })
     expect(r.data).toBeNull()
   })
+  it('o manipulador padrão de yt_own_daily_apply está instalado', () => {
+    expect(typeof fakeSupabase().rpcHandlers.yt_own_daily_apply).toBe('function')
+  })
+  it('o manipulador padrão de yt_own_retention_facts: sem nada semeado devolve [] (nenhum vídeo, nenhuma nota)', async () => {
+    const db = fakeSupabase()
+    expect(typeof db.rpcHandlers.yt_own_retention_facts).toBe('function')
+    const r = await db.client.rpc('yt_own_retention_facts', { p_channel_id: 'ch-1', p_hoje_utc: '2026-10-07' })
+    expect(r).toEqual({ data: [], error: null })
+  })
+  it('yt_own_retention_facts com vídeos semeados: um fato "em dia" por vídeo do canal (nada a ler, nada vencido), na forma que lerFatos aceita; vídeo sem published_at e de outro canal ficam fora', async () => {
+    const db = fakeSupabase({ youtube_videos: [
+      { id: 'v1', youtube_video_id: 'yt1', channel_id: 'ch-1', site_id: 's', duration_seconds: 300, published_at: '2026-09-01T10:00:00.000Z' },
+      { id: 'v2', youtube_video_id: 'yt2', channel_id: 'ch-1', site_id: 's', duration_seconds: null, published_at: null },
+      { id: 'v3', youtube_video_id: 'yt3', channel_id: 'ch-2', site_id: 's', duration_seconds: 10, published_at: '2026-09-01T10:00:00.000Z' },
+    ] })
+    const r = await db.client.rpc('yt_own_retention_facts', { p_channel_id: 'ch-1', p_hoje_utc: '2026-10-07' })
+    const fatos = lerFatos(r.data)
+    expect(fatos.map(f => f.youtube_video_id)).toEqual(['yt1'])
+    expect(decidirRetencao(fatos, { hojePt: '2026-10-07', hojeUtc: '2026-10-07' })).toMatchObject({ ler: [], semDiarioEmDia: [], novos: [] })
+    expect(atrasadosDaRetencao(fatos, { hojePt: '2026-10-07', hojeUtc: '2026-10-07' })).toEqual([])
+  })
+  it('db.errors[rpc:yt_own_retention_facts] vale mais que o manipulador padrão (função ausente)', async () => {
+    const db = fakeSupabase()
+    db.errors['rpc:yt_own_retention_facts'] = { code: 'PGRST202', message: 'Could not find the function' }
+    const r = await db.client.rpc('yt_own_retention_facts', { p_channel_id: 'ch-1', p_hoje_utc: '2026-10-07' })
+    expect(r.error).toMatchObject({ code: 'PGRST202' })
+  })
+  it('rpc de nome desconhecido continua devolvendo PGRST202, e errors[rpc:<nome>] vale mais que o manipulador', async () => {
+    const db = fakeSupabase()
+    expect((await db.client.rpc('yt_funcao_que_nao_existe', {})).error).toMatchObject({ code: 'PGRST202' })
+    db.errors['rpc:yt_own_daily_apply'] = { code: 'PGRST202', message: 'x' }
+    expect((await db.client.rpc('yt_own_daily_apply', {})).error).toMatchObject({ code: 'PGRST202' })
+  })
   it('yt_own_attempt_record: not null, CHECKs e truncamento de 500', async () => {
     const db = fakeSupabase()
     expect((await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_site_id: null })).error).toMatchObject({ code: '23502' })
@@ -18,6 +54,17 @@ describe('fakeSupabase estrito', () => {
     }
     await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_error: 'a'.repeat(600) })
     expect((db.tables.yt_own_collection_attempts![0]!.error as string).length).toBe(500)
+  })
+  it('yt_own_attempt_record aceita todo valor de COLLECTION_KINDS e recusa kind fora do catálogo com 23514', async () => {
+    for (const k of COLLECTION_KINDS) {
+      const db = fakeSupabase()
+      const r = await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_kind: k })
+      expect(r.error, k).toBeNull()
+      expect(db.tables.yt_own_collection_attempts![0]!.kind).toBe(k)
+    }
+    const db = fakeSupabase()
+    expect((await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_kind: 'Ruim!' })).error).toMatchObject({ code: '23514' })
+    expect((await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_kind: 'retencao_7d ' })).error).toMatchObject({ code: '23514' })
   })
   it('embaralharEmpates: empates saem em ordem diferente a cada leitura; com desempate total a ordem é sempre a mesma; desligado é estável', async () => {
     const linhas = Array.from({ length: 50 }, (_, i) => ({ k: 1, id: `id-${String(i).padStart(2, '0')}` }))
@@ -193,6 +240,108 @@ describe('fakeSupabase estrito', () => {
       expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ video_id: 'v-1' })
       await db.client.rpc('yt_own_reach_apply', { p_rows: [linha({ video_id: 'v-2' })] })
       expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ video_id: 'v-2' })
+    })
+  })
+
+  describe('yt_own_daily_apply (manipulador padrão): a regra da função', () => {
+    const ids = { site_id: 's', channel_id: 'c', video_id: 'u' }
+    const dia = (day: string, extra: Row = {}): Row => ({ day_pt: day, metric_version: 'views_desde_2026-08-27', views: 0, engaged_views: 0, ...extra })
+    const chamar = (db: ReturnType<typeof fakeSupabase>, rows: Row[], sets: string[] = ['base', 'estendidas'], dias = rows.map(r => r.day_pt)) =>
+      db.client.rpc('yt_own_daily_apply', { p_video: 'v', p_ids: ids, p_rows: rows, p_days_returned: dias, p_sets: sets })
+
+    it('só o dia com atividade vira linha; todos ficam cobertos; devolve as cinco contagens', async () => {
+      const db = fakeSupabase()
+      const r = await chamar(db, [dia('2026-10-01'), dia('2026-10-02', { views: 2 }), dia('2026-10-03')])
+      expect(r.data).toEqual({ dias: 3, atualizadas: 0, inseridas: 1, apagadas: 0, intervalos: 2 })
+      expect(db.tables.yt_own_video_daily!.map(l => l.day_pt)).toEqual(['2026-10-02'])
+      expect(db.tables.yt_own_video_coverage!.map(c => [c.metric_set, c.covered_from, c.covered_to])).toEqual([
+        ['base', '2026-10-01', '2026-10-03'], ['estendidas', '2026-10-01', '2026-10-03'],
+      ])
+    })
+    it('recusa, sem gravar nada: dias divergentes, linha sem metric_version, dia sem views na base, sem engaged_views nas estendidas', async () => {
+      const db = fakeSupabase()
+      const semViews = { day_pt: '2026-10-01', metric_version: 'x', engaged_views: 1 }
+      const casos: Array<[string, Row[], string[], unknown[]?]> = [
+        ['divergente', [dia('2026-10-01')], ['base'], ['2026-10-02']],
+        ['repetido', [dia('2026-10-01'), dia('2026-10-01')], ['base'], ['2026-10-01', '2026-10-01']],
+        ['sem versão', [dia('2026-10-01', { metric_version: '' })], ['base']],
+        ['sem views', [semViews], ['base']],
+        ['views nulo', [dia('2026-10-01', { views: null })], ['base']],
+        ['sem engaged_views', [{ day_pt: '2026-10-01', metric_version: 'x', views: 1 }], ['base', 'estendidas']],
+        ['p_sets inválido', [dia('2026-10-01')], ['outro']],
+      ]
+      for (const [nome, rows, sets, dias] of casos) {
+        const r = await chamar(db, rows, sets, dias ?? rows.map(x => x.day_pt))
+        expect(r.error, nome).toMatchObject({ code: '22023' })
+      }
+      expect(db.tables.yt_own_video_daily ?? []).toEqual([])
+      expect(db.tables.yt_own_video_coverage ?? []).toEqual([])
+    })
+    it('sem views só passa no conjunto estendidas; a chave ausente não apaga o valor gravado; nulo explícito grava nulo', async () => {
+      const db = fakeSupabase({ yt_own_video_daily: [{ youtube_video_id: 'v', day_pt: '2026-10-01', views: 5, likes: 3, avg_view_percentage: 40 }] })
+      await chamar(db, [{ day_pt: '2026-10-01', metric_version: 'x', engaged_views: 2, avg_view_percentage: null }], ['estendidas'])
+      expect(db.tables.yt_own_video_daily![0]).toMatchObject({ views: 5, likes: 3, engaged_views: 2, avg_view_percentage: null })
+    })
+    it('dia revisado para zero apaga a linha com views 0; linha com views nulo nunca é apagada', async () => {
+      const db = fakeSupabase({ yt_own_video_daily: [
+        { youtube_video_id: 'v', day_pt: '2026-10-01', views: 3 },
+        { youtube_video_id: 'v', day_pt: '2026-10-02', views: null },
+      ] })
+      const r = await chamar(db, [dia('2026-10-01'), dia('2026-10-02', { views: 0 })], ['base'])
+      // O dia 2 chega com views 0 e passa a ser 0 medido (a chave presente grava); o dia 1 também: os dois saem.
+      expect(r.data).toMatchObject({ atualizadas: 2, apagadas: 2 })
+      const db2 = fakeSupabase({ yt_own_video_daily: [{ youtube_video_id: 'v', day_pt: '2026-10-02', views: null, likes: null }] })
+      await db2.client.rpc('yt_own_daily_apply', {
+        p_video: 'v', p_ids: ids, p_rows: [{ day_pt: '2026-10-02', metric_version: 'x', views: 0 }], p_days_returned: ['2026-10-02'], p_sets: ['base'],
+      })
+      expect(db2.tables.yt_own_video_daily).toEqual([])
+    })
+    it('a cobertura funde vizinhos e parte no buraco', async () => {
+      const db = fakeSupabase()
+      await chamar(db, [dia('2026-10-01'), dia('2026-10-02')], ['base'])
+      await chamar(db, [dia('2026-10-05')], ['base'])
+      expect(db.tables.yt_own_video_coverage!.map(c => [c.covered_from, c.covered_to])).toEqual([['2026-10-01', '2026-10-02'], ['2026-10-05', '2026-10-05']])
+      const r = await chamar(db, [dia('2026-10-03'), dia('2026-10-04')], ['base'])
+      expect(r.data).toMatchObject({ intervalos: 1 })
+      expect(db.tables.yt_own_video_coverage!.map(c => [c.covered_from, c.covered_to])).toEqual([['2026-10-01', '2026-10-05']])
+    })
+  })
+  describe('semearCobertura (A5 E6, Tarefa 11b)', () => {
+    const video = (n: number, extra: Row = {}): Row => ({ id: `u-${n}`, youtube_video_id: `yt-${n}`, channel_id: 'ch-1', site_id: 'site-1', published_at: '2026-08-01T12:00:00.000Z', ...extra })
+
+    it('uma linha `base` em dia por vídeo: vai do dia da publicação até `hoje`, com site, canal e id do vídeo do próprio vídeo', () => {
+      const db = fakeSupabase()
+      semearCobertura(db, [video(1), video(2, { channel_id: 'ch-2', site_id: 'site-2' })], '2026-10-07')
+      expect(db.tables.yt_own_video_coverage).toEqual([
+        expect.objectContaining({ youtube_video_id: 'yt-1', metric_set: 'base', covered_from: '2026-08-01', covered_to: '2026-10-07', site_id: 'site-1', channel_id: 'ch-1', video_id: 'u-1', source: 'analytics_api' }),
+        expect.objectContaining({ youtube_video_id: 'yt-2', metric_set: 'base', covered_from: '2026-08-01', covered_to: '2026-10-07', site_id: 'site-2', channel_id: 'ch-2' }),
+      ])
+    })
+    it('lista de vídeos vazia não semeia nada (a tabela nem é criada)', () => {
+      const db = fakeSupabase()
+      semearCobertura(db, [], '2026-10-07')
+      expect(db.tables.yt_own_video_coverage ?? []).toEqual([])
+    })
+    it('vídeo sem data de publicação: cobre só o dia de hoje (nunca inventa um começo)', () => {
+      const db = fakeSupabase()
+      semearCobertura(db, [video(1, { published_at: null })], '2026-10-07')
+      expect(db.tables.yt_own_video_coverage).toEqual([expect.objectContaining({ covered_from: '2026-10-07', covered_to: '2026-10-07' })])
+    })
+    it('o critério de cobertura de verdade enxerga o vídeo semeado como em dia (e o sem semente como atrasado)', async () => {
+      const { criterioCobertura } = await import('@/lib/youtube/coleta/criteria-cobertura')
+      const { criarRelogio } = await import('@/lib/youtube/coleta/clock')
+      const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: null }
+      const hoje = new Date().toISOString().slice(0, 10)
+      const videos = [video(1, { published_at: '2020-01-01T12:00:00.000Z' })]
+      const sem = fakeSupabase({ youtube_videos: videos })
+      const falhasSem: string[] = []
+      await criterioCobertura({ supabase: sem.client, channels: [canal], falhas: falhasSem, relogio: criarRelogio() })
+      expect(falhasSem).toHaveLength(1)
+      const com = fakeSupabase({ youtube_videos: videos })
+      semearCobertura(com, videos, hoje)
+      const falhasCom: string[] = []
+      await criterioCobertura({ supabase: com.client, channels: [canal], falhas: falhasCom, relogio: criarRelogio() })
+      expect(falhasCom).toEqual([])
     })
   })
 })

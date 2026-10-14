@@ -66,7 +66,7 @@ export function conferenciasE1E2(deploy: string | null): Conferencia[] {
 // O controlador preenche `E8_COLETA_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as quatro
 // entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E8` (o formato `E<n>` do guardião).
 /** Dia de São Paulo (AAAA-MM-DD) em que o lote E8-coleta foi promovido a `main`. `null` = ainda não enviado. */
-export const E8_COLETA_DEPLOY: string | null = null
+export const E8_COLETA_DEPLOY: string | null = '2026-10-14'
 
 const PLANO_E8 = 'docs/superpowers/plans/2026-10-12-a5-e6-e8-dieta-e-retencao-plan.md (Tarefa 11a; consultas K6 e K7 do apêndice); anotar o resultado em .superpowers/sdd/a5-e6-e8/progress.md'
 
@@ -85,6 +85,33 @@ export function conferenciasE8Coleta(deploy: string | null): Conferencia[] {
     e('tres-dias', 3, 'R + 3: a consulta K7 em três dias seguidos (uma linha de curva por vídeo lido, nenhuma tentativa sem resposta repetida), e falhas do cron sem nota de retenção'),
     e('tempo-real', 3, 'R + 3: resumo.ms das 3 primeiras execuções, inclusive ms.cauda, e a duração da invocação no painel da Vercel; o maior total passando de 250 s manda cortar os prazos dos três critérios para 2 s, 2 s e 1 s e o teto de fim da retenção para 10 s antes do envio do lote seguinte (plano, seção 5, "Orçamento da cauda")'),
     e('primeira-leva', 8, 'R + 8: a consulta K6: a primeira leva terminou (todo vídeo com diário em dia foi tentado ao menos uma vez) e o critério da retenção nunca ficou vermelho'),
+  ]
+}
+
+// E6 P2 (dieta do diário do canal próprio: o diário guarda só dia com atividade e a cobertura diz o que foi medido): as datas dependem do dia
+// da promoção a `main` (D), que ainda não existe. O controlador preenche `E6_P2_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio
+// (Tarefa 15). D é o dia em que o deploy fica PRONTO antes do cron das 12:00 UTC: a primeira execução da dieta é a de D; se o deploy não
+// ficou pronto a tempo, D é o dia seguinte e a constante muda (portão de dados do release 1, I1). Enquanto for `null`, as três entradas NÃO
+// existem (nada vence, nada deixa o cron vermelho). Etapa `E6` (o formato `E<n>` do guardião).
+/** Dia de São Paulo (AAAA-MM-DD) em que o lote E6-P2 foi promovido a `main`. `null` = ainda não enviado. */
+export const E6_P2_DEPLOY: string | null = '2026-10-14'
+
+const PLANO_E6P2 = 'docs/superpowers/plans/2026-10-12-a5-e6-e8-dieta-e-retencao-plan.md (Tarefas 11b e 15; consultas K1 a K8 da seção 11); parecer .superpowers/sdd/a5/r1-portao-dados.md (I1, I2, D-1 e P-2); anotar o resultado em .superpowers/sdd/a5-e6-e8/progress.md'
+
+/**
+ * As conferências da dieta do diário a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio:
+ * vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE6P2(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e6-p2-deploy-invalido', etapa: 'E6', data: '1970-01-01', responsavel: 'agente', onde: `E6_P2_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e6-${id}`, etapa: 'E6', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E6P2}: ${onde}`, feitaEm: null })
+  return [
+    e('p2-primeira-execucao', 0, 'D, depois do cron das 12:00 UTC, na linha dessa execução (a consulta D-1 do parecer; "order by ran_at desc limit 1" só serve antes do cron seguinte): `resumo.diario.apagadas` = N0, o número medido pela consulta P-2 ANTES do push e anotado no ledger (teto: 7 × 35 = 245 menos as linhas com atividade nos 7 dias já gravados), com tolerância de até 5 por revisão do YouTube; `intervalos` = 70; `com_buraco` = 0; `ok` = 36; `falhas` sem `schema_ausente`; consultas K2 a K5 e K8. `apagadas` = 0 com N0 > 0 no PRIMEIRO dia é reprovação (a dieta não apaga, e o desfecho `ok` esconde isso); `apagadas` ausente do resumo = rodou o código antigo (o deploy não ficou pronto): não é reprovação, D passa a ser o dia seguinte e `E6_P2_DEPLOY` muda. Do segundo dia em diante `apagadas` = 0 é o normal (o dia novo nasce sem linha): só esta conferência distingue a dieta funcionando da que não apaga'),
+    e('retrato', 0, 'D, à tarde: o retrato "depois" (K1, o MESMO corte do "antes") comparado com o "antes" pela regra de três partes da Tarefa 15 (a: `medido` igual em todo par vídeo-dia; b: `views` igual em todo par anterior a `J`; c: `views` diferente de `J` em diante só como revisão do YouTube, listada uma a uma no ledger; mais de 5 diferenças ou um dia que foi de views maior que zero a zero para a conferência). "Igual" não é o critério; "é só o dia novo" não é explicação'),
+    e('p2-tres-execucoes', 2, 'D + 2, depois do cron das 12:00 UTC: as três primeiras execuções (D, D + 1 e D + 2): K3 = 0, K5 em dia e K8 = 0 nos três dias; `apagadas` = 0 (até 5 por revisão) da segunda em diante; `max(covered_to)` anda um dia por execução. É o que libera a P3 (a MG15)'),
   ]
 }
 
@@ -152,6 +179,7 @@ const BASE: readonly Conferencia[] = [
   { id: 'e20-segundo-cron', etapa: 'E20', data: '2026-10-14', responsavel: 'agente', onde: `${PLANO_E20}: resumo do segundo cron depois do envio (consulta B do runbook da coleta): guarda.blobs_guardados_antes é número, baixados_sem_bruto = 0, conferencias_vencidas = [], ms_total e ms_passos.guarda; conta exata blobs_guardados = antes + baixados + vazios`, feitaEm: null },
   { id: 'e12-d3', etapa: 'E12', data: '2026-10-16', responsavel: 'agente', onde: `${PLANO_E12}: D+3: quais dos 9 tipos novos o YouTube gera (consulta C, zero relatórios de um tipo é "não ok"), maior_lido_por_tipo contra os tetos (um tipo recusado por tamanho só tem conserto enquanto o arquivo existe na origem) e ms_passos.relatorios`, feitaEm: null },
   { id: 'e12-d7', etapa: 'E12', data: '2026-10-20', responsavel: 'agente', onde: `${PLANO_E12}: D+7: a mesma leitura do D+3 (acao_do_dono não notifica ninguém: esta e a do D+3 são a única vigilância de um tipo que nunca gerou); pendentes caindo 70 ou mais por dia; item 97, três execuções seguidas`, feitaEm: null },
+  { id: 'e11-religar-ou-retirar', etapa: 'E11', data: '2026-10-20', responsavel: 'agente', onde: 'docs/superpowers/plans/2026-10-12-a5-e11-canal-proprio-em-tabelas-plan.md, Tarefas 13 e 14; pareceres .superpowers/sdd/a5/r1-portao-dados.md (seção 3) e r1-portao-software.md: a E11 foi a main DESLIGADA em 14/10 (YT_OWN_STEPS_OFF=dimensoes,normalizadores na Vercel). Desligada, o critério dos passos desligados deixa o cron vermelho na 8ª execução seguida (21/10, 12:00 UTC). Até 20/10: fazer o ensaio com a API real (Tarefa 13) e religar pelo commit da Tarefa 14, ou retirar a E11 do cron', feitaEm: null },
   { id: 'e19-veredito', etapa: 'E19', data: '2026-10-20', responsavel: 'agente', onde: `${PLANO_E19}: lista e veredito da janela, 7 dias medidos e um com tarefa da forja concluída; busca no Sentry (action:leitura_registro tipo:gravacao) antes`, feitaEm: null },
   { id: 'e20-tamanho-d8', etapa: 'E20', data: '2026-10-21', responsavel: 'agente', onde: `${PLANO_E20}: tamanho das duas tabelas, primeira medida (também é o D+8 da E12: fila zerada, tamanho por tipo)`, feitaEm: null },
   { id: 'e12-d9', etapa: 'E12', data: '2026-10-22', responsavel: 'agente', onde: `${PLANO_E12}: D+9: tipo que gerou histórico e parou de gerar diário (o cron deve estar vermelho: runbook da coleta, seção 10); consulta C`, feitaEm: null },
@@ -166,7 +194,7 @@ const BASE: readonly Conferencia[] = [
 ]
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

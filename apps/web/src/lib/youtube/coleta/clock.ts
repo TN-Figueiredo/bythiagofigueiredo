@@ -3,6 +3,10 @@
 export const RELOGIO_GLOBAL_MS = 270_000
 // Soma dos tetos: 240 s. Com os 30 s de reserva da parte antiga da rota fecha os 270 s do relógio (clock.test.ts).
 export const TETOS_MS = { metadados: 30_000, jobs: 20_000, relatorios: 120_000, alcance: 20_000, diario: 50_000 } as const
+// Passos que só gastam o que sobra dos 270 s: não entram na soma de `TETOS_MS`; `relogio.prazo` os corta no fim do relógio.
+export const TETOS_DE_FIM_MS = { retencao: 20_000, dimensoes: 30_000, normalizadores: 20_000 } as const
+// A função morre aos 300 s; 4 s ficam para a resposta da rota.
+export const LIMITE_DA_FUNCAO_MS = 296_000
 export const FETCH_TIMEOUT_MS = 15_000
 export const PARALELO = 4
 
@@ -22,6 +26,14 @@ export function criarRelogio(inicio: number = Date.now(), totalMs: number = RELO
     decorrido: () => Date.now() - inicio,
     prazo: (tetoMs: number) => Math.min(Date.now() + tetoMs, fim),
   }
+}
+
+/**
+ * Prazo dos critérios que rodam DEPOIS dos 270 s (cobertura, retenção, desligados): ao contrário de `relogio.prazo`,
+ * não é cortado no fim do relógio global, e sim nos 296 s da função. Prazo que já passou: o critério não consulta.
+ */
+export function prazoDoCriterio(relogio: Relogio, proprioMs: number): number {
+  return Math.min(Date.now() + proprioMs, relogio.inicio + LIMITE_DA_FUNCAO_MS)
 }
 
 /** Milissegundos que faltam até o prazo; nunca negativo. */

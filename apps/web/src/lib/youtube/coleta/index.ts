@@ -10,19 +10,31 @@ import { CONFERENCIAS, DIAS_ATE_O_VERMELHO, conferenciasEmFalha, conferenciasVen
 import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
 import { passoAlcance } from './alcance-step'
-import { TETOS_MS, restante, type Relogio } from './clock'
+import { TETOS_DE_FIM_MS, TETOS_MS, restante, type Relogio } from './clock'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
+import { criterioDesligados } from './criteria-desligados'
+import { criterioCobertura } from './criteria-cobertura'
+import { criteriosE11 } from './criteria-e11'
 import { criteriosL2 } from './criteria-l2'
-import { ontemPt } from './day-pt'
+import { criteriosRetencao } from './criteria-retencao'
+import { dayPt, ontemPt } from './day-pt'
 import { passoDiario } from './diario-step'
+import { passoDimensoes } from './dimensoes-step'
+import { DIMENSOES_DESDE, DIMENSOES_LIGADO_EM, type ConfigE11 } from './e11-config'
 import { conferirGuarda, contarBrutosAoAbrir } from './guarda'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
+import { passoNormalizadores } from './normalizadores-step'
+import { notaNomesDesconhecidos, passoDesligado, type PassoComInterruptor } from './passos-desligados'
 import { passoRelatorios } from './reports-step'
+import { passoRetencao } from './retencao-step'
 import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
 
-/** Desligar um passo é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Não há variável de ambiente. */
+/**
+ * Desligar um dos cinco passos antigos é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Os passos novos
+ * (retenção, dimensões, normalizadores) não estão aqui: o interruptor deles é a variável YT_OWN_STEPS_OFF (passos-desligados.ts).
+ */
 export const PASSOS_LIGADOS = { metadados: true, jobs: true, relatorios: true, alcance: true, diario: true } as const
 
 /** O que o passo de metadados devolve e o critério de metadados precisa (`resumo.metadados` da fase 'antes'). */
@@ -47,6 +59,8 @@ export interface ColetaCtx {
    */
   autorizadosAntes?: string[]
   negadosAntes?: string[]
+  /** A5 E11: datas de partida de dimensões e normalizadores. Padrão: as constantes de `e11-config.ts`. */
+  e11?: ConfigE11
 }
 
 export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
@@ -256,12 +270,95 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     const r = await passo('diario', TETOS_MS.diario, 'diario', ativos, passoDiario)
     if (r) resumo.diario = r
   }
+
+  // A5 E11, depois do diário: dimensões (Analytics API; o teto da cobertura é a `base` que o diário acabou de estender) e
+  // normalizadores (só banco). Os dois só gastam o que SOBRAR dos 270 s (TETOS_DE_FIM_MS, fora de TETOS_MS): sem tempo não rodam
+  // e os passos de antes ficam como estavam. Dia do PACÍFICO (`dayPt`), nunca o de São Paulo de `hojeSP()`.
+  const e11: ConfigE11 = ctx.e11 ?? { desde: DIMENSOES_DESDE, ligadoEm: DIMENSOES_LIGADO_EM }
+  const hojePt = dayPt(new Date())
+  // Passos desligados por YT_OWN_STEPS_OFF nesta execução: é a lista que `criterioDesligados` recebe.
+  const desligados: PassoComInterruptor[] = []
+  if (passoDesligado('dimensoes')) {
+    resumo.dimensoes = { desligado: true }
+    desligados.push('dimensoes')
+  } else {
+    const r = await passo('dimensoes', TETOS_DE_FIM_MS.dimensoes, 'dimensoes', ativos, c => passoDimensoes({ ...c, e11, hoje: hojePt }))
+    if (r) resumo.dimensoes = r
+  }
+  // `servidos` vazio, como o alcance: o passo grava as próprias tentativas por tipo (uma `nao_alcancado_orcamento` aqui
+  // sobrescreveria a `ok` que ele gravou).
+  if (passoDesligado('normalizadores')) {
+    resumo.normalizadores = { desligado: true }
+    desligados.push('normalizadores')
+  } else {
+    const r = await passo('normalizadores', TETOS_DE_FIM_MS.normalizadores, 'normalizador_trafego', [], passoNormalizadores)
+    if (r) resumo.normalizadores = r
+  }
+
   if (PASSOS_LIGADOS.alcance || PASSOS_LIGADOS.diario) {
     try {
       await criteriosL2({ supabase: ctx.supabase, falhas, channels })
     } catch (e) {
       falhou('critérios do L2', e)
     }
+  }
+
+  // A5 E6, logo depois dos critérios do L2: a dieta do diário guarda só os dias com atividade, e quem diz "este vídeo foi coletado até
+  // tal dia" é a cobertura. O critério roda mesmo se o passo do diário lançou ou ficou sem tempo (é ele que enxerga o atraso). Vídeo
+  // atrasado deixa o cron vermelho (nota em `falhas`, escrita pelo próprio critério); o que o YouTube comprovadamente não devolve mais
+  // volta em `acaoDoDono` e vai para a lista do dono, nunca para `falhas`. Se lançar, a nota é vermelha: nunca engolida.
+  if (PASSOS_LIGADOS.diario) {
+    try {
+      const { acaoDoDono } = await criterioCobertura({ supabase: ctx.supabase, channels, falhas, relogio: ctx.relogio })
+      if (acaoDoDono.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...acaoDoDono])]
+    } catch (e) {
+      falhou('critérios de cobertura', e)
+    }
+  }
+
+  // Critérios da E11 DEPOIS dos dois passos: a prova mede o que eles acabaram de gravar. Sem canal ligado não há site para
+  // provar (o critério daria "nenhum site" vermelho para sempre). Se lançar, a nota é vermelha: nunca engolida.
+  const sitesE11 = [...new Set(ativos.map(c => c.site_id))]
+  if (sitesE11.length > 0) {
+    try {
+      const c = await criteriosE11({
+        supabase: ctx.supabase, falhas, hoje: hojePt, e11, sites: sitesE11,
+        desligados: { dimensoes: desligados.includes('dimensoes'), normalizadores: desligados.includes('normalizadores') },
+      })
+      resumo.e11 = { provas: c.provas, avaliados: c.avaliados, desligados: c.desligados }
+    } catch (e) {
+      falhou('critérios da E11', e)
+    }
+  }
+
+  // A5 E8, depois dos critérios da E11 (ordem da seção 5 do plano): a retenção só gasta o que SOBRAR dos 270 s (TETOS_DE_FIM_MS) e o
+  // critério dela roda DEPOIS, mesmo que o passo tenha lançado ou ficado sem tempo (é ele que dá a nota de "sem tempo"). Desligada
+  // por YT_OWN_STEPS_OFF: nada é chamado, o critério não é avaliado, e o nome entra em `desligados`. As notas de vídeo que o YouTube
+  // não devolve são `acao_do_dono` (nunca `falhas`: o vermelho delas é o do passo, depois de dias).
+  if (passoDesligado('retencao')) {
+    resumo.retencao = { desligado: true }
+    desligados.push('retencao')
+  } else {
+    const r = await passo('retencao', TETOS_DE_FIM_MS.retencao, 'retencao_vida', ativos, passoRetencao)
+    if (r) resumo.retencao = r
+    try {
+      await criteriosRetencao({ supabase: ctx.supabase, channels, falhas, relogio: ctx.relogio })
+    } catch (e) {
+      falhou('critérios da retenção', e)
+    }
+    const semResposta = (r as { sem_resposta_do_youtube?: unknown } | undefined)?.sem_resposta_do_youtube
+    const notasRetencao = Array.isArray(semResposta) ? semResposta.filter((n): n is string => typeof n === 'string') : []
+    if (notasRetencao.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notasRetencao])]
+  }
+
+  // Passo desligado nunca some: até a 7ª execução seguida é nota em `acao_do_dono`; da 8ª em diante o critério põe o vermelho.
+  const nomesRuins = notaNomesDesconhecidos()
+  if (nomesRuins) pushUnico(falhas, nomesRuins)
+  try {
+    const notas = await criterioDesligados({ supabase: ctx.supabase, falhas, relogio: ctx.relogio }, desligados)
+    if (notas.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notas])]
+  } catch (e) {
+    falhou('critérios de passos desligados', e)
   }
 
   if (PASSOS_LIGADOS.metadados) {
@@ -278,7 +375,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   }
 
   try {
-    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario'])
+    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim', 'retencao_vida', 'retencao_7d', 'retencao_30d'])
   } catch (e) {
     falhou('orçamento', e)
   }
@@ -315,6 +412,9 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   } catch (e) {
     falhou('conferências', e)
   }
+  // Milissegundos que a cauda gastou depois dos 270 s do relógio (a conferência `e8-tempo-real` lê isto); a rota junta toda chave
+  // numérica de `resumo.ms` em `ms_passos`. Lido por último: é o fim da fase 'depois'.
+  ms.cauda = Math.max(0, Date.now() - ctx.relogio.fim)
   resumo.ms = ms
   return { falhas, resumo }
 }

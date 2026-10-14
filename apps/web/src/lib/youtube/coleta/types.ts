@@ -1,12 +1,14 @@
 // Tipos compartilhados pelos passos da coleta dos canais próprios (lote L1a).
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AttemptKind } from './kinds'
 
 export const OUTCOMES = [
   'ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao',
   'erro_http', 'nao_alcancado_orcamento', 'schema_ausente',
 ] as const
 export type Outcome = (typeof OUTCOMES)[number]
-export type AttemptKind = 'sondagem' | 'meta' | 'thumbnail' | 'relatorio' | 'diario' | 'retencao_vida'
+export { COLLECTION_KINDS } from './kinds'
+export type { AttemptKind } from './kinds'
 export type ScopeType = 'video' | 'canal' | 'job'
 
 /** Linha de `youtube_channels` como a coleta lê. `id` é o uuid; `channel_id` é o UC… do YouTube. */
