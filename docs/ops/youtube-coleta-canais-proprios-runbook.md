@@ -65,6 +65,12 @@ Ainda **não** existe: a retenção (lote L3).
   - A recusa antes de ler o corpo (Content-Length) e a recusa de bomba de descompressão **não gravam `sha256` nem `row_count`** (o conteúdo não foi lido por inteiro); só `bytes`.
   - Os três textos da nota (ver seção 6) dizem qual teto estourou; subir só `MAX_GZ_BYTES` **não** resolve uma recusa "descomprimem a mais de".
 
+### Retenção da curva (A5 E8): teto de fim, ordem e a cauda
+
+- A retenção é um passo de **teto de fim** (`TETOS_DE_FIM_MS.retencao` = 20 s): não entra na soma dos 240 s de `TETOS_MS` e só gasta o que sobrar dos 270 s do relógio (`relogio.prazo` o corta no fim). Sem tempo, o passo não roda, grava `nao_alcancado_orcamento` de `kind retencao_vida` por canal ligado e o resumo diz `sem_tempo: true`; o que ficou espera um dia (o critério de orçamento avisa se isso durar 3 execuções).
+- **Ordem na fase "depois"** (a mesma dos três planos da A5): relatórios → guarda → alcance → critérios de relatórios → diário → [dimensões, normalizadores] → critérios do L2 → [critério de cobertura, lote E6-P2] → critérios da E11 → **retenção → critério da retenção** → nota de nome desconhecido em `YT_OWN_STEPS_OFF` → critério de passos desligados → critério de metadados → orçamento → conferências com data (sempre a última nota).
+- **A cauda.** Os critérios depois do relógio rodam entre 270 s e 296 s (a função morre aos 300 s). Os da retenção (3 s) e dos desligados (1 s) usam `prazoDoCriterio`: o prazo próprio **ou** os 296 s da função, o que vier primeiro; sem tempo, a nota vermelha é `critérios: não foi possível avaliar <o quê> (sem tempo)`, nunca verde. Quem roda mais tarde perde primeiro (desligados). O tempo real da cauda está em `ms_passos.cauda` (= `max(0, agora − fim do relógio)` lido no fim da fase) e o do passo em `ms_passos.retencao`. **Conferência `e8-tempo-real` (R + 3):** se o maior total das 3 primeiras execuções passar de 250 s, cortar os prazos dos três critérios para 2 s, 2 s e 1 s e o teto de fim da retenção para 10 s antes do envio do lote seguinte.
+
 ## 3. Ler a resposta do cron
 
 ```bash
@@ -192,6 +198,28 @@ Como ler `yt_own_collection_attempts`: sem linha = nunca tentado; linha com resu
 `kind`: `sondagem` (passo de jobs), `meta`, `thumbnail`, `relatorio`, `diario` (L2). O outro (`retencao_vida`) é do lote L3.
 
 `kind = 'diario'` tem dois escopos: `scope_type = 'video'` (`scope_id` = id de 11 caracteres do YouTube) e `scope_type = 'canal'` (`scope_id` = `youtube_channels.id`). A tentativa de **canal** é `ok` quando o canal foi atendido sem negação nem falta de tempo, **mesmo que alguns vídeos tenham dado `erro_http`** (isso vai para `falhas`, não para a tentativa do canal). Para saber se o diário de um vídeo entrou, olhe a tentativa do vídeo, não a do canal.
+
+### Retenção da curva (A5 E8)
+
+Tabela `yt_own_video_retention` (migration MG5): uma linha por vídeo, janela (`window_kind`: `vida`, `primeiros_7_dias`, `primeiros_30_dias`), segmento (`organico`) e fim da janela (`window_end`); a chave é essa, então regravar a mesma janela é idempotente e o histórico da curva fica (cada semana nova da vida é outra linha). `points` é a lista de pontos `{t, ratio, relative, segment_impressions}` (`t` = fração do vídeo; `ratio` = fração da audiência, **pode passar de 1**; campo que não veio é nulo, nunca 0); `point_count` é quantos **vieram** (pode ser menos de 100). A função `yt_own_retention_facts(canal, hoje_utc)` é a que o passo e o critério leem: um fato por vídeo do canal com `published_at`.
+
+**Ler a curva da vida de cada vídeo (a mais recente):**
+
+```bash
+npx supabase db query --linked "select distinct on (r.youtube_video_id) r.youtube_video_id, r.window_end, r.point_count, r.views_at_read, r.collected_at from yt_own_video_retention r where r.window_kind = 'vida' order by r.youtube_video_id, r.window_end desc limit 100"
+```
+
+**Quem nunca teve curva e por quê** (as tentativas de `kind retencao_vida` são por **canal**; a de cada vídeo vem do `outcome` da leitura):
+
+```bash
+npx supabase db query --linked "select v.youtube_video_id, v.published_at, (select count(*) from yt_own_video_retention r where r.youtube_video_id = v.youtube_video_id and r.window_kind = 'vida') as linhas_da_vida from youtube_videos v join youtube_channels c on c.id = v.channel_id where c.sync_enabled and v.published_at is not null order by 3, v.published_at limit 100"
+```
+
+```bash
+npx supabase db query --linked "select scope_type, scope_id, kind, attempt_day, outcome, http_status, error, attempts from yt_own_collection_attempts where kind in ('retencao_vida', 'retencao_7d', 'retencao_30d') order by attempt_day desc, kind limit 60"
+```
+
+Como ler: `outcome = ok` com linha gravada; `sem_dado_na_janela` = a API respondeu e **não trouxe curva** (vídeo curto demais, ou sem audiência na janela): não é zero e não é erro, e o passo só relê quando o vídeo teve view depois da resposta e 7 dias passaram. O `error` de uma tentativa `erro_http` é sempre um **código** do catálogo (`http_500`, `http_403_quotaExceeded`, `forma_inesperada`, `erro_de_banco`…), nunca texto do Google nem do Postgres. Um `ratio` acima de 1 é dado real (a mesma pessoa revê o trecho), não defeito.
 
 ## 5. Ação do dono (não é falha crítica)
 
@@ -389,6 +417,37 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `coleta (antes\|depois): <causa>` / `coleta: <causa>` | exceção não prevista na coleta inteira | Sentry (tag `passo: coleta`) |
 | `metadados: <causa>` / `jobs: <causa>` / `relatorios: <causa>` / `alcance: <causa>` / `diario: <causa>` / `orçamento: <causa>` | exceção não prevista dentro de um passo ou critério (o prefixo é o nome do passo, escrito `relatorios` e `diario` sem acento e `orçamento` com) | Sentry (tag `passo`) |
 
+### Retenção (A5 E8)
+
+Passo `retencao` e critério da retenção. Canal em `reautorizar` não é servido e **não gera nota nenhuma** aqui (já há o e-mail próprio).
+
+| Nota | Significa | O que fazer |
+|---|---|---|
+| `retenção: <canal>: N de M leituras com erro (<causa>)` | a Analytics API (ou o banco) falhou em N das M leituras do dia; `<causa>` é a da primeira (cota, "erro do YouTube (500)", "erro de banco"…). As outras foram gravadas | transitório; some na execução seguinte. Cota: painel da YouTube Analytics API (a retenção só pede o que sobra: o diário tem a vez antes) |
+| `retenção: <canal>: N vídeo(s) sem diário em dia; a curva espera o diário (<até 5 ids>)` (com `; metade ou mais do canal: é pane da coleta` quando for o caso) | o vídeo tem 5 dias ou mais e a fonte do diário está parada há mais de 7 dias: **a curva não é lida** (o fim da janela não seria confiável). Vermelho **por 3 dias**; depois, se o YouTube não devolve o vídeo (4 dias seguidos de `sem_dado_na_janela` ou `erro_http` 403, 404 ou 410 que não seja de cota), ele vira ação do dono. Erro nosso (banco, forma inesperada) e 500, 429 ou cota **não** tiram o vídeo do vermelho; metade ou mais do canal nessa situação é pane e fica vermelho | olhe o diário do vídeo (tentativas `diario`, seção 4) e o conserto do diário; se o vídeo foi apagado, veja a ação do dono abaixo |
+| `retenção: <canal>: <causa>` (`a resposta veio em forma inesperada`, `fatos em forma inesperada`) | a lista de fatos ou a resposta da API veio fora da forma | Sentry; defeito de contrato: precisa de commit |
+| `retenção: <canal>: N vídeo(s) com leitura da curva vencida há mais de 8 dias (<ids>)` | **critério da retenção**: o passo roda todo dia e um vídeo com diário em dia continua sem leitura há mais de 8 dias (o passo deixou de fazê-lo) | tentativas `retencao_vida` do vídeo (seção 4); a causa costuma ser uma nota `retenção: … leituras com erro` dos dias anteriores |
+| `critérios: não foi possível avaliar retenção de <canal>` | a leitura dos fatos falhou, veio em forma inesperada ou a contagem dos vídeos não veio. **Nunca é "nada de errado"** | a nota anterior (`erro de banco ao ler yt_own_retention_facts` ou `youtube_videos`) diz qual; Sentry |
+| `critérios: não foi possível avaliar retenção de <canal> (sem tempo)` | o relógio (296 s da função) acabou antes de o critério ler. Sem tempo é vermelho, não verde | se repetir, a cauda está apertada: conferência `e8-tempo-real` (seção 2) |
+| `critérios: não foi possível avaliar retenção de <canal> (migration MG5 não aplicada: falta a função yt_own_retention_facts)` com `schema_ausente: yt_own_retention_facts` | o código está no ar e a migration MG5 não foi aplicada em produção. O resto da coleta segue igual; o vermelho a mais é só esse | aplicar a MG5 (o dono: `npm run db:push:prod`) |
+| `critérios: não foi possível avaliar retenção de <canal> (lista vazia, mas o canal tem N vídeos)` | a função devolveu lista vazia para um canal que tem vídeo: defeito da função, não "tabela vazia" | log do Supabase; conferir `yt_own_retention_facts` na mão |
+| `critérios da retenção: <causa>` | exceção não prevista dentro do critério | Sentry (tag `passo: critérios da retenção`) |
+| `retencao: <causa>` (sem acento) | exceção não prevista no passo inteiro | Sentry (tag `passo: retencao`) |
+
+**Ação do dono** (resumo, nunca `falhas`): `retenção: <canal>: N vídeo(s) que o YouTube não devolve mais (<ids>); a curva não é lida`. O vídeo ficou 3 dias vermelho (com o id), o YouTube não o devolve mais e o vermelho acabou. Quase sempre é um vídeo **apagado no YouTube**. Nenhum código tira um vídeo seu de `youtube_videos`: **tirá-lo da lista é ato do dono, por SQL, em produção** (o agente não escreve em produção). Primeiro confirme no Studio que o vídeo não existe mais e leia o que vai sair:
+
+```bash
+npx supabase db query --linked "select id, youtube_video_id, title, published_at from youtube_videos where youtube_video_id = '<ID DE 11 CARACTERES>' limit 2"
+```
+
+Depois o dono apaga a linha (as tabelas `yt_own_*` que apontam para ela por `video_id` ficam com `video_id` nulo — `on delete set null` — e **guardam o histórico pelo id de 11 caracteres**; se outra tabela impedir o apagamento, o banco recusa e nada muda):
+
+```bash
+npx supabase db query --linked "delete from youtube_videos where youtube_video_id = '<ID DE 11 CARACTERES>' returning id, youtube_video_id"
+```
+
+Um vídeo apagado que a API responda com **outro** status (400, ou 500 persistente) fica vermelho até ser tirado da lista: é o lado seguro. Canal de 1 vídeo com o vídeo apagado fica vermelho para sempre (1 de 1 é "metade ou mais").
+
 ## 7. Exportar um CSV do bruto para fixture
 
 O L2 foi escrito contra CSVs **reais** em `apps/web/test/fixtures/yt-reporting/` (lidos de produção em 09/10/2026: `channel_reach_basic_a1.csv`, `channel_reach_basic_a1-2026-09-30.csv` e `channel_reach_basic_a1-vazio.csv`). Este procedimento serve para refazer a fixture se o Google mudar o formato (a nota `cabecalho_inesperado`, seção 6). O bruto está em `yt_reporting_report_blobs.csv_gz`; a leitura de bytea por `db query` sai em hexadecimal e um `python3` desfaz o hex e o gzip.
@@ -559,6 +618,16 @@ Como ler:
   4. O job continua gerando relatório no Google. Para parar, apague-o (`jobs.delete`, seção 9); o dono faz isso, escreve no Google. Se o tipo for religado depois, a sondagem adota o job que ficou.
   5. Anote no ledger o tipo, o canal, a data e que o YouTube só gerou o histórico.
 - Anote no ledger quais dos 9 tipos o YouTube gera de fato. Para o tamanho, **não use `maior`/`bytes_medio` desta consulta como medida do teto**: são do gzip guardado. A medida que justifica manter ou mudar os tetos da seção 2 é `maior_lido_por_tipo` (e `corpos_gz`) do resumo do cron, lido na conferência de D+3 (consulta B do plano, `resumo->'relatorios'`); `maior`/`bytes_medio` só dizem quanto ocupa o banco.
+
+### Desligar a retenção (e os passos novos) pela variável YT_OWN_STEPS_OFF (A5 E8)
+
+A retenção, as dimensões, as versões e os normalizadores têm interruptor próprio: a variável **`YT_OWN_STEPS_OFF`** na Vercel, com os nomes separados por vírgula (`retencao,dimensoes,versoes,normalizadores`; espaços e maiúsculas tolerados). Os cinco passos de `PASSOS_LIGADOS` continuam sendo desligados por commit (acima).
+
+- **Sem commit, mas a variável só vale no deploy seguinte**: depois de salvar a variável é preciso um **redeploy** (a Vercel lê o ambiente no deploy). Religar é o mesmo caminho: tirar o nome e fazer outro deploy.
+- Desligada a retenção: o passo não roda e **não chama nada** (nem `yt_own_retention_facts`), o critério da retenção **não é avaliado**, `resumo.retencao` vira `{ "desligado": true }` e nenhuma tentativa `retencao_*` é gravada.
+- **Um passo desligado nunca some.** Até a 7ª execução seguida a nota `retencao: passo desligado por YT_OWN_STEPS_OFF (há N execuções)` fica em `acao_do_dono`. Na **8ª execução seguida o cron fica vermelho** (`retencao: passo desligado há 8 execuções ou mais por YT_OWN_STEPS_OFF; religue…`), e continua até religar ou tirar o passo por commit. O critério conta as execuções lendo `resumo.<passo>.desligado` em `yt_own_collection_runs`; se a leitura falhar, a nota é `critérios: não foi possível avaliar há quanto tempo o passo retencao está desligado (…)` em `falhas`.
+- **Nome desconhecido** na variável (erro de digitação) não desliga nada: `YT_OWN_STEPS_OFF tem nome desconhecido: <nome>` em `falhas`, uma vez só.
+- Antes de a MG5 existir em produção o passo e o critério dão `schema_ausente` com o nome da migration (seção 6, "Retenção"): se isso incomodar enquanto a MG5 espera, desligar a retenção pela variável é o caminho, e a 8ª execução desligada lembra de religar.
 
 ## 11. Apagar a série de um canal
 

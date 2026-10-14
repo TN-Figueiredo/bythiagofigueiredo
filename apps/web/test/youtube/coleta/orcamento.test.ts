@@ -62,7 +62,7 @@ describe('orçamento, com os passos de verdade', () => {
     expect(antes.resumo.metadados).toMatchObject({ gravados: 1 })
     expect(db.tables.yt_own_video_meta_daily).toHaveLength(1)
 
-    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 280_000), fase: 'depois' })
     const relatorios = depois.resumo.relatorios as { pendentes: number; tentativas: Record<string, number> }
     expect(relatorios.tentativas).toEqual({ nao_alcancado_orcamento: 1 })
     expect(relatorios.pendentes).toBeGreaterThan(0)
@@ -74,8 +74,36 @@ describe('orçamento, com os passos de verdade', () => {
       youtube_channels: [canal], yt_reporting_jobs: [jobAtivo],
       yt_own_collection_attempts: [semAlcancar('2026-10-05'), semAlcancar('2026-10-06')],
     }))
-    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 280_000), fase: 'depois' })
     expect(depois.falhas).toEqual(['orçamento: 1 escopo(s) de relatorio sem alcançar nas 3 últimas tentativas'])
+  })
+
+  // ── A5 E8 (Tarefa 11a): a retenção e o critério dela, com o relógio de verdade ───────────────────────────────────────
+  const canalOk: Row = { ...canal, collection_status: 'ok' }
+  it('E8, com 300 s decorridos: criteriosRetencao não chama yt_own_retention_facts e deixa a nota de sem tempo em falhas', async () => {
+    const db = comE11Padrao(fakeSupabase({ youtube_channels: [canalOk], yt_reporting_jobs: [jobAtivo] }))
+    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_retention_facts')).toEqual([])
+    expect(depois.resumo.retencao).toMatchObject({ sem_tempo: true, pendentes: 1 })
+    expect(depois.falhas).toContain('critérios: não foi possível avaliar retenção de Canal Um (sem tempo)')
+    expect((db.tables.yt_own_collection_attempts ?? []).filter(x => x.kind === 'retencao_vida')).toEqual([expect.objectContaining({ scope_id: 'ch-1', outcome: 'nao_alcancado_orcamento' })])
+  })
+
+  it('E8, com 280 s decorridos: os passos não rodam (270 s vencidos), mas o critério da retenção ainda tem prazo e lê os fatos (lista vazia, sem vídeo: verde)', async () => {
+    const db = comE11Padrao(fakeSupabase({ youtube_channels: [canalOk], yt_reporting_jobs: [jobAtivo] }))
+    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 280_000), fase: 'depois' })
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_retention_facts')).toHaveLength(1)
+    expect(depois.falhas).toEqual([])
+  })
+
+  it('E8, com 295 s decorridos e uma leitura que não volta: a nota de sem tempo do critério (prazoDoCriterio, 296 s) sai em cerca de 1 s', async () => {
+    const db = comE11Padrao(fakeSupabase({ youtube_channels: [canalOk], yt_reporting_jobs: [jobAtivo] }))
+    db.rpcHandlers.yt_own_retention_facts = () => new Promise(() => { /* nunca volta */ })
+    const t0 = performance.now()
+    const depois = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 295_000), fase: 'depois' })
+    expect(performance.now() - t0).toBeLessThan(3_000)
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_retention_facts')).toHaveLength(1)
+    expect(depois.falhas).toContain('critérios: não foi possível avaliar retenção de Canal Um (sem tempo)')
   })
 
   // ── A5 E11 (Tarefa 10): os dois passos novos só gastam o que SOBRA do relógio ──────────────────────────────────────
