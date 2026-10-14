@@ -143,3 +143,53 @@ describe('link.comparar', () => {
     expect(link.comparar(undefined, 'y')).toBe('/cms/youtube/competitors/comparar?b=y')
   })
 })
+
+// E5a Tarefa 4: parâmetros novos. O "retrato" abaixo foi escrito com o texto que as ligações de hoje geram, antes da mudança.
+describe('E5a T4: ligações e parâmetros', () => {
+  const B = '/cms/youtube/competitors'
+  it('os links existentes de todas as abas não mudam (retrato de dez ligações de hoje)', () => {
+    expect(link.canais()).toBe(B)
+    expect(link.canais({ filter: 'problemas' })).toBe(`${B}?filter=problemas`)
+    expect(link.canais({ niche: 'ia', fmt: 'shorts', sort: 'vpd' })).toBe(`${B}?niche=ia&fmt=shorts&sort=vpd`)
+    expect(link.canais({ channel: 'abc', tab: 'outliers' })).toBe(`${B}?channel=abc&tab=outliers`)
+    expect(link.mudancas({ niche: 'ia', type: 'title', win: 7 })).toBe(`${B}/mudancas?niche=ia&type=title&win=7`)
+    expect(link.mudancas({ channel: 'abc' })).toBe(`${B}/mudancas?channel=abc`)
+    expect(link.outliers({ niche: 'viagem', fmt: 'long', ages: ['0-30'], min: 2 })).toBe(`${B}/outliers?niche=viagem&fmt=long&age=0-30&min=2`)
+    expect(link.insights({ niche: 'ia' })).toBe(`${B}/insights?niche=ia`)
+    expect(link.insights()).toBe(`${B}/insights`)
+    expect(link.comparar('x', 'y')).toBe(`${B}/comparar?a=x&b=y`)
+  })
+  it('cada parâmetro novo aparece e é lido de volta', () => {
+    const lido = (u: string) => Object.fromEntries(new URL(u, 'http://x').searchParams)
+    expect(lido(link.canais({ filter: 'parados' }))).toEqual({ filter: 'parados' })
+    for (const f of ['em-queda', 'sairam', 'sem-videos'] as const) expect(lido(link.canais({ filter: f }))).toEqual({ filter: f })
+    for (const d of ['sobe', 'estavel', 'desce', 'nao-medido'] as const) expect(lido(link.canais({ direcao: d }))).toEqual({ direcao: d })
+    expect(lido(link.mudancas({ vista: 'outras' }))).toEqual({ vista: 'outras' })
+    for (const t of ['tags', 'categoria', 'duracao', 'capitulos'] as const) expect(lido(link.mudancas({ tipo: t }))).toEqual({ tipo: t })
+    expect(lido(link.outliers({ sort: 'v7' }))).toEqual({ sort: 'v7' })
+    expect(lido(link.outliers({ sort: 'v30' }))).toEqual({ sort: 'v30' })
+    expect(lido(link.outliers({ view: 'list' }))).toEqual({ view: 'list' })
+    for (const l of ['com', 'nao-e-o-caso', 'nao-medido'] as const) expect(lido(link.outliers({ leitura: l }))).toEqual({ leitura: l })
+    expect(lido(link.insights({ leitura: 'b' }))).toEqual({ leitura: 'b' })
+    expect(lido(link.insights({ leitura: 'c' }))).toEqual({ leitura: 'c' })
+  })
+  it('valor padrão some da URL (um por parâmetro novo)', () => {
+    expect(link.mudancas({ vista: 'trocas' })).toBe(`${B}/mudancas`)
+    expect(link.outliers({ sort: 'mult' })).toBe(`${B}/outliers`)
+    expect(link.outliers({ view: 'grid' })).toBe(`${B}/outliers`)
+    expect(link.outliers({ leitura: 'todos' })).toBe(`${B}/outliers`)
+    expect(link.insights({ leitura: 'a' })).toBe(`${B}/insights`)
+    expect(link.canais({ direcao: undefined })).toBe(B)
+  })
+  it('direcao não colide com dir: uma URL com os dois é lida de volta com os dois', () => {
+    const q = new URL(link.canais({ direcao: 'desce', sort: 'vpd' }) + '&dir=asc', 'http://x').searchParams
+    expect(q.get('direcao')).toBe('desce'); expect(q.get('dir')).toBe('asc'); expect(q.get('sort')).toBe('vpd')
+  })
+  it('tipo e type convivem na mesma URL', () => {
+    const q = new URL(link.mudancas({ type: 'title', tipo: 'tags', win: 90 }), 'http://x').searchParams
+    expect(q.get('type')).toBe('title'); expect(q.get('tipo')).toBe('tags'); expect(q.get('win')).toBe('90')
+  })
+  it('o padrão da vista só some quando é o padrão: "outras" continua na URL com os outros filtros', () => {
+    expect(link.mudancas({ vista: 'outras', tipo: 'tags', win: 30 })).toBe(`${B}/mudancas?win=30&vista=outras&tipo=tags`)
+  })
+})
