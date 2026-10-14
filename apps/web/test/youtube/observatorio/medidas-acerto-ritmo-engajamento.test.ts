@@ -146,6 +146,29 @@ describe('M7: engajamento', () => {
     const soHoje = engajamentoDoCanal([hoje(0.1), hoje(0.2), hoje(0.3)], o)
     expect(soHoje.notas).toContainEqual({ tipo: 'total_de_hoje' })
   })
+  // (revisão Yannis 14/10, I3) a mediana é do mesmo componente: nunca mistura só curtidas com curtidas e comentários
+  const so = (taxa: number, qual: 'curtidas' | 'comentarios') => vc(taxa, qual === 'curtidas'
+    ? { likes30: taxa * 1000, comments30: 0, commentsDisabled: true }
+    : { likes30: 0, likesHidden: true, comments30: taxa * 1000, commentsDisabled: false })
+  const doisC = (taxa: number) => vc(taxa, { likes30: taxa * 1000, comments30: 0, commentsDisabled: false })
+  it('canal: três só-curtidas (0,05) contra três com os dois (0,01): o grupo maior vence, sem mistura, e a nota é so_curtidas', () => {
+    const r = engajamentoDoCanal([so(0.05, 'curtidas'), so(0.05, 'curtidas'), so(0.05, 'curtidas'), so(0.05, 'curtidas'), doisC(0.01), doisC(0.01), doisC(0.01), so(0.4, 'comentarios')], o)
+    expect(r).toMatchObject({ estado: 'medido', valor: 0.05, n: 4 })
+    expect(r.notas).toContainEqual({ tipo: 'so_curtidas' })
+    const outro = engajamentoDoCanal([so(0.05, 'curtidas'), so(0.05, 'curtidas'), so(0.05, 'curtidas'), doisC(0.01), doisC(0.01), doisC(0.01), doisC(0.01), so(0.4, 'comentarios')], o)
+    expect(outro).toMatchObject({ estado: 'medido', valor: 0.01, n: 4 })
+    expect(outro.notas.some(n => n.tipo === 'so_curtidas' || n.tipo === 'so_comentarios')).toBe(false)
+  })
+  it('canal: grupos do mesmo tamanho desempatam por idade_30 e depois por os_dois, depois so_curtidas, depois so_comentarios', () => {
+    const empate = engajamentoDoCanal([so(0.05, 'curtidas'), so(0.05, 'curtidas'), so(0.05, 'curtidas'), doisC(0.01), doisC(0.01), doisC(0.01)], o)
+    expect(empate).toMatchObject({ valor: 0.01, n: 3 })
+    const curtidasXcomentarios = engajamentoDoCanal([so(0.05, 'curtidas'), so(0.05, 'curtidas'), so(0.05, 'curtidas'), so(0.3, 'comentarios'), so(0.3, 'comentarios'), so(0.3, 'comentarios')], o)
+    expect(curtidasXcomentarios).toMatchObject({ valor: 0.05, n: 3 })
+    expect(curtidasXcomentarios.notas).toContainEqual({ tipo: 'so_curtidas' })
+    // total de hoje, mesmo grupo maior, perde para 30 dias de tamanho igual
+    const hoje = (x: number) => vc(0, { temMarca30: false, viewsHoje: 5000, likesHoje: x * 5000, commentsHoje: 0, commentsDisabled: false })
+    expect(engajamentoDoCanal([hoje(0.5), hoje(0.5), hoje(0.5), doisC(0.01), doisC(0.01), doisC(0.01)], o)).toMatchObject({ valor: 0.01, n: 3 })
+  })
   it('canal: ao vivo fora e contado; formato não confirmado; agendado', () => {
     const r = engajamentoDoCanal([vc(0.01), vc(0.03), vc(0.02), vc(0.9, {}, { wasLive: true }), vc(0.9, {}, { formato: null }), vc(0, {}, { agendadoOuNoAr: true })], o)
     expect(r).toMatchObject({ valor: 0.02, n: 3 })

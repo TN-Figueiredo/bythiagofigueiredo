@@ -73,6 +73,20 @@ describe('M10: pico sem cauda', () => {
     expect(TEXTO_OBRIGATORIO_M10.toLowerCase()).not.toContain('retenção')
     expect(NOME_INTERNO_M10).toBe('pico_sem_cauda')
   })
+  // (revisão Yannis 14/10, I2) o texto é o do spec letra por letra, e `numeros` é o que a tela mostra como "os números usados"
+  it('o texto obrigatório é idêntico ao do spec, inteiro', () => {
+    expect(TEXTO_OBRIGATORIO_M10).toBe(
+      'Indício, não medição. Este vídeo teve muitas views nos primeiros 30 dias, quase nenhuma depois, e pouca reação do público (curtidas e comentários). Isso costuma acontecer quando o YouTube para de recomendar um vídeo; essa é uma hipótese nossa sobre como a recomendação funciona, não um dado. O YouTube não mostra a ninguém de fora quanto tempo as pessoas assistiram ao vídeo de outro canal.',
+    )
+  })
+  it('numeros: cada campo é o valor certo (sete valores todos diferentes entre si)', () => {
+    const m = picoSemCauda(base(
+      { v30: 2500, cauda: 0.15, aindaRende: 0.015, reacao: { taxa: 0.012, componente: 'os_dois' } },
+      { medianaV30: 1000, medianaCauda: 0.4, medianaReacao: 0.03 },
+    ))
+    expect(m.estado === 'medido' && m.valor.leitura).toBe('pico_sem_cauda')
+    expect(m.estado === 'medido' && m.valor.numeros).toEqual({ v30: 2500, medianaV30: 1000, cauda: 0.15, medianaCauda: 0.4, aindaRende: 0.015, reacao: 0.012, medianaReacao: 0.03 })
+  })
   it('o resultado não tem campo de nota nem de percentual', () => {
     const m = picoSemCauda(base())
     expect(m.estado === 'medido' && Object.keys(m.valor).sort()).toEqual(['condicoes', 'leitura', 'numeros'])

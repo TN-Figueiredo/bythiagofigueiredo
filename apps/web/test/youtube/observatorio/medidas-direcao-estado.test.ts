@@ -2,7 +2,7 @@
 // A5 · E4, Tarefa 4: M3 (direção) e M8 (estado do canal). Funções puras, datas explícitas no passado ou de entrada.
 import { describe, expect, it } from 'vitest'
 import {
-  direcaoDe, direcaoDoCanalInteiro, direcaoDosVideosNovos, somaDias, type RetratoDoCanal, type VideoParaDirecao,
+  direcaoDe, direcaoDoCanalInteiro, direcaoDosVideosNovos, somaDias, variacoesDoCanal, type RetratoDoCanal, type VideoParaDirecao,
 } from '@/lib/youtube/observatorio/medidas/direcao'
 import { estadoDoCanal } from '@/lib/youtube/observatorio/medidas/estado-canal'
 import { DAY } from '@/lib/youtube/observatorio/time'
@@ -111,6 +111,14 @@ describe('M3 b e c: direção dos vídeos novos', () => {
     const vs = [v(10, 300), v(20, 300), v(30, 300), v(100, 0), v(110, 0), v(120, 0)]
     expect(direcaoDosVideosNovos(vs, o)).toMatchObject({ motivo: 'base_zero' })
   })
+  // (revisão Yannis 14/10) was_live nulo entra na conta e é contado, como em M1 e M7
+  it('was_live nulo: o vídeo entra e a nota ao_vivo_nao_se_sabe conta só os que entraram', () => {
+    const vs = [v(10, 300, { wasLive: null }), v(20, 300), v(30, 300), v(100, 200, { wasLive: null }), v(110, 200), v(120, 200), v(500, 200, { wasLive: null }), v(15, 9999, { wasLive: null, viewsHidden: true })]
+    const r = direcaoDosVideosNovos(vs, o)
+    expect(r).toMatchObject({ estado: 'medido', valor: { medianaRecente: 300, medianaAnterior: 200 } })
+    expect(r.notas).toContainEqual({ tipo: 'ao_vivo_nao_se_sabe', n: 2 })
+    expect(direcaoDosVideosNovos([v(10, 300), v(20, 300), v(30, 300), v(100, 200), v(110, 200), v(120, 200)], o).notas.some(n => n.tipo === 'ao_vivo_nao_se_sabe')).toBe(false)
+  })
   it('o agendado e o que está no ar ficam fora e são contados', () => {
     const vs = [v(10, 300), v(20, 300), v(30, 300), v(1, 0, { agendadoOuNoAr: true }), v(100, 200), v(110, 200), v(120, 200)]
     const r = direcaoDosVideosNovos(vs, o)
@@ -164,6 +172,32 @@ describe('M8: estado do canal', () => {
     const r = estadoDoCanal({ ...base, retratos: [] })
     expect(r.estado).toBe('ativo')
     expect(r.queda).toMatchObject({ estado: 'nao_medido' })
+  })
+  // (revisão Yannis 14/10, I1) variacoesDoCanal: a conta do em_queda não pode se apoiar em contagem que recuou nem em base zero
+  it('queda: contagem que recuou numa janela não mede e não vira em_queda', () => {
+    // sem a guarda, as três variações (−100,6%, −10%, −10%) dariam em_queda sobre dado que recuou (vídeo apagado, F6)
+    const r = quedaDe(FIM, [-5_000, 810_000, 900_000, 1_000_000])
+    expect(r.queda).toMatchObject({ estado: 'nao_medido', motivo: 'contagem_recuou' })
+    expect(r.estado).toBe('ativo')
+    const antiga = quedaDe(FIM, [729_000, 810_000, -900_000, 1_000_000])
+    expect(antiga.queda).toMatchObject({ estado: 'nao_medido', motivo: 'contagem_recuou' })
+    expect(antiga.estado).toBe('ativo')
+  })
+  it('queda: ganho zero na janela anterior é base_zero, nunca Infinity nem NaN', () => {
+    for (const g of [[729_000, 810_000, 900_000, 0], [729_000, 810_000, 0, 1_000_000], [729_000, 0, 900_000, 1_000_000]]) {
+      const r = quedaDe(FIM, g)
+      expect(r.queda).toMatchObject({ estado: 'nao_medido', motivo: 'base_zero' })
+      expect(r.estado).toBe('ativo')
+    }
+  })
+  it('variacoesDoCanal: nenhum resultado medido traz NaN ou Infinity', () => {
+    const m = variacoesDoCanal(comGanhos(FIM, [729_000, 810_000, 900_000, 1_000_000]), somaDias(FIM, 1), 3)
+    expect(m.estado === 'medido' && m.valor.variacoes.every(Number.isFinite)).toBe(true)
+  })
+  it('parado vence em_queda: canal sem publicar há 90 dias e com três janelas em queda é parado, com a queda medida', () => {
+    const r = estadoDoCanal({ ...base, retratos: comGanhos(FIM, [729_000, 810_000, 900_000, 1_000_000]), hojeSP: somaDias(FIM, 1), ultimaPublicacaoMs: AGORA - 90 * DAY })
+    expect(r.estado).toBe('parado')
+    expect(r.queda.estado).toBe('medido')
   })
   it('canal pausado: estado é pausado, nunca parado nem ativo', () => {
     const r = estadoDoCanal({ ...base, collectionPausedAt: '2026-10-01T00:00:00Z', ultimaPublicacaoMs: AGORA - 90 * DAY })

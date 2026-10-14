@@ -120,6 +120,7 @@ export function direcaoDosVideosNovos(
   if (agendados) notas.push({ tipo: 'agendado_fora', n: agendados })
   if (aoVivo) notas.push({ tipo: 'ao_vivo_fora', n: aoVivo })
   const recente: number[] = [], anterior: number[] = []
+  let naoSabe = 0
   for (const v of longos) {
     if (v.agendadoOuNoAr || v.wasLive === true || v.viewsHidden === true) continue
     const x = o.base === 'v30' ? (v.v30 && v.v30.estado === 'medido' ? v.v30.valor.views : null) : v.viewsHoje
@@ -128,7 +129,11 @@ export function direcaoDosVideosNovos(
     if (idade < 0) continue
     if (idade <= janela) recente.push(x)
     else if (idade <= 2 * janela) anterior.push(x)
+    else continue
+    // wasLive nulo (ainda não relido depois da E1): entra na conta e é contado, como em M1 e M7
+    if (v.wasLive === null) naoSabe++
   }
+  if (naoSabe) notas.push({ tipo: 'ao_vivo_nao_se_sabe', n: naoSabe })
   const minimo = RULES.weakBase
   if (recente.length < minimo || anterior.length < minimo) {
     return naoMedido('poucos_videos', { n: Math.min(recente.length, anterior.length), minimo, notas })
