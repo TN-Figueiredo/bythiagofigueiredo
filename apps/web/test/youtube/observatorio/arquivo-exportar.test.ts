@@ -221,6 +221,35 @@ describe('A5 E10 T6: exportarCanal, o caminho feliz', () => {
     expect(b.b.chamadas.some(c => /obs_archive_register/.test(c.texto))).toBe(false)
   })
 
+  it('soma do arquivo difere da do banco com a mesma contagem: para, sem manifesto (revisão Yannis 14/10, M1)', async () => {
+    const m = montar()
+    const original = m.b.sql.query.bind(m.b.sql)
+    let trocou = false
+    m.b.sql.query = async (t, p) => {
+      const r = await original(t, p)
+      // o cursor devolve o MESMO número de linhas, mas um `views` diferente
+      if (!trocou && /^fetch forward/.test(t.trim()) && r.rows.length > 0 && 'views' in r.rows[0]!) {
+        trocou = true
+        return { rows: r.rows.map((l, i) => (i === 0 ? { ...l, views: String(BigInt(String(l.views)) + BigInt(1)) } : l)) }
+      }
+      return r
+    }
+    const r = await m.exportar()
+    expect(trocou).toBe(true)
+    expect(r).toMatchObject({ ok: false, codigo: 'contagem_do_arquivo_difere' })
+    expect(m.d.arquivos.has(`${PASTA}/manifesto.json`)).toBe(false)
+    expect(m.b.chamadas.some(c => /obs_archive_register/.test(c.texto))).toBe(false)
+  })
+
+  it('o banco informa uma soma e o arquivo não consegue somar (expressão que não é coluna simples): para, nunca pula a conferência em silêncio (M1)', async () => {
+    const tabelas = tabelasPadrao()
+    tabelas.competitor_video_daily!.soma = 'sum(t.views)' // colunasDaExpressao devolve nulo: o export não tem como refazer a soma
+    const m = montar({ tabelas })
+    const r = await m.exportar()
+    expect(r).toMatchObject({ ok: false, codigo: 'contagem_do_arquivo_difere' })
+    expect(m.d.arquivos.has(`${PASTA}/manifesto.json`)).toBe(false)
+  })
+
   it('erro do banco no meio: nenhum manifesto, rollback chamado, nenhuma mensagem do banco no resultado', async () => {
     let n = 0
     const m = montar({ falhaEm: t => (/^declare/.test(t.trim()) && ++n === 3 ? new Error('SEGREDO do banco') : null) })

@@ -202,7 +202,8 @@ export async function exportarCanal(o: {
           parametros: unico ? [o.canalId] : [o.canalId, k.inicio],
           colunas: colunas.map(x => x.nome), colunaDaSoma, colunasDeOrdem: colunasDaExpressao(e.ordem),
         })
-        if (lido.linhas !== k.linhas || (k.soma !== null && lido.soma !== null && lido.soma !== k.soma)) {
+        // a soma do banco existe: o arquivo tem de somar igual, e soma que o export não sabe refazer (nula) é diferença, nunca conferência pulada em silêncio
+        if (lido.linhas !== k.linhas || (k.soma !== null && lido.soma !== k.soma)) {
           await desfazer()
           return recusarLimpando('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas}, arquivo ${lido.linhas}`])
         }
