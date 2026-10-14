@@ -1,12 +1,14 @@
 // @vitest-environment node
-// A5 E4, Tarefa 15: os insumos de comentários de M11 e M12. Dado do dono: só com o token de edição.
+// A5 E4, Tarefa 15: os insumos de comentários de M11 e M12. Dado do dono: só com o token de leitura (quem edita ou tem o direito).
 import { describe, it, expect, vi } from 'vitest'
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u1' } })) }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import { lerInsumosDeComentarios } from '@/lib/youtube/observatorio/medidas/ler-comentarios'
 import { falsoPostgrest, type Linha } from './medidas-fixture'
 import { edicaoDe } from './edicao-teste'
+import { leituraDe, leituraPorDireitoDe } from './leitura-teste'
 
 const SITE = 's1', OUTRO_SITE = 's2', CANAL = 'c1', OUTRO_CANAL = 'c2'
 const T = '2026-08-01T12:00:00.000Z'
@@ -37,13 +39,24 @@ describe('o token', () => {
     const { sb, consultas } = falsoPostgrest(mundo())
     const forjado = { siteId: SITE } as never
     expect(await lerInsumosDeComentarios(sb, forjado, pedido)).toEqual({ lido: false, causa: 'sem_permissao' })
-    const clone = Object.create(Object.getPrototypeOf(await edicaoDe(SITE)), { siteId: { value: SITE } }) as never
+    const clone = Object.create(Object.getPrototypeOf(await leituraDe(SITE)), { siteId: { value: SITE } }) as never
     expect(await lerInsumosDeComentarios(sb, clone, pedido)).toEqual({ lido: false, causa: 'sem_permissao' })
     expect(consultas).toHaveLength(0)
   })
+  it('EdicaoDoSite por cast é negado, nenhuma consulta', async () => {
+    const { sb, consultas } = falsoPostgrest(mundo())
+    expect(await lerInsumosDeComentarios(sb, (await edicaoDe(SITE)) as never, pedido)).toEqual({ lido: false, causa: 'sem_permissao' })
+    expect(consultas).toHaveLength(0)
+  })
+  it('quem só tem o direito lê', async () => {
+    const SITE_UUID = '5e5e5e5e-5a47-4d0e-9b1c-7e6a2d4f8a01'
+    const { sb } = falsoPostgrest(mundo({ competitor_channels: [{ id: CANAL, site_id: SITE_UUID, collection_paused_at: null, missing_since: null }] }))
+    const r = await lerInsumosDeComentarios(sb, await leituraPorDireitoDe(SITE_UUID), pedido)
+    expect(r.lido).toBe(true)
+  })
   it('o select não pede body nem coluna de autor', async () => {
     const { sb, consultas } = falsoPostgrest(mundo({ competitor_video_comments: [comentario(1, 'a')], competitor_video_comment_marks: [marca(1, 7, 10)] }))
-    await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)
+    await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
     const permitidas = new Set(['id', 'video_id', 'parent_id', 'creator_replied', 'mark', 'status', 'taken_at', 'comment_id', 'likes', 'competitor_channel_id', 'site_id', 'is_creator'])
     for (const c of consultas.filter((x) => x.tabela.startsWith('competitor_video_comment'))) {
       for (const col of c.colunas) expect(permitidas.has(col), c.tabela + '.' + col).toBe(true)
@@ -59,7 +72,7 @@ describe('o que devolve', () => {
       competitor_video_comments: [comentario(1, 'a', { creator_replied: true }), comentario(2, 'a'), comentario(3, 'a', { parent_id: 1, creator_replied: true }), comentario(4, 'b', { creator_replied: false })],
       competitor_video_comment_marks: [marca(1, 7, 40), marca(2, 7, 90), marca(2, 30, 120), marca(1, 30, 70), marca(3, 7, 9999), marca(4, 7, 5)],
     }))
-    const r = await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
     expect(r.lido).toBe(true)
     if (!r.lido) return
     expect(r.dados.coletaDesdeMs).toBe(Date.parse(T))
@@ -68,11 +81,11 @@ describe('o que devolve', () => {
   })
   it('tabelas vazias: lido, nenhum vídeo, coletaDesdeMs nulo', async () => {
     const { sb } = falsoPostgrest(mundo())
-    expect(await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)).toEqual({ lido: true, dados: { coletaDesdeMs: null, porVideo: new Map() } })
+    expect(await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)).toEqual({ lido: true, dados: { coletaDesdeMs: null, porVideo: new Map() } })
   })
   it('canal de outro site: nada além da linha do canal é lido', async () => {
     const { sb, consultas } = falsoPostgrest(mundo())
-    expect(await lerInsumosDeComentarios(sb, await edicaoDe(OUTRO_SITE), pedido)).toEqual({ lido: false, causa: 'canal_de_outro_site' })
+    expect(await lerInsumosDeComentarios(sb, await leituraDe(OUTRO_SITE), pedido)).toEqual({ lido: false, causa: 'canal_de_outro_site' })
     expect(consultas.map((c) => c.tabela)).toEqual(['competitor_channels'])
   })
 })
@@ -81,16 +94,16 @@ describe('falhas', () => {
   it.each(['competitor_video_comment_snaps', 'competitor_video_comments', 'competitor_video_comment_marks'])('tabela ausente (%s): schema_ausente', async (t) => {
     const m = mundo({ competitor_video_comments: [comentario(1, 'a')] })
     const { sb } = falsoPostgrest(m, { erros: { [t]: { code: '42P01', message: 'x' } } })
-    expect(await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)).toEqual({ lido: false, causa: 'schema_ausente' })
+    expect(await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)).toEqual({ lido: false, causa: 'schema_ausente' })
   })
   it.each(['competitor_video_comment_snaps', 'competitor_video_comments', 'competitor_video_comment_marks'])('erro numa das três (%s): a parte inteira é não lida', async (t) => {
     const m = mundo({ competitor_video_comment_snaps: [snap('a', 7, 'ok')], competitor_video_comments: [comentario(1, 'a')], competitor_video_comment_marks: [marca(1, 7, 5)] })
     const { sb } = falsoPostgrest(m, { erros: { [t]: { code: '42501', message: 'FRASE' } } })
-    expect(await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)).toEqual({ lido: false, causa: 'erro_do_banco' })
+    expect(await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)).toEqual({ lido: false, causa: 'erro_do_banco' })
   })
   it('consulta que lança: erro_do_banco, sem vazar a mensagem', async () => {
     const { sb } = falsoPostgrest(mundo(), { lancam: ['competitor_video_comments'] })
-    const r = await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
     expect(r).toEqual({ lido: false, causa: 'erro_do_banco' })
     expect(JSON.stringify(r)).not.toContain('SENTINELA')
   })
@@ -104,7 +117,7 @@ describe('provas por mutação (filtros)', () => {
       competitor_video_comments: [comentario(1, 'a'), comentario(2, 'a', { site_id: OUTRO_SITE, creator_replied: true })],
       competitor_video_comment_marks: [marca(1, 7, 10), marca(1, 7, 777, OUTRO_SITE), marca(2, 30, 888, OUTRO_SITE)],
     }))
-    const r = await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
     expect(r.lido && r.dados.porVideo.get('a')).toEqual({ retrato7: 'ok', retrato30: null, algumComRespostaDoCriador: false, maiorCurtidas7: 10, maiorCurtidas30: null })
   })
   it('as leituras de comentário de outro vídeo do mesmo site não são lidas', async () => {
@@ -115,7 +128,7 @@ describe('provas por mutação (filtros)', () => {
       competitor_video_comments: [comentario(1, 'a'), ...outros],
       competitor_video_comment_marks: [marca(1, 7, 3), ...outros.map((c) => marca(c.id as number, 7, 50))],
     }))
-    const r = await lerInsumosDeComentarios(sb, await edicaoDe(SITE), { channelId: CANAL, videoIds: ['a', 'b'] })
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), { channelId: CANAL, videoIds: ['a', 'b'] })
     expect(r.lido && [...r.dados.porVideo.keys()]).toEqual(['a'])
     const doVideo = consultas.filter((x) => x.tabela === 'competitor_video_comment_snaps' || x.tabela === 'competitor_video_comments').filter((x) => !x.colunas.includes('taken_at') || x.colunas.includes('video_id'))
     expect(doVideo.length).toBeGreaterThanOrEqual(2)
@@ -127,13 +140,13 @@ describe('provas por mutação (filtros)', () => {
     const { sb } = falsoPostgrest(mundo({
       competitor_video_comment_snaps: [snap('z', 7, 'ok', SITE, OUTRO_CANAL)], competitor_video_comments: [comentario(9, 'z', { creator_replied: true })],
     }))
-    const r = await lerInsumosDeComentarios(sb, await edicaoDe(SITE), { channelId: CANAL, videoIds: ['a', 'z'] })
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), { channelId: CANAL, videoIds: ['a', 'z'] })
     expect(r.lido && r.dados.porVideo.size).toBe(0)
   })
   it('mais de 150 comentários: o in() de comment_id é partido em blocos', async () => {
     const cs = Array.from({ length: 320 }, (_, k) => comentario(1000 + k, 'a'))
     const { sb, consultas } = falsoPostgrest(mundo({ competitor_video_comments: cs, competitor_video_comment_marks: cs.map((c) => marca(c.id as number, 7, 1)) }))
-    const r = await lerInsumosDeComentarios(sb, await edicaoDe(SITE), pedido)
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
     const q = consultas.filter((c) => c.tabela === 'competitor_video_comment_marks')
     expect(q.map((c) => (c.filtros.find((f) => f.op === 'in')!.valor as unknown[]).length)).toEqual([150, 150, 20])
     expect(r.lido && r.dados.porVideo.get('a')?.maiorCurtidas7).toBe(1)
