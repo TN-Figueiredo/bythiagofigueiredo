@@ -12,9 +12,14 @@ const V2 = [
 
 describe('A5 E9 T3: rótulos', () => {
   it('toda tabela que a V2 lista tem rótulo', () => {
-    for (const t of [...V2, 'competitor_videos', 'competitor_channels', 'competitor_channel_snapshots', 'competitor_channel_hour_map']) {
+    for (const t of [...V2.filter(x => x !== 'competitor_video_comment_authors'), 'competitor_videos', 'competitor_channels', 'competitor_channel_snapshots', 'competitor_channel_hour_map']) {
       expect(ROTULO_DA_TABELA[t], t).toBeDefined()
     }
+  })
+
+  it('a tabela de identidade dos autores entra como registro interno, sem ser nomeada', () => {
+    const l = linhasDoPainel({ competitor_video_comment_authors: 5 }, 0)
+    expect(l).toEqual([{ n: 5, texto: '5 registros internos' }])
   })
 
   it('zero é omitido; internas somam numa linha', () => {

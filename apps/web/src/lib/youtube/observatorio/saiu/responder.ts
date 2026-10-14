@@ -38,9 +38,9 @@ function relatar(etapa: string, codigo: CodigoDeErro, ids: Record<string, string
 }
 
 type Chamada = { ok: true; data: unknown } | { ok: false; codigo: CodigoDeErro }
-async function chamar(sb: SupabaseClient, nome: string, args: Record<string, unknown>, etapa: string, ids: Record<string, string | number>): Promise<Chamada> {
+async function chamar(rpc: () => PromiseLike<{ data: unknown; error: { code?: string } | null }>, etapa: string, ids: Record<string, string | number>): Promise<Chamada> {
   try {
-    const r = await sb.rpc(nome, args)
+    const r = await rpc()
     if (r.error) {
       const codigo = codigoDoBanco(r.error.code)
       relatar(etapa, codigo, ids)
@@ -64,7 +64,7 @@ async function concluirBlob(
   let restam = b.restam
   let gravou = true
   if (b.feitos.length > 0) {
-    const g = await chamar(sb, 'competitor_removed_blobs_done', { p_site: ctx.siteId, p_item: itemId, p_done: b.feitos }, 'blobs_done', { itemId })
+    const g = await chamar(() => sb.rpc('competitor_removed_blobs_done', { p_site: ctx.siteId, p_item: itemId, p_done: b.feitos }), 'blobs_done', { itemId })
     const d = g.ok ? g.data : null
     if (!g.ok || !ehObjeto(d) || d.status !== 'ok') {
       gravou = false
@@ -79,11 +79,13 @@ async function concluirBlob(
 }
 
 async function apagarUm(
-  sb: SupabaseClient, ctx: CtxDeResposta, funcao: 'competitor_video_purge' | 'competitor_channel_purge', args: Record<string, unknown>,
-  id: string, palavra: string, deps: DepsDoApagar,
+  sb: SupabaseClient, ctx: CtxDeResposta, funcao: 'competitor_video_purge' | 'competitor_channel_purge', id: string, palavra: string, deps: DepsDoApagar,
 ): Promise<Resposta> {
   if (!palavraConfere(palavra)) return { desfecho: 'palavra_errada' }
-  const c = await chamar(sb, funcao, { ...args, p_actor: ctx.actorId, p_janela_min: JANELA_FORJA_MIN, p_ip: ipValido(ctx.ip), p_ua: ctx.ua }, funcao, { id })
+  const comum = { p_site: ctx.siteId, p_actor: ctx.actorId, p_janela_min: JANELA_FORJA_MIN, p_ip: ipValido(ctx.ip), p_ua: ctx.ua }
+  const c = await chamar(() => (funcao === 'competitor_video_purge'
+    ? sb.rpc('competitor_video_purge', { ...comum, p_video: id })
+    : sb.rpc('competitor_channel_purge', { ...comum, p_channel: id })), funcao, { id })
   if (!c.ok) return erro(c.codigo)
   const d = c.data
   if (!ehObjeto(d)) return erro('resposta_inesperada')
@@ -100,16 +102,16 @@ async function apagarUm(
 }
 
 export const apagarVideo = (sb: SupabaseClient, ctx: CtxDeResposta, videoId: string, palavra: string, deps: DepsDoApagar = {}): Promise<Resposta> =>
-  apagarUm(sb, ctx, 'competitor_video_purge', { p_site: ctx.siteId, p_video: videoId }, videoId, palavra, deps)
+  apagarUm(sb, ctx, 'competitor_video_purge', videoId, palavra, deps)
 
 export const apagarCanal = (sb: SupabaseClient, ctx: CtxDeResposta, canalId: string, palavra: string, deps: DepsDoApagar = {}): Promise<Resposta> =>
-  apagarUm(sb, ctx, 'competitor_channel_purge', { p_site: ctx.siteId, p_channel: canalId }, canalId, palavra, deps)
+  apagarUm(sb, ctx, 'competitor_channel_purge', canalId, palavra, deps)
 
 export async function apagarComentarios(sb: SupabaseClient, ctx: CtxDeResposta, canalId: string, ids: number[], palavra: string): Promise<Resposta> {
   if (!palavraConfere(palavra)) return { desfecho: 'palavra_errada' }
   if (ids.length === 0) return { desfecho: 'nada' }
   if (ids.length > MAX_IDS_POR_CHAMADA) return erro('resposta_inesperada')
-  const c = await chamar(sb, 'competitor_comments_purge', { p_site: ctx.siteId, p_channel: canalId, p_comment_ids: ids, p_actor: ctx.actorId, p_ip: ipValido(ctx.ip), p_ua: ctx.ua }, 'competitor_comments_purge', { canalId })
+  const c = await chamar(() => sb.rpc('competitor_comments_purge', { p_site: ctx.siteId, p_channel: canalId, p_comment_ids: ids, p_actor: ctx.actorId, p_ip: ipValido(ctx.ip), p_ua: ctx.ua }), 'competitor_comments_purge', { canalId })
   if (!c.ok) return erro(c.codigo)
   const d = c.data
   if (!ehObjeto(d)) return erro('resposta_inesperada')
@@ -122,9 +124,9 @@ export async function manter(sb: SupabaseClient, ctx: CtxDeResposta, tipo: 'vide
   if (ids.length === 0) return { desfecho: 'nada' }
   if (ids.length > MAX_IDS_POR_CHAMADA) return erro('resposta_inesperada')
   const comentario = tipo === 'comentario'
-  const c = await chamar(sb, 'competitor_missing_keep', {
+  const c = await chamar(() => sb.rpc('competitor_missing_keep', {
     p_site: ctx.siteId, p_kind: tipo, p_ids: comentario ? null : ids, p_comment_ids: comentario ? ids : null, p_actor: ctx.actorId, p_ip: ipValido(ctx.ip), p_ua: ctx.ua,
-  }, 'competitor_missing_keep', { tipo })
+  }), 'competitor_missing_keep', { tipo })
   if (!c.ok) return erro(c.codigo)
   const d = c.data
   if (!ehObjeto(d)) return erro('resposta_inesperada')
@@ -134,7 +136,7 @@ export async function manter(sb: SupabaseClient, ctx: CtxDeResposta, tipo: 'vide
 }
 
 async function decidir(sb: SupabaseClient, ctx: CtxDeResposta, itemId: number, decisao: 'voltar' | 'ignorar'): Promise<Resposta> {
-  const c = await chamar(sb, 'competitor_return_decide', { p_site: ctx.siteId, p_item: itemId, p_decision: decisao, p_actor: ctx.actorId, p_ip: ipValido(ctx.ip), p_ua: ctx.ua }, 'competitor_return_decide', { itemId })
+  const c = await chamar(() => sb.rpc('competitor_return_decide', { p_site: ctx.siteId, p_item: itemId, p_decision: decisao, p_actor: ctx.actorId, p_ip: ipValido(ctx.ip), p_ua: ctx.ua }), 'competitor_return_decide', { itemId })
   if (!c.ok) return erro(c.codigo)
   const d = c.data
   if (!ehObjeto(d)) return erro('resposta_inesperada')

@@ -16,12 +16,12 @@ const ALL = files(SRC).map(p => ({ file: rel(p), text: readFileSync(p, 'utf8') }
 const ACTIONS = 'app/cms/(authed)/youtube/competitors/actions.ts'
 const CACHED = 'competitor_videos|competitor_video_versions|competitor_video_daily|competitor_channel_snapshots'
 /** A write to a cached table, one of the two functions that write to them, or the delete of a channel (cascades to all four). */
-const WRITES = new RegExp(`from\\('(?:${CACHED})'\\)\\s*\\.(?:insert|update|upsert|delete)\\(|rpc\\('(?:apply_competitor_version_plan|pin_competitor_video)'|from\\('competitor_channels'\\)\\s*\\.delete\\(`)
+const WRITES = new RegExp(`from\\('(?:${CACHED})'\\)\\s*\\.(?:insert|update|upsert|delete)\\(|rpc\\('(?:apply_competitor_version_plan|pin_competitor_video|competitor_video_purge|competitor_channel_purge|competitor_missing_keep)'|from\\('competitor_channels'\\)\\s*\\.delete\\(`)
 /**
  * The sync itself (its callers invalidate), the prune of snapshots older than 365 d (outside the 90 d read; `lib/youtube/competitor-snapshot-prune.ts`, called by the watchdog),
  * and the actions (pin, unpin, remove channel), which invalidate themselves.
  */
-const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'lib/youtube/competitor-snapshot-prune.ts', ACTIONS]
+const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'lib/youtube/competitor-snapshot-prune.ts', 'lib/youtube/observatorio/saiu/responder.ts', ACTIONS]
 const RUNS_SYNC = /from '@\/lib\/youtube\/competitor-sync(?:-batch)?'/
 
 describe('quem escreve no que o Observatório guarda em cache', () => {
@@ -32,6 +32,11 @@ describe('quem escreve no que o Observatório guarda em cache', () => {
   it('quem chama a sincronização fora de lib/youtube invalida a tag do site', () => {
     const callers = ALL.filter(f => RUNS_SYNC.test(f.text) && !f.file.startsWith('lib/youtube/'))
     expect(callers.map(f => f.file).sort()).toEqual(['app/api/cron/sync-youtube/route.ts', ACTIONS])
+    for (const f of callers) expect({ file: f.file, invalidates: f.text.includes('invalidateObservatory(') }).toEqual({ file: f.file, invalidates: true })
+  })
+  it('quem chama o serviço das respostas invalida (a fila Saíram do YouTube muda o banco)', () => {
+    const callers = ALL.filter(f => /from '@\/lib\/youtube\/observatorio\/saiu\/responder'/.test(f.text) && !f.file.startsWith('lib/'))
+    expect(callers.length).toBeGreaterThan(0)
     for (const f of callers) expect({ file: f.file, invalidates: f.text.includes('invalidateObservatory(') }).toEqual({ file: f.file, invalidates: true })
   })
   it('o caminho da agenda invalida: o disparo da agenda (lib/youtube/agenda/executar.ts) roda a sincronização e invalida o site e o layout', () => {

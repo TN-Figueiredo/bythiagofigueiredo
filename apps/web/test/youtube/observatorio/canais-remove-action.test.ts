@@ -37,7 +37,8 @@ function carregar() {
       const leitura = { eq: () => leitura, single: async () => ({ data: { id: 'c1', channel_id: 'UC1', site_id: 's1', collection_paused_at: pausadoNaLinha ? '2026-10-01T00:00:00Z' : null } }), then: undefined }
       return {
         from: () => ({
-          select: () => ({ eq: () => ({ eq: () => ({ gt: async () => ({ count: 0 }), single: leitura.single, maybeSingle: leitura.single }), single: leitura.single }) }),
+          // (A5 E9 T9) `limit` e `not().is()` atendem as leituras novas de removeCompetitorChannel: canal no ar (sem missing_since), zero itens esperando
+          select: () => ({ eq: () => ({ eq: () => ({ gt: async () => ({ count: 0 }), single: leitura.single, maybeSingle: leitura.single, limit: async () => ({ data: [{ id: 'c1', missing_since: null }], error: null }), not: () => ({ is: async () => ({ count: 0, error: null }) }) }), single: leitura.single }) }),
           update: (v: unknown) => { updates.push(v); return { eq: () => ({ eq: () => ({ is: () => ({ select: async () => ({ data: linhasAlteradas, error: null }) }) }) }) } },
         }),
       }

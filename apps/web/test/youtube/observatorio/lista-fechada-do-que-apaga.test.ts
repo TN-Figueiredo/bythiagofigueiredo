@@ -25,6 +25,8 @@ const LISTA: ParDaLista[] = [
   { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'ab_test_polls', disparo: 'cron', classe: 'leitura do A/B Lab com mais de 7 dias (não é do Observatório)' },
   // Linha 17 (E10 T11a): o único `del` do Blob do Observatório. Prefixo `observatorio/thumbs/`, conferido por `soMiniaturasDoObservatorio`.
   { arquivo: 'src/lib/youtube/observatorio/arquivo/remover.ts', tabela: 'blob', disparo: 'dono', classe: 'miniatura de canal removido, com cópia conferida no arquivo (prefixo observatorio/thumbs/; nova tentativa diária das pendências)' },
+  // A5 E9 T5: o `del` do Blob da fila "Saíram do YouTube" (só `observatorio/thumbs/`, filtrado por `soMiniaturasDoObservatorio`).
+  { arquivo: 'src/lib/youtube/observatorio/saiu/blob.ts', tabela: 'blob', disparo: 'dono', classe: 'miniaturas do item que o dono mandou apagar na fila (prefixo observatorio/thumbs/; o que falha fica em blobs_pending)' },
   // (volta com a E17 d2: a poda do acesso externo da IA, `acesso-ia/poda.ts`, obs_ai_access_log e obs_ai_rate, fica fora deste envio)
 ]
 
