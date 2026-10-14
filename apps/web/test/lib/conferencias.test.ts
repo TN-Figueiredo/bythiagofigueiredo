@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E5A_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE5A, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE5A, conferenciasE5ARi, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
@@ -469,10 +469,63 @@ describe('conferências de E5a (tela Canais e conta da aba Mudanças, relativas 
     expect(por['e5a-em-queda']).toMatch(/em queda/)
   })
   it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as quatro)', () => {
-    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-')).map(x => x.id)
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-') && !x.id.startsWith('e5a-ri-')).map(x => x.id)
     if (E5A_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E5A_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
+
+// A5 E5a leva 2 (Referências e Inscritos, R8): as quatro conferências dependem do dia da promoção a `main`, que o controlador preenche em E5A_RI_DEPLOY.
+describe('conferências de E5a RI (Referências e Inscritos, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const ehData = (x: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(x) && new Date(`${x}T00:00:00.000Z`).toISOString().slice(0, 10) === x
+  const IDS = ['e5a-ri-d0', 'e5a-ri-d1-cortes', 'e5a-ri-d1-sete-dias', 'e5a-ri-d28']
+
+  it('E5A_RI_DEPLOY nula: nenhuma entrada, e nada vence', () => {
+    expect(conferenciasE5ARi(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE5ARi(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE5ARi(null))).toEqual([])
+  })
+  it('malformada: uma entrada de erro, vencida e vermelha', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '12/10/2026', '']) {
+      const m = conferenciasE5ARi(ruim)
+      expect(m.map(x => x.id), ruim).toEqual(['e5a-ri-deploy-invalido'])
+      expect(m[0]!.onde).toContain('E5A_RI_DEPLOY')
+      expect(conferenciasVencidas(dia(0), m).map(x => x.id), ruim).toEqual(['e5a-ri-deploy-invalido'])
+      expect(conferenciasEmFalha(dia(0), m).map(x => x.id), ruim).toEqual(['e5a-ri-deploy-invalido'])
+    }
+  })
+  it('preenchida: as quatro, com as datas relativas ao envio (D0, D+1, D+1, D+28), em ordem', () => {
+    const l = conferenciasE5ARi(dia(-40))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual([dia(-40), dia(-39), dia(-39), dia(-12)])
+    for (const x of l) {
+      expect(x.etapa, x.id).toBe('E5')
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.onde, x.id).toContain('2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md')
+    }
+    const por = Object.fromEntries(l.map(x => [x.id, x.onde]))
+    expect(por['e5a-ri-d0']).toMatch(/CP-RI1[\s\S]*sem medida[\s\S]*missing_since[\s\S]*last_synced_at/)
+    expect(por['e5a-ri-d1-cortes']).toMatch(/CP-RI2[\s\S]*p75\/p25[\s\S]*2 e 6/)
+    expect(por['e5a-ri-d1-sete-dias']).toMatch(/CP-RI4[\s\S]*0,5[\s\S]*14 dias/)
+    expect(por['e5a-ri-d28']).toMatch(/CP-RI3/)
+  })
+  it('nenhuma nasce vencida: no dia do envio e no dia seguinte nada está vencido', () => {
+    const l = conferenciasE5ARi(dia(0))
+    expect(conferenciasVencidas(dia(0), l)).toEqual([])
+    expect(conferenciasEmFalha(dia(0), l)).toEqual([])
+    expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e5a-ri-d0'])
+  })
+  it('a constante publicada é nula (sem entradas) ou uma data real (e a lista tem as quatro)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-ri-')).map(x => x.id)
+    if (E5A_RI_DEPLOY === null) expect(publicadas).toEqual([])
+    else {
+      expect(ehData(E5A_RI_DEPLOY)).toBe(true)
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
   })

@@ -265,8 +265,34 @@ const BASE: readonly Conferencia[] = [
   { id: 'e20-prova-180d', etapa: 'E20', data: '2027-04-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 maior que em janeiro`, feitaEm: null },
 ]
 
+// E5a leva 2 (Referências e Inscritos, R8): as quatro conferências dependem do dia da promoção a `main` (D), que o controlador preenche em
+// `E5A_RI_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as entradas NÃO existem (nada vence, nada deixa o
+// cron vermelho). Etapa `E5` (formato `E<n>`); os ids começam por `e5a-ri-`, distintos dos da leva 1.
+/** Dia de São Paulo (AAAA-MM-DD) em que a E5a leva 2 (Referências e Inscritos) foi promovida a `main`. `null` = ainda não enviada. */
+export const E5A_RI_DEPLOY: string | null = '2026-10-15'
+
+const PLANO_E5A_RI = 'docs/superpowers/plans/2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md (Tarefa R8; consultas em .superpowers/sdd/a5-e5a/portao-plano-ri-phil.md, §7); anotar o resultado em .superpowers/sdd/a5/progress.md'
+
+/**
+ * As conferências da E5a leva 2 a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio: vira uma entrada
+ * de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE5ARi(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e5a-ri-deploy-invalido', etapa: 'E5', data: '1970-01-01', responsavel: 'agente', onde: `E5A_RI_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e5a-ri-${id}`, etapa: 'E5', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E5A_RI}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, CP-RI1: a tela Canais em produção com dado real; quantos canais medidos, provisórios e sem medida, por motivo (se mais da metade estiver "sem medida · dentro do arredondamento", vai ao dono como fato, não como defeito); quantos canais com janela parcial e quantos vídeos da janela com `missing_since`; e se `youtube_channels.last_synced_at` do canal próprio é atualizado dentro de 48 h (senão ele aparece "sem coleta desde" em Referências)'),
+    e('d1-cortes', 1, 'D+1, CP-RI2, calibração (consulta só de leitura, `supabase db query --linked`): a razão p75/p25 dos longos de 7 a 90 dias de cada concorrente e os terços dela; se os terços caírem longe de 2 e 6, a proposta de cortes novos vai ao dono, que decide (o código não muda sem ele)'),
+    e('d1-sete-dias', 1, 'D+1, CP-RI4, calibração dos 7 dias (consulta só de leitura): a razão views aos 7 dias / views aos 28 dias dos longos com série completa em `competitor_video_daily`; esperado: mediana entre 0,5 e 0,9; abaixo de 0,5 vai ao dono a proposta de subir o corte para 14 dias (o código não muda sem ele)'),
+    e('d28', 28, 'D+28, CP-RI3: o canal adicionado mais recentemente passou de "menos de 28 dias" para medido no dia certo'),
+  ]
+}
+
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
