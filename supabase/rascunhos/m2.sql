@@ -377,3 +377,112 @@ begin
   return pg_catalog.jsonb_build_object('tabela', v_nsp || '.' || v_rel, 'feito', true, 'linhas', v_n_volta, 'particionada_fica_em', v_nsp || '.' || v_parada);
 end $$;
 revoke all on function obs_part.desfazer(regclass) from public, anon, authenticated, service_role;
+
+-- 8. A tabela de ensaio (03 §13.3): mesma forma da leitura horária, sem FK, só linhas sintéticas. Partições: criadas pela carga da M8.
+create table if not exists public.obs_archive_rehearsal (
+  video_id uuid not null,
+  hour_slot timestamptz not null,
+  taken_at timestamptz not null,
+  site_id uuid not null,
+  views bigint not null,
+  likes bigint,
+  comments bigint,
+  synthetic boolean not null default true,
+  constraint obs_archive_rehearsal_pkey primary key (video_id, hour_slot),
+  constraint obs_archive_rehearsal_check check (hour_slot = date_trunc('hour', taken_at at time zone 'UTC') at time zone 'UTC'),
+  constraint obs_archive_rehearsal_synthetic check (synthetic)
+) partition by range (hour_slot);
+alter table public.obs_archive_rehearsal enable row level security;
+revoke all on table public.obs_archive_rehearsal from anon, authenticated;
+comment on table public.obs_archive_rehearsal is 'Dado de teste do ensaio do arquivo (classe ensaio). Sem FK de propósito (fica fora do fecho de cascata). Só o grupo "Dado de teste" da página do arquivo a lê, pelo servidor.';
+
+-- 9. Criar o que falta à frente (chamada pela tarefa diária particoes_a_frente). Nunca cria mês passado nem mês destacado. Criar partição trava a mãe em access exclusive (medido): no máximo 3 s, uma vez por mês por tabela.
+create or replace function public.obs_partitions_ensure(p_months_ahead integer default 12)
+returns table (table_name text, last_month date, created integer)
+language plpgsql security definer set search_path = '' set lock_timeout = '3s' as $$
+declare
+  v_t text;
+  v_oid regclass;
+  v_corrente date := obs_part.mes_corrente_sp();
+  v_mes date;
+  v_criadas integer;
+  v_ultimo date;
+  v_bloqueado boolean;
+  v_tem_registro boolean := pg_catalog.to_regclass('public.obs_archive_months') is not null;
+begin
+  if p_months_ahead is null or p_months_ahead < 1 or p_months_ahead > 24 then
+    raise exception 'M2:meses_fora_da_faixa' using errcode = '22023';
+  end if;
+  foreach v_t in array array['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'] loop
+    v_oid := pg_catalog.to_regclass('public.' || v_t);
+    if v_oid is null or (select c.relkind from pg_catalog.pg_class c where c.oid = v_oid) <> 'p' then
+      raise exception 'M2:tabela_nao_particionada: %', v_t using errcode = 'P0001';
+    end if;
+    v_criadas := 0;
+    v_ultimo := null;
+    for i in 0 .. p_months_ahead loop
+      v_mes := (v_corrente + pg_catalog.make_interval(months => i))::date;
+      v_bloqueado := false;
+      if v_tem_registro then
+        execute 'select exists (select 1 from public.obs_archive_months m where m.table_name = $1 and m.month = $2 and (m.detached_at is not null or m.dropped_at is not null))'
+          into v_bloqueado using v_t, v_mes;
+      end if;
+      continue when v_bloqueado;
+      if obs_part.criar_particao(v_oid, v_mes) then v_criadas := v_criadas + 1; end if;
+      v_ultimo := v_mes;
+    end loop;
+    table_name := v_t; last_month := v_ultimo; created := v_criadas;
+    return next;
+  end loop;
+end $$;
+
+-- 10. O invariante "meses à frente", lido pelo vigia. Contíguos a partir do corrente; -1 = corrente ausente; null = não particionada.
+create or replace function public.obs_partitions_months_ahead()
+returns table (table_name text, months_ahead integer, last_month date, converted_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_t text;
+  v_oid regclass;
+  v_corrente date := obs_part.mes_corrente_sp();
+  v_mes date;
+begin
+  foreach v_t in array array['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'] loop
+    v_oid := pg_catalog.to_regclass('public.' || v_t);
+    table_name := v_t;
+    converted_at := (select c.converted_at from public.obs_partition_conversions c where c.table_name = 'public.' || v_t);
+    months_ahead := null;
+    last_month := null;
+    if v_oid is not null and (select c.relkind from pg_catalog.pg_class c where c.oid = v_oid) = 'p' then
+      months_ahead := -1;
+      for i in 0 .. 36 loop
+        v_mes := (v_corrente + pg_catalog.make_interval(months => i))::date;
+        exit when not exists (
+          select 1 from pg_catalog.pg_inherits h
+            join pg_catalog.pg_class c on c.oid = h.inhrelid
+            join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+           where h.inhparent = v_oid and n.nspname = 'obs_part' and c.relname = obs_part.nome_da_particao(v_t, v_mes));
+        months_ahead := i;
+        last_month := v_mes;
+      end loop;
+    end if;
+    return next;
+  end loop;
+end $$;
+
+revoke all on function public.obs_partitions_ensure(integer) from public, anon, authenticated;
+revoke all on function public.obs_partitions_months_ahead() from public, anon, authenticated;
+grant execute on function public.obs_partitions_ensure(integer) to service_role;
+grant execute on function public.obs_partitions_months_ahead() to service_role;
+
+-- 12. A conversão das três séries: um só bloco, uma só transação (se uma falhar, nenhuma muda).
+do $$
+begin
+  perform obs_part.converter('public.competitor_video_daily'::regclass, 'snap_date', 'views');
+  perform obs_part.converter('public.competitor_video_early'::regclass, 'taken_at', 'views');
+  perform obs_part.converter('public.competitor_video_hourly'::regclass, 'hour_slot', 'views');
+end $$;
+
+-- o autovacuum nunca analisa a mãe particionada, só as partições: a estatística da mãe nasce aqui
+analyze public.competitor_video_daily, public.competitor_video_early, public.competitor_video_hourly;
+
+notify pgrst, 'reload schema';

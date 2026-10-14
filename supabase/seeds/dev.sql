@@ -219,3 +219,20 @@ begin
     ('11111111-1111-1111-1111-111111111111', 'carol@example.com', 'Carol',
      'en', true, 'v1-2026-04');
 end $$;
+
+-- Manutenção M2: 36 meses de partição para trás nas três séries. Só banco local e CI (o `db reset` roda este arquivo; produção, nunca).
+-- Sem isto, teste que grava série em data passada (ex.: current_date - 40) falha com "no partition of relation".
+do $$
+declare
+  t text;
+  i integer;
+begin
+  if pg_catalog.to_regprocedure('obs_part.criar_particao(regclass,date)') is null then return; end if;
+  foreach t in array array['public.competitor_video_daily', 'public.competitor_video_early', 'public.competitor_video_hourly'] loop
+    -- só a parte 1 confirmada (funções sem a conversão, Tarefa 2): tabela comum, nada a semear
+    continue when (select c.relkind from pg_catalog.pg_class c where c.oid = pg_catalog.to_regclass(t)) is distinct from 'p';
+    for i in 1 .. 36 loop
+      perform obs_part.criar_particao(t::regclass, (obs_part.mes_corrente_sp() - pg_catalog.make_interval(months => i))::date);
+    end loop;
+  end loop;
+end $$;

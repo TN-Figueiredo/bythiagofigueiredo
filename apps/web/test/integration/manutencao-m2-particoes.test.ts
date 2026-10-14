@@ -249,3 +249,144 @@ describe.skipIf(skipIfNoLocalDb())('M2: o conversor numa tabela de brinquedo', (
     }
   })
 })
+describe.skipIf(skipIfNoLocalDb())('M2: as três séries, o ensure, os meses à frente e a tabela de ensaio', () => {
+  let pg: Client
+  beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
+  afterAll(async () => { await pg.end() })
+  const TRES = ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'] as const
+  async function emTx<T>(fn: () => Promise<T>): Promise<T> {
+    await pg.query('begin')
+    // ensure(12) logo depois: os testes não dependem do mês em que a M2 foi aplicada neste banco (fixture temporal relativa)
+    try { await aplicarM2(pg); await pg.query('select public.obs_partitions_ensure(12)'); return await fn() } finally { await pg.query('rollback') }
+  }
+
+  it('item 7: as três particionadas, partições em obs_part, RLS ligada, sem select de anon nem authenticated, sem DEFAULT, do mês de min(coluna) a 12 à frente', async () => {
+    await emTx(async () => {
+      for (const t of TRES) {
+        expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = $1::regclass`, ['public.' + t])).toBe('p')
+        const r = await pg.query(`select n.nspname, c.relrowsecurity, has_table_privilege('anon', c.oid, 'select') as anon_le,
+              has_table_privilege('authenticated', c.oid, 'select') as auth_le, pg_get_expr(c.relpartbound, c.oid) as faixa
+            from pg_inherits i join pg_class c on c.oid = i.inhrelid join pg_namespace n on n.oid = c.relnamespace where i.inhparent = $1::regclass`, ['public.' + t])
+        for (const p of r.rows as { nspname: string; relrowsecurity: boolean; anon_le: boolean; auth_le: boolean; faixa: string }[]) {
+          expect(p).toMatchObject({ nspname: 'obs_part', relrowsecurity: true, anon_le: false, auth_le: false })
+          expect(p.faixa).not.toBe('DEFAULT')
+        }
+      }
+      const m = await pg.query(`select table_name, months_ahead from public.obs_partitions_months_ahead() order by 1`)
+      expect(m.rows).toEqual(TRES.map(t => ({ table_name: t, months_ahead: 12 })))
+      // a semente do passado (dev.sql) não conta: o que se afirma é que o mês de min(coluna) existe
+      for (const [t, col] of [['competitor_video_daily', 'snap_date'], ['competitor_video_early', 'taken_at'], ['competitor_video_hourly', 'hour_slot']] as const) {
+        const minMes = await escalar<string | null>(pg, `select to_char(obs_part.primeiro_dia((min(${col})${col === 'snap_date' ? '' : " at time zone 'America/Sao_Paulo'"})::date), 'YYYYMM') from public.${t}`)
+        if (minMes !== null) expect(await escalar<string | null>(pg, `select to_regclass('obs_part.${t}_' || $1)::text`, [minMes])).not.toBeNull()
+      }
+    })
+  })
+
+  it('a hora da virada: 02:00 UTC de 1º/11 (23:00 de 31/10 em SP) cai na partição de outubro', async () => {
+    await emTx(async () => {
+      await pg.query(`select obs_part.criar_particao('public.competitor_video_hourly'::regclass, '2026-10-01'), obs_part.criar_particao('public.competitor_video_hourly'::regclass, '2026-11-01')`)
+      const { site } = await criarSite(pg)
+      const video = await criarVideo(pg, await criarCanal(pg, site), 3)
+      await pg.query(`insert into public.competitor_video_hourly (video_id, hour_slot, taken_at, site_id, views) values ($1, '2026-11-01 02:00:00+00', '2026-11-01 02:10:00+00', $2, 1), ($1, '2026-11-01 03:00:00+00', '2026-11-01 03:10:00+00', $2, 2)`, [video, site])
+      const r = await pg.query(`select tableoid::regclass::text as part, views from public.competitor_video_hourly where video_id = $1 order by views`, [video])
+      expect(r.rows).toEqual([{ part: 'obs_part.competitor_video_hourly_202610', views: '1' }, { part: 'obs_part.competitor_video_hourly_202611', views: '2' }])
+    })
+  })
+
+  it('itens 10 e 73: ensure recria o que falta à frente, liga RLS e revoga, é idempotente e nunca cria mês passado', async () => {
+    await emTx(async () => {
+      const ultimo = await escalar<string>(pg, `select obs_part.nome_da_particao('competitor_video_hourly', (obs_part.mes_corrente_sp() + interval '12 months')::date)`)
+      await pg.query(`drop table obs_part.${ultimo}`)
+      const passado = await escalar<string>(pg, `select obs_part.nome_da_particao('competitor_video_daily', (obs_part.mes_corrente_sp() - interval '30 months')::date)`)
+      await pg.query(`drop table if exists obs_part.${passado}`) // a semente cria −1..−36; o teste prova que o ensure não a recria
+      const r1 = await pg.query(`select table_name, created from public.obs_partitions_ensure(12) order by 1`)
+      expect(r1.rows).toEqual([
+        { table_name: 'competitor_video_daily', created: 0 },
+        { table_name: 'competitor_video_early', created: 0 },
+        { table_name: 'competitor_video_hourly', created: 1 },
+      ])
+      expect(await escalar<boolean>(pg, `select relrowsecurity from pg_class where oid = to_regclass('obs_part.${ultimo}')`)).toBe(true)
+      expect(await escalar<boolean>(pg, `select has_table_privilege('service_role', 'obs_part.${ultimo}', 'select')`)).toBe(false)
+      const r2 = await pg.query(`select sum(created)::int as n from public.obs_partitions_ensure(12)`)
+      expect(r2.rows[0].n).toBe(0)
+      expect(await escalar<string | null>(pg, `select to_regclass('obs_part.${passado}')::text`)).toBeNull()
+    })
+  })
+
+  it('item 73: mês com detached_at ou dropped_at no registro nunca é recriado', async (ctx) => {
+    await emTx(async () => {
+      const existe = await escalar<string | null>(pg, `select to_regclass('public.obs_archive_months')::text`)
+      if (existe === null) {
+        // a M3b ainda não existe: a forma mínima do contrato (table_name, month, detached_at, dropped_at), só nesta transação
+        await pg.query(`create table public.obs_archive_months (table_name text, month date, detached_at timestamptz, dropped_at timestamptz)`)
+      }
+      const mes = await escalar<string>(pg, `select to_char((obs_part.mes_corrente_sp() + interval '12 months')::date, 'YYYY-MM-DD')`)
+      const nome = await escalar<string>(pg, `select obs_part.nome_da_particao('competitor_video_early', $1::date)`, [mes])
+      await pg.query(`drop table obs_part.${nome}`)
+      if (existe === null) await pg.query(`insert into public.obs_archive_months values ('competitor_video_early', $1::date, now(), null)`, [mes])
+      else ctx.skip() // com a M3b viva, o teste dela cobre o caso com a chave completa: aparece como pulado, nunca como verde
+      await pg.query(`select * from public.obs_partitions_ensure(12)`)
+      expect(await escalar<string | null>(pg, `select to_regclass('obs_part.${nome}')::text`)).toBeNull()
+      const m = await pg.query(`select months_ahead from public.obs_partitions_months_ahead() where table_name = 'competitor_video_early'`)
+      expect(m.rows[0].months_ahead).toBe(11)
+    })
+  })
+
+  it('o que acontece sem dado: ensure com tabela não particionada falha alto; meses à frente devolve null', async () => {
+    await pg.query('begin')
+    try {
+      await aplicarM2(pg)
+      await pg.query(`alter table public.competitor_video_early rename to competitor_video_early_x`)
+      await pg.query(`create table public.competitor_video_early (video_id uuid)`)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, `select * from public.obs_partitions_ensure(12)`)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/M2:tabela_nao_particionada: competitor_video_early/)
+      await pg.query('rollback to savepoint s')
+      const m = await pg.query(`select months_ahead from public.obs_partitions_months_ahead() where table_name = 'competitor_video_early'`)
+      expect(m.rows[0].months_ahead).toBeNull()
+      const r2 = await tenta(pg, `select * from public.obs_partitions_ensure(0)`)
+      expect(r2.ok).toBe(false)
+    } finally { await pg.query('rollback') }
+  })
+
+  it('mês corrente sem partição: months_ahead = -1', async (ctx) => {
+    await emTx(async () => {
+      const nome = await escalar<string>(pg, `select obs_part.nome_da_particao('competitor_video_hourly', obs_part.mes_corrente_sp())`)
+      const n = await escalar<number>(pg, `select count(*)::int from obs_part.${nome}`)
+      if (n > 0) ctx.skip() // banco com leitura horária do mês: não se apaga dado para testar (pulado, nunca verde)
+      await pg.query(`drop table obs_part.${nome}`)
+      const m = await pg.query(`select months_ahead from public.obs_partitions_months_ahead() where table_name = 'competitor_video_hourly'`)
+      expect(m.rows[0].months_ahead).toBe(-1)
+    })
+  })
+
+  it('permissões: só service_role executa as duas públicas (has_function_privilege; chamar como anon derruba o Postgres local)', async () => {
+    await emTx(async () => {
+      for (const f of ['public.obs_partitions_ensure(integer)', 'public.obs_partitions_months_ahead()']) {
+        expect(await escalar<boolean>(pg, `select has_function_privilege('service_role', $1, 'execute')`, [f])).toBe(true)
+        expect(await escalar<boolean>(pg, `select has_function_privilege('anon', $1, 'execute')`, [f])).toBe(false)
+        expect(await escalar<boolean>(pg, `select has_function_privilege('authenticated', $1, 'execute')`, [f])).toBe(false)
+      }
+      for (const f of ['obs_part.criar_particao(regclass,date)', 'obs_part.converter(regclass,text,text)']) {
+        expect(await escalar<boolean>(pg, `select has_function_privilege('service_role', $1, 'execute')`, [f])).toBe(false)
+      }
+    })
+  })
+
+  it('a tabela de ensaio: particionada por hour_slot, sem FK, RLS ligada, sem concessão a anon e authenticated, linha só sintética', async () => {
+    await emTx(async () => {
+      expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.obs_archive_rehearsal'::regclass`)).toBe('p')
+      expect(await escalar<number>(pg, `select count(*)::int from pg_constraint where conrelid = 'public.obs_archive_rehearsal'::regclass and contype = 'f'`)).toBe(0)
+      expect(await escalar<boolean>(pg, `select relrowsecurity from pg_class where oid = 'public.obs_archive_rehearsal'::regclass`)).toBe(true)
+      expect(await escalar<boolean>(pg, `select has_table_privilege('anon', 'public.obs_archive_rehearsal', 'select')`)).toBe(false)
+      expect(await escalar<boolean>(pg, `select has_table_privilege('authenticated', 'public.obs_archive_rehearsal', 'select')`)).toBe(false)
+      await pg.query(`select obs_part.criar_particao('public.obs_archive_rehearsal'::regclass, '2026-03-01')`)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, `insert into public.obs_archive_rehearsal (video_id, hour_slot, taken_at, site_id, views, synthetic) values (gen_random_uuid(), '2026-03-10 10:00+00', '2026-03-10 10:05+00', gen_random_uuid(), 1, false)`)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/obs_archive_rehearsal_synthetic/)
+      await pg.query('rollback to savepoint s')
+    })
+  })
+})
