@@ -50,12 +50,18 @@ function simular(resposta: Resp | 'lanca' | 'pendente'): Sim {
   return { sb: sb as never, insercoes, consultas, sinais, desde: () => insercoes.length }
 }
 
+// ids com a FORMA de verdade (o registro só grava id com forma de uuid ou de id do YouTube)
+const CANAL = `UC${'a'.repeat(22)}`
+const CANAL_2 = `UC${'b'.repeat(22)}`
+const VIDEO = 'abcdefghijk'
+const UUID = '0b1c2d3e-4f50-4162-8374-95a6b7c8d9e0'
+
 const prova = () => fabricarProva('site-da-prova', 'user-da-prova', 'key-da-prova', iso(AGORA + 86_400_000))
 
 const linha = (o: Partial<LinhaDeAcesso> = {}): LinhaDeAcesso => ({
   prova: prova(),
   acao: 'canal',
-  params: { acao: 'canal', canal_id: 'UC123', desfecho: 'ok' },
+  params: { acao: 'canal', canal_id: CANAL, desfecho: 'ok' },
   incluiuPrivado: false,
   caracteres: 1234,
   resultado: 'ok',
@@ -68,7 +74,7 @@ afterEach(() => { delete process.env.VERCEL_ENV })
 describe('registrarAcessoDaChave', () => {
   it('caminho feliz: o objeto inteiro do insert, campo por campo (user_id nunca nulo)', async () => {
     const s = simular({ data: null, error: null })
-    const r = await registrarAcessoDaChave(s.sb, linha({ incluiuPrivado: true, caracteres: 4321, params: { acao: 'canal', canal_id: 'UC123', janela: '30d', desfecho: 'ok' } }))
+    const r = await registrarAcessoDaChave(s.sb, linha({ incluiuPrivado: true, caracteres: 4321, params: { acao: 'canal', canal_id: CANAL, janela: '30', desfecho: 'ok' } }))
     expect(r).toEqual({ ok: true })
     expect(s.insercoes).toEqual([
       {
@@ -79,7 +85,7 @@ describe('registrarAcessoDaChave', () => {
           key_id: 'key-da-prova',
           origin: 'mcp',
           action: 'canal',
-          params: { acao: 'canal', canal_id: 'UC123', janela: '30d', desfecho: 'ok', ambiente: 'local' },
+          params: { acao: 'canal', canal_id: CANAL, janela: '30', desfecho: 'ok', ambiente: 'local' },
           included_private: true,
           output_chars: 4321,
           result: 'ok',
@@ -101,28 +107,112 @@ describe('registrarAcessoDaChave', () => {
 
   it('params com as chaves pergunta, texto e resposta (e qualquer outra fora da lista): descartadas', async () => {
     const s = simular({ data: null, error: null })
-    await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', pergunta: 'o que ele publica?', texto: 'comentário', resposta: 'x', termo: 'viagem', canal_id: 'UC1' } as LinhaDeAcesso['params'] }))
-    expect(s.insercoes[0]!.linha.params).toEqual({ desfecho: 'ok', canal_id: 'UC1', ambiente: 'local' })
+    await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', pergunta: 'o que ele publica?', texto: 'comentário', resposta: 'x', termo: 'viagem', canal_id: CANAL } as LinhaDeAcesso['params'] }))
+    expect(s.insercoes[0]!.linha.params).toEqual({ desfecho: 'ok', canal_id: CANAL, ambiente: 'local' })
   })
 
-  it('a lista fechada de chaves aceita todas as 18 do plano', async () => {
-    const todas = ['acao', 'tela', 'canal_id', 'video_id', 'canal_ids', 'janela', 'formato', 'nicho', 'grao', 'de', 'ate', 'desfecho', 'privado', 'comentarios', 'cortes', 'pares', 'ambiente', 'por']
-    const params: Record<string, string | number | boolean | string[]> = {}
-    for (const k of todas) params[k] = k === 'canal_ids' ? ['a', 'b'] : k === 'cortes' || k === 'pares' ? 2 : k === 'comentarios' ? false : 'x'
-    params.desfecho = 'ok'
+  it('a lista fechada de chaves aceita todas as 18 do plano, cada uma com um valor DA FORMA dela', async () => {
+    const params: Record<string, string | number | boolean | string[]> = {
+      acao: 'canal', tela: 'canais', canal_id: CANAL, video_id: VIDEO, canal_ids: [CANAL, UUID], janela: '30', formato: 'longos',
+      nicho: 'viagem-de-moto', grao: 'semana', de: '2026-01-31', ate: '2026-02-28', desfecho: 'ok', privado: true, comentarios: false,
+      cortes: 2, pares: 3, ambiente: 'x', por: 'minuto',
+    }
     const s = simular({ data: null, error: null })
     await registrarAcessoDaChave(s.sb, linha({ params }))
-    expect(Object.keys(s.insercoes[0]!.linha.params as object).sort()).toEqual([...todas].sort())
+    expect(s.insercoes[0]!.linha.params).toEqual({ ...params, ambiente: 'local' })
   })
 
-  it('valor de texto de 300 caracteres é cortado em 64; elementos de lista também; __proto__ não passa', async () => {
+  it('o valor tem de ter a forma da chave: texto de quem pergunta não passa em NENHUMA chave (a chave sai, o resto fica)', async () => {
+    const livre = 'o comentário de uma pessoa: "adorei o vídeo, meu e-mail é a@b.com"'
+    const ruins: Record<string, unknown> = {
+      acao: livre, tela: livre, canal_id: livre, video_id: livre, canal_ids: [livre], janela: livre, formato: livre, nicho: livre,
+      grao: livre, de: livre, ate: livre, privado: livre, comentarios: livre, cortes: livre, pares: livre, por: livre,
+    }
+    for (const [k, v] of Object.entries(ruins)) {
+      const s = simular({ data: null, error: null })
+      await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', [k]: v } as LinhaDeAcesso['params'] }))
+      expect(s.insercoes[0]!.linha.params, k).toEqual({ desfecho: 'ok', ambiente: 'local' })
+    }
+  })
+
+  it('desfecho de texto livre: a linha não é gravada (sem_desfecho); só os desfechos da lista fechada valem', async () => {
     const s = simular({ data: null, error: null })
-    const longo = 'x'.repeat(300)
-    await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', canal_id: longo, canal_ids: [longo, 'curto'] } }))
-    const p = s.insercoes[0]!.linha.params as { canal_id: string; canal_ids: string[] }
-    expect(p.canal_id).toHaveLength(64)
-    expect(p.canal_ids[0]).toHaveLength(64)
-    expect(p.canal_ids[1]).toBe('curto')
+    expect(await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'o texto do comentário alheio' } }))).toEqual({ ok: false, code: 'sem_desfecho' })
+    expect(s.insercoes).toEqual([])
+    for (const desfecho of ['ok', 'limite', 'tempo', 'falhou', 'pedido_invalido', 'nao_encontrado']) {
+      const s2 = simular({ data: null, error: null })
+      expect(await registrarAcessoDaChave(s2.sb, linha({ params: { desfecho }, resultado: desfecho === 'limite' ? 'limite' : 'ok' })), desfecho).toEqual({ ok: true })
+    }
+  })
+
+  it('privado e comentarios só como booleano; cortes e pares só como inteiro >= 0 e finito', async () => {
+    const casos: Array<[string, unknown, boolean]> = [
+      ['privado', true, true], ['privado', false, true], ['privado', 'sim', false], ['privado', 1, false],
+      ['comentarios', true, true], ['comentarios', 'texto de comentário alheio', false], ['comentarios', ['a'], false],
+      ['cortes', 0, true], ['cortes', 7, true], ['cortes', -1, false], ['cortes', 1.5, false], ['cortes', Number.NaN, false], ['cortes', Number.POSITIVE_INFINITY, false], ['cortes', '3', false],
+      ['pares', 0, true], ['pares', 4, true], ['pares', -2, false], ['pares', 2.5, false], ['pares', 'x', false],
+    ]
+    for (const [k, v, passa] of casos) {
+      const s = simular({ data: null, error: null })
+      await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', [k]: v } as LinhaDeAcesso['params'] }))
+      const p = s.insercoes[0]!.linha.params as Record<string, unknown>
+      if (passa) expect(p[k], `${k}=${String(v)}`).toBe(v)
+      else expect(k in p, `${k}=${String(v)}`).toBe(false)
+    }
+  })
+
+  it('janela, formato, grao, por e tela: só valores da lista (janela 30d, formato vazio e tela inventada saem)', async () => {
+    const casos: Array<[string, unknown, boolean]> = [
+      ['janela', '7', true], ['janela', '90', true], ['janela', 'todas', true], ['janela', '30d', false], ['janela', '', false],
+      ['formato', 'todos', true], ['formato', 'shorts', true], ['formato', 'curtos', false], ['formato', '', false],
+      ['grao', 'dia', true], ['grao', 'mes', false],
+      ['por', 'minuto', true], ['por', 'dia', true], ['por', 'hora', false],
+      ['tela', 'canais', true], ['tela', 'tela-que-nao-existe', false], ['tela', '__proto__', false], ['tela', 'constructor', false],
+      ['acao', 'comparar', true], ['acao', 'pacote_da_tela', true], ['acao', 'apague tudo', false],
+    ]
+    for (const [k, v, passa] of casos) {
+      const s = simular({ data: null, error: null })
+      await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', [k]: v } as LinhaDeAcesso['params'] }))
+      const p = s.insercoes[0]!.linha.params as Record<string, unknown>
+      if (passa) expect(p[k], `${k}=${String(v)}`).toBe(v)
+      else expect(k in p, `${k}=${String(v)}`).toBe(false)
+    }
+  })
+
+  it('ids, nicho e datas: só com a forma (uuid, UC+22, 11 do vídeo, slug, AAAA-MM-DD que existe)', async () => {
+    const casos: Array<[string, unknown, boolean]> = [
+      ['canal_id', CANAL, true], ['canal_id', UUID, true], ['canal_id', 'UC123', false], ['canal_id', 'x'.repeat(300), false],
+      ['video_id', VIDEO, true], ['video_id', UUID, true], ['video_id', 'curto', false], ['video_id', 'tem espaço!', false],
+      ['nicho', 'viagem', true], ['nicho', 'a'.repeat(33), false], ['nicho', 'Texto Livre', false],
+      ['de', '2026-02-28', true], ['de', '2026-02-30', false], ['de', 'ontem', false],
+      ['ate', '2024-02-29', true], ['ate', '2026-13-01', false],
+    ]
+    for (const [k, v, passa] of casos) {
+      const s = simular({ data: null, error: null })
+      await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', [k]: v } as LinhaDeAcesso['params'] }))
+      const p = s.insercoes[0]!.linha.params as Record<string, unknown>
+      if (passa) expect(p[k], `${k}=${String(v)}`).toBe(v)
+      else expect(k in p, `${k}=${String(v).slice(0, 20)}`).toBe(false)
+    }
+  })
+
+  it('canal_ids: teto de 6 itens (os 6 primeiros), cada item com forma de id; item de texto livre derruba a lista inteira; não-lista sai', async () => {
+    const dez = Array.from({ length: 10 }, (_, i) => `UC${String(i).repeat(22)}`)
+    const s = simular({ data: null, error: null })
+    await registrarAcessoDaChave(s.sb, linha({ params: { desfecho: 'ok', canal_ids: dez } }))
+    expect((s.insercoes[0]!.linha.params as { canal_ids: string[] }).canal_ids).toEqual(dez.slice(0, 6))
+    const s2 = simular({ data: null, error: null })
+    await registrarAcessoDaChave(s2.sb, linha({ params: { desfecho: 'ok', canal_ids: [CANAL, 'texto livre de quem pergunta'] } }))
+    expect(s2.insercoes[0]!.linha.params).toEqual({ desfecho: 'ok', ambiente: 'local' })
+    const s3 = simular({ data: null, error: null })
+    await registrarAcessoDaChave(s3.sb, linha({ params: { desfecho: 'ok', canal_ids: CANAL } as LinhaDeAcesso['params'] }))
+    expect(s3.insercoes[0]!.linha.params).toEqual({ desfecho: 'ok', ambiente: 'local' })
+    const s4 = simular({ data: null, error: null })
+    await registrarAcessoDaChave(s4.sb, linha({ params: { desfecho: 'ok', canal_ids: [CANAL, CANAL_2] } }))
+    expect((s4.insercoes[0]!.linha.params as { canal_ids: string[] }).canal_ids).toEqual([CANAL, CANAL_2])
+  })
+
+  it('__proto__ não passa', async () => {
     const s2 = simular({ data: null, error: null })
     await registrarAcessoDaChave(s2.sb, linha({ params: JSON.parse('{"desfecho":"ok","__proto__":{"canal_id":"x"}}') as LinhaDeAcesso['params'] }))
     expect(Object.keys(s2.insercoes[0]!.linha.params as object).sort()).toEqual(['ambiente', 'desfecho'])
