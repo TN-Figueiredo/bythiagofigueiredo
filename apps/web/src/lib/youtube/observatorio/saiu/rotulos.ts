@@ -44,7 +44,7 @@ export function linhasDoPainel(linhas: Record<string, number>, miniaturas: numbe
   const vistas = new Set<string>()
   const emitir = (tabela: string): void => {
     const n = linhas[tabela]
-    if (!Number.isFinite(n) || n <= 0) return
+    if (n === undefined || !Number.isFinite(n) || n <= 0) return
     // a tabela de identidade dos autores de comentário nunca é nomeada fora de comentarios/ (varredura 2): entra como registro interno
     if (/^competitor_video_comment_auth/.test(tabela)) { internas += n; return }
     const r = ROTULO_DA_TABELA[tabela]

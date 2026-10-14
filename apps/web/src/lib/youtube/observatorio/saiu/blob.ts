@@ -78,6 +78,7 @@ export async function apagarDoBlob(pendentes: readonly string[], o: OpcoesDoBlob
 
   for (let i = 0; i < prefixos.length; i += 1) {
     const prefixo = prefixos[i]
+    if (prefixo === undefined) continue
     let apagados = 0
     let confirmado = false
     let falhou = false

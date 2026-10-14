@@ -57,7 +57,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
   }
   // Object links (CONVENCOES F4): the niche is persisted server-side, so the tab hrefs never carry it.
   const hrefOf: Record<AbaDoPacote, string> = { canais: obs.link.canais(), mudancas: obs.link.mudancas(), outliers: obs.link.outliers(), insights: obs.link.insights() }
-  const tabs = TABS.map(k => ({ key: k, label: TAB_NAME[k], href: hrefOf[k], count: countOf[k], title: cap(titleOf[k]), current: k === o.tab }))
+  const tabs: ChromeView['tabs'] = TABS.map(k => ({ key: k, label: TAB_NAME[k], href: hrefOf[k], count: countOf[k], title: cap(titleOf[k]), current: k === o.tab }))
   if (o.fila) {
     const n = o.fila.n
     tabs.push({

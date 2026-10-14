@@ -150,7 +150,7 @@ export async function lerFila(
     for (const [canalId, rows] of porCanal) {
       const abertos = rows.filter(k => k.removal_decision == null)
       const dMenor = (xs: Linha[]): string => xs.map(k => txt(k.missing_since) ?? '').filter(Boolean).sort()[0] ?? ''
-      const nomeDoCanal = txt(aninhado(rows[0].canal).channel_name)
+      const nomeDoCanal = txt(aninhado(rows[0]?.canal).channel_name)
       if (abertos.length === 0) {
         const m = rows.filter(k => k.removal_decision === 'manter')
         if (m.length > 0) {
