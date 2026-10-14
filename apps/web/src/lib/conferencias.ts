@@ -180,7 +180,7 @@ export function conferenciasE10(deploy: string | null): Conferencia[] {
 // promoção. Enquanto for `null`, as quatro entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E5` (formato `E<n>`).
 // As de Outliers, Comparar, Insights e Histórico nascem com a leva de cada tela, não aqui.
 /** Dia de São Paulo (AAAA-MM-DD) em que a E5a leva 1 foi promovida a `main`. `null` = ainda não enviada. */
-export const E5A_DEPLOY: string | null = null
+export const E5A_DEPLOY: string | null = '2026-10-14'
 
 const PLANO_E5A = 'docs/superpowers/plans/2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md (seção 11 e Tarefa 13); anotar o resultado em .superpowers/sdd/a5/progress.md'
 
