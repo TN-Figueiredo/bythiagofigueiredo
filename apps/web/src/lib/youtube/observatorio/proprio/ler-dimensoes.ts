@@ -18,7 +18,7 @@ import { passoDesligado, type PassoComInterruptor } from '@/lib/youtube/coleta/p
 import { ehSchemaAusente } from '@/lib/youtube/coleta/schema'
 import { tipoDoDetalhe, type TipoDetalhe } from '@/lib/youtube/reporting/codigos'
 import {
-  CONJUNTOS_DIMENSOES, classificarConjunto, rotuloDoValor,
+  BENIGNOS, CONJUNTOS_DIMENSOES, classificarConjunto, rotuloDoValor,
   type ConjuntoDim, type ConjuntoDimensoes, type DiaLido, type DiaYt, type EstadoConjunto, type LinhaBasica,
 } from './dimensoes-estado'
 import { edicaoValida } from './edicao'
@@ -153,6 +153,8 @@ function diaExiste(s: string): boolean {
 /** `null` = negado (sem consulta). Janela inválida lança, ainda antes de qualquer consulta. */
 function alvoDe(p: PedidoDimensoes): Alvo | null {
   if (!edicaoValida(p.edicao) || !UUID.test(p.canalId)) return null
+  // Teto que não é número finito positivo faria `todas.length > teto` nunca valer: recusa antes de ler (como `coleta/paginar.ts`).
+  if (p.tetoLinhas !== undefined && (!Number.isFinite(p.tetoLinhas) || p.tetoLinhas <= 0)) throw new RangeError('teto de linhas inválido: precisa ser um número finito maior que zero')
   if (!diaExiste(p.de) || !diaExiste(p.ate) || p.de > p.ate) throw new RangeError('janela de leitura inválida: as datas precisam existir e "de" não pode ser depois de "ate"')
   const n = diffDias(p.de, p.ate) + 1
   if (n > JANELA_MAX_DIAS) throw new RangeError(`janela de leitura de ${n} dias passa do máximo de ${JANELA_MAX_DIAS}`)
@@ -215,7 +217,7 @@ const cobre = (m: Map<string, Intervalo[]>, yt: string, conjunto: string, dia: D
   (m.get(chave(yt, conjunto)) ?? []).some(i => i.de <= dia && dia <= i.ate)
 
 /** O pior resultado da tentativa mais recente do `kind` no canal (todas as tentativas do último dia, de todos os escopos); `null` = nunca tentou. */
-async function ultimaTentativa(sb: SupabaseClient, a: Alvo, kind: AttemptKind): Promise<{ outcome: string } | null> {
+async function ultimaTentativa(sb: SupabaseClient, a: Alvo, kind: AttemptKind): Promise<{ outcome: string; dia: DiaYt } | null> {
   const base = () => sb.from('yt_own_collection_attempts').select('attempt_day')
     .eq('site_id', a.siteId).eq('channel_id', a.canalId).eq('kind', kind)
   const ultimo = await lerFaixa<{ attempt_day: string }>('yt_own_collection_attempts', () => base().order('attempt_day', { ascending: false }), 0, 0, 0)
@@ -227,11 +229,10 @@ async function ultimaTentativa(sb: SupabaseClient, a: Alvo, kind: AttemptKind): 
   if (todas.ausente || todas.linhas.length === 0) return null
   const resultados = todas.linhas.map(l => String(l.outcome))
   const PRIORIDADE = ['erro_http', 'sem_conexao', 'sem_autorizacao', 'nao_alcancado_orcamento', 'schema_ausente']
-  const BENIGNOS = ['ok', 'sem_dado_na_janela', 'video_novo']
   const ruins = resultados.filter(o => !BENIGNOS.includes(o))
-  if (ruins.length === 0) return { outcome: resultados[0]! }
+  if (ruins.length === 0) return { outcome: resultados[0]!, dia }
   const rank = (o: string): number => { const i = PRIORIDADE.indexOf(o); return i === -1 ? PRIORIDADE.length : i }
-  return { outcome: [...ruins].sort((x, y) => rank(x) - rank(y))[0]! }
+  return { outcome: [...ruins].sort((x, y) => rank(x) - rank(y))[0]!, dia }
 }
 
 const PASSO: Record<ConjuntoDim, PassoComInterruptor> = {
@@ -305,6 +306,8 @@ export async function lerDimensoes(sb: SupabaseClient, p: PedidoDimensoes): Prom
   const cobertura = cob.ausente ? new Map<string, Intervalo[]>() : indexarCobertura(cob.linhas)
 
   // a base do diário (as quatro famílias da API)
+  // chave ausente = não há linha de diário (dia medido sem atividade, se a cobertura cobre); valor NULO = a linha existe mas o
+  // YouTube não entregou o número (ou veio negativo): a referência NÃO foi medida, e isso nunca vira "base 0"
   const baseDiaria = new Map<string, number | null>()
   if (!diario.ausente) for (const r of diario.linhas) baseDiaria.set(chave(r.youtube_video_id, r.day_pt), medidas.num(r.views))
 
@@ -339,9 +342,13 @@ export async function lerDimensoes(sb: SupabaseClient, p: PedidoDimensoes): Prom
   const diasComRelatorio = new Set<DiaYt>()
   if (!relatorios.ausente) for (const r of relatorios.linhas) { const dd = diaUtc(r.start_time); if (dd && r.normalized_at != null) diasComRelatorio.add(dd) }
   const impressoesBase = new Map<string, number>()
+  // (vídeo, dia) com linha de alcance básico cujas impressões vieram nulas ou negativas: a referência não foi medida
+  const impressoesNulas = new Set<string>()
   if (!reachBase.ausente) for (const r of reachBase.linhas) {
     const v = medidas.num(r.thumbnail_impressions)
-    if (v !== null) { const k = chave(r.youtube_video_id, r.day_pt); impressoesBase.set(k, (impressoesBase.get(k) ?? 0) + v) }
+    const k = chave(r.youtube_video_id, r.day_pt)
+    if (v === null) impressoesNulas.add(k)
+    else impressoesBase.set(k, (impressoesBase.get(k) ?? 0) + v)
   }
 
   const ausenteDe = (c: ConjuntoDimensoes): boolean => coberturaAusente
@@ -367,7 +374,7 @@ export async function lerDimensoes(sb: SupabaseClient, p: PedidoDimensoes): Prom
         return {
           dia,
           coberto: cobre(cobertura, yt, c, dia),
-          baseMedida: alcance ? diasComRelatorio.has(dia) : cobre(cobertura, yt, 'base', dia),
+          baseMedida: alcance ? diasComRelatorio.has(dia) && !impressoesNulas.has(k) : cobre(cobertura, yt, 'base', dia) && baseDiaria.get(k) !== null,
           base: alcance ? impressoesBase.get(k) ?? null : baseDiaria.get(k) ?? null,
           antesDoInicio: dia < desde,
           desde,
@@ -434,7 +441,7 @@ export async function lerDetalheDaOrigem(sb: SupabaseClient, p: PedidoDimensoes)
     dias: a.dias.map((dia): DiaLido<LinhaDetalhe> => ({
       dia,
       coberto: cobre(cobertura, yt, 'detalhe', dia),
-      baseMedida: cobre(cobertura, yt, 'base', dia),
+      baseMedida: cobre(cobertura, yt, 'base', dia) && baseDiaria.get(chave(yt, dia)) !== null,
       base: baseDiaria.get(chave(yt, dia)) ?? null,
       antesDoInicio: dia < desde,
       desde,

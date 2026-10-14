@@ -38,13 +38,16 @@ export interface LinhaBasica { valor: string; views: number | null; minutos: num
 export interface ParamsDoDia {
   /** o dia está dentro de algum intervalo da cobertura DESTE conjunto para o vídeo */
   coberto: boolean
-  /** a referência do dia (o diário, ou as impressões do alcance) foi medida: sem ela, não há como dizer zero */
+  /**
+   * a referência do dia (o diário, ou as impressões do alcance) foi medida: sem ela, não há como dizer zero. Falso também quando a
+   * linha da referência EXISTE mas o número veio nulo ou negativo (o YouTube não entregou): isso não é "dia sem atividade".
+   */
   baseMedida: boolean
   antesDoInicio: boolean
   /** a data de partida do conjunto, para a frase "não medido antes de dd/mm" */
   desde: string | null
   linhas: readonly LinhaBasica[]
-  /** com `baseMedida` verdadeiro, nulo quer dizer "o dia foi medido e não teve atividade": base 0 */
+  /** com `baseMedida` verdadeiro, nulo quer dizer "o dia foi medido e não teve atividade" (SEM linha de referência): base 0 */
   base: number | null
 }
 
@@ -69,9 +72,11 @@ export function estadoDoDia(p: ParamsDoDia): EstadoDoDia {
   const comNulo = p.linhas.some(l => l.views === null)
   const naoMedido = (motivo: 'antes_do_inicio' | 'fora_da_cobertura' | 'base_nao_medida'): EstadoValor =>
     ({ tipo: 'nao_medido', motivo, desde: motivo === 'base_nao_medida' ? null : p.desde })
+  // base ruim (negativa ou não finita) não é "zero": o leitor já a entrega como nula e não medida, e isto é a segunda trava
+  const baseRuim = p.base !== null && (!Number.isFinite(p.base) || p.base < 0)
   const fixo: EstadoValor | null = p.antesDoInicio ? naoMedido('antes_do_inicio')
     : !p.coberto ? naoMedido('fora_da_cobertura')
-      : !p.baseMedida ? naoMedido('base_nao_medida')
+      : !p.baseMedida || baseRuim ? naoMedido('base_nao_medida')
         : null
   if (fixo) return { soma, omitido: null, emRevisao: false, de: () => fixo }
   const base = p.base ?? 0
@@ -111,35 +116,42 @@ export function taxaDeClique(impressoes: number | null, cliquesEst: number | nul
 // O conjunto
 // ---------------------------------------------------------------------------------------------------------------
 
+/** O resultado ruim da última coleta (`dia` = o dia da tentativa, quando o leitor o sabe). O texto de fora nunca passa: só o catálogo. */
+export interface ErroDaColeta { outcome: Outcome | 'desconhecido'; dia: DiaYt | null }
+
 export type EstadoConjunto =
   | { tipo: 'schema_ausente' }
-  | { tipo: 'passo_desligado'; comDados: boolean }
+  /**
+   * `ultimoErro` só existe quando a última coleta do conjunto tinha falhado: a tela diz "parado" E "a última coleta tinha falhado
+   * (dia tal)". Ausente = a última coleta foi benigna ou nunca houve tentativa. Não muda a precedência do `tipo`.
+   */
+  | { tipo: 'passo_desligado'; comDados: boolean; ultimoErro?: ErroDaColeta }
   | { tipo: 'coleta_em_erro'; outcome: Outcome | 'desconhecido'; comDados: boolean }
   | { tipo: 'nao_coletado' }
   | { tipo: 'coletado' }
 
-const BENIGNOS: readonly string[] = ['ok', 'sem_dado_na_janela', 'video_novo']
+/** Resultados de tentativa que NÃO são erro (o leitor usa o mesmo conjunto para escolher o pior do dia). */
+export const BENIGNOS: readonly string[] = ['ok', 'sem_dado_na_janela', 'video_novo']
 
 /**
- * Precedência: schema ausente > passo desligado > coleta em erro > não coletado > coletado. `ultimaTentativa` é o pior resultado da
+ * Precedência: schema ausente > passo desligado > coleta em erro > não coletado > coletado (o desligado leva o erro da última coleta em `ultimoErro`). `ultimaTentativa` é o pior resultado da
  * tentativa mais recente do conjunto (o leitor escolhe); resultado fora do catálogo é erro com o resultado "desconhecido", e o texto
  * dele nunca passa adiante. "Tabela vazia" só é `nao_coletado` sem cobertura nenhuma: com cobertura, o zero vem do dia.
  */
 export function classificarConjunto(p: {
   schemaAusente: boolean
   passoDesligado: boolean
-  ultimaTentativa: { outcome: string } | null
+  ultimaTentativa: { outcome: string; dia?: DiaYt | null } | null
   temCobertura: boolean
   temLinhas: boolean
 }): EstadoConjunto {
   if (p.schemaAusente) return { tipo: 'schema_ausente' }
   const comDados = p.temCobertura || p.temLinhas
-  if (p.passoDesligado) return { tipo: 'passo_desligado', comDados }
-  if (p.ultimaTentativa && !BENIGNOS.includes(p.ultimaTentativa.outcome)) {
-    const o = p.ultimaTentativa.outcome
-    const outcome = (OUTCOMES as readonly string[]).includes(o) ? (o as Outcome) : 'desconhecido'
-    return { tipo: 'coleta_em_erro', outcome, comDados }
-  }
+  const erro: ErroDaColeta | null = p.ultimaTentativa && !BENIGNOS.includes(p.ultimaTentativa.outcome)
+    ? { outcome: (OUTCOMES as readonly string[]).includes(p.ultimaTentativa.outcome) ? (p.ultimaTentativa.outcome as Outcome) : 'desconhecido', dia: p.ultimaTentativa.dia ?? null }
+    : null
+  if (p.passoDesligado) return erro ? { tipo: 'passo_desligado', comDados, ultimoErro: erro } : { tipo: 'passo_desligado', comDados }
+  if (erro) return { tipo: 'coleta_em_erro', outcome: erro.outcome, comDados }
   return comDados ? { tipo: 'coletado' } : { tipo: 'nao_coletado' }
 }
 
