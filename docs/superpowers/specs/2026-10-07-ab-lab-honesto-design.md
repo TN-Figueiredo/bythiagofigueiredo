@@ -1,6 +1,6 @@
 # A/B Lab honesto: sem teste de descrição e sem números inventados
 
-Data: 07/10/2026 · Estado: rascunho v6 (09/10/2026) · Base: `staging` af0478e9, `main` 3fb71996 (conferir
+Data: 07/10/2026 · Estado: v6 (09/10/2026), com respostas do dono de 13/10 e **rascunho das emendas v7 (14/10)** para P3 e P4 · Base: `staging` af0478e9, `main` 3fb71996 (conferir
 com `git rev-parse` antes de começar). Specs irmãos: `2026-10-07-coleta-canais-proprios-design.md` (coleta,
 chamado aqui de "spec de coleta") e `2026-10-07-observatorio-canal-video-ui-design.md` (telas do
 Observatório, chamado aqui de "spec de telas"). Roteiro: `docs/superpowers/plans/2026-10-08-proximos-passos.md`.
@@ -114,6 +114,374 @@ lista existe para o dono ver o que mudou do v5 para o v6 e por quê.
     arquivos" saíram (seção 2); `mock-views.ts` já é só de desenvolvimento (4.2.1); um texto só para
     "coleta ainda não começou" (4.2.2); o `end_reason` da rotação do cron (3.1); os erros tipados na
     rotação (3.4); o `code` da resposta 422 (seção 2).
+
+## Emendas de 14/10/2026 (v7: ACEITA pelo dono em 14/10/2026, como texto do spec; Phil e Yannis de acordo, aceite do Gio na emenda 48)
+
+**O que o aceite autoriza:** escrever o plano da P4a (e depois o da P4b) contra esta v7. **Não** autoriza executar código
+nem levar nada a produção: cada plano volta ao dono para um "pode" de execução, e a P4a ainda passa pelo ensaio da
+emenda 48 antes do primeiro teste.
+
+Escritas na madrugada de 14/10 pelo controlador, sobre o inventário `.superpowers/sdd/ab-lab/inventario-lista-b.md`
+(o que mudou de 10 a 13/10) e o parecer 03 da Hanna (`.superpowers/sdd/ab-lab/hanna-parecer-03-p3-p4.md`).
+**Valem só para P3, P4 e a etapa de telas**; P1 e P2 têm plano fechado e não dependem daqui. Onde o
+texto, uma emenda de 09/10 e uma emenda v7 discordam, vale a v7. **O corpo ainda NÃO foi reescrito**:
+isso se faz depois do acordo de Phil e Yannis. **Rascunho 2 (14/10 noite):** os consertos das revisões
+`v7-revisao-phil.md` (D1 a D13), `v7-revisao-yannis.md` (Y-1 a Y-15) e `migration-0-revisao-yannis.md` (C1, I2, I3)
+estão colados abaixo, com a sigla do achado entre parênteses; os rulings do controlador estão em
+`.superpowers/sdd/ab-lab/v7-p3-p4a-progress.md`. Cada item diz quem o fecha: **[controlador]** já decidido;
+**[Phil]** ou **[Yannis]** a confirmar na revisão; **[dono: Bn]** espera resposta (perguntas na seção 8).
+
+29. **O corte da P4 muda.** *Dizia* (seção 1, P4): corte interno P4a (migration, portão, função,
+    chamadores, aviso) e P4b (vigia, as duas ações, diálogo e faixa). *Passa a valer:* três entregas.
+    **P4-0**: só o script do portão do dHash e a execução pelo dono (mini-plano próprio, começa antes de
+    tudo). **P4a, "sair do ar com segurança e ver o que ficou"**: Migration 0; dHash da variante onde
+    ela nasce; cópia da original na maior resolução e releitura ao iniciar; `YouTubeApiError`; escrita
+    de título reenviando os dois campos de idioma; `settleOnAir` completa (com `forcar`) nos sete
+    caminhos de 3.1; a reivindicação em retomar, forçar rotação e rotação do cron; drift pela imagem no
+    vigia; saem `cancelGracePeriod` e `applyWinnerNow`; aviso no sininho na falha; `restore_status` no
+    `GET` do teste pelo pipeline; **o diálogo "O que fica no vídeo?"** e **a faixa de restauração só de
+    leitura**. **P4b**: a fase nova do vigia (nova tentativa, `desistiu` na terceira), `retryRestore`,
+    `dismissRestore`, os botões da faixa e o aviso `ab-restore-desistiu`. *Por quê:* o corte antigo era
+    por camada e não fechava: a P4a tirava do servidor o caminho "encerrar e manter o que está no ar"
+    enquanto o diálogo de hoje continuava a oferecê-lo, e sem a faixa um teste apareceria "pausado" com
+    a variante no ar (parecer 03, H1). **O mínimo em produção antes do primeiro teste do dono é a P4a
+    inteira, depois do ensaio da emenda 41.** Corte de reserva se a P4a crescer: a **detecção** pela imagem
+    desce para a P4b, e a P4a **apaga** a fase de drift antiga (`route.ts:74-189`, `checkDrift`, a dependência
+    de `YOUTUBE_API_KEY`) em vez de mantê-la: ela não detecta nada (3.3) e escreve fora da reivindicação. Até
+    a P4b a tela diz "o Lab não percebe troca manual de thumbnail durante o teste" e vale o combinado com o
+    dono. Nunca fica um escritor fora de `settleOnAir`. Custo do corte: cerca de um laço e dois testes (a
+    comparação por dHash já está na P4a para `settleOnAir`); só vale se a P4a realmente estourar. (Y-6)
+    **[controlador; Yannis confirmou o corte de reserva com essa condição]**
+30. **O portão do dHash sai de dentro do plano da P4** e vira a entrega P4-0, que pode começar já. *Dizia*
+    (3.4, "Portão"): "antes de qualquer outra tarefa de P4". *Passa a valer:* antes de qualquer tarefa
+    da **P4a**; o script é revisto pelo Yannis (ele escreve no YouTube) e o dono roda. Até a P4-0
+    voltar, a regra das 3 horas (3.3) e a tolerância `DHASH_MAX_SAME` ficam "a confirmar pelo portão".
+    **[controlador; dono: B2, qual vídeo e em que dia]**
+    *Resultado (14/10, B2 respondida):* a P4-0 rodou no vídeo `6jL-jeux_1Y` (`.superpowers/sdd/ab-lab/p4-0-resultado.md`).
+    (i) arquivo 1280×720 contra a `hqdefault` servida: distância 1 (limite 6), passou; (iii) a nova apareceu
+    e a original voltou na primeira leitura (0 h); cota gasta: 101 unidades. **A regra das 3 horas (3.3) e
+    `DHASH_MAX_SAME = 6` ficam confirmadas e a P4a está liberada.** Ressalva: (ii) saiu "sem conclusão"
+    porque o ETag da `hqdefault` não foi lido antes da troca (defeito `etagAntes` nulo no script); o
+    script é consertado antes de qualquer reuso.
+    *Conserto (Y-7):* a (ii) passou pela leitura do diário: a ETag da volta (`1792001270`) difere da do teste
+    (`1792000655`) e bate com o instante da devolução, com distância 0. A regra não muda. O conserto do
+    script: registrar no diário a ETag crua e qualquer erro da sonda de antes; a (ii) passa a concluir pela
+    ETag do teste contra a da volta (numérica e posterior à devolução), não pela de antes. Falta medir a
+    cópia pequena: um subcomando `devolver-hq` que devolve `original-hq.jpg`, rodado num vídeo sem
+    `maxresdefault` (cerca de 101 unidades), **antes de a P4a ir para `main`**, não antes de ela começar.
+    Se passar de 6 bits, a original guarda também o dHash da `hqdefault` lida ao iniciar, e "é o original"
+    aceita qualquer um dos dois.
+    *Decidido (controlador, 14/10; vale Y-7; Phil concorda):* a cópia 480x360 é medida pelo subcomando
+    `devolver-hq` (cerca de 101 unidades), tarefa do plano da P4a, rodada pelo dono **antes de a P4a ir para
+    `main`**.
+31. **"Aprovar o mockup antes de o plano começar" vira "antes de qualquer tarefa de tela".** O servidor
+    da P4a não espera o desenho. O mockup do diálogo e da faixa é feito numa ida só, nas duas versões
+    (sem e com os botões da P4b). **[controlador]**
+    *Mockup aprovado pelo dono em 14/10/2026:* `docs/superpowers/mockups/2026-10-14-ab-lab-p4-dialogo-e-faixa/index.html`
+    (diálogo "O que fica no vídeo?" e faixa de restauração, nas duas versões). A condição "antes de qualquer
+    tarefa de tela" está cumprida para a P4a; mudança de frase ou de estado da faixa volta ao dono. A regra
+    dos 5 min do estado em andamento, vista no mockup, está na emenda 47.
+32. **`restore_status` e `end_reason` viram contrato de leitura, com leitores declarados.** Leitores: a
+    E18 (versões do vídeo próprio: ordens 3, 3b, 4 e 4b e os casos de teste 15 a 24 do plano dela), a
+    tela 3b do vídeo próprio (E5b, faixa "em teste A/B") e o `GET` do teste no pipeline. O contrato:
+    (a) a forma por campo é fixa: `estado`, `destino`, `em`, `forcado`, `escreveu`, `motivo?`, `erro`, `attempts` (D2);
+    mudar a forma exige avisar os planos leitores; (b) `paused_at` e `completed_at` passam a significar
+    "o teste saiu do ar **no Lab**", não "o vídeo voltou ao original": quem diz o que foi ao ar é o
+    `restore_status`; (c) `end_reason` do ciclo é gravado em toda parada e em toda rotação; (d) reverter
+    um vencedor deixa o instante em `restore_status.<campo>.em`; (e) a fronteira entre o mundo antigo e
+    o novo é o próprio dado: `restore_status` nulo → o leitor usa as regras de hoje; não nulo → lê o
+    campo. *(D4, texto a colar em (e)):* depois da P4a, nenhum escritor grava `restore_status = null`:
+    retomar grava `{}`; dispensar remove a chave e deixa `{}` se não sobrar nenhuma. Nulo = o teste nunca
+    passou pelo código novo; `{}` = código novo, nada pendente. Em 3.2 ("Retomar também zera `restore_status`"),
+    "zera" vira "grava `{}`" **no `update` final de sucesso, não na reivindicação** (Y-13, abaixo). *Evidência:* a E18 presume "parada = imagem original reenviada" e declara como fora do escopo
+    dela "o A/B Lab gravar, em cada parada, se reenviou imagem e qual" (plano da E18, linhas 236, 834 e
+    861). **Em aberto para o Phil:** o que um leitor vê se a função morrer entre a reivindicação e a
+    gravação do resultado (estado mudou, `restore_status` nulo): a proposta é a reivindicação gravar um
+    `restore_status` inicial com `estado: 'em_andamento'` por campo, o que acrescenta um valor ao
+    conjunto de 3.5.
+    *Fechado pelo Phil (D1):* a reivindicação grava, no mesmo `update` do passo 1, `restore_status` com
+    `estado: 'em_andamento'`, `destino`, `forcado`, `em = now()` e o `attempts` anterior, em cada campo que o
+    teste mexe. O conjunto de 3.5 ganha `em_andamento`. `em_andamento` com `em` há mais de 15 minutos é
+    "interrompido": a faixa, o `GET` e a E18 dizem "não se sabe o que ficou no ar; confira no YouTube Studio"
+    (a E18: `nao_se_sabe`). O vigia da **P4a** reivindica esses testes e grava `falhou` com `erro:
+    'interrompido'` e `attempts: 1`, o que dispara o aviso de falha da P4a; a P4b passa a tentar de novo. O
+    filtro do vigia vira `estado.eq.falhou` **ou** (`estado.eq.em_andamento` e `em` < agora − 15 min). Forma
+    fechada em `.superpowers/sdd/ab-lab/migration-0-forma.md`. Conferir: teste da P4a que interrompe a função
+    depois do passo 1 (mock que lança no passo 2 sem `catch`) e afirma `restore_status.<campo>.estado =
+    'em_andamento'`; teste do vigia com `em` de 16 min que vira `falhou`/`interrompido`, e com `em` de 14 min
+    que não é tocado. (A leitura da tela usa 5 min: emenda 47.)
+    (f) **Histórico (D2, I3).** A Migration 0 cria `ab_test_restores`: uma linha por (teste, `restore_seq` da
+    reivindicação, campo), com o resultado final, escrita só pelo gatilho `ab_tests_restore_log` a cada mudança
+    de `restore_status`; nenhum escritor precisa lembrar dela. O `seq` é o da reivindicação, porque o passo 4
+    não incrementa; regravar o mesmo `seq` substitui (última escrita vence, `gravado_em` muda). A forma por
+    campo ganha `escreveu` (`true` = houve escrita aceita pelo YouTube nesta tentativa; `false` = não
+    escreveu; `null` = não se sabe, o vigia gravou `interrompido`. A E18 trata `escreveu` nulo como `nao_se_sabe`, nunca como "não reenviou"; teste da P4a: o vigia grava `escreveu: null` no `interrompido`). Leitores: a E18 lê `ab_test_restores` (histórico); a tela 3b e o `GET` leem `restore_status`
+    (estado corrente). Mudar a forma de qualquer dos dois exige avisar os planos leitores. O plano da P4a
+    ganha um teste que afirma que o passo 4 **não** incrementa `restore_seq`.
+    (g) **A validação de forma é o CHECK, e só ele (C1).** O gatilho não tem modo de falha próprio: tudo o que
+    ele converte (`attempts`, `em`, `escreveu`, `destino`) é garantido pelo CHECK
+    `ab_tests_restore_status_shape`; escrita malformada falha no CHECK, com o nome da constraint, no escritor.
+    Sem `exception when others` no gatilho. O plano da P4a ganha um teste de integração com os 7 casos de C1
+    (sem `estado`; sem `forcado`/`attempts`; `em_andamento` sem eles; `attempts` 1.5 e 3000000000; `em`
+    "agora"; `escreveu` "sim"; `destino` objeto), em `apps/web/test/integration/` com
+    `describe.skipIf(skipIfNoLocalDb())`. A tabela só tem `select` para `authenticated` e `service_role`
+    (I2): teste que limpe `ab_test_restores` limpa apagando o teste (cascata).
+    (h) **Reivindicação da rotação (Y-2).** A rotação do cron e forçar rotação reivindicam **gravando o
+    marcador**: `update ab_tests set restore_seq = restore_seq + 1, last_applied_variant_id = <próxima>,
+    updated_at where id = … and status = 'active' and restore_seq = <lido> and last_applied_variant_id is
+    null`. A frase "zera `last_applied_variant_id`" de 3.1 vale só para os sete caminhos de `settleOnAir`.
+    Depois da escrita no YouTube, o fecho (fecha o ciclo aberto com `end_reason = 'rotacao'`, abre o
+    seguinte, limpa o marcador) é **uma** função SQL guardada (emenda 38) que só age se `status = 'active'`
+    e `restore_seq = <reivindicado>`; se não agir, a rotação não abre ciclo, registra
+    `Sentry.captureMessage('ab-rotate: reivindicação perdida depois da escrita', {testId})` e cria o aviso
+    "confira a thumbnail e o título do vídeo X: a rotação e uma pausa se cruzaram". Risco residual declarado:
+    a escrita da rotação em voo pode terminar depois da restauração da pausa; a janela é a duração de um envio
+    (segundos), às 05:00 de São Paulo. Testes: `ab-rotate-reivindicacao.test.ts`: (a) a pausa acontece entre a
+    escrita da rotação e o fecho → nenhum ciclo aberto, aviso criado; (b) dois `ab-rotate` simultâneos → uma
+    escrita no YouTube.
+    (i) **Retomar (Y-13).** Retomar reivindica mantendo `paused` (só `restore_seq + 1`), escreve, e no `update`
+    final de sucesso (`status = 'active'`, `where restore_seq = <reivindicado>`) grava `restore_status =
+    '{}'::jsonb`, não nulo. Falha na escrita deixa `restore_status` como estava. Teste: retomar com a
+    aplicação falhando → `restore_status` igual ao de antes, estado `paused`.
+    *Rodada 2 (N1):* a reivindicação de retomar também grava `restore_status` com `estado: 'em_andamento'`
+    (`destino: 'variante'`, `forcado`, `em = now()`, `attempts` anterior) nos campos que vai escrever,
+    guardando o valor anterior em memória. Falha tratada na escrita: regrava o valor anterior (por isso
+    "`restore_status` igual ao de antes"). Morte sem tratamento: fica `em_andamento` e o vigia da P4a o
+    converte em `falhou`/`interrompido` aos 15 min. Teste: retomar com a função morta depois do envio ao
+    YouTube → `estado = 'em_andamento'`.
+    (j) **Vencedor aplicado na nova tentativa (Y-12).** Quem grava o último campo como `ok` num teste com
+    destino variante (a função, o vigia ou `retryRestore`) grava `winner_applied_at`, `applied_by =
+    'manual'`, `revert_expires_at` e chama `autoImportWinner`, no mesmo ponto em que o passo 4 o faria.
+    `autoImportWinner` repetido é sem efeito (conferir no plano; se não for, guardar por `winner_applied_at`
+    nulo). Teste: primeira escrita falha, `retryRestore` acerta → `winner_applied_at` preenchido e uma
+    chamada a `autoImportWinner`.
+    (k) **O "sim" repetido vale 48 h (Y-11).** O sim repetido (B3) vale por 48 horas a partir do `em` do
+    campo; depois disso a nova tentativa usa `forcado: false`. No deploy da P4b, campo em `falhou` com `em`
+    anterior ao deploy vira `desistiu`, motivo `antes_da_nova_tentativa` (a faixa já pedia a correção
+    manual). Teste: campo `falhou` com `forcado: true` e `em` de 3 dias atrás, valor atual diferente →
+    `pulado_drift`.
+    (l) **Teste novo no mesmo vídeo (Y-5).** Iniciar um teste num vídeo que tem outro teste com campo em
+    `falhou`, `pulado_*` ou `desistiu` reivindica o antigo e grava esses campos como `desistiu`, motivo
+    `novo_teste`, antes da releitura da B1. A fase do vigia ignora teste cujo vídeo tenha outro teste em
+    `draft`, `queued`, `active` ou `paused`. Teste: semente com T1 `completed` (`falhou`, `forcado: true`) e
+    T2 `active` no mesmo vídeo → o vigia não escreve; iniciar T2 deixa T1 com `desistiu/novo_teste`.
+    (m) **Original relido depois da reivindicação (Y-1, B1; substitui a frase "`startAbTestInternal` relê
+    título e thumbnail..." de 3.4).** `startAbTestInternal` passa a ter esta ordem: (1) reivindica com
+    `update ab_tests set status = 'active', started_at, restore_seq = restore_seq + 1 where id = … and status
+    = 'draft' and restore_seq = <lido>` (zero linhas: "já iniciado por outro processo", **sem escrever
+    nada**); (2) relê título e thumbnail; se diferem do guardado, grava `ab_tests.original_title`,
+    `ab_tests.original_thumbnail_url` **e** `blob_url` e `thumbnail_dhash` da variante `is_original` (as duas
+    URLs apontam para a mesma cópia hoje: `actions.ts:236` e `:253`), tudo com `where restore_seq =
+    <reivindicado>`; a cópia nova vai para caminho novo (o `addRandomSuffix` de `preserveOriginalThumbnail`
+    já garante), nunca sobrescreve; (3) aplica a primeira variante por `applyVariantToYouTube`, relendo
+    `restore_seq` antes de escrever; (4) abre o ciclo 0. Falha em (2) ou (3): volta a `draft` com `where
+    restore_seq = <reivindicado>` e devolve o erro; a releitura que falha **recusa** o início (nunca segue
+    com o original velho). Teste: `start-concorrente.test.ts`: dois `startAbTestInternal` sobre o mesmo
+    rascunho com o leitor do YouTube devolvendo O para o primeiro e B para o segundo; afirma `original_title
+    = O`, uma escrita no YouTube, um ciclo 0.
+    (n) **Fila que engole falha de início (Y-14, pode).** `phaseProcessQueue` (`ab-rotate-phases.ts:33-41`)
+    passa a checar `result.ok`; falhou → volta a `queued` com `queue_start_after` + 1 dia e um aviso por dia
+    (`claimAlert`). Dívida declarada (Y-15): cópias velhas da original no Blob ficam órfãs (uma por início,
+    sem gatilho para pagar).
+    **[Phil: fechado em D1 a D4; Yannis: Y-1, Y-2, Y-5, Y-11, Y-12, Y-13, C1, I2, I3]**
+33. **Não há dado duplicado com a E18.** O dHash da E18 é por vídeo e por dia
+    (`yt_own_video_meta_daily.thumbnail_dhash`, da `hqdefault`, desde 07/10); o da Migration 0 é por
+    variante (`ab_test_variants.thumbnail_dhash`, do arquivo do Blob por `hqdefaultLike()`). Aproveita-se
+    só a função `dhashOf` e o limiar `DHASH_MAX_SAME = 6`. O retrato diário **não** serve ao vigia
+    (um dia de granularidade contra 3 horas) nem substitui o portão. A pergunta 5 do spec é reescrita
+    assim e vira a B2. **[controlador]**
+34. **Migration 0: a forma das quatro colunas é fechada antes do resto da v7**, para ela poder ser
+    aplicada cedo (é aditiva e não precisa de código). *Fechada e aplicada à parte, fora desta emenda:* a
+    forma é a de `.superpowers/sdd/ab-lab/migration-0-forma.md` (Phil), na versão consertada por
+    `.superpowers/sdd/ab-lab/migration-0-revisao-yannis.md` (C1: CHECK sem porosidade de NULO e gatilho sem
+    modo de falha; I2: grants só de `select`; I3: upsert do histórico; M1 a M3). O que ela cria: `restore_status`
+    e `restore_seq` em `ab_tests`, `end_reason` em `ab_test_cycles`, `thumbnail_dhash` em `ab_test_variants`,
+    a tabela `ab_test_restores` e o gatilho `ab_tests_restore_log`. Conferência de produção esperada:
+    `4, 5, 1, true, 0, 0`. A emenda 32 e os planos leem o contrato daqueles dois arquivos. **Fica fora dela
+    (ruling do controlador, Y-3):** trocar `rotate_cycle` por `ab_rotate_commit` e revogar `EXECUTE` de `anon`
+    e `authenticated`; isso vai para a migration da P4a (emenda 38). A guarda da Migration 0 vale só para o
+    instante da aplicação: a mesma consulta roda de novo como **primeira tarefa da P4a** e antes da promoção
+    da P4a a `main` (esperado 0; D3 abaixo). **[Phil; Yannis]**
+35. **Migration B: sempre depois da Migration 0** (sai o "copiando `thumbnail_dhash` se a Migration 0 já
+    existir"). Como a P2 deixa `create_playoff_test` sem chamador, a Migration B **apaga** `create_playoff_test` (`drop function
+    if exists`, com a assinatura de `pg_proc` conferida no dia) em vez de recriá-la: função `SECURITY DEFINER`
+    sem chamador é superfície sem dono. A B aborta se existir teste de playoff (`parent_test_id` não nulo) em
+    `draft`, `queued`, `active` ou `paused`. O código de `ab-playoff.ts` e `phaseAutoStartPlayoffs` sai antes
+    da B, num commit da P3 ou da P4b. **O `drop` das duas colunas de `youtube_videos`
+    (`view_count_delta_today`, `view_count_yesterday`, herança da P1) não cabe na B:** é tabela de outro
+    domínio (coleta e A5), quente (crons a cada 20 min), com plano da A5 em cima; a B tem `pg_dump` só das
+    tabelas do A/B. Fica uma linha na fila da A5 para uma migration própria e pequena, sem pressa. (D5) A
+    Migration B **arma a fila do banco** como as destrutivas da A5. **[Phil]**
+36. **As três migrations entram na fila do `db push`.** A fila (`.superpowers/sdd/a5/fila-do-db-push.md`)
+    e a reconciliação da A5 não as conhecem. Regra: nenhuma delas nasce (`db:new`) nem é aplicada
+    enquanto houver arquivo destrutivo da A5 armado (MG15 a partir de 16/10, MG16 a partir de 30/10,
+    MG17 sem data), nem no dia de uma delas; fora de 11:30 a 13:00 UTC; e fora dos minutos 0 a 4, 20 a 24,
+    30 a 34 e 40 a 44 (todos os crons do A/B começam em :00, o `ab-poll` em :30, a fila da A5 pede
+    :00/:20/:40); com isso a lista de horas é desnecessária. `lock_timeout` de 5 s e `reset lock_timeout` no
+    arquivo, como as da A5. A Migration 0 vai **sozinha e já**: precisa ser aplicada antes de o arquivo da
+    MG15 nascer (16/10) e não depende de código. A Migration A precisa do código da P3 em produção, que
+    ainda não tem plano: na prática as duas não se encontram. A migration da P4a entra na fila como as
+    outras (janela, minutos, `lock_timeout` de 5 s, aditiva exceto o `drop` de `rotate_cycle`, sem chamador)
+    e é aplicada **antes** do deploy do código da P4a que chama `ab_rotate_commit` (R2-3). Se se encontrarem, vão em `db:push` separados
+    (a Migration A aborta por desenho se houver teste de descrição; no mesmo push, a ordem de aplicação é a
+    dos `db:new`). Cada uma ganha linha na seção 1 da fila no formato da M1 ("aditiva, não bloqueia"); a B,
+    no formato das destrutivas (bloqueia). `ab_test_restores` não começa por `yt_own_` (não toca o teste da
+    E17 passo 0) e o gatilho não tem `delete` (não entra na lista fechada da E10). (D6) **[Phil; o controlador
+    da A5 escreve as linhas na fila]**
+    *Migration A, forma (D7):* o nome do CHECK é conhecido (`ab_tests_test_type_check`), basta manter o mesmo
+    nome para os leitores e testes:
+    ```sql
+    set lock_timeout = '5s';
+    do $$ declare v_ids text; begin
+      lock table public.ab_tests in share row exclusive mode;
+      select string_agg(id::text || ' (' || status || ')', '; ') into v_ids from public.ab_tests where test_type = 'description';
+      if v_ids is not null then raise exception 'Migration A abortada: testes de descrição: %', v_ids; end if;
+    end $$;
+    alter table public.ab_tests drop constraint if exists ab_tests_test_type_check;
+    alter table public.ab_tests add constraint ab_tests_test_type_check check (test_type in ('thumbnail', 'title', 'combo'));
+    reset lock_timeout;
+    ```
+    Reversão: o mesmo par `drop`/`add` com os quatro valores. Conferência: `select pg_get_constraintdef(oid) from
+    pg_constraint where conname = 'ab_tests_test_type_check'` mostra três valores.
+    *Guarda da Migration 0 e item "Migrations" da P4 (D3; substitui "Aborta se existir teste com
+    `grace_expires_at` não nulo, ou ..." da seção 1):* aborta, listando os ids, se existir teste em qualquer status
+    diferente de `completed`, com `grace_expires_at` não nulo e `winner_applied_at` nulo, ou teste em qualquer
+    estado com `completed_reason = 'auto_resolve'`, `winner_variant_id` não nulo e `winner_applied_at` nulo
+    (`applyWinnerNow` não olha o estado: `actions.ts:1335`). Hoje são 0. A mesma consulta roda de novo antes
+    da promoção da P4a a `main` (é quando os dois caminhos somem), com resultado esperado 0.
+37. **`ab-watchdog/route.ts` tem três donos, em ordem:** E9 T11a (tira a poda de retratos de concorrente,
+    linhas 203 a 208, e a resposta, 212 a 221) → P4a (reescreve o bloco de drift, **74 a 189**; em 3.1, a linha
+    "Drift `:133-155`" é `:129-162`) → P4b (fase nova). A P4a mexe só em `route.ts:74-189` (drift) e
+    acrescenta **uma** linha à resposta (`drift: { verificados, pausados, falhas }`), em linha própria, depois
+    de `avisos`. A falha de leitura do drift é acumulada, não lançada: as podas rodam sempre, e no fim a rota
+    grava `recordCronFailure('ab-watchdog', …)` se houve falha de drift (a poda parada da E9 continua não
+    sendo falha). A P4a atualiza o `chain` de `test/cron/ab-watchdog-competitor-history.test.ts` para os
+    métodos que passar a usar, e roda também `lista-fechada-do-que-apaga.test.ts` e `cache-writers.test.ts`
+    (sem editá-los). Quem commitar depois resolve o conflito no objeto da resposta; os dois rodam os cinco
+    testes da rota. A P4b põe a fase nova numa função em `lib/youtube/` (não na rota), chamada com `try`
+    próprio, para não abrir um quarto conflito no mesmo arquivo. A P4 não escreve em tabela de cache:
+    `KNOWN_WRITERS` continua da E9. Teste: `ab-cron-watchdog.test.ts`: leitura do drift lança → a poda de
+    `ab_test_polls` roda, a resposta traz `drift.falhas = 1` e `recordCronFailure` é chamado. (Y-4)
+    **[Yannis]**
+38. **O vigia tem 60 s** (`maxDuration`). A fase nova da P4b lê `videos.list` e baixa a `hqdefault` por
+    teste. *(Y-8, substitui "o plano da P4b faz a conta"):* o vigia mede o próprio tempo: antes de cada
+    teste, em cada fase, se passaram 45 s desde o início, para, conta o que sobrou em `adiados` na resposta
+    e grava `recordCronFailure` quando `adiados > 0` (não é "ok" mudo). As leituras de drift (P4a) e as
+    novas tentativas (P4b) rodam com no máximo 4 em paralelo. A fase de drift lê os ciclos abertos e os
+    vídeos em duas consultas (`in('test_id', ids)`), não duas por teste. Teste: relógio falso que avança 12 s
+    por teste e corte em 45 s; com 6 testes, 4 processados (0, 12, 24, 36 s; o 5º começaria em 48 s),
+    `adiados: 2`, falha registrada.
+    *`rotate_cycle` (Y-3, D12; substitui "avaliar se serve à reivindicação da rotação"):* a função SQL
+    `rotate_cycle` (migration `20260531000014`) não serve como reivindicação (roda depois da escrita e não
+    tem guarda) e hoje é executável por `anon` e `authenticated` (medido no `bythiago_int`; produção não
+    conferida). **Ruling do controlador:** isso NÃO entra na Migration 0 (já revisada e aplicada à parte); vai
+    para a **migration da P4a**, que faz `drop function if exists public.rotate_cycle(uuid, uuid, integer,
+    jsonb)` (nenhum chamador: só `database.types.ts`) e cria `public.ab_rotate_commit(p_test_id uuid, p_seq
+    int, p_variant_id uuid, p_cycle_number int, p_applied_metadata jsonb) returns uuid`: `select … from
+    ab_tests where id = p_test_id for update`; se `status <> 'active'` ou `restore_seq <> p_seq`, devolve
+    nulo; senão fecha o ciclo aberto com `ended_at = now()` e `end_reason = 'rotacao'`, insere o novo, limpa
+    `last_applied_variant_id`, numa transação; `revoke execute ... from public, anon, authenticated`; `grant
+    execute ... to service_role`. Primeira tarefa dessa parte (obrigatória, não opcional: sem guarda de estado, `rotate_cycle` com o UUID de um
+    teste `completed` abriria um ciclo): conferir em produção quem pode executar `rotate_cycle` hoje. Até a migration da P4a entrar em produção o buraco de `EXECUTE` segue aberto, e a
+    rotação fica com o risco de 32(h) declarado; gatilho para pagar: antes de o dono iniciar qualquer teste
+    (emenda 41). Teste de integração no `bythiago_int`: `anon` recebe
+    `permission denied`; com `restore_seq` trocado a função devolve nulo e não abre ciclo.
+    **[Yannis; Phil: a forma é dele, D12]**
+39. **Restauração pendente quando o canal é removido.** Teste `completed` com campo `falhou` não bloqueia
+    a remoção do canal, e depois dela a restauração nunca mais roda. *Fechado pelo Phil (D8):* o aviso é
+    montado no código da prévia de remoção, não na função SQL (`youtube_channel_removal_impact` já foi
+    redefinida seis vezes, e planos da A5 ainda vão mexer nela): uma leitura de `ab_tests` dos vídeos do
+    canal com `restore_status` em `falhou`, `desistiu` ou `em_andamento`, sem bloquear. O texto nomeia vídeo,
+    campo e o que ficou no ar ("o título do vídeo X ficou com a variante B"), porque a remoção apaga o teste
+    e o histórico em cascata e o app perde o token do canal: depois dela, só o Studio corrige. Entra na P4a.
+40. **A faixa da P4a não promete nova tentativa.** Em `falhou`, o texto é do tipo "o título não voltou
+    ao original: o YouTube recusou em [data]. Corrija no YouTube Studio", com o link e sem botão; a
+    frase "nova tentativa automática na próxima verificação" só existe a partir da P4b. Custo aceito:
+    até a P4b uma faixa de erro não tem como ser dispensada. A linha "mais views/dia até agora" do
+    diálogo sai da P4 (é da etapa de telas). **[Logan fecha a frase no mockup]**
+41. **O aceite de produção da P4a é um ensaio com o dono**, num vídeo que ele escolher, em dois dias de
+    calendário (a rotação é às 05:00 de São Paulo): criar e iniciar um combo; conferir a variante B no
+    dia seguinte, com descrição e idioma intactos; pausar e ver título e thumbnail originais voltarem;
+    retomar e encerrar pelo diálogo novo escolhendo a original; o Cowork lendo o mesmo estado e o mesmo
+    `restore_status`. *Por quê:* com zero teste ativo, "`ab-rotate` sem falha em `/api/health`" (aceite
+    13 e os critérios de cron) sai verde sem exercitar nada. `falhou`, `pulado_drift` e
+    `precisa_confirmar` ficam declarados "não verificados em produção" (valem os testes 15 a 25 e
+    capturas locais com semente). Os critérios por entrega do parecer 03, seção 5, substituem os de
+    produção da seção 5 deste spec, com a redação do Gio. Herda o critério P2-P5 do plano da P2.
+    *Consultas depois de cada passo do ensaio (D10):*
+    ```sql
+    select t.status, t.restore_seq, t.restore_status, c.cycle_number, c.ended_at, c.end_reason
+    from ab_tests t left join ab_test_cycles c on c.test_id = t.id where t.id = '<id>' order by c.cycle_number;
+    select seq, campo, destino, estado, escreveu, em from ab_test_restores where test_id = '<id>' order by seq, campo;
+    ```
+    Esperado depois de "pausar": ciclo aberto fechado com `end_reason = 'pausa'`; `restore_status` com
+    `title` e `thumbnail` em `ok`, `destino = 'original'`; duas linhas em `ab_test_restores` com `escreveu =
+    true`. Depois de "retomar": `restore_status = {}` e as duas linhas continuam lá.
+    **[Gio]**
+42. **A pergunta 2 é reescrita e sai da parte 1.** Com a MG14 (dieta e cobertura do diário), dia coberto
+    pela coleta e sem linha é "zero medido"; dia não coberto é "não medido"; some o "já passaram 3
+    dias". Sobra só o piso N de views para haver destaque (sugestão: 30), da etapa de telas. Depende da
+    MG14 em produção (arquivo commitado; não conferido se aplicada). (D13) A fila da A5 (13/10) lista a MG14
+    como "SQL de ensaio": "dia coberto sem linha = zero medido" só vale com ela em produção; a etapa de telas
+    confere antes de usar. **[controlador]**
+43. **A pergunta 6 segue pelo padrão** (saem `cancelGracePeriod` e `applyWinnerNow`, na P4a): a P2
+    desliga quem os alimentava, produção tem zero, a Migration 0 aborta se aparecer algum. O dono vê as
+    capturas junto com o mockup. **[controlador]**
+44. **A P3 não espera a v7.** Nenhuma pergunta aberta a toca e o inventário reconferiu a seção 2 (tudo
+    "bate"). Correção de texto na seção 2: `lib/pipeline/video-ab-materialize.ts` não toca `ab_tests`
+    nem `description_text` (mapeia vídeo da Publicação) e sai da lista de arquivos da P3; a contagem "35
+    arquivos de teste pela união dos dois greps" não foi reconferida (o primeiro grep dá 30). Aceite de
+    produção novo: três tipos no wizard, o CHECK com três valores depois da Migration A, o 422 pelo
+    Cowork e pelo Claude Code, o rascunho de conferência arquivado no mesmo dia. **[controlador]**
+45. **Ordem de envio.** P4-0 → P3 (código) → Migration A e Migration 0 → P4a → emenda da E18 em produção
+    e ensaio com o dono → **primeiro teste liberado** → P4b → Migration B. A P4 e a E18 não esperam uma
+    pela outra; o prazo duro é a emenda da E18 antes do primeiro teste. Se o dono der data curta para o
+    primeiro teste (pergunta 14), a P4a sobe antes da P3, ele não cria teste com descrição, e a P3 e a
+    Migration B ficam para depois. **[controlador, sobre o parecer 03; dono: 14]**
+    *Resposta (14/10):* sem data para o primeiro teste; P3 e depois P4. Vale a ordem acima; a P4-0 já está
+    concluída.
+46. **Paridade.** O pipeline não pausa, não inicia nem encerra teste; nada muda na tabela de 3.1. Mas o
+    `restore_status` aparece no `GET` do teste **e na lista** (a lista fechada de `ab_tests` em `lib/pipeline/services/youtube.ts:984-991` serve ao `GET` e à lista; REST e MCP usam o mesmo serviço), senão o Cowork lê "pausado" sem saber que a variante ficou no ar. O
+    commit da P4a acrescenta a doc em `cowork-docs-youtube.md` (com `restore_seq` declarado interno) e a
+    projeção: `restore_status` **não** aparece no `GET` do teste nem na lista até entrar em
+    `CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM` (`restore_seq` fica fora, é interno). O commit da P4a faz isso,
+    atualiza o teste "coluna futura não vaza" (`ab-pipeline-null-aviso.test.ts`) e acrescenta um que afirma
+    `restore_status` em `get_test`, em `GET /ab-tests/[id]` e na lista (N3, R2-4; Y-10). `erro` guarda só `status` e
+    `reason` do YouTube ou o motivo interno, nunca corpo de resposta, URL assinada ou token, porque sai para
+    o Cowork (D9). *Conferido (Y-9):* o envio de variantes pelo pipeline não cria imagem
+    (`VariantPayloadSchema` sem campo de imagem), então o dHash nasce só em `uploadVariant`,
+    `pullPipelineThumbnails`, `createAbTest` e `batchStartTests`. Na P4a, iniciar recusa teste `thumbnail` ou
+    `combo` com variante não original sem `blob_url` ("a variante X não tem imagem"); o pipeline continua
+    aceitando o rascunho. Teste: `startAbTestInternal` com variante B de thumbnail sem `blob_url` → `ok:
+    false`, nada escrito. **[Yannis]**
+47. **O estado "em andamento" vira "Sem resposta desde…" depois de 5 minutos na tela.** Ruling do controlador
+    sobre o mockup aprovado em 14/10 (emenda 31; `docs/superpowers/mockups/2026-10-14-ab-lab-p4-dialogo-e-faixa/index.html`).
+    A função que escreve no YouTube tem teto de 60 s; por isso, na faixa, no diálogo e no `GET`, um campo
+    em `em_andamento` com `em` há mais de **5 min** é mostrado como "Sem resposta desde [hora]: confira no
+    YouTube Studio" (a mesma leitura de "não se sabe o que ficou no ar" de 32). Isso é só leitura: **não
+    muda** o estado gravado nem o gatilho. A conversão gravada em `falhou`/`interrompido` pelo vigia continua
+    em 15 min (32, D1), para não competir com uma função ainda viva e para o ciclo de 10 h do vigia não
+    importar. Testes: leitor com `em` de 4 min mostra "em andamento"; com 6 min mostra "Sem resposta desde";
+    o vigia não toca nenhum dos dois até 15 min. **[controlador; Phil e Yannis confirmam na re-revisão se
+    5 min (tela) e 15 min (vigia) coexistem sem confusão; decidido pelo controlador em 14/10, Phil e Yannis de acordo]**
+    *Rodada 2 (R2-6; Phil e Yannis: coexistem):* o `GET` devolve `restore_status` cru pela projeção; "Sem resposta
+    desde" é leitura derivada. Uma função pura `lerCampoDeRestauracao(campo, agora)`, com as constantes
+    `SEM_RESPOSTA_MIN = 5` e `INTERROMPIDO_MIN = 15` nomeadas, é usada pela faixa, pelo diálogo e pelo `GET`
+    (campo derivado `leitura`); a E18 usa a mesma ou declara por escrito que lê 15. Relógio injetado nos testes.
+    *Nota para o plano da P4a (R2-7):* 32(h) exige `last_applied_variant_id is null` na reivindicação; o plano
+    diz como a recuperação do marcador deixado por queda (`ab-rotate-phases.ts:107-117`) reivindica (também
+    com `restore_seq`), senão a rotação de um teste com marcador velho fica parada.
+
+
+48. **Aceite final de P3, P4a e P4b: documento próprio do Gio**, `docs/superpowers/specs/2026-10-14-ab-lab-aceite-p3-p4.md`
+    (14/10). Substitui os critérios de produção da seção 5 para P3 e P4, com o parecer 03 da Hanna. Corrige o ensaio
+    da emenda 41: G1 (com A original o primeiro passo não escreve nada; o ensaio começa por uma variante não original),
+    G2/G3 (o ciclo 1 gravado e o dHash medido em T+0, T+30 min e T+3 h, no lugar de "`ab-rotate` verde") e G8 (passo
+    E0: o dono muda o título no Studio entre criar e iniciar, para provar a releitura do original da B1). Também:
+    `restore_status` nulo nunca aparece como "voltou ao original"; fronteira exata dos 5 min; hora de São Paulo com o
+    navegador em outro fuso; descrição ausente no `videos.update` aborta. A conferir no plano da P4a: se existem o
+    `devolver-hq` e um comando de leitura do dHash; se, com padrão `abba` e duas variantes, B entra no ciclo seguinte ao 0.
+    **[Gio]**
 
 ## Por que
 
@@ -708,3 +1076,45 @@ Cada uma já está escrita no corpo do jeito recomendado. Um "pode" geral aceita
 | 8 | O que fazer com os alertas de fadiga pendentes e os 10 avisos "vídeo viral" já enviados? | Marcar os pendentes como dispensados; deixar os avisos no histórico | Apagar os avisos: some o registro de que foram enviados; não fazer nada: sem efeito na tela |
 | 9 | A longevidade de thumbnail sai junto com a fadiga? | Não agora: só deixa de gerar alerta; vai para o backlog | Tirar já: P1 cresce. [INFERÊNCIA] ela compara views acumuladas, que só crescem |
 | 10 | Tirar já, sem mockup, os quatro números fabricados de 4.2.1? | Sim, em P2, como remoção pura com frase fixa | Esperar a etapa de telas: os números inventados ficam na tela até lá |
+
+### Respostas do dono (13/10/2026) e perguntas novas
+
+Planejamento retomado em 13/10 com parecer da Hanna (PO). P1 e P2 são planejadas já, sem esperar a
+emenda v7; a v7 cobre só P3, P4 e a etapa de telas.
+
+| # | Resposta |
+|---|---|
+| 7 | **Sim**, pela recomendação: em P2 o pipeline entrega `null` com aviso. Impressão real por variante fica para a medição nova |
+| 8 | **Sim**, pela recomendação: pendentes viram dispensados por um comando que o dono cola; os 10 avisos ficam no histórico |
+| 9 | **Sim**, pela recomendação: a longevidade fica; só deixa de gerar alerta |
+| 10 | **Sim**, pela recomendação, estendida pela Hanna: saem sem mockup os quatro números fabricados (P2) **e o cartão e o selo de fadiga (P1)**; o dono vê as capturas de antes e depois |
+| 11 (nova) | P2 tira `AB_AUTO_APPLY_WINNER` do código **e do `CLAUDE.md`**: **sim**. No lugar, uma linha dizendo que o A/B não declara nem aplica vencedor |
+| 12 (nova) | O dono pretende rodar teste A/B? **"Em algumas semanas, sim."** Logo a ordem depois de P2 continua P3 → P4, e P4 tem de estar em produção antes do primeiro teste |
+
+Continuam abertas, para a v7: 1, 3, 4, 5 (reescrita contra a E18) e 6. A pergunta 2 sai da parte 1: é da
+etapa de telas e será reescrita depois da MG14.
+
+### Bloco B: perguntas ao dono para P3 e P4 (14/10/2026, respondidas no mesmo dia)
+
+**Respostas (14/10):** B1 sim (o original é o que estava no YouTube ao iniciar; o sistema relê os dois
+campos ao iniciar); B2 feito (vídeo `6jL-jeux_1Y`; resultado na emenda 30); B3 sim (a nova tentativa
+repete o sim, sem perguntar de novo). Perguntas 13 (sim: a 3b entrou na P2) e 14 (sem data: P3 e
+depois P4) também respondidas.
+
+*Consertos de 14/10 noite sobre B1 e B3 (rascunho 2):* B1 passa a ser executada depois da reivindicação do
+início, nunca antes (emenda 32(m), Y-1), e iniciar recusa variante de thumbnail sem imagem (emenda 46, Y-9);
+B3 tem o "sim" repetido valendo 48 h, com o legado da P4a virando `desistiu` no deploy da P4b (32(k), Y-11), e
+o vencedor aplicado numa nova tentativa ganha `winner_applied_at` e biblioteca (32(j), Y-12). Para o dono nada
+muda: a resposta continua "sim, pelo padrão".
+
+Reescritas pela Hanna (parecer 03) em cima das perguntas 1, 3, 4 e 5. Um "pode" geral aceita as três.
+
+| # | Pergunta | Padrão recomendado | Custo da alternativa | Trava |
+|---|---|---|---|---|
+| B1 (junta a 1 e a 4) | Quando um teste é pausado ou encerrado sem vencedor, o vídeo volta para "o original". O original passa a ser **o título e a thumbnail que estavam no YouTube na hora em que o teste começou**: o sistema relê os dois ao iniciar, mesmo que o rascunho tenha sido criado dias antes ou com outro texto na variante A. Pode? | Sim | Sem reler: um título mudado entre criar e iniciar o teste é trocado pelo antigo quando o teste sai do ar. Usando o texto da variante A: o vídeo pode acabar com um título que nunca foi o dele | Segue pelo padrão; muda o que a P4a escreve no YouTube |
+| B2 (a 5, com o portão) | Durante um teste, se você trocar a thumbnail à mão no YouTube, o sistema passa a perceber pela imagem, pausa o teste e não escreve por cima da sua. Para isso você roda um script num vídeo seu: ele troca a thumbnail por uma de teste, mede quantas horas o YouTube leva para mostrar a nova e devolve a original (cerca de 150 unidades de cota). **Qual vídeo, e em que dia?** | Sim; um vídeo antigo e de pouca view, dos que têm retrato diário desde 07/10 | Sem a detecção: a rotação do dia seguinte escreve por cima da sua troca, e a tela passa a dizer que não detecta | **Trava a P4a** |
+| B3 (a 3) | Ao encerrar deixando uma variante, se alguém editou o vídeo por fora, o sistema pergunta "trocar mesmo assim?". Se você disser sim e o YouTube falhar na hora, a nova tentativa (automática, ou pelo botão "Tentar agora") **repete o seu sim** e troca sem perguntar de novo. Pode? | Sim | Não: uma falha de rede transforma a sua escolha em "nada foi alterado" | Trava só a P4b |
+
+Continuam com o dono, do fecho de P1 e P2: **13** (a P2 pode tirar também, sem mockup, o painel de
+critérios e a "probabilidade de ser a melhor"? padrão: sim) e **14** (há data para o primeiro teste A/B?).
+Seguem pelo padrão, sem ir a ele: a 6 (emenda 43) e a 2 (emenda 42, etapa de telas).

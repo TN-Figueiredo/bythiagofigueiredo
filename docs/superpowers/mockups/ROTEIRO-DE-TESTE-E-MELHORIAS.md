@@ -1247,3 +1247,81 @@ Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-
 
 ### 3. Decisões minhas que o spec não dá
 Gráfico do vídeo em leitura mensal é de views acumuladas (a leitura mensal é total, não por dia); canal em dezembro de 2026 = 52 acompanhados (os 12 + 40 que depois saíram); frase-resumo da seção e a coluna "Agora" são propostas (plano 11.8); a linha "Leitura mensal desligada" usa triângulo âmbar com "Não dá para dizer quantos estão atrasados"; a "Mostrar mais 25" também existe na lista principal.
+
+## 16-impl. Tela 16 Canais, implementada (A5 E5a T5)
+
+Estado: **aprovada pelo dono no Opera em 14/10/2026** (código em `apps/web/src/app/cms/(authed)/youtube/competitors/_canais/`, commits até `c96f51929`; conserto do glifo da Direção no commit seguinte: a barra de valor da régua some quando a variação é 0%).
+
+### Melhorias futuras (não bloqueiam; conferidas por Gio, Logan e Naksu)
+1. O botão voltar do navegador não desfaz o filtro.
+2. "Mostrar mais" fica fora da URL; passar para `?mostrar=N`.
+3. Gaveta lateral: o texto longo do arredondamento fica pesado.
+4. "Sem Shorts em 90 d." é genérico; dizer por formato.
+5. Rolagem com a gaveta aberta: não conferida.
+6. Linhas de canal atrasado ou em erro e a do canal próprio passam de 100 px.
+7. A barra fixa do rodapé cobre a última linha visível.
+8. Botões do cabeçalho do YouTube ("Sincronizar tudo", "Abrir no Cowork") com 39 px a 390 (componente compartilhado com o resto do CMS).
+9. Decidido (portão de Phil e Yannis, 14/10): a janela da Direção é de 28 dias, como no motor (`medidas/regras.ts`) e no spec 04; o ⓘ e os textos ficam com 28.
+10. O spec não afirma a hachura da faixa nem o "sem mudança".
+11. Botão da forja ("Lê N trocas", `forja/preview.ts`) ainda conta as trocas de descrição, enquanto a aba Mudanças mostra a contagem sem elas. Trocar "trocas" por "mudanças (título, thumbnail e descrição)" junto com a revisão da tela Mudanças, mudando o oráculo e o texto no mesmo commit (Phil, M4 do portão de 14/10).
+12. O filtro "Com problema" conta também o canal em primeira busca, que ao mesmo tempo mostra "ainda buscando os vídeos". Separar `backfill` quando o oráculo puder mudar (Phil, M2).
+13. `e2e/auth.setup.ts` aceita `/admin/login` como sucesso e grava cookie vazio (Yannis, portão de 14/10; anterior a este lote).
+
+## AB-P4. Diálogo "O que fica no vídeo?" e faixa de restauração (A/B Lab P4a e P4b)
+
+Arquivo: `docs/superpowers/mockups/2026-10-14-ab-lab-p4-dialogo-e-faixa/index.html`. Estado: **aprovado pelo dono no Opera em 14/10/2026**, depois do acordo de Logan e Naksu (duas rodadas; achados em
+`logan.md` e `naksu.md` da pasta).
+
+### 1. O que a tela responde
+Ao encerrar um teste: o que fica no ar (original ou uma variante) e, depois, se o título e a thumbnail
+realmente voltaram ou trocaram no YouTube, campo por campo.
+
+### 2. Roteiro de teste
+1. Botão "P4a / P4b" no topo: a P4a não tem botões na faixa nem nova tentativa; a P4b tem "Tentar agora",
+   "Dispensar" e o estado "desistiu".
+2. Diálogo 1: nada marcado, "Encerrar" desabilitado até escolher; ao escolher B, o botão diz o que vai fazer.
+3. Diálogos 4, 5 e 5b ("Trocar mesmo assim?"): alguém editou o vídeo por fora; o texto diz que o título
+   editado sai do YouTube.
+4. Diálogos 2 e 2b: "Encerrando…" e, depois de 45 s, "Sem resposta" (dá para fechar a qualquer momento).
+5. Figura 3b: o YouTube recusou; aviso na página em três versões (título, thumbnail, os dois) e a faixa.
+6. Faixa: em andamento, "Sem resposta desde…" (depois de 5 min), ok, falhou por campo, pulado por edição
+   de fora, e (só P4b) desistiu. Cada estado com cor e símbolo próprios.
+7. Tema claro e escuro (botão no topo) e largura de celular.
+
+### 3. Decisões minhas que o spec não dá
+Hora da nova tentativa escrita como "por volta das 07:00 (horário de São Paulo)" (vigia às 10:00 e 20:00
+UTC); "em andamento" vira "sem resposta" depois de 5 min (a função tem teto de 60 s; Phil e Yannis
+confirmam na v7); na P4a, "Este aviso ainda não pode ser dispensado."; "Encerrando…" não prende a janela.
+
+### Melhorias futuras (não bloqueiam)
+1. O `--on-accent` claro do CMS real (`#1A120A` sobre `#B94210`) dá 3,39:1 e reprova; o mockup usa outra cor.
+2. Não verificados: leitor de tela, Tab preso e Esc (mockup estático), aparelho real.
+
+## RI. Referências e Inscritos (A5, 2ª leva da E5a)
+
+Arquivo: `docs/superpowers/mockups/2026-10-14-referencias-e-inscritos/index.html` (`ri.css`, `ri.js`, notas em `NOTAS.md`, revisões em `REVISAO-LOGAN.md` e `REVISAO-NAKSU.md`). Estado: **revisado por Logan e Naksu (v2 aprova com consertos menores, aplicados na v3); falta o dono testar no Opera.** Dado 100% sintético.
+
+### 1. O que a tela responde
+Referências: quanto o vídeo típico de cada canal do nicho rende em 90 dias e quão irregular ele é, com o seu canal na lista. Inscritos: quem ganhou mais inscritos em 28 dias, sem fingir precisão que a API não dá.
+
+### 2. Roteiro de teste
+Abrir no Opera `file:///Users/figueiredo/Workspace/bythiagofigueiredo/docs/superpowers/mockups/2026-10-14-referencias-e-inscritos/index.html` e acrescentar `?estado=...` (cheio, magro, vazio, carregando, lento, erro, parcial, antigo, restrito) e, se quiser, `&tema=claro`. Testar a 1440 e a ~390 (modo responsivo do Opera).
+1. `?estado=cheio` a 1440: régua em escala log (traços 1 mil, 10 mil, 100 mil, 1 mi nas mesmas posições em todas as linhas e no cabeçalho, que fica fixo ao rolar); barra azul = faixa de metade dos vídeos, marca = vídeo típico; "faixa estreita/média/larga · 3× · N vídeos" abaixo do número; frase de cima cita o líder e "Seu canal está em 7º".
+2. "Sem medida" com motivo: pílula rosa hachurada ("menos de 28 dias", "contagem oculta", "dentro do arredondamento (±1 mil)", "poucos vídeos (2)", "ainda não coletado"). "Mediana provisória" (3 a 4 vídeos) é outra coisa: marca vazada, pílula cinza tracejada. Os dois ficam no fim da lista.
+3. Inscritos: barra divergente (azul sobe, outra cor cai), % na coluna de valor, ganho absoluto e total abaixo; "1,42 mi" acima de 999 mil.
+4. ⓘ de cada seção: abre ao clicar, Esc fecha e o foco volta ao ⓘ; ler o texto (cortes, 7 dias, arredondamento).
+5. Reordenar: "Views do vídeo típico" / "Faixa mais estreita" e "Ganho em %" / "Ganho em inscritos"; o foco fica no botão, a legenda da barra muda, a URL guarda a ordem.
+6. 10 linhas e "Ver todos os N" (e "Ver só os 10 primeiros").
+7. ~390: abas Referências | Inscritos fixas no topo (a escolha é lembrada); régua e valor na mesma linha; sem rolagem horizontal; "seu canal" fica fixado mesmo fora das 10 primeiras.
+8. Estados: carregando (esqueleto) e lento (aviso + Tentar de novo); erro (só Referências falha, Inscritos segue); parcial (3 canais "falhou" e frase "N canais carregados (3 não carregaram)"); antigo ("Mostrando os dados de 11/10, 06:40 (última coleta há 3 dias)"); restrito (pílula "restrito"); vazio e magro. "Tentar de novo" volta ao estado cheio.
+9. Tema claro e escuro em pelo menos cheio e parcial.
+
+### 3. Decisões provisórias que você pode querer mudar
+- **Cortes da faixa 2 e 6** (razão p75/p25: até 2× estreita, até 6× média, acima larga); calibrar por terços com canais reais.
+- **Mínimo de 5 vídeos** para mediana e faixa (3 a 4 provisória, 0 a 2 sem medida).
+- **Ganho de inscritos só conta com 2× o passo de arredondamento** (3 algarismos desde mil); abaixo disso, "sem medida", nunca "sem variação" (só em contagem exata, menos de mil).
+- **Vídeos com menos de 7 dias ficam de fora** da mediana e da contagem mínima (decisão do controlador; Phil confirma no portão do código).
+
+### Melhorias futuras (não bloqueiam)
+1. Botões de ordenar a 34 px no desktop (herdado da tela 16, abaixo da meta de 44 px).
+2. Não verificados: Opera, leitor de tela, aparelho real, rede lenta real.
