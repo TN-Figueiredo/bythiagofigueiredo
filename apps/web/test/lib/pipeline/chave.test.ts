@@ -180,7 +180,7 @@ describe('resolverChave: erro', () => {
     expect((await resolverChave(sb, 'h', AGORA)).estado).toBe('erro')
   })
 
-  it.each(['amanhã', '2027', '2027-04-11', '2027-04-11T12:00:00', ''])(
+  it.each(['amanhã', '2026', '2026-12-11', '2026-12-11T12:00:00', ''])(
     'expires_at %j: erro validade_invalida',
     async (texto) => {
       const { sb } = clienteSimulado({ data: { ...LINHA, expires_at: texto }, error: null })
@@ -195,28 +195,28 @@ describe('resolverChave: erro', () => {
   })
 
   it('expires_at no formato que o banco devolve: as três valem, e dão o mesmo instante', async () => {
-    const formatos = ['2027-04-11T12:00:00+00:00', '2027-04-11T12:00:00.123456+00:00', '2027-04-11T12:00:00Z']
+    const formatos = ['2026-12-11T12:00:00+00:00', '2026-12-11T12:00:00.123456+00:00', '2026-12-11T12:00:00Z']
     for (const f of formatos) {
-      // vence em 2027: comparado ao AGORA fixo de 2026 está no futuro, então é ativa
+      // vence depois do AGORA: comparado ao AGORA fixo de 2026 está no futuro, então é ativa
       const { sb } = clienteSimulado({ data: { ...LINHA, expires_at: f }, error: null })
       const r = await resolverChave(sb, 'h', AGORA)
       expect(r.estado, f).toBe('ativa')
     }
-    expect(Date.parse('2027-04-11T12:00:00+00:00')).toBe(Date.parse('2027-04-11T12:00:00Z'))
+    expect(Date.parse('2026-12-11T12:00:00+00:00')).toBe(Date.parse('2026-12-11T12:00:00Z'))
     for (const f of formatos) expect(instanteValido(f)).toBe(true)
   })
 })
 
 describe('instanteValido', () => {
   it('aceita data e hora completas com fuso, com ou sem fração', () => {
-    expect(instanteValido('2027-04-11T12:00:00Z')).toBe(true)
-    expect(instanteValido('2027-04-11T12:00:00.5Z')).toBe(true)
-    expect(instanteValido('2027-04-11T09:00:00-03:00')).toBe(true)
+    expect(instanteValido('2026-12-11T12:00:00Z')).toBe(true)
+    expect(instanteValido('2026-12-11T12:00:00.5Z')).toBe(true)
+    expect(instanteValido('2026-12-11T09:00:00-03:00')).toBe(true)
   })
   it('recusa o que não tem hora, fuso ou existência', () => {
-    expect(instanteValido('2027-04-11')).toBe(false)
-    expect(instanteValido('2027-04-11T12:00:00')).toBe(false)
-    expect(instanteValido('2027-13-45T99:00:00Z')).toBe(false)
+    expect(instanteValido('2026-12-11')).toBe(false)
+    expect(instanteValido('2026-12-11T12:00:00')).toBe(false)
+    expect(instanteValido('2026-13-45T99:00:00Z')).toBe(false)
     expect(instanteValido('')).toBe(false)
     expect(instanteValido('amanhã')).toBe(false)
   })
@@ -243,14 +243,14 @@ describe('perfil observatorio_leitura', () => {
 
 describe('fraseDeVencida', () => {
   it('escreve dd/mm no dia de São Paulo', () => {
-    expect(fraseDeVencida('2027-04-11T15:00:00Z')).toBe('chave vencida em 11/04: peça outra ao dono')
+    expect(fraseDeVencida('2026-12-11T15:00:00Z')).toBe('chave vencida em 11/12: peça outra ao dono')
   })
   it('um instante às 02:00 UTC cai no dia anterior de São Paulo (fronteira de fuso)', () => {
-    expect(fraseDeVencida('2027-04-11T02:00:00Z')).toBe('chave vencida em 10/04: peça outra ao dono')
-    expect(fraseDeVencida('2027-04-11T03:00:00Z')).toBe('chave vencida em 11/04: peça outra ao dono')
+    expect(fraseDeVencida('2026-12-11T02:00:00Z')).toBe('chave vencida em 10/12: peça outra ao dono')
+    expect(fraseDeVencida('2026-12-11T03:00:00Z')).toBe('chave vencida em 11/12: peça outra ao dono')
   })
   it('virada de ano', () => {
-    expect(fraseDeVencida('2027-01-01T01:00:00Z')).toBe('chave vencida em 31/12: peça outra ao dono')
+    expect(fraseDeVencida('2026-01-01T01:00:00Z')).toBe('chave vencida em 31/12: peça outra ao dono')
   })
   it('instante inválido não inventa data', () => {
     expect(fraseDeVencida('lixo')).toBe('chave vencida: peça outra ao dono')
