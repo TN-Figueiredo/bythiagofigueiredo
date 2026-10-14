@@ -402,7 +402,7 @@ describe('Mock views type safety', () => {
       it(`${mock.id} has id, videoTitle, flag, variants, gates, cycles`, () => {
         expect(mock.id).toBeTruthy()
         expect(mock.videoTitle).toBeTruthy()
-        expect(['thumbnail', 'title', 'description', 'combo']).toContain(mock.flag)
+        expect(['thumbnail', 'title', 'combo']).toContain(mock.flag)
         expect(Array.isArray(mock.variants)).toBe(true)
         expect(Array.isArray(mock.gates)).toBe(true)
         expect(mock.cycles).toHaveProperty('total')
@@ -443,9 +443,6 @@ describe('stepIsValid — comprehensive step coverage', () => {
     })
     it('valid for title type', () => {
       expect(stepIsValid(0, baseState({ type: 'title' }))).toBe(true)
-    })
-    it('valid for description type', () => {
-      expect(stepIsValid(0, baseState({ type: 'description' }))).toBe(true)
     })
     it('valid for combo type', () => {
       expect(stepIsValid(0, baseState({ type: 'combo' }))).toBe(true)

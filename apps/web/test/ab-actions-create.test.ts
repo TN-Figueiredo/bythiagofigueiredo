@@ -1,3 +1,5 @@
+import type { TestType } from '@/lib/youtube/ab-types'
+import { DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock modules before imports
@@ -344,11 +346,20 @@ describe('createAbTest', () => {
       expect(captureOriginalMetadata).toHaveBeenCalledWith('YT_VID_PT', 'tok-pt')
       const testInsert = insertCalls.find(c => c.table === 'ab_tests')!.data as Record<string, unknown>
       expect(testInsert.original_title).toBe('Título original')
-      expect(testInsert.original_description).toBe('Descrição original')
+      expect(testInsert).not.toHaveProperty('original_description')
     })
 
     const REFUSAL =
-      "Could not read the video's current title and description. Reconnect this channel's YouTube access and try again."
+      "Could not read the video's current title. Reconnect this channel's YouTube access and try again."
+
+    it('test_type description: recusa com a mensagem do 422, sem ler o YouTube nem criar linha', async () => {
+      const { insertCalls } = buildSupabaseMock()
+      const result = await createAbTest(makeInput({ test_type: 'description' as TestType }))
+      expect(result).toEqual({ ok: false, error: DESCRICAO_FORA_DO_TESTE.message })
+      expect(ensureFreshToken).not.toHaveBeenCalled()
+      expect(captureOriginalMetadata).not.toHaveBeenCalled()
+      expect(insertCalls).toEqual([])
+    })
 
     it('vídeo sem canal: não pede token nenhum e RECUSA criar o teste (sem linha nenhuma)', async () => {
       const { insertCalls } = buildSupabaseMock({ videoOwner: null })
@@ -361,7 +372,7 @@ describe('createAbTest', () => {
       expect(insertCalls).toEqual([])
     })
 
-    it.each(['title', 'description', 'combo'] as const)(
+    it.each(['title', 'combo'] as const)(
       'teste de %s com token que falha (canal sem OAuth): recusa, sem criar linha',
       async (testType) => {
         const { insertCalls } = buildSupabaseMock()

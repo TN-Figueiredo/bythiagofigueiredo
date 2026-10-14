@@ -2,8 +2,8 @@
 
 import React, { useState, useCallback, useId } from 'react'
 import type { DisplayLabel, TestType } from './ab-constants'
-import { VARIANT_COLORS, TYPE_META } from './ab-constants'
-import { Image, Type, FileText, Layers } from 'lucide-react'
+import { VARIANT_COLORS, tipoMeta } from './ab-constants'
+import { Image, Type, HelpCircle, Layers } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 /* --- VChip --- */
@@ -126,11 +126,11 @@ export function InfoTip({ text }: InfoTipProps) {
 /* --- TypeBadge --- */
 export interface TypeBadgeProps { type: TestType }
 
-const TYPE_ICONS: Record<TestType, LucideIcon> = { thumbnail: Image, title: Type, description: FileText, combo: Layers }
+const TYPE_ICONS: Record<TestType, LucideIcon> = { thumbnail: Image, title: Type, combo: Layers }
 
 export function TypeBadge({ type }: TypeBadgeProps) {
-  const meta = TYPE_META[type]
-  const Icon = TYPE_ICONS[type]
+  const meta = tipoMeta(type)
+  const Icon = TYPE_ICONS[type as TestType] ?? HelpCircle
   return (
     <Badge tone="neutral">
       <Icon size={11} aria-hidden="true" className="-translate-y-px" />

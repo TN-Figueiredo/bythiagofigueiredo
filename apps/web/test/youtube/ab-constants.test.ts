@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  toDisplayLabel, variantColor, VARIANT_COLORS, TYPE_META,
+  toDisplayLabel, variantColor, VARIANT_COLORS, TYPE_META, tipoMeta, FRASE_COMBO, ROTULO_TIPO_DESCONHECIDO,
   formatNumber, formatPercent, formatDate, formatCompact,
 } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-constants'
 
@@ -22,8 +22,19 @@ describe('variantColor', () => {
 })
 
 describe('TYPE_META', () => {
-  it('covers all 4 test types', () => {
-    expect(Object.keys(TYPE_META)).toEqual(['thumbnail', 'title', 'description', 'combo'])
+  it('covers the 3 test types', () => {
+    expect(Object.keys(TYPE_META)).toEqual(['thumbnail', 'title', 'combo'])
+  })
+  it('combo se chama "Título + thumbnail" e leva a frase fechada pelo Logan', () => {
+    expect(TYPE_META.combo.label).toBe('Título + thumbnail')
+    expect(TYPE_META.combo.hint).toBe(FRASE_COMBO)
+    expect(FRASE_COMBO).toBe('Se ganhar, você não vai saber se foi o título ou a thumbnail.')
+  })
+  it('tipoMeta: tipo fora dos três tem rótulo de reserva, nunca undefined', () => {
+    expect(ROTULO_TIPO_DESCONHECIDO).toBe('Tipo antigo')
+    expect(tipoMeta('description').label).toBe('Tipo antigo')
+    expect(tipoMeta('xyz').icon).toBe('HelpCircle')
+    expect(tipoMeta('title')).toBe(TYPE_META.title)
   })
   it('each entry has icon, label, hint', () => {
     for (const v of Object.values(TYPE_META)) {

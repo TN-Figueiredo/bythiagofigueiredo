@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ArrowRight, Layers } from 'lucide-react'
 import type { AbTestDraft } from '@/lib/youtube/ab-types'
-import { TYPE_META } from './ab-constants'
+import { tipoMeta } from './ab-constants'
 
 export interface DraftsBlockProps {
   drafts: AbTestDraft[]
@@ -75,7 +75,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
             <div className="flex items-center gap-[8px] mt-[6px]">
               <span className="inline-flex items-center gap-[5px] px-[7px] py-[2px] rounded-full text-[9.5px] font-semibold tracking-[0.06em] uppercase text-cms-text-dim font-mono" style={{ background: 'var(--cms-surface-3, var(--cms-surface-hover))' }}>
                 <Layers size={11} aria-hidden="true" />
-                {TYPE_META[draft.type]?.label ?? draft.type}
+                {tipoMeta(draft.type).label}
               </span>
               <span className="text-[11.5px] text-cms-text-dim">
                 Parou no passo {draft.step} de 5 · criado {draft.createdAgo}

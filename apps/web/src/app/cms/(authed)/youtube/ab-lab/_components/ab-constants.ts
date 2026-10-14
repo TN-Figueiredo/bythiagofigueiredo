@@ -13,12 +13,20 @@ export const VARIANT_COLORS = {
   D: '#A77CE8',
 } as const satisfies Record<DisplayLabel, string>
 
+export const ROTULO_TIPO_DESCONHECIDO = 'Tipo antigo'
+export const FRASE_COMBO = 'Se ganhar, você não vai saber se foi o título ou a thumbnail.'
+
 export const TYPE_META: Record<TestType, { icon: string; label: string; hint: string }> = {
   thumbnail: { icon: 'Image', label: 'Thumbnail', hint: 'Test different thumbnail images' },
   title:     { icon: 'Type', label: 'Title', hint: 'Test different video titles' },
-  description: { icon: 'FileText', label: 'Description', hint: 'Test different descriptions' },
-  combo:     { icon: 'Layers', label: 'Combo', hint: 'Test thumbnail + title combinations' },
+  combo:     { icon: 'Layers', label: 'Título + thumbnail', hint: FRASE_COMBO },
 } as const
+
+/** Tipo lido do banco pode estar fora dos três (teste antigo de descrição): nunca undefined. */
+export function tipoMeta(t: string): { icon: string; label: string; hint: string } {
+  return (TYPE_META as Record<string, { icon: string; label: string; hint: string }>)[t]
+    ?? { icon: 'HelpCircle', label: ROTULO_TIPO_DESCONHECIDO, hint: '' }
+}
 
 export function toDisplayLabel(dbLabel: string, isOriginal?: boolean): DisplayLabel {
   if (isOriginal || dbLabel === 'original') return 'A'

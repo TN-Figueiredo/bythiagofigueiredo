@@ -18,7 +18,6 @@ export interface VariantData {
   isOriginal: boolean
   thumbUrl: string | null
   titleText: string
-  descriptionText: string
   isCoworkGenerated?: boolean
 }
 
@@ -68,11 +67,11 @@ const NEXT_LABELS: DisplayLabel[] = ['B', 'C', 'D']
 /* ------------------------------------------------------------------ */
 
 export function makeOriginalVariant(videoTitle: string): VariantData {
-  return { label: 'A', isOriginal: true, thumbUrl: null, titleText: videoTitle, descriptionText: '' }
+  return { label: 'A', isOriginal: true, thumbUrl: null, titleText: videoTitle }
 }
 
 export function makeEmptyVariant(label: DisplayLabel): VariantData {
-  return { label, isOriginal: false, thumbUrl: null, titleText: '', descriptionText: '' }
+  return { label, isOriginal: false, thumbUrl: null, titleText: '' }
 }
 
 /* ------------------------------------------------------------------ */
@@ -152,7 +151,7 @@ export function stepIsValid(step: number, state: WizardState): boolean {
   switch (step) {
     case 0: return state.type !== null
     case 1: return true // always valid — step is optional
-    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.descriptionText.trim() || v.thumbUrl))
+    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.thumbUrl))
     case 3: return true // has defaults
     case 4: return true
     default: return false

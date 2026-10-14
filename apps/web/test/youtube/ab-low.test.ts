@@ -84,7 +84,7 @@ describe('Visual token consistency', () => {
   })
 
   it('TYPE_META has entries for all TestType values', () => {
-    const types: TestType[] = ['thumbnail', 'title', 'description', 'combo']
+    const types: TestType[] = ['thumbnail', 'title', 'combo']
     for (const t of types) {
       expect(TYPE_META[t]).toBeDefined()
       expect(TYPE_META[t].icon).toBeTruthy()

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import type { TestType } from '@/lib/youtube/ab-types'
 import { VChip, Badge, InfoTip, TypeBadge } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-primitives'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return { Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers') }
+  return { Image: icon('Image'), Type: icon('Type'), HelpCircle: icon('HelpCircle'), Layers: icon('Layers') }
 })
 
 describe('VChip', () => {
@@ -84,6 +85,10 @@ describe('Badge extras', () => {
 describe('TypeBadge', () => {
   it('renders thumbnail label', () => { render(<TypeBadge type="thumbnail" />); expect(screen.getByText('Thumbnail')).toBeDefined() })
   it('renders title label', () => { render(<TypeBadge type="title" />); expect(screen.getByText('Title')).toBeDefined() })
-  it('renders description label', () => { render(<TypeBadge type="description" />); expect(screen.getByText('Description')).toBeDefined() })
-  it('renders combo label', () => { render(<TypeBadge type="combo" />); expect(screen.getByText('Combo')).toBeDefined() })
+  it('tipo antigo (description) não lança e mostra o rótulo de reserva', () => {
+    render(<TypeBadge type={'description' as TestType} />)
+    expect(screen.getByText('Tipo antigo')).toBeDefined()
+    expect(screen.getByTestId('icon-HelpCircle')).toBeDefined()
+  })
+  it('renders combo label', () => { render(<TypeBadge type="combo" />); expect(screen.getByText('Título + thumbnail')).toBeDefined() })
 })

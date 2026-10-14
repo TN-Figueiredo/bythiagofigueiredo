@@ -392,7 +392,7 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     sb = fakePostgrest(world({ started_at: null, completed_at: null }))
     const { data } = await getAbTestFunnel(ctx(), 't1')
     expect(data.link_clicks_window).toBeNull()
-    expect(data.per_link.every(l => l.clicks === 0)).toBe(true)
+    expect(data.per_link).toEqual([])
     expect(sb.on('link_clicks')).toHaveLength(0)
   })
 })

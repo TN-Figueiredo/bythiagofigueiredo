@@ -52,13 +52,12 @@ describe('buildAbBriefingPrompt', () => {
     expect(prompt).toContain('Power words')
   })
 
-  it('description template includes fold and CTA instructions', () => {
-    const prompt = buildAbBriefingPrompt({
-      testType: 'description',
-      data: makeAbBriefingData(),
-    })
-    expect(prompt).toContain('CTA')
-    expect(prompt).toContain('3 primeiras linhas')
+  it('P3: o rótulo do combo é "Título + thumbnail" / "Title + thumbnail"', () => {
+    const pt = buildAbWritePrompt({ testType: 'combo', data: makeAbBriefingData({ locale: 'pt' }) })
+    const en = buildAbWritePrompt({ testType: 'combo', data: makeAbBriefingData({ locale: 'en' }) })
+    expect(pt).toContain('A/B Test Brainstorm: Título + thumbnail')
+    expect(en).toContain('A/B Test Brainstorm: Title + thumbnail')
+    expect(pt + en).not.toContain('Combo (Thumb')
   })
 
   it('combo template includes synergy instructions', () => {
@@ -238,9 +237,9 @@ describe('edge cases', () => {
     }
   })
 
-  it('all 4 test types — each includes focus text when provided', () => {
+  it('all 3 test types — each includes focus text when provided', () => {
     const focus = 'Priorizar contraste alto'
-    const testTypes = ['thumbnail', 'title', 'description', 'combo'] as const
+    const testTypes = ['thumbnail', 'title', 'combo'] as const
     for (const testType of testTypes) {
       const prompt = buildAbBriefingPrompt({
         testType,

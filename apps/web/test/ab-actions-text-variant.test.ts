@@ -30,6 +30,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
+import { DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
+import type { CreateTextVariantInput } from '@/lib/youtube/ab-types'
 import { createTextVariant, updateTextVariant } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 
 // ---------------------------------------------------------------------------
@@ -75,13 +77,26 @@ function buildChain(result: ChainResult): Record<string, unknown> {
 }
 
 let callIndex = 0
+const chainsCriadas: Array<{ table: string; chain: Record<string, unknown> }> = []
 
 const mockSupabase = {
-  from: vi.fn(() => {
+  from: vi.fn((table: string) => {
     const result = callQueue[callIndex] ?? { data: null, error: null }
     callIndex++
-    return buildChain(result)
+    const chain = buildChain(result)
+    chainsCriadas.push({ table, chain })
+    return chain
   }),
+}
+
+/** Argumento do primeiro `.insert`/`.update` feito em `table`. */
+function primeiraEscrita(table: string, metodo: 'insert' | 'update'): Record<string, unknown> | undefined {
+  for (const c of chainsCriadas) {
+    if (c.table !== table) continue
+    const fn = c.chain[metodo] as ReturnType<typeof vi.fn>
+    if (fn.mock.calls.length > 0) return fn.mock.calls[0]![0] as Record<string, unknown>
+  }
+  return undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +107,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   callQueue.length = 0
   callIndex = 0
+  chainsCriadas.length = 0
 
   // Default: auth passes
   vi.mocked(getSiteContext).mockResolvedValue({ siteId: 'site-1' } as never)
@@ -163,69 +179,32 @@ describe('createTextVariant', () => {
     expect(vi.mocked(ensureTrackedLink)).not.toHaveBeenCalled()
   })
 
-  it('creates tracked links for {{link:name}} templates in description', async () => {
-    // ab_tests select → draft test
+  it('teste gravado como description: recusa com a mensagem do 422, sem inserir nada', async () => {
     enqueueResult({ data: { id: 'test-1', site_id: 'site-1', status: 'draft', test_type: 'description' } })
-    // count query → 1 existing variant
-    enqueueResult({ count: 1 })
-    // insert variant → success
-    enqueueResult({ data: { id: 'variant-new' } })
-    // insert into ab_test_tracked_links (will be called via mockSupabase.from)
-    enqueueResult({ data: null, error: null })
 
-    vi.mocked(ensureTrackedLink).mockResolvedValue({
-      linkId: 'link-123',
-      code: 'AbCd789',
-      isNew: true,
-    })
+    const result = await createTextVariant({ test_id: 'test-1', title_text: 'x' })
 
-    const result = await createTextVariant({
-      test_id: 'test-1',
-      description_text: 'Check out {{link:newsletter}} for more content',
-    })
-
-    expect(result).toEqual({ ok: true, id: 'variant-new' })
-    expect(vi.mocked(ensureTrackedLink)).toHaveBeenCalledWith(
-      mockSupabase,
-      'site-1',
-      'ab-test-1-variant-new-newsletter',
-      'ab_test',
-      'https://bythiagofigueiredo.com',
-      expect.stringContaining('newsletter'),
-    )
+    expect(result).toEqual({ ok: false, error: DESCRICAO_FORA_DO_TESTE.message })
+    expect(primeiraEscrita('ab_test_variants', 'insert')).toBeUndefined()
   })
 
-  it('uses provided link_destinations map for tracked link URLs', async () => {
-    // ab_tests select → draft test
-    enqueueResult({ data: { id: 'test-1', site_id: 'site-1', status: 'draft', test_type: 'description' } })
-    // count query → 1 existing variant
+  it('description_text vindo por cast: a linha inserida não o leva e nenhum link é criado', async () => {
+    enqueueResult({ data: { id: 'test-1', site_id: 'site-1', status: 'draft', test_type: 'title' } })
     enqueueResult({ count: 1 })
-    // insert variant → success
-    enqueueResult({ data: { id: 'variant-abc' } })
-    // insert into ab_test_tracked_links
-    enqueueResult({ data: null, error: null })
-
-    vi.mocked(ensureTrackedLink).mockResolvedValue({
-      linkId: 'link-456',
-      code: 'XyZ123',
-      isNew: true,
-    })
+    enqueueResult({ data: { id: 'variant-new' } })
 
     const result = await createTextVariant({
       test_id: 'test-1',
-      description_text: 'Visit {{link:curso}}',
-      link_destinations: { curso: 'https://curso.example.com/signup' },
-    })
+      title_text: 'T',
+      description_text: 'Veja {{link:newsletter}}',
+    } as unknown as CreateTextVariantInput)
 
-    expect(result).toEqual({ ok: true, id: 'variant-abc' })
-    expect(vi.mocked(ensureTrackedLink)).toHaveBeenCalledWith(
-      mockSupabase,
-      'site-1',
-      'ab-test-1-variant-abc-curso',
-      'ab_test',
-      'https://curso.example.com/signup',
-      expect.stringContaining('curso'),
-    )
+    expect(result).toEqual({ ok: true, id: 'variant-new' })
+    const linha = primeiraEscrita('ab_test_variants', 'insert')!
+    expect(linha).not.toHaveProperty('description_text')
+    expect(linha.title_text).toBe('T')
+    expect(primeiraEscrita('ab_test_tracked_links', 'insert')).toBeUndefined()
+    expect(vi.mocked(ensureTrackedLink)).not.toHaveBeenCalled()
   })
 })
 
@@ -254,7 +233,23 @@ describe('updateTextVariant', () => {
     expect(result).toEqual({ ok: false, error: 'Can only edit variants of draft tests' })
   })
 
-  it('successfully updates title_text and description_text', async () => {
+  it('description_text por cast: o update recebe só title_text e metadata', async () => {
+    enqueueResult({ data: { id: 'variant-1', test_id: 'test-1' } })
+    enqueueResult({ data: { status: 'draft', site_id: 'site-1' } })
+    enqueueResult({ data: null, error: null })
+
+    const result = await updateTextVariant('variant-1', {
+      title_text: 'New Title',
+      description_text: 'x',
+    } as unknown as Parameters<typeof updateTextVariant>[1])
+
+    expect(result).toEqual({ ok: true })
+    const update = primeiraEscrita('ab_test_variants', 'update')!
+    expect(Object.keys(update).sort()).toEqual(['metadata', 'title_text'])
+    expect(update).not.toHaveProperty('description_text')
+  })
+
+  it('successfully updates title_text', async () => {
     // ab_test_variants select → variant found
     enqueueResult({ data: { id: 'variant-1', test_id: 'test-1' } })
     // ab_tests select → draft test
@@ -264,7 +259,6 @@ describe('updateTextVariant', () => {
 
     const result = await updateTextVariant('variant-1', {
       title_text: 'New Title',
-      description_text: 'New Description',
     })
 
     expect(result).toEqual({ ok: true })

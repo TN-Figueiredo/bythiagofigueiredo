@@ -14,8 +14,8 @@ describe('handleVariantsReceived logic', () => {
       VARIANT_LABELS.map((l, i) => [l, i]),
     ) as Record<string, number>
     const variants = [
-      { label: 'B', title_text: 'Test B', description_text: null, metadata: null },
-      { label: 'X', title_text: 'Test X', description_text: null, metadata: null },
+      { label: 'B', title_text: 'Test B', metadata: null },
+      { label: 'X', title_text: 'Test X', metadata: null },
     ]
     const labels = new Set(
       variants.map((v) => v.label).filter((l) => l in labelToIndex),
@@ -28,13 +28,13 @@ describe('handleVariantsReceived logic', () => {
       VARIANT_LABELS.map((l, i) => [l, i]),
     ) as Record<string, number>
     const variants = [
-      { label: 'B', title_text: 'Title B', description_text: 'Desc B', metadata: null },
-      { label: 'D', title_text: 'Title D', description_text: null, metadata: null },
+      { label: 'B', title_text: 'Title B', metadata: null },
+      { label: 'D', title_text: 'Title D', metadata: null },
     ]
     const prev = [
-      { title: '', description: '' },
-      { title: '', description: '' },
-      { title: '', description: '' },
+      { title: '' },
+      { title: '' },
+      { title: '' },
     ]
     const next = [...prev]
     for (const v of variants) {
@@ -42,13 +42,12 @@ describe('handleVariantsReceived logic', () => {
       if (idx !== undefined) {
         next[idx] = {
           title: v.title_text ?? '',
-          description: v.description_text ?? '',
         }
       }
     }
-    expect(next[0]).toEqual({ title: 'Title B', description: 'Desc B' })
-    expect(next[1]).toEqual({ title: '', description: '' })
-    expect(next[2]).toEqual({ title: 'Title D', description: '' })
+    expect(next[0]).toEqual({ title: 'Title B' })
+    expect(next[1]).toEqual({ title: '' })
+    expect(next[2]).toEqual({ title: 'Title D' })
   })
 })
 
@@ -68,9 +67,9 @@ describe('submit guard — coworkVariantLabels', () => {
   it('filters text variants already created by Cowork', () => {
     const coworkVariantLabels = new Set(['B', 'D'])
     const textVariants = [
-      { title: 'Title B', description: '' },
-      { title: 'Title C', description: '' },
-      { title: 'Title D', description: '' },
+      { title: 'Title B' },
+      { title: 'Title C' },
+      { title: 'Title D' },
     ]
     const textSlotsToSave = textVariants
       .map((tv, i) => ({ ...tv, label: VARIANT_LABELS[i] ?? '' }))

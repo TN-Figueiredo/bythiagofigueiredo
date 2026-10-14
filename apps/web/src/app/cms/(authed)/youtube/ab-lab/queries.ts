@@ -9,7 +9,6 @@ import type {
   AbTestSiteSettings,
   AbTestResults,
   VariantStats,
-  AbTestTrackedLinkRow,
   AbTestCardView,
   AbTestDraft,
   AbTestDetailView,
@@ -27,6 +26,7 @@ import type {
   TestType,
 } from '@/lib/youtube/ab-types'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
+import { TIPOS_DE_TESTE } from '@/lib/youtube/ab-schemas'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
@@ -191,7 +191,6 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
       label: v.label,
       blob_url: v.blob_url,
       title_text: v.title_text,
-      description_text: v.description_text,
       metadata: v.metadata,
       is_original: v.is_original,
       total_impressions: 0,
@@ -233,11 +232,6 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     isSignificant = confidence >= threshold
   }
 
-  const { data: trackedLinks } = await supabase
-    .from('ab_test_tracked_links')
-    .select('*')
-    .eq('ab_test_id', testId)
-
   // Fetch latest polls for live signal (active/paused tests only)
   let latestPolls: AbTestResults['latestPolls'] = undefined
   if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
@@ -260,7 +254,6 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     suggested_winner_id: suggestedWinnerId,
     timeline: allCycles,
     data_freshness: new Date().toISOString(),
-    tracked_links: (trackedLinks ?? []) as AbTestTrackedLinkRow[],
     latestPolls,
   } as AbTestResults
 }
@@ -505,7 +498,6 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
           isOriginal: v.is_original,
           thumbUrl: v.blob_url ?? null,
           titleText: v.title_text ?? '',
-          descriptionText: v.description_text ?? '',
         })),
       }
     })
@@ -559,7 +551,7 @@ export function aggregateTags(
   tests: TestForLearning[],
   allVariants?: Array<{ id: unknown; metadata: unknown }>,
 ): LearningsTag[] {
-  const tagMap = new Map<string, { wins: number; total: number; totalLift: number; liftMedidos: number; kind: 'thumb' | 'title' | 'desc' }>()
+  const tagMap = new Map<string, { wins: number; total: number; totalLift: number; liftMedidos: number; kind: 'thumb' | 'title' }>()
 
   // Count wins (tag appeared on the winning variant)
   for (const test of tests) {
@@ -570,7 +562,8 @@ export function aggregateTags(
     const liftBruto = (test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent
     const lift = typeof liftBruto === 'number' ? liftBruto : null
     const testType = (test.test_type as string | undefined) ?? 'thumbnail'
-    const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
+    if (!(TIPOS_DE_TESTE as readonly string[]).includes(testType)) continue
+    const kind = testType === 'title' ? 'title' as const : 'thumb' as const
 
     for (const tag of tags) {
       const existing = tagMap.get(tag) ?? { wins: 0, total: 0, totalLift: 0, liftMedidos: 0, kind }

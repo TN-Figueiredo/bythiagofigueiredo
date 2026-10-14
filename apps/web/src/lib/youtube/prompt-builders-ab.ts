@@ -11,7 +11,6 @@ type Locale = 'pt' | 'en'
 const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
   pt: {
     title: '         "title_text": "<título, obrigatório, máx 200 chars>"',
-    description: '         "description_text": "<descrição, obrigatório, máx 5000 chars>"',
     thumbnail: `         "metadata": {
            "creative_direction": "<direção criativa>",
            "ai_image_prompt": "<prompt para geração de imagem AI>",
@@ -30,7 +29,6 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
   },
   en: {
     title: '         "title_text": "<title, required, max 200 chars>"',
-    description: '         "description_text": "<description, required, max 5000 chars>"',
     thumbnail: `         "metadata": {
            "creative_direction": "<creative direction>",
            "ai_image_prompt": "<prompt for AI image generation>",
@@ -65,13 +63,6 @@ Para cada variação (B, C, D), descreva:
 - Uso de números, brackets, ou padrões comprovados
 - Comprimento ideal: 50-60 caracteres
 Sugira exatamente 3 variações (B, C, D).`,
-    description: `Analise a descrição atual e sugira 3 variações para teste A/B.
-Para cada variação (B, C, D), descreva:
-- Posição e texto do CTA principal
-- Conteúdo acima do fold (3 primeiras linhas visíveis)
-- Uso de links rastreados com sintaxe {{link:nome}}
-- Hashtags estratégicas
-Sugira exatamente 3 variações (B, C, D).`,
     combo: `Analise o combo atual (thumbnail + título) e sugira 3 combos coerentes para teste A/B.
 IMPORTANTE: Cada combo (B, C, D) é um PACOTE — thumbnail e título devem se reforçar mutuamente.
 Para cada combo, descreva:
@@ -94,13 +85,6 @@ For each variation (B, C, D), describe:
 - Power words and sense of urgency
 - Use of numbers, brackets, or proven patterns
 - Ideal length: 50-60 characters
-Suggest exactly 3 variations (B, C, D).`,
-    description: `Analyze the current description and suggest 3 A/B test variations.
-For each variation (B, C, D), describe:
-- Position and text of the main CTA
-- Content above the fold (first 3 visible lines)
-- Use of tracked links with {{link:name}} syntax
-- Strategic hashtags
 Suggest exactly 3 variations (B, C, D).`,
     combo: `Analyze the current combo (thumbnail + title) and suggest 3 coherent combos for A/B testing.
 IMPORTANT: Each combo (B, C, D) is a PACKAGE — thumbnail and title must reinforce each other.
@@ -356,8 +340,8 @@ export function buildAbWritePrompt(options: {
   const videoHasData = data.video.ctr !== null || data.video.score !== null
 
   const testTypeLabel = locale === 'pt'
-    ? { thumbnail: 'Thumbnail', title: 'Título', description: 'Descrição', combo: 'Combo (Thumb+Título)' }[testType]
-    : { thumbnail: 'Thumbnail', title: 'Title', description: 'Description', combo: 'Combo (Thumb+Title)' }[testType]
+    ? { thumbnail: 'Thumbnail', title: 'Título', combo: 'Título + thumbnail' }[testType]
+    : { thumbnail: 'Thumbnail', title: 'Title', combo: 'Title + thumbnail' }[testType]
 
   const lines: string[] = []
 

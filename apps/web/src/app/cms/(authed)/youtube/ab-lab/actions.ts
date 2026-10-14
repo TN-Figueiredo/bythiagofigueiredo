@@ -24,9 +24,8 @@ import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
+import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
 import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
-import { ensureTrackedLink } from '@/lib/links/auto-link'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
@@ -99,6 +98,10 @@ export async function createAbTest(
     return { ok: false, error: (e as Error).message }
   }
 
+  if (pedeDescricao({ test_type: input.test_type })) {
+    return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
+  }
+
   if (input.site_id !== siteId) {
     return { ok: false, error: 'site_id mismatch' }
   }
@@ -145,7 +148,6 @@ export async function createAbTest(
 
   // Capture original metadata for title/desc/combo tests
   let originalTitle: string | null = null
-  let originalDescription: string | null = null
   const testType: TestType = input.test_type ?? 'thumbnail'
 
   // Teste de thumbnail não entra aqui: o original vem de `youtube_videos` (acima).
@@ -169,7 +171,6 @@ export async function createAbTest(
         const meta = await captureOriginalMetadata(ytVideo.youtube_video_id, accessToken)
         if (meta) {
           originalTitle = meta.title
-          originalDescription = meta.description
           captured = true
         }
       }
@@ -185,7 +186,7 @@ export async function createAbTest(
       return {
         ok: false,
         error:
-          "Could not read the video's current title and description. Reconnect this channel's YouTube access and try again.",
+          "Could not read the video's current title. Reconnect this channel's YouTube access and try again.",
       }
     }
   }
@@ -213,7 +214,6 @@ export async function createAbTest(
       original_thumbnail_url: immutableOriginalUrl,
       test_type: testType,
       original_title: originalTitle,
-      original_description: originalDescription,
     })
     .select('id')
     .single()
@@ -256,6 +256,13 @@ export async function updateAbTestType(
     siteId = await requireEditAccess()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
+  }
+
+  if (!TestTypeSchema.safeParse(newType).success) {
+    return {
+      ok: false,
+      error: pedeDescricao({ test_type: newType }) ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido',
+    }
   }
 
   const supabase = getSupabaseServiceClient()
@@ -370,7 +377,6 @@ export async function uploadVariant(
       file_size_bytes: file.size,
       sort_order: sortOrder,
       title_text: formData.get('title_text') as string | null ?? null,
-      description_text: formData.get('description_text') as string | null ?? null,
     })
     .select('id')
     .single()
@@ -1051,6 +1057,9 @@ export async function createTextVariant(
 
   if (!test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'draft') return { ok: false, error: 'Can only add variants to draft tests' }
+  if (pedeDescricao({ test_type: test.test_type })) {
+    return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
+  }
   if (test.test_type === 'thumbnail') {
     return { ok: false, error: 'Texto não pode ser adicionado a testes de thumbnail' }
   }
@@ -1072,7 +1081,6 @@ export async function createTextVariant(
       label,
       is_original: false,
       title_text: input.title_text ?? null,
-      description_text: input.description_text ?? null,
       metadata: input.metadata ?? {},
       sort_order: sortOrder,
     })
@@ -1080,27 +1088,6 @@ export async function createTextVariant(
     .single()
 
   if (error || !variant) return { ok: false, error: error?.message ?? 'Insert failed' }
-
-  // Create tracked links for {{link:name}} templates in description
-  if (input.description_text) {
-    const tokens = parseTemplateTokens(input.description_text)
-    for (const templateName of tokens) {
-      const destinationUrl = input.link_destinations?.[templateName] ?? `https://bythiagofigueiredo.com`
-      const linkResult = await ensureTrackedLink(
-        supabase, siteId, `ab-${input.test_id}-${variant.id}-${templateName}`,
-        'ab_test', destinationUrl, `A/B: ${templateName} (${label})`,
-      )
-      if (linkResult) {
-        await supabase.from('ab_test_tracked_links').insert({
-          ab_test_id: input.test_id,
-          variant_id: variant.id,
-          link_id: linkResult.linkId,
-          template_name: templateName,
-          short_code: linkResult.code,
-        })
-      }
-    }
-  }
 
   revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
@@ -1113,7 +1100,7 @@ export async function createTextVariant(
 
 export async function updateTextVariant(
   variantId: string,
-  updates: { title_text?: string; description_text?: string; metadata?: Partial<VariantMetadata> },
+  updates: { title_text?: string; metadata?: Partial<VariantMetadata> },
 ): Promise<{ ok: boolean; error?: string }> {
   let siteId: string
   try {
@@ -1145,7 +1132,7 @@ export async function updateTextVariant(
 
   const { error } = await supabase
     .from('ab_test_variants')
-    .update(updates)
+    .update({ title_text: updates.title_text, metadata: updates.metadata })
     .eq('id', variantId)
 
   if (error) return { ok: false, error: error.message }
@@ -1669,7 +1656,6 @@ export async function fetchAbTestVariants(
   label: string
   is_original: boolean
   title_text: string | null
-  description_text: string | null
   metadata: Record<string, unknown> | null
 }>> {
   const siteId = await requireEditAccess()
@@ -1686,7 +1672,7 @@ export async function fetchAbTestVariants(
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('label, is_original, title_text, description_text, metadata')
+    .select('label, is_original, title_text, metadata')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -1694,7 +1680,6 @@ export async function fetchAbTestVariants(
     label: v.label as string,
     is_original: v.is_original as boolean,
     title_text: v.title_text as string | null,
-    description_text: v.description_text as string | null,
     metadata: v.metadata as Record<string, unknown> | null,
   }))
 }

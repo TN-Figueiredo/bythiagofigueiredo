@@ -7,6 +7,7 @@
  * exposing internal functions to the network.
  */
 
+import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from './ab-schemas'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
@@ -57,13 +58,15 @@ export async function startAbTestInternal(
   // 1. Fetch the test row and validate ownership + status.
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id')
+    .select('id, site_id, status, youtube_video_id, test_type')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can be started' }
+  if (pedeDescricao({ test_type: test.test_type })) return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
+  if (!TestTypeSchema.safeParse(test.test_type).success) return { ok: false, error: 'Tipo de teste desconhecido' }
 
   // 2. Fetch variants.
   const { data: variants, error: variantsError } = await supabase

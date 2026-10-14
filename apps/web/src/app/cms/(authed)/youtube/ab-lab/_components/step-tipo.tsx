@@ -1,9 +1,10 @@
 'use client'
 
 import { useRef, useCallback } from 'react'
-import { Layers, Image, Type, FileText } from 'lucide-react'
+import { Layers, Image, Type } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { TestType } from '@/lib/youtube/ab-types'
+import { FRASE_COMBO } from './ab-constants'
 
 interface StepTipoProps {
   selected: TestType | null
@@ -16,13 +17,10 @@ const TYPES: Array<{
   title: string
   desc: string
   extra?: string
-  badge?: string
-  badgeTone?: 'accent' | 'neutral'
 }> = [
-  { type: 'combo',       icon: Layers,   title: 'Combo',       desc: 'Thumb + título testados juntos',       badge: 'recomendado', badgeTone: 'accent' },
-  { type: 'thumbnail',   icon: Image,    title: 'Thumbnail',   desc: 'Só a miniatura muda' },
-  { type: 'title',       icon: Type,     title: 'Título',      desc: 'Só o título muda' },
-  { type: 'description', icon: FileText, title: 'Descrição',   desc: 'Descrição + links rastreados', extra: 'Use pra achar o melhor link/CTA. Depois fixe e siga.', badge: 'pontual', badgeTone: 'neutral' },
+  { type: 'combo',     icon: Layers, title: 'Título + thumbnail', desc: 'Título e thumbnail mudam juntos', extra: FRASE_COMBO },
+  { type: 'thumbnail', icon: Image,  title: 'Thumbnail',          desc: 'Só a miniatura muda' },
+  { type: 'title',     icon: Type,   title: 'Título',             desc: 'Só o título muda' },
 ]
 
 export function StepTipo({ selected, onSelect }: StepTipoProps) {
@@ -46,7 +44,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
   return (
     <div>
       <p className="text-[13.5px] text-cms-text-dim m-0 mb-[18px]">
-        Escolha o que vai ser rotacionado no YouTube. Thumb e título andam juntos — é a dupla que decide o clique.
+        Escolha o que vai ser rotacionado no YouTube.
       </p>
       <div
         ref={containerRef}
@@ -55,7 +53,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
         className="grid grid-cols-2 gap-[14px]"
         onKeyDown={handleKeyDown}
       >
-        {TYPES.map(({ type, icon: Icon, title, desc, extra, badge, badgeTone }) => {
+        {TYPES.map(({ type, icon: Icon, title, desc, extra }) => {
           const isSelected = selected === type
           return (
             <button
@@ -85,17 +83,6 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
                   <Icon size={20} aria-hidden="true" />
                 </div>
                 <span className="text-[16px] font-semibold text-cms-text">{title}</span>
-                {badge && (
-                  <span
-                    className="ml-auto inline-flex items-center px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono"
-                    style={{
-                      background: badgeTone === 'accent' ? 'var(--accent-soft, rgba(255,130,64,0.08))' : 'var(--cms-surface-3, var(--cms-surface-hover))',
-                      color: badgeTone === 'accent' ? 'var(--cms-accent)' : 'var(--cms-text-dim)',
-                    }}
-                  >
-                    {badge}
-                  </span>
-                )}
               </div>
               <div className="text-[12.5px] text-cms-text-dim">{desc}</div>
               {extra && (

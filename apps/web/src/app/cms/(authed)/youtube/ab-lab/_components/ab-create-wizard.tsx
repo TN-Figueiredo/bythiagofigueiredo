@@ -45,12 +45,10 @@ interface DraftVariant {
   isOriginal: boolean
   thumbUrl: string | null
   titleText: string
-  descriptionText: string
 }
 
 interface PrefillData {
   testType?: TestType
-  suggestedDescription?: string
   fromOptimizationCycle?: string
   draftVariants?: DraftVariant[]
 }
@@ -147,11 +145,11 @@ function clearDraft(videoId: string): void {
 }
 
 function makeOriginalVariant(videoTitle: string, thumbUrl?: string | null): VariantData {
-  return { label: 'A', isOriginal: true, thumbUrl: thumbUrl ?? null, titleText: videoTitle, descriptionText: '' }
+  return { label: 'A', isOriginal: true, thumbUrl: thumbUrl ?? null, titleText: videoTitle }
 }
 
 function makeEmptyVariant(label: DisplayLabel): VariantData {
-  return { label, isOriginal: false, thumbUrl: null, titleText: '', descriptionText: '' }
+  return { label, isOriginal: false, thumbUrl: null, titleText: '' }
 }
 
 function wizardReducer(state: WizardState, action: WizardAction): WizardState {
@@ -232,7 +230,7 @@ function stepIsValid(step: number, state: WizardState): boolean {
   switch (step) {
     case 0: return state.type !== null
     case 1: return true // always valid — step is optional
-    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.descriptionText.trim() || v.thumbUrl))
+    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.thumbUrl))
     case 3: return true // has defaults
     case 4: return true
     default: return false
@@ -261,7 +259,6 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
     thumbFile: null as File | null,
     thumbDataUrl: null as string | null,
     titleText: v.titleText,
-    descriptionText: v.descriptionText,
   })) as VariantData[] | undefined
 
   const restoredVariants = saved?.variants?.map(v => ({
@@ -426,7 +423,6 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             const fd = new FormData()
             fd.append('file', file, `variant-${v.label}.jpg`)
             if (v.titleText?.trim()) fd.append('title_text', v.titleText.trim())
-            if (v.descriptionText?.trim()) fd.append('description_text', v.descriptionText.trim())
             const uploadResult = await uploadVariant(testId, fd)
             if (!uploadResult.ok) {
               dispatch({ type: 'SET_ERROR', error: uploadResult.error ?? 'Failed to upload variant' })
@@ -437,20 +433,16 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         }
       }
 
-      // 4. Create text-only variants (title/description — NOT combo, which was handled in step 3)
-      if (state.type === 'title' || state.type === 'description') {
+      // 4. Create text-only variants (title — NOT combo, which was handled in step 3)
+      if (state.type === 'title') {
         const textVariants = state.variants
           .filter(v => !v.isOriginal && !v.isCoworkGenerated)
-          .filter(v => {
-            if (state.type === 'title') return v.titleText.trim().length > 0
-            return v.descriptionText.trim().length > 0
-          })
+          .filter(v => v.titleText.trim().length > 0)
 
         for (const tv of textVariants) {
           const textResult = await createTextVariant({
             test_id: testId,
             title_text: tv.titleText.trim() || undefined,
-            description_text: tv.descriptionText.trim() || undefined,
           })
           if (!textResult.ok) {
             dispatch({ type: 'SET_ERROR', error: textResult.error ?? 'Failed to create text variant' })

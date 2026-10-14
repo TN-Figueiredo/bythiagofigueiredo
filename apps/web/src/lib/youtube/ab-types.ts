@@ -12,7 +12,7 @@ export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as con
 export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
   return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
 }
-export type TestType = 'thumbnail' | 'title' | 'description' | 'combo'
+export type TestType = 'thumbnail' | 'title' | 'combo'
 
 export interface AbTestConfig {
   max_duration_days: number
@@ -43,7 +43,6 @@ export interface AbTestRow {
   test_type: TestType
   original_thumbnail_url: string
   original_title: string | null
-  original_description: string | null
   winner_variant_id: string | null
   started_at: string | null
   paused_at: string | null
@@ -95,7 +94,6 @@ export interface AbTestVariantRow {
   file_size_bytes: number | null
   dimensions: string | null
   title_text: string | null
-  description_text: string | null
   metadata: VariantMetadata
   sort_order: number
   created_at: string
@@ -154,7 +152,6 @@ export interface VariantStats {
   label: string
   blob_url: string | null
   title_text: string | null
-  description_text: string | null
   metadata: VariantMetadata
   is_original: boolean
   total_impressions: number
@@ -167,19 +164,7 @@ export interface CreateTextVariantInput {
   test_id: string
   label?: string
   title_text?: string
-  description_text?: string
   metadata?: Partial<VariantMetadata>
-  link_destinations?: Record<string, string>
-}
-
-export interface AbTestTrackedLinkRow {
-  id: string
-  ab_test_id: string
-  variant_id: string
-  link_id: string
-  template_name: string
-  short_code: string
-  created_at: string
 }
 
 export interface ResultMetadata {
@@ -258,7 +243,6 @@ export interface AbTestResults {
   suggested_winner_id: string | null
   timeline: AbTestCycleRow[]
   data_freshness: string
-  tracked_links: AbTestTrackedLinkRow[]
   latestPolls?: AbTestPollRow[]
 }
 
@@ -324,7 +308,6 @@ export interface AbTestDraftVariant {
   isOriginal: boolean
   thumbUrl: string | null
   titleText: string
-  descriptionText: string
 }
 
 export interface AbTestDraft {
