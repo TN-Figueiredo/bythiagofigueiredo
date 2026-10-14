@@ -102,14 +102,49 @@ export const DEFINICAO_TAMANHO_DO_BANCO: Definicao = {
   },
 }
 
+/**
+ * `marcas_de_idade` (A5 E4, Tarefa 11): grava uma vez, quando a idade do vídeo fecha, as views (e curtidas e comentários) nas idades de 1, 7 e 30 dias
+ * (`competitor_marks_pending` / `competitor_marks_apply`), e o motivo quando a marca não pôde ser medida. Leve, a partir das 04:00 de São Paulo; pode ser
+ * desligada (`OBS_AGENDA_TASKS_OFF`). O código mora em `agenda/tarefas/marcas-de-idade.ts`. Os códigos de motivo são escritos por extenso AQUI: este módulo é
+ * leve e não importa `medidas/fechar-marcas.ts` (um teste confere que batem com `MOTIVOS_DAS_MARCAS`; `schema_ausente` é dos comuns). `ordem: 5.5` (a 3 é da
+ * soma do mapa); `naoTerminouVermelhoEm: null` (a carga inicial drena em várias execuções, e `parcial` com progresso não é problema).
+ */
+export const DEFINICAO_MARCAS_DE_IDADE: Definicao = {
+  nome: 'marcas_de_idade', rotulo: 'marcas de idade', ordem: 5.5, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 4,
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+  motivos: {
+    banco_nao_respondeu: 'o banco não respondeu a tempo',
+    leitura_falhou: 'não foi possível ler os vídeos com idade fechada',
+    gravacao_falhou: 'não foi possível gravar as marcas',
+    resposta_invalida: 'o banco devolveu uma resposta fora da forma esperada',
+    marca_recusada: 'o banco recusou marcas ou motivos calculados (vídeo apagado ou base alterada no meio; se repetir, é defeito de código)',
+    prova_inconsistente: 'há marca e motivo para o mesmo vídeo, marca com o site errado ou marca com a base da idade antiga',
+    marcas_perdidas: 'marcas não puderam ser medidas: faltou leitura ao redor da idade',
+    marcas_atrasadas: 'há vídeos com idade fechada há mais de 3 dias sem marca nem motivo',
+    sobrou: 'ficaram vídeos para o próximo disparo',
+    inesperado: 'a gravação das marcas falhou com erro inesperado (ver Sentry)',
+  },
+  // Só `marcas_perdidas` tem frase com número, e só as idades 7 e 30 avisam (a idade 1 fica no detalhe). Sem os números: `undefined` (frase fixa).
+  fraseDe: (codigo, d) => {
+    if (codigo !== 'marcas_perdidas') return undefined
+    const p7 = d.perdidas_7, p30 = d.perdidas_30
+    if (typeof p7 !== 'number' || typeof p30 !== 'number') return undefined
+    const p30Avisa = p30 - (d.perdidas_30_semanal ?? 0)
+    const n = p7 + p30Avisa
+    if (n <= 0) return undefined
+    return `${n} marcas não puderam ser medidas (7 dias: ${p7}; 30 dias: ${p30Avisa}): faltou leitura ao redor da idade`
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
 /**
- * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14 e a medida do banco (E10). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
+ * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

@@ -303,11 +303,11 @@ describe('lerAgendaDoVigia', () => {
 
 // ---- a junção com a E14: o vigia enxerga as CINCO tarefas ------------------------------------------------------------
 
-describe('o vigia enxerga as seis tarefas (as duas da E14 e a medida do banco inclusive)', () => {
+describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const SEIS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const SEIS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
 
-  it('o padrão do vigia são as seis, na ordem do catálogo', () => {
+  it('o padrão do vigia são as sete, na ordem do catálogo', () => {
     expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(SEIS)
   })
 
@@ -534,7 +534,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
   it('/api/health com a anulação parada: degraded e agenda:anular_identidade nomeada', async () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
       leitura_horaria: iso(Date.now() - H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H),
-      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
+      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), marcas_de_idade: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
     }, iso(Date.now() - 60 * H)))) as never)
     const res = await healthGET(reqHealth())
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }

@@ -5,6 +5,7 @@ import { despachar, type OpsAgenda, type ResumoDisparo } from '@/lib/youtube/age
 import type { ContextoTarefa, EstadoAgenda, LinhaTarefa, Lido, ResultadoTarefa, Tarefa } from '@/lib/youtube/agenda/tipos'
 import { chaveDoPeriodo } from '@/lib/youtube/agenda/periodo'
 import { CATALOGO, DEFINICOES } from '@/lib/youtube/agenda/catalogo'
+import { DEFINICAO_MARCAS_DE_IDADE } from '@/lib/youtube/agenda/definicoes'
 import { LEVE_COMECA_ATE_MS, LIMITE_FUNCAO_MS } from '@/lib/youtube/agenda/relogio'
 
 // Um dia fixo no passado serve de âncora; o que importa é a hora do relógio de São Paulo (UTC−3).
@@ -40,6 +41,7 @@ function catalogoCompleto(): Tarefa[] {
     tarefa('soma_do_mapa', 3, { aPartirDaHoraSP: 4 }),
     tarefa('tamanho_do_banco', 4, { aPartirDaHoraSP: 5 }),
     tarefa('podas', 5, { aPartirDaHoraSP: 5 }),
+    tarefa('marcas_de_idade', 5.5, { aPartirDaHoraSP: 4 }),
     pesada('sincronizar_canais', 6, { periodo: 'faixa', tetoTentativas: 9, naoTerminouVermelhoEm: 6 }),
     pesada('retratos_comentarios', 7, { aPartirDaHoraSP: 13, cedeA: ['sincronizar_canais'] }),
     pesada('serie_semanal', 8, { aPartirDaHoraSP: 12, tetoTentativas: 12, cedeA: ['sincronizar_canais', 'retratos_comentarios'] }),
@@ -213,7 +215,7 @@ describe('despachante: ordem e pesadas', () => {
   it('arranque: estado vazio, catálogo completo às 13:00 (item 214): a horária, as leves e UMA pesada', async () => {
     const m = montar({ catalogo: catalogoCompleto(), t0: sp(13, 0) })
     const r = await m.rodar()
-    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'soma_do_mapa', 'tamanho_do_banco', 'podas', 'sincronizar_canais'])
+    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'soma_do_mapa', 'tamanho_do_banco', 'podas', 'marcas_de_idade', 'sincronizar_canais'])
     expect(final(r, 'retratos_comentarios')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
     expect(final(r, 'serie_semanal')).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
     expect(m.ops.adiar).toHaveBeenCalledTimes(2)
@@ -748,7 +750,7 @@ describe('despachante: estado ilegível', () => {
     const m = montar({ catalogo: catalogoCompleto(), t0, estado: { porque: 'o banco não respondeu' } })
     const r = await m.rodar()
     // 14:40: a horária, as leves no horário (anular às 3, soma às 4, tamanho e podas às 5) e UMA pesada
-    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'soma_do_mapa', 'tamanho_do_banco', 'podas', 'sincronizar_canais'])
+    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'soma_do_mapa', 'tamanho_do_banco', 'podas', 'marcas_de_idade', 'sincronizar_canais'])
     expect(r.problemas).toEqual(['não foi possível ler o estado da agenda (o banco não respondeu)'])
     for (const c of m.ops.tomar.mock.calls) expect(c[0].reabrir).toBe(false)
     // nunca "nada a fazer": ninguém virou nao_devida por falta de leitura
@@ -778,7 +780,7 @@ describe('despachante: o resumo', () => {
     const t0 = sp(13, 0)
     const m = montar({ catalogo: catalogoCompleto().reverse(), t0, desligadas: ['podas'] })
     const r = await m.rodar()
-    expect(r.tarefas.map(t => t.tarefa)).toEqual(['leitura_horaria', 'anular_identidade', 'soma_do_mapa', 'tamanho_do_banco', 'podas', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(r.tarefas.map(t => t.tarefa)).toEqual(['leitura_horaria', 'anular_identidade', 'soma_do_mapa', 'tamanho_do_banco', 'podas', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
     expect(final(r, 'podas').estado).toBe('desligada')
     for (const t of r.tarefas) expect(Number.isInteger(t.ms) && t.ms >= 0).toBe(true)
   })
@@ -823,7 +825,7 @@ describe('despachante: as tarefas dos comentários de destaque no catálogo real
       estado: estadoDe([linha(sinc(), t0, { status: 'ok', runs: 1 })], t0),
     })
     const r = await m.rodar()
-    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'retratos_comentarios'])
+    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'marcas_de_idade', 'retratos_comentarios'])
     expect(final(r, 'anular_identidade')).toMatchObject({ estado: 'erro', motivo: 'banco' })
     expect(final(r, 'retratos_comentarios').estado).toBe('ok')
     expect(r.problemas).toEqual(['anular identidade de autores: o banco não respondeu a tempo ou recusou'])
@@ -897,5 +899,86 @@ describe('despachante: as tarefas dos comentários de destaque no catálogo real
     })
     await b.rodar()
     expect(b.chamadas.filter(c => PESADAS.has(c.nome)).map(c => c.nome)).toEqual(['retratos_comentarios'])
+  })
+})
+
+// ---- A5 E4, Tarefa 11: a drenagem de marcas_de_idade, com a definição REAL e `rodar` falso ---------------------------------
+
+describe('marcas_de_idade: drenagem de pares pelo despachante real', () => {
+  const LOTE = 1_500
+  /** Cada execução é um disparo: a linha do dia carrega o que o fecho anterior gravou (parcial, com o que foi feito). */
+  async function drenar(pares: number, opcoes: { feitoPorExecucao: (restantes: number) => number; maximo: number; teto?: number }) {
+    const t0 = sp(14, 0)
+    let restantes = pares
+    let execucoes = 0
+    const def: Tarefa = {
+      ...DEFINICAO_MARCAS_DE_IDADE,
+      rodar: async () => {
+        execucoes += 1
+        const feitos = Math.min(opcoes.feitoPorExecucao(restantes), restantes)
+        restantes -= feitos
+        return restantes > 0
+          ? { estado: 'parcial', feitas: feitos, deixadas: restantes, motivo: 'sobrou' }
+          : { estado: 'ok', feitas: feitos, deixadas: 0 }
+      },
+    }
+    const problemasPorExecucao: string[][] = []
+    const tetos: number[] = []
+    let linhaDoDia: LinhaTarefa | null = null
+    for (let i = 0; i < opcoes.maximo && (i === 0 || restantes > 0); i++) {
+      const m = montar({
+        catalogo: [def], t0,
+        estado: estadoDe(linhaDoDia ? [linhaDoDia] : [], t0),
+        tomar: async (a) => { tetos.push(a.teto); return { valor: true } },
+      })
+      const r = await m.rodar()
+      problemasPorExecucao.push(r.problemas)
+      const f = final(r, 'marcas_de_idade')
+      linhaDoDia = linha(def, t0, {
+        status: f.estado === 'ok' ? 'ok' : 'parcial', runs: i + 1, unfinished_n: i + 1,
+        last_run_status: f.estado, last_run_done_n: f.feitas ?? 0, done_n: f.feitas ?? 0, left_n: f.deixadas ?? 0,
+      })
+    }
+    return { execucoes, problemasPorExecucao, tetos, restantes }
+  }
+
+  it('a definição real não conta disparos seguidos como vermelho', () => {
+    expect(DEFINICAO_MARCAS_DE_IDADE.naoTerminouVermelhoEm).toBeNull()
+  })
+  it('carga de 4.167 pares drena em 3 execuções e nenhuma põe problema na lista', async () => {
+    const r = await drenar(4_167, { feitoPorExecucao: () => LOTE, maximo: 10 })
+    expect(r.execucoes).toBe(3)
+    expect(r.restantes).toBe(0)
+    expect(r.problemasPorExecucao).toEqual([[], [], []])
+    expect(new Set(r.tetos)).toEqual(new Set([12]))
+  })
+  it('carga de 9.001 pares drena em 7 execuções no mesmo dia, sem problema e sem gastar tentativa', async () => {
+    const r = await drenar(9_001, { feitoPorExecucao: () => LOTE, maximo: 20 })
+    expect(r.execucoes).toBe(7)
+    expect(r.restantes).toBe(0)
+    expect(r.problemasPorExecucao.flat()).toEqual([])
+    // cada retomada traz done_n > 0 (a linha do fecho anterior): é o que a agenda lê para não gastar tentativa
+    expect(r.execucoes).toBeLessThanOrEqual(DEFINICAO_MARCAS_DE_IDADE.tetoTentativas)
+  })
+  it('reabertura completa (4.000 motivos de versão menor) drena sem problema', async () => {
+    const r = await drenar(4_000, { feitoPorExecucao: () => LOTE, maximo: 10 })
+    expect(r.execucoes).toBe(3)
+    expect(r.problemasPorExecucao.flat()).toEqual([])
+  })
+  it('parcial sem nada feito gasta tentativa e na 12ª vira esgotada, vermelha (a fila travada aparece)', async () => {
+    const t0 = sp(14, 0)
+    const def: Tarefa = { ...DEFINICAO_MARCAS_DE_IDADE, rodar: async () => ({ estado: 'parcial', feitas: 0, deixadas: 10, motivo: 'sobrou' }) }
+    // até a 11ª tentativa a tomada vale e o disparo roda sem vermelho (só "sobrou", sem contagem)
+    const m = montar({ catalogo: [def], t0, estado: estadoDe([linha(def, t0, { status: 'parcial', attempts: 11, runs: 11, last_run_status: 'parcial', last_run_done_n: 0 })], t0) })
+    expect((await m.rodar()).problemas).toEqual([])
+    // na 12ª o banco recusa a tomada e a agenda declara esgotada: vermelho
+    const e = montar({
+      catalogo: [def], t0, estado: estadoDe([linha(def, t0, { status: 'parcial', attempts: 12, runs: 12, last_run_status: 'parcial', last_run_done_n: 0 })], t0),
+      tomar: async () => ({ valor: false }), esgotar: async () => ({ valor: true }),
+    })
+    const r = await e.rodar()
+    expect(final(r, 'marcas_de_idade').estado).toBe('esgotada')
+    expect(r.problemas).toEqual(['marcas de idade: esgotou as 12 tentativas do período'])
+    expect(e.ops.esgotar).toHaveBeenCalledWith({ task: 'marcas_de_idade', period_key: chaveDoPeriodo('dia', t0), teto: 12 })
   })
 })

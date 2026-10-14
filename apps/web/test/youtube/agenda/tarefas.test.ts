@@ -17,6 +17,11 @@ vi.mock('@/lib/youtube/observatorio/comentarios/anular', async (orig) => {
   const o = await orig<typeof import('@/lib/youtube/observatorio/comentarios/anular')>()
   return { ...o, runAnularIdentidade: vi.fn(o.runAnularIdentidade) }
 })
+// A5 E4 (Tarefa 11): o escritor das marcas é um falso controlável; a tarefa só o adapta.
+vi.mock('@/lib/youtube/observatorio/medidas/fechar-marcas', async (orig) => {
+  const o = await orig<typeof import('@/lib/youtube/observatorio/medidas/fechar-marcas')>()
+  return { ...o, runFecharMarcas: vi.fn(async () => ({ status: 'ok' as const, feitos: 0, ficaram: 0, numeros: {} })) }
+})
 // O estado da agenda (MG10) é um falso controlável: os testes 4 e 5 só precisam do que ele devolve.
 vi.mock('@/lib/youtube/agenda/estado', async (orig) => {
   const o = await orig<typeof import('@/lib/youtube/agenda/estado')>()
@@ -39,6 +44,7 @@ import type { ContextoTarefa, ResultadoTarefa, Tarefa } from '@/lib/youtube/agen
 import * as Sentry from '@sentry/nextjs'
 import { runRetratosComentarios } from '@/lib/youtube/observatorio/comentarios/coletar'
 import { runAnularIdentidade } from '@/lib/youtube/observatorio/comentarios/anular'
+import { runFecharMarcas, MOTIVOS_DAS_MARCAS } from '@/lib/youtube/observatorio/medidas/fechar-marcas'
 import { FRASES_FIXAS, fraseDe } from '@/lib/youtube/observatorio/comentarios/frases'
 import { CODIGOS_EXECUCAO, COMMENT_RULES, WORST_END_FROM_T0_MS } from '@/lib/youtube/observatorio/comentarios/regras'
 import type { TarefaSaida } from '@/lib/youtube/observatorio/comentarios/tipos'
@@ -225,10 +231,10 @@ describe('o catálogo real e a lista obedecem ao contrato de registro', () => {
       expect(typeof t.rodar, t.nome).toBe('function')
     }
   })
-  it('o catálogo tem o código das seis definições da lista única (a do vigia), na mesma ordem', () => {
+  it('o catálogo tem o código das sete definições da lista única (a do vigia), na mesma ordem', () => {
     expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
     for (const d of TODAS_AS_DEFINICOES) expect(CATALOGO.find(t => t.nome === d.nome)).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs, toleranciaVigiaH: d.toleranciaVigiaH, periodo: d.periodo })
-    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco'].sort())
+    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'marcas_de_idade'].sort())
   })
   it('toda tarefa da lista é nuncaDesliga com fimAteMs ≤ LEVE_FIM_MS, e o maior da lista também (que é < BATCH_BUDGET_MS)', () => {
     for (const t of antesDoLoteAntigo) {
@@ -611,5 +617,104 @@ describe('E14: as duas tarefas dos comentários de destaque', () => {
     for (const t of CATALOGO.filter(x => x.nuncaDesliga === true)) expect(antesDoLoteAntigo.map(x => x.nome), t.nome).toContain(t.nome)
     for (const t of antesDoLoteAntigo) expect(CATALOGO.map(x => x.nome), t.nome).toContain(t.nome)
     expect(antesDoLoteAntigo.find(t => t.nome === 'anular_identidade')).toBe(tarefa('anular_identidade'))
+  })
+})
+
+// A5 E4, Tarefa 11: marcas_de_idade
+describe('E4: marcas_de_idade', () => {
+  const saidaMarcas = (o: Partial<Awaited<ReturnType<typeof runFecharMarcas>>> = {}): Awaited<ReturnType<typeof runFecharMarcas>> =>
+    ({ status: 'ok', feitos: 3, ficaram: 0, numeros: { pendentes: 3 }, ...o })
+
+  it('catálogo: a tarefa existe, com cada campo da tabela', () => {
+    const t = tarefa('marcas_de_idade')
+    expect(t).toMatchObject({
+      nome: 'marcas_de_idade', rotulo: 'marcas de idade', ordem: 5.5, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 4,
+      tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null, comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+    })
+    expect(t.devidaPeloDado).toBeUndefined()
+    expect(t.nuncaDesliga).toBeUndefined()
+    expect(TODAS_AS_DEFINICOES.find(d => d.nome === 'marcas_de_idade')).toBeDefined()
+  })
+  it('OBS_AGENDA_TASKS_OFF ausente (variável apagada): ligada', () => {
+    delete process.env.OBS_AGENDA_TASKS_OFF
+    const r = tarefasDesligadas(process.env, CATALOGO)
+    expect(r.desligadas.has('marcas_de_idade')).toBe(false)
+  })
+  it('OBS_AGENDA_TASKS_OFF=marcas_de_idade: não roda e aparece desligada, nunca ok', async () => {
+    process.env.OBS_AGENDA_TASKS_OFF = 'marcas_de_idade'
+    try {
+      const { desligadas, desconhecidas } = tarefasDesligadas(process.env, CATALOGO)
+      expect([...desligadas]).toEqual(['marcas_de_idade'])
+      expect(desconhecidas).toEqual([])
+      const ops: OpsAgenda = {
+        tomar: vi.fn(async () => ({ valor: true })), fechar: vi.fn(async () => ({ valor: true })), adiar: vi.fn(async () => undefined),
+        esgotar: vi.fn(async () => ({ valor: false })), relatar: vi.fn(),
+      }
+      const t0 = Date.parse('2026-10-12T17:10:00Z') // 14:10 em São Paulo
+      const resumo = await despachar({
+        catalogo: [tarefa('marcas_de_idade')], desligadas, t0, agora: () => t0,
+        estado: { valor: { agora: new Date(t0).toISOString(), desde: null, tarefas: [] } },
+        contexto: { t0, agora: () => t0, apiKey: 'chave', sb: {} as SupabaseClient, linhas: null }, ops,
+      })
+      expect(resumo.tarefas.find(x => x.tarefa === 'marcas_de_idade')?.estado).toBe('desligada')
+      expect(vi.mocked(runFecharMarcas)).not.toHaveBeenCalled()
+    } finally { delete process.env.OBS_AGENDA_TASKS_OFF }
+  })
+  it('o adaptador devolve só código e número, com o relógio do disparo', async () => {
+    const agora = () => T0 + 5
+    vi.mocked(runFecharMarcas).mockResolvedValueOnce(saidaMarcas({ status: 'parcial', feitos: 5, ficaram: 2, motivo: 'sobrou', numeros: { pendentes: 7, marcas: 5 } }))
+    const r = await tarefa('marcas_de_idade').rodar(ctx({ agora }))
+    expect(r).toEqual({ estado: 'parcial', feitas: 5, deixadas: 2, motivo: 'sobrou', detalhe: { pendentes: 7, marcas: 5 } })
+    expect(vi.mocked(runFecharMarcas).mock.calls[0]![0].now).toBe(agora)
+    vi.mocked(runFecharMarcas).mockResolvedValueOnce(saidaMarcas())
+    const ok = await tarefa('marcas_de_idade').rodar(ctx())
+    expect(ok).toMatchObject({ estado: 'ok', feitas: 3, deixadas: 0 })
+    expect(ok.motivo).toBeUndefined()
+  })
+  it('tarefa que lança com texto sentinela: motivo inesperado, e a sentinela não aparece em fechar, problemas, resumo nem Sentry', async () => {
+    const SENT = 'sentinela-marcas-xyz'
+    vi.mocked(runFecharMarcas).mockRejectedValueOnce(new Error(SENT))
+    const t = tarefa('marcas_de_idade')
+    const r = await t.rodar(ctx())
+    expect(r).toMatchObject({ estado: 'erro', motivo: 'inesperado', feitas: 0, deixadas: null })
+    expect(JSON.stringify(r)).not.toContain('sentinela')
+    expect(fraseDoMotivo(t, r.motivo, r.detalhe)).toBe('marcas de idade: a gravação das marcas falhou com erro inesperado (ver Sentry)')
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain('sentinela')
+    expect(JSON.stringify(vi.mocked(Sentry.captureException).mock.calls)).not.toContain('sentinela')
+  })
+  it('todo item de MOTIVOS_DAS_MARCAS é chave dos motivos da tarefa ou de MOTIVOS_COMUNS', () => {
+    const t = tarefa('marcas_de_idade')
+    for (const c of MOTIVOS_DAS_MARCAS) {
+      expect(Object.hasOwn(t.motivos, c) || Object.hasOwn(MOTIVOS_COMUNS, c), c).toBe(true)
+      expect(codigoDoMotivo(t, c), c).toBe(c)
+    }
+    expect(Object.hasOwn(t.motivos, 'schema_ausente')).toBe(false)
+    for (const c of Object.keys(t.motivos)) expect(c).toMatch(CODIGO_RE)
+  })
+  it('comecaAteMs + 2 × BANCO_MS <= fimAteMs <= LEVE_FIM_MS', () => {
+    const t = tarefa('marcas_de_idade')
+    expect(t.comecaAteMs + 2 * BANCO_MS).toBeLessThanOrEqual(t.fimAteMs)
+    expect(t.fimAteMs).toBeLessThanOrEqual(LEVE_FIM_MS)
+  })
+  it('marcas_perdidas: a frase do disparo tem o número', () => {
+    const t = tarefa('marcas_de_idade')
+    expect(fraseDoMotivo(t, 'marcas_perdidas', { perdidas_7: 2, perdidas_30: 3, perdidas_30_semanal: 0 })).toBe(
+      'marcas de idade: 5 marcas não puderam ser medidas (7 dias: 2; 30 dias: 3): faltou leitura ao redor da idade')
+  })
+  it('marcas_perdidas sem o número no detalhe cai na frase fixa', () => {
+    const t = tarefa('marcas_de_idade')
+    expect(fraseDoMotivo(t, 'marcas_perdidas', {})).toBe('marcas de idade: marcas não puderam ser medidas: faltou leitura ao redor da idade')
+    expect(fraseDoMotivo(t, 'marcas_perdidas')).toBe('marcas de idade: marcas não puderam ser medidas: faltou leitura ao redor da idade')
+    expect(fraseDoMotivo(t, 'marcas_perdidas', { perdidas_1: 4 })).toBe('marcas de idade: marcas não puderam ser medidas: faltou leitura ao redor da idade')
+  })
+  it('marcas_perdidas: a frase diz os números de 7 e de 30 dias e não fala da idade 1', () => {
+    const t = tarefa('marcas_de_idade')
+    const f = fraseDoMotivo(t, 'marcas_perdidas', { perdidas_1: 12, perdidas_7: 2, perdidas_30: 3, perdidas_30_semanal: 0 })
+    expect(f).toContain('5 marcas')
+    expect(f).toContain('7 dias: 2')
+    expect(f).toContain('30 dias: 3')
+    expect(f).not.toContain('12')
+    // a parte semanal de 30 dias sai da conta
+    expect(fraseDoMotivo(t, 'marcas_perdidas', { perdidas_7: 1, perdidas_30: 4, perdidas_30_semanal: 4 })).toContain('1 marcas')
   })
 })
