@@ -125,7 +125,8 @@ async function devolverEConferir(d: Deps, e: Estado, esc: Escritor): Promise<Sai
     e.fase = 'devolucao_falhou'; d.diario.gravar(e)
     return { codigo: 3, mensagem: `A CÓPIA DA ORIGINAL MUDOU NO DISCO (sha256 diferente). Nada foi enviado. Confira ${d.diario.pasta}` }
   }
-  e.fase = 'devolvendo'; d.diario.gravar(e)
+  e.fase = 'devolvendo'
+  try { d.diario.gravar(e) } catch (err) { d.diario.registrar('estado_nao_gravado', { erro: msg(err) }) } // disco cheio não impede a devolução
   const semParar: Sinal = { parar: false }          // a devolução não obedece a Ctrl-C
   for (let t = 1; t <= PORTAO.tentativasDevolucao; t++) {
     e.tentativasDevolucao++

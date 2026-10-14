@@ -7,7 +7,7 @@ import sharp from 'sharp'
 import { Diario, type Estado, type Fase, type Medida } from '@/lib/youtube/portao-dhash/diario'
 import { dhashComoHq, gerarImagemTeste } from '@/lib/youtube/portao-dhash/imagem'
 import { ensaio, valer, devolver, conferir, montarResultado, codigoDeFalha, type Deps } from '@/lib/youtube/portao-dhash/executar'
-import { Recusa } from '@/lib/youtube/portao-dhash/regras'
+import { PORTAO, Recusa } from '@/lib/youtube/portao-dhash/regras'
 import type { Escritor } from '@/lib/youtube/portao-dhash/youtube'
 import { imagemSintetica, respostaImagem, fetchFalso } from './util'
 
@@ -319,10 +319,15 @@ describe('robustez da devolução (revisão do Yannis)', () => {
     let n = 0
     m.d.sondar = async (v) => { if (++n === 3) m.d.sinal.parar = true; return sondar(v) }
     const dormir = m.d.dormir
-    const sinais: boolean[] = []
-    m.d.dormir = async (ms, sn) => { sinais.push(sn.parar); return dormir(ms, sn) }
+    const sinais: boolean[] = [] // só as esperas entre devoluções
+    m.d.dormir = async (ms, sn) => {
+      if (ms === PORTAO.esperaEntreDevolucoesMs) { sinais.push(sn.parar); if (sn.parar) return }
+      return dormir(ms, sn)
+    }
     await valer(m.d, false)
     expect(m.esc.definirThumb).toHaveBeenCalledTimes(3) // troca, devolução que falha, devolução que vale
+    expect(sinais.length).toBeGreaterThan(0)
+    expect(sinais.every((p) => p === false)).toBe(true) // a espera da devolução não obedece ao Ctrl-C
     expect(m.escritas[1]!.bytes.equals(m.original)).toBe(true)
     expect(m.d.sinal.parar).toBe(true)
   })
