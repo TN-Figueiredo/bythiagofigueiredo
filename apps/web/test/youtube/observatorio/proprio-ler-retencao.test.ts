@@ -8,7 +8,7 @@ import { leituraDe, leituraPorDireitoDe } from './leitura-teste'
 import { edicaoDe } from './edicao-teste'
 import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
-import { lerRetencao, TETO_LEITURAS, TETO_TENTATIVAS } from '@/lib/youtube/observatorio/proprio/ler-retencao'
+import { lerRetencao, TETO_LEITURAS, TETO_TENTATIVAS, TETO_HISTORICO } from '@/lib/youtube/observatorio/proprio/ler-retencao'
 import { ObservatoryLoadError } from '@/lib/youtube/observatorio/niches-db'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { lerCurva } from '@/lib/youtube/observatorio/proprio/retencao-curva'
@@ -125,8 +125,9 @@ describe('acesso: o token de edição e a forma do pedido', () => {
 describe('o que acontece quando o dado não existe', () => {
   it('tabelas vazias: sem curva, sem leitura, sem tentativa (nada vira zero)', async () => {
     const db = fakeSupabase({ yt_own_video_retention: [], yt_own_collection_attempts: [] })
-    expect(await ok(db)).toEqual({
+    expect(await ok(db)).toMatchObject({
       ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: false, janelasIlegiveis: [],
+      historicoVida: [], historicoCortado: false,
     })
     expect(captureMessage).not.toHaveBeenCalled()
   })
@@ -155,7 +156,8 @@ describe('o que acontece quando o dado não existe', () => {
     const r = await ok(db)
     expect(r.ultimaTentativa).toEqual({ dia: d(1), resultado: 'erro_http' })
     expect(r.ultimaResposta).toEqual({ dia: d(200), resultado: 'ok' })
-    expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(2)
+    // T4: vida (2: lidas + reserva) + 7 dias (1) + 30 dias (1)
+    expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(4)
   })
   it('30 tentativas sem resposta e nenhuma além: ultimaResposta nulo', async () => {
     const muitas = Array.from({ length: TETO_TENTATIVAS }, (_, k) => tent(d(k + 1), 'erro_http'))
@@ -165,7 +167,8 @@ describe('o que acontece quando o dado não existe', () => {
   it('com menos de 30 tentativas a busca à parte não acontece', async () => {
     const db = fakeSupabase({ yt_own_collection_attempts: [tent(d(1), 'erro_http')] })
     await ok(db)
-    expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(1)
+    // T4: uma consulta por tipo (vida, 7 dias, 30 dias), sem busca de reserva
+    expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(3)
   })
   it('as 30 linhas lidas são a lista da mais nova para a mais velha, pedidas com range(0, 29)', async () => {
     const db = fakeSupabase({ yt_own_collection_attempts: Array.from({ length: 45 }, (_, k) => tent(d(k + 1), 'erro_http')) })
@@ -275,8 +278,10 @@ describe('as curvas', () => {
     const comPontos = dosRetencao.filter(s => /points/.test(s.cols))
     expect(lista).toHaveLength(1)
     expect(lista[0]!.range).toEqual([0, TETO_LEITURAS])
-    expect(comPontos).toHaveLength(3)
-    for (const c of comPontos) expect(c.range).toEqual([0, 0])
+    // T4: as três curvas (1 linha cada) + o histórico da vida (27 linhas: 26 e a sentinela) + a mais antiga (1 linha)
+    expect(comPontos).toHaveLength(5)
+    expect(comPontos.filter(c => c.range[1] === 0)).toHaveLength(4)
+    expect(comPontos.filter(c => c.range[1] === 26)).toHaveLength(1)
   })
 })
 
@@ -384,7 +389,7 @@ describe('erro de banco e tabela ausente', () => {
       const base = fakeSupabase({ yt_own_collection_attempts: [tent(d(1), 'ok')] })
       const sb = comErroNaTabela(base.client, 'yt_own_video_retention', code)
       const r = await lerRetencao(sb, pedido)
-      expect(r, code).toEqual({ acesso: 'ok', dado: { ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: true, janelasIlegiveis: [] } })
+      expect(r, code).toMatchObject({ acesso: 'ok', dado: { ytId: V, curvas: {}, leituras: [], leiturasCortadas: false, ultimaTentativa: null, ultimaResposta: null, descartados: 0, tabelaAusente: true, janelasIlegiveis: [] } })
       expect(captureMessage, code).toHaveBeenCalledTimes(1)
       expect(base.trips, code).toEqual([])
       captureMessage.mockClear()
@@ -450,7 +455,7 @@ describe('filtros: site, canal e vídeo (cada um prova por dado de fora)', () =>
     ] })
     const r = await ok(db)
     expect(r.ultimaResposta).toBeNull()
-    expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(2)
+    expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(4)
   })
 })
 
@@ -471,5 +476,137 @@ describe('o token de LEITURA (E17 passo 0)', () => {
     const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(2))] })
     expect(await lerRetencao(db.client, { leitura: null, canalId: C, hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
+  })
+})
+
+// A5 · E5b · Tarefa 4: histórico da vida e tentativas por janela.
+describe('E5b T4: histórico da vida', () => {
+  const vidaN = (n: number): Row[] => Array.from({ length: n }, (_, k) => ret('vida', d(k + 1)))
+  it('três leituras de vida: historicoVida traz as três, da mais nova para a mais velha, com pontos', async () => {
+    const r = await ok(fakeSupabase({ yt_own_video_retention: vidaN(3) }))
+    expect(r.historicoVida.map(c => c.windowEnd)).toEqual([d(1), d(2), d(3)])
+    expect(r.historicoVida.every(c => c.pontos.length === 100)).toBe(true)
+    expect(r.historicoCortado).toBe(false)
+  })
+  it('30 leituras: traz as 26 mais recentes e a mais antiga, historicoCortado verdadeiro', async () => {
+    const r = await ok(fakeSupabase({ yt_own_video_retention: vidaN(30) }))
+    expect(TETO_HISTORICO).toBe(26)
+    expect(r.historicoVida).toHaveLength(27)
+    expect(r.historicoVida[0]!.windowEnd).toBe(d(1))
+    expect(r.historicoVida[25]!.windowEnd).toBe(d(26))
+    expect(r.historicoVida[26]!.windowEnd).toBe(d(30))
+    expect(r.historicoCortado).toBe(true)
+  })
+  it('27 leituras: 26 mais a mais antiga, cortado falso', async () => {
+    const r = await ok(fakeSupabase({ yt_own_video_retention: vidaN(27) }))
+    expect(r.historicoVida).toHaveLength(27)
+    expect(r.historicoVida[26]!.windowEnd).toBe(d(27))
+    expect(r.historicoCortado).toBe(false)
+  })
+  it('uma leitura: uma, sem duplicar', async () => {
+    const r = await ok(fakeSupabase({ yt_own_video_retention: vidaN(1) }))
+    expect(r.historicoVida).toHaveLength(1)
+    expect(r.historicoCortado).toBe(false)
+  })
+  it('leitura de 7 dias não entra no histórico da vida', async () => {
+    const r = await ok(fakeSupabase({ yt_own_video_retention: [ret('vida', d(1)), ret('primeiros_7_dias', d(2))] }))
+    expect(r.historicoVida).toHaveLength(1)
+  })
+  it('nenhuma leitura: histórico vazio e tentativas nulas nas três janelas', async () => {
+    const r = await ok(fakeSupabase({ yt_own_video_retention: [], yt_own_collection_attempts: [] }))
+    expect(r.historicoVida).toEqual([])
+    expect(r.historicoCortado).toBe(false)
+    expect(r.tentativas).toEqual({
+      vida: { ultima: null, ultimaResposta: null },
+      primeiros_7_dias: { ultima: null, ultimaResposta: null },
+      primeiros_30_dias: { ultima: null, ultimaResposta: null },
+    })
+  })
+  it('tabela ausente: os três campos vêm vazios, com tabelaAusente', async () => {
+    const sb = comErroNaTabela(fakeSupabase({}).client, 'yt_own_video_retention', '42P01')
+    const r = await lerRetencao(sb, pedido)
+    if (r.acesso !== 'ok') throw new Error('ok esperado')
+    expect(r.dado.tabelaAusente).toBe(true)
+    expect(r.dado.historicoVida).toEqual([])
+    expect(r.dado.historicoCortado).toBe(false)
+    expect(r.dado.tentativas.primeiros_7_dias).toEqual({ ultima: null, ultimaResposta: null })
+  })
+  it('sem token: negado e zero consultas', async () => {
+    const db = fakeSupabase({})
+    expect(await lerRetencao(db.client, { ...pedido, leitura: null })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+  it('leitura antiga com ponto fora de 0 a 1: descartada, contada, e as outras ficam', async () => {
+    const ruim = ret('vida', d(5), { points: [{ t: 0.5, ratio: -1, relative: 0.5 }, { t: 1, ratio: 0.4, relative: 0.5 }] })
+    const r = await ok(fakeSupabase({ yt_own_video_retention: [ret('vida', d(1)), ret('vida', d(2)), ruim] }))
+    expect(r.historicoVida.map(c => c.windowEnd)).toEqual([d(1), d(2)])
+    expect(r.descartados).toBeGreaterThanOrEqual(1)
+  })
+  it('a mais recente ilegível: janelasIlegiveis tem a vida e ela não é contada duas vezes', async () => {
+    const ruim = ret('vida', d(1), { points: [] })
+    const r = await ok(fakeSupabase({ yt_own_video_retention: [ruim, ret('vida', d(2))] }))
+    expect(r.janelasIlegiveis).toEqual(['vida'])
+    expect(r.descartados).toBe(1)
+    expect(r.historicoVida.map(c => c.windowEnd)).toEqual([d(2)])
+  })
+  it('erro de banco na consulta do histórico é lançado', async () => {
+    const sb = comErroNaTabela(fakeSupabase({}).client, 'yt_own_video_retention', 'XX000')
+    await expect(lerRetencao(sb, pedido)).rejects.toBeInstanceOf(ObservatoryLoadError)
+  })
+  it('as consultas do histórico levam os quatro filtros e window_kind vida', async () => {
+    const db = fakeSupabase({ yt_own_video_retention: [
+      ret('vida', d(1)), ret('vida', d(2), { site_id: 'outro' }), ret('vida', d(3), { channel_id: OUTRO_CANAL }),
+      ret('vida', d(4), { youtube_video_id: OUTRO_V }), ret('vida', d(5), { segment: 'pago' }), ret('primeiros_7_dias', d(6)),
+    ] })
+    const r = await ok(db)
+    expect(r.historicoVida.map(c => c.windowEnd)).toEqual([d(1)])
+  })
+})
+
+describe('E5b T4: tentativas por janela', () => {
+  it('erro em 7 dias não aparece na vida; cada janela tem a sua', async () => {
+    const r = await ok(fakeSupabase({ yt_own_collection_attempts: [
+      tent(d(1), 'ok'), tent(d(2), 'erro_http', { kind: 'retencao_7d' }), tent(d(3), 'sem_dado_na_janela', { kind: 'retencao_30d' }),
+    ] }))
+    expect(r.tentativas.vida.ultima).toEqual({ dia: d(1), resultado: 'ok' })
+    expect(r.tentativas.primeiros_7_dias.ultima).toEqual({ dia: d(2), resultado: 'erro_http' })
+    expect(r.tentativas.primeiros_7_dias.ultimaResposta).toBeNull()
+    expect(r.tentativas.primeiros_30_dias.ultimaResposta).toEqual({ dia: d(3), resultado: 'sem_dado_na_janela' })
+    expect(r.ultimaTentativa).toEqual(r.tentativas.vida.ultima)
+    expect(r.ultimaResposta).toEqual(r.tentativas.vida.ultimaResposta)
+  })
+  it('nenhuma tentativa de 7 dias e uma de 30: 7 dias nulo, 30 preenchido', async () => {
+    const r = await ok(fakeSupabase({ yt_own_collection_attempts: [tent(d(4), 'ok', { kind: 'retencao_30d' })] }))
+    expect(r.tentativas.primeiros_7_dias.ultima).toBeNull()
+    expect(r.tentativas.primeiros_30_dias.ultima).toEqual({ dia: d(4), resultado: 'ok' })
+  })
+  it('resposta vazia seguida de erro: ultima é o erro, ultimaResposta é a vazia', async () => {
+    const r = await ok(fakeSupabase({ yt_own_collection_attempts: [
+      tent(d(8), 'sem_dado_na_janela', { kind: 'retencao_7d' }), tent(d(1), 'erro_http', { kind: 'retencao_7d' }),
+    ] }))
+    expect(r.tentativas.primeiros_7_dias.ultima).toEqual({ dia: d(1), resultado: 'erro_http' })
+    expect(r.tentativas.primeiros_7_dias.ultimaResposta).toEqual({ dia: d(8), resultado: 'sem_dado_na_janela' })
+  })
+  it('100 falhas diárias da vida, todas mais novas que a única resposta vazia de 7 dias: a de 7 dias aparece', async () => {
+    const falhas = Array.from({ length: 100 }, (_, k) => tent(d(k + 1), 'erro_http'))
+    const r = await ok(fakeSupabase({ yt_own_collection_attempts: [...falhas, tent(d(150), 'sem_dado_na_janela', { kind: 'retencao_7d' })] }))
+    expect(r.tentativas.primeiros_7_dias.ultimaResposta).toEqual({ dia: d(150), resultado: 'sem_dado_na_janela' })
+  })
+  it('31 falhas de 30 dias e uma resposta mais antiga: a busca de reserva daquele tipo a encontra', async () => {
+    const falhas = Array.from({ length: TETO_TENTATIVAS + 1 }, (_, k) => tent(d(k + 1), 'erro_http', { kind: 'retencao_30d' }))
+    const r = await ok(fakeSupabase({ yt_own_collection_attempts: [...falhas, tent(d(300), 'ok', { kind: 'retencao_30d' })] }))
+    expect(r.tentativas.primeiros_30_dias.ultimaResposta).toEqual({ dia: d(300), resultado: 'ok' })
+    expect(r.tentativas.primeiros_30_dias.ultima).toEqual({ dia: d(1), resultado: 'erro_http' })
+  })
+  it('a tentativa mais nova de 7 dias ilegível lança, mesmo com a da vida legível', async () => {
+    const db = fakeSupabase({ yt_own_collection_attempts: [tent(d(1), 'ok'), tent('zzzz', 'ok', { kind: 'retencao_7d' })] })
+    await expect(lerRetencao(db.client, pedido)).rejects.toBeInstanceOf(ObservatoryLoadError)
+  })
+  it('tentativa de outro vídeo, site, canal ou kind não vaza para a janela', async () => {
+    const r = await ok(fakeSupabase({ yt_own_collection_attempts: [
+      tent(d(1), 'ok', { kind: 'retencao_7d', scope_id: OUTRO_V }), tent(d(2), 'ok', { kind: 'retencao_7d', site_id: 'outro' }),
+      tent(d(3), 'ok', { kind: 'retencao_7d', channel_id: OUTRO_CANAL }), tent(d(4), 'ok', { kind: 'diario' }),
+    ] }))
+    expect(r.tentativas.primeiros_7_dias.ultima).toBeNull()
   })
 })
