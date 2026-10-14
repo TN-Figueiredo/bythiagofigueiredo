@@ -4,6 +4,14 @@ export type VariantLabel = (typeof VARIANT_LABELS)[number]
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
 export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'manual_apply' | 'max_duration' | 'inconclusive'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
+
+/** Razões de encerramento em que uma pessoa escolheu o vencedor. Nenhum caminho automático grava estas. */
+export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as const
+
+/** Vitória só conta quando humana: tem vencedor gravado E o encerramento foi decisão de pessoa. */
+export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
+  return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+}
 export type TestType = 'thumbnail' | 'title' | 'description' | 'combo'
 
 export interface AbTestConfig {

@@ -381,7 +381,8 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     const { data } = await getAbTestFunnel(ctx(), 't1')
     expect(data.link_clicks_window).toEqual({ from: START, to: END })
     expect(data.per_link.map(l => [l.short_code, l.clicks])).toEqual([['abc', 2], ['def', 1], ['ghi', 0]])
-    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: 100, clicks: 7, link_clicks: 2 }])
+    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: 2 }])
+    expect(data.aviso).toBe('sem métrica de entrega')
     // uma query de contagem por link vivo, com count exato e head
     const counts = sb.on('link_clicks')
     expect(counts).toHaveLength(2)

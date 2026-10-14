@@ -129,7 +129,6 @@ export interface AbTestResultRow {
   videoTitle: string
   testType: string
   winner: string
-  confidence: number
 }
 
 export interface PromptVideoInfo {
@@ -172,7 +171,6 @@ export interface AbBriefingData {
   testHistory: Array<{
     test_type: string
     winner_label: string | null
-    ctr_lift_percent: number | null
   }>
   snapshotAgeHours: number
   learnings?: {

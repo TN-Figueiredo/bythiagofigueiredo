@@ -578,7 +578,8 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
         ],
         ab_tests: [
           test_(T_EN, {}),
-          test_('done-1', { status: 'completed', test_type: 'title', winner_variant_id: 'w1', completed_reason: 'winner', completed_at: '2026-09-10T00:00:00Z' }),
+          test_('done-1', { status: 'completed', test_type: 'title', winner_variant_id: 'w1', completed_reason: 'manual_winner', completed_at: '2026-09-10T00:00:00Z' }),
+          test_('done-auto', { status: 'completed', test_type: 'thumbnail', winner_variant_id: 'w2', completed_reason: 'auto_resolve', completed_at: '2026-09-12T00:00:00Z' }),
           test_('done-alheio', { site_id: 'site-outro', status: 'completed', test_type: 'description', completed_at: '2026-09-11T00:00:00Z' }),
           test_(T_ALHEIO, { site_id: 'site-outro' }),
         ],
@@ -623,7 +624,8 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
     expect(data.video).toMatchObject({ title: 'Vídeo EN', ctr: 4.2, avgViewPercentage: 51, thumbnailUrl: 'http://t/en.jpg' })
     expect(data.channel).toMatchObject({ name: 'Thiago EN', subscribers: 250_000 })
     expect(data.snapshotAgeHours).toBe(5)
-    expect(data.testHistory).toEqual([{ test_type: 'title', winner_label: 'variant', ctr_lift_percent: null }])
+    // vencedor de auto_resolve não conta (winner_label null); o humano conta; sem ctr_lift_percent
+    expect(data.testHistory).toEqual([{ test_type: 'thumbnail', winner_label: null }, { test_type: 'title', winner_label: 'variant' }])
   })
 
   it('ab-write: teste de outro site → "A/B test not found"', async () => {
@@ -636,7 +638,8 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
     await pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'title' } })
 
     const data = vi.mocked(buildAbBriefingPrompt).mock.calls[0]![0].data
-    expect(data.testHistory).toEqual([{ test_type: 'title', winner_label: 'variant', ctr_lift_percent: null }])
+    // vencedor de auto_resolve não conta (winner_label null); o humano conta; sem ctr_lift_percent
+    expect(data.testHistory).toEqual([{ test_type: 'thumbnail', winner_label: null }, { test_type: 'title', winner_label: 'variant' }])
     for (const q of fake!.on('ab_tests')) expect(q.filters).toContainEqual({ op: 'eq', col: 'site_id', value: SITE })
     // sem vídeo em mãos: o primeiro canal (PT) e a idade do snapshot DELE, não a do canal EN nem a do outro site
     expect(data.snapshotAgeHours).toBe(100)

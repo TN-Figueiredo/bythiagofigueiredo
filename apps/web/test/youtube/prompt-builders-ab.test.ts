@@ -77,8 +77,8 @@ describe('buildAbBriefingPrompt', () => {
       testType: 'thumbnail',
       data: makeAbBriefingData({
         testHistory: [
-          { test_type: 'thumbnail', winner_label: 'B', ctr_lift_percent: 12.5 },
-          { test_type: 'title', winner_label: 'C', ctr_lift_percent: 8.3 },
+          { test_type: 'thumbnail', winner_label: 'B' },
+          { test_type: 'title', winner_label: 'C' },
         ],
       }),
     })
@@ -192,29 +192,41 @@ describe('edge cases', () => {
     expect(prompt).toContain('&lt;script&gt;alert("xss")&lt;/script&gt;')
   })
 
-  it('multiple test history entries with mixed null winner_label and ctr_lift_percent', () => {
+  it('multiple test history entries with mixed null winner_label: lists winners, never an average lift', () => {
     const prompt = buildAbBriefingPrompt({
       testType: 'title',
       data: makeAbBriefingData({
         testHistory: [
-          { test_type: 'thumbnail', winner_label: null, ctr_lift_percent: null },
-          { test_type: 'title', winner_label: 'B', ctr_lift_percent: null },
-          { test_type: 'combo', winner_label: null, ctr_lift_percent: 5.0 },
-          { test_type: 'description', winner_label: 'C', ctr_lift_percent: 7.5 },
+          { test_type: 'thumbnail', winner_label: null },
+          { test_type: 'title', winner_label: 'B' },
+          { test_type: 'combo', winner_label: null },
+          { test_type: 'description', winner_label: 'C' },
         ],
       }),
     })
-    // History should still be included (4 entries > 0)
     expect(prompt).toContain('historico_ab')
     expect(prompt).toContain('testes_anteriores')
-    // lift_medio should average only completed tests that have a numeric ctr_lift_percent
-    // winner 'C' with 7.5 is the only one with both non-null winner AND non-null lift
-    // winner 'B' with null lift → contributes 0 to sum
-    // avg of [0, 7.5] over 2 completed = 3.75 → "+3.8%"
-    expect(prompt).toContain('+3.8%')
-    // padroes_vencedores lists all non-null winners
+    // A/B Lab P2: no delivery metric, so no average lift in the history (section JSON nor briefing line)
+    expect(prompt).not.toContain('lift_medio')
+    expect(prompt).not.toMatch(/lift médio|avg lift/i)
+    expect(prompt).not.toContain('+3.8%')
     expect(prompt).toContain('"B"')
     expect(prompt).toContain('"C"')
+  })
+
+  it('learnings: a tag aparece como (N wins, kind), sem percentual de lift', () => {
+    const prompt = buildAbBriefingPrompt({
+      testType: 'thumbnail',
+      data: makeAbBriefingData({
+        learnings: {
+          winning: [{ tag: 'rosto', wins: 3, avgLift: 12.5, kind: 'thumb' }],
+          losing: [{ tag: 'texto-pesado', wins: 1, avgLift: -4, kind: 'thumb' }],
+        },
+      }),
+    })
+    expect(prompt).toContain('rosto (3 wins, thumb)')
+    expect(prompt).toContain('texto-pesado (1 wins, thumb)')
+    expect(prompt).not.toMatch(/avg lift|lift não medido|12\.5%|4\.0%/)
   })
 
   it('all 4 test types — each includes focus text when provided', () => {
@@ -435,7 +447,7 @@ describe('buildAbWritePrompt', () => {
       testType: 'title',
       data: makeAbBriefingData({
         testHistory: [
-          { test_type: 'thumbnail', winner_label: 'B', ctr_lift_percent: 12.5 },
+          { test_type: 'thumbnail', winner_label: 'B' },
         ],
       }),
     })

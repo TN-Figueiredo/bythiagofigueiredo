@@ -1377,36 +1377,32 @@ Agrega padrões de aprendizado de testes A/B concluídos: taxa de vitória por t
         "tag": "close-up",
         "wins": 5,
         "total": 8,
-        "avgLift": 12.5,
+        "avgLift": null,
         "kind": "thumb"
       },
       {
         "tag": "numbers-in-title",
         "wins": 3,
         "total": 6,
-        "avgLift": 8.2,
+        "avgLift": null,
         "kind": "title"
       }
     ],
     "channelInsights": [
-      {
-        "text": "Padrões que funcionam: \"close-up\" (5x), \"bold-text\" (3x)",
-        "type": "positive"
-      },
-      {
-        "text": "Evitar: \"text-heavy\" (15% queda)",
-        "type": "negative"
-      }
+      { "text": "sem métrica de entrega", "type": "neutral" }
     ],
-    "totalCompletedTests": 12
+    "totalCompletedTests": 8,
+    "aviso": "sem métrica de entrega"
   }
 }
 ```
 
 **Notas:**
 - `tagWinRates.kind`: `thumb` = thumbnail tags, `title` = title patterns, `desc` = description patterns
-- `avgLift` é a média de CTR lift (%) dos testes vencidos com essa tag
-- `channelInsights` são gerados automaticamente dos top padrões positivos/negativos
+- `avgLift` é sempre `null`: o A/B não tem métrica de entrega real, então nenhum lift (nem queda) é calculado nem citado
+- `channelInsights` não cita percentual; traz só o `aviso`
+- `wins`, `total` e `totalCompletedTests` contam só testes com vitória humana (`manual_winner`, `manual_apply`); vencedor de `auto_resolve` ou `manual_no_apply` não entra
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
 
 ---
 
@@ -1463,9 +1459,10 @@ Retorna estatísticas agregadas do programa de A/B testing.
 {
   "data": {
     "activeTests": 3,
-    "avgConfidence": 87.5,
-    "winRate": 65.0,
-    "avgLift": 12.3,
+    "avgConfidence": null,
+    "winRate": 50.0,
+    "avgLift": null,
+    "aviso": "sem métrica de entrega",
     "testsByStatus": {
       "draft": 2,
       "active": 3,
@@ -1477,10 +1474,10 @@ Retorna estatísticas agregadas do programa de A/B testing.
 ```
 
 **Notas:**
-- `avgConfidence`: confiança média (%) dos testes concluídos
-- `winRate`: percentual de testes root (excluindo playoffs) que declararam vencedor
-- `avgLift`: lift médio de CTR (%) dos testes com vencedor
-- Testes com `parent_test_id` (playoff children) são excluídos de `winRate` e `avgLift`
+- `avgConfidence` e `avgLift` são sempre `null` (sem métrica de entrega real)
+- `winRate`: percentual de testes root (excluindo playoffs) encerrados por pessoa ou por duração em que uma pessoa escolheu o vencedor. `auto_resolve` fica fora do numerador e do denominador. É `null` (nunca `0`) quando não sobra teste que conte
+- Testes com `parent_test_id` (playoff children) são excluídos de `winRate`
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
 
 ---
 
@@ -1504,7 +1501,7 @@ Retorna histórico completo de testes A/B para um vídeo específico.
         "type": "thumbnail",
         "status": "completed",
         "winner": "B",
-        "liftPercent": 15.2,
+        "liftPercent": null,
         "startedAt": "2026-04-01T10:00:00Z",
         "endedAt": "2026-04-15T10:00:00Z"
       },
@@ -1517,14 +1514,16 @@ Retorna histórico completo de testes A/B para um vídeo específico.
         "startedAt": "2026-05-20T10:00:00Z",
         "endedAt": null
       }
-    ]
+    ],
+    "aviso": "sem métrica de entrega"
   }
 }
 ```
 
 **Notas:**
-- `winner` é o label da variante vencedora (ou `null` se teste ainda ativo/sem vencedor)
-- `liftPercent` é o CTR lift do vencedor vs original
+- `winner` é o label da variante vencedora, só quando a vitória é humana (`manual_winner`, `manual_apply`); senão `null`
+- `liftPercent` é sempre `null` (sem métrica de entrega real)
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
 - Ordenado por `created_at` descendente (mais recente primeiro)
 
 ---
@@ -1542,28 +1541,51 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 **Response 200:**
 ```json
 {
-  "data": [
-    {
-      "id": "uuid",
-      "sourceTestId": "uuid",
-      "sourceVariantId": "uuid",
-      "sourceType": "test_winner",
-      "blobUrl": "https://...",
-      "title": "B — Thumbnail Test Video X",
-      "videoTitle": "Video X Title",
-      "youtubeVideoId": "uuid",
-      "liftAtWin": 15.2,
-      "createdAt": "2026-05-15T10:00:00Z"
-    }
-  ]
+  "data": {
+    "thumbnails": [
+      {
+        "id": "uuid",
+        "videoTitle": "Video X Title",
+        "imageUrl": "https://...",
+        "lift": null,
+        "tags": ["close-up"],
+        "longevityScore": "stable",
+        "sourceType": "test_winner"
+      }
+    ],
+    "aviso": "sem métrica de entrega"
+  }
 }
 ```
 
 **Notas:**
 - `sourceType: "test_winner"` indica thumbnail importada de A/B test concluído
-- `liftAtWin` é o CTR lift (%) no momento da vitória
+- `lift` é sempre `null` (sem métrica de entrega real)
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
 - Import automático via `autoImportWinner()` quando teste é completado com vencedor
 - Thumbnails sem `sourceTestId` são uploads manuais
+
+---
+
+## A/B: funil, teste e lista de testes
+
+`GET /api/pipeline/youtube/ab-tests/{id}/funnel`, `GET /api/pipeline/youtube/ab-tests/{id}` e `GET /api/pipeline/youtube/ab-tests` (no MCP: `manage_ab_test` com `get_funnel`, `get_test` e `list_tests`). Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+
+```json
+{
+  "data": {
+    "per_variant": [{ "variant_id": "uuid", "impressions": null, "clicks": null, "link_clicks": 7 }],
+    "per_link": [{ "template_name": "cta", "variant_id": "uuid", "short_code": "abc", "clicks": 7 }],
+    "link_clicks_window": { "from": "2026-04-01T10:00:00Z", "to": "2026-04-15T10:00:00Z" },
+    "aviso": "sem métrica de entrega"
+  }
+}
+```
+
+- Funil: `impressions` e `clicks` por variante saem `null`; `link_clicks`, `per_link` e `link_clicks_window` seguem (cliques reais de link)
+- Teste (`get_test`): `confidence_at_completion`, `consecutive_confident_evals`, `result_metadata.ctr_lift_percent`, `result_metadata.total_impressions`, `result_metadata.estimated_monthly_extra_clicks` e, em cada ciclo, `impressions`, `clicks`, `ctr`, `estimated_impressions`, `estimated_clicks`, `estimated_ctr` saem `null`; `result_metadata.winner_label` e o resto continuam; `aviso` no teste
+- Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem os mesmos `null` e o seu próprio `aviso`
+- Painel (`ab-tests/dashboard`): `winRate` é `null` quando nenhum teste concluído conta
 
 ---
 

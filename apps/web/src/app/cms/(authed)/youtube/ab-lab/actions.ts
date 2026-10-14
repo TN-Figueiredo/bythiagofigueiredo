@@ -1587,7 +1587,6 @@ export async function fetchAbBriefingData(
     .map(t => ({
       test_type: t.test_type,
       winner_label: t.winner_label,
-      ctr_lift_percent: t.ctr_lift_percent,
     }))
 
   const lastSyncedAt = (video.last_analytics_sync_at as string | null) ?? new Date().toISOString()

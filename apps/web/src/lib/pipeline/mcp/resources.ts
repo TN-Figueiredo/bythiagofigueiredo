@@ -374,7 +374,7 @@ export function registerResources(server: McpServer): void {
     'youtube-ab-performance',
     'pipeline://youtube/ab-performance',
     {
-      description: 'Aggregate A/B test winning patterns from completed tests: win rates by type, average CTR lift, top strategies',
+      description: 'Aggregate A/B test winning patterns from completed tests (human wins only): winning patterns and tags; `aviso` says delivery metrics are not measured',
       mimeType: 'application/json',
       size: 3_000,
       annotations: { audience: ['assistant'] },
@@ -625,7 +625,7 @@ export function registerResources(server: McpServer): void {
     'youtube-ab-learnings',
     'pipeline://youtube/ab-learnings',
     {
-      description: 'Tag win rates and channel insights from completed A/B tests',
+      description: 'Tag win rates (human wins only) from completed A/B tests; avgLift is null with `aviso` (no delivery metric)',
       mimeType: 'application/json',
       size: 3_000,
       annotations: { audience: ['assistant'] },
@@ -667,7 +667,7 @@ export function registerResources(server: McpServer): void {
     'youtube-ab-dashboard',
     'pipeline://youtube/ab-dashboard',
     {
-      description: 'Aggregate A/B test dashboard: active tests, avg confidence, win rate, avg lift, tests by status',
+      description: 'Aggregate A/B test dashboard: active tests, win rate (human wins only; null when none counts), tests by status; avg confidence and avg lift are null with `aviso`',
       mimeType: 'application/json',
       size: 1_000,
       annotations: { audience: ['assistant'] },
@@ -688,7 +688,7 @@ export function registerResources(server: McpServer): void {
     'youtube-thumbnails-library',
     'pipeline://youtube/thumbnails/library',
     {
-      description: 'Winning thumbnails library with lift data, tags, and longevity scores',
+      description: 'Winning thumbnails library with tags and longevity scores; lift is null with `aviso` (no delivery metric)',
       mimeType: 'application/json',
       size: 5_000,
       annotations: { audience: ['assistant'] },

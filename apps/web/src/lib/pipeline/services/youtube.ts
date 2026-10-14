@@ -9,7 +9,7 @@ import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
 import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
-import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
+import { ehVitoriaHumana, type TestType, type VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { nicheLabel } from '@/lib/youtube/observatorio/niche'
@@ -24,6 +24,10 @@ import { claim } from './forja-queue'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VALID_LABELS = new Set(['B', 'C', 'D'])
+
+/** Enquanto o A/B não tiver métrica de entrega real, esses campos saem null com este aviso. */
+export const AVISO_SEM_METRICA_DE_ENTREGA = 'sem métrica de entrega' as const
+type AvisoSemMetricaDeEntrega = typeof AVISO_SEM_METRICA_DE_ENTREGA
 
 // ---------------------------------------------------------------------------
 // Types — Intelligence
@@ -111,6 +115,13 @@ export interface AbTestFilters {
   status?: string | null
 }
 
+export interface AbResultMetadataSaida {
+  winner_label: string | null
+  ctr_lift_percent: number | null
+  total_impressions: number | null
+  estimated_monthly_extra_clicks: number | null
+}
+
 export interface AbTestListItem {
   id: string
   site_id: string
@@ -124,6 +135,11 @@ export interface AbTestListItem {
   completed_reason: string | null
   created_at: string
   updated_at: string
+  /** Entrega: sem medição real, sempre null (ver `aviso`). */
+  confidence_at_completion: number | null
+  consecutive_confident_evals: number | null
+  result_metadata: AbResultMetadataSaida
+  aviso: AvisoSemMetricaDeEntrega
   variants: Array<{
     id: string
     label: string
@@ -139,6 +155,10 @@ export interface AbTestListItem {
 export interface AbTestDetail {
   id: string
   [key: string]: unknown
+  confidence_at_completion: number | null
+  consecutive_confident_evals: number | null
+  result_metadata: AbResultMetadataSaida
+  aviso: AvisoSemMetricaDeEntrega
   variants: Record<string, unknown>[]
   cycles: Record<string, unknown>[]
   tracked_links: Record<string, unknown>[]
@@ -146,8 +166,8 @@ export interface AbTestDetail {
 
 export interface PerVariantFunnel {
   variant_id: string
-  impressions: number
-  clicks: number
+  impressions: number | null
+  clicks: number | null
   link_clicks: number
 }
 
@@ -163,6 +183,7 @@ export interface FunnelMetrics {
   per_link: PerLinkFunnel[]
   /** Window the link clicks were counted in (test start -> test end, or now while active). null = test never started, link clicks are 0. */
   link_clicks_window: { from: string; to: string } | null
+  aviso: AvisoSemMetricaDeEntrega
 }
 
 interface WinnerVariant {
@@ -182,6 +203,7 @@ export interface PerformancePatterns {
   completed_tests: number
   winning_patterns: Record<string, number>
   winning_tags: Record<string, { wins: number; tests: number }>
+  aviso: AvisoSemMetricaDeEntrega
 }
 
 // ---------------------------------------------------------------------------
@@ -959,6 +981,52 @@ export async function failTask(
 // A/B Tests — list
 // ---------------------------------------------------------------------------
 
+// Projeção por LISTA FECHADA: coluna futura de `ab_tests` / `ab_test_cycles` não vaza sem alguém decidir.
+// Colunas de hoje (database.types.ts), menos as de entrega, que saem null.
+const CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM = [
+  'applied_by', 'apply_attempts', 'completed_at', 'completed_reason', 'config', 'created_at', 'drift_acknowledged_at',
+  'grace_expires_at', 'id', 'last_applied_variant_id', 'last_apply_error', 'name', 'original_description',
+  'original_thumbnail_url', 'original_title', 'parent_test_id', 'paused_at', 'playoff_start_after', 'playoff_test_id',
+  'queue_start_after', 'revert_expires_at', 'round_number', 'site_id', 'source_pipeline_id', 'started_at', 'status',
+  'status_note', 'test_type', 'updated_at', 'winner_applied_at', 'winner_variant_id', 'youtube_video_id',
+] as const
+
+const CAMPOS_DO_CICLO_QUE_SAEM_COMO_VIERAM = [
+  'id', 'test_id', 'variant_id', 'cycle_number', 'started_at', 'ended_at', 'created_at', 'applied_metadata',
+  'backfill_status', 'backfill_attempts', 'views', 'avd_seconds', 'likes', 'subscribers_gained', 'estimated_revenue',
+] as const
+
+const CAMPOS_DO_CICLO_DE_ENTREGA = ['impressions', 'clicks', 'ctr', 'estimated_impressions', 'estimated_clicks', 'estimated_ctr'] as const
+
+function copiar(row: Record<string, unknown>, campos: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const c of campos) if (c in row) out[c] = row[c]
+  return out
+}
+
+function projetarCiclo(row: Record<string, unknown>): Record<string, unknown> {
+  const out = copiar(row, CAMPOS_DO_CICLO_QUE_SAEM_COMO_VIERAM)
+  for (const c of CAMPOS_DO_CICLO_DE_ENTREGA) out[c] = null
+  return out
+}
+
+function projetarTeste(row: Record<string, unknown>): Record<string, unknown> {
+  const meta = (row.result_metadata ?? null) as Record<string, unknown> | null
+  const label = meta?.winner_label
+  const out: Record<string, unknown> = copiar(row, CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM)
+  out.confidence_at_completion = null
+  out.consecutive_confident_evals = null
+  out.result_metadata = {
+    winner_label: typeof label === 'string' ? label : null,
+    ctr_lift_percent: null,
+    total_impressions: null,
+    estimated_monthly_extra_clicks: null,
+  } satisfies AbResultMetadataSaida
+  out.variants = row.variants ?? []
+  out.aviso = AVISO_SEM_METRICA_DE_ENTREGA
+  return out
+}
+
 /** List A/B tests for the site, optionally filtered by status. */
 export async function listAbTests(
   ctx: ServiceContext,
@@ -982,7 +1050,7 @@ export async function listAbTests(
   const { data, error } = await query
   if (error) return err('DB_ERROR', 'Failed to load tests', 500)
 
-  return ok((data ?? []) as AbTestListItem[])
+  return ok(((data ?? []) as Record<string, unknown>[]).map(projetarTeste) as unknown as AbTestListItem[])
 }
 
 // ---------------------------------------------------------------------------
@@ -1010,7 +1078,11 @@ export async function getAbTest(
 
   if (error || !test) return err('NOT_FOUND', 'Test not found', 404)
 
-  return ok(test as AbTestDetail)
+  const row = test as Record<string, unknown>
+  const detail = projetarTeste(row)
+  detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
+  detail.tracked_links = row.tracked_links ?? []
+  return ok(detail as unknown as AbTestDetail)
 }
 
 // ---------------------------------------------------------------------------
@@ -1072,14 +1144,8 @@ export async function getAbTestFunnel(
   const trackedLinks = trackedLinksRes.data as TrackedLink[] | null
   const cycles = cyclesRes.data as CycleRow[] | null
 
-  // Aggregate cycle impressions/clicks per variant
-  const variantImpressions: Record<string, { impressions: number; clicks: number }> = {}
-  for (const c of cycles ?? []) {
-    const v = variantImpressions[c.variant_id] ?? { impressions: 0, clicks: 0 }
-    v.impressions += c.impressions ?? 0
-    v.clicks += c.clicks ?? 0
-    variantImpressions[c.variant_id] = v
-  }
+  // Variants that have a cycle; impressions/clicks of delivery have no real measure, so they leave as null
+  const variantIds = [...new Set((cycles ?? []).map(c => c.variant_id))]
 
   // Link clicks are counted in `link_clicks` inside the test window (start -> end, or now while
   // active). `tracked_links.total_clicks` is a lifetime total: after the winner is applied it keeps
@@ -1113,10 +1179,10 @@ export async function getAbTestFunnel(
     for (const [lid, n] of counts) linkClicksByLinkId[lid] = n
   }
 
-  const per_variant = Object.entries(variantImpressions).map(([variantId, stats]) => ({
+  const per_variant: PerVariantFunnel[] = variantIds.map(variantId => ({
     variant_id: variantId,
-    impressions: stats.impressions,
-    clicks: stats.clicks,
+    impressions: null,
+    clicks: null,
     link_clicks: (trackedLinks ?? [])
       .filter(tl => tl.variant_id === variantId)
       .reduce((sum, tl) => sum + (linkClicksByLinkId[tl.link_id] ?? 0), 0),
@@ -1129,7 +1195,7 @@ export async function getAbTestFunnel(
     clicks: linkClicksByLinkId[tl.link_id] ?? 0,
   }))
 
-  return ok({ per_variant, per_link, link_clicks_window: window })
+  return ok({ per_variant, per_link, link_clicks_window: window, aviso: AVISO_SEM_METRICA_DE_ENTREGA })
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,10 +1208,10 @@ export async function getAbPerformance(
 ): Promise<ServiceResult<PerformancePatterns>> {
   const { supabase, siteId } = ctx
 
-  const { data: completedTests } = await supabase
+  const { data: lidos, error: lidosError } = await supabase
     .from('ab_tests')
     .select(`
-      id, name, test_type, confidence_at_completion, result_metadata,
+      id, name, test_type, winner_variant_id, completed_reason,
       winner:ab_test_variants!winner_variant_id(id, label, title_text, description_text, metadata),
       variants:ab_test_variants!test_id(id, metadata)
     `)
@@ -1154,11 +1220,18 @@ export async function getAbPerformance(
     .not('winner_variant_id', 'is', null)
     .order('completed_at', { ascending: false })
     .limit(50)
+  if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
+
+  // Vitória só conta quando humana; filtro em memória, depois da leitura.
+  const completedTests = (lidos ?? []).filter(t => ehVitoriaHumana({
+    completed_reason: (t.completed_reason as string | null) ?? null,
+    winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+  }))
 
   const patterns: Record<string, number> = {}
   const tags: Record<string, { wins: number; tests: number }> = {}
 
-  for (const test of completedTests ?? []) {
+  for (const test of completedTests) {
     const winnerRaw = test.winner as WinnerVariant[] | WinnerVariant | null
     const winner: WinnerVariant | null = Array.isArray(winnerRaw) ? winnerRaw[0] ?? null : winnerRaw
     if (!winner) continue
@@ -1191,9 +1264,10 @@ export async function getAbPerformance(
   }
 
   return ok({
-    completed_tests: completedTests?.length ?? 0,
+    completed_tests: completedTests.length,
     winning_patterns: patterns,
     winning_tags: tags,
+    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
   })
 }
 
@@ -1426,11 +1500,13 @@ export interface AbLearningsResponse {
     tag: string
     wins: number
     total: number
-    avgLift: number
+    /** Sem métrica de entrega real: sempre null (ver `aviso`). */
+    avgLift: number | null
     kind: 'thumb' | 'title' | 'desc'
   }>
   channelInsights: Array<{ text: string; type: 'positive' | 'negative' | 'neutral' }>
   totalCompletedTests: number
+  aviso: AvisoSemMetricaDeEntrega
 }
 
 /** Aggregate learnings from completed A/B tests: tag win rates and channel insights. */
@@ -1439,16 +1515,22 @@ export async function getAbLearnings(
 ): Promise<ServiceResult<AbLearningsResponse>> {
   const { supabase, siteId } = ctx
 
-  // Fetch completed tests with winners
-  const { data: tests } = await supabase
+  // Completed tests with a winner; only a human win counts (filtered in memory, right after the read)
+  const { data: lidos, error: lidosError } = await supabase
     .from('ab_tests')
-    .select('id, result_metadata, winner_variant_id, test_type')
+    .select('id, winner_variant_id, test_type, completed_reason')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
+  if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
 
-  if (!tests || tests.length === 0) {
-    return ok({ tagWinRates: [], channelInsights: [], totalCompletedTests: 0 })
+  const tests = (lidos ?? []).filter(t => ehVitoriaHumana({
+    completed_reason: (t.completed_reason as string | null) ?? null,
+    winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+  }))
+
+  if (tests.length === 0) {
+    return ok({ tagWinRates: [], channelInsights: [], totalCompletedTests: 0, aviso: AVISO_SEM_METRICA_DE_ENTREGA })
   }
 
   const winnerIds = tests.map(t => t.winner_variant_id as string)
@@ -1459,25 +1541,25 @@ export async function getAbLearnings(
     supabase.from('ab_test_variants').select('id, metadata').in('test_id', testIds),
   ])
 
+  if (winnersRes.error) return err('DB_ERROR', 'Failed to load winning variants', 500)
+  if (allVariantsRes.error) return err('DB_ERROR', 'Failed to load A/B variants', 500)
   const winners = winnersRes.data ?? []
   const allVariants = allVariantsRes.data ?? []
 
   // Build tag aggregation (mirroring queries.ts aggregateTags pattern)
-  const tagMap = new Map<string, { wins: number; total: number; totalLift: number; kind: 'thumb' | 'title' | 'desc' }>()
+  const tagMap = new Map<string, { wins: number; total: number; kind: 'thumb' | 'title' | 'desc' }>()
 
   for (const test of tests) {
     const winner = winners.find(w => (w.id as string) === (test.winner_variant_id as string))
     if (!winner) continue
     const meta = winner.metadata as Record<string, unknown> | null
     const tags = (meta?.thumbnail_tags as string[]) ?? []
-    const lift = ((test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? 0
     const testType = (test.test_type as string | undefined) ?? 'thumbnail'
     const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
 
     for (const tag of tags) {
-      const existing = tagMap.get(tag) ?? { wins: 0, total: 0, totalLift: 0, kind }
+      const existing = tagMap.get(tag) ?? { wins: 0, total: 0, kind }
       existing.wins += 1
-      existing.totalLift += lift
       tagMap.set(tag, existing)
     }
   }
@@ -1492,41 +1574,24 @@ export async function getAbLearnings(
     }
   }
 
-  const tagWinRates = Array.from(tagMap.entries())
+  const tagWinRates: AbLearningsResponse['tagWinRates'] = Array.from(tagMap.entries())
     .map(([tag, data]) => ({
       tag,
       wins: data.wins,
       total: data.total,
-      avgLift: data.wins > 0 ? data.totalLift / data.wins : 0,
+      avgLift: null,
       kind: data.kind,
     }))
     .sort((a, b) => b.wins - a.wins)
 
-  // Build channel insights
-  const channelInsights: AbLearningsResponse['channelInsights'] = []
-  const positive = tagWinRates.filter(t => t.avgLift > 0).slice(0, 3)
-  const negative = tagWinRates.filter(t => t.avgLift < 0).slice(0, 2)
-
-  if (positive.length) {
-    channelInsights.push({
-      text: `Padrões que funcionam: ${positive.map(t => `"${t.tag}" (${t.wins}×)`).join(', ')}`,
-      type: 'positive',
-    })
-  }
-  if (negative.length) {
-    channelInsights.push({
-      text: `Evitar: ${negative.map(t => `"${t.tag}" (${Math.abs(Math.round(t.avgLift))}% queda)`).join(', ')}`,
-      type: 'negative',
-    })
-  }
-  if (!positive.length && !negative.length) {
-    channelInsights.push({ text: 'Not enough data for insights', type: 'neutral' })
-  }
+  // No real delivery measure: no insight can cite a lift (or a drop), so the notice takes its place
+  const channelInsights: AbLearningsResponse['channelInsights'] = [{ text: AVISO_SEM_METRICA_DE_ENTREGA, type: 'neutral' }]
 
   return ok({
     tagWinRates,
     channelInsights,
     totalCompletedTests: tests.length,
+    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
   })
 }
 
@@ -1649,9 +1714,12 @@ export async function getAbSuggestions(
 
 export interface AbDashboardResponse {
   activeTests: number
-  avgConfidence: number
-  winRate: number
-  avgLift: number
+  /** Sem métrica de entrega real: sempre null (ver `aviso`). */
+  avgConfidence: number | null
+  /** Só vitória humana; null quando não sobra teste que conte (nunca 0). */
+  winRate: number | null
+  avgLift: number | null
+  aviso: AvisoSemMetricaDeEntrega
   testsByStatus: {
     draft: number
     active: number
@@ -1666,11 +1734,12 @@ export async function getAbDashboard(
 ): Promise<ServiceResult<AbDashboardResponse>> {
   const { supabase, siteId } = ctx
 
-  const { data: tests } = await supabase
+  const { data: tests, error: testsError } = await supabase
     .from('ab_tests')
-    .select('id, status, winner_variant_id, confidence_at_completion, result_metadata, parent_test_id')
+    .select('id, status, winner_variant_id, completed_reason, parent_test_id')
     .eq('site_id', siteId)
     .not('status', 'eq', 'archived')
+  if (testsError) return err('DB_ERROR', 'Failed to load A/B tests', 500)
 
   const all = tests ?? []
 
@@ -1680,31 +1749,23 @@ export async function getAbDashboard(
   const paused = all.filter(t => t.status === 'paused').length
   const completed = all.filter(t => t.status === 'completed')
 
-  // Avg confidence from completed tests
-  const confidenceValues = completed
-    .map(t => t.confidence_at_completion as number | null)
-    .filter((v): v is number => v !== null)
-  const avgConfidence = confidenceValues.length > 0
-    ? (confidenceValues.reduce((sum, v) => sum + v, 0) / confidenceValues.length) * 100
-    : 0
-
-  // Win rate and avg lift from root completed tests (exclude playoff children)
+  // Win rate from root completed tests (exclude playoff children). A test "counts" when a person (or the
+  // duration limit) closed it; the machine's verdict (auto_resolve) and an unknown reason stay out of both
+  // the numerator and the denominator. Nothing left to count is null, never 0.
   const rootCompleted = completed.filter(t => t.parent_test_id === null)
-  const winnerCount = rootCompleted.filter(t => t.winner_variant_id !== null).length
-  const winRate = rootCompleted.length > 0 ? (winnerCount / rootCompleted.length) * 100 : 0
-
-  const liftValues = rootCompleted
-    .filter(t => t.winner_variant_id !== null && t.result_metadata !== null)
-    .map(t => ((t.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? 0)
-  const avgLift = liftValues.length > 0
-    ? liftValues.reduce((sum, v) => sum + v, 0) / liftValues.length
-    : 0
+  const contam = rootCompleted.filter(t => t.completed_reason !== null && t.completed_reason !== 'auto_resolve')
+  const vitorias = contam.filter(t => ehVitoriaHumana({
+    completed_reason: (t.completed_reason as string | null) ?? null,
+    winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+  })).length
+  const winRate = contam.length > 0 ? (vitorias / contam.length) * 100 : null
 
   return ok({
     activeTests: active,
-    avgConfidence,
+    avgConfidence: null,
     winRate,
-    avgLift,
+    avgLift: null,
+    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
     testsByStatus: {
       draft,
       active,
@@ -1725,10 +1786,12 @@ export interface AbVideoHistoryResponse {
     type: string
     status: string
     winner: string | null
+    /** Sem métrica de entrega real: sempre null (ver `aviso`). */
     liftPercent: number | null
     startedAt: string | null
     endedAt: string | null
   }>
+  aviso: AvisoSemMetricaDeEntrega
 }
 
 /** Get all test history for a specific video by its youtube_video_id. */
@@ -1738,22 +1801,28 @@ export async function getAbVideoHistory(
 ): Promise<ServiceResult<AbVideoHistoryResponse>> {
   const { supabase, siteId } = ctx
 
-  const { data: tests } = await supabase
+  const { data: tests, error: testsError } = await supabase
     .from('ab_tests')
     .select(`
-      id, test_type, status, started_at, completed_at, result_metadata,
+      id, test_type, status, started_at, completed_at, winner_variant_id, completed_reason,
       winner:ab_test_variants!winner_variant_id(label)
     `)
     .eq('youtube_video_id', youtubeVideoId)
     .eq('site_id', siteId)
     .order('created_at', { ascending: false })
+  if (testsError) return err('DB_ERROR', 'Failed to load the video A/B history', 500)
 
   const mappedTests = (tests ?? []).map(t => ({
     id: t.id as string,
     type: (t.test_type as string) ?? 'thumbnail',
     status: t.status as string,
-    winner: ((Array.isArray(t.winner) ? t.winner[0] : t.winner) as { label: string } | null)?.label ?? null,
-    liftPercent: ((t.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent as number) ?? null,
+    winner: ehVitoriaHumana({
+      completed_reason: (t.completed_reason as string | null) ?? null,
+      winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    })
+      ? ((Array.isArray(t.winner) ? t.winner[0] : t.winner) as { label: string } | null)?.label ?? null
+      : null,
+    liftPercent: null,
     startedAt: t.started_at as string | null,
     endedAt: t.completed_at as string | null,
   }))
@@ -1761,6 +1830,7 @@ export async function getAbVideoHistory(
   return ok({
     videoId: youtubeVideoId,
     tests: mappedTests,
+    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
   })
 }
 
@@ -1780,6 +1850,7 @@ export interface ThumbnailLibraryItem {
 
 export interface ThumbnailLibraryResponse {
   thumbnails: ThumbnailLibraryItem[]
+  aviso: AvisoSemMetricaDeEntrega
 }
 
 /** Fetch thumbnail library entries with longevity data. */
@@ -1790,7 +1861,7 @@ export async function getThumbnailLibrary(
 
   const { data, error } = await supabase
     .from('thumbnail_library')
-    .select('id, blob_url, title, video_title, tags, lift_at_win, source_type, thumbnail_longevity(checkpoint_days, status, change_percent)')
+    .select('id, blob_url, title, video_title, tags, source_type, thumbnail_longevity(checkpoint_days, status, change_percent)')
     .eq('site_id', siteId)
     .order('created_at', { ascending: false })
     .limit(100)
@@ -1808,14 +1879,14 @@ export async function getThumbnailLibrary(
       id: entry.id as string,
       videoTitle: entry.video_title as string | null,
       imageUrl: entry.blob_url as string,
-      lift: entry.lift_at_win as number | null,
+      lift: null,
       tags: (entry.tags as string[]) ?? [],
       longevityScore: latestCheckpoint?.status ?? null,
       sourceType: entry.source_type as string,
     }
   })
 
-  return ok({ thumbnails })
+  return ok({ thumbnails, aviso: AVISO_SEM_METRICA_DE_ENTREGA })
 }
 
 // ---------------------------------------------------------------------------
