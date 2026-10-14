@@ -7,6 +7,7 @@ import { fetchComPrazo, SemTempoError } from '@/lib/youtube/coleta/clock'
 import { motivoDoErro } from '@/lib/youtube/coleta/motivo'
 import {
   METRICAS_RETENCAO,
+  UsoInvalidoRetencaoError,
   METRICAS_RETENCAO_BASICAS,
   retencaoDoVideo,
 } from '@/lib/youtube/coleta/analytics-retencao'
@@ -32,7 +33,7 @@ const ERRO_GOOGLE = (reason: string) => ({ error: { code: 0, message: 'texto do 
 type Entrada = Parameters<typeof retencaoDoVideo>[0]
 const base = (f: ReturnType<typeof vi.fn>): Entrada => ({
   token: 'tok-secreto',
-  canalUc: 'UCabc',
+  canalUc: 'UCabcdefghijklmnopqrstuv',
   videoId: 'vid12345678',
   inicio: '2019-08-16',
   fim: '2026-10-13',
@@ -142,7 +143,7 @@ describe('retencaoDoVideo: a URL', () => {
     await retencaoDoVideo(base(f))
     const u = urlDa(f, 0)
     expect(u.origin + u.pathname).toBe('https://youtubeanalytics.googleapis.com/v2/reports')
-    expect(u.searchParams.get('ids')).toBe('channel==UCabc')
+    expect(u.searchParams.get('ids')).toBe('channel==UCabcdefghijklmnopqrstuv')
     expect(u.searchParams.get('startDate')).toBe('2019-08-16')
     expect(u.searchParams.get('endDate')).toBe('2026-10-13')
     expect(u.searchParams.get('dimensions')).toBe('elapsedVideoTimeRatio')
@@ -311,7 +312,7 @@ describe('retencaoDoVideo: forma estranha é erro, não curva', () => {
     await forma([])
     await forma(7)
   })
-  it('sem rows', () => forma({ columnHeaders: COLS3 }))
+  it('rows: null', () => forma({ columnHeaders: COLS3, rows: null }))
   it('rows que não é lista', () => forma({ columnHeaders: COLS3, rows: 'x' }))
   it('rows: [] mas o cabeçalho não é o pedido (sem audienceWatchRatio)', () =>
     forma({ columnHeaders: cab('elapsedVideoTimeRatio', 'relativeRetentionPerformance'), rows: [] }))
@@ -336,4 +337,43 @@ describe('retencaoDoVideo: forma estranha é erro, não curva', () => {
   it('segment_impressions em texto', () => forma({ columnHeaders: COLS3, rows: [ponto(0.1, 0.5, [0.4, 'x'])] }))
   it('uma linha ruim no meio derruba a resposta inteira (não devolve curva parcial)', () =>
     forma({ columnHeaders: COLS2, rows: [ponto(0.1, 0.9), ponto(0.2, 'x' as unknown as number), ponto(0.3, 0.7)] }))
+})
+
+describe('retencaoDoVideo: rows ausente e entradas inválidas', () => {
+  it('rows ausente com cabeçalho certo = sem curva (pontos [])', async () => {
+    const f = fetchCom(resp({ columnHeaders: COLS3 }))
+    const r = await retencaoDoVideo(base(f))
+    expect(r.pontos).toEqual([])
+    expect(r.chamadas).toBe(1)
+  })
+  it('rows ausente com cabeçalho errado continua forma_inesperada', async () => {
+    const f = fetchCom(resp({ columnHeaders: cab('day', 'views') }))
+    expect(await comErro(retencaoDoVideo(base(f)))).toMatchObject({ status: 200, reason: 'forma_inesperada' })
+  })
+  const invalido = async (mut: Partial<Entrada>) => {
+    const f = fetchCom(resp({ columnHeaders: COLS3, rows: [] }))
+    const e = await comErro(retencaoDoVideo({ ...base(f), ...mut }))
+    expect(e).toBeInstanceOf(UsoInvalidoRetencaoError)
+    expect((e as Error).message).toMatch(/inválid/)
+    expect(motivoDoErro(e)).toBe('excecao')
+    expect(f).not.toHaveBeenCalled()
+  }
+  it('videoId com ; (injeção de filtro)', () => invalido({ videoId: 'x;audienceType==AD_INSTREAM' }))
+  it('videoId de tamanho errado', () => invalido({ videoId: 'abc' }))
+  it('videoId vazio', () => invalido({ videoId: '' }))
+  it('canalUc sem UC', () => invalido({ canalUc: 'XXabcdefghijklmnopqrstuv' }))
+  it('canalUc curto', () => invalido({ canalUc: 'UCabc' }))
+  it('canalUc com ;', () => invalido({ canalUc: 'UCabcdefghijklmnopqrst;v' }))
+  it('ids válidos com _ e - passam', async () => {
+    const f = fetchCom(resp({ columnHeaders: COLS3, rows: [] }))
+    await retencaoDoVideo({ ...base(f), videoId: 'a_b-c_d-e_f', canalUc: 'UC_-abcdefghijklmnopqrst' })
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+  it('cancela o corpo da resposta descartada na repetição', async () => {
+    const cancel = vi.fn(async () => undefined)
+    const r500 = { ok: false, status: 500, body: { cancel }, json: async () => ({}) } as unknown as Response
+    const f = fetchCom(r500, resp({ columnHeaders: COLS3, rows: [] }))
+    await retencaoDoVideo(base(f))
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
 })
