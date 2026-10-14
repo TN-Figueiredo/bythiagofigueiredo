@@ -68,6 +68,11 @@ describe('peças comuns de tela (E5a T3)', () => {
     const dentro = renderToStaticMarkup(<ReguaDirecao limite={50} pct={-18} foraDaEscala={null} />)
     expect(dentro).toContain('menos 18%'); expect(dentro).not.toContain('passa do limite'); expect(dentro).not.toContain('rg-clip')
   })
+  it('régua com variação 0 não desenha a barra de valor (some o risco solto no meio da faixa)', () => {
+    const zero = renderToStaticMarkup(<ReguaDirecao limite={50} pct={0} foraDaEscala={null} />)
+    expect(zero).not.toContain('obs-md-rg-v'); expect(zero).toContain('obs-md-rg-0')
+    expect(renderToStaticMarkup(<ReguaDirecao limite={50} pct={3} foraDaEscala={null} />)).toContain('obs-md-rg-v')
+  })
   it('todo componente de _chrome/medidas importa medidas.css', () => {
     const tsx = fs.readdirSync(DIR).filter(f => f.endsWith('.tsx'))
     expect(tsx.length).toBeGreaterThanOrEqual(4)

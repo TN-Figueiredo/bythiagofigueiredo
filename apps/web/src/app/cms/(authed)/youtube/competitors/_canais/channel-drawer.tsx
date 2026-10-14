@@ -8,6 +8,7 @@
  * already shows (name, avatar, niche, subscribers, links) — with aria-busy and empty placeholders, never a number or a
  * sentence the server has not sent. The same element then receives the content (the focus and the picked tab stay).
  */
+import { NaoCarregou } from '../_chrome/medidas/marcas'
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import Link from 'next/link'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -127,7 +128,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
             <div key={s.label}>
               <div className="l" title={s.labelTitle ?? undefined}>{s.label}</div>
               <div className="v num" style={s.label === 'Sincronização' ? { fontSize: 14, fontFamily: 'inherit' } : undefined}>{s.value}</div>
-              <div className="l" title={s.subTitle ?? undefined}>{s.subWeak ? <span className="weak">{s.sub}</span> : s.sub}</div>
+              <div className="l" title={s.subTitle ?? undefined}>{s.subErro ? <NaoCarregou /> : s.subWeak ? <span className="weak">{s.sub}</span> : s.sub}</div>
             </div>
           ))}
         </div> : null}

@@ -26,6 +26,15 @@ import { NB, nbMilMi, numNb } from '../_canal/formato'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 import { SEM_LEITURA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
 import { baseVpdTexto, motivoVpdTexto, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
+import { spDateOf } from '@/lib/youtube/observatorio/time'
+import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
+import type { Parte } from '@/lib/youtube/observatorio/medidas/ler'
+import type { ExtrasDoCanal } from '@/lib/youtube/observatorio/medidas-telas/ler-extras-dos-canais'
+import { FRASES } from '@/lib/youtube/observatorio/medidas-telas/frases'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+import { celulaDeDirecao, resumoDeDirecao, type CelulaDeDirecao, type ResumoDeDirecao } from './direcao-model'
+import { contagemDosFiltros, estadoDaLinha, linhaNoFiltro, type ContagemDosFiltros, type EstadoDaLinha, type FiltroDeEstado } from './estado-model'
+import { fraseDoResumo } from './resumo-model'
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 const nb = (s: string) => s.replace(/(\d) (h|d|dias?|min)\b/g, '$1' + NB + '$2').replace(/há /g, 'há' + NB)
@@ -55,7 +64,7 @@ export type OutCell =
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
   | { kind: 'na'; text: string; title: string }
-  | { kind: 'flat'; big: string; cap: string }
+  | { kind: 'flat'; big: string; cap: string; title?: string }
   | { kind: 'ok'; up: boolean; big: string; cap: string; title: string }
 export interface SyncCell {
   state: SyncState; label: string; labelTitle: string | null; cov: string | null; covTitle: string | null
@@ -78,7 +87,15 @@ export interface CanaisRow {
   comparar: { href: string; label: string } | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
-  color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
+  color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean
+  /** M8: `sim`, `nao` ou `nao_carregou` (a medida não veio: nunca vira "não está parado"). */
+  paused: 'sim' | 'nao' | 'nao_carregou'
+  /** A5 E5a T5: a direção das views (M3a) e o estado do canal (M8), uma regra só para a tabela, o cartão e o painel. */
+  direcao: CelulaDeDirecao; estado: EstadoDaLinha
+  /** Os dois números da direção, escritos como o resto da lista ("2.171 mil"); nulo fora do caso medido. */
+  direcaoNumeros: { recente: string; anterior: string } | null
+  /** O canal esconde os inscritos (o campo do canal, ou a contagem ausente): a tela escreve a pastilha, nunca 0. */
+  subsOculto: boolean
   /** O valor de cada coluna para ordenar neste formato. null = sem medida: a linha vai para o fim, em qualquer direção; nunca um número de mentira. */
   valor: Record<CanaisSort, number | null>
   /** A posição na ordenação atual, no conjunto da lista (`CanaisView.conjunto`); null fora de POSICIONADAS, sem valor ou sem conjunto. */
@@ -131,7 +148,7 @@ export interface DrawerView {
   id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; avatar: string | null; niche: Niche | null
   lang: LangChip | null
   handle: string; url: string; subsText: string; cov: string
-  stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean }>
+  stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean; /** A sub-linha é a forma de erro da seção 4.2 ("não carregou"), nunca texto fraco. */ subErro?: boolean }>
   swaps: { count: number; intro: string; note: string | null; cards: SwapCard[]; link: LinkN | null }
   outliers: { tabN: string; tabTitle: string; intro: string; note: string | null; sections: Array<{ fmt: Fmt; title: string; rows: OutRow[]; link: LinkN | null; note: string | null }> }
   videos: {
@@ -170,7 +187,9 @@ export interface CanaisView {
   drawer: DrawerView | null
   /** The URL asked for the drawer of a channel that is in another niche than the explicit filter: the screen drops ?channel=. */
   drawerDropped: boolean
-  filter: 'todos' | 'problemas'; addOpen: boolean; nicheEditorOpen: boolean
+  filter: FiltroDeEstado; addOpen: boolean; nicheEditorOpen: boolean
+  /** A5 E5a T5: o bloco de resumo (frase, quatro casas da direção, filtros de estado) e o vazio explicado. */
+  resumo: ResumoView
   niche: NicheScope; nicheLabel: string
   problems: { n: number; filterHref: string; clearHref: string }
   emptyText: string
@@ -202,8 +221,36 @@ export interface CanaisDrawerForja {
   free: { label: string; niches: Niche[] } | null
 }
 
+/** As medidas do site que a lista lê (M3a e M8 de cada canal e os campos do canal). `MedidasDoSite` serve; ausente ou nulo = não carregaram. */
+export interface MedidasParaLista {
+  porCanal: ReadonlyMap<string, Pick<MedidasDoCanal, 'm3a' | 'm8'> | { naoCarregou: string }>
+  extras: Parte<ReadonlyMap<string, ExtrasDoCanal>>
+}
+const MEASURE_QUEDA_JANELAS = MEASURE_RULES.decline.windows, MEASURE_JANELA_DIAS = MEASURE_RULES.direction.windowDays
+export type DirecaoFiltro = 'sobe' | 'estavel' | 'desce' | 'nao-medido'
+export interface CasaDoResumo { chave: DirecaoFiltro; n: number | null; palavra: string; leitor: string; pressed: boolean; data: string | null }
+export interface FiltroDoResumo { chave: FiltroDeEstado; rotulo: string; n: number | null; ainda: string | null; naoMedido: string | null; pressed: boolean; leitor: string
+  /** Só nos filtros de estado, quando parte das linhas não teve o estado lido: o número vale para `medidos` de `de` canais. */
+  base: { medidos: number; de: number } | null }
+export interface ResumoView {
+  frase: string; carregou: boolean
+  casas: CasaDoResumo[]
+  filtros: FiltroDoResumo[]
+  /** Até quando os 56 dias cruzam a mudança de contagem de 24/08; nulo depois. */
+  avisoDeContagem: { ate: string } | null
+  contagem: ContagemDosFiltros
+  direcao: ResumoDeDirecao
+  /** Todos os canais do recorte sem registro recente: a coleta de retratos parou. `desde` é o dia da última leitura boa mais recente (nulo se nenhuma foi lida). A página manda o evento ao Sentry. */
+  semRetrato: { desde: string | null } | null
+  /** O filtro de estado ou de direção esvaziou a lista: a explicação (zero medido, não medido ou ainda não existe) e o botão de limpar. */
+  vazio: { titulo: string; apoio: string; acaoDescendo?: boolean; forma: 'zero' | 'nao_medido' | 'nao_carregou' | 'ainda_nao_existe'; limpar: { texto: string } } | null
+  /** O dono pode agir (sincronizar, adicionar, remover): a tela repete a frase de só leitura quando não. Preenchido pela tela. */
+}
+
 export interface CanaisParams {
-  niche: NicheScope; limit: number; channel?: string; tab?: string; add?: string; filter?: string; scale?: string; fmt?: string; layout?: string
+  niche: NicheScope; limit: number; channel?: string; tab?: string; add?: string; filter?: string; direcao?: string;
+  /** As medidas do site inteiro (`carregarMedidasDoSite`). Ausente/nulo = não carregaram: nenhuma célula afirma nada. */
+  medidas?: MedidasParaLista | null; scale?: string; fmt?: string; layout?: string
   sort?: string; dir?: string; nicheEditor?: string; unlockStep?: number
   /** ?niche= is in the URL (a click on the niche bar), not only the persisted preference. */
   nicheExplicit?: boolean
@@ -239,7 +286,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const layout = pick(p.layout, ['table', 'cards'] as const, 'table')
   const sort = pick(p.sort, ['active', 'vpd', 'outliers', 'swaps', 'growth', 'subs'] as const, DEFAULT_SORT)
   const dir = pick(p.dir, ['asc', 'desc'] as const, 'desc')
-  const filter = p.filter === 'problemas' ? 'problemas' : 'todos'
+  const filter = pick(p.filter, ['todos', 'problemas', 'parados', 'em-queda', 'sairam', 'sem-videos'] as const, 'todos')
+  const direcaoFiltro = pick(p.direcao, ['sobe', 'estavel', 'desce', 'nao-medido'] as const, 'todos' as 'todos' | DirecaoFiltro)
+  const hojeSP = spDateOf(obs.NOW)
   const niche = p.niche
   const NL = (n: Niche) => obs.nicheLabel(n)
   const nicheLabel = niche === 'todos' ? 'Todos' : NL(niche)
@@ -258,10 +307,32 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const tier = (x: number | null): Tier => obs.tierOf(x) ?? ''
   const thumbOf = (v: ObsVideo): Thumb => ({ src: v.ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.ytId)}/mqdefault.jpg` : null, text: null })
   const ageOf = (v: ObsVideo) => ({ text: nb(F.age(v)), title: abs(v.pub) })
+  /* ---- A5 E5a T5: M3a e M8 de cada canal. Medida que não veio é "não carregou": nunca vira "ativo" nem "não está parado". ---- */
+  const videosN = new Map<string, number>()
+  for (const v of obs.videos) videosN.set(v.ch, (videosN.get(v.ch) ?? 0) + 1)
+  const medidaDe = (id: string): Pick<MedidasDoCanal, 'm3a' | 'm8'> | null => {
+    const m = p.medidas?.porCanal.get(id)
+    return m && 'm3a' in m ? m : null
+  }
+  const extrasDoCanal = (id: string): ExtrasDoCanal | null => (p.medidas?.extras.lido ? p.medidas.extras.dados.get(id) ?? null : null)
+  /** Zero vídeos datados não quer dizer que o canal não publicou: na 1ª busca, ou com vídeos sem `published_at`, ele ainda está sendo lido. */
+  const buscando = (c: ObsChannel): boolean => c.sync.state === 'backfill' || c.undated.length > 0
+  const direcaoDe = (c: ObsChannel): CelulaDeDirecao => celulaDeDirecao(medidaDe(c.id)?.m3a ?? null, extrasDoCanal(c.id), { proprio: c.own, semVideos: (videosN.get(c.id) ?? 0) === 0 && !buscando(c) })
+  const estadoDe = (c: ObsChannel): EstadoDaLinha => estadoDaLinha(medidaDe(c.id)?.m8 ?? null, extrasDoCanal(c.id), videosN.get(c.id) ?? 0, { proprio: c.own, hojeSP, buscando: buscando(c) })
+  /** M8 diz "parado"? `nao_carregou` quando a medida não veio (a pastilha do estado carrega o motivo); coleta pausada e canal próprio são `nao`. */
+  const paradoDe = (c: ObsChannel): 'sim' | 'nao' | 'nao_carregou' => {
+    if (c.own) return 'nao'
+    const e = estadoDe(c).pastilha
+    return e === 'parado' ? 'sim' : e === 'nao_carregou' ? 'nao_carregou' : 'nao'
+  }
+  const diasParado = (c: ObsChannel): number | null => { const e = estadoDe(c); return e.pastilha === 'parado' && typeof e.dataOuDias === 'number' ? e.dataOuDias : null }
+  /** A data do último vídeo é a que M8 leu, não "agora menos os dias" (que adianta o dia quando a hora atual é anterior à da publicação). */
+  const ultimaDoParado = (c: ObsChannel): number | null => { const e = estadoDe(c); return e.pastilha === 'parado' ? e.ultimaEm : null }
   const stale = (c: ObsChannel, S: CStats) =>
     // Task 23 ruling (brief test + CONVENCOES:267, confirmed in 35b fix round 1): a "parado" channel's views also say
     // "até o registro diário"; canais.html shows it only for atrasado/erro — allow-listed in canais.spec
-    (c.sync.state === 'atrasado' || c.sync.state === 'erro' || (c.activity.state === 'parado' && c.sync.state !== 'backfill')) && S.growth30.to != null
+    // (E5a T5: o "parado" é o de M8, não o do motor)
+    (c.sync.state === 'atrasado' || c.sync.state === 'erro' || (paradoDe(c) === 'sim' && c.sync.state !== 'backfill')) && S.growth30.to != null
       ? ` até o registro diário de ${D.dmhm(S.growth30.to)}` : ''
   const isBf = (c: ObsChannel) => c.sync.state === 'backfill'
   const videosOf = (id: string) => obs.videos.filter(v => v.ch === id).sort((a, b) => b.pub - a.pub)
@@ -351,7 +422,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   function growthCell(c: ObsChannel, g: Growth): GrowthCell {
     if (g.pending) return { kind: 'na', text: g.pending.replace(/ \(.*\)/, ''), title: `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}` }
     const until = c.sync.state !== 'ok' && !isBf(c) && g.to != null ? `, até ${D.dmhm(g.to)}` : ''
-    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `${(g.text ?? '').replace(/^≈ 0 /, '')}, 30${NB}d` }
+    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `(${(g.text ?? '').match(/±[^)]*/)?.[0] ?? ''}), 30${NB}d`, title: g.text ?? undefined }
     const capText = `${(g.text ?? '').replace(/ (mil|mi)/g, NB + '$1')} em 30${NB}d${until}`
     // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent and no arrow, only the absolute
     if (g.pct == null) return { kind: 'na', text: capText, title: 'Sem percentual: o canal não tinha inscritos na contagem anterior.' }
@@ -381,8 +452,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       kind: 'ok', weeks: kl.weeks.map((w, i) => ({ long: w.n, short: ks.weeks[i]?.n ?? 0 })),
       label: `${kl.n} vídeos longos e ${ks.n} Shorts nas últimas 13 semanas`, pw: F.dec1(k.pw), unit: `${wordOf(f)}/sem`,
       // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
-      sub: empty ? 'nenhum em 13 semanas' : todos || c.activity.state === 'parado' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
-      paused: !second && !empty && c.activity.state === 'parado' && kl.lastUpload != null ? `Parado: último vídeo em ${D.dm(kl.lastUpload)}, ${nb(kl.lastUploadAgo ?? '')}` : null,
+      sub: empty ? 'nenhum em 13 semanas' : !second && paradoDe(c) === 'nao_carregou' ? 'não carregou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
+      paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: ${ultimaDoParado(c) != null ? `último vídeo em ${D.dm(ultimaDoParado(c)!)}, ` : ''}${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
     }
   }
   function vpdCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): VpdCell {
@@ -426,9 +497,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     if (empty) return { kind: 'na', text: 'Nada para comparar sem vídeo longo recente.', weak: null, upnext: 'Planejar em Próximos' }
     if (!o) {
       const top = S.maxMultBelowMin
-      return !top ? { kind: 'na', text: `Não publicou ${fmtName} em 90${NB}d.`, weak: null, upnext: null }
+      return !top ? { kind: 'na', text: `Sem ${fmtName} em 90${NB}d.`, weak: null, upnext: null }
         : top.weak ? { kind: 'na', text: `Nenhum ${one} com ${R.outlierMin}× ou mais.`, weak: `Base fraca (${NEQ(top.n)}).`, upnext: null }
-          : { kind: 'na', text: `Nenhum ${one} com ${R.outlierMin}× ou mais em 90${NB}d. Maior: ${top.label}.`, weak: null, upnext: null }
+          : { kind: 'na', text: `Nenhum com ${R.outlierMin}×. Maior: ${top.label}.`, weak: null, upnext: null }
     }
     const m = o.mult, a = ageOf(o.video)
     return {
@@ -500,7 +571,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const swap: SwapCell = c.own ? { kind: 'na', text: 'Suas trocas ficam no A/B Lab.' }
       : bf ? { kind: 'na', text: 'Trocas são detectadas a partir de agora.' }
         : { kind: 'ok', n: trocas.length, last: g ? groupText(g) : `nenhuma de título ou thumbnail em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
-    const growth = growthCell(c, S.growth30)
+    const oculto = c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true
+    // inscritos ocultos: o crescimento não é zero, é "não medido: oculto" (nunca um 0)
+    const growth: GrowthCell = oculto ? { kind: 'na', text: 'não medido: oculto', title: 'O canal esconde a contagem de inscritos no YouTube.' } : growthCell(c, S.growth30)
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     const valor = valoresOf(c), pos = posMap.get(c.id) ?? null
@@ -513,7 +586,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
       sync: { label: sync.label, phrase: syncPhrase(c), state: c.sync.state },
-      color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
+      color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: paradoDe(c), direcao: direcaoDe(c), estado: estadoDe(c), direcaoNumeros: ((d) => (d.tipo === 'medido' ? { recente: num(d.ganhoRecente), anterior: num(d.ganhoAnterior) } : null))(direcaoDe(c)), subsOculto: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true,
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
       valor, pos, ...semMedidaDe(c, S, valor, pos),
@@ -531,7 +604,14 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const all = obs.channels
   const inNiche = (c: ObsChannel) => niche === 'todos' || c.niche === niche
   const comps = all.filter(c => !c.own && inNiche(c))
-  const visible = comps.filter(c => filter !== 'problemas' || c.sync.state !== 'ok')
+  // A5 E5a T5: o filtro de estado e o de direção SOMAM (E); "problemas" (em erro) continua valendo o mesmo de antes (retrato)
+  const linhasDoNicho = all.filter(c => !c.own && inNiche(c)).map(c => ({ c, l: { proprio: false, estado: estadoDe(c), emErro: c.sync.state !== 'ok' } }))
+  const direcaoPassa = (c: ObsChannel): boolean => {
+    if (direcaoFiltro === 'todos') return true
+    const d = direcaoDe(c)
+    return direcaoFiltro === 'nao-medido' ? d.tipo === 'nao_medido' : d.tipo === 'medido' && d.simbolo === ({ sobe: 'sobe', estavel: 'estavel', desce: 'desce' } as const)[direcaoFiltro]
+  }
+  const visible = linhasDoNicho.filter(({ c, l }) => linhaNoFiltro(l, filter) && direcaoPassa(c)).map(x => x.c)
   // O conjunto da posição (D11, emenda 45): o nicho escolhido, próprios incluídos, ou todos os canais do site. Vem ANTES do
   // filtro "só com problema" e da busca: eles escondem linhas, nunca renumeram ninguém.
   const conjunto: Conjunto = niche === 'todos' ? { tipo: 'geral' } : { tipo: 'nicho', niche, label: nicheLabel }
@@ -602,6 +682,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   if (temPosicao(sort)) {
     if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
     if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
+    else if (filter !== 'todos' || direcaoFiltro !== 'todos') posicaoNotas.push('Posição na lista inteira, não só nos canais do filtro.') // TEXTO-A-REVISAR (Logan/Naksu)
   }
   // o principal pode estar fora da lista (filtro de nicho de outro canal): a linha presa então fala do canal próprio que a lista mostra, pela mesma regra
   // (I-11c-1); sem isso ela some, e "Ir até a linha" só pode apontar para uma linha que existe
@@ -610,6 +691,80 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     : undefined
   const pe = peRow ? { canalId: peRow.id, texto: `seu canal · ${fraseDe(peRow).frase}` } : null
   const np = comps.filter(c => c.sync.state !== 'ok').length
+  const resumo = (() => {
+    const celulas = linhasDoNicho.map(({ c }) => direcaoDe(c))
+    const dirRes = resumoDeDirecao(celulas)
+    const contagem = contagemDosFiltros([...linhasDoNicho.map(x => x.l), ...ownRows.map(r => ({ proprio: true, estado: r.estado, emErro: false }))], hojeSP)
+    const limpar = { texto: 'Ver todos os canais' }
+    const carregou = dirRes.sobe !== null
+    const casa = (chave: DirecaoFiltro, n: number | null, palavra: string): CasaDoResumo => {
+      const pressed = direcaoFiltro === chave
+      const datas = chave === 'nao-medido' ? celulas.flatMap(c => (c.tipo === 'nao_medido' && c.fechaEm ? [c.fechaEm] : [])).sort() : []
+      const data = datas.length ? (datas.length === 1 || datas[0] === datas[datas.length - 1] ? `fecha em ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)}` : `fecham de ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)} a ${datas[datas.length - 1]!.slice(8, 10)}/${datas[datas.length - 1]!.slice(5, 7)}`) : null
+      return { chave, n, palavra, pressed, data,
+        leitor: n === null ? `${palavra}: não carregou` : `${n} ${palavra}${pressed ? ', filtro ligado' : ''}` }
+    }
+    const casas = [casa('sobe', dirRes.sobe, 'subindo'), casa('estavel', dirRes.estavel, 'sem mudança'), casa('desce', dirRes.desce, 'descendo'), casa('nao-medido', dirRes.naoMedido, 'não medido')]
+    const q = contagem.queda
+    const filtroDe = (chave: FiltroDeEstado, rotulo: string, n: number | null, porEstado = false): FiltroDoResumo => {
+      const pressed = filter === chave
+      const ainda = chave === 'em-queda' && q.tipo === 'ainda_nao_existe' ? q.existeEm : null
+      const naoMedido = chave === 'em-queda' && q.tipo === 'nao_medido' ? FRASES[q.motivo]({}, 'canais').curta : null
+      // falha parcial: o estado foi lido em `estadoMedidoEm` de `todos` canais, e o número vale só para eles ("0 de 9", nunca "0 medido")
+      const base = porEstado && n !== null && contagem.estadoMedidoEm < contagem.todos ? { medidos: contagem.estadoMedidoEm, de: contagem.todos } : null
+      return { chave, rotulo, n: ainda || naoMedido ? null : n, ainda, naoMedido, pressed, base,
+        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : n === null ? `${rotulo}: não carregou`
+          : base ? `${rotulo}: ${n} de ${base.medidos} medidos (estado medido em ${base.medidos} de ${base.de} canais)` : `${rotulo}: ${n}` }
+    }
+    const filtros = [
+      filtroDe('todos', 'Todos', contagem.todos), filtroDe('parados', 'Parados', contagem.parados, true),
+      filtroDe('em-queda', 'Em queda', q.tipo === 'numero' ? q.emQueda : null),
+      filtroDe('sairam', 'Saíram do YouTube', contagem.saiu, true), filtroDe('problemas', 'Com problema', contagem.emErro),
+    ]
+    const nomeFiltro: Partial<Record<FiltroDeEstado, string>> = { parados: 'parado', 'em-queda': 'em queda', sairam: 'saiu do YouTube', problemas: 'com problema na coleta', 'sem-videos': 'sem vídeos' }
+    const nomeDirecao: Record<DirecaoFiltro, string> = { sobe: 'subindo', estavel: 'sem mudança', desce: 'descendo', 'nao-medido': 'com direção não medida' }
+    const apoioZero: Partial<Record<FiltroDeEstado, string>> = {
+      parados: `Todos os ${linhasDoNicho.length} canais publicaram dentro do prazo habitual de cada um.`,
+      'em-queda': `Nenhum canal ficou com ▼ por ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos.`,
+      sairam: 'O YouTube respondeu por todos os canais nas duas últimas leituras.',
+      problemas: 'Todos os canais sincronizaram na última rodada.',
+    }
+    let vazio: ResumoView['vazio'] = null
+    if (visible.length === 0 && (filter !== 'todos' || direcaoFiltro !== 'todos')) {
+      const tudoNaoCarregou = linhasDoNicho.length > 0 && linhasDoNicho.every(x => x.l.estado.pastilha === 'nao_carregou')
+      const dirNome = direcaoFiltro === 'todos' ? null : nomeDirecao[direcaoFiltro]
+      if (filter === 'em-queda' && q.tipo === 'ainda_nao_existe') {
+        const dias = Math.round((Date.parse(q.existeEm + 'T00:00:00Z') - Date.parse(hojeSP + 'T00:00:00Z')) / 86_400_000)
+        const dataBR = `${q.existeEm.slice(8, 10)}/${q.existeEm.slice(5, 7)}/${q.existeEm.slice(0, 4)}`
+        vazio = {
+          forma: 'ainda_nao_existe', titulo: 'Em queda ainda não pode ser medido.', limpar,
+          acaoDescendo: dirRes.desce !== null,
+          apoio: `Em queda pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos, e a contagem de views mudou em 24/08/2026. Só a partir de ${dataBR} (daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}) dá para medir. ${dirRes.desce === null ? 'A direção dos canais não carregou agora.' : `Enquanto isso, ${dirRes.desce} ${dirRes.desce === 1 ? 'canal está descendo' : 'canais estão descendo'} neste período.`}`,
+        }
+      } else if (filter === 'em-queda' && q.tipo === 'nao_carregou') {
+        vazio = { forma: 'nao_carregou', titulo: 'Em queda não carregou.', apoio: 'O estado dos canais não carregou agora. Recarregue a página em alguns minutos.', limpar }
+      } else if (filter === 'em-queda' && q.tipo === 'nao_medido') {
+        vazio = { forma: 'nao_medido', titulo: 'Em queda ainda não foi medido.', apoio: `${FRASES[q.motivo]({}, 'canais').longa}.`, limpar } // TEXTO-A-REVISAR
+      } else if (tudoNaoCarregou) {
+        vazio = { forma: 'nao_carregou', titulo: 'Não deu para contar: as medidas não carregaram.', apoio: 'Recarregue a página em alguns minutos.', limpar }
+      } else if (filter !== 'todos' && dirNome === null) {
+        vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? 'neste filtro'}`, apoio: apoioZero[filter] ?? '', limpar }
+      } else if (filter === 'todos' && dirNome !== null) {
+        vazio = { forma: 'zero', titulo: `Nenhum canal ${dirNome}`, apoio: direcaoFiltro === 'desce' ? `Nenhum dos ${linhasDoNicho.length} canais perdeu 10% ou mais de views neste período.` : '', limpar }
+      } else {
+        vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? ''} e ${dirNome ?? ''}.`.replace(/\s+/g, ' ').trim(), apoio: 'Nenhum canal tem as duas condições. Tire um dos filtros.', limpar }
+      }
+    }
+    const semRetrato = linhasDoNicho.length > 0 && celulas.every(c => c.tipo === 'nao_medido' && c.motivo === 'sem_registro_recente')
+      ? { desde: linhasDoNicho.map(({ c }) => extrasDoCanal(c.id)?.lastOkSyncedAt).filter((x): x is string => typeof x === 'string').map(x => spDateOf(Date.parse(x))).sort().pop() ?? null }
+      : null
+    const aviso = celulas.flatMap(c => (c.tipo === 'medido' && c.avisoDeContagem ? [c.avisoDeContagem.ate] : [])).sort().pop()
+    return {
+      // TEXTO-A-REVISAR (Logan/Naksu): "sem retrato desde dd/mm" é a forma do plano (d:m7)
+      frase: fraseDoResumo(dirRes, contagem) + (semRetrato ? (semRetrato.desde ? ` Sem dados novos desde ${semRetrato.desde.slice(8, 10)}/${semRetrato.desde.slice(5, 7)}.` : ' Sem dados recentes.') : ''),
+      carregou, casas, filtros, avisoDeContagem: aviso ? { ate: aviso } : null, contagem, direcao: dirRes, semRetrato, vazio,
+    } satisfies ResumoView
+  })()
   // F4: competitors with no niche are invisible in a niche tab; say how many and point at the niche editor (same exit as Insights R78)
   const unniched = niche !== 'todos' ? all.filter(c => !c.own && c.niche == null).length : 0
   const nicheLink = unniched ? { text: unniched === 1 ? 'defina o nicho dele' : 'defina o nicho deles', href: obs.link.canais({ nicheEditor: 1, fmt: filtro }) } : null
@@ -655,7 +810,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const until = c.sync.state !== 'ok' && g.to != null ? ', até ' + D.dmhm(g.to) : ''
       statsV = [
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
-          sub: c.activity.state === 'parado' ? `Parado: último vídeo ${nb(kl.lastUploadAgo ?? '')}` : 'longos + Shorts por semana', subTitle: null, subWeak: c.activity.state === 'parado' },
+          sub: paradoDe(c) === 'sim' ? `Parado: último vídeo ${diasParado(c) == null ? 'há muito tempo' : nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : paradoDe(c) === 'nao_carregou' ? 'não carregou' : 'longos + Shorts por semana', subTitle: null, subWeak: paradoDe(c) === 'sim', ...(paradoDe(c) === 'nao_carregou' ? { subErro: true } : {}) },
         { label: `Views/dia, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: null, value: rel ? vRel : vAbs,
           sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : videosOf(c.id).some(x => x.fmt === fmt && x.tracked) ? 'Aguardando o 2º registro diário.' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
         g.pending
@@ -781,7 +936,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
     own: { many, block: ownBlock },
     compararColuna: principal != null,
-    drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
+    drawer, drawerDropped, filter, resumo, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
     niche, nicheLabel,
     problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas', fmt: filtro }), clearHref: obs.link.canais({ fmt: filtro }) },
     emptyText, emptyLink,

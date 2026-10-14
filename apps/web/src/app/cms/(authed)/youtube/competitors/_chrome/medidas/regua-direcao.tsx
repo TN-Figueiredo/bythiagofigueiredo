@@ -15,7 +15,7 @@ export function ReguaDirecao({ limite, pct, foraDaEscala, exato }: { limite: 50 
     <span className={`obs-md-rg ${simbolo}`} role="img" aria-label={aria}>
       <i className="obs-md-rg-b" aria-hidden="true" style={{ left: `${faixa(-10)}%`, width: `${faixa(10) - faixa(-10)}%` }} />
       <i className="obs-md-rg-0" aria-hidden="true" />
-      <i className="obs-md-rg-v" aria-hidden="true" style={{ left: `${esq}%`, width: `${larg}%` }} />
+      {pct === 0 ? null : <i className="obs-md-rg-v" aria-hidden="true" style={{ left: `${esq}%`, width: `${larg}%` }} />}
       {foraDaEscala ? <i className={`obs-md-rg-clip ${foraDaEscala}`} aria-hidden="true" /> : null}
     </span>
   )

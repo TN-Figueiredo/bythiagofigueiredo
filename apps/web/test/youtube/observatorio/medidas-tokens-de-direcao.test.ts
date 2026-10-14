@@ -17,6 +17,7 @@ describe('tokens de direção (E5a T3)', () => {
       .filter(f => f !== '_chrome/tokens-telas.css')
       .sort()
     expect(usam).toEqual([
+      '_canais/canais.css',
       '_chrome/medidas/medidas.css',
       '_proprio/proprio.css',
       // '_proprio/retencao-curva.css' volta com a E8 T13

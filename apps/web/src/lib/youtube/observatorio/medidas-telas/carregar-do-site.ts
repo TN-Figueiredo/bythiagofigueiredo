@@ -185,15 +185,21 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     return m
   }
 
+  // um prazo só para o conjunto (a página tem 60 s): fim = início + PRAZO, e não 12 s por canal
+  const fim = Date.now() + PRAZO_DAS_MEDIDAS_MS
   const [extras] = await Promise.all([
     lerExtras(sb, p.siteId, p.agoraMs),
     mapaComLimite(aLer, CANAIS_AO_MESMO_TEMPO, async (id) => {
       let r: Awaited<ReturnType<typeof lerUm>> | 'tempo_esgotado'
-      try {
-        r = await comPrazo(lerUm(id), PRAZO_DAS_MEDIDAS_MS)
-      } catch {
-        r = { naoCarregou: 'erro_do_banco' }
-        falhas.push({ canal: id, medida: 'leitura', classe: 'erro_do_banco' })
+      const restante = fim - Date.now()
+      if (restante <= 0) r = 'tempo_esgotado' // o prazo do conjunto já passou: nem começa (sem consulta)
+      else {
+        try {
+          r = await comPrazo(lerUm(id), restante)
+        } catch {
+          r = { naoCarregou: 'erro_do_banco' }
+          falhas.push({ canal: id, medida: 'leitura', classe: 'erro_do_banco' })
+        }
       }
       if (r === 'tempo_esgotado') {
         esgotou++

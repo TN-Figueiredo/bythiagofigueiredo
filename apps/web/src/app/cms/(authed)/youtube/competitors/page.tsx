@@ -1,4 +1,7 @@
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import * as Sentry from '@sentry/nextjs'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slots'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
@@ -20,11 +23,11 @@ export const maxDuration = 60
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
-/** "+25" is for admins only: can_admin_site_users() (super_admin / org_admin) (unlockMoreChannels checks it again). */
-async function canUnlockChannels(siteId: string): Promise<boolean> {
+/** "+25" is for admins only: can_admin_site_users() (super_admin / org_admin) (unlockMoreChannels checks it again). `podeEditar`: quem só lê vê a lista com as ações desligadas. */
+async function permissoesDoSite(siteId: string): Promise<{ canUnlock: boolean; podeEditar: boolean }> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) return false
-  return canAdminSiteUsers(siteId)
+  if (!res.ok) return { canUnlock: false, podeEditar: false }
+  return { canUnlock: await canAdminSiteUsers(siteId), podeEditar: true }
 }
 
 /** Canais (port of canais.html) inside the Observatório chrome. */
@@ -32,7 +35,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const sp = await searchParams
   // The channel drawer reuses ?tab=outliers together with ?channel=; only a bare ?tab= is a legacy dashboard link.
   if (!one(sp.channel)) legacyTabRedirect(one(sp.tab))
-  const { siteId, now, rows, obs, savedNiche, meuCanalLembrado, extra: canUnlock } = await openObservatoryPage(canUnlockChannels)
+  const { siteId, now, rows, obs, savedNiche, meuCanalLembrado, extra: permissoes } = await openObservatoryPage(permissoesDoSite)
   // a channel with a page (a competitor, or an own channel with videos) is sent there; an own channel without videos opens the list with no panel.
   competitorChannelRedirect(obs, one(sp.channel))
   // The chrome persists a valid ?niche= and drops an invalid one; here it is only read. parseNiche checks the form;
@@ -41,16 +44,33 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const urlNiche = parsed != null && obs.scopeOf(parsed) === parsed ? parsed : null
   const niche = urlNiche ?? obs.scopeOf(savedNiche)
   // as views por dia do canal próprio vêm do diário, só para quem edita o site, DEPOIS da guarda de acesso; sem canal próprio nada é lido
-  const extras = await carregarExtrasProprio(obs, siteId, now)
+  // A5 E5a T5: M3a e M8 de cada concorrente e os campos do canal, depois da guarda de acesso. O carregador não lança por canal; se lançar por inteiro,
+  // a tela abre com "não carregou" em toda célula (nunca com medida inventada) e o erro vai ao Sentry. Independentes: rodam juntos.
+  const carregarMedidas = async (): Promise<MedidasDoSite | null> => {
+    try {
+      return await carregarMedidasDoSite(getSupabaseServiceClient(), { siteId, obs, canais: obs.channels.filter(c => !c.own).map(c => c.id), agoraMs: now })
+    } catch (err) {
+      Sentry.captureException(err, { tags: { component: 'observatorio', step: 'medidas-telas-canais' } })
+      return null
+    }
+  }
+  const [extras, medidas] = await Promise.all([carregarExtrasProprio(obs, siteId, now), carregarMedidas()])
   const view = buildCanaisView(obs, {
+    medidas,
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
-    channel: canalDoPainel(obs, one(sp.channel)), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),
+    channel: canalDoPainel(obs, one(sp.channel)), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), direcao: one(sp.direcao), scale: one(sp.scale), fmt: one(sp.fmt),
     layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor),
   }, extras)
+  // a coleta de retratos parou em todos os canais: um evento por abertura (o aviso da tela é a frase)
+  if (view.resumo.semRetrato) {
+    Sentry.captureMessage('observatório: nenhum canal tem registro recente (lista de Canais)', {
+      level: 'warning', fingerprint: ['canais-sem-retrato'], tags: { component: 'observatorio', step: 'medidas-telas-canais' }, extra: { desde: view.resumo.semRetrato.desde },
+    })
+  }
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
       <CanaisScreen
-        view={view} canUnlock={canUnlock}
+        view={view} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
         onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}

@@ -4,6 +4,7 @@
  * They only lay out what the view model computed.
  */
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
+import { EstadoLinha } from './direcao-cell'
 import Link from 'next/link'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { HoverTip, useTipShown } from '../_chrome/flut/flut'
@@ -165,8 +166,8 @@ export function OutView({ c, c2, upnextHref, visible }: { c: OutCell; c2?: OutCe
       <ThumbView t={c.thumb} />
       <div>
         <div className="t" title={c.videoTitle}>{c.videoTitle}</div>
-        <div className="cap"><b className={`mult num ${c.tier}`} data-k="best">{c.mult}</b> vs {c.vs}, n{' '}={' '}<span data-k="bestN">{c.n}</span></div>
-        <div className="cap">publicado <span title={c.publishedTitle}>{c.published}</span>, <span data-k="outs">{c.count}</span></div>
+        <div className="cap"><b className={`mult num ${c.tier}`} data-k="best">{c.mult}</b><span className="det"> vs {c.vs}, n{' '}={' '}<span data-k="bestN">{c.n}</span></span></div>
+        <div className="cap"><span className="det">publicado </span><span title={c.publishedTitle}>{c.published}</span><span className="det">, <span data-k="outs">{c.count}</span></span></div>
       </div>
     </div>
   )
@@ -179,7 +180,7 @@ export function SwapView({ c }: { c: SwapCell }) {
 
 export function GrowthView({ c }: { c: GrowthCell }) {
   if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
-  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></>
+  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth" title={c.kind === 'flat' ? c.title : undefined}>{c.cap}</span></span></>
   return (
     <>
       <span className={`big num ${c.up ? 'up' : 'down'}`} title={c.title}><Ic n={c.up ? 'up' : 'down'} /> {c.big}</span>
@@ -189,7 +190,7 @@ export function GrowthView({ c }: { c: GrowthCell }) {
 }
 
 export type LocalSync = 'now' | 'just' | 'queued' | undefined
-export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void }) {
+export function SyncView({ c, local, onRetry, onRemove, somenteLeitura = false }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void; somenteLeitura?: boolean }) {
   // "Administrar o site" step: removing a channel is for admins.
   const canAdminSite = useCanAdminSite()
   const cov = c.cov ? <div className="cov" title={c.covTitle ?? undefined}>{c.cov}</div> : null
@@ -201,14 +202,14 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
     <>
       <div className="st" style={{ color: 'var(--warning-text)' }}><Ic n="clock" /><span title={c.labelTitle ?? undefined}>{c.label}</span></div>
       {c.msg ? <div className="msg late">{c.msg}</div> : null}
-      {c.canRetry ? <div className="act"><button type="button" className="btn small" onClick={onRetry}>Tentar de novo</button></div> : null}
+      {c.canRetry ? <div className="act"><button type="button" className="btn small" onClick={onRetry} disabled={somenteLeitura} title={somenteLeitura ? 'Você só pode ler esta lista.' : undefined}>Tentar de novo</button></div> : null}
     </>
   )
   if (c.state === 'erro') return (
     <>
       <div className="st" style={{ color: 'var(--danger-text)' }}><Ic n="warn" /><span>{c.label}</span></div>
       {c.msg ? <div className="msg">{c.msg}</div> : null}
-      {c.canRemove && canAdminSite ? <div className="act"><button type="button" className="btn small" onClick={onRemove}>Remover canal…</button></div> : null}
+      {c.canRemove && canAdminSite ? <div className="act"><button type="button" className="btn small" onClick={onRemove} disabled={somenteLeitura} title={somenteLeitura ? 'Você só pode ler esta lista.' : undefined}>Remover canal…</button></div> : null}
       {c.canRemove && !canAdminSite ? <div className="msg" role="note" data-testid="admin-only-note">{siteAdminOnlyText('remover um canal')}</div> : null}
     </>
   )
@@ -257,9 +258,10 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
         ) : null}
         <div className="sub">
           {r.own ? null : <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />}
-          <span className="num">{r.subs}</span>
+          {r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}
           <Tip label="Sobre o número de inscritos">{r.subsTip}</Tip>
         </div>
+        <EstadoLinha r={r} />
         {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
         {r.semFormato ? (
           <div className="sub semfmt" data-sem-formato="">

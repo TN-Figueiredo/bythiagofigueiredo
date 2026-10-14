@@ -9,8 +9,10 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { buildCanalHeader } from '@/app/cms/(authed)/youtube/competitors/_canal/header-model'
 import { numerosDoCanal, NUMEROS } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
+import { medidasDoOraculo } from './canais-e5a-fixture'
 
 const obs = createObservatory(datasetFromOracle(loadOracle()))
+const medidas = medidasDoOraculo(obs)
 const ESCOPOS = ['todos', 'viagem', 'ia'] as const
 const TIPOS = ['title', 'thumb', 'desc'] as const
 const J = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
@@ -23,11 +25,11 @@ export function montarRetrato() {
   }))
   const canais = obs.channels.map(c => {
     const lista = (fmt: 'longos' | 'shorts' | 'todos') => {
-      const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt })
+      const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt, medidas })
       const r = [...v.list.ranked, ...v.list.unranked].find(x => x.id === c.id)
       return r ? { vpd: r.vpd, pw: r.pw, growth: r.growth, growthTitle: r.growthTitle, mud: r.changes.n, out: r.outliers.n, cells: r.cells } : null
     }
-    const painel = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: c.id, tab: 'trocas' }).drawer
+    const painel = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: c.id, tab: 'trocas', medidas }).drawer
     const cab = buildCanalHeader(obs, c.id)
     const comparar = Object.fromEntries(NUMEROS.map(id => [id, numerosDoCanal(obs, c.id)[id]]))
     return {
@@ -53,6 +55,23 @@ describe('E5a T0b: o retrato antes dos números', () => {
     const antes = JSON.parse(readFileSync(new URL('./fixtures/e5a-retrato-antes.json', import.meta.url), 'utf8')) as typeof retrato
     const esperado = J(antes)
     esperado.abas.todos.mud = 15; esperado.abas.viagem.mud = 7; esperado.abas.ia.mud = 8
-    expect(retrato).toEqual(esperado)
+    // Desvio 13 (A5 E5a T5, Naksu/Logan 14/10): só TEXTO mudou, nunca número: frase de outlier ausente mais curta, "(±N)" no crescimento
+    // dentro do arredondamento (a explicação completa foi para o title) e "Sem Shorts/longos em 90 d.".
+    const texto = JSON.stringify(esperado)
+      .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90\u00a0d\. Maior:/g, 'Nenhum com 2×. Maior:')
+      .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90 d\. Maior:/g, 'Nenhum com 2×. Maior:')
+      .replace(/Não publicou (longos|Shorts) em 90(\u00a0| )d\./g, 'Sem $1 em 90$2d.')
+      .replace(/("(?:cap|growthTitle)":"?\s*")\(dentro do arredondamento do YouTube, (±[^)]*)\)/g, '$1($2)')
+    const novo = JSON.parse(texto) as typeof retrato
+    const comTitle = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(comTitle); return }
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>
+        if (r.kind === 'flat' && typeof r.cap === 'string') r.title = `≈ 0 (dentro do arredondamento do YouTube, ${(r.cap.match(/±[^)]*/) ?? [''])[0]})`
+        Object.values(r).forEach(comTitle)
+      }
+    }
+    comTitle(novo)
+    expect(retrato).toEqual(novo)
   })
 })

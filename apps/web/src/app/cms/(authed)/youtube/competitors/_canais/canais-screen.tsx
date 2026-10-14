@@ -29,6 +29,7 @@ import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import { OwnBlockView } from './own-block'
+import { ResumoBloco } from './resumo-bloco'
 import { PePreso } from './pe-preso'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
 import { fraseSeuCanal } from './posicao-model'
@@ -53,7 +54,13 @@ export interface CanaisScreenProps {
   onUnpin?: PinAction
   /** Server action getCompetitorRemovalImpactAction: what removing the channel deletes, asked when the dialog opens. */
   onRemovalImpact?: (id: string) => Promise<ImpactAnswer>
+  /** A5 E5a T5: quem só lê o site: sincronizar, adicionar e remover ficam desligados e a tela diz isso (os números são os mesmos). */
+  somenteLeitura?: boolean
 }
+
+/** TEXTO-A-REVISAR não se aplica: a frase é a do mockup 16 (tabela de frases, "Só leitura"). */
+export const FRASE_SO_LEITURA = { titulo: 'Você só pode ler esta lista.', corpo: 'Sincronizar, adicionar e remover canais ficam desligados. Esta lista só tem números públicos do YouTube, então você vê tudo o que os outros veem.' }
+export const PAGINA_INICIAL = 20, PAGINA_PASSO = 10
 
 const UPNEXT = '/cms/up-next'
 /** After an add: one refresh every ADD_WATCH_MS, at most ADD_WATCH_MAX times (3 min). */
@@ -64,6 +71,15 @@ function useWide(): boolean {
     cb => { if (typeof window === 'undefined' || !window.matchMedia) return () => {}; const m = window.matchMedia(WIDE); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb) },
     () => (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(WIDE).matches),
     () => true,
+  )
+}
+/** Tela estreita (celular): a tabela de 11 colunas não cabe; o mockup 16 manda o cartão, com a Direção em largura total. */
+const NARROW = '(max-width: 700px)'
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    cb => { if (typeof window === 'undefined' || !window.matchMedia) return () => {}; const m = window.matchMedia(NARROW); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb) },
+    () => (typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(NARROW).matches),
+    () => false,
   )
 }
 /**
@@ -82,7 +98,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -140,7 +156,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const shellRow = opt.channel && !drawer && closedDrawer !== opt.channel ? rowOf(opt.channel) : null
   const shell: DrawerShell | null = shellRow
   const panel = drawer ?? shell
-  const layout = opt.layout ?? view.layout
+  const narrow = useNarrow()
+  const layout = narrow ? 'cards' : (opt.layout ?? view.layout)
   const listBusy = (navPending && opt.busy) || undefined
   const addOpen = (opt.add ?? view.addOpen) && !addClosed
   const nicheOpen = view.nicheEditorOpen && !nicheClosed
@@ -279,10 +296,22 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
   const ql = q.trim().toLowerCase()
   // a busca filtra as linhas e nunca toca na posição: ela é a da lista inteira
-  const ranked = useMemo(() => (ql ? view.list.ranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.ranked), [view.list.ranked, ql])
-  const unranked = useMemo(() => (ql ? view.list.unranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.unranked), [view.list.unranked, ql])
+  const rankedBusca = useMemo(() => (ql ? view.list.ranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.ranked), [view.list.ranked, ql])
+  const unrankedBusca = useMemo(() => (ql ? view.list.unranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.unranked), [view.list.unranked, ql])
+  // 20 concorrentes de início e "Mostrar mais 10"; os canais próprios sempre aparecem e a busca mostra tudo o que casa
+  const [mostrar, setMostrar] = useState(PAGINA_INICIAL)
+  // trocar de filtro (estado, direção ou nicho) volta a lista para os 20 de início
+  const direcaoLigada = view.resumo.casas.find(c => c.pressed)?.chave ?? null
+  useEffect(() => { setMostrar(PAGINA_INICIAL) }, [view.filter, view.niche, direcaoLigada])
+  const concorrentes = useMemo(() => [...rankedBusca, ...unrankedBusca].filter(r => !r.own), [rankedBusca, unrankedBusca])
+  const corte = ql ? concorrentes.length : mostrar
+  const permitidos = useMemo(() => new Set(concorrentes.slice(0, corte).map(r => r.id)), [concorrentes, corte])
+  const ranked = useMemo(() => rankedBusca.filter(r => r.own || permitidos.has(r.id)), [rankedBusca, permitidos])
+  const unranked = useMemo(() => unrankedBusca.filter(r => r.own || permitidos.has(r.id)), [unrankedBusca, permitidos])
+  const vazioDoFiltro = !ql && view.resumo.vazio && !(view.filter === 'problemas' && !view.resumo.casas.some(c => c.pressed)) ? view.resumo.vazio : null
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
+    : vazioDoFiltro ? <VazioDoFiltro v={vazioDoFiltro} onLimpar={() => { go({ filter: null, direcao: null }, { busy: true }) }} onDescendo={() => { go({ filter: null, direcao: 'desce' }, { busy: true }) }} />
     : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
 
   /** Rola o contêiner que rola até a linha do canal e põe o foco nela. */
@@ -312,6 +341,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }
 
   const h: RowHandlers = {
+    somenteLeitura,
     open: openRow, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
     menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
     retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
@@ -376,7 +406,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     if (r && !r.backfill) { setWatch(null); toast('ok', `${watchName} pronto`, 'Os vídeos foram buscados e o canal já entrou na ordem da lista.') }
   }, [view, watchName, toast, todasLinhas])
 
-  const s = view.slots, full = s.free === 0
+  const s = view.slots, full = s.free === 0 || somenteLeitura, fullText = somenteLeitura ? FRASE_SO_LEITURA.titulo : s.fullText
   return (
     <NicheOptionsContext.Provider value={view.niches}>
     <NichePendingContext.Provider value={pending}>
@@ -396,6 +426,10 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           {view.forjaBar ? (
             <details className="fbar" id="forjaBar" data-forja-anchor=""><summary><b>forja</b> <span>{view.forjaBar.lines}</span></summary><p>{view.forjaBar.text}</p></details>
           ) : null}
+          {somenteLeitura ? <p className="cn-fnota obs-cn-leitura" data-k="so-leitura" role="note"><b>{FRASE_SO_LEITURA.titulo}</b> {FRASE_SO_LEITURA.corpo}</p> : null}
+          <ResumoBloco resumo={view.resumo}
+            onFiltro={f => go({ filter: f }, { busy: true })}
+            onDirecao={d => go({ direcao: d }, { busy: true })} />
           {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
           <div className="toolbar">
@@ -413,10 +447,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <button type="button" aria-pressed={scale === 'abs'} onClick={() => pickScale('abs')}>Absoluto</button>
               <button type="button" aria-pressed={scale === 'per-mil'} onClick={() => pickScale('per-mil')}>Por mil inscritos</button>
             </div>
+            {narrow ? null : (
             <div className="seg" role="group" aria-label="Visualização">
               <button type="button" aria-pressed={layout === 'table'} onClick={() => pickLayout('table')}>Tabela</button>
               <button type="button" aria-pressed={layout === 'cards'} onClick={() => pickLayout('cards')}>Cards</button>
             </div>
+            )}
             <label className="cardsort"><span className="sr">Ordenar cards por</span>
               <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
                 <option value="vpd">Views/dia</option><option value="subs">Inscritos</option><option value="active">Ritmo</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
@@ -441,9 +477,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             </span>
             {canUnlock && s.nearFull ? <button type="button" className="btn small" onClick={() => { void unlock() }}>{s.unlockText}</button> : null}
             {full ? (
-              <a className="btn primary btn-primary is-off" aria-disabled="true" role="link" tabIndex={0} title={s.fullText ?? undefined}
-                onClick={e => { e.preventDefault(); toast('warn', s.fullText ?? '', '') }}
-                onKeyDown={e => { if (e.key === 'Enter') toast('warn', s.fullText ?? '', '') }}>
+              <a className="btn primary btn-primary is-off" aria-disabled="true" role="link" tabIndex={0} title={fullText ?? undefined}
+                onClick={e => { e.preventDefault(); toast('warn', fullText ?? '', '') }}
+                onKeyDown={e => { if (e.key === 'Enter') toast('warn', fullText ?? '', '') }}>
                 <Ic n="plus" />Adicionar canal
               </a>
             ) : (
@@ -452,9 +488,15 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
 
           {layout === 'table'
-            ? <ChannelTable view={view} ranked={ranked} unranked={unranked} buscando={!!ql} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
-            : <ChannelCards view={view} ranked={ranked} unranked={unranked} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
+            ? <ChannelTable view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
+            : <ChannelCards view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
 
+          {!ql && concorrentes.length > permitidos.size ? (
+            <p className="obs-cn-mais" data-k="paginacao">
+              <span>Mostrando {permitidos.size} de {concorrentes.length} canais.</span>{' '}
+              <button type="button" className="btn small" onClick={() => setMostrar(m => m + PAGINA_PASSO)}>Mostrar mais {Math.min(PAGINA_PASSO, concorrentes.length - permitidos.size)}</button>
+            </p>
+          ) : null}
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
             <span><i className="s" aria-hidden="true" /> Short</span>
@@ -503,5 +545,19 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     </div>
     </NichePendingContext.Provider>
     </NicheOptionsContext.Provider>
+  )
+}
+
+/** O vazio explicado do filtro: zero medido (caixa vazada), não medido (hachura) ou ainda não existe (tracejado), cada um com a sua forma. */
+function VazioDoFiltro({ v, onLimpar, onDescendo }: { v: NonNullable<CanaisView['resumo']['vazio']>; onLimpar: () => void; onDescendo: () => void }) {
+  const i = v.acaoDescendo ? v.apoio.lastIndexOf('descendo') : -1
+  const apoio = i < 0 ? v.apoio : (
+    <>{v.apoio.slice(0, i)}<button type="button" className="btn small link" data-k="vazio-descendo" onClick={onDescendo}>descendo</button>{v.apoio.slice(i + 'descendo'.length)}</>
+  )
+  return (
+    <span className={`obs-cn-vazio ${v.forma}`} data-vazio={v.forma}>
+      <b>{v.titulo}</b>{' '}{apoio}{' '}
+      <button type="button" className="btn small link" onClick={onLimpar}>{v.limpar.texto}</button>
+    </span>
   )
 }
