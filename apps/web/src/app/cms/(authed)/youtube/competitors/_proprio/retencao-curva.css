@@ -1,14 +1,26 @@
 /* O gráfico da curva de retenção do vídeo próprio (A5 E8, Tarefa 13; mockup 6 de 12/10, a4.css .curva/.cv-*). Prefixo rc-. Cores só por token do [data-obs]
-   (--lado-o é a cor do dado do SEU canal, --terco-baixo marca as saídas); sem mistura de cor por função, nenhum z-index numérico, nenhum texto abaixo de 12 px,
-   nada que passe da largura do cartão (o SVG se mede na largura em que aparece). Curva incompleta acaba onde os pontos acabam: nada é ligado até o fim. */
-[data-obs-screen="video-proprio"] .rc{margin:8px 0 0;min-width:0;max-width:100%}
-[data-obs-screen="video-proprio"] .rc-svg{display:block;max-width:100%;height:auto;overflow:visible}
+   (--lado-o é a cor do dado do SEU canal, --dir-dn marca as saídas: âmbar de "queda" nos dois temas, nunca --terco-baixo, que é o terço baixo do ranking e não
+   tem valor no tema claro; --dim dá 3:1 ou mais ao que carrega significado: faixa de trecho revisto, linha de 50% e limite do que não tem dado; --nm e --nm-bg
+   são a hachura de "não medido"). Sem mistura de cor por função, nenhum z-index numérico, nenhum texto abaixo de 12 px, nada que passe da largura do cartão.
+   A ALTURA é do CSS (200 px; 240 px a partir de 520 px de cartão, as mesmas do código): a seção nasce com a altura final e o SVG fica escondido (rc-prep)
+   até a primeira medida, em vez de aparecer espremido e crescer depois. Curva incompleta acaba onde os pontos acabam; o resto é ausência desenhada. */
+[data-obs-screen="video-proprio"] .rc{margin:8px 0 0;min-width:0;max-width:100%;container-type:inline-size}
+[data-obs-screen="video-proprio"] .rc-svg{display:block;max-width:100%;height:200px;overflow:visible}
+@container (min-width:520px){[data-obs-screen="video-proprio"] .rc-svg{height:240px}}
+[data-obs-screen="video-proprio"] .rc-prep{visibility:hidden}
 [data-obs-screen="video-proprio"] .rc-grade{stroke:var(--border-subtle);stroke-width:1}
+[data-obs-screen="video-proprio"] .rc-grade-meia{stroke:var(--dim);stroke-dasharray:2 4}
 [data-obs-screen="video-proprio"] .rc-area{fill:var(--lado-o);opacity:.16}
 [data-obs-screen="video-proprio"] .rc-linha{fill:none;stroke:var(--lado-o);stroke-width:2.2;stroke-linejoin:round}
-[data-obs-screen="video-proprio"] .rc-revisto{fill:var(--text);opacity:.14}
+[data-obs-screen="video-proprio"] .rc-revisto{fill:var(--text);fill-opacity:.18;stroke:var(--dim);stroke-width:1}
 [data-obs-screen="video-proprio"] .rc-meio{stroke:var(--text);stroke-width:1;stroke-dasharray:3 3}
-[data-obs-screen="video-proprio"] .rc-saida{fill:var(--terco-baixo);stroke:var(--text);stroke-width:1;stroke-linejoin:round}
+[data-obs-screen="video-proprio"] .rc-saida{fill:var(--dir-dn);stroke:var(--text);stroke-width:1;stroke-linejoin:round}
+/* a ausência: hachura de "não medido" (a mesma receita de .nm-q, em SVG), limite tracejado, marca no último ponto e rótulo com halo (legível sobre a hachura) */
+[data-obs-screen="video-proprio"] .rc-nm-fundo{fill:var(--nm-bg)}
+[data-obs-screen="video-proprio"] .rc-nm-traco{stroke:var(--nm);stroke-width:2;stroke-opacity:.6}
+[data-obs-screen="video-proprio"] .rc-semdado-linha{stroke:var(--dim);stroke-width:1;stroke-dasharray:3 3}
+[data-obs-screen="video-proprio"] .rc-ultimo{fill:var(--lado-o);stroke:var(--surface);stroke-width:1.5}
+[data-obs-screen="video-proprio"] .rc-semdado-rotulo{font:500 12px var(--font-sans),system-ui,sans-serif;fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 [data-obs-screen="video-proprio"] .rc-gy,[data-obs-screen="video-proprio"] .rc-gx{font:400 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--muted)}
 [data-obs-screen="video-proprio"] .rc-rotulo{font:500 12px var(--font-sans),system-ui,sans-serif;fill:var(--text)}
 /* a legenda: só o que existe no desenho */
@@ -16,8 +28,10 @@
 [data-obs-screen="video-proprio"] .rc-leg span{display:inline-flex;align-items:center;gap:7px}
 [data-obs-screen="video-proprio"] .rc-leg i{display:inline-block;flex:none}
 [data-obs-screen="video-proprio"] .rc-lg-l{width:16px;height:0;border-top:2.2px solid var(--lado-o)}
-[data-obs-screen="video-proprio"] .rc-lg-re{width:14px;height:12px;background:var(--text);opacity:.14}
-[data-obs-screen="video-proprio"] .rc-lg-sa{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:9px solid var(--terco-baixo)}
+[data-obs-screen="video-proprio"] .rc-lg-re{position:relative;width:14px;height:12px;border:1px solid var(--dim);box-sizing:border-box}
+[data-obs-screen="video-proprio"] .rc-lg-re::before{content:"";position:absolute;inset:0;background:var(--text);opacity:.18}
+[data-obs-screen="video-proprio"] .rc-lg-nm{width:14px;height:12px;padding:0;border-radius:2px;box-sizing:border-box}
+[data-obs-screen="video-proprio"] .rc-lg-sv{display:block;flex:none;overflow:visible}
 /* retenção (A5 E8, Tarefa 13): a lista de saídas e de trechos revistos e o aviso sob o gráfico */
 [data-obs-screen="video-proprio"] .vb-ret-ls{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px;max-width:88ch;font-size:13.5px;line-height:20px}
 [data-obs-screen="video-proprio"] .vb-ret-ls b{font-weight:600}

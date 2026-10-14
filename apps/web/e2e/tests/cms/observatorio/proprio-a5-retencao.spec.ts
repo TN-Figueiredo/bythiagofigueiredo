@@ -237,7 +237,7 @@ test.describe('Retenção: os cinco estados, 1440 e 390 px, claro e escuro', () 
         await expect(sec.locator('.vb-ret-aviso')).toHaveText(`Curva da vida inteira do vídeo, coletada em ${dm}. O % assistido da seção anterior é dos últimos dias.`)
         // 100 pontos: nenhuma frase de curva incompleta; nenhum "não medido" nem o texto de outro estado
         const tudo = await texto(page, SEC)
-        expect(tudo).not.toMatch(/Curva com \d+ pontos|incompleta|não medido|Ainda não coletamos|falhou|Só quem edita/)
+        expect(tudo).not.toMatch(/Curva com \d+ pontos|A curva cobre|incompleta|não medido|Ainda não coletamos|falhou|Só quem edita/)
         // pico: a curva semeada não passa de 100%, então não há legenda de pico
         await expect(sec.locator('.rc-leg')).not.toContainText('pico de')
         await conferirTela(page, t, 'coletada', true)
@@ -260,7 +260,9 @@ test.describe('Retenção: os cinco estados, 1440 e 390 px, claro e escuro', () 
         await expect(sec.locator('.vb-fr')).toHaveText('Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.')
         const tudo = await texto(page, SEC)
         expect(tudo).not.toMatch(/ficou até o fim|Maiores saídas|Trechos revistos|pico de|metade já saiu aqui/)
-        await expect(sec.locator('.vb-ret-aviso')).toContainText('Curva com 37 pontos.')
+        // diz quanto do vídeo a curva cobre (37% de 'dur' s), nunca quantos pontos tem
+        await expect(sec.locator('.vb-ret-aviso')).toContainText(`A curva cobre só os primeiros ${mmss(0.37 * vid[yt]!.dur!)} do vídeo (37%).`)
+        expect(await texto(page, SEC)).not.toMatch(/Curva com|\d+ pontos/)
         await expect(sec.locator('polygon.rc-saida, rect.rc-revisto')).toHaveCount(0)
         // o último ponto do caminho fica em 37% da largura do gráfico (L = 40, R = 10 na largura do SVG): nenhum ponto inventado depois dele
         const g = await sec.locator('svg.rc-svg').evaluate(svg => {
@@ -288,7 +290,8 @@ test.describe('Retenção: os cinco estados, 1440 e 390 px, claro e escuro', () 
         const sec = page.locator(SEC)
         const tudo = await texto(page, SEC)
         expect(tudo).toContain('não medido')
-        expect(tudo).toContain('O YouTube não devolveu curva para este vídeo (poucas views). Tentamos de novo quando o vídeo ganhar views. Última resposta: ' + esperada + '.')
+        expect(tudo).toContain('O YouTube respondeu que não tem curva para este vídeo. Tentamos de novo em 7 dias ou mais, se o vídeo tiver views novas. Última resposta: ' + esperada + '.')
+        expect(tudo, 'a causa é do YouTube; "poucas views" é inferência nossa e contradiz o cabeçalho').not.toMatch(/poucas views|ganhar views/)
         expect(tudo, 'a data do erro mais novo não é a da resposta').not.toContain('Última resposta: ' + doErro)
         expect(tudo).not.toMatch(/Ainda não coletamos|falhou|Só quem edita/)
         await expect(sec.locator('svg')).toHaveCount(1)   // só o ícone do ⓘ: nenhum gráfico
@@ -397,6 +400,148 @@ test.describe('Retenção: os cinco estados, 1440 e 390 px, claro e escuro', () 
 })
 
 /* ================================================================== o ataque do caminho infeliz */
+test.describe('Retenção: o conserto da revisão de 13/10 (eixo, salto de layout, contraste e curva incompleta)', () => {
+  test.afterEach(async () => { await limparAtaque() })
+  const [, A2] = RET_CURVA.ataque
+
+  test('vídeo de 1h30 a 390, 360 e 320 px: os rótulos do eixo do tempo não se sobrepõem (caem para 0, 50 e 100%) e a 1440 px ficam os cinco', async ({ browser }) => {
+    test.setTimeout(240_000)
+    const yt = A2, original = vid[yt]!.dur, sb = localServiceClient()
+    try {
+      await escreverCurva(yt, pontosCurvaRetencao())
+      expect((await sb.from('youtube_videos').update({ duration_seconds: 5400 }).eq('site_id', siteId).eq('id', vid[yt]!.id)).error).toBeNull()
+      for (const t of [TELAS[0]!, TELAS[2]!, { nome: '360', largura: 360, altura: 740, tema: 'dark' as const }, { nome: '320', largura: 320, altura: 700, tema: 'dark' as const }]) {
+        const { ctx, page } = await contexto(browser, t)
+        try {
+          await abrir(page, yt)
+          const m = await page.evaluate(sel => {
+            const sec = [...document.querySelectorAll<HTMLElement>(sel)].find(e => e.getClientRects().length > 0)!
+            const ts = [...sec.querySelectorAll<SVGTextElement>('svg.rc-svg .rc-gx')]
+            const cx = ts.map(x => x.getBoundingClientRect())
+            return { rotulos: ts.map(x => x.textContent), sobrepostos: cx.flatMap((a, i) => (i > 0 && a.left < cx[i - 1]!.right + 1 ? [`${i - 1}/${i}`] : [])) }
+          }, SEC_CSS)
+          medida(`1h30 · ${t.nome}: eixo ${m.rotulos.join(' ')}`)
+          expect(m.sobrepostos, `${t.nome}: rótulos do eixo se sobrepõem`).toEqual([])
+          expect(m.rotulos).toHaveLength(t.largura >= 1000 ? 5 : m.rotulos.length)
+          if (t.largura < 1000) expect(m.rotulos.length).toBeLessThanOrEqual(3)
+          await conferirTela(page, t, 'longo-1h30', true)
+        } finally { await ctx.close() }
+      }
+    } finally {
+      await sb.from('youtube_videos').update({ duration_seconds: original }).eq('site_id', siteId).eq('id', vid[yt]!.id)
+    }
+  })
+
+  test('a seção nasce com a altura final: o SVG ocupa 200 px (240 px a 1440) já no primeiro quadro e a altura da seção não muda depois de medir', async ({ browser }) => {
+    test.setTimeout(240_000)
+    for (const t of [TELAS[0]!, TELAS[2]!]) {
+      const { ctx, page } = await contexto(browser, t)
+      try {
+        // amostra a altura do SVG e da seção a cada quadro desde o começo do documento até a hidratação
+        await page.addInitScript(() => {
+          const amostras: Array<{ svg: number; sec: number; visivel: boolean }> = []
+          ;(window as unknown as { __amostras: typeof amostras }).__amostras = amostras
+          const tick = (): void => {
+            const svg = [...document.querySelectorAll<SVGSVGElement>('svg.rc-svg')].find(e => e.getClientRects().length > 0) // a página tem uma cópia escondida por largura
+            const sec = svg?.closest('section')
+            if (svg && sec) amostras.push({ svg: Math.round(svg.getBoundingClientRect().height), sec: Math.round(sec.getBoundingClientRect().height), visivel: getComputedStyle(svg).visibility !== 'hidden' })
+            requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        })
+        await abrir(page, RET_CURVA.completa)
+        await page.waitForTimeout(800)
+        const a = await page.evaluate(() => (window as unknown as { __amostras: Array<{ svg: number; sec: number; visivel: boolean }> }).__amostras)
+        const esperado = t.largura >= 1000 ? 240 : 200
+        medida(`${t.nome}: ${a.length} quadros; svg ${[...new Set(a.map(x => x.svg))].join('/')} px; seção ${[...new Set(a.map(x => x.sec))].join('/')} px`)
+        expect(a.length).toBeGreaterThan(3)
+        expect([...new Set(a.map(x => x.svg))], `${t.nome}: a altura do SVG muda entre quadros`).toEqual([esperado])
+        // a seção só muda de altura por causa do texto (a frase carrega no mesmo quadro); o SVG nunca cresce depois
+        expect(a.some(x => x.visivel), 'o SVG aparece depois de medido').toBe(true)
+      } finally { await ctx.close() }
+    }
+  })
+
+  test('contraste: faixa de trecho revisto e linha de 50% com 3:1 ou mais nos dois temas; a maior saída não usa a cor do terço baixo', async ({ browser }) => {
+    test.setTimeout(240_000)
+    const lum = (rgb: string): number => {
+      const [r, g, b] = (rgb.match(/[\d.]+/g) ?? ['0', '0', '0']).slice(0, 3).map(Number).map(v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+    }
+    const razao = (a: string, b: string): number => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x! + 0.05) / (y! + 0.05) }
+    for (const t of [TELAS[0]!, TELAS[1]!]) {
+      const { ctx, page } = await contexto(browser, t)
+      try {
+        await abrir(page, RET_CURVA.completa)
+        const m = await page.evaluate(sel => {
+          const sec = [...document.querySelectorAll<HTMLElement>(sel)].find(e => e.getClientRects().length > 0)!
+          const cs = (q: string, prop: string): string => getComputedStyle(sec.querySelector(q)!).getPropertyValue(prop)
+          return {
+            // o fundo que o gráfico enxerga: o primeiro ancestral com cor
+            cartao: (() => { for (let e: Element | null = sec.querySelector('svg.rc-svg'); e; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; if (!/^(transparent|rgba\(0, 0, 0, 0\))$/.test(c)) return c } return 'rgb(255, 255, 255)' })(), fundo: 'rgb(255, 255, 255)',
+            contornoRevisto: cs('rect.rc-revisto', 'stroke'), contornoLegenda: getComputedStyle(sec.querySelector('.rc-lg-re')!).borderTopColor,
+            meia: cs('.rc-grade-meia', 'stroke'), saida: cs('polygon.rc-saida', 'fill'), tercoBaixo: getComputedStyle(sec).getPropertyValue('--terco-baixo'),
+          }
+        }, SEC_CSS)
+        const sup = !TRANSPARENTE.test(m.cartao) ? m.cartao : m.fundo
+        medida(`${t.nome}: contorno revisto ${razao(m.contornoRevisto, sup).toFixed(2)}:1, legenda ${razao(m.contornoLegenda, sup).toFixed(2)}:1, linha de 50% ${razao(m.meia, sup).toFixed(2)}:1, saída ${m.saida}`)
+        expect(razao(m.contornoRevisto, sup), `${t.nome}: contorno da faixa revista`).toBeGreaterThanOrEqual(3)
+        expect(razao(m.contornoLegenda, sup), `${t.nome}: contorno da legenda`).toBeGreaterThanOrEqual(3)
+        expect(razao(m.meia, sup), `${t.nome}: linha de 50%`).toBeGreaterThanOrEqual(3)
+        expect(m.saida, `${t.nome}: a saída não é a cor do terço baixo`).not.toBe(m.tercoBaixo.trim())
+        expect(razao(m.saida, sup), `${t.nome}: preenchimento da saída`).toBeGreaterThanOrEqual(3)
+      } finally { await ctx.close() }
+    }
+  })
+
+  test('celular estreito (360 e 320 px), claro e escuro: curva completa e incompleta cabem, sem rolagem de lado e com 12 px ou mais (e deixam a captura)', async ({ browser }) => {
+    test.setTimeout(240_000)
+    for (const largura of [360, 320]) {
+      for (const tema of ['dark', 'light'] as const) {
+        const t: Tela = { nome: `${largura}-${tema === 'dark' ? 'escuro' : 'claro'}`, largura, altura: 740, tema }
+        const { ctx, page } = await contexto(browser, t)
+        try {
+          await abrir(page, RET_CURVA.completa)
+          await conferirTela(page, t, 'coletada', true)
+          await abrir(page, RET_CURVA.incompleta)
+          await conferirTela(page, t, 'incompleta', true)
+          const rotulo = await page.locator(`${SEC} .rc-semdado-rotulo`).evaluate(e => { const r = e.getBoundingClientRect(), s = e.ownerSVGElement!.getBoundingClientRect(); return r.left >= s.left - 1 && r.right <= s.right + 1 })
+          expect(rotulo, `${t.nome}: o rótulo "sem dado" fica dentro do gráfico`).toBe(true)
+        } finally { await ctx.close() }
+      }
+    }
+  })
+
+  test('curva incompleta: a ausência é desenhada (hachura de "não medido" depois do último ponto, marca no ponto, rótulo) e a legenda diz "sem dado coletado"', async ({ browser }) => {
+    test.setTimeout(240_000)
+    for (const t of TELAS) {
+      const { ctx, page } = await contexto(browser, t)
+      try {
+        await abrir(page, RET_CURVA.incompleta)
+        const sec = page.locator(SEC)
+        await expect(sec.locator('rect.rc-semdado')).toHaveCount(1)
+        await expect(sec.locator('circle.rc-ultimo')).toHaveCount(1)
+        await expect(sec.locator('.rc-semdado-rotulo')).toHaveText(/sem dado depois daqui|sem dadodepois daqui/)
+        await expect(sec.locator('.rc-leg')).toContainText('sem dado coletado')
+        const g = await sec.locator('svg.rc-svg').evaluate(svg => {
+          const f = svg.querySelector('rect.rc-semdado')!, c = svg.querySelector('circle.rc-ultimo')!, grade = svg.querySelector('.rc-grade')!
+          return { x: Number(f.getAttribute('x')), w: Number(f.getAttribute('width')), cx: Number(c.getAttribute('cx')), x2: Number(grade.getAttribute('x2')), preenche: getComputedStyle(svg.querySelector('.rc-nm-fundo')!).fill }
+        })
+        expect(g.cx).toBeCloseTo(g.x, 1)
+        expect(g.x + g.w).toBeCloseTo(g.x2, 1)
+        expect(g.preenche).not.toMatch(TRANSPARENTE)
+      } finally { await ctx.close() }
+    }
+    // curva completa: nada de ausência
+    const { ctx, page } = await contexto(browser, TELAS[0]!)
+    try {
+      await abrir(page, RET_CURVA.completa)
+      await expect(page.locator(`${SEC} rect.rc-semdado`)).toHaveCount(0)
+      await expect(page.locator(`${SEC} .rc-leg`)).not.toContainText('sem dado coletado')
+    } finally { await ctx.close() }
+  })
+})
+
 test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ataque e limpa no fim)', () => {
   test.afterEach(async () => { await limparAtaque() })
   const [A1, A2, A3, A4] = RET_CURVA.ataque
@@ -409,17 +554,19 @@ test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ata
       await abrir(page, A1)
       const sec = page.locator(SEC)
       await expect(sec.locator('.vb-fr')).toHaveText('Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.')
-      await expect(sec.locator('.vb-ret-aviso')).toContainText('Curva com 99 pontos.')
+      await expect(sec.locator('.vb-ret-aviso')).toContainText('A curva cobre só os primeiros')
+      await expect(sec.locator('.vb-ret-aviso')).toContainText(/primeiros .*99%/)
+      expect(await texto(page, SEC)).not.toMatch(/Curva com|\d+ pontos/)
       expect(await texto(page, SEC)).not.toMatch(/ficou até o fim|Maiores saídas|Trechos revistos/)
       await escreverCurva(A1, grade(100, 0))
       await abrir(page, A1)
       await expect(sec.locator('.vb-fr')).toHaveText('Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.')
+      expect(await texto(page, `${SEC} .vb-ret-aviso`)).toMatch(/primeiros .*99%/)
       medida('100 pontos fora da grade (t de 0,00 a 0,99): aviso = ' + (await texto(page, `${SEC} .vb-ret-aviso`)))
     } finally { await ctx.close() }
   })
 
   test('101 pontos (0,00 a 1,00): não é a grade; a tela não afirma meio, saídas nem revistos, e o texto diz o que é verdade sobre os pontos', async ({ browser }) => {
-    test.fail(true, 'ACHADO G-1 (menor): a curva de 101 pontos é chamada de "incompleta" e o aviso não diz quantos pontos há (a regra é `pontos < 100`). Tire este test.fail quando for consertado.')
     test.setTimeout(240_000)
     const { ctx, page } = await contexto(browser, TELAS[0]!)
     try {
@@ -431,14 +578,15 @@ test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ata
       medida(`101 pontos: frase = "${frase}" | aviso = "${aviso}"`)
       expect(await texto(page, SEC)).not.toMatch(/ficou até o fim|Maiores saídas|Trechos revistos/)
       await expect(sec.locator('svg.rc-svg')).toHaveCount(1)
-      // 101 pontos NÃO é curva "incompleta": a frase e o aviso não podem chamá-la assim, e o aviso tem de dizer quantos pontos há
-      expect(frase, 'a frase diz "incompleta" para uma curva com MAIS pontos que a grade').not.toMatch(/incompleta/)
-      expect(aviso).toContain('Curva com 101 pontos.')
+      // 101 pontos NÃO é curva "incompleta" (chega a 100% do vídeo): a frase diz que o formato não é o esperado, e o aviso não fala de pontos nem de cobertura
+      expect(frase, 'a frase diz "incompleta" para uma curva que chega ao fim do vídeo').not.toMatch(/incompleta/)
+      expect(frase).toBe('Não dá para dizer onde metade das pessoas sai: a curva coletada não veio no formato esperado.')
+      expect(aviso).not.toMatch(/Curva com|\d+ pontos|cobre só/)
+      await expect(sec.locator('rect.rc-semdado')).toHaveCount(0) // não falta trecho: nada a hachurar
     } finally { await ctx.close() }
   })
 
   test('1 ponto: a curva é um ponto; o aviso concorda em número e o desenho não quebra', async ({ browser }) => {
-    test.fail(true, 'ACHADO G-2 (menor): "Curva com 1 pontos." (concordância). Tire este test.fail quando for consertado.')
     test.setTimeout(240_000)
     const { ctx, page } = await contexto(browser, TELAS[0]!)
     try {
@@ -448,7 +596,11 @@ test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ata
       const aviso = await texto(page, `${SEC} .vb-ret-aviso`)
       medida(`1 ponto: aviso = "${aviso}"`)
       await expect(sec.locator('svg.rc-svg')).toHaveCount(1)
-      expect(aviso, 'concordância: "1 ponto", não "1 pontos"').not.toContain('1 pontos')
+      expect(aviso, 'o aviso fala de cobertura, não de contagem de pontos (e não diz "1 pontos")').not.toMatch(/\d+ pontos|Curva com/)
+      expect(aviso).toMatch(/A curva cobre só os primeiros .*1%/)
+      // um ponto não faz linha: o desenho marca o ponto e hachura o que falta (legível, nunca um SVG vazio)
+      await expect(sec.locator('circle.rc-ultimo')).toHaveCount(1)
+      await expect(sec.locator('rect.rc-semdado')).toHaveCount(1)
       expect(await texto(page, SEC)).not.toMatch(/ficou até o fim|Maiores saídas|Trechos revistos/)
     } finally { await ctx.close() }
   })
@@ -593,7 +745,6 @@ test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ata
   })
 
   test('celular estreito (360 e 320 px): a página não rola de lado, o gráfico cabe na seção e o texto do gráfico continua com 12 px ou mais na tela', async ({ browser }) => {
-    test.fail(true, 'ACHADO G-3 (corrige): abaixo de ~390 px o SVG (largura mínima 300) encolhe para caber e o texto do gráfico sai com menos de 12 px na tela (360 px: 10,8 px). Tire este test.fail quando for consertado.')
     test.setTimeout(240_000)
     for (const largura of [360, 320]) {
       const t: Tela = { nome: `${largura}-escuro`, largura, altura: 740, tema: 'dark' }
@@ -605,12 +756,19 @@ test.describe('Retenção: o ataque (cada caso escreve a curva num vídeo de ata
           const svg = sec.querySelector<SVGSVGElement>('svg.rc-svg')!
           const vb = svg.viewBox.baseVal.width, w = svg.getBoundingClientRect().width
           const textos = [...svg.querySelectorAll<SVGTextElement>('text')].map(x => parseFloat(getComputedStyle(x).fontSize) * (w / vb))
-          return { secW: Math.round(sec.getBoundingClientRect().width), svgW: Math.round(w), vb, menorNaTela: Math.round(Math.min(...textos) * 10) / 10, docScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth }
+          const caixas = (sel2: string) => [...svg.querySelectorAll<SVGTextElement>(sel2)].map(x => x.getBoundingClientRect())
+          const eixo = caixas('.rc-gx')
+          const sobrepostos = eixo.flatMap((a, i) => (i > 0 && a.left < eixo[i - 1]!.right + 1 ? [`${i - 1}/${i}`] : []))
+          const sb = svg.getBoundingClientRect()
+          const foraDoSvg = [...svg.querySelectorAll<SVGTextElement>('text')].filter(x => { const r = x.getBoundingClientRect(); return r.left < sb.left - 1 || r.right > sb.right + 1 }).map(x => x.textContent ?? '')
+          return { sobrepostos, foraDoSvg, secW: Math.round(sec.getBoundingClientRect().width), svgW: Math.round(w), vb, menorNaTela: Math.round(Math.min(...textos) * 10) / 10, docScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth }
         }, SEC_CSS)
         medida(`${largura}px: seção ${m.secW}, svg ${m.svgW} (viewBox ${m.vb}), menor texto do gráfico NA TELA ${m.menorNaTela}px, rolagem de lado ${m.docScroll}`)
         expect(m.docScroll, `${largura}px: a página rola de lado`).toBeLessThanOrEqual(0)
         expect(m.svgW, `${largura}px: o SVG cabe na seção`).toBeLessThanOrEqual(m.secW)
-        expect.soft(m.menorNaTela, `${largura}px: o texto do gráfico encolheu com o SVG`).toBeGreaterThanOrEqual(12)
+        expect(m.menorNaTela, `${largura}px: o texto do gráfico encolheu com o SVG`).toBeGreaterThanOrEqual(12)
+        expect(m.sobrepostos, `${largura}px: rótulos do eixo do tempo se sobrepõem`).toEqual([])
+        expect(m.foraDoSvg, `${largura}px: texto do gráfico fora do viewBox`).toEqual([])
       } finally { await ctx.close() }
     }
   })
