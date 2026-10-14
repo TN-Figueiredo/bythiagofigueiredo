@@ -4621,6 +4621,21 @@ describe('lerPodeDesligar: a forma do contrato C11', () => {
     expect(r.codigo).toBe(1)
     expect(r.saida.join('\n')).not.toContain('PODE DESLIGAR')
   })
+  // Yannis N7 (2ª rodada): a rota C11 decide 500 contra 200 por `.ok`, e `frasesPodeDesligar` esconde o `ok` atrás de um código 1 que também sai da leitura
+  // válida com pendência. Três mutantes (tirar "não pode sem pendência", tirar a validação do motivo, tirar `textoOuNulo(mes)`) sobreviviam porque
+  // nenhum teste olhava `.ok`; estes olham, com o `porque`.
+  it.each([
+    ['não pode sem pendência', { pode: false, faltam: [] }, 'leitura incoerente: não pode desligar e nenhuma pendência'],
+    ['pode com pendência', { pode: true, faltam: [{ motivo: 'automatico_armado' }] }, 'leitura incoerente: pode desligar com pendências'],
+    ['motivo desconhecido', { pode: false, faltam: [{ motivo: 'mudanca' }] }, 'motivo desconhecido: mudanca'],
+    ['mês em número', { pode: false, faltam: [{ motivo: 'mes_nao_recebido', mes: 202610 }] }, 'pendência com campo fora da forma'],
+  ])('%s: a leitura é ok:false com o porquê (a rota C11 responde 500, nunca 200)', (_, bruto, porque) => {
+    expect(lerPodeDesligar(bruto)).toEqual({ ok: false, porque })
+  })
+  it('a leitura válida é ok:true (o contraponto dos quatro acima)', () => {
+    expect(lerPodeDesligar({ pode: true, faltam: [] })).toEqual({ ok: true, pode: true, faltam: [] })
+    expect(lerPodeDesligar({ pode: false, faltam: [{ motivo: 'automatico_armado' }] })).toMatchObject({ ok: true, pode: false })
+  })
 })
 
 describe('o subcomando pode-desligar (pela rota C11, r2.5)', () => {
@@ -5207,7 +5222,7 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 ```ts
 // @vitest-environment node
 /** Emenda da peça 7 (M3b): `pendencias` sem opções, chave só do arquivo pela rota C13 (emenda 14/10 noite: rota com chave), e leitura ruim nunca vira "nada pendente". */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { interpretar, rodar, USO, type DepsDoComando } from '@/lib/youtube/observatorio/arquivo/cli'
 import { createServer } from 'node:http'
 import { lerChave, criarPedirRotaDoDono, CAMINHO_DA_CREDENCIAL, URL_DAS_PENDENCIAS, URL_DO_PODE_DESLIGAR } from '@/lib/youtube/observatorio/arquivo/credencial'
@@ -5410,6 +5425,12 @@ describe('criarPedirRotaDoDono: a borda do Mac contra um servidor de verdade (r2
       expect(chamadas[0].init).toMatchObject({ redirect: 'error', cache: 'no-store', headers: { 'X-Pipeline-Key': CHAVE } })
       expect(chamadas[0].init.signal).toBeInstanceOf(AbortSignal)
     }
+    // Yannis N7: o padrão de 15 s é número de produção que nenhum teste sobrescreve (15_000 -> 150_000 sobrevivia a "é um AbortSignal")
+    const espia = vi.spyOn(AbortSignal, 'timeout')
+    try {
+      await criarPedirRotaDoDono({ chave: CHAVE, rota: 'pending', fetchFn: (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch })()
+      expect(espia).toHaveBeenCalledWith(15_000)
+    } finally { espia.mockRestore() }
     expect(URL_DAS_PENDENCIAS).toBe('https://bythiagofigueiredo.com/api/pipeline/archive/pending')
     expect(URL_DO_PODE_DESLIGAR).toBe('https://bythiagofigueiredo.com/api/pipeline/archive/pode-desligar')
   })
