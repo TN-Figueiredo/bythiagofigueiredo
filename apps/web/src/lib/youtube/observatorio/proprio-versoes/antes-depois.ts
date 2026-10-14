@@ -37,8 +37,8 @@ function medir(candidatos: readonly DiaYt[], porDia: ReadonlyMap<DiaYt, DiaAlcan
   for (const d of candidatos) {
     const x = porDia.get(d)
     if (!x || (x.situacao !== 'com-impressoes' && x.situacao !== 'zero-medido')) continue // não medido e ausente: fora de tudo
+    if (x.imp === null || x.cliques === null) { l.diasSemClique++; continue } // portão 14/10, Phil I-1: dia sem clique não é dia medido
     l.diasMedidos++
-    if (x.imp === null || x.cliques === null) { l.diasSemClique++; continue }
     l.imp += x.imp
     l.cliquesEst += x.cliques
   }

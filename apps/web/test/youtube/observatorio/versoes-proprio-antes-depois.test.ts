@@ -178,6 +178,29 @@ describe('anteDepoisDaTroca', () => {
     expect(r.antes.imp).toBe(600)
   })
 
+  it('14. (portão 14/10, Phil I-1) depois com impressões e sem nenhum clique: depois_nao_medido, nunca "0 impressões"', () => {
+    const semClique = Array.from({ length: 7 }, (_, i) => dia(addDays(D, i + 1), 500, null))
+    const r = sc(versao(), [...dias(-8, -2, 500), ...semClique])
+    expect(r.estado).toBe('depois_nao_medido')
+    if (r.estado !== 'depois_nao_medido') return
+    expect(r.depois.diasSemClique).toBe(7)
+    expect(r.depois.diasMedidos).toBe(0)
+    expect(r.depois.imp).toBe(0)
+  })
+
+  it('15. (portão 14/10, Yannis M4a) vizinha com a mesma janela final não corta nem marca', () => {
+    const t = versao()
+    const viz = versao({ id: 'v-viz', campo: 'thumb', thumb: { dhash: 'a', sha256: 's', blobUrl: null, imagemExata: true, retoque: false } })
+    const r = anteDepoisDaTroca({ troca: t, versoesDoVideo: [t, viz], dias: [...dias(-8, -2, 100), ...dias(1, 7, 100)], publicadoEm: null })
+    if (r.estado !== 'com_leitura') throw new Error(r.estado)
+    expect(r.cortada).toBe(false)
+    expect(r.depois.diasCandidatos).toBe(7)
+  })
+
+  it('16. (portão 14/10, Yannis M4b) nenhum dia lido: antes_fora_da_janela_lida', () => {
+    expect(sc(versao(), []).estado).toBe('antes_fora_da_janela_lida')
+  })
+
   it('13. varredura do arquivo-fonte: nenhuma ocorrência de efeito, causou ou por causa', () => {
     const src = readFileSync(new URL('../../../src/lib/youtube/observatorio/proprio-versoes/antes-depois.ts', import.meta.url), 'utf8').toLowerCase()
     expect(src).not.toMatch(/efeito|causou|por causa/)
