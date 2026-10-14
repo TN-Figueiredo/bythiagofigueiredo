@@ -115,6 +115,32 @@ export function conferenciasE6P2(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E6 P3 (apagar as linhas vazias do diário do canal próprio, MG15): as datas dependem do dia em que o dono APLICOU a migration (D, dia de
+// São Paulo), preenchido na Tarefa 7 do plano no commit do envio. Enquanto for `null`, as quatro entradas NÃO existem (nada vence, nada
+// deixa o cron vermelho). Etapa `E6` (o formato `E<n>` do guardião). Os ids começam por `e6-p3-`, distintos dos da P2.
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG15. `null` = ainda não aplicada. */
+export const E6_P3_APLICADA: string | null = null
+
+const PLANO_E6P3 = 'docs/superpowers/plans/2026-10-13-a5-e6-p3-apagar-linhas-vazias-do-diario-plan.md (seção 7 e seção 11: V1 a V7, CP4, CP6, CP8); anotar o resultado em .superpowers/sdd/a5-e6-p3/progress.md'
+
+/**
+ * As conferências de depois de apagar as linhas vazias, a partir do dia da aplicação (D). `null` = sem entradas. Data malformada não some
+ * em silêncio: vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE6P3(aplicada: string | null): Conferencia[] {
+  if (aplicada === null) return []
+  if (!dataReal(aplicada)) {
+    return [{ id: 'e6-p3-aplicada-invalida', etapa: 'E6', data: '1970-01-01', responsavel: 'agente', onde: `E6_P3_APLICADA (apps/web/src/lib/conferencias.ts) está malformada: "${aplicada}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono aplicou a MG15) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e6-p3-${id}`, etapa: 'E6', data: somaDias(aplicada, mais), responsavel: 'agente', onde: `${PLANO_E6P3}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: V1 a V7 anotadas no ledger; as seis igualdades com os números do dia (item 47); diário menor que 2 MB (item 48); retrato V5 com o mesmo md5 de antes; CSV com o sha256 e a prova R1'),
+    e('d1', 1, 'D + 1, depois das 12:30 UTC: a execução do cron: `resumo.diario` com `apagadas` e sem nota do diário; CP6 = 0; `t` = `t_depois` de D mais as linhas com atividade novas (nunca dezenas de milhares); V6; o dono abre a página do canal próprio e não vê "não medido" onde havia zero'),
+    e('d7', 7, 'D + 7: CP8: diário ainda menor que 2 MB e o banco menor; V6; CP4 `atrasados` 0; nenhuma restauração foi necessária'),
+    e('d14', 14, 'D + 14: o CSV confere com o sha256; decidir a MG16 (P4): a etapa dela pode ser planejada. Enquanto não for, o backup ocupa o espaço dele'),
+  ]
+}
+
 // E14 (comentários de destaque dos vídeos de concorrentes): as datas dependem do dia da promoção a `main` (D), que ainda não existe.
 // O controlador preenche `E14_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as quatro entradas
 // NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E14` (o formato `E<n>` do guardião).
@@ -229,7 +255,7 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
 }
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

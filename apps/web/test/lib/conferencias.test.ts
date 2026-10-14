@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE1E2, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -295,10 +295,69 @@ describe('conferências de E6 P2 (dieta do diário, relativas ao dia do envio)',
     }
   })
   it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as três): esquecer de espalhar na lista publicada reprova', () => {
-    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e6-')).map(x => x.id)
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e6-') && !x.id.startsWith('e6-p3-')).map(x => x.id)
     if (E6_P2_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E6_P2_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
+
+// A5 E6 P3 (Tarefa 4; plano 2026-10-13-a5-e6-p3, seção 7): as conferências de depois de apagar as linhas vazias do diário dependem do dia em
+// que o dono aplicou a MG15 (E6_P3_APLICADA, dia de São Paulo, preenchido na Tarefa 7). Sem a data, a lista NÃO tem as entradas: nada vence.
+describe('conferências de E6 P3 (apagar linhas vazias do diário, relativas ao dia da aplicação)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const ehData = (x: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(x) && new Date(`${x}T00:00:00.000Z`).toISOString().slice(0, 10) === x
+  const IDS = ['e6-p3-d0', 'e6-p3-d1', 'e6-p3-d7', 'e6-p3-d14']
+
+  it('E6_P3_APLICADA nula = nenhuma entrada, e nada vence nem fica vermelho por mais longe que esteja o dia (o caso de dado ausente)', () => {
+    expect(conferenciasE6P3(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE6P3(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE6P3(null))).toEqual([])
+  })
+  it('malformada = uma entrada de erro de 1970 que cita a constante (2026-13-01, 13/10/2026 e texto vazio)', () => {
+    for (const ruim of ['2026-13-01', '13/10/2026', '']) {
+      const l = conferenciasE6P3(ruim)
+      expect(l.map(x => x.id), ruim).toEqual(['e6-p3-aplicada-invalida'])
+      expect(l[0]!.data).toBe('1970-01-01')
+      expect(l[0]!.etapa).toBe('E6')
+      expect(l[0]!.onde).toContain('E6_P3_APLICADA')
+      expect(conferenciasEmFalha(dia(0), l).map(x => x.id), ruim).toEqual(['e6-p3-aplicada-invalida'])
+    }
+  })
+  it('preenchida = quatro entradas nas datas certas (D, D + 1, D + 7, D + 14), em ordem, do agente, etapa E6, sem feitaEm', () => {
+    const l = conferenciasE6P3(dia(-30))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual([0, 1, 7, 14].map(n => dia(-30 + n)))
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E6')
+      expect(x.onde, x.id).toContain('2026-10-13-a5-e6-p3-apagar-linhas-vazias-do-diario-plan.md')
+    }
+  })
+  it('o texto de cada uma diz o esperado do plano (V1 a V7, CP6 = 0, 2 MB, CSV com sha256 e MG16)', () => {
+    const por = Object.fromEntries(conferenciasE6P3(dia(0)).map(x => [x.id, x.onde]))
+    expect(por['e6-p3-d0']).toMatch(/V1 a V7[\s\S]*2 MB[\s\S]*sha256/)
+    expect(por['e6-p3-d1']).toMatch(/CP6 = 0[\s\S]*não medido/)
+    expect(por['e6-p3-d7']).toMatch(/CP8[\s\S]*2 MB/)
+    expect(por['e6-p3-d14']).toMatch(/sha256[\s\S]*MG16/)
+  })
+  it('vence no dia seguinte à data, e com 8 dias de atraso deixa o cron vermelho', () => {
+    const l = conferenciasE6P3(dia(0))
+    expect(conferenciasVencidas(dia(0), l).map(x => x.id)).toEqual([])
+    expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e6-p3-d0'])
+    expect(conferenciasVencidas(dia(15), l).map(x => x.id)).toEqual(IDS)
+    expect(conferenciasEmFalha(dia(8), l).map(x => x.id)).toEqual(['e6-p3-d0'])
+  })
+  it('a constante publicada é nula ou uma data real, e, se tiver data, a lista publicada tem a entrada e6-p3-d0 (pega o espalhamento esquecido)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e6-p3-')).map(x => x.id)
+    if (E6_P3_APLICADA === null) expect(publicadas).toEqual([])
+    else {
+      expect(ehData(E6_P3_APLICADA)).toBe(true)
+      expect(publicadas).toContain('e6-p3-d0')
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
   })
