@@ -52,8 +52,10 @@ export interface TrafegoAgregado {
 
 const DATA = /^(\d{4})(\d{2})(\d{2})$/
 const INTEIRO = /^\d+$/
-/** Decimal simples: sem sinal, hexadecimal, binário nem notação científica. */
-const NUMERO = /^\d+(\.\d+)?$/
+/** Decimal sem sinal, hexadecimal nem binário; aceita notação científica (o YouTube emite 1.0E-4 para valor minúsculo). */
+const NUMERO = /^\d+(\.\d+)?([eE][+-]?\d+)?$/
+/** Teto de minutos por linha: acima disso (9e300) é lixo, e a soma em agregarTrafego nunca chega a Infinity. */
+const LIMITE_MINUTOS = 1e9
 const ID_VIDEO = /^[A-Za-z0-9_-]{11}$/
 const ID_CANAL = /^UC[A-Za-z0-9_-]{22}$/
 const TIPO = /^[A-Za-z0-9_]{1,40}$/
@@ -95,7 +97,7 @@ export function lerTrafego(csv: string): LinhaTrafego[] {
     ) throw new CsvTrafegoError('linha_invalida')
     const views = Number(c[iViews])
     const watchTimeMinutes = Number(minutos)
-    if (!Number.isSafeInteger(views) || !Number.isFinite(watchTimeMinutes)) throw new CsvTrafegoError('linha_invalida')
+    if (!Number.isSafeInteger(views) || !Number.isFinite(watchTimeMinutes) || watchTimeMinutes > LIMITE_MINUTOS) throw new CsvTrafegoError('linha_invalida')
     return {
       day: `${d[1]}-${d[2]}-${d[3]}`, channelId: c[iCanal]!, videoId: c[iVideo]!, sourceType: tipo,
       detail: c[iDetalhe]!, views, watchTimeMinutes,

@@ -80,7 +80,7 @@ describe('lerAlcanceCombinado', () => {
     expect(lerAlcanceCombinado(`${CAB}\n${linha({ imp: '9007199254740991' })}\n`)[0]!.impressions).toBe(9007199254740991)
   })
   it('números só em decimal simples: hexadecimal, binário, científica, sinal e ponto solto são linha inválida (M2)', () => {
-    for (const ctr of ['0x1', '0b1', '1e-1', '1E-1', '-0', '+1', '.5', '5.', 'NaN', 'Infinity']) {
+    for (const ctr of ['0x1', '0b1', '1e', '1e+', '1e999', '-0', '+1', '.5', '5.', 'NaN', 'Infinity']) {
       expect(motivo(() => lerAlcanceCombinado(`${CAB}\n${linha({ ctr })}\n`))).toBe('linha_invalida')
     }
     for (const imp of ['0x1', '0b1', '1e3', '-0', '+1']) {
@@ -88,6 +88,12 @@ describe('lerAlcanceCombinado', () => {
     }
     expect(lerAlcanceCombinado(`${CAB}\n${linha({ ctr: '0.25' })}\n`)[0]!.ctr).toBe(0.25)
     expect(lerAlcanceCombinado(`${CAB}\n${linha({ ctr: '0' })}\n`)[0]!.ctr).toBe(0)
+  })
+  it('taxa em notação científica vale (1.0E-4); fora de 0 a 1 continua inválida; impressões continuam inteiro estrito', () => {
+    expect(lerAlcanceCombinado(`${CAB}\n${linha({ ctr: '1.0E-4' })}\n`)[0]!.ctr).toBe(0.0001)
+    expect(lerAlcanceCombinado(`${CAB}\n${linha({ ctr: '1e-1' })}\n`)[0]!.ctr).toBe(0.1)
+    expect(motivo(() => lerAlcanceCombinado(`${CAB}\n${linha({ ctr: '1E1' })}\n`))).toBe('linha_invalida')
+    expect(motivo(() => lerAlcanceCombinado(`${CAB}\n${linha({ imp: '1.0E2' })}\n`))).toBe('linha_invalida')
   })
   it('id de vídeo e de canal fora do formato do YouTube: linha inválida (M3)', () => {
     for (const video of ['abc', 'abcdefghijkl', 'abcdefghij ', 'abcdefghij\u0000', 'abcdefghij|', 'abcdefghijé']) {

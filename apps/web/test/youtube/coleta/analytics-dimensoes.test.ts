@@ -285,6 +285,33 @@ describe('conserto da revisão: views é obrigatória na linha', () => {
     expect(String((e as Error).message)).not.toContain('2026-10-02')
   })
 
+  it.each<[string, unknown[]]>([
+    ['views fracionária', ['2026-10-02', 'A', 1.5, 5]],
+    ['views fracionária em texto', ['2026-10-02', 'A', '2.25', 5]],
+    ['minutos negativos', ['2026-10-02', 'A', 3, -5]],
+    ['minutos negativos em texto', ['2026-10-02', 'A', 3, '-0.5']],
+    ['engagedViews negativa', ['2026-10-02', 'A', 3, 5, -1]],
+    ['engagedViews fracionária', ['2026-10-02', 'A', 3, 5, 0.5]],
+    ['views além do inteiro seguro', ['2026-10-02', 'A', 1e21, 5]],
+    ['engagedViews além do inteiro seguro', ['2026-10-02', 'A', 3, 5, 1e21]],
+  ])('%s lança erro de forma, sem virar número gravado', async (_nome, linha) => {
+    const r = dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'insightTrafficSourceType', 'views', 'estimatedMinutesWatched', 'engagedViews'),
+      rows: [linha],
+    }))))
+    const e = await r.catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(AnalyticsApiError)
+    expect(e).toMatchObject({ status: 200, reason: 'corpo_invalido' })
+  })
+
+  it('minutos fracionários e engagedViews inteira passam (a coluna de minutos é numeric)', async () => {
+    const r = await dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'insightTrafficSourceType', 'views', 'estimatedMinutesWatched', 'engagedViews'),
+      rows: [['2026-10-02', 'A', 3, 5.5, '2']],
+    }))))
+    expect(r.linhas).toEqual([{ day: '2026-10-02', valor: 'A', views: 3, watch_time_minutes: 5.5, engaged_views: 2 }])
+  })
+
   it('zero legítimo e número em texto passam', async () => {
     expect((await umaLinha(['2026-10-02', 'A', 0, 5])).linhas).toEqual([{ day: '2026-10-02', valor: 'A', views: 0, watch_time_minutes: 5 }])
     expect((await umaLinha(['2026-10-02', 'A', '7', 5])).linhas[0]).toMatchObject({ views: 7 })

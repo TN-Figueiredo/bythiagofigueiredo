@@ -1,0 +1,38 @@
+{
+  "count": 3,
+  "channels": [
+    {
+      "id": "c1a00000-0000-4000-8000-000000000003",
+      "channel_id": "UC_SINTETICO_GAMA",
+      "channel_name": "Canal Gama",
+      "thumbnail_url": "https://exemplo.test/Canal Gama.jpg",
+      "subscriber_count": 4500,
+      "video_count": 3,
+      "last_synced_at": "2026-10-12T10:00:00.000Z",
+      "added_at": "2026-10-02T12:00:00.000Z",
+      "avg_engagement": 0.07714285714285714
+    },
+    {
+      "id": "c1a00000-0000-4000-8000-000000000002",
+      "channel_id": "UC_SINTETICO_BETA",
+      "channel_name": "Canal Beta",
+      "thumbnail_url": "https://exemplo.test/Canal Beta.jpg",
+      "subscriber_count": null,
+      "video_count": 3,
+      "last_synced_at": "2026-10-12T10:00:00.000Z",
+      "added_at": "2026-09-22T12:00:00.000Z",
+      "avg_engagement": 0.04230769230769231
+    },
+    {
+      "id": "c1a00000-0000-4000-8000-000000000001",
+      "channel_id": "UC_SINTETICO_COMPARTILHADO",
+      "channel_name": "Canal Alfa",
+      "thumbnail_url": "https://exemplo.test/Canal Alfa.jpg",
+      "subscriber_count": 120000,
+      "video_count": 3,
+      "last_synced_at": "2026-10-12T10:00:00.000Z",
+      "added_at": "2026-09-12T12:00:00.000Z",
+      "avg_engagement": 0.0625
+    }
+  ]
+}

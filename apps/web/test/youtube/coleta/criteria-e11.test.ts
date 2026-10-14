@@ -28,6 +28,7 @@ async function rodar(db: FakeDb, o: { prova?: Partial<ProvaE11>; hoje?: string; 
   })
   return { falhas, r }
 }
+const diasDepoisDeHoje = (n: number): string => new Date(Date.parse(`${HOJE}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
 const com = (p: Partial<ProvaE11>): ProvaE11 => ({ ...LIMPA, ...p })
 
 describe('criteriosE11: o caminho limpo', () => {
@@ -210,8 +211,10 @@ describe('base_ate (hoje − 4)', () => {
     expect((await rodar(montar(com({ base_ate: '2026-10-09' })).db)).falhas).toEqual([])
   })
   it('virada de mês e de ano', async () => {
-    expect((await rodar(montar(com({ base_ate: '2025-12-26' })).db, { hoje: '2026-01-01' })).falhas).toEqual(['dimensões: a cobertura do diário (base) parou em 26/12 no canal mais atrasado'])
-    expect((await rodar(montar(com({ base_ate: '2025-12-28' })).db, { hoje: '2026-01-01' })).falhas).toEqual([])
+    // ligadoEm acompanha o "hoje" deste caso (com o de 10/10 a data estaria 9 meses à frente e o teto de 90 dias recusaria).
+    const e11 = { desde: '2025-10-01', ligadoEm: '2025-10-10' }
+    expect((await rodar(montar(com({ base_ate: '2025-12-26' })).db, { hoje: '2026-01-01', e11 })).falhas).toEqual(['dimensões: a cobertura do diário (base) parou em 26/12 no canal mais atrasado'])
+    expect((await rodar(montar(com({ base_ate: '2025-12-28' })).db, { hoje: '2026-01-01', e11 })).falhas).toEqual([])
   })
 })
 
@@ -234,6 +237,30 @@ describe('faltando_cobertura (carência de 3 dias)', () => {
     expect((await rodar(db, { hoje: '2026-10-14' })).falhas).toEqual([
       'dimensões: 1 par(es) vídeo e conjunto sem cobertura até 10/10 (origem, aparelho, país ou inscrito)',
     ])
+  })
+  it('hoje antes de ligadoEm (ligação marcada para o futuro): só no resumo, sem nota', async () => {
+    const { db } = montar(com({ faltando_cobertura: 4, pendentes_normalizar: 3, base_ate: '2026-10-01' }))
+    const { falhas, r } = await rodar(db, { hoje: '2026-10-05' })
+    expect(falhas).toEqual([])
+    expect(r.provas['site-1']?.faltando_cobertura).toBe(4)
+  })
+  it('ligadoEm absurdo (2099) não vira carência eterna: configuração inválida, nota e nenhuma chamada', async () => {
+    const { db } = montar(com({ faltando_cobertura: 4 }))
+    const { falhas } = await rodar(db, { e11: { desde: '2026-10-01', ligadoEm: diasDepoisDeHoje(36500) } })
+    expect(falhas).toEqual(['dimensões: prova não avaliada (configuração das dimensões: ligadoEm está a mais de 90 dias no futuro)'])
+    expect(db.rpcCalls).toHaveLength(0)
+  })
+  it('ligadoEm 90 dias à frente ainda vale (o teto é folga, não regra de negócio)', async () => {
+    const { db } = montar()
+    const { falhas } = await rodar(db, { e11: { desde: '2026-10-01', ligadoEm: diasDepoisDeHoje(90) } })
+    expect(falhas).toEqual([])
+    expect(db.rpcCalls).toHaveLength(1)
+  })
+  it('ligadoEm 91 dias à frente é recusado (fronteira exata do teto)', async () => {
+    const { db } = montar()
+    const { falhas } = await rodar(db, { e11: { desde: '2026-10-01', ligadoEm: diasDepoisDeHoje(91) } })
+    expect(falhas).toEqual(['dimensões: prova não avaliada (configuração das dimensões: ligadoEm está a mais de 90 dias no futuro)'])
+    expect(db.rpcCalls).toHaveLength(0)
   })
   it('zero faltando depois da carência = sem nota', async () => {
     expect((await rodar(montar(com({ base_ate: '2026-11-29' })).db, { hoje: '2026-11-30' })).falhas).toEqual([])
