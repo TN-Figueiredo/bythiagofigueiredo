@@ -1,7 +1,7 @@
 # Observatório: exportar, pausar e remover um canal de concorrente (runbook)
 
 Plano: `docs/superpowers/plans/2026-10-13-a5-e10-export-pausa-e-sinal-de-limite-plan.md` (E10). Comando: `npx tsx scripts/obs-arquivo.ts <comando>`, na raiz do repositório.
-Estado do código em 14/10/2026: o comando, o export, a conferência e a remoção por comando existem; a **migration MG6 ainda não foi aplicada em produção** (só o dono aplica: `npm run db:push:prod`). Sem ela, todo comando que fala com o banco para com "A migration da exportação ainda não foi aplicada neste banco. Nada foi feito."
+Estado do código em 14/10/2026: o comando, o export, a conferência e a remoção por comando existem; a **migration MG6 foi aplicada em produção em 14/10/2026 (16:15 UTC)**. Num banco sem ela (um banco novo, por exemplo), todo comando que fala com o banco para com a frase de `schema_ausente` (seção 4) e nada é feito.
 
 ## 1. Regras de processo
 
@@ -28,9 +28,9 @@ Um canal por vez. `<canal>` é o uuid do canal em `competitor_channels`; `<e-mai
 5. `npx tsx scripts/obs-arquivo.ts conferir --canal <canal> --lote <exportação>`
 6. `npx tsx scripts/obs-arquivo.ts comandos-nas --lote <exportação> --destino <usuario@host:/caminho>`  (só imprime; cola os dois comandos impressos, um por linha, e confere o `sha256sum -c` no NAS)
 7. `npx tsx scripts/obs-arquivo.ts confirmar-nas --canal <canal> --lote <exportação> --por <e-mail>`  (pede o nome digitado)
-8. `npx tsx scripts/obs-arquivo.ts remover --canal <canal> --por <e-mail>`  (pede o nome digitado; recontagem de todas as tabelas contra o arquivo dentro da mesma transação que apaga; depois apaga as miniaturas do Blob)
+8. `npx tsx scripts/obs-arquivo.ts remover --canal <canal> --por <e-mail>`  (pede o nome digitado; recontagem de todas as tabelas contra o arquivo dentro da mesma transação que apaga; **o comando não fala com o Blob**: a tarefa diária `tamanho_do_banco` apaga as miniaturas pendentes, até 200 por dia, e a seção 8 diz como acompanhar)
 
-Pelo botão "Remover canal" do CMS só **depois** da Tarefa 11b e **se** a conferência C10 permitir. Medido em 14/10 (C10): o papel da API tem teto de 8 s; a remoção por comando tem teto de 10 minutos declarado por ele. **Até a 11b entrar, o botão do CMS continua apagando sem exportação: não remover canal pelo CMS.**
+Pelo botão "Remover canal" do CMS: a mesma função do banco, com as mesmas recusas (a exportação conferida e confirmada no NAS é exigida igual). **Antes da 1ª remoção pelo CMS**, a conferência `e10-cms-1` (`explain (analyze, buffers) select count(*) from public.obs_archive_channel_counts('<uuid do maior canal>');` abaixo de 1,5 s). Acima disso, remover só pelo comando. Medido em 14/10 (C10): o papel da API tem teto de 8 s (`lock_timeout` e `statement_timeout`); a remoção por comando tem teto de 10 minutos declarado por ele. Pelo CMS, espera de trava ou de instrução acima do teto devolve `demorou_demais` (nada foi apagado). A 1ª remoção, por qualquer caminho, é cronometrada e anotada na seção 10. No CMS a ação gasta no máximo ~15 s apagando miniaturas do Blob depois do commit; o que não coube fica em `blob_urls_pending` e a tarefa diária termina (seção 8). A tela diz que removeu mesmo com miniaturas pendentes.
 
 ## 4. O que cada recusa quer dizer
 
@@ -50,7 +50,8 @@ A frase vem do catálogo (`arquivo/codigos.ts`); a mensagem do banco nunca apare
 | `tabela_sem_export` | existe tabela do canal que o export não cobre. Nada pode ser exportado nem removido até uma migration recriar `obs_archive_registry()`: pedir ao agente |
 | `sobrou_linha`, `apagou_alem_do_arquivo` | a operação foi desfeita sozinha; nada apagado. Exportar de novo e avisar o agente |
 | `lote_ja_apagado` | usar outro nome em `--lote` |
-| `demorou_demais` | nada foi apagado; o canal continua pausado e a exportação continua confirmada; remover pelo comando |
+| `demorou_demais` | nada foi apagado; o canal continua pausado e a exportação continua confirmada; remover pelo comando. Vem do tempo da instrução (`57014`) e da espera por trava (`55P03`, quando algo está escrevendo no canal) |
+| `banco_mudou` (no `conferir`, só em `competitor_video_comments`, depois das 03:00) | esperado: é a anulação de identidade (LGPD) das 03:00, que rodou entre o export e a conferência. Rodar `exportar --refazer` e conferir de novo. Não é falha |
 | `sem_direito` | só quem administra o site (`--por` com o e-mail dele) |
 | `pausa_sem_remendo` | a MG6 não está completa: alguma função da coleta não conhece a pausa. Nada foi pausado |
 | `schema_ausente` | a MG6 não foi aplicada neste banco |
@@ -69,9 +70,13 @@ A frase vem do catálogo (`arquivo/codigos.ts`); a mensagem do banco nunca apare
 
 `npx tsx scripts/obs-arquivo.ts comandos-recarga --lote <exportação>` imprime as linhas `\copy <tabela> (<colunas do manifesto>) from program 'gzip -dc <arquivo>' csv header`, na ordem pai antes de filho. **Nunca usar o `\copy` sem a lista de colunas.** Ensaio de recarga (reduzido): `.superpowers/sdd/a5-e10/recarga-prova.sql` e `recarga-prova-saida.txt`: 0 linhas de diferença nos dois sentidos; nulo e texto vazio continuam distintos.
 
+**Chave estrangeira na recarga.** `competitor_video_comments.featured_channel_id` pode apontar para um canal que não existe mais: o `\copy` quebra na chave estrangeira. Recarregar essa coluna como nula (`\copy` para uma tabela temporária e depois `insert ... select ..., null`), ou recarregar antes o canal destacado.
+
+**Rastro sem teto (M-14).** A remoção grava no `audit_log` o rastro dos comentários destacados que apontavam para o canal (`featured_refs`), cerca de 100 B por comentário destacado, sem teto de tamanho. Conhecido e aceito; olhar o tamanho se um canal tiver muitos destaques.
+
 ## 7. O sinal de limite do banco (500 MB do plano gratuito)
 
-- Medido **uma vez por dia**, a partir das 05:00 de São Paulo, pela tarefa `tamanho_do_banco` da agenda (entra com a Tarefa 9 do plano; **ainda não registrada**). Guarda uma linha por dia em `obs_db_size_daily`.
+- Medido **uma vez por dia**, a partir das 05:00 de São Paulo, pela tarefa `tamanho_do_banco` da agenda (registrada pela Tarefa 9 do plano). Guarda uma linha por dia em `obs_db_size_daily`.
 - Cor pelo **inteiro mostrado**: amarelo a partir de 70%, vermelho a partir de 85% do limite (`RULES.dbSize`); "acima do limite" é decidido pelos bytes. Também fica vermelho quando a reta dos últimos 28 dias (mínimo 14 dias de medida) chega ao limite em menos de 90 dias.
 - **Amarelo:** olhar `estado` e a sugestão de canais parados (`competitor_archive_suggestions`); planejar exportar e remover os candidatos. **Vermelho:** exportar e remover agora; o plano gratuito não tem folga para esperar. O cron **não** fica vermelho por banco amarelo ou vermelho (a condição dura meses e esconderia outras falhas): a frase vai em `acao_do_dono` a cada disparo e sai um e-mail (um por mês no amarelo, um por semana no vermelho).
 - **"Sem leitura":** nunca é verde. Banco nunca medido: "Ainda sem medida do tamanho do banco do site." mais o motivo (agenda desligada, ou agenda ligada há mais de 72 h sem a medida). O cron fica vermelho se a medida falta há mais de 72 h.
@@ -98,9 +103,12 @@ Fórmula da seção 9.6 do spec: base 102,7 MB depois da dieta, 31 MB por ano do
 Depois de remover, as miniaturas do canal são apagadas do Blob (só sob `observatorio/thumbs/`, decidido pelo caminho da URL). O que falha fica em `blob_urls_pending` e a nova tentativa diária apaga até 200 por dia (`RULES.archive.blobRetryMaxPerDay`), dentro da tarefa `tamanho_do_banco`.
 
 - **"N miniatura(s) ainda públicas há D dias":** N caindo de um dia para o outro = a fila anda, nada a fazer. Um canal com mais de 600 miniaturas leva mais de 3 dias sem haver falha (a frase traz "faltam K dias"). N parado por dois dias = está falhando: olhar o `detalhe` da tarefa `tamanho_do_banco`: `miniaturas_nao_tentadas` = token do Blob ausente; `miniaturas_sem_tempo` = Blob lento. **Não há comando para esvaziar na hora nesta etapa** (seria um segundo caminho de apagamento no Blob, fora da lista fechada); se a C8 mostrar canal com mais de 600 miniaturas, o que muda é a constante `RULES.archive.blobRetryMaxPerDay`.
+- Nova tentativa: ignora lotes cujo `blob_urls_pending` é `'{}'` (o banco grava vazio, nunca nulo, ao zerar); antes desse filtro, a partir do 51º canal removido as pendências novas nunca eram tentadas.
 - **"N fora do prefixo"** (`miniaturas_fora_do_prefixo`): URL que não está sob `observatorio/thumbs/`; hoje não tem como nascer (só existe um `put`, com o prefixo). O código nunca a apaga e ela fica na pendência. Ver quais: `select batch, channel_ref, u from public.obs_archive_batches, unnest(blob_urls_pending) u where deleted_at is not null and u not like '%/observatorio/thumbs/%';`. O dono decide; baixar a pendência é pedido ao agente, em migration ou comando próprio, nunca à mão.
 - **"Exportações de canais que não existem mais"** é histórico, não pendência: é o número de exportações abertas cujo canal foi removido por fora do caminho com arquivo. Nunca desce, e não há o que fazer com ele além de saber.
 - Com `OBS_E2E=1` (Playwright) o Blob nunca é tocado: a pendência fica.
+
+- **Canal em erro e pausado** (M-4, dívida): `competitor_capture_health` ainda não conhece a pausa. Um canal que estava com `sync_status='error'` antes de ser pausado segue contado em "N canal(is) em erro há mais de 3 dias" e em `canais_total`, embora `acao_do_dono` não o liste. É conhecido; a correção é uma condição na função de saúde, na próxima migration da fila.
 
 ## 9. Cópia, disco e remoção pelo comando
 

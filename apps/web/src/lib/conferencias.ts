@@ -223,6 +223,37 @@ export function conferenciasE14(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E10 (arquivo, pausa e sinal de limite do banco): as datas dependem do dia da promoção a `main` (D). O controlador preenche `E10_DEPLOY` (dia de
+// São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E10`.
+/** Dia de São Paulo (AAAA-MM-DD) em que a E10 foi promovida a `main`. `null` = ainda não enviada. */
+export const E10_DEPLOY: string | null = null
+
+const PLANO_E10 = 'docs/superpowers/plans/2026-10-13-a5-e10-export-pausa-e-sinal-de-limite-plan.md (Tarefa 14); runbook docs/ops/observatorio-arquivo-runbook.md; anotar o resultado em .superpowers/sdd/a5-e10/progress.md'
+
+/**
+ * As conferências da E10 a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio: vira uma entrada de 1970
+ * (vermelha) que manda corrigir a constante. `e10-cms-1` e `e10-miniaturas` não têm data própria (dependem da 1ª remoção): ficam em D e D+3 e se
+ * adiam por quem as fizer, preenchendo `feitaEm` só quando feitas. Em ordem de data.
+ */
+export function conferenciasE10(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e10-deploy-invalido', etapa: 'E10', data: '1970-01-01', responsavel: 'agente', onde: `E10_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string, responsavel: Conferencia['responsavel'] = 'agente'): Conferencia => ({ id: `e10-${id}`, etapa: 'E10', data: somaDias(deploy, mais), responsavel, onde: `${PLANO_E10}: ${onde}`, feitaEm: null })
+  return [
+    e('i4', 0, 'D, ANTES do 1º `pausar` (portão I-4): `git merge-base --is-ancestor 262742f07 origin/main && git merge-base --is-ancestor 9ca46c205 origin/main && echo ok` devolve `ok`. O código antigo não respeita a pausa; nenhum canal é pausado antes disto'),
+    e('d0', 0, 'D, depois da promoção, só leitura, 4 leituras: (1) o 1º disparo de concorrentes depois do deploy: sem "migration MG6", `fora_pausado: 0` no `detalhe` da horária, `nota_pausa` ausente, campo `banco` presente, tarefa `tamanho_do_banco` com `ok` (se o deploy foi depois das 05:00 de SP); (2) `select count(*), max(day) from public.obs_db_size_daily;` dá 1 e hoje; (3) `select count(*) from public.competitor_collection_pauses;` dá 0 (V5); (4) `select db_bytes, competitor_bytes, own_bytes from public.obs_db_size_daily order by day desc limit 1;` comparado com os 170,7 MB de 12/10 (diferença acima de 30% refaz a OP-9) e com o painel do Supabase (C2); anotar as 10 maiores de `top_relations`'),
+    e('cms-1', 0, 'ANTES da 1ª remoção pelo botão do CMS, em produção, leitura: `explain (analyze, buffers) select count(*) from public.obs_archive_channel_counts(\'<uuid do maior canal>\');` MENOR que 1,5 s = o CMS serve; acima = remover só pelo comando e o runbook diz isso. A 1ª remoção, por qualquer caminho, é cronometrada e anotada na seção 10 do runbook'),
+    e('d1', 1, 'D+1: `select count(*), max(day) from obs_db_size_daily` = 2 e hoje; a tarefa `tamanho_do_banco` com `ok` duas vezes em `competitor_agenda_runs`; o vigia mostra `tamanho_do_banco` em dia; nenhum e-mail de banco (salvo acima de 70% do limite); V5 = 0'),
+    e('miniaturas', 3, 'D+3 (ou até 3 dias depois da 1ª remoção, o que vier depois): `select batch, cardinality(blob_urls_pending) from public.obs_archive_batches where table_name=\'competitor_channels\' and deleted_at is not null;` dá 0 em até ceil(N/200) dias; `detalhe.miniaturas_apagadas` da tarefa diária bate com o número de URLs pendentes do lote. Sem nenhuma remoção até esta data: anotar "sem remoção" e adiar'),
+    e('d7', 7, 'D+7: 8 linhas em `obs_db_size_daily`, sem dia faltando; crescimento médio por dia contra a estimativa (com 13 a 15 canais, cerca de 0,6 MB por dia: ESTIMATIVA); as relações que mais cresceram entre `top_relations` de D e de D+7, para fechar "de onde vêm os 20 MB por ano do site"'),
+    e('d14', 14, 'D+14: a projeção deixou de ser "não medida"; anotar a data de chegada ao limite que o sinal diz'),
+    e('ensaio', 14, 'D+14, responsável o dono: o ensaio do item 82 (pausar, exportar, conferir, confirmar no NAS, remover por um canal de teste) feito e anotado no runbook', 'dono'),
+    e('d28', 28, 'D+28: a reta usa a janela inteira de medidas; a tabela da OP-9 do runbook é refeita com ela'),
+  ]
+}
+
 // E16 e E15 (agenda de tarefas do cron `sync-youtube` e leitura horária dos vídeos novos): as datas dependem do dia da promoção a `main` (D0),
 // que ainda não existe. O controlador preenche `E16_E15_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio (Tarefa 15). Enquanto for
 // `null`, as oito entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapas `E16` e `E15` (o formato `E<n>` do guardião).
@@ -364,7 +395,7 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
 }
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
