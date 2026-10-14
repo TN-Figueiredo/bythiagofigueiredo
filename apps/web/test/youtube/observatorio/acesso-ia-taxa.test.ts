@@ -50,6 +50,35 @@ describe('decidirTaxa: o dia', () => {
   })
 })
 
+describe('decidirTaxa: entrada que não é contagem falha FECHADA', () => {
+  const invalidos: Array<[string, number]> = [
+    ['NaN', Number.NaN], ['Infinity', Number.POSITIVE_INFINITY], ['-Infinity', Number.NEGATIVE_INFINITY], ['negativo', -1], ['zero', 0],
+    ['fracionário', 1.5], ['undefined como número', undefined as unknown as number], ['null como número', null as unknown as number], ['texto como número', '3' as unknown as number],
+  ]
+  it.each(invalidos)('noMinuto %s (com noDia válido): não serve, por dia, sem linha de registro', (_nome, v) => {
+    const d = limite(decidirTaxa(v, 5, AGORA))
+    expect(d).toMatchObject({ serve: false, por: 'dia', registrar: false })
+    expect(Number.isNaN(Date.parse(d.voltaEm))).toBe(false)
+  })
+  it.each(invalidos)('noDia %s (com noMinuto válido): não serve', (_nome, v) => {
+    expect(limite(decidirTaxa(5, v, AGORA))).toMatchObject({ serve: false, por: 'dia', registrar: false })
+  })
+  it('NaN nos dois: não serve (antes servia, porque NaN > 500 é falso)', () => {
+    expect(decidirTaxa(Number.NaN, Number.NaN, AGORA).serve).toBe(false)
+  })
+  it('agora ilegível (NaN, Infinity): não serve e não lança; a hora de volta é uma data real', () => {
+    for (const agora of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      const d = limite(decidirTaxa(1, 1, agora))
+      expect(d).toMatchObject({ serve: false, registrar: false })
+      expect(Number.isNaN(Date.parse(d.voltaEm))).toBe(false)
+    }
+  })
+  it('o domínio válido não muda: 1 e 1 servem; 30 e 500 servem', () => {
+    expect(decidirTaxa(1, 1, AGORA)).toEqual({ serve: true })
+    expect(decidirTaxa(30, 500, AGORA)).toEqual({ serve: true })
+  })
+})
+
 describe('decidirTaxa: a hora de volta', () => {
   it('por minuto: o início do minuto seguinte, em UTC', () => {
     expect(limite(decidirTaxa(31, 31, AGORA)).voltaEm).toBe('2026-10-13T15:08:00.000Z')
