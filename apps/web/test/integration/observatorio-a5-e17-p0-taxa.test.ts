@@ -24,6 +24,32 @@ const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@12
 
 interface Semente { site: string; org: string; orgAdmin: string; editor: string; leitora: string; chave: string }
 
+/** Roda cada passo de limpeza isolado: um que lança não impede os seguintes; no fim relança o primeiro erro, se houve. */
+export async function limparTudo(passos: Array<() => Promise<unknown>>): Promise<void> {
+  const erros: unknown[] = []
+  for (const passo of passos) {
+    try { await passo() } catch (e) { erros.push(e) }
+  }
+  if (erros.length > 0) throw erros[0]
+}
+
+describe('A5 E17 passo 0 (MG11): a limpeza do teste de 40 conexões isola cada delete (não toca banco)', () => {
+  it('um passo que falha não impede os outros, e o erro aparece no fim', async () => {
+    const feitos: string[] = []
+    await expect(limparTudo([
+      async () => { feitos.push('a') },
+      async () => { throw new Error('delete falhou') },
+      async () => { feitos.push('c') },
+    ])).rejects.toThrow('delete falhou')
+    expect(feitos).toEqual(['a', 'c'])
+  })
+  it('sem falha, roda todos na ordem e não lança', async () => {
+    const feitos: number[] = []
+    await limparTudo([async () => { feitos.push(1) }, async () => { feitos.push(2) }])
+    expect(feitos).toEqual([1, 2])
+  })
+})
+
 describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): contador de taxa, check das chaves do perfil e registro de acesso (banco local)', () => {
   let pg: Client
 
@@ -230,11 +256,13 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): contador de taxa, che
       const linhas = await pg.query<{ grain: string; n: number }>(`select grain, n from public.obs_ai_rate where key_id = $1 order by grain`, [chave])
       expect(linhas.rows).toEqual([{ grain: 'dia', n: 40 }, { grain: 'minuto', n: 40 }])
     } finally {
-      for (const c of conexoes) await c.end().catch(() => undefined)
-      await pg.query('delete from public.pipeline_api_keys where id = $1', [chave]) // a cascata leva os contadores
-      await pg.query('delete from public.audit_log where site_id = $1', [site])
-      await pg.query('delete from public.sites where id = $1', [site])
-      await pg.query('delete from public.organizations where id = $1', [org])
+      await limparTudo([
+        async () => { for (const c of conexoes) await c.end().catch(() => undefined) },
+        async () => { await pg.query('delete from public.pipeline_api_keys where id = $1', [chave]) }, // a cascata leva os contadores
+        async () => { await pg.query('delete from public.audit_log where site_id = $1', [site]) },
+        async () => { await pg.query('delete from public.sites where id = $1', [site]) },
+        async () => { await pg.query('delete from public.organizations where id = $1', [org]) },
+      ])
     }
   })
 })
