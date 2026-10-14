@@ -1195,3 +1195,55 @@ Opera real, leitor de tela (anúncio do status da frase), aparelho real, o filtr
 
 ### 6. Retorno do dono e do uso real
 14/10/2026: aprovado no Opera ("Ta aprovado"), testados o painel parado pelo chip e o painel ligado ("Ver a regra", "Desligar").
+
+## 19e. Peça 6: "Ver antigo", o pedido de período longo
+
+Estado: **aprovada pelo dono em 14/10/2026** (depois da conferência com acordo de Logan e Naksu). Remessa para o fecho do spec 04: L39 diz o trecho, não "desde".
+
+### 1. O que a tela responde
+"Consigo ver o passado de um canal, e vai demorar?" A cobertura por mês: quais vieram, quais faltam e por quê.
+
+### 2. Roteiro de teste
+Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/peca6-ver-antigo.html` (a página do canal Viagem Lenta, com o pedido embaixo do gráfico). Um item de cada vez:
+0. (Correção 1 feita) Conferir: o gráfico diz "25/08 a 30/09/2027 no arquivo" uma vez; "Tudo" avisa antes e desliga o Pedir. Anotar se o dono lê a diferença entre 31/31 e 27/31 dias (visto igual).
+1. Tocar em "Pedir outro período", escolher 24 meses, ler a frase e tocar em "Pedir": ver o pedido enviado, a leitura andando e o resultado.
+2. Pedir de novo e tocar em "Cancelar pedido" no meio; ver "Pedido cancelado".
+3. Abrir `?e=todos-erro`: em cada quadro, ver se o texto diz o que aconteceu, se os meses que faltam não parecem zero e se dá para resolver de longe ou "pode esperar".
+4. Abrir `?e=todos-video`: a ficha do vídeo completa e a incompleta ("incompleto", nunca "sem dados").
+
+### 3. Decisões minhas que o spec não dá
+Resultado por mês traz dias medidos e views do mês (o spec só pede a cobertura); exemplo de 12 meses visíveis (24 e 36 mostram os 12 mais recentes e dizem quantos mais vieram); "Tudo" = 50 meses vira "grande demais"; leitor "só lê" não vê o botão; cada falha ganha a linha "Pode esperar" ou o que fazer de longe; o motivo "arquivo não bate" manda deixar para o Claude Code.
+
+## 19f. Peça 7: o arquivo pendente na fila "Saíram do YouTube"
+
+Estado: **aprovada pelo dono em 14/10/2026** (depois da conferência com acordo de Logan e Naksu). Remessas para a M3b: a linha `npm run obs:arquivo | ssh forja 'bash -s'` ainda não existe e entra por emenda no plano.
+
+### 1. O que a tela responde
+"Falta eu rodar algum comando, e há quanto tempo?"
+
+### 2. Roteiro de teste
+Abrir `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/peca7.html` e, pela barra "Estados do mockup", um estado de cada vez:
+1. "Comandos: copiar": tocar em "Ver os comandos" do vídeo de 34 dias; ver que só há passos de copiar e que a tela diz o que falta antes de apagar. Depois "Comandos: apagar as antigas".
+2. "Já rodei" refutado: ler se a frase diz o que a verificação achou e que o item voltou.
+3. Olhar de relance a barra de idade: dá para ver qual item está há mais tempo e qual passou de 30 e de 60 dias?
+4. "Apagar bloqueado": a fila diz por que não dá para apagar agora, sem parecer erro.
+
+## 19g. Peça 8: os vídeos antigos
+
+Estado: desenhada em 14/10/2026, **ainda sem revisão de Logan e Naksu e sem o dono**. Tudo é exemplo; nenhum vídeo saiu do banco.
+
+### 1. O que a tela responde
+"Onde foram parar os vídeos velhos deste canal, e o que eu ainda vejo deles?"
+
+### 2. Roteiro de teste
+Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/peca8-canal.html` (a tela do canal; a barra de cima troca o caso). Um item de cada vez:
+1. Canal "Três partes" e depois "O mesmo canal em dezembro de 2026": ver se 41, 12 e 40 somam 93, e se em dezembro o 0 aparece na caixa, nunca sumido. Tocar no ⓘ "Quando um vídeo sai de acompanhados?" (e no canal "que publica pouco").
+2. Tocar em um vídeo "em leitura mensal" e em um "no arquivo" (ou o botão "Vídeo"): dá para dizer de quando é cada número? O ◐ se distingue do pontilhado e da caixa, também com `?cinza=1`?
+3. No canal "Canal grande" abrir "No arquivo" e tocar em "Mostrar mais 25".
+4. `peca8-estados.html` (títulos em português) e `arquivo.html` (a seção "Vídeos antigos" no fim da página): tocar em "Ver o que passaria", "Ver quais" e "Mandar para o arquivo" (frase digitada).
+5. (Correção 1) Na seção do `arquivo.html`: "Ver o comando" do mês de espera (Copiar, "Já rodei", Desfazer); depois "Ver o que passaria", "Passar estes vídeos" e "Ver o comando" de novo.
+6. (Correção 1) Vídeo "Ainda sem leitura" e "Sem leitura há 150 dias": o segundo é âmbar. No vídeo no arquivo, "Ver antigo" leva à ficha da peça 6.
+7. (Correção 1) Canal "Arquivo não lido": nenhuma frase com "N"; canal grande: "Mostrar mais 25" nas duas listas. Frase do diálogo sem acento.
+
+### 3. Decisões minhas que o spec não dá
+Gráfico do vídeo em leitura mensal é de views acumuladas (a leitura mensal é total, não por dia); canal em dezembro de 2026 = 52 acompanhados (os 12 + 40 que depois saíram); frase-resumo da seção e a coluna "Agora" são propostas (plano 11.8); a linha "Leitura mensal desligada" usa triângulo âmbar com "Não dá para dizer quantos estão atrasados"; a "Mostrar mais 25" também existe na lista principal.

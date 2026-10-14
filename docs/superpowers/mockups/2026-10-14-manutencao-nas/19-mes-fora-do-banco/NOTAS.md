@@ -74,3 +74,43 @@ Tudo em `interruptor.js`, `interruptor.html` (sem mudança de marcação), `arqu
 - **Limites do mockup:** com os dois tipos parados (`?auto=desl-N`) o chip só some depois de os dois painéis serem vistos; o "visto" vale só até recarregar a página (no produto vem do servidor).
 
 - **Dono, 14/10/2026:** o ⓘ da configuração cita só o Claude Code; o Cowork não muda variável do Vercel.
+
+## Peça 6: "Ver antigo" (14/10/2026)
+`peca6-ver-antigo.html` + `peca6.js` + bloco "peça 6" em `m19.css`. A peça aparece encaixada na página do canal (abaixo do gráfico "no arquivo desde 08/2027"), com o pedido funcionando (pedir, esperar, cancelar). Grupos na barra: antes de pedir, esperando, pronto, deu errado, no vídeo (19 quadros, os 15 estados de 04 L366-382 mais a ficha do vídeo de L518). Nenhuma cor nova, sem `color-mix()`. Capturas: `shots/peca6-*` (390 e 1440, claro e escuro); rolagem horizontal 0, erros de script 0, alvos menores que 44 px só a 1440 com ponteiro fino (botões do padrão da página). Decisões minhas: ver a seção 19e do ROTEIRO.
+
+### Peça 6, correção da revisão 1 (14/10/2026)
+Logan B1-B3, C1-C4 e Naksu B1, C1-C3 feitos. A caixa diz o trecho uma vez só ("25/08 a 30/09/2027 no arquivo"), sem "desde" e sem a linha de apoio repetida; "Tudo" avisa antes ("passa do que o site guarda, escolha até 36 meses") e o Pedir fica desligado; o painel só é trocado nas transições (durante a leitura mudam só texto, barra e aria-valuenow) e o foco volta ao Cancelar ou ao painel; `role="status"` fora do painel (marcos a cada 25%) e `role="alert"` nos erros; período escolhido vale na espera e no resultado (24/36: mostra os 12 mais recentes e diz quantos mais vieram, limite do mockup); "Pode esperar" reescrito (nada se resolve daqui; peça de novo quando a forja e o NAS voltarem); "arquivo não bate" sem a garantia do automático; views com unidade e número na linha do nome a 390; barra indeterminada listrada com movimento reduzido. Capturas: `shots/peca6-r1-*`.
+
+## Peça 7: o arquivo pendente na fila "Saíram do YouTube" (14/10/2026)
+Arquivos: `peca7.html`, `peca7.js`, `peca7.css` (prefixo p7-; reaproveita `m19.css`/`m19.js`; nenhuma cor nova, sem `color-mix()`). Abrir: `peca7.html?e=cheia`; estados na barra "Estados do mockup": cheia, comandos-1, comandos-1b, comandos-2, refutado, bloqueado, vazia, nm. É a tela E da fila (cabeçalho com a aba e o contador), com o selo, o bloco novo "Esperam você rodar os comandos" e, embaixo, a fila de hoje sem mudança (onde o "apagar" bloqueado aparece). Capturas: `shots/peca7-*` (8 estados x 390/1440 x claro/escuro). Funciona: "Ver os comandos" abre/fecha; "Já rodei" troca o item pela confirmação.
+### Decisões minhas que o spec não dá
+1. Frase-resumo: "3 itens esperam você rodar os comandos; o mais antigo há 63 dias." (proposta do plano; forma segue o item mais velho: arquivo, triângulo ou octógono).
+2. Barra de idade 0 a 60 dias com marcas em 30 e 60; cor da faixa só no contorno da linha e no preenchimento; texto sempre em cor normal.
+3. "Ver os comandos" tem a régua de quatro etapas (Copiar, NAS, B2, Apagar as antigas) e, no primeiro tempo, a frase "Falta verificar a cópia nova" / "Falta conferir o B2 de novo" em pontilhado. Os comandos são de exemplo (`recopiar`, `conferir-b2`, `apagar-antigas`) e seguem a regra do dono: arquivo de comandos mais uma linha que o roda.
+4. Cada item diz "Pode esperar até você voltar" e o que continua no arquivo enquanto isso (dono fora em jan/2027); não afirmo que dá para rodar de longe.
+5. "Já rodei" sem passo extra de confirmação; o item vira "Marcado como rodado" até a verificação seguinte.
+6. "Apagar" bloqueado: frase do spec (L270) com a data de exemplo 08/05, círculo pontilhado, sem barra de idade; o botão sai e "Manter para análise" fica.
+7. Não medido: hachura com "Não foi possível ler se há cópia no arquivo." (e a frase "isto não quer dizer que não há cópia"); zero medido: caixa com o 0.
+
+### Correção da revisão 1 (14/10/2026)
+Ordem nova: resumo, "Esperam a sua resposta", "Esperam você rodar os comandos". Uma linha fixa nos 3 tempos, `npm run obs:arquivo | ssh forja 'bash -s'`, com Copiar; o painel é: rodar a linha, esperar, "Já rodei" (dentro do painel, com "Desfazer"). Resumo traz a frase "Esperar não perde nada..." (uma vez) e a condicional do Tailscale; vermelho/âmbar viram lembrete ("é só um lembrete"). Régua com "você/sozinho". 1b diz que a forja não conseguiu conferir o B2 em 02/05. Vazia sem a segunda frase. Refutado cita o título do vídeo e diz que a idade continua. h4 nos itens, borda no grupo. Bloqueado: um aviso só acima das listas e item de setembro de 2027 sem linha (a tela não se contradiz). Comentários: substituída em 26/03, espera desde 25/04. Extras: "Esconder os comandos", "60+ dias", última leitura no nm, quem só edita vê resumo e idade (no ⓘ). Capturas `shots/peca7-r1-*`.
+
+## Peça 8 (vídeos antigos)
+`peca8-canal.html` (canal e vídeo; `?tela=video&vs=mensal|parado|sem|arquivo`, `?cs=tres|dez26|pouco|um|nl|mil|carregando`), `peca8-estados.html` (16 estados da seção), `peca8.js`, `peca8.css`. `arquivo.js` agora chama `PECA8.secao()` no lugar do espaço reservado; `arquivo.html` carrega `peca8.css` e `peca8.js`. Capturas: `shots/peca8-*`.
+
+### Peça 8, correção da revisão 1 (14/10/2026)
+Achado → feito. Capturas `shots/peca8-r1-*` (390 e 1440); rolagem horizontal 0, erros de script 0.
+- **Logan B1:** todo estado diz "Nada a fazer" ou "Pode esperar" (frases dele); "Ver o comando" funciona (molde da peça 7: linha fixa em `<pre>`, Copiar, 3 passos, "Já rodei", Desfazer). Comando de exemplo `npm run obs:videos-desfazer -- 2028-04` **não existe: emenda de plano**. No mês de espera diz o limite concreto (até 28/05/2028). **A confirmar com Phil:** "pode esperar" nos estados de leitura atrasada (âmbar e vermelho).
+- **B2:** nenhum "quem cuida do site"; "avise o Claude Code" (ao voltar) e "rode o comando". ⓘ do automático: só o Claude Code troca a variável no Vercel; o Cowork não.
+- **C1:** `?vs=sem` com passagem 05/04/2028 e primeira leitura 05/05/2028, uma frase só; novo `?vs=semat` (150 dias, triângulo âmbar). **C2:** trecho no lugar de "desde" (gráfico, caixa, marcas da lista, vídeo no arquivo "03/2024 a 20/02/2027 no arquivo", "A coleta começou em 03/2024"); linha do mês "No arquivo (enviado em dd/mm)". **C3:** "Ver antigo" é link para `peca6-ver-antigo.html?e=v-ok`. **C4/Naksu C2:** arquivo não lido sem "N", "pelo menos 12", plural certo. **C5:** "lido em dd/mm/aaaa" em toda linha. **C6:** diálogo "Para manter algum, cancele, fixe o vídeo na tela dele e volte aqui" + "Não há pressa". Frase-resumo e linha "Esperando você" com o texto do Logan.
+- **Naksu C1:** gráfico com viewBox por largura (texto 12 px, ponto r 4); último ponto rotulado e marco com data; "8,0 mil". **C3:** esqueletos com a altura final (contagem, lista de 7 linhas, grupo, contas): 163/670/193 e 258/1133/355 batem. **C4:** "Mostrar mais" da lista principal funciona; foco vai ao 1º vídeo novo; `role="status"`. **C5:** frase aceita sem acento (como a peça 4). **C6:** tabela da simulação com largura mínima. S1 (linha sem contagem repetida), S3 (data nos pontos), S4 (alvo do "Canais") feitos.
+- **Declaradas, não feitas:** Logan S1 (citar a peça na frase-resumo da página: muda a página de peças 2-3), S3 (manter "Fixar", nome do produto); Naksu S2 (pontilhado duplo: o texto resolve), S5 (borda do campo: token herdado, vai ao lote); Naksu "foco no último link" (foco vai ao primeiro novo, nunca ao body).
+- **Remessa ao fecho do spec 04:** L501 e L511 (trocar "quem cuida do site"), L509 ("No arquivo desde" → "enviado em"), L476/L485/L39 (estado "desde" → trecho), ⓘ do automático só com o Claude Code.
+
+### Peça 7, conferência 1 (Logan)
+- Acordo do Logan, com uma troca: a frase do resumo dizia "o canal já saiu do site", falso para itens de vídeo e de comentários. Agora: "Esperar não perde nada: nenhum dado do site depende desta lista. As cópias antigas só continuam no NAS e no B2 até você rodar a linha, e somem uns 45 dias depois de você rodar." Os 45 dias (14 de snapshot do NAS + 30 de versões do B2, fatos do Phil, item 3) são do armazenamento e valem para qualquer arquivo apagado.
+- Pendência de plano, não de tela: `npm run obs:arquivo` não existe; vira emenda na M3b.
+
+### Peça 6, conferência 1 (Logan): acordo
+- Remessa para o fecho do spec 04: L39 ainda diz "No arquivo desde mm/aaaa." para quem só lê; trocar pelo trecho ("25/08 a 30/09/2027 no arquivo."), decisão do dono na peça 1. L40 confirma o S4 (pedido só para quem edita).
+- Conferência da Naksu: B1, C1, C2 fechados; C3 fechado pelo controlador (`width:100%!important` na regra de movimento reduzido de `m19.css`, que perdia para o `style` inline da barra). Com isso, acordo dos dois.

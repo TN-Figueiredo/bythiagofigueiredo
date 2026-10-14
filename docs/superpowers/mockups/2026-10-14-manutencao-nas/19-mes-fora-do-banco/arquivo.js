@@ -160,7 +160,8 @@
     var fim = estado === 'encerrar' ? '<div style="padding:10px 14px;border-top:1px solid var(--border-subtle)"><p style="margin:0 0 8px;font-size:13.5px">A recuperação foi testada e o descarte de teste foi feito.</p><button type="button" class="btn" data-act="encerrar">Encerrar o dado de teste</button></div>' : '';
     return '<section class="m-card" aria-label="Dado de teste">' + faixaTeste() + '<ul class="m-rows">' + rows + '</ul>' + fim + '</section>';
   }
-  var VIDEOS_ANTIGOS = '<section class="m-card" aria-label="Vídeos antigos"><div class="m-card-h"><div class="m-card-top"><h3 class="m-h3">Vídeos antigos</h3><span class="m-slot">Peça 8, desenhada à parte.</span></div></div></section>';
+  var VIDEOS_ANTIGOS_SLOT = '<section class="m-card" aria-label="Vídeos antigos"><div class="m-card-h"><div class="m-card-top"><h3 class="m-h3">Vídeos antigos</h3><span class="m-slot">Peça 8, desenhada à parte.</span></div></div></section>';
+  var VIDEOS_ANTIGOS = window.PECA8 ? window.PECA8.secao() : VIDEOS_ANTIGOS_SLOT; /* peça 8: a seção real vem de peca8.js */
 
   /* ------------------------------------------------------------ peça 3: tirar o mês */
   function dlg(titulo, corpo, ac, st){

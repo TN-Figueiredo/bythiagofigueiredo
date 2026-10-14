@@ -326,3 +326,49 @@ details.m-outros>summary{display:flex;align-items:center;min-height:44px;cursor:
 .m-q-h-dono{flex-wrap:nowrap;align-items:center}
 .m-q-h-dono .m-q-t{flex:1 1 0;min-width:0;margin:0}
 .m-q-h-dono .m-ibtn{margin:-8px -8px -8px 0}
+
+/* ------------------------------------------------------------ peça 6: o pedido de período longo ("Ver antigo"); nenhuma cor nova */
+.m-va{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:14px;display:grid;gap:10px;scroll-margin-top:16px}
+.m-va:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.m-va>*{min-width:0}
+.m-va p{margin:0}
+.m-va-h{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap}
+.m-va-h h3{margin:0;font:600 15px/1.35 var(--sans)}
+.m-va-lead{font-size:14.5px;line-height:1.5;max-width:80ch;color:var(--text)}
+.m-va .k{color:var(--muted);font-size:12.5px;line-height:1.45}
+.m-va-acoes{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.m-va-prog{display:grid;gap:6px}
+.m-va-prog .t{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}
+.m-va-prog .m-bar{width:100%}
+.m-va-meses{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+.m-vam{display:grid;grid-template-columns:24px 138px minmax(0,1fr) 84px;gap:2px 12px;align-items:center;padding:8px 12px;border-top:1px solid var(--border-subtle);min-height:44px}
+.m-vam:first-child{border-top:0}
+.m-vam .n{font-weight:600}
+.m-vam .c{display:flex;gap:4px 12px;align-items:center;flex-wrap:wrap;font-size:13.5px;min-width:0}
+.m-vam .c .m-bar{width:80px;min-width:80px}
+.m-vam .o{color:var(--muted);font-size:12.5px}
+.m-vam .v{text-align:right;font-size:13px}
+.m-vam.falta .c{display:block;overflow-wrap:anywhere}
+.m-va-tira{margin:0 0 10px;display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
+.m-va-tela{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:14px;margin:0 0 14px}
+.m-va-tela h3{margin:0 0 2px;font:600 16px/1.35 var(--sans)}
+.m-va .btn[disabled]{background:var(--sunk);color:var(--muted);border:1px dashed var(--dim);cursor:not-allowed;opacity:1}
+.m-vam .v{font-size:12.5px;color:var(--muted)}
+.m-vam .v .m-num{color:var(--text);font-size:13px}
+.m-va-sub{margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.m-va-falso{pointer-events:none}
+@media (prefers-reduced-motion:reduce){.m-va .m-bar.ind i{width:100%!important;background:repeating-linear-gradient(135deg,var(--dim) 0 6px,transparent 6px 12px)}}
+.m-ficha{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr);gap:6px 14px;margin:0;font-size:13.5px}
+.m-ficha dt{color:var(--muted)}
+.m-ficha dd{margin:0;overflow-wrap:anywhere}
+.m-ficha .ap{display:block;color:var(--muted);font-size:12.5px}
+.m-ficha .m-ausente{padding:6px 10px}
+@media (max-width:600px){
+  .m-vam{grid-template-columns:24px minmax(0,1fr) auto}
+  .m-vam>:first-child{grid-row:1;grid-column:1}
+  .m-vam .n{grid-column:2;grid-row:1}
+  .m-vam .v{grid-column:3;grid-row:1;text-align:right}
+  .m-vam .c{grid-column:2/4;grid-row:2}
+  .m-ficha{grid-template-columns:minmax(0,1fr)}
+  .m-ficha dd{margin-bottom:6px}
+}
