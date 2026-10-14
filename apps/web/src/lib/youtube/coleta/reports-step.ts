@@ -61,7 +61,7 @@ export interface RelatoriosResumo extends StepResumo {
   /** Quantas vezes o passo esperou o minuto seguinte por causa de 429, e quanto tempo gastou nisso. */
   esperas_429: number
   ms_espera_429: number
-  /** Itens do alvo desta execução que o laço não tocou por ter parado no limite. */
+  /** Itens do alvo desta execução que o laço não baixou por ter parado no limite (o item que levou o 429 não conta). */
   nao_tentados: number
 }
 
@@ -419,13 +419,14 @@ async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<Fi
   return { resposta: ultima, linhas, total, cortada }
 }
 
-/** Relatórios gravados por dia, média dos últimos 3 dias. null = leitura falhou (não vira zero). */
+/** Relatórios gravados por dia, média de 3 dias (janela de 3 dias + 6 h: o cron roda 1x/dia e os downloads de D-3 caem
+ * minutos antes de `agora − 72 h`). null = leitura falhou (não vira zero). */
 async function vazaoDiaria(ctx: StepCtx, idsDosCanais: string[]): Promise<number | null> {
   const r = await ctx.supabase
     .from('yt_reporting_reports')
     .select('report_id', { count: 'exact', head: true })
     .in('channel_id', idsDosCanais)
-    .gte('downloaded_at', new Date(Date.now() - 3 * DIA_MS).toISOString())
+    .gte('downloaded_at', new Date(Date.now() - 3 * DIA_MS - 6 * 3_600_000).toISOString())
   if (r.error || r.count === null || r.count === undefined) return null
   return r.count / 3
 }
@@ -544,21 +545,20 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const renovados = new Set<string>()
   const alvo = fila.slice(0, MAX_DOWNLOADS)
   const t1 = Date.now()
-  const escoposDe429 = new Set<string>()
   for (let i = 0; i < alvo.length && !semTempo; i++) {
     const p = alvo[i]!
     // Um de cada vez: o buffer do relatório anterior já foi liberado.
+    let item429 = false
     let r = restante(ctx.deadline) <= 0 ? 'sem_tempo' : await baixarUm(ctx, clientes.get(p.channel_id)!, p, urls, renovados, resumo)
     if (typeof r === 'object') {
-      // 429: espera o próximo minuto (Retry-After, senão 60 s) e repete o MESMO item uma vez; se não couber no prazo, ou se
-      // o segundo também for 429, para o laço. Os itens seguintes ficam intocados (`listado`, sem tentativa somada).
+      // 429: espera o próximo minuto (Retry-After, senão 60 s) e repete o MESMO item uma vez; se não couber no prazo, se o
+      // Retry-After passar do teto ou se o segundo também for 429, para o laço. Os itens seguintes ficam intocados (`listado`,
+      // sem tentativa somada). O 429 NÃO vai para yt_own_collection_attempts: a linha do dia é "última escrita vence" e
+      // apagaria um erro real do mesmo job; a visibilidade fica em parou_por_limite/esperas_429/nao_tentados.
+      item429 = true
       for (let volta = 0; volta < 1 && typeof r === 'object'; volta++) {
-        const espera = Math.min(r.retryAfterMs ?? ESPERA_429_PADRAO_MS, ESPERA_429_MAX_MS)
-        const escopo = scopeJob(p.channel_id, p.report_type_id)
-        if (!escoposDe429.has(escopo)) {
-          escoposDe429.add(escopo)
-          await registrarTentativa(ctx, { site_id: p.site_id, scope_type: 'job', scope_id: escopo, kind: 'relatorio', outcome: 'erro_http', http_status: 429, error: 'limite de cota por minuto (429)', channel_id: p.channel_id })
-        }
+        if (r.retryAfterMs !== null && r.retryAfterMs > ESPERA_429_MAX_MS) break // pediu mais que o teto: não é limite por minuto
+        const espera = r.retryAfterMs ?? ESPERA_429_PADRAO_MS
         if (restante(ctx.deadline) - espera < FOLGA_APOS_ESPERA_MS) break
         const t = Date.now()
         await dormir(espera)
@@ -568,11 +568,17 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
       }
       if (typeof r === 'object') {
         resumo.parou_por_limite = true
-        resumo.nao_tentados = alvo.length - i
+        resumo.nao_tentados = alvo.length - i - 1
         break
       }
     }
-    if (r === 'sem_tempo') {
+    if (r === 'sem_tempo' && resumo.esperas_429 > 0) {
+      // O relógio acabou DEPOIS de uma espera de 429: a causa é a cota por minuto, não o orçamento do passo.
+      // Não registra nao_alcancado_orcamento (o critério de orçamento pintaria o cron por um falso alarme).
+      semTempo = true
+      resumo.parou_por_limite = true
+      resumo.nao_tentados = alvo.length - i - (item429 ? 1 : 0)
+    } else if (r === 'sem_tempo') {
       semTempo = true
       // Só o relógio conta como nao_alcancado_orcamento; o teto de downloads e a fila não.
       const afetados = new Set(alvo.slice(i).map(x => x.channel_id))
@@ -599,11 +605,19 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     if (resta.linhas.length > 0) {
       resumo.vence_primeiro_em_dias = Math.floor((Math.min(...resta.linhas.map(venceEm)) - Date.now()) / DIA_MS)
     }
-    // 429 só vira vermelho quando ameaça o prazo: vence em até 7 dias, ou há mais pendentes do que 5 dias de vazão
-    // (média dos últimos 3 dias). Fora disso é só o resumo (parou_por_limite).
+    // 429 só vira vermelho quando ameaça o prazo: vence em até 7 dias, ou os dias para zerar a fila (pendentes / vazão média
+    // de 3 dias) passam de (dias até vencer − 5); vazão 0 com pendentes ameaça. Fora disso é só o resumo (parou_por_limite).
     if (resumo.parou_por_limite && resumo.pendentes > 0) {
+      const vence = resumo.vence_primeiro_em_dias
       const vazao = await vazaoDiaria(ctx, idsDosCanais)
-      const ameaca = (resumo.vence_primeiro_em_dias !== null && resumo.vence_primeiro_em_dias <= 7) || (vazao !== null && resumo.pendentes > 5 * vazao)
+      const vencePerto = vence !== null && vence <= 7
+      if (vazao === null && !vencePerto) {
+        pushUnico(ctx.falhas, 'relatórios: o limite de cota parou os downloads e a vazão não pôde ser lida; não avaliei se a fila alcança o vencimento')
+      }
+      const ameaca = vencePerto || (vazao !== null && (vazao === 0 || (vence !== null && resumo.pendentes / vazao > vence - 5)))
+      if (resumo.esperas_429 > 0 && resumo.gravados === 0) {
+        pushUnico(ctx.falhas, 'relatórios: o 429 persiste depois de esperar o minuto e nada foi baixado; não é o limite por minuto (teto diário ou bloqueio?)')
+      }
       if (ameaca) {
         pushUnico(ctx.falhas, `relatórios: o limite de cota por minuto da Reporting API parou os downloads (${resumo.nao_tentados} sem tentar, ${resumo.pendentes} pendentes${resumo.vence_primeiro_em_dias !== null ? `, o primeiro vence em ${resumo.vence_primeiro_em_dias} dia(s)` : ''}${vazao !== null ? `, vazão de ~${Math.round(vazao)}/dia` : ''})`)
       }
