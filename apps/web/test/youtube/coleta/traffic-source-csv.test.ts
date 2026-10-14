@@ -11,12 +11,13 @@ import {
 const FORMA_REAL = readFileSync(join(__dirname, 'fixtures/traffic-source-a3-forma-real.csv'), 'utf8')
 const CAB = CABECALHO_TRAFEGO.join(',')
 const sha = (s: string) => createHash('sha256').update(s).digest('hex')
+const CANAL = 'UC' + 'a'.repeat(22)
 const motivo = (fn: () => unknown) => { try { fn() } catch (e) { return e instanceof CsvTrafegoError ? e.motivo : `outro: ${String(e)}` } return 'não lançou' }
 
 /** Linha sob o cabeçalho real; só as colunas que o leitor usa variam. */
-function linha(o: { date?: string; video?: string; pais?: string; inscrito?: string; tipo?: string; detalhe?: string; views?: string; minutos?: string } = {}): string {
+function linha(o: { date?: string; canal?: string; video?: string; pais?: string; inscrito?: string; tipo?: string; detalhe?: string; views?: string; minutos?: string } = {}): string {
   return [
-    o.date ?? '20260925', 'UCcanalFicticio', o.video ?? 'vid00000001', 'on_demand', o.inscrito ?? 'not_subscribed', o.pais ?? 'BR',
+    o.date ?? '20260925', o.canal ?? CANAL, o.video ?? 'vid00000001', 'on_demand', o.inscrito ?? 'not_subscribed', o.pais ?? 'BR',
     o.tipo ?? '5', o.detalhe ?? '', o.views ?? '1', '1', o.minutos ?? '0.5', '10', '0.5', '0', '0',
   ].join(',')
 }
@@ -68,6 +69,28 @@ describe('lerTrafego', () => {
     expect(motivo(() => lerTrafego(csv(linha({ tipo: '' }))))).toBe('linha_invalida')
     expect(motivo(() => lerTrafego(csv(linha({ tipo: 'x'.repeat(41) }))))).toBe('linha_invalida')
   })
+  it('números só em decimal simples: hexadecimal, binário, científica, sinal e ponto solto são linha_invalida (M2)', () => {
+    for (const m of ['0x10', '0b1', '1e3', '1E-5', '1e999', '.5', '5.', '-0', '+1', 'NaN', 'Infinity']) {
+      expect(motivo(() => lerTrafego(csv(linha({ minutos: m }))))).toBe('linha_invalida')
+    }
+    for (const v of ['0x1', '0b1', '1e3', '-0', '+1']) {
+      expect(motivo(() => lerTrafego(csv(linha({ views: v }))))).toBe('linha_invalida')
+    }
+    expect(lerTrafego(csv(linha({ minutos: '0' })))[0]!.watchTimeMinutes).toBe(0)
+    expect(lerTrafego(csv(linha({ minutos: '12.75' })))[0]!.watchTimeMinutes).toBe(12.75)
+  })
+  it('views além do inteiro seguro: linha_invalida', () => {
+    expect(motivo(() => lerTrafego(csv(linha({ views: '99999999999999999999' }))))).toBe('linha_invalida')
+  })
+  it('id de vídeo e de canal fora do formato do YouTube: linha_invalida (M3)', () => {
+    for (const video of ['curto', 'vid000000001', 'vid 0000001', 'vid0000000\u0000', 'vid0000000|', 'vid0000000é']) {
+      expect(motivo(() => lerTrafego(csv(linha({ video }))))).toBe('linha_invalida')
+    }
+    for (const canal of ['UC1', 'XX' + 'a'.repeat(22), 'UC' + 'a'.repeat(23), 'UC' + 'a'.repeat(21), 'UC' + 'a'.repeat(21) + ' ', 'UC' + 'a'.repeat(21) + '|']) {
+      expect(motivo(() => lerTrafego(csv(linha({ canal }))))).toBe('linha_invalida')
+    }
+    expect(lerTrafego(csv(linha({ video: 'a_b-C1d2E3f', canal: 'UC' + 'a_b-'.repeat(5) + 'zz' })))).toHaveLength(1)
+  })
   it('a mensagem de erro não leva o conteúdo da linha', () => {
     try { lerTrafego(csv(linha({ detalhe: '"termo secreto"' }))) } catch (e) { expect(String(e)).not.toContain('secreto'); return }
     throw new Error('não lançou')
@@ -97,7 +120,8 @@ describe('normalizarDetalhe e cortarDetalhe', () => {
 })
 
 describe('agregarTrafego', () => {
-  const agr = (...ls: string[]) => agregarTrafego(lerTrafego(csv(...ls)))
+  const tudo = (...ls: string[]) => agregarTrafego(lerTrafego(csv(...ls)))
+  const agr = (...ls: string[]) => tudo(...ls).linhas
   it('soma por cima de país e inscrito', () => {
     const r = agr(linha({ pais: 'BR', views: '2', minutos: '1' }), linha({ pais: 'PT', inscrito: 'subscribed', views: '3', minutos: '0.5' }))
     expect(r).toHaveLength(1)
@@ -106,7 +130,7 @@ describe('agregarTrafego', () => {
   })
   it('o arquivo de forma real agrega em 7 linhas distintas, sem zeradas', () => {
     const r = agregarTrafego(lerTrafego(FORMA_REAL))
-    expect(r).toHaveLength(7)
+    expect(r.linhas).toHaveLength(7)
     expect(r.descartadasZeradas).toBe(0)
   })
   it('url sem query e sem fragmento (item 88)', () => {
@@ -147,15 +171,28 @@ describe('agregarTrafego', () => {
     expect(r[0]!.detailHash).toBe(sha('a'.repeat(299) + '😀' + 'zz'))
   })
   it('linha zerada sai e é contada', () => {
-    const r = agr(linha({ views: '0', minutos: '0' }), linha({ video: 'vid00000002', views: '1' }))
-    expect(r).toHaveLength(1)
-    expect(r[0]!.videoId).toBe('vid00000002')
+    const r = tudo(linha({ views: '0', minutos: '0' }), linha({ video: 'vid00000002', views: '1' }))
+    expect(r.linhas).toHaveLength(1)
+    expect(r.linhas[0]!.videoId).toBe('vid00000002')
     expect(r.descartadasZeradas).toBe(1)
   })
   it('views zero com minutos positivos não é zerada', () => {
-    const r = agr(linha({ views: '0', minutos: '0.2' }))
-    expect(r).toHaveLength(1)
+    const r = tudo(linha({ views: '0', minutos: '0.2' }))
+    expect(r.linhas).toHaveLength(1)
     expect(r.descartadasZeradas).toBe(0)
+  })
+  it('origens diferentes com detalhe vazio não se somam (I1)', () => {
+    const r = agr(linha({ tipo: '4', detalhe: '' }), linha({ tipo: '5', detalhe: '' }))
+    expect(r).toHaveLength(2)
+    expect(new Set(r.map(x => x.sourceType))).toEqual(new Set(['4', '5']))
+  })
+  it('o retorno é um objeto { linhas, descartadasZeradas } que sobrevive a map e a JSON', () => {
+    const r = tudo(linha({ views: '0', minutos: '0' }), linha({ video: 'vid00000002' }))
+    expect(Array.isArray(r)).toBe(false)
+    expect(Object.keys(r).sort()).toEqual(['descartadasZeradas', 'linhas'])
+    const copia = JSON.parse(JSON.stringify(r)) as typeof r
+    expect(copia.descartadasZeradas).toBe(1)
+    expect(copia.linhas.map(x => x.videoId)).toEqual(['vid00000002'])
   })
   it('dias e vídeos diferentes não se misturam', () => {
     expect(agr(linha({ date: '20260924' }), linha({ date: '20260925' }), linha({ video: 'vid00000002' }))).toHaveLength(3)
