@@ -18,10 +18,10 @@ Teste do `executor` (sessão `claude -p` descartável): 1º passo com **19,1K to
 general-purpose (aceite era ≤35K). Falta confirmar numa tarefa real que nenhuma ferramenta faz falta.
 
 ## Pendente
-- **Autocompact em 300K:** teste numa sessão só, com `CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000 claude`. Passa se
-  compactar perto de 300K e a sessão seguir sem reler plano nem perguntar o que já tinha sido decidido. Só depois
-  disso vai para o global (`autoCompactWindow` em `~/.claude/settings.json`).
-- **Plugins da conta (ação do dono no claude.ai):** desligar legal, sales, product-management, design, data,
+- **Autocompact em 300K:** o dono decidiu em 14/10 ligar direto no global (`"autoCompactWindow": 300000` em
+  `~/.claude/settings.json`, gravado por ele), sem o teste numa sessão. A métrica é `pct_principal_ctx_300k` no
+  `diario.csv`, que na base estava em 63,5%. Se uma compactação fizer a sessão perder uma decisão, a mudança é desfeita.
+- **Plugins da conta:** o dono desligou em 14/10 legal, sales, product-management, design, data,
   marketing, engineering e cowork-plugin-management (~8,5K tokens de lista de skills, 0 usos em 30 dias).
 - **Rejeitado:** TTL de 1 h para subagente, Haiku, `omitClaudeMd`, Sonnet na sessão principal e `skillOverrides` local.
 - **Backlog com gatilho:** ver a seção 3 de `hanna.md`.
