@@ -55,10 +55,14 @@ export interface PlanoDoDia {
   pulados: Record<MotivoPulo, number>
 }
 
-function precisaoDe(c: CorrenteDoCampo, dia: DiaYt): PrecisaoJanela {
-  return diffDias(c.ultimoDia, dia) <= 1 ? '1d' : 'lacuna'
+function precisaoDe(c: CorrenteDoCampo, dia: DiaYt, ytId: string): PrecisaoJanela {
+  const d = diffDias(c.ultimoDia, dia)
+  // Portão 14/10, Yannis M5: mesmo dia reprocessado ou fato anterior à corrente é erro de programação, nunca '1d'. Sem título na mensagem.
+  if (d <= 0) throw new Error(`fato não posterior à corrente: ${ytId} ${dia}`)
+  return d <= 1 ? '1d' : 'lacuna'
 }
 
+/** Todos os fatos de uma chamada têm o mesmo `dia` (um dia por vez); `precisaoDe` lança se o fato não for posterior à corrente. */
 export function derivarDia(correntes: readonly CorrenteDoCampo[], fatos: readonly FatoDoDia[]): PlanoDoDia {
   const plano: PlanoDoDia = { confirmar: [], abrir: [], pulados: { sem_captura: 0, sem_dhash: 0, privado: 0 } }
   const vistos = new Set<string>()
@@ -74,8 +78,8 @@ export function derivarDia(correntes: readonly CorrenteDoCampo[], fatos: readonl
     // Texto (título e descrição): comparação por hash do valor.
     const texto = (campo: 'title' | 'desc', hash: string | null, tituloOuNulo: string | null): void => {
       if (hash === null) {
-        // Título nulo é falha de captura; descrição sem hash só conta quando a privacidade também faltou.
-        if (campo === 'title' || f.privacidade === null) plano.pulados.sem_captura++
+        // Hash nulo (título ou descrição) é falha de captura e entra no resumo (portão 14/10, Phil m-2).
+        plano.pulados.sem_captura++
         return
       }
       if (f.privacidade === null) { plano.pulados.sem_captura++; return }
@@ -87,7 +91,7 @@ export function derivarDia(correntes: readonly CorrenteDoCampo[], fatos: readonl
       } else {
         plano.abrir.push({
           ytId: f.ytId, videoId: f.videoId, campo, tituloOuNulo, hash, thumb: null, capturadoEm: f.capturadoEm,
-          janela: { de: c.vistaAte, ate: f.capturadoEm }, precisao: precisaoDe(c, f.dia),
+          janela: { de: c.vistaAte, ate: f.capturadoEm }, precisao: precisaoDe(c, f.dia, f.ytId),
         })
       }
     }
@@ -106,9 +110,9 @@ export function derivarDia(correntes: readonly CorrenteDoCampo[], fatos: readonl
     const ancora = c.ancoraDhash ?? c.hash
     const janela = { de: c.vistaAte, ate: f.capturadoEm }
     if (hamming(f.dhash, ancora) > DHASH_MAX_SAME) {
-      plano.abrir.push({ ...base, thumb: { dhash: f.dhash, ancoraDhash: f.dhash, sha256: f.sha256, blobUrl: f.blobUrl, retoque: false }, janela, precisao: precisaoDe(c, f.dia) })
+      plano.abrir.push({ ...base, thumb: { dhash: f.dhash, ancoraDhash: f.dhash, sha256: f.sha256, blobUrl: f.blobUrl, retoque: false }, janela, precisao: precisaoDe(c, f.dia, f.ytId) })
     } else if (f.sha256 !== null && c.sha256 !== null && f.sha256 !== c.sha256) {
-      plano.abrir.push({ ...base, thumb: { dhash: f.dhash, ancoraDhash: ancora, sha256: f.sha256, blobUrl: f.blobUrl, retoque: true }, janela, precisao: precisaoDe(c, f.dia) })
+      plano.abrir.push({ ...base, thumb: { dhash: f.dhash, ancoraDhash: ancora, sha256: f.sha256, blobUrl: f.blobUrl, retoque: true }, janela, precisao: precisaoDe(c, f.dia, f.ytId) })
     } else {
       plano.confirmar.push({ id: c.id, vistaEm: f.capturadoEm })
     }

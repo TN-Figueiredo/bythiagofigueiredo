@@ -145,6 +145,7 @@ describe('derivarDia', () => {
     let seed = 12345
     const rnd = (): number => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
     const titulos = ['A', 'B', 'C']
+    let totalAberturas = 0
     for (let rep = 0; rep < 200; rep++) {
       let cs: CorrenteDoCampo[] = []
       let ultimo: string | null = null
@@ -168,7 +169,50 @@ describe('derivarDia', () => {
         else cs = aplicarPlanoNasCorrentes(cs, p, dia)
       }
       expect(achadoTitulo).toBe(esperadoTitulo)
-      expect(aberturas).toBeGreaterThanOrEqual(0)
+      totalAberturas += aberturas
+    }
+    expect(totalAberturas).toBeGreaterThan(0)
+  })
+
+  it('13d. (portão 14/10, Yannis M10) a mesma propriedade para a thumbnail: o sha é o valor com distância até 6 (200 sequências)', () => {
+    let seed = 777
+    const rnd = (): number => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
+    for (let rep = 0; rep < 200; rep++) {
+      let cs: CorrenteDoCampo[] = []
+      let ultimo: string | null = null
+      let esperado = 0, achado = 0
+      const dias = 1 + Math.floor(rnd() * 30)
+      for (let i = 0; i < dias; i++) {
+        const dia = addDays(D0, i)
+        if (rnd() < 0.25) continue
+        const sha = `s${Math.floor(rnd() * 3)}`
+        const dh = bits(Math.floor(rnd() * 7)) // 0 a 6 bits da âncora H0: sempre retoque, nunca troca cheia
+        const p = derivarDia(cs, [fato(dia, { privacidade: rnd() < 0.2 ? null : 'public', dhash: dh, sha256: sha })]) // a thumbnail não depende da privacidade nula
+        if (ultimo !== null && ultimo !== sha) esperado++
+        ultimo = sha
+        const ab = doCampo(p.abrir, 'thumb')[0]
+        if (ab?.thumb) {
+          if (ab.precisao !== 'first') achado++
+          cs = [{ id: `r${rep}-${i}`, ytId: 'abcdefghijk', campo: 'thumb', hash: ab.hash, ancoraDhash: ab.thumb.ancoraDhash, sha256: ab.thumb.sha256, ultimoDia: dia, vistaAte: ab.capturadoEm }]
+        } else cs = aplicarPlanoNasCorrentes(cs, { ...p, abrir: [] }, dia)
+      }
+      expect(achado).toBe(esperado)
+    }
+  })
+
+  it('14. (portão 14/10, Phil m-2) descrição sem hash, com privacidade presente, conta em sem_captura', () => {
+    const p = derivarDia([], [fato(D0, { descHash: null, dhash: null })])
+    expect(p.pulados.sem_captura).toBe(1)
+    expect(doCampo(p.abrir, 'desc')).toHaveLength(0)
+  })
+
+  it('15. (portão 14/10, Yannis M5) fato no mesmo dia da corrente ou antes dela lança, sem o título na mensagem', () => {
+    const c = corrente('title')
+    for (const dia of [D0, addDays(D0, -1)]) {
+      let msg = ''
+      try { derivarDia([c], [fato(dia, { titulo: 'Outro segredo' })]) } catch (e) { msg = (e as Error).message }
+      expect(msg).toContain('fato não posterior à corrente')
+      expect(msg).not.toContain('segredo')
     }
   })
 

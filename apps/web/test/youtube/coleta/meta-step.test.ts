@@ -179,6 +179,13 @@ describe('passoMetadados: thumbnail', () => {
     expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: 'fffffffffffffff8', thumbnail_blob_url: 'https://blob.test/nova.jpg' })
   })
 
+  it('dHash a 1 bit da véspera: arquiva (fronteira do limiar; portão 14/10, Yannis M1)', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('fffffffffffffffe'))
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
+    await passoMetadados(ctxDe(db))
+    expect(archiveThumb).toHaveBeenCalledTimes(1)
+  })
+
   it('dHash a 7 bits da véspera: arquiva (como antes)', async () => {
     vi.mocked(probeThumb).mockResolvedValue(probe('ffffffffffffff80'))
     const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
