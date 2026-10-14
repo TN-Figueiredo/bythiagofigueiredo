@@ -836,6 +836,141 @@ Opera real, leitor de tela, aparelho real, rede lenta; a tabela de coerência po
 
 ---
 
+## 19. O que muda quando um mês sai do banco (casca e tabela de sincronia)
+
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**; todo número de mês arquivado é exemplo. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+
+### 1. O que a tela responde
+"Quais telas aprovadas mudam quando um mês sai do banco, onde está o desenho de cada uma e o que ainda falta?"
+
+### 2. Roteiro de teste
+Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/index.html` (barra "Estados do mockup" fechada; `&barra=aberta` a abre; `&tema=claro`; `&cinza=1`). Um item de cada vez:
+1. Abrir `index.html` a 390 px (claro): a tabela de sincronia vira cartões, sem rolagem lateral, com os links de 44 px.
+2. Conferir a tabela contra `APROVACOES-DO-DONO.md`: 13, 15 e 20 aprovados em 13/10; o 21 segurado; o 18 sem quadro de diálogo (a remoção mora na tela Canais).
+3. Abrir e fechar "Como ler as formas": nove formas e as duas origens da conferência com o mesmo visto, sem cor própria; a prova a 16 px separa pontilhado, meio-círculo e caixa de arquivo.
+4. Escolher dois estados do índice e abrir o quadro pelo link; a coluna "carregando" diz servidor ou requisição.
+5. Ler a nota do vocabulário: "snapshot do NAS" e "lido em dd/mm" permitidos só nessas expressões.
+
+### 3. Decisões pedidas ao dono
+1. Aprovar a ordem de entrega: peças 1, 2 e 3 agora; 4, 6, 7 e 8 depois.
+2. A linha do 18 na tabela diz "sem quadro": confirmar.
+Respostas do dono: não registradas.
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Revisão 19-1 (Logan: D-1 a D-5, S1 a S3, A1 a A8; Naksu: S1, A1 a A4, I1) **aplicada** em 14/10/2026: ver `19-mes-fora-do-banco/NOTAS.md`, seção "Revisão 19-1". Para testar no Opera: P1-10 a 390 px sem texto cortado; P1-2 com valores crescentes; `arquivo.html?perfil=ed` (frase única "esperam quem administra o site"); "Ver o comando" na linha de novembro de 2027; "Ver o que sairia" na linha "Pode sair"; `caso=hoje` ("Um mês já pode sair" só no caso cheio; o caso hoje fala em 01/05/2027). Para o spec 04 no fecho: trocar L241 ("cole … os comandos que ele imprimir") por "rode o arquivo que ele gravar" (regra do dono de 14/10), e "ⓘ de Fechado" pelo texto novo; a causa dos 28 dias nas séries fica a confirmar com o Phil.
+
+### 5. O que ninguém conferiu
+Opera real, aparelho real. As linhas "peça 8: ainda não desenhada" são promessa, não tela.
+
+### 6. Retorno do dono e do uso real
+Não registrado: ainda não foi ao dono.
+
+---
+## 19a. Peça 1: "desde dd/mm" e "no arquivo" nas telas de gráfico
+
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+
+### 1. O que a tela responde
+"Este número está completo, ou falta um pedaço que saiu do banco?" A resposta vem junto do número ("desde 01/10/2027") e no eixo (trecho "no arquivo").
+
+### 2. Roteiro de teste
+Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/series.html` (barra "Estados do mockup" fechada; `&barra=aberta` a abre; `&tema=claro`; `&cinza=1`). Um item de cada vez:
+1. `series.html` (todos os 13 quadros): no P1-4, de longe e com `&cinza=1`, distinguir as três ausências: hachura rosa (não medido, P1-11), pontilhado (antes da coleta, P1-10) e o trecho de fundo apagado com caixa e rótulo (no arquivo).
+2. `?e=p1-2`: só 1, 7 e 30 dias com número; 2, 3, 5, 14 e 21 dias com "no arquivo desde dd/mm" e a data do mês de cada uma; nenhum número inventado.
+3. `?e=p1-3` como administra e como edita (`&perfil=ed`): o ⓘ só aparece para quem administra; nenhuma data limite para trazer de volta.
+4. `?e=p1-5`: as 72 horas viram a frase, sem curva e sem hachura; o resumo diz "não dá para calcular sem as horas".
+5. `?e=p1-6`: "Calculado com 38 vídeos; 7 estão no arquivo" e, abaixo de 3, o não medido com o motivo.
+6. `?e=p1-7`: apertar 3, 6 e 12 meses; só o de 12 fala do arquivo; com `&caso=hoje` o motivo é coleta recente, sem arquivo.
+7. `&perfil=le`: "Ver antigo" some e fica "No arquivo desde 08/2027."; o "Ver antigo" leva ao pedido (peça 6, ainda não desenhado: o botão só avisa).
+8. `&caso=hoje`: os estados que dependem de uma saída dizem que não existem ainda; nada aparece como zero.
+9. 390 e 1440 px, claro e escuro.
+
+### 3. Decisões pedidas ao dono
+1. O quadro "Aprovado hoje" é reconstruído pela frontend-design (números no lugar do "no arquivo"): confirmar que representa o que o 13 e o 15 mostram.
+2. As telas 14, 17a e 17c ficaram sem quadro, a confirmar pela janela de 180 dias.
+Respostas do dono: não registradas.
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando voltarem, entram aqui.
+
+### 5. O que ninguém conferiu
+O mockup 21 está segurado; a janela de 6 e 12 meses é de exemplo. Leitor de tela, Opera, aparelho real. O desenho não foi aberto dentro das telas reais do 13 e do 15.
+
+### 6. Retorno do dono e do uso real
+Não registrado: ainda não foi ao dono.
+
+---
+## 19b. Peça 2: a página do Arquivo
+
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+
+### 1. O que a tela responde
+"Algum mês precisa de mim agora, e quando o próximo pode sair?" A linha que precisa do dono sobe ao topo do tipo e é a única com contorno de cor; o que está bem recua.
+
+### 2. Roteiro de teste
+Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/arquivo.html` (barra "Estados do mockup" fechada; `&barra=aberta` a abre; `&tema=claro`; `&cinza=1`). Um item de cada vez:
+1. `arquivo.html` (caso cheio): sem ler, apontar qual mês precisa de você (Novembro de 2027, a única com contorno âmbar e triângulo, no topo de Views por dia).
+2. Repetir com `&cinza=1`: a linha de problema continua à frente.
+3. Abrir "2027: 8 meses no arquivo" e fechar; abrir "Como ler as formas".
+4. Ler a régua de um mês saudável (Dezembro de 2027) e a de um com "conferido por você (vale até 25/05/2028)" (Novembro): o visto da origem não tem cor própria.
+5. Setembro de 2027 (já saiu das telas) vem logo depois da linha de problema, com "Liberar o espaço devolve cerca de 4% do banco", e o botão "Liberar o espaço (disponível em 09/05/2028)" tracejado diz a data.
+6. `?e=todos-meses` e `?e=todos-problemas`: um quadro por estado; conferir que nenhuma frase traz só cor (sempre forma e texto) e que "A casa não respondeu" é triângulo até 36 h e octógono depois (PC1, PC2).
+7. `?e=todos-canais`: zero medido ("Nenhum canal removido pede limpeza.", caixa com o 0), não medido (hachura), "Já limpos (N)", a quarta etapa nunca em visto; com `&cmd=nao` a frase-resumo e a ação mudam.
+8. `?e=todos-teste` como administra: a faixa "Dado de teste", a marca "teste" e o botão "Encerrar o dado de teste"; como edita (`&perfil=ed`) ou só lê (`&perfil=le`) o grupo não aparece, e no só leitura a página some.
+9. `&caso=hoje` e `&caso=magro`: nada como zero solto ("Nenhum mês no arquivo ainda" na caixa de zero medido).
+10. 390 px: a régua de cinco etapas fica em uma linha, "Recuperação" vira "Teste", sem rolagem lateral; claro e escuro.
+
+### 3. Decisões pedidas ao dono
+1. O espaço "+ novo" do interruptor do automático (peça 4) e de "Vídeos antigos" (peça 8): aceitável enquanto não são desenhados?
+2. O ⓘ de "Fechado. Cópia a partir de dd/mm" é texto novo (o spec não o dá): aprovar a frase.
+3. A frase "Cole na forja os comandos que ele imprimir, um por vez" muda uma palavra do spec ("linhas" é proibida): confirmar.
+Respostas do dono: não registradas.
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando voltarem, entram aqui.
+
+### 5. O que ninguém conferiu
+Opera real, leitor de tela, aparelho real, filtro de cinza do macOS. O contraste da hachura foi medido sobre o fundo plano. Todos os números de meses arquivados são exemplo.
+
+### 6. Retorno do dono e do uso real
+Não registrado: ainda não foi ao dono.
+
+---
+## 19c. Peça 3: tirar o mês do banco
+
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+
+### 1. O que a tela responde
+"Posso tirar este mês? Se não, o que falta? Se sim, o que eu perco?"
+
+### 2. Roteiro de teste
+Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/arquivo.html?e=todos-tirar` (barra "Estados do mockup" fechada; `&barra=aberta` a abre; `&tema=claro`; `&cinza=1`). Um item de cada vez:
+1. T1: cada condição tem símbolo e diz o que fazer; nenhum botão cinza mudo.
+2. T2: "Ver o que sairia" não tira nada e diz isso; o contador "simulações vistas: 2 de 2" aparece.
+3. Na página (`arquivo.html`), como administra: clicar em "Tirar fevereiro de 2028 do banco online": a janela abre com o foco em "Cancelar"; Esc fecha e o foco volta ao botão; Tab não sai da janela; confirmar troca a linha para "Saiu das telas em 03/05/2028".
+4. T4, T4a, T4b: a frase da prova inteira; os dois passos dizem que não dá para remover canal nem apagar vídeo enquanto o espaço não for liberado; a quarta saída diz "Não volta ao banco por este botão".
+5. T4c: o botão fica tracejado até a frase "apagar comentários de outubro de 2027" ser digitada (maiúscula ou minúscula; colar vale).
+6. T7 e T7a: "Liberar o espaço" diz a data enquanto está desabilitado; depois dos 7 dias os dois botões ficam habilitados; T7b aos 14 dias é âmbar.
+7. T8, T8r, T8x: o segundo passo diz que depois não volta pelo site; o repetido não é vermelho.
+8. T10 a T10d: trazer de volta, com o dado que não bateu, com a proteção não instalada e a única falha, em vermelho.
+9. 390 px: os botões da janela empilham com 44 px; claro e escuro.
+
+### 3. Decisões pedidas ao dono
+1. Os botões "Tirar" e "Liberar o espaço" têm o peso máximo da tela (texto invertido): é o que se quer?
+2. A frase digitada do T4c foi copiada do spec; confirmar o texto.
+Respostas do dono: não registradas.
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando voltarem, entram aqui.
+
+### 5. O que ninguém conferiu
+Leitor de tela (ordem de anúncio do status do T4c), Opera real, aparelho real. O diálogo de "remover canal com mês fora das telas" é o D7 do `remover-canal/` (aprovado), não foi redesenhado aqui.
+
+### 6. Retorno do dono e do uso real
+Não registrado: ainda não foi ao dono.
+
+---
+
 # LOTE 1 (aprovado em 13/10/2026, decisão 62)
 
 Fonte: `docs/superpowers/mockups/2026-10-13-a5-lote-1/` (`LEIAME.md`, `PLANO-UX.md`, `REVISAO-UX.md`, `AJUSTES-UX-2.md`). Esta pasta não separa `NOTAS.md` por tela: o `LEIAME.md` traz a ordem de abertura, o que mudou por rodada, as "tabelinhas que fecham" e a dívida declarada; o `PLANO-UX.md` traz a pergunta de 3 segundos de cada tela; a `REVISAO-UX.md` traz o veredito por tela. Faltam, por tela, uma lista própria de "dúvidas ao dono" (as duas perguntas do lote 1 foram decididas pelo dono em 12/10 e já constam no `LEIAME.md`) e a extração das sugestões da `REVISAO-UX.md` (seções A a E): não extraí aqui; consultar o arquivo se uma melhoria for reaberta. O que o dono disse ao aprovar o lote 1: não registrado nas pastas (só o número da decisão, 62).

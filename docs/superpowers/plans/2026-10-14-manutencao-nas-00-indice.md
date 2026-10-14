@@ -13,7 +13,7 @@ Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06).
 | 4 | `2026-10-14-manutencao-nas-m3a-casa.md` | M3a | pergunta 1 (respondida); CP25 | nada | **acordo de Phil (r3) e Yannis (r2), commitado** |
 | 5a | `2026-10-14-manutencao-nas-m3b-site.md`: registro, política, rotas, serialização e leitor únicos, fatia 12a, resumo por canal | M3b (site) | M2, M3a; E10 tarefas 5 e 6 **ou** o gatilho do §15.1 | primeira selagem devida em 28/11 | **acordo de Phil e Yannis (r3; contrato r2.3), commitado** |
 | 5b | `2026-10-14-manutencao-nas-m3b-forja.md`: copiador, `conferir-b2` (canário, controle negativo, Su1), `pode-desligar`, varredura completa, blocos do pulso | M3b (forja) | M3a; contrato das rotas da 5a | a mesma | **acordo de Phil e Yannis (r3; contrato r2.3), commitado** |
-| 6 | M4, mockups (peças 1 a 9, mockup 19, `18-v2`) | M4 | nada | aprovação do dono | em andamento: plano das telas aprovado pelo Logan; diálogo "Remover canal" e `18-v2` em conferência final |
+| 6 | M4, mockups (peças 1 a 9, mockup 19, `18-v2`) | M4 | nada | aprovação do dono | em andamento: diálogo "Remover canal" e `18-v2` **aprovados pelo dono (14/10, e8445f559)**; 19 e peças 1 a 3 corrigidos depois da revisão 19-1, falta a conferência de Logan e Naksu e o dono; peças 4, 6, 7 e 8 por desenhar |
 | 7 | M5, telas | M5 | M3b, M4; pedido 11 | nada | depois |
 | 8 | M6, saída | M6 | M3b, M4 | nada | depois |
 | 9 | M10b, vídeo antigo, congelar | M10b | M10a, M3b, M4, M5 | nada | depois |
