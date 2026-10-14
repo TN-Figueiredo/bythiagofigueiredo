@@ -52,7 +52,7 @@ Colado pelo dono em 13/10 e transcrito em `medidas-e-decisoes-13-10.md`, seção
 | F24 | TrueNAS SCALE 25.10.4. Pool `fast`: dois espelhos, 4 NVMe, 6,17 T livres. Os 5 NVMe com `SMART PASSED`. No-break configurado (`MASTER`, `nutdrv_qx`, `shutdowntimer` 30) |
 | F25 | `fast/appdata` é cifrado (aes-256-gcm), `recordsize` 16K, sem quota. Filhos atuais: adguard, firefly, homarr, lidarr, navidrome, paperless, slskd, soularr, vaultwarden |
 | F26 | Tarefa "appdata -> B2": `PUSH`, modo **`SYNC`** (propaga apagamento), `encryption: true`, `filename_encryption: true`, `snapshot: false`, sem exclusões, bucket `tnf-nas-backup-4x9k2`. A senha da cifra mora na configuração do TrueNAS |
-| F49 | **Object Lock: desligado** no bucket `tnf-nas-backup-4x9k2` (resposta do dono, lida no painel do B2 em 13/10; `medidas-e-decisoes-13-10.md`, seção 5). O expurgo consegue apagar. **A regra de versões (Lifecycle Settings) continua sem resposta:** enquanto não vier, vale o pior caso, que é o B2 guardar só a última versão |
+| F49 | **Object Lock: desligado** no bucket `tnf-nas-backup-4x9k2` (resposta do dono, lida no painel do B2 em 13/10; `medidas-e-decisoes-13-10.md`, seção 5). O expurgo consegue apagar. **Fecho de 14/10: a regra de versões foi lida no painel:** versões anteriores por 30 dias (captura do dono); o pior caso deixou de valer. O bucket do arquivo nasce com a mesma regra |
 | F27 | Snapshots: `fast/appdata` recursivo, 2 semanas (o filho herda). `fast/production`: 1 ano e 2 semanas |
 | F28 | NFS: 7 exportações, restritas por `hosts`; `esteira` com `maproot root`, as demais com `mapall truenas_admin`; `media/biblioteca` é `ro` |
 | F29 | Não há segundo pool: `sudo zpool import` não lista nada, e o pool `backup` das replicações não existe. **As duas cópias do arquivo são o NAS e o B2** |
@@ -119,7 +119,7 @@ Medidas de produção **MEDIDO em 13/10/2026, 23:12 UTC**, pelo dono, só com `s
 | # | Fato | Fonte |
 |---|---|---|
 | F62 | **1.391 vídeos de concorrente guardados; nenhum sem data de publicação.** Com mais de 1 ano de publicados: 521 (37%); mais de 2 anos: **174**; mais de 3 anos: 15. Dos de mais de 2 anos: nenhum fixado, 26 na faixa diária, nenhum fora do ar | MEDIDO (M1) |
-| F63 | Os vídeos com mais de 2 anos estão em **3 dos 15 canais** (88, 56 e 30). Um canal (`15db7dc5…`, 54 vídeos guardados, o mais antigo de 05/08/2022, cerca de 13 vídeos por ano) tem **26 dos seus 30 vídeos antigos entre os 50 mais recentes**: é o caso em que a coleta regravaria um vídeo retirado, e em que a regra "os mais recentes nunca saem" segura a saída. **Elegíveis na primeira leva com 24 meses: 174 menos 26, ou 148 vídeos, em 3 canais** (conta sobre o medido; as trocas salvas, que também isentam, não foram contadas: conferência CP28) | MEDIDO (M1 e M2) |
+| F63 | **(Fecho de 14/10: o canal `15db7dc5…` é um dos 5 removidos em 13/10. Sem ele, 144 vídeos elegíveis em 2 canais, e nenhum canal com `H_ef` acima de H. Recontar na M0.)** Os vídeos com mais de 2 anos estavam em **3 dos 15 canais** (88, 56 e 30). Um canal (`15db7dc5…`, 54 vídeos guardados, o mais antigo de 05/08/2022, cerca de 13 vídeos por ano) tem **26 dos seus 30 vídeos antigos entre os 50 mais recentes**: é o caso em que a coleta regravaria um vídeo retirado, e em que a regra "os mais recentes nunca saem" segura a saída. **Elegíveis na primeira leva com 24 meses: 174 menos 26, ou 148 vídeos, em 3 canais** (conta sobre o medido; as trocas salvas, que também isentam, não foram contadas: conferência CP28) | MEDIDO (M1 e M2) |
 | F64 | **`video_limit` é 50 nos 15 canais** (1 em modo `full`, 14 em `recent`) | MEDIDO (M9) |
 | F65 | Pela unidade por mês de publicação seriam 36 pares de canal e mês, em 3 canais. Pela unidade adotada (mês do congelamento, seção 10.8), a primeira leva são no máximo 3 canais vezes 8 tabelas: **24 unidades** | MEDIDO (M10); conta |
 | F66 | Tamanho e bytes por linha: `competitor_videos` 2,76 MB (1.985 B por linha; 1,54 MB são índice, e o maior índice é o de `tags`, com 0,72 MB); `competitor_field_versions` 2,56 MB (7.895 linhas, 324 B); `competitor_raw` 2,18 MB (794 linhas, 2.744 B; bruto médio de 1.989 B); `competitor_video_versions` 2,16 MB (2.422 linhas, 2.400 correntes, 893 B); `competitor_channel_snapshots` 0,65 MB (1.252 linhas, 517 B); `competitor_video_tier_spans` 0,31 MB (1.391 linhas, 224 B); `competitor_changes` 0,24 MB (42 linhas). **Continuam vazias:** comentários, leituras da forja, retratos e marcas de comentário, mapa de horas e registro de dias somados. (`competitor_raw` estava vazia na medida da tarde, F5: a captura começou a gravar no intervalo) | MEDIDO (M3, M4, M6) |
@@ -182,7 +182,7 @@ npx supabase db query --linked "select (select min(hour_slot) from public.compet
 
 ### 7.2 NAS e B2 (o dono)
 
-CP7. **Painel do Backblaze B2**, no navegador, bucket `tnf-nas-backup-4x9k2`: **Lifecycle Settings** (todas as versões, só a última, ou por quantos dias). O Object Lock já foi respondido: desligado (F49). É a pergunta 1 da seção 20. Enquanto não vier a resposta, vale o pior caso (só a última versão). O item de aceite 2 fecha com a captura dessa tela.
+CP7. **Painel do Backblaze B2**, no navegador, bucket `tnf-nas-backup-4x9k2`: **Lifecycle Settings** (todas as versões, só a última, ou por quantos dias). O Object Lock já foi respondido: desligado (F49). É a pergunta 1 da seção 20. **Respondida em 14/10:** versões anteriores por 30 dias, no bucket atual; o do arquivo nasce igual. O item de aceite 2 fecha com a captura dessa tela.
 
 CP8. A política de snapshot que o filho de `appdata` herda (confirma o prazo declarado do expurgo). No shell do TrueNAS:
 
@@ -280,8 +280,10 @@ zfs get -H -o name,property,value keyformat,keylocation,keystatus fast/appdata
 CP23. **A chave de nó da rede privada expira?** Chave vencida derruba as montagens sem erro de máquina (F78). No painel da rede privada (clique), em cada uma das duas máquinas; e, na forja:
 
 ```
-ssh forja 'tailscale status --json | grep -m1 KeyExpiry'
+ssh forja 'tailscale status --json' | python3 -c "import json,sys; print(json.load(sys.stdin)['Self'].get('KeyExpiry'))"
 ```
+
+**Fecho de 14/10: o comando foi trocado e a conferência está RESPONDIDA.** O comando anterior (`grep -m1 KeyExpiry`) pegava a primeira data da lista, que é de outro aparelho da rede privada, e não a da forja: o de agora lê `Self.KeyExpiry`, a chave da própria máquina. **MEDIDO em 14/10:** a forja e o NAS (`truenas-scale`) estão sem `KeyExpiry`, isto é, com a expiração desligada, e o dono confirmou no painel. A pergunta 13 e a linha 1 da seção 16.12 ficam respondidas.
 
 CP24. A regra de gratuidade de saída de dados do B2 (lembrança dos dois engenheiros: até 3 vezes a média guardada por mês) e o preço acima dela. O agente lê a página de preços do Backblaze na fase de plano. Decide o orçamento de bytes por dia do `conferir-b2` (seção 10.9). **Conserto da rodada 1 (observação do engenheiro de dados):** entra na mesma conferência o tamanho das miniaturas no NAS e no B2, que **não foi medido** (a medida M5 conta 807 miniaturas, sem bytes). A 100 kB cada, 50 canais em 5 anos são da ordem de 2 GB no filho `texto` (a `refquota` é de 10 GiB) e passam a dominar a banda do `conferir-b2`, hoje estimada só sobre os CSV (130 MB por ano): ESTIMATIVA.
 
@@ -290,6 +292,8 @@ CP25. A versão do `rclone` no repositório do sistema da forja, e se ela decifr
 ```
 ssh forja 'apt-cache policy rclone | head -3'
 ```
+
+**MEDIDO em 14/10 (fecho de 14/10; `saidas/forja-cp23-cp25-2026-10-14-0005.txt`):** o `rclone` não está instalado na forja (`Installed: (none)`); o candidato do repositório é `1.60.1+dfsg-3ubuntu0.24.04.6`. **Continua NÃO VERIFICADO** se essa versão decifra o formato que a tarefa do TrueNAS grava.
 
 CP26. **Por onde o healthchecks.io avisa o dono** (e-mail, notificação no celular) e se o aviso chega fora da rede de casa. Painel do serviço (clique); a prova é o passo 15 do ensaio (seção 13.3).
 
@@ -317,7 +321,7 @@ CP30. O disco da forja é cifrado? Pesa no risco de a chave da cifra do B2 morar
 ssh forja 'lsblk -o NAME,TYPE,FSTYPE,MOUNTPOINT | grep -i crypt || echo SEM-CIFRA'
 ```
 
-CP31. **Qual é o cofre de senhas do dono, e ele se lê sem o NAS?** Entre os aplicativos do NAS há um `vaultwarden` (F25). Se o cofre em que a senha e o sal da cifra são guardados for esse, a perda do NAS leva o cofre junto, e a cópia offline passa a ser a única guarda fora da casa. Conferência do dono (não há comando): onde está cada uma das duas guardas e se ele alcança ao menos uma de longe. **Achado do redator em 14/10, sem lastro nos pareceres;** entra na lista de antes de partir (seção 16.12). **Conserto da rodada 1:** os dois engenheiros o confirmaram e lhe deram dente: passou a ser condição da M3a, antes de gerar a chave (seções 9.4 e 15.1), e o ensaio é feito com a rede privada desligada no Mac (itens de aceite 107 e 154).
+CP31. **Qual é o cofre de senhas do dono, e ele se lê sem o NAS?** **(Fecho de 14/10: virou a pergunta 18 da seção 20, com padrão.)** Entre os aplicativos do NAS há um `vaultwarden` (F25). Se o cofre em que a senha e o sal da cifra são guardados for esse, a perda do NAS leva o cofre junto, e a cópia offline passa a ser a única guarda fora da casa. Conferência do dono (não há comando): onde está cada uma das duas guardas e se ele alcança ao menos uma de longe. **Achado do redator em 14/10, sem lastro nos pareceres;** entra na lista de antes de partir (seção 16.12). **Conserto da rodada 1:** os dois engenheiros o confirmaram e lhe deram dente: passou a ser condição da M3a, antes de gerar a chave (seções 9.4 e 15.1), e o ensaio é feito com a rede privada desligada no Mac (itens de aceite 107 e 154). **Fecho de 14/10 (pergunta 18 respondida):** o cofre é esse, e a cópia offline ainda não existe. A segunda guarda deixa de ser condição da M3a e passa a ser condição do passo 17 do ensaio e do primeiro descarte real (seção 9.4).
 
 CP32. **(Item 12.) A chave `archive_b2` lista versões de objeto no B2, e o que a listagem devolve sem essa capacidade (erro ou vazio)? E o painel do B2 apaga todas as versões de uma pasta, ou só as esconde?** Decide a forma do passo do dono na limpeza de um canal removido (seção 11.3). A prova de ausência não depende da resposta: ela exige o controle positivo da mesma listagem. O dono confere no painel do B2 (clique: "App Keys", as capacidades da chave da forja) e, depois da M3a, o agente lê:
 
@@ -362,7 +366,7 @@ canal(a) = 1,73·a                                   o que nunca sai
          + 1,2 · 2,05 · min(a, 7/12)                texto: 7 meses online, com 20% de espaço morto
 
 banco(m) = 56,5 + 17 + 8·m/12                       base, peças fixas, resto do site
-         + 15 · canal(m/12)                         os 15 canais de hoje
+         + 15 · canal(m/12)                         os 15 canais (medido em 13/10 às 20:12; 5 foram removidos depois, contagem nova não lida)
          + soma, para k de 1 até min(m, 12), de (N − 15)/12 · canal((m − k)/12)
 ```
 
@@ -409,7 +413,7 @@ Cenário de referência: as duas recuperações de espaço, as duas podas, as tr
 
 | Custo por canal | Cabem por 1 / 2 / 3 / 5 anos, a 85% | Cabem por 1 / 2 / 3 / 5 anos, a 95% |
 |---|---|---|
-| 30% acima da estimativa | 47 / 28 / 22 / menos de 15 (nem os 15 de hoje cabem por 5 anos; o modelo parte de 15 canais e não calcula abaixo disso) | 55 / 33 / 25 / 17 |
+| 30% acima da estimativa | 47 / 28 / 22 / menos de 15 (nem os 15 (medido em 13/10 às 20:12; 5 foram removidos depois, contagem nova não lida) cabem por 5 anos; o modelo parte de 15 canais e não calcula abaixo disso) | 55 / 33 / 25 / 17 |
 | A estimativa | 64 / 37 / 29 / 19 | 74 / 43 / 33 / 22 |
 | 30% abaixo | 95 / 54 / 42 / 28 | 110 / 63 / 49 / 33 |
 
@@ -442,7 +446,7 @@ Com o custo 30% acima, 50 canais passam de 85% em outubro de 2027 e do limite em
 | 8 | Referência (linha 4), com **metade dos canais** sem leitura horária e sem comentários | 87 / 46 / 34 / 21 | 102 / 53 / 39 / 25 | abril de 2029 | março de 2028 |
 | 9 | Referência (linha 4), com **todos os canais** sem leitura horária e sem comentários | 135 / 61 / 41 / 24 | 157 / 70 / 48 / 29 | dezembro de 2029 | novembro de 2028 |
 
-Sem a onda 2 (linhas 1 e 2), nem os 15 canais de hoje cabem em 5 anos: é por isso que ela deixa de ser opcional (seção 4, linha 7).
+Sem a onda 2 (linhas 1 e 2), nem os 15 canais (medido em 13/10 às 20:12; 5 foram removidos depois, contagem nova não lida) cabem em 5 anos: é por isso que ela deixa de ser opcional (seção 4, linha 7).
 
 ### 8.4 As alavancas dentro do gratuito
 
@@ -474,7 +478,7 @@ Rendimento medido a partir do cenário de referência, salvo indicação. "Canai
 | 50 | agosto de 2027 | setembro de 2027 | novembro de 2027 | **8** |
 | 75 | junho de 2027 | agosto de 2027 | setembro de 2027 | 7 |
 
-Com os 15 canais de hoje há um ano e meio de folga depois da viagem. Com 50, oito meses; com 75, sete. Por isso "não acrescentar canal com a casa fora" é a primeira coisa a fazer (seção 13.6, que diz o que acontece com a casa desligada, passo a passo). Se a casa cair mais tarde, a folga é maior: os meses anteriores já terão saído.
+Com os 15 canais (medido em 13/10 às 20:12; 5 foram removidos depois, contagem nova não lida) há um ano e meio de folga depois da viagem. Com 50, oito meses; com 75, sete. Por isso "não acrescentar canal com a casa fora" é a primeira coisa a fazer (seção 13.6, que diz o que acontece com a casa desligada, passo a passo). Se a casa cair mais tarde, a folga é maior: os meses anteriores já terão saído.
 
 **Faixa de erro da folga** (ESTIMATIVA, mesma fórmula; meses até o vermelho com 15, 25 e 50 canais): com o custo por canal 30% acima, **13, 10 e 7**; sem a recuperação dos 49 MB (se nem a reescrita nem o esvaziamento da tabela forem aceitos pelo banco: decisão D20), 15, 11 e 7; os dois juntos, 11, 8 e 6.
 
@@ -511,7 +515,7 @@ H_ef       = max(H ; video_limit ÷ vídeos publicados por ano)
 
 **O horizonte efetivo (`H_ef`), e por que ele entra.** Os `video_limit` vídeos mais recentes de um canal nunca saem (seção 10.8). O que fica online é o maior entre "os vídeos publicados em H" e "os `video_limit` mais recentes". A primeira conta do engenheiro de dados não tinha essa regra, e ele a corrigiu na rodada 2 (`direcao-onda3-dados-r2.md`, seção 5.2). Com as medidas:
 
-- `video_limit` é 50 nos 15 canais (MEDIDO, F64). No ritmo médio (103 vídeos por ano) 50 vídeos são 6 meses: **com H = 24 meses, `H_ef` é igual a H no canal médio**, e a tabela abaixo não muda por causa dele. Só passa de H o canal que publica menos de 25 vídeos por ano: **1 dos 15 de hoje** (F63, cerca de 13 por ano, `H_ef` de quase 4 anos).
+- `video_limit` é 50 nos 15 canais (MEDIDO, F64). No ritmo médio (103 vídeos por ano) 50 vídeos são 6 meses: **com H = 24 meses, `H_ef` é igual a H no canal médio**, e a tabela abaixo não muda por causa dele. Só passa de H o canal que publica menos de 25 vídeos por ano: era **1 dos 15** (F63, cerca de 13 por ano, `H_ef` de quase 4 anos), e esse canal foi um dos removidos em 13/10 (fecho de 14/10): pela medida de 13/10, hoje nenhum.
 - Esse canal lento custa **menos** que a média nessa parcela (guarda 50 vídeos, contra 206 do canal médio: cerca de 0,8 MB contra 3,5), mas a saída por idade quase não libera nada nele: 4 dos 30 vídeos antigos são elegíveis.
 - **O que faria `H_ef` pesar:** subir o `video_limit` de um canal (com 200, o canal médio guarda 1,9 ano de vídeo, ainda abaixo de 24 meses; com H = 12 já passaria) ou baixar H para 12 meses. Por isso a tela do canal mostra o horizonte efetivo, não só H (seção 14.10), e mexer em `video_limit` passa a ser decisão de capacidade.
 - O modelo usa o ritmo médio (103 vídeos por ano, medido na A5 sobre os canais de então) para todos. Um canal que publica o dobro custa cerca do dobro nas parcelas do vídeo, da série semanal, da leitura de hora em hora e do texto: o que vale para o total é a média do conjunto, e a dos canais que ainda vão entrar é desconhecida. É uma das razões da faixa de 30%, e o portão de 01/03/2027 mede o ritmo por canal.
@@ -550,7 +554,7 @@ Depois dos 24 meses o canal segue crescendo **0,85 MB por ano** (canal por dia 0
 **A frase sem enfeite.**
 
 - **A saída por idade do vídeo não aumenta quantos canais cabem nos dois primeiros anos.** Ela só age sobre vídeo com mais de 24 meses: até outubro de 2028 a conta é a mesma, e **50 canais continuam ficando vermelhos em fevereiro de 2028 e passando do limite em agosto de 2028; 75 continuam passando do limite em novembro de 2027** (no mês em que se chega a 75 o banco está em 465 de 500 MB).
-- **O que ela faz é frear a queda, não pará-la** (a tabela continua caindo: 37, 29, 23, 15): por 5 anos cabem **23** canais sem vermelho (eram 19), e passa a existir número para 10 anos (**15**). Com os 15 canais de hoje o vermelho vai de 2033 para 2037. **O 23 é ESTIMATIVA** (rodada 2: com `obs_archive_summaries` e a URL de origem dos anexos na conta); o 24 não volta por a linha de `obs_archive_summaries` medir menos (seção 8), e o item de aceite 12 mede.
+- **O que ela faz é frear a queda, não pará-la** (a tabela continua caindo: 37, 29, 23, 15): por 5 anos cabem **23** canais sem vermelho (eram 19), e passa a existir número para 10 anos (**15**). Com os 15 canais (medido em 13/10 às 20:12; 5 foram removidos depois, contagem nova não lida) o vermelho vai de 2033 para 2037. **O 23 é ESTIMATIVA** (rodada 2: com `obs_archive_summaries` e a URL de origem dos anexos na conta); o 24 não volta por a linha de `obs_archive_summaries` medir menos (seção 8), e o item de aceite 12 mede.
 - **Com a coleta inteira, nenhuma política dá 50 canais por 5 anos, e nenhuma dá 75.** Baixar H para 12 meses (o dono pode, mais tarde: seção 10.8) leva os 5 anos de 23 para 27, não para 50. Para 50 só sobram as alavancas que tiram dado (seção 8.4, linhas 9 a 11) e a da seção 8.6.
 
 **A faixa de erro** (custo por canal 30% acima ou abaixo; mesma fórmula):
@@ -565,7 +569,7 @@ Com o custo 30% acima, 50 canais passam de 85% em outubro de 2027 e do limite em
 
 **Três sensibilidades, para a revisão.** (1) Com H = 12 meses: 66 / 39 / 34 / 27 / 17 a 85% e 77 / 45 / 40 / 32 / 20 a 95%. (2) Se o toco fosse emagrecido (0,06 no lugar de 0,195; não construído: P29): 66 / 37 / 29 / 24 / 16 a 85% e 77 / 43 / 34 / 28 / 19 a 95%; ganha um canal em 5 anos e um em 10. (3) As marcas de idade online (e não na classe, como o engenheiro de dados propunha) tiram um canal em 5 anos a 85% (23 contra 24 com H = 24; 27 contra 28 com H = 12), um em 3 anos a 95% com H = 24 (33 contra 34) e um em 10 anos a 95% com H = 12 (20 contra 21); nos demais horizontes não mudam nada. É menos que a faixa de erro, e por isso a decisão fica (marcas online, mockup 17b sem mudança). A cláusula que a reabre está na seção 10.8.
 
-**A primeira leva libera quase nada, e isso é esperado.** 148 vídeos elegíveis (F63) a cerca de 8,5 kB cada (ESTIMATIVA do engenheiro de dados) são perto de 1,3 MB, reaproveitados e não devolvidos: o tamanho medido do banco **não cai**, para de subir nessa parcela. O ganho de 2026 é a coleta parar de reler o catálogo velho: cerca de 1,2 MB por ano com os 148 vídeos de hoje (148 vezes 52 leituras semanais vezes 156 B, ESTIMATIVA), e mais a cada vídeo que envelhece.
+**A primeira leva libera quase nada, e isso é esperado.** 144 vídeos elegíveis (fecho de 14/10: eram 148, e um dos canais foi removido em 13/10; F63) a cerca de 8,5 kB cada (ESTIMATIVA do engenheiro de dados) são perto de 1,2 MB, reaproveitados e não devolvidos: o tamanho medido do banco **não cai**, para de subir nessa parcela. O ganho de 2026 é a coleta parar de reler o catálogo velho: cerca de 1,2 MB por ano com os 148 vídeos de hoje (148 vezes 52 leituras semanais vezes 156 B, ESTIMATIVA), e mais a cada vídeo que envelhece.
 
 **O que a emenda não muda:** a folga com a casa desligada (tabela da seção 8.4 e seção 13.6: 18, 12 e 8 meses). Refeita na revisão da emenda (`apoio/emenda/revisao_dados_r1.py`): sem saída, um canal acumula 12,71 MB por ano nesta fórmula e 12,83 na da seção 8.1, mais 0,8 por ano de idade nas duas; a tabela daria 18, 13 e 8 meses. Fica a de 18, 12 e 8, que é o lado seguro.
 
