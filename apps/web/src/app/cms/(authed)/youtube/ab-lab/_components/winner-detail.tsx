@@ -6,15 +6,13 @@ import { DetailHeader } from './detail-header'
 import { WinnerBanner } from './winner-banner'
 import { LiveMonitorCard } from './live-monitor'
 import { ComoEstaAgora } from './como-esta-agora'
-import { CredibleInterval } from './credible-interval'
 import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
-import { ConfidenceChart } from './confidence-chart'
 import { ClickMoment } from './click-moment'
 import { VariantTable } from './variant-table'
 import { SectionLabel } from './ab-primitives'
 import { revertWinner, archiveAbTest } from '../actions'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
-import { Copy, Archive, Download, Trophy, TrendingUp, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
+import { Copy, Archive, Download, Trophy, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -66,8 +64,8 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         <WinnerBanner
           winnerLabel={view.winnerLabel}
           winnerColor={view.winnerColor}
-          lift={view.lift}
-          confidence={view.confidence}
+          lift={null}
+          confidence={null}
           stats={view.resultMeta}
         />
       </div>
@@ -105,42 +103,14 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         </div>
       )}
 
-      {/* 3. "Por que {winner} venceu" — single card with header + grid */}
+      {/* 3. "Por que {winner} venceu": sem medição de entrega, só a frase fixa */}
       <section data-testid="why-won" className="mb-[16px]">
         <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-          {/* Header row */}
-          <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-            <div>
-              <div className="flex items-center gap-[9px]">
-                <Trophy size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Por que {view.winnerLabel} venceu</h3>
-              </div>
-              <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                Não foi sorte: a faixa de CTR do vencedor ficou inteira acima da original.
-              </p>
-            </div>
+          <div className="flex items-center gap-[9px] mb-[8px]">
+            <Trophy size={17} className="text-cms-accent" aria-hidden="true" />
+            <h3 className="text-[19px] font-semibold text-cms-text m-0">Vencedor escolhido por você</h3>
           </div>
-
-          {/* Charts grid: 1.2fr 1fr */}
-          <div className="grid grid-cols-[1.2fr_1fr] gap-[28px] items-center">
-            {/* Left: Credible Intervals */}
-            <div>
-              <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">Faixa provável de CTR</div>
-              <CredibleInterval
-                variants={view.variants}
-                leader={view.winnerLabel}
-              />
-            </div>
-
-            {/* Right: Rank Bars */}
-            <div>
-              <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">Chance de ser o melhor</div>
-              <p className="text-[12.5px] text-cms-text-muted m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
-              <p className="text-[11.5px] text-cms-text-dim mt-[12px] leading-[1.5]">
-                As faixas <b className="text-cms-text">não se sobrepõem</b> — por isso o sistema cravou o vencedor, diferente do empate que vira playoff.
-              </p>
-            </div>
-          </div>
+          <p className="text-[12.5px] text-cms-text m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
         </div>
       </section>
 
@@ -152,23 +122,9 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         </div>
       )}
 
-      {/* 5. Confiança final + O aprendizado — grid 1fr 1fr */}
+      {/* 5. O aprendizado (a Confiança final saiu com a avaliação automática) */}
       <section data-testid="confidence-section" className="mb-[30px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
-          {/* Confiança final */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div className="flex items-center gap-[9px]">
-                <TrendingUp size={17} className="text-cms-accent" aria-hidden="true" />
-                <h3 className="text-[19px] font-semibold text-cms-text m-0">Confiança final</h3>
-              </div>
-            </div>
-            <ConfidenceChart
-              data={view.confTrend}
-              target={view.confidenceTarget * 100}
-            />
-          </div>
-
+        <div className="grid grid-cols-1 gap-[16px]">
           {/* O aprendizado */}
           <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
             <div className="flex items-end justify-between gap-[14px] mb-[16px]">
@@ -211,6 +167,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           winnerId={view.winnerLabel}
           videoTitle={view.videoTitle}
           thumbs={view.variantThumbs}
+          semChance
         />
       </section>
 
@@ -221,6 +178,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         videoTitle={view.videoTitle}
         winnerLabel={view.winnerLabel}
         winnerColor={view.winnerColor}
+        semCtr
         variants={view.variants.map(v => ({
           label: v.label,
           color: v.color,

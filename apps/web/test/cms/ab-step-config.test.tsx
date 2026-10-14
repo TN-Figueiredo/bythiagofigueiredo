@@ -65,15 +65,14 @@ describe('StepConfig', () => {
     expect(screen.getByText('14')).toBeDefined()
   })
 
-  it('estimate adjusts for lower confidence (factor 0.8)', () => {
+  it('estimativa é a duração máxima, não depende da confiança salva', () => {
     renderConfig({ confidence: 90, duration: 14 })
-    // estDays = Math.round(14 * 0.8) = 11
-    expect(screen.getByText('~11 dias')).toBeDefined()
+    expect(screen.getByText('~14 dias')).toBeDefined()
   })
 
-  it('estimate card shows 6 gates footer note', () => {
+  it('rodapé do cartão não fala de gates', () => {
     renderConfig()
-    expect(screen.getByText(/6 gates precisam passar/)).toBeDefined()
+    expect(screen.queryByText(/gates/i)).toBeNull()
   })
 
   it('duration slider has min=7 max=28', () => {

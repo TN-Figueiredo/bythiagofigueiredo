@@ -11,11 +11,11 @@ describe('toCardView', () => {
     expect(card.leaderColor).toBeTruthy()
     expect(card.confidence).toBeNull()
   })
-  it('calculates lift as percentage', () => {
+  it('lift gravado (avaliador automático desligado) não chega ao card', () => {
     const test = makeTestWithVariants()
     test.result_metadata = { ctr_lift_percent: 7.5, winner_label: 'B', total_impressions: 100, estimated_monthly_extra_clicks: 1 }
     const card = toCardView(test)
-    expect(card.lift).toBe(7.5)
+    expect(card.lift).toBeNull()
   })
   it('lift é nulo (nunca 0) quando não há medição', () => {
     const test = makeTestWithVariants()

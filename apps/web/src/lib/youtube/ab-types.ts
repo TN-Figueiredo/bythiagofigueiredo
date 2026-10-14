@@ -499,7 +499,7 @@ export interface AbTestPlayoffView extends AbTestBaseView {
   playoffTestId: string
   startsIn: string
   finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
-  confidenceReached: number
+  confidenceReached: number | null
   reason: string
 }
 

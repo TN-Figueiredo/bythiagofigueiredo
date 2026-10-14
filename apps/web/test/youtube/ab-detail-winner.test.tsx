@@ -254,10 +254,18 @@ describe('WinnerDetail', () => {
     expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
   })
 
-  it('renders "Por que B venceu" section heading', () => {
-    const view = makeWinnerView({ winnerLabel: 'B' })
-    render(<WinnerDetail view={view} />)
-    expect(screen.getByText('Por que B venceu')).toBeDefined()
+  it('o vencedor é decisão humana: sem texto de automação, sem confiança, sem coluna de chance', () => {
+    const { container } = render(<WinnerDetail view={makeWinnerView({ winnerLabel: 'B' })} />)
+    expect(screen.getByText('Vencedor escolhido por você')).toBeDefined()
+    const t = container.textContent ?? ''
+    expect(t).not.toMatch(/o sistema cravou/)
+    expect(t).not.toMatch(/empate que vira playoff/)
+    expect(t).not.toMatch(/faixa de CTR/i)
+    expect(t).not.toMatch(/Confiança final/)
+    expect(t).not.toMatch(/aplicado no YouTube/)
+    expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()
+    expect(t).not.toMatch(/ordenado por chance de vencer/)
+    expect(screen.getByTestId('winner-lift').textContent).toBe('—')
   })
 
   it('shows Duplicar and Download actions', () => {

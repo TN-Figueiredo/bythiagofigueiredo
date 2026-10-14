@@ -8,7 +8,7 @@ import { Trophy } from 'lucide-react'
 export interface WinnerBannerProps {
   winnerLabel: DisplayLabel
   winnerColor: string
-  lift: number
+  lift: number | null
   confidence: number | null
   stats: {
     ctrBefore: number
@@ -50,15 +50,14 @@ export function WinnerBanner({
             <VChip label={winnerLabel} size={32} ring />
             <span
               className="text-[24px] font-bold font-mono leading-none"
-              style={{ color: lift > 0 ? 'var(--cms-green)' : 'var(--cms-text)' }}
+              style={{ color: lift !== null && lift > 0 ? 'var(--cms-green)' : 'var(--cms-text)' }}
               data-testid="winner-lift"
             >
-              {lift > 0 ? '+' : ''}{formatPercent(lift)}
+              {lift === null ? '—' : <>{lift > 0 ? '+' : ''}{formatPercent(lift)}</>}
             </span>
           </div>
-          <div className="text-[11.5px] text-cms-text-muted mt-2">
-            {confidence === null ? <span>{SEM_MEDICAO_DE_ENTREGA}</span> : <span>{formatPercent(confidence, 1)} de confianca</span>}
-            <span> · aplicado no YouTube</span>
+          <div className="text-[11.5px] text-cms-text mt-2">
+            {confidence === null || lift === null ? <span>{SEM_MEDICAO_DE_ENTREGA}</span> : <span>{formatPercent(confidence, 1)} de confianca</span>}
           </div>
         </div>
 
@@ -66,9 +65,13 @@ export function WinnerBanner({
         <div className="bg-cms-surface py-[22px] px-[22px]">
           <div className="eyebrow mb-[8px]">CTR</div>
           <div className="text-[24px] font-bold font-mono text-cms-text leading-none tnum">
-            {formatPercent(stats.ctrBefore)}{' '}
-            <span className="text-cms-text-muted">→</span>{' '}
-            {formatPercent(stats.ctrAfter)}
+            {stats.ctrBefore === 0 && stats.ctrAfter === 0 ? '—' : (
+              <>
+                {formatPercent(stats.ctrBefore)}{' '}
+                <span className="text-cms-text-muted">→</span>{' '}
+                {formatPercent(stats.ctrAfter)}
+              </>
+            )}
           </div>
           <div className="text-[11px] text-cms-text-muted mt-2">original → vencedor</div>
         </div>
@@ -88,7 +91,7 @@ export function WinnerBanner({
           {stats.monthlyExtraClicks === null ? (
             <>
               <div className="text-[24px] font-bold font-mono leading-none text-cms-text-muted tnum">—</div>
-              <div className="text-[11px] text-cms-text-muted mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>
+              <div className="text-[11px] text-cms-text mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>
             </>
           ) : stats.monthlyExtraClicks > 0 ? (
             <>

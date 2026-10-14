@@ -1033,10 +1033,9 @@ describe('StepConfig component', () => {
       expect(screen.getByText('14')).toBeDefined()
     })
 
-    it('correct calculation for duration=14 confidence=90 (factor 0.8)', () => {
+    it('duration=14 confidence=90: estimativa é a duração máxima (~14)', () => {
       renderConfig({ confidence: 90, duration: 14 })
-      // estDays = Math.round(14 * 0.8) = 11
-      expect(screen.getByText('~11 dias')).toBeDefined()
+      expect(screen.getByText('~14 dias')).toBeDefined()
     })
 
     it('correct calculation for duration=21 confidence=95', () => {
@@ -1047,10 +1046,9 @@ describe('StepConfig component', () => {
       expect(screen.getByText('22')).toBeDefined()
     })
 
-    it('correct calculation for duration=7 confidence=80', () => {
+    it('duration=7 confidence=80: estimativa é a duração máxima (~7)', () => {
       renderConfig({ duration: 7, confidence: 80 })
-      // estDays = Math.round(7 * 0.8) = 6
-      expect(screen.getByText('~6 dias')).toBeDefined()
+      expect(screen.getByText('~7 dias')).toBeDefined()
       // abbaCycles = ceil(7/2)*2 = 8
       expect(screen.getByText('8')).toBeDefined()
     })
@@ -1064,9 +1062,9 @@ describe('StepConfig component', () => {
       expect(screen.getByText('28')).toBeDefined()
     })
 
-    it('shows 6 gates footer note', () => {
+    it('rodapé não fala de gates', () => {
       renderConfig()
-      expect(screen.getByText(/6 gates precisam passar/)).toBeDefined()
+      expect(screen.queryByText(/gates/i)).toBeNull()
     })
   })
 })

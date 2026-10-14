@@ -388,10 +388,10 @@ describe('toCardView — maps AbTestWithVariants → AbTestCardView', () => {
     expect(varB?.thumbUrl).toBe('https://blob.vercel-storage.com/thumb-b.jpg')
   })
 
-  it('maps confidence from confidence_at_completion * 100', () => {
+  it('confiança gravada (avaliador automático desligado na P2) não chega ao card: nula', () => {
     const test = makeTestWithVariants({ confidence: 0.92 })
     const card = toCardView(test)
-    expect(card.confidence).toBe(92)
+    expect(card.confidence).toBeNull()
   })
 
   it('confidence é nula (nunca 0) quando confidence_at_completion é nulo', () => {
@@ -406,7 +406,7 @@ describe('toCardView — maps AbTestWithVariants → AbTestCardView', () => {
     expect(card.hasPlayoff).toBe(true)
   })
 
-  it('lift comes from result_metadata.ctr_lift_percent', () => {
+  it('lift gravado em result_metadata.ctr_lift_percent não chega ao card: nulo', () => {
     const test = makeTestWithVariants()
     test.result_metadata = {
       ctr_lift_percent: 18.5,
@@ -415,7 +415,7 @@ describe('toCardView — maps AbTestWithVariants → AbTestCardView', () => {
       estimated_monthly_extra_clicks: 200,
     }
     const card = toCardView(test)
-    expect(card.lift).toBe(18.5)
+    expect(card.lift).toBeNull()
   })
 
   it('lift é nulo (nunca 0) quando result_metadata é nulo', () => {

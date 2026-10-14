@@ -660,3 +660,25 @@ describe('toDetailView — confTrend and daily arrays', () => {
     expect(view.daily).toHaveProperty('B')
   })
 })
+
+/* ================================================================== */
+/*  P2 conserto final (I1): encerrado sem vencedor não carrega confiança */
+/* ================================================================== */
+
+describe('toDetailView — encerrado/arquivado sem vencedor (P2 I1)', () => {
+  it('completed/manual_archive sem vencedor: view de playoff com confidenceReached nula e sem playoff real', async () => {
+    const results = makeResults({ status: 'completed', completedReason: 'manual_archive', confidence: 0.63 })
+    const view = await toDetailView(results)
+    expect('outcome' in view && view.outcome).toBe('playoff')
+    if (!('confidenceReached' in view)) throw new Error('esperava a view de playoff')
+    expect(view.confidenceReached).toBeNull()
+    expect(view.playoffTestId).toBe('')
+  })
+
+  it('arquivado sem vencedor também não carrega confiança', async () => {
+    const results = makeResults({ status: 'archived', confidence: 0.97 })
+    const view = await toDetailView(results)
+    if (!('confidenceReached' in view)) throw new Error('esperava a view de playoff')
+    expect(view.confidenceReached).toBeNull()
+  })
+})

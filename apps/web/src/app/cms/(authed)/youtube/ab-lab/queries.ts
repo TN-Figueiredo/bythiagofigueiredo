@@ -323,7 +323,8 @@ export async function getEligibleVideosForPicker(): Promise<Array<{
     const vid = t.youtube_video_id as string
     const existing = testMap.get(vid)
     const isActive = ['draft', 'active', 'paused'].includes(t.status as string)
-    const lift = (t.result_metadata as { ctr_lift_percent: number } | null)?.ctr_lift_percent ?? null
+    // P2: lift gravado pelo avaliador automático não aparece mais em tela nenhuma.
+    const lift: number | null = null
 
     testMap.set(vid, {
       hasActive: existing?.hasActive || isActive,
@@ -425,9 +426,9 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   )
   const leaderIsOriginal = leaderVariant?.is_original ?? false
 
-  // Lift: use result_metadata if available
-  // Sem medição de lift gravada, o campo fica nulo: nunca vira 0.
-  const lift = test.result_metadata?.ctr_lift_percent ?? null
+  // P2: lift e confiança gravados vieram do avaliador automático, que foi desligado.
+  // Nenhuma tela os mostra (o banco não é tocado); o card cai na frase fixa.
+  const lift: number | null = null
 
   // dayOf: days since started_at (use completed_at for finished tests)
   const endTime = test.completed_at ? new Date(test.completed_at).getTime() : Date.now()
@@ -435,7 +436,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     ? Math.floor((endTime - new Date(test.started_at).getTime()) / 86400000)
     : 0
 
-  const confidence = test.confidence_at_completion == null ? null : test.confidence_at_completion * 100
+  const confidence: number | null = null
 
   const variants = test.variants.map(v => ({
     label: toDisplayLabel(v.label, v.is_original),
@@ -1238,7 +1239,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         ctr: f.ctr,
         thumbnailUrl: variantThumbs.find(t => t.label === f.label)?.thumbUrl ?? null,
       })),
-      confidenceReached: results.confidence * 100,
+      confidenceReached: null,
       reason: test.status_note ?? 'No clear winner after full duration',
     } satisfies AbTestPlayoffView
   }
@@ -1252,7 +1253,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       playoffTestId: test.playoff_test_id ?? '',
       startsIn: '',
       finalists: [],
-      confidenceReached: results.confidence * 100,
+      confidenceReached: null,
       reason: test.status_note ?? 'Teste concluído sem dados suficientes para declarar um vencedor',
     } satisfies AbTestPlayoffView
   }

@@ -122,7 +122,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
         <div className="py-[13px] px-[16px]">
           <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Confiança</div>
           {test.confidence === null ? (
-            <div className="text-[10.5px] text-cms-text-dim leading-snug">{SEM_MEDICAO_DE_ENTREGA}</div>
+            <div className="text-[10.5px] text-cms-text leading-snug">{SEM_MEDICAO_DE_ENTREGA}</div>
           ) : (
             <>
               <div className="font-mono text-[16px] font-bold text-cms-accent leading-none">{Math.round(test.confidence)}%</div>

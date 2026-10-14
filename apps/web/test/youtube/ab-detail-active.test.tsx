@@ -152,13 +152,30 @@ describe('ActiveDetail', () => {
     expect(screen.queryAllByText(/10 mil simulações/)).toHaveLength(0)
   })
 
-  it('ConfidenceChart receives confTrend data (renders svg)', () => {
+  it('bloco de confiança saiu: sem curva, sem meta 95%, só a frase fixa com contraste legível', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    const confidenceSection = container.querySelector('[data-section="charts-confidence-radar"]')
-    expect(confidenceSection).not.toBeNull()
-    // Should contain an SVG from ConfidenceChart
-    const svgs = confidenceSection?.querySelectorAll('svg')
-    expect(svgs?.length).toBeGreaterThanOrEqual(1)
+    const bloco = container.querySelector('[data-section="charts-confidence-radar"]')
+    expect(bloco).not.toBeNull()
+    expect(bloco?.querySelectorAll('svg').length).toBe(0)
+    expect(container.textContent).not.toMatch(/meta 95%/)
+    expect(container.textContent).not.toMatch(/curva de confiança/i)
+    expect(container.textContent).not.toMatch(/Confiança ao longo do tempo/)
+    const frase = screen.getAllByText('Sem medição de entrega por enquanto')
+    for (const el of frase) {
+      expect(el.className).not.toMatch(/text-cms-text-(dim|muted)/)
+    }
+  })
+
+  it('KPIs do topo: sem CONFIANÇA, sem "0%" de líder nem "0,0%" de lift; nulo mostra "—" e a frase', () => {
+    const view = makeActiveView({ confirmedData: { confidence: 0, leader: 'A' as DisplayLabel, leaderColor: '#8A8F98', lift: 0 } })
+    render(<ActiveDetail view={view} />)
+    const hero = screen.getByTestId('hero-band')
+    expect(hero.textContent).not.toMatch(/Confiança/i)
+    expect(hero.textContent).not.toMatch(/\b0\s?%/)
+    expect(hero.textContent).not.toMatch(/0,0%/)
+    expect(hero.textContent).not.toMatch(/chance de vencer/i)
+    expect(hero.textContent).toContain('—')
+    expect(hero.textContent).toContain('Sem medição de entrega por enquanto')
   })
 
   it('ABBATimeline receives seq data and renders cycle count', () => {

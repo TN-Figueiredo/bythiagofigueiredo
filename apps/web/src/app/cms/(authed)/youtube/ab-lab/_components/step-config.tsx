@@ -16,8 +16,8 @@ const ROTATION_LABELS: Record<(typeof ROTATION_OPTIONS)[number], string> = {
 }
 
 export function StepConfig({ config, onChange }: StepConfigProps) {
-  // Better estimate: accounts for confidence level
-  const estDays = Math.round(config.duration * (config.confidence >= 95 ? 1 : 0.8))
+  // O teste só encerra na duração máxima (a avaliação automática foi retirada)
+  const estDays = config.duration
   const abbaCycles = Math.ceil(config.duration / 2) * 2
 
   return (
@@ -103,7 +103,7 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
           </dl>
 
           <p className="text-2xs text-cms-text-dim border-t border-cms-border pt-3 mt-4" style={{ lineHeight: 1.5 }}>
-            6 gates precisam passar: confiança, impressões, duração, ciclos, burn-in e estabilidade.
+            O teste roda até a duração máxima; quem escolhe o vencedor é você.
           </p>
         </div>
       </div>

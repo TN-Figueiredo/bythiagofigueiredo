@@ -11,6 +11,10 @@ interface ClickMomentProps {
   winnerLabel: DisplayLabel
   winnerColor: string
   variants: Array<{ label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }>
+  /** Esconde a barra de CTR/lift (sem medição de entrega o número seria inventado). */
+  semCtr?: boolean
+  /** Prévia do wizard: ninguém venceu ainda, então sem selo de vencedor. */
+  semVencedor?: boolean
 }
 
 type Context = 'home' | 'search' | 'sidebar' | 'mobile'
@@ -76,7 +80,7 @@ function BehaviorStrip({ label, color, ctr, maxCtr, isWinner, lift }: { label: D
   )
 }
 
-function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
@@ -90,12 +94,12 @@ function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: D
           <div className="text-[12.5px] text-cms-text-dim">12 mil visualizações · há 2 dias</div>
         </div>
       </div>
-      <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />
+      {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
     </div>
   )
 }
 
-function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
@@ -112,12 +116,12 @@ function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label:
           <div className="text-[12.5px] text-cms-text-muted leading-[1.4] line-clamp-2">Fui até o MBK Center em Bangkok pra descobrir se vale a pena. Ouro, ternos sob medida e eletrônicos…</div>
         </div>
       </div>
-      <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />
+      {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
     </div>
   )
 }
 
-function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
@@ -130,12 +134,12 @@ function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label
           <div className="text-[11.5px] text-cms-text-dim">12 mil views · há 2 dias</div>
         </div>
       </div>
-      <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />
+      {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
     </div>
   )
 }
 
-function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
+function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
   const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg">
@@ -155,7 +159,7 @@ function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline }: { v: { label:
         </div>
       </div>
       <div className="mt-[12px]">
-        <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />
+        {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
       </div>
     </div>
   )
@@ -175,7 +179,7 @@ const GRID_JUSTIFY: Record<Context, string | undefined> = {
   mobile: 'center',
 }
 
-export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants }: ClickMomentProps) {
+export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants, semCtr, semVencedor }: ClickMomentProps) {
   const [mode, setMode] = useState<'compare' | 'feed'>('compare')
   const [context, setContext] = useState<Context>('home')
 
@@ -224,7 +228,7 @@ export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants }: 
       {/* Cards grid */}
       <div className="grid gap-[22px]" style={{ gridTemplateColumns: GRID_COLS[context], justifyContent: GRID_JUSTIFY[context] }}>
         {displayVariants.map(v => (
-          <CardComponent key={v.label} v={v} videoTitle={videoTitle} isWinner={v.label === winnerLabel} maxCtr={maxCtr} baseline={baseline} />
+          <CardComponent key={v.label} v={v} videoTitle={videoTitle} isWinner={!semVencedor && v.label === winnerLabel} maxCtr={maxCtr} baseline={baseline} semCtr={semCtr} />
         ))}
       </div>
     </section>

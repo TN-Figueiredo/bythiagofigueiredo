@@ -59,7 +59,7 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
       {/* Result */}
       <div className="text-right shrink-0">
         {semMedicao ? (
-          <div className="text-[10.5px] text-cms-text-dim">{SEM_MEDICAO_DE_ENTREGA}</div>
+          <div className="text-[10.5px] text-cms-text">{SEM_MEDICAO_DE_ENTREGA}</div>
         ) : isInconclusive ? (
           <>
             <Badge tone="amber">playoff agendado</Badge>

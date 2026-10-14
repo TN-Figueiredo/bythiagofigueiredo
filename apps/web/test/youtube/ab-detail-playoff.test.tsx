@@ -156,6 +156,45 @@ describe('PlayoffDetail (sem medição)', () => {
   })
 })
 
+describe('PlayoffDetail: encerrado sem vencedor e sem playoff real (P2 I1)', () => {
+  const semPlayoff = () => makePlayoffView({
+    playoffTestId: '',
+    startsIn: '',
+    finalists: [],
+    confidenceReached: null,
+    variants: [
+      makeVariant('A', { pBest: 0.63 }),
+      makeVariant('B', { pBest: 0.37 }),
+    ],
+    variantThumbs: [makeThumb('A', true), makeThumb('B')],
+  })
+
+  it('não promete playoff automático nem mostra confiança; frase fixa no lugar', () => {
+    const { container } = render(<PlayoffDetail view={semPlayoff()} />)
+    expect(screen.queryByText(/Playoff criado automaticamente/)).toBeNull()
+    expect(screen.queryByTestId('playoff-banner')).toBeNull()
+    expect(container.textContent).not.toMatch(/de confiança/)
+    expect(container.textContent).not.toMatch(/o sistema afunila/)
+    expect(container.textContent).not.toMatch(/empatou/)
+    expect(screen.getByText('Encerrado sem vencedor')).toBeDefined()
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('placar sem a coluna nem o rótulo de chance de vencer', () => {
+    const { container } = render(<PlayoffDetail view={semPlayoff()} />)
+    expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()
+    expect(container.textContent).not.toMatch(/ordenado por chance de vencer/)
+    expect(container.textContent).not.toMatch(/63%/)
+  })
+
+  it('com playoff real (teste antigo) o banner continua, mas sem percentual de confiança', () => {
+    const { container } = render(<PlayoffDetail view={makePlayoffView({ confidenceReached: null })} />)
+    expect(screen.getByTestId('playoff-banner')).toBeDefined()
+    expect(container.textContent).not.toMatch(/de confiança/)
+    expect(container.textContent).not.toMatch(/o sistema afunila/)
+  })
+})
+
 describe.skip('PlayoffDetail', () => { // TODO: broken by component redesign
   it('renders 5-section layout', () => {
     render(<PlayoffDetail view={makePlayoffView()} />)

@@ -189,3 +189,21 @@ describe('FeedView', () => {
     expect(container.innerHTML).toBe('')
   })
 })
+
+/* P2 conserto final: prévia do wizard e tela do vencedor sem CTR inventado */
+describe('ClickMoment (P2: semCtr / semVencedor)', () => {
+  const vs = [
+    { label: 'A' as const, color: '#8A8F98', thumbUrl: null, ctr: 4.2 },
+    { label: 'B' as const, color: '#E8823C', thumbUrl: null, ctr: 5.3 },
+  ]
+  it('prévia do wizard: sem selo de vencedor, sem CTR nem lift', () => {
+    const { container } = render(<ClickMoment videoTitle="V" winnerLabel="B" winnerColor="#E8823C" variants={vs} semCtr semVencedor />)
+    expect(container.textContent).not.toMatch(/vencedor/i)
+    expect(container.textContent).not.toMatch(/\+26%/)
+    expect(container.textContent).not.toMatch(/5,3%/)
+  })
+  it('sem as flags (comportamento antigo), o CTR aparece', () => {
+    const { container } = render(<ClickMoment videoTitle="V" winnerLabel="B" winnerColor="#E8823C" variants={vs} />)
+    expect(container.textContent).toMatch(/5,3%/)
+  })
+})

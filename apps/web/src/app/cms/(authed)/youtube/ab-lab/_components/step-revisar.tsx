@@ -167,6 +167,8 @@ export function StepRevisar({ type, variants, config, videoTitle }: StepRevisarP
           winnerLabel={winnerLabel as DisplayLabel}
           winnerColor={winnerColor}
           variants={clickMomentVariants}
+          semCtr
+          semVencedor
         />
       )}
 

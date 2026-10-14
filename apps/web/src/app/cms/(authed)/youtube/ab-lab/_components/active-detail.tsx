@@ -9,7 +9,6 @@ import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
 import { VariantTable } from './variant-table'
-import { ConfidenceChart } from './confidence-chart'
 import { CredibleInterval } from './credible-interval'
 import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
@@ -65,9 +64,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
     linkClicks: v.linkClicks ?? 0,
     color: v.color,
   }))
-
-  const leaderVariant = view.variants.find(v => v.label === data.leader)
-  const originalVariant = view.variants.find(v => v.label === 'A')
 
 
   const actionButtons = (
@@ -218,13 +214,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       {/* ── Section 3: Hero Band ── */}
       <div data-section="hero-band" className="mb-[16px]">
         <HeroBand
-          confidence={data.confidence}
-          confidenceTarget={view.confidenceTarget * 100}
           leader={{ label: data.leader, color: data.leaderColor }}
-          lift={data.lift}
           trend={trend}
-          leaderCtr={leaderVariant?.ctr}
-          originalCtr={originalVariant?.ctr}
         />
       </div>
 
@@ -267,7 +258,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 </span>
               </div>
             )}
-            <p className="text-[12px] text-cms-text-dim py-2">{SEM_MEDICAO_DE_ENTREGA}</p>
+            <p className="text-[12px] text-cms-text py-2">{SEM_MEDICAO_DE_ENTREGA}</p>
           </div>
         </div>
       </div>
@@ -284,25 +275,10 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         />
       </section>
 
-      {/* ── Section 6: Confiança ao longo do tempo + Raio-X ── */}
+      {/* ── Section 6: sem curva de confiança; a frase fixa ocupa a largura toda ── */}
       <section data-section="charts-confidence-radar" className="mb-[16px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
-          {/* Confiança ao longo do tempo */}
-          <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
-            <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-              <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
-              <span className="text-[13px] font-semibold text-cms-text">Confiança ao longo do tempo</span>
-              <span className="text-[11.5px] text-cms-text-dim ml-auto">meta {Math.round(view.confidenceTarget * 100)}%</span>
-            </div>
-            <div className="px-[16px] py-[14px]">
-              <ConfidenceChart
-                data={view.confTrend}
-                target={view.confidenceTarget * 100}
-              />
-            </div>
-          </div>
-
-          <p className="text-[12px] text-cms-text-dim py-2">{SEM_MEDICAO_DE_ENTREGA}</p>
+        <div className="rounded-[12px] border border-cms-border bg-cms-surface px-[16px] py-[14px]">
+          <p className="text-[12px] text-cms-text m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
         </div>
       </section>
 

@@ -1,12 +1,11 @@
 'use client'
 
 import type { AbTestPlayoffView } from '@/lib/youtube/ab-types'
-import { formatPercent, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
+import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { DetailHeader } from './detail-header'
 import { PlayoffBanner } from './playoff-banner'
-import { CredibleInterval } from './credible-interval'
 import { VariantTable } from './variant-table'
-import { Copy, Archive, Download, Info, LayoutGrid, Target } from 'lucide-react'
+import { Copy, Archive, Download, Info, LayoutGrid } from 'lucide-react'
 
 export interface PlayoffDetailProps {
   view: AbTestPlayoffView
@@ -15,6 +14,8 @@ export interface PlayoffDetailProps {
 const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
 export function PlayoffDetail({ view }: PlayoffDetailProps) {
+  // Só há playoff de verdade quando existe um teste de playoff (a criação automática foi retirada).
+  const temPlayoff = view.playoffTestId !== ''
   return (
     <div data-testid="playoff-detail">
       {/* 1. DetailHeader */}
@@ -59,71 +60,33 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           />
           <div>
             <div className="text-[14px] font-semibold text-cms-text">
-              Round {view.totalRounds > 1 ? view.totalRounds - 1 : 1} fechou sem vencedor claro
+              {temPlayoff
+                ? `Round ${view.totalRounds > 1 ? view.totalRounds - 1 : 1} fechou sem vencedor claro`
+                : 'Encerrado sem vencedor'}
             </div>
-            <div className="text-[12.5px] text-cms-text-dim mt-[3px] leading-[1.5] max-w-[680px]">
-              Atingiu {view.durationDays} dias com {formatPercent(view.confidenceReached, 0)} de confiança — abaixo dos {formatPercent(view.confidenceTarget * 100, 0)}.{view.variants.length > 2 ? ` ${view.variants.length} variantes brigando diluem os dados.` : ''} Em vez de descartar, o sistema afunila.
+            <div className="text-[12.5px] text-cms-text mt-[3px] leading-[1.5] max-w-[680px]">
+              {SEM_MEDICAO_DE_ENTREGA}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3. PlayoffBanner */}
-      <div className="mb-[28px]">
-        <PlayoffBanner
-          finalists={view.finalists}
-          allVariants={view.variants.map((v) => ({
-            label: v.label,
-            isFinalist: view.finalists.some((f) => f.label === v.label),
-            thumbnailUrl:
-              view.variantThumbs.find((t) => t.label === v.label)?.thumbUrl ?? null,
-          }))}
-          startsIn={view.startsIn}
-          reason={view.reason}
-        />
-      </div>
-
-      {/* 4. "Por que empatou" + "P(melhor)" — two separate cards side by side */}
-      <section className="mb-[30px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
-          {/* Left: Por que empatou */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div>
-                <div className="flex items-center gap-[9px]">
-                  <Target size={17} className="text-cms-accent" aria-hidden="true" />
-                  <h3 className="text-[19px] font-semibold text-cms-text m-0">Por que empatou</h3>
-                </div>
-                <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                  As faixas de CTR {view.finalists.length >= 2 ? `de ${view.finalists.map(f => f.label).join(' e ')} ` : ''}se sobrepõem demais — não dá pra cravar. Por isso o playoff.
-                </p>
-              </div>
-            </div>
-            <CredibleInterval variants={view.variants} />
-          </div>
-
-          {/* Right: Probabilidade de ser a melhor, por variante */}
-          <div className="rounded-lg border border-cms-border bg-cms-surface p-[20px]">
-            <div className="flex items-end justify-between gap-[14px] mb-[16px]">
-              <div>
-                <div className="flex items-center gap-[9px]">
-                  <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
-                  <h3 className="text-[19px] font-semibold text-cms-text m-0">
-                    Probabilidade de ser a melhor, por variante
-                    <span className="relative inline-flex align-middle ml-[5px]">
-                      <span className="size-[15px] rounded-full border border-cms-border text-cms-text-muted text-[9.5px] font-bold inline-flex items-center justify-center cursor-help font-mono">?</span>
-                    </span>
-                  </h3>
-                </div>
-
-              </div>
-            </div>
-            <div className="mt-[6px]">
-              <p className="text-[12.5px] text-cms-text-muted m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
-            </div>
-          </div>
+      {/* 3. PlayoffBanner: só com playoff real */}
+      {temPlayoff && (
+        <div className="mb-[28px]">
+          <PlayoffBanner
+            finalists={view.finalists}
+            allVariants={view.variants.map((v) => ({
+              label: v.label,
+              isFinalist: view.finalists.some((f) => f.label === v.label),
+              thumbnailUrl:
+                view.variantThumbs.find((t) => t.label === v.label)?.thumbUrl ?? null,
+            }))}
+            startsIn={view.startsIn}
+            reason={view.reason}
+          />
         </div>
-      </section>
+      )}
 
       {/* 5. Placar das variantes */}
       <section className="mb-[36px]">
@@ -143,6 +106,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           finalists={view.finalists.map(f => f.label)}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
+          semChance
         />
       </section>
     </div>
