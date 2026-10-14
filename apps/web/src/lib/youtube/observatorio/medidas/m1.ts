@@ -41,7 +41,11 @@ const interpolar = (a: number | null, b: number | null, f: number): number | nul
   a === null || b === null ? null : Math.round(a + (b - a) * f)
 
 export function viewsNaIdade(leituras: readonly Leitura[], baseMs: number, idadeDias: number, o: { maxGapHoras: number }): ViewsNaIdade {
-  const alvo = baseMs + idadeDias * DAY
+  return viewsNoInstante(leituras, baseMs + idadeDias * DAY, o)
+}
+
+/** A mesma conta, para um instante qualquer (a cauda lê o ponto de 28 dias atrás). */
+export function viewsNoInstante(leituras: readonly Leitura[], alvo: number, o: { maxGapHoras: number }): ViewsNaIdade {
   const ls = limpar(leituras)
   let a: Leitura | null = null
   let b: Leitura | null = null
