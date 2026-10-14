@@ -14,13 +14,14 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type')
   const bookmarkedRaw = searchParams.get('bookmarked')
   const limitRaw = searchParams.get('limit')
+  const campos = searchParams.get('campos')
 
   const bookmarked = bookmarkedRaw === 'true' ? true : bookmarkedRaw === 'false' ? false : null
   const limit = limitRaw ? parseInt(limitRaw, 10) : undefined
 
   try {
     const ctx = authToServiceContext(auth)
-    const { data } = await listCompetitorChanges(ctx, { type, bookmarked, limit })
+    const { data } = await listCompetitorChanges(ctx, { type, bookmarked, limit, campos })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

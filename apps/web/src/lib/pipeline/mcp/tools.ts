@@ -715,15 +715,21 @@ const SearchContentShape = {
 }
 
 // ---- 17. youtube_observatory ----
-const YoutubeObservatoryShape = {
+export const YoutubeObservatoryShape = {
   action: z.enum(['list_channels', 'get_changes', 'get_outliers', 'get_insights'])
-    .describe('list_channels: tracked competitor channels. get_changes: recent title/thumbnail/description changes. get_outliers: bookmarked notable changes. get_insights: aggregated competitor intelligence.'),
-  channel_id: z.string().uuid().optional()
-    .describe('Competitor channel UUID (filters get_changes and get_outliers)'),
+    .describe('list_channels: tracked competitor channels. get_changes: recent title/thumbnail/description changes. get_outliers: videos with a multiplier of 2x or more vs the channel. get_insights: aggregated competitor intelligence.'),
+  type: z.enum(['all', 'title', 'thumbnail', 'description']).optional()
+    .describe('get_changes: only this kind of change (default all)'),
+  bookmarked: z.boolean().optional()
+    .describe('get_changes: only bookmarked (true) or only not bookmarked (false) changes'),
+  tier: z.enum(['all', 'top', 'high', 'mid']).optional()
+    .describe('get_outliers: only this tier of multiplier (default all)'),
   limit: z.number().int().min(1).max(100).default(50)
-    .describe('Max results for get_changes'),
+    .describe('Max results for get_changes and get_outliers'),
   fmt: z.enum(['long', 'short']).optional()
     .describe('get_outliers: long videos (default) or Shorts — never mixed in one comparison'),
+  campos: z.enum(['todos']).optional()
+    .describe('get_changes: also return field changes (tags, category, duration, language, channel name and others)'),
 }
 
 // ---- 18. youtube_analytics ----

@@ -94,6 +94,8 @@ export async function criteriosE11(ctx: CriteriosE11Ctx): Promise<CriteriosE11Re
   if (!diaValido(hoje)) return semProva('data de hoje inválida')
   const cfg = configE11(typeof ctx.e11 === 'object' && ctx.e11 !== null ? ctx.e11 : {})
   if (!cfg.ok) return semProva(cfg.motivo)
+  // Teto de folga: uma data de ligação absurda (2099) viraria carência eterna e a prova nunca subiria.
+  if (cfg.ligadoEm > addDays(hoje, 90)) return semProva('configuração das dimensões: ligadoEm está a mais de 90 dias no futuro')
   const sites = [...new Set(Array.isArray(ctx.sites) ? ctx.sites : [])]
   if (sites.length === 0) return semProva('nenhum site com coleta ligada para avaliar')
 

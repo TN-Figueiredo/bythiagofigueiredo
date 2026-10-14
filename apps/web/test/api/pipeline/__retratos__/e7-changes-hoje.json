@@ -1,0 +1,274 @@
+{
+  "sem_filtro": {
+    "changes": [
+      {
+        "id": "e00000008-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_9",
+        "video_title": "Gama três",
+        "channel_name": "Canal Gama",
+        "change_type": "thumbnail",
+        "old_title": null,
+        "new_title": null,
+        "old_thumbnail_url": "https://exemplo.test/velha-8.jpg",
+        "new_thumbnail_url": "https://exemplo.test/nova-8.jpg",
+        "view_count_at_change": 200,
+        "detected_at": "2026-10-10T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000007-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_8",
+        "video_title": "Gama dois",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 7",
+        "new_title": "Título novo 7",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 90,
+        "detected_at": "2026-10-09T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000006-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_7",
+        "video_title": "Gama um",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 6",
+        "new_title": "Título novo 6",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 0,
+        "detected_at": "2026-10-08T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000005-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_6",
+        "video_title": "Beta três",
+        "channel_name": "Canal Beta",
+        "change_type": "thumbnail",
+        "old_title": null,
+        "new_title": null,
+        "old_thumbnail_url": "https://exemplo.test/velha-5.jpg",
+        "new_thumbnail_url": "https://exemplo.test/nova-5.jpg",
+        "view_count_at_change": null,
+        "detected_at": "2026-10-07T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000004-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_4",
+        "video_title": "Beta um",
+        "channel_name": "Canal Beta",
+        "change_type": "description",
+        "old_title": "Título velho 4",
+        "new_title": "Título novo 4",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 400,
+        "detected_at": "2026-10-06T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000003-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_3",
+        "video_title": "Alfa três",
+        "channel_name": "Canal Alfa",
+        "change_type": "title",
+        "old_title": "Título velho 3",
+        "new_title": "Título novo 3",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 2500,
+        "detected_at": "2026-10-05T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000002-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_2",
+        "video_title": "Alfa dois",
+        "channel_name": "Canal Alfa",
+        "change_type": "thumbnail",
+        "old_title": null,
+        "new_title": null,
+        "old_thumbnail_url": "https://exemplo.test/velha-2.jpg",
+        "new_thumbnail_url": "https://exemplo.test/nova-2.jpg",
+        "view_count_at_change": 1800,
+        "detected_at": "2026-10-04T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000001-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_1",
+        "video_title": "Alfa um",
+        "channel_name": "Canal Alfa",
+        "change_type": "title",
+        "old_title": "Título velho 1",
+        "new_title": "Título novo 1",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 900,
+        "detected_at": "2026-10-03T12:00:00.000Z",
+        "bookmarked": false
+      }
+    ],
+    "count": 8
+  },
+  "type_title": {
+    "changes": [
+      {
+        "id": "e00000007-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_8",
+        "video_title": "Gama dois",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 7",
+        "new_title": "Título novo 7",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 90,
+        "detected_at": "2026-10-09T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000006-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_7",
+        "video_title": "Gama um",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 6",
+        "new_title": "Título novo 6",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 0,
+        "detected_at": "2026-10-08T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000003-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_3",
+        "video_title": "Alfa três",
+        "channel_name": "Canal Alfa",
+        "change_type": "title",
+        "old_title": "Título velho 3",
+        "new_title": "Título novo 3",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 2500,
+        "detected_at": "2026-10-05T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000001-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_1",
+        "video_title": "Alfa um",
+        "channel_name": "Canal Alfa",
+        "change_type": "title",
+        "old_title": "Título velho 1",
+        "new_title": "Título novo 1",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 900,
+        "detected_at": "2026-10-03T12:00:00.000Z",
+        "bookmarked": false
+      }
+    ],
+    "count": 4
+  },
+  "bookmarked_true": {
+    "changes": [
+      {
+        "id": "e00000007-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_8",
+        "video_title": "Gama dois",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 7",
+        "new_title": "Título novo 7",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 90,
+        "detected_at": "2026-10-09T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000005-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_6",
+        "video_title": "Beta três",
+        "channel_name": "Canal Beta",
+        "change_type": "thumbnail",
+        "old_title": null,
+        "new_title": null,
+        "old_thumbnail_url": "https://exemplo.test/velha-5.jpg",
+        "new_thumbnail_url": "https://exemplo.test/nova-5.jpg",
+        "view_count_at_change": null,
+        "detected_at": "2026-10-07T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000002-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_2",
+        "video_title": "Alfa dois",
+        "channel_name": "Canal Alfa",
+        "change_type": "thumbnail",
+        "old_title": null,
+        "new_title": null,
+        "old_thumbnail_url": "https://exemplo.test/velha-2.jpg",
+        "new_thumbnail_url": "https://exemplo.test/nova-2.jpg",
+        "view_count_at_change": 1800,
+        "detected_at": "2026-10-04T12:00:00.000Z",
+        "bookmarked": true
+      }
+    ],
+    "count": 3
+  },
+  "limit_3": {
+    "changes": [
+      {
+        "id": "e00000008-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_9",
+        "video_title": "Gama três",
+        "channel_name": "Canal Gama",
+        "change_type": "thumbnail",
+        "old_title": null,
+        "new_title": null,
+        "old_thumbnail_url": "https://exemplo.test/velha-8.jpg",
+        "new_thumbnail_url": "https://exemplo.test/nova-8.jpg",
+        "view_count_at_change": 200,
+        "detected_at": "2026-10-10T12:00:00.000Z",
+        "bookmarked": false
+      },
+      {
+        "id": "e00000007-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_8",
+        "video_title": "Gama dois",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 7",
+        "new_title": "Título novo 7",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 90,
+        "detected_at": "2026-10-09T12:00:00.000Z",
+        "bookmarked": true
+      },
+      {
+        "id": "e00000006-0000-4000-8000-000000000000",
+        "video_id": "yt_sintetico_7",
+        "video_title": "Gama um",
+        "channel_name": "Canal Gama",
+        "change_type": "title",
+        "old_title": "Título velho 6",
+        "new_title": "Título novo 6",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 0,
+        "detected_at": "2026-10-08T12:00:00.000Z",
+        "bookmarked": false
+      }
+    ],
+    "count": 3
+  }
+}
