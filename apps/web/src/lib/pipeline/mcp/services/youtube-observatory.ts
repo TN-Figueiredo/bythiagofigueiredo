@@ -18,6 +18,13 @@ type Params = Record<string, unknown>
 /** Os parâmetros que este adaptador lê: o anúncio (`YoutubeObservatoryShape`) tem de ter exatamente estes (teste nos dois sentidos). */
 export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit', 'fmt', 'campos'] as const
 
+/**
+ * Teto do `limit` de `get_changes` com `campos=todos`: com o pior valor de `tags` medido (561 bytes) o texto
+ * de 17 itens cabe nos 60.000 caracteres que o cliente aceita; com 18 não cabe. O documento do Cowork cita o
+ * mesmo número; o teste `youtube-observatory-parametros` mede.
+ */
+export const LIMITE_MUDANCAS_TEXTO = 17
+
 function buildCtx(): ServiceContext {
   const mcp = getMcpContext()
   return {
@@ -43,7 +50,9 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
         const result = await competitors.listCompetitorChanges(buildCtx(), {
           type: (params.type as string) || 'all',
           bookmarked: params.bookmarked as boolean | undefined,
-          limit: (params.limit as number) || 25,
+          limit: params.campos === 'todos'
+            ? Math.min((params.limit as number) || 25, LIMITE_MUDANCAS_TEXTO)
+            : (params.limit as number) || 25,
           campos: params.campos === 'todos' ? 'todos' : undefined,
         })
         return toMcpSuccess(result.data)
