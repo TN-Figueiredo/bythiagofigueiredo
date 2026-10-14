@@ -53,6 +53,7 @@ vi.mock('@/lib/youtube/competitor-sync-batch', async importOriginal => {
   const real = await importOriginal<typeof import('@/lib/youtube/competitor-sync-batch')>()
   return { ...real, runCompetitorBatch: vi.fn() }
 })
+vi.mock('@/lib/youtube/agenda/arquivo-sem-agenda', () => ({ lerArquivoSemAgenda: vi.fn(async () => ({ problemas: [], notas: [], acao: [], banco: {} })) }))
 vi.mock('@/lib/cron-health', async importOriginal => {
   const real = await importOriginal<typeof import('@/lib/cron-health')>()
   return { ...real, recordCronSuccess: vi.fn(async () => undefined), recordCronFailure: vi.fn(async () => undefined) }

@@ -4,13 +4,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { recordCronFailure, recordCronSuccess } from '@/lib/cron-health'
 import { logCron } from '../../../../lib/logger'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
-import { loadBatchRows, type BatchResult, type BatchRow } from '@/lib/youtube/competitor-sync-batch'
+import { loadBatchRows, semPausados, type BatchResult, type BatchRow } from '@/lib/youtube/competitor-sync-batch'
+import { lerPendenciasDoArquivo, type PendenciasDoArquivo } from '@/lib/youtube/observatorio/arquivo/ler-pendencias'
+import { lerSinalDoBanco, type SinalLido } from '@/lib/youtube/observatorio/arquivo/ler-sinal'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { avisarDono, type ContagemAviso } from './aviso'
 import { CATALOGO, notaDoInterruptorDaAgenda, tarefasDesligadas } from './catalogo'
 import { despachar, type EstadoFinalTarefa, type OpsAgenda } from './despachante'
 import { adiar, esgotar, fechar, lerEstado, soltarArrendamento, tomar, tomarArrendamento } from './estado'
-import { fecharDisparo, relatarAgenda } from './fecho'
+import { extrasDoDisparo, juntarVermelho } from './extras-arquivo'
+import { CRON_MESSAGE_MAX, PROOF_MIN_MS, fecharDisparo, relatarAgenda } from './fecho'
 import { codigoDoMotivo, fraseDoMotivo, resumoTecnico } from './motivos'
 import { chaveDoPeriodo } from './periodo'
 import { BANCO_MS, LIMITE_FUNCAO_MS, comPrazo } from './relogio'
@@ -263,11 +266,13 @@ export async function executarAgenda(o: {
     }
 
     // 5. Os canais, com prazo próprio: a consulta pendurada não segura a leitura horária nem a série do dia.
+    // `todas` traz os canais pausados (a nota e o aviso de pausa esquecida os enxergam); as tarefas e a prova só recebem `linhas`, sem eles
+    let todas: BatchRow[] | null = null
     let linhas: BatchRow[] | null = null
     try {
       const lidas = await comPrazo(carregarLinhas(sb), BANCO_MS)
       if ('estourou' in lidas) problemasAntes.push(`não foi possível ler os canais: o banco não respondeu em ${Math.round(BANCO_MS / 1000)} s`)
-      else linhas = lidas.valor
+      else { todas = lidas.valor; linhas = semPausados(todas) }
     } catch (err) {
       relatarAgenda('agenda', { codigo: 'canais_nao_lidos', tecnico: resumoTecnico(err) })
       problemasAntes.push('não foi possível ler os canais')
@@ -288,11 +293,26 @@ export async function executarAgenda(o: {
     notas.push(...resumo.notas)
 
     // 7 e 8. A prova por site, a mensagem e o registro no `cron_health`.
-    const f = await fecharDisparo({
-      sb, t0, agora, resumo, catalogo, desligadas, linhas, problemasAntes,
-      agendaDesde: 'valor' in estado ? estado.valor.desde : null,
-    })
-    if (f.vermelho) await saude.falha(JOB, f.mensagem ?? 'o disparo da agenda falhou')
+    // (A5 E10) O sinal do tamanho do banco e as pendências do arquivo são lidos DEPOIS das tarefas (a medida das 05:00 já está gravada), em paralelo com a prova.
+    const agendaDesde = 'valor' in estado ? estado.valor.desde : null
+    const medidaLinha = 'valor' in estado ? estado.valor.tarefas.find(t => t.task === 'tamanho_do_banco') : undefined
+    const medidaOkEm = medidaLinha?.last_ok_at ? Date.parse(medidaLinha.last_ok_at) : Number.NaN
+    const tamanhoOkHa36h = 'valor' in estado ? Number.isFinite(medidaOkEm) && agora() - medidaOkEm <= 36 * 3_600_000 : null
+    const [f, sinal, pendencias] = await Promise.all([
+      fecharDisparo({ sb, t0, agora, resumo, catalogo, desligadas, linhas, problemasAntes, agendaDesde }),
+      comPrazo(lerSinalDoBanco(sb, agora()), PROOF_MIN_MS).then(
+        (r): SinalLido | { porque: 'prazo' } => ('estourou' in r ? { porque: 'prazo' } : r.valor),
+        (): SinalLido => ({ porque: 'excecao' }),
+      ),
+      comPrazo(lerPendenciasDoArquivo(sb, agora()), PROOF_MIN_MS).then(
+        (r): PendenciasDoArquivo | { porque: 'prazo' } => ('estourou' in r ? { porque: 'prazo' } : r.valor),
+        (): { porque: 'prazo' } => ({ porque: 'prazo' }),
+      ),
+    ])
+    const extras = extrasDoDisparo({ todas, sinal, agoraMs: agora(), agendaDesde, pendencias, tamanhoOkHa36h, tamanhoDesligada: desligadas.has('tamanho_do_banco') })
+    notas.push(...extras.notas)
+    const veredito = juntarVermelho({ vermelho: f.vermelho, mensagem: f.mensagem }, extras.problemas, CRON_MESSAGE_MAX)
+    if (veredito.vermelho) await saude.falha(JOB, veredito.mensagem ?? 'o disparo da agenda falhou')
     else await saude.sucesso(JOB, 'info')
 
     // 9. O cache do que o lote escreveu (um canal com erro também gravou parte do dado).
@@ -302,8 +322,9 @@ export async function executarAgenda(o: {
     // 10. Depois de `cron_health` gravado: o aviso ao dono. Falha ou falta de tempo nunca mudam a resposta.
     let avisosEnviados: ContagemAviso | null = null
     const restante = LIMITE_FUNCAO_MS - FOLGA_FIM_MS - (agora() - t0)
-    if (f.avisos.length > 0 && restante >= AVISO_MIN_MS) {
-      try { avisosEnviados = await avisarDono(sb, f.avisos, { agoraMs: agora(), prazoMs: Math.min(AVISO_MAX_MS, restante) }) } catch { /* o aviso nunca muda a resposta */ }
+    const avisos = [...f.avisos, ...extras.avisos]
+    if (avisos.length > 0 && restante >= AVISO_MIN_MS) {
+      try { avisosEnviados = await avisarDono(sb, avisos, { agoraMs: agora(), prazoMs: Math.min(AVISO_MAX_MS, restante) }) } catch { /* o aviso nunca muda a resposta */ }
     }
 
     // 11. A resposta.
@@ -313,7 +334,7 @@ export async function executarAgenda(o: {
       tarefas: resumo.tarefas.map(({ extra: _extra, ...resto }) => resto),
       ...(f.lote ? resumoDoLote(f.lote) : {}),
       ...(typeof semanal === 'object' && semanal !== null ? { weekly: semanal } : {}),
-      prova: f.prova, prova_horaria: f.provaHoraria, acao_do_dono: f.acaoDoDono, notas, avisos_enviados: avisosEnviados,
+      prova: f.prova, prova_horaria: f.provaHoraria, acao_do_dono: [...f.acaoDoDono, ...extras.acao], banco: extras.banco, notas, avisos_enviados: avisosEnviados,
     }
     logCron({ job: JOB, run_id: runId, status: 'ok', duration_ms: Math.max(0, agora() - t0), ...corpo })
     return { resposta: Response.json({ status: 'ok', ...corpo }) }

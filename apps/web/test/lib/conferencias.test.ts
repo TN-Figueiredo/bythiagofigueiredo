@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
@@ -357,6 +357,61 @@ describe('conferências de E14 (comentários de destaque, relativas ao dia do en
     }
   })
 })
+
+describe('conferências de E10 (arquivo, pausa e sinal de limite, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const ehData = (x: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(x) && new Date(`${x}T00:00:00.000Z`).toISOString().slice(0, 10) === x
+  const IDS = ['e10-i4', 'e10-d0', 'e10-cms-1', 'e10-d1', 'e10-miniaturas', 'e10-d7', 'e10-d14', 'e10-ensaio', 'e10-d28']
+  const DIAS = [0, 0, 0, 1, 3, 7, 14, 14, 28]
+
+  it('nulo não dá entrada e nada vence; data válida dá as nove, nas datas certas; o ensaio é do dono', () => {
+    expect(conferenciasE10(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE10(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE10(null))).toEqual([])
+    const l = conferenciasE10(dia(-40))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual(DIAS.map(n => dia(-40 + n)))
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe(x.id === 'e10-ensaio' ? 'dono' : 'agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E10')
+      expect(x.onde.length, x.id).toBeGreaterThan(20)
+    }
+  })
+  it('data malformada vira a entrada vencida de 1970 que manda corrigir a constante', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '12/10/2026', '']) {
+      const m = conferenciasE10(ruim)
+      expect(m.map(x => x.id), ruim).toEqual(['e10-deploy-invalido'])
+      expect(m[0]!.onde).toContain('E10_DEPLOY')
+      expect(conferenciasVencidas(dia(0), m).map(x => x.id), ruim).toEqual(['e10-deploy-invalido'])
+      expect(conferenciasEmFalha(dia(0), m).map(x => x.id), ruim).toEqual(['e10-deploy-invalido'])
+    }
+  })
+  it('o que cada uma manda olhar: merge-base do I-4, 4 leituras do D0, menos de 1,5 s, miniaturas zeradas', () => {
+    const por = Object.fromEntries(conferenciasE10(dia(0)).map(x => [x.id, x.onde]))
+    expect(por['e10-i4']).toMatch(/git grep -q "collection_paused_at == null" origin\/main[\s\S]*git grep -q "fora_pausado" origin\/main/)
+    expect(por['e10-i4']).not.toMatch(/is-ancestor/)
+    expect(por['e10-d0']).toMatch(/\(1\)[\s\S]*\(2\)[\s\S]*\(3\)[\s\S]*\(4\)/)
+    expect(por['e10-d0']).toMatch(/obs_db_size_daily[\s\S]*competitor_collection_pauses[\s\S]*170,7/)
+    expect(por['e10-cms-1']).toMatch(/obs_archive_channel_counts[\s\S]*1,5 s/)
+    expect(por['e10-miniaturas']).toMatch(/blob_urls_pending/)
+  })
+  it('vence no dia seguinte à data, e com 8 dias de atraso deixa o cron vermelho', () => {
+    const l = conferenciasE10(dia(0))
+    expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e10-i4', 'e10-d0', 'e10-cms-1'])
+    expect(conferenciasEmFalha(dia(9), l).map(x => x.id)).toEqual(['e10-i4', 'e10-d0', 'e10-cms-1', 'e10-d1'])
+  })
+  it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as nove)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e10-')).map(x => x.id)
+    if (E10_DEPLOY === null) expect(publicadas).toEqual([])
+    else {
+      expect(ehData(E10_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
+
 
 // A5 E16/E15 (Tarefa 15): as conferências da agenda e da captura horária dependem do dia da promoção a `main` (D0), que o
 // controlador preenche em E16_E15_DEPLOY no commit do envio. Sem a data, a lista NÃO tem as entradas: nada vence e o cron não

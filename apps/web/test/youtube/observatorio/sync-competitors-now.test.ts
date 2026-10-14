@@ -18,7 +18,7 @@ const badIds = comps.filter(c => c.sync.state === 'erro' || c.sync.state === 'at
 const backfillIds = comps.filter(c => c.sync.state === 'backfill').map(c => c.id)
 const revalidateTag = vi.fn()
 
-async function load(o: { allowed?: boolean; noYtId?: string; loadMs?: number; sync?: (row: { id: string; channel_id: string; site_id: string }) => Promise<{ skipped?: boolean }> } = {}) {
+async function load(o: { allowed?: boolean; noYtId?: string; loadMs?: number; sync?: (row: { id: string; channel_id: string; site_id: string }) => Promise<{ skipped?: boolean; paused?: boolean }> } = {}) {
   vi.resetModules()
   revalidateTag.mockClear()
   const syncFn = vi.fn(o.sync ?? (async () => ({ videosChecked: 1, changesDetected: 0, dailyRecorded: 0, unitsUsed: 1 })))
@@ -82,6 +82,12 @@ describe('syncCompetitorsNow', () => {
     expect(r.ok).toBe(false)
     expect(r.toast?.kind).toBe('warn')
     expect(r.text.startsWith('0 de ')).toBe(true)
+  })
+  it('a paused channel (skipped + paused) gets the pause label, not the "another sync" one', async () => {
+    const { syncCompetitorsNow } = await load({ sync: async () => ({ skipped: true, paused: true }) })
+    const r = await syncCompetitorsNow()
+    expect(r.problems).toContainEqual({ id: okIds[0], label: 'a coleta deste canal está pausada' })
+    expect(r.problems.some(p => p.label.includes('outra sincroniza'))).toBe(false)
   })
   it('no channel STARTS after 30 s from the top of the action; the rest is reported honestly', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: Date.parse('2026-10-03T12:00:00Z') })

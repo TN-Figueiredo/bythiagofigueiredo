@@ -50,6 +50,7 @@ import { lerProvaHoraria, lerNegadosDoDono, type ProvaHoraria } from '@/lib/yout
 import { adiar, esgotar, fechar, lerEstado, soltarArrendamento, tomar, tomarArrendamento } from '@/lib/youtube/agenda/estado'
 import { fecharDisparo } from '@/lib/youtube/agenda/fecho'
 import { CATALOGO, DEFINICOES } from '@/lib/youtube/agenda/catalogo'
+import { DEFINICAO_TAMANHO_DO_BANCO } from '@/lib/youtube/agenda/definicoes'
 import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import { chaveDoPeriodo } from '@/lib/youtube/agenda/periodo'
 import type { LinhaTarefa, ResultadoTarefa, Tarefa } from '@/lib/youtube/agenda/tipos'
@@ -66,6 +67,7 @@ function bancoDaAgenda(over: Partial<Record<string, (a: Record<string, unknown>)
   const estados = new Map<string, Partial<LinhaTarefa>>()
   const padrao: Record<string, (a: Record<string, unknown>) => unknown> = {
     competitor_agenda_lease_take: () => ({ data: true, error: null }),
+    obs_archive_uncovered: () => ({ data: [], error: null }), // a pendência do arquivo lida sem erro (causa permanente deixaria o cron vermelho)
     competitor_agenda_lease_release: () => ({ data: true, error: null }),
     competitor_agenda_claim: () => ({ data: true, error: null }),
     competitor_agenda_finish: () => ({ data: true, error: null }),
@@ -838,5 +840,93 @@ describe('rodarAntesDoLoteAntigo', () => {
     const b = tarefa('alfa', { ordem: 1, rodar: async () => { ordem.push('alfa'); return { estado: 'ok', feitas: 0, deixadas: 0 } } })
     await chamar([a, b], 'guarda_mg10')
     expect(ordem).toEqual(['alfa', 'zeta'])
+  })
+})
+
+// ───────────────────────── (A5 E10, Tarefa 9) pausa e sinal do tamanho do banco ─────────────────────────
+type Contexto = Parameters<Tarefa['rodar']>[0]
+
+/** Acrescenta ao banco da agenda a leitura de tabelas (`from`): cada tabela responde com o que o teste pedir; as outras, vazias. */
+function comTabelas(base: SupabaseClient, tabelas: Record<string, () => PromiseLike<unknown> | unknown>) {
+  const estado = { gravada: false }
+  const sb = {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'obs_db_size_record') estado.gravada = true
+      return base.rpc(fn, args)
+    },
+    from: (tabela: string) => {
+      const q: Record<string, unknown> = {}
+      for (const m of ['select', 'order', 'limit', 'eq', 'gte', 'lte', 'is', 'in', 'not', 'abortSignal']) q[m] = () => q
+      q.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) =>
+        Promise.resolve((tabelas[tabela] ?? (() => ({ data: [], error: null, count: 0 })))()).then(ok, ko)
+      return q
+    },
+  } as unknown as SupabaseClient
+  return { sb, estado }
+}
+const linhaDoDia = { day: '2026-10-12', db_bytes: 100 * 1_048_576, competitor_bytes: 30 * 1_048_576, own_bytes: 10 * 1_048_576, measured_at: new Date(T0 - 0.5 * H).toISOString() }
+
+describe('executarAgenda: canais pausados (A5 E10)', () => {
+  it('todos os canais pausados: as tarefas recebem lista vazia, não vira erro e a nota diz quantos', async () => {
+    const pausa = new Date(T0 - 2 * 24 * H).toISOString()
+    vi.mocked(loadBatchRows).mockResolvedValue([linha('a', { collection_paused_at: pausa }), linha('b', { collection_paused_at: pausa }), linha('c', { collection_paused_at: pausa })])
+    let recebido: Contexto['linhas'] = undefined as unknown as Contexto['linhas']
+    const captura: Tarefa['rodar'] = async ctx => { recebido = ctx.linhas; return { estado: 'ok', feitas: 0, deixadas: 0 } }
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: captura }) })
+    const c = await corpo(r)
+    expect(recebido).toEqual([])
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+    expect(c.notas).toContain('3 canais com a coleta pausada')
+    expect((c.tarefas as Array<{ estado: string }>).some(t => t.estado === 'erro')).toBe(false)
+  })
+
+  it('pausado fora da lista das tarefas: 2 de 3 recebidos', async () => {
+    vi.mocked(loadBatchRows).mockResolvedValue([linha('a'), linha('b', { collection_paused_at: new Date(T0 - H).toISOString() }), linha('c')])
+    let ids: string[] = []
+    const captura: Tarefa['rodar'] = async ctx => { ids = (ctx.linhas ?? []).map(l => l.id); return { estado: 'ok', feitas: 0, deixadas: 0 } }
+    await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: captura }) })
+    expect(ids).toEqual(['a', 'c'])
+  })
+})
+
+describe('executarAgenda: o sinal do tamanho do banco (A5 E10)', () => {
+  it('o sinal é lido depois das tarefas: a medida gravada neste disparo já conta (estado medido)', async () => {
+    let t: ReturnType<typeof comTabelas>
+    t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: t.estado.gravada ? [linhaDoDia] : [], error: null }) })
+    const grava: Tarefa['rodar'] = async ctx => { await (ctx.sb.rpc('obs_db_size_record', {}) as unknown as { abortSignal: () => Promise<unknown> }).abortSignal(); return { estado: 'ok', feitas: 1, deixadas: 0 } }
+    const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: grava }) }, t.sb))
+    expect(t.estado.gravada).toBe(true)
+    expect(c.banco).toMatchObject({ estado: 'medido' })
+  })
+
+  it('contraprova: sem a gravação a tabela fica vazia e o sinal sai nunca_medido', async () => {
+    let t: ReturnType<typeof comTabelas>
+    t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: t.estado.gravada ? [linhaDoDia] : [], error: null }) })
+    const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso() }, t.sb))
+    expect(c.banco).toMatchObject({ estado: 'nunca_medido' })
+  })
+
+  it('OBS_AGENDA_TASKS_OFF=tamanho_do_banco com o sinal nunca_medido: a ação diz "desligada" e não promete a primeira leitura', async () => {
+    process.env.OBS_AGENDA_TASKS_OFF = 'tamanho_do_banco'
+    const t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: [], error: null }) })
+    const catalogo = [...catalogoFalso(), { ...DEFINICAO_TAMANHO_DO_BANCO, rodar: okPadrao }]
+    const c = await corpo(await rodarAgenda({ catalogo }, t.sb))
+    expect(c.banco).toMatchObject({ estado: 'nunca_medido' })
+    const acao = (c.acao_do_dono as string[]).join(' | ')
+    expect(acao).toContain('A medida do tamanho do banco está desligada')
+    expect(acao).not.toContain('primeira leitura')
+  })
+
+  it('a leitura do sinal pendurada não atrasa o disparo: banco.nao_lido = prazo, dentro do teto', async () => {
+    const t = comTabelas(banco.sb, { obs_db_size_daily: () => new Promise(() => undefined) })
+    const p = rodarAgenda({ catalogo: catalogoFalso() }, t.sb)
+    await vi.advanceTimersByTimeAsync(3_500)
+    const r = await p
+    const c = await corpo(r)
+    expect(c.banco).toEqual({ nao_lido: 'prazo' })
+    expect(c.notas).toContain('banco: não foi possível ler o tamanho')
+    expect(Date.now() - T0).toBeLessThan(4_000)
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
   })
 })

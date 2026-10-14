@@ -117,7 +117,7 @@ function criarBanco(): Banco {
         return { data: rows, error: null }
       }
       const q: Q = {
-        select: () => q,
+        select: cols => { nomes.push(`select:${cols}`); return q },
         eq: (c, v) => { filtros.push(r => r[c] === v); nomes.push(`eq:${c}`); return q },
         gt: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) > v); nomes.push(`gt:${c}`); return q },
         gte: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) >= v); nomes.push(`gte:${c}`); return q },
@@ -159,13 +159,13 @@ describe('lerCandidatos', () => {
     const b = criarBanco()
     semear(b, 'competitor_videos', [{
       id: 'u1', video_id: 'yt1', competitor_channel_id: 'c1', published_at: iso(AGORA - 2 * H), discovered_at: iso(AGORA - H),
-      live_broadcast_content: 'none', missing_since: null, competitor_channels: { site_id: 's1', missing_since: iso(AGORA - H) },
+      live_broadcast_content: 'none', missing_since: null, competitor_channels: { site_id: 's1', missing_since: iso(AGORA - H), collection_paused_at: null },
     }])
     semear(b, 'youtube_videos', [{ id: 'up1', youtube_video_id: 'ytp1', channel_id: 'd1', site_id: 's1', published_at: iso(AGORA - 3 * H), created_at: iso(AGORA - 2 * H) }])
     const { conc, prop } = await lerCandidatos(b.sb, AGORA)
     expect(conc).toEqual([{
       id: 'u1', ytId: 'yt1', canalId: 'c1', siteId: 's1', publishedAt: iso(AGORA - 2 * H), discoveredAt: iso(AGORA - H),
-      lbc: 'none', missingSince: null, canalAusente: true,
+      lbc: 'none', missingSince: null, canalAusente: true, canalPausado: false,
     }])
     expect(prop).toEqual([{ id: 'up1', ytId: 'ytp1', canalId: 'd1', siteId: 's1', publishedAt: iso(AGORA - 3 * H), createdAt: iso(AGORA - 2 * H) }])
   })
@@ -173,8 +173,8 @@ describe('lerCandidatos', () => {
   it('só pede o que foi publicado nos últimos 14 dias, em ordem estável, sem ler a captura diária do dono', async () => {
     const b = criarBanco()
     semear(b, 'competitor_videos', [
-      { id: 'novo', video_id: 'a', competitor_channel_id: 'c', published_at: iso(AGORA - DIA), discovered_at: null, live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null } },
-      { id: 'velho', video_id: 'b', competitor_channel_id: 'c', published_at: iso(AGORA - 15 * DIA), discovered_at: null, live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null } },
+      { id: 'novo', video_id: 'a', competitor_channel_id: 'c', published_at: iso(AGORA - DIA), discovered_at: null, live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null, collection_paused_at: null } },
+      { id: 'velho', video_id: 'b', competitor_channel_id: 'c', published_at: iso(AGORA - 15 * DIA), discovered_at: null, live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null, collection_paused_at: null } },
     ])
     const { conc } = await lerCandidatos(b.sb, AGORA)
     expect(conc.map(c => c.id)).toEqual(['novo'])
@@ -183,9 +183,35 @@ describe('lerCandidatos', () => {
     expect(idasEm(b, 'competitor_videos', 'select')[0]?.filtros).toContain('or:published_at')
   })
 
+  it('(A5 E10) o select dos candidatos pede collection_paused_at do canal (o banco falso não confere colunas)', async () => {
+    const b = criarBanco()
+    await lerCandidatos(b.sb, AGORA)
+    const pedido = idasEm(b, 'competitor_videos', 'select')[0]?.filtros.find(f => f.startsWith('select:')) ?? ''
+    expect(pedido).toContain('collection_paused_at')
+  })
+
+  it('(A5 E10) canal com a coleta pausada vira canalPausado: true no candidato', async () => {
+    const b = criarBanco()
+    semear(b, 'competitor_videos', [{
+      id: 'u1', video_id: 'yt1', competitor_channel_id: 'c1', published_at: iso(AGORA - 2 * H), discovered_at: null,
+      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's1', missing_since: null, collection_paused_at: iso(AGORA - DIA) },
+    }])
+    const { conc } = await lerCandidatos(b.sb, AGORA)
+    expect(conc[0]).toMatchObject({ canalPausado: true, canalAusente: false })
+  })
+
+  it('(A5 E10) canal embutido sem o campo collection_paused_at é forma inválida: lista_falhou, nunca lista vazia', async () => {
+    const b = criarBanco()
+    semear(b, 'competitor_videos', [{
+      id: 'u1', video_id: 'yt1', competitor_channel_id: 'c1', published_at: iso(AGORA - 2 * H), discovered_at: null,
+      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's1', missing_since: null },
+    }])
+    await expect(lerCandidatos(b.sb, AGORA)).rejects.toMatchObject({ codigo: 'lista_falhou' })
+  })
+
   it('vídeo sem published_at, descoberto na janela, chega aos candidatos (nunca some em silêncio); o nulo antigo não', async () => {
     const b = criarBanco()
-    const base = { competitor_channel_id: 'c', live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null } }
+    const base = { competitor_channel_id: 'c', live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null, collection_paused_at: null } }
     semear(b, 'competitor_videos', [
       { id: 'sem-data', video_id: 'a', published_at: null, discovered_at: iso(AGORA - 2 * H), ...base },
       { id: 'sem-data-antigo', video_id: 'b', published_at: null, discovered_at: iso(AGORA - 20 * DIA), ...base },
@@ -204,7 +230,7 @@ describe('lerCandidatos', () => {
   it('5.000 linhas exatas passam (seis consultas, a sexta vazia); mais que isso é lista_cortada', async () => {
     const mk = (n: number): Linha[] => Array.from({ length: n }, (_, i) => ({
       id: `u${String(i).padStart(5, '0')}`, video_id: `y${i}`, competitor_channel_id: 'c', published_at: iso(AGORA - H), discovered_at: null,
-      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null },
+      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null, collection_paused_at: null },
     }))
     const b = criarBanco(); semear(b, 'competitor_videos', mk(5000))
     const ok = await lerCandidatos(b.sb, AGORA)
@@ -476,7 +502,7 @@ describe('relatar: só o código do Postgres e o código de catálogo, nunca o t
   it('lerCandidatos: lista cortada relata lista_cortada', async () => {
     const mk = (n: number): Linha[] => Array.from({ length: n }, (_, i) => ({
       id: `u${String(i).padStart(5, '0')}`, video_id: `y${i}`, competitor_channel_id: 'c', published_at: iso(AGORA - H), discovered_at: null,
-      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null },
+      live_broadcast_content: null, missing_since: null, competitor_channels: { site_id: 's', missing_since: null, collection_paused_at: null },
     }))
     const b = criarBanco(); semear(b, 'competitor_videos', mk(5001))
     const { relatos, relatar } = novoRelator()

@@ -29,7 +29,7 @@ vi.mock('@/lib/youtube/observatorio/cache-tag', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/youtube/observatorio/cache-tag')>()),
   invalidateObservatory: () => { cache.invalidated++ },
 }))
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import * as channels from '@/app/cms/(authed)/youtube/_actions/channels'
 import * as competitors from '@/app/cms/(authed)/youtube/competitors/actions'
@@ -59,8 +59,9 @@ const RESTRICTED: Case[] = [
   },
   {
     name: 'removeCompetitorChannel',
-    run: () => competitors.removeCompetitorChannel(UUID),
-    adminDid: () => log.writes.some((w) => w.table === 'competitor_channels' && w.op === 'delete'),
+    // (A5 E10) a remoção vai pela função do banco (exportação conferida), não por delete direto
+    run: () => { log.rpcData = { status: 'removido', batch: 'lote-1', linhas: 1, blob_urls: [] }; return competitors.removeCompetitorChannel(UUID) },
+    adminDid: () => log.rpcs.includes('competitor_channel_remove_archived'),
   },
 ]
 

@@ -16,6 +16,6 @@ export const leituraHoraria: Pick<Tarefa, 'rodar'> = {
       ['competitor_video_hourly', 'video_id'],
       ['yt_own_public_video_hourly', 'youtube_video_id'],
       ['yt_own_public_video_early', 'youtube_video_id'],
-    ]]], { signal: AbortSignal.timeout(BANCO_MS) }),
+    ]], ['MG6', [['competitor_channels', 'collection_paused_at']]]], { signal: AbortSignal.timeout(BANCO_MS) }),
   }),
 }

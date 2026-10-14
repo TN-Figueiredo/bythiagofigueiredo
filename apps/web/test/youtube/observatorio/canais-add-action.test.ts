@@ -194,14 +194,6 @@ describe('addCompetitorChannel', () => {
 })
 
 describe('removeCompetitorChannel', () => {
-  it('ok only when a row of this site was deleted', async () => {
-    setup({ own: null, existing: null, inserted: [], deleted: [] })
-    expect(await (await actions()).removeCompetitorChannel('other-site-row')).toEqual({ ok: false })
-    expect(revalidateTag).not.toHaveBeenCalled() // nothing was removed: the cache stays
-    setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] })
-    expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: true })
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
-  })
   it('sem permissão: não remove nem invalida', async () => {
     setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] }, undefined, { ok: false, reason: 'forbidden' })
     expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: false })
