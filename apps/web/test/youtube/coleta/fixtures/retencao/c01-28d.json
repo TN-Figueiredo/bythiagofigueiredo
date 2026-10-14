@@ -1,0 +1,40 @@
+{
+ "chamada": "https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3D<canal>&startDate=2026-09-15&endDate=2026-10-13&metrics=audienceWatchRatio%2CrelativeRetentionPerformance%2CstartedWatching%2CstoppedWatching%2CtotalSegmentImpressions&dimensions=elapsedVideoTimeRatio&filters=video%3D%3DyJl_YzInZ3U%3BaudienceType%3D%3DORGANIC",
+ "status": 200,
+ "resposta": {
+  "kind": "youtubeAnalytics#resultTable",
+  "columnHeaders": [
+   {
+    "name": "elapsedVideoTimeRatio",
+    "columnType": "DIMENSION",
+    "dataType": "FLOAT"
+   },
+   {
+    "name": "audienceWatchRatio",
+    "columnType": "METRIC",
+    "dataType": "FLOAT"
+   },
+   {
+    "name": "relativeRetentionPerformance",
+    "columnType": "METRIC",
+    "dataType": "FLOAT"
+   },
+   {
+    "name": "startedWatching",
+    "columnType": "METRIC",
+    "dataType": "INTEGER"
+   },
+   {
+    "name": "stoppedWatching",
+    "columnType": "METRIC",
+    "dataType": "INTEGER"
+   },
+   {
+    "name": "totalSegmentImpressions",
+    "columnType": "METRIC",
+    "dataType": "FLOAT"
+   }
+  ],
+  "rows": []
+ }
+}
