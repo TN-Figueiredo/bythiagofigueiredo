@@ -31,6 +31,7 @@ function conc(over: Partial<CandConcorrente> = {}): CandConcorrente {
     lbc: 'none',
     missingSince: null,
     canalAusente: false,
+    canalPausado: false,
     ...over,
   }
 }
@@ -48,7 +49,7 @@ function prop(over: Partial<CandProprio> = {}): CandProprio {
   }
 }
 
-const ZERO = { teto: 0, tetoProprio: 0, aoVivo: 0, ausente: 0, semData: 0 }
+const ZERO = { teto: 0, tetoProprio: 0, aoVivo: 0, ausente: 0, pausado: 0, semData: 0 }
 const dias = RULES.hourly.ageDays
 const max = RULES.hourly.videosMax
 
@@ -166,6 +167,28 @@ describe('montarLista', () => {
     const r = montarLista([live, upcoming, none, nulo], [], AGORA)
     expect(r.fora.aoVivo).toBe(2)
     expect(new Set(r.alvos.map((a) => a.uuid))).toEqual(new Set([none.id, nulo.id]))
+  })
+
+  it('(A5 E10) vídeo de canal pausado sai da lista e é contado em fora.pausado (mutação: tirar o continue)', () => {
+    const pausado = conc({ canalPausado: true })
+    const bom = conc()
+    const r = montarLista([pausado, bom], [], AGORA)
+    expect(r.fora.pausado).toBe(1)
+    expect(r.alvos.map((a) => a.uuid)).toEqual([bom.id])
+  })
+
+  it('(A5 E10) 15 vídeos, um de canal pausado: 14 alvos (item 229)', () => {
+    const todos = Array.from({ length: 15 }, (_, i) => conc({ canalPausado: i === 4 }))
+    const r = montarLista(todos, [], AGORA)
+    expect(r.alvos).toHaveLength(14)
+    expect(r.alvos.map((a) => a.uuid)).not.toContain(todos[4]!.id)
+  })
+
+  it('(A5 E10) ausente e pausado ao mesmo tempo conta só em ausente; nenhum pausado deixa fora.pausado em 0', () => {
+    const ambos = conc({ canalAusente: true, canalPausado: true })
+    const r = montarLista([ambos], [], AGORA)
+    expect(r.fora).toEqual({ ...ZERO, ausente: 1 })
+    expect(montarLista([conc(), conc()], [], AGORA).fora).toEqual(ZERO)
   })
 
   it('vídeo ausente e canal ausente ficam fora', () => {

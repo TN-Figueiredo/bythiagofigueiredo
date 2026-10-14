@@ -205,7 +205,7 @@ describe('leitura_horaria', () => {
     expect(typeof arg.relatar).toBe('function')
     expect(await arg.guarda()).toBeNull()
     const chamada = vi.mocked(schemaTablesReady).mock.calls[0]!
-    expect(chamada[1]).toEqual([['MG9', [['competitor_video_hourly', 'video_id'], ['yt_own_public_video_hourly', 'youtube_video_id'], ['yt_own_public_video_early', 'youtube_video_id']]]])
+    expect(chamada[1]).toEqual([['MG9', [['competitor_video_hourly', 'video_id'], ['yt_own_public_video_hourly', 'youtube_video_id'], ['yt_own_public_video_early', 'youtube_video_id']]], ['MG6', [['competitor_channels', 'collection_paused_at']]]]) // (A5 E10) a MG6 vem depois da MG9
     expect(chamada[2]?.signal).toBeInstanceOf(AbortSignal)
   })
 })
