@@ -12,6 +12,7 @@
   --you:#FF8240;--you-row:#251E18;--you-cell:#2A2018;
   --strip-long:#E9DFCF;--strip-short:#C29A5B;--strip-empty:#7A6E5D;
 }
+@media (max-width:768px){[data-obs-screen="canais"]{--obs-topbar-h:48px}}
 [data-theme="light"] [data-obs-screen="canais"]{
   --info:#0B6177;
   --travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07);

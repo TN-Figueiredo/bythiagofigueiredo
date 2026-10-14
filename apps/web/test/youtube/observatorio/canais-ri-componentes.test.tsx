@@ -308,6 +308,7 @@ describe('RI · CSS', () => {
     expect(semComentario).not.toMatch(/(^|\n)\.ri \.ri-more/)
     const tela = fs.readFileSync(path.join(DIR, 'canais.css'), 'utf8')
     expect(tela).toMatch(/--obs-topbar-h:52px/)
+    expect(tela).toMatch(/@media \(max-width:768px\)\{\[data-obs-screen="canais"\]\{--obs-topbar-h:48px\}\}/)
     const canal = fs.readFileSync(path.join(DIR, '..', '_canal', 'canal.css'), 'utf8')
     expect(canal).toMatch(/--obs-topbar-h:52px/)
   })
