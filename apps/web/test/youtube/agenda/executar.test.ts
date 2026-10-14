@@ -840,3 +840,80 @@ describe('rodarAntesDoLoteAntigo', () => {
     expect(ordem).toEqual(['alfa', 'zeta'])
   })
 })
+
+// ───────────────────────── (A5 E10, Tarefa 9) pausa e sinal do tamanho do banco ─────────────────────────
+type Contexto = Parameters<Tarefa['rodar']>[0]
+
+/** Acrescenta ao banco da agenda a leitura de tabelas (`from`): cada tabela responde com o que o teste pedir; as outras, vazias. */
+function comTabelas(base: SupabaseClient, tabelas: Record<string, () => PromiseLike<unknown> | unknown>) {
+  const estado = { gravada: false }
+  const sb = {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'obs_db_size_record') estado.gravada = true
+      return base.rpc(fn, args)
+    },
+    from: (tabela: string) => {
+      const q: Record<string, unknown> = {}
+      for (const m of ['select', 'order', 'limit', 'eq', 'gte', 'lte', 'is', 'in', 'not', 'abortSignal']) q[m] = () => q
+      q.then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) =>
+        Promise.resolve((tabelas[tabela] ?? (() => ({ data: [], error: null, count: 0 })))()).then(ok, ko)
+      return q
+    },
+  } as unknown as SupabaseClient
+  return { sb, estado }
+}
+const linhaDoDia = { day: '2026-10-12', db_bytes: 100 * 1_048_576, competitor_bytes: 30 * 1_048_576, own_bytes: 10 * 1_048_576, measured_at: new Date(T0 - 0.5 * H).toISOString() }
+
+describe('executarAgenda: canais pausados (A5 E10)', () => {
+  it('todos os canais pausados: as tarefas recebem lista vazia, não vira erro e a nota diz quantos', async () => {
+    const pausa = new Date(T0 - 2 * 24 * H).toISOString()
+    vi.mocked(loadBatchRows).mockResolvedValue([linha('a', { collection_paused_at: pausa }), linha('b', { collection_paused_at: pausa }), linha('c', { collection_paused_at: pausa })])
+    let recebido: Contexto['linhas'] = undefined as unknown as Contexto['linhas']
+    const captura: Tarefa['rodar'] = async ctx => { recebido = ctx.linhas; return { estado: 'ok', feitas: 0, deixadas: 0 } }
+    const r = await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: captura }) })
+    const c = await corpo(r)
+    expect(recebido).toEqual([])
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+    expect(c.notas).toContain('3 canais com a coleta pausada')
+    expect((c.tarefas as Array<{ estado: string }>).some(t => t.estado === 'erro')).toBe(false)
+  })
+
+  it('pausado fora da lista das tarefas: 2 de 3 recebidos', async () => {
+    vi.mocked(loadBatchRows).mockResolvedValue([linha('a'), linha('b', { collection_paused_at: new Date(T0 - H).toISOString() }), linha('c')])
+    let ids: string[] = []
+    const captura: Tarefa['rodar'] = async ctx => { ids = (ctx.linhas ?? []).map(l => l.id); return { estado: 'ok', feitas: 0, deixadas: 0 } }
+    await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: captura }) })
+    expect(ids).toEqual(['a', 'c'])
+  })
+})
+
+describe('executarAgenda: o sinal do tamanho do banco (A5 E10)', () => {
+  it('o sinal é lido depois das tarefas: a medida gravada neste disparo já conta (estado medido)', async () => {
+    let t: ReturnType<typeof comTabelas>
+    t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: t.estado.gravada ? [linhaDoDia] : [], error: null }) })
+    const grava: Tarefa['rodar'] = async ctx => { await (ctx.sb.rpc('obs_db_size_record', {}) as unknown as { abortSignal: () => Promise<unknown> }).abortSignal(); return { estado: 'ok', feitas: 1, deixadas: 0 } }
+    const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: grava }) }, t.sb))
+    expect(t.estado.gravada).toBe(true)
+    expect(c.banco).toMatchObject({ estado: 'medido' })
+  })
+
+  it('contraprova: sem a gravação a tabela fica vazia e o sinal sai nunca_medido', async () => {
+    let t: ReturnType<typeof comTabelas>
+    t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: t.estado.gravada ? [linhaDoDia] : [], error: null }) })
+    const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso() }, t.sb))
+    expect(c.banco).toMatchObject({ estado: 'nunca_medido' })
+  })
+
+  it('a leitura do sinal pendurada não atrasa o disparo: banco.nao_lido = prazo, dentro do teto', async () => {
+    const t = comTabelas(banco.sb, { obs_db_size_daily: () => new Promise(() => undefined) })
+    const p = rodarAgenda({ catalogo: catalogoFalso() }, t.sb)
+    await vi.advanceTimersByTimeAsync(3_500)
+    const r = await p
+    const c = await corpo(r)
+    expect(c.banco).toEqual({ nao_lido: 'prazo' })
+    expect(c.notas).toContain('banco: não foi possível ler o tamanho')
+    expect(Date.now() - T0).toBeLessThan(4_000)
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+  })
+})

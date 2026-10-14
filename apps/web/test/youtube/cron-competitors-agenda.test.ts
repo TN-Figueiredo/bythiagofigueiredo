@@ -46,6 +46,9 @@ import { runCompetitorBatch, batchHealth } from '@/lib/youtube/competitor-sync-b
 import { schemaReady, schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { executarAgenda, rodarAntesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
+import { lerArquivoSemAgenda } from '@/lib/youtube/agenda/arquivo-sem-agenda'
+import { extrasDoDisparo } from '@/lib/youtube/agenda/extras-arquivo'
+import { sinalDoBanco } from '@/lib/youtube/observatorio/arquivo/sinal-do-banco'
 
 const req = () => new NextRequest('http://localhost/api/cron/sync-youtube?mode=competitors', { headers: { authorization: 'Bearer test-secret' } })
 const ZERO = { unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, weeklyDeferred: 0, earlyRecorded: 0, fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, missed: 0, newlyMissing: 0, returned: 0, tierChanges: 0, cutByCap: 0, excludedNoCount: 0, promoted: 0, longWindowChanges: 0, partsMissing: 0, quotaErrors: 0 }
@@ -300,5 +303,98 @@ describe('a lista que roda antes do lote antigo, na rota', () => {
     vi.mocked(executarAgenda).mockResolvedValue({ resposta: null, semAgenda: 'S' })
     const d = await (await GET(req())).json()
     expect('agenda_desligada' in d).toBe(false)
+  })
+})
+
+// ───────────────────────── (A5 E10, Tarefa 9) o arquivo sem agenda na rota ─────────────────────────
+// `lerArquivoSemAgenda` é falso de módulo; o resultado de cada caso sai das funções puras de verdade, com medidas sintéticas.
+describe('o sinal do tamanho do banco e as pendências, sem agenda (A5 E10)', () => {
+  const MB = 1_048_576
+  const AGORA = Date.parse('2026-10-12T14:00:00Z') // 11:00 em São Paulo: o dia de leitura é 12/10
+  /** O resultado que `lerArquivoSemAgenda` daria com a última medida há `horas` h. */
+  const arquivoComMedidaHa = (horas: number) => {
+    const em = new Date(AGORA - horas * 3_600_000)
+    const dia = new Date(em.getTime() - 8 * 3_600_000).toISOString().slice(0, 10)
+    const sinal = sinalDoBanco([{ day: dia, db_bytes: 100 * MB, competitor_bytes: 30 * MB, own_bytes: 10 * MB, measured_at: em.toISOString() }], AGORA)
+    const x = extrasDoDisparo({ todas: null, sinal: { valor: sinal }, agoraMs: AGORA, agendaDesde: null, pendencias: { porque: 'prazo' }, tamanhoOkHa36h: null })
+    return { problemas: x.problemas, notas: x.notas, acao: x.acao, banco: x.banco }
+  }
+  const FRASE_SEM_LEITURA = 'Sem leitura do banco do site hoje.'
+
+  beforeEach(() => { vi.mocked(lerArquivoSemAgenda).mockResolvedValue({ problemas: [], notas: [], acao: [], banco: {} }) })
+
+  it('agenda desligada, última medida há 73 h: cron vermelho com a frase do banco; a resposta traz banco e a ação', async () => {
+    const arq = arquivoComMedidaHa(73)
+    expect(arq.problemas).toHaveLength(1) // a premissa: 73 h passa do teto das 72 h
+    vi.mocked(lerArquivoSemAgenda).mockResolvedValue(arq)
+    const res = await GET(req())
+    expect(falha()).toHaveLength(1)
+    expect(falha()[0]).toContain(FRASE_SEM_LEITURA)
+    expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    const c = await res.json()
+    expect(c.banco).toMatchObject({ estado: 'sem_leitura_hoje' })
+    expect(c.acao_do_dono_arquivo[0]).toContain(FRASE_SEM_LEITURA)
+  })
+
+  it('agenda desligada, última medida há 10 h: verde, com acao_do_dono_arquivo trazendo "sem leitura hoje" e o campo banco', async () => {
+    const arq = arquivoComMedidaHa(10)
+    expect(arq.problemas).toEqual([])
+    vi.mocked(lerArquivoSemAgenda).mockResolvedValue(arq)
+    const res = await GET(req())
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledWith('sync-youtube-competitors', 'info')
+    const c = await res.json()
+    expect(c.banco).toMatchObject({ estado: 'sem_leitura_hoje' })
+    expect(c.acao_do_dono_arquivo).toEqual([expect.stringContaining(FRASE_SEM_LEITURA)])
+  })
+
+  it('guarda da MG10 falhando: o sinal é lido do mesmo jeito, uma vez, depois da lista e antes do lote antigo; a frase da MG10 continua na mensagem', async () => {
+    vi.unstubAllEnvs(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key')
+    delete process.env.OBS_AGENDA
+    vi.mocked(executarAgenda).mockResolvedValue({ resposta: null, semAgenda: 'FRASE-MG10' })
+    vi.mocked(lerArquivoSemAgenda).mockResolvedValue(arquivoComMedidaHa(10))
+    const res = await GET(req())
+    expect(vi.mocked(lerArquivoSemAgenda)).toHaveBeenCalledTimes(1)
+    expect(ordem(vi.mocked(rodarAntesDoLoteAntigo))).toBeLessThan(ordem(vi.mocked(lerArquivoSemAgenda)))
+    expect(ordem(vi.mocked(lerArquivoSemAgenda))).toBeLessThan(ordem(vi.mocked(runCompetitorBatch)))
+    const c = await res.json()
+    expect(c.banco).toMatchObject({ estado: 'sem_leitura_hoje' })
+    expect(falha()[0]).toContain('FRASE-MG10')
+  })
+
+  it('agenda ligada e respondendo: o arquivo sem agenda não é lido', async () => {
+    vi.unstubAllEnvs(); vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key')
+    delete process.env.OBS_AGENDA
+    vi.mocked(executarAgenda).mockResolvedValue({ resposta: Response.json({ status: 'ok' }) })
+    await GET(req())
+    expect(vi.mocked(lerArquivoSemAgenda)).not.toHaveBeenCalled()
+  })
+
+  describe('a rota soma os problemas do arquivo aos da lista, nos três desfechos do lote antigo', () => {
+    beforeEach(() => {
+      vi.mocked(lerArquivoSemAgenda).mockResolvedValue({ problemas: ['x'], notas: [], acao: [], banco: {} })
+      vi.mocked(rodarAntesDoLoteAntigo).mockResolvedValue({ tarefas: [], problemas: ['y'], notas: [] })
+    })
+    it('(a) guarda de schema falhando', async () => {
+      vi.mocked(schemaReady).mockResolvedValue('G-GUARDA')
+      await GET(req())
+      expect(falha()).toHaveLength(1)
+      expect(falha()[0]).toContain('x')
+      expect(falha()[0]).toContain('y')
+      expect(vi.mocked(runCompetitorBatch)).not.toHaveBeenCalled()
+    })
+    it('(b) lote lançando', async () => {
+      vi.mocked(runCompetitorBatch).mockRejectedValue(new Error('LOTE-CAIU'))
+      await GET(req())
+      expect(falha()).toHaveLength(1)
+      expect(falha()[0]).toContain('x')
+      expect(falha()[0]).toContain('LOTE-CAIU')
+    })
+    it('(c) lote ok: vermelho só por causa do arquivo, nunca verde', async () => {
+      await GET(req())
+      expect(falha()).toHaveLength(1)
+      expect(falha()[0]).toContain('x')
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+    })
   })
 })
