@@ -254,6 +254,40 @@ export function conferenciasE10(deploy: string | null): Conferencia[] {
   ]
 }
 
+
+// E5a leva 1 (tela 16 Canais e conta da aba Mudanças): as datas D0 e D+7 dependem do dia da promoção a `main` (D), que ainda não existe
+// (depende do portão de T0b a T4 e da frente do A/B). O controlador preenche `E5A_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit da
+// promoção. Enquanto for `null`, as quatro entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E5` (formato `E<n>`).
+// As de Outliers, Comparar, Insights e Histórico nascem com a leva de cada tela, não aqui.
+/** Dia de São Paulo (AAAA-MM-DD) em que a E5a leva 1 foi promovida a `main`. `null` = ainda não enviada. */
+export const E5A_DEPLOY: string | null = null
+
+const PLANO_E5A = 'docs/superpowers/plans/2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md (seção 11 e Tarefa 13); anotar o resultado em .superpowers/sdd/a5/progress.md'
+
+/** Dia fixo (SP) em que some o aviso de contagem da lista de Canais: 18/10 é o último dia com os 28 dias anteriores a incluir a mudança de 24/08; vence no dia 20. */
+const E5A_AVISO_CONTAGEM = '2026-10-19'
+/** Dia fixo (SP) a partir do qual "em queda" ganha número: 14/12/2026. */
+const E5A_EM_QUEDA = '2026-12-14'
+
+/**
+ * As conferências da E5a leva 1 a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio: vira uma entrada
+ * de 1970 (vermelha) que manda corrigir a constante. `e5a-aviso-contagem` e `e5a-em-queda` têm data fixa de calendário (depois das 12 h SP),
+ * mas só existem depois do envio. Em ordem de data.
+ */
+export function conferenciasE5A(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e5a-deploy-invalido', etapa: 'E5', data: '1970-01-01', responsavel: 'agente', onde: `E5A_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, data: string, onde: string): Conferencia => ({ id: `e5a-${id}`, etapa: 'E5', data, responsavel: 'agente', onde: `${PLANO_E5A}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', deploy, 'D0, depois da promoção: tela Canais em produção, a 1440 e a 390, com o dono e com um usuário só de leitura: sem erro de console; nenhuma célula "não carregou"; direção medida em tantos canais quantas forem as linhas `mede = true` da consulta da seção 11 do plano; canal próprio diz o motivo e não conta como falha; aba Mudanças = contagem antiga menos as trocas de descrição de 30 dias (CP14 em produção); anotar a consulta do I2 de Phil (canais em primeira busca); nenhum Sentry `medidas-telas-canais` nem `canais-sem-retrato`'),
+    e('d7', somaDias(deploy, 7), 'D+7: Sentry sem `tempo_esgotado` nem `esgotou > 0` em `medidas-telas-canais`; anotar o número de canais concorrentes (gatilho do Yannis: passar de cerca de 40 canais ou o primeiro estouro leva `PRAZO_DAS_MEDIDAS_MS` a cerca de 40 s)'),
+    e('aviso-contagem', E5A_AVISO_CONTAGEM, '19/10/2026, depois das 12 h de SP (aceita o dia 20): o aviso "Até 18/10, os 28 dias anteriores incluem a mudança de contagem" sumiu da lista de Canais'),
+    e('em-queda', E5A_EM_QUEDA, '14/12/2026, depois das 12 h de SP: "em queda" aparece com número e base ("medida em X de Y"), sem contorno pontilhado; com X = 0, hachura com o motivo'),
+  ].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+}
+
 // E16 e E15 (agenda de tarefas do cron `sync-youtube` e leitura horária dos vídeos novos): as datas dependem do dia da promoção a `main` (D0),
 // que ainda não existe. O controlador preenche `E16_E15_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio (Tarefa 15). Enquanto for
 // `null`, as oito entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapas `E16` e `E15` (o formato `E<n>` do guardião).
@@ -395,7 +429,7 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
 }
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
