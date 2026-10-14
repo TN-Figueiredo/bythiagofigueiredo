@@ -23,7 +23,7 @@
 - `.superpowers/` não é versionada (`fila-do-db-push.md`, regras): os scripts, o ledger e as saídas desta etapa não entram em commit.
 - Sem datas-meta (D24): só relógio real (a poda só tem o que apagar quando a linha tem mais de 90 dias).
 - Prazo da poda: **90 dias** (`02` §10.3). Piso no código: a função recusa `p_dias < 90`.
-- Horas dos agendamentos existentes (F11, `saidas/producao.txt`, P7): `pgnet-response-retention` 05:00, `pgcron-run-details-retention` 05:30, `purge-sent-emails` 06:00 diário, `purge-old-contact-submissions` 06:00 de domingo (UTC). Os novos: **06:10** (`purge-cron-runs`) e **06:50** (`purge-yt-own-collection-attempts`).
+- Horas dos agendamentos existentes (F11, `saidas/producao.txt`, P7): `pgcron-run-details-retention` 05:30 (a `pgnet-response-retention` das 05:00 saiu em `20260905000002_pg_net_removal.sql:33`; `cron.job` medido na M0, 14/10, tem só as três desta linha), `purge-sent-emails` 06:00 diário, `purge-old-contact-submissions` 06:00 de domingo (UTC). Os novos: **06:10** (`purge-cron-runs`) e **06:50** (`purge-yt-own-collection-attempts`).
 
 ## Review Focus
 
