@@ -295,7 +295,9 @@ describe('conferências de E6 P2 (dieta do diário, relativas ao dia do envio)',
     }
   })
   it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as três): esquecer de espalhar na lista publicada reprova', () => {
-    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e6-') && !x.id.startsWith('e6-p3-')).map(x => x.id)
+    // filtro positivo nos ids da P2 (portão 15/10, M-3): conferência nova da E6 (p3, p4...) não quebra este teste
+    const DA_P2 = new Set([...IDS, 'e6-p2-deploy-invalido'])
+    const publicadas = CONFERENCIAS.filter(x => DA_P2.has(x.id)).map(x => x.id)
     if (E6_P2_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E6_P2_DEPLOY)).toBe(true)
