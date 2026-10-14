@@ -25,7 +25,7 @@ const vazioDoModelo = (): Omit<PacoteModelo, 'tela' | 'janela'> => ({
 // ───────────────────────── modelo cheio (Comparar)
 export function modeloCheio(): PacoteModelo {
   const direcao: Tabela = {
-    id: 'direcao', titulo: 'Direção de cada canal contra ele mesmo', tipo: 'fixa', nomeNoCorte: 'a tabela de direção', privada: false,
+    id: 'direcao', titulo: 'Direção de cada canal contra ele mesmo', tipo: 'fixa', nomeNoCorte: 'tabela de direção', privada: false,
     colunas: ['Medida', 'Nômade Raiz', 'Lucas Bigodinho', 'Base'],
     linhas: [
       [rotulo('Views dos vídeos novos', 'pack.direcao[0].medida'), base('▲ subindo, +18%', 'pack.direcao[0].a'), base('▼ descendo, −24%', 'pack.direcao[0].b'), base('mediana de 11 e de 9 longos em 90 dias', 'pack.direcao[0].base')],
@@ -33,7 +33,7 @@ export function modeloCheio(): PacoteModelo {
     ],
   }
   const desempenho: Tabela = {
-    id: 'desempenho', titulo: 'Desempenho dos vídeos', tipo: 'fixa', nomeNoCorte: 'a tabela de desempenho', privada: false,
+    id: 'desempenho', titulo: 'Desempenho dos vídeos', tipo: 'fixa', nomeNoCorte: 'tabela de desempenho', privada: false,
     colunas: ['Medida', 'Nômade Raiz', 'Lucas Bigodinho', 'Base'],
     linhas: [
       [rotulo('Mediana de views dos longos', 'pack.d[0].medida'), medido('41,2 mil', 41200, 'pack.d[0].a'), medido('8,4 mil', 8400, 'pack.d[0].b'), base('longos publicados em 90 dias', 'pack.d[0].base')],
@@ -41,12 +41,12 @@ export function modeloCheio(): PacoteModelo {
     ],
   }
   const videos: Tabela = {
-    id: 'videos', titulo: 'Vídeos do período', tipo: 'lista', nomeNoCorte: 'a tabela de vídeos', privada: false,
+    id: 'videos', titulo: 'Vídeos do período', tipo: 'lista', nomeNoCorte: 'tabela de vídeos', privada: false,
     colunas: ['Vídeo', 'Views', 'Base'],
     linhas: [1, 2, 3].map((i) => [terceiros(`Vídeo número ${i}`, `pack.v[${i - 1}].titulo`), medido(`${i * 1000}`, i * 1000, `pack.v[${i - 1}].views`), base('últimos 90 dias', `pack.v[${i - 1}].base`)]),
   }
   const dias: Tabela = {
-    id: 'dia-nomade', titulo: 'Views por dia, Nômade Raiz', tipo: 'dia_a_dia', nomeNoCorte: 'canais', privada: false,
+    id: 'dia-nomade', titulo: 'Views por dia, Nômade Raiz', tipo: 'dia_a_dia', nomeNoCorte: 'canal Nômade Raiz', privada: false,
     colunas: ['Dia', 'Views'],
     linhas: [1, 2, 3, 4, 5].map((i) => [rotulo(`0${i}/10`, `pack.dia[${i - 1}].dia`), medido(`${i * 100}`, i * 100, `pack.dia[${i - 1}].views`)]),
   }
@@ -73,7 +73,7 @@ export function modeloMagro(naoMedidos: number, total = 16): PacoteModelo {
   return {
     ...vazioDoModelo(), tela: 'canais', janela: 'últimos 90 dias',
     foco: [{ nome: 'Nômade Raiz', oQueE: 'concorrente', detalhe: 'canal A' }],
-    tabelas: [{ id: 'medidas', titulo: 'Medidas', tipo: 'fixa', nomeNoCorte: 'a tabela de medidas', privada: false, colunas: ['Medida', 'Valor'], linhas }],
+    tabelas: [{ id: 'medidas', titulo: 'Medidas', tipo: 'fixa', nomeNoCorte: 'tabela de medidas', privada: false, colunas: ['Medida', 'Valor'], linhas }],
     motivoDoMagro: 'O canal foi acompanhado há 2 dias.',
   }
 }
@@ -87,7 +87,7 @@ export function modeloComZero(): PacoteModelo {
     ...vazioDoModelo(), tela: 'outliers', janela: 'últimos 30 dias',
     foco: [{ nome: 'sete canais', oQueE: 'concorrente', detalhe: 'nicho Viagem' }],
     tabelas: [{
-      id: 'faixas', titulo: 'Vídeos por faixa', tipo: 'fixa', nomeNoCorte: 'a tabela de faixas', privada: false, colunas: ['Faixa', 'Vídeos', 'Base'],
+      id: 'faixas', titulo: 'Vídeos por faixa', tipo: 'fixa', nomeNoCorte: 'tabela de faixas', privada: false, colunas: ['Faixa', 'Vídeos', 'Base'],
       linhas: [[rotulo('2× o normal ou mais', 'pack.f[0].faixa'), zero('pack.f[0].n'), base('38 longos olhados em 7 canais', 'pack.f[0].base')]],
     }],
   }
@@ -95,7 +95,7 @@ export function modeloComZero(): PacoteModelo {
 
 // ───────────────────────── privado e comentários
 const tabelaPrivada = (comNumeros: boolean): Tabela => ({
-  id: 'privado-diario', titulo: 'Impressões por dia', tipo: 'fixa', nomeNoCorte: 'a tabela privada', privada: true, colunas: ['Dia', 'Impressões'],
+  id: 'privado-diario', titulo: 'Impressões por dia', tipo: 'fixa', nomeNoCorte: 'tabela privada', privada: true, colunas: ['Dia', 'Impressões'],
   linhas: [1, 2].map((i) => [rotulo(`0${i}/10`, `pack.p[${i - 1}].dia`), comNumeros ? medido(`${i * 5000}`, i * 5000, `pack.p[${i - 1}].imp`) : naoMedido('o YouTube ainda não entregou', `pack.p[${i - 1}].imp`)]),
 })
 
@@ -127,7 +127,7 @@ const dia = (d: number) => `${String((d % 28) + 1).padStart(2, '0')}/${String(Ma
 /** 60 canais, 90 dias: uma lista de 60 linhas e 60 tabelas de dia a dia de 90 linhas cada. */
 export function modeloEstresse(canais = 60, dias = 90): PacoteModelo {
   const lista: Tabela = {
-    id: 'canais', titulo: 'Canais acompanhados', tipo: 'lista', nomeNoCorte: 'a tabela de canais', privada: false, colunas: ['Canal', 'Mediana de views', 'Base'],
+    id: 'canais', titulo: 'Canais acompanhados', tipo: 'lista', nomeNoCorte: 'tabela de canais', privada: false, colunas: ['Canal', 'Mediana de views', 'Base'],
     linhas: Array.from({ length: canais }, (_, i) => [terceiros(`Canal de teste ${i + 1}`, `pack.c[${i}].nome`), medido(`${(i + 1) * 1000}`, (i + 1) * 1000, `pack.c[${i}].mediana`), base('longos dos últimos 90 dias', `pack.c[${i}].base`)]),
   }
   const series: Tabela[] = Array.from({ length: canais }, (_, c) => ({
@@ -151,7 +151,7 @@ const textoLongo = (rotuloDoBloco: string, tamanho: number): string => {
 /** Estresse de texto longo: Mudanças com 40 trocas de descrição (5.000 caracteres cada) e um bloco sem linha de 8.000 (leitura da forja). */
 export function modeloEstresseMudancas(trocas = 40, tamanho = 5_000): PacoteModelo {
   const lista: Tabela = {
-    id: 'trocas', titulo: 'Trocas de descrição', tipo: 'lista', nomeNoCorte: 'a tabela de trocas', privada: false, colunas: ['Vídeo', 'Quando', 'Base'],
+    id: 'trocas', titulo: 'Trocas de descrição', tipo: 'lista', nomeNoCorte: 'tabela de trocas', privada: false, colunas: ['Vídeo', 'Quando', 'Base'],
     linhas: Array.from({ length: trocas }, (_, i) => [terceiros(`Vídeo ${i + 1}`, `pack.t[${i}].titulo`), base(`há ${i + 1} dias`, `pack.t[${i}].quando`), base('últimos 90 dias', `pack.t[${i}].base`)]),
   }
   const citados: BlocoCitado[] = Array.from({ length: trocas }, (_, i) => ({
@@ -164,7 +164,7 @@ export function modeloEstresseMudancas(trocas = 40, tamanho = 5_000): PacoteMode
 /** Estresse de texto longo: Vídeo com 30 versões de descrição de 5.000 caracteres, cada bloco ligado à linha da versão. */
 export function modeloEstresseVideo(versoes = 30, tamanho = 5_000): PacoteModelo {
   const lista: Tabela = {
-    id: 'versoes', titulo: 'Versões da descrição', tipo: 'lista', nomeNoCorte: 'a tabela de versões', privada: false, colunas: ['Versão', 'Quando'],
+    id: 'versoes', titulo: 'Versões da descrição', tipo: 'lista', nomeNoCorte: 'tabela de versões', privada: false, colunas: ['Versão', 'Quando'],
     linhas: Array.from({ length: versoes }, (_, i) => [rotulo(`versão ${i + 1}`, `pack.v[${i}].nome`), base(`há ${i + 1} dias`, `pack.v[${i}].quando`)]),
   }
   const citados: BlocoCitado[] = Array.from({ length: versoes }, (_, i) => ({
