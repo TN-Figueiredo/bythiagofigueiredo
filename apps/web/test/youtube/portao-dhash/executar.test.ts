@@ -6,7 +6,7 @@ import path from 'node:path'
 import sharp from 'sharp'
 import { Diario, type Estado, type Fase, type Medida } from '@/lib/youtube/portao-dhash/diario'
 import { dhashComoHq, gerarImagemTeste } from '@/lib/youtube/portao-dhash/imagem'
-import { ensaio, valer, devolver, conferir, montarResultado, type Deps } from '@/lib/youtube/portao-dhash/executar'
+import { ensaio, valer, devolver, conferir, montarResultado, codigoDeFalha, type Deps } from '@/lib/youtube/portao-dhash/executar'
 import { Recusa } from '@/lib/youtube/portao-dhash/regras'
 import type { Escritor } from '@/lib/youtube/portao-dhash/youtube'
 import { imagemSintetica, respostaImagem, fetchFalso } from './util'
@@ -34,11 +34,13 @@ async function mundo(o: { atrasoMs: number; semMaxres?: boolean; maxresAntiga?: 
       escritas.push({ em: t, bytes: b })
     }),
   }
-  const visivel = () => [...escritas].reverse().find((e) => t >= e.em + o.atrasoMs)?.bytes ?? original
+  const visivelEscrita = () => [...escritas].reverse().find((e) => t >= e.em + o.atrasoMs)
+  const visivel = () => visivelEscrita()?.bytes ?? original
+  const etagVisivel = () => { const v = visivelEscrita(); return v ? `e${v.em}-${escritas.indexOf(v)}` : 'e0' }
   const d: Deps = {
     video: VIDEO, diario,
     f: fetchFalso({ ...(o.semMaxres ? {} : { maxresdefault: respostaImagem(maxres) }), sddefault: respostaImagem(sd), hqdefault: respostaImagem(hq) }),
-    sondar: async () => ({ dhash: await dhashComoHq(visivel()), etag: null }),
+    sondar: async () => ({ dhash: await dhashComoHq(visivel()), etag: etagVisivel() }),
     escritor: vi.fn(async () => esc),
     agora: () => t,
     dormir: async (ms) => { t += ms },
@@ -134,7 +136,7 @@ describe('valer', () => {
     const m = await mundo({ atrasoMs: 0 })
     const sondar = m.d.sondar
     let n = 0
-    m.d.sondar = async (v) => { if (++n === 1) throw new Error('rede'); return sondar(v) }
+    m.d.sondar = async (v) => { if (++n === 2) throw new Error('rede'); return sondar(v) }
     await valer(m.d, false)
     const e = lerEstado(m.pasta)
     expect(e.aparicao!.semDado).toBe(1)
@@ -214,6 +216,126 @@ describe('devolver', () => {
   it('sem estado: recusa', async () => {
     const m = await mundo({ atrasoMs: 0 })
     await expect(devolver(m.d)).rejects.toBeInstanceOf(Recusa)
+  })
+})
+
+describe('robustez da devolução (revisão do Yannis)', () => {
+  it('I1a: a imagem de teste nunca aparece: (ii) sai "sem conclusão", nunca "passou"', async () => {
+    const m = await mundo({ atrasoMs: 13 * H })
+    await valer(m.d, false)
+    const r = fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')
+    const linha = r.split('\n').find((l) => l.includes('(ii)'))!
+    expect(linha).toContain('sem conclusão')
+    expect(linha).not.toContain('passou')
+  })
+
+  it('I1a: ETag igual ao de antes da troca: (ii) sem conclusão', async () => {
+    // ETag constante em todas as sondas, dhash vindo do mundo normal
+    const m2 = await mundo({ atrasoMs: 2 * H })
+    const base = m2.d.sondar
+    m2.d.sondar = async (v) => ({ dhash: (await base(v)).dhash, etag: 'fixo' })
+    await valer(m2.d, false)
+    const linha = fs.readFileSync(path.join(m2.pasta, 'resultado.md'), 'utf8').split('\n').find((l) => l.includes('(ii)'))!
+    expect(linha).toContain('sem conclusão')
+    expect(linha).toContain('ETag')
+  })
+
+  it('I1b: o rótulo da (ii) é o novo', async () => {
+    const m = await mundo({ atrasoMs: 2 * H })
+    await valer(m.d, false)
+    const r = fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')
+    expect(r).toContain('(ii) original grande devolvida contra a hqdefault antiga')
+    expect(r.split('\n').find((l) => l.includes('(ii)'))).toContain('passou')
+  })
+
+  it('I3: registrar que lança depois da troca não pula a devolução', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    const real = m.d.diario.registrar.bind(m.d.diario)
+    let trocou = false
+    m.esc.definirThumb = vi.fn(async (_v: string, b: Buffer) => { m.escritas.push({ em: m.agora(), bytes: b }); trocou = true })
+    m.d.diario.registrar = ((ev: string, dados?: Record<string, unknown>) => { if (trocou) throw new Error('ENOSPC'); real(ev, dados) }) as typeof m.d.diario.registrar
+    // Diario.registrar real nunca lança; aqui simulamos o pior caso trocando a função
+    await valer(m.d, false).catch(() => {})
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(2)
+    expect(m.escritas[1]!.bytes.equals(m.original)).toBe(true)
+  })
+
+  it('I3: Diario.registrar de verdade não lança com a pasta sumida', () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'portao-'))
+    const dia = new Diario(path.join(pasta, 'arq'), () => 1)
+    fs.writeFileSync(path.join(pasta, 'arq'), 'arquivo, não pasta')
+    expect(() => dia.registrar('x')).not.toThrow()
+  })
+
+  it('I4b: cópia truncada no disco depois do salvarUmaVez: valer recusa sem definirThumb', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    const salvar = m.d.diario.salvarUmaVez.bind(m.d.diario)
+    m.d.diario.salvarUmaVez = (nome, bytes) => { const h = salvar(nome, bytes); if (nome === 'original-maior.jpg') fs.truncateSync(path.join(m.pasta, nome), 10); return h }
+    await expect(valer(m.d, false)).rejects.toBeInstanceOf(Recusa)
+    expect(m.esc.definirThumb).not.toHaveBeenCalled()
+  })
+
+  it('I4a: salvarUmaVez grava e não sobrescreve', () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'portao-'))
+    const dia = new Diario(pasta, () => 1)
+    dia.salvarUmaVez('a.jpg', Buffer.from('um'))
+    expect(() => dia.salvarUmaVez('a.jpg', Buffer.from('dois'))).toThrow()
+    expect(dia.lerArquivo('a.jpg').toString()).toBe('um')
+  })
+
+  it('I4c: fase preparado com a sonda vendo o teste: devolver sobe a original', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    await semear(m, 'preparado')
+    const teste = await gerarImagemTeste(m.original)
+    m.escritas.push({ em: 0, bytes: teste }) // o mundo mostra o teste no ar
+    const s = await devolver(m.d)
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(1)
+    expect(m.escritas[1]!.bytes.equals(m.original)).toBe(true)
+    expect(s.codigo).toBeLessThanOrEqual(1)
+  })
+
+  it('I5: devolver a partir de trocando sobe a original', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    await semear(m, 'trocando')
+    // o mundo decide "ehTroca" pela fase no disco; aqui a chamada é a devolução (fase vira devolvendo antes)
+    await devolver(m.d)
+    expect(m.escritas).toHaveLength(1)
+    expect(m.escritas[0]!.bytes.equals(m.original)).toBe(true)
+    expect(lerEstado(m.pasta).fase).toBe('conferida')
+  })
+
+  it('I5: sha256 diferente: código 3 sem chamar definirThumb', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    await semear(m, 'trocada')
+    fs.writeFileSync(path.join(m.pasta, 'original-maior.jpg'), 'outra coisa')
+    const s = await devolver(m.d)
+    expect(s.codigo).toBe(3)
+    expect(m.esc.definirThumb).not.toHaveBeenCalled()
+  })
+
+  it('I5: Ctrl-C mais a primeira devolução falhando: a segunda tentativa acontece (semParar)', async () => {
+    const m = await mundo({ atrasoMs: 2 * H, falhasDevolucao: 1 })
+    const sondar = m.d.sondar
+    let n = 0
+    m.d.sondar = async (v) => { if (++n === 3) m.d.sinal.parar = true; return sondar(v) }
+    const dormir = m.d.dormir
+    const sinais: boolean[] = []
+    m.d.dormir = async (ms, sn) => { sinais.push(sn.parar); return dormir(ms, sn) }
+    await valer(m.d, false)
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(3) // troca, devolução que falha, devolução que vale
+    expect(m.escritas[1]!.bytes.equals(m.original)).toBe(true)
+    expect(m.d.sinal.parar).toBe(true)
+  })
+
+  it('I2: codigoDeFalha: estado trocada mais erro qualquer -> 3 com o comando; sem estado mais Recusa -> 2; sem estado e erro comum -> 1', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    expect(codigoDeFalha(m.d.diario, VIDEO, new Recusa('x')).codigo).toBe(2)
+    expect(codigoDeFalha(m.d.diario, VIDEO, new Error('rede')).codigo).toBe(1)
+    await semear(m, 'trocada')
+    const s = codigoDeFalha(m.d.diario, VIDEO, new Error('rede'))
+    expect(s.codigo).toBe(3)
+    expect(s.mensagem).toContain(`devolver ${VIDEO}`)
+    expect(codigoDeFalha(m.d.diario, VIDEO, new Recusa('x')).codigo).toBe(3)
   })
 })
 

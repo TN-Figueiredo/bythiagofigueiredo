@@ -58,17 +58,26 @@ export async function valer(d: Deps, aceitarMenor: boolean): Promise<Saida> {
   if (v.canal !== esc.canal) throw new Recusa(`o vídeo é do canal ${v.canal}, não de ${esc.canal}`)
   if (v.privacidade !== 'public') throw new Recusa(`o vídeo está ${v.privacidade}, não público`)
   if (d.sinal.parar) throw new Recusa('interrompido antes de escrever: nada foi trocado')
+  let etagAntes: string | null = null
+  try { etagAntes = (await d.sondar(d.video)).etag } catch { /* sem ETag anterior: a (ii) sai "sem conclusão" */ }
 
   const criadoEm = new Date(d.agora()).toISOString()
   const e: Estado = {
     versao: 1, video: d.video, fase: 'preparado', criadoEm, atualizadoEm: criadoEm,
     original: { variante: p.variante, largura: p.largura, altura: p.altura, sha256: d.diario.salvarUmaVez('original-maior.jpg', p.maior), sha256Hq: d.diario.salvarUmaVez('original-hq.jpg', p.hq), dhashHq: p.dhashHq },
     teste: { sha256: d.diario.salvarUmaVez('teste-1280x720.jpg', p.teste), dhashComoHq: p.dhashTeste, distanciaDoOriginal: p.distancia },
-    trocaEm: null, devolucaoEm: null, cotaGasta: PORTAO.cota.videosList, tentativasDevolucao: 0, aparicao: null, volta: null,
+    trocaEm: null, devolucaoEm: null, cotaGasta: PORTAO.cota.videosList, tentativasDevolucao: 0, aparicao: null, volta: null, etagAntes,
   }
   d.diario.gravar(e)
-  d.diario.registrar('preparado', { variante: p.variante, distancia: p.distancia })
+  d.diario.registrar('preparado', { variante: p.variante, distancia: p.distancia, etagAntes })
 
+  // a cópia que vai servir à devolução é a do DISCO, não a da memória (falta de luz, disco com defeito)
+  const doDisco = d.diario.lerArquivo('original-maior.jpg')
+  if (sha256(doDisco) !== e.original.sha256) throw new Recusa('a cópia da original gravada no disco não confere (sha256): nada foi trocado')
+  const dist = hamming(await dhashComoHq(doDisco), p.dhashHq)
+  if (dist > DHASH_MAX_SAME) throw new Recusa(`a cópia da original no disco não bate com a hqdefault (distância ${dist}): nada foi trocado`)
+
+  let falha: unknown = null
   try {
     e.fase = 'trocando'; d.diario.gravar(e)          // ANTES da API: um processo morto aqui ainda é devolvido
     await esc.definirThumb(d.video, p.teste)
@@ -76,9 +85,9 @@ export async function valer(d: Deps, aceitarMenor: boolean): Promise<Saida> {
     d.diario.registrar('trocada')
     e.aparicao = await sondarAte(d, 'teste', e.trocaEm, e)
     d.diario.gravar(e)
-  } catch (err) {
-    d.diario.registrar('erro_com_a_troca_no_ar', { erro: msg(err) })
-    d.log(`erro: ${msg(err)}. Devolvendo a original.`)
+  } catch (err) { falha = err }
+  if (falha !== null) {
+    try { d.diario.registrar('erro_com_a_troca_no_ar', { erro: msg(falha) }); d.log(`erro: ${msg(falha)}. Devolvendo a original.`) } catch { /* a devolução vem antes de qualquer aviso */ }
   }
   return devolverEConferir(d, e, esc)                // sempre, depois de 'trocando'
 }
@@ -86,7 +95,18 @@ export async function valer(d: Deps, aceitarMenor: boolean): Promise<Saida> {
 export async function devolver(d: Deps): Promise<Saida> {
   const e = d.diario.ler()
   if (!e) throw new Recusa(`não há estado em ${d.diario.pasta}: este script não trocou nada neste vídeo`)
-  if (e.fase === 'preparado') return { codigo: 0, mensagem: 'nada foi escrito no YouTube (fase preparado)' }
+  if (e.fase === 'preparado') {
+    // o diário pode estar atrás do mundo (falta de luz antes do rename de 'trocando'): olhar a hqdefault pública (cota zero)
+    let r: { dhash: string | null } = { dhash: null }
+    try { r = await d.sondar(d.video) } catch { /* sem leitura */ }
+    const leitura = classificar(r.dhash, { original: e.original.dhashHq, teste: e.teste.dhashComoHq }).leitura
+    if (leitura === 'teste') {
+      d.log('o diário diz "preparado", mas a hqdefault pública mostra a imagem de teste: devolvendo a original')
+      return devolverEConferir(d, e, await d.escritor())
+    }
+    if (leitura === 'original') return { codigo: 0, mensagem: 'nada foi escrito no YouTube (fase preparado; a hqdefault pública mostra a original)' }
+    return { codigo: 1, mensagem: `fase preparado, mas não consegui ler a hqdefault (${leitura}): confira a thumbnail do vídeo ${e.video} no Studio antes de dar por terminado` }
+  }
   return devolverEConferir(d, e, await d.escritor())
 }
 
@@ -145,7 +165,7 @@ async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: 
   const fim = (motivo: Medida['motivo'], estavel?: Sonda): Medida => ({
     motivo, primeiraEm, estavelEm: estavel?.em ?? null,
     distanciaNaEstavel: estavel ? (alvo === 'teste' ? estavel.dTeste : estavel.dOriginal) : null,
-    menorDistancia: menor, sondas: leituras.length,
+    menorDistancia: menor, sondas: leituras.length, etagNaEstavel: estavel?.etag ?? null,
     outras: leituras.filter((l) => l.leitura === 'outra').length,
     semDado: leituras.filter((l) => l.leitura === 'sem_dado').length,
     lacunas: lacunas(leituras.map((l) => l.em), PORTAO.intervaloMs),
@@ -178,6 +198,15 @@ export function montarResultado(e: Estado): string {
     m?.estavelEm != null && desde !== null
       ? `${horas(m.estavelEm - desde)} h (primeira leitura em ${horas(m.primeiraEm! - desde)} h${m.lacunas ? `; ${m.lacunas} lacunas: medida imprecisa` : ''})`
       : 'não medido'
+  const segunda = (x: Estado) => {
+    const v = x.volta
+    if (!v) return 'não medido'
+    if (v.motivo !== 'estavel') return item(v)
+    const base = `${v.distanciaNaEstavel} (limite ${DHASH_MAX_SAME})`
+    if (x.aparicao?.motivo !== 'estavel') return `${base}: sem conclusão: a imagem de teste não chegou a aparecer, a volta pode ser cache`
+    if (!x.etagAntes || !v.etagNaEstavel || x.etagAntes === v.etagNaEstavel) return `${base}: sem conclusão: o ETag da hqdefault não mudou (ou não foi lido), a volta pode ser a imagem antiga`
+    return `${base}: passou`
+  }
   const a = e.aparicao
   const regra = a?.estavelEm != null && e.trocaEm !== null
     ? (horas(a.estavelEm - e.trocaEm) <= PORTAO.horasDaRegra ? 'confirmada' : `corrigir: a nova levou ${horas(a.estavelEm - e.trocaEm)} h`)
@@ -187,11 +216,23 @@ export function montarResultado(e: Estado): string {
     `- Original guardada: ${e.original.variante} ${e.original.largura}×${e.original.altura} (sha256 ${e.original.sha256.slice(0, 12)}).`,
     `- Imagem de teste a ${e.teste.distanciaDoOriginal} bits da original (comparadas como hqdefault).`,
     `- (i) arquivo 1280×720 contra a hqdefault servida: ${item(a)}.`,
-    `- (ii) cópia 480×360 guardada contra a hqdefault depois da devolução: ${item(e.volta)}.`,
+    `- (ii) original grande devolvida contra a hqdefault antiga: ${segunda(e)}.`,
     `- (iii) horas até a nova aparecer: ${tempo(a, e.trocaEm)}; até a original voltar: ${tempo(e.volta, e.devolucaoEm)}.`,
     `- Regra das ${PORTAO.horasDaRegra} h (3.3): ${regra}.`,
     `- Leituras "outra" (nem teste nem original): ${(a?.outras ?? 0) + (e.volta?.outras ?? 0)}.`,
     `- Cota gasta: ${e.cotaGasta} unidades. Fase final: ${e.fase}.`,
     `- (iv) distância entre variantes de um teste real: fora deste script (subcomando distancias).`,
   ].join('\n')
+}
+
+const FASES_COM_TROCA = new Set<string>(['trocando', 'trocada', 'devolvendo', 'devolucao_falhou'])
+
+/** Código de saída para uma falha lançada: se a troca pode estar no ar, 3 com o comando; Recusa sem troca, 2; o resto, 1. */
+export function codigoDeFalha(diario: Diario, video: string, erro: unknown): Saida {
+  let fase: string | null = null
+  try { fase = diario.ler()?.fase ?? null } catch { /* estado ilegível: tratado como desconhecido */ }
+  if (fase !== null && FASES_COM_TROCA.has(fase))
+    return { codigo: 3, mensagem: `falha (${msg(erro)}) com a troca possivelmente no ar (fase ${fase}). Rode: ${cmd('devolver', video)}. Sem cota, suba à mão no Studio o arquivo ${diario.pasta}/original-maior.jpg` }
+  if (erro instanceof Recusa) return { codigo: 2, mensagem: `recusado: ${erro.message}` }
+  return { codigo: 1, mensagem: `falha: ${msg(erro)}. Veja ${diario.pasta}/estado.json` }
 }
