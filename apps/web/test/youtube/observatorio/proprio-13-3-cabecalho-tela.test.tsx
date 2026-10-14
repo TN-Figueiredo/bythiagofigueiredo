@@ -50,13 +50,13 @@ describe('13.3 segunda linha das células e "Todos os números"', () => {
     expect(cel('views/dia por vídeo').querySelector('.nsub')!.textContent).toBe('mediana dos longos, 28 dias')
     expect(cel('cliques estimados no período').querySelector('.nsub')!.textContent).toBe('impressões × taxa de cada dia')
   })
-  it('retenção (curva): o quadradinho "não medido" e, na segunda linha, "a curva ainda não é coletada"', async () => {
+  it('retenção (curva): o quadradinho "não medido" e, na segunda linha, "a curva fica na página de cada vídeo"', async () => {
     const user = userEvent.setup()
     mountProprio({ world: proprioWorld({ mut: ultimoVideoHa(12) }) })
     await user.click(screen.getByRole('button', { name: /Todos os números/ }))
     const c = cel('retenção (curva)')
     expect(c.querySelector('.nm-q')!.getAttribute('aria-label')).toBe('não medido')
-    expect(c.querySelector('.nsub')!.textContent).toBe('a curva ainda não é coletada')
+    expect(c.querySelector('.nsub')!.textContent).toBe('a curva fica na página de cada vídeo')
   })
   it('% assistido: com 7 dias ou mais, o número e a base; com poucos dias, "ainda não dá para dizer" com os dias, sem número', async () => {
     const user = userEvent.setup()
