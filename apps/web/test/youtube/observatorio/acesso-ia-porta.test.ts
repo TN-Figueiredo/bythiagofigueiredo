@@ -176,7 +176,7 @@ describe('a porta: os passos 1 a 4 não tocam o banco', () => {
 
   it('expiresAt ilegível ou relógio ilegível (NaN): nega 401 sem lançar', async () => {
     expect((await recusaDe({ ...CHAVE, expiresAt: 'amanhã' }, false, ENV_ON)).motivo).toBe('vencida')
-    expect((await recusaDe({ ...CHAVE, expiresAt: '2030-01-01' }, false, ENV_ON)).motivo).toBe('vencida')
+    expect((await recusaDe({ ...CHAVE, expiresAt: iso(AGORA + 400 * DIA).slice(0, 10) }, false, ENV_ON)).motivo).toBe('vencida')
     const r = await abrirPorta(CHAVE, false, Number.NaN, ENV_ON)
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.recusa).toMatchObject({ status: 401, motivo: 'vencida' })
