@@ -66,12 +66,19 @@
   }
 
   /* ------------------------------------------------------------ cartão de tipo de dado */
+  /* peça 4: o interruptor no topo de cada cartão de tipo. ?auto=<estado> força o mesmo estado nos cartões de views e hora (ind, ind-0-0, desl, lig, parcial, perto, trav, nm, desl-1 a desl-13); ?visto=1 = o dono já abriu a peça */
+  var AUTO = Q('auto', ''), VISTO = Q('visto', '') === '1';
+  function estadoAuto(tipo){
+    if (AUTO) return AUTO;
+    if (CASO !== 'cheio') return 'ind-0-0';
+    return tipo === 'dia' ? 'lig' : 'desl';
+  }
   function interruptor(tipo){
-    if (tipo === 'texto') return '<span class="m-muted" style="font-size:12.5px">Comentários saem sempre por clique.</span>';
-    return '<span class="m-slot">Peça 4, desenhada à parte: o interruptor do automático fica aqui.</span>';
+    if (tipo === 'texto') return INT.peca('texto', 'x');
+    return INT.peca(tipo, estadoAuto(tipo), { adm: ADM, visto: VISTO });
   }
   function cartao(titulo, tipo, resumo, rows, anos){
-    return '<section class="m-card" aria-label="' + esc(titulo) + '"><div class="m-card-h"><div class="m-card-top"><h3 class="m-h3">' + esc(titulo) + '</h3>' + interruptor(tipo) + '</div><p class="m-resumo">' + resumo + '</p></div>' +
+    return '<section class="m-card" aria-label="' + esc(titulo) + '"><div class="m-card-h"><div class="m-card-top"><h3 class="m-h3">' + esc(titulo) + '</h3></div>' + interruptor(tipo) + '<p class="m-resumo">' + resumo + '</p></div>' +
       '<div class="m-sub"><span>O caminho de cada mês</span><span>' + (CASO === 'cheio' ? 'o mais antigo é o próximo a sair' : 'do mais antigo ao corrente') + '</span></div><ul class="m-rows">' + rows + '</ul>' + (anos || '') + '</section>';
   }
   function anos(lista){
@@ -258,12 +265,14 @@
       M.grupo('Problema', 'e', D.PROB.map(function(r){ return [r[0], r[0].toUpperCase()]; }).concat(PG.map(function(p){ return [p[0], p[0].replace('pg-', '').toUpperCase()]; })), E),
       M.grupo('Canal removido', 'e', D.CAN.map(function(r){ return [r[0], r[0].toUpperCase()]; }), E),
       M.grupo('Peça 3', 'e', T().map(function(t){ return [t[0], t[0].toUpperCase()]; }), E),
+      M.grupo('Automático (peça 4)', 'auto', [['', 'Padrão do caso'], ['ind', 'Ainda não'], ['desl', 'Desligado'], ['lig', 'Ligado'], ['parcial', 'Dois passos'], ['perto', 'Vence'], ['trav', 'Travado'], ['nm', 'Não medido']].concat(INT.MOTIVOS.map(function(m){ return ['desl-' + m[0], 'Parou ' + m[0]]; })), AUTO),
       M.grupo('Caso', 'caso', [['cheio', 'Cheio (03/05/2028)'], ['hoje', 'Hoje (14/10/2026)'], ['magro', 'Magro (20/11/2026)']], CASO),
       M.grupo('Perfil', 'perfil', [['adm', 'Administra'], ['ed', 'Edita'], ['le', 'Só lê']], PERFIL),
       M.grupo('Comando de limpeza', 'cmd', [['sim', 'Em produção'], ['nao', 'Ainda não']], CMD ? 'sim' : 'nao')],
       'Peças 2 e 3 (spec 04 §14.2 e §14.3). Todo número de mês arquivado é exemplo. Carregamento: o corpo dos tipos vem do servidor (sem esqueleto); o bloco “Canais removidos”, a seção “Vídeos antigos” e as simulações vêm por requisição (esqueleto com a altura final da linha: quadro C-CARREGANDO). “Comando de limpeza” escolhe a frase pelo que existe, nunca por data. Perfil só lê: a aba “Arquivo” não aparece na barra; quem chegar pelo endereço lê “Esta página é de quem edita o site.” e quem só lê vê, nas telas de gráficos, “No arquivo desde mm/aaaa.”, sem a porta “Ver antigo”. Na página, “Ver o que sairia”, “Tirar o mês”, “Liberar o espaço” e “Trazer de volta” funcionam; Esc fecha a janela e devolve o foco.');
     document.title = 'Mockup 19: o Arquivo e tirar o mês';
     document.body.innerHTML = barra + M.obs(PERFIL === 'le' ? '' : 'arquivo', CASO, PERFIL === 'le') + '<main id="m-main">' + corpoTela() + '</main>';
+    if (E === 'pagina') { var a0 = estadoAuto('dia'); INT.ajustaFaixa(/^desl-/.test(a0) && !VISTO ? 'desl' : (a0 === 'lig' || a0 === 'parcial' || a0 === 'perto' || estadoAuto('hora') === 'lig') ? 'lig' : 'nenhum'); }
   }
   render();
 

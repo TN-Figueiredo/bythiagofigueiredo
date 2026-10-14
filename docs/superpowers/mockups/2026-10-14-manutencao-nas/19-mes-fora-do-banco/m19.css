@@ -272,3 +272,30 @@ table.m-t{border-collapse:collapse;width:100%;min-width:880px;font-size:13px}
 .m-lista{list-style:none;margin:0 0 6px;padding:0}
 .m-lista li{display:block}
 .m-q-k a,.m-resumo a{color:var(--accent);text-underline-offset:2px}
+
+/* ------------------------------------------------------------ peça 4: o interruptor do automático (nenhuma cor nova) */
+.m-auto{display:grid;grid-template-columns:20px minmax(0,1fr);gap:4px 10px;align-items:start;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:13.5px;line-height:1.5}
+.m-auto>.m-ico,.m-auto>.m-hach{margin-top:1px}
+.m-auto .m-ac-b{min-width:0}
+.m-auto .h{display:block;font-weight:600;color:var(--text)}
+.m-auto p{margin:2px 0 0;color:var(--text)}
+.m-auto p.k{color:var(--muted);font-size:12.5px}
+.m-auto p.do{margin-top:6px}
+.m-auto.am{border:1.5px solid var(--warning);background:var(--warn-subtle)}
+.m-auto.pt{border:1.5px dotted var(--dim)}
+.m-auto.nm{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.m-auto.nm .h,.m-auto.nm p{color:var(--nm)}
+.m-auto-bars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;margin:8px 0 2px}
+.m-auto-bars .b{display:grid;gap:4px;min-width:0}
+.m-auto-bars .t{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)}
+.m-auto-bars .t .m-num{color:var(--text);display:inline-flex;gap:5px;align-items:center}
+.m-auto-bars .m-bar{width:100%}
+.m-auto-ac{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.m-auto-ac small{color:var(--muted);font-size:12.5px;line-height:1.4}
+.m-dlg-b ul.m-lista{list-style:disc;margin:0 0 10px;padding-left:20px;font-size:13.5px;line-height:1.55;color:var(--text)}
+.m-dlg-b ul.m-lista li{margin:0 0 3px}
+.m-card-h .m-auto{margin:2px 0}
+.m-chip a,a.m-chip{text-decoration:none}
+a.m-chip{min-height:44px;padding:0 12px}
+@media (pointer:fine) and (min-width:821px){a.m-chip{min-height:28px}}
+@media (max-width:600px){.m-auto-bars{grid-template-columns:minmax(0,1fr)}}

@@ -1168,3 +1168,30 @@ Não é mockup: é a tela implementada (E8, Tarefa 13; mockup de origem: o 6), m
 **O que ninguém conferiu:** tema claro e 390 px no Opera pelo dono (Gio mediu em Chromium; Naksu refez por cálculo); o estado "só quem edita vê" pelo dono; leitor de tela; rede lenta real; aparelho real; a seção com dado de produção (a coleta ainda não rodou lá).
 
 **Retorno do uso real:** (a preencher depois do release 2).
+
+## 19d. Peça 4: o interruptor do automático
+
+Estado: **desenhado em 14/10/2026, sem revisão de Logan e Naksu e sem aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seção "Peça 4").
+
+### 1. O que a tela responde
+"Está ligado? Vai tirar algo sem eu ver? Parou por quê?"
+
+### 2. Roteiro de teste
+Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/arquivo.html` (a peça é a caixa no alto de cada cartão); os 22 estados estão em `interruptor.html`. Um item de cada vez:
+1. Na página, no cartão "Leitura de hora em hora": clicar em "Ligar o automático…", ler a regra, digitar a frase e confirmar; o cartão passa a "ligado".
+2. `interruptor.html?e=todos-parou`: para cada motivo, achar o que o site diz que aconteceu e o que você faz.
+3. `arquivo.html?auto=desl-2`: o chip na faixa do alto avisa que desligou; clicar nele e ver que ele some.
+4. `?caso=hoje`: o cartão diz o que falta para poder ligar, com as duas barras.
+
+### 3. Decisões pedidas ao dono
+1. O botão "Ligar o automático…" tem o peso máximo da tela (texto invertido), como "Tirar o mês": é o que se quer?
+2. Depois que o automático desliga sozinho, ele só liga de novo com uma simulação nova e a frase: é a regra que você quer?
+
+### 4. Melhorias que os revisores sugeriram e não bloqueiam
+Nenhuma ainda (sem revisão). Decisões minhas a confirmar: ver `NOTAS.md`, lista de 7 itens.
+
+### 5. O que ninguém conferiu
+Opera real, leitor de tela (anúncio do status da frase), aparelho real, o filtro de cinza do macOS.
+
+### 6. Retorno do dono e do uso real
+Ainda não testado pelo dono.
