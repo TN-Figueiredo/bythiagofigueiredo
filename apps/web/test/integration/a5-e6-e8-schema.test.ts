@@ -9,14 +9,14 @@
  * O banco é dividido com outras etapas: cada teste cria o SEU site e o SEU canal e só olha para eles; o arquivo semeia e limpa.
  * Função sem EXECUTE nunca é CHAMADA aqui como anon/authenticated (derruba este Postgres): o privilégio se confere por catálogo.
  * Datas: todas relativas a hoje (UTC) ou passadas e fixas; nada no futuro.
- * O trecho "── 2." da MG14 (a carga) é lido do arquivo de ensaio (ou, depois da Tarefa 1b, do arquivo de migration) e roda dentro
+ * O trecho "── 2." da MG14 (a carga) é lido do arquivo de migration (supabase/migrations/, Tarefa 1b) e roda dentro
  * de uma transação DESFEITA, porque ele varre o diário inteiro do banco compartilhado.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, signUserJwt, SUPABASE_URL, ANON_KEY } from '../helpers/db-seed'
@@ -46,13 +46,11 @@ interface Cen { site: string; canal: string; uc: string; slug: string }
 interface Vid { id: string; yt: string }
 
 function lerSql(nome: 'mg14' | 'mg5'): string {
-  const ensaio = `${RAIZ}.superpowers/sdd/a5-e6-e8/sql/${nome}.sql`
-  if (existsSync(ensaio)) return readFileSync(ensaio, 'utf8')
-  // Depois da Tarefa 1b o arquivo de ensaio pode sair: o de migration é o mesmo texto.
+  // Tarefa 1b: o SQL vem SEMPRE de supabase/migrations/ (nunca de .superpowers/, pasta ignorada pelo git que não existe na CI).
   const marca = nome === 'mg14' ? 'observatorio_a5_e6_dieta_cobertura' : 'observatorio_a5_e8_retencao'
   const dir = `${RAIZ}supabase/migrations/`
   const achado = readdirSync(dir).find(f => f.includes(marca))
-  if (!achado) throw new Error(`nem o arquivo de ensaio nem a migration de ${nome} existem`)
+  if (!achado) throw new Error(`a migration de ${nome} (${marca}) não existe em supabase/migrations/`)
   return readFileSync(dir + achado, 'utf8')
 }
 
