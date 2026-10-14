@@ -13,8 +13,9 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: (...a: unknown[]) => { criarCliente(...a); return { rpc: (...b: unknown[]) => rpc(...b) } } }))
 
-import { provarAcessoPrivado, provarLeituraPrivada, leituraValida, LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { provarAcessoPrivado, provarAcessoPrivadoDaChave, provarLeituraPrivada, leituraValida, LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { provarEdicao, EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import { fabricarProva } from '@/lib/youtube/observatorio/acesso-ia/prova'
 
 const SITE = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
 const USUARIA = '9a1b2c3d-0000-4000-8000-00000000aaaa'
@@ -152,5 +153,92 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     expect(leituraValida(await provarLeituraPrivada(SITE))).toBe(true)
     soLe(); rpc.mockResolvedValue({ data: false, error: null })
     expect(await provarLeituraPrivada(SITE)).toBeNull()
+  })
+})
+
+// Tarefa 7 do degrau 2: a segunda porta, pela prova da chave do perfil (sem sessão).
+describe('provarAcessoPrivadoDaChave: a leitura privada por chave do perfil', () => {
+  const KEY = '7c1d2e3f-0000-4000-8000-00000000bbbb'
+  const prova = () => fabricarProva(SITE, USUARIA, KEY, '2999-01-01T00:00:00Z')
+  /** O rpc devolve um construtor que aceita sinal de cancelamento e então resolve com `resposta`. */
+  const responde = (resposta: unknown) => {
+    const sinais: AbortSignal[] = []
+    rpc.mockImplementation(() => ({ abortSignal: (s: AbortSignal) => { sinais.push(s); return Promise.resolve(resposta) } }))
+    return sinais
+  }
+  const naoResponde = () => {
+    const sinais: AbortSignal[] = []
+    rpc.mockImplementation(() => ({
+      abortSignal: (s: AbortSignal) => { sinais.push(s); return new Promise((_, rej) => s.addEventListener('abort', () => rej(new Error('abortado')))) },
+    }))
+    return sinais
+  }
+  const SEM_CONFERIR = { leitura: null, edita: false, negativa: 'nao_foi_possivel_conferir' }
+
+  beforeEach(() => {
+    requireSiteScope.mockImplementation(async () => { throw new Error('a guarda de sessão não pode ser chamada por este caminho') })
+  })
+
+  it('prova legítima e a função responde true: leitura, edita false, negativa null', async () => {
+    responde({ data: true, error: null })
+    const a = await provarAcessoPrivadoDaChave(prova())
+    expect(leituraValida(a.leitura)).toBe(true)
+    expect(a.leitura!.siteId).toBe(SITE)
+    expect(a.edita).toBe(false)
+    expect(a.negativa).toBeNull()
+  })
+  it('a função responde false: sem token, negativa sem_direito', async () => {
+    responde({ data: false, error: null })
+    expect(await provarAcessoPrivadoDaChave(prova())).toEqual({ leitura: null, edita: false, negativa: 'sem_direito' })
+  })
+  it("responde null, 'true', 1, erro PGRST202 ou lança: sem token, nao_foi_possivel_conferir", async () => {
+    for (const r of [{ data: null, error: null }, { data: 'true', error: null }, { data: 1, error: null }, { data: null, error: { code: 'PGRST202', message: 'x' } }]) {
+      responde(r)
+      expect(await provarAcessoPrivadoDaChave(prova()), JSON.stringify(r)).toEqual(SEM_CONFERIR)
+    }
+    rpc.mockImplementation(() => ({ abortSignal: () => Promise.reject(new Error('rede')) }))
+    expect(await provarAcessoPrivadoDaChave(prova())).toEqual(SEM_CONFERIR)
+    rpc.mockImplementation(() => { throw new Error('síncrono') })
+    expect(await provarAcessoPrivadoDaChave(prova())).toEqual(SEM_CONFERIR)
+  })
+  it('objeto literal com siteId e userId no lugar da prova: sem token, e o banco não é chamado', async () => {
+    const falsa = { siteId: SITE, userId: USUARIA, keyId: KEY, venceEm: '2999-01-01T00:00:00Z' } as unknown as Parameters<typeof provarAcessoPrivadoDaChave>[0]
+    expect(await provarAcessoPrivadoDaChave(falsa)).toEqual({ leitura: null, edita: false, negativa: 'sem_direito' })
+    expect(criarCliente).not.toHaveBeenCalled()
+    expect(rpc).not.toHaveBeenCalled()
+  })
+  it('a função é chamada com o userId e o siteId DA PROVA, e com mais nada', async () => {
+    responde({ data: true, error: null })
+    await provarAcessoPrivadoDaChave(prova())
+    expect(rpc).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledWith('can_view_private_site_as', { p_user: USUARIA, p_site: SITE })
+  })
+  it('a guarda de sessão e a prova de edição não são chamadas por este caminho', async () => {
+    responde({ data: true, error: null })
+    await provarAcessoPrivadoDaChave(prova())
+    expect(requireSiteScope).not.toHaveBeenCalled()
+  })
+  it('a função do banco não responde em 20 ms (prazo curto, relógio de verdade): sem token, nao_foi_possivel_conferir e a chamada recebeu sinal de cancelamento', async () => {
+    const sinais = naoResponde()
+    const t0 = Date.now()
+    expect(await provarAcessoPrivadoDaChave(prova(), { prazoMs: 20 })).toEqual(SEM_CONFERIR)
+    expect(Date.now() - t0).toBeLessThan(2000)
+    expect(sinais).toHaveLength(1)
+    expect(sinais[0]!.aborted).toBe(true)
+  })
+  it('sem opcoes o prazo é 5.000', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    try {
+      responde({ data: true, error: null })
+      await provarAcessoPrivadoDaChave(prova())
+      expect(setTimeoutSpy.mock.calls.some(c => c[1] === 5000)).toBe(true)
+    } finally { setTimeoutSpy.mockRestore() }
+  })
+  it('o aviso ao Sentry não leva a mensagem crua nem o id da pessoa', async () => {
+    responde({ data: null, error: { code: 'PGRST202', message: `x ${USUARIA}` } })
+    await provarAcessoPrivadoDaChave(prova())
+    expect(captureException).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(captureException.mock.calls[0]![1])).not.toContain(USUARIA)
+    expect(JSON.stringify(captureException.mock.calls[0]![1])).not.toContain('x ')
   })
 })

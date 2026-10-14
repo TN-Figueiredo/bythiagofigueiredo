@@ -14,6 +14,7 @@ import * as Sentry from '@sentry/nextjs'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { edicaoValida, provarEdicao } from './edicao'
+import { chaveProvada, type ChaveDoPerfilProvada } from '../acesso-ia/prova'
 
 const CHAVE = Symbol('LeituraPrivadaDoSite')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -83,6 +84,38 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
   } catch (e) {
     avisar('funcao_ausente_ou_erro', e)
     return semResposta
+  }
+}
+
+/**
+ * A segunda porta (degrau 2, plano 4.8): a pessoa chega por uma chave do perfil, sem sessão. Quem a chama é só a rota do MCP, com a prova
+ * que a porta acabou de devolver. Confere que a prova é legítima (brand check), pergunta `can_view_private_site_as` com o usuário e o
+ * site DA PROVA e só com `data === true` devolve a leitura. `edita` é sempre `false`; nunca lança. O banco tem prazo (padrão 5 s, com
+ * sinal de cancelamento): sem resposta no prazo, `nao_foi_possivel_conferir`.
+ */
+export async function provarAcessoPrivadoDaChave(prova: ChaveDoPerfilProvada, opcoes?: { prazoMs?: number }): Promise<AcessoPrivado> {
+  if (!chaveProvada(prova)) return semDireito
+  const siteId = prova.siteId
+  const avisar = (motivo: MotivoSentry, e?: unknown): void => {
+    const code = codigoDe(e)
+    const extra = { siteId, motivo, ...(code ? { code } : {}) }
+    if (motivo === 'resposta_inesperada') Sentry.captureMessage('can_view_private_site_as devolveu forma inesperada', { level: 'warning', tags: TAGS, extra })
+    else Sentry.captureException(new Error(`leitura privada: ${motivo}`), { tags: TAGS, extra })
+  }
+  const controle = new AbortController()
+  const relogio = setTimeout(() => controle.abort(), opcoes?.prazoMs ?? 5_000)
+  try {
+    const { data, error } = await getSupabaseServiceClient().rpc('can_view_private_site_as', { p_user: prova.userId, p_site: siteId }).abortSignal(controle.signal)
+    if (error) { avisar('funcao_ausente_ou_erro', error); return semResposta }
+    if (data === true) return { leitura: fabricar(siteId), edita: false, negativa: null }
+    if (data === false) return semDireito
+    avisar('resposta_inesperada')
+    return semResposta
+  } catch (e) {
+    avisar('funcao_ausente_ou_erro', e)
+    return semResposta
+  } finally {
+    clearTimeout(relogio)
   }
 }
 
