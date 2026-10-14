@@ -1029,7 +1029,7 @@ Nenhum item da E4 fica sem tarefa. Os que ficam fora estão ditos com o dono.
 
 ### Apêndice A: MG4
 
-**(noite de 14/10, Tarefa 8b) Este é o texto da MG4 COM a pausa de coleta (R3), rodado duas vezes no `bythiago_int` dentro de transação desfeita, com a MG6 (ensaio da E10) aplicada antes na mesma transação.** Mudanças em relação ao texto da emenda 2: (1) guarda `MG4 depende da MG6` como primeira instrução; (2) `competitor_marks_pending` deixa de fora o vídeo de canal com `collection_paused_at`, devolve `pares_em_pausa` ao lado de `total_pendentes` e `gap_crossed_pause` em cada item (verdadeiro quando o tempo NÃO pausado do buraco cabe no limite do par; pausas sobrepostas contadas uma vez, por `range_agg`); (3) `competitor_marks_health` tira de `atrasadas` o par de canal pausado. O `check` de `reason` fica com os seis valores (decisão da 8b, a confirmar por Phil e Yannis). A cópia versionada é `apps/web/test/fixtures/sql/a5-e4-mg4.sql` (idêntica); o `db:new` da Tarefa 9 cola este bloco. **(revisão Phil 14/10, I1) `gap_crossed_pause` compara o MAIOR trecho sem leitura fora da pausa com o limite, não a soma; provado nos testes `dois trechos curtos…` e no roteiro S13.** **Pendente: o acordo dos dois especialistas (portão da Tarefa 9).**
+**(noite de 14/10, Tarefa 8b) Este é o texto da MG4 COM a pausa de coleta (R3), rodado duas vezes no `bythiago_int` dentro de transação desfeita, com a MG6 (ensaio da E10) aplicada antes na mesma transação.** Mudanças em relação ao texto da emenda 2: (1) guarda `MG4 depende da MG6` como primeira instrução; (2) `competitor_marks_pending` deixa de fora o vídeo de canal com `collection_paused_at`, devolve `pares_em_pausa` ao lado de `total_pendentes` e `gap_crossed_pause` em cada item (verdadeiro quando o tempo NÃO pausado do buraco cabe no limite do par; pausas sobrepostas contadas uma vez, por `range_agg`); (3) `competitor_marks_health` tira de `atrasadas` o par de canal pausado. O `check` de `reason` fica com os seis valores (decisão da 8b, a confirmar por Phil e Yannis). A cópia versionada é `apps/web/test/fixtures/sql/a5-e4-mg4.sql` (idêntica); o `db:new` da Tarefa 9 cola este bloco. **(revisão Phil 14/10, I1) `gap_crossed_pause` compara o MAIOR trecho sem leitura fora da pausa com o limite, não a soma; provado nos testes `dois trechos curtos…` e no roteiro S13.** **(revisão Phil 14/10, I2) `competitor_marks_apply` recusa o par de canal com `collection_paused_at` preenchido nas duas CTEs `ok` (conta em `marcas_recusadas`/`faltas_recusadas`; o par volta a ser pendente ao despausar); provado nos testes `gravar: canal pausado entre a leitura e a gravação…` e `a pausa de OUTRO canal…` e no roteiro S14.** **Pendente: o acordo dos dois especialistas (portão da Tarefa 9).**
 
 ```sql
 -- A5, E4 (MG4): marcas de views nas idades 1, 7 e 30 dias dos vídeos de concorrentes, e o registro do que não pôde ser medido.
@@ -1348,6 +1348,7 @@ begin
       join public.competitor_channels c on c.id = v.competitor_channel_id
       cross join lateral (select greatest(v.published_at, coalesce(v.live_actual_start_at, v.published_at)) as t0) b
      where v.published_at is not null
+       and c.collection_paused_at is null -- (revisão Phil 14/10, I2) nenhuma tarefa grava linha de canal pausado (contrato da E10)
        and coalesce(v.live_broadcast_content, 'none') not in ('upcoming', 'live')
        and s.base_at = b.t0
        and s.read_before_at <= b.t0 + make_interval(days => s.age_days::integer)
@@ -1378,6 +1379,7 @@ begin
       join public.competitor_channels c on c.id = v.competitor_channel_id
       cross join lateral (select greatest(v.published_at, coalesce(v.live_actual_start_at, v.published_at)) as t0) b
      where v.published_at is not null
+       and c.collection_paused_at is null -- (revisão Phil 14/10, I2) nenhuma tarefa grava linha de canal pausado (contrato da E10)
        and coalesce(v.live_broadcast_content, 'none') not in ('upcoming', 'live')
        and s.base_at = b.t0
        and b.t0 + make_interval(days => s.age_days::integer)
@@ -1548,6 +1550,16 @@ update public.competitor_collection_pauses set resumed_at = '2026-11-19 12:00+00
 select 'S13 despausado: pendentes, pares em pausa, atrasadas; H/1 cruza a pausa de 2 h?', (p->>'total_pendentes')::int, (p->>'pares_em_pausa')::int, (public.competitor_marks_health(:agora, 8, 36))->'atrasadas',
        (select string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements(p->'itens') i where i->>'video_id' like '%11')
   from (select public.competitor_marks_pending(:agora, 1, 500, 8, 36) p) x;
+-- (revisao Phil 14/10, I2) S14: competitor_marks_apply recusa o par de canal pausado (nao grava) e aceita o mesmo envio depois de despausar
+update public.competitor_channels set collection_paused_at = '2026-11-19 13:00+00' where id = '00000000-0000-4000-8000-0000000000c1';
+select 'S14 canal pausado: faltas gravadas e recusadas', r->>'faltas', r->>'faltas_recusadas'
+  from (select public.competitor_marks_apply('[]'::jsonb, '[{"video_id":"00000000-0000-4000-8000-000000000011","age_days":1,"base_at":"2026-11-01T10:00:00+00:00","reason":"leituras_distantes","since_at":null}]'::jsonb, 1, :agora, 8, 36) r) x;
+select 'S14 canal pausado: linhas do video H', (select count(*) from public.competitor_video_mark_misses where video_id = '00000000-0000-4000-8000-000000000011');
+update public.competitor_channels set collection_paused_at = null where id = '00000000-0000-4000-8000-0000000000c1';
+select 'S14 despausado: o mesmo envio entra', r->>'faltas', r->>'faltas_recusadas'
+  from (select public.competitor_marks_apply('[]'::jsonb, '[{"video_id":"00000000-0000-4000-8000-000000000011","age_days":1,"base_at":"2026-11-01T10:00:00+00:00","reason":"leituras_distantes","since_at":null}]'::jsonb, 1, :agora, 8, 36) r) x;
+select 'S14 despausado: linhas do video H', (select count(*) from public.competitor_video_mark_misses where video_id = '00000000-0000-4000-8000-000000000011');
+delete from public.competitor_video_mark_misses where video_id = '00000000-0000-4000-8000-000000000011';
 select 'S9 cascata', (select count(*) from public.competitor_video_marks), (select count(*) from public.competitor_video_mark_misses);
 delete from public.competitor_videos where video_id like 'e4prova%';
 select 'S9 depois de apagar os videos', (select count(*) from public.competitor_video_marks), (select count(*) from public.competitor_video_mark_misses);
@@ -1616,6 +1628,10 @@ S13 canal pausado: pendentes, pares em pausa, atrasadas|5|2|4
 S13 canal pausado: nenhum item dele em pendentes|0
 S13 a saude do canal pausado continua com as seis chaves|6
 S13 despausado: pendentes, pares em pausa, atrasadas; H/1 cruza a pausa de 2 h?|7|0|6|1=false 7=false
+S14 canal pausado: faltas gravadas e recusadas|0|1
+S14 canal pausado: linhas do video H|0
+S14 despausado: o mesmo envio entra|1|0
+S14 despausado: linhas do video H|1
 S9 cascata|1|4
 S9 depois de apagar os videos|0|0
 S10 privilegios|f|f|t|f|t|f

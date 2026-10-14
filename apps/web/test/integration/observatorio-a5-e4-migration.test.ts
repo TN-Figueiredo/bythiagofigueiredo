@@ -599,6 +599,35 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4 Tarefa 9: a MG4, função por função
     })
   })
 
+  // (revisão Phil 14/10, I2) contrato da E10: nenhuma tarefa grava linha de canal com a coleta pausada
+  it('gravar: canal pausado entre a leitura e a gravação é recusado e não cria linha; despausado, o mesmo envio entra', async () => {
+    await dentro(async () => {
+      const c = await cena()
+      const { v, antes, depois, agora } = await comMarcaPossivel(c)
+      const w = await video(c)
+      await pg.query(`update public.competitor_channels set collection_paused_at = $2 where id = $1`, [c.canal, iso(agora - H)])
+      const r = await aplicar([marca(v, 7, ANCORA, antes, depois, 731)], [falta(w, 7, ANCORA, 'leituras_distantes')], agora)
+      expect([r.marcas, r.marcas_recusadas, r.faltas, r.faltas_recusadas]).toEqual([0, 1, 0, 1])
+      expect(await linhas('competitor_video_marks', v)).toHaveLength(0)
+      expect(await linhas('competitor_video_mark_misses', w)).toHaveLength(0)
+      await pg.query(`update public.competitor_channels set collection_paused_at = null where id = $1`, [c.canal])
+      const r2 = await aplicar([marca(v, 7, ANCORA, antes, depois, 731)], [falta(w, 7, ANCORA, 'leituras_distantes')], agora)
+      expect([r2.marcas, r2.marcas_recusadas, r2.faltas, r2.faltas_recusadas]).toEqual([1, 0, 1, 0])
+    })
+  })
+
+  it('gravar: a pausa de OUTRO canal não recusa o par do canal ativo', async () => {
+    await dentro(async () => {
+      const c = await cena()
+      const outro = await criarCanal(pg, c.site)
+      const { v, antes, depois, agora } = await comMarcaPossivel(c)
+      const w = await video(c)
+      await pg.query(`update public.competitor_channels set collection_paused_at = $2 where id = $1`, [outro, iso(agora - H)])
+      const r = await aplicar([marca(v, 7, ANCORA, antes, depois, 731)], [falta(w, 7, ANCORA, 'leituras_distantes')], agora)
+      expect([r.marcas, r.marcas_recusadas, r.faltas, r.faltas_recusadas]).toEqual([1, 0, 1, 0])
+    })
+  })
+
   it('gravar: motivo de idade que ainda não fechou é recusado', async () => {
     await dentro(async () => {
       const c = await cena()

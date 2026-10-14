@@ -314,6 +314,7 @@ begin
       join public.competitor_channels c on c.id = v.competitor_channel_id
       cross join lateral (select greatest(v.published_at, coalesce(v.live_actual_start_at, v.published_at)) as t0) b
      where v.published_at is not null
+       and c.collection_paused_at is null -- (revisão Phil 14/10, I2) nenhuma tarefa grava linha de canal pausado (contrato da E10)
        and coalesce(v.live_broadcast_content, 'none') not in ('upcoming', 'live')
        and s.base_at = b.t0
        and s.read_before_at <= b.t0 + make_interval(days => s.age_days::integer)
@@ -344,6 +345,7 @@ begin
       join public.competitor_channels c on c.id = v.competitor_channel_id
       cross join lateral (select greatest(v.published_at, coalesce(v.live_actual_start_at, v.published_at)) as t0) b
      where v.published_at is not null
+       and c.collection_paused_at is null -- (revisão Phil 14/10, I2) nenhuma tarefa grava linha de canal pausado (contrato da E10)
        and coalesce(v.live_broadcast_content, 'none') not in ('upcoming', 'live')
        and s.base_at = b.t0
        and b.t0 + make_interval(days => s.age_days::integer)
