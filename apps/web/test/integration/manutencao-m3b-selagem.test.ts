@@ -201,9 +201,10 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
   const corpoDe = async (nome: string): Promise<string> => ((await c.query(`select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = $1`, [nome])).rows[0]?.prosrc as string | undefined) ?? ''
   it('uma conta só para o dia devido (D20)', async () => emTx(async () => {
     expect(await corpoDe('obs_archive_record_core')).toContain('obs_archive_due_on')
+    const aux = ['obs_archive_meses_devidos', 'obs_archive_atraso_itens']                         // a conta do devido mora nelas; plano, atraso e vermelhos só as chamam
     for (const f of ['obs_archive_plan', 'obs_archive_atraso', 'obs_archive_vermelhos']) {       // nascem na Tarefa 7; o teste de lá exige que existam
       const corpo = await corpoDe(f)
-      if (corpo) expect(corpo, f).toContain('obs_archive_due_on')
+      if (corpo) expect([corpo, ...(await Promise.all(aux.map(corpoDe)))].join('\n'), f).toContain('obs_archive_due_on')
     }
     const ruins = (await c.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'obs_archive_%' and p.prosrc ~ 'seal_margin_days\\s*>'`)).rows
     expect(ruins).toEqual([])
@@ -211,7 +212,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
 
   it('uma definição só do devido (D19)', async () => emTx(async () => {
     for (const f of ['obs_archive_summary_rows', 'obs_archive_manifest_rows', 'obs_archive_seal', 'obs_archive_unit_due']) expect(await corpoDe(f), f).toContain('obs_archive_expected_units')
-    for (const f of ['obs_archive_plan', 'obs_archive_atraso']) { const corpo = await corpoDe(f); if (corpo) expect(corpo, f).toContain('obs_archive_expected_units') }
+    for (const f of ['obs_archive_plan', 'obs_archive_atraso']) { const corpo = await corpoDe(f); if (corpo) expect(corpo + await corpoDe('obs_archive_atraso_itens'), f).toContain('obs_archive_expected_units') }
   }))
 
   it('unidade fora do devido: nao_devida, nada gravado (Yannis M17)', async () => emTx(async () => {

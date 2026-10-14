@@ -1911,3 +1911,452 @@ returns jsonb language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.obs_archive_b2_month_state(uuid, text, date) from public, anon, authenticated;
 grant execute on function public.obs_archive_b2_month_state(uuid, text, date) to service_role;
+
+-- M3B PARTE 5: o plano do copiador, o atraso, os vermelhos, a varredura completa, o batimento e o pode-desligar (02 §10.10, C1, C8, C11)
+
+-- Cor do teto de bytes (r2.2, M6 do Phil): âmbar no primeiro dia em que o teto estoura, vermelho no segundo dia seguido; quem conta é o site, pelo
+-- histórico das execuções marcadas pelo batimento do conferir_b2 (o pulso só lê a cor). Dia de São Paulo do batimento.
+create or replace function public.obs_archive_b2_teto_cor(p_site uuid) returns text
+language sql stable security definer set search_path = '' as $$
+  with dias as (
+    select (r.batimento_em at time zone 'America/Sao_Paulo')::date as dia, bool_or(r.parou_no_teto is not null) as estourou
+      from public.obs_archive_b2_runs r
+     where r.site_id = p_site and r.batimento_em is not null
+     group by 1
+  ), ultimo as (select dia, estourou from dias order by dia desc limit 1)
+  select case
+    when not coalesce((select estourou from ultimo), false) then 'verde'
+    when exists (select 1 from dias d, ultimo u where d.dia = u.dia - 1 and d.estourou) then 'vermelho'
+    else 'ambar' end
+$$;
+revoke all on function public.obs_archive_b2_teto_cor(uuid) from public, anon, authenticated, service_role;
+
+-- O início da classe (D13), calculado uma vez e gravado (Phil M7): o mês mais antigo com dado na classe, com o piso de outubro de 2026 fora do ensaio.
+-- Classe sem nenhuma linha: fora do ensaio vale o piso (grava); no ensaio fica nulo e não grava (sem rol e sem linha não há mês devido).
+create or replace function public.obs_archive_first_month(p_site uuid, p_class text) returns date
+language plpgsql security definer set search_path = '' as $$
+declare v date; v_min timestamptz; v_dia date; t record; v_ts timestamptz;
+begin
+  select s.first_month into v from public.obs_archive_switch s where s.site_id = p_site and s.class = p_class;
+  if v is not null then return v; end if;
+  for t in select p.table_name from public.obs_archive_policy() p where p.class = p_class order by p.table_name loop
+    continue when pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(t.table_name)) is null;
+    v_ts := null;
+    if t.table_name = 'competitor_video_hourly' then
+      select min(h.hour_slot) into v_ts from public.competitor_video_hourly h join public.competitor_videos cv on cv.id = h.video_id
+        join public.competitor_channels ch on ch.id = cv.competitor_channel_id where ch.site_id = p_site;
+    elsif t.table_name = 'competitor_video_daily' then
+      select (min(d.snap_date)::text || ' 00:00:00-03')::timestamptz into v_ts from public.competitor_video_daily d join public.competitor_videos cv on cv.id = d.video_id
+        join public.competitor_channels ch on ch.id = cv.competitor_channel_id where ch.site_id = p_site;
+    elsif t.table_name = 'competitor_video_early' then
+      select min(e.taken_at) into v_ts from public.competitor_video_early e join public.competitor_videos cv on cv.id = e.video_id
+        join public.competitor_channels ch on ch.id = cv.competitor_channel_id where ch.site_id = p_site;
+    elsif t.table_name = 'competitor_video_comments' then
+      select min(k.first_seen_at) into v_ts from public.competitor_video_comments k where k.site_id = p_site;
+    elsif t.table_name = 'competitor_raw' and p_class = 'texto' then
+      select min(r.last_seen_at) into v_ts from public.competitor_raw r where r.site_id = p_site and not r.is_current;
+    elsif t.table_name = 'obs_archive_rehearsal' then
+      select min(r.hour_slot) into v_ts from public.obs_archive_rehearsal r where r.site_id = p_site;
+    end if;
+    if v_ts is not null and (v_min is null or v_ts < v_min) then v_min := v_ts; end if;
+  end loop;
+  v_dia := case when v_min is null then null else date_trunc('month', (v_min at time zone 'America/Sao_Paulo'))::date end;
+  if p_class <> 'ensaio' then v_dia := greatest(coalesce(v_dia, date '2026-10-01'), date '2026-10-01'); end if;
+  if v_dia is null then return null; end if;
+  insert into public.obs_archive_switch (site_id, class, first_month, first_month_at) values (p_site, p_class, v_dia, now())
+  on conflict (site_id, class) do update set first_month = coalesce(public.obs_archive_switch.first_month, excluded.first_month),
+                                              first_month_at = coalesce(public.obs_archive_switch.first_month_at, excluded.first_month_at)
+  returning first_month into v;
+  return v;
+end $$;
+revoke all on function public.obs_archive_first_month(uuid, text) from public, anon, authenticated, service_role;
+
+-- Os (classe, mês) devidos: do início da classe até o último mês cujo dia devido (obs_archive_due_on) já chegou. p_gravar: o plano calcula e grava o
+-- início da classe; a leitura (atraso, vermelhos) usa o gravado ou o piso, nunca grava.
+create or replace function public.obs_archive_meses_devidos(p_site uuid, p_gravar boolean)
+returns table (classe text, mes date, margem integer) language plpgsql security definer set search_path = '' as $$
+declare c record; v_ini date; v_m date; v_hoje date := public.obs_archive_hoje_sp(); n integer;
+begin
+  for c in select p.class as cl, min(p.seal_margin_days) as mg from public.obs_archive_policy() p where p.class <> 'video_antigo' group by p.class order by p.class loop
+    if p_gravar then v_ini := public.obs_archive_first_month(p_site, c.cl);
+    else select s.first_month into v_ini from public.obs_archive_switch s where s.site_id = p_site and s.class = c.cl; end if;
+    if c.cl <> 'ensaio' then v_ini := greatest(coalesce(v_ini, date '2026-10-01'), date '2026-10-01'); end if;
+    continue when v_ini is null;
+    v_m := v_ini; n := 0;
+    while public.obs_archive_due_on(v_m, c.mg) <= v_hoje and n < 240 loop
+      classe := c.cl; mes := v_m; margem := c.mg; return next;
+      v_m := (v_m + interval '1 month')::date; n := n + 1;
+    end loop;
+  end loop;
+end $$;
+revoke all on function public.obs_archive_meses_devidos(uuid, boolean) from public, anon, authenticated, service_role;
+
+-- O resumo de um canal é devido quando todas as unidades dele são terminais, nem todas expurgadas, e não há resumo da versão atual (recebido ou vazio).
+create or replace function public.obs_archive_resumo_devido(p_site uuid, p_class text, p_month date, p_channel text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_class <> 'video_antigo'
+     and not exists (select 1 from public.obs_archive_pending_units(p_site, p_class, p_month, p_channel))
+     and not (exists (select 1 from public.obs_archive_current_units(p_site, p_class, p_month) cu where cu.channel_ref = p_channel)
+              and not exists (select 1 from public.obs_archive_current_units(p_site, p_class, p_month) cu where cu.channel_ref = p_channel and cu.purged_at is null))
+     and not exists (
+       select 1 from (select s.* from public.obs_archive_summaries s
+                       where s.site_id = p_site and s.class = p_class and s.channel_ref = p_channel and s.month = p_month order by s.version desc limit 1) l
+        where l.superseded_at is null and l.nas_withdrawn_at is null and (l.empty or l.received_at is not null)
+          and l.unit_hashes = public.obs_archive_channel_unit_hashes(p_site, p_class, p_channel, p_month))
+$$;
+revoke all on function public.obs_archive_resumo_devido(uuid, text, date, text) from public, anon, authenticated, service_role;
+
+-- Os arquivos do mês selado com a hora do último informe do NAS (a base da reconferência e da varredura).
+create or replace function public.obs_archive_nas_cobertura(p_site uuid)
+returns table (arquivo_id text, tipo text, filho text, caminho text, classe text, tabela text, canal text, mes date, versao integer, coluna_controle text,
+               descartado boolean, received_at timestamptz, b2_ok_at timestamptz, reported_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  with ms as (
+    select m.class, m.month, bool_or(m.dropped_at is not null) as descartado
+      from public.obs_archive_months m where m.site_id = p_site and m.sealed_at is not null group by 1, 2
+  )
+  select f.arquivo_id, f.tipo, f.filho, f.caminho, ms.class, f.table_name, f.channel_ref, ms.month, f.version, f.control_column, ms.descartado, f.received_at, f.b2_ok_at,
+         case split_part(f.arquivo_id, ':', 1)
+           when 'u' then (select u.nas_reported_at from public.obs_archive_units u where u.id = split_part(f.arquivo_id, ':', 2)::uuid)
+           when 'p' then (select pt.nas_reported_at from public.obs_archive_unit_parts pt where pt.unit_id = split_part(f.arquivo_id, ':', 2)::uuid and pt.part = ltrim(split_part(f.arquivo_id, ':', 3), '0')::int)
+           when 's' then (select s.nas_reported_at from public.obs_archive_summaries s where s.id = split_part(f.arquivo_id, ':', 2)::uuid)
+           when 'm' then (select o.manifest_nas_reported_at from public.obs_archive_months o where o.site_id = p_site and o.class = ms.class and o.month = ms.month and o.manifest_nas_reported_at is not null order by o.manifest_version desc limit 1)
+         end
+    from ms cross join lateral public.obs_archive_month_files(p_site, ms.class, ms.month) f
+$$;
+revoke all on function public.obs_archive_nas_cobertura(uuid) from public, anon, authenticated, service_role;
+
+-- Os itens em atraso, sobre obs_archive_expected_units (nunca só sobre as linhas que existem; Phil I6): o par esperado sem unidade terminal, exista a
+-- linha ou não, e o (classe, mês) devido sem selo. "Devida desde" = obs_archive_due_on(mês, margem). Base de obs_archive_atraso e dos vermelhos.
+create or replace function public.obs_archive_atraso_itens(p_site uuid)
+returns table (tipo text, classe text, tabela text, canal text, mes date, desde date)
+language sql stable security definer set search_path = '' as $$
+  select 'unidade'::text, r.classe, e.table_name, e.channel_ref, r.mes, public.obs_archive_due_on(r.mes, r.margem)
+    from public.obs_archive_meses_devidos(p_site, false) r
+    cross join lateral public.obs_archive_expected_units(p_site, r.classe, r.mes) e
+   where not exists (select 1 from public.obs_archive_current_units(p_site, r.classe, r.mes) cu
+                      where cu.table_name = e.table_name and cu.channel_ref = e.channel_ref
+                        and public.obs_archive_is_terminal(cu.received_at, cu.redo_reason, cu.row_count, cu.lost_at, cu.purged_at))
+  union all
+  select 'mes'::text, r.classe, null::text, null::text, r.mes, public.obs_archive_due_on(r.mes, r.margem)
+    from public.obs_archive_meses_devidos(p_site, false) r
+   where exists (select 1 from public.obs_archive_expected_units(p_site, r.classe, r.mes))
+     and not exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = r.classe and m.month = r.mes and m.sealed_at is not null and m.unsealed_at is null)
+$$;
+revoke all on function public.obs_archive_atraso_itens(uuid) from public, anon, authenticated, service_role;
+
+-- {amarelos, vermelhos, mais_antiga, meses_sem_selo}: amarelo acima de 5 dias, vermelho acima de 30 (constantes do plano da M3b).
+create or replace function public.obs_archive_atraso(p_site uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'amarelos', count(*) filter (where i.tipo = 'unidade' and public.obs_archive_hoje_sp() - i.desde > 5 and public.obs_archive_hoje_sp() - i.desde <= 30),
+    'vermelhos', count(*) filter (where i.tipo = 'unidade' and public.obs_archive_hoje_sp() - i.desde > 30),
+    'mais_antiga', min(i.desde) filter (where i.tipo = 'unidade'),
+    'meses_sem_selo', count(*) filter (where i.tipo = 'mes'))
+    from public.obs_archive_atraso_itens(p_site) i
+$$;
+revoke all on function public.obs_archive_atraso(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_atraso(uuid) to service_role;
+
+-- Mês descartado sem releitura há mais de p_dias, pelos dois lados (NAS pelo nas_reported_at, B2 pelo b2_ok_at de obs_archive_month_files):
+-- o mês entra se qualquer arquivo dele passar do limite em qualquer lado; sem informe, vale a data do descarte. 21 amarelo, 45 vermelho.
+create or replace function public.obs_archive_descartados_sem_releitura(p_site uuid, p_dias integer) returns integer
+language sql stable security definer set search_path = '' as $$
+  select count(*)::int from (
+    select x.classe, x.mes from (
+      select c.*, (select min(m.dropped_at) from public.obs_archive_months m where m.site_id = p_site and m.class = c.classe and m.month = c.mes) as d
+        from public.obs_archive_nas_cobertura(p_site) c where c.descartado) x
+     group by x.classe, x.mes
+    having bool_or(coalesce(x.reported_at, x.d) < public.obs_archive_agora() - make_interval(days => p_dias)
+                or coalesce(x.b2_ok_at, x.d) < public.obs_archive_agora() - make_interval(days => p_dias))
+  ) y
+$$;
+revoke all on function public.obs_archive_descartados_sem_releitura(uuid, integer) from public, anon, authenticated, service_role;
+
+-- b2_atrasado: mês selado não descartado com algum arquivo sem conferência do B2 há mais de p_dias (sem conferência nenhuma, conta do recebimento). 5 amarelo, 7 vermelho.
+create or replace function public.obs_archive_b2_atrasados(p_site uuid, p_dias integer) returns integer
+language sql stable security definer set search_path = '' as $$
+  select count(*)::int from (
+    select c.classe, c.mes from public.obs_archive_nas_cobertura(p_site) c
+     where not c.descartado and coalesce(c.b2_ok_at, c.received_at) < public.obs_archive_agora() - make_interval(days => p_dias)
+     group by c.classe, c.mes
+  ) x
+$$;
+revoke all on function public.obs_archive_b2_atrasados(uuid, integer) from public, anon, authenticated, service_role;
+
+-- Os vermelhos do site (C1): uma frase curta por item, texto fixo mais números, nunca nome de canal; nunca nulo. Âmbar não entra.
+create or replace function public.obs_archive_vermelhos(p_site uuid) returns text[]
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v text[] := '{}'; n integer; i record; v_hoje date := public.obs_archive_hoje_sp(); v_agora timestamptz := public.obs_archive_agora(); v_cor text; v_h public.obs_archive_heartbeat;
+  v_run public.obs_archive_b2_runs; f text;
+begin
+  select count(*) into n from public.obs_archive_atraso_itens(p_site) a where a.tipo = 'unidade' and v_hoje - a.desde > 30;
+  if n > 0 then v := v || format('atraso de cópia: %s unidades há mais de 30 dias', n); end if;
+  select count(*) into n from public.obs_archive_atraso_itens(p_site) a where a.tipo = 'mes' and v_hoje - a.desde > 30;
+  if n > 0 then v := v || format('mês sem selo há mais de 30 dias: %s', n); end if;
+  select (select count(*) from public.obs_archive_units u where u.site_id = p_site and u.nas_withdrawn_at is not null and u.nas_withdrawn_reason in ('ausente', 'divergente') and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id where u.site_id = p_site and pt.nas_withdrawn_at is not null and pt.nas_withdrawn_reason in ('ausente', 'divergente') and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_summaries s where s.site_id = p_site and s.nas_withdrawn_at is not null and s.nas_withdrawn_reason in ('ausente', 'divergente') and s.purged_at is null and s.lost_at is null and s.superseded_at is null)
+       + (select count(*) from public.obs_archive_months m where m.site_id = p_site and m.manifest_nas_withdrawn_at is not null) into n;
+  if n > 0 then v := v || format('NAS: %s arquivos ausentes ou diferentes', n); end if;
+  select count(distinct (m.class, m.month)) into n from public.obs_archive_months m where m.site_id = p_site and m.b2_withdrawn_at is not null;
+  if n > 0 then v := v || format('B2: %s meses com a conferência retirada', n); end if;
+  select (select count(*) from public.obs_archive_units u where u.site_id = p_site and u.nas_withdrawn_reason = 'conteudo_divergente' and u.nas_withdrawn_at is not null and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id where u.site_id = p_site and pt.nas_withdrawn_reason = 'conteudo_divergente' and pt.nas_withdrawn_at is not null and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_summaries s where s.site_id = p_site and s.nas_withdrawn_reason = 'conteudo_divergente' and s.nas_withdrawn_at is not null and s.purged_at is null and s.lost_at is null and s.superseded_at is null) into n;
+  if n > 0 then v := v || format('conteúdo divergente em %s arquivos', n); end if;
+  n := public.obs_archive_descartados_sem_releitura(p_site, 45);
+  if n > 0 then v := v || format('mês descartado sem releitura há mais de 45 dias: %s', n); end if;
+  n := public.obs_archive_b2_atrasados(p_site, 7);
+  if n > 0 then v := v || format('b2_atrasado: %s meses selados não descartados com algum arquivo sem b2_ok_at há mais de 7 dias', n); end if;
+  -- a mesma recusa de fileId em 3 execuções seguidas (as 3 mais recentes do site)
+  if (select count(*) filter (where q.file_id_recusado) from (select r.file_id_recusado from public.obs_archive_b2_runs r where r.site_id = p_site order by r.started_at desc limit 3) q) = 3 then
+    v := pg_catalog.array_append(v, 'B2 recusou o fileId em 3 execuções seguidas');
+  end if;
+  -- canário de um filho sem chegar ao B2 (>= 5 dias): o mais antigo informado depois do último que o B2 achou
+  for i in select fl.filho,
+                  (select min(c.informed_at) from public.obs_archive_canaries c where c.site_id = p_site and c.filho = fl.filho and c.b2_ok_at is null
+                      and c.informed_at > coalesce((select max(k.informed_at) from public.obs_archive_canaries k where k.site_id = p_site and k.filho = fl.filho and k.b2_ok_at is not null), '-infinity'::timestamptz)) as desde
+             from (values ('numerico'), ('texto')) fl(filho) loop
+    if i.desde is not null and i.desde <= v_agora - interval '5 days' then
+      v := v || format('canário do filho %s sem chegar ao B2 há %s dias', i.filho, floor(extract(epoch from (v_agora - i.desde)) / 86400)::int);
+    end if;
+  end loop;
+  for i in select distinct c.filho from public.obs_archive_canaries c where c.site_id = p_site and c.regravado_at is not null and c.regravado_at > v_agora - interval '30 days' order by 1 loop
+    v := v || ('canario_regravado:' || i.filho);
+  end loop;
+  for i in select 'u:' || u.id as id from public.obs_archive_units u where u.site_id = p_site and u.nas_unreadable_at is not null and u.purged_at is null and u.lost_at is null
+           union all select 'p:' || pt.unit_id || ':' || lpad(pt.part::text, 2, '0') from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id where u.site_id = p_site and pt.nas_unreadable_at is not null
+           union all select 's:' || s.id from public.obs_archive_summaries s where s.site_id = p_site and s.nas_unreadable_at is not null
+           order by 1 loop
+    v := v || ('nas_ilegivel:' || i.id);
+  end loop;
+  for i in select b.arquivo_id from public.obs_archive_b2_files b where b.site_id = p_site and b.ilegivel_at is not null and (b.last_ok_at is null or b.last_ok_at < b.ilegivel_at) order by 1 loop
+    v := v || ('b2_ilegivel:' || i.arquivo_id);
+  end loop;
+  select * into v_h from public.obs_archive_heartbeat h where h.site_id = p_site and h.worker = 'copiador';
+  if found then
+    foreach f in array array['numerico', 'texto'] loop
+      if coalesce((v_h.total_bytes->>f)::numeric, 0) > 0 and (v_h.free_bytes->>f) is not null
+         and ((v_h.total_bytes->>f)::numeric - (v_h.free_bytes->>f)::numeric) / (v_h.total_bytes->>f)::numeric >= 0.8 then
+        v := v || ('nas_80:' || f);
+      end if;
+    end loop;
+  end if;
+  for i in select p.table_name from public.obs_archive_policy() p where p.class in ('horaria', 'serie', 'texto') and pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p.table_name)) is null order by 1 loop
+    v := v || ('tabela_ausente:' || i.table_name);
+  end loop;
+  if public.obs_archive_b2_teto_dia(p_site) > public.obs_archive_b2_franquia_mes() / 2 then v := pg_catalog.array_append(v, 'b2_piso_acima_do_teto'); end if;
+  select * into v_run from public.obs_archive_b2_runs r where r.site_id = p_site and r.modo = 'completo' order by r.started_at desc limit 1;
+  if found and v_run.completo_fechado_em is null and v_run.completo_desde < v_agora - interval '35 days' then
+    v := v || format('b2_completo_atrasado: conferência completa do B2 aberta há %s dias: rode conferir-b2 --completo até fechar', floor(extract(epoch from (v_agora - v_run.completo_desde)) / 86400)::int);
+  end if;
+  v_cor := public.obs_archive_b2_teto_cor(p_site);
+  if v_cor = 'vermelho' then v := pg_catalog.array_append(v, 'b2_teto_2_dias'); end if;
+  -- da fatia 12a (Tarefa 8): canais removidos sem destino e a vigia da remoção; a função nasce lá
+  if pg_catalog.to_regprocedure('public.obs_archive_vermelhos_remocao(uuid)') is not null then
+    execute 'select $1 || public.obs_archive_vermelhos_remocao($2)' into v using v, p_site;
+  end if;
+  return coalesce(v, '{}'::text[]);
+end $$;
+revoke all on function public.obs_archive_vermelhos(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_vermelhos(uuid) to service_role;
+
+-- O batimento (C8). O trabalhador vem da permissão da chave. Uma gravação por 30 s do mesmo trabalhador, hora do banco. Silêncio e varredura são só do
+-- copiador: o nas_checked_at anterior é lido ANTES de gravar o novo. A marca da execução do conferir_b2 (r2.2, M6 do Phil) vale com ou sem gravação.
+create or replace function public.obs_archive_heartbeat_write(p_site uuid, p_worker text, p_body jsonb) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_prev public.obs_archive_heartbeat; v_gravado boolean := true; v_ant timestamptz; v_ok boolean := coalesce((p_body->>'nas_ok')::boolean, false);
+  v_teto text := null; v_agora timestamptz := public.obs_archive_agora(); v_cap text := nullif(p_body->>'parado_no_teto', ''); v_mt timestamptz;
+begin
+  if p_worker is null or p_worker not in ('copiador', 'respondedor', 'conferir_b2') or p_body is null then raise exception 'forma' using errcode = 'P0001'; end if;
+  begin v_mt := (p_body->>'hora_maquina')::timestamptz; exception when others then v_mt := null; end;
+  insert into public.obs_archive_heartbeat (site_id, worker) values (p_site, p_worker) on conflict (site_id, worker) do nothing;
+  select * into v_prev from public.obs_archive_heartbeat h where h.site_id = p_site and h.worker = p_worker for update;
+  if p_worker = 'conferir_b2' then
+    update public.obs_archive_b2_runs set batimento_em = v_agora, parou_no_teto = v_cap
+     where id = (select r.id from public.obs_archive_b2_runs r where r.site_id = p_site and r.batimento_em is null and r.started_at > v_agora - interval '3 hours' order by r.started_at desc limit 1);
+  end if;
+  if v_prev.updated_at is not null and v_prev.updated_at > now() - interval '30 seconds' then
+    v_gravado := false;
+  else
+    v_ant := v_prev.nas_checked_at;
+    if p_worker = 'copiador' and v_ok then
+      if (v_ant is not null and v_ant < now() - interval '24 hours')
+         or (v_ant is null and exists (select 1 from public.obs_archive_units u where u.site_id = p_site and u.received_at is not null)) then
+        insert into public.obs_archive_sweeps (site_id, due_since, nas_back_at, motivo)
+        values (p_site, coalesce(v_ant, (select min(u.exported_at) from public.obs_archive_units u where u.site_id = p_site)), now(), 'silencio_nas')
+        on conflict do nothing;
+      end if;
+      update public.obs_archive_sweeps set nas_back_at = coalesce(nas_back_at, now()) where site_id = p_site and finished_at is null;
+    end if;
+    update public.obs_archive_heartbeat
+       set version = left(p_body->>'versao', 80), nas_ok = v_ok, sentinel_ok = p_body->'sentinela_ok', mounts_ok = p_body->'montagens_ok', machine_time = v_mt,
+           free_bytes = p_body->'livre_bytes', total_bytes = p_body->'total_bytes',
+           stopped_at_cap = case when p_worker = 'conferir_b2' then v_cap else stopped_at_cap end,
+           last_error = left(p_body->>'ultimo_erro', 200), updated_at = now(),
+           nas_checked_at = case when p_worker = 'copiador' and v_ok then now() else nas_checked_at end
+     where site_id = p_site and worker = p_worker;
+  end if;
+  if p_worker = 'conferir_b2' then v_teto := public.obs_archive_b2_teto_cor(p_site); end if;
+  return jsonb_build_object('gravado', v_gravado, 'teto', v_teto);
+end $$;
+revoke all on function public.obs_archive_heartbeat_write(uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function public.obs_archive_heartbeat_write(uuid, text, jsonb) to service_role;
+
+-- C11: o que falta para desligar o banco (leitura só; erro lança, nunca "pode"). Também para o dono pela conexão direta (postgres).
+create or replace function public.obs_archive_pode_desligar(p_site uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare v_f jsonb := '[]'::jsonb; r record;
+begin
+  for r in select s.class from public.obs_archive_switch s where s.site_id = p_site and s.armed_at is not null and s.disarmed_at is null and (s.expires_at is null or s.expires_at > now()) order by s.class loop
+    v_f := v_f || jsonb_build_array(jsonb_build_object('motivo', 'automatico_armado', 'classe', r.class, 'tabela', null, 'mes', null, 'detalhe', 'interruptor armado'));
+  end loop;
+  for r in select c.classe, c.mes, count(*) as n, min(c.tabela) as tabela from public.obs_archive_nas_cobertura(p_site) c where c.received_at is null group by c.classe, c.mes order by c.classe, c.mes loop
+    v_f := v_f || jsonb_build_array(jsonb_build_object('motivo', 'mes_nao_recebido', 'classe', r.classe, 'tabela', r.tabela, 'mes', to_char(r.mes, 'YYYY-MM'), 'detalhe', r.n || ' arquivos sem recebimento'));
+  end loop;
+  for r in select c.classe, c.mes, count(*) as n, min(c.tabela) as tabela from public.obs_archive_nas_cobertura(p_site) c
+            where c.descartado and (c.b2_ok_at is null or c.b2_ok_at < public.obs_archive_agora() - interval '7 days') group by c.classe, c.mes order by c.classe, c.mes loop
+    v_f := v_f || jsonb_build_array(jsonb_build_object('motivo', 'b2_vencido_mes_fora', 'classe', r.classe, 'tabela', r.tabela, 'mes', to_char(r.mes, 'YYYY-MM'), 'detalhe', r.n || ' arquivos com a conferência do B2 vencida'));
+  end loop;
+  return jsonb_build_object('pode', jsonb_array_length(v_f) = 0, 'faltam', v_f);
+end $$;
+revoke all on function public.obs_archive_pode_desligar(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_pode_desligar(uuid) to service_role, postgres;
+
+-- O plano do copiador (contrato C1). O site decide sozinho se a execução é completa (varredura aberta, silêncio do NAS ou pedido) e nunca devolve hash.
+create or replace function public.obs_archive_plan(p_site uuid, p_completo boolean, p_cursor text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_hoje date := public.obs_archive_hoje_sp(); v_agora timestamptz := public.obs_archive_agora();
+  v_sweep public.obs_archive_sweeps; v_hb public.obs_archive_heartbeat; v_completo boolean; v_varredura boolean := false; v_so_faltam boolean := false;
+  v_exp jsonb := '[]'::jsonb; v_res jsonb := '[]'::jsonb; v_man jsonb := '[]'::jsonb; v_dono jsonb := '[]'::jsonb; v_apagar jsonb := '[]'::jsonb;
+  v_rec jsonb := '[]'::jsonb; v_page jsonb; v_depois integer; v_ultimo text; v_prim text; v_pend integer; v_verm text[] := '{}';
+begin
+  if p_cursor is not null and length(p_cursor) > 200 then return jsonb_build_object('erro', 'cursor_invalido'); end if;
+  if p_cursor is null then
+    insert into public.obs_archive_heartbeat (site_id, worker, last_poll_at) values (p_site, 'copiador', now())
+    on conflict (site_id, worker) do update set last_poll_at = now();
+  end if;
+  -- a varredura aberta termina quando nenhum arquivo coberto tem informe do NAS posterior à volta faltando (o NAS voltou: nas_back_at preenchido)
+  select * into v_sweep from public.obs_archive_sweeps s where s.site_id = p_site and s.finished_at is null;
+  if found and v_sweep.nas_back_at is not null then
+    select count(*) into v_pend from public.obs_archive_nas_cobertura(p_site) c where c.reported_at is null or c.reported_at < v_sweep.nas_back_at;
+    if v_pend = 0 then
+      update public.obs_archive_sweeps set finished_at = now() where id = v_sweep.id;
+      v_sweep := null;
+    end if;
+  end if;
+  -- o silêncio do copiador (nas_ok verdadeiro, hora do banco) há mais de 24 h abre a varredura (uma só: Yannis M12)
+  if v_sweep.id is null and p_cursor is null and not coalesce(p_completo, false) then
+    select * into v_hb from public.obs_archive_heartbeat h where h.site_id = p_site and h.worker = 'copiador';
+    if found and v_hb.nas_checked_at is not null and v_hb.nas_checked_at < now() - interval '24 hours' then
+      insert into public.obs_archive_sweeps (site_id, due_since, motivo) values (p_site, v_hb.nas_checked_at, 'silencio_nas') on conflict do nothing;
+    end if;
+    select * into v_sweep from public.obs_archive_sweeps s where s.site_id = p_site and s.finished_at is null;
+  end if;
+  v_varredura := v_sweep.id is not null;
+  v_completo := coalesce(p_completo, false) or v_varredura;
+  if v_varredura and p_cursor is null then
+    update public.obs_archive_sweeps set started_at = coalesce(started_at, now()) where id = v_sweep.id;
+  end if;
+  v_so_faltam := v_varredura and v_sweep.nas_back_at is not null and not coalesce(p_completo, false);
+
+  if p_cursor is null then
+    -- exportar: o par esperado sem unidade, com refazer pedido, ou exportado e não recebido há mais de 2 h; nunca de mês fora do banco
+    select coalesce(jsonb_agg(jsonb_build_object('classe', r.classe, 'tabela', e.table_name, 'canal', e.channel_ref, 'mes', to_char(r.mes, 'YYYY-MM'), 'motivo', x.motivo)
+                            order by r.classe, r.mes, e.table_name, e.channel_ref), '[]'::jsonb) into v_exp
+      from public.obs_archive_meses_devidos(p_site, true) r
+      cross join lateral public.obs_archive_expected_units(p_site, r.classe, r.mes) e
+      left join lateral (select u.* from public.obs_archive_units u where u.site_id = p_site and u.class = r.classe and u.table_name = e.table_name
+                            and u.channel_ref = e.channel_ref and u.month = r.mes order by u.version desc limit 1) cur on true
+      cross join lateral (select case
+          when cur.id is null then 'nova'
+          when cur.redo_reason is not null and cur.purged_at is null and cur.lost_at is null
+               and public.obs_archive_can_redo(p_site, r.classe, e.table_name, e.channel_ref, r.mes, cur.dropped_at) then cur.redo_reason
+          when cur.received_at is null and cur.row_count > 0 and cur.lost_at is null and cur.purged_at is null and cur.dropped_at is null
+               and cur.exported_at < now() - interval '2 hours' then 'nova'
+        end as motivo) x
+     where x.motivo is not null
+       and not exists (select 1 from public.obs_archive_months mo where mo.site_id = p_site and mo.class = r.classe and mo.table_name = e.table_name and mo.month = r.mes
+                         and (mo.detached_at is not null or mo.dropped_at is not null));
+    -- resumos: as mesmas condições de obs_archive_summary_rows, lidas de obs_archive_expected_units (zero unidade é pendente)
+    select coalesce(jsonb_agg(jsonb_build_object('classe', r.classe, 'canal', ch.channel_ref, 'mes', to_char(r.mes, 'YYYY-MM')) order by r.classe, r.mes, ch.channel_ref), '[]'::jsonb) into v_res
+      from public.obs_archive_meses_devidos(p_site, true) r
+      cross join lateral (select distinct e.channel_ref from public.obs_archive_expected_units(p_site, r.classe, r.mes) e) ch
+     where not exists (select 1 from public.obs_archive_months mo where mo.site_id = p_site and mo.class = r.classe and mo.month = r.mes and (mo.detached_at is not null or mo.dropped_at is not null))
+       and public.obs_archive_resumo_devido(p_site, r.classe, r.mes, ch.channel_ref);
+    -- manifestos: unidades terminais, nenhum resumo devido e o mês sem selo (ou reaberto por unidade nova)
+    select coalesce(jsonb_agg(jsonb_build_object('classe', r.classe, 'mes', to_char(r.mes, 'YYYY-MM')) order by r.classe, r.mes), '[]'::jsonb) into v_man
+      from public.obs_archive_meses_devidos(p_site, true) r
+     where exists (select 1 from public.obs_archive_months mo where mo.site_id = p_site and mo.class = r.classe and mo.month = r.mes and (mo.sealed_at is null or mo.unsealed_at is not null))
+       and not exists (select 1 from public.obs_archive_months mo where mo.site_id = p_site and mo.class = r.classe and mo.month = r.mes and (mo.detached_at is not null or mo.dropped_at is not null))
+       and not exists (select 1 from public.obs_archive_pending_units(p_site, r.classe, r.mes))
+       and not exists (select 1 from public.obs_archive_expected_units(p_site, r.classe, r.mes) e where public.obs_archive_resumo_devido(p_site, r.classe, r.mes, e.channel_ref));
+    -- aguardando_dono: unidade de canal removido ausente ou nunca recebida; unidade de mês fora do banco retirada do NAS. Com o b2_file_id_bom.
+    select coalesce(jsonb_agg(q.item order by q.item->>'arquivo_id'), '[]'::jsonb) into v_dono from (
+      select jsonb_build_object('arquivo_id', 'u:' || u.id, 'tipo', 'unidade', 'filho', pol.filho,
+               'caminho', u.class || '/canais/' || u.channel_ref || '/' || u.table_name || '/' || to_char(u.month, 'YYYY-MM') || '.v' || u.version || '.csv.gz',
+               'classe', u.class, 'tabela', u.table_name, 'canal', u.channel_ref, 'mes', to_char(u.month, 'YYYY-MM'), 'versao', u.version, 'coluna_controle', pol.control_column,
+               'b2_file_id_bom', (select b.last_ok_file_id from public.obs_archive_b2_files b where b.site_id = p_site and b.arquivo_id = 'u:' || u.id)) as item
+        from public.obs_archive_units u join public.obs_archive_policy() pol on pol.class = u.class and pol.table_name = u.table_name
+       where u.site_id = p_site and u.parts = 1 and u.row_count > 0 and u.purged_at is null and u.lost_at is null and u.superseded_at is null
+         and ((( exists (select 1 from public.obs_archive_channel_removals cr where cr.site_id = p_site and cr.channel_ref = u.channel_ref)
+                 or not exists (select 1 from public.competitor_channels cc where cc.site_id = p_site and cc.id::text = u.channel_ref))
+               and (u.nas_withdrawn_at is not null or u.received_at is null))
+              or (u.nas_withdrawn_at is not null and exists (select 1 from public.obs_archive_months mo where mo.site_id = p_site and mo.class = u.class and mo.table_name = u.table_name and mo.month = u.month
+                                                                and (mo.detached_at is not null or mo.dropped_at is not null))))
+      union all
+      select jsonb_build_object('arquivo_id', 'p:' || u.id || ':' || lpad(pt.part::text, 2, '0'), 'tipo', 'parte', 'filho', pol.filho,
+               'caminho', u.class || '/canais/' || u.channel_ref || '/' || u.table_name || '/' || to_char(u.month, 'YYYY-MM') || '.v' || u.version || '.p' || lpad(pt.part::text, 2, '0') || '.csv.gz',
+               'classe', u.class, 'tabela', u.table_name, 'canal', u.channel_ref, 'mes', to_char(u.month, 'YYYY-MM'), 'versao', u.version, 'coluna_controle', pol.control_column,
+               'b2_file_id_bom', (select b.last_ok_file_id from public.obs_archive_b2_files b where b.site_id = p_site and b.arquivo_id = 'p:' || u.id || ':' || lpad(pt.part::text, 2, '0')))
+        from public.obs_archive_units u join public.obs_archive_unit_parts pt on pt.unit_id = u.id join public.obs_archive_policy() pol on pol.class = u.class and pol.table_name = u.table_name
+       where u.site_id = p_site and u.parts > 1 and u.row_count > 0 and u.purged_at is null and u.lost_at is null and u.superseded_at is null
+         and ((( exists (select 1 from public.obs_archive_channel_removals cr where cr.site_id = p_site and cr.channel_ref = u.channel_ref)
+                 or not exists (select 1 from public.competitor_channels cc where cc.site_id = p_site and cc.id::text = u.channel_ref))
+               and (pt.nas_withdrawn_at is not null or pt.received_at is null))
+              or (pt.nas_withdrawn_at is not null and exists (select 1 from public.obs_archive_months mo where mo.site_id = p_site and mo.class = u.class and mo.table_name = u.table_name and mo.month = u.month
+                                                                and (mo.detached_at is not null or mo.dropped_at is not null))))
+    ) q(item);
+    -- a_apagar: sobra em _recebendo/ de unidade expurgada nos últimos 30 dias e nunca recebida (Phil M4)
+    select coalesce(jsonb_agg(q.item order by q.item->>'caminho'), '[]'::jsonb) into v_apagar from (
+      select jsonb_build_object('filho', pol.filho, 'caminho', '_recebendo/' || u.class || '/canais/' || u.channel_ref || '/' || u.table_name || '/' || to_char(u.month, 'YYYY-MM') || '.v' || u.version || '.csv.gz') as item
+        from public.obs_archive_units u join public.obs_archive_policy() pol on pol.class = u.class and pol.table_name = u.table_name
+       where u.site_id = p_site and u.parts = 1 and u.purged_at is not null and u.purged_at > now() - interval '30 days' and u.received_at is null and u.row_count > 0
+      union all
+      select jsonb_build_object('filho', pol.filho, 'caminho', '_recebendo/' || u.class || '/canais/' || u.channel_ref || '/' || u.table_name || '/' || to_char(u.month, 'YYYY-MM') || '.v' || u.version || '.p' || lpad(pt.part::text, 2, '0') || '.csv.gz')
+        from public.obs_archive_units u join public.obs_archive_unit_parts pt on pt.unit_id = u.id join public.obs_archive_policy() pol on pol.class = u.class and pol.table_name = u.table_name
+       where u.site_id = p_site and u.parts > 1 and u.purged_at is not null and u.purged_at > now() - interval '30 days' and pt.received_at is null
+    ) q(item);
+    v_verm := public.obs_archive_vermelhos(p_site);
+  end if;
+
+  -- reconferir: em qualquer modo, em páginas de 1.000 por arquivo_id; os demais campos só na primeira página
+  select coalesce(jsonb_agg(q.item order by q.id collate "C"), '[]'::jsonb), count(*) filter (where q.rn > 1000), max(q.id collate "C") filter (where q.rn <= 1000)
+    into v_page, v_depois, v_ultimo
+    from (
+      select c.arquivo_id as id, row_number() over (order by c.arquivo_id collate "C") as rn,
+             jsonb_build_object('arquivo_id', c.arquivo_id, 'tipo', c.tipo, 'filho', c.filho, 'caminho', c.caminho, 'classe', c.classe, 'tabela', c.tabela, 'canal', c.canal,
+                                'mes', to_char(c.mes, 'YYYY-MM'), 'versao', c.versao, 'coluna_controle', c.coluna_controle) as item
+        from public.obs_archive_nas_cobertura(p_site) c
+       where (p_cursor is null or c.arquivo_id collate "C" > p_cursor collate "C")
+         and case
+               when v_so_faltam then c.reported_at is null or c.reported_at < v_sweep.nas_back_at
+               when v_completo then true
+               else (not c.descartado) or c.reported_at is null or c.reported_at < now() - interval '14 days' end
+    ) q where q.rn <= 1001;
+  -- v_page acima contém até 1001 itens: corta no 1000 e devolve o cursor quando há mais
+  select coalesce(jsonb_agg(e order by (e->>'arquivo_id') collate "C"), '[]'::jsonb) into v_rec
+    from (select e from jsonb_array_elements(v_page) e order by (e->>'arquivo_id') collate "C" limit 1000) z(e);
+  select to_char(min(m.month), 'YYYY-MM') into v_prim from public.obs_archive_months m where m.site_id = p_site and m.sealed_at is not null;
+  return jsonb_build_object(
+    'plano_id', gen_random_uuid(), 'gerado_em', now(), 'modo', case when v_completo then 'completo' else 'normal' end,
+    'cursor_seguinte', case when jsonb_array_length(v_page) > 1000 then (v_rec -> 999)->>'arquivo_id' end,
+    'primeira_selagem', v_prim, 'vermelhos', to_jsonb(v_verm), 'canario', jsonb_build_object('dia', v_hoje::text),
+    'exportar', v_exp, 'resumos', v_res, 'manifestos', v_man, 'aguardando_dono', v_dono, 'a_apagar', v_apagar, 'reconferir', v_rec, 'prefixos_ausentes', '[]'::jsonb);
+end $$;
+revoke all on function public.obs_archive_plan(uuid, boolean, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_plan(uuid, boolean, text) to service_role;
