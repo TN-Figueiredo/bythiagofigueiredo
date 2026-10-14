@@ -890,6 +890,8 @@ bash scripts/portao-dhash.sh valer 6jL-jeux_1Y
 - 4: o controlador anota a janela no ledger; o retrato do dia que cair dentro dela é ruído conhecido, não versão.
 - 5: o negativo serve (vídeo de 0 view; volta em horas).
 - 1 e 6: com o Yannis na Tarefa 7.
+- I1(b): o upload de uma 480×360 não é medido pelo portão; a P4a guarda a maior; caso pequeno é item declarado no ledger da P4a.
+- M2: o dono roda o `valer` na tomada e com a tampa aberta (`caffeinate -i -s`).
 
 ### Arquivos de partida
 - /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/lib/youtube/thumb-fingerprint.ts
