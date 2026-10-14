@@ -6,10 +6,11 @@
  * 15: nenhum código lê OBS_HOURLY_RAW_PURGE (pedido 5).
  */
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { lerMigrations, ultimaDefinicao, migrationsDaFase } from '../helpers/migrations'
+import { lerMigrations, ultimaDefinicao, migrationsDaFase, PASTA_DAS_MIGRATIONS } from '../helpers/migrations'
+import { M2_EM_MIGRATION, M2_SQL_CAMINHO } from '../helpers/m2'
 
 const RAIZ = resolve(__dirname, '../../../..')
 
@@ -82,5 +83,18 @@ describe('item 15: ninguém lê OBS_HOURLY_RAW_PURGE (pedido 5)', () => {
     }
     for (const r of raizes) varrer(r)
     expect(achados).toEqual([])
+  })
+})
+
+describe('TRAVA M2-1: o SQL da M2 só entra em supabase/migrations no dia do push', () => {
+  const daM2 = (): string[] => readdirSync(PASTA_DAS_MIGRATIONS).filter(n => /_manutencao_m2_/.test(n))
+  it('antes do dia: nenhum arquivo da M2 em supabase/migrations e o rascunho existe; no dia: o arquivo existe e o rascunho saiu', () => {
+    if (!M2_EM_MIGRATION) {
+      expect(daM2()).toEqual([])
+      expect(M2_SQL_CAMINHO.endsWith('supabase/rascunhos/m2.sql')).toBe(true)
+    } else {
+      expect(daM2().some(n => n.endsWith('_manutencao_m2_particoes.sql'))).toBe(true)
+      expect(existsSync(resolve(__dirname, '../../../../supabase/rascunhos/m2.sql'))).toBe(false)
+    }
   })
 })
