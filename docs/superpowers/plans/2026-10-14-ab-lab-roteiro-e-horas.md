@@ -30,7 +30,7 @@ Criado em 14/10/2026 a pedido do dono, para ele saber a qualquer hora onde estam
 | # | Etapa | Estado (data) | Agentes (estim.) | Dono (estim.) | Espera | Horas reais |
 |---|---|---|---|---|---|---|
 | 1 | Respostas do dono: "pode" de P1 e P2; perguntas 13, 14, B1, B2, B3 | "pode" dado (14/10); 13, 14, B1, B2, B3 ainda sem resposta | — | 15 min | — | |
-| 2 | P1: execução, testes, capturas, revisão do lote, envio, conferência em produção | em execução (14/10): árvore `../bythiago-ab-p1` de `origin/staging` 9c31ea2f9, base verde; Tarefa 1 em curso | 3,5 a 5,5 h | 10 min (confirmar capturas; colar o `update` dos alertas) | conferência do cron no dia seguinte e em D+7 (Gio) | |
+| 2 | P1: execução, testes, capturas, revisão do lote, envio, conferência em produção | pronta para envio (14/10): 9 commits em `lote/ab-p1`, revisões de tarefa limpas, Phil e Yannis aprovaram, suíte/tsc/build verdes, capturas do Gio aprovadas por Logan e Naksu; espera o ok do dono às capturas | 3,5 a 5,5 h | 10 min (confirmar capturas; colar o `update` dos alertas) | conferência do cron no dia seguinte e em D+7 (Gio) | |
 | 3 | P2: execução, testes, capturas, revisão, envio, conferência em produção | plano fechado (13/10) | 5,5 a 9 h | 15 min (confirmar; autorizar a C1 de produção) | cron do dia seguinte (Gio) | |
 | 4 | Emenda v7 do spec: revisão de Phil e Yannis, corpo reescrito, Gio no aceite | rascunho (14/10) | 2 a 3 h | 10 min | — | |
 | 5 | P3: plano | não começou | 2 a 3 h | 5 min ("pode") | — | |
