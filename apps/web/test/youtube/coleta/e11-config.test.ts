@@ -50,7 +50,7 @@ describe('configE11', () => {
   it('válida, e desde igual a ligadoEm é aceito', () => {
     expect(configE11({ desde: '2026-10-01', ligadoEm: '2026-10-11' })).toEqual({ ok: true, desde: '2026-10-01', ligadoEm: '2026-10-11' })
     expect(configE11({ desde: '2026-10-11', ligadoEm: '2026-10-11' }).ok).toBe(true)
-    expect(configE11({ desde: '2028-02-29', ligadoEm: '2028-03-01' }).ok).toBe(true)
+    expect(configE11({ desde: '2024-02-29', ligadoEm: '2024-03-01' }).ok).toBe(true)
   })
 
   it('as constantes do repositório são uma configuração válida', () => {
