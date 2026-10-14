@@ -1,0 +1,570 @@
+[
+ {
+  "e": "t4",
+  "w": 1440,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@322,449,238,36",
+   "Cancelar@227,449,88,36"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@322,449,238,36",
+   "Cancelar@227,449,88,36"
+  ],
+  "dlgOld": "39,215,540,287",
+  "dlgNew": "39,215,540,287",
+  "ad": []
+ },
+ {
+  "e": "t4",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@322,449,238,36",
+   "Cancelar@227,449,88,36"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@322,449,238,36",
+   "Cancelar@227,449,88,36"
+  ],
+  "dlgOld": "39,215,540,287",
+  "dlgNew": "39,215,540,287",
+  "ad": []
+ },
+ {
+  "e": "t4",
+  "w": 390,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@50,656,290,44",
+   "Cancelar@50,708,290,44"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@50,656,290,44",
+   "Cancelar@50,708,290,44"
+  ],
+  "dlgOld": "31,295,328,473",
+  "dlgNew": "31,295,328,473",
+  "ad": []
+ },
+ {
+  "e": "t4",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@50,656,290,44",
+   "Cancelar@50,708,290,44"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@50,656,290,44",
+   "Cancelar@50,708,290,44"
+  ],
+  "dlgOld": "31,295,328,473",
+  "dlgNew": "31,295,328,473",
+  "ad": []
+ },
+ {
+  "e": "t4a",
+  "w": 1440,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@322,543,238,36",
+   "Cancelar@227,543,88,36"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@322,543,238,36",
+   "Cancelar@227,543,88,36"
+  ],
+  "dlgOld": "39,215,540,381",
+  "dlgNew": "39,215,540,381",
+  "ad": []
+ },
+ {
+  "e": "t4a",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@322,543,238,36",
+   "Cancelar@227,543,88,36"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@322,543,238,36",
+   "Cancelar@227,543,88,36"
+  ],
+  "dlgOld": "39,215,540,381",
+  "dlgNew": "39,215,540,381",
+  "ad": []
+ },
+ {
+  "e": "t4a",
+  "w": 390,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@50,833,290,44",
+   "Cancelar@50,885,290,44"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@50,833,290,44",
+   "Cancelar@50,885,290,44"
+  ],
+  "dlgOld": "31,316,328,630",
+  "dlgNew": "31,316,328,630",
+  "ad": []
+ },
+ {
+  "e": "t4a",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@50,833,290,44",
+   "Cancelar@50,885,290,44"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@50,833,290,44",
+   "Cancelar@50,885,290,44"
+  ],
+  "dlgOld": "31,316,328,630",
+  "dlgNew": "31,316,328,630",
+  "ad": []
+ },
+ {
+  "e": "t4b",
+  "w": 1440,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@322,522,238,36",
+   "Cancelar@227,522,88,36"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@322,522,238,36",
+   "Cancelar@227,522,88,36"
+  ],
+  "dlgOld": "39,215,540,360",
+  "dlgNew": "39,215,540,360",
+  "ad": []
+ },
+ {
+  "e": "t4b",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@322,522,238,36",
+   "Cancelar@227,522,88,36"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@322,522,238,36",
+   "Cancelar@227,522,88,36"
+  ],
+  "dlgOld": "39,215,540,360",
+  "dlgNew": "39,215,540,360",
+  "ad": []
+ },
+ {
+  "e": "t4b",
+  "w": 390,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@50,741,290,44",
+   "Cancelar@50,793,290,44"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@50,741,290,44",
+   "Cancelar@50,793,290,44"
+  ],
+  "dlgOld": "31,266,328,588",
+  "dlgNew": "31,266,328,588",
+  "ad": []
+ },
+ {
+  "e": "t4b",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Tirar outubro de 2027 do banco@50,741,290,44",
+   "Cancelar@50,793,290,44"
+  ],
+  "newBtns": [
+   "Tirar outubro de 2027 do banco@50,741,290,44",
+   "Cancelar@50,793,290,44"
+  ],
+  "dlgOld": "31,266,328,588",
+  "dlgNew": "31,266,328,588",
+  "ad": []
+ },
+ {
+  "e": "t4c",
+  "w": 1440,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar o texto de outubro de 2027@301,512,259,36",
+   "Cancelar@206,512,88,36"
+  ],
+  "newBtns": [
+   "Apagar o texto de outubro de 2027@301,512,259,36",
+   "Cancelar@206,512,88,36"
+  ],
+  "dlgOld": "39,215,540,350",
+  "dlgNew": "39,215,540,350",
+  "ad": [
+   "dIn",
+   "dOk"
+  ]
+ },
+ {
+  "e": "t4c",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar o texto de outubro de 2027@301,512,259,36",
+   "Cancelar@206,512,88,36"
+  ],
+  "newBtns": [
+   "Apagar o texto de outubro de 2027@301,512,259,36",
+   "Cancelar@206,512,88,36"
+  ],
+  "dlgOld": "39,215,540,350",
+  "dlgNew": "39,215,540,350",
+  "ad": [
+   "dIn",
+   "dOk"
+  ]
+ },
+ {
+  "e": "t4c",
+  "w": 390,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar o texto de outubro de 2027@50,701,290,44",
+   "Cancelar@50,753,290,44"
+  ],
+  "newBtns": [
+   "Apagar o texto de outubro de 2027@50,701,290,44",
+   "Cancelar@50,753,290,44"
+  ],
+  "dlgOld": "31,316,328,498",
+  "dlgNew": "31,316,328,498",
+  "ad": [
+   "dIn",
+   "dOk"
+  ]
+ },
+ {
+  "e": "t4c",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar o texto de outubro de 2027@50,701,290,44",
+   "Cancelar@50,753,290,44"
+  ],
+  "newBtns": [
+   "Apagar o texto de outubro de 2027@50,701,290,44",
+   "Cancelar@50,753,290,44"
+  ],
+  "dlgOld": "31,316,328,498",
+  "dlgNew": "31,316,328,498",
+  "ad": [
+   "dIn",
+   "dOk"
+  ]
+ },
+ {
+  "e": "t8",
+  "w": 1440,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Liberar o espaço@441,407,139,36",
+   "Cancelar@345,407,88,36"
+  ],
+  "newBtns": [
+   "Liberar o espaço@441,407,139,36",
+   "Cancelar@345,407,88,36"
+  ],
+  "dlgOld": "39,215,560,245",
+  "dlgNew": "39,215,560,245",
+  "ad": []
+ },
+ {
+  "e": "t8",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Liberar o espaço@441,407,139,36",
+   "Cancelar@345,407,88,36"
+  ],
+  "newBtns": [
+   "Liberar o espaço@441,407,139,36",
+   "Cancelar@345,407,88,36"
+  ],
+  "dlgOld": "39,215,560,245",
+  "dlgNew": "39,215,560,245",
+  "ad": []
+ },
+ {
+  "e": "t8",
+  "w": 390,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Liberar o espaço@50,542,290,44",
+   "Cancelar@50,594,290,44"
+  ],
+  "newBtns": [
+   "Liberar o espaço@50,542,290,44",
+   "Cancelar@50,594,290,44"
+  ],
+  "dlgOld": "31,266,328,390",
+  "dlgNew": "31,266,328,390",
+  "ad": []
+ },
+ {
+  "e": "t8",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Liberar o espaço@50,542,290,44",
+   "Cancelar@50,594,290,44"
+  ],
+  "newBtns": [
+   "Liberar o espaço@50,542,290,44",
+   "Cancelar@50,594,290,44"
+  ],
+  "dlgOld": "31,266,328,390",
+  "dlgNew": "31,266,328,390",
+  "ad": []
+ },
+ {
+  "e": "todos-canais",
+  "w": 1440,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@430,7005,150,36",
+   "Cancelar@334,7005,88,36"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@430,7005,150,36",
+   "Cancelar@334,7005,88,36"
+  ],
+  "dlgOld": "39,6716,560,342",
+  "dlgNew": "39,6716,560,342",
+  "ad": [
+   "dIn2",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 1440,
+  "th": "esc",
+  "i": 1,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@430,7519,150,36",
+   "Cancelar@334,7519,88,36"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@430,7519,150,36",
+   "Cancelar@334,7519,88,36"
+  ],
+  "dlgOld": "39,7180,560,392",
+  "dlgNew": "39,7180,560,392",
+  "ad": [
+   "dIn3",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@430,7005,150,36",
+   "Cancelar@334,7005,88,36"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@430,7005,150,36",
+   "Cancelar@334,7005,88,36"
+  ],
+  "dlgOld": "39,6716,560,342",
+  "dlgNew": "39,6716,560,342",
+  "ad": [
+   "dIn2",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 1440,
+  "th": "&tema=claro",
+  "i": 1,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@430,7519,150,36",
+   "Cancelar@334,7519,88,36"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@430,7519,150,36",
+   "Cancelar@334,7519,88,36"
+  ],
+  "dlgOld": "39,7180,560,392",
+  "dlgNew": "39,7180,560,392",
+  "ad": [
+   "dIn3",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 390,
+  "th": "esc",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@50,10204,290,44",
+   "Cancelar@50,10256,290,44"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@50,10204,290,44",
+   "Cancelar@50,10256,290,44"
+  ],
+  "dlgOld": "31,9847,328,469",
+  "dlgNew": "31,9847,328,469",
+  "ad": [
+   "dIn2",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 390,
+  "th": "esc",
+  "i": 1,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@50,10964,290,44",
+   "Cancelar@50,11016,290,44"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@50,10964,290,44",
+   "Cancelar@50,11016,290,44"
+  ],
+  "dlgOld": "31,10516,328,561",
+  "dlgNew": "31,10516,328,561",
+  "ad": [
+   "dIn3",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 0,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@50,10204,290,44",
+   "Cancelar@50,10256,290,44"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@50,10204,290,44",
+   "Cancelar@50,10256,290,44"
+  ],
+  "dlgOld": "31,9847,328,469",
+  "dlgNew": "31,9847,328,469",
+  "ad": [
+   "dIn2",
+   "BUTTON"
+  ]
+ },
+ {
+  "e": "todos-canais",
+  "w": 390,
+  "th": "&tema=claro",
+  "i": 1,
+  "sameText": true,
+  "sameBtnGeometry": true,
+  "oldBtns": [
+   "Apagar do arquivo@50,10964,290,44",
+   "Cancelar@50,11016,290,44"
+  ],
+  "newBtns": [
+   "Apagar do arquivo@50,10964,290,44",
+   "Cancelar@50,11016,290,44"
+  ],
+  "dlgOld": "31,10516,328,561",
+  "dlgNew": "31,10516,328,561",
+  "ad": [
+   "dIn3",
+   "BUTTON"
+  ]
+ }
+]

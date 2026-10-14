@@ -1,0 +1,328 @@
+lig | 1440 | escuro | SPAN | Automático: ligado até 19/07/2028 | 982x20 | 13.5px | 14.48 | 
+lig | 1440 | escuro | P | Próximo mês: fevereiro de 2028, a part | 982x42 | 13.5px | 14.48 | 
+lig | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+lig | 1440 | escuro | BUTTON | Ver a regra | 101x36 | 13.5px | 14.48 | 
+lig | 1440 | escuro | BUTTON | Desligar | 83x36 | 13.5px | 14.48 | 
+lig | 1440 | escuro | SPAN | Automático: ligado até 19/07/2028 | 982x20 | 13.5px | 14.48 | 
+lig | 1440 | escuro | P | Próximo mês: outubro de 2027, a partir | 982x42 | 13.5px | 14.48 | 
+lig | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+lig | 1440 | escuro | BUTTON | Ver a regra | 101x36 | 13.5px | 14.48 | 
+lig | 1440 | escuro | BUTTON | Desligar | 83x36 | 13.5px | 14.48 | 
+lig | 1440 | escuro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 14.48 | 
+lig | 1440 | escuro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 14.48 | 
+lig | 1440 | claro | SPAN | Automático: ligado até 19/07/2028 | 982x20 | 13.5px | 15.76 | 
+lig | 1440 | claro | P | Próximo mês: fevereiro de 2028, a part | 982x42 | 13.5px | 15.76 | 
+lig | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+lig | 1440 | claro | BUTTON | Ver a regra | 101x36 | 13.5px | 15.76 | 
+lig | 1440 | claro | BUTTON | Desligar | 83x36 | 13.5px | 15.76 | 
+lig | 1440 | claro | SPAN | Automático: ligado até 19/07/2028 | 982x20 | 13.5px | 15.76 | 
+lig | 1440 | claro | P | Próximo mês: outubro de 2027, a partir | 982x42 | 13.5px | 15.76 | 
+lig | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+lig | 1440 | claro | BUTTON | Ver a regra | 101x36 | 13.5px | 15.76 | 
+lig | 1440 | claro | BUTTON | Desligar | 83x36 | 13.5px | 15.76 | 
+lig | 1440 | claro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 15.76 | 
+lig | 1440 | claro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 15.76 | 
+lig | 390 | escuro | SPAN | Automático: ligado até 19/07/2028 | 268x20 | 13.5px | 14.48 | 
+lig | 390 | escuro | P | Próximo mês: fevereiro de 2028, a part | 268x102 | 13.5px | 14.48 | 
+lig | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+lig | 390 | escuro | BUTTON | Ver a regra | 101x44 | 13.5px | 14.48 | 
+lig | 390 | escuro | BUTTON | Desligar | 83x44 | 13.5px | 14.48 | 
+lig | 390 | escuro | SPAN | Automático: ligado até 19/07/2028 | 268x20 | 13.5px | 14.48 | 
+lig | 390 | escuro | P | Próximo mês: outubro de 2027, a partir | 268x102 | 13.5px | 14.48 | 
+lig | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+lig | 390 | escuro | BUTTON | Ver a regra | 101x44 | 13.5px | 14.48 | 
+lig | 390 | escuro | BUTTON | Desligar | 83x44 | 13.5px | 14.48 | 
+lig | 390 | escuro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 14.48 | 
+lig | 390 | escuro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 14.48 | 
+lig | 390 | claro | SPAN | Automático: ligado até 19/07/2028 | 268x20 | 13.5px | 15.76 | 
+lig | 390 | claro | P | Próximo mês: fevereiro de 2028, a part | 268x102 | 13.5px | 15.76 | 
+lig | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+lig | 390 | claro | BUTTON | Ver a regra | 101x44 | 13.5px | 15.76 | 
+lig | 390 | claro | BUTTON | Desligar | 83x44 | 13.5px | 15.76 | 
+lig | 390 | claro | SPAN | Automático: ligado até 19/07/2028 | 268x20 | 13.5px | 15.76 | 
+lig | 390 | claro | P | Próximo mês: outubro de 2027, a partir | 268x102 | 13.5px | 15.76 | 
+lig | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+lig | 390 | claro | BUTTON | Ver a regra | 101x44 | 13.5px | 15.76 | 
+lig | 390 | claro | BUTTON | Desligar | 83x44 | 13.5px | 15.76 | 
+lig | 390 | claro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 15.76 | 
+lig | 390 | claro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 15.76 | 
+desl2 | 1440 | escuro | SPAN | Automático: desligou sozinho em 02/05/ | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | A casa ficou mais de 36 horas sem resp | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | Nada saiu do banco por causa disso, e  | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | O que fazer: Veja o aviso da casa no t | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | Pode esperar: se você está fora de cas | 982x19 | 12.5px | 6.18 | 
+desl2 | 1440 | escuro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 6.18 | 
+desl2 | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+desl2 | 1440 | escuro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | BUTTON | Ligar de novo | 117x36 | 13.5px | 6.18 | true
+desl2 | 1440 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl2 | 1440 | escuro | SPAN | Automático: desligou sozinho em 02/05/ | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | A casa ficou mais de 36 horas sem resp | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | Nada saiu do banco por causa disso, e  | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | O que fazer: Veja o aviso da casa no t | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | Pode esperar: se você está fora de cas | 982x19 | 12.5px | 6.18 | 
+desl2 | 1440 | escuro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 6.18 | 
+desl2 | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+desl2 | 1440 | escuro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | BUTTON | Ligar de novo | 117x36 | 13.5px | 6.18 | true
+desl2 | 1440 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl2 | 1440 | escuro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | escuro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 14.48 | 
+desl2 | 1440 | claro | SPAN | Automático: desligou sozinho em 02/05/ | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | A casa ficou mais de 36 horas sem resp | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | Nada saiu do banco por causa disso, e  | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | O que fazer: Veja o aviso da casa no t | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | Pode esperar: se você está fora de cas | 982x19 | 12.5px | 7.13 | 
+desl2 | 1440 | claro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 7.13 | 
+desl2 | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+desl2 | 1440 | claro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | BUTTON | Ligar de novo | 117x36 | 13.5px | 7.13 | true
+desl2 | 1440 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl2 | 1440 | claro | SPAN | Automático: desligou sozinho em 02/05/ | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | A casa ficou mais de 36 horas sem resp | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | Nada saiu do banco por causa disso, e  | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | O que fazer: Veja o aviso da casa no t | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | Pode esperar: se você está fora de cas | 982x19 | 12.5px | 7.13 | 
+desl2 | 1440 | claro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 7.13 | 
+desl2 | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+desl2 | 1440 | claro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | BUTTON | Ligar de novo | 117x36 | 13.5px | 7.13 | true
+desl2 | 1440 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl2 | 1440 | claro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 15.76 | 
+desl2 | 1440 | claro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 15.76 | 
+desl2 | 390 | escuro | SPAN | Automático: desligou sozinho em 02/05/ | 268x41 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | A casa ficou mais de 36 horas sem resp | 268x61 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | Nada saiu do banco por causa disso, e  | 268x41 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | O que fazer: Veja o aviso da casa no t | 268x41 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | Pode esperar: se você está fora de cas | 268x38 | 12.5px | 6.18 | 
+desl2 | 390 | escuro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 6.18 | 
+desl2 | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+desl2 | 390 | escuro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | BUTTON | Ligar de novo | 117x44 | 13.5px | 6.18 | true
+desl2 | 390 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl2 | 390 | escuro | SPAN | Automático: desligou sozinho em 02/05/ | 268x41 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | A casa ficou mais de 36 horas sem resp | 268x61 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | Nada saiu do banco por causa disso, e  | 268x41 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | O que fazer: Veja o aviso da casa no t | 268x41 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | Pode esperar: se você está fora de cas | 268x38 | 12.5px | 6.18 | 
+desl2 | 390 | escuro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 6.18 | 
+desl2 | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+desl2 | 390 | escuro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | BUTTON | Ligar de novo | 117x44 | 13.5px | 6.18 | true
+desl2 | 390 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl2 | 390 | escuro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 14.48 | 
+desl2 | 390 | escuro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 14.48 | 
+desl2 | 390 | claro | SPAN | Automático: desligou sozinho em 02/05/ | 268x41 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | A casa ficou mais de 36 horas sem resp | 268x61 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | Nada saiu do banco por causa disso, e  | 268x41 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | O que fazer: Veja o aviso da casa no t | 268x41 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | Pode esperar: se você está fora de cas | 268x38 | 12.5px | 7.13 | 
+desl2 | 390 | claro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 7.13 | 
+desl2 | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+desl2 | 390 | claro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 15.76 | 
+desl2 | 390 | claro | BUTTON | Ligar de novo | 117x44 | 13.5px | 7.13 | true
+desl2 | 390 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl2 | 390 | claro | SPAN | Automático: desligou sozinho em 02/05/ | 268x41 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | A casa ficou mais de 36 horas sem resp | 268x61 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | Nada saiu do banco por causa disso, e  | 268x41 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | O que fazer: Veja o aviso da casa no t | 268x41 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | Pode esperar: se você está fora de cas | 268x38 | 12.5px | 7.13 | 
+desl2 | 390 | claro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 7.13 | 
+desl2 | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+desl2 | 390 | claro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 15.76 | 
+desl2 | 390 | claro | BUTTON | Ligar de novo | 117x44 | 13.5px | 7.13 | true
+desl2 | 390 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl2 | 390 | claro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 15.76 | 
+desl2 | 390 | claro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 15.76 | 
+desl8 | 1440 | escuro | SPAN | Automático: a validade de 90 dias acab | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | A validade de 90 dias acabou. Nada deu | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | O que fazer: Ligue de novo quando quis | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 6.18 | 
+desl8 | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+desl8 | 1440 | escuro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | BUTTON | Ligar de novo | 117x36 | 13.5px | 6.18 | true
+desl8 | 1440 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl8 | 1440 | escuro | SPAN | Automático: a validade de 90 dias acab | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | A validade de 90 dias acabou. Nada deu | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | O que fazer: Ligue de novo quando quis | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 6.18 | 
+desl8 | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+desl8 | 1440 | escuro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | BUTTON | Ligar de novo | 117x36 | 13.5px | 6.18 | true
+desl8 | 1440 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl8 | 1440 | escuro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | escuro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 14.48 | 
+desl8 | 1440 | claro | SPAN | Automático: a validade de 90 dias acab | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | A validade de 90 dias acabou. Nada deu | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | O que fazer: Ligue de novo quando quis | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 7.13 | 
+desl8 | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+desl8 | 1440 | claro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | BUTTON | Ligar de novo | 117x36 | 13.5px | 7.13 | true
+desl8 | 1440 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl8 | 1440 | claro | SPAN | Automático: a validade de 90 dias acab | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | A validade de 90 dias acabou. Nada deu | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | O que fazer: Ligue de novo quando quis | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | Para ligar de novo: veja o que sairia  | 982x20 | 12.5px | 7.13 | 
+desl8 | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+desl8 | 1440 | claro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | BUTTON | Ligar de novo | 117x36 | 13.5px | 7.13 | true
+desl8 | 1440 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl8 | 1440 | claro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 15.76 | 
+desl8 | 1440 | claro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 15.76 | 
+desl8 | 390 | escuro | SPAN | Automático: a validade de 90 dias acab | 268x41 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | A validade de 90 dias acabou. Nada deu | 268x41 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | O que fazer: Ligue de novo quando quis | 268x41 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 6.18 | 
+desl8 | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+desl8 | 390 | escuro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | BUTTON | Ligar de novo | 117x44 | 13.5px | 6.18 | true
+desl8 | 390 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl8 | 390 | escuro | SPAN | Automático: a validade de 90 dias acab | 268x41 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | A validade de 90 dias acabou. Nada deu | 268x41 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | O que fazer: Ligue de novo quando quis | 268x41 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 6.18 | 
+desl8 | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+desl8 | 390 | escuro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | BUTTON | Ligar de novo | 117x44 | 13.5px | 6.18 | true
+desl8 | 390 | escuro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 6.18 | 
+desl8 | 390 | escuro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 14.48 | 
+desl8 | 390 | escuro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 14.48 | 
+desl8 | 390 | claro | SPAN | Automático: a validade de 90 dias acab | 268x41 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | A validade de 90 dias acabou. Nada deu | 268x41 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | O que fazer: Ligue de novo quando quis | 268x41 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 7.13 | 
+desl8 | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+desl8 | 390 | claro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 15.76 | 
+desl8 | 390 | claro | BUTTON | Ligar de novo | 117x44 | 13.5px | 7.13 | true
+desl8 | 390 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl8 | 390 | claro | SPAN | Automático: a validade de 90 dias acab | 268x41 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | A validade de 90 dias acabou. Nada deu | 268x41 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | O que fazer: Ligue de novo quando quis | 268x41 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | Para ligar de novo: veja o que sairia  | 268x58 | 12.5px | 7.13 | 
+desl8 | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+desl8 | 390 | claro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 15.76 | 
+desl8 | 390 | claro | BUTTON | Ligar de novo | 117x44 | 13.5px | 7.13 | true
+desl8 | 390 | claro | SMALL | Falta ver o que sairia. | 126x18 | 12.5px | 7.13 | 
+desl8 | 390 | claro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 15.76 | 
+desl8 | 390 | claro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 15.76 | 
+desl | 1440 | escuro | SPAN | Automático: desligado | 982x20 | 13.5px | 14.48 | 
+desl | 1440 | escuro | P | Você tira cada mês pelo botão. Para o  | 982x20 | 13.5px | 14.48 | 
+desl | 1440 | escuro | BUTTON | Ligar o automático… | 166x36 | 13.5px | 15.61 | 
+desl | 1440 | escuro | SMALL | Antes de ligar, você lê a regra e digi | 288x18 | 12.5px | 6.18 | 
+desl | 1440 | escuro | SPAN | Automático: desligado | 982x20 | 13.5px | 14.48 | 
+desl | 1440 | escuro | P | Você tira cada mês pelo botão. Para o  | 982x20 | 13.5px | 14.48 | 
+desl | 1440 | escuro | BUTTON | Ligar o automático… | 166x36 | 13.5px | 15.61 | 
+desl | 1440 | escuro | SMALL | Antes de ligar, você lê a regra e digi | 288x18 | 12.5px | 6.18 | 
+desl | 1440 | escuro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 14.48 | 
+desl | 1440 | escuro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 14.48 | 
+desl | 1440 | claro | SPAN | Automático: desligado | 982x20 | 13.5px | 15.76 | 
+desl | 1440 | claro | P | Você tira cada mês pelo botão. Para o  | 982x20 | 13.5px | 15.76 | 
+desl | 1440 | claro | BUTTON | Ligar o automático… | 166x36 | 13.5px | 15.09 | 
+desl | 1440 | claro | SMALL | Antes de ligar, você lê a regra e digi | 288x18 | 12.5px | 7.13 | 
+desl | 1440 | claro | SPAN | Automático: desligado | 982x20 | 13.5px | 15.76 | 
+desl | 1440 | claro | P | Você tira cada mês pelo botão. Para o  | 982x20 | 13.5px | 15.76 | 
+desl | 1440 | claro | BUTTON | Ligar o automático… | 166x36 | 13.5px | 15.09 | 
+desl | 1440 | claro | SMALL | Antes de ligar, você lê a regra e digi | 288x18 | 12.5px | 7.13 | 
+desl | 1440 | claro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 15.76 | 
+desl | 1440 | claro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 15.76 | 
+desl | 390 | escuro | SPAN | Automático: desligado | 268x20 | 13.5px | 14.48 | 
+desl | 390 | escuro | P | Você tira cada mês pelo botão. Para o  | 268x61 | 13.5px | 14.48 | 
+desl | 390 | escuro | BUTTON | Ligar o automático… | 166x44 | 13.5px | 15.61 | 
+desl | 390 | escuro | SMALL | Antes de ligar, você lê a regra e digi | 268x35 | 12.5px | 6.18 | 
+desl | 390 | escuro | SPAN | Automático: desligado | 268x20 | 13.5px | 14.48 | 
+desl | 390 | escuro | P | Você tira cada mês pelo botão. Para o  | 268x61 | 13.5px | 14.48 | 
+desl | 390 | escuro | BUTTON | Ligar o automático… | 166x44 | 13.5px | 15.61 | 
+desl | 390 | escuro | SMALL | Antes de ligar, você lê a regra e digi | 268x35 | 12.5px | 6.18 | 
+desl | 390 | escuro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 14.48 | 
+desl | 390 | escuro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 14.48 | 
+desl | 390 | claro | SPAN | Automático: desligado | 268x20 | 13.5px | 15.76 | 
+desl | 390 | claro | P | Você tira cada mês pelo botão. Para o  | 268x61 | 13.5px | 15.76 | 
+desl | 390 | claro | BUTTON | Ligar o automático… | 166x44 | 13.5px | 15.09 | 
+desl | 390 | claro | SMALL | Antes de ligar, você lê a regra e digi | 268x35 | 12.5px | 7.13 | 
+desl | 390 | claro | SPAN | Automático: desligado | 268x20 | 13.5px | 15.76 | 
+desl | 390 | claro | P | Você tira cada mês pelo botão. Para o  | 268x61 | 13.5px | 15.76 | 
+desl | 390 | claro | BUTTON | Ligar o automático… | 166x44 | 13.5px | 15.09 | 
+desl | 390 | claro | SMALL | Antes de ligar, você lê a regra e digi | 268x35 | 12.5px | 7.13 | 
+desl | 390 | claro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 15.76 | 
+desl | 390 | claro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 15.76 | 
+ind | 1440 | escuro | SPAN | Automático: ainda não dá para ligar | 982x20 | 13.5px | 14.48 | 
+ind | 1440 | escuro | P | Falta: 2 saídas feitas por você (1 de  | 982x20 | 13.5px | 14.48 | 
+ind | 1440 | escuro | P | Uma saída feita por você é um mês que  | 982x20 | 12.5px | 6.18 | 
+ind | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+ind | 1440 | escuro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 14.48 | 
+ind | 1440 | escuro | SPAN | Automático: ainda não dá para ligar | 982x20 | 13.5px | 14.48 | 
+ind | 1440 | escuro | P | Falta: 2 saídas feitas por você (1 de  | 982x20 | 13.5px | 14.48 | 
+ind | 1440 | escuro | P | Uma saída feita por você é um mês que  | 982x20 | 12.5px | 6.18 | 
+ind | 1440 | escuro | BUTTON |  | 28x28 | 13.3333px | 6.18 | 
+ind | 1440 | escuro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 14.48 | 
+ind | 1440 | escuro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 14.48 | 
+ind | 1440 | escuro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 14.48 | 
+ind | 1440 | claro | SPAN | Automático: ainda não dá para ligar | 982x20 | 13.5px | 15.76 | 
+ind | 1440 | claro | P | Falta: 2 saídas feitas por você (1 de  | 982x20 | 13.5px | 15.76 | 
+ind | 1440 | claro | P | Uma saída feita por você é um mês que  | 982x20 | 12.5px | 7.13 | 
+ind | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+ind | 1440 | claro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 15.76 | 
+ind | 1440 | claro | SPAN | Automático: ainda não dá para ligar | 982x20 | 13.5px | 15.76 | 
+ind | 1440 | claro | P | Falta: 2 saídas feitas por você (1 de  | 982x20 | 13.5px | 15.76 | 
+ind | 1440 | claro | P | Uma saída feita por você é um mês que  | 982x20 | 12.5px | 7.13 | 
+ind | 1440 | claro | BUTTON |  | 28x28 | 13.3333px | 7.13 | 
+ind | 1440 | claro | BUTTON | Ver o que sairia | 130x36 | 13.5px | 15.76 | 
+ind | 1440 | claro | SPAN | Automático: não existe aqui | 982x20 | 13.5px | 15.76 | 
+ind | 1440 | claro | P | Comentários saem sempre por clique: o  | 982x20 | 13.5px | 15.76 | 
+ind | 390 | escuro | SPAN | Automático: ainda não dá para ligar | 268x20 | 13.5px | 14.48 | 
+ind | 390 | escuro | P | Falta: 2 saídas feitas por você (1 de  | 268x41 | 13.5px | 14.48 | 
+ind | 390 | escuro | P | Uma saída feita por você é um mês que  | 268x58 | 12.5px | 6.18 | 
+ind | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+ind | 390 | escuro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 14.48 | 
+ind | 390 | escuro | SPAN | Automático: ainda não dá para ligar | 268x20 | 13.5px | 14.48 | 
+ind | 390 | escuro | P | Falta: 2 saídas feitas por você (1 de  | 268x41 | 13.5px | 14.48 | 
+ind | 390 | escuro | P | Uma saída feita por você é um mês que  | 268x58 | 12.5px | 6.18 | 
+ind | 390 | escuro | BUTTON |  | 44x44 | 13.3333px | 6.18 | 
+ind | 390 | escuro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 14.48 | 
+ind | 390 | escuro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 14.48 | 
+ind | 390 | escuro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 14.48 | 
+ind | 390 | claro | SPAN | Automático: ainda não dá para ligar | 268x20 | 13.5px | 15.76 | 
+ind | 390 | claro | P | Falta: 2 saídas feitas por você (1 de  | 268x41 | 13.5px | 15.76 | 
+ind | 390 | claro | P | Uma saída feita por você é um mês que  | 268x58 | 12.5px | 7.13 | 
+ind | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+ind | 390 | claro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 15.76 | 
+ind | 390 | claro | SPAN | Automático: ainda não dá para ligar | 268x20 | 13.5px | 15.76 | 
+ind | 390 | claro | P | Falta: 2 saídas feitas por você (1 de  | 268x41 | 13.5px | 15.76 | 
+ind | 390 | claro | P | Uma saída feita por você é um mês que  | 268x58 | 12.5px | 7.13 | 
+ind | 390 | claro | BUTTON |  | 44x44 | 13.3333px | 7.13 | 
+ind | 390 | claro | BUTTON | Ver o que sairia | 130x44 | 13.5px | 15.76 | 
+ind | 390 | claro | SPAN | Automático: não existe aqui | 268x20 | 13.5px | 15.76 | 
+ind | 390 | claro | P | Comentários saem sempre por clique: o  | 268x61 | 13.5px | 15.76 | 
+bregra | 1440 | escuro | P | O site tira um mês do banco sozinho, s | 522x21 | 13.5px | 14.48 | 
+bregra | 1440 | escuro | P | Ele desliga sozinho e avisa na faixa d | 522x42 | 13.5px | 14.48 | 
+bregra | 1440 | escuro | P | Quando desliga, ele não liga de novo s | 522x21 | 13.5px | 6.18 | 
+bregra | 1440 | escuro | BUTTON | Fechar | 74x36 | 13.5px | 14.48 | 
+bregra | 1440 | claro | P | O site tira um mês do banco sozinho, s | 522x21 | 13.5px | 15.76 | 
+bregra | 1440 | claro | P | Ele desliga sozinho e avisa na faixa d | 522x42 | 13.5px | 15.76 | 
+bregra | 1440 | claro | P | Quando desliga, ele não liga de novo s | 522x21 | 13.5px | 7.13 | 
+bregra | 1440 | claro | BUTTON | Fechar | 74x36 | 13.5px | 15.76 | 
+bregra | 390 | escuro | P | O site tira um mês do banco sozinho, s | 290x42 | 13.5px | 14.48 | 
+bregra | 390 | escuro | P | Ele desliga sozinho e avisa na faixa d | 290x42 | 13.5px | 14.48 | 
+bregra | 390 | escuro | P | Quando desliga, ele não liga de novo s | 290x42 | 13.5px | 6.18 | 
+bregra | 390 | escuro | BUTTON | Fechar | 290x44 | 13.5px | 14.48 | 
+bregra | 390 | claro | P | O site tira um mês do banco sozinho, s | 290x42 | 13.5px | 15.76 | 
+bregra | 390 | claro | P | Ele desliga sozinho e avisa na faixa d | 290x42 | 13.5px | 15.76 | 
+bregra | 390 | claro | P | Quando desliga, ele não liga de novo s | 290x42 | 13.5px | 7.13 | 
+bregra | 390 | claro | BUTTON | Fechar | 290x44 | 13.5px | 15.76 | 
+bdesl | 1440 | escuro | P | Nada sai sozinho até você ligar de nov | 522x42 | 13.5px | 14.48 | 
+bdesl | 1440 | escuro | P | Para ligar de novo, vale a regra de se | 522x21 | 13.5px | 6.18 | 
+bdesl | 1440 | escuro | BUTTON | Desligar o automático | 170x36 | 13.5px | 14.48 | 
+bdesl | 1440 | escuro | BUTTON | Cancelar | 88x36 | 13.5px | 14.48 | 
+bdesl | 1440 | claro | P | Nada sai sozinho até você ligar de nov | 522x42 | 13.5px | 15.76 | 
+bdesl | 1440 | claro | P | Para ligar de novo, vale a regra de se | 522x21 | 13.5px | 7.13 | 
+bdesl | 1440 | claro | BUTTON | Desligar o automático | 170x36 | 13.5px | 15.76 | 
+bdesl | 1440 | claro | BUTTON | Cancelar | 88x36 | 13.5px | 15.76 | 
+bdesl | 390 | escuro | P | Nada sai sozinho até você ligar de nov | 290x63 | 13.5px | 14.48 | 
+bdesl | 390 | escuro | P | Para ligar de novo, vale a regra de se | 290x42 | 13.5px | 6.18 | 
+bdesl | 390 | escuro | BUTTON | Desligar o automático | 290x44 | 13.5px | 14.48 | 
+bdesl | 390 | escuro | BUTTON | Cancelar | 290x44 | 13.5px | 14.48 | 
+bdesl | 390 | claro | P | Nada sai sozinho até você ligar de nov | 290x63 | 13.5px | 15.76 | 
+bdesl | 390 | claro | P | Para ligar de novo, vale a regra de se | 290x42 | 13.5px | 7.13 | 
+bdesl | 390 | claro | BUTTON | Desligar o automático | 290x44 | 13.5px | 15.76 | 
+bdesl | 390 | claro | BUTTON | Cancelar | 290x44 | 13.5px | 15.76 | 
