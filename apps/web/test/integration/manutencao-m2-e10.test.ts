@@ -78,4 +78,47 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
       expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)).toBe(antes)
     } finally { await pg.query('rollback') }
   })
+
+  it('bloco 11b: com a M2 aplicada, a remoção correta de um canal com séries particionadas passa', async () => {
+    await emTx(async () => {
+      expect(await escalar<boolean>(pg, `select prosrc ~ 'pg_partition_tree' from pg_proc where oid = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure`)).toBe(true)
+      const c = await semearCena(pg)
+      await exportarConferirConfirmar(pg, c, c.canalA, 'lote-m2')
+      expect((await contagemPorTabela(pg, c.canalA)).competitor_video_daily).toBeGreaterThan(0)
+      const r = await escalar<{ status: string }>(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
+      expect(r.status).toBe('removido')
+    })
+  })
+
+  it('bloco 11b: a guarda continua mordendo com a M2 aplicada (filtro quebrado do registro na série particionada: apagou_alem_do_arquivo)', async () => {
+    await emTx(async () => {
+      const c = await semearCena(pg)
+      const def = await escalar<string>(pg, `select pg_get_functiondef('public.obs_archive_registry()'::regprocedure)`)
+      const quebrado = def.replace(/\('competitor_video_daily',(\s*)'([^']*)'/, (_m, esp: string, filtro: string) => `('competitor_video_daily',${esp}'(${filtro}) and $1 is null'`)
+      expect(quebrado).not.toBe(def)
+      await pg.query(quebrado)
+      await exportarConferirConfirmar(pg, c, c.canalA, 'lote-m2')
+      await pg.query('savepoint s')
+      const r = await tenta(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/E10:apagou_alem_do_arquivo: competitor_video_daily/)
+      await pg.query('rollback to savepoint s')
+      expect(await escalar<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(1)
+    })
+  })
+
+  it('bloco 11b: corpo instalado diferente do conhecido e sem a guarda por folhas recusa com M2:competitor_channel_remove_archived_divergente', async () => {
+    await pg.query('begin')
+    try {
+      await garantirMg6(pg)
+      const antes = await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)
+      await pg.query(`create or replace function public.competitor_channel_remove_archived(p_site uuid, p_channel uuid, p_actor uuid) returns jsonb language sql security definer set search_path = '' as $$ select '{}'::jsonb $$`)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, M2_SQL)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/M2:competitor_channel_remove_archived_divergente/)
+      await pg.query('rollback to savepoint s')
+      expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)).toBe(antes)
+    } finally { await pg.query('rollback') }
+  })
 })

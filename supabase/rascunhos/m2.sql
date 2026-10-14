@@ -580,6 +580,167 @@ $f$;
   end if;
 end $$;
 
+-- 11b. A guarda independente de competitor_channel_remove_archived conta n_tup_del por tabela do fecho de cascata; depois da conversão a mãe
+--      particionada tem n_tup_del 0 (a estatística é por folha) e as partições entrariam no fecho pelas chaves herdadas. Aqui: o fecho só com
+--      relações que não são partição, e o n_tup_del de cada uma é a soma das folhas de pg_partition_tree (a tabela comum é ela mesma: pg_partition_tree não devolve linha para quem não é partição).
+--      Ausente: nada. Já com o conserto (pg_partition_tree): nada. Corpo diferente do conhecido: recusa.
+do $$
+declare
+  v_src text;
+begin
+  select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.competitor_channel_remove_archived(uuid,uuid,uuid)');
+  if v_src is not null and v_src !~ 'pg_partition_tree' then
+    if pg_catalog.md5(v_src) <> '467d3bc3c887af98196c8e415780d40b' then
+      raise exception 'M2:competitor_channel_remove_archived_divergente' using errcode = 'P0001',
+        detail = 'o corpo instalado não é o da fixture de 14/10: copiar o corpo instalado com a guarda por folhas para esta migration';
+    end if;
+    execute $f$
+create or replace function public.competitor_channel_remove_archived(p_site uuid, p_channel uuid, p_actor uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $b$
+declare
+  v_batch text;
+  v_c record;
+  v_falta text[];
+  v_urls text[];
+  v_linhas bigint;
+  v_arquivos integer;
+  v_featured integer;
+  v_refs jsonb;       -- (revisão Phil 14/10, I-5) quais comentários de OUTROS canais destacavam este: o set null os zera, o rastro fica no audit_log
+  v_base jsonb;       -- (revisão Phil 14/10, I-2; M2 11b: soma das folhas da partição) n_tup_del de cada tabela do fecho de cascata, antes do delete
+  v_t record;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+begin
+  if p_site is null or p_channel is null or p_actor is null then
+    raise exception 'E10:parametro_nulo: competitor_channel_remove_archived' using errcode = '22023';
+  end if;
+  v_falta := public.obs_archive_uncovered();
+  if cardinality(v_falta) > 0 then
+    raise exception 'E10:tabela_sem_export: %', array_to_string(v_falta, ', ') using errcode = 'P0001';
+  end if;
+  select c.channel_id, c.channel_name into v_c
+    from public.competitor_channels c
+   where c.id = p_channel and c.site_id = p_site
+     for update;
+  if not found then
+    raise exception 'E10:canal_nao_encontrado: neste site' using errcode = 'P0002';
+  end if;
+  -- (revisão Yannis 14/10, M-4) a irreversível confere o ator como as outras funções que escrevem em nome de alguém
+  if not public.obs_archive_is_site_admin(p_site, p_actor) then
+    raise exception 'E10:sem_direito: só quem administra o site remove um canal exportado' using errcode = '42501';
+  end if;
+  -- o lote mais recente deste canal que ainda não foi apagado
+  select b.batch into v_batch
+    from public.obs_archive_batches b
+   where b.site_id = p_site and b.channel_ref = p_channel::text and b.deleted_at is null
+   order by b.exported_at desc, b.batch desc
+   limit 1;
+  if v_batch is null then
+    raise exception 'E10:sem_lote: este canal ainda não foi exportado' using errcode = 'P0001';
+  end if;
+  perform public.obs_archive_guard(p_site, v_batch, p_channel, 'confirmado');
+  perform 1 from public.competitor_videos v where v.competitor_channel_id = p_channel for update;
+  if to_regclass('public.competitor_video_comments') is not null then
+    perform 1 from public.competitor_video_comments k
+      where k.competitor_channel_id = p_channel
+         or k.video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = p_channel)
+      for update;
+  end if;
+  if exists (select 1 from public.obs_archive_diff(p_site, v_batch, p_channel)) then
+    raise exception 'E10:banco_difere_do_manifesto: %',
+      (select string_agg(d.table_name || ' ' || d.period_start || ' banco=' || coalesce(d.db_rows::text, 'sem linha') || ' arquivo=' || coalesce(d.file_rows::text, 'sem arquivo'), '; ')
+         from (select * from public.obs_archive_diff(p_site, v_batch, p_channel) limit 10) d)
+      using errcode = 'P0001';
+  end if;
+  select coalesce(array_agg(distinct x.thumb_blob_url), '{}'::text[]) into v_urls
+    from public.competitor_video_versions x
+    join public.competitor_videos v on v.id = x.video_id
+   where v.competitor_channel_id = p_channel and x.thumb_blob_url is not null;
+  select count(*) into v_featured from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+  select coalesce(jsonb_agg(jsonb_build_object('comment_id', k.id, 'video_id', k.video_id, 'channel_ref', k.competitor_channel_id) order by k.id), '[]'::jsonb) into v_refs
+    from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+  select sum(b.row_count), count(*) into v_linhas, v_arquivos
+    from public.obs_archive_batches b
+   where b.site_id = p_site and b.batch = v_batch and b.channel_ref = p_channel::text and b.deleted_at is null;
+
+  -- (revisão Phil 14/10, I-2) Conferência INDEPENDENTE do registro. `obs_archive_diff` e `sobrou_linha` usam `obs_archive_registry()`, a mesma
+  -- lista que fez o export: um filtro errado numa entrada dava verde nas três conferências e a cascata apagava linha que nunca foi para o
+  -- arquivo. Aqui o próprio Postgres conta, por transação (pg_stat_xact_user_tables.n_tup_del, que inclui a cascata), quantas linhas cada
+  -- tabela do fecho perdeu, e o fecho vem do CATÁLOGO (chaves estrangeiras em cascata), não do registro. Cada tabela tem de perder
+  -- exatamente o que o lote arquivou; a exceção declarada (obs_archive_excluded, os autores de comentário) fica de fora. Diferiu: a
+  -- transação inteira desfaz. Sem track_counts a contagem é sempre zero e não vale: recusa também.
+  if pg_catalog.current_setting('track_counts') <> 'on' then
+    raise exception 'E10:apagou_alem_do_arquivo: track_counts desligado' using errcode = 'P0001';
+  end if;
+  with recursive alvo (rel) as (
+    select 'public.competitor_channels'::regclass::oid
+    union
+    select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+  )
+  select coalesce(jsonb_object_agg(c.relname::text, coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0)), '{}'::jsonb) into v_base
+    from alvo a
+    join pg_catalog.pg_class c on c.oid = a.rel
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and not c.relispartition;
+
+  delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;
+
+  for v_t in
+    with recursive alvo (rel) as (
+      select 'public.competitor_channels'::regclass::oid
+      union
+      select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+       where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+    )
+    select c.relname::text as nome,
+           coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0) - coalesce((v_base ->> c.relname::text)::bigint, 0) as apagadas,
+           coalesce((select sum(b.row_count) from public.obs_archive_batches b
+                      where b.site_id = p_site and b.batch = v_batch and b.channel_ref = p_channel::text
+                        and b.table_name = c.relname::text and b.deleted_at is null), 0) as arquivadas
+      from alvo a
+      join pg_catalog.pg_class c on c.oid = a.rel
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and not c.relispartition
+       and c.relname::text not in (select e.table_name from public.obs_archive_excluded() e)
+     order by 1
+  loop
+    if v_t.apagadas <> v_t.arquivadas then
+      raise exception 'E10:apagou_alem_do_arquivo: % apagadas=% arquivadas=%', v_t.nome, v_t.apagadas, v_t.arquivadas using errcode = 'P0001';
+    end if;
+  end loop;
+
+  if exists (select 1 from public.obs_archive_channel_counts(p_channel)) then
+    raise exception 'E10:sobrou_linha: uma tabela do registro não apaga em cascata' using errcode = 'P0001';
+  end if;
+  update public.obs_archive_batches b
+     set deleted_at = v_now, rows_deleted = b.row_count,
+         blob_urls_pending = case when b.table_name = 'competitor_channels' then v_urls else b.blob_urls_pending end
+   where b.site_id = p_site and b.batch = v_batch and b.channel_ref = p_channel::text and b.deleted_at is null;
+  -- (emenda 1: D-I3, S-M4) os outros lotes abertos deste canal apontam para um canal que não existe mais: encerrados
+  update public.obs_archive_batches b
+     set closed_at = v_now, closed_reason = 'substituido'
+   where b.site_id = p_site and b.channel_ref = p_channel::text and b.deleted_at is null and b.closed_at is null;
+  insert into public.audit_log (actor_user_id, action, resource_type, resource_id, org_id, site_id, before_data, after_data)
+  select p_actor, 'observatorio_canal_removido_com_arquivo', 'competitor_channel', p_channel, s.org_id, p_site,
+         jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name),
+         jsonb_build_object('batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
+                            'miniaturas_no_blob', cardinality(v_urls), 'featured_refs_cleared', v_featured, 'featured_refs', v_refs)
+    from public.sites s where s.id = p_site;
+  return jsonb_build_object('status', 'removido', 'batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
+                            'blob_urls', to_jsonb(v_urls), 'featured_refs_cleared', v_featured);
+end $b$;
+$f$;
+    revoke all on function public.competitor_channel_remove_archived(uuid, uuid, uuid) from public, anon, authenticated;
+    grant execute on function public.competitor_channel_remove_archived(uuid, uuid, uuid) to service_role;
+  end if;
+end $$;
+
 -- 12. A conversão das três séries: um só bloco, uma só transação (se uma falhar, nenhuma muda).
 do $$
 begin
