@@ -36,7 +36,6 @@ export interface VideoRow {
   sourcePipelineId: string | null
   cmsNotes: string | null
   version: number
-  hasFatigueAlert: boolean
 }
 
 export interface ChannelOption {
@@ -292,11 +291,6 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                           {video.sourcePipelineId && (
                             <span className="ml-1.5 bg-purple-900/30 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
                               Pipeline
-                            </span>
-                          )}
-                          {video.hasFatigueAlert && (
-                            <span className="ml-1.5 bg-red-900/30 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium" title="Alerta de fadiga pendente">
-                              FADIGA
                             </span>
                           )}
                         </p>

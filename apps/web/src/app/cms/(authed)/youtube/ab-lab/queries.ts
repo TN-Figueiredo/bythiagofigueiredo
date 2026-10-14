@@ -394,56 +394,6 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
 }
 
 // ---------------------------------------------------------------------------
-// getFatigueAlerts
-// ---------------------------------------------------------------------------
-
-export interface FatigueAlert {
-  id: string
-  videoId: string
-  videoTitle: string
-  thumbnailUrl: string | null
-  zScore: number
-  expectedCtr: number
-  actualCtr: number
-  detectedAt: string
-}
-
-export async function getFatigueAlerts(siteId: string): Promise<FatigueAlert[]> {
-  const supabase = getSupabaseServiceClient()
-
-  const { data } = await supabase
-    .from('youtube_fatigue_alerts')
-    .select('id, video_id, z_score, expected_ctr, actual_ctr, detected_at, youtube_videos!inner(id, title, thumbnail_url)')
-    .eq('site_id', siteId)
-    .eq('status', 'pending')
-    .order('detected_at', { ascending: false })
-    .limit(5)
-
-  // Supabase embeds a `!inner` relation as either an object or a single-element
-  // array depending on FK inference — normalize like the rest of the codebase does.
-  type VideoJoin = Pick<
-    Database['public']['Tables']['youtube_videos']['Row'],
-    'id' | 'title' | 'thumbnail_url'
-  >
-  const pickVideo = (v: VideoJoin | VideoJoin[] | null | undefined): VideoJoin | null =>
-    Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
-
-  return (data ?? []).map(alert => {
-    const video = pickVideo(alert.youtube_videos)
-    return {
-      id: alert.id,
-      videoId: alert.video_id,
-      videoTitle: video?.title ?? 'Video',
-      thumbnailUrl: video?.thumbnail_url ?? null,
-      zScore: alert.z_score,
-      expectedCtr: alert.expected_ctr ?? 0,
-      actualCtr: alert.actual_ctr ?? 0,
-      detectedAt: alert.detected_at ?? '',
-    }
-  })
-}
-
-// ---------------------------------------------------------------------------
 // Pure computed helpers (Phase 3)
 // ---------------------------------------------------------------------------
 
@@ -953,22 +903,6 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
         // Strong underperformer relative to channel — boost priority
         v.score *= 1.2
       }
-    }
-  }
-
-  // 6b. Fatigue boost: +30% for videos with pending fatigue alerts
-  const { data: fatigueAlerts } = await supabase
-    .from('youtube_fatigue_alerts')
-    .select('video_id')
-    .eq('site_id', siteId)
-    .eq('status', 'pending')
-
-  const fatiguedVideoIds = new Set((fatigueAlerts ?? []).map(a => a.video_id as string))
-
-  for (const video of scored) {
-    if (fatiguedVideoIds.has(video.id)) {
-      video.score *= 1.3
-      video.reason = '⚠️ CTR em declínio'
     }
   }
 
