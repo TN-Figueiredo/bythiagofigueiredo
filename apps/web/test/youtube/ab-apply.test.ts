@@ -96,10 +96,10 @@ describe('applyVariantToYouTube', () => {
     },
   )
 
-  it('tipo description não escreve nada no YouTube', async () => {
+  it('tipo description é recusado (ok:false com a mensagem da constante), sem escrever nada', async () => {
     const r = await applyVariantToYouTube({ youtubeVideoId: 'YT1', accessToken: 'tok', testType: 'description' as TestType, variant: { id: 'v1', title_text: null } })
     expect(updateVideoMetadata).not.toHaveBeenCalled()
     expect(setThumbnail).not.toHaveBeenCalled()
-    expect(r).toMatchObject({ ok: true, appliedThumbnail: false, appliedMetadata: false })
+    expect(r).toMatchObject({ ok: false, appliedThumbnail: false, appliedMetadata: false, error: 'A descrição não participa mais do teste A/B' })
   })
 })

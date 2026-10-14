@@ -299,6 +299,21 @@ describe('applyWinnerNow', () => {
     expect(setThumbnail).not.toHaveBeenCalled()
   })
 
+  it('teste antigo de descrição: devolve erro sem gravar vitória nem escrever no YouTube', async () => {
+    const { fromMock } = setupApplyWinnerMock({ test_type: 'description' })
+
+    const result = await applyWinnerNow('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('descrição')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    for (const r of fromMock.mock.results) {
+      const b = r.value as { update?: { mock: { calls: unknown[] } } }
+      expect(b.update?.mock.calls ?? []).toHaveLength(0)
+    }
+  })
+
   it('returns error when preflight fails', async () => {
     setupApplyWinnerMock()
     ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -546,6 +561,21 @@ describe('revertWinner', () => {
       'fresh-token',
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
+  })
+
+  it('teste antigo de descrição: devolve erro sem zerar winner_applied_at nem escrever no YouTube', async () => {
+    const { fromMock } = setupRevertMock({ test_type: 'description' })
+
+    const result = await revertWinner('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('descrição')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    for (const r of fromMock.mock.results) {
+      const b = r.value as { update?: { mock: { calls: unknown[] } } }
+      expect(b.update?.mock.calls ?? []).toHaveLength(0)
+    }
   })
 
   it('dois canais: valida o token do canal dono do vídeo (PT), mesmo com o EN na primeira linha de youtube_channels', async () => {

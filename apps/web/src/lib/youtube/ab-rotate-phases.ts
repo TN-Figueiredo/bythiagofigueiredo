@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications/create'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import type { AbTestVariantRow, TestType } from '@/lib/youtube/ab-types'
 
 type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
@@ -90,6 +91,19 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
 
       video = videoRow
       if (!video) continue
+
+      // Teste antigo de tipo fora dos três (descrição saiu do A/B): pausa uma vez, sem ciclo e sem YouTube
+      if (!TestTypeSchema.safeParse(test.test_type ?? 'thumbnail').success) {
+        await supabase
+          .from('ab_tests')
+          .update({
+            status: 'paused',
+            status_note: 'Tipo de teste fora de uso: a descrição saiu do A/B Lab',
+            paused_at: new Date().toISOString(),
+          })
+          .eq('id', test.id)
+        continue
+      }
 
       // Idempotency: skip if we already rotated today
       const today = new Date().toISOString().slice(0, 10)

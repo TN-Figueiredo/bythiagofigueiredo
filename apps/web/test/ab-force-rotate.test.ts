@@ -254,6 +254,19 @@ describe('forceRotate', () => {
     )
   })
 
+  it('teste ativo de tipo antigo (descrição): recusa, sem marcador, sem ciclo e sem escrever no YouTube', async () => {
+    const { updateCalls, insertCalls } = buildSupabaseMock({ test: makeTest({ test_type: 'description' }) })
+
+    const result = await forceRotate('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('A descrição não participa mais do teste A/B')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
+    expect(insertCalls).toHaveLength(0)
+  })
+
   it('returns error when preflight fails', async () => {
     const test = makeTest()
     buildSupabaseMock({ test })

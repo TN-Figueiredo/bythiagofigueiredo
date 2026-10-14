@@ -759,6 +759,12 @@ export async function acknowledgeAbTestDrift(
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
+/** Teste antigo com tipo fora dos três (descrição saiu do A/B): mensagem de recusa, ou null se o tipo vale. */
+function recusaTipoForaDeUso(testType: unknown): string | null {
+  if (TestTypeSchema.safeParse(testType ?? 'thumbnail').success) return null
+  return testType === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido'
+}
+
 export async function resumeAbTest(
   testId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -780,6 +786,8 @@ export async function resumeAbTest(
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
+  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
+  if (tipoRecusado) return { ok: false, error: tipoRecusado }
   if (test.status_note === DRIFT_STATUS_NOTE && !test.drift_acknowledged_at) {
     return { ok: false, error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.' }
   }
@@ -1169,6 +1177,8 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     .single()
 
   if (!test) return { ok: false, error: 'Test not found or not active' }
+  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
+  if (tipoRecusado) return { ok: false, error: tipoRecusado }
 
   // Resolve channel for correct token
   const { data: video } = await supabase
@@ -1288,6 +1298,8 @@ export async function applyWinnerNow(
   if (!test || !test.winner_variant_id || test.winner_applied_at) {
     return { ok: false, error: 'Test not in grace period or already applied' }
   }
+  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
+  if (tipoRecusado) return { ok: false, error: tipoRecusado }
 
   // Get winner variant
   const { data: variant } = await supabase
@@ -1456,6 +1468,9 @@ export async function revertWinner(
 
   if (!test || !test.winner_applied_at) {
     return { ok: false, error: 'Test has no applied winner' }
+  }
+  if (!TestTypeSchema.safeParse(test.test_type ?? 'thumbnail').success) {
+    return { ok: false, error: 'Teste antigo de descrição: restaure a descrição pelo Studio' }
   }
 
   if (!test.revert_expires_at || new Date(test.revert_expires_at as string) < new Date()) {

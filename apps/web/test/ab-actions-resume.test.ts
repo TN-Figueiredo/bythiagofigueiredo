@@ -221,6 +221,18 @@ describe('resumeAbTest', () => {
     expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
 
+  it('teste pausado de tipo antigo (descrição): recusa, sem aplicar, sem ciclo e sem mudar status', async () => {
+    const { updateCalls, insertCalls } = buildSupabaseMock({ test: makeTest({ test_type: 'description' }) })
+
+    const result = await resumeAbTest('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('A descrição não participa mais do teste A/B')
+    expect(applyVariantToYouTube).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
+    expect(insertCalls).toHaveLength(0)
+  })
+
   it('stores applied_metadata on new cycle', async () => {
     const meta = { thumbnail_set: true, youtube_thumbnail_url: 'https://i.ytimg.com/vi/YT_VIDEO_123/hq.jpg' }
     ;(applyVariantToYouTube as ReturnType<typeof vi.fn>).mockResolvedValue({

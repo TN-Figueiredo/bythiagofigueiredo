@@ -561,6 +561,25 @@ describe('GET /api/cron/ab-rotate', () => {
     )
   })
 
+  it('teste antigo de tipo fora dos três: pausa uma vez com status_note, sem ciclo e sem escrever no YouTube', async () => {
+    const test = makeTest({ test_type: 'description' })
+    const { updateCalls, insertCalls } = buildSupabaseMock({ tests: [test] })
+
+    const res = await GET(createCronRequest('test-secret'))
+    const body = await res.json()
+
+    expect(body.processed).toBe(0)
+    expect(insertCalls.filter(c => c.table === 'ab_test_cycles')).toHaveLength(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    const pausas = updateCalls.filter(c => c.table === 'ab_tests'
+      && (c.data as { status?: string }).status === 'paused')
+    expect(pausas).toHaveLength(1)
+    expect((pausas[0].data as { status_note: string }).status_note).toContain('fora de uso')
+    // sem marcador de escrita antecipada
+    expect(updateCalls.some(c => 'last_applied_variant_id' in (c.data as object))).toBe(false)
+  })
+
   it('auto-pauses test after 3 consecutive failures', async () => {
     const test = makeTest({
       test_type: 'thumbnail',

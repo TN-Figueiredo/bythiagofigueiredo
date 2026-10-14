@@ -1,5 +1,6 @@
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
+import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
 import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
 export interface ApplyVariantInput {
@@ -34,6 +35,17 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
     variant,
     originalTitle,
   } = input
+
+  // Tipo fora dos três (teste antigo de descrição): recusa, nunca "sucesso" sem escrever.
+  if (!TestTypeSchema.safeParse(testType).success) {
+    return {
+      ok: false,
+      appliedThumbnail: false,
+      appliedMetadata: false,
+      meta: {},
+      error: (testType as string) === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido',
+    }
+  }
 
   let appliedThumbnail = false
   let appliedMetadata = false

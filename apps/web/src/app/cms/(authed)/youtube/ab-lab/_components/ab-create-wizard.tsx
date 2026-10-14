@@ -21,6 +21,7 @@ import {
   fetchAbBriefingData,
   fetchLibraryEntries,
 } from '../actions'
+import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { YtPortal } from '../../_components/yt-portal'
@@ -144,6 +145,12 @@ function clearDraft(videoId: string): void {
   try { localStorage.removeItem(draftStorageKey(videoId)) } catch { /* ignore */ }
 }
 
+/** Tipo restaurado de rascunho (localStorage ou banco): só vale se for um dos três atuais; o antigo ('description') vira null. */
+function tipoValido(t: unknown): TestType | null {
+  const r = TestTypeSchema.safeParse(t)
+  return r.success ? r.data : null
+}
+
 function makeOriginalVariant(videoTitle: string, thumbUrl?: string | null): VariantData {
   return { label: 'A', isOriginal: true, thumbUrl: thumbUrl ?? null, titleText: videoTitle }
 }
@@ -248,7 +255,12 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   if (continuingDraft) clearDraft(video.id)
   const saved = continuingDraft ? null : loadDraft(video.id)
 
-  const defaultVariants = prefill?.testType
+  const prefillType = tipoValido(prefill?.testType)
+  const savedType = tipoValido(saved?.type)
+  // Rascunho com tipo antigo volta ao passo "tipo" (nunca segue com tipo nulo ou inválido)
+  const tipoInvalido = Boolean((prefill?.testType && !prefillType) || (saved?.type && !savedType))
+
+  const defaultVariants = prefillType
     ? [makeOriginalVariant(video.title, video.thumbnailUrl), makeEmptyVariant('B')]
     : [makeOriginalVariant(video.title, video.thumbnailUrl)]
 
@@ -268,8 +280,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   })) as VariantData[] | undefined
 
   const [state, rawDispatch] = useReducer(wizardReducer, {
-    step: continuingDraft ? 4 : (saved?.step ?? (prefill?.testType || existingDraftId ? 2 : 0)),
-    type: prefill?.testType ?? saved?.type ?? null,
+    step: continuingDraft && !tipoInvalido ? 4 : tipoInvalido ? 0 : (saved?.step ?? (prefillType || existingDraftId ? 2 : 0)),
+    type: prefillType ?? savedType,
     variants: continuingDraft ? (dbVariants ?? defaultVariants) : (restoredVariants ?? dbVariants ?? defaultVariants),
     config: saved?.config ?? initWizardConfig(settings),
     videoId: video.id,

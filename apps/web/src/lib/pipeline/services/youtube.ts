@@ -1287,7 +1287,7 @@ export async function upsertVariants(
   }
 
   // A descrição saiu do teste (P3): 422 antes do Zod, para texto longo também dar 422 e não 400
-  if (pedeDescricao({ variants })) err(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status)
+  if (pedeDescricao({ variants })) return err(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status)
 
   // Validate batch schema
   const parsed = BatchVariantUpsertSchema.safeParse({ variants })
@@ -1324,7 +1324,7 @@ export async function upsertVariants(
   }
 
   // Validate test_type
-  if (pedeDescricao({ test_type: test.test_type })) err(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status)
+  if (pedeDescricao({ test_type: test.test_type })) return err(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status)
   const parsedType = TestTypeSchema.safeParse(test.test_type)
   if (!parsedType.success) {
     return err('VALIDATION_ERROR', 'Unknown test type', 400)
