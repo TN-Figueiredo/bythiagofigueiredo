@@ -6,7 +6,7 @@
 // Nunca fabrica prova num caminho de recusa: o fabricante só é chamado na última linha.
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
-import { ehSoDoPerfil, fraseDeVencida, type ChaveLida } from '@/lib/pipeline/chave'
+import { ehSoDoPerfil, fraseDeVencida, instanteValido, type ChaveLida } from '@/lib/pipeline/chave'
 import { FRASES } from './frases'
 import { acessoExternoLigado } from './interruptor'
 import { estadoDaPessoa, pediuApagamento, veOSite } from './pessoa'
@@ -33,7 +33,7 @@ function naoConferido(passo: 'pessoa' | 'apagamento' | 'vinculo', code: string):
 }
 
 /**
- * `vencida` vem de `ctx.vencida` (ponto único da chave), nunca de uma comparação refeita na rota. `agora` é o relógio da requisição.
+ * `vencida` vem de `ctx.vencida` (ponto único da chave), nunca de uma comparação refeita na rota; a porta ainda confere `expiresAt` contra `agora`. `agora` é o relógio da requisição.
  * Recusa sem registro: `registrar = false`. Recusa com registro leva `desfecho`.
  */
 export async function abrirPorta(chave: ChaveLida, vencida: boolean, agora: number, env?: NodeJS.ProcessEnv): Promise<ResultadoDaPorta> {
@@ -49,7 +49,9 @@ export async function abrirPorta(chave: ChaveLida, vencida: boolean, agora: numb
   if (chave.userId === null) return recusar({ ...FRASES.sem_pessoa, motivo: 'sem_pessoa', registrar: false })
   // 4. validade
   if (chave.expiresAt === null) return recusar({ ...FRASES.sem_validade, motivo: 'sem_validade', registrar: false })
-  if (vencida) return recusar({ status: 401, frase: fraseDeVencida(chave.expiresAt), motivo: 'vencida', registrar: false })
+  // `vencida` vem do ponto único da chave; a data é conferida AQUI também (defesa em profundidade): se os dois divergirem, vale o mais
+  // fechado. `!(validade > agora)` nega também com relógio ilegível (NaN), e a validade ilegível nega.
+  if (vencida || !instanteValido(chave.expiresAt) || !(Date.parse(chave.expiresAt) > agora)) return recusar({ status: 401, frase: fraseDeVencida(chave.expiresAt), motivo: 'vencida', registrar: false })
 
   // 5. a pessoa existe, não está banida e não tem pedido de apagamento confirmado. As duas leituras são independentes (o banimento é
   //    de melhor esforço), então saem juntas; o definitivo vale mais que o inconclusivo.

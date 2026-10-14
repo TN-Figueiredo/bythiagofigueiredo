@@ -158,6 +158,31 @@ describe('a porta: os passos 1 a 4 não tocam o banco', () => {
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
   })
 
+  it('vencida=false com expiresAt no passado: nega 401 (a porta confere a data, não confia só no booleano), sem banco', async () => {
+    const venceu = iso(AGORA - 3 * DIA)
+    const r = await recusaDe({ ...CHAVE, expiresAt: venceu }, false, ENV_ON)
+    expect(r).toMatchObject({ status: 401, frase: fraseDeVencida(venceu), motivo: 'vencida', registrar: false })
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+  })
+
+  it('a fronteira: expiresAt igual a agora nega (como resolverChave: <= agora)', async () => {
+    expect((await recusaDe({ ...CHAVE, expiresAt: iso(AGORA) }, false, ENV_ON)).motivo).toBe('vencida')
+    expect((await recusaDe({ ...CHAVE, expiresAt: iso(AGORA - 1) }, false, ENV_ON)).motivo).toBe('vencida')
+  })
+
+  it('os dois divergem: vencida=true com expiresAt no futuro também nega (o mais fechado vale)', async () => {
+    expect((await recusaDe({ ...CHAVE, expiresAt: iso(AGORA + 30 * DIA) }, true, ENV_ON)).motivo).toBe('vencida')
+  })
+
+  it('expiresAt ilegível ou relógio ilegível (NaN): nega 401 sem lançar', async () => {
+    expect((await recusaDe({ ...CHAVE, expiresAt: 'amanhã' }, false, ENV_ON)).motivo).toBe('vencida')
+    expect((await recusaDe({ ...CHAVE, expiresAt: '2030-01-01' }, false, ENV_ON)).motivo).toBe('vencida')
+    const r = await abrirPorta(CHAVE, false, Number.NaN, ENV_ON)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.recusa).toMatchObject({ status: 401, motivo: 'vencida' })
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+  })
+
   it('a ordem: com tudo errado ao mesmo tempo (misto, desligado, sem pessoa, vencida) a resposta é a do primeiro passo; e assim para cada par vizinho', async () => {
     modoSimulado = 'aviso'
     const tudoErrado: ChaveLida = { ...CHAVE, permissions: ['observatorio_leitura', 'read'], userId: null, expiresAt: iso(AGORA - DIA) }
@@ -313,6 +338,11 @@ describe('a porta: o passo 6 (o vínculo com o site)', () => {
 })
 
 describe('a porta: tudo certo e a prova', () => {
+  it('a fronteira da validade: 1 ms depois de agora ainda abre', async () => {
+    montarCliente(TUDO_CERTO)
+    expect((await abrirPorta({ ...CHAVE, expiresAt: iso(AGORA + 1) }, false, AGORA, ENV_ON)).ok).toBe(true)
+  })
+
   it('a prova carrega o site, a pessoa, a chave e o vencimento DA CHAVE; JSON.stringify não mostra nada; structuredClone não passa em chaveProvada', async () => {
     montarCliente(TUDO_CERTO)
     const r = await abrirPorta(CHAVE, false, AGORA, ENV_ON)
