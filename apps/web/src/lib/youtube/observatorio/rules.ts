@@ -58,6 +58,15 @@ export const RULES = {
   acessoIa: ACESSO_IA_RULES,
   // New (A5, E4; medidas M1 a M12). Os números moram em `medidas/regras.ts`; aqui só a leitura única.
   measures: MEASURE_RULES,
+  // New (A5, E10; export com conferência, pausa de coleta e sinal de limite). Quem lê cada chave: o módulo `arquivo/` e o sinal do banco.
+  // Meses sem publicar a partir dos quais o canal vira sugestão de arquivar.
+  archiveCutMonths: 12,
+  // Limite do banco INTEIRO do site (MB) e os cortes em percentual dele; os dias de tendência e o dia de leitura (05:00 de São Paulo).
+  dbSize: { limitMb: 500, yellowPct: 70, redPct: 85, redDaysToLimit: 90, trendMinDays: 14, trendWindowDays: 28, readingDayStartHourSP: 5, unmeasuredRedHours: 72 },
+  // Pausa esquecida (dias) e espera mínima entre pausar e exportar (minutos; o banco confere o mesmo número no registro).
+  pause: { forgottenDays: 7, minMinutesBeforeExport: 6 },
+  // Miniaturas pendentes no Blob (alerta em dias, tentativas por dia) e quanto vale a sugestão de arquivar (dias).
+  archive: { blobPendingAlertDays: 3, blobRetryMaxPerDay: 200, suggestionFreshDays: 7 },
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
