@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { GraduateCampaignOptionsSchema } from '../schemas'
+import { DESCRICAO_DESCRIBE } from '@/lib/youtube/ab-schemas'
 
 import * as itemsService from './services/items'
 import * as sectionsService from './services/sections'
@@ -662,7 +663,7 @@ const ManageRecordingShape = {
 // ---- 15. manage_ab_test ----
 const ManageAbTestShape = {
   action: z.enum(['list_tests', 'get_test', 'get_funnel', 'get_performance', 'get_intelligence', 'list_variants', 'upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task', 'get_learnings', 'get_suggestions', 'get_dashboard', 'get_history'])
-    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant (link clicks are human clicks in link_clicks inside the test window, start to end or now — not the lifetime total of the link; `link_clicks_window` says the window). get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants. delete_variant: remove non-original variant. submit_intelligence: submit Cowork recommendations for a running task — the row is stamped source=cowork from the caller\'s key, not from the payload. claim_task: claim the next pending intelligence task; over MCP this requires a `write`-scoped key (the REST equivalent, `POST .../intelligence/task/claim` with `channel_ids`, works with a `{read,intelligence}` key). get_learnings: tag win rates and channel insights from completed tests. get_suggestions: suggested videos for testing. get_dashboard: aggregate dashboard stats. get_history: test history for a video. In get_funnel, get_learnings, get_dashboard, get_history, get_test and list_tests, delivery fields (impressions, clicks, CTR, confidence, lift) come back `null` with `aviso: \'sem métrica de entrega\'` while the A/B has no real measurement; a win counts only when a person chose it.'),
+    .describe('list_tests: all A/B tests with optional status filter. get_test: single test details with variants+cycles. get_funnel: funnel metrics per variant (link_clicks is null and per_link is empty: the A/B has no tracked links since 10/2026). get_performance: winning patterns from completed tests. get_intelligence: channel intelligence snapshot. list_variants: variants for a test. upsert_variants: create/update variants; description_text must be null or absent, any text returns DESCRICAO_FORA_DO_TESTE (422). delete_variant: remove non-original variant. submit_intelligence: submit Cowork recommendations for a running task — the row is stamped source=cowork from the caller\'s key, not from the payload. claim_task: claim the next pending intelligence task; over MCP this requires a `write`-scoped key (the REST equivalent, `POST .../intelligence/task/claim` with `channel_ids`, works with a `{read,intelligence}` key). get_learnings: tag win rates and channel insights from completed tests. get_suggestions: suggested videos for testing. get_dashboard: aggregate dashboard stats. get_history: test history for a video. In get_funnel, get_learnings, get_dashboard, get_history, get_test and list_tests, delivery fields (impressions, clicks, CTR, confidence, lift) come back `null` with `aviso: \'sem métrica de entrega\'` while the A/B has no real measurement; a win counts only when a person chose it.'),
   test_id: z.string().uuid().optional()
     .describe('A/B test UUID (required for get_test, get_funnel, list_variants, upsert_variants, delete_variant)'),
   channel_id: z.string().uuid().optional()
@@ -675,7 +676,9 @@ const ManageAbTestShape = {
     label: z.enum(['B', 'C', 'D'])
       .describe('B: first alternative. C: second alternative. D: third alternative.'),
     title_text: z.string().max(200).nullable().optional(),
-    description_text: z.string().max(5000).nullable().optional(),
+    description_text: z.string().nullable().optional().describe(DESCRICAO_DESCRIBE),
+    // L2: aceita a chave legada `description` só para que ela chegue a `pedeDescricao` e devolva 422 (o Zod a descartaria em silêncio)
+    description: z.string().nullable().optional().describe(DESCRICAO_DESCRIBE),
     metadata: z.object({
       thumbnail_tags: z.array(z.string().max(50)).max(10).optional(),
       title_pattern: z.string().max(200).optional(),

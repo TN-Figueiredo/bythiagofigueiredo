@@ -163,7 +163,7 @@ const RESEARCH: CapabilityDomain = {
 const YOUTUBE: CapabilityDomain = {
   domain: 'youtube',
   name: 'YouTube Analytics & A/B Testing',
-  description: 'Channel intelligence, video performance analysis, and title/description A/B testing.',
+  description: 'Channel intelligence, video performance analysis, and title and thumbnail A/B testing.',
   suggest_when: 'YouTube analytics, performance review, A/B test management, video optimization',
   docs: '/api/pipeline/docs/youtube',
   endpoint_count: 34,
@@ -189,7 +189,7 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id/funnel', summary: 'Get funnel metrics per variant', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id/history', summary: 'Get test history for a video by youtube_video_id', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-performance', summary: 'Aggregate winning patterns from completed tests', auth: 'read' },
-    { method: 'POST', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'Batch upsert variants (B, C, D) for a draft test', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'Batch upsert variants (B, C, D) for a draft test (description_text only null; text → 422)', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'List all variants for a test ordered by sort_order', auth: 'read' },
     { method: 'DELETE', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'Delete a non-original variant by label (B, C, or D)', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/learnings', summary: 'Tag win rates and channel insights from completed tests', auth: 'read' },

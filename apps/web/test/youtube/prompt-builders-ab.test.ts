@@ -229,6 +229,15 @@ describe('edge cases', () => {
     expect(prompt).not.toMatch(/avg lift|lift não medido|12\.5%|4\.0%/)
   })
 
+  it('P3: os modelos de título e combo não mandam mais o Cowork enviar description_text', () => {
+    for (const locale of ['pt', 'en'] as const) {
+      for (const testType of ['title', 'combo'] as const) {
+        const prompt = buildAbWritePrompt({ testType, data: makeAbBriefingData({ locale }) })
+        expect(prompt).not.toContain('description_text')
+      }
+    }
+  })
+
   it('all 4 test types — each includes focus text when provided', () => {
     const focus = 'Priorizar contraste alto'
     const testTypes = ['thumbnail', 'title', 'description', 'combo'] as const
@@ -583,7 +592,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Title B', description_text: null, blob_url: 'https://blob.vercel-storage.com/img.png', metadata: {} },
+        { label: 'B', title_text: 'Title B', blob_url: 'https://blob.vercel-storage.com/img.png', metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -596,7 +605,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'en',
       variants: [
-        { label: 'B', title_text: 'Title B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Title B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -611,7 +620,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Título B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -623,7 +632,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Título B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -635,7 +644,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Título B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -648,8 +657,8 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'en',
       variants: [
-        { label: 'B', title_text: 'Title B', description_text: null, blob_url: null, metadata: {} },
-        { label: 'C', title_text: 'Title C', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Title B', blob_url: null, metadata: {} },
+        { label: 'C', title_text: 'Title C', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })

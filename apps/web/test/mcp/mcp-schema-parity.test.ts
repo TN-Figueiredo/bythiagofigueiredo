@@ -118,7 +118,7 @@ function registerSchemaTools(server: McpServer): void {
       variants: z.array(z.object({
         label: z.enum(['B', 'C', 'D']),
         title_text: z.string().max(200).nullable().optional(),
-        description_text: z.string().max(5000).nullable().optional(),
+        description_text: z.string().nullable().optional().describe('Fora do teste desde 10/2026: só null é aceito; texto devolve 422 DESCRICAO_FORA_DO_TESTE'),
         metadata: z.record(z.unknown()).nullable().optional(),
       })).optional(),
     },

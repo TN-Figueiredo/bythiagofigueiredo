@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
-import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schemas'
+import { BatchVariantUpsertSchema, TestTypeSchema, TIPOS_DE_TESTE, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
+import type { Database } from '@/types/database.types'
 import { scoreVideo, computeBaseline, computeTrend, assignGrade } from '@/lib/youtube/scoring'
 import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
@@ -146,7 +147,6 @@ export interface AbTestListItem {
     is_original: boolean
     blob_url: string | null
     title_text: string | null
-    description_text: string | null
     metadata: VariantMetadata
     sort_order: number
   }>
@@ -168,7 +168,7 @@ export interface PerVariantFunnel {
   variant_id: string
   impressions: number | null
   clicks: number | null
-  link_clicks: number
+  link_clicks: number | null
 }
 
 export interface PerLinkFunnel {
@@ -181,7 +181,7 @@ export interface PerLinkFunnel {
 export interface FunnelMetrics {
   per_variant: PerVariantFunnel[]
   per_link: PerLinkFunnel[]
-  /** Window the link clicks were counted in (test start -> test end, or now while active). null = test never started, link clicks are 0. */
+  /** null: o A/B não tem mais link rastreado (P3) */
   link_clicks_window: { from: string; to: string } | null
   aviso: AvisoSemMetricaDeEntrega
 }
@@ -190,7 +190,6 @@ interface WinnerVariant {
   id: string
   label: string
   title_text: string | null
-  description_text: string | null
   metadata: {
     title_pattern?: string
     thumbnail_tags?: string[]
@@ -220,7 +219,6 @@ export interface VariantRow {
   file_size_bytes: number | null
   dimensions: string | null
   title_text: string | null
-  description_text: string | null
   metadata: VariantMetadata
   sort_order: number
   created_at: string
@@ -985,7 +983,7 @@ export async function failTask(
 // Colunas de hoje (database.types.ts), menos as de entrega, que saem null.
 const CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM = [
   'applied_by', 'apply_attempts', 'completed_at', 'completed_reason', 'config', 'created_at', 'drift_acknowledged_at',
-  'grace_expires_at', 'id', 'last_applied_variant_id', 'last_apply_error', 'name', 'original_description',
+  'grace_expires_at', 'id', 'last_applied_variant_id', 'last_apply_error', 'name',
   'original_thumbnail_url', 'original_title', 'parent_test_id', 'paused_at', 'playoff_start_after', 'playoff_test_id',
   'queue_start_after', 'revert_expires_at', 'round_number', 'site_id', 'source_pipeline_id', 'started_at', 'status',
   'status_note', 'test_type', 'updated_at', 'winner_applied_at', 'winner_variant_id', 'youtube_video_id',
@@ -998,10 +996,23 @@ const CAMPOS_DO_CICLO_QUE_SAEM_COMO_VIERAM = [
 
 const CAMPOS_DO_CICLO_DE_ENTREGA = ['impressions', 'clicks', 'ctr', 'estimated_impressions', 'estimated_clicks', 'estimated_ctr'] as const
 
+type ColunaVariante = keyof Database['public']['Tables']['ab_test_variants']['Row']
+const CAMPOS_DA_VARIANTE = ['id', 'test_id', 'label', 'is_original', 'blob_url', 'blob_key', 'file_size_bytes',
+  'dimensions', 'title_text', 'metadata', 'sort_order', 'source_variant_id', 'created_at'] as const satisfies readonly ColunaVariante[]
+// `thumbnail_dhash` (Migration 0) é interno do A/B Lab e sai de propósito.
+// coluna nova no banco obriga alguém a decidir (entra na lista ou sai de propósito), em vez de sumir em silêncio
+type _Cobre = Exclude<ColunaVariante, (typeof CAMPOS_DA_VARIANTE)[number] | 'description_text' | 'thumbnail_dhash'> extends never ? true : never
+const _cobre: _Cobre = true
+void _cobre
+
 function copiar(row: Record<string, unknown>, campos: readonly string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const c of campos) if (c in row) out[c] = row[c]
   return out
+}
+
+function projetarVariante(row: Record<string, unknown>): Record<string, unknown> {
+  return copiar(row, CAMPOS_DA_VARIANTE)
 }
 
 function projetarCiclo(row: Record<string, unknown>): Record<string, unknown> {
@@ -1022,7 +1033,7 @@ function projetarTeste(row: Record<string, unknown>): Record<string, unknown> {
     total_impressions: null,
     estimated_monthly_extra_clicks: null,
   } satisfies AbResultMetadataSaida
-  out.variants = row.variants ?? []
+  out.variants = ((row.variants ?? []) as Record<string, unknown>[]).map(projetarVariante)
   out.aviso = AVISO_SEM_METRICA_DE_ENTREGA
   return out
 }
@@ -1038,7 +1049,7 @@ export async function listAbTests(
     .from('ab_tests')
     .select(`
       *,
-      variants:ab_test_variants!test_id(id, label, is_original, blob_url, title_text, description_text, metadata, sort_order)
+      variants:ab_test_variants!test_id(id, label, is_original, blob_url, title_text, metadata, sort_order)
     `)
     .eq('site_id', siteId)
     .order('created_at', { ascending: false })
@@ -1069,8 +1080,7 @@ export async function getAbTest(
     .select(`
       *,
       variants:ab_test_variants!test_id(*),
-      cycles:ab_test_cycles!test_id(*),
-      tracked_links:ab_test_tracked_links!ab_test_id(*)
+      cycles:ab_test_cycles!test_id(*)
     `)
     .eq('id', id)
     .eq('site_id', siteId)
@@ -1081,24 +1091,13 @@ export async function getAbTest(
   const row = test as Record<string, unknown>
   const detail = projetarTeste(row)
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
-  detail.tracked_links = row.tracked_links ?? []
+  detail.tracked_links = []
   return ok(detail as unknown as AbTestDetail)
 }
 
 // ---------------------------------------------------------------------------
 // A/B Tests — funnel metrics
 // ---------------------------------------------------------------------------
-
-interface TrackedLink {
-  id: string
-  ab_test_id: string
-  variant_id: string
-  link_id: string
-  template_name: string
-  short_code: string
-  created_at: string
-  link: { id: string; code: string; destination_url: string }
-}
 
 interface CycleRow {
   variant_id: string
@@ -1116,86 +1115,32 @@ export async function getAbTestFunnel(
   // Verify test belongs to site
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, started_at, completed_at')
+    .select('id, site_id')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
 
   if (!test) return err('NOT_FOUND', 'Test not found', 404)
 
-  // Fetch tracked links and cycles in parallel
-  const [trackedLinksRes, cyclesRes] = await Promise.all([
-    supabase
-      .from('ab_test_tracked_links')
-      .select(`
-        *,
-        link:tracked_links!link_id(id, code, destination_url)
-      `)
-      .eq('ab_test_id', id),
-    supabase
-      .from('ab_test_cycles')
-      .select('variant_id, impressions, clicks')
-      .eq('test_id', id)
-      .not('impressions', 'is', null),
-  ])
+  const cyclesRes = await supabase
+    .from('ab_test_cycles')
+    .select('variant_id, impressions, clicks')
+    .eq('test_id', id)
+    .not('impressions', 'is', null)
 
-  if (trackedLinksRes.error) return err('DB_ERROR', 'Failed to load A/B tracked links', 500)
   if (cyclesRes.error) return err('DB_ERROR', 'Failed to load A/B cycles', 500)
-  const trackedLinks = trackedLinksRes.data as TrackedLink[] | null
   const cycles = cyclesRes.data as CycleRow[] | null
 
-  // Variants that have a cycle; impressions/clicks of delivery have no real measure, so they leave as null
+  // Variants that have a cycle; impressions/clicks de entrega não têm medida real (null), e o A/B
+  // não cria mais link rastreado desde 10/2026 (P3): link_clicks null, per_link [], janela null.
   const variantIds = [...new Set((cycles ?? []).map(c => c.variant_id))]
 
-  // Link clicks are counted in `link_clicks` inside the test window (start -> end, or now while
-  // active). `tracked_links.total_clicks` is a lifetime total: after the winner is applied it keeps
-  // growing and would tilt the comparison. A link soft-deleted (`deleted_at`) counts for nothing.
-  // The table is partitioned by date; the `clicked_at` bounds also prune partitions.
-  const linkClicksByLinkId: Record<string, number> = {}
-  const startedAt = (test as { started_at: string | null }).started_at
-  const completedAt = (test as { completed_at: string | null }).completed_at
-  const window = startedAt ? { from: startedAt, to: completedAt ?? new Date().toISOString() } : null
-  const linkIds = [...new Set((trackedLinks ?? []).map(tl => tl.link_id).filter(Boolean))]
-  if (window && linkIds.length) {
-    const { data: live, error: liveError } = await supabase
-      .from('tracked_links')
-      .select('id')
-      .eq('site_id', siteId)
-      .in('id', linkIds)
-      .is('deleted_at', null)
-    if (liveError) return err('DB_ERROR', 'Failed to load tracked links', 500)
-    const counts = await Promise.all(((live ?? []) as Array<{ id: string }>).map(async (l) => {
-      const { count, error: clicksError } = await supabase
-        .from('link_clicks')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', siteId)
-        .eq('link_id', l.id)
-        .eq('is_bot', false)
-        .gte('clicked_at', window.from)
-        .lte('clicked_at', window.to)
-      if (clicksError) return err('DB_ERROR', 'Failed to count link clicks', 500)
-      return [l.id, count ?? 0] as const
-    }))
-    for (const [lid, n] of counts) linkClicksByLinkId[lid] = n
-  }
-
-  const per_variant: PerVariantFunnel[] = variantIds.map(variantId => ({
-    variant_id: variantId,
-    impressions: null,
-    clicks: null,
-    link_clicks: (trackedLinks ?? [])
-      .filter(tl => tl.variant_id === variantId)
-      .reduce((sum, tl) => sum + (linkClicksByLinkId[tl.link_id] ?? 0), 0),
-  }))
-
-  const per_link = (trackedLinks ?? []).map(tl => ({
-    template_name: tl.template_name,
-    variant_id: tl.variant_id,
-    short_code: tl.short_code,
-    clicks: linkClicksByLinkId[tl.link_id] ?? 0,
-  }))
-
-  return ok({ per_variant, per_link, link_clicks_window: window, aviso: AVISO_SEM_METRICA_DE_ENTREGA })
+  return ok({
+    per_variant: variantIds.map(variantId => ({ variant_id: variantId, impressions: null, clicks: null, link_clicks: null })),
+    per_link: [],
+    link_clicks_window: null,
+    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1212,7 +1157,7 @@ export async function getAbPerformance(
     .from('ab_tests')
     .select(`
       id, name, test_type, winner_variant_id, completed_reason,
-      winner:ab_test_variants!winner_variant_id(id, label, title_text, description_text, metadata),
+      winner:ab_test_variants!winner_variant_id(id, label, title_text, metadata),
       variants:ab_test_variants!test_id(id, metadata)
     `)
     .eq('site_id', siteId)
@@ -1307,7 +1252,7 @@ export async function listVariants(
     return err('DB_ERROR', 'Failed to load variants', 500)
   }
 
-  return ok((variants ?? []) as VariantRow[])
+  return ok(((variants ?? []) as Record<string, unknown>[]).map(projetarVariante) as unknown as VariantRow[])
 }
 
 // ---------------------------------------------------------------------------
@@ -1316,16 +1261,13 @@ export async function listVariants(
 
 /** Validates type-specific required fields for variant payloads. */
 function validateTypeSpecificFields(
-  testType: TestType,
-  variants: Array<{ label: string; title_text?: string | null; description_text?: string | null }>,
+  testType: z.infer<typeof TestTypeSchema>,
+  variants: Array<{ label: string; title_text?: string | null }>,
 ): string[] {
   const errors: string[] = []
   for (const v of variants) {
     if (testType === 'title' && !v.title_text) {
       errors.push(`Variant ${v.label}: title_text required for title tests`)
-    }
-    if (testType === 'description' && !v.description_text) {
-      errors.push(`Variant ${v.label}: description_text required for description tests`)
     }
     if (testType === 'combo' && !v.title_text) {
       errors.push(`Variant ${v.label}: title_text required for combo tests`)
@@ -1343,6 +1285,9 @@ export async function upsertVariants(
   if (!UUID_REGEX.test(testId)) {
     return err('VALIDATION_ERROR', 'Invalid test ID format', 400)
   }
+
+  // A descrição saiu do teste (P3): 422 antes do Zod, para texto longo também dar 422 e não 400
+  if (pedeDescricao({ variants })) err(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status)
 
   // Validate batch schema
   const parsed = BatchVariantUpsertSchema.safeParse({ variants })
@@ -1379,6 +1324,7 @@ export async function upsertVariants(
   }
 
   // Validate test_type
+  if (pedeDescricao({ test_type: test.test_type })) err(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status)
   const parsedType = TestTypeSchema.safeParse(test.test_type)
   if (!parsedType.success) {
     return err('VALIDATION_ERROR', 'Unknown test type', 400)
@@ -1396,7 +1342,6 @@ export async function upsertVariants(
     label: v.label,
     is_original: false,
     title_text: v.title_text ?? null,
-    description_text: v.description_text ?? null,
     metadata: v.metadata ?? {},
     sort_order: i + 1,
   }))
@@ -1547,7 +1492,7 @@ export async function getAbLearnings(
   const allVariants = allVariantsRes.data ?? []
 
   // Build tag aggregation (mirroring queries.ts aggregateTags pattern)
-  const tagMap = new Map<string, { wins: number; total: number; kind: 'thumb' | 'title' | 'desc' }>()
+  const tagMap = new Map<string, { wins: number; total: number; kind: 'thumb' | 'title' }>()
 
   for (const test of tests) {
     const winner = winners.find(w => (w.id as string) === (test.winner_variant_id as string))
@@ -1555,7 +1500,9 @@ export async function getAbLearnings(
     const meta = winner.metadata as Record<string, unknown> | null
     const tags = (meta?.thumbnail_tags as string[]) ?? []
     const testType = (test.test_type as string | undefined) ?? 'thumbnail'
-    const kind = testType === 'title' ? 'title' as const : testType === 'description' ? 'desc' as const : 'thumb' as const
+    // teste antigo de descrição fica fora do aprendizado
+    if (!(TIPOS_DE_TESTE as readonly string[]).includes(testType)) continue
+    const kind = testType === 'title' ? 'title' as const : 'thumb' as const
 
     for (const tag of tags) {
       const existing = tagMap.get(tag) ?? { wins: 0, total: 0, kind }

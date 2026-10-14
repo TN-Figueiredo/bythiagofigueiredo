@@ -1,7 +1,32 @@
 import { z } from 'zod'
 import { VARIANT_LABELS } from './ab-types'
 
-export const TestTypeSchema = z.enum(['thumbnail', 'title', 'description', 'combo'])
+/** Os tipos de teste que existem desde a P3 (10/2026). */
+export const TIPOS_DE_TESTE = ['thumbnail', 'title', 'combo'] as const
+export const TestTypeSchema = z.enum(TIPOS_DE_TESTE)
+
+/** A descrição saiu do A/B Lab (P3). Única recusa com 422 do A/B. */
+export const DESCRICAO_FORA_DO_TESTE = {
+  code: 'DESCRICAO_FORA_DO_TESTE',
+  message: 'A descrição não participa mais do teste A/B',
+  status: 422,
+} as const
+
+const TIPO_DESCRICAO = 'description'
+
+/** true se o pedido põe descrição num teste: tipo 'description', ou `description_text` não nulo
+ *  (inclusive "") em alguma variante. Recebe sempre o vetor: o desembrulho do corpo `{ variants: [...] }`
+ *  é da rota REST (D5), não desta função. */
+export function pedeDescricao(input: { test_type?: unknown; variants?: unknown[] }): boolean {
+  if (input.test_type === TIPO_DESCRICAO) return true
+  // L2 (Gio): a chave legada `description` também conta; o Zod a descartaria em silêncio (sucesso falso, proibido pelo spec)
+  if (!Array.isArray(input.variants)) return false
+  return input.variants.some(v => typeof v === 'object' && v !== null
+    && ((v as Record<string, unknown>).description_text != null || (v as Record<string, unknown>).description != null))
+}
+
+/** Texto do `describe` da descrição nas variantes (Zod do serviço e shape do MCP). */
+export const DESCRICAO_DESCRIBE = 'Fora do teste desde 10/2026: só null é aceito; texto devolve 422 DESCRICAO_FORA_DO_TESTE'
 
 export const VariantMetadataSchema = z.object({
   thumbnail_tags: z.array(z.string().max(50)).max(10).optional(),
@@ -16,7 +41,7 @@ export const VariantMetadataSchema = z.object({
 export const VariantPayloadSchema = z.object({
   label: z.enum(VARIANT_LABELS),
   title_text: z.string().max(200).nullable().optional(),
-  description_text: z.string().max(5000).nullable().optional(),
+  description_text: z.string().nullable().optional().describe(DESCRICAO_DESCRIBE),
   metadata: VariantMetadataSchema.nullable().optional(),
 })
 

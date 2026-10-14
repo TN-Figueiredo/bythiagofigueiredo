@@ -20,7 +20,6 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
            "rationale": "<justificativa da variante>"
          }`,
     combo: `         "title_text": "<título, obrigatório, máx 200 chars>",
-         "description_text": "<descrição, opcional>",
          "metadata": {
            "creative_direction": "<direção criativa, opcional>",
            "ai_image_prompt": "<prompt AI, opcional>",
@@ -40,7 +39,6 @@ const TYPE_FIELD_DOCS: Record<Locale, Record<TestType, string>> = {
            "rationale": "<rationale for the variant>"
          }`,
     combo: `         "title_text": "<title, required, max 200 chars>",
-         "description_text": "<description, optional>",
          "metadata": {
            "creative_direction": "<creative direction, optional>",
            "ai_image_prompt": "<AI image prompt, optional>",
@@ -442,7 +440,6 @@ export function buildAbReviewPrompt(options: {
   variants: Array<{
     label: string
     title_text: string | null
-    description_text: string | null
     blob_url: string | null
     metadata: VariantMetadata | Record<string, unknown>
   }>
@@ -460,7 +457,6 @@ export function buildAbReviewPrompt(options: {
   for (const v of variants) {
     lines.push(`  ${v.label}:`)
     if (v.title_text) lines.push(`    title: ${v.title_text}`)
-    if (v.description_text) lines.push(`    description: ${v.description_text}`)
     if (v.blob_url) lines.push(`    image: ${v.blob_url}`)
     const meta = v.metadata as Record<string, unknown>
     if (meta && Object.keys(meta).length > 0) lines.push(`    metadata: ${JSON.stringify(meta)}`)

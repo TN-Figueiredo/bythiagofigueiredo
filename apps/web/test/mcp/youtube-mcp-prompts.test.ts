@@ -628,6 +628,21 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
     expect(data.testHistory).toEqual([{ test_type: 'thumbnail', winner_label: null }, { test_type: 'title', winner_label: 'variant' }])
   })
 
+  it('P3: ab-write sobre teste gravado como description rejeita com a frase; tipo desconhecido, com "Tipo de teste desconhecido"', async () => {
+    await start(world({
+      ab_tests: [test_('t-desc', { test_type: 'description' }), test_('t-xyz', { test_type: 'xyz' })],
+    } as Partial<FakePostgrestOptions['tables']>))
+    await expect(pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: 't-desc' } })).rejects.toThrow('A descrição não participa mais do teste A/B')
+    await expect(pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: 't-xyz' } })).rejects.toThrow('Tipo de teste desconhecido')
+    expect(vi.mocked(buildAbWritePrompt)).not.toHaveBeenCalled()
+  })
+
+  it('P3: ab-ideate com test_type description lança a frase; tipo inválido lista só os três', async () => {
+    await start(world())
+    await expect(pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'description' } })).rejects.toThrow('A descrição não participa mais do teste A/B')
+    await expect(pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'xyz' } })).rejects.toThrow('Must be thumbnail, title, or combo.')
+  })
+
   it('ab-write: teste de outro site → "A/B test not found"', async () => {
     await start(world())
     await expect(pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: T_ALHEIO } })).rejects.toThrow(/A\/B test not found/)

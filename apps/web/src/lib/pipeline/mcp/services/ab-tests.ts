@@ -12,6 +12,7 @@ import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import type { VariantInput } from '@/lib/pipeline/services/youtube'
 import * as youtube from '@/lib/pipeline/services/youtube'
+import { DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
 import { toMcpError, toMcpSuccess } from '../errors'
 
 type Params = Record<string, unknown>
@@ -88,6 +89,9 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
         const variants = params.variants as VariantInput[] | undefined
         if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required' })
         if (!variants?.length) return toMcpError({ code: 'VALIDATION_ERROR', message: 'variants array is required and must not be empty' })
+        if (pedeDescricao({ variants })) {
+          return toMcpError(new PipelineServiceError(DESCRICAO_FORA_DO_TESTE.code, DESCRICAO_FORA_DO_TESTE.message, DESCRICAO_FORA_DO_TESTE.status))
+        }
 
         if (params.dry_run !== false) {
           // Fetch current variants to show diff
@@ -106,7 +110,6 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
             proposed_variants: variants.map((v) => ({
               label: v.label,
               title_text: v.title_text,
-              description_text: v.description_text,
             })),
             message: 'Call again with dry_run: false to execute.',
           })

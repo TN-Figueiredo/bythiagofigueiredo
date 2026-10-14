@@ -376,30 +376,16 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     },
   })
 
-  it('teste concluído: só cliques humanos entre início e fim; lifetime e cliques depois do fim ficam de fora', async () => {
+  it('P3: teste concluído, sem link rastreado: link_clicks null, per_link [], janela null, e nenhuma leitura de links ou cliques', async () => {
     sb = fakePostgrest(world({ started_at: START, completed_at: END }))
     const { data } = await getAbTestFunnel(ctx(), 't1')
-    expect(data.link_clicks_window).toEqual({ from: START, to: END })
-    expect(data.per_link.map(l => [l.short_code, l.clicks])).toEqual([['abc', 2], ['def', 1], ['ghi', 0]])
-    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: 2 }])
+    expect(data.link_clicks_window).toBeNull()
+    expect(data.per_link).toEqual([])
+    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: null }])
     expect(data.aviso).toBe('sem métrica de entrega')
-    // uma query de contagem por link vivo, com count exato e head
-    const counts = sb.on('link_clicks')
-    expect(counts).toHaveLength(2)
-    expect(counts.every(q => q.head && q.count === 'exact')).toBe(true)
-  })
-
-  it('teste ativo: a janela vai até agora (inclui o clique recente)', async () => {
-    const started = new Date(Date.now() - 5 * DAY).toISOString()
-    const w = world({ started_at: started, completed_at: null })
-    w.tables.link_clicks = [
-      { id: 'n1', site_id: SITE, link_id: 'l1', is_bot: false, clicked_at: new Date(Date.now() - 1 * DAY).toISOString() },
-      { id: 'n2', site_id: SITE, link_id: 'l1', is_bot: false, clicked_at: new Date(Date.now() - 9 * DAY).toISOString() },
-    ]
-    sb = fakePostgrest(w)
-    const { data } = await getAbTestFunnel(ctx(), 't1')
-    expect(data.per_link.find(l => l.short_code === 'abc')?.clicks).toBe(1)
-    expect(data.link_clicks_window?.from).toBe(started)
+    expect(sb.on('link_clicks')).toHaveLength(0)
+    expect(sb.on('ab_test_tracked_links')).toHaveLength(0)
+    expect(sb.on('tracked_links')).toHaveLength(0)
   })
 
   it('teste que nunca começou: sem janela e sem consulta de cliques', async () => {
@@ -408,13 +394,6 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     expect(data.link_clicks_window).toBeNull()
     expect(data.per_link.every(l => l.clicks === 0)).toBe(true)
     expect(sb.on('link_clicks')).toHaveLength(0)
-  })
-
-  it('erro ao contar cliques é erro, não zero', async () => {
-    const w = world({ started_at: START, completed_at: END })
-    w.fail = q => (q.table === 'link_clicks' ? { code: '57014', message: 'timeout' } : null)
-    sb = fakePostgrest(w)
-    await expect(getAbTestFunnel(ctx(), 't1')).rejects.toMatchObject({ code: 'DB_ERROR' })
   })
 })
 

@@ -3,10 +3,20 @@ import { z } from 'zod'
 export const RecommendationSchema = z.object({
   video_id: z.string().uuid(),
   action_type: z.enum([
-    'thumbnail_test', 'title_test', 'description_test', 'combo_test',
+    'thumbnail_test', 'title_test', 'combo_test',
     'retention_fix', 'seo_optimization', 'engagement_boost', 'distribution_expand',
     'content_series', 'publish_timing', 'community_post', 'end_screen_optimize',
-  ]),
+  ], {
+    errorMap: (issue, ctx) => {
+      if (issue.code !== 'invalid_enum_value') return { message: ctx.defaultError }
+      const aceitos = issue.options.join(', ')
+      return {
+        message: issue.received === 'description_test'
+          ? `tipo de recomendação não aceito: a descrição não participa mais do teste A/B (10/2026). Aceitos: ${aceitos}`
+          : `tipo de recomendação não aceito: ${String(issue.received).slice(0, 60)}. Aceitos: ${aceitos}`,
+      }
+    },
+  }),
   priority: z.enum(['high', 'medium', 'low']),
   confidence: z.number().min(0).max(1),
   reasoning: z.string().max(500),

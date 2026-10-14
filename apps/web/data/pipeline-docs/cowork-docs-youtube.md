@@ -10,7 +10,7 @@ O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 - Diagnósticos por vídeo (fraquezas, oportunidades)
 - Coaching cards (recomendações priorizadas por eixo)
 - Notificações acionáveis (grade drops, CTR drops)
-- Sugestões de A/B tests (thumb, title, description, combo)
+- Sugestões de A/B tests (thumb, title, combo)
 
 ---
 
@@ -175,7 +175,7 @@ Pickup de tasks pendentes (transição atômica para 'running'). **Endpoint lega
 ```json
 {
   "video_id": "uuid",
-  "action_type": "thumbnail_test | title_test | description_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
+  "action_type": "thumbnail_test | title_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
   "priority": "high | medium | low",
   "confidence": 0.0-1.0,
   "reasoning": "Explicação em até 500 chars, PT-BR, acionável"
@@ -187,6 +187,7 @@ Pickup de tasks pendentes (transição atômica para 'running'). **Endpoint lega
 - `confidence` deve refletir certeza da análise (0.9+ = padrão claro, 0.5-0.7 = hipótese)
 - `reasoning` deve ser específico e incluir dados quando possível
 - Não sugerir `thumbnail_test` se vídeo já está em ciclo `testing`
+- `description_test` saiu: 400 com "a descrição não participa mais do teste A/B"
 
 ### Coaching (por canal)
 
@@ -457,7 +458,7 @@ Resposta da recusa: `{ "data": { "id": "uuid", "status": "refused" } }`.
 
 ### POST /api/pipeline/youtube/ab-tests/:id/variants
 
-Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLICT (test_id, label)` — idempotente.
+Batch upsert variants (B, C, D) para um teste em status `draft`. Corpo: `{ "variants": [...] }` ou o vetor. Usa `ON CONFLICT (test_id, label)` — idempotente.
 
 **Auth:** write
 
@@ -468,7 +469,6 @@ Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLIC
     {
       "label": "B",
       "title_text": "Título alternativo B",
-      "description_text": null,
       "metadata": {
         "rationale": "Versão com gancho emocional mais forte",
         "thumbnail_tags": ["expressão", "close-up"],
@@ -482,7 +482,7 @@ Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLIC
 **Regras de validação:**
 - `label` deve ser `B`, `C` ou `D` (original não pode ser criado via este endpoint)
 - `title_text` obrigatório para `test_type: title` e `combo`
-- `description_text` obrigatório para `test_type: description`
+- `description_text`: só `null` ou ausente. Texto (inclusive vazio) devolve **422** `DESCRICAO_FORA_DO_TESTE`, "A descrição não participa mais do teste A/B". Teste gravado como `description` também devolve 422.
 - Máximo 3 variantes por chamada
 - Teste deve estar em status `draft` (409 caso contrário)
 
@@ -514,7 +514,6 @@ Lista todas as variantes de um teste, ordenadas por `sort_order` ascendente.
       "label": "original",
       "is_original": true,
       "title_text": "Título original do vídeo",
-      "description_text": null,
       "metadata": {},
       "sort_order": 0
     },
@@ -524,7 +523,6 @@ Lista todas as variantes de um teste, ordenadas por `sort_order` ascendente.
       "label": "B",
       "is_original": false,
       "title_text": "Título alternativo B",
-      "description_text": null,
       "metadata": { "rationale": "Gancho emocional" },
       "sort_order": 1
     }
@@ -1574,15 +1572,15 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 ```json
 {
   "data": {
-    "per_variant": [{ "variant_id": "uuid", "impressions": null, "clicks": null, "link_clicks": 7 }],
-    "per_link": [{ "template_name": "cta", "variant_id": "uuid", "short_code": "abc", "clicks": 7 }],
-    "link_clicks_window": { "from": "2026-04-01T10:00:00Z", "to": "2026-04-15T10:00:00Z" },
+    "per_variant": [{ "variant_id": "uuid", "impressions": null, "clicks": null, "link_clicks": null }],
+    "per_link": [],
+    "link_clicks_window": null,
     "aviso": "sem métrica de entrega"
   }
 }
 ```
 
-- Funil: `impressions` e `clicks` por variante saem `null`; `link_clicks`, `per_link` e `link_clicks_window` seguem (cliques reais de link)
+- Funil: `impressions` e `clicks` por variante saem `null`; `link_clicks` é `null`, `per_link` é `[]` e `link_clicks_window` é `null`: o A/B não cria link rastreado desde 10/2026
 - Teste (`get_test`): `confidence_at_completion`, `consecutive_confident_evals`, `result_metadata.ctr_lift_percent`, `result_metadata.total_impressions`, `result_metadata.estimated_monthly_extra_clicks` e, em cada ciclo, `impressions`, `clicks`, `ctr`, `estimated_impressions`, `estimated_clicks`, `estimated_ctr` saem `null`; `result_metadata.winner_label` e o resto continuam; `aviso` no teste
 - Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem os mesmos `null` e o seu próprio `aviso`
 - Painel (`ab-tests/dashboard`): `winRate` é `null` quando nenhum teste concluído conta

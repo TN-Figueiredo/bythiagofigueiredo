@@ -3,6 +3,7 @@ import {
   VariantMetadataSchema,
   VariantPayloadSchema,
   BatchVariantUpsertSchema,
+  TestTypeSchema,
 } from '@/lib/youtube/ab-schemas'
 
 describe('VariantMetadataSchema', () => {
@@ -97,12 +98,16 @@ describe('VariantPayloadSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects description_text over 5000 chars', () => {
+  it('P3: TestTypeSchema tem três tipos, sem description', () => {
+    expect(TestTypeSchema.options).toEqual(['thumbnail', 'title', 'combo'])
+  })
+
+  it('P3: description_text com texto passa no Zod (é o serviço que recusa com 422), sem teto de 5000', () => {
     const result = VariantPayloadSchema.safeParse({
       label: 'D',
       description_text: 'A'.repeat(5001),
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 })
 
