@@ -66,6 +66,8 @@ export async function somarNaTaxa(
   agora: number,
   opcoes?: { prazoMs?: number },
 ): Promise<{ ok: true; noMinuto: number; noDia: number } | { ok: false; code: string }> {
+  // chave nula, vazia ou que nem é texto: recusada aqui, antes do banco (não depende de a restrição do SQL pegar)
+  if (typeof keyId !== 'string' || keyId.trim() === '') return { ok: false, code: 'key_invalida' }
   const r = await comPrazo(opcoes?.prazoMs ?? ACESSO_IA_RULES.prazoPorIdaMs, (sinal) =>
     sb.rpc('obs_ai_rate_hit', { p_key: keyId, p_now: new Date(agora).toISOString() }).abortSignal(sinal),
   )
