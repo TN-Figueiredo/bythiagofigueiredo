@@ -1,7 +1,7 @@
 -- =============================================================================
 -- MIGRATION: Observatório A5, E8 (curva de retenção do vídeo próprio) (MG5 do spec)
 -- Spec: docs/superpowers/specs/2026-10-12-observatorio-a5/05-canal-proprio.md, seção 7.2
--- Aditiva. Roda duas vezes sem erro. Depende de <MG14> (yt_own_video_coverage e o check de kind):
+-- Aditiva. Roda duas vezes sem erro. Depende de 20261013000004_observatorio_a5_e6_dieta_cobertura.sql (yt_own_video_coverage e o check de kind):
 -- sem ela, a função do item 2 não é criada e a migration para com erro, sem deixar nada pela metade.
 --
 -- O que faz:
