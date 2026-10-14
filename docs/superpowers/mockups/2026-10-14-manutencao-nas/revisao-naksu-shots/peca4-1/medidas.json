@@ -1,0 +1,8212 @@
+{
+ "antes|1440|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 3 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 2 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "1 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Falta: 1 simulação vista (1 ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn heavy 166x36 \"Ligar o automático…\""
+  ],
+  "hs": 0
+ },
+ "ligado|1440|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "As primeiras horas ainda sae",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado, vence em",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Ligado até 09/05/2028. Quand",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "parou|1440|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A cópia de outubro de 2027 f",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja ficou sem conferir o",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A cópia atrasou mais de 30 d",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco passou de 85%: agora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível medir o ban",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso do",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático tentou tirar ma",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A validade de 90 dias acabou",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Nada deu errado",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático foi desligado n",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Quem cuida do s",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A conferência do B2 de outub",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco recusou tirar outubr",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Leia o motivo a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja e o seu Mac deram re",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\""
+  ],
+  "hs": 0
+ },
+ "fora|1440|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "A.m-chip 228x28 \"automático desligou \"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "outros|1440|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado na con",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático está desligado ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: não medido",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 7.76
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível ler o estad",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 7.76
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto nm",
+    "cr": 4.09,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Quem administra o site liga ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "arq-d2|1440|escuro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "A.m-chip 228x28 \"automático desligou \"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\""
+  ],
+  "hs": 0
+ },
+ "arq-d2v|1440|escuro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\""
+  ],
+  "hs": 0
+ },
+ "arq-hoje|1440|escuro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 149x24 \"Automático ligado\"",
+   "BUTTON.btn heavy 166x36 \"Ligar o automático…\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "antes|1440|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 3 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 2 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "1 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Falta: 1 simulação vista (1 ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn heavy 166x36 \"Ligar o automático…\""
+  ],
+  "hs": 0
+ },
+ "ligado|1440|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "As primeiras horas ainda sae",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado, vence em",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Ligado até 09/05/2028. Quand",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "parou|1440|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A cópia de outubro de 2027 f",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja ficou sem conferir o",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A cópia atrasou mais de 30 d",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco passou de 85%: agora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível medir o ban",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso do",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático tentou tirar ma",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A validade de 90 dias acabou",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Nada deu errado",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático foi desligado n",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Quem cuida do s",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A conferência do B2 de outub",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco recusou tirar outubr",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Leia o motivo a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja e o seu Mac deram re",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\""
+  ],
+  "hs": 0
+ },
+ "fora|1440|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "A.m-chip 228x28 \"automático desligou \"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "outros|1440|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado na con",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático está desligado ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: não medido",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 7.4
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível ler o estad",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 7.4
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto nm",
+    "cr": 4.57,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Quem administra o site liga ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "arq-d2|1440|claro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "A.m-chip 228x28 \"automático desligou \"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\""
+  ],
+  "hs": 0
+ },
+ "arq-d2v|1440|claro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\"",
+   "BUTTON.m-ibtn 28x28 \"\"",
+   "BUTTON.btn 117x36 \"Ligar de novo\""
+  ],
+  "hs": 0
+ },
+ "arq-hoje|1440|claro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 149x24 \"Automático ligado\"",
+   "BUTTON.btn heavy 166x36 \"Ligar o automático…\"",
+   "BUTTON.m-ibtn 28x28 \"\""
+  ],
+  "hs": 0
+ },
+ "antes|390|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 3 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 2 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "1 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Falta: 1 simulação vista (1 ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "ligado|390|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "As primeiras horas ainda sae",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado, vence em",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Ligado até 09/05/2028. Quand",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "parou|390|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A cópia de outubro de 2027 f",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja ficou sem conferir o",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A cópia atrasou mais de 30 d",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco passou de 85%: agora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível medir o ban",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso do",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático tentou tirar ma",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A validade de 90 dias acabou",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Nada deu errado",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático foi desligado n",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Quem cuida do s",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A conferência do B2 de outub",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco recusou tirar outubr",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Leia o motivo a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja e o seu Mac deram re",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "fora|390|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "outros|390|escuro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado na con",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático está desligado ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: não medido",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 7.76
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível ler o estad",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 7.76
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto nm",
+    "cr": 4.09,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Quem administra o site liga ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "arq-d2|390|escuro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 11.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 4.96
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 7.71,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "arq-d2v|390|escuro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "arq-hoje|390|escuro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.61
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.67
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.22,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.61
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 4.86,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 149x24 \"Automático ligado\""
+  ],
+  "hs": 0
+ },
+ "antes|390|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 3 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Falta: 2 saídas feitas por v",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "1 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ainda não dá par",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Falta: 1 simulação vista (1 ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Uma saída feita por você é u",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "ligado|390|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "As primeiras horas ainda sae",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado, vence em",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Ligado até 09/05/2028. Quand",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "parou|390|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A cópia de outubro de 2027 f",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja ficou sem conferir o",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja se a forja",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A cópia atrasou mais de 30 d",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco passou de 85%: agora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível medir o ban",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso do",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático tentou tirar ma",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja na lista a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A validade de 90 dias acabou",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Nada deu errado",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático foi desligado n",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Quem cuida do s",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A conferência do B2 de outub",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O banco recusou tirar outubr",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Leia o motivo a",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A forja e o seu Mac deram re",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Na linha de out",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "fora|390|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O arquivo de outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Abra a linha de",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "outros|390|claro": {
+  "out": [
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado na con",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "O automático está desligado ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: não medido",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 7.4
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Não foi possível ler o estad",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 7.4
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto nm",
+    "cr": 4.57,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Quem administra o site liga ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "arq-d2|390|claro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 13.81
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.25
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto am",
+    "cr": 4.7,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "arq-d2v|390|claro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: desligou sozinho",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "A casa ficou mais de 36 hora",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.do",
+    "txt": "O que fazer: Veja o aviso da",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "B.",
+    "txt": "O que fazer:",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.k",
+    "txt": "Para ligar de novo: resolva ",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.m-num",
+    "txt": "0 de 1",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.btn",
+    "txt": "Ligar de novo",
+    "fs": "13.5px",
+    "fw": "500",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "SMALL.",
+    "txt": "Falta: uma simulação nova.",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\""
+  ],
+  "hs": 0
+ },
+ "arq-hoje|390|claro": {
+  "out": [
+   {
+    "t": "hora",
+    "el": "SPAN.h",
+    "txt": "Automático: desligado",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "P.",
+    "txt": "Desligado. Você tira cada mê",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "SPAN.m-num",
+    "txt": "3 de 3",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "BUTTON.btn heavy",
+    "txt": "Ligar o automático…",
+    "fs": "13.5px",
+    "fw": "700",
+    "cr": 15.09
+   },
+   {
+    "t": "hora",
+    "el": "SMALL.",
+    "txt": "Antes de ligar, você lê a re",
+    "fs": "12.5px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "hora",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "dia",
+    "el": "SPAN.h",
+    "txt": "Automático: ligado até 19/07",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "P.",
+    "txt": "Próximo mês: outubro de 2027",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "dia",
+    "el": "BUTTON.m-ibtn",
+    "txt": "",
+    "fs": "13.3333px",
+    "fw": "400",
+    "cr": 6.83
+   },
+   {
+    "t": "dia",
+    "el": "BORDA m-auto ",
+    "cr": 1.4,
+    "bw": "1px solid"
+   },
+   {
+    "t": "texto",
+    "el": "SPAN.h",
+    "txt": "Automático: não existe aqui",
+    "fs": "13.5px",
+    "fw": "600",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "P.",
+    "txt": "Comentários saem sempre por ",
+    "fs": "13.5px",
+    "fw": "400",
+    "cr": 15.09
+   },
+   {
+    "t": "texto",
+    "el": "BORDA m-auto pt",
+    "cr": 5.59,
+    "bw": "1px dotted"
+   }
+  ],
+  "small": [
+   "SPAN.m-chip 86x24 \"Banco 15%\"",
+   "SPAN.m-chip 149x24 \"Automático ligado\""
+  ],
+  "hs": 0
+ }
+}
