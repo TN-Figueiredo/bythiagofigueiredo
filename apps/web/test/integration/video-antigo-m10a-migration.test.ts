@@ -121,8 +121,8 @@ describe.skipIf(pular)('M10a: banco (pula até a Tarefa 5b se o rascunho não fo
     })
   })
 
-  it('política: todo site tem linha, 24, fechada, teto da CP29; check, RLS e privilégios', async () => {
-    const sem = await c.query(`select count(*)::int n from public.sites s where not exists (select 1 from public.obs_archive_video_policy p where p.site_id = s.id)`)
+  it('política: todo site anterior à migration tem linha (os criados depois não: classe fechada), 24, fechada, teto da CP29; check, RLS e privilégios', async () => {
+    const sem = await c.query(`select count(*)::int n from public.sites s where s.created_at < (select min(updated_at) from public.obs_archive_video_policy) and not exists (select 1 from public.obs_archive_video_policy p where p.site_id = s.id)`)
     expect(sem.rows[0].n).toBe(0)
     const r = await c.query(`select distinct h_meses, released, teto_unidade, teto_auto_minimo, teto_auto_fracao::float8 f from public.obs_archive_video_policy`)
     expect(r.rows).toEqual([{ h_meses: 24, released: false, teto_unidade: TETO_CP29, teto_auto_minimo: 25, f: 0.05 }])

@@ -101,3 +101,244 @@ end $$;
 
 -- 4. P36: a retirada e a remoção buscam leituras da forja por vídeo.
 create index if not exists idx_competitor_readings_video on public.competitor_readings (video_id) where video_id is not null;
+
+-- 5. Ponto 4 (fechamento da faixa): vídeo congelado nunca troca de faixa (o congelamento só fecha a aberta, na M10b).
+--    Cópia literal de 20261012000003_observatorio_a5_e2_serie_faixas.sql:66-111, com DUAS mudanças: o retorno ganha `ignorados_congelados` (os congelados do plano, que não são tocados: a defesa não fica calada; M-2) e o "where" do laço
+--    ganha "and v.archive_frozen_at is null". O resto (trava, reabertura da semanal, retorno) é idêntico.
+create or replace function public.apply_competitor_tier_plan(
+  p_site_id uuid, p_channel_id uuid, p_changes jsonb, p_today date
+) returns jsonb
+language plpgsql security invoker set search_path = '' as $$
+declare
+  r record;
+  v_changed integer := 0;
+  v_reopen boolean := false;
+begin
+  if not exists (select 1 from public.competitor_channels c where c.id = p_channel_id and c.site_id = p_site_id) then
+    raise exception 'apply_competitor_tier_plan: canal % não é do site %', p_channel_id, p_site_id;
+  end if;
+  for r in
+    select x.video_id, x.tier
+      from jsonb_to_recordset(coalesce(p_changes, '[]'::jsonb)) as x(video_id uuid, tier text)
+      join public.competitor_videos v on v.id = x.video_id and v.competitor_channel_id = p_channel_id
+     where v.series_tier is distinct from x.tier
+       and v.archive_frozen_at is null
+     order by x.video_id
+  loop
+    update public.competitor_video_tier_spans s
+       set tier = r.tier
+     where s.video_id = r.video_id and s.from_date = p_today and s.to_date is null;
+    if not found then
+      update public.competitor_video_tier_spans s
+         set to_date = p_today - 1
+       where s.video_id = r.video_id and s.to_date is null and s.from_date < p_today;
+      insert into public.competitor_video_tier_spans (video_id, from_date, to_date, tier, site_id)
+      values (r.video_id, p_today, null, r.tier, p_site_id);
+    end if;
+    update public.competitor_videos
+       set series_tier = r.tier, series_tier_since = p_today
+     where id = r.video_id;
+    v_changed := v_changed + 1;
+    if r.tier = 'semanal' then v_reopen := true; end if;
+  end loop;
+  if v_reopen then
+    update public.competitor_channels set weekly_pass_date = null where id = p_channel_id and weekly_pass_date is not null;
+  end if;
+  return jsonb_build_object('changed', v_changed, 'ignorados_congelados', (select count(*) from jsonb_to_recordset(coalesce(p_changes, '[]'::jsonb)) as x(video_id uuid, tier text) join public.competitor_videos v on v.id = x.video_id and v.competitor_channel_id = p_channel_id where v.archive_frozen_at is not null));
+end $$;
+revoke all on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) from public, anon, authenticated;
+grant execute on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) to service_role;
+
+-- Ponto 5 (prova da série): cópia de 20261012000004 com três mudanças (CTE vid_todos + congelado, CTE vid sem congelados, chave arquivados).
+create or replace function public.competitor_series_health(p_site_id uuid, p_now timestamptz)
+returns jsonb language sql stable security invoker set search_path = '' as $$
+  with hoje as (select (p_now at time zone 'America/Sao_Paulo')::date as d),
+  vid_todos as (
+    select v.id, v.series_tier, v.series_tier_since, v.miss_streak,
+           (('x' || substr(encode(sha256(convert_to(v.video_id, 'UTF8')), 'hex'), 1, 8))::bit(32)::bigint % 7) as dia_fixo,
+           -- a mesma regra de canais_em_erro_3d (competitor_capture_health) e de longErrors (competitor-sync-batch.ts)
+           -- coalesce: nunca NULO (um NULO tiraria o vídeo de `fora` E de `not fora`, isto é, de todas as contas, em silêncio)
+           coalesce(c.sync_status = 'error' and c.missing_since is null
+                    and c.sync_error_since < p_now - interval '3 days', false) as canal_erro_3d,
+           (coalesce(v.views_hidden, false) or coalesce(v.live_broadcast_content, 'none') = 'upcoming'
+            or v.missing_since is not null or c.missing_since is not null
+            or coalesce(c.sync_status = 'error' and c.sync_error_since < p_now - interval '3 days', false)) as fora,
+           -- o canal já foi lido pelo código da E2 e terminou uma sincronização boa nas últimas 24 h
+           (c.last_seen_at is not null and c.last_ok_synced_at > p_now - interval '1 day') as canal_em_dia,
+           (v.archive_frozen_at is not null) as congelado
+      from public.competitor_videos v
+      join public.competitor_channels c on c.id = v.competitor_channel_id
+     where c.site_id = p_site_id
+  ),
+  vid as (select * from vid_todos where not congelado)
+  select jsonb_build_object(
+    'hoje', (select d from hoje),
+    'hora_sp', extract(hour from p_now at time zone 'America/Sao_Paulo')::int,
+    'fora_da_prova', (select count(*) from vid where fora),
+    -- dos que estão fora, os que estão fora por serem de canal em erro há mais de 3 dias (chave nova; o leitor de hoje a ignora)
+    'fora_canal_em_erro_3d', (select count(*) from vid where canal_erro_3d),
+    -- M10a: vídeos em leitura mensal ou no arquivo. Fora de todas as contas acima; nunca alarme, nunca sumiço calado.
+    'arquivados', (select count(*) from vid_todos where congelado),
+    'sem_faixa', (
+      select count(*) from vid
+       where not fora and (
+         (series_tier is null and canal_em_dia)
+         or (series_tier is not null and not exists (
+           select 1 from public.competitor_video_tier_spans s
+            where s.video_id = vid.id and s.to_date is null and s.tier = vid.series_tier)))),
+    'diaria_sem_ponto_hoje', (
+      select count(*) from vid, hoje
+       where not fora and series_tier = 'diaria' and miss_streak = 0
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = hoje.d)),
+    'diaria_buracos_3d', (
+      select count(*) from vid, hoje, generate_series(1, 3) g
+        join lateral (select (hoje.d - g)::date as dia) x on true
+       where not fora and miss_streak = 0
+         and exists (select 1 from public.competitor_video_tier_spans s
+                      where s.video_id = vid.id and s.tier = 'diaria'
+                        and s.from_date <= x.dia and (s.to_date is null or s.to_date >= x.dia))
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = x.dia)
+         and exists (select 1 from public.competitor_video_daily d0 where d0.video_id = vid.id and d0.snap_date < x.dia)),
+    'semanal_atrasados', (
+      select count(*) from vid, hoje
+       where not fora and series_tier = 'semanal'
+         and exists (select 1 from public.competitor_video_tier_spans s
+                      where s.video_id = vid.id and s.to_date is null and s.tier = 'semanal' and s.from_date <= hoje.d - 8)
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date > hoje.d - 8)),
+    'semanal_atrasados_9d', (
+      select count(*) from vid, hoje
+       where not fora and series_tier = 'semanal'
+         and exists (select 1 from public.competitor_video_tier_spans s
+                      where s.video_id = vid.id and s.to_date is null and s.tier = 'semanal' and s.from_date <= hoje.d - 9)
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date > hoje.d - 9)),
+    'semanal_devidos_hoje', (
+      select count(*) from vid, hoje
+       where not fora and series_tier = 'semanal' and miss_streak = 0
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = hoje.d)
+         and (
+           vid.dia_fixo = ((hoje.d - date '1970-01-01') % 7)
+           or (not exists (select 1 from public.competitor_video_daily d
+                            where d.video_id = vid.id and d.snap_date > hoje.d - 7)
+               and (exists (select 1 from public.competitor_video_daily d
+                             where d.video_id = vid.id and d.snap_date between hoje.d - 8 and hoje.d - 7)
+                    or vid.series_tier_since <= hoje.d - 7)))),
+    'sem_miniatura_9d', (
+      select count(*) from vid, hoje
+       where not fora
+         and exists (select 1 from public.competitor_video_tier_spans s where s.video_id = vid.id and s.from_date <= hoje.d - 9)
+         and not exists (select 1 from public.competitor_video_versions x where x.video_id = vid.id and x.field = 'thumb')),
+    'diaria_total', (select count(*) from vid where not fora and series_tier = 'diaria'),
+    'semanal_total', (select count(*) from vid where not fora and series_tier = 'semanal')
+  );
+$$;
+revoke all on function public.competitor_series_health(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.competitor_series_health(uuid, timestamptz) to service_role;
+
+-- Ponto 8 (remoção de canal): cópia de 20261013000002 com duas chaves a mais depois de 'pinned'.
+create or replace function public.competitor_channel_removal_impact(p_site_id uuid, p_channel_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_name text;
+begin
+  select c.channel_name into v_name from public.competitor_channels c where c.id = p_channel_id and c.site_id = p_site_id;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  return jsonb_build_object(
+    'status', 'ok',
+    'name', v_name,
+    'videos', (select count(*) from public.competitor_videos v where v.competitor_channel_id = p_channel_id),
+    'pinned', (select count(*) from public.competitor_videos v where v.competitor_channel_id = p_channel_id and v.pinned_at is not null),
+    'videos_leitura_mensal', (select count(*) from public.competitor_videos v
+                              where v.competitor_channel_id = p_channel_id and v.archive_frozen_at is not null and v.archive_dropped_at is null),
+    'videos_no_arquivo', (select count(*) from public.competitor_videos v
+                          where v.competitor_channel_id = p_channel_id and v.archive_dropped_at is not null),
+    'versions', (select count(*) from public.competitor_video_versions x
+                 join public.competitor_videos v on v.id = x.video_id where v.competitor_channel_id = p_channel_id),
+    'daily_days', (select count(distinct d.snap_date) from public.competitor_video_daily d
+                   join public.competitor_videos v on v.id = d.video_id where v.competitor_channel_id = p_channel_id),
+    'bookmarks', (select count(*) from public.competitor_changes g
+                  join public.competitor_videos v on v.id = g.video_id where v.competitor_channel_id = p_channel_id and g.bookmarked is true),
+    'field_versions', (select count(*) from public.competitor_field_versions f where f.competitor_channel_id = p_channel_id),
+    'raw', (select count(*) from public.competitor_raw r where r.competitor_channel_id = p_channel_id),
+    'early', (select count(*) from public.competitor_video_early e
+              join public.competitor_videos v on v.id = e.video_id where v.competitor_channel_id = p_channel_id),
+    'tier_spans', (select count(*) from public.competitor_video_tier_spans s
+                   join public.competitor_videos v on v.id = s.video_id where v.competitor_channel_id = p_channel_id),
+    'hourly', (select count(*) from public.competitor_video_hourly h
+               join public.competitor_videos v on v.id = h.video_id where v.competitor_channel_id = p_channel_id),
+    'hour_map', (select count(*) from public.competitor_channel_hour_map m where m.competitor_channel_id = p_channel_id),
+    'hour_fold_log', (select count(*) from public.competitor_hour_fold_log f
+                      join public.competitor_videos v on v.id = f.video_id where v.competitor_channel_id = p_channel_id)
+  );
+end $$;
+
+revoke all on function public.competitor_channel_removal_impact(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.competitor_channel_removal_impact(uuid, uuid) to service_role;
+
+-- 6. Ponto 7 (fixar). Assinatura nova com o 5º argumento com padrão: o código antigo (4 argumentos nomeados) segue
+--    funcionando entre esta migration e o deploy. A antiga sai antes, ou a chamada de 4 argumentos ficaria ambígua.
+drop function if exists public.pin_competitor_video(uuid, uuid, uuid, integer);
+create or replace function public.pin_competitor_video(
+  p_site_id uuid, p_video_id uuid, p_user_id uuid, p_limit integer, p_pode_descongelar boolean default false
+) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_channel uuid;
+  v_name text;
+  v_pinned_at timestamptz;
+  v_frozen timestamptz;
+  v_dropped timestamptz;
+  v_count integer;
+begin
+  if p_limit is null or p_limit < 0 then
+    raise exception 'pin_competitor_video: p_limit inválido';
+  end if;
+  select v.competitor_channel_id into v_channel from public.competitor_videos v where v.id = p_video_id;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  select c.channel_name into v_name from public.competitor_channels c
+   where c.id = v_channel and c.site_id = p_site_id for update;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  select v.pinned_at, v.archive_frozen_at, v.archive_dropped_at into v_pinned_at, v_frozen, v_dropped
+    from public.competitor_videos v
+   where v.id = p_video_id and v.competitor_channel_id = v_channel for update;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  -- no arquivo: não há descongelar (02 §10.8, "Desfazer")
+  if v_dropped is not null then
+    return jsonb_build_object('status', 'ja_no_arquivo');
+  end if;
+  if v_pinned_at is not null then
+    return jsonb_build_object('status', 'ok', 'already', true);
+  end if;
+  -- em leitura mensal: fixar descongela, e só quem administra o site (a ação diz quem é, depois do guard)
+  if v_frozen is not null and not coalesce(p_pode_descongelar, false) then
+    return jsonb_build_object('status', 'precisa_admin');
+  end if;
+  select count(*) into v_count from public.competitor_videos v
+   where v.competitor_channel_id = v_channel and v.pinned_at is not null;
+  if v_count >= p_limit then
+    return jsonb_build_object('status', 'cap', 'name', v_name, 'pinned', v_count);
+  end if;
+  if v_frozen is not null then
+    -- descongelar devolve o vídeo ao classificador sem faixa: a próxima passada abre um span novo a partir de hoje (o congelamento fechou o antigo). Sem isso, sem_faixa eterno.
+    update public.competitor_videos
+       set pinned_at = now(), pinned_by = p_user_id, archive_frozen_at = null, series_tier = null, series_tier_since = null,
+           archive_view_count = null, archive_like_count = null, archive_comment_count = null, archive_stats_at = null
+     where id = p_video_id;
+  else
+    update public.competitor_videos set pinned_at = now(), pinned_by = p_user_id where id = p_video_id;
+  end if;
+  return jsonb_build_object('status', 'ok', 'already', false) || case when v_frozen is not null then jsonb_build_object('descongelado', true) else '{}'::jsonb end;
+end $$;
+revoke all on function public.pin_competitor_video(uuid, uuid, uuid, integer, boolean) from public, anon, authenticated;
+grant execute on function public.pin_competitor_video(uuid, uuid, uuid, integer, boolean) to service_role;
+comment on function public.pin_competitor_video(uuid, uuid, uuid, integer, boolean) is 'Fixa um vídeo de concorrente travando a linha do canal. M10a: vídeo em leitura mensal só é fixado (e descongelado) com p_pode_descongelar; vídeo no arquivo recusa ja_no_arquivo. Devolve ok / cap / not_found / precisa_admin / ja_no_arquivo.';
+
+notify pgrst, 'reload schema';
+reset lock_timeout;
