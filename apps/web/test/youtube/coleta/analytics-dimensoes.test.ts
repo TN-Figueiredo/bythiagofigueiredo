@@ -292,6 +292,8 @@ describe('conserto da revisão: views é obrigatória na linha', () => {
     ['minutos negativos em texto', ['2026-10-02', 'A', 3, '-0.5']],
     ['engagedViews negativa', ['2026-10-02', 'A', 3, 5, -1]],
     ['engagedViews fracionária', ['2026-10-02', 'A', 3, 5, 0.5]],
+    ['views além do inteiro seguro', ['2026-10-02', 'A', 1e21, 5]],
+    ['engagedViews além do inteiro seguro', ['2026-10-02', 'A', 3, 5, 1e21]],
   ])('%s lança erro de forma, sem virar número gravado', async (_nome, linha) => {
     const r = dimensaoDoVideo(base(vi.fn().mockResolvedValue(resp({
       columnHeaders: cab('day', 'insightTrafficSourceType', 'views', 'estimatedMinutesWatched', 'engagedViews'),
