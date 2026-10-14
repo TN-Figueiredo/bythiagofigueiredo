@@ -1545,6 +1545,31 @@ describe('passoRelatorios: E12, 429 é limite por minuto (espera, repete, para)'
       expect(resumo.vence_primeiro_em_dias).toBeGreaterThan(12)
       expect(ctx.falhas.filter(f => f.includes('limite de cota'))).toEqual([])
     })
+    it('250 pendentes, 120 baixados (40/dia), vence > 12: SEM nota (a regra antiga pendentes > 5×vazão daria nota)', async () => {
+      const { ctx, resumo } = await roda(250, 120, 1)
+      expect(resumo.vence_primeiro_em_dias).toBeGreaterThan(12)
+      expect(ctx.falhas.filter(f => f.includes('limite de cota'))).toEqual([])
+    })
+    it('fronteira: pendentes/vazão = vence−5 não avisa; um pendente acima avisa', async () => {
+      const sonda = await roda(1, 120, 1)
+      const vence = sonda.resumo.vence_primeiro_em_dias as number
+      expect(vence).toBeGreaterThan(12)
+      const limite = 40 * (vence - 5)
+      const igual = await roda(limite, 120, 1)
+      expect(igual.resumo.vence_primeiro_em_dias).toBe(vence)
+      expect(igual.ctx.falhas.filter(f => f.includes('limite de cota'))).toEqual([])
+      const acima = await roda(limite + 1, 120, 1)
+      expect(acima.ctx.falhas.some(f => f.includes('limite de cota'))).toBe(true)
+    })
+    it('janela de vazão é 3 dias + 6 h: 60 baixados em agora−74 h contam (20/dia, 200 pendentes = 10 dias, sem nota)', async () => {
+      api.download.mockRejectedValue(e429())
+      const antigos = Array.from({ length: 60 }, (_, i) => listado(`o${i}`, { status: 'baixado', downloaded_at: new Date(AGORA.getTime() - 74 * 3_600_000).toISOString() }))
+      const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [...filaPendente(200, 1), ...antigos] })
+      const ctx = ctxDe(db, 40_000)
+      const resumo = await passoRelatorios(ctx)
+      expect(resumo.vence_primeiro_em_dias).toBeGreaterThan(15)
+      expect(ctx.falhas.filter(f => f.includes('limite de cota'))).toEqual([])
+    })
     it('vazão baixa demais para o vencimento: nota (mata o mutante do ramo de vazão)', async () => {
       // 3 baixados em 3 dias = 1/dia; 200 pendentes => 200 dias >> vence
       const { ctx, resumo } = await roda(200, 3, 1)
