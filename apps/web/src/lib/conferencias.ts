@@ -88,6 +88,33 @@ export function conferenciasE8Coleta(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E6 P2 (dieta do diário do canal próprio: o diário guarda só dia com atividade e a cobertura diz o que foi medido): as datas dependem do dia
+// da promoção a `main` (D), que ainda não existe. O controlador preenche `E6_P2_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio
+// (Tarefa 15). D é o dia em que o deploy fica PRONTO antes do cron das 12:00 UTC: a primeira execução da dieta é a de D; se o deploy não
+// ficou pronto a tempo, D é o dia seguinte e a constante muda (portão de dados do release 1, I1). Enquanto for `null`, as três entradas NÃO
+// existem (nada vence, nada deixa o cron vermelho). Etapa `E6` (o formato `E<n>` do guardião).
+/** Dia de São Paulo (AAAA-MM-DD) em que o lote E6-P2 foi promovido a `main`. `null` = ainda não enviado. */
+export const E6_P2_DEPLOY: string | null = null
+
+const PLANO_E6P2 = 'docs/superpowers/plans/2026-10-12-a5-e6-e8-dieta-e-retencao-plan.md (Tarefas 11b e 15; consultas K1 a K8 da seção 11); parecer .superpowers/sdd/a5/r1-portao-dados.md (I1, I2, D-1 e P-2); anotar o resultado em .superpowers/sdd/a5-e6-e8/progress.md'
+
+/**
+ * As conferências da dieta do diário a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio:
+ * vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE6P2(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e6-p2-deploy-invalido', etapa: 'E6', data: '1970-01-01', responsavel: 'agente', onde: `E6_P2_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e6-${id}`, etapa: 'E6', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E6P2}: ${onde}`, feitaEm: null })
+  return [
+    e('p2-primeira-execucao', 0, 'D, depois do cron das 12:00 UTC, na linha dessa execução (a consulta D-1 do parecer; "order by ran_at desc limit 1" só serve antes do cron seguinte): `resumo.diario.apagadas` = N0, o número medido pela consulta P-2 ANTES do push e anotado no ledger (teto: 7 × 35 = 245 menos as linhas com atividade nos 7 dias já gravados), com tolerância de até 5 por revisão do YouTube; `intervalos` = 70; `com_buraco` = 0; `ok` = 36; `falhas` sem `schema_ausente`; consultas K2 a K5 e K8. `apagadas` = 0 com N0 > 0 no PRIMEIRO dia é reprovação (a dieta não apaga, e o desfecho `ok` esconde isso); `apagadas` ausente do resumo = rodou o código antigo (o deploy não ficou pronto): não é reprovação, D passa a ser o dia seguinte e `E6_P2_DEPLOY` muda. Do segundo dia em diante `apagadas` = 0 é o normal (o dia novo nasce sem linha): só esta conferência distingue a dieta funcionando da que não apaga'),
+    e('retrato', 0, 'D, à tarde: o retrato "depois" (K1, o MESMO corte do "antes") comparado com o "antes" pela regra de três partes da Tarefa 15 (a: `medido` igual em todo par vídeo-dia; b: `views` igual em todo par anterior a `J`; c: `views` diferente de `J` em diante só como revisão do YouTube, listada uma a uma no ledger; mais de 5 diferenças ou um dia que foi de views maior que zero a zero para a conferência). "Igual" não é o critério; "é só o dia novo" não é explicação'),
+    e('p2-tres-execucoes', 2, 'D + 2, depois do cron das 12:00 UTC: as três primeiras execuções (D, D + 1 e D + 2): K3 = 0, K5 em dia e K8 = 0 nos três dias; `apagadas` = 0 (até 5 por revisão) da segunda em diante; `max(covered_to)` anda um dia por execução. É o que libera a P3 (a MG15)'),
+  ]
+}
+
 // E14 (comentários de destaque dos vídeos de concorrentes): as datas dependem do dia da promoção a `main` (D), que ainda não existe.
 // O controlador preenche `E14_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as quatro entradas
 // NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E14` (o formato `E<n>` do guardião).
@@ -166,7 +193,7 @@ const BASE: readonly Conferencia[] = [
 ]
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

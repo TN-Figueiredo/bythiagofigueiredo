@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
@@ -228,6 +228,76 @@ describe('conferências de E8 (coleta da retenção, relativas ao dia do envio)'
     if (E8_COLETA_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E8_COLETA_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
+
+// A5 E6 P2 (Tarefas 11b e 15; portão de dados do release 1, I1 e I2): as conferências da dieta do diário dependem do dia da promoção
+// a `main` (D), que o controlador preenche em E6_P2_DEPLOY no commit do envio. Sem a data, a lista NÃO tem as entradas: nada vence.
+// D é o dia do deploy pronto ANTES do cron das 12:00 UTC: a primeira execução da dieta é a de D (se o deploy não ficou pronto, D é o dia seguinte).
+describe('conferências de E6 P2 (dieta do diário, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const ehData = (x: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(x) && new Date(`${x}T00:00:00.000Z`).toISOString().slice(0, 10) === x
+  const IDS = ['e6-p2-primeira-execucao', 'e6-retrato', 'e6-p2-tres-execucoes']
+
+  it('sem a data não há entradas de E6 P2, e nada vence nem fica vermelho por mais longe que esteja o dia', () => {
+    expect(conferenciasE6P2(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE6P2(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE6P2(null))).toEqual([])
+  })
+  it('com a data, as três, em ordem: a primeira execução e o retrato em D, as três execuções em D + 2; do agente, etapa E6, sem feitaEm', () => {
+    const l = conferenciasE6P2(dia(-10))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual([0, 0, 2].map(n => dia(-10 + n)))
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E6')
+      expect(x.onde.length, x.id).toBeGreaterThan(20)
+    }
+  })
+  it('a primeira execução diz o esperado CERTO de apagadas (N0 da consulta P-2, não "perto de 280") e que zero no primeiro dia é reprovação', () => {
+    const por = Object.fromEntries(conferenciasE6P2(dia(0)).map(x => [x.id, x.onde]))
+    const p = por['e6-p2-primeira-execucao']!
+    expect(p).toMatch(/apagadas[\s\S]*N0/)
+    expect(p).toMatch(/P-2/)
+    expect(p).toMatch(/7 × 35/)
+    expect(p).toMatch(/intervalos[\s\S]*70/)
+    expect(p).toMatch(/com_buraco[\s\S]*0/)
+    expect(p).toMatch(/= 0 com N0 > 0 no PRIMEIRO dia é reprovação/)
+    expect(p).toMatch(/segundo dia em diante[\s\S]*= 0 é o normal/)
+    expect(p).toMatch(/D-1/)
+    expect(p).not.toMatch(/280/)
+  })
+  it('o retrato usa a regra de três partes e as três execuções liberam a P3', () => {
+    const por = Object.fromEntries(conferenciasE6P2(dia(0)).map(x => [x.id, x.onde]))
+    expect(por['e6-retrato']).toMatch(/três partes/)
+    expect(por['e6-retrato']).toMatch(/medido/)
+    expect(por['e6-p2-tres-execucoes']).toMatch(/K3 = 0[\s\S]*K5[\s\S]*K8 = 0[\s\S]*P3/)
+  })
+  it('vence no dia seguinte à data, e com 8 dias de atraso deixa o cron vermelho', () => {
+    const l = conferenciasE6P2(dia(0))
+    expect(conferenciasVencidas(dia(0), l).map(x => x.id)).toEqual([])
+    expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e6-p2-primeira-execucao', 'e6-retrato'])
+    expect(conferenciasVencidas(dia(3), l).map(x => x.id)).toEqual(IDS)
+    expect(conferenciasEmFalha(dia(8), l).map(x => x.id)).toEqual(['e6-p2-primeira-execucao', 'e6-retrato'])
+  })
+  it('data malformada vira a entrada de aviso (vermelha) que manda corrigir a constante', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '12/10/2026', '']) {
+      const l = conferenciasE6P2(ruim)
+      expect(l.map(x => x.id), ruim).toEqual(['e6-p2-deploy-invalido'])
+      expect(l[0]!.etapa).toBe('E6')
+      expect(conferenciasEmFalha(dia(0), l).map(x => x.id), ruim).toEqual(['e6-p2-deploy-invalido'])
+      expect(l[0]!.onde).toContain('E6_P2_DEPLOY')
+    }
+  })
+  it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as três): esquecer de espalhar na lista publicada reprova', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e6-')).map(x => x.id)
+    if (E6_P2_DEPLOY === null) expect(publicadas).toEqual([])
+    else {
+      expect(ehData(E6_P2_DEPLOY)).toBe(true)
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
   })
