@@ -18,8 +18,12 @@ export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): stri
   const q = c.queda
   if (q.tipo === 'ainda_nao_existe') {
     out.push(`Em queda (${MEASURE_RULES.decline.windows} períodos de ${MEASURE_RULES.direction.windowDays} dias seguidos): só dá para medir a partir de ${dm(q.existeEm)}.`)
+  } else if (q.tipo === 'nao_carregou') {
+    out.push('Em queda: não carregou.')
   } else if (q.tipo === 'nao_medido') {
     out.push(`Em queda: não medido (${FRASES[q.motivo]({}, 'canais').curta}).`)
+  } else if (q.canais === 0) {
+    // sem canal para medir: nenhuma frase de queda
   } else if (q.emQueda > 0) {
     out.push(`${q.emQueda} em queda${q.quedaMedidaEm < q.canais ? ` (medido em ${q.quedaMedidaEm} de ${q.canais} canais)` : ''}.`)
   } else {
@@ -27,7 +31,8 @@ export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): stri
       ? `Nenhum canal em queda entre os ${q.quedaMedidaEm} medidos de ${q.canais}.`
       : `Nenhum dos ${q.canais} canais está em queda.`)
   }
+  if (c.estadoMedidoEm > 0 && c.estadoMedidoEm < c.todos) out.push(`Estado medido em ${c.estadoMedidoEm} de ${c.todos} canais.`)
   if (c.saiu !== null && c.saiu > 0) out.push(`${pl(c.saiu, 'canal saiu', 'canais saíram')} do YouTube.`)
-  if (c.emErro > 0) out.push(`${pl(c.emErro, 'canal', 'canais')} em erro.`)
+  if (c.emErro > 0) out.push(`${pl(c.emErro, 'canal', 'canais')} com problema na coleta.`)
   return out.join(' ')
 }

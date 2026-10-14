@@ -1,6 +1,6 @@
 // A5 E5a T5 (tela 16, Canais): os três defeitos do portão do Gio, como teste. Semeia o oráculo e ESTRAGA canais só no banco LOCAL.
 // D1 a data de "saiu do YouTube" é a mesma na pastilha e na Direção (missing_since é `date`); D2 a 1440 a tabela cabe no contêiner (sem rolagem lateral);
-// D3 cada casa da barra tem preenchimento (não é caixa sem cor). Esperado: D1, D2 e D3 FALHAM até o conserto.
+// D3 cada casa da barra tem preenchimento (não é caixa sem cor).
 import { test, expect, type Page } from '@playwright/test'
 import { ADMIN_STATE, clearSeeded, ensureSeeded } from './fidelity'
 import { localServiceClient } from '../../../fixtures/observatorio-seed'
@@ -10,9 +10,10 @@ const S = '[data-obs-screen="canais"]'
 let saiuId = ''
 test.beforeAll(async () => {
   test.setTimeout(240_000)
-  await clearSeeded(); await ensureSeeded({ ownPreset: '2' })
+  await clearSeeded()
+  const siteId = await ensureSeeded({ ownPreset: '2' })
   const sb = localServiceClient()
-  const { data } = await sb.from('competitor_channels').select('id').neq('sync_status', 'error').order('channel_name').limit(1)
+  const { data } = await sb.from('competitor_channels').select('id').eq('site_id', siteId).neq('sync_status', 'error').order('channel_name').limit(1)
   saiuId = data![0]!.id as string
   await sb.from('competitor_channels').update({ missing_since: '2026-10-04' }).eq('id', saiuId)
 })
@@ -40,13 +41,23 @@ test('D2: a 1440 a tabela cabe no contêiner (sem rolagem lateral)', async ({ pa
   expect(m.rolagem).toBeLessThanOrEqual(m.cliente + 2)
 })
 
-test('D3: as casas da barra têm preenchimento de cor', async ({ page }) => {
+test('D3: cada casa da barra com número tem a cor de fato (a do token da direção), nunca transparente', async ({ page }) => {
   test.setTimeout(120_000)
   await abrir(page, 1440)
-  // o filtro de estado usa a cor da superfície; a casa colorida do mockup (verde, neutro, âmbar) tem de se distinguir dela
-  const superficie = await page.locator(`${S} .obs-cn-filtro[aria-pressed="false"]`).first().evaluate(e => getComputedStyle(e).backgroundColor)
-  for (const nome of [/subindo/, /descendo/]) {
-    const bg = await page.locator(`${S} .obs-cn-casa`).filter({ hasText: nome }).first().locator(".obs-cn-casa-b").evaluate(e => getComputedStyle(e).backgroundColor)
-    expect(bg, 'casa "' + String(nome) + '" sem cor própria').not.toBe(superficie)
+  // a casa com n = 0 é transparente de propósito (.z): só as casas com número entram. A cor esperada é a do token, resolvida pelo navegador.
+  const token: Record<string, string> = { sobe: '--dir-up', estavel: '--dir-eq', desce: '--dir-dn' }
+  let conferidas = 0
+  for (const [classe, variavel] of Object.entries(token)) {
+    const casa = page.locator(`${S} .obs-cn-casa.${classe}:not(.z):not(.sk)`)
+    if ((await casa.count()) === 0) continue
+    const { bg, esperado } = await casa.first().locator('.obs-cn-casa-b').evaluate((e, v) => {
+      const sonda = document.createElement('div'); sonda.style.background = `var(${v})`; document.querySelector('[data-obs]')!.appendChild(sonda)
+      const esperado = getComputedStyle(sonda).backgroundColor; sonda.remove()
+      return { bg: getComputedStyle(e).backgroundColor, esperado }
+    }, variavel)
+    expect(bg, `casa "${classe}" transparente`).not.toBe('rgba(0, 0, 0, 0)')
+    expect(bg, `casa "${classe}" com a cor errada`).toBe(esperado)
+    conferidas++
   }
+  expect(conferidas, 'nenhuma casa com número para conferir').toBeGreaterThan(0)
 })

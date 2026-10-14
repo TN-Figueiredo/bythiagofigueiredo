@@ -12,10 +12,10 @@ export const JANELA = { de: '2026-08-25', ate: '2026-10-13', dias: 56 }
 export const direcaoMedida = (rec: number, ant: number, janela = JANELA): Medida<ValorDirecaoCanal> =>
   medido<ValorDirecaoCanal>({ variacao: rec / ant - 1, direcao: 'igual', ganhoRecente: rec, ganhoAnterior: ant }, 3, janela)
 
-export function m8De(estado: EstadoDoCanal, o: { dias?: number; limite?: number; queda?: M8DoCanal['queda'] } = {}): M8DoCanal {
+export function m8De(estado: EstadoDoCanal, o: { dias?: number; limite?: number; ultimaEm?: number; queda?: M8DoCanal['queda'] } = {}): M8DoCanal {
   return {
     estado: medido(estado, 1, { de: null, ate: '2026-10-14', dias: null }),
-    parado: medido({ dias: o.dias ?? 3, limite: o.limite ?? 28 }, 1, { de: null, ate: null, dias: o.dias ?? 3 }),
+    parado: medido({ dias: o.dias ?? 3, limite: o.limite ?? 28, ultimaEm: o.ultimaEm ?? Date.UTC(2026, 9, 11, 12) }, 1, { de: null, ate: null, dias: o.dias ?? 3 }),
     queda: o.queda ?? naoMedido('janela_cruza_mudanca_de_contagem', { fechaEm: '2026-12-14' }),
   }
 }
@@ -39,11 +39,11 @@ export function medidasDoMotor(obs: Pick<Observatory, 'channels'>, sobre: PorCan
 }
 
 /** O oráculo não tem retratos: o M8 sintético diz "parado" para os canais que o motor chama de parados, com os mesmos dias (`pausedDays`). */
-export function medidasDoOraculo(obs: Pick<Observatory, 'channels'>): MedidasParaLista {
+export function medidasDoOraculo(obs: Pick<Observatory, 'channels' | 'videos'>): MedidasParaLista {
   const sobre: PorCanal = {}
   for (const c of obs.channels) {
     if (c.own) continue
-    sobre[c.id] = c.activity.state === 'parado' ? { m8: m8De('parado', { dias: c.activity.pausedDays ?? 40, limite: 28 }) } : {}
+    sobre[c.id] = c.activity.state === 'parado' ? { m8: m8De('parado', { dias: c.activity.pausedDays ?? 40, limite: 28, ultimaEm: Math.max(...obs.videos.filter(v => v.ch === c.id).map(v => v.pub)) }) } : {}
   }
   return medidasDoMotor(obs, sobre)
 }

@@ -44,15 +44,17 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const urlNiche = parsed != null && obs.scopeOf(parsed) === parsed ? parsed : null
   const niche = urlNiche ?? obs.scopeOf(savedNiche)
   // as views por dia do canal próprio vêm do diário, só para quem edita o site, DEPOIS da guarda de acesso; sem canal próprio nada é lido
-  const extras = await carregarExtrasProprio(obs, siteId, now)
   // A5 E5a T5: M3a e M8 de cada concorrente e os campos do canal, depois da guarda de acesso. O carregador não lança por canal; se lançar por inteiro,
-  // a tela abre com "não carregou" em toda célula (nunca com medida inventada) e o erro vai ao Sentry.
-  let medidas: MedidasDoSite | null = null
-  try {
-    medidas = await carregarMedidasDoSite(getSupabaseServiceClient(), { siteId, obs, canais: obs.channels.filter(c => !c.own).map(c => c.id), agoraMs: now })
-  } catch (err) {
-    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'medidas-telas-canais' } })
+  // a tela abre com "não carregou" em toda célula (nunca com medida inventada) e o erro vai ao Sentry. Independentes: rodam juntos.
+  const carregarMedidas = async (): Promise<MedidasDoSite | null> => {
+    try {
+      return await carregarMedidasDoSite(getSupabaseServiceClient(), { siteId, obs, canais: obs.channels.filter(c => !c.own).map(c => c.id), agoraMs: now })
+    } catch (err) {
+      Sentry.captureException(err, { tags: { component: 'observatorio', step: 'medidas-telas-canais' } })
+      return null
+    }
   }
+  const [extras, medidas] = await Promise.all([carregarExtrasProprio(obs, siteId, now), carregarMedidas()])
   const view = buildCanaisView(obs, {
     medidas,
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,

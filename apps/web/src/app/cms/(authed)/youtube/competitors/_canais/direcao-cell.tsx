@@ -4,6 +4,8 @@ import { Direcao, PALAVRA_DA_DIRECAO } from '../_chrome/medidas/direcao'
 import { ReguaDirecao } from '../_chrome/medidas/regua-direcao'
 import { EstadoDoCanal } from '../_chrome/medidas/estado-canal'
 import { NaoCarregou, NaoMedido } from '../_chrome/medidas/marcas'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+const JANELA = MEASURE_RULES.direction.windowDays
 
 export function DirecaoCell({ r, cartao = false }: { r: CanaisRow; cartao?: boolean }) {
   const d = r.direcao
@@ -18,7 +20,7 @@ export function DirecaoCell({ r, cartao = false }: { r: CanaisRow; cartao?: bool
       {n ? (
         <span className="obs-cn-dir-n num">
           <span aria-hidden="true">{n.recente} × {n.anterior}</span>
-          <span className="obs-md-sr">{n.recente} views nos últimos 28 dias, contra {n.anterior} nos 28 anteriores ({PALAVRA_DA_DIRECAO[d.simbolo]})</span>
+          <span className="obs-md-sr">{n.recente} views nos últimos {JANELA} dias, contra {n.anterior} nos {JANELA} anteriores ({PALAVRA_DA_DIRECAO[d.simbolo]})</span>
         </span>
       ) : null}
     </div>

@@ -9,6 +9,8 @@ import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import { DirecaoCell } from './direcao-cell'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+const JANELA = MEASURE_RULES.direction.windowDays
 
 export interface RowHandlers {
   open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string) => void
@@ -108,7 +110,7 @@ export function ChannelTable({ view, ranked, unranked, semMedidaN, buscando, h, 
             <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <span className="arrow" aria-hidden="true">{view.sort === 'subs' ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
             <span className="unit">nicho, inscritos, estado</span>
           </th>
-          <th scope="col" className="dir">Direção <Tip label="Como a direção é calculada">Views dos últimos 28 dias contra as dos 28 anteriores, de cada canal contra ele mesmo. ▲ se subiu 10% ou mais, ▼ se caiu 10% ou mais, ＝ no meio. A régua vai de −50% a +50%; a faixa tracejada é o “sem mudança” (−10% a +10%); passou do limite, a ponta vira triângulo. Os dois números ao lado do percentual são os que entram na conta. Inclui Shorts e vídeos depois apagados. Cálculo do Observatório sobre dados públicos do YouTube.</Tip><span className="unit">views, 28 dias × 28 anteriores</span></th>
+          <th scope="col" className="dir">Direção <Tip label="Como a direção é calculada">Views dos últimos {JANELA} dias contra as dos {JANELA} anteriores, de cada canal contra ele mesmo. ▲ se subiu 10% ou mais, ▼ se caiu 10% ou mais, ＝ no meio. A régua vai de −50% a +50%; a faixa tracejada é o “sem mudança” (−10% a +10%); passou do limite, a ponta vira triângulo. Os dois números ao lado do percentual são os que entram na conta. Inclui Shorts e vídeos depois apagados. Cálculo do Observatório sobre dados públicos do YouTube.</Tip><span className="unit">views, {JANELA} dias × {JANELA} anteriores</span></th>
           {COLS.map(col => {
             const on = view.sort === col.k
             return (

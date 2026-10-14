@@ -300,6 +300,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const unrankedBusca = useMemo(() => (ql ? view.list.unranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.unranked), [view.list.unranked, ql])
   // 20 concorrentes de início e "Mostrar mais 10"; os canais próprios sempre aparecem e a busca mostra tudo o que casa
   const [mostrar, setMostrar] = useState(PAGINA_INICIAL)
+  // trocar de filtro (estado, direção ou nicho) volta a lista para os 20 de início
+  const direcaoLigada = view.resumo.casas.find(c => c.pressed)?.chave ?? null
+  useEffect(() => { setMostrar(PAGINA_INICIAL) }, [view.filter, view.niche, direcaoLigada])
   const concorrentes = useMemo(() => [...rankedBusca, ...unrankedBusca].filter(r => !r.own), [rankedBusca, unrankedBusca])
   const corte = ql ? concorrentes.length : mostrar
   const permitidos = useMemo(() => new Set(concorrentes.slice(0, corte).map(r => r.id)), [concorrentes, corte])

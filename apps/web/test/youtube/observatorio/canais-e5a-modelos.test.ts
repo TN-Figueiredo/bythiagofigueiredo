@@ -15,10 +15,10 @@ const EX = { missingSince: null, subscribersHidden: false, lastOkSyncedAt: null 
 const HOJE = '2026-10-14'
 const DEPOIS = '2026-12-20'
 
-function m8(estado: 'ativo' | 'parado' | 'em_queda' | 'pausado' | 'fora_do_ar', o: { dias?: number; limite?: number; queda?: M8DoCanal['queda'] } = {}): M8DoCanal {
+function m8(estado: 'ativo' | 'parado' | 'em_queda' | 'pausado' | 'fora_do_ar', o: { dias?: number; limite?: number; ultimaEm?: number; queda?: M8DoCanal['queda'] } = {}): M8DoCanal {
   return {
     estado: medido(estado, 1, { de: null, ate: HOJE, dias: null }),
-    parado: medido({ dias: o.dias ?? 3, limite: o.limite ?? 28 }, 1, { de: null, ate: null, dias: o.dias ?? 3 }),
+    parado: medido({ dias: o.dias ?? 3, limite: o.limite ?? 28, ultimaEm: o.ultimaEm ?? Date.UTC(2026, 9, 11, 12) }, 1, { de: null, ate: null, dias: o.dias ?? 3 }),
     queda: o.queda ?? naoMedido('janela_cruza_mudanca_de_contagem', { fechaEm: '2026-12-14' }),
   }
 }

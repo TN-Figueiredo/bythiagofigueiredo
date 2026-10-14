@@ -228,8 +228,10 @@ export interface MedidasParaLista {
 }
 const MEASURE_QUEDA_JANELAS = MEASURE_RULES.decline.windows, MEASURE_JANELA_DIAS = MEASURE_RULES.direction.windowDays
 export type DirecaoFiltro = 'sobe' | 'estavel' | 'desce' | 'nao-medido'
-export interface CasaDoResumo { chave: DirecaoFiltro; n: number | null; palavra: string; leitor: string; pressed: boolean; href: string; data: string | null }
-export interface FiltroDoResumo { chave: FiltroDeEstado; rotulo: string; n: number | null; ainda: string | null; naoMedido: string | null; pressed: boolean; href: string; leitor: string }
+export interface CasaDoResumo { chave: DirecaoFiltro; n: number | null; palavra: string; leitor: string; pressed: boolean; data: string | null }
+export interface FiltroDoResumo { chave: FiltroDeEstado; rotulo: string; n: number | null; ainda: string | null; naoMedido: string | null; pressed: boolean; leitor: string
+  /** Só nos filtros de estado, quando parte das linhas não teve o estado lido: o número vale para `medidos` de `de` canais. */
+  base: { medidos: number; de: number } | null }
 export interface ResumoView {
   frase: string; carregou: boolean
   casas: CasaDoResumo[]
@@ -241,7 +243,7 @@ export interface ResumoView {
   /** Todos os canais do recorte sem registro recente: a coleta de retratos parou. `desde` é o dia da última leitura boa mais recente (nulo se nenhuma foi lida). A página manda o evento ao Sentry. */
   semRetrato: { desde: string | null } | null
   /** O filtro de estado ou de direção esvaziou a lista: a explicação (zero medido, não medido ou ainda não existe) e o botão de limpar. */
-  vazio: { titulo: string; apoio: string; acaoDescendo?: boolean; forma: 'zero' | 'nao_medido' | 'ainda_nao_existe'; limpar: { texto: string; href: string } } | null
+  vazio: { titulo: string; apoio: string; acaoDescendo?: boolean; forma: 'zero' | 'nao_medido' | 'nao_carregou' | 'ainda_nao_existe'; limpar: { texto: string } } | null
   /** O dono pode agir (sincronizar, adicionar, remover): a tela repete a frase de só leitura quando não. Preenchido pela tela. */
 }
 
@@ -313,8 +315,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     return m && 'm3a' in m ? m : null
   }
   const extrasDoCanal = (id: string): ExtrasDoCanal | null => (p.medidas?.extras.lido ? p.medidas.extras.dados.get(id) ?? null : null)
-  const direcaoDe = (c: ObsChannel): CelulaDeDirecao => celulaDeDirecao(medidaDe(c.id)?.m3a ?? null, extrasDoCanal(c.id), { proprio: c.own, semVideos: (videosN.get(c.id) ?? 0) === 0 })
-  const estadoDe = (c: ObsChannel): EstadoDaLinha => estadoDaLinha(medidaDe(c.id)?.m8 ?? null, extrasDoCanal(c.id), videosN.get(c.id) ?? 0, { proprio: c.own, hojeSP })
+  /** Zero vídeos datados não quer dizer que o canal não publicou: na 1ª busca, ou com vídeos sem `published_at`, ele ainda está sendo lido. */
+  const buscando = (c: ObsChannel): boolean => c.sync.state === 'backfill' || c.undated.length > 0
+  const direcaoDe = (c: ObsChannel): CelulaDeDirecao => celulaDeDirecao(medidaDe(c.id)?.m3a ?? null, extrasDoCanal(c.id), { proprio: c.own, semVideos: (videosN.get(c.id) ?? 0) === 0 && !buscando(c) })
+  const estadoDe = (c: ObsChannel): EstadoDaLinha => estadoDaLinha(medidaDe(c.id)?.m8 ?? null, extrasDoCanal(c.id), videosN.get(c.id) ?? 0, { proprio: c.own, hojeSP, buscando: buscando(c) })
   /** M8 diz "parado"? `nao_carregou` quando a medida não veio (a pastilha do estado carrega o motivo); coleta pausada e canal próprio são `nao`. */
   const paradoDe = (c: ObsChannel): 'sim' | 'nao' | 'nao_carregou' => {
     if (c.own) return 'nao'
@@ -322,6 +326,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     return e === 'parado' ? 'sim' : e === 'nao_carregou' ? 'nao_carregou' : 'nao'
   }
   const diasParado = (c: ObsChannel): number | null => { const e = estadoDe(c); return e.pastilha === 'parado' && typeof e.dataOuDias === 'number' ? e.dataOuDias : null }
+  /** A data do último vídeo é a que M8 leu, não "agora menos os dias" (que adianta o dia quando a hora atual é anterior à da publicação). */
+  const ultimaDoParado = (c: ObsChannel): number | null => { const e = estadoDe(c); return e.pastilha === 'parado' ? e.ultimaEm : null }
   const stale = (c: ObsChannel, S: CStats) =>
     // Task 23 ruling (brief test + CONVENCOES:267, confirmed in 35b fix round 1): a "parado" channel's views also say
     // "até o registro diário"; canais.html shows it only for atrasado/erro — allow-listed in canais.spec
@@ -447,7 +453,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       label: `${kl.n} vídeos longos e ${ks.n} Shorts nas últimas 13 semanas`, pw: F.dec1(k.pw), unit: `${wordOf(f)}/sem`,
       // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
       sub: empty ? 'nenhum em 13 semanas' : !second && paradoDe(c) === 'nao_carregou' ? 'não carregou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
-      paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: último vídeo em ${D.dm(obs.NOW - diasParado(c)! * obs.DAY)}, ${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
+      paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: ${ultimaDoParado(c) != null ? `último vídeo em ${D.dm(ultimaDoParado(c)!)}, ` : ''}${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
     }
   }
   function vpdCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): VpdCell {
@@ -689,31 +695,33 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const celulas = linhasDoNicho.map(({ c }) => direcaoDe(c))
     const dirRes = resumoDeDirecao(celulas)
     const contagem = contagemDosFiltros([...linhasDoNicho.map(x => x.l), ...ownRows.map(r => ({ proprio: true, estado: r.estado, emErro: false }))], hojeSP)
-    const hrefDe = (f: FiltroDeEstado, d: 'todos' | DirecaoFiltro) => obs.link.canais({ fmt: filtro, ...(f === 'todos' ? {} : { filter: f }), ...(d === 'todos' ? {} : { direcao: d }) })
-    const limpar = { texto: 'Ver todos os canais', href: hrefDe('todos', 'todos') }
+    const limpar = { texto: 'Ver todos os canais' }
     const carregou = dirRes.sobe !== null
     const casa = (chave: DirecaoFiltro, n: number | null, palavra: string): CasaDoResumo => {
       const pressed = direcaoFiltro === chave
       const datas = chave === 'nao-medido' ? celulas.flatMap(c => (c.tipo === 'nao_medido' && c.fechaEm ? [c.fechaEm] : [])).sort() : []
       const data = datas.length ? (datas.length === 1 || datas[0] === datas[datas.length - 1] ? `fecha em ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)}` : `fecham de ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)} a ${datas[datas.length - 1]!.slice(8, 10)}/${datas[datas.length - 1]!.slice(5, 7)}`) : null
-      return { chave, n, palavra, pressed, href: pressed ? hrefDe(filter, 'todos') : hrefDe(filter, chave), data,
+      return { chave, n, palavra, pressed, data,
         leitor: n === null ? `${palavra}: não carregou` : `${n} ${palavra}${pressed ? ', filtro ligado' : ''}` }
     }
     const casas = [casa('sobe', dirRes.sobe, 'subindo'), casa('estavel', dirRes.estavel, 'sem mudança'), casa('desce', dirRes.desce, 'descendo'), casa('nao-medido', dirRes.naoMedido, 'não medido')]
     const q = contagem.queda
-    const filtroDe = (chave: FiltroDeEstado, rotulo: string, n: number | null): FiltroDoResumo => {
+    const filtroDe = (chave: FiltroDeEstado, rotulo: string, n: number | null, porEstado = false): FiltroDoResumo => {
       const pressed = filter === chave
       const ainda = chave === 'em-queda' && q.tipo === 'ainda_nao_existe' ? q.existeEm : null
       const naoMedido = chave === 'em-queda' && q.tipo === 'nao_medido' ? FRASES[q.motivo]({}, 'canais').curta : null
-      return { chave, rotulo, n: ainda || naoMedido ? null : n, ainda, naoMedido, pressed, href: chave === 'todos' ? hrefDe('todos', direcaoFiltro) : pressed ? hrefDe('todos', direcaoFiltro) : hrefDe(chave, direcaoFiltro),
-        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : n === null ? `${rotulo}: não carregou` : `${rotulo}: ${n}` }
+      // falha parcial: o estado foi lido em `estadoMedidoEm` de `todos` canais, e o número vale só para eles ("0 de 9", nunca "0 medido")
+      const base = porEstado && n !== null && contagem.estadoMedidoEm < contagem.todos ? { medidos: contagem.estadoMedidoEm, de: contagem.todos } : null
+      return { chave, rotulo, n: ainda || naoMedido ? null : n, ainda, naoMedido, pressed, base,
+        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : n === null ? `${rotulo}: não carregou`
+          : base ? `${rotulo}: ${n} de ${base.medidos} medidos (estado medido em ${base.medidos} de ${base.de} canais)` : `${rotulo}: ${n}` }
     }
     const filtros = [
-      filtroDe('todos', 'Todos', contagem.todos), filtroDe('parados', 'Parados', contagem.parados),
+      filtroDe('todos', 'Todos', contagem.todos), filtroDe('parados', 'Parados', contagem.parados, true),
       filtroDe('em-queda', 'Em queda', q.tipo === 'numero' ? q.emQueda : null),
-      filtroDe('sairam', 'Saíram do YouTube', contagem.saiu), filtroDe('problemas', 'Em erro', contagem.emErro),
+      filtroDe('sairam', 'Saíram do YouTube', contagem.saiu, true), filtroDe('problemas', 'Com problema', contagem.emErro),
     ]
-    const nomeFiltro: Partial<Record<FiltroDeEstado, string>> = { parados: 'parado', 'em-queda': 'em queda', sairam: 'saiu do YouTube', problemas: 'em erro', 'sem-videos': 'sem vídeos' }
+    const nomeFiltro: Partial<Record<FiltroDeEstado, string>> = { parados: 'parado', 'em-queda': 'em queda', sairam: 'saiu do YouTube', problemas: 'com problema na coleta', 'sem-videos': 'sem vídeos' }
     const nomeDirecao: Record<DirecaoFiltro, string> = { sobe: 'subindo', estavel: 'sem mudança', desce: 'descendo', 'nao-medido': 'com direção não medida' }
     const apoioZero: Partial<Record<FiltroDeEstado, string>> = {
       parados: `Todos os ${linhasDoNicho.length} canais publicaram dentro do prazo habitual de cada um.`,
@@ -730,13 +738,15 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
         const dataBR = `${q.existeEm.slice(8, 10)}/${q.existeEm.slice(5, 7)}/${q.existeEm.slice(0, 4)}`
         vazio = {
           forma: 'ainda_nao_existe', titulo: 'Em queda ainda não pode ser medido.', limpar,
-          acaoDescendo: true,
-          apoio: `Em queda pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos, e a contagem de views mudou em 24/08/2026. Só a partir de ${dataBR} (daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}) dá para medir. Enquanto isso, ${dirRes.desce ?? 0} ${dirRes.desce === 1 ? 'canal está descendo' : 'canais estão descendo'} neste período.`,
+          acaoDescendo: dirRes.desce !== null,
+          apoio: `Em queda pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos, e a contagem de views mudou em 24/08/2026. Só a partir de ${dataBR} (daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}) dá para medir. ${dirRes.desce === null ? 'A direção dos canais não carregou agora.' : `Enquanto isso, ${dirRes.desce} ${dirRes.desce === 1 ? 'canal está descendo' : 'canais estão descendo'} neste período.`}`,
         }
+      } else if (filter === 'em-queda' && q.tipo === 'nao_carregou') {
+        vazio = { forma: 'nao_carregou', titulo: 'Em queda não carregou.', apoio: 'O estado dos canais não carregou agora. Recarregue a página em alguns minutos.', limpar }
       } else if (filter === 'em-queda' && q.tipo === 'nao_medido') {
         vazio = { forma: 'nao_medido', titulo: 'Em queda ainda não foi medido.', apoio: `${FRASES[q.motivo]({}, 'canais').longa}.`, limpar } // TEXTO-A-REVISAR
       } else if (tudoNaoCarregou) {
-        vazio = { forma: 'nao_medido', titulo: 'Não deu para contar: as medidas não carregaram.', apoio: 'Recarregue a página em alguns minutos.', limpar }
+        vazio = { forma: 'nao_carregou', titulo: 'Não deu para contar: as medidas não carregaram.', apoio: 'Recarregue a página em alguns minutos.', limpar }
       } else if (filter !== 'todos' && dirNome === null) {
         vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? 'neste filtro'}`, apoio: apoioZero[filter] ?? '', limpar }
       } else if (filter === 'todos' && dirNome !== null) {
@@ -800,7 +810,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const until = c.sync.state !== 'ok' && g.to != null ? ', até ' + D.dmhm(g.to) : ''
       statsV = [
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
-          sub: paradoDe(c) === 'sim' ? `Parado: último vídeo ${nb(`há ${diasParado(c) ?? 0} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : paradoDe(c) === 'nao_carregou' ? 'não carregou' : 'longos + Shorts por semana', subTitle: null, subWeak: paradoDe(c) === 'sim', ...(paradoDe(c) === 'nao_carregou' ? { subErro: true } : {}) },
+          sub: paradoDe(c) === 'sim' ? `Parado: último vídeo ${diasParado(c) == null ? 'há muito tempo' : nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : paradoDe(c) === 'nao_carregou' ? 'não carregou' : 'longos + Shorts por semana', subTitle: null, subWeak: paradoDe(c) === 'sim', ...(paradoDe(c) === 'nao_carregou' ? { subErro: true } : {}) },
         { label: `Views/dia, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: null, value: rel ? vRel : vAbs,
           sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : videosOf(c.id).some(x => x.fmt === fmt && x.tracked) ? 'Aguardando o 2º registro diário.' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
         g.pending

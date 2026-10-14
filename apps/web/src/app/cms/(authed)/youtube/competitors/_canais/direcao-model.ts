@@ -4,6 +4,7 @@ import type { Medida, MotivoNaoMedido } from '@/lib/youtube/observatorio/medidas
 import type { ValorDirecaoCanal } from '@/lib/youtube/observatorio/medidas/direcao'
 import { pctDosGanhos, direcaoExibida, posicaoNaRegua, type SimboloDeDirecao } from '@/lib/youtube/observatorio/medidas-telas/direcao-exibida'
 import { avisoDeContagem } from '@/lib/youtube/observatorio/medidas-telas/calendario'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
 
 export type CelulaDeDirecao =
@@ -20,7 +21,7 @@ const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 // TEXTO-A-REVISAR (Logan/Naksu): a frase do canal próprio é a do mockup 16 (S4); a longa repete a curta.
 export const FRASE_CANAL_PROPRIO = 'o YouTube não dá esse número do seu canal'
 // TEXTO-A-REVISAR (Logan/Naksu): a frase do canal sem vídeos é a do mockup 16.
-export const FRASE_SEM_VIEWS = 'sem views nos 56 dias para comparar'
+export const FRASE_SEM_VIEWS = `sem views nos ${MEASURE_RULES.direction.windowDays * 2} dias para comparar`
 
 /**
  * `m3a` nulo = a medida não chegou (canal que não carregou, ou as medidas do site inteiro que falharam). `extras` nulo = os campos do canal

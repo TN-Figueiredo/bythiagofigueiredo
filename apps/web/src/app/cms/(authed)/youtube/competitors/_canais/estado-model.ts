@@ -15,6 +15,8 @@ export interface EstadoDaLinha {
   pastilha: PastilhaDaLinha
   /** A data (`AAAA-MM-DD`, "saiu do YouTube") ou os dias ("parado há N dias"); nulo quando não se aplica ou não foi lida. */
   dataOuDias: string | number | null
+  /** Parado: o instante da última publicação, de M8. A data mostrada vem dele, nunca de agora menos os dias. */
+  ultimaEm: number | null
   /** A frase sob a pastilha: "Ativo, publicou há N dias" no ativo; o motivo no não medido; vazia onde a pastilha basta. */
   linha: string | null
   apoio: string | null
@@ -36,7 +38,7 @@ const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const diasTxt = (n: number): string => `${n} ${n === 1 ? 'dia' : 'dias'}`
 
 const base: Omit<EstadoDaLinha, 'pastilha'> = {
-  dataOuDias: null, linha: null, apoio: null, tambemEmQueda: false, quedaNaoMedida: null, quedaMedida: false, extrasNaoLidos: false, motivo: null, longa: null, quedaLinha: null,
+  dataOuDias: null, ultimaEm: null, linha: null, apoio: null, tambemEmQueda: false, quedaNaoMedida: null, quedaMedida: false, extrasNaoLidos: false, motivo: null, longa: null, quedaLinha: null,
 }
 
 /**
@@ -45,7 +47,7 @@ const base: Omit<EstadoDaLinha, 'pastilha'> = {
  */
 export function estadoDaLinha(
   m8: M8DoCanal | null, extras: ExtrasDoCanal | null, videosN: number,
-  o: { proprio?: boolean; hojeSP: string },
+  o: { proprio?: boolean; hojeSP: string; buscando?: boolean },
 ): EstadoDaLinha {
   if (o.proprio) {
     // TEXTO-A-REVISAR (Logan/Naksu)
@@ -62,7 +64,12 @@ export function estadoDaLinha(
   if (e.estado === 'medido' && e.valor === 'pausado') {
     return { ...base, pastilha: 'pausado', extrasNaoLidos, linha: 'Coleta pausada' } // TEXTO-A-REVISAR (pergunta 10)
   }
-  if (videosN === 0) return { ...base, pastilha: 'sem_videos', extrasNaoLidos, apoio: 'Ainda não publicou nada.' }
+  if (videosN === 0) {
+    // zero vídeos no banco não é zero no YouTube: canal na 1ª busca, ou só com vídeos sem data, ainda está sendo lido
+    // TEXTO-A-REVISAR (Logan/Naksu)
+    if (o.buscando) return { ...base, pastilha: 'nao_medido', extrasNaoLidos, linha: 'ainda buscando os vídeos', longa: 'O canal ainda está na primeira busca: os vídeos ainda não foram lidos por inteiro.' }
+    return { ...base, pastilha: 'sem_videos', extrasNaoLidos, apoio: 'Ainda não publicou nada.' }
+  }
   if (e.estado === 'nao_medido') {
     const m = e.motivo
     return {
@@ -85,7 +92,8 @@ export function estadoDaLinha(
     const passo = MEASURE_RULES.stalled.factor
     // TEXTO-A-REVISAR (Logan/Naksu): o intervalo habitual só é recuperável quando o limite passa do piso de 28 dias
     const apoio = limite !== null && limite > MEASURE_RULES.stalled.floorDays ? `Costuma publicar a cada ${diasTxt(Math.round(limite / passo))}.` : null
-    return { ...base, pastilha: 'parado', dataOuDias: dias, apoio, extrasNaoLidos, quedaMedida, quedaNaoMedida, quedaLinha,
+    const ultimaEm = parado.estado === 'medido' ? parado.valor.ultimaEm : null
+    return { ...base, pastilha: 'parado', dataOuDias: dias, ultimaEm, apoio, extrasNaoLidos, quedaMedida, quedaNaoMedida, quedaLinha,
       // o canal parado que também está em queda: só a pastilha de parado, mais uma frase curta (o mockup 16, decisão 5)
       tambemEmQueda: quedaMedida && queda.valor.janelas.length > 0 && queda.valor.janelas.every(x => direcaoDe(x) === 'descendo') }
   }
@@ -104,12 +112,16 @@ export type FiltroDeEstado = 'todos' | 'parados' | 'em-queda' | 'sairam' | 'sem-
 export type ContagemDeQueda =
   | { tipo: 'ainda_nao_existe'; existeEm: string }
   | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; data: string }
+  /** Nenhuma linha teve o estado lido: erro, não "cálculo ainda não rodou". */
+  | { tipo: 'nao_carregou' }
   | { tipo: 'numero'; emQueda: number; quedaMedidaEm: number; canais: number }
 
 export interface LinhaParaContagem { proprio: boolean; estado: EstadoDaLinha; emErro: boolean }
 export interface ContagemDosFiltros {
   /** `parados` e `saiu` são nulos quando o estado não carregou em nenhuma linha: nulo nunca vira zero. */
   todos: number; parados: number | null; saiu: number | null; emErro: number; queda: ContagemDeQueda
+  /** Quantas linhas tiveram o estado lido (as que não estão em `nao_carregou`). Menor que `todos` = `parados` e `saiu` valem só para essas. */
+  estadoMedidoEm: number
 }
 
 /** O canal próprio não entra em nenhuma contagem. O filtro "em queda" inclui o canal parado que também está em queda. */
@@ -123,15 +135,20 @@ export function contagemDosFiltros(linhas: readonly LinhaParaContagem[], hojeSP:
     if (medidos === 0) {
       const cont = new Map<MotivoNaoMedido, number>()
       for (const l of ls) if (l.estado.quedaNaoMedida) cont.set(l.estado.quedaNaoMedida.motivo, (cont.get(l.estado.quedaNaoMedida.motivo) ?? 0) + 1)
-      const motivo = [...cont.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'aguardando_calculo'
-      queda = { tipo: 'nao_medido', motivo, data: hojeSP }
+      const motivo = [...cont.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      // nenhum motivo de "não medido" e linha que não carregou: é erro, e não "cálculo ainda não rodou"; sem nenhuma linha elegível, é zero canais
+      if (motivo !== undefined) queda = { tipo: 'nao_medido', motivo, data: hojeSP }
+      else if (ls.some(l => l.estado.pastilha === 'nao_carregou')) queda = { tipo: 'nao_carregou' }
+      else queda = { tipo: 'numero', emQueda: 0, quedaMedidaEm: 0, canais: ls.length }
     } else {
       queda = { tipo: 'numero', emQueda: ls.filter(l => l.estado.pastilha === 'em_queda' || l.estado.tambemEmQueda).length, quedaMedidaEm: medidos, canais: ls.length }
     }
   }
   // o estado não carregou em nenhuma linha: "0 parados" seria dado inventado
-  const semEstado = ls.length > 0 && ls.every(l => l.estado.pastilha === 'nao_carregou')
+  const estadoMedidoEm = ls.filter(l => l.estado.pastilha !== 'nao_carregou').length
+  const semEstado = ls.length > 0 && estadoMedidoEm === 0
   return {
+    estadoMedidoEm,
     todos: ls.length, parados: semEstado ? null : ls.filter(l => l.estado.pastilha === 'parado').length,
     saiu: semEstado ? null : ls.filter(l => l.estado.pastilha === 'fora_do_ar').length, emErro: ls.filter(l => l.emErro).length, queda,
   }

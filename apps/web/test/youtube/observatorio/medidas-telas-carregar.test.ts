@@ -137,6 +137,25 @@ describe('E5a T2: erro, cache e prazo', () => {
     expect(r.esgotou).toBe(1)
     expect(r.porCanal.get('a') && 'naoCarregou' in r.porCanal.get('a')!).toBe(false)
   })
+  it('prazo único do conjunto: 75 canais com 2 s por consulta terminam em ~12 s, e quem não começou a tempo é tempo_esgotado sem consulta', async () => {
+    vi.useFakeTimers()
+    const ids = Array.from({ length: 75 }, (_, i) => 'c' + i)
+    const f = falsoPostgrest(tabelas(ids))
+    const lento = espiar(f.sb, (_t, _eqs, seguir) => new Promise((res) => { setTimeout(() => res(seguir()), 2_000) }))
+    const t0 = Date.now()
+    let fim = 0
+    const prom = carregarMedidasDoSite(lento, { siteId: 's1', obs: obsDe(ids), canais: ids, agoraMs: T0 }).then((r) => { fim = Date.now() - t0; return r })
+    await vi.advanceTimersByTimeAsync(13_000)
+    const r = await prom
+    expect(fim).toBeLessThanOrEqual(12_500)
+    expect(r.porCanal.size).toBe(75)
+    expect(r.esgotou).toBeGreaterThan(0)
+    const esgotados = [...r.porCanal.values()].filter((m) => 'naoCarregou' in m && m.naoCarregou === 'tempo_esgotado').length
+    expect(esgotados).toBe(r.esgotou)
+    // o canal que nem começou não gerou consulta: bem menos de 75 canais consultados
+    const consultados = new Set(f.consultas.flatMap((c) => c.filtros.map((x) => x.valor)).filter((v) => typeof v === 'string' && /^c\d+$/.test(v)))
+    expect(consultados.size).toBeLessThan(75)
+  })
   it('entrada de 45 minutos com o banco saudável: lê de novo, sai medido e nenhum evento vai ao Sentry', async () => {
     const f = falsoPostgrest(tabelas(['a']))
     const p = { siteId: 's1', obs: obsDe(['a']), canais: ['a'] }

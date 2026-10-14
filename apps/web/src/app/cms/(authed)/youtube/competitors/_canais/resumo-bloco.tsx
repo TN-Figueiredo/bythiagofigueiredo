@@ -8,6 +8,9 @@ import type { DirecaoFiltro, ResumoView } from './view-model'
 import type { FiltroDeEstado } from './estado-model'
 import { AindaNaoExiste, NaoCarregou, ZeroMedido } from '../_chrome/medidas/marcas'
 import { Tip } from './cells'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+
+const JANELA = MEASURE_RULES.direction.windowDays, PERIODOS = MEASURE_RULES.decline.windows
 
 const GLIFO: Record<DirecaoFiltro, string> = { sobe: '▲', estavel: '＝', desce: '▼', 'nao-medido': '' }
 const GLIFO_FILTRO: Partial<Record<FiltroDeEstado, string>> = { parados: '⏸', 'em-queda': '▼', sairam: '✕', problemas: '⚠' }
@@ -34,9 +37,9 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
       <p className="obs-cn-frase" data-k="resumo-frase">
         {resumo.frase ? destacarNumeros(resumo.frase) : 'Sem canais para resumir.'}{' '}
         <Tip label="Como o resumo e o estado são calculados">
-          Parado: dias sem publicar acima do maior entre 28 dias e 4 vezes o intervalo habitual do canal. Canal que publica por temporada pode parecer parado.
-          Em queda (sustentada): descendo em 3 períodos de 28 dias seguidos, só depois da mudança de contagem de 24/08/2026. Parado e descendo são medidas diferentes: um canal pode ser os dois. Saiu do YouTube: o YouTube não achou o canal em duas
-          leituras seguidas; os números param na data. Não medido: menos de 56 dias de registro, dia sem registro, ou a contagem não existe. No seu canal, o
+          Parado: dias sem publicar acima do maior entre {MEASURE_RULES.stalled.floorDays} dias e {MEASURE_RULES.stalled.factor} vezes o intervalo habitual do canal. Canal que publica por temporada pode parecer parado.
+          Em queda (sustentada): descendo em {PERIODOS} períodos de {JANELA} dias seguidos, só depois da mudança de contagem de 24/08/2026. Parado e descendo são medidas diferentes: um canal pode ser os dois. Saiu do YouTube: o YouTube não achou o canal em duas
+          leituras seguidas; os números param na data. Não medido: menos de {JANELA * 2} dias de registro, dia sem registro, ou a contagem não existe. No seu canal, o
           YouTube não dá o número por dia. Cálculo do Observatório sobre dados públicos do YouTube.
         </Tip>
       </p>
@@ -61,13 +64,13 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
             {GLIFO_FILTRO[f.chave] ? <span className={`obs-cn-filtro-i ${f.chave}`} aria-hidden="true">{GLIFO_FILTRO[f.chave]}</span> : null}
             <span aria-hidden="true">{f.rotulo}</span>{' '}
             <span className="obs-cn-filtro-n" aria-hidden="true">
-              {f.ainda ? <AindaNaoExiste existeEm={f.ainda} /> : f.naoMedido ? <span className="obs-ch-nm">{f.naoMedido}</span> : f.n === null ? <NaoCarregou /> : f.n === 0 ? <ZeroMedido /> : <b className="num">{f.n}</b>}
+              {f.ainda ? <AindaNaoExiste existeEm={f.ainda} /> : f.naoMedido ? <span className="obs-ch-nm">{f.naoMedido}</span> : f.n === null ? <NaoCarregou /> : f.base ? <><b className="num">{f.n}</b><span className="obs-cn-filtro-b"> de {f.base.medidos}</span></> : f.n === 0 ? <ZeroMedido /> : <b className="num">{f.n}</b>}
             </span>
           </button>
         ))}
       </div>
       <div className="obs-cn-faixa">
-        <p><b>Direção:</b> views dos últimos 28 dias contra os 28 anteriores, cada canal contra ele mesmo.</p>
+        <p><b>Direção:</b> views dos últimos {JANELA} dias contra os {JANELA} anteriores, cada canal contra ele mesmo.</p>
         <ul className="obs-cn-legenda">
           <li><span className="obs-cn-sy sobe" aria-hidden="true">▲</span> subindo, +10% ou mais</li>
           <li><span className="obs-cn-sy estavel" aria-hidden="true">＝</span> sem mudança</li>
@@ -75,7 +78,7 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
           <li><span className="obs-cn-sy nm obs-ch-nm" aria-hidden="true" /> não medido, com o motivo</li>
         </ul>
         {resumo.avisoDeContagem ? (
-          <p className="obs-cn-aviso" data-k="aviso-contagem">Até {dm(resumo.avisoDeContagem.ate)} os 56 dias cruzam a mudança de contagem de 24/08/2026.</p>
+          <p className="obs-cn-aviso" data-k="aviso-contagem">Até {dm(resumo.avisoDeContagem.ate)} os {JANELA * 2} dias cruzam a mudança de contagem de 24/08/2026.</p>
         ) : null}
       </div>
     </section>

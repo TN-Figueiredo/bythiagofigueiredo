@@ -5,6 +5,8 @@ import { DirecaoCell } from './direcao-cell'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
 import { fraseDoCartao, motivoTexto, temPosicao } from './posicao-model'
 import { CompararLink, type RowHandlers } from './channel-table'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+const JANELA = MEASURE_RULES.direction.windowDays
 
 /** A frase do canal próprio no cartão: a posição na ordenação atual, ou o motivo de não ter. Concorrente não tem a frase. */
 function Voce({ r, view }: { r: CanaisRow; view: CanaisView }) {
@@ -21,7 +23,7 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
         : <span className="cp num">{temPosicao(view.sort) ? <span aria-hidden="true">–</span> : null}<span className="sr">sem posição</span></span>}
       <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
       <Voce r={r} view={view} />
-      <div className="kv"><div><div className="l">Direção, views 28 dias × 28 anteriores</div><DirecaoCell r={r} cartao /></div></div>
+      <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><DirecaoCell r={r} cartao /></div></div>
       <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></div>
       <div className="kv">
         <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} visible /></div>
