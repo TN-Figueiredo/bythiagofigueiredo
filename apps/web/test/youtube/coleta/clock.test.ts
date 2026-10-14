@@ -114,6 +114,17 @@ describe('relógio da coleta', () => {
     await expect(fetchComPrazo(deadline, f as unknown as typeof fetch)('https://x.test')).rejects.toBeInstanceOf(SemTempoError)
   })
 
+  it('prazo do passo dispara 1 ms antes de Date.now() chegar nele: SemTempoError, não o TimeoutError', async () => {
+    const deadline = Date.now() + 30
+    const f = vi.fn((_u: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_r, rej) => {
+      init?.signal?.addEventListener('abort', () => {
+        vi.spyOn(Date, 'now').mockReturnValue(deadline - 1)
+        rej(init.signal?.reason)
+      })
+    }))
+    await expect(fetchComPrazo(deadline, f as unknown as typeof fetch)('https://x.test')).rejects.toBeInstanceOf(SemTempoError)
+  })
+
   it('fetch rejeita com TimeoutError sobrando tempo do passo: o mesmo TimeoutError', async () => {
     vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
     const erro = new DOMException('timeout', 'TimeoutError')
