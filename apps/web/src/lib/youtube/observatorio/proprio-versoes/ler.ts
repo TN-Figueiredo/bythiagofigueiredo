@@ -12,7 +12,8 @@ import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
 import { TAMANHO_PAGINA } from '@/lib/youtube/coleta/paginar'
 import { ehSchemaAusente } from '@/lib/youtube/coleta/schema'
 import { edicaoValida } from '../proprio/edicao'
-import type { Pedido } from '../proprio/ler'
+import type { EdicaoDoSite } from '../proprio/edicao'
+import type { DiaYt } from '../proprio/tipos'
 import type { Privado } from '../proprio/tipos'
 import type {
   CampoVersao, EstadoRegistro, LinhaEstadoDb, LinhaVersaoDb, RegistroDoCampo, VersaoPropria, VersoesCanal, VersoesDoVideo,
@@ -42,6 +43,9 @@ export class ErroLeituraVersoes extends Error {
     this.lidas = lidas
   }
 }
+
+/** Mesmo formato do `Pedido` de `../proprio/ler`, declarado aqui: a varredura do dado privado proíbe importar daquele módulo. */
+interface Pedido { edicao: EdicaoDoSite | null; canalId: string; hoje: DiaYt }
 
 export interface PedidoVersoes extends Pedido {
   ytIds: readonly string[]
