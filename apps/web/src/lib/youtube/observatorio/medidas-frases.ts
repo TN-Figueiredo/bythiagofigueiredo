@@ -38,7 +38,7 @@ export const FRASES_DE_MOTIVO: Record<MotivoNaoMedido, (c: ContextoDaFrase) => s
   leituras_distantes: c => `as leituras mais próximas do vídeo${naIdade(c)} estão longe demais dela`,
   sem_leitura: c => `o vídeo não tem leitura de views${naIdade(c)}`,
   views_ocultas: () => 'o canal oculta a contagem de views do vídeo',
-  fecha_em: c => (c.fechaEm ? `a janela ainda não fechou e fecha em ${dataBR(c.fechaEm)}` : 'a janela ainda não fechou e ainda sem data para fechar'),
+  fecha_em: c => (c.fechaEm ? `a janela ainda não fechou e fecha em ${dataBR(c.fechaEm)}` : 'a janela ainda não fechou e não há data prevista para fechar'),
   aguardando_calculo: c => `a idade já fechou${c.idade ? ` (${c.idade} ${c.idade === 1 ? 'dia' : 'dias'})` : ''}, mas o cálculo ainda não rodou`,
   poucos_videos: c => comNumeros(c, (n, min) => `há ${n} ${n === 1 ? 'vídeo' : 'vídeos'} na janela e a medida pede ${min}`, 'há poucos vídeos na janela para medir'),
   poucas_publicacoes: c => comNumeros(c, (n, min) => `há ${n} ${n === 1 ? 'publicação' : 'publicações'} na janela e a medida pede ${min}`, 'há poucas publicações na janela para medir o ritmo'),

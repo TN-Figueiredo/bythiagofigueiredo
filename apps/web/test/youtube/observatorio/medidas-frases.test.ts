@@ -57,7 +57,7 @@ describe('o que vem do argumento', () => {
     expect(FRASES_DE_MOTIVO.janela_cruza_mudanca_de_contagem({ fechaEm: '2026-12-14' })).toBe('a janela cruza o dia em que o YouTube mudou a contagem de views; a primeira leitura limpa fecha em 14/12/2026')
     expect(FRASES_DE_MOTIVO.janela_cruza_mudanca_de_contagem({})).not.toMatch(/fecha em/)
     expect(FRASES_DE_MOTIVO.fecha_em({ fechaEm: '2026-12-14T03:00:00.000Z' })).toContain('14/12/2026')
-    expect(FRASES_DE_MOTIVO.fecha_em({})).toContain('sem data')
+    expect(FRASES_DE_MOTIVO.fecha_em({})).toBe('a janela ainda não fechou e não há data prevista para fechar')
   })
 
   it('a idade entra na frase quando vem, e a frase não inventa idade quando não vem', () => {
@@ -118,6 +118,16 @@ describe('termos proibidos e dependências', () => {
       "import * as Sentry from '@sentry/nextjs'",
       "import type { Medida, MotivoNaoMedido } from './medidas/tipos'",
     ].sort())
+  })
+
+  it('o singular: 1 vídeo, 1 publicação, 1 dia', () => {
+    expect(FRASES_DE_MOTIVO.poucos_videos({ n: 1, minimo: 5 })).toBe('há 1 vídeo na janela e a medida pede 5')
+    expect(FRASES_DE_MOTIVO.poucos_videos({ n: 2, minimo: 5 })).toBe('há 2 vídeos na janela e a medida pede 5')
+    expect(FRASES_DE_MOTIVO.poucas_publicacoes({ n: 1, minimo: 4 })).toBe('há 1 publicação na janela e a medida pede 4')
+    expect(FRASES_DE_MOTIVO.descoberto_tarde({ idade: 1 })).toContain('(1 dia)')
+    expect(FRASES_DE_MOTIVO.descoberto_tarde({ idade: 30 })).toContain('(30 dias)')
+    expect(FRASES_DE_MOTIVO.sem_leitura({ idade: 1 })).toContain('aos 1 dia de vida')
+    expect(FRASES_DE_MOTIVO.sem_leitura({ idade: 7 })).toContain('aos 7 dias de vida')
   })
 
   it('a longa não varia por tela: a função recebe só o contexto e o módulo não tem chave tela', () => {
