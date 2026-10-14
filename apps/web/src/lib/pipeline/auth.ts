@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { resolverChave, ehDoPerfil, fraseDeVencida } from '@/lib/pipeline/chave'
 
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -81,23 +82,26 @@ export async function authenticatePipeline(req: NextRequest): Promise<
     }
 
     const supabase = getSupabaseServiceClient()
-    const { data: keyRow } = await supabase
-      .from('pipeline_api_keys')
-      .select('id, site_id, name, permissions')
-      .eq('key_hash', keyHash)
-      .is('revoked_at', null)
-      .single()
-
-    if (!keyRow) {
+    // E17 d2: a busca e a validade moram num ponto único (lib/pipeline/chave.ts), igual para o pipeline e o MCP.
+    // A exceção da busca NÃO é apanhada: sobe como sempre subiu. Erro devolvido pelo banco e chave inexistente: 401.
+    const lida = await resolverChave(supabase, keyHash, Date.now())
+    if (lida.estado === 'ausente' || lida.estado === 'erro') {
       return { ok: false, status: 401, error: 'Invalid or revoked API key' }
     }
+    const keyRow = lida.chave
 
     // A5, 8.1.4 (N2): a chave do perfil `observatorio_leitura` só vale no servidor MCP do Observatório. Em /api/pipeline/*
     // é recusada sempre, antes de qualquer outra permissão e sem depender do modo da E19 (reverter a recusa não a reabre).
-    // `permissions` ausente ou fora do formato vira lista vazia: nunca "tudo liberado" nem exceção no helper.
-    const permissions: string[] = Array.isArray(keyRow.permissions) ? keyRow.permissions : []
-    if (permissions.includes('observatorio_leitura')) {
+    // Vem ANTES de "vencida": a chave do perfil nunca aprende nada por esta porta. `permissions` ausente ou fora do
+    // formato já chega como lista vazia: nunca "tudo liberado" nem exceção no helper.
+    const permissions = keyRow.permissions
+    if (ehDoPerfil(permissions)) {
       return { ok: false, status: 403, error: 'Forbidden' }
+    }
+
+    // Item 236: chave com validade preenchida e no passado é 401 com a data. Sem a coluna ou nula, não vence (como hoje).
+    if (lida.estado === 'vencida') {
+      return { ok: false, status: 401, error: fraseDeVencida(keyRow.expiresAt ?? '') }
     }
 
     await supabase
@@ -105,7 +109,7 @@ export async function authenticatePipeline(req: NextRequest): Promise<
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', keyRow.id)
 
-    return { ok: true, auth: { siteId: keyRow.site_id, permissions, source: 'api_key', keyHash, keyId: keyRow.id, keyName: keyRow.name ?? null } }
+    return { ok: true, auth: { siteId: keyRow.siteId, permissions, source: 'api_key', keyHash, keyId: keyRow.id, keyName: keyRow.name } }
   }
 
   // Fall back to session auth
