@@ -2,7 +2,7 @@ import { DHASH_MAX_SAME, dhashOf, hamming } from '@/lib/youtube/thumb-fingerprin
 import { PORTAO, Recusa } from './regras'
 import { classificar, horas, lacunas, primeiraEstavel, type Sonda } from './classificar'
 import { baixar, dhashComoHq, gerarImagemTeste, maiorCopia, urlDaVariante, type Variante } from './imagem'
-import { sha256, type Diario, type Estado, type Medida } from './diario'
+import { arquivoDaOriginal, sha256, type Diario, type Estado, type Medida } from './diario'
 import type { Escritor } from './youtube'
 
 export interface Sinal { parar: boolean }
@@ -24,14 +24,16 @@ const cmd = (c: string, v: string) => `bash scripts/portao-dhash.sh ${c} ${v}`
 
 interface Preparo { variante: Variante; largura: number; altura: number; maior: Buffer; hq: Buffer; dhashHq: string; teste: Buffer; dhashTeste: string; distancia: number }
 
-async function preparar(d: Deps, aceitarMenor: boolean): Promise<Preparo> {
+async function preparar(d: Deps, aceitarMenor: boolean, modoHq = false): Promise<Preparo> {
   const maior = await maiorCopia(d.video, d.f)
+  // devolver-hq mede a cópia PEQUENA: com maxresdefault a hqdefault é derivada dela e o caso não é o que se quer medir (P-1)
+  if (modoHq && maior.variante === 'maxresdefault') throw new Recusa('o vídeo tem maxresdefault: devolver-hq mede a cópia pequena; escolha um vídeo sem maxresdefault (o mais antigo e com menos views)')
   const hq = await baixar(urlDaVariante(d.video, 'hqdefault'), d.f)
   if (!hq) throw new Recusa('o YouTube não serve a hqdefault deste vídeo: sem ela não há o que medir')
   const dhashHq = await dhashOf(hq)
   const coerencia = hamming(await dhashComoHq(maior.bytes), dhashHq)
   if (coerencia > DHASH_MAX_SAME) throw new Recusa(`a ${maior.variante} não bate com a hqdefault (distância ${coerencia}): a cópia grande pode ser antiga`)
-  if (maior.variante !== 'maxresdefault' && !aceitarMenor)
+  if (maior.variante !== 'maxresdefault' && !aceitarMenor && !modoHq)
     throw new Recusa(`a original só existe em ${maior.variante} (${maior.largura}×${maior.altura}); devolver sobe essa imagem. Rode com --aceitar-menor se o dono aceitar, ou use o vídeo reserva`)
   const teste = await gerarImagemTeste(maior.bytes)
   if (teste.length > PORTAO.limiteBytes) throw new Recusa(`a imagem de teste passou de 2 MB (${teste.length} bytes)`)
@@ -49,32 +51,36 @@ export async function ensaio(d: Deps, aceitarMenor: boolean): Promise<Saida> {
   return { codigo: 0, mensagem: 'ensaio: nada foi escrito no YouTube nem no disco' }
 }
 
-export async function valer(d: Deps, aceitarMenor: boolean): Promise<Saida> {
+/** `hq`: ciclo do devolver-hq (a devolução sobe original-hq.jpg, a hqdefault 480×360 baixada no preparado). */
+export async function valer(d: Deps, aceitarMenor: boolean, hq = false): Promise<Saida> {
   if (d.diario.temAlgo()) throw new Recusa(`a pasta ${d.diario.pasta} já tem arquivos: rode "${cmd('devolver', d.video)}" ou "conferir"; para medir de novo, mova a pasta`)
-  const p = await preparar(d, aceitarMenor)
+  const p = await preparar(d, aceitarMenor, hq)
   const esc = await d.escritor()
   const v = await esc.conferirVideo(d.video)
   if (!v) throw new Recusa('videos.list não devolveu o vídeo (apagado ou fora do alcance desta credencial)')
   if (v.canal !== esc.canal) throw new Recusa(`o vídeo é do canal ${v.canal}, não de ${esc.canal}`)
   if (v.privacidade !== 'public') throw new Recusa(`o vídeo está ${v.privacidade}, não público`)
   if (d.sinal.parar) throw new Recusa('interrompido antes de escrever: nada foi trocado')
-  let etagAntes: string | null = null
-  try { etagAntes = (await d.sondar(d.video)).etag } catch { /* sem ETag anterior: a (ii) sai "sem conclusão" */ }
+  let etagAntes: string | null = null            // CRU, como veio (Y-7)
+  let erroSondaAntes: string | null = null
+  try { etagAntes = (await d.sondar(d.video)).etag } catch (err) { erroSondaAntes = msg(err) }
 
   const criadoEm = new Date(d.agora()).toISOString()
   const e: Estado = {
     versao: 1, video: d.video, fase: 'preparado', criadoEm, atualizadoEm: criadoEm,
     original: { variante: p.variante, largura: p.largura, altura: p.altura, sha256: d.diario.salvarUmaVez('original-maior.jpg', p.maior), sha256Hq: d.diario.salvarUmaVez('original-hq.jpg', p.hq), dhashHq: p.dhashHq },
     teste: { sha256: d.diario.salvarUmaVez('teste-1280x720.jpg', p.teste), dhashComoHq: p.dhashTeste, distanciaDoOriginal: p.distancia },
-    trocaEm: null, devolucaoEm: null, cotaGasta: PORTAO.cota.videosList, tentativasDevolucao: 0, aparicao: null, volta: null, etagAntes,
+    trocaEm: null, devolucaoEm: null, cotaGasta: PORTAO.cota.videosList, tentativasDevolucao: 0, aparicao: null, volta: null, etagAntes, erroSondaAntes,
+    ...(hq ? { modo: 'hq' as const } : {}),
   }
   d.diario.gravar(e)
-  d.diario.registrar('preparado', { variante: p.variante, distancia: p.distancia, etagAntes })
+  d.diario.registrar('preparado', { variante: p.variante, distancia: p.distancia, etagAntes, erroSondaAntes, modo: hq ? 'hq' : 'maior' })
 
   // a cópia que vai servir à devolução é a do DISCO, não a da memória (falta de luz, disco com defeito)
-  const doDisco = d.diario.lerArquivo('original-maior.jpg')
-  if (sha256(doDisco) !== e.original.sha256) throw new Recusa('a cópia da original gravada no disco não confere (sha256): nada foi trocado')
-  const dist = hamming(await dhashComoHq(doDisco), p.dhashHq)
+  const alvoDisco = arquivoDaOriginal(e)
+  const doDisco = d.diario.lerArquivo(alvoDisco.nome)
+  if (sha256(doDisco) !== alvoDisco.sha256) throw new Recusa('a cópia da original gravada no disco não confere (sha256): nada foi trocado')
+  const dist = hamming(hq ? await dhashOf(doDisco) : await dhashComoHq(doDisco), p.dhashHq)
   if (dist > DHASH_MAX_SAME) throw new Recusa(`a cópia da original no disco não bate com a hqdefault (distância ${dist}): nada foi trocado`)
 
   let falha: unknown = null
@@ -110,18 +116,36 @@ export async function devolver(d: Deps): Promise<Saida> {
   return devolverEConferir(d, e, await d.escritor())
 }
 
+/**
+ * medir (cota 0, nada escrito): distância dHash de cada referência (arquivo local ou URL do Blob) contra a hqdefault PÚBLICA
+ * do vídeo. A referência é lida como o YouTube a serviria (dhashComoHq); a hqdefault, como veio (dhashOf).
+ */
+export async function medir(d: Pick<Deps, 'video' | 'f' | 'log'>, referencias: string[], ler: (ref: string) => Promise<Buffer>): Promise<Saida> {
+  const hq = await baixar(urlDaVariante(d.video, 'hqdefault'), d.f)
+  if (!hq) throw new Recusa('o YouTube não serve a hqdefault deste vídeo: sem ela não há o que medir')
+  const dhashHq = await dhashOf(hq)
+  let fora = 0
+  for (const ref of referencias) {
+    const dist = hamming(await dhashComoHq(await ler(ref)), dhashHq)
+    if (dist > DHASH_MAX_SAME) fora++
+    d.log(`${ref}: distância ${dist} bits: ${dist <= DHASH_MAX_SAME ? 'dentro' : 'fora'} de ${DHASH_MAX_SAME}`)
+  }
+  return { codigo: 0, mensagem: `medir: ${referencias.length - fora} dentro de ${DHASH_MAX_SAME}, ${fora} fora (nada foi escrito; cota 0)` }
+}
+
 export async function conferir(d: Deps): Promise<Saida> {
   const e = d.diario.ler()
   if (!e || e.devolucaoEm === null) throw new Recusa('não há devolução registrada para conferir; se a troca aconteceu, rode devolver')
-  e.volta = await sondarAte(d, 'original', e.devolucaoEm, e)
+  e.volta = await sondarAte(d, 'original', e.devolucaoEm, e, e.modo === 'hq' ? 3 * 3_600_000 : 0)
   e.fase = e.volta.motivo === 'estavel' ? 'conferida' : 'devolvida_sem_conferir'
   d.diario.gravar(e)
   return fechar(d, e)
 }
 
 async function devolverEConferir(d: Deps, e: Estado, esc: Escritor): Promise<Saida> {
-  const original = d.diario.lerArquivo('original-maior.jpg')
-  if (sha256(original) !== e.original.sha256) {
+  const alvo = arquivoDaOriginal(e)
+  const original = d.diario.lerArquivo(alvo.nome)
+  if (sha256(original) !== alvo.sha256) {
     e.fase = 'devolucao_falhou'; d.diario.gravar(e)
     return { codigo: 3, mensagem: `A CÓPIA DA ORIGINAL MUDOU NO DISCO (sha256 diferente). Nada foi enviado. Confira ${d.diario.pasta}` }
   }
@@ -142,9 +166,9 @@ async function devolverEConferir(d: Deps, e: Estado, esc: Escritor): Promise<Sai
   }
   if (e.fase !== 'devolvida') {
     e.fase = 'devolucao_falhou'; d.diario.gravar(e)
-    return { codigo: 3, mensagem: `A ORIGINAL NÃO FOI DEVOLVIDA. Rode: ${cmd('devolver', e.video)}. Sem cota, suba à mão no Studio o arquivo ${d.diario.pasta}/original-maior.jpg` }
+    return { codigo: 3, mensagem: `A ORIGINAL NÃO FOI DEVOLVIDA. Rode: ${cmd('devolver', e.video)}. Sem cota, suba à mão no Studio o arquivo ${d.diario.pasta}/${alvo.nome}` }
   }
-  e.volta = await sondarAte(d, 'original', e.devolucaoEm!, e)
+  e.volta = await sondarAte(d, 'original', e.devolucaoEm!, e, e.modo === 'hq' ? 3 * 3_600_000 : 0)
   e.fase = e.volta.motivo === 'estavel' ? 'conferida' : 'devolvida_sem_conferir'
   d.diario.gravar(e)
   return fechar(d, e)
@@ -158,7 +182,8 @@ function fechar(d: Deps, e: Estado): Saida {
   return { codigo: e.aparicao?.motivo === 'estavel' ? 0 : 1, mensagem: `pronto. Resultado em ${d.diario.pasta}/resultado.md` }
 }
 
-async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: Estado): Promise<Medida> {
+/** `minimoMs`: não encerra como estável antes de `desde + minimoMs` (devolver-hq mede a hqdefault até 3 h). */
+async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: Estado, minimoMs = 0): Promise<Medida> {
   const ref = { original: e.original.dhashHq, teste: e.teste.dhashComoHq }
   const leituras: Sonda[] = []
   let primeiraEm: number | null = null
@@ -170,6 +195,8 @@ async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: 
     outras: leituras.filter((l) => l.leitura === 'outra').length,
     semDado: leituras.filter((l) => l.leitura === 'sem_dado').length,
     lacunas: lacunas(leituras.map((l) => l.em), PORTAO.intervaloMs),
+    distanciaT0: leituras.length ? (alvo === 'teste' ? leituras[0]!.dTeste : leituras[0]!.dOriginal) : null,
+    maiorAte3h: maiorAte(leituras, alvo, desde),
   })
   for (;;) {
     if (d.sinal.parar) return fim('parado')
@@ -182,11 +209,32 @@ async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: 
     if (dist !== null && (menor === null || dist < menor)) menor = dist
     if (s.leitura === alvo && primeiraEm === null) primeiraEm = s.em
     const i = primeiraEstavel(leituras, alvo, PORTAO.sondasEstaveis)
-    if (i !== null) return fim('estavel', leituras[i]!)
+    if (i !== null && d.agora() - desde >= minimoMs) return fim('estavel', leituras[i]!)
     if (d.agora() - desde >= PORTAO.tetoMs) return fim('teto')
     await d.dormir(PORTAO.intervaloMs, d.sinal)
   }
 }
+
+const TRES_HORAS_MS = 3 * 3_600_000
+function maiorAte(leituras: readonly Sonda[], alvo: 'teste' | 'original', desde: number): number | null {
+  let maior: number | null = null
+  for (const l of leituras) {
+    const dist = alvo === 'teste' ? l.dTeste : l.dOriginal
+    if (l.em - desde <= TRES_HORAS_MS && dist !== null && (maior === null || dist > maior)) maior = dist
+  }
+  return maior
+}
+
+/** O ETag numérico da hqdefault é o instante do upload (spike S1). Aceita W/"1792001270"; milissegundos viram segundos. null = não numérico. */
+export function etagNumerico(etag: string | null | undefined): number | null {
+  if (!etag) return null
+  const m = /^(?:W\/)?"?(\d{9,14})"?$/.exec(etag.trim())
+  if (!m) return null
+  const n = Number(m[1])
+  return n > 1e12 ? Math.floor(n / 1000) : n
+}
+/** Folga entre o relógio do Mac e o do YouTube na regra "ETag posterior à devolução". */
+const FOLGA_ETAG_S = 120
 
 export function montarResultado(e: Estado): string {
   const item = (m: Medida | null) => {
@@ -205,7 +253,11 @@ export function montarResultado(e: Estado): string {
     if (v.motivo !== 'estavel') return item(v)
     const base = `${v.distanciaNaEstavel} (limite ${DHASH_MAX_SAME})`
     if (x.aparicao?.motivo !== 'estavel') return `${base}: sem conclusão: a imagem de teste não chegou a aparecer, a volta pode ser cache`
-    if (!x.etagAntes || !v.etagNaEstavel || x.etagAntes === v.etagNaEstavel) return `${base}: sem conclusão: o ETag da hqdefault não mudou (ou não foi lido), a volta pode ser a imagem antiga`
+    // Y-7: o ETag do TESTE (lido na aparição) contra o da VOLTA; ambos numéricos, o da volta maior e posterior à devolução
+    const nTeste = etagNumerico(x.aparicao.etagNaEstavel), nVolta = etagNumerico(v.etagNaEstavel)
+    if (nTeste === null || nVolta === null) return `${base}: sem conclusão: o ETag da hqdefault não é numérico (ou não foi lido), a volta pode ser a imagem antiga`
+    if (nVolta <= nTeste) return `${base}: sem conclusão: o ETag da volta (${v.etagNaEstavel}) não é maior que o do teste (${x.aparicao.etagNaEstavel}), a volta pode ser a imagem antiga`
+    if (x.devolucaoEm !== null && nVolta < Math.floor(x.devolucaoEm / 1000) - FOLGA_ETAG_S) return `${base}: sem conclusão: o ETag da volta é anterior à devolução, a volta pode ser a imagem antiga`
     return `${base}: passou`
   }
   const a = e.aparicao
@@ -217,11 +269,12 @@ export function montarResultado(e: Estado): string {
     `- Original guardada: ${e.original.variante} ${e.original.largura}×${e.original.altura} (sha256 ${e.original.sha256.slice(0, 12)}).`,
     `- Imagem de teste a ${e.teste.distanciaDoOriginal} bits da original (comparadas como hqdefault).`,
     `- (i) arquivo 1280×720 contra a hqdefault servida: ${item(a)}.`,
-    `- (ii) original grande devolvida contra a hqdefault antiga: ${segunda(e)}.`,
+    `- (ii) ${e.modo === 'hq' ? 'original hq (480×360) devolvida' : 'original grande devolvida'} contra a hqdefault antiga: ${segunda(e)}.`,
     `- (iii) horas até a nova aparecer: ${tempo(a, e.trocaEm)}; até a original voltar: ${tempo(e.volta, e.devolucaoEm)}.`,
     `- Regra das ${PORTAO.horasDaRegra} h (3.3): ${regra}.`,
     `- Leituras "outra" (nem teste nem original): ${(a?.outras ?? 0) + (e.volta?.outras ?? 0)}.`,
     `- Cota gasta: ${e.cotaGasta} unidades. Fase final: ${e.fase}.`,
+    ...(e.modo === 'hq' ? [`- (v) hqdefault servida contra original-hq.jpg: T+0 ${e.volta?.distanciaT0 ?? 'não medido'} bits; no máximo ${e.volta?.maiorAte3h ?? 'não medido'} bits até 3 h (limite ${DHASH_MAX_SAME}): ${e.volta?.maiorAte3h != null ? (e.volta.maiorAte3h <= DHASH_MAX_SAME ? 'dentro de 6' : 'FORA de 6: a original passa a guardar também o dHash da hqdefault lida ao iniciar (emenda 30)') : 'sem conclusão'}.`] : []),
     `- (iv) distância entre variantes de um teste real: fora deste script (subcomando distancias).`,
   ].join('\n')
 }
@@ -231,9 +284,10 @@ const FASES_COM_TROCA = new Set<string>(['trocando', 'trocada', 'devolvendo', 'd
 /** Código de saída para uma falha lançada: se a troca pode estar no ar, 3 com o comando; Recusa sem troca, 2; o resto, 1. */
 export function codigoDeFalha(diario: Diario, video: string, erro: unknown): Saida {
   let fase: string | null = null
-  try { fase = diario.ler()?.fase ?? null } catch { /* estado ilegível: tratado como desconhecido */ }
+  let arquivo = 'original-maior.jpg'
+  try { const e = diario.ler(); fase = e?.fase ?? null; if (e) arquivo = arquivoDaOriginal(e).nome } catch { /* estado ilegível: tratado como desconhecido */ }
   if (fase !== null && FASES_COM_TROCA.has(fase))
-    return { codigo: 3, mensagem: `falha (${msg(erro)}) com a troca possivelmente no ar (fase ${fase}). Rode: ${cmd('devolver', video)}. Sem cota, suba à mão no Studio o arquivo ${diario.pasta}/original-maior.jpg` }
+    return { codigo: 3, mensagem: `falha (${msg(erro)}) com a troca possivelmente no ar (fase ${fase}). Rode: ${cmd('devolver', video)}. Sem cota, suba à mão no Studio o arquivo ${diario.pasta}/${arquivo}` }
   if (erro instanceof Recusa) return { codigo: 2, mensagem: `recusado: ${erro.message}` }
   return { codigo: 1, mensagem: `falha: ${msg(erro)}. Veja ${diario.pasta}/estado.json` }
 }

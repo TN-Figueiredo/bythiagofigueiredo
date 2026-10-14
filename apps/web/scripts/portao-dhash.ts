@@ -1,5 +1,7 @@
-// Portão do dHash (P4-0 do A/B Lab, spec 3.4). `valer`, `devolver` e `conferir` são do DONO; agente roda só `ensaio` e `distancias`.
+// Portão do dHash (P4-0 do A/B Lab, spec 3.4). `valer`, `devolver-hq`, `devolver` e `conferir` ESCREVEM no YouTube (só com ordem do controlador/dono); agente roda `ensaio`, `distancias` e `medir`.
 //   bash scripts/portao-dhash.sh <ensaio|valer|devolver|conferir> <id> [--aceitar-menor]
+//   bash scripts/portao-dhash.sh devolver-hq <id>      (ESCREVE no YouTube: ~101 unidades; vídeo sem maxresdefault)
+//   bash scripts/portao-dhash.sh medir <id> <url|arquivo>...   (cota 0; é do agente)
 //   bash scripts/portao-dhash.sh distancias <a.jpg> <b.jpg> [...]
 // Pasta de trabalho: ~/portao-dhash/<id>/ (cópia da original, estado.json, registro.jsonl, resultado.md).
 import fs from 'node:fs'
@@ -10,7 +12,7 @@ import { lerArgs, Recusa } from '../src/lib/youtube/portao-dhash/regras'
 import { Diario } from '../src/lib/youtube/portao-dhash/diario'
 import { distancias } from '../src/lib/youtube/portao-dhash/imagem'
 import { protegerSaida, sinalRepetido } from '../src/lib/youtube/portao-dhash/saida'
-import { codigoDeFalha, conferir, devolver, ensaio, valer, type Deps, type Sinal } from '../src/lib/youtube/portao-dhash/executar'
+import { codigoDeFalha, conferir, devolver, ensaio, medir, valer, type Deps, type Sinal } from '../src/lib/youtube/portao-dhash/executar'
 
 const dormir = (ms: number, sinal: Sinal) => new Promise<void>((r) => {
   const t0 = Date.now()
@@ -26,6 +28,17 @@ async function main(): Promise<number> {
   if (a.comando === 'distancias') {
     for (const l of await distancias(a.arquivos.map((p) => fs.readFileSync(p)), a.arquivos)) dizer(l)
     return 0
+  }
+  if (a.comando === 'medir') {
+    const ler = async (ref: string): Promise<Buffer> => {
+      if (!/^https?:\/\//.test(ref)) return fs.readFileSync(ref)
+      const res = await fetch(ref, { signal: AbortSignal.timeout(15_000) })
+      if (!res.ok) throw new Recusa(`${ref}: HTTP ${res.status}`)
+      return Buffer.from(await res.arrayBuffer())
+    }
+    const s = await medir({ video: a.video, f: fetch, log: dizer }, a.referencias, ler)
+    dizer(s.mensagem)
+    return s.codigo
   }
   const sinal: Sinal = { parar: false }
   let ultimoSinalEm: number | null = null
@@ -54,6 +67,7 @@ async function main(): Promise<number> {
   }
   const s = a.comando === 'ensaio' ? await ensaio(d, a.aceitarMenor)
     : a.comando === 'valer' ? await valer(d, a.aceitarMenor)
+    : a.comando === 'devolver-hq' ? await valer(d, false, true)
     : a.comando === 'devolver' ? await devolver(d)
     : await conferir(d)
   dizer(s.mensagem)
@@ -63,7 +77,7 @@ async function main(): Promise<number> {
 main().then((c) => process.exit(c), (e: unknown) => {
   // lançou fora do contrato: se a troca pode estar no ar, sai 3 com o comando; Recusa sem troca sai 2
   const a = lerArgs(process.argv.slice(2))
-  if (!a.ok || a.comando === 'distancias') { dizerErro(`falha: ${e instanceof Error ? e.message : String(e)}`); process.exit(e instanceof Recusa ? 2 : 1) }
+  if (!a.ok || a.comando === 'distancias' || a.comando === 'medir') { dizerErro(`falha: ${e instanceof Error ? e.message : String(e)}`); process.exit(e instanceof Recusa ? 2 : 1) }
   const s = codigoDeFalha(new Diario(path.join(os.homedir(), 'portao-dhash', a.video), Date.now), a.video, e)
   dizerErro(s.mensagem)
   process.exit(s.codigo)

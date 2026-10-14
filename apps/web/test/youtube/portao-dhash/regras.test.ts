@@ -21,4 +21,11 @@ describe('lerArgs', () => {
     expect(lerArgs(['distancias', 'a.jpg', 'b.jpg'])).toEqual({ ok: true, comando: 'distancias', arquivos: ['a.jpg', 'b.jpg'] })
     expect(lerArgs(['distancias', 'a.jpg']).ok).toBe(false)
   })
+  it('devolver-hq: só vídeo aprovado e sem flags; medir: qualquer id de 11 caracteres com referências', () => {
+    expect(lerArgs(['devolver-hq', '6jL-jeux_1Y'])).toMatchObject({ ok: true, comando: 'devolver-hq' })
+    expect(lerArgs(['devolver-hq', 'dQw4w9WgXcQ']).ok).toBe(false)
+    expect(lerArgs(['devolver-hq', '6jL-jeux_1Y', '--aceitar-menor']).ok).toBe(false)
+    expect(lerArgs(['medir', 'dQw4w9WgXcQ', 'a.jpg', 'https://x/b.jpg'])).toEqual({ ok: true, comando: 'medir', video: 'dQw4w9WgXcQ', referencias: ['a.jpg', 'https://x/b.jpg'] })
+    expect(lerArgs(['medir', 'dQw4w9WgXcQ']).ok).toBe(false)
+  })
 })
