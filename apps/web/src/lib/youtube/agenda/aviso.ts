@@ -13,9 +13,12 @@ import { resumoTecnico } from './motivos'
  * limpa o assunto na hora do envio. Aqui o texto de fora (rótulo, frase) só é limpo de controles e cortado, e NÃO escapado de novo
  * (escapar duas vezes mostraria `&amp;` ao dono).
  */
-export type ChaveAviso = 'leitura_horaria_parada' | 'tarefa_esgotada'
-/** `frase` vem do veredito ou de `fraseDoMotivo`: frase fixa e números. `tarefa` é o rótulo da tarefa. */
-export interface Aviso { siteId: string; chave: ChaveAviso; tarefa: string; frase: string }
+export type ChaveAviso = 'leitura_horaria_parada' | 'tarefa_esgotada' | 'banco_no_limite' | 'coleta_pausada_esquecida'
+/**
+ * `frase` vem do veredito ou de `fraseDoMotivo`: frase fixa e números. `tarefa` é o rótulo da tarefa. `periodo` (A5 E10) é a janela da trava de
+ * repetição: o dia de São Paulo (o padrão, a chave de sempre), a semana ISO de São Paulo ou o mês.
+ */
+export interface Aviso { siteId: string; chave: ChaveAviso; tarefa: string; frase: string; periodo?: 'dia' | 'semana' | 'mes' }
 export interface ContagemAviso { enviados: number; suprimidos: number; falharam: number; semDestinatario: number }
 
 const TIPO = 'youtube.observatorio_coleta'
@@ -28,21 +31,51 @@ const clip = (v: string, max: number): string => {
   return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t
 }
 
+const SP_OFFSET_MS = 3 * 3_600_000
+/** 'AAAA-Www' (semana ISO 8601) da data de São Paulo de `agoraMs`. */
+function semanaIso(agoraMs: number): string {
+  const d = new Date(agoraMs - SP_OFFSET_MS)
+  const dia = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  const quinta = new Date(dia + (4 - (new Date(dia).getUTCDay() || 7)) * 86_400_000) // a quinta-feira da semana dá o ano ISO
+  const primeiro = Date.UTC(quinta.getUTCFullYear(), 0, 1)
+  const semana = Math.ceil(((quinta.getTime() - primeiro) / 86_400_000 + 1) / 7)
+  return quinta.getUTCFullYear() + '-W' + String(semana).padStart(2, '0')
+}
+/** O fim da chave de repetição. Sem `periodo` é o dia, byte a byte como antes. */
+function periodoDaChave(a: Aviso, agoraMs: number): string {
+  if (a.periodo === 'semana') return semanaIso(agoraMs)
+  if (a.periodo === 'mes') return chaveDoPeriodo('dia', agoraMs).slice(0, 7)
+  return chaveDoPeriodo('dia', agoraMs)
+}
+
 const chaveDe = (a: Aviso, agoraMs: number): string =>
-  'obs-agenda-' + a.chave + '-' + clip(a.tarefa, ROTULO_MAX) + '-' + a.siteId + '-' + chaveDoPeriodo('dia', agoraMs)
+  'obs-agenda-' + a.chave + '-' + clip(a.tarefa, ROTULO_MAX) + '-' + a.siteId + '-' + periodoDaChave(a, agoraMs)
 
 function textoDe(a: Aviso, onde: string): { title: string; message: string } {
   const rotulo = clip(a.tarefa, ROTULO_MAX)
   const frase = clip(a.frase, FRASE_MAX).replace(/[.\s]+$/, '')
-  if (a.chave === 'leitura_horaria_parada') {
-    return {
-      title: 'A leitura horária do Observatório parou',
-      message: frase + '. As horas sem leitura não são recuperadas. Confira a coleta no CMS, em ' + onde + '.',
-    }
-  }
-  return {
-    title: 'A tarefa ' + rotulo + ' do Observatório esgotou as tentativas',
-    message: frase + '. A tarefa não roda de novo neste período. Confira a coleta no CMS, em ' + onde + '.',
+  // ramo explícito por chave: o TypeScript recusa uma chave nova sem ramo (antes, toda chave que não era a da leitura horária virava "esgotou as tentativas")
+  switch (a.chave) {
+    case 'leitura_horaria_parada':
+      return {
+        title: 'A leitura horária do Observatório parou',
+        message: frase + '. As horas sem leitura não são recuperadas. Confira a coleta no CMS, em ' + onde + '.',
+      }
+    case 'tarefa_esgotada':
+      return {
+        title: 'A tarefa ' + rotulo + ' do Observatório esgotou as tentativas',
+        message: frase + '. A tarefa não roda de novo neste período. Confira a coleta no CMS, em ' + onde + '.',
+      }
+    case 'banco_no_limite':
+      return {
+        title: 'O banco do site está chegando ao limite do plano', // TEXTO-A-REVISAR
+        message: frase + '. Confira o Observatório no CMS, em ' + onde + '.',
+      }
+    case 'coleta_pausada_esquecida':
+      return {
+        title: 'Há canal com a coleta pausada há muito tempo', // TEXTO-A-REVISAR
+        message: frase + '. Remova o canal ou retome a coleta. Confira o Observatório no CMS, em ' + onde + '.',
+      }
   }
 }
 

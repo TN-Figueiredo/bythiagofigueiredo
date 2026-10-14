@@ -13,13 +13,17 @@ const E2: Array<[string, string]> = [
   ['competitor_video_tier_spans', 'video_id'],
   ['competitor_video_early', 'video_id'],
 ]
+const E6: Array<[string, string]> = [
+  ['competitor_channels', 'collection_paused_at'],
+]
 const NOT_CHECKED = (table: string, why: string): string => 'não foi possível conferir o schema (' + table + '): ' + why + '. Nada foi gravado.'
 export type SchemaGrupo = [nome: string, tabelas: Array<[string, string]>]
 export type SchemaFalha = { tipo: 'ausente' | 'nao_conferido'; texto: string; codigo: string | null }
 
 /** Os grupos de tabelas que a guarda de cada etapa confere, na ordem em que a primeira falta é acusada. */
 export function schemaGroups(need: 'e1' | 'e1e2'): SchemaGrupo[] {
-  return [['MG1', E1], ...(need === 'e1e2' ? [['MG2', E2] as SchemaGrupo] : [])]
+  // (A5 E10) a MG6 vem por último: a falta dela acusa "migration MG6", nunca a coleta andando sem saber da pausa
+  return [['MG1', E1], ...(need === 'e1e2' ? [['MG2', E2] as SchemaGrupo] : []), ['MG6', E6]]
 }
 
 /** O SQLSTATE de 5 caracteres (ou o `PGRST…` do PostgREST): a única parte do erro do banco que pode sair daqui sem o texto. */

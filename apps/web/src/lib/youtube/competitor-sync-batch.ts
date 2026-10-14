@@ -12,6 +12,7 @@ import { newProbeBudget, type ShortProbeStats } from '@/lib/youtube/short-classi
 import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { WEEKLY_DEADLINE_MS } from '@/lib/youtube/competitor-batch-constantes'
+import { RULES } from '@/lib/youtube/observatorio/rules'
 
 // As constantes de tempo moram num módulo sem imports (m-4 do portão final); os nomes continuam exportados daqui.
 export {
@@ -73,11 +74,15 @@ export type BatchRow = {
   id: string; channel_id: string; channel_name: string | null; site_id: string
   last_synced_at: string | null; last_ok_synced_at: string | null; sync_status: string | null
   sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null
+  /** (A5 E10, MG6) Quando a coleta do canal foi pausada; nulo = coletando. */
+  collection_paused_at: string | null
 }
 const isBatchRow = (x: unknown): x is BatchRow => {
   if (typeof x !== 'object' || x === null) return false
   const r: Record<string, unknown> = Object.fromEntries(Object.entries(x))
+  // (A5 E10) o campo tem de estar PRESENTE (string ou nulo): linha sem ele vem de banco sem a MG6 e nunca pode passar por "não pausado"
   return typeof r.id === 'string' && typeof r.channel_id === 'string' && typeof r.site_id === 'string'
+    && 'collection_paused_at' in r && (r.collection_paused_at === null || typeof r.collection_paused_at === 'string')
 }
 
 export interface BatchTotals {
@@ -137,8 +142,10 @@ export interface BatchResult {
   healthSiteIds: string[]
   totals: BatchTotals
   weekly: WeeklyPhaseResult
-  /** O que só o dono resolve (canal em erro há mais de 3 dias), recalculado do banco a cada disparo. */
+  /** O que só o dono resolve (canal em erro há mais de 3 dias, pausa esquecida), recalculado do banco a cada disparo. */
   acao_do_dono: string[]
+  /** (A5 E10) "N canais com a coleta pausada"; ausente = nenhum pausado. Informativo: pausa não deixa o cron vermelho. */
+  nota_pausa?: string
   /** Avisos ao dono (canal que cruzou o 3º dia em erro e lembretes semanais): enviados e com falha. */
   ownerNotices: { sent: number; failed: number }
   /** Unidades de cota que nem a nova tentativa do fim do disparo conseguiu gravar; indefinido = tudo gravado. */
@@ -183,7 +190,7 @@ const nameOf = (r: BatchRow): string => r.channel_name ?? r.channel_id
 export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; started: number; now: () => number; thumbs?: boolean }): Promise<WeeklyPhaseResult> {
   const out = emptyWeekly()
   const today = spDate(o.now())
-  const eligible = rows.filter(r => r.missing_since == null)
+  const eligible = rows.filter(r => r.missing_since == null && r.collection_paused_at == null)
   const doneToday = new Set(eligible.filter(r => r.weekly_pass_date === today).map(r => r.id))
   out.pending = eligible.length - doneToday.size
   if (spHour(o.now()) < 12) return out
@@ -264,14 +271,47 @@ export function ownerActions(rows: BatchRow[], nowMs: number): string[] {
 /** Quantos canais elegíveis (não ausentes) ainda não têm a passada semanal de hoje: a dívida que a fase semanal cobra. */
 export function weeklyPendingCount(rows: BatchRow[], nowMs: number): number {
   const today = spDate(nowMs)
-  return rows.filter(r => r.missing_since == null && r.weekly_pass_date !== today).length
+  return rows.filter(r => r.missing_since == null && r.collection_paused_at == null && r.weekly_pass_date !== today).length
+}
+
+/** (A5 E10) Canal com a coleta pausada não é devido, não segura "sobrou" nem conta como dívida semanal. Campo ausente = não pausado (`!= null`). */
+export function semPausados(rows: BatchRow[]): BatchRow[] {
+  return rows.filter(r => r.collection_paused_at == null)
+}
+
+export interface NotasDePausa { acao: string[]; nota: string | null; esquecidos: Array<{ siteId: string; canalId: string; nome: string; dias: number | null }> }
+/**
+ * (A5 E10) A nota dos canais pausados e a ação do dono para a pausa esquecida (mais de `RULES.pause.forgottenDays` dias). Data ilegível conta como
+ * pausado e entra em `acao` ("há tempo desconhecido"): pausa nunca some em silêncio.
+ */
+export function notasDePausa(rows: BatchRow[], nowMs: number): NotasDePausa {
+  const pausados = rows.filter(r => r.collection_paused_at != null)
+  const acao: string[] = []
+  const esquecidos: NotasDePausa['esquecidos'] = []
+  const limite = RULES.pause.forgottenDays * DAY_MS
+  for (const r of pausados) {
+    const desde = Date.parse(r.collection_paused_at ?? '')
+    if (Number.isNaN(desde)) {
+      acao.push('canal ' + clip(nameOf(r), 60) + ' com a coleta pausada há tempo desconhecido e ainda não removido: remover ou despausar')
+      esquecidos.push({ siteId: r.site_id, canalId: r.id, nome: clip(nameOf(r), 60), dias: null }) // data ilegível também vai ao e-mail (`dias: null`)
+      continue
+    }
+    const ms = nowMs - desde
+    if (ms > limite) {
+      const dias = Math.floor(ms / DAY_MS)
+      acao.push('canal ' + clip(nameOf(r), 60) + ' com a coleta pausada há ' + dias + ' dias e ainda não removido: remover ou despausar')
+      esquecidos.push({ siteId: r.site_id, canalId: r.id, nome: clip(nameOf(r), 60), dias })
+    }
+  }
+  const n = pausados.length
+  return { acao, nota: n === 0 ? null : n + (n === 1 ? ' canal' : ' canais') + ' com a coleta pausada', esquecidos }
 }
 
 /** Os canais que o lote lê, do mais antigo ao mais novo (nulo primeiro). Resposta nula ou fora da forma é falha de leitura (lança), nunca "nenhum canal". */
 export async function loadBatchRows(sb: SupabaseClient): Promise<BatchRow[]> {
   const { data, error } = await sb
     .from('competitor_channels')
-    .select('id, channel_id, channel_name, site_id, last_synced_at, last_ok_synced_at, sync_status, sync_error, sync_error_since, missing_since, weekly_pass_date')
+    .select('id, channel_id, channel_name, site_id, last_synced_at, last_ok_synced_at, sync_status, sync_error, sync_error_since, missing_since, weekly_pass_date, collection_paused_at')
     .order('last_synced_at', { ascending: true, nullsFirst: true })
   if (error) throw new Error(`competitor batch: ${error.message}`)
   return rowsAs(data, isBatchRow, 'competitor batch')
@@ -359,7 +399,10 @@ export async function runCompetitorBatch(opts: {
   const started = opts.started ?? now()
   const sb = getSupabaseServiceClient()
   // Resposta nula ou fora da forma é falha de leitura, nunca "nenhum canal" (lista vazia só quando o banco diz que é vazia).
-  const rows = await loadBatchRows(sb)
+  const todas = await loadBatchRows(sb)
+  // (A5 E10) canal pausado sai de tudo o que escolhe, conta ou avisa; só a nota e a pausa esquecida o enxergam
+  const rows = semPausados(todas)
+  const pausa = notasDePausa(todas, started)
   // Defensive: channels stuck in 'error' go after the healthy ones so they can
   // never starve the cursor. Array.sort is stable, so the oldest-first order
   // (nulls first) is kept within each group.
@@ -374,7 +417,8 @@ export async function runCompetitorBatch(opts: {
   const res: BatchResult = {
     synced: 0, errors: 0, errorsKnown: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [],
     totals: zeroTotals(), healthSiteIds: [...new Set(rows.map(r => r.site_id))], weekly: emptyWeekly(),
-    acao_do_dono: ownerActions(rows, started),
+    acao_do_dono: [...ownerActions(rows, started), ...pausa.acao],
+    ...(pausa.nota ? { nota_pausa: pausa.nota } : {}),
     channelsActive: rows.filter(r => r.missing_since == null).length, channelsLongError: long.length,
     ownerNotices: { sent: 0, failed: 0 },
   }

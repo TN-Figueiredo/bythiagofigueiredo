@@ -205,7 +205,7 @@ describe('leitura_horaria', () => {
     expect(typeof arg.relatar).toBe('function')
     expect(await arg.guarda()).toBeNull()
     const chamada = vi.mocked(schemaTablesReady).mock.calls[0]!
-    expect(chamada[1]).toEqual([['MG9', [['competitor_video_hourly', 'video_id'], ['yt_own_public_video_hourly', 'youtube_video_id'], ['yt_own_public_video_early', 'youtube_video_id']]]])
+    expect(chamada[1]).toEqual([['MG9', [['competitor_video_hourly', 'video_id'], ['yt_own_public_video_hourly', 'youtube_video_id'], ['yt_own_public_video_early', 'youtube_video_id']]], ['MG6', [['competitor_channels', 'collection_paused_at']]]]) // (A5 E10) a MG6 vem depois da MG9
     expect(chamada[2]?.signal).toBeInstanceOf(AbortSignal)
   })
 })
@@ -225,10 +225,10 @@ describe('o catálogo real e a lista obedecem ao contrato de registro', () => {
       expect(typeof t.rodar, t.nome).toBe('function')
     }
   })
-  it('o catálogo tem o código das cinco definições da lista única (a do vigia), na mesma ordem', () => {
+  it('o catálogo tem o código das seis definições da lista única (a do vigia), na mesma ordem', () => {
     expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
     for (const d of TODAS_AS_DEFINICOES) expect(CATALOGO.find(t => t.nome === d.nome)).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs, toleranciaVigiaH: d.toleranciaVigiaH, periodo: d.periodo })
-    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios'].sort())
+    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco'].sort())
   })
   it('toda tarefa da lista é nuncaDesliga com fimAteMs ≤ LEVE_FIM_MS, e o maior da lista também (que é < BATCH_BUDGET_MS)', () => {
     for (const t of antesDoLoteAntigo) {

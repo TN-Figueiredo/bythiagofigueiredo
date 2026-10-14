@@ -20,6 +20,8 @@ export interface CandConcorrente {
   lbc: string | null
   missingSince: string | null
   canalAusente: boolean
+  /** (A5 E10) A coleta do canal está pausada: o vídeo não é lido. */
+  canalPausado: boolean
 }
 
 export interface CandProprio {
@@ -46,6 +48,8 @@ export interface Fora {
   tetoProprio: number
   aoVivo: number
   ausente: number
+  /** (A5 E10) Vídeos de canal com a coleta pausada. */
+  pausado: number
   semData: number
 }
 
@@ -105,7 +109,7 @@ export function montarLista(
   prop: readonly CandProprio[],
   agoraMs: number,
 ): { alvos: Alvo[]; fora: Fora } {
-  const fora: Fora = { teto: 0, tetoProprio: 0, aoVivo: 0, ausente: 0, semData: 0 }
+  const fora: Fora = { teto: 0, tetoProprio: 0, aoVivo: 0, ausente: 0, pausado: 0, semData: 0 }
 
   const doConcorrente: Candidato[] = []
   for (const c of conc) {
@@ -117,6 +121,11 @@ export function montarLista(
     if (ms === 'velho') continue
     if (c.missingSince !== null || c.canalAusente) {
       fora.ausente += 1
+      continue
+    }
+    // (A5 E10) depois do teste de ausente: canal ausente E pausado conta só em `ausente`
+    if (c.canalPausado) {
+      fora.pausado += 1
       continue
     }
     if (c.lbc === 'live' || c.lbc === 'upcoming') {

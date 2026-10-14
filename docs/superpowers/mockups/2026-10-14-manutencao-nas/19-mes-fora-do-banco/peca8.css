@@ -1,0 +1,146 @@
+/* peca8.css: peça 8 (vídeos antigos). Prefixo p8-. Só os tokens de m19.css; nenhuma cor nova, nenhum color-mix.
+   Os dois rgba abaixo são o --muted a 40% (escuro e claro), literais, para o segmento "em leitura mensal" da barra. */
+:root{--p8-mensal:rgba(168,157,136,.4)}
+:root[data-theme="light"]{--p8-mensal:rgba(94,82,64,.4)}
+
+/* contagem em três partes + barra */
+.p8-conta{margin:0 0 10px;font-size:15px;line-height:1.55;max-width:80ch}
+.p8-conta b{font-weight:600}
+.p8-barra{display:flex;gap:2px;height:14px;width:100%;margin:0 0 10px}
+.p8-seg{min-width:4px;border-radius:3px;height:100%}
+.p8-seg.ac{background:var(--muted)}
+.p8-seg.me{background:var(--p8-mensal);border:2px solid var(--dim)}
+.p8-seg.ar{background:var(--sunk);border:1.5px solid var(--dim)}
+.p8-seg.nm{background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px);border:1px solid var(--nm-line)}
+.p8-leg{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px 18px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.p8-leg li{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.45}
+.p8-sw{display:inline-block;width:16px;height:16px;border-radius:3px;flex:none;margin-top:2px}
+.p8-sw.ac{background:var(--muted)}
+.p8-leg li .m-ico,.p8-leg li .m-zero,.p8-leg li .m-hach{margin-top:2px}
+.p8-leg .k{color:var(--muted)}
+.p8-hor{margin:0;font-size:12.5px;color:var(--muted)}
+@media (max-width:820px){.p8-conta{font-size:14px}.p8-barra{height:16px}}
+
+/* cabeçalho de canal e de vídeo */
+.p8-crumb{margin:0 0 6px;font-size:13px;color:var(--muted)}
+.p8-crumb a{color:var(--accent);text-underline-offset:2px;display:inline-flex;align-items:center;min-height:32px}
+@media (max-width:820px){.p8-crumb a{min-height:44px;min-width:44px;justify-content:center}}
+.p8-h1{margin:0 0 4px;font:600 22px/1.3 var(--sans);overflow-wrap:anywhere}
+.p8-sub{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+.p8-sec{margin:0 0 18px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.p8-sec>.in{padding:14px}
+.p8-sec h3{margin:0 0 8px;font:600 15px/1.35 var(--sans)}
+.p8-cx{margin:0 0 14px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.p8-cx>.m-sub{margin:0}
+
+/* lista de vídeos */
+.p8-lista{list-style:none;margin:0;padding:0}
+.p8-v{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 14px;border-top:1px solid var(--border-subtle)}
+.p8-th{width:64px;height:36px;border-radius:4px;background:var(--sunk);border:1px solid var(--border)}
+.p8-vt{min-width:0}
+.p8-vt a{color:var(--text);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;min-height:32px;overflow-wrap:anywhere}
+.p8-vt a:hover{text-decoration:underline}
+.p8-vt .d{display:block;color:var(--muted);font-size:12.5px;line-height:1.45}
+.p8-vn{font:500 13px/1.4 var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.p8-vn small{display:block;font:400 12px/1.4 var(--sans);color:var(--muted)}
+.p8-mk{display:inline-flex;align-items:center;gap:6px;min-height:22px;padding:0 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:12px;color:var(--text);margin-right:6px;background:var(--bg)}
+.p8-mk.me{border:2px solid var(--dim)}
+.p8-mk.ar{border:1.5px solid var(--dim);background:var(--sunk)}
+@media (max-width:820px){
+  .p8-v{grid-template-columns:48px minmax(0,1fr)}
+  .p8-th{width:48px;height:28px}
+  .p8-vn{grid-column:1/-1;text-align:left;white-space:normal}
+  .p8-vt a{min-height:44px}
+}
+.p8-grupo{border-top:1px solid var(--border-subtle)}
+.p8-grupo>summary{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 14px;cursor:pointer;list-style:none}
+.p8-grupo>summary::-webkit-details-marker{display:none}
+.p8-grupo>summary .t{display:block;font-weight:600}
+.p8-grupo>summary .s{display:block;color:var(--muted);font-size:12.5px}
+.p8-mais{padding:10px 14px;border-top:1px solid var(--border-subtle)}
+.p8-esq{display:grid;grid-template-columns:64px minmax(0,1fr) 90px;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--border-subtle);min-height:76px}
+.p8-esq i{display:block;height:14px;border-radius:4px;background:var(--sunk)}
+.p8-esq i.l{width:55%;margin-top:8px}
+.p8-esq .th{height:36px}
+@media (max-width:820px){.p8-esq{grid-template-columns:48px minmax(0,1fr);min-height:112px}.p8-esq i.n{display:none}}
+
+/* o que ficou de fora das contas */
+.p8-fora{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.p8-fora li{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.5}
+.p8-fora li .m-ico,.p8-fora li .m-zero{margin-top:3px}
+
+/* página do vídeo */
+.p8-big{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:0 0 4px}
+.p8-big .n{font:600 28px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.p8-big .d{color:var(--muted);font-size:13.5px}
+.p8-apoio{margin:0 0 12px;color:var(--muted);font-size:13px}
+.p8-estado{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 14px;border-radius:8px;font-size:14px;line-height:1.55}
+.p8-estado.me{border:2px solid var(--dim);background:transparent}
+.p8-estado.ar{border:1.5px solid var(--dim);background:var(--sunk)}
+.p8-estado.pt{border:1.5px dotted var(--dim)}
+.p8-estado.am{border:2px solid var(--warning);background:var(--warn-subtle)}
+.p8-estado .m-ico{margin-top:3px}
+.p8-estado p{margin:0}
+.p8-estado p+p{margin-top:6px;color:var(--muted);font-size:13px}
+.p8-grafico{display:block;width:100%;max-width:900px;height:auto}
+.p8-grafico text{font:12px var(--sans);fill:var(--muted)}
+.p8-grafico text.fg{fill:var(--text)}
+.p8-grafico .eixo{stroke:var(--border-strong);stroke-width:1}
+.p8-grafico .cheia{fill:none;stroke:var(--text);stroke-width:2.5}
+.p8-grafico .marco{stroke:var(--dim);stroke-width:1.5}
+.p8-grafico .sem{fill:none;stroke:var(--dim);stroke-width:1.5;stroke-dasharray:3 4}
+.p8-grafico .pt{fill:var(--bg);stroke:var(--text);stroke-width:2}
+.p8-leit{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.p8-leit th{font-weight:500;color:var(--muted);text-align:left;padding:4px 8px 4px 0}
+.p8-leit td{padding:4px 8px 4px 0;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.p8-leit td+td{text-align:right}.p8-leit th+th{text-align:right}
+.p8-fixa{margin:0;font-size:13.5px;line-height:1.55}
+
+/* seção "Vídeos antigos" na página do Arquivo */
+.p8-sim{margin:6px 14px 12px;padding:10px 12px;border:1.5px dotted var(--dim);border-radius:6px}
+.p8-sim p{margin:0 0 8px;font-size:13.5px}
+.p8-tab{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface)}
+.p8-tab table{width:100%;border-collapse:collapse;font-size:13px}
+.p8-tab th{position:sticky;top:0;background:var(--sunk);text-align:left;font-weight:600;padding:7px 10px;border-bottom:1px solid var(--border-strong);white-space:nowrap}
+.p8-tab td{padding:6px 10px;border-top:1px solid var(--border-subtle)}
+.p8-tab td.n,.p8-tab th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.p8-tab table{min-width:480px}
+.p8-tab th:first-child,.p8-tab td.c{min-width:150px}
+.p8-tab td.c{overflow-wrap:break-word}
+.p8-aut{padding:11px 14px;border-top:1px solid var(--border-subtle);font-size:13.5px;line-height:1.5;display:flex;gap:9px;align-items:flex-start}
+.p8-aut .m-ico{margin-top:3px}
+.p8-lq{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:6px;grid-column:1/-1}
+.p8-lq li{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.5}
+.p8-lq li .m-ico{margin-top:3px}
+.p8-intro{margin:0 0 14px;max-width:80ch;color:var(--muted)}
+.p8-esqs{min-height:96px;display:grid;grid-template-columns:140px minmax(0,1fr) 380px;gap:8px 16px;padding:12px 14px;border-top:1px solid var(--border-subtle)}
+.p8-esqs i{display:block;height:14px;border-radius:4px;background:var(--sunk);margin:0 0 8px}
+.p8-esqs i.l{width:60%}
+@media (max-width:1200px){.p8-esqs{grid-template-columns:minmax(0,1fr);min-height:150px}}
+
+/* esqueletos com a altura final (Naksu C3) */
+.p8-esqc{display:grid;gap:8px;align-content:start;height:105px;overflow:hidden}
+.p8-esqc i{display:block;height:14px;border-radius:4px;background:var(--sunk)}
+.p8-esqc i.l{width:55%}
+.p8-esqc.p8-esqf{height:135px}
+.p8-gesq i{display:block;height:14px;border-radius:4px;background:var(--sunk);margin:6px 0}
+.p8-bt{display:block;width:120px;height:36px;border-radius:7px;background:var(--sunk)}
+@media (max-width:820px){.p8-esqc{height:200px}.p8-esqc.p8-esqf{height:297px}.p8-bt{height:44px}}
+
+/* "Ver o comando" (mesmo molde da peça 7) */
+.p8-cmd{grid-column:1/-1;margin-top:6px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);display:grid;gap:10px}
+.p8-cmd[hidden]{display:none}
+.p8-cmd h4,.p8-marc h4{margin:0;font:600 13.5px/1.4 var(--sans)}
+.p8-pas{margin:0;padding-left:22px;display:grid;gap:6px;font-size:13px;line-height:1.5;color:var(--muted)}
+.p8-sh{display:flex;gap:8px;align-items:stretch;margin-top:6px}
+.p8-sh pre{flex:1 1 auto;min-width:0;margin:0;padding:8px 10px;background:var(--sunk);border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
+.p8-sh code{font:12.5px/1.5 var(--mono);color:var(--text);background:none;padding:0}
+.p8-sh .btn{flex:none;align-self:flex-start}
+.p8-pode{margin:0;font-size:13px;color:var(--muted)}
+.p8-marc{display:grid;gap:8px}
+.p8-sempressa{padding:8px 10px;border:1.5px dotted var(--dim);border-radius:6px}
+@media (max-width:820px){.p8-sh{flex-direction:column}.p8-sh .btn{align-self:stretch;min-height:44px}.p8-cmd .btn{min-height:44px}}
+li.p8-esq{height:71px;min-height:0}
+li.p8-esq:nth-child(n+5){height:77px}
+@media (max-width:820px){li.p8-esq{height:122px}li.p8-esq:nth-child(n+5){height:161px}}
+.m-mes .p8-cmd,.m-mes .p8-sim{order:5}

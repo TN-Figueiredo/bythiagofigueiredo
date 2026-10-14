@@ -166,12 +166,12 @@ describe('RULES.hourly', () => {
 })
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
-  it('são cinco, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 6, 7, 8])
+  it('são seis, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 6, 7, 8])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 1) // + tamanho_do_banco (A5 E10)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
@@ -214,4 +214,20 @@ describe('OBS_AGENDA_TASKS_OFF e as duas tarefas da E14 (o catálogo real e a li
       expect(r.desligadas.size).toBe(0)
     })
   }
+})
+
+describe('tamanho_do_banco (A5 E10, T9)', () => {
+  it('a definição, valor por valor; motivos iguais aos da medida; dentro do teto das leves', async () => {
+    const { DEFINICAO_TAMANHO_DO_BANCO: d } = await import('@/lib/youtube/agenda/definicoes')
+    const { MOTIVOS_TAMANHO } = await import('@/lib/youtube/observatorio/arquivo/medir-tamanho')
+    expect(d).toMatchObject({
+      nome: 'tamanho_do_banco', rotulo: 'tamanho do banco', ordem: 4, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 5,
+      tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null, comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+    })
+    expect(d.comecaAteMs).toBeLessThan(d.fimAteMs)
+    expect(d.fimAteMs).toBeLessThanOrEqual(LEVE_FIM_MS)
+    expect(d.motivos).toEqual(MOTIVOS_TAMANHO)
+    expect(TODAS_AS_DEFINICOES.map(x => x.nome)).toContain('tamanho_do_banco')
+    expect(DEFINICOES.map(x => x.nome)).not.toContain('tamanho_do_banco')
+  })
 })

@@ -100,7 +100,7 @@ interface LinhaConcorrente {
   discovered_at: string | null
   live_broadcast_content: string | null
   missing_since: string | null
-  competitor_channels: { site_id: string; missing_since: string | null }
+  competitor_channels: { site_id: string; missing_since: string | null; collection_paused_at: string | null }
 }
 interface LinhaProprio {
   id: string
@@ -112,6 +112,8 @@ interface LinhaProprio {
 }
 const eCanalEmbutido = (x: unknown): x is LinhaConcorrente['competitor_channels'] =>
   isRec(x) && typeof x.site_id === 'string' && textoOuNulo(x.missing_since)
+  // (A5 E10) o campo tem de estar PRESENTE (texto ou nulo): sem ele o banco não tem a MG6 e a pausa seria ignorada em silêncio
+  && 'collection_paused_at' in x && textoOuNulo(x.collection_paused_at)
 const eLinhaConcorrente = (x: unknown): x is LinhaConcorrente =>
   isRec(x) && typeof x.id === 'string' && typeof x.video_id === 'string' && typeof x.competitor_channel_id === 'string'
   && textoOuNulo(x.published_at) && textoOuNulo(x.discovered_at) && textoOuNulo(x.live_broadcast_content)
@@ -120,7 +122,7 @@ const eLinhaProprio = (x: unknown): x is LinhaProprio =>
   isRec(x) && typeof x.id === 'string' && typeof x.youtube_video_id === 'string' && typeof x.channel_id === 'string'
   && typeof x.site_id === 'string' && textoOuNulo(x.published_at) && typeof x.created_at === 'string'
 
-const COLUNAS_CONCORRENTE: string = 'id, video_id, competitor_channel_id, published_at, discovered_at, live_broadcast_content, missing_since, competitor_channels!inner(site_id, missing_since)'
+const COLUNAS_CONCORRENTE: string = 'id, video_id, competitor_channel_id, published_at, discovered_at, live_broadcast_content, missing_since, competitor_channels!inner(site_id, missing_since, collection_paused_at)'
 const COLUNAS_PROPRIO: string = 'id, youtube_video_id, channel_id, site_id, published_at, created_at'
 
 /**
@@ -158,6 +160,7 @@ export async function lerCandidatos(
       id: v.id, ytId: v.video_id, canalId: v.competitor_channel_id, siteId: v.competitor_channels.site_id,
       publishedAt: v.published_at, discoveredAt: v.discovered_at, lbc: v.live_broadcast_content,
       missingSince: v.missing_since, canalAusente: v.competitor_channels.missing_since !== null,
+      canalPausado: v.competitor_channels.collection_paused_at !== null,
     })),
     prop: prop.map(v => ({
       id: v.id, ytId: v.youtube_video_id, canalId: v.channel_id, siteId: v.site_id,

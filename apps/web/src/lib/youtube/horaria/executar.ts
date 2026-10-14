@@ -63,7 +63,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   const d: Record<string, number> = {
     lista: 0, ja_lidos: 0, pedidos: 0, lidos: 0, cruas: 0, curva: 0, curva_completada: 0,
     proprios_lista: 0, proprios_cruas: 0, proprios_curva: 0,
-    fora_do_teto: 0, proprios_fora_do_teto: 0, fora_ao_vivo: 0, fora_ausente: 0, fora_sem_data: 0,
+    fora_do_teto: 0, proprios_fora_do_teto: 0, fora_ao_vivo: 0, fora_ausente: 0, fora_pausado: 0, fora_sem_data: 0,
     proprios_fora_nao_publico: 0, proprios_fora_sem_status: 0,
     nao_devolvidos: 0, proprios_nao_devolvidos: 0, proprios_negados_cobraveis: 0, proprios_negados_sem_classe: 0,
     sem_contagem: 0, ao_vivo_na_resposta: 0, chamadas: 0, chamadas_falhas: 0,
@@ -100,6 +100,7 @@ export async function executarLeituraHoraria(c: ContextoHoraria): Promise<Result
   d.proprios_fora_do_teto = fora.tetoProprio
   d.fora_ao_vivo = fora.aoVivo
   d.fora_ausente = fora.ausente
+  d.fora_pausado = fora.pausado
   d.fora_sem_data = fora.semData
   // lista vazia é "nada a ler" (ok, zero), diferente de "não li" (erro)
   if (alvos.length === 0) return { estado: 'ok', feitas: 0, deixadas: 0, detalhe: { ...d } }

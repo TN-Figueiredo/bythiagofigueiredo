@@ -35,6 +35,8 @@ export interface SyncResult {
   dailyRecorded: number
   unitsUsed: number
   skipped?: boolean
+  /** (A5 E10) O canal está com a coleta pausada: a trava não foi tomada e nada foi lido do YouTube. */
+  paused?: boolean
   /** Houve mudança a avisar e nenhum org_admin da organização raiz para receber. */
   sem_destinatario?: boolean
   /** Itens que vieram sem uma parte inteira (snippet, statistics ou contentDetails): os campos dela não foram comparados. */
@@ -172,6 +174,8 @@ export interface WeeklyResult {
   complete: boolean
   /** o canal está sendo sincronizado agora por outro processo: nada foi feito */
   skipped?: boolean
+  /** (A5 E10) O canal está com a coleta pausada: nada foi lido do YouTube. */
+  paused?: boolean
   /** miniaturas que não puderam ser conferidas ou guardadas nesta visita (sonda ou download falharam): contadas, sem custar o ponto nem a linha do vídeo */
   thumbFailed?: number
   /** miniaturas que NÃO foram conferidas porque o disjuntor estava aberto (3 falhas seguidas da sonda ou do download): o vídeo ganhou o ponto e a linha, sem a miniatura; a próxima leitura tenta de novo */
@@ -287,10 +291,12 @@ async function runChannel(
   if (mode === 'weekly') {
     // Não toma a trava do canal nem mexe no cursor: só não entra enquanto outro processo o sincroniza (o conjunto de vídeos
     // é disjunto do da sincronização: lá, a faixa diária e a página; aqui, só a faixa semanal).
-    const { data, error } = await supabase.from('competitor_channels').select('sync_status, sync_started_at, video_limit, last_ok_synced_at').eq('id', channelRow.id)
+    const { data, error } = await supabase.from('competitor_channels').select('sync_status, sync_started_at, video_limit, last_ok_synced_at, collection_paused_at').eq('id', channelRow.id)
     if (error) throw new Error('não foi possível ler o estado do canal para a leitura semanal: ' + (error.message ?? 'erro do banco'))
     const st = rowsAs(data, isRec, 'estado do canal na leitura semanal')[0]
     if (!st) throw new Error('não foi possível ler o estado do canal para a leitura semanal: canal não encontrado')
+    // (A5 E10) canal pausado não é lido, nem na passada semanal
+    if (st.collection_paused_at != null) return { kind: 'weekly', result: { due: 0, recorded: 0, deferred: 0, promoted: 0, unitsUsed: 0, changesDetected: 0, longWindowChanges: 0, complete: false, skipped: true, paused: true } }
     const busy = st.sync_status === 'syncing' && typeof st.sync_started_at === 'string' && Date.parse(st.sync_started_at) > nowMs - 10 * 60_000
     if (busy) return { kind: 'weekly', result: { due: 0, recorded: 0, deferred: 0, promoted: 0, unitsUsed: 0, changesDetected: 0, longWindowChanges: 0, complete: false, skipped: true } }
     prevOkAt = typeof st.last_ok_synced_at === 'string' ? st.last_ok_synced_at : null
@@ -307,13 +313,17 @@ async function runChannel(
         last_synced_at: nowIso, // the cursor: start of this attempt
       })
       .eq('id', channelRow.id)
+      .is('collection_paused_at', null) // (A5 E10) a trava é quem decide: canal pausado depois de a lista ser lida também não é tomado
       .or(`sync_status.neq.syncing,sync_started_at.lt.${new Date(nowMs - 10 * 60_000).toISOString()}`)
       .select('id, sync_mode, full_sync_completed_at, video_limit, last_ok_synced_at, sync_error_since, last_seen_at')
 
     // Um erro aqui (coluna que não existe, banco fora) não é "outro processo está sincronizando": lança.
     if (lockError) throw new Error('trava do canal: ' + (lockError.message ?? 'erro do banco'))
     if (!locked || locked.length === 0) {
-      return { kind: 'slot', result: { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true } }
+      // (A5 E10) UMA leitura diz se foi a pausa que segurou a trava; erro nela = `paused` indefinido, o resultado segue `skipped`
+      const { data: pz, error: pzErr } = await supabase.from('competitor_channels').select('collection_paused_at').eq('id', channelRow.id)
+      const pausado = !pzErr && Array.isArray(pz) && pz.length > 0 && isRec(pz[0]) && pz[0].collection_paused_at != null
+      return { kind: 'slot', result: { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true, ...(pausado ? { paused: true } : {}) } }
     }
     prevOkAt = (locked[0] as { last_ok_synced_at?: string | null }).last_ok_synced_at ?? null
     prevErrorSince = (locked[0] as { sync_error_since?: string | null }).sync_error_since ?? null
