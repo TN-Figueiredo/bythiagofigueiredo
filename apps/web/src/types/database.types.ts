@@ -2273,8 +2273,10 @@ export type Database = {
           full_sync_completed_at: string | null
           id: string
           last_ok_synced_at: string | null
+          last_seen_at: string | null
           last_synced_at: string | null
           niche: string | null
+          published_at: string | null
           site_id: string
           subscriber_count: number | null
           sync_error: string | null
@@ -2294,8 +2296,10 @@ export type Database = {
           full_sync_completed_at?: string | null
           id?: string
           last_ok_synced_at?: string | null
+          last_seen_at?: string | null
           last_synced_at?: string | null
           niche?: string | null
+          published_at?: string | null
           site_id: string
           subscriber_count?: number | null
           sync_error?: string | null
@@ -2315,8 +2319,10 @@ export type Database = {
           full_sync_completed_at?: string | null
           id?: string
           last_ok_synced_at?: string | null
+          last_seen_at?: string | null
           last_synced_at?: string | null
           niche?: string | null
+          published_at?: string | null
           site_id?: string
           subscriber_count?: number | null
           sync_error?: string | null
@@ -2342,6 +2348,73 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_field_versions: {
+        Row: {
+          competitor_channel_id: string
+          field: string
+          first_seen_at: string
+          id: number
+          is_current: boolean
+          last_seen_at: string
+          precision: string
+          site_id: string
+          value: Json | null
+          value_hash: string
+          video_id: string | null
+          window_start: string | null
+        }
+        Insert: {
+          competitor_channel_id: string
+          field: string
+          first_seen_at: string
+          id?: never
+          is_current?: boolean
+          last_seen_at: string
+          precision: string
+          site_id: string
+          value?: Json | null
+          value_hash: string
+          video_id?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          competitor_channel_id?: string
+          field?: string
+          first_seen_at?: string
+          id?: never
+          is_current?: boolean
+          last_seen_at?: string
+          precision?: string
+          site_id?: string
+          value?: Json | null
+          value_hash?: string
+          video_id?: string | null
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_field_versions_competitor_channel_id_fkey"
+            columns: ["competitor_channel_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_field_versions_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_field_versions_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_videos"
             referencedColumns: ["id"]
           },
         ]
@@ -2597,7 +2670,9 @@ export type Database = {
           id: string
           is_short: boolean | null
           last_checked_at: string | null
+          last_seen_at: string | null
           like_count: number | null
+          missing_since: string | null
           original_thumbnail_url: string | null
           pinned_at: string | null
           pinned_by: string | null
@@ -2617,7 +2692,9 @@ export type Database = {
           id?: string
           is_short?: boolean | null
           last_checked_at?: string | null
+          last_seen_at?: string | null
           like_count?: number | null
+          missing_since?: string | null
           original_thumbnail_url?: string | null
           pinned_at?: string | null
           pinned_by?: string | null
@@ -2637,7 +2714,9 @@ export type Database = {
           id?: string
           is_short?: boolean | null
           last_checked_at?: string | null
+          last_seen_at?: string | null
           like_count?: number | null
+          missing_since?: string | null
           original_thumbnail_url?: string | null
           pinned_at?: string | null
           pinned_by?: string | null
