@@ -314,7 +314,7 @@ export function buildProprioHeader(
   const assistido = celulaAssistido(ass, cell, dm)
 
   const retencao = cell('retencao', 'retenção (curva)', {
-    value: null, missing: 'a curva fica na página de cada vídeo', base: 'a curva de retenção por minuto chega com a coleta de retenção; fica na página de cada vídeo',
+    value: null, missing: 'a curva fica na página de cada vídeo', base: 'a curva de retenção é por posição no vídeo e fica na página de cada vídeo',
   }, { sub: 'a curva fica na página de cada vídeo', explicada: true })
 
   const inscritos30 = pc({ ...celulaCrescimento30(obs, ch, SL.growth30, cell), key: 'inscritos30' })

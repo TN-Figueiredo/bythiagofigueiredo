@@ -335,7 +335,9 @@ describe('A4.6 cabeçalho próprio: views por dia, retenção e inscritos em 30 
     const h = build(BASE)
     const r = por(h.todos, 'retencao')
     naoMedida(r, 'a curva fica na página de cada vídeo')
-    expect(r.base).toContain('chega com a coleta de retenção')
+    // a coleta já existe e a curva é por posição no vídeo, não por minuto
+    expect(r.base).toBe('a curva de retenção é por posição no vídeo e fica na página de cada vídeo')
+    expect(r.base).not.toMatch(/chega com a coleta|por minuto/)
     naoMedida(por(h.todos, 'inscritos30'), 'sem contagem de 30 dias atrás')
     expect(por(h.todos, 'inscritos30').base).toContain('precisa de duas contagens de inscritos com 30 dias entre elas')
   })

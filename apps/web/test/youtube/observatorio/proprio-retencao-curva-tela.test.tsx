@@ -81,7 +81,7 @@ describe('o modelo: estado "coletada"', () => {
     expect(JSON.stringify(v)).not.toMatch(/ficou até o fim/)
     expect(v.saidas).toBeNull()
     expect(v.revistos).toBeNull()
-    expect(v.curva?.legenda).toEqual({ saidas: false, revistos: false, pico: null })
+    expect(v.curva?.legenda).toEqual({ saidas: false, revistos: false, pico: null, semDado: true })
     expect(v.curva?.meioT).toBeNull()
     expect(v.curva?.saidas).toEqual([])
     expect(v.curva?.revistos).toEqual([])
@@ -118,9 +118,42 @@ describe('o modelo: estado "coletada"', () => {
     expect(v.revistos).toBeNull()
     expect(JSON.stringify(v)).not.toMatch(/Maiores saídas|Trechos revistos/)
   })
-  it('menos de 100 pontos: "Curva com N pontos."', () => {
-    expect(view(comCurva(curvaDe(cruzaEm35, 37))).aviso).toMatch(/ Curva com 37 pontos\.$/)
-    expect(view(comCurva(curvaDe(cruzaEm35, 100))).aviso).not.toMatch(/Curva com/)
+  it('curva incompleta: o aviso diz quanto do vídeo a curva cobre (nunca quantos pontos tem)', () => {
+    // 37 pontos de um vídeo de 360 s: 0,37 x 360 = 133 s = 2:13
+    expect(view(comCurva(curvaDe(cruzaEm35, 37))).aviso).toMatch(/ A curva cobre só os primeiros 2:13 do vídeo \(37%\)\.$/)
+    // sem duração conhecida: só a fração
+    expect(view(comCurva(curvaDe(cruzaEm35, 37)), null).aviso).toMatch(/ A curva cobre só os primeiros 37% do vídeo\.$/)
+    expect(view(comCurva(curvaDe(cruzaEm35, 37)), 0).aviso).not.toMatch(/0:00/)
+    // 99 pontos: a frase vale para qualquer contagem
+    expect(view(comCurva(curvaDe(cruzaEm35, 99))).aviso).toMatch(/ A curva cobre só os primeiros 5:56 do vídeo \(99%\)\.$/)
+    for (const n of [1, 37, 99]) expect(view(comCurva(curvaDe(cruzaEm35, n))).aviso, `${n} pontos`).not.toMatch(/Curva com|pontos/)
+    // curva completa: nada de cobertura
+    const c = view(comCurva(curvaDe(cruzaEm35, 100)))
+    expect(c.aviso).not.toMatch(/Curva com|cobre só|pontos/)
+    expect(c.curva!.ateT).toBeNull()
+    expect(c.curva!.legenda.semDado).toBe(false)
+  })
+  it('curva de 1 ponto: "1%" de cobertura, sem "1 pontos", e o desenho sabe até onde há dado', () => {
+    const v = view(comCurva(curvaDe(cruzaEm35, 1)))
+    expect(v.aviso).toMatch(/ A curva cobre só os primeiros 0:04 do vídeo \(1%\)\.$/)
+    expect(v.curva!.ateT).toBeCloseTo(0.01, 6)
+    expect(v.curva!.legenda.semDado).toBe(true)
+  })
+  it('101 pontos (0,00 a 1,00): chega ao fim do vídeo mas não está na grade; a frase não chama de "incompleta" nem inventa cobertura', () => {
+    const pontos: Ponto[] = Array.from({ length: 101 }, (_, k) => ({ t: k / 100, ratio: 1 - k / 200, relative: 0.5 }))
+    const v = view(comCurva(pontos))
+    expect(v.estado).toBe('coletada')
+    expect(v.frase).toBe('Não dá para dizer onde metade das pessoas sai: a curva coletada não veio no formato esperado.')
+    expect(v.frase).not.toMatch(/incompleta/)
+    expect(v.aviso).not.toMatch(/Curva com|cobre só|pontos/)
+    expect(v.saidas).toBeNull()
+    expect(v.revistos).toBeNull()
+    expect(v.curva!.ateT).toBe(1)
+    expect(v.curva!.legenda.semDado).toBe(false) // não falta trecho: não há o que hachurar
+  })
+  it('curva incompleta: ateT é o último ponto desenhado (fração do vídeo)', () => {
+    expect(view(comCurva(curvaDe(cruzaEm35, 37))).curva!.ateT).toBeCloseTo(0.37, 6)
+    expect(view(comCurva(curvaDe(cruzaEm35, 37))).curva!.legenda.semDado).toBe(true)
   })
   it('duração desconhecida ou zero: tudo em % do vídeo, nenhum "0:00"', () => {
     for (const dur of [null, 0]) {
@@ -149,7 +182,9 @@ describe('o modelo: os outros quatro estados', () => {
   it('sem-curva: o texto com a data da ÚLTIMA RESPOSTA', () => {
     const v = view(retencao({ ultimaResposta: { dia: D(3), resultado: 'sem_dado_na_janela' }, ultimaTentativa: { dia: D(3), resultado: 'sem_dado_na_janela' } }))
     expect(v.estado).toBe('sem-curva')
-    expect(v.frase).toBe('O YouTube não devolveu curva para este vídeo (poucas views). Tentamos de novo quando o vídeo ganhar views. Última resposta: ' + dmDia(D(3)) + '.')
+    expect(v.frase).toBe('O YouTube respondeu que não tem curva para este vídeo. Tentamos de novo em 7 dias ou mais, se o vídeo tiver views novas. Última resposta: ' + dmDia(D(3)) + '.')
+    // o YouTube respondeu "sem dado"; "poucas views" seria uma inferência nossa, e a promessa de pressa não existe na regra (7 dias)
+    expect(v.frase).not.toMatch(/poucas views|ganhar views|ganhe views/)
     expect(v.curva).toBeNull()
   })
   it('sem-curva com um erro MAIS NOVO que a resposta vazia: continua sem-curva, com a data da resposta (não cai em "Ainda não coletamos")', () => {
@@ -258,7 +293,8 @@ describe('a seção na página do vídeo', () => {
     const s = secao(container)
     expect(s.querySelector('.rc-meio')).toBeNull()
     expect(texto(s)).toMatch(/não dá para dizer/i)
-    expect(texto(s)).toContain('Curva com 37 pontos.')
+    expect(texto(s)).toContain('A curva cobre só os primeiros 3:42 do vídeo (37%).') // o vídeo da fixture tem 600 s
+    expect(texto(s)).not.toMatch(/Curva com|pontos/)
     expect(texto(s)).not.toMatch(/Maiores saídas|Trechos revistos|ficou até o fim/)
     const svg = s.querySelector('svg[role="img"]')!
     const ds = svg.querySelector('.rc-linha')!.getAttribute('d')!
@@ -292,8 +328,8 @@ describe('a seção na página do vídeo', () => {
   it('sem-curva: pastilha, a frase em duas partes e a data da última resposta', () => {
     const { container } = montar(retencao({ ultimaResposta: { dia: D(4), resultado: 'sem_dado_na_janela' } }))
     const s = secao(container)
-    expect(s.querySelector('b')!.textContent).toBe('O YouTube não devolveu curva para este vídeo (poucas views).')
-    expect(texto(s.querySelector('.vb-nml'))).toContain('Tentamos de novo quando o vídeo ganhar views. Última resposta: ' + dmDia(D(4)) + '.')
+    expect(s.querySelector('b')!.textContent).toBe('O YouTube respondeu que não tem curva para este vídeo.')
+    expect(texto(s.querySelector('.vb-nml'))).toContain('Tentamos de novo em 7 dias ou mais, se o vídeo tiver views novas. Última resposta: ' + dmDia(D(4)) + '.')
   })
   it('erro só na retenção: as outras seções aparecem normalmente e a retenção diz que a leitura falhou', () => {
     const { container } = montar({ acesso: 'erro' })
