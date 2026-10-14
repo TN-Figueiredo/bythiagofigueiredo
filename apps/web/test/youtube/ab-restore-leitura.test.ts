@@ -30,6 +30,10 @@ describe('lerCampoDeRestauracao', () => {
     expect(l.tipo).toBe('sem_resposta')
     expect(JSON.stringify(l)).not.toMatch(/NaN|Invalid/)
   })
+  it('15:00 exato: sem resposta, não interrompido; 15:01: interrompido', () => {
+    expect(lerCampoDeRestauracao({ ...base, estado: 'em_andamento', em: minutosAtras(15) }, agora)).toMatchObject({ tipo: 'sem_resposta', interrompido: false })
+    expect(lerCampoDeRestauracao({ ...base, estado: 'em_andamento', em: new Date(agora.getTime() - 901_000).toISOString() }, agora)).toMatchObject({ tipo: 'sem_resposta', interrompido: true })
+  })
   it('falhou com erro interrompido é lido como sem resposta', () => {
     expect(lerCampoDeRestauracao({ ...base, estado: 'falhou', erro: 'interrompido', em: minutosAtras(30) }, agora)).toMatchObject({ tipo: 'sem_resposta', interrompido: true })
   })
@@ -43,6 +47,11 @@ describe('lerRestauracao', () => {
   it('nulo (mundo antigo) → null; {} → {}', () => {
     expect(lerRestauracao(null, agora)).toBeNull()
     expect(lerRestauracao({}, agora)).toEqual({})
+  })
+  it('title em andamento (4 min) e thumbnail ok: um de cada tipo', () => {
+    const r = lerRestauracao({ title: { ...base, estado: 'em_andamento', em: minutosAtras(4) }, thumbnail: { ...base, estado: 'ok', em: minutosAtras(1) } }, agora)
+    expect(r?.title?.tipo).toBe('em_andamento')
+    expect(r?.thumbnail?.tipo).toBe('final')
   })
 })
 
@@ -58,7 +67,30 @@ describe('truncarErro e paraRestoreStatus', () => {
   })
   it('erro com chamada: truncarErro mantém status, reason e chamada (e nada mais)', () => {
     expect(truncarErro({ status: 403, reason: 'forbidden', chamada: 'thumbnails.set', corpo: 'x' } as never)).toEqual({ status: 403, reason: 'forbidden', chamada: 'thumbnails.set' })
-    expect(paraRestoreStatus({ title: { estado: 'falhou', destino: 'original', em: '2026-10-12T08:02:00Z', forcado: false, escreveu: false, erro: { status: 403, reason: 'forbidden', chamada: 'videos.update' }, attempts: 1 } })).not.toBeNull()
+    expect(paraRestoreStatus({ title: { estado: 'falhou', destino: 'original', em: '2026-10-12T08:02:00Z', forcado: false, escreveu: false, erro: { status: 403, reason: 'forbidden', chamada: 'videos.update' }, attempts: 1 } })).toEqual({ title: { estado: 'falhou', destino: 'original', em: '2026-10-12T08:02:00Z', forcado: false, escreveu: false, erro: { status: 403, reason: 'forbidden', chamada: 'videos.update' }, attempts: 1 } })
+  })
+  it('corte nunca parte par substituto (emoji na fronteira)', () => {
+    const r = truncarErro('a'.repeat(499) + '😀') as string
+    expect(r).toBe('a'.repeat(499))
+    expect(JSON.stringify(r)).not.toMatch(/\\ud83d/i)
+    const o = truncarErro({ status: 1, reason: 'a'.repeat(99) + '😀' }) as { reason: string }
+    expect(o.reason).toBe('a'.repeat(99))
+    const m = truncarErro({ motivo: 'a'.repeat(99) + '😀' }) as { motivo: string }
+    expect(JSON.stringify(m)).not.toMatch(/\\ud83d/i)
+  })
+  it('reason e motivo acima de 100 viram 100', () => {
+    expect((truncarErro({ status: 1, reason: 'r'.repeat(300) }) as { reason: string }).reason.length).toBe(100)
+    expect((truncarErro({ motivo: 'm'.repeat(300) }) as { motivo: string }).motivo.length).toBe(100)
+  })
+  it('ilegível: erro {}, attempts -1 e 1.5, em lixo; legível: sem escreveu/erro vira null', () => {
+    const v = { estado: 'falhou', destino: 'original', em: '2026-10-12T08:02:00Z', forcado: false, escreveu: false, erro: null, attempts: 1 }
+    expect(restoreStatusIlegivel({ title: v })).toBe(false)
+    expect(restoreStatusIlegivel({ title: { ...v, erro: {} } })).toBe(true)
+    expect(restoreStatusIlegivel({ title: { ...v, attempts: -1 } })).toBe(true)
+    expect(restoreStatusIlegivel({ title: { ...v, attempts: 1.5 } })).toBe(true)
+    expect(restoreStatusIlegivel({ title: { ...v, em: 'lixo' } })).toBe(true)
+    const { escreveu: _e, erro: _r, ...semOpcionais } = v
+    expect(paraRestoreStatus({ title: semOpcionais })?.title).toEqual({ ...semOpcionais, escreveu: null, erro: null })
   })
   it('camposDoTeste', () => {
     expect(camposDoTeste('combo')).toEqual(['title', 'thumbnail'])

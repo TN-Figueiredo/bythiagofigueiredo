@@ -86,17 +86,22 @@ export function camposDoTeste(testType: 'thumbnail' | 'title' | 'combo'): CampoN
 }
 
 // string > 500 → 500; objeto mantém só status/reason/chamada (erro do YouTube) ou só motivo (aborto interno).
+// Corta em n sem deixar surrogate alto solto (jsonb do Postgres recusa).
+function cortar(s: string, n: number): string {
+  return s.slice(0, n).replace(/[\uD800-\uDBFF]$/, '')
+}
+
 export function truncarErro(e: ErroGravado): ErroGravado {
   if (e === null) return null
-  if (typeof e === 'string') return e.slice(0, ERRO_MAX)
-  if ('status' in e) return { status: e.status, reason: String(e.reason).slice(0, 100), ...(e.chamada ? { chamada: e.chamada } : {}) }
-  return { motivo: String(e.motivo).slice(0, 100) }
+  if (typeof e === 'string') return cortar(e, ERRO_MAX)
+  if ('status' in e) return { status: e.status, reason: cortar(String(e.reason), 100), ...(e.chamada ? { chamada: e.chamada } : {}) }
+  return { motivo: cortar(String(e.motivo), 100) }
 }
 
 const Campo = z.object({
   estado: z.enum(['em_andamento', 'ok', 'falhou', 'pulado_sem_original', 'pulado_drift', 'desistiu']),
   destino: z.string().min(1),
-  em: z.string(),
+  em: z.string().refine(x => Number.isFinite(Date.parse(x))),
   forcado: z.boolean(),
   escreveu: z.boolean().nullable().optional().transform(v => v ?? null),
   motivo: z.string().nullable().optional(),
