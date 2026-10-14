@@ -14,9 +14,19 @@ export type DecisaoDeTaxa = { serve: true } | { serve: false; por: 'minuto' | 'd
 const MINUTO_MS = 60_000
 const DIA_MS = 86_400_000
 
-/** Pura. `agora` só decide a hora de volta: o minuto seguinte em UTC, ou 00:00 UTC do dia seguinte. */
+const inteiroPositivo = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 1
+
+/**
+ * Pura. `agora` só decide a hora de volta: o minuto seguinte em UTC, ou 00:00 UTC do dia seguinte.
+ * Falha FECHADA: contagem que não é inteiro >= 1 (NaN, Infinity, negativa, zero, fração, não número) ou `agora` ilegível não serve
+ * (sem isso `NaN > 500` seria falso e a ferramenta serviria). Sem linha de registro: o dado é inválido, não um estouro de limite.
+ */
 export function decidirTaxa(noMinuto: number, noDia: number, agora: number): DecisaoDeTaxa {
   const { porMinuto, porDia } = ACESSO_IA_RULES
+  if (!inteiroPositivo(noMinuto) || !inteiroPositivo(noDia) || !Number.isFinite(agora)) {
+    const base = Number.isFinite(agora) ? agora : Date.now()
+    return { serve: false, por: 'dia', voltaEm: new Date((Math.floor(base / DIA_MS) + 1) * DIA_MS).toISOString(), registrar: false }
+  }
   if (noDia > porDia) {
     const voltaEm = new Date((Math.floor(agora / DIA_MS) + 1) * DIA_MS).toISOString()
     return { serve: false, por: 'dia', voltaEm, registrar: noDia === porDia + 1 }
@@ -44,8 +54,6 @@ async function comPrazo<T>(prazoMs: number, fazer: (sinal: AbortSignal) => Promi
     return { ok: false, code: 'excecao' }
   }
 }
-
-const inteiroPositivo = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 1
 
 /**
  * `obs_ai_rate_hit(p_key, p_now)`: soma uma chamada e devolve `(no_minuto, no_dia)` já somados. Nunca lança.
