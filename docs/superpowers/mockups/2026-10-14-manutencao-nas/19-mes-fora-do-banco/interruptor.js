@@ -12,7 +12,7 @@
   var CALMA = 'Nada saiu do banco por causa disso, e nada sai até você ligar de novo.';
   var CALMA7 = 'O que já saiu continua saído, e nada mais sai até você ligar de novo.';
   var ESPERA = 'Pode esperar: se você está fora de casa, resolva quando voltar.';
-  var ONDE = 'A configuração do site é a variável <code>OBS_ARQUIVO_AUTO_DROP</code>. Você muda lá; se não souber como, deixe para o Claude Code ou o Cowork. Enquanto ela estiver desligada, o botão de ligar não aparece, e cada mês sai pelo botão.';
+  var ONDE = 'A configuração do site é a variável <code>OBS_ARQUIVO_AUTO_DROP</code>. Você muda lá; se não souber como, deixe para o Claude Code (o Cowork não muda variável do Vercel). Enquanto ela estiver desligada, o botão de ligar não aparece, e cada mês sai pelo botão.';
 
   /* motivos do desligamento: lista fechada (04 §14.4, 1 a 11 e 13; o 12 está retirado). [id, motivo curto (chip e frase-resumo), frase do spec, o que fazer, pode esperar?, título do quadro para o dono] */
   var MOTIVOS = [
