@@ -20,7 +20,7 @@ const LISTA: ParDaLista[] = [
   { arquivo: 'src/lib/pipeline/services/forja-queue.ts', tabela: 'youtube_intelligence_tasks', disparo: 'dono', classe: 'fila (só as pendentes)' },
   { arquivo: 'src/lib/pipeline/services/forja-queue.ts', tabela: 'competitor_readings', disparo: 'forja', classe: 'desfaz gravação órfã ou incompleta' },
   // R6: o apagamento por idade que a lista do spec não tinha. EXCEÇÃO declarada (pergunta R-A ao dono): nada sai antes de o retrato fazer 365 dias.
-  { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'competitor_channel_snapshots', disparo: 'cron', classe: 'retrato de canal com mais de 365 dias', excecao: 'R-A' },
+  { arquivo: 'src/lib/youtube/competitor-snapshot-prune.ts', tabela: 'competitor_channel_snapshots', disparo: 'cron', classe: 'retrato de canal com mais de 365 dias', excecao: 'R-A' },
   // Fora do Observatório (A/B Lab), mas na pasta varrida: classificado para não sair da lista sem aviso.
   { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'ab_test_polls', disparo: 'cron', classe: 'leitura do A/B Lab com mais de 7 dias (não é do Observatório)' },
   // Linha 17 (E10 T11a): o único `del` do Blob do Observatório. Prefixo `observatorio/thumbs/`, conferido por `soMiniaturasDoObservatorio`.
@@ -217,8 +217,8 @@ describe('A5 E10 T10: a lista fechada do que apaga (estático)', () => {
     const cron = LISTA.filter(p => p.disparo === 'cron' && PROIBIDAS_POR_CRON.includes(p.tabela))
     expect(cron.map(p => `${p.tabela}:${p.excecao ?? 'SEM EXCEÇÃO'}`)).toEqual(['competitor_channel_snapshots:R-A'])
     // a exceção só vale para a retenção de 365 dias do próprio arquivo citado
-    const texto = readFileSync(join(WEB, 'src/app/api/cron/ab-watchdog/route.ts'), 'utf8')
-    expect(texto).toMatch(/365 \* 86400000/)
+    const texto = readFileSync(join(WEB, 'src/lib/youtube/competitor-snapshot-prune.ts'), 'utf8')
+    expect(texto).toMatch(/RETENCAO_DE_RETRATOS_DIAS = 365/)
   })
 
   it('o conjunto proibido não mudou sem querer', () => {
