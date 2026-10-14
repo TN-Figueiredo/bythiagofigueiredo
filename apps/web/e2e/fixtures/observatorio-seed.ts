@@ -294,7 +294,7 @@ export async function resetViewerPrefs(siteId: string, client?: SupabaseClient):
 export async function clearOwnL2(siteId: string, client?: SupabaseClient, ownIds?: string[]): Promise<void> {
   const sb = clientOf(client)
   const ids = ownIds ?? ['tnfigueiredo', ...OWN_EXTRA_IDS].map(id => ownSeedUuid(siteId, id))
-  for (const t of ['yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
+  for (const t of ['yt_own_video_retention', 'yt_own_collection_attempts', 'yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
     await check('delete ' + t, sb.from(t).delete().eq('site_id', siteId).in('channel_id', ids))
   }
 }
@@ -375,6 +375,42 @@ export interface VideoRetencao {
   diaCem?: { dia: number; pct: number }
 }
 /**
+ * A5 · E8, Tarefa 13: os estados da seção "Retenção" da página do vídeo, um vídeo para cada (todos do canal `tnfigueiredo`, vídeos longos do MAPA_RETENCAO):
+ *  - `completa`: curva da vida inteira de 100 pontos (a grade 0,01 a 1,00), coletada às 01:30 UTC de ontem (22:30 do dia anterior em São Paulo: a data na
+ *    tela é a de SP, nunca o corte do texto UTC); meio em t = 0,32, duas maiores saídas, um trecho revisto, sem pico acima de 120%;
+ *  - `incompleta`: 37 pontos (a API devolveu menos que a grade): a tela não afirma nada sobre o que falta;
+ *  - `semCurva`: o YouTube respondeu "sem dado" (poucas views) e depois uma tentativa com erro_http, mais nova: continua "sem curva", com a data da resposta;
+ *  - `naoColetada`: nenhuma linha, nenhuma tentativa;
+ *  - `ilegivel`: uma linha cuja curva tem um ponto com ratio negativo (o banco aceita, o leitor recusa): "a leitura falhou", nunca "ainda não coletamos";
+ *  - `ataque`: vídeos SEM nada, para o spec escrever a curva do caso que quer atacar (99 e 101 pontos, 1 ponto, pico de 130%…) e limpar no fim.
+ */
+export const RET_CURVA = {
+  completa: 'DvP4RC_VIjz', incompleta: 'Fv7Orf5gRqx', semCurva: 'cY76nv73Qkf', naoColetada: 'lqqH14-w84j', ilegivel: 'zSvhy3lJc4u',
+  ataque: ['YSsFxMlqbOA', 'DNxcPR2DNIV', 'F1llCrDzvR2', 'xsi7iiX5Hvd', 'bsUv93jytXZ'],
+} as const
+/**
+ * A curva de 100 pontos do vídeo `completa`: ratio por ponto (t = (i + 1) / 100, de 0,01 a 1,00). Desenhada para ter UMA resposta em cada regra:
+ * cruza 50% em t = 0,32 (o primeiro ponto abaixo de 0,5: 0,496); maior saída 1 de 0,01 a 0,06 (de 100% para 80%), maior saída 2 de 0,30 a 0,35
+ * (de 56% para 40%), nenhuma outra queda de cinco pontos chega perto; um trecho revisto de 0,55 a 0,62; pico 100% (cabe no desenho de 120%).
+ */
+export function ratioCurvaCompleta(i: number): number {
+  const t = (i + 1) / 100
+  const r = (a: number, b: number, ta: number, tb: number): number => a + ((b - a) * (t - ta)) / (tb - ta)
+  if (t <= 0.02) return r(1, 0.9, 0.01, 0.02)
+  if (t <= 0.10) return r(0.9, 0.7, 0.02, 0.10)
+  if (t <= 0.30) return r(0.7, 0.56, 0.10, 0.30)
+  if (t <= 0.35) return r(0.56, 0.40, 0.30, 0.35)
+  if (t <= 0.55) return r(0.40, 0.38, 0.35, 0.55)
+  if (t <= 0.62) return r(0.38, 0.46, 0.55, 0.62)
+  return r(0.46, 0.20, 0.62, 1.00)
+}
+/** Os pontos de uma curva como a coleta os grava (`{t, ratio, relative, segment_impressions}`); `n` pontos da grade de 100 a partir do primeiro. */
+export function pontosCurvaRetencao(n = 100, ratio: (i: number) => number = ratioCurvaCompleta): object[] {
+  return Array.from({ length: n }, (_, i) => ({
+    t: (i + 1) / 100, ratio: Math.round(ratio(i) * 1e6) / 1e6, relative: Math.round((0.35 + (i % 40) / 100) * 100) / 100, segment_impressions: 900 - i * 7,
+  }))
+}
+/**
  * Faixa "5 a 15 min": 5 vídeos com views (normal 50 = a mediana de 38, 45, 50, 52, 53: 52 fica a 2 pontos, "na média"; 53 a 3, "acima"), mais um com 7 views.
  * Faixa "Acima de 15 min": só 4 vídeos com views ("poucos vídeos para comparar (4; precisa de 5)"); um passa de 100% sempre e outro tem um dia de 139,38%.
  */
@@ -442,6 +478,46 @@ async function gravarDiarioECobertura(sb: SupabaseClient, siteId: string, canalI
     }
   }
   await insertAll(sb, 'yt_own_video_coverage', cobertura)
+}
+
+/**
+ * A5 · E8, Tarefa 13: grava a retenção dos vídeos de RET_CURVA (e só deles). A data de publicação de cada um tem de ser anterior ao fim da janela.
+ * `collected_at` cai às 01:30 UTC de ontem: o dia em UTC e o dia em São Paulo são diferentes (a tela mostra o de SP).
+ */
+async function gravarRetencao(sb: SupabaseClient, siteId: string, canalId: string, porYt: Map<string, OVideo>, vuuid: (v: OVideo) => string, now: number, ultimo: string): Promise<void> {
+  const video = (yt: string): OVideo => {
+    const v = porYt.get(yt)
+    if (!v) throw new Error('observatorio-seed: a retenção precisa do vídeo ' + yt)
+    if (diaYoutube(v.pub) > ultimo) throw new Error('observatorio-seed: o vídeo ' + yt + ' foi publicado depois do fim da janela da curva')
+    return v
+  }
+  const coletada = new Date(now - DAY).toISOString().slice(0, 10) + 'T01:30:00Z'
+  const hoje = diaYoutube(now)
+  const curva = (yt: string, points: object[]) => {
+    const v = video(yt)
+    return {
+      youtube_video_id: yt, window_kind: 'vida', segment: 'organico', window_end: ultimo, window_start: diaYoutube(v.pub), requested_end: ultimo, site_id: siteId, video_id: vuuid(v),
+      channel_id: canalId, points, point_count: points.length, metrics_returned: ['audienceWatchRatio', 'relativeRetentionPerformance', 'totalSegmentImpressions'],
+      views_at_read: 1234, source: 'analytics_api', collected_at: coletada, metric_version: 'views_desde_2026-08-27',
+    }
+  }
+  const ilegivel = pontosCurvaRetencao().map((p, i) => (i === 50 ? { ...p, ratio: -0.2 } : p))
+  await insertAll(sb, 'yt_own_video_retention', [
+    curva(RET_CURVA.completa, pontosCurvaRetencao()),
+    curva(RET_CURVA.incompleta, pontosCurvaRetencao(37)),
+    curva(RET_CURVA.ilegivel, ilegivel),
+  ])
+  const tentativa = (yt: string, dia: string, outcome: string, http_status: number | null = null) => ({
+    scope_type: 'video', scope_id: yt, kind: 'retencao_vida', attempt_day: dia, site_id: siteId, channel_id: canalId, outcome, http_status, error: null, attempts: 1,
+    last_attempt_at: `${dia}T12:00:00Z`,
+  })
+  await insertAll(sb, 'yt_own_collection_attempts', [
+    tentativa(RET_CURVA.completa, somaDias(hoje, -1), 'ok'),
+    tentativa(RET_CURVA.incompleta, somaDias(hoje, -1), 'ok'),
+    tentativa(RET_CURVA.ilegivel, somaDias(hoje, -1), 'ok'),
+    tentativa(RET_CURVA.semCurva, somaDias(hoje, -6), 'sem_dado_na_janela'),
+    tentativa(RET_CURVA.semCurva, somaDias(hoje, -2), 'erro_http', 500),
+  ])
 }
 
 /**
@@ -556,6 +632,7 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
       }
     })
     await gravarDiarioECobertura(sb, siteId, canalId, diario, opcoes.dieta === true)
+    await gravarRetencao(sb, siteId, canalId, porYt, vuuid, O.NOW, ultimo)
     return { canalId, ytIdsAlcance: [...new Set(reach.map(r => (r as { youtube_video_id: string }).youtube_video_id))], ytIdsDiario: MAPA_RETENCAO.map(m => m.yt), ultimoDia: ultimo, primeiroDia: primeiro }
   }
   for (let d = 0; d < P.diarioDias; d++) {
