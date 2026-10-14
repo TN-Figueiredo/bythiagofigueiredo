@@ -5,12 +5,14 @@
 // O token e o que ele abre são objetos de servidor: para um componente cliente só vão dados já montados pelos modelos.
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { edicaoValida, provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
+import { lerRetencao, type RetencaoDoVideo } from '@/lib/youtube/observatorio/proprio/ler-retencao'
 import { TETO_VIDEOS_DIARIO, type AlcanceCanal, type DiarioCanal, type Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { longosAcompanhados } from './extras'
 
@@ -47,7 +49,11 @@ const foraDoTetoDe = (p: Privado<DiarioCanal>): number => (p.acesso === 'ok' ? (
  */
 export async function lerDadosDoCanal(a: { canalId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite | null }): Promise<DadosDoCanal> {
   if (!edicaoValida(a.edicao)) return NEGADO
-  const sb = getSupabaseServiceClient()
+  return lerDoCanal(getSupabaseServiceClient(), { ...a, edicao: a.edicao })
+}
+
+/** A leitura de `lerDadosDoCanal` com o cliente de serviço já criado (a tela do vídeo cria UM e o reparte com a leitura da retenção). */
+async function lerDoCanal(sb: SupabaseClient, a: { canalId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite }): Promise<DadosDoCanal> {
   const pedido = { edicao: a.edicao, canalId: a.canalId, hoje: dayPt(new Date(a.agora)) }
   const [alcance, diario] = await Promise.all([lerAlcance(sb, pedido), lerDiario(sb, { ...pedido, ytIds: a.longosAcompanhados })])
   avisarDescartados(a.edicao.siteId, descartadosDe(alcance) + descartadosDe(diario))
@@ -55,21 +61,53 @@ export async function lerDadosDoCanal(a: { canalId: string; longosAcompanhados: 
   return { alcance, diario }
 }
 
-/** O que a tela do vídeo próprio lê: o alcance e o diário do canal (a taxa do canal, o normal da faixa e o "normal do canal" precisam dos outros vídeos). */
-export interface DadosDoVideo { alcance: AlcanceCanal; diario: DiarioCanal }
+/** O tipo da leitura da retenção, para os modelos da tela (que não importam os leitores): este módulo é o único que pode nomeá-los. */
+export type { RetencaoDoVideo }
 
 /**
- * Tela do vídeo próprio: UMA leitura (alcance + diário) depois do token, num `Privado` só. `ytId` (o vídeo da tela) vai na FRENTE
+ * O que a tela do vídeo próprio lê: o alcance e o diário do canal (a taxa do canal, o normal da faixa e o "normal do canal" precisam dos outros
+ * vídeos) e a retenção do próprio vídeo. `retencao` ausente = a leitura não foi pedida (o modelo da seção diz "ainda não coletamos"); uma leitura
+ * que falhou NÃO derruba o resto: vem como `{ acesso: 'erro' }` só nela.
+ */
+export interface DadosDoVideo { alcance: AlcanceCanal; diario: DiarioCanal; retencao?: Privado<RetencaoDoVideo> }
+
+/**
+ * A retenção do vídeo, em paralelo com o resto. Falha de leitura (banco, tabela fora do ar) NÃO derruba a página: vira `{ acesso: 'erro' }` e UM aviso ao
+ * Sentry, sem conteúdo do banco (só o site e a mensagem). Valor ruim que o leitor descartou: UM aviso com a soma. Sem prova de edição o leitor nem é
+ * chamado (`lerDadosDoVideo` devolve 'negado' antes).
+ */
+async function lerRetencaoDoVideo(sb: SupabaseClient, a: { canalId: string; ytId: string; agora: number; edicao: EdicaoDoSite }): Promise<Privado<RetencaoDoVideo>> {
+  try {
+    const r = await lerRetencao(sb, { edicao: a.edicao, canalId: a.canalId, hoje: dayPt(new Date(a.agora)), ytId: a.ytId })
+    if (r.acesso === 'ok' && r.dado.descartados > 0) {
+      Sentry.captureMessage('observatório: a leitura da retenção do vídeo próprio descartou valores ruins', { level: 'warning', tags: TAGS, extra: { siteId: a.edicao.siteId, descartados: r.dado.descartados } })
+    }
+    return r
+  } catch (e) {
+    Sentry.captureMessage('observatório: a leitura da retenção do vídeo próprio falhou', {
+      level: 'warning', tags: TAGS, extra: { siteId: a.edicao.siteId, primeiroErro: e instanceof Error ? e.message : String(e) },
+    })
+    return { acesso: 'erro' }
+  }
+}
+
+/**
+ * Tela do vídeo próprio: UMA leitura (alcance + diário + retenção do vídeo) depois do token, num `Privado` só. `ytId` (o vídeo da tela) vai na FRENTE
  * da lista pedida ao diário, para o teto de vídeos nunca cortá-lo, e sem duplicar quando já está em `longosAcompanhados`.
- * Sem token: 'negado' e nenhum cliente de serviço (nenhum número). Erro de leitura é LANÇADO (D5), nunca 'erro' nem vazio.
+ * Sem token: 'negado' e nenhum cliente de serviço (nenhum número). Erro de leitura do alcance ou do diário é LANÇADO (D5), nunca 'erro' nem vazio;
+ * só a retenção, que é uma seção à parte, vira `{ acesso: 'erro' }` sem derrubar o resto.
  */
 export async function lerDadosDoVideo(a: { canalId: string; ytId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite | null }): Promise<Privado<DadosDoVideo>> {
   if (!edicaoValida(a.edicao)) return { acesso: 'negado' }
   const ytIds = [a.ytId, ...a.longosAcompanhados.filter(y => y !== a.ytId)]
-  const { alcance, diario } = await lerDadosDoCanal({ canalId: a.canalId, longosAcompanhados: ytIds, agora: a.agora, edicao: a.edicao })
+  const sb = getSupabaseServiceClient()
+  const [{ alcance, diario }, retencao] = await Promise.all([
+    lerDoCanal(sb, { canalId: a.canalId, longosAcompanhados: ytIds, agora: a.agora, edicao: a.edicao }),
+    lerRetencaoDoVideo(sb, { canalId: a.canalId, ytId: a.ytId, agora: a.agora, edicao: a.edicao }),
+  ])
   // com token válido as duas leituras são 'ok' ou lançam; isto só fecha o tipo (e se um dia não for, é 'erro', nunca 'negado')
   if (alcance.acesso !== 'ok' || diario.acesso !== 'ok') return { acesso: 'erro' }
-  return { acesso: 'ok', dado: { alcance: alcance.dado, diario: diario.dado } }
+  return { acesso: 'ok', dado: { alcance: alcance.dado, diario: diario.dado, retencao } }
 }
 
 /**

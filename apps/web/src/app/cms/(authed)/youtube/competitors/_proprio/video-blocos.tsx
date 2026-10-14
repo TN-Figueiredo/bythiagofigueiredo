@@ -8,6 +8,7 @@ import { Impressoes } from './impressoes'
 import { InfoDica } from './info-dica'
 import { ForjaIndisponivelVideo } from './forja-indisponivel-video'
 import { Reguas } from './reguas'
+import { RetencaoCurva } from './retencao-curva'
 import { TaxaFaixa } from './taxa-faixa'
 import type { BlocoAssistido, BlocoImpressoes, BlocoRetencao, BlocoTaxa, BlocoViews, DirecaoAssistido, Parte, VideoBlocosView } from './video-blocos-model'
 import './video-blocos.css'
@@ -79,12 +80,31 @@ function SecAssistido({ a }: { a: BlocoAssistido }) {
   )
 }
 
+/** A seção "Retenção" (A5 E8, Tarefa 13): cinco estados, e o gráfico só no `coletada`. Os outros quatro dizem a frase do estado numa pastilha "não medido". */
 function SecRetencao({ r }: { r: BlocoRetencao }) {
+  // a primeira frase em negrito, como era; uma frase só (erro, negado) vai inteira, sem ponto duplicado
   const [primeira, ...resto] = r.frase.split('. ')
   return (
     <section className="vb-sec" aria-labelledby="vb-ret-h">
       <div className="vb-h"><h2 id="vb-ret-h">Retenção</h2><InfoDica titulo="De onde vem a curva" paragrafos={r.metodo} /></div>
-      <div className="vb-nml"><span className="obs-ch-nm">não medido</span><p><b>{primeira}.</b> {resto.join('. ')}</p></div>
+      {r.estado === 'coletada' && r.curva ? (
+        <>
+          <p className="vb-fr"><Partes partes={r.partes} /></p>
+          <RetencaoCurva curva={r.curva} />
+          {r.saidas || r.revistos ? (
+            <ul className="vb-ret-ls">
+              {r.saidas ? <li><b>Maiores saídas:</b>{r.saidas.slice('Maiores saídas:'.length)}</li> : null}
+              {r.revistos ? <li><b>Trechos revistos:</b>{r.revistos.slice('Trechos revistos:'.length)}</li> : null}
+            </ul>
+          ) : null}
+          {r.aviso ? <p className="vb-ret-aviso">{r.aviso}</p> : null}
+        </>
+      ) : (
+        <div className="vb-nml">
+          <span className="obs-ch-nm">não medido</span>
+          <p>{resto.length > 0 ? <><b>{primeira}.</b> {resto.join('. ')}</> : <b>{r.frase}</b>}</p>
+        </div>
+      )}
     </section>
   )
 }

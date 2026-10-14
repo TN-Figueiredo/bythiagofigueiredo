@@ -1,0 +1,24 @@
+/* O gráfico da curva de retenção do vídeo próprio (A5 E8, Tarefa 13; mockup 6 de 12/10, a4.css .curva/.cv-*). Prefixo rc-. Cores só por token do [data-obs]
+   (--lado-o é a cor do dado do SEU canal, --terco-baixo marca as saídas); sem mistura de cor por função, nenhum z-index numérico, nenhum texto abaixo de 12 px,
+   nada que passe da largura do cartão (o SVG se mede na largura em que aparece). Curva incompleta acaba onde os pontos acabam: nada é ligado até o fim. */
+[data-obs-screen="video-proprio"] .rc{margin:8px 0 0;min-width:0;max-width:100%}
+[data-obs-screen="video-proprio"] .rc-svg{display:block;max-width:100%;height:auto;overflow:visible}
+[data-obs-screen="video-proprio"] .rc-grade{stroke:var(--border-subtle);stroke-width:1}
+[data-obs-screen="video-proprio"] .rc-area{fill:var(--lado-o);opacity:.16}
+[data-obs-screen="video-proprio"] .rc-linha{fill:none;stroke:var(--lado-o);stroke-width:2.2;stroke-linejoin:round}
+[data-obs-screen="video-proprio"] .rc-revisto{fill:var(--text);opacity:.14}
+[data-obs-screen="video-proprio"] .rc-meio{stroke:var(--text);stroke-width:1;stroke-dasharray:3 3}
+[data-obs-screen="video-proprio"] .rc-saida{fill:var(--terco-baixo);stroke:var(--text);stroke-width:1;stroke-linejoin:round}
+[data-obs-screen="video-proprio"] .rc-gy,[data-obs-screen="video-proprio"] .rc-gx{font:400 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--muted)}
+[data-obs-screen="video-proprio"] .rc-rotulo{font:500 12px var(--font-sans),system-ui,sans-serif;fill:var(--text)}
+/* a legenda: só o que existe no desenho */
+[data-obs-screen="video-proprio"] .rc-leg{display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0 0;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+[data-obs-screen="video-proprio"] .rc-leg span{display:inline-flex;align-items:center;gap:7px}
+[data-obs-screen="video-proprio"] .rc-leg i{display:inline-block;flex:none}
+[data-obs-screen="video-proprio"] .rc-lg-l{width:16px;height:0;border-top:2.2px solid var(--lado-o)}
+[data-obs-screen="video-proprio"] .rc-lg-re{width:14px;height:12px;background:var(--text);opacity:.14}
+[data-obs-screen="video-proprio"] .rc-lg-sa{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:9px solid var(--terco-baixo)}
+/* retenção (A5 E8, Tarefa 13): a lista de saídas e de trechos revistos e o aviso sob o gráfico */
+[data-obs-screen="video-proprio"] .vb-ret-ls{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px;max-width:88ch;font-size:13.5px;line-height:20px}
+[data-obs-screen="video-proprio"] .vb-ret-ls b{font-weight:600}
+[data-obs-screen="video-proprio"] .vb-ret-aviso{margin:10px 0 0;padding:6px 10px;border-left:3px solid var(--border-strong);font-size:12.5px;line-height:18px;color:var(--muted);max-width:88ch}

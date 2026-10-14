@@ -184,6 +184,101 @@ describe('lerDadosDoVideo (a leitura da tela do vídeo próprio)', () => {
   })
 })
 
+describe('lerDadosDoVideo: a retenção do vídeo (A5 E8, Tarefa 13)', () => {
+  const YT = 'vid00000001'
+  const ponto = (k: number) => ({ t: (k + 1) / 100, ratio: 1 - k / 200, relative: 0.5, segment_impressions: 10 })
+  const linhaCurva = (over: Row = {}): Row => ({
+    youtube_video_id: YT, window_kind: 'vida', segment: 'organico', window_start: d(60), window_end: d(2), requested_end: d(2), site_id: S, channel_id: BOM,
+    points: Array.from({ length: 100 }, (_, k) => ponto(k)), point_count: 100, metrics_returned: ['audienceWatchRatio'], views_at_read: 10, collected_at: d(1) + 'T10:00:00Z', ...over,
+  })
+  const tentativa = (dia: string, outcome: string): Row => ({ scope_type: 'video', scope_id: YT, kind: 'retencao_vida', attempt_day: dia, site_id: S, channel_id: BOM, outcome, last_attempt_at: dia + 'T10:00:00Z' })
+  const base = (extra: Record<string, Row[]> = {}) => fakeSupabase({
+    yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [diario(YT, d(3), 9)], yt_own_video_retention: [], yt_own_collection_attempts: [], ...extra,
+  })
+  const ler = async (db: ReturnType<typeof fakeSupabase>, edicao?: EdicaoDoSite | null) => {
+    com(db)
+    return lerDadosDoVideo({ canalId: BOM, ytId: YT, longosAcompanhados: [YT], agora: AGORA, edicao: edicao === undefined ? await token() : edicao })
+  }
+
+  it('com permissão: a retenção vem na mesma leitura, com a curva do site e do canal do token e só dele', async () => {
+    const r = await ler(base({
+      yt_own_video_retention: [linhaCurva(), linhaCurva({ points: [ponto(0)], point_count: 1, site_id: 'outro-site' }), linhaCurva({ channel_id: RUIM }), linhaCurva({ youtube_video_id: 'vid00000002' })],
+      yt_own_collection_attempts: [tentativa(d(1), 'ok')],
+    }))
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.diario.linhas).toHaveLength(1)
+    const ret = r.dado.retencao
+    if (ret?.acesso !== 'ok') throw new Error('esperava a retenção ok')
+    expect(ret.dado.ytId).toBe(YT)
+    expect(ret.dado.curvas.vida?.pontos).toHaveLength(100)
+    expect(ret.dado.ultimaResposta).toEqual({ dia: d(1), resultado: 'ok' })
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+  it('sem curva e sem tentativa: ok e vazio (a tela diz "ainda não coletamos"), nenhum aviso', async () => {
+    const r = await ler(base())
+    if (r.acesso !== 'ok' || r.dado.retencao?.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.retencao.dado.curvas).toEqual({})
+    expect(r.dado.retencao.dado.ultimaResposta).toBeNull()
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+  it('a leitura da retenção falha: vira { acesso: "erro" } SÓ nela, as outras duas ficam ok, e UM aviso ao Sentry sem conteúdo do banco', async () => {
+    const r = await ler(fakeSupabase({
+      yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [diario(YT, d(3), 9)], yt_own_video_retention: [], yt_own_collection_attempts: [],
+    }, { failOn: 'yt_own_video_retention' }))
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.retencao).toEqual({ acesso: 'erro' })
+    expect(r.dado.alcance.linhas).toEqual([])
+    expect(r.dado.diario.linhas).toHaveLength(1)
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(captureMessage.mock.calls[0]![1]).toMatchObject({ level: 'warning', extra: { siteId: S } })
+    expect(JSON.stringify(captureMessage.mock.calls[0])).not.toContain(YT)
+  })
+  it('erro no alcance ou no diário continua LANÇANDO (D5), mesmo com a retenção boa', async () => {
+    await expect(ler(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [], yt_own_video_retention: [], yt_own_collection_attempts: [] }, { failOn: 'yt_own_video_daily' }))).rejects.toThrow()
+  })
+  it('curva com valor ruim (ponto fora de ordem): a curva é descartada, vira ilegível e UM aviso com a contagem', async () => {
+    const ruim = [{ t: 0.5, ratio: 1, relative: null }, { t: 0.2, ratio: 0.9, relative: null }]
+    const r = await ler(base({ yt_own_video_retention: [linhaCurva({ points: ruim, point_count: 2 })], yt_own_collection_attempts: [tentativa(d(1), 'ok')] }))
+    if (r.acesso !== 'ok' || r.dado.retencao?.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.retencao.dado.janelasIlegiveis).toEqual(['vida'])
+    expect(r.dado.retencao.dado.curvas).toEqual({})
+    const avisos = captureMessage.mock.calls.filter(c => String(c[0]).includes('retenção'))
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]![1]).toMatchObject({ level: 'warning', extra: { siteId: S, descartados: 1 } })
+  })
+  it('tabela da curva ausente (migration não aplicada): ok e vazio, com o aviso do leitor (uma vez)', async () => {
+    const db = base()
+    com(db)
+    const aus = { ...db.client, from: (t: string) => {
+      if (t !== 'yt_own_video_retention') return db.client.from(t)
+      const q: Record<string, unknown> = {}
+      for (const m of ['select', 'eq', 'in', 'order', 'neq', 'is', 'gte', 'lte']) q[m] = () => q
+      q.range = async () => ({ data: null, error: { code: '42P01', message: 'x' } })
+      return q
+    } }
+    getSupabaseServiceClient.mockReturnValue(aus)
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: YT, longosAcompanhados: [YT], agora: AGORA, edicao: await token() })
+    if (r.acesso !== 'ok' || r.dado.retencao?.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.retencao.dado.tabelaAusente).toBe(true)
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+  })
+  it('sem permissão: negado, o leitor da retenção NÃO é consultado e nenhum cliente de serviço é criado', async () => {
+    const db = base({ yt_own_video_retention: [linhaCurva()] })
+    const r = await ler(db, null)
+    expect(r).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+    expect(JSON.stringify(r)).toBe('{"acesso":"negado"}')
+  })
+  it('as consultas da retenção são paralelas às do canal e nenhuma pede select *', async () => {
+    const db = base({ yt_own_video_retention: [linhaCurva()], yt_own_collection_attempts: [tentativa(d(1), 'ok')] })
+    await ler(db)
+    const dela = db.selects.filter(x => x.table === 'yt_own_video_retention' || x.table === 'yt_own_collection_attempts')
+    expect(dela.length).toBeGreaterThan(0)
+    for (const x of dela) expect(x.cols).not.toContain('*')
+  })
+})
+
 describe('lerDiarioDosCanais', () => {
   it('um canal que falha vira erro, os outros vêm ok, e avisar é chamado UMA vez com a contagem', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4), diario('v2', d(3), 5, RUIM)] }, { failIf: (_t, eqs) => eqs.channel_id === RUIM })
