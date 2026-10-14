@@ -154,7 +154,7 @@ describe('E5a T4: ligações e parâmetros', () => {
     expect(link.canais({ channel: 'abc', tab: 'outliers' })).toBe(`${B}?channel=abc&tab=outliers`)
     expect(link.mudancas({ niche: 'ia', type: 'title', win: 7 })).toBe(`${B}/mudancas?niche=ia&type=title&win=7`)
     expect(link.mudancas({ channel: 'abc' })).toBe(`${B}/mudancas?channel=abc`)
-    expect(link.outliers({ niche: 'viagem', fmt: 'long', ages: ['0-30'], min: 2 })).toBe(`${B}/outliers?niche=viagem&fmt=long&age=0-30&min=2`)
+    expect(link.outliers({ niche: 'viagem', fmt: 'long', ages: ['0-30'], min: 2 })).toBe(`${B}/outliers?niche=viagem&fmt=long&min=2&age=0-30`)
     expect(link.insights({ niche: 'ia' })).toBe(`${B}/insights?niche=ia`)
     expect(link.insights()).toBe(`${B}/insights`)
     expect(link.comparar('x', 'y')).toBe(`${B}/comparar?a=x&b=y`)
@@ -190,6 +190,6 @@ describe('E5a T4: ligações e parâmetros', () => {
     expect(q.get('type')).toBe('title'); expect(q.get('tipo')).toBe('tags'); expect(q.get('win')).toBe('90')
   })
   it('o padrão da vista só some quando é o padrão: "outras" continua na URL com os outros filtros', () => {
-    expect(link.mudancas({ vista: 'outras', tipo: 'tags', win: 30 })).toBe(`${B}/mudancas?win=30&vista=outras&tipo=tags`)
+    expect(link.mudancas({ vista: 'outras', tipo: 'tags', win: 30 })).toBe(`${B}/mudancas?vista=outras&tipo=tags&win=30`)
   })
 })
