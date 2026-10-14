@@ -3,21 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS } from './ab-constants'
+import { VARIANT_COLORS, semImpressoes, liftVsA } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
 import { VariantTable } from './variant-table'
-import { ConfidenceChart } from './confidence-chart'
-import { RadarChart } from './radar-chart'
 import { CredibleInterval } from './credible-interval'
-import { RankBars } from './rank-bars'
 import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
-import { GatesPanel } from './gates-panel'
 import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
@@ -27,7 +23,7 @@ import { AbEndTestDialog } from './ab-end-test-dialog'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   Pause, Square, Settings,
-  TrendingUp, Crosshair, BarChart3, RefreshCw, Filter, Zap,
+  TrendingUp, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
 export interface ActiveDetailProps {
@@ -46,6 +42,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
   const data = view.confirmedData
+  const semMedicao = semImpressoes(view.variants)
 
   const trend: 'up' | 'flat' | 'down' = (() => {
     const len = view.confTrend.length
@@ -67,16 +64,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
     clicks: v.clicks,
     linkClicks: v.linkClicks ?? 0,
     color: v.color,
-  }))
-
-  const leaderVariant = view.variants.find(v => v.label === data.leader)
-  const originalVariant = view.variants.find(v => v.label === 'A')
-
-  const radarVariants = view.variants.map(v => ({
-    ...v,
-    watchTime: (v.retention ?? 0.4) * 600,
-    comments: Math.round(v.clicks * 0.02),
-    shares: Math.round(v.clicks * 0.008),
   }))
 
 
@@ -135,11 +122,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-amber-300">
-                Vencedor detectado — aplicação automática em{' '}
+                Vencedor detectado — carência termina em{' '}
                 {Math.max(0, Math.ceil((new Date(view.graceExpiresAt).getTime() - Date.now()) / 3600000))}h
-              </p>
-              <p className="text-xs text-amber-400/70 mt-0.5">
-                O vencedor será aplicado automaticamente quando o período de graça expirar.
               </p>
             </div>
             <div className="flex gap-2">
@@ -231,18 +215,15 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       {/* ── Section 3: Hero Band ── */}
       <div data-section="hero-band" className="mb-[16px]">
         <HeroBand
-          confidence={data.confidence}
-          confidenceTarget={view.confidenceTarget * 100}
           leader={{ label: data.leader, color: data.leaderColor }}
-          lift={data.lift}
           trend={trend}
-          leaderCtr={leaderVariant?.ctr}
-          originalCtr={originalVariant?.ctr}
+          semMedicao={semMedicao}
+          liftLider={liftVsA(view.variants.find(v => v.label === 'A'), view.variants.find(v => v.label === data.leader))}
         />
       </div>
 
       {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[16px]">
+      <div className={`grid grid-cols-1 ${view.outlier || view.daysRemaining ? 'md:grid-cols-2' : ''} gap-[16px] mb-[16px]`}>
         <SignalCard
           live={livePoll?.delta ? {
             viewsDelta: livePoll.delta.views,
@@ -254,8 +235,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             polledAt: view.pollData.polledAt,
           } : undefined}
         />
-        {/* Métricas computadas card */}
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
+        {/* Métricas computadas card: sem outlier nem previsão não há o que mostrar */}
+        {(view.outlier || view.daysRemaining) && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
           {/* card-head */}
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Zap size={15} className="text-cms-text-dim" aria-hidden="true" />
@@ -271,15 +252,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 </span>
               </div>
             )}
-            {view.revenue && (
-              <div>
-                <span className="eyebrow">Receita estimada</span>
-                <span className="block font-mono text-[22px] font-bold leading-none tracking-tight text-cms-green mt-[4px]">
-                  +R$ {Math.round((view.revenue.low + view.revenue.high) / 2 / 12).toLocaleString('pt-BR')}
-                  <span className="text-[11px] font-normal text-cms-text-dim">/mês</span>
-                </span>
-              </div>
-            )}
             {view.daysRemaining && (
               <div>
                 <span className="eyebrow">Conclusão em</span>
@@ -289,59 +261,24 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 </span>
               </div>
             )}
-            {!view.outlier && !view.revenue && !view.daysRemaining && (
-              <span className="text-[12px] text-cms-text-dim py-2">Coletando dados...</span>
-            )}
           </div>
-        </div>
+        </div>)}
       </div>
 
       {/* ── Section 5: Placar das variantes ── */}
       <section data-section="variant-performance" className="mb-[24px]">
         <VariantTable
           variants={view.variants}
-          metric="pBest"
           leaderId={data.leader}
           activeNow={view.activeNow ?? undefined}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
+          semChance
         />
       </section>
 
-      {/* ── Section 6: Confiança ao longo do tempo + Raio-X ── */}
-      <section data-section="charts-confidence-radar" className="mb-[16px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px]">
-          {/* Confiança ao longo do tempo */}
-          <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
-            <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-              <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
-              <span className="text-[13px] font-semibold text-cms-text">Confiança ao longo do tempo</span>
-              <span className="text-[11.5px] text-cms-text-dim ml-auto">meta {Math.round(view.confidenceTarget * 100)}%</span>
-            </div>
-            <div className="px-[16px] py-[14px]">
-              <ConfidenceChart
-                data={view.confTrend}
-                target={view.confidenceTarget * 100}
-              />
-            </div>
-          </div>
-
-          {/* Raio-X das variantes */}
-          <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
-            <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-              <Crosshair size={15} className="text-cms-text-dim" aria-hidden="true" />
-              <span className="text-[13px] font-semibold text-cms-text">Raio-X das variantes</span>
-              <span className="text-[11.5px] text-cms-text-dim ml-auto">6 eixos</span>
-            </div>
-            <div className="px-[16px] py-[14px]">
-              <RadarChart variants={radarVariants} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Section 7: Faixa provável de CTR + Chance de vencer (2 cards) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">
+      {/* ── Section 7: Faixa provável de CTR ── */}
+      {!semMedicao && (<div className="mb-[24px]">
         {/* Faixa provável de CTR */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -353,22 +290,10 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <CredibleInterval variants={view.variants} leader={data.leader} />
           </div>
         </div>
-
-        {/* Chance de vencer */}
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
-          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-            <BarChart3 size={15} className="text-cms-text-dim" aria-hidden="true" />
-            <span className="text-[13px] font-semibold text-cms-text">Chance de vencer</span>
-            <span className="text-[11.5px] text-cms-text-dim ml-auto">P(melhor) · 10 mil simulações</span>
-          </div>
-          <div className="px-[16px] py-[14px]">
-            <RankBars variants={view.variants} metric="pBest" />
-          </div>
-        </div>
-      </div>
+      </div>)}
 
       {/* ── Section 8: CTR diário por variante ── */}
-      <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
+      {!semMedicao && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
         <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
           <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
           <span className="text-[13px] font-semibold text-cms-text">CTR diário por variante</span>
@@ -385,10 +310,10 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         <div className="px-[16px] py-[14px]">
           <MultiLine series={view.daily} colors={VARIANT_COLORS} />
         </div>
-      </div>
+      </div>)}
 
       {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">
+      <div className={`grid grid-cols-1 ${semMedicao ? '' : 'md:grid-cols-2'} gap-[16px] mb-[24px]`}>
         {/* Rotação ABBA */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -406,8 +331,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           </div>
         </div>
 
-        {/* Funil por variante (líder) */}
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+        {/* Funil por variante (líder): sem impressões medidas não há funil */}
+        {!semMedicao && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Filter size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Funil por variante</span>
@@ -420,12 +345,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
               return funnel ? <FunnelRow variant={funnel} /> : null
             })()}
           </div>
-        </div>
-      </div>
-
-      {/* ── Section 10: Critérios de resolução automática ── */}
-      <div className="mb-[24px]">
-        <GatesPanel gates={view.gates} />
+        </div>)}
       </div>
 
       {/* ── Section 11: O momento de clique ── */}

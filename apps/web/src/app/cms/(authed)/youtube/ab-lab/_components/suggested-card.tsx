@@ -2,6 +2,7 @@
 
 import type { SuggestedVideo, TestType } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
+import { formatCtr, formatCompact } from './ab-constants'
 import { FlaskConical, Info } from 'lucide-react'
 
 const TYPE_LABELS: Record<TestType, string> = {
@@ -93,7 +94,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
         <div className="flex gap-[14px] my-[12px] text-[11.5px]">
           <div>
             <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[3px]">CTR atual</div>
-            <span className="font-mono text-[14px] font-bold" style={{ color: ctrColor }}>{brDec(video.ctr, 1)}%</span>
+            <span className="font-mono text-[14px] font-bold" style={{ color: ctrColor }}>{formatCtr(video.ctr / 100, video.impressions)}</span>
           </div>
           <div>
             <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[3px]">mediana canal</div>
@@ -101,7 +102,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
           </div>
           <div>
             <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[3px]">impressões</div>
-            <span className="font-mono text-[14px] font-bold text-cms-text">{video.impressions ?? '—'}</span>
+            <span className="font-mono text-[14px] font-bold text-cms-text">{video.impressions != null ? formatCompact(video.impressions) : '—'}</span>
           </div>
         </div>
 

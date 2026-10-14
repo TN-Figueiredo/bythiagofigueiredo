@@ -191,8 +191,8 @@ Rate each variant 1-5 and recommend the best one to test first.`,
 }
 
 function formatLearningTag(t: AbBriefingLearning): string {
-  const lift = t.avgLift > 0 ? `+${t.avgLift.toFixed(1)}%` : `${t.avgLift.toFixed(1)}%`
-  return `${t.tag} (${lift} avg lift, ${t.wins} wins, ${t.kind})`
+  // Sem métrica de entrega real, nenhum percentual de lift vai ao prompt
+  return `${t.tag} (${t.wins} wins, ${t.kind})`
 }
 
 function buildLearningsPayload(
@@ -251,11 +251,6 @@ function buildHistorySection(testHistory: AbBriefingData['testHistory']): string
   if (testHistory.length === 0) return ''
 
   const completedTests = testHistory.filter(t => t.winner_label !== null)
-  const avgLift =
-    completedTests.length > 0
-      ? completedTests.reduce((sum, t) => sum + (t.ctr_lift_percent ?? 0), 0) / completedTests.length
-      : 0
-
   const winnerPatterns = completedTests
     .map(t => t.winner_label)
     .filter((v): v is string => v !== null)
@@ -264,7 +259,6 @@ function buildHistorySection(testHistory: AbBriefingData['testHistory']): string
     {
       historico_ab: {
         testes_anteriores: testHistory.length,
-        lift_medio: avgLift > 0 ? `+${avgLift.toFixed(1)}%` : 'N/A',
         padroes_vencedores: winnerPatterns,
       },
     },
@@ -396,11 +390,11 @@ export function buildAbWritePrompt(options: {
   // Test history
   const historySection = buildHistorySection(data.testHistory)
   if (historySection) {
-    const parsed = JSON.parse(historySection) as { historico_ab: { testes_anteriores: number; lift_medio: string; padroes_vencedores: string[] } }
+    const parsed = JSON.parse(historySection) as { historico_ab: { testes_anteriores: number; padroes_vencedores: string[] } }
     const h = parsed.historico_ab
     lines.push(locale === 'pt'
-      ? `Histórico: ${h.testes_anteriores} testes anteriores | lift médio: ${h.lift_medio} | vencedores: ${h.padroes_vencedores.join(', ') || 'N/A'}`
-      : `History: ${h.testes_anteriores} previous tests | avg lift: ${h.lift_medio} | winners: ${h.padroes_vencedores.join(', ') || 'N/A'}`)
+      ? `Histórico: ${h.testes_anteriores} testes anteriores | vencedores: ${h.padroes_vencedores.join(', ') || 'N/A'}`
+      : `History: ${h.testes_anteriores} previous tests | winners: ${h.padroes_vencedores.join(', ') || 'N/A'}`)
     lines.push('')
   }
 

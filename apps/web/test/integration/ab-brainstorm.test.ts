@@ -460,19 +460,18 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
     for (const entry of testHistory) {
       expect(entry).toHaveProperty('test_type')
       expect(entry).toHaveProperty('winner_label')
-      expect(entry).toHaveProperty('ctr_lift_percent')
+      // A/B Lab P2: o lift gravado não é medido, então não chega ao briefing
+      expect(entry).not.toHaveProperty('ctr_lift_percent')
     }
 
     // The thumbnail test with a winner should be in history
     const thumbnailEntry = testHistory.find(t => t.test_type === 'thumbnail')
     expect(thumbnailEntry).toBeDefined()
     expect(thumbnailEntry?.winner_label).toBe('variant_b')
-    expect(thumbnailEntry?.ctr_lift_percent).toBe(12.5)
 
     // The title test with no winner should also be present
     const titleEntry = testHistory.find(t => t.test_type === 'title')
     expect(titleEntry).toBeDefined()
     expect(titleEntry?.winner_label).toBeNull()
-    expect(titleEntry?.ctr_lift_percent).toBeNull()
   })
 })

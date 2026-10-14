@@ -11,6 +11,8 @@ export interface KPIProps {
   icon?: LucideIcon
   spark?: number[]
   trend?: string
+  /** Valor em texto corrido (ex.: a frase de "sem medição"), em corpo menor. */
+  compact?: boolean
 }
 
 function Sparkline({ data }: { data: number[] }) {
@@ -39,7 +41,7 @@ function Sparkline({ data }: { data: number[] }) {
   )
 }
 
-export function KPI({ label, value, suffix, icon: Icon, spark, trend }: KPIProps) {
+export function KPI({ label, value, suffix, icon: Icon, spark, trend, compact }: KPIProps) {
   return (
     <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[18px] relative overflow-hidden">
       <div className="flex items-center justify-between">
@@ -47,7 +49,7 @@ export function KPI({ label, value, suffix, icon: Icon, spark, trend }: KPIProps
         {Icon && <Icon size={15} className="text-cms-text-dim opacity-60" aria-hidden="true" />}
       </div>
       <div className="flex items-baseline gap-[4px] mt-[12px]">
-        <span className="font-mono text-[30px] font-bold tracking-[-0.02em] leading-none">{value}</span>
+        <span className={compact ? 'text-[13px] font-medium text-cms-text-dim leading-snug' : 'font-mono text-[30px] font-bold tracking-[-0.02em] leading-none'}>{value}</span>
         {suffix && <span className="font-mono text-[15px] font-semibold text-cms-text-dim">{suffix}</span>}
       </div>
       {trend && (

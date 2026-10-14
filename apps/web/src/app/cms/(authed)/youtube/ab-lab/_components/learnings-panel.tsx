@@ -32,7 +32,7 @@ function StrengthBar({ wins, maxWins }: { wins: number; maxWins: number }) {
 }
 
 function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
-  const isNegative = tag.negative || tag.avgLift < 0
+  const isNegative = tag.negative || (tag.avgLift !== null && tag.avgLift < 0)
 
   return (
     <div className="flex items-center gap-[10px]">
@@ -50,7 +50,7 @@ function TagRow({ tag, maxWins }: { tag: LearningsTag; maxWins: number }) {
         className="font-mono text-[12px] font-bold w-[44px] text-right"
         style={{ color: isNegative ? 'var(--cms-red, #ef4444)' : 'var(--green, var(--cms-green))' }}
       >
-        {tag.avgLift >= 0 ? '+' : ''}{Math.round(tag.avgLift)}%
+        {tag.avgLift === null ? '' : `${tag.avgLift >= 0 ? '+' : ''}${Math.round(tag.avgLift)}%`}
       </span>
     </div>
   )
@@ -94,11 +94,13 @@ export function LearningsPanel({ learnings, channelLearnings, totalTests = 0 }: 
       <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
         <div className="flex flex-col items-center py-4">
           <p className="text-[13px] text-cms-text-dim">
-            Coletando dados... ({progress}/3 testes completados)
+            {progress >= 3
+              ? `${progress} de 3 testes concluídos, ainda sem ganho medido`
+              : `Coletando dados... (${progress}/3 testes completados)`}
           </p>
           <div className="mt-2 h-1.5 w-32 rounded-full bg-cms-surface-hover">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all"
+              className="h-full rounded-full bg-cms-accent transition-all"
               style={{ width: `${Math.min((totalTests / 3) * 100, 100)}%` }}
             />
           </div>

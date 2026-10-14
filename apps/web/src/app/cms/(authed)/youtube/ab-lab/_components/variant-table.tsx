@@ -3,24 +3,25 @@
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
-import { formatPercent, formatCompact } from './ab-constants'
+import { formatPercent, formatCompact, formatCtr, liftVsA } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react'
 
 export interface VariantTableProps {
   variants: FullChartVariant[]
-  metric: 'pBest' | 'pTop2'
   winnerId?: string
   leaderId?: string
   activeNow?: string
   finalists?: DisplayLabel[]
   thumbs: VariantThumb[]
   videoTitle?: string
+  /** Teste ativo: sem a coluna de probabilidade de ser a melhor (calculada sobre views); ordena por CTR. */
+  semChance?: boolean
 }
 
-export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
+export function VariantTable({ variants, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle, semChance }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
-  const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
+  const sorted = [...variants].sort((a, b) => (semChance ? b.ctr - a.ctr : b.pBest - a.pBest))
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
   const toggle = useCallback((label: string) => {
@@ -43,7 +44,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
       <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
         <BarChart3 size={15} className="text-cms-text-dim" aria-hidden="true" />
         <span className="text-[13px] font-semibold text-cms-text">Placar das variantes</span>
-        <span className="text-[11.5px] text-cms-text-dim ml-auto">ordenado por chance de vencer</span>
+        <span className="text-[11.5px] text-cms-text-dim ml-auto">{semChance ? 'ordenado por CTR' : 'ordenado por chance de vencer'}</span>
       </div>
 
       {/* vtable */}
@@ -59,7 +60,9 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
           </span>
           <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 56, flexShrink: 0 }}>CTR</span>
           <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 44, flexShrink: 0 }}>vs A</span>
-          <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 90, flexShrink: 0 }}>Chance de vencer</span>
+          {!semChance && (
+            <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 90, flexShrink: 0 }}>Chance de vencer</span>
+          )}
           <span role="columnheader" style={{ width: 20, flexShrink: 0 }} />
         </div>
 
@@ -71,11 +74,10 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
           const isHighlighted = isWinner || isLeader
           const isOriginal = thumb?.isOriginal ?? variant.label === 'A'
           const isExpanded = expandedLabel === variant.label
-          const chance = variant[metric]
+          const chance = variant.pBest
 
           const variantA = variants.find(v => v.label === 'A')
-          const canLift = variantA != null && variantA.ctr > 0 && variant.label !== 'A'
-          const liftVsA = canLift ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100 : null
+          const liftContraA = liftVsA(variantA, variant)
 
           return (
             <React.Fragment key={variant.label}>
@@ -142,7 +144,7 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
 
                   {/* CTR */}
                   <span className="font-mono text-[14px] font-bold text-right tabular-nums" style={{ width: 56, flexShrink: 0, color: variant.color }}>
-                    {brDec(variant.ctr * 100, 1)}%
+                    {formatCtr(variant.ctr, variant.impressions)}
                   </span>
 
                   {/* vs A */}
@@ -150,18 +152,20 @@ export function VariantTable({ variants, metric, winnerId, leaderId, activeNow, 
                     className="font-mono text-[12.5px] font-bold text-right tabular-nums"
                     style={{
                       width: 44, flexShrink: 0,
-                      color: variant.label === 'A' || liftVsA == null
+                      color: variant.label === 'A' || liftContraA == null
                         ? 'var(--cms-text-muted)'
-                        : liftVsA > 0 ? 'var(--cms-green)' : 'var(--cms-text-muted)',
+                        : liftContraA > 0 ? 'var(--cms-green)' : 'var(--cms-text-muted)',
                     }}
                   >
-                    {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${brDec(liftVsA, 1)}`}
+                    {variant.label === 'A' || liftContraA == null ? '—' : `${liftContraA > 0 ? '+' : ''}${brDec(liftContraA, 1)}`}
                   </span>
 
                   {/* Chance */}
-                  <span className="font-mono text-[14px] font-bold text-right tabular-nums text-cms-text" style={{ width: 90, flexShrink: 0 }}>
-                    {brDec(chance * 100, 0)}%
-                  </span>
+                  {!semChance && (
+                    <span className="font-mono text-[14px] font-bold text-right tabular-nums text-cms-text" style={{ width: 90, flexShrink: 0 }}>
+                      {brDec(chance * 100, 0)}%
+                    </span>
+                  )}
 
                   {/* Chevron */}
                   <span style={{ width: 20, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>

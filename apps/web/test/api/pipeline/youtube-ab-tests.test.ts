@@ -224,7 +224,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
 
     const funnelData = {
       per_variant: [
-        { variant_id: MOCK_VARIANT_ID, impressions: 1800, clicks: 90, link_clicks: 25 },
+        { variant_id: MOCK_VARIANT_ID, impressions: null, clicks: null, link_clicks: 25 },
       ],
       per_link: [
         { template_name: 'pinned_comment', variant_id: MOCK_VARIANT_ID, short_code: 'abc', clicks: 25 },
@@ -236,8 +236,8 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data.per_variant).toHaveLength(1)
-    expect(body.data.per_variant[0].impressions).toBe(1800)
-    expect(body.data.per_variant[0].clicks).toBe(90)
+    expect(body.data.per_variant[0].impressions).toBeNull()
+    expect(body.data.per_variant[0].clicks).toBeNull()
     expect(body.data.per_variant[0].link_clicks).toBe(25)
     expect(body.data.per_link).toHaveLength(1)
     expect(body.data.per_link[0].clicks).toBe(25)

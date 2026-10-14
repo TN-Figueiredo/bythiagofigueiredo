@@ -27,7 +27,7 @@ import { SECTION_DEFINITIONS, getSectionKey } from '@/lib/pipeline/sections'
 import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
 import { getChannelTier } from '@/lib/youtube/scoring'
-import type { TestType } from '@/lib/youtube/ab-types'
+import { ehVitoriaHumana, type TestType } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PlaylistEdgeRow, PlaylistItemEnriched, PlaylistRow } from '@/lib/playlists/types'
@@ -657,8 +657,10 @@ export function registerPrompts(server: McpServer): void {
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
-        winner_label: t.winner_variant_id ? 'variant' : null,
-        ctr_lift_percent: null,
+        winner_label: ehVitoriaHumana({
+          completed_reason: (t.completed_reason as string | null) ?? null,
+          winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+        }) ? 'variant' : null,
       }))
 
       // Build briefing data
@@ -746,8 +748,10 @@ export function registerPrompts(server: McpServer): void {
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
-        winner_label: t.winner_variant_id ? 'variant' : null,
-        ctr_lift_percent: null,
+        winner_label: ehVitoriaHumana({
+          completed_reason: (t.completed_reason as string | null) ?? null,
+          winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+        }) ? 'variant' : null,
       }))
 
       const briefingData: AbBriefingData = {

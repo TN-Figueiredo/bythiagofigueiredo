@@ -25,9 +25,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(search),
 }))
 
+import { medidasDoMotor } from './canais-e5a-fixture'
 const BASE = a3World()
 const ok = async () => ({ ok: true })
-const view = (p: Partial<CanaisParams> = {}, obs: Observatory = BASE.obs) => buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })
+const view = (p: Partial<CanaisParams> = {}, obs: Observatory = BASE.obs) => buildCanaisView(obs, { niche: 'todos', limit: 75, medidas: medidasDoMotor(obs), ...p })
 const tree = (v: CanaisView) => (
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div>
     <CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
@@ -165,7 +166,7 @@ describe('A3.1 duas medidas', () => {
     expect(th('vpd').textContent).toContain('ordenado pelos longos')
     expect(th('active').textContent).not.toContain('ordenado pelos longos')
     const linha = container.querySelector('tr[data-id="matt-wolfe"]')!
-    const celula = linha.querySelectorAll('td')[3]!
+    const celula = linha.querySelectorAll('td')[4]!
     const medidas = celula.querySelectorAll('.fm')
     expect(medidas).toHaveLength(2)
     expect(medidas[0]!.querySelector('.sr')!.textContent).toBe('longos: ')
@@ -195,7 +196,7 @@ describe('A3.1 duas medidas', () => {
     search = 'fmt=todos'
     const { container } = mount({ fmt: 'todos' }, w.obs)
     const linha = container.querySelector(`tr[data-id="${alvo}"]`)!
-    for (const i of [2, 3, 4]) {
+    for (const i of [3, 4, 5]) {
       const fm = linha.querySelectorAll('td')[i]!.querySelectorAll('.fm')
       expect(fm[fm.length - 1]!.textContent).toContain('sem Shorts')
     }
@@ -231,7 +232,7 @@ describe('A3.1 duas medidas', () => {
     const texto = (f: 'todos' | 'longos') => {
       search = `fmt=${f}`
       const { container, unmount } = mount({ fmt: f }, w.obs)
-      const t = container.querySelector(`tr[data-id="${alvo}"]`)!.querySelectorAll('td')[3]!.textContent ?? ''
+      const t = container.querySelector(`tr[data-id="${alvo}"]`)!.querySelectorAll('td')[4]!.textContent ?? ''
       unmount()
       return t
     }

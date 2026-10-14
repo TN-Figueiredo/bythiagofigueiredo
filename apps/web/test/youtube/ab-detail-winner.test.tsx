@@ -47,8 +47,7 @@ function makeVariant(label: 'A' | 'B' | 'C' | 'D', overrides?: Partial<FullChart
     impressions: 10000,
     clicks: 500,
     pBest: 0.5,
-    pTop2: 0.8,
-    ...overrides,
+        ...overrides,
   }
 }
 
@@ -117,6 +116,39 @@ function makeWinnerView(overrides?: Partial<AbTestWinnerView>): AbTestWinnerView
 /* ─── WinnerBanner ─── */
 
 describe('WinnerBanner', () => {
+  it('monthlyExtraClicks nulo: mostra a frase fixa e nenhum número de ganho', () => {
+    render(
+      <WinnerBanner
+        winnerLabel="B"
+        winnerColor="#E8823C"
+        lift={null}
+        confidence={null}
+        stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }}
+      />,
+    )
+    const banner = screen.getByTestId('winner-banner')
+    expect(banner.textContent).toContain('CTR ainda não medido. Você decide o vencedor.')
+    expect(banner.textContent).toContain('Vencedor: B')
+    expect(banner.textContent).toContain('Escolhido por você')
+    expect(banner.textContent).not.toMatch(/cliques\/mes a mais/)
+  })
+
+  it('sem medição a célula "Ganho estimado" não existe e o "—" do lift não aparece ao lado do vencedor', () => {
+    render(
+      <WinnerBanner
+        winnerLabel="B"
+        winnerColor="#E8823C"
+        lift={null}
+        confidence={null}
+        stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 100, abbaCycles: 1, monthlyExtraClicks: null }}
+      />,
+    )
+    const banner = screen.getByTestId('winner-banner')
+    expect(banner.textContent).not.toContain('Ganho estimado')
+    expect(screen.queryByTestId('winner-lift')).toBeNull()
+    expect(banner.textContent).not.toContain('Vencedor declarado')
+  })
+
   it('renders trophy icon', () => {
     render(
       <WinnerBanner
@@ -156,7 +188,7 @@ describe('WinnerBanner', () => {
     expect(screen.getByTestId('winner-lift').textContent).toBe('+15,3%')
   })
 
-  it('renders confidence text', () => {
+  it('nunca mostra confiança no vencedor (renders confidence text, invertido)', () => {
     render(
       <WinnerBanner
         winnerLabel="B"
@@ -166,7 +198,8 @@ describe('WinnerBanner', () => {
         stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: 350 }}
       />,
     )
-    expect(screen.getByText(/97,2%.*confianca/i)).toBeDefined()
+    expect(screen.queryAllByText(/confian/i)).toHaveLength(0)
+    expect(screen.getByTestId('winner-banner').textContent).toContain('Escolhido por você')
   })
 
   it('renders 3 stat cells', () => {
@@ -218,17 +251,40 @@ describe('WinnerDetail', () => {
     render(<WinnerDetail view={view} />)
     expect(screen.getByTestId('winner-detail')).toBeDefined()
     expect(screen.getByTestId('winner-banner')).toBeDefined()
-    expect(screen.getByTestId('why-won')).toBeDefined()
+    expect(screen.queryByTestId('why-won')).toBeNull()
     expect(screen.getByTestId('confidence-section')).toBeDefined()
     expect(screen.getByTestId('scoreboard')).toBeDefined()
     // ClickMoment is rendered (contains "Home" context button)
     expect(screen.getByText('Home')).toBeDefined()
   })
 
-  it('renders "Por que B venceu" section heading', () => {
-    const view = makeWinnerView({ winnerLabel: 'B' })
+  it('teste encerrado sem confiança medida não mostra "0%" nem confiança calculada; mostra a frase fixa', () => {
+    const view = makeWinnerView({ confidence: null, resultMeta: { ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }, variants: [makeVariant('A', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 }), makeVariant('B', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 })] })
     render(<WinnerDetail view={view} />)
-    expect(screen.getByText('Por que B venceu')).toBeDefined()
+    expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
+    expect(screen.queryAllByText(/de confianca/i)).toHaveLength(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
+  })
+
+  it('"Por que venceu" não mostra barras de probabilidade sobre views, só a frase fixa', () => {
+    const { container } = render(<WinnerDetail view={makeWinnerView({ resultMeta: { ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }, variants: [makeVariant('A', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 }), makeVariant('B', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 })] })} />)
+    expect(container.querySelector('[data-rank-bar]')).toBeNull()
+    expect(screen.queryByText(/93% de chance/)).toBeNull()
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
+  })
+
+  it('o vencedor é decisão humana: sem texto de automação, sem confiança, sem coluna de chance', () => {
+    const { container } = render(<WinnerDetail view={makeWinnerView({ winnerLabel: 'B' })} />)
+    expect(screen.getByText('Escolhido por você')).toBeDefined()
+    const t = container.textContent ?? ''
+    expect(t).not.toMatch(/o sistema cravou/)
+    expect(t).not.toMatch(/empate que vira playoff/)
+    expect(t).not.toMatch(/faixa de CTR/i)
+    expect(t).not.toMatch(/Confiança final/)
+    expect(t).not.toMatch(/aplicado no YouTube/)
+    expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()
+    expect(t).not.toMatch(/ordenado por chance de vencer/)
+    expect(screen.queryByTestId('winner-lift')).toBeNull()
   })
 
   it('shows Duplicar and Download actions', () => {

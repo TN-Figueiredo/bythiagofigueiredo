@@ -227,6 +227,7 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
       not(col: string, op: string, value: string) {
         if (op === 'like') { q.filters.push({ op: 'not.like', col, value }); return b }
         if (op === 'is') { q.filters.push({ op: 'not.is', col, value: value === 'null' ? null : value }); return b }
+        if (op === 'eq') { q.filters.push({ op: 'neq', col, value }); return b }
         if (op !== 'in') throw new Error(`fakePostgrest: not(${op}) não suportado`)
         q.filters.push({ op: 'not.in', col, value: value.replace(/^\(|\)$/g, '').split(',').map(s => s.replace(/^"|"$/g, '')) })
         return b

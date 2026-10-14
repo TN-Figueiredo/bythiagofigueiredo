@@ -26,10 +26,8 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/click-moment', () => ({
 const defaultConfig: WizardConfig = {
   confidence: 95,
   duration: 14,
-  autoApply: true,
   burnIn: 1,
   rotation: 'abba' as const,
-  playoff: true,
 }
 
 const defaultVariants: ReviewVariant[] = [
@@ -61,20 +59,14 @@ describe('StepRevisar', () => {
     expect(screen.getByTestId('icon-CheckCircle')).toBeDefined()
   })
 
-  it('success banner shows one-liner summary with variant count, type, rotation, duration, confidence, playoff', () => {
-    renderRevisar({ type: 'combo', config: { rotation: 'abba', duration: 14, confidence: 95, playoff: true } })
-    // "3 variantes combo · rotação ABBA · 14 dias · confiança 95% · playoff on"
+  it('success banner shows one-liner summary with variant count, type, rotation, duration', () => {
+    renderRevisar({ type: 'combo', config: { rotation: 'abba', duration: 14, confidence: 95 } })
+    // "3 variantes combo · rotação ABBA · 14 dias"
     const summary = screen.getByText(/3 variantes combo/)
     expect(summary.textContent).toContain('rotação ABBA')
     expect(summary.textContent).toContain('14 dias')
-    expect(summary.textContent).toContain('confiança 95%')
-    expect(summary.textContent).toContain('playoff on')
-  })
-
-  it('summary shows playoff off when disabled', () => {
-    renderRevisar({ config: { playoff: false } })
-    const summary = screen.getByText(/playoff off/)
-    expect(summary).toBeDefined()
+    expect(summary.textContent).not.toContain('confiança')
+    expect(summary.textContent).not.toContain('playoff')
   })
 
   it('variant mini cards render for each variant', () => {

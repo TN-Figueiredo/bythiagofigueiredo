@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { AB_TEST_CONFIG_DEFAULTS } from '@/lib/youtube/ab-types'
+import { AB_TEST_CONFIG_DEFAULTS, AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
+import { AbTestConfigSchema, AbTestSiteSettingsSchema } from '@/lib/youtube/ab-schemas'
 import type { AbTestConfig } from '@/lib/youtube/ab-types'
 
 describe('AB Test Config', () => {
@@ -8,9 +9,22 @@ describe('AB Test Config', () => {
     expect(defaults.max_duration_days).toBe(14)
     expect(defaults.confidence_threshold).toBe(0.95)
     expect(defaults.burn_in_days).toBe(2)
-    expect(defaults.auto_apply_winner).toBe(true)
+    expect(defaults).not.toHaveProperty('auto_apply_winner')
+    expect(AB_SITE_SETTINGS_DEFAULTS).not.toHaveProperty('default_auto_apply')
     expect(defaults.rotation_pattern).toBe('abba')
     expect(defaults.stability_threshold).toBe(3)
+  })
+
+  it('configuração antiga com auto_apply_winner continua válida e a chave é aceita sem efeito', () => {
+    const antigo = { ...AB_TEST_CONFIG_DEFAULTS, auto_apply_winner: true }
+    expect(AbTestConfigSchema.safeParse(antigo).success).toBe(true)
+    const semAChave = { ...AB_TEST_CONFIG_DEFAULTS }
+    expect(AbTestConfigSchema.safeParse(semAChave).success).toBe(true)
+  })
+
+  it('configuração de site antiga com default_auto_apply continua válida', () => {
+    expect(AbTestSiteSettingsSchema.safeParse({ ...AB_SITE_SETTINGS_DEFAULTS, default_auto_apply: false }).success).toBe(true)
+    expect(AbTestSiteSettingsSchema.safeParse({ ...AB_SITE_SETTINGS_DEFAULTS }).success).toBe(true)
   })
 
   it('config merge preserves user overrides', () => {

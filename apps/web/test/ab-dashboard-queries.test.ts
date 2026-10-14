@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { toCardView, toLatestDraft, computeDashboardStats } from '@/app/cms/(authed)/youtube/ab-lab/queries'
 import { makeTestWithVariants } from './helpers/ab-fixtures'
+import type { AbTestWithVariants } from '@/lib/youtube/ab-types'
 
 describe('toCardView', () => {
   it('maps raw test to AbTestCardView with leader A for original', () => {
@@ -8,16 +9,17 @@ describe('toCardView', () => {
     const card = toCardView(test)
     expect(card.leader).toBeDefined()
     expect(card.leaderColor).toBeTruthy()
-    expect(card.confidence).toBeGreaterThanOrEqual(0)
+    expect(card.confidence).toBeNull()
   })
-  it('calculates lift as percentage', () => {
+  it('lift gravado (avaliador automático desligado) não chega ao card', () => {
     const test = makeTestWithVariants()
+    test.result_metadata = { ctr_lift_percent: 7.5, winner_label: 'B', total_impressions: 100, estimated_monthly_extra_clicks: 1 }
     const card = toCardView(test)
-    expect(typeof card.lift).toBe('number')
+    expect(card.lift).toBeNull()
   })
-  it('returns 0 lift when no data', () => {
+  it('lift é nulo (nunca 0) quando não há medição', () => {
     const test = makeTestWithVariants()
-    expect(toCardView(test).lift).toBe(0)
+    expect(toCardView(test).lift).toBeNull()
   })
   it('computes dayOf from started_at', () => {
     const test = makeTestWithVariants({ startedDaysAgo: 5 })
@@ -47,22 +49,42 @@ describe('toLatestDraft', () => {
 })
 
 describe('computeDashboardStats', () => {
-  it('returns all zeros when no tests', () => {
+  type Razao = AbTestWithVariants['completed_reason']
+  function concluido(reason: Razao, comVencedor: boolean) {
+    const t = makeTestWithVariants({ hasWinner: comVencedor })
+    t.status = 'completed'
+    t.completed_reason = reason
+    return t
+  }
+
+  it('sem testes: winRate null (não 0) e sem avgConfidence/avgLift', () => {
     const s = computeDashboardStats([], [])
-    expect(s).toEqual({ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0, completedTests: 0, testsWon: 0 })
+    expect(s).toEqual({ activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 })
+    expect(s).not.toHaveProperty('avgConfidence')
+    expect(s).not.toHaveProperty('avgLift')
   })
-  it('excludes playoff children from winRate', () => {
-    const completed = [makeTestWithVariants({ playoffTestId: 'x', hasWinner: true })]
-    completed[0]!.parent_test_id = 'parent-1'
-    const s = computeDashboardStats([], completed)
-    expect(s.winRate).toBe(0)
+  it('exclui filho de playoff: sem teste que conte, winRate null', () => {
+    const c = concluido('manual_apply', true)
+    c.parent_test_id = 'parent-1'
+    expect(computeDashboardStats([], [c]).winRate).toBeNull()
   })
-  it('calculates winRate as percentage', () => {
-    const c1 = makeTestWithVariants({ hasWinner: true })
-    c1.status = 'completed'
-    const c2 = makeTestWithVariants({ hasWinner: false })
-    c2.status = 'completed'
-    expect(computeDashboardStats([], [c1, c2]).winRate).toBe(50)
+  it('um manual com vencedor, um auto_resolve, um inconclusivo: 1 de 2 = 50 (mesma regra do pipeline)', () => {
+    const manual = concluido('manual_apply', true)
+    const auto = concluido('auto_resolve', true)
+    const inconclusivo = concluido('max_duration', false)
+    const s = computeDashboardStats([], [manual, auto, inconclusivo])
+    expect(s.winRate).toBe(50)
+    expect(s.testsWon).toBe(1)
+    expect(s.completedTests).toBe(3)
+    expect(s.winRateBase).toBe(2)
+  })
+  it('só auto_resolve: nenhum teste conta, winRate null', () => {
+    const s = computeDashboardStats([], [concluido('auto_resolve', true)])
+    expect(s.winRate).toBeNull()
+  })
+  it('razão desconhecida (null) fica fora do numerador e do denominador', () => {
+    const s = computeDashboardStats([], [concluido(null, true), concluido('manual_apply', true)])
+    expect(s.winRate).toBe(100)
   })
   it('counts active tests', () => {
     const active = [makeTestWithVariants(), makeTestWithVariants()]

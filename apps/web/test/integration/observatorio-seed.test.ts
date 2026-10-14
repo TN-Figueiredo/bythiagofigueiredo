@@ -33,12 +33,17 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     expect(ORACLE_NOW).toBe(Date.parse('2026-10-24T15:02:00-03:00'))
   })
 
-  it('round trip: tabCounts(todos) = {canais 14, mud 18, out 11}, and the sync labels survive', async () => {
+  it('round trip: tabCounts(todos) = {canais 14, mud 15, out 11}, and the sync labels survive', async () => {
     await seedObservatory(siteId, {}, sb)
     const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb }))
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
     const oracle = loadOracle()
-    for (const n of ['viagem', 'ia'] as const) expect({ n, c: obs.tabCounts(n) }).toEqual({ n, c: oracle.tabCounts(n) })
+    // desvio 12: a aba conta só título e miniatura; o oráculo congelado ainda conta a descrição
+    for (const n of ['viagem', 'ia'] as const) {
+      const o = oracle.tabCounts(n), c = obs.tabCounts(n)
+      expect({ n, canais: c.canais, out: c.out }).toEqual({ n, canais: o.canais, out: o.out })
+      expect({ n, mud: c.mud }).toEqual({ n, mud: oracle.changesIn({ days: 30, niche: n }).filter((x: { type: string }) => x.type !== 'desc').length })
+    }
     const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
     const byName = (n: string) => ds.channels.find(c => c.name === n)!
     expect(byName('Esq Unltd Daily').sync.state).toBe('erro')
@@ -84,14 +89,14 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     expect(obs.ownChannels().map(c => c.name)).toEqual(['tnFigueiredo', 'tnFigueiredo EN'])
     // each own channel carries its own videos (the dado que não existe: a channel seeded without videos would pass the counts)
     for (const c of owns) expect({ c: c.name, n: ds.videos.filter(v => v.ch === c.id).length > 0 }).toEqual({ c: c.name, n: true })
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
   }, 120_000)
 
   it("ownPreset '1': o mesmo canal próprio do seed legado, com o mesmo id", async () => {
     await seedObservatory(siteId, { ownPreset: '1' }, sb)
     const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
     expect(ds.channels.filter(c => c.own).map(c => [c.id, c.name, c.niche])).toEqual([[seedUuid(siteId, 'own-channel', 'own'), 'tnFigueiredo', 'viagem']])
-    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
   }, 120_000)
 
   // multi-canal: dois canais próprios podem ter o mesmo idioma, então os presets de N canais são semeados (FU-17)
@@ -101,7 +106,7 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
     const obs = createObservatory(ds)
     expect(obs.ownChannels().map(c => c.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'Slow Roads', 'Mochila Leve', 'tnFigueiredo EN'])
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
     const rows = await sb.from('youtube_channels').select('slug, locale').eq('site_id', siteId)
     expect(rows.error).toBeNull()
     expect(rows.data!.map(r => r.slug).sort()).toEqual(['mochila-leve', 'slow-roads', 'thiago-na-estrada', 'tnfigueiredo', 'tnfigueiredo-en'])
@@ -117,7 +122,7 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     const owns = ds.channels.filter(c => c.own)
     expect(owns).toHaveLength(5)
     expect(owns.find(c => c.id === ownSeedUuid(siteId, 'mochila-leve'))!.niche).toBeNull()
-    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
     await clearObservatory(siteId, sb)
     expect(await seededOwn()).toBe(0)
   }, 120_000)
@@ -128,7 +133,7 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     const owns = ds.channels.filter(c => c.own)
     expect(owns).toHaveLength(2)
     expect(owns.filter(c => c.niche === 'viagem')).toEqual([])
-    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
     await clearObservatory(siteId, sb)
     expect(await seededOwn()).toBe(0)
   }, 120_000)
@@ -148,7 +153,7 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     expect(moved.map(c => c.id)).toEqual([seedUuid(siteId, 'channel', 'the-ai-advantage')])
     const obs = createObservatory(ds)
     // the channel left IA and nothing else moved: Todos keeps the mockup counts, IA + Jogos = the oracle's IA
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
     expect(obs.tabCounts('jogos').canais).toBe(1)
     expect(obs.tabCounts('ia').canais + 1).toBe(loadOracle().tabCounts('ia').canais)
     expect(obs.hasThemes('jogos')).toBe(false)
@@ -189,7 +194,7 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
   it('is idempotent: seeding twice gives the same counts (clear runs first)', async () => {
     await seedObservatory(siteId, {}, sb)
     const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb }))
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
   }, 120_000)
 
   it('forja states map to the columns requestStateOf reads', async () => {

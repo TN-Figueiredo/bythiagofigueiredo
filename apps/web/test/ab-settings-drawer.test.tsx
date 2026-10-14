@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import React from 'react'
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act, within } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
@@ -83,6 +83,15 @@ describe('SettingsDrawer', () => {
     expect(screen.getByText('Notificações')).toBeTruthy()
   })
 
+  it('não oferece mais aplicar vencedor automaticamente nem limiar de confiança (A/B Lab P2)', () => {
+    render(<SettingsDrawer settings={defaultSettings} onSave={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.queryByText(/aplicar vencedor/i)).toBeNull()
+    expect(screen.queryByText(/confiança alvo/i)).toBeNull()
+    // sobram só os dois gatilhos da seção Automação
+    expect(screen.getAllByRole('switch')).toHaveLength(2)
+    expect(screen.queryAllByRole('slider')).toHaveLength(0)
+  })
+
   it('shows skeleton when settings is null', () => {
     const { container } = render(<SettingsDrawer settings={null} onSave={vi.fn()} onClose={vi.fn()} />)
     const skeleton = container.querySelector('.animate-pulse')
@@ -99,9 +108,9 @@ describe('SettingsDrawer', () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     render(<SettingsDrawer settings={defaultSettings} onSave={onSave} onClose={vi.fn()} />)
 
-    // Third switch is auto-apply toggle
-    const switches = screen.getAllByRole('switch')
-    fireEvent.click(switches[2]!)
+    // acha o switch pelo rótulo visível da linha, não pelo índice
+    const linha = screen.getByText(/Auto-teste pós-publicação/).closest('div[class*="justify-between"]') as HTMLElement
+    fireEvent.click(within(linha).getByRole('switch'))
 
     await act(async () => {
       vi.advanceTimersByTime(600)
@@ -109,7 +118,7 @@ describe('SettingsDrawer', () => {
 
     expect(onSave).toHaveBeenCalled()
     const calledWith = onSave.mock.calls[0]![0] as AbTestSiteSettings
-    expect(calledWith.default_auto_apply).toBe(false)
+    expect(calledWith.post_publish_trigger.enabled).toBe(!defaultSettings.post_publish_trigger.enabled)
     vi.useRealTimers()
   })
 

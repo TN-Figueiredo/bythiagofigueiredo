@@ -107,7 +107,7 @@ export function coworkText(tab: ChromeTab | 'historico', niche: NicheScope, labe
   const n = niche === 'todos' ? 'todos os nichos' : `nicho ${label}`
   const base: Record<ChromeTab | 'historico', string> = {
     canais: `Compare os canais monitorados no Observatório (${n}) via youtube_observatory: crescimento de views, frequência de publicação e frescor da sincronização. Aponte quem acelerou.`,
-    mudancas: `Liste as trocas de título, thumbnail e descrição dos concorrentes (${n}, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa.`,
+    mudancas: `Liste as trocas de título e thumbnail dos concorrentes (${n}, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa.`,
     outliers: `Liste os outliers dos concorrentes (${n}, longos, até 90 dias, 2× ou mais ajustado pela idade) via youtube_observatory e sugira 3 ângulos de vídeo para o meu canal.`,
     insights: `Leia as leituras da forja (${n}) via youtube_observatory e proponha 3 títulos para o meu próximo vídeo que sigam só as fórmulas que passam a regra.`,
     historico: 'Leia o histórico deste vídeo (títulos, thumbnails, descrições e a curva de views) via youtube_observatory e diga o que mudou e quando. Não afirme causa.',

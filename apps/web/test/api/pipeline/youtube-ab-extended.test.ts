@@ -120,13 +120,13 @@ describe('getAbLearnings', () => {
       {
         id: TEST_ID_1,
         result_metadata: { ctr_lift_percent: 12 },
-        winner_variant_id: VARIANT_A,
+        winner_variant_id: VARIANT_A, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
       },
       {
         id: TEST_ID_2,
         result_metadata: { ctr_lift_percent: 8 },
-        winner_variant_id: VARIANT_B,
+        winner_variant_id: VARIANT_B, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
       },
     ]
@@ -164,18 +164,18 @@ describe('getAbLearnings', () => {
     expect(boldText!.wins).toBe(2)
   })
 
-  it('computes avgLift correctly', async () => {
+  it('avgLift sai null com aviso, mesmo com ctr_lift_percent gravado', async () => {
     const completedTests = [
       {
         id: TEST_ID_1,
         result_metadata: { ctr_lift_percent: 20 },
-        winner_variant_id: VARIANT_A,
+        winner_variant_id: VARIANT_A, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
       },
       {
         id: TEST_ID_2,
         result_metadata: { ctr_lift_percent: 10 },
-        winner_variant_id: VARIANT_B,
+        winner_variant_id: VARIANT_B, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
       },
     ]
@@ -202,16 +202,17 @@ describe('getAbLearnings', () => {
 
     const emojiTag = result.data.tagWinRates.find(t => t.tag === 'emoji')
     expect(emojiTag).toBeDefined()
-    // avgLift = (20 + 10) / 2 wins = 15
-    expect(emojiTag!.avgLift).toBe(15)
+    // Sem métrica de entrega real: o lift não é calculado (null), nunca 15 nem 0
+    expect(emojiTag!.avgLift).toBeNull()
+    expect(emojiTag!.wins).toBe(2)
   })
 
-  it('returns channel insights text', async () => {
+  it('channel insights traz o aviso, sem percentual de lift', async () => {
     const completedTests = [
       {
         id: TEST_ID_1,
         result_metadata: { ctr_lift_percent: 5 },
-        winner_variant_id: VARIANT_A,
+        winner_variant_id: VARIANT_A, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
       },
     ]
@@ -235,17 +236,16 @@ describe('getAbLearnings', () => {
     const result = await getAbLearnings(makeCtx(sb))
 
     expect(result.data.channelInsights.length).toBeGreaterThan(0)
-    // Positive lift => positive insight
-    const positiveInsight = result.data.channelInsights.find(i => i.type === 'positive')
-    expect(positiveInsight).toBeDefined()
-    expect(positiveInsight!.text).toContain('bright-colors')
+    // Sem lift medido não há insight positivo nem negativo: só o aviso
+    expect(result.data.channelInsights).toEqual([{ text: 'sem métrica de entrega', type: 'neutral' }])
+    expect(result.data.aviso).toBe('sem métrica de entrega')
   })
 
   it('returns totalCompletedTests count', async () => {
     const completedTests = [
-      { id: TEST_ID_1, result_metadata: { ctr_lift_percent: 3 }, winner_variant_id: VARIANT_A, test_type: 'thumbnail' },
-      { id: TEST_ID_2, result_metadata: { ctr_lift_percent: 7 }, winner_variant_id: VARIANT_B, test_type: 'title' },
-      { id: TEST_ID_3, result_metadata: { ctr_lift_percent: 2 }, winner_variant_id: VARIANT_C, test_type: 'thumbnail' },
+      { id: TEST_ID_1, result_metadata: { ctr_lift_percent: 3 }, winner_variant_id: VARIANT_A, completed_reason: 'manual_winner', test_type: 'thumbnail' },
+      { id: TEST_ID_2, result_metadata: { ctr_lift_percent: 7 }, winner_variant_id: VARIANT_B, completed_reason: 'manual_winner', test_type: 'title' },
+      { id: TEST_ID_3, result_metadata: { ctr_lift_percent: 2 }, winner_variant_id: VARIANT_C, completed_reason: 'manual_winner', test_type: 'thumbnail' },
     ]
 
     const winners = [
@@ -276,6 +276,7 @@ describe('getAbLearnings', () => {
     expect(result.data.totalCompletedTests).toBe(0)
     expect(result.data.tagWinRates).toEqual([])
     expect(result.data.channelInsights).toEqual([])
+    expect(result.data.aviso).toBe('sem métrica de entrega')
   })
 })
 
@@ -373,7 +374,7 @@ describe('getAbDashboard', () => {
       { id: '2', status: 'active', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
       { id: '3', status: 'queued', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
       { id: '4', status: 'draft', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
-      { id: '5', status: 'completed', winner_variant_id: VARIANT_A, confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 10 }, parent_test_id: null },
+      { id: '5', status: 'completed', winner_variant_id: VARIANT_A, completed_reason: 'manual_winner', confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 10 }, parent_test_id: null },
     ]
 
     const sb = createMockSupabase({
@@ -391,13 +392,13 @@ describe('getAbDashboard', () => {
   it('computes win rate excluding playoff children', async () => {
     const tests = [
       // Root completed WITH winner
-      { id: '1', status: 'completed', winner_variant_id: VARIANT_A, confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 10 }, parent_test_id: null },
+      { id: '1', status: 'completed', winner_variant_id: VARIANT_A, completed_reason: 'manual_winner', confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 10 }, parent_test_id: null },
       // Root completed WITH winner
-      { id: '2', status: 'completed', winner_variant_id: VARIANT_B, confidence_at_completion: 0.90, result_metadata: { ctr_lift_percent: 5 }, parent_test_id: null },
+      { id: '2', status: 'completed', winner_variant_id: VARIANT_B, completed_reason: 'manual_winner', confidence_at_completion: 0.90, result_metadata: { ctr_lift_percent: 5 }, parent_test_id: null },
       // Root completed WITHOUT winner (no decisive outcome)
-      { id: '3', status: 'completed', winner_variant_id: null, confidence_at_completion: 0.60, result_metadata: null, parent_test_id: null },
+      { id: '3', status: 'completed', winner_variant_id: null, completed_reason: 'inconclusive', confidence_at_completion: 0.60, result_metadata: null, parent_test_id: null },
       // Playoff child (should be excluded from win rate)
-      { id: '4', status: 'completed', winner_variant_id: VARIANT_C, confidence_at_completion: 0.99, result_metadata: { ctr_lift_percent: 20 }, parent_test_id: '1' },
+      { id: '4', status: 'completed', winner_variant_id: VARIANT_C, completed_reason: 'manual_winner', confidence_at_completion: 0.99, result_metadata: { ctr_lift_percent: 20 }, parent_test_id: '1' },
     ]
 
     const sb = createMockSupabase({
@@ -406,16 +407,16 @@ describe('getAbDashboard', () => {
 
     const result = await getAbDashboard(makeCtx(sb))
 
-    // Root completed = 3 (ids 1, 2, 3). Winners among root = 2. Win rate = 2/3 * 100 = 66.67%
+    // Root completed = 3 (ids 1, 2, 3), todos com razão que conta. Vitórias humanas = 2. Win rate = 2/3 * 100 = 66.67%
     expect(result.data.winRate).toBeCloseTo(66.67, 1)
   })
 
-  it('computes average lift from completed tests', async () => {
+  it('avgLift e avgConfidence saem null com aviso, mesmo com lift e confiança gravados', async () => {
     const tests = [
-      { id: '1', status: 'completed', winner_variant_id: VARIANT_A, confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 20 }, parent_test_id: null },
-      { id: '2', status: 'completed', winner_variant_id: VARIANT_B, confidence_at_completion: 0.90, result_metadata: { ctr_lift_percent: 10 }, parent_test_id: null },
+      { id: '1', status: 'completed', winner_variant_id: VARIANT_A, completed_reason: 'manual_winner', confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 20 }, parent_test_id: null },
+      { id: '2', status: 'completed', winner_variant_id: VARIANT_B, completed_reason: 'manual_winner', confidence_at_completion: 0.90, result_metadata: { ctr_lift_percent: 10 }, parent_test_id: null },
       // This has winner but no ctr_lift_percent => lift = 0
-      { id: '3', status: 'completed', winner_variant_id: VARIANT_C, confidence_at_completion: 0.85, result_metadata: {}, parent_test_id: null },
+      { id: '3', status: 'completed', winner_variant_id: VARIANT_C, completed_reason: 'manual_winner', confidence_at_completion: 0.85, result_metadata: {}, parent_test_id: null },
     ]
 
     const sb = createMockSupabase({
@@ -424,8 +425,9 @@ describe('getAbDashboard', () => {
 
     const result = await getAbDashboard(makeCtx(sb))
 
-    // Lift values: [20, 10, 0] => avg = 10
-    expect(result.data.avgLift).toBe(10)
+    expect(result.data.avgLift).toBeNull()
+    expect(result.data.avgConfidence).toBeNull()
+    expect(result.data.aviso).toBe('sem métrica de entrega')
   })
 
   it('returns tests by status breakdown', async () => {
@@ -434,8 +436,8 @@ describe('getAbDashboard', () => {
       { id: '2', status: 'draft', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
       { id: '3', status: 'active', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
       { id: '4', status: 'paused', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
-      { id: '5', status: 'completed', winner_variant_id: VARIANT_A, confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 5 }, parent_test_id: null },
-      { id: '6', status: 'completed', winner_variant_id: null, confidence_at_completion: null, result_metadata: null, parent_test_id: null },
+      { id: '5', status: 'completed', winner_variant_id: VARIANT_A, completed_reason: 'manual_winner', confidence_at_completion: 0.95, result_metadata: { ctr_lift_percent: 5 }, parent_test_id: null },
+      { id: '6', status: 'completed', winner_variant_id: null, completed_reason: 'inconclusive', confidence_at_completion: null, result_metadata: null, parent_test_id: null },
     ]
 
     const sb = createMockSupabase({
@@ -452,7 +454,7 @@ describe('getAbDashboard', () => {
     })
   })
 
-  it('returns zeroes when no tests exist', async () => {
+  it('sem testes: contagens zeradas, winRate null (nunca 0), lift e confiança null', async () => {
     const sb = createMockSupabase({
       ab_tests: { data: [], error: null },
     })
@@ -460,9 +462,10 @@ describe('getAbDashboard', () => {
     const result = await getAbDashboard(makeCtx(sb))
 
     expect(result.data.activeTests).toBe(0)
-    expect(result.data.winRate).toBe(0)
-    expect(result.data.avgLift).toBe(0)
-    expect(result.data.avgConfidence).toBe(0)
+    expect(result.data.winRate).toBeNull()
+    expect(result.data.avgLift).toBeNull()
+    expect(result.data.avgConfidence).toBeNull()
+    expect(result.data.aviso).toBe('sem métrica de entrega')
     expect(result.data.testsByStatus).toEqual({
       draft: 0,
       active: 0,
@@ -519,7 +522,7 @@ describe('getAbVideoHistory', () => {
     expect(completedTest.endedAt).toBe('2026-04-15T00:00:00Z')
   })
 
-  it('includes winner label and lift percentage', async () => {
+  it('inclui o rótulo do vencedor humano; liftPercent sai null mesmo com lift gravado', async () => {
     const testHistory = [
       {
         id: TEST_ID_1,
@@ -528,6 +531,8 @@ describe('getAbVideoHistory', () => {
         started_at: '2026-04-01T00:00:00Z',
         completed_at: '2026-04-15T00:00:00Z',
         result_metadata: { ctr_lift_percent: 18.3 },
+        winner_variant_id: 'var-c',
+        completed_reason: 'manual_winner',
         winner: [{ label: 'C' }],
       },
     ]
@@ -540,7 +545,8 @@ describe('getAbVideoHistory', () => {
 
     const test = result.data.tests[0]!
     expect(test.winner).toBe('C')
-    expect(test.liftPercent).toBe(18.3)
+    expect(test.liftPercent).toBeNull()
+    expect(result.data.aviso).toBe('sem métrica de entrega')
   })
 
   it('returns empty for video with no tests', async () => {

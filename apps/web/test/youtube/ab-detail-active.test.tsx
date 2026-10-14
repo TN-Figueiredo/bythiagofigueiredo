@@ -50,8 +50,8 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
   return {
     id: 'test-1', videoTitle: 'My YouTube Video', flag: 'thumbnail', status: 'active',
     variants: [
-      { label: 'A', color: '#8A8F98', ctr: 0.05, impressions: 10000, clicks: 500, pBest: 0.3, pTop2: 0.6 },
-      { label: 'B', color: '#E8823C', ctr: 0.07, impressions: 10000, clicks: 700, pBest: 0.7, pTop2: 0.9 },
+      { label: 'A', color: '#8A8F98', ctr: 0.05, impressions: 10000, clicks: 500, pBest: 0.3 },
+      { label: 'B', color: '#E8823C', ctr: 0.07, impressions: 10000, clicks: 700, pBest: 0.7 },
     ],
     variantThumbs: [
       { label: 'A', color: '#8A8F98', thumbUrl: null, isOriginal: true },
@@ -78,6 +78,13 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
   } as AbTestActiveView
 }
 
+const SEM_IMP: Partial<AbTestActiveView> = {
+  variants: [
+    { label: 'A', color: '#8A8F98', ctr: 0, impressions: 0, clicks: 0, pBest: 0.5 },
+    { label: 'B', color: '#E8823C', ctr: 0, impressions: 0, clicks: 0, pBest: 0.5 },
+  ],
+}
+
 /* ─── Tests ─── */
 
 describe('ActiveDetail', () => {
@@ -85,7 +92,6 @@ describe('ActiveDetail', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
     const sections = [
       'header', 'lock-countdown', 'hero-band', 'variant-performance',
-      'charts-confidence-radar',
     ]
     for (const s of sections) {
       expect(container.querySelector(`[data-section="${s}"]`), `missing section: ${s}`).not.toBeNull()
@@ -110,35 +116,69 @@ describe('ActiveDetail', () => {
     }
   })
 
+  it('não mostra watch time, comentários, compartilh., receita estimada nem Raio-X; mostra a frase fixa', () => {
+    render(<ActiveDetail view={makeActiveView({ revenue: { low: 1200, high: 3600, currency: 'BRL', isDefault: false }, ...SEM_IMP } as Partial<AbTestActiveView>)} />)
+    for (const texto of [/watch time/i, /comentários/i, /compartilh/i, /receita estimada/i, /raio-x/i]) {
+      expect(screen.queryAllByText(texto), String(texto)).toHaveLength(0)
+    }
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
+  })
+
+  it('o banner de carência não promete aplicação automática', () => {
+    const view = makeActiveView({ graceExpiresAt: new Date(Date.now() + 5 * 3600000).toISOString(), winnerAppliedAt: null })
+    render(<ActiveDetail view={view} />)
+    expect(screen.queryAllByText(/aplicação automática/i)).toHaveLength(0)
+  })
+
   it('SignalCard renders "Sinal ao vivo" heading', () => {
     render(<ActiveDetail view={makeActiveView()} />)
     expect(screen.getByText('Sinal ao vivo')).toBeDefined()
   })
 
-  it('VariantTable is rendered with metric=pBest column header', () => {
+  it('VariantTable do teste ativo ordena por CTR, sem a coluna de chance de vencer', () => {
     render(<ActiveDetail view={makeActiveView()} />)
-    // pBest column header shows "chance de vencer"
-    expect(screen.getByText('chance de vencer')).toBeDefined()
+    expect(screen.getByText('ordenado por CTR')).toBeDefined()
   })
 
-  it('GatesPanel shows all 6 gate values', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    // GatesPanel renders each gate.value as a font-mono span
-    const gateValues = ['10,000 min', '10 / 7 days', '16 / 14 cycles', '14 eligible', '2 / 3 consecutive']
-    for (const v of gateValues) {
-      expect(screen.getByText(v)).toBeDefined()
+  it('não mostra o painel de critérios nem "N / 3 consecutive"; a frase fixa ocupa o lugar', () => {
+    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} />)
+    expect(screen.queryAllByText(/\d+ ?\/ ?3/)).toHaveLength(0)
+    expect(screen.queryAllByText(/consecutive/i)).toHaveLength(0)
+    expect(screen.queryAllByText(/10,000 min/)).toHaveLength(0)
+    expect(container.textContent).not.toContain('5/6 ok')
+    expect(screen.queryAllByText(/Critérios de resolução automática/i)).toHaveLength(0)
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
+  })
+
+  it('não mostra o bloco "Chance de vencer" (probabilidade sobre views)', () => {
+    render(<ActiveDetail view={makeActiveView()} />)
+    expect(screen.queryAllByText('Chance de vencer')).toHaveLength(0)
+    expect(screen.queryAllByText(/ordenado por chance de vencer/i)).toHaveLength(0)
+    expect(screen.queryAllByText(/^(30|70)%$/)).toHaveLength(0)
+    expect(screen.queryAllByText(/10 mil simulações/)).toHaveLength(0)
+  })
+
+  it('bloco de confiança saiu: sem curva, sem meta 95%, frase fixa com contraste legível', () => {
+    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} />)
+    expect(container.textContent).not.toMatch(/meta 95%/)
+    expect(container.textContent).not.toMatch(/curva de confiança/i)
+    expect(container.textContent).not.toMatch(/Confiança ao longo do tempo/)
+    const frase = screen.getAllByText('CTR ainda não medido. Você decide o vencedor.')
+    for (const el of frase) {
+      expect(el.className).not.toMatch(/text-cms-text-(dim|muted)/)
     }
-    // Also verify the panel header badge shows correct count
-    expect(container.textContent).toContain('5/6 ok')
   })
 
-  it('ConfidenceChart receives confTrend data (renders svg)', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    const confidenceSection = container.querySelector('[data-section="charts-confidence-radar"]')
-    expect(confidenceSection).not.toBeNull()
-    // Should contain an SVG from ConfidenceChart
-    const svgs = confidenceSection?.querySelectorAll('svg')
-    expect(svgs?.length).toBeGreaterThanOrEqual(1)
+  it('KPIs do topo: sem CONFIANÇA, sem "0%" de líder nem "0,0%" de lift; nulo mostra "—" e a frase', () => {
+    const view = makeActiveView({ confirmedData: { confidence: 0, leader: 'A' as DisplayLabel, leaderColor: '#8A8F98', lift: 0 }, ...SEM_IMP })
+    render(<ActiveDetail view={view} />)
+    const hero = screen.getByTestId('hero-band')
+    expect(hero.textContent).not.toMatch(/Confiança/i)
+    expect(hero.textContent).not.toMatch(/\b0\s?%/)
+    expect(hero.textContent).not.toMatch(/0,0%/)
+    expect(hero.textContent).not.toMatch(/chance de vencer/i)
+    expect(hero.textContent).toContain('—')
+    expect(hero.textContent).toContain('CTR ainda não medido. Você decide o vencedor.')
   })
 
   it('ABBATimeline receives seq data and renders cycle count', () => {
@@ -152,7 +192,8 @@ describe('ActiveDetail', () => {
     const lockSection = container.querySelector('[data-section="lock-countdown"]')
     expect(lockSection).not.toBeNull()
     // Contains the lock text
-    expect(lockSection?.textContent).toContain('Teste travado')
+    expect(lockSection?.textContent).toContain('Roda até 14 dias ou até você encerrar. Ao encerrar, você escolhe o vencedor.')
+    expect(lockSection?.textContent).not.toContain('critérios de resolução')
   })
 
   it('HeroBand shows leader VChip for variant B', () => {

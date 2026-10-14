@@ -27,6 +27,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(search),
 }))
 
+import { medidasDoMotor } from './canais-e5a-fixture'
 const BASE = a3World()
 const ok = async () => ({ ok: true })
 /** O que `page.tsx` faz com a URL: lê os parâmetros e monta a view (o nicho inválido cai em Todos). */
@@ -35,7 +36,7 @@ function viewDaUrl(qs: string): CanaisView {
   const g = (k: string) => u.get(k) ?? undefined
   const n = g('niche')
   const niche: NicheScope = n === 'viagem' || n === 'ia' ? n : 'todos'
-  return buildCanaisView(BASE.obs, { niche, nicheExplicit: n != null, limit: 75, channel: g('channel'), scale: g('scale'), fmt: g('fmt'), sort: g('sort'), dir: g('dir'), filter: g('filter') })
+  return buildCanaisView(BASE.obs, { niche, nicheExplicit: n != null, limit: 75, channel: g('channel'), scale: g('scale'), fmt: g('fmt'), medidas: medidasDoMotor(BASE.obs), sort: g('sort'), dir: g('dir'), filter: g('filter') })
 }
 const tree = (v: CanaisView) => (
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div>

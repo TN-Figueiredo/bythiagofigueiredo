@@ -73,6 +73,13 @@ function cleanLink(params: Record<string, unknown> | undefined): Record<string, 
   return cleaned
 }
 
+/** E5a: valor igual ao padrão não vai para a URL. */
+function semPadrao(params: Record<string, unknown>, padroes: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...params }
+  for (const [k, v] of Object.entries(padroes)) if (out[k] === v) delete out[k]
+  return out
+}
+
 /**
  * Builds a query string from parameters, returning empty string if no params.
  */
@@ -85,7 +92,9 @@ export const link = {
   /**
    * Link to canais screen.
    */
-  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts'
+  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas' | 'parados' | 'em-queda' | 'sairam' | 'sem-videos'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts'
+    /** E5a: a direção das views (28 dias contra os 28 anteriores). O nome é `direcao`: `dir` já é a direção da ordenação. */
+    direcao?: 'sobe' | 'estavel' | 'desce' | 'nao-medido'
     /** A lista já ordenada (maior primeiro) pelas duas ordenações que têm posição escrita: inscritos e views/dia. */
     sort?: 'subs' | 'vpd' }): string {
     const cleaned = cleanLink(p)
@@ -106,8 +115,12 @@ export const link = {
     win?: 7 | 30 | 90
     fmt?: Fmt | 'all'
     q?: string
+    /** E5a: 'trocas' (padrão, fora da URL) ou 'outras' (o bloco "Outras mudanças"). */
+    vista?: 'trocas' | 'outras'
+    /** E5a: filtra só o bloco novo; convive com `type`, que filtra a lista de Trocas. */
+    tipo?: 'tags' | 'categoria' | 'duracao' | 'capitulos'
   }): string {
-    const cleaned = cleanLink(p)
+    const cleaned = semPadrao(cleanLink(p), { vista: 'trocas' })
     const query = buildQuery(cleaned)
     return OBS_BASE + '/mudancas' + query
   },
@@ -127,8 +140,14 @@ export const link = {
     channel?: string
     asof?: string
     reading?: string
+    /** E5a: a ordem. 'mult' é o padrão (fora da URL); 'v7' e 'v30' são as views em 7 e em 30 dias. */
+    sort?: 'mult' | 'vpd' | 'recent' | 'v7' | 'v30'
+    /** E5a: 'grid' é o padrão (fora da URL). */
+    view?: 'grid' | 'list'
+    /** E5a: o filtro da coluna Leitura; 'todos' é o padrão (fora da URL). */
+    leitura?: 'todos' | 'com' | 'nao-e-o-caso' | 'nao-medido'
   }): string {
-    const cleaned = cleanLink(p)
+    const cleaned = semPadrao(cleanLink(p), { sort: 'mult', view: 'grid', leitura: 'todos' })
 
     // Map ages input parameter to age query parameter
     if (cleaned.ages != null) {
@@ -143,8 +162,8 @@ export const link = {
   /**
    * Link to insights screen.
    */
-  insights(p?: { niche?: NicheScope }): string {
-    const cleaned = cleanLink(p)
+  insights(p?: { niche?: NicheScope; leitura?: 'a' | 'b' | 'c' }): string {
+    const cleaned = semPadrao(cleanLink(p), { leitura: 'a' })
     const query = buildQuery(cleaned)
     return OBS_BASE + '/insights' + query
   },

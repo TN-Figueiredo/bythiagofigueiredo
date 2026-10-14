@@ -129,7 +129,6 @@ export interface AbTestResultRow {
   videoTitle: string
   testType: string
   winner: string
-  confidence: number
 }
 
 export interface PromptVideoInfo {
@@ -150,7 +149,7 @@ export const AB_BRIEFING_PROMPT_VERSION = 'yt-ab-v3' as const
 
 export interface AbBriefingLearning {
   tag: string
-  avgLift: number
+  avgLift: number | null
   wins: number
   kind: 'thumb' | 'title' | 'desc'
   negative?: boolean
@@ -172,7 +171,6 @@ export interface AbBriefingData {
   testHistory: Array<{
     test_type: string
     winner_label: string | null
-    ctr_lift_percent: number | null
   }>
   snapshotAgeHours: number
   learnings?: {

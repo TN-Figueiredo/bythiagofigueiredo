@@ -1,18 +1,8 @@
 import * as Sentry from '@sentry/nextjs'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
-import { applyVariantToYouTube, isAutoApplyEnabled } from '@/lib/youtube/ab-apply'
-import { computeGates } from '@/lib/youtube/ab-gates'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
-import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
-import { buildNotification } from '@/lib/youtube/notification-service'
-import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
-import { getIsoWeek } from '@/lib/youtube/analytics-sync'
-import { checkPlayoffEligibility, selectPlayoffVariants } from '@/lib/youtube/ab-playoff'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
-import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
-import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
-import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig, BackfillStatus } from '@/lib/youtube/ab-types'
+import type { AbTestConfig } from '@/lib/youtube/ab-types'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
@@ -59,22 +49,31 @@ export async function phaseAutoStartPlayoffs(supabase: SupabaseClient): Promise<
   return { processed, errors }
 }
 
-// ─── Phase 2: Evaluate active tests (Bayesian + gates + grace period) ────────
+// ─── Fase 2: duração máxima ──────────────────────────────────────────────────
+// Enquanto não houver métrica de entrega real, o cron não declara vencedor, não abre
+// carência, não cria playoff e não aplica nada: `ab_test_cycles.impressions` são views e
+// os cliques são sempre zero. Só sobra o ramo da duração máxima. Escolher o que fica no
+// ar é decisão humana (spec 2026-10-07-ab-lab-honesto, 4.1).
+
+type Restauracao = 'nao_aplicavel' | 'feita' | 'sem_original_no_blob' | 'falhou'
 
 export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promise<EvaluateResult> {
   let evaluated = 0
   let resolved = 0
   let errors = 0
 
-  const { data: tests } = await supabase
+  const { data: tests, error: erroLeitura } = await supabase
     .from('ab_tests')
-    .select(`
-      *,
-      variants:ab_test_variants!test_id(*),
-      cycles:ab_test_cycles(*)
-    `)
+    .select('id, site_id, youtube_video_id, test_type, config, started_at, created_at, original_thumbnail_url')
     .eq('status', 'active')
 
+  if (erroLeitura) {
+    Sentry.captureException(new Error(`ler testes ativos: ${erroLeitura.message}`, { cause: erroLeitura }), {
+      tags: { cron: 'ab-evaluate' },
+      extra: { context: 'ler testes ativos' },
+    })
+    return { evaluated: 0, resolved: 0, errors: 1 }
+  }
   if (!tests || tests.length === 0) {
     return { evaluated: 0, resolved: 0, errors: 0 }
   }
@@ -82,657 +81,98 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
   for (const test of tests) {
     try {
       const config = test.config as AbTestConfig
-      const variants = (test.variants as AbTestVariantRow[]).sort((a, b) => a.sort_order - b.sort_order)
-      const allCycles = (test.cycles as AbTestCycleRow[]).sort((a, b) => a.cycle_number - b.cycle_number)
-
-      const confirmedCycles = allCycles.filter(c => c.backfill_status === 'confirmed')
-      const burnInEnd = (config.burn_in_days ?? 2) * variants.length
-      const eligibleCycles = confirmedCycles.filter(c => c.cycle_number >= burnInEnd)
-
-      // Aggregate stats per variant from eligible cycles
-      const variantStats: VariantStats[] = variants.map(v => {
-        const vCycles = eligibleCycles.filter(c => c.variant_id === v.id)
-        const totalImpressions = vCycles.reduce((s, c) => s + (c.impressions ?? 0), 0)
-        const totalClicks = vCycles.reduce((s, c) => s + (c.clicks ?? 0), 0)
-        return {
-          variant_id: v.id,
-          label: v.label,
-          blob_url: v.blob_url,
-          title_text: v.title_text ?? null,
-          description_text: v.description_text ?? null,
-          metadata: v.metadata ?? {},
-          is_original: v.is_original,
-          total_impressions: totalImpressions,
-          total_clicks: totalClicks,
-          avg_ctr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
-          cycles_completed: vCycles.length,
-        }
-      })
-
       const startedAt = new Date(test.started_at ?? test.created_at)
       const daysSinceStart = Math.floor((Date.now() - startedAt.getTime()) / 86400000)
       const maxDurationDays = config.max_duration_days ?? 14
 
-      const activeVariants = variantStats.filter(v => v.total_impressions > 0)
-      if (activeVariants.length < 2) {
-        // F17: a test can sit here forever if it never gets a 2nd variant with impressions
-        // (dead channel, stuck rotation, YouTube API returning nothing). Without this check
-        // it skipped the max_duration gate entirely and stayed "active" indefinitely.
-        if (daysSinceStart >= maxDurationDays) {
-          // No variant ever ran long enough to matter — nothing to revert.
-          await supabase
-            .from('ab_test_cycles')
-            .update({ ended_at: new Date().toISOString() })
-            .eq('test_id', test.id)
-            .is('ended_at', null)
-
-          await supabase
-            .from('ab_tests')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-              completed_reason: 'inconclusive',
-              confidence_at_completion: null,
-            })
-            .eq('id', test.id)
-
-          resolved++
-        }
+      if (daysSinceStart < maxDurationDays) {
         evaluated++
         continue
       }
 
-      const bayesian = calculateBayesianConfidence(activeVariants)
-
-      const threshold = config.confidence_threshold ?? 0.95
-      const stabilityThreshold = config.stability_threshold ?? 3
-
-      // F18: single source of truth for the 6 auto-resolve gates — the cron used to
-      // reimplement this array by hand with a fixed cycles floor, while the UI
-      // (ab-lab/queries.ts) called computeGates with `variantCount * 7`. A 3-variant test
-      // could show "ready" in the UI (needs 21 confirmed) while the cron used a much lower,
-      // hardcoded bar regardless of variant count.
-      const gates = computeGates({
-        confidence: bayesian.confidence,
-        threshold,
-        minImpressions: activeVariants.map(v => v.total_impressions),
-        daysSinceStart,
-        confirmedCycles: confirmedCycles.length,
-        burnInDays: config.burn_in_days ?? 2,
-        variantCount: variants.length,
-        eligibleCycles: eligibleCycles.length,
-        consecutiveConfident: test.consecutive_confident_evals ?? 0,
-        stabilityThreshold,
-      })
-
-      // Update consecutive confidence counter
-      const newConsecutive = bayesian.confidence >= threshold
-        ? (test.consecutive_confident_evals ?? 0) + 1
-        : 0
-
-      await supabase
-        .from('ab_tests')
-        .update({ consecutive_confident_evals: newConsecutive })
-        .eq('id', test.id)
-
-      // Menor 5 (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): this
-      // comment used to claim that dropping `&& newConsecutive >= stabilityThreshold`
-      // here was a no-op because `gates` already covers stability. It is NOT a
-      // no-op. `gates` was computed above (line ~154) with
-      // `consecutiveConfident: test.consecutive_confident_evals ?? 0` — the
-      // PRE-update value, carried over from the PREVIOUS evaluation. `newConsecutive`
-      // (computed just above, persisted to the DB right after) is the POST-update
-      // value that includes THIS run. Since gates' stability gate always lags one
-      // evaluation behind newConsecutive, relying on `gates` alone means the
-      // auto-resolve now requires the metric to have ALREADY been stable as of the
-      // end of the previous run — one MORE confident evaluation than checking
-      // `newConsecutive >= stabilityThreshold` here would require. That is the
-      // correct, more conservative direction (matches ab-lab/queries.ts, which reads
-      // the same pre-update consecutiveConfident via computeGates for the UI's
-      // "ready" state) — but it is a real behavior change, not a redundant check.
-      // Re-adding `&& newConsecutive >= stabilityThreshold` would let auto-resolve
-      // fire one evaluation earlier than the UI considers ready.
-      const allPass = gates.every(g => g.passed)
-
-      if (allPass && (config.auto_apply_winner ?? true)) {
-        const winnerId = bayesian.winnerId
-        const winnerLabel = variants.find(v => v.id === winnerId)?.label ?? 'Variante'
-
-        if (!test.grace_expires_at) {
-          // FIRST TIME winner detected — start 24h grace period
-          await supabase
-            .from('ab_tests')
-            .update({
-              grace_expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
-              winner_variant_id: winnerId,
-              confidence_at_completion: bayesian.confidence,
-            })
-            .eq('id', test.id)
-
-          // Notify user: winner pending
-          await fanOutToSiteAdmins({
-            siteId: test.site_id,
-            domain: 'youtube',
-            type: 'youtube.ab_test_winner_pending',
-            priority: 3,
-            title: `Vencedor detectado: ${winnerLabel}`,
-            message: `O teste "${test.name}" tem um vencedor. Será aplicado automaticamente em 24h.`,
-            dedupKey: `ab_test_winner_pending:${test.id}`,
-            payload: { videoId: test.youtube_video_id, testId: test.id },
-            actionHref: `/cms/youtube/ab-lab/${test.id}`,
-          })
-
-          evaluated++
-          continue // Don't apply yet — wait for grace period
-        }
-
-        // Grace period set — check if expired
-        if (new Date(test.grace_expires_at) > new Date()) {
-          // Grace period not yet expired
-          evaluated++
-          continue
-        }
-
-        // GRACE PERIOD EXPIRED — apply winner, unless auto-apply is disabled (F19)
-        if (!isAutoApplyEnabled()) {
-          const winnerLabel2 = variants.find(v => v.id === winnerId)?.label ?? 'Variante'
-
-          await supabase
-            .from('ab_test_cycles')
-            .update({ ended_at: new Date().toISOString() })
-            .eq('test_id', test.id)
-            .is('ended_at', null)
-
-          await supabase
-            .from('ab_tests')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-              completed_reason: 'auto_resolve',
-              confidence_at_completion: bayesian.confidence,
-              // winner_variant_id already recorded when grace period started.
-              // applied_by / winner_applied_at stay null — nothing was applied to YouTube.
-              // A human can still apply it manually via the existing ab-lab action, which
-              // only checks winner_variant_id + winner_applied_at, not status.
-            })
-            .eq('id', test.id)
-
-          await fanOutToSiteAdmins({
-            siteId: test.site_id,
-            domain: 'youtube',
-            type: 'youtube.ab_test_winner_suggested',
-            priority: 3,
-            title: `Vencedor sugerido: ${winnerLabel2}`,
-            message: `O teste "${test.name}" tem um vencedor sugerido. Aplicacao automatica esta desligada (confianca calculada sobre cliques, que hoje sao sempre zero) — revise e aplique manualmente.`,
-            dedupKey: `ab_test_winner_suggested:${test.id}`,
-            payload: { videoId: test.youtube_video_id, testId: test.id },
-            actionHref: `/cms/youtube/ab-lab/${test.id}`,
-          })
-
-          resolved++
-          evaluated++
-          continue
-        }
-
-        const winner = variants.find(v => v.id === winnerId)
-
-        const { data: video } = await supabase
-          .from('youtube_videos')
-          .select('youtube_video_id')
-          .eq('id', test.youtube_video_id)
-          .single()
-
-        if (video) {
-          const channelAccountId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
-          if (!channelAccountId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelAccountId)
-
-          if (winner) {
-            await applyVariantToYouTube({
-              youtubeVideoId: video.youtube_video_id,
-              accessToken,
-              testType: test.test_type as 'thumbnail' | 'title' | 'description' | 'combo',
-              variant: {
-                id: winner.id,
-                blob_url: winner.blob_url,
-                title_text: winner.title_text,
-                description_text: winner.description_text,
-              },
-              originalTitle: test.original_title,
-              originalDescription: test.original_description,
-            })
-          }
-        }
-
-        const original = variantStats.find(v => v.is_original)
-        const winnerStats = variantStats.find(v => v.variant_id === bayesian.winnerId)
-        const ctrLift = original && winnerStats && original.avg_ctr > 0
-          ? ((winnerStats.avg_ctr - original.avg_ctr) / original.avg_ctr) * 100
-          : 0
-
-        const totalTestImpressions = activeVariants.reduce((s, v) => s + v.total_impressions, 0)
-        const dailyImpressions = daysSinceStart > 0 ? totalTestImpressions / daysSinceStart : 0
-        const monthlyImpressions = dailyImpressions * 30
-        const extraClicksPerMonth = original && winnerStats && winnerStats.avg_ctr > original.avg_ctr
-          ? Math.round((winnerStats.avg_ctr - original.avg_ctr) * monthlyImpressions)
-          : 0
-
-        // Close open cycle and complete test
-        await supabase
-          .from('ab_test_cycles')
-          .update({ ended_at: new Date().toISOString() })
-          .eq('test_id', test.id)
-          .is('ended_at', null)
-
-        await supabase
-          .from('ab_tests')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            completed_reason: 'auto_resolve',
-            winner_variant_id: bayesian.winnerId,
-            confidence_at_completion: bayesian.confidence,
-            winner_applied_at: new Date().toISOString(),
-            applied_by: 'auto',
-            revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
-            result_metadata: {
-              ctr_lift_percent: Math.round(ctrLift * 10) / 10,
-              winner_label: winner?.label ?? '',
-              total_impressions: totalTestImpressions,
-              estimated_monthly_extra_clicks: extraClicksPerMonth,
-            },
-          })
-          .eq('id', test.id)
-
-        // Emit notification for completed test
-        const weekIso = getIsoWeek(new Date())
-        const notifPayload = buildNotification({
-          type: 'ab_test_completed',
-          videoId: test.youtube_video_id,
-          videoTitle: test.name ?? 'Vídeo',
-          testName: test.name ?? 'A/B Test',
-          winnerLabel: winner?.label ?? 'Variante vencedora',
-          ctrLift: Math.round(ctrLift * 10) / 10,
-          weekIso,
-        })
-        await fanOutToSiteAdmins({
-          siteId: test.site_id,
-          domain: 'youtube',
-          type: `youtube.${notifPayload.type}`,
-          priority: notifPayload.priority,
-          title: notifPayload.title,
-          message: notifPayload.message,
-          dedupKey: notifPayload.dedup_key,
-          payload: {
-            ...(notifPayload.video_id ? { videoId: notifPayload.video_id } : {}),
-            testId: test.id,
-          },
-          actionHref: notifPayload.action_href,
-        })
-
-        // Transition optimization cycle to post_test_monitoring
-        const { data: cycle } = await supabase
-          .from('optimization_cycles')
-          .select('*')
-          .eq('youtube_video_id', test.youtube_video_id)
-          .eq('state', 'testing')
-          .single()
-
-        if (cycle) {
-          await applyCycleTransition(supabase, cycle.id, 'post_test_monitoring', {})
-        }
-
-        // Auto-import winning thumbnail to library
-        try {
-          await autoImportWinner(test.id, test.site_id)
-        } catch {
-          // Non-fatal — library import failure shouldn't block test completion
-        }
-
-        resolved++
-      } else if (test.grace_expires_at && newConsecutive < stabilityThreshold) {
-        // Confidence dropped during grace period — cancel auto-apply
-        await supabase
-          .from('ab_tests')
-          .update({
-            grace_expires_at: null,
-            winner_variant_id: null,
-            confidence_at_completion: null,
-          })
-          .eq('id', test.id)
+      // Decisão humana no meio: relê o estado antes de mexer no YouTube (D-P2-1).
+      const aindaAtivo = await supabase.from('ab_tests').select('status').eq('id', test.id).maybeSingle()
+      if (aindaAtivo.error) throw new Error(`reler estado: ${aindaAtivo.error.message}`, { cause: aindaAtivo.error })
+      if (aindaAtivo.data?.status !== 'active') {
+        evaluated++
+        continue
       }
 
-      // Check max duration — mark inconclusive if exceeded
-      if (!allPass && daysSinceStart >= maxDurationDays) {
-        // Best-effort revert to original thumbnail
-        try {
-          if (test.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
-            const { data: revertVideo } = await supabase
-              .from('youtube_videos')
-              .select('youtube_video_id')
-              .eq('id', test.youtube_video_id)
-              .single()
+      // Volta ao original, melhor esforço (P4 troca por settleOnAir(original, 'duracao_maxima')).
+      // Só tenta se o teste é de thumbnail ou combo E alguma variante chegou a ir ao ar (G-P2-C2).
+      let restauracao: Restauracao = 'nao_aplicavel'
+      if (test.test_type === 'thumbnail' || test.test_type === 'combo') {
+        const foiAoAr = await supabase
+          .from('ab_test_cycles')
+          .select('id', { count: 'exact', head: true })
+          .eq('test_id', test.id)
+        if (foiAoAr.error) throw new Error(`ler ciclos: ${foiAoAr.error.message}`, { cause: foiAoAr.error })
+        if ((foiAoAr.count ?? 0) > 0) {
+          const originalNoBlob = !!test.original_thumbnail_url?.includes('blob.vercel-storage.com')
+          restauracao = originalNoBlob ? 'falhou' : 'sem_original_no_blob'
+          try {
+            if (originalNoBlob) {
+              const { data: revertVideo } = await supabase
+                .from('youtube_videos')
+                .select('youtube_video_id')
+                .eq('id', test.youtube_video_id)
+                .single()
 
-            if (revertVideo) {
-              const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
-              const revertChannelId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
-              if (!revertChannelId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-              const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannelId)
-              const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url)
-              await setThumbnail(revertVideo.youtube_video_id, buffer, contentType, accessToken)
+              if (revertVideo) {
+                const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
+                const revertChannelId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
+                if (!revertChannelId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+                const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannelId)
+                const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url)
+                await setThumbnail(revertVideo.youtube_video_id, buffer, contentType, accessToken)
+                restauracao = 'feita'
+              }
             }
+          } catch (e) {
+            Sentry.captureException(e, { extra: { context: 'max-duration-revert', testId: test.id } })
           }
-        } catch (e) {
-          Sentry.captureException(e, { extra: { context: 'max-duration-revert', testId: test.id } })
         }
-
-        await supabase
-          .from('ab_test_cycles')
-          .update({ ended_at: new Date().toISOString() })
-          .eq('test_id', test.id)
-          .is('ended_at', null)
-
-        await supabase
-          .from('ab_tests')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            completed_reason: 'inconclusive',
-            confidence_at_completion: bayesian.confidence,
-          })
-          .eq('id', test.id)
       }
 
+      const agora = new Date().toISOString()
+      const fechouCiclos = await supabase
+        .from('ab_test_cycles')
+        .update({ ended_at: agora })
+        .eq('test_id', test.id)
+        .is('ended_at', null)
+      if (fechouCiclos.error) throw new Error(`fechar ciclos: ${fechouCiclos.error.message}`, { cause: fechouCiclos.error })
+
+      // Encerra SÓ se ainda for 'active' e devolve a linha: zero linha não é "resolvido" (D-P2-1).
+      // Limpa vencedor e carência: teste encerrado como inconclusive não fica com vencedor sugerido (S-C8).
+      const restauracaoFalhou = restauracao === 'falhou' || restauracao === 'sem_original_no_blob'
+      const encerrou = await supabase
+        .from('ab_tests')
+        .update({
+          status: 'completed',
+          completed_at: agora,
+          completed_reason: 'inconclusive',
+          confidence_at_completion: null,
+          winner_variant_id: null,
+          grace_expires_at: null,
+          // só escreve status_note quando há o que dizer: não apaga nota do ab-rotate (S-C7)
+          ...(restauracaoFalhou ? { status_note: `duração máxima: original não restaurado (${restauracao})` } : {}),
+        })
+        .eq('id', test.id)
+        .eq('status', 'active')
+        .select('id')
+      if (encerrou.error) throw new Error(`encerrar teste: ${encerrou.error.message}`, { cause: encerrou.error })
+
+      if ((encerrou.data ?? []).length === 1) {
+        resolved++
+        // restauração que falhou deixa a variante no ar: o cron fica vermelho nesse dia (S-C7)
+        if (restauracaoFalhou) errors++
+      }
       evaluated++
     } catch (err) {
       errors++
-      Sentry.captureException(err, {
-        tags: { cron: 'ab-evaluate' },
-        extra: { testId: test.id },
-      })
+      Sentry.captureException(err, { tags: { cron: 'ab-evaluate' }, extra: { testId: test.id } })
     }
   }
 
   return { evaluated, resolved, errors }
-}
-
-// ─── Phase 3: Retry failed applies ──────────────────────────────────────────
-
-export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise<PhaseResult & { resolved: number }> {
-  let processed = 0
-  let resolved = 0
-  let errors = 0
-
-  // Exponential backoff delays: attempt 0→1 waits 1h, 1→2 waits 4h, 2→3 waits 12h
-  const retryDelaysMs = [3_600_000, 14_400_000, 43_200_000] // 1h, 4h, 12h
-
-  const { data: pendingApplies } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, winner_variant_id, youtube_video_id, test_type, original_title, original_description, apply_attempts, name, grace_expires_at')
-    .not('grace_expires_at', 'is', null)
-    .is('winner_applied_at', null)
-    .not('winner_variant_id', 'is', null)
-    .lte('grace_expires_at', new Date().toISOString())
-    .lt('apply_attempts', 3)
-    .eq('status', 'active')
-
-  for (const pending of pendingApplies ?? []) {
-    try {
-      // Exponential backoff: skip if not enough time since grace expired
-      const timeSinceGraceExpired = Date.now() - new Date(pending.grace_expires_at!).getTime()
-      const attemptIndex = Math.min(pending.apply_attempts ?? 0, retryDelaysMs.length - 1)
-      const requiredDelay = retryDelaysMs[attemptIndex]!
-      if (timeSinceGraceExpired < requiredDelay) continue
-
-      // Erro de banco ao resolver o canal NÃO gasta uma das 3 tentativas: conta como erro da
-      // execução e o teste volta na próxima rodada. Só "canal não identificado" é falha do teste.
-      let pendingChannelId: string | null
-      try {
-        pendingChannelId = await channelAccountIdForVideo(supabase, pending.site_id, pending.youtube_video_id)
-      } catch (resolveErr) {
-        errors++
-        Sentry.captureException(resolveErr, {
-          tags: { cron: 'ab-evaluate' },
-          extra: { testId: pending.id, stage: 'resolve-channel' },
-        })
-        continue
-      }
-      if (!pendingChannelId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-      const preflight = await preflightTokenCheck(pending.site_id, 'youtube', pendingChannelId)
-      if (!preflight.ok) throw new Error(`preflight_failed: ${preflight.reason}`)
-
-      const { data: video } = await supabase
-        .from('youtube_videos')
-        .select('youtube_video_id')
-        .eq('id', pending.youtube_video_id)
-        .single()
-
-      if (!video) throw new Error('video_not_found')
-
-      const { data: winner } = await supabase
-        .from('ab_test_variants')
-        .select('id, label, blob_url, title_text, description_text')
-        .eq('id', pending.winner_variant_id!)
-        .single()
-
-      if (!winner) throw new Error('winner_variant_not_found')
-
-      // Validate blob asset before applying
-      if (winner.blob_url && (pending.test_type === 'thumbnail' || pending.test_type === 'combo')) {
-        const headRes = await fetch(winner.blob_url, { method: 'HEAD', signal: AbortSignal.timeout(5000) })
-        if (!headRes.ok) throw new Error(`asset_missing: blob returned ${headRes.status}`)
-      }
-
-      const applyResult = await applyVariantToYouTube({
-        youtubeVideoId: video.youtube_video_id,
-        accessToken: preflight.accessToken,
-        testType: pending.test_type as 'thumbnail' | 'title' | 'description' | 'combo',
-        variant: {
-          id: winner.id,
-          blob_url: winner.blob_url,
-          title_text: winner.title_text,
-          description_text: winner.description_text,
-        },
-        originalTitle: pending.original_title,
-        originalDescription: pending.original_description,
-      })
-
-      if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
-
-      // Success — close cycle and mark completed
-      await supabase
-        .from('ab_test_cycles')
-        .update({ ended_at: new Date().toISOString() })
-        .eq('test_id', pending.id)
-        .is('ended_at', null)
-
-      await supabase
-        .from('ab_tests')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          completed_reason: 'auto_resolve',
-          winner_applied_at: new Date().toISOString(),
-          applied_by: 'auto',
-          revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
-        })
-        .eq('id', pending.id)
-
-      // Transition optimization cycle
-      const { data: cycle } = await supabase
-        .from('optimization_cycles')
-        .select('*')
-        .eq('youtube_video_id', pending.youtube_video_id)
-        .eq('state', 'testing')
-        .single()
-
-      if (cycle) {
-        await applyCycleTransition(supabase, cycle.id, 'post_test_monitoring', {})
-      }
-
-      // Auto-import winning thumbnail to library
-      try {
-        await autoImportWinner(pending.id, pending.site_id)
-      } catch {
-        // Non-fatal — library import failure shouldn't block test completion
-      }
-
-      processed++
-      resolved++
-    } catch (err) {
-      errors++
-      const attempts = (pending.apply_attempts ?? 0) + 1
-      await supabase
-        .from('ab_tests')
-        .update({
-          apply_attempts: attempts,
-          last_apply_error: err instanceof Error ? err.message : 'unknown',
-        })
-        .eq('id', pending.id)
-
-      // After 3 failures — send notification
-      if (attempts >= 3) {
-        await fanOutToSiteAdmins({
-          siteId: pending.site_id,
-          domain: 'youtube',
-          type: 'youtube.ab_test_apply_failed',
-          priority: 4,
-          title: `Falha ao aplicar vencedor: ${pending.name}`,
-          message: `O teste "${pending.name}" falhou 3x ao aplicar o vencedor. Ação manual necessária.`,
-          dedupKey: `ab_test_apply_failed:${pending.id}`,
-          payload: { videoId: pending.youtube_video_id, testId: pending.id },
-          actionHref: `/cms/youtube/ab-lab/${pending.id}`,
-        })
-      }
-
-      Sentry.captureException(err, {
-        tags: { cron: 'ab-evaluate', phase: 'apply-retry' },
-        extra: { testId: pending.id, attempts },
-      })
-    }
-  }
-
-  return { processed, errors, resolved }
-}
-
-// ─── Phase 4: Detect playoff eligibility ─────────────────────────────────────
-
-export async function phaseDetectPlayoffEligibility(supabase: SupabaseClient): Promise<PhaseResult> {
-  let processed = 0
-  let errors = 0
-
-  const { data: candidates } = await supabase
-    .from('ab_tests')
-    .select(`
-      *,
-      variants:ab_test_variants!test_id(*),
-      cycles:ab_test_cycles(*)
-    `)
-    .eq('status', 'completed')
-    .eq('completed_reason', 'inconclusive')
-    .in('test_type', ['thumbnail', 'combo'])
-    .eq('round_number', 1)
-    .is('parent_test_id', null)
-    .is('playoff_test_id', null)
-
-  for (const candidate of candidates ?? []) {
-    try {
-      const variants = (candidate.variants as AbTestVariantRow[]).sort(
-        (a, b) => a.sort_order - b.sort_order,
-      )
-      const allCycles = (candidate.cycles as AbTestCycleRow[])
-      const terminalStatuses: BackfillStatus[] = ['confirmed', 'no_data', 'error']
-      const allBackfilled = allCycles.every(c =>
-        terminalStatuses.includes(c.backfill_status),
-      )
-
-      const confirmedCycles = allCycles.filter(c => c.backfill_status === 'confirmed')
-      const variantStats: VariantStats[] = variants.map(v => {
-        const vCycles = confirmedCycles.filter(c => c.variant_id === v.id)
-        const totalImpressions = vCycles.reduce((s, c) => s + (c.impressions ?? 0), 0)
-        const totalClicks = vCycles.reduce((s, c) => s + (c.clicks ?? 0), 0)
-        return {
-          variant_id: v.id,
-          label: v.label,
-          blob_url: v.blob_url,
-          title_text: v.title_text ?? null,
-          description_text: v.description_text ?? null,
-          metadata: v.metadata ?? {},
-          is_original: v.is_original,
-          total_impressions: totalImpressions,
-          total_clicks: totalClicks,
-          avg_ctr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
-          cycles_completed: vCycles.length,
-        }
-      })
-
-      const eligibility = checkPlayoffEligibility(
-        {
-          completed_reason: candidate.completed_reason,
-          test_type: candidate.test_type,
-          round_number: candidate.round_number ?? 1,
-          parent_test_id: candidate.parent_test_id ?? null,
-          playoff_test_id: candidate.playoff_test_id ?? null,
-          started_at: candidate.started_at,
-        },
-        variantStats,
-        allBackfilled,
-      )
-
-      if (!eligibility.eligible) continue
-
-      const selection = selectPlayoffVariants(variantStats)
-      if (!selection) continue
-
-      const { error: rpcError } = await supabase.rpc('create_playoff_test', {
-        p_parent_test_id: candidate.id,
-        p_variant_ids: selection.variantIds,
-        p_cooldown_hours: 4,
-      })
-
-      if (rpcError) {
-        Sentry.captureException(new Error(rpcError.message), {
-          tags: { cron: 'ab-evaluate', phase: 'playoff-create' },
-          extra: { testId: candidate.id },
-        })
-        continue
-      }
-
-      const weekIso = getIsoWeek(new Date())
-      const notifPayload = buildNotification({
-        type: 'playoff_created',
-        videoId: candidate.youtube_video_id as string,
-        videoTitle: candidate.name ?? 'Vídeo',
-        testName: candidate.name ?? 'A/B Test',
-        variant1Label: selection.labels[0],
-        variant2Label: selection.labels[1],
-        weekIso,
-      })
-
-      await fanOutToSiteAdmins({
-        siteId: candidate.site_id,
-        domain: 'youtube',
-        type: `youtube.${notifPayload.type}`,
-        priority: notifPayload.priority,
-        title: notifPayload.title,
-        message: notifPayload.message,
-        dedupKey: notifPayload.dedup_key,
-        payload: {
-          ...(notifPayload.video_id ? { videoId: notifPayload.video_id } : {}),
-          testId: candidate.id,
-        },
-        actionHref: notifPayload.action_href,
-      })
-
-      processed++
-    } catch (err) {
-      errors++
-      Sentry.captureException(err, {
-        tags: { cron: 'ab-evaluate', phase: 'playoff-detect' },
-        extra: { testId: candidate.id },
-      })
-    }
-  }
-
-  return { processed, errors }
 }

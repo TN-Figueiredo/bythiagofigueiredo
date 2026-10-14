@@ -4,16 +4,19 @@ import { PlayoffBanner } from '@/app/cms/(authed)/youtube/ab-lab/_components/pla
 import { PlayoffDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/playoff-detail'
 import type { AbTestPlayoffView, FullChartVariant, VariantThumb, GateResult } from '@/lib/youtube/ab-types'
 
-vi.mock('lucide-react', () => {
+vi.mock('lucide-react', async (importOriginal) => {
+  const original = await importOriginal<typeof import('lucide-react')>()
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return { Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
+  return { ...original, Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
     Trophy: icon('Trophy'), TrendingUp: icon('TrendingUp'), TrendingDown: icon('TrendingDown'),
     CheckCircle: icon('CheckCircle'), Clock: icon('Clock'), ChevronDown: icon('ChevronDown'),
     ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
     Archive: icon('Archive'), Download: icon('Download'), Swords: icon('Swords'),
     Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'),
     Lock: icon('Lock'), Minus: icon('Minus'), Sparkles: icon('Sparkles'),
-    Check: icon('Check'), LayoutGrid: icon('LayoutGrid'), Radio: icon('Radio'), AlertCircle: icon('AlertCircle') }
+    Check: icon('Check'), LayoutGrid: icon('LayoutGrid'), Radio: icon('Radio'), AlertCircle: icon('AlertCircle'),
+    ChevronLeft: icon('ChevronLeft'), Eye: icon('Eye'), Smartphone: icon('Smartphone'), Search: icon('Search'),
+    ListVideo: icon('ListVideo'), MousePointerClick: icon('MousePointerClick'), Activity: icon('Activity') }
 })
 
 /* ─── Helpers ─── */
@@ -26,7 +29,6 @@ function makeVariant(label: 'A' | 'B' | 'C' | 'D', overrides?: Partial<FullChart
     impressions: 10000,
     clicks: 500,
     pBest: 0.5,
-    pTop2: 0.8,
     ...overrides,
   }
 }
@@ -59,9 +61,9 @@ function makePlayoffView(overrides?: Partial<AbTestPlayoffView>): AbTestPlayoffV
       { label: 'B', color: '#E8823C', ctr: 5.0, thumbnailUrl: null },
     ],
     variants: [
-      makeVariant('A', { ctr: 5.1, pBest: 0.35, pTop2: 0.85, impressions: 15000 }),
-      makeVariant('B', { ctr: 5.0, pBest: 0.40, pTop2: 0.82, impressions: 15000 }),
-      makeVariant('C', { ctr: 4.2, pBest: 0.25, pTop2: 0.33, impressions: 15000 }),
+      makeVariant('A', { ctr: 5.1, pBest: 0.35, impressions: 15000 }),
+      makeVariant('B', { ctr: 5.0, pBest: 0.40, impressions: 15000 }),
+      makeVariant('C', { ctr: 4.2, pBest: 0.25, impressions: 15000 }),
     ],
     variantThumbs: [makeThumb('A', true), makeThumb('B'), makeThumb('C')],
     confTrend: [40, 55, 65, 72, 78, 82],
@@ -146,6 +148,53 @@ describe.skip('PlayoffBanner', () => { // TODO: broken by component redesign
 
 /* ─── PlayoffDetail ─── */
 
+describe('PlayoffDetail (sem medição)', () => {
+  it('não mostra barras de probabilidade sobre views; mostra a frase fixa', () => {
+    const { container } = render(<PlayoffDetail view={makePlayoffView()} />)
+    expect(container.querySelector('[data-rank-bar]')).toBeNull()
+    expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)
+  })
+})
+
+describe('PlayoffDetail: encerrado sem vencedor e sem playoff real (P2 I1)', () => {
+  const semPlayoff = () => makePlayoffView({
+    playoffTestId: '',
+    startsIn: '',
+    finalists: [],
+    confidenceReached: null,
+    variants: [
+      makeVariant('A', { pBest: 0.63 }),
+      makeVariant('B', { pBest: 0.37 }),
+    ],
+    variantThumbs: [makeThumb('A', true), makeThumb('B')],
+  })
+
+  it('não promete playoff automático nem mostra confiança; frase fixa no lugar', () => {
+    const { container } = render(<PlayoffDetail view={semPlayoff()} />)
+    expect(screen.queryByText(/Playoff criado automaticamente/)).toBeNull()
+    expect(screen.queryByTestId('playoff-banner')).toBeNull()
+    expect(container.textContent).not.toMatch(/de confiança/)
+    expect(container.textContent).not.toMatch(/o sistema afunila/)
+    expect(container.textContent).not.toMatch(/empatou/)
+    expect(screen.getByText('Encerrado sem vencedor')).toBeDefined()
+    expect(screen.getByText('Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.')).toBeDefined()
+  })
+
+  it('placar sem a coluna nem o rótulo de chance de vencer', () => {
+    const { container } = render(<PlayoffDetail view={semPlayoff()} />)
+    expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()
+    expect(container.textContent).not.toMatch(/ordenado por chance de vencer/)
+    expect(container.textContent).not.toMatch(/63%/)
+  })
+
+  it('com playoff real (teste antigo) o banner continua, mas sem percentual de confiança', () => {
+    const { container } = render(<PlayoffDetail view={makePlayoffView({ confidenceReached: null })} />)
+    expect(screen.getByTestId('playoff-banner')).toBeDefined()
+    expect(container.textContent).not.toMatch(/de confiança/)
+    expect(container.textContent).not.toMatch(/o sistema afunila/)
+  })
+})
+
 describe.skip('PlayoffDetail', () => { // TODO: broken by component redesign
   it('renders 5-section layout', () => {
     render(<PlayoffDetail view={makePlayoffView()} />)
@@ -168,9 +217,9 @@ describe.skip('PlayoffDetail', () => { // TODO: broken by component redesign
     expect(screen.getByText(/95%/)).toBeDefined()
   })
 
-  it('renders VariantTable with pTop2 metric', () => {
+  it('renders VariantTable ordenado por chance de vencer (pBest), sem Top 2', () => {
     render(<PlayoffDetail view={makePlayoffView()} />)
-    // VariantTable header should show "Top 2" not "Chance to win"
-    expect(screen.getByText('Top 2')).toBeDefined()
+    expect(screen.getByText('Chance de vencer')).toBeDefined()
+    expect(screen.queryAllByText(/top ?2/i)).toHaveLength(0)
   })
 })

@@ -4,13 +4,22 @@ export type VariantLabel = (typeof VARIANT_LABELS)[number]
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
 export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'manual_apply' | 'max_duration' | 'inconclusive'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
+
+/** Razões de encerramento em que uma pessoa escolheu o vencedor. Nenhum caminho automático grava estas. */
+export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as const
+
+/** Vitória só conta quando humana: tem vencedor gravado E o encerramento foi decisão de pessoa. */
+export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
+  return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+}
 export type TestType = 'thumbnail' | 'title' | 'description' | 'combo'
 
 export interface AbTestConfig {
   max_duration_days: number
   confidence_threshold: number
   burn_in_days: number
-  auto_apply_winner: boolean
+  /** @deprecated ignorada desde 10/2026 (A/B Lab P2) */
+  auto_apply_winner?: boolean
   rotation_pattern: 'abba' | 'round_robin' | 'random'
   stability_threshold: number
 }
@@ -19,7 +28,6 @@ export const AB_TEST_CONFIG_DEFAULTS: AbTestConfig = {
   max_duration_days: 14,
   confidence_threshold: 0.95,
   burn_in_days: 2,
-  auto_apply_winner: true,
   rotation_pattern: 'abba',
   stability_threshold: 3,
 }
@@ -207,7 +215,8 @@ export interface EvaluationResult {
 export interface AbTestSiteSettings {
   default_duration_days: number
   default_confidence: number
-  default_auto_apply: boolean
+  /** @deprecated ignorada desde 10/2026 (A/B Lab P2) */
+  default_auto_apply?: boolean
   default_burn_in_days: number
   ctr_drop_trigger: {
     enabled: boolean
@@ -230,7 +239,6 @@ export interface AbTestSiteSettings {
 export const AB_SITE_SETTINGS_DEFAULTS: AbTestSiteSettings = {
   default_duration_days: 14,
   default_confidence: 0.95,
-  default_auto_apply: true,
   default_burn_in_days: 2,
   ctr_drop_trigger: { enabled: false, threshold_percent: 20, min_days_below: 7 },
   post_publish_trigger: { enabled: false, delay_hours: 48, requires_pipeline_thumbs: true },
@@ -271,7 +279,6 @@ export interface StatsVariant extends ChartVariant {
 
 export interface RankedVariant extends ChartVariant {
   pBest: number
-  pTop2: number
 }
 
 export interface FullChartVariant extends StatsVariant, RankedVariant {
@@ -285,10 +292,12 @@ export interface FullChartVariant extends StatsVariant, RankedVariant {
 
 export interface DashboardStats {
   activeTests: number
-  avgConfidence: number
-  winRate: number
-  avgLift: number
+  /** % de vitórias humanas entre os testes que contam; null quando nenhum conta. */
+  winRate: number | null
+  /** Total de testes concluídos raiz (sem filho de playoff), contem ou não para o win rate. */
   completedTests: number
+  /** Denominador do win rate: só os concluídos por pessoa ou limite de duração. */
+  winRateBase: number
   testsWon: number
 }
 
@@ -298,8 +307,8 @@ export interface AbTestCardView {
   type: TestType
   status: AbTestStatus
   dayOf: number
-  confidence: number
-  lift: number
+  confidence: number | null
+  lift: number | null
   leader: DisplayLabel
   leaderColor: string
   leaderThumbUrl: string | null
@@ -342,7 +351,7 @@ export interface SuggestedVideo {
   grade: 'A' | 'B' | 'C' | 'D' | 'F'
   reason: string
   suggest: TestType
-  impressions?: string
+  impressions?: number | null
   confidence?: number
 }
 
@@ -351,7 +360,8 @@ export interface LearningsTag {
   wins: number
   total?: number
   confidence?: number
-  avgLift: number
+  /** null = nenhuma vitória com lift medido (nunca 0). */
+  avgLift: number | null
   kind: 'thumb' | 'title' | 'desc'
   negative?: boolean
 }
@@ -455,7 +465,6 @@ export interface AbTestActiveView extends AbTestBaseView {
   }
   pollData?: { viewsDelta: number; likesDelta: number; polledAt: string }
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
-  revenue?: { low: number; high: number; currency: 'BRL'; isDefault: boolean }
   daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
   statusNote: string | null
   driftAcknowledgedAt: string | null
@@ -470,13 +479,13 @@ export interface AbTestWinnerView extends AbTestBaseView {
   winnerLabel: DisplayLabel
   winnerColor: string
   lift: number
-  confidence: number
+  confidence: number | null
   resultMeta: {
     ctrBefore: number
     ctrAfter: number
     totalImpressions: number
     abbaCycles: number
-    monthlyExtraClicks: number
+    monthlyExtraClicks: number | null
   }
   monitor?: LiveMonitor
   learning?: string
@@ -490,7 +499,7 @@ export interface AbTestPlayoffView extends AbTestBaseView {
   playoffTestId: string
   startsIn: string
   finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
-  confidenceReached: number
+  confidenceReached: number | null
   reason: string
 }
 

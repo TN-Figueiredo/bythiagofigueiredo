@@ -101,6 +101,13 @@ describe('ActiveTestCard', () => {
     expect(screen.getByText('Dia 7/14')).toBeTruthy()
   })
 
+  it('confidence nula não vira "0%": mostra a frase fixa', () => {
+    const test = makeCardView({ confidence: null, lift: null })
+    render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
+    expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
+    expect(screen.getAllByText('CTR não medido').length).toBeGreaterThan(0)
+  })
+
   it('calls onOpen when clicked', () => {
     const test = makeCardView()
     const onOpen = vi.fn()
@@ -339,8 +346,8 @@ describe('EmptyState', () => {
  * ============================================================ */
 describe('AbLabDashboard', () => {
   const baseStats: DashboardStats = {
-    activeTests: 2, avgConfidence: 92, winRate: 75, avgLift: 8.5,
-    completedTests: 4, testsWon: 3,
+    activeTests: 2, winRate: 75,
+    completedTests: 4, winRateBase: 4, testsWon: 3,
   }
   const baseSettings: AbTestSiteSettings = { ...AB_SITE_SETTINGS_DEFAULTS }
   const baseProps = {
@@ -368,16 +375,35 @@ describe('AbLabDashboard', () => {
     const kpiStrip = container.querySelector('[data-kpi-strip]')
     expect(kpiStrip).toBeTruthy()
     expect(screen.getAllByText('Testes ativos').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Confiança média')).toBeTruthy()
-    expect(screen.getByText('Win rate')).toBeTruthy()
-    expect(screen.getByText('CTR lift médio')).toBeTruthy()
+    expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
+    expect(screen.queryAllByText(/confiança média/i)).toHaveLength(0)
+    expect(screen.queryAllByText(/lift médio/i)).toHaveLength(0)
+  })
+
+  it('win rate null mostra a frase fixa, não 0%', () => {
+    render(
+      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
+        cards={[makeCardView()]} completed={[makeCompleted()]} />,
+    )
+    expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
+    expect(screen.queryAllByText('0')).toHaveLength(0)
+    expect(screen.queryByText(/Win rate/)).toBeNull()
+  })
+
+  it('win rate numérico aparece com o percentual', () => {
+    render(
+      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: 50, completedTests: 3, winRateBase: 2, testsWon: 1 }}
+        cards={[makeCardView()]} completed={[makeCompleted()]} />,
+    )
+    expect(screen.queryByText('50')).toBeNull()
+    expect(screen.getByText('1 de 2 testes')).toBeTruthy()
   })
 
   it('shows "Nenhum teste ativo" when no active tests and no draft', () => {
     render(
       <AbLabDashboard
         {...baseProps}
-        stats={{ activeTests: 0, avgConfidence: 0, winRate: 0, avgLift: 0, completedTests: 0, testsWon: 0 }}
+        stats={{ activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
       />,
     )
     expect(screen.getByText('Nenhum teste ativo')).toBeTruthy()

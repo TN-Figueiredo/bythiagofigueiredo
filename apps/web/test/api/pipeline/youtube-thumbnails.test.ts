@@ -85,7 +85,7 @@ describe('GET /api/pipeline/youtube/thumbnails/library', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns thumbnails with lift and tags', async () => {
+  it('returns thumbnails with null lift and tags', async () => {
     mockAuthRead()
     vi.mocked(getThumbnailLibrary).mockResolvedValue({
       data: {
@@ -94,7 +94,7 @@ describe('GET /api/pipeline/youtube/thumbnails/library', () => {
             id: 'aaa-111',
             videoTitle: 'How to Build an Empire',
             imageUrl: 'https://blob.vercel-storage.com/thumb-abc.jpg',
-            lift: 12.5,
+            lift: null,
             tags: ['curiosity', 'bold-text'],
             longevityScore: 'stable',
             sourceType: 'ab_winner',
@@ -103,7 +103,7 @@ describe('GET /api/pipeline/youtube/thumbnails/library', () => {
             id: 'bbb-222',
             videoTitle: 'React 19 Deep Dive',
             imageUrl: 'https://blob.vercel-storage.com/thumb-def.jpg',
-            lift: -3.2,
+            lift: null,
             tags: ['technical', 'code-screen'],
             longevityScore: 'declining',
             sourceType: 'manual',
@@ -116,7 +116,7 @@ describe('GET /api/pipeline/youtube/thumbnails/library', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data.thumbnails).toHaveLength(2)
-    expect(body.data.thumbnails[0].lift).toBe(12.5)
+    expect(body.data.thumbnails[0].lift).toBeNull()
     expect(body.data.thumbnails[0].tags).toEqual(['curiosity', 'bold-text'])
     expect(body.data.thumbnails[1].sourceType).toBe('manual')
   })
@@ -130,7 +130,7 @@ describe('GET /api/pipeline/youtube/thumbnails/library', () => {
             id: 'ccc-333',
             videoTitle: 'Video with Longevity',
             imageUrl: 'https://blob.vercel-storage.com/thumb-ghi.jpg',
-            lift: 8.0,
+            lift: null,
             tags: [],
             longevityScore: 'improving',
             sourceType: 'ab_winner',

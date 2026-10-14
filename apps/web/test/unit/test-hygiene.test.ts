@@ -55,6 +55,9 @@ const ALLOWLIST = new Set([
   // as funções puras do mesmo arquivo usam datas relativas a um AGORA com timers falsos, e nenhuma data aqui é
   // comparada com o relógio (a única comparação com "hoje" usa o relógio real, para feitaEm)
   'test/lib/conferencias.test.ts',
+  // funções puras do calendário das medidas (E5a T1) com data de entrada explícita e datas de 2027 como resultado do cálculo
+  // (viradas de ano e de fevereiro); nenhuma lê o relógio
+  'test/youtube/observatorio/medidas-telas-calendario.test.ts',
   // this guardian's own patterns
   'test/unit/test-hygiene.test.ts',
 ])

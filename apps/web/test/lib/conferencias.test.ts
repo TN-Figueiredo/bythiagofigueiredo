@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E5A_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE5A, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
@@ -424,6 +424,59 @@ describe('conferências de E10 (arquivo, pausa e sinal de limite, relativas ao d
   })
 })
 
+
+// A5 E5a leva 1: as conferências dependem do dia da promoção a `main`, que o controlador preenche em E5A_DEPLOY; sem a data, a lista NÃO tem as entradas.
+describe('conferências de E5a (tela Canais e conta da aba Mudanças, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const ehData = (x: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(x) && new Date(`${x}T00:00:00.000Z`).toISOString().slice(0, 10) === x
+  const IDS = ['e5a-d0', 'e5a-d7', 'e5a-aviso-contagem', 'e5a-em-queda']
+
+  it('nulo não dá entrada e nada vence; data válida dá as quatro, D0 e D+7 relativas e as outras de calendário', () => {
+    expect(conferenciasE5A(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE5A(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE5A(null))).toEqual([])
+    const l = conferenciasE5A(dia(-40))
+    expect([...l.map(x => x.id)].sort()).toEqual([...IDS].sort())
+    const por = Object.fromEntries(l.map(x => [x.id, x]))
+    expect(por['e5a-d0']!.data).toBe(dia(-40))
+    expect(por['e5a-d7']!.data).toBe(dia(-33))
+    expect(ehData(por['e5a-aviso-contagem']!.data)).toBe(true)
+    expect(ehData(por['e5a-em-queda']!.data)).toBe(true)
+    expect(por['e5a-aviso-contagem']!.data < por['e5a-em-queda']!.data).toBe(true)
+    expect(l.map(x => x.data)).toEqual([...l.map(x => x.data)].sort())
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E5')
+      expect(x.onde.length, x.id).toBeGreaterThan(20)
+    }
+  })
+  it('data malformada vira a entrada vencida de 1970 que manda corrigir a constante', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '12/10/2026', '']) {
+      const m = conferenciasE5A(ruim)
+      expect(m.map(x => x.id), ruim).toEqual(['e5a-deploy-invalido'])
+      expect(m[0]!.onde).toContain('E5A_DEPLOY')
+      expect(conferenciasVencidas(dia(0), m).map(x => x.id), ruim).toEqual(['e5a-deploy-invalido'])
+      expect(conferenciasEmFalha(dia(0), m).map(x => x.id), ruim).toEqual(['e5a-deploy-invalido'])
+    }
+  })
+  it('o que cada uma manda olhar: D0 com a consulta e o Sentry, D+7 com o gatilho dos 40 canais, aviso e queda', () => {
+    const por = Object.fromEntries(conferenciasE5A(dia(0)).map(x => [x.id, x.onde]))
+    expect(por['e5a-d0']).toMatch(/1440[\s\S]*390[\s\S]*medidas-telas-canais[\s\S]*canais-sem-retrato/)
+    expect(por['e5a-d7']).toMatch(/tempo_esgotado[\s\S]*40/)
+    expect(por['e5a-aviso-contagem']).toMatch(/mudança de contagem/)
+    expect(por['e5a-em-queda']).toMatch(/em queda/)
+  })
+  it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as quatro)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-')).map(x => x.id)
+    if (E5A_DEPLOY === null) expect(publicadas).toEqual([])
+    else {
+      expect(ehData(E5A_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
 
 // A5 E16/E15 (Tarefa 15): as conferências da agenda e da captura horária dependem do dia da promoção a `main` (D0), que o
 // controlador preenche em E16_E15_DEPLOY no commit do envio. Sem a data, a lista NÃO tem as entradas: nada vence e o cron não

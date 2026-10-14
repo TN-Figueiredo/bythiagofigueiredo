@@ -82,8 +82,4 @@ describe('Rank probability math', () => {
   it('pBest sums to ~1', () => {
     expect([0.7, 0.2, 0.1].reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5)
   })
-
-  it('pTop2 >= pBest', () => {
-    expect(0.9).toBeGreaterThanOrEqual(0.7)
-  })
 })

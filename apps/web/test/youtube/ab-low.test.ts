@@ -427,118 +427,57 @@ describe('Mock data integrity', () => {
 // ============================================================================
 
 describe('Dashboard stats edge cases', () => {
-  it('0 active + 0 completed yields all zeros', () => {
+  function concluido(comVencedor: boolean, parent: string | null = null) {
+    const t = makeTestWithVariants({ hasWinner: comVencedor })
+    t.status = 'completed'
+    t.completed_reason = comVencedor ? 'manual_apply' : 'max_duration'
+    t.parent_test_id = parent
+    return t
+  }
+
+  it('0 active + 0 completed: winRate null, contagens zeradas', () => {
     const stats = computeDashboardStats([], [])
     expect(stats.activeTests).toBe(0)
-    expect(stats.avgConfidence).toBe(0)
-    expect(stats.winRate).toBe(0)
-    expect(stats.avgLift).toBe(0)
+    expect(stats.winRate).toBeNull()
     expect(stats.completedTests).toBe(0)
     expect(stats.testsWon).toBe(0)
   })
 
-  it('tests with null confidence_at_completion excluded from avgConfidence', () => {
-    const c1 = makeTestWithVariants({ confidence: 0.95, hasWinner: true })
-    c1.status = 'completed'
-    const c2 = makeTestWithVariants({ hasWinner: true })
-    // c2 has null confidence_at_completion by default
-    c2.status = 'completed'
-    c2.confidence_at_completion = null
-
-    const stats = computeDashboardStats([], [c1, c2])
-    // Only c1's confidence (0.95 * 100 = 95) should be averaged
-    expect(stats.avgConfidence).toBe(95)
+  it('completedTests é o total de concluídos raiz; winRateBase só os que contam (auto_resolve e razão null ficam fora)', () => {
+    const auto = concluido(true); auto.completed_reason = 'auto_resolve'
+    const semRazao = concluido(false); semRazao.completed_reason = null
+    const stats = computeDashboardStats([], [concluido(true), concluido(false), auto, semRazao, concluido(true, 'pai')])
+    expect(stats.completedTests).toBe(4)
+    expect(stats.winRateBase).toBe(2)
+    expect(stats.testsWon).toBe(1)
+    expect(stats.winRate).toBe(50)
   })
 
   it('playoff children excluded from root completed count', () => {
-    const parent = makeTestWithVariants({ hasWinner: true })
-    parent.status = 'completed'
-    parent.parent_test_id = null
-
-    const child = makeTestWithVariants({ hasWinner: true })
-    child.status = 'completed'
-    child.parent_test_id = 'parent-id'
-
-    const stats = computeDashboardStats([], [parent, child])
-    // Only parent should count as root completed
+    const stats = computeDashboardStats([], [concluido(true), concluido(true, 'parent-id')])
     expect(stats.completedTests).toBe(1)
     expect(stats.testsWon).toBe(1)
   })
 
   it('playoff children excluded from winRate calculation', () => {
-    const rootWinner = makeTestWithVariants({ hasWinner: true })
-    rootWinner.status = 'completed'
-    rootWinner.parent_test_id = null
-
-    const rootLoser = makeTestWithVariants({ hasWinner: false })
-    rootLoser.status = 'completed'
-    rootLoser.parent_test_id = null
-
-    const childWinner = makeTestWithVariants({ hasWinner: true })
-    childWinner.status = 'completed'
-    childWinner.parent_test_id = 'some-parent'
-
-    // 1 root winner out of 2 root tests = 50%, child ignored
-    const stats = computeDashboardStats([], [rootWinner, rootLoser, childWinner])
+    const stats = computeDashboardStats([], [concluido(true), concluido(false), concluido(true, 'some-parent')])
     expect(stats.winRate).toBe(50)
     expect(stats.completedTests).toBe(2)
     expect(stats.testsWon).toBe(1)
   })
 
   it('win rate calculation correctness with all winners', () => {
-    const tests = Array.from({ length: 4 }, () => {
-      const t = makeTestWithVariants({ hasWinner: true })
-      t.status = 'completed'
-      t.parent_test_id = null
-      return t
-    })
-    const stats = computeDashboardStats([], tests)
+    const stats = computeDashboardStats([], Array.from({ length: 4 }, () => concluido(true)))
     expect(stats.winRate).toBe(100)
     expect(stats.testsWon).toBe(4)
     expect(stats.completedTests).toBe(4)
   })
 
   it('win rate calculation correctness with no winners', () => {
-    const tests = Array.from({ length: 3 }, () => {
-      const t = makeTestWithVariants({ hasWinner: false })
-      t.status = 'completed'
-      t.parent_test_id = null
-      return t
-    })
-    const stats = computeDashboardStats([], tests)
+    const stats = computeDashboardStats([], Array.from({ length: 3 }, () => concluido(false)))
     expect(stats.winRate).toBe(0)
     expect(stats.testsWon).toBe(0)
     expect(stats.completedTests).toBe(3)
-  })
-
-  it('avgLift calculated only from tests with winners and result_metadata', () => {
-    const t1 = makeTestWithVariants({ hasWinner: true })
-    t1.status = 'completed'
-    t1.parent_test_id = null
-    t1.result_metadata = {
-      ctr_lift_percent: 20,
-      winner_label: 'B',
-      total_impressions: 5000,
-      estimated_monthly_extra_clicks: 100,
-    }
-
-    const t2 = makeTestWithVariants({ hasWinner: true })
-    t2.status = 'completed'
-    t2.parent_test_id = null
-    t2.result_metadata = {
-      ctr_lift_percent: 10,
-      winner_label: 'B',
-      total_impressions: 3000,
-      estimated_monthly_extra_clicks: 50,
-    }
-
-    const t3 = makeTestWithVariants({ hasWinner: false })
-    t3.status = 'completed'
-    t3.parent_test_id = null
-
-    const stats = computeDashboardStats([], [t1, t2, t3])
-    // avgLift: (20 + 10) / 2 = 15
-    expect(stats.avgLift).toBe(15)
   })
 
   it('active tests counted correctly with mixed statuses', () => {
@@ -553,17 +492,6 @@ describe('Dashboard stats edge cases', () => {
     expect(stats.activeTests).toBe(3)
   })
 
-  it('avgConfidence computed from all completed tests with non-null confidence', () => {
-    const tests = [
-      { ...makeTestWithVariants({ confidence: 0.90 }), status: 'completed' as const, parent_test_id: null },
-      { ...makeTestWithVariants({ confidence: 0.80 }), status: 'completed' as const, parent_test_id: null },
-      { ...makeTestWithVariants({ confidence: 0.70 }), status: 'completed' as const, parent_test_id: null },
-    ] as AbTestWithVariants[]
-
-    const stats = computeDashboardStats([], tests)
-    // (90 + 80 + 70) / 3 = 80
-    expect(stats.avgConfidence).toBeCloseTo(80, 1)
-  })
 })
 
 // ============================================================================
@@ -625,6 +553,7 @@ describe('Type safety regression tests', () => {
       winRate: 60,
       avgLift: 12.3,
       completedTests: 10,
+      winRateBase: 10,
       testsWon: 6,
     }
     expect(stats.completedTests).toBe(10)
@@ -648,10 +577,10 @@ describe('Type safety regression tests', () => {
 
     const withOptionals: SuggestedVideo = {
       ...suggested,
-      impressions: '26k',
+      impressions: 26000,
       confidence: 0.82,
     }
-    expect(withOptionals.impressions).toBe('26k')
+    expect(withOptionals.impressions).toBe(26000)
     expect(withOptionals.confidence).toBe(0.82)
   })
 

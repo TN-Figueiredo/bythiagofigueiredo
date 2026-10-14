@@ -31,9 +31,15 @@ describe('outliers parity with dados.js', () => {
     const p = P.outliers({ min: 1.5, includeWeak: true }), o = O.outliers({ min: 1.5, includeWeak: true })
     expect(p.orderedGroups()).toEqual(o.orderedGroups())
   })
-  it.each(['todos', 'viagem', 'ia'])('tabCounts %s', n => { expect(P.tabCounts(n as never)).toEqual(O.tabCounts(n)) })
+  // desvio 12 (E5a T6a): a aba conta só título e miniatura; o oráculo congelado ainda conta descrição junto
+  it.each(['todos', 'viagem', 'ia'])('tabCounts %s', n => {
+    const p = P.tabCounts(n as never), o = O.tabCounts(n)
+    expect({ canais: p.canais, out: p.out }).toEqual({ canais: o.canais, out: o.out })
+    expect(p.mud).toBe(O.changesIn({ days: 30, niche: n }).filter((c: { type: string }) => c.type === 'title' || c.type === 'thumb').length)
+  })
   it('PHASES and TAB_TITLES', () => {
     expect(J(P.PHASES)).toEqual(J(O.PHASES))
-    for (const k of ['canais', 'mud', 'out'] as const) expect(P.TAB_TITLES[k](7)).toBe(O.TAB_TITLES[k](7))
+    for (const k of ['canais', 'out'] as const) expect(P.TAB_TITLES[k](7)).toBe(O.TAB_TITLES[k](7))
+    expect(P.TAB_TITLES.mud(7)).toBe('7 trocas nos últimos 30 dias (título e thumbnail; longos e Shorts; contadas por evento)')
   })
 })

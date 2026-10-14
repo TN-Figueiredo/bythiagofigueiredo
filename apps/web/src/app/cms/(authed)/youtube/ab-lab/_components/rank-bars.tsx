@@ -5,11 +5,10 @@ import { brDec } from '@/lib/youtube/format'
 import { VChip } from './ab-primitives'
 
 export interface RankBarsProps {
-  variants: Array<{ label: DisplayLabel; color: string; pBest: number; pTop2: number }>
-  metric?: 'pBest' | 'pTop2'
+  variants: Array<{ label: DisplayLabel; color: string; pBest: number }>
 }
 
-export function RankBars({ variants, metric = 'pBest' }: RankBarsProps) {
+export function RankBars({ variants }: RankBarsProps) {
   if (variants.length === 0) {
     return (
       <div className="flex items-center justify-center py-6 text-xs text-cms-text-muted">
@@ -18,12 +17,12 @@ export function RankBars({ variants, metric = 'pBest' }: RankBarsProps) {
     )
   }
 
-  const sorted = [...variants].sort((a, b) => b[metric] - a[metric])
+  const sorted = [...variants].sort((a, b) => b.pBest - a.pBest)
 
   return (
     <div className="flex flex-col gap-[11px]">
       {sorted.map(v => {
-        const raw = v[metric]
+        const raw = v.pBest
         const clamped = Math.min(raw, 1)
         const widthPct = clamped * 100
         const widthStyle = widthPct === 0 ? '2px' : `${widthPct}%`

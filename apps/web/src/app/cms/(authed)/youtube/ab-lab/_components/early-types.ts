@@ -2,7 +2,7 @@ import type { DisplayLabel, TestType, AbTestConfig } from '@/lib/youtube/ab-type
 
 /** Checkpoint in the early state progress tracker. */
 export interface EarlyCheckpoint {
-  /** Display label (e.g. "Primeiro ciclo", "Burn-in completo", "Confianca minima"). */
+  /** Display label (e.g. "Primeiro ciclo", "Burn-in completo"). */
   label: string
   /** Whether this checkpoint has been reached. */
   reached: boolean

@@ -202,13 +202,14 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
 
     const funnelData = {
       per_variant: [
-        { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
-        { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
+        { variant_id: 'v1', impressions: null, clicks: null, link_clicks: 7 },
+        { variant_id: 'v2', impressions: null, clicks: null, link_clicks: 20 },
       ],
       per_link: [
         { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
         { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
       ],
+      aviso: 'sem métrica de entrega',
     }
     vi.mocked(getAbTestFunnel).mockResolvedValue({ data: funnelData } as any)
 
@@ -219,13 +220,14 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     expect(pipelineSuccess).toHaveBeenCalledWith(
       {
         per_variant: expect.arrayContaining([
-          { variant_id: 'v1', impressions: 150, clicks: 15, link_clicks: 7 },
-          { variant_id: 'v2', impressions: 200, clicks: 30, link_clicks: 20 },
+          { variant_id: 'v1', impressions: null, clicks: null, link_clicks: 7 },
+          { variant_id: 'v2', impressions: null, clicks: null, link_clicks: 20 },
         ]),
         per_link: expect.arrayContaining([
           { template_name: 'cta', variant_id: 'v1', short_code: 'abc', clicks: 7 },
           { template_name: 'cta', variant_id: 'v2', short_code: 'def', clicks: 20 },
         ]),
+        aviso: 'sem métrica de entrega',
       },
       200,
       { keyId: 'test-key', siteId: 'site-1' },

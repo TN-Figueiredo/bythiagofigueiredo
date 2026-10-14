@@ -1,30 +1,30 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import { formatPercent, formatCompact } from './ab-constants'
+import { formatPercent, formatCompact, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { Trophy } from 'lucide-react'
 
 export interface WinnerBannerProps {
   winnerLabel: DisplayLabel
   winnerColor: string
-  lift: number
-  confidence: number
+  lift: number | null
+  confidence: number | null
   stats: {
     ctrBefore: number
     ctrAfter: number
     totalImpressions: number
     abbaCycles: number
-    monthlyExtraClicks: number
+    monthlyExtraClicks: number | null
   }
 }
 
 export function WinnerBanner({
   winnerLabel,
   lift,
-  confidence,
   stats,
 }: WinnerBannerProps) {
+  const ctrMedido = stats.totalImpressions > 0
   return (
     <div
       data-testid="winner-banner"
@@ -34,7 +34,7 @@ export function WinnerBanner({
         background: 'linear-gradient(120deg, var(--cms-green-soft, rgba(70,177,126,0.13)), var(--cms-surface))',
       }}
     >
-      <div className="grid grid-cols-[auto_1fr_1fr_1fr]" style={{ gap: 1, background: 'var(--cms-border)' }}>
+      <div className="grid" style={{ gap: 1, background: 'var(--cms-border)', gridTemplateColumns: stats.monthlyExtraClicks === null ? 'auto 1fr 1fr' : 'auto 1fr 1fr 1fr' }}>
         {/* Col 1: Trophy + winner VChip + lift */}
         <div className="bg-cms-surface py-[24px] px-[26px] flex flex-col justify-center"
           style={{ background: 'var(--cms-green-subtle)' }}
@@ -45,19 +45,21 @@ export function WinnerBanner({
             data-testid="icon-Trophy"
             aria-hidden="true"
           />
-          <div className="text-[12px] text-cms-text-dim mt-3 mb-1">Vencedor declarado</div>
+          <div className="text-[12px] text-cms-text-dim mt-3 mb-1">Vencedor: {winnerLabel}</div>
           <div className="flex items-center gap-[9px]">
             <VChip label={winnerLabel} size={32} ring />
-            <span
-              className="text-[24px] font-bold font-mono leading-none"
-              style={{ color: lift > 0 ? 'var(--cms-green)' : 'var(--cms-text)' }}
-              data-testid="winner-lift"
-            >
-              {lift > 0 ? '+' : ''}{formatPercent(lift)}
-            </span>
+            {lift !== null && (
+              <span
+                className="text-[24px] font-bold font-mono leading-none"
+                style={{ color: lift > 0 ? 'var(--cms-green)' : 'var(--cms-text)' }}
+                data-testid="winner-lift"
+              >
+                {lift > 0 ? '+' : ''}{formatPercent(lift)}
+              </span>
+            )}
           </div>
-          <div className="text-[11.5px] text-cms-text-muted mt-2">
-            {formatPercent(confidence, 1)} de confianca · aplicado no YouTube
+          <div className="text-[11.5px] text-cms-text mt-2">
+            <span data-testid="winner-chosen">Escolhido por você</span>
           </div>
         </div>
 
@@ -65,11 +67,17 @@ export function WinnerBanner({
         <div className="bg-cms-surface py-[22px] px-[22px]">
           <div className="eyebrow mb-[8px]">CTR</div>
           <div className="text-[24px] font-bold font-mono text-cms-text leading-none tnum">
-            {formatPercent(stats.ctrBefore)}{' '}
-            <span className="text-cms-text-muted">→</span>{' '}
-            {formatPercent(stats.ctrAfter)}
+            {!ctrMedido ? '—' : (
+              <>
+                {formatPercent(stats.ctrBefore)}{' '}
+                <span className="text-cms-text-muted">→</span>{' '}
+                {formatPercent(stats.ctrAfter)}
+              </>
+            )}
           </div>
-          <div className="text-[11px] text-cms-text-muted mt-2">original → vencedor</div>
+          {!ctrMedido
+            ? <div className="text-[11px] text-cms-text mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>
+            : <div className="text-[11px] text-cms-text-muted mt-2">original → vencedor</div>}
         </div>
 
         {/* Col 3: Impressoes */}
@@ -81,7 +89,8 @@ export function WinnerBanner({
           <div className="text-[11px] text-cms-text-muted mt-2">{stats.abbaCycles} {stats.abbaCycles === 1 ? 'ciclo' : 'ciclos'} ABBA</div>
         </div>
 
-        {/* Col 4: Ganho estimado */}
+        {/* Col 4: Ganho estimado (escondido sem medição) */}
+        {stats.monthlyExtraClicks !== null && (
         <div className="bg-cms-surface py-[22px] px-[22px]">
           <div className="eyebrow mb-[8px]">Ganho estimado</div>
           {stats.monthlyExtraClicks > 0 ? (
@@ -98,6 +107,7 @@ export function WinnerBanner({
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   )

@@ -95,8 +95,8 @@ export function EarlyVariantTable({ variants, videoTitle }: EarlyVariantTablePro
             </div>
 
             {/* CTR placeholder */}
-            <span className="font-mono text-[19px] font-bold text-right text-cms-text-dim">
-              --
+            <span className="font-mono text-[19px] font-bold text-right text-cms-text-muted">
+              —
             </span>
 
             {/* Status pill */}
@@ -109,7 +109,7 @@ export function EarlyVariantTable({ variants, videoTitle }: EarlyVariantTablePro
                 }}
               >
                 <span className="size-1.5 rounded-full bg-current early-pulse" />
-                coletando
+                em rotação
               </span>
             </div>
 
@@ -122,11 +122,6 @@ export function EarlyVariantTable({ variants, videoTitle }: EarlyVariantTablePro
           </div>
         </div>
       ))}
-
-      {/* Footer hint */}
-      <div className="py-[9px] px-[16px] border-t border-cms-border text-[10.5px] text-cms-text-muted">
-        Dados de CTR e chance de vencer aparecem apos o primeiro ciclo ABBA.
-      </div>
     </div>
   )
 }

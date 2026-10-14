@@ -2,6 +2,10 @@ import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 export type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 
+export const SEM_MEDICAO_DE_ENTREGA = 'CTR ainda não medido. Você decide o vencedor.'
+/** Versão curta para cartões e linhas pequenas. */
+export const SEM_MEDICAO_CURTA = 'CTR não medido'
+
 export const VARIANT_COLORS = {
   A: '#8A8F98',
   B: '#E8823C',
@@ -39,6 +43,26 @@ export function formatNumber(n: number | null | undefined): string {
 export function formatPercent(n: number | null | undefined, decimals = 1): string {
   if (n == null || Number.isNaN(n)) return DASH
   return `${brDec(n, decimals)}%`
+}
+
+/** CTR de uma variante: sem impressões medidas (0/null) é "—", nunca "0,0%". */
+export function formatCtr(ctr: number | null | undefined, impressions: number | null | undefined, decimals = 1): string {
+  if (!impressions || impressions <= 0 || ctr == null || Number.isNaN(ctr)) return DASH
+  return `${brDec(ctr * 100, decimals)}%`
+}
+
+/** true quando nenhuma variante tem impressões medidas. */
+type CtrMedida = { label?: string; ctr: number; impressions?: number | null }
+
+/** Diferença de CTR de `variant` contra A, em pontos percentuais relativos; null quando não há base medida. */
+export function liftVsA(variantA: CtrMedida | null | undefined, variant: CtrMedida | null | undefined): number | null {
+  if (!variantA || !variant || variant.label === 'A') return null
+  if (!(variantA.ctr > 0) || !variantA.impressions || !variant.impressions) return null
+  return ((variant.ctr - variantA.ctr) / variantA.ctr) * 100
+}
+
+export function semImpressoes(variants: ReadonlyArray<{ impressions?: number | null }>): boolean {
+  return variants.every(v => !v.impressions || v.impressions <= 0)
 }
 
 export function formatDate(d: string | Date | null | undefined): string {

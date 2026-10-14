@@ -27,7 +27,7 @@ export function EarlyBand({ dayOf, totalDays }: EarlyBandProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-[6px]">
           <span className="text-[13px] font-semibold text-cms-text">
-            Coletando dados iniciais
+            Teste começou
           </span>
           <span className="mono text-[12px] text-cms-text-dim">
             Dia {dayOf} de {totalDays}

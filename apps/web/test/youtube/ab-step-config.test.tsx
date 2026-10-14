@@ -20,10 +20,8 @@ vi.mock('lucide-react', () => {
 const defaultConfig: WizardConfig = {
   confidence: 95,
   duration: 14,
-  autoApply: true,
   burnIn: 1,
   rotation: 'abba' as const,
-  playoff: true,
 }
 
 function renderConfig(overrides?: Partial<WizardConfig>) {
@@ -34,14 +32,21 @@ function renderConfig(overrides?: Partial<WizardConfig>) {
 }
 
 describe('StepConfig', () => {
-  it('renders all 6 config rows with Portuguese labels', () => {
+  it('renders the 3 config rows with Portuguese labels', () => {
     renderConfig()
     expect(screen.getByText('Duração máxima')).toBeDefined()
-    expect(screen.getByText('Confiança alvo')).toBeDefined()
-    expect(screen.getByText('Aplicar vencedor automaticamente')).toBeDefined()
     expect(screen.getByText('Burn-in')).toBeDefined()
     expect(screen.getByText('Padrão de rotação')).toBeDefined()
-    expect(screen.getByText('Playoff automático')).toBeDefined()
+  })
+
+  it('não oferece mais as configurações sem efeito (A/B Lab P2)', () => {
+    renderConfig()
+    expect(screen.queryByText('Confiança alvo')).toBeNull()
+    expect(screen.queryByText('Aplicar vencedor automaticamente')).toBeNull()
+    expect(screen.queryByText('Playoff automático')).toBeNull()
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+    // sobram só duração e burn-in
+    expect(screen.getAllByRole('slider')).toHaveLength(2)
   })
 
   it('renders estimate card with title, subtitle, and stats', () => {
@@ -60,15 +65,16 @@ describe('StepConfig', () => {
     expect(screen.getByText('14')).toBeDefined()
   })
 
-  it('estimate adjusts for lower confidence (factor 0.8)', () => {
+  it('estimativa é a duração máxima, não depende da confiança salva (90 + 14 dias = ~14)', () => {
     renderConfig({ confidence: 90, duration: 14 })
-    // estDays = Math.round(14 * 0.8) = 11
-    expect(screen.getByText('~11 dias')).toBeDefined()
+    expect(screen.getByText('~14 dias')).toBeDefined()
+    expect(screen.queryByText('~11 dias')).toBeNull()
   })
 
-  it('estimate card shows 6 gates footer note', () => {
-    renderConfig()
-    expect(screen.getByText(/6 gates precisam passar/)).toBeDefined()
+  it('rodapé não fala de gates nem de confiança (a avaliação automática saiu)', () => {
+    const { container } = renderConfig()
+    expect(container.textContent).not.toMatch(/gates/i)
+    expect(container.textContent).not.toMatch(/estabilidade/i)
   })
 
   it('duration slider has min=7 max=28', () => {
@@ -79,18 +85,10 @@ describe('StepConfig', () => {
     expect(durationSlider.getAttribute('max')).toBe('28')
   })
 
-  it('confidence slider has min=80 max=99', () => {
-    renderConfig()
-    const sliders = screen.getAllByRole('slider')
-    const confidenceSlider = sliders[1]!
-    expect(confidenceSlider.getAttribute('min')).toBe('80')
-    expect(confidenceSlider.getAttribute('max')).toBe('99')
-  })
-
   it('burn-in slider has min=0 max=3', () => {
     renderConfig()
     const sliders = screen.getAllByRole('slider')
-    const burnInSlider = sliders[2]!
+    const burnInSlider = sliders[1]!
     expect(burnInSlider.getAttribute('min')).toBe('0')
     expect(burnInSlider.getAttribute('max')).toBe('3')
   })
@@ -106,14 +104,8 @@ describe('StepConfig', () => {
     expect(screen.getByText('Aleatório')).toBeDefined()
   })
 
-  it('renders two 42x24px toggles for auto-apply and playoff', () => {
+  it('não renderiza nenhum toggle (os de aplicar vencedor e playoff saíram)', () => {
     renderConfig()
-    const switches = screen.getAllByRole('switch')
-    expect(switches).toHaveLength(2)
-    // Both should be 42x24 via inline style
-    for (const sw of switches) {
-      expect(sw.style.width).toBe('42px')
-      expect(sw.style.height).toBe('24px')
-    }
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
   })
 })

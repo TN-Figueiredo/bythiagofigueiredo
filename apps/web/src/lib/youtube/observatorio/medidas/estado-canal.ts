@@ -14,9 +14,9 @@ export function estadoDoCanal(e: {
   hojeSP: string
   agoraMs: number
   collectionPausedAt: string | null
-}): { estado: EstadoDoCanal; parado: Medida<{ dias: number; limite: number }>; queda: Medida<{ janelas: number[] }> } {
+}): { estado: EstadoDoCanal; parado: Medida<{ dias: number; limite: number; ultimaEm: number }>; queda: Medida<{ janelas: number[] }> } {
   const pausado = e.collectionPausedAt !== null
-  let parado: Medida<{ dias: number; limite: number }>
+  let parado: Medida<{ dias: number; limite: number; ultimaEm: number }>
   let queda: Medida<{ janelas: number[] }>
   if (pausado) {
     // Coleta parada de propósito: a falta de dado não diz nada sobre o canal.
@@ -27,7 +27,7 @@ export function estadoDoCanal(e: {
     else {
       const dias = Math.max(0, Math.floor((e.agoraMs - e.ultimaPublicacaoMs) / DAY))
       const limite = Math.max(MEASURE_RULES.stalled.floorDays, e.intervaloMedianoDias === null ? 0 : MEASURE_RULES.stalled.factor * e.intervaloMedianoDias)
-      parado = medido({ dias, limite }, 1, { de: null, ate: null, dias })
+      parado = medido({ dias, limite, ultimaEm: e.ultimaPublicacaoMs }, 1, { de: null, ate: null, dias })
     }
     const v = variacoesDoCanal(e.retratos, e.hojeSP, MEASURE_RULES.decline.windows)
     queda = v.estado === 'medido' ? medido({ janelas: v.valor.variacoes }, v.n, v.janela, v.notas) : v
