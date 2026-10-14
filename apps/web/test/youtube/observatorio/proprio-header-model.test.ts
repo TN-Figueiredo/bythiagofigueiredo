@@ -331,10 +331,10 @@ describe('A4.6 cabeçalho próprio: views por dia, retenção e inscritos em 30 
     medida(por(build(comDados({ diario })).todos, 'vpdVideo'), '0')
   })
 
-  it('retenção (curva): "a curva ainda não é coletada" (13.3); inscritos em 30 dias: "sem contagem de 30 dias atrás" (D12 b, D17)', () => {
+  it('retenção (curva): "a curva fica na página de cada vídeo" (13.3; A5 E8 T13); inscritos em 30 dias: "sem contagem de 30 dias atrás" (D12 b, D17)', () => {
     const h = build(BASE)
     const r = por(h.todos, 'retencao')
-    naoMedida(r, 'a curva ainda não é coletada')
+    naoMedida(r, 'a curva fica na página de cada vídeo')
     expect(r.base).toContain('chega com a coleta de retenção')
     naoMedida(por(h.todos, 'inscritos30'), 'sem contagem de 30 dias atrás')
     expect(por(h.todos, 'inscritos30').base).toContain('precisa de duas contagens de inscritos com 30 dias entre elas')

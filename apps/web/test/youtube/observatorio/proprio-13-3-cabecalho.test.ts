@@ -94,9 +94,9 @@ describe('13.3 faixa 2 (todos os números)', () => {
   it('views por dia por vídeo: a segunda linha diz a base', () => {
     expect((cel(build(mundo(12)), 'vpdVideo') as { sub: string | null }).sub).toBe('mediana dos longos, 28 dias')
   })
-  it('retenção (curva): sem valor, "a curva ainda não é coletada", e a frase fica dentro da célula (não vira a frase de baixo)', () => {
+  it('retenção (curva): sem valor, "a curva fica na página de cada vídeo", e a frase fica dentro da célula (não vira a frase de baixo)', () => {
     const h = build(mundo(12)); const c = cel(h, 'retencao') as { label: string; value: string | null; sub: string | null; missing: string | null }
-    expect(c).toMatchObject({ label: 'retenção (curva)', value: null, missing: 'a curva ainda não é coletada', sub: 'a curva ainda não é coletada' })
+    expect(c).toMatchObject({ label: 'retenção (curva)', value: null, missing: 'a curva fica na página de cada vídeo', sub: 'a curva fica na página de cada vídeo' })
     expect(h.todosMotivo ?? '').not.toContain('curva')
   })
 })
