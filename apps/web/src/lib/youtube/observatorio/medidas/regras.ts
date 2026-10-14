@@ -9,7 +9,7 @@ export const MEASURE_RULES = {
   maxGapHours: 36,
   maxGapHoursDay1: 8,
   weeklyGapHours: 192,
-  /** Folga depois do limite antes de um motivo virar definitivo; é o mesmo `interval '1 hour'` de `competitor_marks_apply`. */
+  /** Folga depois do limite antes de um motivo virar definitivo; é a mesma folga de 1 hora da função de gravação de marcas (MG4). */
   lateReadingHours: 1,
   batch: 1500,
   discoveredLateHours: 24,

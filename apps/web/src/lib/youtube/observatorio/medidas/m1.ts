@@ -89,7 +89,7 @@ export interface PendenteDeMarca {
   commentsDisabled: boolean | null
   primeiraLeituraAt: number | null
   ultimaLeituraAt: number | null
-  /** `gap_crossed_pause` de `competitor_marks_pending`: o buraco cruza uma pausa de coleta feita de propósito. */
+  /** campo `gap_crossed_pause` da leitura pendente de marcas (MG4): o buraco cruza uma pausa de coleta feita de propósito. */
   cruzouPausa: boolean
   leituras: Leitura[]
 }
