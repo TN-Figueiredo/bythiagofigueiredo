@@ -9,6 +9,7 @@
 // insert/upsert em lote de chaves heterogêneas: a chave ausente numa linha vira null nela (defaultToNull do supabase-js);
 // ordenação padrão do Postgres (NULLs por último no asc, primeiro no desc); neq exclui nulos.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { ehKind } from '@/lib/youtube/coleta/kinds'
 import { comDailyApply } from './fake-daily-apply'
 
@@ -404,5 +405,24 @@ export function comE11Padrao(db: FakeDb): FakeDb {
   }
   db.rpcHandlers.yt_own_traffic_detail_apply = normalizar
   db.rpcHandlers.yt_own_reach_dim_apply = normalizar
+  return db
+}
+
+/**
+ * A5 E6 (Tarefa 11b): uma linha de cobertura `base` EM DIA por vídeo (do dia da publicação, no Pacífico, até `hoje`). Com o critério de
+ * cobertura no cron, a tabela vazia e um vídeo antigo é, corretamente, "todos atrasados, vermelho": o teste que tem vídeo antigo e
+ * afirma `falhas` vazia semeia a cobertura. Opt-in, como `comReachApply` e `comE11Padrao`. `hoje` é o dia do Pacífico ('AAAA-MM-DD');
+ * vídeo sem data de publicação cobre só `hoje` (o começo nunca é inventado). Lista vazia não semeia nada.
+ */
+export function semearCobertura(db: FakeDb, videos: readonly Row[], hoje: string): FakeDb {
+  if (videos.length === 0) return db
+  const t = (db.tables.yt_own_video_coverage ??= [])
+  for (const v of videos) {
+    const pub = typeof v.published_at === 'string' && !Number.isNaN(Date.parse(v.published_at)) ? dayPt(new Date(v.published_at)) : hoje
+    t.push({
+      youtube_video_id: v.youtube_video_id, metric_set: 'base', covered_from: pub < hoje ? pub : hoje, covered_to: hoje,
+      site_id: v.site_id, channel_id: v.channel_id, video_id: v.id ?? null, source: 'analytics_api', collected_at: new Date().toISOString(),
+    })
+  }
   return db
 }
