@@ -129,21 +129,27 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('Sinal ao vivo')).toBeDefined()
   })
 
-  it('VariantTable is rendered with metric=pBest column header', () => {
+  it('VariantTable do teste ativo ordena por CTR, sem a coluna de chance de vencer', () => {
     render(<ActiveDetail view={makeActiveView()} />)
-    // pBest column header shows "chance de vencer"
-    expect(screen.getByText('chance de vencer')).toBeDefined()
+    expect(screen.getByText('ordenado por CTR')).toBeDefined()
   })
 
-  it('GatesPanel shows all 6 gate values', () => {
+  it('não mostra o painel de critérios nem "N / 3 consecutive"; a frase fixa ocupa o lugar', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    // GatesPanel renders each gate.value as a font-mono span
-    const gateValues = ['10,000 min', '10 / 7 days', '16 / 14 cycles', '14 eligible', '2 / 3 consecutive']
-    for (const v of gateValues) {
-      expect(screen.getByText(v)).toBeDefined()
-    }
-    // Also verify the panel header badge shows correct count
-    expect(container.textContent).toContain('5/6 ok')
+    expect(screen.queryAllByText(/\d+ ?\/ ?3/)).toHaveLength(0)
+    expect(screen.queryAllByText(/consecutive/i)).toHaveLength(0)
+    expect(screen.queryAllByText(/10,000 min/)).toHaveLength(0)
+    expect(container.textContent).not.toContain('5/6 ok')
+    expect(screen.queryAllByText(/Critérios de resolução automática/i)).toHaveLength(0)
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+  })
+
+  it('não mostra o bloco "Chance de vencer" (probabilidade sobre views)', () => {
+    render(<ActiveDetail view={makeActiveView()} />)
+    expect(screen.queryAllByText('Chance de vencer')).toHaveLength(0)
+    expect(screen.queryAllByText(/ordenado por chance de vencer/i)).toHaveLength(0)
+    expect(screen.queryAllByText(/^(30|70)%$/)).toHaveLength(0)
+    expect(screen.queryAllByText(/10 mil simulações/)).toHaveLength(0)
   })
 
   it('ConfidenceChart receives confTrend data (renders svg)', () => {

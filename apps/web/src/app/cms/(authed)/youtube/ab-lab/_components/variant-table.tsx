@@ -15,11 +15,13 @@ export interface VariantTableProps {
   finalists?: DisplayLabel[]
   thumbs: VariantThumb[]
   videoTitle?: string
+  /** Teste ativo: sem a coluna de probabilidade de ser a melhor (calculada sobre views); ordena por CTR. */
+  semChance?: boolean
 }
 
-export function VariantTable({ variants, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle }: VariantTableProps) {
+export function VariantTable({ variants, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle, semChance }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
-  const sorted = [...variants].sort((a, b) => b.pBest - a.pBest)
+  const sorted = [...variants].sort((a, b) => (semChance ? b.ctr - a.ctr : b.pBest - a.pBest))
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
   const toggle = useCallback((label: string) => {
@@ -42,7 +44,7 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
       <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
         <BarChart3 size={15} className="text-cms-text-dim" aria-hidden="true" />
         <span className="text-[13px] font-semibold text-cms-text">Placar das variantes</span>
-        <span className="text-[11.5px] text-cms-text-dim ml-auto">ordenado por chance de vencer</span>
+        <span className="text-[11.5px] text-cms-text-dim ml-auto">{semChance ? 'ordenado por CTR' : 'ordenado por chance de vencer'}</span>
       </div>
 
       {/* vtable */}
@@ -58,7 +60,9 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
           </span>
           <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 56, flexShrink: 0 }}>CTR</span>
           <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 44, flexShrink: 0 }}>vs A</span>
-          <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 90, flexShrink: 0 }}>Chance de vencer</span>
+          {!semChance && (
+            <span role="columnheader" className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] text-right" style={{ width: 90, flexShrink: 0 }}>Chance de vencer</span>
+          )}
           <span role="columnheader" style={{ width: 20, flexShrink: 0 }} />
         </div>
 
@@ -158,9 +162,11 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
                   </span>
 
                   {/* Chance */}
-                  <span className="font-mono text-[14px] font-bold text-right tabular-nums text-cms-text" style={{ width: 90, flexShrink: 0 }}>
-                    {brDec(chance * 100, 0)}%
-                  </span>
+                  {!semChance && (
+                    <span className="font-mono text-[14px] font-bold text-right tabular-nums text-cms-text" style={{ width: 90, flexShrink: 0 }}>
+                      {brDec(chance * 100, 0)}%
+                    </span>
+                  )}
 
                   {/* Chevron */}
                   <span style={{ width: 20, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>

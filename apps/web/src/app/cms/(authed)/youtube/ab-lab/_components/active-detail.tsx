@@ -11,12 +11,10 @@ import { HeroBand } from './hero-band'
 import { VariantTable } from './variant-table'
 import { ConfidenceChart } from './confidence-chart'
 import { CredibleInterval } from './credible-interval'
-import { RankBars } from './rank-bars'
 import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
-import { GatesPanel } from './gates-panel'
 import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
@@ -26,7 +24,7 @@ import { AbEndTestDialog } from './ab-end-test-dialog'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   Pause, Square, Settings,
-  TrendingUp, BarChart3, RefreshCw, Filter, Zap,
+  TrendingUp, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
 export interface ActiveDetailProps {
@@ -282,6 +280,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           activeNow={view.activeNow ?? undefined}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
+          semChance
         />
       </section>
 
@@ -307,8 +306,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         </div>
       </section>
 
-      {/* ── Section 7: Faixa provável de CTR + Chance de vencer (2 cards) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">
+      {/* ── Section 7: Faixa provável de CTR ── */}
+      <div className="mb-[24px]">
         {/* Faixa provável de CTR */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -318,18 +317,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           </div>
           <div className="px-[16px] py-[14px]">
             <CredibleInterval variants={view.variants} leader={data.leader} />
-          </div>
-        </div>
-
-        {/* Chance de vencer */}
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
-          <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-            <BarChart3 size={15} className="text-cms-text-dim" aria-hidden="true" />
-            <span className="text-[13px] font-semibold text-cms-text">Chance de vencer</span>
-            <span className="text-[11.5px] text-cms-text-dim ml-auto">P(melhor) · 10 mil simulações</span>
-          </div>
-          <div className="px-[16px] py-[14px]">
-            <RankBars variants={view.variants} />
           </div>
         </div>
       </div>
@@ -388,11 +375,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             })()}
           </div>
         </div>
-      </div>
-
-      {/* ── Section 10: Critérios de resolução automática ── */}
-      <div className="mb-[24px]">
-        <GatesPanel gates={view.gates} />
       </div>
 
       {/* ── Section 11: O momento de clique ── */}
