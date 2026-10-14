@@ -18,8 +18,11 @@ export interface ResultadoDaPoda { registroTotal: number; registroApagadas: numb
 export type MotivoDaPoda = 'schema_ausente' | 'banco_falhou' | 'contagem_ausente' | 'sem_tempo_para_terminar' | 'atraso_restante'
 
 export type FeitoDaPoda = Partial<ResultadoDaPoda> & {
-  /** `atraso_restante`: a partir deste instante (ISO) ainda pode haver linha vencida; tudo o que era mais antigo já saiu. */
-  maisAntigaQueFicou?: string
+  /**
+   * `atraso_restante`: LIMITE INFERIOR (ISO), não a data de uma linha. Tudo o que era mais antigo que este instante já saiu; dele em diante
+   * ainda PODE haver linha vencida (pode não haver: se só sobraram linhas recentes, a execução seguinte devolve `ok`).
+   */
+  limpoAte?: string
 }
 
 export type ResultadoDaExecucao = { ok: true; r: ResultadoDaPoda } | { ok: false; motivo: MotivoDaPoda; feito: FeitoDaPoda }
@@ -119,7 +122,7 @@ export async function podarAcessoIa(sb: SupabaseClient, agora: number, sobraMs: 
   if (taxa.estado === 'sem_tempo') return { ok: false, motivo: 'sem_tempo_para_terminar', feito }
 
   const desde = [reg.restanteDesde, taxa.restanteDesde].filter((x): x is string => x !== undefined).sort()[0]
-  if (desde !== undefined) return { ok: false, motivo: 'atraso_restante', feito: { ...feito, maisAntigaQueFicou: desde } }
+  if (desde !== undefined) return { ok: false, motivo: 'atraso_restante', feito: { ...feito, limpoAte: desde } }
 
   return { ok: true, r: { registroTotal: reg.total, registroApagadas: reg.apagadas, taxaTotal: taxa.total, taxaApagadas: taxa.apagadas } }
 }

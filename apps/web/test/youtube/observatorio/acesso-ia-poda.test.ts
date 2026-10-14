@@ -168,7 +168,7 @@ describe('podarAcessoIa: a fatia converge quando a tarefa ficou parada', () => {
     if (r1.ok) return
     expect(r1.motivo).toBe('atraso_restante')
     expect(r1.feito.registroApagadas).toBe(30)
-    expect(r1.feito.maisAntigaQueFicou).toBe(diasAtras(470))
+    expect(r1.feito.limpoAte).toBe(diasAtras(470))
     expect(b.registro).toHaveLength(70)
     expect((await podar(b)).ok).toBe(false)
     expect((await podar(b)).ok).toBe(false)
