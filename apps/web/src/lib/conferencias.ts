@@ -141,6 +141,62 @@ export function conferenciasE6P3(aplicada: string | null): Conferencia[] {
   ]
 }
 
+// A5 E6 P4 e E18 parte 2 (plano 2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final, seção 7): três marcos, cada um com a sua constante, todas
+// `null` até o controlador preenchê-las no commit do dia (Tarefas 13, 14 e 15). Enquanto for `null`, as entradas NÃO existem (nada vence,
+// nada deixa o cron vermelho). Os ids não colidem com os de `e6-p3-` nem com `e8-`.
+/** Dia de São Paulo (AAAA-MM-DD) em que o código da cobertura de metadados foi promovido a `main` (a MG17a já estava aplicada). `null` = ainda não. */
+export const E18P2_COBERTURA_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG16 (soltar o backup do diário). `null` = ainda não aplicada. */
+export const E6_P4_APLICADA: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG17 (a dieta de yt_own_video_meta_daily). `null` = ainda não aplicada. */
+export const E18P2_APLICADA: string | null = null
+
+const PLANO_P4 = 'docs/superpowers/plans/2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final-plan.md'
+
+/** As conferências da cobertura de metadados a partir do dia do código (D). `null` = sem entradas; data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasE18P2Cobertura(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e18p2-cob-deploy-invalido', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18P2_COBERTURA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção do código a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18p2-cob-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: VA1 a VA4 no ledger; `resumo.metadados.cobertura` da primeira execução com `ok` = `canais` e `descobertas` 0'),
+    e('d1', 1, 'D + 1: segunda execução igual; `ms_passos.metadados` sem salto (anotar); `resumo.versoes.cobertos_sem_linha` 0'),
+    e('d7', 7, 'D + 7: CP13 em 0; K1 em 0; nenhuma nota `metadados:` nova'),
+    e('d14', 14, 'D + 14: CP14: é o gatilho do portão D (junto do D + 14 do plano E18)'),
+  ]
+}
+
+/** As conferências de depois de soltar o backup do diário (MG16), a partir do dia da aplicação (D). */
+export function conferenciasE6P4(aplicada: string | null): Conferencia[] {
+  if (aplicada === null) return []
+  if (!dataReal(aplicada)) {
+    return [{ id: 'e6-p4-aplicada-invalida', etapa: 'E6', data: '1970-01-01', responsavel: 'agente', onde: `E6_P4_APLICADA (apps/web/src/lib/conferencias.ts) está malformada: "${aplicada}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono aplicou a MG16) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e6-p4-${id}`, etapa: 'E6', data: somaDias(aplicada, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e6-p4/progress.md: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: AP e VP1 a VP4 no ledger; o CSV do backup com `sha256`'),
+    e('d1', 1, 'D + 1: o cron rodou sem nota do diário; V6 do plano P3 (K4, K5, K8)'),
+    e('d7', 7, 'D + 7: diário menor que 2 MB; o teste do item 191 verde na CI'),
+  ]
+}
+
+/** As conferências de depois da dieta de metadados (MG17), a partir do dia da aplicação (D). */
+export function conferenciasE18P2(aplicada: string | null): Conferencia[] {
+  if (aplicada === null) return []
+  if (!dataReal(aplicada)) {
+    return [{ id: 'e18p2-aplicada-invalida', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18P2_APLICADA (apps/web/src/lib/conferencias.ts) está malformada: "${aplicada}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono aplicou a MG17) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18p2-${id}`, etapa: 'E18', data: somaDias(aplicada, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: AD e VD1 a VD8; os dois retratos; `sha256` do CSV; tamanho antes e depois (item 202)'),
+    e('d1', 1, 'D + 1: `cobertura.compactacao.feita` = canais; `compactadas` perto do número de vídeos; `sem_explicacao` 0; K2 do plano E18 em 0; `versoes.confirmadas` igual à de D − 1'),
+    e('d7', 7, 'D + 7: linhas e tamanho (K4): crescimento perto de zero; K5 (a prova da leitura horária) sem vídeo "sem captura há 3 dias" que não existisse antes'),
+    e('d30', 30, 'D + 30: K4 de novo; K6: dias de teste A/B guardados, se houve teste'),
+  ]
+}
+
 // E14 (comentários de destaque dos vídeos de concorrentes): as datas dependem do dia da promoção a `main` (D), que ainda não existe.
 // O controlador preenche `E14_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as quatro entradas
 // NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E14` (o formato `E<n>` do guardião).
@@ -255,7 +311,7 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
 }
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
