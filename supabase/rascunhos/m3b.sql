@@ -1422,3 +1422,492 @@ begin
 end $$;
 revoke all on function public.obs_archive_attest_nas(uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.obs_archive_attest_nas(uuid, jsonb) to service_role;
+
+
+-- M3B PARTE 4: a conferência do B2 pela forja (02 §10.9)
+
+-- Desvio de 14/10 (ledger): onde guardar os vermelhos b2_ilegivel:<arquivo_id> e "B2 recusou o fileId em 3 execuções seguidas".
+alter table public.obs_archive_b2_files add column if not exists ilegivel_at timestamptz;
+alter table public.obs_archive_b2_runs add column if not exists file_id_recusado boolean not null default false;
+
+create or replace function public.obs_archive_agora() returns timestamptz language sql stable set search_path = '' as $$
+  select coalesce(nullif(current_setting('obs_archive.agora', true), '')::timestamptz, now())
+$$;
+revoke all on function public.obs_archive_agora() from public, anon, authenticated, service_role;   -- Yannis M6; gancho de teste declarado
+
+-- CP24 (lida em 14/10 em backblaze.com/cloud-storage/pricing): "free egress up to 3x their average monthly storage", média em byte-horas do ciclo
+-- de cobrança. A página não diz se é por conta ou por bucket: tratado como CONTA (o caso conservador). O valor é 3 x 814,8 GB (a guarda média
+-- projetada do P59); a média real da conta só sobe com os outros buckets, então o número só erra para menos (mais cedo no teto, nunca depois).
+create or replace function public.obs_archive_b2_franquia_mes() returns bigint language sql immutable set search_path = '' as $$
+  select 2444400000000::bigint
+$$;
+revoke all on function public.obs_archive_b2_franquia_mes() from public, anon, authenticated;
+grant execute on function public.obs_archive_b2_franquia_mes() to service_role;
+
+-- O piso de bytes lidos por dia (P59): 2 x a soma de file_bytes do registro (unidades, resumos e anexos), recalculado a cada plano; vazio: 1 MiB.
+create or replace function public.obs_archive_b2_teto_dia(p_site uuid) returns bigint language sql stable security definer set search_path = '' as $$
+  select greatest(2 * (
+    (select coalesce(sum(u.file_bytes), 0) from public.obs_archive_units u where u.site_id = p_site)
+  + (select coalesce(sum(coalesce(s.canal_bytes, 0) + coalesce(s.video_bytes, 0) + coalesce(s.ficha_bytes, 0)), 0) from public.obs_archive_summaries s where s.site_id = p_site)
+  + (select coalesce(sum(a.file_bytes), 0) from public.obs_archive_unit_attachments a where a.site_id = p_site)), 1048576)::bigint
+$$;
+revoke all on function public.obs_archive_b2_teto_dia(uuid) from public, anon, authenticated, service_role;
+
+-- O filho de um arquivo pela classe do registro (u, p, s, a: a linha; m: a classe no id). Nulo = desconhecido.
+create or replace function public.obs_archive_filho_do_arquivo(p_site uuid, p_id text) returns text
+language sql stable security definer set search_path = '' as $$
+  select p.filho from public.obs_archive_policy() p
+   where p.class = coalesce(
+     (select u.class from public.obs_archive_units u where u.site_id = p_site and p_id ~ '^[up]:' and u.id::text = split_part(p_id, ':', 2)),
+     (select s.class from public.obs_archive_summaries s where s.site_id = p_site and p_id ~ '^s:' and s.id::text = split_part(p_id, ':', 2)),
+     (select 'video_antigo' where p_id ~ '^a:'),
+     (select split_part(p_id, ':', 2) where p_id ~ '^m:'))
+   limit 1
+$$;
+revoke all on function public.obs_archive_filho_do_arquivo(uuid, text) from public, anon, authenticated, service_role;
+
+-- O que o registro espera de um arquivo (para comparar o informe do B2) e onde ele mora (classe e mês).
+create or replace function public.obs_archive_b2_file_info(p_site uuid, p_id text)
+returns table (class text, month date, exp_sha text, exp_rows bigint, exp_soma numeric, cmp_soma boolean, received_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select u.class, u.month, u.sha256_bytes, u.row_count, u.control_sum, true, u.received_at
+    from public.obs_archive_units u where u.site_id = p_site and p_id ~ '^u:' and u.id::text = split_part(p_id, ':', 2)
+  union all
+  select u.class, u.month, pt.sha256_bytes, pt.row_count, pt.control_sum, false, pt.received_at
+    from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id
+   where u.site_id = p_site and p_id ~ '^p:[0-9a-f-]{36}:[0-9]{2}$' and u.id::text = split_part(p_id, ':', 2)
+     and pt.part = case when p_id ~ '^p:[0-9a-f-]{36}:[0-9]{2}$' then split_part(p_id, ':', 3)::smallint end
+  union all
+  select s.class, s.month,
+         case split_part(p_id, ':', 3) when 'canal' then s.canal_sha256 when 'video' then s.video_sha256 else s.ficha_sha256 end,
+         case split_part(p_id, ':', 3) when 'canal' then s.canal_rows when 'video' then s.video_rows else s.ficha_rows end,
+         null::numeric, false, s.received_at
+    from public.obs_archive_summaries s where s.site_id = p_site and p_id ~ '^s:[0-9a-f-]{36}:(canal|video|ficha)$' and s.id::text = split_part(p_id, ':', 2)
+  union all
+  select m.class, m.month, case split_part(p_id, ':', 5) when 'json' then m.manifest_sha256 else m.manifest_list_sha256 end, null::bigint, null::numeric, false, m.manifest_received_at
+    from public.obs_archive_months m
+   where m.site_id = p_site and p_id ~ '^m:[a-z_]+:20[0-9]{2}-[0-9]{2}:v[0-9]+:(json|sha256)$' and m.class = split_part(p_id, ':', 2)
+     and to_char(m.month, 'YYYY-MM') = split_part(p_id, ':', 3) and 'v' || m.manifest_version = split_part(p_id, ':', 4)
+$$;
+revoke all on function public.obs_archive_b2_file_info(uuid, text) from public, anon, authenticated, service_role;
+
+-- B2 exigido a todo o mês: há mês que saiu do banco com a atestação do B2 de mais de 7 dias (ou nunca)? Então o plano devolve tudo (pede o pode-desligar).
+create or replace function public.obs_archive_b2_pede_completo(p_site uuid) returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.obs_archive_months m
+                  where m.site_id = p_site and (m.detached_at is not null or m.dropped_at is not null)
+                    and coalesce(m.b2_attested_at, '-infinity'::timestamptz) < public.obs_archive_agora() - interval '7 days')
+$$;
+revoke all on function public.obs_archive_b2_pede_completo(uuid) from public, anon, authenticated, service_role;
+
+-- Recalcula o estado do B2 de um mês: b2_forja_ok_at (a conferência mais antiga do conjunto, só com todos conferidos e dentro de 7 dias entre si,
+-- 30 no rodízio), a limpeza da retirada e os b2_attested_* derivados das duas origens (vence a que vence mais tarde: forja + 7 dias, dono + 35).
+create or replace function public.obs_archive_b2_recompute_month(p_site uuid, p_class text, p_month date, p_via text, p_result text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_min timestamptz; v_max timestamptz; v_n integer; v_nulos integer; v_desc boolean; v_ok timestamptz; m record; v_forja_fim timestamptz; v_dono_fim timestamptz;
+  v_man text;
+begin
+  select count(*), count(*) filter (where f.b2_ok_at is null), min(f.b2_ok_at), max(f.b2_ok_at) into v_n, v_nulos, v_min, v_max
+    from public.obs_archive_month_files(p_site, p_class, p_month) f;
+  select bool_or(x.dropped_at is not null), max(x.manifest_sha256) into v_desc, v_man from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.month = p_month;
+  v_ok := case when v_n > 0 and v_nulos = 0 and exists (select 1 from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.month = p_month and x.sealed_at is not null)
+                    and v_max - v_min <= case when coalesce(v_desc, false) then interval '30 days' else interval '7 days' end then v_min end;
+  if p_via = 'forja' then
+    update public.obs_archive_months
+       set b2_forja_ok_at = v_ok, b2_forja_manifest_sha256 = case when v_ok is null then null else manifest_sha256 end,
+           b2_last_attempt_at = public.obs_archive_agora(), b2_last_attempt_result = p_result, b2_last_attempt_via = 'forja'
+     where site_id = p_site and class = p_class and month = p_month;
+  else
+    update public.obs_archive_months
+       set b2_last_attempt_at = public.obs_archive_agora(), b2_last_attempt_result = p_result, b2_last_attempt_via = 'dono'
+     where site_id = p_site and class = p_class and month = p_month;
+  end if;
+  for m in select * from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.month = p_month loop
+    -- a retirada da forja é limpa por conferência boa depois dela; a do dono só por ok do dono
+    if m.b2_withdrawn_at is not null and ((m.b2_withdrawn_via = 'forja' and m.b2_forja_ok_at is not null and m.b2_forja_ok_at > m.b2_withdrawn_at)
+                                        or (m.b2_withdrawn_via = 'dono' and m.b2_dono_ok_at is not null and m.b2_dono_ok_at > m.b2_withdrawn_at)) then
+      update public.obs_archive_months set b2_withdrawn_at = null, b2_withdrawn_reason = null, b2_withdrawn_via = null where id = m.id;
+      m.b2_withdrawn_at := null;
+    end if;
+    v_forja_fim := m.b2_forja_ok_at + interval '7 days'; v_dono_fim := m.b2_dono_ok_at + interval '35 days';
+    update public.obs_archive_months
+       set b2_attested_at = case when m.b2_withdrawn_at is not null then null
+                                 when v_dono_fim is not null and (v_forja_fim is null or v_dono_fim >= v_forja_fim) then m.b2_dono_ok_at
+                                 else m.b2_forja_ok_at end,
+           b2_attested_via = case when m.b2_withdrawn_at is not null then null
+                                  when v_dono_fim is not null and (v_forja_fim is null or v_dono_fim >= v_forja_fim) then 'dono'
+                                  when m.b2_forja_ok_at is not null then 'forja' end,
+           b2_attested_by = case when m.b2_withdrawn_at is not null then null
+                                 when v_dono_fim is not null and (v_forja_fim is null or v_dono_fim >= v_forja_fim) then m.b2_dono_by
+                                 when m.b2_forja_ok_at is not null then 'forja' end,
+           b2_manifest_sha256 = case when m.b2_withdrawn_at is not null then null
+                                     when v_dono_fim is not null and (v_forja_fim is null or v_dono_fim >= v_forja_fim) then m.b2_dono_manifest_sha256
+                                     else m.b2_forja_manifest_sha256 end
+     where id = m.id;
+  end loop;
+end $$;
+revoke all on function public.obs_archive_b2_recompute_month(uuid, text, date, text, text) from public, anon, authenticated, service_role;
+
+-- Retira a atestação do B2 de um mês por um arquivo (divergente, arquivo_ausente, nao_decifra) e registra a tentativa.
+create or replace function public.obs_archive_b2_retirar(p_site uuid, p_id text, p_result text, p_via text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare i record;
+begin
+  select * into i from public.obs_archive_b2_file_info(p_site, p_id) limit 1;
+  if not found then return; end if;
+  insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month, last_attempt_at, last_attempt_result)
+  values (p_site, p_id, i.class, i.month, public.obs_archive_agora(), p_result)
+  on conflict (site_id, arquivo_id) do update set last_attempt_at = excluded.last_attempt_at, last_attempt_result = excluded.last_attempt_result, pending_mismatch = null, pending_since = null, pending_run = null;
+  update public.obs_archive_months
+     set b2_withdrawn_at = public.obs_archive_agora(), b2_withdrawn_reason = p_result, b2_withdrawn_via = p_via, b2_attested_at = null, b2_attested_via = null, b2_attested_by = null, b2_manifest_sha256 = null
+   where site_id = p_site and class = i.class and month = i.month;
+end $$;
+revoke all on function public.obs_archive_b2_retirar(uuid, text, text, text) from public, anon, authenticated, service_role;
+-- r2.2 (I3 do Phil): aceita as páginas do completo em ordem. Página aceita = todo arquivo dela tem informe conclusivo
+-- desde o início do completo em aberto (vale o que outra execução da mesma cadeia já aceitou: X1). A primeira página
+-- não aceita para a conta e segura o cursor; sem_acesso e repetir pendente nunca cobrem (não falha em verde).
+create or replace function public.obs_archive_b2_aceitar_paginas(p_site uuid, p_run uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_run public.obs_archive_b2_runs; v_pag jsonb; v_i integer; v_novas jsonb; v_n integer := 0; v_ate text; v_ultima boolean := false;
+begin
+  select * into v_run from public.obs_archive_b2_runs where id = p_run and site_id = p_site for update;
+  if not found or v_run.modo <> 'completo' or v_run.estado <> 'controle_ok' or v_run.completo_desde is null then return; end if;
+  v_novas := v_run.paginas;
+  for v_i in 0 .. jsonb_array_length(v_run.paginas) - 1 loop
+    v_pag := v_run.paginas -> v_i;
+    continue when (v_pag->>'aceita')::boolean;
+    exit when exists (
+      select 1 from jsonb_array_elements_text(v_pag->'ids') x(id)
+        left join public.obs_archive_b2_files b on b.site_id = p_site and b.arquivo_id = x.id
+       where b.arquivo_id is null or b.last_attempt_at is null or b.last_attempt_at < v_run.completo_desde
+          or b.last_attempt_result not in ('ok', 'divergente', 'arquivo_ausente', 'aguardando_b2'));
+    v_novas := jsonb_set(v_novas, array[v_i::text, 'aceita'], 'true'::jsonb);
+    v_n := v_n + 1; v_ate := v_pag->>'ate'; v_ultima := (v_pag->>'ultima')::boolean;
+  end loop;
+  if v_n = 0 then return; end if;
+  update public.obs_archive_b2_runs
+     set paginas = v_novas, paginas_aceitas = paginas_aceitas + v_n,
+         cursor_aceito = coalesce(p_run::text || '|' || v_ate, cursor_aceito),       -- página vazia (sem `ate`) não move o cursor
+         completo_fechado_em = case when v_ultima then public.obs_archive_agora() else completo_fechado_em end
+   where id = p_run;
+end $$;
+revoke all on function public.obs_archive_b2_aceitar_paginas(uuid, uuid) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_b2_run_gate(p_site uuid, p_run uuid, p_item jsonb)
+returns text language plpgsql security definer set search_path = '' as $$
+-- Aplica um informe de controle (negativo ou canário) e devolve a resposta; para arquivo comum, devolve 'seguir' ou o motivo da recusa.
+declare v_run public.obs_archive_b2_runs; v_id text := p_item->>'arquivo_id'; v_filho text; v_can public.obs_archive_canaries;
+begin
+  select * into v_run from public.obs_archive_b2_runs where id = p_run and site_id = p_site for update;
+  if not found then return 'desconhecido'; end if;
+  if v_run.expires_at < public.obs_archive_agora() then return 'execucao_vencida'; end if;
+  if v_id = 'controle_negativo' then
+    if p_item->>'resultado' = 'ausente' then
+      update public.obs_archive_b2_runs set negative_ok = true where id = p_run;
+    elsif p_item->>'resultado' in ('sem_acesso', 'chave_ausente') then
+      return 'aceito';                       -- sem acesso o negativo fica pendente e nada atesta; não é "o controle falhou" (Phil I3)
+    else
+      update public.obs_archive_b2_runs set negative_ok = false, estado = 'controle_falhou' where id = p_run;
+    end if;
+  elsif v_id in ('canario:numerico', 'canario:texto') then
+    v_filho := split_part(v_id, ':', 2);
+    select * into v_can from public.obs_archive_canaries c
+     where c.site_id = p_site and c.filho = v_filho and c.dia = (v_run.canary_days->>v_filho)::date;
+    if found and p_item->>'resultado' = 'presente' and p_item->>'sha256' = v_can.sha256
+       and coalesce(p_item->>'file_id', '') ~ '^4_z[0-9a-f]{24}_f[0-9a-f]{3}_[0-9a-z_]+$' then
+      update public.obs_archive_b2_runs set canary_ok = canary_ok || jsonb_build_object(v_filho, true) where id = p_run;
+      update public.obs_archive_canaries set b2_ok_at = now(), b2_file_id = p_item->>'file_id' where site_id = p_site and filho = v_filho and dia = v_can.dia;
+    else
+      update public.obs_archive_b2_runs set canary_ok = canary_ok || jsonb_build_object(v_filho, false), estado = 'controle_falhou' where id = p_run;
+      update public.obs_archive_canaries set b2_failed_at = now() where site_id = p_site and filho = v_filho and dia = v_can.dia;
+    end if;
+  else
+    if v_run.estado = 'controle_falhou' then return 'controle_falhou'; end if;
+    v_filho := public.obs_archive_filho_do_arquivo(p_site, v_id);       -- pela classe do registro; nulo = desconhecido
+    if v_filho is null then return 'desconhecido'; end if;
+    -- o arquivo só passa depois do negativo ausente E do canário do mesmo filho (C2; Phil I3)
+    if not coalesce(v_run.negative_ok, false) or not coalesce((v_run.canary_ok->>v_filho)::boolean, false) then
+      return 'controle_pendente';
+    end if;
+    return 'seguir';
+  end if;
+  update public.obs_archive_b2_runs set estado = 'controle_ok'
+   where id = p_run and estado = 'aguardando_controle' and negative_ok
+     and coalesce((canary_ok->>'numerico')::boolean, false) and coalesce((canary_ok->>'texto')::boolean, false);
+  return 'aceito';
+end $$;
+revoke all on function public.obs_archive_b2_run_gate(uuid, uuid, jsonb) from public, anon, authenticated, service_role;
+
+-- O plano do B2 (contrato C2): sem hash esperado, com execução, controle negativo, canários, estado por filho, páginas de 500 e retomada do completo.
+create or replace function public.obs_archive_b2_plan(p_site uuid, p_completo boolean, p_cursor text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_agora timestamptz := public.obs_archive_agora();
+  v_run public.obs_archive_b2_runs; v_src public.obs_archive_b2_runs; v_prev public.obs_archive_b2_runs;
+  v_completo boolean; v_start text; v_all jsonb; v_page jsonb; v_depois integer; v_mais boolean; v_ultimo text; v_i record;
+  v_desde timestamptz; v_aceitas integer := 0; v_cur_ac text; v_retomado text; v_total integer; v_dias jsonb; v_verm jsonb := '[]'::jsonb;
+  v_n_num integer; v_n_tex integer; v_tem_num boolean; v_tem_tex boolean; v_prim text; v_cob jsonb; v_cursor_seg text; v_neg_filho text;
+begin
+  -- uma rodada pendente sem segundo informe em 48 h vira divergente na leitura seguinte do plano
+  for v_i in select b.arquivo_id from public.obs_archive_b2_files b where b.site_id = p_site and b.pending_mismatch is not null and b.pending_since < v_agora - interval '48 hours' loop
+    perform public.obs_archive_b2_retirar(p_site, v_i.arquivo_id, 'divergente', 'forja');
+    perform public.obs_archive_b2_recompute_month(p_site, (select class from public.obs_archive_b2_files where site_id = p_site and arquivo_id = v_i.arquivo_id),
+                                                  (select month from public.obs_archive_b2_files where site_id = p_site and arquivo_id = v_i.arquivo_id), 'forja', 'divergente');
+  end loop;
+  if p_cursor is not null then
+    if p_cursor !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\|.{0,200}$' then return jsonb_build_object('erro', 'cursor_invalido'); end if;
+    select * into v_src from public.obs_archive_b2_runs r where r.id = split_part(p_cursor, '|', 1)::uuid and r.site_id = p_site;
+    if not found then return jsonb_build_object('erro', 'cursor_invalido'); end if;
+    v_completo := v_src.modo = 'completo';
+    v_start := substr(p_cursor, 38);
+  else
+    v_completo := coalesce(p_completo, false) or public.obs_archive_b2_pede_completo(p_site);
+  end if;
+  -- o purgo de 90 dias nunca apaga o completo mais recente do site (ele guarda o ponto da retomada)
+  delete from public.obs_archive_b2_runs r
+   where r.site_id = p_site and r.started_at < v_agora - interval '90 days'
+     and r.id is distinct from (select x.id from public.obs_archive_b2_runs x where x.site_id = p_site and x.modo = 'completo' order by x.started_at desc limit 1);
+  -- a herança do completo (r2.2)
+  if v_completo then
+    if p_cursor is not null then
+      v_desde := v_src.completo_desde; v_aceitas := v_src.paginas_aceitas; v_cur_ac := v_src.cursor_aceito; v_retomado := p_cursor;
+    else
+      select * into v_prev from public.obs_archive_b2_runs r where r.site_id = p_site and r.modo = 'completo' order by r.started_at desc limit 1;
+      if not found or v_prev.completo_fechado_em is not null then
+        v_desde := v_agora; v_aceitas := 0; v_cur_ac := null; v_retomado := null; v_start := null;
+      else
+        v_desde := v_prev.completo_desde; v_aceitas := v_prev.paginas_aceitas; v_cur_ac := v_prev.cursor_aceito; v_retomado := v_prev.cursor_aceito;
+        v_start := case when v_cur_ac is null then null else substr(v_cur_ac, 38) end;
+      end if;
+    end if;
+  end if;
+  -- os arquivos: de obs_archive_month_files (D23), sem hash esperado
+  with ms as (
+    select m.class, m.month, bool_or(m.dropped_at is not null) as descartado
+      from public.obs_archive_months m where m.site_id = p_site and m.sealed_at is not null group by 1, 2
+  ), todos as (
+    select ms.descartado, ms.class as classe, ms.month as mes, f.* from ms cross join lateral public.obs_archive_month_files(p_site, ms.class, ms.month) f
+  ), normais as (
+    select * from todos where not descartado and (b2_ok_at is null or b2_ok_at < v_agora - interval '5 days')
+  ), rodizio as (
+    select t.*, sum(coalesce(t.file_bytes, 0)) over (order by t.b2_ok_at nulls first, t.arquivo_id) as acum
+      from todos t where t.descartado and (t.b2_ok_at is null or t.b2_ok_at < v_agora - interval '30 days')
+  ), escolha as (
+    select t.arquivo_id, t.tipo, t.filho, t.caminho, t.classe, t.table_name, t.channel_ref, t.mes, t.version, t.control_column from todos t where v_completo
+    union all select n.arquivo_id, n.tipo, n.filho, n.caminho, n.classe, n.table_name, n.channel_ref, n.mes, n.version, n.control_column from normais n where not v_completo
+    union all select r.arquivo_id, r.tipo, r.filho, r.caminho, r.classe, r.table_name, r.channel_ref, r.mes, r.version, r.control_column
+                from rodizio r where not v_completo and r.acum <= (select coalesce(sum(coalesce(t.file_bytes, 0)), 0) / 30.0 * 1.2 from todos t)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('arquivo_id', e.arquivo_id, 'tipo', e.tipo, 'filho', e.filho, 'caminho', e.caminho, 'classe', e.classe, 'tabela', e.table_name,
+           'canal', e.channel_ref, 'mes', to_char(e.mes, 'YYYY-MM'), 'versao', e.version, 'coluna_controle', e.control_column) order by e.arquivo_id collate "C"), '[]'::jsonb)
+    into v_all from escolha e;
+  select count(*) filter (where e->>'filho' = 'numerico'), count(*) filter (where e->>'filho' = 'texto') into v_n_num, v_n_tex from jsonb_array_elements(v_all) e;
+  select count(*) into v_depois from jsonb_array_elements(v_all) e where v_start is null or (e->>'arquivo_id') collate "C" > v_start collate "C";
+  select coalesce(jsonb_agg(q.e order by (q.e->>'arquivo_id') collate "C"), '[]'::jsonb) into v_page
+    from (select e from jsonb_array_elements(v_all) e where v_start is null or (e->>'arquivo_id') collate "C" > v_start collate "C"
+           order by (e->>'arquivo_id') collate "C" limit 500) q(e);
+  v_mais := v_depois > 500;
+  v_ultimo := case when jsonb_array_length(v_page) = 0 then null else (v_page -> (jsonb_array_length(v_page) - 1))->>'arquivo_id' end;
+  v_total := greatest(1, v_aceitas + ceil(v_depois / 500.0)::int);
+  -- a execução: a mesma dentro da validade (renova 2 h), ou uma nova (sem cursor ou com cursor vencido)
+  if p_cursor is not null and v_src.expires_at >= v_agora then
+    update public.obs_archive_b2_runs set expires_at = v_agora + interval '2 hours' where id = v_src.id returning * into v_run;
+  else
+    select case when count(*) % 2 = 0 then 'numerico' else 'texto' end into v_neg_filho from public.obs_archive_b2_runs r where r.site_id = p_site;
+    select jsonb_build_object(
+             'numerico', (select max(c.dia)::text from public.obs_archive_canaries c where c.site_id = p_site and c.filho = 'numerico' and c.informed_at <= v_agora - interval '6 hours'),
+             'texto', (select max(c.dia)::text from public.obs_archive_canaries c where c.site_id = p_site and c.filho = 'texto' and c.informed_at <= v_agora - interval '6 hours')) into v_dias;
+    insert into public.obs_archive_b2_runs (site_id, started_at, expires_at, modo, negative_name, negative_filho, canary_days, completo_desde, retomado_de, paginas_aceitas, paginas_total, cursor_aceito)
+    values (p_site, v_agora, v_agora + interval '2 hours', case when v_completo then 'completo' else 'normal' end, '_controle/' || gen_random_uuid(), v_neg_filho, v_dias,
+            case when v_completo then v_desde end, case when v_completo then v_retomado end, case when v_completo then v_aceitas else 0 end,
+            case when v_completo then v_total end, case when v_completo then v_cur_ac end)
+    returning * into v_run;
+  end if;
+  if v_run.modo = 'completo' and not exists (select 1 from jsonb_array_elements(v_run.paginas) p where p->>'ate' is not distinct from v_ultimo and (p->>'ultima')::boolean = not v_mais) then
+    update public.obs_archive_b2_runs
+       set paginas = paginas || jsonb_build_array(jsonb_build_object('ate', v_ultimo, 'ids', (select coalesce(jsonb_agg(e->'arquivo_id'), '[]'::jsonb) from jsonb_array_elements(v_page) e), 'ultima', not v_mais, 'aceita', false))
+     where id = v_run.id returning * into v_run;
+  end if;
+  v_cursor_seg := case when v_mais then v_run.id::text || '|' || v_ultimo end;
+  select to_char(min(m.month), 'YYYY-MM') into v_prim from public.obs_archive_months m where m.site_id = p_site and m.sealed_at is not null;
+  select exists (select 1 from public.obs_archive_months m join public.obs_archive_policy() p on p.class = m.class and p.table_name = m.table_name where m.site_id = p_site and m.sealed_at is not null and p.filho = 'numerico'),
+         exists (select 1 from public.obs_archive_months m join public.obs_archive_policy() p on p.class = m.class and p.table_name = m.table_name where m.site_id = p_site and m.sealed_at is not null and p.filho = 'texto')
+    into v_tem_num, v_tem_tex;
+  if pg_catalog.to_regprocedure('public.obs_archive_vermelhos(uuid)') is not null then
+    execute 'select to_jsonb(public.obs_archive_vermelhos($1))' into v_verm using p_site;
+  end if;
+  v_cob := case when v_run.modo = 'completo' then jsonb_build_object('paginas_aceitas', v_run.paginas_aceitas, 'paginas_total', v_run.paginas_total) end;
+  return jsonb_build_object(
+    'execucao_id', v_run.id, 'gerado_em', v_agora, 'modo', v_run.modo, 'cursor_seguinte', v_cursor_seg, 'primeira_selagem', v_prim, 'vermelhos', v_verm,
+    'retomado_de', case when v_run.modo = 'completo' then v_run.retomado_de end, 'cobertura', v_cob,
+    'estado', jsonb_build_object(
+      'numerico', case when not v_tem_num then 'aguardando_primeira_selagem' when v_n_num = 0 then 'nada_devido' else 'com_pedidos' end,
+      'texto', case when not v_tem_tex then 'aguardando_primeira_selagem' when v_n_tex = 0 then 'nada_devido' else 'com_pedidos' end),
+    'teto_bytes_dia', public.obs_archive_b2_teto_dia(p_site), 'teto_bytes_mes', public.obs_archive_b2_franquia_mes() / 2,
+    'controle_negativo', jsonb_build_object('arquivo_id', 'controle_negativo', 'filho', v_run.negative_filho, 'caminho', v_run.negative_name),
+    'canarios', jsonb_build_array(
+      jsonb_build_object('arquivo_id', 'canario:numerico', 'filho', 'numerico', 'caminho', case when v_run.canary_days->>'numerico' is null then null else '_canario/' || (v_run.canary_days->>'numerico') end),
+      jsonb_build_object('arquivo_id', 'canario:texto', 'filho', 'texto', 'caminho', case when v_run.canary_days->>'texto' is null then null else '_canario/' || (v_run.canary_days->>'texto') end)),
+    'arquivos', v_page, 'prefixos_ausentes', '[]'::jsonb);
+end $$;
+revoke all on function public.obs_archive_b2_plan(uuid, boolean, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_b2_plan(uuid, boolean, text) to service_role;
+
+-- O informe do B2 (contrato C7.2). Cada item passa pelo portão do controle; só então vira conferência do arquivo.
+create or replace function public.obs_archive_attest_b2(p_site uuid, p_body jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_agora timestamptz := public.obs_archive_agora();
+  v_run uuid; r public.obs_archive_b2_runs; it jsonb; v_id text; v_res text; v_gate text; v_out jsonb := '[]'::jsonb; v_mot text; v_resp text;
+  i record; b public.obs_archive_b2_files; v_fid text; v_ts bigint; v_igual boolean; v_novo jsonb; v_tocados jsonb := '{}'::jsonb; v_k text; v_t text; v_ult text := 'ok'; v_n integer := 0; v_tent integer;
+  v_lin bigint; v_soma numeric; v_sha text;
+begin
+  if p_body is null or p_body->>'fonte' is distinct from 'b2' or coalesce(p_body->>'execucao_id', '') !~ '^[0-9a-f-]{36}$' then raise exception 'forma' using errcode = 'P0001'; end if;
+  v_run := (p_body->>'execucao_id')::uuid;
+  for it in select * from jsonb_array_elements(coalesce(p_body->'itens', '[]'::jsonb)) loop
+    v_id := it->>'arquivo_id'; v_res := it->>'resultado'; v_resp := 'aceito'; v_mot := null; v_n := v_n + 1;
+    v_fid := it->>'file_id'; v_ts := (it->>'upload_timestamp')::bigint; v_tent := coalesce((it->>'tentativa')::int, 1);
+    v_sha := it->>'sha256'; v_lin := (it->>'linhas')::bigint; v_soma := (it->>'soma')::numeric;
+    if v_res is null or v_res not in ('presente', 'ausente', 'sem_acesso', 'chave_ausente', 'nao_decifra') then
+      v_out := v_out || jsonb_build_array(jsonb_build_object('arquivo_id', v_id, 'resposta', 'recusado', 'motivo', 'forma')); continue;
+    end if;
+    v_gate := public.obs_archive_b2_run_gate(p_site, v_run, it);
+    if v_gate <> 'seguir' then
+      if v_gate = 'aceito' then v_out := v_out || jsonb_build_array(jsonb_build_object('arquivo_id', v_id, 'resposta', 'aceito'));
+      else v_out := v_out || jsonb_build_array(jsonb_build_object('arquivo_id', v_id, 'resposta', 'recusado', 'motivo', v_gate)); end if;
+      continue;
+    end if;
+    select * into i from public.obs_archive_b2_file_info(p_site, v_id) limit 1;
+    if not found then v_out := v_out || jsonb_build_array(jsonb_build_object('arquivo_id', v_id, 'resposta', 'recusado', 'motivo', 'desconhecido')); continue; end if;
+    insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month) values (p_site, v_id, i.class, i.month) on conflict (site_id, arquivo_id) do nothing;
+    select * into b from public.obs_archive_b2_files x where x.site_id = p_site and x.arquivo_id = v_id for update;
+    if v_res in ('presente', 'nao_decifra') and (v_fid is null or v_ts is null) then
+      v_resp := 'recusado'; v_mot := 'sem_file_id'; v_res := 'sem_acesso';
+      update public.obs_archive_b2_runs set file_id_recusado = true where id = v_run;
+    elsif v_res in ('presente', 'nao_decifra') and v_fid !~ '^4_z[0-9a-f]{24}_f[0-9a-f]{3}_[0-9a-z_]+$' then
+      v_resp := 'recusado'; v_mot := 'file_id_invalido'; v_res := 'sem_acesso';
+      update public.obs_archive_b2_runs set file_id_recusado = true where id = v_run;
+    end if;
+
+    if v_res = 'nao_decifra' then
+      -- K4: divergente já no primeiro informe, sem repetir; o file_id nunca vira o "bom"
+      perform public.obs_archive_b2_retirar(p_site, v_id, 'divergente', 'forja');
+      update public.obs_archive_b2_files set ilegivel_at = v_agora, last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+      v_ult := 'divergente';
+    elsif v_res = 'presente' then
+      -- compara com o registro: unidade com linhas e soma; parte e resumo com linhas; manifesto só o sha256
+      v_igual := v_sha is not distinct from i.exp_sha and (v_lin is null or i.exp_rows is null or v_lin = i.exp_rows)
+                 and (not i.cmp_soma or v_soma is not distinct from i.exp_soma);
+      if v_igual then
+        update public.obs_archive_b2_files
+           set last_ok_at = v_agora, last_ok_via = 'forja', last_ok_file_id = v_fid, last_ok_upload_ts = v_ts, last_attempt_at = v_agora, last_attempt_result = 'ok',
+               last_attempt_run = v_run, pending_mismatch = null, pending_since = null, pending_run = null
+         where site_id = p_site and arquivo_id = v_id;
+        v_ult := 'ok';
+      else
+        v_novo := jsonb_build_object('sha256', v_sha, 'linhas', v_lin, 'soma', v_soma::text);
+        if b.pending_mismatch is null then
+          update public.obs_archive_b2_files set pending_mismatch = v_novo, pending_since = v_agora, pending_run = v_run, last_attempt_at = v_agora,
+                 last_attempt_result = 'divergencia_a_confirmar', last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+          v_resp := 'repetir'; v_ult := 'divergencia_a_confirmar';
+        elsif b.pending_mismatch = v_novo or b.pending_since < v_agora - interval '48 hours' then
+          perform public.obs_archive_b2_retirar(p_site, v_id, 'divergente', 'forja');
+          update public.obs_archive_b2_files set last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+          v_ult := 'divergente';
+        else
+          update public.obs_archive_b2_files set pending_mismatch = null, pending_since = null, pending_run = null, last_attempt_at = v_agora,
+                 last_attempt_result = 'sem_acesso', last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+          v_ult := 'sem_acesso';
+        end if;
+      end if;
+    elsif v_res = 'ausente' then
+      if i.received_at is not null and i.received_at < v_agora - interval '48 hours' then
+        perform public.obs_archive_b2_retirar(p_site, v_id, 'arquivo_ausente', 'forja');
+        update public.obs_archive_b2_files set last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+        v_ult := 'arquivo_ausente';
+      else
+        update public.obs_archive_b2_files set last_attempt_at = v_agora, last_attempt_result = 'aguardando_b2', last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+        v_ult := 'aguardando_b2';
+      end if;
+    else   -- sem_acesso e chave_ausente: a tentativa fica registrada, nada retira
+      update public.obs_archive_b2_files set last_attempt_at = v_agora, last_attempt_result = v_res, last_attempt_run = v_run where site_id = p_site and arquivo_id = v_id;
+      v_ult := v_res;
+    end if;
+    v_tocados := v_tocados || jsonb_build_object(i.class || '|' || i.month::text, v_ult);
+    v_out := v_out || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('arquivo_id', v_id, 'resposta', v_resp, 'motivo', v_mot)));
+  end loop;
+  for v_k in select jsonb_object_keys(v_tocados) loop
+    perform public.obs_archive_b2_recompute_month(p_site, split_part(v_k, '|', 1), split_part(v_k, '|', 2)::date, 'forja', v_tocados->>v_k);
+  end loop;
+  update public.obs_archive_b2_runs set files_reported = files_reported + v_n where id = v_run and site_id = p_site;
+  select * into r from public.obs_archive_b2_runs where id = v_run and site_id = p_site;
+  if found and r.modo = 'completo' then perform public.obs_archive_b2_aceitar_paginas(p_site, v_run); end if;
+  select * into r from public.obs_archive_b2_runs where id = v_run and site_id = p_site;
+  return jsonb_build_object('execucao', jsonb_build_object('estado', coalesce(r.estado, 'aguardando_controle'), 'negativo_ok', coalesce(r.negative_ok, false),
+           'canario_ok', jsonb_build_object('numerico', coalesce((r.canary_ok->>'numerico')::boolean, false), 'texto', coalesce((r.canary_ok->>'texto')::boolean, false))),
+         'itens', v_out);
+end $$;
+revoke all on function public.obs_archive_attest_b2(uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.obs_archive_attest_b2(uuid, jsonb) to service_role;
+
+-- A mesma conferência feita pelo dono (atestar-b2 e ensaiar-restauracao, M8): a origem 'dono', com a validade de 35 dias. Itens {arquivo_id, resultado:
+-- 'ok' | 'divergente' | 'ausente'}. O ok do dono só vale para o mês se cobre TODOS os arquivos do conjunto (obs_archive_month_files).
+create or replace function public.obs_archive_attest_b2_dono(p_site uuid, p_class text, p_month date, p_by text, p_itens jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_agora timestamptz := public.obs_archive_agora(); it jsonb; v_id text; v_res text; i record; v_faltam text[]; v_mal boolean := false; m record; v_fid text;
+begin
+  if p_by is null or length(p_by) < 1 then raise exception 'forma' using errcode = 'P0001'; end if;
+  for it in select * from jsonb_array_elements(coalesce(p_itens, '[]'::jsonb)) loop
+    v_id := it->>'arquivo_id'; v_res := it->>'resultado'; v_fid := it->>'file_id';
+    select * into i from public.obs_archive_b2_file_info(p_site, v_id) limit 1;
+    if not found or i.class <> p_class or i.month <> p_month then continue; end if;
+    insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month) values (p_site, v_id, i.class, i.month) on conflict (site_id, arquivo_id) do nothing;
+    if v_res = 'ok' then
+      update public.obs_archive_b2_files set last_ok_at = v_agora, last_ok_via = 'dono', last_ok_file_id = coalesce(v_fid, last_ok_file_id), last_attempt_at = v_agora,
+             last_attempt_result = 'ok', pending_mismatch = null, pending_since = null, pending_run = null where site_id = p_site and arquivo_id = v_id;
+    elsif v_res in ('divergente', 'ausente') then
+      v_mal := true;
+      perform public.obs_archive_b2_retirar(p_site, v_id, case when v_res = 'ausente' then 'arquivo_ausente' else 'divergente' end, 'dono');
+    end if;
+  end loop;
+  if not v_mal then
+    select array_agg(f.arquivo_id order by f.arquivo_id) into v_faltam
+      from public.obs_archive_month_files(p_site, p_class, p_month) f
+     where not exists (select 1 from jsonb_array_elements(coalesce(p_itens, '[]'::jsonb)) x where x->>'arquivo_id' = f.arquivo_id and x->>'resultado' = 'ok');
+    if v_faltam is null and exists (select 1 from public.obs_archive_month_files(p_site, p_class, p_month)) then
+      select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.month = p_month and x.sealed_at is not null limit 1;
+      if found then
+        -- ok do dono que limpa a retirada da forja registra a divergência (a M6 desarma o interruptor por ela)
+        update public.obs_archive_months
+           set b2_dono_ok_at = v_agora, b2_dono_manifest_sha256 = manifest_sha256, b2_dono_by = p_by,
+               b2_forja_diverged_at = case when b2_withdrawn_at is not null and b2_withdrawn_via = 'forja' then v_agora else b2_forja_diverged_at end,
+               b2_withdrawn_at = case when b2_withdrawn_via = 'forja' or b2_withdrawn_via = 'dono' then null else b2_withdrawn_at end,
+               b2_withdrawn_reason = case when b2_withdrawn_via = 'forja' or b2_withdrawn_via = 'dono' then null else b2_withdrawn_reason end,
+               b2_withdrawn_via = case when b2_withdrawn_via = 'forja' or b2_withdrawn_via = 'dono' then null else b2_withdrawn_via end
+         where site_id = p_site and class = p_class and month = p_month;
+      end if;
+    end if;
+  end if;
+  perform public.obs_archive_b2_recompute_month(p_site, p_class, p_month, 'dono', case when v_mal then 'divergente' else 'ok' end);
+  return jsonb_build_object('ok', not v_mal and v_faltam is null, 'faltam', coalesce(to_jsonb(v_faltam), '[]'::jsonb));
+end $$;
+revoke all on function public.obs_archive_attest_b2_dono(uuid, text, date, text, jsonb) from public, anon, authenticated;
+grant execute on function public.obs_archive_attest_b2_dono(uuid, text, date, text, jsonb) to service_role;
+
+-- O estado do B2 de um mês, para o plano e a página.
+create or replace function public.obs_archive_b2_month_state(p_site uuid, p_class text, p_month date)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select case when not exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month)
+         then jsonb_build_object('atestada_em', null, 'retirada', null) else (select jsonb_build_object(
+           'atestada_em', max(m.b2_attested_at), 'via', max(m.b2_attested_via), 'por', max(m.b2_attested_by),
+           'forja_ok_at', max(m.b2_forja_ok_at), 'dono_ok_at', max(m.b2_dono_ok_at), 'forja_divergiu_em', max(m.b2_forja_diverged_at),
+           'retirada', case when bool_or(m.b2_withdrawn_at is not null)
+                         then (select jsonb_build_object('em', x.b2_withdrawn_at, 'motivo', x.b2_withdrawn_reason, 'via', x.b2_withdrawn_via)
+                                 from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.month = p_month and x.b2_withdrawn_at is not null limit 1) end,
+           'ultima_tentativa', jsonb_build_object('em', max(m.b2_last_attempt_at), 'resultado', max(m.b2_last_attempt_result), 'via', max(m.b2_last_attempt_via)),
+           'idade_dias', case when max(m.b2_attested_at) is null then null else floor(extract(epoch from (public.obs_archive_agora() - max(m.b2_attested_at))) / 86400)::int end)
+         from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month) end
+$$;
+revoke all on function public.obs_archive_b2_month_state(uuid, text, date) from public, anon, authenticated;
+grant execute on function public.obs_archive_b2_month_state(uuid, text, date) to service_role;
