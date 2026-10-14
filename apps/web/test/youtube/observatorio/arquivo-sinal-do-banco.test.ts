@@ -259,8 +259,9 @@ describe('A5 E10 T2: a projeção', () => {
     expect(s.projecao.estado).toBe('medida')
     if (s.projecao.estado !== 'medida') return
     expect(s.projecao.diasAteOLimite).toBe(1187)
-    expect(s.projecao.chegaNoDia).toBe('2030-01-12')
-    expect(s.projecao.chegaEm).toBe('2030-01')
+    const esperado = dia(1187) // hoje + 1187 dias, pela mesma aritmética de dias do calendário (o mês escrito é conferido na frase)
+    expect(s.projecao.chegaNoDia).toBe(esperado)
+    expect(s.projecao.chegaEm).toBe(esperado.slice(0, 7))
   })
 })
 
