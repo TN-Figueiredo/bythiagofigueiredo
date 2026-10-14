@@ -34,7 +34,26 @@ const importaLeituraNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*
 const PODE_PROVAR = new Set([EDICAO, LEITURA])
 const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
 /** Os leitores e o módulo de dados pedem o token de LEITURA: citar o de edição neles é voltar atrás. */
-const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
+const VERSOES_LER = 'lib/youtube/observatorio/proprio-versoes/ler.ts'
+const COMENTARIOS_LER = 'lib/youtube/observatorio/medidas/ler-comentarios.ts'
+const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS, VERSOES_LER, COMENTARIOS_LER])
+/**
+ * As DOZE tabelas privadas do canal próprio (leitura por `can_view_private_site` depois da MG11). Cópia da lista de
+ * `test/integration/observatorio-a5-e17-p0-doze.test.ts` (T3, ainda fora desta base): quando os dois chegarem juntos, o teste de igualdade entra.
+ */
+const DOZE = [
+  'yt_own_video_daily', 'yt_own_video_reach_daily', 'yt_own_video_meta_daily', 'yt_own_video_coverage',
+  'yt_own_video_retention', 'yt_own_video_dim_daily', 'yt_own_video_traffic_detail_daily', 'yt_own_video_reach_dim_daily',
+  'yt_own_video_versions', 'yt_own_versions_state', 'competitor_video_comments', 'competitor_video_comment_marks',
+] as const
+/** Gravadores que LEEM uma das doze só para gravar (deduplicar, achar o que falta): não mostram nada a ninguém. Lista fechada. */
+const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts'])
+const cita = (s: string, t: string) => new RegExp(`\\.from\\(\\s*['"]${t}['"]\\s*\\)`).test(s)
+/** `yt_own_collection_attempts` é "só quem edita" no banco; fora da coleta o código lê só `attempt_day` e `outcome` (decisão I4 do portão de software). */
+const COLUNAS_TENTATIVAS = new Set(['attempt_day', 'outcome'])
+const lePorFrom = (s: string) => [...s.matchAll(/\.from\(\s*['"]yt_own_collection_attempts['"]\s*\)/g)].length
+const leSoColunasPermitidas = (s: string) => [...s.matchAll(/\.from\(\s*['"]yt_own_collection_attempts['"]\s*\)\s*\.select\(\s*['"]([^'"]*)['"]/g)]
+  .filter(m => m[1]!.split(',').map(c => c.trim()).every(c => COLUNAS_TENTATIVAS.has(c))).length
 
 function arquivos(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) {
@@ -68,6 +87,11 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
     if (LEITORES_E_DADOS.has(arq) && /\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: o leitor voltou ao token de edição`)
+    if (!arq.startsWith(COLETA_DIR) && !GRAVADORES_QUE_LEEM.has(arq) && DOZE.some(t => cita(s, t))) {
+      if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas sem passar por leituraValida`)
+      if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas com o token de edição`)
+    }
+    if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
     if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
     if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/edicao|_proprio\/dados)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
     if (arq !== LER_RETENCAO && !arq.startsWith(COLETA_DIR) && /yt_own_video_retention/.test(s)) v.push(`${arq}: consulta a tabela da curva de retenção fora do leitor`)
@@ -141,11 +165,11 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'app/x/page.tsx': 'await lerRetencao(sb, p)' })).toEqual(['app/x/page.tsx: chama um leitor do dado privado'])
       expect(violacoes({ ...base, 'app/x/a.ts': "import { lerRetencao } from '@/lib/youtube/observatorio/proprio/ler-retencao'" })).toEqual(['app/x/a.ts: importa os leitores do dado privado'])
       expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport { x } from '@/lib/youtube/observatorio/proprio/ler-retencao'" })).toEqual(['app/x/c.tsx: importa os leitores do dado privado', 'app/x/c.tsx: componente cliente importa o módulo do dado privado'])
-      expect(violacoes({ ...base, 'app/x/a.ts': "sb.from('yt_own_video_retention').select('points')" })).toEqual(['app/x/a.ts: consulta a tabela da curva de retenção fora do leitor'])
-      expect(violacoes({ ...base, 'lib/youtube/observatorio/outro.ts': "sb.from('yt_own_video_retention')" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "sb.from('yt_own_video_retention').select('points')" })).toEqual(['app/x/a.ts: consulta uma das doze tabelas privadas sem passar por leituraValida', 'app/x/a.ts: consulta a tabela da curva de retenção fora do leitor'])
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/outro.ts': "sb.from('yt_own_video_retention')" })).toHaveLength(2)
     })
     it('retenção: o leitor e a coleta podem (não se acusam)', () => {
-      expect(violacoes({ ...base, [LER_RETENCAO]: "sb.from('yt_own_video_retention'); export async function lerRetencao(sb: X) {}", 'lib/youtube/coleta/retencao-step.ts': "ctx.supabase.from('yt_own_video_retention').upsert(x)", [DADOS]: 'await lerRetencao(sb, p)' })).toEqual([])
+      expect(violacoes({ ...base, [LER_RETENCAO]: "leituraValida(x); sb.from('yt_own_video_retention'); export async function lerRetencao(sb: X) {}", 'lib/youtube/coleta/retencao-step.ts': "ctx.supabase.from('yt_own_video_retention').upsert(x)", [DADOS]: 'await lerRetencao(sb, p)' })).toEqual([])
     })
     it('fabricar o token', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': 'const t = new EdicaoDoSite("s")' })).toHaveLength(1)
@@ -165,6 +189,30 @@ describe('varredura: o dado privado do canal próprio', () => {
         expect(violacoes({ ...base, [arq]: "import { edicaoValida } from './edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
         expect(violacoes({ ...base, [arq]: 'p: EdicaoDoSite | null' }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
       }
+    })
+    it('as doze tabelas: arquivo fora da coleta que cita uma delas precisa de leituraValida e não pode citar o token de edição', () => {
+      for (const t of DOZE) {
+        expect(violacoes({ ...base, 'lib/x/novo.ts': `sb.from('${t}').select('a')` }).filter(m => m.includes('doze')), t).toEqual(['lib/x/novo.ts: consulta uma das doze tabelas privadas sem passar por leituraValida'])
+      }
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "import { leituraValida } from '../proprio/leitura-privada'\nsb.from('yt_own_video_versions').select('a')" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "import { leituraValida } from '../proprio/leitura-privada'\nimport type { EdicaoDoSite } from '../proprio/edicao'\nsb.from('yt_own_video_daily')" })).toEqual(['lib/x/novo.ts: consulta uma das doze tabelas privadas com o token de edição'])
+      // a coleta e os dois gravadores da lista fechada ficam de fora; uma tabela que não é das doze também
+      expect(violacoes({ ...base, 'lib/youtube/coleta/x.ts': "sb.from('yt_own_video_daily').upsert(x)" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/youtube/horaria/gravar.ts': "sb.from('yt_own_video_meta_daily').select('a')" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "sb.from('yt_own_public_video_hourly').select('a')" })).toEqual([])
+      for (const arq of [VERSOES_LER, COMENTARIOS_LER])
+        expect(violacoes({ ...base, [arq]: "import { edicaoValida } from '../proprio/edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
+    })
+    it('tentativas de coleta: fora da coleta, só attempt_day e outcome', () => {
+      const erro = (arq: string) => [`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`]
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select('attempt_day')" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select('outcome')" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select('attempt_day, outcome')" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select('*')" })).toEqual(erro('lib/x/a.ts'))
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select('attempt_day, error_message')" })).toEqual(erro('lib/x/a.ts'))
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select(COLS)" })).toEqual(erro('lib/x/a.ts'))
+      expect(violacoes({ ...base, 'lib/x/a.ts': "sb.from('yt_own_collection_attempts').select('outcome'); sb.from('yt_own_collection_attempts').select('*')" })).toEqual(erro('lib/x/a.ts'))
+      expect(violacoes({ ...base, 'lib/youtube/coleta/a.ts': "sb.from('yt_own_collection_attempts').select('*')" })).toEqual([])
     })
     it('importar o leitor, ou o módulo do dado privado num componente cliente', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': "import { lerDiario } from '@/lib/youtube/observatorio/proprio/ler'" })).toHaveLength(1)
