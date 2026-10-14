@@ -8,6 +8,8 @@ import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { vpdDoCanal, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 import { diarioDoVideo } from '@/lib/youtube/coleta/analytics-diario'
 import { assistidoDoVideo } from '@/lib/youtube/observatorio/proprio/assistido'
+import { ObservatoryLoadError } from '@/lib/youtube/observatorio/niches-db'
+import * as Sentry from '@sentry/nextjs'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -165,8 +167,9 @@ describe('lerDiario', () => {
   it('lista de vídeos vazia: não lê linhas, mas lê o último dia do canal (canal sem longo acompanhado com o diário cheio não é "nunca coletado")', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4), diario('v1', d(9), 2), diario('v9', d(1), 1, { site_id: 'outro' }), diario('v8', d(1), 1, { channel_id: 'outro' })] })
     expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: d(3), linhas: [], foraDoTeto: [], descartados: 0 } })
-    expect(db.trips).toEqual(['yt_own_video_daily'])
-    expect(db.ranges.map(r => r.range)).toEqual([[0, 0]])
+    // A5 E6 T5: além do último dia do diário, lê o último dia coberto (1 linha); sem vídeos pedidos não lê linhas nem intervalos
+    expect(db.trips).toEqual(['yt_own_video_daily', 'yt_own_video_coverage'])
+    expect(db.ranges.map(r => r.range)).toEqual([[0, 0], [0, 0]])
   })
   it('lista de vídeos vazia e diário vazio: ultimoDia null (nunca coletado de verdade)', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v9', d(1), 1, { site_id: 'outro' })] })
@@ -254,7 +257,8 @@ describe('lerDiario', () => {
   it('custo: a leitura do diário continua sendo o último dia (1 linha) mais as páginas das linhas, nunca uma ida por vídeo', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(20), 5), diario('v2', d(20), 5)] })
     await lerDiario(db.client, { ...pedido, ytIds: ['v1', 'v2'] })
-    expect(db.trips).toEqual(['yt_own_video_daily', 'yt_own_video_daily'])
+    // A5 E6 T5: o último dia do diário e o último dia coberto (1 linha cada), depois as páginas das linhas e dos intervalos
+    expect(db.trips).toEqual(['yt_own_video_daily', 'yt_own_video_coverage', 'yt_own_video_daily', 'yt_own_video_coverage'])
   })
   it('views negativas viram nulas e contam como descartadas', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), -4), diario('v1', d(4), 6)] })
@@ -271,7 +275,7 @@ describe('lerDiario', () => {
   it('nenhuma consulta do diário pede select *', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)] })
     await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
-    expect(db.selects.length).toBe(2)
+    expect(db.selects.length).toBe(4) // A5 E6 T5: duas do diário e duas da cobertura
     for (const x of db.selects) expect(x.cols).not.toContain('*')
   })
   it('erro do banco é lançado', async () => {
@@ -430,5 +434,167 @@ describe('lerDiario: % assistido e duração média (colunas avg_view_percentage
       expect(a.pct).toBeCloseTo((40 * 51.5 + 60 * 41.5) / 100, 10)
       expect(a.pct).toBeGreaterThan(1) // pontos, nunca fração
     })
+  })
+})
+
+// ── A5 · E6 · Tarefa 5: o leitor tolera os dois estados do banco (diário cheio de zeros × diário só com atividade + cobertura) ──
+describe('lerDiario: cobertura (a dieta do diário, D13)', () => {
+  const cobertura = (yt: string, de: string, ate: string, over: Row = {}): Row => ({
+    youtube_video_id: yt, metric_set: 'base', covered_from: de, covered_to: ate, site_id: S, channel_id: C, collected_at: HOJE + 'T10:00:00Z', ...over,
+  })
+  const lerOk = async (db: ReturnType<typeof fakeSupabase>, ytIds: string[]) => {
+    const r = await lerDiario(db.client, { ...pedido, ytIds })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    return r.dado
+  }
+  /** O cliente em que só a tabela da cobertura responde com um erro de banco de código `code`. */
+  const comCoberturaFalhando = (db: ReturnType<typeof fakeSupabase>, code: string) => ({
+    from: (t: string) => {
+      if (t !== 'yt_own_video_coverage') return db.client.from(t)
+      db.trips.push(t)
+      const falha = { data: null, error: { code, message: 'x' } }
+      const q: Record<string, unknown> = {}
+      for (const m of ['select', 'eq', 'in', 'gte', 'lte', 'order']) q[m] = () => q
+      q.range = async () => falha
+      return q
+    },
+  }) as unknown as typeof db.client
+
+  it('o banco ANTES da dieta (todas as linhas) e DEPOIS (só as com atividade, mesma cobertura) devolvem exatamente as mesmas linhas', async () => {
+    const dias = [10, 9, 8, 7, 6, 5, 4, 3]
+    const atividade = new Map<string, number>([['v1|' + d(9), 4], ['v1|' + d(5), 2], ['v2|' + d(7), 9]])
+    const cheio = ['v1', 'v2'].flatMap(y => dias.map(n => diario(y, d(n), atividade.get(y + '|' + d(n)) ?? 0)))
+    const enxuto = ['v1', 'v2'].flatMap(y => dias.filter(n => atividade.has(y + '|' + d(n))).map(n => diario(y, d(n), atividade.get(y + '|' + d(n))!)))
+    const cob = [cobertura('v1', d(10), d(3)), cobertura('v2', d(10), d(3))]
+    const antes = await lerOk(fakeSupabase({ yt_own_video_daily: cheio, yt_own_video_coverage: cob }), ['v1', 'v2'])
+    const depois = await lerOk(fakeSupabase({ yt_own_video_daily: enxuto, yt_own_video_coverage: cob }), ['v1', 'v2'])
+    expect(antes.linhas).toHaveLength(16)
+    expect(depois.linhas).toEqual(antes.linhas)
+    expect(depois).toEqual(antes)
+  })
+  it('dia coberto sem linha vira views 0 com as médias nulas; dia fora da cobertura continua sem linha', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5)], yt_own_video_coverage: [cobertura('v1', d(8), d(4))] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.linhas).toEqual([
+      { ytId: 'v1', dia: d(8), views: 0, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(7), views: 0, ...SEM_MEDIAS },
+      { ytId: 'v1', dia: d(6), views: 5, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(5), views: 0, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(4), views: 0, ...SEM_MEDIAS },
+    ])
+    expect(r.linhas.some(l => l.dia === d(3) || l.dia === d(9))).toBe(false)
+  })
+  it('canal parado: nenhuma linha na janela e cobertura até hoje - 3: ultimoDia é hoje - 3, há linhas de zero e a tela não diz "coleta parada"', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(100), 3)], yt_own_video_coverage: [cobertura('v1', d(40), d(3))] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.ultimoDia).toBe(d(3))
+    expect(r.linhas).toHaveLength(38) // d(40)..d(3): o intervalo, que começa dentro da janela de 39 dias
+    expect(r.linhas.every(l => l.views === 0)).toBe(true)
+    expect(r.linhas.at(-1)?.dia).toBe(d(3))
+    const v = vpdDoCanal({ acesso: 'ok', dado: r }, ['v1'], HOJE)
+    expect(v.motivo).not.toBe('diario-parado')
+    expect(v.ultimoDia).toBe(d(3))
+  })
+  it('cobertura atrasada e linhas mais novas (o intervalo entre M e D): ultimoDia é a última linha', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 6), diario('v1', d(9), 1)], yt_own_video_coverage: [cobertura('v1', d(20), d(8))] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.ultimoDia).toBe(d(3))
+    // a cobertura acaba em d(8): os dias d(7)..d(4) NÃO viram zero (não medido); só os dias até d(8) sem linha viram
+    expect(r.linhas.some(l => l.dia === d(5))).toBe(false)
+    expect(r.linhas.find(l => l.dia === d(3))).toEqual({ ytId: 'v1', dia: d(3), views: 6, ...SEM_MEDIAS })
+    expect(r.linhas.find(l => l.dia === d(8))).toEqual({ ytId: 'v1', dia: d(8), views: 0, ...SEM_MEDIAS })
+  })
+  it('só a cobertura do conjunto base, do site e do canal do pedido, dos vídeos pedidos', async () => {
+    const db = fakeSupabase({
+      yt_own_video_daily: [diario('v1', d(5), 1)],
+      yt_own_video_coverage: [
+        cobertura('v1', d(7), d(5)),
+        cobertura('v1', d(7), d(5), { metric_set: 'estendidas', covered_from: d(30), covered_to: d(0) }),
+        cobertura('v1', d(7), d(5), { site_id: 'outro', covered_from: d(2), covered_to: d(1) }),
+        cobertura('v1', d(7), d(5), { channel_id: 'outro', covered_from: d(2), covered_to: d(1) }),
+        cobertura('v9', d(7), d(5)),
+      ],
+    })
+    const r = await lerOk(db, ['v1'])
+    expect(r.linhas.map(l => l.ytId + '|' + l.dia)).toEqual(['v1|' + d(7), 'v1|' + d(6), 'v1|' + d(5)])
+    expect(r.ultimoDia).toBe(d(5))
+  })
+  it('cobertura com o mesmo id de vídeo em OUTRO site não vaza', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(5), 1)], yt_own_video_coverage: [cobertura('v1', d(30), d(0), { site_id: 'outro' })] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.linhas).toEqual([{ ytId: 'v1', dia: d(5), views: 1, ...SEM_MEDIAS }])
+    expect(r.ultimoDia).toBe(d(5))
+  })
+  it('intervalo que termina antes da janela não gera linha', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(2), 1)], yt_own_video_coverage: [cobertura('v1', d(100), d(60)), cobertura('v1', d(50), d(2))] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.linhas.every(l => l.dia >= addDays(d(2), -38))).toBe(true)
+    expect(r.linhas).toHaveLength(39)
+  })
+  it('lista de vídeos vazia: não lê os intervalos, mas a cobertura do canal ainda diz o ultimoDia', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(30), 1)], yt_own_video_coverage: [cobertura('v1', d(40), d(3))] })
+    const r = await lerOk(db, [])
+    expect(r).toEqual({ canalId: C, ultimoDia: d(3), linhas: [], foraDoTeto: [], descartados: 0 })
+    expect(db.ranges.map(x => x.table)).toEqual(['yt_own_video_daily', 'yt_own_video_coverage'])
+  })
+  it('só há cobertura (diário sem nenhuma linha): ultimoDia vem dela e os zeros são devolvidos', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [], yt_own_video_coverage: [cobertura('v1', d(5), d(3))] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.ultimoDia).toBe(d(3))
+    expect(r.linhas.map(l => l.dia)).toEqual([d(5), d(4), d(3)])
+  })
+  it('as consultas da cobertura pedem só colunas nomeadas (nunca select *) e a última é de uma linha só', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(5), 1)], yt_own_video_coverage: [cobertura('v1', d(7), d(5))] })
+    await lerOk(db, ['v1'])
+    const cob = db.selects.filter(x => x.table === 'yt_own_video_coverage')
+    expect(cob).toHaveLength(2)
+    for (const x of cob) expect(x.cols).not.toContain('*')
+    expect(db.ranges.filter(x => x.table === 'yt_own_video_coverage')[0]!.range).toEqual([0, 0])
+  })
+  it('mais de 1000 intervalos: a leitura pagina e não trunca calada', async () => {
+    const ytIds = Array.from({ length: TETO_VIDEOS_DIARIO }, (_, k) => 'v' + k)
+    // 1 intervalo de 1 dia por (vídeo, dia) em 25 dias: 1250 intervalos
+    const cob = ytIds.flatMap(y => Array.from({ length: 25 }, (_, k) => cobertura(y, d(k + 3), d(k + 3))))
+    const db = fakeSupabase({ yt_own_video_daily: [], yt_own_video_coverage: cob })
+    const r = await lerOk(db, ytIds)
+    expect(r.linhas).toHaveLength(1250)
+    expect(db.ranges.filter(x => x.table === 'yt_own_video_coverage').length).toBeGreaterThanOrEqual(3)
+  })
+  it('tabela de cobertura ausente (42P01): as mesmas linhas de hoje e o Sentry avisado UMA vez', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    const base = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5), diario('v1', d(4), 0)] })
+    const r = await lerOk({ ...base, client: comCoberturaFalhando(base, '42P01') }, ['v1'])
+    expect(r.ultimoDia).toBe(d(4))
+    expect(r.linhas).toEqual([{ ytId: 'v1', dia: d(6), views: 5, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(4), views: 0, ...SEM_MEDIAS }])
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(Sentry.captureMessage).mock.calls[0]![1]).toMatchObject({ tags: { component: 'observatorio-proprio', step: 'cobertura-ausente' } })
+  })
+  it('tabela de cobertura ausente pelo PostgREST (PGRST205) também segue sem cobertura', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    const base = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5)] })
+    const r = await lerOk({ ...base, client: comCoberturaFalhando(base, 'PGRST205') }, ['v1'])
+    expect(r.linhas).toHaveLength(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+  })
+  it('coluna ausente (42703) NÃO é "tabela ausente": lança', async () => {
+    const base = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5)] })
+    await expect(lerDiario(comCoberturaFalhando(base, '42703'), { ...pedido, ytIds: ['v1'] })).rejects.toBeInstanceOf(ObservatoryLoadError)
+  })
+  it('erro de banco na cobertura: lança ObservatoryLoadError (nunca vira lista vazia)', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5)] }, { failOn: 'yt_own_video_coverage' })
+    await expect(lerDiario(db.client, { ...pedido, ytIds: ['v1'] })).rejects.toBeInstanceOf(ObservatoryLoadError)
+  })
+  it('erro de banco na cobertura com lista de vídeos vazia também lança', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [] }, { failOn: 'yt_own_video_coverage' })
+    await expect(lerDiario(db.client, { ...pedido, ytIds: [] })).rejects.toBeInstanceOf(ObservatoryLoadError)
+  })
+  it('sem prova de acesso: negado e NENHUMA consulta, nem à cobertura', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5)], yt_own_video_coverage: [cobertura('v1', d(7), d(3))] })
+    expect(await lerDiario(db.client, { ...pedido, edicao: null, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+  it('o teto de vídeos continua valendo: a cobertura dos vídeos além do teto não é lida', async () => {
+    const ytIds = Array.from({ length: TETO_VIDEOS_DIARIO + 3 }, (_, k) => 'v' + k)
+    const db = fakeSupabase({ yt_own_video_daily: [], yt_own_video_coverage: ytIds.map(y => cobertura(y, d(5), d(5))) })
+    const r = await lerOk(db, ytIds)
+    expect(new Set(r.linhas.map(l => l.ytId)).size).toBe(TETO_VIDEOS_DIARIO)
+    expect(r.foraDoTeto).toEqual(ytIds.slice(TETO_VIDEOS_DIARIO))
   })
 })
