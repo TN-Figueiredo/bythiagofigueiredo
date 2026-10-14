@@ -268,8 +268,8 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
       marco, retrato: marco === 7 ? (ins?.retrato7 ?? null) : (ins?.retrato30 ?? null),
       maiorCurtidasDeComentario: marco === 7 ? (ins?.maiorCurtidas7 ?? null) : (ins?.maiorCurtidas30 ?? null),
       curtidasDoVideoNaMarca: marca?.likes ?? null,
-      // A coluna `likes_hidden` da marca ainda não é lida (Tarefa 13): nulo vira `sem_reacao_publica`, nunca `curtidas_ocultas` por palpite.
-      likesHiddenNaMarca: null,
+      // `likes_hidden` da marca (lido por `lerMarcasDoCanal`): nulo ou ausente vira `sem_reacao_publica`, nunca `curtidas_ocultas` por palpite.
+      likesHiddenNaMarca: marca?.likesHidden ?? null,
       marca: marca !== null ? 'gravada' : falta !== null ? falta.reason : 'aguardando',
     }))
   })

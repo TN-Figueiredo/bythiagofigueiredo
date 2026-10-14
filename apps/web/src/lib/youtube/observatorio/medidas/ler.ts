@@ -165,7 +165,7 @@ export async function lerMarcasDoCanal(sb: SupabaseClient, o: Escopo & { videoId
     const max = o.maxPaginas ?? MAX_PAGINAS
     for (const bloco of blocos(o.videoIds)) {
       const m = await paginar((de, ate) => sb.from('competitor_video_marks')
-        .select('video_id, age_days, views, likes, comments, read_before_at, read_after_at, age_base_at')
+        .select('video_id, age_days, views, likes, comments, likes_hidden, read_before_at, read_after_at, age_base_at')
         .eq('site_id', o.siteId).in('video_id', bloco).order('video_id').range(de, ate), max)
       if (!m.ok) return naoLido(m.causa)
       for (const x of m.linhas) {
@@ -173,7 +173,7 @@ export async function lerMarcasDoCanal(sb: SupabaseClient, o: Escopo & { videoId
         const antes = msDe(x.read_before_at), depois = msDe(x.read_after_at), base = msDe(x.age_base_at)
         if (typeof x.video_id !== 'string' || idade === null || !ehNum(x.views) || antes === null || depois === null || base === null) continue
         const por = marcas.get(x.video_id) ?? {}
-        por[idade] = { views: x.views, likes: numOuNulo(x.likes), comments: numOuNulo(x.comments), readBeforeAt: antes, readAfterAt: depois, ageBaseAt: base }
+        por[idade] = { views: x.views, likes: numOuNulo(x.likes), comments: numOuNulo(x.comments), likesHidden: boolOuNulo(x.likes_hidden), readBeforeAt: antes, readAfterAt: depois, ageBaseAt: base }
         marcas.set(x.video_id, por)
       }
       const f = await paginar((de, ate) => sb.from('competitor_video_mark_misses')

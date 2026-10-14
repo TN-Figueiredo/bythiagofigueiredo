@@ -269,3 +269,22 @@ describe('os números da fixture conferem à mão', () => {
     }
   })
 })
+
+describe('M12 e as curtidas ocultas na marca (A5 E4, M12)', () => {
+  const comMarcaSemCurtidas = (likesHidden: boolean | undefined): MedidasDoCanal => {
+    const i = insumosCheios()
+    if (!i.marcas.lido) throw new Error('fixture sem marcas')
+    const por = i.marcas.dados.marcas.get('v11')
+    const m7 = por?.[7]
+    if (por === undefined || m7 === undefined) throw new Error('v11 sem marca de 7 dias na fixture')
+    por[7] = { ...m7, likes: null, ...(likesHidden === undefined ? {} : { likesHidden }) }
+    return rodar(i)
+  }
+  it('likes nulo com likes_hidden verdadeiro na marca: curtidas_ocultas', () => {
+    expect(comMarcaSemCurtidas(true).porVideo.get('v11')?.m12[7]).toMatchObject({ estado: 'nao_medido', motivo: 'curtidas_ocultas' })
+  })
+  it('likes nulo com likes_hidden falso ou ausente: sem_reacao_publica, nunca curtidas_ocultas por palpite', () => {
+    expect(comMarcaSemCurtidas(false).porVideo.get('v11')?.m12[7]).toMatchObject({ motivo: 'sem_reacao_publica' })
+    expect(comMarcaSemCurtidas(undefined).porVideo.get('v11')?.m12[7]).toMatchObject({ motivo: 'sem_reacao_publica' })
+  })
+})

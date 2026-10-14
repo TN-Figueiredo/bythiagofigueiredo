@@ -108,6 +108,18 @@ describe('o que cada leitor devolve', () => {
     expect(r.lido && r.dados.marcas.get('a')?.[7]).toMatchObject({ views: 500, likes: 20, comments: null, ageBaseAt: AGORA - 9e5 })
     expect(r.lido && r.dados.faltas.get('a')?.[30]).toMatchObject({ reason: 'leituras_distantes', sinceAt: null, ageBaseAt: AGORA - 9e5 })
   })
+  it('M12: likes_hidden da marca é lido (verdadeiro, falso) e a coluna ausente vira nulo', async () => {
+    const { sb, consultas } = falsoPostgrest({
+      competitor_channels: canais(),
+      competitor_video_marks: [{ ...marca('a'), likes: null, likes_hidden: true }, { ...marca('b'), likes_hidden: false }, marca('c')],
+      competitor_video_mark_misses: [],
+    })
+    const r = await lerMarcasDoCanal(sb, { ...E, videoIds: ['a', 'b', 'c'] })
+    expect(r.lido && r.dados.marcas.get('a')?.[7]?.likesHidden).toBe(true)
+    expect(r.lido && r.dados.marcas.get('b')?.[7]?.likesHidden).toBe(false)
+    expect(r.lido && r.dados.marcas.get('c')?.[7]?.likesHidden).toBeNull()
+    expect(consultas.find((c) => c.tabela === 'competitor_video_marks')!.colunas).toContain('likes_hidden')
+  })
   it('view_count nulo no retrato continua nulo', async () => {
     const { sb } = falsoPostgrest({
       competitor_channels: canais(),
