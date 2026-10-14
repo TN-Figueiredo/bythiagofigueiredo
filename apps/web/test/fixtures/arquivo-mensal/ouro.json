@@ -1,0 +1,82 @@
+[
+  {
+    "arquivo": "ouro-serie.csv.gz",
+    "colunas": [
+      "video_id",
+      "snap_date",
+      "views",
+      "likes",
+      "comments",
+      "taken_at"
+    ],
+    "linhas": [
+      [
+        "v1",
+        "2026-10-01",
+        "1001",
+        null,
+        "1",
+        "2026-10-01 12:00:00+00"
+      ],
+      [
+        "v1",
+        "2026-10-02",
+        "9007199254740993",
+        "5",
+        "2",
+        "2026-10-02 12:00:00.123456+00"
+      ],
+      [
+        "v2",
+        "2026-10-01",
+        "7",
+        "0",
+        "0",
+        "2026-10-01 12:00:00+00"
+      ]
+    ],
+    "linhas_n": 3,
+    "soma": "9007199254742001",
+    "sha256": "c81fcaef702f607bab1b337e23ccba84bee26b4a4dc73845c25e7c8aff012f2a",
+    "csv_sha256": "23a4f127cb8d8203b09172d03f3fc2d9336076f1444bee289cee6cace6af28be"
+  },
+  {
+    "arquivo": "ouro-texto.csv.gz",
+    "colunas": [
+      "id",
+      "body",
+      "parent_id",
+      "meta"
+    ],
+    "linhas": [
+      [
+        "c1",
+        null,
+        null,
+        null
+      ],
+      [
+        "c2",
+        "",
+        null,
+        "{\"a\": \"é\\\"x\"}"
+      ],
+      [
+        "c3",
+        "0",
+        "c1",
+        null
+      ],
+      [
+        "c4",
+        "olá, \"mundo\"\r\nsegunda linha ção ☃ 日本",
+        "c1",
+        "{\"a\": \"é\\\"x\"}"
+      ]
+    ],
+    "linhas_n": 4,
+    "soma": null,
+    "sha256": "23e4166b036519f8a27339a5779be69c4968261d21705b8a63dfcdd3cfa349d3",
+    "csv_sha256": "f7186dd9c61c79887fdfca8f32eb443651ee4d245662a503ea19dbea300f199b"
+  }
+]

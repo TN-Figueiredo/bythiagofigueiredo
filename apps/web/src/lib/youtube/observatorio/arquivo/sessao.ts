@@ -125,6 +125,30 @@ function paraBigInt(v: unknown, coluna: string): bigint {
   return BigInt(v)
 }
 
+export async function lerLinhasDoBanco(
+  sql: ClienteSql,
+  o: { consulta: string; parametros: unknown[]; colunas: string[]; colunaDaSoma: string | null; nomeDoCursor?: string },
+): Promise<{ colunas: string[]; linhas: Array<Array<string | null>>; contagem: number; soma: string | null }> {
+  const cursor = o.nomeDoCursor ?? 'arquivo_cursor'
+  if (!IDENT.test(cursor)) throw new Error('nome de cursor inválido')
+  await sql.query(`declare ${cursor} no scroll cursor for ${o.consulta}`, o.parametros)
+  const linhas: Array<Array<string | null>> = []
+  let soma: bigint | null = o.colunaDaSoma === null ? null : BigInt(0)
+  try {
+    for (;;) {
+      const r = await sql.query(`fetch forward ${LINHAS_POR_BLOCO} from ${cursor}`)
+      if (r.rows.length === 0) break
+      for (const row of r.rows) {
+        linhas.push(o.colunas.map(c => textoOuNulo(row[c], c)))
+        if (soma !== null && o.colunaDaSoma !== null) { const v = row[o.colunaDaSoma]; if (v !== null && v !== undefined) soma += paraBigInt(v, o.colunaDaSoma) }
+      }
+    }
+  } finally {
+    await sql.query(`close ${cursor}`).catch(() => undefined)
+  }
+  return { colunas: o.colunas, linhas, contagem: linhas.length, soma: soma === null ? null : soma.toString() }
+}
+
 /** As colunas simples de uma expressão `t.a` ou `t.a, t.b`; nulo se alguma não for assim. */
 export function colunasDaExpressao(expressao: string | null): string[] | null {
   if (expressao === null) return null

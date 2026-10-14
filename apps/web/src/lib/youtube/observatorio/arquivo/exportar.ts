@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { RULES } from '../rules'
 import { codigoE10, FRASES_E10 } from './codigos'
+import { linhaCsv } from './csv'
 import { ehArquivoDoSistema } from './sistema'
 import {
   VERSAO_DO_MANIFESTO, caminhoDoArquivo, paraRegistro, textoDoSha256, validarManifesto, miniaturasAusentes,
@@ -21,7 +22,7 @@ import {
 } from './manifesto'
 import { baixarMiniaturas, type Baixar } from './miniaturas'
 import {
-  abrirLeitura, fechar, consultaDoArquivo, lerCsvDoBanco, colunasDaExpressao, lerRegistro, lerExcluidas, tabelaExiste, lerColunasDaTabela,
+  abrirLeitura, fechar, consultaDoArquivo, lerLinhasDoBanco, colunasDaExpressao, lerRegistro, lerExcluidas, tabelaExiste, lerColunasDaTabela,
   lerContagens, lerMiniaturasDoBanco, type ClienteSql,
 } from './sessao'
 
@@ -36,6 +37,44 @@ export interface Disco {
   /** Apaga um arquivo; arquivo que não existe não é erro. */
   apagar(p: string): Promise<void>
   dentroDeRepositorio(p: string): Promise<boolean>
+}
+
+export interface FonteDaUnidade {
+  ler(): Promise<{ colunas: string[]; linhas: Array<Array<string | null>>; contagem: number; soma: string | null }>
+}
+export interface UnidadeSerializada {
+  caminho: string; linhas: number; soma: string | null; sha256: string; csvSha256: string; bytes: number
+  menorChave: string | null; maiorChave: string | null; de: string; ate: string; gz: Uint8Array
+}
+export class ContagemDaFonteDifere extends Error {
+  constructor(detalhe: string) { super(detalhe); this.name = 'ContagemDaFonteDifere' }
+}
+
+/** O CSV sem compressão, byte a byte o que `lerCsvDoBanco` monta: cabeçalho e toda linha terminados em `\n`. */
+export function serializarLinhas(colunas: string[], linhas: ReadonlyArray<ReadonlyArray<string | null>>): Buffer {
+  const partes = [linhaCsv(colunas) + '\n']
+  for (const l of linhas) partes.push(linhaCsv(l) + '\n')
+  return Buffer.from(partes.join(''), 'utf8')
+}
+
+/** Pedido 2 da E10 (implementado pela manutenção, gatilho do 05 §15.1): serializa UMA unidade. Sem SQL dentro. */
+export async function exportarUnidade(
+  fonte: FonteDaUnidade, disco: Pick<Disco, 'gravar'> | null,
+  o: { tabela: string; canal: string; de: string; ate: string; rotulo: string; colunasDeOrdem?: string[] | null },
+): Promise<UnidadeSerializada> {
+  const lido = await fonte.ler()
+  if (lido.contagem !== lido.linhas.length) throw new ContagemDaFonteDifere(`${o.tabela}: fonte ${lido.contagem}, linhas ${lido.linhas.length}`)
+  for (const l of lido.linhas) if (l.length !== lido.colunas.length) throw new ContagemDaFonteDifere(`${o.tabela}: linha com ${l.length} campos`)
+  const csv = serializarLinhas(lido.colunas, lido.linhas)
+  const gz = gzipSync(csv, { level: 9 })
+  const idx = (o.colunasDeOrdem ?? []).map(c => lido.colunas.indexOf(c))
+  const chave = (l: ReadonlyArray<string | null> | undefined): string | null =>
+    l === undefined || idx.length === 0 || idx.some(i => i < 0) ? null : idx.map(i => l[i] ?? '').join('|')
+  if (disco !== null) await disco.gravar(o.rotulo, gz)
+  return {
+    caminho: o.rotulo, linhas: lido.linhas.length, soma: lido.soma, sha256: sha256(gz), csvSha256: sha256(csv), bytes: gz.byteLength,
+    menorChave: chave(lido.linhas[0]), maiorChave: chave(lido.linhas[lido.linhas.length - 1]), de: o.de, ate: o.ate, gz,
+  }
 }
 
 export type ResultadoExport =
@@ -205,25 +244,26 @@ export async function exportarCanal(o: {
       for (const k of contagens.filter(x => x.tabela === e.tabela)) {
         const unico = e.periodo === null
         const periodo = unico ? 'unico' : k.inicio.slice(0, 7)
-        const lido = await lerCsvDoBanco(sql, {
+        const fonte: FonteDaUnidade = { ler: () => lerLinhasDoBanco(sql, {
           consulta: consultaDoArquivo({ tabela: e.tabela, filtro: e.filtro, periodo: e.periodo, ordem: e.ordem, colunas: colunas.map(x => x.nome) }),
-          parametros: unico ? [o.canalId] : [o.canalId, k.inicio],
-          colunas: colunas.map(x => x.nome), colunaDaSoma, colunasDeOrdem: colunasDaExpressao(e.ordem),
+          parametros: unico ? [o.canalId] : [o.canalId, k.inicio], colunas: colunas.map(x => x.nome), colunaDaSoma,
+        }) }
+        const caminho = caminhoDoArquivo(e.tabela, o.canalId, periodo)
+        // Disco nulo: confere antes de gravar, como a E10 faz hoje (Yannis M2); nenhum arquivo é gravado à toa.
+        const u = await exportarUnidade(fonte, null, {
+          tabela: e.tabela, canal: o.canalId, de: unico ? '1970-01-01' : k.inicio, ate: unico ? '1970-01-01' : ultimoDiaDoMes(k.inicio),
+          rotulo: caminho, colunasDeOrdem: colunasDaExpressao(e.ordem),
         })
         // a soma do banco existe: o arquivo tem de somar igual, e soma que o export não sabe refazer (nula) é diferença, nunca conferência pulada em silêncio
-        if (lido.linhas !== k.linhas || (k.soma !== null && lido.soma !== k.soma)) {
+        if (u.linhas !== k.linhas || (k.soma !== null && u.soma !== k.soma)) {
           await desfazer()
-          return recusarLimpando('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas}, arquivo ${lido.linhas}`])
+          return recusarLimpando('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas}, arquivo ${u.linhas}`])
         }
-        const gz = gzipSync(lido.csv, { level: 9 })
-        const caminho = caminhoDoArquivo(e.tabela, o.canalId, periodo)
         await disco.criarPasta(diretorioDe(juntar(pasta, caminho)), MODO_DA_PASTA)
-        await gravar(caminho, gz)
+        await gravar(caminho, u.gz)
         arquivos.push({
-          tabela: e.tabela, canal: o.canalId, periodo,
-          periodStart: unico ? '1970-01-01' : k.inicio, periodEnd: unico ? '1970-01-01' : ultimoDiaDoMes(k.inicio),
-          caminho, linhas: lido.linhas, soma: k.soma, menorChave: lido.menorChave, maiorChave: lido.maiorChave,
-          sha256: sha256(gz), csvSha256: lido.sha256, colunas,
+          tabela: e.tabela, canal: o.canalId, periodo, periodStart: u.de, periodEnd: u.ate, caminho, linhas: u.linhas, soma: k.soma,
+          menorChave: u.menorChave, maiorChave: u.maiorChave, sha256: u.sha256, csvSha256: u.csvSha256, colunas,
         })
       }
     }
