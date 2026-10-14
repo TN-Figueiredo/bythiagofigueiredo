@@ -19,6 +19,7 @@ describe('tokens de direção (E5a T3)', () => {
     expect(usam).toEqual([
       '_canais/canais.css',
       '_chrome/medidas/medidas.css',
+      '_proprio/assistido-periodo.css',
       '_proprio/proprio.css',
       '_proprio/retencao-curva.css',
       '_proprio/retencao.css',
