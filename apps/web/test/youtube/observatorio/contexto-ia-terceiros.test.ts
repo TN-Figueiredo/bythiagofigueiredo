@@ -60,6 +60,13 @@ describe('citar', () => {
 })
 
 describe('naCelula', () => {
+  it('barra vertical já escapada: a barra invertida dobra e o separador continua escapado (a\\|b vira a\\\\\\|b)', () => {
+    const saida = naCelula('a\\|b')
+    expect(saida).toBe('a\\\\\\|b')
+    expect(naCelula('a\\\\|b')).toBe('a\\\\\\\\\\|b') // duas barras antes do | : quatro mais o escape
+    expect(naCelula('C:\\pasta\\arq')).toBe('C:\\pasta\\arq') // barra invertida longe do | não muda
+  })
+
   it('uma linha, sem barra vertical solta, sem três crases', () => {
     const saida = naCelula(`a | b\nc\r\nd ${TRES_CRASES} e`)
     expect(saida).not.toMatch(/[\r\n]/)
