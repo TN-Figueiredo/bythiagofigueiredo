@@ -193,8 +193,43 @@ const BASE: readonly Conferencia[] = [
   { id: 'e20-prova-180d', etapa: 'E20', data: '2027-04-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 maior que em janeiro`, feitaEm: null },
 ]
 
+// E17 degrau 1 ("Perguntar a uma IA"): as datas dependem do dia da promoção a `main` (D). `E17_D1_DEPLOY` é preenchida no commit do
+// envio que LIGA o botão (CONTEXTO_IA_RULES.ligado = true, no MESMO commit; um teste amarra as duas). `E17_D1_NUCLEO_DEPLOY` é a
+// do envio do núcleo, que vai desligado e não liga nada. Enquanto forem `null`, as entradas NÃO existem. Etapa `E17`.
+/** Dia de São Paulo (AAAA-MM-DD) em que o botão foi ligado em `main`. `null` = ainda desligado. */
+export const E17_D1_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o núcleo do botão (desligado) foi para `main`. `null` = ainda não enviado. */
+export const E17_D1_NUCLEO_DEPLOY: string | null = null
+
+const PLANO_E17D1 = 'docs/superpowers/plans/2026-10-13-a5-e17-degrau-1-perguntar-a-uma-ia-plan.md (seção 7); anotar o resultado em .superpowers/sdd/a5-e17-d1/'
+
+/** As cinco conferências do botão a partir do dia em que foi ligado (D). Data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasE17D1(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e17d1-deploy-invalido', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D1_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d1-${id}`, etapa: 'E17', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E17D1}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0: depois do primeiro clique do dono, `select origin, action, included_private, output_chars, result, key_id, params->>\'ambiente\' as ambiente, params->>\'piso_passou\' as piso_passou, at from public.obs_ai_access_log order by at desc limit 5;` uma linha por abertura, origin botao, result ok, key_id nulo, ambiente production; ZERO linhas depois de um clique que mostrou o texto é defeito grave: reverter no mesmo dia'),
+    e('ci', 0, 'no log do job de integração da CI do push que traz a MG11, o arquivo observatorio-a5-e17-d1-registro.test.ts aparece com os testes do registro RODADOS (não skipped) e verdes; se pulado, esvaziar ESPERA_A_MG11 no mesmo dia'),
+    e('d1', 1, 'D+1: obs_ai_access_log com origin botao e ambiente production agrupado por action e included_private (só pacote:<tela> do registro); a contagem de linhas com `params ? \'pergunta\'` tem de ser 0 (a pergunta nunca é gravada); privado: `excluido:nao_conferido` e `excluido:leitura_falhou` investigados, `excluido:sem_direito` para o dono é defeito; Sentry sem evento do componente observatorio-contexto-ia'),
+    e('d7', 7, 'D+7: mediana, maior e cortados (total > 30000) por action; piso_passou = 0; `cortados` em mais da metade de uma tela vira item do roteiro de melhorias do mockup 22; o resultado substitui os números de exemplo da C4'),
+    e('d365', 365, 'D+365: `select min(at), count(*), count(user_id) from public.obs_ai_access_log;` linha mais antiga com mais de 400 dias e sem tarefa de poda: apagar à mão com o comando do runbook (retenção de 400 dias do spec)'),
+  ]
+}
+
+/** A conferência do envio do núcleo (desligado): D+1, Sentry sem evento novo nas páginas refeitas pela extração. */
+export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
+  if (envio === null) return []
+  if (!dataReal(envio)) {
+    return [{ id: 'e17d1-nucleo-deploy-invalido', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D1_NUCLEO_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${envio}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  return [{ id: 'e17d1-nucleo-d1', etapa: 'E17', data: somaDias(envio, 1), responsavel: 'agente', onde: `${PLANO_E17D1}: Sentry sem evento novo nos sete page.tsx refeitos pela extração montar (Tarefas 8a e 8b)`, feitaEm: null }]
+}
+
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

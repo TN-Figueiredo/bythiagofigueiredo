@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE14, conferenciasE16E15, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
+import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
 // fixo: o guardião test/unit/test-hygiene.test.ts reprova). A segunda confere a lista PUBLICADA, cujas datas reais
@@ -424,5 +425,60 @@ describe('conferências de E16 e E15 (agenda e captura horária, relativas ao di
       expect(ehData(E16_E15_DEPLOY)).toBe(true)
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
+  })
+})
+
+// A5 E17 degrau 1 (Tarefa 13a): as conferências do botão "Perguntar a uma IA" dependem do dia da promoção a `main` (D), que o
+// controlador preenche em E17_D1_DEPLOY no commit do envio que LIGA o botão. O núcleo vai antes, desligado, com a sua própria data.
+describe('conferências de E17 degrau 1 (Perguntar a uma IA, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const IDS = ['e17d1-d0', 'e17d1-ci', 'e17d1-d1', 'e17d1-d7', 'e17d1-d365']
+
+  it('E17_D1_DEPLOY nula = nenhuma entrada; malformada = uma entrada de erro; preenchida = cinco entradas (d0 e ci em D0, depois D+1, D+7, D+365)', () => {
+    expect(conferenciasE17D1(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE17D1(null))).toEqual([])
+    const l = conferenciasE17D1(dia(-40))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual([0, 0, 1, 7, 365].map(n => dia(-40 + n)))
+    for (const x of l) {
+      expect(x.etapa, x.id).toBe('E17')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.onde.length, x.id).toBeGreaterThan(20)
+    }
+    for (const ruim of ['amanhã', '2026-13-45', '']) {
+      const m = conferenciasE17D1(ruim)
+      expect(m.map(x => x.id), ruim).toEqual(['e17d1-deploy-invalido'])
+      expect(m[0]!.onde).toContain('E17_D1_DEPLOY')
+      expect(conferenciasEmFalha(dia(0), m).map(x => x.id), ruim).toEqual(['e17d1-deploy-invalido'])
+    }
+  })
+  it('o que cada uma manda olhar: o registro do primeiro uso, o job da CI, as contagens por tela, a mediana e a retenção de 400 dias', () => {
+    const por = Object.fromEntries(conferenciasE17D1(dia(0)).map(x => [x.id, x.onde]))
+    expect(por['e17d1-d0']).toMatch(/obs_ai_access_log/)
+    expect(por['e17d1-ci']).toMatch(/observatorio-a5-e17-d1-registro/)
+    expect(por['e17d1-d1']).toMatch(/pergunta/)
+    expect(por['e17d1-d7']).toMatch(/piso_passou/)
+    expect(por['e17d1-d365']).toMatch(/400/)
+  })
+  it('E17_D1_NUCLEO_DEPLOY nula = nenhuma entrada; preenchida = uma entrada em D+1 do envio do núcleo', () => {
+    expect(conferenciasE17D1Nucleo(null)).toEqual([])
+    const l = conferenciasE17D1Nucleo(dia(-10))
+    expect(l.map(x => x.id)).toEqual(['e17d1-nucleo-d1'])
+    expect(l[0]!.data).toBe(dia(-9))
+    expect(l[0]!.responsavel).toBe('agente')
+    expect(l[0]!.etapa).toBe('E17')
+    expect(l[0]!.onde).toMatch(/Sentry/)
+    expect(conferenciasE17D1Nucleo('amanhã').map(x => x.id)).toEqual(['e17d1-nucleo-deploy-invalido'])
+  })
+  it('a lista publicada só tem as entradas quando a constante está preenchida', () => {
+    const ids = CONFERENCIAS.filter(x => x.id.startsWith('e17d1-')).map(x => x.id).sort()
+    const esperado = [...(E17_D1_DEPLOY === null ? [] : IDS), ...(E17_D1_NUCLEO_DEPLOY === null ? [] : ['e17d1-nucleo-d1'])].sort()
+    expect(ids).toEqual(esperado)
+  })
+  // Lê as duas constantes de verdade, sem simular: é o que deixa vermelho, na CI, um `ligado: true` commitado fora do envio
+  // (por exemplo durante o portão de UX) e um envio que esqueça de ligar. A data do núcleo NÃO entra: o núcleo vai desligado.
+  it('E17_D1_DEPLOY nula exige CONTEXTO_IA_RULES.ligado falso; preenchida exige verdadeiro', () => {
+    expect(CONTEXTO_IA_RULES.ligado).toBe(E17_D1_DEPLOY !== null)
   })
 })
