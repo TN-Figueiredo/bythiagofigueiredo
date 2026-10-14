@@ -6,10 +6,10 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 const P = createObservatory(datasetFromOracle(loadOracle()))
 
 describe('outliers', () => {
-  it('tab counts Todos 14/18/11 · Viagem 8/8/5 · IA 6/10/6 (CONVENCOES)', () => {
-    expect(P.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
-    expect(P.tabCounts('viagem')).toEqual({ canais: 8, mud: 8, out: 5 })
-    expect(P.tabCounts('ia')).toEqual({ canais: 6, mud: 10, out: 6 })
+  it('tab counts Todos 14/15/11 · Viagem 8/7/5 · IA 6/8/6 (CONVENCOES)', () => {
+    expect(P.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
+    expect(P.tabCounts('viagem')).toEqual({ canais: 8, mud: 7, out: 5 })
+    expect(P.tabCounts('ia')).toEqual({ canais: 6, mud: 8, out: 6 })
   })
   it('TAB_COUNTS derives from tabCounts', () => {
     expect(P.TAB_COUNTS.todos).toEqual(P.tabCounts('todos'))

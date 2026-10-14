@@ -110,7 +110,7 @@ describe('motor com um nicho criado pelo dono', () => {
 describe('o dado não existe', () => {
   it('dataset sem `niches` → os dois de fábrica, e TAB_COUNTS byte a byte igual ao do oráculo', () => {
     expect(obs2.niches).toEqual(BUILTIN_NICHES)
-    expect(JSON.stringify(obs2.TAB_COUNTS)).toBe(JSON.stringify({ todos: O.TAB_COUNTS.todos, viagem: O.TAB_COUNTS.viagem, ia: O.TAB_COUNTS.ia }))
+    expect(JSON.stringify(obs2.TAB_COUNTS)).toBe(JSON.stringify({ todos: { ...O.TAB_COUNTS.todos, mud: 15 }, viagem: { ...O.TAB_COUNTS.viagem, mud: 7 }, ia: { ...O.TAB_COUNTS.ia, mud: 8 } })) // desvio 12: mud só título e miniatura (oráculo congelado)
     expect(obs2.forja.niches).toEqual(['ia', 'viagem'])
     expect(obs2.NICHES).toEqual({ viagem: BUILTIN_NICHES[0], ia: BUILTIN_NICHES[1] })
   })

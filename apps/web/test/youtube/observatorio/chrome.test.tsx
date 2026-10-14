@@ -72,7 +72,7 @@ describe('ObservatoryChrome', () => {
     expect(links.map(a => a.getAttribute('href'))).toEqual(['/cms/youtube/competitors', '/cms/youtube/competitors/mudancas', '/cms/youtube/competitors/outliers', '/cms/youtube/competitors/insights'])
     expect(links[1]).toHaveAttribute('aria-current', 'page')
     expect(links[0]).not.toHaveAttribute('aria-current')
-    expect(links[1]!.querySelector('[data-count="mudancas"]')!.textContent).toBe('10')
+    expect(links[1]!.querySelector('[data-count="mudancas"]')!.textContent).toBe('8')
     expect(links[3]!.querySelector('[data-count]')).toBeNull()
     expect(links[0]).toHaveAttribute('title', '6 canais monitorados')
   })

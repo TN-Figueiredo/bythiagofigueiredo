@@ -1,5 +1,6 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
-import type { ObsChange } from '@/lib/youtube/observatorio/changes'
+import { contaComoTroca, type ObsChange } from '@/lib/youtube/observatorio/changes'
+export { contaComoTroca }
 import type { Fmt, ObsVideo } from '@/lib/youtube/observatorio/types'
 
 /** Views por dia, absoluto OU por mil inscritos (spec 19.3): zero medido é "0"; positivo que arredondaria para 0,0 é "menos de 0,1"; abaixo de 10, uma casa; de 10 a 999, inteiro; milhar depois. A lista, o painel, o cabeçalho e a comparação usam só esta função (e a posição empata pelo texto que ela escreve). */
@@ -36,9 +37,6 @@ export function duracaoMediana(obs: Pick<Observatory, 'median'>, vids: readonly 
   const xs = vids.filter(v => v.tracked && v.fmt === 'long').map(v => v.dur).filter((d): d is number => d != null)
   return { median: obs.median(xs), n: xs.length }
 }
-
-/** Só a troca de título e a de thumbnail contam como "troca" nos números do canal (a de descrição não: emenda 44.2, e o dono, 11/10, para a lista de Canais). */
-export const contaComoTroca = (c: Pick<ObsChange, 'type'>): boolean => c.type === 'title' || c.type === 'thumb'
 
 /** As trocas de título e thumbnail dos últimos 30 dias, da mais recente para a mais antiga. É a base de TODA contagem de trocas em 30 dias (lista, cabeçalho, comparação). */
 export function trocasDe30(obs: Pick<Observatory, 'changesIn'>, channelId: string): ObsChange[] {

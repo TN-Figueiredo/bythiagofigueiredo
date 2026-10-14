@@ -2,7 +2,7 @@
 import { RULES, OUT_WINDOWS, DEFAULT_AGES, winOf } from './rules'
 import { median } from './stats'
 import { inNiche, type NicheScope } from './niche'
-import { changesIn } from './changes'
+import { changesIn, contaComoTroca } from './changes'
 import { assertSiteScope, type EngineCtx, type Derived } from './series'
 import type { ObsVideo, Fmt } from './types'
 import type { MultiplierResult } from './multiplier'
@@ -110,12 +110,12 @@ export function tabCounts(ctx: EngineCtx, niche: NicheScope = 'todos'): { canais
   assertSiteScope(ctx, 'tabCounts')
   return {
     canais: ctx.ds.channels.filter(c => !c.own && inNiche(niche, c)).length,
-    mud: changesIn(ctx, { days: 30, niche }).length,
+    mud: changesIn(ctx, { days: 30, niche }).filter(contaComoTroca).length,
     out: outliers(ctx, { niche, fmt: 'long', ages: DEFAULT_AGES }).count,
   }
 }
 export const TAB_TITLES = {
   canais: (n: number) => n + ' canais monitorados',
-  mud: (n: number) => n + ' trocas nos últimos 30 dias (título, thumbnail e descrição; longos e Shorts; contadas por evento)',
+  mud: (n: number) => n + ' trocas nos últimos 30 dias (título e thumbnail; longos e Shorts; contadas por evento)',
   out: (n: number) => n + ' vídeos longos de até 90 dias com 2× ou mais a mediana do canal',
 }

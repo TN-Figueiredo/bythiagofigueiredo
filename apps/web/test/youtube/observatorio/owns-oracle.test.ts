@@ -49,7 +49,7 @@ describe('oráculo com N canais próprios', () => {
   it("preset '5': integridade ok e tabCounts", () => {
     const obs = createObservatory(datasetFromOracle(loadOracleOwns('5')))
     expect(obs.integrity.ok).toBe(true)
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
   })
   it("preset '1': mesmos canais de loadOracle()", () => {
     const ids = (o: ReturnType<typeof loadOracle>) => o.channels.map((c: { id: string }) => c.id).sort()
