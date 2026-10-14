@@ -128,4 +128,31 @@ describe('sync result toast', () => {
     expect(t.kind).toBe('warn')
     expect(t.text).toBe('nenhum canal sincronizado')
   })
+  describe('A5 E9 T10a: quinta aba "Saíram do YouTube"', () => {
+    it('sem o campo fila, o chrome é idêntico: quatro abas', () => {
+      const a = buildChromeView(obs, { tab: 'canais', niche: 'todos' })
+      expect(a.tabs.map(x => x.key)).toEqual(['canais', 'mudancas', 'outliers', 'insights'])
+      expect(buildChromeView(obs, { tab: 'canais', niche: 'todos', fila: null })).toEqual(a)
+    })
+    it('com fila {n:7} há a quinta aba, depois das quatro, com 7 e o link da fila', () => {
+      const t = buildChromeView(obs, { tab: 'canais', niche: 'todos', fila: { n: 7 } }).tabs
+      expect(t).toHaveLength(5)
+      expect(t[4]).toMatchObject({ key: 'saiu', label: 'Saíram do YouTube', href: '/cms/youtube/competitors/saiu', count: 7, current: false })
+      expect(t[4]!.countText).toBeUndefined()
+      expect(t.slice(0, 4).map(x => x.key)).toEqual(['canais', 'mudancas', 'outliers', 'insights'])
+    })
+    it('na tela da fila a quinta aba é a atual e as outras não', () => {
+      const t = buildChromeView(obs, { tab: 'saiu', niche: 'todos', fila: { n: 2 } }).tabs
+      expect(t.filter(x => x.current).map(x => x.key)).toEqual(['saiu'])
+    })
+    it('n nulo é "?" e o título diz que não foi possível contar', () => {
+      const x = buildChromeView(obs, { tab: 'canais', niche: 'todos', fila: { n: null } }).tabs[4]!
+      expect(x.count).toBeNull()
+      expect(x.countText).toBe('?')
+      expect(x.title).toBe('Não foi possível contar a fila')
+    })
+    it('o pedido ao Cowork da tela da fila usa o texto de Canais', () => {
+      expect(buildChromeView(obs, { tab: 'saiu', niche: 'todos', fila: { n: 1 } }).cowork).toBe(coworkText('canais', 'todos', 'Todos'))
+    })
+  })
 })

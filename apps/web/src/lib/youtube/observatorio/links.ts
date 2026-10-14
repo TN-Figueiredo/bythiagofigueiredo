@@ -168,6 +168,12 @@ export const link = {
     return OBS_BASE + '/insights' + query
   },
 
+  /** Link to the "Saíram do YouTube" queue (A5 E9). `mostrar` = how many items per group are open (multiples of 10; the default stays out). */
+  saiu(p?: { mostrar?: number }): string {
+    const query = buildQuery(p && p.mostrar && p.mostrar > 10 ? { mostrar: p.mostrar } : {})
+    return OBS_BASE + '/saiu' + query
+  },
+
   /**
    * Link to the comparison of two channels. Only the data goes in the URL, in the fixed order a, b; an argument that is
    * missing or empty stays out (the screen then picks the default for that side).

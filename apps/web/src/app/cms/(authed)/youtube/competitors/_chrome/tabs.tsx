@@ -34,7 +34,7 @@ export function Tabs({ tabs }: { tabs: ChromeView['tabs'] }) {
       {tabs.map(t => (
         <Link key={t.key} className="obs-ch-tab" href={t.href} data-tab={t.key} aria-current={t.current ? 'page' : undefined} title={t.title}>
           {t.label}
-          {t.count != null ? <span className="obs-ch-ct" data-count={t.key}>{t.count}</span> : null}
+          {t.countText != null || t.count != null ? <span className="obs-ch-ct" data-count={t.key}>{t.countText ?? t.count}</span> : null}
         </Link>
       ))}
     </nav>
