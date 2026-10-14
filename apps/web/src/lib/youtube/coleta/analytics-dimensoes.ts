@@ -31,7 +31,8 @@ const METRICAS_COM_ENGAGED = ['views', 'estimatedMinutesWatched', 'engagedViews'
 const METRICAS_SEM_ENGAGED = ['views', 'estimatedMinutesWatched'] as const
 
 const DIA = /^\d{4}-\d{2}-\d{2}$/
-const VALOR = /^[A-Za-z0-9_|]{1,80}$/
+// Cada parte da dimensão (a junção de `device_os` usa `|`): `|` dentro de uma parte tornaria a junção ambígua.
+const PARTE = /^[A-Za-z0-9_]{1,40}$/
 const PAIS = /^[A-Z]{2}$/
 
 export interface LinhaDim {
@@ -43,17 +44,39 @@ export interface LinhaDim {
   watch_time_minutes?: number
 }
 
+/**
+ * Erro da API com a conta das chamadas gastas (a Tarefa 7 soma a cota e o teto por execução).
+ * Continua sendo `AnalyticsApiError` (mesma mensagem fixa, sem corpo do Google).
+ */
+export class AnalyticsDimensaoError extends AnalyticsApiError {
+  constructor(status: number, reason: string | null, public readonly chamadas: number) {
+    super(status, reason)
+  }
+}
+
+/** Erro de programação do chamador (nunca vem do Google): nenhuma chamada foi feita. */
+export class UsoInvalidoDimensoesError extends Error {
+  readonly codigo = 'uso_invalido'
+  readonly chamadas = 0
+  constructor(mensagem: string) {
+    super(mensagem)
+    this.name = 'UsoInvalidoDimensoesError'
+  }
+}
+
 export interface RespostaDimensao {
   linhas: LinhaDim[]
   /** `recusadas`: a API deu 400 para `engagedViews` e as linhas vêm sem ela. */
   estendidas: 'ok' | 'recusadas'
   /** Linhas descartadas por valor, país ou dia fora do formato ou da janela. */
   invalidas: number
+  /** Chamadas à API gastas: 1, ou 2 quando `engagedViews` foi recusada e a consulta repetiu sem ela. */
+  chamadas: number
 }
 
 interface Corpo {
-  columnHeaders?: Array<{ name?: string }>
-  rows?: unknown[][]
+  columnHeaders?: unknown
+  rows?: unknown
 }
 
 function numeroOuNada(v: unknown): number | undefined {
@@ -92,59 +115,71 @@ function pedir(i: Entrada, metricas: readonly string[]): Promise<Response> {
 export async function dimensaoDoVideo(i: Entrada): Promise<RespostaDimensao> {
   const comDia = MODO_DA_FAMILIA[i.familia] === 'com_dia'
   if (!comDia && i.inicio !== i.fim) {
-    throw new Error(`Família ${i.familia} é consultada por dia: inicio e fim têm de ser o mesmo dia.`)
+    throw new UsoInvalidoDimensoesError(`A família ${i.familia} é consultada por dia: início e fim têm de ser o mesmo dia.`)
   }
 
+  let chamadas = 1
   let estendidas: RespostaDimensao['estendidas'] = 'ok'
   let res = await pedir(i, METRICAS_COM_ENGAGED)
   if (res.status === 400) {
     estendidas = 'recusadas'
+    chamadas = 2
     res = await pedir(i, METRICAS_SEM_ENGAGED)
   }
-  if (!res.ok) throw new AnalyticsApiError(res.status, await motivoDoGoogle(res))
+  if (!res.ok) throw new AnalyticsDimensaoError(res.status, await motivoDoGoogle(res), chamadas)
+  // Forma estranha da resposta é erro de forma (vermelho), nunca zero nem linha sem número. Nenhum conteúdo da linha vai na mensagem.
+  const forma = (reason: string) => new AnalyticsDimensaoError(200, reason, chamadas)
 
-  let corpo: Corpo
+  let corpo: Corpo | null
   try {
-    corpo = (await res.json()) as Corpo
+    corpo = (await res.json()) as Corpo | null
   } catch {
-    throw new AnalyticsApiError(res.status, 'corpo_invalido')
+    throw new AnalyticsDimensaoError(res.status, 'corpo_invalido', chamadas)
   }
-  if (!Array.isArray(corpo.columnHeaders)) throw new AnalyticsApiError(200, 'corpo_sem_cabecalho')
+  if (corpo === null || typeof corpo !== 'object' || !Array.isArray(corpo.columnHeaders)) throw forma('corpo_sem_cabecalho')
 
-  // Cabeçalho presente e nenhuma linha: o dia (ou a janela) não teve view. Não é erro e não inventa linha.
-  if ((corpo.rows ?? []).length === 0) return { linhas: [], estendidas, invalidas: 0 }
-
-  const nomes = corpo.columnHeaders.map(c => c.name)
+  // As colunas são conferidas ANTES de olhar as linhas: cabeçalho diferente do pedido é deriva de forma, mesmo num dia vazio.
+  const nomes = (corpo.columnHeaders as unknown[]).map(c => (c !== null && typeof c === 'object' ? (c as { name?: unknown }).name : undefined))
   const nomesDim = DIMENSOES_DA_FAMILIA[i.familia].split(',')
   const posDim = nomesDim.map(n => nomes.indexOf(n))
   const faltaDim = nomesDim.find((_, k) => posDim[k]! < 0)
-  if (faltaDim) throw new AnalyticsApiError(200, `sem_coluna_${faltaDim}`)
+  if (faltaDim) throw forma(`sem_coluna_${faltaDim}`)
   const posDia = comDia ? nomes.indexOf('day') : -1
-  if (comDia && posDia < 0) throw new AnalyticsApiError(200, 'sem_coluna_day')
+  if (comDia && posDia < 0) throw forma('sem_coluna_day')
   const posViews = nomes.indexOf('views')
-  if (posViews < 0) throw new AnalyticsApiError(200, 'sem_coluna_views')
+  if (posViews < 0) throw forma('sem_coluna_views')
   const posMin = nomes.indexOf('estimatedMinutesWatched')
   const posEng = nomes.indexOf('engagedViews')
 
+  // `rows` ausente ou nulo com o cabeçalho certo: o dia (ou a janela) não teve view. Não é erro e não inventa linha.
+  const brutas = corpo.rows ?? []
+  if (!Array.isArray(brutas)) throw forma('corpo_invalido')
+
   const linhas: LinhaDim[] = []
+  const vistas = new Set<string>()
   let invalidas = 0
-  for (const linha of corpo.rows ?? []) {
+  for (const linha of brutas as unknown[]) {
+    if (!Array.isArray(linha)) throw forma('corpo_invalido')
     const partes = posDim.map(p => linha[p])
     if (!partes.every((p): p is string => typeof p === 'string')) {
       invalidas++
       continue
     }
+    if (partes.some(p => p.includes('|'))) throw forma('corpo_invalido')
     const valor = partes.join('|')
-    const valorOk = i.familia === 'country' ? PAIS.test(valor) : VALOR.test(valor)
+    const valorOk = i.familia === 'country' ? PAIS.test(valor) : partes.every(p => PARTE.test(p))
     const day = comDia ? linha[posDia] : i.inicio
     const diaOk = typeof day === 'string' && DIA.test(day) && day >= i.inicio && day <= i.fim
     if (!valorOk || !diaOk) {
       invalidas++
       continue
     }
-    const out: LinhaDim = { day, valor }
     const views = numeroOuNada(linha[posViews])
-    if (views !== undefined) out.views = views
+    if (views === undefined || views < 0) throw forma('corpo_invalido')
+    const chave = `${day}\u0000${valor}`
+    if (vistas.has(chave)) throw forma('corpo_invalido')
+    vistas.add(chave)
+    const out: LinhaDim = { day, valor, views }
     if (posEng >= 0) {
       const e = numeroOuNada(linha[posEng])
       if (e !== undefined) out.engaged_views = e
@@ -155,5 +190,5 @@ export async function dimensaoDoVideo(i: Entrada): Promise<RespostaDimensao> {
     }
     linhas.push(out)
   }
-  return { linhas, estendidas, invalidas }
+  return { linhas, estendidas, invalidas, chamadas }
 }
