@@ -24,6 +24,7 @@ Ainda **não passou pelo portão** dos dois especialistas (dados e software). O 
 - Nenhum código, teste ou arquivo de migration foi criado. Os arquivos usados na rodada estavam numa pasta temporária **compartilhada com outros agentes**. *(emenda 1: D-I1 e S-I1)* Conferido em 13/10, depois dos pareceres: o `mg11.sql` de lá sobreviveu e é igual ao Apêndice A da rodada 0 (`diff` vazio); a saída guardada sobreviveu (igual à que estava no Apêndice B, fora o nome do arquivo e uma linha de tempo); **o roteiro de prova se perdeu**: outro agente gravou por cima dele o roteiro de outra etapa, e foi esse texto errado que entrou no Apêndice B da rodada 0. O Apêndice B de agora é um roteiro **reescrito** a partir da saída guardada, e **ainda não foi rodado** (o brief desta rodada só permite ler o repositório).
 - *(emenda 1: D-I1 e S-I1)* **O que vale como "rodado" depois da emenda 1.** Toda linha deste plano que diz "rodado" descreve a rodada de 13/10 com o SQL da rodada 0 e com o roteiro que se perdeu: tem saída guardada, mas hoje não tem roteiro que a reproduza. A emenda 1 mudou três coisas no Apêndice A (o gatilho passa a `after insert or update of revoked_at`; a coluna `revoked_by`; o índice dela) e cinco comandos no Apêndice C (conceder, retirar, retirar de todos e as duas consultas): **nada disso foi rodado**. **Conferência pendente, do controlador, com o banco de integração livre** (nenhum outro teste de integração rodando): gravar os Apêndices A e B nos dois arquivos da Tarefa 1 e rodar o comando do passo 2 dela duas vezes. Se a saída for a do Apêndice B, as afirmações "rodado" voltam a valer e passam a ser reproduzíveis. Se um **valor** vier diferente (matriz, contagem, código de erro), não se ajusta o roteiro até bater: a diferença volta a este plano como emenda. *(emenda 2: S-n1)* A Tarefa 1b não começa sem isso. **O acordo dos especialistas nas rodadas de revisão é sobre o plano** (desenho, tarefas, ordem, testes e o texto dos apêndices); **a MG11 só vai ao dono (decisão 45a) depois de os dois especialistas verem a saída da Tarefa 1, passo 2, igual à do Apêndice B.** Acordo sobre o plano não libera a migration.
 - *(emenda 2: D-N1, D-m-g, S-n6)* **O que a emenda 2 acrescentou e também nunca rodou:** no Apêndice A, o `check` `site_private_viewers_revoked_by_so_retirada`; no Apêndice B, o bloco "corrigir autor em branco" (cinco linhas novas na saída esperada, contando o título do bloco); no Apêndice C, o sexto comando ("corrigir autor em branco"), o `returning` nas instruções de escrita e os e-mails no histórico. Entram na mesma rodada pendente do controlador; o momento barato de rodá-la é entre esta emenda e a rodada 3.
+- *(controlador 14/10)* **Rodada da Tarefa 1, feita na noite de 14/10 no `bythiago_int`.** O roteiro do Apêndice B foi gravado como está e rodado duas vezes **antes** de qualquer mudança: as duas saídas foram iguais entre si e iguais ao Apêndice B (`diff` vazio), e depois de cada rodada `to_regclass('public.site_private_viewers')` deu nulo e não sobrou usuário `@mg11.test`. Com isso as afirmações "rodado" das emendas 1 e 2 (a coluna `revoked_by`, o índice dela, o gatilho em `update of revoked_at`, o `check` `site_private_viewers_revoked_by_so_retirada` e o bloco "corrigir autor em branco") **passam a valer**. Depois entraram os três acréscimos do controlador (Apêndice A) e o roteiro foi rodado duas vezes de novo: saídas iguais entre si; a diferença contra o Apêndice B anterior são as linhas marcadas `<- controlador 14/10` no Apêndice B. **O que continua sem rodar:** os seis comandos do Apêndice C (Tarefa 9) e o teste de 40 conexões (Tarefa 4). As conferências P1 a P10, P12 e P14 foram lidas em produção na mesma noite: o resultado está em `.superpowers/sdd/a5/conferencias-c0-resultado.md`, seção "C0.7b".
 - *(emenda 1: S-I2)* **Todo commit desta etapa viaja no próximo push de qualquer trilha** (o ramo local é o mesmo de todas, e a CI roda a pasta `test/integration/` inteira com banco, como portão duro: `.github/workflows/ci.yml`, job "Integration (DB-gated)"). Por isso cada commit daqui tem de ficar verde na CI sozinho, com a MG11 ainda sem arquivo em `supabase/migrations/`. É o que mudou o lugar do SQL de ensaio (Tarefa 1) e as regras das listas das Tarefas 3, 4 e 10 B.
 
 **O que pode começar JÁ**, sem esperar migration, A4 nem resposta do dono: as Tarefas **0a** (leituras em produção, do controlador), **0b**, **1** (SQL de ensaio no repositório e os testes de schema), **2**, **3**, **4** (testes de banco, que aplicam o SQL de ensaio numa transação desfeita), **7** (teste das ações, que não toca código de produção), **9** (runbook) e a parte A da **10** (inventário por leitura de código). Esperam a **A4 fechada e liberada pelo controlador** (a zona `lib/youtube/observatorio/proprio/**`, `app/cms/(authed)/youtube/competitors/**`, `e2e/**` e `test/youtube/observatorio/proprio-*` é dela): as Tarefas **5** e **6**. Esperam o arquivo da migration (a vez do lote C): a **1b**, a **8** e as partes B e C da **10**. A **11** é o envio.
@@ -131,10 +132,10 @@ Ordem de aplicação do lote C, fixada pelo controlador: MG14, **MG11**, MG5, MG
 
 ### Consultas de conferência depois de aplicar (V1 a V4 rodadas no banco local, duas vezes)
 
-**V1: a migration entrou inteira?** Esperado: **3, 2, 6, 1, 8, 2, 1, 1**. (Em produção, antes: 0, 0, 0, 0, 0, 0, 0, 0.)
+**V1: a migration entrou inteira?** *(controlador 14/10: dois valores no fim, o índice `idx_oaal_at` e os dois checks de validade)* Esperado: **3, 2, 6, 1, 8, 2, 1, 1, 1, 2**. (Em produção, antes: 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.)
 
 ```sql
-select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity and c.relname in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as tabelas_com_rls_de_3, (select count(*) from pg_policies where schemaname='public' and tablename in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as policies_de_2, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','obs_ai_rate_hit') and not has_function_privilege('anon',p.oid,'execute') and not has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcoes_so_service_role_de_6, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='can_view_private_site' and has_function_privilege('anon',p.oid,'execute') and has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcao_de_sessao_de_1, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','can_view_private_site','obs_ai_rate_hit','tg_site_private_viewers_audit') and p.proconfig @> array['search_path=""']) as funcoes_com_search_path_vazio_de_8, (select count(*) from information_schema.columns where table_schema='public' and table_name='pipeline_api_keys' and column_name in ('user_id','expires_at')) as colunas_novas_de_2, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname='pipeline_api_keys_observatorio_leitura_sozinha') as check_de_1, (select count(*) from pg_trigger where tgrelid='public.site_private_viewers'::regclass and tgname='audit_site_private_viewers' and not tgisinternal) as gatilho_de_1;
+select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity and c.relname in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as tabelas_com_rls_de_3, (select count(*) from pg_policies where schemaname='public' and tablename in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as policies_de_2, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','obs_ai_rate_hit') and not has_function_privilege('anon',p.oid,'execute') and not has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcoes_so_service_role_de_6, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='can_view_private_site' and has_function_privilege('anon',p.oid,'execute') and has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcao_de_sessao_de_1, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','can_view_private_site','obs_ai_rate_hit','tg_site_private_viewers_audit') and p.proconfig @> array['search_path=""']) as funcoes_com_search_path_vazio_de_8, (select count(*) from information_schema.columns where table_schema='public' and table_name='pipeline_api_keys' and column_name in ('user_id','expires_at')) as colunas_novas_de_2, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname='pipeline_api_keys_observatorio_leitura_sozinha') as check_de_1, (select count(*) from pg_trigger where tgrelid='public.site_private_viewers'::regclass and tgname='audit_site_private_viewers' and not tgisinternal) as gatilho_de_1, (select count(*) from pg_indexes where schemaname='public' and tablename='obs_ai_access_log' and indexname='idx_oaal_at' and indexdef like '%USING btree (at)') as indice_at_de_1, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname in ('pipeline_api_keys_expires_at_finita','pipeline_api_keys_perfil_exige_validade')) as checks_de_validade_de_2;
 ```
 `policies_de_2` é 2 de propósito: `obs_ai_rate` tem RLS ligada e **nenhuma** policy.
 
@@ -380,7 +381,7 @@ Caminhos relativos a `apps/web/`, salvo os que começam por `supabase/`, `docs/`
 
 **Testes** (`observatorio-a5-e17-p0-schema.test.ts`; cada `it` abre `begin`, chama `garantirMg11`, afirma e faz `rollback`):
 - `a migration aplica duas vezes seguidas sem erro` (*emenda 1: D-m5*: o auxiliar agora executa o arquivo sempre; o teste o executa mais uma vez depois dele, nos dois estados).
-- `V1 dá 3, 2, 6, 1, 8, 2, 1, 1` (a consulta da seção 2, letra por letra).
+- `V1 dá 3, 2, 6, 1, 8, 2, 1, 1, 1, 2` (a consulta da seção 2, letra por letra; *controlador 14/10*: os dois últimos valores são do índice com `at` e dos dois checks de validade, e cada acréscimo tem ainda um teste próprio: o índice e o plano que o usa, `infinity` e `-infinity` recusados, chave do perfil sem validade recusada).
 - `as cinco _as, obs_ai_rate_hit e a função do gatilho não são executáveis por anon nem por authenticated` (por `has_function_privilege`; **nunca chamar**).
 - `a função de sessão é executável por anon, authenticated e service_role`.
 - `as oito funções têm search_path vazio e nenhuma cita app.site_id no corpo` (`prosrc not ilike '%app.site_id%'` e `not ilike '%current_setting%'`).
@@ -452,7 +453,7 @@ Caminhos relativos a `apps/web/`, salvo os que começam por `supabase/`, `docs/`
 - `40 chamadas ao mesmo tempo, com a mesma chave e o mesmo instante, devolvem os números de 1 a 40 sem repetição e a linha fica com n = 40`. **Este é o único teste do plano que não cabe numa transação:** exige 40 conexões e dado commitado. Só roda quando a MG11 está aplicada de verdade (`to_regclass('public.obs_ai_rate')` não nulo fora de transação). *(emenda 1: S-I2)* Antes disso o teste **pula com o motivo escrito** ("a MG11 ainda não está aplicada neste banco: roda depois da Tarefa 1b"). A rodada 0 mandava falhar; isso deixaria vermelho o portão de banco da CI no próximo push de qualquer trilha. Pular aqui não é verde falso porque há três cobranças: o relatório da tarefa diz "pulado: 1" pelo nome; o passo 2b da seção 2 exige o teste verde no `bythiago_int` antes do `db:push:prod`; e, depois da 1b, a CI tem a tabela e passa a rodá-lo em todo push. *(emenda 1: S-m4)* O teste grava só pela conexão `pg`, nunca pelo cliente de serviço, e antes de gravar afirma que o host da conexão é `127.0.0.1` ou `localhost` (`apps/web/.env.local` aponta para produção); host diferente = o teste lança sem gravar. *(emenda 2: S-n7)* O host não basta: sem `SUPABASE_DB_URL`, os auxiliares caem na porta 54322 (`test/helpers/db-seed.ts:19-20`), que é o banco do navegador, e é `127.0.0.1` também. Fora da CI (`process.env.CI` ausente), o teste só grava se a porta da conexão for 54422; em outra porta ele **pula com o motivo escrito** ("fora da CI este teste só grava no banco de integração, porta 54422") em vez de lançar, porque lançar deixaria vermelha a suíte de quem roda `HAS_LOCAL_DB=1 npm test` contra o banco padrão, e as três cobranças acima (relatório, passo 2b, CI) continuam valendo. Na CI a porta é a do banco da CI e a regra da porta não se aplica. *(emenda 1: S-m3)* Afirma também que **nenhuma** das 40 chamadas falhou, e em especial que não houve erro 40P01 (travamento cruzado): a função faz os dois `insert` em duas CTEs, e a documentação do Postgres não promete a ordem de execução entre elas. Se aparecer 40P01, a função passa a `language plpgsql` com os dois `insert … returning … into` em sequência (minuto, depois dia), e isso é emenda do Apêndice A **antes** do `db:push:prod`. Limpa a chave de teste e as linhas no `afterAll`.
 - `chave que não existe: a chamada dá erro de chave estrangeira e nada é gravado` (dado ausente).
 - `tabela vazia: a primeira chamada devolve 1 e 1`.
-- `chave com observatorio_leitura e outra permissão é recusada no insert e no update (23514); chave só com observatorio_leitura entra; as três chaves de hoje não são afetadas`.
+- `chave com observatorio_leitura e outra permissão é recusada no insert e no update (23514); chave só com observatorio_leitura entra (controlador 14/10: com expires_at; sem validade, 23514); as três chaves de hoje não são afetadas`.
 - `apagar a chave apaga os contadores dela (cascata) e anula key_id no registro`.
 - `authenticated não lê nem escreve obs_ai_rate (42501)` e `lê zero linha de obs_ai_access_log sem ser administrador do site`.
 
@@ -734,6 +735,8 @@ Nenhum item do passo 0 fica sem tarefa. Cada "fora" tem dono dito *(emenda 1: a 
 
 O texto da rodada 0 foi rodado duas vezes seguidas, em quatro rodadas, em 13/10. *(emenda 1)* **Três mudanças, marcadas no SQL com "emenda 1", não foram rodadas:** a coluna `revoked_by` (D-m2), o índice dela, e o gatilho em `update of revoked_at` (D-m1 e S-I5). *(emenda 2: D-m-g)* **Uma quarta, marcada "emenda 2", também não rodada:** o `check` `site_private_viewers_revoked_by_so_retirada`. O resto é o texto da rodada 0, sem mudar um caractere. V1 não muda com a quarta: o `check` novo é de `site_private_viewers`, e a contagem `check_de_1` olha só o de `pipeline_api_keys`.
 
+*(controlador 14/10)* **Três acréscimos pedidos pelo controlador, marcados no SQL com "controlador 14/10", rodados duas vezes em 14/10 (Tarefa 1) e testados um a um no teste de schema.** Vêm do degrau 2 da E17 (`.superpowers/sdd/a5-planos-onda-2/e17-degrau-2-acesso-pelo-claude-code/progress.md`, fim, e `onda1b-revisao.md` I2): (i) o índice `idx_oaal_at` com `at` na frente em `obs_ai_access_log`; (ii) o `check` `pipeline_api_keys_expires_at_finita` (`expires_at` nula ou finita: `infinity` nunca venceria); (iii) o `check` `pipeline_api_keys_perfil_exige_validade` (permissão `observatorio_leitura` exige `expires_at` preenchida; é o M-2 do Apêndice D do degrau 2). **Não existe coluna de perfil:** o degrau 2 identifica o perfil por `permissions` (`lib/pipeline/chave.ts`: `PERFIL = 'observatorio_leitura'`, `ehDoPerfil`); as colunas que ele lê, `user_id` e `expires_at`, já estavam na MG11. O resto é o texto da emenda 2, sem mudar um caractere.
+
 Nome do arquivo: `supabase/migrations/<carimbo>_observatorio_a5_e17_direito_desempenho_privado.sql`, criado por `npm run db:new` na vez do lote C. Até lá: `apps/web/test/fixtures/sql/a5-e17-p0-mg11.sql` *(emenda 1: S-I2)*.
 
 ```sql
@@ -921,6 +924,16 @@ create index if not exists idx_pipeline_api_keys_user on public.pipeline_api_key
 alter table public.pipeline_api_keys drop constraint if exists pipeline_api_keys_observatorio_leitura_sozinha;
 alter table public.pipeline_api_keys add constraint pipeline_api_keys_observatorio_leitura_sozinha
   check (not ('observatorio_leitura' = any (permissions)) or permissions = array['observatorio_leitura']::text[]);
+-- (controlador 14/10: pedido do degrau 2, progress.md) validade sempre finita: 'infinity' em expires_at nunca venceria, e o código só compara datas finitas.
+alter table public.pipeline_api_keys drop constraint if exists pipeline_api_keys_expires_at_finita;
+alter table public.pipeline_api_keys add constraint pipeline_api_keys_expires_at_finita
+  check (expires_at is null or isfinite(expires_at));
+-- (controlador 14/10: M-2 do degrau 2) a chave do perfil exige validade. Não existe coluna de "perfil": o perfil é a permissão
+-- 'observatorio_leitura' em permissions (lib/pipeline/chave.ts: PERFIL, ehDoPerfil). Não se pede o mesmo para user_id: o
+-- "on delete set null" precisa poder anulá-lo no apagamento da pessoa (LGPD).
+alter table public.pipeline_api_keys drop constraint if exists pipeline_api_keys_perfil_exige_validade;
+alter table public.pipeline_api_keys add constraint pipeline_api_keys_perfil_exige_validade
+  check (not ('observatorio_leitura' = any (permissions)) or expires_at is not null);
 
 create table if not exists public.obs_ai_access_log (
   id bigint generated always as identity primary key,
@@ -938,6 +951,9 @@ create table if not exists public.obs_ai_access_log (
 create index if not exists idx_oaal_key_at on public.obs_ai_access_log (key_id, at desc);
 create index if not exists idx_oaal_user_at on public.obs_ai_access_log (user_id, at desc);
 create index if not exists idx_oaal_site_at on public.obs_ai_access_log (site_id, at desc);
+-- (controlador 14/10: I2 da revisão por commit do degrau 2) "a linha mais antiga" e o "delete … where at < corte" da poda
+-- varreriam a tabela inteira sem um índice com at na frente.
+create index if not exists idx_oaal_at on public.obs_ai_access_log (at);
 alter table public.obs_ai_access_log enable row level security;
 drop policy if exists "obs_ai_access_log_select" on public.obs_ai_access_log;
 create policy "obs_ai_access_log_select" on public.obs_ai_access_log
@@ -978,6 +994,8 @@ comment on function public.can_view_private_site(uuid) is 'A5 E17 passo 0: quem 
 ### Apêndice B: roteiro de prova (`a5-e17-p0-prova.sql`) e a saída esperada
 
 *(emenda 1: D-I1 e S-I1)* **Este roteiro foi reescrito e ainda não foi rodado.** O bloco que estava aqui na rodada 0 era o roteiro de outra etapa (pausa de canal), colado por engano: a pasta temporária era compartilhada e outro agente gravou por cima do arquivo. O roteiro verdadeiro não existe mais em lugar nenhum. O de baixo foi escrito de novo a partir da saída guardada da rodada 0, que serve de especificação, com três acréscimos: a coluna `revoked_by`, a contagem do rastro antes e depois de apagar quem concedeu, e a criação da organização raiz quando o banco não tem uma. Ele inclui o SQL da MG11 duas vezes seguidas (prova de idempotência) e termina em `rollback`.
+
+*(controlador 14/10)* **Rodado.** Duas vezes seguidas em 14/10, com as saídas iguais entre si (fora as linhas `custo:`); a diferença contra o Apêndice B da emenda 2 é só o que as linhas marcadas `<- controlador 14/10` mostram: a linha de V1 (com 10 valores), cinco avisos novos dos checks de validade, e a chave de perfil da prova, que agora leva `expires_at` (o check novo a exige). Antes disso o roteiro SEM os acréscimos foi rodado duas vezes e deu **exatamente** a saída do Apêndice B (as emendas 1 e 2 estão provadas). A saída gravada em `apps/web/test/fixtures/sql/a5-e17-p0-prova-saida.txt` é a da segunda rodada.
 
 Como rodar (Tarefa 1, passo 2): `psql -X "postgresql://postgres:postgres@127.0.0.1:54422/postgres" -f apps/web/test/fixtures/sql/a5-e17-p0-prova.sql 2>&1 | sed -E 's/^psql:[^ ]*:[0-9]+: //'`. Só no banco de integração, com ele livre. Os papéis `anon` e `authenticated` só chamam, no roteiro, as funções de sessão que eles podem executar (`can_view_site`, `can_edit_site`, `can_view_private_site`): nenhuma `_as` é chamada por eles (regra do Postgres local).
 
@@ -1023,6 +1041,10 @@ insert into public.site_memberships (site_id, user_id, role) values (:'a', :'edi
 -- três concessões no site A: a leitora (em vigor), a revogada (concedida e retirada) e a ex-membro (em vigor, sem vínculo com o site)
 insert into public.site_private_viewers (site_id, user_id, granted_by) values (:'a', :'leitora', :'dono'), (:'a', :'revogada', :'dono'), (:'a', :'exmembro', :'dono');
 update public.site_private_viewers set revoked_at = now(), revoked_by = :'dono' where site_id = :'a' and user_id = :'revogada';
+
+-- (controlador 14/10) V1 do plano com os dois acréscimos no fim: o índice com at e os dois checks de validade
+\echo == V1 (tabelas, policies, funcoes, sessao, search_path, colunas, check, gatilho, indice_at, checks_de_validade)
+select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity and c.relname in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as tabelas_com_rls_de_3, (select count(*) from pg_policies where schemaname='public' and tablename in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as policies_de_2, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','obs_ai_rate_hit') and not has_function_privilege('anon',p.oid,'execute') and not has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcoes_so_service_role_de_6, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='can_view_private_site' and has_function_privilege('anon',p.oid,'execute') and has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcao_de_sessao_de_1, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','can_view_private_site','obs_ai_rate_hit','tg_site_private_viewers_audit') and p.proconfig @> array['search_path=""']) as funcoes_com_search_path_vazio_de_8, (select count(*) from information_schema.columns where table_schema='public' and table_name='pipeline_api_keys' and column_name in ('user_id','expires_at')) as colunas_novas_de_2, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname='pipeline_api_keys_observatorio_leitura_sozinha') as check_de_1, (select count(*) from pg_trigger where tgrelid='public.site_private_viewers'::regclass and tgname='audit_site_private_viewers' and not tgisinternal) as gatilho_de_1, (select count(*) from pg_indexes where schemaname='public' and tablename='obs_ai_access_log' and indexname='idx_oaal_at' and indexdef like '%USING btree (at)') as indice_at_de_1, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname in ('pipeline_api_keys_expires_at_finita','pipeline_api_keys_perfil_exige_validade')) as checks_de_validade_de_2;
 
 \echo == matriz _as (usuario|site|ver|editar|privado)
 select u.nome, s.nome, public.can_view_site_as(u.id, s.id), public.can_edit_site_as(u.id, s.id), public.can_view_private_site_as(u.id, s.id) from u cross join s order by u.nome collate "C", s.nome collate "C";
@@ -1129,7 +1151,7 @@ begin
 end $$;
 
 \echo == contador de taxa (como service_role)
-insert into public.pipeline_api_keys (id, site_id, name, key_hash, permissions, user_id) values (:'k', :'a', 'mg11 perfil', 'mg11-hash-perfil', array['observatorio_leitura'], :'leitora');
+insert into public.pipeline_api_keys (id, site_id, name, key_hash, permissions, user_id, expires_at) values (:'k', :'a', 'mg11 perfil', 'mg11-hash-perfil', array['observatorio_leitura'], :'leitora', now() + interval '1 year');   -- (controlador 14/10) com validade: o check novo a exige
 insert into public.obs_ai_access_log (site_id, user_id, key_id, origin, action, included_private, result) values (:'a', :'leitora', :'k', 'mcp', 'prova', true, 'ok');
 set local role service_role;
 select no_minuto, no_dia from public.obs_ai_rate_hit(:'k', '2026-10-13 23:59:10+00');
@@ -1147,6 +1169,17 @@ begin
   exception when check_violation then raise warning 'chave com observatorio_leitura + read: %', sqlstate; end;
   begin update public.pipeline_api_keys set permissions = array_append(permissions, 'read') where name = 'mg11 perfil'; raise warning 'acrescentar read a chave do perfil: PASSOU (defeito)';
   exception when check_violation then raise warning 'acrescentar read a chave do perfil: %', sqlstate; end;
+  -- (controlador 14/10) validade finita e chave do perfil com validade
+  begin insert into public.pipeline_api_keys (site_id, name, key_hash, permissions, expires_at) values (a, 'mg11 infinita', 'mg11-hash-infinita', array['read'], 'infinity'); raise warning 'expires_at infinito: PASSOU (defeito)';
+  exception when check_violation then raise warning 'expires_at infinito: %', sqlstate; end;
+  begin insert into public.pipeline_api_keys (site_id, name, key_hash, permissions, expires_at) values (a, 'mg11 menos infinita', 'mg11-hash-menos-infinita', array['read'], '-infinity'); raise warning 'expires_at menos infinito: PASSOU (defeito)';
+  exception when check_violation then raise warning 'expires_at menos infinito: %', sqlstate; end;
+  begin insert into public.pipeline_api_keys (site_id, name, key_hash, permissions) values (a, 'mg11 perfil sem validade', 'mg11-hash-perfil-sem-validade', array['observatorio_leitura']); raise warning 'chave do perfil sem validade: PASSOU (defeito)';
+  exception when check_violation then raise warning 'chave do perfil sem validade: %', sqlstate; end;
+  begin update public.pipeline_api_keys set expires_at = null where name = 'mg11 perfil'; raise warning 'tirar a validade da chave do perfil: PASSOU (defeito)';
+  exception when check_violation then raise warning 'tirar a validade da chave do perfil: %', sqlstate; end;
+  begin insert into public.pipeline_api_keys (site_id, name, key_hash, permissions) values (a, 'mg11 comum sem validade', 'mg11-hash-comum-sem-validade', array['read']); raise warning 'chave comum sem validade: entrou (como as de hoje)';
+  exception when check_violation then raise warning 'chave comum sem validade: RECUSADA (defeito)'; end;
 end $$;
 
 \echo == apagar usuario: a leitora some da concessao; quem concedeu e retirou vira nulo; chave fica sem dono; nenhum rastro novo
@@ -1183,6 +1216,8 @@ rollback;
 
 ```text
 == cenario
+== V1 (tabelas, policies, funcoes, sessao, search_path, colunas, check, gatilho, indice_at, checks_de_validade)          <- controlador 14/10
+3|2|6|1|8|2|1|1|1|2          <- controlador 14/10
 == matriz _as (usuario|site|ver|editar|privado)
 editor|A|t|t|t
 editor|B|f|f|f
@@ -1251,6 +1286,11 @@ minuto|2026-10-14 00:00:00|1
 == check da permissao sozinha
 WARNING:  chave com observatorio_leitura + read: 23514
 WARNING:  acrescentar read a chave do perfil: 23514
+WARNING:  expires_at infinito: 23514          <- controlador 14/10
+WARNING:  expires_at menos infinito: 23514          <- controlador 14/10
+WARNING:  chave do perfil sem validade: 23514          <- controlador 14/10
+WARNING:  tirar a validade da chave do perfil: 23514          <- controlador 14/10
+WARNING:  chave comum sem validade: entrou (como as de hoje)          <- controlador 14/10
 == apagar usuario: a leitora some da concessao; quem concedeu e retirou vira nulo; chave fica sem dono; nenhum rastro novo
 linhas_da_leitora|0
 chave_sem_dono|t
@@ -1260,9 +1300,9 @@ granted_by_nulo|2|2
 revoked_by_nulo|2|2          <- emenda 1
 rastro_novo_ao_apagar|0          <- emenda 1
 == custo: 1000 chamadas da funcao de sessao como o editor, a reporter sem direito e a ex-membro
-WARNING:  custo: editor -> 1000 de 1000 verdadeiras em 1 ms
-WARNING:  custo: reporter -> 0 de 1000 verdadeiras em 0 ms
-WARNING:  custo: exmembro -> 0 de 1000 verdadeiras em 0 ms
+WARNING:  custo: editor -> 1000 de 1000 verdadeiras em 139 ms
+WARNING:  custo: reporter -> 0 de 1000 verdadeiras em 137 ms
+WARNING:  custo: exmembro -> 0 de 1000 verdadeiras em 140 ms
 ```
 
 **O que cada linha nova prova.** `rastro_novo_ao_apagar|0`: apagar a leitora e apagar quem concedeu e retirou não gravou linha nenhuma em `audit_log` (com o gatilho da rodada 0 seria maior que zero, porque o `set null` das duas colunas é um `update`). `revoked_by_na_linha_revogada|t`: a instrução de retirar gravou quem retirou. `revoked_by_nulo|2|2`: sobram duas concessões (a da revogada e a da ex-membro) e nenhuma guarda o id de quem foi apagado. *(emenda 2: D-N1 e D-m-g)* `corrigir_autor|1`: o comando "corrigir autor em branco" achou a linha retirada sem autor e a preencheu. `continua_retirada|t|f`: depois dele a linha continua retirada, com o autor certo, e a pessoa continua **sem** ler. `rastro_novo_ao_corrigir|0`: anular e corrigir o autor não gravaram linha em `audit_log` (nenhum dos dois `update` cita `revoked_at`). `revoked_by em linha em vigor: 23514`: o `check` recusou marcar "quem retirou" em quem ainda tem o direito (há duas linhas em vigor nesse ponto, a da leitora e a da ex-membro). `PASSOU (defeito)` em qualquer aviso = uma escrita que devia ser recusada passou: parar.

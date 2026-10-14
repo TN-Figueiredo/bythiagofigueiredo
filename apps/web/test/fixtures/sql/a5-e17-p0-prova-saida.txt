@@ -1,0 +1,88 @@
+== cenario
+== V1 (tabelas, policies, funcoes, sessao, search_path, colunas, check, gatilho, indice_at, checks_de_validade)
+3|2|6|1|8|2|1|1|1|2
+== matriz _as (usuario|site|ver|editar|privado)
+editor|A|t|t|t
+editor|B|f|f|f
+editorB|A|f|f|f
+editorB|B|t|t|t
+exmembro|A|f|f|f
+exmembro|B|f|f|f
+leitora|A|t|f|t
+leitora|B|f|f|f
+orgadmin|A|t|t|t
+orgadmin|B|f|f|f
+reporter|A|t|f|f
+reporter|B|f|f|f
+revogada|A|t|f|f
+revogada|B|f|f|f
+sem|A|f|f|f
+sem|B|f|f|f
+super|A|t|t|t
+super|B|t|t|t
+== nulo: usuario nulo, site nulo e site inexistente dao false, nunca nulo; a de sessao, sem sessao, tambem
+f|f|f|f
+== sessao x _as, com o GUC app.site_id forjado para o site A
+divergencias_sessao_x_as|0
+linhas_comparadas|18
+== anon: a funcao de sessao responde false
+anon|f
+== RLS de site_private_viewers (leitora ve a propria; reporter 0; super e orgadmin as 3 do site A; editor 0)
+WARNING:  rls site_private_viewers: super ve 3 linha(s)
+WARNING:  rls site_private_viewers: orgadmin ve 3 linha(s)
+WARNING:  rls site_private_viewers: editor ve 0 linha(s)
+WARNING:  rls site_private_viewers: leitora ve 1 linha(s)
+WARNING:  rls site_private_viewers: reporter ve 0 linha(s)
+WARNING:  rls site_private_viewers: editorB ve 0 linha(s)
+== escrita por authenticated e recusada (insert, update, delete)
+WARNING:  insert como org_admin: 42501
+WARNING:  update como org_admin: 42501
+WARNING:  delete como org_admin: 42501
+WARNING:  insert em obs_ai_rate como authenticated: 42501
+WARNING:  select em obs_ai_rate como authenticated: 42501
+== rastro em audit_log
+private_view_granted|3
+private_view_revoked|1
+org_id_preenchido|t
+== runbook: conceder de novo a revogada (1 linha), conceder a quem ja tem (0 linhas), revogar (1), revogar de novo (0)
+reconceder|1
+conceder_a_quem_ja_tem|0
+revogar|1
+revogar_de_novo|0
+private_view_granted|4
+private_view_revoked|2
+revoked_by_na_linha_revogada|t
+== corrigir autor em branco: preenche quem retirou, nao muda quem le, nao grava rastro; revoked_by em linha em vigor e recusado
+corrigir_autor|1
+continua_retirada|t|f
+rastro_novo_ao_corrigir|0
+WARNING:  revoked_by em linha em vigor: 23514
+== contador de taxa (como service_role)
+1|1
+2|2
+3|3
+1|1
+dia|2026-10-13 00:00:00|3
+dia|2026-10-14 00:00:00|1
+minuto|2026-10-13 23:59:00|3
+minuto|2026-10-14 00:00:00|1
+== check da permissao sozinha
+WARNING:  chave com observatorio_leitura + read: 23514
+WARNING:  acrescentar read a chave do perfil: 23514
+WARNING:  expires_at infinito: 23514
+WARNING:  expires_at menos infinito: 23514
+WARNING:  chave do perfil sem validade: 23514
+WARNING:  tirar a validade da chave do perfil: 23514
+WARNING:  chave comum sem validade: entrou (como as de hoje)
+== apagar usuario: a leitora some da concessao; quem concedeu e retirou vira nulo; chave fica sem dono; nenhum rastro novo
+linhas_da_leitora|0
+chave_sem_dono|t
+log_sem_pessoa|t|t
+privado_da_leitora_apagada|f
+granted_by_nulo|2|2
+revoked_by_nulo|2|2
+rastro_novo_ao_apagar|0
+== custo: 1000 chamadas da funcao de sessao como o editor, a reporter sem direito e a ex-membro
+WARNING:  custo: editor -> 1000 de 1000 verdadeiras em 139 ms
+WARNING:  custo: reporter -> 0 de 1000 verdadeiras em 137 ms
+WARNING:  custo: exmembro -> 0 de 1000 verdadeiras em 140 ms
