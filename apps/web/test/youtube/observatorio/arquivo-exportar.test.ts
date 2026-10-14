@@ -518,8 +518,13 @@ describe('A5 E10 T6: miniaturas.ts e sessao.ts', () => {
   })
 
   it('os módulos do comando só importam de node: e de caminho relativo', () => {
-    for (const f of ['sessao', 'miniaturas', 'exportar', 'conferir']) {
+    // (revisão Yannis 14/10, M3) a regra é do conjunto que o `tsx` da raiz importa, não de quatro módulos; `../rules` e as `regras.ts` que ele puxa também
+    for (const f of ['sessao', 'miniaturas', 'exportar', 'conferir', 'csv', 'manifesto', 'codigos', 'cli', 'sinal-do-banco']) {
       const src = readFileSync(join(__dirname, `../../../src/lib/youtube/observatorio/arquivo/${f}.ts`), 'utf8')
+      for (const m of src.matchAll(/^\s*import[^'"]*['"]([^'"]+)['"]/gm)) expect(m[1]!.startsWith('node:') || m[1]!.startsWith('.'), `${f}: ${m[1]}`).toBe(true)
+    }
+    for (const f of ['rules', 'comentarios/regras', 'contexto-ia/regras', 'acesso-ia/regras', 'medidas/regras']) {
+      const src = readFileSync(join(__dirname, `../../../src/lib/youtube/observatorio/${f}.ts`), 'utf8')
       for (const m of src.matchAll(/^\s*import[^'"]*['"]([^'"]+)['"]/gm)) expect(m[1]!.startsWith('node:') || m[1]!.startsWith('.'), `${f}: ${m[1]}`).toBe(true)
     }
   })

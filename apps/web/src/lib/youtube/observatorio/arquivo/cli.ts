@@ -210,13 +210,19 @@ export const TABELAS_COM_IDENTIDADE: readonly string[] = [
 ]
 
 /**
+ * O caminho dentro de `from program '...'`: caminho comum fica como está; com espaço, aspa ou qualquer caractere do shell, vai entre aspas do shell
+ * (`aspasSh`) e, como tudo está dentro do literal do psql, cada aspa simples é dobrada (revisão Yannis 14/10, M9).
+ */
+const caminhoNoPrograma = (caminho: string): string => (/^[A-Za-z0-9._\/@%+=:,-]+$/.test(caminho) ? caminho : aspasSh(caminho).replace(/'/g, "''"))
+
+/**
  * Os comandos de recarga: um `\copy` por arquivo do manifesto, na ordem do manifesto (a do registro do banco: pai antes de filho,
  * porque a recarga não desliga chave estrangeira) e, depois de TODOS, o reajuste da sequência de cada tabela de identidade carregada
  * (o máximo só vale com tudo carregado). Puro: só imprime.
  */
 export function comandosDeRecarga(m: Manifesto, pasta: string): string[] {
   const copias = m.arquivos.map(a =>
-    `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${pasta}/${a.caminho}' csv header`)
+    `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${caminhoNoPrograma(`${pasta}/${a.caminho}`)}' csv header`)
   const carregadas = [...new Set(m.arquivos.map(a => a.tabela))].filter(t => TABELAS_COM_IDENTIDADE.includes(t))
   const ajustes = carregadas.map(t => `select setval(pg_get_serial_sequence('public.${t}', 'id'), (select max(id) from public.${t}));`)
   return [...copias, ...ajustes]

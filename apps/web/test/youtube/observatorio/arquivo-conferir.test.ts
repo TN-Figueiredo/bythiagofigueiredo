@@ -63,6 +63,19 @@ describe('A5 E10 T6: conferirLote', () => {
     expect(textos.at(-1)).toBe('commit')
   })
 
+  it('lixo do Finder e do Windows na pasta (.DS_Store, Thumbs.db) não reprova a conferência; outro arquivo continua sendo arquivo_sobrando (revisão Yannis 14/10, M8)', async () => {
+    const p = await exportado()
+    p.d.arquivos.set(`${PASTA}/.DS_Store`, Buffer.from('lixo'))
+    p.d.arquivos.set(`${PASTA}/miniaturas/Thumbs.db`, Buffer.from('lixo'))
+    expect(await p.conferir()).toMatchObject({ ok: true })
+    const q = await exportado()
+    q.d.arquivos.set(`${PASTA}/.DS_Store`, Buffer.from('lixo'))
+    q.d.arquivos.set(`${PASTA}/x.txt`, Buffer.from('de verdade'))
+    const r = await q.conferir()
+    expect(r).toMatchObject({ ok: false, codigo: 'arquivo_sobrando', diferencas: ['x.txt'] })
+    expect(q.verificou()).toBe(false)
+  })
+
   it('conferir sem manifesto: sem_manifesto, sem tocar o banco', async () => {
     const b = bancoFalso()
     const d = discoFalso({ [`${PASTA}/qualquer.txt`]: 'x' })

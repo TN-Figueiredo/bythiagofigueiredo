@@ -192,6 +192,24 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     expect(ordem.indexOf('youtube_intelligence_tasks')).toBeLessThan(ordem.indexOf('competitor_readings'))
   })
 
+  it('comandos-recarga com --pasta com espaço ou aspa: o caminho vai entre aspas do shell dentro do programa, e o caminho comum continua sem aspas (revisão Yannis 14/10, M9)', async () => {
+    const d = await pastaComManifesto()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    expect(r.saida[0]).toContain(`from program 'gzip -dc /arquivo/${LOTE}/competitor_channels/`) // caminho comum: nada muda
+    // o manifesto é lido da pasta pedida: o falso do disco guarda tudo em `/arquivo`; copiamos para uma pasta com espaço e aspa
+    for (const pasta of ['/tmp/a b', `/tmp/o'neil`, '/tmp/a;rm -rf x']) {
+      const d2 = discoFalso()
+      for (const [k, v] of d.arquivos) d2.arquivos.set(k.replace('/arquivo/', `${pasta}/`), v)
+      const out = await rodar({ nome: 'comandos-recarga', lote: LOTE, pasta }, dinheiro({ disco: d2.disco, sql: null }))
+      expect(out.codigo, pasta).toBe(0)
+      const l = out.saida[0]!
+      const caminho = `${pasta}/${LOTE}/competitor_channels/${CANAL}/unico.csv.gz`
+      // dentro do literal do psql a aspa do shell vira duas; desfeito o literal, sobra `gzip -dc '<caminho>'` com a aspa do caminho em `'\''`
+      const literal = /from program '(.*)' csv header$/.exec(l)![1]!.replace(/''/g, `'`)
+      expect(literal).toBe(`gzip -dc '${caminho.replace(/'/g, `'\\''`)}'`)
+    }
+  })
+
   it('comandos-recarga sem tabela de identidade no manifesto não imprime ajuste algum', async () => {
     const d = await pastaComManifesto()
     const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))

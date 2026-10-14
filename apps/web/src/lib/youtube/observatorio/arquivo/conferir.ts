@@ -78,7 +78,9 @@ export async function conferirLote(o: { sql: ClienteSql; disco: Disco; pastaRaiz
   const { itens, ruins } = lerSha256(Buffer.from(await disco.ler(juntar(pasta, 'manifesto.sha256'))).toString('utf8'))
   if (ruins.length > 0) return falha('manifesto_invalido', ruins)
   const esperado = lerSha256(textoDoSha256(manifesto, sha256(bruto))).itens
-  const presentes = new Set(await disco.listar(pasta))
+  // o Finder e o Explorer deixam `.DS_Store` e `Thumbs.db` na pasta que o dono abre para copiar ao NAS (revisão Yannis 14/10, M8): não são arquivo da exportação
+  const LIXO_DO_SISTEMA = new Set(['.DS_Store', 'Thumbs.db'])
+  const presentes = new Set((await disco.listar(pasta)).filter(c => !LIXO_DO_SISTEMA.has(c.slice(c.lastIndexOf('/') + 1))))
   const faltando: string[] = []
   const sobrando: string[] = []
   const diferentes: string[] = []
