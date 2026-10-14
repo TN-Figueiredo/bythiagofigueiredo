@@ -180,6 +180,14 @@ describe('PlayoffDetail: encerrado sem vencedor e sem playoff real (P2 I1)', () 
     expect(screen.getByText('Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.')).toBeDefined()
   })
 
+  it('teste de tipo retirado: sem Duplicar e sem mandar usar Duplicar', () => {
+    const view = { ...semPlayoff(), flag: 'description' } as unknown as Parameters<typeof PlayoffDetail>[0]['view']
+    const { container } = render(<PlayoffDetail view={view} />)
+    expect(screen.queryByRole('button', { name: /Duplicar/ })).toBeNull()
+    expect(container.textContent).not.toMatch(/use Duplicar/)
+    expect(container.textContent).toMatch(/Este tipo de teste foi retirado; para testar de novo, crie um teste novo\./)
+  })
+
   it('placar sem a coluna nem o rótulo de chance de vencer', () => {
     const { container } = render(<PlayoffDetail view={semPlayoff()} />)
     expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()

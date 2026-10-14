@@ -16,6 +16,7 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 export function PlayoffDetail({ view }: PlayoffDetailProps) {
   // Só há playoff de verdade quando existe um teste de playoff (a criação automática foi retirada).
   const temPlayoff = view.playoffTestId !== ''
+  const podeDuplicar = view.flag === 'title' || view.flag === 'thumbnail' || view.flag === 'combo'
   return (
     <div data-testid="playoff-detail">
       {/* 1. DetailHeader */}
@@ -30,7 +31,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           hasPlayoff={view.hasPlayoff}
           actions={
             <div className="flex gap-[9px] shrink-0">
-              {(view.flag === 'title' || view.flag === 'thumbnail' || view.flag === 'combo') && (
+              {podeDuplicar && (
                 <button type="button" className={BTN}>
                   <Copy size={14} aria-hidden="true" />
                   Duplicar
@@ -69,7 +70,9 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
             <div className="text-[12.5px] text-cms-text mt-[3px] leading-[1.5] max-w-[680px]">
               {temPlayoff
                 ? SEM_MEDICAO_DE_ENTREGA
-                : 'Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.'}
+                : podeDuplicar
+                  ? 'Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.'
+                  : 'Você não escolheu uma variante e não há CTR medido para decidir. Este tipo de teste foi retirado; para testar de novo, crie um teste novo.'}
             </div>
           </div>
         </div>
