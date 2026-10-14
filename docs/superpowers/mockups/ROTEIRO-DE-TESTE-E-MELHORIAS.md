@@ -868,7 +868,7 @@ Não registrado: ainda não foi ao dono.
 ---
 ## 19a. Peça 1: "desde dd/mm" e "no arquivo" nas telas de gráfico
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); aguarda o dono**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); **aprovado pelo dono no Opera em 14/10/2026, com duas mudanças**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Este número está completo, ou falta um pedaço que saiu do banco?" A resposta vem junto do número ("desde 01/10/2027") e no eixo (trecho "no arquivo").
@@ -888,7 +888,7 @@ Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do
 ### 3. Decisões pedidas ao dono
 1. O quadro "Aprovado hoje" é reconstruído pela frontend-design (números no lugar do "no arquivo"): confirmar que representa o que o 13 e o 15 mostram.
 2. As telas 14, 17a e 17c ficaram sem quadro, a confirmar pela janela de 180 dias.
-Respostas do dono: não registradas.
+Respostas do dono (14/10/2026): aprovou a peça 1 vendo o P1-4, com duas mudanças propostas pelo controlador e aceitas: (1) a caixa diz o trecho, não "desde": "25/08 a 30/09/2027 no arquivo" no lugar de "no arquivo desde 08/2027" (muda frase fixada do spec 04: vai ao fecho); (2) um caminho só para o trecho guardado: fica "Ver antigo", sai "Ver o que está no arquivo" ao lado. As duas entram na implementação (M5), sem redesenho do mockup.
 
 ### 4. Melhorias que os revisores sugeriram e não bloqueiam
 Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando voltarem, entram aqui.
@@ -897,7 +897,7 @@ Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando 
 O mockup 21 está segurado; a janela de 6 e 12 meses é de exemplo. Leitor de tela, Opera, aparelho real. O desenho não foi aberto dentro das telas reais do 13 e do 15.
 
 ### 6. Retorno do dono e do uso real
-Não registrado: ainda não foi ao dono.
+14/10/2026: aprovado vendo um quadro só (P1-4, `series.html?e=p1-4`), com a explicação "hoje à esquerda, depois da fase à direita". Selos, "04 L77", a nota cinza e a faixa "Exemplo" são anotação de revisor e não vão ao site.
 
 ---
 ## 19b. Peça 2: a página do Arquivo
