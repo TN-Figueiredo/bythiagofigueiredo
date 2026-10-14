@@ -8,7 +8,7 @@ import type { CampoRestauracao, RestoreStatus, ErroGravado } from '@/lib/youtube
 afterEach(cleanup)
 
 const AGORA = new Date('2026-10-12T09:00:00Z') // 06:00 em SP
-const ctx: CtxFaixa = { agora: AGORA, rotulo: id => (id === 'vb' ? 'B' : id), noArAntes: 'C', youtubeId: 'yt123' }
+const ctx: CtxFaixa = { agora: AGORA, rotulo: id => (id === 'vb' ? 'B' : id), noArAntes: 'C', noArDesde: '2026-10-07T08:00:00Z', youtubeId: 'yt123' }
 const T0502 = '2026-10-12T08:02:00Z' // 12/10 05:02 SP
 const T0500 = '2026-10-12T08:00:00Z'
 const T1700 = '2026-10-12T20:00:00Z'
@@ -29,7 +29,7 @@ const SEMENTES: Record<string, RestoreStatus> = {
   D2: { title: campo({ estado: 'falhou', destino: 'vb', erro: recusa }), thumbnail: campo({ destino: 'vb' }) },
   E: { title: campo({}), thumbnail: campo({ estado: 'pulado_drift' }) },
   F: { title: campo({}), thumbnail: campo({ estado: 'pulado_drift', motivo: 'sem_base_de_comparacao' }) },
-  G: { title: campo({ estado: 'pulado_sem_original', em: '2026-10-07T08:00:00Z' }), thumbnail: OK_THUMB },
+  G: { title: campo({ estado: 'pulado_sem_original', em: T0502 }), thumbnail: OK_THUMB },
   J1: { title: campo({ estado: 'desistiu', motivo: 'video_inexistente', em: T1700 }), thumbnail: OK_THUMB },
   J2: { title: campo({ estado: 'desistiu', motivo: 'novo_teste', em: T1700 }), thumbnail: OK_THUMB },
 }
@@ -64,15 +64,37 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('A3', () => {
     expect(montarFaixa(SEMENTES.A3, ctx)).toEqual({
-      tom: 'warn', lbl: 'Atenção:', resumo: 'Não sabemos se voltou ao original.',
-      linhas: [{ campo: 'title', rotulo: 'Título', tom: 'warn', texto: 'Sem resposta desde 12/10 05:00. Não sabemos se a troca foi feita. Confira o título no YouTube Studio.', hora: '12/10 05:00' }],
+      tom: 'warn', icone: 'none', lbl: 'Atenção:', resumo: 'Não sabemos se voltou ao original.',
+      linhas: [{ campo: 'title', rotulo: 'Título', tom: 'warn', icone: 'none', texto: 'Sem resposta desde 12/10 05:00. Não sabemos se a troca foi feita. Confira o título no YouTube Studio.', hora: '12/10 05:00' }],
       linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'region',
     })
+  })
+  it('A3: ícone é o círculo tracejado (não o triângulo) na faixa e na linha, cor de atenção', () => {
+    const f = completa(montarFaixa(SEMENTES.A3, ctx))
+    expect(f.icone).toBe('none')
+    expect(f.linhas[0].icone).toBe('none')
+    const { container } = render(<FaixaRestauracao faixa={f} />)
+    for (const svg of Array.from(container.querySelectorAll('svg'))) {
+      expect(svg.querySelector('circle[stroke-dasharray]')).not.toBeNull()
+      expect(svg.querySelector('path[d^="M12 3L22"]')).toBeNull()
+    }
+    expect(container.querySelector('.fr-band.warn')).not.toBeNull()
+    cleanup()
+    // E (alguém editou por fora) segue com o triângulo
+    const e = render(<FaixaRestauracao faixa={completa(montarFaixa(SEMENTES.E, ctx))} />)
+    expect(e.container.querySelector('svg path[d^="M12 3L22"]')).not.toBeNull()
   })
   it('A3 na variante e na thumbnail', () => {
     const f = completa(montarFaixa({ thumbnail: campo({ estado: 'em_andamento', destino: 'vb', em: T0500 }) }, ctx))
     expect(f.resumo).toBe('Não sabemos se a variante B foi aplicada.')
     expect(f.linhas[0].texto).toBe('Sem resposta desde 12/10 05:00. Não sabemos se a troca foi feita. Confira a thumbnail no YouTube Studio.')
+  })
+  it('B: okline mostra "Horários de São Paulo"; destinos diferentes não viram "voltaram ao original"', () => {
+    render(<FaixaRestauracao faixa={montarFaixa(SEMENTES.B, ctx) as Faixa} />)
+    expect(screen.getByText('Horários de São Paulo')).toBeTruthy()
+    cleanup()
+    const misto = montarFaixa({ title: campo({}), thumbnail: campo({ destino: 'vb' }) }, ctx)
+    expect(misto).toEqual({ tom: 'ok', okline: 'Título: Voltou ao original em 12/10 05:02. Thumbnail: Variante B aplicada em 12/10 05:02.' })
   })
   it('B', () => {
     expect(montarFaixa(SEMENTES.B, ctx)).toEqual({ tom: 'ok', okline: 'Título e thumbnail voltaram ao original em 12/10 05:02.' })
@@ -140,6 +162,15 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
       linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio para conferir', ajuda: null, fine: null, papel: 'status',
     })
   })
+  it('G: "no ar desde" usa noArDesde, não a hora do campo; sem noArDesde a frase sai sem hora', () => {
+    const f = completa(montarFaixa(SEMENTES.G, ctx))
+    expect(f.linhas[0].texto).toBe('Continua o da variante C, no ar desde 07/10 05:00.')
+    expect(f.linhas[0].texto).not.toContain('12/10')
+    const sem = completa(montarFaixa(SEMENTES.G, { ...ctx, noArDesde: null }))
+    expect(sem.linhas[0].texto).toBe('Continua o da variante C.')
+    expect(sem.linhas[0].texto).not.toContain('no ar desde')
+    expect(sem.linhas[0].hora).toBeUndefined()
+  })
   it('J1', () => {
     expect(montarFaixa(SEMENTES.J1, ctx)).toEqual({
       tom: 'none', lbl: 'Sem nova tentativa:',
@@ -202,6 +233,14 @@ describe('regras', () => {
     expect(horaSP('2026-10-13T02:59:00Z')).toBe('12/10 23:59')
     expect(horaSP('2026-10-13T03:00:00Z')).toBe('13/10 00:00')
     expect(horaSP('lixo')).not.toMatch(/NaN|undefined/)
+  })
+
+  it('aria-live="polite" só no estado busy', () => {
+    render(<FaixaRestauracao faixa={completa(montarFaixa(SEMENTES.A1, ctx))} />)
+    expect(screen.getByRole('region', { name: 'Restauração do vídeo' }).getAttribute('aria-live')).toBe('polite')
+    cleanup()
+    render(<FaixaRestauracao faixa={completa(montarFaixa(SEMENTES.C, ctx))} />)
+    expect(screen.getByRole('region', { name: 'Restauração do vídeo' }).hasAttribute('aria-live')).toBe(false)
   })
 
   it('nenhum botão e nenhuma frase de nova tentativa', () => {

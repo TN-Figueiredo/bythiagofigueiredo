@@ -16,10 +16,23 @@ describe('AtualizarEnquantoEmAndamento', () => {
     vi.advanceTimersByTime(30_000)
     expect(refresh).toHaveBeenCalledTimes(3)
     vi.advanceTimersByTime(6 * 60_000)
-    const n = refresh.mock.calls.length
-    expect(n).toBeLessThanOrEqual(3 + 30) // nunca passa dos 6 min de idade
+    expect(refresh).toHaveBeenCalledTimes(29) // ticks de 10 s a 290 s; o do 300º s tem 6 min exatos e para (o parecer dizia 30)
     vi.advanceTimersByTime(60_000)
-    expect(refresh).toHaveBeenCalledTimes(n)
+    expect(refresh).toHaveBeenCalledTimes(29)
+  })
+  it('data inválida: nunca chama', () => {
+    render(<AtualizarEnquantoEmAndamento emAndamentoDesde="lixo" />)
+    vi.advanceTimersByTime(120_000)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+  it('troca de prop reinicia o intervalo', () => {
+    const { rerender } = render(<AtualizarEnquantoEmAndamento emAndamentoDesde="2026-10-12T08:59:00Z" />)
+    vi.advanceTimersByTime(5_000)
+    rerender(<AtualizarEnquantoEmAndamento emAndamentoDesde="2026-10-12T08:59:30Z" />)
+    vi.advanceTimersByTime(9_000) // 14 s desde o início, 9 s desde a troca: o intervalo antigo não dispara
+    expect(refresh).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1_000)
+    expect(refresh).toHaveBeenCalledTimes(1)
   })
   it('no unmount o intervalo some', () => {
     const { unmount } = render(<AtualizarEnquantoEmAndamento emAndamentoDesde="2026-10-12T08:59:00Z" />)

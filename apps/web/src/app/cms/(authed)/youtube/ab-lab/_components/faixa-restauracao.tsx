@@ -26,6 +26,7 @@ export function FaixaRestauracao({ faixa }: { faixa: Faixa }) {
   if (faixa.tom === 'ok') {
     return (
       <div className="faixa-rest">
+        <p className="fr-tz">Horários de São Paulo</p>
         <p className="fr-okline"><svg viewBox="0 0 24 24" aria-hidden="true">{ICONE.ok}</svg><span>{faixa.okline}</span></p>
       </div>
     )
@@ -33,15 +34,15 @@ export function FaixaRestauracao({ faixa }: { faixa: Faixa }) {
   return (
     <div className="faixa-rest">
       <p className="fr-tz">Horários de São Paulo</p>
-      <div className={`fr-band ${faixa.tom}`} role={faixa.papel} aria-label="Restauração do vídeo">
+      <div className={`fr-band ${faixa.tom}`} role={faixa.papel} aria-live={faixa.tom === 'busy' ? 'polite' : undefined} aria-label="Restauração do vídeo">
         <div className="fr-sum">
-          <Icone tom={faixa.tom} />
+          <Icone tom={faixa.icone ?? faixa.tom} />
           <div><span className="fr-lbl">{faixa.lbl}</span> <span className="fr-rest">{faixa.resumo}</span></div>
         </div>
         <ul className="fr-rows">
           {faixa.linhas.map(l => (
             <li key={l.campo} className={`fr-row ${l.tom}`}>
-              <Icone tom={l.tom} />
+              <Icone tom={l.icone ?? l.tom} />
               <span className="fr-f">{l.rotulo}</span>
               <span className="fr-d"><TextoComHora linha={l} /></span>
             </li>

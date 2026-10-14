@@ -1,9 +1,11 @@
 import { lerCampoDeRestauracao, type CampoNome, type CampoRestauracao, type RestoreStatus } from '@/lib/youtube/ab-restore'
 
 export type Tom = 'busy' | 'warn' | 'err' | 'ok' | 'none'
-export interface LinhaFaixa { campo: CampoNome; rotulo: 'Título' | 'Thumbnail'; tom: Tom; texto: string; hora?: string }
+export interface LinhaFaixa { campo: CampoNome; rotulo: 'Título' | 'Thumbnail'; tom: Tom; /** Forma do ícone quando difere da do tom (A3: círculo tracejado em âmbar). */ icone?: Tom; texto: string; hora?: string }
 export interface FaixaCompleta {
   tom: Exclude<Tom, 'ok'>
+  /** Forma do ícone da faixa, separada do tom (que dá a cor). */
+  icone?: Tom
   lbl: string
   resumo: string
   linhas: LinhaFaixa[]
@@ -24,6 +26,8 @@ export interface CtxFaixa {
   rotulo: (variantId: string) => string
   /** Rótulo da variante do último ciclo fechado ("C"): a que estava no ar quando o teste saiu. */
   noArAntes: string
+  /** Hora em que a variante `noArAntes` entrou no ar (início do último ciclo fechado); nulo = desconhecida. */
+  noArDesde: string | null
   youtubeId: string
 }
 
@@ -47,7 +51,7 @@ interface Item {
   lbl: string
   resumo: string
   papel: 'region' | 'status'
-  link: string | null
+  linkRotulo: string | null
   ajuda: string | null
   fine: boolean
 }
@@ -67,9 +71,9 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
   const o = eTitulo ? 'o' : 'a'
   const nome = eTitulo ? 'título' : 'thumbnail'
   const variante = c.destino === 'original' ? null : ctx.rotulo(c.destino)
-  const base = { link: null, ajuda: null, fine: false, papel: 'region' as const }
-  const mk = (tom: Tom, texto: string, hora: string | undefined, rest: Partial<Item> & Pick<Item, 'lbl' | 'resumo'>): Item =>
-    ({ ...base, ...rest, linha: { campo, rotulo: f, tom, texto, ...(hora ? { hora } : {}) } })
+  const base = { linkRotulo: null, ajuda: null, fine: false, papel: 'region' as const }
+  const mk = (tom: Tom, texto: string, hora: string | undefined, rest: Partial<Item> & Pick<Item, 'lbl' | 'resumo'>, icone?: Tom): Item =>
+    ({ ...base, ...rest, linha: { campo, rotulo: f, tom, ...(icone ? { icone } : {}), texto, ...(hora ? { hora } : {}) } })
 
   if (leitura.tipo === 'em_andamento') {
     const h = horaSP(leitura.desde)
@@ -84,8 +88,8 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     return mk('warn', `Sem resposta desde ${h}. Não sabemos se a troca foi feita. Confira ${o} ${nome} no YouTube Studio.`, h, {
       lbl: 'Atenção:',
       resumo: variante ? `Não sabemos se a variante ${variante} foi aplicada.` : 'Não sabemos se voltou ao original.',
-      link: STUDIO,
-    })
+      linkRotulo: STUDIO,
+    }, 'none')
   }
 
   if (leitura.tipo === 'sem_resposta') return semResposta(leitura.desde)
@@ -101,7 +105,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
         return mk('err', `O YouTube recusou em ${h}. Corrija no YouTube Studio.`, h, {
           lbl: 'Erro:',
           resumo: `${o} ${nome} não voltou ao original. ${cap} no ar ainda é ${o} da variante ${ctx.noArAntes}.`,
-          link: STUDIO, fine: true,
+          linkRotulo: STUDIO, fine: true,
         })
       }
       return mk('err', c.forcado
@@ -111,30 +115,33 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
         resumo: c.forcado
           ? `${o} ${nome} da variante ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} ${nome} editad${eTitulo ? 'o' : 'a'} por fora.`
           : `${o} ${nome} da variante ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} da variante ${ctx.noArAntes}.`,
-        link: STUDIO, fine: true,
+        linkRotulo: STUDIO, fine: true,
       })
     }
     case 'pulado_drift':
       if (c.motivo === 'sem_base_de_comparacao') {
         return mk('none', 'Não medida: sem imagem de referência para comparar.', undefined, {
-          lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.', papel: 'status', link: STUDIO,
+          lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.', papel: 'status', linkRotulo: STUDIO,
         })
       }
       return mk('warn', `Mantida como está no YouTube desde ${h}.`, h, {
         lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
-        papel: 'status', link: STUDIO, fine: true,
+        papel: 'status', linkRotulo: STUDIO, fine: true,
       })
-    case 'pulado_sem_original':
-      return mk('warn', `Continua ${o} da variante ${ctx.noArAntes}, no ar desde ${h}.`, h, {
+    case 'pulado_sem_original': {
+      // A hora é a de quando a variante entrou no ar, nunca a do campo; sem ela, a frase sai sem hora.
+      const hNoAr = ctx.noArDesde ? horaSP(ctx.noArDesde) : undefined
+      return mk('warn', hNoAr ? `Continua ${o} da variante ${ctx.noArAntes}, no ar desde ${hNoAr}.` : `Continua ${o} da variante ${ctx.noArAntes}.`, hNoAr, {
         lbl: 'Atenção:', resumo: 'o título original não foi guardado quando o teste começou. Nada foi alterado.',
-        papel: 'status', link: 'Abrir no YouTube Studio para conferir',
+        papel: 'status', linkRotulo: 'Abrir no YouTube Studio para conferir',
       })
+    }
     case 'desistiu':
       if (c.motivo === 'video_inexistente') {
         return mk('none', `Não foi restaurado. Parou em ${h}.`, h, {
           lbl: 'Sem nova tentativa:',
           resumo: 'o Lab parou de restaurar este vídeo porque ele não foi encontrado no YouTube. Se você o apagou, não há nada a fazer.',
-          ajuda: 'Se não foi você quem apagou, confira no YouTube Studio.', link: STUDIO, fine: true,
+          ajuda: 'Se não foi você quem apagou, confira no YouTube Studio.', linkRotulo: STUDIO, fine: true,
         })
       }
       if (c.motivo === 'novo_teste') {
@@ -162,6 +169,8 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
   const itens = campos.map(k => ({ k, i: itemDoCampo(k, rs[k] as CampoRestauracao, ctx) }))
 
   if (itens.every(x => x.i.linha.tom === 'ok')) {
+    const destinos = new Set(campos.map(k => (rs[k] as CampoRestauracao).destino))
+    if (destinos.size > 1) return { tom: 'ok', okline: itens.map(x => `${x.i.linha.rotulo}: ${x.i.linha.texto}`).join(' ') }
     const k0 = campos.includes('title') ? 'title' : 'thumbnail'
     const primeiro = rs[k0] as CampoRestauracao
     const ultima = campos.map(k => (rs[k] as CampoRestauracao).em).sort().at(-1) as string
@@ -173,16 +182,17 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
   }
 
   const pior = itens.reduce((a, b) => (PESO[b.i.linha.tom] > PESO[a.i.linha.tom] ? b : a))
-  const comLink = itens.find(x => x.i.link !== null)
+  const comLink = itens.find(x => x.i.linkRotulo !== null)
   const tom = pior.i.linha.tom as Exclude<Tom, 'ok'>
   const resumo = tom === 'busy' ? frasesBusy(campos) : pior.i.resumo
   return {
     tom,
+    ...(pior.i.linha.icone ? { icone: pior.i.linha.icone } : {}),
     lbl: pior.i.lbl,
     resumo,
     linhas: itens.map(x => x.i.linha),
     linkStudio: comLink ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
-    linkRotulo: comLink?.i.link ?? null,
+    linkRotulo: comLink?.i.linkRotulo ?? null,
     ajuda: pior.i.ajuda,
     fine: itens.some(x => x.i.fine) ? NAO_DISPENSA : null,
     papel: pior.i.papel,
