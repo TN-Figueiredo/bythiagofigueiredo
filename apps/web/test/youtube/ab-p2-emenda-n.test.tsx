@@ -100,7 +100,14 @@ describe('emenda N (Gio)', () => {
       confidence: 0.9, is_significant: false, suggested_winner_id: 'v-b', timeline: [],
       data_freshness: new Date().toISOString(), tracked_links: [],
     }
-    render(<WinnerDetail view={(await toDetailView(results)) as AbTestWinnerView} />)
+    // Vencedor sem nenhuma impressão não sai do toDetailView (cai em inconclusivo): zera a medição na view.
+    const v = (await toDetailView(results)) as AbTestWinnerView
+    const semImp = {
+      ...v,
+      resultMeta: { ...v.resultMeta, totalImpressions: 0 },
+      variants: v.variants.map(x => ({ ...x, impressions: 0, clicks: 0, ctr: 0 })),
+    } as AbTestWinnerView
+    render(<WinnerDetail view={semImp} />)
     expect(screen.getAllByText(FRASE)).toHaveLength(1)
   })
 })

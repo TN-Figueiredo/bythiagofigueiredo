@@ -52,6 +52,15 @@ export function formatCtr(ctr: number | null | undefined, impressions: number | 
 }
 
 /** true quando nenhuma variante tem impressões medidas. */
+type CtrMedida = { label?: string; ctr: number; impressions?: number | null }
+
+/** Diferença de CTR de `variant` contra A, em pontos percentuais relativos; null quando não há base medida. */
+export function liftVsA(variantA: CtrMedida | null | undefined, variant: CtrMedida | null | undefined): number | null {
+  if (!variantA || !variant || variant.label === 'A') return null
+  if (!(variantA.ctr > 0) || !variantA.impressions || !variant.impressions) return null
+  return ((variant.ctr - variantA.ctr) / variantA.ctr) * 100
+}
+
 export function semImpressoes(variants: ReadonlyArray<{ impressions?: number | null }>): boolean {
   return variants.every(v => !v.impressions || v.impressions <= 0)
 }

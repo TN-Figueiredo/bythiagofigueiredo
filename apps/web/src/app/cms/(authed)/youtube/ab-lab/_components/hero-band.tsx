@@ -1,7 +1,7 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
+import { SEM_MEDICAO_DE_ENTREGA, formatPercent } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 
@@ -10,9 +10,11 @@ export interface HeroBandProps {
   trend: 'up' | 'flat' | 'down'
   /** Sem impressões medidas: o líder aparece como "—". */
   semMedicao?: boolean
+  /** CTR do líder contra A, medido (mesma conta do placar); null sem base. */
+  liftLider?: number | null
 }
 
-export function HeroBand({ leader, trend, semMedicao }: HeroBandProps) {
+export function HeroBand({ leader, trend, semMedicao, liftLider = null }: HeroBandProps) {
   const TrendIcon = trend === 'up' ? TrendingUp : TrendingDown
   const trendColor = trend === 'up' ? 'var(--cms-green)' : trend === 'down' ? 'var(--cms-red)' : 'var(--cms-text-muted)'
   const trendLabel = trend === 'up' ? 'Subindo' : trend === 'down' ? 'Descendo' : '—'
@@ -42,8 +44,23 @@ export function HeroBand({ leader, trend, semMedicao }: HeroBandProps) {
       {/* CTR lift vs original: sem medição de entrega não há número */}
       <div className="bg-cms-surface py-[18px] px-[20px] flex flex-col">
         <span className="eyebrow">CTR lift vs original</span>
-        <div className="font-mono text-[26px] font-bold leading-none tracking-tight mt-[8px] text-cms-text-muted">—</div>
-        <span className="text-[11px] text-cms-text mt-auto">{SEM_MEDICAO_DE_ENTREGA}</span>
+        {!semMedicao && liftLider !== null ? (
+          <>
+            <div
+              className="font-mono text-[26px] font-bold leading-none tracking-tight mt-[8px]"
+              style={{ color: liftLider > 0 ? 'var(--cms-green)' : 'var(--cms-text)' }}
+              data-testid="hero-lift"
+            >
+              {liftLider > 0 ? '+' : ''}{formatPercent(liftLider)}
+            </div>
+            <span className="text-[11px] text-cms-text-muted mt-auto">{leader.label} contra A, no placar abaixo</span>
+          </>
+        ) : (
+          <>
+            <div className="font-mono text-[26px] font-bold leading-none tracking-tight mt-[8px] text-cms-text-muted">—</div>
+            <span className="text-[11px] text-cms-text mt-auto">{semMedicao ? SEM_MEDICAO_DE_ENTREGA : 'sem base para comparar com A'}</span>
+          </>
+        )}
       </div>
 
       {/* Tendência */}

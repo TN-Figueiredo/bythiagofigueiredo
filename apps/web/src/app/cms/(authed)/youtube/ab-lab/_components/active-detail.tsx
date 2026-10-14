@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS, semImpressoes } from './ab-constants'
+import { VARIANT_COLORS, semImpressoes, liftVsA } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
@@ -218,6 +218,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           leader={{ label: data.leader, color: data.leaderColor }}
           trend={trend}
           semMedicao={semMedicao}
+          liftLider={liftVsA(view.variants.find(v => v.label === 'A'), view.variants.find(v => v.label === data.leader))}
         />
       </div>
 

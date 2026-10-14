@@ -78,6 +78,13 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
   } as AbTestActiveView
 }
 
+const SEM_IMP: Partial<AbTestActiveView> = {
+  variants: [
+    { label: 'A', color: '#8A8F98', ctr: 0, impressions: 0, clicks: 0, pBest: 0.5 },
+    { label: 'B', color: '#E8823C', ctr: 0, impressions: 0, clicks: 0, pBest: 0.5 },
+  ],
+}
+
 /* ─── Tests ─── */
 
 describe('ActiveDetail', () => {
@@ -110,7 +117,7 @@ describe('ActiveDetail', () => {
   })
 
   it('não mostra watch time, comentários, compartilh., receita estimada nem Raio-X; mostra a frase fixa', () => {
-    render(<ActiveDetail view={makeActiveView({ revenue: { low: 1200, high: 3600, currency: 'BRL', isDefault: false } } as Partial<AbTestActiveView>)} />)
+    render(<ActiveDetail view={makeActiveView({ revenue: { low: 1200, high: 3600, currency: 'BRL', isDefault: false }, ...SEM_IMP } as Partial<AbTestActiveView>)} />)
     for (const texto of [/watch time/i, /comentários/i, /compartilh/i, /receita estimada/i, /raio-x/i]) {
       expect(screen.queryAllByText(texto), String(texto)).toHaveLength(0)
     }
@@ -134,7 +141,7 @@ describe('ActiveDetail', () => {
   })
 
   it('não mostra o painel de critérios nem "N / 3 consecutive"; a frase fixa ocupa o lugar', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
+    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} />)
     expect(screen.queryAllByText(/\d+ ?\/ ?3/)).toHaveLength(0)
     expect(screen.queryAllByText(/consecutive/i)).toHaveLength(0)
     expect(screen.queryAllByText(/10,000 min/)).toHaveLength(0)
@@ -152,7 +159,7 @@ describe('ActiveDetail', () => {
   })
 
   it('bloco de confiança saiu: sem curva, sem meta 95%, frase fixa com contraste legível', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
+    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} />)
     expect(container.textContent).not.toMatch(/meta 95%/)
     expect(container.textContent).not.toMatch(/curva de confiança/i)
     expect(container.textContent).not.toMatch(/Confiança ao longo do tempo/)
@@ -163,7 +170,7 @@ describe('ActiveDetail', () => {
   })
 
   it('KPIs do topo: sem CONFIANÇA, sem "0%" de líder nem "0,0%" de lift; nulo mostra "—" e a frase', () => {
-    const view = makeActiveView({ confirmedData: { confidence: 0, leader: 'A' as DisplayLabel, leaderColor: '#8A8F98', lift: 0 } })
+    const view = makeActiveView({ confirmedData: { confidence: 0, leader: 'A' as DisplayLabel, leaderColor: '#8A8F98', lift: 0 }, ...SEM_IMP })
     render(<ActiveDetail view={view} />)
     const hero = screen.getByTestId('hero-band')
     expect(hero.textContent).not.toMatch(/Confiança/i)

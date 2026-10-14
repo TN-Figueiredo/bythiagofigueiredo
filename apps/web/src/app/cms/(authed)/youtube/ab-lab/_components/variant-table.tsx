@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
-import { formatPercent, formatCompact, formatCtr } from './ab-constants'
+import { formatPercent, formatCompact, formatCtr, liftVsA } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react'
 
@@ -77,8 +77,7 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
           const chance = variant.pBest
 
           const variantA = variants.find(v => v.label === 'A')
-          const canLift = variantA != null && variantA.ctr > 0 && !!variantA.impressions && !!variant.impressions && variant.label !== 'A'
-          const liftVsA = canLift ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100 : null
+          const liftContraA = liftVsA(variantA, variant)
 
           return (
             <React.Fragment key={variant.label}>
@@ -153,12 +152,12 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
                     className="font-mono text-[12.5px] font-bold text-right tabular-nums"
                     style={{
                       width: 44, flexShrink: 0,
-                      color: variant.label === 'A' || liftVsA == null
+                      color: variant.label === 'A' || liftContraA == null
                         ? 'var(--cms-text-muted)'
-                        : liftVsA > 0 ? 'var(--cms-green)' : 'var(--cms-text-muted)',
+                        : liftContraA > 0 ? 'var(--cms-green)' : 'var(--cms-text-muted)',
                     }}
                   >
-                    {variant.label === 'A' || liftVsA == null ? '—' : `${liftVsA > 0 ? '+' : ''}${brDec(liftVsA, 1)}`}
+                    {variant.label === 'A' || liftContraA == null ? '—' : `${liftContraA > 0 ? '+' : ''}${brDec(liftContraA, 1)}`}
                   </span>
 
                   {/* Chance */}

@@ -123,7 +123,7 @@ describe('WinnerBanner', () => {
         winnerColor="#E8823C"
         lift={null}
         confidence={null}
-        stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: null }}
+        stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }}
       />,
     )
     const banner = screen.getByTestId('winner-banner')
@@ -188,7 +188,7 @@ describe('WinnerBanner', () => {
     expect(screen.getByTestId('winner-lift').textContent).toBe('+15,3%')
   })
 
-  it('renders confidence text', () => {
+  it('nunca mostra confiança no vencedor (renders confidence text, invertido)', () => {
     render(
       <WinnerBanner
         winnerLabel="B"
@@ -198,7 +198,8 @@ describe('WinnerBanner', () => {
         stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: 350 }}
       />,
     )
-    expect(screen.getByText(/97,2%.*confianca/i)).toBeDefined()
+    expect(screen.queryAllByText(/confian/i)).toHaveLength(0)
+    expect(screen.getByTestId('winner-banner').textContent).toContain('Escolhido por você')
   })
 
   it('renders 3 stat cells', () => {
@@ -258,7 +259,7 @@ describe('WinnerDetail', () => {
   })
 
   it('teste encerrado sem confiança medida não mostra "0%" nem confiança calculada; mostra a frase fixa', () => {
-    const view = makeWinnerView({ confidence: null })
+    const view = makeWinnerView({ confidence: null, resultMeta: { ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }, variants: [makeVariant('A', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 }), makeVariant('B', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 })] })
     render(<WinnerDetail view={view} />)
     expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
     expect(screen.queryAllByText(/de confianca/i)).toHaveLength(0)
@@ -266,7 +267,7 @@ describe('WinnerDetail', () => {
   })
 
   it('"Por que venceu" não mostra barras de probabilidade sobre views, só a frase fixa', () => {
-    const { container } = render(<WinnerDetail view={makeWinnerView()} />)
+    const { container } = render(<WinnerDetail view={makeWinnerView({ resultMeta: { ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }, variants: [makeVariant('A', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 }), makeVariant('B', { ctr: 0, pBest: 0.5, impressions: 0, clicks: 0 })] })} />)
     expect(container.querySelector('[data-rank-bar]')).toBeNull()
     expect(screen.queryByText(/93% de chance/)).toBeNull()
     expect(screen.getAllByText('CTR ainda não medido. Você decide o vencedor.').length).toBeGreaterThan(0)

@@ -22,9 +22,9 @@ export interface WinnerBannerProps {
 export function WinnerBanner({
   winnerLabel,
   lift,
-  confidence,
   stats,
 }: WinnerBannerProps) {
+  const ctrMedido = stats.totalImpressions > 0
   return (
     <div
       data-testid="winner-banner"
@@ -59,7 +59,7 @@ export function WinnerBanner({
             )}
           </div>
           <div className="text-[11.5px] text-cms-text mt-2">
-            {confidence === null || lift === null ? <span data-testid="winner-chosen">Escolhido por você</span> : <span>{formatPercent(confidence, 1)} de confianca</span>}
+            <span data-testid="winner-chosen">Escolhido por você</span>
           </div>
         </div>
 
@@ -67,7 +67,7 @@ export function WinnerBanner({
         <div className="bg-cms-surface py-[22px] px-[22px]">
           <div className="eyebrow mb-[8px]">CTR</div>
           <div className="text-[24px] font-bold font-mono text-cms-text leading-none tnum">
-            {stats.ctrBefore === 0 && stats.ctrAfter === 0 ? '—' : (
+            {!ctrMedido ? '—' : (
               <>
                 {formatPercent(stats.ctrBefore)}{' '}
                 <span className="text-cms-text-muted">→</span>{' '}
@@ -75,7 +75,7 @@ export function WinnerBanner({
               </>
             )}
           </div>
-          {confidence === null || lift === null
+          {!ctrMedido
             ? <div className="text-[11px] text-cms-text mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>
             : <div className="text-[11px] text-cms-text-muted mt-2">original → vencedor</div>}
         </div>
