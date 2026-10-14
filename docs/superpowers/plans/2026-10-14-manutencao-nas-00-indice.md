@@ -8,7 +8,7 @@ Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06).
 | Ordem | Plano | Etapa | Depende de | Espera por (relógio real) | Estado |
 |---|---|---|---|---|---|
 | 1 | `2026-10-14-manutencao-nas-m0-m1-medidas-e-podas.md` | M0 + M1 | nada | nada | **acordo de Phil e Yannis (r2), commitado** |
-| 2 | `2026-10-14-manutencao-nas-m2-particoes.md` | M2 | pedidos 1, 3, 5 e 6 (§17) | janela de `db:push:prod` com a A5 | em redação |
+| 2 | `2026-10-14-manutencao-nas-m2-particoes.md` | M2 | pedidos 1, 3, 5 e 6 (§17) | janela de `db:push:prod` com a A5 | **acordo de Phil e Yannis (r2), commitado** |
 | 3 | `2026-10-14-manutencao-nas-m10a-video-antigo-base.md` | M10a | M2 em produção (dois pushes no mesmo dia, M2 primeiro); pedido 15; CP29 | a mesma janela | **acordo de Phil (r2) e Yannis (r3), commitado** |
 | 4 | `2026-10-14-manutencao-nas-m3a-casa.md` | M3a | pergunta 1 (respondida); CP25 | nada | **acordo de Phil (r3) e Yannis (r2), commitado** |
 | 5 | M3b, arquivo durável (com a fatia 12a, o `conferir-b2`, o `pode-desligar` e a varredura completa) | M3b | M2, M3a; E10 tarefas 5 e 6 **ou** o gatilho do §15.1 | primeira selagem devida em 28/11 | depois da onda 1 |
