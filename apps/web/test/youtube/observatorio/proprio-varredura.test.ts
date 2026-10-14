@@ -35,6 +35,9 @@ const ROTA_MCP = 'app/api/mcp/route.ts'
 const PROVA_CHAVE = 'lib/youtube/observatorio/acesso-ia/prova.ts'
 const PORTA_CHAVE = 'lib/youtube/observatorio/acesso-ia/porta.ts'
 const TIPOS_CHAVE = 'lib/youtube/observatorio/acesso-ia/prova.type-test.ts'
+/** Degrau 2, Tarefa 8a: os carregadores SEM guarda das telas só podem ser chamados pela página (com guarda) e pelo abridor da chave. */
+const PAGE_DATA = 'app/cms/(authed)/youtube/competitors/_chrome/page-data.ts'
+const ABRIR_CHAVE = 'app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave.ts'
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
 const PODE_PROVAR = new Set([EDICAO, LEITURA])
 const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
@@ -105,6 +108,7 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== LEITURA && arq !== DADOS && /\b(provarAcessoPrivado|provarLeituraPrivada)\s*\(/.test(s)) v.push(`${arq}: pede a prova de leitura privada fora do módulo da guarda`)
     if (arq !== LEITURA && arq !== ROTA_MCP && /\bprovarAcessoPrivadoDaChave\s*\(/.test(s)) v.push(`${arq}: pede a leitura privada pela chave fora da rota do MCP`)
     if (arq !== PROVA_CHAVE && arq !== PORTA_CHAVE && arq !== TIPOS_CHAVE && /\bnew\s+ChaveDoPerfilProvada\b|\bChaveDoPerfilProvada\s*\.\s*fabricar\b|\bfabricarProva\b/.test(s)) v.push(`${arq}: fabrica a prova da chave do perfil`)
+    if (arq !== PAGE_DATA && arq !== ABRIR_CHAVE && /\b(carregarObservatorio|carregarCanal)\s*[(<]/.test(s)) v.push(`${arq}: chama um carregador de tela sem guarda fora de page-data.ts e do abridor da chave`)
     if (arq !== LEITURA && /can_view_private_site_as/.test(s)) v.push(`${arq}: cita a função do direito fora do módulo da leitura privada`)
     if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
@@ -317,6 +321,13 @@ describe('varredura: o dado privado do canal próprio', () => {
       for (const codigo of ['new ChaveDoPerfilProvada(a)', 'ChaveDoPerfilProvada.fabricar(a)', 'fabricarProva(a, b, c, d)'])
         expect(violacoes({ ...base, 'app/x/a.ts': codigo }), codigo).toEqual(['app/x/a.ts: fabrica a prova da chave do perfil'])
       expect(violacoes({ ...base, [PROVA_CHAVE]: 'export const fabricarProva = () => ChaveDoPerfilProvada.fabricar(a)', [PORTA_CHAVE]: 'fabricarProva(a, b, c, d)' })).toEqual([])
+    })
+    it('carregadores sem guarda: só page-data.ts e abrir-por-chave.ts chamam carregarObservatorio( e carregarCanal(', () => {
+      const msg = (a: string) => `${a}: chama um carregador de tela sem guarda fora de page-data.ts e do abridor da chave`
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await carregarObservatorio({})' })).toEqual([msg('app/x/a.ts')])
+      expect(violacoes({ ...base, 'app/x/b.ts': 'await carregarCanal<T>({})' })).toEqual([msg('app/x/b.ts')])
+      expect(violacoes({ ...base, 'app/x/c.ts': '// chama carregarCanal(x)\n/* carregarObservatorio( */' })).toEqual([])
+      expect(violacoes({ ...base, [PAGE_DATA]: 'export async function carregarCanal(a) {}', [ABRIR_CHAVE]: 'carregarObservatorio({}); carregarCanal({})' })).toEqual([])
     })
     it('o módulo da leitura privada pode (não acusa a si mesmo)', () => {
       expect(violacoes({ ...base, [LEITURA]: 'new LeituraPrivadaDoSite(s, k); provarAcessoPrivado(s)', [TIPOS_LEITURA]: "class S extends LeituraPrivadaDoSite {}" })).toEqual([])
