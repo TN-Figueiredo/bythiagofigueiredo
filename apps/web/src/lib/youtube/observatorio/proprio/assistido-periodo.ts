@@ -60,8 +60,15 @@ function calcular(
   let primeiro: DiaYt | null = null
   let ultimo: DiaYt | null = null
   const conjunto = new Set(ytIds)
+  // agrupa uma vez: sem isto cada vídeo varre todas as linhas (O(V·L))
+  const porVideo = new Map<string, DiarioLinha[]>()
+  for (const l of linhas) {
+    const g = porVideo.get(l.ytId)
+    if (g) g.push(l)
+    else porVideo.set(l.ytId, [l])
+  }
   for (const id of conjunto) {
-    const r = pctDoVideoNoPeriodo(linhas, id, de, ate)
+    const r = pctDoVideoNoPeriodo(porVideo.get(id) ?? [], id, de, ate)
     if (r.pct == null) continue
     pcts.push(r.pct)
     views += r.views

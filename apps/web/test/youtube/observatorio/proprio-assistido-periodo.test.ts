@@ -172,3 +172,17 @@ describe('normalDaFaixaNoPeriodo', () => {
     expect(r.every(x => x.normal.videos === 0)).toBe(true)
   })
 })
+
+describe('normalDoPeriodo: custo (Yannis m-11)', () => {
+  it('50 vídeos x 28 dias: lê cada linha um número pequeno de vezes, não uma vez por vídeo', () => {
+    let leituras = 0
+    const ids = Array.from({ length: 50 }, (_, i) => `v${i}`)
+    const linhas: DiarioLinha[] = ids.flatMap(id => Array.from({ length: 28 }, (_, k) => {
+      const base = linha(id, d(k), 60 + (k % 5), 100)
+      return Object.defineProperty({ ...base }, 'ytId', { get: () => { leituras++; return id }, enumerable: true }) as DiarioLinha
+    }))
+    const r = normalDoPeriodo(linhas, ids, '28', ULTIMO, 0)
+    expect(r.videos).toBe(50)
+    expect(leituras).toBeLessThanOrEqual(linhas.length * 4)
+  })
+})
