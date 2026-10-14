@@ -34,10 +34,11 @@ export const NotificationSchema = z.object({
   ], {
     errorMap: (issue, ctx) => {
       if (issue.code !== 'invalid_enum_value') return { message: ctx.defaultError }
+      const aceitos = issue.options.join(', ')
       return {
         message: issue.received === 'trending_viral'
-          ? 'tipo de aviso não aceito. "trending_viral" foi desligado em 10/2026: o número que o alimentava era o total de 90 dias, não as views do dia.'
-          : `tipo de aviso não aceito: ${String(issue.received)}`,
+          ? `tipo de aviso não aceito. "trending_viral" foi desligado em 10/2026: o número que o alimentava era o total de 90 dias, não as views do dia. Aceitos: ${aceitos}`
+          : `tipo de aviso não aceito: ${String(issue.received).slice(0, 60)}. Aceitos: ${aceitos}`,
       }
     },
   }),

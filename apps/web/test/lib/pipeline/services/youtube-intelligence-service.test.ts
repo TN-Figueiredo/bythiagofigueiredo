@@ -269,7 +269,20 @@ describe('submitIntelRecommendations — schema', () => {
     })).rejects.toMatchObject({
       code: 'VALIDATION_ERROR',
       status: 400,
-      message: expect.stringContaining('notifications.0.type: tipo de aviso não aceito. "trending_viral" foi desligado'),
+      message: expect.stringMatching(/tipo de aviso não aceito\. "trending_viral" foi desligado em 10\/2026.*Aceitos: .*optimization_resolved/),
+    })
+    expect(sb.client.from).not.toHaveBeenCalled()
+  })
+
+  it('tipo de aviso inválido qualquer lista os tipos aceitos', async () => {
+    const sb = makeSupabase([])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      ...CHANNEL_ONLY,
+      notifications: [{ type: 'ctr-drop', priority: 2, title: 't', message: 'm' }],
+    })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: expect.stringMatching(/notifications\.0\.type: tipo de aviso não aceito: ctr-drop\. Aceitos: .*ctr_drop.*optimization_resolved/),
     })
     expect(sb.client.from).not.toHaveBeenCalled()
   })

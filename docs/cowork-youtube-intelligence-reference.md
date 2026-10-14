@@ -9,7 +9,7 @@
 O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 - Diagnósticos por vídeo (fraquezas, oportunidades)
 - Coaching cards (recomendações priorizadas por eixo)
-- Notificações acionáveis (grade drops, CTR drops, viral detection)
+- Notificações acionáveis (grade drops, CTR drops, monitoramento)
 - Sugestões de A/B tests (thumb, title, description, combo)
 
 ---
