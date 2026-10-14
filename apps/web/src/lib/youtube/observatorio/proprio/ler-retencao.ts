@@ -243,14 +243,10 @@ export async function lerRetencao(sb: SupabaseClient, p: Pedido & { ytId: string
   const antigaBruta = maisAntigaVida.ausente ? [] : maisAntigaVida.linhas.slice(0, 1).filter(l => !jaVistas.has(chave(l)))
   const maisAntiga = doHistorico(antigaBruta, false)[0]
   const sentinela = recentesBrutas.length > TETO_HISTORICO ? recentesBrutas[TETO_HISTORICO] : undefined
-  const sentinelaCurva = sentinela !== undefined && ehObjeto(sentinela) ? curvaValida('vida', sentinela) : null
-  let historicoCortado = false
-  if (maisAntiga !== undefined && !historicoVida.some(c => mesma(c, maisAntiga))) {
-    // a mais antiga fica fora das 26 mais recentes: há corte só se ela não é a 27.ª linha (a sentinela)
-    const ehASentinela = sentinelaCurva != null && mesma(sentinelaCurva, maisAntiga)
-    historicoVida.push(maisAntiga)
-    historicoCortado = !ehASentinela
-  }
+  // o corte se decide pelas linhas BRUTAS (a mais antiga ilegível também some do meio e a tela precisa avisar): há corte quando a mais antiga
+  // fica fora das 26 mais recentes e não é a 27.ª linha (a sentinela). Só o push depende de a curva ser legível.
+  const historicoCortado = antigaBruta.length === 1 && chave(antigaBruta[0]) !== chave(sentinela)
+  if (maisAntiga !== undefined && !historicoVida.some(c => mesma(c, maisAntiga))) historicoVida.push(maisAntiga)
 
   const leituras: RetencaoDoVideo['leituras'] = []
   for (const r of lista.linhas) {

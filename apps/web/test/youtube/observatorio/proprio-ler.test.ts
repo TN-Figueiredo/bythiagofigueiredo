@@ -687,6 +687,25 @@ describe('E5b T20a: lerAlcanceDoVideo', () => {
     expect(r.dado.primeiroRelatorio).toBe(d(80))
     expect(r.dado.alcance.ultimoRelatorio).toBe(d(3))
   })
+  it('a janela é desde também para as LINHAS do vídeo: o dia de antes não vem (m-7 do portão)', async () => {
+    const db = fakeSupabase({
+      yt_reporting_reports: [relatorio(d(80), 'baixado', true), relatorio(d(40), 'baixado', true), relatorio(d(3), 'baixado', true)],
+      yt_own_video_reach_daily: [alcance(YT, d(80), 99, 0.3), alcance(YT, d(40), 10, 0.1), alcance(YT, d(3), 5, 0.2)],
+    })
+    const r = await lerAlcanceDoVideo(db.client, ped())
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.alcance.linhas.map(x => x.dia)).not.toContain(d(80))
+    expect(r.dado.alcance.linhas.map(x => x.dia)).toEqual(expect.arrayContaining([d(40), d(3)]))
+  })
+  it('primeiroRelatorio é UMA consulta, mesmo com 120 relatórios baixados e não normalizados antes do primeiro medido (m-6 do portão)', async () => {
+    const velhos = Array.from({ length: 120 }, (_, k) => relatorio(d(300), 'baixado', false, { report_id: 'v' + String(k).padStart(4, '0') }))
+    const db = fakeSupabase({ yt_reporting_reports: [...velhos, relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [] })
+    const r = await lerAlcanceDoVideo(db.client, ped())
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.primeiroRelatorio).toBe(d(3))
+    expect(db.ranges.filter(x => x.table === 'yt_reporting_reports' && x.range != null && x.range[1] === 0)).toHaveLength(2)
+    expect(db.ranges.filter(x => x.table === 'yt_reporting_reports' && x.range != null && x.range[0] >= 50 && x.range[1] < 1000 && x.range[1] - x.range[0] === 49)).toEqual([])
+  })
   it('canal parado antes de desde: relatórios vazios e ultimoRelatorio com o dia em que parou', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(100), 'baixado', true), relatorio(d(120), 'baixado', true)], yt_own_video_reach_daily: [] })
     const r = await lerAlcanceDoVideo(db.client, ped())

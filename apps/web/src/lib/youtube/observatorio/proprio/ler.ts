@@ -217,27 +217,18 @@ export const TETO_DIAS_ALCANCE_DO_VIDEO = 400
 export interface AlcanceDoVideo { alcance: AlcanceCanal; desde: DiaYt; primeiroRelatorio: DiaYt | null }
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/
-const PAGINA_MEDIDO = 50
-const PAGINAS_MEDIDO_MAX = 40
-
 /**
- * O relatório medido mais antigo do canal, sem janela. A condição "normalizado" é lida na linha (não no filtro): quem é baixado ou vazio mas ainda
- * não normalizado é pulado, e a leitura segue pela página seguinte. Esgotar o teto de páginas lança: nunca devolve "nenhum" por cansaço.
+ * O relatório medido mais antigo do canal, sem janela: UMA consulta (baixado ou vazio, e normalizado). `normalized_at` não nulo é filtrado no
+ * banco com `gte` numa data anterior a qualquer relatório (o PostgREST não devolve linha com a coluna nula; o banco falso dos testes também não).
  */
 async function primeiroRelatorioMedido(sb: SupabaseClient, siteId: string, canalId: string): Promise<DiaYt | null> {
-  for (let pg = 0; pg < PAGINAS_MEDIDO_MAX; pg++) {
-    const { data, error } = await sb.from('yt_reporting_reports').select('start_time, normalized_at')
-      .eq('site_id', siteId).eq('channel_id', canalId).eq('report_type_id', TIPO_ALCANCE).in('status', ['baixado', 'vazio'])
-      .order('start_time').order('report_id').range(pg * PAGINA_MEDIDO, (pg + 1) * PAGINA_MEDIDO - 1)
-    if (error) throw new ObservatoryLoadError('yt_reporting_reports', error.code, error.message)
-    const linhas = (Array.isArray(data) ? data : []) as Array<{ start_time: string; normalized_at: string | null }>
-    for (const l of linhas) {
-      const dia = diaUtc(l.start_time)
-      if (l.normalized_at != null && dia != null) return dia
-    }
-    if (linhas.length < PAGINA_MEDIDO) return null
-  }
-  throw new ObservatoryLoadError('yt_reporting_reports', undefined, 'primeiro relatório medido: teto de páginas')
+  const { data, error } = await sb.from('yt_reporting_reports').select('start_time, normalized_at')
+    .eq('site_id', siteId).eq('channel_id', canalId).eq('report_type_id', TIPO_ALCANCE).in('status', ['baixado', 'vazio'])
+    .gte('normalized_at', '1970-01-01T00:00:00Z')
+    .order('start_time').order('report_id').range(0, 0)
+  if (error) throw new ObservatoryLoadError('yt_reporting_reports', error.code, error.message)
+  const linha = (Array.isArray(data) ? data : [])[0] as { start_time: string } | undefined
+  return linha == null ? null : diaUtc(linha.start_time)
 }
 
 /**

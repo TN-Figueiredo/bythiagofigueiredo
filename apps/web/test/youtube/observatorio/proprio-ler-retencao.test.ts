@@ -497,6 +497,19 @@ describe('E5b T4: histórico da vida', () => {
     expect(r.historicoVida[26]!.windowEnd).toBe(d(30))
     expect(r.historicoCortado).toBe(true)
   })
+  it('30 leituras com a mais antiga ilegível: 26 no histórico, cortado verdadeiro e descartados 1 (m-1 do portão)', async () => {
+    const ruim = ret('vida', d(30), { points: [{ t: 0.5, ratio: -1, relative: 0.5 }, { t: 1, ratio: 0.4, relative: 0.5 }] })
+    const r = await ok(fakeSupabase({ yt_own_video_retention: [...vidaN(29), ruim] }))
+    expect(r.historicoVida).toHaveLength(26)
+    expect(r.historicoCortado).toBe(true)
+    expect(r.descartados).toBe(1)
+  })
+  it('27 leituras com a 27.ª (a mais antiga) ilegível: nada some além dela, cortado falso', async () => {
+    const ruim = ret('vida', d(27), { points: [] })
+    const r = await ok(fakeSupabase({ yt_own_video_retention: [...vidaN(26), ruim] }))
+    expect(r.historicoVida).toHaveLength(26)
+    expect(r.historicoCortado).toBe(false)
+  })
   it('27 leituras: 26 mais a mais antiga, cortado falso', async () => {
     const r = await ok(fakeSupabase({ yt_own_video_retention: vidaN(27) }))
     expect(r.historicoVida).toHaveLength(27)
