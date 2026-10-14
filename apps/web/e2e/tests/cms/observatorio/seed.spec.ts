@@ -17,7 +17,7 @@ test('oracle seed loads into the engine with the mockup counts', async () => {
   try {
     expect(ORACLE_NOW).toBe(Date.parse('2026-10-24T15:02:00-03:00'))
     const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase }))
-    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 15, out: 11 })
   } finally {
     // also forgets the fidelity specs' seed marker: the site no longer holds what it says
     await clearSeeded()

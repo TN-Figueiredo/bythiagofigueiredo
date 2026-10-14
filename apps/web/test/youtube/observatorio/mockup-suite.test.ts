@@ -12,11 +12,12 @@ const onOracle = runMockupSuite(oracle)
 function adaptedHtml(): string {
   let html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio/dados-teste.html'), 'utf8')
   for (const a of ADAPTED_ASSERTIONS) {
-    const at = html.indexOf(`test('${a.test}'`)
+    const at = html.indexOf(`test('${a.test}${a.prefix ? '' : "'"}`)
     const end = html.indexOf("\n  test('", at + 1)
     const body = html.slice(at, end < 0 ? undefined : end)
-    if (at < 0 || body.split(a.cut).length !== 2) throw new Error('ADAPTED_ASSERTIONS: fragment not found exactly once in ' + a.test)
-    html = html.slice(0, at) + body.replace(a.cut, '') + (end < 0 ? '' : html.slice(end))
+    const cuts = typeof a.cut === 'string' ? [a.cut] : a.cut
+    if (at < 0 || cuts.some(c => body.split(c).length !== 2)) throw new Error('ADAPTED_ASSERTIONS: fragment not found exactly once in ' + a.test)
+    html = html.slice(0, at) + cuts.reduce((b, c) => b.replace(c, ''), body) + (end < 0 ? '' : html.slice(end))
   }
   return html
 }
@@ -29,7 +30,7 @@ describe('mockup suite (dados-teste.html) — oracle sanity', () => {
   })
   it('every adapted assertion names an existing test and says why', () => {
     const names = new Set(onOracle.map(r => r.name))
-    expect(ADAPTED_ASSERTIONS.filter(a => !names.has(a.test))).toEqual([])
+    expect(ADAPTED_ASSERTIONS.filter(a => ![...names].some(n => a.prefix ? n.startsWith(a.test) : n === a.test))).toEqual([])
     expect(ADAPTED_ASSERTIONS.every(a => a.why.length > 20)).toBe(true)
     expect(adaptedHtml()).not.toContain('c.quota.usedToday === 2')
   })

@@ -49,7 +49,12 @@ export const NOT_PORTED_TESTS = new Map<string, string>([
  * engine; only these exact fragments are cut from its source for the production run (the oracle still runs the fragment: it is the mockup's rule).
  * Every entry must match exactly once, or the suite fails loudly (a changed fixture must not silently re-enable or disable an assertion).
  */
-export const ADAPTED_ASSERTIONS: ReadonlyArray<{ test: string; cut: string; why: string }> = [
+export const ADAPTED_ASSERTIONS: ReadonlyArray<{ test: string; prefix?: true; cut: string | readonly string[]; why: string }> = [
   { test: '[F8] forja.compose: pedido novo compõe sobre o cenário (substitui o do mesmo nicho, mantém os outros)', cut: ' && c.quota.usedToday === 2',
     why: '11d: no daily quota, so the composed scenario has no `quota`; everything else the test asserts (split, status lines/label/text, the queue order, replacing the request of the same niche, createdAt, compose(null)) still runs verbatim' },
+  // E5a T6a: a descricao deixou de contar como troca (contaComoTroca), entao tabCounts.mud (15/7/8) nao bate com a recontagem
+  // independente do mockup congelado (18/8/10, conta toda mudanca). Corta SO a recontagem de mud; canais/out e got.mud === want.mud seguem verbatim.
+  { test: 'Contagens das abas (', prefix: true,
+    cut: ["    const mud = O.changes.filter(c => c.at > NOW - 30 * DAY && inN(c) && !O.channel(c.ch).own).length;\n", ' && mud === want.mud', ' mud,'],
+    why: 'E5a T6a: description no longer counts as a swap, so the mockup independent recount of mud (all changes) differs from tabCounts.mud; canais, out and got.mud === want.mud still run verbatim' },
 ]

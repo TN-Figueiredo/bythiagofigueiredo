@@ -13,7 +13,7 @@ import { multiplierAt, multiplierCardText, type MultiplierResult, type Multiplie
 import { phaseOf, phases, outliers, tabCounts, TAB_TITLES, type Phase, type OutlierQuery, type OutliersResult } from './outliers'
 import type { SyncRun, SyncToast } from './channels'
 import { cadence, channelStats, channelSlots, syncText, runSyncText, syncResultToast, problemLabel, problemPhrase, syncLabel } from './channels'
-import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
+import { deriveChanges, changesIn, caveats, contaComoTroca, REWRITE_GROUPS, type ObsChange } from './changes'
 import { link } from './links'
 import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, hasThemes, type Formula, type Theme } from './catalog'
 import { heatmap, nicheStats, themeTrend, ownCoverage, patternsNow, ownChannels, nicheRef, ownNicheStats, type NicheRef, type OwnNicheStats } from './insights'
@@ -194,7 +194,7 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
       const inN = (x: { niche: string | null }) => n === 'todos' || x.niche === n
       const want = {
         canais: ds.channels.filter(c => !c.own && inN(c)).length,
-        mud: changes.filter(c => c.at > ds.now - 30 * 864e5 && inN(c) && !CH.get(c.ch)!.own).length,
+        mud: changes.filter(c => contaComoTroca(c) && c.at > ds.now - 30 * 864e5 && inN(c) && !CH.get(c.ch)!.own).length,
         out: videos.filter(v => v.tracked && v.fmt === 'long' && inN(v) && !CH.get(v.ch)!.own && v.ageDays <= 90 && v.mult!.value != null && v.mult!.value >= 2 && !v.mult!.weak).length,
       }
       for (const k of ['canais', 'mud', 'out'] as const) if (TAB_COUNTS[n]![k] !== want[k]) { integrity.ok = false; integrity.errors.push('tabCounts(' + n + ').' + k + ' = ' + TAB_COUNTS[n]![k] + ', esperado ' + want[k]) }

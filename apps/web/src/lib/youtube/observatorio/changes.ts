@@ -31,6 +31,9 @@ export interface TestRun { id: string; n: number; pos: number; from: number; to:
 const TYPE_LABEL = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' } as const
 type ChangeType = keyof typeof TYPE_LABEL
 
+/** Só a troca de título e a de miniatura conta como "troca" nos números (aba, lista, cabeçalho, comparação). A de descrição não (E5a T6a, desvio 12). */
+export const contaComoTroca = (c: Pick<ObsChange, 'type'>): boolean => c.type === 'title' || c.type === 'thumb'
+
 export const REWRITE_GROUPS: { id: string; label: string; test: (c: ObsChange) => boolean }[] = [
   { id: 'reverteu', label: 'Voltou ao título anterior', test: c => !!c.revertTo },
   { id: 'tirou-segunda-noticia', label: 'Tirou a 2ª notícia', test: c => { const b = c.before as string, a = c.after as string

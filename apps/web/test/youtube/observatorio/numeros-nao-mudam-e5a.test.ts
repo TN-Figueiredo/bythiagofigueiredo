@@ -2,6 +2,7 @@
 // apps/web/test/youtube/observatorio/numeros-nao-mudam-e5a.test.ts
 // E5a Tarefa 0b: o retrato "antes" dos números que a E5a não pode mudar. O JSON é gravado uma vez e nunca regravado;
 // a partir da Tarefa 6a a comparação vira campo a campo, com as exceções declaradas por extenso.
+import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -42,13 +43,16 @@ export function montarRetrato() {
 
 describe('E5a T0b: o retrato antes dos números', () => {
   const retrato = montarRetrato()
-  it('mud é 18, 8 e 10 e as contagens por tipo são as do plano', () => {
-    expect(retrato.abas.todos.mud).toBe(18); expect(retrato.abas.viagem.mud).toBe(8); expect(retrato.abas.ia.mud).toBe(10)
+  it('mud é 15, 7 e 8 (eram 18, 8 e 10) e as contagens por tipo são as do plano', () => {
+    expect(retrato.abas.todos.mud).toBe(15); expect(retrato.abas.viagem.mud).toBe(7); expect(retrato.abas.ia.mud).toBe(8)
     expect(retrato.mudancasPorTipo.todos).toEqual({ title: 7, thumb: 8, desc: 3 })
     expect(retrato.mudancasPorTipo.viagem).toEqual({ title: 3, thumb: 4, desc: 1 })
     expect(retrato.mudancasPorTipo.ia).toEqual({ title: 4, thumb: 4, desc: 2 })
   })
-  it('o retrato gravado é o do código de hoje (arquivo inteiro, só até a Tarefa 6a)', async () => {
-    await expect(JSON.stringify(retrato, null, 2)).toMatchFileSnapshot('./fixtures/e5a-retrato-antes.json')
+  it('o retrato de hoje é o gravado antes, campo a campo, com uma exceção: abas.*.mud (desvio 12)', () => {
+    const antes = JSON.parse(readFileSync(new URL('./fixtures/e5a-retrato-antes.json', import.meta.url), 'utf8')) as typeof retrato
+    const esperado = J(antes)
+    esperado.abas.todos.mud = 15; esperado.abas.viagem.mud = 7; esperado.abas.ia.mud = 8
+    expect(retrato).toEqual(esperado)
   })
 })

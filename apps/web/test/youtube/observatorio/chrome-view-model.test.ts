@@ -18,15 +18,15 @@ describe('chrome view model', () => {
   it('"Definir nicho dos canais" opens the niche editor on Canais (?nicheEditor=1)', () => {
     expect(buildChromeView(obs, { tab: 'mudancas', niche: 'ia' }).nicheEditorHref).toBe('/cms/youtube/competitors?nicheEditor=1')
   })
-  it('tab counts follow the niche (Todos 14/18/11, Viagem 8/8/5, IA 6/10/6); Insights has none', () => {
+  it('tab counts follow the niche (Todos 14/15/11, Viagem 8/7/5, IA 6/8/6); Insights has none', () => {
     const t = buildChromeView(obs, { tab: 'canais', niche: 'todos' }).tabs
-    expect(t.map(x => x.count)).toEqual([14, 18, 11, null])
-    expect(buildChromeView(obs, { tab: 'canais', niche: 'viagem' }).tabs.map(x => x.count)).toEqual([8, 8, 5, null])
-    expect(buildChromeView(obs, { tab: 'canais', niche: 'ia' }).tabs.map(x => x.count)).toEqual([6, 10, 6, null])
+    expect(t.map(x => x.count)).toEqual([14, 15, 11, null])
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'viagem' }).tabs.map(x => x.count)).toEqual([8, 7, 5, null])
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'ia' }).tabs.map(x => x.count)).toEqual([6, 8, 6, null])
   })
   it('each tab explains its count in title=', () => {
     const t = buildChromeView(obs, { tab: 'mudancas', niche: 'todos' }).tabs
-    expect(t[1]!.title).toBe('18 trocas nos últimos 30 dias (título, thumbnail e descrição; longos e Shorts; contadas por evento)')
+    expect(t[1]!.title).toBe('15 trocas nos últimos 30 dias (título e thumbnail; longos e Shorts; contadas por evento)')
     expect(t[0]!.title).toBe('14 canais monitorados')
     expect(t[3]!.title).toBe('Leituras publicadas pela forja')
   })
@@ -90,7 +90,7 @@ describe('chrome view model', () => {
 
 describe('cowork text', () => {
   it('one default per tab, with the niche', () => {
-    expect(coworkText('mudancas', 'ia')).toBe('Liste as trocas de título, thumbnail e descrição dos concorrentes (nicho IA, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa. Use o MCP bythiagofigueiredo.')
+    expect(coworkText('mudancas', 'ia')).toBe('Liste as trocas de título e thumbnail dos concorrentes (nicho IA, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa. Use o MCP bythiagofigueiredo.')
     expect(coworkText('canais', 'todos')).toContain('(todos os nichos)')
   })
 })
