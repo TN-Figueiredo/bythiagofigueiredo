@@ -322,9 +322,13 @@ export function buildFilaView(leitura: LeituraDaFila, o: { agoraMs: number; most
   const manterTodos = cartoes.length > 1 && f.podeResponder
     ? {
       rotulo: `Manter todos para análise (${cartoes.length})`,
-      grupos: (['video', 'canal', 'comentario'] as const)
-        .map(tipo => ({ tipo, ids: cartoes.filter(c => c.manter.tipo === tipo).flatMap(c => c.manter.ids) }))
-        .filter(g => g.ids.length > 0),
+      // a ação recusa mais de 500 ids por chamada: cada tipo sai em pedaços de 500 (m-1 do portão 14/10)
+      grupos: (['video', 'canal', 'comentario'] as const).flatMap(tipo => {
+        const todos = cartoes.filter(c => c.manter.tipo === tipo).flatMap(c => c.manter.ids)
+        const pedacos: Array<{ tipo: typeof tipo; ids: Array<string | number> }> = []
+        for (let i = 0; i < todos.length; i += 500) pedacos.push({ tipo, ids: todos.slice(i, i + 500) })
+        return pedacos
+      }),
     }
     : null
 

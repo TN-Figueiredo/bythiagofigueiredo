@@ -242,4 +242,23 @@ describe('A5 E9 T6: nada de título no Sentry', () => {
     const tudo = JSON.stringify([sentry.captureException.mock.calls, sentry.captureMessage.mock.calls])
     expect(tudo).not.toContain('TÍTULO-SECRETO')
   })
+
+describe('A5 E9: consertos do portão de 14/10 (responder)', () => {
+  it('m-8: banco diz que sobrou e o Blob não deixou nada: faltam vem do que sobrou, não de todos os pendentes', async () => {
+    const f = monta({ competitor_video_purge: async () => APAGADO, competitor_removed_blobs_done: async () => ok({ status: 'ok', restam: 1 }) })
+    const r = await apagarVideo(f.sb, CTX, 'v1', 'APAGAR', { apagarDoBlob: blobOk() })
+    expect(r.desfecho).toBe('apagando')
+    expect((r.faltam?.miniaturas ?? 0) + (r.faltam?.pastas ?? 0)).toBe(1)
+  })
+
+  it('m-3/M-4: leitura que falha em concluirApagamentos devolve erro, diferente de nada pendente', async () => {
+    const vazioDb = monta({}, { competitor_removed_items: [] })
+    const sb = fakeSaiu({ tabelas: {}, falhar: () => true }).sb
+    const r = await concluirApagamentos(sb, 'site-1', { prazoMs: 5_000, deps: { apagarDoBlob: blobOk() } })
+    expect(r.erro).toBeTruthy()
+    const vazio = await concluirApagamentos(vazioDb.sb, 'site-1', { prazoMs: 5_000, deps: { apagarDoBlob: blobOk() } })
+    expect(vazio.erro).toBeUndefined()
+    expect(vazio).toEqual({ tentados: 0, concluidos: 0 })
+  })
+})
 })

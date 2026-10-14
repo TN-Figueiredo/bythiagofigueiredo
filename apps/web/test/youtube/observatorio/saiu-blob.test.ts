@@ -75,7 +75,7 @@ describe('A5 E9 T5: apagarDoBlob', () => {
     const del = vi.fn(async () => undefined)
     const r = await apagarDoBlob([PASTA], { prazoMs: 10_000, del, list })
     expect(r.restam).toEqual([PASTA])
-    expect(del).toHaveBeenCalledTimes(2)
+    expect(del).toHaveBeenCalledTimes(20) // 2 páginas de 1.000, em lotes de 100 (m-5)
   })
 
   it('sem tempo antes da segunda chamada: devolve o que fez e sem_tempo', async () => {
@@ -170,5 +170,21 @@ describe('A5 E9 T5: apagarDoBlob', () => {
     expect(r.motivo).toBe('sem_tempo')
     expect(r.feitos).toEqual([url(1)])
     expect(r.restam).toEqual([PASTA])
+  })
+
+  it('m-5: o lote do prefixo também é de 100 (250 achados = 3 del)', async () => {
+    let restante = urls(250)
+    const list: ListFn = vi.fn(async () => ({ blobs: restante.map(u => ({ url: u })), hasMore: false }))
+    const del = vi.fn(async (u: string[]) => { restante = restante.filter(x => !u.includes(x)) })
+    const r = await apagarDoBlob([PASTA], { prazoMs: 10_000, del, list })
+    expect(del.mock.calls.map(c => (c as unknown as [string[]])[0].length)).toEqual([100, 100, 50])
+    expect(r.feitos).toEqual([PASTA])
+  })
+
+  it('M-7: prefixo que esgota o teto de arquivos sem list vazio volta em restam com motivo sem_tempo', async () => {
+    const list: ListFn = vi.fn(async () => ({ blobs: urls(1000).map(u => ({ url: u })), hasMore: true }))
+    const r = await apagarDoBlob([PASTA], { prazoMs: 10_000, del: async () => undefined, list })
+    expect(r.restam).toEqual([PASTA])
+    expect(r.motivo).toBe('sem_tempo')
   })
 })

@@ -67,7 +67,8 @@ async function executar(
   if (texto !== null) return { desfecho: 'erro', codigo: 'schema_ausente', frase: texto }
   const { ip, ua } = await origem()
   const r = await rodar(sb, { siteId: dono.siteId, actorId: dono.actorId, ip, ua })
-  if (MUDA_O_BANCO.has(r.desfecho)) {
+  // resposta parcial (erro depois de n linhas gravadas, m-2 do portão 14/10) também mudou o banco
+  if (MUDA_O_BANCO.has(r.desfecho) || (r.desfecho === 'erro' && (r.n ?? 0) > 0)) {
     invalidateObservatory(dono.siteId)
     revalidatePath('/cms/youtube/competitors', 'layout')
   }

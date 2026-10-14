@@ -90,13 +90,18 @@ export async function apagarDoBlob(pendentes: readonly string[], o: OpcoesDoBlob
       if (achados.length === 0) { confirmado = true; break }
       const ok = soMiniaturasDoObservatorio(achados).apagar
       if (ok.length === 0) { falhou = true; break }
-      const d = await chamar(() => del(ok))
-      if ('semTempo' in d) return semTempo(prefixos.slice(i))
-      if ('erro' in d) { falhou = true; break }
-      apagados += ok.length
+      let lotesFalharam = false
+      for (let k = 0; k < ok.length; k += LOTE) {
+        const lote = ok.slice(k, k + LOTE)
+        const d = await chamar(() => del(lote))
+        if ('semTempo' in d) return semTempo(prefixos.slice(i))
+        if ('erro' in d) { lotesFalharam = true; break }
+        apagados += lote.length
+      }
+      if (lotesFalharam) { falhou = true; break }
     }
     if (confirmado) feitos.push(prefixo)
-    else { restam.push(prefixo); if (falhou) motivo = 'erro' }
+    else { restam.push(prefixo); if (falhou) motivo = 'erro'; else if (motivo === 'ok') motivo = 'sem_tempo' } // teto de arquivos: volta na próxima tentativa
   }
 
   return { feitos, restam, motivo }

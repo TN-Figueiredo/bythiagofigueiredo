@@ -63,6 +63,7 @@ async function concluirBlob(
   const b = await apagar(pendentes, { prazoMs: deps.prazoMs ?? PRAZO_DO_BLOB_MS, ...(deps.agora ? { agora: deps.agora } : {}) })
   let restam = b.restam
   let gravou = true
+  let bancoRestam = 0
   if (b.feitos.length > 0) {
     const g = await chamar(() => sb.rpc('competitor_removed_blobs_done', { p_site: ctx.siteId, p_item: itemId, p_done: b.feitos }), 'blobs_done', { itemId })
     const d = g.ok ? g.data : null
@@ -71,10 +72,15 @@ async function concluirBlob(
       restam = pendentes
     } else if (typeof d.restam === 'number' && d.restam > 0 && restam.length === 0) {
       gravou = false // o banco diz que sobrou o que o Blob jurou ter feito: não é "apagado"
+      bancoRestam = d.restam
     }
   }
   if (restam.length === 0 && gravou) return { desfecho: 'apagado' }
-  const faltam = faltaNoBlob(restam.length > 0 ? restam : pendentes)
+  // o que falta: o que o Blob não fez; se o Blob jurou ter feito tudo e o banco diz que sobrou, a conta do banco (m-8 do portão 14/10)
+  const naoFeitos = pendentes.filter(p => !b.feitos.includes(p))
+  const faltam = restam.length > 0 ? faltaNoBlob(restam)
+    : bancoRestam > 0 ? { miniaturas: bancoRestam, pastas: 0 }
+      : faltaNoBlob(naoFeitos.length > 0 ? naoFeitos : pendentes)
   return { desfecho: 'apagando', faltam, ...(b.motivo === 'blob_nao_configurado' ? { codigo: 'blob_nao_configurado' as const } : {}) }
 }
 
@@ -176,10 +182,12 @@ export async function tentarDeNovo(sb: SupabaseClient, ctx: CtxDeResposta, itemI
   return concluirBlob(sb, ctx, itemId, pendentes, deps)
 }
 
+const ERRO_DE_LEITURA_PENDENTES = 'não foi possível ler os apagamentos pendentes'
+
 /** Para o cron: no máximo 50 linhas do site com pendência, a mais antiga primeiro, enquanto houver prazo. */
 export async function concluirApagamentos(
   sb: SupabaseClient, siteId: string, o: { prazoMs: number; deps?: DepsDoApagar },
-): Promise<{ tentados: number; concluidos: number }> {
+): Promise<{ tentados: number; concluidos: number; erro?: string }> {
   const agora = o.deps?.agora ?? Date.now
   const fim = agora() + o.prazoMs
   let tentados = 0
@@ -188,10 +196,14 @@ export async function concluirApagamentos(
   try {
     const r = await sb.from('competitor_removed_items').select('id, blobs_pending').eq('site_id', siteId).not('blobs_pending', 'eq', '{}')
       .order('decided_at', { ascending: true }).order('id', { ascending: true }).limit(50)
-    if (r.error || !Array.isArray(r.data)) return { tentados, concluidos }
+    if (r.error || !Array.isArray(r.data)) {
+      relatar('concluir_apagamentos_leitura', 'erro_de_banco', { siteId })
+      return { tentados, concluidos, erro: ERRO_DE_LEITURA_PENDENTES }
+    }
     rows = r.data
   } catch {
-    return { tentados, concluidos }
+    relatar('concluir_apagamentos_leitura', 'erro_de_banco', { siteId })
+    return { tentados, concluidos, erro: ERRO_DE_LEITURA_PENDENTES }
   }
   for (const linha of rows) {
     const restante = fim - agora()

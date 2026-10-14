@@ -215,4 +215,12 @@ describe('A5 E9 T10b: view model da fila', () => {
     expect([lerMostrar('20'), lerMostrar('200'), lerMostrar('10')]).toEqual([20, 200, 10])
     expect([lerMostrar(undefined), lerMostrar('abc'), lerMostrar('15'), lerMostrar('210'), lerMostrar('0'), lerMostrar('-10'), lerMostrar(['30', '40'])]).toEqual([10, 10, 10, 10, 10, 10, 30])
   })
+
+  it('m-1 (portão 14/10): "Manter todos" fatia cada tipo em pedaços de 500 ids', () => {
+    const ids = (a: number): number[] => Array.from({ length: 300 }, (_, i) => a + i)
+    const itens = [grupo({ chave: 'c-a', idsDoGrupo: ids(1) }), grupo({ chave: 'c-b', idsDoGrupo: ids(1000) })]
+    const t = ok(fila({ esperando: itens }), 10).manterTodos!
+    const tam = t.grupos.filter(g => g.tipo === 'comentario').map(g => g.ids.length)
+    expect(tam).toEqual([500, 100])
+  })
 })

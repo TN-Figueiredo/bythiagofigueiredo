@@ -11,6 +11,7 @@ interface Opcoes {
   edit?: boolean
   schema?: string | null
   desfecho?: string
+  n?: number
   ip?: string | null
   ua?: string | null
   canal?: { missing_since: string | null } | null
@@ -18,14 +19,14 @@ interface Opcoes {
   comentariosEsperando?: number | null
   falhaNaLeituraDoCanal?: boolean
 }
-interface Registro { ordem: string[]; svc: Array<{ nome: string; args: unknown[] }>; tags: unknown[]; paths: unknown[]; lerFila: unknown[] }
+interface Registro { leituras: Array<{ tabela: string; chamadas: unknown[][] }>; ordem: string[]; svc: Array<{ nome: string; args: unknown[] }>; tags: unknown[]; paths: unknown[]; lerFila: unknown[] }
 
-const chain = (result: unknown): unknown => new Proxy(function () {}, {
-  get: (_t, k) => (k === 'then' ? (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(result).then(ok, ko) : () => chain(result)),
+const chain = (result: unknown, log?: unknown[][]): unknown => new Proxy(function () {}, {
+  get: (_t, k) => (k === 'then' ? (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(result).then(ok, ko) : (...a: unknown[]) => { log?.push([k, ...a]); return chain(result, log) }),
 })
 
 function montar(o: Opcoes = {}): Registro {
-  const r: Registro = { ordem: [], svc: [], tags: [], paths: [], lerFila: [] }
+  const r: Registro = { leituras: [], ordem: [], svc: [], tags: [], paths: [], lerFila: [] }
   vi.resetModules()
   vi.doMock('server-only', () => ({}))
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -49,15 +50,17 @@ function montar(o: Opcoes = {}): Registro {
       r.ordem.push('service')
       return {
         from: (t: string) => {
-          if (t === 'competitor_channels') return chain(o.falhaNaLeituraDoCanal ? { data: null, error: { message: 'x' } } : { data: o.canal === null ? [] : [o.canal ?? { id: 'c1', missing_since: null }], error: null })
-          if (t === 'competitor_videos') return chain({ count: o.videosEsperando === undefined ? 0 : o.videosEsperando, error: null })
-          return chain({ count: o.comentariosEsperando === undefined ? 0 : o.comentariosEsperando, error: null })
+          const log: unknown[][] = []
+          r.leituras.push({ tabela: t, chamadas: log })
+          if (t === 'competitor_channels') return chain(o.falhaNaLeituraDoCanal ? { data: null, error: { message: 'x' } } : { data: o.canal === null ? [] : [o.canal ?? { id: 'c1', missing_since: null }], error: null }, log)
+          if (t === 'competitor_videos') return chain({ count: o.videosEsperando === undefined ? 0 : o.videosEsperando, error: null }, log)
+          return chain({ count: o.comentariosEsperando === undefined ? 0 : o.comentariosEsperando, error: null }, log)
         },
       }
     },
   }))
   vi.doMock('@/lib/youtube/observatorio/saiu/schema', () => ({ schemaE9: async () => { r.ordem.push('schema'); return o.schema === undefined ? null : o.schema } }))
-  const servico = (nome: string) => async (...args: unknown[]) => { r.svc.push({ nome, args: args.slice(1) }); return { desfecho: o.desfecho ?? 'apagado', n: 1 } }
+  const servico = (nome: string) => async (...args: unknown[]) => { r.svc.push({ nome, args: args.slice(1) }); return { desfecho: o.desfecho ?? 'apagado', n: o.n ?? 1 } }
   vi.doMock('@/lib/youtube/observatorio/saiu/responder', () => ({
     apagarVideo: servico('apagarVideo'), apagarCanal: servico('apagarCanal'), apagarComentarios: servico('apagarComentarios'), manter: servico('manter'),
     decidirVolta: servico('decidirVolta'), tentarDeNovo: servico('tentarDeNovo'), ignorarVoltaDoGrupo: servico('ignorarVoltaDoGrupo'),
@@ -144,8 +147,17 @@ describe('A5 E9 T9: ações', () => {
     expect(r.paths).toEqual([['/cms/youtube/competitors', 'layout']])
   })
 
+  it('m-2: resposta parcial (erro com n > 0) também invalida; erro com n = 0 não', async () => {
+    const r = montar({ desfecho: 'erro', n: 2 })
+    await (await acoes()).ignorarVoltaDoGrupo({ itemIds: [1, 2, 3] })
+    expect(r.tags).toEqual([['observatorio:site-ctx', { expire: 0 }]])
+    const z = montar({ desfecho: 'erro', n: 0 })
+    await (await acoes()).ignorarVoltaDoGrupo({ itemIds: [1, 2, 3] })
+    expect(z.tags).toEqual([])
+  })
+
   it.each(['no_ar', 'forja_em_andamento', 'not_found', 'mudou', 'palavra_errada', 'erro', 'nada'])('desfecho %s não invalida', async (desfecho) => {
-    const r = montar({ desfecho })
+    const r = montar({ desfecho, n: 0 })
     await (await acoes()).apagarItem({ tipo: 'video', id: UUID, palavra: 'APAGAR' })
     expect(r.tags).toEqual([])
     expect(r.paths).toEqual([])
@@ -223,6 +235,11 @@ describe('A5 E9 T9: removeCompetitorChannel recusa o que é da fila', () => {
     const r = montar()
     expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: true })
     expect(r.ordem).toContain('remover')
+    // m-4 (portão 14/10): as duas contagens só olham os itens SEM decisão; sem o filtro, o mantido bloquearia a remoção
+    for (const t of ['competitor_videos', 'competitor_video_comments']) {
+      const lei = r.leituras.find(l => l.tabela === t)
+      expect(lei?.chamadas, t).toContainEqual(['is', 'removal_decision', null])
+    }
   })
 
   it('leitura que falha não apaga', async () => {
