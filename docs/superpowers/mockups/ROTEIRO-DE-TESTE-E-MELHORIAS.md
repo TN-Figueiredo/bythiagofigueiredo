@@ -1171,24 +1171,24 @@ Não é mockup: é a tela implementada (E8, Tarefa 13; mockup de origem: o 6), m
 
 ## 19d. Peça 4: o interruptor do automático
 
-Estado: **desenhado em 14/10/2026, sem revisão de Logan e Naksu e sem aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seção "Peça 4").
+Estado: **corrigida em 14/10/2026 pela revisão 1 de Logan e Naksu (A1 a A9, C1 a C3); falta a conferência dos dois e a aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seções "Peça 4" e "Revisão peça4-1").
 
 ### 1. O que a tela responde
-"Está ligado? Vai tirar algo sem eu ver? Parou por quê?"
+"Está ligado? Vai tirar algo sem eu ver? Parou por quê? Como paro ou ligo de novo?"
 
 ### 2. Roteiro de teste
-Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/arquivo.html` (a peça é a caixa no alto de cada cartão); os 22 estados estão em `interruptor.html`. Um item de cada vez:
-1. Na página, no cartão "Leitura de hora em hora": clicar em "Ligar o automático…", ler a regra, digitar a frase e confirmar; o cartão passa a "ligado".
-2. `interruptor.html?e=todos-parou`: para cada motivo, achar o que o site diz que aconteceu e o que você faz.
-3. `arquivo.html?auto=desl-2`: o chip na faixa do alto avisa que desligou; clicar nele e ver que ele some.
-4. `?caso=hoje`: o cartão diz o que falta para poder ligar, com as duas barras.
+Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/arquivo.html?auto=desl-2` (a peça é a caixa no alto de cada cartão); as situações com título em português estão em `interruptor.html`. Um item de cada vez:
+1. Tocar no chip "automático desligou em 02/05": a página abre já no aviso; esperar 1 segundo e ver o chip sumir. Tocar em "Ver o que sairia", depois em "Ligar de novo", digitar a frase (vale sem acento) e confirmar.
+2. No cartão "ligado" (`arquivo.html` sem parâmetros, cartão "Views por dia"): tocar em "Ver a regra" e ler; fechar; tocar em "Desligar" e ler o que a janela promete.
+3. `interruptor.html?e=todos-parou`: em cada grupo, ver se o texto diz o que aconteceu e se dá para resolver de longe ou "pode esperar".
+4. `interruptor.html?e=c8`: a validade acabou; ver que é só um aviso (círculo com "i"), sem triângulo.
 
-### 3. Decisões pedidas ao dono
-1. O botão "Ligar o automático…" tem o peso máximo da tela (texto invertido), como "Tirar o mês": é o que se quer?
-2. Depois que o automático desliga sozinho, ele só liga de novo com uma simulação nova e a frase: é a regra que você quer?
+### 3. Decisões do dono (14/10/2026) e o que ainda pede a ele
+Já decididas, e levadas ao fecho do spec 04: há um botão "Desligar" no painel ligado (confirma sem frase, dizendo que o que já saiu continua saído); o fim dos 90 dias é aviso neutro, sem triângulo nem chip.
+Ainda a confirmar: (1) depois de "Desligar", ligar de novo exige só a regra e a frase, sem simulação nova (foi você quem parou); (2) o botão "Ligar o automático…" tem o peso máximo da tela, como "Tirar o mês"; (3) o ⓘ da configuração do site manda "deixar para o Claude Code ou o Cowork".
 
 ### 4. Melhorias que os revisores sugeriram e não bloqueiam
-Nenhuma ainda (sem revisão). Decisões minhas a confirmar: ver `NOTAS.md`, lista de 7 itens.
+Naksu S3 (cadeado em "ainda não dá" e "travado", só se o teste mostrar confusão com "desligado"); Logan S4 ("a cada 5 meses" sem "duas a três vezes por ano", frase do spec); Naksu S2 (cortar "(1 de 3)" da frase do "ainda não dá"; Logan aprovou o texto).
 
 ### 5. O que ninguém conferiu
 Opera real, leitor de tela (anúncio do status da frase), aparelho real, o filtro de cinza do macOS.

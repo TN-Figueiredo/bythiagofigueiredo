@@ -75,7 +75,7 @@
   }
   function interruptor(tipo){
     if (tipo === 'texto') return INT.peca('texto', 'x');
-    return INT.peca(tipo, estadoAuto(tipo), { adm: ADM, visto: VISTO });
+    return INT.peca(tipo, estadoAuto(tipo), { adm: ADM, visto: VISTO, ancora: true });
   }
   function cartao(titulo, tipo, resumo, rows, anos){
     return '<section class="m-card" aria-label="' + esc(titulo) + '"><div class="m-card-h"><div class="m-card-top"><h3 class="m-h3">' + esc(titulo) + '</h3></div>' + interruptor(tipo) + '<p class="m-resumo">' + resumo + '</p></div>' +
@@ -113,7 +113,21 @@
     calmo: ['res-calmo', 'Frase-resumo: nada precisa de você', 'Logan 11.8', '<p class="m-resumo calmo">Nenhum mês precisa de você. Próxima saída possível: 01/05/2027.</p>'],
     nm: ['res-nm', 'Frase-resumo: não medido', 'Logan 11.8', aus('nm', 'Não foi possível ler o estado do arquivo.')]
   };
+  /* A1(b): enquanto o aviso não foi visto, a frase-resumo começa pelo automático que desligou (o motivo 8, neutro, não entra) */
+  function leadAuto(){
+    if (E !== 'pagina' || CASO !== 'cheio' || VISTO) return '';
+    var ts = ['dia', 'hora'].filter(function(t){ return INT.alerta(estadoAuto(t)); });
+    if (!ts.length) return '';
+    var m = INT.MOTIVOS.filter(function(x){ return 'desl-' + x[0] === estadoAuto(ts[0]); })[0];
+    var nomes = ts.map(function(t){ return t === 'dia' ? 'views por dia' : 'leitura de hora em hora'; });
+    var quem = ts.length > 1 ? 'O automático de ' + nomes[0] + ' e o de ' + nomes[1] + ' desligaram' : 'O automático de ' + nomes[0] + ' desligou';
+    var mot = m[1].charAt(0).toLowerCase() + m[1].slice(1);
+    return '<p class="m-res-lead"><a href="#auto-' + ts[0] + '">' + quem + ' em 02/05: ' + esc(mot) + '.</a></p>';
+  }
   function resumoPagina(){
+    return leadAuto() + resumoPagina0();
+  }
+  function resumoPagina0(){
     if (CASO === 'cheio') return PERFIL === 'ed' ? '<p class="m-resumo"><b>1 mês e 1 canal removido esperam quem administra o site.</b> Um mês já pode sair.</p><p class="m-muted" style="margin:4px 0 0;font-size:12.5px">Quem administra o site faz estas ações.</p>' : RES.um[3];
     if (PERFIL === 'ed') return RES.calmo[3] + '<p class="m-muted" style="margin:4px 0 0;font-size:12.5px">Quem administra o site faz as ações desta página.</p>';
     return RES.calmo[3];
@@ -160,8 +174,8 @@
   var CANC = '<button type="button" class="btn" data-foco data-fecha>Cancelar</button>';
   function dT4(v){
     var corpo = v === 'c' ? TEXTO : PROVA + (v === 'a' ? DOIS : '') + (v === 'b' ? QUARTA : '');
-    var ok = v === 'c' ? '<button type="button" class="btn heavy" aria-disabled="true" id="dOk" data-ok>Apagar o texto de outubro de 2027</button>' : '<button type="button" class="btn heavy" data-ok>Tirar outubro de 2027 do banco</button>';
-    return dlg('Tirar outubro de 2027 do banco online?', corpo, CANC + ok);
+    var ok = v === 'c' ? '<button type="button" class="btn heavy" aria-disabled="true" id="dOk" data-ok aria-describedby="dSt">Apagar o texto de outubro de 2027</button>' : '<button type="button" class="btn heavy" data-ok>Tirar outubro de 2027 do banco</button>';
+    return dlg('Tirar outubro de 2027 do banco online?', corpo, ok + CANC);
   }
   var SIM = '<div class="m-sim"><p><span class="m-marca" style="margin:0 6px 0 0">simulação, nada foi tirado</span>Se você tirasse outubro de 2027 agora: <b class="m-num">45</b> canais, <b class="m-num">1.234.567</b> registros, <b class="m-num">38%</b> do que este tipo de dado ocupa. Contado agora: tudo bate.</p><p style="margin:0 0 4px;font-size:13px;color:var(--muted)">Mais 1 canal removido: os registros dele deste mês já estão só no arquivo. Os 1.204 registros de 1 canal removido se perderam (confirmado por você em 03/05/2028).</p><p style="margin:0;font-size:12.5px;color:var(--muted)">Simulações vistas: 2 de 2</p></div>';
   var COND = [['tri', 'Falta conferir o B2 (última conferência há 41 dias).'], ['tri', 'Cópia sem verificação há 30 horas: a casa não respondeu. Nada se perde: o mês só sai quando a casa voltar. Veja o que fazer no aviso do banco.'], ['pont', 'Ainda dentro dos 6 meses: pode sair em 01/06/2028.'], ['tri', 'A forja não confere o B2 há 9 dias.']];
@@ -184,7 +198,7 @@
       ['t7', 'Primeiro passo feito, esperando', '04 L260', lista(mes('m8'))],
       ['t7a', 'Primeiro passo feito, depois dos 7 dias', '04 L261', lista(mes('m8a')) + '<p class="m-q-nota">Aos 14 dias a linha fica âmbar e diz “Libere o espaço ou traga o mês de volta”.</p>'],
       ['t7b', 'Primeiro passo feito, aos 14 dias', '04 L261', lista(mes('m8b'))],
-      ['t8', 'Segundo passo (confirmação)', '04 L262', dlg('Liberar o espaço de setembro de 2027?', '<p class="t"><b>Depois disso não dá mais para trazer de volta pelo site.</b> Isto libera cerca de 4% do banco. O dado continua no NAS e no B2.</p><p class="t"><b>Contado agora, no banco:</b> 45 canais, 1.234.567 registros de setembro de 2027, iguais aos da cópia do NAS (verificada hoje às 06:17) e do B2 (conferido pela forja hoje às 11:20).</p>', CANC + '<button type="button" class="btn heavy" data-ok>Liberar o espaço</button>', true)],
+      ['t8', 'Segundo passo (confirmação)', '04 L262', dlg('Liberar o espaço de setembro de 2027?', '<p class="t"><b>Depois disso não dá mais para trazer de volta pelo site.</b> Isto libera cerca de 4% do banco. O dado continua no NAS e no B2.</p><p class="t"><b>Contado agora, no banco:</b> 45 canais, 1.234.567 registros de setembro de 2027, iguais aos da cópia do NAS (verificada hoje às 06:17) e do B2 (conferido pela forja hoje às 11:20).</p>', '<button type="button" class="btn heavy" data-ok>Liberar o espaço</button>' + CANC, true)],
       ['t8r', 'Segundo passo recusado', '04 L263', aus('am', 'A cópia não pôde ser confirmada agora (o B2 não respondeu à conferência). O espaço não foi liberado e o mês continua podendo voltar.')],
       ['t8x', 'Segundo passo repetido (não é erro)', '04 L264', aus('pt', 'O espaço deste mês já foi liberado em 03/05/2028.')],
       ['t9', 'Feito', '04 L265', lista(linhaMes(['t9', '', '', 'arq', ['arq'], 'Saiu em 03/05/2028 às 14:32. Liberou 4% do banco', '', '', ''], { nome: 'Setembro de 2027' }))],
@@ -226,8 +240,8 @@
         ['c-limpos', 'Já limpos (N), recolhido; e com zero', '04 L239', '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface)">' + JA + '</div><div style="height:10px"></div><div style="border:1px solid var(--border);border-radius:8px;background:var(--surface)"><details class="m-ano"><summary>' + ic('zero') + ' Já limpos (0)</summary><div class="m-ano-in">Nenhum canal removido foi limpo ainda.</div></details></div>'],
         ['c-carregando', 'Carregando (requisição): esqueleto com a altura final da linha', '04 L552', '<div aria-busy="true" role="status" aria-label="Carregando os canais removidos">' + [1, 2].map(function(){ return '<div class="m-can esq" aria-hidden="true"><div><div class="b" style="width:70%"></div></div><div><div class="b"></div><div class="b l"></div></div><div><div class="b"></div></div><div></div></div>'; }).join('') + '</div>'],
         ['c-comandos', 'Ver os comandos (só quem administra)', '04 L241', '<div class="m-cmdwrap">' + CMDHTML + '</div>'],
-        ['c-apagar', 'Apagar do arquivo: confirmação com a frase digitada', 'Logan 11.2', dlg('Apagar do arquivo os 14 meses de Viagem Lenta?', '<p class="t"><b>Não dá para desfazer.</b> Os 14 meses (de 10/2026 a 11/2027) saem do arquivo e podem ser a única cópia dos registros deste canal.</p><p class="t">Para continuar, digite o nome do canal:</p><p class="t" style="padding:6px 8px;background:var(--sunk);border:1px solid var(--border);border-radius:6px;user-select:all"><b>Viagem Lenta</b></p><label for="dIn2">Nome do canal</label><input id="dIn2" type="text" autocomplete="off"><p class="m-st" role="status">Digite o nome do canal para continuar.</p>', '<button type="button" class="btn" data-fecha>Cancelar</button><button type="button" class="btn danger" aria-disabled="true">Apagar do arquivo</button>', true)],
-        ['c-apagar-sd', 'Apagar do arquivo, sem aviso de remoção, com o Blob desconhecido', '04 L243; Logan 11.2', dlg('Apagar do arquivo os 9 meses do código 7F3A91C2?', '<p class="t"><b>Não dá para desfazer.</b> Os 9 meses (de 10/2026 a 06/2027) saem do arquivo e podem ser a única cópia.</p>' + aus('am', 'O site não anotou, na remoção, quais imagens deste canal estão no Blob e não consegue apagá-las. Elas continuam lá depois que o arquivo for apagado.') + '<p class="t">Para continuar, digite o código deste arquivo: <b class="m-num" style="padding:2px 6px;background:var(--sunk);border:1px solid var(--border);border-radius:4px;user-select:all">7F3A91C2</b></p><label for="dIn3">Código do arquivo</label><input id="dIn3" type="text" autocomplete="off"><p class="m-st" role="status">Digite o código para continuar.</p>', '<button type="button" class="btn" data-fecha>Cancelar</button><button type="button" class="btn danger" aria-disabled="true">Apagar do arquivo</button>', true)]
+        ['c-apagar', 'Apagar do arquivo: confirmação com a frase digitada', 'Logan 11.2', dlg('Apagar do arquivo os 14 meses de Viagem Lenta?', '<p class="t"><b>Não dá para desfazer.</b> Os 14 meses (de 10/2026 a 11/2027) saem do arquivo e podem ser a única cópia dos registros deste canal.</p><p class="t">Para continuar, digite o nome do canal:</p><p class="t" style="padding:6px 8px;background:var(--sunk);border:1px solid var(--border);border-radius:6px;user-select:all"><b>Viagem Lenta</b></p><label for="dIn2">Nome do canal</label><input id="dIn2" type="text" autocomplete="off" aria-describedby="dSt2"><p class="m-st" id="dSt2" role="status">Digite o nome do canal para continuar.</p>', '<button type="button" class="btn danger" aria-disabled="true" aria-describedby="dSt2">Apagar do arquivo</button><button type="button" class="btn" data-fecha>Cancelar</button>', true)],
+        ['c-apagar-sd', 'Apagar do arquivo, sem aviso de remoção, com o Blob desconhecido', '04 L243; Logan 11.2', dlg('Apagar do arquivo os 9 meses do código 7F3A91C2?', '<p class="t"><b>Não dá para desfazer.</b> Os 9 meses (de 10/2026 a 06/2027) saem do arquivo e podem ser a única cópia.</p>' + aus('am', 'O site não anotou, na remoção, quais imagens deste canal estão no Blob e não consegue apagá-las. Elas continuam lá depois que o arquivo for apagado.') + '<p class="t">Para continuar, digite o código deste arquivo: <b class="m-num" style="padding:2px 6px;background:var(--sunk);border:1px solid var(--border);border-radius:4px;user-select:all">7F3A91C2</b></p><label for="dIn3">Código do arquivo</label><input id="dIn3" type="text" autocomplete="off" aria-describedby="dSt3"><p class="m-st" id="dSt3" role="status">Digite o código para continuar.</p>', '<button type="button" class="btn danger" aria-disabled="true" aria-describedby="dSt3">Apagar do arquivo</button><button type="button" class="btn" data-fecha>Cancelar</button>', true)]
       ];
       return x + extra.map(function(p){ return M.quadro(p[0], p[1], p[2], p[3]); }).join('');
     },
@@ -272,7 +286,13 @@
       'Peças 2 e 3 (spec 04 §14.2 e §14.3). Todo número de mês arquivado é exemplo. Carregamento: o corpo dos tipos vem do servidor (sem esqueleto); o bloco “Canais removidos”, a seção “Vídeos antigos” e as simulações vêm por requisição (esqueleto com a altura final da linha: quadro C-CARREGANDO). “Comando de limpeza” escolhe a frase pelo que existe, nunca por data. Perfil só lê: a aba “Arquivo” não aparece na barra; quem chegar pelo endereço lê “Esta página é de quem edita o site.” e quem só lê vê, nas telas de gráficos, “No arquivo desde mm/aaaa.”, sem a porta “Ver antigo”. Na página, “Ver o que sairia”, “Tirar o mês”, “Liberar o espaço” e “Trazer de volta” funcionam; Esc fecha a janela e devolve o foco.');
     document.title = 'Mockup 19: o Arquivo e tirar o mês';
     document.body.innerHTML = barra + M.obs(PERFIL === 'le' ? '' : 'arquivo', CASO, PERFIL === 'le') + '<main id="m-main">' + corpoTela() + '</main>';
-    if (E === 'pagina') { var a0 = estadoAuto('dia'); INT.ajustaFaixa(/^desl-/.test(a0) && !VISTO ? 'desl' : (a0 === 'lig' || a0 === 'parcial' || a0 === 'perto' || estadoAuto('hora') === 'lig') ? 'lig' : 'nenhum'); }
+    if (E === 'pagina') {
+      var a0 = estadoAuto('dia');
+      INT.ajustaFaixa(INT.alerta(a0) && !VISTO ? 'desl' : (a0 === 'lig' || a0 === 'parcial' || a0 === 'perto' || estadoAuto('hora') === 'lig') ? 'lig' : 'nenhum');
+      INT.observaVisto();
+      var hh = (location.hash || '').match(/^#(auto-[a-z]+)$/), alvo = hh && document.getElementById(hh[1]);
+      if (alvo) { alvo.scrollIntoView({ block: 'start' }); alvo.focus({ preventScroll: true }); }
+    }
   }
   render();
 
