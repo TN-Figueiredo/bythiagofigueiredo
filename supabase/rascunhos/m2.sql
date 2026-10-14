@@ -743,10 +743,11 @@ end $$;
 
 -- 12. A conversão das três séries: um só bloco, uma só transação (se uma falhar, nenhuma muda).
 -- Todas as travas de uma vez e em ordem fixa (sem ciclo com um coletor que segura a early e grava em competitor_videos).
-lock table public.competitor_videos in share row exclusive mode;
-lock table public.competitor_video_daily, public.competitor_video_early, public.competitor_video_hourly in access exclusive mode;
+-- Dentro do bloco: `lock table` solto exige bloco de transação explícito, e o db push não garante um.
 do $$
 begin
+  lock table public.competitor_videos in share row exclusive mode;
+  lock table public.competitor_video_daily, public.competitor_video_early, public.competitor_video_hourly in access exclusive mode;
   perform obs_part.converter('public.competitor_video_daily'::regclass, 'snap_date', 'views');
   perform obs_part.converter('public.competitor_video_early'::regclass, 'taken_at', 'views');
   perform obs_part.converter('public.competitor_video_hourly'::regclass, 'hour_slot', 'views');
