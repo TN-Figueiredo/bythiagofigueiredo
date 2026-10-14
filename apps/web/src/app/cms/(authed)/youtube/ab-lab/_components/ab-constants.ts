@@ -43,6 +43,17 @@ export function formatPercent(n: number | null | undefined, decimals = 1): strin
   return `${brDec(n, decimals)}%`
 }
 
+/** CTR de uma variante: sem impressões medidas (0/null) é "—", nunca "0,0%". */
+export function formatCtr(ctr: number | null | undefined, impressions: number | null | undefined, decimals = 1): string {
+  if (!impressions || impressions <= 0 || ctr == null || Number.isNaN(ctr)) return DASH
+  return `${brDec(ctr * 100, decimals)}%`
+}
+
+/** true quando nenhuma variante tem impressões medidas. */
+export function semImpressoes(variants: ReadonlyArray<{ impressions?: number | null }>): boolean {
+  return variants.every(v => !v.impressions || v.impressions <= 0)
+}
+
 export function formatDate(d: string | Date | null | undefined): string {
   if (d == null) return DASH
   const date = typeof d === 'string' ? new Date(d) : d

@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
-import { formatPercent, formatCompact } from './ab-constants'
+import { formatPercent, formatCompact, formatCtr } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react'
 
@@ -77,7 +77,7 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
           const chance = variant.pBest
 
           const variantA = variants.find(v => v.label === 'A')
-          const canLift = variantA != null && variantA.ctr > 0 && variant.label !== 'A'
+          const canLift = variantA != null && variantA.ctr > 0 && !!variantA.impressions && !!variant.impressions && variant.label !== 'A'
           const liftVsA = canLift ? ((variant.ctr - variantA.ctr) / variantA.ctr) * 100 : null
 
           return (
@@ -145,7 +145,7 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
 
                   {/* CTR */}
                   <span className="font-mono text-[14px] font-bold text-right tabular-nums" style={{ width: 56, flexShrink: 0, color: variant.color }}>
-                    {brDec(variant.ctr * 100, 1)}%
+                    {formatCtr(variant.ctr, variant.impressions)}
                   </span>
 
                   {/* vs A */}

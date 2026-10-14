@@ -85,7 +85,6 @@ describe('ActiveDetail', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
     const sections = [
       'header', 'lock-countdown', 'hero-band', 'variant-performance',
-      'charts-confidence-radar',
     ]
     for (const s of sections) {
       expect(container.querySelector(`[data-section="${s}"]`), `missing section: ${s}`).not.toBeNull()
@@ -152,11 +151,8 @@ describe('ActiveDetail', () => {
     expect(screen.queryAllByText(/10 mil simulações/)).toHaveLength(0)
   })
 
-  it('bloco de confiança saiu: sem curva, sem meta 95%, só a frase fixa com contraste legível', () => {
+  it('bloco de confiança saiu: sem curva, sem meta 95%, frase fixa com contraste legível', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} />)
-    const bloco = container.querySelector('[data-section="charts-confidence-radar"]')
-    expect(bloco).not.toBeNull()
-    expect(bloco?.querySelectorAll('svg').length).toBe(0)
     expect(container.textContent).not.toMatch(/meta 95%/)
     expect(container.textContent).not.toMatch(/curva de confiança/i)
     expect(container.textContent).not.toMatch(/Confiança ao longo do tempo/)

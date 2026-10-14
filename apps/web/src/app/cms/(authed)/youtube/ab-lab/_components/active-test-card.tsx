@@ -118,27 +118,27 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
       </div>
 
       {/* Bottom stats */}
-      <div className="grid grid-cols-3 border-t border-cms-border bg-cms-bg-side">
-        <div className="py-[13px] px-[16px]">
-          <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Confiança</div>
-          {test.confidence === null ? (
-            <div className="text-[10.5px] text-cms-text leading-snug">{SEM_MEDICAO_DE_ENTREGA}</div>
-          ) : (
-            <>
-              <div className="font-mono text-[16px] font-bold text-cms-accent leading-none">{Math.round(test.confidence)}%</div>
-              <div className="text-[10.5px] text-cms-text-dim mt-[5px]">meta 95%</div>
-            </>
-          )}
-        </div>
+      <div className={`grid ${test.confidence === null ? 'grid-cols-2' : 'grid-cols-3'} border-t border-cms-border bg-cms-bg-side`}>
+        {test.confidence !== null && (
+          <div className="py-[13px] px-[16px]">
+            <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Confiança</div>
+            <div className="font-mono text-[16px] font-bold text-cms-accent leading-none">{Math.round(test.confidence)}%</div>
+            <div className="text-[10.5px] text-cms-text-dim mt-[5px]">meta 95%</div>
+          </div>
+        )}
         <div className="py-[13px] px-[16px] border-l border-cms-border">
           <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Líder</div>
           <div className="font-mono text-[16px] font-bold text-cms-text leading-none">
             <span className="inline-flex items-center gap-[6px]">
-              <VChip label={test.leader} size={18} />
-              {test.lift === null ? null : `${test.lift > 0 ? '+' : ''}${Math.round(test.lift)}%`}
+              {test.lift === null ? '—' : (
+                <>
+                  <VChip label={test.leader} size={18} />
+                  {`${test.lift > 0 ? '+' : ''}${Math.round(test.lift)}%`}
+                </>
+              )}
             </span>
           </div>
-          <div className="text-[10.5px] text-cms-text-dim mt-[5px]">
+          <div className={`text-[10.5px] ${test.lift === null ? 'text-cms-text' : 'text-cms-text-dim'} mt-[5px]`}>
             {test.lift === null ? SEM_MEDICAO_DE_ENTREGA : `lift ${test.lift > 0 ? '+' : ''}${Math.round(test.lift)}%`}
           </div>
         </div>

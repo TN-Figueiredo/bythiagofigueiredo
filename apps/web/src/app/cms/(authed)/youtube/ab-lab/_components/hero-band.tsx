@@ -8,9 +8,11 @@ import { TrendingUp, Minus, TrendingDown } from 'lucide-react'
 export interface HeroBandProps {
   leader: { label: DisplayLabel; color: string }
   trend: 'up' | 'flat' | 'down'
+  /** Sem impressões medidas: o líder aparece como "—". */
+  semMedicao?: boolean
 }
 
-export function HeroBand({ leader, trend }: HeroBandProps) {
+export function HeroBand({ leader, trend, semMedicao }: HeroBandProps) {
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus
   const trendColor = trend === 'up' ? 'var(--cms-green)' : trend === 'down' ? 'var(--cms-red)' : 'var(--cms-text-muted)'
   const trendLabel = trend === 'up' ? 'Subindo' : trend === 'down' ? 'Descendo' : '— estavel'
@@ -31,9 +33,10 @@ export function HeroBand({ leader, trend }: HeroBandProps) {
       <div className="bg-cms-surface py-[18px] px-[20px] flex flex-col">
         <span className="eyebrow">Líder atual</span>
         <div className="flex items-center gap-[10px] mt-[10px]">
-          <VChip label={leader.label} size={34} ring />
+          {semMedicao
+            ? <span className="font-mono text-[26px] font-bold leading-none text-cms-text-muted">—</span>
+            : <VChip label={leader.label} size={34} ring />}
         </div>
-        <span className="text-[11px] text-cms-text mt-[10px]">{SEM_MEDICAO_DE_ENTREGA}</span>
       </div>
 
       {/* CTR lift vs original: sem medição de entrega não há número */}

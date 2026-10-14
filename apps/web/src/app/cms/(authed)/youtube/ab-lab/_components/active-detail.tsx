@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
+import { VARIANT_COLORS, semImpressoes } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
@@ -42,6 +42,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
   const data = view.confirmedData
+  const semMedicao = semImpressoes(view.variants)
 
   const trend: 'up' | 'flat' | 'down' = (() => {
     const len = view.confTrend.length
@@ -216,6 +217,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         <HeroBand
           leader={{ label: data.leader, color: data.leaderColor }}
           trend={trend}
+          semMedicao={semMedicao}
         />
       </div>
 
@@ -258,7 +260,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 </span>
               </div>
             )}
-            <p className="text-[12px] text-cms-text py-2">{SEM_MEDICAO_DE_ENTREGA}</p>
           </div>
         </div>
       </div>
@@ -275,15 +276,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         />
       </section>
 
-      {/* ── Section 6: sem curva de confiança; a frase fixa ocupa a largura toda ── */}
-      <section data-section="charts-confidence-radar" className="mb-[16px]">
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface px-[16px] py-[14px]">
-          <p className="text-[12px] text-cms-text m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
-        </div>
-      </section>
-
       {/* ── Section 7: Faixa provável de CTR ── */}
-      <div className="mb-[24px]">
+      {!semMedicao && (<div className="mb-[24px]">
         {/* Faixa provável de CTR */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -295,10 +289,10 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <CredibleInterval variants={view.variants} leader={data.leader} />
           </div>
         </div>
-      </div>
+      </div>)}
 
       {/* ── Section 8: CTR diário por variante ── */}
-      <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
+      {!semMedicao && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
         <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
           <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
           <span className="text-[13px] font-semibold text-cms-text">CTR diário por variante</span>
@@ -315,7 +309,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         <div className="px-[16px] py-[14px]">
           <MultiLine series={view.daily} colors={VARIANT_COLORS} />
         </div>
-      </div>
+      </div>)}
 
       {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[24px]">

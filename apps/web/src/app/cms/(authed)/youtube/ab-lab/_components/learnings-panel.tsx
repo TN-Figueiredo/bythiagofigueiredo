@@ -94,7 +94,9 @@ export function LearningsPanel({ learnings, channelLearnings, totalTests = 0 }: 
       <div className="rounded-[14px] p-[20px]" style={{ background: 'var(--cms-surface)', border: '1px solid var(--cms-border, #332D25)' }}>
         <div className="flex flex-col items-center py-4">
           <p className="text-[13px] text-cms-text-dim">
-            Coletando dados... ({progress}/3 testes completados)
+            {progress >= 3
+              ? `${progress} de 3 testes concluídos, ainda sem ganho medido`
+              : `Coletando dados... (${progress}/3 testes completados)`}
           </p>
           <div className="mt-2 h-1.5 w-32 rounded-full bg-cms-surface-hover">
             <div
