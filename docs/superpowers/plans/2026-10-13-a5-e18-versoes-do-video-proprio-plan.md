@@ -1235,3 +1235,7 @@ drop function if exists public.yt_own_versions_apply_day(uuid, uuid, date, jsonb
 drop table if exists public.yt_own_versions_state;
 drop table if exists public.yt_own_video_versions;
 ```
+
+## Trava do A/B Lab (14/10/2026, pedido da sessão bythiagofigueiredo-00, P3/P4a)
+
+A E18 não entra em funcionamento em produção (T6/T7 com a MG12, T12 e qualquer execução real da semente da T11) sem a emenda das ordens 3, 3b, 4 e 4b lendo `public.ab_test_restores` (Migration 0 do A/B, `20261014000005_ab_restore_status.sql`). Regras de leitura: `escreveu` nulo = `nao_se_sabe`; destino = id da variante ou `'original'`; `em_andamento` há mais de 15 min = interrompido (`lerCampoDeRestauracao` da P4a). O lote puro de 14/10 (T2, T3, T4, T5, T8, T9, T11 em simulação) pode ir ao staging/main porque é inerte sem a MG12; a emenda entra antes da T6.
