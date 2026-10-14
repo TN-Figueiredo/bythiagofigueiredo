@@ -9,7 +9,7 @@ export const REGRAS_REFERENCIAS = {
   janelaDias: 90, idadeMinimaDias: 7, minVideosFaixa: 5, minVideosProvisoria: 3, corteEstreita: 2, corteMedia: 6, coletaVelhaHoras: 48,
 } as const
 
-export type MotivoReferencia = 'ainda_nao_coletado' | 'coleta_velha' | 'so_videos_novos' | 'sem_videos_90d' | 'poucos_videos'
+export type MotivoReferencia = 'ainda_nao_coletado' | 'coleta_velha' | 'so_videos_novos' | 'sem_videos_90d' | 'poucos_videos' | 'janela_parcial'
 export type ClasseFaixa = 'estreita' | 'media' | 'larga'
 export type ReferenciaDoCanal =
   | { canal: string; tipo: 'ok'; mediana: number; p25: number; p75: number; razao: number | null; classe: ClasseFaixa; k: number }
@@ -32,23 +32,28 @@ export function referenciaDoCanal(c: ObsChannel, videos: readonly ObsVideo[], p:
   if (p.syncDoSite != null && p.syncDoSite - last > R.coletaVelhaHoras * H) return nm('coleta_velha', 0, last)
 
   const janela = videos.filter(v => v.fmt === p.fmt && v.tracked && v.ageDays <= R.janelaDias)
-  const lidos = janela.filter(v => v.views != null && Number.isFinite(v.views))
+  const naoLido = (v: ObsVideo) => v.views == null || !Number.isFinite(v.views)
+  const lidos = janela.filter(v => !naoLido(v))
   const entram = lidos.filter(v => idadeNaLeitura(v) >= R.idadeMinimaDias)
   const k = entram.length
-  const nulos = janela.filter(v => v.views == null).length
+  const nulos = janela.filter(naoLido).length
   if ((janela.length > 0 && nulos === janela.length) || (k < R.minVideosFaixa && nulos > 0)) return nm('ainda_nao_coletado', k)
+  // Janela de 90 dias só em parte coberta: o canal tem tantos vídeos acompanhados quanto o limite e o mais velho não chega a 90 dias.
+  // Vale para todo k (portão Phil P1): com poucos vídeos do escopo, "sem vídeos" ou "poucos vídeos" seria afirmação falsa.
+  const acompanhados = videos.filter(v => v.tracked)
+  const limite = Math.min(c.video_limit, 200)
+  let desdeParcial: number | null = null
+  if (acompanhados.length >= limite && acompanhados.length > 0) {
+    const maisVelho = acompanhados.reduce((a, b) => (b.pub < a.pub ? b : a))
+    if (maisVelho.ageDays < R.janelaDias) desdeParcial = maisVelho.pub
+  }
+  if (k < R.minVideosProvisoria && desdeParcial != null) return nm('janela_parcial', k, desdeParcial)
   if (k === 0) return nm(lidos.length > 0 ? 'so_videos_novos' : 'sem_videos_90d', 0)
   if (k < R.minVideosProvisoria) return nm('poucos_videos', k)
 
   const views = entram.map(v => v.views as number)
   const mediana = median([...views]) as number
-  // Janela de 90 dias só em parte coberta: o canal tem tantos vídeos acompanhados quanto o limite e o mais velho não chega a 90 dias.
-  const acompanhados = videos.filter(v => v.tracked)
-  const limite = Math.min(c.video_limit, 200)
-  if (acompanhados.length >= limite && acompanhados.length > 0) {
-    const maisVelho = acompanhados.reduce((a, b) => (b.pub < a.pub ? b : a))
-    if (maisVelho.ageDays < R.janelaDias) return { canal: c.id, tipo: 'prov', mediana, k, desde: maisVelho.pub }
-  }
+  if (desdeParcial != null) return { canal: c.id, tipo: 'prov', mediana, k, desde: desdeParcial }
   if (k < R.minVideosFaixa) return { canal: c.id, tipo: 'prov', mediana, k }
 
   const p25 = quant([...views], 0.25) as number

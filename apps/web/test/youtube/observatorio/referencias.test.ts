@@ -152,6 +152,42 @@ describe('referenciaDoCanal: idade na leitura e janela', () => {
   })
 })
 
+describe('referenciaDoCanal: janela parcial com poucos vídeos do escopo (portão Phil P1)', () => {
+  /** 50 Shorts acompanhados cobrindo 16 dias (limite 50 cheio) + longos antigos não acompanhados. */
+  const shorts = () => Array.from({ length: 50 }, (_, i) => video(2000 + i, { dias: 1 + (i * 15) / 49, views: 100 + i, fmt: 'short' }))
+  const longosFora = (qtd: number) => Array.from({ length: qtd }, (_, i) => ({ ...video(2100 + i, { dias: 20 + i * 10, views: 500 }), tracked: false }))
+  it('0 longos acompanhados: nm janela_parcial com desde, nunca sem_videos_90d', () => {
+    const lista = [...shorts(), ...longosFora(7)]
+    const mais = lista.filter(v => v.tracked).reduce((a, b) => (a.pub < b.pub ? a : b))
+    const r = ref(canal({ video_limit: 50 }), lista, 'long')
+    expect(r).toMatchObject({ tipo: 'nm', motivo: 'janela_parcial', k: 0, desde: mais.pub })
+  })
+  it('2 longos acompanhados: nm janela_parcial, nunca poucos_videos', () => {
+    const lista = [...shorts(), ...longosFora(7), video(2200, { dias: 10, views: 9 }), video(2201, { dias: 12, views: 9 })]
+    const r = ref(canal({ video_limit: 52 }), lista, 'long')
+    expect(r).toMatchObject({ tipo: 'nm', motivo: 'janela_parcial', k: 2 })
+  })
+  it('só vídeos novos com janela parcial: janela_parcial', () => {
+    const lista = Array.from({ length: 5 }, (_, i) => video(2300 + i, { dias: 1 + i, views: 9 }))
+    expect(ref(canal({ video_limit: 5 }), lista)).toMatchObject({ tipo: 'nm', motivo: 'janela_parcial', k: 0 })
+  })
+  it('sem janela parcial, 0 longos: sem_videos_90d (o caso legítimo continua)', () => {
+    expect(ref(canal({ video_limit: 50 }), vs([1, 2], 30, 'short'))).toMatchObject({ tipo: 'nm', motivo: 'sem_videos_90d', k: 0 })
+  })
+  it('ainda não coletado continua antes da janela parcial', () => {
+    expect(ref(canal({ video_limit: 5 }, null), shorts())).toMatchObject({ motivo: 'ainda_nao_coletado' })
+  })
+})
+
+describe('referenciaDoCanal: views não finitas contam como não lidas (portão Phil m-a)', () => {
+  it('só views NaN: ainda_nao_coletado, nunca sem_videos_90d', () => {
+    expect(ref(canal(), vs([Number.NaN, Number.NaN, Number.NaN]))).toMatchObject({ tipo: 'nm', motivo: 'ainda_nao_coletado' })
+  })
+  it('5 vídeos, 2 NaN: ainda_nao_coletado', () => {
+    expect(ref(canal(), vs([1, 2, 3, Number.NaN, Number.NaN]))).toMatchObject({ tipo: 'nm', motivo: 'ainda_nao_coletado' })
+  })
+})
+
 describe('referenciaDoCanal: canal próprio e regras', () => {
   it('canal próprio é medido pela mesma regra', () => {
     expect(ref(canal({ own: true }), vs([1, 2, 3, 4, 5]))).toMatchObject({ tipo: 'ok', k: 5 })

@@ -24,6 +24,7 @@ export const ROTULOS_NOVOS_RI = {
   poucosVideos: (k: number) => `sem medida · poucos vídeos (${k})`,
   semVideos: { long: 'sem medida · sem vídeos em 90 dias', short: 'sem medida · sem Shorts em 90 dias' },
   janelaParcial: (dm: string) => `provisória · só desde ${dm}`,
+  semMedidaJanelaParcial: (dm: string) => `sem medida · só desde ${dm}`, // TEXTO-A-REVISAR
   fraseRefVazia: 'Nenhum canal pôde ser medido nos últimos 90 dias.',
   fraseInsVazia: 'Nenhum canal pôde ser medido nos últimos 28 dias.',
   retratoVelho: (dm: string) => `sem medida · sem retrato desde ${dm}`,
@@ -99,7 +100,7 @@ function infoRef(): { titulo: string; itens: string[] } {
       'Sem nota de corte: nenhum canal é "bom" ou "ruim" aqui; a lista só ordena.',
       'Vídeos com menos de 7 dias ficam de fora, porque ainda estão ganhando views.',
       ROTULOS_NOVOS_RI.infoRefJanelaParcial, // TEXTO-A-REVISAR
-      'Cálculo do Observatório sobre dados públicos do YouTube. Views de hoje de cada vídeo publicado nos últimos 90 dias.',
+      'Cálculo do Observatório sobre dados públicos do YouTube. Views da última leitura de cada vídeo publicado nos últimos 90 dias.',
     ],
   }
 }
@@ -110,6 +111,7 @@ function pilulaNmRef(r: Extract<ReferenciaDoCanal, { tipo: 'nm' }>, fmt: Fmt): R
     case 'coleta_velha': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.coletaVelha(r.desde != null ? ddmm(r.desde) : '–') }
     case 'so_videos_novos': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.poucosVideos(0) }
     case 'sem_videos_90d': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.semVideos[fmt] }
+    case 'janela_parcial': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.semMedidaJanelaParcial(r.desde != null ? ddmm(r.desde) : '–') }
     case 'poucos_videos': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.poucosVideos(r.k) }
     default: { const nunca: never = r.motivo; return nunca }
   }
@@ -285,8 +287,8 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
   let frase: RiFrase
   if (oks.length === 0) frase = [{ t: ROTULOS_NOVOS_RI.fraseInsVazia }]
   else {
-    const bp = poPct.find(x => x.r.pct != null)
-    const ba = poAbs[0]!
+    const bp = poPct.find(x => x.r.pct != null && x.r.pct > 0)
+    const ba = poAbs[0]!.r.ganho > 0 ? poAbs[0]! : undefined
     const sobe = oks.filter(x => x.r.classe === 'up').length, cai = oks.filter(x => x.r.classe === 'dn').length, igual = oks.filter(x => x.r.classe === 'eq').length
     const partes: string[] = []
     if (sobe > 0) partes.push(`${sobe} ${sobe === 1 ? 'subiu' : 'subiram'}`)
@@ -298,8 +300,8 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
     if (bp) {
       frase.push({ t: bp.c.name, b: true }, { t: ` cresceu mais em %: ${sinal(bp.r.ganho)}${d1(Math.abs(bp.r.pct!))}% (${ganhoTxt(bp.r)}). ` })
       if (ba === bp) frase.push({ t: 'Também foi o que mais ganhou em número. ' })
-      else frase.push({ t: ba.c.name, b: true }, { t: ` ganhou mais em número: ${ganhoTxt(ba.r)}. ` })
-    } else {
+      else if (ba) frase.push({ t: ba.c.name, b: true }, { t: ` ganhou mais em número: ${ganhoTxt(ba.r)}. ` })
+    } else if (ba) {
       frase.push({ t: ba.c.name, b: true }, { t: ` ganhou mais em número: ${ganhoTxt(ba.r)}. ` })
     }
     frase.push({ t: cauda })

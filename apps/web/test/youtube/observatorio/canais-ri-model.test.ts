@@ -284,6 +284,41 @@ describe('Dado apagado e relógio', () => {
   })
 })
 
+describe('Portão Phil: janela parcial, frase de queda e ⓘ', () => {
+  it('P1: canal que posta Shorts todo dia, escopo longos: "sem medida · só desde dd/mm", nunca "sem vídeos em 90 dias"', () => {
+    const c = canal('a', { video_limit: 50 })
+    const shorts = Array.from({ length: 50 }, (_, i) => video('a', 1 + (i * 15) / 49, 100 + i, 'short'))
+    const l = ok(buildRiView(obsDe([c], shorts), P).view.referencias).linhas[0]!
+    expect(l.pilula).toEqual({ tipo: 'nm', texto: expect.stringMatching(/^sem medida · só desde \d\d\/\d\d$/) })
+    expect(l.pilula!.texto).not.toContain('sem vídeos')
+  })
+  it('m-b: todos caíram, a frase não contém "cresceu" nem "ganhou mais"', () => {
+    const o = obsDe([
+      canal('A', { name: 'A', subs: 50000, snapshots: serie(50000, 55000) }),
+      canal('B', { name: 'B', subs: 120000, snapshots: serie(120000, 124000) }),
+    ], [])
+    const t = texto(ok(buildRiView(o, P).view.inscritos).frase)
+    expect(t).not.toContain('cresceu')
+    expect(t).not.toContain('ganhou mais')
+    expect(t).toBe('Em 28 dias, 2 caíram.')
+  })
+  it('m-b: só o ganho positivo é citado (um subiu, outro caiu)', () => {
+    const o = obsDe([
+      canal('A', { name: 'A', subs: 50000, snapshots: serie(50000, 55000) }),
+      canal('B', { name: 'B', subs: 120000, snapshots: serie(120000, 118000) }),
+    ], [])
+    const t = texto(ok(buildRiView(o, P).view.inscritos).frase)
+    expect(t).toContain('B cresceu mais em %')
+    expect(t).not.toContain('A ganhou')
+  })
+  it('m-c: o ⓘ de Referências diz última leitura, não "Views de hoje"', () => {
+    const s = ok(buildRiView(obsDe([canal('a')], cinco('a', 9000, 8000, 10000)), P).view.referencias)
+    const t = s.info.itens.join(' ')
+    expect(t).toContain('Views da última leitura de cada vídeo publicado nos últimos 90 dias.')
+    expect(t).not.toContain('Views de hoje')
+  })
+})
+
 describe('Inscritos: frase, ordens e barra', () => {
   // ganhos: A +5000 (143k→148k? passo 1 mil: >=2 mil ok) ; B maior em %, C maior em número, D cai, E sem variação (exata)
   const ins = (): RiObs => obsDe([
