@@ -35,6 +35,9 @@ describe.skipIf(pular)('M2 pela API (pula até a conversão existir no banco)', 
     await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'editor')`, [site, editor])
   })
   afterAll(async () => {
+    // o gatilho de auditoria de site_memberships grava no audit_log ao apagar o vínculo: vínculo antes, audit_log depois, site por último
+    await pg.query(`delete from public.site_memberships where site_id = $1`, [site])
+    await pg.query(`delete from public.audit_log where site_id = $1`, [site])
     await pg.query(`delete from public.sites where id = $1`, [site])
     await pg.query(`delete from public.organizations where id = $1`, [org])
     await pg.query(`delete from auth.users where id = $1`, [editor])

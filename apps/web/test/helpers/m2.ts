@@ -13,6 +13,13 @@ export const M2_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/r
 export const M2_EM_MIGRATION = false
 export const M2_SQL: string = readFileSync(M2_SQL_CAMINHO, 'utf8')
 
+/**
+ * O bloco 11 da M2 (pedidos 1 e 3 da E10), sozinho. A fixture da MG6 (cópia byte a byte da migration em produção) recria
+ * `obs_archive_uncovered` e `obs_db_size_record` sem saber de partição; quem a reaplica (`garantirMg6`, da E10) roda este bloco
+ * logo depois, na mesma transação. Inofensivo antes da conversão das séries.
+ */
+export const M2_BLOCO_11: string = M2_SQL.slice(M2_SQL.indexOf('-- 11. '), M2_SQL.indexOf('-- 12. '))
+
 /** Aplica o SQL inteiro na conexão (dentro da transação de quem chama, se houver). */
 export async function aplicarM2(c: Client): Promise<void> {
   await c.query(M2_SQL)
