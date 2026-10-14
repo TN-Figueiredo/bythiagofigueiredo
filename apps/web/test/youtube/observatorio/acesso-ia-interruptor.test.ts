@@ -27,6 +27,7 @@ vi.mock('@/lib/youtube/observatorio/acesso-ia/regras', async (importOriginal) =>
 import { ACESSO_IA_RULES, prazoDoResponder } from '@/lib/youtube/observatorio/acesso-ia/regras'
 import { acessoExternoLigado, e19ConferidaParaChave } from '@/lib/youtube/observatorio/acesso-ia/interruptor'
 import { fraseDeLimite, FRASES } from '@/lib/youtube/observatorio/acesso-ia/frases'
+import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const WEB = resolve(__dirname, '../../..')
 const DIR = resolve(WEB, 'src/lib/youtube/observatorio/acesso-ia')
@@ -195,6 +196,10 @@ describe('as regras', () => {
       expect(new Date(`${d}T00:00:00.000Z`).toISOString().slice(0, 10)).toBe(d)
       expect(d <= hoje).toBe(true)
     }
+  })
+
+  it('RULES.acessoIa é o mesmo objeto de ACESSO_IA_RULES (a leitura única)', () => {
+    expect(RULES.acessoIa).toBe(ACESSO_IA_RULES)
   })
 
   it('A/regras.ts não importa rules.ts (o ciclo mora no outro sentido)', () => {
