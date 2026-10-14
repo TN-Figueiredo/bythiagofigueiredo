@@ -69,6 +69,15 @@ describe('o fecho: total = soma das linhas + omitido', () => {
 })
 
 describe('dado ausente: a cobertura e o estado', () => {
+  it('nenhum vídeo e conjunto coletado: ainda_nao_existe, nunca coleta_nao_comecou (Phil m-3, Yannis m-4)', () => {
+    const b = agregarBloco(base(conj([], { tipo: 'coletado' }), d(6), d(0), new Map()))
+    expect(b).toMatchObject({ estado: 'nao_medido', motivo: 'ainda_nao_existe' })
+  })
+  it('período de 401 dias lança; 400 não (Yannis m-3)', () => {
+    const c = conj([video('a', [dia(d(0), 1)])])
+    expect(() => agregarBloco(base(c, addDays(d(0), -400), d(0)))).toThrow(RangeError)
+    expect(agregarBloco(base(c, addDays(d(0), -399), d(0))).cobertura.dias).toBe(400)
+  })
   it('nenhum vídeo: nao_medido', () => {
     const b = agregarBloco(base(conj([], { tipo: 'nao_coletado' }), d(6), d(0), new Map()))
     expect(b.estado).toBe('nao_medido')
@@ -212,6 +221,8 @@ describe('revisão, zero sem número e linhas', () => {
     const b = agregarBloco(base(c, d(1), d(0)))
     expect(b).toMatchObject({ estado: 'em_revisao', diasEmRevisao: 1 })
     expect(b.linhas).toEqual([])
+    expect(b.omitido).toBeGreaterThanOrEqual(0) // sem o piso de 0 o omitido de uma célula em revisão sairia negativo (Yannis m-6)
+    expect(b.omitido).toBe(0)
   })
   it('valor 0 com omitido maior que 0: semNumero; valor 0 com omitido 0: não', () => {
     const c = conj([video('a', [dia(d(0), 100, { YT_SEARCH: 60 })])])
@@ -233,7 +244,27 @@ describe('revisão, zero sem número e linhas', () => {
     const b = agregarBloco({ ...base(c, d(0), d(0)), chaveDe, ordem: ['inscritos', 'nao_inscritos'] as const })
     expect(b.naoCatalogados).toBe(1)
     expect(b.linhas.map(l => [l.chave, l.valor])).toEqual([['inscritos', 40], ['nao_inscritos', 50]])
+    expect(b.omitido).toBe(0)
+    expect(b.valorNaoCatalogado).toBe(10)
+    expect(b.soma + b.omitido + b.valorNaoCatalogado).toBe(b.total)
+  })
+  it('UNKNOWN em inscritos: omitido não inclui as views dele; o fecho tem três partes e as porcentagens somam 100 (m-4 do portão)', () => {
+    // total 100: 40 + 50 conhecidos, 10 de um valor que o catálogo não conhece; o YouTube omitiu 0
+    const c = conj([video('a', [dia(d(0), 100, { SUBSCRIBED: 40, UNSUBSCRIBED: 40, UNKNOWN: 10 })])])
+    const chaveDe = (v: string) => (v === 'SUBSCRIBED' ? { chave: 'inscritos', catalogado: true } : v === 'UNSUBSCRIBED' ? { chave: 'nao_inscritos', catalogado: true } : null)
+    const b = agregarBloco({ ...base(c, d(0), d(0)), chaveDe, ordem: ['inscritos', 'nao_inscritos'] as const })
+    expect(b.valorNaoCatalogado).toBe(10)
     expect(b.omitido).toBe(10)
+    expect(b.soma + b.omitido + b.valorNaoCatalogado).toBe(b.total)
+    expect(b.linhas.reduce((s, l) => s + l.pct, 0) + b.pctOmitido + b.pctNaoCatalogado).toBe(100)
+  })
+  it('maxLinhas sem resto não compila (Yannis m-2): o valor das linhas cortadas não some', () => {
+    const c = conj([video('a', [dia(d(0), 10, { BR: 6, PT: 4 })])], { tipo: 'coletado' }, 'pais')
+    // só a compilação importa: a função nunca roda (o tsc do app é quem prova o ts-expect-error)
+    const naoChamada = () =>
+      // @ts-expect-error maxLinhas exige resto
+      agregarBloco({ ...base(c, d(0), d(0)), chaveDe: (v: string) => ({ chave: v, catalogado: true }), ordem: 'por-valor' as const, maxLinhas: 1 })
+    expect(typeof naoChamada).toBe('function')
   })
   it('país: 9 países, maxLinhas 6: seis linhas e "outros" com a soma dos três', () => {
     const paises: Linhas = { BR: 500, PT: 100, US: 80, AO: 60, MZ: 40, NL: 30, AR: 20, CL: 10, UY: 5 }
