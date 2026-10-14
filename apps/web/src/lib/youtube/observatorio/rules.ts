@@ -1,5 +1,6 @@
 import { COMMENT_RULES } from './comentarios/regras'
 import { CONTEXTO_IA_RULES } from './contexto-ia/regras'
+import { ACESSO_IA_RULES } from './acesso-ia/regras'
 
 /** Port of dados.js:113-133 (single source of rules) + tierOf + NICHES. */
 export const RULES = {
@@ -52,6 +53,8 @@ export const RULES = {
   comments: COMMENT_RULES,
   // New (A5, E17 degrau 1; botão "Perguntar a uma IA"). Os números moram em `contexto-ia/regras.ts`; aqui só a leitura única.
   contextoIa: CONTEXTO_IA_RULES,
+  // New (A5, E17 degrau 2; acesso direto pelo Claude Code). Os números moram em `acesso-ia/regras.ts`; aqui só a leitura única.
+  acessoIa: ACESSO_IA_RULES,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
