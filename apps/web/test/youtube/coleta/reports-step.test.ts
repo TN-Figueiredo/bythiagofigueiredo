@@ -13,6 +13,11 @@ vi.mock('@/lib/youtube/reporting/client', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/reporting/client')>()),
   criarReportingClient: vi.fn(),
 }))
+// A espera do 429 não dorme de verdade: avança o relógio falso (Date) pelo tempo pedido.
+vi.mock('@/lib/youtube/coleta/clock', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/coleta/clock')>()),
+  dormir: vi.fn(async (ms: number) => { vi.setSystemTime(Date.now() + ms) }),
+}))
 vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSaida: vi.fn() }))
 
 import { passoRelatorios, MAX_DOWNLOADS, MAX_GZ_BYTES } from '@/lib/youtube/coleta/reports-step'
@@ -1404,5 +1409,86 @@ describe('E20: estado do download gravado no relatório (MG13)', () => {
     expect(ctx.falhas).toContain('schema_ausente: yt_reporting_reports')
     expect(rel(db, 'r1')!.status).toBe('listado')
     expect(api.download).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('passoRelatorios: E12, 429 é limite por minuto (espera, repete, para)', () => {
+  const um = (id: string) => listado(id, { create_time: ha(1 + Number(id.slice(1)) / 100) })
+  const fila = (n: number) => Array.from({ length: n }, (_, i) => um(`r${i + 1}`))
+  const e429 = (retryAfterMs: number | null = null) => new ReportingHttpError(429, 'rateLimitExceeded', retryAfterMs)
+  const comRelogioDeEspera = () => undefined
+  const rodar = (ctx: StepCtx) => passoRelatorios(ctx)
+
+  it('429 no meio: espera 60 s, repete o MESMO item e segue; nada de tentativa somada nem last_error_at', async () => {
+    comRelogioDeEspera()
+    let n = 0
+    api.download.mockImplementation(async () => { n++; if (n === 3) throw e429(); return empacotarCsv(CSV) })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: fila(5) })
+    const ctx = ctxDe(db, 200_000)
+    const resumo = await rodar(ctx)
+    expect(api.download).toHaveBeenCalledTimes(6) // 5 + a repetição do 3º
+    expect(comStatus(db, 'baixado')).toHaveLength(5)
+    expect(resumo).toMatchObject({ parou_por_limite: false, esperas_429: 1, ms_espera_429: 60_000, nao_tentados: 0 })
+    expect(db.tables.yt_reporting_reports!.every(r => !r.last_error_at && !r.error)).toBe(true)
+    expect(comStatus(db, 'listado').every(r => !r.download_attempts)).toBe(true)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('dois 429 seguidos: para o laço, sem tocar nos seguintes nem somar tentativa; resumo diz o que sobrou', async () => {
+    comRelogioDeEspera()
+    let n = 0
+    api.download.mockImplementation(async () => { n++; if (n >= 3) throw e429(); return empacotarCsv(CSV) })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [...fila(10), ...Array.from({ length: 60 }, (_, i) => listado(`b${i}`, { status: 'baixado', downloaded_at: ha(1) }))] })
+    const ctx = ctxDe(db, 200_000)
+    const resumo = await rodar(ctx)
+    expect(api.download).toHaveBeenCalledTimes(4) // 2 ok + 429 + 429 depois da espera
+    expect(resumo).toMatchObject({ parou_por_limite: true, esperas_429: 1, nao_tentados: 8 })
+    expect(comStatus(db, 'listado')).toHaveLength(8)
+    expect(db.tables.yt_reporting_reports!.every(r => !r.last_error_at && !r.error)).toBe(true)
+    expect(comStatus(db, 'listado').every(r => !r.download_attempts)).toBe(true)
+    // um registro de 429 por escopo tocado (o critério dos 3 dias o ignora)
+    expect(db.tables.yt_own_collection_attempts!.filter(t => t.http_status === 429)).toHaveLength(1)
+    // vence em ~58 dias e 8 pendentes < 5 dias de vazão (60 em 3 dias): amarelo no resumo, sem nota vermelha
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('Retry-After manda na espera (em vez dos 60 s) e é limitado pelo teto', async () => {
+    comRelogioDeEspera()
+    let n = 0
+    api.download.mockImplementation(async () => { n++; if (n === 1) throw e429(20_000); return empacotarCsv(CSV) })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: fila(2) })
+    const resumo = await rodar(ctxDe(db, 200_000))
+    expect(resumo.ms_espera_429).toBe(20_000)
+
+    n = 0
+    api.download.mockClear()
+    api.download.mockImplementation(async () => { n++; if (n === 1) throw e429(600_000); return empacotarCsv(CSV) })
+    const db2 = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: fila(2) })
+    const r2 = await rodar(ctxDe(db2, 200_000))
+    expect(r2.ms_espera_429).toBe(90_000)
+  })
+
+  it('orçamento curto: não cabe a espera, então para na hora, sem dormir', async () => {
+    comRelogioDeEspera()
+    api.download.mockRejectedValue(e429())
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: fila(4) })
+    const resumo = await passoRelatorios(ctxDe(db, 40_000)) // 40 s − 60 s de espera < 10 s de folga
+    expect(api.download).toHaveBeenCalledTimes(1)
+    expect(resumo).toMatchObject({ parou_por_limite: true, esperas_429: 0, ms_espera_429: 0, nao_tentados: 4 })
+    expect(comStatus(db, 'listado')).toHaveLength(4)
+  })
+
+  it('nota vermelha só quando ameaça o prazo: relatório que vence em até 7 dias', async () => {
+    comRelogioDeEspera()
+    api.download.mockRejectedValue(e429())
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('r1', { is_backfill: true, create_time: ha(25) })], // histórico: vence em 5 dias
+    })
+    const ctx = ctxDe(db, 40_000)
+    const resumo = await passoRelatorios(ctx)
+    expect(resumo.vence_primeiro_em_dias).toBeLessThanOrEqual(7)
+    expect(ctx.falhas.some(f => f.includes('limite de cota por minuto'))).toBe(true)
   })
 })
