@@ -32,7 +32,7 @@ const disco: Disco = {
   criarPasta: async (p, modo) => { await mkdir(p, { recursive: true, mode: modo }) },
   gravar: async (p, d) => { await writeFile(p, d) },
   ler: async p => new Uint8Array(await readFile(p)),
-  apagar: async p => { await unlink(p).catch(() => undefined) },
+  apagar: async p => { await unlink(p).catch((e: NodeJS.ErrnoException) => { if (e.code !== 'ENOENT') throw e }) },
   dentroDeRepositorio: async p => {
     let atual = dirname(p)
     for (let i = 0; i < 40; i++) {

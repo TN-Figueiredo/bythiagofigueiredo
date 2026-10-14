@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { codigoE10, FRASES_E10 } from './codigos'
+import { ehArquivoDoSistema } from './sistema'
 import { lerCsv, CsvInvalido } from './csv'
 import { validarManifesto, textoDoSha256, type Manifesto } from './manifesto'
 import {
@@ -79,8 +80,7 @@ export async function conferirLote(o: { sql: ClienteSql; disco: Disco; pastaRaiz
   if (ruins.length > 0) return falha('manifesto_invalido', ruins)
   const esperado = lerSha256(textoDoSha256(manifesto, sha256(bruto))).itens
   // o Finder e o Explorer deixam `.DS_Store` e `Thumbs.db` na pasta que o dono abre para copiar ao NAS (revisão Yannis 14/10, M8): não são arquivo da exportação
-  const LIXO_DO_SISTEMA = new Set(['.DS_Store', 'Thumbs.db'])
-  const presentes = new Set((await disco.listar(pasta)).filter(c => !LIXO_DO_SISTEMA.has(c.slice(c.lastIndexOf('/') + 1))))
+  const presentes = new Set((await disco.listar(pasta)).filter(c => !ehArquivoDoSistema(c)))
   const faltando: string[] = []
   const sobrando: string[] = []
   const diferentes: string[] = []

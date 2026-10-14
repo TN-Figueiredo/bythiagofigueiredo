@@ -4,7 +4,7 @@
 -- Inerte para o código antigo: nada do que está em produção lê ou grava o que nasce aqui; os quatro corpos remendados
 -- (bloco 10) só mudam de resposta quando existe uma linha em competitor_collection_pauses, e só as funções daqui a criam.
 -- Idempotente: pode ser aplicada duas vezes.
-set lock_timeout = '5s';
+set local lock_timeout = '5s';
 
 -- ───────────────────────── 0. Dependências ─────────────────────────
 do $$
@@ -62,7 +62,7 @@ alter table public.obs_archive_batches
   add column if not exists closed_reason text;
 -- (reconciliação 13/10, emenda 2: D2-m2, S2-m2) terceiro valor, 'canal_apagado' (só a função de apagar canal da E9, MG18, grava).
 -- A restrição ganhou nome e drop + add: `add column if not exists` com `check` em linha não troca um `check` já criado.
--- O nome é o que o Postgres daria ao `check` em linha, para o `drop` também tirar a versão de dois valores onde ela tiver sido aplicada. NÃO RODADO.
+-- O nome é o que o Postgres daria ao `check` em linha, para o `drop` também tirar a versão de dois valores onde ela tiver sido aplicada. Rodado em 14/10 (roteiro 1, duas vezes).
 alter table public.obs_archive_batches drop constraint if exists obs_archive_batches_closed_reason_check;
 alter table public.obs_archive_batches add constraint obs_archive_batches_closed_reason_check
   check (closed_reason in ('despausado', 'substituido', 'canal_apagado'));
@@ -631,6 +631,7 @@ declare
   v_linhas bigint;
   v_arquivos integer;
   v_featured integer;
+  v_refs jsonb;       -- (revisão Phil 14/10, I-5) quais comentários de OUTROS canais destacavam este: o set null os zera, o rastro fica no audit_log
   v_base jsonb;       -- (revisão Phil 14/10, I-2) n_tup_del de cada tabela do fecho de cascata, antes do delete
   v_t record;
   v_now timestamptz := pg_catalog.clock_timestamp();
@@ -648,6 +649,10 @@ begin
      for update;
   if not found then
     raise exception 'E10:canal_nao_encontrado: neste site' using errcode = 'P0002';
+  end if;
+  -- (revisão Yannis 14/10, M-4) a irreversível confere o ator como as outras funções que escrevem em nome de alguém
+  if not public.obs_archive_is_site_admin(p_site, p_actor) then
+    raise exception 'E10:sem_direito: só quem administra o site remove um canal exportado' using errcode = '42501';
   end if;
   -- o lote mais recente deste canal que ainda não foi apagado
   select b.batch into v_batch
@@ -677,6 +682,9 @@ begin
     join public.competitor_videos v on v.id = x.video_id
    where v.competitor_channel_id = p_channel and x.thumb_blob_url is not null;
   select count(*) into v_featured from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+  select coalesce(jsonb_agg(jsonb_build_object('comment_id', k.id, 'video_id', k.video_id, 'channel_ref', k.competitor_channel_id) order by k.id), '[]'::jsonb) into v_refs
+    from public.competitor_video_comments k
    where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
   select sum(b.row_count), count(*) into v_linhas, v_arquivos
     from public.obs_archive_batches b
@@ -746,7 +754,7 @@ begin
   select p_actor, 'observatorio_canal_removido_com_arquivo', 'competitor_channel', p_channel, s.org_id, p_site,
          jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name),
          jsonb_build_object('batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
-                            'miniaturas_no_blob', cardinality(v_urls), 'featured_refs_cleared', v_featured)
+                            'miniaturas_no_blob', cardinality(v_urls), 'featured_refs_cleared', v_featured, 'featured_refs', v_refs)
     from public.sites s where s.id = p_site;
   return jsonb_build_object('status', 'removido', 'batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
                             'blob_urls', to_jsonb(v_urls), 'featured_refs_cleared', v_featured);
@@ -865,3 +873,6 @@ begin
     execute replace(v_def, r.ancora, r.troca);
   end loop;
 end $$;
+
+-- (revisão Yannis 14/10, M-3) o corpo antigo da MG13 diz que a MG6 troca a limpeza do bruto; o desvio D1 da E10 decidiu o contrário.
+comment on function public.yt_reporting_blobs_purge(text[]) is 'Devolve 0 de propósito: o bruto fica (desvio D1 da E10). A MG6 NÃO troca este corpo.';

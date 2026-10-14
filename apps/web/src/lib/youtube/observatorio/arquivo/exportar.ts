@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { RULES } from '../rules'
 import { codigoE10, FRASES_E10 } from './codigos'
+import { ehArquivoDoSistema } from './sistema'
 import {
   VERSAO_DO_MANIFESTO, caminhoDoArquivo, paraRegistro, textoDoSha256, validarManifesto, miniaturasAusentes,
   type ArquivoDoManifesto, type ColunaDoManifesto, type Manifesto, type MiniaturaDoManifesto,
@@ -118,7 +119,7 @@ export async function exportarCanal(o: {
   if (await disco.dentroDeRepositorio(pasta)) return recusa('pasta_em_repositorio')
   let paraApagar: string[] = []
   if (await disco.existe(pasta)) {
-    const dentro = await disco.listar(pasta)
+    const dentro = (await disco.listar(pasta)).filter(c => !ehArquivoDoSistema(c))
     if (dentro.length > 0) {
       if (!o.refazer) return recusa('pasta_nao_vazia')
       // refazer apaga SÓ o que o manifesto anterior lista; sem manifesto legível não se apaga às cegas
@@ -145,10 +146,17 @@ export async function exportarCanal(o: {
   // às cegas, regra do passo 2): sem isso a pasta fica com arquivo e sem manifesto, e o mesmo nome nunca mais serve (revisão Yannis 14/10, I2).
   const gravados: string[] = []
   const gravar = async (rel: string, d: Uint8Array): Promise<void> => { gravados.push(rel); await disco.gravar(juntar(pasta, rel), d) }
-  const limparGravados = async (): Promise<void> => {
-    for (const rel of gravados.splice(0)) await disco.apagar(juntar(pasta, rel)).catch(() => undefined)
+  // Devolve os caminhos que NÃO saíram (revisão Yannis 14/10, M-1): o dono vê o que ficou na pasta em vez de bater em `pasta_nao_vazia` sem saber por quê.
+  const limparGravados = async (): Promise<string[]> => {
+    const ficaram: string[] = []
+    for (const rel of gravados.splice(0)) {
+      try { await disco.apagar(juntar(pasta, rel)) } catch { ficaram.push(rel) }
+    }
+    return ficaram
   }
-  const recusarLimpando = async (codigo: string, detalhe?: string[]): Promise<ResultadoExport> => { await limparGravados(); return recusa(codigo, detalhe) }
+  const comOQueFicou = (detalhe: string[] | undefined, ficaram: string[]): string[] | undefined =>
+    ficaram.length === 0 ? detalhe : [...(detalhe ?? []), `não consegui apagar da pasta: ${ficaram.join(', ')}`]
+  const recusarLimpando = async (codigo: string, detalhe?: string[]): Promise<ResultadoExport> => recusa(codigo, comOQueFicou(detalhe, await limparGravados()))
   let manifestoCompleto = false
   try {
     await abrirLeitura(sql)
@@ -275,8 +283,8 @@ export async function exportarCanal(o: {
     }
   } catch (err) {
     await desfazer()
-    if (!manifestoCompleto) await limparGravados()
+    const ficaram = manifestoCompleto ? [] : await limparGravados()
     const c = codigoE10(err as { message?: string; code?: string })
-    return recusa(c === 'inesperado' ? 'erro_do_banco' : c)
+    return recusa(c === 'inesperado' ? 'erro_do_banco' : c, comOQueFicou(undefined, ficaram))
   }
 }

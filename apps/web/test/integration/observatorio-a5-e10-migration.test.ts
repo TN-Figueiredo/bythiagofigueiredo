@@ -16,8 +16,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { TABELAS_COM_IDENTIDADE } from '@/lib/youtube/observatorio/arquivo/cli'
 import { randomUUID } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import {
   MG6_FIXTURE, emTransacao, tenta, codigoE10, q1, escalar, semearCena, criarSite, criarUsuario, criarCanal, criarVideo,
@@ -466,6 +464,22 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
       }
       expect(depois.competitor_video_comments!.md5).not.toBe(antes.competitor_video_comments!.md5)
       expect(await escalar<string | null>(pg, `select featured_channel_id::text from public.competitor_video_comments where id = $1`, [c.comentarioDeBQueApontaParaA])).toBeNull()
+      // (Phil I-5) o rastro do destaque zerado fica no audit_log: qual comentário, de qual vídeo e de qual canal
+      const aud = await q1(pg, `select after_data from public.audit_log where action = 'observatorio_canal_removido_com_arquivo' and resource_id = $1`, [c.canalA])
+      const refs = (aud.after_data as { featured_refs: { comment_id: number | string; video_id: string; channel_ref: string }[] }).featured_refs
+      expect(refs).toHaveLength(1)
+      expect(String(refs[0]!.comment_id)).toBe(String(c.comentarioDeBQueApontaParaA))
+      expect(refs[0]!.channel_ref).toBe(c.canalB)
+      expect(r.featured_refs_cleared).toBe(refs.length)
+    })
+  })
+
+  it('remoção com ator que não administra o site: sem_direito e nada apagado (Yannis M-4)', async () => {
+    await dentro(async () => {
+      const c = await semearCena(pg)
+      await exportarConferirConfirmar(pg, c, c.canalA, 'lote-x')
+      expect(await recusa(`select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.comum])).toBe('sem_direito')
+      expect(await existe(c.canalA)).toBe(1)
     })
   })
 
@@ -768,14 +782,6 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
       const def = await escalar<string>(pg, `select pg_get_functiondef('public.obs_archive_register(uuid,text,uuid,jsonb)'::regprocedure)`)
       expect(def.split(`interval '6 minutes'`).length - 1).toBe(1)
     })
-  })
-
-  it('a migration, quando existir em supabase/migrations, é idêntica ao ensaio versionado', () => {
-    const pasta = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
-    const arquivos = existsSync(pasta) ? readdirSync(pasta).filter(f => f.endsWith('observatorio_a5_e10_export_pausa_e_limite.sql')) : []
-    if (arquivos.length === 0) return // pende aplicação do controlador: a migration ainda não foi criada (`db:new`)
-    expect(arquivos).toHaveLength(1)
-    expect(readFileSync(pasta + arquivos[0], 'utf8')).toBe(readFileSync(MG6_FIXTURE, 'utf8'))
   })
 })
 

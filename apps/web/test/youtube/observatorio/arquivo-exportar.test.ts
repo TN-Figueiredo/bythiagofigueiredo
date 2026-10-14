@@ -388,6 +388,21 @@ describe('A5 E10: exportarCanal, recusa depois de criar a pasta não envenena o 
     expect(r2).toMatchObject({ ok: true, miniaturas: 2, miniaturasAusentes: 1 })
   })
 
+  it('pasta com só .DS_Store (o Finder) aceita o export, e depois da recusa a pasta limpa continua servindo (Yannis M-1)', async () => {
+    const m = montar({ urls: TRES }, { respostas: { [URL_B]: 404 }, inicial: { [`${PASTA}/.DS_Store`]: 'x' } })
+    expect(await m.exportar()).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    m.d.arquivos.set(`${PASTA}/.DS_Store`, Buffer.from('y'))
+    expect(await m.exportar({ aceitarMiniaturasAusentes: true })).toMatchObject({ ok: true, miniaturasAusentes: 1 })
+  })
+
+  it('falha ao apagar o que a execução gravou aparece no detalhe da recusa (Yannis M-1)', async () => {
+    const m = montar({ urls: TRES }, { respostas: { [URL_B]: 404 } })
+    m.d.disco.apagar = async () => { throw new Error('EACCES') }
+    const r = await m.exportar()
+    expect(r).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
+    expect(r.ok === false && r.detalhe?.some(d => d.startsWith('não consegui apagar da pasta:'))).toBe(true)
+  })
+
   it('404 sem a opção e depois com --refazer e a opção na MESMA pasta também termina ok', async () => {
     const m = montar({ urls: TRES }, { respostas: { [URL_B]: 404 } })
     expect(await m.exportar()).toMatchObject({ ok: false, codigo: 'miniaturas_ausentes' })
