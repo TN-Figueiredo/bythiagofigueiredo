@@ -468,6 +468,7 @@ Suponha a promoção em D0 às 15:00 de São Paulo, com a MG4 aplicada na véspe
 | 20 (emenda 1: d:m-1) | o motivo é definitivo quando as vizinhas passam do limite | definitivo 1 hora depois do limite | a leitura horária copia pontos com o `taken_at` da hora, até 1 hora depois |
 | 21 (emenda 2: s:n1, d:m-3) | o spec não fala de aviso de marca perdida (é da emenda 1 deste plano) | o aviso só fica vermelho pelas idades 7 e 30; a idade 1 vai só para o detalhe e para a tabela de motivos | a perda de V1 por distância é esperada enquanto só houver uma leitura a cada 6 horas, e a frequência com a leitura horária não foi medida; alarme de todo dia deixa de ser lido |
 | 22 (emenda 2: d:m-7) | as medianas de M3, M4 e M7 e as publicações de M6 e M8 contam todo vídeo com data | vídeo agendado ou no ar fica fora das medianas, contado; o agendado não é publicação | a transmissão marcada tem views zero ou quase, que é "ainda não medido" |
+| 23 (noite de 14/10, revisão Yannis, desvio 1) | a regra (b) do spec (04, linha 9) tira o vídeo ao vivo só de M1, M2 e M7; M3(b) e (c) não são citadas | `direcaoDosVideosNovos` também exclui `was_live === true` (nota `ao_vivo_fora`), e conta `was_live` nulo entre os que entraram (nota `ao_vivo_nao_se_sabe`, como M1 e M7) | coerência com M1, M2, M7 e M9; a mediana "dos longos de 90 dias" deixa de ser a do texto do spec. Nenhuma tela usa essa conta hoje (não há `was_live` no motor), então nenhum número existente muda. **A confirmar pela Hanna** (ou emendar o spec); dívida D-2 da revisão. |
 
 ---
 
