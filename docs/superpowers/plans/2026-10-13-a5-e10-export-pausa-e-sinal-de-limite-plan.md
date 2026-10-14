@@ -2176,14 +2176,15 @@ rollback;
 select to_regclass('public.obs_archive_batches') is null as nada_ficou;
 ```
 
-**Saída do roteiro 1** (13/10/2026; sem as linhas de eco de comando e sem os avisos de "já existe" da segunda aplicação; os instantes mudam a cada rodada).
+**Saída do roteiro 1** (controlador 14/10: R1: o roteiro foi rodado duas vezes contra o `bythiago_int` com as 22 entradas; as duas saídas saíram iguais entre si e iguais a esta, fora o que mudou em `== V2`: 22 no lugar de 19 e a terceira consulta imprimindo as três tabelas de outras etapas que o banco local ainda não tem; V1 e o resto não mudaram; 13/10/2026; sem as linhas de eco de comando e sem os avisos de "já existe" da segunda aplicação; os instantes mudam a cada rodada).
 
 ```text
 == V1
 3|3|2|17|4|4|t|f
 == V2 uncovered / registro
 {}
-19
+22
+competitor_video_marks,competitor_video_mark_misses,competitor_missing_baseline
 == S0 escolha
 1|t|t
 == S1 tamanho do banco, duas vezes
