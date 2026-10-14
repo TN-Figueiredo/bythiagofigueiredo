@@ -18,7 +18,15 @@ export const M2_SQL: string = readFileSync(M2_SQL_CAMINHO, 'utf8')
  * `obs_archive_uncovered` e `obs_db_size_record` sem saber de partição; quem a reaplica (`garantirMg6`, da E10) roda este bloco
  * logo depois, na mesma transação. Inofensivo antes da conversão das séries.
  */
-export const M2_BLOCO_11: string = M2_SQL.slice(M2_SQL.indexOf('-- 11. '), M2_SQL.indexOf('-- 12. '))
+function bloco11(sql: string): string {
+  const i = sql.indexOf('-- 11. ')
+  const f = sql.indexOf('-- 12. ')
+  if (i < 0 || f < 0 || f < i || sql.indexOf('-- 11. ', i + 1) >= 0 || sql.indexOf('-- 12. ', f + 1) >= 0) throw new Error('M2: marcadores do bloco 11 ausentes, repetidos ou fora de ordem')
+  const b = sql.slice(i, f)
+  if (/obs_part\.converter\(/.test(b) || !/competitor_channel_remove_archived/.test(b)) throw new Error('M2: bloco 11 com conteúdo inesperado')
+  return b
+}
+export const M2_BLOCO_11: string = bloco11(M2_SQL)
 
 /** Aplica o SQL inteiro na conexão (dentro da transação de quem chama, se houver). */
 export async function aplicarM2(c: Client): Promise<void> {
@@ -60,13 +68,13 @@ export async function m2NoBanco(url: string = process.env.SUPABASE_DB_URL ?? 'po
  * duas FKs em cascata, check, índice, policy, RLS, comentário e as concessões padrão. Opcional: gatilho `before insert` que
  * soma 1 a `views` (faz a cópia divergir) e índice único sem a coluna de tempo (proibido em tabela particionada).
  */
-export async function criarBrinquedo(c: Client, o: { gatilhoQueMuda?: boolean; unicoSemTempo?: boolean } = {}): Promise<string> {
+export async function criarBrinquedo(c: Client, o: { gatilhoQueMuda?: boolean; unicoSemTempo?: boolean; semFk?: boolean } = {}): Promise<string> {
   const t = 'zz_m2_brinquedo_' + randomUUID().replace(/-/g, '').slice(0, 10)
   await c.query(`create table public.${t} (
-      video_id uuid not null references public.competitor_videos(id) on delete cascade,
+      video_id uuid not null${o.semFk ? '' : ' references public.competitor_videos(id) on delete cascade'},
       hour_slot timestamptz not null,
       taken_at timestamptz not null,
-      site_id uuid not null references public.sites(id) on delete cascade,
+      site_id uuid not null${o.semFk ? '' : ' references public.sites(id) on delete cascade'},
       views bigint not null,
       likes bigint,
       comments bigint,

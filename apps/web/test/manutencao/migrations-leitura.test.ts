@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync, writeFileSync, readdirSync, readFileSync, stat
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { lerMigrations, ultimaDefinicao, migrationsDaFase, PASTA_DAS_MIGRATIONS, type Migration } from '../helpers/migrations'
-import { M2_EM_MIGRATION, M2_SQL_CAMINHO, M2_SQL } from '../helpers/m2'
+import { M2_EM_MIGRATION, M2_SQL_CAMINHO, M2_SQL, M2_BLOCO_11 } from '../helpers/m2'
 import { M3B_EM_MIGRATION, M3B_SQL_CAMINHO, HASH_SQL_CAMINHO } from '../helpers/m3b'
 
 const RAIZ = resolve(__dirname, '../../../..')
@@ -29,6 +29,9 @@ export function regra71(dir?: string, extras: Migration[] = []): string[] {
   const s = ultimaDefinicao(migs, 'obs_db_size_record')
   if (s && !/relispartition/.test(s.corpo)) erros.push(`obs_db_size_record em ${s.arquivo} sem relispartition (pedido 3)`)
   if (s && !/relkind\s+in\s*\(\s*'r'\s*,\s*'p'/.test(s.corpo)) erros.push(`obs_db_size_record em ${s.arquivo} sem relkind in ('r','p') (pedido 3)`)
+  const r = ultimaDefinicao(migs, 'competitor_channel_remove_archived')
+  if (r && (r.corpo.match(/pg_partition_tree/g) ?? []).length < 2) erros.push(`competitor_channel_remove_archived em ${r.arquivo} sem a soma das folhas (M2 11b)`)
+  if (r && (r.corpo.match(/not c\.relispartition/g) ?? []).length < 2) erros.push(`competitor_channel_remove_archived em ${r.arquivo} sem not c.relispartition no fecho (M2 11b)`)
   return erros
 }
 
@@ -55,6 +58,17 @@ describe('item 71: a última definição das duas funções da E10 sabe de parti
       '20990101000002_b.sql': "create or replace function public.obs_db_size_record(p timestamptz) returns jsonb language sql as $$ select 1 where relkind = 'r' $$;",
     })
     expect(regra71(d)).toHaveLength(2)
+  })
+  it('competitor_channel_remove_archived: o corpo da MG6 (sem as folhas) acusa; o do 11b passa; consertada e depois quebrada acusa', () => {
+    const quebrada = 'create or replace function public.competitor_channel_remove_archived(a uuid, b uuid, c uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_stat_xact_user_tables x left join pg_class c on c.oid = x.relid; end $$;'
+    const boa = 'create or replace function public.competitor_channel_remove_archived(a uuid, b uuid, c uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_partition_tree(c.oid) where not c.relispartition; perform 2 from pg_partition_tree(c.oid) where not c.relispartition; end $$;'
+    expect(regra71(pastaFalsa({ '20990101000001_mg15.sql': quebrada }))).toHaveLength(2)
+    expect(regra71(pastaFalsa({ '20990101000001_boa.sql': boa }))).toEqual([])
+    expect(regra71(pastaFalsa({ '20990101000001_boa.sql': boa, '20990101000002_mg15.sql': quebrada }))).toHaveLength(2)
+  })
+  it('M2_BLOCO_11 contém as três funções e não converte', () => {
+    for (const f of ['obs_archive_uncovered', 'obs_db_size_record', 'competitor_channel_remove_archived']) expect(M2_BLOCO_11).toContain(f)
+    expect(M2_BLOCO_11).not.toContain('obs_part.converter(')
   })
   it('sem definição nenhuma não acusa', () => { expect(regra71(pastaFalsa({ '20990101000001_x.sql': 'select 1;' }))).toEqual([]) })
 })

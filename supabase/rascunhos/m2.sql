@@ -5,7 +5,7 @@
 -- Idempotente: a conversão sai sem fazer nada se a tabela já é particionada; o resto é create-or-replace / if not exists.
 -- O que acontece sem dado: tabela vazia ganha partições do mês corrente a 12 à frente. Erro: a conversão inteira desfaz.
 -- =============================================================================
-set lock_timeout = '5s';
+set local lock_timeout = '5s';
 
 -- 1. Onde moram as partições: fora do que a API expõe, sem concessão a ninguém.
 create schema if not exists obs_part;
@@ -742,6 +742,9 @@ $f$;
 end $$;
 
 -- 12. A conversão das três séries: um só bloco, uma só transação (se uma falhar, nenhuma muda).
+-- Todas as travas de uma vez e em ordem fixa (sem ciclo com um coletor que segura a early e grava em competitor_videos).
+lock table public.competitor_videos in share row exclusive mode;
+lock table public.competitor_video_daily, public.competitor_video_early, public.competitor_video_hourly in access exclusive mode;
 do $$
 begin
   perform obs_part.converter('public.competitor_video_daily'::regclass, 'snap_date', 'views');

@@ -212,7 +212,7 @@ describe.skipIf(skipIfNoLocalDb())('M2: o conversor numa tabela de brinquedo', (
     // Commita de verdade (o caso pede duas conexões), mas só a parte 1: nenhuma tabela real do banco compartilhado muda.
     // A tabela de brinquedo e o site que a semeou são apagados no fim.
     await aplicarM2SoFuncoes(pg)
-    const t = await criarBrinquedo(pg)
+    const t = await criarBrinquedo(pg, { semFk: true }) // sem FK: a tabela confirmada não entra no fecho de cascata do banco compartilhado
     const { site, video } = await semear(t, 10)
     const g = new Client({ connectionString: PG_URL }); await g.connect()
     const confirmadas: number[] = []

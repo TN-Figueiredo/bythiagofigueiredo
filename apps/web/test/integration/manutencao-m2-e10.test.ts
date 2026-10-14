@@ -84,7 +84,11 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
       expect(await escalar<boolean>(pg, `select prosrc ~ 'pg_partition_tree' from pg_proc where oid = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure`)).toBe(true)
       const c = await semearCena(pg)
       await exportarConferirConfirmar(pg, c, c.canalA, 'lote-m2')
-      expect((await contagemPorTabela(pg, c.canalA)).competitor_video_daily).toBeGreaterThan(0)
+      const cont = await contagemPorTabela(pg, c.canalA)
+      expect(cont.competitor_video_daily).toBeGreaterThan(0)
+      // as três séries entram na soma das folhas (Phil M-3): a cena já grava early e hourly
+      expect(cont.competitor_video_early).toBeGreaterThan(0)
+      expect(cont.competitor_video_hourly).toBeGreaterThan(0)
       const r = await escalar<{ status: string }>(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
       expect(r.status).toBe('removido')
     })
