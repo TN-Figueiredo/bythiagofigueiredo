@@ -10,7 +10,7 @@
 import { codigoE10, FRASES_E10, type CodigoE10 } from './codigos'
 import { conferirLote } from './conferir'
 import { exportarCanal, NOME_DE_LOTE, type Disco } from './exportar'
-import { nomeDoLote, validarManifesto } from './manifesto'
+import { nomeDoLote, validarManifesto, type Manifesto } from './manifesto'
 import type { Baixar } from './miniaturas'
 import type { ClienteSql } from './sessao'
 import { sinalDoBanco, type LinhaBruta } from './sinal-do-banco'
@@ -197,9 +197,29 @@ async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>
     return recusado('o manifesto.json não é um JSON legível')
   }
   if (!('valor' in m)) return recusado(`o manifesto não serve: ${m.porque}`)
-  // o manifesto lista as tabelas na ordem do registro do banco: pai antes de filho
-  return feito(...m.valor.arquivos.map(a =>
-    `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${pasta}/${a.caminho}' csv header`))
+  return feito(...comandosDeRecarga(m.valor, pasta))
+}
+
+/**
+ * As tabelas do registro cuja coluna `id` é de identidade (`generated always as identity`): o `\copy` grava o `id` do arquivo e deixa a
+ * sequência onde estava, então o primeiro `insert` da coleta bate em `id` repetido. A lista é fixa e a integração a confere contra o
+ * catálogo (revisão Phil 14/10, I-3); tabela nova com identidade no registro reprova o teste até entrar aqui.
+ */
+export const TABELAS_COM_IDENTIDADE: readonly string[] = [
+  'competitor_collection_pauses', 'competitor_field_versions', 'competitor_raw', 'competitor_video_comments',
+]
+
+/**
+ * Os comandos de recarga: um `\copy` por arquivo do manifesto, na ordem do manifesto (a do registro do banco: pai antes de filho,
+ * porque a recarga não desliga chave estrangeira) e, depois de TODOS, o reajuste da sequência de cada tabela de identidade carregada
+ * (o máximo só vale com tudo carregado). Puro: só imprime.
+ */
+export function comandosDeRecarga(m: Manifesto, pasta: string): string[] {
+  const copias = m.arquivos.map(a =>
+    `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${pasta}/${a.caminho}' csv header`)
+  const carregadas = [...new Set(m.arquivos.map(a => a.tabela))].filter(t => TABELAS_COM_IDENTIDADE.includes(t))
+  const ajustes = carregadas.map(t => `select setval(pg_get_serial_sequence('public.${t}', 'id'), (select max(id) from public.${t}));`)
+  return [...copias, ...ajustes]
 }
 
 // ───────────────────────── com o banco ─────────────────────────

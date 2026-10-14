@@ -364,12 +364,14 @@ as $$
     ('competitor_video_comment_marks',
      't.comment_id in (select k.id from public.competitor_video_comments k where k.competitor_channel_id = $1 or k.video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = $1))',
      null, 't.likes', 't.comment_id, t.mark'),
-    ('competitor_readings',
-     't.video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = $1)',
-     '(t.generated_at at time zone ''UTC'')::date', null, 't.id'),
+    -- (revisão Phil 14/10, I-3) a tarefa da forja vem ANTES da leitura: `competitor_readings.task_id` tem chave estrangeira para ela, e a recarga
+    -- (`comandos-recarga`) imprime os `\copy` na ordem desta lista. Pai antes de filho; um teste confere todas as chaves entre as tabelas daqui.
     ('youtube_intelligence_tasks',
      't.target_video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = $1)',
-     '(t.requested_at at time zone ''UTC'')::date', null, 't.id');
+     '(t.requested_at at time zone ''UTC'')::date', null, 't.id'),
+    ('competitor_readings',
+     't.video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = $1)',
+     '(t.generated_at at time zone ''UTC'')::date', null, 't.id');
 $$;
 
 -- Tabelas que somem em cascata com o canal e que, de propósito, NÃO vão para o arquivo.

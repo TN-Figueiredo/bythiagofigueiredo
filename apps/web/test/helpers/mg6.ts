@@ -297,3 +297,16 @@ export async function contagemPorTabela(c: Client, canal: string): Promise<Recor
   const r = await c.query(`select table_name, sum(row_count)::int as n from public.obs_archive_channel_counts($1) group by 1 order by 1`, [canal])
   return Object.fromEntries(r.rows.map((x: { table_name: string; n: number }) => [x.table_name, Number(x.n)]))
 }
+
+/** As tabelas do registro (que existem) cuja coluna `id` é de identidade ou tem sequência: do CATÁLOGO, para conferir a lista fixa do comando de recarga. */
+export async function tabelasComIdentidade(c: Client): Promise<string[]> {
+  const r = await c.query(
+    `select distinct rel.relname::text as nome
+       from public.obs_archive_registry() t
+       join pg_class rel on rel.oid = to_regclass('public.' || quote_ident(t.table_name))
+       join pg_attribute a on a.attrelid = rel.oid and a.attname = 'id' and not a.attisdropped
+       left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+      where a.attidentity <> '' or pg_get_expr(d.adbin, d.adrelid) like 'nextval(%'
+      order by 1`)
+  return r.rows.map((x: { nome: string }) => x.nome)
+}

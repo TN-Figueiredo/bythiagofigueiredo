@@ -14,13 +14,14 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
+import { TABELAS_COM_IDENTIDADE } from '@/lib/youtube/observatorio/arquivo/cli'
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import {
   MG6_FIXTURE, emTransacao, tenta, codigoE10, q1, escalar, semearCena, criarSite, criarUsuario, criarCanal, criarVideo,
-  semearDadosDoVideo, pausarEEnvelhecer, registrar, exportarConferirConfirmar, provasDasQuatro, contagemPorTabela, manifestoDoCanal,
+  semearDadosDoVideo, tabelasComIdentidade, pausarEEnvelhecer, registrar, exportarConferirConfirmar, provasDasQuatro, contagemPorTabela, manifestoDoCanal,
   type Cena,
 } from '../helpers/mg6'
 
@@ -669,6 +670,29 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
         expect(apagadas, `tabela ${t.nome}: apagadas pela cascata x linhas do lote`).toBe(esperado)
       }
     }, 'repeatable read') // as duas contagens da tabela inteira saem do MESMO retrato: linha de outro agente não entra
+  })
+
+  // (revisão Phil 14/10, I-3) A recarga imprime um `\\copy` por arquivo do manifesto, na ordem do registro. Com `youtube_intelligence_tasks` DEPOIS de
+  // `competitor_readings`, toda leitura ligada a uma tarefa quebrava a chave estrangeira na hora do `\\copy`: o arquivo existia e o caminho de volta não fechava.
+  it('a ordem do registro respeita as chaves estrangeiras entre as tabelas dele: pai antes de filho', async () => {
+    await dentro(async () => {
+      const ordem = (await pg.query(`select table_name from public.obs_archive_registry()`)).rows.map((r: { table_name: string }) => r.table_name)
+      const idx = new Map(ordem.map((n, i) => [n, i]))
+      const fks = (await pg.query(
+        `select pc.relname::text as filho, pf.relname::text as pai
+           from pg_constraint k join pg_class pc on pc.oid = k.conrelid join pg_class pf on pf.oid = k.confrelid
+           join pg_namespace n on n.oid = pc.relnamespace
+          where k.contype = 'f' and n.nspname = 'public' and k.conrelid <> k.confrelid and pc.relname = any($1) and pf.relname = any($1)`, [ordem])).rows as { filho: string; pai: string }[]
+      expect(fks.length).toBeGreaterThan(10)
+      const quebradas = fks.filter(f => idx.get(f.pai)! > idx.get(f.filho)!).map(f => `${f.pai} (pai) vem depois de ${f.filho} (filho)`)
+      expect([...new Set(quebradas)]).toEqual([])
+    })
+  })
+
+  it('a lista fixa de tabelas com identidade do comando de recarga bate com o catálogo', async () => {
+    await dentro(async () => {
+      expect(await tabelasComIdentidade(pg)).toEqual([...TABELAS_COM_IDENTIDADE].sort())
+    })
   })
 
   it('tabela do registro que ainda não existe não quebra nada; criada no teste, entra na contagem e na remoção', async () => {

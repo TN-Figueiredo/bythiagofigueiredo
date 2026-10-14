@@ -16,11 +16,12 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { emTransacao, semearCena, pausarEEnvelhecer, q1, escalar, tenta, type Cena } from '../helpers/mg6'
+import { emTransacao, semearCena, pausarEEnvelhecer, q1, escalar, tenta, tabelasComIdentidade, type Cena } from '../helpers/mg6'
 import { exportarCanal, type Disco, type ResultadoExport } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { conferirLote } from '@/lib/youtube/observatorio/arquivo/conferir'
 import { lerCsv } from '@/lib/youtube/observatorio/arquivo/csv'
-import { lerRegistro, type ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
+import { lerRegistro, consultaDoArquivo, lerCsvDoBanco, colunasDaExpressao, type ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
+import { comandosDeRecarga } from '@/lib/youtube/observatorio/arquivo/cli'
 import { validarManifesto, type Manifesto } from '@/lib/youtube/observatorio/arquivo/manifesto'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -172,6 +173,67 @@ quebra de linha', now() - interval '3 days', '{a,"b,c","d e",""}', 9007199254740
       expect(titulos).toContain(null)
       expect(titulos).toContain('vírgula, "aspas" e\nquebra de linha')
       expect(csv.linhas.map(l => l[iView])).toContain('9007199254740993')
+    })
+  })
+
+  // (revisão Phil 14/10, I-3) A prova que faltava da recarga: exporta de verdade, REMOVE o canal A de verdade, recarrega nas tabelas REAIS (não em
+  // cópias `like` sem chave) na ordem que o `comandos-recarga` imprime, sem desligar chave estrangeira, reajusta as sequências e confere que o banco
+  // volta a dar o mesmo sha256 de cada arquivo. O `\\copy` é um comando do psql e não roda por aqui: o `insert ... overriding system value` com os
+  // mesmos valores do CSV faz o papel dele; a ORDEM e os reajustes são os do comando, byte a byte.
+  it('recarga de verdade: exporta, remove o canal, recarrega na ordem do comando sem desligar chave, reajusta as sequências e o banco volta a dar o mesmo sha256', async () => {
+    await emTransacao(pg, async () => {
+      const c = await semearCena(pg)
+      await pausarEEnvelhecer(pg, c, c.canalA)
+      const raiz = await pastaTemporaria()
+      expect(await exportar(c, raiz)).toMatchObject({ ok: true })
+      expect(await conferir(c, raiz)).toMatchObject({ ok: true })
+      await pg.query(`select public.obs_archive_confirm_nas($1, $2, $3, $4)`, [c.site, LOTE, c.canalA, c.admin])
+      const m = await manifestoDe(raiz)
+      await pg.query(`select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
+      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_channel_counts($1)`, [c.canalA])).toBe(0)
+
+      // como num banco novo: as sequências de identidade de volta ao começo
+      const comIdentidade = await tabelasComIdentidade(pg)
+      for (const t of comIdentidade) await pg.query(`select setval(pg_get_serial_sequence('public.${t}', 'id'), 1, false)`)
+
+      const comandos = comandosDeRecarga(m, join(raiz, LOTE))
+      const copias = comandos.filter(l => l.startsWith('\\copy'))
+      const ajustes = comandos.filter(l => l.startsWith('select setval'))
+      expect(copias).toHaveLength(m.arquivos.length)
+      expect(ajustes.length).toBeGreaterThan(0)
+      // carrega na ORDEM impressa, uma tabela por arquivo, sem `session_replication_role`: a chave estrangeira confere em cada linha
+      for (let i = 0; i < m.arquivos.length; i++) {
+        const a = m.arquivos[i]!
+        expect(copias[i]).toContain(`public.${a.tabela} (`)
+        const { colunas, linhas } = lerCsv(gunzipSync(await readFile(join(raiz, LOTE, a.caminho))).toString('utf8'))
+        const tipos = new Map(a.colunas.map(x => [x.nome, x.tipo]))
+        const lista = colunas.map(n => `"${n}"`).join(', ')
+        const valores = colunas.map((n, k) => `$${k + 1}::${tipos.get(n)!}`).join(', ')
+        for (const l of linhas) await pg.query(`insert into public."${a.tabela}" (${lista}) overriding system value values (${valores})`, l)
+      }
+      // as sequências: antes do reajuste estão no começo; depois, no máximo de cada tabela
+      const seq = async (t: string): Promise<number> => Number(await escalar<string>(pg,
+        `select coalesce(last_value, 0)::text from pg_sequences where schemaname = 'public' and sequencename = split_part(pg_get_serial_sequence('public.${t}', 'id'), '.', 2)`))
+      for (const t of comIdentidade.filter(x => m.arquivos.some(a => a.tabela === x))) expect(await seq(t), `${t} antes do reajuste`).toBeLessThan(
+        await escalar<number>(pg, `select coalesce(max(id), 0)::int from public.${t}`) || 1)
+      for (const l of ajustes) await pg.query(l)
+      for (const t of comIdentidade.filter(x => m.arquivos.some(a => a.tabela === x))) {
+        expect(await seq(t), `${t} depois do reajuste`).toBe(await escalar<number>(pg, `select max(id)::int from public.${t}`))
+        const proximo = await escalar<number>(pg, `select nextval(pg_get_serial_sequence('public.${t}', 'id'))::int`)
+        expect(proximo, `${t}: o próximo id não repete nenhum existente`).toBeGreaterThan(await escalar<number>(pg, `select max(id)::int from public.${t}`))
+      }
+
+      // o banco volta a ser o do arquivo: mesmo sha256 do CSV, arquivo por arquivo
+      const registro = await lerRegistro(clienteDoTeste(pg))
+      for (const a of m.arquivos) {
+        const e = registro.find(x => x.tabela === a.tabela)!
+        const unico = a.periodo === 'unico'
+        const lido = await lerCsvDoBanco(clienteDoTeste(pg), {
+          consulta: consultaDoArquivo({ tabela: a.tabela, filtro: e.filtro, periodo: e.periodo, ordem: e.ordem, colunas: a.colunas.map(x => x.nome) }),
+          parametros: unico ? [c.canalA] : [c.canalA, a.periodStart], colunas: a.colunas.map(x => x.nome), colunaDaSoma: null, colunasDeOrdem: colunasDaExpressao(e.ordem),
+        })
+        expect([a.tabela, a.periodo, lido.sha256]).toEqual([a.tabela, a.periodo, a.csvSha256])
+      }
     })
   })
 

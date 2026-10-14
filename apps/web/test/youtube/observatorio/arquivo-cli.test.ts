@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { interpretar, rodar, pastaPadrao, USO, type Comando, type DepsDoComando } from '@/lib/youtube/observatorio/arquivo/cli'
 import { FRASES_E10, type CodigoE10 } from '@/lib/youtube/observatorio/arquivo/codigos'
 import type { ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
-import { SITE, CANAL, LOTE, AGORA, bancoFalso, discoFalso, baixarFalso } from './arquivo-fakes'
+import { SITE, CANAL, LOTE, AGORA, bancoFalso, discoFalso, baixarFalso, tabelasPadrao, type TabelaFalsa } from './arquivo-fakes'
 
 const URL_DO_BANCO = 'postgresql://postgres:SENHA-SECRETA-123@db.example.test:5432/postgres'
 const ENV = { OBS_ARQUIVO_DB_URL: URL_DO_BANCO, HOME: '/home/dono' }
@@ -152,6 +152,50 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     expect(ordem.indexOf('competitor_channels')).toBeLessThan(ordem.indexOf('competitor_videos'))
     expect(ordem.indexOf('competitor_videos')).toBeLessThan(ordem.indexOf('competitor_video_daily'))
     for (const l of r.saida) expect(l).toMatch(/^\\copy public\.\w+ \(("\w+"(, )?)+\) from program 'gzip -dc [^']+' csv header$/)
+  })
+
+  /** Uma pasta exportada de verdade (com os falsos) que inclui tabelas de identidade (`id` gerado) e a tarefa antes da leitura. */
+  async function pastaComIdentidade() {
+    const tabelas = tabelasPadrao()
+    const umaLinha = (): TabelaFalsa => ({
+      colunas: [{ nome: 'id', tipo: 'bigint', nulo: false }], filtro: 't.id = $1', periodo: null, soma: null, ordem: 't.id', linhas: [{ id: '7' }],
+    })
+    delete tabelas.competitor_readings // o falso lista na ordem de inserção: a tarefa entra antes da leitura, como no registro do banco
+    tabelas.youtube_intelligence_tasks = umaLinha()
+    tabelas.competitor_readings = umaLinha()
+    tabelas.competitor_field_versions = umaLinha()
+    tabelas.competitor_raw = umaLinha()
+    const b = bancoFalso({ urls: [], tabelas })
+    const d = discoFalso()
+    const { exportarCanal } = await import('@/lib/youtube/observatorio/arquivo/exportar')
+    const e = await exportarCanal({ sql: b.sql, disco: d.disco, baixar: baixarFalso().baixar, pastaRaiz: '/arquivo', lote: LOTE, siteId: SITE, canalId: CANAL, aceitarMiniaturasAusentes: false, refazer: false, porIdade: false, agora: () => AGORA, versaoDoScript: 't' })
+    expect(e.ok).toBe(true)
+    return d
+  }
+
+  it('comandos-recarga reajusta as sequências de identidade das tabelas que o manifesto carrega, DEPOIS de todos os \\copy (revisão Phil 14/10, I-3)', async () => {
+    const d = await pastaComIdentidade()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    expect(r.codigo).toBe(0)
+    const copias = r.saida.filter(l => l.startsWith('\\copy'))
+    const ajustes = r.saida.filter(l => l.startsWith('select setval'))
+    // só as tabelas de identidade que ESTÁ no manifesto (a lista fixa é conferida contra o catálogo na integração)
+    expect(ajustes).toEqual([
+      `select setval(pg_get_serial_sequence('public.competitor_field_versions', 'id'), (select max(id) from public.competitor_field_versions));`,
+      `select setval(pg_get_serial_sequence('public.competitor_raw', 'id'), (select max(id) from public.competitor_raw));`,
+    ])
+    expect(copias.length + ajustes.length).toBe(r.saida.length)
+    expect(r.saida.slice(0, copias.length)).toEqual(copias) // nenhum ajuste no meio dos \\copy: o máximo só vale com tudo carregado
+    // a ordem do manifesto (a do registro) é a ordem impressa: a tarefa vem antes da leitura que aponta para ela
+    const ordem = copias.map(l => /public\.(\w+)/.exec(l)![1])
+    expect(ordem.indexOf('youtube_intelligence_tasks')).toBeGreaterThan(-1)
+    expect(ordem.indexOf('youtube_intelligence_tasks')).toBeLessThan(ordem.indexOf('competitor_readings'))
+  })
+
+  it('comandos-recarga sem tabela de identidade no manifesto não imprime ajuste algum', async () => {
+    const d = await pastaComManifesto()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    expect(r.saida.some(l => l.startsWith('select setval'))).toBe(false)
   })
 
   it('comandos-recarga: pasta sem manifesto ou com manifesto adulterado não imprime nada', async () => {
