@@ -164,7 +164,20 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
     await c.query(`set local session_replication_role = replica`)
     await c.query(`delete from public.competitor_channels`)
     await c.query(`set local session_replication_role = origin`)
-    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')           // nenhum canal
+    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')           // nenhum canal, nenhuma remoção, nenhuma unidade
+  }))
+
+  it('sem nenhum canal mas com a remoção pendente: o site sai da remoção e o item aparece, não site_ambiguo (Phil N2)', async () => emTx(async () => {
+    const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
+    await limparSites(a.site)
+    const p = await canalPedido(a.site)
+    await c.query(`set local session_replication_role = replica`)
+    await c.query(`delete from public.competitor_channels`)                       // o dono removeu todos os canais do site
+    await c.query(`set local session_replication_role = origin`)
+    expect(await escalar(c, `select count(*)::int from public.competitor_channels`)).toBe(0)
+    const r = await ler(null)
+    expect(r.total).toBe(1)
+    expect(r.itens[0].item_id).toBe(`canal:${p.canal}`)
   }))
 
   it('concessões: anon e authenticated não; service_role e postgres sim; nenhum outro papel com execute explícito', async () => emTx(async () => {
@@ -176,6 +189,16 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
       from pg_proc p, lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
       where p.oid = 'public.obs_archive_owner_pending(uuid)'::regprocedure and a.privilege_type = 'EXECUTE'`)).rows.map(x => x.g as string)
     expect(diretos.filter(g => !['service_role', 'postgres'].includes(g))).toEqual([])
+  }))
+
+  it('nenhuma função da M3b (obs_archive_*, competitor_channel_remove*) tem EXECUTE para anon, authenticated ou PUBLIC (Phil, conferência 2 da Tarefa 10)', async () => emTx(async () => {
+    const r = await c.query(`select p.oid::regprocedure::text as f from pg_proc p
+      where p.pronamespace = 'public'::regnamespace and (p.proname like 'obs\\_archive\\_%' or p.proname like 'competitor\\_channel\\_remove%')
+        and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute')
+             or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0))
+      order by 1`)
+    expect(r.rows.map(x => x.f as string)).toEqual([])
+    expect(await escalar(c, `select count(*)::int from pg_proc where pronamespace = 'public'::regnamespace and proname like 'obs\\_archive\\_%'`)).toBeGreaterThan(40)   // a varredura olha algo
   }))
 
   it('a parte 7 não cria papel (rota com chave): o texto não tem create role, alter role nem obs_arquivo_leitor; o papel não existe; rodada duas vezes não falha', async () => emTx(async () => {

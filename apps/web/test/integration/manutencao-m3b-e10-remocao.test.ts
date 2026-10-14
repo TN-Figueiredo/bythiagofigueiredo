@@ -9,7 +9,8 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { garantirMg6, semearCena, exportarConferirConfirmar, escalar, q1, tenta } from '../helpers/mg6'
 import { aplicarM2 } from '../helpers/m2'
-import { aplicarM3b, M3B_SQL } from '../helpers/m3b'
+import { readFileSync } from 'node:fs'
+import { aplicarM3b, M3B_SQL, M3B_DESFAZER_CAMINHO } from '../helpers/m3b'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MD5_DO_11B = '428702cb04c1029a10a7aa3b53aac63e'
@@ -89,6 +90,19 @@ describe.skipIf(skipIfNoLocalDb())('M3b e a E10: competitor_channel_remove_archi
       expect(t.ok).toBe(false)
       if (!t.ok) expect(t.message).toMatch(/M3b:competitor_channel_remove_archived_divergente/)
       await pg.query('rollback to savepoint s')
+    })
+  })
+
+  it('o desfazer devolve o corpo do 11b (md5 conhecido), não o remendado (Yannis N5)', async () => {
+    await emTx(async () => {
+      await semearCena(pg)
+      await aplicarM3b(pg, 6)
+      const f = `select md5(prosrc) from pg_proc where oid = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure`
+      expect(await escalar<string>(pg, f)).not.toBe(MD5_DO_11B)
+      // o arquivo traz begin/commit próprios; dentro da transação do teste só o corpo conta
+      await pg.query(readFileSync(M3B_DESFAZER_CAMINHO, 'utf8').replace(/^begin;$/m, '').replace(/^commit;$/m, ''))
+      expect(await escalar<string>(pg, f)).toBe(MD5_DO_11B)
+      expect(await escalar<boolean>(pg, `select to_regclass('public.obs_archive_channel_removals') is null`)).toBe(true)
     })
   })
 })

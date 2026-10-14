@@ -4,6 +4,7 @@ import { skipIfNoLocalDb } from './db-skip'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { garantirParticoesDaDiaria, travarDdl } from './m2'
 
 export const M3B_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m3b.sql')
 export const M3B_EM_MIGRATION = false
@@ -32,6 +33,7 @@ export function sqlM3bAte(ate?: ParteM3b): string {
 
 /** Aplica o rascunho até a parte `ate` (inclusive), na conexão dada. O chamador abre e desfaz a transação. */
 export async function aplicarM3b(c: Client, ate?: ParteM3b): Promise<void> {
+  await travarDdl(c)   // Yannis N4
   await c.query(sqlM3bAte(ate))
 }
 export async function m3bNoBanco(c: Client): Promise<boolean> {
@@ -79,6 +81,7 @@ export async function semearCanal(c: Client, o: { site?: string; videos?: number
   return { site, canal, videos }
 }
 export async function semearDiaria(c: Client, videos: readonly string[], de: string, dias: number): Promise<void> {
+  await garantirParticoesDaDiaria(c, de, dias)   // banco novo (CI): só há a partição do mês de min(coluna) (Yannis N1)
   await c.query(`insert into public.competitor_video_daily (video_id, snap_date, views, likes, comments, taken_at)
     select v, d::date, 1000 + (extract(day from d))::int, null, 1, d + interval '12 hours'
       from unnest($1::uuid[]) v, generate_series($2::date, $2::date + ($3 - 1), interval '1 day') d`, [videos, de, dias])
@@ -89,6 +92,7 @@ export async function semearDiaria(c: Client, videos: readonly string[], de: str
  * (Yannis 1, 14/10). Por isso elas só rodam com M3B_CORRIDAS=1 e um SUPABASE_DB_URL explícito (um banco de integração, nunca o 54322 do
  * navegador): confirmam no beforeAll e DESFAZEM no afterAll (supabase/rascunhos/m3b-desfazer.sql). Até a Tarefa 10 virar migration.
  */
+const TRAVA_CORRIDAS_M3B = 7339002
 export const corridasLigadas = (): boolean => !skipIfNoLocalDb() && process.env.M3B_CORRIDAS === '1'
 export function urlDasCorridas(): string {
   const u = process.env.SUPABASE_DB_URL
@@ -97,7 +101,17 @@ export function urlDasCorridas(): string {
   return u
 }
 /** Confirma as partes 1..ate do rascunho (a M2 e a M10a já têm de estar no banco). Idempotente. */
+let guardaDasCorridas: Client | null = null
 export async function confirmarM3bParaCorridas(ate: ParteM3b): Promise<void> {
+  // Yannis N3 (2ª rodada): as corridas confirmam e desfazem a M3b no banco INTEIRO; dois arquivos de corrida ao mesmo tempo se desfazem um ao outro
+  // e deixam o banco confirmado. Lock de sessão numa conexão à parte, solto no desfazer: o segundo arquivo falha alto em vez de seguir. A suíte de
+  // corridas roda em série (`vitest run --no-file-parallelism` com M3B_CORRIDAS=1).
+  const g = new Client({ connectionString: urlDasCorridas() }); await g.connect()
+  if (!(await g.query('select pg_try_advisory_lock($1) as ok', [TRAVA_CORRIDAS_M3B])).rows[0].ok) {
+    await g.end()
+    throw new Error('M3B_CORRIDAS=1 exige arquivos em série: outra suíte de corridas já confirmou a M3b neste banco (use --no-file-parallelism)')
+  }
+  guardaDasCorridas = g
   const x = new Client({ connectionString: urlDasCorridas() }); await x.connect()
   try {
     const r = await x.query(`select to_regclass('public.obs_archive_video_policy') is not null as m10a, (select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass) = 'p' as m2`)
@@ -108,5 +122,8 @@ export async function confirmarM3bParaCorridas(ate: ParteM3b): Promise<void> {
 /** Volta o banco ao estado sem a M3b (só toca o que a M3b cria). Chamar depois de fechar as conexões das corridas. */
 export async function desfazerM3bDasCorridas(): Promise<void> {
   const x = new Client({ connectionString: urlDasCorridas() }); await x.connect()
-  try { await x.query(readFileSync(M3B_DESFAZER_CAMINHO, 'utf8')) } finally { await x.end() }
+  try { await x.query(readFileSync(M3B_DESFAZER_CAMINHO, 'utf8')) } finally {
+    await x.end()
+    if (guardaDasCorridas) { await guardaDasCorridas.end(); guardaDasCorridas = null }   // solta o lock de sessão
+  }
 }

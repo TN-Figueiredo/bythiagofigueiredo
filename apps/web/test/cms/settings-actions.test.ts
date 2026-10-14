@@ -334,6 +334,23 @@ describe('deleteSite', () => {
     const result = await deleteSite('wrong-slug')
     expect(result.ok).toBe(false)
   })
+
+  it('apagar site com canais do observatório: o gatilho do arquivo vira mensagem legível, não o nome cru (Yannis N6)', async () => {
+    mockDelete.mockReturnValueOnce({ eq: () => Promise.resolve({ error: { message: 'destino_do_arquivo_nao_declarado' } }) })
+    const { deleteSite } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await deleteSite('test-site')
+    expect(result.ok).toBe(false)
+    const msg = result.ok === false ? result.error : ''
+    expect(msg).toContain('Observatory channels')
+    expect(msg).not.toContain('destino_do_arquivo_nao_declarado')
+  })
+
+  it('outro erro do delete segue como veio', async () => {
+    mockDelete.mockReturnValueOnce({ eq: () => Promise.resolve({ error: { message: 'boom' } }) })
+    const { deleteSite } = await import('@/app/cms/(authed)/settings/actions')
+    const result = await deleteSite('test-site')
+    expect(result).toEqual({ ok: false, error: 'boom' })
+  })
 })
 
 describe('RBAC enforcement', () => {

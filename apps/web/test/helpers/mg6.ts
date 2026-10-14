@@ -12,7 +12,7 @@ import type { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { M2_BLOCO_11 } from './m2'
+import { M2_BLOCO_11, garantirParticoesDaDiaria, travarDdl } from './m2'
 
 export const MG6_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e10-mg6.sql', import.meta.url))
 
@@ -34,6 +34,7 @@ function codigoDoErro(e: unknown): string {
 
 /** Aplica o ensaio da MG6 na transação aberta (idempotente: pode ser aplicada de novo sobre uma MG6 já aplicada). */
 export async function garantirMg6(c: Client): Promise<void> {
+  await travarDdl(c)   // Yannis N4: DDL em transação desfeita se enfileira entre arquivos
   await c.query(lerSqlDaMg6())
   // a fixture é a MG6 de produção byte a byte e recria duas funções sem saber de partição; o bloco 11 da M2 as recria com o conserto
   await c.query(M2_BLOCO_11)
@@ -157,6 +158,7 @@ export async function criarVideo(c: Client, canal: string, diasAtras: number): P
 
 /** Uma linha em quase toda tabela do registro para o vídeo (e o canal). Datas relativas a hoje. */
 export async function semearDadosDoVideo(c: Client, site: string, canal: string, video: string): Promise<void> {
+  await garantirParticoesDaDiaria(c, new Date(Date.now() - 41 * 86400000).toISOString().slice(0, 10), 42)   // current_date - 40 .. - 1 (Yannis N1)
   await c.query(
     `insert into public.competitor_video_daily (video_id, snap_date, views, taken_at) values
        ($1, current_date - 1, 100, now() - interval '1 day'), ($1, current_date - 2, 90, now() - interval '2 days'), ($1, current_date - 40, 5, now() - interval '40 days')`, [video])

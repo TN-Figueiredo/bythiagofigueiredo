@@ -2715,9 +2715,12 @@ declare
   v_lista jsonb;
   v_itens jsonb;
 begin
-  if v_site is null then   -- o comando do Mac não sabe o site: o ÚNICO site que tem canal no observatório, ou erro (nunca "lista vazia"). Phil I2: o hub é multi-site, linhas em `sites` não contam.
-    if (select count(distinct c.site_id) from public.competitor_channels c) <> 1 then raise exception 'site_ambiguo' using errcode = 'P0001'; end if;
-    select distinct c.site_id into v_site from public.competitor_channels c;
+  if v_site is null then   -- o comando do Mac não sabe o site: o ÚNICO site que tem canal, remoção ou unidade arquivada no observatório, ou erro (nunca "lista vazia"). Phil I2: o hub é multi-site, linhas em `sites` não contam.
+    -- Phil N2 (2ª rodada): o site vem de canal, de remoção ou de unidade arquivada: com todos os canais removidos, a pendência de um canal removido continua achando o site.
+    if (select count(*) from (select c.site_id from public.competitor_channels c union select r.site_id from public.obs_archive_channel_removals r
+                              union select u.site_id from public.obs_archive_units u) x) <> 1 then raise exception 'site_ambiguo' using errcode = 'P0001'; end if;
+    select c.site_id into v_site from (select c0.site_id from public.competitor_channels c0 union select r.site_id from public.obs_archive_channel_removals r
+                                       union select u.site_id from public.obs_archive_units u) c;
   end if;
   v_lista := public.obs_archive_removed_channel_list(v_site);   -- erro sobe (nunca lista vazia)
   if v_lista is null or jsonb_typeof(v_lista) <> 'array' then raise exception 'lista_de_remocao_ilegivel' using errcode = 'P0001'; end if;

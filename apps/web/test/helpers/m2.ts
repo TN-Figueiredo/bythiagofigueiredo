@@ -28,8 +28,19 @@ function bloco11(sql: string): string {
 }
 export const M2_BLOCO_11: string = bloco11(M2_SQL)
 
+/**
+ * Yannis N4 (2ª rodada): quem aplica DDL (M2, MG6, M3b) em transação desfeita, em vários arquivos ao mesmo tempo (`HAS_LOCAL_DB=1 npm test` é paralelo),
+ * dá deadlock e `tuple concurrently updated`. Todo aplicador pega este lock de transação ANTES de tocar no catálogo: os arquivos passam a
+ * se enfileirar em vez de se travar. Fora de transação o lock solta no mesmo instante (inofensivo).
+ */
+export const TRAVA_DDL_TESTES = 7339001
+export async function travarDdl(c: Client): Promise<void> {
+  await c.query('select pg_advisory_xact_lock($1)', [TRAVA_DDL_TESTES])
+}
+
 /** Aplica o SQL inteiro na conexão (dentro da transação de quem chama, se houver). */
 export async function aplicarM2(c: Client): Promise<void> {
+  await travarDdl(c)
   await c.query(M2_SQL)
 }
 
@@ -40,6 +51,7 @@ export async function aplicarM2(c: Client): Promise<void> {
  */
 export const MARCA_PARTE_2 = '-- 8. A tabela de ensaio'
 export async function aplicarM2SoFuncoes(c: Client): Promise<void> {
+  await travarDdl(c)
   const corte = M2_SQL.indexOf(MARCA_PARTE_2)
   if (corte < 0) {
     if (/obs_part\.converter\('public\.competitor_video_/.test(M2_SQL)) throw new Error(`marcador "${MARCA_PARTE_2}" ausente no SQL da M2`)
@@ -98,4 +110,19 @@ export async function apagarBrinquedo(c: Client, t: string): Promise<void> {
   await c.query(`drop table if exists public.${t}_particionada cascade`)
   await c.query(`drop function if exists public.${t}_soma()`)
   await c.query(`delete from public.obs_partition_conversions where table_name = 'public.' || $1`, [t])
+}
+
+/**
+ * Garante as partições mensais de competitor_video_daily para [de, de + dias - 1] (Yannis N1, 2ª rodada): em banco NOVO (db reset, como a CI) a M2
+ * só cria a partição do mês de min(coluna) até +12, então uma semeadura em mês antigo falha com "no partition of relation". Idempotente; no-op se a
+ * tabela não é particionada ou se obs_part.criar_particao ainda não existe (M2 não aplicada).
+ */
+export async function garantirParticoesDaDiaria(c: Client, de: string, dias: number): Promise<void> {
+  const ok = await c.query(
+    `select to_regprocedure('obs_part.criar_particao(regclass,date)') is not null
+        and coalesce((select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass), '') = 'p' as vale`)
+  if (!ok.rows[0].vale) return
+  const meses = await c.query(
+    `select g::date::text as mes from generate_series(date_trunc('month', $1::date), date_trunc('month', $1::date + ($2::int - 1)), interval '1 month') g`, [de, dias])
+  for (const m of meses.rows) await c.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, $1::date)`, [m.mes])
 }
