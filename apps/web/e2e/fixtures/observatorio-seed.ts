@@ -80,6 +80,11 @@ export interface SeedOptions {
    * maioria dos longos: a mediana de views por dia não é zero) e `velho` (como `cheio`, terminando 12 dias antes do relógio: a coleta "parou").
    */
   ownL2?: OwnL2
+  /**
+   * A dieta do diário (A5, E6): com ela as linhas SEM atividade (`views` zero) de `yt_own_video_daily` não são gravadas; quem diz "este dia foi
+   * coletado" é a cobertura (`yt_own_video_coverage`, que a semente grava nos dois estados). As telas têm de mostrar os mesmos números.
+   */
+  ownDieta?: boolean
 }
 export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas' | 'retencao' | 'recente'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
@@ -289,7 +294,7 @@ export async function resetViewerPrefs(siteId: string, client?: SupabaseClient):
 export async function clearOwnL2(siteId: string, client?: SupabaseClient, ownIds?: string[]): Promise<void> {
   const sb = clientOf(client)
   const ids = ownIds ?? ['tnfigueiredo', ...OWN_EXTRA_IDS].map(id => ownSeedUuid(siteId, id))
-  for (const t of ['yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
+  for (const t of ['yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
     await check('delete ' + t, sb.from(t).delete().eq('site_id', siteId).in('channel_id', ids))
   }
 }
@@ -415,10 +420,35 @@ export function somaDias(dia: string, n: number): string {
 function primeiroProprio(preset?: OwnPreset): string { return preset ? OWN_PRESETS[preset].ids[0]! : 'tnfigueiredo' }
 
 /**
+ * Grava o diário e a cobertura dele (A5, E6, Tarefa 6). A cobertura (`base` e `estendidas`) de cada vídeo vai do primeiro ao último dia que a semente
+ * gerou para ele, tenha o dia atividade ou não: é o que o coletor da dieta grava. Com `dieta`, as linhas sem atividade (`views` zero: na semente é
+ * onde as outras colunas são nulas) não entram no diário; o leitor devolve esses dias como zero medido pela cobertura. Sem `dieta` o diário é o de antes
+ * (uma linha por vídeo e dia). Nos dois estados as telas têm de mostrar os mesmos números.
+ */
+async function gravarDiarioECobertura(sb: SupabaseClient, siteId: string, canalId: string, diario: object[], dieta: boolean): Promise<void> {
+  type Linha = { youtube_video_id: string; day_pt: string; video_id: string | null; views: number }
+  const linhas = diario as Linha[]
+  const porVideo = new Map<string, { de: string; ate: string; video_id: string | null }>()
+  for (const l of linhas) {
+    const c = porVideo.get(l.youtube_video_id)
+    if (!c) porVideo.set(l.youtube_video_id, { de: l.day_pt, ate: l.day_pt, video_id: l.video_id })
+    else { if (l.day_pt < c.de) c.de = l.day_pt; if (l.day_pt > c.ate) c.ate = l.day_pt }
+  }
+  await insertAll(sb, 'yt_own_video_daily', dieta ? linhas.filter(l => Number(l.views) > 0) : linhas)
+  const cobertura: object[] = []
+  for (const [yt, c] of porVideo) {
+    for (const metric_set of ['base', 'estendidas']) {
+      cobertura.push({ youtube_video_id: yt, metric_set, covered_from: c.de, covered_to: c.ate, site_id: siteId, video_id: c.video_id, channel_id: canalId, source: 'analytics_api' })
+    }
+  }
+  await insertAll(sb, 'yt_own_video_coverage', cobertura)
+}
+
+/**
  * Semeia o dado privado de UM canal próprio (o primeiro do preset), tudo relativo ao relógio do oráculo. Substitui o que já houver
  * (limpa as tabelas privadas antes). Os ytIds vêm dos vídeos que a semente já escreve em youtube_videos.
  */
-export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPreset, client?: SupabaseClient): Promise<{ canalId: string; ytIdsAlcance: string[]; ytIdsDiario: string[]; ultimoDia: string; primeiroDia: string }> {
+export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPreset, client?: SupabaseClient, opcoes: { dieta?: boolean } = {}): Promise<{ canalId: string; ytIdsAlcance: string[]; ytIdsDiario: string[]; ultimoDia: string; primeiroDia: string }> {
   const P = PERFIS_L2[perfil]
   if (!P) throw new Error('observatorio-seed: ownL2 desconhecido ' + JSON.stringify(perfil))
   const sb = clientOf(client)
@@ -525,7 +555,7 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
         })
       }
     })
-    await insertAll(sb, 'yt_own_video_daily', diario)
+    await gravarDiarioECobertura(sb, siteId, canalId, diario, opcoes.dieta === true)
     return { canalId, ytIdsAlcance: [...new Set(reach.map(r => (r as { youtube_video_id: string }).youtube_video_id))], ytIdsDiario: MAPA_RETENCAO.map(m => m.yt), ultimoDia: ultimo, primeiroDia: primeiro }
   }
   for (let d = 0; d < P.diarioDias; d++) {
@@ -543,7 +573,7 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
       })
     })
   }
-  await insertAll(sb, 'yt_own_video_daily', diario)
+  await gravarDiarioECobertura(sb, siteId, canalId, diario, opcoes.dieta === true)
   const ytIdsAlcance = P.recente ? vids.filter(v => v.fmt === 'long' && v.ageDays >= 35).slice(0, 2).map(v => v.ytId) : seis.map(v => v.ytId)
   return { canalId, ytIdsAlcance, ytIdsDiario: longos.map(v => v.ytId), ultimoDia: ultimo, primeiroDia: primeiro }
 }
@@ -809,5 +839,5 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
       { onConflict: 'site_id' }))
   }
   // dado privado do primeiro canal próprio do preset (os canais e vídeos acima já existem)
-  if (opts.ownL2) await seedOwnL2(siteId, opts.ownL2, opts.ownPreset, sb)
+  if (opts.ownL2) await seedOwnL2(siteId, opts.ownL2, opts.ownPreset, sb, { dieta: opts.ownDieta })
 }
