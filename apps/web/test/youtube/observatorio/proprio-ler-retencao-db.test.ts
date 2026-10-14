@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../../helpers/db-seed'
-import { edicaoDe } from './edicao-teste'
+import { leituraDe } from './leitura-teste'
 import { lerRetencao, TETO_LEITURAS, TETO_TENTATIVAS } from '@/lib/youtube/observatorio/proprio/ler-retencao'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 
@@ -45,7 +45,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
     }
   }
   const ok = async (yt: string, canal = canalId, site = siteId) => {
-    const r = await lerRetencao(sb, { edicao: await edicaoDe(site), canalId: canal, hoje: HOJE, ytId: yt })
+    const r = await lerRetencao(sb, { leitura: await leituraDe(site), canalId: canal, hoje: HOJE, ytId: yt })
     if (r.acesso !== 'ok') throw new Error('esperava ok, veio ' + r.acesso)
     return r.dado
   }
@@ -148,7 +148,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
   })
 
   it('sem prova ou canal que não é uuid: negado (o Postgres nem é consultado)', async () => {
-    expect(await lerRetencao(sb, { edicao: null, canalId, hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
-    expect(await lerRetencao(sb, { edicao: await edicaoDe(siteId), canalId: 'x', hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
+    expect(await lerRetencao(sb, { leitura: null, canalId, hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
+    expect(await lerRetencao(sb, { leitura: await leituraDe(siteId), canalId: 'x', hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
   })
 })

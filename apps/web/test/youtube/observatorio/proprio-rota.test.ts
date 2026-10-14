@@ -10,7 +10,7 @@ import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { ChannelPage, ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 
 const w = proprioWorld() // o conjunto do SITE (openObservatoryPage)
 const wUm = proprioWorld({ mut: umCanal }) // o conjunto de UM canal (openChannelPage), como em produção: ownChannels() lança nele
@@ -24,7 +24,7 @@ const state = {
   abrirSite: vi.fn(),
   extras: vi.fn(async (..._a: unknown[]) => undefined),
 }
-const EDICAO = { siteId: 'site-secreto-t8' } as unknown as EdicaoDoSite // só a identidade importa nesta camada (o módulo da guarda é mockado)
+const EDICAO = { siteId: 'site-secreto-t8' } as unknown as LeituraPrivadaDoSite // só a identidade importa nesta camada (o módulo da guarda é mockado)
 
 vi.mock('server-only', () => ({}))
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) }, notFound: () => { throw new Error('NOT_FOUND') } }))
@@ -47,10 +47,10 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 
-function cenario(o: { mundo?: typeof w; edicao?: EdicaoDoSite | null } = {}) {
+function cenario(o: { mundo?: typeof w; leitura?: LeituraPrivadaDoSite | null } = {}) {
   const m = o.mundo ?? wUm
   state.page = {
-    siteId: 's1', now: m.obs.NOW, obs: m.obs, canEdit: o.edicao !== null, edicao: o.edicao === undefined ? EDICAO : o.edicao,
+    siteId: 's1', now: m.obs.NOW, obs: m.obs, canEdit: o.leitura !== null, leitura: o.leitura === undefined ? EDICAO : o.leitura,
     ownYtIds: m.ytIds, meuCanalLembrado: null, owns: OWNS,
   }
   state.site = { siteId: 's1', now: m.obs.NOW, rows: {} as ObservatoryPage<undefined>['rows'], obs: w.obs, meuCanalLembrado: null, savedNiche: 'todos', extra: undefined }
@@ -93,13 +93,13 @@ describe('T8 rota canal/[id] do canal próprio', () => {
     expect(state.extras).not.toHaveBeenCalled()
   })
 
-  it('quem não edita o site abre a página: lerDadosDoCanal é chamado com edicao null (o leitor devolve "negado")', async () => {
-    cenario({ edicao: null })
+  it('quem não edita o site abre a página: lerDadosDoCanal é chamado com leitura null (o leitor devolve "negado")', async () => {
+    cenario({ leitura: null })
     state.dados.mockImplementation(async () => DADOS.negado(w.canalId, w.ytIds, w.hoje))
     const el = await rota(w.canalId)
     expect(nome(el)).toBe('ProprioScreen')
     expect(state.dados).toHaveBeenCalledTimes(1)
-    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, edicao: null, longosAcompanhados: w.ytIds })
+    expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, leitura: null, longosAcompanhados: w.ytIds })
     const view = filho(el).props.view as { header: { faixa: Array<{ key: string; value: string | null; missing: string | null }> } }
     const imp = view.header.faixa.find(c => c.key === 'impressoes')!
     expect(imp.value).toBeNull()
@@ -108,7 +108,7 @@ describe('T8 rota canal/[id] do canal próprio', () => {
 
   it('quem edita: o token da página vai ao leitor, com o relógio da página; o token nunca está nas props da tela', async () => {
     const el = await rota(w.canalId)
-    expect(state.dados.mock.calls[0]![0]).toMatchObject({ edicao: EDICAO, agora: w.obs.NOW })
+    expect(state.dados.mock.calls[0]![0]).toMatchObject({ leitura: EDICAO, agora: w.obs.NOW })
     expect(JSON.stringify(filho(el).props)).not.toContain('site-secreto-t8')
   })
 
@@ -121,11 +121,11 @@ describe('T8 rota canal/[id] do canal próprio', () => {
     await rota(w.canalId)
     expect(state.abrirSite).toHaveBeenCalledTimes(1)
     expect(state.extras).toHaveBeenCalledTimes(1)
-    const [obs, siteId, agora, , previo] = state.extras.mock.calls[0]! as [unknown, string, number, unknown, { edicao: unknown; canalId: string; diario: unknown }]
+    const [obs, siteId, agora, , previo] = state.extras.mock.calls[0]! as [unknown, string, number, unknown, { leitura: unknown; canalId: string; diario: unknown }]
     expect(obs).toBe(w.obs)
     expect(siteId).toBe('s1')
     expect(agora).toBe(w.obs.NOW)
-    expect(previo).toMatchObject({ edicao: EDICAO, canalId: w.canalId })
+    expect(previo).toMatchObject({ leitura: EDICAO, canalId: w.canalId })
     expect(previo.diario).toBe(w.dados.diario)
   })
 

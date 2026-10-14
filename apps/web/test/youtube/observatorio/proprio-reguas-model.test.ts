@@ -404,7 +404,7 @@ describe('T13.0 H20: o modelo é puro de verdade (regra 6: nenhum leitor, nenhum
       const [, tipo, , de] = m
       if (tipo) continue
       if (/proprio\/ler$/.test(de!)) out.push(`importa o leitor (${de})`)
-      if (/proprio\/edicao$/.test(de!)) out.push(`importa a prova de edição (${de})`)
+      if (/proprio\/(edicao|leitura-privada)$/.test(de!)) out.push(`importa a prova de edição (${de})`)
       if (/(^|\/)dados$/.test(de!)) out.push(`importa o módulo de dados como valor (${de})`)
     }
     return out
@@ -418,6 +418,7 @@ describe('T13.0 H20: o modelo é puro de verdade (regra 6: nenhum leitor, nenhum
   it('controles negativos: a varredura pega o que deve pegar', () => {
     expect(proibidos("import { lerAlcance } from '@/lib/youtube/observatorio/proprio/ler'")).toHaveLength(1)
     expect(proibidos("import { provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'")).toHaveLength(1)
+    expect(proibidos("import { leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'")).toHaveLength(1)
     expect(proibidos("import { lerDadosDoCanal } from './dados'")).toHaveLength(1)
     expect(proibidos("import type { DadosDoCanal } from './dados'")).toEqual([])           // tipo: apagado na compilação
     expect(proibidos("// import { lerAlcance } from '@/lib/youtube/observatorio/proprio/ler'")).toEqual([])

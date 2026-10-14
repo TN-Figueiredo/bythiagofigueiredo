@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../../helpers/db-seed'
-import { edicaoDe } from './edicao-teste'
+import { leituraDe } from './leitura-teste'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 
@@ -77,7 +77,7 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
   }, 60_000)
 
   it('diário: 1400 linhas passam do limite de 1000 e chegam inteiras; zero medido continua 0; nada de outro site nem fora da janela', async () => {
-    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds })
+    const r = await lerDiario(sb, { leitura: await leituraDe(siteId), canalId, hoje: HOJE, ytIds })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.linhas).toHaveLength(TETO_VIDEOS_DIARIO * 28)
     expect(r.dado.ultimoDia).toBe(d(3))
@@ -85,7 +85,7 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.linhas.some(l => l.dia === d(300))).toBe(false)
   })
   it('diário: avg_view_percentage e avg_view_duration_seconds (numeric) chegam como número, na unidade da coleta (51,5 continua 51,5) e dia sem view fica nulo', async () => {
-    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: ['seedpct0001'] })
+    const r = await lerDiario(sb, { leitura: await leituraDe(siteId), canalId, hoje: HOJE, ytIds: ['seedpct0001'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.linhas).toEqual([
       { ytId: 'seedpct0001', dia: d(5), views: 0, pctAssistido: null, duracaoMediaSeg: null },
@@ -94,15 +94,15 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.descartados).toBe(0)
   })
   it('diário: o id de um canal de outro site não alcança o dado dele', async () => {
-    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: ['seedoutro01'] })
+    const r = await lerDiario(sb, { leitura: await leituraDe(siteId), canalId, hoje: HOJE, ytIds: ['seedoutro01'] })
     // nenhuma linha do vídeo de outro site; o último dia é o do PRÓPRIO canal (consulta sem janela e sem filtro de vídeo)
     expect(r).toEqual({ acesso: 'ok', dado: { canalId, ultimoDia: d(3), linhas: [], foraDoTeto: [], descartados: 0 } })
-    const r2 = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId: outroCanal, hoje: HOJE, ytIds: ['seedoutro01'] })
+    const r2 = await lerDiario(sb, { leitura: await leituraDe(siteId), canalId: outroCanal, hoje: HOJE, ytIds: ['seedoutro01'] })
     expect(r2.acesso === 'ok' && r2.dado.linhas.length).toBe(0)
     expect(r2.acesso === 'ok' && r2.dado.ultimoDia).toBeNull() // o dia 'd(3)' do outro site não vaza
   })
   it('dieta: 50 vídeos x 38 dias cobertos e só 60 linhas com atividade devolvem 1.900 linhas (paginação dos intervalos e materialização)', async () => {
-    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: dietaIds })
+    const r = await lerDiario(sb, { leitura: await leituraDe(siteId), canalId, hoje: HOJE, ytIds: dietaIds })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.ultimoDia).toBe(d(3))
     expect(r.dado.linhas).toHaveLength(TETO_VIDEOS_DIARIO * 38)
@@ -112,17 +112,17 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.linhas.filter(l => l.pctAssistido != null || l.duracaoMediaSeg != null)).toHaveLength(0)
   })
   it('dieta: a cobertura de outro site com o mesmo id de vídeo não vaza (nem no último dia, nem em zeros)', async () => {
-    const r = await lerDiario(sb, { edicao: await edicaoDe(outroSite), canalId: outroCanal, hoje: HOJE, ytIds: [dietaIds[0]!] })
+    const r = await lerDiario(sb, { leitura: await leituraDe(outroSite), canalId: outroCanal, hoje: HOJE, ytIds: [dietaIds[0]!] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     // só os 2 dias do outro site (d(2) e d(1)); nada do intervalo d(40)..d(3) do primeiro site
     expect(r.dado.ultimoDia).toBe(d(1))
     expect(r.dado.linhas.map(l => l.dia)).toEqual([d(2), d(1)])
-    const meu = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: [dietaIds[0]!] })
+    const meu = await lerDiario(sb, { leitura: await leituraDe(siteId), canalId, hoje: HOJE, ytIds: [dietaIds[0]!] })
     if (meu.acesso !== 'ok') throw new Error('esperava ok')
     expect(meu.dado.linhas.some(l => l.dia === d(2) || l.dia === d(1))).toBe(false)
   })
   it('alcance: relatórios com os três estados, linhas com bigint/numeric já como número, só do site e canal', async () => {
-    const r = await lerAlcance(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE })
+    const r = await lerAlcance(sb, { leitura: await leituraDe(siteId), canalId, hoje: HOJE })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.relatorios).toHaveLength(3)
     expect(r.dado.relatorios).toEqual(expect.arrayContaining([
@@ -131,7 +131,7 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.linhas).toEqual([{ ytId: ytIds[0], dia: d(3), imp: 120, ctr: 0.0425 }])
   })
   it('quem não edita: negado, sem consulta', async () => {
-    expect(await lerAlcance(sb, { edicao: null, canalId, hoje: HOJE })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(sb, { edicao: null, canalId, hoje: HOJE, ytIds })).toEqual({ acesso: 'negado' })
+    expect(await lerAlcance(sb, { leitura: null, canalId, hoje: HOJE })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(sb, { leitura: null, canalId, hoje: HOJE, ytIds })).toEqual({ acesso: 'negado' })
   })
 })

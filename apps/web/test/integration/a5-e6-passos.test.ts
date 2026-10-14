@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, SUPABASE_URL } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { edicaoDe } from '../youtube/observatorio/edicao-teste'
+import { leituraDe } from '../youtube/observatorio/leitura-teste'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
@@ -326,7 +326,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E6 (3b): a dieta do diário contra o banc
       await diarioAntigo(c, v, fonte)
       await cobrir(c, v, p(-7), p(-1), ['base', 'estendidas'])
       const ler = async () => {
-        const r = await lerDiario(sb, { edicao: await edicaoDe(c.site), canalId: c.canal, hoje: HOJE_PT, ytIds: [v.yt] })
+        const r = await lerDiario(sb, { leitura: await leituraDe(c.site), canalId: c.canal, hoje: HOJE_PT, ytIds: [v.yt] })
         if (r.acesso !== 'ok') throw new Error('esperava ok')
         return r.dado
       }

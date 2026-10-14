@@ -49,7 +49,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 
 function cenario(m: typeof w, obs: ChannelPage['obs'] = m.obs) {
-  state.page = { siteId: 's1', now: m.obs.NOW, obs, canEdit: true, edicao: null, ownYtIds: m.ytIds, meuCanalLembrado: null, owns: OWNS }
+  state.page = { siteId: 's1', now: m.obs.NOW, obs, canEdit: true, leitura: null, ownYtIds: m.ytIds, meuCanalLembrado: null, owns: OWNS }
   state.site = { siteId: 's1', now: w.obs.NOW, rows: {} as ObservatoryPage<undefined>['rows'], obs: w.obs, meuCanalLembrado: null, savedNiche: 'todos', extra: undefined }
 }
 async function rota(id: string) {

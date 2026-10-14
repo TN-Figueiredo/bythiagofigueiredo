@@ -90,8 +90,8 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
 
   it('controle positivo da DURAÇÃO MÉDIA e da TAXA: o leitor real entrega a duração do foco a quem edita (a tela não a mostra, então a negativa só vale se o dado existe), e a taxa e os dois extremos do intervalo estão no HTML', async () => {
     const { lerDadosDoVideo, podeVerPrivado } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')
-    const edicao = await podeVerPrivado(S)
-    const lido = await lerDadosDoVideo({ canalId: CANAL, ytId: w.foco.ytId, longosAcompanhados: w.outros, agora: w.obs.NOW, edicao })
+    const leitura = await podeVerPrivado(S)
+    const lido = await lerDadosDoVideo({ canalId: CANAL, ytId: w.foco.ytId, longosAcompanhados: w.outros, agora: w.obs.NOW, leitura })
     if (lido.acesso !== 'ok') throw new Error('o editor devia ler')
     const doFoco = lido.dado.diario.linhas.filter(l => l.ytId === w.foco.ytId)
     expect(doFoco.length).toBeGreaterThan(0)
@@ -130,7 +130,8 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
   it('a guarda vem antes de qualquer leitura: sem a prova de edição a ordem é guarda, depois nada (nenhum banco)', async () => {
     guarda.ok = false
     await rota(proprio.id)
-    expect(guarda.chamadas).toBe(1)
+    // E17 passo 0: a prova de leitura privada pergunta a edição e, negada, a leitura (2 guardas, nenhuma a mais); depois disso nada
+    expect(guarda.chamadas).toBe(2)
     expect(db.trips).toEqual([])
     expect(servico.criado).toBe(0)
   })

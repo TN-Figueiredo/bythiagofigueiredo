@@ -4,8 +4,9 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
+import { leituraDe, leituraPorDireitoDe } from './leitura-teste'
 import { edicaoDe } from './edicao-teste'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
 import { lerRetencao, TETO_LEITURAS, TETO_TENTATIVAS } from '@/lib/youtube/observatorio/proprio/ler-retencao'
 import { ObservatoryLoadError } from '@/lib/youtube/observatorio/niches-db'
@@ -14,7 +15,8 @@ import { lerCurva } from '@/lib/youtube/observatorio/proprio/retencao-curva'
 
 const captureException = vi.fn()
 const captureMessage = vi.fn()
-vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u1' } })) }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: (...a: unknown[]) => captureException(...a), captureMessage: (...a: unknown[]) => captureMessage(...a) }))
 
 const S = 'site-a', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', OUTRO_CANAL = '9a9a9a9a-5a47-4d0e-9b1c-7e6a2d4f8a10'
@@ -64,8 +66,8 @@ function comDataNula(sb: SupabaseClient, tabela: string): SupabaseClient {
   } as unknown as SupabaseClient
 }
 
-let pedido: { edicao: EdicaoDoSite | null; canalId: string; hoje: string; ytId: string }
-beforeAll(async () => { pedido = { edicao: await edicaoDe(S), canalId: C, hoje: HOJE, ytId: V } })
+let pedido: { leitura: LeituraPrivadaDoSite | null; canalId: string; hoje: string; ytId: string }
+beforeAll(async () => { pedido = { leitura: await leituraDe(S), canalId: C, hoje: HOJE, ytId: V } })
 const ok = async (db: { client: SupabaseClient }, p = pedido) => {
   const r = await lerRetencao(db.client, p)
   if (r.acesso !== 'ok') throw new Error('esperava ok, veio ' + r.acesso)
@@ -75,22 +77,22 @@ const ok = async (db: { client: SupabaseClient }, p = pedido) => {
 describe('acesso: o token de edição e a forma do pedido', () => {
   it('sem token: negado e NENHUMA consulta', async () => {
     const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(1))], yt_own_collection_attempts: [tent(d(1), 'ok')] })
-    expect(await lerRetencao(db.client, { ...pedido, edicao: null })).toEqual({ acesso: 'negado' })
+    expect(await lerRetencao(db.client, { ...pedido, leitura: null })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('token forjado (objeto literal): negado e nenhuma consulta', async () => {
     const db = fakeSupabase({})
-    // @ts-expect-error literal não é um EdicaoDoSite
-    const forjado: EdicaoDoSite = { siteId: S }
-    expect(await lerRetencao(db.client, { ...pedido, edicao: forjado })).toEqual({ acesso: 'negado' })
+    // @ts-expect-error literal não é um LeituraPrivadaDoSite
+    const forjado: LeituraPrivadaDoSite = { siteId: S }
+    expect(await lerRetencao(db.client, { ...pedido, leitura: forjado })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('a guarda é a mesma de ler.ts: edição forjada, canalId que não é uuid e ytId inválido dão negado aqui e em lerDiario', async () => {
-    // @ts-expect-error literal não é um EdicaoDoSite
-    const forjado: EdicaoDoSite = { siteId: S }
+    // @ts-expect-error literal não é um LeituraPrivadaDoSite
+    const forjado: LeituraPrivadaDoSite = { siteId: S }
     const invalidos = [
-      { ...pedido, edicao: null },
-      { ...pedido, edicao: forjado },
+      { ...pedido, leitura: null },
+      { ...pedido, leitura: forjado },
       { ...pedido, canalId: 'nao-e-uuid' },
       { ...pedido, canalId: '' },
       { ...pedido, canalId: C + 'x' },
@@ -421,7 +423,7 @@ describe('filtros: site, canal e vídeo (cada um prova por dado de fora)', () =>
   })
   it('retenção: com a prova de OUTRO site só aparece a linha daquele site (e o canal precisa ser o dele)', async () => {
     const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(5)), ret('vida', d(1), { site_id: 'outro-site', points: grade(50), point_count: 50 })] })
-    const outro = await lerRetencao(db.client, { ...pedido, edicao: await edicaoDe('outro-site') })
+    const outro = await lerRetencao(db.client, { ...pedido, leitura: await leituraDe('outro-site') })
     if (outro.acesso !== 'ok') throw new Error('esperava ok')
     expect(outro.dado.curvas.vida?.windowEnd).toBe(d(1))
     expect(outro.dado.curvas.vida?.pontos).toHaveLength(50)
@@ -449,5 +451,25 @@ describe('filtros: site, canal e vídeo (cada um prova por dado de fora)', () =>
     const r = await ok(db)
     expect(r.ultimaResposta).toBeNull()
     expect(db.trips.filter(t => t === 'yt_own_collection_attempts')).toHaveLength(2)
+  })
+})
+
+describe('o token de LEITURA (E17 passo 0)', () => {
+  it('com o token nascido do DIREITO, sem edição, o leitor lê a curva', async () => {
+    const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(2))], yt_own_collection_attempts: [] })
+    const leitura = await leituraPorDireitoDe('7c1d2e3f-5a47-4d0e-9b1c-7e6a2d4f8a99')
+    const r = await lerRetencao(db.client, { leitura, canalId: C, hoje: HOJE, ytId: V })
+    expect(r.acesso).toBe('ok')
+  })
+  it('com um EdicaoDoSite no lugar do token (por cast) o leitor nega e não consulta nada', async () => {
+    const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(2))] })
+    const leitura = (await edicaoDe(S)) as unknown as LeituraPrivadaDoSite
+    expect(await lerRetencao(db.client, { leitura, canalId: C, hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+  it('com leitura null o leitor nega e não consulta nada', async () => {
+    const db = fakeSupabase({ yt_own_video_retention: [ret('vida', d(2))] })
+    expect(await lerRetencao(db.client, { leitura: null, canalId: C, hoje: HOJE, ytId: V })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
   })
 })

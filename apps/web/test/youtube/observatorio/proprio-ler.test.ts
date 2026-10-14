@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
+import { leituraDe, leituraPorDireitoDe } from './leitura-teste'
 import { edicaoDe } from './edicao-teste'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO, PCT_ASSISTIDO_MAX } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { vpdDoCanal, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
@@ -11,7 +12,8 @@ import { assistidoDoVideo } from '@/lib/youtube/observatorio/proprio/assistido'
 import { ObservatoryLoadError } from '@/lib/youtube/observatorio/niches-db'
 import * as Sentry from '@sentry/nextjs'
 
-vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u1' } })) }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 const S = 'site-a', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', HOJE = dayPt(new Date())
@@ -23,21 +25,21 @@ const relatorio = (dia: string, status: string, norm: boolean, over: Row = {}): 
 const alcance = (yt: string, dia: string, imp: number | null, ctr: number | null, over: Row = {}): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: C, thumbnail_impressions: imp, thumbnail_ctr: ctr, ...over })
 const diario = (yt: string, dia: string, views: number | null, over: Row = {}): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: C, views, ...over })
 const SEM_MEDIAS = { pctAssistido: null, duracaoMediaSeg: null }
-let pedido: { edicao: EdicaoDoSite | null; canalId: string; hoje: string }
-beforeAll(async () => { pedido = { edicao: await edicaoDe(S), canalId: C, hoje: HOJE } })
+let pedido: { leitura: LeituraPrivadaDoSite | null; canalId: string; hoje: string }
+beforeAll(async () => { pedido = { leitura: await leituraDe(S), canalId: C, hoje: HOJE } })
 
 describe('o token de edição', () => {
   it('um objeto de fora (forjado, sem passar pela guarda) não abre nada: negado e nenhuma consulta', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)], yt_own_video_daily: [diario('v1', d(3), 4)] })
-    // @ts-expect-error literal não é um EdicaoDoSite
-    const forjado: EdicaoDoSite = { siteId: S }
-    expect(await lerAlcance(db.client, { ...pedido, edicao: forjado })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(db.client, { ...pedido, edicao: forjado, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    // @ts-expect-error literal não é um LeituraPrivadaDoSite
+    const forjado: LeituraPrivadaDoSite = { siteId: S }
+    expect(await lerAlcance(db.client, { ...pedido, leitura: forjado })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, leitura: forjado, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('o site das consultas é o do token, não outro: dado de outro site não aparece', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)] })
-    const r = await lerAlcance(db.client, { ...pedido, edicao: await edicaoDe('outro-site') })
+    const r = await lerAlcance(db.client, { ...pedido, leitura: await leituraDe('outro-site') })
     expect(r).toMatchObject({ acesso: 'ok', dado: { linhas: [] } })
   })
 })
@@ -45,7 +47,7 @@ describe('o token de edição', () => {
 describe('lerAlcance', () => {
   it('quem não edita o site: negado e NENHUMA consulta', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)] })
-    expect(await lerAlcance(db.client, { ...pedido, edicao: null })).toEqual({ acesso: 'negado' })
+    expect(await lerAlcance(db.client, { ...pedido, leitura: null })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('tabelas vazias: ok com listas vazias (o modelo decide a frase), nunca um zero', async () => {
@@ -160,8 +162,8 @@ describe('lerAlcance', () => {
 describe('lerDiario', () => {
   it('negado: nenhuma consulta', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)] })
-    expect(await lerDiario(db.client, { ...pedido, edicao: null, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(db.client, { ...pedido, edicao: null, ytIds: [] })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, leitura: null, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, leitura: null, ytIds: [] })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('lista de vídeos vazia: não lê linhas, mas lê o último dia do canal (canal sem longo acompanhado com o diário cheio não é "nunca coletado")', async () => {
@@ -522,6 +524,12 @@ describe('lerDiario: cobertura (a dieta do diário, D13)', () => {
     expect(r.linhas).toEqual([{ ytId: 'v1', dia: d(5), views: 1, ...SEM_MEDIAS }])
     expect(r.ultimoDia).toBe(d(5))
   })
+  it('cobertura com o mesmo id de vídeo em OUTRO canal não vaza (E17 passo 0, prova do filtro de canal da cobertura por vídeo)', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(5), 1)], yt_own_video_coverage: [cobertura('v1', d(30), d(0), { channel_id: 'outro-canal' })] })
+    const r = await lerOk(db, ['v1'])
+    expect(r.linhas).toEqual([{ ytId: 'v1', dia: d(5), views: 1, ...SEM_MEDIAS }])
+    expect(r.ultimoDia).toBe(d(5))
+  })
   it('intervalo que termina antes da janela não gera linha', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(2), 1)], yt_own_video_coverage: [cobertura('v1', d(100), d(60)), cobertura('v1', d(50), d(2))] })
     const r = await lerOk(db, ['v1'])
@@ -587,7 +595,7 @@ describe('lerDiario: cobertura (a dieta do diário, D13)', () => {
   })
   it('sem prova de acesso: negado e NENHUMA consulta, nem à cobertura', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(6), 5)], yt_own_video_coverage: [cobertura('v1', d(7), d(3))] })
-    expect(await lerDiario(db.client, { ...pedido, edicao: null, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, leitura: null, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('o teto de vídeos continua valendo: a cobertura dos vídeos além do teto não é lida', async () => {
@@ -596,5 +604,27 @@ describe('lerDiario: cobertura (a dieta do diário, D13)', () => {
     const r = await lerOk(db, ytIds)
     expect(new Set(r.linhas.map(l => l.ytId)).size).toBe(TETO_VIDEOS_DIARIO)
     expect(r.foraDoTeto).toEqual(ytIds.slice(TETO_VIDEOS_DIARIO))
+  })
+})
+
+describe('o token de LEITURA (E17 passo 0): quem só tem o direito também lê', () => {
+  it('com o token de leitura nascido do DIREITO, sem edição, os dois leitores leem', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)], yt_own_video_daily: [diario('v1', d(3), 4)] })
+    const leitura = await leituraPorDireitoDe('7c1d2e3f-5a47-4d0e-9b1c-7e6a2d4f8a99')
+    expect(await lerAlcance(db.client, { leitura, canalId: C, hoje: HOJE })).toMatchObject({ acesso: 'ok' })
+    expect(await lerDiario(db.client, { leitura, canalId: C, hoje: HOJE, ytIds: ['v1'] })).toMatchObject({ acesso: 'ok' })
+  })
+  it('com um EdicaoDoSite no lugar do token (por cast) os leitores negam e não consultam nada', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)] })
+    const leitura = (await edicaoDe(S)) as unknown as LeituraPrivadaDoSite
+    expect(await lerAlcance(db.client, { leitura, canalId: C, hoje: HOJE })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { leitura, canalId: C, hoje: HOJE, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+  it('com leitura null os leitores negam e não consultam nada', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [] })
+    expect(await lerAlcance(db.client, { leitura: null, canalId: C, hoje: HOJE })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { leitura: null, canalId: C, hoje: HOJE, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
   })
 })

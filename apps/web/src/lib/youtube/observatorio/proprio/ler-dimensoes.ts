@@ -1,6 +1,6 @@
 // A5 · E11 · Tarefa 11: leitores de servidor das dimensões do canal próprio (origem, aparelho, país, inscrito, alcance por
 // origem e aparelho) e do detalhe da origem. Só leitura, sem tela. O molde é o de `ler.ts`:
-//   - o acesso é a PROVA de edição do site (`EdicaoDoSite`): sem prova (ou objeto forjado) = 'negado' SEM consultar nada;
+//   - o acesso é a PROVA de leitura privada do site (`LeituraPrivadaDoSite`): sem prova (ou objeto forjado) = 'negado' SEM consultar nada;
 //   - toda consulta filtra por site (o da prova) E por canal; janela de datas obrigatória (máximo JANELA_MAX_DIAS), teto de vídeos;
 //   - leitura paginada (o PostgREST corta em 1.000): passar do teto de linhas ou erro de banco é LANÇADO (`ErroLeituraDimensoes`),
 //     nunca lista vazia nem corte em silêncio;
@@ -21,7 +21,7 @@ import {
   BENIGNOS, CONJUNTOS_DIMENSOES, classificarConjunto, rotuloDoValor,
   type ConjuntoDim, type ConjuntoDimensoes, type DiaLido, type DiaYt, type EstadoConjunto, type LinhaBasica,
 } from './dimensoes-estado'
-import { edicaoValida } from './edicao'
+import { leituraValida } from './leitura-privada'
 import { TIPO_ALCANCE, type Pedido } from './ler'
 import type { Privado } from './tipos'
 
@@ -152,7 +152,7 @@ function diaExiste(s: string): boolean {
 
 /** `null` = negado (sem consulta). Janela inválida lança, ainda antes de qualquer consulta. */
 function alvoDe(p: PedidoDimensoes): Alvo | null {
-  if (!edicaoValida(p.edicao) || !UUID.test(p.canalId)) return null
+  if (!leituraValida(p.leitura) || !UUID.test(p.canalId)) return null
   // Teto que não é número finito positivo faria `todas.length > teto` nunca valer: recusa antes de ler (como `coleta/paginar.ts`).
   if (p.tetoLinhas !== undefined && (!Number.isFinite(p.tetoLinhas) || p.tetoLinhas <= 0)) throw new RangeError('teto de linhas inválido: precisa ser um número finito maior que zero')
   if (!diaExiste(p.de) || !diaExiste(p.ate) || p.de > p.ate) throw new RangeError('janela de leitura inválida: as datas precisam existir e "de" não pode ser depois de "ate"')
@@ -160,7 +160,7 @@ function alvoDe(p: PedidoDimensoes): Alvo | null {
   if (n > JANELA_MAX_DIAS) throw new RangeError(`janela de leitura de ${n} dias passa do máximo de ${JANELA_MAX_DIAS}`)
   const ytIds = [...new Set(p.ytIds)].filter(id => ID_VIDEO.test(id)).slice(0, TETO_VIDEOS_DIMENSOES)
   const dias = Array.from({ length: n }, (_, i) => addDays(p.de, i))
-  return { siteId: p.edicao.siteId, canalId: p.canalId, ytIds, de: p.de, ate: p.ate, dias, teto: p.tetoLinhas ?? TETO_LINHAS_PADRAO, env: p.env ?? process.env }
+  return { siteId: p.leitura.siteId, canalId: p.canalId, ytIds, de: p.de, ate: p.ate, dias, teto: p.tetoLinhas ?? TETO_LINHAS_PADRAO, env: p.env ?? process.env }
 }
 
 // ---------------------------------------------------------------------------------------------------------------

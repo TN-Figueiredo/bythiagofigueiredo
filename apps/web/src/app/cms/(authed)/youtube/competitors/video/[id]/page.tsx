@@ -43,8 +43,8 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
     const base = buildProprioVideoBase(obs, id, flat)
     if (!base) throw new Error(`Vídeo próprio ${id}: o cartão não foi achado no conjunto do canal ${proprio.id}`)
     // UMA leitura do dado privado (alcance e diário do canal: as réguas e o normal da faixa precisam dos outros vídeos), depois da guarda de edição; erro de leitura LANÇA (D5)
-    const edicao = await podeVerPrivado(siteId)
-    const dados = await lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, edicao })
+    const leitura = await podeVerPrivado(siteId)
+    const dados = await lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura })
     // os blocos nascem aqui, no servidor, já em texto: só a `View` desce ao cliente (quem só lê o site recebe `acesso: 'negado'` e nenhum número privado)
     const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje: dayPt(new Date(now)), dm: dmDia, hrefVideo: hrefDeOutroVideo(flat, proprio.id) })
     return (

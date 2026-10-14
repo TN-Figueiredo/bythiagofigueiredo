@@ -15,8 +15,8 @@ import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import { loadOwnMenuRows } from '@/lib/youtube/observatorio/own-menu'
 import { createFmt } from '@/lib/youtube/observatorio/fmt'
 import { createClock } from '@/lib/youtube/observatorio/time'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
-import { longosAcompanhadosDe, podeVerPrivado } from '../_proprio/dados'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { acessoPrivado, longosAcompanhadosDe } from '../_proprio/dados'
 import { ownMenuFromRows, type OwnMenu } from './own-menu'
 import { COOKIE_MEU_CANAL, parseMeuCanal } from './meu-canal-lembrado'
 
@@ -56,8 +56,8 @@ export async function openObservatoryPage<T = undefined>(extra?: (siteId: string
 
 export interface ChannelPage {
   siteId: string; now: number; obs: Observatory | null; canEdit: boolean
-  /** A prova de que o visitante edita o site (a MESMA guarda de edição que dá `canEdit`), ou null. É a única chave do dado privado do canal próprio: objeto de servidor, nunca vai para um componente cliente. */
-  edicao: EdicaoDoSite | null
+  /** A prova de que o visitante pode LER o desempenho privado do site (edita, ou tem o direito concedido), ou null. É a única chave do dado privado do canal próprio: objeto de servidor, nunca vai para um componente cliente. Não autoriza escrita. */
+  leitura: LeituraPrivadaDoSite | null
   /** Os ytIds dos longos acompanhados do canal, se ele for próprio (mais novo primeiro); [] para concorrente e para canal não encontrado. */
   ownYtIds: string[]
   /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`), ou null. */
@@ -70,7 +70,7 @@ export interface ChannelPage {
  * Entry of the channel page. The access check comes FIRST (same two exits as openObservatoryPage); only then is the
  * one-channel dataset read. `obs` null = the id is not a channel of this site (unknown, removed, another site's): the page
  * says so inside its frame, with status 200, and nothing is thrown or sent to Sentry. A failed read still throws.
- * `canEdit` is the edit permission of the site (the page asks the admin permission on top of it for what only admins do); `edicao` is the same answer as a token (ONE edit guard, never a second one). A failing guard is fail-closed: no token, canEdit false, the error goes to Sentry.
+ * `canEdit` is the edit permission of the site, taken from `acesso.edita` (the page asks the admin permission on top of it for what only admins do); it is a hint for the screen, every write action asks its own edit guard. `leitura` is the token of private reading (who edits, or who holds the granted right). A failing guard is fail-closed: no token, canEdit false, the error goes to Sentry.
  * `owns`: the own channels of the site (light read, same guard, in parallel with the channel's set); a failed read throws, it never becomes an empty menu.
  */
 export async function openChannelPage(channelId: string): Promise<ChannelPage> {
@@ -78,14 +78,14 @@ export async function openChannelPage(channelId: string): Promise<ChannelPage> {
   const access = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
   const now = observatoryNow()
-  const [ds, edicao, ownRows, meuCanalLembrado] = await Promise.all([
+  const [ds, acesso, ownRows, meuCanalLembrado] = await Promise.all([
     loadChannelDataset(siteId, channelId, now),
-    podeVerPrivado(siteId),
+    acessoPrivado(siteId),
     loadOwnMenuRows(siteId),
     lerMeuCanalLembrado(),
   ])
   const obs = ds ? createObservatory(ds) : null
   // o carregador casa o id sem distinguir maiúsculas (uuid): o canal próprio é achado do mesmo jeito
   const proprio = obs ? (obs.channel(channelId.toLowerCase()) ?? obs.channel(channelId)) : undefined
-  return { siteId, now, obs, canEdit: edicao != null, edicao, ownYtIds: obs && proprio?.own ? longosAcompanhadosDe(obs, proprio.id) : [], meuCanalLembrado, owns: ownMenuFromRows(ownRows, obs ? obs.fmt : createFmt(createClock(now, now, now)), { lembrado: meuCanalLembrado, agora: now }) }
+  return { siteId, now, obs, canEdit: acesso.edita, leitura: acesso.leitura, ownYtIds: obs && proprio?.own ? longosAcompanhadosDe(obs, proprio.id) : [], meuCanalLembrado, owns: ownMenuFromRows(ownRows, obs ? obs.fmt : createFmt(createClock(now, now, now)), { lembrado: meuCanalLembrado, agora: now }) }
 }
