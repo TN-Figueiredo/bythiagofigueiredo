@@ -19,7 +19,7 @@
   var abre = { 'comandos-1': 'b', 'comandos-1b': 'b', 'comandos-2': 'a', refutado: '' }[E] || '';
   if (E === 'bloqueado') IT[0].tempo = 'blq';
   var itens = (vazia || nm) ? [] : IT;
-  var LINHA = "npm run -s obs:arquivo | ssh forja 'bash -s'";
+  var LINHA = "cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'";
   var mais = itens.length ? Math.max.apply(null, itens.map(function(i){ return i.dias; })) : 0;
 
   function faixa(d){ return d >= 60 ? 'vm' : d >= 30 ? 'am' : ''; }
@@ -56,6 +56,7 @@
         titulo = 'A cópia nova está verificada. A linha abaixo apaga a cópia antiga dos ' + sujeito + '.';
       }
       corpo = '<ol class="p7-pas"><li>No Mac, rode esta linha: <span class="p7-sh"><pre><code>' + esc(LINHA) + '</code></pre><button type="button" class="btn small" data-copiar="' + i.id + '" aria-label="Copiar a linha do passo 1">Copiar</button></span></li>' +
+        '<li>Confira a última linha que apareceu: tem de começar com <code>OBS-ARQUIVO:</code>. Se não começar, nada rodou.</li>' +
         '<li>Espere: a página confirma sozinha em até 24 horas' + (i.tempo === 2 ? ', e o item sai da lista' : '') + '.</li>' +
         '<li>Rodou a linha? <button type="button" class="btn" data-rodei="' + i.id + '">Já rodei</button></li></ol>' + trava;
     }

@@ -112,7 +112,7 @@ Site (`~/Workspace/bythiagofigueiredo`):
 | `apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts` (novo) | Leitura e frases do `pode-desligar`, puras |
 | `apps/web/test/youtube/observatorio/arquivo-pode-desligar.test.ts` (novo) | Item 149, parte do comando |
 | `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (alterado) | Subcomando `pode-desligar` |
-| `apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts`, `pendencias-script.ts` (novos), `cli.ts`, `scripts/obs-arquivo.ts`, `package.json` da raiz (alterados) | Emenda da peça 7 (Tarefa 7a): subcomando `pendencias`, credencial de `~/.config/obs-arquivo/db-url`, o script que vai à forja, `npm run -s obs:arquivo` |
+| `apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts`, `pendencias-script.ts`, `escrever.ts` (novos), `cli.ts`, `scripts/obs-arquivo.ts`, `package.json` da raiz (alterados) | Emenda da peça 7 (Tarefa 7a): subcomando `pendencias`, credencial de `~/.config/obs-arquivo/db-url`, o script que vai à forja, `npm run -s obs:arquivo` |
 | `apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts`, `arquivo-pendencias-bash.test.ts`, `arquivo-obs-arquivo-npm.test.ts` (novos) | Tarefa 7a: códigos 0/1/2, script de falha, conferência antes de apagar, idempotência, script cortado, a linha de verdade |
 
 Arquivos de comandos do dono (`.superpowers/sdd/manutencao-nas/m3b/`, fora do git; saídas em `saidas/`):
@@ -134,7 +134,7 @@ Arquivos de comandos do dono (`.superpowers/sdd/manutencao-nas/m3b/`, fora do gi
 | `m3b-casa-scrub.sh` | NAS (`sudo`, senha digitada) | O scrub do pool depois de religar (K6) |
 | `m3b-restaurar.sh` | NAS (em `_recebendo`) | Restaurar do B2 pelo `fileId`, sob a trava do copiador |
 | `m3b-desfazer-forja.sh` | forja | Volta atrás (depois de tirar as linhas do cron por `crontab -e`) |
-| `m3b-obs-arquivo-credencial.sh` | Mac (só `~/.config/obs-arquivo/`) | A credencial do `npm run -s obs:arquivo`, digitada sem eco (emenda da peça 7, Tarefa 8a) |
+| `m3b-obs-arquivo-credencial.sh` | Mac (`~/.config/obs-arquivo/`) e banco de produção (**só** `alter role obs_arquivo_leitor ... password`) | Define uma vez a senha do papel de leitura e grava a conexão do `npm run -s obs:arquivo`, tudo digitado sem eco (emenda da peça 7, Tarefa 8a) |
 
 ---
 
@@ -5135,18 +5135,18 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 
 ## Emenda de 14/10: `obs:arquivo` (peça 7)
 
-**Por quê.** A peça 7 (fila "Saíram do YouTube", aprovada pelo dono em 14/10) dá ao dono **uma linha fixa, igual nos três tempos**: `npm run -s obs:arquivo | ssh forja 'bash -s'` (com `-s`: E-D1 do plano do site; a peça aprovada não tem o `-s` e volta ao dono). O Mac lê as pendências do site, imprime **um script `bash`** e o `ssh` o entrega à forja pela entrada, sem arquivo intermediário e sem `scp`. A leitura (`obs_archive_owner_pending`, C12) e o leitor puro (`pendencias.ts`) são da Tarefa E1 do plano do site; aqui ficam o subcomando, a credencial, o script impresso, o `package.json` e o passo do dono. Fatos: `.superpowers/sdd/manutencao-nas/fatos-peca7-yannis.md`, `fatos-peca7-phil.md`.
+**Por quê.** A peça 7 (fila "Saíram do YouTube", aprovada pelo dono em 14/10) dá ao dono **uma linha fixa, igual nos três tempos**: `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` (com `cd` e com `-s`: E-D1 do plano do site; decisão do dono de 14/10, a peça já foi atualizada). **Toda execução, inclusive a de falha, termina numa linha `OBS-ARQUIVO: <o que fez>`; sem essa linha no fim, a tela e o runbook dizem "nada rodou".** O Mac lê as pendências do site, imprime **um script `bash`** e o `ssh` o entrega à forja pela entrada, sem arquivo intermediário e sem `scp`. A leitura (`obs_archive_owner_pending`, C12) e o leitor puro (`pendencias.ts`) são da Tarefa E1 do plano do site; aqui ficam o subcomando, a credencial, o script impresso, o `package.json` e o passo do dono. Fatos: `.superpowers/sdd/manutencao-nas/fatos-peca7-yannis.md`, `fatos-peca7-phil.md`.
 
 **Decisões da emenda**
 
 | # | Decisão | Motivo |
 |---|---|---|
-| D-F21 | **`pendencias` não tem opção nenhuma** (`--site` incluído: o site é o padrão do `cli.ts`) e é o único subcomando que **lê a conexão de um arquivo**, `~/.config/obs-arquivo/db-url` (pasta `700`, arquivo `600`, uma linha `postgres://` ou `postgresql://`). `OBS_ARQUIVO_DB_URL` da sessão é **ignorada** por ele | Requisitos 2 e 3: a linha é fixa e não carrega segredo. Uma fonte só: se a variável valesse, a mesma linha leria bancos diferentes conforme o terminal. O arquivo é gravado pelo dono, com a conexão digitada sem eco (`m3b-obs-arquivo-credencial.sh`); o Keychain seria mais forte, mas o requisito pede arquivo e o `pode-desligar` já pede a conexão a cada uso |
-| D-F22 | **Códigos de saída do Mac:** `2` = arquivo da credencial ausente, legível por outros, sem `HOME` ou fora da forma (mensagem em português, uma linha, no `stderr`, com o caminho e o `.sh` que o grava, nunca o conteúdo); `1` = não conectou, a função falhou ou a leitura não está na forma do C12 (`lerPendencias` `{ ok: false }`), ou há tempo que este código não sabe gerar (`copiar` até a M9); `0` = script gerado. **Em todo código diferente de 0 a saída padrão leva um script de falha** (`echo` da frase no `stderr` da forja e `exit 1`): sem ele, `bash -s` com entrada vazia sairia `0` e o `ssh` também | O sistema falha em verde: o código de saída da linha é o do `ssh`, não o do `npm`. "Não consegui ler" nunca vira "nada pendente" |
-| D-F23 | **A saída padrão de `pendencias` é só o script;** tudo o que é para o dono ler no Mac vai ao `stderr` (uma linha de resumo no sucesso). O `readline` não é criado para `pendencias` | Qualquer linha a mais no `stdout` vira comando na forja |
-| D-F24 | **O script impresso é seguro por construção:** (a) o corpo inteiro numa função, chamada só na última linha (script cortado no meio é erro de sintaxe ou não chama nada: nada roda); (b) recusa com `3` se `hostname -s` não for `forja` (lido em 14/10: `forja`); (c) **`apaga_conferido`** só apaga com o filho montado (`mountpoint -q`) e com a sentinela `.arquivo-vivo`, com a versão nova presente e com o sha256 esperado, e com o arquivo antigo com o sha256 que o site informou; arquivo já ausente é `JA-APAGADO` (rodar duas vezes não faz mal); qualquer conferência que falha é `PULADO` com o motivo, nada apagado, e o script termina com `1`; (d) os argumentos vão entre aspas simples e já foram validados pelo `CAMINHO_SEGURO` do leitor (sem aspas, `$`, crase, espaço, `..`); (e) o B2 não é apagado pelo script: ele imprime `B2-PAINEL: <nome>` para o painel (`02` §11.3) | Requisito 5. A conferência é na forja, no momento do `rm`, contra o que o site registrou: nunca "apagar o que tiver esse nome" |
-| D-F25 | **Na M3b o script só diz o que espera** (tempo `sem_comando`: `ESPERA-COMANDO <item>`; `conferir_b2`: `ESPERA-B2 <item>`; `bloqueado`: `BLOQUEADO <item>`) e só `apagar_antigas` gera `apaga_conferido`. `copiar` é recusado (código 1) até a M9 trazer o passo (o arquivo novo tem de chegar a `_recebendo/` e o `expurgar` é dela) | E-D3 do plano do site: a M3b só emite `sem_comando`. O `apaga_conferido` entra já porque é o requisito 5 e é testável sem a M9; o resto seria desenho da M9 |
-| D-F26 | **De fora do país é condicional:** `ssh forja` vai pelo IP da tailnet (`~/.ssh/config`: `Host forja` → `100.89.6.27`, lido pelo Yannis em 14/10), então a linha funciona **com o Tailscale ligado no Mac e a forja ligada e com internet**. Sem isso o `ssh` sai `255` e nada roda na forja; o site não muda | Requisito 6. Não verificado estando de fato fora do país (abaixo, NÃO VERIFICADO) |
+| D-F21 | **`pendencias` não tem opção nenhuma** (`--site` incluído: o site é resolvido **dentro do C12**, com `p_site` nulo) e é o único subcomando que **lê a conexão de um arquivo**, `~/.config/obs-arquivo/db-url` (pasta `700` e arquivo `600`, os dois conferidos; uma linha `postgres://` ou `postgresql://`). `OBS_ARQUIVO_DB_URL` da sessão é **ignorada** por ele. **A credencial é a de um papel do banco só de leitura, `obs_arquivo_leitor`** (decisão do dono, 14/10), que só executa `obs_archive_owner_pending` e mais nada (a migration que o cria está na parte 7 da Tarefa E1 do site, sem senha). `lerUrlDoBanco` **recusa** o usuário `postgres` (ou `postgres.<ref>`), a porta `6543` (modo transação) e qualquer URL que não seja do **Session pooler** (porta `5432`, IPv4). A senha o dono define uma vez, fora do repositório, pelo `m3b-obs-arquivo-credencial.sh` (Tarefa 8a), digitada sem eco; o `.sh` tira a pasta do Time Machine (`tmutil addexclusion`) | Requisitos 2 e 3: a linha é fixa e não carrega segredo. Uma fonte só: se a variável valesse, a mesma linha leria bancos diferentes conforme o terminal. O papel só de leitura troca "a senha-mestra do banco de produção num arquivo que o backup copia" (Phil I7) por uma credencial que, vazada, só consegue ler a lista do C12 (conteúdo: ids de canal e de vídeo, sem nome nem texto de terceiro). A conexão direta do Supabase é IPv6; de hotel ou rede móvel no exterior só o pooler em modo sessão chega (Phil I6; spec `02` l.42 e `05` l.493) |
+| D-F22 | **Códigos de saída do Mac:** `2` = arquivo da credencial ausente, legível por outros, pasta aberta, sem `HOME`, fora da forma ou com papel/porta recusados (mensagem em português, uma linha, no `stderr`, com o caminho e o `.sh` que o grava, nunca o conteúdo); `1` = não conectou (timeout de 15 s), a função falhou (inclusive `site_ambiguo`) ou a leitura não está na forma do C12 (`lerPendencias` `{ ok: false }`), ou há tempo que este código não sabe gerar (`copiar` até a M9); `0` = script gerado. **Em todo código diferente de 0 a saída padrão leva um script de falha** (`echo 'OBS-ARQUIVO: NÃO RODOU: <frase>' >&2` na forja e `exit 1`): sem ele, `bash -s` com entrada vazia sairia `0` e o `ssh` também. **Envelope único:** o `pendencias` é despachado em `rodar` **antes** de `d.sql === null` e de qualquer resolução de site, com `try/catch` próprio, e toda `Saida` com código ≠ 0 vira `{ codigo, saida: scriptDeFalha(frase), erros: [frase] }`; na borda, `saidaSegura` (pura, em `pendencias-script.ts`) nunca deixa passar `r.saida` cru: se `codigo !== 0` e `saida[0] !== '#!/bin/bash'`, escreve `scriptDeFalha` da primeira linha de `erros` (Yannis I1). **Limite conhecido:** falha antes do `main` (`node_modules` ausente, erro de compilação do `tsx`, Node morto, script ausente em checkout velho com `-s`) deixa o `stdout` vazio e o `ssh` sai `0`: por isso a regra do dono, **sem a linha final `OBS-ARQUIVO:` nada rodou**, vale na tela, no runbook e nos blocos 7b e 7c | O sistema falha em verde: o código de saída da linha é o do `ssh`, não o do `npm`. "Não consegui ler" nunca vira "nada pendente" |
+| D-F23 | **A saída padrão de `pendencias` é só o script;** tudo o que é para o dono ler no Mac vai ao `stderr` (uma linha de resumo no sucesso). O `readline` não é criado para `pendencias`. O script é escrito por `escreverTudo` (`await new Promise(ok => process.stdout.write(texto, ok))`) e o código sai por `process.exitCode`, nunca por `process.exit` logo após o `write` | Qualquer linha a mais no `stdout` vira comando na forja. Medido (Yannis I3, macOS): `write` + `process.exit` num pipe corta em 65.536 bytes; o script de hoje tem ~2,5 KB, mas na M9 cada `apaga_conferido` tem ~200 bytes e passa de 64 KB com ~300 arquivos |
+| D-F24 | **O script impresso é seguro por construção:** (a) o corpo inteiro numa função, **chamada na mesma linha do `}` que a fecha** (`}; obs_arquivo_main; exit $?`), mais um `trap ... EXIT` logo no começo que, se a função nunca começou, escreve `OBS-ARQUIVO: NÃO RODOU: o script chegou incompleto; nada feito` e sai `1` (sonda de Phil e Yannis: com a chamada em linha própria, o corte de 1 linha deixava a função definida, nunca chamada, e a forja saía `0` calada); (b) recusa com `3` se `hostname -s` não for `forja` (lido em 14/10: `forja`); (c) **`apaga_conferido`** só apaga com o filho montado (`mountpoint -q`) e com a sentinela `.arquivo-vivo`, com a versão nova presente e com o sha256 esperado, e com o arquivo antigo com o sha256 que o site informou; arquivo já ausente é `JA-APAGADO` (rodar duas vezes não faz mal); **`rm` que falha e o arquivo continua lá é `PULADO: o rm falhou`** (conta como falha); qualquer conferência que falha é `PULADO` com o motivo, nada apagado, e o script termina com `1`; (d) **todo valor que vem do banco é interpolado entre aspas simples** (`aspas()`), inclusive nas linhas `ESPERA-*` e `BLOQUEADO`, e já foi validado pelo leitor (`CAMINHO_SEGURO`, `item_id`, `channel_ref`, `youtube_id`); (e) o B2 não é apagado pelo script: ele imprime `B2-PAINEL: <nome>` para o painel (`02` §11.3); (f) **só quando há ao menos um `apaga_conferido`**, antes do primeiro, o script toma a trava do copiador (`exec 9<"${ARQ_TRAVA_COPIADOR:-/opt/arquivo/copiador.lock}" && flock -n 9`, a mesma do `m3b-restaurar.sh`); ocupada ou ausente: `OBS-ARQUIVO: NÃO RODOU: o copiador está rodando; nada apagado, rode de novo em alguns minutos` e `1`; (g) `ARQ_MONTAGEM_ESCRITA` e `ARQ_TRAVA_COPIADOR` são lidas **de propósito** pelo script em produção (as mesmas variáveis do kit; ganchos de teste): a conferência por sha256 impede dano; (h) **toda saída do script, boa ou má, termina numa linha `OBS-ARQUIVO: ...`** | Requisito 5. A conferência é na forja, no momento do `rm`, contra o que o site registrou: nunca "apagar o que tiver esse nome". A trava existe porque o copiador lê e atesta (sha256, `nas_attested_at`, ausência) o mesmo filho: um `rm` simultâneo daria "ausente" ou atestado falso (Phil I8, Yannis M1) |
+| D-F25 | **Na M3b o script só diz o que espera** (tempo `sem_comando`: `ESPERA-COMANDO <item>`; `conferir_b2`: `ESPERA-B2 <item>`; `bloqueado`: `BLOQUEADO <item>`) e só `apagar_antigas` gera `apaga_conferido`. `copiar` é recusado (código 1) até a M9 trazer o passo (o arquivo novo tem de chegar a `_recebendo/` e o `expurgar` é dela). **A M9 reaproveita o `apaga_conferido` com D-F24 (c) e (f) já aplicados, no mesmo commit que leva o leitor ao `versao: 2`** (Phil §4b) | E-D3 do plano do site: a M3b só emite `sem_comando`. O `apaga_conferido` entra já porque é o requisito 5 e é testável sem a M9; o resto seria desenho da M9. A tela da M5 diz "nada a rodar agora" enquanto todos os itens estiverem em `sem_comando`: a cor por idade é só lembrete (Phil §4a) |
+| D-F26 | **De fora do país é condicional, com três pernas:** `ssh forja` vai pelo IP da tailnet (`~/.ssh/config`: `Host forja` → `100.89.6.27`, lido pelo Yannis em 14/10), então a linha funciona **com o Tailscale ligado no Mac, a forja ligada e com internet, e a conexão do banco pelo Session pooler (IPv4)**. Sem a primeira ou a segunda o `ssh` sai `255` e nada roda na forja; sem a terceira, o `pg` falha em 15 s (`connectionTimeoutMillis`) com código 1. O site não muda | Requisito 6. Não verificado estando de fato fora do país (abaixo, NÃO VERIFICADO); o bloco 7b é rodado uma vez com o IPv6 do Mac desligado (`networksetup -setv6off Wi-Fi` e depois `-setv6automatic Wi-Fi`) com a expectativa de código 0 |
 
 ### Task 7a (emenda): o subcomando `pendencias` e o `npm run -s obs:arquivo`
 
@@ -5156,15 +5156,16 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts`
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts`
 - Modify: `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (subcomando `pendencias`; `Saida` ganha `erros?: string[]`, que o script imprime no `stderr`)
-- Modify: `scripts/obs-arquivo.ts` (credencial do arquivo para `pendencias`; `stdout` só o script; script de falha em todo código ≠ 0, inclusive no `catch` de "erro inesperado")
+- Create: `apps/web/src/lib/youtube/observatorio/arquivo/escrever.ts` (`escreverTudo(texto)`: escrita drenada no `stdout`)
+- Modify: `scripts/obs-arquivo.ts` (credencial do arquivo para `pendencias`; conexão com `connectionTimeoutMillis`; `stdout` só o script, por `escreverTudo`; `process.exitCode` no lugar de `process.exit`; script de falha em todo código ≠ 0, inclusive no `catch` de "erro inesperado")
 - Modify: `package.json` (raiz): `"obs:arquivo": "tsx scripts/obs-arquivo.ts pendencias"`
-- Test: `apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts`, `apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts`, `apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts`
+- Test: `apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts`, `apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts`, `apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts`, fixture `apps/web/test/fixtures/escreve-grande.ts`
 
 **Interfaces:**
 - Consumes: `lerPendencias`, `LeituraPendencias`, `PendenciaDoDono`, `LINHA_DO_DONO` de `apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts` (site, Tarefa E1); C12; `ClienteSql`, `rodar`, `interpretar`, `USO`, `DepsDoComando`, `Saida` de `cli.ts`; `arquivo-fakes.ts` (`SITE`, `AGORA`, `discoFalso`, `baixarFalso`).
-- Produces: `CAMINHO_DA_CREDENCIAL = '.config/obs-arquivo/db-url'` (relativo ao `HOME`); `lerUrlDoBanco(env, ler: (caminho: string) => Promise<{ modo: number; texto: string } | null>): Promise<{ ok: true; url: string } | { ok: false; mensagem: string }>`; `scriptDasPendencias(l: Extract<LeituraPendencias, { ok: true }>, o: { versao: string }): { ok: true; linhas: string[]; resumo: string } | { ok: false; porque: string }`; `scriptDeFalha(frase: string): string[]`; o subcomando `npx tsx scripts/obs-arquivo.ts pendencias` e o script `npm run -s obs:arquivo`.
+- Produces: `CAMINHO_DA_CREDENCIAL = '.config/obs-arquivo/db-url'` (relativo ao `HOME`); `lerUrlDoBanco(env, ler: (caminho: string) => Promise<{ modo: number; modoPasta: number; texto: string } | null>): Promise<{ ok: true; url: string } | { ok: false; mensagem: string }>`; `scriptDasPendencias(l: Extract<LeituraPendencias, { ok: true }>, o: { versao: string }): { ok: true; linhas: string[]; resumo: string } | { ok: false; porque: string }`; `scriptDeFalha(frase: string): string[]`; `saidaSegura(r: Saida): string[]`; `escreverTudo(texto: string): Promise<void>`; o subcomando `npx tsx scripts/obs-arquivo.ts pendencias` e o script `npm run -s obs:arquivo`; a linha do dono é `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` (`LINHA_DO_DONO`).
 
-**O que acontece quando o dado não existe:** sem `HOME`, sem o arquivo, arquivo `644`, arquivo vazio ou sem `postgres://`: código `2`, a frase no `stderr`, o script de falha no `stdout` (a forja sai `1`). Banco fora, função ausente (migration não aplicada), `null` ou forma errada: código `1`, idem. Zero medido: código `0` e o script imprime `OBS-ARQUIVO: NADA PENDENTE (lido em dd/mm hh:mm)`. Itens só `sem_comando`: código `0`, uma linha `ESPERA-COMANDO` por item e `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)`; nunca "nada pendente" com item na lista. Filho desmontado, sem sentinela ou com outro sha256: `PULADO`, nada apagado, `exit 1` na forja. Script cortado: nada roda.
+**O que acontece quando o dado não existe:** sem `HOME`, sem o arquivo, arquivo `644`, pasta aberta, arquivo vazio, sem `postgres://`, com o usuário `postgres` ou com a porta `6543`: código `2`, a frase no `stderr`, o script de falha no `stdout` (a forja sai `1` e escreve `OBS-ARQUIVO: NÃO RODOU: ...`). Banco fora ou sem resposta em 15 s, função ausente (migration não aplicada), zero ou mais de um site (`site_ambiguo`), `null` ou forma errada: código `1`, idem; o texto do erro do banco nunca é ecoado. Zero medido: código `0` e o script imprime `OBS-ARQUIVO: NADA PENDENTE (lido em dd/mm hh:mm)`. Itens só `sem_comando`: código `0`, uma linha `ESPERA-COMANDO` por item e `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)`; nunca "nada pendente" com item na lista. Filho desmontado, sem sentinela ou com outro sha256: `PULADO`, nada apagado, `exit 1` na forja. Script cortado: nada roda, a forja sai ≠ 0 com `incompleto`. `rm` que falha: `PULADO`, `exit 1`. Copiador rodando (trava ocupada): nada apagado, `exit 1`.
 
 - [ ] **Step 1: Escrever os testes que falham**
 
@@ -5176,12 +5177,12 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 import { describe, it, expect } from 'vitest'
 import { interpretar, rodar, USO, type DepsDoComando } from '@/lib/youtube/observatorio/arquivo/cli'
 import { lerUrlDoBanco, CAMINHO_DA_CREDENCIAL } from '@/lib/youtube/observatorio/arquivo/credencial'
-import { scriptDasPendencias, scriptDeFalha } from '@/lib/youtube/observatorio/arquivo/pendencias-script'
+import { scriptDasPendencias, scriptDeFalha, saidaSegura } from '@/lib/youtube/observatorio/arquivo/pendencias-script'
 import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import type { ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
 import { SITE, AGORA, discoFalso, baixarFalso } from './arquivo-fakes'
 
-const URL_BOA = 'postgresql://postgres:SENHA@db.example.test:5432/postgres'
+const URL_BOA = 'postgresql://obs_arquivo_leitor.abcdefghijklmnopqrst:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres'
 const leitura = (itens: unknown[]) => ({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: itens.length, itens })
 const item = (o: Record<string, unknown> = {}) => ({ item_id: 'canal:6f1c1b9e-0000-4000-8000-000000000001', kind: 'canal', tempo: 'sem_comando',
   desde: '2026-10-01T12:00:00Z', mes: null, channel_ref: '6f1c1b9e-0000-4000-8000-000000000001', youtube_id: 'UCx', marcado_rodado_em: null,
@@ -5191,7 +5192,7 @@ function banco(resposta: unknown | Error) {
   const chamadas: string[] = []
   const sql: ClienteSql = { async query(texto) {
     chamadas.push(texto.trim())
-    if (/obs_archive_owner_pending\(\$1\)/.test(texto)) { if (resposta instanceof Error) throw resposta; return { rows: [{ r: resposta }] } }
+    if (/obs_archive_owner_pending\(null::uuid\)/.test(texto)) { if (resposta instanceof Error) throw resposta; return { rows: [{ r: resposta }] } }
     return { rows: [] }
   } }
   return { sql, chamadas }
@@ -5205,28 +5206,31 @@ describe('o subcomando pendencias', () => {
     expect(interpretar(['pendencias'], { HOME: '/h' })).toEqual({ nome: 'pendencias', site: null })
     expect(interpretar(['pendencias', '--site', SITE], { HOME: '/h' })).toEqual({ erro: expect.stringContaining('--site') })
   })
-  it('só lê: transação somente leitura, a função e o rollback', async () => {
+  it('só lê, com site nulo (como na produção): transação somente leitura, a função e o rollback, sem tocar em competitor_channels nem sites', async () => {
     const b = banco(leitura([]))
-    const r = await rodar({ nome: 'pendencias', site: SITE }, deps(b.sql))
+    const r = await rodar({ nome: 'pendencias', site: null }, deps(b.sql))
     expect(r.codigo).toBe(0)
-    expect(b.chamadas).toEqual(['begin transaction read only', 'select public.obs_archive_owner_pending($1) as r', 'rollback'])
+    expect(b.chamadas).toEqual(['begin transaction read only', 'select public.obs_archive_owner_pending(null::uuid) as r', 'rollback'])
     expect(r.saida[0]).toBe('#!/bin/bash')
     expect(r.saida.join('\n')).toContain('OBS-ARQUIVO: NADA PENDENTE')
   })
   it.each([
     ['erro do banco', Object.assign(new Error('function public.obs_archive_owner_pending(uuid) does not exist SENHA'), { code: '42883' })],
+    ['zero ou mais de um site (site_ambiguo)', Object.assign(new Error('site_ambiguo SENHA'), { code: 'P0001' })],
     ['nulo', null],
     ['forma errada', { itens: [] }],
   ])('%s: código 1, script de falha, nunca "nada pendente", sem segredo', async (_, resposta) => {
     const b = banco(resposta)
-    const r = await rodar({ nome: 'pendencias', site: SITE }, deps(b.sql))
+    const r = await rodar({ nome: 'pendencias', site: null }, deps(b.sql))
     expect(r.codigo).toBe(1)
+    expect(r.saida[0]).toBe('#!/bin/bash')
+    expect(r.saida.join('\n')).toContain('OBS-ARQUIVO: NÃO RODOU')
     expect(r.saida.join('\n')).toMatch(/exit 1/)
     expect(r.saida.join('\n')).not.toMatch(/NADA PENDENTE|NADA A RODAR|SENHA|apaga_conferido '/)
     expect((r.erros ?? []).join('\n')).not.toContain('SENHA')
   })
   it('item sem comando: espera, não apaga, e não diz "nada pendente"', async () => {
-    const r = await rodar({ nome: 'pendencias', site: SITE }, deps(banco(leitura([item()])).sql))
+    const r = await rodar({ nome: 'pendencias', site: null }, deps(banco(leitura([item()])).sql))
     expect(r.codigo).toBe(0)
     const s = r.saida.join('\n')
     expect(s).toContain('ESPERA-COMANDO canal:6f1c1b9e-0000-4000-8000-000000000001')
@@ -5234,19 +5238,32 @@ describe('o subcomando pendencias', () => {
     expect(s).not.toMatch(/NADA PENDENTE|\brm\b/)
   })
   it('copiar ainda não tem passo: código 1 (M9)', async () => {
-    const r = await rodar({ nome: 'pendencias', site: SITE }, deps(banco(leitura([item({ tempo: 'copiar' })])).sql))
+    const r = await rodar({ nome: 'pendencias', site: null }, deps(banco(leitura([item({ tempo: 'copiar' })])).sql))
     expect(r.codigo).toBe(1)
     expect(r.saida.join('\n')).toMatch(/exit 1/)
   })
-  it('o script de falha sai 1 na forja e não tem nada além de echo e exit', () => {
-    const s = scriptDeFalha("não consegui ler as pendências; nada foi feito")
+  it('sem conexão (sql nulo): script de falha, nunca texto cru que o bash da forja executaria (Yannis I1)', async () => {
+    const r = await rodar({ nome: 'pendencias', site: null }, { ...deps(banco(leitura([])).sql), sql: null })
+    expect(r.codigo).toBe(1)
+    expect(r.saida[0]).toBe('#!/bin/bash')
+    expect(r.saida.filter(l => l !== '' && !l.startsWith('#') && !/^(echo |exit 1$)/.test(l))).toEqual([])
+  })
+  it('o script de falha sai 1 na forja, termina em OBS-ARQUIVO: NÃO RODOU e não tem nada além de echo e exit', () => {
+    const s = scriptDeFalha("obs:arquivo: não consegui ler as pendências; nada foi feito")
     expect(s[0]).toBe('#!/bin/bash')
     expect(s.filter(l => l !== '' && !l.startsWith('#') && !/^(echo |exit 1$)/.test(l))).toEqual([])
+    expect(s.join('\n')).toContain("OBS-ARQUIVO: NÃO RODOU: não consegui ler")   // sem o prefixo "obs:arquivo:" repetido
+  })
+  it('saidaSegura: código ≠ 0 com saída que não é script vira script de falha, nunca texto cru (defesa na borda)', () => {
+    const s = saidaSegura({ codigo: 2, saida: ['nenhum site tem canal'], erros: ['obs:arquivo: sem site'] })
+    expect(s[0]).toBe('#!/bin/bash')
+    expect(s.join('\n')).not.toContain('nenhum site tem canal')
+    expect(saidaSegura({ codigo: 0, saida: ['#!/bin/bash', 'exit 0'] })).toEqual(['#!/bin/bash', 'exit 0'])
   })
 })
 
 describe('a credencial vem só do arquivo (D-F21, D-F22)', () => {
-  const ler = (r: { modo: number; texto: string } | null) => async () => r
+  const ler = (r: { modo: number; modoPasta?: number; texto: string } | null) => async () => r && { modoPasta: 0o700, ...r }
   it('sem HOME: erro que diz o que fazer', async () => {
     const env: NodeJS.ProcessEnv = { HOME: '/h' }
     delete env.HOME
@@ -5260,12 +5277,25 @@ describe('a credencial vem só do arquivo (D-F21, D-F22)', () => {
   it.each([[0o644], [0o640], [0o604]])('modo %o: recusa (legível por outros)', async modo => {
     expect((await lerUrlDoBanco({ HOME: '/h' }, ler({ modo, texto: URL_BOA }))).ok).toBe(false)
   })
+  it.each([[0o755], [0o750]])('pasta %o aberta: recusa (Yannis M3a)', async modoPasta => {
+    expect((await lerUrlDoBanco({ HOME: '/h' }, ler({ modo: 0o600, modoPasta, texto: URL_BOA }))).ok).toBe(false)
+  })
   it.each([[''], ['mysql://x'], [`${URL_BOA}\n${URL_BOA}`], ['postgresql://a b']])('conteúdo fora da forma (%#): recusa sem ecoar', async texto => {
     const r = await lerUrlDoBanco({ HOME: '/h' }, ler({ modo: 0o600, texto }))
     expect(r.ok).toBe(false)
     expect(!r.ok && r.mensagem).not.toContain('SENHA')
   })
-  it('600 com uma linha postgresql://: ok, com o fim de linha tirado', async () => {
+  it.each([
+    ['usuário postgres (papel que escreve)', 'postgresql://postgres.abcdefghijklmnopqrst:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres'],
+    ['usuário postgres puro', 'postgresql://postgres:SENHA@db.abcdefghijklmnopqrst.supabase.co:5432/postgres'],
+    ['porta 6543 (modo transação)', 'postgresql://obs_arquivo_leitor.abcdefghijklmnopqrst:SENHA@aws-0-sa-east-1.pooler.supabase.com:6543/postgres'],
+    ['sem porta', 'postgresql://obs_arquivo_leitor.abcdefghijklmnopqrst:SENHA@aws-0-sa-east-1.pooler.supabase.com/postgres'],
+  ])('%s: recusa sem ecoar a senha (Phil I6, I7)', async (_, texto) => {
+    const r = await lerUrlDoBanco({ HOME: '/h' }, ler({ modo: 0o600, texto }))
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.mensagem).not.toContain('SENHA')
+  })
+  it('600 numa pasta 700 com uma linha do papel de leitura no pooler (5432): ok, com o fim de linha tirado', async () => {
     expect(await lerUrlDoBanco({ HOME: '/h' }, ler({ modo: 0o600, texto: `${URL_BOA}\n` }))).toEqual({ ok: true, url: URL_BOA })
   })
 })
@@ -5277,6 +5307,14 @@ describe('scriptDasPendencias', () => {
       expect(l.ok && scriptDasPendencias(l, { versao: 't' }).ok).toBe(true)
     }
   })
+  it('toda saída termina numa linha OBS-ARQUIVO: zero, só esperando, com apagar e falha (invariante do dono)', () => {
+    const nada = lerPendencias(leitura([])), espera = lerPendencias(leitura([item()]))
+    for (const l of [nada, espera]) {
+      const s = l.ok ? scriptDasPendencias(l, { versao: 't' }) : null
+      expect(s && s.ok && s.linhas.join('\n')).toContain('OBS-ARQUIVO:')
+    }
+    expect(scriptDeFalha('x').join('\n')).toContain('OBS-ARQUIVO:')
+  })
 })
 ```
 
@@ -5287,7 +5325,7 @@ describe('scriptDasPendencias', () => {
 /** Emenda da peça 7 (M3b, D-F24): o script impresso confere antes de apagar, é idempotente e não roda cortado. */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -5306,6 +5344,8 @@ beforeEach(() => {
   falso('hostname', 'echo "${HOST_FALSO:-forja}"')
   falso('mountpoint', '[ -z "${SEM_MONTAGEM:-}" ] && [ -d "$2" ]')
   falso('sha256sum', 'command -p shasum -a 256 "$@" 2>/dev/null || command -p sha256sum "$@"')
+  falso('flock', '[ -z "${TRAVA_OCUPADA:-}" ]')   // o flock de verdade é da forja (Linux); aqui só a decisão
+  writeFileSync(join(raiz, 'copiador.lock'), '')
 })
 const leitura = (sha1 = sha('ANTIGA'), sha2 = sha('NOVA')) => lerPendencias({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: 1, itens: [{
   item_id: 'item:42', kind: 'comentario', tempo: 'apagar_antigas', desde: '2026-10-25T12:00:00Z', mes: '2026-10', channel_ref: null, youtube_id: null,
@@ -5313,10 +5353,14 @@ const leitura = (sha1 = sha('ANTIGA'), sha2 = sha('NOVA')) => lerPendencias({ ve
   apagar: [{ filho: 'texto', caminho: 'texto/2026-10/v1.csv.gz', sha256: sha1, nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: sha2 } }] }] })
 function rodarNaForja(linhas: string[], env: Record<string, string> = {}) {
   return spawnSync('bash', ['-s'], { input: linhas.join('\n') + '\n', encoding: 'utf8',
-    env: { PATH: `${bin}:/usr/bin:/bin`, HOME: raiz, ARQ_MONTAGEM_ESCRITA: M, ...env } })
+    env: { PATH: `${bin}:/usr/bin:/bin`, HOME: raiz, ARQ_MONTAGEM_ESCRITA: M, ARQ_TRAVA_COPIADOR: join(raiz, 'copiador.lock'), ...env } })
 }
 const gerar = (l = leitura()) => { if (!l.ok) throw new Error(l.porque); const s = scriptDasPendencias(l, { versao: 't' }); if (!s.ok) throw new Error(s.porque); return s.linhas }
 const antiga = () => existsSync(join(M, 'texto', 'texto', '2026-10', 'v1.csv.gz'))
+const dito = (r: { stdout: string; stderr: string }) => r.stdout + r.stderr   // invariante do dono: toda execução diz OBS-ARQUIVO:
+const espera = (n: number) => lerPendencias({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: n, itens: ['sem_comando', 'conferir_b2', 'bloqueado'].slice(0, n).map((tempo, i) => ({
+  item_id: `canal:6f1c1b9e-0000-4000-8000-00000000000${i + 1}`, kind: 'canal', tempo, desde: '2026-10-01T12:00:00Z', mes: null,
+  channel_ref: `6f1c1b9e-0000-4000-8000-00000000000${i + 1}`, youtube_id: null, marcado_rodado_em: null, apagar: [], b2_nomes: [] })) })
 
 describe('o script impresso, na forja', () => {
   it('apaga a antiga conferida, mostra o B2 para o painel, e rodar de novo não faz mal', () => {
@@ -5328,6 +5372,38 @@ describe('o script impresso, na forja', () => {
     const r2 = rodarNaForja(gerar())
     expect(r2.status).toBe(0)
     expect(r2.stdout).toContain('JA-APAGADO texto/texto/2026-10/v1.csv.gz')
+    expect(dito(r1)).toContain('OBS-ARQUIVO: FEITO')
+  })
+  it('rm que falha (arquivo continua lá) é PULADO e sai 1, nunca FEITO (Phil I2)', () => {
+    falso('rm', 'exit 1')
+    const r = rodarNaForja(gerar())
+    expect(r.status).toBe(1)
+    expect(r.stderr).toContain('PULADO texto/texto/2026-10/v1.csv.gz: o rm falhou')
+    expect(dito(r)).not.toContain('FEITO')
+    expect(antiga()).toBe(true)
+  })
+  it('copiador rodando (trava ocupada) ou trava ausente: nada apagado, sai 1, com OBS-ARQUIVO (Phil I8, Yannis M1)', () => {
+    const r = rodarNaForja(gerar(), { TRAVA_OCUPADA: '1' })
+    expect(r.status).toBe(1)
+    expect(r.stderr).toContain('OBS-ARQUIVO: NÃO RODOU: o copiador está rodando')
+    expect(antiga()).toBe(true)
+    const r2 = rodarNaForja(gerar(), { ARQ_TRAVA_COPIADOR: join(raiz, 'nao-existe.lock') })
+    expect(r2.status).toBe(1)
+    expect(r2.stderr).toContain('OBS-ARQUIVO: NÃO RODOU')
+    expect(antiga()).toBe(true)
+  })
+  it('só esperando: não pede a trava, não apaga, status 0, NADA A RODAR AGORA (3 esperando) (Phil M5)', () => {
+    const r = rodarNaForja(gerar(espera(3)), { TRAVA_OCUPADA: '1', ARQ_TRAVA_COPIADOR: join(raiz, 'nao-existe.lock') })
+    expect(r.status).toBe(0)
+    expect(r.stdout).toContain('OBS-ARQUIVO: NADA A RODAR AGORA (3 esperando)')
+    expect(r.stdout).not.toContain('APAGADO')
+  })
+  it('os valores vêm entre aspas simples: um item válido não cria arquivo nenhum além dos do beforeEach (Yannis I4)', () => {
+    const antes = readdirSync(raiz).sort()
+    const l = gerar(espera(1))
+    expect(l.join('\n')).toMatch(/echo 'ESPERA-COMANDO canal:/)
+    rodarNaForja(l)
+    expect(readdirSync(raiz).sort()).toEqual(antes)
   })
   it.each([
     ['antiga com outro conteúdo', () => leitura(sha('OUTRA')), {}],
@@ -5337,6 +5413,7 @@ describe('o script impresso, na forja', () => {
     const r = rodarNaForja(gerar(l()), env as Record<string, string>)
     expect(r.status).toBe(1)
     expect(r.stderr).toContain('PULADO')
+    expect(r.stderr).toContain('OBS-ARQUIVO: NÃO TERMINOU')
     expect(antiga()).toBe(true)
   })
   it('sem a sentinela: PULADO', () => {
@@ -5347,6 +5424,7 @@ describe('o script impresso, na forja', () => {
   it('fora da forja: sai 3 e não apaga', () => {
     const r = rodarNaForja(gerar(), { HOST_FALSO: 'mac-do-dono' })
     expect(r.status).toBe(3)
+    expect(r.stderr).toContain('OBS-ARQUIVO: NÃO RODOU: este script roda na forja')
     expect(antiga()).toBe(true)
   })
   it('sem ARQ_MONTAGEM_ESCRITA usa /mnt/arquivo/escrita (aqui ausente): PULADO, nada apagado', () => {
@@ -5355,15 +5433,25 @@ describe('o script impresso, na forja', () => {
     expect(r.status).toBe(1)
     expect(antiga()).toBe(true)
   })
-  it.each([1, 2, 5])('cortado %i linha(s) antes do fim: nada roda', corte => {
+  it.each([1, 2, 5])('cortado %i linha(s) antes do fim: nada roda, sai ≠ 0 e diz incompleto (Phil I1, Yannis I3)', corte => {
     const l = gerar()
-    rodarNaForja(l.slice(0, l.length - corte))
+    expect(l[l.length - 1]).toBe('}; obs_arquivo_main; exit $?')   // a chamada na mesma linha do }
+    const r = rodarNaForja(l.slice(0, l.length - corte))
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain('incompleto')   // vem do trap EXIT; se o bash não rodar o trap num erro de sintaxe, este teste acusa
     expect(antiga()).toBe(true)
+  })
+  it('cortado no meio da última linha: o corpo roda inteiro ou não roda, nunca pela metade', () => {
+    const l = gerar()
+    const meio = [...l.slice(0, -1), '}; obs_arquivo_main;']   // perdeu só o "exit $?"
+    const r = rodarNaForja(meio)
+    expect(dito(r)).toContain('OBS-ARQUIVO: FEITO')
+    expect(antiga()).toBe(false)
   })
 })
 ```
 
-`apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts` (a linha de verdade, sem banco: o `HOME` é uma pasta vazia, então a credencial falta):
+`apps/web/test/fixtures/escreve-grande.ts` (`import { escreverTudo } from '@/lib/youtube/observatorio/arquivo/escrever'; void escreverTudo('x'.repeat(1_000_000) + '\n')`; o `tsx` resolve o alias `@` pelo `tsconfig` do `apps/web`: se não resolver, importar por caminho relativo) e `apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts` (a linha de verdade, sem banco: o `HOME` é uma pasta vazia, então a credencial falta; prazo de 30 s por caso, o `tsx` frio na CI passa de 5 s):
 
 ```ts
 // @vitest-environment node
@@ -5384,11 +5472,24 @@ describe('npm run -s obs:arquivo', () => {
     expect(r.stderr).toContain('.config/obs-arquivo/db-url')
     expect(r.stdout.startsWith('#!/bin/bash\n')).toBe(true)
     expect(r.stdout).toMatch(/\nexit 1\n?$/)
-  })
+    // o que a forja receberia: sai 1 e a última coisa dita é a linha OBS-ARQUIVO (Yannis I2)
+    const forja = spawnSync('bash', ['-s'], { input: r.stdout, encoding: 'utf8' })
+    expect(forja.status).toBe(1)
+    expect(forja.stderr).toContain('OBS-ARQUIVO: NÃO RODOU')
+  }, 30_000)
+  it('o cd da linha: se a pasta não existe nada roda e nada chega ao ssh (a linha do dono, E-D1)', () => {
+    const r = spawnSync('bash', ['-c', 'cd /nao/existe/obs && npm run -s obs:arquivo | cat'], { encoding: 'utf8', env: env(), timeout: 30_000 })
+    expect(r.status).not.toBe(0)
+    expect(r.stdout).toBe('')
+  }, 30_000)
+  it('a escrita é drenada: 1 MB no stdout de um pipe chega inteiro (Yannis I3)', () => {
+    const r = spawnSync(process.execPath, [join(RAIZ, 'node_modules/.bin/tsx'), join(RAIZ, 'apps/web/test/fixtures/escreve-grande.ts')], { encoding: 'utf8', maxBuffer: 4_000_000, timeout: 30_000 })
+    expect(r.stdout.length).toBe(1_000_001)   // 1.000.000 de 'x' e o \n; com process.exit logo após o write o macOS entregava 65.536
+  }, 30_000)
   it('por que o -s: sem ele o npm põe o cabeçalho no stdout, que viraria comando na forja', () => {
     const r = spawnSync('npm', ['run', 'obs:arquivo'], { cwd: RAIZ, encoding: 'utf8', env: env(), timeout: 60_000 })
     expect(r.stdout.trimStart().startsWith('> ')).toBe(true)   // se o npm parar de imprimir, rever E-D1 (a linha da peça 7)
-  })
+  }, 30_000)
 })
 ```
 
@@ -5397,18 +5498,21 @@ describe('npm run -s obs:arquivo', () => {
 Run: `cd apps/web && npx vitest run test/youtube/observatorio/arquivo-pendencias-cli.test.ts test/youtube/observatorio/arquivo-pendencias-bash.test.ts test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts > /tmp/m3b-pend.txt 2>&1; grep -E "Test Files|Tests|FAIL|Failed to resolve|Missing script" /tmp/m3b-pend.txt | head -20`
 Expected: os dois primeiros por `Failed to resolve import "@/lib/youtube/observatorio/arquivo/credencial"` (ou `pendencias-script`); o terceiro por `Missing script: "obs:arquivo"`.
 
-- [ ] **Step 3: `credencial.ts`** (só `node:`/relativo). `lerUrlDoBanco(env, ler)`: `HOME` ausente ou vazio → `{ ok: false, mensagem: 'obs:arquivo: sem HOME, não sei onde está a credencial (~/.config/obs-arquivo/db-url)' }`; `ler(\`${HOME}/${CAMINHO_DA_CREDENCIAL}\`)` nulo → `'obs:arquivo: falta ~/.config/obs-arquivo/db-url. Grave com: bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh'`; `(modo & 0o077) !== 0` → `'obs:arquivo: ~/.config/obs-arquivo/db-url pode ser lido por outros; rode chmod 600 nele'`; `texto.replace(/\r?\n$/, '')` fora de `/^postgres(?:ql)?:\/\/\S+$/` → `'obs:arquivo: ~/.config/obs-arquivo/db-url não tem uma conexão postgresql:// numa linha'`. Nunca ecoa o conteúdo. `OBS_ARQUIVO_DB_URL` não é lida (D-F21). No `scripts/obs-arquivo.ts`, `ler` é `stat` (`mode & 0o777`) mais `readFile`, com `ENOENT` → `null`; outro erro de leitura → mensagem própria, código 2.
+- [ ] **Step 3: `credencial.ts`** (só `node:`/relativo). `lerUrlDoBanco(env, ler)`: `HOME` ausente ou vazio → `{ ok: false, mensagem: 'obs:arquivo: sem HOME, não sei onde está a credencial (~/.config/obs-arquivo/db-url)' }`; `ler(\`${HOME}/${CAMINHO_DA_CREDENCIAL}\`)` nulo → `'obs:arquivo: falta ~/.config/obs-arquivo/db-url. Grave com: bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh'`; `(modo & 0o077) !== 0` → `'obs:arquivo: ~/.config/obs-arquivo/db-url pode ser lido por outros; rode chmod 600 nele'`; `(modoPasta & 0o077) !== 0` → `'obs:arquivo: a pasta ~/.config/obs-arquivo pode ser lida por outros; rode chmod 700 nela'`; `texto.replace(/\r?\n$/, '')` fora de `/^postgres(?:ql)?:\/\/\S+$/` → `'obs:arquivo: ~/.config/obs-arquivo/db-url não tem uma conexão postgresql:// numa linha'`. **Forma estrita do papel de leitura (decisão do dono, D-F21):** `/^postgres(?:ql)?:\/\/obs_arquivo_leitor(?:\.[A-Za-z0-9]+)?:[^@\s]+@[^\s/:]+:5432\/postgres(?:\?\S*)?$/`; usuário `postgres` ou `postgres.<ref>` → `'obs:arquivo: a conexão guardada é a de um papel que escreve; rode o m3b-obs-arquivo-credencial.sh para guardar a do papel de leitura'`; porta `6543` ou ausente → `'obs:arquivo: use o Session pooler (porta 5432); a 6543 é modo transação'`. Nunca ecoa o conteúdo. `OBS_ARQUIVO_DB_URL` não é lida (D-F21). No `scripts/obs-arquivo.ts`, `ler` é `stat` do arquivo e da pasta (`mode & 0o777`) mais `readFile`, com `ENOENT` → `null`; outro erro de leitura → mensagem própria, código 2.
 
-- [ ] **Step 4: `pendencias-script.ts`** (puro, só `node:`/relativo). `scriptDeFalha(frase)` = `['#!/bin/bash', '# obs:arquivo: script de falha (o Mac não conseguiu gerar os passos)', \`echo ${aspas(frase)} >&2\`, 'exit 1']`, com `aspas` = aspas simples e `'` trocado por `'\''`. `scriptDasPendencias(l, { versao })`:
+- [ ] **Step 4: `pendencias-script.ts`** (puro, só `node:`/relativo). `aspas(v)` = aspas simples, com `'` trocado por `'\''`. `scriptDeFalha(frase)` = `['#!/bin/bash', '# obs:arquivo: script de falha (o Mac não conseguiu gerar os passos)', \`echo ${aspas('OBS-ARQUIVO: NÃO RODOU: ' + frase.replace(/^obs:arquivo:\s*/, ''))} >&2\`, 'exit 1']`. `saidaSegura(r)`: `r.codigo === 0` ou `r.saida[0] === '#!/bin/bash'` → `r.saida`; senão `scriptDeFalha(r.erros?.[0] ?? r.saida[0] ?? 'obs:arquivo: falha sem frase')` (nunca o texto cru). `scriptDasPendencias(l, { versao })`, em que **todo valor do banco (`item_id`, `caminho`, `sha256`, `nome` do B2) entra por `aspas()`**, também nas linhas `ESPERA-*` e `BLOQUEADO`:
 
 ```bash
 #!/bin/bash
 # obs:arquivo pendencias, lido em <lido_em ISO>, gerado por <versao>. Roda NA FORJA, pela linha da peça 7:
-#   npm run -s obs:arquivo | ssh forja 'bash -s'
-# O corpo é uma função chamada só na última linha: script cortado não roda nada.
+#   cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'
+# Toda execução termina numa linha "OBS-ARQUIVO: ..."; sem ela, nada rodou.
+# O corpo é uma função chamada na MESMA linha do "}" que a fecha; se o script chegar cortado, o trap abaixo avisa e sai 1.
+trap '[ -n "${OBS_CHAMADO:-}" ] || { echo "OBS-ARQUIVO: NÃO RODOU: o script chegou incompleto; nada feito" >&2; exit 1; }' EXIT
 obs_arquivo_main() {
+  OBS_CHAMADO=1
   set -u
-  if [ "$(hostname -s)" != forja ]; then echo "obs:arquivo: este script roda na forja (ssh forja 'bash -s'); nada feito aqui" >&2; return 3; fi
+  if [ "$(hostname -s)" != forja ]; then echo "OBS-ARQUIVO: NÃO RODOU: este script roda na forja (ssh forja 'bash -s'); nada feito aqui" >&2; return 3; fi
   local M="${ARQ_MONTAGEM_ESCRITA:-/mnt/arquivo/escrita}" falhas=0 apagados=0 ja=0 esperando=0
   apaga_conferido() {   # filho caminho sha256 nova_caminho nova_sha256 (os dois últimos vazios = sem versão nova a exigir)
     local base="$M/$1" alvo="$M/$1/$2"
@@ -5416,12 +5520,15 @@ obs_arquivo_main() {
     if [ -n "$4" ] && { [ ! -f "$base/$4" ] || [ "$(sha256sum < "$base/$4" | cut -c1-64)" != "$5" ]; }; then echo "PULADO $1/$2: a versão nova não está no NAS como o site registrou" >&2; falhas=$((falhas+1)); return 0; fi
     if [ ! -e "$alvo" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); return 0; fi
     if [ "$(sha256sum < "$alvo" | cut -c1-64)" != "$3" ]; then echo "PULADO $1/$2: o arquivo no NAS não é o que o site registrou" >&2; falhas=$((falhas+1)); return 0; fi
-    rm -- "$alvo" && { echo "APAGADO $1/$2"; apagados=$((apagados+1)); }
+    if rm -- "$alvo"; then echo "APAGADO $1/$2"; apagados=$((apagados+1)); elif [ ! -e "$alvo" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: o rm falhou" >&2; falhas=$((falhas+1)); fi
   }
-  # uma linha por item, na ordem do C12:
-  #   sem_comando:    echo "ESPERA-COMANDO <item_id>: o comando chega com a etapa do expurgo (M9); nada a rodar agora"; esperando=$((esperando+1))
-  #   conferir_b2:    echo "ESPERA-B2 <item_id>: a forja confere o B2 sozinha; nada a rodar agora"; esperando=$((esperando+1))
-  #   bloqueado:      echo "BLOQUEADO <item_id>: apagar está indisponível agora (veja o aviso na página)"; esperando=$((esperando+1))
+  <só quando há ao menos um apaga_conferido (trava do copiador, a mesma do m3b-restaurar.sh):>
+  T="${ARQ_TRAVA_COPIADOR:-/opt/arquivo/copiador.lock}"
+  [ -r "$T" ] && exec 9<"$T" && flock -n 9 || { echo "OBS-ARQUIVO: NÃO RODOU: o copiador está rodando (ou a trava não abre); nada apagado, rode de novo em alguns minutos" >&2; return 1; }
+  # uma linha por item, na ordem do C12 (todo valor entre aspas simples, via aspas()):
+  #   sem_comando:    echo 'ESPERA-COMANDO <item_id>: o comando chega com a etapa do expurgo (M9); nada a rodar agora'; esperando=$((esperando+1))
+  #   conferir_b2:    echo 'ESPERA-B2 <item_id>: a forja confere o B2 sozinha; nada a rodar agora'; esperando=$((esperando+1))
+  #   bloqueado:      echo 'BLOQUEADO <item_id>: apagar está indisponível agora (veja o aviso na página)'; esperando=$((esperando+1))
   #   apagar_antigas: apaga_conferido '<filho>' '<caminho>' '<sha256>' '<nova.caminho ou vazio>' '<nova.sha256 ou vazio>' (uma por arquivo)
   #                   echo 'B2-PAINEL: <nome>' (uma por nome; no painel do B2, todas as versões do objeto)
   <linhas dos itens>
@@ -5429,35 +5536,45 @@ obs_arquivo_main() {
   <zero itens:      echo "OBS-ARQUIVO: NADA PENDENTE (lido em dd/mm hh:mm)">
   <só esperando:    echo "OBS-ARQUIVO: NADA A RODAR AGORA ($esperando esperando)">
   <com apagar:      echo "OBS-ARQUIVO: FEITO ($apagados apagado(s), $ja já apagado(s), $esperando esperando)">
-}
-obs_arquivo_main; exit $?
+}; obs_arquivo_main; exit $?
 ```
 
-Tempo `copiar` (ou qualquer outro que este código não conheça) → `{ ok: false, porque: 'tempo copiar: este obs-arquivo ainda não gera esse passo (chega com a M9)' }`. `resumo` (para o `stderr` do Mac): `obs:arquivo: <n> pendência(s) lida(s) em dd/mm hh:mm; o script vai para a forja`. Data em `America/Sao_Paulo`.
+Tempo `copiar` (ou qualquer outro que este código não conheça) → `{ ok: false, porque: 'tempo copiar: este obs-arquivo ainda não gera esse passo (chega com a M9)' }`. `resumo` (para o `stderr` do Mac): `obs:arquivo: <n> pendência(s) lida(s) em dd/mm hh:mm; o script vai para a forja`. Data em `America/Sao_Paulo`. `escrever.ts`: `export function escreverTudo(texto: string): Promise<void> { return new Promise(ok => { process.stdout.write(texto, () => ok()) }) }`.
 
 - [ ] **Step 5: Ligar em `cli.ts` e no script**
 
-1. `cli.ts`: comentário do topo e `USO` ganham `'  pendencias       (sem opções; a conexão vem de ~/.config/obs-arquivo/db-url)   (só lê; npm run -s obs:arquivo | ssh forja \'bash -s\')'`; `Comando` ganha `| { nome: 'pendencias'; site: string | null }`; `OPCOES.pendencias = { valor: [], bandeira: [], obrigatorias: [] }` (fora de `COM_BANCO`: a conexão não vem do ambiente); `case 'pendencias': return { nome: 'pendencias', site }`; `Saida` ganha `erros?: string[]`; em `rodar`, `case 'pendencias': return await pendencias(sql, s.site, d.versaoDoScript)`, e o `catch` geral de `rodar`, para `c.nome === 'pendencias'`, devolve `{ codigo: 1, saida: scriptDeFalha(<frase do catálogo>), erros: [<frase do catálogo>] }` (nunca a mensagem do banco).
+1. `cli.ts`: comentário do topo e `USO` ganham `'  pendencias       (sem opções; a conexão vem de ~/.config/obs-arquivo/db-url)   (só lê; cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja \'bash -s\')'`; `Comando` ganha `| { nome: 'pendencias'; site: string | null }`; `OPCOES.pendencias = { valor: [], bandeira: [], obrigatorias: [] }` (fora de `COM_BANCO`: a conexão não vem do ambiente); `case 'pendencias': return { nome: 'pendencias', site }`; `Saida` ganha `erros?: string[]`. **Em `rodar`, o `pendencias` é despachado ANTES de `d.sql === null` e de `resolverSite`** (que lê `competitor_channels`, vazio justamente quando a pendência é o último canal removido, e devolve `invalido(...)` em prosa que o `bash` da forja executaria como comando: Phil I4, Yannis I1):
 
 ```ts
-/** Só lê (C12): transação somente leitura, a função, rollback. Leitura fora da forma ou tempo sem passo: código 1 com o
- *  script de falha, nunca "nada pendente" (D-F22). O stdout é só o script; o que é para o dono ler no Mac vai em `erros`. */
-async function pendencias(sql: ClienteSql, site: string, versao: string): Promise<Saida> {
-  await sql.query('begin transaction read only')
+/** Só lê (C12): transação somente leitura, a função com `null` (o site é resolvido dentro dela), rollback. Todo caminho de falha
+ *  devolve o script de falha, nunca prosa nem "nada pendente" (D-F22). O stdout é só o script; o que é para o dono ler no Mac vai em `erros`. */
+async function pendencias(d: DepsDoComando): Promise<Saida> {
+  const falha = (f: string): Saida => ({ codigo: 1, saida: scriptDeFalha(f), erros: [f] })
+  if (d.sql === null) return falha('obs:arquivo: sem conexão com o banco; nada foi feito')
+  const sql = d.sql
   try {
-    const r = await sql.query('select public.obs_archive_owner_pending($1) as r', [site])
-    const l = lerPendencias(r.rows[0]?.r)
-    if (!l.ok) { const f = `obs:arquivo: não consegui ler as pendências (${l.porque}); nada foi feito`; return { codigo: 1, saida: scriptDeFalha(f), erros: [f] } }
-    const s = scriptDasPendencias(l, { versao })
-    if (!s.ok) { const f = `obs:arquivo: ${s.porque}; nada foi feito`; return { codigo: 1, saida: scriptDeFalha(f), erros: [f] } }
-    return { codigo: 0, saida: s.linhas, erros: [s.resumo] }
-  } finally {
-    await sql.query('rollback')
+    await sql.query('begin transaction read only')
+    try {
+      const r = await sql.query('select public.obs_archive_owner_pending(null::uuid) as r')
+      const l = lerPendencias(r.rows[0]?.r)
+      if (!l.ok) return falha(`obs:arquivo: não consegui ler as pendências (${l.porque}); nada foi feito`)
+      const s = scriptDasPendencias(l, { versao: d.versaoDoScript })
+      if (!s.ok) return falha(`obs:arquivo: ${s.porque}; nada foi feito`)
+      return { codigo: 0, saida: s.linhas, erros: [s.resumo] }
+    } finally {
+      await sql.query('rollback')
+    }
+  } catch (e) {   // frase do catálogo, nunca a mensagem do banco (pode ter segredo)
+    const m = e instanceof Error ? e.message : ''
+    return falha(m.includes('site_ambiguo')
+      ? 'obs:arquivo: o banco tem zero ou mais de um site e este comando ainda não escolhe; nada foi feito'
+      : 'obs:arquivo: não consegui ler as pendências no banco; nada foi feito')
   }
 }
+// em rodar(), no começo: if (c.nome === 'pendencias') return await pendencias(d)
 ```
 
-2. `scripts/obs-arquivo.ts`: depois de `interpretar`, **se `comando.nome === 'pendencias'`**: `lerUrlDoBanco(process.env, lerCredencial)`; falha → `console.error(mensagem)`, `process.stdout.write(scriptDeFalha(mensagem).join('\n') + '\n')`, `return 2`; conexão que falha → frase `obs:arquivo: não foi possível conectar ao banco (a conexão de ~/.config/obs-arquivo/db-url)`, script de falha, `return 1`; não cria o `readline` (`perguntar` lança); no fim, `r.erros` vai ao `console.error` e `r.saida` ao `process.stdout.write(... .join('\n') + '\n')` numa escrita só. O `main().then(..., () => ...)` de "erro inesperado" escreve o script de falha no `stdout` antes de `process.exit(1)` quando o subcomando é `pendencias`. Os outros subcomandos não mudam.
+2. `scripts/obs-arquivo.ts`: depois de `interpretar`, **se `comando.nome === 'pendencias'`**: `lerUrlDoBanco(process.env, lerCredencial)`; falha → `console.error(mensagem)`, `await escreverTudo(scriptDeFalha(mensagem).join('\n') + '\n')`, `process.exitCode = 2`; o `Client` do `pg` nasce com `{ connectionString: url, connectionTimeoutMillis: 15_000, statement_timeout: 15_000 }`; conexão que falha (inclusive o timeout) → frase `obs:arquivo: não foi possível conectar ao banco em 15 s (a conexão de ~/.config/obs-arquivo/db-url; confira a rede)`, script de falha, `process.exitCode = 1`; não cria o `readline` (`perguntar` lança); no fim, `r.erros` vai ao `console.error` e **`saidaSegura(r)`** ao `await escreverTudo(... .join('\n') + '\n')` numa escrita só e drenada, e o código sai por `process.exitCode` (nunca `process.exit` logo após o `write`; Yannis I3). O `main().then(..., () => ...)` de "erro inesperado" escreve o script de falha no `stdout` (e espera a escrita) antes de sair com 1 quando o subcomando é `pendencias`. Os outros subcomandos não mudam (a dívida do `process.exit` deles: quando `comandos-recarga` passar de 64 KB).
 3. `package.json` (raiz), em `scripts`: `"obs:arquivo": "tsx scripts/obs-arquivo.ts pendencias"` (o `tsx` é o de `node_modules/.bin`, já usado por `npx tsx`).
 
 - [ ] **Step 6: Rodar e ver passar (com os testes da E10 e da Tarefa 7 junto)**
@@ -5469,46 +5586,61 @@ Run: `npm run typecheck -w apps/web > /tmp/m3b-tc.txt 2>&1; tail -3 /tmp/m3b-tc.
 - [ ] **Step 7: Commit no site**
 
 ```bash
-git add -- apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts
-git commit -m "feat: npm run -s obs:arquivo, pendências do dono num script que confere antes de apagar (manutenção M3b, emenda da peça 7)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts apps/web/src/lib/youtube/observatorio/arquivo/cli.ts scripts/obs-arquivo.ts package.json apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts
+git add -- apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts apps/web/src/lib/youtube/observatorio/arquivo/escrever.ts apps/web/test/fixtures/escreve-grande.ts apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts
+git commit -m "feat: npm run -s obs:arquivo, pendências do dono num script que confere antes de apagar (manutenção M3b, emenda da peça 7)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts apps/web/src/lib/youtube/observatorio/arquivo/escrever.ts apps/web/test/fixtures/escreve-grande.ts apps/web/src/lib/youtube/observatorio/arquivo/cli.ts scripts/obs-arquivo.ts package.json apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts
 ```
 
 ### Task 8a (emenda): o arquivo de comandos da credencial
 
-**Files (fora do git):** `.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh`. Escreve **só no Mac do dono** (`~/.config/obs-arquivo/`); nada na forja; a conexão é digitada sem eco (o mesmo cuidado do `m3b-casa-antes-de-desligar.sh`, K6) e nunca vai a arquivo de saída.
+**Files (fora do git):** `.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh`. **Pré-condição:** a migration da M3b em produção (Tarefa 10 do site), que cria o papel `obs_arquivo_leitor` **sem senha**. Escreve **no Mac do dono** (`~/.config/obs-arquivo/`) e **uma única coisa no banco de produção:** `alter role obs_arquivo_leitor ... password` (nada mais; o papel só lê). Tudo é digitado sem eco (o mesmo cuidado do `m3b-casa-antes-de-desligar.sh`, K6) e nunca vai a arquivo de saída. A senha não está em arquivo do repositório (decisão do dono, 14/10).
 
 - [ ] **Step 1: Escrever o arquivo**
 
 ```bash
 #!/bin/bash
-# M3b, emenda da peça 7: grava a conexão direta do banco que o `npm run -s obs:arquivo` lê. ESCRITA só no Mac do dono:
-# ~/.config/obs-arquivo/db-url (pasta 700, arquivo 600). A conexão é digitada sem eco: não vai ao histórico nem à saída. Uso (Mac):
+# M3b, emenda da peça 7: define UMA vez a senha do papel de leitura obs_arquivo_leitor e grava a conexão que o
+# `npm run -s obs:arquivo` lê. ESCRITA no banco de produção (só `alter role` desse papel, criado sem senha pela migration da M3b)
+# e no Mac: ~/.config/obs-arquivo/db-url (pasta 700, arquivo 600, fora do Time Machine). Tudo digitado sem eco; nada vai ao
+# histórico nem à saída. Uso (Mac):
 #   bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh
-# Saída boa: "GRAVADO: ~/.config/obs-arquivo/db-url (600)". Rodar de novo troca a conexão (para trocar a senha do banco).
+# Saída boa: "GRAVADO: ~/.config/obs-arquivo/db-url (600)". Rodar de novo troca a senha do papel.
 set -euo pipefail
+command -v psql >/dev/null || { echo "PARE: não achei o psql neste Mac; nada feito" >&2; exit 2; }
+read -r -s -p "URL do Session pooler com a senha do postgres (Supabase > Connect > Session pooler; só é usada agora, não é gravada): " A; echo
+case "$A" in postgresql://postgres.*:*@*:5432/postgres) ;; *) echo "PARE: não é a URL do Session pooler (usuário postgres.<ref>, porta 5432, não a 6543); nada feito" >&2; exit 2 ;; esac
+case "$A" in *[[:space:]]*) echo "PARE: a URL tem espaço; nada feito" >&2; exit 2 ;; esac
+read -r -s -p "Senha nova do papel de leitura (24 a 64 letras e números): " P; echo
+read -r -s -p "Repita: " Q; echo
+[ "$P" = "$Q" ] || { echo "PARE: as senhas não batem; nada feito" >&2; exit 2; }
+case "$P" in ""|*[!A-Za-z0-9]*) echo "PARE: só letras e números; nada feito" >&2; exit 2 ;; esac
+{ [ "${#P}" -ge 24 ] && [ "${#P}" -le 64 ]; } || { echo "PARE: a senha tem de ter de 24 a 64 caracteres; nada feito" >&2; exit 2; }
+REF="${A#postgresql://postgres.}"; REF="${REF%%:*}"; ALVO="${A#*@}"
+printf "alter role obs_arquivo_leitor with password '%s';\n" "$P" | psql "$A" -X -q -v ON_ERROR_STOP=1 -f - >/dev/null 2>&1 \
+  || { echo "PARE: não consegui definir a senha (a migration da M3b já está em produção? a URL está certa?); nada gravado" >&2; exit 1; }
 D="$HOME/.config/obs-arquivo"; F="$D/db-url"
 umask 077; mkdir -p "$D"; chmod 700 "$D"
-read -r -s -p "Conexão direta do banco (postgresql://...; Supabase > Project Settings > Database): " U; echo
-case "$U" in postgres://*|postgresql://*) ;; *) echo "PARE: não começa com postgresql://; nada gravado" >&2; exit 2 ;; esac
-case "$U" in *[[:space:]]*) echo "PARE: a conexão tem espaço; nada gravado" >&2; exit 2 ;; esac
-printf '%s\n' "$U" > "$F.tmp"; unset U; chmod 600 "$F.tmp"; mv -f "$F.tmp" "$F"
+printf 'postgresql://obs_arquivo_leitor.%s:%s@%s\n' "$REF" "$P" "$ALVO" > "$F.tmp"; chmod 600 "$F.tmp"; mv -f "$F.tmp" "$F"
+unset A P Q
+tmutil addexclusion "$D" 2>/dev/null || echo "AVISO: não consegui tirar ~/.config/obs-arquivo do Time Machine" >&2
 echo "GRAVADO: ~/.config/obs-arquivo/db-url ($(stat -f %Lp "$F"))"
 ```
+
+A URL do `postgres` vai no `argv` do `psql` por alguns segundos (visível a processos do mesmo usuário); aceito, porque a alternativa (`PGPASSWORD`) exigiria decodificar a senha da URL. A senha do `postgres` nunca é gravada.
 
 - [ ] **Step 2:** `bash -n` no arquivo (já está na tabela "Arquivos de comandos do dono", acima).
 
 ### Task 9, bloco 7 (emenda): a primeira vez da linha
 
-**Pré-condições:** a migration da M3b com a parte 7 em produção (Tarefa 10 do site) e a Tarefa 7a no `staging` local do dono. Leitura de antes, pelo agente: `ssh forja 'hostname -s'` = `forja` (lido em 14/10).
+**Pré-condições:** a migration da M3b com a parte 7 (a função e o papel `obs_arquivo_leitor`) em produção (Tarefa 10 do site) e a Tarefa 7a no `staging` local do dono. Leitura de antes, pelo agente: `ssh forja 'hostname -s'` = `forja` (lido em 14/10). **Regra de leitura, para todos os blocos: a última linha que apareceu tem de começar com `OBS-ARQUIVO:`; sem ela, nada rodou, mesmo com `echo $?` = 0.**
 
-- [ ] **Bloco 7a (escrita no Mac).** `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh` — **saída boa:** `GRAVADO: ~/.config/obs-arquivo/db-url (600)`.
-- [ ] **Bloco 7b (leitura, só no Mac).** `npm run -s obs:arquivo` (sem o `ssh`: o script só aparece no terminal) — **saída boa:** primeira linha `#!/bin/bash`, a linha `obs:arquivo: <n> pendência(s) lida(s) ...` no `stderr`, e uma das finais `OBS-ARQUIVO: NADA PENDENTE` ou `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)` (na M3b não há `apaga_conferido`). Código 2: a frase diz o que falta. Código 1: o banco ou a função; parar e ler.
-- [ ] **Bloco 7c (a linha da peça 7).** `npm run -s obs:arquivo | ssh forja 'bash -s'` — **saída boa:** a mesma linha final do 7b, agora impressa pela forja, e `echo $?` = `0`. `255` = o `ssh` não chegou (Tailscale do Mac desligado ou a forja fora, D-F26).
-- [ ] O `LEIAME-COMANDOS.md` (seção "AGORA") ganha os três blocos com o "por quê"; o ledger, a data e as saídas.
+- [ ] **Bloco 7a (escrita no Mac e uma linha no banco).** `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh` — **saída boa:** `GRAVADO: ~/.config/obs-arquivo/db-url (600)`. Depois, só leitura: `ls -ld ~/.config/obs-arquivo` (`drwx------`) e `tmutil isexcluded ~/.config/obs-arquivo` (`[Excluded]`).
+- [ ] **Bloco 7b (leitura, só no Mac).** `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo` (sem o `ssh`: o script só aparece no terminal) — **saída boa:** primeira linha `#!/bin/bash`, a linha `obs:arquivo: <n> pendência(s) lida(s) ...` no `stderr`, e uma das finais `OBS-ARQUIVO: NADA PENDENTE` ou `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)` (na M3b não há `apaga_conferido`). Código 2: a frase diz o que falta. Código 1: o banco ou a função; parar e ler. **Conferência do pooler (Phil I6):** rodar uma vez com o IPv6 do Mac desligado (`networksetup -setv6off Wi-Fi` e depois `networksetup -setv6automatic Wi-Fi`) com a expectativa de código 0. **Conferência do papel (NÃO VERIFICADO até aqui):** o Supavisor tem de aceitar o usuário `obs_arquivo_leitor.<ref>`; se recusar, parar e voltar ao agente.
+- [ ] **Bloco 7c (a linha da peça 7).** `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` e depois `echo $?` — **saída boa:** a mesma linha final do 7b, agora impressa pela forja, e `0`. **Sem a linha `OBS-ARQUIVO:` no fim, nada rodou, mesmo com `0`.** Pela linha com `ssh`, todo erro do Mac chega como `1` (o do script de falha, com `OBS-ARQUIVO: NÃO RODOU: ...`); `3` = o script rodou fora da forja; `255` = o `ssh` não chegou (Tailscale do Mac desligado ou a forja fora, D-F26).
+- [ ] O `LEIAME-COMANDOS.md` (seção "AGORA") ganha os três blocos com o "por quê"; o ledger, a data e as saídas. O runbook da fila (`docs/ops/`, M5) repete a regra da linha `OBS-ARQUIVO:`.
 
-**NÃO VERIFICADO (emenda):** a linha rodada de fora do país (latência, CGNAT, a forja com internet) — prova: a primeira vez que o dono a rodar viajando, anotada no ledger; o `stat -f %Lp` do `.sh` é do macOS (no Linux seria `stat -c %a`), e o arquivo só roda no Mac; `mountpoint` e `sha256sum` na forja: `/usr/bin/mountpoint` e `/usr/bin/sha256sum`, lidos em 14/10; o comportamento do `npm` 11.9.0 (cabeçalho no `stdout`) é do Mac do dono em 14/10, e o teste `por que o -s` acusa se mudar.
+**NÃO VERIFICADO (emenda):** a linha rodada de fora do país (latência, CGNAT, a forja com internet, o pooler IPv4) — prova: a primeira vez que o dono a rodar viajando, anotada no ledger; o Supavisor aceitar o papel `obs_arquivo_leitor.<ref>` e a forma exata da URL do pooler deste projeto (bloco 7b); o `create role` da migration em produção; o `psql` no Mac do dono; `tmutil addexclusion` e `stat -f %Lp` são do macOS (o `.sh` só roda no Mac); `mountpoint`, `sha256sum` e `flock` na forja: `/usr/bin/mountpoint` e `/usr/bin/sha256sum` lidos em 14/10, `flock` não lido; **antes de fechar a Tarefa 7a: `ssh forja 'ls -l /opt/arquivo/copiador.lock; command -v flock'`** (o script abre a trava só para leitura); o `trap EXIT` do bash rodar num erro de sintaxe por script cortado (o teste `cortado %i linha(s)` acusa); o comportamento do `npm` 11.9.0 (cabeçalho no `stdout`; `cd ~ && npm run -s x` sai 254 mudo) é do Mac do dono em 14/10, e o teste `por que o -s` acusa se mudar.
 
-**Fica para a M9 (registrado):** os passos do tempo `copiar` (levar a versão nova a `_recebendo/` pela mesma linha), os tempos `conferir_b2`, `apagar_antigas` e `bloqueado` emitidos pela função (`versao: 2`), e "Já rodei"; a M9 muda `pendencias-script.ts` no mesmo commit do leitor.
+**Fica para a M9 (registrado):** os passos do tempo `copiar` (levar a versão nova a `_recebendo/` pela mesma linha), os tempos `conferir_b2`, `apagar_antigas` e `bloqueado` emitidos pela função (`versao: 2`), e "Já rodei"; a M9 muda `pendencias-script.ts` no mesmo commit do leitor, **com o `rm` conferido (D-F24 c) e a trava do copiador (D-F24 f) já aplicados**. **Não adotado (decisão do dono, 14/10: a linha é a da tela):** o receptor do kit `obs-arquivo-receber` no lugar do `bash -s` (conserto forte do Phil I3); o limite que ele cobriria está declarado no D-F22.
 
 ---
 
@@ -5528,7 +5660,7 @@ echo "GRAVADO: ~/.config/obs-arquivo/db-url ($(stat -f %Lp "$F"))"
 | 134, parte do kit e instalação | Canário gravado e procurado nos dois filhos (Tarefas 3 e 4); blocos do pulso instalados (bloco 5) e as três verificações fora de "nova" (bloco 6) |
 | 149, parte do comando | Tarefa 7 (as contas de 7 dias são da função SQL, do plano do site) |
 | 150 (registro na mudança real) | Tabela "A mudança de casa": a saída do `pode-desligar` e a do copiador depois da volta vão ao ledger, com data, quando acontecer |
-| Peça 7 (`04` §14.7; emenda de 14/10), parte do comando | Tarefa 7a (`pendencias`: código 2 sem a credencial, 1 com leitura ruim, script de falha, `apaga_conferido` que confere antes de apagar e é idempotente, script cortado não roda) e bloco 7 da Tarefa 9 |
+| Peça 7 (`04` §14.7; emenda de 14/10), parte do comando | Tarefa 7a (`pendencias`: código 2 sem a credencial ou com papel/porta errados, 1 com leitura ruim ou `site_ambiguo`, script de falha que termina em `OBS-ARQUIVO: NÃO RODOU`, `apaga_conferido` que confere antes de apagar, é idempotente e conta o `rm` que falha, trava do copiador, script cortado não roda e sai ≠ 0) e bloco 7 da Tarefa 9 |
 | 172, parte da forja | Tarefa 3, caso 10 (o copiador pede o plano antes do batimento, e a casa que volta depois de 3 dias recebe `modo_plano: completo`; segue as páginas do site e relê todas; orçamento cortado continua na seguinte); Tarefa 5 ("duas versões no B2 falso, a anterior com o `fileId` atestado: a restauração traz a anterior") |
 
 ## O que fica NÃO VERIFICADO depois do plano (e quem prova)
@@ -5547,7 +5679,7 @@ echo "GRAVADO: ~/.config/obs-arquivo/db-url ($(stat -f %Lp "$F"))"
 ## Dependências
 
 - **De outra etapa:** M3a fechada (chaves, montagens, `rclone`, `pulso_arquivo.py` e as verificações "nova"); o lado do site da M3b **em produção**, com `OBS_ARQUIVO=on` e deploy (as sete rotas no contrato r2.2, `obs_archive_pode_desligar`, o plano do B2 com canário de 6 horas, `estado` por filho e a retomada do `--completo` entre execuções, a cor do teto no batimento, a abertura da varredura no `heartbeat`). A Tarefa 7 espera a função existir na migration do site. **As Tarefas 1 a 6 (kit) e 8 (arquivos) não esperam ninguém:** são testadas contra o site falso, que segue o contrato r2.2. A Tarefa 6 altera dois arquivos da M3a (`pulso_arquivo.py` e o teste dele): faça-a depois de a M3a commitar os dela.
-- **Emenda de 14/10 (peça 7):** a Tarefa 7a espera a Tarefa E1 do site (`obs_archive_owner_pending` na migration e `pendencias.ts` commitado); os passos de `copiar`/`apagar_antigas` com dado real e o "Já rodei" são da M9.
+- **Emenda de 14/10 (peça 7):** a Tarefa 7a espera a Tarefa E1 do site (`obs_archive_owner_pending` e o papel `obs_arquivo_leitor` na migration, e `pendencias.ts` commitado); a Tarefa 8a e o bloco 7 esperam a migration em produção (Tarefa 10 do site); os passos de `copiar`/`apagar_antigas` com dado real e o "Já rodei" são da M9.
 - **De outra trilha:** `cli.ts` é da E10 (Tarefas 7 e 7a conferem o último commit dele antes de editar).
 - **Relógio real:** a primeira selagem, devida em 28/11, é a primeira execução com arquivo de verdade; até lá o `conferir-b2` registra `pedidos: 0` com `estado: "aguardando_primeira_selagem"` (vindo do site).
 - **O que a M3b-forja deixa para depois:** anexos de miniatura (`a:<uuid>`, classe `video_antigo`) entram na M10b/M10c: hoje o copiador e o `conferir-b2` recusam o item `anexo` como `plano_invalido` (vermelho), de propósito, para o kit ser atualizado junto; prefixos ausentes (`prefixos_ausentes` não vazio é `plano_invalido`) e `expurgar --canal` são da M9; o respondedor, da M7.

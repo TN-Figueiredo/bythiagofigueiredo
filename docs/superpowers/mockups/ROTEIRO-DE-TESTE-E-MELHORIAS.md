@@ -1216,7 +1216,7 @@ Resultado por mês traz dias medidos e views do mês (o spec só pede a cobertur
 
 ## 19f. Peça 7: o arquivo pendente na fila "Saíram do YouTube"
 
-Estado: **aprovada pelo dono em 14/10/2026** (depois da conferência com acordo de Logan e Naksu). Remessas para a M3b: a linha `npm run -s obs:arquivo | ssh forja 'bash -s'` ainda não existe e entra por emenda no plano.
+Estado: **aprovada pelo dono em 14/10/2026** (depois da conferência com acordo de Logan e Naksu). Remessas para a M3b: a linha `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` (com o `cd`, decisão do dono de 14/10) ainda não existe e entra por emenda no plano; toda execução termina numa linha `OBS-ARQUIVO: ...`, e sem ela a tela diz que nada rodou.
 
 ### 1. O que a tela responde
 "Falta eu rodar algum comando, e há quanto tempo?"

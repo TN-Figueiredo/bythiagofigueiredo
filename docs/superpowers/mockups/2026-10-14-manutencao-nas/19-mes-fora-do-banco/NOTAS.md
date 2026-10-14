@@ -120,3 +120,4 @@ Achado → feito. Capturas `shots/peca8-r1-*` (390 e 1440); rolagem horizontal 0
 - Vermelho (`atras90`): não é "pode esperar": a causa pode estar parando a coleta dos vídeos novos, que a origem não devolve. "Avise o Claude Code agora."
 - Desligada: pode esperar, com o custo dito.
 - Linha da peça 7 passa a `npm run -s obs:arquivo | ssh forja 'bash -s'` (decisão do dono, 14/10): sem `-s` o npm escreve o cabeçalho no stdout e a forja tentaria rodá-lo (medido pelo controlador).
+- Linha da peça 7 passa a `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` (decisão do dono, 14/10, conserto 1 da emenda `obs:arquivo`): o `cd` evita o `npm` mudo fora da pasta do repositório; toda execução, inclusive a de falha, termina numa linha `OBS-ARQUIVO: <o que fez>`, e sem ela a tela diz "nada rodou" (passo novo antes de "Espere" no `peca7.js`).
