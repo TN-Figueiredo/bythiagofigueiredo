@@ -21,7 +21,7 @@ describe('runCompetitorBatch', () => {
     vi.resetModules()
     const synced: string[] = []
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (r: { id: string }) => { synced.push(r.id); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 3 } }) }))
-    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: '2026-10-24T13:00:00.000Z' }, { id: 'c', channel_id: 'C', site_id: 's', last_synced_at: '2026-10-24T14:00:00.000Z' }]
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', collection_paused_at: null, last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', collection_paused_at: null, last_synced_at: '2026-10-24T13:00:00.000Z' }, { id: 'c', channel_id: 'C', site_id: 's', collection_paused_at: null, last_synced_at: '2026-10-24T14:00:00.000Z' }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 2, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
@@ -31,7 +31,7 @@ describe('runCompetitorBatch', () => {
   it('one failing channel does not stop the batch', async () => {
     vi.resetModules()
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncStatsOf: () => undefined, syncCompetitorChannel: vi.fn(async (r: { id: string }) => { if (r.id === 'a') throw new Error('404'); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 3 } }) }))
-    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: null }]
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', collection_paused_at: null, last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', collection_paused_at: null, last_synced_at: null }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     expect(await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })).toMatchObject({ synced: 1, errors: 1 })
@@ -43,7 +43,7 @@ describe('runCompetitorBatch', () => {
       if (r.id === 'c') return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true }
       return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 3 }
     }) }))
-    const rows = [{ id: 'a', channel_id: 'A', site_id: 's1', last_synced_at: null }, { id: 'a2', channel_id: 'A2', site_id: 's1', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's2', last_synced_at: null }, { id: 'c', channel_id: 'C', site_id: 's3', last_synced_at: null }]
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's1', collection_paused_at: null, last_synced_at: null }, { id: 'a2', channel_id: 'A2', site_id: 's1', collection_paused_at: null, last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's2', collection_paused_at: null, last_synced_at: null }, { id: 'c', channel_id: 'C', site_id: 's3', collection_paused_at: null, last_synced_at: null }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 10, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
@@ -104,8 +104,8 @@ describe('error channels never starve the cursor', () => {
     vi.resetModules()
     const synced: string[] = []
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (r: { id: string }) => { synced.push(r.id); return {} }) }))
-    const e = (id: string) => ({ id, channel_id: id, site_id: 's', last_synced_at: null, sync_status: 'error' })
-    const ok = (id: string) => ({ id, channel_id: id, site_id: 's', last_synced_at: '2026-10-24T01:00:00.000Z', sync_status: 'idle' })
+    const e = (id: string) => ({ id, channel_id: id, site_id: 's', collection_paused_at: null, last_synced_at: null, sync_status: 'error' })
+    const ok = (id: string) => ({ id, channel_id: id, site_id: 's', collection_paused_at: null, last_synced_at: '2026-10-24T01:00:00.000Z', sync_status: 'idle' })
     const rows = [e('e1'), e('e2'), e('e3'), ok('h1'), ok('h2')]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
@@ -119,7 +119,7 @@ describe('runCompetitorBatch — teto de sondas de Short', () => {
     vi.resetModules()
     const budgets: unknown[] = []
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: unknown }) => { budgets.push(o.probeBudget); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
-    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: null }]
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', collection_paused_at: null, last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', collection_paused_at: null, last_synced_at: null }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
@@ -141,7 +141,7 @@ describe('runCompetitorBatch — visibilidade da sonda (R114)', () => {
     const captureMessage = vi.fn()
     vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { stats: { attempted: number; shorts: number; regular: number; inconclusive: number } } }) => { spend(o.probeBudget.stats); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
-    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', collection_paused_at: null, last_synced_at: null }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => 0) }))
     void chain
@@ -174,7 +174,7 @@ describe('runCompetitorBatch — controle e prazo do backfill (I-2, I-3)', () =>
     vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
     let seenFailed: boolean | undefined
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { controlFailed?: boolean } }) => { seenFailed = o.probeBudget.controlFailed; return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
-    const channels = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
+    const channels = [{ id: 'a', channel_id: 'A', site_id: 's', collection_paused_at: null, last_synced_at: null }]
     const chainRes = { data: (opts.controlIds ?? (opts.controlId ? [opts.controlId] : [])).map(video_id => ({ video_id })), error: null }
     const chain: unknown = new Proxy({}, { get: (_t, p: string) => p === 'then' ? (ok: (v: unknown) => unknown) => Promise.resolve(chainRes).then(ok) : () => chain })
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: (t: string) => t === 'competitor_channels' ? { select: () => ({ order: () => Promise.resolve({ data: channels, error: null }) }) } : chain }) }))
@@ -257,7 +257,7 @@ describe('A5: tetos de tempo do disparo (a conta presa)', () => {
 })
 
 describe('A5: o lote passa o relógio à passada semanal e soma os contadores', () => {
-  const rowsOf = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, channel_id: 'UC' + i, site_id: i % 2 ? 's2' : 's1', last_synced_at: null, sync_status: 'idle' }))
+  const rowsOf = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, channel_id: 'UC' + i, site_id: i % 2 ? 's2' : 's1', last_synced_at: null, sync_status: 'idle', collection_paused_at: null }))
   const mockAll = (sync: (r: { id: string }, key: string, o: Record<string, unknown>) => Promise<Record<string, unknown>>, rows: unknown[], extra: Record<string, unknown> = {}) => {
     vi.resetModules()
     vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -274,7 +274,7 @@ describe('A5: o lote passa o relógio à passada semanal e soma os contadores', 
     expect(seen).toEqual([['deferBackfill', 'probeBudget'], ['deferBackfill', 'probeBudget']])
   })
   it('totals soma o que cada canal devolveu; healthSiteIds traz todo site com canal, mesmo sem canal devido', async () => {
-    mockAll(async () => ({ unitsUsed: 4, dailyRecorded: 50, fieldsOpened: 10, rawOpened: 2, missed: 1, quotaError: true }), [...rowsOf(2), { id: 'x', channel_id: 'UCx', site_id: 's3', last_synced_at: new Date(Date.UTC(2026, 9, 24, 15, 1)).toISOString(), sync_status: 'idle' }])
+    mockAll(async () => ({ unitsUsed: 4, dailyRecorded: 50, fieldsOpened: 10, rawOpened: 2, missed: 1, quotaError: true }), [...rowsOf(2), { id: 'x', channel_id: 'UCx', site_id: 's3', collection_paused_at: null, last_synced_at: new Date(Date.UTC(2026, 9, 24, 15, 1)).toISOString(), sync_status: 'idle' }])
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => Date.UTC(2026, 9, 24, 15, 2) })
     expect(r.totals).toMatchObject({ unitsUsed: 8, dailyRecorded: 100, weeklyRecorded: 0, weeklyDeferred: 0, fieldsOpened: 20, rawOpened: 4, missed: 2, quotaErrors: 2, earlyRecorded: 0 })
@@ -357,7 +357,7 @@ describe('A5: a cota que um canal não conseguiu gravar é tentada de novo no fi
     vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
     vi.doMock('@/lib/youtube/competitor-quota', () => ({ recordQuota: vi.fn(recordQuota), pacificDate: () => '2026-10-24' }))
-    const rows = [{ id: 'a', channel_id: 'A', site_id: 's1', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's1', last_synced_at: null }, { id: 'c', channel_id: 'C', site_id: 's2', last_synced_at: null }]
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's1', collection_paused_at: null, last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's1', collection_paused_at: null, last_synced_at: null }, { id: 'c', channel_id: 'C', site_id: 's2', collection_paused_at: null, last_synced_at: null }]
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
     return { captureException }
   }
@@ -385,7 +385,7 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
   const SP = 3 * 3_600_000
   const at = (day: string, hhmm: string) => Date.parse(day + 'T' + hhmm + ':00.000Z') + SP        // hora de São Paulo → UTC
   const DAY = '2026-10-24'
-  type Row = { id: string; channel_id: string; channel_name: string; site_id: string; last_synced_at: string | null; last_ok_synced_at: string | null; sync_status: string; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null }
+  type Row = { id: string; channel_id: string; channel_name: string; site_id: string; last_synced_at: string | null; last_ok_synced_at: string | null; sync_status: string; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null; collection_paused_at: string | null }
   /**
    * Um mundo simulado: canais na ordem estável, um relógio só; a sincronização de um canal custa `syncMs`, conferir um vídeo semanal custa `videoMs`.
    * Opções: lastSync (hora da última sincronização dos canais), unclassified (nenhum vídeo tem faixa), stampUnclassified (a leitura semanal SEM a defesa da 11b),
@@ -393,7 +393,7 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
    */
   const world = (o: { syncMs: number; videoMs: number; due: number[]; failWeeklyUntil?: number; lastSync?: string; unclassified?: boolean; stampUnclassified?: boolean; noReopen?: boolean; weeklyThrows?: Record<string, () => Error> }) => {
     let clock = 0
-    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), last_ok_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null })) // canais que já sincronizaram bem
+    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), last_ok_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, collection_paused_at: null })) // canais que já sincronizaram bem
     const left = new Map(rows.map((r, i) => [r.id, o.due[i]!]))
     const order: string[] = []
     const breakers: unknown[] = []
@@ -689,8 +689,8 @@ describe('E: o aviso ao dono quando o canal cruza o 3º dia em erro, e um lembre
   const NOW = Date.parse('2026-10-24T15:40:00.000Z')
   const DAYMS = 86_400_000
   const ago = (d: number) => new Date(NOW - d * DAYMS).toISOString()
-  type R = { id: string; channel_id: string; channel_name: string; site_id: string; last_synced_at: string | null; last_ok_synced_at: string | null; sync_status: string; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null }
-  const row = (id: string, o: Partial<R> = {}): R => ({ id, channel_id: 'UC' + id, channel_name: 'Canal ' + id, site_id: 's1', last_synced_at: new Date(NOW - 60_000).toISOString(), last_ok_synced_at: null, sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, ...o })
+  type R = { id: string; channel_id: string; channel_name: string; site_id: string; last_synced_at: string | null; last_ok_synced_at: string | null; sync_status: string; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null; collection_paused_at: string | null }
+  const row = (id: string, o: Partial<R> = {}): R => ({ id, channel_id: 'UC' + id, channel_name: 'Canal ' + id, site_id: 's1', last_synced_at: new Date(NOW - 60_000).toISOString(), last_ok_synced_at: null, sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, collection_paused_at: null, ...o })
   const erro = (id: string, days: number, o: Partial<R> = {}): R => row(id, { sync_status: 'error', sync_error: 'YouTube API 404 for channel UC' + id, sync_error_since: ago(days), last_ok_synced_at: ago(days + 0.1), ...o })
   const world = async (rows: R[], o: { existing?: string[]; owners?: Record<string, Array<{ userId: string; email: string | null }>>; create?: () => Promise<unknown>; lookup?: 'ok' | 'error' | 'throws' } = {}) => {
     vi.resetModules()
@@ -842,5 +842,111 @@ describe('E: o aviso ao dono quando o canal cruza o 3º dia em erro, e um lembre
     expect(input.title).toBe('Lembrete: o canal Canal a continua em erro (10 dias)')
     expect(input.defaultChannels).toEqual(['email'])
     expect(input.message).toContain(input.action_href)
+  })
+})
+
+describe('A5 E10: canal com a coleta pausada no lote (Tarefa 4a)', () => {
+  const NOW = Date.UTC(2026, 9, 24, 15, 2)
+  const DAY = 86_400_000
+  const ago = (ms: number) => new Date(NOW - ms).toISOString()
+  type R = Record<string, unknown>
+  const rowsOf = (n: number, over: (i: number) => R = () => ({})): R[] => Array.from({ length: n }, (_, i) => ({
+    id: 'c' + i, channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: null, last_ok_synced_at: ago(DAY), sync_status: 'idle',
+    sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, collection_paused_at: null, ...over(i),
+  }))
+  const mock = (rows: unknown[]) => {
+    const synced: string[] = []
+    vi.resetModules()
+    vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({
+      syncCompetitorChannel: vi.fn(async (r: { id: string }) => { synced.push(r.id); return {} }), syncCompetitorWeekly: vi.fn(async () => ({ due: 0, recorded: 0, deferred: 0, promoted: 0, unitsUsed: 0, changesDetected: 0, longWindowChanges: 0, complete: true })),
+      syncStatsOf: () => undefined, WeeklyVersionError: class extends Error {}, spDate: (ms: number) => new Date(ms - 3 * 3_600_000).toISOString().slice(0, 10),
+    }))
+    vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
+    vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
+    vi.doMock('@/lib/youtube/competitor-quota', () => ({ recordQuota: vi.fn(async () => undefined), pacificDate: () => '2026-10-24' }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    return synced
+  }
+  const lote = async () => (await import('@/lib/youtube/competitor-sync-batch')).runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => NOW })
+
+  it('um canal pausado entre 15: 14 sincronizações, nunca com o id pausado; remainingDue 0 (item 229)', async () => {
+    const synced = mock(rowsOf(15, i => (i === 6 ? { collection_paused_at: ago(2 * DAY) } : {})))
+    const r = await lote()
+    expect(synced).toHaveLength(14)
+    expect(synced).not.toContain('c6')
+    expect(r).toMatchObject({ synced: 14, remainingDue: 0, stoppedForTime: false })
+    expect(r.nota_pausa).toBe('1 canal com a coleta pausada')
+  })
+  it('canal pausado não é dívida semanal: pending conta 14 e weeklyPendingCount 14', async () => {
+    mock([])
+    const { weeklyPendingCount, semPausados } = await import('@/lib/youtube/competitor-sync-batch')
+    const linhas = rowsOf(15, i => (i === 0 ? { collection_paused_at: ago(DAY) } : {})) as never as Parameters<typeof weeklyPendingCount>[0]
+    expect(weeklyPendingCount(linhas, NOW)).toBe(14)
+    expect(semPausados(linhas)).toHaveLength(14)
+  })
+  it('a fase semanal do lote não visita o canal pausado e fecha com pending 14', async () => {
+    const synced = mock(rowsOf(15, i => (i === 3 ? { collection_paused_at: ago(DAY) } : { last_synced_at: ago(60_000) })))
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => NOW, weekly: true })
+    expect(synced).toEqual([])
+    expect(r.weekly.visited).toBeLessThanOrEqual(14)
+    expect(r.weekly.pending).toBeLessThanOrEqual(14)
+    const { syncCompetitorWeekly } = await import('@/lib/youtube/competitor-sync')
+    expect(vi.mocked(syncCompetitorWeekly).mock.calls.map(c => (c[0] as { id: string }).id)).not.toContain('c3')
+  })
+  it('linha sem o campo collection_paused_at é forma inválida: loadBatchRows lança "competitor batch"', async () => {
+    const rows = rowsOf(2).map(({ collection_paused_at: _p, ...resto }) => resto)
+    mock(rows)
+    const { loadBatchRows } = await import('@/lib/youtube/competitor-sync-batch')
+    const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
+    await expect(loadBatchRows(getSupabaseServiceClient())).rejects.toThrow(/competitor batch/)
+  })
+  it('nota e ação: pausado há 2 dias, há 8 dias e com data ilegível', async () => {
+    mock([])
+    const { notasDePausa } = await import('@/lib/youtube/competitor-sync-batch')
+    const linhas = rowsOf(4, i => ({ 0: { collection_paused_at: ago(2 * DAY) }, 1: { collection_paused_at: ago(8 * DAY + 3_600_000) }, 2: { collection_paused_at: 'não é data' } } as Record<number, R>)[i] ?? {})
+    const n = notasDePausa(linhas as never, NOW)
+    expect(n.nota).toBe('3 canais com a coleta pausada')
+    expect(n.acao).toHaveLength(2)
+    expect(n.acao[0]).toContain('Canal 1')
+    expect(n.acao[0]).toContain('8 dias')
+    expect(n.acao[1]).toContain('Canal 2')
+    expect(n.acao[1]).toContain('tempo desconhecido')
+    expect(n.esquecidos).toEqual([{ siteId: 's1', canalId: 'c1', nome: 'Canal 1', dias: 8 }])
+  })
+  it('fronteira de 7 dias: 7 dias exatos ficam fora; 7 dias e 1 minuto entram', async () => {
+    mock([])
+    const { notasDePausa } = await import('@/lib/youtube/competitor-sync-batch')
+    expect(notasDePausa(rowsOf(1, () => ({ collection_paused_at: ago(7 * DAY) })) as never, NOW).acao).toEqual([])
+    expect(notasDePausa(rowsOf(1, () => ({ collection_paused_at: ago(7 * DAY + 60_000) })) as never, NOW).acao).toHaveLength(1)
+  })
+  it('nenhum pausado: nota nula, ação vazia, e nenhum campo novo na resposta do lote', async () => {
+    mock(rowsOf(15))
+    const { notasDePausa } = await import('@/lib/youtube/competitor-sync-batch')
+    expect(notasDePausa(rowsOf(15) as never, NOW)).toEqual({ acao: [], nota: null, esquecidos: [] })
+    const r = await lote()
+    expect(r.nota_pausa).toBeUndefined()
+    expect(r.acao_do_dono).toEqual([])
+  })
+  it('campo ausente é não pausado nas duas funções puras', async () => {
+    mock([])
+    const { semPausados, notasDePausa } = await import('@/lib/youtube/competitor-sync-batch')
+    const semCampo = rowsOf(2).map(({ collection_paused_at: _p, ...resto }) => resto)
+    expect(semPausados(semCampo as never)).toHaveLength(2)
+    expect(notasDePausa(semCampo as never, NOW)).toEqual({ acao: [], nota: null, esquecidos: [] })
+  })
+  it('todos pausados: zero chamadas, remainingDue 0, a nota diz "3 canais com a coleta pausada" e o resultado não é erro', async () => {
+    const synced = mock(rowsOf(3, () => ({ collection_paused_at: ago(DAY) })))
+    const r = await lote()
+    expect(synced).toEqual([])
+    expect(r).toMatchObject({ synced: 0, errors: 0, remainingDue: 0, nota_pausa: '3 canais com a coleta pausada' })
+    const { batchHealth } = await import('@/lib/youtube/competitor-sync-batch')
+    expect(batchHealth(r).ok).toBe(true)
+  })
+  it('a pausa esquecida entra em acao_do_dono do lote', async () => {
+    mock(rowsOf(2, i => (i === 0 ? { collection_paused_at: ago(9 * DAY) } : {})))
+    const r = await lote()
+    expect(r.acao_do_dono).toEqual([expect.stringContaining('Canal 0 com a coleta pausada há 9 dias')])
   })
 })

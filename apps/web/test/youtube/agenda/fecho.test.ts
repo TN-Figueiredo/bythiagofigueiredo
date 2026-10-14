@@ -106,7 +106,7 @@ describe('schemaTablesReady', () => {
 // ───────────────────────── as funções novas do lote ─────────────────────────
 const linha = (id: string, o: Partial<BatchRow> = {}): BatchRow => ({
   id, channel_id: 'UC' + id, channel_name: 'Canal ' + id, site_id: 's1', last_synced_at: null, last_ok_synced_at: null, sync_status: null,
-  sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, ...o,
+  sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, collection_paused_at: null, ...o,
 })
 
 describe('competitor-sync-batch: ownerActions, weeklyPendingCount e started', () => {
@@ -131,7 +131,7 @@ describe('competitor-sync-batch: ownerActions, weeklyPendingCount e started', ()
       vi.resetModules()
       const synced: string[] = []
       vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncStatsOf: () => undefined, syncCompetitorChannel: vi.fn(async (r: { id: string }) => { synced.push(r.id); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 3 } }) }))
-      const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: null }]
+      const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null, collection_paused_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: null, collection_paused_at: null }]
       vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
       const { runCompetitorBatch, BATCH_BUDGET_MS } = await import('@/lib/youtube/competitor-sync-batch')
       const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: BATCH_BUDGET_MS, now: () => nowMs, ...(started === undefined ? {} : { started }) })

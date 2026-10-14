@@ -2474,3 +2474,42 @@ describe('A5 E1 (14a): texto sujo da API é limpo no ponto de entrada', () => {
     expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
   })
 })
+
+describe('A5 E10: canal com a coleta pausada (Tarefa 4a)', () => {
+  const PAUSADO_DESDE = '2026-10-10T12:00:00.000Z'
+  it('a trava não é tomada com o canal pausado: zero chamadas à API, skipped e paused, last_synced_at não muda (mutação: tirar o .is(...))', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1], paused: PAUSADO_DESDE })
+    const f = vi.fn(async () => new Response('{}', { status: 200 }))
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f as unknown as typeof fetch, ...quiet })
+    expect(r).toMatchObject({ skipped: true, paused: true, unitsUsed: 0 })
+    expect(f).not.toHaveBeenCalled()
+    // o único update do canal é a tentativa de trava, com a condição da pausa; nenhum outro (last_synced_at só viria da trava tomada)
+    const updates = db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update')
+    expect(updates).toHaveLength(1)
+    expect(updates[0]!.ops.some(o => o[0] === 'is' && o[1][0] === 'collection_paused_at' && o[1][1] === null)).toBe(true)
+  })
+  it('pausa gravada depois de a lista ser lida: quem decide é a trava (a linha da lista não tinha pausa)', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], paused: PAUSADO_DESDE })
+    const r = await syncCompetitorChannel({ ...ch }, 'k', { now: EARLY, fetchImpl: vi.fn() as unknown as typeof fetch, ...quiet })
+    expect(r).toMatchObject({ skipped: true, paused: true })
+  })
+  it('erro na leitura única da pausa: paused indefinido, o resultado continua skipped', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], paused: PAUSADO_DESDE, pausedReadFails: true })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: vi.fn() as unknown as typeof fetch, ...quiet })
+    expect(r.skipped).toBe(true)
+    expect(r.paused).toBeUndefined()
+  })
+  it('trava presa por outro processo (canal não pausado): skipped sem paused', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], lockTaken: true })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: vi.fn() as unknown as typeof fetch, ...quiet })
+    expect(r.skipped).toBe(true)
+    expect(r.paused).toBeUndefined()
+  })
+  it('leitura semanal de canal pausado: skipped e paused, zero chamadas', async () => {
+    setup({ all: [], paused: PAUSADO_DESDE })
+    const f = vi.fn(async () => new Response('{}', { status: 200 }))
+    const r = await syncCompetitorWeekly(ch, 'k', { now: new Date('2026-10-24T15:00:00.000Z'), fetchImpl: f as unknown as typeof fetch })
+    expect(r).toMatchObject({ skipped: true, paused: true, recorded: 0, complete: false })
+    expect(f).not.toHaveBeenCalled()
+  })
+})
