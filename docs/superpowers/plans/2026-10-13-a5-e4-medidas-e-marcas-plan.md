@@ -1030,7 +1030,7 @@ Nenhum item da E4 fica sem tarefa. Os que ficam fora estão ditos com o dono.
 
 ### Apêndice A: MG4 (conserto de desempenho 14/10, e4b: CTEs `lim`, `pausas` e `cruz` com `as materialized`)
 
-**(noite de 14/10, Tarefa 8b) Este é o texto da MG4 COM a pausa de coleta (R3), rodado duas vezes no `bythiago_int` dentro de transação desfeita, com a MG6 (ensaio da E10) aplicada antes na mesma transação.** Mudanças em relação ao texto da emenda 2: (1) guarda `MG4 depende da MG6` como primeira instrução; (2) `competitor_marks_pending` deixa de fora o vídeo de canal com `collection_paused_at`, devolve `pares_em_pausa` ao lado de `total_pendentes` e `gap_crossed_pause` em cada item (verdadeiro quando o tempo NÃO pausado do buraco cabe no limite do par; pausas sobrepostas contadas uma vez, por `range_agg`); (3) `competitor_marks_health` tira de `atrasadas` o par de canal pausado. O `check` de `reason` fica com os seis valores (decisão da 8b, a confirmar por Phil e Yannis). A cópia versionada é `apps/web/test/fixtures/sql/a5-e4-mg4.sql` (idêntica); o `db:new` da Tarefa 9 cola este bloco. **(revisão Phil 14/10, I1) `gap_crossed_pause` compara o MAIOR trecho sem leitura fora da pausa com o limite, não a soma; provado nos testes `dois trechos curtos…` e no roteiro S13.** **(revisão Phil 14/10, I2) `competitor_marks_apply` recusa o par de canal com `collection_paused_at` preenchido nas duas CTEs `ok` (conta em `marcas_recusadas`/`faltas_recusadas`; o par volta a ser pendente ao despausar); provado nos testes `gravar: canal pausado entre a leitura e a gravação…` e `a pausa de OUTRO canal…` e no roteiro S14.** **Pendente: o acordo dos dois especialistas (portão da Tarefa 9).**
+**(noite de 14/10, Tarefa 8b) Este é o texto da MG4 COM a pausa de coleta (R3), rodado duas vezes no `bythiago_int` dentro de transação desfeita, com a MG6 (ensaio da E10) aplicada antes na mesma transação.** Mudanças em relação ao texto da emenda 2: (1) guarda `MG4 depende da MG6` como primeira instrução; (2) `competitor_marks_pending` deixa de fora o vídeo de canal com `collection_paused_at`, devolve `pares_em_pausa` ao lado de `total_pendentes` e `gap_crossed_pause` em cada item (verdadeiro quando o tempo NÃO pausado do buraco cabe no limite do par; pausas sobrepostas contadas uma vez, por `range_agg`); (3) `competitor_marks_health` tira de `atrasadas` o par de canal pausado. O `check` de `reason` fica com os seis valores (decisão da 8b, a confirmar por Phil e Yannis). A cópia versionada é `apps/web/test/fixtures/sql/a5-e4-mg4.sql` (idêntica); o `db:new` da Tarefa 9 cola este bloco. **(revisão Phil 14/10, I1) `gap_crossed_pause` compara o MAIOR trecho sem leitura fora da pausa com o limite, não a soma; provado nos testes `dois trechos curtos…` e no roteiro S13.** **(revisão Phil 14/10, I2) `competitor_marks_apply` recusa o par de canal com `collection_paused_at` preenchido nas duas CTEs `ok` (conta em `marcas_recusadas`/`faltas_recusadas`; o par volta a ser pendente ao despausar); provado nos testes `gravar: canal pausado entre a leitura e a gravação…` e `a pausa de OUTRO canal…` e no roteiro S14.** **Pendente: o acordo dos dois especialistas (portão da Tarefa 9).** **(portão 15/10) `set local lock_timeout`; `competitor_marks_apply` começa com `pg_advisory_xact_lock(hashtext('competitor_marks_apply'))` (uma execução por vez).**
 
 ```sql
 -- A5, E4 (MG4): marcas de views nas idades 1, 7 e 30 dias dos vídeos de concorrentes, e o registro do que não pôde ser medido.
@@ -1057,7 +1057,7 @@ begin
   end if;
 end $$;
 
-set lock_timeout = '5s';
+set local lock_timeout = '5s'; -- (portão 15/10) local: vale só para a transação do arquivo
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. A marca: uma linha por vídeo e idade, gravada UMA vez. Sem linha = não medido (o motivo fica na tabela 2).
@@ -1315,6 +1315,9 @@ declare
   v_refeitas integer := 0;
   v_n integer := 0;
 begin
+  -- (portão 15/10) Uma execução por vez: duas execuções ao mesmo tempo poderiam deixar o par nas duas tabelas por uma rodada
+  -- (READ COMMITTED não enxerga o insert ainda não confirmado da outra). Chave fixa: hashtext('competitor_marks_apply').
+  perform pg_advisory_xact_lock(hashtext('competitor_marks_apply'));
   if p_marks is null or jsonb_typeof(p_marks) <> 'array' or p_misses is null or jsonb_typeof(p_misses) <> 'array' or p_rule_version is null then
     raise exception 'competitor_marks_apply: p_marks e p_misses têm de ser listas e p_rule_version é obrigatório';
   end if;

@@ -236,6 +236,15 @@ describe('provas por mutação (filtros)', () => {
     const r = await lerMudancasDoCanal(sb, { ...E, videoIds: ['a'], desde: DESDE })
     expect(r.lido && r.dados.mudancas.get('a')?.map((m) => m.campo)).toEqual(['tags'])
   })
+  it('lerMudancasDoCanal desempata a paginação por id (first_seen_at não é único)', async () => {
+    const { sb, consultas } = falsoPostgrest({
+      competitor_channels: canais(), competitor_videos: [video('a')], competitor_video_versions: [], competitor_field_versions: [],
+    })
+    await lerMudancasDoCanal(sb, { ...E, videoIds: ['a'], desde: DESDE })
+    const q = consultas.filter((c) => c.tabela === 'competitor_video_versions' || c.tabela === 'competitor_field_versions')
+    expect(q).toHaveLength(2)
+    for (const c of q) expect(c.ordem).toEqual(['first_seen_at', 'id'])
+  })
   it('lerMudancasDoCanal: versão de vídeo de outro canal pedido por id não volta', async () => {
     const { sb } = falsoPostgrest({
       competitor_channels: canais(), competitor_videos: [video('a'), video('z', OUTRO_CANAL)],

@@ -22,7 +22,7 @@ begin
   end if;
 end $$;
 
-set lock_timeout = '5s';
+set local lock_timeout = '5s'; -- (portão 15/10) local: vale só para a transação do arquivo
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. A marca: uma linha por vídeo e idade, gravada UMA vez. Sem linha = não medido (o motivo fica na tabela 2).
@@ -280,6 +280,9 @@ declare
   v_refeitas integer := 0;
   v_n integer := 0;
 begin
+  -- (portão 15/10) Uma execução por vez: duas execuções ao mesmo tempo poderiam deixar o par nas duas tabelas por uma rodada
+  -- (READ COMMITTED não enxerga o insert ainda não confirmado da outra). Chave fixa: hashtext('competitor_marks_apply').
+  perform pg_advisory_xact_lock(hashtext('competitor_marks_apply'));
   if p_marks is null or jsonb_typeof(p_marks) <> 'array' or p_misses is null or jsonb_typeof(p_misses) <> 'array' or p_rule_version is null then
     raise exception 'competitor_marks_apply: p_marks e p_misses têm de ser listas e p_rule_version é obrigatório';
   end if;

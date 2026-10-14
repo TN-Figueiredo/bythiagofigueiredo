@@ -4,7 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type Linha = Record<string, unknown>
-export interface Consulta { tabela: string; colunas: string[]; filtros: Array<{ op: 'eq' | 'neq' | 'in' | 'gte'; coluna: string; valor: unknown }>; de: number | null; ate: number | null }
+export interface Consulta { tabela: string; colunas: string[]; filtros: Array<{ op: 'eq' | 'neq' | 'in' | 'gte'; coluna: string; valor: unknown }>; de: number | null; ate: number | null; ordem?: string[] }
 export interface FalsoOpcoes {
   /** Erro devolvido (no campo `error`) a toda consulta desta tabela. */
   erros?: Record<string, { code: string; message: string }>
@@ -29,7 +29,7 @@ export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes
         in(coluna: string, valor: unknown[]) { c.filtros.push({ op: 'in', coluna, valor }); return b },
         gte(coluna: string, valor: unknown) { c.filtros.push({ op: 'gte', coluna, valor }); return b },
         order(coluna: string) { ordem = [...ordem, coluna]; return b },
-        range(de: number, ate: number) { c.de = de; c.ate = ate; return b },
+        range(de: number, ate: number) { c.ordem = ordem; c.de = de; c.ate = ate; return b },
         then(ok: (r: { data: unknown; error: unknown }) => unknown, falha?: (e: unknown) => unknown) {
           return executar().then(ok, falha)
         },

@@ -26,6 +26,9 @@ interface Par {
 }
 
 const LISTA: Par[] = [
+  // MG4 (E4)
+  { funcao: 'competitor_marks_apply', tabela: 'competitor_video_marks', linha: 'E4 MG4: refaz o par quando a base da idade muda ou o vídeo passa a agendado ou no ar; nunca por idade', disparo: 'agenda' },
+  { funcao: 'competitor_marks_apply', tabela: 'competitor_video_mark_misses', linha: 'E4 MG4: idem, e apaga o motivo do par que ganhou marca', disparo: 'agenda' },
   // MG6 (esta etapa)
   { funcao: 'competitor_channel_remove_archived', tabela: 'competitor_channels', linha: '2', disparo: 'dono' },
   { funcao: 'obs_archive_register', tabela: 'obs_archive_batches', linha: '15', disparo: 'dono' },

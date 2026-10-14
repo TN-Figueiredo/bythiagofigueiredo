@@ -278,11 +278,11 @@ export async function lerMudancasDoCanal(sb: SupabaseClient, o: Escopo & { video
     for (const bloco of blocos(meus)) {
       // A primeira leitura de um campo não é mudança (`precision = 'first'`).
       const v = await paginar((de, ate) => sb.from('competitor_video_versions').select('video_id, field, first_seen_at, precision, value_text')
-        .in('video_id', bloco).neq('precision', 'first').gte('first_seen_at', o.desde).order('first_seen_at').range(de, ate), max)
+        .in('video_id', bloco).neq('precision', 'first').gte('first_seen_at', o.desde).order('first_seen_at').order('id').range(de, ate), max)
       if (!v.ok) return naoLido(v.causa)
       const f = await paginar((de, ate) => sb.from('competitor_field_versions').select('video_id, field, first_seen_at, precision')
         .eq('site_id', o.siteId).in('video_id', bloco).in('field', Object.keys(CAMPO_DE_CAMPO)).neq('precision', 'first')
-        .gte('first_seen_at', o.desde).order('first_seen_at').range(de, ate), max)
+        .gte('first_seen_at', o.desde).order('first_seen_at').order('id').range(de, ate), max)
       if (!f.ok) return naoLido(f.causa)
       juntar(v.linhas, CAMPO_DE_VIDEO, true)
       juntar(f.linhas, CAMPO_DE_CAMPO, false)
