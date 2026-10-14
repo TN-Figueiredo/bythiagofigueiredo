@@ -4,6 +4,8 @@
  * O banco é simulado por tabelas de verdade (linhas em memória que obedecem a `order`, `limit` e `lt`), para a fatia, a fronteira e a
  * convergência serem provadas contra dados, não contra chamadas decoradas. Sem filtro de `site_id`, de propósito.
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { podarAcessoIa } from '@/lib/youtube/observatorio/acesso-ia/poda'
 
@@ -308,5 +310,12 @@ describe('podarAcessoIa: o relógio e o prazo', () => {
     const r = await podarAcessoIa(travado as never, AGORA, SOBRA_FARTA)
     espia.mockRestore()
     expect(r).toMatchObject({ ok: false, motivo: 'banco_falhou' })
+  })
+})
+
+describe('poda.ts é só de servidor', () => {
+  it("tem `import 'server-only'` (o plano marca o módulo como server-only)", () => {
+    const texto = readFileSync(resolve(__dirname, '../../../src/lib/youtube/observatorio/acesso-ia/poda.ts'), 'utf8')
+    expect(texto).toMatch(/^import 'server-only'$/m)
   })
 })

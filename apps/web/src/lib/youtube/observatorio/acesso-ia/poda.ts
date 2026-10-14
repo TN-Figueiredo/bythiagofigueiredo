@@ -9,6 +9,7 @@
 // ficar desligada por semanas. Cada execução faz quatro idas (ler a linha mais antiga e o total; apagar; o mesmo no contador): o limite do
 // apagamento é o MENOR entre o corte e "a linha mais antiga mais a fatia" (30 dias nas duas tabelas). Em dia normal a fatia cobre tudo o que venceu.
 // Com atraso, cada execução recupera até 30 dias e devolve `atraso_restante` até a fatia alcançar o corte.
+import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACESSO_IA_RULES } from './regras'
 

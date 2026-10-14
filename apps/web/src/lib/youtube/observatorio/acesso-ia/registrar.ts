@@ -6,6 +6,7 @@
 // `params` passa por uma lista fechada de chaves E de valores (cada chave tem a forma dela): texto de pergunta, de comentário ou de resposta não tem por onde entrar.
 // `result = 'ok'` quer dizer "a chamada foi atendida e registrada", NÃO "o dado foi entregue": entregue é `result = 'ok'` e `desfecho = 'ok'`.
 // Nenhuma função lança; erro, exceção e prazo viram `{ ok: false, code }` (quem chama decide: a `ok` bloqueia a entrega, as outras vão ao Sentry).
+import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACOES } from './acoes'
 import { ACESSO_IA_RULES } from './regras'
