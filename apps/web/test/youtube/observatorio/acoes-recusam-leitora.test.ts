@@ -155,6 +155,7 @@ describe('A5 E17 passo 0 (item 170): as ações do Observatório que escrevem re
     expect(e.recusou(r) || lancouRecusa(r), `${e.nome} devolveu ${JSON.stringify(r)}`).toBe(true)
     expect(estado.guardas, `${e.nome}: a guarda pedida`).toContain('edit')
     expect(escritas(), `${e.nome}: escrita no banco`).toEqual([])
+    expect(estado.chamadas, `${e.nome}: tocou o cliente de serviço (leitura ou escrita) antes de recusar`).toEqual([])
     expect(fetchEspiao, `${e.nome}: chamada de rede`).not.toHaveBeenCalled()
     expect(estado.fila, `${e.nome}: fila da forja`).toEqual({ ask: 0, cancel: 0 })
   })

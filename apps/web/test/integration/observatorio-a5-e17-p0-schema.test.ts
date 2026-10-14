@@ -4,7 +4,7 @@
  * Cada `it` abre uma transação, aplica a MG11 inteira dentro dela (`garantirMg11`), afirma e DESFAZ: nada fica gravado.
  * Banco: SÓ o `bythiago_int` (fora da CI):
  *   HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
- *   npx vitest run test/integration/observatorio-a5-e17-p0-schema.test.ts --no-file-parallelism
+ *   npx vitest run --no-file-parallelism test/integration/observatorio-a5-e17-p0-schema.test.ts
  * Erro 55P03 ou `lock_timeout` = banco ocupado por outro teste: esperar um minuto e repetir (não é falha do schema).
  * Função sem EXECUTE NUNCA é chamada aqui como anon/authenticated (derruba este Postgres): o privilégio vai por `has_function_privilege`.
  */
@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg11, lerSqlDaMg11, recusarTransacaoNaRaiz } from '../helpers/mg11'
+import { garantirMg11, travarMg11, lerSqlDaMg11, recusarTransacaoNaRaiz } from '../helpers/mg11'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -63,6 +63,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): schema do direito, da
   /** Abre a transação, roda o corpo e DESFAZ sempre. */
   async function emTransacao<T>(corpo: () => Promise<T>): Promise<T> {
     await pg.query('begin')
+    await travarMg11(pg)
     try {
       return await corpo()
     } finally {

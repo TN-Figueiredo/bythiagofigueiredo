@@ -108,7 +108,7 @@ Ordem de aplicação do lote C, fixada pelo controlador: MG14, **MG11**, MG5, MG
 | Passo | Quem | O quê |
 |---|---|---|
 | 1 | controlador | roda P1 a P12 e a P14 (seção 0.2) e anota *(emenda 1: eram P1 a P10; emenda 2: D-N1: a P14)*; avisa que chegou a vez do lote C e que o arquivo da MG14 já existe (reconciliação 13/10, emenda 2: D2-m1: a vez é a do lote C2; os arquivos da MG14, da MG5 e da MG7 já existem e estão aplicados) |
-| 2 | agente (Tarefa 1b) | `npm run db:new observatorio_a5_e17_direito_desempenho_privado`, **depois** do arquivo da MG14 e **antes** do da MG5; cola o Apêndice A (o texto de `apps/web/test/fixtures/sql/a5-e17-p0-mg11.sql`); confere `diff` vazio entre os dois; roda o roteiro de prova duas vezes; commit local |
+| 2 | agente (Tarefa 1b) | `npm run db:new observatorio_a5_e17_direito_desempenho_privado`, com o carimbo da vez, posterior a `20261014000001` (M1 da manutenção; a MG5 e a MG7 já estão em produção, então "antes da MG5" é impossível). Se a M1 não tiver sido aplicada antes, ela vai junto no mesmo push, e roda-se `m1-conferencia.sh` antes e depois (linha da M1 na fila) *(portão 14/10, Yannis M-1)*; cola o Apêndice A (o texto de `apps/web/test/fixtures/sql/a5-e17-p0-mg11.sql`); confere `diff` vazio entre os dois; roda o roteiro de prova duas vezes; commit local |
 | 2b *(emenda 1: S-m3)* | controlador | aplica o arquivo no `bythiago_int` (pelo comando que ele já usa para esse banco; este plano não o afirma) e roda o teste de 40 conexões da Tarefa 4. **Verde antes do passo 3:** é a única prova de atomicidade do contador, e depois do passo 3 um defeito só se conserta com migration nova |
 | 3 | **dono** | `npm run db:push:prod` (digita `YES`), uma vez, com ~~as cinco do lote C~~ (reconciliação 13/10, emenda 2: D2-m1) as do lote C2 que estiverem prontas no dia (MG11; MG12 e MG17a, se os arquivos delas existirem) |
 | 4 | agente | V1 a V6 em produção (só leitura), resultado no ledger `.superpowers/sdd/a5-e17-p0/progress.md` |
@@ -122,7 +122,7 @@ Ordem de aplicação do lote C, fixada pelo controlador: MG14, **MG11**, MG5, MG
 - `alter table public.pipeline_api_keys add column` (duas colunas anuláveis, sem valor padrão: só catálogo) e `add constraint … check` (lê as linhas da tabela, que são três ou quatro). A tabela é lida a cada chamada do pipeline e pela forja a cada 10 minutos.
 - Cinco chaves estrangeiras para `auth.users` (*emenda 1: D-m2*: eram quatro; a quinta é a de `revoked_by`): cada uma pede, por milissegundos, uma trava que espera escrita em andamento em `auth.users` (um login em curso).
 - `set lock_timeout = '5s'` na primeira linha: se alguma trava não vier em 5 segundos, a migration falha; repete-se. *(emenda 1: D-m7)* A rodada 0 dizia "falha inteira e nada fica aplicado": isso só vale se a CLI do Supabase aplica o arquivo numa transação só, e **não foi medido** (conferência P11). Se P11 disser que não, a frase certa é "pode ficar aplicada em parte; repetir converge". O desenho aguenta os dois casos: a troca das policies é um bloco `do` só, portanto atômica para as doze juntas, e o arquivo inteiro é idempotente.
-- *(emenda 1: D-m4)* **A conta do pior caso, por extenso.** "Milissegundos" é o tempo de cada trava depois de concedida. O limite de 5 s vale por pedido de trava, não para a migration inteira. A trava em `auth.users` é pedida na primeira instrução (o `create table` com chave estrangeira) e, se o arquivo roda numa transação só (P11), fica presa até o fim; depois dela vêm os pedidos de trava exclusiva em tabela com tráfego: um por tabela da lista que existir, mais `pipeline_api_keys`. O teto teórico é 13 pedidos (as doze, se todas existissem), cerca de **65 s** se cada um esperar quase 5 s e conseguir. No dia do lote C, pela ordem de aplicação, existem no máximo seis das doze quando a MG11 roda (as cinco de hoje, se P1 confirmar a MG8, e a da MG14): 7 pedidos, cerca de **35 s**. Nesse tempo fica esperando quem escreve em `auth.users` (um login) e, no trecho final, quem lê `pipeline_api_keys` (a forja, o Cowork). É improvável e não perde dado; é o teto, e é por ele que a janela importa.
+- *(emenda 1: D-m4)* **A conta do pior caso, por extenso.** "Milissegundos" é o tempo de cada trava depois de concedida. O limite de 5 s vale por pedido de trava, não para a migration inteira. A trava em `auth.users` é pedida na primeira instrução (o `create table` com chave estrangeira) e, se o arquivo roda numa transação só (P11), fica presa até o fim; depois dela vêm os pedidos de trava exclusiva em tabela com tráfego: um por tabela da lista que existir, mais `pipeline_api_keys`. O teto teórico é 13 pedidos (as doze, se todas existissem), cerca de **65 s** se cada um esperar quase 5 s e conseguir. *(portão 14/10, Yannis M-3: a conta antiga, "seis das doze, 7 pedidos, cerca de 35 s", está vencida)* Pela P2 de 14/10, já existem **10 das doze** em produção, e o E2 do ensaio do Phil mostra 14 relações com `AccessExclusiveLock` presas até o commit (as 10 tabelas, as 3 novas e `pipeline_api_keys`): 11 pedidos sobre tabela com tráfego, teto teórico de cerca de **55 s**. Nesse tempo fica esperando quem escreve em `auth.users` (um login) e, no trecho final, quem lê `pipeline_api_keys` (a forja, o Cowork). É improvável e não perde dado; é o teto, e é por ele que a janela importa.
 - **Janela:** fora de 11:30 a 13:00 UTC (cron da coleta do canal próprio), como as outras do lote C. *(emenda 1: D-m4)* E, se o lote B já estiver em produção no dia (hoje é só local), fora do minuto do despachante da agenda, que é quem escreve nas duas tabelas de comentário: conferência P12.
 
 **Convive com o código que está em `main`?** Sim, nos dois sentidos:
@@ -163,7 +163,7 @@ select (select count(*) from public.site_private_viewers) as concessoes, (select
 select u.email, s.slug, public.can_view_site_as(u.id, s.id) as ver, public.can_edit_site_as(u.id, s.id) as editar, public.can_view_private_site_as(u.id, s.id) as privado from auth.users u cross join public.sites s where u.id in (select user_id from public.organization_members union select user_id from public.site_memberships) order by 1, 2;
 ```
 
-**V6: as chaves do pipeline continuam como estavam.** Esperado: as mesmas linhas da C0.4 (`cowork-permanent`, `forja (fila)`, `forja (so leitura)`), todas com `user_id` nulo e `expires_at` nulo; nenhuma com `observatorio_leitura`.
+**V6: as chaves do pipeline continuam como estavam.** Esperado *(portão 14/10, Yannis M-2)*: as N linhas de antes (contar na véspera: a consulta lista também as revogadas; a C0.4 tinha 3 ativas e o ensaio do Phil fala em 8 linhas em produção), todas com `user_id` e `expires_at` nulos; nenhuma com `observatorio_leitura`.
 
 ```sql
 select name, permissions, user_id, expires_at, revoked_at is not null as revogada from public.pipeline_api_keys order by created_at;
@@ -241,7 +241,7 @@ O caminho contrário (de leitura para edição) não existe: não há função q
 
 **Custo da policy por linha (leitura direta pela API do banco, com sessão).** 0,138 ms por linha contra 0,120 ms hoje (F7), mais 15%. Quem lê assim: ninguém no produto (os leitores usam o cliente de serviço, que não passa pela RLS). Uma leitura direta de 1.000 linhas (o limite do PostgREST) custa cerca de 0,14 s; uma contagem sem filtro em `yt_own_video_daily` inteira já custava cerca de 12 s e passa a cerca de 13 s, e nos dois casos passa do tempo limite de instrução que o Supabase dá por padrão ao papel `authenticated` (8 s; o valor deste projeto não foi medido). Não é regressão que alguém sinta, e fica declarada.
 
-**Tempo da migration:** dezenas de milissegundos de trava por tabela existente; nenhuma reescrita de tabela; nenhum índice em tabela com linha, fora o parcial de `pipeline_api_keys` (três ou quatro linhas). *(emenda 1: D-m4)* Isso é o tempo com as travas concedidas na hora; o pior caso de espera (cerca de 35 s no dia do lote C; 65 s no teto teórico) está na conta da seção 2.
+**Tempo da migration:** dezenas de milissegundos de trava por tabela existente; nenhuma reescrita de tabela; nenhum índice em tabela com linha, fora o parcial de `pipeline_api_keys` (três ou quatro linhas). *(emenda 1: D-m4)* Isso é o tempo com as travas concedidas na hora; o pior caso de espera (cerca de 55 s com 10 das doze já existentes; 65 s no teto teórico) está na conta da seção 2.
 
 ---
 
@@ -598,7 +598,7 @@ Teste (`observatorio-a5-e17-p0-reporter-banco.test.ts`):
 
 **Ordem que não pode inverter.**
 1. **A A4 em `staging`** antes do código deste plano (os arquivos que a Tarefa 6 edita são dela).
-2. **O arquivo da MG11 criado depois do da MG14 e antes do da MG5**, e o lote C aplicado pelo dono de uma vez.
+2. **O arquivo da MG11 criado com o carimbo da vez, posterior a `20261014000001` (M1 da manutenção; a MG5 e a MG7 já estão em produção, "antes da MG5" é impossível; se a M1 ainda estiver pendente, vai junto no mesmo push, com `m1-conferencia.sh` antes e depois) *(portão 14/10, Yannis M-1)*, e o lote C aplicado pelo dono de uma vez.
 3. *(emenda 1: S-m3)* **O teste de 40 conexões verde no `bythiago_int`** antes do `db:push:prod` (passo 2b da seção 2), e **V1 a V6 anotadas** antes do push do código.
 4. **Push do código** (Tarefas 5, 6, 7 e os testes). Conferir a CI.
 5. **Nenhuma linha em `site_private_viewers`** antes do plano de fechamento em produção.
@@ -617,7 +617,7 @@ Teste (`observatorio-a5-e17-p0-reporter-banco.test.ts`):
 
 | Id | Quando | O que olhar | Esperado |
 |---|---|---|---|
-| (sem id) | D0, logo depois do `db:push:prod` | V1 a V6 | V1 `3, 2, 6, 1, 8, 2, 1, 1`; V2 todas em `can_view_private_site(site_id)`; V3 nove linhas iguais às de antes; V4 `0, 0, 0, 0`; V5 `privado = editar` em toda linha; V6 três chaves, `user_id` e `expires_at` nulos |
+| (sem id) | D0, logo depois do `db:push:prod` | V1 a V6 | V1 `3, 2, 6, 1, 8, 2, 1, 1, 1, 2`; V2 todas em `can_view_private_site(site_id)`; V3 nove linhas iguais às de antes; V4 `0, 0, 0, 0`; V5 `privado = editar` em toda linha; V6 as N chaves de antes (contar na véspera; 3 ativas na C0.4), `user_id` e `expires_at` nulos |
 | (sem id) | D0, depois do deploy do código | o dono (ou o roteiro autenticado local) abre a página do canal próprio e a de um vídeo próprio | os números de alcance e de views por dia aparecem como antes; nenhuma frase "só quem edita" para ele |
 | `e17p0-d1` | D+1 | Sentry: eventos com `step: provar-leitura-privada` desde o deploy; V4 | zero eventos; `0, 0, 0, 0`. Um evento ou mais sem haver `reporter` em produção = alguém sem edição abriu o Observatório, ou a guarda falhou: ler o `motivo` |
 | `e17p0-d7` | D+7 | V2 de novo, V4, V5 | V2 com 12 linhas (ou 10, se a MG12 ainda não entrou), todas no direito; V4 `0, 0, 0, 0` enquanto ninguém foi concedido; V5 sem `privado = true` com `editar = false` |
@@ -634,7 +634,7 @@ Tudo no `bythiago_int` (porta 54422), dentro de `begin; … rollback;`, em 13/10
 | O que | Vezes | Resultado |
 |---|---|---|
 | Apêndice A aplicado duas vezes seguidas | 4 rodadas | sem erro; na segunda aplicação só avisos "já existe, pulando" |
-| V1 | 2 | `3, 2, 6, 1, 8, 2, 1, 1` |
+| V1 | 2 | `3, 2, 6, 1, 8, 2, 1, 1, 1, 2` |
 | V2 (10 das 12 presentes; antes, as 10 em `can_edit_site`) | 2 | as 10 em `can_view_private_site(site_id)`, uma policy cada, `<tabela>_select` |
 | V3 | 2 | 9 linhas, iguais às de antes (5 em `can_edit_site`, 4 em `can_view_site`) |
 | Apêndice B inteiro (matriz, nulos, sessão contra `_as`, `anon`, RLS de `site_private_viewers`, escrita recusada, rastro, runbook, contador, `check`, apagar usuário) | 4 | saídas iguais linha a linha (fora as de tempo); a do Apêndice B |

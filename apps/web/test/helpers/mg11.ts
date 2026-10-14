@@ -47,6 +47,26 @@ export function lerSqlDaMg11(): string {
 }
 
 /**
+ * Serializa os arquivos de teste da E17 p0 que mexem na MG11 (a migration pede travas exclusivas em 14 relações e nas chaves
+ * estrangeiras de auth.users e sites; dois arquivos ao mesmo tempo dão deadlock). Chamar como PRIMEIRA instrução depois do
+ * `begin`, antes de qualquer insert. A trava é de transação: o commit/rollback a solta.
+ */
+export async function travarMg11(pg: Client): Promise<void> {
+  await pg.query(`select pg_advisory_xact_lock(hashtext('a5-e17-p0-mg11'))`)
+}
+
+/**
+ * Simula a sessão de `quem` (null = anônimo) na transação. `auth.uid()` lê `request.jwt.claim.sub` ANTES de
+ * `request.jwt.claims`: setar só o segundo deixa o usuário anterior valendo. Por isso as duas variáveis, sempre.
+ */
+export async function definirSessao(pg: Client, quem: string | null): Promise<void> {
+  await pg.query(`select set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true)`, [
+    quem ? JSON.stringify({ sub: quem, role: 'authenticated' }) : '',
+    quem ?? '',
+  ])
+}
+
+/**
  * Aplica a MG11 na transação aberta por quem chama. Devolve `ja_aplicada` se `site_private_viewers` já existia antes
  * (nesta transação ou no banco), ou `aplicada_na_transacao`.
  *

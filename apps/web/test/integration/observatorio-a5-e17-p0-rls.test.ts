@@ -7,7 +7,7 @@
  * consulta como `anon`/`authenticated` (`set local role` + `request.jwt.claims`) e DESFAZ no fim. Nada fica gravado.
  * Banco: SÓ o `bythiago_int` (fora da CI):
  *   HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
- *   npx vitest run test/integration/observatorio-a5-e17-p0-rls.test.ts --no-file-parallelism
+ *   npx vitest run --no-file-parallelism test/integration/observatorio-a5-e17-p0-rls.test.ts
  * Erro 55P03 ou `lock_timeout` = banco ocupado por outro teste: esperar um minuto e repetir (não é falha da RLS).
  * Função sem EXECUTE NUNCA é chamada aqui como anon/authenticated (derruba este Postgres): as `_as` rodam só como postgres.
  */
@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg11 } from '../helpers/mg11'
+import { garantirMg11, travarMg11, definirSessao } from '../helpers/mg11'
 
 vi.setConfig({ testTimeout: 90_000 })
 
@@ -63,6 +63,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
 
   async function emTransacao<T>(corpo: () => Promise<T>): Promise<T> {
     await pg.query('begin')
+    await travarMg11(pg)
     try {
       return await corpo()
     } finally {
@@ -185,7 +186,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): RLS do direito contra
   async function como(c: Cen, quem: Quem | 'anon', sql: string, params: unknown[] = [], guc: string = c.a): Promise<Res> {
     await pg.query('savepoint como')
     try {
-      await pg.query(`select set_config('request.jwt.claims', $1, true)`, [quem === 'anon' ? '' : JSON.stringify({ sub: c.u[quem], role: 'authenticated' })])
+      await definirSessao(pg, quem === 'anon' ? null : c.u[quem])
       await pg.query(`select set_config('app.site_id', $1, true)`, [guc])
       await pg.query(quem === 'anon' ? 'set local role anon' : 'set local role authenticated')
       const r = await pg.query(sql, params)

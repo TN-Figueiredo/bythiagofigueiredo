@@ -7,7 +7,7 @@
  * transação (exige 40 conexões e dado commitado): só roda com a MG11 aplicada DE VERDADE; antes disso PULA com o motivo escrito
  * (pende aplicação do controlador, passo 2b da seção 2 do plano). Banco: SÓ o `bythiago_int` (fora da CI):
  *   HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
- *   npx vitest run test/integration/observatorio-a5-e17-p0-taxa.test.ts --no-file-parallelism
+ *   npx vitest run --no-file-parallelism test/integration/observatorio-a5-e17-p0-taxa.test.ts
  * Erro 55P03 ou `lock_timeout` = banco ocupado por outro teste: esperar um minuto e repetir.
  * Função sem EXECUTE NUNCA é chamada aqui como anon/authenticated (derruba este Postgres): o que authenticated/anon NÃO pode vai por
  * `has_function_privilege`; os que ELE pode (tabelas com privilégio negado ou policy) são consultados de verdade.
@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg11 } from '../helpers/mg11'
+import { garantirMg11, travarMg11, definirSessao } from '../helpers/mg11'
 
 vi.setConfig({ testTimeout: 90_000 })
 
@@ -63,6 +63,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): contador de taxa, che
 
   async function emTransacao<T>(corpo: () => Promise<T>): Promise<T> {
     await pg.query('begin')
+    await travarMg11(pg)
     try {
       await garantirMg11(pg)
       return await corpo()
@@ -200,7 +201,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): contador de taxa, che
       const como = async (quem: string | null, sql: string): Promise<{ n: number; code: string | null }> => {
         await pg.query('savepoint como')
         try {
-          await pg.query(`select set_config('request.jwt.claims', $1, true)`, [quem ? JSON.stringify({ sub: quem, role: 'authenticated' }) : ''])
+          await definirSessao(pg, quem)
           await pg.query(`select set_config('app.site_id', $1, true)`, [s.site])
           await pg.query(quem ? 'set local role authenticated' : 'set local role anon')
           const r = await pg.query(sql)
@@ -240,6 +241,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): contador de taxa, che
     const org = randomUUID(); const site = randomUUID(); const chave = randomUUID()
     const raiz = (await pg.query<{ id: string }>('select id from public.organizations where parent_org_id is null limit 1')).rows[0]?.id ?? null
     const conexoes: Client[] = []
+    // mesma trava dos outros arquivos da E17 p0 (sessão, não transação): a semente e a limpeza deste teste são commitadas e
+    // travam sites/organizations; sem ela, a limpeza dá deadlock com a MG11 aplicada por outro arquivo em paralelo
+    await pg.query(`select pg_advisory_lock(hashtext('a5-e17-p0-mg11'))`)
     try {
       await pg.query(`insert into public.organizations (id, name, slug, parent_org_id) values ($1, 'Org MG11 taxa', $2, $3)`, [org, `mg11-taxa-org-${sufixo}`, raiz])
       await pg.query(`insert into public.sites (id, org_id, name, slug, domains, primary_domain) values ($1, $2, 'Site MG11 taxa', $3, $4, $5)`, [site, org, `mg11-taxa-site-${sufixo}`, [`mg11-taxa-${sufixo}.test`], `mg11-taxa-${sufixo}.test`])
@@ -262,6 +266,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): contador de taxa, che
         async () => { await pg.query('delete from public.audit_log where site_id = $1', [site]) },
         async () => { await pg.query('delete from public.sites where id = $1', [site]) },
         async () => { await pg.query('delete from public.organizations where id = $1', [org]) },
+        async () => { await pg.query(`select pg_advisory_unlock(hashtext('a5-e17-p0-mg11'))`) },
       ])
     }
   })

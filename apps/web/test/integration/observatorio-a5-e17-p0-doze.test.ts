@@ -4,7 +4,7 @@
  * por `can_view_private_site(site_id)`, e as exceções, pelo nome. Cada `it` aplica a MG11 numa transação (`garantirMg11`),
  * lê o catálogo e DESFAZ. Nada fica gravado. Banco: SÓ o `bythiago_int` (fora da CI):
  *   HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
- *   npx vitest run test/integration/observatorio-a5-e17-p0-doze.test.ts --no-file-parallelism
+ *   npx vitest run --no-file-parallelism test/integration/observatorio-a5-e17-p0-doze.test.ts
  * Erro 55P03 ou `lock_timeout` = banco ocupado por outro teste: esperar um minuto e repetir.
  *
  * ESTE TESTE FICA VERMELHO DE PROPÓSITO quando uma trilha cria tabela `yt_own_*` (ou view) e não a classifica aqui: quem cria o
@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg11 } from '../helpers/mg11'
+import { garantirMg11, travarMg11 } from '../helpers/mg11'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -58,6 +58,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): a lista das doze e as
 
   async function emTransacao<T>(corpo: () => Promise<T>): Promise<T> {
     await pg.query('begin')
+    await travarMg11(pg)
     try {
       await garantirMg11(pg)
       return await corpo()
