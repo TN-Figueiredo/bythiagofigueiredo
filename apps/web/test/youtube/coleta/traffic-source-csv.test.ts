@@ -70,7 +70,7 @@ describe('lerTrafego', () => {
     expect(motivo(() => lerTrafego(csv(linha({ tipo: 'x'.repeat(41) }))))).toBe('linha_invalida')
   })
   it('números só em decimal simples: hexadecimal, binário, científica, sinal e ponto solto são linha_invalida (M2)', () => {
-    for (const m of ['0x10', '0b1', '1e3', '1E-5', '1e999', '.5', '5.', '-0', '+1', 'NaN', 'Infinity']) {
+    for (const m of ['0x10', '0b1', '1e999', '1e', '1e+', '.5', '5.', '-0', '+1', 'NaN', 'Infinity']) {
       expect(motivo(() => lerTrafego(csv(linha({ minutos: m }))))).toBe('linha_invalida')
     }
     for (const v of ['0x1', '0b1', '1e3', '-0', '+1']) {
@@ -78,6 +78,12 @@ describe('lerTrafego', () => {
     }
     expect(lerTrafego(csv(linha({ minutos: '0' })))[0]!.watchTimeMinutes).toBe(0)
     expect(lerTrafego(csv(linha({ minutos: '12.75' })))[0]!.watchTimeMinutes).toBe(12.75)
+  })
+  it('minutos em notação científica valem (o YouTube emite 1.0E-4 para valor minúsculo); views continuam inteiro estrito', () => {
+    expect(lerTrafego(csv(linha({ minutos: '1.0E-4' })))[0]!.watchTimeMinutes).toBe(0.0001)
+    expect(lerTrafego(csv(linha({ minutos: '1e3' })))[0]!.watchTimeMinutes).toBe(1000)
+    expect(lerTrafego(csv(linha({ minutos: '2.5e+1' })))[0]!.watchTimeMinutes).toBe(25)
+    expect(motivo(() => lerTrafego(csv(linha({ views: '1.0E2' }))))).toBe('linha_invalida')
   })
   it('views além do inteiro seguro: linha_invalida', () => {
     expect(motivo(() => lerTrafego(csv(linha({ views: '99999999999999999999' }))))).toBe('linha_invalida')
