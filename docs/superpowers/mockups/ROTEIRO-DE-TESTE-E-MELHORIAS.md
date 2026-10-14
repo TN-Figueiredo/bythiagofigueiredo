@@ -1261,5 +1261,8 @@ Estado: **aprovada pelo dono no Opera em 14/10/2026** (código em `apps/web/src/
 6. Linhas de canal atrasado ou em erro e a do canal próprio passam de 100 px.
 7. A barra fixa do rodapé cobre a última linha visível.
 8. Botões do cabeçalho do YouTube ("Sincronizar tudo", "Abrir no Cowork") com 39 px a 390 (componente compartilhado com o resto do CMS).
-9. O ⓘ diz 28 dias; o Logan pediu 30. A janela é 28 em todo o código (ⓘ, texto de leitor de tela, resumo); conferir com o Phil se 28 é o certo antes de trocar o texto.
+9. Decidido (portão de Phil e Yannis, 14/10): a janela da Direção é de 28 dias, como no motor (`medidas/regras.ts`) e no spec 04; o ⓘ e os textos ficam com 28.
 10. O spec não afirma a hachura da faixa nem o "sem mudança".
+11. Botão da forja ("Lê N trocas", `forja/preview.ts`) ainda conta as trocas de descrição, enquanto a aba Mudanças mostra a contagem sem elas. Trocar "trocas" por "mudanças (título, thumbnail e descrição)" junto com a revisão da tela Mudanças, mudando o oráculo e o texto no mesmo commit (Phil, M4 do portão de 14/10).
+12. O filtro "Com problema" conta também o canal em primeira busca, que ao mesmo tempo mostra "ainda buscando os vídeos". Separar `backfill` quando o oráculo puder mudar (Phil, M2).
+13. `e2e/auth.setup.ts` aceita `/admin/login` como sucesso e grava cookie vazio (Yannis, portão de 14/10; anterior a este lote).
