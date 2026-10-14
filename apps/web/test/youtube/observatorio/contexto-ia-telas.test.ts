@@ -86,12 +86,12 @@ describe('registro de telas (TELAS_IA)', () => {
     expect(ONZE_IDS).toHaveLength(11)
   })
 
-  it('fila e ritmo nascem em espera_a_tela e sem rota; as duas próprias esperam as Tarefas 7a e 7b', () => {
+  it('fila e ritmo nascem em espera_a_tela e sem rota; o vídeo próprio espera a Tarefa 7b (o canal próprio saiu com a 7a)', () => {
     for (const id of ['fila', 'ritmo'] as const) {
       expect(TELAS_IA[id].estado).toBe('espera_a_tela')
       expect(TELAS_IA[id].rota).toBeNull()
     }
-    expect(TELAS_IA['canal-proprio'].estado).toBe('espera_a_tela')
+    expect(TELAS_IA['canal-proprio'].estado).toBe('existe')
     expect(TELAS_IA['video-proprio'].estado).toBe('espera_a_tela')
     expect(TELAS_IA['canal-proprio'].rota).toBe('canal/[id]')
     expect(TELAS_IA['video-proprio'].rota).toBe('video/[id]')
