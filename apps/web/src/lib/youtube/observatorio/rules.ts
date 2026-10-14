@@ -1,5 +1,6 @@
 import { COMMENT_RULES } from './comentarios/regras'
 import { MEASURE_RULES } from './medidas/regras'
+import { PROPRIO_RULES } from './proprio-versoes/regras'
 
 /** Port of dados.js:113-133 (single source of rules) + tierOf + NICHES. */
 export const RULES = {
@@ -61,6 +62,8 @@ export const RULES = {
   pause: { forgottenDays: 7, minMinutesBeforeExport: 6 },
   // Miniaturas pendentes no Blob (alerta em dias, tentativas por dia) e quanto vale a sugestão de arquivar (dias).
   archive: { blobPendingAlertDays: 3, blobRetryMaxPerDay: 200, suggestionFreshDays: 7 },
+  // Versões do vídeo próprio (A5, E18): limiar do antes e depois, janela e regra do retoque. O número mora em proprio-versoes/regras.ts.
+  proprio: PROPRIO_RULES,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
