@@ -35,7 +35,7 @@ export interface SementeAb { linhas: LinhaSemente[]; fora: Array<{ ciclo: string
 
 /**
  * Uma linha por ciclo com `title_set` e início anterior ao dia `registroDesde` (dia do Pacífico). O ciclo que começa antes e termina
- * no dia do início do registro ou depois fica em `fora` (`atravessa_o_registro`): o título dele já é a linha de base.
+ * no dia do início do registro ou depois, ou que não tem fim (`ended_at` nulo), fica em `fora` (`atravessa_o_registro`): o título dele já é a linha de base.
  */
 export function montarSementeAb(
   testes: readonly TesteSemente[], ciclos: readonly CicloSemente[], videos: readonly VideoSemente[], registroDesde: string,
@@ -49,7 +49,9 @@ export function montarSementeAb(
     const video = videoPorId.get(testePorId.get(c.testId)?.videoId ?? '')
     if (!video) { out.fora.push({ ciclo: c.id, motivo: 'video_ausente' }); continue }
     if (dayPt(new Date(c.iniciadoEm)) >= registroDesde) { out.fora.push({ ciclo: c.id, motivo: 'depois_do_registro' }); continue }
-    const fim = c.encerradoEm ?? c.iniciadoEm
+    // Ciclo sem fim (no ar ou nunca fechado): ninguém observou o título sair do ar, então não vira período falso (portão 14/10, Phil I-4).
+    if (c.encerradoEm === null) { out.fora.push({ ciclo: c.id, motivo: 'atravessa_o_registro' }); continue }
+    const fim = c.encerradoEm
     if (dayPt(new Date(fim)) >= registroDesde) { out.fora.push({ ciclo: c.id, motivo: 'atravessa_o_registro' }); continue }
     out.linhas.push({
       youtube_video_id: video.ytId, video_id: video.id, value_text: titulo, value_hash: hashValue(titulo),

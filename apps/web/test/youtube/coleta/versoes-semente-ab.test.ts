@@ -24,9 +24,15 @@ describe('montarSementeAb', () => {
       first_seen_at: '2026-06-01T15:00:00.000Z', last_seen_at: '2026-06-02T15:00:00.000Z', ab_event: 'rotacao', ab_test_id: 't-1', ab_variant_id: 'var-1',
     })
   })
-  it('1b. ciclo sem fim: last_seen_at = início', () => {
+  it('1b. (portão 14/10, Phil I-4) ciclo sem fim: fora por atravessa_o_registro, nenhuma linha com período inventado', () => {
     const r = montarSementeAb(testes, [ciclo('c1', { encerradoEm: null })], videos, REGISTRO)
-    expect(r.linhas[0]!.last_seen_at).toBe('2026-06-01T15:00:00.000Z')
+    expect(r.linhas).toEqual([])
+    expect(r.fora).toEqual([{ ciclo: 'c1', motivo: 'atravessa_o_registro' }])
+  })
+  it('1c. (Yannis M9) título só de espaços: sem_titulo; ciclo iniciado no dia do registro: depois_do_registro (fronteira)', () => {
+    expect(montarSementeAb(testes, [ciclo('c1', { tituloSet: '  ' })], videos, REGISTRO).fora).toEqual([{ ciclo: 'c1', motivo: 'sem_titulo' }])
+    const noDia = ciclo('c2', { iniciadoEm: '2026-10-07T20:00:00.000Z', encerradoEm: '2026-10-07T21:00:00.000Z' })
+    expect(montarSementeAb(testes, [noDia], videos, REGISTRO).fora).toEqual([{ ciclo: 'c2', motivo: 'depois_do_registro' }])
   })
   it('2. ciclo iniciado depois do registro: depois_do_registro', () => {
     expect(montarSementeAb(testes, [ciclo('c1', { iniciadoEm: '2026-10-09T15:00:00.000Z', encerradoEm: null })], videos, REGISTRO).fora).toEqual([{ ciclo: 'c1', motivo: 'depois_do_registro' }])
@@ -113,9 +119,29 @@ describe('executarSemente', () => {
     }
   })
 
-  it('canal ainda sem estado: nada a semear, sem rpc', async () => {
-    const m = montar({ estado: false })
-    expect(await executarSemente(['--gravar', '--confirmar=novkqtvcnsiwhkxihurk'], m.deps)).toBe(0)
-    expect(m.rpc).not.toHaveBeenCalled()
+  it('canal ainda sem estado (portão 14/10, Phil I-3 e Yannis I4): código 3, mensagem de catálogo, sem "nenhum ciclo" e sem rpc, com ou sem --gravar', async () => {
+    for (const args of [['--gravar', '--confirmar=novkqtvcnsiwhkxihurk'], []]) {
+      const m = montar({ estado: false })
+      expect(await executarSemente(args, m.deps)).toBe(3)
+      expect(m.rpc).not.toHaveBeenCalled()
+      expect(m.saida.join('\n')).not.toContain('nenhum ciclo')
+      expect(m.erros.join('\n')).toContain('1 canal(is) sem estado de versões')
+      expect(m.erros.join('\n')).toContain('rode de novo')
+    }
+  })
+
+  it('(Yannis M7b) leitura que falha mostra tabela e código, nunca a mensagem do banco', async () => {
+    const m = montar()
+    const from = (t: string) => {
+      if (t !== 'ab_tests') return m.deps.sb.from(t)
+      const q: Record<string, unknown> = {}
+      for (const f of ['select', 'eq', 'in', 'order']) q[f] = () => q
+      q.range = async () => ({ data: null, error: { code: 'XX000', message: 'conteudo-secreto-zz' } })
+      return q
+    }
+    const deps = { ...m.deps, sb: { from, rpc: m.rpc } as unknown as SupabaseClient }
+    expect(await executarSemente([], deps)).toBe(1)
+    expect(m.erros.join('\n')).toContain('leitura de ab_tests falhou: erro_de_banco (código XX000)')
+    expect(m.erros.join('\n')).not.toContain('conteudo-secreto-zz')
   })
 })
