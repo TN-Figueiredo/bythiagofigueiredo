@@ -256,6 +256,12 @@ describe('faltando_cobertura (carência de 3 dias)', () => {
     expect(falhas).toEqual([])
     expect(db.rpcCalls).toHaveLength(1)
   })
+  it('ligadoEm 91 dias à frente é recusado (fronteira exata do teto)', async () => {
+    const { db } = montar()
+    const { falhas } = await rodar(db, { e11: { desde: '2026-10-01', ligadoEm: diasDepoisDeHoje(91) } })
+    expect(falhas).toEqual(['dimensões: prova não avaliada (configuração das dimensões: ligadoEm está a mais de 90 dias no futuro)'])
+    expect(db.rpcCalls).toHaveLength(0)
+  })
   it('zero faltando depois da carência = sem nota', async () => {
     expect((await rodar(montar(com({ base_ate: '2026-11-29' })).db, { hoje: '2026-11-30' })).falhas).toEqual([])
   })
