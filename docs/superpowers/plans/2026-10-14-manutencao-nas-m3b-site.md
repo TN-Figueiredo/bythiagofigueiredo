@@ -38,7 +38,7 @@
 - **TRAVA M3b-2:** nenhuma linha das Tarefas 11, 12 e 13 (rotas, botão, vigia), nem na árvore sem commit, antes de a migration estar aplicada em produção e conferida (Tarefa 10, Passo 5, linha "TRAVA M3b-2 solta em <data hora>" no ledger `.superpowers/sdd/manutencao-nas/m3b-site-progresso.md`). Parte mecânica (Tarefa 3): enquanto não houver arquivo `*_manutencao_m3b_*` em `supabase/migrations/`, `migrations-leitura.test.ts` exige que `apps/web/src/app/api/pipeline/archive` não exista e que `competitors/actions.ts` não contenha `competitor_channel_remove`; a aplicação em produção continua presa ao ledger. Motivo (P47): código novo sem a função faz o botão "Remover canal" falhar alto e as rotas responderem `erro_do_banco`; com o código no `staging`, a promoção de qualquer outra frente o leva a produção antes da função.
 - **TRAVA M3b-0a (dependências de teste):** as Tarefas 3 a 8 só começam com `git ls-files apps/web/test/helpers/migrations.ts apps/web/test/helpers/m2.ts apps/web/test/manutencao/migrations-leitura.test.ts apps/web/test/integration/video-antigo-m10a-caminho.ts` listando os quatro (helpers da M2 Tarefa 1; o da M10a é o que o plano dela exporta na Tarefa 2: `M10A_SQL` e `M10A_EM_MIGRATION`, aplicados pelo texto de `M10A_SQL`). Faltando um, a M3b faz as Tarefas 1, 2 e 9 e registra a espera no ledger; nunca cria cópia própria dos helpers.
 - **TRAVA M3b-0 (dependências de produção):** a Tarefa 10 só começa com a M2 **e** a M10a aplicadas em produção e conferidas nos ledgers delas ("TRAVA M2-2 solta" e a linha equivalente da M10a). A M3b lê `obs_archive_rehearsal` (M2) e `competitor_videos.archive_frozen_at` (M10a) e é aplicada depois das duas.
-- **TRAVA M3b-3 (desenho):** a frase do diálogo "Remover canal" (Tarefa 12, passos 4 a 7) espera a aprovação do mockup `18-v2` pelo dono (etapa M4, índice dos planos, linha 6). A troca do `.delete()` pela função (Tarefa 12, passos 1 a 3) **não** espera: ela não muda texto. **O diálogo tem de estar em produção antes de 28/11** (`05` §15.1): se o `18-v2` não estiver aprovado quando a Tarefa 12 chegar, o controlador avisa o dono no mesmo dia, com a data.
+- **TRAVA M3b-3 (desenho): SOLTA em 14/10/2026** (mockup aprovado pelo dono em 14/10, commit e8445f559: `remover-canal/` em `docs/superpowers/mockups/2026-10-14-manutencao-nas/`). A Tarefa 12 inteira (passos 1 a 8) pode andar; o diálogo tem de estar em produção antes de 28/11 (`05` §15.1).
 - **Ordem:** 0 → 1 → 2 → (TRAVA M3b-0a) 3 → 4 → 5 → 6 → 7 → 8 → 9 → 9a → **10** (a vez da migration; espera a TRAVA M3b-0) → 11 → 12 → 13 → 14. As Tarefas 1, 2, 9 e 9a são TypeScript puro e podem ser commitadas antes da migration (a 9a pode subir a qualquer momento: fecha uma exposição que existe hoje); 3 a 8 commitam só o rascunho e os testes.
 - **Dívida declarada:** entre as Tarefas 3 e 10 o SQL só é provado no banco local; na CI os testes de banco pulam. Gatilho de pagamento: Tarefa 10, Passo 1. A regra das ~15 funções SQL das Tarefas 5 a 8 está em prosa: o diff de cada uma dessas tarefas passa por Yannis e Phil antes do commit.
 
@@ -3085,7 +3085,7 @@ git commit -m "feat: rotas do arquivo mensal em /api/pipeline/archive, domínio 
 
 **Interfaces:**
 - Consumes: `requireSiteAdminScope` (`apps/web/lib/cms/auth-guards.ts:29`), `competitor_channel_remove`, `obs_archive_channel_archive_impact` (Tarefa 8), `lerCapacidades` (Tarefa 9).
-- Produces: `frasesDoDialogo(impacto: ImpactoArquivo | 'lendo' | 'falhou', cap: Capacidades, o: { nomeDoCanal: string; hoje: string }): { corpo: string[]; confirmar: string | null; exigeDigitar: boolean; ocupado: boolean; tentarDeNovo: boolean }` e `fraseDepoisDoClique(impacto, cap, hoje): string`, puras.
+- Produces (puras, em `frases-remocao.ts`, assinaturas no Passo 4): `estadoDoDialogo(EntradaDialogo): EstadoDialogo` (D0 a D9), `frasesDoDialogo(EntradaDialogo, Capacidades, { nomeDoCanal, casaForaDesde }): ModeloDoDialogo`, `normalizarNome`, `nomeConfere` e `retornoDepoisDoClique(...): RetornoDoClique` (R1 a R3).
 
 **O que acontece quando o dado não existe:** a leitura do impacto falhou: "Não foi possível ler o arquivo deste canal. Nada foi removido." com "Tentar de novo", **sem** botão de confirmar; nunca "0 meses" nem "nada a limpar". Lendo: "contando…", `aria-busy`, confirmar desabilitado. Canal sem arquivo e sem imagem: frase (i). Canal sem arquivo com N imagens: frase (ii), "1 imagem" no singular.
 
@@ -3118,11 +3118,327 @@ git commit -m "feat: remover canal declara o destino do arquivo pela função co
 (`frases-remocao.ts` é arquivo novo: o `git add --` acima vem antes do commit.)
 
 - [ ] **Passo 2.** Promover este commit junto com as Tarefas 11 e 13 (Tarefa 14). Depois dele, um `delete` de canal **com unidade** por qualquer outro caminho recusa; antes de 28/11 nenhum canal tem unidade, e o botão de hoje não muda de comportamento visível.
-- [ ] **Passo 3. TRAVA M3b-3.** Conferir no ledger da M4 a aprovação do mockup `18-v2` pelo dono. Sem ela, parar aqui e avisar o controlador com a data de 28/11 (o diálogo de hoje não mente enquanto nenhum canal tiver unidade: `05` §15.1).
-- [ ] **Passo 4. As frases, puras, falhando** (`arquivo-mensal-frases-remocao.test.ts`, item 163, parte da M3b), uma linha da tabela do `04` §14.3 por caso, com `lerCapacidades` sobre `env` falso: com `OBS_ARQUIVO_LIMPEZA_CANAL` apagada, a forma "Não | Não" ("Os arquivos só somem do NAS e do B2 depois de um comando seu, no Mac. Esse comando ainda não existe e ainda não tem data para chegar. Até lá o arquivo continua no NAS e no B2. A página do Arquivo vai mostrar cada passo e o dia em que acabou."); com `OBS_ARQUIVO_LIMPEZA_CANAL_DATA=05/03`, "chega em 05/03"; com o relógio falso depois da data e a variável ainda apagada, a forma não muda; com arquivo: "Este canal tem N meses no arquivo, de mm/aaaa a mm/aaaa (N registros), no NAS e no B2." e confirmar "Remover e apagar do arquivo"; sem arquivo: confirmar "Remover canal"; com `fora_do_banco.meses > 0` ou `videos_retirados.n > 0`: o parágrafo do caso (só meses, só vídeos, os dois) e `exigeDigitar: true`; só nesses casos; sem arquivo e sem imagem: (i); com 1 e com 3 imagens: (ii) no singular e no plural, mais a frase da linha "Não | Não" da segunda tabela; depois do clique, com arquivo e sem, nas mesmas três linhas; "apagado" nunca aparece. As frases são copiadas do `04` §14.3 sem edição (o teste as compara com o texto do spec por literal).
-- [ ] **Passo 5. O diálogo.** `getCompetitorRemovalImpactAction` passa a devolver também `arquivo: ImpactoArquivo | null` (leitura falhada: `null` e a flag `arquivoFalhou`) e as `Capacidades` (lidas no servidor, passadas por propriedade: o módulo é `server-only`); `remove-dialog.tsx` renderiza `frasesDoDialogo`: cancelar recebe o foco inicial, Esc cancela e devolve o foco ao botão que abriu, "contando…" com `aria-busy`, a frase digitada (o nome do canal) só quando `exigeDigitar`. O toast de `canal-screen.tsx:500` passa a `fraseDepoisDoClique`.
-- [ ] **Passo 6. Revisão de tela.** Logan (UX) e Naksu (UI) revisam a tela contra o `18-v2`; Gio (QA) valida no navegador, autenticado, os três estados (com arquivo, sem arquivo com imagens, leitura falhada) num banco local com unidades semeadas, e devolve o veredito em texto com as capturas em arquivo (memória `feedback_time_de_especialistas_com_nome.md`).
-- [ ] **Passo 7. Commit** do diálogo, do impacto e do teste das frases, por caminho.
+- [ ] **Passo 3. TRAVA M3b-3: SOLTA em 14/10/2026** (mockup aprovado pelo dono em 14/10, commit e8445f559). O desenho que vale é o de `docs/superpowers/mockups/2026-10-14-manutencao-nas/remover-canal/` (`index.html`, `rc.js`, `rc.css`, `NOTAS.md`, rodadas 1 a 3). Onde este plano e o `rc.js` divergirem em frase, vale o `rc.js`; o teste das frases compara contra literais copiados dele.
+- [ ] **Passo 4. As frases e o estado, puros, falhando** (`arquivo-mensal-frases-remocao.test.ts`, item 163). `frases-remocao.ts` exporta `estadoDoDialogo`, `frasesDoDialogo`, `normalizarNome` e `retornoDepoisDoClique`. Estados (nomes do mockup): **D0** contando; **D1** sem arquivo, sem imagens; **D2** sem arquivo, com N imagens (**D2c** enquanto conta as imagens); **D3** com arquivo; **D4a/D4b/D4c** com arquivo e meses fora do banco / vídeos retirados / os dois; **D5** arquivo não lido; **D5+D8** arquivo não lido e contagem do banco falhou; **D7** mês fora das telas (**D7r**: recusado no clique); **D8** contagem do banco falhou (arquivo lido); **D9** a resposta não chegou. **D6** não é estado: é o D3 (ou D4) com `casaFora` e capacidade Sim|Sim, que acrescenta o item da casa fora.
+
+```ts
+// apps/web/src/lib/youtube/observatorio/arquivo-mensal/frases-remocao.ts (trecho; sem 'server-only': é importado por client component)
+import type { Capacidades } from './capacidades'          // o TIPO só; lerCapacidades roda no servidor
+export interface ImpactoArquivo { status: 'ok'; meses: number; de: string; ate: string; registros: number
+  fora_do_banco: { meses: number; de: string; ate: string }; videos_retirados: { n: number; de: string; ate: string }; imagens_blob: number }
+export interface EntradaDialogo {
+  arquivo: ImpactoArquivo | 'lendo' | 'falhou'
+  banco: 'lendo' | 'ok' | 'falhou'
+  imagens: number | 'lendo'                     // imagens no Blob quando não há arquivo
+  mesFora: { meses: 1 | 2; recusadoNoClique: boolean } | null
+  semResposta: boolean                          // a conexão caiu depois do clique
+}
+export type EstadoDialogo = 'D0'|'D1'|'D2'|'D2c'|'D3'|'D4a'|'D4b'|'D4c'|'D5'|'D5+D8'|'D7'|'D7r'|'D8'|'D9'
+export function estadoDoDialogo(e: EntradaDialogo): EstadoDialogo {
+  if (e.semResposta) return 'D9'
+  if (e.mesFora) return e.mesFora.recusadoNoClique ? 'D7r' : 'D7'
+  if (e.arquivo === 'falhou') return e.banco === 'falhou' ? 'D5+D8' : 'D5'
+  if (e.arquivo === 'lendo' || e.banco === 'lendo') return 'D0'
+  if (e.arquivo.meses === 0) return e.imagens === 'lendo' ? 'D2c' : e.imagens > 0 ? 'D2' : 'D1'
+  if (e.banco === 'falhou') return 'D8'
+  const m = e.arquivo.fora_do_banco.meses > 0, v = e.arquivo.videos_retirados.n > 0
+  return m && v ? 'D4c' : m ? 'D4a' : v ? 'D4b' : 'D3'
+}
+/** Comparação do nome (D4): sem acento, sem emoji e símbolo, sem espaço repetido, sem diferença de caixa. Idêntica à do mockup (`norm` em rc.js). */
+export function normalizarNome(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\p{Extended_Pictographic}\p{S}️‍]/gu, '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+export function nomeConfere(digitado: string, nomeDoCanal: string): boolean {
+  const a = normalizarNome(digitado); return a !== '' && a === normalizarNome(nomeDoCanal)
+}
+export interface ModeloDoDialogo {
+  estado: EstadoDialogo
+  titulo: string                  // `Remover ${nome}?`
+  lead: string                    // o parágrafo de abertura (id do aria-describedby)
+  avisoContagem: string | null    // D5+D8 e D8: "Não foi possível contar o que será apagado. A remoção continua disponível e apaga tudo o que está descrito acima."
+  nuncaDesfaz: string | null      // "Não dá para desfazer" vem ANTES de acontece (RC-2)
+  acontece: string[] | null       // "O que acontece:" em ITENS; null onde não há arquivo
+  digitar: string | null          // o parágrafo do D4 (a/b/c); null fora do D4
+  confirmar: 'Remover canal' | 'Remover e apagar do arquivo' | null   // null em D5, D5+D8, D7, D7r, D9: SEM botão de confirmar
+  confirmarLiberado: boolean      // false em D0, D2c e (por padrão) no D4 até o nome conferir
+  tentarDeNovo: boolean           // D5 e D5+D8
+  semConfirmarAviso: string | null// D5/D5+D8: "Remover fica disponível quando a leitura do arquivo der certo."
+  rodape: 'cancelar+confirmar' | 'cancelar' | 'fechar' | 'fechar+recarregar'
+  statusLeitor: string            // a região role="status"
+}
+```
+
+Frases (copiadas do `rc.js`, sem edição; `CMD` = `cap.dataDoComando ? \`chega em ${cap.dataDoComando}\` : 'ainda não tem data para chegar'`; a frase **nunca** é escolhida por data, só pelo que existe, como em `lerCapacidades`):
+- `acontece`, Não|Não e Não|Sim (`!cap.comandoDeLimpeza`): `['O site remove o canal agora e marca o arquivo para apagar.', 'Os arquivos só somem do NAS e do B2 depois de um comando seu, no Mac.', \`Esse comando ainda não existe e ${CMD}. Até lá o arquivo continua no NAS e no B2.\`, 'A página do Arquivo vai mostrar cada passo e o dia em que acabou.']`. Sim|Sim: `['O site remove o canal agora e marca o arquivo para apagar.', 'Os arquivos só somem do NAS e do B2 depois de um comando seu, no Mac, em até 30 dias.', 'A página do Arquivo mostra cada passo e o dia em que acabou.']`. Com `casaFora` e Sim|Sim, mais um item: `A limpeza do arquivo espera a casa, que não responde desde ${desde}. A remoção vale do mesmo jeito.` (nos outros dois, a frase da casa só vem no retorno).
+- `nuncaDesfaz`: com arquivo (D3, D4, D8) `Não dá para desfazer: depois disso não existe cópia dos registros deste canal em lugar nenhum.` (o prefixo em negrito); sem arquivo (D0, D1, D2, D5): `Não dá para desfazer: se você adicionar o canal de novo, a coleta recomeça do zero e este histórico não volta.`
+- `lead`: `Remover apaga todo o histórico deste canal:` (D0, D1, D2, D3, D4, D5); em D5+D8 e D8 vira `Remover apaga todo o histórico deste canal: os vídeos, as versões de título, thumbnail e descrição, os registros diários de views, os vídeos fixados e as trocas salvas no swipe file.` mais o `avisoContagem`. D7/D7r: `O mês saiu das telas enquanto este diálogo estava aberto. ` (só D7r, em negrito, antes da frase) + `Outubro de 2026 saiu das telas e o espaço dele ainda não foi liberado.` (`Outubro e novembro de 2026 saíram das telas e o espaço deles ainda não foi liberado.` com 2 meses) + ` Enquanto isso não dá para remover canal nem apagar vídeo.`; D7r começa a segunda parte com `Nada foi removido.`; D9: `Não foi possível confirmar se o canal foi removido: a conexão caiu. Recarregue a lista para ver.` **D9 nunca diz "continua no observatório"** (isso é só do D7r, em que o servidor recusou).
+- `digitar` (D4): a: `13 desses meses (de 08/2025 a 08/2026) já saíram do banco e só existem no arquivo.`; b: `18 vídeos deste canal (publicados de 03/2019 a 11/2022) já foram retirados do banco e só existem no arquivo.`; c: `13 meses (de 08/2025 a 08/2026) e 18 vídeos (publicados de 03/2019 a 11/2022) já saíram do banco e só existem no arquivo.` (números e datas vêm de `fora_do_banco` e `videos_retirados`, formatados `mm/aaaa`); sempre seguido de `Eles se perdem de vez. Para continuar, digite o nome do canal:`. Rótulo do campo `Nome do canal`; status `Digite o nome do canal para continuar.` e, ao conferir, `Nome confirmado.`
+- D5: a linha do arquivo mostra `Não foi possível ler o arquivo deste canal. Nada foi removido.` com "Tentar de novo" (que vira "Lendo o arquivo…" com `aria-busy` enquanto relê); as contagens que teriam parcela no arquivo (versões e dias de registros) viram **"pelo menos N"** (`<small>pelo menos</small>948`) com o apoio `a parte no arquivo ficou fora da conta`; `semConfirmarAviso = 'Remover fica disponível quando a leitura do arquivo der certo.'`; **sem botão de confirmar** (rodapé só Cancelar). Nunca "0 meses" no lugar de "não lido".
+- D7: rodapé só `Fechar` (não "Cancelar"), nada é contado. D9: rodapé `Fechar` e `Recarregar a lista`.
+- Parcela no arquivo (11.5): só quando há parte só no arquivo (D4): `336 no arquivo` e `392 dias no arquivo` junto ao apoio de hoje; em D3 e canal novo, nada de "0 no arquivo".
+
+O retorno depois do clique (R1 a R3), no mesmo módulo:
+
+```ts
+export interface RetornoDoClique { tom: 'ok' | 'neutro'; titulo: string; texto: string; persistente: boolean; prazoAte: string | null; verComandos: boolean }
+export function retornoDepoisDoClique(a: { temArquivo: boolean; meses: number; imagensBlob: number }, cap: Capacidades, o: { hoje: Date; casaForaDesde: string | null }): RetornoDoClique {
+  const dd = (d: Date) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+  const titulo = `Canal removido em ${dd(o.hoje)}`
+  const CMD = cap.dataDoComando ? `chega em ${cap.dataDoComando}` : 'ainda não tem data para chegar'
+  const casa = o.casaForaDesde ? ` A casa não responde desde ${o.casaForaDesde}: a limpeza espera ela voltar.` : ''
+  const simSim = cap.comandoDeLimpeza && cap.blocoCanaisRemovidos
+  if (!a.temArquivo && a.imagensBlob === 0) return { tom: 'ok', titulo, texto: 'Não havia arquivo: nada a limpar.', persistente: false, prazoAte: null, verComandos: false }          // R1: some sozinho
+  if (!a.temArquivo) return { tom: 'neutro', titulo, persistente: false, prazoAte: null, verComandos: false,                                                                                                                        // R2
+    texto: `Não havia arquivo, mas ${a.imagensBlob} imagens do canal ainda estão no Blob. ` + (simSim ? 'O site tenta apagá-las todo dia, e a página do Arquivo mostra quantas faltam.' : `O comando que as apaga ${CMD}; até lá não há nada a fazer.`) }
+  const prazo = new Date(o.hoje.getTime() + 30 * 86_400_000)                                                                                                                                                              // R3: persistente e neutro, só sai com "Entendi"
+  return simSim
+    ? { tom: 'neutro', titulo, persistente: true, prazoAte: dd(prazo), verComandos: true,
+        texto: `Falta apagar o arquivo dele: ${a.meses} meses. Próximo passo: rodar o comando no Mac até ${dd(prazo)} (30 dias). Ponha um lembrete no celular: a página do Arquivo só avisa quando você a abre.` + casa }
+    : { tom: 'neutro', titulo, persistente: true, prazoAte: null, verComandos: false,
+        texto: `Falta apagar o arquivo dele: ${a.meses} meses. O comando para isso ${CMD}; até lá não há nada a fazer.` + casa }
+}
+```
+
+(`imagensBlob === 1` usa o singular "1 imagem do canal ainda está no Blob"; o teste cobre 1 e 3. "apagado" nunca aparece em nenhuma frase.) As combinações de capacidade são três: Não|Não (o padrão de depois de 28/11), Não|Sim, Sim|Sim; `lerCapacidades` já devolve "comando sim, bloco não" como Não|Não.
+
+Testes, escritos primeiro e falhando (`// @vitest-environment node`, pois são puros):
+
+```ts
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { estadoDoDialogo, frasesDoDialogo, normalizarNome, nomeConfere, retornoDepoisDoClique, type EntradaDialogo, type ImpactoArquivo } from '@/lib/youtube/observatorio/arquivo-mensal/frases-remocao'
+
+const NN = { comandoDeLimpeza: false, blocoCanaisRemovidos: false, dataDoComando: null }
+const NS = { comandoDeLimpeza: false, blocoCanaisRemovidos: true, dataDoComando: '12/12' }
+const SS = { comandoDeLimpeza: true, blocoCanaisRemovidos: true, dataDoComando: null }
+const arq = (o: Partial<ImpactoArquivo> = {}): ImpactoArquivo => ({ status: 'ok', meses: 14, de: '08/2025', ate: '09/2026', registros: 31402,
+  fora_do_banco: { meses: 0, de: '', ate: '' }, videos_retirados: { n: 0, de: '', ate: '' }, imagens_blob: 0, ...o })
+const base: EntradaDialogo = { arquivo: arq(), banco: 'ok', imagens: 0, mesFora: null, semResposta: false }
+const NOME = 'Mochilão ✈️ pelo Mundo'
+const f = (e: Partial<EntradaDialogo>, cap = NN, casaFora = false) => frasesDoDialogo({ ...base, ...e }, cap, { nomeDoCanal: NOME, casaForaDesde: casaFora ? '17/02 22:10' : null })
+
+describe('estadoDoDialogo: D0 a D9', () => {
+  it.each([
+    ['D0', { arquivo: 'lendo' }], ['D0', { banco: 'lendo' }],
+    ['D1', { arquivo: arq({ meses: 0 }) }], ['D2', { arquivo: arq({ meses: 0 }), imagens: 9 }], ['D2c', { arquivo: arq({ meses: 0 }), imagens: 'lendo' }],
+    ['D3', {}],
+    ['D4a', { arquivo: arq({ fora_do_banco: { meses: 13, de: '08/2025', ate: '08/2026' } }) }],
+    ['D4b', { arquivo: arq({ videos_retirados: { n: 18, de: '03/2019', ate: '11/2022' } }) }],
+    ['D4c', { arquivo: arq({ fora_do_banco: { meses: 13, de: '08/2025', ate: '08/2026' }, videos_retirados: { n: 18, de: '03/2019', ate: '11/2022' } }) }],
+    ['D5', { arquivo: 'falhou' }], ['D5+D8', { arquivo: 'falhou', banco: 'falhou' }], ['D8', { banco: 'falhou' }],
+    ['D7', { mesFora: { meses: 1, recusadoNoClique: false } }], ['D7r', { mesFora: { meses: 1, recusadoNoClique: true } }], ['D9', { semResposta: true }],
+  ] as const)('%s', (est, e) => expect(estadoDoDialogo({ ...base, ...e } as EntradaDialogo)).toBe(est))
+})
+
+describe('as três combinações de capacidade e a ordem do corpo (D3)', () => {
+  it('Não|Não: o comando "ainda não tem data"; nunca promete data', () => {
+    const m = f({}, NN)
+    expect(m.acontece).toEqual(['O site remove o canal agora e marca o arquivo para apagar.', 'Os arquivos só somem do NAS e do B2 depois de um comando seu, no Mac.', 'Esse comando ainda não existe e ainda não tem data para chegar. Até lá o arquivo continua no NAS e no B2.', 'A página do Arquivo vai mostrar cada passo e o dia em que acabou.'])
+  })
+  it('Não|Sim: "chega em 12/12"', () => expect(f({}, NS).acontece?.[2]).toBe('Esse comando ainda não existe e chega em 12/12. Até lá o arquivo continua no NAS e no B2.'))
+  it('Sim|Sim: três itens, prazo de 30 dias', () => {
+    const m = f({}, SS)
+    expect(m.acontece).toEqual(['O site remove o canal agora e marca o arquivo para apagar.', 'Os arquivos só somem do NAS e do B2 depois de um comando seu, no Mac, em até 30 dias.', 'A página do Arquivo mostra cada passo e o dia em que acabou.'])
+  })
+  it('relógio depois da data com a variável apagada: a forma não muda', () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2027-03-01T12:00:00Z'))
+    expect(f({}, NN).acontece?.[2]).toContain('ainda não tem data para chegar'); vi.useRealTimers()
+  })
+  it('"Não dá para desfazer" vem antes de "O que acontece:" e o rótulo do botão é o de arquivo', () => {
+    const m = f({}, NN)
+    expect(m.nuncaDesfaz).toBe('Não dá para desfazer: depois disso não existe cópia dos registros deste canal em lugar nenhum.')
+    expect(m.confirmar).toBe('Remover e apagar do arquivo'); expect(m.confirmarLiberado).toBe(true); expect(m.digitar).toBeNull()
+  })
+  it('casa fora: o item só entra em Sim|Sim', () => {
+    expect(f({}, SS, true).acontece?.at(-1)).toBe('A limpeza do arquivo espera a casa, que não responde desde 17/02 22:10. A remoção vale do mesmo jeito.')
+    expect(f({}, NN, true).acontece).toEqual(f({}, NN, false).acontece)
+    expect(f({}, NS, true).acontece).toEqual(f({}, NS, false).acontece)
+  })
+})
+
+describe('D4, D5, D7, D9', () => {
+  it('D4a: digitar, botão travado até o nome conferir', () => {
+    const m = f({ arquivo: arq({ fora_do_banco: { meses: 13, de: '08/2025', ate: '08/2026' } }) })
+    expect(m.digitar).toContain('13 desses meses (de 08/2025 a 08/2026) já saíram do banco e só existem no arquivo.')
+    expect(m.confirmarLiberado).toBe(false); expect(m.statusLeitor).toBe('Digite o nome do canal para continuar.')
+  })
+  it('exigeDigitar só no D4: D3 não pede', () => expect(f({}).digitar).toBeNull())
+  it('D5: sem botão de confirmar, tentar de novo, aviso, nunca "0 meses"', () => {
+    const m = f({ arquivo: 'falhou' })
+    expect(m.confirmar).toBeNull(); expect(m.tentarDeNovo).toBe(true); expect(m.rodape).toBe('cancelar')
+    expect(m.semConfirmarAviso).toBe('Remover fica disponível quando a leitura do arquivo der certo.')
+    expect(JSON.stringify(m)).not.toMatch(/0 meses/)
+  })
+  it('D5+D8: lead longo e aviso da contagem, ainda sem confirmar', () => {
+    const m = f({ arquivo: 'falhou', banco: 'falhou' })
+    expect(m.confirmar).toBeNull(); expect(m.avisoContagem).toBe('Não foi possível contar o que será apagado. A remoção continua disponível e apaga tudo o que está descrito acima.')
+  })
+  it('D8: a remoção continua disponível', () => { const m = f({ banco: 'falhou' }); expect(m.confirmar).toBe('Remover e apagar do arquivo'); expect(m.avisoContagem).not.toBeNull() })
+  it('D7: só "Fechar"; D7r diz "Nada foi removido."', () => {
+    expect(f({ mesFora: { meses: 1, recusadoNoClique: false } }).rodape).toBe('fechar')
+    expect(f({ mesFora: { meses: 1, recusadoNoClique: true } }).lead).toContain('Nada foi removido.')
+  })
+  it('D9: não diz "continua no observatório"', () => {
+    const m = f({ semResposta: true }); expect(m.lead).toBe('Não foi possível confirmar se o canal foi removido: a conexão caiu. Recarregue a lista para ver.')
+    expect(JSON.stringify(m)).not.toContain('continua no observatório'); expect(m.rodape).toBe('fechar+recarregar'); expect(m.confirmar).toBeNull()
+  })
+  it('D1 e D2 usam "Remover canal"; D0 e D2c o deixam desabilitado', () => {
+    expect(f({ arquivo: arq({ meses: 0 }) }).confirmar).toBe('Remover canal')
+    expect(f({ arquivo: 'lendo' }).confirmarLiberado).toBe(false); expect(f({ arquivo: arq({ meses: 0 }), imagens: 'lendo' }).confirmarLiberado).toBe(false)
+  })
+})
+
+describe('normalizarNome (D4)', () => {
+  it('sem acento, sem emoji, sem espaço repetido, sem caixa', () => {
+    expect(normalizarNome('Mochilão ✈️ pelo Mundo')).toBe('mochilao pelo mundo')
+    expect(nomeConfere('mochilao  PELO mundo', NOME)).toBe(true)
+    expect(nomeConfere('Mochilão pelo Mundo', NOME)).toBe(true)
+  })
+  it('vazio ou parcial não confere', () => { expect(nomeConfere('', NOME)).toBe(false); expect(nomeConfere('   ', NOME)).toBe(false); expect(nomeConfere('mochilao pelo', NOME)).toBe(false) })
+  it('nome de 100 caracteres confere quando colado inteiro', () => { const n = 'a'.repeat(100); expect(nomeConfere(n, n)).toBe(true); expect(nomeConfere(n.slice(0, 99), n)).toBe(false) })
+})
+
+describe('retornoDepoisDoClique (R1 a R3)', () => {
+  const hoje = new Date('2026-10-14T12:00:00Z')
+  const r = (a: { temArquivo: boolean; meses: number; imagensBlob: number }, cap = NN, casa: string | null = null) => retornoDepoisDoClique(a, cap, { hoje, casaForaDesde: casa })
+  it('R1: ok e some sozinho', () => expect(r({ temArquivo: false, meses: 0, imagensBlob: 0 })).toMatchObject({ tom: 'ok', titulo: 'Canal removido em 14/10', texto: 'Não havia arquivo: nada a limpar.', persistente: false }))
+  it('R2: neutro, singular e plural', () => {
+    expect(r({ temArquivo: false, meses: 0, imagensBlob: 9 })).toMatchObject({ tom: 'neutro', persistente: false })
+    expect(r({ temArquivo: false, meses: 0, imagensBlob: 1 }).texto).toContain('1 imagem do canal ainda está no Blob')
+  })
+  it('R3 Não|Não: persistente, neutro, sem prazo, sem botão', () => expect(r({ temArquivo: true, meses: 14, imagensBlob: 0 })).toMatchObject({ tom: 'neutro', persistente: true, prazoAte: null, verComandos: false }))
+  it('R3 Sim|Sim: prazo de 30 dias (13/11) e "Ver os comandos"; a casa fora entra no fim', () => {
+    const x = r({ temArquivo: true, meses: 14, imagensBlob: 0 }, SS, '17/02 22:10')
+    expect(x).toMatchObject({ persistente: true, prazoAte: '13/11', verComandos: true })
+    expect(x.texto).toContain('Próximo passo: rodar o comando no Mac até 13/11 (30 dias).'); expect(x.texto.endsWith('a limpeza espera ela voltar.')).toBe(true)
+  })
+  it('nenhuma frase diz "apagado"', () => { for (const cap of [NN, NS, SS]) for (const a of [{ temArquivo: true, meses: 14, imagensBlob: 0 }, { temArquivo: false, meses: 0, imagensBlob: 3 }]) expect(r(a, cap).texto).not.toMatch(/apagado/i) })
+})
+```
+
+Run: FAIL (módulo sem as funções). Implementar `frasesDoDialogo` e o resto de `frases-remocao.ts` com os literais acima. Run: PASS.
+
+- [ ] **Passo 5. O diálogo e o toast.** `getCompetitorRemovalImpactAction` devolve também `arquivo: ImpactoArquivo | null` (leitura falhada: `null` e `arquivoFalhou: true`) e as `Capacidades` (lidas no servidor, passadas por propriedade: o módulo é `server-only`). `remove-dialog.tsx` (`'use client'`) renderiza o `ModeloDoDialogo`, **exatamente como no mockup**:
+  - corpo rolável e **rodapé fixo** na caixa (`<div data-rodape className="sticky bottom-0 flex gap-2 max-sm:flex-col">`, botões `min-h-11` a 390 px, 32 px a 1440); o rótulo do botão reserva a largura do mais longo (os dois rótulos no DOM, um oculto com `invisible`/`h-0`, como o `sizer` do `rc.js`) para o botão não mudar de lugar quando a contagem chega;
+  - ordem: lead, lista de perdas (as quatro linhas + a linha "meses no arquivo"; D1/D2 com "0" medido; D5 com a hachura de não lido), "Não dá para desfazer", `O que acontece:` (com ⓘ) e os **itens**, "Também saem as leituras da forja…", e, no D4, o parágrafo, a caixa com o nome em negrito e selecionável, o `<label>Nome do canal</label>`, o campo (colar permitido, `autoComplete="off"`) e o status `role="status"`, logo acima dos botões;
+  - **D4:** ao abrir, `campo.scrollIntoView({ block: 'nearest' })` e o corpo rola até o fim, para o campo e o status ficarem acima do rodapé a 390 px; o título limita-se a 3 linhas só no D4 (`line-clamp-3` e `title={nome}`); o botão usa `aria-disabled` (não `disabled`) e `aria-describedby` do status até `nomeConfere(digitado, nome)`;
+  - **D5/D5+D8:** sem botão de confirmar; "Tentar de novo" vira "Lendo o arquivo…" com `aria-busy` enquanto relê; **D7:** só "Fechar"; **D9:** "Fechar" e "Recarregar a lista", sem a palavra "observatório";
+  - foco inicial em "Cancelar" (em "Fechar" nos D7/D9), Esc cancela e devolve o foco ao botão que abriu, `aria-modal`, `aria-labelledby` no título, `aria-describedby` no lead, "contando…" com `aria-busy` no D0/D2c.
+
+  Em `canal-screen.tsx:500` o **toast verde "os dados coletados dele foram apagados" sai no mesmo commit**; entra o retorno por `retornoDepoisDoClique` num toast `role="status"`: R1 `ok` com temporizador de 8 s; R2 neutro com temporizador; R3 **persistente e neutro**, com "Fica na tela até você tocar em Entendi." e o botão `Entendi` (único jeito de sair) e, só em Sim|Sim, o botão `Ver os comandos` à esquerda dele (leva ao bloco "Canais removidos" da página do Arquivo; até a M5, o botão não é renderizado: a prop `verComandosHref` vem `undefined`). Se a resposta não chegar (a ação lança ou estoura o tempo), o diálogo vai ao D9, e não ao toast.
+- [ ] **Passo 6. Testes de componente** (`apps/web/test/youtube/observatorio/remove-dialog.test.tsx`, `// @vitest-environment jsdom`), um por estado, mais a normalização pelo campo e o toast:
+
+```tsx
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { RemoveDialog } from '@/app/cms/(authed)/youtube/competitors/_canais/remove-dialog'
+import { RetornoToast } from '@/app/cms/(authed)/youtube/competitors/_canal/retorno-toast'
+import { frasesDoDialogo, retornoDepoisDoClique, type EntradaDialogo, type ImpactoArquivo } from '@/lib/youtube/observatorio/arquivo-mensal/frases-remocao'
+
+afterEach(cleanup)
+const NN = { comandoDeLimpeza: false, blocoCanaisRemovidos: false, dataDoComando: null }
+const SS = { comandoDeLimpeza: true, blocoCanaisRemovidos: true, dataDoComando: null }
+const NOME = 'Mochilão ✈️ pelo Mundo'
+const arq = (o: Partial<ImpactoArquivo> = {}): ImpactoArquivo => ({ status: 'ok', meses: 14, de: '08/2025', ate: '09/2026', registros: 31402, fora_do_banco: { meses: 0, de: '', ate: '' }, videos_retirados: { n: 0, de: '', ate: '' }, imagens_blob: 0, ...o })
+const base: EntradaDialogo = { arquivo: arq(), banco: 'ok', imagens: 0, mesFora: null, semResposta: false }
+const abrir = (e: Partial<EntradaDialogo>, cap = NN, fn: Partial<React.ComponentProps<typeof RemoveDialog>> = {}) => {
+  const modelo = frasesDoDialogo({ ...base, ...e }, cap, { nomeDoCanal: NOME, casaForaDesde: null })
+  const p = { onConfirm: vi.fn(), onCancel: vi.fn(), onRetry: vi.fn(), onReload: vi.fn(), ...fn }
+  render(<RemoveDialog nomeDoCanal={NOME} modelo={modelo} {...p} />); return p
+}
+const D4A = { arquivo: arq({ fora_do_banco: { meses: 13, de: '08/2025', ate: '08/2026' } }) }
+
+describe('RemoveDialog, um teste por estado', () => {
+  it('D0: contando, aria-busy, confirmar desabilitado', () => {
+    abrir({ arquivo: 'lendo' })
+    expect(screen.getByRole('button', { name: /Remover canal/ })).toHaveAttribute('aria-disabled', 'true')
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull()
+  })
+  it('D1: "Remover canal" liberado e a frase de sem cópia', () => {
+    const p = abrir({ arquivo: arq({ meses: 0 }) })
+    expect(screen.getByText('Este canal não tem cópia no arquivo. Ao remover, não sobra nada a limpar.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Remover canal/ })); expect(p.onConfirm).toHaveBeenCalledOnce()
+  })
+  it('D2: nove imagens no Blob; D2c: confirmar desabilitado', () => {
+    abrir({ arquivo: arq({ meses: 0 }), imagens: 9 }); expect(screen.getByText(/9 imagens guardadas no Blob/)).toBeTruthy(); cleanup()
+    abrir({ arquivo: arq({ meses: 0 }), imagens: 'lendo' }); expect(screen.getByRole('button', { name: /Remover canal/ })).toHaveAttribute('aria-disabled', 'true')
+  })
+  it('D3: "Não dá para desfazer" antes de "O que acontece:", itens, foco em Cancelar, rodapé empilha a 390 px', () => {
+    abrir({})
+    const html = document.body.innerHTML
+    expect(html.indexOf('Não dá para desfazer')).toBeLessThan(html.indexOf('O que acontece:'))
+    expect(screen.getAllByRole('listitem').some(li => li.textContent === 'O site remove o canal agora e marca o arquivo para apagar.')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+    const rodape = document.querySelector('[data-rodape]')!
+    expect(rodape.className).toContain('max-sm:flex-col'); expect(rodape.className).toContain('sticky')
+    expect(screen.getByRole('button', { name: /Remover e apagar do arquivo/ }).className).toContain('min-h-11')
+  })
+  it('D4: o nome normalizado libera o botão; scrollIntoView do campo na abertura', async () => {
+    const rolar = vi.fn(); Element.prototype.scrollIntoView = rolar
+    const p = abrir(D4A)
+    expect(rolar).toHaveBeenCalled()
+    const botao = screen.getByRole('button', { name: /Remover e apagar do arquivo/ })
+    expect(botao).toHaveAttribute('aria-disabled', 'true'); fireEvent.click(botao); expect(p.onConfirm).not.toHaveBeenCalled()
+    expect(screen.getByRole('status', { name: '' }).textContent).toContain('Digite o nome do canal para continuar.')
+    await userEvent.type(screen.getByLabelText('Nome do canal'), 'mochilao  PELO mundo')
+    expect(screen.getByText('Nome confirmado.')).toBeTruthy(); expect(botao).not.toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(botao); expect(p.onConfirm).toHaveBeenCalledOnce()
+  })
+  it('D4: nome parcial ou diferente mantém o botão travado', async () => {
+    abrir(D4A); await userEvent.type(screen.getByLabelText('Nome do canal'), 'mochilao pelo')
+    expect(screen.getByRole('button', { name: /Remover e apagar do arquivo/ })).toHaveAttribute('aria-disabled', 'true')
+  })
+  it('D5: sem confirmar; "Tentar de novo" chama onRetry; nunca "0 meses"', () => {
+    const p = abrir({ arquivo: 'falhou' })
+    expect(screen.queryByRole('button', { name: /Remover/ })).toBeNull()
+    expect(screen.getByText('Remover fica disponível quando a leitura do arquivo der certo.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' })); expect(p.onRetry).toHaveBeenCalledOnce()
+    expect(document.body.textContent).not.toMatch(/\b0 meses/)
+  })
+  it('D5+D8: sem confirmar e com o aviso da contagem', () => {
+    abrir({ arquivo: 'falhou', banco: 'falhou' })
+    expect(screen.queryByRole('button', { name: /Remover/ })).toBeNull(); expect(screen.getByText(/Não foi possível contar o que será apagado/)).toBeTruthy()
+  })
+  it('D7: só "Fechar"; D7r diz "Nada foi removido."', () => {
+    abrir({ mesFora: { meses: 1, recusadoNoClique: true } })
+    expect(screen.getAllByRole('button').map(b => b.textContent)).toEqual(['Fechar']); expect(document.body.textContent).toContain('Nada foi removido.')
+  })
+  it('D8: arquivo lido, contagem falhou, confirmar disponível', () => { abrir({ banco: 'falhou' }); expect(screen.getByRole('button', { name: /Remover e apagar do arquivo/ })).not.toHaveAttribute('aria-disabled', 'true') })
+  it('D9: "Fechar" e "Recarregar a lista"; não diz "continua no observatório"', () => {
+    const p = abrir({ semResposta: true })
+    expect(document.body.textContent).not.toContain('continua no observatório')
+    fireEvent.click(screen.getByRole('button', { name: 'Recarregar a lista' })); expect(p.onReload).toHaveBeenCalledOnce()
+  })
+  it('Esc cancela', () => { const p = abrir({}); fireEvent.keyDown(document, { key: 'Escape' }); expect(p.onCancel).toHaveBeenCalledOnce() })
+  it('as três combinações mudam só a frase do comando', () => {
+    abrir({}, NN); expect(screen.getByText(/ainda não tem data para chegar/)).toBeTruthy(); cleanup()
+    abrir({}, SS); expect(screen.getByText(/em até 30 dias/)).toBeTruthy()
+  })
+})
+
+describe('RetornoToast (R1 a R3): substitui o toast verde "os dados coletados dele foram apagados"', () => {
+  const hoje = new Date('2026-10-14T12:00:00Z')
+  const toast = (a: Parameters<typeof retornoDepoisDoClique>[0], cap = NN, extra: { onVerComandos?: () => void } = {}) =>
+    render(<RetornoToast retorno={retornoDepoisDoClique(a, cap, { hoje, casaForaDesde: null })} onEntendi={vi.fn()} {...extra} />)
+  it('R1: ok, sem botão Entendi (some sozinho)', () => { toast({ temArquivo: false, meses: 0, imagensBlob: 0 }); expect(screen.getByText('Não havia arquivo: nada a limpar.')).toBeTruthy(); expect(screen.queryByRole('button', { name: 'Entendi' })).toBeNull() })
+  it('R3 Não|Não: persistente, "Entendi" é o único botão', () => {
+    toast({ temArquivo: true, meses: 14, imagensBlob: 0 })
+    expect(screen.getAllByRole('button').map(b => b.textContent)).toEqual(['Entendi']); expect(screen.getByText('Fica na tela até você tocar em Entendi.')).toBeTruthy()
+  })
+  it('R3 Sim|Sim: prazo 13/11 e "Ver os comandos" ao lado de "Entendi"', () => {
+    const onVer = vi.fn(); toast({ temArquivo: true, meses: 14, imagensBlob: 0 }, SS, { onVerComandos: onVer })
+    expect(screen.getByText(/até 13\/11 \(30 dias\)/)).toBeTruthy()
+    expect(screen.getAllByRole('button').map(b => b.textContent)).toEqual(['Ver os comandos', 'Entendi'])
+    fireEvent.click(screen.getByRole('button', { name: 'Ver os comandos' })); expect(onVer).toHaveBeenCalledOnce()
+  })
+  it('nenhum toast diz que os dados "foram apagados"', () => { toast({ temArquivo: true, meses: 14, imagensBlob: 0 }); expect(document.body.textContent).not.toMatch(/foram apagados/) })
+})
+```
+
+  Também em `canais-add-action.test.ts` (ou o teste da tela, se existir): `canal-screen.tsx` não contém mais a string `os dados coletados dele foram apagados` (`grep` no teste de arquivo-fonte ou assertiva no render). Run → FAIL; implementar `remove-dialog.tsx` e `retorno-toast.tsx` (`'use client'`; `RetornoToast` recebe `retorno`, `onEntendi`, `onVerComandos?`, e só renderiza "Ver os comandos" com `retorno.verComandos && onVerComandos`) → PASS.
+- [ ] **Passo 7. Revisão de tela.** Logan (UX) e Naksu (UI) revisam a tela contra o mockup aprovado (`remover-canal/`, não contra o `18-v2`, que é tela da M5); Gio (QA) valida no navegador, autenticado, em banco local com unidades semeadas: os estados D0 a D9 que o banco local consegue produzir (D1, D2, D3, D4a/b/c, D5 com o `rpc` derrubado, D7 com mês destacado), as três combinações de capacidade, a 390 px e a 1440 px, claro e escuro, e R1 a R3 (R3 só sai com "Entendi"); devolve o veredito em texto com as capturas em arquivo (memória `feedback_time_de_especialistas_com_nome.md`).
+- [ ] **Passo 8. Commit** do diálogo, do toast, do impacto e dos testes, por caminho (`remove-dialog.tsx`, `retorno-toast.tsx`, `canal-screen.tsx`, `competitor-removal-impact.ts`, `actions.ts` só se tocada, `frases-remocao.ts` e os dois testes).
 
 ---
 
@@ -3201,7 +3517,8 @@ git commit -m "feat: remover canal declara o destino do arquivo pela função co
 ## Dependências de outras etapas e trilhas
 
 - **M2 e M10a em produção** (TRAVA M3b-0) antes da Tarefa 10.
-- **M4, mockup `18-v2` aprovado** (TRAVA M3b-3) antes dos passos 4 a 7 da Tarefa 12; o diálogo tem de estar em produção antes de 28/11.
+- **M4, mockup do diálogo "Remover canal" aprovado em 14/10** (TRAVA M3b-3 solta, e8445f559); o diálogo tem de estar em produção antes de 28/11.
+- **M5 consome o `18-v2` aprovado** (`mockups/2026-10-13-a5-lote-2/18-aviso-banco-limite/18-v2.html` e `NOTAS-18-v2.md`, aprovado pelo dono em 14/10): é tela da M5, não deste plano; nada dele é implementado aqui.
 - **M3b-forja** consome o contrato (r2); a primeira selagem real (28/11) exige os dois lados instalados e `OBS_ARQUIVO=on`. A r2.1 fechou X1 a X5 (decisões do controlador, 14/10): validade de 2 h renovada a cada página e retomada pelo cursor (X1), arquivo só em `_recebendo/` é `ausente` (X2), `tabela_ausente` 409 (X3), `nas_quase_cheio` fora dos desfechos (X4), `incompleto` por pulo é vermelho (X5). O redator da forja alinha o kit à linha `Versão r2.3`.
 - **M8:** `obs_archive_rehearsal_seed` (o rol da carga do ensaio, D14) é lido por `to_regclass`; até a M8, o ensaio usa os canais com linha.
 - **A5/E19:** o aviso da Tarefa 9a (`auth.ts` é arquivo da trilha); a recusa vale em qualquer modo da E19 e não muda quando ela for a `recusa`.
