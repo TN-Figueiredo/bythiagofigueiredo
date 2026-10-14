@@ -17,7 +17,7 @@ vi.mock('@/lib/pipeline/mcp/context', () => ({ getMcpContext: () => ({ siteId: '
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
 
 import { YoutubeObservatoryShape } from '@/lib/pipeline/mcp/tools'
-import { youtubeObservatory, PARAMETROS_LIDOS } from '@/lib/pipeline/mcp/services/youtube-observatory'
+import { youtubeObservatory, PARAMETROS_LIDOS, LIMITE_MUDANCAS_TEXTO } from '@/lib/pipeline/mcp/services/youtube-observatory'
 
 const shape = z.object(YoutubeObservatoryShape)
 beforeEach(() => Object.values(servico).forEach(f => f.mockClear()))
@@ -124,7 +124,7 @@ const corpo = (n: number) => ({
   },
 })
 /** O maior `limit` cujo texto cabe: é o número que o documento escreve ("pela ferramenta, com `campos`, peça `limit` de até N"). */
-const LIMIT_DOCUMENTADO_COM_CAMPOS = 17
+const LIMIT_DOCUMENTADO_COM_CAMPOS = LIMITE_MUDANCAS_TEXTO
 
 describe('get_changes com campos pela ferramenta: o texto é medido', () => {
   async function tamanhoDoTexto(n: number): Promise<number> {
@@ -145,5 +145,20 @@ describe('get_changes com campos pela ferramenta: o texto é medido', () => {
   it('o texto com o limit documentado cabe, e com um a mais não cabe', async () => {
     expect(await tamanhoDoTexto(LIMIT_DOCUMENTADO_COM_CAMPOS)).toBeLessThanOrEqual(LIMITE_DE_TEXTO)
     expect(await tamanhoDoTexto(LIMIT_DOCUMENTADO_COM_CAMPOS + 1)).toBeGreaterThan(LIMITE_DE_TEXTO)
+  })
+
+  it('o adaptador impõe o teto: com limit 50 e campos=todos o serviço recebe o teto e o texto fica abaixo de 60.000', async () => {
+    servico.listCompetitorChanges.mockImplementationOnce((async (_ctx: unknown, p: { limit: number }) => ({ data: corpo(p.limit) })) as never)
+    const r = await youtubeObservatory({ action: 'get_changes', campos: 'todos', limit: 50 })
+    expect(servico.listCompetitorChanges.mock.calls[0]?.[1]).toMatchObject({ limit: LIMITE_MUDANCAS_TEXTO })
+    const c = r.content[0]
+    expect(c && c.type === 'text' ? c.text.length : Infinity).toBeLessThan(LIMITE_DE_TEXTO)
+  })
+
+  it('sem campos o limit passa como veio; sem limit com campos o padrão 25 também é cortado no teto', async () => {
+    await youtubeObservatory({ action: 'get_changes', limit: 50 })
+    expect(servico.listCompetitorChanges.mock.calls[0]?.[1]).toMatchObject({ limit: 50 })
+    await youtubeObservatory({ action: 'get_changes', campos: 'todos' })
+    expect(servico.listCompetitorChanges.mock.calls[1]?.[1]).toMatchObject({ limit: LIMITE_MUDANCAS_TEXTO })
   })
 })
