@@ -3,6 +3,8 @@
  * A5 · E17 degrau 2, Tarefa 6: o registro de acesso de IA (`obs_ai_access_log`). "Sem linha, sem dado": a linha `ok` é gravada antes de a ferramenta
  * devolver qualquer coisa; a linha `limite` e a `recusado` (da porta) são de melhor esforço. O cliente de serviço é simulado.
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   houveRecusaRecente,
@@ -370,5 +372,12 @@ describe('registrarRecusaDaPorta', () => {
   it('exceção e prazo: nunca lança', async () => {
     expect(await registrarRecusaDaPorta(simular('lanca').sb, { siteId: 's', userId: 'u', keyId: 'k', desfecho: 'ausente' })).toEqual({ ok: false, code: 'excecao' })
     expect(await registrarRecusaDaPorta(simular('pendente').sb, { siteId: 's', userId: 'u', keyId: 'k', desfecho: 'ausente' }, { prazoMs: 20 })).toEqual({ ok: false, code: 'tempo' })
+  })
+})
+
+describe('registrar.ts é só de servidor', () => {
+  it("tem `import 'server-only'` (o plano marca o módulo como server-only)", () => {
+    const texto = readFileSync(resolve(__dirname, '../../../src/lib/youtube/observatorio/acesso-ia/registrar.ts'), 'utf8')
+    expect(texto).toMatch(/^import 'server-only'$/m)
   })
 })
