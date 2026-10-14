@@ -934,3 +934,32 @@ Fonte: as alternativas escritas nas "Dúvidas para o dono" de cada NOTAS. As mel
 - **Placar do lote 2:** 14 de 15 aprovados em 13/10/2026. Falta só o 21 (ritmo por hora), segurado até a medição de 14 dias.
 - **A4 (telas do canal próprio) em produção desde 13/10/2026, 16:28 (`main` = `e5cb8271`): conferida pelo dono no Opera**, logado como administrador. Viu e achou correto: a lista de Canais (o canal próprio com posição e valor, sem "—" sozinho), a página do canal (cabeçalho, "Todos os números", "Como o canal está" com impressões por dia, taxa de clique com intervalo e views por dia, abas Vídeos, Leitura e Retenção) e a comparação com o cartão "Só o seu canal mede". Conferido pelo controlador nas capturas: as 18 barras de impressões somam 158 e as de views somam 14, iguais às frases; o "% assistido" de 0% e 1% é real (diário em produção: 7 a 17 segundos de duração média em vídeos de 13 a 40 minutos). Nenhum dia hachurado apareceu porque a janela termina em 11/10, dia já entregue (a hachura só vale para dia sem linha). Ainda sem conferência: a janela de 390 px (24 cartões e "Mostrar mais 24 vídeos"), a página de um vídeo próprio, o Sentry em 24 horas e a conta só de leitura. "Vídeo novo" não se aplica: o último vídeo tem 672 dias.
 - **A4, melhoria aberta (retorno do uso real, 13/10):** o cabeçalho do canal próprio diz "Entre 16 canais de Viagem" e, na mesma frase, "15º de 15 em mediana de views", enquanto o filtro da lista mostra "Viagem 14". Lido de relance parece erro. Hipótese do controlador, não conferida no código: 14 concorrentes mais os 2 canais próprios, com o segundo (sem vídeos) fora das posições por vídeo. Dizer na frase, ou no ⓘ, de onde vem cada total.
+
+## Seção "Retenção" da página do vídeo próprio, implementada (13/10/2026, noite)
+
+Não é mockup: é a tela implementada (E8, Tarefa 13; mockup de origem: o 6), mostrada ao dono no Opera pelo servidor local (porta 3997, semente do Gio), um estado por vez.
+
+**O que a seção responde:** em que ponto do vídeo o público sai, e onde volta.
+
+**Roteiro que ele seguiu, e a resposta:**
+
+| Estado | O que testar | Resposta (13/10) |
+|---|---|---|
+| Curva completa | a frase "Metade das pessoas já saiu aos m:ss" se entende sem o gráfico; linha de 50% pontilhada visível; cor e marcador das maiores saídas; contorno da faixa de trecho revisto; data da coleta; recarregar sem salto de layout; janela estreita com texto legível e eixo sem sobreposição | Aprovado |
+| Curva incompleta | "A curva cobre só os primeiros m:ss (N%)"; desenho para no último ponto, marcado; trecho sem dado hachurado com "sem dado depois daqui"; sem maiores saídas nem trecho revisto | Aprovado (captura no Opera: hachura, rótulo e legenda renderizam) |
+| Sem curva (o YouTube respondeu "sem dado") | pastilha "não medido"; texto sem "poucas views"; nova tentativa "em 7 dias ou mais, se o vídeo tiver views novas"; data da última resposta | Aprovado |
+| Não coletada ainda | "Ainda não coletamos esta curva…"; é o que todo vídeo mostra no dia em que a seção vai ao ar | Aprovado |
+| Leitura falhou | "A leitura da curva falhou agora; recarregue a página."; a pastilha é a mesma "não medido" | Decisão B (decisão 75 do dono): erro e acesso negado ganham símbolo próprio, por mockup para a página inteira, depois deste release |
+
+**Divergências do mockup 6, aprovadas junto:** cor da maior saída (deixou de reusar a do terço baixo); contorno cinza na faixa de trecho revisto; linha de 50% pontilhada e mais forte; hachura e marca na curva incompleta; 3 rótulos no eixo em celular com vídeo longo.
+
+**Melhorias em aberto:**
+- Erro e acesso negado com símbolo próprio (Naksu; decisão 75): mockup para a página inteira; rótulos com o Logan.
+- A dica do ⓘ "De onde vem a curva" abre por cima da pastilha e do começo do texto (visto na captura dele do estado "não coletada"): abrir para a direita ou para baixo do título.
+- "sem dado depois daqui" não diz se a falta é do YouTube ou nossa (Logan, sem bloquear).
+- Sem JavaScript o gráfico não aparece, só a frase (Naksu, sugestão); a linha de 50% sobre a faixa de trecho revisto dá 2,85:1 no escuro em ~57 px (Naksu, sugestão); o comentário de `MIN_W` erra a conta do dobrável de 280 px (Naksu).
+- `video/[id]` não tem `loading.tsx` e cai no esqueleto da grade de canais (Naksu).
+
+**O que ninguém conferiu:** tema claro e 390 px no Opera pelo dono (Gio mediu em Chromium; Naksu refez por cálculo); o estado "só quem edita vê" pelo dono; leitor de tela; rede lenta real; aparelho real; a seção com dado de produção (a coleta ainda não rodou lá).
+
+**Retorno do uso real:** (a preencher depois do release 2).
