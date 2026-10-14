@@ -38,15 +38,24 @@ describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (ban
     await pg.query(MG20)
     await pg.query(MG20) // idempotente: a segunda vez não dá erro
   })
+  /** Outras suítes mexem no mesmo banco ao mesmo tempo (cascade de sites toca tabelas que elas travam): deadlock 40P01 é transitório, repete. */
+  async function comRepeticao(sql: string, args: unknown[]): Promise<void> {
+    for (let i = 0; ; i++) {
+      try { await pg.query(sql, args); return } catch (e) {
+        if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
+        await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
+      }
+    }
+  }
   afterAll(async () => {
     try {
       if (sites.length > 0) {
-        await pg.query('delete from public.youtube_channels where site_id = any($1::uuid[])', [sites]) // cascade apaga os retratos
-        await pg.query('delete from public.site_memberships where site_id = any($1::uuid[])', [sites])
-        await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
+        await comRepeticao('delete from public.youtube_channels where site_id = any($1::uuid[])', [sites]) // cascade apaga os retratos
+        await comRepeticao('delete from public.site_memberships where site_id = any($1::uuid[])', [sites])
+        await comRepeticao('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       }
-      if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (usuarios.length > 0) await comRepeticao('delete from auth.users where id = any($1::uuid[])', [usuarios])
+      if (sites.length > 0) await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites])
     } finally {
       await pg.end()
     }
@@ -60,8 +69,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (ban
 
   /** Dois sites; usuários: sem vínculo, membro (reporter) de A e membro de B. Um canal em A com um retrato. */
   async function cenario(): Promise<Cen> {
-    const siteA = (await seedSite(sb)).siteId; sites.push(siteA)
-    const siteB = (await seedSite(sb)).siteId; sites.push(siteB)
+    const siteA = (await seedSite(sb, { siteSlug: 'r9a-' + randomUUID(), siteName: 'R9a teste' })).siteId; sites.push(siteA)
+    const siteB = (await seedSite(sb, { siteSlug: 'r9a-' + randomUUID(), siteName: 'R9a teste' })).siteId; sites.push(siteB)
     const users = { sem: randomUUID(), membro: randomUUID(), outroSite: randomUUID() }
     for (const id of Object.values(users)) {
       usuarios.push(id)

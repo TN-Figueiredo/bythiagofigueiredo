@@ -108,6 +108,16 @@ describe('fetchChannelStats', () => {
     expect(stats.hidden).toBe(false)
   })
 
+  it.each(['-5', 'abc'])('contagem inválida %j: os três campos Raw ficam nulos, nunca número', async (v) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ statistics: { subscriberCount: v, viewCount: v, videoCount: v } }] }), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCtest', 'test-key')
+    expect(stats.subscriberCountRaw).toBeNull()
+    expect(stats.viewCountRaw).toBeNull()
+    expect(stats.videoCountRaw).toBeNull()
+  })
+
   it('hiddenSubscriberCount true: subscriberCountRaw nulo e hidden true', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ items: [{ statistics: { hiddenSubscriberCount: true, subscriberCount: '12300', viewCount: '5', videoCount: '2' } }] }), { status: 200 }),
