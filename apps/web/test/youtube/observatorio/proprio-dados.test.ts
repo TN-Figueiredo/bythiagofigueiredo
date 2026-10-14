@@ -51,7 +51,7 @@ describe('acessoPrivado e o direito de ler (E17 passo 0)', () => {
   const soLe = (rpcData: unknown) => {
     requireSiteScope.mockImplementation(async (o: { mode: string }) => (o.mode === 'edit' ? { ok: false, reason: 'insufficient_access' } : { ok: true, user: { id: 'u2' } }))
     const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [] })
-    getSupabaseServiceClient.mockReturnValue({ ...db.client, rpc: async () => ({ data: rpcData, error: null }) })
+    getSupabaseServiceClient.mockReturnValue({ ...db.client, rpc: () => ({ abortSignal: async () => ({ data: rpcData, error: null }) }) })
     return db
   }
   it('podeVerPrivado devolve exatamente a leitura de acessoPrivado', async () => {

@@ -51,7 +51,7 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   // o carregador de verdade com um banco que diz "uuid inválido" (22P02) e anota toda tabela consultada
   const tabelas: string[] = []
   const cadeia = { select: () => cadeia, eq: () => cadeia, maybeSingle: async () => ({ data: null, error: { code: '22P02', message: 'invalid input syntax for type uuid' } }) }
-  vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return o.realLoader ? { from: (t: string) => { tabelas.push(t); return cadeia } } : { rpc: async () => { if (o.rpcThrows) throw o.rpcThrows; return { data: o.rpcData ?? null, error: null } } } } }))
+  vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return o.realLoader ? { from: (t: string) => { tabelas.push(t); return cadeia } } : { rpc: () => ({ abortSignal: async () => { if (o.rpcThrows) throw o.rpcThrows; return { data: o.rpcData ?? null, error: null } } }) } } }))
   const { openChannelPage } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/page-data')
   return { openChannelPage, loadChannelDataset, loadOwnMenuRows, requireSiteScope, captureException, order, tabelas }
 }
