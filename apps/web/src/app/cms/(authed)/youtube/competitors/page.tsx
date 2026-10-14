@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slots'
+import { lerRetratosProprios, type RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
 import { openObservatoryPage } from './_chrome/page-data'
@@ -57,7 +58,16 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
       return null
     }
   }
-  const [extras, medidas] = await Promise.all([carregarExtrasProprio(obs, siteId, now), carregarMedidas()])
+  // A5 E5a R9b: retratos públicos diários do canal próprio (MG20), só para Inscritos; dado público, igual para quem só lê. Falha vira 'erro' (pílula do motivo) e um evento.
+  const carregarRetratosProprios = async (): Promise<ReadonlyMap<string, RetratosProprios> | 'erro'> => {
+    try {
+      return await lerRetratosProprios(getSupabaseServiceClient(), obs.ownChannels().map(c => c.id), now)
+    } catch (err) {
+      Sentry.captureException(err, { fingerprint: ['canais-ri', 'retratos-proprios'], tags: { component: 'observatorio', step: 'canais-ri' } })
+      return 'erro'
+    }
+  }
+  const [extras, medidas, retratosProprios] = await Promise.all([carregarExtrasProprio(obs, siteId, now), carregarMedidas(), carregarRetratosProprios()])
   const view = buildCanaisView(obs, {
     medidas,
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
@@ -74,7 +84,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   // Se o modelo lançar por inteiro, as duas seções abrem em erro (frases do próprio modelo) e a lista de canais segue.
   let ri: RiView
   try {
-    const r = buildRiView(obs, { agoraMs: now, niche, fmt: fmtDaOrdem(view.fmt), ordr: one(sp.ordr), ordi: one(sp.ordi), aba: one(sp.aba), meuCanalLembrado })
+    const r = buildRiView(obs, { agoraMs: now, niche, fmt: fmtDaOrdem(view.fmt), ordr: one(sp.ordr), ordi: one(sp.ordi), aba: one(sp.aba), meuCanalLembrado, retratosProprios })
     ri = r.view
     for (const f of r.falhas) Sentry.captureException(f.erro, { fingerprint: ['canais-ri', f.secao], tags: { component: 'observatorio', step: 'canais-ri' } })
   } catch (err) {

@@ -75,7 +75,9 @@ for (const { w, tema } of COMBOS) {
       await expect(linha(page, INS, N.primeiraBusca)).toContainText('ainda não coletado')
       const proprio = page.locator(`${INS} .ri-lst > li`, { hasText: 'seu canal' })
       await expect(proprio).toHaveCount(1)
-      await expect(proprio).toContainText('sem histórico público do seu canal')
+      // R9b: o canal próprio entra medido, pelo mesmo número público dos outros canais (40 dias de retratos da semente)
+      await expect(proprio).not.toContainText('sem medida')
+      await expect(proprio).toContainText(/2,0\s?%/)
       await expect(page.locator(`${INS} .ri-lst > li`, { hasText: N.passaArred })).not.toContainText('sem variação')
     })
 

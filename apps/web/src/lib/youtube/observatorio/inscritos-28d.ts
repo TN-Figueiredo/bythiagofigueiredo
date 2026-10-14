@@ -1,4 +1,4 @@
-import type { ObsChannel } from './types'
+import type { ChannelSnapshot, ObsChannel } from './types'
 import { DAY, H, spDayStart } from './time'
 
 /** Regras de Inscritos em 28 dias (neutras: o Cowork lê as mesmas). A coluna "Crescimento, 30 d" da lista tem outra janela (RI-D2). */
@@ -20,13 +20,20 @@ const dias = (a: number, b: number) => Math.round((a - b) / DAY)
 /** 'dd/mm' do dia de São Paulo do instante (só para escrever na tela). */
 const ddmm = (ms: number) => { const d = new Date(spDayStart(ms) + 12 * H - 3 * H); const p = (n: number) => String(n).padStart(2, '0'); return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) }
 
-export function inscritosDoCanal(c: ObsChannel, p: { agoraMs: number }): InscritosDoCanal {
+/** Retratos públicos diários do canal próprio (MG20), lidos por `lerRetratosProprios`; `oculto` vem do retrato mais novo. */
+export interface RetratosDoProprio { retratos: readonly ChannelSnapshot[]; oculto: boolean }
+
+export function inscritosDoCanal(c: ObsChannel, p: { agoraMs: number; proprio?: RetratosDoProprio }): InscritosDoCanal {
   const canal = c.id
   const nm = (motivo: MotivoInscritos, hoje: number | null, extra: { passo?: number; diasDeHistorico?: number; faltam?: number; data?: string } = {}): InscritosDoCanal =>
     ({ canal, tipo: 'nm', motivo, hoje, ...extra })
-  if (c.own) return nm('canal_proprio', c.subs)
-  if (c.subs == null) return nm('oculto', null)
-  const snaps = [...c.snapshots].sort((a, b) => a.t - b.t)
+  // Canal próprio: a MESMA régua dos concorrentes (o dado é o mesmo: total público, 3 algarismos), sobre os retratos da MG20 e nunca sobre `c.snapshots`.
+  // Sem `proprio` (a leitura falhou) não há medida: canal_proprio ("não lido").
+  if (c.own && !p.proprio) return nm('canal_proprio', null)
+  const oculto = c.own ? p.proprio!.oculto : c.subs == null
+  const retratos = c.own ? p.proprio!.retratos : c.snapshots
+  if (oculto) return nm('oculto', null)
+  const snaps = [...retratos].sort((a, b) => a.t - b.t)
   const hoje = snaps[snaps.length - 1]
   if (!hoje) return nm('ainda_nao_coletado', null)
   const meioDiaHoje = spDayStart(p.agoraMs) + 12 * H

@@ -48,6 +48,8 @@ let obs = obsCheio
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openObservatoryPage: async () => ({ siteId: 's', now: obs.NOW, rows: { settings: null }, obs, savedNiche: 'todos', meuCanalLembrado: null, extra: { canUnlock: false, podeEditar: true } }),
 }))
+const leitor = vi.hoisted(() => ({ lerRetratosProprios: vi.fn() }))
+vi.mock('@/lib/youtube/observatorio/retratos-proprios', () => leitor)
 const modelo = vi.hoisted(() => ({ buildRiView: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_canais/ri-model', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/app/cms/(authed)/youtube/competitors/_canais/ri-model')>()
@@ -63,6 +65,7 @@ async function pagina(sp: Record<string, string | undefined> = {}): Promise<Cana
 }
 beforeEach(() => {
   vi.clearAllMocks(); obs = obsCheio
+  leitor.lerRetratosProprios.mockResolvedValue(new Map())
   if (typeof window.localStorage.clear !== 'function') {
     const mem = new Map<string, string>()
     Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k), clear: () => mem.clear() } })
@@ -89,7 +92,7 @@ describe('R5: a página', () => {
     expect(shorts.referencias).not.toEqual(longos.referencias)
   })
   it('falhas com um item: um captureException com fingerprint [canais-ri, secao]', async () => {
-    const real = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null }).view
+    const real = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
     const erro = new Error('conta')
     modelo.buildRiView.mockImplementationOnce(() => ({ view: real, falhas: [{ secao: 'inscritos' as const, erro }] }))
     await pagina({})
@@ -105,10 +108,50 @@ describe('R5: a página', () => {
     expect(props.ri!.inscritos.estado).toBe('erro')
     expect(sentry.captureException).toHaveBeenCalledWith(erro, expect.objectContaining({ fingerprint: ['canais-ri', 'tudo'] }))
   })
+  it('R9b: o leitor recebe os ids dos canais próprios e o relógio da página; o canal próprio sem retrato abre "ainda não coletado" sem número', async () => {
+    const donos = obs.ownChannels().map(c => c.id)
+    expect(donos.length).toBeGreaterThan(0)
+    const props = await pagina({})
+    expect(leitor.lerRetratosProprios).toHaveBeenCalledTimes(1)
+    expect(leitor.lerRetratosProprios.mock.calls[0]![1]).toEqual(donos)
+    expect(leitor.lerRetratosProprios.mock.calls[0]![2]).toBe(obs.NOW)
+    const ins = props.ri!.inscritos
+    if (ins.estado !== 'ok') throw new Error('esperava ok')
+    const meu = ins.linhas.find(l => l.id === donos[0])!
+    expect(meu.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · ainda não coletado' })
+    expect(meu.classe == null && meu.barra == null).toBe(true)
+  })
+  it('R9b: o leitor lança: pílula do motivo, os concorrentes medidos, um captureException com fingerprint [canais-ri, retratos-proprios]', async () => {
+    const erro = new Error('banco')
+    leitor.lerRetratosProprios.mockRejectedValueOnce(erro)
+    const props = await pagina({})
+    const dono = obs.ownChannels()[0]!.id
+    const ins = props.ri!.inscritos
+    if (ins.estado !== 'ok') throw new Error('esperava ok, veio ' + ins.estado)
+    expect(ins.linhas.find(l => l.id === dono)!.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · não foi possível ler os retratos do seu canal' })
+    expect(ins.linhas.some(l => l.id !== dono && l.classe != null)).toBe(true)
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(sentry.captureException).toHaveBeenCalledWith(erro, expect.objectContaining({ fingerprint: ['canais-ri', 'retratos-proprios'] }))
+  })
+  it('R9b: sem canal próprio no obs, o leitor é chamado com lista vazia (ele mesmo não consulta) e nada vai ao Sentry', async () => {
+    const ds = datasetFromOracle(loadOracle())
+    for (const c of ds.channels) c.own = false
+    obs = createObservatory(ds)
+    await pagina({})
+    expect(leitor.lerRetratosProprios.mock.calls[0]![1]).toEqual([])
+    expect(sentry.captureException).not.toHaveBeenCalled()
+  })
+  it('R9b: sessão só de leitura vê a mesma linha do canal próprio (dado público) e nenhum fetch do Analytics roda', async () => {
+    const fetchEspiao = vi.spyOn(globalThis, 'fetch')
+    const props = await pagina({})
+    expect(JSON.stringify(props.ri)).not.toMatch(/subscribersGained/)
+    expect(fetchEspiao).not.toHaveBeenCalled()
+    fetchEspiao.mockRestore()
+  })
   it('quem só lê vê as mesmas seções do editor', async () => {
     const ed = await pagina({})
     expect(ed.somenteLeitura).toBe(false)
-    const lido = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null }).view
+    const lido = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
     expect(ed.ri).toEqual(lido)
   })
   it('obs sem retratos e sem vídeos na janela: as duas seções abrem com "Nenhum canal pôde ser medido…" e a lista de canais é a mesma', async () => {
@@ -129,7 +172,7 @@ function mount(ri: RiView | undefined, props: Partial<CanaisScreenProps> = {}) {
   const view = buildCanaisView(obsCheio, { niche: 'todos', limit: 75, fmt: 'longos' })
   return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={view} ri={ri} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
-const riDe = () => buildRiView(obsCheio, { agoraMs: obsCheio.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null }).view
+const riDe = () => buildRiView(obsCheio, { agoraMs: obsCheio.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
 
 describe('R5: a tela', () => {
   it('a tela Canais tem as duas seções depois da lista, com as âncoras, e os atalhos acima da lista', () => {
@@ -163,7 +206,7 @@ describe('R5: a tela', () => {
     expect(container.querySelector('#inscritos')!.getAttribute('aria-busy')).toBe('true')
   })
   it('seções vazias de dado: nenhuma régua e a frase de "Nenhum canal pôde ser medido"', () => {
-    const vazio = buildRiView({ channels: obsCheio.channels, videos: [], SYNC: obsCheio.SYNC }, { agoraMs: obsCheio.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null }).view
+    const vazio = buildRiView({ channels: obsCheio.channels, videos: [], SYNC: obsCheio.SYNC }, { agoraMs: obsCheio.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
     const { container } = render(<RiSecoes ri={vazio} ocupada={false} />)
     expect(container.textContent).toContain('Nenhum canal pôde ser medido nos últimos 90 dias.')
     expect(container.querySelectorAll('.reg').length).toBe(0)

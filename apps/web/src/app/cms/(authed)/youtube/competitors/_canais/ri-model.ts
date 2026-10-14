@@ -5,7 +5,7 @@
  */
 import { DAY, H, MINUS } from '@/lib/youtube/observatorio/time'
 import { referenciaDoCanal, REGRAS_REFERENCIAS, type ReferenciaDoCanal } from '@/lib/youtube/observatorio/referencias'
-import { inscritosDoCanal, REGRAS_INSCRITOS, type InscritosDoCanal } from '@/lib/youtube/observatorio/inscritos-28d'
+import { inscritosDoCanal, REGRAS_INSCRITOS, type InscritosDoCanal, type RetratosDoProprio } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { Fmt, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { RiFrase, RiLinhaIns, RiLinhaRef, RiPilula, RiSecao, RiView } from './ri-tipos'
@@ -15,6 +15,8 @@ export type RiObs = Pick<Observatory, 'channels' | 'videos'> & { SYNC: Pick<Obse
 
 export interface RiParams {
   agoraMs: number; niche: string; fmt: Fmt; ordr?: string; ordi?: string; aba?: string; meuCanalLembrado: string | null
+  /** Retratos públicos diários dos canais próprios (R9b, MG20), por id; `'erro'` quando a leitura falhou (a página já mandou ao Sentry). */
+  retratosProprios: ReadonlyMap<string, RetratosDoProprio> | 'erro'
 }
 export type RiFalha = { secao: 'referencias' | 'inscritos'; erro: unknown }
 
@@ -30,7 +32,8 @@ export const ROTULOS_NOVOS_RI = {
   fraseInsVazia: 'Nenhum canal pôde ser medido nos últimos 28 dias.',
   retratoVelho: (dm: string) => `sem medida · contagem parada desde ${dm}`,
   buraco: (dm: string) => `sem medida · falta a contagem de ${dm}`,
-  canalProprio: 'sem medida · sem histórico público do seu canal',
+  canalProprio: 'sem medida · não foi possível ler os retratos do seu canal', // TEXTO-A-REVISAR (Logan)
+  infoInsProprio: (desde: string | null) => `Seu canal é medido pelo mesmo número público dos outros canais${desde != null ? `, desde ${desde}` : ''}.`, // TEXTO-A-REVISAR (Logan)
   formato: { long: 'vídeos longos', short: 'Shorts' },
   legendaFormato: (f: string) => `Só entram ${f}.`,
   datasDaJanela: (de: string, ate: string) => `de ${de} a ${ate}`,
@@ -219,7 +222,7 @@ function secaoReferencias(escopo: ObsChannel[], obs: RiObs, p: RiParams, ordr: '
 }
 
 // ---------------------------------------------------------------- Inscritos
-function infoIns(): { titulo: string; itens: string[] } {
+function infoIns(proprioDesde: string | null | undefined): { titulo: string; itens: string[] } {
   return {
     titulo: 'Como o ganho de inscritos em 28 dias é calculado',
     itens: [
@@ -228,6 +231,7 @@ function infoIns(): { titulo: string; itens: string[] } {
       'Sem medida quando: o ganho é menor que 2 vezes o arredondamento ("dentro do arredondamento"); o canal tem menos de 28 dias no Observatório; ou o canal escondeu a contagem.',
       'Sem variação (＝): só quando a contagem é exata (menos de mil inscritos) e o ganho é zero.',
       ROTULOS_NOVOS_RI.infoInsTrintaDias,
+      ...(proprioDesde !== undefined ? [ROTULOS_NOVOS_RI.infoInsProprio(proprioDesde)] : []),
       'Cálculo do Observatório sobre dados públicos do YouTube. Contagem pública de inscritos, uma coleta por dia.',
     ],
   }
@@ -255,7 +259,13 @@ function pilulaNmIns(r: InsNm): { pilula: RiPilula; nota: string | null } {
 
 function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'): RiSecao<RiLinhaIns, 'pct' | 'abs'> {
   if (escopo.length === 0) return vazioIns
-  const nums = escopo.map(c => ({ c, r: inscritosDoCanal(c, { agoraMs: p.agoraMs }) }))
+  const rp = p.retratosProprios
+  const proprioDe = (c: ObsChannel): RetratosDoProprio | undefined => (c.own && rp !== 'erro' ? rp.get(c.id) ?? { retratos: [], oculto: false } : undefined)
+  const nums = escopo.map(c => ({ c, r: inscritosDoCanal(c, { agoraMs: p.agoraMs, proprio: proprioDe(c) }) }))
+  // ⓘ: desde quando o canal próprio é medido (primeiro retrato lido). undefined = sem frase (sem canal próprio no escopo ou sem retrato);
+  // null = frase sem data (o leitor só vê 90 dias: com o primeiro retrato a 85 dias ou mais a data andaria com a janela e mentiria)
+  const ts = escopo.flatMap(c => (proprioDe(c)?.retratos ?? []).map(x => x.t))
+  const proprioDesde = ts.length === 0 ? undefined : p.agoraMs - Math.min(...ts) >= 85 * 864e5 ? null : ddmm(Math.min(...ts))
   const oks = nums.filter((x): x is { c: ObsChannel; r: InsOk } => x.r.tipo === 'ok')
   const nms = nums.filter((x): x is { c: ObsChannel; r: InsNm } => x.r.tipo === 'nm')
   const nome = (c: ObsChannel) => c.name
@@ -310,7 +320,7 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
     frase.push({ t: cauda })
   }
   return {
-    estado: 'ok', frase, info: infoIns(), linhas, n: linhas.length,
+    estado: 'ok', frase, info: infoIns(proprioDesde), linhas, n: linhas.length,
     legenda: ['subiu', 'caiu', 'sem variação', 'sem medida'],
     ordens: {
       pct: { rotulo: 'Ganho em %', ids: poPct.map(x => x.c.id), legendaBarra: 'Barra: tamanho do ganho em %.' },

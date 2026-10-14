@@ -143,6 +143,8 @@ export const RI_CENARIO = {
   novo: { hoje: 6_900, dias: 11 },
   oculto: { hoje: null },
   buraco: { hoje: 48_200, antes: 44_000, diasApagados: [28, 29, 30, 31] },
+  /** retratos públicos diários do canal próprio (R9b, MG20): 40 dias, medido (+2,0%: abaixo do líder passaArred, a frase não muda) */
+  proprioRetratos: { hoje: 102_000, antes: 100_000, dias: 40 },
 } as const
 /** O id do oráculo dos canais do cenário → seedUuid(siteId, 'channel', id). */
 export const RI_CANAIS = ['ri-larga', 'ri-estreita', 'ri-provisoria', 'ri-so-novos', 'ri-primeira-busca', 'ri-passa-arred', 'ri-dentro-arred', 'ri-novo', 'ri-oculto', 'ri-buraco'] as const
@@ -712,6 +714,15 @@ async function seedRiCenario(sb: SupabaseClient, siteId: string, now: number): P
   }
   for (let d = R.novo.dias - 1; d >= 0; d--) snaps.push(linha('ri-novo', d, R.novo.hoje - d * 10))
   await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
+  // R9b: o canal próprio é medido pelo mesmo número público dos concorrentes, a partir de yt_own_channel_snapshots (MG20); termina HOJE
+  const Q = R.proprioRetratos
+  const meu = ownSeedUuid(siteId, 'tnfigueiredo')
+  const propriosSnaps: object[] = []
+  for (let d = Q.dias; d >= 0; d--) {
+    const subs = d === 28 ? Q.antes : d === 0 ? Q.hoje : Math.round((Q.antes - 1000 + (Q.hoje - Q.antes + 1000) * ((Q.dias - d) / Q.dias)) / 100) * 100
+    propriosSnaps.push({ youtube_channel_id: meu, snapshot_date: spDate(now - d * DAY), subscriber_count: subs, subscribers_hidden: false, view_count: subs * 20 })
+  }
+  await insertAll(sb, 'yt_own_channel_snapshots', propriosSnaps)
 }
 
 export async function seedObservatory(siteId: string, opts: SeedOptions = {}, client?: SupabaseClient): Promise<void> {

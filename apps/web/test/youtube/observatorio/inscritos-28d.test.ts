@@ -129,3 +129,53 @@ describe('REGRAS_INSCRITOS', () => {
     expect(REGRAS_INSCRITOS).toEqual({ janelaDias: 28, folgaDias: 3, exatoAbaixoDe: 1000, multiploDoPasso: 2, retratoVelhoDias: 2 })
   })
 })
+
+// ---- R9b: o canal próprio medido pelos retratos públicos diários (MG20), a mesma régua dos concorrentes ----
+describe('inscritosDoCanal: canal próprio com retratos (R9b)', () => {
+  const proprio = (retratos: ChannelSnapshot[], oculto = false) => ({ retratos, oculto })
+  const meu = (over: Partial<ObsChannel> = {}) => canal({ own: true, subs: 0, ...over })
+  const sem = <T extends { canal: string }>(r: T): Omit<T, 'canal'> => { const { canal: _c, ...resto } = r; return resto }
+
+  it('sem proprio (leitura falhou): canal_proprio, nunca o ganho dos c.snapshots injetados', () => {
+    expect(calc(meu({ snapshots: [snap(AGORA, 28, 100), snap(AGORA, 0, 200)] }))).toMatchObject({ tipo: 'nm', motivo: 'canal_proprio' })
+  })
+  it('retratos vazios: ainda_nao_coletado', () => {
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([]) })).toMatchObject({ tipo: 'nm', motivo: 'ainda_nao_coletado', hoje: null })
+  })
+  it('oculto: oculto, nunca ganho', () => {
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 28, 100)], true) })).toMatchObject({ tipo: 'nm', motivo: 'oculto' })
+  })
+  it('nunca lê c.snapshots: com proprio, os snapshots do canal são ignorados', () => {
+    const c = meu({ snapshots: [snap(AGORA, 28, 1_000_000), snap(AGORA, 0, 2_000_000)] })
+    expect(inscritosDoCanal(c, { agoraMs: AGORA, proprio: proprio([]) })).toMatchObject({ motivo: 'ainda_nao_coletado' })
+  })
+  it('primeiro retrato há 11 dias: novo, faltam 17', () => {
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 11, 6000), snap(AGORA, 0, 6900)]) }))
+      .toMatchObject({ tipo: 'nm', motivo: 'novo', diasDeHistorico: 11, faltam: 17 })
+  })
+  it('primeiro retrato há 28 dias: medido', () => {
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 28, 5000), snap(AGORA, 0, 5200)]) }))
+      .toMatchObject({ tipo: 'ok', ganho: 200 })
+  })
+  it('retrato mais novo há 3 dias: retrato_velho', () => {
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 31, 5000), snap(AGORA, 3, 5200)]) }))
+      .toMatchObject({ tipo: 'nm', motivo: 'retrato_velho' })
+  })
+  it('sem retrato de 28 a 31 dias antes: buraco com a data', () => {
+    const r = inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 40, 400), snap(AGORA, 27, 450), snap(AGORA, 0, 500)]) })
+    expect(r).toMatchObject({ tipo: 'nm', motivo: 'buraco' })
+    expect((r as { data?: string }).data).toBe(dmy(dia(AGORA) - 28 * DAY).slice(0, 5))
+  })
+  it('régua igual à dos concorrentes: mesmos retratos dão o mesmo resultado, só o canal muda', () => {
+    for (const [antes, hoje] of [[1_390_000, 1_420_000], [602_000, 603_000], [9_800, 9_900], [400, 450]] as const) {
+      const rs = [snap(AGORA, 28, antes), snap(AGORA, 0, hoje)]
+      const p = sem(inscritosDoCanal(meu({ id: 'eu' }), { agoraMs: AGORA, proprio: proprio(rs) }))
+      const o = sem(inscritosDoCanal(canal({ id: 'outro', subs: hoje, snapshots: rs }), { agoraMs: AGORA }))
+      expect(p).toEqual(o)
+    }
+  })
+  it('603.000 contra 602.000: arred, passo 1.000; 9.910 contra 9.900: arred, passo 10', () => {
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 28, 602_000), snap(AGORA, 0, 603_000)]) })).toMatchObject({ motivo: 'arred', passo: 1000 })
+    expect(inscritosDoCanal(meu(), { agoraMs: AGORA, proprio: proprio([snap(AGORA, 28, 9_900), snap(AGORA, 0, 9_910)]) })).toMatchObject({ motivo: 'arred', passo: 10 })
+  })
+})
