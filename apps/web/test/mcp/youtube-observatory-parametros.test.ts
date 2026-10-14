@@ -25,6 +25,7 @@ beforeEach(() => Object.values(servico).forEach(f => f.mockClear()))
 describe('o anúncio e o adaptador', () => {
   it('falam dos mesmos parâmetros', () => {
     expect(new Set(Object.keys(YoutubeObservatoryShape))).toEqual(new Set(PARAMETROS_LIDOS))
+    expect(PARAMETROS_LIDOS).toContain('campos')
   })
 
   it('todo params.<nome> lido no arquivo do adaptador está em PARAMETROS_LIDOS', () => {
@@ -62,6 +63,25 @@ describe('o anúncio e o adaptador', () => {
   })
 })
 
+describe('campos (6b)', () => {
+  it('campos=todos é anunciado e só aceita todos', () => {
+    expect(Object.keys(YoutubeObservatoryShape)).toContain('campos')
+    expect(shape.safeParse({ action: 'get_changes', campos: 'todos' }).success).toBe(true)
+    expect(shape.safeParse({ action: 'get_changes', campos: 'x' }).success).toBe(false)
+  })
+
+  it('get_changes repassa campos, type e bookmarked', async () => {
+    await youtubeObservatory({ action: 'get_changes', campos: 'todos', type: 'thumbnail', bookmarked: false })
+    expect(servico.listCompetitorChanges).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ campos: 'todos', type: 'thumbnail', bookmarked: false }))
+  })
+
+  it('get_changes sem campos não manda campos', async () => {
+    await youtubeObservatory({ action: 'get_changes' })
+    const filtros = (servico.listCompetitorChanges.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1]
+    expect(filtros['campos']).toBeUndefined()
+  })
+})
+
 describe('o adaptador repassa o que lê', () => {
   it('get_changes repassa type e bookmarked', async () => {
     await youtubeObservatory({ action: 'get_changes', type: 'title', bookmarked: true, limit: 10 })
@@ -77,5 +97,53 @@ describe('o adaptador repassa o que lê', () => {
     expect(servico.listCompetitorOutliers).toHaveBeenLastCalledWith(expect.anything(), { tier: 'all', limit: 25, fmt: 'long' })
     await youtubeObservatory({ action: 'get_insights' })
     expect(servico.getCompetitorInsights).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// O tamanho do texto que a ferramenta entrega com campos=todos (P-14: 60.000 caracteres sem a resposta do dono)
+// ---------------------------------------------------------------------------
+
+const LIMITE_DE_TEXTO = 60_000
+/** O bytes_max de `tags` que a P-2 mediu em produção em 14/10 foi 561: uma lista de tags com esse tamanho, nos dois valores. */
+const tags = (n: number): string[] => Array.from({ length: 51 }, (_, i) => 't' + String(n).padStart(4, '0') + String(i).padStart(2, '0'))
+const troca = (n: number) => ({
+  id: '00000000-0000-4000-8000-' + String(n).padStart(12, '0'), video_id: 'yt_sintetico_' + n, video_title: 'Título sintético do vídeo número ' + n + ' com tamanho realista', channel_name: 'Canal sintético ' + n,
+  change_type: 'title', old_title: 'Título antigo sintético número ' + n, new_title: 'Título novo sintético número ' + n, old_thumbnail_url: null, new_thumbnail_url: null, view_count_at_change: 123456, detected_at: '2026-10-12T12:00:00.000Z', bookmarked: false,
+})
+const mudanca = (n: number) => ({
+  id: n, alvo: 'video', channel_name: 'Canal sintético ' + n, video_id: 'yt_sintetico_' + n, video_title: 'Título sintético do vídeo número ' + n + ' com tamanho realista', campo: 'tags',
+  valor_novo: tags(n), valor_anterior: { estado: 'lido', valor: tags(n + 5000) }, visto_em: '2026-10-12 12:00:00.123456+00', janela_desde: '2026-10-11 12:00:00.123456+00', precisao: '1d',
+})
+const corpo = (n: number) => ({
+  changes: Array.from({ length: n }, (_, i) => troca(i)), count: n,
+  mudancas_de_campo: {
+    estado: 'lido', itens: Array.from({ length: n }, (_, i) => mudanca(i)), count: n, limite: n, cortado: false, coleta_desde: '2026-10-12 12:00:00.123456+00',
+    lido_ate: { mais_antigo: '2026-10-12 12:00:00.123456+00', mais_recente: '2026-10-12 12:00:00.123456+00', canais_sem_leitura: 0, videos_mais_antigo: '2026-10-12 12:00:00.123456+00', videos_mais_recente: '2026-10-12 12:00:00.123456+00' },
+    fora_da_lista: 0, video_de_outro_site: 0, video_ausente: 0,
+  },
+})
+/** O maior `limit` cujo texto cabe: é o número que o documento escreve ("pela ferramenta, com `campos`, peça `limit` de até N"). */
+const LIMIT_DOCUMENTADO_COM_CAMPOS = 17
+
+describe('get_changes com campos pela ferramenta: o texto é medido', () => {
+  async function tamanhoDoTexto(n: number): Promise<number> {
+    servico.listCompetitorChanges.mockResolvedValueOnce({ data: corpo(n) } as never)
+    const r = await youtubeObservatory({ action: 'get_changes', campos: 'todos', limit: n })
+    const c = r.content[0]
+    return c && c.type === 'text' ? c.text.length : -1
+  }
+
+  it('com o limit padrão da ferramenta (50) e o pior valor de tags da P-2, o texto passa do limite: o número que cabe é o documentado', async () => {
+    const com50 = await tamanhoDoTexto(50)
+    let maior = 0
+    for (let n = 50; n >= 1; n--) if ((await tamanhoDoTexto(n)) <= LIMITE_DE_TEXTO) { maior = n; break }
+    expect(com50).toBeGreaterThan(LIMITE_DE_TEXTO)
+    expect(maior).toBe(LIMIT_DOCUMENTADO_COM_CAMPOS)
+  })
+
+  it('o texto com o limit documentado cabe, e com um a mais não cabe', async () => {
+    expect(await tamanhoDoTexto(LIMIT_DOCUMENTADO_COM_CAMPOS)).toBeLessThanOrEqual(LIMITE_DE_TEXTO)
+    expect(await tamanhoDoTexto(LIMIT_DOCUMENTADO_COM_CAMPOS + 1)).toBeGreaterThan(LIMITE_DE_TEXTO)
   })
 })
