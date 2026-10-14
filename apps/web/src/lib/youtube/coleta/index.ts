@@ -10,14 +10,20 @@ import { CONFERENCIAS, DIAS_ATE_O_VERMELHO, conferenciasEmFalha, conferenciasVen
 import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
 import { passoAlcance } from './alcance-step'
-import { TETOS_MS, restante, type Relogio } from './clock'
+import { TETOS_DE_FIM_MS, TETOS_MS, restante, type Relogio } from './clock'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
+import { criterioDesligados } from './criteria-desligados'
+import { criteriosE11 } from './criteria-e11'
 import { criteriosL2 } from './criteria-l2'
-import { ontemPt } from './day-pt'
+import { dayPt, ontemPt } from './day-pt'
 import { passoDiario } from './diario-step'
+import { passoDimensoes } from './dimensoes-step'
+import { DIMENSOES_DESDE, DIMENSOES_LIGADO_EM, type ConfigE11 } from './e11-config'
 import { conferirGuarda, contarBrutosAoAbrir } from './guarda'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
+import { passoNormalizadores } from './normalizadores-step'
+import { notaNomesDesconhecidos, passoDesligado, type PassoComInterruptor } from './passos-desligados'
 import { passoRelatorios } from './reports-step'
 import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
@@ -47,6 +53,8 @@ export interface ColetaCtx {
    */
   autorizadosAntes?: string[]
   negadosAntes?: string[]
+  /** A5 E11: datas de partida de dimensões e normalizadores. Padrão: as constantes de `e11-config.ts`. */
+  e11?: ConfigE11
 }
 
 export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
@@ -256,12 +264,62 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     const r = await passo('diario', TETOS_MS.diario, 'diario', ativos, passoDiario)
     if (r) resumo.diario = r
   }
+
+  // A5 E11, depois do diário: dimensões (Analytics API; o teto da cobertura é a `base` que o diário acabou de estender) e
+  // normalizadores (só banco). Os dois só gastam o que SOBRAR dos 270 s (TETOS_DE_FIM_MS, fora de TETOS_MS): sem tempo não rodam
+  // e os passos de antes ficam como estavam. Dia do PACÍFICO (`dayPt`), nunca o de São Paulo de `hojeSP()`.
+  const e11: ConfigE11 = ctx.e11 ?? { desde: DIMENSOES_DESDE, ligadoEm: DIMENSOES_LIGADO_EM }
+  const hojePt = dayPt(new Date())
+  // Passos desligados por YT_OWN_STEPS_OFF nesta execução: é a lista que `criterioDesligados` recebe.
+  const desligados: PassoComInterruptor[] = []
+  if (passoDesligado('dimensoes')) {
+    resumo.dimensoes = { desligado: true }
+    desligados.push('dimensoes')
+  } else {
+    const r = await passo('dimensoes', TETOS_DE_FIM_MS.dimensoes, 'dimensoes', ativos, c => passoDimensoes({ ...c, e11, hoje: hojePt }))
+    if (r) resumo.dimensoes = r
+  }
+  // `servidos` vazio, como o alcance: o passo grava as próprias tentativas por tipo (uma `nao_alcancado_orcamento` aqui
+  // sobrescreveria a `ok` que ele gravou).
+  if (passoDesligado('normalizadores')) {
+    resumo.normalizadores = { desligado: true }
+    desligados.push('normalizadores')
+  } else {
+    const r = await passo('normalizadores', TETOS_DE_FIM_MS.normalizadores, 'normalizador_trafego', [], passoNormalizadores)
+    if (r) resumo.normalizadores = r
+  }
+
   if (PASSOS_LIGADOS.alcance || PASSOS_LIGADOS.diario) {
     try {
       await criteriosL2({ supabase: ctx.supabase, falhas, channels })
     } catch (e) {
       falhou('critérios do L2', e)
     }
+  }
+
+  // Critérios da E11 DEPOIS dos dois passos: a prova mede o que eles acabaram de gravar. Sem canal ligado não há site para
+  // provar (o critério daria "nenhum site" vermelho para sempre). Se lançar, a nota é vermelha: nunca engolida.
+  const sitesE11 = [...new Set(ativos.map(c => c.site_id))]
+  if (sitesE11.length > 0) {
+    try {
+      const c = await criteriosE11({
+        supabase: ctx.supabase, falhas, hoje: hojePt, e11, sites: sitesE11,
+        desligados: { dimensoes: desligados.includes('dimensoes'), normalizadores: desligados.includes('normalizadores') },
+      })
+      resumo.e11 = { provas: c.provas, avaliados: c.avaliados, desligados: c.desligados }
+    } catch (e) {
+      falhou('critérios da E11', e)
+    }
+  }
+
+  // Passo desligado nunca some: até a 7ª execução seguida é nota em `acao_do_dono`; da 8ª em diante o critério põe o vermelho.
+  const nomesRuins = notaNomesDesconhecidos()
+  if (nomesRuins) pushUnico(falhas, nomesRuins)
+  try {
+    const notas = await criterioDesligados({ supabase: ctx.supabase, falhas, relogio: ctx.relogio }, desligados)
+    if (notas.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notas])]
+  } catch (e) {
+    falhou('critérios de passos desligados', e)
   }
 
   if (PASSOS_LIGADOS.metadados) {
@@ -278,7 +336,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   }
 
   try {
-    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario'])
+    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim'])
   } catch (e) {
     falhou('orçamento', e)
   }

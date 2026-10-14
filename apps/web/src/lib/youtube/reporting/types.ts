@@ -28,8 +28,8 @@ export type ReportTypeId = (typeof REPORT_TYPES_ENABLED)[number]
 /** "Relatório de alcance" nos critérios da seção 9 do spec. */
 export const REACH_TYPES = ['channel_reach_basic_a1', 'channel_reach_combined_a1'] as const
 
-/** Tipos sem normalizador neste spec: o bruto é apagado 180 dias depois do download. */
-export const SEM_NORMALIZADOR: string[] = REPORT_TYPES_ENABLED.filter(t => t !== 'channel_reach_basic_a1')
+/** Tipos sem normalizador neste spec: o bruto é apagado 180 dias depois do download. (A5 E11: os dois tipos de E11 têm normalizador e ficam fora.) */
+export const SEM_NORMALIZADOR: string[] = REPORT_TYPES_ENABLED.filter(t => !['channel_reach_basic_a1', 'channel_traffic_source_a3', 'channel_reach_combined_a1'].includes(t))
 
 export interface ReportType {
   id: string

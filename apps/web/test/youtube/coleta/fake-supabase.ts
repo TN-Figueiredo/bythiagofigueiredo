@@ -342,3 +342,33 @@ export function comReachApply(db: FakeDb): FakeDb {
   }
   return db
 }
+
+/**
+ * A5 E11 (Tarefa 10): as funções da MG7 com a resposta de um banco sem nada a avisar. A lógica de verdade é testada contra o
+ * Postgres (Tarefa 12). Opt-in, no molde de `comReachApply` (e NÃO instalado em `fakeSupabase`): os testes da E11 afirmam a
+ * função AUSENTE (PGRST202) justamente por não terem manipulador. A prova padrão devolve as oito chaves em zero, com um vídeo
+ * com `base` e `base_ate` = o dia pedido; a gravação aceita tudo; os normalizadores marcam `normalized_at`, como a função faz
+ * na mesma transação. Teste que quer a função ausente depois disto usa `db.errors['rpc:<nome>']`.
+ */
+export function comE11Padrao(db: FakeDb): FakeDb {
+  db.rpcHandlers.yt_own_dim_prova = (a) => ({
+    data: {
+      faltando_cobertura: 0, videos_com_base: 1, videos_base_antes_do_inicio: 0, videos_sem_base: 0,
+      base_ate: typeof a.p_hoje === 'string' ? a.p_hoje : null,
+      dias_dois_relatorios_detalhe: 0, dias_dois_relatorios_alcance: 0, pendentes_normalizar: 0,
+    },
+    error: null,
+  })
+  db.rpcHandlers.yt_own_dim_cover_idle = () => ({ data: { videos_com_base: 0, conjuntos_cobertos: 0, videos_com_view: 0 }, error: null })
+  db.rpcHandlers.yt_own_dim_apply = (a) => ({
+    data: { status: 'gravado', gravadas: Array.isArray(a.p_rows) ? a.p_rows.length : 0, apagadas: 0, fora_do_teto: 0, dias_mantidos: 0, dias_em_revisao: 0 },
+    error: null,
+  })
+  const normalizar = (a: Row) => {
+    for (const r of db.tables.yt_reporting_reports ?? []) if (r.report_id === a.p_report_id) r.normalized_at = new Date().toISOString()
+    return { data: { status: 'gravado', gravadas: Array.isArray(a.p_rows) ? a.p_rows.length : 0 }, error: null }
+  }
+  db.rpcHandlers.yt_own_traffic_detail_apply = normalizar
+  db.rpcHandlers.yt_own_reach_dim_apply = normalizar
+  return db
+}
