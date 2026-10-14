@@ -672,7 +672,15 @@ A retenção, as dimensões, as versões e os normalizadores têm interruptor pr
 
 ## 11. Apagar a série de um canal
 
-Passo manual, só do dono, sem volta. Antes, exporte (seção 12, passo 1; as duas tabelas do L2 estão no passo 1 do "Rollback do L2"). No SQL Editor do Supabase (você roda), um por vez. Os dois primeiros são as tabelas do L2; entre elas e as demais não há dependência de chave estrangeira (as duas têm `channel_id` com `on delete restrict` e `video_id` com `on delete set null`). A única ordem que importa é o bruto antes do relatório (o bruto também sai por cascata, o `delete` explícito só deixa isso à vista):
+Passo manual, só do dono, sem volta. Antes, exporte (seção 12, passo 1; as duas tabelas do L2 estão no passo 1 do "Rollback do L2"). No SQL Editor do Supabase (você roda), um por vez. Os quatro primeiros são o backup da dieta do diário (`yt_own_video_daily_zeros_bkp`, só existe depois da P3; se não existir, pule), a cobertura do diário (`yt_own_video_coverage`) e as duas tabelas do L2; entre elas e as demais não há dependência de chave estrangeira (as duas têm `channel_id` com `on delete restrict` e `video_id` com `on delete set null`). A única ordem que importa é o bruto antes do relatório (o bruto também sai por cascata, o `delete` explícito só deixa isso à vista):
+
+```sql
+delete from yt_own_video_daily_zeros_bkp where channel_id = '<UUID_DO_CANAL>';
+```
+
+```sql
+delete from yt_own_video_coverage where channel_id = '<UUID_DO_CANAL>';
+```
 
 ```sql
 delete from yt_own_video_daily where channel_id = '<UUID_DO_CANAL>';
@@ -702,7 +710,7 @@ delete from yt_own_video_meta_daily where channel_id = '<UUID_DO_CANAL>';
 delete from yt_own_collection_attempts where channel_id = '<UUID_DO_CANAL>';
 ```
 
-Desde o L1b o `channel_id` destas tabelas é chave estrangeira (`on delete restrict`). Remover o canal pela tela responde "Este canal tem série coletada. Apagar a série é um passo manual, descrito no runbook." enquanto houver qualquer linha aqui, **inclusive tentativas, jobs e, desde o L2, o diário e o alcance** — na prática, todo canal que passou por uma execução do cron. Para remover um canal: exporte (seção 12, passo 1), rode os sete `delete` acima e remova pela tela em seguida. Se o cron das 09:00 rodar no meio, ele recria tentativas e jobs e a tela volta a recusar.
+Desde o L1b o `channel_id` destas tabelas é chave estrangeira (`on delete restrict`). Remover o canal pela tela responde "Este canal tem série coletada. Apagar a série é um passo manual, descrito no runbook." enquanto houver qualquer linha aqui, **inclusive tentativas, jobs e, desde o L2, o diário e o alcance** — na prática, todo canal que passou por uma execução do cron. Para remover um canal: exporte (seção 12, passo 1), rode os nove `delete` acima e remova pela tela em seguida. Se o cron das 09:00 rodar no meio, ele recria tentativas e jobs e a tela volta a recusar.
 
 ## 12. Rollback do L1a
 
@@ -859,7 +867,7 @@ update public.yt_reporting_reports set status = 'baixado', downloaded_at = now()
 - **O critério de thumbnail só sabe quem é privado hoje.** Vídeo privado, ou ausente da `videos.list`, sai da conta de "metade ou mais" do dia; as tentativas de ontem entram todas, porque ontem não se guardou quem era privado.
 - **`is_short` de vídeo de 61 a 180 s depende de uma sonda** a `youtube.com/shorts/<id>`, feita depois de todas as linhas do dia gravadas. Sem confirmação fica nulo e o vídeo é sondado de novo no dia seguinte; uma vez confirmado, não é sondado mais.
 - **`authorization_verified_at` é carimbado duas vezes por dia** (passo de metadados e parte antiga), não a cada chamada. Os passos da Reporting API não o carimbam.
-- **Remover um canal exige apagar a série à mão** (seção 11, sete `delete`).
+- **Remover um canal exige apagar a série à mão** (seção 11, nove `delete`).
 - **`maxResults` não é enviado à Analytics API.** A documentação do Google não dá padrão nem teto. Se houver um corte silencioso no primeiro carregamento de um vídeo antigo, a janela seguinte (que começa no último dia gravado) continua dali se o corte cair nos dias mais novos; confira o primeiro dia gravado de um vídeo antigo (`min(day_pt)` na seção 4) contra a data de publicação.
 - **A janela do diário reabre os últimos 10 dias** a cada execução (começa no mais antigo entre 10 dias atrás e o último dia gravado), e o fim é o "hoje" do Pacífico. O valor de um dia recente é regravado por upsert enquanto estiver nessa janela. Vídeo sem nenhuma atividade desde a publicação é pedido todo dia desde a publicação (é uma chamada de qualquer jeito).
 - **Cliques não são gravados** (o CSV não tem a coluna); `impressões × CTR` reconstrói o número.
@@ -871,3 +879,131 @@ update public.yt_reporting_reports set status = 'baixado', downloaded_at = now()
 - **Depois do diário rodam sem prazo próprio** os critérios do L2, o de metadados, o de orçamento e o fechamento da rota. O diário pode usar até o fim do relógio global (270 s de 300 s): confira `ms_passos` em `yt_own_collection_runs` nas primeiras semanas.
 - **"Não consegue baixar há 3 dias" dispara no 4º dia.** O critério `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias` (e o de job em erro há 3 dias) roda na primeira fase, antes das tentativas de download do dia. No 3º dia de falha ele ainda só vê duas datas com tentativa; a nota aparece na execução do 4º dia.
 - **Quem silenciou o domínio `youtube` nas notificações não recebe o aviso de `api_nao_ativada` / `sem_acesso` / `reautorizar`.** Uma notificação suprimida pela preferência do usuário conta como entregue: não há nota `sem_destinatario` e o cron fica verde. Nesse caso o estado só aparece em `acao_do_dono`, na resposta do cron.
+
+## 14. Dieta do diário: apagar as linhas vazias (A5 E6, P3, MG15)
+
+Plano: `docs/superpowers/plans/2026-10-13-a5-e6-p3-apagar-linhas-vazias-do-diario-plan.md` (seções 2, 7 e 11 e Apêndices A a D). Ledger: `.superpowers/sdd/a5-e6-p3/progress.md`. **Isto apaga linha de `yt_own_video_daily` em produção** (as de dia sem nenhuma atividade, cerca de 94 mil das 97 mil) e devolve o espaço com `vacuum full`. A migration se prova sozinha: recusa por inteiro (nada muda) se o coletor novo não rodou limpo nos três últimos dias, se alguma linha que sairia estiver fora da cobertura, se a hora cair entre 11:30 e 13:00 UTC, se a marca do dia não estiver no diário ou se as contas de antes e de depois não fecharem. Todo comando que escreve é **(você roda)**, um por linha.
+
+**Os três passos, nesta ordem, no mesmo dia (entre 14:00 e 20:00 de Brasília):**
+
+1. **(você roda)** o CSV e a marca do dia. Pasta `~/Workspace/arquivo-observatorio/dieta-diario/`; `AAAAMMDD` é o dia. A URL é a "Session pooler" do painel do Supabase (Connect), com a senha do banco; ela não vai para arquivo nenhum.
+
+```bash
+mkdir -p ~/Workspace/arquivo-observatorio/dieta-diario
+```
+
+```bash
+cd ~/Workspace/arquivo-observatorio/dieta-diario
+```
+
+```bash
+read -s PGURL
+```
+
+```bash
+psql "$PGURL" -c "\copy (select * from public.yt_own_video_daily order by youtube_video_id, day_pt) to 'yt_own_video_daily-AAAAMMDD.csv' csv header"
+```
+
+```bash
+wc -l yt_own_video_daily-AAAAMMDD.csv
+```
+
+```bash
+shasum -a 256 yt_own_video_daily-AAAAMMDD.csv > yt_own_video_daily-AAAAMMDD.csv.sha256
+```
+
+O número do `wc -l` menos 1 (o cabeçalho) tem de ser o `t` da A1. Depois, a marca do dia (a data sai do comando, em UTC; se a tabela já tiver comentário, o texto antigo vai antes da marca, dentro das mesmas aspas simples):
+
+```bash
+psql "$PGURL" -c "comment on table public.yt_own_video_daily is 'P3 armada em $(date -u +%F)'"
+```
+
+2. **(você roda)** a migration, na pasta do repositório, fora de 11:30 a 13:00 UTC. Nenhum outro `db:push:prod` pode ter acontecido enquanto o arquivo da MG15 existir sem estar aplicado (a fila é `.superpowers/sdd/a5/fila-do-db-push.md`):
+
+```bash
+npm run db:push:prod
+```
+
+3. **(você roda)** o `vacuum full`, no mesmo terminal em que `PGURL` foi lida, depois das conferências V1 a V6 abaixo. Se a conexão recusar, a mesma instrução, sozinha, no SQL Editor do painel (`vacuum (full, analyze) public.yt_own_video_daily;`):
+
+```bash
+psql "$PGURL" -c "set lock_timeout = '5s'" -c "vacuum (full, analyze) public.yt_own_video_daily"
+```
+
+Depois da V7, retirar a marca (se havia comentário antigo, gravar o texto antigo no lugar de `null`) e esquecer a URL:
+
+```bash
+psql "$PGURL" -c "comment on table public.yt_own_video_daily is null"
+```
+
+```bash
+unset PGURL
+```
+
+**Conferências (leitura; troque `<UUID_DO_SITE>`).** A A1 e o retrato V5 de **antes** são anotados antes do passo 2, com o instante; os de depois, depois do passo 2. `<INICIO>` é o menor `day_pt` do diário antes da P3 e `<CORTE>` o maior, os mesmos nas duas rodadas.
+
+A1, contas de antes e de depois (guardar a linha inteira):
+
+```bash
+npx supabase db query --linked "select count(*) as t, count(*) filter (where coalesce(views,0)<>0 or coalesce(engaged_views,0)<>0 or coalesce(watch_time_minutes,0)<>0 or coalesce(likes,0)<>0 or coalesce(comments,0)<>0 or coalesce(shares,0)<>0 or coalesce(subscribers_gained,0)<>0 or coalesce(subscribers_lost,0)<>0 or coalesce(card_impressions,0)<>0) as a, count(*) filter (where views = 0 and coalesce(engaged_views,0)=0 and coalesce(watch_time_minutes,0)=0 and coalesce(likes,0)=0 and coalesce(comments,0)=0 and coalesce(shares,0)=0 and coalesce(subscribers_gained,0)=0 and coalesce(subscribers_lost,0)=0 and coalesce(card_impressions,0)=0) as vazias, coalesce(sum(views),0) as s_views, coalesce(sum(engaged_views),0) as s_engajadas, coalesce(sum(watch_time_minutes),0) as s_minutos, coalesce(sum(likes),0) as s_curtidas, coalesce(sum(comments),0) as s_comentarios, coalesce(sum(shares),0) as s_compart, coalesce(sum(subscribers_gained),0) as s_ganhos, coalesce(sum(subscribers_lost),0) as s_perdidos, coalesce(sum(card_impressions),0) as s_cartao, (select coalesce(sum(covered_to - covered_from + 1),0) from public.yt_own_video_coverage where site_id = '<UUID_DO_SITE>' and metric_set = 'base') as c_base, now() as instante from public.yt_own_video_daily where site_id = '<UUID_DO_SITE>';"
+```
+
+V1, a migration entrou inteira (esperado `t, t, 0, f, f, f, t, 0, 0`):
+
+```bash
+npx supabase db query --linked "select to_regclass('public.yt_own_video_daily_zeros_bkp') is not null as backup_existe, (select relrowsecurity from pg_class where oid = 'public.yt_own_video_daily_zeros_bkp'::regclass) as rls, (select count(*) from pg_policies where schemaname = 'public' and tablename = 'yt_own_video_daily_zeros_bkp') as policies_de_0, has_table_privilege('anon', 'public.yt_own_video_daily_zeros_bkp', 'select') as anon_le, has_table_privilege('authenticated', 'public.yt_own_video_daily_zeros_bkp', 'select') as autenticado_le, has_table_privilege('service_role', 'public.yt_own_video_daily_zeros_bkp', 'select') as servico_le, to_regprocedure('public.yt_own_daily_diet_p3(uuid,timestamptz)') is null as funcao_saiu, (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('yt_own_daily_linha_vazia', 'yt_own_daily_diet_p3_contas', 'yt_own_daily_diet_p3')) as funcoes_de_0, (select count(*) from pg_constraint where conrelid = 'public.yt_own_video_daily_zeros_bkp'::regclass and contype = 'f') as chaves_estrangeiras_de_0;"
+```
+
+V2, o que a migration anotou no comentário da tabela de backup (texto `MG15 <instante> [...]` com `estado: apagado`; **nulo = nada foi apagado: ler a saída do `db push`**):
+
+```bash
+npx supabase db query --linked "select obj_description('public.yt_own_video_daily_zeros_bkp'::regclass, 'pg_class');"
+```
+
+V3: a A1 de novo, mais `(select count(*) from public.yt_own_video_daily_zeros_bkp where site_id = '<UUID_DO_SITE>') as backup`. Contra a A1 de antes: `t` = `t` antes menos as apagadas; `a` igual; `vazias` 0; as nove somas iguais; `c_base` igual; `backup` = apagadas.
+
+V4, toda linha do backup é dia coberto e sem linha (esperado `N, 0, 0`; só vale no dia):
+
+```bash
+npx supabase db query --linked "select count(*) as linhas_no_backup, count(*) filter (where not exists (select 1 from public.yt_own_video_coverage c where c.site_id = b.site_id and c.youtube_video_id = b.youtube_video_id and c.metric_set = 'base' and b.day_pt between c.covered_from and c.covered_to)) as fora_da_base_de_0, count(*) filter (where exists (select 1 from public.yt_own_video_daily d where d.youtube_video_id = b.youtube_video_id and d.day_pt = b.day_pt)) as ainda_com_linha_de_0 from public.yt_own_video_daily_zeros_bkp b where b.site_id = '<UUID_DO_SITE>';"
+```
+
+V5, retrato da vida inteira (rodar antes e depois; esperado: mesmo `pares`, mesmos `medidos`, mesma `soma`, **mesmo md5**):
+
+```bash
+npx supabase db query --linked "select count(*) as pares, count(*) filter (where x.medido) as medidos, coalesce(sum(x.views),0) as soma, md5(string_agg(x.youtube_video_id || '|' || x.dia || '|' || x.medido || '|' || coalesce(x.views::text, '-'), ',' order by x.youtube_video_id, x.dia)) as retrato from (select v.youtube_video_id, g::date as dia, case when d.youtube_video_id is not null then d.views is not null else cb.ok end as medido, case when d.youtube_video_id is not null then d.views when cb.ok then 0 end as views from public.youtube_videos v cross join generate_series('<INICIO>'::date, '<CORTE>'::date, interval '1 day') g left join public.yt_own_video_daily d on d.youtube_video_id = v.youtube_video_id and d.day_pt = g::date cross join lateral (select exists (select 1 from public.yt_own_video_coverage c where c.site_id = v.site_id and c.youtube_video_id = v.youtube_video_id and c.metric_set = 'base' and g::date between c.covered_from and c.covered_to) as ok) cb where v.site_id = '<UUID_DO_SITE>') x;"
+```
+
+V6: as conferências K4, K5 e K8 do plano da dieta (`docs/superpowers/plans/2026-10-12-a5-e6-e8-dieta-e-retencao-plan.md`, seção 11): 0 e 0; `atrasados` 0; 0.
+
+V7, tamanho depois do `vacuum full` (esperado: `diario` menor que 2.097.152):
+
+```bash
+npx supabase db query --linked "select pg_total_relation_size('public.yt_own_video_daily') as diario, pg_total_relation_size('public.yt_own_video_daily_zeros_bkp') as backup, pg_database_size(current_database()) as banco;"
+```
+
+**Tabela de backup `yt_own_video_daily_zeros_bkp`.** Cópia das linhas apagadas, mesmas colunas do diário, com RLS ligada, **sem policy e sem privilégio** para `anon`, `authenticated` e `service_role` (só o dono do banco lê, pelo SQL Editor ou `psql`). Não tem chave estrangeira. Vive até a MG16 (14 dias ou mais depois; conferência `e6-p3-d14`). O comentário dela traz o instante e, por site, o resultado completo (`apagadas`, `vazias`, `ficaram_com_media`, `ficaram_fora_das_estendidas`, `antes`, `depois`).
+
+**As três voltas**, na ordem de preferência. Qualquer V fora do esperado: volta A no mesmo dia, depois a V3 de novo (`t` tem de ser o `t` de antes).
+
+- **Volta A, até a MG16: restaurar do backup.** `docs/ops/sql/dieta-diario-volta-a-restaurar-do-backup.sql`. **(você roda)** no SQL Editor; uma instrução, roda duas vezes sem erro, não passa por cima de dia que ganhou linha depois. Devolve as mesmas linhas, coluna por coluna.
+- **Volta B, sempre: recriar os zeros a partir da cobertura.** `docs/ops/sql/dieta-diario-volta-b-recriar-da-cobertura.sql`. **(você roda)** no SQL Editor, trocando `<UUID_DO_SITE>` pelo uuid do site; uma instrução. Equivalente para todo leitor (views 0, dia medido), **não** idêntica byte a byte (`collected_at` novo; contagens em zero onde o original podia ter nulo). Medido no ensaio em volume de produção (96.880 linhas, banco local): cerca de 1,3 a 1,9 s.
+- **Volta C, enquanto o CSV existir: restaurar do CSV.** **(você roda)** as três linhas, na ordem, e depois a A1:
+
+```bash
+psql "$PGURL" -c "create table public.yt_own_video_daily_csv_tmp (like public.yt_own_video_daily)" -c "alter table public.yt_own_video_daily_csv_tmp enable row level security" -c "revoke all on table public.yt_own_video_daily_csv_tmp from public, anon, authenticated, service_role"
+```
+
+```bash
+psql "$PGURL" -c "\copy public.yt_own_video_daily_csv_tmp from 'yt_own_video_daily-AAAAMMDD.csv' csv header"
+```
+
+```bash
+psql "$PGURL" -c "insert into public.yt_own_video_daily select t.youtube_video_id, t.day_pt, t.site_id, case when exists (select 1 from public.youtube_videos v where v.id = t.video_id) then t.video_id end, t.channel_id, t.views, t.engaged_views, t.watch_time_minutes, t.avg_view_duration_seconds, t.avg_view_percentage, t.likes, t.comments, t.shares, t.subscribers_gained, t.subscribers_lost, t.card_impressions, t.card_click_rate, t.source, t.collected_at, t.metric_version from public.yt_own_video_daily_csv_tmp t on conflict (youtube_video_id, day_pt) do nothing" -c "drop table public.yt_own_video_daily_csv_tmp"
+```
+
+Se o CSV ficou incompleto e a migration já rodou, o diário e o backup juntos são a tabela de antes: **(você roda)** `psql "$PGURL" -c "\copy (select * from public.yt_own_video_daily union all select * from public.yt_own_video_daily_zeros_bkp order by 1, 2) to 'yt_own_video_daily-AAAAMMDD-refeito.csv' csv header"`.
+
+**Depois da P3 o coletor e o leitor não se revertem.** O coletor antigo parte do último dia **com linha** de cada vídeo (anos atrás, em quase todos) e regrava a vida inteira com os zeros em um ou dois dias; o leitor antigo lê "não medido" em todo dia de zero. Nada se perde, mas a tabela volta a engordar sem aviso do cron. Se algo der errado no coletor, o conserto é para a frente. Se for preciso reverter também o leitor, rode antes a volta B.
+
+**Se a migration recusar.** A mensagem do `db push` diz qual prova falhou (janela, marca do dia, "3 execuções limpas", "cobertura em dia", "fora da cobertura base", "as contas não fecham"). Nada foi apagado. Se a nova tentativa não for no mesmo dia, o arquivo sai do repositório e o ritual recomeça (CSV, marca e A1 novos): ver a seção 2 do plano.
