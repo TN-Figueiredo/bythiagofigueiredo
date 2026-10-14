@@ -531,7 +531,7 @@ export function computeDashboardStats(
   const testsWon = contam.filter(t => ehVitoriaHumana(t)).length
   const winRate = contam.length > 0 ? (testsWon / contam.length) * 100 : null
 
-  return { activeTests, winRate, completedTests: contam.length, testsWon }
+  return { activeTests, winRate, completedTests: rootCompleted.length, winRateBase: contam.length, testsWon }
 }
 
 // ---------------------------------------------------------------------------
@@ -1286,7 +1286,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       ctrAfter: winnerCtr * 100,
       totalImpressions: results.variants.reduce((sum, v) => sum + v.total_impressions, 0),
       abbaCycles: totalCycles,
-      monthlyExtraClicks: test.result_metadata?.estimated_monthly_extra_clicks ?? null,
+      // A estimativa guardada vinha de views, sem medição de entrega: a tela mostra a frase fixa.
+      monthlyExtraClicks: null,
     },
     learning: test.status_note ?? undefined,
     revertExpiresAt: test.revert_expires_at,

@@ -116,6 +116,21 @@ function makeWinnerView(overrides?: Partial<AbTestWinnerView>): AbTestWinnerView
 /* ─── WinnerBanner ─── */
 
 describe('WinnerBanner', () => {
+  it('monthlyExtraClicks nulo: mostra a frase fixa e nenhum número de ganho', () => {
+    render(
+      <WinnerBanner
+        winnerLabel="B"
+        winnerColor="#E8823C"
+        lift={15.3}
+        confidence={97.2}
+        stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: null }}
+      />,
+    )
+    const banner = screen.getByTestId('winner-banner')
+    expect(banner.textContent).toContain('Sem medição de entrega por enquanto')
+    expect(banner.textContent).not.toMatch(/cliques\/mes a mais/)
+  })
+
   it('renders trophy icon', () => {
     render(
       <WinnerBanner
@@ -229,6 +244,13 @@ describe('WinnerDetail', () => {
     render(<WinnerDetail view={view} />)
     expect(screen.queryAllByText(/^0%$/)).toHaveLength(0)
     expect(screen.queryAllByText(/de confianca/i)).toHaveLength(0)
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+  })
+
+  it('"Por que venceu" não mostra barras de probabilidade sobre views, só a frase fixa', () => {
+    const { container } = render(<WinnerDetail view={makeWinnerView()} />)
+    expect(container.querySelector('[data-rank-bar]')).toBeNull()
+    expect(screen.queryByText(/93% de chance/)).toBeNull()
     expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
   })
 

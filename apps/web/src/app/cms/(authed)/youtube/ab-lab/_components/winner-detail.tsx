@@ -7,11 +7,10 @@ import { WinnerBanner } from './winner-banner'
 import { LiveMonitorCard } from './live-monitor'
 import { ComoEstaAgora } from './como-esta-agora'
 import { CredibleInterval } from './credible-interval'
-import { RankBars } from './rank-bars'
+import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { ConfidenceChart } from './confidence-chart'
 import { ClickMoment } from './click-moment'
 import { VariantTable } from './variant-table'
-import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
 import { revertWinner, archiveAbTest } from '../actions'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
@@ -117,7 +116,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
                 <h3 className="text-[19px] font-semibold text-cms-text m-0">Por que {view.winnerLabel} venceu</h3>
               </div>
               <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                Não foi sorte: a faixa de CTR do vencedor ficou inteira acima da original, e o motor Bayesiano deu 93% de chance dele ser o melhor.
+                Não foi sorte: a faixa de CTR do vencedor ficou inteira acima da original.
               </p>
             </div>
           </div>
@@ -136,7 +135,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             {/* Right: Rank Bars */}
             <div>
               <div className="text-[10px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[12px]">Chance de ser o melhor</div>
-              <RankBars variants={view.variants} />
+              <p className="text-[12.5px] text-cms-text-muted m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
               <p className="text-[11.5px] text-cms-text-dim mt-[12px] leading-[1.5]">
                 As faixas <b className="text-cms-text">não se sobrepõem</b> — por isso o sistema cravou o vencedor, diferente do empate que vira playoff.
               </p>

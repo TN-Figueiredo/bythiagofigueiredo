@@ -443,6 +443,16 @@ describe('Dashboard stats edge cases', () => {
     expect(stats.testsWon).toBe(0)
   })
 
+  it('completedTests é o total de concluídos raiz; winRateBase só os que contam (auto_resolve e razão null ficam fora)', () => {
+    const auto = concluido(true); auto.completed_reason = 'auto_resolve'
+    const semRazao = concluido(false); semRazao.completed_reason = null
+    const stats = computeDashboardStats([], [concluido(true), concluido(false), auto, semRazao, concluido(true, 'pai')])
+    expect(stats.completedTests).toBe(4)
+    expect(stats.winRateBase).toBe(2)
+    expect(stats.testsWon).toBe(1)
+    expect(stats.winRate).toBe(50)
+  })
+
   it('playoff children excluded from root completed count', () => {
     const stats = computeDashboardStats([], [concluido(true), concluido(true, 'parent-id')])
     expect(stats.completedTests).toBe(1)
@@ -543,6 +553,7 @@ describe('Type safety regression tests', () => {
       winRate: 60,
       avgLift: 12.3,
       completedTests: 10,
+      winRateBase: 10,
       testsWon: 6,
     }
     expect(stats.completedTests).toBe(10)

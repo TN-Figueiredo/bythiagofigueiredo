@@ -232,7 +232,7 @@ export function AbLabDashboard({
               value={Math.round(stats.winRate)}
               suffix="%"
               icon={Trophy}
-              trend={stats.completedTests > 0 ? `${stats.testsWon} de ${stats.completedTests} testes` : undefined}
+              trend={stats.winRateBase > 0 ? `${stats.testsWon} de ${stats.winRateBase} testes` : undefined}
             />
           )}
         </div>

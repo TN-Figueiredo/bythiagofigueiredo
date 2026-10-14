@@ -1,11 +1,10 @@
 'use client'
 
 import type { AbTestPlayoffView } from '@/lib/youtube/ab-types'
-import { formatPercent } from './ab-constants'
+import { formatPercent, SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { DetailHeader } from './detail-header'
 import { PlayoffBanner } from './playoff-banner'
 import { CredibleInterval } from './credible-interval'
-import { RankBars } from './rank-bars'
 import { VariantTable } from './variant-table'
 import { Copy, Archive, Download, Info, LayoutGrid, Target } from 'lucide-react'
 
@@ -116,13 +115,11 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
                     </span>
                   </h3>
                 </div>
-                <p className="text-[12.5px] text-cms-text-dim mt-[5px] max-w-[540px] m-0">
-                  Probabilidade de cada variante ser a melhor, pelos cliques observados.
-                </p>
+
               </div>
             </div>
             <div className="mt-[6px]">
-              <RankBars variants={view.variants} />
+              <p className="text-[12.5px] text-cms-text-muted m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
             </div>
           </div>
         </div>

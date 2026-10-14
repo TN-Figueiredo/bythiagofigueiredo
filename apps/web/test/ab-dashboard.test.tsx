@@ -347,7 +347,7 @@ describe('EmptyState', () => {
 describe('AbLabDashboard', () => {
   const baseStats: DashboardStats = {
     activeTests: 2, winRate: 75,
-    completedTests: 4, testsWon: 3,
+    completedTests: 4, winRateBase: 4, testsWon: 3,
   }
   const baseSettings: AbTestSiteSettings = { ...AB_SITE_SETTINGS_DEFAULTS }
   const baseProps = {
@@ -382,7 +382,7 @@ describe('AbLabDashboard', () => {
 
   it('win rate null mostra a frase fixa, não 0%', () => {
     render(
-      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: null, completedTests: 0, testsWon: 0 }}
+      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
         cards={[makeCardView()]} completed={[makeCompleted()]} />,
     )
     expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
@@ -391,7 +391,7 @@ describe('AbLabDashboard', () => {
 
   it('win rate numérico aparece com o percentual', () => {
     render(
-      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: 50, completedTests: 2, testsWon: 1 }}
+      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: 50, completedTests: 3, winRateBase: 2, testsWon: 1 }}
         cards={[makeCardView()]} completed={[makeCompleted()]} />,
     )
     expect(screen.getByText('50')).toBeTruthy()
@@ -402,7 +402,7 @@ describe('AbLabDashboard', () => {
     render(
       <AbLabDashboard
         {...baseProps}
-        stats={{ activeTests: 0, winRate: null, completedTests: 0, testsWon: 0 }}
+        stats={{ activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
       />,
     )
     expect(screen.getByText('Nenhum teste ativo')).toBeTruthy()

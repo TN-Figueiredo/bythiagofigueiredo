@@ -59,7 +59,7 @@ describe('computeDashboardStats', () => {
 
   it('sem testes: winRate null (não 0) e sem avgConfidence/avgLift', () => {
     const s = computeDashboardStats([], [])
-    expect(s).toEqual({ activeTests: 0, winRate: null, completedTests: 0, testsWon: 0 })
+    expect(s).toEqual({ activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 })
     expect(s).not.toHaveProperty('avgConfidence')
     expect(s).not.toHaveProperty('avgLift')
   })
@@ -75,7 +75,8 @@ describe('computeDashboardStats', () => {
     const s = computeDashboardStats([], [manual, auto, inconclusivo])
     expect(s.winRate).toBe(50)
     expect(s.testsWon).toBe(1)
-    expect(s.completedTests).toBe(2)
+    expect(s.completedTests).toBe(3)
+    expect(s.winRateBase).toBe(2)
   })
   it('só auto_resolve: nenhum teste conta, winRate null', () => {
     const s = computeDashboardStats([], [concluido('auto_resolve', true)])

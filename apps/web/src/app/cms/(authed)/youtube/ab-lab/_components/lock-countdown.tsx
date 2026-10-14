@@ -15,14 +15,11 @@ export interface LockCountdownProps {
 export function LockCountdown({
   dayOf,
   durationDays,
-  confidence,
-  confidenceTarget,
   cyclesCompleted,
   createdAt,
   hasPlayoff,
 }: LockCountdownProps) {
   const progress = Math.min(100, durationDays > 0 ? (dayOf / durationDays) * 100 : 0)
-  const estimatedDays = confidence > 0 ? Math.ceil(((confidenceTarget - confidence) / 2.5)) : Math.max(0, durationDays - dayOf)
   const totalCycles = durationDays > 0 ? Math.ceil(durationDays / 2) * 2 : 0
   const cyclesRemaining = Math.max(0, totalCycles - cyclesCompleted)
 
@@ -38,10 +35,10 @@ export function LockCountdown({
           {/* Row 1: title + countdown */}
           <div className="flex items-center justify-between gap-[12px] mb-[8px]">
             <span className="text-[13px] font-semibold text-cms-text">
-              Teste travado até atingir os critérios de resolução
+              Teste travado até a duração máxima
             </span>
             <span className="font-mono text-[12px] text-cms-text-dim shrink-0">
-              ~{Math.max(1, estimatedDays)} dias · {cyclesRemaining} ciclos restantes
+              {Math.max(0, durationDays - dayOf)} dias até o fim · {cyclesRemaining} ciclos restantes
             </span>
           </div>
 

@@ -172,7 +172,8 @@ describe('ActiveDetail', () => {
     const lockSection = container.querySelector('[data-section="lock-countdown"]')
     expect(lockSection).not.toBeNull()
     // Contains the lock text
-    expect(lockSection?.textContent).toContain('Teste travado')
+    expect(lockSection?.textContent).toContain('Teste travado até a duração máxima')
+    expect(lockSection?.textContent).not.toContain('critérios de resolução')
   })
 
   it('HeroBand shows leader VChip for variant B', () => {

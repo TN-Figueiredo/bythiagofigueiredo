@@ -170,6 +170,8 @@ describe('toDetailView — status discrimination', () => {
     if ('outcome' in view && view.outcome === 'winner') {
       expect(view.winnerLabel).toBe('B')
       expect(view.confidence).toBeNull() // confiança calculada sobre views não é medição de entrega
+      // a estimativa guardada (310) vinha de views: a tela força null e o banner mostra a frase fixa
+      expect(view.resultMeta.monthlyExtraClicks).toBeNull()
     }
   })
 

@@ -4,16 +4,19 @@ import { PlayoffBanner } from '@/app/cms/(authed)/youtube/ab-lab/_components/pla
 import { PlayoffDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/playoff-detail'
 import type { AbTestPlayoffView, FullChartVariant, VariantThumb, GateResult } from '@/lib/youtube/ab-types'
 
-vi.mock('lucide-react', () => {
+vi.mock('lucide-react', async (importOriginal) => {
+  const original = await importOriginal<typeof import('lucide-react')>()
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
-  return { Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
+  return { ...original, Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
     Trophy: icon('Trophy'), TrendingUp: icon('TrendingUp'), TrendingDown: icon('TrendingDown'),
     CheckCircle: icon('CheckCircle'), Clock: icon('Clock'), ChevronDown: icon('ChevronDown'),
     ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
     Archive: icon('Archive'), Download: icon('Download'), Swords: icon('Swords'),
     Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'),
     Lock: icon('Lock'), Minus: icon('Minus'), Sparkles: icon('Sparkles'),
-    Check: icon('Check'), LayoutGrid: icon('LayoutGrid'), Radio: icon('Radio'), AlertCircle: icon('AlertCircle') }
+    Check: icon('Check'), LayoutGrid: icon('LayoutGrid'), Radio: icon('Radio'), AlertCircle: icon('AlertCircle'),
+    ChevronLeft: icon('ChevronLeft'), Eye: icon('Eye'), Smartphone: icon('Smartphone'), Search: icon('Search'),
+    ListVideo: icon('ListVideo'), MousePointerClick: icon('MousePointerClick'), Activity: icon('Activity') }
 })
 
 /* ─── Helpers ─── */
@@ -144,6 +147,14 @@ describe.skip('PlayoffBanner', () => { // TODO: broken by component redesign
 })
 
 /* ─── PlayoffDetail ─── */
+
+describe('PlayoffDetail (sem medição)', () => {
+  it('não mostra barras de probabilidade sobre views; mostra a frase fixa', () => {
+    const { container } = render(<PlayoffDetail view={makePlayoffView()} />)
+    expect(container.querySelector('[data-rank-bar]')).toBeNull()
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
+  })
+})
 
 describe.skip('PlayoffDetail', () => { // TODO: broken by component redesign
   it('renders 5-section layout', () => {

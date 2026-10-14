@@ -122,6 +122,7 @@ function makeStats(overrides: Partial<DashboardStats> = {}): DashboardStats {
     activeTests: 2,
     winRate: 60,
     completedTests: 5,
+    winRateBase: 5,
     testsWon: 3,
     ...overrides,
   }

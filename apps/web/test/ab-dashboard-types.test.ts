@@ -3,7 +3,7 @@ import type { DashboardStats, AbTestDraft, SuggestedVideo, LearningsData, Learni
 
 describe('Dashboard types', () => {
   it('DashboardStats has all required fields', () => {
-    const s: DashboardStats = { activeTests: 2, winRate: 60, completedTests: 5, testsWon: 3 }
+    const s: DashboardStats = { activeTests: 2, winRate: 60, completedTests: 5, winRateBase: 5, testsWon: 3 }
     expect(s.activeTests).toBe(2)
     expect(s.winRate).toBeGreaterThanOrEqual(0)
     expect(s.winRate).toBeLessThanOrEqual(100)

@@ -294,7 +294,10 @@ export interface DashboardStats {
   activeTests: number
   /** % de vitórias humanas entre os testes que contam; null quando nenhum conta. */
   winRate: number | null
+  /** Total de testes concluídos raiz (sem filho de playoff), contem ou não para o win rate. */
   completedTests: number
+  /** Denominador do win rate: só os concluídos por pessoa ou limite de duração. */
+  winRateBase: number
   testsWon: number
 }
 
