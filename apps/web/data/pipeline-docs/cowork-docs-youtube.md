@@ -608,115 +608,162 @@ O módulo Observatory monitora canais concorrentes: detecta mudanças em título
 
 ### GET /api/pipeline/youtube/competitors/channels
 
-Lista todos os canais concorrentes monitorados.
+Lista os canais concorrentes monitorados do site, com os números de hoje e o perfil lido do YouTube (handle, país e data de criação). As chaves são snake_case e `data` é um objeto com `channels` e `count`, não uma lista.
 
 **Auth:** read
 
-**Response 200:**
+**Response 200** (canal com o perfil já lido):
 ```json
 {
-  "data": [
-    {
-      "id": "uuid",
-      "channelId": "UC...",
-      "channelName": "Competitor Channel",
-      "thumbnailUrl": "https://...",
-      "subscriberCount": 50000,
-      "videoCount": 120,
-      "addedAt": "2026-01-10T14:00:00Z",
-      "lastSyncedAt": "2026-06-01T08:30:00Z",
-      "avgEngagement": 0.042,
-      "growthDelta": 1200,
-      "growthSparkline": [48000, 48200, 48500, 49000, 50000],
-      "recentVideos": [
-        {
-          "id": "uuid",
-          "videoId": "dQw4w9WgXcQ",
-          "title": "Video Title",
-          "thumbnailUrl": "https://...",
-          "viewCount": 15000,
-          "likeCount": 800,
-          "commentCount": 45,
-          "publishedAt": "2026-05-28T10:00:00Z",
-          "durationSeconds": 620,
-          "viewDelta": 3000,
-          "outlierMultiplier": 2.5,
-          "outlierTier": "mid"
+  "data": {
+    "channels": [
+      {
+        "id": "uuid",
+        "channel_id": "UC...",
+        "channel_name": "Competitor Channel",
+        "thumbnail_url": "https://...",
+        "subscriber_count": 50000,
+        "video_count": 50,
+        "last_synced_at": "2026-06-01T08:30:00Z",
+        "added_at": "2026-01-10T14:00:00Z",
+        "avg_engagement": 0.042,
+        "perfil": {
+          "estado": "lido",
+          "lido_em": "2026-06-01T08:30:00Z",
+          "handle": "@competitor",
+          "pais": "BR",
+          "criado_em": "2019-03-02T00:00:00Z"
         }
-      ],
-      "vsYou": [
-        {
-          "channelName": "My Channel",
-          "channelId": "uuid",
-          "subsDelta": 38000,
-          "engagementDelta": 0.012,
-          "avgViewsDelta": 5000,
-          "frequencyDelta": 1.2
-        }
-      ],
-      "changeFlags": [
-        { "type": "thumbnail", "count": 2, "latestAt": "2026-06-01T06:00:00Z" }
-      ],
-      "syncMode": "recent",
-      "syncStatus": "idle",
-      "syncProgress": 100,
-      "syncError": null,
-      "youtubeVideoCount": 350,
-      "fullSyncCompletedAt": null,
-      "videoLimit": 50
-    }
-  ]
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+**`perfil` de um canal ainda não lido** (a mesma posição, sem os três campos do perfil):
+```json
+{
+  "estado": "nao_lido",
+  "motivo": "canal_ainda_nao_relido",
+  "frase": "o histórico do perfil deste canal ainda não tem a primeira leitura de handle e país"
 }
 ```
 
 **Notas:**
-- `recentVideos` retorna os 3 mais recentes por default (drawer mostra todos)
-- `vsYou` compara cada canal concorrente com cada canal próprio cadastrado
-- `changeFlags` mostra badges de mudanças não vistas desde última visita
-- `outlierTier`: `mid` = 2-5x mediana, `high` = 5-10x, `top` = >10x
+- `video_count` é quantos vídeos entraram na conta de engajamento (no máximo 50), e não o total de vídeos do canal. `video_count: 0` e `avg_engagement: null` podem ser falha da leitura dos vídeos daquele canal, não um canal sem vídeo; `avg_engagement` soma curtidas e comentários ocultos como zero.
+- `avg_engagement` e `subscriber_count` podem ser `null` (o canal oculta o contador, ou o YouTube não devolveu): trate como "sem contagem".
+- Dentro de `perfil` com `estado: "lido"`, `null` em `handle` ou `pais` quer dizer que o YouTube não informou. `lido_em` é a última leitura boa do canal e pode ser posterior à leitura do perfil. `criado_em` nulo quer dizer "não informado, ou ainda não gravado".
+- `perfil` com `estado: "nao_lido"` não traz `handle`, `pais` nem `criado_em`, e traz `frase`: cite a frase e não estime o valor. Os outros motivos possíveis são `tabela_ausente`, `erro_do_banco` e `cortado`.
+- O recurso MCP `pipeline://youtube/competitors/channels` lê a tabela direto e não traz `perfil`; os números do perfil vêm desta rota e da ferramenta `youtube_observatory` (ação `list_channels`). O recurso MCP `pipeline://youtube/competitors/outliers` devolve **mudanças marcadas**, não vídeos fora da curva; para os vídeos, use a rota `outliers` ou a ação `get_outliers` da ferramenta.
+- A lista traz só concorrentes; o seu canal não está nela.
 
 ---
 
 ### GET /api/pipeline/youtube/competitors/changes
 
-Lista mudanças detectadas em vídeos de concorrentes (títulos, thumbnails, descrições).
+Lista as trocas de título, miniatura e descrição detectadas em vídeos de concorrentes. Com `campos=todos`, acrescenta as mudanças de campo (tags, categoria, duração, idioma, nome do canal e outras).
 
 **Auth:** read
 
 **Query params:**
-- `change_type` (opcional): `title`, `description`, `thumbnail` — filtro por tipo
-- `channel_id` (opcional): UUID do canal concorrente — filtro por canal
-- `bookmarked` (opcional): `true` — apenas mudanças salvas
-- `limit` (opcional, default: 50, max: 100)
+- `type` (opcional): `title`, `description`, `thumbnail` ou `all` — filtro por tipo de troca
+- `bookmarked` (opcional): `true` ou `false` — apenas trocas salvas (ou apenas as não salvas)
+- `limit` (opcional, máximo 100): padrão 25 pela rota HTTP e 50 pela ferramenta `youtube_observatory`
+- `campos` (opcional): só `todos`; vazio (`?campos=`) é tratado como ausente, e qualquer outro valor responde 400 `VALIDATION_ERROR`
 
-**Response 200:**
+Não há filtro por canal. `type` e `bookmarked` não filtram as mudanças de campo; `limit` vale para as duas listas, cada uma com o seu corte.
+
+**Response 200** (sem `campos`):
 ```json
 {
-  "data": [
-    {
-      "id": "uuid",
-      "videoId": "dQw4w9WgXcQ",
-      "videoTitle": "New Title After Change",
-      "channelName": "Competitor Channel",
-      "channelThumbnailUrl": "https://...",
-      "changeType": "title",
-      "oldTitle": "Original Title",
-      "newTitle": "New Title After Change",
-      "oldThumbnailUrl": null,
-      "newThumbnailUrl": null,
-      "viewCountAtChange": 12000,
-      "detectedAt": "2026-05-30T14:22:00Z",
-      "bookmarked": false,
-      "history": []
-    }
-  ]
+  "data": {
+    "changes": [
+      {
+        "id": "uuid",
+        "video_id": "dQw4w9WgXcQ",
+        "video_title": "New Title After Change",
+        "channel_name": "Competitor Channel",
+        "change_type": "title",
+        "old_title": "Original Title",
+        "new_title": "New Title After Change",
+        "old_thumbnail_url": null,
+        "new_thumbnail_url": null,
+        "view_count_at_change": 12000,
+        "detected_at": "2026-05-30T14:22:00Z",
+        "bookmarked": false
+      }
+    ],
+    "count": 1
+  }
 }
 ```
 
+**Response 200 com `campos=todos`** (`changes` e `count` são os mesmos; entra `mudancas_de_campo`):
+```json
+{
+  "data": {
+    "changes": [],
+    "count": 0,
+    "mudancas_de_campo": {
+      "estado": "lido",
+      "itens": [
+        {
+          "id": 4821,
+          "alvo": "video",
+          "channel_name": "Competitor Channel",
+          "video_id": "dQw4w9WgXcQ",
+          "video_title": "Video Title",
+          "campo": "tags",
+          "valor_novo": ["react", "nextjs"],
+          "valor_anterior": { "estado": "lido", "valor": ["react"] },
+          "visto_em": "2026-06-01 08:30:00.123+00",
+          "janela_desde": "2026-05-31 08:30:00+00",
+          "precisao": "1d"
+        }
+      ],
+      "count": 1,
+      "limite": 25,
+      "cortado": false,
+      "coleta_desde": "2026-06-01 08:30:00+00",
+      "lido_ate": {
+        "mais_antigo": "2026-06-01 08:00:00+00",
+        "mais_recente": "2026-06-01 08:30:00+00",
+        "canais_sem_leitura": 0,
+        "videos_mais_antigo": "2026-05-25 08:00:00+00",
+        "videos_mais_recente": "2026-06-01 08:30:00+00"
+      },
+      "fora_da_lista": 0,
+      "video_de_outro_site": 0,
+      "video_ausente": 0
+    }
+  }
+}
+```
+
+**`mudancas_de_campo` quando a leitura não foi possível:**
+```json
+{
+  "estado": "nao_lido",
+  "motivo": "coleta_ainda_nao_comecou",
+  "frase": "o histórico de campos deste site ainda não tem nenhuma leitura"
+}
+```
+Os outros motivos são `tabela_ausente`, `erro_do_banco` e `cortado`. `nao_lido` nunca é "nenhuma mudança": cite a frase e não escreva que nada mudou.
+
+**Campos de vídeo que saem:** `tags`, `category_id`, `duration_seconds`, `default_language`, `default_audio_language`, `live_broadcast_content`, `comments_disabled`, `likes_hidden`, `views_hidden`, `availability`.
+
+**Campos de canal que saem:** `name`, `custom_url`, `country`, `avatar_url`, `subscribers_hidden`, `availability`. A descrição do canal não é entregue.
+
 **Notas:**
-- `history` contém o histórico completo de mudanças do vídeo (expandido via toggle)
-- Mudanças de thumbnail incluem `oldThumbnailUrl` e `newThumbnailUrl`
-- `viewCountAtChange` mostra views no momento da detecção (para avaliar timing da mudança)
+- Mudança de miniatura traz `old_thumbnail_url` e `new_thumbnail_url`. `view_count_at_change` mostra as views no momento da detecção, para avaliar o timing da mudança.
+- `precisao` diz a largura da janela em que a mudança aconteceu: `6h`, `1d` ou `7d`; `gap` quer dizer que a janela da mudança é um buraco de coleta. `janela_desde` é o começo dela. `valor_novo` nulo é valor: o YouTube deixou de informar o campo. `valor_anterior` com `estado: "nao_lido"` e `sem_versao_anterior` quer dizer que a leitura anterior não existe, não que o valor era vazio.
+- A lista de mudanças de campo cobre de `coleta_desde` até `lido_ate`. `coleta_desde` é a primeira leitura do site; canal acrescentado depois tem cobertura menor. Canal com leitura mais antiga que a de hoje não foi conferido depois dela: se `lido_ate.mais_recente` não for de hoje, diga até quando a lista vale e não escreva "nada mudou".
+- `lido_ate.mais_recente` e `mais_antigo` valem para os campos do canal (nome, handle, país, avatar, inscritos ocultos, disponibilidade). Os campos de vídeo são relidos na cadência de cada vídeo (parte todo dia, parte uma vez por semana): a ausência de mudança num vídeo só vale até a última leitura dele. Se `lido_ate.videos_mais_recente` não for de hoje, diga até quando os campos de vídeo valem e não escreva "nada mudou".
+- `videos_mais_recente` e `videos_mais_antigo` nulos querem dizer que nenhum vídeo tem leitura, não que está em dia. `videos_mais_antigo` pode ser antigo sem defeito: há vídeo que não é relido, e vídeo nunca lido não entra nas pontas.
+- `cortado: true` quer dizer que há mudanças mais antigas que esta chamada não entrega: relate que a lista está incompleta e a partir de que data (o `visto_em` do último item).
+- `video_de_outro_site` maior que zero é defeito nosso: relate. `video_ausente` conta mudança de vídeo apagado durante a leitura; não é defeito.
+- Pela ferramenta `youtube_observatory`, com `campos`, peça `limit` de até 17: acima disso o texto passa do limite de resultado de ferramenta (medido no pior caso de tags).
 
 ---
 
@@ -771,6 +818,7 @@ Lista vídeos outliers de canais concorrentes — vídeos com multiplicador de 2
 - `count`: total de outliers depois do filtro de tier (antes do `limit`)
 - Tiers visuais: `mid` = #60A5FA (2-5×), `high` = #A78BFA (5-10×), `top` = #D9614A (10× ou mais)
 - Usado para identificar padrões de conteúdo viral entre concorrentes
+- Esta rota responde **todas as idades** de vídeo, em ordem de múltiplo, 25 por padrão e 100 no máximo, e **deixa de fora os vídeos de base fraca**. A tela Outliers e o Claude Code (`destaques`) começam pelo recorte padrão da tela, mostram também os de base fraca (marcados) e ordenam **por fase**: por isso as duas listas podem trazer **outros** vídeos, e não só menos. `multiplier` vem arredondado a uma casa.
 
 ---
 
@@ -860,6 +908,16 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
 - `formulas`: padrões de título que performam acima da mediana (com `multiplier`)
 - `play`: a jogada da semana — combinação tópico + fórmula + timing de maior impacto
 - `cadence`: frequência de upload por concorrente (vídeos longos/semana nas últimas 13 semanas); `window` = hábito "Dia Hh" em São Paulo quando o canal costuma publicar no mesmo dia e hora (3+ vídeos e 30%+ deles), senão `—`
+- Zeros e `-1` que são falta (o corpo não muda; só a leitura): `last_upload_days: -1` quer dizer **sem data conhecida**, não um número de dias. `engagement_rate: 0` pode ser falta de leitura, não uma taxa medida.
+
+---
+
+### O que não é entregue ao Cowork nesta fase
+
+- Série por vídeo (curva de views por dia), texto e contagem de comentários, a descrição do canal e qualquer dado do canal próprio no Observatório de concorrentes.
+- Os números do **seu** canal em `analytics/overview`, `analytics/grades`, `analytics/demographics`, `analytics/search-terms`, `videos/:id` e `ab-tests/:id/funnel` **não são os do Observatório**: vêm das tabelas antigas do canal e, nos termos de pesquisa, da API do YouTube na hora; as telas do canal próprio e o Claude Code (degrau 2) leem tabelas novas, com outra janela e outro corte de dia. Os dois números não são comparáveis; diga de onde veio o que citar.
+- O texto de antes e depois da descrição de um vídeo não é entregue aqui.
+- A lista de `channels` traz só concorrentes; o seu canal não está nela.
 
 ---
 
@@ -1536,7 +1594,7 @@ Workflow de monitoramento competitivo e geração de insights:
 
 ```
 1. GET  /api/pipeline/youtube/competitors/channels   → listar canais monitorados
-2. GET  /api/pipeline/youtube/competitors/changes     → detectar mudanças recentes
+2. GET  /api/pipeline/youtube/competitors/changes     → detectar mudanças recentes (`?campos=todos` para incluir mudanças de campo)
 3. GET  /api/pipeline/youtube/competitors/outliers    → identificar vídeos virais
 4. GET  /api/pipeline/youtube/competitors/insights    → insights agregados (heatmap, gaps, formulas, play-of-the-week)
 5. POST /api/pipeline/items                           → criar pipeline item com insight acionável
