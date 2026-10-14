@@ -23,6 +23,7 @@ Tudo roda dentro do cron `sync-analytics-metrics`, uma vez por dia às 12:00 UTC
 | Estado de autorização de cada canal (L1b) | `youtube_channels.collection_status` (`ok` ou `reautorizar`) e `authorization_verified_at` | — |
 | Cada execução do cron: tempos por passo, falhas, ação do dono, resumo (L1b) | `yt_own_collection_runs` (90 dias; só service role) | — |
 | Diário real por vídeo da Analytics API (L2): `views`, `engaged_views`, `watch_time_minutes`, `avg_view_duration_seconds`, `avg_view_percentage`, `likes`, `comments`, `shares`, `subscribers_gained`, `subscribers_lost`, `card_impressions`, `card_click_rate` | `yt_own_video_daily` (uma linha por vídeo por dia do Pacífico **em que houve atividade**) | Sim: a Analytics API serve o passado. Sem linha para o vídeo, a execução seguinte pede tudo de novo desde a publicação |
+| **Quais dias do diário foram coletados** (A5 E6): `yt_own_video_coverage`, um intervalo `covered_from` a `covered_to` por vídeo e por conjunto de métricas (`base`, `estendidas`; os demais conjuntos são de outras etapas) | `yt_own_video_coverage` | Sim: o diário volta a ser pedido da última data coberta (ou da publicação, sem cobertura) |
 | Impressões e CTR de miniatura por vídeo e dia (L2), normalizados do CSV de `channel_reach_basic_a1` | `yt_own_video_reach_daily` | Sim: o bruto fica guardado (MG13, E20); nenhuma rotina o apaga por prazo (seção 8) |
 
 Tipos de relatório habilitados (`REPORT_TYPES_ENABLED`): os 4 de sempre (`channel_reach_basic_a1`, `channel_reach_combined_a1`, `channel_traffic_source_a3`, `channel_basic_a3`) e, desde a E12 da A5, mais 9 que **só guardam o bruto** (sem normalizador e sem tela): `channel_combined_a3`, `channel_device_os_a3`, `channel_playback_location_a3`, `channel_province_a3`, `channel_demographics_a1`, `channel_subtitles_a3`, `channel_cards_a1`, `channel_end_screens_a1`, `channel_sharing_service_a1`. Os dois primeiros da lista são os "de alcance". Ficam fora de propósito `channel_annotations_a1` (recurso extinto) e os `playlist_*`. A ordem da lista só desempata a fila de download.
@@ -35,6 +36,7 @@ Ainda **não** existe: a retenção (lote L3).
 
 **O que o L2 grava, e o que o dado ausente quer dizer.**
 
+- **A dieta do diário (A5 E6): `yt_own_video_daily` guarda só o dia com atividade, e a cobertura diz quais dias foram coletados.** Dia sem linha e DENTRO de um intervalo de `yt_own_video_coverage` (conjunto `base`) = **zero medido** (o YouTube respondeu e o vídeo não teve view). Dia sem linha e FORA de todo intervalo = **não medido** (nunca perguntado, ou a API não devolveu). Quem grava é a função `yt_own_daily_apply`, numa só transação: as linhas com atividade, o apagamento do dia que o YouTube revisou para zero e a extensão da cobertura. O leitor do canal próprio (`proprio/ler.ts` + `proprio/cobertura-leitor.ts`) devolve os zeros apagados a partir da cobertura, então as telas recebem as mesmas linhas antes e depois da dieta. **Não apague linhas de `yt_own_video_coverage` à mão**: sem cobertura o vídeo volta a ser pedido desde a publicação, e se a API deixar de devolvê-lo os dias que eram zero medido viram "não medido" na tela.
 - As duas tabelas novas têm a mesma chave: `(youtube_video_id, day_pt)`. `youtube_video_id` é o id de 11 caracteres do YouTube, **não** o uuid de `youtube_videos.id`. `day_pt` é o dia como veio da fonte; as duas fontes não documentam o mesmo dia, então nunca junte `yt_own_video_daily` a `yt_own_video_reach_daily` por `day_pt` sem saber disso.
 - **Nulo nunca é zero.** Métrica que a API não trouxe fica nula na linha. Dia sem atividade **não tem linha**: a ausência de linha é "sem atividade ou não medido", nunca um zero gravado. Para separar os dois casos use `yt_own_collection_attempts` (seção 4): tentativa `sem_dado_na_janela` = a API respondeu e não havia nada; sem tentativa = nunca perguntado.
 - **`yt_own_video_daily.views` é a contagem do DIA.** `youtube_video_analytics.views` (a parte antiga do cron) é o total da janela de 90 dias, não a contagem do dia. Não compare nem some um com o outro.
@@ -150,7 +152,25 @@ Canal que não aparece aqui não tem **nenhuma** linha de diário (sem atividade
 npx supabase db query --linked "select day_pt, count(*) as linhas, count(views) as com_views, sum(views) as views, count(engaged_views) as com_engaged, count(card_impressions) as com_cartoes from yt_own_video_daily group by 1 order by 1 desc limit 14"
 ```
 
-Vídeos publicados sem nenhuma linha de diário (a lista de quem não teve atividade ou ainda não foi coletado; vídeo sem linha é pedido de novo desde a publicação a cada execução):
+Zero medido × não medido (A5 E6). Um dia de um vídeo é **zero medido** quando não tem linha em `yt_own_video_daily` mas está dentro de um intervalo `base` de `yt_own_video_coverage`; é **não medido** quando está fora de todos. Troque `<ID DE 11 CARACTERES>`; a consulta lista os intervalos cobertos (mais de um intervalo = há buraco, e o dia do buraco é "não medido"):
+
+```bash
+npx supabase db query --linked "select metric_set, covered_from, covered_to, collected_at from yt_own_video_coverage where youtube_video_id = '<ID DE 11 CARACTERES>' order by metric_set, covered_from limit 20"
+```
+
+Os dias de um vídeo, cada um classificado como `com atividade`, `zero medido` ou `nao medido` (últimos 30 dias de um vídeo; a janela do `generate_series` é de quem lê):
+
+```bash
+npx supabase db query --linked "select g.dia::date as dia, case when d.youtube_video_id is not null then 'com atividade' when exists (select 1 from yt_own_video_coverage c where c.youtube_video_id = '<ID DE 11 CARACTERES>' and c.metric_set = 'base' and g.dia::date between c.covered_from and c.covered_to) then 'zero medido' else 'nao medido' end as situacao, d.views from generate_series(current_date - 30, current_date, interval '1 day') g(dia) left join yt_own_video_daily d on d.youtube_video_id = '<ID DE 11 CARACTERES>' and d.day_pt = g.dia::date order by 1 desc limit 40"
+```
+
+Cobertura de todos os vídeos do canal de uma vez (a data mais recente de cada vídeo; vídeo que não aparece aqui não tem cobertura nenhuma e o critério de cobertura o acusa se tiver 5 dias ou mais):
+
+```bash
+npx supabase db query --linked "select v.youtube_video_id, v.published_at::date as publicado, max(c.covered_to) as coberto_ate, count(c.*) as intervalos from youtube_videos v left join yt_own_video_coverage c on c.youtube_video_id = v.youtube_video_id and c.metric_set = 'base' where v.published_at is not null group by 1, 2 order by coberto_ate nulls first limit 60"
+```
+
+Vídeos publicados sem nenhuma linha de diário (depois da dieta, vídeo sem atividade **também** aparece aqui sem estar errado: confira a cobertura acima; a lista de quem não teve atividade ou ainda não foi coletado; vídeo sem linha é pedido de novo desde a publicação a cada execução):
 
 ```bash
 npx supabase db query --linked "select c.name, v.youtube_video_id, v.title, v.published_at from youtube_videos v join youtube_channels c on c.id = v.channel_id where v.published_at is not null and not exists (select 1 from yt_own_video_daily d where d.youtube_video_id = v.youtube_video_id) order by v.published_at desc limit 20"
@@ -391,6 +411,25 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `erro de banco ao ler yt_own_video_daily` / `erro de banco ao gravar yt_own_video_daily` | a leitura do último dia gravado, ou o upsert das linhas, foi recusado. O diário grava em trechos contíguos por dia e **para na primeira falha**: o que ficou gravado é sempre um prefixo, e a janela seguinte cobre o resto | ver o Sentry; transitório. Se repetir 2 dias, log do Supabase |
 | `diario: <causa>` (sem acento) | exceção não prevista no passo inteiro | Sentry (tag `passo: diario`) |
 | `critérios do L2: <causa>` | exceção não prevista dentro dos critérios do alcance e do diário | Sentry (tag `passo: critérios do L2`) |
+| `diário: <canal>: N de M vídeos sem cobertura até dd/mm (<até 5 ids>, com "nunca coberto" ou "coberto até dd/mm")` (com `; metade ou mais do canal: é pane da coleta, não dos vídeos` quando for o caso) | **critério de cobertura (A5 E6)**: o vídeo tem 5 dias ou mais e a cobertura `base` dele acaba antes de hoje − 5 (ou não existe). O diário parou de olhar para ele, e isso não aparece em nenhuma linha. **Cobertura vazia não é "primeiro dia"**: com a tabela vazia todo vídeo elegível fica vermelho. Vermelho **por 3 dias**; depois, se o YouTube não devolve o vídeo (4 dias seguidos de `sem_dado_na_janela` ou `erro_http` 403, 404 ou 410 que não seja de cota), ele sai do vermelho e vira ação do dono (abaixo). Erro nosso (banco, forma inesperada), 500, 429 e cota **não** tiram o vídeo do vermelho; metade ou mais do canal nessa situação é pane e fica vermelho | tentativas `diario` do vídeo (seção 4) e a nota `diário: … N de M vídeos com erro` dos dias anteriores; a consulta de cobertura por vídeo (seção 4) |
+| `critérios: não foi possível avaliar cobertura de <canal>` (com ` (sem tempo)`, ` (mais de 1000 vídeos)`, ` (youtube_videos)`, ` (yt_own_video_coverage)`, ` (yt_own_collection_attempts)` ou ` (youtube_videos: dado ilegível)`) | o critério de cobertura não conseguiu ler ou terminar. **Nunca é "nada de errado"** | a nota anterior (`erro de banco ao ler …` ou `schema_ausente: …`) diz qual tabela; sem tempo repetido = a cauda está apertada (seção 2) |
+| `diário: <canal>: estendidas ausentes na resposta de N vídeo(s)` | a resposta veio sem `engaged_views` em algum dia: só o conjunto `base` foi gravado para o vídeo (a cobertura `estendidas` não avança e as colunas estendidas ficam nulas, nunca zero) | se repetir por dias, defeito de contrato com a API; Sentry |
+| `schema_ausente: yt_own_video_coverage` ou `schema_ausente: yt_own_daily_apply` | o código da dieta está no ar e a MG14 não foi aplicada em produção. O passo do diário **para** e nunca grava pelo caminho antigo | aplicar a MG14 (o dono: `npm run db:push:prod`) |
+| `critérios de cobertura: <causa>` | exceção não prevista dentro do critério de cobertura | Sentry (tag `passo: critérios de cobertura`) |
+
+**Ação do dono** (resumo, nunca `falhas`): `diário: <canal>: o YouTube não devolve mais o vídeo <id> (última situação conhecida: <público, não listado, privado ou desconhecida>; coberto até dd/mm). Se foi apagado, tire-o da lista (runbook, seção 6)`. O vídeo ficou 3 dias vermelho (com o id), o YouTube não o devolve mais e o vermelho acabou. Quase sempre é um vídeo **apagado no YouTube** (ou privado). Nenhum código tira um vídeo de `youtube_videos`: **tirá-lo da lista é ato do dono, por SQL, em produção** (o agente não escreve em produção). Primeiro confirme no Studio e leia o que vai sair:
+
+```bash
+npx supabase db query --linked "select id, youtube_video_id, title, published_at from youtube_videos where youtube_video_id = '<ID DE 11 CARACTERES>' limit 2"
+```
+
+Depois o dono apaga a linha (as tabelas `yt_own_*` que apontam para ela por `video_id` ficam com `video_id` nulo e guardam o histórico pelo id de 11 caracteres; a cobertura do vídeo fica como está):
+
+```bash
+npx supabase db query --linked "delete from youtube_videos where youtube_video_id = '<ID DE 11 CARACTERES>' returning id, youtube_video_id"
+```
+
+**Cuidado com a cobertura**: um vídeo que perde a cobertura (alguém a apagou) é pedido de novo desde a publicação na execução seguinte, e a função apaga as linhas de zero dos dias devolvidos; se a API não o devolver mais, os dias que eram zero medido passam a ser "não medido" na tela. Não apague cobertura à mão.
 
 ### Orçamento
 
@@ -747,6 +786,14 @@ psql "$PROD_DB_URL" -c "\copy (select * from yt_own_video_reach_daily) to 'yt_ow
 3. **Só se precisar desfazer o banco:** crie a migration com `npm run db:new coleta_l2_rollback` e, nessa ordem dentro do arquivo: (a) recrie `youtube_channel_removal_impact` com o corpo de `supabase/migrations/20261008000002_*.sql` (copie de lá, com os `revoke`/`grant`; `youtube_channel_remove` não muda); (b) `drop function if exists public.yt_own_reach_apply(jsonb)`; (c) `drop table if exists public.yt_own_video_reach_daily` e `drop table if exists public.yt_own_video_daily`. Aplique com `npm run db:push:prod` (você roda). Depois disso os relatórios já normalizados continuam com `normalized_at` preenchido: para normalizar de novo no futuro, a seção 8.
 
 A ordem 2 antes de 3 importa só para não ficar vermelho: se a tabela sumir com o código do L2 no ar, o cron registra `schema_ausente` (seção 6).
+
+### Rollback da dieta do diário (A5 E6)
+
+**Reverte-se SÓ O COLETOR** (os commits do diário pela função e da integração do critério de cobertura no cron; a leitura da cobertura pode ficar, só lê). **O leitor tolerante (`proprio/ler.ts` e `proprio/cobertura-leitor.ts`) fica, e fica para sempre**: ele lê certo nos dois estados do banco, e é para isso que existe. Reverter o lote inteiro não funciona depois de alguns dias de dieta: os zeros já apagados não voltam sozinhos. A janela anda um dia por execução, então os zeros apagados vão do último dia coberto antes da dieta até hoje − 3, e o coletor antigo recomeça de `min(hoje − 10, a última LINHA do vídeo)`; com o leitor antigo de volta, num vídeo com view recente ficam dias sem linha entre esses dois pontos, lidos como "não medido" numa janela que está na tela.
+
+**O que acontece ao reverter só o coletor:** o coletor antigo volta a gravar linha em todo dia que pedir, zeros inclusive. Para os vídeos parados ele **repede a vida inteira** (a última linha deles é antiga), como no dia da carga inicial: o passo pode bater o teto de 50 s e deixar vídeos para o dia seguinte, então a volta pode levar **dois dias** para fechar, com a nota de orçamento do diário nesse intervalo. A cobertura fica parada e o leitor tolerante usa o maior entre ela e a última linha: as telas não mudam de número.
+
+**Se algum dia for preciso reverter também o leitor**, o caminho é do dono e não está neste runbook: uma consulta que recria as linhas de zero a partir da cobertura (para cada dia coberto sem linha, uma linha com as contagens em zero).
 
 ## 13. Limites conhecidos
 

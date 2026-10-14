@@ -13,6 +13,7 @@ import { passoAlcance } from './alcance-step'
 import { TETOS_DE_FIM_MS, TETOS_MS, restante, type Relogio } from './clock'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
 import { criterioDesligados } from './criteria-desligados'
+import { criterioCobertura } from './criteria-cobertura'
 import { criteriosE11 } from './criteria-e11'
 import { criteriosL2 } from './criteria-l2'
 import { criteriosRetencao } from './criteria-retencao'
@@ -299,6 +300,19 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
       await criteriosL2({ supabase: ctx.supabase, falhas, channels })
     } catch (e) {
       falhou('critérios do L2', e)
+    }
+  }
+
+  // A5 E6, logo depois dos critérios do L2: a dieta do diário guarda só os dias com atividade, e quem diz "este vídeo foi coletado até
+  // tal dia" é a cobertura. O critério roda mesmo se o passo do diário lançou ou ficou sem tempo (é ele que enxerga o atraso). Vídeo
+  // atrasado deixa o cron vermelho (nota em `falhas`, escrita pelo próprio critério); o que o YouTube comprovadamente não devolve mais
+  // volta em `acaoDoDono` e vai para a lista do dono, nunca para `falhas`. Se lançar, a nota é vermelha: nunca engolida.
+  if (PASSOS_LIGADOS.diario) {
+    try {
+      const { acaoDoDono } = await criterioCobertura({ supabase: ctx.supabase, channels, falhas, relogio: ctx.relogio })
+      if (acaoDoDono.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...acaoDoDono])]
+    } catch (e) {
+      falhou('critérios de cobertura', e)
     }
   }
 
