@@ -895,6 +895,8 @@ bash scripts/portao-dhash.sh valer 6jL-jeux_1Y
 
 - Dívida com gatilho na P4a (re-revisão do Yannis, 14/10): M3 (não se sabe qual chamada falha gastou cota; até 50 unidades extras), M4 (flag `--forcar` em `lerArgs`), M5 (`ErroYouTube.status/reason` para a mensagem do código 3). N1 consertado.
 
+- Resultado (14/10 18:18 UTC): ver roteiro. Defeito: `etagAntes` gravado nulo no `preparar` (a (ii) saiu "sem conclusão" apesar da prova no registro); consertar antes de reusar o script — gatilho: P4a ou nova medida.
+
 ### Arquivos de partida
 - /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/lib/youtube/thumb-fingerprint.ts
 - /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/lib/youtube/ab-start.ts
