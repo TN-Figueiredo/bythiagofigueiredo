@@ -44,12 +44,18 @@ export interface DetalheDoDia {
   watchTimeMinutes: number
 }
 
-/** Lista de linhas agregadas, com a contagem das que somaram zero e saíram. */
-export type TrafegoAgregado = DetalheDoDia[] & { descartadasZeradas: number }
+/** Linhas agregadas e a contagem das que somaram zero e saíram. Objeto simples: sobrevive a `.map`, spread e JSON. */
+export interface TrafegoAgregado {
+  linhas: DetalheDoDia[]
+  descartadasZeradas: number
+}
 
 const DATA = /^(\d{4})(\d{2})(\d{2})$/
 const INTEIRO = /^\d+$/
-const NUMERO = /^\d+(\.\d+)?([eE][+-]?\d+)?$/
+/** Decimal simples: sem sinal, hexadecimal, binário nem notação científica. */
+const NUMERO = /^\d+(\.\d+)?$/
+const ID_VIDEO = /^[A-Za-z0-9_-]{11}$/
+const ID_CANAL = /^UC[A-Za-z0-9_-]{22}$/
 const TIPO = /^[A-Za-z0-9_]{1,40}$/
 /** Origem "site externo": o detalhe é uma URL, que pode carregar query e fragmento (e e-mail dentro). */
 const ORIGEM_EXTERNA = '9'
@@ -84,7 +90,7 @@ export function lerTrafego(csv: string): LinhaTrafego[] {
     const tipo = c[iTipo]!
     const minutos = c[iMin]!
     if (
-      !d || !dataExiste(Number(d[1]), Number(d[2]), Number(d[3])) || !c[iCanal] || !c[iVideo]
+      !d || !dataExiste(Number(d[1]), Number(d[2]), Number(d[3])) || !ID_CANAL.test(c[iCanal]!) || !ID_VIDEO.test(c[iVideo]!)
       || !TIPO.test(tipo) || !INTEIRO.test(c[iViews]!) || !NUMERO.test(minutos)
     ) throw new CsvTrafegoError('linha_invalida')
     const views = Number(c[iViews])
@@ -119,7 +125,7 @@ export function agregarTrafego(linhas: readonly LinhaTrafego[]): TrafegoAgregado
   for (const l of linhas) {
     const inteiro = normalizarDetalhe(l.sourceType, l.detail)
     const detailHash = createHash('sha256').update(inteiro).digest('hex')
-    const chave = `${l.videoId}|${l.day}|${l.sourceType}|${detailHash}`
+    const chave = JSON.stringify([l.videoId, l.day, l.sourceType, detailHash])
     const g = grupos.get(chave)
     if (g) { g.views += l.views; g.watchTimeMinutes += l.watchTimeMinutes; continue }
     grupos.set(chave, {
@@ -129,5 +135,5 @@ export function agregarTrafego(linhas: readonly LinhaTrafego[]): TrafegoAgregado
   }
   const todas = [...grupos.values()]
   const uteis = todas.filter(g => g.views !== 0 || g.watchTimeMinutes !== 0)
-  return Object.assign(uteis, { descartadasZeradas: todas.length - uteis.length })
+  return { linhas: uteis, descartadasZeradas: todas.length - uteis.length }
 }
