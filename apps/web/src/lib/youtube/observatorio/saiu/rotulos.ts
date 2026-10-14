@@ -3,6 +3,8 @@
  * a contagem por catálogo do banco enxerga tabela nova de outra etapa e o painel não pode esconder linha apagada.
  */
 // TEXTO-A-REVISAR: todos os rótulos (singular/plural) seguem o mockup 10, mas o plano não os fixa letra por letra.
+import { ehTabelaDeIdentidade } from '../comentarios/identidade'
+
 export interface RotuloDaTabela { um: string; muitos: string; interno?: true }
 
 export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
@@ -24,6 +26,7 @@ export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
   competitor_raw: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_video_tier_spans: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_hour_fold_log: { um: 'registro interno', muitos: 'registros internos', interno: true },
+  competitor_video_marks: { um: 'marca do vídeo', muitos: 'marcas do vídeo' }, // TEXTO-A-REVISAR (MG4)
   competitor_missing_baseline: { um: 'registro interno', muitos: 'registros internos', interno: true },
 }
 
@@ -41,12 +44,13 @@ const pl = (n: number, a: string, b: string): string => `${fmtN(n)} ${n === 1 ? 
 export function linhasDoPainel(linhas: Record<string, number>, miniaturas: number): Array<{ n: number; texto: string }> {
   const saida: Array<{ n: number; texto: string }> = []
   let internas = 0
+  let identidades = 0
   const vistas = new Set<string>()
   const emitir = (tabela: string): void => {
     const n = linhas[tabela]
     if (n === undefined || !Number.isFinite(n) || n <= 0) return
-    // a tabela de identidade dos autores de comentário nunca é nomeada fora de comentarios/ (varredura 2): entra como registro interno
-    if (/^competitor_video_comment_auth/.test(tabela)) { internas += n; return }
+    // a identidade dos autores (dado pessoal de terceiro) nunca é nomeada fora de comentarios/ (varredura 2): comentarios/identidade.ts diz qual é
+    if (ehTabelaDeIdentidade(tabela)) { identidades += n; return }
     const r = ROTULO_DA_TABELA[tabela]
     if (!r) { saida.push({ n, texto: `${fmtN(n)} ${n === 1 ? 'linha' : 'linhas'} em ${tabela}` }); return }
     if (r.interno) { internas += n; return }
@@ -56,6 +60,7 @@ export function linhasDoPainel(linhas: Record<string, number>, miniaturas: numbe
   const resto = Object.keys(linhas).filter(t => !vistas.has(t)).sort()
   for (const t of resto) emitir(t)
   if (miniaturas > 0) saida.push({ n: miniaturas, texto: pl(miniaturas, 'arquivo de miniatura', 'arquivos de miniatura') })
+  if (identidades > 0) saida.push({ n: identidades, texto: pl(identidades, 'identidade de autor de comentário (dado pessoal; some sozinha aos 28 dias)', 'identidades de autores de comentário (dado pessoal; somem sozinhas aos 28 dias)') })
   if (internas > 0) saida.push({ n: internas, texto: pl(internas, 'registro interno', 'registros internos') })
   return saida
 }
@@ -89,5 +94,5 @@ export function fraseDoPainelDeComentarios(comentarios: number, respostasDoCriad
 export function fraseDaVolta(tipo: 'video' | 'canal' | 'comentarios'): string {
   if (tipo === 'video') return 'Entra de novo na próxima leitura do canal, se ainda estiver entre os vídeos mais recentes.'
   if (tipo === 'canal') return 'Você pode adicionar o canal de novo; ele entra como novo, sem o histórico.'
-  return 'Os comentários voltam a ser guardados quando aparecerem de novo.'
+  return 'Comentários que você apagou não voltam a ser guardados, mesmo que reapareçam no YouTube. "Não perguntar de novo" só tira este aviso.'
 }

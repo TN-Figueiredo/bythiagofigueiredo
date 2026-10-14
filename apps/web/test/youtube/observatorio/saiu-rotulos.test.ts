@@ -19,7 +19,10 @@ describe('A5 E9 T3: rótulos', () => {
 
   it('a tabela de identidade dos autores entra como registro interno, sem ser nomeada', () => {
     const l = linhasDoPainel({ competitor_video_comment_authors: 5 }, 0)
-    expect(l).toEqual([{ n: 5, texto: '5 registros internos' }])
+    expect(l).toHaveLength(1)
+    expect(l[0]!.texto).toContain('identidades de autores de comentário')
+    expect(l[0]!.texto).toContain('dado pessoal')
+    expect(l[0]!.texto).not.toContain('registros internos')
   })
 
   it('zero é omitido; internas somam numa linha', () => {
@@ -34,9 +37,9 @@ describe('A5 E9 T3: rótulos', () => {
   })
 
   it('tabela fora do catálogo aparece com o nome', () => {
-    const l = linhasDoPainel({ competitor_video_marks: 3 }, 0)
-    expect(l).toEqual([{ n: 3, texto: '3 linhas em competitor_video_marks' }])
-    expect(linhasDoPainel({ competitor_video_marks: 1 }, 0)[0].texto).toBe('1 linha em competitor_video_marks')
+    const l = linhasDoPainel({ tabela_nova_de_outra_etapa: 3 }, 0)
+    expect(l).toEqual([{ n: 3, texto: '3 linhas em tabela_nova_de_outra_etapa' }])
+    expect(linhasDoPainel({ tabela_nova_de_outra_etapa: 1 }, 0)[0].texto).toBe('1 linha em tabela_nova_de_outra_etapa')
   })
 
   it('miniaturas entram como arquivos', () => {
@@ -60,5 +63,17 @@ describe('A5 E9 T3: rótulos', () => {
   it('a resposta "voltar" diz a condição ("se ainda estiver entre os vídeos mais recentes")', () => {
     expect(fraseDaVolta('video')).toContain('se ainda estiver entre os vídeos mais recentes')
     expect(fraseDaVolta('canal')).toBeTruthy()
+  })
+
+  it('Phil I-1 (portão 14/10): a frase de comentários que voltaram não promete que serão guardados de novo', () => {
+    const f = fraseDaVolta('comentarios')
+    expect(f).not.toMatch(/(?<!não )voltam a ser guardados/)
+    expect(f).not.toContain('quando aparecerem de novo')
+    expect(f).toContain('não voltam')
+  })
+
+  it('Phil M-1: competitor_video_marks tem rótulo e não aparece como "linhas em <tabela>"', () => {
+    expect(ROTULO_DA_TABELA.competitor_video_marks).toBeDefined()
+    expect(linhasDoPainel({ competitor_video_marks: 3 }, 0)[0]!.texto).not.toContain('competitor_video_marks')
   })
 })

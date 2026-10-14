@@ -424,4 +424,12 @@ describe('A5 E9: consertos do portão de 14/10', () => {
     const r = await ler(f)
     expect(r.estado).toBe('erro')
   })
+
+  it('Phil I-2: lotes_exportados vem da prévia; chave ausente é null, nunca 0', async () => {
+    const com = monta({ competitor_videos: [vidRow('v1')] }, { rpc: { competitor_purge_preview: async () => ({ data: { ...PREVIA, lotes_exportados: 2 }, error: null }) } })
+    expect((await fila(com)).esperando[0]!.previa).toMatchObject({ lotesExportados: 2 })
+    const sem = monta({ competitor_videos: [vidRow('v1')] })
+    const p = (await fila(sem)).esperando[0]!.previa
+    expect('lotesExportados' in p ? p.lotesExportados : 'x').toBeNull()
+  })
 })

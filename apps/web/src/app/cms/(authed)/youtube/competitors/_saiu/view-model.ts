@@ -132,7 +132,7 @@ const AJUDA = [
   'Quando entra aqui: o vídeo, o canal ou o comentário não veio do YouTube em duas leituras seguidas. Uma leitura só não basta: falha de rede não é sumiço.',
   'Sem resposta, nada acontece: nenhuma rotina apaga por prazo. O dado fica até você decidir.',
   'O motivo: o YouTube devolve a mesma ausência para algo apagado pelo autor, privado, denunciado ou removido por ordem judicial. A tela não adivinha.',
-  'Manter: continua em todas as telas com a marca "saiu do YouTube em dd/mm, mantido para análise".',
+  'Manter: continua guardado e entra nas medidas como os outros; a marca nas outras telas ainda não existe.',
   'Apagar: não dá para desfazer. Pede a palavra APAGAR e mostra antes a contagem do que some e do que fica.',
   'Apagando: falta apagar miniaturas ou arquivos. O item conta no número da aba até acabar.',
   'Um vídeo apagado e antigo que volte ao ar fora das páginas lidas do canal não é percebido.',
@@ -146,6 +146,13 @@ function estaNaMensagemDeErro(l: LeituraDaFila): FilaView | null {
 }
 
 function previaOk(p: ItemEsperando['previa']): p is Previa { return !('erro' in p) }
+
+/** As cópias do NAS vêm de `lotes_exportados`; dado ausente é "não conferido", nunca "nenhuma". */
+function fraseDoNas(lotes: number | null): string {
+  if (lotes === null) return 'Cópias no arquivo do NAS: não foi possível conferir.'
+  if (lotes === 0) return 'Cópias no arquivo do NAS: nenhuma.'
+  return `Cópias no arquivo do NAS: há ${pl(lotes, 'arquivo exportado', 'arquivos exportados')} deste canal; este apagar não os alcança. Apague-os no NAS e na pasta local.`
+}
 
 function painelDe(i: ItemEsperando, p: Previa, janelaMin: number): PainelView {
   const canal = i.tipo === 'canal', com = i.tipo === 'comentarios'
@@ -163,7 +170,7 @@ function painelDe(i: ItemEsperando, p: Previa, janelaMin: number): PainelView {
   const naoSai = ['Texto copiado ou enviado para uma IA fora daqui: o sistema não alcança.']
   if (!com) naoSai.push('Leituras e pacotes de nicho da forja que citem este vídeo: o sistema não reescreve.'.replace('este vídeo', canal ? 'este canal' : 'este vídeo'))
   if (canal) naoSai.push('Notificações antigas do sino que citam o nome do canal: ficam.')
-  naoSai.push(`Cópias no arquivo do NAS: nenhuma (a exportação para o NAS ainda não existe).`)
+  naoSai.push(fraseDoNas(p.lotesExportados ?? null))
   const que = canal ? 'este canal inteiro' : com ? `estes ${pl(i.comentarios ?? 0, 'comentário', 'comentários')}` : 'este vídeo'
   const volta = com ? 'voltarem ao YouTube, entram de novo como novos' : `${canal ? 'ele' : 'o vídeo'} voltar ao YouTube, entra de novo como novo`
   return {
@@ -222,7 +229,7 @@ function voltaDe(v: ItemVoltou, idx: number): VoltaView {
   const quando = v.voltouEm ? `Voltou ao ar em ${dm(v.voltouEm) ?? NAO_REGISTRADO}` : 'Voltou ao ar'
   const base = { chave: `${v.tipo}-${v.codigo ?? 'g'}-${v.itemIds[0] ?? idx}-${idx}`, tipo: v.tipo, rotuloDoTipo: ROTULO[v.tipo], titulo: v.titulo, codigo: v.codigo }
   if (!v.pedeResposta) {
-    return { ...base, quando: `${quando} · você tinha mantido`, texto: 'Continua com o histórico inteiro; a marca "saiu do YouTube" saiu das telas. Nada a fazer.', acoes: [], dica: null }
+    return { ...base, quando: `${quando} · você tinha mantido`, texto: 'Continua com o histórico inteiro. Nada a fazer.', acoes: [], dica: null }
   }
   if (v.tipo === 'comentarios') {
     const n = v.comentarios ?? v.itemIds.length
@@ -265,7 +272,7 @@ function respondidoDe(r: ItemRespondido, idx: number): RespondidoView {
   return {
     chave: `${r.itemId ?? 'm'}-${r.codigo ?? idx}-${idx}`, tipo: r.tipo, rotuloDoTipo: ROTULO[r.tipo], codigo: r.codigo ?? NAO_REGISTRADO, titulo: r.situacao === 'mantido' ? r.titulo : null,
     situacao: r.situacao, quando,
-    texto: r.situacao === 'mantido' ? `continua em todas as telas, com a marca "saiu do YouTube em ${quando} · mantido para análise"` : 'tudo removido, e os arquivos do Blob também',
+    texto: r.situacao === 'mantido' ? `mantido para análise em ${quando}: continua guardado e entra nas medidas como os outros; a marca nas outras telas ainda não existe` : 'tudo removido, e os arquivos do Blob também',
   }
 }
 

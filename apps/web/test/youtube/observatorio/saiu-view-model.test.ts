@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildFilaView, lerMostrar, type FilaViewOk } from '@/app/cms/(authed)/youtube/competitors/_saiu/view-model'
 import { JANELA_FORJA_MIN } from '@/lib/youtube/observatorio/saiu/modelo'
-import { AGORA, apagando, canal, fila, grupo, ha, respondidoApagado, respondidoMantido, video, voltouApagado } from './saiu-fixtures'
+import { AGORA, apagando, canal, fila, grupo, ha, previaVideo, respondidoApagado, respondidoMantido, video, voltouApagado } from './saiu-fixtures'
 import type { LeituraDaFila } from '@/lib/youtube/observatorio/saiu/modelo'
 
 const ok = (l: LeituraDaFila, mostrar = 10): FilaViewOk => {
@@ -83,7 +83,8 @@ describe('A5 E9 T10b: view model da fila', () => {
     const pv = v.cartoes[0]!.painel!.naoSai.join(' | ')
     const pc = v.cartoes[1]!.painel!.naoSai.join(' | ')
     expect(pv).toContain('Leituras e pacotes de nicho da forja que citem este vídeo: o sistema não reescreve')
-    expect(pv).toContain('Cópias no arquivo do NAS: nenhuma (a exportação para o NAS ainda não existe)')
+    expect(pv).toContain('Cópias no arquivo do NAS: não foi possível conferir')
+    expect(pv).not.toContain('a exportação para o NAS ainda não existe')
     expect(pv).not.toContain('Notificações antigas')
     expect(pc).toContain('Notificações antigas do sino que citam o nome do canal: ficam')
   })
@@ -222,5 +223,27 @@ describe('A5 E9 T10b: view model da fila', () => {
     const t = ok(fila({ esperando: itens }), 10).manterTodos!
     const tam = t.grupos.filter(g => g.tipo === 'comentario').map(g => g.ids.length)
     expect(tam).toEqual([500, 100])
+  })
+
+  it('Phil I-2 (portão 14/10): NAS lê lotesExportados; ausente nunca vira "nenhuma"', () => {
+    const naoSai = (n: number | null | undefined): string => {
+      const it = video(1)
+      it.previa = previaVideo(n === undefined ? {} : { lotesExportados: n })
+      return ok(fila({ esperando: [it] })).cartoes[0]!.painel!.naoSai.join(' | ')
+    }
+    expect(naoSai(undefined)).toContain('não foi possível conferir')
+    expect(naoSai(undefined)).not.toContain('nenhuma')
+    expect(naoSai(null)).toContain('não foi possível conferir')
+    expect(naoSai(0)).toContain('Cópias no arquivo do NAS: nenhuma')
+    expect(naoSai(2)).toMatch(/há 2 arquivos exportados deste canal.*não os alcança.*NAS e na pasta local/)
+    expect(naoSai(1)).toContain('há 1 arquivo exportado deste canal')
+  })
+
+  it('Phil I-3: enquanto a pastilha não existe nas outras telas, nenhuma frase promete a marca', () => {
+    const v = ok(fila({ esperando: [video(1)], respondidos: [respondidoMantido()], respondidosTotal: 1 }))
+    const tudo = JSON.stringify(v)
+    expect(tudo).not.toContain('continua em todas as telas')
+    expect(v.ajuda.join(' ')).toContain('a marca nas outras telas ainda não existe')
+    expect(v.respondidos.itens[0]!.texto).toContain('a marca nas outras telas ainda não existe')
   })
 })

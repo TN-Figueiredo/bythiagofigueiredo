@@ -30,6 +30,8 @@ export interface Previa {
   respostasDoCriador: number
   /** Versões separadas por campo, para a frase "3 títulos, 2 miniaturas, 1 descrição". */
   versoes?: { title: number; thumb: number; desc: number }
+  /** Lotes do arquivo do NAS com este canal (`lotes_exportados` da prévia). Ausente ou `null` = não conferido; nunca vira "nenhuma". */
+  lotesExportados?: number | null
 }
 
 export interface ItemEsperando {

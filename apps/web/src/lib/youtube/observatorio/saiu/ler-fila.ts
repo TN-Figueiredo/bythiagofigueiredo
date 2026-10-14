@@ -271,7 +271,7 @@ async function pedirPrevia(sb: SupabaseClient, siteId: string, item: ItemEsperan
       const r = await sb.rpc('competitor_comments_preview', { p_site: siteId, p_channel: item.chave, p_comment_ids: (item.idsDoGrupo ?? []).slice(0, 500) })
       const d: unknown = r.data
       if (r.error || !ehObjeto(d) || d.status !== 'ok' || !ehObjeto(d.rows)) return { erro: 'contagem_indisponivel' }
-      return { linhas: contagens(d.rows), miniaturas: 0, forjaEmAndamento: false, respostasDoCriador: num(d.respostas) ?? 0 }
+      return { linhas: contagens(d.rows), miniaturas: 0, forjaEmAndamento: false, respostasDoCriador: num(d.respostas) ?? 0, lotesExportados: num(d.lotes_exportados) }
     }
     const kind = item.tipo === 'canal' ? 'canal' : 'video'
     const [r, versoes] = await Promise.all([
@@ -280,7 +280,7 @@ async function pedirPrevia(sb: SupabaseClient, siteId: string, item: ItemEsperan
     ])
     const d: unknown = r.data
     if (r.error || !ehObjeto(d) || d.status !== 'ok' || !ehObjeto(d.rows) || versoes === null) return { erro: 'contagem_indisponivel' }
-    return { linhas: contagens(d.rows), miniaturas: num(d.blobs) ?? 0, forjaEmAndamento: d.forja_em_andamento === true, respostasDoCriador: 0, versoes }
+    return { linhas: contagens(d.rows), miniaturas: num(d.blobs) ?? 0, forjaEmAndamento: d.forja_em_andamento === true, respostasDoCriador: 0, versoes, lotesExportados: num(d.lotes_exportados) }
   } catch {
     return { erro: 'contagem_indisponivel' }
   }
