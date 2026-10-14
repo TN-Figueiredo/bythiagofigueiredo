@@ -279,7 +279,7 @@ export function semPausados(rows: BatchRow[]): BatchRow[] {
   return rows.filter(r => r.collection_paused_at == null)
 }
 
-export interface NotasDePausa { acao: string[]; nota: string | null; esquecidos: Array<{ siteId: string; canalId: string; nome: string; dias: number }> }
+export interface NotasDePausa { acao: string[]; nota: string | null; esquecidos: Array<{ siteId: string; canalId: string; nome: string; dias: number | null }> }
 /**
  * (A5 E10) A nota dos canais pausados e a ação do dono para a pausa esquecida (mais de `RULES.pause.forgottenDays` dias). Data ilegível conta como
  * pausado e entra em `acao` ("há tempo desconhecido"): pausa nunca some em silêncio.
@@ -293,6 +293,7 @@ export function notasDePausa(rows: BatchRow[], nowMs: number): NotasDePausa {
     const desde = Date.parse(r.collection_paused_at ?? '')
     if (Number.isNaN(desde)) {
       acao.push('canal ' + clip(nameOf(r), 60) + ' com a coleta pausada há tempo desconhecido e ainda não removido: remover ou despausar')
+      esquecidos.push({ siteId: r.site_id, canalId: r.id, nome: clip(nameOf(r), 60), dias: null }) // data ilegível também vai ao e-mail (`dias: null`)
       continue
     }
     const ms = nowMs - desde

@@ -159,8 +159,30 @@ describe('extrasDoDisparo: as pendências do arquivo', () => {
     const x = extrasDoDisparo(entrada({ pendencias: { porque: 'prazo' } }))
     expect(x.notas).toContain('arquivo: não foi possível ler as pendências')
     expect(x.acao).toEqual([])
+    expect(x.problemas).toEqual([]) // causa transitória não deixa o cron vermelho
     const y = extrasDoDisparo(entrada({ pendencias: { semExport: { porque: 'erro_do_banco' }, miniaturas: { valor: { urls: 0, lotes: 0, diasDaMaisAntiga: null } } } }))
     expect(y.notas).toContain('arquivo: não foi possível ler as pendências')
+  })
+})
+
+describe('extrasDoDisparo: pendências ilegíveis por causa permanente (uma causa por teste)', () => {
+  const OK = { valor: { urls: 0, lotes: 0, diasDaMaisAntiga: null } }
+  it('tabelas sem export: schema_ausente vai para o vermelho', () => {
+    const x = extrasDoDisparo(entrada({ pendencias: { semExport: { porque: 'schema_ausente' }, miniaturas: OK } }))
+    expect(x.problemas).toEqual(['arquivo: não foi possível ler as pendências'])
+  })
+  it('tabelas sem export: forma_invalida vai para o vermelho', () => {
+    const x = extrasDoDisparo(entrada({ pendencias: { semExport: { porque: 'forma_invalida' }, miniaturas: OK } }))
+    expect(x.problemas).toHaveLength(1)
+  })
+  it('miniaturas: forma_invalida vai para o vermelho, uma vez só', () => {
+    const x = extrasDoDisparo(entrada({ pendencias: { semExport: { porque: 'schema_ausente' }, miniaturas: { porque: 'forma_invalida' } } }))
+    expect(x.problemas).toHaveLength(1)
+  })
+  it('miniaturas: excecao (transitória) fica só na nota', () => {
+    const x = extrasDoDisparo(entrada({ pendencias: { semExport: { valor: [] }, miniaturas: { porque: 'excecao' } } }))
+    expect(x.problemas).toEqual([])
+    expect(x.notas).toContain('arquivo: não foi possível ler as pendências')
   })
 })
 
@@ -172,6 +194,29 @@ describe('extrasDoDisparo: a pausa', () => {
     expect(x.acao[0]).toContain('Canal b')
     expect(x.notas).toContain('1 canal com a coleta pausada')
     expect(x.avisos).toEqual([expect.objectContaining({ siteId: 's1', chave: 'coleta_pausada_esquecida', periodo: 'semana' })])
+  })
+  it('dois canais esquecidos no mesmo site: UM aviso com os dois nomes; um ilegível também entra', () => {
+    const x = extrasDoDisparo(entrada({ todas: [
+      canal('a', { collection_paused_at: new Date(AGORA - 9 * DIA).toISOString(), channel_name: 'Alfa' }),
+      canal('b', { collection_paused_at: new Date(AGORA - 12 * DIA).toISOString(), channel_name: 'Beta' }),
+      canal('c', { collection_paused_at: 'isso-nao-e-data', channel_name: 'Gama' }),
+    ] }))
+    expect(x.avisos).toHaveLength(1)
+    expect(x.avisos[0]).toMatchObject({ siteId: 's1', chave: 'coleta_pausada_esquecida', periodo: 'semana' })
+    expect(x.avisos[0]!.frase).toContain('3 canais')
+    expect(x.avisos[0]!.frase).toContain('Alfa (9 dias)')
+    expect(x.avisos[0]!.frase).toContain('Beta (12 dias)')
+    expect(x.avisos[0]!.frase).toContain('Gama (tempo desconhecido)')
+  })
+  it('um canal ilegível sozinho gera aviso; sites diferentes geram um aviso cada', () => {
+    const a = extrasDoDisparo(entrada({ todas: [canal('c', { collection_paused_at: 'lixo', channel_name: 'Gama' })] }))
+    expect(a.avisos).toHaveLength(1)
+    expect(a.avisos[0]!.frase).toContain('tempo desconhecido')
+    const b = extrasDoDisparo(entrada({ todas: [
+      canal('a', { site_id: 's1', collection_paused_at: new Date(AGORA - 9 * DIA).toISOString() }),
+      canal('b', { site_id: 's2', collection_paused_at: new Date(AGORA - 9 * DIA).toISOString() }),
+    ] }))
+    expect(b.avisos.map(v => v.siteId).sort()).toEqual(['s1', 's2'])
   })
   it('canais não lidos (todas nulo): sem linha de pausa e sem aviso; a linha do banco continua', () => {
     const x = extrasDoDisparo(entrada({ todas: null, sinal: amarelo() }))

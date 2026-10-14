@@ -50,6 +50,7 @@ import { lerProvaHoraria, lerNegadosDoDono, type ProvaHoraria } from '@/lib/yout
 import { adiar, esgotar, fechar, lerEstado, soltarArrendamento, tomar, tomarArrendamento } from '@/lib/youtube/agenda/estado'
 import { fecharDisparo } from '@/lib/youtube/agenda/fecho'
 import { CATALOGO, DEFINICOES } from '@/lib/youtube/agenda/catalogo'
+import { DEFINICAO_TAMANHO_DO_BANCO } from '@/lib/youtube/agenda/definicoes'
 import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import { chaveDoPeriodo } from '@/lib/youtube/agenda/periodo'
 import type { LinhaTarefa, ResultadoTarefa, Tarefa } from '@/lib/youtube/agenda/tipos'
@@ -66,6 +67,7 @@ function bancoDaAgenda(over: Partial<Record<string, (a: Record<string, unknown>)
   const estados = new Map<string, Partial<LinhaTarefa>>()
   const padrao: Record<string, (a: Record<string, unknown>) => unknown> = {
     competitor_agenda_lease_take: () => ({ data: true, error: null }),
+    obs_archive_uncovered: () => ({ data: [], error: null }), // a pendência do arquivo lida sem erro (causa permanente deixaria o cron vermelho)
     competitor_agenda_lease_release: () => ({ data: true, error: null }),
     competitor_agenda_claim: () => ({ data: true, error: null }),
     competitor_agenda_finish: () => ({ data: true, error: null }),
@@ -903,6 +905,17 @@ describe('executarAgenda: o sinal do tamanho do banco (A5 E10)', () => {
     t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: t.estado.gravada ? [linhaDoDia] : [], error: null }) })
     const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso() }, t.sb))
     expect(c.banco).toMatchObject({ estado: 'nunca_medido' })
+  })
+
+  it('OBS_AGENDA_TASKS_OFF=tamanho_do_banco com o sinal nunca_medido: a ação diz "desligada" e não promete a primeira leitura', async () => {
+    process.env.OBS_AGENDA_TASKS_OFF = 'tamanho_do_banco'
+    const t = comTabelas(banco.sb, { obs_db_size_daily: () => ({ data: [], error: null }) })
+    const catalogo = [...catalogoFalso(), { ...DEFINICAO_TAMANHO_DO_BANCO, rodar: okPadrao }]
+    const c = await corpo(await rodarAgenda({ catalogo }, t.sb))
+    expect(c.banco).toMatchObject({ estado: 'nunca_medido' })
+    const acao = (c.acao_do_dono as string[]).join(' | ')
+    expect(acao).toContain('A medida do tamanho do banco está desligada')
+    expect(acao).not.toContain('primeira leitura')
   })
 
   it('a leitura do sinal pendurada não atrasa o disparo: banco.nao_lido = prazo, dentro do teto', async () => {

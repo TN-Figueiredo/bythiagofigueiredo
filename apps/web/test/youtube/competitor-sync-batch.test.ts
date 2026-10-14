@@ -854,6 +854,7 @@ describe('A5 E10: canal com a coleta pausada no lote (Tarefa 4a)', () => {
     id: 'c' + i, channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: null, last_ok_synced_at: ago(DAY), sync_status: 'idle',
     sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, collection_paused_at: null, ...over(i),
   }))
+  let selectPedido = ''
   const mock = (rows: unknown[]) => {
     const synced: string[] = []
     vi.resetModules()
@@ -865,7 +866,7 @@ describe('A5 E10: canal com a coleta pausada no lote (Tarefa 4a)', () => {
     vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
     vi.doMock('@/lib/youtube/competitor-quota', () => ({ recordQuota: vi.fn(async () => undefined), pacificDate: () => '2026-10-24' }))
-    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: (c: string) => { selectPedido = c; return { order: () => Promise.resolve({ data: rows, error: null }) } } }) }) }))
     return synced
   }
   const lote = async () => (await import('@/lib/youtube/competitor-sync-batch')).runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => NOW })
@@ -895,6 +896,22 @@ describe('A5 E10: canal com a coleta pausada no lote (Tarefa 4a)', () => {
     const { syncCompetitorWeekly } = await import('@/lib/youtube/competitor-sync')
     expect(vi.mocked(syncCompetitorWeekly).mock.calls.map(c => (c[0] as { id: string }).id)).not.toContain('c3')
   })
+  it('runWeeklyPhase chamada direto com uma pausada e uma ativa: só a ativa é visitada (o filtro da fase não depende de quem chama)', async () => {
+    mock([])
+    const { runWeeklyPhase } = await import('@/lib/youtube/competitor-sync-batch')
+    const linhas = rowsOf(2, i => (i === 0 ? { collection_paused_at: ago(DAY) } : {})) as never as Parameters<typeof runWeeklyPhase>[0]
+    const r = await runWeeklyPhase(linhas, { apiKey: 'k', started: NOW, now: () => NOW })
+    const { syncCompetitorWeekly } = await import('@/lib/youtube/competitor-sync')
+    expect(vi.mocked(syncCompetitorWeekly).mock.calls.map(c => (c[0] as { id: string }).id)).toEqual(['c1'])
+    expect(r.visited).toBe(1)
+  })
+  it('loadBatchRows pede a coluna collection_paused_at no select', async () => {
+    mock(rowsOf(1))
+    const { loadBatchRows } = await import('@/lib/youtube/competitor-sync-batch')
+    const { getSupabaseServiceClient } = await import('@/lib/supabase/service')
+    await loadBatchRows(getSupabaseServiceClient())
+    expect(selectPedido).toContain('collection_paused_at')
+  })
   it('linha sem o campo collection_paused_at é forma inválida: loadBatchRows lança "competitor batch"', async () => {
     const rows = rowsOf(2).map(({ collection_paused_at: _p, ...resto }) => resto)
     mock(rows)
@@ -913,7 +930,7 @@ describe('A5 E10: canal com a coleta pausada no lote (Tarefa 4a)', () => {
     expect(n.acao[0]).toContain('8 dias')
     expect(n.acao[1]).toContain('Canal 2')
     expect(n.acao[1]).toContain('tempo desconhecido')
-    expect(n.esquecidos).toEqual([{ siteId: 's1', canalId: 'c1', nome: 'Canal 1', dias: 8 }])
+    expect(n.esquecidos).toEqual([{ siteId: 's1', canalId: 'c1', nome: 'Canal 1', dias: 8 }, { siteId: 's1', canalId: 'c2', nome: 'Canal 2', dias: null }])
   })
   it('fronteira de 7 dias: 7 dias exatos ficam fora; 7 dias e 1 minuto entram', async () => {
     mock([])

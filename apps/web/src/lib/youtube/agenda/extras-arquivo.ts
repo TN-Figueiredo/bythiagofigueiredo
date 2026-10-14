@@ -1,4 +1,4 @@
-import type { BatchRow } from '@/lib/youtube/competitor-sync-batch'
+import type { BatchRow, NotasDePausa } from '@/lib/youtube/competitor-sync-batch'
 import { notasDePausa } from '@/lib/youtube/competitor-sync-batch'
 import type { PendenciasDoArquivo } from '@/lib/youtube/observatorio/arquivo/ler-pendencias'
 import type { SinalLido } from '@/lib/youtube/observatorio/arquivo/ler-sinal'
@@ -110,6 +110,9 @@ function dasPendencias(e: EntradaExtras, out: ExtrasDoDisparo): void {
     }
   }
   if (naoLida) out.notas.push(NOTA_PENDENCIAS_NAO_LIDAS)
+  // mesma regra do sinal: causa permanente (a função sumiu ou mudou de forma) deixa o alarme mudo para sempre, então vai também para o vermelho
+  const permanente = ('porque' in p.semExport && CAUSAS_PERMANENTES.has(p.semExport.porque)) || ('porque' in p.miniaturas && CAUSAS_PERMANENTES.has(p.miniaturas.porque))
+  if (permanente) out.problemas.push(NOTA_PENDENCIAS_NAO_LIDAS)
 }
 
 function daPausa(e: EntradaExtras, out: ExtrasDoDisparo): void {
@@ -117,11 +120,17 @@ function daPausa(e: EntradaExtras, out: ExtrasDoDisparo): void {
   const n = notasDePausa(e.todas, e.agoraMs)
   if (n.nota) out.notas.push(n.nota)
   out.acao.push(...n.acao)
-  for (const x of n.esquecidos) {
-    out.avisos.push({
-      siteId: x.siteId, chave: 'coleta_pausada_esquecida', tarefa: 'coleta pausada',
-      frase: `Canal ${x.nome} com a coleta pausada há ${x.dias} dias e ainda não removido`, periodo: 'semana',
-    })
+  // um aviso por SITE com todos os canais esquecidos: a chave de repetição não tem o canal, então um aviso por canal suprimiria o 2º
+  const porSite = new Map<string, NotasDePausa['esquecidos']>()
+  for (const x of n.esquecidos) porSite.set(x.siteId, [...(porSite.get(x.siteId) ?? []), x])
+  for (const [siteId, lista] of porSite) {
+    const nomeDe = (x: NotasDePausa['esquecidos'][number]): string => `${x.nome} (${x.dias === null ? 'tempo desconhecido' : `${x.dias} dias`})`
+    const frase = lista.length === 1
+      ? lista[0]!.dias === null
+        ? `Canal ${lista[0]!.nome} com a coleta pausada há tempo desconhecido e ainda não removido`
+        : `Canal ${lista[0]!.nome} com a coleta pausada há ${lista[0]!.dias} dias e ainda não removido`
+      : `${lista.length} canais com a coleta pausada há mais de ${RULES.pause.forgottenDays} dias e ainda não removidos: ${lista.map(nomeDe).join(', ')}`
+    out.avisos.push({ siteId, chave: 'coleta_pausada_esquecida', tarefa: 'coleta pausada', frase, periodo: 'semana' })
   }
 }
 

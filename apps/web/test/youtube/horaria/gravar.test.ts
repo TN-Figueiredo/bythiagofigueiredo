@@ -117,7 +117,7 @@ function criarBanco(): Banco {
         return { data: rows, error: null }
       }
       const q: Q = {
-        select: () => q,
+        select: cols => { nomes.push(`select:${cols}`); return q },
         eq: (c, v) => { filtros.push(r => r[c] === v); nomes.push(`eq:${c}`); return q },
         gt: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) > v); nomes.push(`gt:${c}`); return q },
         gte: (c, v) => { filtros.push(r => typeof r[c] === 'string' && (r[c] as string) >= v); nomes.push(`gte:${c}`); return q },
@@ -181,6 +181,13 @@ describe('lerCandidatos', () => {
     expect(b.idas.some(i => i.tabela === 'yt_own_video_meta_daily')).toBe(false)
     // a janela é `published_at > corte` OU `published_at nulo` com descoberta dentro da janela: o nulo precisa chegar a montarLista
     expect(idasEm(b, 'competitor_videos', 'select')[0]?.filtros).toContain('or:published_at')
+  })
+
+  it('(A5 E10) o select dos candidatos pede collection_paused_at do canal (o banco falso não confere colunas)', async () => {
+    const b = criarBanco()
+    await lerCandidatos(b.sb, AGORA)
+    const pedido = idasEm(b, 'competitor_videos', 'select')[0]?.filtros.find(f => f.startsWith('select:')) ?? ''
+    expect(pedido).toContain('collection_paused_at')
   })
 
   it('(A5 E10) canal com a coleta pausada vira canalPausado: true no candidato', async () => {

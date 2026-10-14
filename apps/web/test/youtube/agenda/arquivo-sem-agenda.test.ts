@@ -38,6 +38,12 @@ describe('lerArquivoSemAgenda', () => {
     expect(x.banco).toEqual({ nao_lido: 'excecao' })
     expect(JSON.stringify(x)).not.toContain('segredo')
   })
+  it('um leitor que lança de forma síncrona cai no catch: banco.nao_lido = excecao, sem lançar nem vazar a mensagem', async () => {
+    const x = await lerArquivoSemAgenda({ supabase: sb, agora: () => AGORA, ler: leitores(() => { throw new Error('segredo-sincrono') }) })
+    expect(x.banco).toEqual({ nao_lido: 'excecao' })
+    expect(x.acao).toEqual([FRASE_SINAL_NAO_LIDO])
+    expect(JSON.stringify(x)).not.toContain('segredo-sincrono')
+  })
   it('leitura pendurada: estoura o prazo, banco.nao_lido = prazo e o resultado nunca é vazio', async () => {
     vi.useFakeTimers()
     try {
