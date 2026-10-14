@@ -1,0 +1,758 @@
+{
+ "index-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 534,
+  "alvos_abaixo_44": [],
+  "n_alvos": 124,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "index-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 534,
+  "alvos_abaixo_44": [],
+  "n_alvos": 124,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "index-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 545,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "index-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 545,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 276,
+  "alvos_abaixo_44": [],
+  "n_alvos": 28,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 276,
+  "alvos_abaixo_44": [],
+  "n_alvos": 28,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 276,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 276,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-caso-hoje-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 160,
+  "alvos_abaixo_44": [],
+  "n_alvos": 13,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-caso-hoje-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 160,
+  "alvos_abaixo_44": [],
+  "n_alvos": 13,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-caso-hoje-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 160,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-caso-hoje-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 160,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-10-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 7,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-10-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 7,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-10-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-10-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-2-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 61,
+  "alvos_abaixo_44": [],
+  "n_alvos": 6,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-2-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 61,
+  "alvos_abaixo_44": [],
+  "n_alvos": 6,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-2-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 61,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-2-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 61,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-12-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 6,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-12-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 6,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-12-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "series-p1-12-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 28,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 213,
+  "alvos_abaixo_44": [],
+  "n_alvos": 27,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 213,
+  "alvos_abaixo_44": [],
+  "n_alvos": 27,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 187,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 187,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-hoje-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 52,
+  "alvos_abaixo_44": [],
+  "n_alvos": 5,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-hoje-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 52,
+  "alvos_abaixo_44": [],
+  "n_alvos": 5,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-hoje-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 49,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-hoje-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 49,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-magro-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 76,
+  "alvos_abaixo_44": [],
+  "n_alvos": 8,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-magro-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 76,
+  "alvos_abaixo_44": [],
+  "n_alvos": 8,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-magro-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 70,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-caso-magro-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 70,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-le-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 4,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-le-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 4,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-le-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-le-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-ed-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 192,
+  "alvos_abaixo_44": [],
+  "n_alvos": 16,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-ed-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 192,
+  "alvos_abaixo_44": [],
+  "n_alvos": 16,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-ed-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 167,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-perfil-ed-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 167,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-cinza-1-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 213,
+  "alvos_abaixo_44": [],
+  "n_alvos": 27,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-cinza-1-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 213,
+  "alvos_abaixo_44": [],
+  "n_alvos": 27,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-cinza-1-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 187,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-cinza-1-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 187,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-canais-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 254,
+  "alvos_abaixo_44": [],
+  "n_alvos": 24,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-canais-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 254,
+  "alvos_abaixo_44": [],
+  "n_alvos": 24,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-canais-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 218,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-canais-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 218,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-casa-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 31,
+  "alvos_abaixo_44": [],
+  "n_alvos": 5,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-casa-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 31,
+  "alvos_abaixo_44": [],
+  "n_alvos": 5,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-casa-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 31,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-casa-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 31,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-meses-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 307,
+  "alvos_abaixo_44": [],
+  "n_alvos": 24,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-meses-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 307,
+  "alvos_abaixo_44": [],
+  "n_alvos": 24,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-meses-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 279,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-meses-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 279,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-problemas-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 309,
+  "alvos_abaixo_44": [],
+  "n_alvos": 15,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-problemas-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 309,
+  "alvos_abaixo_44": [],
+  "n_alvos": 15,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-problemas-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 285,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-problemas-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 285,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-resumo-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 34,
+  "alvos_abaixo_44": [],
+  "n_alvos": 6,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-resumo-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 34,
+  "alvos_abaixo_44": [],
+  "n_alvos": 6,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-resumo-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 34,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-resumo-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 34,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-teste-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 48,
+  "alvos_abaixo_44": [],
+  "n_alvos": 9,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-teste-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 48,
+  "alvos_abaixo_44": [],
+  "n_alvos": 9,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-teste-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 46,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-teste-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 46,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-tirar-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 191,
+  "alvos_abaixo_44": [],
+  "n_alvos": 29,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-tirar-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 191,
+  "alvos_abaixo_44": [],
+  "n_alvos": 29,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-tirar-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 185,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-e-todos-tirar-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 185,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-carregando-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 4,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-carregando-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 4,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-carregando-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-carregando-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-comandos-390-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 4,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-comandos-390-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 4,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-comandos-1440-claro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ },
+ "arquivo-c-comandos-1440-escuro": {
+  "rolagem": 0,
+  "contraste_abaixo_4_5": [],
+  "n_contraste": 9,
+  "alvos_abaixo_44": [],
+  "n_alvos": 0,
+  "fontes_menores_12": [],
+  "erros_js": []
+ }
+}
