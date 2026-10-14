@@ -87,6 +87,13 @@ describe('E5b T15: cartões de % assistido por período', () => {
     expect(marcado()).toBe('28')
   })
 
+  it('?assistido=28 sem nada salvo: sem a linha de lembrança (Yannis m-8)', () => {
+    busca = 'assistido=28'
+    abrir()
+    expect(marcado()).toBe('28')
+    expect(screen.queryByText(/Salvo neste navegador/)).toBeNull()
+  })
+
   it('?origem=90 na URL não muda o cartão', () => {
     busca = 'origem=90'
     abrir()
