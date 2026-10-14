@@ -6,9 +6,10 @@ import {
   agregarAlcanceCombinado, CABECALHO_ALCANCE_COMBINADO, CsvAlcanceCombinadoError, lerAlcanceCombinado,
 } from '@/lib/youtube/reporting/reach-combined-csv'
 
-// Fixture SINTÉTICA sob o cabeçalho REAL de 9 colunas (F4). A exportada de produção (relatório de 30/09, 38 linhas)
-// espera a pergunta 27 ao dono; o teste `lê o arquivo real` fica como todo até lá.
+// Duas fixtures sob o cabeçalho REAL de 9 colunas (F4): a SINTÉTICA (casos montados) e a REAL, exportada de produção
+// em 13/10 (relatório de 30/09, 38 linhas, `traffic_source_detail` mascarado com X).
 const SINTETICO = readFileSync(join(__dirname, 'fixtures/reach-combined-a1-sintetico.csv'), 'utf8')
+const REAL = readFileSync(join(__dirname, 'fixtures/reach-combined-a1-real.csv'), 'utf8')
 const CANAL = 'UC' + 'b'.repeat(22)
 const CAB = CABECALHO_ALCANCE_COMBINADO.join(',')
 const motivo = (fn: () => unknown) => { try { fn() } catch (e) { return e instanceof CsvAlcanceCombinadoError ? e.motivo : `outro: ${String(e)}` } return 'não lançou' }
@@ -16,7 +17,19 @@ const linha = (o: Partial<Record<'data' | 'canal' | 'video' | 'aparelho' | 'so' 
   [o.data ?? '20260930', o.canal ?? CANAL, o.video ?? 'abcdefghijk', o.aparelho ?? '102', o.so ?? '2', o.origem ?? '5', o.detalhe ?? 'XXXX', o.imp ?? '3', o.ctr ?? '0'].join(',')
 
 describe('lerAlcanceCombinado', () => {
-  it.todo('lê o arquivo real (espera a fixture c04 exportada de produção: pergunta 27 ao dono)')
+  it('lê o arquivo real (relatório de 30/09 exportado de produção, detalhe da origem mascarado)', () => {
+    expect(REAL.split('\n')[0]!.trim().split(',')).toEqual([...CABECALHO_ALCANCE_COMBINADO])
+    const linhas = lerAlcanceCombinado(REAL)
+    expect(linhas).toHaveLength(38)
+    expect(new Set(linhas.map(l => l.day))).toEqual(new Set(['2026-09-30']))
+    expect(new Set(linhas.map(l => l.channelId)).size).toBe(1)
+    expect(new Set(linhas.map(l => l.videoId)).size).toBe(32)
+    expect(new Set(linhas.map(l => l.trafficSourceType))).toEqual(new Set(['4']))
+    expect(new Set(linhas.map(l => l.deviceType))).toEqual(new Set(['101', '104']))
+    expect(linhas.reduce((t, l) => t + l.impressions, 0)).toBe(71)
+    // No dia real toda linha tem impressão e taxa informada (0): nenhuma taxa ausente vira zero por conta do leitor.
+    expect(linhas.every(l => l.impressions > 0 && l.ctr === 0)).toBe(true)
+  })
   it('lê o arquivo sintético sob o cabeçalho real', () => {
     expect(SINTETICO.split('\n')[0]!.trim().split(',')).toEqual([...CABECALHO_ALCANCE_COMBINADO])
     const linhas = lerAlcanceCombinado(SINTETICO)
