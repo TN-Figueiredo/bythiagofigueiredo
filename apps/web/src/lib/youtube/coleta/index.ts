@@ -15,6 +15,7 @@ import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRela
 import { criterioDesligados } from './criteria-desligados'
 import { criteriosE11 } from './criteria-e11'
 import { criteriosL2 } from './criteria-l2'
+import { criteriosRetencao } from './criteria-retencao'
 import { dayPt, ontemPt } from './day-pt'
 import { passoDiario } from './diario-step'
 import { passoDimensoes } from './dimensoes-step'
@@ -25,10 +26,14 @@ import { passoMetadados } from './meta-step'
 import { passoNormalizadores } from './normalizadores-step'
 import { notaNomesDesconhecidos, passoDesligado, type PassoComInterruptor } from './passos-desligados'
 import { passoRelatorios } from './reports-step'
+import { passoRetencao } from './retencao-step'
 import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
 
-/** Desligar um passo é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Não há variável de ambiente. */
+/**
+ * Desligar um dos cinco passos antigos é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Os passos novos
+ * (retenção, dimensões, normalizadores) não estão aqui: o interruptor deles é a variável YT_OWN_STEPS_OFF (passos-desligados.ts).
+ */
 export const PASSOS_LIGADOS = { metadados: true, jobs: true, relatorios: true, alcance: true, diario: true } as const
 
 /** O que o passo de metadados devolve e o critério de metadados precisa (`resumo.metadados` da fase 'antes'). */
@@ -312,6 +317,26 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     }
   }
 
+  // A5 E8, depois dos critérios da E11 (ordem da seção 5 do plano): a retenção só gasta o que SOBRAR dos 270 s (TETOS_DE_FIM_MS) e o
+  // critério dela roda DEPOIS, mesmo que o passo tenha lançado ou ficado sem tempo (é ele que dá a nota de "sem tempo"). Desligada
+  // por YT_OWN_STEPS_OFF: nada é chamado, o critério não é avaliado, e o nome entra em `desligados`. As notas de vídeo que o YouTube
+  // não devolve são `acao_do_dono` (nunca `falhas`: o vermelho delas é o do passo, depois de dias).
+  if (passoDesligado('retencao')) {
+    resumo.retencao = { desligado: true }
+    desligados.push('retencao')
+  } else {
+    const r = await passo('retencao', TETOS_DE_FIM_MS.retencao, 'retencao_vida', ativos, passoRetencao)
+    if (r) resumo.retencao = r
+    try {
+      await criteriosRetencao({ supabase: ctx.supabase, channels, falhas, relogio: ctx.relogio })
+    } catch (e) {
+      falhou('critérios da retenção', e)
+    }
+    const semResposta = (r as { sem_resposta_do_youtube?: unknown } | undefined)?.sem_resposta_do_youtube
+    const notasRetencao = Array.isArray(semResposta) ? semResposta.filter((n): n is string => typeof n === 'string') : []
+    if (notasRetencao.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notasRetencao])]
+  }
+
   // Passo desligado nunca some: até a 7ª execução seguida é nota em `acao_do_dono`; da 8ª em diante o critério põe o vermelho.
   const nomesRuins = notaNomesDesconhecidos()
   if (nomesRuins) pushUnico(falhas, nomesRuins)
@@ -336,7 +361,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   }
 
   try {
-    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim'])
+    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim', 'retencao_vida', 'retencao_7d', 'retencao_30d'])
   } catch (e) {
     falhou('orçamento', e)
   }
@@ -373,6 +398,9 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   } catch (e) {
     falhou('conferências', e)
   }
+  // Milissegundos que a cauda gastou depois dos 270 s do relógio (a conferência `e8-tempo-real` lê isto); a rota junta toda chave
+  // numérica de `resumo.ms` em `ms_passos`. Lido por último: é o fim da fase 'depois'.
+  ms.cauda = Math.max(0, Date.now() - ctx.relogio.fim)
   resumo.ms = ms
   return { falhas, resumo }
 }

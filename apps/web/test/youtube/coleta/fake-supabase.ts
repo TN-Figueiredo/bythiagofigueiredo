@@ -283,6 +283,9 @@ export function fakeSupabase(
   // Tarefa 3 (E6): a gravação do diário pela função. `db.errors['rpc:yt_own_daily_apply']` tem precedência (função ausente).
   comDailyApply(db)
 
+  // Tarefa 11a (E8): os fatos da retenção. `db.errors['rpc:yt_own_retention_facts']` tem precedência (função ausente).
+  comRetencaoFatosPadrao(db)
+
   db.client = {
     from: (tabela: string) => new Consulta(db, tabela),
     rpc: (name: string, args: Row = {}) => {
@@ -293,6 +296,37 @@ export function fakeSupabase(
       return Promise.resolve(h ? h(args) : { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name}` } })
     },
   } as unknown as SupabaseClient
+  return db
+}
+
+/**
+ * A5 E8 (Tarefa 11a): `yt_own_retention_facts` do falso. Sem vídeo semeado devolve `[]` (nenhum vídeo, nenhuma nota). Com vídeos
+ * em `youtube_videos` (com `published_at`, como a função de verdade lista), devolve um fato "em dia" por vídeo do canal: diário em
+ * dia, curva da vida lida hoje, janelas de 7 e 30 dias já gravadas. Ou seja, nada a ler e nada vencido: o passo não toca a API e o
+ * critério não acusa. Uma lista vazia COM vídeos é, corretamente, defeito da função para o critério (vermelho), então o falso
+ * não pode devolver `[]` para um canal que tem vídeo. A lógica de verdade é testada contra o Postgres (Tarefa 9b). Teste que quer
+ * fatos específicos troca `db.rpcHandlers.yt_own_retention_facts`; teste que quer a função ausente usa `db.errors['rpc:…']`.
+ */
+function comRetencaoFatosPadrao(db: FakeDb): FakeDb {
+  db.rpcHandlers.yt_own_retention_facts = (a) => {
+    const hoje = typeof a.p_hoje_utc === 'string' ? a.p_hoje_utc : new Date().toISOString().slice(0, 10)
+    const videos = (db.tables.youtube_videos ?? []).filter(v => v.channel_id === a.p_channel_id && v.published_at != null)
+    return {
+      data: videos.map(v => ({
+        youtube_video_id: v.youtube_video_id, video_id: v.id, site_id: v.site_id,
+        duration_seconds: typeof v.duration_seconds === 'number' ? v.duration_seconds : null,
+        publicado_dia_pt: String(v.published_at).slice(0, 10),
+        fonte_ate: hoje, views_total: null, ultimo_dia_com_view: null, views_7d: null, views_30d: null,
+        vida_window_end: hoje, vida_collected_at: `${hoje}T12:00:00.000Z`, vida_views_at_read: null,
+        tem_7d: true, tem_30d: true, primeira_tent_dia: hoje, leva_ancora_dia: hoje,
+        diario_tent_dia: hoje, diario_tent_resultado: 'ok', diario_falhas_4d: 0,
+        vida_tent_dia: hoje, vida_tent_resultado: 'ok', vida_resposta_dia: hoje,
+        d7_tent_dia: null, d7_tent_resultado: null, d7_resposta_dia: null,
+        d30_tent_dia: null, d30_tent_resultado: null, d30_resposta_dia: null,
+      })),
+      error: null,
+    }
+  }
   return db
 }
 
