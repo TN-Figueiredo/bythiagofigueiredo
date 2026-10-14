@@ -5,13 +5,14 @@ const requireSiteScope = vi.fn()
 const captureException = vi.fn()
 const captureMessage = vi.fn()
 const rpc = vi.fn()
+const sinais: AbortSignal[] = []
 const criarCliente = vi.fn()
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (...a: unknown[]) => requireSiteScope(...a) }))
 vi.mock('@sentry/nextjs', () => ({
   captureException: (...a: unknown[]) => captureException(...a),
   captureMessage: (...a: unknown[]) => captureMessage(...a),
 }))
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: (...a: unknown[]) => { criarCliente(...a); return { rpc: (...b: unknown[]) => rpc(...b) } } }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: (...a: unknown[]) => { criarCliente(...a); return { rpc: (...b: unknown[]) => { const r = rpc(...b); return { abortSignal: (sg: AbortSignal) => { sinais.push(sg); return typeof r === 'function' ? (r as (x: AbortSignal) => unknown)(sg) : r } } } } } }))
 
 import { provarAcessoPrivado, provarLeituraPrivada, leituraValida, LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { provarEdicao, EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
@@ -28,6 +29,7 @@ const modosPedidos = () => requireSiteScope.mock.calls.map(c => (c[0] as { mode:
 
 beforeEach(() => {
   for (const m of [requireSiteScope, captureException, captureMessage, rpc, criarCliente]) m.mockReset()
+  sinais.length = 0
 })
 
 describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => {
@@ -80,6 +82,21 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     expect(await provarAcessoPrivado(SITE)).toEqual({ leitura: null, edita: false, negativa: 'nao_foi_possivel_conferir' })
     expect(captureException).toHaveBeenCalledTimes(1)
     expect(captureException.mock.calls[0]![1]).toMatchObject({ tags: TAGS, extra: { siteId: SITE, motivo: 'funcao_ausente_ou_erro' } })
+  })
+  it('a função não responde em 5 s (m-2): o sinal aborta, sem token, nao_foi_possivel_conferir, uma exceção no Sentry; o sinal foi entregue ao rpc', async () => {
+    vi.useFakeTimers()
+    try {
+      soLe()
+      // o mock entrega uma função: a fábrica a chama com o sinal recebido, e a promessa só rejeita quando o sinal aborta
+      rpc.mockImplementation(() => (sg: AbortSignal) => new Promise((_, rej) => sg.addEventListener('abort', () => rej(new Error('abortado')))))
+      const p = provarAcessoPrivado(SITE)
+      await vi.advanceTimersByTimeAsync(4_999)
+      expect(sinais[0]!.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(2)
+      expect(sinais[0]!.aborted).toBe(true)
+      expect(await p).toEqual({ leitura: null, edita: false, negativa: 'nao_foi_possivel_conferir' })
+      expect(captureException).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
   })
   it('sem sessão: sem token, sem criar o cliente de serviço', async () => {
     requireSiteScope.mockResolvedValue({ ok: false, reason: 'unauthenticated' })

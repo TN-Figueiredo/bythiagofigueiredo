@@ -23,7 +23,7 @@ export async function leituraPorDireitoDe(siteId: string): Promise<LeituraPrivad
   vi.mocked(requireSiteScope)
     .mockImplementationOnce((async () => ({ ok: false, reason: 'insufficient_access' })) as never)
     .mockImplementationOnce((async () => ({ ok: true, user: { id: USUARIO } })) as never)
-  vi.mocked(getSupabaseServiceClient).mockReturnValueOnce({ rpc: async () => ({ data: true, error: null }) } as never)
+  vi.mocked(getSupabaseServiceClient).mockReturnValueOnce({ rpc: () => ({ abortSignal: async () => ({ data: true, error: null }) }) } as never)
   const l = await provarLeituraPrivada(siteId)
   if (!l) throw new Error('a guarda simulada do teste deveria deixar ler o site ' + siteId)
   return l

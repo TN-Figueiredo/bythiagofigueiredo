@@ -15,6 +15,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { edicaoValida, provarEdicao } from './edicao'
 
+const PRAZO_MS = 5_000
 const CHAVE = Symbol('LeituraPrivadaDoSite')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -73,8 +74,11 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
     avisar('guarda_falhou', e)
     return semResposta
   }
+  // prazo de 5 s (m-2 do portão de dados): se o banco travar, a página abre com `nao_foi_possivel_conferir`, não espera a função inteira
+  const controle = new AbortController()
+  const relogio = setTimeout(() => controle.abort(), PRAZO_MS)
   try {
-    const { data, error } = await getSupabaseServiceClient().rpc('can_view_private_site_as', { p_user: userId, p_site: siteId })
+    const { data, error } = await getSupabaseServiceClient().rpc('can_view_private_site_as', { p_user: userId, p_site: siteId }).abortSignal(controle.signal)
     if (error) { avisar('funcao_ausente_ou_erro', error); return semResposta }
     if (data === true) return { leitura: fabricar(siteId), edita: false, negativa: null }
     if (data === false) return semDireito
@@ -83,6 +87,8 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
   } catch (e) {
     avisar('funcao_ausente_ou_erro', e)
     return semResposta
+  } finally {
+    clearTimeout(relogio)
   }
 }
 
