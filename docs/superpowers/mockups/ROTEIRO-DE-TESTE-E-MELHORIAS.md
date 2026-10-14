@@ -838,7 +838,7 @@ Opera real, leitor de tela, aparelho real, rede lenta; a tabela de coerência po
 
 ## 19. O que muda quando um mês sai do banco (casca e tabela de sincronia)
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); aguarda o dono**; todo número de mês arquivado é exemplo. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); o índice é mapa de revisor (o dono não o aprova); as peças 1, 2 e 3 foram aprovadas pelo dono em 14/10/2026 (seções 19a a 19c)**; todo número de mês arquivado é exemplo. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Quais telas aprovadas mudam quando um mês sai do banco, onde está o desenho de cada uma e o que ainda falta?"
@@ -938,7 +938,7 @@ Opera real, leitor de tela, aparelho real, filtro de cinza do macOS. O contraste
 ---
 ## 19c. Peça 3: tirar o mês do banco
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); aguarda o dono**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); **aprovado pelo dono no Opera em 14/10/2026**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Posso tirar este mês? Se não, o que falta? Se sim, o que eu perco?"
@@ -958,7 +958,7 @@ Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do
 ### 3. Decisões pedidas ao dono
 1. Os botões "Tirar" e "Liberar o espaço" têm o peso máximo da tela (texto invertido): é o que se quer?
 2. A frase digitada do T4c foi copiada do spec; confirmar o texto.
-Respostas do dono: não registradas.
+Respostas do dono (14/10/2026): "Faz sentido": aprovou os dois passos (sai das telas, depois libera o espaço) e a janela de confirmação, testados na página do Arquivo.
 
 ### 4. Melhorias que os revisores sugeriram e não bloqueiam
 Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando voltarem, entram aqui.
@@ -967,7 +967,7 @@ Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando 
 Leitor de tela (ordem de anúncio do status do T4c), Opera real, aparelho real. O diálogo de "remover canal com mês fora das telas" é o D7 do `remover-canal/` (aprovado), não foi redesenhado aqui.
 
 ### 6. Retorno do dono e do uso real
-Não registrado: ainda não foi ao dono.
+14/10/2026: aprovado na página (`arquivo.html`, caso cheio), não nos 17 quadros do grupo "tirar".
 
 ---
 
