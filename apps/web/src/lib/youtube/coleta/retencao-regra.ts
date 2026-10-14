@@ -22,7 +22,7 @@ export const RETENCAO_JANELAS_DESDE: DiaPt = '2026-10-13'
 export type Janela = 'vida' | 'primeiros_7_dias' | 'primeiros_30_dias'
 
 const DIA = /^\d{4}-\d{2}-\d{2}$/
-const dia = z.string().regex(DIA)
+const dia = z.string().regex(DIA).refine(s => new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s)
 const diaOuNulo = dia.nullable()
 const contagem = z.number().finite().nonnegative()
 const contagemOuNula = contagem.nullable()
@@ -221,7 +221,18 @@ export function decidirRetencao(fatos: readonly FatoRetencao[], o: OpcoesDaRegra
   const { vermelho, acaoDoDono, pane } = separarPermanentes(atrasados, elegiveis)
   const ordenar = (l: readonly { ytId: string }[]) => l.map(a => a.ytId).sort(comparar)
 
-  ler.sort((a, b) => a.prioridade - b.prioridade || comparar(a.ytId, b.ytId) || ORDEM_JANELA[a.janela] - ORDEM_JANELA[b.janela])
+  // Dentro da prioridade: quem nunca foi tentado vem PRIMEIRO, depois a tentativa mais antiga, e só então o id.
+  // Sem isso, ids baixos que falham todo dia ficariam sempre na frente e os altos nunca seriam lidos (8-3).
+  const tentativa = new Map(fatos.map(f => [f.youtube_video_id, f.vida_tent_dia] as const))
+  const porTentativa = (a: string, b: string): number => {
+    const ta = tentativa.get(a) ?? null
+    const tb = tentativa.get(b) ?? null
+    if (ta === tb) return 0
+    if (ta === null) return -1
+    if (tb === null) return 1
+    return comparar(ta, tb)
+  }
+  ler.sort((a, b) => a.prioridade - b.prioridade || porTentativa(a.ytId, b.ytId) || comparar(a.ytId, b.ytId) || ORDEM_JANELA[a.janela] - ORDEM_JANELA[b.janela])
 
   return {
     ler,
