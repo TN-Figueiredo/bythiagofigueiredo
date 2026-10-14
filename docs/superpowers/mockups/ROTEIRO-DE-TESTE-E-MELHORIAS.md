@@ -1247,3 +1247,19 @@ Abrir no Opera `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-
 
 ### 3. Decisões minhas que o spec não dá
 Gráfico do vídeo em leitura mensal é de views acumuladas (a leitura mensal é total, não por dia); canal em dezembro de 2026 = 52 acompanhados (os 12 + 40 que depois saíram); frase-resumo da seção e a coluna "Agora" são propostas (plano 11.8); a linha "Leitura mensal desligada" usa triângulo âmbar com "Não dá para dizer quantos estão atrasados"; a "Mostrar mais 25" também existe na lista principal.
+
+## 16-impl. Tela 16 Canais, implementada (A5 E5a T5)
+
+Estado: **aprovada pelo dono no Opera em 14/10/2026** (código em `apps/web/src/app/cms/(authed)/youtube/competitors/_canais/`, commits até `c96f51929`; conserto do glifo da Direção no commit seguinte: a barra de valor da régua some quando a variação é 0%).
+
+### Melhorias futuras (não bloqueiam; conferidas por Gio, Logan e Naksu)
+1. O botão voltar do navegador não desfaz o filtro.
+2. "Mostrar mais" fica fora da URL; passar para `?mostrar=N`.
+3. Gaveta lateral: o texto longo do arredondamento fica pesado.
+4. "Sem Shorts em 90 d." é genérico; dizer por formato.
+5. Rolagem com a gaveta aberta: não conferida.
+6. Linhas de canal atrasado ou em erro e a do canal próprio passam de 100 px.
+7. A barra fixa do rodapé cobre a última linha visível.
+8. Botões do cabeçalho do YouTube ("Sincronizar tudo", "Abrir no Cowork") com 39 px a 390 (componente compartilhado com o resto do CMS).
+9. O ⓘ diz 28 dias; o Logan pediu 30. A janela é 28 em todo o código (ⓘ, texto de leitor de tela, resumo); conferir com o Phil se 28 é o certo antes de trocar o texto.
+10. O spec não afirma a hachura da faixa nem o "sem mudança".
