@@ -121,6 +121,7 @@ export async function confirmarM3bParaCorridas(ate: ParteM3b): Promise<void> {
 }
 /** Volta o banco ao estado sem a M3b (só toca o que a M3b cria). Chamar depois de fechar as conexões das corridas. */
 export async function desfazerM3bDasCorridas(): Promise<void> {
+  if (guardaDasCorridas === null) return   // Yannis R3-2: quem não confirmou (falhou no lock) não desfaz a M3b de outro arquivo
   const x = new Client({ connectionString: urlDasCorridas() }); await x.connect()
   try { await x.query(readFileSync(M3B_DESFAZER_CAMINHO, 'utf8')) } finally {
     await x.end()

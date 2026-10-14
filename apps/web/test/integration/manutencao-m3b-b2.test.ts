@@ -46,7 +46,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 4: conferência do B2 pela forja',
   afterAll(async () => { await c.end() })
 
   async function emTx<T2>(fn: () => Promise<T2>): Promise<T2> {
-    await c.query('begin')
+    await c.query('begin'); await c.query('select pg_advisory_xact_lock(7339001)')   // TRAVA_DDL_TESTES na 1ª instrução (Yannis R3-1)
     try {
       await aplicarM2(c)
       await c.query(readFileSync(M10A_SQL, 'utf8'))

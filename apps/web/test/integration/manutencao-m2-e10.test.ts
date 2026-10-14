@@ -18,7 +18,7 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
   beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
   afterAll(async () => { await pg.end() })
   async function emTx(fn: () => Promise<void>): Promise<void> {
-    await pg.query('begin')
+    await pg.query('begin'); await pg.query('select pg_advisory_xact_lock(7339001)')   // TRAVA_DDL_TESTES na 1ª instrução (Yannis R3-1)
     try {
       // a MG6 ANTES da M2: enquanto a fixture estiver sem o conserto, quem põe a cláusula é o bloco 11 da M2 (o caminho que
       // recria fica testado); depois que a E10 consertar, o bloco 11 sai sem fazer nada e o teste continua valendo

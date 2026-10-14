@@ -56,7 +56,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
   })
 
   async function emTx<T2>(fn: () => Promise<T2>, hoje = '2026-11-28'): Promise<T2> {
-    await c.query('begin')
+    await c.query('begin'); await c.query('select pg_advisory_xact_lock(7339001)')   // TRAVA_DDL_TESTES na 1ª instrução (Yannis R3-1)
     try {
       await aplicarM2(c)
       await c.query(readFileSync(M10A_SQL, 'utf8'))

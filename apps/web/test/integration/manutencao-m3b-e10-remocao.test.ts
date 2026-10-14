@@ -20,7 +20,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b e a E10: competitor_channel_remove_archi
   beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
   afterAll(async () => { await pg.end() })
   async function emTx(fn: () => Promise<void>): Promise<void> {
-    await pg.query('begin')
+    await pg.query('begin'); await pg.query('select pg_advisory_xact_lock(7339001)')   // TRAVA_DDL_TESTES na 1ª instrução (Yannis R3-1)
     try {
       await garantirMg6(pg)
       await aplicarM2(pg)
