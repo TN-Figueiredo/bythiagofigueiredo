@@ -1029,7 +1029,7 @@ Nenhum item da E4 fica sem tarefa. Os que ficam fora estão ditos com o dono.
 
 ### Apêndice A: MG4
 
-**(reconciliação 13/10, emenda 1: D-I1, S-I2) Este é o texto rodado, e ele NÃO tem a pausa de coleta (R3): não lê `collection_paused_at` e não tem a guarda "MG4 depende da MG6". A Tarefa 8b o reescreve e roda de novo, junto dos Apêndices B e C. Até lá este bloco não é o arquivo da MG4.**
+**(noite de 14/10, Tarefa 8b) Este é o texto da MG4 COM a pausa de coleta (R3), rodado duas vezes no `bythiago_int` dentro de transação desfeita, com a MG6 (ensaio da E10) aplicada antes na mesma transação.** Mudanças em relação ao texto da emenda 2: (1) guarda `MG4 depende da MG6` como primeira instrução; (2) `competitor_marks_pending` deixa de fora o vídeo de canal com `collection_paused_at`, devolve `pares_em_pausa` ao lado de `total_pendentes` e `gap_crossed_pause` em cada item (verdadeiro quando o tempo NÃO pausado do buraco cabe no limite do par; pausas sobrepostas contadas uma vez, por `range_agg`); (3) `competitor_marks_health` tira de `atrasadas` o par de canal pausado. O `check` de `reason` fica com os seis valores (decisão da 8b, a confirmar por Phil e Yannis). A cópia versionada é `apps/web/test/fixtures/sql/a5-e4-mg4.sql` (idêntica); o `db:new` da Tarefa 9 cola este bloco. **Pendente: o acordo dos dois especialistas (portão da Tarefa 9).**
 
 ```sql
 -- A5, E4 (MG4): marcas de views nas idades 1, 7 e 30 dias dos vídeos de concorrentes, e o registro do que não pôde ser medido.
@@ -1041,6 +1041,20 @@ Nenhum item da E4 fica sem tarefa. Os que ficam fora estão ditos com o dono.
 -- funções, como na MG8. Marca ou motivo decidido com uma base que depois mudou é apagado e o par é refeito pela série.
 -- (emenda 2) Quem grava devolve a base que recebeu (base_at) e o banco confere; linha de vídeo que passou a agendado ou
 -- no ar é apagada; a prova não conta vídeo sem data; os pendentes trazem a faixa do vídeo e o motivo anterior do par.
+
+-- (R3, tarefa 8b) Canal com a coleta pausada (MG6) não tem par pendente nem atrasado; cada item de competitor_marks_pending diz
+-- se o buraco entre as leituras vizinhas cruza uma pausa registrada (gap_crossed_pause) e a função devolve pares_em_pausa.
+
+-- (R3, tarefa 8b) A pausa de coleta mora na MG6 (competitor_channels.collection_paused_at e competitor_collection_pauses): a MG4 não
+-- se aplica pela metade. Guarda: primeira instrução do arquivo.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'competitor_channels' and column_name = 'collection_paused_at')
+     or to_regclass('public.competitor_collection_pauses') is null then
+    raise exception 'MG4 depende da MG6';
+  end if;
+end $$;
 
 set lock_timeout = '5s';
 
@@ -1123,9 +1137,9 @@ language sql stable security invoker set search_path = '' as $$
     values (1, make_interval(secs => (p_gap_hours_day1 * 3600)::double precision)),
            (7, make_interval(secs => (p_gap_hours * 3600)::double precision)),
            (30, make_interval(secs => (p_gap_hours * 3600)::double precision))
-  ), todos as (
-    select v.id as video_id, c.site_id, v.discovered_at, v.views_hidden, v.likes_hidden, v.comments_disabled, v.missing_since,
-           v.series_tier, a.age_days, a.gap, b.t0, b.t0 + make_interval(days => a.age_days) as t_alvo
+  ), cand as (
+    select v.id as video_id, c.id as channel_id, c.site_id, c.collection_paused_at, v.discovered_at, v.views_hidden, v.likes_hidden,
+           v.comments_disabled, v.missing_since, v.series_tier, a.age_days, a.gap, b.t0, b.t0 + make_interval(days => a.age_days) as t_alvo
       from public.competitor_videos v
       join public.competitor_channels c on c.id = v.competitor_channel_id
       cross join lateral (select greatest(v.published_at, coalesce(v.live_actual_start_at, v.published_at)) as t0) b
@@ -1138,17 +1152,50 @@ language sql stable security invoker set search_path = '' as $$
                         where m.video_id = v.id and m.age_days = a.age_days and m.age_base_at = b.t0)
        and not exists (select 1 from public.competitor_video_mark_misses x
                         where x.video_id = v.id and x.age_days = a.age_days and x.rule_version >= p_rule_version and x.age_base_at = b.t0)
+  ), todos as (
+    select * from cand where collection_paused_at is null
   ), pend as (
     select * from todos order by t0 desc, video_id, age_days
      limit greatest(least(coalesce(p_limit, 500), 2000), 1)
+  ), lim as (
+    -- o intervalo sem leitura em volta do alvo: da última leitura até o alvo (ou o próprio alvo) à primeira depois dele (ou p_now)
+    select p.video_id, p.age_days,
+           coalesce((select max(x.taken_at) from (
+                       select e.taken_at from public.competitor_video_early e where e.video_id = p.video_id and e.taken_at <= p.t_alvo
+                       union all
+                       select d.taken_at from public.competitor_video_daily d where d.video_id = p.video_id and d.taken_at <= p.t_alvo) x), p.t_alvo) as ini,
+           coalesce((select min(x.taken_at) from (
+                       select e.taken_at from public.competitor_video_early e where e.video_id = p.video_id and e.taken_at >= p.t_alvo
+                       union all
+                       select d.taken_at from public.competitor_video_daily d where d.video_id = p.video_id and d.taken_at >= p.t_alvo) x), p_now) as fim
+      from pend p
+  ), pausas as (
+    -- as interseções do intervalo com as pausas do canal, unidas (pausas sobrepostas contam uma vez)
+    select l.video_id, l.age_days, l.ini, l.fim, count(cp.id) as n_pausas,
+           range_agg(tstzrange(greatest(cp.paused_at, l.ini), least(coalesce(cp.resumed_at, p_now), l.fim))) filter (where cp.id is not null) as mr
+      from lim l
+      join pend p on p.video_id = l.video_id and p.age_days = l.age_days
+      left join public.competitor_collection_pauses cp
+        on cp.competitor_channel_id = p.channel_id
+       and cp.paused_at < l.fim and coalesce(cp.resumed_at, p_now) > l.ini
+     group by l.video_id, l.age_days, l.ini, l.fim
+  ), cruz as (
+    -- a pausa só explica o buraco se o tempo NÃO pausado dele coubesse no limite do par
+    select q.video_id, q.age_days,
+           (q.n_pausas > 0
+            and (q.fim - q.ini) - coalesce((select sum(upper(r) - lower(r)) from unnest(q.mr) r), interval '0') <= p.gap) as gap_crossed_pause
+      from pausas q
+      join pend p on p.video_id = q.video_id and p.age_days = q.age_days
   )
   select jsonb_build_object(
     'total_pendentes', (select count(*) from todos),
+    'pares_em_pausa', (select count(*) from cand where collection_paused_at is not null),
     'itens', coalesce((
       select jsonb_agg(jsonb_build_object(
         'video_id', p.video_id, 'site_id', p.site_id, 'age_days', p.age_days, 'base_at', p.t0, 'target_at', p.t_alvo,
         'discovered_at', p.discovered_at, 'views_hidden', p.views_hidden, 'likes_hidden', p.likes_hidden, 'comments_disabled', p.comments_disabled,
         'missing_since', p.missing_since, 'series_tier', p.series_tier,
+        'gap_crossed_pause', coalesce(z.gap_crossed_pause, false),
         'prev_reason', (select x.reason from public.competitor_video_mark_misses x
                          where x.video_id = p.video_id and x.age_days = p.age_days and x.age_base_at = p.t0),
         'first_reading_at', least(
@@ -1172,7 +1219,8 @@ language sql stable security invoker set search_path = '' as $$
                  and d.taken_at between p.t_alvo - p.gap - interval '1 hour' and p.t_alvo + p.gap + interval '1 hour'
             ) r), '[]'::jsonb)
       ) order by p.t0 desc, p.video_id, p.age_days)
-      from pend p), '[]'::jsonb)
+      from pend p
+      left join cruz z on z.video_id = p.video_id and z.age_days = p.age_days), '[]'::jsonb)
   );
 $$;
 revoke all on function public.competitor_marks_pending(timestamptz, integer, integer, numeric, numeric) from public, anon, authenticated;
@@ -1181,6 +1229,7 @@ grant execute on function public.competitor_marks_pending(timestamptz, integer, 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 5. A prova (o alarme). Só lê.
 --    atrasadas: pares cuja idade fechou há mais que o limite de distância + 48 h e que não têm marca nem motivo.
+--    (R3, tarefa 8b) atrasadas não conta o par de canal com a coleta pausada (collection_paused_at preenchido).
 --    em_duas_tabelas: par com marca E motivo (não pode existir).
 --    site_divergente: marca ou motivo cujo site_id não é o do canal do vídeo (não pode existir).
 --    base_divergente (emenda 1: C-1): marca ou motivo cuja base gravada não é a base atual do vídeo. Lida logo depois de
@@ -1204,6 +1253,7 @@ begin
       'atrasadas', (
         select count(*)
           from public.competitor_videos v
+          join public.competitor_channels ch on ch.id = v.competitor_channel_id and ch.collection_paused_at is null
           cross join a
          where v.published_at is not null
            and coalesce(v.live_broadcast_content, 'none') not in ('upcoming', 'live')
@@ -1356,13 +1406,15 @@ grant execute on function public.competitor_marks_apply(jsonb, jsonb, integer, t
 
 ### Apêndice B: roteiro de prova
 
-Rodar com `psql "postgresql://postgres:postgres@127.0.0.1:54422/postgres" -q -f prova-mg4.sql`, da pasta onde está o SQL da migration com o nome `mg4.sql` (ou trocando as duas linhas `\i`). Os dois ids fixos (o canal `11b31fc3-…` e o site `2e3f0d9c-…`) são linhas que já existem no `bythiago_int`; se não existirem mais, trocar por um canal e pelo site dele. Tudo acontece dentro de uma transação revertida. (emenda 1) O roteiro ganhou o vídeo F (transmissão agendada) e o cenário S11, que roda entre o S8 e o S9 (o S9 apaga os vídeos); os cenários S0 a S8 não mudaram de comando. (emenda 2) Todo item mandado a `competitor_marks_apply` ganhou `base_at` (a base que `pending` devolveu para aquele vídeo), e entrou o cenário S12, entre o S11 e o S9.
+**(noite de 14/10, Tarefa 8b)** Rodar com `psql "postgresql://postgres:postgres@127.0.0.1:54422/postgres" -q -f prova-mg4.sql`, da pasta onde estão `mg4.sql` (o Apêndice A) e `mg6.sql` (o ensaio da MG6 da E10, `apps/web/test/fixtures/sql/a5-e10-mg6.sql`), ou trocando as três linhas `\i`. Os dois ids fixos (o canal `11b31fc3-…` e o site `2e3f0d9c-…`) já existem no `bythiago_int`. Tudo acontece dentro de uma transação revertida (a MG6 e a MG4 também). O cenário S13 (pausa de coleta) roda entre o S12 e o S9. Cópias: `.superpowers/sdd/a5-e4/sql/`.
 
 ```sql
 \set ON_ERROR_STOP on
 \pset format unaligned
 \pset tuples_only on
 begin;
+-- (R3, 8b) a MG6 (pausa de coleta) vem antes, aplicada aqui dentro da transação (ensaio; o controlador a aplica de vez)
+\i mg6.sql
 \i mg4.sql
 \i mg4.sql
 -- tira do caminho os vídeos que já existem no banco (só dentro da transação)
@@ -1449,6 +1501,48 @@ select 'S12 motivos do E depois', count(*) from public.competitor_video_mark_mis
 update public.competitor_videos set published_at = null where video_id = 'e4provaB';
 select 'S12 o B perdeu a data: a prova nao conta, gravar nao apaga', (public.competitor_marks_health(:agora, 8, 36))->'base_divergente', (public.competitor_marks_apply('[]'::jsonb, '[]'::jsonb, 1, :agora, 8, 36))->'refeitas_por_base';
 select 'S12 motivos do B depois', count(*) from public.competitor_video_mark_misses where video_id::text like '%b';
+-- (R3, tarefa 8b) S13: a pausa de coleta. Fica antes do S9, que apaga os vídeos e_prova.
+insert into public.competitor_videos (id, competitor_channel_id, video_id, published_at, discovered_at)
+ values ('00000000-0000-4000-8000-000000000010', :ca, 'e4provaG', '2026-11-10 10:00+00', '2026-11-10 11:00+00');
+insert into public.competitor_video_daily (video_id, snap_date, views, likes, comments, taken_at) values
+ ('00000000-0000-4000-8000-000000000010', date '2026-11-10', 100, 10, null, timestamptz '2026-11-10 03:10+00'),
+ ('00000000-0000-4000-8000-000000000010', date '2026-11-15', 500, 50, null, timestamptz '2026-11-15 03:10+00');
+select 'S13 sem pausa: gap_crossed_pause dos pares do G', string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i where i->>'video_id' like '%10';
+select 'S13 todo item traz gap_crossed_pause booleano, nunca nulo', bool_and(jsonb_typeof(i->'gap_crossed_pause') = 'boolean'), count(*) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i;
+insert into public.competitor_collection_pauses (site_id, competitor_channel_id, paused_at, paused_by, resumed_at)
+ values ('2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c', :ca, '2026-11-10 04:00+00', gen_random_uuid(), '2026-11-14 20:00+00');
+select 'S13 pausa cobre o buraco menos o limite (G/1: 120 h, pausado 112 h, sobram 8 h = limite): cruza; G/7 nao toca a pausa', string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i where i->>'video_id' like '%10';
+update public.competitor_collection_pauses set paused_at = '2026-11-10 04:01+00' where competitor_channel_id = :ca;
+select 'S13 um minuto a menos de pausa (sobram 8 h 01 min): nao cruza', string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i where i->>'video_id' like '%10';
+delete from public.competitor_collection_pauses where competitor_channel_id = :ca;
+insert into public.competitor_collection_pauses (site_id, competitor_channel_id, paused_at, paused_by, resumed_at)
+ values ('2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c', :ca, '2026-11-12 10:00+00', gen_random_uuid(), '2026-11-12 10:20+00');
+select 'S13 pausa curta (20 min) dentro de buraco longo: nao cruza', string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i where i->>'video_id' like '%10';
+delete from public.competitor_collection_pauses where competitor_channel_id = :ca;
+insert into public.competitor_collection_pauses (site_id, competitor_channel_id, paused_at, paused_by, resumed_at) values
+ ('2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c', :ca, '2026-11-10 04:00+00', gen_random_uuid(), '2026-11-14 12:00+00'),
+ ('2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c', :ca, '2026-11-12 00:00+00', gen_random_uuid(), '2026-11-14 12:00+00');
+select 'S13 pausas sobrepostas contam uma vez (uniao 104 h, sobram 16 h > 8): nao cruza', string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i where i->>'video_id' like '%10';
+delete from public.competitor_collection_pauses where competitor_channel_id = :ca;
+-- canal pausado agora: os pares dele saem de pendentes e de atrasadas, e entram em pares_em_pausa
+insert into public.competitor_channels (id, site_id, channel_id, channel_name)
+ values ('00000000-0000-4000-8000-0000000000c1', '2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c', 'UCe4provaPausa', 'e4 canal pausado');
+insert into public.competitor_videos (id, competitor_channel_id, video_id, published_at, discovered_at)
+ values ('00000000-0000-4000-8000-000000000011', '00000000-0000-4000-8000-0000000000c1', 'e4provaH', '2026-11-01 10:00+00', '2026-11-01 11:00+00');
+select 'S13 antes de pausar: pendentes, pares em pausa, atrasadas', (p->>'total_pendentes')::int, (p->>'pares_em_pausa')::int, (public.competitor_marks_health(:agora, 8, 36))->'atrasadas'
+  from (select public.competitor_marks_pending(:agora, 1, 500, 8, 36) p) x;
+update public.competitor_channels set collection_paused_at = '2026-11-19 10:00+00' where id = '00000000-0000-4000-8000-0000000000c1';
+insert into public.competitor_collection_pauses (site_id, competitor_channel_id, paused_at, paused_by)
+ values ('2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c', '00000000-0000-4000-8000-0000000000c1', '2026-11-19 10:00+00', gen_random_uuid());
+select 'S13 canal pausado: pendentes, pares em pausa, atrasadas', (p->>'total_pendentes')::int, (p->>'pares_em_pausa')::int, (public.competitor_marks_health(:agora, 8, 36))->'atrasadas'
+  from (select public.competitor_marks_pending(:agora, 1, 500, 8, 36) p) x;
+select 'S13 canal pausado: nenhum item dele em pendentes', count(*) from jsonb_array_elements((public.competitor_marks_pending(:agora, 1, 500, 8, 36))->'itens') i where i->>'video_id' like '%11';
+select 'S13 a saude do canal pausado continua com as seis chaves', (select count(*) from jsonb_object_keys(public.competitor_marks_health(:agora, 8, 36)));
+update public.competitor_channels set collection_paused_at = null where id = '00000000-0000-4000-8000-0000000000c1';
+update public.competitor_collection_pauses set resumed_at = '2026-11-19 12:00+00' where competitor_channel_id = '00000000-0000-4000-8000-0000000000c1';
+select 'S13 despausado: pendentes, pares em pausa, atrasadas; H/1 cruza a pausa de 2 h?', (p->>'total_pendentes')::int, (p->>'pares_em_pausa')::int, (public.competitor_marks_health(:agora, 8, 36))->'atrasadas',
+       (select string_agg((i->>'age_days') || '=' || (i->>'gap_crossed_pause'), ' ' order by (i->>'age_days')::int) from jsonb_array_elements(p->'itens') i where i->>'video_id' like '%11')
+  from (select public.competitor_marks_pending(:agora, 1, 500, 8, 36) p) x;
 select 'S9 cascata', (select count(*) from public.competitor_video_marks), (select count(*) from public.competitor_video_mark_misses);
 delete from public.competitor_videos where video_id like 'e4prova%';
 select 'S9 depois de apagar os videos', (select count(*) from public.competitor_video_marks), (select count(*) from public.competitor_video_mark_misses);
@@ -1458,17 +1552,17 @@ rollback;
 select 'depois do rollback', to_regclass('public.competitor_video_marks'), (select count(*) from public.competitor_videos where video_id like 'e4prova%');
 ```
 
-### Apêndice C: saída do roteiro (as duas execuções deram este texto, fora os avisos de "já existe"; emenda 2: é a saída do SQL da emenda 2, rodado duas vezes em 13/10; fora as duas chaves novas em `S1 A/7`, as linhas até `S11 depois` são iguais às da emenda 1)
+### Apêndice C: saída do roteiro (noite de 14/10, Tarefa 8b: as duas execuções deram este texto, fora os avisos de "já existe"; é a saída do Apêndice B com a pausa. Em relação à da emenda 2, mudam `S1 A/7` (a chave `gap_crossed_pause`), `S1 agora nulo` (a chave `pares_em_pausa`) e entram as linhas `S13`)
 
 ```text
 S0 saude, tabelas vazias|{"faltas": 0, "marcas": 0, "atrasadas": 9, "base_divergente": 0, "em_duas_tabelas": 0, "site_divergente": 0}
 S1 pendentes: total|9
 S1 pares|a/1:3 a/7:3 b/1:0 b/7:0 b/30:0 d/1:0 d/7:0 e/1:0 e/7:0
-S1 A/7|{"base_at": "2026-11-01T10:00:00+00:00", "site_id": "2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c", "age_days": 7, "readings": [{"t": "2026-11-07T03:10:00+00:00", "likes": 70, "views": 700, "comments": null}, {"t": "2026-11-08T03:10:00+00:00", "likes": 80, "views": 800, "comments": null}, {"t": "2026-11-09T03:10:00+00:00", "likes": 90, "views": 900, "comments": null}], "target_at": "2026-11-08T10:00:00+00:00", "prev_reason": null, "series_tier": null, "likes_hidden": null, "views_hidden": null, "discovered_at": "2026-11-01T11:00:00+00:00", "missing_since": null, "last_reading_at": "2026-11-20T03:10:00+00:00", "first_reading_at": "2026-11-01T03:10:00+00:00", "comments_disabled": null}
+S1 A/7|{"base_at": "2026-11-01T10:00:00+00:00", "site_id": "2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c", "age_days": 7, "readings": [{"t": "2026-11-07T03:10:00+00:00", "likes": 70, "views": 700, "comments": null}, {"t": "2026-11-08T03:10:00+00:00", "likes": 80, "views": 800, "comments": null}, {"t": "2026-11-09T03:10:00+00:00", "likes": 90, "views": 900, "comments": null}], "target_at": "2026-11-08T10:00:00+00:00", "prev_reason": null, "series_tier": null, "likes_hidden": null, "views_hidden": null, "discovered_at": "2026-11-01T11:00:00+00:00", "missing_since": null, "last_reading_at": "2026-11-20T03:10:00+00:00", "first_reading_at": "2026-11-01T03:10:00+00:00", "comments_disabled": null, "gap_crossed_pause": false}
 S1 B/7 primeira e ultima|"2026-11-01T03:10:00+00:00"|"2026-11-20T03:10:00+00:00"|[]
 S1 D base (estreia) e site|"2026-11-03T10:00:00+00:00"|t
 S1 limite 2|2|9
-S1 agora nulo|{"itens": [], "total_pendentes": 0}
+S1 agora nulo|{"itens": [], "pares_em_pausa": 0, "total_pendentes": 0}
 S2 aplicar|{"saude": {"faltas": 4, "marcas": 1, "atrasadas": 4, "base_divergente": 0, "em_duas_tabelas": 0, "site_divergente": 0}, "faltas": 4, "marcas": 1, "faltas_limpas": 0, "faltas_recusadas": 0, "marcas_recusadas": 3, "refeitas_por_base": 0}
 S2 marca gravada|00000000-0000-4000-8000-00000000000a|7|2e3f0d9c-a148-48fe-8f53-95a07a8f5f7c|731|73|f|1|24.000|2026-11-01 10:00:00+00|2026-11-08 03:10:00+00|2026-11-09 03:10:00+00
 S2 faltas|b|1|leitura_comecou_depois|1|t
@@ -1505,6 +1599,17 @@ S12 o E passou a agendado depois da decisao: gravar apaga o motivo dele|{"faltas
 S12 motivos do E depois|0
 S12 o B perdeu a data: a prova nao conta, gravar nao apaga|0|0
 S12 motivos do B depois|3
+S13 sem pausa: gap_crossed_pause dos pares do G|1=false 7=false
+S13 todo item traz gap_crossed_pause booleano, nunca nulo|t|5
+S13 pausa cobre o buraco menos o limite (G/1: 120 h, pausado 112 h, sobram 8 h = limite): cruza; G/7 nao toca a pausa|1=true 7=false
+S13 um minuto a menos de pausa (sobram 8 h 01 min): nao cruza|1=false 7=false
+S13 pausa curta (20 min) dentro de buraco longo: nao cruza|1=false 7=false
+S13 pausas sobrepostas contam uma vez (uniao 104 h, sobram 16 h > 8): nao cruza|1=false 7=false
+S13 antes de pausar: pendentes, pares em pausa, atrasadas|7|0|6
+S13 canal pausado: pendentes, pares em pausa, atrasadas|5|2|4
+S13 canal pausado: nenhum item dele em pendentes|0
+S13 a saude do canal pausado continua com as seis chaves|6
+S13 despausado: pendentes, pares em pausa, atrasadas; H/1 cruza a pausa de 2 h?|7|0|6|1=false 7=false
 S9 cascata|1|4
 S9 depois de apagar os videos|0|0
 S10 privilegios|f|f|t|f|t|f
