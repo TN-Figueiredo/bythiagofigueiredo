@@ -1,0 +1,22 @@
+Últimos 5 dias · 1184 arquivos · 38887 passos · estimativa a preço de lista: US$ 1,917.99
+Por item:   leitura 49% (US$ 943.39) · escrita 44% (US$ 843.13) · output 7% (US$ 131.27) · input 0% (US$ 0.21)
+Por modelo: opus US$ 1,136.20 · sonnet US$ 781.78
+Por tipo:   subagente US$ 1,507.88 · principal US$ 410.11
+Escrita de cache por tipo: subagente US$ 727.39 · principal US$ 115.74
+Reescritas de cache por causa:
+   1155×  US$    153.28  início de sessão/agente
+     78×  US$     80.28  outro (compactação, retomada, /fast)
+     10×  US$     17.06  pausa > 1 h
+     29×  US$     14.98  subagente esperou > 5 min
+Dez maiores reescritas:
+  US$   6.11     764K  13/10 05:20  opus    parado    82 min  pausa > 1 h  [5d59f17d-f074-]
+  US$   4.60     575K  09/10 11:43  opus    parado     0 min  início de sessão/agente  [5a7e70eb-8634-]
+  US$   4.43     554K  12/10 09:11  opus    parado     3 min  outro (compactação, retomada, /fast)  [31fd4882-02bd-]
+  US$   4.12     515K  12/10 09:07  opus    parado     2 min  outro (compactação, retomada, /fast)  [31fd4882-02bd-]
+  US$   3.72     465K  14/10 00:19  opus    parado    24 min  outro (compactação, retomada, /fast)  [3d7365e8-378f-]
+  US$   3.69     462K  11/10 16:11  opus    parado    63 min  pausa > 1 h  [31fd4882-02bd-]
+  US$   2.99     374K  14/10 00:18  opus    parado     3 min  outro (compactação, retomada, /fast)  [1de4e1e4-c5a8-]
+  US$   2.81     561K  12/10 16:15  opus    parado     2 min  outro (compactação, retomada, /fast)  [agent-a76fb4df]
+  US$   2.43     485K  09/10 12:27  opus    parado    34 min  subagente esperou > 5 min  [agent-af32c4fe]
+  US$   2.24     280K  13/10 19:25  opus    parado     1 min  outro (compactação, retomada, /fast)  [93abee93-086c-]
+Skills: frontend-design:frontend-design 34 · superpowers:writing-plans 13 · superpowers:subagent-driven-development 6 · workflow-authoring 4 · copiar 2 · superpowers:brainstorming 2 · frontend-design 2 · claude-in-chrome 1 · superpowers:systematic-debugging 1

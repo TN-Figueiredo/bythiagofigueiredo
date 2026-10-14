@@ -49,8 +49,8 @@ Medido em 2026-10-09 (30 dias, `python3 ~/.claude/hooks/claude-custo.py 30`): 74
 - **Subagente nunca fica parado mais de 4 min** num comando ou espera: o cache dele dura 5 min e a
   volta reescreve a janela inteira. Comando longo vai em background com saída em arquivo; se a espera
   for inevitável (CI, deploy), devolva o controle à sessão principal em vez de esperar.
-- **Modelo e effort explícitos em todo despacho:** Sonnet executa, Opus só planeja e faz a revisão
-  final de um lote; effort `high` no começo, `medium` quando as revisões voltam limpas; nunca `xhigh`/`max`.
+- **Modelo e effort explícitos em todo despacho** (hook recusa sem): Sonnet executa, inclusive conserto de spec da 2ª rodada e re-revisão de emenda; Opus só
+  no 1º rascunho de spec/plano, na 1ª revisão de Phil/Yannis/Hanna e no portão final. Effort `medium`; `high` raro e justificado; nunca `xhigh`/`max`.
 - **Relatório de subagente em até 10 linhas;** o detalhe vai para um arquivo. Brief também em arquivo.
 - **Nunca mandar "só mais uma coisa" a um agente que terminou** (recarrega o histórico dele em cache
   frio): abra um agente novo com o brief.
