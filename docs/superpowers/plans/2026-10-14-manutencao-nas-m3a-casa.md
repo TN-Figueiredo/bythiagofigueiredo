@@ -22,7 +22,7 @@
 - **Três chaves de API, sem revogar nenhuma existente:** `copiador` (`archive_copy`), `respondedor` (`archive_read`), `conferidor` (`archive_b2`) (`05` §16.4 passos 7 e 8).
 - **Healthchecks:** "Arquivo: copiador" 12 h com folga de 3 h; "Arquivo: conferência do B2" e "Arquivo: pulso", 24 h com folga de 6 h (`05` §16.4 passo 8). **Os blocos e as verificações da fila de inteligência não são tocados** (item 33).
 - **Kit:** toda mudança termina em `git -C ~/Workspace/forja/ferramentas commit -m "<tipo>: <descrição>" -- <caminhos>`, e nada vai à forja com mudança sem commit (`05` §16.5).
-- **Site:** commits no `staging`, um por tarefa, por caminho explícito (`git commit -- <caminhos>`); nunca `git add -A`, stash ou reset. Mensagem termina com `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
+- **Site:** commits no `staging`, um por tarefa, por caminho explícito (`git commit -- <caminhos>`); nunca `git add -A`, stash ou reset. **Arquivo novo:** `git add -- <caminhos>` antes do `git commit -- <caminhos>` (no site e no kit; o commit por caminho não leva arquivo não rastreado). Mensagem termina com `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
 - **Sem datas-meta;** a M3a não espera relógio nenhum (`05` §15.1).
 
 ## Review Focus

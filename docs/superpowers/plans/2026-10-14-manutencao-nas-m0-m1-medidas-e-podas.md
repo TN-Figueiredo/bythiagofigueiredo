@@ -19,7 +19,7 @@
 - Testes com banco: `describe.skipIf(skipIfNoLocalDb())`, só no `bythiago_int` (API 54421, Postgres 54422), nunca no 54321. Teste de SQL sob `// @vitest-environment node`.
 - NAS e forja: escrita é do dono, sem exceção. O agente prepara um ARQUIVO de comandos e uma linha curta que o roda, com saída em `.superpowers/sdd/manutencao-nas/saidas/`. Exceções que se colam: segredo, linha do cron por `crontab -e`, e o SQL do painel do Supabase da seção 16.2 (é o caso do `vacuum` desta etapa).
 - O sistema falha em VERDE: cada passo diz o que acontece quando o dado não existe antes de dizer o que acontece no erro.
-- TypeScript strict, sem `any`, arquivos em kebab-case. Commits `tipo: descrição`, um por tarefa, por caminho explícito (`git commit -- <caminhos>`), no `staging`. Nunca `git add -A`, `stash` ou `reset`.
+- TypeScript strict, sem `any`, arquivos em kebab-case. Commits `tipo: descrição`, um por tarefa, por caminho explícito (`git commit -- <caminhos>`), no `staging`. Nunca `git add -A`, `stash` ou `reset`. **Arquivo novo:** `git add -- <caminhos>` antes de todo `git commit -- <caminhos>` (o commit por caminho não leva arquivo não rastreado: falha com "pathspec did not match"; Yannis, revisão da M2 r2, N1).
 - `.superpowers/` não é versionada (`fila-do-db-push.md`, regras): os scripts, o ledger e as saídas desta etapa não entram em commit.
 - Sem datas-meta (D24): só relógio real (a poda só tem o que apagar quando a linha tem mais de 90 dias).
 - Prazo da poda: **90 dias** (`02` §10.3). Piso no código: a função recusa `p_dias < 90`.
