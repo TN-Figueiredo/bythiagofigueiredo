@@ -30,12 +30,11 @@ describe('A5 E10: a migration da MG6 é o ensaio versionado', () => {
     expect(readFileSync(PASTA + arquivos[0], 'utf8')).toBe(readFileSync(FIXTURE, 'utf8'))
   })
 
-  it('o carimbo da migration é maior que o de todas as outras', () => {
+  it('o carimbo da migration é posterior ao da M1 da manutenção (a última aplicada antes dela)', () => {
+    // Piso fixo, não "maior que todas": a MG15 e as seguintes nascem depois e não podem pintar este teste (Yannis 14/10, N-1).
     const arquivos = daMigration()
     if (arquivos.length === 0) return
-    const carimbo = (f: string): string => f.split('_')[0]!
-    const dela = carimbo(arquivos[0]!)
-    const outras = readdirSync(PASTA).filter(f => f.endsWith('.sql') && f !== arquivos[0]).map(carimbo)
-    for (const o of outras) expect(dela > o, `carimbo ${dela} não é posterior a ${o}`).toBe(true)
+    const dela = arquivos[0]!.split('_')[0]!
+    expect(dela > '20261014000001', `carimbo ${dela} não é posterior a 20261014000001`).toBe(true)
   })
 })
