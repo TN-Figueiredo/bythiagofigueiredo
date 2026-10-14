@@ -1,0 +1,482 @@
+{
+ "now": 1792864920000,
+ "seriesStart": 1791169200000,
+ "snap0": 1791212400000,
+ "dailyCappedFrom": null,
+ "obsStart": 1788267600000,
+ "channels": [
+  {
+   "id": "ch1",
+   "name": "Canal Um",
+   "fullName": "Canal Um",
+   "niche": "viagem",
+   "own": false,
+   "lang": "",
+   "subs": 1000,
+   "video_limit": 2,
+   "url": "https://www.youtube.com/channel/UC1",
+   "handle": "",
+   "gender": "n",
+   "color": "#E0A23C",
+   "ini": "CU",
+   "avatar": null,
+   "pinnedCount": 1,
+   "sync": {
+    "state": "ok",
+    "last": 1792857720000,
+    "next": 1792875600000,
+    "added": 1788267600000,
+    "errorSince": null,
+    "msg": null,
+    "backfill": null
+   },
+   "activity": {
+    "state": "ativo"
+   },
+   "lastIdx": 18,
+   "snapshots": [],
+   "undated": []
+  },
+  {
+   "id": "ch2",
+   "name": "Dois",
+   "fullName": "Dois",
+   "niche": "ia",
+   "own": false,
+   "lang": "",
+   "subs": 1000,
+   "video_limit": 50,
+   "url": "https://www.youtube.com/channel/UC2",
+   "handle": "",
+   "gender": "n",
+   "color": "#BE5A96",
+   "ini": "Do",
+   "avatar": null,
+   "pinnedCount": 0,
+   "sync": {
+    "state": "backfill",
+    "last": null,
+    "next": 1792875600000,
+    "added": 1788267600000,
+    "errorSince": null,
+    "msg": null,
+    "backfill": {
+     "done": 1,
+     "total": 30
+    }
+   },
+   "activity": {
+    "state": "ativo"
+   },
+   "lastIdx": null,
+   "snapshots": [],
+   "undated": []
+  },
+  {
+   "id": "ch3",
+   "name": "Três",
+   "fullName": "Três",
+   "niche": "ia",
+   "own": false,
+   "lang": "",
+   "subs": 1000,
+   "video_limit": 50,
+   "url": "https://www.youtube.com/channel/UC3",
+   "handle": "",
+   "gender": "n",
+   "color": "#78B450",
+   "ini": "Tr",
+   "avatar": null,
+   "pinnedCount": 0,
+   "sync": {
+    "state": "atrasado",
+    "last": 1792756920000,
+    "next": 1792875600000,
+    "added": 1788267600000,
+    "errorSince": null,
+    "msg": null,
+    "backfill": null
+   },
+   "activity": {
+    "state": "parado",
+    "pausedDays": 40
+   },
+   "lastIdx": 17,
+   "snapshots": [],
+   "undated": []
+  }
+ ],
+ "videos": [
+  {
+   "id": "v1",
+   "ch": "ch1",
+   "niche": "viagem",
+   "fmt": "long",
+   "isShort": false,
+   "pub": 1791637200000,
+   "ageDays": 14,
+   "tracked": true,
+   "pinned": false,
+   "checkedAt": 1792857720000,
+   "title": "I Tested 7 AI Video Tools",
+   "theme": "comida-de-rua",
+   "formulas": [
+    "numero",
+    "primeira-pessoa"
+   ],
+   "url": "https://www.youtube.com/watch?v=yt1",
+   "ytId": "yt1",
+   "dur": 600,
+   "views": 1000,
+   "viewsAt": 1792857720000,
+   "likes": 10,
+   "comments": 1,
+   "series": [
+    {
+     "idx": 15,
+     "t": 1792508400000,
+     "views": 800
+    },
+    {
+     "idx": 18,
+     "t": 1792767600000,
+     "views": 950
+    }
+   ],
+   "firstIdx": 15,
+   "titles": [
+    {
+     "id": "v1/title",
+     "first_seen": 1791637200000,
+     "last_seen": 1792864920000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "text": "I Tested 7 AI Video Tools"
+    }
+   ],
+   "thumbs": [
+    {
+     "id": "t1",
+     "first_seen": 1791644400000,
+     "last_seen": 1792857720000,
+     "current": false,
+     "prec": "first",
+     "window": null,
+     "key": "ffff0000ffff0000",
+     "art": null,
+     "blobUrl": "https://blob/a.jpg"
+    },
+    {
+     "id": "t2",
+     "first_seen": 1791817200000,
+     "last_seen": 1792857720000,
+     "current": true,
+     "prec": "6h",
+     "window": [
+      1791795600000,
+      1791817200000
+     ],
+     "key": "0000ffff0000ffff",
+     "art": null,
+     "blobUrl": "https://blob/b.jpg"
+    }
+   ],
+   "descs": [
+    {
+     "id": "d0",
+     "first_seen": 1791640800000,
+     "last_seen": 1792857720000,
+     "current": false,
+     "prec": "first",
+     "window": null,
+     "lines": null,
+     "hasText": false
+    },
+    {
+     "id": "d1",
+     "first_seen": 1791644400000,
+     "last_seen": 1792857720000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "lines": [
+      "linha 1",
+      "linha 2"
+     ],
+     "hasText": true
+    }
+   ]
+  },
+  {
+   "id": "v2",
+   "ch": "ch1",
+   "niche": "viagem",
+   "fmt": "short",
+   "isShort": true,
+   "pub": 1790859600000,
+   "ageDays": 23,
+   "tracked": true,
+   "pinned": false,
+   "checkedAt": 1792857720000,
+   "title": "Um título",
+   "theme": null,
+   "formulas": [],
+   "url": "https://www.youtube.com/shorts/yt2",
+   "ytId": "yt2",
+   "dur": 600,
+   "views": 1000,
+   "viewsAt": 1792857720000,
+   "likes": 10,
+   "comments": 1,
+   "series": [],
+   "firstIdx": null,
+   "titles": [
+    {
+     "id": "v2/title",
+     "first_seen": 1790859600000,
+     "last_seen": 1792864920000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "text": "Um título"
+    }
+   ],
+   "thumbs": [],
+   "descs": []
+  },
+  {
+   "id": "v3",
+   "ch": "ch1",
+   "niche": "viagem",
+   "fmt": "long",
+   "isShort": false,
+   "pub": 1788267600000,
+   "ageDays": 53,
+   "tracked": false,
+   "pinned": true,
+   "checkedAt": 1792857720000,
+   "pinState": "ativo",
+   "title": "Um título",
+   "theme": null,
+   "formulas": [],
+   "url": "https://www.youtube.com/watch?v=yt3",
+   "ytId": "yt3",
+   "dur": 600,
+   "views": 1000,
+   "viewsAt": 1792857720000,
+   "likes": 10,
+   "comments": 1,
+   "series": [],
+   "firstIdx": null,
+   "titles": [
+    {
+     "id": "v3/title",
+     "first_seen": 1788267600000,
+     "last_seen": 1792864920000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "text": "Um título"
+    }
+   ],
+   "thumbs": [],
+   "descs": []
+  },
+  {
+   "id": "v4",
+   "ch": "ch2",
+   "niche": "ia",
+   "fmt": "long",
+   "isShort": false,
+   "pub": 1791637200000,
+   "ageDays": 14,
+   "tracked": true,
+   "pinned": false,
+   "checkedAt": 1792857720000,
+   "title": "Um título",
+   "theme": null,
+   "formulas": [],
+   "url": "https://www.youtube.com/watch?v=yt4",
+   "ytId": "yt4",
+   "dur": 600,
+   "views": 1000,
+   "viewsAt": 1792857720000,
+   "likes": 10,
+   "comments": 1,
+   "series": [],
+   "firstIdx": null,
+   "titles": [
+    {
+     "id": "v4/title",
+     "first_seen": 1791637200000,
+     "last_seen": 1792864920000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "text": "Um título"
+    }
+   ],
+   "thumbs": [],
+   "descs": []
+  },
+  {
+   "id": "v5",
+   "ch": "ch3",
+   "niche": "ia",
+   "fmt": "long",
+   "isShort": false,
+   "pub": 1789408920000,
+   "ageDays": 40,
+   "tracked": true,
+   "pinned": false,
+   "checkedAt": 1792857720000,
+   "title": "Um título",
+   "theme": null,
+   "formulas": [],
+   "url": "https://www.youtube.com/watch?v=yt5",
+   "ytId": "yt5",
+   "dur": 600,
+   "views": 1000,
+   "viewsAt": 1792857720000,
+   "likes": 10,
+   "comments": 1,
+   "series": [],
+   "firstIdx": null,
+   "titles": [
+    {
+     "id": "v5/title",
+     "first_seen": 1789408920000,
+     "last_seen": 1792864920000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "text": "Um título"
+    }
+   ],
+   "thumbs": [],
+   "descs": []
+  },
+  {
+   "id": "v6",
+   "ch": "ch3",
+   "niche": "ia",
+   "fmt": "long",
+   "isShort": false,
+   "pub": 1723744920000,
+   "ageDays": 800,
+   "tracked": true,
+   "pinned": false,
+   "checkedAt": 1792857720000,
+   "title": "Um título",
+   "theme": null,
+   "formulas": [],
+   "url": "https://www.youtube.com/watch?v=yt6",
+   "ytId": "yt6",
+   "dur": 600,
+   "views": 5000,
+   "viewsAt": 1792857720000,
+   "likes": 10,
+   "comments": 1,
+   "series": [
+    {
+     "idx": 17,
+     "t": 1792681200000,
+     "views": 4900
+    }
+   ],
+   "firstIdx": 17,
+   "titles": [
+    {
+     "id": "v6/title",
+     "first_seen": 1723744920000,
+     "last_seen": 1792864920000,
+     "current": true,
+     "prec": "first",
+     "window": null,
+     "text": "Um título"
+    }
+   ],
+   "thumbs": [],
+   "descs": []
+  }
+ ],
+ "niches": [
+  {
+   "id": "viagem",
+   "label": "Viagem",
+   "color": {
+    "dark": "#5BBF8A",
+    "light": "#11692F"
+   },
+   "order": 10,
+   "builtin": true
+  },
+  {
+   "id": "ia",
+   "label": "IA",
+   "color": {
+    "dark": "#6EA8FE",
+    "light": "#1D4ED8"
+   },
+   "order": 20,
+   "builtin": true
+  }
+ ],
+ "sync": {
+  "last": 1792857720000,
+  "next": 1792875600000
+ },
+ "readings": [
+  {
+   "id": "r0",
+   "type": "temas",
+   "niche": "viagem",
+   "fmt": null,
+   "target": {
+    "kind": "niche",
+    "niche": "viagem"
+   },
+   "seal": "forja · Gemma 12B · temas",
+   "generatedAt": 1792432920000,
+   "model": "Gemma 12B",
+   "sent": {
+    "text": "x",
+    "asOf": 1792432920000
+   },
+   "analysis": {},
+   "text": {
+    "lead": "l",
+    "items": []
+   }
+  },
+  {
+   "id": "r1",
+   "type": "temas",
+   "niche": "viagem",
+   "fmt": null,
+   "target": {
+    "kind": "niche",
+    "niche": "viagem"
+   },
+   "seal": "forja · Gemma 12B · temas",
+   "generatedAt": 1792778520000,
+   "model": "Gemma 12B",
+   "sent": {
+    "text": "x",
+    "asOf": 1792778520000
+   },
+   "analysis": {},
+   "text": {
+    "lead": "l",
+    "items": []
+   }
+  }
+ ],
+ "requests": [],
+ "queue": {
+  "lastPollAt": null,
+  "tickMinutes": 10,
+  "capabilities": []
+ }
+}
