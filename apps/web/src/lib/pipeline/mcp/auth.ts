@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { pipelineLog } from '@/lib/pipeline/logger'
+import { resolverChave, ehDoPerfil, fraseDeVencida } from '@/lib/pipeline/chave'
 
 /**
  * MCP-authenticated service context.
@@ -12,6 +13,17 @@ export interface McpServiceContext {
   keyHash: string
   /** pipeline_api_keys.id of the key that authenticated this MCP request. */
   keyId: string
+  /** Pessoa dona da chave (E17 d2). Nula nas chaves que existem hoje e antes da MG11. */
+  userId: string | null
+  /** Validade da chave, ISO; nula = não vence. */
+  expiresAt: string | null
+  /** Nome da chave (só para registro; nunca o segredo). */
+  name: string | null
+  /**
+   * `estado === 'vencida'` do ponto único (lib/pipeline/chave.ts). A chave comum vencida já foi recusada aqui;
+   * este campo só chega `true` para a chave do perfil, cuja porta decide na ordem de 4.2 do plano da E17.
+   */
+  vencida: boolean
 }
 
 /**
@@ -48,32 +60,47 @@ export async function resolveMcpAuth(req: Request): Promise<McpServiceContext> {
   const keyHash = createHash('sha256').update(apiKey).digest('hex')
 
   const supabase = getSupabaseServiceClient()
-  const { data: keyRow } = await supabase
-    .from('pipeline_api_keys')
-    .select('id, site_id, permissions')
-    .eq('key_hash', keyHash)
-    .is('revoked_at', null)
-    .single()
+  // E17 d2: busca e validade num ponto único. A exceção da busca NÃO é apanhada: a rota responde 500, como hoje.
+  const lida = await resolverChave(supabase, keyHash, Date.now())
 
-  if (!keyRow) {
+  if (lida.estado === 'ausente' || lida.estado === 'erro') {
     pipelineLog('warn', 'mcp/auth', 'Invalid or revoked API key', { keyHash: keyHash.slice(0, 8) })
     throw new McpAuthError('Invalid or revoked API key', 401)
   }
 
-  // Touch last_used_at (fire-and-forget, non-blocking)
-  supabase
-    .from('pipeline_api_keys')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('id', keyRow.id)
-    .then(() => { /* intentional no-op */ })
+  const keyRow = lida.chave
+  const doPerfil = ehDoPerfil(keyRow.permissions)
 
-  pipelineLog('info', 'mcp/auth', 'MCP auth success', { siteId: keyRow.site_id, keyHash: keyHash.slice(0, 8) })
+  // Chave comum vencida: 401 com a data (item 236). A do perfil segue: quem decide é a porta.
+  if (lida.estado === 'vencida' && !doPerfil) {
+    pipelineLog('warn', 'mcp/auth', 'Expired API key', { keyHash: keyHash.slice(0, 8) })
+    throw new McpAuthError(fraseDeVencida(keyRow.expiresAt ?? ''), 401)
+  }
+
+  if (!doPerfil) {
+    // Touch last_used_at (fire-and-forget, non-blocking). A chave do perfil não tem last_used_at atualizado:
+    // o "último uso" dela é o registro de acesso de IA.
+    supabase
+      .from('pipeline_api_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', keyRow.id)
+      .then(() => { /* intentional no-op */ })
+
+    pipelineLog('info', 'mcp/auth', 'MCP auth success', { siteId: keyRow.siteId, keyHash: keyHash.slice(0, 8) })
+  } else {
+    // O hash não vai a log (aviso 0.3 do plano da E17).
+    pipelineLog('info', 'mcp/auth', 'MCP auth success', { siteId: keyRow.siteId })
+  }
 
   return {
-    siteId: keyRow.site_id,
+    siteId: keyRow.siteId,
     permissions: keyRow.permissions,
     keyHash,
     keyId: keyRow.id,
+    userId: keyRow.userId,
+    expiresAt: keyRow.expiresAt,
+    name: keyRow.name,
+    vencida: lida.estado === 'vencida',
   }
 }
 
