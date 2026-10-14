@@ -121,7 +121,7 @@ São 172 itens (144 a 172 são da emenda v2.2, no fim da seção: *(v2.3: hoje s
 
 **Itens gerais da v2.3** (valem para toda etapa; respondem aos itens "sem verificação possível" das duas revisões e ao achado I14 da de software).
 
-245. **Interruptores:** para cada variável da tabela "Interruptor e plano de volta" da seção 14 (`OBS_AGENDA`, `OBS_AGENDA_TASKS_OFF`, `OBS_HOURLY_RAW_PURGE`, `YT_OWN_STEPS_OFF`, `OBSERVATORIO_IA_EXTERNA`) existe um teste que **apaga** a variável e afirma o padrão escrito na tabela, e um que a põe no outro valor e afirma o efeito. Um passo desligado devolve "desligado" no retorno do cron e no vigia, nunca "ok".
+245. **Interruptores:** para cada variável da tabela "Interruptor e plano de volta" da seção 14 (`OBS_AGENDA`, `OBS_AGENDA_TASKS_OFF`, `YT_OWN_STEPS_OFF`, `OBSERVATORIO_IA_EXTERNA`) existe um teste que **apaga** a variável e afirma o padrão escrito na tabela, e um que a põe no outro valor e afirma o efeito. Um passo desligado devolve "desligado" no retorno do cron e no vigia, nunca "ok".
 246. **Conferência com data:** toda conferência do tipo "N dias depois do deploy" (itens 95, 97, 122, 139, 140, 149, 158, 172, 195, 205 e as de D+3 e D+7 da E12) é uma entrada em `lib/conferencias.ts` com identificador, etapa, **data absoluta** (preenchida no commit do deploy), responsável e a data em que foi feita. O cron diário devolve "conferências vencidas: N", com os nomes, enquanto houver entrada vencida sem a data de feita (teste com relógio falso). Sem isso, uma conferência que ninguém faz não aparece em lugar nenhum.
 247. **"Os números não mudam" (itens 9, 20 e 43) é provado sobre base congelada.** Em teste: a semente e2e (`e2e/fixtures/observatorio-seed.ts`), com os números esperados escritos no teste. Em produção: um retrato em JSON das contagens que o item cita (por canal: "Trocas N", views por dia, múltiplo, mediana), calculado com corte fixo (`snap_date <= D`, com D = véspera do deploy), gravado **antes** do deploy em `.superpowers/sdd/a5/retratos/<etapa>-antes.json` com o instante e o corte, e recalculado **depois** com o mesmo corte; os dois arquivos têm de ser iguais. O dado de produção muda 4 vezes por dia: sem o corte, o "antes" não existe.
 
@@ -408,7 +408,7 @@ Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continua
 | 5 | o primeiro disparo do cron em produção | — | na agenda, vale a regra do arranque (4.8.2) |
 | 6 | conferência: os itens NP no dia seguinte e em mais dois dias; as conferências com data, gravadas no commit do deploy (item 246) | agente; o dono, onde é comando dele | se falhar, o plano de volta da etapa (tabela abaixo) |
 
-Variável de ambiente cujo padrão é "desligado" (`OBSERVATORIO_IA_EXTERNA`, `OBS_HOURLY_RAW_PURGE`) é ligada **depois** do passo 4, pelo dono. Variável cujo padrão é "ligado" não precisa existir.
+Variável de ambiente cujo padrão é "desligado" (`OBSERVATORIO_IA_EXTERNA`) é ligada **depois** do passo 4, pelo dono. Variável cujo padrão é "ligado" não precisa existir.
 
 **Interruptor e plano de volta por etapa** (achado I14). Regra do projeto: para cada variável, um teste que **apaga** a variável e afirma o padrão (item 245).
 
@@ -421,7 +421,7 @@ Variável de ambiente cujo padrão é "desligado" (`OBSERVATORIO_IA_EXTERNA`, `O
 | E10 | nenhum; cada comando recusa sem o anterior | — | reverter | **a remoção de um canal** (só recarregando o export) |
 | E12 | a lista `REPORT_TYPES_ENABLED` (tirar um tipo é um commit) | — | reverter para de ler os tipos | **os 18 jobs criados no YouTube** continuam existindo lá |
 | E14 | `retratos_comentarios` em `OBS_AGENDA_TASKS_OFF` | coleta ligada | desligar para a coleta; **`anular_identidade` nunca desliga** | **a anulação de identidade**, por desenho |
-| E15 | `leitura_horaria` e `soma_do_mapa` em `OBS_AGENDA_TASKS_OFF`; `OBS_HOURLY_RAW_PURGE` | leitura ligada; apagamento do bruto **desligado** | desligar; a soma pode ser refeita do bruto | a hora não lida; o bruto apagado, se o apagamento for ligado |
+| E15 | `leitura_horaria` e `soma_do_mapa` em `OBS_AGENDA_TASKS_OFF` | leitura ligada; o bruto não é apagado por nenhuma rotina da A5 (pedido 5 da manutenção, 14/10) | desligar; a soma pode ser refeita do bruto | a hora não lida |
 | E16 | `OBS_AGENDA=off` | agenda ligada | a rota volta ao lote antigo, que fica no código até 14 dias limpos; **`anular_identidade` roda mesmo com a agenda desligada, e o vigia segue cobrando essa tarefa** (v2.3, 2ª passada, N4 de software; 4.8.2) | nada |
 | E17, passo 0 (MG11) **(linha nova: v2.3, 2ª passada, N8 de software)** | nenhum; sem linha em vigor em `site_private_viewers` ninguém ganha acesso | — | reverter o código devolve os leitores ao token de edição; a MG11 **fica aplicada, sem efeito**: sem concessão, `can_view_private_site` responde igual a `can_edit_site` nas doze tabelas. Para fechar o direito sem reverter: `revoked_at` nas linhas de `site_private_viewers` (ação do dono) | nada (as policies antigas só voltariam por migration nova, que não é necessária) |
 | E17, degrau 1 | nenhum | — | reverter tira o botão | o texto que já saiu do site (risco 28) |
