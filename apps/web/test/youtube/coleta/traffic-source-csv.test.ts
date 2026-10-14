@@ -7,7 +7,8 @@ import {
   CABECALHO_TRAFEGO, CsvTrafegoError, lerTrafego, normalizarDetalhe, cortarDetalhe, agregarTrafego,
 } from '@/lib/youtube/reporting/traffic-source-csv'
 
-const REAL = readFileSync(join(__dirname, 'fixtures/traffic-source-a3-real.csv'), 'utf8')
+/** Sintética, com a forma do relatório real (15 colunas, 7 linhas, origens 4, 5 e 8, detalhe mascarado com X). */
+const FORMA_REAL = readFileSync(join(__dirname, 'fixtures/traffic-source-a3-forma-real.csv'), 'utf8')
 const CAB = CABECALHO_TRAFEGO.join(',')
 const sha = (s: string) => createHash('sha256').update(s).digest('hex')
 const CANAL = 'UC' + 'a'.repeat(22)
@@ -23,16 +24,16 @@ function linha(o: { date?: string; canal?: string; video?: string; pais?: string
 const csv = (...ls: string[]) => [CAB, ...ls].join('\n') + '\n'
 
 describe('lerTrafego', () => {
-  it('o cabeçalho do arquivo real tem as 15 colunas esperadas, na ordem', () => {
+  it('o cabeçalho do arquivo de forma real tem as 15 colunas esperadas, na ordem', () => {
     expect(CABECALHO_TRAFEGO).toHaveLength(15)
-    expect(REAL.split('\n')[0]!.trim().split(',')).toEqual([...CABECALHO_TRAFEGO])
+    expect(FORMA_REAL.split('\n')[0]!.trim().split(',')).toEqual([...CABECALHO_TRAFEGO])
   })
-  it('lê o arquivo real: 7 linhas, tipos 4, 5 e 8', () => {
-    const l = lerTrafego(REAL)
+  it('lê o arquivo de forma real: 7 linhas, tipos 4, 5 e 8', () => {
+    const l = lerTrafego(FORMA_REAL)
     expect(l).toHaveLength(7)
     expect(new Set(l.map(x => x.sourceType))).toEqual(new Set(['4', '5', '8']))
-    expect(l[0]).toMatchObject({ day: '2026-09-24', videoId: 'S1iMQVIOFL4', sourceType: '4', views: 1 })
-    expect(l[0]!.watchTimeMinutes).toBeCloseTo(0.166166, 5)
+    expect(l[0]).toMatchObject({ day: '2026-09-24', videoId: 'SINTVIDEO14', sourceType: '4', views: 1 })
+    expect(l[0]!.watchTimeMinutes).toBeCloseTo(0.2326, 5)
   })
   it('só cabeçalho: lista vazia, sem erro', () => {
     expect(lerTrafego(CAB + '\n')).toEqual([])
@@ -127,8 +128,8 @@ describe('agregarTrafego', () => {
     expect(r[0]).toMatchObject({ day: '2026-09-25', videoId: 'vid00000001', sourceType: '5', views: 5 })
     expect(r[0]!.watchTimeMinutes).toBeCloseTo(1.5, 10)
   })
-  it('o arquivo real agrega em 7 linhas distintas, sem zeradas', () => {
-    const r = agregarTrafego(lerTrafego(REAL))
+  it('o arquivo de forma real agrega em 7 linhas distintas, sem zeradas', () => {
+    const r = agregarTrafego(lerTrafego(FORMA_REAL))
     expect(r.linhas).toHaveLength(7)
     expect(r.descartadasZeradas).toBe(0)
   })

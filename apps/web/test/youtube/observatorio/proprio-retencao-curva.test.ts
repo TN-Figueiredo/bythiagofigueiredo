@@ -378,7 +378,7 @@ describe('lerCurva: relativa', () => {
   })
 })
 
-describe('lerCurva: curva real da C0.1 (canal do próprio dono)', () => {
+describe('lerCurva: curva sintética com a forma da resposta real da C0.1', () => {
   const fx = JSON.parse(
     readFileSync(join(__dirname, '..', 'coleta', 'fixtures', 'retencao', 'c01-vida-so2.json'), 'utf8'),
   ) as { resposta: { rows: number[][] } }
@@ -390,8 +390,8 @@ describe('lerCurva: curva real da C0.1 (canal do próprio dono)', () => {
     expect(l.completa).toBe(true)
   })
 
-  it('meio: o quarto ponto (t 0,04, ratio 0,4513), conferido à mão', () => {
-    expect(pontos[3]).toEqual({ t: 0.04, ratio: 0.45130000000000003, relative: 0.56705 })
+  it('meio: o quarto ponto (t 0,04, ratio 0,4388), conferido à mão', () => {
+    expect(pontos[3]).toEqual({ t: 0.04, ratio: 0.4388, relative: 0.5804 })
     expect(pontos[2]!.ratio).toBeGreaterThanOrEqual(0.5)
     expect(completa(lerCurva(pontos)).meio).toEqual({ tipo: 'cruza', t: 0.04 })
   })
@@ -399,7 +399,7 @@ describe('lerCurva: curva real da C0.1 (canal do próprio dono)', () => {
   it('maiores saídas: as duas, nas posições conferidas à mão (queda de 5 pontos)', () => {
     const l = completa(lerCurva(pontos))
     expect(l.saidas).toHaveLength(2)
-    // maior queda em 5 pontos: do 1.º ao 6.º (0,9735 -> 0,3940) = 0,5795
+    // maior queda em 5 pontos: do 1.º ao 6.º (0,9412 -> 0,3611) = 0,5801
     expect(l.saidas[0]).toEqual({ de: 0.01, ate: 0.06, ratioDe: pontos[0]!.ratio, ratioAte: pontos[5]!.ratio })
     // a seguinte a mais de 12 pontos de distância
     expect(l.saidas[1]!.de - l.saidas[0]!.de).toBeGreaterThan(0.12)
@@ -407,15 +407,15 @@ describe('lerCurva: curva real da C0.1 (canal do próprio dono)', () => {
 
   it('pico é o primeiro ponto; relativa lida; nada não finito', () => {
     const l = completa(lerCurva(pontos))
-    expect(l.pico).toBeCloseTo(0.9735, 9)
+    expect(l.pico).toBeCloseTo(0.9412, 9)
     expect(l.relativa).not.toBeNull()
     expect(l.revistos.length).toBeLessThanOrEqual(3)
     expect(JSON.stringify(l)).not.toMatch(/NaN|Infinity|null.*undefined/)
   })
 
-  // Conserto da revisão (I-2): a mesma curva real, mas só o trecho final. A inteira cruza 50% em 0,04; o trecho final, lido como se
-  // fosse a curva toda, diria 0,64 (e pico 0,17, saídas em 0,78 a 0,83): afirmações sobre o que não foi medido.
-  it('SÓ OS ÚLTIMOS 37 PONTOS da curva real: incompleta, meio indeterminado (não 0,64), sem pico, saídas nem revistos', () => {
+  // Conserto da revisão (I-2): a mesma curva, mas só o trecho final. A inteira cruza 50% em 0,04; o trecho final, lido como se
+  // fosse a curva toda, diria 0,64 (e pico 0,17, e saídas que não são as da curva toda): afirmações sobre o que não foi medido.
+  it('SÓ OS ÚLTIMOS 37 PONTOS da curva: incompleta, meio indeterminado (não 0,64), sem pico, saídas nem revistos', () => {
     const final = pontos.slice(63)
     expect(final).toHaveLength(37)
     expect(final[0]!.t).toBe(0.64)

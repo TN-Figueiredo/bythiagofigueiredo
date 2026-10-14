@@ -1,5 +1,5 @@
 {
- "chamada": "https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3D<canal>&startDate=2026-09-15&endDate=2026-10-13&metrics=audienceWatchRatio%2CrelativeRetentionPerformance%2CstartedWatching%2CstoppedWatching%2CtotalSegmentImpressions&dimensions=elapsedVideoTimeRatio&filters=video%3D%3DyJl_YzInZ3U%3BaudienceType%3D%3DORGANIC",
+ "chamada": "https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3D<canal>&startDate=2026-09-15&endDate=2026-10-13&metrics=audienceWatchRatio%2CrelativeRetentionPerformance%2CstartedWatching%2CstoppedWatching%2CtotalSegmentImpressions&dimensions=elapsedVideoTimeRatio&filters=video%3D%3DSINTVIDEO32%3BaudienceType%3D%3DORGANIC",
  "status": 200,
  "resposta": {
   "kind": "youtubeAnalytics#resultTable",

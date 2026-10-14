@@ -19,10 +19,10 @@ import { fakeSupabase, type FakeDb, type FakeErr, type Row } from './fake-supaba
 const AGORA = new Date('2026-10-13T12:00:00.000Z')
 const SENTINELA = 'zz-sentinela-e11'
 const fixture = (nome: string) => readFileSync(join(__dirname, 'fixtures', nome), 'utf8')
-const TRAFEGO_REAL = fixture('traffic-source-a3-real.csv')
+const TRAFEGO_FORMA_REAL = fixture('traffic-source-a3-forma-real.csv')
 const ALCANCE_SINT = fixture('reach-combined-a1-sintetico.csv')
 
-const UC = 'UCRHtzTwaEpcjspAS2hbqmrA'
+const UC = 'UCsintetico0000000000000'
 const UC_FAKE = 'UCfake00000000000000000A'
 const UC_OUTRO = 'UCOutroCanal00000000000A'
 const TIPO_T = 'channel_traffic_source_a3'
@@ -31,7 +31,7 @@ const TIPO_A = 'channel_reach_combined_a1'
 const START_TRAFEGO = '2026-09-25T07:00:00.000Z'
 const START_ALCANCE = '2026-09-30T07:00:00.000Z'
 const CREATE = '2026-10-01T10:00:00.000Z'
-const S1 = 'S1iMQVIOFL4'
+const S1 = 'SINTVIDEO14'
 
 const gz = (csv: string) => paraBytea(gzipSync(Buffer.from(csv)))
 const canal = { id: 'ch-1', channel_id: UC, site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 35 }
@@ -39,7 +39,7 @@ const canalFake = { ...canal, id: 'ch-2', channel_id: UC_FAKE, name: 'Canal Dois
 
 const linhasDoDia = (csv: string, dia: string): string =>
   csv.split('\n').filter((l, i) => i === 0 || l.startsWith(dia)).join('\n') + '\n'
-const T_25 = linhasDoDia(TRAFEGO_REAL, '20260925')
+const T_25 = linhasDoDia(TRAFEGO_FORMA_REAL, '20260925')
 const CAB_T = CABECALHO_TRAFEGO.join(',')
 const CAB_A = CABECALHO_ALCANCE_COMBINADO.join(',')
 
@@ -99,7 +99,7 @@ function comApplyE11(db: FakeDb): FakeDb {
 const banco = (reports: Row[], blobs: Row[], extra: Record<string, Row[]> = {}): FakeDb =>
   comApplyE11(fakeSupabase({
     yt_reporting_reports: reports, yt_reporting_report_blobs: blobs,
-    youtube_videos: [...videos(['S1iMQVIOFL4', 'r_3QZBKHqU8', 'yJl_YzInZ3U', 'VIDEO000001', 'VIDEO000002']), ...videos(['VIDEOFAKE01', 'VIDEOFAKE02', 'VIDEOFAKE03', 'VIDEOFAKE04', 'VIDEOFAKE05'], 'ch-2')],
+    youtube_videos: [...videos(['SINTVIDEO14', 'SINTVIDEO30', 'SINTVIDEO32', 'VIDEO000001', 'VIDEO000002']), ...videos(['VIDEOFAKE01', 'VIDEOFAKE02', 'VIDEOFAKE03', 'VIDEOFAKE04', 'VIDEOFAKE05'], 'ch-2')],
     ...extra,
   }))
 const ctxDe = (db: FakeDb, prazoMs = 60_000, canais = [{ ...canal }, { ...canalFake }]): StepCtx => ({
@@ -179,7 +179,7 @@ describe('passoNormalizadores', () => {
     expect(linhasT).toHaveLength(3)
     const s1 = linhasT.find(l => l.youtube_video_id === S1)!
     expect(s1).toMatchObject({
-      video_id: 'v-S1iMQVIOFL4', day_pt: '2026-09-25', source_type: '4', detail: 'XXXXXXXXXXXX', views: 1,
+      video_id: 'v-SINTVIDEO14', day_pt: '2026-09-25', source_type: '4', detail: 'XXXXXXXXXXXX', views: 1,
       metric_version: 'views_desde_2026-08-27',
     })
     expect(s1.detail_hash).toBe(createHash('sha256').update('XXXXXXXXXXXX').digest('hex'))
@@ -396,7 +396,7 @@ describe('passoNormalizadores', () => {
     const c = aplicacoes(db)[0]!
     const linhas = c.args.p_rows as Row[]
     expect(linhas.find(l => l.youtube_video_id === 'zzzzzzzzzza')).not.toHaveProperty('video_id')
-    expect(linhas.find(l => l.youtube_video_id === S1)!.video_id).toBe('v-S1iMQVIOFL4')
+    expect(linhas.find(l => l.youtube_video_id === S1)!.video_id).toBe('v-SINTVIDEO14')
     expect(c.args.p_unmatched).toEqual({ count: 2, ids: ['zzzzzzzzzza', 'zzzzzzzzzzb'] })
     expect(resumo.por_tipo.detalhe.sem_par).toBe(2)
   })
@@ -408,7 +408,7 @@ describe('passoNormalizadores', () => {
       { video: 'VIDEOFAKE03', aparelho: '555', imp: 5 },
       { video: 'VIDEOFAKE04', imp: 5 },
     ])
-    const csvT = csvTrafego([{ video: S1, origem: '77', detalhe: 'XX', views: 1 }, { video: 'r_3QZBKHqU8', origem: '4', detalhe: 'XX', views: 1 }])
+    const csvT = csvTrafego([{ video: S1, origem: '77', detalhe: 'XX', views: 1 }, { video: 'SINTVIDEO30', origem: '4', detalhe: 'XX', views: 1 }])
     const db = banco([relA('a1'), rel('t1')], [blob('a1', csv), blob('t1', csvT)])
     const resumo = await passoNormalizadores(ctxDe(db))
     const linhasA = aplicacoes(db, 'yt_own_reach_dim_apply')[0]!.args.p_rows as Row[]

@@ -1,8 +1,0 @@
-date,channel_id,video_id,live_or_on_demand,subscribed_status,country_code,traffic_source_type,traffic_source_detail,views,engaged_views,watch_time_minutes,average_view_duration_seconds,average_view_duration_percentage,red_views,red_watch_time_minutes
-20260924,UCRHtzTwaEpcjspAS2hbqmrA,S1iMQVIOFL4,on_demand,not_subscribed,VN,4,XXXXXXXXXXXX,1,1,0.16616666666666666,9.97,0.41593658740091782,0,0
-20260924,UCRHtzTwaEpcjspAS2hbqmrA,S1iMQVIOFL4,on_demand,not_subscribed,BR,8,XXXXXXX,1,1,0.32368333333333332,19.421,0.81022110972048389,0,0
-20260919,UCRHtzTwaEpcjspAS2hbqmrA,qIg9a7vqcNo,on_demand,not_subscribed,BR,5,,1,0,0.12666666666666668,0,0,0,0
-20260915,UCRHtzTwaEpcjspAS2hbqmrA,q57zkJR-kMo,on_demand,not_subscribed,BR,5,,1,0,0.026666666666666668,0,0,0,0
-20260925,UCRHtzTwaEpcjspAS2hbqmrA,r_3QZBKHqU8,on_demand,not_subscribed,VN,4,XXXXXXXXXXXX,1,1,0.11678333333333334,7.007,0.57765869744435283,0,0
-20260925,UCRHtzTwaEpcjspAS2hbqmrA,yJl_YzInZ3U,on_demand,not_subscribed,VN,4,XXXXXXXXXXXX,1,0,0.11391666666666667,0,0,0,0
-20260925,UCRHtzTwaEpcjspAS2hbqmrA,S1iMQVIOFL4,on_demand,not_subscribed,VN,4,XXXXXXXXXXXX,1,1,0.26983333333333331,16.19,0.67542761785565286,0,0

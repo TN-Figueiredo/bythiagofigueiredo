@@ -71,10 +71,10 @@ const curva = (n = 100) => ({
   rows: Array.from({ length: n }, (_, k) => [(k + 1) / n, 1 - k / (2 * n), 0.5, 100 + k]),
 })
 const fixture = (nome: string): unknown => (JSON.parse(readFileSync(FIXTURES + nome, 'utf8')) as { resposta: unknown }).resposta
-/** A resposta real da C0.1 para "vida" sem a quarta métrica: 100 pontos, 2 métricas. */
-const VIDA_REAL = fixture('c01-vida-so2.json')
-/** A resposta real da C0.1 de um vídeo sem curva: cabeçalho completo e `rows: []`. */
-const VAZIA_REAL = fixture('c01-28d.json')
+/** Fixture SINTÉTICA com a forma da resposta da C0.1 para "vida" sem a quarta métrica: 100 pontos, 2 métricas. */
+const VIDA_FORMA_REAL = fixture('c01-vida-so2.json')
+/** Fixture SINTÉTICA com a forma da resposta da C0.1 de um vídeo sem curva: cabeçalho completo e `rows: []`. */
+const VAZIA_FORMA_REAL = fixture('c01-28d.json')
 
 type Resp = Response | Error | (() => Response | Error)
 let chamadasYt: Array<{ video: string; auth: string | null; inicio: string | null; fim: string | null }> = []
@@ -306,9 +306,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E8 (9b): o passo e o alarme da retenção
       expect(aut[0]!.authorization_verified_at).not.toBeNull()
     })
 
-    it('a resposta REAL da C0.1 (vida, 2 métricas, 100 pontos) grava com 2 métricas', async () => {
+    it('a resposta de FORMA REAL da C0.1 (vida, 2 métricas, 100 pontos) grava com 2 métricas', async () => {
       const c = await cenario(); const v = await vivo(c)
-      instalarYt({}, () => json(VIDA_REAL))
+      instalarYt({}, () => json(VIDA_FORMA_REAL))
       const { r, ctx } = await passo(c)
       expect(ctx.falhas).toEqual([])
       expect(r.gravados).toBe(1)
@@ -408,9 +408,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E8 (9b): o passo e o alarme da retenção
       expect(await vidaDe(v)).toHaveLength(2)
     })
 
-    it('curva vazia (`rows: []`, a resposta real da C0.1) é leitura FEITA: `sem_dado_na_janela`, 0 linhas, e o vídeo não volta a ser devido no mesmo ciclo (b)', async () => {
+    it('curva vazia (`rows: []`, a forma da resposta real da C0.1) é leitura FEITA: `sem_dado_na_janela`, 0 linhas, e o vídeo não volta a ser devido no mesmo ciclo (b)', async () => {
       const c = await cenario(); const v = await vivo(c)
-      instalarYt({}, () => json(VAZIA_REAL))
+      instalarYt({}, () => json(VAZIA_FORMA_REAL))
       const { r, ctx } = await passo(c)
       expect(ctx.falhas).toEqual([])
       expect(r).toMatchObject({ vazios: 1, gravados: 0, chamadas: 1 })

@@ -1,0 +1,8 @@
+date,channel_id,video_id,live_or_on_demand,subscribed_status,country_code,traffic_source_type,traffic_source_detail,views,engaged_views,watch_time_minutes,average_view_duration_seconds,average_view_duration_percentage,red_views,red_watch_time_minutes
+20260924,UCsintetico0000000000000,SINTVIDEO14,on_demand,not_subscribed,PT,4,XXXXXXXXXXXX,1,1,0.2326,13.956,0.33796064184,0,0
+20260924,UCsintetico0000000000000,SINTVIDEO14,on_demand,not_subscribed,MX,8,XXXXXXX,1,1,0.6919166666666666,41.515,0.7889416662,0,0
+20260919,UCsintetico0000000000000,SINTVIDEO29,on_demand,not_subscribed,MX,5,,2,0,0.25046666666666667,0,0,0,0
+20260915,UCsintetico0000000000000,SINTVIDEO28,on_demand,not_subscribed,MX,5,,3,0,2.24505,0,0,0,0
+20260925,UCsintetico0000000000000,SINTVIDEO30,on_demand,not_subscribed,PT,4,XXXXXXXXXXXX,1,1,0.7399833333333333,44.399,0.40760161882,0,0
+20260925,UCsintetico0000000000000,SINTVIDEO32,on_demand,not_subscribed,PT,4,XXXXXXXXXXXX,2,0,0.2509,0,0,0,0
+20260925,UCsintetico0000000000000,SINTVIDEO14,on_demand,not_subscribed,PT,4,XXXXXXXXXXXX,1,1,0.29146666666666665,17.488,0.5504545583,0,0

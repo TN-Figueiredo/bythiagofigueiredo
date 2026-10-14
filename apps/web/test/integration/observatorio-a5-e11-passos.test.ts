@@ -147,13 +147,13 @@ const csvTrafego = (uc: string, dia: string, linhas: Array<{ video: string; orig
   [CAB_T, ...linhas.map(l => [ymd(dia), uc, l.video, 'on_demand', 'not_subscribed', 'BR', l.origem ?? '4', l.detalhe ?? '', l.views, l.views, l.min ?? 1.5, 0, 0, 0, 0].join(','))].join('\n') + '\n'
 const csvAlcance = (uc: string, dia: string, linhas: Array<{ video: string; imp: number; ctr?: string; aparelho?: string; so?: string; origem?: string }>): string =>
   [CAB_A, ...linhas.map(l => [ymd(dia), uc, l.video, l.aparelho ?? '101', l.so ?? '9', l.origem ?? '4', 'XXXX', l.imp, l.ctr ?? '0.1'].join(','))].join('\n') + '\n'
-const realTrafego = readFileSync(`${FIXTURES}traffic-source-a3-real.csv`, 'utf8')
-const realAlcance = readFileSync(`${FIXTURES}reach-combined-a1-real.csv`, 'utf8')
-const UC_REAL = 'UCRHtzTwaEpcjspAS2hbqmrA'
+const formaRealTrafego = readFileSync(`${FIXTURES}traffic-source-a3-forma-real.csv`, 'utf8')
+const formaRealAlcance = readFileSync(`${FIXTURES}reach-combined-a1-forma-real.csv`, 'utf8')
+const UC_FORMA_REAL = 'UCsintetico0000000000000'
 const linhasDoDia = (csv: string, dia: string): string => csv.split('\n').filter((l, i) => i === 0 || l.startsWith(dia)).join('\n') + '\n'
 /**
  * O id de vídeo do YouTube é único no mundo (a chave das tabelas é global, sem site): dois testes não podem reusar os ids do arquivo
- * real. Cada teste troca a coluna `video_id` (a terceira) por ids próprios; `S1iMQVIOFL4` vira `mapa.get('S1iMQVIOFL4')`.
+ * de forma real. Cada teste troca a coluna `video_id` (a terceira) por ids próprios; `SINTVIDEO14` vira `mapa.get('SINTVIDEO14')`.
  */
 function comVideosProprios(csv: string): { csv: string; mapa: Map<string, string> } {
   const mapa = new Map<string, string>()
@@ -457,15 +457,15 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
 
     it('gravação esparsa (item 85): linha com todas as métricas zeradas ou nulas, nas três tabelas e do site do teste, = 0 (a API devolve linha de zeros; o CSV também)', async () => {
       const desde = p(-12)
-      const { c, vids } = await canalComBase(1, desde, p(-1), UC_REAL)
+      const { c, vids } = await canalComBase(1, desde, p(-1), UC_FORMA_REAL)
       const [v] = vids as [Vid]
       await diario(c, v, [[p(-6), 9]])
       instalarApi({ views: { [v.yt]: { [p(-6)]: 9 } }, zeros: true })
       const d1 = await dim(c, { desde })
       expect(d1.ctx.falhas).toEqual([])
       const dia = p(-5)
-      await relatorio(c, { tipo: TIPO_DETALHE, dia, csv: csvTrafego(UC_REAL, dia, [{ video: v.yt, origem: '4', detalhe: 'termo', views: 5 }, { video: v.yt, origem: '3', views: 0, min: 0 }]) })
-      await relatorio(c, { tipo: TIPO_ALCANCE, dia, csv: csvAlcance(UC_REAL, dia, [{ video: v.yt, imp: 50 }, { video: v.yt, imp: 0, aparelho: '102' }]) })
+      await relatorio(c, { tipo: TIPO_DETALHE, dia, csv: csvTrafego(UC_FORMA_REAL, dia, [{ video: v.yt, origem: '4', detalhe: 'termo', views: 5 }, { video: v.yt, origem: '3', views: 0, min: 0 }]) })
+      await relatorio(c, { tipo: TIPO_ALCANCE, dia, csv: csvAlcance(UC_FORMA_REAL, dia, [{ video: v.yt, imp: 50 }, { video: v.yt, imp: 0, aparelho: '102' }]) })
       const nr = await norm(c)
       expect(nr.falhas).toEqual([])
       expect(nr.r.por_tipo.detalhe.descartadas_zeradas + nr.r.por_tipo.alcance_dim.descartadas_zeradas).toBeGreaterThanOrEqual(2)
@@ -481,14 +481,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
 
   // ═════════════════════════ B. o passo "normalizadores" ═════════════════════════
   describe('passo normalizadores', () => {
-    it('normaliza a fila semeada com os brutos reais e zera os pendentes (item 84: a consulta C1 dá 0)', async () => {
-      const c = await cenario(UC_REAL)
-      const realT = comVideosProprios(linhasDoDia(realTrafego, '20260925'))
-      const realA = comVideosProprios(realAlcance)
-      const pareado = await video(c, { yt: realT.mapa.get('S1iMQVIOFL4')! })
+    it('normaliza a fila semeada com os brutos de forma real (sintéticos) e zera os pendentes (item 84: a consulta C1 dá 0)', async () => {
+      const c = await cenario(UC_FORMA_REAL)
+      const formaT = comVideosProprios(linhasDoDia(formaRealTrafego, '20260925'))
+      const formaA = comVideosProprios(formaRealAlcance)
+      const pareado = await video(c, { yt: formaT.mapa.get('SINTVIDEO14')! })
       const baixado = `${utcDay(new Date(Date.now() - 3 * 86_400_000))}T01:00:00Z`
-      const csvT = realT.csv
-      const csvA = realA.csv
+      const csvT = formaT.csv
+      const csvA = formaA.csv
       const rT = await relatorio(c, { tipo: TIPO_DETALHE, dia: '2026-09-25', csv: csvT, criado: baixado })
       const rA = await relatorio(c, { tipo: TIPO_ALCANCE, dia: '2026-09-30', csv: csvA, criado: baixado })
       expect(await prova(c, HOJE, p(-30))).toMatchObject({ pendentes_normalizar: 2 })
@@ -519,10 +519,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
     })
 
     it('reexecução do passo no mesmo dia (idempotência): fila vazia, mesmas linhas, soma de views não dobra; refazer a fila (normalized_at nulo) dá o mesmo estado', async () => {
-      const c = await cenario(UC_REAL)
-      const realT = comVideosProprios(linhasDoDia(realTrafego, '20260925'))
-      await video(c, { yt: realT.mapa.get('S1iMQVIOFL4')! })
-      const rT = await relatorio(c, { tipo: TIPO_DETALHE, dia: '2026-09-25', csv: realT.csv })
+      const c = await cenario(UC_FORMA_REAL)
+      const formaT = comVideosProprios(linhasDoDia(formaRealTrafego, '20260925'))
+      await video(c, { yt: formaT.mapa.get('SINTVIDEO14')! })
+      const rT = await relatorio(c, { tipo: TIPO_DETALHE, dia: '2026-09-25', csv: formaT.csv })
       const foto = async () => (await detalheDe(c)).map(l => JSON.stringify(l))
       const soma = (): Promise<number> => n('select coalesce(sum(views),0) as n from public.yt_own_video_traffic_detail_daily where channel_id = $1', [c.canal])
       const a = await norm(c)

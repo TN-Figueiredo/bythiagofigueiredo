@@ -20,7 +20,7 @@ interface Corpo {
   rows?: unknown[][]
 }
 
-// Cópias das fixtures reais da conferência C0.1: 100 pontos com 2 métricas, e uma janela recente vazia com as 3 + 2.
+// Fixtures SINTÉTICAS com a forma das respostas da conferência C0.1: 100 pontos com 2 métricas, e uma janela recente vazia com as 3 + 2.
 const VIDA = fixture('c01-vida-so2.json')
 const VAZIA = fixture('c01-28d.json')
 
@@ -66,11 +66,11 @@ describe('catálogo', () => {
 })
 
 describe('retencaoDoVideo: o que a API devolve', () => {
-  it('resposta real de 100 pontos: 100 pontos em ordem, primeiro t 0.01, último t 1', async () => {
+  it('resposta de forma real de 100 pontos: 100 pontos em ordem, primeiro t 0.01, último t 1', async () => {
     const f = fetchCom(resp(VIDA))
     const r = await retencaoDoVideo(base(f))
     expect(r.pontos).toHaveLength(100)
-    expect(r.pontos[0]).toEqual({ t: 0.01, ratio: 0.9734999999999999, relative: 0.54915, segment_impressions: null })
+    expect(r.pontos[0]).toEqual({ t: 0.01, ratio: 0.9412, relative: 0.5823, segment_impressions: null })
     expect(r.pontos[99]!.t).toBe(1)
     const ts = r.pontos.map(p => p.t)
     expect(ts).toEqual([...ts].sort((a, b) => a - b))
@@ -78,12 +78,12 @@ describe('retencaoDoVideo: o que a API devolve', () => {
     expect(r.metricas).toEqual(['audienceWatchRatio', 'relativeRetentionPerformance'])
   })
 
-  it('resposta real vazia (rows: []): pontos [], sem erro, com as 3 métricas do cabeçalho', async () => {
+  it('resposta de forma real vazia (rows: []): pontos [], sem erro, com as 3 métricas do cabeçalho', async () => {
     const f = fetchCom(resp(VAZIA))
     const r = await retencaoDoVideo(base(f))
     expect(r.pontos).toEqual([])
     expect(r.chamadas).toBe(1)
-    // O cabeçalho real traz também startedWatching e stoppedWatching: não são métricas nossas.
+    // O cabeçalho da resposta real traz também startedWatching e stoppedWatching: não são métricas nossas.
     expect(r.metricas).toEqual(['audienceWatchRatio', 'relativeRetentionPerformance', 'totalSegmentImpressions'])
   })
 
