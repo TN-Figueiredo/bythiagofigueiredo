@@ -11,7 +11,8 @@
  *  - taxa de clique: intervalo de Wilson, veredito só quando as faixas se separam; nunca "capa boa" nem "capa ruim", nunca cor de direção;
  *  - % assistido: o número real, mesmo acima de 100; abaixo de 10 views não compara; "na média" é até 2 pontos (`contraNormal`, a função única); o normal é a
  *    mediana do CANAL (os outros vídeos com views, mínimo de 5), não a da faixa de duração (a faixa é da aba Retenção do canal);
- *  - nada de troca de título/thumbnail e nada de curva de retenção com dado (A5): só os estados "ainda não coletado" e "ainda não registrado".
+ *  - retenção (A5 E8, Tarefa 13): cinco estados (coletada, sem-curva, nao-coletada, erro, negado) em `retencao-curva-model.ts`; sem a prova de acesso
+ *    o modelo não carrega ponto, data nem número da curva. Nada de troca de título/thumbnail: ainda não registradas.
  */
 import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
@@ -26,6 +27,7 @@ import type { DadosDoVideo } from './dados'
 import { cliquesTexto, lerEstado } from './header-model'
 import { buildImpressoes, int, SEM_RELATORIO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
 import { buildReguas, type DiarioReguas, type ReguasView } from './reguas-model'
+import { buildRetencaoView, type RetencaoView } from './retencao-curva-model'
 import { buildTaxaFaixa, type TaxaFaixaView } from './taxa-faixa-model'
 import { canalProprioDoVideo } from './video-model'
 import { durText } from './formato'
@@ -85,7 +87,8 @@ export interface BlocoAssistido {
   metodo: string[]
 }
 
-export interface BlocoRetencao { frase: string; metodo: string[] }
+/** A seção "Retenção": os cinco estados e o desenho da curva (`retencao-curva-model.ts`). */
+export type BlocoRetencao = RetencaoView
 
 export interface ForjaIndisponivelView {
   titulo: string
@@ -305,16 +308,7 @@ function assistidoDe(
   return { ...base, normalPct: normal, normalTexto, marcaPct, rotuloAncora, contra, direcao: c.leitura }
 }
 
-/* ---------------------------------------------------------------- retenção, forja, o que falta */
-
-const RETENCAO: BlocoRetencao = {
-  frase: 'Ainda não coletamos esta curva. Quando coletarmos, esta seção mostra onde as pessoas saem do vídeo e onde voltam.',
-  metodo: [
-    'Curva: a parte do público que ainda está assistindo em cada ponto do vídeo, da publicação até a coleta. Vem de uma consulta do YouTube Analytics por posição no vídeo.',
-    'Janela: a curva é da vida inteira do vídeo; o % assistido da seção anterior é dos últimos dias. As janelas são diferentes.',
-    'Acima de 100%: trecho que muita gente voltou para rever.',
-  ],
-}
+/* ---------------------------------------------------------------- forja, o que falta (a retenção é de retencao-curva-model.ts) */
 
 const FORJA: ForjaIndisponivelView = {
   titulo: 'Leitura da forja',
@@ -370,7 +364,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const dated = obs.video(videoId)
   const pubDia: DiaYt | null = dated ? dayPt(new Date(dated.pub)) : null
   const hrefs = { vistos: link.canal(ch.id, { sort: 'vistos', video: videoId }), imp: link.canal(ch.id, { sort: 'imp', video: videoId }) }
-  const fixos = { retencao: RETENCAO, forja: FORJA, ainda: AINDA }
+  const fixos = { forja: FORJA, ainda: AINDA }
 
   /* sem acesso ao dado privado: só a parte pública das réguas, e nenhuma conta com número privado */
   if (a.dados.acesso !== 'ok') {
@@ -381,6 +375,8 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     })
     return {
       acesso: negado ? 'negado' : 'erro', nota: negado ? NOTA_NEGADO : NOTA_ERRO, views: null, impressoes: null, assistido: null,
+      // sem acesso ao dado privado: nenhum ponto, data ou número da curva (o estado diz só quem vê)
+      retencao: buildRetencaoView({ retencao: { acesso: negado ? 'negado' : 'erro' }, duracaoSeg: este.dur, dm }),
       canal: { reguas, notaDiario: negado ? NOTA_DIARIO_NEGADO : NOTA_DIARIO_ERRO }, ...fixos,
     }
   }
@@ -456,6 +452,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     ...(diarioReguas ? { diario: diarioReguas } : {}),
   })
 
-  return { acesso: 'ok', nota: null, views, impressoes, assistido, canal: { reguas, notaDiario }, ...fixos }
+  const retencao = buildRetencaoView({ retencao: a.dados.dado.retencao, duracaoSeg: este.dur, dm })
+  return { acesso: 'ok', nota: null, views, impressoes, assistido, retencao, canal: { reguas, notaDiario }, ...fixos }
 }
 
