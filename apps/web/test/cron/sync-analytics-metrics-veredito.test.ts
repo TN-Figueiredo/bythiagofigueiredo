@@ -15,14 +15,6 @@ vi.mock('@/lib/social/token-refresh', async (orig) => ({
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
-vi.mock('@/lib/youtube/analytics-sync', async (orig) => ({
-  ...(await orig<typeof import('@/lib/youtube/analytics-sync')>()),
-  detectViral: vi.fn(() => false),
-}))
-vi.mock('@/lib/youtube/ab-fatigue', async (orig) => ({
-  ...(await orig<typeof import('@/lib/youtube/ab-fatigue')>()),
-  detectFatigue: vi.fn(() => null),
-}))
 // O guarda ehMetadadosAntes é o de verdade: a rota decide com ele o que repassa à fase 'depois'.
 vi.mock('@/lib/youtube/coleta', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/coleta')>()),
@@ -35,8 +27,6 @@ import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-re
 import * as Sentry from '@sentry/nextjs'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
-import { detectViral } from '@/lib/youtube/analytics-sync'
-import { detectFatigue } from '@/lib/youtube/ab-fatigue'
 import { rodarColeta } from '@/lib/youtube/coleta'
 import { addDays, dayPt, ontemPt } from '@/lib/youtube/coleta/day-pt'
 import { CHAVES_UNICAS_L1A, comE11Padrao, fakeSupabase, type FakeDb, type Row } from '../youtube/coleta/fake-supabase'
@@ -44,7 +34,7 @@ import { CHAVES_UNICAS_L1A, comE11Padrao, fakeSupabase, type FakeDb, type Row } 
 // Publicado há muito tempo: fica fora das janelas de marco (24h/48h/7d/30d).
 const PUBLICADO = new Date(Date.now() - 400 * 86_400_000).toISOString()
 const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', subscriber_count: 1000, name: 'Canal Um', sync_enabled: true }
-const video = { id: 'v-1', youtube_video_id: 'yt-1', channel_id: 'ch-1', site_id: 'site-1', title: 'Vídeo', view_count: 500, view_count_yesterday: 10, view_count_delta_today: 5, published_at: PUBLICADO }
+const video = { id: 'v-1', youtube_video_id: 'yt-1', channel_id: 'ch-1', site_id: 'site-1', title: 'Vídeo', view_count: 500, published_at: PUBLICADO }
 const canal2 = { ...canal, id: 'ch-2', channel_id: 'UC2', name: 'Canal Dois' }
 const video2 = { ...video, id: 'v-2', youtube_video_id: 'yt-2', channel_id: 'ch-1' }
 const video3 = { ...video, id: 'v-3', youtube_video_id: 'yt-3', channel_id: 'ch-2' }
@@ -67,8 +57,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'tok', connectionId: 'c1' } as never)
   vi.mocked(rodarColeta).mockImplementation(coletaLimpa)
-  vi.mocked(detectViral).mockReturnValue(false)
-  vi.mocked(detectFatigue).mockReturnValue(null)
   vi.mocked(fanOutToSiteAdmins).mockResolvedValue(1)
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(relatorio([['yt-1', 120, 30, 45, 5, 2, 1, 0]])))
 })
@@ -88,7 +76,7 @@ describe('sync-analytics-metrics: veredito único', () => {
     const res = await GET(pedido() as never)
     const body = await res.json()
     expect(res.status).toBe(200)
-    expect(body).toMatchObject({ synced: 1, errors: 0, emptyReports: 0, skipped_no_connection: 0, notifications: 0, fatigueAlerts: 0, coleta: {}, acao_do_dono: [] })
+    expect(body).toMatchObject({ synced: 1, errors: 0, emptyReports: 0, skipped_no_connection: 0, coleta: {}, acao_do_dono: [] })
     expect(typeof body.ms_existente).toBe('number')
     expect(body.falhas).toBeUndefined()
     expect(body.errorDetails).toBeUndefined()
@@ -134,7 +122,7 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(res.status).toBe(200)
     expect(rodarColeta).toHaveBeenCalledTimes(2)
     expect(db.tables.youtube_video_analytics).toHaveLength(1)
-    expect(db.tables.youtube_videos![0]).toMatchObject({ view_count_delta_today: 120 })
+    expect(db.tables.youtube_videos![0]).toHaveProperty('last_analytics_sync_at')
     expect(nota()).toBe('schema_ausente: yt_own_video_meta_daily')
     // A rota sempre põe os tempos por passo em `coleta.ms`; com a coleta simulada sem tempos, vem vazio.
     expect(body.coleta).toEqual({ relatorios: { baixados: 0 }, ms: {} })
@@ -189,7 +177,7 @@ describe('sync-analytics-metrics: veredito único', () => {
     const body = await res.json()
     expect(res.status).toBe(200)
     expect(body.synced).toBe(2)
-    expect(db.tables.youtube_videos!.map(v => v.view_count_delta_today)).toEqual([120, 80, 60])
+    expect(db.tables.youtube_videos!.every(v => typeof v.last_analytics_sync_at === 'string')).toBe(true)
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
     expect(nota()).toBe('schema_ausente: youtube_video_analytics')
     expect(recordCronSuccess).not.toHaveBeenCalled()
@@ -215,7 +203,7 @@ describe('sync-analytics-metrics: veredito único', () => {
   })
 
   it('leitura do marco falha: não é tratada como "sem linha"; vira falha', async () => {
-    // 30 h de idade: dentro da janela views_at_24h e fora da fadiga (que exige 30 dias).
+    // 30 h de idade: dentro da janela views_at_24h.
     const novo = { ...video, published_at: new Date(Date.now() - 30 * 3_600_000).toISOString() }
     const db = banco({ youtube_channels: [canal], youtube_videos: [novo] })
     const original = db.client.from.bind(db.client)
@@ -245,61 +233,6 @@ describe('sync-analytics-metrics: veredito único', () => {
     await GET(pedido() as never)
     expect(db.tables.youtube_video_analytics![0]).toMatchObject({ views_at_24h: 500 })
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
-  })
-
-  it('fadiga: leitura dos testes A/B falha: nenhum alerta é criado às cegas; vira falha', async () => {
-    const db = banco()
-    db.errors.ab_tests = { code: '57014', message: 'statement timeout' }
-    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 60, actualViews: 55 })
-    const body = await (await GET(pedido() as never)).json()
-    expect(body.fatigueAlerts).toBe(0)
-    expect(db.tables.youtube_fatigue_alerts ?? []).toHaveLength(0)
-    expect(nota()).toBe('erro de banco ao ler ab_tests')
-  })
-
-  it('fadiga: leitura do alerta pendente falha: não insere duplicado; vira falha de leitura', async () => {
-    const db = banco()
-    db.errors.youtube_fatigue_alerts = { code: '57014', message: 'statement timeout' }
-    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 60, actualViews: 55 })
-    const body = await (await GET(pedido() as never)).json()
-    expect(body.fatigueAlerts).toBe(0)
-    expect(nota()).toBe('erro de banco ao ler youtube_fatigue_alerts')
-  })
-
-  it('fadiga: insert conferido — conta só o que gravou; erro vira falha', async () => {
-    // youtube_fatigue_alerts.expected_ctr/actual_ctr são numeric(6,4): o teto é 99,9999. A rota grava
-    // ali contagens de views, então em produção qualquer valor >= 100 dá 22003 (caso abaixo). O banco
-    // em memória não tem tipos: os valores daqui cabem na coluna de propósito.
-    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 60, actualViews: 55 })
-    const ok = banco()
-    const corpoOk = await (await GET(pedido() as never)).json()
-    expect(corpoOk.fatigueAlerts).toBe(1)
-    expect(ok.tables.youtube_fatigue_alerts).toHaveLength(1)
-    expect(recordCronFailure).not.toHaveBeenCalled()
-
-    const ruim = banco()
-    ruim.writeErrors.youtube_fatigue_alerts = { code: 'PGRST205', message: 'Could not find the table' }
-    const corpoRuim = await (await GET(pedido() as never)).json()
-    expect(corpoRuim.fatigueAlerts).toBe(0)
-    expect(nota()).toBe('schema_ausente: youtube_fatigue_alerts')
-  })
-
-  it('fadiga: insert recusado por overflow da coluna (22003) é falha crítica, não conta, e o laço segue para o próximo vídeo', async () => {
-    const db = banco({ youtube_channels: [canal], youtube_videos: [video, video2] })
-    // O que o Postgres responde hoje a expected_ctr = 100 ou mais.
-    db.writeErrors.youtube_fatigue_alerts = { code: '22003', message: 'numeric field overflow' }
-    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 100, actualViews: 500 })
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(relatorio([['yt-1', 120, 30, 45, 5, 2, 1, 0], ['yt-2', 80, 30, 45, 5, 2, 1, 0]])))
-    const res = await GET(pedido() as never)
-    const body = await res.json()
-    expect(res.status).toBe(200)
-    expect(detectFatigue).toHaveBeenCalledTimes(2)
-    expect(body.fatigueAlerts).toBe(0)
-    expect(body.falhas).toEqual(['erro de banco ao gravar youtube_fatigue_alerts'])
-    expect(recordCronFailure).toHaveBeenCalledTimes(1)
-    expect(nota()).toBe('erro de banco ao gravar youtube_fatigue_alerts')
-    expect(nota()).not.toContain('overflow')
-    expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 
   it('leitura da rota vazia: ainda chama a coleta nas duas fases, dá o veredito e só então responde no_channels', async () => {
@@ -381,20 +314,11 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(typeof body.ms_existente).toBe('number')
   })
 
-  it('aviso de vídeo em alta que não sai: falha nomeada, e a fadiga e a fase depois rodam', async () => {
-    const db = banco()
-    vi.mocked(detectViral).mockReturnValue(true)
-    vi.mocked(fanOutToSiteAdmins).mockRejectedValue(new Error('boom'))
-    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 60, actualViews: 55 })
-    const res = await GET(pedido() as never)
-    const body = await res.json()
-    expect(res.status).toBe(200)
-    expect(body).toMatchObject({ synced: 1, notifications: 1, fatigueAlerts: 1 })
-    expect(db.tables.youtube_fatigue_alerts).toHaveLength(1)
-    expect(fases()).toEqual(['antes', 'depois'])
-    expect(recordCronFailure).toHaveBeenCalledTimes(1)
-    expect(nota()).toBe('aviso de vídeo em alta: unexpected error (Error)')
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+  it('canal sem conexão continua gerando o aviso próprio depois da retirada do aviso viral', async () => {
+    banco()
+    vi.mocked(ensureFreshToken).mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    await GET(pedido() as never)
+    expect(vi.mocked(fanOutToSiteAdmins).mock.calls.map(c => c[0].type)).toContain('youtube.channel_skipped_no_connection')
   })
 
   it('aviso de canal sem conexão que não sai: deixa de ser falha verde', async () => {
@@ -405,17 +329,6 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(body).toMatchObject({ skipped_no_connection: 1, errors: 0 })
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
     expect(nota()).toBe('aviso de canal sem conexão: unexpected error (Error)')
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
-    expect(recordCronSuccess).not.toHaveBeenCalled()
-  })
-
-  it('exceção no bloco da fadiga: deixa de ser falha verde', async () => {
-    banco()
-    vi.mocked(detectFatigue).mockImplementation(() => { throw new Error('boom') })
-    const body = await (await GET(pedido() as never)).json()
-    expect(body).toMatchObject({ synced: 1, fatigueAlerts: 0 })
-    expect(recordCronFailure).toHaveBeenCalledTimes(1)
-    expect(nota()).toBe('fadiga: unexpected error (Error)')
     expect(Sentry.captureException).toHaveBeenCalledTimes(1)
     expect(recordCronSuccess).not.toHaveBeenCalled()
   })
