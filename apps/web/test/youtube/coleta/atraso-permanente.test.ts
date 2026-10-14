@@ -76,6 +76,12 @@ describe('youtubeNaoDevolveu: não (falha nossa ou de cota)', () => {
     expect(youtubeNaoDevolveu(t('erro_http', 403, 'http_403_quotaExceeded'))).toBe(false)
     expect(youtubeNaoDevolveu(t('erro_http', 403, 'http_403_forbidden'))).toBe(true)
   })
+
+  // Sensível a maiúsculas de propósito, como o `!~` (e não `!~*`) do SQL: 'limitexceeded' em minúsculas NÃO é de cota.
+  it('a palavra de cota é sensível a maiúsculas (igual ao !~ do SQL): http_403_limitexceeded em minúsculas é verdadeiro', () => {
+    expect(youtubeNaoDevolveu(t('erro_http', 403, 'http_403_limitexceeded'))).toBe(true)
+    expect(youtubeNaoDevolveu(t('erro_http', 403, 'http_403_quotaexceeded'))).toBe(true)
+  })
 })
 
 describe('separarPermanentes', () => {
