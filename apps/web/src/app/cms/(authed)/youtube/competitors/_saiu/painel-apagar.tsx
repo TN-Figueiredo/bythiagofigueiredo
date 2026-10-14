@@ -6,12 +6,17 @@
  */
 import { useId, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { palavraConfere } from '@/lib/youtube/observatorio/saiu/modelo'
+import { fraseDoErro, palavraConfere } from '@/lib/youtube/observatorio/saiu/modelo'
 import type { PainelView } from './view-model'
 
 /** O que a tela precisa de volta de uma ação: o desfecho e a frase pronta. */
-export interface ResultadoUi { desfecho: string; frase: string }
+export interface ResultadoUi { desfecho: string; frase: string; n?: number }
+/** Desfechos que "deram certo" (a frase sai como status). */
 const MUDOU = new Set(['apagado', 'apagando', 'mantido', 'respondido'])
+/** Desfechos depois dos quais a tela é recarregada: os de cima mais os que dizem que a lista já era outra (a frase continua em alert). */
+const RECARREGA = new Set([...MUDOU, 'mudou', 'no_ar', 'not_found'])
+const recarrega = (r: ResultadoUi): boolean => RECARREGA.has(r.desfecho) || (r.n ?? 0) > 0
+const FALHA: ResultadoUi = { desfecho: 'erro', frase: fraseDoErro('erro_de_banco') }
 
 export interface AcoesDoPainel {
   apagar: (e: { tipo: 'video' | 'canal' | 'comentarios'; id: string; ids?: number[]; palavra: string }) => Promise<ResultadoUi>
@@ -50,7 +55,9 @@ export function PainelApagar({ rotulo, painel, podeResponder, semPermissao, acoe
     try {
       const r = await acoes.apagar({ tipo: painel.alvo.tipo, id: painel.alvo.id, ...(painel.alvo.ids ? { ids: painel.alvo.ids } : {}), palavra: texto })
       setResultado(r)
-      if (MUDOU.has(r.desfecho)) iniciar(() => router.refresh())
+      if (recarrega(r)) iniciar(() => router.refresh())
+    } catch {
+      setResultado(FALHA)
     } finally {
       trava.current = false
       setEnviando(false)
@@ -119,7 +126,9 @@ export function BotaoDeResposta({ rotulo, destaque, desabilitado, titulo, execut
       const rs = await executar()
       const ultimo = rs[rs.length - 1] ?? null
       setFrase(ultimo)
-      if (rs.some(r => MUDOU.has(r.desfecho))) iniciar(() => router.refresh())
+      if (rs.some(recarrega)) iniciar(() => router.refresh())
+    } catch {
+      setFrase(FALHA)
     } finally {
       trava.current = false
       setEnviando(false)

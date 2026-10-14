@@ -4,6 +4,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { PainelApagar } from '@/app/cms/(authed)/youtube/competitors/_saiu/painel-apagar'
 import { buildFilaView, type PainelView } from '@/app/cms/(authed)/youtube/competitors/_saiu/view-model'
+import { fraseDoErro } from '@/lib/youtube/observatorio/saiu/modelo'
 import { AGORA, fila, video } from './saiu-fixtures'
 
 const refresh = vi.fn()
@@ -90,5 +91,38 @@ describe('A5 E9 T10b: painel de apagar', () => {
     expect(screen.getByText('Só quem administra o site pode responder.')).toBeTruthy()
     expect(botaoFinal().disabled).toBe(true)
     expect(apagar).not.toHaveBeenCalled()
+  })
+
+  const digitaEEnvia = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Apagar o vídeo…' }))
+    fireEvent.change(campo(), { target: { value: 'APAGAR' } })
+    fireEvent.click(botaoFinal())
+  }
+
+  it.each(['mudou', 'no_ar', 'not_found'])('I-2 (portão 14/10): "%s" mostra a frase em alert e recarrega a tela uma vez', async desfecho => {
+    montar(vi.fn(async () => ({ desfecho, frase: 'A lista mudou.' })))
+    digitaEEnvia()
+    await waitFor(() => expect(screen.getByRole('alert', { hidden: true }).textContent).toContain('A lista mudou.'))
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('I-2: palavra_errada não recarrega', async () => {
+    montar(vi.fn(async () => ({ desfecho: 'palavra_errada', frase: 'Digite APAGAR.' })))
+    digitaEEnvia()
+    await waitFor(() => expect(screen.getByRole('alert', { hidden: true }).textContent).toContain('Digite APAGAR.'))
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('m-2: resposta de erro com n > 0 (parcial) recarrega a tela', async () => {
+    montar(vi.fn(async () => ({ desfecho: 'erro', frase: 'Parcial.', n: 2 })))
+    digitaEEnvia()
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('m-7: ação que rejeita mostra a frase de erro e devolve o botão', async () => {
+    montar(vi.fn(async () => { throw new Error('rede') }))
+    digitaEEnvia()
+    await waitFor(() => expect(screen.getByRole('alert', { hidden: true }).textContent).toBe(fraseDoErro('erro_de_banco')))
+    expect(botaoFinal().disabled).toBe(false)
   })
 })
