@@ -43,6 +43,20 @@ describe('RemovalPanel: restaurações pendentes', () => {
 })
 
 describe('restauracaoLinha', () => {
+  it('título vazio ou só espaços: "(sem título)", nunca "do vídeo ."', () => {
+    for (const t of ['', '   ']) {
+      for (const noAr of ['não se sabe', 'o original', 'a variante B']) {
+        expect(restauracaoLinha({ testId: 'x', videoTitulo: t, campo: 'title', estado: 'falhou', noAr })).toContain('do vídeo (sem título)')
+      }
+      expect(restauracaoLinha({ testId: 'x', videoTitulo: t, campo: 'title', estado: 'pulado_drift', noAr: 'o título editado por fora' })).toContain('do vídeo (sem título) foi')
+    }
+  })
+  it('em_andamento voltando ao original: sem "ficou com", sem alarme', () => {
+    expect(restauracaoLinha({ testId: 'x', videoTitulo: 'G', campo: 'title', estado: 'em_andamento', noAr: 'o original' }))
+      .toBe('A restauração do título do vídeo G ainda está em andamento e deve terminar com o original. Se não terminar antes da remoção, só o YouTube Studio corrige.')
+    expect(restauracaoLinha({ testId: 'x', videoTitulo: 'G', campo: 'thumbnail', estado: 'em_andamento', noAr: 'o original' }))
+      .toContain('A restauração da thumbnail do vídeo G')
+  })
   it('as três formas', () => {
     expect(restauracaoLinha({ testId: 'x', videoTitulo: 'G', campo: 'thumbnail', estado: 'falhou', noAr: 'não se sabe' }))
       .toBe('Não se sabe o que está no ar na thumbnail do vídeo G. Depois da remoção, só o YouTube Studio corrige.')

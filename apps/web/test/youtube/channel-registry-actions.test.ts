@@ -399,7 +399,7 @@ const SEMENTE_5: Row[] = [
   { id: 't-desistiu', test_type: 'thumbnail', restore_status: { thumbnail: rs('desistiu', 'original', null) }, youtube_videos: videoDo('Armênia'), variants: VARIANTES },
   { id: 't-andamento', test_type: 'title', restore_status: { title: rs('em_andamento', 'vb', true) }, youtube_videos: videoDo('Turquia'), variants: VARIANTES },
   { id: 't-drift', test_type: 'title', restore_status: { title: rs('pulado_drift', 'original', false) }, youtube_videos: videoDo('Irã'), variants: VARIANTES },
-  { id: 't-sem-original', test_type: 'thumbnail', restore_status: { thumbnail: rs('pulado_sem_original', 'vb', true) }, youtube_videos: videoDo('Iraque'), variants: VARIANTES },
+  { id: 't-sem-original', test_type: 'thumbnail', restore_status: { thumbnail: rs('pulado_sem_original', 'original', false) }, youtube_videos: videoDo('Iraque'), variants: VARIANTES },
 ]
 const OK_RPC = { youtube_channel_removal_impact: () => ({ data: IMPACT, error: null }) }
 
@@ -415,7 +415,7 @@ describe('getYouTubeChannelRemovalImpact: restaurações pendentes (emenda 39)',
       { testId: 't-desistiu', videoTitulo: 'Armênia', campo: 'thumbnail', estado: 'desistiu', noAr: 'não se sabe' },
       { testId: 't-andamento', videoTitulo: 'Turquia', campo: 'title', estado: 'em_andamento', noAr: 'a variante B' },
       { testId: 't-drift', videoTitulo: 'Irã', campo: 'title', estado: 'pulado_drift', noAr: 'o título editado por fora' },
-      { testId: 't-sem-original', videoTitulo: 'Iraque', campo: 'thumbnail', estado: 'pulado_sem_original', noAr: 'a variante B' },
+      { testId: 't-sem-original', videoTitulo: 'Iraque', campo: 'thumbnail', estado: 'pulado_sem_original', noAr: 'não se sabe' },
     ])
   })
   it('destino original com escreveu true: "o original"; leitura ilegível conta como pendente, "não se sabe"', async () => {
@@ -449,7 +449,8 @@ describe('getYouTubeChannelRemovalImpact: restaurações pendentes (emenda 39)',
     expect(op.filters).toContainEqual(['youtube_videos.channel_id', CH_PT.id])
     expect(op.filters).toContainEqual(['site_id', SITE])
     const or = op.filters.find(([c]) => c === 'or')![1] as string
-    for (const e of ['falhou', 'desistiu', 'em_andamento', 'pulado_drift', 'pulado_sem_original']) expect(or).toContain(e)
+    const lista = 'in.(falhou,desistiu,em_andamento,pulado_drift,pulado_sem_original)'
+    expect(or).toBe(`restore_status->title->>estado.${lista},restore_status->thumbnail->>estado.${lista}`)
   })
 })
 

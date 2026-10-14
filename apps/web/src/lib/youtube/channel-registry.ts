@@ -143,9 +143,12 @@ export function restauracaoLinha(r: RestauracaoPendente): string {
   const campo = r.campo === 'title' ? 'título' : 'thumbnail'
   const artigo = r.campo === 'title' ? 'O' : 'A'
   const fim = ' Depois da remoção, só o YouTube Studio corrige.'
-  if (r.noAr === 'não se sabe') return `Não se sabe o que está no ar ${r.campo === 'title' ? 'no título' : 'na thumbnail'} do vídeo ${r.videoTitulo}.${fim}`
-  if (r.estado === 'pulado_drift') return `${artigo} ${campo} do vídeo ${r.videoTitulo} foi editado por fora.${fim}`
-  return `${artigo} ${campo} do vídeo ${r.videoTitulo} ficou com ${r.noAr}.${fim}`
+  const v = r.videoTitulo.trim() || '(sem título)'
+  if (r.noAr === 'não se sabe') return `Não se sabe o que está no ar ${r.campo === 'title' ? 'no título' : 'na thumbnail'} do vídeo ${v}.${fim}`
+  if (r.estado === 'pulado_drift') return `${artigo} ${campo} do vídeo ${v} foi editado por fora.${fim}`
+  // Voltando ao original e ainda em andamento: quase terminou, sem alarme.
+  if (r.estado === 'em_andamento' && r.noAr === 'o original') return `A restauração d${artigo === 'O' ? 'o' : 'a'} ${campo} do vídeo ${v} ainda está em andamento e deve terminar com o original. Se não terminar antes da remoção, só o YouTube Studio corrige.`
+  return `${artigo} ${campo} do vídeo ${v} ficou com ${r.noAr}.${fim}`
 }
 export type RemovalImpactResult = { ok: true; impact: RemovalImpact } | { ok: false; error: string }
 export type RemoveChannelResult =
