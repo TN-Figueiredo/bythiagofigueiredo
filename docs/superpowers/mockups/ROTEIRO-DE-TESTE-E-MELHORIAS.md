@@ -1171,7 +1171,7 @@ Não é mockup: é a tela implementada (E8, Tarefa 13; mockup de origem: o 6), m
 
 ## 19d. Peça 4: o interruptor do automático
 
-Estado: **corrigida em 14/10/2026 pela revisão 1 de Logan e Naksu (A1 a A9, C1 a C3); falta a conferência dos dois e a aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seções "Peça 4" e "Revisão peça4-1").
+Estado: **aprovado pelo dono no Opera em 14/10/2026**, depois da revisão 1 de Logan e Naksu e da conferência dos dois (`CONFERENCIA-*-PECA4-1.md`, acordo). **corrigida em 14/10/2026 pela revisão 1 de Logan e Naksu (A1 a A9, C1 a C3); falta a conferência dos dois e a aprovação do dono.** Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`, seções "Peça 4" e "Revisão peça4-1").
 
 ### 1. O que a tela responde
 "Está ligado? Vai tirar algo sem eu ver? Parou por quê? Como paro ou ligo de novo?"
