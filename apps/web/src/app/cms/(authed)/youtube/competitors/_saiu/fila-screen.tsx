@@ -1,7 +1,8 @@
 /**
- * A5 · E9, Tarefa 10b: a tela "Saíram do YouTube" (servidor). Só desenha o que `buildFilaView` escreveu; as ações chegam por prop e descem para os
+ * A5 · E9, Tarefa 10b: a tela "Saíram do YouTube" (componente CLIENTE: passa funções a BotaoDeResposta, o que um componente de servidor não pode; C-1 do portão 14/10). Só desenha o que `buildFilaView` escreveu; as ações chegam por prop e descem para os
  * componentes cliente também por prop. Cor nunca é o único sinal: cada tipo e cada estado têm ícone e palavra.
  */
+'use client'
 import type { ReactNode } from 'react'
 import CmsLink from '../../../_shared/cms-link'
 import { link } from '@/lib/youtube/observatorio/links'

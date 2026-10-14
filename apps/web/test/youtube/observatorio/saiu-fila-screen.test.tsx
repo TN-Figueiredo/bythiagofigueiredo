@@ -101,4 +101,22 @@ describe('A5 E9 T10b: tela da fila', () => {
       if (/^['"]use client['"]/.test(t)) expect(t, f).not.toMatch(/from ['"][^'"]*\/actions['"]/)
     }
   })
+
+  it('C-1 (portão 14/10): fila-screen.tsx é cliente, porque passa funções comuns a BotaoDeResposta', () => {
+    const dir = join(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_saiu')
+    for (const f of readdirSync(dir).filter(n => n.endsWith('.tsx'))) {
+      const t = readFileSync(join(dir, f), 'utf8')
+      const passaFuncao = /=\{\s*(async\s*)?\(/.test(t) && /<(BotaoDeResposta|PainelApagar)\b/.test(t)
+      if (passaFuncao) expect(t, `${f} passa função a componente cliente sem 'use client'`).toMatch(/^(\/\*[\s\S]*?\*\/\s*)?['"]use client['"]/)
+    }
+    expect(readFileSync(join(dir, 'fila-screen.tsx'), 'utf8')).toMatch(/^(\/\*[\s\S]*?\*\/\s*)?['"]use client['"]/)
+  })
+
+  it('C-1: as ações que a página entrega são ações de servidor', () => {
+    const base = join(__dirname, '../../../src/app/cms/(authed)/youtube/competitors')
+    expect(readFileSync(join(base, '_saiu/actions.ts'), 'utf8')).toMatch(/^['"]use server['"]/)
+    const pagina = readFileSync(join(base, 'saiu/page.tsx'), 'utf8')
+    expect(pagina).toMatch(/from ['"]\.\.\/_saiu\/actions['"]/)
+    expect(pagina).not.toMatch(/acoes=\{\{[^}]*=>/)
+  })
 })
