@@ -76,7 +76,7 @@ describe('inscritosDoCanal: tempo', () => {
     expect((r as { ate: string }).ate).toBe(dmy(dia(AGORA)))
   })
   it('virada do mês e do ano: medido', () => {
-    for (const now of [Date.UTC(2026, 5, 2, 15), Date.UTC(2027, 0, 3, 15)]) {
+    for (const now of [Date.UTC(new Date(AGORA).getUTCFullYear(), 5, 2, 15), Date.UTC(new Date(AGORA).getUTCFullYear() + 1, 0, 3, 15)]) {
       const r = calc(par(500, 600, now, 0, 29), now)
       expect(r.tipo).toBe('ok')
       expect((r as { de: string }).de).toBe(dmy(dia(now) - 29 * DAY))
