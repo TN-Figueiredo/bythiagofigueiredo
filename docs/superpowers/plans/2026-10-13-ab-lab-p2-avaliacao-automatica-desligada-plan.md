@@ -1,6 +1,7 @@
 # A/B Lab honesto, P2: avaliação automática desligada (plano de implementação)
 
-Escrito em 13/10/2026 (noite). Primeira versão; **a emenda 1 responde à rodada 1 de revisão de Phil, Yannis e Gio** (ainda falta a Hanna, Logan e Naksu). Onde cada achado foi aplicado: `.superpowers/sdd/ab-lab/resposta-r1-p2.md`; decisões do controlador: `emenda-1-decisoes-do-controlador.md`. Trechos mudados levam a marca `(emenda 1: <id>)`.
+Escrito em 13/10/2026 (noite). Primeira versão; **a emenda 1 responde à rodada 1 de revisão de Phil, Yannis e Gio** (a Hanna veio na emenda 2; Logan e Naksu julgam as telas na Tarefa 6). Onde cada achado foi aplicado: `.superpowers/sdd/ab-lab/resposta-r1-p2.md`; decisões do controlador: `emenda-1-decisoes-do-controlador.md`. Trechos mudados levam a marca `(emenda 1: <id>)`.
+**A emenda 2 aplica a rodada 2 (Phil, Yannis, Gio) e o parecer da Hanna** (`emenda-2-decisoes-do-controlador.md`; onde cada item foi aplicado: `resposta-r2-p2.md`); trechos mudados levam `(emenda 2: <id>)`, com `G2-`, `S2-`, `D2-` e `H2-`. **Estado: acordo de Phil, Yannis, Gio e Hanna; espera o "pode" do dono.**
 Spec: `docs/superpowers/specs/2026-10-07-ab-lab-honesto-design.md` (v6: seções 4.1 e 4.2.1, bloco P2 da
 seção 1, aceite 6 a 9, emendas 23, 24 e 26, e "Respostas do dono (13/10/2026)" no fim). Inventário de
 código, lido em 13/10 no HEAD `bc5adea94`: `.superpowers/sdd/ab-lab/inventario-p2.md` (toda linha citada
@@ -8,8 +9,9 @@ aqui vem dele; **quem executa reconfere por `grep` no dia**). Plano irmão, que 
 `2026-10-13-ab-lab-p1-fadiga-e-video-em-alta-saem-plan.md` (chamado aqui de "plano da P1").
 
 > **Para quem executa:** use `superpowers:subagent-driven-development`, tarefa por tarefa. Passos com
-> caixa (`- [ ]`). Sonnet, effort `medium`. A Tarefa 1 (o cron que decide encerrar teste) é a única
-> candidata a revisão de tarefa em `high`; o controlador decide no dia.
+> caixa (`- [ ]`). Sonnet, effort `medium` em tudo. (emenda 2: H2-effort) A exceção única: a revisão da
+> Tarefa 1 (o cron que decide encerrar teste) sobe para `high` **se o executor errar duas vezes**. Nada mais
+> em `high` neste plano.
 
 **Objetivo, em uma frase.** O cron `ab-evaluate` para de declarar vencedor, abrir carência, criar
 playoff e aplicar qualquer coisa a partir de "impressões" que são views e cliques que são sempre zero; a
@@ -33,7 +35,7 @@ encerra como `inconclusive`, sem vencedor nem carência (emenda 1: S-C8). Saem d
 - A descrição (P3). As duas fases apagadas são as que citam descrição; a P3 não precisa mais editá-las.
 - Tela nova de qualquer tipo, o acompanhamento novo e as views por variante (etapa de telas).
 - O painel de critérios ("gates") e a confiança bayesiana **na tela**: continuam, calculados sobre o
-  mesmo dado, **salvo se a Hanna confirmar a Tarefa 3b** (emenda 1: D-P2-8), que os troca pela frase
+  mesmo dado, **salvo a Tarefa 3b** (emenda 1: D-P2-8; emenda 2: H2-3b: a Hanna recomenda que entre, e entra com o sim do dono à pergunta 13), que os troca pela frase
   fixa. O spec só tira os quatro números de 4.2.1; o resto é da etapa de telas. Ver "Sobra declarada".
 - `ab-backfill`: continua gravando views como `impressions` nos ciclos (spec 4.1). P2 muda só o que o
   pipeline **entrega**.
@@ -41,6 +43,7 @@ encerra como `inconclusive`, sem vencedor nem carência (emenda 1: S-C8). Saem d
   primeiros é a pergunta 6 do spec, que vai com a v7 e a P4.
 - A função SQL `create_playoff_test`: fica no banco, sem chamador (a Migration B da P3 a recria).
 - Impressão real por variante no pipeline: é da medição nova (parecer da Hanna, 3.4).
+- (emenda 2: H2-P5) O critério **P2-P5** (o primeiro teste real encerrado pelo cron) **não é desta P2**: o primeiro teste real já roda sob `settleOnAir`, então ele passa para a **P4**. A C5 da Tarefa 8 fica como roteiro herdado pela P4.
 
 ## Restrições globais
 
@@ -116,7 +119,7 @@ da P1: é avanço rápido, contém a P1).
 - **Nunca existe `apps/web/.env.local` na árvore do lote.** O hook de pre-commit semearia a referência
   do Cowork em produção a partir de código não enviado. O servidor local do Gio para as capturas lê as
   variáveis de `apps/web/.env.development.local` (o Next carrega em `dev`; o hook não olha esse arquivo),
-  **apagado ao fim da Tarefa 6**.
+  **apagado ao fim da Tarefa 6**. (emenda 2: S2-2) **O `npm run build:web` não lê o `.env.development.local`**: `next build` roda em modo de produção e carrega `.env.production.local`, `.env.local`, `.env.production` e `.env`. Para o build, as variáveis vêm de `apps/web/.env.production.local` (cópia do `.env.local` do repositório principal; o hook só olha `apps/web/.env.local`; conferir `git check-ignore apps/web/.env.production.local`), **apagado junto com o `.env.development.local` ao fim da Tarefa 6**. Continua valendo: nunca `apps/web/.env.local` na árvore do lote.
 - Três travas na junção de volta ao `staging` local (Tarefa 7): (a) antes do `git merge`, conferir que o
   outro terminal não tem mudança não commitada nos arquivos que o lote toca (saída 0 do comando da
   Tarefa 7); nunca `stash`; (b) a resolução de conflito que ficar só no commit de junção vai conflitar de
@@ -124,6 +127,8 @@ da P1: é avanço rápido, contém a P1).
   sem conflito de texto: o `grep` da Tarefa 7 tem de ser remedido no dia.
 - Antes do push: `bash scripts/check-type-debt.sh` na árvore (o pre-push tem um "ratchet" de dívida de
   tipos; o lote só tira código) (emenda 1: S-S2).
+
+- (emenda 2: H2-envio) **A P2 vai num envio só.** O mínimo que não pode faltar são as **Tarefas 1, 2 e 5**; as Tarefas 3, 3b e 4 entram se estiverem prontas e aprovadas, e **nenhuma delas segura a 1**. Só muda se a C1 achar teste vivo (aí para e vai ao dono). Fatia de corte da 3b: **3b-1 (painel do CMS) vai junto da Tarefa 4**; **3b-2 (detalhe do teste ativo) é a primeira a sair** se o lote ficar grande.
 
 Motivo da ordem: as duas mexem em `ab-lab/queries.ts`, `ab-lab/_components/ab-lab-dashboard.tsx`,
 `lib/pipeline/services/youtube.ts`, `lib/pipeline/mcp/tools.ts` e `cowork-docs-youtube.md`. Em série não
@@ -150,8 +155,23 @@ escreve; não edita plano da A5). A tabela "quem escreve título e thumbnail" do
 2. Depois do deploy: apagar `AB_AUTO_APPLY_WINNER` das variáveis da Vercel, **se existir lá** (o código
    já não lê; é limpeza). O agente não mexe em variável da Vercel.
 3. Abrir em produção um teste encerrado e as configurações do A/B Lab (aceite P2-P1).
+4. (emenda 2: H2-Cowork) **A conferência pelo Cowork é do dono**, um texto colado **uma vez, depois do deploy da P2** (cobre P1-P3 e P2-P3; agente não opera o Cowork). Texto pronto:
+
+   > Sem usar memória nem prompts salvos, faça estas chamadas pelo pipeline e me devolva o JSON cru de cada uma: (1) liste os recursos do MCP e diga se existem `pipeline://youtube/ab-fatigue` ou a ação `get_fatigue_alerts`; (2) `manage_ab_test` com `action: 'get_dashboard'`; (3) `manage_ab_test` com `action: 'get_funnel'` e o `test_id` de um teste que tenha ciclos (se não houver, escreva "sem teste com ciclos"); (4) sem enviar nada: diga se algum prompt ou memória sua ainda manda `trending_viral` em `notifications` ou lê `impressions`, `clicks`, `confidence` ou `lift` do A/B. Não corrija nada, só relate.
+
+   Esperado: nenhum recurso nem ação de fadiga; `avgConfidence` e `avgLift` `null` com `aviso: 'sem métrica de entrega'`; `impressions` e `clicks` do funil `null`; e o que ele disser em (4) vai ao ledger como "dado do Cowork".
+
+**O dono precisa saber (não responde)** (emenda 2: H2-saber):
+- **Até a P4 estar em produção, não inicie teste A/B**: a tela não impede, é combinado. A restauração do original continua sem garantia; se falhar, o cron fica vermelho e o teste guarda o motivo.
+- Depois da P2, teste que passa da **duração máxima encerra sem vencedor** ("sem conclusão"), mesmo com critérios verdes. "Taxa de vitória" passa a contar só vencedor escolhido por pessoa.
+- O **Cowork passa a receber 400** (se mandar aviso de "vídeo em alta", P1) e **`null`** onde recebia impressões, confiança e lift (P2).
+- O trabalho é feito em **galho local `lote/ab-*`**, fora da regra dele de "sempre em `staging`", para não pisar no outro terminal; o envio continua indo a `staging` e o galho some depois da Tarefa 7.
 
 Já respondido por ele em 13/10: perguntas 7, 10 e 11 (sim às três).
+
+**Perguntas novas ao dono (um "pode" geral aceita as duas)** (emenda 2: H2-perguntas):
+- **13.** A P2 pode tirar também, sem mockup, o painel de critérios, a "probabilidade de ser a melhor" e as médias de confiança e de lift (Tarefa 3b), que são calculados sobre views? Ele vê as capturas de antes e depois. Padrão recomendado: **sim**; sem isso a etapa de telas inteira vira obrigatória antes do primeiro teste.
+- **14.** Há data para o primeiro teste A/B? Sem data: segue P3 e depois P4, e ele avisa antes de iniciar. Com data curta: sobe primeiro a parte da P4 que protege o vídeo.
 
 ## 3. Decisões que o spec não toma (recomendação do controlador; a revisão cobra)
 
@@ -166,22 +186,24 @@ Já respondido por ele em 13/10: perguntas 7, 10 e 11 (sim às três).
 | E7 | `pTop2` | **Sai do tipo `RankedVariant`** e de todo lugar que o mostra ou ordena por ele; onde ordenava, ordena por `pBest` | Manter o campo e esconder: o número fabricado continua no objeto e volta numa tela futura |
 | E8 | Os dois sliders de confiança (`settings-drawer.tsx:195-207`, `step-config.tsx:62-72`) | **Saem** (o spec manda sumir "limiar de confiança e estabilidade"). Os valores gravados continuam sendo lidos pelo painel de critérios | Manter: controle que não decide mais nada |
 | E9 | O banner de carência (`active-detail.tsx:133-190`) | **Sai só a frase** "O vencedor será aplicado automaticamente…" (`:142`). O banner só aparece com `grace_expires_at` preenchido, que deixa de ter gravador; apagá-lo é a pergunta 6 (P4) | Apagar o banner agora: antecipa uma pergunta que o dono ainda não respondeu |
-| E10 | `winRate` do painel do pipeline | ~~**Fica.** Vencedor escolhido à mão é decisão real~~ (emenda 1: S-C8, D-P2-3) **Muda.** "Vitória" só conta quando o vencedor foi escolhido por pessoa: `completed_reason in ('manual_winner','manual_apply')` (o Phil lista também `manual_no_apply`; ver a nota abaixo da tabela). Saem da conta os `auto_resolve`, em `winRate` (`getAbDashboard`), `getAbLearnings` e `getAbPerformance`. Sem teste que conte, o valor é `null`, nunca `0` | Anular: perde dado verdadeiro |
+| E10 | `winRate` do painel do pipeline | ~~**Fica.** Vencedor escolhido à mão é decisão real~~ (emenda 1: S-C8, D-P2-3) **Muda.** "Vitória" só conta quando o vencedor foi escolhido por pessoa: `completed_reason in ('manual_winner','manual_apply')` (`manual_no_apply` fica fora; ver a nota abaixo da tabela). Saem da conta os `auto_resolve`, em `winRate` (`getAbDashboard`), `getAbLearnings` e `getAbPerformance`; no `winRate` o `auto_resolve` sai **do numerador e do denominador** (emenda 2: D2-1). Sem teste que conte, o valor é `null`, nunca `0` | Anular: perde dado verdadeiro |
 
-Nota sobre E10 (emenda 1): Phil e Yannis divergem na lista de `completed_reason` que conta como vitória
-humana (Phil: `manual_winner`, `manual_apply`, `manual_no_apply`; Yannis: só os dois primeiros). O
-controlador não resolveu; o plano usa **`manual_winner` e `manual_apply`** (a vitória é "uma pessoa
-escolheu uma variante"; `manual_no_apply` não tem vencedor aplicado) e **devolve a divergência ao
-controlador** (ver resposta). O filtro é feito **em memória**, depois da leitura, para não excluir `null`
-por engano no PostgREST.
+Nota sobre E10 (emenda 2: G2-N2, D2-2). **Resolvido pelo controlador (emenda 1, decisão 1), confirmado por Phil e Yannis:** vitória humana = `manual_winner` ou `manual_apply`; `manual_no_apply` é cancelamento de carência (`ab-lab/actions.ts:1464-1472`: grava `completed_reason: 'manual_no_apply'` e **não limpa** `winner_variant_id`), não vitória: a linha mantém o vencedor que a máquina sugeriu e a pessoa recusou. **Ressalva a declarar:** `manual_apply` é "a máquina sugeriu, a pessoa aplicou" (`actions.ts:1335` exige `winner_variant_id` já preenchido, que só o cron gravava); conta, porque a pessoa teve a última palavra, é **número fixo** (nenhuma linha nova nasce com `manual_apply` depois da P2) e a C1 da Tarefa 8 diz quantas são. O filtro é feito **em memória**, depois da leitura, para não excluir `null` por engano no PostgREST, e a regra mora num predicado só (`ehVitoriaHumana`, Tarefa 4).
 
-**Sobra declarada (para a Hanna e o Logan dizerem se aceitam):** depois de P2 a tela do teste ativo
+**Decisões fechadas do controlador (rodada 2, confirmadas por Phil, Yannis e Gio)** (emenda 2: decisão 8):
+
+1. **Vitória humana = `manual_winner` e `manual_apply`** (acima).
+2. **"Foi ao ar" = existe ciclo** (`ab_test_cycles` do teste). Imprecisões declaradas: (a) o ciclo 0 é o da variante de índice 0, em regra a original; teste que só teve o ciclo 0 conta como "foi ao ar" e, com o original fora do Blob, dá um `errors++` de alarme falso; (b) ver a linha "teste `active` sem ciclo" na seção 7.
+3. **Original fora do Blob, em teste que foi ao ar, conta `errors++` e grava `status_note`.** É exceção, não regra (`createAbTest` copia a thumbnail para o Blob, `actions.ts:217-222`); custa um dia de cron vermelho por teste, com ação possível. **Falso alarme declarado:** o original é uma variante da rotação (`is_original`); se no instante do encerramento era ele que estava no ar, o cron fica vermelho e a nota diz "original não restaurado" sem haver variante no ar. A P4 (`settleOnAir`) resolve lendo o ciclo aberto.
+4. **`status_note` só é escrito quando a restauração falha.** Não apaga a nota do `ab-rotate` (`retry n/3: …`); o teste que prova a decisão está na Tarefa 1.
+
+**Sobra declarada (a Tarefa 3b a resolve, se o dono disser sim à pergunta 13):** depois de P2 a tela do teste ativo
 ainda mostraria o painel de critérios (com o "0 / 3" de estabilidade congelado, `lib/youtube/ab-gates.ts:58-60`,
 lido em `ab-lab/queries.ts:1131`) e a "probabilidade de ser a melhor" calculados sobre views, com um
 limiar que ninguém mais edita; e o painel do CMS (`computeDashboardStats`, `queries.ts:572-598`:
 `avgConfidence`, `winRate`, `avgLift`; e `monthlyExtraClicks ?? 0` em `:1399`) mostraria números que o
 pipeline passa a anular: mesmo dado, dois números (emenda 1: D-P2-8). O spec deixa isso para a etapa de
-telas. **O controlador recomenda que a Tarefa 3b entre; a Hanna fecha.** Se não entrar, os dois itens ficam
+telas. **A Hanna recomenda que a Tarefa 3b entre; entra com o sim do dono à pergunta 13** (emenda 2: H2-3b). Se não entrar, os dois itens ficam
 por escrito aqui, e a etapa de telas tem de estar em produção antes do primeiro teste novo, junto da P4.
 
 ## 4. Arquivos, por tarefa
@@ -193,12 +215,12 @@ Caminhos relativos a `apps/web/`; `AB/` = `src/app/cms/(authed)/youtube/ab-lab/`
 | 1 cron | `src/lib/youtube/ab-evaluate-phases.ts`, `src/app/api/cron/ab-evaluate/route.ts`, `src/lib/youtube/ab-apply.ts`; `test/ab-cron-evaluate.test.ts`, `test/api/cron/ab-evaluate.test.ts`, `test/youtube/ab-evaluate-phases.test.ts`; **novo (emenda 1: G-P2-B2):** `test/integration/ab-evaluate-duracao-maxima.test.ts` |
 | 2 configurações | `src/lib/youtube/{ab-types.ts,ab-schemas.ts,ab-wizard-adapter.ts}`, `AB/_components/{settings-drawer,step-config,step-revisar,live-monitor,active-detail}.tsx`; `test/ab-config.test.ts`, `test/ab-settings-drawer.test.tsx`, `test/{cms,youtube}/ab-step-config.test.tsx`, `test/cms/ab-step-revisar.test.tsx`, `test/{cms,youtube}/ab-wizard-reducer.test.tsx`, `test/youtube/{ab-wizard-adapters.test.ts,ab-wizard-components.test.tsx,ab-high.test.ts}`, `test/ab-actions-create.test.ts` |
 | 3 números fabricados | `AB/_components/{active-detail,rank-bars,variant-table,playoff-detail,radar-chart}.tsx`, `AB/queries.ts`, `src/lib/youtube/ab-types.ts`; `AB/queries.ts` (linha 488, emenda 1: D-P2-5), `test/ab-charts.test.tsx`, `test/ab-chart-math*`, `test/ab-variant-table-title*`, `test/youtube/ab-detail-{active,playoff,winner}*`, `test/youtube/{ab-high,ab-medium}.test.ts`, `AB/**/mock-views.ts` |
-| 4 pipeline | `src/lib/pipeline/services/youtube.ts`, `src/lib/youtube/prompt-builders-ab.ts`, `src/lib/pipeline/mcp/tools.ts`, `data/pipeline-docs/cowork-docs-youtube.md`, `src/app/cms/(authed)/youtube/_actions/youtube-prompt-actions.ts` e `src/lib/youtube/prompt-types.ts` (emenda 1: D-P2-5), `AB/actions.ts:1620` e `mcp/prompts.ts:661,750` (emenda 1: S-S4); `test/ab-pipeline-api.test.ts`, `test/api/pipeline/{youtube-ab-tests,youtube-ab-extended,youtube-thumbnails}.test.ts`, `test/mcp/mcp-schema-reads.test.ts`, `test/youtube/prompt-builders-ab.test.ts` |
-| 3b painel de critérios (entra se a Hanna confirmar; emenda 1: D-P2-8) | `AB/_components/active-detail.tsx`, `AB/queries.ts`, `lib/youtube/ab-gates.ts` (só a leitura), `AB/_components/ab-lab-dashboard.tsx`; testes de detalhe e de painel |
+| 4 pipeline | `src/lib/pipeline/services/youtube.ts`, `src/lib/youtube/prompt-builders-ab.ts`, `src/lib/pipeline/mcp/tools.ts`, `data/pipeline-docs/cowork-docs-youtube.md`, `src/app/cms/(authed)/youtube/_actions/youtube-prompt-actions.ts` e `src/lib/youtube/prompt-types.ts` (emenda 1: D-P2-5), `AB/actions.ts:1620` e `mcp/prompts.ts:661,750` (emenda 1: S-S4), `src/lib/youtube/ab-types.ts` (`ehVitoriaHumana`), `mcp/prompts.ts:660,749` (`winner_label`) e `youtube-prompt-actions.ts:271-274,531-534` (emenda 2: D2-2); `test/ab-pipeline-api.test.ts`, `test/api/pipeline/{youtube-ab-tests,youtube-ab-extended,youtube-thumbnails}.test.ts`, `test/mcp/mcp-schema-reads.test.ts`, `test/youtube/prompt-builders-ab.test.ts` |
+| 3b painel de critérios (a Hanna recomenda que entre; com o sim do dono à pergunta 13; emenda 1: D-P2-8, emenda 2: H2-3b) | **3b-1 (painel do CMS, junto da Tarefa 4):** `AB/_components/ab-lab-dashboard.tsx`, `AB/queries.ts`; **3b-2 (detalhe do teste ativo, primeira a sair):** `AB/_components/active-detail.tsx`, `lib/youtube/ab-gates.ts` (só a leitura); testes de detalhe e de painel |
 | 5 documentos | `CLAUDE.md`, `docs/ops/env-vars.md`, `docs/ops/runbook-promocao-next16.md` |
 
 Ordem obrigatória: **1 antes de 2** (a Tarefa 2 tira do tipo a chave que a fase apagada lia). 3, 4 e 5
-são independentes; 3b depois de 3. Uma por vez, na mesma árvore.
+são independentes; 3b depois de 3 (a 3b-1 vai junto da 4). Uma por vez, na mesma árvore.
 
 ---
 
@@ -241,7 +263,7 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
       expect(r).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
       expect(escritas()).toHaveLength(0)
       expect(setThumbnail).not.toHaveBeenCalled()
-      expect(applyVariantToYouTube).not.toHaveBeenCalled()
+      expect(updateVideoMetadata).not.toHaveBeenCalled()   // (emenda 2: S2-6) applyVariantToYouTube não é espião neste arquivo
     })
 
     it('fronteira: com 14 de 14 dias encerra', async () => {
@@ -263,7 +285,8 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
         expect(linha).not.toHaveProperty(chave)
       }
       expect(gravadoEm('ab_test_cycles')).toHaveProperty('ended_at')   // mutante: tirar o update dos ciclos
-      expect(applyVariantToYouTube).not.toHaveBeenCalled()
+      expect(setThumbnail).not.toHaveBeenCalled()          // (emenda 2: S2-6)
+      expect(updateVideoMetadata).not.toHaveBeenCalled()
     })
 
     it('config sem max_duration_days: usa 14 dias (padrão testado apagando a chave)', async () => {
@@ -273,23 +296,32 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
       expect((await phaseEvaluateActiveTests(supabase)).resolved).toBe(1)
     })
 
-    it('started_at nulo usa created_at', async () => {
-      const { supabase } = clienteCom([testeAtivo({ startedAt: null, criadoHaDias: 15, maxDuracao: 14 })])
-      expect((await phaseEvaluateActiveTests(supabase)).resolved).toBe(1)
+    // (emenda 2: S2-3) mutante: tirar `?? test.created_at` (new Date(null) é 1970 e o teste "tem" 20 mil dias)
+    it('started_at nulo usa created_at: criado há 3 dias não encerra; criado há 15 encerra', async () => {
+      const novo = clienteCom([testeAtivo({ startedAt: null, criadoHaDias: 3, maxDuracao: 14 })])
+      expect(await phaseEvaluateActiveTests(novo.supabase)).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
+      expect(novo.escritas()).toHaveLength(0)
+      const velho = clienteCom([testeAtivo({ startedAt: null, criadoHaDias: 15, maxDuracao: 14 })])
+      expect((await phaseEvaluateActiveTests(velho.supabase)).resolved).toBe(1)
     })
 
     // (emenda 1: G-P2-C2) A fusão do F17 fica, com condição: só restaura se o teste é de thumbnail ou combo
     // E alguma variante chegou a ir ao ar (existe ao menos um ciclo do teste).
     it('thumbnail, com ciclo (foi ao ar) e original no Blob: tenta restaurar uma vez', async () => {
-      const { supabase } = clienteCom([testeAtivo({ tipo: 'thumbnail', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
-      await phaseEvaluateActiveTests(supabase)
+      const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo: 'thumbnail', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
+      // (emenda 2: S2-4) mutante: apagar `restauracao = 'feita'` gravaria "original não restaurado" em toda restauração boa
+      const r = await phaseEvaluateActiveTests(supabase)
+      expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
       expect(setThumbnail).toHaveBeenCalledTimes(1)
+      expect(gravadoEm('ab_tests')).not.toHaveProperty('status_note')
     })
 
     it('combo, com ciclo e original no Blob: tenta restaurar', async () => {
-      const { supabase } = clienteCom([testeAtivo({ tipo: 'combo', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
-      await phaseEvaluateActiveTests(supabase)
+      const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo: 'combo', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
+      const r = await phaseEvaluateActiveTests(supabase)   // (emenda 2: S2-4) mesmas afirmações do caso de thumbnail
+      expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
       expect(setThumbnail).toHaveBeenCalledTimes(1)
+      expect(gravadoEm('ab_tests')).not.toHaveProperty('status_note')
     })
 
     it.each(['title', 'description'] as const)('teste de %s não chama setThumbnail e encerra sem erro', async (tipo) => {
@@ -377,7 +409,8 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
           comVencedorSugerido: true, carenciaAte: 'passado', consecutiveConfidentEvals: 3,
         })])
         await phaseEvaluateActiveTests(supabase)
-        expect(applyVariantToYouTube).not.toHaveBeenCalled()
+        expect(setThumbnail).not.toHaveBeenCalled()          // (emenda 2: S2-6)
+        expect(updateVideoMetadata).not.toHaveBeenCalled()
         expect(escritasEm('ab_tests')).toHaveLength(0)
       } finally {
         delete process.env.AB_AUTO_APPLY_WINNER
@@ -390,11 +423,17 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
   `escritasEm`, `gravadoEm` e `filtrosDoUpdate` são nomes de molde: troque pelos auxiliares do arquivo, ou
   crie-os **no próprio arquivo de teste** se não existirem. O falso é **por tabela** (como o arquivo já
   é), nunca por posição de chamada.
-- [ ] **Passo 2, prova de que falham na base** (emenda 1: S-C9, S-C10, G-P2-B1). Rodar no commit-base
-  (antes do passo 3) e **registrar a saída**: têm de falhar, cada um pelo motivo certo: grava o contador e
-  não limpa vencedor; não encerra com critérios verdes; não restaura no F17; restaura título/descrição;
-  ignora erro de leitura; não confere `status`; e o caso da flag **aplica** no código de hoje. Um caso que
-  passe na base é caso vazio: corrija o arranjo antes de seguir.
+
+  (emenda 2: S2-5) **Padrão de `testeAtivo`: `tipo: 'title'`** (restauração não aplicável, `errors: 0`). Só os casos que nomeiam `tipo: 'thumbnail'` ou `'combo'` exercitam a restauração; para eles o `beforeEach` do `describe` arma o caminho feliz: `ensureFreshToken.mockResolvedValue({ accessToken: 't' })`, `fetchVariantImageBuffer.mockResolvedValue({ buffer: Buffer.from('x'), contentType: 'image/jpeg' })`, `mockChannelAccountId.mockResolvedValue('UCpt')`, e o falso devolve uma linha de `youtube_videos`. (O auxiliar `makeActiveTest` de hoje é `thumbnail`, com 16 ciclos e sem `original_thumbnail_url`, e `ensureFreshToken` é `vi.fn()` que devolve `undefined`: sem este arranjo os casos "fronteira", "critérios todos verdes" e "dois testes vencidos" reprovam por motivo errado.)
+
+  (emenda 2: S2-6) **`applyVariantToYouTube` não é espião neste arquivo** (`@/lib/youtube/ab-apply` não está entre os `vi.mock`): `expect(applyVariantToYouTube)…` lançaria por não ser simulação. Os três casos que o citavam (antes da duração, critérios verdes e o da flag) afirmam `setThumbnail` e `updateVideoMetadata` (os dois já simulados; importá-los no topo). No caso da flag o arranjo usa a variante `v2` do auxiliar (`blob_url` e `title_text` preenchidos), que no código de hoje chama os dois; e sai o `vi.stubEnv('AB_AUTO_APPLY_WINNER', 'true')` do `beforeEach` (`:231`), porque o caso da flag a arma por conta própria.
+
+  (emenda 2: decisão 8, S2-declaração) Teste `active` sem ciclo 0 (a inserção do ciclo falhou no início): ver a seção 7.
+- [ ] **Passo 2, prova de que falham na base** (emenda 1: S-C9, S-C10, G-P2-B1; emenda 2: G2-N1, S2-7). Rodar no commit-base
+  (antes do passo 3) e **registrar a saída**. **Têm de falhar, cada um pelo motivo certo** (os sete): grava o contador e
+  não limpa vencedor; não encerra com critérios verdes; não restaura no F17; restaura título/descrição (na afirmação de `setThumbnail`);
+  ignora erro de leitura; não confere `status`; e o caso da flag **aplica** no código de hoje.
+  **Passam também no base, por serem guarda** (comportamento que não muda): "thumbnail que nunca foi ao ar", `started_at` nulo, "config sem `max_duration_days`", a fronteira 13/14, o padrão de 14 dias, "dois testes vencidos" e a afirmação de `status_note` do `it.each` de título/descrição. Não distorça o arranjo para eles "falharem". **Cada guarda é provada uma vez por mutante aplicado à mão no código novo, registrando que reprova:** `>=` por `>` (fronteira); `?? 14` por `?? 30`; sem `?? test.created_at`; `throw` fora do `try`; apagar `restauracao = 'feita'`; apagar o `.eq('status','active')` do `update`.
 - [ ] **Passo 3, a fase** (`src/lib/youtube/ab-evaluate-phases.ts`). `phaseEvaluateActiveTests` passa a ser
   (emenda 1: D-P2-1, S-C7, S-C8, S-C13, G-P2-C2):
 
@@ -599,7 +638,8 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
     it('thumbnail vencida: encerra só o active, fecha os ciclos, limpa vencedor e carência', async () => {
       const { testeId } = await semearTesteAtivo({ tipo: 'thumbnail', diasNoAr: 15, ciclosAbertos: 2, vencedorSugerido: true })
       const r = await phaseEvaluateActiveTests(clienteDeServico())
-      expect(r).toMatchObject({ resolved: 1, errors: 1 })   // original fora do Blob + variante que foi ao ar: errors 1 (emenda 1: S-C7)
+      expect(r.resolved).toBeGreaterThanOrEqual(1)          // (emenda 2: G2-N3) o banco pode ter outros `active`; lê-se por id, não por total
+      expect(r.errors).toBeGreaterThanOrEqual(1)            // original fora do Blob + variante que foi ao ar: errors 1 (emenda 1: S-C7)
       const t = await lerTeste(testeId)
       expect(t).toMatchObject({
         status: 'completed', completed_reason: 'inconclusive', confidence_at_completion: null,
@@ -611,8 +651,10 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
 
     it('teste de título vencido: encerra sem status_note e sem erro', async () => {
       const { testeId } = await semearTesteAtivo({ tipo: 'title', diasNoAr: 15, ciclosAbertos: 1 })
-      expect(await phaseEvaluateActiveTests(clienteDeServico())).toMatchObject({ resolved: 1, errors: 0 })
-      expect((await lerTeste(testeId)).status_note).toBeNull()
+      expect((await phaseEvaluateActiveTests(clienteDeServico())).resolved).toBeGreaterThanOrEqual(1)   // (emenda 2: G2-N3)
+      const t = await lerTeste(testeId)
+      expect(t.status).toBe('completed')
+      expect(t.status_note).toBeNull()
     })
 
     it('teste com 3 dias não muda nenhuma linha', async () => {
@@ -633,7 +675,7 @@ Em todas: testes **dos arquivos da tarefa** com saída em arquivo
   ```
 
   `semearTesteAtivo`, `semearTesteEncerradoAMao`, `lerTeste`, `contarCiclosAbertos` e `clienteDeServico`
-  são auxiliares do próprio arquivo (uuids fixos, limpeza por id no `afterAll`; nada de `db:reset`).
+  são auxiliares do próprio arquivo (uuids fixos, limpeza por id no `afterAll`; nada de `db:reset`). (emenda 2: G2-N3) Os asserts são **por id** (`lerTeste(testeId)`), nunca por total: o `phaseEvaluateActiveTests` roda sobre todos os `active` do `bythiago_int`, e outro arquivo de integração (`ab-tests*.test.ts`, `ab-brainstorm.test.ts`) pode ter deixado teste `active` antigo; se houver risco de paralelismo, `update ab_tests set status='paused'` nos `active` que não são do arquivo antes de cada caso.
   Prova de que falha na base: no commit-base o primeiro caso falha (o código de hoje não limpa o vencedor
   nem grava `status_note`). Sem CI de banco o arquivo é inerte lá (skip por padrão) e roda local. Se o
   controlador recusar o arquivo, a alternativa mínima é a Tarefa 6 rodar esse cenário por script contra o
@@ -768,11 +810,9 @@ export const SEM_MEDICAO_DE_ENTREGA = 'Sem medição de entrega por enquanto'
   sem saída.
 - [ ] **Passo 8, commit:** `fix: saem do detalhe do teste os números fabricados (tempo assistido, comentários, compartilhamentos, top 2, receita anual) (A/B Lab P2, Tarefa 3)`.
 
-### Tarefa 3b: a tela deixa de mostrar critérios e probabilidade sobre views (entra se a Hanna confirmar)
+### Tarefa 3b: a tela deixa de mostrar critérios e probabilidade sobre views (a Hanna recomenda que entre; entra com o sim do dono à pergunta 13)
 
-(emenda 1: D-P2-8, S-E3) **Marcada "entra se a Hanna confirmar".** O controlador recomenda que entre; a
-Hanna fecha (seção 9). Separável: pode ser cortada sem refazer as outras; vai depois da Tarefa 3. Se não
-entrar, a "sobra declarada" (seção 3) e o risco da seção 8 valem.
+(emenda 1: D-P2-8, S-E3; emenda 2: H2-3b) **A Hanna recomenda que entre no mesmo envio da P2; entra com o sim do dono à pergunta 13** (a 3b tira tela que a resposta 10 dele não cobre). A decisão **sai da Tarefa 6**: Logan e Naksu julgam o *resultado* da 3b, não se ela entra. Separável: pode ser cortada sem refazer as outras; vai depois da Tarefa 3. **Fatia de corte:** **3b-1 (painel do CMS: `avgConfidence`, `avgLift`, `monthlyExtraClicks` e `winRate` pela E10) vai junto da Tarefa 4**; **3b-2 (detalhe do teste ativo: painel de critérios e "probabilidade de ser a melhor") é a primeira a sair** se o lote ficar grande, ou se Logan ou Naksu reprovarem o resultado dela na Tarefa 6 (a frase repetida em vários blocos do mesmo detalhe pode ler como tela quebrada). Cortada a 3b-2, volta o gatilho: em produção antes do primeiro teste. Se o dono disser não, a "sobra declarada" (seção 3) e o risco da seção 8 valem. **Critério de aceite próprio: 9c, na seção 6.**
 
 **Por quê.** Com E3 o contador `consecutive_confident_evals` não é mais gravado: todo teste novo mostra
 "0 / 3" de estabilidade e a dica "Need 3 more consecutive confident evaluations"
@@ -793,11 +833,19 @@ a anular: mesmo dado, dois números.
     expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
   })
 
-  it('o painel do CMS não mostra confiança média, vitória nem lift médio calculados sobre views', () => {
+  it('o painel do CMS não mostra confiança média nem lift médio calculados sobre views', () => {
     render(<AbLabDashboard {...propsComTestesConcluidos} />)
     for (const texto of [/confiança média/i, /lift médio/i]) {
       expect(screen.queryAllByText(texto)).toHaveLength(0)
     }
+  })
+
+  // (emenda 2: H2-winRate) o cartão de vitória FICA, com a regra da E10; a 3b não pode abrir a disparidade inversa
+  it('a taxa de vitória do painel mostra o mesmo valor que o pipeline entrega; null vira a frase fixa', () => {
+    render(<AbLabDashboard {...propsComUmManualUmAutoResolveUmInconclusivo} />)   // E10: 1 de 2 = 50%
+    expect(screen.getAllByText(/50(,0)?\s?%/).length).toBeGreaterThan(0)
+    render(<AbLabDashboard {...propsSoAutoResolve} />)                            // nenhum teste que conte: winRate null
+    expect(screen.getAllByText('Sem medição de entrega por enquanto').length).toBeGreaterThan(0)
   })
   ```
 
@@ -806,9 +854,9 @@ a anular: mesmo dado, dois números.
 - [ ] **Passo 2.** Rodar: falham.
 - [ ] **Passo 3.** `active-detail.tsx`: o `<GatesPanel gates={view.gates} />` (`:428`) e o bloco que mostra
   a "probabilidade de ser a melhor" (`RankBars` com `metric="pBest"`, `:365`, e o uso em `:303`) dão lugar
-  a `SEM_MEDICAO_DE_ENTREGA`. `ab-lab-dashboard.tsx:246-263`: os três cartões (`avgConfidence`,
-  `winRate`, `avgLift`) mostram a mesma frase. `AB/queries.ts:572-598` (`computeDashboardStats`) deixa de
-  calcular os três (e de devolver `0` no lugar de `null`); `:1399`: `monthlyExtraClicks` deixa de ser
+  a `SEM_MEDICAO_DE_ENTREGA`. `ab-lab-dashboard.tsx:246-263`: os cartões `avgConfidence` e
+  `avgLift` mostram a frase. (emenda 2: H2-winRate) **O cartão `winRate` não se apaga**: segue a E10 (mesmo filtro e mesma conta do pipeline, via `ehVitoriaHumana`; `auto_resolve` fora do numerador e do denominador), e `null` vira a frase. `AB/queries.ts:572-598` (`computeDashboardStats`) deixa de
+  calcular `avgConfidence` e `avgLift` (e de devolver `0` no lugar de `null`) e passa a calcular `winRate` pela E10 (`null` quando nenhum teste conta); `:1399`: `monthlyExtraClicks` deixa de ser
   `?? 0` e passa a `number | null`, e quem o mostra usa a frase. `lib/youtube/ab-gates.ts` **não muda**
   (função pura, tem teste; sem chamador na tela depois deste passo, fica como `ab-statistics.ts`).
 - [ ] **Passo 4.** Rodar os testes da tarefa e o `tsc`; `grep -rn "GatesPanel" apps/web/src` mostra o que
@@ -817,7 +865,7 @@ a anular: mesmo dado, dois números.
 
 ### Tarefa 4: o pipeline entrega `null` com aviso (resposta 7 do dono)
 
-Tarefa separável. **Um commit só** (paridade).
+Tarefa separável. **Um commit só** (paridade). (emenda 2: H2-3b) A 3b-1 (painel do CMS) vai junto desta tarefa.
 
 **Interfaces.** Em `src/lib/pipeline/services/youtube.ts` nasce:
 
@@ -837,24 +885,39 @@ D-P2-4):
 | `listAbTests` (963) | por teste, os mesmos campos do teste de `getAbTest` | o resto | `aviso` **em cada item**; a resposta continua vetor (a rota entrega o vetor direto, `ab-tests/route.ts:16-17`) |
 | `getAbLearnings` (1437-1525) | `tagWinRates[].avgLift`; em `channelInsights`, saem as frases que citam percentual de lift ou de queda | `wins`, `total`, `kind`, `totalCompletedTests`; vitória conta só com `completed_reason in ('manual_winner','manual_apply')` | `aviso`, **também no retorno antecipado** (`:1450-1452`, `{ tagWinRates: [], channelInsights: [], totalCompletedTests: 0 }`); o texto `'Not enough data for insights'` (diz "faltam testes" quando a causa é "não há métrica") dá lugar ao próprio `aviso` |
 | `getAbPerformance` (1145-1156; **não citada antes**) | nada de entrega | `winning_patterns`, `winning_tags`; vitória conta só com `completed_reason in ('manual_winner','manual_apply')` | `aviso` |
-| `getAbDashboard` (1707-1760) | `avgConfidence`, `avgLift` | `activeTests`, `testsByStatus`; `winRate` conta só vitória humana e é **`null`** (nunca `0`) quando não há teste concluído que conte | `aviso` |
-| `getAbVideoHistory` (1778-1810) | `tests[].liftPercent` | o resto | `aviso` |
+| `getAbDashboard` (1707-1760) | `avgConfidence`, `avgLift` | `activeTests`, `testsByStatus`; `winRate` conta só vitória humana (`ehVitoriaHumana`), com o `auto_resolve` fora do numerador **e do denominador**, e é **`null`** (nunca `0`) quando não sobra teste que conte (emenda 2: D2-1) | `aviso` |
+| `getAbVideoHistory` (1778-1810) | `tests[].liftPercent` | o resto; `winner` só sai preenchido quando `ehVitoriaHumana` (o `select` ganha `winner_variant_id, completed_reason`; emenda 2: D2-2) | `aviso`; leitura com erro lança `DB_ERROR` 500 (emenda 2: D2-5) |
 | `getThumbnailLibrary` (1823-1865) | `thumbnails[].lift` | o resto | `aviso` |
 
 Tipos: cada campo que vira `null` passa a `number | null` no tipo de retorno. `aviso` é
 `typeof AVISO_SEM_METRICA_DE_ENTREGA`. **Projeção explícita** (emenda 1: D-P2-2): ~~anular campos depois
 de `select *`~~ o mapeamento de `getAbTest` e `listAbTests` monta o objeto de saída por **lista fechada**
 dos campos que saem como vieram, e todo campo de entrega é `null` explícito. Coluna futura de `ab_tests` ou
-de `ab_test_cycles` não vaza sem alguém decidir (o `select` do banco não muda).
+de `ab_test_cycles` não vaza sem alguém decidir (o `select` do banco não muda). (emenda 2: D2-4) **A lista fechada, escrita como constante no serviço, é esta** (colunas reais de hoje, `database.types.ts`): do teste, **todas as colunas de hoje de `ab_tests` menos** `confidence_at_completion` e `consecutive_confident_evals` (saem `null`) e `result_metadata` (reprojetado: `winner_label` como veio, as três métricas `null`); mais `variants` e `cycles`. Do ciclo: `id`, `test_id`, `variant_id`, `cycle_number`, `started_at`, `ended_at`, `created_at`, `applied_metadata`, `backfill_status`, `backfill_attempts`, `views`, `avd_seconds`, `likes`, `subscribers_gained`, `estimated_revenue`; as seis de entrega saem `null`. (`ab_tests` tem quatro colunas numéricas: `confidence_at_completion`, `consecutive_confident_evals`, `round_number`, `apply_attempts`; `round_number` e `apply_attempts` continuam números.)
 
-Vitória humana (emenda 1: S-C8, D-P2-3): `getAbDashboard` (`:1736`), `getAbLearnings` (`:1448`) e
-`getAbPerformance` (`:1153`) contavam vitória por `winner_variant_id IS NOT NULL`. Passam a incluir
-`completed_reason` no `select` e a filtrar **em memória**, depois da leitura (para não excluir `null` por
-engano no PostgREST), por `['manual_winner', 'manual_apply'].includes(t.completed_reason)`. Divergência
-Phil/Yannis sobre `manual_no_apply`: ver a nota da decisão E10 (devolvida ao controlador).
+Vitória humana (emenda 1: S-C8, D-P2-3; emenda 2: D2-1, D2-2): a regra mora **num predicado só**, em `src/lib/youtube/ab-types.ts` (onde mora `CompletedReason`, que já lista `manual_winner`, `manual_apply` e `manual_no_apply`):
+
+```ts
+export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as const
+export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
+  return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+}
+```
+
+`ehVitoriaHumana` é usada em **todos** os lugares que contam ou mostram vencedor: `getAbDashboard` (`:1736`), `getAbLearnings` (`:1448`), `getAbPerformance` (`:1153`), `getAbVideoHistory.winner`, as duas linhas de `mcp/prompts.ts` (`:660` e `:749`: `winner_label: ehVitoriaHumana(t) ? 'variant' : null`) e o prompt de coaching (`youtube-prompt-actions.ts:271-274` e `:531-534`: o `select` de `:271` ganha `completed_reason` e o filtro é em memória). Todas incluem `completed_reason` no `select` e filtram **em memória**, depois da leitura (para não excluir `null` por engano no PostgREST). `getAbLearnings`: o filtro vem **logo depois da leitura, antes do retorno antecipado** de `:1450`; `totalCompletedTests`, `winnerIds` e `testIds` saem da lista já filtrada. `winRate` de `getAbDashboard`:
+
+```ts
+const rootCompleted = completed.filter(t => t.parent_test_id === null)
+// "conta" = teste encerrado por decisão de pessoa ou por duração; veredito da máquina e razão desconhecida ficam fora
+const contam = rootCompleted.filter(t => t.completed_reason !== null && t.completed_reason !== 'auto_resolve')
+const vitorias = contam.filter(ehVitoriaHumana).length
+const winRate = contam.length > 0 ? (vitorias / contam.length) * 100 : null
+```
+
+(Sem isso, produção com **apenas** testes `auto_resolve` devolveria `winRate: 0`: não medido lido como zero.) `manual_no_apply` fica fora: ver a nota da decisão E10.
 
 Leitura que falha (emenda 1: D-P2-9, S-D6): nas funções que esta tarefa toca (`getAbDashboard`,
-`getAbLearnings`, `getAbPerformance`), `if (error) return err('DB_ERROR', '...', 500)` logo depois de cada
+`getAbLearnings`, `getAbPerformance` e, emenda 2: D2-5, `getAbVideoHistory`, que em `services/youtube.ts:1784` faz `const { data: tests } = …` sem conferir `error`; mais as duas leituras secundárias de `getAbLearnings`, `:1457-1463`, hoje `.data ?? []`: cada leitura), `if (error) return err('DB_ERROR', '...', 500)` logo depois de cada
 leitura, como `listAbTests` já faz (`:981`). Banco fora não pode sair como `activeTests: 0` com `aviso`.
 
 - [ ] **Passo 1, testes que falham** (emenda 1: S-C3, S-C12, D-P2-4, D-P2-9, G-P2-C4). Moldes com o contrato
@@ -878,7 +941,31 @@ leitura, como `listAbTests` já faz (`:981`). Banco fora não pode sair como `ac
     expect(data.avgConfidence).toBeNull()
     expect(data.avgLift).toBeNull()
     expect(data.aviso).toBe('sem métrica de entrega')
-    expect(data.winRate).toBeCloseTo(33.3, 1)
+    // (emenda 2: D2-1) o auto_resolve sai do numerador E do denominador: 1 de 2 (manual_winner e inconclusive)
+    expect(data.winRate).toBe(50)
+  })
+
+  // (emenda 2: D2-1)
+  it('painel com só auto_resolve concluídos: winRate é null, nunca 0', async () => {
+    const { data } = await getAbDashboard(ctxSoAutoResolve)
+    expect(data.winRate).toBeNull()
+  })
+
+  // (emenda 2: G2-N2, D2-2) fixa a decisão 1: manual_no_apply COM winner_variant_id preenchido não é vitória
+  it('manual_no_apply com vencedor preenchido não conta como vitória, em nenhuma das cinco leituras nem no prompt de coaching', async () => {
+    // fixture: um manual_no_apply COM winner_variant_id e um manual_winner
+    const dash = await getAbDashboard(ctxNoApplyEManualWinner)
+    expect(dash.data.winRate).toBe(50)   // 1 de 2; o manual_no_apply está no denominador e fora do numerador
+    for (const chamar of [
+      () => getAbLearnings(ctxNoApplyEManualWinner),
+      () => getAbPerformance(ctxNoApplyEManualWinner),
+      () => getAbVideoHistory(ctxNoApplyEManualWinner, videoDoNoApply),
+    ]) {
+      const { data } = await chamar()
+      expect(JSON.stringify(data)).not.toContain('tag-so-do-no-apply')
+      expect(JSON.stringify(data)).toContain('tag-so-do-manual')
+    }
+    expect(historicoParaOPromptDeCoaching(ctxNoApplyEManualWinner)).not.toContain('tag-so-do-no-apply')   // youtube-prompt-actions.ts:271-274
   })
 
   it('painel sem nenhum teste concluído: winRate null, nunca 0, e o aviso está lá', async () => {
@@ -894,8 +981,10 @@ leitura, como `listAbTests` já faz (`:981`). Banco fora não pode sair como `ac
     expect(data.result_metadata).toMatchObject({ ctr_lift_percent: null, total_impressions: null, estimated_monthly_extra_clicks: null })
     expect(data.aviso).toBe('sem métrica de entrega')
     // fixa a lista: coluna nova de ab_tests / ab_test_cycles que vaze como número reprova aqui
-    expect(chavesNumericasNaoNulas(data.cycles[0])).toEqual(['cycle_number'])
-    expect(chavesNumericasNaoNulas(data)).toEqual([])
+    // (emenda 2: D2-4) o fixture traz TODAS as colunas das duas tabelas, com valor diferente de zero em cada numérica;
+    // listas ordenadas. Fixture magro passaria sem guardar nada; fixture fiel com `[]` reprovaria.
+    expect(chavesNumericasNaoNulas(data.cycles[0])).toEqual(['avd_seconds','backfill_attempts','cycle_number','estimated_revenue','likes','subscribers_gained','views'])
+    expect(chavesNumericasNaoNulas(data)).toEqual(['apply_attempts','round_number'])
   })
 
   it('listAbTests continua vetor, com aviso em cada item', async () => {
@@ -922,6 +1011,7 @@ leitura, como `listAbTests` já faz (`:981`). Banco fora não pode sair como `ac
     ['getAbDashboard', () => getAbDashboard(ctxBancoFora)],
     ['getAbLearnings', () => getAbLearnings(ctxBancoFora)],
     ['getAbPerformance', () => getAbPerformance(ctxBancoFora)],
+    ['getAbVideoHistory', () => getAbVideoHistory(ctxBancoFora, videoId)],   // (emenda 2: D2-5)
   ])('%s: leitura com erro lança PipelineServiceError 500, não devolve zero com aviso', async (_nome, chamar) => {
     await expect(chamar()).rejects.toMatchObject({ code: 'DB_ERROR', status: 500 })
   })
@@ -930,6 +1020,10 @@ leitura, como `listAbTests` já faz (`:981`). Banco fora não pode sair como `ac
     const { data } = await getAbLearnings(ctxComUmAutoResolveEUmManual)
     expect(data.tagWinRates.every(t => t.avgLift === null)).toBe(true)
     expect(data.tagWinRates.find(t => t.tag === 'tag-so-do-auto')).toBeUndefined()
+    // (emenda 2: S2-8) getAbPerformance também: poderia continuar contando por winner_variant_id sem que nada reprovasse
+    const perf = await getAbPerformance(ctxComUmAutoResolveEUmManual)
+    expect(JSON.stringify(perf.data)).not.toContain('tag-so-do-auto')
+    expect(JSON.stringify(perf.data)).toContain('tag-so-do-manual')
   })
 
   // (emenda 1: G-P2-C4) paridade REST x MCP, em test/mcp/mcp-schema-reads.test.ts, que já tem leituras do MCP
@@ -954,11 +1048,11 @@ leitura, como `listAbTests` já faz (`:981`). Banco fora não pode sair como `ac
   Para o prompt de coaching (D-P2-5): em `test/youtube/` (ou onde `youtube-prompt-actions` já é testada), o
   objeto de resultado de A/B enviado ao prompt **não tem** a chave `confidence`.
 - [ ] **Passo 2.** Rodar: falham.
-- [ ] **Passo 3, serviços.** Aplicar a tabela de "Interfaces", a projeção explícita, a vitória humana e o
-  `DB_ERROR`. O `select` de `ab_tests` e de `ab_test_cycles` não muda.
+- [ ] **Passo 3, serviços.** Aplicar a tabela de "Interfaces", a projeção explícita (lista fechada), `ehVitoriaHumana` em todos os lugares listados (inclusive `mcp/prompts.ts:660,749` e `getAbVideoHistory.winner`) e o
+  `DB_ERROR` (inclusive `getAbVideoHistory`). O `select` de `ab_tests` e de `ab_test_cycles` não muda.
 - [ ] **Passo 3b, o prompt de coaching** (emenda 1: D-P2-5). `src/app/cms/(authed)/youtube/_actions/youtube-prompt-actions.ts`
   (a pasta `_actions/` faltava na citação antiga `:271-280`): o `select` de `:271` perde
-  `confidence_at_completion`; em `:531-536` sai o campo `confidence: Number(t.confidence_at_completion ?? 0)`
+  `confidence_at_completion` e ganha `completed_reason` (o `winner` do prompt só sai quando `ehVitoriaHumana`, filtro em memória; emenda 2: D2-2); em `:531-536` sai o campo `confidence: Number(t.confidence_at_completion ?? 0)`
   e o campo sai de `AbTestResultRow` (`lib/youtube/prompt-types.ts:132`). Quem consome `abTestResults`
   além da atribuição em `:562`: o `tsc` aponta.
 - [ ] **Passo 4, prompts** (`src/lib/youtube/prompt-builders-ab.ts`): `buildHistorySection` (250-275)
@@ -1004,7 +1098,7 @@ reversível; anular na saída basta com a lista fechada, a vitória humana e o c
 ### Tarefa 6: prova local, capturas e revisão de tela
 
 - [ ] `npx tsc --noEmit` do web e da api; suíte inteira em background com saída em arquivo; `npm run build:web`
-  com saída em arquivo. Só as falhas entram no contexto.
+  com saída em arquivo (emenda 2: S2-2: ele lê `apps/web/.env.production.local`, não o `.env.development.local`; seção 1). Só as falhas entram no contexto.
 - [ ] **Gio (`gio-qa`, Sonnet, `medium`):** antes (em `origin/staging` já com P1) e depois, a 1440 px e
   a 390 px, de: detalhe de um teste ativo, detalhe de um teste encerrado, gaveta de configurações, passo
   "configurar" e passo "revisar" do wizard. Em
@@ -1041,13 +1135,14 @@ reversível; anular na saída basta com a lista fechada, a vitória humana e o c
   - **Leitura por script, não por olho:** o texto de cada tela e a contagem de `role=switch` e
     `role=slider` (3 e 1 no antes, 0 no depois). Dois temas, 1440 e 390, animação desligada, relógio fixo
     (`page.clock`). Ao fim: apagar por id (ciclos, variantes, testes, vídeos, canal) e confirmar contagem
-    zero; **apagar `apps/web/.env.development.local`**.
+    zero; **apagar `apps/web/.env.development.local` e `apps/web/.env.production.local`**.
   - Em **Opera** o `color-mix()` renderiza transparente: a frase fixa tem de ter contraste legível
     (roteiro ao dono), não só estar presente.
 - [ ] **Logan e Naksu (Sonnet, `medium`), em paralelo, uma passada:** a frase "Sem medição de entrega
   por enquanto" no lugar de cada bloco comunica o que falta, sem parecer erro? O wizard sem os três
-  controles ainda tem um passo "configurar" que vale a tela? E a "sobra declarada" da seção 3 (painel de
-  critérios sobre views): aceitam até a etapa de telas, ou pedem a tarefa 3b?
+  controles ainda tem um passo "configurar" que vale a tela? E o **resultado** da Tarefa 3b (painel de
+  critérios e médias trocados pela frase fixa; o cartão de vitória mantido): lê como tela quebrada, sobretudo
+  a 3b-2 com a frase repetida no mesmo detalhe? (emenda 2: H2-3b: eles julgam o resultado, não se a 3b entra.)
 - [ ] Capturas ao dono, uma linha por tela.
 
 ### Tarefa 7: envio
@@ -1106,6 +1201,7 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
   ```
   `auto_resolve` com `com_vencedor = 0`: registrar e seguir. `com_vencedor >= 1`: registrar quantos; a
   Tarefa 4 já os tira da conta (vitória só humana), e a tela os mostrará sem vencedor contado.
+  (emenda 2: D2-2) **Anote no ledger** as linhas `manual_apply`, `manual_no_apply` e `completed_reason` nulo com `com_vencedor >= 1`. `manual_no_apply` e nulo **não contam** como vitória; `manual_apply` conta e vai dito ao dono com a frase da E10 ("a máquina sugeriu, a pessoa aplicou": número fixo, nenhuma linha nova nasce assim depois da P2).
 - [ ] **C2, depois do deploy, na execução do cron de 12:00 UTC posterior ao deploy:** `/api/health` sem
   falha do `ab-evaluate`. ~~"A resposta do cron (log da Vercel) tem as seis chaves novas"~~: o corpo da
   resposta do cron não fica no log da Vercel; as seis chaves estão provadas pelo teste da Tarefa 1,
@@ -1117,9 +1213,8 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
   select test_id, count(*) as ciclos, sum(impressions) as soma_no_banco
     from ab_test_cycles where impressions is not null group by 1 order by 2 desc limit 3;
   ```
-  Para esse `test_id` (soma no banco > 0), salve as **três** respostas (REST
-  `GET /api/pipeline/youtube/ab-tests/<id>/funnel`; ação MCP `manage_ab_test` `get_funnel` no Cowork **e**
-  no Claude Code) e afirme: mesmo conjunto de chaves; `per_variant[].impressions === null`;
+  Para esse `test_id` (soma no banco > 0), salve as respostas (REST
+  `GET /api/pipeline/youtube/ab-tests/<id>/funnel`; ação MCP `manage_ab_test` `get_funnel` no Claude Code; a do **Cowork é do dono**, pelo texto colado da seção 2, item 4; emenda 2: H2-Cowork) e afirme: mesmo conjunto de chaves; `per_variant[].impressions === null`;
   `per_variant[].clicks === null`; `aviso === 'sem métrica de entrega'`; `link_clicks` número. Mais
   `GET .../ab-tests/dashboard` (`avgConfidence: null`, `avgLift: null`, `winRate` número ou `null`).
   **Falso verde:** teste sem ciclo (nada para anular). Se a consulta não devolver linha, a C3 não é
@@ -1131,7 +1226,7 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
   produção nunca teve esses números preenchidos, então "não vê" é trivial; a prova de tela é a captura
   local com semente cheia (Tarefa 6). O dono confere só que a frase aparece, com contraste legível, e que
   os controles sumiram (aceite P2-P1).
-- [ ] **C5, conferência com data do primeiro teste real** (a única prova do ramo único com dado real; o
+- [ ] **C5, roteiro herdado pela P4** (não portão da P2), conferência com data do primeiro teste real (a única prova do ramo único com dado real; o
   dono roda teste "em algumas semanas"). No dia seguinte ao `vence_em` do primeiro teste novo, depois das
   12:10 UTC:
   ```sql
@@ -1140,9 +1235,8 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
   select count(*) from ab_test_cycles where test_id = '<id do teste>' and ended_at is null;
   ```
   Esperado: `completed`, `inconclusive`, `winner_variant_id`, `grace_expires_at` e `confidence_at_completion`
-  nulos, **`status_note` nulo** (restauração feita) e zero ciclo aberto. `status_note` preenchido com
-  "original não restaurado" = a restauração falhou e a variante pode estar no ar: confira a thumbnail do
-  vídeo e leve ao dono (a garantia é da P4).
+  nulos, **`status_note` sem o prefixo `duração máxima:`** (nulo, ou uma nota antiga do `ab-rotate`, do tipo `retry n/3: …`, que o encerramento não apaga de propósito; emenda 2: D2-3) e zero ciclo aberto. `status_note` que **começa com** `duração máxima: original não restaurado` = a restauração falhou e a variante pode estar no ar: confira a thumbnail do
+  vídeo e leve ao dono (a garantia é da P4). **(emenda 2: H2-P5) A C5 deixa de ser conferência da P2: é roteiro herdado pela P4**, porque o primeiro teste real já roda sob `settleOnAir`.
 
 ---
 
@@ -1155,11 +1249,12 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
 | 8 | Configuração antiga com `auto_apply_winner` continua válida e a chave é ignorada | Tarefa 2, passo 1 |
 | 9a | Os quatro números de 4.2.1 não aparecem; a frase fixa aparece | Tarefa 3, passo 1 |
 | 9b | Funil e painel do pipeline devolvem `null` com o aviso; paridade REST × MCP provada por teste | Tarefa 4, passo 1 |
-| P2-P1 | Produção: teste encerrado mostra a frase fixa no lugar dos números; as configurações e o passo "configurar" não têm "Aplicar vencedor automaticamente", "Playoff automático" nem slider de confiança. A prova de tela é a captura local com semente cheia (o teste de produção nunca teve esses números) | dono; Tarefa 8, C4; Tarefa 6 |
+| 9c (emenda 2: H2-3b) | **Se a 3b entrar:** o detalhe do teste ativo não mostra o painel de critérios, "0 / 3" nem "probabilidade de ser a melhor"; o painel do CMS não mostra confiança média nem lift médio; a taxa de vitória mostra o mesmo valor que o pipeline entrega, ou a frase quando ele é `null` | Tarefa 3b, passo 1; captura local (Tarefa 6) |
+| P2-P1 | Produção: teste encerrado mostra a frase fixa no lugar dos números; as configurações e o passo "configurar" não têm "Aplicar vencedor automaticamente", "Playoff automático" nem slider de confiança. (emenda 2: H2-3b) O dono abre `/cms/youtube/ab-lab` e vê a frase no lugar de confiança média e lift médio; o detalhe do teste ativo **não é conferível em produção** (zero teste ativo): vale a captura local com semente. A prova de tela é a captura local com semente cheia (o teste de produção nunca teve esses números) | dono; Tarefa 8, C4; Tarefa 6 |
 | P2-P2 | Produção: a execução de 12:00 UTC posterior ao deploy termina sem falha no `/api/health` (prova "não quebrou ao subir", não a lógica; a lógica é o teste de integração) | Tarefa 8, C2 |
-| P2-P3 | Paridade: mesmo conjunto de chaves, `null` e `aviso` pelo REST e pelo MCP (Cowork e Claude Code), com teste que tenha ciclos; sem teste assim em produção: "não verificado" e vale a prova local | Tarefa 8, C3; Tarefa 4, passo 1 |
+| P2-P3 | Paridade: mesmo conjunto de chaves, `null` e `aviso` pelo REST e pelo MCP (Claude Code pelo agente; **Cowork pelo dono**, com o texto da seção 2), com teste que tenha ciclos; sem teste assim em produção: "não verificado" e vale a prova local | Tarefa 8, C3; Tarefa 4, passo 1 |
 | P2-P4 | Nenhum teste `active`, `queued`, `paused`, rascunho de rodada 2 nem carência em produção no dia do envio, ou o dono decidiu o que fazer com ele. **Sem a saída da C1 colada no ledger antes do envio: "não verificado", e o envio não sai** | Tarefa 8, C1 |
-| P2-P5 | O primeiro teste real encerrado pelo cron: `completed`/`inconclusive`, sem vencedor, zero ciclo aberto, `status_note` nulo | Tarefa 8, C5 (com data) |
+| ~~P2-P5~~ | (emenda 2: H2-P5) **Sai da P2 e vai para a P4** (o primeiro teste real já roda sob `settleOnAir`). Era: o primeiro teste real encerrado pelo cron, `completed`/`inconclusive`, sem vencedor, zero ciclo aberto, `status_note` nulo | roteiro herdado pela P4 (C5) |
 
 ## 7. O que acontece quando o dado não existe, e em cada falha
 
@@ -1170,7 +1265,8 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
 | Teste ativo com `started_at` nulo | usa `created_at` (como hoje) |
 | Teste ativo sem `max_duration_days` na configuração | 14 dias (como hoje) |
 | A restauração da thumbnail falha (token, canal não identificado, Blob fora), em teste de thumbnail ou combo que foi ao ar | (emenda 1: S-C7) Sentry, o teste **encerra** (manter `active` faria o `ab-rotate` das 08:00 UTC continuar trocando variante num teste vencido e gastaria `thumbnails.set` todo dia), grava `status_note` "duração máxima: original não restaurado (falhou)" e o cron conta `errors++` (fica vermelho nesse dia). A variante pode ficar no ar; a garantia é da P4 |
-| O original não está no Blob, em teste de thumbnail ou combo que foi ao ar | nada é restaurado; encerra com `status_note` "(sem_original_no_blob)" e `errors++` (emenda 1: S-C7) |
+| O original não está no Blob, em teste de thumbnail ou combo que foi ao ar | nada é restaurado; encerra com `status_note` "(sem_original_no_blob)" e `errors++` (emenda 1: S-C7). **Falso alarme declarado** (emenda 2: D2-dec3): o original é uma variante da rotação (`is_original`); se no instante do encerramento era ele que estava no ar, o cron fica vermelho e a nota diz "original não restaurado" sem haver variante no ar. Alcance pequeno: teste novo só tem original fora do Blob se a URL do YouTube não for `ytimg/ggpht/googleusercontent` (`actions.ts:217-224`). Prefere-se o alarme a mais ao silêncio; a P4 (`settleOnAir`) resolve lendo o ciclo aberto |
+| Teste `active` sem ciclo porque a inserção do ciclo 0 falhou no início (`startAbTestInternal` põe a thumbnail no YouTube, marca `active` e só depois insere o ciclo) | (emenda 2: S2-declaração) encerra sem restaurar e sem `status_note`; se a primeira variante não era a original, ela fica no ar. Raro (o banco falha entre duas escritas seguidas); P4 |
 | Teste de título ou descrição, ou de thumbnail que nunca foi ao ar (nenhum ciclo) | não toca o YouTube; encerra sem `status_note` e sem erro (emenda 1: G-P2-C2) |
 | O dono ou outro processo encerrou, pausou ou decidiu o teste no meio da execução | a releitura antes da restauração e o `update ... eq('status','active')` impedem o cron de desfazer a decisão; zero linha não conta como resolvido nem como erro (emenda 1: D-P2-1). Janela residual: entre a releitura e o `update` ainda passam segundos |
 | Teste `paused` além da duração máxima | a fase só lê `active`: nunca encerra. Igual a hoje; P4 (emenda 1: D-P2-S3, S-D5) |
@@ -1188,13 +1284,13 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
   continua sem garantia**, mas deixou de ser silenciosa (`status_note` + `errors++`). Quando falha, os
   ciclos dizem "nada no ar" e a variante continua no vídeo; a coleta própria deixa de atribuir os dias à
   variante (D-P2-S2). **P4 tem de estar em produção antes do primeiro teste novo** (o dono disse que roda
-  teste "em algumas semanas"); se ela atrasar, a C1 da Tarefa 8 vira portão de todo envio até a P4.
+  teste "em algumas semanas"); se ela atrasar, a C1 da Tarefa 8 vira portão de todo envio **que toque o A/B Lab** até a P4 (emenda 2: H2-H10; não é portão dos envios da A5).
 - **Um teste antigo com critérios verdes que estava preso em `active`** (o defeito do `!allPass`) será
   encerrado no primeiro disparo. É o certo, mas é mudança visível: C1 mostra antes se existe algum.
 - **O Cowork recebe `null` onde recebia número.** Prompt ou rotina dele que faça conta com esses campos
   quebra do lado dele. É o efeito pedido (resposta 7), e o `aviso` explica.
 - **A tela ainda mostra critérios e probabilidade calculados sobre views, e o painel do CMS mostra médias
-  que o pipeline anula**, se a Tarefa 3b não entrar (sobra declarada, seção 3). Nesse caso a etapa de
+  que o pipeline anula**, se a Tarefa 3b não entrar (o dono disser não à pergunta 13, ou a 3b-2 for cortada) (sobra declarada, seção 3). Nesse caso a etapa de
   telas tem de estar em produção antes do primeiro teste novo, junto da P4 (emenda 1: D-P2-8).
 - **Dívidas declaradas** (emenda 1: Yannis): **D2** `phaseAutoStartPlayoffs` ignora `error` da leitura e
   `result.ok === false` (rodada 2 que não inicia sai em verde; pagar junto da P4 ou quando nascer o
@@ -1203,7 +1299,7 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
   **D5** teste `paused` nunca passa pela duração máxima (P4). **Janela residual** da corrida cron ×
   decisão manual: entre a releitura e o `update` com `status = 'active'`.
 - **A Tarefa 3 é larga** (o campo `pTop2` atravessa cinco componentes e oito arquivos de teste). É a
-  candidata a corte se o lote ficar grande: sem ela, os números fabricados ficam até a etapa de telas.
+  candidata a corte se o lote ficar grande: sem ela, os números fabricados ficam até a etapa de telas. (emenda 2: H2-3b) Das fatias da 3b, a 3b-2 sai primeiro.
 - **Trechos de teste são moldes**, escritos sem ler os arquivos de teste; os nomes dos auxiliares têm de
   ser trocados pelos que existem. O que não muda é a lista de afirmações.
 - **Linhas de `cowork-docs-youtube.md` e de `services/youtube.ts` deslocam depois de P1.** O plano dá
@@ -1211,19 +1307,7 @@ Só select, por `npx supabase db query --linked --agent=yes -o json`, com autori
 
 ## 9. Perguntas abertas para a revisão
 
-(emenda 1: as perguntas 1 a 3 da versão anterior foram respondidas por Yannis, Phil e Gio e viraram
-decisão no corpo: E1 a E5, E7 e E10 (seção 3); restauração que falha encerra com `status_note` e
-`errors++` (Tarefa 1); `confidence_at_completion` e `ctr_lift_percent` anulados na saída sem tocar o
-banco, com o prompt de coaching na Tarefa 4; paridade provada por teste e por C3; semente local na
-Tarefa 6; falso que simula fases (Tarefa 1, passo 7). Ficam só as dirigidas a Hanna, Logan e Naksu, mais a
-divergência entregue ao controlador.)
+(emenda 2: H2-perguntas) As perguntas da Hanna (inclusive "a 3b entra?" e "um envio ou dois?") foram respondidas e viraram decisão no corpo: um envio só, 3b recomendada, P2-P5 fora (seções 1, 2 e 6). Sobram só:
 
-1. **Logan e Naksu (na Tarefa 6):** a frase fixa "Sem medição de entrega por enquanto" no lugar de cada
-   bloco comunica o que falta sem parecer erro? E a "sobra declarada" (seção 3): aceitam até a etapa de
-   telas, ou pedem a Tarefa 3b?
-2. **Hanna:** (a) a Tarefa 3 e a Tarefa 4 vão no mesmo envio da Tarefa 1, ou a Tarefa 1 sobe sozinha
-   primeiro (é a que para o cron de decidir)? Recomendação do controlador: um envio só, porque produção
-   tem zero testes ativos e o que o dono **vê** está nas Tarefas 2 e 3. (b) A **Tarefa 3b** entra? O
-   controlador e o Phil recomendam que sim (o critério de estabilidade "0 / 3" congelado e as médias do
-   painel do CMS dizem uma coisa que o cron não faz mais); se não entrar, a etapa de telas fica
-   obrigatória antes do primeiro teste novo.
+1. **Logan e Naksu (na Tarefa 6):** a frase fixa "Sem medição de entrega por enquanto" no lugar de cada bloco comunica o que falta sem parecer erro? E o resultado da Tarefa 3b (critérios e médias trocados pela frase, cartão de vitória mantido) lê como tela quebrada?
+2. **Ao dono (seção 2):** a 13 (a 3b entra, sem mockup) e a 14 (há data para o primeiro teste A/B?).

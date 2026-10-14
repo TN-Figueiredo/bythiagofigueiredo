@@ -1,13 +1,14 @@
 # A/B Lab honesto, P1: fadiga e "vídeo em alta" saem (plano de implementação)
 
-Escrito em 13/10/2026 (noite). **Emenda 1 aplicada: responde à rodada 1 de revisão de Phil, Yannis e Gio** (pareceres `.superpowers/sdd/ab-lab/revisao-r1-{phil,yannis,gio}.md`, decisões em `emenda-1-decisoes-do-controlador.md`, tabela achado a achado em `resposta-r1-p1.md`); falta o portão da Hanna. Cada trecho mudado leva a marca `(emenda 1: <id>)`.
+Escrito em 13/10/2026 (noite). **Emenda 1 aplicada: responde à rodada 1 de revisão de Phil, Yannis e Gio** (pareceres `.superpowers/sdd/ab-lab/revisao-r1-{phil,yannis,gio}.md`, decisões em `emenda-1-decisoes-do-controlador.md`, tabela achado a achado em `resposta-r1-p1.md`). **Emenda 2 aplicada: responde à rodada 2 de Gio, Yannis e Phil e ao parecer 02 da Hanna** (`revisao-r2-{gio,yannis,phil}.md`, `hanna-parecer-02-fecho-p1-p2.md`, decisões em `emenda-2-decisoes-do-controlador.md`, tabela em `resposta-r2-p1.md`). **Estado: acordo de Phil, Yannis, Gio e Hanna; espera o "pode" do dono.** Cada trecho mudado leva a marca `(emenda 1: <id>)` ou `(emenda 2: <id>)`.
 Spec: `docs/superpowers/specs/2026-10-07-ab-lab-honesto-design.md` (v6, seção 4.3, bloco P1 da seção 1,
 aceite 1 a 5 e "Respostas do dono (13/10/2026)" no fim). Inventário de código, lido em 13/10 no HEAD
 `bc5adea94`: `.superpowers/sdd/ab-lab/inventario-p1.md` (toda linha citada aqui vem dele; **quem executa
 reconfere por `grep` no dia**). Parecer da Hanna sobre a ordem: `.superpowers/sdd/ab-lab/hanna-parecer-01-plano-de-trabalho.md`.
 
 > **Para quem executa:** use `superpowers:subagent-driven-development`, tarefa por tarefa. Passos com
-> caixa (`- [ ]`). Sonnet, effort `medium`; `high` em nenhuma tarefa deste plano.
+> caixa (`- [ ]`). Sonnet, effort `medium` em tudo; `high` em nenhuma tarefa deste plano (emenda 2:
+> decisão 14; a única exceção dos dois planos é a revisão da Tarefa 1 da P2, e fica no plano da P2).
 
 **Objetivo, em uma frase.** Parar de gravar, mostrar e entregar ao Cowork dois sinais que leem como
 "views do dia" um número que é o total de 90 dias: o alerta de fadiga e o aviso "vídeo em alta".
@@ -116,9 +117,11 @@ hook de pre-commit semearia a referência do Cowork em produção a partir de c�
 commit que toque `api-registry.ts`, `data/pipeline-docs/` ou `docs/cowork-*` dispara
 `scripts/seed-pipeline-reference.ts` contra o banco de produção). O servidor local do Gio e o `build:web`
 da Tarefa 6 leem as variáveis de `apps/web/.env.development.local` (o Next carrega em `dev`; o hook não
-olha esse arquivo), **apagado ao fim da Tarefa 6**. Se o `next build` exigir variável que só o
-`.env.local` tem, o build roda com as variáveis passadas na linha de comando, nunca com o arquivo na
-árvore.
+olha esse arquivo), **apagado ao fim da Tarefa 6**. (emenda 2: S2-R2-2) O `next build` roda em modo de produção e **não**
+lê o `.env.development.local`: para o `build:web`, as variáveis vêm de `apps/web/.env.production.local`
+(cópia do `.env.local` do repositório principal; o hook só olha `apps/web/.env.local`; conferir
+`git check-ignore apps/web/.env.production.local`), apagado junto com o `.env.development.local` ao fim
+da Tarefa 6. Se ainda faltar variável, passá-las na linha de comando, nunca com o `.env.local` na árvore.
 
 **Envio (Tarefa 7):** as três conferências da regra 1 (para P1 as três dão zero por construção: não há
 migration nem teste de integração novo), `npx tsc --noEmit` e a suíte na árvore, push por refspec
@@ -159,6 +162,28 @@ P1 chegar a `origin/staging` (o controlador desta trilha escreve; **não edita p
    (resposta 10); as capturas são para ele conferir que só saiu o que devia.
 2. Colar a consulta e o `update` da Tarefa 8 (resposta 8).
 3. Abrir o A/B Lab e a lista de vídeos em produção, logado, depois do deploy (aceite P1-P1).
+4. (emenda 2: H2-H6) Colar **uma vez**, no Cowork e no Claude Code, depois do deploy da **P2**, o texto de
+   conferência que está na seção 2 do plano da P2; ele cobre P1-P3 e P2-P3. Agente não opera o Cowork.
+5. (emenda 2: H2-H7) A conferência D+7 da C3 (mediana de `ms_existente`) tem data e responsável no ledger
+   `.superpowers/sdd/ab-lab/progress.md` (nasce na Tarefa 0): "D+7 = <data>, quem roda = <nome>".
+
+**Decidir (duas linhas; um "pode" geral aceita as duas) (emenda 2: decisão 12, H2-12):**
+
+| # | Pergunta | Padrão recomendado |
+|---|---|---|
+| 13 | A P2 pode tirar também, sem mockup, o painel de critérios, a "probabilidade de ser a melhor" e as médias de confiança e de lift (a Tarefa 3b da P2)? Você vê as capturas de antes e depois | Sim. Sem isso, a etapa de telas inteira vira obrigatória antes do primeiro teste. Pergunta da P2; aqui só para o dono ter as duas juntas |
+| 14 | Há data para o primeiro teste A/B? | Sem data: segue P3 e depois P4, e você avisa antes de iniciar. Com data curta: sobe primeiro a parte da P4 que protege o vídeo |
+
+**Saber (não precisa responder) (emenda 2: decisão 12, H2-12):**
+
+- Até a P4 estar em produção, não inicie teste A/B: a tela não impede, é combinado.
+- Depois da P2, teste que passa da duração máxima encerra sem vencedor, mesmo com critérios verdes.
+- O Cowork passa a receber recusa (400) se mandar aviso de "vídeo em alta" (P1) e `null` onde recebia
+  impressões, confiança e lift (P2). Não foi conferido se algum prompt ou memória salva dele ainda usa isso.
+- O trabalho é feito em galho local próprio (`lote/ab-p1`, depois `lote/ab-p2`), fora da regra dele de
+  "sempre em `staging`", para não pisar no outro terminal que implementa a A5 no `staging` local. O push
+  continua indo a `staging`; o galho é local e some depois da Tarefa 8.
+- O `update` da Tarefa 8 **não trava o envio**: trava só o fecho do critério P1-P2.
 
 **Não é mais do dono (desvio do spec, com motivo):** "rodar o seed da referência do Cowork". O seed
 (`scripts/seed-pipeline-reference.ts`) só leva `docs/cowork-*.md` ao banco, e nenhum deles cita fadiga;
@@ -444,8 +469,12 @@ gravar `youtube_fatigue_alerts`. `checkLongevity`, `runLongevityChecks` e `autoI
 
     Ajuste `ctx`, `corpoValido` e `from` aos nomes do arquivo novo (o espião de `supabase.from` é criado
     nele).
-- [ ] **Passo 2.** Rodar: os quatro falham (o `errorMap` e o caso do `type` ausente ainda não existem; o
-  enum de hoje aceita `trending_viral`, então o primeiro caso do PATCH falha por não ser rejeitado).
+- [ ] **Passo 2.** (emenda 2: G2-P1-N1, S2-R2-1) Rodar: **os três primeiros falham** (a contagem do
+  registro, o `padraoDaRota` e o `trending_viral` do PATCH: o enum de hoje aceita `trending_viral`, então
+  o caso do PATCH falha por não ser rejeitado). **O do `type` ausente passa também no base** (hoje o zod
+  devolve a mensagem padrão, sem "undefined"): é guarda contra o `errorMap` novo trocar a mensagem do
+  campo ausente. Confira que ele falharia se o `errorMap` devolvesse `not accepted: ${issue.received}`
+  sem o `if (issue.code !== 'invalid_enum_value')` (tire a linha uma vez, veja falhar, devolva a linha).
 - [ ] **Passo 3, rotas e registro.** Apagar as duas pastas de rota. `api-registry.ts`: saem as entradas
   de `:197` e `:199`; `endpoint_count: 36` → `34` (`:169`). `leitura-rotas.ts`: saem `:72` e `:91`.
 - [ ] **Passo 4, serviços.** `services/youtube.ts`: saem `getAbFatigueAlerts` com os tipos dela
@@ -539,10 +568,11 @@ gravar `youtube_fatigue_alerts`. `checkLongevity`, `runLongevityChecks` e `autoI
   `cd apps/web && npx vitest run > /tmp/ab-p1-suite.log 2>&1` (cerca de 160 s). No contexto, só as
   falhas. **Esperado: as mesmas falhas da base de `origin/staging`, se houver, e nenhuma nova.**
 - [ ] `npm run build:web > /tmp/ab-p1-build.log 2>&1` (mudança que apaga rotas e props de Server
-  Component: rode o build; é a regra "mudança arriscada" do `CLAUDE.md`). (emenda 1: S-C2) As variáveis
-  vêm de `apps/web/.env.development.local`, **nunca** de `apps/web/.env.local` na árvore. Ao fim da
-  Tarefa 6, `rm apps/web/.env.development.local` e conferir que nem ele nem `.env.local` existem
-  (`ls apps/web/.env*`).
+  Component: rode o build; é a regra "mudança arriscada" do `CLAUDE.md`). (emenda 1: S-C2; emenda 2:
+  S2-R2-2) As variáveis do **build** vêm de `apps/web/.env.production.local` (o `next build` não lê o
+  `.env.development.local`, que serve só ao servidor do Gio), **nunca** de `apps/web/.env.local` na
+  árvore. Ao fim da Tarefa 6, `rm apps/web/.env.production.local apps/web/.env.development.local` e
+  conferir que nenhum dos dois nem `.env.local` existe (`ls apps/web/.env*`).
 - [ ] **Gio (`gio-qa`, Sonnet, `medium`)**, na árvore própria, com o servidor local dele: capturas de
   **antes** (em `origin/staging`) e **depois** do painel do A/B Lab e da lista de vídeos, a 1440 px e a
   390 px, em `docs/superpowers/mockups/2026-10-13-ab-lab-p1-retirada/shots/`. Para o "antes" mostrar o
@@ -607,6 +637,9 @@ gravar `youtube_fatigue_alerts`. `checkLongevity`, `runLongevityChecks` e `autoI
 Consultas por `npx supabase db query --linked --agent=yes -o json`, **só select**, com autorização do
 dono na sessão; se o classificador negar, o dono roda.
 
+- [ ] **Ordem (emenda 2: H2-4):** a C1 (só leitura) roda **antes do envio**, para o dono saber de
+  antemão se há algo a colar; a lista dos `pending` é guardada antes do `update`. O `update` do dono
+  **não trava o envio**: roda no dia do deploy e trava só o fecho do critério P1-P2.
 - [ ] **C1, antes do `update` (emenda 1: D-P1-3, G-P1-C4):** duas consultas; a saída da segunda vai
   para o relatório do envio (depois do `update`, dispensado em lote fica igual a dispensado à mão, e
   não existe coluna de data de dispensa):
@@ -645,6 +678,9 @@ dono na sessão; se o classificador negar, o dono roda.
     e só sai no **7º dia** depois do deploy. `ms_existente` mede só a parte antiga
     (`route.ts:549-566`), então o deploy da A5 no mesmo intervalo não contamina. Até lá não se promete
     folga à A5.
+  **Data e dono (emenda 2: H2-4, H7):** no envio, o ledger `.superpowers/sdd/ab-lab/progress.md` ganha
+  a linha "C3 D+7 = <data do deploy + 7 dias>, quem roda = <agente ou dono>"; sem a linha, o envio não
+  fecha.
   Parâmetro que explica o ganho, para o dono rodar junto:
   `select site_id, count(*) from youtube_videos where published_at < now() - interval '30 days' group by 1;`
 - [ ] **C4:** `/api/health` sem falha do `sync-analytics-metrics` e do `ab-evaluate`, lido **depois** da
@@ -662,8 +698,11 @@ dono na sessão; se o classificador negar, o dono roda.
   validação do enum, não vazio.
 - [ ] **C6, guarda dos leitores externos (emenda 1: G-P1-C5, D-P1-4):** comando literal e saída colados no
   relatório:
-  `grep -rnE "fatigueAlerts|\.notifications\b|fatigue-alerts|thumbnails/fatigue" apps scripts supabase .github docs/ops ~/Workspace/forja/ferramentas`
-  → somente arquivos que a P1 apaga ou reescreve; e
+  (emenda 2: D2-P1 observação; o `\.notifications\b` casava arquivos que a P1 não toca e a pasta
+  `apps/web/coverage/`)
+  `grep -rnE "fatigueAlerts|fatigue-alerts|thumbnails/fatigue" apps/web/src apps/api/src scripts supabase .github docs/ops ~/Workspace/forja/ferramentas`
+  → sem saída depois da P1 (salvo `database.types.ts`). A ausência da chave `notifications` na resposta do
+  cron fica provada pelo teste da Tarefa 1, que já afirma as chaves; e
   `select proname from pg_proc where prosrc ilike '%fatigueAlerts%';` → vazio. O que mora no Cowork
   (prompt salvo, memória) é "**não conferido, dado do Cowork**".
 
@@ -678,7 +717,7 @@ dono na sessão; se o classificador negar, o dono roda.
 | 3 | `checkAndPersistLongevity` com `fading` não insere alerta | Tarefa 2 |
 | 4 | Registry e MCP verdes com 34; as duas rotas dão 404 | Tarefa 4; Tarefa 8, C5 |
 | 5 | Aviso `trending_viral` pelo pipeline → **400** `VALIDATION_ERROR` com `notifications.0.type: …` em pt-BR, nada gravado (desvio D1); `type` ausente mantém a mensagem padrão (S-C5) | Tarefa 4 |
-| P1-P1 | (redação fechada pelo Gio, emenda 1: G-P1-C4) **Pré-condição:** C1 colada no relatório; se `pending = 0`, o critério é "**não aplicável, nada para esconder**" e a prova passa a ser P1-P3 mais o teste de consulta (Tarefa 3). **Passos (dono, Opera, logado, recarga sem cache Ctrl+Shift+R):** (1) `/cms/youtube/ab-lab`: nenhum cartão com a palavra "fadiga" nem botão de dispensar; (2) `/cms/youtube/videos`: nenhum selo "FADIGA" (conferir os vídeos das linhas `pending` do C1, ids no relatório); (3) sugestão de vídeo para testar: nenhum motivo "CTR em declínio". **Falso verde:** deploy velho (cache/skew) ou lista que já estava vazia; fecha-se com o hash do deploy anotado (Vercel) e P1-P3 conferido **antes** deste passo. Conferir também, no Opera, que o texto da tela tem contraste legível (`color-mix()` renderiza transparente no Opera) | dono, depois do deploy |
+| P1-P1 | (redação fechada pelo Gio, emenda 1: G-P1-C4) **Pré-condição:** C1 colada no relatório; se `pending = 0`, o critério é "**não aplicável, nada para esconder**" e a prova passa a ser P1-P3 mais o teste de consulta (Tarefa 3). **Passos (dono, Opera, logado, recarga sem cache Ctrl+Shift+R):** (1) `/cms/youtube/ab-lab`: nenhum cartão com a palavra "fadiga" nem botão de dispensar; (2) `/cms/youtube/videos`: nenhum selo "FADIGA" (conferir os vídeos das linhas `pending` do C1, ids no relatório); (3) (emenda 2: H2-H8) sugestão de vídeo para testar, na tela **`/cms/youtube/ab-lab`, bloco de sugestões de vídeo para testar**: nenhum motivo "CTR em declínio". **Falso verde:** deploy velho (cache/skew) ou lista que já estava vazia; fecha-se com o hash do deploy anotado (Vercel) e P1-P3 conferido **antes** deste passo. Conferir também, no Opera, que o texto da tela tem contraste legível (`color-mix()` renderiza transparente no Opera) | dono, depois do deploy |
 | P1-P2 | (redação fechada, emenda 1: G-P1-C3) **Pré-condições, nesta ordem:** (a) P1-P3 verde; (b) o `update` do dono rodado (se houve `pending`). **Passos:** (1) `select ran_at, falhas, ms_existente from yt_own_collection_runs order by ran_at desc limit 3;` com uma linha de `ran_at` posterior ao deploy e `falhas` vazio; (2) `/api/health` sem falha de `sync-analytics-metrics` nem de `ab-evaluate`, lido **depois** da linha anterior; (3) `select count(*) from youtube_fatigue_alerts where created_at > '<deploy>'` → 0 e a consulta em `notifications` com `youtube.trending_viral` → 0 (C2). **Falso verde:** cron que não rodou ou falhou; detector antigo que pulou por haver `pending`; dia sem vídeo 5x. A condição (a) e a linha do passo 1 são a parte positiva | Tarefa 8, C2 a C4 |
 | P1-P3 | (redação fechada, emenda 1: G-P1-C3, S-C4) `curl` com a mesma chave, no mesmo bloco: controle positivo `ab-tests` → 200; `ab-tests/fatigue-alerts` → 404 (NOT_FOUND "Test not found", cai em `ab-tests/[id]`); `thumbnails/fatigue` → 404 (rota inexistente). Listagem de recursos do MCP **pelos dois caminhos**, em sessão nova, sem os dois recursos; `get_fatigue_alerts` devolve erro de enum, não vazio. **Falso verde:** chave sem permissão (401/403 lido como "removido"); listagem em cache do Cowork | Tarefa 8, C5 |
 | P1-P4 | (emenda 1: G-P1-C5) Falha em verde: o comando literal da C6, com saída colada; leitor que mora no Cowork fica "**não conferido, dado do Cowork**" (seção 8). Antes: ~~"nenhum, conferido por grep": seção 0~~ | Tarefa 8, C6; Yannis reconfere |
@@ -720,7 +759,7 @@ dono na sessão; se o classificador negar, o dono roda.
 
 Respondidas na rodada 1 e viradas decisão no corpo (emenda 1): árvore própria e D1 = 400 (Yannis: seção 1
 e seção 3); a C3 como medida do cron e a ausência de leitor fora do repositório (Phil: Tarefa 8, C3, e
-seção 8); prova de P1-P1/P1-P3 e semente do "antes" (Gio: seção 6 e Tarefa 6). Fica:
-
-1. **Hanna:** o `update` do dono (resposta 8) trava o envio ou vai depois? (Recomendação: depois; não
-   muda tela.)
+seção 8); prova de P1-P1/P1-P3 e semente do "antes" (Gio: seção 6 e Tarefa 6). (emenda 2: decisão 13)
+A pergunta à Hanna (o `update` trava o envio?) foi respondida: **não trava**, só o fecho de P1-P2
+(Tarefa 8, "Ordem"). Não há pergunta aberta a Logan e Naksu neste plano além da passada da Tarefa 6.
+Ficam só as duas perguntas ao dono, 13 e 14, na seção 2.
