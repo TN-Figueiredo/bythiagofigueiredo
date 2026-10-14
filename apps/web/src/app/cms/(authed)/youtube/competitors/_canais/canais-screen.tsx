@@ -31,6 +31,8 @@ import { Ic, Tip, type LocalSync } from './cells'
 import { OwnBlockView } from './own-block'
 import { ResumoBloco } from './resumo-bloco'
 import { PePreso } from './pe-preso'
+import { RiAtalhos, RiSecoes } from './ri-secoes'
+import type { RiView } from './ri-tipos'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
 import { fraseSeuCanal } from './posicao-model'
 import { comportamentoDeRolagem, contentorQueRola } from './rolagem'
@@ -56,6 +58,8 @@ export interface CanaisScreenProps {
   onRemovalImpact?: (id: string) => Promise<ImpactAnswer>
   /** A5 E5a T5: quem só lê o site: sincronizar, adicionar e remover ficam desligados e a tela diz isso (os números são os mesmos). */
   somenteLeitura?: boolean
+  /** A5 E5a R5: Referências e Inscritos (modelo puro montado na página). Ausente = as seções não aparecem. */
+  ri?: RiView
 }
 
 /** TEXTO-A-REVISAR não se aplica: a frase é a do mockup 16 (tabela de frases, "Só leitura"). */
@@ -98,7 +102,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -430,6 +434,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           <ResumoBloco resumo={view.resumo}
             onFiltro={f => go({ filter: f }, { busy: true })}
             onDirecao={d => go({ direcao: d }, { busy: true })} />
+          {ri ? <RiAtalhos ri={ri} /> : null}
           {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
           <div className="toolbar">
@@ -508,6 +513,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               versao={`${layout}|${ranked.some(r => r.id === view.pe!.canalId) ? 'com-medida' : unranked.some(r => r.id === view.pe!.canalId) ? 'sem-medida' : 'fora'}`}
               onIr={() => irAte(view.pe!.canalId)} onTopo={voltarAoTopo} />
           ) : null}
+          {ri ? <RiSecoes ri={ri} ocupada={navPending} /> : null}
         </div>
 
         {panel ? (

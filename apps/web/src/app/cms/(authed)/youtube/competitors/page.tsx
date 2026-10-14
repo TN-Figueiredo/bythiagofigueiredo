@@ -11,6 +11,9 @@ import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
 import { canalDoPainel, competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
 import { buildCanaisView } from './_canais/view-model'
+import { fmtDaOrdem } from './_canais/formato'
+import { buildRiView, riEmErro } from './_canais/ri-model'
+import type { RiView } from './_canais/ri-tipos'
 import { carregarExtrasProprio } from './_proprio/carregar-extras'
 import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
@@ -67,10 +70,21 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
       level: 'warning', fingerprint: ['canais-sem-retrato'], tags: { component: 'observatorio', step: 'medidas-telas-canais' }, extra: { desde: view.resumo.semRetrato.desde },
     })
   }
+  // A5 E5a R5: Referências e Inscritos. O modelo é puro e não importa Sentry; cada seção que lança volta em `falhas` e o erro vai ao Sentry daqui.
+  // Se o modelo lançar por inteiro, as duas seções abrem em erro (frases do próprio modelo) e a lista de canais segue.
+  let ri: RiView
+  try {
+    const r = buildRiView(obs, { agoraMs: now, niche, fmt: fmtDaOrdem(view.fmt), ordr: one(sp.ordr), ordi: one(sp.ordi), aba: one(sp.aba), meuCanalLembrado })
+    ri = r.view
+    for (const f of r.falhas) Sentry.captureException(f.erro, { fingerprint: ['canais-ri', f.secao], tags: { component: 'observatorio', step: 'canais-ri' } })
+  } catch (err) {
+    Sentry.captureException(err, { fingerprint: ['canais-ri', 'tudo'], tags: { component: 'observatorio', step: 'canais-ri' } })
+    ri = riEmErro(obs)
+  }
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
       <CanaisScreen
-        view={view} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
+        view={view} ri={ri} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
         onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}
