@@ -16,6 +16,8 @@ import { causaDoErro, lerSinalDoBanco, TETO_LEITURA_MS, type SinalLido } from '.
 export const PERIODO_DE_ARQUIVO_UNICO = '1970-01-01'
 const DIA_MS = 86_400_000
 const PAGINA = 1_000
+/** Quantos ids de canal vão numa só consulta `.in()` (a lista entra na URL). */
+const IDS_POR_CONSULTA = 100
 /** Páginas lidas no máximo (30.000 linhas de registro): mais que isto é anormal, e vira "não lido" em vez de lista cortada. */
 const PAGINAS_MAX = 30
 
@@ -83,9 +85,11 @@ async function lerLotes(sb: SupabaseClient, siteId: string, agoraMs: number): Pr
   if ('porque' in linhas) return linhas
   const refs = [...new Set(linhas.valor.map(l => textoOuNulo(l.channel_ref)).filter((r): r is string => r !== null))]
   const existentes = new Set<string>()
-  if (refs.length > 0) {
+  // os ids vão na URL (37 bytes cada): em blocos de 100, para a consulta não passar do limite do gateway com muitos canais (revisão Yannis 14/10, M7)
+  for (let i = 0; i < refs.length; i += IDS_POR_CONSULTA) {
+    const bloco = refs.slice(i, i + IDS_POR_CONSULTA)
     const canais = await lerTudo((de, ate) => sb
-      .from('competitor_channels').select('id').eq('site_id', siteId).in('id', refs).order('id', { ascending: true }).range(de, ate)
+      .from('competitor_channels').select('id').eq('site_id', siteId).in('id', bloco).order('id', { ascending: true }).range(de, ate)
       .abortSignal(AbortSignal.timeout(TETO_LEITURA_MS)))
     if ('porque' in canais) return canais
     for (const c of canais.valor) if (typeof c.id === 'string') existentes.add(c.id)
@@ -96,7 +100,8 @@ async function lerLotes(sb: SupabaseClient, siteId: string, agoraMs: number): Pr
     const ref = textoOuNulo(l.channel_ref)
     if (lote === null || ref === null) return { porque: 'forma_invalida' }
     const chave = `${ref}\u0000${lote}`
-    porLote.set(chave, [...(porLote.get(chave) ?? []), l])
+    const grupo = porLote.get(chave)
+    if (grupo) grupo.push(l); else porLote.set(chave, [l]) // push, não `[...grupo, l]`: sem cópia do array a cada linha (revisão Yannis 14/10, M10)
   }
   const abertos: LoteAberto[] = []
   let semCanal = 0

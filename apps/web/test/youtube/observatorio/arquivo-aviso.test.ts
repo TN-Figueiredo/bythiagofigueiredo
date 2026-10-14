@@ -193,6 +193,20 @@ describe('A5 E10 T8: lerAvisoDoArquivo, pausados, miniaturas e as falhas', () =>
     expect(a.pausados).toEqual({ valor: [] })
   })
 
+  it('muitos canais com lote aberto: a lista de ids vai em blocos de até 100 (a URL não estoura) e o resultado é o mesmo (revisão Yannis 14/10, M7)', async () => {
+    const id = (n: number): string => `0a1b2c3d-1111-4222-8333-${String(n).padStart(12, '0')}`
+    const refs = Array.from({ length: 250 }, (_, i) => id(i + 1))
+    const lotesDe = refs.map(r => linhaDeLote({ batch: 'lote-' + r.slice(-4), channel_ref: r, table_name: 't1' }))
+    const cs = refs.slice(0, 249).map(r => ({ id: r, site_id: SITE, channel_name: 'c', collection_paused_at: null })) // o último some: lote de canal que não existe mais
+    const { a, x } = await ler(banco(lotesDe, cs))
+    const ins = x.consultas.filter(c => c.tabela === 'competitor_channels').flatMap(c => c.filtros.filter(f => f[0] === 'in' && f[1] === 'id'))
+    expect(ins.length).toBeGreaterThanOrEqual(3)
+    for (const f of ins) expect((f[2] as unknown[]).length).toBeLessThanOrEqual(100)
+    expect(ins.flatMap(f => f[2] as string[]).sort()).toEqual([...refs].sort())
+    expect(lotes(a)).toHaveLength(249)
+    expect(a.lotesDeCanalInexistente).toEqual({ valor: 1 })
+  })
+
   it('o aviso leva o sinal do banco, lido pela mesma função do leitor (sem tabela: nunca medido)', async () => {
     const { a } = await ler(banco([]))
     expect('valor' in a.banco && a.banco.valor.estado).toBe('nunca_medido')
