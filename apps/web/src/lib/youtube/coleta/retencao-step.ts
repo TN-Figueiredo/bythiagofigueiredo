@@ -53,6 +53,10 @@ export interface DepsRetencao {
 
 type TentativaBase = Omit<Tentativa, 'outcome' | 'http_status' | 'error'>
 
+/** Cota ou limite de taxa da API (a mesma regra do passo `dimensoes`): o motivo do catálogo termina com o `reason` do Google. */
+const ehCota = (status: number, motivo: string): boolean =>
+  status === 429 || (status === 403 && /_(quotaExceeded|rateLimitExceeded|userRateLimitExceeded|dailyLimitExceeded)$/.test(motivo))
+
 const ids = (l: readonly string[]): string => l.slice(0, MAX_IDS_NA_NOTA).join(', ')
 
 export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Promise<RetencaoResumo> {
@@ -164,6 +168,8 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
 
     // 5. As leituras, 4 em paralelo.
     let negado = false
+    // Cota estourada: quem ainda não começou não chama a API (quem está em voo termina).
+    let cota = false
     let schemaAusenteNaEscrita = false
     let comErro = 0
     let primeiraCausa = ''
@@ -179,7 +185,7 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
         await registrarTentativa(ctx, { ...base, outcome: 'sem_autorizacao' })
         return
       }
-      if (restante(ctx.deadline) <= 0) {
+      if (cota || restante(ctx.deadline) <= 0) {
         await registrarTentativa(ctx, { ...base, outcome: 'nao_alcancado_orcamento' })
         resumo.pendentes++
         pendentesDoCanal++
@@ -266,6 +272,7 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
           await registrarTentativa(ctx, { ...base, outcome: 'sem_autorizacao', http_status: e.status })
         } else if (e instanceof AnalyticsApiError) {
           const motivo = motivoDoErro(e)
+          if (ehCota(e.status, motivo)) cota = true
           await registrarTentativa(ctx, { ...base, outcome: 'erro_http', http_status: e.status, error: motivo })
           falhou(motivo)
         } else {
