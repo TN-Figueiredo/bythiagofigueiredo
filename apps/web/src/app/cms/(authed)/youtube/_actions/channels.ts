@@ -15,6 +15,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
+import { paraRestoreStatus, restoreStatusIlegivel, camposDoTeste, type CampoNome } from '@/lib/youtube/ab-restore'
 import { lookupChannelByHandle } from '@/lib/youtube/api-client'
 import { isChannelLocale } from '@/lib/youtube/channel-locales'
 import { isNicheSlug, NICHE_PALETTE } from '@/lib/youtube/observatorio/niche'
@@ -22,7 +23,7 @@ import { readNiches, nicheDefs } from '@/lib/youtube/observatorio/niches-db'
 import {
   CHANNEL_TEXT, blockedTitle, isChannelSlug, nicheSlugFromLabel, normalizeNicheLabel, parseRemovalRpc,
   type AddChannelInput, type AddChannelResult, type ChannelIdentityInput, type CreateNicheResult, type LookupChannelResult,
-  type RemovalImpactResult, type RemoveChannelResult, type SimpleResult,
+  type RemovalImpactResult, type RemoveChannelResult, type SimpleResult, type RestauracaoPendente, type EstadoPendente,
 } from '@/lib/youtube/channel-registry'
 
 /** Coluna que este banco ainda não tem (Postgres / PostgREST). */
@@ -288,7 +289,57 @@ export async function getYouTubeChannelRemovalImpact(input: { channelId: string 
   const res = parseRemovalRpc(data)
   if (res.status === 'not_found') return { ok: false, error: CHANNEL_TEXT.channelNotFound }
   if (res.status !== 'ok') return { ok: false, error: 'Unexpected answer from the database. Nothing was deleted.' }
-  return { ok: true, impact: res.impact }
+  return { ok: true, impact: { ...res.impact, restauracoesPendentes: await lerRestauracoesPendentes(sb, siteId, parsed.data.channelId) } }
+}
+
+const ESTADOS_PENDENTES = ['falhou', 'desistiu', 'em_andamento', 'pulado_drift', 'pulado_sem_original'] as const
+const EM_LISTA = `in.(${ESTADOS_PENDENTES.join(',')})`
+const NAO_SE_SABE = 'não se sabe'
+const pendente = (e: string): e is EstadoPendente => (ESTADOS_PENDENTES as readonly string[]).includes(e)
+
+/**
+ * Restaurações pendentes dos testes do canal. Junção com `youtube_videos!inner(channel_id)` — nunca `in('video_id', ids)`
+ * (a URL explode em canal grande). Erro de leitura devolve null: nunca lista vazia no lugar de erro.
+ */
+async function lerRestauracoesPendentes(sb: SupabaseClient, siteId: string, channelId: string): Promise<RestauracaoPendente[] | null> {
+  try {
+    const { data, error } = await sb
+      .from('ab_tests')
+      .select('id, test_type, restore_status, youtube_videos!inner(title, channel_id), variants:ab_test_variants!test_id(id, label)')
+      .eq('site_id', siteId)
+      .eq('youtube_videos.channel_id', channelId)
+      .or(`restore_status->title->>estado.${EM_LISTA},restore_status->thumbnail->>estado.${EM_LISTA}`)
+    if (error || !Array.isArray(data)) return null
+    const out: RestauracaoPendente[] = []
+    for (const row of data as unknown as Array<Record<string, unknown>>) {
+      const testId = String(row.id)
+      const tipo = row.test_type === 'title' || row.test_type === 'combo' ? row.test_type : 'thumbnail'
+      const video = Array.isArray(row.youtube_videos) ? row.youtube_videos[0] : row.youtube_videos
+      const videoTitulo = String((video as { title?: unknown } | null)?.title ?? '')
+      const variantes = (Array.isArray(row.variants) ? row.variants : []) as Array<{ id: string; label: string }>
+      const campos = camposDoTeste(tipo)
+      const rs = paraRestoreStatus(row.restore_status)
+      if (rs === null) {
+        // ilegível não some: conta como pendente, sem saber o que está no ar
+        if (restoreStatusIlegivel(row.restore_status)) for (const campo of campos) out.push({ testId, videoTitulo, campo, estado: 'falhou', noAr: NAO_SE_SABE })
+        continue
+      }
+      for (const campo of campos as CampoNome[]) {
+        const c = rs[campo]
+        if (!c || !pendente(c.estado)) continue
+        let noAr = NAO_SE_SABE
+        if (c.estado === 'pulado_drift') noAr = campo === 'title' ? 'o título editado por fora' : 'a thumbnail editada por fora'
+        else if (c.estado !== 'falhou' && c.estado !== 'desistiu' && c.escreveu === true) {
+          const v = c.destino === 'original' ? null : variantes.find(x => x.id === c.destino)
+          noAr = c.destino === 'original' ? 'o original' : v ? `a variante ${v.label}` : NAO_SE_SABE
+        }
+        out.push({ testId, videoTitulo, campo, estado: c.estado, noAr })
+      }
+    }
+    return out
+  } catch {
+    return null
+  }
 }
 
 const removeSchema = z.object({ channelId: z.string().uuid(), confirmSlug: z.string().min(1).max(64) })

@@ -29,6 +29,8 @@ interface Setup {
   errors?: Record<string, PgErr>
   rpc?: Record<string, (args: Row) => { data: unknown; error: PgErr | null }>
   lookup?: Row | null | Error
+  /** linhas de ab_tests devolvidas à leitura de restaurações pendentes; 'throws' lança, 'broken' devolve erro. */
+  abTests?: Row[] | 'throws' | 'broken'
 }
 
 const SITE = 's1'
@@ -61,6 +63,11 @@ function setup(opts: Setup = {}) {
     if (o.table === 'youtube_niches' && opts.niches === 'broken') return { data: null, error: { code: '57014', message: 'timeout' } }
     const touchesSlug = (o.cols ?? '').includes('slug') || o.filters.some(([c]) => c === 'slug') || (o.payload != null && 'slug' in o.payload)
     if (o.table === 'youtube_channels' && opts.noSlugColumn && touchesSlug) return { data: null, error: { code: '42703', message: 'column youtube_channels.slug does not exist' } }
+    if (o.table === 'ab_tests') {
+      if (opts.abTests === 'throws') throw new Error('rede caiu')
+      if (opts.abTests === 'broken') return { data: null, error: { code: '57014', message: 'timeout' } }
+      return { data: opts.abTests ?? [], error: null } // o filtro é do banco; o que o código pediu fica em ops
+    }
     const rows = tables[o.table] ?? []
     const match = (r: Row) => o.filters.every(([c, v]) => r[c] === v)
     if (o.op === 'select') return { data: rows.filter(match), error: null }
@@ -91,6 +98,8 @@ function setup(opts: Setup = {}) {
       update: (payload: Row) => { o.op = 'update'; o.payload = payload; return b },
       delete: () => { o.op = 'delete'; return b },
       eq: (c: string, v: unknown) => { o.filters.push([c, v]); return b },
+      or: (expr: string) => { o.filters.push(['or', expr]); return b },
+      in: (c: string, v: unknown) => { o.filters.push([`in:${c}`, v]); return b },
       order: () => b,
       limit: () => b,
       single: one,
@@ -356,7 +365,7 @@ describe('getYouTubeChannelRemovalImpact', () => {
     const t = setup({ rpc: { youtube_channel_removal_impact: () => ({ data: { ...IMPACT, blockers: [BLOCKER] }, error: null }) } })
     const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
     expect(res).toEqual({ ok: true, impact: {
-      name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, syncLogs: 864, abTests: 3, abDrafts: 1, analyses: 9, tasks: 2, notes: 14, notifications: 5, connections: 1, pipelineLinks: 6, serieColetada: 0,
+      name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, syncLogs: 864, abTests: 3, abDrafts: 1, analyses: 9, tasks: 2, notes: 14, notifications: 5, connections: 1, pipelineLinks: 6, serieColetada: 0, restauracoesPendentes: [],
       blockers: [{ id: 't1', name: 'Thumbnail: mapa vs rosto', status: 'active', since: '2026-10-18T15:00:00Z', videoTitle: 'Quanto custa viajar pela Geórgia?' }],
     } })
     expect(t.rpc).toHaveBeenCalledWith('youtube_channel_removal_impact', { p_site_id: SITE, p_channel_id: CH_PT.id })
@@ -379,6 +388,68 @@ describe('getYouTubeChannelRemovalImpact', () => {
   it('resposta que o código não entende nunca vira impacto', async () => {
     const t = setup({ rpc: { youtube_channel_removal_impact: () => ({ data: { status: 'ok', videos: 'muitos' }, error: null }) } })
     expect((await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })).ok).toBe(false)
+  })
+})
+
+const rs = (estado: string, destino: string, escreveu: boolean | null) => ({ estado, destino, em: '2026-10-14T12:00:00Z', forcado: false, escreveu, erro: null, attempts: 1 })
+const videoDo = (title: string) => ({ title, channel_id: CH_PT.id })
+const VARIANTES = [{ id: 'va', label: 'A' }, { id: 'vb', label: 'B' }]
+const SEMENTE_5: Row[] = [
+  { id: 't-falhou', test_type: 'title', restore_status: { title: rs('falhou', 'original', true) }, youtube_videos: videoDo('Geórgia'), variants: VARIANTES },
+  { id: 't-desistiu', test_type: 'thumbnail', restore_status: { thumbnail: rs('desistiu', 'original', null) }, youtube_videos: videoDo('Armênia'), variants: VARIANTES },
+  { id: 't-andamento', test_type: 'title', restore_status: { title: rs('em_andamento', 'vb', true) }, youtube_videos: videoDo('Turquia'), variants: VARIANTES },
+  { id: 't-drift', test_type: 'title', restore_status: { title: rs('pulado_drift', 'original', false) }, youtube_videos: videoDo('Irã'), variants: VARIANTES },
+  { id: 't-sem-original', test_type: 'thumbnail', restore_status: { thumbnail: rs('pulado_sem_original', 'vb', true) }, youtube_videos: videoDo('Iraque'), variants: VARIANTES },
+]
+const OK_RPC = { youtube_channel_removal_impact: () => ({ data: IMPACT, error: null }) }
+
+describe('getYouTubeChannelRemovalImpact: restaurações pendentes (emenda 39)', () => {
+  it('os 5 estados aparecem com vídeo, campo e o que ficou no ar; bloqueia continua vazio', async () => {
+    const t = setup({ rpc: OK_RPC, abTests: SEMENTE_5 })
+    const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.impact.blockers).toEqual([])
+    expect(res.impact.restauracoesPendentes).toEqual([
+      { testId: 't-falhou', videoTitulo: 'Geórgia', campo: 'title', estado: 'falhou', noAr: 'não se sabe' },
+      { testId: 't-desistiu', videoTitulo: 'Armênia', campo: 'thumbnail', estado: 'desistiu', noAr: 'não se sabe' },
+      { testId: 't-andamento', videoTitulo: 'Turquia', campo: 'title', estado: 'em_andamento', noAr: 'a variante B' },
+      { testId: 't-drift', videoTitulo: 'Irã', campo: 'title', estado: 'pulado_drift', noAr: 'o título editado por fora' },
+      { testId: 't-sem-original', videoTitulo: 'Iraque', campo: 'thumbnail', estado: 'pulado_sem_original', noAr: 'a variante B' },
+    ])
+  })
+  it('destino original com escreveu true: "o original"; leitura ilegível conta como pendente, "não se sabe"', async () => {
+    const t = setup({ rpc: OK_RPC, abTests: [
+      { id: 't1', test_type: 'title', restore_status: { title: rs('em_andamento', 'original', true) }, youtube_videos: videoDo('V1'), variants: VARIANTES },
+      { id: 't2', test_type: 'title', restore_status: { title: { estado: 'lixo' } }, youtube_videos: videoDo('V2'), variants: VARIANTES },
+    ] })
+    const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
+    expect(res.ok && res.impact.restauracoesPendentes).toEqual([
+      { testId: 't1', videoTitulo: 'V1', campo: 'title', estado: 'em_andamento', noAr: 'o original' },
+      { testId: 't2', videoTitulo: 'V2', campo: 'title', estado: 'falhou', noAr: 'não se sabe' },
+    ])
+  })
+  it('zero pendentes: lista vazia', async () => {
+    const t = setup({ rpc: OK_RPC, abTests: [] })
+    const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
+    expect(res.ok && res.impact.restauracoesPendentes).toEqual([])
+  })
+  it.each(['throws', 'broken'] as const)('leitura que falha (%s): restauracoesPendentes null, sem lançar, a prévia continua ok', async modo => {
+    const t = setup({ rpc: OK_RPC, abTests: modo })
+    const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
+    expect(res.ok).toBe(true)
+    expect(res.ok && res.impact.restauracoesPendentes).toBeNull()
+  })
+  it('nunca monta in(video_id, ...): filtra pela junção com o canal e pelo site, com o .or dos cinco estados', async () => {
+    const t = setup({ rpc: OK_RPC, abTests: [] })
+    await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
+    const op = t.ops.find(o => o.table === 'ab_tests')!
+    expect(op.cols).toContain('youtube_videos!inner(')
+    expect(op.filters.some(([c]) => c === 'in:video_id' || c.startsWith('in:'))).toBe(false)
+    expect(op.filters).toContainEqual(['youtube_videos.channel_id', CH_PT.id])
+    expect(op.filters).toContainEqual(['site_id', SITE])
+    const or = op.filters.find(([c]) => c === 'or')![1] as string
+    for (const e of ['falhou', 'desistiu', 'em_andamento', 'pulado_drift', 'pulado_sem_original']) expect(or).toContain(e)
   })
 })
 
