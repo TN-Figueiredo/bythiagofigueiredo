@@ -191,6 +191,28 @@ describe.skipIf(skipIfNoLocalDb())('M1: podas de estado de execução (bythiago_
     await pg.query('rollback to savepoint s')
   })
 
+  it('invólucro cron_purge_cron_runs: grava a linha do dia com job, status ok e items_processed = apagadas', async () => {
+    await pg.query(`delete from public.cron_runs where ran_at < now() - interval '90 days'`) // isola: só as nossas serão velhas
+    await semearRuns([91, 92, 120])
+    await pg.query(`select public.cron_purge_cron_runs()`)
+    const r = await pg.query<{ status: string; items_processed: number }>(
+      `select status, items_processed from public.cron_runs where job = 'pg_cron:purge-cron-runs' order by ran_at desc limit 1`)
+    expect(r.rows[0]).toEqual({ status: 'ok', items_processed: 3 })
+  })
+
+  it('invólucro cron_purge_yt_own_collection_attempts: grava a linha do dia com job, status ok e items_processed = apagadas', async () => {
+    await pg.query(`delete from public.yt_own_collection_attempts where attempt_day < (now() at time zone 'utc')::date - 90`)
+    // chave de 4 linhas: a mais velha (primeira) e a mais nova (última) ficam; as duas do meio, de 'erro_http', saem
+    await semearTentativa('video', 'vI', 'retencao_vida', 200, 'ok')
+    await semearTentativa('video', 'vI', 'retencao_vida', 150, 'erro_http')
+    await semearTentativa('video', 'vI', 'retencao_vida', 120, 'erro_http')
+    await semearTentativa('video', 'vI', 'retencao_vida', 5, 'ok')
+    await pg.query(`select public.cron_purge_yt_own_collection_attempts()`)
+    const r = await pg.query<{ status: string; items_processed: number }>(
+      `select status, items_processed from public.cron_runs where job = 'pg_cron:purge-yt-own-collection-attempts' order by ran_at desc limit 1`)
+    expect(r.rows[0]).toEqual({ status: 'ok', items_processed: 2 })
+  })
+
   it('privilégio: só service_role executa; anon e authenticated não (conferido por catálogo, sem chamar)', async () => {
     const r = await pg.query<{ proname: string; definer: boolean; anon: boolean; auth: boolean; service: boolean }>(
       `select proname, prosecdef as definer, has_function_privilege('anon', oid, 'execute') as anon,
