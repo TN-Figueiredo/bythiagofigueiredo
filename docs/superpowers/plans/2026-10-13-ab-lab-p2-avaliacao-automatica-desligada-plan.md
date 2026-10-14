@@ -13,6 +13,13 @@ aqui vem dele; **quem executa reconfere por `grep` no dia**). Plano irmão, que 
 > Tarefa 1 (o cron que decide encerrar teste) sobe para `high` **se o executor errar duas vezes**. Nada mais
 > em `high` neste plano.
 
+> **Quem testa (decisão do dono, 14/10/2026; vale sobre qualquer trecho deste plano):** testes, prova local,
+> capturas, conferências de produção e paridade são do controlador com o Gio. Onde este plano diz que o
+> dono abre, confere, cola um texto no Cowork ou testa, quem faz é o controlador com o Gio, e o dono só
+> confirma o resultado. Continuam com o dono: aplicar migration em produção, colar o `update` e o
+> `pg_dump`, autorizar escrita no canal do YouTube, aprovar capturas e mockup, dar o "pode". Regras e
+> estado: `docs/superpowers/plans/2026-10-14-ab-lab-roteiro-e-horas.md`.
+
 **Objetivo, em uma frase.** O cron `ab-evaluate` para de declarar vencedor, abrir carência, criar
 playoff e aplicar qualquer coisa a partir de "impressões" que são views e cliques que são sempre zero; a
 tela e o pipeline param de mostrar os números que saíam disso.

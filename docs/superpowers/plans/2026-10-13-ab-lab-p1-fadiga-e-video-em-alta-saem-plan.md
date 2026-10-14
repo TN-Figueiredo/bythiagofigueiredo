@@ -10,6 +10,13 @@ reconfere por `grep` no dia**). Parecer da Hanna sobre a ordem: `.superpowers/sd
 > caixa (`- [ ]`). Sonnet, effort `medium` em tudo; `high` em nenhuma tarefa deste plano (emenda 2:
 > decisão 14; a única exceção dos dois planos é a revisão da Tarefa 1 da P2, e fica no plano da P2).
 
+> **Quem testa (decisão do dono, 14/10/2026; vale sobre qualquer trecho deste plano):** testes, prova local,
+> capturas, conferências de produção e paridade são do controlador com o Gio. Onde este plano diz que o
+> dono abre, confere, cola um texto no Cowork ou testa, quem faz é o controlador com o Gio, e o dono só
+> confirma o resultado. Continuam com o dono: aplicar migration em produção, colar o `update` e o
+> `pg_dump`, autorizar escrita no canal do YouTube, aprovar capturas e mockup, dar o "pode". Regras e
+> estado: `docs/superpowers/plans/2026-10-14-ab-lab-roteiro-e-horas.md`.
+
 **Objetivo, em uma frase.** Parar de gravar, mostrar e entregar ao Cowork dois sinais que leem como
 "views do dia" um número que é o total de 90 dias: o alerta de fadiga e o aviso "vídeo em alta".
 
