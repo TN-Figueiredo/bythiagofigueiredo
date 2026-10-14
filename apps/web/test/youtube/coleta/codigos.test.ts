@@ -12,6 +12,7 @@ import {
   rotuloSistema,
   tipoDoDetalhe,
   motivoNormalizadorHumano,
+  type TipoDetalhe,
 } from '@/lib/youtube/reporting/codigos'
 
 describe('codigos (catálogo de origens, aparelhos, sistemas e motivos)', () => {
@@ -69,39 +70,121 @@ describe('codigos (catálogo de origens, aparelhos, sistemas e motivos)', () => 
     }
   })
 
-  it('nome da API e código do mesmo par dão o mesmo rótulo', () => {
-    const grupos: Array<[Record<string, { nome: string | null; rotulo: string }>, (v: string) => { rotulo: string; catalogado: boolean }]> = [
-      [ORIGEM_LOTE, rotuloOrigem],
-      [APARELHO_LOTE, rotuloAparelho],
-      [SISTEMA_LOTE, rotuloSistema],
-    ]
-    for (const [cat, fn] of grupos) {
-      for (const [codigo, e] of Object.entries(cat)) {
-        expect(fn(codigo)).toEqual({ rotulo: e.rotulo, catalogado: true })
-        if (e.nome) expect(fn(e.nome)).toEqual({ rotulo: e.rotulo, catalogado: true })
-      }
+  // Tabela inteira, escrita à mão: trocar dois vizinhos quaisquer em codigos.ts mata um destes testes.
+  // `detalhe` segue a seção traffic_source_detail da documentação do Reporting API; sem menção
+  // lá, 'nenhum' (na dúvida, o valor que NÃO deixa passar texto de terceiros).
+  const ORIGENS: Array<[string, string | null, string, TipoDetalhe]> = [
+    ['0', 'NO_LINK_OTHER', 'Direto ou desconhecido', 'nenhum'],
+    ['1', 'ADVERTISING', 'Publicidade no YouTube', 'outro'],
+    ['3', 'SUBSCRIBER', 'Recursos de navegação', 'outro'],
+    ['4', 'YT_CHANNEL', 'Canais do YouTube', 'canal'],
+    ['5', 'YT_SEARCH', 'Pesquisa do YouTube', 'termo'],
+    ['7', 'RELATED_VIDEO', 'Vídeos sugeridos', 'video'],
+    ['8', 'YT_OTHER_PAGE', 'Outros recursos do YouTube', 'outro'],
+    ['9', 'EXT_URL', 'Externa (links de outros sites)', 'url'],
+    ['11', 'ANNOTATION', 'Cards e anotações de vídeo', 'nenhum'],
+    ['14', 'PLAYLIST', 'Playlists', 'nenhum'],
+    ['17', 'NOTIFICATION', 'Notificações', 'outro'],
+    ['18', null, 'Páginas de playlist', 'nenhum'],
+    ['19', null, 'Programação de conteúdo reivindicado', 'video'],
+    ['20', 'END_SCREEN', 'Tela final', 'video'],
+    ['23', null, 'Stories', 'nenhum'],
+    ['24', 'SHORTS', 'Shorts', 'nenhum'],
+    ['25', 'PRODUCT_PAGE', 'Páginas de produto', 'outro'],
+    ['26', 'HASHTAGS', 'Páginas de hashtag', 'outro'],
+    ['27', 'SOUND_PAGE', 'Páginas de som', 'video'],
+    ['28', 'LIVE_REDIRECT', 'Redirecionamento de live', 'canal'],
+    ['29', null, 'Podcasts', 'nenhum'],
+    ['30', 'VIDEO_REMIXES', 'Vídeo remixado', 'video'],
+    ['31', null, 'Feed vertical de lives', 'nenhum'],
+    ['32', null, 'Vídeo relacionado', 'nenhum'],
+  ]
+  const APARELHOS: Array<[string, string, string]> = [
+    ['100', 'UNKNOWN_PLATFORM', 'Desconhecido'],
+    ['101', 'DESKTOP', 'Computador'],
+    ['102', 'TV', 'TV'],
+    ['103', 'GAME_CONSOLE', 'Console de videogame'],
+    ['104', 'MOBILE', 'Celular'],
+    ['105', 'TABLET', 'Tablet'],
+  ]
+  const SISTEMAS: Array<[string, string | null, string]> = [
+    ['1', 'OTHER', 'Outro'],
+    ['2', 'WINDOWS', 'Windows'],
+    ['3', 'WINDOWS_MOBILE', 'Windows Mobile'],
+    ['4', 'ANDROID', 'Android'],
+    ['5', 'IOS', 'iOS'],
+    ['6', 'SYMBIAN', 'Symbian'],
+    ['7', 'BLACKBERRY', 'BlackBerry'],
+    ['9', 'MACINTOSH', 'Macintosh'],
+    ['10', 'PLAYSTATION', 'PlayStation'],
+    ['11', 'BADA', 'Bada'],
+    ['12', 'WEBOS', 'webOS'],
+    ['13', 'LINUX', 'Linux'],
+    ['14', 'HIPTOP', 'Hiptop'],
+    ['15', 'MEEGO', 'MeeGo'],
+    ['16', 'WII', 'Wii'],
+    ['17', 'XBOX', 'Xbox'],
+    ['18', 'PLAYSTATION_VITA', 'PlayStation Vita'],
+    ['19', 'SMART_TV', 'Smart TV'],
+    ['20', 'NINTENDO_3DS', 'Nintendo 3DS'],
+    ['21', 'CHROMECAST', 'Chromecast'],
+    ['22', 'TIZEN', 'Tizen'],
+    ['23', 'FIREFOX', 'Firefox OS'],
+    ['24', 'REALMEDIA', 'RealMedia'],
+    ['25', 'KAIOS', 'KaiOS'],
+    ['26', null, 'Roku'],
+    ['27', null, 'Nintendo Switch'],
+    ['28', null, 'Apple tvOS'],
+    ['29', null, 'Fire OS'],
+    ['30', null, 'ChromeOS'],
+    ['31', 'VIDAA', 'Vidaa'],
+    ['32', null, 'VegaOS'],
+  ]
+
+  it('origens: a tabela inteira (código, par da Analytics, rótulo, detalhe)', () => {
+    expect(ORIGENS).toHaveLength(24)
+    expect(Object.keys(ORIGEM_LOTE)).toHaveLength(ORIGENS.length)
+    for (const [codigo, nome, rotulo, detalhe] of ORIGENS) {
+      expect(ORIGEM_LOTE[codigo], `origem ${codigo}`).toEqual({ nome, rotulo, detalhe })
+      expect(rotuloOrigem(codigo), `rótulo da origem ${codigo}`).toEqual({ rotulo, catalogado: true })
+      if (nome) expect(rotuloOrigem(nome), `rótulo de ${nome}`).toEqual({ rotulo, catalogado: true })
+      expect(tipoDoDetalhe(codigo), `detalhe da origem ${codigo}`).toBe(detalhe)
     }
-    expect(rotuloOrigem('YT_SEARCH').rotulo).toBe(rotuloOrigem('5').rotulo)
-    expect(rotuloAparelho('MOBILE').rotulo).toBe(rotuloAparelho('104').rotulo)
-    expect(rotuloSistema('IOS').rotulo).toBe(rotuloSistema('5').rotulo)
   })
 
-  it('os pares afirmados pelo plano que a documentação confirma', () => {
-    const esperado: Record<string, string> = {
-      '0': 'NO_LINK_OTHER', '1': 'ADVERTISING', '4': 'YT_CHANNEL', '5': 'YT_SEARCH', '8': 'YT_OTHER_PAGE',
-      '9': 'EXT_URL', '11': 'ANNOTATION', '14': 'PLAYLIST', '17': 'NOTIFICATION', '20': 'END_SCREEN',
-      '24': 'SHORTS', '25': 'PRODUCT_PAGE', '26': 'HASHTAGS', '27': 'SOUND_PAGE', '28': 'LIVE_REDIRECT',
-      '30': 'VIDEO_REMIXES',
+  it('aparelhos: a tabela inteira (código, par da Analytics, rótulo)', () => {
+    expect(Object.keys(APARELHO_LOTE)).toHaveLength(APARELHOS.length)
+    for (const [codigo, nome, rotulo] of APARELHOS) {
+      expect(APARELHO_LOTE[codigo], `aparelho ${codigo}`).toEqual({ nome, rotulo })
+      expect(rotuloAparelho(codigo)).toEqual({ rotulo, catalogado: true })
+      expect(rotuloAparelho(nome)).toEqual({ rotulo, catalogado: true })
     }
-    for (const [c, n] of Object.entries(esperado)) expect(ORIGEM_LOTE[c].nome).toBe(n)
-    expect(APARELHO_LOTE['101'].nome).toBe('DESKTOP')
-    expect(APARELHO_LOTE['102'].nome).toBe('TV')
-    expect(APARELHO_LOTE['103'].nome).toBe('GAME_CONSOLE')
-    expect(APARELHO_LOTE['104'].nome).toBe('MOBILE')
-    expect(APARELHO_LOTE['105'].nome).toBe('TABLET')
-    expect(APARELHO_LOTE['100'].nome).toBe('UNKNOWN_PLATFORM')
-    expect(SISTEMA_LOTE['4'].nome).toBe('ANDROID')
-    expect(SISTEMA_LOTE['5'].nome).toBe('IOS')
+  })
+
+  it('sistemas: a tabela inteira (código, par da Analytics, rótulo)', () => {
+    expect(SISTEMAS).toHaveLength(31)
+    expect(Object.keys(SISTEMA_LOTE)).toHaveLength(SISTEMAS.length)
+    for (const [codigo, nome, rotulo] of SISTEMAS) {
+      expect(SISTEMA_LOTE[codigo], `sistema ${codigo}`).toEqual({ nome, rotulo })
+      expect(rotuloSistema(codigo)).toEqual({ rotulo, catalogado: true })
+      if (nome) expect(rotuloSistema(nome)).toEqual({ rotulo, catalogado: true })
+    }
+  })
+
+  it('entrada com espaço ou vazia: trim, e vazio vira "sem valor"', () => {
+    for (const v of [' 5', '5 ', '5\n', '\t5\r\n']) {
+      expect(rotuloOrigem(v), JSON.stringify(v)).toEqual({ rotulo: 'Pesquisa do YouTube', catalogado: true })
+      expect(tipoDoDetalhe(v), JSON.stringify(v)).toBe('termo')
+    }
+    expect(rotuloAparelho(' 104 ')).toEqual({ rotulo: 'Celular', catalogado: true })
+    expect(rotuloSistema('IOS\n')).toEqual({ rotulo: 'iOS', catalogado: true })
+    expect(rotuloOrigem(' 99 ')).toEqual({ rotulo: 'código 99', catalogado: false })
+    for (const v of ['', '   ', '\n']) {
+      expect(rotuloOrigem(v)).toEqual({ rotulo: 'sem valor', catalogado: false })
+      expect(rotuloAparelho(v)).toEqual({ rotulo: 'sem valor', catalogado: false })
+      expect(rotuloSistema(v)).toEqual({ rotulo: 'sem valor', catalogado: false })
+      expect(tipoDoDetalhe(v)).toBe('outro')
+    }
   })
 
   it('todo motivo do catálogo tem frase, e a frase não repete o código cru', () => {
@@ -117,6 +200,13 @@ describe('codigos (catálogo de origens, aparelhos, sistemas e motivos)', () => 
       expect(frase).not.toBe('motivo não catalogado')
     }
     expect(new Set(MOTIVOS_NORMALIZADOR.map(motivoNormalizadorHumano)).size).toBe(MOTIVOS_NORMALIZADOR.length)
+    expect(motivoNormalizadorHumano('bruto_ausente')).toBe('o arquivo bruto do relatório não está guardado')
+    expect(motivoNormalizadorHumano('gzip_invalido')).toBe('o arquivo do relatório não abriu (compactação inválida)')
+    expect(motivoNormalizadorHumano('cabecalho_inesperado')).toBe('o cabeçalho do relatório não é o esperado')
+    expect(motivoNormalizadorHumano('linha_invalida')).toBe('o relatório tem uma linha que não pôde ser lida')
+    expect(motivoNormalizadorHumano('canal_inesperado')).toBe('o relatório traz linhas de outro canal')
+    expect(motivoNormalizadorHumano('dia_inesperado')).toBe('o relatório traz um dia fora do esperado')
+    expect(motivoNormalizadorHumano('recusado_pelo_banco')).toBe('o banco recusou a gravação das linhas do relatório')
   })
 
   it('motivo fora do catálogo não lança', () => {

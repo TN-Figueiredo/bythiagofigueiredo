@@ -6,6 +6,18 @@
  * device_type) e da Analytics API (insightTrafficSourceType, deviceType, operatingSystem).
  * O campo `nome` só é preenchido quando o par foi conferido nas duas páginas; sem par
  * certo fica `null` (melhor "sem par" do que par errado).
+ *
+ * `detalhe` (que tipo de texto a origem carrega em `traffic_source_detail`) vem da seção
+ * `traffic_source_detail` da documentação do Reporting API, que lista os tipos que têm detalhe e o
+ * que ele é: 1 tipo de anúncio, 3 recurso do YouTube, 4 e 28 ID de canal, 5 termo de busca, 7 / 19 /
+ * 20 / 27 / 30 ID de vídeo, 8 página, 9 URL externa, 17 tipo de notificação, 25 ID de produto,
+ * 26 hashtag. Tipo que a documentação NÃO lista (0, 11, 14, 18, 23, 24, 29, 31, 32) é 'nenhum'.
+ * Regra de privacidade para dúvida: entre "tem detalhe" e "nenhum", vale o que não deixa passar
+ * texto de terceiros. Fora do catálogo, 'outro' (quem consome decide o que fazer com o detalhe).
+ *
+ * Valores da Analytics API sem código no lote (ficam fora, tratados como não catalogados):
+ * origem CAMPAIGN_CARD, NO_LINK_EMBEDDED, PROMOTED, WATCH_WITH; aparelho AUTOMOTIVE, WEARABLE;
+ * sistema DOCOMO.
  */
 
 export type TipoDetalhe = 'termo' | 'url' | 'video' | 'canal' | 'outro' | 'nenhum'
@@ -32,7 +44,7 @@ export const ORIGEM_EXTERNA = '9'
 export const ORIGEM_LOTE: Record<string, IEntradaOrigem> = {
   '0': { nome: 'NO_LINK_OTHER', rotulo: 'Direto ou desconhecido', detalhe: 'nenhum' },
   '1': { nome: 'ADVERTISING', rotulo: 'Publicidade no YouTube', detalhe: 'outro' },
-  '3': { nome: 'SUBSCRIBER', rotulo: 'Recursos de navegação', detalhe: 'nenhum' },
+  '3': { nome: 'SUBSCRIBER', rotulo: 'Recursos de navegação', detalhe: 'outro' },
   '4': { nome: 'YT_CHANNEL', rotulo: 'Canais do YouTube', detalhe: 'canal' },
   '5': { nome: 'YT_SEARCH', rotulo: 'Pesquisa do YouTube', detalhe: 'termo' },
   // Vídeos sugeridos. O 32 (Related video) tem texto parecido, mas o par com RELATED_VIDEO só
@@ -40,23 +52,23 @@ export const ORIGEM_LOTE: Record<string, IEntradaOrigem> = {
   '7': { nome: 'RELATED_VIDEO', rotulo: 'Vídeos sugeridos', detalhe: 'video' },
   '8': { nome: 'YT_OTHER_PAGE', rotulo: 'Outros recursos do YouTube', detalhe: 'outro' },
   '9': { nome: 'EXT_URL', rotulo: 'Externa (links de outros sites)', detalhe: 'url' },
-  '11': { nome: 'ANNOTATION', rotulo: 'Cards e anotações de vídeo', detalhe: 'video' },
-  '14': { nome: 'PLAYLIST', rotulo: 'Playlists', detalhe: 'outro' },
+  '11': { nome: 'ANNOTATION', rotulo: 'Cards e anotações de vídeo', detalhe: 'nenhum' },
+  '14': { nome: 'PLAYLIST', rotulo: 'Playlists', detalhe: 'nenhum' },
   '17': { nome: 'NOTIFICATION', rotulo: 'Notificações', detalhe: 'outro' },
   // A Analytics API não tem valor próprio para a página da playlist (PLAYLIST a inclui): sem par.
-  '18': { nome: null, rotulo: 'Páginas de playlist', detalhe: 'outro' },
-  '19': { nome: null, rotulo: 'Programação de conteúdo reivindicado', detalhe: 'outro' },
+  '18': { nome: null, rotulo: 'Páginas de playlist', detalhe: 'nenhum' },
+  '19': { nome: null, rotulo: 'Programação de conteúdo reivindicado', detalhe: 'video' },
   '20': { nome: 'END_SCREEN', rotulo: 'Tela final', detalhe: 'video' },
-  '23': { nome: null, rotulo: 'Stories', detalhe: 'outro' },
+  '23': { nome: null, rotulo: 'Stories', detalhe: 'nenhum' },
   '24': { nome: 'SHORTS', rotulo: 'Shorts', detalhe: 'nenhum' },
   '25': { nome: 'PRODUCT_PAGE', rotulo: 'Páginas de produto', detalhe: 'outro' },
   '26': { nome: 'HASHTAGS', rotulo: 'Páginas de hashtag', detalhe: 'outro' },
-  '27': { nome: 'SOUND_PAGE', rotulo: 'Páginas de som', detalhe: 'outro' },
-  '28': { nome: 'LIVE_REDIRECT', rotulo: 'Redirecionamento de live', detalhe: 'nenhum' },
-  '29': { nome: null, rotulo: 'Podcasts', detalhe: 'outro' },
+  '27': { nome: 'SOUND_PAGE', rotulo: 'Páginas de som', detalhe: 'video' },
+  '28': { nome: 'LIVE_REDIRECT', rotulo: 'Redirecionamento de live', detalhe: 'canal' },
+  '29': { nome: null, rotulo: 'Podcasts', detalhe: 'nenhum' },
   '30': { nome: 'VIDEO_REMIXES', rotulo: 'Vídeo remixado', detalhe: 'video' },
   '31': { nome: null, rotulo: 'Feed vertical de lives', detalhe: 'nenhum' },
-  '32': { nome: null, rotulo: 'Vídeo relacionado', detalhe: 'video' },
+  '32': { nome: null, rotulo: 'Vídeo relacionado', detalhe: 'nenhum' },
 }
 
 export const APARELHO_LOTE: Record<string, IEntradaCodigo> = {
@@ -103,6 +115,8 @@ export const SISTEMA_LOTE: Record<string, IEntradaCodigo> = {
   '32': { nome: null, rotulo: 'VegaOS' },
 }
 
+const SEM_VALOR = 'sem valor'
+
 function achar<T extends { nome: string | null }>(cat: Record<string, T>, valor: string): T | null {
   const direto = Object.hasOwn(cat, valor) ? cat[valor] : undefined
   if (direto) return direto
@@ -113,9 +127,11 @@ function achar<T extends { nome: string | null }>(cat: Record<string, T>, valor:
 }
 
 function rotular(cat: Record<string, IEntradaCodigo>, valor: string): IRotulo {
-  const e = achar(cat, valor)
+  const v = valor.trim()
+  if (v === '') return { rotulo: SEM_VALOR, catalogado: false }
+  const e = achar(cat, v)
   if (e) return { rotulo: e.rotulo, catalogado: true }
-  return { rotulo: /^\d+$/.test(valor) ? `código ${valor}` : valor, catalogado: false }
+  return { rotulo: /^\d+$/.test(v) ? `código ${v}` : v, catalogado: false }
 }
 
 /** Aceita o código do lote ou o nome da Analytics API. */
@@ -133,7 +149,8 @@ export function rotuloSistema(valor: string): IRotulo {
 
 /** Que tipo de detalhe privado a origem carrega; fora do catálogo, 'outro'. */
 export function tipoDoDetalhe(codigo: string): TipoDetalhe {
-  return (Object.hasOwn(ORIGEM_LOTE, codigo) ? ORIGEM_LOTE[codigo]?.detalhe : undefined) ?? 'outro'
+  const v = codigo.trim()
+  return (Object.hasOwn(ORIGEM_LOTE, v) ? ORIGEM_LOTE[v]?.detalhe : undefined) ?? 'outro'
 }
 
 /**
