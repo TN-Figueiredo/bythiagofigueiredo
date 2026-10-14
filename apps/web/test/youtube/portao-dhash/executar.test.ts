@@ -401,13 +401,79 @@ describe('devolver-hq', () => {
     expect(r).toContain('dentro de 6')
   })
 
-  it('hqdefault que demora 1 h a voltar: T+0 e o máximo até 3 h saem acima de 6 e o resultado diz FORA de 6', async () => {
+  it('hqdefault que demora 1 h a voltar: é atraso, não deriva; (v) fica dentro de 6 (B1)', async () => {
     const m = await mundo({ atrasoMs: 1 * H, semMaxres: true })
     await valer(m.d, false, true)
     const e = lerEstado(m.pasta)
-    expect(e.volta!.distanciaT0).toBeGreaterThan(6)
+    expect(e.volta!.maiorAte3h).toBeLessThanOrEqual(6)
+    expect(e.volta!.distanciaT0).toBeLessThanOrEqual(6)
+    const r = fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')
+    expect(r).toContain('dentro de 6')
+    expect(r).not.toContain('FORA de 6')
+  })
+
+  it('volta que serve uma imagem recodificada (leitura "outra", deriva real) continua FORA de 6 (B1)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const recodificada = await dhashComoHq(await imagemSintetica(1280, 720, 9))
+    m.d.sondar = async () => ({ dhash: m.escritas.length >= 2 ? recodificada : await dhashComoHq(m.escritas[0]?.bytes ?? m.original), etag: 'W/"1790000000"' })
+    await valer(m.d, false, true)
+    const e = lerEstado(m.pasta)
     expect(e.volta!.maiorAte3h).toBeGreaterThan(6)
     expect(fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')).toContain('FORA de 6')
+  })
+
+  it('a API recusa 480×360 na devolução: depois das tentativas sobe original-maior.jpg e fica devolvida (D1)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const real = m.esc.definirThumb
+    m.esc.definirThumb = vi.fn(async (v: string, b: Buffer) => {
+      if ((await sharp(b).metadata()).width! < 640) throw Object.assign(new Error('YouTube respondeu 400 (imageDimensions)'), { status: 400 })
+      return real(v, b)
+    })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(0)
+    expect(m.escritas).toHaveLength(2)
+    expect(m.escritas[1]!.bytes.equals(m.d.diario.lerArquivo('original-maior.jpg'))).toBe(true)
+    const e = lerEstado(m.pasta)
+    expect(e.fase).toBe('conferida')
+    expect(e.tentativasDevolucao).toBe(PORTAO.tentativasDevolucao + 1)
+    expect(fs.readFileSync(path.join(m.pasta, 'registro.jsonl'), 'utf8')).toContain('devolucao_fallback_maior')
+  })
+
+  it('a API recusa os dois arquivos: código 3 e a mensagem cita original-hq.jpg e original-maior.jpg (D1)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const real = m.esc.definirThumb
+    m.esc.definirThumb = vi.fn(async (v: string, b: Buffer) => {
+      if (m.escritas.length >= 1) throw Object.assign(new Error('YouTube respondeu 400'), { status: 400 })
+      return real(v, b)
+    })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(3)
+    expect(s.mensagem).toContain('original-hq.jpg')
+    expect(s.mensagem).toContain('original-maior.jpg')
+    expect(lerEstado(m.pasta).fase).toBe('devolucao_falhou')
+  })
+
+  it('4xx definitivo na troca (hq): a troca nunca foi ao ar, não sobe o hq rebaixado e sai com código 1 (D2)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    m.esc.definirThumb = vi.fn(async () => { throw Object.assign(new Error('YouTube respondeu 400'), { status: 400 }) })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(1)
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(1)
+    expect(m.escritas).toHaveLength(0)
+  })
+
+  it('erro ambíguo na troca (hq, 503): continua devolvendo a original (D2)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const real = m.esc.definirThumb
+    let primeira = true
+    m.esc.definirThumb = vi.fn(async (v: string, b: Buffer) => {
+      if (primeira) { primeira = false; throw Object.assign(new Error('YouTube respondeu 503'), { status: 503 }) }
+      return real(v, b)
+    })
+    await valer(m.d, false, true)
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(2)
+    expect(m.escritas).toHaveLength(1)
+    expect(sha(m.escritas[0]!.bytes)).toBe(sha(m.d.diario.lerArquivo('original-hq.jpg')))
   })
 
   it('devolver (retomada) de um estado hq sobe original-hq.jpg, não a maior', async () => {

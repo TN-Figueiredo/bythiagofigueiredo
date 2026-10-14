@@ -84,18 +84,32 @@ export async function valer(d: Deps, aceitarMenor: boolean, hq = false): Promise
   if (dist > DHASH_MAX_SAME) throw new Recusa(`a cópia da original no disco não bate com a hqdefault (distância ${dist}): nada foi trocado`)
 
   let falha: unknown = null
+  let naTroca = false
   try {
     e.fase = 'trocando'; d.diario.gravar(e)          // ANTES da API: um processo morto aqui ainda é devolvido
+    naTroca = true
     await esc.definirThumb(d.video, p.teste)
+    naTroca = false
     e.cotaGasta += PORTAO.cota.thumbnailsSet; e.trocaEm = d.agora(); e.fase = 'trocada'; d.diario.gravar(e)
     d.diario.registrar('trocada')
     e.aparicao = await sondarAte(d, 'teste', e.trocaEm, e)
     d.diario.gravar(e)
   } catch (err) { falha = err }
+  // hq: um 4xx definitivo na própria troca = a troca nunca foi ao ar; devolver subiria o hq rebaixado por cima da original (Yannis D2)
+  if (hq && naTroca && ehRecusaDefinitiva(falha)) {
+    try { e.fase = 'preparado'; d.diario.gravar(e); d.diario.registrar('troca_recusada_definitiva', { erro: msg(falha) }) } catch { /* nada foi trocado: o aviso não é crítico */ }
+    return { codigo: 1, mensagem: `o YouTube recusou a troca (${msg(falha)}); nada foi trocado e a devolução do hq não foi enviada. Veja ${d.diario.pasta}` }
+  }
   if (falha !== null) {
     try { d.diario.registrar('erro_com_a_troca_no_ar', { erro: msg(falha) }); d.log(`erro: ${msg(falha)}. Devolvendo a original.`) } catch { /* a devolução vem antes de qualquer aviso */ }
   }
   return devolverEConferir(d, e, esc)                // sempre, depois de 'trocando'
+}
+
+/** 4xx do YouTube que não se resolve tentando de novo (400, 401, 403, 404...); 408, 429, 5xx, timeout e rede são ambíguos. */
+function ehRecusaDefinitiva(err: unknown): boolean {
+  const st = typeof err === 'object' && err !== null ? (err as { status?: unknown }).status : undefined
+  return typeof st === 'number' && st >= 400 && st < 500 && st !== 408 && st !== 429
 }
 
 export async function devolver(d: Deps): Promise<Saida> {
@@ -152,21 +166,35 @@ async function devolverEConferir(d: Deps, e: Estado, esc: Escritor): Promise<Sai
   e.fase = 'devolvendo'
   try { d.diario.gravar(e) } catch (err) { d.diario.registrar('estado_nao_gravado', { erro: msg(err) }) } // disco cheio não impede a devolução
   const semParar: Sinal = { parar: false }          // a devolução não obedece a Ctrl-C
-  for (let t = 1; t <= PORTAO.tentativasDevolucao; t++) {
+  const tentar = async (bytes: Buffer, t: number, extra: Record<string, unknown> = {}): Promise<boolean> => {
     e.tentativasDevolucao++
     try {
-      await esc.definirThumb(e.video, original)
+      await esc.definirThumb(e.video, bytes)
       e.cotaGasta += PORTAO.cota.thumbnailsSet; e.devolucaoEm = d.agora(); e.fase = 'devolvida'; d.diario.gravar(e)
-      d.diario.registrar('devolvida', { tentativa: t })
-      break
+      d.diario.registrar('devolvida', { tentativa: t, ...extra })
+      return true
     } catch (err) {
-      d.diario.registrar('devolucao_falhou', { tentativa: t, erro: msg(err) })
-      if (t < PORTAO.tentativasDevolucao) await d.dormir(PORTAO.esperaEntreDevolucoesMs, semParar)
+      d.diario.registrar('devolucao_falhou', { tentativa: t, erro: msg(err), ...extra })
+      return false
     }
   }
-  if (e.fase !== 'devolvida') {
+  let devolvida = false
+  for (let t = 1; t <= PORTAO.tentativasDevolucao; t++) {
+    if (await tentar(original, t)) { devolvida = true; break }
+    if (t < PORTAO.tentativasDevolucao) await d.dormir(PORTAO.esperaEntreDevolucoesMs, semParar)
+  }
+  // hq: a API pode recusar 480×360 (mínimo de 640 px no Studio). Última cartada: a maior cópia, já no disco e conferida (Yannis D1)
+  if (!devolvida && e.modo === 'hq') {
+    const maior = d.diario.lerArquivo('original-maior.jpg')
+    if (sha256(maior) === e.original.sha256) {
+      devolvida = await tentar(maior, PORTAO.tentativasDevolucao + 1, { arquivo: 'original-maior.jpg' })
+      if (devolvida) d.diario.registrar('devolucao_fallback_maior')
+    }
+  }
+  if (!devolvida) {
     e.fase = 'devolucao_falhou'; d.diario.gravar(e)
-    return { codigo: 3, mensagem: `A ORIGINAL NÃO FOI DEVOLVIDA. Rode: ${cmd('devolver', e.video)}. Sem cota, suba à mão no Studio o arquivo ${d.diario.pasta}/${alvo.nome}` }
+    const arquivos = e.modo === 'hq' ? `${d.diario.pasta}/${alvo.nome} (ou ${d.diario.pasta}/original-maior.jpg, que também falhou)` : `${d.diario.pasta}/${alvo.nome}`
+    return { codigo: 3, mensagem: `A ORIGINAL NÃO FOI DEVOLVIDA. Rode: ${cmd('devolver', e.video)}. Sem cota, suba à mão no Studio o arquivo ${arquivos}` }
   }
   e.volta = await sondarAte(d, 'original', e.devolucaoEm!, e, e.modo === 'hq' ? 3 * 3_600_000 : 0)
   e.fase = e.volta.motivo === 'estavel' ? 'conferida' : 'devolvida_sem_conferir'
@@ -195,7 +223,7 @@ async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: 
     outras: leituras.filter((l) => l.leitura === 'outra').length,
     semDado: leituras.filter((l) => l.leitura === 'sem_dado').length,
     lacunas: lacunas(leituras.map((l) => l.em), PORTAO.intervaloMs),
-    distanciaT0: leituras.length ? (alvo === 'teste' ? leituras[0]!.dTeste : leituras[0]!.dOriginal) : null,
+    distanciaT0: distanciaT0(leituras, alvo),
     maiorAte3h: maiorAte(leituras, alvo, desde),
   })
   for (;;) {
@@ -216,9 +244,16 @@ async function sondarAte(d: Deps, alvo: 'teste' | 'original', desde: number, e: 
 }
 
 const TRES_HORAS_MS = 3 * 3_600_000
+/** Na volta ('original'), uma leitura 'teste' é atraso de propagação (cache de borda), não deriva: fica fora de (v) (Yannis B1). */
+const atraso = (l: Sonda, alvo: 'teste' | 'original') => alvo === 'original' && l.leitura === 'teste'
+function distanciaT0(leituras: readonly Sonda[], alvo: 'teste' | 'original'): number | null {
+  const l = leituras.find((x) => !atraso(x, alvo))
+  return l ? (alvo === 'teste' ? l.dTeste : l.dOriginal) : null
+}
 function maiorAte(leituras: readonly Sonda[], alvo: 'teste' | 'original', desde: number): number | null {
   let maior: number | null = null
   for (const l of leituras) {
+    if (atraso(l, alvo)) continue
     const dist = alvo === 'teste' ? l.dTeste : l.dOriginal
     if (l.em - desde <= TRES_HORAS_MS && dist !== null && (maior === null || dist > maior)) maior = dist
   }
