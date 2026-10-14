@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg11, lerSqlDaMg11 } from '../helpers/mg11'
+import { garantirMg11, lerSqlDaMg11, recusarTransacaoNaRaiz } from '../helpers/mg11'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -36,6 +36,18 @@ const FUNCOES_SO_SERVICE_ROLE = [
 const V1 = `select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and c.relrowsecurity and c.relname in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as tabelas_com_rls_de_3, (select count(*) from pg_policies where schemaname='public' and tablename in ('site_private_viewers','obs_ai_access_log','obs_ai_rate')) as policies_de_2, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','obs_ai_rate_hit') and not has_function_privilege('anon',p.oid,'execute') and not has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcoes_so_service_role_de_6, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='can_view_private_site' and has_function_privilege('anon',p.oid,'execute') and has_function_privilege('authenticated',p.oid,'execute') and has_function_privilege('service_role',p.oid,'execute')) as funcao_de_sessao_de_1, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('is_super_admin_as','is_org_admin_as','can_view_site_as','can_edit_site_as','can_view_private_site_as','can_view_private_site','obs_ai_rate_hit','tg_site_private_viewers_audit') and p.proconfig @> array['search_path=""']) as funcoes_com_search_path_vazio_de_8, (select count(*) from information_schema.columns where table_schema='public' and table_name='pipeline_api_keys' and column_name in ('user_id','expires_at')) as colunas_novas_de_2, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname='pipeline_api_keys_observatorio_leitura_sozinha') as check_de_1, (select count(*) from pg_trigger where tgrelid='public.site_private_viewers'::regclass and tgname='audit_site_private_viewers' and not tgisinternal) as gatilho_de_1, (select count(*) from pg_indexes where schemaname='public' and tablename='obs_ai_access_log' and indexname='idx_oaal_at' and indexdef like '%USING btree (at)') as indice_at_de_1, (select count(*) from pg_constraint where conrelid='public.pipeline_api_keys'::regclass and conname in ('pipeline_api_keys_expires_at_finita','pipeline_api_keys_perfil_exige_validade')) as checks_de_validade_de_2`
 
 interface Semente { site: string; siteB: string; usuario: string; outro: string }
+
+describe('A5 E17 passo 0 (MG11): o auxiliar recusa SQL com transação própria (não toca banco)', () => {
+  it.each(['begin;', 'BEGIN ;', 'start transaction;', 'commit;', '  Commit;', 'rollback;'])('recusa "%s" de nível raiz', (cmd) => {
+    expect(() => recusarTransacaoNaRaiz(`create table t(a int);\n${cmd}\nselect 1;`)).toThrow(/MG11.*begin|commit|transação/i)
+  })
+  it('aceita begin de bloco plpgsql (sem ponto e vírgula na linha) e SQL sem transação', () => {
+    expect(() => recusarTransacaoNaRaiz('do $$\nbegin\n  perform 1;\nend $$;\ncreate table t(a int);')).not.toThrow()
+  })
+  it('o SQL que vale hoje não tem transação própria', () => {
+    expect(() => recusarTransacaoNaRaiz(lerSqlDaMg11())).not.toThrow()
+  })
+})
 
 describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): schema do direito, das chaves por pessoa, do registro de acesso e do contador (banco local)', () => {
   let pg: Client

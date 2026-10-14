@@ -31,6 +31,17 @@ export function caminhoDaMg11(): string {
   throw new Error(`MG11: nenhum arquivo de SQL encontrado (nem ${DA_MIGRATION}/*${SUFIXO_DA_MIGRATION}, nem ${DE_ENSAIO})`)
 }
 
+/**
+ * O SQL roda dentro da transação do teste: um `begin;`/`commit;`/`rollback;` de nível raiz fecharia essa transação e
+ * PERSISTIRIA a MG11 no banco de teste. Bloco plpgsql (`begin` sem ponto e vírgula na linha) não casa.
+ */
+export function recusarTransacaoNaRaiz(sql: string): void {
+  const achado = /^\s*(begin|commit|rollback|start\s+transaction)\b[^;\n]*;/im.exec(sql)
+  if (achado) {
+    throw new Error(`MG11: o SQL tem "${achado[0].trim()}" de nível raiz; o auxiliar roda dentro da transação do teste e isso persistiria a MG11 no banco`)
+  }
+}
+
 export function lerSqlDaMg11(): string {
   return readFileSync(caminhoDaMg11(), 'utf8')
 }
@@ -46,7 +57,9 @@ export async function garantirMg11(pg: Client, opcoes: { conferirForma?: boolean
   const conferirForma = opcoes.conferirForma ?? true
   const antes = await pg.query<{ existe: boolean }>(`select to_regclass('public.site_private_viewers') is not null as existe`)
   const estado = antes.rows[0].existe ? 'ja_aplicada' : 'aplicada_na_transacao'
-  await pg.query(lerSqlDaMg11())
+  const sql = lerSqlDaMg11()
+  recusarTransacaoNaRaiz(sql)
+  await pg.query(sql)
   if (conferirForma) await conferirFormaDaMg11(pg)
   return estado
 }
