@@ -1569,3 +1569,107 @@ Testes de `conferencias`: `E5A_RI_DEPLOY nula: nenhuma entrada`; `malformada: um
 - RI-11. A conta de resposta e de carga está em R.0 (75 canais é o teto real; 200 é estresse). Se a página ficar lenta, mandar só as 10 primeiras linhas e pedir o resto sob demanda. Pergunta para a E9/E10: o pack com 200 canais cabe no limite de 2 MB do cache de dados? (portão RI 14/10, Phil m2, m4).
 - RI-12. Vídeo que saiu do YouTube (`missing_since`) continua com as views da última leitura e entra na mediana. Isso fica em aberto até a E9 expor o campo no `ObsVideo`.
 - RI-13. Dívida técnica (portão RI 14/10, Yannis §6): (a) duas regras de arredondamento na mesma tela (RI-D2), gatilho: resposta do dono ao FU; (b) `view-model.ts:338` filtra vídeos por canal (O(C·V), ~200 ms a 200 canais), gatilho: página acima de 100 canais; (c) números só na tela, sem o Cowork (RI-D6), gatilho: E7/P12; (d) cortes 2 e 6 provisórios, gatilho: CP-RI2.
+
+### Tarefa R9: o canal próprio medido em Inscritos (retrato público diário)
+
+(emenda 14/10 noite, Phil; RI-D3 RESPONDIDA em `.superpowers/sdd/a5/decisoes-do-dono.md`, com o ajuste do dono: o total de inscritos de qualquer canal é **público**, arredondado). **Substitui**, só para o canal próprio, a linha "Canal próprio" da tabela de Inscritos em R.1 e o caso `canal_proprio` da R2. **Não segura R1 a R8:** começa com a R8 enviada, tem envio próprio. **Libera:** escrever e executar R9a e R9b, e armar a MG20 na fila. **Não libera:** `db:push:prod` fora da vez da fila, R9c sem o dono, mudar a régua.
+
+**Por que este caminho (decidido por grep em 14/10).**
+
+| Pergunta | Resposta no código | Consequência |
+|---|---|---|
+| O canal próprio já tem retrato público diário? | **Não.** `competitor_channel_snapshots` tem FK em `competitor_channels` (`20260531000008`); o canal próprio vem de `youtube_channels` e entra com `snapshots: []` (`load.ts:365`). `youtube_channels.subscriber_count` guarda só o número de agora (`sync.ts:142`), sem histórico em tabela nenhuma | Precisa de tabela nova: **MG20** (aditiva) |
+| Quem já lê o total público do canal próprio? | `updateChannelMeta` (`sync.ts:132`) chama `fetchChannelStats` (`api-client.ts:152`, `channels.list part=snippet,statistics,brandingSettings`) a cada execução de `sync-youtube` nos modos `catchall` (07:00 UTC, todo dia, todo canal com `sync_enabled`) e `schedule` (a cada 30 min, só na janela de postagem) | Gravar o retrato **não gasta cota nova**: o dado já chega e hoje é jogado fora |
+| `competitor-sync*.ts` precisa mudar? | Não. O canal próprio não passa por ele | `competitor-sync*.ts`, `load.ts`, `pack.ts`, `channels.ts` **não são tocados** |
+| O retrato pode entrar em `ObsChannel.snapshots` do canal próprio? | Não nesta tarefa: 6 consumidores leem `snapshots` (`channels.ts:138` coluna Crescimento 30 d, `_comparar/numeros-model.ts:146`, `_historico/view-model.ts:1086`, `_chrome/version-span.ts:57`, `_canal/header-model.ts:62`, `load-channel.ts:61`), e o pacote em cache (`pack.ts:21`) obrigaria a invalidação por `cache-writers.test.ts` | Os retratos do canal próprio vão **só** para RI, por um leitor à parte (sem cache, 1 consulta por índice). Número nenhum muda em outra tela (teste de não-regressão abaixo) |
+| E o Analytics (`yt-analytics.readonly`, já pedido em `api/social/oauth/[provider]/route.ts:17`)? | Cobre o relatório de canal `dimensions=day, subscribersGained/Lost`, exato e retroativo; mas é privado (direito da E17) | Fica como **R9c opcional**: só o número exato no ⓘ para quem tem o direito. Não entra na lista |
+
+**Dias até medir.** Sem histórico público, o primeiro retrato é o do primeiro `catchall` depois do deploy (04:00 de São Paulo). O canal fica "sem medida · menos de 28 dias" com "faltam M" (regra da R2, sem mudança) e passa a medido no **28º dia depois do primeiro retrato**, ou seja, cerca de 28 a 29 dias depois do deploy. Não há como antecipar com dado público: os dias passados não foram retratados e não voltam (por isso a MG20 vai na primeira vaga da fila).
+
+#### R9a: coleta (MG20, gravação, leitor)
+
+**MG20** (`npm run db:new observatorio_a5_r9_retratos_canal_proprio`; aditiva; vai sozinha ou com outra aditiva, **depois** de conferir na `.superpowers/sdd/a5/fila-do-db-push.md`, seção 1, que nada está armado; linha nova na tabela da fila, ordem "sem dependência"):
+```sql
+create table if not exists public.yt_own_channel_snapshots (
+  youtube_channel_id uuid not null references public.youtube_channels(id) on delete cascade,
+  snapshot_date date not null,                       -- dia de São Paulo, a mesma regra de competitor_channel_snapshots
+  subscriber_count bigint check (subscriber_count >= 0),   -- nulo = não informado ou oculto; nunca 0 por falta
+  subscribers_hidden boolean not null default false,
+  view_count bigint check (view_count >= 0),
+  video_count integer check (video_count >= 0),
+  taken_at timestamptz not null default now(),
+  primary key (youtube_channel_id, snapshot_date),
+  check (subscriber_count is not null or view_count is not null)   -- linha toda nula não existe (mesma regra do concorrente, competitor-sync.ts:1014)
+);
+alter table public.yt_own_channel_snapshots enable row level security;
+drop policy if exists yt_own_channel_snapshots_select on public.yt_own_channel_snapshots;
+create policy yt_own_channel_snapshots_select on public.yt_own_channel_snapshots for select
+  using (exists (select 1 from public.youtube_channels yc where yc.id = youtube_channel_id and public.can_view_site(yc.site_id)));
+-- sem policy de escrita: só o cliente de serviço grava
+```
+Dado público e agregado (contagem do canal), nenhum dado pessoal: sem retenção curta. **Crescimento:** 1 linha por canal próprio por dia, ~90 bytes com o índice da PK ≈ 33 KB por canal por ano; 3 canais × 10 anos ≈ 11 mil linhas ≈ 1 MB. Sem poda (declarado); some com o canal (`on delete cascade`). **Volta:** `drop table` (nenhum outro objeto depende dela).
+
+**Gravação** (`sync.ts`, `updateChannelMeta`): depois do `update` de `youtube_channels` que deu certo, `upsert` em `yt_own_channel_snapshots` com `onConflict: 'youtube_channel_id,snapshot_date'` e **`ignoreDuplicates: true`** (o primeiro retrato do dia de São Paulo fica; rodar duas vezes dá o mesmo resultado; o `catchall` das 04:00 é quem garante um por dia). Os números vêm de campos **novos e aditivos** de `fetchChannelStats`: `subscriberCountRaw: number | null` (nulo se `hiddenSubscriberCount` ou ausente), `viewCountRaw`, `videoCountRaw`, `hidden`; o campo antigo `subscriberCount` (que vira 0 quando falta, `api-client.ts:173`) **não é usado** nem alterado nesta tarefa (achado à parte, FU-R9-1). Sem número nenhum, não grava. Erro do `upsert`: `Sentry.captureMessage('sync-youtube: retrato do canal próprio não gravado', { level: 'warning', extra: { channelId, code } })` e a sincronização segue (o vídeo não pode parar por causa do retrato); o buraco aparece na tela como "retrato faltando" ou "sem retrato desde", nunca como número.
+
+**Leitor** `OBS/retratos-proprios.ts` (novo, `server-only`): `lerRetratosProprios(sb, ownIds: readonly string[], agoraMs: number): Promise<Map<string, { retratos: ChannelSnapshot[]; oculto: boolean }>>`, uma consulta `in('youtube_channel_id', ownIds).gte('snapshot_date', dia SP de agoraMs − 90)` pelo índice da PK (≤ 90 linhas por canal); converte cada linha no mesmo `ChannelSnapshot` dos concorrentes (`t` = meio-dia de São Paulo do dia, `date` = `dd/mm/aaaa`, a mesma conversão de `load.ts:324-325`, reescrita aqui e provada igual por teste; `load.ts` não é editado), descarta `subscriber_count` nulo e marca `oculto` se o retrato mais novo tem `subscribers_hidden`. Erro de banco **lança** (a página decide). Sem canal próprio: não consulta.
+
+#### R9b: a tela
+
+`OBS/inscritos-28d.ts`: `inscritosDoCanal(c, p: { agoraMs: number; proprio?: { retratos: readonly ChannelSnapshot[]; oculto: boolean } })`. Para `c.own`: com `proprio` presente, aplica **a mesma regra da R.1, linha por linha** (oculto, nunca retratado, retrato velho contra o relógio, menos de 28 dias, buraco, `passoDoYouTube(max(hoje, antes))`, trava `|ganho| < 2 × passo`), sobre `proprio.retratos`, e nunca lê `c.snapshots`; sem `proprio` (leitura falhou), `nm` com o motivo `canal_proprio` reaproveitado como "não lido". Concorrente: sem mudança. **A régua é a mesma porque o dado é o mesmo:** total público com 3 algarismos, passo do YouTube, 2 × passo; nenhum número exato existe no caminho público, então não há exato a esconder no ⓘ (só a R9c teria).
+
+`COMP/_canais/ri-model.ts`: `buildRiView(obs, { …, retratosProprios: ReadonlyMap<string, { retratos; oculto }> | 'erro' })`; repassa a `inscritosDoCanal`; `'erro'` vira, para cada canal próprio, a pílula do motivo `canal_proprio`. Rótulo de `canal_proprio` em `ROTULOS_NOVOS_RI` passa a "sem medida · não foi possível ler os retratos do seu canal" (Logan decide o texto). O ⓘ de Inscritos ganha "Seu canal é medido pelo mesmo número público dos outros canais, desde dd/mm." (data do primeiro retrato; Logan decide).
+
+`COMP/page.tsx`: lê `lerRetratosProprios(getSupabaseServiceClient(), obs.ownChannels().map(c => c.id), now)` no mesmo `Promise.all` de `carregarExtrasProprio`, **depois** da guarda de leitura que a página já faz (`openObservatoryPage`); em `try/catch`: erro vira `'erro'` e um `captureException` com `fingerprint: ['canais-ri', 'retratos-proprios']`. Quem só lê vê o mesmo que o editor (dado público).
+
+#### Dado ausente
+
+| Situação | O que a tela mostra no canal próprio | Nunca |
+|---|---|---|
+| MG20 aplicada, nenhum retrato ainda (primeiro dia) | "sem medida · ainda não coletado" | "sem variação", 0 |
+| 1 a 27 dias de retrato | "sem medida · menos de 28 dias", nota "Entrou há N dias; faltam M…" | ganho de N dias rotulado 28 |
+| `catchall` parado ou `sync_enabled` desligado | depois de 2 dias, "sem medida · sem retrato desde dd/mm" | o ganho velho como se fosse de hoje |
+| Um dia sem retrato no meio | a janela de 28 a 31 dias absorve até 3 dias; depois, "retrato faltando em dd/mm" | ganho de outra janela |
+| YouTube não informa ou oculta a contagem | `subscriber_count` nulo, linha não gravada se nada veio; tela "contagem oculta" | 0 gravado ou mostrado |
+| Leitura dos retratos falha | pílula `canal_proprio` "não foi possível ler…", Sentry; os concorrentes seguem | a seção some ou o canal some |
+| Ganho menor que 2 × passo | "dentro do arredondamento (±passo)" | "sem variação" |
+| `upsert` do retrato falha na coleta | Sentry na hora; na tela, buraco ou "sem retrato desde" | sincronização marcada como erro de vídeo |
+
+#### Arquivos (lista fechada; precisou de outro, para e avisa)
+
+Exceção declarada à linha "este plano não toca" (seção da tabela de posse: `supabase/migrations/**`, `types/database.types.ts`): a R9 cria a MG20 e acrescenta só o bloco da tabela nova em `database.types.ts`. Confirmar no `git status` que `sync.ts`, `api-client.ts` e `database.types.ts` estão limpos; sujos por outra etapa, a R9a espera.
+
+| Parte | Arquivos | Depende de |
+|---|---|---|
+| R9a | `supabase/migrations/<ts>_observatorio_a5_r9_retratos_canal_proprio.sql` (novo, por `db:new`); `apps/web/src/types/database.types.ts` (só o bloco novo); `apps/web/src/lib/youtube/api-client.ts` (campos aditivos); `apps/web/src/lib/youtube/sync.ts`; `OBS/retratos-proprios.ts` (novo); `test/youtube/api-client.test.ts`, `test/youtube/sync.test.ts`; `T/retratos-proprios.test.ts` (novo); `test/integration/a5-r9-retratos-proprios.test.ts` (novo); `.superpowers/sdd/a5/fila-do-db-push.md` (linha da MG20) | R8 enviada |
+| R9b | `OBS/inscritos-28d.ts`; `COMP/_canais/ri-model.ts`; `COMP/page.tsx`; `T/inscritos-28d.test.ts`, `T/canais-ri-model.test.ts`, `T/canais-ri-tela.test.tsx`; `e2e/fixtures/observatorio-seed.ts` (bloco `riCenario`, retratos do canal próprio), `e2e/tests/cms/observatorio/canais-ri.spec.ts` | R9a commitada (o código da R9b roda sem a MG20 em produção? **não**: a ordem é MG20 aplicada e conferida → código, ver Envio) |
+| Envio | `src/lib/conferencias.ts`, `test/lib/conferencias.test.ts`, `.superpowers/sdd/a5/conferencias-com-data.md` | R9b, portão de Phil e Yannis, R7 da linha do canal próprio (Logan para os rótulos, Gio a 1440 e 390) |
+
+21 arquivos (10 na R9a, 8 na R9b, 3 no envio); 1 migration; nenhuma variável.
+
+#### Testes, primeiro vermelhos
+
+- **Dado apagado:** `api-client`: `statistics sem subscriberCount: subscriberCountRaw nulo, nunca 0`; `hiddenSubscriberCount true: nulo e hidden`. `sync`: `stats sem número nenhum: nenhum upsert de retrato`; `upsert do retrato falha: Sentry e a sincronização termina ok`; `segunda execução no mesmo dia: ignoreDuplicates, o retrato da primeira fica`. `retratos-proprios`: `apaga todos os retratos: retratos vazio, não lança`; `retrato mais novo com subscriber_count nulo e subscribers_hidden: oculto`; `banco devolve erro: lança`. `inscritos-28d`: `canal próprio sem proprio: canal_proprio, nunca ganho dos c.snapshots injetados`; `apaga os retratos de 28 a 31 dias antes: buraco com a data`; `retratos vazios: ainda_nao_coletado`. `ri-tela`: `obs com o canal próprio e retratosProprios vazio: pílula "ainda não coletado", nenhum número na linha`; `retratosProprios 'erro': a pílula do motivo, os concorrentes medidos, um captureException`.
+- **Quem não tem o direito privado** (`podeVerPrivado` → null, sessão só de leitura): `a linha do canal próprio em Inscritos é IGUAL à do editor` (dado público), e **nenhum número exato do Analytics no payload** (`JSON.stringify` das props de `CanaisScreen` não contém o valor de `subscribersGained` de um fetch espião, que também não é chamado). Esse teste trava a R9c: se um dia ela entrar, o exato só aparece com a leitura.
+- **Régua igual:** `o canal próprio e um concorrente com os mesmos retratos (1.420.000 e 1.390.000) dão o mesmo InscritosDoCanal, só o canal muda` (`toEqual` sem o id); idem `603.000 contra 602.000: arred, passo 1.000`; `9.800 contra 9.900: medido, passo 10`.
+- **Temporal relativo:** `primeiro retrato há 11 dias: novo, faltam 17`; `há 28: medido`; `retrato mais novo há 3 dias: retrato_velho`; tudo gerado de `AGORA`.
+- **Paridade da conversão:** `a mesma data dá o mesmo t e date em retratos-proprios e no ChannelSnapshot de um concorrente montado por createObservatory`.
+- **Não regressão:** `T/numeros-nao-mudam-e5a.test.ts` sem edição; `buildCanaisView` com `retratosProprios` cheio dá a mesma `view` que sem (a coluna Crescimento do canal próprio não muda).
+- **Integração** (`HAS_LOCAL_DB`, `bythiago_int`): MG20 aplica duas vezes sem erro; `insert` com as duas contagens nulas falha no `check`; usuário sem `can_view_site` do site (não superusuário, com o GUC `app.site_id` forjado para o site; `reference_rls_guc_spoof_pattern`) lê 0 linhas; `anon` lê 0; apagar o `youtube_channels` apaga os retratos.
+
+**Gio:** e2e com a semente de 40 dias de retratos do canal próprio (medido) e o caso apagado (apaga os retratos do canal próprio, recarrega: "ainda não coletado"; restaura em `afterAll`).
+
+#### Envio e conferências
+
+Ordem dura: **MG20 em produção e conferida (V1) → push do código da R9b.** O código da R9a que grava pode ir junto da MG20 ou depois; se for antes, o `upsert` falha em toda execução (tabela ausente) e só gera Sentry. `E5A_RI9_DEPLOY` em `lib/conferencias.ts`, `conferenciasE5ARi9(deploy)`, `etapa: 'E5'`:
+- **V1 (dia da MG20):** `select count(*) from information_schema.tables where table_name='yt_own_channel_snapshots'` = 1; `select polname from pg_policies where tablename='yt_own_channel_snapshots'` = 1 linha (`_select`).
+- **D+1, CP-RI9a:** `select youtube_channel_id, snapshot_date, subscriber_count, taken_at from yt_own_channel_snapshots order by snapshot_date desc limit 5;` esperado 1 linha por canal próprio com `sync_enabled`, do dia de São Paulo, `subscriber_count` igual ao `youtube_channels.subscriber_count` (diferença 0 ou de um passo).
+- **D+7, CP-RI9b:** `select youtube_channel_id, count(*), min(snapshot_date), max(snapshot_date) from yt_own_channel_snapshots group by 1;` esperado `count = max − min + 1` (nenhum buraco). Buraco: ler o log do `catchall` do dia.
+- **D+29, CP-RI9c:** a tela, com dado real: o canal próprio passou de "menos de 28 dias" a medido (ou "dentro do arredondamento") no dia do 28º retrato; o número bate com `retrato(hoje) − retrato(hoje − 28)` pela consulta de leitura.
+
+**Volta:** reverter o commit da R9b (a linha volta a `canal_proprio`); a R9a pode ficar gravando sem custo. Desfazer a MG20 (`drop table`) só com o dono, e perde os dias gravados.
+
+#### R9c (opcional, só se o dono pedir): o exato do Analytics no ⓘ
+
+Sem migration: no abrir da página, para quem tem a leitura da E17 (`podeVerPrivado`), 1 chamada a `youtubeanalytics/v2/reports` (`ids=channel==<UC>`, `metrics=subscribersGained,subscribersLost`, `dimensions=day`, `startDate` = dia do Pacífico − 34, lido por `columnHeaders`, dia faltante ou valor nulo = não medido), `unstable_cache` de 900 s por site, canal e dia do Pacífico (≤ 96 chamadas por canal por dia; só com a leitura; falha não vai ao cache), prazo de 4 s. Só o ⓘ ganha "Pelo YouTube Analytics (privado): +1.120 exatos de dd/mm a dd/mm." A lista não muda. Não reaproveitar `fetchYtDailyMetrics` (`analytics-client.ts:243`: lê por posição e troca nulo por 0) nem `getCachedYtDaily` (devolve `[]` no erro). Tem valor só nos 28 primeiros dias (cobre o vão) e como prova cruzada; a decisão é do dono.
+
+**FU-R9-1 (achado à parte, já em produção):** `fetchChannelStats` grava `subscriber_count = 0` em `youtube_channels` quando o YouTube não informa a contagem (`api-client.ts:173`, `parseInt(… ?? '0')`), e `ObsChannel.subs` do canal próprio lê esse 0. Conserto em outra etapa: passar o `Raw` para o `update` e a coluna para nula (MG), com a lista dos consumidores de `youtube_channels.subscriber_count`.
