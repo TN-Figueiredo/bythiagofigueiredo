@@ -5,6 +5,9 @@ import { loadRows, rowsToDataset, type ObservatoryRows } from '@/lib/youtube/obs
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import { legacyGrids } from '@/lib/youtube/observatorio/grids'
+import * as Sentry from '@sentry/nextjs'
+import { lerPerfis, perfilDe, type PerfilDoCanal, type ResultadoDePerfis } from './competitors-perfil'
+import { listarMudancasDeCampo, FRASES_DE_CAMPO, type MudancasDeCampo } from './competitors-campos'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +23,8 @@ export interface CompetitorChannelRow {
   last_synced_at: string | null
   added_at: string | null
   avg_engagement: number | null
+  /** A5 · E7: o perfil lido do YouTube (handle, país, criação) ou o motivo de ainda não estar lido. */
+  perfil: PerfilDoCanal
 }
 
 export interface CompetitorChannelList {
@@ -45,6 +50,8 @@ export interface CompetitorChangeRow {
 export interface CompetitorChangeList {
   changes: CompetitorChangeRow[]
   count: number
+  /** A5 · E7: só existe com `campos=todos`; sem o parâmetro a chave não está no corpo. */
+  mudancas_de_campo?: MudancasDeCampo
 }
 
 export interface CompetitorOutlierRow {
@@ -123,6 +130,8 @@ export interface CompetitorChangeFilters {
   type?: string | null
   bookmarked?: boolean | null
   limit?: number
+  /** A5 · E7: `'todos'` acrescenta as mudanças de campo; vazio é o caminho de hoje; qualquer outro valor é 400. */
+  campos?: string | null
 }
 
 export interface CompetitorOutlierFilters {
@@ -193,6 +202,15 @@ export async function listCompetitorChannels(
     vidsByChannel.set(v.competitor_channel_id, list)
   }
 
+  // A5 · E7: o perfil é uma leitura à parte; se ela falhar, só o perfil sai nao_lido e as nove chaves de hoje seguem
+  let perfis: ResultadoDePerfis
+  try {
+    perfis = await lerPerfis(supabase, siteId)
+  } catch (e) {
+    Sentry.captureException(e)
+    perfis = { lido: false, motivo: 'erro_do_banco' }
+  }
+
   const result: CompetitorChannelRow[] = safeChannels.map(ch => {
     const vids = vidsByChannel.get(ch.id) ?? []
     const totalViews = vids.reduce((s, v) => s + (v.view_count ?? 0), 0)
@@ -209,6 +227,7 @@ export async function listCompetitorChannels(
       last_synced_at: ch.last_synced_at,
       added_at: ch.added_at,
       avg_engagement: avgEngagement,
+      perfil: perfilDe(ch.id, perfis),
     }
   })
 
@@ -226,6 +245,10 @@ export async function listCompetitorChanges(
 ): Promise<ServiceResult<CompetitorChangeList>> {
   const { supabase, siteId } = ctx
   const changeLimit = Math.min(filters.limit ?? 25, 100)
+
+  // A5 · E7: valor desconhecido de `campos` é 400 ANTES de qualquer consulta (ignorar em silêncio faria o Cowork achar que pediu e recebeu)
+  const campos = filters.campos ?? ''
+  if (campos !== '' && campos !== 'todos') return err('VALIDATION_ERROR', "campos aceita só 'todos'", 400)
 
   let query = supabase
     .from('competitor_changes')
@@ -264,6 +287,17 @@ export async function listCompetitorChanges(
       bookmarked: c.bookmarked,
     }
   })
+
+  if (campos === 'todos') {
+    let mudancas: MudancasDeCampo
+    try {
+      mudancas = await listarMudancasDeCampo(supabase, siteId, { limite: changeLimit })
+    } catch (e) {
+      Sentry.captureException(e)
+      mudancas = { estado: 'nao_lido', motivo: 'erro_do_banco', frase: FRASES_DE_CAMPO.erro_do_banco }
+    }
+    return ok({ changes, count: changes.length, mudancas_de_campo: mudancas })
+  }
 
   return ok({ changes, count: changes.length })
 }

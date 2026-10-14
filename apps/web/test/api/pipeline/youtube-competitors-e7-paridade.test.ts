@@ -2,11 +2,11 @@
 // A5 · E7, Tarefa 2: o corpo de hoje de `changes` e `channels`, congelado antes de a etapa mexer no serviço (itens 9, 51, 216),
 // e os testes do falso de PostgREST em que o Lote 1 se apoia. Os retratos são os de `__retratos__/`.
 // Quem muda o corpo de propósito regenera com `vitest -u` NESTE arquivo e diz no commit por quê.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { listCompetitorChanges, listCompetitorChannels } from '@/lib/pipeline/services/competitors'
-import { baseE7, criarBancoFalso, contextoDe, SITE_A, SITE_B, CANAL_B1, type Tabelas } from './e7-fixture'
+import { baseE7, criarBancoFalso, contextoDe, aoDia, SITE_A, SITE_B, CANAL_A1, CANAL_A2, CANAL_B1, type Linha, type Tabelas } from './e7-fixture'
 
 const RETRATOS = join(process.cwd(), 'test/api/pipeline/__retratos__')
 const NOVE_CHAVES = ['id', 'channel_id', 'channel_name', 'thumbnail_url', 'subscriber_count', 'video_count', 'last_synced_at', 'added_at', 'avg_engagement'] as const
@@ -125,5 +125,133 @@ describe('o falso de PostgREST', () => {
     expect(c.colunas).toEqual(['id', 'channel_name'])
     expect(c.filtros).toEqual([{ op: 'eq', coluna: 'site_id', valor: SITE_A }])
     expect(c.abortSignal).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tarefa 5: a integração do Lote 1 (perfil em channels, campos=todos em changes)
+// ---------------------------------------------------------------------------
+
+const retratoDeChanges = () => JSON.parse(readFileSync(join(RETRATOS, 'e7-changes-hoje.json'), 'utf8')) as Record<string, { changes: unknown[]; count: number }>
+const versaoDeCampo = (id: number, over: Linha): Linha => ({
+  id, site_id: SITE_A, competitor_channel_id: CANAL_A1, video_id: null, field: 'name', value: 'x', first_seen_at: aoDia(2), last_seen_at: aoDia(2),
+  window_start: null, precision: '1d', is_current: false, ...over,
+})
+
+describe('changes (Lote 1)', () => {
+  it('sem o parâmetro é o corpo de hoje, byte a byte (itens 9 e 51)', async () => {
+    const esperado = JSON.stringify(retratoDeChanges()['sem_filtro'])
+    for (const f of [{}, { campos: null }, { campos: '' }, { campos: undefined }]) {
+      const r = (await listCompetitorChanges(contextoDe(novo()), f)).data
+      expect(JSON.stringify(r)).toBe(esperado)
+      expect(Object.keys(r)).toEqual(['changes', 'count'])
+    }
+  })
+
+  it('sem o parâmetro nenhuma consulta nova é feita', async () => {
+    const b = novo()
+    await listCompetitorChanges(contextoDe(b), {})
+    expect(b.total('competitor_field_versions')).toBe(0)
+  })
+
+  it('com campos=todos: changes e count iguais aos de hoje, mais a chave', async () => {
+    const b = novo()
+    b.tabelas['competitor_field_versions'] = [versaoDeCampo(1, { precision: 'first', first_seen_at: aoDia(5) }), versaoDeCampo(2, { value: 'y' })]
+    const r = (await listCompetitorChanges(contextoDe(b), { campos: 'todos' })).data
+    const hoje = retratoDeChanges()['sem_filtro']!
+    expect(JSON.stringify(r.changes)).toBe(JSON.stringify(hoje.changes))
+    expect(r.count).toBe(hoje.count)
+    expect(r.mudancas_de_campo?.estado).toBe('lido')
+    expect(Object.keys(r)).toEqual(['changes', 'count', 'mudancas_de_campo'])
+  })
+
+  it('campos=todos usa o mesmo limite das trocas', async () => {
+    const b = novo()
+    b.tabelas['competitor_field_versions'] = [versaoDeCampo(1, { precision: 'first', first_seen_at: aoDia(5) }), versaoDeCampo(2, { value: 'y' })]
+    const r = (await listCompetitorChanges(contextoDe(b), { campos: 'todos', limit: 3 })).data
+    expect(r.mudancas_de_campo).toMatchObject({ estado: 'lido', limite: 3 })
+  })
+
+  it('campos=todos com a tabela ausente não derruba changes', async () => {
+    const b = novo(); b.falha('competitor_field_versions', 'ausente')
+    const r = (await listCompetitorChanges(contextoDe(b), { campos: 'todos' })).data
+    expect(JSON.stringify(r.changes)).toBe(JSON.stringify(retratoDeChanges()['sem_filtro']!.changes))
+    expect(r.mudancas_de_campo).toMatchObject({ estado: 'nao_lido', motivo: 'tabela_ausente' })
+  })
+
+  it.each(['tudo', 'TODOS', 'todos,x'])('campos=%s: 400 e nenhuma consulta', async valor => {
+    const b = novo()
+    await expect(listCompetitorChanges(contextoDe(b), { campos: valor })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    expect(b.consultas).toHaveLength(0)
+  })
+
+  it('erro em competitor_changes continua 500, com e sem o parâmetro', async () => {
+    for (const campos of [null, 'todos']) {
+      const b = novo(); b.falha('competitor_changes', 'erro')
+      await expect(listCompetitorChanges(contextoDe(b), { campos })).rejects.toMatchObject({ code: 'DB_ERROR', status: 500 })
+    }
+  })
+})
+
+describe('channels (Lote 1)', () => {
+  it('as nove chaves de hoje não mudaram (item 216)', async () => {
+    const gravado = JSON.parse(readFileSync(join(RETRATOS, 'e7-channels-hoje.json'), 'utf8')) as unknown
+    expect(JSON.parse(JSON.stringify(await channelsDeHoje()))).toEqual(gravado)
+  })
+
+  it('todo canal tem perfil, nos dois estados', async () => {
+    const b = novo()
+    b.tabelas['competitor_field_versions'] = [
+      versaoDeCampo(1, { field: 'custom_url', value: '@alfa', is_current: true, competitor_channel_id: CANAL_A1 }),
+      versaoDeCampo(2, { field: 'country', value: 'BR', is_current: true, competitor_channel_id: CANAL_A1 }),
+    ]
+    const { channels } = (await listCompetitorChannels(contextoDe(b))).data
+    expect(channels).toHaveLength(3)
+    for (const c of channels) expect(c.perfil.estado === 'lido' || c.perfil.estado === 'nao_lido').toBe(true)
+    expect(channels.find(c => c.id === CANAL_A1)!.perfil).toMatchObject({ estado: 'lido', handle: '@alfa', pais: 'BR' })
+    expect(channels.find(c => c.id === CANAL_A2)!.perfil).toMatchObject({ estado: 'nao_lido', motivo: 'canal_ainda_nao_relido' })
+  })
+
+  it('lerPerfis que lança não derruba a lista: 200, nove chaves iguais, perfil nao_lido', async () => {
+    for (const quando of [undefined, (c: { colunas: string[] }) => c.colunas.includes('published_at')]) {
+      const b = novo()
+      if (quando) b.falha('competitor_channels', 'lanca', quando); else b.falha('competitor_field_versions', 'lanca')
+      const { channels, count } = (await listCompetitorChannels(contextoDe(b))).data
+      expect(count).toBe(3)
+      for (const c of channels) expect(c.perfil).toMatchObject({ estado: 'nao_lido', motivo: 'erro_do_banco' })
+      const nove = channels.map(c => Object.fromEntries(NOVE_CHAVES.map(k => [k, (c as unknown as Record<string, unknown>)[k]])))
+      expect(JSON.parse(JSON.stringify({ count, channels: nove }))).toEqual(await (async () => JSON.parse(readFileSync(join(RETRATOS, 'e7-channels-hoje.json'), 'utf8')))())
+    }
+  })
+
+  it('channels filtra os canais pelo site: o canal de B não aparece', async () => {
+    const b = novo()
+    const { channels } = (await listCompetitorChannels(contextoDe(b))).data
+    expect(channels.map(c => c.id)).not.toContain(CANAL_B1)
+    expect(b.doTabela('competitor_channels')[0]!.filtros).toContainEqual({ op: 'eq', coluna: 'site_id', valor: SITE_A })
+    expect((await listCompetitorChannels(contextoDe(novo(), SITE_B))).data.channels.map(c => c.id)).toEqual([CANAL_B1])
+  })
+})
+
+describe('a rota changes', () => {
+  async function chamar(url: string) {
+    vi.resetModules()
+    const listar = vi.fn(async () => ({ data: { changes: [], count: 0 } }))
+    vi.doMock('@/lib/pipeline/helpers', () => ({
+      authenticateRead: async () => ({ auth: { source: 'api_key', siteId: SITE_A } }),
+      pipelineSuccess: (d: unknown) => new Response(JSON.stringify({ data: d }), { status: 200 }),
+    }))
+    vi.doMock('@/lib/pipeline/services/http-adapter', () => ({ authToServiceContext: () => ({ siteId: SITE_A }), serviceErrorToResponse: () => new Response(null, { status: 500 }) }))
+    vi.doMock('@/lib/pipeline/services/competitors', () => ({ listCompetitorChanges: listar }))
+    const { GET } = await import('@/app/api/pipeline/youtube/competitors/changes/route')
+    const { NextRequest } = await import('next/server')
+    await GET(new NextRequest(url))
+    vi.doUnmock('@/lib/pipeline/helpers'); vi.doUnmock('@/lib/pipeline/services/http-adapter'); vi.doUnmock('@/lib/pipeline/services/competitors')
+    return listar.mock.calls[0] as unknown as [unknown, { campos: string | null }]
+  }
+
+  it('a rota repassa campos; sem o parâmetro, repassa null', async () => {
+    expect((await chamar('http://x.test/api/pipeline/youtube/competitors/changes?campos=todos'))[1].campos).toBe('todos')
+    expect((await chamar('http://x.test/api/pipeline/youtube/competitors/changes'))[1].campos).toBeNull()
   })
 })
