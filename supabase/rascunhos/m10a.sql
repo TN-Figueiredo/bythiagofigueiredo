@@ -71,3 +71,33 @@ insert into public.obs_archive_video_policy (site_id) select s.id from public.si
 alter table public.obs_archive_video_policy enable row level security;
 revoke all on table public.obs_archive_video_policy from public, anon, authenticated, service_role;
 grant select on table public.obs_archive_video_policy to service_role;
+
+-- 3. A guarda de insert nas 8 tabelas da classe video_antigo (02 §10.8). Segunda linha: o predicado do código é a primeira.
+create or replace function public.obs_video_antigo_guarda_insert()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.video_id is null then
+    return new;
+  end if;
+  perform 1 from public.competitor_videos v where v.id = new.video_id and v.archive_frozen_at is not null;
+  if found then
+    raise exception 'video_congelado' using errcode = 'P0001', detail = new.video_id::text, hint = tg_table_name;
+  end if;
+  return new;
+end $$;
+revoke all on function public.obs_video_antigo_guarda_insert() from public, anon, authenticated, service_role;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['competitor_video_versions', 'competitor_field_versions', 'competitor_raw',
+                           'competitor_video_tier_spans', 'competitor_video_comment_snaps', 'competitor_hour_fold_log',
+                           'competitor_changes', 'competitor_readings']
+  loop
+    execute format('drop trigger if exists obs_video_antigo_guarda on public.%I', t);
+    execute format('create trigger obs_video_antigo_guarda before insert on public.%I for each row execute function public.obs_video_antigo_guarda_insert()', t);
+  end loop;
+end $$;
+
+-- 4. P36: a retirada e a remoção buscam leituras da forja por vídeo.
+create index if not exists idx_competitor_readings_video on public.competitor_readings (video_id) where video_id is not null;
