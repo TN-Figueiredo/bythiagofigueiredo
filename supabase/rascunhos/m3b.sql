@@ -2742,15 +2742,4 @@ end $$;
 revoke all on function public.obs_archive_owner_pending(uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_owner_pending(uuid) to service_role, postgres;
 
--- O papel só de leitura do `npm run -s obs:arquivo` (decisão do dono, 14/10). SEM senha aqui: o dono a define uma vez, fora do
--- repositório, pelo m3b-obs-arquivo-credencial.sh (Tarefa 8a). Sem senha, o papel não entra.
-do $$ begin
-  if not exists (select 1 from pg_roles where rolname = 'obs_arquivo_leitor') then
-    create role obs_arquivo_leitor login noinherit nosuperuser nocreatedb nocreaterole noreplication connection limit 2;
-  end if;
-end $$;
-alter role obs_arquivo_leitor set default_transaction_read_only = on;
-alter role obs_arquivo_leitor set statement_timeout = '15s';
-alter role obs_arquivo_leitor set search_path = '';
-grant usage on schema public to obs_arquivo_leitor;
-grant execute on function public.obs_archive_owner_pending(uuid) to obs_arquivo_leitor;
+-- Sem papel de banco (emenda 14/10 noite: rota com chave): o Mac lê esta função por GET /api/pipeline/archive/pending (chave archive_owner).

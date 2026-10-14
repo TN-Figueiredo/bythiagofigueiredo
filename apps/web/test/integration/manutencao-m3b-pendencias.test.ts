@@ -1,8 +1,7 @@
 // apps/web/test/integration/manutencao-m3b-pendencias.test.ts
 // @vitest-environment node
 /**
- * Manutenção M3b, parte 7 do SQL (emenda de 14/10, peça 7; plano M3b-site, Tarefa E1): `obs_archive_owner_pending` (C12) e o papel só de
- * leitura `obs_arquivo_leitor`. Banco: SÓ o `bythiago_int` (54422), tudo em `begin … rollback`.
+ * Manutenção M3b, parte 7 do SQL (emenda de 14/10, peça 7; plano M3b-site, Tarefa E1): `obs_archive_owner_pending` (C12) (sem papel de banco: a leitura do Mac é por rota com chave). Banco: SÓ o `bythiago_int` (54422), tudo em `begin … rollback`.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
@@ -10,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
-import { aplicarM3b, sqlM3bAte, escalar, q1, semearCanal } from '../helpers/m3b'
+import { aplicarM3b, sqlM3bAte, M3B_SQL_CAMINHO, escalar, q1, semearCanal } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 
@@ -20,7 +19,18 @@ const DAILY = 'competitor_video_daily'
 interface Item { item_id: string; kind: string; tempo: string; desde: string; mes: string | null; channel_ref: string | null; youtube_id: string | null; marcado_rodado_em: string | null; apagar: unknown[]; b2_nomes: unknown[] }
 interface Pend { versao: number; lido_em: string; total: number; itens: Item[] }
 
-describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono e o papel de leitura', () => {
+describe('M3b parte 7 (texto, roda sem banco): sem papel de banco', () => {
+  it('a parte 7 não tem create role, alter role nem obs_arquivo_leitor', () => {
+    const sql = readFileSync(M3B_SQL_CAMINHO, 'utf8')
+    const parte7 = sql.slice(sql.indexOf('-- M3B PARTE 7'))
+    expect(parte7.length).toBeGreaterThan(100)
+    expect(parte7).not.toMatch(/create\s+role/i)
+    expect(parte7).not.toMatch(/alter\s+role/i)
+    expect(parte7).not.toContain('obs_arquivo_leitor')
+  })
+})
+
+describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel de leitura)', () => {
   let c: Client
   beforeAll(async () => { c = new Client({ connectionString: PG_URL }); await c.connect() })
   afterAll(async () => { await c.end() })
@@ -157,33 +167,27 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono e o papel d
     expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')           // nenhum canal
   }))
 
-  it('concessões: anon e authenticated não; service_role, postgres e obs_arquivo_leitor sim', async () => emTx(async () => {
+  it('concessões: anon e authenticated não; service_role e postgres sim; nenhum outro papel com execute explícito', async () => emTx(async () => {
     const f = 'public.obs_archive_owner_pending(uuid)'
     for (const q of ['anon', 'authenticated']) expect(await escalar(c, `select has_function_privilege($1, $2, 'execute')`, [q, f]), q).toBe(false)
-    for (const q of ['service_role', 'postgres', 'obs_arquivo_leitor']) expect(await escalar(c, `select has_function_privilege($1, $2, 'execute')`, [q, f]), q).toBe(true)
+    for (const q of ['service_role', 'postgres']) expect(await escalar(c, `select has_function_privilege($1, $2, 'execute')`, [q, f]), q).toBe(true)
+    // ACL explícita: só service_role, postgres e o dono (emenda 14/10 noite: rota com chave)
+    const diretos = (await c.query(`select distinct case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end as g
+      from pg_proc p, lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+      where p.oid = 'public.obs_archive_owner_pending(uuid)'::regprocedure and a.privilege_type = 'EXECUTE'`)).rows.map(x => x.g as string)
+    expect(diretos.filter(g => !['service_role', 'postgres'].includes(g))).toEqual([])
   }))
 
-  it('o papel de leitura só lê a função; a parte 7 rodada duas vezes não falha', async () => emTx(async () => {
-    const papel = await q1(c, `select rolcanlogin, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolinherit, rolconnlimit, rolconfig from pg_roles where rolname = 'obs_arquivo_leitor'`)
-    expect(papel).toMatchObject({ rolcanlogin: true, rolsuper: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false, rolinherit: false, rolconnlimit: 2 })
-    expect(papel.rolconfig).toEqual(expect.arrayContaining(['default_transaction_read_only=on', 'statement_timeout=15s']))
-    expect(await escalar(c, `select rolpassword is null from pg_authid where rolname = 'obs_arquivo_leitor'`)).toBe(true)     // sem senha no arquivo
-    // nenhuma tabela de public: nenhum privilégio
-    const tabelas = (await c.query(`select c.oid::regclass::text as t from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')`)).rows
-    for (const { t } of tabelas) for (const priv of ['select', 'insert', 'update', 'delete'])
-      expect(await escalar<boolean>(c, `select has_table_privilege('obs_arquivo_leitor', $1, $2)`, [t, priv]), `${t} ${priv}`).toBe(false)
-    // nenhuma função de public com execute CONCEDIDO AO PAPEL além da C12 (ACL explícita)
-    const diretas = (await c.query(`select p.oid::regprocedure::text as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
-        lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-      where n.nspname = 'public' and a.grantee = (select oid from pg_roles where rolname = 'obs_arquivo_leitor') and a.privilege_type = 'EXECUTE' order by 1`)).rows.map(x => x.f as string)
-    expect(diretas).toEqual(['obs_archive_owner_pending(uuid)'])
-    // as que o papel herda do PUBLIC (execute padrão do Postgres) não se fecham aqui sem risco para as políticas: a conferência e o revoke são do Passo 5 da Tarefa 10
-    const viaPublic = await escalar(c, `select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace, lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-      where n.nspname = 'public' and a.grantee = 0 and a.privilege_type = 'EXECUTE' and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')`)
-    console.log(`E1: ${viaPublic} funções de public (fora de extensão) com execute para PUBLIC, herdado pelo obs_arquivo_leitor`)
-    // idempotente
-    await c.query(sqlM3bAte(7).slice(sqlM3bAte(7).indexOf('-- M3B PARTE 7')))
-    await c.query(sqlM3bAte(7).slice(sqlM3bAte(7).indexOf('-- M3B PARTE 7')))
+  it('a parte 7 não cria papel (rota com chave): o texto não tem create role, alter role nem obs_arquivo_leitor; o papel não existe; rodada duas vezes não falha', async () => emTx(async () => {
+    const sql = sqlM3bAte(7)
+    const parte7 = sql.slice(sql.indexOf('-- M3B PARTE 7'))
+    expect(parte7.length).toBeGreaterThan(100)
+    expect(parte7).not.toMatch(/create\s+role/i)
+    expect(parte7).not.toMatch(/alter\s+role/i)
+    expect(parte7).not.toContain('obs_arquivo_leitor')
+    expect(await escalar(c, `select count(*)::int from pg_roles where rolname = 'obs_arquivo_leitor'`)).toBe(0)
+    await c.query(parte7)
+    await c.query(parte7)
   }))
 
   it('só lê: a chamada em transação read only não falha', async () => emTx(async () => {
