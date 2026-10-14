@@ -25,6 +25,13 @@ export interface EntradaDaParidade {
   cruas?: readonly FolhaCrua[]
 }
 
+/** O fim do caminho, com fronteira: 'base' casa com 'x.base' e com 'x', '.base' casa com 'x.base'; 'ase' e 'mediana' contra 'submediana' não. */
+const terminaEm = (origem: string, fim: string): boolean => {
+  if (!origem.endsWith(fim)) return false
+  if (origem.length === fim.length || /^[.[\]]/.test(fim)) return true
+  return /[.\]]$/.test(origem.slice(0, origem.length - fim.length))
+}
+
 export const normalizar = (s: string): string => s.replace(/\s+/g, ' ').trim()
 
 const textoDaFolha = (valor: ValorDeFolha | undefined, caminho: string, cruas: readonly FolhaCrua[]): string | null => {
@@ -107,7 +114,7 @@ export function provarParidade(e: EntradaDaParidade): void {
         const coluna = t.colunas[j] ?? ''
         const aceitos = mapa?.[coluna] === undefined ? undefined : ([] as string[]).concat(mapa[coluna] as string | string[])
         if (aceitos === undefined) problemas.push(`(d3) coluna sem entrada no mapa (${onde})`)
-        else if (!aceitos.some((fim) => c.origem.endsWith(fim))) problemas.push(`(d3) célula sob o cabeçalho errado (${onde}): a origem ${c.origem} deveria terminar em ${aceitos.join(' ou ')}`)
+        else if (!aceitos.some((fim) => terminaEm(c.origem, fim))) problemas.push(`(d3) célula sob o cabeçalho errado (${onde}): a origem ${c.origem} deveria terminar em ${aceitos.join(' ou ')}`)
       })
       for (let x = 0; x < indicesDaLinha.length; x += 1) {
         for (let y = x + 1; y < indicesDaLinha.length; y += 1) {

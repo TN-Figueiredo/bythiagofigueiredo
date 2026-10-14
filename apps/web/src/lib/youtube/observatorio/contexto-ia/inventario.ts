@@ -14,7 +14,7 @@ export type Inventario = Record<string, Destino>
 
 export type ValorDeFolha = string | number | boolean | null
 export interface Folha { caminho: string; valor: ValorDeFolha }
-export interface Ignorado { caminho: string; tipo: 'funcao' | 'elemento_react' | 'simbolo' }
+export interface Ignorado { caminho: string; tipo: 'funcao' | 'elemento_react' | 'simbolo' | 'colecao_nao_percorrida' }
 
 const juntar = (pai: string, chave: string): string => (pai === '' ? chave : `${pai}.${chave}`)
 
@@ -27,6 +27,8 @@ function percorrer(valor: unknown, caminho: string, folhas: Folha[], ignorados: 
   if (typeof valor === 'function') { ignorados.push({ caminho, tipo: 'funcao' }); return }
   if (typeof valor === 'symbol') { ignorados.push({ caminho, tipo: 'simbolo' }); return }
   if (typeof valor !== 'object') return
+  if (valor instanceof Date) { folhas.push({ caminho, valor: Number.isNaN(valor.getTime()) ? null : valor.toISOString() }); return } // data é uma folha (texto ISO), não um objeto vazio
+  if (valor instanceof Map || valor instanceof Set) { ignorados.push({ caminho, tipo: 'colecao_nao_percorrida' }); return } // sem chave enumerável: não some em silêncio, o teste da tela vê em `ignorados`
   if (ehElementoReact(valor)) { ignorados.push({ caminho, tipo: 'elemento_react' }); return }
   if (visitados.has(valor)) return // referência circular: o objeto já está na descida em curso (ancestral de si mesmo)
   // `visitados` guarda só os ancestrais da descida: o objeto sai do conjunto ao terminar, porque o mesmo objeto sob duas chaves (DAG) não é ciclo

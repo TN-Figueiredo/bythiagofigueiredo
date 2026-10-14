@@ -23,7 +23,7 @@ export function naCelula(texto: string | null | undefined): string {
   const uma = (texto ?? '')
     .split(FIM_DE_LINHA)
     .join(' ')
-    .replace(/\|/g, '\\|')
+    .replace(/(\\*)\|/g, (_, barras: string) => `${barras}${barras}\\|`) // a barra invertida que já vinha antes do | dobra, para o escape não ser desfeito
     .replace(TRES_CRASES_OU_MAIS, (c) => "'".repeat(c.length))
     .trim()
   return uma === '' ? '(sem texto)' : uma

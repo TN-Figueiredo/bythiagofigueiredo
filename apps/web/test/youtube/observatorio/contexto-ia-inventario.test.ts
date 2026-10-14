@@ -149,6 +149,27 @@ describe('folhas', () => {
   })
 })
 
+describe('Date, Map e Set no modelo', () => {
+  it('Date é uma folha (texto ISO); data inválida é folha nula', () => {
+    expect(folhas({ d: new Date(0), ruim: new Date('x'), lista: [new Date(1000)] })).toEqual([
+      { caminho: 'd', valor: '1970-01-01T00:00:00.000Z' },
+      { caminho: 'ruim', valor: null },
+      { caminho: 'lista[]', valor: '1970-01-01T00:00:01.000Z' },
+    ])
+    expect(semDestino({ d: new Date(0) }, {})).toEqual(['d'])
+  })
+
+  it('Map e Set não somem: aparecem em ignorados com o caminho', () => {
+    const v = { m: new Map([['a', 1]]), s: new Set([1]), dentro: { m2: new Map() } }
+    expect(folhas(v)).toEqual([])
+    expect(ignorados(v)).toEqual([
+      { caminho: 'm', tipo: 'colecao_nao_percorrida' },
+      { caminho: 's', tipo: 'colecao_nao_percorrida' },
+      { caminho: 'dentro.m2', tipo: 'colecao_nao_percorrida' },
+    ])
+  })
+})
+
 describe('semDestino e semUso', () => {
   it('o inventário do modelo de mentira está completo e sem sobra', () => {
     expect(semDestino(modelo(), INVENTARIO)).toEqual([])
@@ -276,6 +297,13 @@ describe('provarParidade', () => {
     const l = pacote.tabelas[0]!.linhas[0]!
     ;[l[1], l[2]] = [l[2]!, l[1]!] // origens honestas, mesma linha, colunas trocadas
     expect(() => provarParidade(entrada({ pacote }))).toThrow(/\(d3\) célula sob o cabeçalho errado \(canais, linha 1, coluna "Mediana"\)/)
+  })
+
+  it('(d3) o fim do caminho tem de começar numa fronteira: "ase" não casa com ".base", "base" casa', () => {
+    const parcial = { ...COLUNAS, canais: { ...COLUNAS.canais, Base: 'ase' } }
+    expect(() => provarParidade(entrada({ colunas: parcial }))).toThrow(/\(d3\) célula sob o cabeçalho errado \(canais, linha 1, coluna "Base"\)/)
+    const inteiro = { ...COLUNAS, canais: { ...COLUNAS.canais, Base: 'base' } }
+    expect(() => provarParidade(entrada({ colunas: inteiro }))).not.toThrow()
   })
 
   it('(d3) cai com coluna do pacote sem entrada no mapa', () => {
