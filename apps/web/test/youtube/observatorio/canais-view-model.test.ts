@@ -5,6 +5,7 @@ import { loadOracle, loadOracleOwns, datasetFromOracle } from './oracle'
 import type { OwnPreset } from '../../fixtures/observatorio/own-presets'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
+import { medidasDoOraculo } from './canais-e5a-fixture'
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 // A3 Tarefa 3: a lista é uma só (`list`); os canais próprios estão nela, na posição deles, e no bloco, na ordem do motor (R73)
 type V = ReturnType<typeof buildCanaisView>
@@ -38,7 +39,8 @@ describe('Canais view model', () => {
     expect(comps(buildCanaisView(obs, { niche: 'todos', limit: 75, filter: 'problemas' })).every(r => r.sync.state !== 'ok')).toBe(true)
   })
   it('stalled channel numbers say "até o registro diário de DD/MM HH:MM"', () => {
-    const v = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'bald-and-bankrupt' })
+    // E5a T5: o "parado" do painel vem de M8 (aqui sintético, igual ao motor para este canal)
+    const v = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'bald-and-bankrupt', medidas: medidasDoOraculo(obs) })
     expect(JSON.stringify(v.drawer)).toMatch(/até o registro diário de \d\d\/\d\d \d\d:\d\d/)
   })
   // ---- beyond the brief's oracle checks

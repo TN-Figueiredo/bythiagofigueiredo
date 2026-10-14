@@ -4,6 +4,7 @@
  * They only lay out what the view model computed.
  */
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
+import { EstadoLinha } from './direcao-cell'
 import Link from 'next/link'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { HoverTip, useTipShown } from '../_chrome/flut/flut'
@@ -257,9 +258,10 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
         ) : null}
         <div className="sub">
           {r.own ? null : <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />}
-          <span className="num">{r.subs}</span>
+          {r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}
           <Tip label="Sobre o número de inscritos">{r.subsTip}</Tip>
         </div>
+        <EstadoLinha r={r} />
         {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
         {r.semFormato ? (
           <div className="sub semfmt" data-sem-formato="">
