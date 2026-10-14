@@ -19,7 +19,7 @@
   var abre = { 'comandos-1': 'b', 'comandos-1b': 'b', 'comandos-2': 'a', refutado: '' }[E] || '';
   if (E === 'bloqueado') IT[0].tempo = 'blq';
   var itens = (vazia || nm) ? [] : IT;
-  var LINHA = "npm run obs:arquivo | ssh forja 'bash -s'";
+  var LINHA = "npm run -s obs:arquivo | ssh forja 'bash -s'";
   var mais = itens.length ? Math.max.apply(null, itens.map(function(i){ return i.dias; })) : 0;
 
   function faixa(d){ return d >= 60 ? 'vm' : d >= 30 ? 'am' : ''; }

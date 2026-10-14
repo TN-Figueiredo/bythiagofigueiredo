@@ -93,7 +93,7 @@ Arquivos: `peca7.html`, `peca7.js`, `peca7.css` (prefixo p7-; reaproveita `m19.c
 7. Não medido: hachura com "Não foi possível ler se há cópia no arquivo." (e a frase "isto não quer dizer que não há cópia"); zero medido: caixa com o 0.
 
 ### Correção da revisão 1 (14/10/2026)
-Ordem nova: resumo, "Esperam a sua resposta", "Esperam você rodar os comandos". Uma linha fixa nos 3 tempos, `npm run obs:arquivo | ssh forja 'bash -s'`, com Copiar; o painel é: rodar a linha, esperar, "Já rodei" (dentro do painel, com "Desfazer"). Resumo traz a frase "Esperar não perde nada..." (uma vez) e a condicional do Tailscale; vermelho/âmbar viram lembrete ("é só um lembrete"). Régua com "você/sozinho". 1b diz que a forja não conseguiu conferir o B2 em 02/05. Vazia sem a segunda frase. Refutado cita o título do vídeo e diz que a idade continua. h4 nos itens, borda no grupo. Bloqueado: um aviso só acima das listas e item de setembro de 2027 sem linha (a tela não se contradiz). Comentários: substituída em 26/03, espera desde 25/04. Extras: "Esconder os comandos", "60+ dias", última leitura no nm, quem só edita vê resumo e idade (no ⓘ). Capturas `shots/peca7-r1-*`.
+Ordem nova: resumo, "Esperam a sua resposta", "Esperam você rodar os comandos". Uma linha fixa nos 3 tempos, `npm run -s obs:arquivo | ssh forja 'bash -s'`, com Copiar; o painel é: rodar a linha, esperar, "Já rodei" (dentro do painel, com "Desfazer"). Resumo traz a frase "Esperar não perde nada..." (uma vez) e a condicional do Tailscale; vermelho/âmbar viram lembrete ("é só um lembrete"). Régua com "você/sozinho". 1b diz que a forja não conseguiu conferir o B2 em 02/05. Vazia sem a segunda frase. Refutado cita o título do vídeo e diz que a idade continua. h4 nos itens, borda no grupo. Bloqueado: um aviso só acima das listas e item de setembro de 2027 sem linha (a tela não se contradiz). Comentários: substituída em 26/03, espera desde 25/04. Extras: "Esconder os comandos", "60+ dias", última leitura no nm, quem só edita vê resumo e idade (no ⓘ). Capturas `shots/peca7-r1-*`.
 
 ## Peça 8 (vídeos antigos)
 `peca8-canal.html` (canal e vídeo; `?tela=video&vs=mensal|parado|sem|arquivo`, `?cs=tres|dez26|pouco|um|nl|mil|carregando`), `peca8-estados.html` (16 estados da seção), `peca8.js`, `peca8.css`. `arquivo.js` agora chama `PECA8.secao()` no lugar do espaço reservado; `arquivo.html` carrega `peca8.css` e `peca8.js`. Capturas: `shots/peca8-*`.
@@ -109,7 +109,7 @@ Achado → feito. Capturas `shots/peca8-r1-*` (390 e 1440); rolagem horizontal 0
 
 ### Peça 7, conferência 1 (Logan)
 - Acordo do Logan, com uma troca: a frase do resumo dizia "o canal já saiu do site", falso para itens de vídeo e de comentários. Agora: "Esperar não perde nada: nenhum dado do site depende desta lista. As cópias antigas só continuam no NAS e no B2 até você rodar a linha, e somem uns 45 dias depois de você rodar." Os 45 dias (14 de snapshot do NAS + 30 de versões do B2, fatos do Phil, item 3) são do armazenamento e valem para qualquer arquivo apagado.
-- Pendência de plano, não de tela: `npm run obs:arquivo` não existe; vira emenda na M3b.
+- Pendência de plano, não de tela: `npm run -s obs:arquivo` não existe; vira emenda na M3b.
 
 ### Peça 6, conferência 1 (Logan): acordo
 - Remessa para o fecho do spec 04: L39 ainda diz "No arquivo desde mm/aaaa." para quem só lê; trocar pelo trecho ("25/08 a 30/09/2027 no arquivo."), decisão do dono na peça 1. L40 confirma o S4 (pedido só para quem edita).
@@ -119,3 +119,4 @@ Achado → feito. Capturas `shots/peca8-r1-*` (390 e 1440); rolagem horizontal 0
 - Âmbar (inclui o vídeo 150 dias): "pode esperar" é verdade; cada leitura mensal substitui a anterior; único custo, vídeo que saiu do YouTube demora a entrar na fila. No vídeo de 150 dias (passou de 90) a tela manda conferir a linha "Leitura mensal" do Arquivo.
 - Vermelho (`atras90`): não é "pode esperar": a causa pode estar parando a coleta dos vídeos novos, que a origem não devolve. "Avise o Claude Code agora."
 - Desligada: pode esperar, com o custo dito.
+- Linha da peça 7 passa a `npm run -s obs:arquivo | ssh forja 'bash -s'` (decisão do dono, 14/10): sem `-s` o npm escreve o cabeçalho no stdout e a forja tentaria rodá-lo (medido pelo controlador).
