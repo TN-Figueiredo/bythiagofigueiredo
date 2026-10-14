@@ -15,7 +15,6 @@ export interface ParDaLista { arquivo: string; tabela: string; disparo: 'dono' |
 
 /** Caminhos relativos a `apps/web/`. A linha de cada par é a de 9.2 do spec (ver o plano da E10, Tarefa 10). */
 const LISTA: ParDaLista[] = [
-  { arquivo: 'src/app/cms/(authed)/youtube/competitors/actions.ts', tabela: 'competitor_channels', disparo: 'dono', classe: 'dado coletado, com export (a 11b move a ocorrência para a função do banco e atualiza esta linha)' },
   { arquivo: 'src/app/api/cron/sync-analytics-metrics/route.ts', tabela: 'yt_own_collection_runs', disparo: 'cron', classe: 'estado de execução' },
   { arquivo: 'src/lib/youtube/coleta/alerts.ts', tabela: 'ops_alert_state', disparo: 'cron', classe: 'estado de execução' },
   { arquivo: 'src/lib/pipeline/services/forja-queue.ts', tabela: 'youtube_intelligence_tasks', disparo: 'dono', classe: 'fila (só as pendentes)' },

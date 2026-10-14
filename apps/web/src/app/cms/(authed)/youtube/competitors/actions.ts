@@ -13,6 +13,7 @@ import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { syncSchemaBlock } from '@/lib/youtube/competitor-sync-guard'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
+import { removerCanalArquivado } from '@/lib/youtube/observatorio/arquivo/remover'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -37,6 +38,9 @@ async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   return { siteId, userId: res.user.id }
 }
+
+/** (A5 E10) a frase de quando a coleta do canal está pausada (a trava do sync não toma canal pausado). */
+const FRASE_PAUSADA = 'A coleta deste canal está pausada.' // TEXTO-A-REVISAR
 
 const YT_API = 'https://www.googleapis.com/youtube/v3'
 const BAD_INPUT = 'Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).'
@@ -155,12 +159,14 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'remover um canal concorrente do Observatório')
   if (denied) return denied
   let siteId: string
-  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+  let userId: string
+  try { ({ siteId, userId } = await requireEditUser()) } catch { return { ok: false } }
 
+  // (A5 E10) a remoção só passa pela função do banco: ela exige a exportação conferida e confirmada, grava o lote e só aceita quem
+  // administra a organização (`sem_direito`); uma linha de outro site ou um id que não existe volta como falha com frase fixa
   const supabase = getSupabaseServiceClient()
-  // a row of another site (or an id that does not exist) deletes nothing: that is not a success
-  const { data, error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId).select('id')
-  if (error || !data || data.length === 0) return { ok: false }
+  const r = await removerCanalArquivado(supabase, { siteId, canalId: id, actorId: userId })
+  if (!r.ok) return { ok: false, error: r.frase }
   // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
@@ -192,6 +198,7 @@ export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boo
   // a sync that throws midway may have written part of its data: the cache goes either way
   try { result = await syncCompetitorChannel(channel, apiKey) } finally { invalidateObservatory(siteId) }
   revalidatePath('/cms/youtube/competitors')
+  if (result.paused) return { ok: false, error: FRASE_PAUSADA }
   return { ok: true, result }
 }
 
@@ -275,21 +282,23 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
 
   if ((syncing ?? 0) > 0) return { ok: false, error: 'Outro canal está sincronizando. Aguarde.' }
 
+  // (A5 E10) a leitura vem ANTES da escrita: canal pausado não muda de linha nem agenda histórico completo para quando for despausado
+  const { data: channel } = await supabase
+    .from('competitor_channels')
+    .select('id, channel_id, site_id, collection_paused_at')
+    .eq('id', channelRowId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!channel) return { ok: false, error: 'Canal não encontrado' }
+  if (channel.collection_paused_at != null) return { ok: false, error: FRASE_PAUSADA }
+
   // Set sync_mode to full
   await supabase
     .from('competitor_channels')
     .update({ sync_mode: 'full', full_sync_completed_at: null })
     .eq('id', channelRowId)
     .eq('site_id', siteId)
-
-  const { data: channel } = await supabase
-    .from('competitor_channels')
-    .select('id, channel_id, site_id')
-    .eq('id', channelRowId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!channel) return { ok: false, error: 'Canal não encontrado' }
 
   try {
     await syncCompetitorChannel(channel, apiKey)
@@ -413,7 +422,7 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
     attempted++
     try {
       const r = await syncCompetitorChannel({ id, channel_id: channelId, site_id: siteId }, apiKey)
-      if (r.skipped) problems.push({ id, label: 'outra sincronização deste canal já estava em andamento' })
+      if (r.skipped) problems.push({ id, label: r.paused ? 'a coleta deste canal está pausada' : 'outra sincronização deste canal já estava em andamento' })
       else ok.push(id)
     } catch (e) {
       problems.push({ id, label: humanizeSyncError(e instanceof Error ? e.message : String(e)) })
