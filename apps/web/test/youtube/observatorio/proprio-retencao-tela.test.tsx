@@ -10,6 +10,10 @@ import path from 'node:path'
 import { proprioWorld, type CenarioDados } from './proprio-fixture'
 import { comDiario, diarioComPct, duracoesDosLongos, ultimoVideoHa, type PlanoDoVideo } from './proprio-assistido-fixture'
 import { mountProprio } from './proprio-mount'
+import { render } from '@testing-library/react'
+import { Retencao } from '@/app/cms/(authed)/youtube/competitors/_proprio/retencao'
+import { buildAssistidoPeriodos } from '@/app/cms/(authed)/youtube/competitors/_proprio/assistido-periodo-model'
+import type { NormalDoPeriodo } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
@@ -209,5 +213,20 @@ describe('13.3 retenção.css: varredura', () => {
     for (const m of css.matchAll(/font:\s*[0-9]+\s+([0-9.]+)px/g)) expect(Number(m[1])).toBeGreaterThanOrEqual(12)
     for (const m of css.matchAll(/font-size:\s*([0-9.]+)px/g)) expect(Number(m[1])).toBeGreaterThanOrEqual(12)
     expect(css).toMatch(/@media \(max-width:700px\)/)
+  })
+})
+
+describe('E5b T15: os cartões por período dentro da aba', () => {
+  const n = (periodo: NormalDoPeriodo['periodo'], pct: number, views: number): NormalDoPeriodo => ({ periodo, de: null, ate: null, pct, pctArredondado: pct, views, videos: 10, motivo: null })
+  it('com os períodos na view os cartões aparecem logo depois da nota; sem eles a aba é a de antes', () => {
+    const w = mundo(plano())
+    const base = abrir(w).view.retencao
+    cleanup()
+    const periodos = buildAssistidoPeriodos({ tela: 'canal', acesso: 'ok', normais: { inteiro: n('inteiro', 47, 4000), '90': n('90', 51, 3000), '28': n('28', 52, 2000) }, faixas: null, videoPct: null, buracos: { inteiro: null, '90': null, '28': null }, diarioDesde: null, ultimoDia: null, dm: d => d, dmy: d => d })
+    render(<Retencao view={{ ...base, periodos }} />)
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    cleanup()
+    render(<Retencao view={{ ...base, periodos: null }} />)
+    expect(screen.queryAllByRole('radio')).toHaveLength(0)
   })
 })

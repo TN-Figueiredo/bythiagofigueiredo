@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { useId, useRef, useState } from 'react'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
+import { AssistidoPeriodos } from './assistido-periodos'
 import { METODO_ASSISTIDO, type ContraFaixa, type LinhaVideo, type RetencaoView } from './retencao-model'
 import './retencao.css'
 
@@ -58,6 +59,7 @@ export function Retencao({ view }: { view: RetencaoView }) {
         <ul>{METODO_ASSISTIDO.map(p => <li key={p}>{p}</li>)}</ul>
       </Popover>
       <p className="ret-nota">{view.nota}</p>
+      {view.periodos ? <AssistidoPeriodos view={view.periodos} /> : null}
       {view.vazio ? (
         <div className="ret-vazio"><p>{view.vazio}</p></div>
       ) : (

@@ -1,0 +1,48 @@
+/* % assistido por período (E5b T15; mockup B do lote 1, b.js/lote.css). Classes `ap-*` presas à própria raiz `.ap`, para valer na página do vídeo e na aba do canal.
+   Cor só como direção (--dir-up/-dn/-eq), sempre com símbolo e sinal. Hex e rgba por token; nenhum color-mix; nenhum z-index numérico;
+   texto de 12 px ou mais; alvo de 44 px no cartão. A hachura de "não medido" é a do kit (.obs-ch-nm). */
+.ap{margin:12px 0 0;min-width:0}
+.ap-lab{display:flex;align-items:center;gap:4px;margin:0 0 6px;font:500 13px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ap-info{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+.ap-info:hover{color:var(--text)}
+.ap-info:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ap-info svg{width:16px;height:16px}
+.ap-cs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-width:720px}
+.ap-c{display:grid;gap:4px;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;min-width:0}
+.ap-c:hover{border-color:var(--border-strong)}
+.ap-c:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ap-c.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ap-t{display:flex;gap:6px;align-items:baseline;font:500 13px/18px var(--font-sans),system-ui,sans-serif}
+.ap-t .s{display:none}
+.ap-v{font:400 18px/24px var(--font-sans),system-ui,sans-serif}
+.ap-v b{font-weight:600}
+.ap-s{font:400 12.5px/17px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ap-cmp{display:inline-flex;align-items:center;gap:6px;font:600 13px/18px var(--font-sans),system-ui,sans-serif}
+.ap-cmp .pt{font-family:var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;white-space:nowrap}
+.ap-cmp.up .pt{color:var(--dir-up)}
+.ap-cmp.dn .pt{color:var(--dir-dn)}
+.ap-cmp.eq .pt{color:var(--dir-eq)}
+.ap-leg{display:flex;align-items:center;gap:6px;margin:8px 0 0;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ap-lem{margin:6px 0 0;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+.ap-lk{border:0;background:none;padding:0;font:inherit;color:var(--text);text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px;cursor:pointer}
+.ap-lk:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ap-conteudo{margin-top:12px}
+.ap-fr{display:flex;gap:10px;align-items:baseline;margin:0 0 12px;font:400 14px/21px var(--font-sans),system-ui,sans-serif;max-width:88ch}
+.ap-fr .ap-sim{font-weight:700}
+.ap-fr.up .ap-sim{color:var(--dir-up)}
+.ap-fr.dn .ap-sim{color:var(--dir-dn)}
+.ap-fr.eq .ap-sim{color:var(--dir-eq)}
+.ap-vazio{margin:10px 0 0;border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px;max-width:760px;font:400 13px/19px var(--font-sans),system-ui,sans-serif}
+.ap-tbw{max-width:100%;overflow-x:auto}
+.ap-tbw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ap-tab{width:100%;border-collapse:collapse;font:400 13px/18px var(--font-sans),system-ui,sans-serif}
+.ap-tab th,.ap-tab td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-subtle);vertical-align:middle}
+.ap-tab thead th{color:var(--muted);font-weight:500;font-size:12.5px;border-bottom-color:var(--border)}
+.ap-tab tbody th{font-weight:500}
+.ap-tab .ap-col{background:var(--accent-subtle)}
+.ap-vw{display:block;font-size:12px;line-height:16px}
+@media (max-width:700px){
+  .ap-t .l{display:none}
+  .ap-t .s{display:inline}
+  .ap-c{padding:10px 8px}
+}

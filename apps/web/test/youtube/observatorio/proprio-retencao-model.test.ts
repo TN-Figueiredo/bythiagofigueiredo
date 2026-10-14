@@ -5,6 +5,8 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { proprioWorld, type CenarioDados } from './proprio-fixture'
 import { comDiario, diarioComPct, duracoesDosLongos, ultimoVideoHa, type PlanoDoVideo } from './proprio-assistido-fixture'
+import { buildAssistidoPeriodos } from '@/app/cms/(authed)/youtube/competitors/_proprio/assistido-periodo-model'
+import type { NormalDoPeriodo } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 import { buildRetencao, METODO_ASSISTIDO, type RetencaoView } from '@/app/cms/(authed)/youtube/competitors/_proprio/retencao-model'
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
@@ -261,5 +263,19 @@ describe('13.3 retenção: estados sem número (nunca zero)', () => {
     expect(METODO_ASSISTIDO).toHaveLength(4)
     expect(METODO_ASSISTIDO.join(' ')).toContain('até 2 pontos')
     expect(METODO_ASSISTIDO.join(' ')).toContain('Acima de 100%: trecho que muita gente voltou para rever')
+  })
+})
+
+const SEM: NormalDoPeriodo = { periodo: 'inteiro', de: null, ate: null, pct: null, pctArredondado: null, views: 0, videos: 0, motivo: 'sem-diario' }
+const NORMAIS = { inteiro: SEM, '90': { ...SEM, periodo: '90' as const }, '28': { ...SEM, periodo: '28' as const } }
+
+describe('E5b T15: os três períodos na aba', () => {
+  it('sem os períodos a view traz periodos nulo; com eles, a mesma vista chega inteira, também nos estados sem tabela', () => {
+    const w = com(MUNDO, plano(PCT, VPD))
+    expect(buildRetencao(w.obs, w.canalId, w.dados, { dm: w.dm }).periodos).toBeNull()
+    const p = buildAssistidoPeriodos({ tela: 'canal', acesso: 'negado', normais: NORMAIS, faixas: null, videoPct: null, buracos: { inteiro: null, '90': null, '28': null }, diarioDesde: null, ultimoDia: null, dm: w.dm, dmy: w.dm })
+    expect(buildRetencao(w.obs, w.canalId, w.dados, { dm: w.dm, periodos: p }).periodos).toBe(p)
+    const vazio = proprioWorld({ cenario: 'vazio' })
+    expect(buildRetencao(vazio.obs, vazio.canalId, vazio.dados, { dm: vazio.dm, periodos: p }).periodos).toBe(p)
   })
 })
