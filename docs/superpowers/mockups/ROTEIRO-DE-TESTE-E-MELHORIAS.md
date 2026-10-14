@@ -1266,3 +1266,33 @@ Estado: **aprovada pelo dono no Opera em 14/10/2026** (código em `apps/web/src/
 11. Botão da forja ("Lê N trocas", `forja/preview.ts`) ainda conta as trocas de descrição, enquanto a aba Mudanças mostra a contagem sem elas. Trocar "trocas" por "mudanças (título, thumbnail e descrição)" junto com a revisão da tela Mudanças, mudando o oráculo e o texto no mesmo commit (Phil, M4 do portão de 14/10).
 12. O filtro "Com problema" conta também o canal em primeira busca, que ao mesmo tempo mostra "ainda buscando os vídeos". Separar `backfill` quando o oráculo puder mudar (Phil, M2).
 13. `e2e/auth.setup.ts` aceita `/admin/login` como sucesso e grava cookie vazio (Yannis, portão de 14/10; anterior a este lote).
+
+## AB-P4. Diálogo "O que fica no vídeo?" e faixa de restauração (A/B Lab P4a e P4b)
+
+Arquivo: `docs/superpowers/mockups/2026-10-14-ab-lab-p4-dialogo-e-faixa/index.html`. Estado: **aprovado pelo dono no Opera em 14/10/2026**, depois do acordo de Logan e Naksu (duas rodadas; achados em
+`logan.md` e `naksu.md` da pasta).
+
+### 1. O que a tela responde
+Ao encerrar um teste: o que fica no ar (original ou uma variante) e, depois, se o título e a thumbnail
+realmente voltaram ou trocaram no YouTube, campo por campo.
+
+### 2. Roteiro de teste
+1. Botão "P4a / P4b" no topo: a P4a não tem botões na faixa nem nova tentativa; a P4b tem "Tentar agora",
+   "Dispensar" e o estado "desistiu".
+2. Diálogo 1: nada marcado, "Encerrar" desabilitado até escolher; ao escolher B, o botão diz o que vai fazer.
+3. Diálogos 4, 5 e 5b ("Trocar mesmo assim?"): alguém editou o vídeo por fora; o texto diz que o título
+   editado sai do YouTube.
+4. Diálogos 2 e 2b: "Encerrando…" e, depois de 45 s, "Sem resposta" (dá para fechar a qualquer momento).
+5. Figura 3b: o YouTube recusou; aviso na página em três versões (título, thumbnail, os dois) e a faixa.
+6. Faixa: em andamento, "Sem resposta desde…" (depois de 5 min), ok, falhou por campo, pulado por edição
+   de fora, e (só P4b) desistiu. Cada estado com cor e símbolo próprios.
+7. Tema claro e escuro (botão no topo) e largura de celular.
+
+### 3. Decisões minhas que o spec não dá
+Hora da nova tentativa escrita como "por volta das 07:00 (horário de São Paulo)" (vigia às 10:00 e 20:00
+UTC); "em andamento" vira "sem resposta" depois de 5 min (a função tem teto de 60 s; Phil e Yannis
+confirmam na v7); na P4a, "Este aviso ainda não pode ser dispensado."; "Encerrando…" não prende a janela.
+
+### Melhorias futuras (não bloqueiam)
+1. O `--on-accent` claro do CMS real (`#1A120A` sobre `#B94210`) dá 3,39:1 e reprova; o mockup usa outra cor.
+2. Não verificados: leitor de tela, Tab preso e Esc (mockup estático), aparelho real.

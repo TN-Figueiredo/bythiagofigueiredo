@@ -115,7 +115,7 @@ lista existe para o dono ver o que mudou do v5 para o v6 e por quê.
     "coleta ainda não começou" (4.2.2); o `end_reason` da rotação do cron (3.1); os erros tipados na
     rotação (3.4); o `code` da resposta 422 (seção 2).
 
-## Emendas de 14/10/2026 (v7, RASCUNHO: ainda sem a revisão de Phil e Yannis e sem as respostas do dono)
+## Emendas de 14/10/2026 (v7, RASCUNHO: com as respostas do dono e o resultado da P4-0 de 14/10; ainda sem a revisão de Phil e Yannis)
 
 Escritas na madrugada de 14/10 pelo controlador, sobre o inventário `.superpowers/sdd/ab-lab/inventario-lista-b.md`
 (o que mudou de 10 a 13/10) e o parecer 03 da Hanna (`.superpowers/sdd/ab-lab/hanna-parecer-03-p3-p4.md`).
@@ -145,6 +145,12 @@ isso se faz depois do acordo de Phil e Yannis. Cada item diz quem o fecha: **[co
     da **P4a**; o script é revisto pelo Yannis (ele escreve no YouTube) e o dono roda. Até a P4-0
     voltar, a regra das 3 horas (3.3) e a tolerância `DHASH_MAX_SAME` ficam "a confirmar pelo portão".
     **[controlador; dono: B2, qual vídeo e em que dia]**
+    *Resultado (14/10, B2 respondida):* a P4-0 rodou no vídeo `6jL-jeux_1Y` (`.superpowers/sdd/ab-lab/p4-0-resultado.md`).
+    (i) arquivo 1280×720 contra a `hqdefault` servida: distância 1 (limite 6), passou; (iii) a nova apareceu
+    e a original voltou na primeira leitura (0 h); cota gasta: 101 unidades. **A regra das 3 horas (3.3) e
+    `DHASH_MAX_SAME = 6` ficam confirmadas e a P4a está liberada.** Ressalva: (ii) saiu "sem conclusão"
+    porque o ETag da `hqdefault` não foi lido antes da troca (defeito `etagAntes` nulo no script); o
+    script é consertado antes de qualquer reuso. **[Phil e Yannis: confirmar que (ii) não muda a regra]**
 31. **"Aprovar o mockup antes de o plano começar" vira "antes de qualquer tarefa de tela".** O servidor
     da P4a não espera o desenho. O mockup do diálogo e da faixa é feito numa ida só, nas duas versões
     (sem e com os botões da P4b). **[controlador]**
@@ -230,6 +236,8 @@ isso se faz depois do acordo de Phil e Yannis. Cada item diz quem o fecha: **[co
     pela outra; o prazo duro é a emenda da E18 antes do primeiro teste. Se o dono der data curta para o
     primeiro teste (pergunta 14), a P4a sobe antes da P3, ele não cria teste com descrição, e a P3 e a
     Migration B ficam para depois. **[controlador, sobre o parecer 03; dono: 14]**
+    *Resposta (14/10):* sem data para o primeiro teste; P3 e depois P4. Vale a ordem acima; a P4-0 já está
+    concluída.
 46. **Paridade.** O pipeline não pausa, não inicia nem encerra teste; nada muda na tabela de 3.1. Mas o
     `restore_status` aparece no `GET` do teste (REST e MCP, mesmo commit, com a doc do domínio), senão o
     Cowork lê "pausado" sem saber que a variante ficou no ar. A conferir no plano da P4a: se o envio de
@@ -846,7 +854,12 @@ emenda v7; a v7 cobre só P3, P4 e a etapa de telas.
 Continuam abertas, para a v7: 1, 3, 4, 5 (reescrita contra a E18) e 6. A pergunta 2 sai da parte 1: é da
 etapa de telas e será reescrita depois da MG14.
 
-### Bloco B: perguntas ao dono para P3 e P4 (14/10/2026, sem resposta)
+### Bloco B: perguntas ao dono para P3 e P4 (14/10/2026, respondidas no mesmo dia)
+
+**Respostas (14/10):** B1 sim (o original é o que estava no YouTube ao iniciar; o sistema relê os dois
+campos ao iniciar); B2 feito (vídeo `6jL-jeux_1Y`; resultado na emenda 30); B3 sim (a nova tentativa
+repete o sim, sem perguntar de novo). Perguntas 13 (sim: a 3b entrou na P2) e 14 (sem data: P3 e
+depois P4) também respondidas.
 
 Reescritas pela Hanna (parecer 03) em cima das perguntas 1, 3, 4 e 5. Um "pode" geral aceita as três.
 
