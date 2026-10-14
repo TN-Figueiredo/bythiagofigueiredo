@@ -114,3 +114,8 @@ Achado → feito. Capturas `shots/peca8-r1-*` (390 e 1440); rolagem horizontal 0
 ### Peça 6, conferência 1 (Logan): acordo
 - Remessa para o fecho do spec 04: L39 ainda diz "No arquivo desde mm/aaaa." para quem só lê; trocar pelo trecho ("25/08 a 30/09/2027 no arquivo."), decisão do dono na peça 1. L40 confirma o S4 (pedido só para quem edita).
 - Conferência da Naksu: B1, C1, C2 fechados; C3 fechado pelo controlador (`width:100%!important` na regra de movimento reduzido de `m19.css`, que perdia para o `style` inline da barra). Com isso, acordo dos dois.
+
+### Peça 8: fatos do Phil sobre "pode esperar" (14/10, `.superpowers/sdd/manutencao-nas/fatos-peca8-phil.md`), aplicados pelo controlador
+- Âmbar (inclui o vídeo 150 dias): "pode esperar" é verdade; cada leitura mensal substitui a anterior; único custo, vídeo que saiu do YouTube demora a entrar na fila. No vídeo de 150 dias (passou de 90) a tela manda conferir a linha "Leitura mensal" do Arquivo.
+- Vermelho (`atras90`): não é "pode esperar": a causa pode estar parando a coleta dos vídeos novos, que a origem não devolve. "Avise o Claude Code agora."
+- Desligada: pode esperar, com o custo dito.

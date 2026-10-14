@@ -172,7 +172,7 @@
     var pub = ar ? '18/09/2023' : vs === 'sem' ? '30/03/2026' : vs === 'semat' ? '08/10/2025' : '14/03/2025';
     var cx = '<p class="p8-crumb"><a href="' + M.href({ tela: 'canal', vs: null }) + '">Viagem Lenta</a> / vídeo</p><h2 class="p8-h1">' + titulo + '</h2><p class="p8-sub">Publicado em ' + pub + ' <span class="m-selo">ajuste de mockup aprovado: 13, 13/10/2026</span></p>';
     var est, num, corpo = '';
-    var AVISE = 'Ao voltar, avise o Claude Code para ver por que a leitura não veio.';
+    var AVISE = 'Só um vídeo que saiu do YouTube demora a aparecer na fila «Saíram do YouTube». A leitura se recupera sozinha.';
     if (ar) {
       est = '<div class="p8-estado ar">' + ic('arq') + '<div><p><b>03/2024 a 20/02/2027 no arquivo.</b> A coleta começou em 03/2024. Aqui ficam o título, a data e as views; o histórico de título, miniatura e descrição está no arquivo.</p>' + porta() + '<p>Nada a fazer.</p></div></div>';
       num = '<div class="p8-big"><span class="n">12,3 mil</span><span class="d">views, lido em 02/05/2028</span></div><p class="p8-apoio">na passagem à leitura mensal: 12,1 mil views, lido em 28/11/2026 ' + ibx('A leitura de apoio é a de 28/11/2026; a tela diz “leitura mensal de 05/12/2026 a 20/02/2027”. As duas datas aparecem como são: a da passagem pode ser até uma semana anterior.', 'Por que duas datas') + '</p>';
@@ -191,7 +191,7 @@
       num = '<div class="p8-big"><span class="n" style="color:var(--muted)">ainda sem leitura mensal</span></div><p class="p8-apoio">na passagem à leitura mensal: 5,2 mil views, lido em 30/03/2028</p>';
       corpo = '<section class="p8-sec"><div class="in"><h3>Fixar</h3>' + fixar('mensal') + '</div></section>';
     } else if (vs === 'semat') {
-      est = '<div class="p8-estado am">' + ic('tri') + '<div><p><b>Sem leitura mensal desde a passagem, em 05/12/2027: 150 dias.</b></p><p>A primeira leitura era esperada em 04/01/2028; passou de 45 dias. O número abaixo é o da passagem, não é de hoje. ' + ibx('O rodízio é de 30 dias; 45 é o rodízio mais meio rodízio de atraso. Um vídeo que nunca teve a primeira leitura passa pela mesma regra de “sem leitura”.', 'Por que 45 dias') + '</p><p>Pode esperar: o número da passagem continua aqui; nada se perde. ' + AVISE + '</p></div></div>';
+      est = '<div class="p8-estado am">' + ic('tri') + '<div><p><b>Sem leitura mensal desde a passagem, em 05/12/2027: 150 dias.</b></p><p>A primeira leitura era esperada em 04/01/2028; passou de 45 dias. O número abaixo é o da passagem, não é de hoje. ' + ibx('O rodízio é de 30 dias; 45 é o rodízio mais meio rodízio de atraso. Um vídeo que nunca teve a primeira leitura passa pela mesma regra de “sem leitura”.', 'Por que 45 dias') + '</p><p>Pode esperar: o número da passagem continua aqui; nada se perde. ' + AVISE + ' Passou de 90 dias: veja se a linha «Leitura mensal» da página do Arquivo está vermelha; se estiver, avise o Claude Code agora.'+'</p></div></div>';
       num = '<div class="p8-big"><span class="n" style="color:var(--muted)">ainda sem leitura mensal</span></div><p class="p8-apoio">na passagem à leitura mensal: 3,7 mil views, lido em 28/11/2027</p>';
       corpo = '<section class="p8-sec"><div class="in"><h3>Fixar</h3>' + fixar('mensal') + '</div></section>';
     } else {
@@ -235,9 +235,9 @@
     esp: function(){ return linha({ nome: 'Esperando você', lead: ic('pont'), frase: 'Pode esperar: nada se perde enquanto isso. Veja antes o que passaria.', ac: bt('Ver o que passaria à leitura mensal', 'sim') }); },
     exc: function(){ return linha({ nome: 'Esperando você', cls: 'alerta', lead: ic('tri'), frase: 'Viagem Lenta tem 140 vídeos para passar à leitura mensal, mais do que o automático faz de uma vez. Confirme pelo botão. Pode esperar: nada se perde enquanto isso.', ac: bt('Ver o que passaria à leitura mensal', 'sim') }); },
     novos: function(){ return linha({ nome: DEZ27, cls: 'alerta vm', lead: ic('oct'), frase: 'Há registros novos de vídeos que já estavam em leitura mensal. Nada desta parte vai para o arquivo até resolver.', sec: 'Pode esperar: nada desta parte sai do banco enquanto isso. Ao voltar, avise o Claude Code para investigar.' }); },
-    atras: function(){ return linha({ nome: 'Leitura mensal', cls: 'alerta', lead: ic('tri'), frase: '11 vídeos estão há mais de 45 dias sem leitura.', sec: 'Pode esperar: as contagens só ficam paradas; nada se perde.' }); },
-    atras90: function(){ return linha({ nome: 'Leitura mensal', cls: 'alerta vm', lead: ic('oct'), frase: '11 vídeos estão há mais de 45 dias sem leitura.', sec: 'O mais parado está há 97 dias sem leitura. Pode esperar: as contagens só ficam paradas; nada se perde. Ao voltar, avise o Claude Code para ver por que a leitura parou.' }); },
-    atrasOff: function(){ return linha({ nome: 'Leitura mensal', cls: 'alerta', lead: ic('tri'), frase: 'Leitura mensal desligada.', sec: 'Não dá para dizer quantos vídeos estão atrasados. Pode esperar. Religar é com o Claude Code, no Mac, ao voltar.' }); }
+    atras: function(){ return linha({ nome: 'Leitura mensal', cls: 'alerta', lead: ic('tri'), frase: '11 vídeos estão há mais de 45 dias sem leitura.', sec: 'Pode esperar: o número é o da última leitura, não é de hoje; nada se perde. Só vídeo que saiu do YouTube demora a aparecer na fila «Saíram do YouTube». A leitura se recupera sozinha.' }); },
+    atras90: function(){ return linha({ nome: 'Leitura mensal', cls: 'alerta vm', lead: ic('oct'), frase: '11 vídeos estão há mais de 45 dias sem leitura.', sec: 'O mais parado está há 97 dias sem leitura: a leitura mensal parou. As contagens dos vídeos antigos só ficam velhas, mas a causa pode estar parando também a coleta dos vídeos novos, e essa não volta depois. Avise o Claude Code agora; veja se a coleta recente também está vermelha.' }); },
+    atrasOff: function(){ return linha({ nome: 'Leitura mensal', cls: 'alerta', lead: ic('tri'), frase: 'Leitura mensal desligada.', sec: 'Não dá para dizer quantos vídeos estão atrasados. Pode esperar; só os vídeos que saírem do YouTube nesse tempo entram na fila «Saíram do YouTube» quando religar. Religar é com o Claude Code.' }); }
   };
   var QUAIS = '<ul class="p8-lq" aria-label="Vídeos que deixaram de poder sair">' +
     '<li>' + ic('arq') + '<span><b>Mochila de 7 kg: o que ficou de fora</b>, fixado em 10/03/2028. Fica acompanhado por inteiro; nada a fazer.</span></li>' +
@@ -317,7 +317,7 @@
     if (a === 'sim') {
       var li = b.closest('li'), ex = li.querySelector('[data-sim]');
       if (ex) { ex.remove(); return; }
-      li.insertAdjacentHTML('beforeend', simTab(li.textContent.indexOf('140') >= 0 ? 45 : 3).replace('class="p8-sim"', 'class="p8-sim" style="grid-column:1/-1;margin:0"'));
+      li.insertAdjacentHTML('beforeend', simTab(/140|312|45 canais/.test(li.textContent) ? 45 : 3).replace('class="p8-sim"', 'class="p8-sim" style="grid-column:1/-1;margin:0"'));
     }
     if (a === 'quais') { var l2 = b.closest('li'), q = l2.querySelector('.p8-lq'); if (q) q.remove(); else l2.insertAdjacentHTML('beforeend', QUAIS); }
     if (a === 'mandar') abre(dlgMandar(false), b, function(){ var li = b.closest('li'); li.outerHTML = ROW.arq(DEZ27, '03/05/2028', '1.206', 37); });

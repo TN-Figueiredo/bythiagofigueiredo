@@ -1230,7 +1230,7 @@ Abrir `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/pec
 
 ## 19g. Peça 8: os vídeos antigos
 
-Estado: desenhada em 14/10/2026, **ainda sem revisão de Logan e Naksu e sem o dono**. Tudo é exemplo; nenhum vídeo saiu do banco.
+Estado: **aprovada pelo dono em 14/10/2026** (depois da conferência com acordo de Logan e Naksu e das frases do Phil para a leitura atrasada). Remessas: spec 04 L39, L476, L485, L501, L509, L511 e o ⓘ do automático (NOTAS.md); `obs:videos-desfazer` como requisito da M10b.
 
 ### 1. O que a tela responde
 "Onde foram parar os vídeos velhos deste canal, e o que eu ainda vejo deles?"
