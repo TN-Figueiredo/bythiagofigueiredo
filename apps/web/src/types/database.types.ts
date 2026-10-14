@@ -9941,6 +9941,44 @@ export type Database = {
           },
         ]
       }
+      yt_own_channel_snapshots: {
+        Row: {
+          snapshot_date: string
+          subscriber_count: number | null
+          subscribers_hidden: boolean
+          taken_at: string
+          video_count: number | null
+          view_count: number | null
+          youtube_channel_id: string
+        }
+        Insert: {
+          snapshot_date: string
+          subscriber_count?: number | null
+          subscribers_hidden?: boolean
+          taken_at?: string
+          video_count?: number | null
+          view_count?: number | null
+          youtube_channel_id: string
+        }
+        Update: {
+          snapshot_date?: string
+          subscriber_count?: number | null
+          subscribers_hidden?: boolean
+          taken_at?: string
+          video_count?: number | null
+          view_count?: number | null
+          youtube_channel_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_own_channel_snapshots_youtube_channel_id_fkey"
+            columns: ["youtube_channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       yt_own_collection_attempts: {
         Row: {
           attempt_day: string
