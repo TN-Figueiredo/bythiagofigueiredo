@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { lerMigrations, ultimaDefinicao, migrationsDaFase, PASTA_DAS_MIGRATIONS, type Migration } from '../helpers/migrations'
 import { M2_EM_MIGRATION, M2_SQL_CAMINHO, M2_SQL } from '../helpers/m2'
+import { M3B_EM_MIGRATION, M3B_SQL_CAMINHO } from '../helpers/m3b'
 
 const RAIZ = resolve(__dirname, '../../../..')
 
@@ -99,5 +100,29 @@ describe('TRAVA M2-1: o SQL da M2 só entra em supabase/migrations no dia do pus
       expect(daM2().some(n => n.endsWith('_manutencao_m2_particoes.sql'))).toBe(true)
       expect(existsSync(resolve(__dirname, '../../../../supabase/rascunhos/m2.sql'))).toBe(false)
     }
+  })
+})
+
+describe('TRAVA M3b-1: o SQL da M3b só entra em supabase/migrations no dia do push', () => {
+  const daM3b = (): string[] => readdirSync(PASTA_DAS_MIGRATIONS).filter(n => /_manutencao_m3b_/.test(n))
+  it('antes do dia: nenhum arquivo e o rascunho existe; no dia: o arquivo existe e o rascunho saiu', () => {
+    if (!M3B_EM_MIGRATION) {
+      expect(daM3b()).toEqual([])
+      expect(existsSync(M3B_SQL_CAMINHO)).toBe(true)
+    } else {
+      expect(daM3b().some(n => n.endsWith('_manutencao_m3b_arquivo.sql'))).toBe(true)
+      expect(existsSync(resolve(__dirname, '../../../../supabase/rascunhos/m3b.sql'))).toBe(false)
+    }
+  })
+  it.todo('D17: o corpo dos hashes está byte a byte no SQL da M3b (vira it na Tarefa 4)')
+  it('TRAVA M3b-2, parte mecânica: sem a migration no disco, nada de rota nem de botão novo (Yannis M8)', () => {
+    if (!M3B_EM_MIGRATION) {
+      expect(existsSync(resolve(__dirname, '../../src/app/api/pipeline/archive'))).toBe(false)
+      expect(readFileSync(resolve(__dirname, '../../src/app/cms/(authed)/youtube/competitors/actions.ts'), 'utf8')).not.toContain('competitor_channel_remove')
+    }
+  })
+  it('item 119 vale também para o rascunho: ele cita obs_archive_is_site_admin e a define', () => {
+    const r = readFileSync(M3B_SQL_CAMINHO, 'utf8')
+    if (/obs_archive_is_site_admin/.test(r)) expect(/create or replace function public\.obs_archive_is_site_admin\(p_site uuid, p_user uuid\)/.test(r)).toBe(true)
   })
 })
