@@ -85,6 +85,15 @@ describe('lerTrafego', () => {
     expect(lerTrafego(csv(linha({ minutos: '2.5e+1' })))[0]!.watchTimeMinutes).toBe(25)
     expect(motivo(() => lerTrafego(csv(linha({ views: '1.0E2' }))))).toBe('linha_invalida')
   })
+  it('minutos acima do teto (1e9) são linha_invalida, e a soma agregada nunca vira Infinity', () => {
+    for (const m of ['9e300', '1e10', '1000000001']) {
+      expect(motivo(() => lerTrafego(csv(linha({ minutos: m }))))).toBe('linha_invalida')
+    }
+    expect(lerTrafego(csv(linha({ minutos: '1e9' })))[0]!.watchTimeMinutes).toBe(1e9)
+    const ls = Array.from({ length: 50 }, () => linha({ minutos: '1e9' }))
+    const r = agregarTrafego(lerTrafego(csv(...ls)))
+    expect(Number.isFinite(r.linhas[0]!.watchTimeMinutes)).toBe(true)
+  })
   it('views além do inteiro seguro: linha_invalida', () => {
     expect(motivo(() => lerTrafego(csv(linha({ views: '99999999999999999999' }))))).toBe('linha_invalida')
   })
