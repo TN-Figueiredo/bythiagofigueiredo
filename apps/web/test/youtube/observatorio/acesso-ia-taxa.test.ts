@@ -185,6 +185,12 @@ function clienteDaTaxa(resposta: Resp | 'lanca' | 'pendente') {
 }
 
 describe('somarNaTaxa', () => {
+  it.each([['null', null], ['undefined', undefined], ['texto vazio', ''], ['só espaços', '   '], ['número', 7], ['objeto', {}]])('keyId %s: key_invalida no TypeScript, sem ida ao banco', async (_nome, k) => {
+    const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 1, no_dia: 1 }, error: null })
+    expect(await somarNaTaxa(sb, k as unknown as string, AGORA)).toEqual({ ok: false, code: 'key_invalida' })
+    expect(chamadas).toEqual([])
+  })
+
   it('a função recebe o keyId pedido e o instante, e mais nada (argumentos exatos)', async () => {
     const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 3, no_dia: 9 }, error: null })
     await somarNaTaxa(sb, 'key-do-pedido', AGORA)
