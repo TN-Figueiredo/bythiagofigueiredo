@@ -61,6 +61,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono e o papel d
   }
   const limparSites = async (manter: string | null): Promise<void> => {      // só dentro da transação desfeita; sem os gatilhos de chave estrangeira
     await c.query(`set local session_replication_role = replica`)
+    await c.query(`delete from public.competitor_channels where $1::uuid is null or site_id <> $1`, [manter])    // sem o gatilho de chave estrangeira, os canais não saem com o site
     await c.query(`delete from public.sites where $1::uuid is null or id <> $1`, [manter])
     await c.query(`set local session_replication_role = origin`)
   }
@@ -137,15 +138,23 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono e o papel d
     expect((await falha(`select public.obs_archive_owner_pending($1)`, [a.site]))?.message).toBe('lista_de_remocao_ilegivel')
   }))
 
-  it('site resolvido dentro: um site lê esse site; zero ou dois lançam site_ambiguo', async () => emTx(async () => {
+  it('site resolvido dentro: o único site com canal no observatório; zero ou dois com canal lançam site_ambiguo; linhas em sites não contam (Phil I2)', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
     await limparSites(a.site)
     expect(await ler(null)).toMatchObject({ versao: 1, total: 0 })
-    const b = await semearCanal(c, { site: randomUUID(), videos: 0 })
-    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')
+    // um segundo site SEM canal (o hub é multi-site): continua resolvendo pelo que tem canal
+    const org = (await c.query(`select org_id from public.sites where id = $1`, [a.site])).rows[0].org_id as string
+    const outro = randomUUID()
+    await c.query(`insert into public.sites (id, org_id, name, slug, domains, primary_domain) values ($1::uuid, $2, 'sem canal', 'sem-canal-' || substr($1::text, 1, 8), array['sc-' || substr($1::text, 1, 8) || '.test'], 'sc-' || substr($1::text, 1, 8) || '.test')`, [outro, org])
+    expect(await escalar(c, `select count(*)::int from public.sites`)).toBe(2)
+    expect(await ler(null)).toMatchObject({ versao: 1, total: 0 })
+    const b = await semearCanal(c, { site: outro, videos: 0 })
+    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')           // dois sites com canal
     expect(await falha(`select public.obs_archive_owner_pending($1)`, [b.site])).toBeNull()      // com o site dado, não precisa resolver
-    await limparSites(null)
-    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')
+    await c.query(`set local session_replication_role = replica`)
+    await c.query(`delete from public.competitor_channels`)
+    await c.query(`set local session_replication_role = origin`)
+    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')           // nenhum canal
   }))
 
   it('concessões: anon e authenticated não; service_role, postgres e obs_arquivo_leitor sim', async () => emTx(async () => {

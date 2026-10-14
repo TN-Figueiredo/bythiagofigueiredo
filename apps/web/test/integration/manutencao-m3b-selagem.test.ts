@@ -11,11 +11,12 @@ import { randomUUID, createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
-import { aplicarM3b, sqlM3bAte, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
+import { aplicarM3b, sqlM3bAte, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 import { exportarUnidade } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { serializarResumo, type LinhasDoResumo } from '@/lib/youtube/observatorio/arquivo-mensal/resumo'
 import { montarManifesto, type LinhasDoManifesto } from '@/lib/youtube/observatorio/arquivo-mensal/manifesto-mensal'
+import { RespostaRecord } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
@@ -578,17 +579,44 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     expect(await info(7)).toEqual({ status: 'nao_devida' })
   }))
 
+  it('o retorno REAL de obs_archive_record cabe em RespostaRecord e traz arquivo_id u:<uuid>, não unidade_id (Yannis 9)', async () => emTx(async () => {
+    const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
+    const u = await unidadePelaRota({ site: a.site, classe: 'serie', tabela: DAILY, canal: a.canal, mes: MES })
+    expect(u.arquivo_id).toMatch(/^u:[0-9a-f-]{36}$/)
+    const bruto = (await c.query(`select public.obs_archive_record($1, 'unidade', $2::jsonb) as r`, [a.site, JSON.stringify({ classe: 'serie', tabela: DAILY, canal: a.canal, mes: MES, row_count: 0, control_sum: null,
+      hash_conteudo: HEX('f'), schema_fp: HEX('b'), sha256_bytes: '', csv_sha256: '', file_bytes: 0, partes: 1, min_key: null, max_key: null })])).rows[0].r
+    expect(RespostaRecord.safeParse(bruto).success).toBe(true)
+    expect(RespostaRecord.safeParse(u).success).toBe(true)
+    expect((RespostaRecord.parse(bruto) as Record<string, unknown>).arquivo_id).toMatch(/^u:/)
+    expect(bruto).not.toHaveProperty('unidade_id')
+  }))
+
+  it('payload sem canal ou sem mês não grava nem sai como canal_removido (Yannis 11)', async () => emTx(async () => {
+    const a = await semearCanal(c, { videos: 1 })
+    for (const p of [{ classe: 'serie', tabela: DAILY, mes: MES }, { classe: 'serie', tabela: DAILY, canal: a.canal }]) {
+      expect((await falha(`select public.obs_archive_record($1, 'unidade', $2::jsonb)`, [a.site, JSON.stringify(p)]))?.message).toBe('payload_invalido')
+    }
+  }))
+
+  it('par novo trava as linhas do mês ANTES de gravar a unidade (units -> months, for update; Yannis 5)', async () => emTx(async () => {
+    const corpo = await escalar<string>(c, `select prosrc from pg_proc where proname = 'obs_archive_record_core' and pronamespace = 'public'::regnamespace`)
+    const trava = corpo.search(/if v_novo_par then\s+perform 1 from public\.obs_archive_months m[^;]*order by m\.table_name for update;/)
+    expect(trava).toBeGreaterThan(0)
+    expect(trava).toBeLessThan(corpo.indexOf('insert into public.obs_archive_units'))
+    expect(trava).toBeGreaterThan(corpo.indexOf('order by u.version desc limit 1 for update'))   // depois do lock da unidade: a ordem do receive
+  }))
+
   it('hoje em São Paulo: sem o parâmetro de teste, vale o relógio (nunca um padrão que todo teste sobrescreve)', async () => emTx(async () => {
     await c.query(`select set_config('obs_archive.hoje', '', true)`)
     expect(await escalar<Date>(c, `select (now() at time zone 'America/Sao_Paulo')::date = public.obs_archive_hoje_sp()`)).toBe(true)
   }))
 
   // ---- as duas corridas: duas conexões, gravação de verdade num site próprio de cada rodada, apagado no fim ----
-  describe('corridas (duas conexões)', () => {
+  describe.skipIf(!corridasLigadas())('corridas (duas conexões; só com M3B_CORRIDAS=1, confirmam e desfazem a parte 3)', () => {
     let a: Client, b: Client
     const sites: string[] = []
     beforeAll(async () => {
-      await c.query(sqlM3bAte(3))                                         // a parte 3 de vez no bythiago_int (idempotente): é o "confirmar no banco local"
+      await confirmarM3bParaCorridas(3)                                  // confirma no banco de integração e desfaz no afterAll (Yannis 1)
       a = new Client({ connectionString: PG_URL }); b = new Client({ connectionString: PG_URL })
       await Promise.all([a.connect(), b.connect()])
       for (const x of [c, a, b]) await x.query(`select set_config('obs_archive.hoje', '2026-11-28', false)`)
@@ -603,6 +631,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
         await c.query(`delete from public.sites where id = $1`, [site])
       }
       await Promise.all([a.end(), b.end()])
+      await desfazerM3bDasCorridas()
     })
     async function siteNovo(): Promise<{ site: string; canal: string; videos: string[] }> {
       const s = await semearCanal(c, { site: randomUUID(), videos: 1 }); sites.push(s.site)

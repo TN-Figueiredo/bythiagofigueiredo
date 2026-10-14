@@ -607,6 +607,8 @@ declare
   v_channel uuid := (p_payload->>'canal')::uuid; v_month date := (p_payload->>'mes')::date;
   v_dec text; v_pol record; v_last record; v_id uuid; v_ver int; v_empty boolean; v_novo_par boolean;
 begin
+  -- payload sem canal ou sem mês: hashtextextended(null) daria trava nula e o status sairia canal_removido (Yannis 11)
+  if v_channel is null or v_month is null then raise exception 'payload_invalido' using errcode = 'P0001'; end if;
   -- duas gravações da versão 1 ao mesmo tempo: o for update sem linha não trava nada (Phil M6)
   perform pg_advisory_xact_lock(hashtextextended(p_site::text || '|' || p_kind || '|' || coalesce(v_class, '') || '|' || coalesce(v_table, '')
                                                  || '|' || v_channel::text || '|' || v_month::text, 0));
@@ -661,6 +663,12 @@ begin
       return jsonb_build_object('status', 'nao_devida', 'arquivo_id', 'u:' || v_last.id, 'versao', v_last.version);
     else
       v_ver := coalesce(v_last.version, 0) + 1;
+      -- par novo: trava as linhas do mês (units -> months, a ordem do receive) ANTES de gravar a unidade. Sem isto, a selagem que confirma entre
+      -- o insert e o teste de sealed_at abaixo sela sem o par novo e o reabrir (unidade_nova) se perde (Yannis 5). For update, não for share:
+      -- dois pares novos ao mesmo tempo num mês selado se enfileiram em vez de travar um no outro ao subir para o update do reabrir.
+      if v_novo_par then
+        perform 1 from public.obs_archive_months m where m.site_id = p_site and m.class = v_class and m.month = v_month order by m.table_name for update;
+      end if;
       v_empty := (p_payload->>'row_count')::bigint = 0;
       insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, control_sum, hash_conteudo, schema_fp,
              sha256_bytes, csv_sha256, file_bytes, parts, min_key, max_key, origem, received_at, received_row_count, received_control_sum)
@@ -1713,7 +1721,9 @@ begin
   if p_cursor is not null and v_src.expires_at >= v_agora then
     update public.obs_archive_b2_runs set expires_at = v_agora + interval '2 hours' where id = v_src.id returning * into v_run;
   else
-    select case when count(*) % 2 = 0 then 'numerico' else 'texto' end into v_neg_filho from public.obs_archive_b2_runs r where r.site_id = p_site;
+    -- alterna pelo filho da execução ANTERIOR (Phil M5): contar as linhas muda de paridade quando o expurgo de 90 dias apaga execuções
+    select case coalesce((select r.negative_filho from public.obs_archive_b2_runs r where r.site_id = p_site order by r.started_at desc limit 1), 'texto')
+                when 'numerico' then 'texto' else 'numerico' end into v_neg_filho;
     select jsonb_build_object(
              'numerico', (select max(c.dia)::text from public.obs_archive_canaries c where c.site_id = p_site and c.filho = 'numerico' and c.informed_at <= v_agora - interval '6 hours'),
              'texto', (select max(c.dia)::text from public.obs_archive_canaries c where c.site_id = p_site and c.filho = 'texto' and c.informed_at <= v_agora - interval '6 hours')) into v_dias;
@@ -1787,6 +1797,9 @@ begin
     elsif v_res in ('presente', 'nao_decifra') and v_fid !~ '^4_z[0-9a-f]{24}_f[0-9a-f]{3}_[0-9a-z_]+$' then
       v_resp := 'recusado'; v_mot := 'file_id_invalido'; v_res := 'sem_acesso';
       update public.obs_archive_b2_runs set file_id_recusado = true where id = v_run;
+    elsif v_res = 'presente' and (v_sha is null or i.exp_sha is null) then
+      -- Phil M2: nulo contra nulo não é "igual". Informe presente sem sha256 é forma errada; arquivo sem sha256 esperado não se atesta
+      v_resp := 'recusado'; v_mot := case when i.exp_sha is null then 'desconhecido' else 'forma' end; v_res := 'sem_acesso';
     end if;
 
     if v_res = 'nao_decifra' then
@@ -2123,7 +2136,12 @@ begin
       v := v || format('canário do filho %s sem chegar ao B2 há %s dias', i.filho, floor(extract(epoch from (v_agora - i.desde)) / 86400)::int);
     end if;
   end loop;
-  for i in select distinct c.filho from public.obs_archive_canaries c where c.site_id = p_site and c.regravado_at is not null and c.regravado_at > v_agora - interval '30 days' order by 1 loop
+  -- Phil M3: o alarme dura 30 dias E vai até um canário NOVO do mesmo filho chegar ao B2 (termina por evidência, não só pelo relógio; o dono pode estar fora)
+  for i in select distinct c.filho from public.obs_archive_canaries c
+            where c.site_id = p_site and c.regravado_at is not null
+              and (c.regravado_at > v_agora - interval '30 days'
+                   or not exists (select 1 from public.obs_archive_canaries k where k.site_id = p_site and k.filho = c.filho and k.b2_ok_at is not null and k.b2_ok_at > c.regravado_at))
+            order by 1 loop
     v := v || ('canario_regravado:' || i.filho);
   end loop;
   for i in select 'u:' || u.id as id from public.obs_archive_units u where u.site_id = p_site and u.nas_unreadable_at is not null and u.purged_at is null and u.lost_at is null
@@ -2449,15 +2467,16 @@ grant execute on function public.competitor_channel_remove(uuid, uuid, text, tex
 
 create or replace function public.obs_archive_destino_declarado() returns trigger language plpgsql security definer set search_path = '' as $$
 begin
+  -- Phil I1: a declaração é exigida SEMPRE, com ou sem unidade no registro. Antes da primeira unidade (28/11) nenhum canal tem uma, e um
+  -- delete sem declaração apagaria as linhas do mês corrente sem rastro: o mês selaria sem o canal e nenhum vermelho apareceria.
   if tg_op = 'TRUNCATE' then
-    if exists (select 1 from public.obs_archive_units) then
-      raise exception 'destino_do_arquivo_nao_declarado' using errcode = 'P0001', detail = 'truncate com unidade no registro';
+    if exists (select 1 from public.competitor_channels) then
+      raise exception 'destino_do_arquivo_nao_declarado' using errcode = 'P0001', detail = 'truncate com canal cadastrado';
     end if;
     return null;
   end if;
-  if exists (select 1 from public.obs_archive_units u where u.site_id = old.site_id and u.channel_ref = old.id::text)
-     and not exists (select 1 from public.obs_archive_channel_removals r
-                      where r.site_id = old.site_id and r.channel_ref = old.id::text and r.declared_xid = pg_current_xact_id()) then
+  if not exists (select 1 from public.obs_archive_channel_removals r
+                  where r.site_id = old.site_id and r.channel_ref = old.id::text and r.declared_xid = pg_current_xact_id()) then
     raise exception 'destino_do_arquivo_nao_declarado' using errcode = 'P0001', detail = old.id::text;
   end if;
   return old;
@@ -2640,6 +2659,53 @@ end $$;
 revoke all on function public.obs_archive_channel_archive_impact(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_channel_archive_impact(uuid, uuid) to service_role;
 
+-- Yannis 3 (14/10): a E10 apaga canal com competitor_channel_remove_archived, que faz o delete sem declarar. Com o gatilho exigindo a
+-- declaração SEMPRE (Phil I1), ela quebraria no dia da migration. Aqui ela passa a declarar ('guardar', 'e10_export', xid desta transação)
+-- antes do delete. Parte do corpo instalado DEPOIS da M2 (bloco 11b: pg_partition_tree; a regra 71 de migrations-leitura o exige e este
+-- bloco o mantém), com a guarda de md5 do corpo conhecido, no molde do 11b. Ausente: nada (a E10 não está neste banco). Já com a
+-- declaração: nada. Sem a M2 (sem pg_partition_tree) ou corpo diferente do conhecido: recusa, nunca troca às cegas.
+-- Função da A5: o aviso está em .superpowers/sdd/manutencao-nas/aviso-a5-remove-archived-m3b.md.
+do $$
+declare
+  v_oid  oid := pg_catalog.to_regprocedure('public.competitor_channel_remove_archived(uuid,uuid,uuid)');
+  v_src  text;
+  v_def  text;
+  v_anc  text := 'delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;';
+  v_decl text;
+begin
+  if v_oid is null then return; end if;
+  select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = v_oid;
+  if v_src ~ 'obs_archive_channel_removals' then return; end if;
+  if v_src !~ 'pg_partition_tree' then
+    raise exception 'M3b:competitor_channel_remove_archived_sem_m2' using errcode = 'P0001',
+      detail = 'o corpo instalado não tem a guarda por folhas do bloco 11b: aplicar a M2 antes da M3b';
+  end if;
+  if pg_catalog.md5(v_src) <> '428702cb04c1029a10a7aa3b53aac63e' then
+    raise exception 'M3b:competitor_channel_remove_archived_divergente' using errcode = 'P0001',
+      detail = 'o corpo instalado não é o do bloco 11b da M2: copiar o corpo instalado com a declaração para esta migration';
+  end if;
+  v_def := pg_catalog.pg_get_functiondef(v_oid);
+  if (pg_catalog.length(v_def) - pg_catalog.length(pg_catalog.replace(v_def, v_anc, ''))) <> pg_catalog.length(v_anc) then
+    raise exception 'M3b:competitor_channel_remove_archived_ancora' using errcode = 'P0001', detail = 'o delete do canal não aparece exatamente uma vez';
+  end if;
+  v_decl := $d$
+  declare v_u integer; v_by bigint; v_f date; v_l date;
+  begin
+    -- M3b (Yannis 3): declara o destino do arquivo na mesma transação do delete; o gatilho obs_archive_z_destino_declarado confere o xid
+    select count(*) filter (where u.version = (select max(x.version) from public.obs_archive_units x where x.site_id = u.site_id and x.class = u.class
+                                                 and x.table_name = u.table_name and x.channel_ref = u.channel_ref and x.month = u.month)),
+           coalesce(sum(u.file_bytes), 0), min(u.month), max(u.month)
+      into v_u, v_by, v_f, v_l
+      from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = p_channel::text and u.purged_at is null;
+    insert into public.obs_archive_channel_removals (site_id, channel_ref, youtube_channel_id, name_at_removal, removed_at, removed_by, removed_via,
+           archive_decision, decided_at, decided_by, units_at_removal, bytes_at_removal, first_month, last_month, blobs_pending, online_thumbs_known, declared_xid)
+    values (p_site, p_channel::text, v_c.channel_id, v_c.channel_name, now(), p_actor, 'e10_export', 'guardar', now(), p_actor, v_u, v_by, v_f, v_l,
+            public.obs_archive_channel_blobs(p_site, p_channel::text), true, pg_current_xact_id());
+  end;
+  $d$;
+  execute pg_catalog.replace(v_def, v_anc, v_decl || v_anc);
+end $$;
+
 -- M3B PARTE 7: pendências do dono (emenda de 14/10, peça 7; contrato C12). Na M3b só emite tempo 'sem_comando';
 -- a M9 recria esta função com os outros tempos (copiar, conferir_b2, apagar_antigas, bloqueado) e versao 2.
 create or replace function public.obs_archive_owner_pending(p_site uuid default null) returns jsonb
@@ -2649,9 +2715,9 @@ declare
   v_lista jsonb;
   v_itens jsonb;
 begin
-  if v_site is null then   -- o comando do Mac não sabe o site: um único site, ou erro (nunca "lista vazia")
-    if (select count(*) from public.sites) <> 1 then raise exception 'site_ambiguo' using errcode = 'P0001'; end if;
-    select id into v_site from public.sites;
+  if v_site is null then   -- o comando do Mac não sabe o site: o ÚNICO site que tem canal no observatório, ou erro (nunca "lista vazia"). Phil I2: o hub é multi-site, linhas em `sites` não contam.
+    if (select count(distinct c.site_id) from public.competitor_channels c) <> 1 then raise exception 'site_ambiguo' using errcode = 'P0001'; end if;
+    select distinct c.site_id into v_site from public.competitor_channels c;
   end if;
   v_lista := public.obs_archive_removed_channel_list(v_site);   -- erro sobe (nunca lista vazia)
   if v_lista is null or jsonb_typeof(v_lista) <> 'array' then raise exception 'lista_de_remocao_ilegivel' using errcode = 'P0001'; end if;

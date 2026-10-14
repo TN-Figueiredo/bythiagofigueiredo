@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
-import { aplicarM3b, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
+import { aplicarM3b, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -27,8 +27,12 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
   let c: Client
   const sitesReais: string[] = []
   const usuariosReais: string[] = []
-  beforeAll(async () => { c = new Client({ connectionString: PG_URL }); await c.connect() })
+  beforeAll(async () => {
+    if (corridasLigadas()) await confirmarM3bParaCorridas(6)       // só para as corridas (M3B_CORRIDAS=1); desfeito no afterAll (Yannis 1)
+    c = new Client({ connectionString: PG_URL }); await c.connect()
+  })
   afterAll(async () => {
+    if (corridasLigadas()) await desfazerM3bDasCorridas()          // antes da limpeza: sem o gatilho, o delete dos canais de teste passa
     for (const s of sitesReais) {
       for (const sql of [
         `delete from public.obs_archive_unit_attachments where site_id = $1`, `delete from public.obs_archive_summaries where site_id = $1`,
@@ -98,13 +102,14 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
   const payloadResumo = (canal: string): string => JSON.stringify({ classe: 'serie', canal, mes: MES, vazio: true, unit_hashes: {}, canal_sha256: null, canal_bytes: null, canal_rows: null,
     video_sha256: null, video_bytes: null, video_rows: null })
   /** Cadastra o canal num site confirmado (fora de transação) e devolve o site, o canal e o administrador. */
+  const itCorrida = it.skipIf(!corridasLigadas())   // duas conexões: precisam do rascunho confirmado (M3B_CORRIDAS=1)
   async function sitePermanente(): Promise<{ site: string; admin: string }> {
     const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
     sitesReais.push(a.site)
     return { site: a.site, admin: await novoAdmin(a.site, true) }
   }
 
-  it('o botão grava a remoção, e sem ela o delete recusa (service_role); canal sem unidade apaga como hoje', async () => emTx(async () => {
+  it('o botão grava a remoção, e sem ela o delete recusa (service_role), com ou sem unidade (Phil I1)', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 1 }); const admin = await novoAdmin(a.site)
     await unidade(a.site, a.canal)
     await c.query(`set local role service_role`)
@@ -117,29 +122,36 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
     expect(await escalar(c, `select count(*)::int from public.competitor_channels where id = $1`, [a.canal])).toBe(0)
     expect(await q1(c, `select archive_decision, removed_via, units_at_removal, online_thumbs_known from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [a.site, a.canal]))
       .toEqual({ archive_decision: 'apagar', removed_via: 'botao', units_at_removal: 1, online_thumbs_known: true })
+    // Phil I1: canal SEM unidade também exige a declaração (antes da primeira unidade, 28/11, nenhum canal tem uma)
     const b = await semearCanal(c, { site: a.site, videos: 1 })
-    expect(await falha(`delete from public.competitor_channels where id = $1`, [b.canal])).toBeNull()
+    expect((await falha(`delete from public.competitor_channels where id = $1`, [b.canal]))?.message).toBe('destino_do_arquivo_nao_declarado')
+    expect(await escalar(c, `select count(*)::int from public.competitor_channels where id = $1`, [b.canal])).toBe(1)
+    expect(await remover(a.site, b.canal, 'apagar', 'botao', admin)).toMatchObject({ status: 'ok', decisao: 'apagar', unidades: 0 })
+    expect(await q1(c, `select archive_decision, removed_via, units_at_removal from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [a.site, b.canal]))
+      .toEqual({ archive_decision: 'apagar', removed_via: 'botao', units_at_removal: 0 })     // o rastro que faltava: a remoção de canal sem unidade
+    expect(await escalar(c, `select count(*)::int from public.competitor_channels where id = $1`, [b.canal])).toBe(0)
   }))
 
-  it('truncate com unidade no registro recusa; sem unidade, passa', async () => emTx(async () => {
+  it('truncate recusa com canal, com ou sem unidade no registro (Phil I1)', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
+    expect((await falha(`truncate public.competitor_channels cascade`))?.message).toBe('destino_do_arquivo_nao_declarado')   // sem unidade
     await unidade(a.site, a.canal)
-    expect((await falha(`truncate public.competitor_channels cascade`))?.message).toBe('destino_do_arquivo_nao_declarado')
+    expect((await falha(`truncate public.competitor_channels cascade`))?.message).toBe('destino_do_arquivo_nao_declarado')   // com unidade
     expect(await escalar(c, `select count(*)::int from public.competitor_channels where id = $1`, [a.canal])).toBe(1)
   }))
 
-  it('declaração de outra transação não vale', async () => {
-    const { site } = await sitePermanente()
-    const a = await semearCanal(c, { site, videos: 0 })
-    await unidade(site, a.canal)
-    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
-      values ($1, $2, 'botao', 'apagar', now(), true, pg_current_xact_id())`, [site, a.canal])        // confirmada, com o xid dela
-    await c.query('begin')
-    try {
+  it('declaração de outra transação não vale (Yannis M7: o xid do gatilho; vale para canal com e sem unidade)', async () => emTx(async () => {
+    for (const comUnidade of [true, false]) {
+      const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
+      if (comUnidade) await unidade(a.site, a.canal)
+      await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
+        values ($1, $2, 'botao', 'apagar', now(), true, '1'::xid8)`, [a.site, a.canal])                  // declaração com o xid de OUTRA transação
       expect((await falha(`delete from public.competitor_channels where id = $1`, [a.canal]))?.message).toBe('destino_do_arquivo_nao_declarado')
-    } finally { await c.query('rollback') }
-    expect(await escalar(c, `select count(*)::int from public.competitor_channels where id = $1`, [a.canal])).toBe(1)
-  })
+      expect(await escalar(c, `select count(*)::int from public.competitor_channels where id = $1`, [a.canal])).toBe(1)
+      await c.query(`update public.obs_archive_channel_removals set declared_xid = pg_current_xact_id() where site_id = $1 and channel_ref = $2`, [a.site, a.canal])
+      expect(await falha(`delete from public.competitor_channels where id = $1`, [a.canal])).toBeNull()   // com o xid desta transação, passa
+    }
+  }))
 
   it('guardar pelo botão é recusado pelo banco; guardar pela E10 passa', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 1 }); const admin = await novoAdmin(a.site)
@@ -250,7 +262,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
     expect(await escalar(c, `select count(*)::int from public.obs_archive_channel_removals where site_id = $1`, [a.site])).toBe(0)
   }))
 
-  it('dois cliques simultâneos gravam uma decisão (sem_destino): uma ok, outra ja_pedido', async () => {
+  itCorrida('dois cliques simultâneos gravam uma decisão (sem_destino): uma ok, outra ja_pedido', async () => {
     const { site, admin } = await sitePermanente()
     const orfao = randomUUID(); await unidade(site, orfao)
     const b = new Client({ connectionString: PG_URL }); await b.connect()
@@ -320,7 +332,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
     expect(corpo.match(/for key share/g)?.length).toBe(1)                               // a única: a do canal, não a da remoção
   }))
 
-  it('a troca simultânea ao expurgo espera, 20 vezes nas duas ordens: nunca sobra unidade sem marca', async () => {
+  itCorrida('a troca simultânea ao expurgo espera, 20 vezes nas duas ordens: nunca sobra unidade sem marca', async () => {
     const { site, admin } = await sitePermanente()
     const A = new Client({ connectionString: PG_URL }), B = new Client({ connectionString: PG_URL })
     await A.connect(); await B.connect()
@@ -357,7 +369,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
     } finally { await A.end(); await B.end() }
   }, 120_000)
 
-  it('a corrida com a exportação, 20 vezes em cada forma: nunca sobra unidade nem resumo sem purged_at', async () => {
+  itCorrida('a corrida com a exportação, 20 vezes em cada forma: nunca sobra unidade nem resumo sem purged_at', async () => {
     const { site, admin } = await sitePermanente()
     const A = new Client({ connectionString: PG_URL }), B = new Client({ connectionString: PG_URL })
     await A.connect(); await B.connect()
@@ -446,6 +458,12 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
     const orfao = randomUUID(); const uo = await unidade(a.site, orfao)                // recebida, canal ausente
     expect((await falha(`update public.obs_archive_units set lost_at = now(), lost_by = gen_random_uuid(), lost_reason = 'nunca_recebida' where id = $1`, [uo]))?.message).toBe('perda_incoerente')
     expect(await falha(`update public.obs_archive_units set lost_at = now(), lost_by = gen_random_uuid(), lost_reason = 'ausente_nas_e_b2' where id = $1`, [uo])).toBeNull()
+    // Yannis M8: uma remoção com decisão GUARDAR não autoriza purga (o gatilho exige archive_decision = 'apagar', não "qualquer remoção")
+    const g = randomUUID(); const ug = await unidade(a.site, g)
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known) values ($1, $2, 'e10_export', 'guardar', now(), true)`, [a.site, g])
+    expect((await falha(`update public.obs_archive_units set purged_at = now(), purged_by = gen_random_uuid(), purge_ref = 'x' where id = $1`, [ug]))?.message).toBe('purga_sem_decisao_apagar')
+    await c.query(`update public.obs_archive_channel_removals set archive_decision = 'apagar' where site_id = $1 and channel_ref = $2`, [a.site, g])
+    expect(await falha(`update public.obs_archive_units set purged_at = now(), purged_by = gen_random_uuid(), purge_ref = 'x' where id = $1`, [ug])).toBeNull()
     const un = await unidade(a.site, randomUUID(), { recebida: false })
     expect(await falha(`update public.obs_archive_units set lost_at = now(), lost_by = gen_random_uuid(), lost_reason = 'nunca_recebida' where id = $1`, [un])).toBeNull()
   }))

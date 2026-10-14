@@ -11,7 +11,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
-import { aplicarM3b, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
+import { aplicarM3b, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 import { exportarUnidade } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { serializarResumo, type LinhasDoResumo } from '@/lib/youtube/observatorio/arquivo-mensal/resumo'
@@ -42,13 +42,17 @@ interface PlanoB2 { execucao_id: string; arquivos: unknown[]; estado: { numerico
 describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, vermelhos, varredura, batimento e pode-desligar', () => {
   let c: Client
   const sitesReais: string[] = []
-  beforeAll(async () => { c = new Client({ connectionString: PG_URL }); await c.connect() })
+  beforeAll(async () => {
+    if (corridasLigadas()) await confirmarM3bParaCorridas(5)       // só para a corrida (M3B_CORRIDAS=1); desfeito no afterAll (Yannis 1)
+    c = new Client({ connectionString: PG_URL }); await c.connect()
+  })
   afterAll(async () => {
     for (const s of sitesReais) {
       await c.query(`delete from public.obs_archive_sweeps where site_id = $1`, [s])
       await c.query(`delete from public.obs_archive_heartbeat where site_id = $1`, [s])
     }
     await c.end()
+    if (corridasLigadas()) await desfazerM3bDasCorridas()
   })
 
   async function emTx<T2>(fn: () => Promise<T2>, hoje = '2026-11-28'): Promise<T2> {
@@ -343,6 +347,13 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
     expect(await vermelhos(site)).toContain('canário do filho numerico sem chegar ao B2 há 6 dias')
     await c.query(`update public.obs_archive_canaries set regravado_at = public.obs_archive_agora(), b2_ok_at = public.obs_archive_agora() where site_id = $1`, [site])
     expect(await vermelhos(site)).toContain('canario_regravado:numerico')
+    // Phil M3: passados 30 dias o alarme fica até um canário NOVO do mesmo filho chegar ao B2 (evidência, não só relógio)
+    await c.query(`update public.obs_archive_canaries set regravado_at = public.obs_archive_agora() - interval '40 days', b2_ok_at = public.obs_archive_agora() - interval '41 days' where site_id = $1`, [site])
+    expect(await vermelhos(site)).toContain('canario_regravado:numerico')
+    await c.query(`insert into public.obs_archive_canaries (site_id, filho, dia, sha256, informed_at, b2_ok_at) values ($1, 'texto', '2026-10-20', $2, public.obs_archive_agora() - interval '30 days', public.obs_archive_agora() - interval '30 days')`, [site, HEX('c')])
+    expect(await vermelhos(site)).toContain('canario_regravado:numerico')               // canário de OUTRO filho não encerra
+    await c.query(`insert into public.obs_archive_canaries (site_id, filho, dia, sha256, informed_at, b2_ok_at) values ($1, 'numerico', '2026-10-21', $2, public.obs_archive_agora() - interval '39 days', public.obs_archive_agora() - interval '39 days')`, [site, HEX('d')])
+    expect(await vermelhos(site)).not.toContain('canario_regravado:numerico')           // um novo do mesmo filho, depois da regravação, encerra
     // ilegíveis
     await c.query(`update public.obs_archive_units set nas_unreadable_at = now() where id = $1`, [uid])
     expect(await vermelhos(site)).toContain(`nas_ilegivel:u:${uid}`)
@@ -400,7 +411,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
     expect(await escalar(c, `select nas_checked_at is null from public.obs_archive_heartbeat where site_id = $1 and worker = 'conferir_b2'`, [site])).toBe(true)
   }))
 
-  it('uma varredura só com dois planos simultâneos (Yannis M12)', async () => {
+  it.skipIf(!corridasLigadas())('uma varredura só com dois planos simultâneos (Yannis M12; duas conexões, só com M3B_CORRIDAS=1)', async () => {
     const site = randomUUID(); sitesReais.push(site)
     const b = new Client({ connectionString: PG_URL }); await b.connect()
     try {
@@ -566,7 +577,31 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
     expect(await escalar(c, `select has_function_privilege('postgres', 'public.obs_archive_pode_desligar(uuid)', 'execute')`)).toBe(true)
   }))
 
-  it.skip('despausar um canal não toca o registro (29): obs_archive_unpause (E10) não existe no banco local; religar quando a E10 chegar', () => undefined)
+  it('despausar um canal não toca o registro (29): competitor_channel_unpause, da E10 (Yannis 4)', async (ctx) => {
+    // sem skip incondicional: a função certa é competitor_channel_unpause(uuid,uuid,uuid); só pula se o banco não a tiver
+    if (await escalar<boolean>(c, `select to_regprocedure('public.competitor_channel_unpause(uuid,uuid,uuid)') is null`)) ctx.skip()
+    await emTx(async () => {
+      const { site, canal } = await mesSelado()
+      const registro = async (): Promise<string> => JSON.stringify((await c.query(`select
+        (select count(*) from public.obs_archive_units where site_id = $1) u, (select count(*) from public.obs_archive_summaries where site_id = $1) s,
+        (select count(*) from public.obs_archive_months where site_id = $1) m, (select md5(string_agg(id::text || coalesce(received_at::text, ''), ',' order by id)) from public.obs_archive_units where site_id = $1) h,
+        (select md5(string_agg(sealed_at::text, ',' order by class, table_name, month)) from public.obs_archive_months where site_id = $1) sm`, [site])).rows[0])
+      const antes = await registro()
+      const faceDoPlano = async (): Promise<string> => { const p = await plano(site); return JSON.stringify([p.exportar, p.resumos, p.manifestos, p.reconferir, p.aguardando_dono]) }
+      const planoAntes = await faceDoPlano()
+      const org = (await c.query(`select org_id from public.sites where id = $1`, [site])).rows[0].org_id as string
+      const ator = randomUUID()
+      await c.query(`insert into auth.users (id, instance_id, aud, role, email) values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`, [ator, `m3b-${ator}@t.test`])
+      await c.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, ator])
+      // pausa plantada direto (competitor_channel_pause recusa quando a M10a recria competitor_series_health sem o remendo da pausa: assunto da A5)
+      await c.query(`update public.competitor_channels set collection_paused_at = now() - interval '1 hour', collection_paused_by = $2 where id = $1`, [canal, ator])
+      await c.query(`insert into public.competitor_collection_pauses (site_id, competitor_channel_id, paused_at, paused_by) values ($1, $2, now() - interval '1 hour', $3)`, [site, canal, ator])
+      expect((await c.query(`select public.competitor_channel_unpause($1, $2, $3) as r`, [site, canal, ator])).rows[0].r).toMatchObject({ status: expect.any(String) })
+      expect(await escalar(c, `select collection_paused_at is null from public.competitor_channels where id = $1`, [canal])).toBe(true)
+      expect(await registro()).toBe(antes)                                                // o registro da M3b não mudou
+      expect(await faceDoPlano()).toBe(planoAntes)                                        // e o plano do copiador continua o mesmo
+    })
+  })
 
   it('as constantes do atraso nos dois lados (5 e 30) e o texto dos vermelhos sem nome de canal', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)

@@ -430,6 +430,18 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 4: conferência do B2 pela forja',
     expect(await escalar(c, `select file_id_recusado from public.obs_archive_b2_runs where id = $1`, [p.execucao_id])).toBe(true)
   }))
 
+  it('presente sem sha256 é recusado (forma); arquivo sem sha256 esperado é recusado (desconhecido); nulo contra nulo nunca é "igual" (Phil M2)', async () => emTx(async () => {
+    const { site, itens } = await mesSelado(); const p = await aberto(site)
+    const u = unidDaily(itens)
+    const a = await informar(site, p.execucao_id, [presente(u, 1, { sha256: undefined })])
+    expect(a.itens[0]).toMatchObject({ resposta: 'recusado', motivo: 'forma' })
+    expect((await arq(site, u.arquivo_id)).last_ok_at).toBeNull()
+    await c.query(`update public.obs_archive_units set row_count = 0, sha256_bytes = null, csv_sha256 = null, control_sum = null where id = $1`, [u.arquivo_id.slice(2)])
+    const b = await informar(site, p.execucao_id, [presente(u, 1, { sha256: undefined })])
+    expect(b.itens[0]).toMatchObject({ resposta: 'recusado', motivo: 'desconhecido' })
+    expect((await arq(site, u.arquivo_id)).last_ok_at).toBeNull()                      // o "igual" de nulo com nulo não grava last_ok_at
+  }))
+
   it('upload_timestamp anterior ao received_at é aceito (132)', async () => emTx(async () => {
     const { site, itens } = await mesSelado(); const p = await aberto(site)
     const u = unidDaily(itens)

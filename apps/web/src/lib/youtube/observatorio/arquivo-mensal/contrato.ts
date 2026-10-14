@@ -38,7 +38,10 @@ export const TETO_LINHAS_POR_CHAMADA = 5_000
 /**
  * CP13 (D25): acima disto, 413 grande_demais antes de ler qualquer página. Medido: 100.000 linhas largas em 20 páginas de 5.000 = 8,0 s;
  * 99.200 estreitas em páginas de 2.000 = 11,7 s (metade do maxDuration = 60 é 30 s; custo quadrático, ~190 mil linhas chegariam a 30 s).
- * NÃO MEDIDO contra a maior unidade horária e a de comentários de produção × 3 (script do dono pendente); o valor é da medida sintética.
+ * NÃO MEDIDO contra a maior unidade de produção × 3 (diária, early, marcas, horária e comentários; o script do dono é
+ * m3b/m3b-0-leituras-prod.sh, saída em saidas/m3b-0-*.txt); o valor é da medida sintética. AMARRAÇÃO (Phil I3): o teto vale se o
+ * maior de produção × 3 ficar abaixo de 100.000 (60.000 se a CPU de produção for 2x mais lenta que a local); acima disso, pagar a D25
+ * (hash incremental no read_unit) ANTES da Tarefa 11. Unidade acima do teto responde 413 e só vira vermelho 30 dias depois.
  */
 export const TETO_LINHAS_DA_UNIDADE = 100_000
 export const TETO_BYTES_POR_PARTE = 3 * 1024 * 1024
@@ -176,7 +179,8 @@ export const RespostaParteInfo = z.object({
   de: z.number().int().min(0), ate: z.number().int().min(0), sha256: sha, recebida: z.boolean(),
 }).strict()
 export const RespostaRecord = z.object({
-  status: z.string().min(1).max(40), unidade_id: canal.optional(), versao: z.number().int().min(1).optional(),
+  // o banco devolve `arquivo_id` ('u:<uuid>', C0.2 e C3 do contrato), nunca `unidade_id` (Yannis 9): o passthrough escondia a diferença
+  status: z.string().min(1).max(40), arquivo_id: z.string().regex(/^u:[0-9a-f-]{36}$/).optional(), versao: z.number().int().min(1).optional(),
 }).passthrough()
 
 /** Códigos que as rotas devolvem em `error.code` (além de VALIDATION_ERROR, FORBIDDEN, UNAUTHORIZED), com o status. */
