@@ -427,12 +427,12 @@ describe('causa da falha', () => {
 
   it('a causa é campo à parte: a frase do porque não mudou', async () => {
     expect(await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: 'PGRST202' } })).sb, PARES))
-      .toEqual({ porque: 'migration da agenda não aplicada (código PGRST202)', causa: 'schema_ausente' })
+      .toEqual({ porque: 'migration da agenda não aplicada (código PGRST202)', causa: 'schema_ausente', codigo: 'PGRST202' })
     expect(await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: '' } })).sb, PARES))
       .toEqual({ porque: 'o banco não respondeu', causa: 'prazo' })
     expect(await lerEstado(falso(() => { throw new Error('b') }).sb, PARES))
       .toEqual({ porque: 'o banco não respondeu', causa: 'excecao' })
     expect(await lerEstado(falso(() => ({ data: null, error: { message: 'x', code: '57014' } })).sb, PARES))
-      .toEqual({ porque: 'erro do banco (código 57014)', causa: 'erro_do_banco' })
+      .toEqual({ porque: 'erro do banco (código 57014)', causa: 'erro_do_banco', codigo: '57014' })
   })
 })
