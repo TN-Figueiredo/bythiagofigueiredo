@@ -1,5 +1,5 @@
 // E18 T9: leitor de servidor das versões do vídeo próprio. Só leitura, sem tela. O molde é o de `proprio/ler-dimensoes.ts`:
-//   - o acesso é a PROVA de edição do site (`EdicaoDoSite`): sem prova (ou objeto forjado) = 'negado' SEM consultar nada;
+//   - o acesso é a PROVA de leitura privada do site (`LeituraPrivadaDoSite`): sem prova (ou objeto forjado) = 'negado' SEM consultar nada;
 //   - o site vem de dentro da prova; toda consulta filtra site E canal; `ytIds` validados e limitados a 50;
 //   - leitura paginada com teto de linhas: passar do teto ou erro de banco LANÇA `ErroLeituraVersoes` (nunca lista vazia);
 //   - tabela que não existe (migration não aplicada) NÃO lança: vira o estado `schema_ausente`;
@@ -11,8 +11,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
 import { TAMANHO_PAGINA } from '@/lib/youtube/coleta/paginar'
 import { ehSchemaAusente } from '@/lib/youtube/coleta/schema'
-import { edicaoValida } from '../proprio/edicao'
-import type { EdicaoDoSite } from '../proprio/edicao'
+import { leituraValida } from '../proprio/leitura-privada'
+import type { LeituraPrivadaDoSite } from '../proprio/leitura-privada'
 import type { DiaYt } from '../proprio/tipos'
 import type { Privado } from '../proprio/tipos'
 import type {
@@ -45,7 +45,7 @@ export class ErroLeituraVersoes extends Error {
 }
 
 /** Mesmo formato do `Pedido` de `../proprio/ler`, declarado aqui: a varredura do dado privado proíbe importar daquele módulo. */
-interface Pedido { edicao: EdicaoDoSite | null; canalId: string; hoje: DiaYt }
+interface Pedido { leitura: LeituraPrivadaDoSite | null; canalId: string; hoje: DiaYt }
 
 export interface PedidoVersoes extends Pedido {
   ytIds: readonly string[]
@@ -121,8 +121,8 @@ function montarVideo(ytId: string, linhas: readonly LinhaVersaoDb[]): VersoesDoV
 
 export async function lerVersoes(sb: SupabaseClient, p: PedidoVersoes): Promise<Privado<VersoesCanal>> {
   // Sem prova de edição: negado ANTES de qualquer consulta.
-  if (!edicaoValida(p.edicao) || !UUID.test(p.canalId)) return { acesso: 'negado' }
-  const siteId = p.edicao.siteId, canalId = p.canalId
+  if (!leituraValida(p.leitura) || !UUID.test(p.canalId)) return { acesso: 'negado' }
+  const siteId = p.leitura.siteId, canalId = p.canalId
   const teto = p.tetoLinhas ?? TETO_LINHAS_VERSOES
   if (!Number.isFinite(teto) || teto <= 0) throw new RangeError('teto de linhas inválido: precisa ser um número finito maior que zero')
   // Fora do formato sai (contrato do teste 12); acima do teto LANÇA em vez de cortar calado (portão 14/10, Phil m-1).

@@ -5,15 +5,17 @@ import { join } from 'node:path'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
+import { leituraDe, leituraPorDireitoDe } from './leitura-teste'
 import { edicaoDe } from './edicao-teste'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { ErroLeituraVersoes, lerVersoes } from '@/lib/youtube/observatorio/proprio-versoes/ler'
 import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
 
-vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u1' } })) }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
-const S = 'site-a', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
+const S = '5e5e5e5e-5a47-4d0e-9b1c-7e6a2d4f8a01', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
 const OUTRO_CANAL = '9a9a9a9a-5a47-4d0e-9b1c-7e6a2d4f8a10'
 const V1 = 'vid00000001', V2 = 'vid00000002'
 const HOJE = dayPt(new Date())
@@ -21,9 +23,9 @@ const d = (n: number): string => addDays(HOJE, -n)
 const SENTINELA = 'zz-sentinela-e18'
 const DHASH = 'abcdef0123456789'
 
-let edicao: EdicaoDoSite
-beforeAll(async () => { edicao = await edicaoDe(S) })
-const pedido = (extra: Record<string, unknown> = {}) => ({ edicao, canalId: C, hoje: HOJE, ytIds: [V1], ...extra })
+let leitura: LeituraPrivadaDoSite
+beforeAll(async () => { leitura = await leituraDe(S) })
+const pedido = (extra: Record<string, unknown> = {}) => ({ leitura, canalId: C, hoje: HOJE, ytIds: [V1], ...extra })
 
 const estado = (over: Row = {}): Row => ({ channel_id: C, site_id: S, tracking_since: d(10), derived_through: d(1), updated_at: 'x', ...over })
 function versao(yt: string, campo: 'title' | 'thumb' | 'desc', id: string, over: Row = {}): Row {
@@ -59,9 +61,21 @@ const ok = <T>(r: { acesso: string; dado?: T }): T => { if (r.acesso !== 'ok' ||
 describe('lerVersoes', () => {
   it('1. item 192: sem edição (null) ou objeto forjado: negado e zero chamada ao banco', async () => {
     const db = fakeSupabase({})
-    expect(await lerVersoes(db.client, { ...pedido(), edicao: null })).toEqual({ acesso: 'negado' })
-    expect(await lerVersoes(db.client, { ...pedido(), edicao: { siteId: S } as unknown as EdicaoDoSite })).toEqual({ acesso: 'negado' })
+    expect(await lerVersoes(db.client, { ...pedido(), leitura: null })).toEqual({ acesso: 'negado' })
+    expect(await lerVersoes(db.client, { ...pedido(), leitura: { siteId: S } as unknown as LeituraPrivadaDoSite })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
+  })
+
+  it('1b. EdicaoDoSite por cast é negado (nenhuma consulta)', async () => {
+    const db = fakeSupabase({})
+    expect(await lerVersoes(db.client, { ...pedido(), leitura: (await edicaoDe(S)) as unknown as LeituraPrivadaDoSite })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+
+  it('1c. quem só tem o direito lê (token nascido do direito)', async () => {
+    const db = fakeSupabase({ yt_own_versions_state: [estado()], yt_own_video_versions: [versao(V1, 'title', 'a')] })
+    const r = ok(await lerVersoes(db.client, { ...pedido(), leitura: await leituraPorDireitoDe(S) }))
+    expect(r.videos[0]!.versoes.map(v => v.id)).toEqual(['a'])
   })
 
   it('2. mutação de site e de canal: versão de outro site ou de outro canal não aparece', async () => {
