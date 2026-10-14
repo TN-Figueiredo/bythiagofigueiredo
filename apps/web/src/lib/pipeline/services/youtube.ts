@@ -1252,7 +1252,8 @@ export async function listVariants(
     return err('DB_ERROR', 'Failed to load variants', 500)
   }
 
-  return ok(((variants ?? []) as Record<string, unknown>[]).map(projetarVariante) as unknown as VariantRow[])
+  // mesma projeção de projetarVariante, tipada: o _Cobre acima garante que só estas duas colunas ficam de fora
+  return ok((variants ?? []).map(({ description_text: _desc, thumbnail_dhash: _dhash, ...v }) => v) as VariantRow[])
 }
 
 // ---------------------------------------------------------------------------

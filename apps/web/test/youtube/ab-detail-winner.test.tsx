@@ -24,7 +24,7 @@ vi.mock('lucide-react', () => {
     AlertCircle: icon('AlertCircle'), TrendingDown: icon('TrendingDown'), Minus: icon('Minus'), Lock: icon('Lock'),
     Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'), ChevronRight: icon('ChevronRight'),
     Eye: icon('Eye'), ThumbsUp: icon('ThumbsUp'), MessageCircle: icon('MessageCircle'), Share2: icon('Share2'),
-    BarChart3: icon('BarChart3'),
+    BarChart3: icon('BarChart3'), HelpCircle: icon('HelpCircle'),
   }
 })
 
