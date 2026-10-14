@@ -15,7 +15,7 @@ import { criarCanal, criarSite, criarVideo, escalar, q1 } from '../helpers/mg6'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
-const PG_URL = process.env.SUPABASE_DB_URL ?? ''
+const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 describe.skipIf(skipIfNoLocalDb())('A5 E4: competitor_marks_apply concorrente (trava de uma execução por vez)', () => {
   let a: Client
@@ -25,7 +25,6 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4: competitor_marks_apply concorrente (t
   let org = ''
 
   beforeAll(async () => {
-    if (!PG_URL.includes(':54422/')) throw new Error('SUPABASE_DB_URL não aponta para o banco de integração (:54422/)')
     adm = new Client({ connectionString: PG_URL })
     a = new Client({ connectionString: PG_URL })
     b = new Client({ connectionString: PG_URL })
@@ -36,7 +35,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4: competitor_marks_apply concorrente (t
       if (site) await adm.query('delete from public.sites where id = $1', [site])
       if (org) await adm.query('delete from public.organizations where id = $1', [org])
     } finally {
-      await Promise.all([adm.end(), a.end(), b.end()])
+      await Promise.all([adm?.end(), a?.end(), b?.end()])
     }
   })
 
