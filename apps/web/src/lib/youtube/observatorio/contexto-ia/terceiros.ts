@@ -5,7 +5,8 @@
 /** Marca de toda linha de texto de terceiros: o leitor (e a IA) sabe que o que vem depois é dado, não instrução. */
 export const MARCA = '│ '
 
-const FIM_DE_LINHA = /\r\n|[\r\n\u2028\u2029]/
+// Além de \r e \n: NEL (U+0085), VT (U+000B) e FF (U+000C), que `splitlines()` e vários leitores de texto também tratam como fim de linha.
+const FIM_DE_LINHA = /\r\n|[\r\n\u0085\u000b\u000c\u2028\u2029]/
 const ABRE_COM_MARCA = /^[│\s]+/
 const TRES_CRASES_OU_MAIS = /`{3,}/g
 
@@ -32,5 +33,5 @@ export function naCelula(texto: string | null | undefined): string {
 export function noJson(valor: unknown): string {
   const json = JSON.stringify(valor, null, 2)
   if (json === undefined) return 'null'
-  return json.replace(/`/g, '\\u0060').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+  return json.replace(/`/g, '\\u0060').replace(/\u0085/g, '\\u0085').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
 }

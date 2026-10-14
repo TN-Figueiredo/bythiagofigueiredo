@@ -59,8 +59,8 @@ const porTamanhoPiso = (total: number, limite: number, cortados: number, itens: 
   `- Por tamanho: o pacote tem ${F.milhar(total)} caracteres, acima do limite de ${F.milhar(limite)}, mesmo depois de cortar ${F.milhar(cortados)}: ${itens}. Definições e avisos não saem.`
 const medidosDoPacote = new WeakMap<PacoteSerializado, Medido>()
 
-/** Tamanho que `noJson` dá a um texto JSON: cada crase e cada separador de linha virou escape de seis caracteres. */
-const tamanhoNoJson = (s: string): number => s.length + 5 * (s.match(/[`\u2028\u2029]/g)?.length ?? 0)
+/** Tamanho que `noJson` dá a um texto JSON: cada crase e cada separador de linha (inclusive U+0085) virou escape de seis caracteres. */
+const tamanhoNoJson = (s: string): number => s.length + 5 * (s.match(/[`\u0085\u2028\u2029]/g)?.length ?? 0)
 
 function cabecalhoDoJson(p: PacoteSerializado, medidas: unknown[]) {
   return { tela: p.tela, formato: CONTEXTO_IA_RULES.versaoDoFormato, gerado: p.geradoEm, janela: p.janela, medidas }
