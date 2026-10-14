@@ -83,8 +83,11 @@ export interface AlcanceVideo {
   diasComImpressao: number
 }
 
-/** Termina no relatório mais novo (qualquer status); começa no mais antigo se houver menos de 30 dias. */
-export function periodoDoAlcance(relatorios: readonly RelatorioDia[]): Periodo | null {
+/**
+ * Termina no relatório mais novo (qualquer status); começa no mais antigo se houver menos de 30 dias.
+ * Com `desde` (E5b, Tarefa 20a): o piso é `desde` no lugar dos 30 dias, `de = max(desde, relatório mais antigo)`; `desde` depois do relatório mais novo dá nulo.
+ */
+export function periodoDoAlcance(relatorios: readonly RelatorioDia[], desde?: DiaYt): Periodo | null {
   const primeiro = relatorios[0]
   if (!primeiro) return null
   let menor = primeiro.dia
@@ -93,8 +96,9 @@ export function periodoDoAlcance(relatorios: readonly RelatorioDia[]): Periodo |
     if (r.dia < menor) menor = r.dia
     if (r.dia > maior) maior = r.dia
   }
-  const janela = addDays(maior, -(JANELA_ALCANCE_DIAS - 1))
+  const janela = desde ?? addDays(maior, -(JANELA_ALCANCE_DIAS - 1))
   const de = janela > menor ? janela : menor
+  if (de > maior) return null
   return { de, ate: maior, dias: diffDias(de, maior) + 1 }
 }
 
@@ -155,6 +159,8 @@ export interface OpcoesDias {
   ytId?: string
   /** O dia da publicação do vídeo (só com `ytId`); null/ausente = sem corte. */
   publicadoEm?: DiaYt | null
+  /** E5b Tarefa 20a: o piso do período NO LUGAR do piso de 30 dias (`de = max(desde, relatório mais antigo recebido)`). Sem ele, a saída é a de sempre. */
+  desde?: DiaYt
 }
 
 /**
@@ -163,7 +169,7 @@ export interface OpcoesDias {
  */
 export function montarDias(a: AlcanceCanal, o: OpcoesDias): { periodo: Periodo | null; dias: DiaAlcance[]; avisos: string[] } {
   const { hoje, ytId } = o
-  const base = periodoDoAlcance(a.relatorios)
+  const base = periodoDoAlcance(a.relatorios, o.desde)
   if (!base) return { periodo: null, dias: [], avisos: [] }
   const de = ytId !== undefined ? inicioDoVideo(base.de, o.publicadoEm) : base.de
   if (de > base.ate) return { periodo: null, dias: [], avisos: [] }

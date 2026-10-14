@@ -206,3 +206,79 @@ export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonl
   const linhas = desde == null || ultimoDia == null ? lidas : materializarZeros(lidas, intervalos, { desde, ate: ultimoDia })
   return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia, linhas, foraDoTeto, descartados } }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// E5b Tarefa 20a: o alcance de UM vídeo, até 400 dias para trás (a tela das trocas compara "antes" e "depois" de uma versão).
+// Só acréscimo: `lerAlcance` não muda e nenhuma função interna é exportada.
+
+/** Até quantos dias para trás a leitura do alcance de um vídeo aceita (`desde` anterior a `hoje - 400` lança). */
+export const TETO_DIAS_ALCANCE_DO_VIDEO = 400
+/** O resultado tem a forma de `AlcanceCanal`; `desde` é o pedido; `primeiroRelatorio` é o relatório MEDIDO mais antigo do canal (baixado ou vazio, e normalizado), nulo sem nenhum. */
+export interface AlcanceDoVideo { alcance: AlcanceCanal; desde: DiaYt; primeiroRelatorio: DiaYt | null }
+
+const YT_ID = /^[A-Za-z0-9_-]{11}$/
+const PAGINA_MEDIDO = 50
+const PAGINAS_MEDIDO_MAX = 40
+
+/**
+ * O relatório medido mais antigo do canal, sem janela. A condição "normalizado" é lida na linha (não no filtro): quem é baixado ou vazio mas ainda
+ * não normalizado é pulado, e a leitura segue pela página seguinte. Esgotar o teto de páginas lança: nunca devolve "nenhum" por cansaço.
+ */
+async function primeiroRelatorioMedido(sb: SupabaseClient, siteId: string, canalId: string): Promise<DiaYt | null> {
+  for (let pg = 0; pg < PAGINAS_MEDIDO_MAX; pg++) {
+    const { data, error } = await sb.from('yt_reporting_reports').select('start_time, normalized_at')
+      .eq('site_id', siteId).eq('channel_id', canalId).eq('report_type_id', TIPO_ALCANCE).in('status', ['baixado', 'vazio'])
+      .order('start_time').order('report_id').range(pg * PAGINA_MEDIDO, (pg + 1) * PAGINA_MEDIDO - 1)
+    if (error) throw new ObservatoryLoadError('yt_reporting_reports', error.code, error.message)
+    const linhas = (Array.isArray(data) ? data : []) as Array<{ start_time: string; normalized_at: string | null }>
+    for (const l of linhas) {
+      const dia = diaUtc(l.start_time)
+      if (l.normalized_at != null && dia != null) return dia
+    }
+    if (linhas.length < PAGINA_MEDIDO) return null
+  }
+  throw new ObservatoryLoadError('yt_reporting_reports', undefined, 'primeiro relatório medido: teto de páginas')
+}
+
+/**
+ * Relatórios do tipo de alcance e linhas de UM vídeo a partir de `desde` (até 400 dias), mais o relatório medido mais antigo e o mais novo do canal
+ * (sem janela). Quatro consultas, as duas primeiras paginadas. Sem prova, canal ou `ytId` malformado: `negado`, sem consultar. `desde` fora de
+ * [hoje - 400, hoje] lança RangeError ANTES de consultar (quem chama é que limita). Erro de banco é LANÇADO.
+ */
+export async function lerAlcanceDoVideo(sb: SupabaseClient, p: Pedido & { ytId: string; desde: DiaYt }): Promise<Privado<AlcanceDoVideo>> {
+  const siteId = siteAutorizado(p)
+  if (siteId == null || !YT_ID.test(p.ytId)) return { acesso: 'negado' }
+  if (p.desde < addDays(p.hoje, -TETO_DIAS_ALCANCE_DO_VIDEO) || p.desde > p.hoje) {
+    throw new RangeError(`lerAlcanceDoVideo: desde ${p.desde} fora de [hoje - ${TETO_DIAS_ALCANCE_DO_VIDEO}, hoje]`)
+  }
+  const filtroRel = () => sb.from('yt_reporting_reports').select('report_id, status, start_time, normalized_at')
+    .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
+  const [rels, linhas, primeiro, recente] = await Promise.all([
+    readAll<RelatorioRow>('yt_reporting_reports', () => filtroRel().gte('start_time', p.desde + 'T00:00:00Z').order('report_id')),
+    readAll<AlcanceRow>('yt_own_video_reach_daily', () => sb.from('yt_own_video_reach_daily')
+      .select('youtube_video_id, day_pt, thumbnail_impressions, thumbnail_ctr, collected_at')
+      .eq('site_id', siteId).eq('channel_id', p.canalId).eq('youtube_video_id', p.ytId)
+      .gte('day_pt', p.desde).order('day_pt').order('youtube_video_id')),
+    primeiroRelatorioMedido(sb, siteId, p.canalId),
+    // SEM janela: o canal parado antes de `desde` ainda diz quando foi o último relatório
+    primeiraLinha<{ start_time: string }>('yt_reporting_reports', sb.from('yt_reporting_reports').select('start_time')
+      .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
+      .order('start_time', { ascending: false }).range(0, 0)),
+  ])
+  let descartados = 0
+  const relatorios: RelatorioDia[] = []
+  for (const r of rels) {
+    const dia = diaUtc(r.start_time)
+    if (dia == null) { descartados++; continue }
+    relatorios.push({ dia, status: statusDe(r.status), normalizado: r.normalized_at != null })
+  }
+  const out: AlcanceLinha[] = umaPorVideoDia(linhas).map(r => {
+    const imp = medida(r.thumbnail_impressions), ctr = ctrDe(r.thumbnail_ctr)
+    if (imp.ruim || ctr.ruim) descartados++
+    return { ytId: r.youtube_video_id, dia: r.day_pt, imp: imp.v, ctr: ctr.v }
+  })
+  return {
+    acesso: 'ok',
+    dado: { alcance: { canalId: p.canalId, relatorios, linhas: out, ultimoRelatorio: diaUtc(recente?.start_time), descartados }, desde: p.desde, primeiroRelatorio: primeiro },
+  }
+}
