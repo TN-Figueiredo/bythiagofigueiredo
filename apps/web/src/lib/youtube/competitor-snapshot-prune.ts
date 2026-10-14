@@ -19,7 +19,7 @@ export async function podarRetratosDeCanal(sb: SupabaseClient, agoraMs: number):
     if (leitura.count > MAX_CANAIS_AUSENTES_NA_PODA) return { ok: false, motivo: `mais de ${MAX_CANAIS_AUSENTES_NA_PODA} canais ausentes (${leitura.count})` }
     const ids: string[] = []
     for (const l of leitura.data as unknown[]) {
-      if (typeof l === 'object' && l !== null && typeof (l as Record<string, unknown>).id === 'string') ids.push((l as Record<string, string>).id)
+      if (typeof l === 'object' && l !== null && typeof (l as Record<string, unknown>).id === 'string') ids.push(String((l as Record<string, unknown>).id))
     }
     if (ids.length !== leitura.count) return { ok: false, motivo: `${ids.length} canais ausentes lidos, contagem ${leitura.count}` }
 
