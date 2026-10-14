@@ -240,6 +240,14 @@ describe('schemaE11', () => {
   })
 })
 
+describe('relação entre as duas datas', () => {
+  it('desde = ligadoEm menos JANELA_DIAS dias', () => {
+    const d = new Date(`${DIMENSOES_LIGADO_EM}T00:00:00.000Z`)
+    d.setUTCDate(d.getUTCDate() - JANELA_DIAS)
+    expect(d.toISOString().slice(0, 10)).toBe(DIMENSOES_DESDE)
+  })
+})
+
 describe('env: a configuração não lê variável de ambiente', () => {
   it('apagar as variáveis não muda o padrão das constantes (o padrão é o do repositório)', () => {
     delete process.env.DIMENSOES_DESDE
