@@ -4,7 +4,8 @@
 //
 // REGRA DESTE ARQUIVO (a mesma de criteria.ts, criteria-cobertura.ts e criteria-desligados.ts): leitura que falha, função ausente,
 // tempo que acaba ou fato de forma estranha NUNCA vira "nada de errado": vira `critérios: não foi possível avaliar retenção de <canal>`
-// em `falhas`. Verde só aparece quando a lista de fatos veio inteira (e, vazia, é a tabela vazia: nenhum vídeo para atrasar).
+// em `falhas`. Verde só aparece quando a lista de fatos veio inteira. Vazia, ela só é "tabela vazia" quando o canal não tem vídeo
+// cadastrado (`youtube_videos` com `published_at`): lista vazia COM vídeos é defeito da função, e o alarme (D) não tem sobre quem disparar.
 // Nenhuma nota leva texto do Postgres nem conteúdo dos fatos.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { comPrazo, prazoDoCriterio, restante, type Relogio } from './clock'
@@ -94,6 +95,26 @@ export function atrasadosDaRetencao(
     .map(([id]) => id)
 }
 
+/**
+ * Lista de fatos vazia: quantos vídeos (com `published_at`, os que a função lista) o canal tem. Texto = não deu para contar
+ * (`falhou`: a nota do banco já foi anotada; `ausente`: veio sem número; `sem_tempo`); o chamador NUNCA trata isso como zero. Leitura dentro do mesmo prazo do critério.
+ */
+async function contarVideosDoCanal(ctx: CriteriosRetencaoCtx, c: ColetaChannel, prazo: number): Promise<number | 'sem_tempo' | 'falhou' | 'ausente'> {
+  let cont: { count: number | null; error: ErroBanco | null } | null
+  try {
+    cont = await comPrazo(
+      Promise.resolve(ctx.supabase.from('youtube_videos').select('id', { count: 'exact', head: true }).eq('channel_id', c.id).not('published_at', 'is', null)),
+      prazo,
+    ) as { count: number | null; error: ErroBanco | null } | null
+  } catch {
+    pushUnico(ctx.falhas, 'erro de banco ao ler youtube_videos')
+    return 'falhou'
+  }
+  if (cont === null) return 'sem_tempo'
+  if (conferirBanco(cont, 'youtube_videos', ctx.falhas, 'ler') !== 'ok') return 'falhou'
+  return typeof cont.count === 'number' ? cont.count : 'ausente'
+}
+
 const naoAvaliou = (falhas: string[], canal: string, motivo?: string): void =>
   pushUnico(falhas, `critérios: não foi possível avaliar retenção de ${canal}${motivo ? ` (${motivo})` : ''}`)
 
@@ -139,6 +160,17 @@ export async function criteriosRetencao(ctx: CriteriosRetencaoCtx): Promise<void
       fatos = lerFatos(res.data)
     } catch {
       naoAvaliou(ctx.falhas, c.name)
+      continue
+    }
+
+    if (fatos.length === 0) {
+      // Lista vazia é verde só se o canal não tem vídeo. A função e a tabela de vídeos concordam em `channel_id = youtube_channels.id`.
+      if (restante(prazo) <= 0) { naoAvaliou(ctx.falhas, c.name, 'sem tempo'); continue }
+      const n = await contarVideosDoCanal(ctx, c, prazo)
+      if (n === 'sem_tempo') naoAvaliou(ctx.falhas, c.name, 'sem tempo')
+      else if (n === 'falhou') naoAvaliou(ctx.falhas, c.name)
+      else if (n === 'ausente') naoAvaliou(ctx.falhas, c.name, 'contagem de vídeos ausente')
+      else if (n > 0) naoAvaliou(ctx.falhas, c.name, `lista vazia, mas o canal tem ${n} ${n === 1 ? 'vídeo' : 'vídeos'}`)
       continue
     }
 
