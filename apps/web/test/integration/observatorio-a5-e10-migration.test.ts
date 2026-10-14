@@ -335,7 +335,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
       const c = await semearCena(pg)
       await exportarConferirConfirmar(pg, c, c.canalA, 'lote-x')
       const antes = await contagemPorTabela(pg, c.canalA)
-      await pg.query(`insert into public.competitor_video_daily (video_id, snap_date, views, taken_at) values ($1, current_date + 400, 5, now())`, [c.videoA])
+      await pg.query(`insert into public.competitor_video_daily (video_id, snap_date, views, taken_at) values ($1, current_date + 300, 5, now())`, [c.videoA])
       const t = await tenta(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
       expect(t.ok).toBe(false)
       if (!t.ok) { expect(codigoE10(t.message)).toBe('banco_difere_do_manifesto'); expect(t.message).toContain('competitor_video_daily') }
