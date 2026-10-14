@@ -1215,6 +1215,8 @@ Nenhum item da etapa ficou sem tarefa. Ficam **fora, por decisão escrita**: as 
 
 ### Apêndice A: MG6 (rodado em 14/10 com todas as emendas, roteiro 1 e as suítes de integração; conserto pós-portão de 14/10 noite: I-5 do Phil, M-2 a M-4 do Yannis)
 
+> **Nota de 14/10 (pedidos 1 e 3 da manutenção):** a MG6 está em produção (`20261014000002`) sem `not c.relispartition` em `obs_archive_uncovered()` e sem a soma por tabela-mãe (`relkind in ('r','p')`, `pg_partition_root`, `obs_part`) em `obs_db_size_record()`. Este apêndice e a fixture `apps/web/test/fixtures/sql/a5-e10-mg6.sql` ficam como estão, iguais ao que está instalado (o teste `arquivo-mg6-identidade` exige isso). O conserto das duas funções para tabela particionada é o **bloco 11 da M2** da manutenção (`supabase/rascunhos/m2.sql`), que as recria a partir do corpo instalado. Se a A5 recriar qualquer uma das duas, avisa a manutenção antes.
+
 **(revisão Phil 14/10, I-2)** A função `competitor_channel_remove_archived` ganhou uma guarda independente do registro: `pg_stat_xact_user_tables.n_tup_del` de cada tabela do fecho de cascata (tirado do catálogo) antes e depois do `delete`, exigindo igual ao que o lote arquivou (autores de comentário, a exclusão declarada, ficam de fora); diferença levanta `E10:apagou_alem_do_arquivo` e a transação desfaz. Rodada em 14/10 no `bythiago_int`: o roteiro do Apêndice B deu a mesma saída guardada, duas vezes, e a integração quebra o filtro de cada uma das 19 entradas existentes do registro e vê a guarda disparar. O código novo entra em `FRASES_E10` (`codigos.ts`).
 
 ```sql
