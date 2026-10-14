@@ -25,7 +25,7 @@ export interface OpcoesDoFalso {
   /** Devolve erro nesta leitura (a chamada já montada + o índice dela naquela tabela). `string` = código do erro; 'lancar' faz a promessa rejeitar. */
   falhar?: (c: Chamada, n: number) => boolean | string
   /** Faz a contagem devolvida divergir: `(tabela, nDaPagina, contagemReal) => contagem a devolver`. */
-  contagem?: (tabela: string, nDaPagina: number, real: number) => number
+  contagem?: (tabela: string, nDaPagina: number, real: number) => number | null
 }
 
 export interface FalsoSaiu { sb: SupabaseClient; chamadas: Chamada[]; rpcs: Array<{ nome: string; args: Record<string, unknown> }> }

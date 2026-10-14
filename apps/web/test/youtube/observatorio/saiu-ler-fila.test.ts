@@ -377,3 +377,51 @@ describe('A5 E9 T4: lerFila', () => {
     expect(r.ultimaLeituraDosCanais).toBe(iso(0.1))
   })
 })
+
+describe('A5 E9: consertos do portão de 14/10', () => {
+  it('I-1/I-5: no máximo 10 prévias em voo, e as 30 chegam', async () => {
+    let emVoo = 0
+    let maximo = 0
+    const f = monta({ competitor_videos: Array.from({ length: 30 }, (_, i) => vidRow(`v${i}`)) }, {
+      rpc: {
+        competitor_purge_preview: async () => {
+          emVoo += 1
+          maximo = Math.max(maximo, emVoo)
+          await new Promise(r => setTimeout(r, 5))
+          emVoo -= 1
+          return { data: PREVIA, error: null }
+        },
+      },
+    })
+    const r = await fila(f, { mostrar: 30 })
+    expect(r.esperando).toHaveLength(30)
+    expect(r.esperando.every(i => !('erro' in i.previa))).toBe(true)
+    expect(f.rpcs.filter(x => x.nome === 'competitor_purge_preview')).toHaveLength(30)
+    expect(maximo).toBeGreaterThan(1)
+    expect(maximo).toBeLessThanOrEqual(10)
+  })
+
+  it('M-2: os mantidos que voltaram são lidos em blocos de 100 ids, sem cortar em silêncio', async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `m${i}`)
+    const f = monta({
+      audit_log: ids.map(id => ({ id: `a${id}`, site_id: S, action: 'competitor_missing_keep', resource_type: 'competitor_video', resource_id: id, created_at: iso(3) })),
+      competitor_videos: ids.map(id => vidRow(id, 'c1', { missing_since: null, removal_decision: 'manter' })),
+    })
+    const r = await fila(f)
+    expect(r.voltaram).toHaveLength(250)
+    expect(f.chamadas.filter(c => e(c, 'competitor_videos', 'in:id'))).toHaveLength(3)
+  })
+
+  it('M-5: o grupo mantido aparece em respondidos mesmo com comentário novo esperando no mesmo canal', async () => {
+    const f = monta({ competitor_video_comments: [comRow(1, 'c1', 'v1', { removal_decision: 'manter', removal_decided_at: iso(1) }), comRow(2, 'c1', 'v1')] })
+    const r = await fila(f)
+    expect(r.esperando).toHaveLength(1)
+    expect(r.respondidos).toMatchObject([{ tipo: 'comentarios', situacao: 'mantido', comentarios: 1 }])
+  })
+
+  it('M-6: contagem nula dos canais do site é erro de leitura, não "nenhum canal"', async () => {
+    const f = monta({}, { contagem: (t, n, real) => (t === 'competitor_channels' && n === 1 ? null : real) })
+    const r = await ler(f)
+    expect(r.estado).toBe('erro')
+  })
+})

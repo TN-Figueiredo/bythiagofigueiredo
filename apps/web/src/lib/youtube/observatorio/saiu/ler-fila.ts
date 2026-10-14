@@ -16,6 +16,22 @@ import {
 type Linha = Record<string, unknown>
 const PAGINA = 1000
 const DIA_MS = 86_400_000
+const PREVIAS_EM_VOO = 10 // "no máximo 10 por vez" (plano, seção 5)
+const IDS_POR_CONSULTA = 100
+
+/** Roda `f` em todos os itens com no máximo `teto` em voo (sem dependência nova). */
+async function comTeto<T>(itens: readonly T[], teto: number, f: (item: T) => Promise<void>): Promise<void> {
+  let proximo = 0
+  const trabalhador = async (): Promise<void> => {
+    for (;;) {
+      const i = proximo++
+      const item = itens[i]
+      if (i >= itens.length || item === undefined) return
+      await f(item)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(teto, itens.length) }, trabalhador))
+}
 
 const ehObjeto = (v: unknown): v is Linha => typeof v === 'object' && v !== null && !Array.isArray(v)
 const txt = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
@@ -97,7 +113,7 @@ export async function lerFila(
         .order('decided_at', { ascending: false }).order('id', { ascending: false }).range(0, RESPONDIDOS_PAGINA - 1),
       sb.rpc('competitor_removed_comment_groups', { p_site: siteId }),
     ])
-    if (info.error) throw new ErroDeLeitura('ultima_leitura', 'erro_de_banco')
+    if (info.error || info.count === null) throw new ErroDeLeitura('ultima_leitura', 'erro_de_banco')
     if (respondidosQ.error) throw new ErroDeLeitura('respondidos', 'erro_de_banco')
     if (grupos.error || !Array.isArray(grupos.data)) throw new ErroDeLeitura('comentarios_apagados', 'erro_de_banco')
 
@@ -145,19 +161,19 @@ export async function lerFila(
       const c = aninhado(k.canal)
       if (txt(v.missing_since) !== null || txt(c.missing_since) !== null || canaisAusentes.has(String(k.competitor_channel_id))) continue
       const chave = String(k.competitor_channel_id)
-      porCanal.set(chave, [...(porCanal.get(chave) ?? []), k])
+      const lista = porCanal.get(chave)
+      if (lista) lista.push(k)
+      else porCanal.set(chave, [k])
     }
     for (const [canalId, rows] of porCanal) {
       const abertos = rows.filter(k => k.removal_decision == null)
       const dMenor = (xs: Linha[]): string => xs.map(k => txt(k.missing_since) ?? '').filter(Boolean).sort()[0] ?? ''
       const nomeDoCanal = txt(aninhado(rows[0]?.canal).channel_name)
-      if (abertos.length === 0) {
-        const m = rows.filter(k => k.removal_decision === 'manter')
-        if (m.length > 0) {
-          mantidos.push({ tipo: 'comentarios', situacao: 'mantido', itemId: null, codigo: null, titulo: nomeDoCanal, quando: m.map(k => txt(k.removal_decided_at) ?? '').sort().reverse()[0] || dMenor(m), comentarios: m.length })
-        }
-        continue
+      const m = rows.filter(k => k.removal_decision === 'manter')
+      if (m.length > 0) {
+        mantidos.push({ tipo: 'comentarios', situacao: 'mantido', itemId: null, codigo: null, titulo: nomeDoCanal, quando: m.map(k => txt(k.removal_decided_at) ?? '').sort().reverse()[0] || dMenor(m), comentarios: m.length })
       }
+      if (abertos.length === 0) continue
       const porVideo = new Map<string, { titulo: string | null; comentarios: number }>()
       for (const k of abertos) {
         const id = String(k.video_id)
@@ -176,7 +192,7 @@ export async function lerFila(
     esperando.sort((a, b) => (a.desde < b.desde ? -1 : a.desde > b.desde ? 1 : a.chave < b.chave ? -1 : a.chave > b.chave ? 1 : 0))
     const totalEsperando = esperando.length
     const mostrados = esperando.slice(0, Math.max(0, o.mostrar))
-    await Promise.all(mostrados.map(async item => { item.previa = await pedirPrevia(sb, siteId, item) }))
+    await comTeto(mostrados, PREVIAS_EM_VOO, async item => { item.previa = await pedirPrevia(sb, siteId, item) })
 
     // ---- apagando / voltaram / respondidos
     const apagando: ItemApagando[] = apagandoRows.map(r => ({
@@ -190,7 +206,9 @@ export async function lerFila(
       if (idsApagando.has(num(r.id) ?? -1)) continue // aparece só em "Apagando", com a data da volta
       if (r.kind === 'comentario') {
         const chave = String(r.competitor_channel_id ?? '')
-        comentariosQueVoltaram.set(chave, [...(comentariosQueVoltaram.get(chave) ?? []), r])
+        const lista = comentariosQueVoltaram.get(chave)
+        if (lista) lista.push(r)
+        else comentariosQueVoltaram.set(chave, [r])
         continue
       }
       voltaram.push({ tipo: tipoDoRemovido(r.kind), pedeResposta: true, itemIds: [num(r.id) ?? 0], codigo: txt(r.youtube_id), titulo: null, voltouEm: txt(r.returned_seen_at), comentarios: null })
@@ -214,7 +232,7 @@ export async function lerFila(
 
     const fila: FilaLida = {
       esperando: mostrados, totalEsperando, apagando, voltaram, respondidos, respondidosTotal,
-      ultimaLeituraDosCanais: txt(linhas(info.data)[0]?.last_ok_synced_at), canaisDoSite: info.count ?? 0, podeResponder: o.podeResponder,
+      ultimaLeituraDosCanais: txt(linhas(info.data)[0]?.last_ok_synced_at), canaisDoSite: info.count, podeResponder: o.podeResponder,
     }
     return { estado: 'ok', fila }
   } catch (err) {
@@ -230,13 +248,18 @@ async function lerMantidosQueVoltaram(sb: SupabaseClient, siteId: string, agoraM
   const audit = await lerLista('auditoria', (de, ate) => sb.from('audit_log').select('resource_id, created_at', { count: 'exact' })
     .eq('site_id', siteId).eq('action', 'competitor_missing_keep').eq('resource_type', 'competitor_video').gte('created_at', desde)
     .order('created_at', { ascending: false }).order('id').range(de, ate))
-  const ids = [...new Set(audit.map(a => txt(a.resource_id)).filter((x): x is string => x !== null))].slice(0, 200)
+  const ids = [...new Set(audit.map(a => txt(a.resource_id)).filter((x): x is string => x !== null))]
   if (ids.length === 0) return []
-  const r = await sb.from('competitor_videos').select('id, video_id, title, missing_since, competitor_channels!inner(site_id)')
-    .in('id', ids).eq('competitor_channels.site_id', siteId)
-  if (r.error) throw new ErroDeLeitura('mantidos_que_voltaram', 'erro_de_banco')
+  // a URL do `in` estoura acima de ~200 ids (medido no banco local): blocos de 100, um depois do outro
+  const achados: Linha[] = []
+  for (let i = 0; i < ids.length; i += IDS_POR_CONSULTA) {
+    const r = await sb.from('competitor_videos').select('id, video_id, title, missing_since, competitor_channels!inner(site_id)')
+      .in('id', ids.slice(i, i + IDS_POR_CONSULTA)).eq('competitor_channels.site_id', siteId)
+    if (r.error) throw new ErroDeLeitura('mantidos_que_voltaram', 'erro_de_banco')
+    achados.push(...linhas(r.data))
+  }
   const quando = new Map(audit.map(a => [txt(a.resource_id) ?? '', txt(a.created_at)]))
-  return linhas(r.data).filter(v => txt(v.missing_since) === null).map(v => ({
+  return achados.filter(v => txt(v.missing_since) === null).map(v => ({
     tipo: 'video' as const, pedeResposta: false, itemIds: [], codigo: txt(v.video_id), titulo: txt(v.title), voltouEm: quando.get(String(v.id)) ?? null, comentarios: null,
   }))
 }
