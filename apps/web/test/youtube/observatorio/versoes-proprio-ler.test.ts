@@ -73,6 +73,11 @@ describe('lerVersoes', () => {
     expect(r.videos[0]!.versoes.map(v => v.id)).toEqual(['a'])
   })
 
+  it('2b. (portão 14/10, Yannis I3) estado de outro site com o mesmo canal não vale: sem_estado', async () => {
+    const db = fakeSupabase({ yt_own_versions_state: [estado({ site_id: 'site-b' })] })
+    expect(ok(await lerVersoes(db.client, pedido())).estado).toEqual({ estado: 'sem_estado' })
+  })
+
   it('3. tabela ausente: schema_ausente, sem lançar', async () => {
     const db = fakeSupabase({})
     const r = ok(await lerVersoes(comErroNaTabela(db.client, 'yt_own_versions_state', '42P01'), pedido()))
@@ -129,6 +134,17 @@ describe('lerVersoes', () => {
     expect(v.registro.title.conferidoAte).toBe(d(1))
   })
 
+  it('5f. (portão 14/10, Yannis M2) conferidoAte vem da versão corrente, não da primeira', async () => {
+    const db = fakeSupabase({
+      yt_own_versions_state: [estado()],
+      yt_own_video_versions: [
+        versao(V1, 'title', 'base', { is_current: false, last_day_pt: d(10), first_seen_at: `${d(11)}T12:00:00Z` }),
+        versao(V1, 'title', 'atual', troca({ last_day_pt: d(1), first_seen_at: `${d(4)}T12:00:00Z`, first_day_pt: d(4) })),
+      ],
+    })
+    expect(ok(await lerVersoes(db.client, pedido())).videos[0]!.registro.title.conferidoAte).toBe(d(1))
+  })
+
   it('5e. versão pre_registro de título sem outra versão de título: continua sem_versao', async () => {
     const db = fakeSupabase({
       yt_own_versions_state: [estado()],
@@ -155,6 +171,22 @@ describe('lerVersoes', () => {
     // estado com erro de banco também lança
     const e3 = await lerVersoes(comErroNaTabela(db.client, 'yt_own_versions_state', 'XX000'), pedido()).catch(x => x)
     expect(e3).toBeInstanceOf(ErroLeituraVersoes)
+  })
+
+  it('6b. (portão 14/10, Yannis M3) resposta sem lista (data nula, sem erro) lança, não vira lista vazia', async () => {
+    const db = fakeSupabase({ yt_own_versions_state: [estado()] })
+    const vazia = {
+      from: (t: string) => {
+        if (t !== 'yt_own_video_versions') return db.client.from(t)
+        const q: Record<string, unknown> = {}
+        for (const m of ['select', 'eq', 'in', 'order']) q[m] = () => q
+        q.range = async () => ({ data: null, error: null })
+        return q
+      },
+    } as unknown as SupabaseClient
+    const e = await lerVersoes(vazia, pedido()).catch(x => x)
+    expect(e).toBeInstanceOf(ErroLeituraVersoes)
+    expect((e as ErroLeituraVersoes).motivo).toBe('erro_de_banco')
   })
 
   it('7. ytIds vazio: nenhuma consulta às versões, o estado real do canal', async () => {
@@ -187,6 +219,14 @@ describe('lerVersoes', () => {
     expect(th[0]!.texto).toBeNull()
   })
 
+  it('9b. (portão 14/10, Phil m-3) retoque com dHash igual à âncora: imagemExata falsa, mesmo com a URL no dHash', async () => {
+    const db = fakeSupabase({
+      yt_own_versions_state: [estado()],
+      yt_own_video_versions: [versao(V1, 'thumb', 'th1', { thumb_similar: true, origin: 'fora_do_sistema', window_precision: '1d', window_start: `${d(3)}T12:00:00Z`, window_end: `${d(2)}T12:00:00Z` })],
+    })
+    expect(ok(await lerVersoes(db.client, pedido())).videos[0]!.versoes[0]!.thumb).toMatchObject({ imagemExata: false, retoque: true })
+  })
+
   it("10. versão com origem 'cms' no banco é lida como veio", async () => {
     const db = fakeSupabase({ yt_own_versions_state: [estado()], yt_own_video_versions: [versao(V1, 'title', 'a', { origin: 'cms', window_precision: '1d', window_start: `${d(5)}T12:00:00Z`, window_end: `${d(4)}T12:00:00Z` })] })
     expect(ok(await lerVersoes(db.client, pedido())).videos[0]!.versoes[0]!.origem).toBe('cms')
@@ -205,11 +245,17 @@ describe('lerVersoes', () => {
     expect(ok(await lerVersoes(db.client, pedido())).videos[0]!.versoes.map(v => v.id)).toEqual(['t1', 't2', 'th1', 'd1'])
   })
 
-  it('12. ytIds: inválidos saem, repetidos somem, no máximo 50', async () => {
+  it('12. ytIds: inválidos saem, repetidos somem, 50 passam', async () => {
     const db = fakeSupabase({ yt_own_versions_state: [estado()] })
-    const ids = Array.from({ length: 60 }, (_, i) => `vid${String(i).padStart(8, '0')}`)
+    const ids = Array.from({ length: 50 }, (_, i) => `vid${String(i).padStart(8, '0')}`)
     const r = ok(await lerVersoes(db.client, pedido({ ytIds: [...ids, ids[0]!, 'inválido!', ''] })))
     expect(r.videos).toHaveLength(50)
+  })
+
+  it('12b. (portão 14/10, Phil m-1) 51 vídeos válidos: lança RangeError em vez de cortar calado', async () => {
+    const db = fakeSupabase({ yt_own_versions_state: [estado()] })
+    const ids = Array.from({ length: 51 }, (_, i) => `vid${String(i).padStart(8, '0')}`)
+    await expect(lerVersoes(db.client, pedido({ ytIds: ids }))).rejects.toBeInstanceOf(RangeError)
   })
 
   it('13. varredura: só este arquivo consulta yt_own_video_versions fora de coleta/', () => {

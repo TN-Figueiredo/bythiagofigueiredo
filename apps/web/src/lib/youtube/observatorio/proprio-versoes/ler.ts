@@ -77,11 +77,20 @@ const registroVazio = (): Record<CampoVersao, RegistroDoCampo> => ({
   title: { estado: 'sem_versao', conferidoAte: null }, thumb: { estado: 'sem_versao', conferidoAte: null }, desc: { estado: 'sem_versao', conferidoAte: null },
 })
 
+/**
+ * A URL termina no dHash da própria versão. Retoque com dHash igual ao da âncora repete a URL da véspera (a T5 não arquiva): a imagem
+ * não é a do retoque, então não é exata (portão 14/10, Phil m-3).
+ */
+function imagemExata(l: LinhaVersaoDb): boolean {
+  if (l.thumb_blob_url === null || !l.thumb_blob_url.endsWith(`/${l.thumb_dhash}.jpg`)) return false
+  return !(l.thumb_similar && l.thumb_dhash === l.thumb_anchor_dhash)
+}
+
 function paraVersao(l: LinhaVersaoDb): VersaoPropria {
   return {
     id: l.id, ytId: l.youtube_video_id, campo: l.field, texto: l.value_text, hash: l.value_hash,
     thumb: l.field === 'thumb' && l.thumb_dhash !== null
-      ? { dhash: l.thumb_dhash, sha256: l.thumb_sha256, blobUrl: l.thumb_blob_url, imagemExata: l.thumb_blob_url !== null && l.thumb_blob_url.endsWith(`/${l.thumb_dhash}.jpg`), retoque: l.thumb_similar }
+      ? { dhash: l.thumb_dhash, sha256: l.thumb_sha256, blobUrl: l.thumb_blob_url, imagemExata: imagemExata(l), retoque: l.thumb_similar }
       : null,
     primeiroDia: l.first_day_pt, ultimoDia: l.last_day_pt, vistaDesde: l.first_seen_at, vistaAte: l.last_seen_at,
     janela: l.window_start !== null && l.window_end !== null ? { de: l.window_start, ate: l.window_end } : null,
@@ -112,7 +121,9 @@ export async function lerVersoes(sb: SupabaseClient, p: PedidoVersoes): Promise<
   const siteId = p.edicao.siteId, canalId = p.canalId
   const teto = p.tetoLinhas ?? TETO_LINHAS_VERSOES
   if (!Number.isFinite(teto) || teto <= 0) throw new RangeError('teto de linhas inválido: precisa ser um número finito maior que zero')
-  const ytIds = [...new Set(p.ytIds)].filter(id => ID_VIDEO.test(id)).slice(0, TETO_VIDEOS_VERSOES)
+  // Fora do formato sai (contrato do teste 12); acima do teto LANÇA em vez de cortar calado (portão 14/10, Phil m-1).
+  const ytIds = [...new Set(p.ytIds)].filter(id => ID_VIDEO.test(id))
+  if (ytIds.length > TETO_VIDEOS_VERSOES) throw new RangeError(`ytIds acima do teto de ${TETO_VIDEOS_VERSOES} vídeos por leitura`)
 
   const est = await lerTudo<LinhaEstadoDb>('yt_own_versions_state', () => sb.from('yt_own_versions_state')
     .select('channel_id, tracking_since, derived_through')
@@ -137,6 +148,9 @@ export async function lerVersoes(sb: SupabaseClient, p: PedidoVersoes): Promise<
   if (ver.ausente) return { acesso: 'ok', dado: { canalId, estado: { estado: 'schema_ausente' }, videos: [] } }
 
   const porVideo = new Map<string, LinhaVersaoDb[]>()
-  for (const l of ver.linhas) porVideo.set(l.youtube_video_id, [...(porVideo.get(l.youtube_video_id) ?? []), l])
+  for (const l of ver.linhas) {
+    const lista = porVideo.get(l.youtube_video_id)
+    if (lista) lista.push(l); else porVideo.set(l.youtube_video_id, [l])
+  }
   return { acesso: 'ok', dado: { canalId, estado, videos: ytIds.map(id => montarVideo(id, porVideo.get(id) ?? [])) } }
 }
