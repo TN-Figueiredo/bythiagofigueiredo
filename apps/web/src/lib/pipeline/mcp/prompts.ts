@@ -1267,9 +1267,10 @@ export function registerPrompts(server: McpServer): void {
       lines.push('For each channel, note:')
       lines.push('- Channel name, subscriber count, video count')
       lines.push('- Average engagement rate')
-      lines.push('- Growth delta (30-day subscriber change)')
-      lines.push('- Recent videos (titles, views, outlier status)')
-      lines.push('- VsYou comparison (subs delta, engagement delta, frequency delta)')
+      lines.push('- The exact fields of each channel are in `GET /api/pipeline/docs/youtube`, section "Competitor Observatory": read them there and do not assume other fields')
+      lines.push('- When a field comes with `estado: nao_lido` or `estado: nao_medido`, quote its `frase` and do not estimate the value')
+      lines.push('- Never report `-1` or a zero rate from `insights`, or a zero `video_count`, as a measurement: say the value is not known')
+      lines.push('- Own-channel numbers from `analytics/*` and `videos/:id` are not Observatory numbers: say which source a number came from')
       lines.push('')
 
       lines.push('### 1b. Identify outlier videos')
