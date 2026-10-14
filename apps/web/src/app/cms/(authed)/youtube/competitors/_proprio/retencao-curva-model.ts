@@ -5,7 +5,7 @@
  *
  * Cinco estados que nunca se confundem (este sistema falha em VERDE: pergunte "o que acontece quando o dado não existe?"):
  *  - `coletada`: há curva da vida inteira. A frase, a lista de saídas e de trechos revistos e o aviso vêm dos pontos que existem.
- *  - `sem-curva`: o YouTube RESPONDEU que não há curva (poucas views). A data é a da ÚLTIMA RESPOSTA, mesmo que a última tentativa de todas tenha sido um erro.
+ *  - `sem-curva`: o YouTube RESPONDEU que não há curva (a causa é dele: a tela não a adivinha). A data é a da ÚLTIMA RESPOSTA, mesmo que a última tentativa de todas tenha sido um erro.
  *  - `nao-coletada`: nenhuma resposta ainda (ou a migration da tabela não foi aplicada). O texto de sempre.
  *  - `erro`: a leitura falhou, a curva está ilegível, ou o banco é incoerente (resposta `ok` sem curva). NUNCA vira "ainda não coletamos".
  *  - `negado`: sem a prova de edição. Nenhum número, nenhuma data, nenhum ponto.
@@ -28,11 +28,13 @@ export interface CurvaDesenho {
   eixo: [string, string, string, string, string]
   /** onde a curva cruza 50%; null = não cruza, ou curva incompleta (não se sabe) */
   meioT: number | null
+  /** curva que não é a grade inteira: o último `t` com dado (fração do vídeo). O que vem depois é "sem dado", desenhado como ausência. null = curva completa */
+  ateT: number | null
   /** o início de cada maior saída (triângulo) */
   saidas: Array<{ t: number }>
   /** cada trecho revisto (faixa) */
   revistos: Array<{ de: number; ate: number }>
-  legenda: { saidas: boolean; revistos: boolean; pico: string | null }
+  legenda: { saidas: boolean; revistos: boolean; pico: string | null; semDado: boolean }
   /** o texto de `role="img"`: a frase principal */
   alt: string
 }
@@ -60,6 +62,9 @@ export const METODO_RETENCAO: string[] = [
 ]
 
 const FRASE_NAO_COLETADA = 'Ainda não coletamos esta curva. Quando coletarmos, esta seção mostra onde as pessoas saem do vídeo e onde voltam.'
+/** Curva que chega ao fim do vídeo (t = 1) e mesmo assim não é a grade de 100 pontos (101 pontos, ou buraco no meio): não falta o fim, falta o formato. */
+const FRASE_FORA_DO_FORMATO = 'Não dá para dizer onde metade das pessoas sai: a curva coletada não veio no formato esperado.'
+const FRASE_INCOMPLETA = 'Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.'
 const FRASE_ERRO = 'A leitura da curva falhou agora; recarregue a página.'
 const FRASE_NEGADO = 'Só quem edita o site vê a curva de retenção deste vídeo.'
 
@@ -111,6 +116,8 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
   const leitura: LeituraDaCurva | null = lerCurva(curva.pontos)
   if (leitura == null) throw new RangeError('curva sem pontos')
   const sufixo = temDuracao(dur) ? '' : ' do vídeo'
+  // até onde vai o dado (a curva vem ordenada e validada por `lerCurva`): é o que a tela diz da curva incompleta, nunca a contagem de pontos
+  const ultimoT = curva.pontos[curva.pontos.length - 1]!.t
 
   // a frase principal: só a curva COMPLETA pode dizer "mais da metade ficou até o fim"
   let partes: ParteRetencao[]
@@ -122,7 +129,7 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
   } else if (leitura.meio.tipo === 'nunca_cruza') {
     partes = [{ t: 'Mais da metade das pessoas ficou até o fim.' }]
   } else {
-    partes = [{ t: 'Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.' }]
+    partes = [{ t: pct(ultimoT) >= 100 ? FRASE_FORA_DO_FORMATO : FRASE_INCOMPLETA }]
   }
   const frase = partes.map(p => p.t).join('')
 
@@ -144,8 +151,11 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
     pico = legendaDoPico(leitura, curva.pontos, dur)
   }
 
-  const aviso = `Curva da vida inteira do vídeo, coletada em ${dm(diaDeSaoPaulo(curva.coletadaEm))}. O % assistido da seção anterior é dos últimos dias.`
-    + (leitura.pontos < 100 ? ` Curva com ${leitura.pontos} pontos.` : '')
+  // curva que acaba antes do fim do vídeo: diz quanto ela cobre ("primeiros 5:41 do vídeo (37%)"; sem duração, só "37%")
+  const cobre = !leitura.completa && pct(ultimoT) < 100
+    ? ` A curva cobre só os primeiros ${temDuracao(dur) ? `${mmss(ultimoT * dur)} do vídeo (${pct(ultimoT)}%)` : `${pct(ultimoT)}% do vídeo`}.`
+    : ''
+  const aviso = `Curva da vida inteira do vídeo, coletada em ${dm(diaDeSaoPaulo(curva.coletadaEm))}. O % assistido da seção anterior é dos últimos dias.` + cobre
 
   return {
     estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso,
@@ -153,9 +163,10 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
       pontos: curva.pontos.map(p => ({ t: p.t, ratio: p.ratio })),
       eixo: eixoDe(dur),
       meioT: leitura.meio.tipo === 'cruza' ? leitura.meio.t : null,
+      ateT: leitura.completa ? null : ultimoT,
       saidas: desenhoSaidas,
       revistos: desenhoRevistos,
-      legenda: { saidas: desenhoSaidas.length > 0, revistos: desenhoRevistos.length > 0, pico },
+      legenda: { saidas: desenhoSaidas.length > 0, revistos: desenhoRevistos.length > 0, pico, semDado: !leitura.completa && pct(ultimoT) < 100 },
       alt: frase,
     },
   }
@@ -187,7 +198,8 @@ export function buildRetencaoView(a: { retencao: Privado<RetencaoDoVideo> | null
   const resp = d.ultimaResposta
   if (resp == null) return vazio('nao-coletada', FRASE_NAO_COLETADA)
   if (resp.resultado === 'sem_dado_na_janela') {
-    return vazio('sem-curva', `O YouTube não devolveu curva para este vídeo (poucas views). Tentamos de novo quando o vídeo ganhar views. Última resposta: ${a.dm(resp.dia)}.`)
+    // a causa é do YouTube ("sem dado"); "poucas views" seria inferência nossa. A promessa é a da regra de releitura: 7 dias ou mais, com view nova
+    return vazio('sem-curva', `O YouTube respondeu que não tem curva para este vídeo. Tentamos de novo em 7 dias ou mais, se o vídeo tiver views novas. Última resposta: ${a.dm(resp.dia)}.`)
   }
   // o YouTube respondeu `ok` e não há curva guardada: incoerência do banco, não falta de coleta
   return vazio('erro', FRASE_ERRO)
