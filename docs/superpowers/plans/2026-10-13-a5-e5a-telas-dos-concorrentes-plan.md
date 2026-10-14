@@ -1377,6 +1377,8 @@ Roteiro de teste do dono, por tela: `docs/superpowers/mockups/ROTEIRO-DE-TESTE-E
 
 Faixa: `razão ≤ 2` estreita, `≤ 6` média, acima larga. **`p25 === 0`** (vídeo com zero views no quarto de baixo): faixa larga, sem razão escrita (a linha diz "faixa larga · k vídeos"), nunca "Infinity×" nem "NaN×".
 
+**Emenda do portão de código (14/10 noite, Phil P1, m-d):** a janela parcial vale para **qualquer k** e é avaliada antes de "views não lidas" e de "poucos vídeos": com k ≤ 2 o canal sai "sem medida · só desde dd/mm" (motivo `janela_parcial`), não "sem vídeos em 90 dias" (conserto `5c377f34f` em wt-ri). Risco que fica (m-d): canal com exatamente `video_limit` vídeos no total aparece como janela parcial sem estar; raro, declarado.
+
 **Janela parcial** (portão RI 14/10, Phil I2): `tracked = k < min(video_limit, 200)` (`load.ts:259,268,314`), os mais recentes de todos os formatos; num canal com 3 Shorts por dia os 50 acompanhados cobrem ~15 dias e os longos de 15 a 90 dias ficam de fora. Sem esta regra a tela diria "vídeo típico em 90 dias" calculado sobre duas semanas. A R1 reusa a derivação `partial`/`fetchedSince` do ritmo (`channels.ts:~92`); `referenciaDoCanal` recebe todos os vídeos do canal (todos os formatos), não só os do escopo. Se o campo não estiver no `ObsChannel`, para e avisa.
 
 **Inscritos, por canal** (`hoje` = o retrato mais novo do canal; `antes` = o retrato mais novo com `hoje.t − antes.t` de 28 a 31 dias. **Distância de dias = `Math.round((a.t − b.t) / DAY)`** (`t` é meio-dia de São Paulo, `load.ts:325`; sem horário de verão desde 2019), **nunca comparação de texto**: `ChannelSnapshot.date` é `dd/mm/aaaa` (`dmyOf`) e só serve para escrever "dd/mm" na tela (portão RI 14/10, Yannis I2 / Phil m1)):
