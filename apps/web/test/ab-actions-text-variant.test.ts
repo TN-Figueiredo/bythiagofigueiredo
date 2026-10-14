@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/links/auto-link', () => ({ ensureTrackedLink: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ captureOriginalMetadata: vi.fn() }))
-vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
+vi.mock('@vercel/blob', () => ({ put: vi.fn(), del: vi.fn() }))
 
 // These are imported by the actions file but not exercised in text-variant tests
 vi.mock('@/lib/youtube/ab-youtube', () => ({
@@ -30,9 +30,10 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureTrackedLink } from '@/lib/links/auto-link'
+import { put } from '@vercel/blob'
 import { DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
 import type { CreateTextVariantInput } from '@/lib/youtube/ab-types'
-import { createTextVariant, updateTextVariant } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { createTextVariant, updateTextVariant, uploadVariant } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 
 // ---------------------------------------------------------------------------
 // Supabase chain mock helper
@@ -262,5 +263,31 @@ describe('updateTextVariant', () => {
     })
 
     expect(result).toEqual({ ok: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// uploadVariant — a descrição não entra mais na variante (P3, Tarefa 3)
+// ---------------------------------------------------------------------------
+
+describe('uploadVariant', () => {
+  it('ignora description_text do FormData: o insert não leva a descrição', async () => {
+    vi.mocked(put).mockResolvedValue({ url: 'https://blob/x.png', pathname: 'ab-test/test-1/B.png' } as never)
+    enqueueResult({ data: { id: 'test-1', status: 'draft' } }) // ab_tests
+    enqueueResult({ data: [] }) // variantes existentes
+    enqueueResult({ data: { id: 'var-1' } }) // insert
+
+    const fd = new FormData()
+    fd.set('file', new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' }))
+    fd.set('title_text', 'Meu título')
+    fd.set('description_text', 'descrição que não deve gravar')
+
+    const result = await uploadVariant('test-1', fd)
+
+    expect(result).toEqual({ ok: true, variantId: 'var-1' })
+    const linha = primeiraEscrita('ab_test_variants', 'insert')
+    expect(linha).toBeDefined()
+    expect(linha!.title_text).toBe('Meu título')
+    expect(linha).not.toHaveProperty('description_text')
   })
 })
