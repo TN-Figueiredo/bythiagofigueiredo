@@ -231,6 +231,18 @@ describe('A5 E10 T6: exportarCanal, o caminho feliz', () => {
     expect(instrucoesDe(m.b.chamadas).at(-1)).toBe('rollback')
   })
 
+  it('57014 (tempo esgotado) na leitura: a frase é a da leitura, sem a palavra remoção nem o comando remover (revisão Yannis 14/10, I1)', async () => {
+    const m = montar({ falhaEm: t => (/^fetch forward/.test(t.trim()) ? Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' }) : null) })
+    const r = await m.exportar()
+    expect(r).toMatchObject({ ok: false, codigo: 'demorou_demais', frase: FRASES_DO_EXPORT.demorou_demais })
+    if (r.ok) throw new Error('esperava recusa')
+    expect(r.frase).not.toMatch(/remo[çc]/i)
+    expect(r.frase).not.toContain('remover')
+    expect(r.frase).toContain('Nada foi registrado')
+    expect(JSON.stringify(r)).not.toContain('statement timeout')
+    expect(m.d.arquivos.has(`${PASTA}/manifesto.json`)).toBe(false)
+  })
+
   it('o registro recusa: os arquivos ficam e o resultado diz o código, com a frase do catálogo (nunca a do banco)', async () => {
     const m = montar({ erroDoRegistro: { message: 'E10:banco_difere_do_manifesto: competitor_video_daily 2026-09-01 banco=3 arquivo=2' } })
     const r = await m.exportar()

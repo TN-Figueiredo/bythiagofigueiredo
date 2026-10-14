@@ -55,6 +55,8 @@ export const FRASES_DO_EXPORT: Record<string, string> = {
   miniaturas_ausentes: 'Há miniaturas que não existem mais no Blob. Use --aceitar-miniaturas-ausentes para seguir sem elas.',
   miniaturas_nao_baixaram: 'Não foi possível baixar algumas miniaturas. Nada foi registrado.',
   erro_do_banco: 'O banco devolveu um erro durante a leitura. Nada foi registrado, e os arquivos da pasta não servem.',
+  // 57014 no export é tempo da leitura: a frase do catálogo (`FRASES_E10`) fala da remoção e mandaria o dono para o `remover` (revisão Yannis 14/10, I1)
+  demorou_demais: 'O banco passou do tempo durante a exportação. Nada foi registrado. Tente de novo; se repetir, avise.',
 }
 
 const recusa = (codigo: string, detalhe?: string[]): ResultadoExport => ({

@@ -33,6 +33,8 @@ export const FRASES_DA_CONFERENCIA: Record<string, string> = {
   banco_mudou: 'O banco mudou depois da exportação: há dado diferente do que está nos arquivos.',
   miniaturas_diferentes: 'O conjunto de miniaturas do banco é diferente do que está no manifesto.',
   erro_do_banco: 'O banco devolveu um erro durante a conferência. Nada foi marcado.',
+  // 57014 na conferência: a frase do catálogo fala da remoção (revisão Yannis 14/10, I1)
+  demorou_demais: 'O banco passou do tempo durante a conferência. Nada foi marcado. Tente de novo; se repetir, avise.',
 }
 
 const sha256 = (d: Uint8Array): string => createHash('sha256').update(d).digest('hex')

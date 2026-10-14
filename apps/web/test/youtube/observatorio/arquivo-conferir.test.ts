@@ -208,6 +208,17 @@ describe('A5 E10 T6: conferirLote', () => {
     expect(p.verificou()).toBe(false)
   })
 
+  it('57014 (tempo esgotado) no carimbo: a frase é a da conferência, sem a palavra remoção nem o comando remover (revisão Yannis 14/10, I1)', async () => {
+    const p = await exportado({ erroDaVerificacao: { message: 'canceling statement due to statement timeout', code: '57014' } })
+    const r = await p.conferir()
+    expect(r).toMatchObject({ ok: false, codigo: 'demorou_demais', frase: FRASES_DA_CONFERENCIA.demorou_demais })
+    if (r.ok) throw new Error('esperava falha')
+    expect(r.frase).not.toMatch(/remo[çc]/i)
+    expect(r.frase).not.toContain('remover')
+    expect(r.frase).toContain('Nada foi marcado')
+    expect(JSON.stringify(r)).not.toContain('statement timeout')
+  })
+
   it('o banco recusa o carimbo: o código do catálogo, nunca a mensagem; rollback da transação de escrita', async () => {
     const p = await exportado({ erroDaVerificacao: { message: 'E10:despausado_depois_do_export: SEGREDO' } })
     const r = await p.conferir()
