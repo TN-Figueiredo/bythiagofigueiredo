@@ -143,6 +143,14 @@ function validar(m: PacoteModelo): void {
   if (m.privado.estado === 'incluido' && privadas.length === 0) {
     throw new Error('contexto-ia: privado incluído, mas o modelo não tem nenhuma tabela privada; é defeito do empacotador')
   }
+  if (m.privado.estado !== 'incluido') {
+    // Dado privado fora das tabelas (foco, bloco citado, definição, aviso): a bandeira existe para o defeito do empacotador não passar em silêncio.
+    const onde = m.foco.some((f) => f.privado) ? 'foco'
+      : m.citados.some((b) => b.privado) ? 'citados'
+        : m.definicoes.some((d) => d.privado) ? 'definicoes'
+          : (m.avisosPrivados?.length ?? 0) > 0 ? 'avisosPrivados' : null
+    if (onde) throw new Error(`contexto-ia: privado "${m.privado.estado}", mas o modelo tem ${onde} com dado privado; é defeito do empacotador`)
+  }
   for (const b of m.citados) {
     if (!b.linha) continue
     const t = m.tabelas.find((x) => x.id === b.linha?.tabela)
@@ -161,7 +169,7 @@ const bloco = (linhas: readonly string[]): string => `${linhas.join('\n')}\n` //
 const citarSemCerca = (texto: string): string[] => citar(texto).map((l) => l.replace(/`{3,}/g, (c) => "'".repeat(c.length)))
 
 function blocoCitado(b: BlocoCitado, corte: ClasseDeCorte): Segmento {
-  const texto = bloco([F.citado(naCelula(b.rotulo)), ...citarSemCerca(b.texto)])
+  const texto = bloco([F.citado(`${naCelula(b.rotulo)}${b.privado ? F.MARCA_PRIVADO : ''}`), ...citarSemCerca(b.texto)])
   const valores: Record<string, unknown> = b.linha ? { bloco: naCelula(b.rotulo), posicao: b.linha.posicao, texto: b.texto } : { bloco: naCelula(b.rotulo), texto: b.texto }
   return seg(4, texto, corte, { tabela: b.linha?.tabela ?? 'citados', valores })
 }
@@ -241,7 +249,7 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
   segmentos.push(seg(2, bloco([F.COMO_LER_TITULO, ...F.COMO_LER_LINHAS])))
 
   // 3. foco
-  segmentos.push(seg(3, bloco([F.FOCO_TITULO, ...(m.foco.length ? m.foco.map((f) => `- ${naCelula(f.nome)} (${f.oQueE}): ${naCelula(f.detalhe)}`) : [F.FOCO_VAZIO])])))
+  segmentos.push(seg(3, bloco([F.FOCO_TITULO, ...(m.foco.length ? m.foco.map((f) => `- ${naCelula(f.nome)} (${f.oQueE})${f.privado ? F.MARCA_PRIVADO : ''}: ${naCelula(f.detalhe)}`) : [F.FOCO_VAZIO])])))
 
   // 4. os números
   segmentos.push(seg(4, F.NUMEROS_TITULO))
@@ -254,13 +262,15 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
   if (comentarios !== null) segmentos.push(seg(4, comentarios))
 
   // 5. definições
-  const defs = m.definicoes.flatMap((d) => [`- ${naCelula(d.medida)}: ${naCelula(d.frase)}`, ...d.limiares.map((l) => `  - ${naCelula(l)}`)])
+  const defs = m.definicoes.flatMap((d) => [`- ${naCelula(d.medida)}${d.privado ? F.MARCA_PRIVADO : ''}: ${naCelula(d.frase)}`, ...d.limiares.map((l) => `  - ${naCelula(l)}`)])
   segmentos.push(seg(5, bloco([F.DEFINICOES_TITULO, ...(defs.length ? defs : [F.DEFINICOES_VAZIO])])))
 
   // 6. avisos, e o que a tela não mede
   segmentos.push(seg(6, bloco([
     F.AVISOS_TITULO,
-    ...(m.avisos.length ? m.avisos.map((a) => `- ${naCelula(a)}`) : [F.AVISOS_VAZIO]),
+    ...(m.avisos.length || m.avisosPrivados?.length
+      ? [...m.avisos.map((a) => `- ${naCelula(a)}`), ...(m.avisosPrivados ?? []).map((a) => `- ${naCelula(a)}${F.MARCA_PRIVADO}`)]
+      : [F.AVISOS_VAZIO]),
     ...(m.naoMede.length ? ['', F.NAO_MEDE_TITULO, ...m.naoMede.map((x) => `- ${naCelula(x)}`)] : []),
   ])))
 

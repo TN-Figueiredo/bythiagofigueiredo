@@ -27,6 +27,8 @@ export interface BlocoCitado {
   origem: string // várias linhas de terceiros ou da forja
   /** O bloco pertence a esta linha de lista e sai com ela no corte; ausente = bloco sem linha. */
   linha?: { tabela: string; posicao: number }
+  /** Dado privado do canal: só com `privado.estado === 'incluido'`; com `na` ou `excluido` o empacotador tem de tirar o bloco (`segmentar` lança). */
+  privado?: boolean
 }
 
 /** Não tem campo para nome, id de canal, foto, link nem id do comentário: a identidade não tem por onde entrar. */
@@ -42,11 +44,13 @@ export interface Comentario {
 export interface PacoteModelo {
   tela: TelaId
   janela: string
-  foco: Array<{ nome: string; oQueE: 'seu canal' | 'concorrente' | 'vídeo'; detalhe: string }>
+  foco: Array<{ nome: string; oQueE: 'seu canal' | 'concorrente' | 'vídeo'; detalhe: string; privado?: boolean }>
   tabelas: Tabela[]
   citados: BlocoCitado[]
-  definicoes: Array<{ medida: string; frase: string; limiares: string[] }>
+  definicoes: Array<{ medida: string; frase: string; limiares: string[]; privado?: boolean }>
   avisos: string[]
+  /** Avisos que citam dado privado do canal: saem na parte 6 com a marca e só com `privado.estado === 'incluido'` (senão `segmentar` lança). */
+  avisosPrivados?: string[]
   naoMede: string[]
   /** Três motivos; a frase "não tem o direito" só sai com 'sem_direito'. */
   privado:
