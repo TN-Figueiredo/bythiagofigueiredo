@@ -5,9 +5,7 @@ import { DetailHeader } from './detail-header'
 import { EarlyBand } from './early-band'
 import { EarlyHero } from './early-hero'
 import { EarlyVariantTable } from './early-variant-table'
-import { EmptyChart } from './empty-chart'
 import type { EarlyCheckpoint } from './early-types'
-import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { LayoutGrid } from 'lucide-react'
 
 export interface EarlyDetailProps {
@@ -90,9 +88,6 @@ export function EarlyDetail({ view }: EarlyDetailProps) {
               <LayoutGrid size={17} className="text-cms-accent" aria-hidden="true" />
               <h3 className="text-[19px] font-semibold text-cms-text m-0">Placar das variantes</h3>
             </div>
-            <p className="text-[12.5px] text-cms-text mt-[5px] max-w-[540px] m-0">
-              {SEM_MEDICAO_DE_ENTREGA}
-            </p>
           </div>
         </div>
         <EarlyVariantTable
@@ -100,16 +95,6 @@ export function EarlyDetail({ view }: EarlyDetailProps) {
           videoTitle={view.videoTitle}
         />
       </section>
-
-      {/* 4x Empty Charts */}
-      <div className="grid grid-cols-1 gap-[16px] mb-[36px]">
-        <EmptyChart
-          icon="LineChart"
-          title="CTR diario por variante"
-          message="Historico diario aparece apos o segundo dia de rotacao."
-          eta="~48h"
-        />
-      </div>
     </div>
   )
 }

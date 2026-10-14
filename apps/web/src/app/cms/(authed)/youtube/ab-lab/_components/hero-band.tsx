@@ -3,7 +3,7 @@
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { VChip } from './ab-primitives'
-import { TrendingUp, Minus, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown } from 'lucide-react'
 
 export interface HeroBandProps {
   leader: { label: DisplayLabel; color: string }
@@ -13,15 +13,15 @@ export interface HeroBandProps {
 }
 
 export function HeroBand({ leader, trend, semMedicao }: HeroBandProps) {
-  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus
+  const TrendIcon = trend === 'up' ? TrendingUp : TrendingDown
   const trendColor = trend === 'up' ? 'var(--cms-green)' : trend === 'down' ? 'var(--cms-red)' : 'var(--cms-text-muted)'
-  const trendLabel = trend === 'up' ? 'Subindo' : trend === 'down' ? 'Descendo' : '— estavel'
+  const trendLabel = trend === 'up' ? 'Subindo' : trend === 'down' ? 'Descendo' : '—'
 
   const trendSubtitle = trend === 'up'
     ? `${leader.label} consolidando a liderança`
     : trend === 'down'
       ? `${leader.label} perdendo força`
-      : 'estavel'
+      : 'estável'
 
   return (
     <div
@@ -50,7 +50,7 @@ export function HeroBand({ leader, trend, semMedicao }: HeroBandProps) {
       <div className="bg-cms-surface py-[18px] px-[20px] flex flex-col">
         <span className="eyebrow">Tendência</span>
         <div className="flex items-center gap-[7px] font-mono text-[26px] font-bold leading-none tracking-tight mt-[8px]" style={{ color: trendColor }}>
-          <TrendIcon size={26} aria-hidden="true" />
+          {trend !== 'flat' && <TrendIcon size={26} aria-hidden="true" />}
           {trendLabel}
         </div>
         <span className="text-[11px] text-cms-text-dim mt-auto">{trendSubtitle}</span>

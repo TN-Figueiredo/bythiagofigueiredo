@@ -1,7 +1,6 @@
 'use client'
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { ChevronDown } from 'lucide-react'
 
@@ -123,11 +122,6 @@ export function EarlyVariantTable({ variants, videoTitle }: EarlyVariantTablePro
           </div>
         </div>
       ))}
-
-      {/* Footer hint */}
-      <div className="py-[9px] px-[16px] border-t border-cms-border text-[10.5px] text-cms-text">
-        {SEM_MEDICAO_DE_ENTREGA}
-      </div>
     </div>
   )
 }

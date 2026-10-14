@@ -234,8 +234,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             polledAt: view.pollData.polledAt,
           } : undefined}
         />
-        {/* Métricas computadas card */}
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
+        {/* Métricas computadas card: sem outlier nem previsão não há o que mostrar */}
+        {(view.outlier || view.daysRemaining) && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden">
           {/* card-head */}
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Zap size={15} className="text-cms-text-dim" aria-hidden="true" />
@@ -261,7 +261,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
               </div>
             )}
           </div>
-        </div>
+        </div>)}
       </div>
 
       {/* ── Section 5: Placar das variantes ── */}
@@ -330,8 +330,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           </div>
         </div>
 
-        {/* Funil por variante (líder) */}
-        <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+        {/* Funil por variante (líder): sem impressões medidas não há funil */}
+        {!semMedicao && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Filter size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Funil por variante</span>
@@ -344,7 +344,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
               return funnel ? <FunnelRow variant={funnel} /> : null
             })()}
           </div>
-        </div>
+        </div>)}
       </div>
 
       {/* ── Section 11: O momento de clique ── */}

@@ -40,8 +40,8 @@ export function SignalCard({ live }: SignalCardProps) {
 
       {/* card-pad */}
       <div className="flex gap-[24px] px-[16px] py-[14px]">
-        <DeltaCol label="Δ Views" value={live?.viewsDelta ?? 0} />
-        <DeltaCol label="Δ Curtidas" value={live?.likesDelta ?? 0} />
+        <DeltaCol label="Δ Views" value={live?.viewsDelta ?? null} />
+        <DeltaCol label="Δ Curtidas" value={live?.likesDelta ?? null} />
         {live?.commentsDelta != null && (
           <DeltaCol label="Δ Comentários" value={live.commentsDelta} />
         )}
@@ -50,13 +50,13 @@ export function SignalCard({ live }: SignalCardProps) {
   )
 }
 
-function DeltaCol({ label, value }: { label: string; value: number }) {
-  const cls = value > 0 ? 'text-cms-green' : value < 0 ? 'text-cms-red' : 'text-cms-text-muted'
+function DeltaCol({ label, value }: { label: string; value: number | null }) {
+  const cls = value == null ? 'text-cms-text-muted' : value > 0 ? 'text-cms-green' : value < 0 ? 'text-cms-red' : 'text-cms-text-muted'
   return (
     <div>
       <span className="eyebrow">{label}</span>
       <span className={`block font-mono text-[22px] font-bold leading-none tracking-tight mt-[4px] ${cls}`}>
-        {value > 0 ? '+' : ''}{value === 0 ? '0' : value.toLocaleString('pt-BR')}
+        {value == null ? '—' : <>{value > 0 ? '+' : ''}{value === 0 ? '0' : value.toLocaleString('pt-BR')}</>}
       </span>
     </div>
   )

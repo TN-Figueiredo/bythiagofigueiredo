@@ -849,6 +849,7 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
     thumbnailUrl: string | null
     ctr: number
     viewCount: number
+    impressions: number | null
     score: number
     hasCtr: boolean
     reason: string
@@ -873,6 +874,7 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
       thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
       ctr,
       viewCount,
+      impressions: (v.impressions as number | null) ?? null,
       score,
       hasCtr: ctr > 0 && channelAvgCtr > 0,
       reason: '',
@@ -916,6 +918,7 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
       thumbnailUrl: v.thumbnailUrl,
       ctr: Math.round(v.ctr * 100) / 100,
       channelMedianCtr: Math.round(channelAvgCtr * 100) / 100,
+      impressions: v.impressions,
       grade,
       reason,
       suggest: 'thumbnail' as const,
@@ -932,7 +935,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   const variants: FullChartVariant[] = results.variants.map(v => ({
     label: toDisplayLabel(v.label, v.is_original),
     color: variantColor(v.label, v.is_original),
-    ctr: v.avg_ctr * 100,
+    ctr: v.avg_ctr,
     impressions: v.total_impressions,
     clicks: v.total_clicks,
     pBest: 0,

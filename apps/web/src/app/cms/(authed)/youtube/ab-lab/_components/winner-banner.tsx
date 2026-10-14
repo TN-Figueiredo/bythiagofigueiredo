@@ -91,7 +91,8 @@ export function WinnerBanner({
           {stats.monthlyExtraClicks === null ? (
             <>
               <div className="text-[24px] font-bold font-mono leading-none text-cms-text-muted tnum">—</div>
-              <div className="text-[11px] text-cms-text mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>
+              {/* a frase fixa já está no topo do banner quando faltam confiança ou lift */}
+              {confidence !== null && lift !== null && <div className="text-[11px] text-cms-text mt-2">{SEM_MEDICAO_DE_ENTREGA}</div>}
             </>
           ) : stats.monthlyExtraClicks > 0 ? (
             <>

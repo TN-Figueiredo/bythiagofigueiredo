@@ -351,7 +351,7 @@ export interface SuggestedVideo {
   grade: 'A' | 'B' | 'C' | 'D' | 'F'
   reason: string
   suggest: TestType
-  impressions?: string
+  impressions?: number | null
   confidence?: number
 }
 

@@ -6,7 +6,6 @@ import { DetailHeader } from './detail-header'
 import { WinnerBanner } from './winner-banner'
 import { LiveMonitorCard } from './live-monitor'
 import { ComoEstaAgora } from './como-esta-agora'
-import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { ClickMoment } from './click-moment'
 import { VariantTable } from './variant-table'
 import { SectionLabel } from './ab-primitives'
@@ -110,7 +109,6 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             <Trophy size={17} className="text-cms-accent" aria-hidden="true" />
             <h3 className="text-[19px] font-semibold text-cms-text m-0">Vencedor escolhido por você</h3>
           </div>
-          <p className="text-[12.5px] text-cms-text m-0">{SEM_MEDICAO_DE_ENTREGA}</p>
         </div>
       </section>
 

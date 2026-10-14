@@ -577,10 +577,10 @@ describe('Type safety regression tests', () => {
 
     const withOptionals: SuggestedVideo = {
       ...suggested,
-      impressions: '26k',
+      impressions: 26000,
       confidence: 0.82,
     }
-    expect(withOptionals.impressions).toBe('26k')
+    expect(withOptionals.impressions).toBe(26000)
     expect(withOptionals.confidence).toBe(0.82)
   })
 
