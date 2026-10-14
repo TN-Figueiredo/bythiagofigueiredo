@@ -2639,3 +2639,52 @@ begin
 end $$;
 revoke all on function public.obs_archive_channel_archive_impact(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_channel_archive_impact(uuid, uuid) to service_role;
+
+-- M3B PARTE 7: pendências do dono (emenda de 14/10, peça 7; contrato C12). Na M3b só emite tempo 'sem_comando';
+-- a M9 recria esta função com os outros tempos (copiar, conferir_b2, apagar_antigas, bloqueado) e versao 2.
+create or replace function public.obs_archive_owner_pending(p_site uuid default null) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_site  uuid := p_site;
+  v_lista jsonb;
+  v_itens jsonb;
+begin
+  if v_site is null then   -- o comando do Mac não sabe o site: um único site, ou erro (nunca "lista vazia")
+    if (select count(*) from public.sites) <> 1 then raise exception 'site_ambiguo' using errcode = 'P0001'; end if;
+    select id into v_site from public.sites;
+  end if;
+  v_lista := public.obs_archive_removed_channel_list(v_site);   -- erro sobe (nunca lista vazia)
+  if v_lista is null or jsonb_typeof(v_lista) <> 'array' then raise exception 'lista_de_remocao_ilegivel' using errcode = 'P0001'; end if;
+  with canal as (
+    select 'canal:' || (r->>'channel_ref') as item_id, 'canal'::text as kind,
+           greatest((r->>'decided_at')::timestamptz, (r->>'reappeared_at')::timestamptz) as desde,
+           nullif(r->>'channel_ref', '') as channel_ref, nullif(r->>'youtube_channel_id', '') as youtube_id
+      from jsonb_array_elements(v_lista) r
+     where r->>'estado' = 'pedido'
+  ), item as (
+    select 'item:' || i.id::text, i.kind, i.decided_at, i.competitor_channel_id::text, i.youtube_id
+      from public.competitor_removed_items i
+     where i.site_id = v_site and i.archive_pending and i.kind in ('video', 'comentario')
+  ), tudo as (select * from canal union all select * from item)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'item_id', item_id, 'kind', kind, 'tempo', 'sem_comando', 'desde', desde, 'mes', null,
+           'channel_ref', channel_ref, 'youtube_id', youtube_id, 'marcado_rodado_em', null,
+           'apagar', '[]'::jsonb, 'b2_nomes', '[]'::jsonb) order by desde, item_id), '[]'::jsonb)
+    into v_itens from tudo;
+  return jsonb_build_object('versao', 1, 'lido_em', now(), 'total', jsonb_array_length(v_itens), 'itens', v_itens);
+end $$;
+revoke all on function public.obs_archive_owner_pending(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_owner_pending(uuid) to service_role, postgres;
+
+-- O papel só de leitura do `npm run -s obs:arquivo` (decisão do dono, 14/10). SEM senha aqui: o dono a define uma vez, fora do
+-- repositório, pelo m3b-obs-arquivo-credencial.sh (Tarefa 8a). Sem senha, o papel não entra.
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'obs_arquivo_leitor') then
+    create role obs_arquivo_leitor login noinherit nosuperuser nocreatedb nocreaterole noreplication connection limit 2;
+  end if;
+end $$;
+alter role obs_arquivo_leitor set default_transaction_read_only = on;
+alter role obs_arquivo_leitor set statement_timeout = '15s';
+alter role obs_arquivo_leitor set search_path = '';
+grant usage on schema public to obs_arquivo_leitor;
+grant execute on function public.obs_archive_owner_pending(uuid) to obs_arquivo_leitor;

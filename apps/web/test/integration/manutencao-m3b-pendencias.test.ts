@@ -1,0 +1,187 @@
+// apps/web/test/integration/manutencao-m3b-pendencias.test.ts
+// @vitest-environment node
+/**
+ * Manutenção M3b, parte 7 do SQL (emenda de 14/10, peça 7; plano M3b-site, Tarefa E1): `obs_archive_owner_pending` (C12) e o papel só de
+ * leitura `obs_arquivo_leitor`. Banco: SÓ o `bythiago_int` (54422), tudo em `begin … rollback`.
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { Client } from 'pg'
+import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { aplicarM2 } from '../helpers/m2'
+import { aplicarM3b, sqlM3bAte, escalar, q1, semearCanal } from '../helpers/m3b'
+import { M10A_SQL } from './video-antigo-m10a-caminho'
+import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
+
+const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+const DAILY = 'competitor_video_daily'
+
+interface Item { item_id: string; kind: string; tempo: string; desde: string; mes: string | null; channel_ref: string | null; youtube_id: string | null; marcado_rodado_em: string | null; apagar: unknown[]; b2_nomes: unknown[] }
+interface Pend { versao: number; lido_em: string; total: number; itens: Item[] }
+
+describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono e o papel de leitura', () => {
+  let c: Client
+  beforeAll(async () => { c = new Client({ connectionString: PG_URL }); await c.connect() })
+  afterAll(async () => { await c.end() })
+
+  async function emTx<T>(fn: () => Promise<T>): Promise<T> {
+    await c.query('begin')
+    try {
+      await aplicarM2(c)
+      await c.query(readFileSync(M10A_SQL, 'utf8'))
+      await aplicarM3b(c, 7)
+      return await fn()
+    } finally { await c.query('rollback') }
+  }
+  async function falha(sql: string, params: unknown[] = []): Promise<{ code: string; message: string } | null> {
+    await c.query('savepoint f_pd')
+    try { await c.query(sql, params); await c.query('release savepoint f_pd'); return null } catch (e) {
+      await c.query('rollback to savepoint f_pd')
+      const o = e as { code?: string; message?: string }
+      return { code: o.code ?? '', message: o.message ?? '' }
+    }
+  }
+  const ler = async (site: string | null): Promise<Pend> => (await c.query(`select public.obs_archive_owner_pending($1) as r`, [site])).rows[0].r as Pend
+  async function admin(site: string): Promise<string> {
+    const id = randomUUID()
+    const org = (await c.query(`select org_id from public.sites where id = $1`, [site])).rows[0].org_id as string
+    await c.query(`insert into auth.users (id, instance_id, aud, role, email) values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`, [id, `m3b-${id}@t.test`])
+    await c.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, id])
+    return id
+  }
+  /** Um canal com uma unidade, removido pelo botão com `apagar` (estado `pedido`). */
+  async function canalPedido(site: string): Promise<{ canal: string; adminId: string }> {
+    const a = await semearCanal(c, { site, videos: 0 })
+    const adminId = await admin(site)
+    await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+      values ($1, 'serie', $2, $3, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [site, DAILY, a.canal])
+    await c.query(`select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, [site, a.canal, adminId])
+    return { canal: a.canal, adminId }
+  }
+  const limparSites = async (manter: string | null): Promise<void> => {      // só dentro da transação desfeita; sem os gatilhos de chave estrangeira
+    await c.query(`set local session_replication_role = replica`)
+    await c.query(`delete from public.sites where $1::uuid is null or id <> $1`, [manter])
+    await c.query(`set local session_replication_role = origin`)
+  }
+
+  it('zero medido: site sem remoção e sem item devolve total 0, lista vazia, versão 1 e lido_em', async () => emTx(async () => {
+    const a = await semearCanal(c, { site: randomUUID(), videos: 1 })
+    const r = await ler(a.site)
+    expect(r).toMatchObject({ versao: 1, total: 0, itens: [] })
+    expect(r.lido_em).toBeTruthy()
+    expect(lerPendencias(r).ok).toBe(true)                                              // e o leitor aceita a forma que o banco devolve
+  }))
+
+  it('canal removido com apagar vira pendência sem comando; reappeared_at posterior vira o desde', async () => emTx(async () => {
+    const site = randomUUID()
+    const { canal } = await canalPedido(site)
+    const r = await ler(site)
+    expect(r.total).toBe(1)
+    expect(r.itens[0]).toMatchObject({ item_id: `canal:${canal}`, kind: 'canal', tempo: 'sem_comando', mes: null, channel_ref: canal, marcado_rodado_em: null, apagar: [], b2_nomes: [] })
+    const decidido = await escalar<Date>(c, `select decided_at from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [site, canal])
+    expect(new Date(r.itens[0]!.desde).getTime()).toBe(decidido.getTime())
+    await c.query(`update public.obs_archive_channel_removals set reappeared_at = decided_at + interval '3 days', reappeared_count = 1 where site_id = $1`, [site])
+    const r2 = await ler(site)
+    expect(new Date(r2.itens[0]!.desde).getTime()).toBe(decidido.getTime() + 3 * 86400_000)
+    expect(lerPendencias(r2).ok).toBe(true)
+  }))
+
+  it('sem_destino, guardado e sem_arquivo não entram', async () => emTx(async () => {
+    const site = randomUUID()
+    const a = await semearCanal(c, { site, videos: 0 }); const adm = await admin(site)
+    // sem_arquivo: remoção apagar de canal sem unidade
+    await c.query(`select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, [site, a.canal, adm])
+    // guardado: remoção guardar (E10) com unidade
+    const g = await semearCanal(c, { site, videos: 0 })
+    await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+      values ($1, 'serie', $2, $3, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [site, DAILY, g.canal])
+    await c.query(`select public.competitor_channel_remove($1, $2, 'guardar', 'e10_export', $3)`, [site, g.canal, adm])
+    // sem_destino: unidade de canal ausente sem remoção
+    await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+      values ($1, 'serie', $2, $3, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [site, DAILY, randomUUID()])
+    const estados = (await c.query(`select e->>'estado' as estado from jsonb_array_elements(public.obs_archive_removed_channel_list($1)) e order by 1`, [site])).rows.map(x => x.estado)
+    expect(estados).toEqual(['guardado', 'sem_arquivo', 'sem_destino'])
+    expect((await ler(site)).total).toBe(0)
+  }))
+
+  it('item da E9 com archive_pending entra; sem, não; comentário também', async () => emTx(async () => {
+    const site = randomUUID()
+    const a = await semearCanal(c, { site, videos: 0 }); const adm = await admin(site)
+    const item = async (kind: string, pendente: boolean): Promise<number> => Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
+      values ($1, $2, 'yt' || substr(gen_random_uuid()::text, 1, 8), $3, $4, '{}'::jsonb, $5) returning id`, [site, kind, a.canal, adm, pendente])).id)
+    const v = await item('video', true); await item('video', false); const cm = await item('comentario', true); await item('canal', true)
+    const r = await ler(site)
+    expect(r.itens.map(i => i.item_id).sort()).toEqual([`item:${v}`, `item:${cm}`].sort())
+    expect(r.itens.every(i => i.tempo === 'sem_comando' && i.apagar.length === 0 && i.b2_nomes.length === 0 && i.channel_ref === a.canal)).toBe(true)
+    expect(lerPendencias(r).ok).toBe(true)
+  }))
+
+  it('ordem estável: desde crescente, empate por item_id', async () => emTx(async () => {
+    const site = randomUUID()
+    const a = await semearCanal(c, { site, videos: 0 }); const adm = await admin(site)
+    const em = async (dias: number, kind = 'video'): Promise<number> => Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, decided_at, rows_deleted, archive_pending)
+      values ($1, $2, 'yt' || substr(gen_random_uuid()::text, 1, 8), $3, $4, now() - make_interval(days => $5::int), '{}'::jsonb, true) returning id`, [site, kind, a.canal, adm, dias])).id)
+    const recente = await em(1), antigo = await em(30), meio1 = await em(10), meio2 = await em(10)
+    await c.query(`update public.competitor_removed_items set decided_at = (select decided_at from public.competitor_removed_items where id = $2) where id = $1`, [meio2, meio1])
+    const ids = (await ler(site)).itens.map(i => i.item_id)
+    const empate = [meio1, meio2].map(n => `item:${n}`).sort()
+    expect(ids).toEqual([`item:${antigo}`, ...empate, `item:${recente}`])
+  }))
+
+  it('erro sobe, nunca lista vazia', async () => emTx(async () => {
+    const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
+    await c.query(`create or replace function public.obs_archive_removed_channel_list(p_site uuid) returns jsonb language plpgsql as $$ begin raise exception 'quebrou' using errcode = 'P0001'; end $$`)
+    expect((await falha(`select public.obs_archive_owner_pending($1)`, [a.site]))?.message).toBe('quebrou')
+    await c.query(`create or replace function public.obs_archive_removed_channel_list(p_site uuid) returns jsonb language sql as $$ select null::jsonb $$`)
+    expect((await falha(`select public.obs_archive_owner_pending($1)`, [a.site]))?.message).toBe('lista_de_remocao_ilegivel')
+  }))
+
+  it('site resolvido dentro: um site lê esse site; zero ou dois lançam site_ambiguo', async () => emTx(async () => {
+    const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
+    await limparSites(a.site)
+    expect(await ler(null)).toMatchObject({ versao: 1, total: 0 })
+    const b = await semearCanal(c, { site: randomUUID(), videos: 0 })
+    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')
+    expect(await falha(`select public.obs_archive_owner_pending($1)`, [b.site])).toBeNull()      // com o site dado, não precisa resolver
+    await limparSites(null)
+    expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')
+  }))
+
+  it('concessões: anon e authenticated não; service_role, postgres e obs_arquivo_leitor sim', async () => emTx(async () => {
+    const f = 'public.obs_archive_owner_pending(uuid)'
+    for (const q of ['anon', 'authenticated']) expect(await escalar(c, `select has_function_privilege($1, $2, 'execute')`, [q, f]), q).toBe(false)
+    for (const q of ['service_role', 'postgres', 'obs_arquivo_leitor']) expect(await escalar(c, `select has_function_privilege($1, $2, 'execute')`, [q, f]), q).toBe(true)
+  }))
+
+  it('o papel de leitura só lê a função; a parte 7 rodada duas vezes não falha', async () => emTx(async () => {
+    const papel = await q1(c, `select rolcanlogin, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolinherit, rolconnlimit, rolconfig from pg_roles where rolname = 'obs_arquivo_leitor'`)
+    expect(papel).toMatchObject({ rolcanlogin: true, rolsuper: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false, rolinherit: false, rolconnlimit: 2 })
+    expect(papel.rolconfig).toEqual(expect.arrayContaining(['default_transaction_read_only=on', 'statement_timeout=15s']))
+    expect(await escalar(c, `select rolpassword is null from pg_authid where rolname = 'obs_arquivo_leitor'`)).toBe(true)     // sem senha no arquivo
+    // nenhuma tabela de public: nenhum privilégio
+    const tabelas = (await c.query(`select c.oid::regclass::text as t from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')`)).rows
+    for (const { t } of tabelas) for (const priv of ['select', 'insert', 'update', 'delete'])
+      expect(await escalar<boolean>(c, `select has_table_privilege('obs_arquivo_leitor', $1, $2)`, [t, priv]), `${t} ${priv}`).toBe(false)
+    // nenhuma função de public com execute CONCEDIDO AO PAPEL além da C12 (ACL explícita)
+    const diretas = (await c.query(`select p.oid::regprocedure::text as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+        lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+      where n.nspname = 'public' and a.grantee = (select oid from pg_roles where rolname = 'obs_arquivo_leitor') and a.privilege_type = 'EXECUTE' order by 1`)).rows.map(x => x.f as string)
+    expect(diretas).toEqual(['obs_archive_owner_pending(uuid)'])
+    // as que o papel herda do PUBLIC (execute padrão do Postgres) não se fecham aqui sem risco para as políticas: a conferência e o revoke são do Passo 5 da Tarefa 10
+    const viaPublic = await escalar(c, `select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace, lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+      where n.nspname = 'public' and a.grantee = 0 and a.privilege_type = 'EXECUTE' and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')`)
+    console.log(`E1: ${viaPublic} funções de public (fora de extensão) com execute para PUBLIC, herdado pelo obs_arquivo_leitor`)
+    // idempotente
+    await c.query(sqlM3bAte(7).slice(sqlM3bAte(7).indexOf('-- M3B PARTE 7')))
+    await c.query(sqlM3bAte(7).slice(sqlM3bAte(7).indexOf('-- M3B PARTE 7')))
+  }))
+
+  it('só lê: a chamada em transação read only não falha', async () => emTx(async () => {
+    const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
+    await c.query('savepoint ro')
+    await c.query('set transaction read only')
+    expect(await ler(a.site)).toMatchObject({ total: 0 })
+    await c.query('rollback to savepoint ro')
+  }))
+})
