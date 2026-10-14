@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID, createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
@@ -34,8 +34,13 @@ vi.setConfig({ testTimeout: 60_000 })
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const RAIZ = fileURLToPath(new URL('../../../../', import.meta.url))
-// 1b: trocar para supabase/migrations/<arquivo> (esta pasta de ensaio é ignorada pelo git: quebra na CI até a 1b)
-const MG7_SQL = `${RAIZ}.superpowers/sdd/a5-e11/sql/mg7.sql`
+// Tarefa 1b: o SQL vem do arquivo de migration (a pasta de ensaio em .superpowers/ é ignorada pelo git e não existe na CI)
+const MG7_ARQUIVO = 'observatorio_a5_e11_canal_proprio_em_tabelas'
+const MG7_SQL = ((): string => {
+  const dir = `${RAIZ}supabase/migrations/`
+  const achado = readdirSync(dir).find(f => f.includes(MG7_ARQUIVO))
+  return achado ? dir + achado : `${dir}<${MG7_ARQUIVO} não existe>`
+})()
 const CORPO_UNICO_MD5 = '4827d5ad12a0120b52ebc1280491b00c'
 
 const HOJE = utcDay(new Date())
