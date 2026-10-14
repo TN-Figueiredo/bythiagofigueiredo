@@ -506,7 +506,10 @@ revoke all on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date
 grant execute on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) to service_role;
 ```
 
-  **Ponto 5 (`competitor_series_health`):** cópia literal do bloco de `20261012000004_…:85-163` com **três** mudanças, e
+  **Ponto 5 (`competitor_series_health`):** cópia literal do bloco de `20261012000004_…:85-163` com **três** mudanças
+  (mais o remendo da E10, conserto de 14/10: a condição `or public.competitor_channel_pause_covers(c.id, p_now, interval '3 days')`
+  logo depois de `c.missing_since is not null` em `fora`, com guarda antes (E10 aplicada) e depois (corpo leva o remendo);
+  sem ele a pausa de canal recusa com `E10:pausa_sem_remendo`; teste `manutencao-m10a-pausa.test.ts`), e
   nenhuma outra: (a) a CTE `vid` passa a se chamar `vid_todos` e ganha, depois de `canal_em_dia`, a coluna
   `(v.archive_frozen_at is not null) as congelado`; (b) logo depois dela, a CTE nova
   `vid as (select * from vid_todos where not congelado)` (assim toda conta de hoje, que lê `vid`, deixa o congelado de fora

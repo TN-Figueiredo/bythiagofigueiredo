@@ -149,6 +149,14 @@ end $$;
 revoke all on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) from public, anon, authenticated;
 grant execute on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) to service_role;
 
+-- Guarda (conserto 14/10): esta função leva o remendo da E10; sem a E10 aplicada antes, parar aqui com mensagem clara.
+do $$
+begin
+  if to_regprocedure('public.competitor_channel_pause_covers(uuid,timestamptz,interval)') is null then
+    raise exception 'M10a: a E10 (competitor_channel_pause_covers) tem de estar aplicada antes da M10a';
+  end if;
+end $$;
+
 -- Ponto 5 (prova da série): cópia de 20261012000004 com três mudanças (CTE vid_todos + congelado, CTE vid sem congelados, chave arquivados).
 create or replace function public.competitor_series_health(p_site_id uuid, p_now timestamptz)
 returns jsonb language sql stable security invoker set search_path = '' as $$
@@ -162,6 +170,8 @@ returns jsonb language sql stable security invoker set search_path = '' as $$
                     and c.sync_error_since < p_now - interval '3 days', false) as canal_erro_3d,
            (coalesce(v.views_hidden, false) or coalesce(v.live_broadcast_content, 'none') = 'upcoming'
             or v.missing_since is not null or c.missing_since is not null
+            -- remendo da E10 (cobertura da pausa de canal): sem ele a pausa de canal recusa com E10:pausa_sem_remendo
+            or public.competitor_channel_pause_covers(c.id, p_now, interval '3 days')
             or coalesce(c.sync_status = 'error' and c.sync_error_since < p_now - interval '3 days', false)) as fora,
            -- o canal já foi lido pelo código da E2 e terminou uma sincronização boa nas últimas 24 h
            (c.last_seen_at is not null and c.last_ok_synced_at > p_now - interval '1 day') as canal_em_dia,
@@ -231,6 +241,13 @@ returns jsonb language sql stable security invoker set search_path = '' as $$
     'semanal_total', (select count(*) from vid where not fora and series_tier = 'semanal')
   );
 $$;
+do $$
+begin
+  if (select p.prosrc from pg_proc p where p.oid = 'public.competitor_series_health(uuid,timestamptz)'::regprocedure)
+       not like '%competitor_channel_pause_covers%' then
+    raise exception 'M10a: competitor_series_health saiu sem o remendo da E10';
+  end if;
+end $$;
 revoke all on function public.competitor_series_health(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.competitor_series_health(uuid, timestamptz) to service_role;
 
