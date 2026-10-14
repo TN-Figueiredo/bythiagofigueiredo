@@ -32,8 +32,8 @@ const DOZE = [
 
 /** Exceção 1: continuam em can_edit_site(site_id). Só quem edita lê (diagnóstico de coleta, texto de comentário de outro canal, resposta crua, relatórios em fila). */
 const EM_EDICAO = ['yt_own_collection_attempts', 'competitor_video_comment_authors', 'competitor_raw', 'yt_reporting_reports', 'yt_reporting_jobs'] as const
-/** Exceção 2: continuam em can_view_site(site_id). Dado de vídeo PÚBLICO (visualizações por hora de vídeo público): quem vê o site vê. */
-const EM_LEITURA_DO_SITE = ['yt_own_public_video_hourly', 'yt_own_public_video_early', 'yt_own_public_hour_map', 'yt_own_public_hour_fold_log'] as const
+/** Exceção 2: continuam em can_view_site(site_id). Dado de vídeo PÚBLICO (visualizações por hora de vídeo público; contagens e estado da coleta de comentários de vídeo de outro canal, sem texto nem autor): quem vê o site vê. */
+const EM_LEITURA_DO_SITE = ['yt_own_public_video_hourly', 'yt_own_public_video_early', 'yt_own_public_hour_map', 'yt_own_public_hour_fold_log', 'competitor_video_comment_snaps'] as const
 /** Exceção 3: RLS ligada e NENHUMA policy: só a service role lê. A última é a cópia de segurança da MG15 (classificação que a OP-16 pede). */
 const SEM_POLICY = ['yt_own_collection_runs', 'yt_reporting_report_blobs', 'yt_own_video_daily_zeros_bkp'] as const
 
@@ -115,9 +115,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): a lista das doze e as
     })
   })
 
-  it('as exceções, pelo nome: cinco em can_edit_site, quatro em can_view_site, três sem policy e com RLS ligada', async () => {
+  it('as exceções, pelo nome: cinco em can_edit_site, cinco em can_view_site, três sem policy e com RLS ligada', async () => {
     expect(EM_EDICAO).toHaveLength(5)
-    expect(EM_LEITURA_DO_SITE).toHaveLength(4)
+    expect(EM_LEITURA_DO_SITE).toHaveLength(5)
     expect(SEM_POLICY).toHaveLength(3)
     await emTransacao(async () => {
       for (const t of EM_EDICAO) {
@@ -147,6 +147,17 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): a lista das doze e as
     })
   })
 
+  it('toda tabela competitor_video_comment* de public está na lista das doze ou nas exceções (tabela nova sem classificação derruba, com o nome)', async () => {
+    await emTransacao(async () => {
+      const r = await pg.query<{ relname: string }>(
+        `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'public' and c.relname like 'competitor\\_video\\_comment%' and c.relkind in ('r', 'p', 'v', 'm') order by 1`,
+      )
+      const semClasse = r.rows.map((x) => x.relname).filter((n) => !CLASSIFICADAS.includes(n))
+      expect(semClasse, `tabela(s) competitor_video_comment* sem classificação neste teste: ${semClasse.join(', ')}. Classificar na lista das doze ou nas exceções, no mesmo commit que a cria`).toEqual([])
+    })
+  })
+
   it('tabela ausente só é aceita se estiver em PODEM_FALTAR', async () => {
     await emTransacao(async () => {
       const ausentes: string[] = []
@@ -156,9 +167,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E17 passo 0 (MG11): a lista das doze e as
     })
   })
 
-  it('as listas não se sobrepõem e somam 12 + 5 + 4 + 3', () => {
+  it('as listas não se sobrepõem e somam 12 + 5 + 5 + 3', () => {
     const todas = [...DOZE, ...EM_EDICAO, ...EM_LEITURA_DO_SITE, ...SEM_POLICY]
     expect(new Set(todas).size).toBe(todas.length)
-    expect(todas).toHaveLength(24)
+    expect(todas).toHaveLength(25)
   })
 })
