@@ -119,6 +119,34 @@ describe('folhas', () => {
     a['eu'] = a
     expect(folhas(a)).toEqual([{ caminho: 'x', valor: 1 }])
   })
+
+  it('ciclo de verdade em dois passos (a -> b -> a) e dentro de lista não trava e lista cada folha uma vez', () => {
+    const a: Record<string, unknown> = { x: 1 }
+    const b: Record<string, unknown> = { y: 2, volta: a }
+    a['b'] = b
+    a['lista'] = [b, a]
+    expect(folhas(a)).toEqual([
+      { caminho: 'x', valor: 1 },
+      { caminho: 'b.y', valor: 2 },
+      { caminho: 'lista[].y', valor: 2 },
+    ])
+  })
+
+  it('objeto compartilhado por duas chaves (DAG, não ciclo) é percorrido nos dois caminhos', () => {
+    const medida = { texto: '10', x: 10 }
+    const modelo = { a: medida, b: medida, lista: [medida, medida] }
+    expect(folhas(modelo).map((f) => f.caminho)).toEqual(['a.texto', 'a.x', 'b.texto', 'b.x', 'lista[].texto', 'lista[].x', 'lista[].texto', 'lista[].x'])
+    const comFuncao = { f: () => 1 }
+    expect(ignorados({ a: comFuncao, b: comFuncao }).map((i) => i.caminho)).toEqual(['a.f', 'b.f'])
+  })
+
+  it('semDestino acusa o campo sem destino no SEGUNDO caminho de um objeto compartilhado', () => {
+    const medida = { texto: '10', x: 10 }
+    const modelo = { a: medida, b: medida }
+    expect(semDestino(modelo, { 'a.texto': 'numero', 'a.x': 'serie' })).toEqual(['b.texto', 'b.x'])
+    const compartilhado = { a: medida, b: medida, c: [medida] }
+    expect(semDestino(compartilhado, { 'a.texto': 'numero', 'a.x': 'serie', 'b.*': 'numero' })).toEqual(['c[].texto', 'c[].x'])
+  })
 })
 
 describe('semDestino e semUso', () => {
