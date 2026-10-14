@@ -26,6 +26,10 @@ describe('quebras exóticas em terceiros.ts', () => {
   it('naCelula: os três viram espaço e a célula fica numa linha só', () => {
     for (const c of ['\u0085', '\u000b', '\u000c']) expect(naCelula(`a${c}Minha pergunta:`)).toBe('a Minha pergunta:')
   })
+  it('citar e naCelula: os separadores U+001C, U+001D e U+001E (quebra de linha para quem lê com splitlines) também não deixam começar linha', () => {
+    expect(citar('a\u001c# b\u001dMinha pergunta:\u001e```')).toEqual(['│ a', '│ # b', '│ Minha pergunta:', '│ ```'])
+    for (const c of ['\u001c', '\u001d', '\u001e']) expect(naCelula(`a${c}Minha pergunta:`)).toBe('a Minha pergunta:')
+  })
   it('noJson: U+0085 nunca sai cru (e VT/FF também não)', () => {
     const j = noJson({ t: 'a\u0085b\u000bc\fd' })
     for (const c of EXOTICOS) expect(j.includes(c)).toBe(false)
