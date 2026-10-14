@@ -573,6 +573,39 @@ describe('decidirRetencao: ordem', () => {
     expect(r.ler.map(x => [x.ytId, x.prioridade])).toEqual([['aa0', 0], ['zz', 0], ['bb', 1], ['mm', 1], [p2, 2]])
   })
 
+  it('na mesma prioridade: nunca tentado primeiro, depois tentativa mais antiga, depois id (8-3)', () => {
+    const sem = (id: string, tent: string | null) => fato(id, {
+      ultimo_dia_com_view: d(-2),
+      vida_tent_dia: tent,
+      vida_tent_resultado: tent === null ? null : 'erro_http',
+    })
+    const r = rodar([sem('aa', d(-1, UTC)), sem('bb', d(-3, UTC)), sem('cc', null), sem('dd', d(-3, UTC)), sem('00', d(-1, UTC)), sem('zz', null)])
+    expect(r.ler.map(x => x.ytId)).toEqual(['cc', 'zz', 'bb', 'dd', '00', 'aa'])
+  })
+
+  it('sem fome: com K leituras por dia e os K primeiros ids sempre falhando, todo vídeo é tentado em ceil(N/K) dias (8-3)', () => {
+    const N = 10
+    const K = 3
+    const todos = Array.from({ length: N }, (_, i) => `v${String(i).padStart(2, '0')}`)
+    const falham = new Set(todos.slice(0, K))
+    const estado = new Map<string, FatoRetencao>(todos.map(id => [id, fato(id, { ultimo_dia_com_view: d(-2) })]))
+    const tentados = new Set<string>()
+    const dias = Math.ceil(N / K)
+    for (let i = 0; i < dias; i++) {
+      const hoje = d(i)
+      const fatos = [...estado.values()].map(f => ({ ...f, fonte_ate: d(-1, hoje), ultimo_dia_com_view: d(-2, hoje) }))
+      const r = decidirRetencao(fatos, { hojePt: hoje, hojeUtc: hoje })
+      for (const l of r.ler.slice(0, K)) {
+        tentados.add(l.ytId)
+        const f = estado.get(l.ytId) as FatoRetencao
+        estado.set(l.ytId, falham.has(l.ytId)
+          ? { ...f, vida_tent_dia: hoje, vida_tent_resultado: 'erro_http' }
+          : { ...f, vida_tent_dia: hoje, vida_tent_resultado: 'ok', vida_resposta_dia: hoje, vida_window_end: d(-1, hoje), vida_collected_at: `${hoje}T12:00:00.000Z`, vida_views_at_read: 100 })
+      }
+    }
+    expect([...tentados].sort()).toEqual(todos)
+  })
+
   it('um vídeo pode render a vida e as duas janelas; a ordem é prioridade, id e janela estável', () => {
     const hoje = d(1, d(29, '2026-10-07'))
     const f = fato('tri', { publicado_dia_pt: '2026-10-07', fonte_ate: d(29, '2026-10-07'), views_7d: 70, views_30d: 300, ultimo_dia_com_view: d(29, '2026-10-07') })
@@ -607,6 +640,8 @@ describe('lerFatos', () => {
     ['views negativas', [{ ...bom(), views_total: -1 }]],
     ['tem_7d como texto', [{ ...bom(), tem_7d: 'false' }]],
     ['data em formato errado', [{ ...bom(), fonte_ate: '13/10/2026' }]],
+    ['data inexistente (mês 13)', [{ ...bom(), fonte_ate: '2026-13-45' }]],
+    ['data inexistente (30 de fevereiro)', [{ ...bom(), publicado_dia_pt: '2026-02-30' }]],
     ['publicado_dia_pt nulo', [{ ...bom(), publicado_dia_pt: null }]],
     ['youtube_video_id vazio', [{ ...bom(), youtube_video_id: '' }]],
     ['vida_collected_at ilegível', [{ ...bom(), vida_collected_at: 'ontem' }]],
