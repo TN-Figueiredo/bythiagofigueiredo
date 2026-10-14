@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { fakeSupabase, comReachApply } from './fake-supabase'
+import { fakeSupabase, comReachApply, type Row } from './fake-supabase'
 import { COLLECTION_KINDS } from '@/lib/youtube/coleta/kinds'
 
 const rpcArgs = { p_site_id: 's', p_scope_type: 'video', p_scope_id: 'v', p_kind: 'meta', p_outcome: 'ok' }
@@ -10,6 +10,15 @@ describe('fakeSupabase estrito', () => {
     const r = await fakeSupabase().client.rpc('nao_existe')
     expect(r.error).toMatchObject({ code: 'PGRST202' })
     expect(r.data).toBeNull()
+  })
+  it('o manipulador padrão de yt_own_daily_apply está instalado', () => {
+    expect(typeof fakeSupabase().rpcHandlers.yt_own_daily_apply).toBe('function')
+  })
+  it('rpc de nome desconhecido continua devolvendo PGRST202, e errors[rpc:<nome>] vale mais que o manipulador', async () => {
+    const db = fakeSupabase()
+    expect((await db.client.rpc('yt_funcao_que_nao_existe', {})).error).toMatchObject({ code: 'PGRST202' })
+    db.errors['rpc:yt_own_daily_apply'] = { code: 'PGRST202', message: 'x' }
+    expect((await db.client.rpc('yt_own_daily_apply', {})).error).toMatchObject({ code: 'PGRST202' })
   })
   it('yt_own_attempt_record: not null, CHECKs e truncamento de 500', async () => {
     const db = fakeSupabase()
@@ -205,6 +214,70 @@ describe('fakeSupabase estrito', () => {
       expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ video_id: 'v-1' })
       await db.client.rpc('yt_own_reach_apply', { p_rows: [linha({ video_id: 'v-2' })] })
       expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ video_id: 'v-2' })
+    })
+  })
+
+  describe('yt_own_daily_apply (manipulador padrão): a regra da função', () => {
+    const ids = { site_id: 's', channel_id: 'c', video_id: 'u' }
+    const dia = (day: string, extra: Row = {}): Row => ({ day_pt: day, metric_version: 'views_desde_2026-08-27', views: 0, engaged_views: 0, ...extra })
+    const chamar = (db: ReturnType<typeof fakeSupabase>, rows: Row[], sets: string[] = ['base', 'estendidas'], dias = rows.map(r => r.day_pt)) =>
+      db.client.rpc('yt_own_daily_apply', { p_video: 'v', p_ids: ids, p_rows: rows, p_days_returned: dias, p_sets: sets })
+
+    it('só o dia com atividade vira linha; todos ficam cobertos; devolve as cinco contagens', async () => {
+      const db = fakeSupabase()
+      const r = await chamar(db, [dia('2026-10-01'), dia('2026-10-02', { views: 2 }), dia('2026-10-03')])
+      expect(r.data).toEqual({ dias: 3, atualizadas: 0, inseridas: 1, apagadas: 0, intervalos: 2 })
+      expect(db.tables.yt_own_video_daily!.map(l => l.day_pt)).toEqual(['2026-10-02'])
+      expect(db.tables.yt_own_video_coverage!.map(c => [c.metric_set, c.covered_from, c.covered_to])).toEqual([
+        ['base', '2026-10-01', '2026-10-03'], ['estendidas', '2026-10-01', '2026-10-03'],
+      ])
+    })
+    it('recusa, sem gravar nada: dias divergentes, linha sem metric_version, dia sem views na base, sem engaged_views nas estendidas', async () => {
+      const db = fakeSupabase()
+      const semViews = { day_pt: '2026-10-01', metric_version: 'x', engaged_views: 1 }
+      const casos: Array<[string, Row[], string[], unknown[]?]> = [
+        ['divergente', [dia('2026-10-01')], ['base'], ['2026-10-02']],
+        ['repetido', [dia('2026-10-01'), dia('2026-10-01')], ['base'], ['2026-10-01', '2026-10-01']],
+        ['sem versão', [dia('2026-10-01', { metric_version: '' })], ['base']],
+        ['sem views', [semViews], ['base']],
+        ['views nulo', [dia('2026-10-01', { views: null })], ['base']],
+        ['sem engaged_views', [{ day_pt: '2026-10-01', metric_version: 'x', views: 1 }], ['base', 'estendidas']],
+        ['p_sets inválido', [dia('2026-10-01')], ['outro']],
+      ]
+      for (const [nome, rows, sets, dias] of casos) {
+        const r = await chamar(db, rows, sets, dias ?? rows.map(x => x.day_pt))
+        expect(r.error, nome).toMatchObject({ code: '22023' })
+      }
+      expect(db.tables.yt_own_video_daily ?? []).toEqual([])
+      expect(db.tables.yt_own_video_coverage ?? []).toEqual([])
+    })
+    it('sem views só passa no conjunto estendidas; a chave ausente não apaga o valor gravado; nulo explícito grava nulo', async () => {
+      const db = fakeSupabase({ yt_own_video_daily: [{ youtube_video_id: 'v', day_pt: '2026-10-01', views: 5, likes: 3, avg_view_percentage: 40 }] })
+      await chamar(db, [{ day_pt: '2026-10-01', metric_version: 'x', engaged_views: 2, avg_view_percentage: null }], ['estendidas'])
+      expect(db.tables.yt_own_video_daily![0]).toMatchObject({ views: 5, likes: 3, engaged_views: 2, avg_view_percentage: null })
+    })
+    it('dia revisado para zero apaga a linha com views 0; linha com views nulo nunca é apagada', async () => {
+      const db = fakeSupabase({ yt_own_video_daily: [
+        { youtube_video_id: 'v', day_pt: '2026-10-01', views: 3 },
+        { youtube_video_id: 'v', day_pt: '2026-10-02', views: null },
+      ] })
+      const r = await chamar(db, [dia('2026-10-01'), dia('2026-10-02', { views: 0 })], ['base'])
+      // O dia 2 chega com views 0 e passa a ser 0 medido (a chave presente grava); o dia 1 também: os dois saem.
+      expect(r.data).toMatchObject({ atualizadas: 2, apagadas: 2 })
+      const db2 = fakeSupabase({ yt_own_video_daily: [{ youtube_video_id: 'v', day_pt: '2026-10-02', views: null, likes: null }] })
+      await db2.client.rpc('yt_own_daily_apply', {
+        p_video: 'v', p_ids: ids, p_rows: [{ day_pt: '2026-10-02', metric_version: 'x', views: 0 }], p_days_returned: ['2026-10-02'], p_sets: ['base'],
+      })
+      expect(db2.tables.yt_own_video_daily).toEqual([])
+    })
+    it('a cobertura funde vizinhos e parte no buraco', async () => {
+      const db = fakeSupabase()
+      await chamar(db, [dia('2026-10-01'), dia('2026-10-02')], ['base'])
+      await chamar(db, [dia('2026-10-05')], ['base'])
+      expect(db.tables.yt_own_video_coverage!.map(c => [c.covered_from, c.covered_to])).toEqual([['2026-10-01', '2026-10-02'], ['2026-10-05', '2026-10-05']])
+      const r = await chamar(db, [dia('2026-10-03'), dia('2026-10-04')], ['base'])
+      expect(r.data).toMatchObject({ intervalos: 1 })
+      expect(db.tables.yt_own_video_coverage!.map(c => [c.covered_from, c.covered_to])).toEqual([['2026-10-01', '2026-10-05']])
     })
   })
 })
