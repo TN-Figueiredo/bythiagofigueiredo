@@ -83,6 +83,14 @@ describe('medidas: regra de contagem', () => {
     expect(countRuleOf('2026-08-24')).toBe('desde_2026-08-24')
   })
 
+  // (revisão Yannis 14/10, M-1) dia que não existe no calendário lança, não vira outro dia
+  it('dia inexistente no calendário lança dia_malformado', () => {
+    expect(() => countRuleOf('2026-02-31')).toThrow('dia_malformado')
+    expect(() => countRuleOf('2026-13-01')).toThrow('dia_malformado')
+    expect(() => cruzaMudancaDeContagem('2026-08-24', '2026-09-31')).toThrow('dia_malformado')
+    expect(countRuleOf('2024-02-29')).toBe('ate_2026-08-23')
+  })
+
   it('a janela cruza a mudança só quando começa antes e termina no dia ou depois', () => {
     expect(cruzaMudancaDeContagem('2026-08-22', '2026-08-23')).toBe(false)
     expect(cruzaMudancaDeContagem('2026-08-23', '2026-08-24')).toBe(true)
