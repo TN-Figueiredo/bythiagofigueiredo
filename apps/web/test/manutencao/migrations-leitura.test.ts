@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { lerMigrations, ultimaDefinicao, migrationsDaFase, PASTA_DAS_MIGRATIONS, type Migration } from '../helpers/migrations'
 import { M2_EM_MIGRATION, M2_SQL_CAMINHO, M2_SQL } from '../helpers/m2'
-import { M3B_EM_MIGRATION, M3B_SQL_CAMINHO } from '../helpers/m3b'
+import { M3B_EM_MIGRATION, M3B_SQL_CAMINHO, HASH_SQL_CAMINHO } from '../helpers/m3b'
 
 const RAIZ = resolve(__dirname, '../../../..')
 
@@ -114,7 +114,16 @@ describe('TRAVA M3b-1: o SQL da M3b só entra em supabase/migrations no dia do p
       expect(existsSync(resolve(__dirname, '../../../../supabase/rascunhos/m3b.sql'))).toBe(false)
     }
   })
-  it.todo('D17: o corpo dos hashes está byte a byte no SQL da M3b (vira it na Tarefa 4)')
+  it('D17: o corpo dos hashes está byte a byte no SQL da M3b', () => {
+    const corpo = readFileSync(HASH_SQL_CAMINHO, 'utf8')
+    const alvo = M3B_EM_MIGRATION
+      ? readFileSync(resolve(PASTA_DAS_MIGRATIONS, daM3b().find(n => n.endsWith('_manutencao_m3b_arquivo.sql'))!), 'utf8')
+      : readFileSync(M3B_SQL_CAMINHO, 'utf8')
+    const ini = alvo.indexOf('-- obs-archive-hash.sql: início')
+    const fim = alvo.indexOf('-- obs-archive-hash.sql: fim')
+    expect(ini).toBeGreaterThanOrEqual(0)
+    expect(alvo.slice(alvo.indexOf('\n', ini) + 1, fim)).toBe(corpo)
+  })
   it('TRAVA M3b-2, parte mecânica: sem a migration no disco, nada de rota nem de botão novo (Yannis M8)', () => {
     if (!M3B_EM_MIGRATION) {
       expect(existsSync(resolve(__dirname, '../../src/app/api/pipeline/archive'))).toBe(false)

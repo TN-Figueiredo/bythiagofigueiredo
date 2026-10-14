@@ -70,13 +70,10 @@ export async function semearCanal(c: Client, o: { site?: string; videos?: number
   const canal = randomUUID()
   await c.query(`insert into public.competitor_channels (id, site_id, channel_id, channel_name, added_at) values ($1::uuid, $2, 'UC' || substr(md5($1::text), 1, 22), 'canal m3b', $3::timestamptz)`,
     [canal, site, o.addedAt === undefined ? '2026-09-15T12:00:00Z' : o.addedAt])
-  const videos: string[] = []
-  for (let i = 0; i < (o.videos ?? 3); i++) {
-    const v = randomUUID()
-    // competitor_videos não tem site_id (o site vem do canal) e o id do YouTube mora em video_id (Phil I1).
-    await c.query(`insert into public.competitor_videos (id, competitor_channel_id, video_id, title, published_at) values ($1::uuid, $2, substr(md5($1::text), 1, 11), 'v', now() - interval '60 days')`, [v, canal])
-    videos.push(v)
-  }
+  // competitor_videos não tem site_id (o site vem do canal) e o id do YouTube mora em video_id (Phil I1).
+  const r = await c.query(`insert into public.competitor_videos (competitor_channel_id, video_id, title, published_at)
+    select $1::uuid, substr(md5(gen_random_uuid()::text), 1, 11), 'v', now() - interval '60 days' from generate_series(1, $2::int) returning id`, [canal, o.videos ?? 3])
+  const videos = r.rows.map(x => x.id as string)
   return { site, canal, videos }
 }
 export async function semearDiaria(c: Client, videos: readonly string[], de: string, dias: number): Promise<void> {

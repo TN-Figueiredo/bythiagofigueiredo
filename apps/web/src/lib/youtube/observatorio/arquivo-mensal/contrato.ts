@@ -29,10 +29,18 @@ export const COLUNA_DE_CONTROLE: Readonly<Record<string, string | null>> = {
   competitor_readings: null,
 }
 export const RESERVADOS = ['_recebendo', '_canario', 'canais', 'resumo', 'miniaturas', 'manifestos'] as const
-/** CP13 (Tarefa 0, Passo 5). NÃO MEDIDO até lá. */
-export const TETO_LINHAS_POR_CHAMADA = 2_000
-/** CP13 (D25): acima disto, 413 grande_demais antes de ler qualquer página. NÃO MEDIDO até a Tarefa 0, Passo 5. */
-export const TETO_LINHAS_DA_UNIDADE = 60_000
+/**
+ * CP13 (medida de 14/10 no bythiago_int, 54422): uma chamada de obs_archive_read_unit custa ~220 ms (diária, 99.200 linhas) e ~410 ms
+ * (comentários, 100.000 linhas de ~565 B no jsonb) com limit de 2.000, 5.000 ou 10.000: o custo é o da unidade inteira, não da página.
+ * O tempo deixaria 10.000; o tamanho da resposta não (5.000 linhas largas = 2,8 MB, 10.000 = 5,6 MB, acima dos 4,5 MB da função).
+ */
+export const TETO_LINHAS_POR_CHAMADA = 5_000
+/**
+ * CP13 (D25): acima disto, 413 grande_demais antes de ler qualquer página. Medido: 100.000 linhas largas em 20 páginas de 5.000 = 8,0 s;
+ * 99.200 estreitas em páginas de 2.000 = 11,7 s (metade do maxDuration = 60 é 30 s; custo quadrático, ~190 mil linhas chegariam a 30 s).
+ * NÃO MEDIDO contra a maior unidade horária e a de comentários de produção × 3 (script do dono pendente); o valor é da medida sintética.
+ */
+export const TETO_LINHAS_DA_UNIDADE = 100_000
 export const TETO_BYTES_POR_PARTE = 3 * 1024 * 1024
 export const TETO_PARTES = 99
 export const TENTATIVAS_DE_LEITURA = 3
