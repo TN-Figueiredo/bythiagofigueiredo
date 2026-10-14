@@ -28,13 +28,19 @@ function percorrer(valor: unknown, caminho: string, folhas: Folha[], ignorados: 
   if (typeof valor === 'symbol') { ignorados.push({ caminho, tipo: 'simbolo' }); return }
   if (typeof valor !== 'object') return
   if (ehElementoReact(valor)) { ignorados.push({ caminho, tipo: 'elemento_react' }); return }
-  if (visitados.has(valor)) return // referência circular: a primeira visita já listou o que há
+  if (visitados.has(valor)) return // referência circular: o objeto já está na descida em curso (ancestral de si mesmo)
+  // `visitados` guarda só os ancestrais da descida: o objeto sai do conjunto ao terminar, porque o mesmo objeto sob duas chaves (DAG) não é ciclo
+  // e cada caminho dele precisa de destino.
   visitados.add(valor)
-  if (Array.isArray(valor)) {
-    for (const item of valor) percorrer(item, `${caminho}[]`, folhas, ignorados, visitados)
-    return
+  try {
+    if (Array.isArray(valor)) {
+      for (const item of valor) percorrer(item, `${caminho}[]`, folhas, ignorados, visitados)
+      return
+    }
+    for (const [chave, v] of Object.entries(valor)) percorrer(v, juntar(caminho, chave), folhas, ignorados, visitados)
+  } finally {
+    visitados.delete(valor)
   }
-  for (const [chave, v] of Object.entries(valor)) percorrer(v, juntar(caminho, chave), folhas, ignorados, visitados)
 }
 
 /** Toda folha do modelo (objetos e listas percorridos; o índice de lista vira `[]`). Funções e elementos React não são folhas: ver `ignorados`. */
