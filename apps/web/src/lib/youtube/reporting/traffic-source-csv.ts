@@ -52,8 +52,8 @@ export interface TrafegoAgregado {
 
 const DATA = /^(\d{4})(\d{2})(\d{2})$/
 const INTEIRO = /^\d+$/
-/** Decimal simples: sem sinal, hexadecimal, binário nem notação científica. */
-const NUMERO = /^\d+(\.\d+)?$/
+/** Decimal sem sinal, hexadecimal nem binário; aceita notação científica (o YouTube emite 1.0E-4 para valor minúsculo). */
+const NUMERO = /^\d+(\.\d+)?([eE][+-]?\d+)?$/
 const ID_VIDEO = /^[A-Za-z0-9_-]{11}$/
 const ID_CANAL = /^UC[A-Za-z0-9_-]{22}$/
 const TIPO = /^[A-Za-z0-9_]{1,40}$/
