@@ -123,7 +123,7 @@ language sql stable security invoker set search_path = '' as $$
   ), pend as (
     select * from todos order by t0 desc, video_id, age_days
      limit greatest(least(coalesce(p_limit, 500), 2000), 1)
-  ), lim as (
+  ), lim as materialized (
     -- o intervalo sem leitura em volta do alvo: da última leitura até o alvo (ou o próprio alvo) à primeira depois dele (ou p_now)
     select p.video_id, p.age_days,
            coalesce((select max(x.taken_at) from (
@@ -135,7 +135,7 @@ language sql stable security invoker set search_path = '' as $$
                        union all
                        select d.taken_at from public.competitor_video_daily d where d.video_id = p.video_id and d.taken_at >= p.t_alvo) x), p_now) as fim
       from pend p
-  ), pausas as (
+  ), pausas as materialized (
     -- as interseções do intervalo com as pausas do canal, unidas (pausas sobrepostas contam uma vez)
     select l.video_id, l.age_days, l.ini, l.fim, count(cp.id) as n_pausas,
            range_agg(tstzrange(greatest(cp.paused_at, l.ini), least(coalesce(cp.resumed_at, p_now), l.fim))) filter (where cp.id is not null) as mr
@@ -145,7 +145,7 @@ language sql stable security invoker set search_path = '' as $$
         on cp.competitor_channel_id = p.channel_id
        and cp.paused_at < l.fim and coalesce(cp.resumed_at, p_now) > l.ini
      group by l.video_id, l.age_days, l.ini, l.fim
-  ), cruz as (
+  ), cruz as materialized (
     -- a pausa só explica o buraco se o MAIOR trecho NÃO pausado dele coubesse no limite do par (revisão Phil 14/10, I1: cada lado da pausa é limitado pela cadência da leitura; a soma dos trechos absolvia de menos)
     select q.video_id, q.age_days,
            (q.n_pausas > 0

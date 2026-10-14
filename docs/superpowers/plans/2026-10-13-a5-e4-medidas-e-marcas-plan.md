@@ -1028,7 +1028,7 @@ Nenhum item da E4 fica sem tarefa. Os que ficam fora estão ditos com o dono.
 - **Apêndice B:** o roteiro de prova (psql), como foi rodado.
 - **Apêndice C:** a saída do roteiro (igual nas duas execuções).
 
-### Apêndice A: MG4
+### Apêndice A: MG4 (conserto de desempenho 14/10, e4b: CTEs `lim`, `pausas` e `cruz` com `as materialized`)
 
 **(noite de 14/10, Tarefa 8b) Este é o texto da MG4 COM a pausa de coleta (R3), rodado duas vezes no `bythiago_int` dentro de transação desfeita, com a MG6 (ensaio da E10) aplicada antes na mesma transação.** Mudanças em relação ao texto da emenda 2: (1) guarda `MG4 depende da MG6` como primeira instrução; (2) `competitor_marks_pending` deixa de fora o vídeo de canal com `collection_paused_at`, devolve `pares_em_pausa` ao lado de `total_pendentes` e `gap_crossed_pause` em cada item (verdadeiro quando o tempo NÃO pausado do buraco cabe no limite do par; pausas sobrepostas contadas uma vez, por `range_agg`); (3) `competitor_marks_health` tira de `atrasadas` o par de canal pausado. O `check` de `reason` fica com os seis valores (decisão da 8b, a confirmar por Phil e Yannis). A cópia versionada é `apps/web/test/fixtures/sql/a5-e4-mg4.sql` (idêntica); o `db:new` da Tarefa 9 cola este bloco. **(revisão Phil 14/10, I1) `gap_crossed_pause` compara o MAIOR trecho sem leitura fora da pausa com o limite, não a soma; provado nos testes `dois trechos curtos…` e no roteiro S13.** **(revisão Phil 14/10, I2) `competitor_marks_apply` recusa o par de canal com `collection_paused_at` preenchido nas duas CTEs `ok` (conta em `marcas_recusadas`/`faltas_recusadas`; o par volta a ser pendente ao despausar); provado nos testes `gravar: canal pausado entre a leitura e a gravação…` e `a pausa de OUTRO canal…` e no roteiro S14.** **Pendente: o acordo dos dois especialistas (portão da Tarefa 9).**
 
@@ -1158,7 +1158,7 @@ language sql stable security invoker set search_path = '' as $$
   ), pend as (
     select * from todos order by t0 desc, video_id, age_days
      limit greatest(least(coalesce(p_limit, 500), 2000), 1)
-  ), lim as (
+  ), lim as materialized (
     -- o intervalo sem leitura em volta do alvo: da última leitura até o alvo (ou o próprio alvo) à primeira depois dele (ou p_now)
     select p.video_id, p.age_days,
            coalesce((select max(x.taken_at) from (
@@ -1170,7 +1170,7 @@ language sql stable security invoker set search_path = '' as $$
                        union all
                        select d.taken_at from public.competitor_video_daily d where d.video_id = p.video_id and d.taken_at >= p.t_alvo) x), p_now) as fim
       from pend p
-  ), pausas as (
+  ), pausas as materialized (
     -- as interseções do intervalo com as pausas do canal, unidas (pausas sobrepostas contam uma vez)
     select l.video_id, l.age_days, l.ini, l.fim, count(cp.id) as n_pausas,
            range_agg(tstzrange(greatest(cp.paused_at, l.ini), least(coalesce(cp.resumed_at, p_now), l.fim))) filter (where cp.id is not null) as mr
@@ -1180,7 +1180,7 @@ language sql stable security invoker set search_path = '' as $$
         on cp.competitor_channel_id = p.channel_id
        and cp.paused_at < l.fim and coalesce(cp.resumed_at, p_now) > l.ini
      group by l.video_id, l.age_days, l.ini, l.fim
-  ), cruz as (
+  ), cruz as materialized (
     -- a pausa só explica o buraco se o MAIOR trecho NÃO pausado dele coubesse no limite do par (revisão Phil 14/10, I1: cada lado da pausa é limitado pela cadência da leitura; a soma dos trechos absolvia de menos)
     select q.video_id, q.age_days,
            (q.n_pausas > 0
