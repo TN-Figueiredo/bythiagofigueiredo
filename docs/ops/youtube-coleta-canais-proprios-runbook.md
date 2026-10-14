@@ -660,6 +660,8 @@ Como ler:
 
 ### Desligar a retenção (e os passos novos) pela variável YT_OWN_STEPS_OFF (A5 E8)
 
+> **Estado em produção desde 14/10/2026:** a variável vale `dimensoes,normalizadores` (a E11 foi a `main` desligada, à espera do ensaio com a API real). Ela é uma lista: gravar só `retencao` RELIGA a E11. Para desligar a retenção enquanto a E11 estiver desligada, o valor é `retencao,dimensoes,normalizadores`. A variável só vale depois de um novo deploy.
+
 A retenção, as dimensões, as versões e os normalizadores têm interruptor próprio: a variável **`YT_OWN_STEPS_OFF`** na Vercel, com os nomes separados por vírgula (`retencao,dimensoes,versoes,normalizadores`; espaços e maiúsculas tolerados). Os cinco passos de `PASSOS_LIGADOS` continuam sendo desligados por commit (acima).
 
 - **Sem commit, mas a variável só vale no deploy seguinte**: depois de salvar a variável é preciso um **redeploy** (a Vercel lê o ambiente no deploy). Religar é o mesmo caminho: tirar o nome e fazer outro deploy.
