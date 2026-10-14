@@ -28,8 +28,13 @@ import type { ColetaChannel, Outcome, StepCtx, StepResumo } from './types'
 export const MAX_NORMALIZAR_E11 = 200
 const MAX_VIDEOS_LIDOS = 1000
 const MAX_BRUTO_BYTES = 64 * 1024 * 1024
-/** Violação de chave, de regra da tabela e de texto inválido: erro de CONTEÚDO, não de infraestrutura. */
-const CODIGOS_DE_CONTEUDO: readonly string[] = ['23505', '23514', '22P02']
+/**
+ * Violação de chave, de regra da tabela e de texto inválido: erro de CONTEÚDO, não de infraestrutura.
+ * `P0001` é todo `raise exception` das funções SQL (relatório com mais de 25 h, estado inesperado, dia diferente):
+ * determinístico, repetir não muda nada. Desvio decidido da letra do plano ("qualquer outro erro fica na fila"):
+ * sem isso o relatório ficaria na frente da fila e vermelho todo dia, sem motivo e sem fim.
+ */
+const CODIGOS_DE_CONTEUDO: readonly string[] = ['23505', '23514', '22P02', 'P0001']
 /** O único motivo fixo de `motivo.ts` que a coluna `error` da tentativa aceita para "relatório em erro" (ver a Tarefa 8 do plano). */
 const MOTIVO_DA_TENTATIVA = 'forma_inesperada'
 

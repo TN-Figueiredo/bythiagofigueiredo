@@ -444,6 +444,9 @@ export async function passoDimensoes(ctx: DimensoesCtx): Promise<DimensoesResumo
       else if (parada.tipo === 'schema') est.schema = true
       else est.erro ??= { motivo: parada.motivo ?? 'http_429', http: parada.http }
     }
+    /** Todas as famílias ativas do vídeo foram respondidas e gravadas, sem pendência nem erro. */
+    const terminou = (est: Estado): boolean =>
+      !est.pendente && !est.erro && !est.negado && !est.schema && est.respondeu >= Object.keys(est.ativas).length
     type Portao = 'ok' | 'sem_tempo' | 'sem_consulta'
     // Reserva 2 chamadas (a segunda é a repetição sem `engagedViews`): o teto nunca é passado, e a sobra é devolvida.
     const portao = (): Portao =>
@@ -615,7 +618,8 @@ export async function passoDimensoes(ctx: DimensoesCtx): Promise<DimensoesResumo
     let primeiraCausa = ''
     let pendentesDoCanal = 0
     for (const est of fila) {
-      aplicarParada(est)
+      // Quem já terminou todas as famílias e gravou não é remarcado pela parada de OUTRO vídeo.
+      if (!terminou(est)) aplicarParada(est)
       const base = { site_id: est.v.site, scope_type: 'video' as const, scope_id: est.v.yt, kind: 'dimensoes' as const, channel_id: c.id }
       if (est.pendente) {
         resumo.pendentes++
