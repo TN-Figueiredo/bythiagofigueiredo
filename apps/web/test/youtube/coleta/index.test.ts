@@ -14,6 +14,7 @@ vi.mock('@/lib/youtube/coleta/criteria-e11', () => ({ criteriosE11: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-desligados', () => ({ criterioDesligados: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/retencao-step', () => ({ passoRetencao: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-retencao', () => ({ criteriosRetencao: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/criteria-cobertura', () => ({ criterioCobertura: vi.fn() }))
 // Item 246: a lista publicada de conferências é trocada por uma lista de teste (mutável, esvaziada a cada teste).
 const conferenciasDeTeste = vi.hoisted(() => [] as Array<{ id: string; etapa: string; data: string; responsavel: 'agente' | 'dono'; onde: string; feitaEm: string | null }>)
 vi.mock('@/lib/conferencias', async (orig) => ({ ...(await orig<typeof import('@/lib/conferencias')>()), CONFERENCIAS: conferenciasDeTeste }))
@@ -37,6 +38,7 @@ import { criteriosE11 } from '@/lib/youtube/coleta/criteria-e11'
 import { criterioDesligados } from '@/lib/youtube/coleta/criteria-desligados'
 import { passoRetencao, type RetencaoResumo } from '@/lib/youtube/coleta/retencao-step'
 import { criteriosRetencao } from '@/lib/youtube/coleta/criteria-retencao'
+import { criterioCobertura } from '@/lib/youtube/coleta/criteria-cobertura'
 import { notaNomesDesconhecidos } from '@/lib/youtube/coleta/passos-desligados'
 import { pushUnico } from '@/lib/youtube/coleta/schema'
 import { DIMENSOES_DESDE, DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
@@ -90,6 +92,7 @@ beforeEach(() => {
   vi.mocked(criterioDesligados).mockResolvedValue([])
   vi.mocked(passoRetencao).mockResolvedValue(retResumo({ gravados: 3 }))
   vi.mocked(criteriosRetencao).mockResolvedValue(undefined)
+  vi.mocked(criterioCobertura).mockResolvedValue({ acaoDoDono: [] })
   delete process.env.YT_OWN_STEPS_OFF
 })
 afterEach(() => {
@@ -1159,5 +1162,93 @@ describe('rodarColeta: E8 (retenção)', () => {
     expect(r.resumo.ms).not.toHaveProperty('cauda')
     expect(passoRetencao).not.toHaveBeenCalled()
     expect(criteriosRetencao).not.toHaveBeenCalled()
+  })
+})
+
+describe('rodarColeta: a dieta do diário entra no cron (A5 E6, Tarefa 11b)', () => {
+  const ordem = (f: unknown) => (f as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder[0]!
+  const rodar = (extra: Partial<Parameters<typeof rodarColeta>[0]> = {}, canaisDb: unknown[] = canais) =>
+    rodarColeta({ supabase: fakeSupabase({ youtube_channels: canaisDb as never }).client, relogio: criarRelogio(), fase: 'depois', ...extra })
+
+  it('o critério de cobertura roda logo depois de criteriosL2, antes dos critérios da E11 e antes da retenção', async () => {
+    const r = await rodar()
+    const seq = [passoDiario, criteriosL2, criterioCobertura, criteriosE11, passoRetencao, criteriosRetencao].map(ordem)
+    expect(seq).toEqual([...seq].sort((a, b) => a - b))
+    expect(new Set(seq).size).toBe(6)
+    expect(r.falhas).toEqual([])
+  })
+
+  it('recebe supabase, os canais, as falhas e o relógio da execução', async () => {
+    const relogio = criarRelogio()
+    await rodar({ relogio })
+    expect(criterioCobertura).toHaveBeenCalledTimes(1)
+    const c = vi.mocked(criterioCobertura).mock.calls[0]![0]
+    expect(c.relogio).toBe(relogio)
+    expect(c.channels.map(x => x.id)).toEqual(['ch-1', 'ch-2'])
+    expect(Array.isArray(c.falhas)).toBe(true)
+    expect(c.supabase).toBeDefined()
+  })
+
+  it('roda mesmo quando o passo do diário lançou', async () => {
+    vi.mocked(passoDiario).mockRejectedValue(new Error('boom'))
+    const r = await rodar()
+    expect(r.falhas).toEqual(['diario: unexpected error (Error)'])
+    expect(criterioCobertura).toHaveBeenCalledTimes(1)
+  })
+
+  it('roda mesmo quando o diário ficou sem tempo (relógio global vencido)', async () => {
+    await rodarColeta({ supabase: fakeSupabase({ youtube_channels: canais }).client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    expect(passoDiario).not.toHaveBeenCalled()
+    expect(criterioCobertura).toHaveBeenCalledTimes(1)
+  })
+
+  it('fase antes: não roda', async () => {
+    await rodar({ fase: 'antes' })
+    expect(criterioCobertura).not.toHaveBeenCalled()
+  })
+
+  it('a ação do dono do critério chega a resumo.acao_do_dono e NÃO a falhas, sem duplicar as de antes', async () => {
+    vi.mocked(criterioCobertura).mockResolvedValue({ acaoDoDono: ['diário: Canal Um: o YouTube não devolve mais o vídeo v1', 'Canal Um: x em sem_acesso'] })
+    const r = await rodar()
+    expect(r.resumo.acao_do_dono).toEqual(expect.arrayContaining(['diário: Canal Um: o YouTube não devolve mais o vídeo v1', 'Canal Um: x em sem_acesso']))
+    expect((r.resumo.acao_do_dono as string[]).filter(x => x === 'Canal Um: x em sem_acesso')).toHaveLength(1)
+    expect(r.falhas).toEqual([])
+  })
+
+  it('sem nada a avisar o dono, a lista que já havia fica como estava', async () => {
+    const r = await rodar()
+    expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x em sem_acesso'])
+  })
+
+  it('a nota de vermelho que o critério empurra em falhas chega ao veredito', async () => {
+    vi.mocked(criterioCobertura).mockImplementation(async (ctx) => {
+      ctx.falhas.push('diário: Canal Um: 1 de 3 vídeos sem cobertura até 02/10 (v1 (nunca coberto))')
+      return { acaoDoDono: [] }
+    })
+    const r = await rodar()
+    expect(r.falhas).toEqual(['diário: Canal Um: 1 de 3 vídeos sem cobertura até 02/10 (v1 (nunca coberto))'])
+  })
+
+  it('criterioCobertura que lança: nota VERMELHA em falhas e o resto segue (inclusive a retenção)', async () => {
+    vi.mocked(criterioCobertura).mockRejectedValue(new Error('boom'))
+    const r = await rodar()
+    expect(r.falhas).toEqual(['critérios de cobertura: unexpected error (Error)'])
+    expect(criteriosE11).toHaveBeenCalledTimes(1)
+    expect(passoRetencao).toHaveBeenCalledTimes(1)
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('canal em `reautorizar` não gera nota de cobertura (o critério de verdade, sobre um vídeo antigo sem cobertura)', async () => {
+    const { criterioCobertura: real } = await vi.importActual<typeof import('@/lib/youtube/coleta/criteria-cobertura')>('@/lib/youtube/coleta/criteria-cobertura')
+    vi.mocked(criterioCobertura).mockImplementation(real)
+    const videos = [{ id: 'vid-1', channel_id: 'ch-1', site_id: 'site-1', youtube_video_id: 'yt-antigo', published_at: '2026-08-01T12:00:00.000Z' }]
+    const db = (status: string) => fakeSupabase({
+      youtube_channels: [{ ...canais[0]!, collection_status: status, video_count: null }], youtube_videos: videos,
+    })
+    const ok = await rodarColeta({ supabase: db('ok').client, relogio: criarRelogio(), fase: 'depois' })
+    expect(ok.falhas.some(f => f.includes('yt-antigo'))).toBe(true) // o mesmo cenário em `ok` DÁ a nota: a prova de que a ausência abaixo é do estado
+    const re = await rodarColeta({ supabase: db('reautorizar').client, relogio: criarRelogio(), fase: 'depois' })
+    expect(re.falhas.some(f => f.includes('yt-antigo') || f.includes('cobertura'))).toBe(false)
   })
 })

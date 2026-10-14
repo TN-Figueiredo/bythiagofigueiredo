@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { fakeSupabase, comReachApply, type Row } from './fake-supabase'
+import { fakeSupabase, comReachApply, semearCobertura, type Row } from './fake-supabase'
 import { COLLECTION_KINDS } from '@/lib/youtube/coleta/kinds'
 import { atrasadosDaRetencao } from '@/lib/youtube/coleta/criteria-retencao'
 import { decidirRetencao, lerFatos } from '@/lib/youtube/coleta/retencao-regra'
@@ -304,6 +304,44 @@ describe('fakeSupabase estrito', () => {
       const r = await chamar(db, [dia('2026-10-03'), dia('2026-10-04')], ['base'])
       expect(r.data).toMatchObject({ intervalos: 1 })
       expect(db.tables.yt_own_video_coverage!.map(c => [c.covered_from, c.covered_to])).toEqual([['2026-10-01', '2026-10-05']])
+    })
+  })
+  describe('semearCobertura (A5 E6, Tarefa 11b)', () => {
+    const video = (n: number, extra: Row = {}): Row => ({ id: `u-${n}`, youtube_video_id: `yt-${n}`, channel_id: 'ch-1', site_id: 'site-1', published_at: '2026-08-01T12:00:00.000Z', ...extra })
+
+    it('uma linha `base` em dia por vídeo: vai do dia da publicação até `hoje`, com site, canal e id do vídeo do próprio vídeo', () => {
+      const db = fakeSupabase()
+      semearCobertura(db, [video(1), video(2, { channel_id: 'ch-2', site_id: 'site-2' })], '2026-10-07')
+      expect(db.tables.yt_own_video_coverage).toEqual([
+        expect.objectContaining({ youtube_video_id: 'yt-1', metric_set: 'base', covered_from: '2026-08-01', covered_to: '2026-10-07', site_id: 'site-1', channel_id: 'ch-1', video_id: 'u-1', source: 'analytics_api' }),
+        expect.objectContaining({ youtube_video_id: 'yt-2', metric_set: 'base', covered_from: '2026-08-01', covered_to: '2026-10-07', site_id: 'site-2', channel_id: 'ch-2' }),
+      ])
+    })
+    it('lista de vídeos vazia não semeia nada (a tabela nem é criada)', () => {
+      const db = fakeSupabase()
+      semearCobertura(db, [], '2026-10-07')
+      expect(db.tables.yt_own_video_coverage ?? []).toEqual([])
+    })
+    it('vídeo sem data de publicação: cobre só o dia de hoje (nunca inventa um começo)', () => {
+      const db = fakeSupabase()
+      semearCobertura(db, [video(1, { published_at: null })], '2026-10-07')
+      expect(db.tables.yt_own_video_coverage).toEqual([expect.objectContaining({ covered_from: '2026-10-07', covered_to: '2026-10-07' })])
+    })
+    it('o critério de cobertura de verdade enxerga o vídeo semeado como em dia (e o sem semente como atrasado)', async () => {
+      const { criterioCobertura } = await import('@/lib/youtube/coleta/criteria-cobertura')
+      const { criarRelogio } = await import('@/lib/youtube/coleta/clock')
+      const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: null }
+      const hoje = new Date().toISOString().slice(0, 10)
+      const videos = [video(1, { published_at: '2020-01-01T12:00:00.000Z' })]
+      const sem = fakeSupabase({ youtube_videos: videos })
+      const falhasSem: string[] = []
+      await criterioCobertura({ supabase: sem.client, channels: [canal], falhas: falhasSem, relogio: criarRelogio() })
+      expect(falhasSem).toHaveLength(1)
+      const com = fakeSupabase({ youtube_videos: videos })
+      semearCobertura(com, videos, hoje)
+      const falhasCom: string[] = []
+      await criterioCobertura({ supabase: com.client, channels: [canal], falhas: falhasCom, relogio: criarRelogio() })
+      expect(falhasCom).toEqual([])
     })
   })
 })

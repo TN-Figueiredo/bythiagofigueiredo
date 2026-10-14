@@ -33,7 +33,7 @@ vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSa
 import { rodarColeta } from '@/lib/youtube/coleta'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import { REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
-import { comE11Padrao, fakeSupabase, type Row } from './fake-supabase'
+import { comE11Padrao, fakeSupabase, semearCobertura, type Row } from './fake-supabase'
 
 const AGORA = new Date('2026-10-07T12:00:00.000Z')
 const canal: Row = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
@@ -86,6 +86,9 @@ describe('orçamento, com os passos de verdade', () => {
     expect(db.rpcCalls.filter(c => c.name === 'yt_own_retention_facts')).toEqual([])
     expect(depois.resumo.retencao).toMatchObject({ sem_tempo: true, pendentes: 1 })
     expect(depois.falhas).toContain('critérios: não foi possível avaliar retenção de Canal Um (sem tempo)')
+    // A5 E6 (11b): o critério de cobertura, o primeiro a perder o prazo, deixa a sua nota de sem tempo (e nenhuma nota de atraso)
+    expect(depois.falhas).toContain('critérios: não foi possível avaliar cobertura de Canal Um (sem tempo)')
+    expect(depois.falhas.filter(n => n.startsWith('diário:'))).toEqual([])
     expect((db.tables.yt_own_collection_attempts ?? []).filter(x => x.kind === 'retencao_vida')).toEqual([expect.objectContaining({ scope_id: 'ch-1', outcome: 'nao_alcancado_orcamento' })])
   })
 
@@ -104,6 +107,19 @@ describe('orçamento, com os passos de verdade', () => {
     expect(performance.now() - t0).toBeLessThan(3_000)
     expect(db.rpcCalls.filter(c => c.name === 'yt_own_retention_facts')).toHaveLength(1)
     expect(depois.falhas).toContain('critérios: não foi possível avaliar retenção de Canal Um (sem tempo)')
+  })
+
+  // ── A5 E6 (Tarefa 11b): o critério de cobertura, com o relógio de verdade ───────────────────────────────────────────
+  it('E6, com 280 s decorridos: vídeo antigo e cobertura vazia = vermelho com o id; com a cobertura em dia = verde', async () => {
+    const vermelho = comE11Padrao(fakeSupabase({ youtube_channels: [canalOk], youtube_videos: [video], yt_reporting_jobs: [jobAtivo] }))
+    const a = await rodarColeta({ supabase: vermelho.client, relogio: criarRelogio(Date.now() - 280_000), fase: 'depois' })
+    expect(a.falhas.filter(n => n.startsWith('diário:'))).toEqual([expect.stringContaining('1 de 1 vídeos sem cobertura')])
+    expect(a.falhas.filter(n => n.startsWith('diário:'))[0]).toContain('yt-1 (nunca coberto)')
+
+    const verde = comE11Padrao(fakeSupabase({ youtube_channels: [canalOk], youtube_videos: [video], yt_reporting_jobs: [jobAtivo] }))
+    semearCobertura(verde, [video], '2026-10-07')
+    const b = await rodarColeta({ supabase: verde.client, relogio: criarRelogio(Date.now() - 280_000), fase: 'depois' })
+    expect(deE11(b.falhas)).toEqual([]) // o critério de metadados não é desta tarefa: sem a linha do dia ele acusa o canal
   })
 
   // ── A5 E11 (Tarefa 10): os dois passos novos só gastam o que SOBRA do relógio ──────────────────────────────────────
