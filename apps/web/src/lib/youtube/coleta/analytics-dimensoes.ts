@@ -176,14 +176,14 @@ export async function dimensaoDoVideo(i: Entrada): Promise<RespostaDimensao> {
     }
     const views = numeroOuNada(linha[posViews])
     // views e engagedViews vão para colunas bigint: negativo ou fracionário derrubaria a gravação inteira no banco.
-    if (views === undefined || views < 0 || !Number.isInteger(views)) throw forma('corpo_invalido')
+    if (views === undefined || views < 0 || !Number.isSafeInteger(views)) throw forma('corpo_invalido')
     const chave = `${day}\u0000${valor}`
     if (vistas.has(chave)) throw forma('corpo_invalido')
     vistas.add(chave)
     const out: LinhaDim = { day, valor, views }
     if (posEng >= 0) {
       const e = numeroOuNada(linha[posEng])
-      if (e !== undefined && (e < 0 || !Number.isInteger(e))) throw forma('corpo_invalido')
+      if (e !== undefined && (e < 0 || !Number.isSafeInteger(e))) throw forma('corpo_invalido')
       if (e !== undefined) out.engaged_views = e
     }
     if (posMin >= 0) {
