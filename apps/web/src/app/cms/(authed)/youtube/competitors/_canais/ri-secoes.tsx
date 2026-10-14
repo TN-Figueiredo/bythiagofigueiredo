@@ -188,12 +188,12 @@ function RefSecao({ secao, ticks, p }: { secao: RiSecao<RiLinhaRef, 'mediana' | 
 
 const GLIFO: Record<'up' | 'dn' | 'eq', string> = { up: '▲', dn: '▼', eq: '＝' }
 
-function LinhaIns({ l, rank, i }: { l: RiLinhaIns; rank: number | null; i: number }) {
+function LinhaIns({ l, rank, i, ordem }: { l: RiLinhaIns; rank: number | null; i: number; ordem: 'pct' | 'abs' }) {
   const medida = l.classe != null && l.barra != null
   return (
     <li className={classeLi(i, l.proprio)}>
       <Nome nome={l.nome} proprio={l.proprio} rank={rank} />
-      {medida ? <RiBarra linha={l} /> : <div className="dv sm">{l.pilula ? <Pilula p={l.pilula} /> : null}</div>}
+      {medida ? <RiBarra linha={l} ordem={ordem} /> : <div className="dv sm">{l.pilula ? <Pilula p={l.pilula} /> : null}</div>}
       <div className="ri-val">
         {medida && l.classe ? (
           <span className={`dir ${l.classe}`}>
@@ -234,7 +234,7 @@ function InsSecao({ secao, p }: { secao: RiSecao<RiLinhaIns, 'pct' | 'abs'>; p: 
           {secao.ordens[p.ordemAtual].legendaBarra ? <p className="ri-leg">{secao.ordens[p.ordemAtual].legendaBarra}</p> : null}
           <ol className={p.aberto ? 'ri-lst all' : 'ri-lst'}>
             {sequencia(secao.linhas, secao.ordens[p.ordemAtual].ids).map(({ l, rank }, i) => (
-              <LinhaIns key={l.id} l={l} rank={rank} i={i} />
+              <LinhaIns key={l.id} l={l} rank={rank} i={i} ordem={p.ordemAtual} />
             ))}
           </ol>
           <BotaoVerTodos n={secao.n} aberto={p.aberto} onClick={p.alternaVerTodos} />

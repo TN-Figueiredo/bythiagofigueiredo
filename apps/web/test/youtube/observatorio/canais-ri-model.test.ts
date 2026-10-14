@@ -355,12 +355,12 @@ describe('Inscritos: frase, ordens e barra', () => {
     expect(ok(pct.inscritos).ordens.pct.ids).toEqual(['B', 'C', 'A', 'E', 'D'])
     expect(ok(pct.inscritos).ordens.abs.ids).toEqual(['C', 'B', 'A', 'E', 'D'])
     const barra = (v: RiView, id: string) => ok(v.inscritos).linhas.find(l => l.id === id)!.barra!
-    expect(barra(pct, 'B')).toBe(50)
-    expect(barra(pct, 'C')).toBeCloseTo(50 * 5.26 / 50, 0)
+    expect(barra(pct, 'B').pct).toBe(50)
+    expect(barra(pct, 'C').pct).toBeCloseTo(50 * 5.26 / 50, 0)
     const abs = buildRiView(ins(), { ...P, ordi: 'abs' }).view
     expect(abs.ordem.ins).toBe('abs')
-    expect(barra(abs, 'C')).toBe(50)
-    expect(barra(abs, 'B')).toBeCloseTo(1.5, 1)
+    expect(barra(abs, 'C').abs).toBe(50)
+    expect(barra(abs, 'B').abs).toBeCloseTo(1.5, 1)
     expect(ok(abs.inscritos).ordens.abs.legendaBarra).toBe('Barra: tamanho do ganho em inscritos.')
     expect(ok(pct.inscritos).ordens.pct.legendaBarra).toBe('Barra: tamanho do ganho em %.')
   })
@@ -368,6 +368,71 @@ describe('Inscritos: frase, ordens e barra', () => {
     const s = ok(buildRiView(ins(), P).view.inscritos)
     expect(s.legenda.slice(0, 4)).toEqual(['subiu', 'caiu', 'sem variação', 'sem medida'])
     expect(s.info.itens.join(' ')).toContain('A coluna Crescimento da lista usa 30 dias.')
+  })
+})
+
+describe('Portão Yannis: arredondar, barra por ordem, isolamento, fronteiras', () => {
+  const seis = (ch: string, views: number[]) => views.map((v, i) => video(ch, 20 + i * 3, v))
+  it('I1: mediana fracionária (577,5) sai inteira na coluna, na frase e no aria; sem ponto decimal', () => {
+    const o = obsDe([canal('a')], seis('a', [310, 420, 515, 640, 700, 880]))
+    const s = ok(buildRiView(o, P).view.referencias)
+    const l = s.linhas[0]!
+    expect(l.valor).toBe('578')
+    expect(l.ariaLabel).toContain('578 views')
+    expect(l.ariaLabel).not.toContain(',5')
+    expect(l.ariaLabel).toContain('entre 444 e 685')
+    expect(texto(s.frase)).toContain('578 de views')
+    for (const t of [l.valor!, l.sub!, l.ariaLabel, texto(s.frase)]) expect(t).not.toMatch(/\d\.\d/)
+  })
+  it('m1: 999.600 views não vira "1000 mil"', () => {
+    const o = obsDe([canal('a')], seis('a', [999600, 999600, 999600, 999600, 999600]))
+    const t = texto(ok(buildRiView(o, P).view.referencias).frase)
+    expect(t).toContain('tem 1,0 mi de views')
+    expect(t).not.toContain('1000 mil')
+  })
+  it('I2: a barra traz os dois tamanhos e a legenda é uma por ordem', () => {
+    const o = obsDe([
+      canal('A', { name: 'A', subs: 1100, snapshots: serie(1100, 1000) }),           // +10%, +100
+      canal('B', { name: 'B', subs: 505000, snapshots: serie(505000, 500000) }),     // +1%, +5.000
+    ], [])
+    const s = ok(buildRiView(o, P).view.inscritos)
+    const a = s.linhas.find(l => l.id === 'A')!.barra!, b = s.linhas.find(l => l.id === 'B')!.barra!
+    expect(a.pct).toBeGreaterThan(b.pct)
+    expect(a.abs).toBeLessThan(b.abs)
+    expect(s.ordens.pct.legendaBarra).not.toBe(s.ordens.abs.legendaBarra)
+    expect(s.ordens.pct.legendaBarra).toBe('Barra: tamanho do ganho em %.')
+    expect(s.ordens.abs.legendaBarra).toBe('Barra: tamanho do ganho em inscritos.')
+    // a escolha da ordem inicial não muda os tamanhos
+    const s2 = ok(buildRiView(o, { ...P, ordi: 'abs' }).view.inscritos)
+    expect(s2.linhas.find(l => l.id === 'A')!.barra).toEqual(a)
+  })
+  it('M12: a falha em Referências isola: Referências em erro, Inscritos ok, falhas[0].secao referencias', () => {
+    const o = obsDe([canal('a', { snapshots: serie(120000, 118000) })], [])
+    Object.defineProperty(o, 'videos', { get() { throw new Error('boom') } })
+    const { view, falhas } = buildRiView(o, P)
+    expect(view.referencias.estado).toBe('erro')
+    expect(view.inscritos.estado).toBe('ok')
+    expect(falhas).toHaveLength(1)
+    expect(falhas[0]).toMatchObject({ secao: 'referencias' })
+  })
+  it('M10: canal com antes = 0 (pct nulo) fica por último em ordens.pct.ids e não é líder em %', () => {
+    const o = obsDe([
+      canal('Z', { name: 'Z', subs: 50, snapshots: serie(50, 0) }),
+      canal('A', { name: 'A', subs: 1100, snapshots: serie(1100, 1000) }),
+      canal('B', { name: 'B', subs: 120000, snapshots: serie(120000, 118000) }),
+    ], [])
+    const s = ok(buildRiView(o, P).view.inscritos)
+    expect(s.ordens.pct.ids[s.ordens.pct.ids.length - 1]).toBe('Z')
+    expect(texto(s.frase)).not.toContain('Z cresceu')
+  })
+  it('M11: SYNC.last exatamente 48 h antes de AGORA: sem aviso', () => {
+    expect(buildRiView(obsDe([canal('a')], cinco('a', 9000, 8000, 10000), AGORA - 48 * HORA), P).view.aviso).toBeNull()
+  })
+  it('m3: o modelo não numera (o cliente numera pela ordem)', () => {
+    const o = obsDe([canal('a', { snapshots: serie(120000, 118000) })], cinco('a', 9000, 8000, 10000))
+    const { view } = buildRiView(o, P)
+    expect(ok(view.referencias).linhas.every(l => l.rank === null)).toBe(true)
+    expect(ok(view.inscritos).linhas.every(l => l.rank === null)).toBe(true)
   })
 })
 

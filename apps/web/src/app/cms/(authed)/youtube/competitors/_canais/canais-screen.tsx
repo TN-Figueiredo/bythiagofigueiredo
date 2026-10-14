@@ -32,6 +32,7 @@ import { OwnBlockView } from './own-block'
 import { ResumoBloco } from './resumo-bloco'
 import { PePreso } from './pe-preso'
 import { RiAtalhos, RiSecoes } from './ri-secoes'
+import { RiFronteira } from './ri-fronteira'
 import type { RiView } from './ri-tipos'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
 import { fraseSeuCanal } from './posicao-model'
@@ -513,7 +514,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               versao={`${layout}|${ranked.some(r => r.id === view.pe!.canalId) ? 'com-medida' : unranked.some(r => r.id === view.pe!.canalId) ? 'sem-medida' : 'fora'}`}
               onIr={() => irAte(view.pe!.canalId)} onTopo={voltarAoTopo} />
           ) : null}
-          {ri ? <RiSecoes ri={ri} ocupada={navPending} /> : null}
+          {ri ? <RiFronteira><RiSecoes ri={ri} ocupada={navPending} /></RiFronteira> : null}
         </div>
 
         {panel ? (

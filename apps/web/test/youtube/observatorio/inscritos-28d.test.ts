@@ -84,6 +84,19 @@ describe('inscritosDoCanal: tempo', () => {
   })
 })
 
+describe('inscritosDoCanal: fronteira dos 31 dias (portão Yannis I3, M5 e M8)', () => {
+  it('só retratos de hoje e de 32 dias antes (e mais velhos): buraco, nunca ok', () => {
+    const c = canal({ subs: 600, snapshots: [snap(AGORA, 40, 400), snap(AGORA, 32, 500), snap(AGORA, 0, 600)] })
+    expect(calc(c)).toMatchObject({ tipo: 'nm', motivo: 'buraco' })
+  })
+  it('retratos a 31 e a 28 dias: o de 28 (o mais novo) é o "antes"', () => {
+    const c = canal({ subs: 700, snapshots: [snap(AGORA, 31, 5_000), snap(AGORA, 28, 400), snap(AGORA, 0, 700)] })
+    const r = calc(c)
+    expect(r).toMatchObject({ tipo: 'ok', antes: 400, ganho: 300 })
+    expect((r as { de: string }).de).toBe(dmy(dia(AGORA) - 28 * DAY))
+  })
+})
+
 describe('inscritosDoCanal: arredondamento', () => {
   it('pares do mockup', () => {
     expect(calc(par(1_390_000, 1_420_000))).toMatchObject({ tipo: 'ok', ganho: 30000, classe: 'up' })

@@ -24,7 +24,7 @@ const ref = (i: number, o: Partial<RiLinhaRef> = {}): RiLinhaRef => ({
 })
 const ins = (i: number, o: Partial<RiLinhaIns> = {}): RiLinhaIns => ({
   id: `c${i}`, nome: `Canal ${i}`, proprio: false, rank: null, classe: 'up', pct: `+${i},0%`, sub: `+${i} · ${i} mil no total`,
-  barra: 20, pilula: null, nota: null, ariaLabel: `Canal ${i}: subiu`, ...o,
+  barra: { pct: 10 * i, abs: 50 - 10 * i }, pilula: null, nota: null, ariaLabel: `Canal ${i}: subiu`, ...o,
 })
 const nmRef = (i: number): RiLinhaRef => ref(i, { marca: null, faixa: null, valor: null, sub: null, pilula: { tipo: 'nm', texto: 'sem medida · ainda não coletado' } })
 const nmIns = (i: number): RiLinhaIns => ins(i, { classe: null, pct: null, sub: null, barra: null, pilula: { tipo: 'nm', texto: 'sem medida · contagem oculta' }, nota: 'O canal escondeu a contagem de inscritos.' })
@@ -203,6 +203,37 @@ describe('RI · fronteira', () => {
       const src = fs.readFileSync(path.join(DIR, f), 'utf8')
       for (const t of ['Calculando', 'Está demorando', 'não carregaram', 'restrito']) expect(src, `${f}: ${t}`).not.toContain(t)
     }
+  })
+})
+
+describe('RI · portão Yannis (I2, M13)', () => {
+  it('I2: clicar "Ganho em inscritos" troca a largura da primeira barra e a legenda, sem roteador', () => {
+    const { container } = render(<RiSecoes ri={view()} ocupada={false} />)
+    const sec = container.querySelector<HTMLElement>('#inscritos')!
+    const larg = () => sec.querySelector<HTMLElement>('.ri-lst > li .dv .b')!.style.width
+    expect(larg()).toBe('10%')
+    expect(within(sec).getByText('Barra: tamanho do ganho em %.')).toBeTruthy()
+    fireEvent.click(within(sec).getByRole('button', { name: 'Ganho em inscritos' }))
+    // ordem abs = c3, c2, c1; a primeira é c3 com barra.abs = 20
+    expect(larg()).toBe('20%')
+    expect(within(sec).getByText('Barra: tamanho do ganho em inscritos.')).toBeTruthy()
+    const todas = [...sec.querySelectorAll<HTMLElement>('.ri-lst > li .dv .b')].map((b) => b.style.width)
+    expect(todas).toEqual(['20%', '30%', '40%'])
+    expect(replace).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+  it('M13: depois de "Faixa mais estreita" o .ri-rk da 1ª linha é 1 (o canal mais estreito); a provisória mostra –', () => {
+    const v = view()
+    if (v.referencias.estado !== 'ok') throw new Error('fixture')
+    const prov = ref(9, { provisoria: true, faixa: null, pilula: { tipo: 'prov', texto: 'provisória · 3 vídeos' } })
+    v.referencias = { ...v.referencias, linhas: [...v.referencias.linhas, prov], n: 4 }
+    const { container } = render(<RiSecoes ri={v} ocupada={false} />)
+    const sec = container.querySelector<HTMLElement>('#referencias')!
+    fireEvent.click(within(sec).getByRole('button', { name: 'Faixa mais estreita' }))
+    const lis = [...sec.querySelectorAll('.ri-lst > li')]
+    expect(lis[0]!.querySelector('.ri-rk')?.textContent).toBe('1')
+    expect(lis[0]!.querySelector('.n')?.textContent).toBe('Canal 3')
+    expect(lis[3]!.querySelector('.ri-rk')?.textContent).toBe('–')
   })
 })
 

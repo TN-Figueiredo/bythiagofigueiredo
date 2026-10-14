@@ -31,12 +31,12 @@ export function RiRegua({ linha, ticks }: { linha: RiLinhaRef; ticks: RiView['ti
   )
 }
 
-export function RiBarra({ linha }: { linha: RiLinhaIns }) {
+export function RiBarra({ linha, ordem }: { linha: RiLinhaIns; ordem: 'pct' | 'abs' }) {
   if (linha.barra == null || linha.classe == null) return null
   return (
     <div className="dv" role="img" aria-label={linha.ariaLabel}>
       <span className="eixo" />
-      {linha.classe === 'eq' ? <span className="b eq" /> : <span className={`b ${linha.classe}`} style={{ width: `${linha.barra.toFixed(1)}%` }} />}
+      {linha.classe === 'eq' ? <span className="b eq" /> : <span className={`b ${linha.classe}`} style={{ width: `${linha.barra[ordem].toFixed(1)}%` }} />}
     </div>
   )
 }

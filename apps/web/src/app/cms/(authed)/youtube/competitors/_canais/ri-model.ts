@@ -41,15 +41,19 @@ export const ROTULOS_NOVOS_RI = {
 
 // ---------------------------------------------------------------- formatação
 const nf = (n: number) => n.toLocaleString('pt-BR')
+/** Mediana e quartis podem ser fracionários (média dos dois do meio, interpolação): na tela, sempre inteiros. */
+const nfV = (n: number) => nf(Math.round(n))
 const d1 = (x: number) => x.toFixed(1).replace('.', ',')
 /** Prosa: 1,2 mi / 88 mil. */
-function cmp(n: number): string {
-  if (n >= 1e6) return d1(n / 1e6) + ' mi'
+function cmp(n0: number): string {
+  const n = Math.round(n0)
+  if (n >= 1e6 || Math.round(n / 1e3) >= 1000) return d1(n / 1e6) + ' mi'
   if (n >= 1e3) return (n >= 1e5 ? String(Math.round(n / 1e3)) : d1(n / 1e3).replace(',0', '')) + ' mil'
   return String(n)
 }
 /** Lista: mesma unidade na coluna; "1,42 mi" a partir de 999,95 mil, nunca "1.180 mil". */
-function cmpL(n: number): string {
+function cmpL(n0: number): string {
+  const n = Math.round(n0)
   if (n < 1e3) return String(n)
   const m = Math.round(n / 100) / 10
   if (n >= 1e6 || m >= 1000) return (Math.round(n / 1e4) / 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi'
@@ -152,14 +156,14 @@ function secaoReferencias(escopo: ObsChannel[], obs: RiObs, p: RiParams, ordr: '
       id: c.id, nome: c.name, proprio: c.own, rank: null, valor: cmpL(r.mediana),
       sub: `${fx}${r.razao != null ? ' · ' + razaoTxt(r.razao) : ''} · ${r.k} vídeos`,
       marca: esc.pos(r.mediana), faixa: { de: esc.pos(r.p25), ate: esc.pos(r.p75) }, provisoria: false, pilula: null,
-      ariaLabel: `${c.name}: vídeo típico de ${nf(r.mediana)} views por vídeo, metade dos vídeos entre ${nf(r.p25)} e ${nf(r.p75)}, ${ROTULO_FAIXA[r.classe]}`,
+      ariaLabel: `${c.name}: vídeo típico de ${nfV(r.mediana)} views por vídeo, metade dos vídeos entre ${nfV(r.p25)} e ${nfV(r.p75)}, ${ROTULO_FAIXA[r.classe]}`,
     }
   }
   const linhaProv = (x: (typeof provs)[number]): RiLinhaRef => ({
     id: x.c.id, nome: x.c.name, proprio: x.c.own, rank: null, valor: cmpL(x.r.mediana), sub: null,
     marca: esc.pos(x.r.mediana), faixa: null, provisoria: true,
     pilula: { tipo: 'prov', texto: x.r.desde != null ? ROTULOS_NOVOS_RI.janelaParcial(ddmm(x.r.desde)) : `provisória · ${x.r.k} vídeos` },
-    ariaLabel: `${x.c.name}: vídeo típico provisório de ${nf(x.r.mediana)} views com ${x.r.k} vídeos, sem faixa`,
+    ariaLabel: `${x.c.name}: vídeo típico provisório de ${nfV(x.r.mediana)} views com ${x.r.k} vídeos, sem faixa`,
   })
   const linhaNm = (x: (typeof nms)[number]): RiLinhaRef => {
     const pilula = pilulaNmRef(x.r, p.fmt)
@@ -171,7 +175,6 @@ function secaoReferencias(escopo: ObsChannel[], obs: RiObs, p: RiParams, ordr: '
     ...[...provs].sort((a, b) => b.r.mediana - a.r.mediana || nome(a.c).localeCompare(nome(b.c), 'pt-BR')).map(linhaProv),
     ...[...nms].sort((a, b) => nome(a.c).localeCompare(nome(b.c), 'pt-BR')).map(linhaNm),
   ]
-  linhas.forEach((l, i) => { if (i < oks.length) l.rank = i + 1 })
 
   // frase: sempre pelo vídeo típico (o mais alto), qualquer que seja a ordem da lista
   let frase: RiFrase
@@ -260,10 +263,10 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
   const poPct = [...oks].sort((a, b) => (b.r.pct ?? -Infinity) - (a.r.pct ?? -Infinity) || desempate(a, b))
   const poAbs = [...oks].sort((a, b) => b.r.ganho - a.r.ganho || desempate(a, b))
 
-  // A barra é uma só por linha (contrato da R3): segue o critério da ordem aberta (`ordi`) e a legenda diz qual.
-  const medida = (r: InsOk) => Math.abs(ordi === 'pct' ? r.pct ?? 0 : r.ganho)
-  const maior = Math.max(1e-9, ...oks.map(x => medida(x.r)))
-  const legendaBarra = `Barra: tamanho do ganho ${ordi === 'pct' ? 'em %' : 'em inscritos'}.`
+  // A barra traz os dois tamanhos; o cliente escolhe pela ordem aberta e a legenda de cada ordem diz qual (portão Yannis I2).
+  const maiorPct = Math.max(1e-9, ...oks.map(x => Math.abs(x.r.pct ?? 0)))
+  const maiorAbs = Math.max(1e-9, ...oks.map(x => Math.abs(x.r.ganho)))
+  const tam = (valor: number, maior: number) => Math.max(1, (valor / maior) * 50)
 
   const linhaOk = ({ c, r }: { c: ObsChannel; r: InsOk }): RiLinhaIns => {
     const dm = (s: string) => s.slice(0, 5)
@@ -273,7 +276,7 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
       id: c.id, nome: c.name, proprio: c.own, rank: null, classe: r.classe,
       pct: r.classe === 'eq' ? 'sem variação' : r.pct == null ? null : `${sinal(r.ganho)}${d1(Math.abs(r.pct))}%`,
       sub: `${r.classe === 'eq' ? '' : sinal(r.ganho) + abs + ' · '}${cmpL(r.hoje)} no total · ${datas}`,
-      barra: r.classe === 'eq' ? 0 : Math.max(1, (medida(r) / maior) * 50), pilula: null, nota: null,
+      barra: r.classe === 'eq' ? { pct: 0, abs: 0 } : { pct: tam(Math.abs(r.pct ?? 0), maiorPct), abs: tam(Math.abs(r.ganho), maiorAbs) }, pilula: null, nota: null,
       ariaLabel: `${c.name}: ${r.classe === 'eq' ? 'sem variação' : `${r.ganho > 0 ? 'subiu' : 'caiu'} ${abs} inscritos${r.pct != null ? ', ' + d1(Math.abs(r.pct)) + '%' : ''}`} em 28 dias`,
     }
   }
@@ -282,7 +285,6 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
     return { id: c.id, nome: c.name, proprio: c.own, rank: null, classe: null, pct: null, sub: null, barra: null, pilula, nota, ariaLabel: `${c.name}: ${pilula.texto}` }
   }
   const linhas = [...(ordi === 'abs' ? poAbs : poPct).map(linhaOk), ...[...nms].sort(desempate).map(linhaNm)]
-  linhas.forEach((l, i) => { if (i < oks.length) l.rank = i + 1 })
 
   let frase: RiFrase
   if (oks.length === 0) frase = [{ t: ROTULOS_NOVOS_RI.fraseInsVazia }]
@@ -310,8 +312,8 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
     estado: 'ok', frase, info: infoIns(), linhas, n: linhas.length,
     legenda: ['subiu', 'caiu', 'sem variação', 'sem medida'],
     ordens: {
-      pct: { rotulo: 'Ganho em %', ids: poPct.map(x => x.c.id), legendaBarra },
-      abs: { rotulo: 'Ganho em inscritos', ids: poAbs.map(x => x.c.id), legendaBarra },
+      pct: { rotulo: 'Ganho em %', ids: poPct.map(x => x.c.id), legendaBarra: 'Barra: tamanho do ganho em %.' },
+      abs: { rotulo: 'Ganho em inscritos', ids: poAbs.map(x => x.c.id), legendaBarra: 'Barra: tamanho do ganho em inscritos.' },
     },
   }
 }

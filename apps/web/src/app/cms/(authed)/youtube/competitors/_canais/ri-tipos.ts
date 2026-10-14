@@ -28,7 +28,7 @@ export interface RiLinhaIns {
   classe: 'up' | 'dn' | 'eq' | null
   pct: string | null
   sub: string | null
-  barra: number | null
+  barra: { pct: number; abs: number } | null
   pilula: RiPilula | null
   nota: string | null
   ariaLabel: string
