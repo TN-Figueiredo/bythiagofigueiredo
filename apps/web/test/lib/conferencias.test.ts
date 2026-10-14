@@ -358,6 +358,18 @@ describe('conferências de E14 (comentários de destaque, relativas ao dia do en
   })
 })
 
+describe('conferência fixa da E4 (e4-dia31, fora de E4_DEPLOY)', () => {
+  it('existe na lista publicada em 03/11/2026, do agente, ainda não feita, apontando a Tarefa 12 do plano', () => {
+    const x = CONFERENCIAS.find(y => y.id === 'e4-dia31')
+    expect(x).toBeDefined()
+    expect(x!.data).toBe('2026-11-03')
+    expect(x!.etapa).toBe('E4')
+    expect(x!.responsavel).toBe('agente')
+    expect(x!.feitaEm).toBeNull()
+    expect(x!.onde).toMatch(/Tarefa 12[\s\S]*30 a 32 dias[\s\S]*13 h/)
+  })
+})
+
 describe('conferências de E10 (arquivo, pausa e sinal de limite, relativas ao dia do envio)', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
   afterEach(() => { vi.useRealTimers() })
