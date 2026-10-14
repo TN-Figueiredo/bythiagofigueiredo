@@ -188,6 +188,8 @@ describe('passoDimensoes: LIDO é diferente de "não li"', () => {
     expect(applies(db, 'country')).toHaveLength(0)
     expect(applies(db)).toHaveLength(3)
     expect(tent(db, 'video', 'a')).toMatchObject({ outcome: 'erro_http', error: 'http_500', http_status: 500 })
+    // O canal herda o erro do vídeo: nunca "ok" com um vídeo que falhou.
+    expect(tent(db, 'canal', 'ch-1')).toMatchObject({ outcome: 'erro_http', error: 'http_500' })
     expect(ctx.falhas.join('\n')).toContain('1 de 1 vídeos com erro')
   })
 })
@@ -380,6 +382,31 @@ describe('passoDimensoes: erros da API', () => {
     expect(JSON.stringify(ctx.falhas)).not.toContain('http_200')
   })
 
+  it('erro depois da repetição sem métrica estendida: as duas chamadas entram na conta (400 e depois 500)', async () => {
+    const db = montar(completa('a'), [view('a', '2026-10-05')])
+    responder = q => (q.metrics.includes('engagedViews') ? { status: 400 } : { status: 500 })
+    const { r } = await rodar(db)
+    // 4 famílias, 2 chamadas cada: o contador acompanha o que de fato foi à API.
+    expect(urlsVistas()).toBe(8)
+    expect(r.consultas).toBe(8)
+    expect(tent(db, 'video', 'a')).toMatchObject({ outcome: 'erro_http', error: 'http_500' })
+  })
+
+  it.each([
+    ['cota esgotada (403 quotaExceeded)', { status: 403, body: erroGoogle('quotaExceeded') }, 'erro_http'],
+    ['perda de autorização (401)', { status: 401 }, 'sem_autorizacao'],
+  ] as const)('%s num vídeo não remarca o vídeo que já terminou bem', async (_nome, falha, esperadoCanal) => {
+    // A tem 1 dia de país; B tem 2. O 2º dia de B falha depois de A já ter gravado tudo.
+    const db = montar([...completa('a'), ...completa('b')], [view('a', '2026-10-04'), view('b', '2026-10-04'), view('b', '2026-10-06')])
+    responder = q => (q.video === 'b' && q.familia === 'country' && q.inicio === '2026-10-06' ? falha : undefined)
+    const { ctx } = await rodar(db)
+    expect(applies(db).filter(a => a.args.p_video === 'a')).toHaveLength(4)
+    expect(tent(db, 'video', 'a')).toMatchObject({ outcome: 'ok' })
+    expect(tent(db, 'video', 'b')?.outcome).not.toBe('ok')
+    expect(tent(db, 'canal', 'ch-1')).toMatchObject({ outcome: esperadoCanal })
+    if (esperadoCanal === 'erro_http') expect(ctx.falhas.join('\n')).toContain('1 de 2 vídeos com erro')
+  })
+
   it('401 marca reautorizar uma vez e para o canal', async () => {
     const db = montar([...completa('a'), ...completa('b')], [view('a', '2026-10-05'), view('b', '2026-10-05')])
     responder = () => ({ status: 401 })
@@ -468,6 +495,16 @@ describe('passoDimensoes: banco', () => {
     db.rpcHandlers.yt_own_dim_apply = () => ({ data: { status: 'gravado' }, error: null })
     await rodar(db)
     expect(tent(db, 'video', 'a')).toMatchObject({ outcome: 'erro_http', error: 'forma_inesperada' })
+  })
+
+  it('status desconhecido na resposta da função, mesmo com os cinco números válidos, não vira ok', async () => {
+    const db = montar(completa('a'), [view('a', '2026-10-05')])
+    db.rpcHandlers.yt_own_dim_apply = () => ({
+      data: { status: 'qualquer', gravadas: 0, apagadas: 0, fora_do_teto: 0, dias_mantidos: 0, dias_em_revisao: 0 }, error: null,
+    })
+    const { r } = await rodar(db)
+    expect(tent(db, 'video', 'a')).toMatchObject({ outcome: 'erro_http', error: 'forma_inesperada' })
+    expect(r.gravados).toBe(0)
   })
 
   it('base_sem_cobertura não conta como gravado: fica pendente', async () => {

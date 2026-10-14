@@ -544,7 +544,7 @@ describe('passoNormalizadores', () => {
       expect(saida(db, ctx)).not.toContain(SENTINELA)
     })
 
-    it.each(['23514', '23505', '22P02'])('recusa do banco por conteúdo (%s) marca erro recusado_pelo_banco e sai da fila', async (code) => {
+    it.each(['23514', '23505', '22P02', 'P0001'])('recusa do banco por conteúdo (%s) marca erro recusado_pelo_banco e sai da fila', async (code) => {
       const db = banco([rel('t1')], [blob('t1', T_25)])
       instalar(db, 'yt_own_traffic_detail_apply', () => ({ data: null, error: rpcErro(code) }))
       const ctx = ctxDe(db)
@@ -558,6 +558,49 @@ describe('passoNormalizadores', () => {
       const de = await passoNormalizadores(ctxDe(db))
       expect(de.por_tipo.detalhe.erros).toBe(0)
       expect(aplicacoes(db)).toHaveLength(1)
+    })
+
+    it('P0001 (raise exception das funções: relatório com mais de 25 h, estado inesperado) vira erro de catálogo, sai da fila e não leva o texto do banco', async () => {
+      const db = banco([rel('t1', { end_time: '2026-09-27T07:00:00.000Z' })], [blob('t1', T_25)])
+      instalar(db, 'yt_own_traffic_detail_apply', () => ({ data: null, error: rpcErro('P0001', { message: `relatório cobre mais de 25 h ${SENTINELA}`, details: SENTINELA }) }))
+      const ctx = ctxDe(db)
+      const resumo = await passoNormalizadores(ctx)
+      expect(relatorio(db, 't1')).toMatchObject({ status: 'erro', error: 'recusado_pelo_banco' })
+      expect(resumo.pendentes).toBe(0)
+      expect(resumo.por_tipo.detalhe.erros).toBe(1)
+      expect(ctx.falhas.join('\n')).toContain('relatório t1')
+      expect(saida(db, ctx)).not.toContain(SENTINELA)
+      // Não volta à fila no dia seguinte: a função não é chamada de novo.
+      await passoNormalizadores(ctxDe(db))
+      expect(aplicacoes(db)).toHaveLength(1)
+    })
+
+    it('outros códigos (rede, tempo esgotado, 5xx, 40001, 57014) continuam passageiros: o relatório fica na fila', async () => {
+      for (const code of ['57014', '40001', '08006', '53300', 'PGRST301', '500']) {
+        const db = banco([rel('t1')], [blob('t1', T_25)])
+        instalar(db, 'yt_own_traffic_detail_apply', () => ({ data: null, error: rpcErro(code) }))
+        const resumo = await passoNormalizadores(ctxDe(db))
+        expect(relatorio(db, 't1')).toMatchObject({ status: 'baixado', error: null })
+        expect(resumo.pendentes).toBe(1)
+        expect(resumo.por_tipo.detalhe.erros).toBe(0)
+      }
+    })
+
+    it('o código que vai ao Sentry só tem a forma de um código: texto arbitrário vira nulo (codigoSeguro)', async () => {
+      for (const codigo of [`${SENTINELA} com espaços`, 'abcdefghijk', '']) {
+        vi.clearAllMocks()
+        const db = banco([rel('t1')], [blob('t1', T_25)])
+        instalar(db, 'yt_own_traffic_detail_apply', () => ({ data: null, error: rpcErro(codigo) }))
+        const ctx = ctxDe(db)
+        await passoNormalizadores(ctx)
+        expect(Sentry.captureMessage).toHaveBeenCalledWith('normalizadores: erro_de_banco', expect.objectContaining({ extra: { report: 't1', pg_code: null } }))
+        expect(saida(db, ctx)).not.toContain(SENTINELA)
+      }
+      vi.clearAllMocks()
+      const db = banco([rel('t1')], [blob('t1', T_25)])
+      instalar(db, 'yt_own_traffic_detail_apply', () => ({ data: null, error: rpcErro('57014') }))
+      await passoNormalizadores(ctxDe(db))
+      expect(Sentry.captureMessage).toHaveBeenCalledWith('normalizadores: erro_de_banco', expect.objectContaining({ extra: { report: 't1', pg_code: '57014' } }))
     })
 
     it('falha ao marcar o erro: o relatório fica na fila e a falha entra na nota', async () => {
