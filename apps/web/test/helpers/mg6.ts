@@ -189,7 +189,58 @@ export async function semearCena(c: Client): Promise<Cena> {
     `insert into public.competitor_video_comments (site_id, competitor_channel_id, video_id, youtube_comment_id, body, is_creator, published_at, first_seen_at, last_seen_at, featured_channel_id)
      values ($1, $2, $3, $4, 'comentário de B que aponta para A', false, now() - interval '1 day', now() - interval '1 day', now(), $5) returning id`,
     [site, canalB, videoB, 'cm' + randomUUID().replace(/-/g, '').slice(0, 10), canalA])).id as string
+  await semearRestoDoFecho(c, { site, canalA, canalB, videoA, videoB, comentarioA: cA, comentarioB: cB })
   return { org, site, admin, comum, canalA, canalB, videoA, videoA2, videoB, comentarioDeBQueApontaParaA: cB }
+}
+
+/**
+ * (revisão Phil 14/10, I-1) Uma linha, para o canal A e para o canal B, em CADA tabela do fecho de cascata que `semearCena` ainda não
+ * cobria: canal e vídeo em `field_versions` e `raw`, mapa de horas, faixas, primeiras horas, horária, dobra, resposta de comentário,
+ * marcas e retratos de comentário, tarefa e leitura da forja. Com a semente incompleta, o filtro quebrado de dez das vinte e duas
+ * entradas do registro deixava os testes verdes (contava 0 com 0). Só as tabelas da MG4 e da MG18, que ainda não existem, ficam de fora.
+ */
+async function semearRestoDoFecho(c: Client, o: { site: string; canalA: string; canalB: string; videoA: string; videoB: string; comentarioA: string; comentarioB: string }): Promise<void> {
+  const { site, canalA, canalB, videoA, videoB } = o
+  const canais = [canalA, canalB]
+  const videos: Array<[string, string]> = [[canalA, videoA], [canalB, videoB]]
+  for (const canal of canais) {
+    // nível do canal (vídeo nulo) em field_versions e raw
+    await c.query(`insert into public.competitor_field_versions (site_id, competitor_channel_id, video_id, field, value_hash, precision, first_seen_at, last_seen_at)
+                   values ($1, $2, null, 'subs', 'h', '1d', now() - interval '3 days', now() - interval '1 day')`, [site, canal])
+    // is_current = false: o índice `idx_craw_one_current_channel` só admite um retrato corrente de canal, e há teste que insere o seu
+    await c.query(`insert into public.competitor_raw (site_id, competitor_channel_id, video_id, raw_sha256, first_seen_at, last_seen_at, raw, is_current)
+                   values ($1, $2, null, $3, now() - interval '2 days', now() - interval '1 day', '{}'::jsonb, false)`, [site, canal, 'canal-' + canal])
+    await c.query(`insert into public.competitor_channel_hour_map (competitor_channel_id, month, format, phase, site_id, views_sum, likes_sum, comments_sum, views_share, likes_share, comments_share, n_intervals)
+                   values ($1, date_trunc('month', now())::date, 'longo', 'lancamento', $2, array_fill(1::bigint, array[168]), array_fill(1, array[168]), array_fill(1, array[168]),
+                           array_fill(0.5::real, array[168]), array_fill(0.5::real, array[168]), array_fill(0.5::real, array[168]), array_fill(1, array[168]))`, [canal, site])
+  }
+  for (const [canal, video] of videos) {
+    await c.query(`insert into public.competitor_raw (site_id, competitor_channel_id, video_id, raw_sha256, first_seen_at, last_seen_at, raw)
+                   values ($1, $2, $3, $4, now() - interval '2 days', now(), '{}'::jsonb)`, [site, canal, video, 'video-' + video])
+    await c.query(`insert into public.competitor_video_tier_spans (video_id, from_date, tier, site_id) values ($1, current_date - 10, 'diaria', $2)`, [video, site])
+    await c.query(`insert into public.competitor_video_early (video_id, taken_at, site_id, views) values ($1, now() - interval '1 day', $2, 3)`, [video, site])
+    await c.query(`insert into public.competitor_video_hourly (video_id, hour_slot, taken_at, site_id, views) values ($1, date_trunc('hour', now()), date_trunc('hour', now()), $2, 3)`, [video, site])
+    await c.query(`insert into public.competitor_hour_fold_log (video_id, day, site_id, intervals_clean, intervals_long) values ($1, current_date - 2, $2, 1, 1)`, [video, site])
+    await c.query(`insert into public.competitor_video_comment_snaps (video_id, mark, site_id, competitor_channel_id, taken_at, video_age_hours, status, rule_version, rule_params, units_used)
+                   values ($1, 7, $2, $3, now(), 30, 'ok', 1, '{}'::jsonb, 1)`, [video, site, canal]) // marca 7: as provas das quatro funções olham a marca 1
+  }
+  // resposta de comentário (a linha filha do canal A) e marcas de comentário
+  const resposta = (await q1(c,
+    `insert into public.competitor_video_comments (site_id, competitor_channel_id, video_id, youtube_comment_id, parent_id, body, is_creator, published_at, first_seen_at, last_seen_at)
+     values ($1, $2, $3, $4, $5, 'resposta sintética', true, now() - interval '1 day', now() - interval '1 day', now()) returning id`,
+    [site, canalA, videoA, 'rp' + randomUUID().replace(/-/g, '').slice(0, 10), o.comentarioA])).id as string
+  for (const comentario of [o.comentarioA, resposta, o.comentarioB]) {
+    await c.query(`insert into public.competitor_video_comment_marks (comment_id, mark, site_id, likes) values ($1, 1, $2, 3)`, [comentario, site])
+  }
+  // a forja: um nicho, uma tarefa por vídeo e a leitura que a tarefa gerou
+  await c.query(`insert into public.youtube_niches (site_id, slug, label, color_dark, color_light) values ($1, 'sint', 'S', '#AAB4C0', '#4B5563')`, [site])
+  for (const [, video] of videos) {
+    const tarefa = (await q1(c,
+      `insert into public.youtube_intelligence_tasks (id, site_id, task_type, target_niche, target_video_id, trigger_type, status)
+       values ($1, $2, 'leitura-video', 'sint', $3, 'manual', 'completed') returning id`, [randomUUID(), site, video])).id as string
+    await c.query(`insert into public.competitor_readings (site_id, task_id, task_type, video_id, fmt, model, generated_at, sent, text)
+                   values ($1, $2, 'leitura-video', $3, 'long', 'm', now() - interval '1 day', '{}'::jsonb, '{}'::jsonb)`, [site, tarefa, video])
+  }
 }
 
 // ───────────────────────── passos do fluxo de export ─────────────────────────

@@ -156,6 +156,11 @@ quebra de linha', now() - interval '3 days', '{a,"b,c","d e",""}', 9007199254740
         comparadas++
       }
       expect(comparadas).toBe(m.arquivos.length)
+      // (revisão Phil 14/10, I-1) o laço acima só vê o que o manifesto gerou: com o filtro de uma tabela quebrado não nasce arquivo e ele passa
+      // vazio. Toda tabela do registro que a semente cobre TEM de ter arquivo (as da MG4 e da MG18 ainda não existem e não têm semente).
+      const semSemente = ['competitor_video_marks', 'competitor_video_mark_misses', 'competitor_missing_baseline']
+      const comArquivo = new Set(m.arquivos.map(x => x.tabela))
+      for (const e of registro) if (!semSemente.includes(e.tabela)) expect(comArquivo.has(e.tabela), `a tabela ${e.tabela} foi semeada e tem de ter arquivo no manifesto`).toBe(true)
       // o vazio e o nulo sobreviveram na mesma coluna, e o bigint acima de 2^53 saiu inteiro
       const v = m.arquivos.find(a => a.tabela === 'competitor_videos')!
       const csv = lerCsv(gunzipSync(await readFile(join(raiz, LOTE, v.caminho))).toString('utf8'))

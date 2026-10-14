@@ -612,6 +612,11 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
       const autoresDeA = await escalar<number>(pg, `select count(*)::int from public.competitor_video_comment_authors a join public.competitor_video_comments k on k.id = a.comment_id where k.competitor_channel_id = $1 or k.video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = $1)`, [c.canalA])
       expect(autoresDeA).toBe(1)
       const antes = await totais()
+      // (revisão Phil 14/10, I-1) o teste não pode passar vazio: toda tabela do fecho tem linha antes de remover (contava 0 com 0 em dez tabelas).
+      // Só as da MG4 e da MG18, que ainda não existem neste banco, ficam sem semente.
+      const semSemente = ['competitor_video_marks', 'competitor_video_mark_misses', 'competitor_missing_baseline']
+      for (const t of fecho) if (!semSemente.includes(t.nome)) expect(antes[t.nome], `tabela ${t.nome}: a semente tem de pôr linha do canal A`).toBeGreaterThan(0)
+      for (const t of fecho) if (!semSemente.includes(t.nome)) expect(doLote[t.nome] ?? (t.nome === 'competitor_video_comment_authors' ? autoresDeA : 0), `tabela ${t.nome}: o lote tem de ter linha`).toBeGreaterThan(0)
       await pg.query(`select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
       const depois = await totais()
       for (const t of fecho) {
