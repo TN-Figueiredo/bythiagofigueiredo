@@ -53,7 +53,6 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     test_type: 'thumbnail',
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
-    original_description: 'Original Description',
     variants: [
       { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg' },
       { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg' },
@@ -67,7 +66,6 @@ interface BuildMockOpts {
   queuedTests?: unknown[]
   video?: { youtube_video_id: string; channel_id?: string } | null
   cycleCount?: number
-  trackedLinks?: { template_name: string; short_code: string }[]
   alreadyRotatedToday?: boolean
   channel?: { channel_id: string } | null
   /** false = sem org_admin na organização raiz. */
@@ -80,7 +78,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     queuedTests = [],
     video = { youtube_video_id: 'YT_VIDEO_123', channel_id: 'ch-1' },
     cycleCount = 0,
-    trackedLinks = [],
     alreadyRotatedToday = false,
     channel = { channel_id: 'UCpt' },
     withOwner = true,
@@ -177,14 +174,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
         insert: vi.fn((data: unknown) => {
           insertCalls.push({ table, data })
           return Promise.resolve({ data: null, error: null })
-        }),
-      }
-    }
-
-    if (table === 'ab_test_tracked_links') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: trackedLinks, error: null }),
         }),
       }
     }
@@ -321,14 +310,12 @@ describe('GET /api/cron/ab-rotate', () => {
           sort_order: 0,
           blob_url: 'https://blob.example/a.jpg',
           title_text: 'Title A',
-          description_text: 'Desc A',
         },
         {
           id: 'v2',
           sort_order: 1,
           blob_url: 'https://blob.example/b.jpg',
           title_text: 'Title B',
-          description_text: 'Desc B',
         },
       ],
     })
@@ -660,14 +647,12 @@ describe('GET /api/cron/ab-rotate', () => {
           sort_order: 0,
           blob_url: 'https://blob.example/a.jpg',
           title_text: 'Title A',
-          description_text: 'Desc A',
         },
         {
           id: 'v2',
           sort_order: 1,
           blob_url: 'https://blob.example/b.jpg',
           title_text: 'Title B',
-          description_text: 'Desc B',
         },
       ],
     })

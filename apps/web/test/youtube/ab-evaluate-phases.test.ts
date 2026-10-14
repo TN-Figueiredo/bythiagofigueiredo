@@ -91,7 +91,6 @@ function testeAtivo(o: OpcoesTeste = {}) {
     started_at: o.startedAt === null ? null : iso,
     created_at: iso,
     original_title: 'Original Title',
-    original_description: 'Original Description',
     original_thumbnail_url: o.originalNoBlob ? BLOB : FORA_DO_BLOB,
     consecutive_confident_evals: o.consecutiveConfidentEvals ?? 0,
     grace_expires_at: o.carenciaAte === 'futuro' ? new Date(Date.now() + DIA).toISOString()
@@ -103,8 +102,8 @@ function testeAtivo(o: OpcoesTeste = {}) {
       max_duration_days: o.maxDuracao ?? 14, stability_threshold: 3,
     },
     variants: [
-      { id: 'v1', label: 'original', is_original: true, sort_order: 0, blob_url: 'https://blob/a.jpg', title_text: null, description_text: null, metadata: {} },
-      { id: 'v2', label: 'variant_b', is_original: false, sort_order: 1, blob_url: 'https://blob/b.jpg', title_text: 'New Title', description_text: null, metadata: {} },
+      { id: 'v1', label: 'original', is_original: true, sort_order: 0, blob_url: 'https://blob/a.jpg', title_text: null, metadata: {} },
+      { id: 'v2', label: 'variant_b', is_original: false, sort_order: 1, blob_url: 'https://blob/b.jpg', title_text: 'New Title', metadata: {} },
     ],
     cycles: o.ciclos ?? [],
   }
@@ -193,7 +192,7 @@ function clienteCom(tests: TesteFalso[], opts: OpcoesCliente = {}) {
         select: () => ({
           eq: () => ({
             single: () => Promise.resolve({
-              data: { id: 'v2', label: 'variant_b', blob_url: 'https://blob/b.jpg', title_text: 'New Title', description_text: null }, error: null,
+              data: { id: 'v2', label: 'variant_b', blob_url: 'https://blob/b.jpg', title_text: 'New Title' }, error: null,
             }),
           }),
         }),
@@ -296,7 +295,7 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect(gravadoEm('ab_tests')).not.toHaveProperty('status_note')
   })
 
-  it.each(['title', 'description'] as const)('teste de %s não chama setThumbnail e encerra sem erro', async (tipo) => {
+  it.each(['title'] as const)('teste de %s não chama setThumbnail e encerra sem erro', async (tipo) => {
     const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo, diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
     const r = await phaseEvaluateActiveTests(supabase)
     expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })

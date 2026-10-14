@@ -59,14 +59,13 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     test_type: 'thumbnail',
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
-    original_description: 'Original Description',
     ...overrides,
   }
 }
 
 const DEFAULT_VARIANTS = [
-  { id: 'v1', label: 'A', sort_order: 0, is_original: true, blob_url: 'https://blob.example/thumb-a.jpg', title_text: null, description_text: null },
-  { id: 'v2', label: 'B', sort_order: 1, is_original: false, blob_url: 'https://blob.example/thumb-b.jpg', title_text: null, description_text: null },
+  { id: 'v1', label: 'A', sort_order: 0, is_original: true, blob_url: 'https://blob.example/thumb-a.jpg', title_text: null },
+  { id: 'v2', label: 'B', sort_order: 1, is_original: false, blob_url: 'https://blob.example/thumb-b.jpg', title_text: null },
 ]
 
 interface BuildMockOpts {

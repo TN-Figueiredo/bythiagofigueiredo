@@ -53,7 +53,6 @@ function makeVariantStats(
     label,
     blob_url: null,
     title_text: null,
-    description_text: null,
     metadata: {},
     is_original: isOriginal,
     total_impressions: impressions,

@@ -42,7 +42,7 @@ function testeCompleto(over: Record<string, unknown> = {}): Record<string, unkno
     applied_by: 'auto', apply_attempts: 2, completed_at: '2026-03-10T00:00:00.000Z', completed_reason: 'manual_winner',
     confidence_at_completion: 0.97, config: {}, consecutive_confident_evals: 3, created_at: '2026-03-01T00:00:00.000Z',
     drift_acknowledged_at: null, grace_expires_at: null, id: 't1', last_applied_variant_id: null, last_apply_error: null,
-    name: 'Teste', original_description: null, original_thumbnail_url: 'https://x/y.png', original_title: 'T',
+    name: 'Teste', original_thumbnail_url: 'https://x/y.png', original_title: 'T',
     parent_test_id: null, paused_at: null, playoff_start_after: null, playoff_test_id: null, queue_start_after: null,
     result_metadata: { winner_label: 'B', ctr_lift_percent: 12, total_impressions: 5000, estimated_monthly_extra_clicks: 90 },
     revert_expires_at: null, round_number: 4, site_id: SITE, source_pipeline_id: null, started_at: '2026-03-01T00:00:00.000Z',

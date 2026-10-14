@@ -68,10 +68,9 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     test_type: 'thumbnail',
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
-    original_description: 'Original Description',
     variants: [
-      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg', is_original: true, title_text: null, description_text: null },
-      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg', is_original: false, title_text: null, description_text: null },
+      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg', is_original: true, title_text: null },
+      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg', is_original: false, title_text: null },
     ],
     ...overrides,
   }
@@ -82,7 +81,6 @@ interface BuildMockOpts {
   video?: { youtube_video_id: string; channel_id: string } | null
   channel?: { channel_id: string } | null
   cycleCount?: number
-  trackedLinks?: { template_name: string; short_code: string }[]
 }
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
@@ -91,7 +89,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     video = { youtube_video_id: 'YT_VIDEO_123', channel_id: 'ch-1' },
     channel = { channel_id: 'UC_CHANNEL_123' },
     cycleCount = 0,
-    trackedLinks = [],
   } = opts
 
   const updateCalls: { table: string; data: unknown; filters: string[] }[] = []
@@ -157,14 +154,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
-    if (table === 'ab_test_tracked_links') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: trackedLinks, error: null }),
-        }),
-      }
-    }
-
     // Fallback
     return {
       select: vi.fn().mockReturnThis(),
@@ -222,8 +211,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'title',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: null, is_original: true, title_text: 'Title A', description_text: null },
-        { id: 'v2', sort_order: 1, blob_url: null, is_original: false, title_text: 'Title B', description_text: null },
+        { id: 'v1', sort_order: 0, blob_url: null, is_original: true, title_text: 'Title A' },
+        { id: 'v2', sort_order: 1, blob_url: null, is_original: false, title_text: 'Title B' },
       ],
     })
     buildSupabaseMock({ test })
@@ -322,8 +311,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'thumbnail',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/original.jpg', is_original: true, title_text: null, description_text: null },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/variant.jpg', is_original: false, title_text: null, description_text: null },
+        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/original.jpg', is_original: true, title_text: null },
+        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/variant.jpg', is_original: false, title_text: null },
       ],
     })
     buildSupabaseMock({ test })

@@ -150,7 +150,6 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     started_at: new Date(Date.now() - 30 * 86400000).toISOString(),
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
     original_title: 'Original Title',
-    original_description: 'Original desc',
     consecutive_confident_evals: 0,
     config: {
       burn_in_days: 0,
@@ -161,8 +160,8 @@ function makeTest(overrides: Record<string, unknown> = {}) {
       max_duration_days: 14,
     },
     variants: [
-      { id: 'variant-a', sort_order: 0, label: 'A', blob_url: 'https://blob/a.png', title_text: null, description_text: null, metadata: {}, is_original: true },
-      { id: 'variant-b', sort_order: 1, label: 'B', blob_url: 'https://blob/b.png', title_text: null, description_text: null, metadata: {}, is_original: false },
+      { id: 'variant-a', sort_order: 0, label: 'A', blob_url: 'https://blob/a.png', title_text: null, metadata: {}, is_original: true },
+      { id: 'variant-b', sort_order: 1, label: 'B', blob_url: 'https://blob/b.png', title_text: null, metadata: {}, is_original: false },
     ],
     cycles: [
       { id: 'c1', cycle_number: 0, variant_id: 'variant-a', backfill_status: 'confirmed', impressions: 2000, clicks: 100 },

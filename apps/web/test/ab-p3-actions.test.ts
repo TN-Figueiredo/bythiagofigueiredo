@@ -154,7 +154,6 @@ describe('applyWinnerNow', () => {
       youtube_video_id: 'vid-db-1',
       test_type: 'thumbnail',
       original_title: 'Orig Title',
-      original_description: 'Orig Desc',
       grace_expires_at: new Date(Date.now() + 86400000).toISOString(),
       winner_applied_at: null,
       ...testOverrides,
@@ -164,7 +163,6 @@ describe('applyWinnerNow', () => {
       id: 'v-winner',
       blob_url: 'https://blob/winner.jpg',
       title_text: null,
-      description_text: null,
       is_original: false,
     }
 
@@ -323,7 +321,6 @@ describe('applyWinnerNow', () => {
       youtube_video_id: 'vid-db-1',
       test_type: 'title',
       original_title: 'Orig Title',
-      original_description: 'Orig Desc',
       grace_expires_at: new Date(Date.now() + 86400000).toISOString(),
       winner_applied_at: null,
     }
@@ -332,7 +329,6 @@ describe('applyWinnerNow', () => {
       id: 'v-winner',
       blob_url: null,
       title_text: 'New Winner Title',
-      description_text: null,
       is_original: false,
     }
 
@@ -484,7 +480,6 @@ describe('revertWinner', () => {
       test_type: 'thumbnail',
       original_thumbnail_url: 'https://blob/original.jpg',
       original_title: 'Orig Title',
-      original_description: 'Orig Desc',
       revert_expires_at: new Date(Date.now() + 3 * 86400000).toISOString(),
       winner_applied_at: new Date(Date.now() - 86400000).toISOString(),
       ...testOverrides,

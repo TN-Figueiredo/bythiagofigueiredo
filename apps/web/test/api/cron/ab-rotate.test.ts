@@ -85,11 +85,10 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     status: 'active',
     test_type: 'thumbnail',
     original_title: null,
-    original_description: null,
     config: { rotation_pattern: 'abba' },
     variants: [
-      { id: 'var-a', sort_order: 0, label: 'A', blob_url: 'https://blob/a.png', title_text: null, description_text: null, metadata: {}, is_original: true },
-      { id: 'var-b', sort_order: 1, label: 'B', blob_url: 'https://blob/b.png', title_text: null, description_text: null, metadata: {}, is_original: false },
+      { id: 'var-a', sort_order: 0, label: 'A', blob_url: 'https://blob/a.png', title_text: null, metadata: {}, is_original: true },
+      { id: 'var-b', sort_order: 1, label: 'B', blob_url: 'https://blob/b.png', title_text: null, metadata: {}, is_original: false },
     ],
     ...overrides,
   }
@@ -234,13 +233,6 @@ describe('GET /api/cron/ab-rotate', () => {
               return idempotencyQuery(false).select()
             }
             return countQuery(4).select()
-          }),
-        }
-      }
-      if (table === 'ab_test_tracked_links') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
           }),
         }
       }
