@@ -20,21 +20,22 @@ export type RiFalha = { secao: 'referencias' | 'inscritos'; erro: unknown }
 
 /** Rótulos que não vêm do `ri.js` do mockup (RI-D5): o Logan os revisa na R7. */
 export const ROTULOS_NOVOS_RI = {
-  coletaVelha: (dm: string) => `sem medida · sem coleta desde ${dm}`,
+  coletaVelha: (dm: string) => `sem medida · última coleta em ${dm}`,
   poucosVideos: (k: number) => `sem medida · poucos vídeos (${k})`,
+  soVideosNovos: 'sem medida · só vídeos com menos de 7 dias',
   semVideos: { long: 'sem medida · sem vídeos em 90 dias', short: 'sem medida · sem Shorts em 90 dias' },
   janelaParcial: (dm: string) => `provisória · só desde ${dm}`,
   semMedidaJanelaParcial: (dm: string) => `sem medida · só desde ${dm}`, // TEXTO-A-REVISAR
   fraseRefVazia: 'Nenhum canal pôde ser medido nos últimos 90 dias.',
   fraseInsVazia: 'Nenhum canal pôde ser medido nos últimos 28 dias.',
-  retratoVelho: (dm: string) => `sem medida · sem retrato desde ${dm}`,
-  buraco: (dm: string) => `sem medida · retrato faltando em ${dm}`,
+  retratoVelho: (dm: string) => `sem medida · contagem parada desde ${dm}`,
+  buraco: (dm: string) => `sem medida · falta a contagem de ${dm}`,
   canalProprio: 'sem medida · sem histórico público do seu canal',
   formato: { long: 'vídeos longos', short: 'Shorts' },
-  legendaFormato: (f: string) => `Vídeos considerados: ${f}.`,
+  legendaFormato: (f: string) => `Só entram ${f}.`,
   datasDaJanela: (de: string, ate: string) => `de ${de} a ${ate}`,
-  infoRefJanelaParcial: 'Canal com muitos vídeos novos: se o Observatório não guarda os 90 dias inteiros, a mediana vira provisória e diz desde quando.',
-  infoInsTrintaDias: 'A coluna Crescimento da lista usa 30 dias.',
+  infoRefJanelaParcial: 'Mediana provisória com data: o Observatório ainda não tem os 90 dias inteiros deste canal. A conta usa só os vídeos desde essa data e pode mudar.',
+  infoInsTrintaDias: 'Esta seção usa 28 dias; a coluna Crescimento da lista usa 30. Por isso os números podem ser diferentes.',
   erroRef: 'Não foi possível carregar as referências. Seus dados não mudaram.',
   erroIns: 'Não foi possível carregar os inscritos. Seus dados não mudaram.',
 } as const
@@ -113,7 +114,7 @@ function pilulaNmRef(r: Extract<ReferenciaDoCanal, { tipo: 'nm' }>, fmt: Fmt): R
   switch (r.motivo) {
     case 'ainda_nao_coletado': return { tipo: 'nm', texto: 'sem medida · ainda não coletado' }
     case 'coleta_velha': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.coletaVelha(r.desde != null ? ddmm(r.desde) : '–') }
-    case 'so_videos_novos': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.poucosVideos(0) }
+    case 'so_videos_novos': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.soVideosNovos }
     case 'sem_videos_90d': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.semVideos[fmt] }
     case 'janela_parcial': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.semMedidaJanelaParcial(r.desde != null ? ddmm(r.desde) : '–') }
     case 'poucos_videos': return { tipo: 'nm', texto: ROTULOS_NOVOS_RI.poucosVideos(r.k) }

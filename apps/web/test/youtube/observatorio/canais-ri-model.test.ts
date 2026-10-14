@@ -266,15 +266,15 @@ describe('Dado apagado e relógio', () => {
     expect(por.prop.pilula!.texto).toBe('sem medida · sem histórico público do seu canal')
     expect(por.ocu.pilula!.texto).toBe('sem medida · contagem oculta')
     expect(por.ocu.nota).toBe('O canal escondeu a contagem de inscritos.')
-    expect(por.velho.pilula!.texto).toMatch(/^sem medida · sem retrato desde \d\d\/\d\d$/)
+    expect(por.velho.pilula!.texto).toMatch(/^sem medida · contagem parada desde \d\d\/\d\d$/)
     expect(por.arred.pilula!.texto).toBe('sem medida · dentro do arredondamento (±1 mil)')
     expect(por.arred.nota).toBe('143 mil no total')
-    expect(por.buraco.pilula!.texto).toMatch(/^sem medida · retrato faltando em \d\d\/\d\d$/)
+    expect(por.buraco.pilula!.texto).toMatch(/^sem medida · falta a contagem de \d\d\/\d\d$/)
   })
-  it('coleta velha do canal: "sem coleta desde dd/mm"', () => {
+  it('coleta velha do canal: "última coleta em dd/mm"', () => {
     const c = canal('a', { sync: { state: 'ok', last: AGORA - 60 * HORA, next: null, added: null, errorSince: null, msg: null, backfill: null } })
     const l = ok(buildRiView(obsDe([c], cinco('a', 9000, 8000, 10000)), P).view.referencias).linhas[0]!
-    expect(l.pilula!.texto).toMatch(/^sem medida · sem coleta desde \d\d\/\d\d$/)
+    expect(l.pilula!.texto).toMatch(/^sem medida · última coleta em \d\d\/\d\d$/)
   })
   it('janela parcial: "provisória · só desde dd/mm"', () => {
     const c = canal('a', { video_limit: 5 })
@@ -367,7 +367,7 @@ describe('Inscritos: frase, ordens e barra', () => {
   it('legenda: 4 símbolos e o ⓘ ganha a frase dos 30 dias', () => {
     const s = ok(buildRiView(ins(), P).view.inscritos)
     expect(s.legenda.slice(0, 4)).toEqual(['subiu', 'caiu', 'sem variação', 'sem medida'])
-    expect(s.info.itens.join(' ')).toContain('A coluna Crescimento da lista usa 30 dias.')
+    expect(s.info.itens.join(' ')).toContain('Esta seção usa 28 dias; a coluna Crescimento da lista usa 30. Por isso os números podem ser diferentes.')
   })
 })
 
