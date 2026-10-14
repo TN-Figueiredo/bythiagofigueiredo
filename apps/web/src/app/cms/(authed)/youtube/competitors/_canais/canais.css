@@ -526,10 +526,15 @@
 
 /* D2 (Gio, 14/10): a 1440 a tabela fecha em 1152 sem rolar. Com a Direção a mais, a conta é: Outliers sem a miniatura (o título e o 2x continuam), Views/dia, Trocas e
    Sincronização nas larguras do mockup 16 (Outliers ~86 a 120 px, Views/dia 88, Trocas 89, Sincronização 140). Mexer em uma coluna exige refazer a conta (medir .tablebox: scrollWidth <= clientWidth). */
-[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out{min-width:104px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out{min-width:92px}
+/* D2b (Gio, 14/10): na tabela sem painel, Outliers = título (1 linha), "2,4×" e "há 12 dias"; o resto (vs, n, contagem) fica fora. Linha típica <= 100 px. */
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .det{display:none}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .t{-webkit-line-clamp:1;line-clamp:1}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .thumb{display:none}
-[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .t,[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .cap{max-width:104px}
-[data-obs-screen="canais"]:not(.drawer-open) .tablebox .swap{max-width:62px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .t,[data-obs-screen="canais"]:not(.drawer-open) .tablebox .out .cap{max-width:92px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .swap{min-width:88px;max-width:88px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox tbody td{padding-top:7px;padding-bottom:7px}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .swap .last{white-space:normal}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .sync{min-width:0;max-width:140px}
 

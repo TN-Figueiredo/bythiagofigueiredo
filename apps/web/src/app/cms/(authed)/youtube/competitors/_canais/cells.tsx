@@ -166,8 +166,8 @@ export function OutView({ c, c2, upnextHref, visible }: { c: OutCell; c2?: OutCe
       <ThumbView t={c.thumb} />
       <div>
         <div className="t" title={c.videoTitle}>{c.videoTitle}</div>
-        <div className="cap"><b className={`mult num ${c.tier}`} data-k="best">{c.mult}</b> vs {c.vs}, n{' '}={' '}<span data-k="bestN">{c.n}</span></div>
-        <div className="cap">publicado <span title={c.publishedTitle}>{c.published}</span>, <span data-k="outs">{c.count}</span></div>
+        <div className="cap"><b className={`mult num ${c.tier}`} data-k="best">{c.mult}</b><span className="det"> vs {c.vs}, n{' '}={' '}<span data-k="bestN">{c.n}</span></span></div>
+        <div className="cap"><span className="det">publicado </span><span title={c.publishedTitle}>{c.published}</span><span className="det">, <span data-k="outs">{c.count}</span></span></div>
       </div>
     </div>
   )
