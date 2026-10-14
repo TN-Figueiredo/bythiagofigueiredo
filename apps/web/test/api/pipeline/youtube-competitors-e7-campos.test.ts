@@ -106,6 +106,12 @@ describe('o que a lista entrega', () => {
     expect(r.fora_da_lista).toBe(0)
   })
 
+  it('linha da página com precisão inválida: não vira item e é contada em fora_da_lista', async () => {
+    const r = await lerOk(mundo([...base(), versao({ video: 1, field: 'tags', value: ['z'], first: aoDia(0), precision: 'x' })]))
+    expect(r.fora_da_lista).toBe(1)
+    expect(r.itens.some(i => i.valor_novo !== null && JSON.stringify(i.valor_novo) === '["z"]')).toBe(false)
+  })
+
   it('campo de canal numa linha de vídeo: descartada e contada em fora_da_lista', async () => {
     const r = await lerOk(mundo([...base(), versao({ video: 1, field: 'name', value: 'impossível', first: aoDia(0, 5), precision: '1d' })]))
     expect(r.fora_da_lista).toBe(1)

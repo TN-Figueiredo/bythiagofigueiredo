@@ -301,9 +301,10 @@ async function listar(sb: SupabaseClient, siteId: string, o: { limite: number; b
   }
 
   const itens: MudancaDeCampo[] = []
+  let invalidas = 0
   for (const l of pagina) {
     const id = numero(l['id']), campo = texto(l['field']), visto = texto(l['first_seen_at']), precisao = precisaoDe(l['precision'])
-    if (id === null || !campo || !visto || !precisao) continue
+    if (id === null || !campo || !visto || !precisao) { invalidas++; continue }
     const comum = { id, campo, valor_novo: comoJson(l['value']), visto_em: visto, janela_desde: texto(l['window_start']), precisao }
     if (l['video_id'] === null || l['video_id'] === undefined) {
       if (!doCanal.includes(l)) continue
@@ -317,8 +318,10 @@ async function listar(sb: SupabaseClient, siteId: string, o: { limite: number; b
     }
   }
 
+  if (invalidas > 0) Sentry.captureMessage('e7.linha_de_campo_invalida', { extra: { contagem: invalidas } })
+
   return {
     estado: 'lido', itens, count: itens.length, limite, cortado, coleta_desde: coletaDesde, lido_ate: lidoAte,
-    fora_da_lista: foraDaLista, video_de_outro_site: deOutroSite, video_ausente: ausentes,
+    fora_da_lista: foraDaLista + invalidas, video_de_outro_site: deOutroSite, video_ausente: ausentes,
   }
 }
