@@ -1,0 +1,85 @@
+/* ri.css v2: Referências e Inscritos (A5, 2ª leva E5a). Reusa de a4.css: .btn, .sec, .lead, .pop, .ibtn, .chip, .ex, .nm-h, .ch-shell.
+   Só o que é novo, com prefixo ri-/reg/dv. Sem color-mix(): hex/rgba literais. */
+:root{--band:rgba(90,174,230,.28);--band-line:#5AAEE6;--mk:#5AAEE6;--tick:#40382D;--sk:rgba(168,157,136,.16);--stk:0px;--pad:14px}
+:root[data-theme="light"]{--band:rgba(27,120,186,.22);--band-line:#1B78BA;--mk:#1B78BA;--tick:#CFC4B0;--sk:rgba(94,82,64,.12)}
+/* B1: o mockup não tem menu lateral; a grade de 2 colunas de a4.css derrubava a tela numa coluna de 208 px */
+#app{display:block}
+.ri{max-width:1100px;margin:0 auto;padding:0 20px 64px;--cols:minmax(200px,280px) minmax(0,1fr) 210px}
+.ri h1{font:inherit;margin:0}
+.ri .ch-shell{padding:12px 0}
+.ri-estados{margin:12px 0 6px;padding:8px 10px;border:1px dashed var(--dim);border-radius:8px;font-size:12px;color:var(--muted);align-items:center}
+.ri-estados summary{cursor:pointer;min-height:24px;display:flex;align-items:center}
+.ri-estl{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ri .btn[aria-pressed=true],.ri .btn[aria-current=true]{background:var(--surface-2);font-weight:600;box-shadow:inset 0 -2px 0 var(--text)}
+.ri-abas{display:none}
+.ri .sec{margin:0 0 18px;padding:14px 16px 8px}
+.ri-head{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px}
+.ri-head .lead{margin:2px 0 0;flex:1;min-width:0}
+.ri .pop{overflow:auto;max-height:min(80vh,620px)}
+.ri .pop[popover]{margin:0}
+.ri-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;font-size:13px;color:var(--muted)}
+.ri-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 6px;font-size:12px;color:var(--muted);align-items:center}
+.ri-leg i{display:inline-block;vertical-align:middle;margin-right:6px}
+.sw-band{width:26px;height:10px;background:var(--band);border:1px solid var(--band-line);border-radius:2px}
+.sw-mk{width:4px;height:14px;background:var(--mk);border-radius:1px}
+.sw-pv{width:8px;height:14px;box-sizing:border-box;border:2px solid var(--mk);border-radius:1px}
+.ri-esc,.ri-lst>li{display:grid;grid-template-columns:var(--cols);gap:6px 14px;align-items:center}
+.ri-esc{position:sticky;top:var(--stk);background:var(--surface);padding:4px 0 2px;border-bottom:1px solid var(--border-subtle);font:12px/16px var(--mono);color:var(--muted)}
+.ri-esc>div{grid-column:2;position:relative;height:16px}
+.ri-esc span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+ol.ri-lst{list-style:none;margin:0;padding:0}
+.ri-lst>li{padding:10px 0;border-top:1px solid var(--border-subtle)}
+.ri-lst>li:first-child{border-top:0}
+.ri-nome{display:flex;gap:8px;align-items:center;min-width:0}
+.ri-nome .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;min-width:0}
+.ri-rk{font:12px var(--mono);color:var(--muted);min-width:18px;text-align:right;flex:none}
+.ri-val{text-align:right;font:600 15px/1.2 var(--mono)}
+.ri-val small{display:block;font:400 12px/16px var(--sans);color:var(--muted);margin-top:2px}
+/* Referências: régua log, ticks em 1 mil, 10 mil, 100 mil, 1 mi (mesmas posições de pos() em ri.js) */
+.reg{position:relative;height:22px;background-image:linear-gradient(var(--tick),var(--tick)),linear-gradient(var(--tick),var(--tick)),linear-gradient(var(--tick),var(--tick)),linear-gradient(var(--tick),var(--tick));background-repeat:no-repeat;background-size:1px 100%;background-position:2.85% 0,32.3% 0,61.7% 0,91.1% 0}
+.reg .trilho{position:absolute;left:0;right:0;top:10px;height:2px;background:var(--border-strong)}
+.reg .faixa{position:absolute;top:4px;height:14px;background:var(--band);border:1px solid var(--band-line);border-radius:3px;box-sizing:border-box;min-width:3px}
+.reg .mk{position:absolute;top:1px;width:4px;height:20px;margin-left:-2px;background:var(--mk);border-radius:1px}
+.reg .mk.pv{box-sizing:border-box;width:8px;margin-left:-4px;background:var(--surface);border:2px solid var(--mk)}
+.reg.pt .trilho{background:none;border-top:2px dashed var(--dim);height:0}
+.ri-g{font-size:15px;line-height:1;font-weight:700;color:var(--text)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:1px 8px;border-radius:4px;font-size:12px;line-height:18px;border:1px solid var(--dim);color:var(--muted)}
+.pill.nm2{border-color:var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 5px,var(--nm-fio) 5px 7px)}
+.pill.pont{border-style:dashed}
+.pill.err{border-color:var(--danger-text);color:var(--danger-text)}
+.pill svg{width:14px;height:14px;flex:none}
+/* Inscritos: barra divergente, sem texto dentro (a % vive na coluna de valor) */
+.dv{position:relative;height:26px}
+.dv .eixo{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--dim)}
+.dv .b{position:absolute;top:4px;height:18px;border-radius:3px;min-width:3px}
+.dv .b.up{left:50%;background:var(--dir-up)}
+.dv .b.dn{right:50%;background:var(--dir-dn)}
+.dv .b.eq{left:calc(50% - 7px);width:14px;height:4px;top:11px;background:var(--dir-eq)}
+.dv.sm{height:auto}
+.dir{font-weight:700}
+.dir.up{color:var(--dir-up)}.dir.dn{color:var(--dir-dn)}.dir.eq{color:var(--dir-eq)}
+.ri-more{display:none}
+.ri-vazio{padding:18px;border:1px dashed var(--dim);border-radius:8px;color:var(--muted);margin-bottom:8px}
+.ri-aviso{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 8px;padding:8px 10px;border:1px dashed var(--dim);border-radius:8px;font-size:13px;color:var(--muted)}
+.ri-aviso.err{border-color:var(--danger-text);border-style:solid;color:var(--text)}
+.ri-aviso svg{width:16px;height:16px;flex:none;color:var(--danger-text)}
+.ri-sk{display:block;border-radius:4px;background:var(--sk)}
+.ri-sk.l{height:14px}.ri-sk.r{height:22px;background:none;border-top:2px dotted var(--dim);margin-top:10px}
+@media(max-width:899px){
+ .ri-estl .btn{min-height:36px}
+ :root{--stk:56px}
+ .ri{padding:0 12px 48px;--cols:minmax(0,1fr) 112px}
+ .ri-abas{display:flex;gap:6px;position:sticky;top:0;background:var(--bg);padding:6px 0;height:56px;box-sizing:border-box}
+ .ri-abas .btn{flex:1;min-height:44px}
+ .ri .btn{min-height:44px}
+ .ri-abas .btn{min-height:44px}
+ .ri[data-aba=ref] #s-ins,.ri[data-aba=ins] #s-ref{display:none}
+ .ri-esc>div{grid-column:1}
+ .ri-lst>li .ri-nome{grid-column:1/-1}
+ .ri-val{font-size:14px}
+ .ri-lst>li.extra:not(.pin){display:none}
+ .ri-lst.all>li.extra{display:grid}
+ .ri-more{display:inline-flex;margin:4px 0 8px}
+ .ri .sec{padding:12px 12px 6px}
+}
+@media(min-width:900px) and (max-width:1100px){.ri{--cols:minmax(180px,240px) minmax(0,1fr) 190px}}
