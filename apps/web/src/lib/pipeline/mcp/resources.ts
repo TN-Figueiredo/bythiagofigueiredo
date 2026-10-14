@@ -661,28 +661,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 15. pipeline://youtube/ab-fatigue — pending fatigue alerts
-  // -------------------------------------------------------------------------
-  server.resource(
-    'youtube-ab-fatigue',
-    'pipeline://youtube/ab-fatigue',
-    {
-      description: 'Pending CTR fatigue alerts for videos with declining performance',
-      mimeType: 'application/json',
-      size: 2_000,
-      annotations: { audience: ['assistant'] },
-    },
-    async (uri) => {
-      const { ctx } = await buildResourceCtx()
-      const data = await youtube.getAbFatigueAlerts(ctx)
-      const result = jsonResource(data.data)
-      result.contents[0]!.uri = uri.href
-      return result
-    },
-  )
-
-  // -------------------------------------------------------------------------
-  // 16. pipeline://youtube/ab-dashboard — aggregate dashboard stats
+  // 15. pipeline://youtube/ab-dashboard — aggregate dashboard stats
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-ab-dashboard',
@@ -703,7 +682,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 17. pipeline://youtube/thumbnails/library — thumbnail library
+  // 16. pipeline://youtube/thumbnails/library — thumbnail library
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-thumbnails-library',
@@ -724,28 +703,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 18. pipeline://youtube/thumbnails/fatigue — thumbnail fatigue alerts
-  // -------------------------------------------------------------------------
-  server.resource(
-    'youtube-thumbnails-fatigue',
-    'pipeline://youtube/thumbnails/fatigue',
-    {
-      description: 'Pending thumbnail fatigue alerts with CTR decline data',
-      mimeType: 'application/json',
-      size: 2_000,
-      annotations: { audience: ['assistant'] },
-    },
-    async (uri) => {
-      const { ctx } = await buildResourceCtx()
-      const data = await youtube.getThumbnailFatigueAlerts(ctx)
-      const result = jsonResource(data.data)
-      result.contents[0]!.uri = uri.href
-      return result
-    },
-  )
-
-  // -------------------------------------------------------------------------
-  // 19. pipeline://youtube/competitors/channels — tracked competitor channels
+  // 17. pipeline://youtube/competitors/channels — tracked competitor channels
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-competitors-channels',
@@ -773,7 +731,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 20. pipeline://youtube/competitors/changes — recent competitor changes
+  // 18. pipeline://youtube/competitors/changes — recent competitor changes
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-competitors-changes',
@@ -797,7 +755,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 21. pipeline://youtube/competitors/outliers — bookmarked competitor changes
+  // 19. pipeline://youtube/competitors/outliers — bookmarked competitor changes
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-competitors-outliers',
@@ -819,7 +777,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 22. pipeline://youtube/competitors/insights — aggregate competitor insights
+  // 20. pipeline://youtube/competitors/insights — aggregate competitor insights
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-competitors-insights',
@@ -866,7 +824,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 23. pipeline://youtube/videos — recent videos summary
+  // 21. pipeline://youtube/videos — recent videos summary
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-videos',
@@ -898,7 +856,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 24. pipeline://youtube/categories — video categories
+  // 22. pipeline://youtube/categories — video categories
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-categories',
@@ -928,7 +886,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 25. pipeline://youtube/channels — channel summary
+  // 23. pipeline://youtube/channels — channel summary
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-channels',
@@ -953,7 +911,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 26. pipeline://youtube/grades — latest video grades
+  // 24. pipeline://youtube/grades — latest video grades
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-grades',
@@ -994,7 +952,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 27. pipeline://youtube/notes — channel notes
+  // 25. pipeline://youtube/notes — channel notes
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-notes',
@@ -1025,7 +983,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 28. pipeline://youtube/optimization-cycles — active optimization cycles
+  // 26. pipeline://youtube/optimization-cycles — active optimization cycles
   // -------------------------------------------------------------------------
   server.resource(
     'youtube-optimization-cycles',
@@ -1057,7 +1015,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 29. pipeline://research/foco/active — current active quarterly focus
+  // 27. pipeline://research/foco/active — current active quarterly focus
   // -------------------------------------------------------------------------
   server.resource(
     'research-foco-active',
@@ -1084,7 +1042,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 30. pipeline://research/decisoes — decision log grouped by horizon
+  // 28. pipeline://research/decisoes — decision log grouped by horizon
   // -------------------------------------------------------------------------
   server.resource(
     'research-decisoes',
@@ -1123,7 +1081,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 31. pipeline://research/focos — full foco list (all states)
+  // 29. pipeline://research/focos — full foco list (all states)
   // -------------------------------------------------------------------------
   server.resource(
     'research-focos',
@@ -1158,7 +1116,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 32. pipeline://research/items-fresca — triage backlog (status=fresca)
+  // 30. pipeline://research/items-fresca — triage backlog (status=fresca)
   // -------------------------------------------------------------------------
   server.resource(
     'research-items-fresca',
@@ -1196,7 +1154,7 @@ export function registerResources(server: McpServer): void {
   )
 
   // -------------------------------------------------------------------------
-  // 33. pipeline://research/digest — pre-computed strategy signals
+  // 31. pipeline://research/digest — pre-computed strategy signals
   // -------------------------------------------------------------------------
   server.resource(
     'research-digest',

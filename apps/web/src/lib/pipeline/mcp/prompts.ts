@@ -1206,7 +1206,7 @@ export function registerPrompts(server: McpServer): void {
       lines.push('  },')
       lines.push('  "notifications": [')
       lines.push('    {')
-      lines.push('      "type": "optimization_available | grade_drop | ctr_drop | trending_viral",')
+      lines.push('      "type": "optimization_available | grade_drop | ctr_drop",')
       lines.push('      "video_id": "<uuid>",')
       lines.push('      "priority": 1-5,')
       lines.push('      "title": "Short title",')

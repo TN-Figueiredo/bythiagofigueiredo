@@ -166,7 +166,7 @@ const YOUTUBE: CapabilityDomain = {
   description: 'Channel intelligence, video performance analysis, and title/description A/B testing.',
   suggest_when: 'YouTube analytics, performance review, A/B test management, video optimization',
   docs: '/api/pipeline/docs/youtube',
-  endpoint_count: 36,
+  endpoint_count: 34,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/youtube/channels', summary: 'List own YouTube channels (id, slug, locale, niche) in registration order — accepts read, intelligence, write or admin', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot — accepts intelligence, write or admin', auth: 'intelligence' },
@@ -194,9 +194,7 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'DELETE', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'Delete a non-original variant by label (B, C, or D)', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/learnings', summary: 'Tag win rates and channel insights from completed tests', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/suggestions', summary: 'Suggested videos for A/B testing based on underperformance', auth: 'read' },
-    { method: 'GET', path: '/api/pipeline/youtube/ab-tests/fatigue-alerts', summary: 'Pending fatigue alerts for videos with declining CTR', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/dashboard', summary: 'Aggregate dashboard stats for A/B tests', auth: 'read' },
-    { method: 'GET', path: '/api/pipeline/youtube/thumbnails/fatigue', summary: 'Get thumbnail fatigue alerts for videos with declining CTR', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/thumbnails/library', summary: 'Get thumbnail library with reusable assets', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/channels', summary: 'List competitor channels with engagement stats', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/changes', summary: 'List competitor changes with type/bookmarked filters', auth: 'read' },

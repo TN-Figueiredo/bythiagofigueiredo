@@ -261,6 +261,44 @@ describe('submitIntelRecommendations — schema', () => {
     expect(sb.tables).not.toContain('youtube_intelligence_tasks')
   })
 
+  it('aviso trending_viral é recusado com 400, mensagem em pt-BR, e nada é gravado', async () => {
+    const sb = makeSupabase([])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      ...CHANNEL_ONLY,
+      notifications: [{ type: 'trending_viral', priority: 2, title: 't', message: 'm' }],
+    })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: expect.stringMatching(/tipo de aviso não aceito\. "trending_viral" foi desligado em 10\/2026.*Aceitos: .*optimization_resolved/),
+    })
+    expect(sb.client.from).not.toHaveBeenCalled()
+  })
+
+  it('tipo de aviso inválido qualquer lista os tipos aceitos', async () => {
+    const sb = makeSupabase([])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      ...CHANNEL_ONLY,
+      notifications: [{ type: 'ctr-drop', priority: 2, title: 't', message: 'm' }],
+    })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      message: expect.stringMatching(/notifications\.0\.type: tipo de aviso não aceito: ctr-drop\. Aceitos: .*ctr_drop.*optimization_resolved/),
+    })
+    expect(sb.client.from).not.toHaveBeenCalled()
+  })
+
+  it('type ausente mantém a mensagem padrão do zod', async () => {
+    const sb = makeSupabase([])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      ...CHANNEL_ONLY,
+      notifications: [{ priority: 2, title: 't', message: 'm' }],
+    })).rejects.toMatchObject({
+      status: 400,
+      message: expect.not.stringContaining('undefined'),
+    })
+    expect(sb.client.from).not.toHaveBeenCalled()
+  })
+
   it('caps patterns_detected at 30, pattern_id at 80, category at 40 and requires an int sample_size', () => {
     const base = { task_id: '22222222-2222-4222-8222-222222222222' }
     const pattern = { pattern_id: 'p', category: 'series', finding: 'f', confidence: 0.5, sample_size: 4 }

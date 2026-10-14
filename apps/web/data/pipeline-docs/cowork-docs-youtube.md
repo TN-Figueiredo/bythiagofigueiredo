@@ -9,7 +9,7 @@
 O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 - Diagnósticos por vídeo (fraquezas, oportunidades)
 - Coaching cards (recomendações priorizadas por eixo)
-- Notificações acionáveis (grade drops, CTR drops, viral detection)
+- Notificações acionáveis (grade drops, CTR drops)
 - Sugestões de A/B tests (thumb, title, description, combo)
 
 ---
@@ -277,8 +277,9 @@ unmonitored -> flagged -> diagnosed -> test_suggested -> testing -> post_test_mo
 | ab_test_completed | 3 | A/B test tem vencedor declarado |
 | retest_suggested | 3 | Ciclo volta para diagnosed |
 | optimization_available | 3 | Nova recomendação disponível |
-| trending_viral | 2 | views48h >= 5x channelAvg48h |
 | optimization_resolved | 1 | Ciclo encerrado com sucesso |
+
+`trending_viral` foi desligado em 10/2026 e é recusado com 400; o PATCH inteiro é recusado: tire o aviso e reenvie o corpo inteiro.
 
 **Dedup:** Unique index em (site_id, dedup_key). Mesma notificação não é criada 2x.
 **Expiração:** 30 dias. Cron diário marca `expired_at`.
@@ -1301,7 +1302,7 @@ Gestão de categorias de vídeo (auto-categorizadas e manuais).
 
 ## AB Lab Extended
 
-Endpoints estendidos para A/B tests: learnings, suggestions, fatigue alerts, dashboard stats e test history.
+Endpoints estendidos para A/B tests: learnings, suggestions, dashboard stats e test history.
 
 ### GET /api/pipeline/youtube/ab-tests/learnings
 
@@ -1393,39 +1394,6 @@ Lista vídeos sugeridos para testes A/B baseado em sinais de underperformance.
 
 ---
 
-### GET /api/pipeline/youtube/ab-tests/fatigue-alerts
-
-Lista alertas de fadiga de thumbnail para vídeos com CTR em declínio.
-
-**Auth:** read
-
-**Response 200:**
-```json
-{
-  "data": {
-    "alerts": [
-      {
-        "id": "uuid",
-        "videoId": "uuid",
-        "title": "Video Losing CTR",
-        "zScore": -2.8,
-        "expectedCtr": 4.5,
-        "actualCtr": 2.1,
-        "createdAt": "2026-06-01T08:00:00Z"
-      }
-    ]
-  }
-}
-```
-
-**Notas:**
-- `zScore` negativo indica queda abaixo do esperado (threshold: z < -2.0)
-- `expectedCtr` vs `actualCtr` mostra a magnitude da degradação
-- Apenas alertas com status `pending` são retornados (máximo 20)
-- Ação recomendada: criar A/B test de thumbnail para o vídeo afetado
-
----
-
 ### GET /api/pipeline/youtube/ab-tests/dashboard
 
 Retorna estatísticas agregadas do programa de A/B testing.
@@ -1505,7 +1473,7 @@ Retorna histórico completo de testes A/B para um vídeo específico.
 
 ## Thumbnail Library
 
-Endpoints para a biblioteca de thumbnails e análise de fadiga.
+Endpoints para a biblioteca de thumbnails.
 
 ### GET /api/pipeline/youtube/thumbnails/library
 
@@ -1538,45 +1506,6 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 - `liftAtWin` é o CTR lift (%) no momento da vitória
 - Import automático via `autoImportWinner()` quando teste é completado com vencedor
 - Thumbnails sem `sourceTestId` são uploads manuais
-
----
-
-### GET /api/pipeline/youtube/thumbnails/fatigue
-
-Retorna tendências de fadiga de thumbnails — análise de declínio de CTR ao longo do tempo.
-
-**Auth:** read
-
-**Query params:**
-- `channel_id` (opcional): UUID interno do canal
-- `days` (opcional, default: 90): janela de análise
-
-**Response 200:**
-```json
-{
-  "data": {
-    "trends": [
-      {
-        "videoId": "uuid",
-        "title": "Video Title",
-        "thumbnailUrl": "https://...",
-        "ctrTimeline": [
-          { "date": "2026-03-01", "ctr": 5.2 },
-          { "date": "2026-04-01", "ctr": 4.1 },
-          { "date": "2026-05-01", "ctr": 2.8 }
-        ],
-        "decline": -46.2,
-        "severity": "high"
-      }
-    ]
-  }
-}
-```
-
-**Notas:**
-- `decline` é a queda percentual do primeiro ao último ponto da timeline
-- `severity`: `low` (< 20% queda), `medium` (20-40%), `high` (> 40%)
-- Recomendação: vídeos com `severity: "high"` devem entrar no pipeline de A/B testing
 
 ---
 

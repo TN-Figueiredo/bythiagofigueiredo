@@ -206,7 +206,6 @@ describe('cowork-docs-youtube endpoint coverage', () => {
 
   it('covers thumbnail endpoints', () => {
     expect(docs).toContain('/api/pipeline/youtube/thumbnails/library')
-    expect(docs).toContain('/api/pipeline/youtube/thumbnails/fatigue')
   })
 
   it('covers category endpoints', () => {

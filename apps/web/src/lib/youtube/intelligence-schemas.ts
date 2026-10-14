@@ -30,8 +30,18 @@ export const CoachingSchema = z.object({
 export const NotificationSchema = z.object({
   type: z.enum([
     'grade_drop', 'ctr_drop', 'monitoring_alert', 'ab_test_completed',
-    'retest_suggested', 'optimization_available', 'trending_viral', 'optimization_resolved',
-  ]),
+    'retest_suggested', 'optimization_available', 'optimization_resolved',
+  ], {
+    errorMap: (issue, ctx) => {
+      if (issue.code !== 'invalid_enum_value') return { message: ctx.defaultError }
+      const aceitos = issue.options.join(', ')
+      return {
+        message: issue.received === 'trending_viral'
+          ? `tipo de aviso não aceito. "trending_viral" foi desligado em 10/2026: o número que o alimentava era o total de 90 dias, não as views do dia. Aceitos: ${aceitos}`
+          : `tipo de aviso não aceito: ${String(issue.received).slice(0, 60)}. Aceitos: ${aceitos}`,
+      }
+    },
+  }),
   video_id: z.string().uuid().optional(),
   priority: z.number().int().min(1).max(5),
   title: z.string().max(100),

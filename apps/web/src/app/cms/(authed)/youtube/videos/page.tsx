@@ -15,7 +15,7 @@ export default async function YouTubeVideosPage() {
 
   const supabase = getSupabaseServiceClient()
 
-  const [videosRes, channelsRes, categoriesRes, abTestsRes, fatigueRes] = await Promise.all([
+  const [videosRes, channelsRes, categoriesRes, abTestsRes] = await Promise.all([
     supabase
       .from('youtube_videos')
       .select(
@@ -34,17 +34,11 @@ export default async function YouTubeVideosPage() {
       .select('id, youtube_video_id, status, started_at, result_metadata, source_pipeline_id')
       .eq('site_id', siteId)
       .in('status', ['draft', 'active', 'paused', 'completed']),
-    supabase
-      .from('youtube_fatigue_alerts')
-      .select('video_id')
-      .eq('site_id', siteId)
-      .eq('status', 'pending'),
   ])
 
   const rawVideos = videosRes.data ?? []
   const rawChannels = channelsRes.data ?? []
   const rawCategories = categoriesRes.data ?? []
-  const fatigueVideoIds = new Set((fatigueRes.data ?? []).map(r => r.video_id as string))
 
   const abTestMap = new Map<string, { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null; sourcePipelineId: string | null }>()
   for (const t of (abTestsRes.data ?? [])) {
@@ -106,7 +100,6 @@ export default async function YouTubeVideosPage() {
       sourcePipelineId: abTestMap.get(v.id as string)?.sourcePipelineId ?? null,
       cmsNotes: (v.cms_notes as string | null) ?? null,
       version: (v.version as number | null) ?? 1,
-      hasFatigueAlert: fatigueVideoIds.has(v.id as string),
     }
   })
 

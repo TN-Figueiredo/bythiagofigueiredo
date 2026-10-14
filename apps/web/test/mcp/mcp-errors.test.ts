@@ -614,6 +614,8 @@ describe('MCP Errors — recovery_action never sends the caller after a nonexist
     const actionEnum = (abTestTool!.inputSchema.properties as Record<string, { enum?: string[] }>).action.enum ?? []
     expect(actionEnum).toContain('claim_task')
     expect(actionEnum).not.toContain('fail')
+    // A/B Lab P1 (10/2026): the fatigue phase was removed; the action must not return.
+    expect(actionEnum).not.toContain('get_fatigue_alerts')
 
     // The property that matters — "no recovery_action instructs an action outside the MCP
     // enum" — can't be checked generically against free text without NLP; the regression

@@ -49,13 +49,11 @@ vi.mock('@/lib/pipeline/services/http-adapter', () => ({
 
 vi.mock('@/lib/pipeline/services/youtube', () => ({
   getThumbnailLibrary: vi.fn(),
-  getThumbnailFatigueAlerts: vi.fn(),
 }))
 
 import { authenticateRead } from '@/lib/pipeline/helpers'
 import {
   getThumbnailLibrary,
-  getThumbnailFatigueAlerts,
 } from '@/lib/pipeline/services/youtube'
 
 function mockAuthRead() {
@@ -166,105 +164,6 @@ describe('GET /api/pipeline/youtube/thumbnails/library', () => {
     )
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/thumbnails/library'))
-    expect(res.status).toBe(500)
-  })
-})
-
-// ─── GET /api/pipeline/youtube/thumbnails/fatigue ───────────────────────────
-
-describe('GET /api/pipeline/youtube/thumbnails/fatigue', () => {
-  let GET: (req: NextRequest) => Promise<Response>
-
-  beforeEach(async () => {
-    vi.clearAllMocks()
-    const mod = await import('../../../src/app/api/pipeline/youtube/thumbnails/fatigue/route')
-    GET = mod.GET
-  })
-
-  it('returns 401 when auth fails', async () => {
-    mockAuthFail()
-    const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/thumbnails/fatigue'))
-    expect(res.status).toBe(401)
-  })
-
-  it('returns pending alerts with video info', async () => {
-    mockAuthRead()
-    vi.mocked(getThumbnailFatigueAlerts).mockResolvedValue({
-      data: {
-        alerts: [
-          {
-            videoId: 'yt-vid-001',
-            title: 'My Best Video',
-            zScore: -2.3,
-            expectedCtr: 0.085,
-            actualCtr: 0.042,
-            daysSinceChange: 14,
-          },
-          {
-            videoId: 'yt-vid-002',
-            title: 'Another Video',
-            zScore: -1.8,
-            expectedCtr: 0.072,
-            actualCtr: 0.051,
-            daysSinceChange: 7,
-          },
-        ],
-      },
-    } as any)
-
-    const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/thumbnails/fatigue'))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.data.alerts).toHaveLength(2)
-    expect(body.data.alerts[0].title).toBe('My Best Video')
-    expect(body.data.alerts[0].zScore).toBe(-2.3)
-    expect(body.data.alerts[0].expectedCtr).toBe(0.085)
-    expect(body.data.alerts[0].actualCtr).toBe(0.042)
-  })
-
-  it('computes daysSinceChange', async () => {
-    mockAuthRead()
-    vi.mocked(getThumbnailFatigueAlerts).mockResolvedValue({
-      data: {
-        alerts: [
-          {
-            videoId: 'yt-vid-003',
-            title: 'Video with Age',
-            zScore: -2.0,
-            expectedCtr: 0.09,
-            actualCtr: 0.04,
-            daysSinceChange: 30,
-          },
-        ],
-      },
-    } as any)
-
-    const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/thumbnails/fatigue'))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.data.alerts[0].daysSinceChange).toBe(30)
-    expect(typeof body.data.alerts[0].daysSinceChange).toBe('number')
-  })
-
-  it('returns empty when no pending alerts', async () => {
-    mockAuthRead()
-    vi.mocked(getThumbnailFatigueAlerts).mockResolvedValue({
-      data: { alerts: [] },
-    } as any)
-
-    const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/thumbnails/fatigue'))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.data.alerts).toEqual([])
-  })
-
-  it('returns 500 when service throws DB error', async () => {
-    mockAuthRead()
-    vi.mocked(getThumbnailFatigueAlerts).mockRejectedValue(
-      new PipelineServiceError('DB_ERROR', 'Failed to load fatigue alerts', 500),
-    )
-
-    const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/thumbnails/fatigue'))
     expect(res.status).toBe(500)
   })
 })
