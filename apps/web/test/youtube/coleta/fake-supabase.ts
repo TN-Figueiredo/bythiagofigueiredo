@@ -10,6 +10,7 @@
 // ordenação padrão do Postgres (NULLs por último no asc, primeiro no desc); neq exclui nulos.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ehKind } from '@/lib/youtube/coleta/kinds'
+import { comDailyApply } from './fake-daily-apply'
 
 export type Row = Record<string, unknown>
 export interface FakeErr { code: string; message: string }
@@ -278,6 +279,9 @@ export function fakeSupabase(
       error: null,
     }
   }
+
+  // Tarefa 3 (E6): a gravação do diário pela função. `db.errors['rpc:yt_own_daily_apply']` tem precedência (função ausente).
+  comDailyApply(db)
 
   db.client = {
     from: (tabela: string) => new Consulta(db, tabela),

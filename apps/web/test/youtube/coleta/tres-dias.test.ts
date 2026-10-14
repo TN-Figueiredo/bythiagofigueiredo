@@ -214,7 +214,7 @@ beforeEach(() => {
   vi.mocked(criarReportingClient).mockImplementation((token) => google.cliente(token.slice('tok:'.length)))
   vi.mocked(getSiteOwners).mockResolvedValue([{ userId: 'u1', email: 'dono@example.test' }])
   vi.mocked(fanOutToSiteAdmins).mockResolvedValue(1)
-  vi.mocked(diarioDoVideo).mockResolvedValue({ dias: [{ day: '2026-10-03', valores: { views: 1 } }], estendidas: 'ok' })
+  vi.mocked(diarioDoVideo).mockResolvedValue({ dias: [{ day: '2026-10-03', valores: { views: 1, engaged_views: 1 } }], estendidas: 'ok' })
 })
 afterEach(() => {
   vi.useRealTimers()
