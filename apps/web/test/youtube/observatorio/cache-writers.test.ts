@@ -18,10 +18,10 @@ const CACHED = 'competitor_videos|competitor_video_versions|competitor_video_dai
 /** A write to a cached table, one of the two functions that write to them, or the delete of a channel (cascades to all four). */
 const WRITES = new RegExp(`from\\('(?:${CACHED})'\\)\\s*\\.(?:insert|update|upsert|delete)\\(|rpc\\('(?:apply_competitor_version_plan|pin_competitor_video)'|from\\('competitor_channels'\\)\\s*\\.delete\\(`)
 /**
- * The sync itself (its callers invalidate), the watchdog prune of snapshots older than 365 d (outside the 90 d read),
+ * The sync itself (its callers invalidate), the prune of snapshots older than 365 d (outside the 90 d read; `lib/youtube/competitor-snapshot-prune.ts`, called by the watchdog),
  * and the actions (pin, unpin, remove channel), which invalidate themselves.
  */
-const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'app/api/cron/ab-watchdog/route.ts', ACTIONS]
+const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'lib/youtube/competitor-snapshot-prune.ts', ACTIONS]
 const RUNS_SYNC = /from '@\/lib\/youtube\/competitor-sync(?:-batch)?'/
 
 describe('quem escreve no que o Observatório guarda em cache', () => {

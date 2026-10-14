@@ -4,6 +4,7 @@ import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteOwners, logSemDestinatario, SEM_DESTINATARIO } from '@/lib/notifications/get-site-owners'
 import { checkDrift } from '@/lib/youtube/ab-drift'
+import { podarRetratosDeCanal } from '@/lib/youtube/competitor-snapshot-prune'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import * as Sentry from '@sentry/nextjs'
 
@@ -200,18 +201,16 @@ export async function GET(req: NextRequest) {
     // competitor_changes is the observatory's history (Histórico por vídeo depends on it):
     // never pruned. Only granular channel snapshots below have a retention window.
 
-    // Prune old channel snapshots (365-day retention)
-    const oneYearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)
-    await pruneClient
-      .from('competitor_channel_snapshots')
-      .delete()
-      .lt('snapshot_date', oneYearAgo)
+    // Prune old channel snapshots (365-day retention), except those of channels that left YouTube (A5 E9 T11a)
+    const podaRetratos = await podarRetratosDeCanal(pruneClient, Date.now())
+    if (!podaRetratos.ok) console.error('[ab-watchdog] snapshot prune skipped:', podaRetratos.motivo)
 
     await recordCronSuccess('ab-watchdog', 'info')
 
     return Response.json({
       status: 'ok',
       rotate_healthy: !!rotateRanToday,
+      poda_retratos: podaRetratos,
       last_rotate: rotateHealth?.last_success_at ?? null,
       avisos: {
         enviados: avisosEnviados,
