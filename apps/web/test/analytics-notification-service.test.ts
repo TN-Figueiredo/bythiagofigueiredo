@@ -15,7 +15,6 @@ describe('NOTIFICATION_PRIORITIES', () => {
     expect(NOTIFICATION_PRIORITIES.ab_test_completed).toBe(3)
     expect(NOTIFICATION_PRIORITIES.retest_suggested).toBe(3)
     expect(NOTIFICATION_PRIORITIES.optimization_available).toBe(2)
-    expect(NOTIFICATION_PRIORITIES.trending_viral).toBe(2)
     expect(NOTIFICATION_PRIORITIES.optimization_resolved).toBe(2)
   })
 })
@@ -68,7 +67,6 @@ describe('buildDedupKey', () => {
       'ab_test_completed',
       'retest_suggested',
       'optimization_available',
-      'trending_viral',
       'optimization_resolved',
     ] as const
     for (const type of types) {
@@ -308,67 +306,6 @@ describe('buildNotification', () => {
     })
   })
 
-  describe('trending_viral', () => {
-    it('produces correct shape', () => {
-      const n = buildNotification({
-        type: 'trending_viral',
-        videoId: 'vid-2',
-        videoTitle: 'Video viral',
-        views48h: 50000,
-        channelAvg48h: 5000,
-        weekIso: week,
-      })
-      expect(n.type).toBe('trending_viral')
-      expect(n.priority).toBe(2)
-      expect(n.title).toContain('viral')
-      expect(n.message).toContain('Video viral')
-      expect(n.message).toContain('10x')
-      expect(n.dedup_key).toBe(`trending_viral:vid-2:${week}`)
-      expect(n.video_id).toBe('vid-2')
-      expect(n.action_href).toContain('vid-2')
-    })
-
-    it('rounds multiplier correctly', () => {
-      const n = buildNotification({
-        type: 'trending_viral',
-        videoId: 'vid-7',
-        videoTitle: 'Test',
-        views48h: 15000,
-        channelAvg48h: 3000,
-        weekIso: week,
-      })
-      // 15000 / 3000 = 5x
-      expect(n.message).toContain('5x')
-    })
-
-    it('truncates long videoTitle to 30 chars in message', () => {
-      const longTitle = 'Z'.repeat(50)
-      const n = buildNotification({
-        type: 'trending_viral',
-        videoId: 'vid-7',
-        videoTitle: longTitle,
-        views48h: 10000,
-        channelAvg48h: 1000,
-        weekIso: week,
-      })
-      const sliced = longTitle.slice(0, 30)
-      expect(n.message).toContain(sliced)
-      expect(n.message).not.toContain(longTitle)
-    })
-
-    it('handles channelAvg48h=0 without producing Infinity', () => {
-      const n = buildNotification({
-        type: 'trending_viral',
-        videoId: 'v1',
-        videoTitle: 'Test Video',
-        weekIso: '2026-W20',
-        views48h: 5000,
-        channelAvg48h: 0,
-      })
-      expect(n.message).not.toContain('Infinity')
-      expect(n.message).toContain('0x')
-    })
-  })
 
   describe('optimization_resolved', () => {
     it('produces correct shape', () => {
@@ -410,7 +347,6 @@ describe('buildNotification', () => {
         buildNotification({ type: 'ab_test_completed', videoId: 'v', videoTitle: 'T', testName: 'N', winnerLabel: 'B', ctrLift: 5.0, weekIso: week }),
         buildNotification({ type: 'retest_suggested', videoId: 'v', videoTitle: 'T', weekIso: week }),
         buildNotification({ type: 'optimization_available', videoId: 'v', videoTitle: 'T', weekIso: week }),
-        buildNotification({ type: 'trending_viral', videoId: 'v', videoTitle: 'T', views48h: 10000, channelAvg48h: 1000, weekIso: week }),
         buildNotification({ type: 'optimization_resolved', videoId: 'v', videoTitle: 'T', weekIso: week }),
       ]
       for (const n of notifications) {
@@ -447,7 +383,6 @@ describe('buildNotification', () => {
         { type: 'ab_test_completed', extra: { testName: 'T', winnerLabel: 'B', ctrLift: 5.0 } },
         { type: 'retest_suggested', extra: {} },
         { type: 'optimization_available', extra: {} },
-        { type: 'trending_viral', extra: { views48h: 10000, channelAvg48h: 1000 } },
         { type: 'optimization_resolved', extra: {} },
       ] as const
 

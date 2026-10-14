@@ -104,7 +104,6 @@ function makeCtx(supabase: unknown): ServiceContext {
 import {
   getAbLearnings,
   getAbSuggestions,
-  getAbFatigueAlerts,
   getAbDashboard,
   getAbVideoHistory,
 } from '@/lib/pipeline/services/youtube'
@@ -358,79 +357,6 @@ describe('getAbSuggestions', () => {
 
     const result = await getAbSuggestions(makeCtx(sb))
     expect(result.data.suggestions).toEqual([])
-  })
-})
-
-// ═══════════════════════════════════════════════════════════════════════════
-// getAbFatigueAlerts
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('getAbFatigueAlerts', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('returns pending alerts with video title', async () => {
-    const alertData = [
-      {
-        id: 'alert-1',
-        video_id: VIDEO_ID_1,
-        z_score: -2.5,
-        expected_ctr: 5.0,
-        actual_ctr: 3.2,
-        detected_at: '2026-06-01T10:00:00Z',
-        youtube_videos: { id: VIDEO_ID_1, title: 'My Cool Video' },
-      },
-    ]
-
-    const sb = createMockSupabase({
-      youtube_fatigue_alerts: { data: alertData, error: null },
-    })
-
-    const result = await getAbFatigueAlerts(makeCtx(sb))
-
-    expect(result.data.alerts.length).toBe(1)
-    const alert = result.data.alerts[0]!
-    expect(alert.title).toBe('My Cool Video')
-    expect(alert.videoId).toBe(VIDEO_ID_1)
-    expect(alert.zScore).toBe(-2.5)
-    expect(alert.expectedCtr).toBe(5.0)
-    expect(alert.actualCtr).toBe(3.2)
-  })
-
-  it('computes daysSinceChange correctly via createdAt', async () => {
-    // The service returns createdAt (mapped from detected_at); daysSinceChange
-    // is computed by the getThumbnailFatigueAlerts function, not getAbFatigueAlerts.
-    // getAbFatigueAlerts returns createdAt as-is.
-    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString()
-    const alertData = [
-      {
-        id: 'alert-2',
-        video_id: VIDEO_ID_2,
-        z_score: -1.8,
-        expected_ctr: 4.0,
-        actual_ctr: 2.8,
-        detected_at: fiveDaysAgo,
-        youtube_videos: { id: VIDEO_ID_2, title: 'Older Video' },
-      },
-    ]
-
-    const sb = createMockSupabase({
-      youtube_fatigue_alerts: { data: alertData, error: null },
-    })
-
-    const result = await getAbFatigueAlerts(makeCtx(sb))
-
-    expect(result.data.alerts.length).toBe(1)
-    // createdAt should be the detected_at value
-    expect(result.data.alerts[0]!.createdAt).toBe(fiveDaysAgo)
-  })
-
-  it('returns empty when no pending alerts', async () => {
-    const sb = createMockSupabase({
-      youtube_fatigue_alerts: { data: [], error: null },
-    })
-
-    const result = await getAbFatigueAlerts(makeCtx(sb))
-    expect(result.data.alerts).toEqual([])
   })
 })
 

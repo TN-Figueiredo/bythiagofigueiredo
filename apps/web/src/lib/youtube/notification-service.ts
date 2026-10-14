@@ -1,6 +1,6 @@
 export type NotificationType =
   | 'grade_drop' | 'ctr_drop' | 'monitoring_alert' | 'ab_test_completed'
-  | 'retest_suggested' | 'optimization_available' | 'trending_viral' | 'optimization_resolved'
+  | 'retest_suggested' | 'optimization_available' | 'optimization_resolved'
   | 'playoff_created'
 
 export const NOTIFICATION_PRIORITIES: Record<NotificationType, number> = {
@@ -11,7 +11,6 @@ export const NOTIFICATION_PRIORITIES: Record<NotificationType, number> = {
   playoff_created: 3,
   retest_suggested: 3,
   optimization_available: 2,
-  trending_viral: 2,
   optimization_resolved: 2,
 }
 
@@ -88,15 +87,6 @@ interface OptimizationAvailableInput {
   weekIso: string
 }
 
-interface TrendingViralInput {
-  type: 'trending_viral'
-  videoId: string
-  videoTitle: string
-  views48h: number
-  channelAvg48h: number
-  weekIso: string
-}
-
 interface OptimizationResolvedInput {
   type: 'optimization_resolved'
   videoId: string
@@ -116,7 +106,7 @@ interface PlayoffCreatedInput {
 
 type NotificationInput =
   | GradeDropInput | CtrDropInput | MonitoringAlertInput | AbTestCompletedInput
-  | RetestSuggestedInput | OptimizationAvailableInput | TrendingViralInput | OptimizationResolvedInput
+  | RetestSuggestedInput | OptimizationAvailableInput | OptimizationResolvedInput
   | PlayoffCreatedInput
 
 export function buildNotification(input: NotificationInput): NotificationPayload {
@@ -186,18 +176,6 @@ export function buildNotification(input: NotificationInput): NotificationPayload
         video_id: input.videoId,
         action_href: `${baseHref}?tab=grades&video=${input.videoId}`,
       }
-    case 'trending_viral': {
-      const multiplier = input.channelAvg48h > 0 ? Math.round(input.views48h / input.channelAvg48h) : 0
-      return {
-        type: input.type,
-        priority,
-        title: `Vídeo viral detectado!`,
-        message: `"${input.videoTitle.slice(0, 30)}" — ${input.views48h.toLocaleString('pt-BR')} views em 48h (${multiplier}x a média).`,
-        dedup_key: dedupKey,
-        video_id: input.videoId,
-        action_href: `${baseHref}?tab=grades&video=${input.videoId}`,
-      }
-    }
     case 'optimization_resolved':
       return {
         type: input.type,
