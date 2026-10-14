@@ -39,7 +39,7 @@
 - **TRAVA M3b-0a (dependências de teste):** as Tarefas 3 a 8 só começam com `git ls-files apps/web/test/helpers/migrations.ts apps/web/test/helpers/m2.ts apps/web/test/manutencao/migrations-leitura.test.ts apps/web/test/integration/video-antigo-m10a-caminho.ts` listando os quatro (helpers da M2 Tarefa 1; o da M10a é o que o plano dela exporta na Tarefa 2: `M10A_SQL` e `M10A_EM_MIGRATION`, aplicados pelo texto de `M10A_SQL`). Faltando um, a M3b faz as Tarefas 1, 2 e 9 e registra a espera no ledger; nunca cria cópia própria dos helpers.
 - **TRAVA M3b-0 (dependências de produção):** a Tarefa 10 só começa com a M2 **e** a M10a aplicadas em produção e conferidas nos ledgers delas ("TRAVA M2-2 solta" e a linha equivalente da M10a). A M3b lê `obs_archive_rehearsal` (M2) e `competitor_videos.archive_frozen_at` (M10a) e é aplicada depois das duas.
 - **TRAVA M3b-3 (desenho): SOLTA em 14/10/2026** (mockup aprovado pelo dono em 14/10, commit e8445f559: `remover-canal/` em `docs/superpowers/mockups/2026-10-14-manutencao-nas/`). A Tarefa 12 inteira (passos 1 a 8) pode andar; o diálogo tem de estar em produção antes de 28/11 (`05` §15.1).
-- **Ordem:** 0 → 1 → 2 → (TRAVA M3b-0a) 3 → 4 → 5 → 6 → 7 → 8 → 9 → 9a → **10** (a vez da migration; espera a TRAVA M3b-0) → 11 → 12 → 13 → 14. As Tarefas 1, 2, 9 e 9a são TypeScript puro e podem ser commitadas antes da migration (a 9a pode subir a qualquer momento: fecha uma exposição que existe hoje); 3 a 8 commitam só o rascunho e os testes.
+- **Ordem:** 0 → 1 → 2 → (TRAVA M3b-0a) 3 → 4 → 5 → 6 → 7 → 8 → E1 (emenda de 14/10, peça 7; a parte pura pode ir antes) → 9 → 9a → **10** (a vez da migration; espera a TRAVA M3b-0) → 11 → 12 → 13 → 14. As Tarefas 1, 2, 9 e 9a são TypeScript puro e podem ser commitadas antes da migration (a 9a pode subir a qualquer momento: fecha uma exposição que existe hoje); 3 a 8 commitam só o rascunho e os testes.
 - **Dívida declarada:** entre as Tarefas 3 e 10 o SQL só é provado no banco local; na CI os testes de banco pulam. Gatilho de pagamento: Tarefa 10, Passo 1. A regra das ~15 funções SQL das Tarefas 5 a 8 está em prosa: o diff de cada uma dessas tarefas passa por Yannis e Phil antes do commit.
 
 ## Review Focus
@@ -410,6 +410,8 @@ Não é rota; é o que o pulso e a página leem (M3a, "Interfaces registradas").
 
 A M3b entrega, para o comando, a função só de leitura `public.obs_archive_pode_desligar(p_site uuid) returns jsonb`, chamada pela conexão direta do dono (`OBS_ARQUIVO_DB_URL`): `{ "pode": boolean, "faltam": [ { "motivo": "automatico_armado" | "mes_nao_recebido" | "b2_vencido_mes_fora", "classe", "tabela", "mes", "detalhe" } ] }`. `pode` só é verdadeiro com `faltam` vazio; erro de leitura é erro do comando, nunca "pode desligar". Os arquivos de um mês são os de `obs_archive_month_files` (partes no lugar da unidade em partes; sem unidade vazia nem resumo vazio).
 
+**C12** (leitura das pendências do dono, para a página e para o `obs:arquivo`): na seção "Emenda de 14/10: `obs:arquivo` (peça 7)", no fim do plano.
+
 ## Estrutura de arquivos
 
 | Arquivo | Tarefa | Responsabilidade |
@@ -449,6 +451,9 @@ A M3b entrega, para o comando, a função só de leitura `public.obs_archive_pod
 | `apps/web/src/lib/youtube/competitor-removal-impact.ts`, `_canais/remove-dialog.tsx` (modificar) | 12 | o que o diálogo diz do arquivo |
 | `apps/web/src/lib/youtube/agenda/arquivo-mensal.ts` (criar), `saude.ts`, `apps/web/src/lib/ops/cron-health-report.ts` (modificar) | 13 | atraso de cópia e as quatro vigias da remoção no relatório |
 | `docs/ops/runbook-arquivo-mensal.md` (criar) | 14 | consulta do item 80, consultas 5 e 6 do item 160, volta atrás do gatilho (P47) |
+| `supabase/rascunhos/m3b.sql` (parte 7), `apps/web/test/helpers/m3b.ts` (`ate` até 7) (modificar) | E1 | `obs_archive_owner_pending` (C12; emenda da peça 7) |
+| `apps/web/test/integration/manutencao-m3b-pendencias.test.ts` (criar) | E1 | C12 no banco: zero medido, canal `pedido`, item da E9, ordem, erro sobe, concessões |
+| `apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts`, `apps/web/test/youtube/observatorio/arquivo-mensal-pendencias.test.ts` (criar) | E1 | leitor estrito do C12, `LINHA_DO_DONO`, o que vê quem só edita |
 
 ---
 
@@ -3475,6 +3480,196 @@ describe('RetornoToast (R1 a R3): substitui o toast verde "os dados coletados de
 
 ---
 
+## Emenda de 14/10: `obs:arquivo` (peça 7)
+
+**Por quê.** A peça 7 do mockup (fila "Saíram do YouTube", aprovada pelo dono em 14/10) mostra ao dono **uma linha fixa, igual nos três tempos, com Copiar**: `npm run -s obs:arquivo | ssh forja 'bash -s'`. Nada a sustentava no plano. Fatos: `.superpowers/sdd/manutencao-nas/fatos-peca7-yannis.md` e `fatos-peca7-phil.md`; tela: `docs/superpowers/mockups/2026-10-14-manutencao-nas/19-mes-fora-do-banco/peca7.js` e o bloco "Peça 7" de `NOTAS.md`. Este plano entrega **a leitura** (a função SQL e o leitor puro que a página e o comando usam); o subcomando, o script do `package.json` e o que vai à forja são da Tarefa 7a do plano da forja.
+
+**Decisões da emenda**
+
+| # | Decisão | Motivo |
+|---|---|---|
+| E-D1 | **A linha é `npm run -s obs:arquivo \| ssh forja 'bash -s'`, com `-s`.** A peça 7 aprovada diz `npm run obs:arquivo \| ...` (sem `-s`): **a peça muda três caracteres, e isso volta ao dono** antes da M5 | Medido em 14/10 (npm 11.9.0): sem `-s` o `npm run` imprime o cabeçalho `> <pacote>@<versão> obs:arquivo` e `> tsx ...` **na saída padrão, mesmo em pipe**; na forja o `bash -s` lê cada linha como um redirecionamento, cria arquivos com esses nomes no `$HOME` do `thiago` e tenta rodar `obs:arquivo` e `scripts/obs-arquivo.ts`. Escrita na forja que ninguém pediu. Pôr `loglevel=silent` no `.npmrc` da raiz calaria os erros do `npm` em tudo; o `-s` só vale para esta linha |
+| E-D2 | **Uma leitura só, `public.obs_archive_owner_pending(p_site uuid) returns jsonb` (C12),** lida pela página (M5, pelo servidor) **e** pelo comando do Mac (pela conexão direta do dono, como o C11) | Uma regra só para "o que espera o dono"; duas consultas dariam duas verdades (o mesmo motivo do D18) |
+| E-D3 | **A forma do C12 já traz os cinco tempos** (`sem_comando`, `copiar`, `conferir_b2`, `apagar_antigas`, `bloqueado`), **mas a M3b só emite `sem_comando`.** Os outros quatro nascem com a M9, que recria a função (o `expurgar`, as versões superadas da classe `texto`, os marcos da remoção e "Já rodei" são dela: `02` §11.3 e §10.5). `versao: 1` no corpo; a M9 passa a `2` no mesmo commit que muda o leitor | Hoje nada pede comando ao dono: `archive_pending` é sempre falso (E9, D15) e toda remoção fica em `pedido` sem comando até a M9 (`02` §10.5, "As duas etapas do item 12"). Inventar os passos aqui seria redesenhar a M9 |
+| E-D4 | **Quem só edita não recebe a linha:** `pendenciasParaTela(l, { podeVerComandos })` devolve `linha: null` sem a permissão; a página (M5) passa `podeVerComandos = canAdminSite(siteId)`. O resumo, a contagem e a idade vão a todos (NOTAS da peça 7, revisão 1: "quem só edita vê resumo e idade") | Requisito 1 do Yannis. A filtragem fica numa função pura testada, não espalhada pela tela |
+| E-D5 | **Leitura que não está na forma nunca vira "nada pendente":** o leitor é estrito (`.strict()`, `total` igual ao tamanho da lista, `apagar` só em `apagar_antigas`, caminho e sha256 validados) e qualquer desvio é `{ ok: false }`, que a página mostra como "Não foi possível ler se há cópia no arquivo." (`04` §14.7) e o comando trata como erro | O sistema falha em verde. Os caminhos de `apagar` viram argumento de `rm` na forja: nada do banco vira pedaço de comando sem validação (o mesmo princípio do D-F11 da forja) |
+
+### C12. Leitura das pendências do dono (página e `obs:arquivo`)
+
+`public.obs_archive_owner_pending(p_site uuid) returns jsonb`, `stable`, `security definer`, `set search_path = ''`; `revoke all ... from public, anon, authenticated`; `grant execute ... to service_role, postgres` (o `postgres` é o dono pela conexão direta, como no C11). Erro interno sobe; a função nunca devolve lista vazia no lugar de um erro.
+
+```json
+{ "versao": 1, "lido_em": "<timestamptz>", "total": 0,
+  "itens": [ {
+    "item_id": "canal:<channel_ref>" | "item:<competitor_removed_items.id>",
+    "kind": "canal" | "video" | "comentario",
+    "tempo": "sem_comando" | "copiar" | "conferir_b2" | "apagar_antigas" | "bloqueado",
+    "desde": "<timestamptz>",
+    "mes": "AAAA-MM" | null,
+    "channel_ref": "<uuid>" | null,
+    "youtube_id": "<texto>" | null,
+    "marcado_rodado_em": "<timestamptz>" | null,
+    "apagar": [ { "filho": "numerico" | "texto", "caminho": "<relativo ao filho>", "sha256": "<64 hex>",
+                  "nova": { "caminho": "<relativo ao filho>", "sha256": "<64 hex>" } | null } ],
+    "b2_nomes": [ "<nome do objeto>" ]
+  } ] }
+```
+
+Na M3b: **canal** = cada linha de `obs_archive_removed_channel_list(p_site)` com `estado = 'pedido'` (`desde` = o mais recente entre `decided_at` e `reappeared_at`; `sem_destino` não entra: é decisão na página do Arquivo, não comando); **vídeo e comentário** = `competitor_removed_items` com `archive_pending` e `kind in ('video', 'comentario')` (`desde` = `decided_at`). Todos com `tempo = 'sem_comando'`, `apagar = []`, `b2_nomes = []`, `marcado_rodado_em = null`. Ordem: `desde` crescente, depois `item_id`. `apagar` e `b2_nomes` só não são vazios em `apagar_antigas` (M9).
+
+### Task E1 (emenda): a leitura das pendências do dono, SQL parte 7 e o leitor puro
+
+Roda **depois da Tarefa 8 e antes da Tarefa 10** (entra na mesma migration; a TRAVA M3b-1 vale igual). A parte pura (Passos 4 a 6) não depende do banco e pode ser commitada antes.
+
+**Files:**
+- Modify: `supabase/rascunhos/m3b.sql` (parte 7, `-- M3B PARTE 7: pendências do dono (emenda de 14/10, peça 7)`)
+- Modify: `apps/web/test/helpers/m3b.ts` (`aplicarM3b(c, ate?: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 7)`; `const fim = ate === 7 ? sql.length : sql.indexOf(\`-- M3B PARTE ${ate + 1}\`)`; quem chamava sem `ate` continua recebendo tudo)
+- Create: `apps/web/test/integration/manutencao-m3b-pendencias.test.ts`
+- Create: `apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts`
+- Create: `apps/web/test/youtube/observatorio/arquivo-mensal-pendencias.test.ts`
+
+**Interfaces:**
+- Consumes: `obs_archive_removed_channel_list` (Tarefa 8), `competitor_removed_items` (E9), `SHA_RE`, `MES_RE` e o tipo `Filho` de `contrato.ts` (Tarefa 1).
+- Produces (SQL): `obs_archive_owner_pending(p_site uuid) returns jsonb` (C12). (TS, puro, só `node:`/relativo para o `tsx` da raiz importar): `LINHA_DO_DONO`, `VERSAO_PENDENCIAS = 1`, `type TempoPendencia`, `type PendenciaDoDono`, `type LeituraPendencias = { ok: true; lidoEm: Date; itens: PendenciaDoDono[] } | { ok: false; porque: string }`, `lerPendencias(bruto: unknown): LeituraPendencias`, `pendenciasParaTela(l, o: { podeVerComandos: boolean; agora: Date })`.
+
+**O que acontece quando o dado não existe:** nenhuma remoção e nenhum item com `archive_pending`: `{ versao: 1, lido_em, total: 0, itens: [] }`, que é "zero medido" (a caixa com o 0 da peça 7), diferente de "não medido". `obs_archive_removed_channel_list` com erro: a função sobe o erro (nunca `itens: []`). `lido_em` ausente, `total` diferente do tamanho, `versao` diferente de 1, tempo ou `kind` fora da lista, campo a mais: `lerPendencias` devolve `{ ok: false }`. `podeVerComandos` falso: a linha não sai, nem com zero itens.
+
+- [ ] **Passo 1. Testes do banco, falhando** (`manutencao-m3b-pendencias.test.ts`, `aplicarM3b(c, 7)` em `begin … rollback`, sementes da Tarefa 8):
+
+| Teste | Afirma |
+|---|---|
+| `zero medido` | site sem remoção e sem item: `total = 0`, `itens = []`, `versao = 1`, `lido_em` não nulo |
+| `canal removido com apagar vira pendência sem comando` | `competitor_channel_remove` + decisão `apagar`: um item `canal:<channel_ref>`, `kind = 'canal'`, `tempo = 'sem_comando'`, `desde = decided_at`; com `reappeared_at` posterior, `desde = reappeared_at` |
+| `sem_destino, guardado e sem_arquivo não entram` | as três linhas semeadas: `total = 0` |
+| `item da E9 com archive_pending entra; sem, não` | `competitor_removed_items` `kind = 'video'` com `archive_pending = true` (semeado como o dono da tabela): um item `item:<id>`; o mesmo com `false`: nenhum |
+| `ordem estável` | três itens com `desde` diferentes saem em ordem crescente; empate desempata por `item_id` |
+| `a M3b nunca emite outro tempo` | em todos os casos acima, `tempo = 'sem_comando'`, `apagar = []` e `b2_nomes = []` |
+| `erro sobe, nunca lista vazia` | com `obs_archive_removed_channel_list` trocada dentro da transação por uma que lança: a chamada lança (`rejects`) |
+| `concessões` | `has_function_privilege('anon' \| 'authenticated', ...)` falso; `service_role` e `postgres` verdadeiro |
+| `só lê` | chamada dentro de `begin transaction read only` não falha |
+
+- [ ] **Passo 2. Rodar e ver falhar.** Run: `cd apps/web && HAS_LOCAL_DB=1 npx vitest run test/integration/manutencao-m3b-pendencias.test.ts > /tmp/m3b-e1.txt 2>&1; grep -E "Test Files|Tests|FAIL" /tmp/m3b-e1.txt` (banco `bythiago_int`, 54422). Expected: falha por `function public.obs_archive_owner_pending(uuid) does not exist`.
+
+- [ ] **Passo 3. A parte 7 do rascunho.**
+
+```sql
+-- M3B PARTE 7: pendências do dono (emenda de 14/10, peça 7; contrato C12). Na M3b só emite tempo 'sem_comando';
+-- a M9 recria esta função com os outros tempos (copiar, conferir_b2, apagar_antigas, bloqueado) e versao 2.
+create or replace function public.obs_archive_owner_pending(p_site uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_lista jsonb := public.obs_archive_removed_channel_list(p_site);   -- erro sobe (nunca lista vazia)
+  v_itens jsonb;
+begin
+  if p_site is null then raise exception 'site_obrigatorio' using errcode = 'P0001'; end if;
+  if v_lista is null or jsonb_typeof(v_lista) <> 'array' then raise exception 'lista_de_remocao_ilegivel' using errcode = 'P0001'; end if;
+  with canal as (
+    select 'canal:' || (r->>'channel_ref') as item_id, 'canal'::text as kind,
+           greatest((r->>'decided_at')::timestamptz, (r->>'reappeared_at')::timestamptz) as desde,
+           nullif(r->>'channel_ref', '') as channel_ref, nullif(r->>'youtube_channel_id', '') as youtube_id
+      from jsonb_array_elements(v_lista) r
+     where r->>'estado' = 'pedido'
+  ), item as (
+    select 'item:' || i.id::text, i.kind, i.decided_at, i.competitor_channel_id::text, i.youtube_id
+      from public.competitor_removed_items i
+     where i.site_id = p_site and i.archive_pending and i.kind in ('video', 'comentario')
+  ), tudo as (select * from canal union all select * from item)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'item_id', item_id, 'kind', kind, 'tempo', 'sem_comando', 'desde', desde, 'mes', null,
+           'channel_ref', channel_ref, 'youtube_id', youtube_id, 'marcado_rodado_em', null,
+           'apagar', '[]'::jsonb, 'b2_nomes', '[]'::jsonb) order by desde, item_id), '[]'::jsonb)
+    into v_itens from tudo;
+  return jsonb_build_object('versao', 1, 'lido_em', now(), 'total', jsonb_array_length(v_itens), 'itens', v_itens);
+end $$;
+revoke all on function public.obs_archive_owner_pending(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_owner_pending(uuid) to service_role, postgres;
+```
+
+O `greatest` ignora nulo (`reappeared_at` nulo dá `decided_at`); `decided_at` nulo numa linha `pedido` não existe pela Tarefa 8 (a decisão grava a data), e o leitor recusa `desde` nulo. Os nomes das chaves de `obs_archive_removed_channel_list` são os da Tarefa 8 (`channel_ref`, `estado`, `decided_at`, `reappeared_at`, `youtube_channel_id`): se a Tarefa 8 os mudar, esta parte muda junto, e o teste `canal removido...` falha antes.
+
+Run: o mesmo do Passo 2. Expected: `Test Files  1 passed`. Confirmar a parte 7 no banco local (`psql -p 54422 ... -c "$(sed -n '/-- M3B PARTE 7/,$p' supabase/rascunhos/m3b.sql)"`, duas vezes: idempotente).
+
+- [ ] **Passo 4. Teste do leitor puro, falhando** (`arquivo-mensal-pendencias.test.ts`, `// @vitest-environment node`):
+
+```ts
+// @vitest-environment node
+import { describe, it, expect } from 'vitest'
+import { lerPendencias, pendenciasParaTela, LINHA_DO_DONO } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
+
+const SHA = 'a'.repeat(64)
+const base = (itens: unknown[], extra: Record<string, unknown> = {}) => ({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: itens.length, itens, ...extra })
+const canal = (o: Record<string, unknown> = {}) => ({ item_id: 'canal:6f1c1b9e-0000-4000-8000-000000000001', kind: 'canal', tempo: 'sem_comando',
+  desde: '2026-10-01T12:00:00Z', mes: null, channel_ref: '6f1c1b9e-0000-4000-8000-000000000001', youtube_id: 'UCx', marcado_rodado_em: null,
+  apagar: [], b2_nomes: [], ...o })
+
+describe('lerPendencias: a forma do C12', () => {
+  it('a linha do dono é a da peça 7, com -s (E-D1)', () => {
+    expect(LINHA_DO_DONO).toBe("npm run -s obs:arquivo | ssh forja 'bash -s'")
+  })
+  it('zero medido é ok com lista vazia', () => {
+    expect(lerPendencias(base([]))).toEqual({ ok: true, lidoEm: new Date('2026-12-01T10:00:00Z'), itens: [] })
+  })
+  it('um canal sem comando', () => {
+    const l = lerPendencias(base([canal()]))
+    expect(l.ok && l.itens[0]!.tempo).toBe('sem_comando')
+  })
+  it.each([
+    ['nulo', null],
+    ['lista', []],
+    ['versão 2', base([], { versao: 2 })],
+    ['sem lido_em', { versao: 1, total: 0, itens: [] }],
+    ['total diferente', { ...base([canal()]), total: 2 }],
+    ['campo a mais', base([], { extra: 1 })],
+    ['tempo desconhecido', base([canal({ tempo: 'apagar' })])],
+    ['kind desconhecido', base([canal({ kind: 'playlist' })])],
+    ['desde nulo', base([canal({ desde: null })])],
+    ['apagar fora de apagar_antigas', base([canal({ apagar: [{ filho: 'numerico', caminho: 'serie/x.csv.gz', sha256: SHA, nova: null }] })])],
+    ['apagar_antigas sem nada a apagar', base([canal({ tempo: 'apagar_antigas' })])],
+    ['caminho com ..', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '../etc/x', sha256: SHA, nova: null }] })])],
+    ['caminho absoluto', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '/etc/x', sha256: SHA, nova: null }] })])],
+    ['caminho com aspas', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: "a'b", sha256: SHA, nova: null }] })])],
+    ['filho desconhecido', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'appdata', caminho: 'a', sha256: SHA, nova: null }] })])],
+    ['sha curto', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a', sha256: 'abc', nova: null }] })])],
+  ])('%s: { ok: false }, nunca "nada pendente"', (_, bruto) => {
+    expect(lerPendencias(bruto).ok).toBe(false)
+  })
+})
+
+describe('pendenciasParaTela (E-D4)', () => {
+  const agora = new Date('2026-12-01T12:00:00Z')
+  it('quem só edita vê contagem e idade, sem a linha', () => {
+    const t = pendenciasParaTela(lerPendencias(base([canal()])), { podeVerComandos: false, agora })
+    expect(t).toMatchObject({ estado: 'com_itens', n: 1, maisAntigoDias: 61, linha: null })
+  })
+  it('quem administra recebe a linha', () => {
+    expect(pendenciasParaTela(lerPendencias(base([canal()])), { podeVerComandos: true, agora })).toMatchObject({ linha: LINHA_DO_DONO })
+  })
+  it('zero medido e não medido são estados diferentes', () => {
+    expect(pendenciasParaTela(lerPendencias(base([])), { podeVerComandos: true, agora })).toMatchObject({ estado: 'zero' })
+    expect(pendenciasParaTela(lerPendencias(null), { podeVerComandos: true, agora })).toEqual({ estado: 'nao_medido' })
+  })
+})
+```
+
+Run: `cd apps/web && npx vitest run test/youtube/observatorio/arquivo-mensal-pendencias.test.ts > /tmp/m3b-e1p.txt 2>&1; tail -5 /tmp/m3b-e1p.txt`. Expected: falha por `Failed to resolve import "@/lib/youtube/observatorio/arquivo-mensal/pendencias"`.
+
+- [ ] **Passo 5. Implementar `pendencias.ts`.** Zod estrito sobre o C12 (`z.object(...).strict()` no corpo e no item; `versao: z.literal(1)`; `lido_em` e `desde` por `z.string().datetime({ offset: true })`, `marcado_rodado_em` idem ou nulo; `kind` e `tempo` por `z.enum`; `mes` por `MES_RE` ou nulo; `filho` por `z.enum(['numerico', 'texto'])` tipado como `Filho`; `sha256` por `SHA_RE`; `caminho` por `CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))[A-Za-z0-9_][A-Za-z0-9._\/-]{0,299}$/` (sem `..`, sem `.` isolado, sem `/` no começo, sem aspas, espaço, `$` ou crase); `b2_nomes` pelo mesmo `CAMINHO_SEGURO`), depois as regras cruzadas: `total === itens.length`; `apagar.length > 0` se e só se `tempo === 'apagar_antigas'`; `b2_nomes` vazio fora de `apagar_antigas`. Qualquer falha: `{ ok: false, porque }` com a primeira mensagem do Zod (sem eco do valor). `pendenciasParaTela`: `{ ok: false }` → `{ estado: 'nao_medido' }`; zero → `{ estado: 'zero', lidoEm }`; com itens → `{ estado: 'com_itens', n, maisAntigoDias: floor((agora − min(desde)) / 86.400.000), itens: [{ item_id, kind, tempo, idadeDias }], linha: podeVerComandos ? LINHA_DO_DONO : null }`. A cor por idade (30 e 60 dias, "só com a casa respondendo" no canal) é da tela (M5) e de `estado-remocao.ts` (Tarefa 9), não daqui.
+
+Run: os comandos dos Passos 2 e 4, e `npm run typecheck -w apps/web > /tmp/m3b-tc.txt 2>&1; tail -3 /tmp/m3b-tc.txt`. Expected: `Test Files  1 passed` em cada um; typecheck sem erro.
+
+- [ ] **Passo 6. Commit** (dois, porque a parte pura pode ir antes do banco):
+
+```bash
+git add -- apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts apps/web/test/youtube/observatorio/arquivo-mensal-pendencias.test.ts
+git commit -m "feat: pendências do dono, leitor puro do C12 e o que a tela mostra a quem só edita (manutenção M3b, emenda da peça 7)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts apps/web/test/youtube/observatorio/arquivo-mensal-pendencias.test.ts
+git add -- apps/web/test/integration/manutencao-m3b-pendencias.test.ts
+git commit -m "feat: rascunho da M3b, parte 7: obs_archive_owner_pending, só sem_comando até a M9 (manutenção M3b, emenda da peça 7)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- supabase/rascunhos/m3b.sql apps/web/test/helpers/m3b.ts apps/web/test/integration/manutencao-m3b-pendencias.test.ts
+```
+
+**Fica para outras etapas (registrado, não feito aqui):** a tela da peça 7 e quem chama `pendenciasParaTela` com que cliente (M5; a regra é `podeVerComandos = canAdminSite(siteId)`, e a leitura de quem só edita não pode passar pelo cliente de serviço sem a validação do CLAUDE.md); "Já rodei" e `marcado_rodado_em` (M9, com o `archive_pending`); os tempos `copiar`, `conferir_b2`, `apagar_antigas` e `bloqueado`, com `apagar` e `b2_nomes` preenchidos (M9, `versao: 2`, mesmo commit no leitor e no `pendencias-script.ts` da forja).
+
+---
+
 ## Cobertura dos itens de aceite (`06` §18) desta etapa
 
 | Item | Onde |
@@ -3497,6 +3692,7 @@ describe('RetornoToast (R1 a R3): substitui o toast verde "os dados coletados de
 | 163 (frase do diálogo) | Tarefa 12; o bloco "Canais removidos" e a marca: M5; a ação e os comandos: M9 |
 | 165 (a função) | Tarefa 8 |
 | 172 | Tarefa 7 (site); a releitura completa no copiador: M3b-forja |
+| Peça 7 (`04` §14.7; emenda de 14/10), parte da leitura | Tarefa E1 (C12 e o leitor; quem só edita não recebe a linha); o comando: M3b-forja, Tarefa 7a; a tela: M5; os tempos com passo e "Já rodei": M9 |
 
 ## NÃO VERIFICADO (o plano escreveu sem ter rodado)
 
@@ -3513,6 +3709,7 @@ describe('RetornoToast (R1 a R3): substitui o toast verde "os dados coletados de
 - `obs_archive_expected_units` e `obs_archive_month_files` têm SQL real na parte 3 (Tarefa 5), provado no `bythiago_int` em 14/10 com `begin … rollback` sobre as tabelas da parte 1 e o leitor da parte 2: `serie` de outubro com canal cadastrado antes, no último minuto do mês, depois do mês sem linha e depois do mês com linha, e com `added_at` nulo; piso de outubro; `first_month` da `texto`; `video_antigo` vazio; mês inválido; arquivos do mês com versão 2, unidade vazia, unidade em 2 partes, unidade perdida, resumo vazio e resumo expurgado, e o `nas_attested_at` do mês nulo com um arquivo sem atestado. **NÃO VERIFICADO:** o ramo do rol do ensaio. Ele lê `public.obs_archive_rehearsal_seed` por `to_regclass` como **tabela** com `site_id`, `month` e `channel_ref`, mas o spec (`03` §13.3, `05` l.534) chama `obs_archive_rehearsal_seed(p_month date)` de **função**; `to_regclass` de nome de função é nulo, e o ensaio cairia para sempre em "só os com linha" (sem o canal vazio do `03` §13.3). A M8 cria o rol como tabela com essa forma (outro nome, trocado aqui no mesmo commit) ou muda este ramo.
 - O tempo de `competitor_channel_remove` num canal cheio (P51, Tarefa 8).
 - Se `server-only` tem alias no Vitest do projeto (Tarefa 9).
+- **Emenda E1:** a parte 7 (`obs_archive_owner_pending`) não foi rodada; as chaves de `obs_archive_removed_channel_list` que ela lê são as da tabela da Tarefa 8 (o teste `canal removido...` acusa se mudarem).
 
 ## Dependências de outras etapas e trilhas
 
@@ -3525,5 +3722,6 @@ describe('RetornoToast (R1 a R3): substitui o toast verde "os dados coletados de
 - **E10 (A5):** o aviso do pedido 2 (Tarefa 0); o pedido 13 (`obs_archive_is_site_admin` com `p_user`); o pedido 18 (a E9 e a E10 chamam `competitor_channel_remove`: até lá, o gatilho recusa os caminhos delas em canal com unidade, alto).
 - **M6:** o gatilho do mês destacado com nome antes de `obs_archive_z_*`, e o teste de ordem; a frase de `mes_destacado_em_transito` no botão; as condições do portão que leem o que esta etapa grava (`b2_*`, `nas_attested_at`, `restores`).
 - **M7:** recria `competitor_channel_remove` e `obs_archive_channel_removal_decide` com o apagamento de `obs_archive_results` (D16); as rotas `request/*`.
-- **M9:** prefixos ausentes no plano e no `attest`, os marcos da remoção, a ação "Apagar do arquivo" (que chama a função desta etapa), `OBS_ARQUIVO_LIMPEZA_CANAL=on`.
+- **M9:** prefixos ausentes no plano e no `attest`, os marcos da remoção, a ação "Apagar do arquivo" (que chama a função desta etapa), `OBS_ARQUIVO_LIMPEZA_CANAL=on`. Emenda de 14/10: recria `obs_archive_owner_pending` com os tempos `copiar`, `conferir_b2`, `apagar_antigas` e `bloqueado` (`versao: 2`) e o "Já rodei" (C12).
+- **M5 (emenda de 14/10):** a tela da peça 7 lê o C12 por `pendenciasParaTela`, com `podeVerComandos = canAdminSite(siteId)`.
 - **M10b:** libera `video_antigo`, os anexos e a ficha no resumo (`obs_archive_summary_rows` recusa `resumo_da_m10b` até lá).

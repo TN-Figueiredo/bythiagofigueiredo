@@ -16,7 +16,7 @@ Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06).
 | 6 | M4, mockups (peças 1 a 9, mockup 19, `18-v2`) | M4 | nada | aprovação do dono | **concluída em 14/10: todas as peças aprovadas pelo dono** (a peça 5 é o `18-v2`; a peça 9 saiu no fecho de 14/10); falta só levar as remessas ao fecho do spec 04 (NOTAS.md do mockup 19). Histórico: diálogo "Remover canal" e `18-v2` **aprovados pelo dono (14/10, e8445f559)**; 19 conferido com acordo de Logan e Naksu (14/10); página do Arquivo (peça 2) aprovada pelo dono no Opera (14/10); peças 1 e 3 também aprovadas pelo dono (14/10); peça 4 aprovada pelo dono (14/10); peça 7 aprovada pelo dono (14/10); peça 6 aprovada pelo dono (14/10); peça 8 aprovada pelo dono (14/10) |
 | 7 | M5, telas | M5 | M3b, M4; pedido 11 | nada | depois |
 | 8 | M6, saída | M6 | M3b, M4 | nada | depois |
-| 9 | M10b, vídeo antigo, congelar | M10b | M10a, M3b, M4, M5 | nada | depois |
+| 9 | M10b, vídeo antigo, congelar | M10b | M10a, M3b, M4, M5 | nada | depois. **Requisito da peça 8 (14/10), para o plano:** `npm run obs:videos-desfazer -- <aaaa-mm>`, com o mês como único argumento, idempotente, recusando mês inválido com mensagem em português (atenção ao cabeçalho do `npm run` no `stdout` se a saída for a outro programa: E-D1 da emenda da M3b) |
 | 10 | M9, expurgo enxuto (fatia 12b) | M9 | M3b, M5; E9 em produção | nada | depois (1ª na ordem de prioridade) |
 | 11 | M7, período longo | M7 | M3b | nada | depois |
 | 12 | M8, ensaio completo | M8 | M3 a M7, M10b (passo 19: M9) | dois dias de verificação na parte B; parte C: 28/11 | depois |
