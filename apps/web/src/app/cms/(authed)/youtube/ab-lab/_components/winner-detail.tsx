@@ -36,7 +36,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           actions={
-            <div className="flex gap-[9px] shrink-0">
+            <div className="flex flex-wrap gap-[9px]">
               {(view.flag === 'title' || view.flag === 'thumbnail' || view.flag === 'combo') && (
                 <button type="button" className={BTN}>
                   <Copy size={14} aria-hidden="true" />

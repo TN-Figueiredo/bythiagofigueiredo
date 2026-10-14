@@ -33,11 +33,11 @@ export function LockCountdown({
         <Lock size={16} className="text-cms-text-dim shrink-0 mt-[1px]" aria-hidden="true" />
         <div className="flex-1 min-w-0">
           {/* Row 1: title + countdown */}
-          <div className="flex items-center justify-between gap-[12px] mb-[8px]">
+          <div className="flex flex-col gap-[4px] mb-[8px] min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between min-[480px]:gap-[12px]">
             <span className="text-[13px] font-semibold text-cms-text">
               Roda até {durationDays} dias ou até você encerrar. Ao encerrar, você escolhe o vencedor.
             </span>
-            <span className="font-mono text-[12px] text-cms-text-dim shrink-0">
+            <span className="font-mono text-[12px] text-cms-text-dim min-[480px]:shrink-0">
               {Math.max(0, durationDays - dayOf)} dias até o fim · {cyclesRemaining} ciclos restantes
             </span>
           </div>

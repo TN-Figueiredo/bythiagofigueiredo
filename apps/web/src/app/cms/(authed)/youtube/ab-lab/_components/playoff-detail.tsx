@@ -30,7 +30,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           actions={
-            <div className="flex gap-[9px] shrink-0">
+            <div className="flex flex-wrap gap-[9px]">
               {podeDuplicar && (
                 <button type="button" className={BTN}>
                   <Copy size={14} aria-hidden="true" />

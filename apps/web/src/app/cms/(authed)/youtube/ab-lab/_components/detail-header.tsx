@@ -62,7 +62,7 @@ export function DetailHeader({
 
       {/* Row 3: Toolbar */}
       {actions && (
-        <div className="flex items-center justify-end gap-[8px] mt-[14px] flex-nowrap">
+        <div className="flex flex-wrap items-center gap-[9px] mt-[14px]">
           {actions}
         </div>
       )}
