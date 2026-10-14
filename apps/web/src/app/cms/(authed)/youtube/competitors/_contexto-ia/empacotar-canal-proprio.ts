@@ -101,14 +101,14 @@ export function modeloDeCanalProprio(pv: ProprioView, ce: { view: ComoEstaView; 
 }
 
 // ───────────────────────── o inventário de folhas (item 160)
-const REP = { descartado: 'repetido' } as const
-const CTRL = { descartado: 'controle de tela' } as const
-const APAR = { descartado: 'aparência' } as const
-const END = { descartado: 'endereço' } as const
-const IDENT = { descartado: 'identificador' } as const
-const IMG = { descartado: 'imagem' } as const
+export const REP = { descartado: 'repetido' } as const
+export const CTRL = { descartado: 'controle de tela' } as const
+export const APAR = { descartado: 'aparência' } as const
+export const END = { descartado: 'endereço' } as const
+export const IDENT = { descartado: 'identificador' } as const
+export const IMG = { descartado: 'imagem' } as const
 
-function inventarioDeColunasDeGrafico(p: 'grafico' | 'graficoViews'): Inventario {
+export function inventarioDeColunasDeGrafico(p: string): Inventario {
   return {
     [`${p}.teto`]: APAR, [`${p}.ticks[]`]: APAR, [`${p}.alturaArea`]: APAR, [`${p}.escopo`]: CTRL, [`${p}.unidade`]: CTRL, [`${p}.faixaCliques`]: CTRL,
     [`${p}.colunas[].dia`]: REP, // a data escrita é `rotulo`
@@ -130,7 +130,7 @@ function inventarioDeColunasDeGrafico(p: 'grafico' | 'graficoViews'): Inventario
   }
 }
 
-const MEDIDA = (c: string): Inventario => ({ [`${c}.texto`]: 'numero', [`${c}.motivo`]: 'motivo' })
+export const MEDIDA = (c: string): Inventario => ({ [`${c}.texto`]: 'numero', [`${c}.motivo`]: 'motivo' })
 
 export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   // cabeçalho
@@ -205,26 +205,26 @@ export const SEM_PROVA_POR_IGUALDADE_DIRETA_CANAL_PROPRIO = [] as const
 // TEXTO-A-REVISAR (Logan/Naksu): as frases abaixo.
 export const AVISO_PARCIAL_PROPRIO = 'Parte do dado privado do canal não foi lida agora.'
 export const ITENS_PRIVADOS_PROPRIO = 'impressões, cliques estimados, taxa de clique, views por dia dos vídeos e % assistido'
-const NAO_MEDE_CAUSA = 'a causa de uma mudança nos números: nada aqui prova que uma capa ou um título fez a diferença'
-const NAO_MEDE_OUTROS = 'impressões, taxa de clique e % assistido de outros canais: o YouTube só os entrega ao dono do canal'
-const TITULO_PRIVADO = ', dado privado do canal'
+export const NAO_MEDE_CAUSA = 'a causa de uma mudança nos números: nada aqui prova que uma capa ou um título fez a diferença'
+export const NAO_MEDE_OUTROS = 'impressões, taxa de clique e % assistido de outros canais: o YouTube só os entrega ao dono do canal'
+export const TITULO_PRIVADO = ', dado privado do canal'
 
 // ───────────────────────── células
-const rot = (texto: string, origem: string): Celula => ({ papel: 'rotulo', texto, origem })
-const bas = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
-const ter = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
+export const rot = (texto: string, origem: string): Celula => ({ papel: 'rotulo', texto, origem })
+export const bas = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
+export const ter = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const ehZero = (texto: string): boolean => /^0(\s|$)/.test(texto)
 
-function numero(texto: string | null, motivo: string | null, origemTexto: string, origemMotivo: string): Celula {
+export function numero(texto: string | null, motivo: string | null, origemTexto: string, origemMotivo: string): Celula {
   if (texto === null || texto === '') return { papel: 'numero', estado: 'nao_medido', motivo: motivo === null || motivo === '' ? A_TELA_NAO_INFORMA_O_MOTIVO : motivo, origem: origemMotivo }
   return ehZero(texto) ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem: origemTexto } : { papel: 'numero', estado: 'medido', texto, x: null, origem: origemTexto }
 }
 
-const daMedida = (m: MedidaDoVideo, o: string): Celula => numero(m.texto, m.motivo, `${o}.texto`, `${o}.motivo`)
+export const daMedida = (m: MedidaDoVideo, o: string): Celula => numero(m.texto, m.motivo, `${o}.texto`, `${o}.motivo`)
 
 // ───────────────────────── as leituras privadas
-type Acesso = 'ok' | 'negado' | 'erro'
-const leituraDe = (e: EstadoDoPrivado, id: string): { diario: Acesso; alcance: Acesso } => {
+export type Acesso = 'ok' | 'negado' | 'erro'
+export const leituraDe = (e: EstadoDoPrivado, id: string): { diario: Acesso; alcance: Acesso } => {
   const x = e.acessoPorCanal[id]
   // leitura que o `montar…` não registrou conta como falha: nunca como "lida" nem como "sem direito"
   return { diario: x?.diario ?? 'erro', alcance: x?.alcance ?? 'erro' }
@@ -344,27 +344,31 @@ function tabelaDeViewsDosVideos(m: ModeloCanalProprio): Tabela[] {
   }]
 }
 
-/** O gráfico dia a dia: uma linha por dia. `comCliques` só no de impressões. */
-function tabelaDoGrafico(g: ImpressoesView, chave: 'grafico' | 'graficoViews', id: string, titulo: string, comCliques: boolean): Tabela[] {
+/** O gráfico dia a dia: uma linha por dia, com a origem em `raiz` (`modelo.grafico`, `modelo.blocos.views.grafico`). `comCliques` só no de impressões. */
+export function tabelaDeDiaADia(g: ImpressoesView, raiz: string, id: string, titulo: string, nomeNoCorte: string, comCliques: boolean): Tabela[] {
   if (g.colunas.length === 0) return []
   const linhas = g.colunas.map((c, i): Celula[] => {
-    const o = `modelo.${chave}.colunas[${i}]`
+    const o = `${raiz}.colunas[${i}]`
     const linha: Celula[] = [rot(c.rotulo, `${o}.rotulo`), numero(c.imp, c.dica, `${o}.imp`, `${o}.dica`)]
     if (comCliques) linha.push(numero(c.cliques, c.dica, `${o}.cliques`, `${o}.dica`))
     linha.push(bas(c.situacaoTexto, `${o}.situacaoTexto`))
     return linha
   })
   return [{
-    id, titulo: `${titulo}${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte: chave === 'grafico' ? 'impressões por dia' : 'views por dia', privada: true,
+    id, titulo: `${titulo}${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true,
     colunas: comCliques ? ['Dia', g.rotuloValor, 'Cliques estimados', g.rotuloSituacao] : ['Dia', g.rotuloValor, g.rotuloSituacao], linhas,
   }]
 }
 
-function tabelaDeProsa(id: string, titulo: string, linhas: Array<[string, string]>): Tabela[] {
+function tabelaDoGrafico(g: ImpressoesView, chave: 'grafico' | 'graficoViews', id: string, titulo: string, comCliques: boolean): Tabela[] {
+  return tabelaDeDiaADia(g, `modelo.${chave}`, id, titulo, chave === 'grafico' ? 'impressões por dia' : 'views por dia', comCliques)
+}
+
+export function tabelaDeProsa(id: string, titulo: string, linhas: Array<[string, string]>): Tabela[] {
   return linhas.length === 0 ? [] : [{ id, titulo: `${titulo}${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: titulo.toLowerCase(), privada: true, colunas: ['Texto'], linhas: linhas.map(([t, o]) => [bas(t, o)]) }]
 }
 
-const naoVazio = (t: string | null): t is string => t !== null && t !== ''
+export const naoVazio = (t: string | null): t is string => t !== null && t !== ''
 
 /** As frases do alcance em prosa (a frase do topo, o resumo do gráfico, os avisos), todas do ALCANCE lido. */
 function prosaDoAlcance(m: ModeloCanalProprio): Tabela[] {

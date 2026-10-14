@@ -22,7 +22,7 @@ export const TELAS_IA: Record<TelaId, TelaIa> = {
   fila: { nome: 'Saíram do YouTube', rota: null, pedeId: false, estado: 'espera_a_tela', exemplos: ['Há algo nesta fila que eu deveria manter?'] },
   // As duas próprias dividem a rota com Canal e Vídeo e passam a `existe` nas Tarefas 7a e 7b.
   'canal-proprio': { nome: 'Canal próprio', rota: 'canal/[id]', pedeId: true, estado: 'existe', exemplos: ['O que melhorou nos meus últimos vídeos?', 'O que ainda não dá para medir?'] },
-  'video-proprio': { nome: 'Vídeo próprio', rota: 'video/[id]', pedeId: true, estado: 'espera_a_tela', exemplos: ['A miniatura está funcionando?', 'O que os comentários pedem?'] },
+  'video-proprio': { nome: 'Vídeo próprio', rota: 'video/[id]', pedeId: true, estado: 'existe', exemplos: ['A miniatura está funcionando?', 'O que os comentários pedem?'] },
   ritmo: { nome: 'Ritmo por hora', rota: null, pedeId: false, estado: 'espera_a_tela', exemplos: ['Qual a melhor faixa de hora para publicar?', 'O que este perfil não consegue dizer?'] },
 }
 
