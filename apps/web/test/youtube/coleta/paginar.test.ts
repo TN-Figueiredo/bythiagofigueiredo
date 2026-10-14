@@ -65,8 +65,34 @@ describe('lerPaginado', () => {
     expect(r).toEqual({ ok: false, motivo: 'erro_de_banco', lidas: 0 })
   })
 
-  it('data nula sem erro conta como página vazia', async () => {
+  it('data nula sem erro é falha com motivo, não lista vazia', async () => {
     const r = await lerPaginado<Linha>(async () => ({ data: null, error: null }), 20_000)
-    expect(r).toEqual({ ok: true, linhas: [] })
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.motivo).toBe('erro_de_banco')
+      expect(r.lidas).toBe(0)
+      expect(r.detalhe).toMatch(/sem lista/)
+    }
+  })
+
+  it('data nula na segunda página também é falha, com as linhas já lidas', async () => {
+    let n = 0
+    const r = await lerPaginado<Linha>(async () => {
+      n++
+      return n === 1 ? { data: Array.from({ length: 1000 }, (_, i) => ({ n: i })), error: null } : { data: null, error: null }
+    }, 20_000)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.lidas).toBe(1000)
+  })
+
+  it.each([NaN, Infinity, 0, -1, -Infinity])('teto inválido (%s): recusa sem chamar a fonte, nunca laço sem fim', async (teto) => {
+    let chamadas = 0
+    const r = await lerPaginado<Linha>(async () => {
+      chamadas++
+      return { data: Array.from({ length: 1000 }, (_, i) => ({ n: i })), error: null }
+    }, teto)
+    expect(chamadas).toBe(0)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.detalhe).toMatch(/teto/)
   })
 })
