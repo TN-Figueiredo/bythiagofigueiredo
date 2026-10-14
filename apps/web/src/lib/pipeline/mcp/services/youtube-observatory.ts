@@ -15,6 +15,9 @@ import { toMcpError, toMcpSuccess } from '../errors'
 
 type Params = Record<string, unknown>
 
+/** Os parâmetros que este adaptador lê: o anúncio (`YoutubeObservatoryShape`) tem de ter exatamente estes (teste nos dois sentidos). */
+export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit', 'fmt'] as const
+
 function buildCtx(): ServiceContext {
   const mcp = getMcpContext()
   return {
