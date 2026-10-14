@@ -6,8 +6,8 @@
  * Cinco estados que nunca se confundem (este sistema falha em VERDE: pergunte "o que acontece quando o dado não existe?"):
  *  - `coletada`: há curva da vida inteira. A frase, a lista de saídas e de trechos revistos e o aviso vêm dos pontos que existem.
  *  - `sem-curva`: o YouTube RESPONDEU que não há curva (a causa é dele: a tela não a adivinha). A data é a da ÚLTIMA RESPOSTA, mesmo que a última tentativa de todas tenha sido um erro.
- *  - `nao-coletada`: nenhuma resposta ainda (ou a migration da tabela não foi aplicada). O texto de sempre.
- *  - `erro`: a leitura falhou, a curva está ilegível, ou o banco é incoerente (resposta `ok` sem curva). NUNCA vira "ainda não coletamos".
+ *  - `nao-coletada`: nenhuma resposta ainda. O texto de sempre.
+ *  - `erro`: a leitura falhou, a curva está ilegível, a tabela não existe (migration não aplicada: falha nossa, não espera) ou o banco é incoerente (resposta `ok` sem curva). NUNCA vira "ainda não coletamos".
  *  - `negado`: sem a prova de edição. Nenhum número, nenhuma data, nenhum ponto.
  * Curva INCOMPLETA (menos que os 100 pontos da grade) nunca afirma o que não vê: nada de "mais da metade ficou até o fim", de saídas, de trechos
  * revistos nem de pico; a frase é "não dá para dizer". Duração desconhecida ou zero: os tempos saem em % do vídeo, nunca "0:00".
@@ -51,13 +51,15 @@ export interface RetencaoView {
   saidas: string | null
   /** "Trechos revistos: …."; null = não há */
   revistos: string | null
-  /** "Curva da vida inteira do vídeo, coletada em dd/mm. …"; null fora de `coletada` */
+  /** "Coletada em dd/mm. …"; null fora de `coletada` */
   aviso: string | null
+  /** a pastilha do estado sem curva (C1 do portão de UX): "não medido" só para o que não foi medido; "falhou" para erro; nenhuma para negado */
+  rotulo: 'não medido' | 'falhou' | null
 }
 
 export const METODO_RETENCAO: string[] = [
   'Curva: a parte do público que ainda está assistindo em cada ponto do vídeo, da publicação até a coleta. Vem de uma consulta do YouTube Analytics por posição no vídeo.',
-  'Janela: a curva é da vida inteira do vídeo; o % assistido da seção anterior é dos últimos dias. As janelas são diferentes.',
+  'Janela: a curva é da vida inteira do vídeo; "Quanto do vídeo as pessoas assistem" é dos últimos dias. As janelas são diferentes.',
   'Acima de 100%: trecho que muita gente voltou para rever.',
 ]
 
@@ -66,6 +68,10 @@ const FRASE_NAO_COLETADA = 'Ainda não coletamos esta curva. Quando coletarmos, 
 const FRASE_FORA_DO_FORMATO = 'Não dá para dizer onde metade das pessoas sai: a curva coletada não veio no formato esperado.'
 const FRASE_INCOMPLETA = 'Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.'
 const FRASE_ERRO = 'A leitura da curva falhou agora; recarregue a página.'
+/** Erro que recarregar não resolve (curva guardada e ilegível, ou `ok` sem curva): C2 do portão de UX. */
+const FRASE_ERRO_GUARDADA = 'Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve.'
+/** Tabela da curva ausente (migration não aplicada): falha nossa, S4 do portão de UX. */
+const FRASE_ERRO_TABELA = 'A leitura da curva não está disponível agora. Recarregar não resolve.' // TEXTO-A-REVISAR
 const FRASE_NEGADO = 'Só quem edita o site vê a curva de retenção deste vídeo.'
 
 /** A curva da API vai até 100% por ponto; o desenho passa disso até este teto (o mockup corta em 120%). */
@@ -95,8 +101,9 @@ export function diaDeSaoPaulo(instante: string): DiaYt {
   return FMT_SP.format(new Date(t))
 }
 
+const ROTULO: Record<Exclude<EstadoRetencao, 'coletada'>, RetencaoView['rotulo']> = { 'nao-coletada': 'não medido', 'sem-curva': 'não medido', erro: 'falhou', negado: null }
 function vazio(estado: Exclude<EstadoRetencao, 'coletada'>, frase: string): RetencaoView {
-  return { estado, frase, partes: [{ t: frase }], metodo: METODO_RETENCAO, curva: null, saidas: null, revistos: null, aviso: null }
+  return { estado, frase, partes: [{ t: frase }], metodo: METODO_RETENCAO, curva: null, saidas: null, revistos: null, aviso: null, rotulo: ROTULO[estado] }
 }
 
 const eixoDe = (dur: number | null): CurvaDesenho['eixo'] => {
@@ -155,10 +162,10 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
   const cobre = !leitura.completa && pct(ultimoT) < 100
     ? ` A curva cobre só os primeiros ${temDuracao(dur) ? `${mmss(ultimoT * dur)} do vídeo (${pct(ultimoT)}%)` : `${pct(ultimoT)}% do vídeo`}.`
     : ''
-  const aviso = `Curva da vida inteira do vídeo, coletada em ${dm(diaDeSaoPaulo(curva.coletadaEm))}. O % assistido da seção anterior é dos últimos dias.` + cobre
+  const aviso = `Coletada em ${dm(diaDeSaoPaulo(curva.coletadaEm))}. Mostra a vida inteira do vídeo; "Quanto do vídeo as pessoas assistem" mostra só os últimos dias.` + cobre
 
   return {
-    estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso,
+    estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso, rotulo: null,
     curva: {
       pontos: curva.pontos.map(p => ({ t: p.t, ratio: p.ratio })),
       eixo: eixoDe(dur),
@@ -187,14 +194,15 @@ export function buildRetencaoView(a: { retencao: Privado<RetencaoDoVideo> | null
     try {
       return coletada({ curva: vida, duracaoSeg: a.duracaoSeg, dm: a.dm })
     } catch {
-      // ponto fora de ordem, instante ilegível: o desenho nunca mostra o que o banco não garante
-      return vazio('erro', FRASE_ERRO)
+      // ponto fora de ordem, instante ilegível: o desenho nunca mostra o que o banco não garante (recarregar não muda)
+      return vazio('erro', FRASE_ERRO_GUARDADA)
     }
   }
   // sem curva: o porquê vem da ordem abaixo
-  if (d.tabelaAusente) return vazio('nao-coletada', FRASE_NAO_COLETADA)
+  // migration não aplicada é falha NOSSA, não espera: nunca "ainda não coletamos" (o leitor já avisa o Sentry)
+  if (d.tabelaAusente) return vazio('erro', FRASE_ERRO_TABELA)
   // uma curva que existe e não pôde ser lida é ERRO, nunca "ainda não coletamos" (a última resposta pode ter sido `ok`)
-  if (d.janelasIlegiveis.includes('vida')) return vazio('erro', FRASE_ERRO)
+  if (d.janelasIlegiveis.includes('vida')) return vazio('erro', FRASE_ERRO_GUARDADA)
   const resp = d.ultimaResposta
   if (resp == null) return vazio('nao-coletada', FRASE_NAO_COLETADA)
   if (resp.resultado === 'sem_dado_na_janela') {
@@ -202,5 +210,5 @@ export function buildRetencaoView(a: { retencao: Privado<RetencaoDoVideo> | null
     return vazio('sem-curva', `O YouTube respondeu que não tem curva para este vídeo. Tentamos de novo em 7 dias ou mais, se o vídeo tiver views novas. Última resposta: ${a.dm(resp.dia)}.`)
   }
   // o YouTube respondeu `ok` e não há curva guardada: incoerência do banco, não falta de coleta
-  return vazio('erro', FRASE_ERRO)
+  return vazio('erro', FRASE_ERRO_GUARDADA)
 }

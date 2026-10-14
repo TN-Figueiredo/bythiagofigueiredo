@@ -263,11 +263,14 @@ describe('usuário só de leitura e leitura que falhou', () => {
     expect(container.querySelector('.vb-ctr, .vb-as, figure')).toBeNull()
   })
 
-  it('negado e erro: a nota única e a frase do diário vêm com a pastilha "não medido" (regra 5), e não só como texto solto', () => {
+  it('negado e erro: a nota única leva a pastilha do estado (C1: erro = "falhou", negado = nenhuma, nunca "não medido") e a frase do diário continua "não medido"', () => {
     for (const dados of [{ acesso: 'negado' } as const, { acesso: 'erro' } as const]) {
       const { container } = montar(W, dados)
       const nota = container.querySelector('[data-privado-nota]')!
-      expect(nota.closest('.vb-nml')!.querySelector('.obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
+      const pastilha = nota.closest('.vb-nml')!
+      expect(pastilha.querySelector('.obs-ch-nm'), dados.acesso).toBeNull()
+      if (dados.acesso === 'erro') expect(pastilha.querySelector('.vb-falhou')!.textContent).toBe('falhou')
+      else expect(pastilha.querySelector('.vb-falhou'), dados.acesso).toBeNull()
       const canal = secao(container, 'Este vídeo no canal')
       expect(canal.querySelector(':scope > .vb-nml .obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
       cleanup()

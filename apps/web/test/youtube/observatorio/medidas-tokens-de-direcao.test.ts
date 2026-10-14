@@ -20,7 +20,7 @@ describe('tokens de direção (E5a T3)', () => {
       '_canais/canais.css',
       '_chrome/medidas/medidas.css',
       '_proprio/proprio.css',
-      // '_proprio/retencao-curva.css' volta com a E8 T13
+      '_proprio/retencao-curva.css',
       '_proprio/retencao.css',
       '_proprio/video-blocos.css',
     ])

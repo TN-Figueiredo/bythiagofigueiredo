@@ -93,13 +93,13 @@ describe('o modelo: estado "coletada"', () => {
   it('a data da leitura vem do fuso de São Paulo, não do corte do texto ISO (item 64)', () => {
     // 01:30 UTC do dia 9 é 22:30 do dia 8 em São Paulo
     const v = view(comCurva(curvaDe(cruzaEm35), '2026-10-09T01:30:00.000Z'))
-    expect(v.aviso).toContain('coletada em 08/10.')
+    expect(v.aviso).toContain('Coletada em 08/10.')
     expect(v.aviso).not.toContain('09/10')
     const v2 = view(comCurva(curvaDe(cruzaEm35), '2026-10-09T15:30:00.000Z'))
-    expect(v2.aviso).toContain('coletada em 09/10.')
+    expect(v2.aviso).toContain('Coletada em 09/10.')
   })
   it('o aviso explica que a curva é da vida inteira e o % assistido é dos últimos dias', () => {
-    expect(view(comCurva(curvaDe(cruzaEm35))).aviso).toBe('Curva da vida inteira do vídeo, coletada em ' + dmDia(D(1)) + '. O % assistido da seção anterior é dos últimos dias.')
+    expect(view(comCurva(curvaDe(cruzaEm35))).aviso).toBe('Coletada em ' + dmDia(D(1)) + '. Mostra a vida inteira do vídeo; "Quanto do vídeo as pessoas assistem" mostra só os últimos dias.')
   })
   it('curva completa com saídas e trechos revistos: as duas linhas aparecem, no formato do mockup', () => {
     // queda forte entre 20% e 30% e uma subida (replay) entre 60% e 70%
@@ -200,16 +200,30 @@ describe('o modelo: os outros quatro estados', () => {
       expect(v.frase).toBe(NAO_COLETADA)
     }
   })
-  it('tabela da curva ausente (migration não aplicada): "ainda não coletamos"', () => {
-    expect(view(retencao({ tabelaAusente: true })).estado).toBe('nao-coletada')
+  it('tabela da curva ausente (migration não aplicada): ERRO (falha nossa, S4), nunca "ainda não coletamos", e recarregar não é a saída', () => {
+    const v = view(retencao({ tabelaAusente: true }))
+    expect(v.estado).toBe('erro')
+    expect(v.frase).not.toContain('Ainda não coletamos')
+    expect(v.frase).toContain('Recarregar não resolve')
+    expect(v.rotulo).toBe('falhou')
+  })
+  it('a pastilha é por estado (C1): não medido só para o que não foi medido, falhou no erro, nenhuma no negado', () => {
+    expect(view(undefined).rotulo).toBe('não medido')
+    expect(view(retencao({ ultimaResposta: { dia: D(4), resultado: 'sem_dado_na_janela' } })).rotulo).toBe('não medido')
+    expect(view({ acesso: 'erro' }).rotulo).toBe('falhou')
+    expect(view({ acesso: 'negado' }).rotulo).toBeNull()
+    expect(view(comCurva(curvaDe(cruzaEm35))).rotulo).toBeNull()
   })
   it('curva ilegível na janela da vida: ERRO de leitura, nunca "ainda não coletamos", mesmo com a última resposta `ok`', () => {
     const v = view(retencao({ janelasIlegiveis: ['vida'], descartados: 1, ultimaResposta: { dia: D(1), resultado: 'ok' } }))
     expect(v.estado).toBe('erro')
-    expect(v.frase).toBe('A leitura da curva falhou agora; recarregue a página.')
+    // C2: recarregar não resolve uma curva guardada e ilegível
+    expect(v.frase).toBe('Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve.')
   })
   it('a última resposta foi `ok` mas não há curva nem curva ilegível: é incoerência do banco, e a tela diz que a leitura falhou', () => {
-    expect(view(retencao({ ultimaResposta: { dia: D(1), resultado: 'ok' } })).estado).toBe('erro')
+    const v = view(retencao({ ultimaResposta: { dia: D(1), resultado: 'ok' } }))
+    expect(v.estado).toBe('erro')
+    expect(v.frase).toBe('Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve.')
   })
   it('ilegível só nas janelas de 7 e 30 dias não derruba a vida (a tela só mostra a vida)', () => {
     expect(view(retencao({ janelasIlegiveis: ['primeiros_7_dias'], curvas: { vida: lida(curvaDe(cruzaEm35)) } })).estado).toBe('coletada')
@@ -248,7 +262,7 @@ describe('a seção na página do vídeo', () => {
     expect(s.querySelector('.vb-fr b')!.textContent).toBe('3:30')
     const img = s.querySelector('svg[role="img"]')!
     expect(img.getAttribute('aria-label')).toContain('Metade das pessoas já saiu aos 3:30')
-    expect(texto(s)).toContain('Curva da vida inteira do vídeo, coletada em')
+    expect(texto(s)).toContain('Coletada em')
     expect(s.querySelector('button[aria-label="De onde vem a curva"]')).not.toBeNull()
   })
   it('coletada: o gráfico tem a linha da metade, o rótulo "metade já saiu aqui", a grade em 0, 50 e 100% e o eixo do tempo em cinco marcas', () => {
@@ -358,7 +372,7 @@ describe('a seção na página do vídeo', () => {
     expect(v.retencao.estado).toBe('negado')
   })
   it('o método do ⓘ fica como estava e fala da vida inteira × os últimos dias', () => {
-    expect(METODO_RETENCAO.join(' ')).toContain('a curva é da vida inteira do vídeo; o % assistido da seção anterior é dos últimos dias')
+    expect(METODO_RETENCAO.join(' ')).toContain('a curva é da vida inteira do vídeo; "Quanto do vídeo as pessoas assistem" é dos últimos dias')
     expect(METODO_RETENCAO.join(' ')).toContain('Acima de 100%: trecho que muita gente voltou para rever.')
   })
   it('sem cor de direção e sem estilo inline de cor: a cor da curva vem de token', () => {
