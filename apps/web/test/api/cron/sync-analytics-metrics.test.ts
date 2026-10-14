@@ -107,26 +107,10 @@ function channelsQuery(data: unknown[] | null) {
   }
 }
 
-// Leitura de youtube_videos: `select().eq()` (laço por canal) e `select().eq().not()`.
-// O resultado do eq é aguardável E tem .not, como o builder de verdade.
-function videosRead(data: unknown[] | null) {
-  const res = { data, error: null }
-  return Object.assign(Promise.resolve(res), { not: vi.fn().mockResolvedValue(res) })
-}
-
-// Fadiga: `from('ab_tests').select().eq().in()` — nenhum teste A/B ativo.
-function abTestsQuery() {
-  return {
-    select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }),
-    }),
-  }
-}
-
 function videosQuery(data: unknown[] | null) {
   return {
     select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockImplementation(() => videosRead(data)),
+      eq: vi.fn().mockResolvedValue({ data, error: null }),
     }),
     update: vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
@@ -223,7 +207,6 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
       if (table === 'youtube_channels') return channelsQuery([fakeChannel])
       if (table === 'youtube_videos') return videosQuery([fakeVideo])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     mockRpc.mockResolvedValue({ error: null })
@@ -261,7 +244,6 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === 'youtube_channels') return channelsQuery([fakeChannel])
       if (table === 'youtube_videos') return videosQuery([])
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
 
@@ -298,7 +280,6 @@ describe('autorização e linha da execução (L1b)', () => {
       if (table === 'youtube_channels') return channelsQuery([canal])
       if (table === 'youtube_videos') return videosQuery([video])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
   }
@@ -467,7 +448,6 @@ describe('autorização e linha da execução (L1b)', () => {
       }
       if (table === 'youtube_videos') return videosQuery([video])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     mockEnsureFreshToken.mockImplementation(async (siteId: string, _p: string, acc?: string) => {
@@ -545,7 +525,6 @@ describe('autorização e linha da execução (L1b)', () => {
       }
       if (table === 'youtube_videos') return videosQuery([video])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
-      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })

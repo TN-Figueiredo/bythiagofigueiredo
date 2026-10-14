@@ -314,6 +314,27 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(typeof body.ms_existente).toBe('number')
   })
 
+  it('total de 90 dias crescendo não gera aviso nem alerta, e o corpo não tem as chaves antigas', async () => {
+    // Arranjo que antes chegava à fadiga e ao aviso viral: um canal, um vídeo de 40 dias (acima dos 30 da
+    // fadiga), relatório com views = 5000 (muito acima das 500 gravadas) e o vídeo devolvido pelo banco.
+    const quarentaDias = { ...video, published_at: new Date(Date.now() - 40 * 86_400_000).toISOString() }
+    const db = banco({ youtube_channels: [canal], youtube_videos: [quarentaDias] })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(relatorio([['yt-1', 5000, 30, 45, 5, 2, 1, 0]])))
+    const res = await GET(pedido() as never)
+    const corpo = await res.json()
+    expect(corpo.synced).toBe(1)
+    expect(corpo).not.toHaveProperty('fatigueAlerts')
+    expect(corpo).not.toHaveProperty('notifications')
+    expect(db.tables.youtube_fatigue_alerts ?? []).toHaveLength(0)
+    expect(vi.mocked(fanOutToSiteAdmins).mock.calls.map(c => c[0].type)).not.toContain('youtube.trending_viral')
+    const gravado = db.tables.youtube_videos![0]!
+    expect(gravado).not.toHaveProperty('view_count_delta_today')
+    expect(gravado).not.toHaveProperty('view_count_yesterday')
+    // Afirmação positiva: prova que o cron andou até o update de youtube_videos.
+    expect(gravado).toHaveProperty('avg_view_duration_seconds')
+    expect(gravado).toHaveProperty('last_analytics_sync_at')
+  })
+
   it('canal sem conexão continua gerando o aviso próprio depois da retirada do aviso viral', async () => {
     banco()
     vi.mocked(ensureFreshToken).mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
