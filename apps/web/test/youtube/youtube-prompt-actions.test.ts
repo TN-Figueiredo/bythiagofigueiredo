@@ -125,4 +125,27 @@ describe('prompts do YouTube: o analytics recebe o id UC do canal', () => {
     expect(searchTerms).not.toHaveBeenCalled()
     expect(demographics).not.toHaveBeenCalled()
   })
+
+  it('prompt de coaching: só vitória humana entra em abTestResults e a chave confidence some', async () => {
+    seed(CH_UC)
+    const W = '55555555-5555-4555-8555-555555555555'
+    const base = { test_type: 'thumbnail', winner_variant_id: W, youtube_video_id: 'yt1' }
+    tables.ab_tests = [
+      { ...base, name: 'humano-vencedor', completed_reason: 'manual_winner' },
+      { ...base, name: 'humano-aplicou', completed_reason: 'manual_apply' },
+      { ...base, name: 'sem-aplicar', completed_reason: 'manual_no_apply' },
+      { ...base, name: 'auto', completed_reason: 'auto_resolve' },
+      { ...base, name: 'sem-razao', completed_reason: null },
+    ]
+    tables.ab_test_variants = [{ id: W, label: 'B' }]
+    const { fetchChannelHealthData } = await import('@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions')
+    const r = await fetchChannelHealthData(CH_UUID)
+    if (!r.ok) throw new Error(r.error)
+    const res = r.data.abTestResults
+    expect(res.map(x => x.videoTitle).sort()).toEqual(['humano-aplicou', 'humano-vencedor'])
+    for (const x of res) {
+      expect(Object.keys(x)).not.toContain('confidence')
+      expect(x.winner).toBe('B')
+    }
+  })
 })
