@@ -12,8 +12,8 @@ Todos **MEDIDO em 13/10/2026**, pelo dono, só com `select`; saída em `saidas/p
 
 | # | Fato | Valor |
 |---|---|---|
-| F1 | Tamanho do banco (`pg_database_size` do banco do projeto) | **180.620.435 bytes = 172,25 MB** (1 MB = 1.048.576 bytes, a mesma conta do sinal da E10) = **34% de 500 MB** |
-| F2 | Por esquema | `public` 103 MB; **`cron` 49 MB**; `pg_catalog` 17 MB; `auth` 1,8 MB; o resto abaixo de 1 MB |
+| F1 | Tamanho do banco (`pg_database_size` do banco do projeto) | **180.620.435 bytes = 172,25 MB** (1 MB = 1.048.576 bytes, a mesma conta do sinal da E10) = **34% de 500 MB**. **(M0, 14/10/2026):** o cluster só tem `postgres` (186.649.747 B = 178 MiB, medido às 15:11 UTC) e os dois templates, `template1` (7.594.511 B) e `template0` (7.520.783 B), cerca de 7,2 MiB cada; nenhum outro banco. A margem do limite perde esses ~14,5 MiB fixos, e o banco do projeto cresceu 6,0 MB desde a medida de F1 |
+| F2 | Por esquema | `public` 103 MB; **`cron` 49 MB**; `pg_catalog` 17 MB; `auth` 1,8 MB; o resto abaixo de 1 MB. **(M0, 14/10/2026):** o esquema `cron` segue em ~49 MiB só por `job_run_details`; o cluster não tem outro banco além dos dois templates (F1) |
 | F3 | Maiores relações | `yt_own_video_daily` 68,7 MB (93 mil linhas; é a da dieta da A5); **`cron.job_run_details` 49,4 MB, com 16 linhas estimadas**; `cron_runs` 7,3 MB (35.718 linhas); `content_pipeline` 2,8; `competitor_videos` 2,6; `competitor_video_versions` 2,1; `research_items` 1,1; `competitor_video_daily` 1,0; tudo o mais abaixo de 1 MB |
 | F4 | **Achado: `cron.job_run_details` ocupa 29% do banco e quase não tem linha.** O agendamento `pgcron-run-details-retention` apaga o que tem mais de 7 dias, todo dia às 05:30; as linhas somem e o espaço não volta | É o mesmo fenômeno que justifica particionar |
 | F5 | As três séries existem em produção | `competitor_video_daily`: 6.828 linhas, só outubro de 2026 (03/10 a 13/10, 701 vídeos), 1,0 MB. **`competitor_video_early` e `competitor_video_hourly`: existem e estão VAZIAS.** Também com zero linha: `competitor_video_comments`, `competitor_raw`, `competitor_readings`, `competitor_video_comment_marks`, `competitor_hour_fold_log` |
@@ -124,7 +124,7 @@ Medidas de produção **MEDIDO em 13/10/2026, 23:12 UTC**, pelo dono, só com `s
 | F65 | Pela unidade por mês de publicação seriam 36 pares de canal e mês, em 3 canais. Pela unidade adotada (mês do congelamento, seção 10.8), a primeira leva são no máximo 3 canais vezes 8 tabelas: **24 unidades** | MEDIDO (M10); conta |
 | F66 | Tamanho e bytes por linha: `competitor_videos` 2,76 MB (1.985 B por linha; 1,54 MB são índice, e o maior índice é o de `tags`, com 0,72 MB); `competitor_field_versions` 2,56 MB (7.895 linhas, 324 B); `competitor_raw` 2,18 MB (794 linhas, 2.744 B; bruto médio de 1.989 B); `competitor_video_versions` 2,16 MB (2.422 linhas, 2.400 correntes, 893 B); `competitor_channel_snapshots` 0,65 MB (1.252 linhas, 517 B); `competitor_video_tier_spans` 0,31 MB (1.391 linhas, 224 B); `competitor_changes` 0,24 MB (42 linhas). **Continuam vazias:** comentários, leituras da forja, retratos e marcas de comentário, mapa de horas e registro de dias somados. (`competitor_raw` estava vazia na medida da tarde, F5: a captura começou a gravar no intervalo) | MEDIDO (M3, M4, M6) |
 | F67 | 807 miniaturas no Vercel Blob, 807 versões de miniatura, nenhuma sem cópia no Blob | MEDIDO (M5) |
-| F68 | `cron.job_run_details` tem **51,8 MB e 3 linhas** (confirma F4); `yt_own_video_daily` 72,0 MB (96.927 linhas); `cron_runs` 7,66 MB (35.762 linhas) | MEDIDO (M7) |
+| F68 | `cron.job_run_details` tem **51,8 MB e 3 linhas** (confirma F4); `yt_own_video_daily` 72,0 MB (96.927 linhas); `cron_runs` 7,66 MB (35.762 linhas) | MEDIDO (M7). **(M0, 14/10/2026):** `cron.job_run_details` tem 17 linhas e **51.814.400 B** (heap 46.186.496 + índices 5.578.752); 51,8 MB decimais = 49,4 MiB; `n_dead_tup` 15 |
 | F69 | **Apagar a linha do vídeo faria a coleta recriá-lo em ciclo.** A sincronização preenche o canal quando a contagem de linhas fica abaixo de `video_limit` e insere, com id novo, todo vídeo da lista de uploads que não acha; e os `video_limit` mais recentes do canal são sempre da faixa diária, qualquer que seja a idade. Num canal que publica pouco, o vídeo apagado voltaria, seria lido todo dia e seria apagado de novo, tudo com desfecho "ok" | LIDO: `apps/web/src/lib/youtube/competitor-sync.ts:325-329`, `:1062-1126`; `competitor-tiers.ts:27-33` |
 | F70 | **Dois defeitos de leitura que a retirada das versões acenderia.** (a) `competitor_changes.from_version_id` e `to_version_id` são `on delete set null`, e o carregador lê como **troca legada** toda linha de `competitor_changes` com `from_version_id` nulo: retiradas as versões, uma troca moderna passaria a ser lida como legada, com histórico de título fabricado. (b) Vídeo sem nenhuma versão de título ganha no carregador uma versão inventada, "igual desde a publicação": um vídeo com nove trocas no arquivo apareceria como "nunca trocou" | LIDO: `supabase/migrations/20261003000002_observatorio_versoes.sql:43-44`; `apps/web/src/lib/youtube/observatorio/load.ts:572-573` e `:298` (as duas linhas de `load.ts` conferidas pelo redator em 13/10) |
 | F71 | Toda leitura (diária, semanal e a da página de uploads) regrava `last_seen_at` das versões e do bruto do vídeo. O `hash_conteudo` de uma unidade de vídeo ainda lido mudaria toda semana: sem parar a coleta antes, a unidade nunca sela | LIDO: `competitor-sync.ts:598-606`, `:1173`; `competitor-capture.ts:326-339` |
@@ -150,11 +150,15 @@ CP1. O limite conta todos os bancos do cluster; só o banco do projeto foi medid
 npx supabase db query --linked "select datname, pg_database_size(datname) as bytes from pg_database order by 2 desc;"
 ```
 
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** `postgres` 186.649.747 B (178 MiB); `template1` 7.594.511 B e `template0` 7.520.783 B (cerca de 7,2 MB cada); nenhum outro banco no cluster. Os templates somam cerca de 14,5 MiB que contam no limite e não são do projeto.
+
 CP2. O papel `postgres` pode reescrever `cron.job_run_details`? Decide a alavanca de 49 MB.
 
 ```
 npx supabase db query --linked "select c.relowner::regrole as dono, has_table_privilege('postgres', c.oid, 'MAINTAIN') as pode_manter, has_table_privilege('postgres', c.oid, 'TRUNCATE') as pode_esvaziar, pg_has_role('postgres', 'pg_maintain', 'member') as e_pg_maintain from pg_class c where c.oid = 'cron.job_run_details'::regclass;"
 ```
+
+**RESPONDIDA em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** o dono do objeto é `supabase_admin`; `pode_manter` = t e `pode_esvaziar` = t; `postgres` não é membro de `pg_maintain` (o privilégio vem direto na tabela). A Tarefa 6 da M1 tenta `vacuum` e depois `vacuum full`.
 
 CP3. As estatísticas da tabela estão em dia, e quanto dela é índice? Decide se um `vacuum` comum basta.
 
@@ -162,11 +166,15 @@ CP3. As estatísticas da tabela estão em dia, e quanto dela é índice? Decide 
 npx supabase db query --linked "select (select count(*) from cron.job_run_details) as linhas, (select min(end_time) from cron.job_run_details) as mais_antiga, pg_relation_size('cron.job_run_details') as heap, pg_indexes_size('cron.job_run_details') as indices, s.n_dead_tup, s.last_autovacuum, s.last_vacuum from pg_stat_all_tables s where s.schemaname = 'cron' and s.relname = 'job_run_details';"
 ```
 
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** 17 linhas (mais antiga 07/10 05:30 UTC); heap 46.186.496 B, índices 5.578.752 B, total 51.814.400 B; `n_dead_tup` 15; último autovacuum 07/10, último vacuum 05/09. Inchaço de cerca de 49,4 MiB para 17 linhas: um `vacuum` comum não devolve, o `vacuum full` sim.
+
 CP4. Quantas linhas a API devolve por chamada neste projeto (no ambiente local são 1.000, F46), e qual é o teto de tempo efetivo de uma função chamada pelo cliente de serviço? **Não decide mais a forma do retorno:** a função de leitura devolve uma linha só, e o teto de linhas não se aplica a ela (seção 9.3). Decide só a margem do teto de linhas por parte. (O primeiro é leitura do painel: Project Settings, API, "Max rows". O segundo:)
 
 ```
 npx supabase db query --linked "select rolname, rolconfig from pg_roles where rolname in ('authenticator','service_role','authenticated');"
 ```
+
+**PARCIAL (M0, 14/10/2026, `saidas/m0-2026-10-14-1211.txt`):** `authenticated` com `statement_timeout=8s`; `authenticator` com `safeupdate`, `statement_timeout=8s` e `lock_timeout=8s`; `service_role` sem configuração. **"Max rows" continua ABERTA:** o dono não anotou o valor do painel (Project Settings, API).
 
 CP5. As chaves da forja e as permissões em uso (molde das chaves novas: três, com a emenda de 14/10).
 
@@ -174,21 +182,29 @@ CP5. As chaves da forja e as permissões em uso (molde das chaves novas: três, 
 npx supabase db query --linked "select name, permissions, revoked_at is null as ativa from pipeline_api_keys order by 1;"
 ```
 
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** `cowork-permanent` [read write admin] ativa; as chaves `cowork-claude-2026-05-*` estão revogadas (lista completa na saída).
+
 CP6. O ponto de partida da leitura de hora em hora (decide se outubro de 2026 terá mês parcial). Rodar de novo no dia da etapa M2.
 
 ```
 npx supabase db query --linked "select (select min(hour_slot) from public.competitor_video_hourly) as primeira_hora, (select min(taken_at) from public.competitor_video_early) as primeira_early, (select count(*) from public.competitor_hour_fold_log) as dias_somados;"
 ```
 
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** primeira hora em `competitor_video_hourly` em 13/10/2026 23:00 UTC; `competitor_video_early` vazia (nula); `competitor_hour_fold_log` com 0 dias somados. Rodar de novo no dia da M2.
+
 ### 7.2 NAS e B2 (o dono)
 
 CP7. **Painel do Backblaze B2**, no navegador, bucket `tnf-nas-backup-4x9k2`: **Lifecycle Settings** (todas as versões, só a última, ou por quantos dias). O Object Lock já foi respondido: desligado (F49). É a pergunta 1 da seção 20. **Respondida em 14/10:** versões anteriores por 30 dias, no bucket atual; o do arquivo nasce igual. O item de aceite 2 fecha com a captura dessa tela.
+
+**ABERTA em 14/10/2026 (M0):** a captura do Lifecycle Settings não foi guardada (`saidas/cp7-b2-lifecycle.png` não existe); o item de aceite 2 continua aberto até o dono salvar a captura.
 
 CP8. A política de snapshot que o filho de `appdata` herda (confirma o prazo declarado do expurgo). No shell do TrueNAS:
 
 ```
 midclt call pool.snapshottask.query | python3 -m json.tool | grep -E '"dataset"|"recursive"|"exclude"|"lifetime_value"|"lifetime_unit"|"enabled"'
 ```
+
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** `fast/appdata` com tarefa recursiva, a cada 2 semanas, `exclude: []`; `fast/production` tem `exclude` não vazio (conteúdo não lido, fora desta fase). Lista completa dos agendamentos na saída.
 
 CP9. Se a tarefa de cópia para o B2 atravessa datasets filhos. **Não há comando de leitura que responda com certeza:** só a restauração a partir do B2 prova (seção 13). Depois de criado o dataset, a contagem no NAS, comparada com a lista do B2 lida no Mac, ajuda:
 
@@ -237,11 +253,15 @@ CP17. O `sudo` da forja pede senha quando chamado por `ssh` sem terminal? Decide
 ssh forja 'sudo -n true && echo SEM-SENHA || echo PEDE-SENHA'
 ```
 
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** `PEDE-SENHA`: o `sudo` da forja pede senha por `ssh` sem terminal; os comandos da seção 16 usam `ssh -t`.
+
 CP18. O Mac do dono tem `docker` e `rclone`? Decide se o preparo da seção 16.7 tem mais um passo. O dono roda:
 
 ```
 docker --version; rclone version | head -1
 ```
+
+**MEDIDO em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** Docker 29.8.1 no Mac; **`rclone` não instalado no Mac** (a seção 16.7 ganha o passo de instalar).
 
 CP11. O kit instalado na forja está igual ao do repositório local do kit? (O runbook da fila tem o portão; rodar antes de instalar qualquer peça nova.)
 
@@ -299,6 +319,8 @@ CP26. **Por onde o healthchecks.io avisa o dono** (e-mail, notificação no celu
 
 CP27. O NAS e a forja têm, na BIOS, "ligar quando a energia voltar"? Leitura da tela de configuração de cada máquina, pelo dono. Sem isso, quem está no local liga pelo botão (seção 13.6, situação B).
 
+**RESPONDIDA em 14/10/2026 (M0, `saidas/m0-2026-10-14-1211.txt`):** pela palavra do dono em 14/10/2026: voltam sozinhas; a BIOS não foi lida. A prova é uma queda de luz ou o passo 16 do ensaio.
+
 CP28. **As medidas de produção que fecham a primeira leva** (o dono roda, no Mac). Elegíveis com as isenções de fixado e dos `video_limit` mais recentes, com 24 meses; o tamanho da leva por canal (a maior unidade decide se há partes); e as trocas salvas que tiram vídeo da lista:
 
 ```
@@ -347,10 +369,10 @@ Mês 0 é outubro de 2026. Tamanhos em MB de 1.048.576 bytes.
 |---|---|---|
 | Banco hoje | 172,25 | MEDIDO (F1) |
 | Dieta de `yt_own_video_daily` com `vacuum full` (A5) | menos 66,7 | ESTIMATIVA: 68,7 medidos menos os 2 que sobram (F20) |
-| `cron.job_run_details` reescrita | menos 49,0 | ESTIMATIVA: 49,4 medidos menos o que sobra de 7 dias de linhas |
+| `cron.job_run_details` reescrita | menos 49,0 | ESTIMATIVA: 49,4 medidos menos o que sobra de 7 dias de linhas. **(M0, 14/10/2026):** 49,4 MiB confirmados para 17 linhas (51.814.400 B); `pode_manter` = t, então a M1 tenta `vacuum full` |
 | **Base depois das duas recuperações** | **56,5** | conta |
 | Peças fixas desta fase, em regime | mais 17 | ESTIMATIVA: patamar de 90 dias de `yt_own_collection_attempts` (cerca de 8); teto da tabela de resultados de relatório (8); partições vazias (1) |
-| Resto do site, por ano | mais 17; ou mais 8 depois da dieta de `yt_own_video_meta_daily` (MG17, A5) | ESTIMATIVA do spec da A5: 22, menos 14 de `cron_runs` com a poda, mais 9 da `meta_daily` sem dieta |
+| Resto do site, por ano | mais 17; ou mais 8 depois da dieta de `yt_own_video_meta_daily` (MG17, A5) | ESTIMATIVA do spec da A5: 22, menos 14 de `cron_runs` com a poda, mais 9 da `meta_daily` sem dieta. **(M0, 14/10/2026) taxa real de `cron_runs`:** 35.928 linhas desde 17/04/2026 até 14/10/2026 = 180 dias; 35.928 / 180 = **199,6 linhas/dia** (cerca de 72.800 por ano; antes, F3: 35.718 linhas). Com 7.692.288 B para 35.928 linhas, cerca de 214 B por linha, são ~14,9 MiB por ano sem poda: a parcela "menos 14" fica de pé. Com a poda de 90 dias o patamar é de ~18.000 linhas (3,7 MiB). Antes da M1: 19.939 linhas com mais de 90 dias |
 | Por canal, o que **nunca sai** do online | 1,73 por ano, para sempre | ESTIMATIVA: 1,7 do spec da A5 (9.5), mais **0,03 do registro do arquivo**, que cresce com os canais e não tem poda (`obs_archive_units`: 6 linhas por canal por mês, cerca de 450 B por linha; com 75 canais, 2,3 MB por ano) |
 | Por canal, série diária e primeiras horas | 3,65 por ano, mais 0,8 por ano de idade (a leitura semanal cobre um catálogo que cresce) | ESTIMATIVA (conta do engenheiro de dados; linha de 156 B MEDIDA) |
 | Por canal, leitura de hora em hora crua | 5,4 por ano | ESTIMATIVA: 33.288 linhas por ano a 162 B (linha MEDIDA no banco local) |

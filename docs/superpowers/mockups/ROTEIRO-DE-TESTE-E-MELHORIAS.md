@@ -838,7 +838,7 @@ Opera real, leitor de tela, aparelho real, rede lenta; a tabela de coerência po
 
 ## 19. O que muda quando um mês sai do banco (casca e tabela de sincronia)
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**; todo número de mês arquivado é exemplo. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); aguarda o dono**; todo número de mês arquivado é exemplo. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Quais telas aprovadas mudam quando um mês sai do banco, onde está o desenho de cada uma e o que ainda falta?"
@@ -868,7 +868,7 @@ Não registrado: ainda não foi ao dono.
 ---
 ## 19a. Peça 1: "desde dd/mm" e "no arquivo" nas telas de gráfico
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); aguarda o dono**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Este número está completo, ou falta um pedaço que saiu do banco?" A resposta vem junto do número ("desde 01/10/2027") e no eixo (trecho "no arquivo").
@@ -902,7 +902,7 @@ Não registrado: ainda não foi ao dono.
 ---
 ## 19b. Peça 2: a página do Arquivo
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); **aprovado pelo dono no Opera em 14/10/2026**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Algum mês precisa de mim agora, e quando o próximo pode sair?" A linha que precisa do dono sobe ao topo do tipo e é a única com contorno de cor; o que está bem recua.
@@ -924,7 +924,7 @@ Abrir no Opera: `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do
 1. O espaço "+ novo" do interruptor do automático (peça 4) e de "Vídeos antigos" (peça 8): aceitável enquanto não são desenhados?
 2. O ⓘ de "Fechado. Cópia a partir de dd/mm" é texto novo (o spec não o dá): aprovar a frase.
 3. A frase "Cole na forja os comandos que ele imprimir, um por vez" muda uma palavra do spec ("linhas" é proibida): confirmar.
-Respostas do dono: não registradas.
+Respostas do dono (14/10/2026): aprovou a página inteira no caso cheio (`arquivo.html`), sem responder às três decisões uma a uma. A 3 já está decidida pela regra do dono de 14/10 ("rode o arquivo que ele gravar", nada para colar), que vale no fecho do spec 04.
 
 ### 4. Melhorias que os revisores sugeriram e não bloqueiam
 Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando voltarem, entram aqui.
@@ -933,12 +933,12 @@ Ainda sem revisão de Logan e Naksu sobre o desenho (só sobre o plano). Quando 
 Opera real, leitor de tela, aparelho real, filtro de cinza do macOS. O contraste da hachura foi medido sobre o fundo plano. Todos os números de meses arquivados são exemplo.
 
 ### 6. Retorno do dono e do uso real
-Não registrado: ainda não foi ao dono.
+14/10/2026: o índice do mockup 19 (`index.html`) não fez sentido para o dono ("Não estou entendendo nada deste mock up"): é um mapa de revisor, não uma tela. Com a explicação em três linhas (frase do topo, um cartão por tipo de dado, o caminho de cada mês), a página do Arquivo foi aprovada. Lição: mostrar ao dono a tela, não o índice, e abrir no caso que tem conteúdo.
 
 ---
 ## 19c. Peça 3: tirar o mês do banco
 
-Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada em 14/10/2026 (aguarda nova leitura deles e o dono)**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
+Estado: **desenhado em 14/10/2026; revisão 19-1 de Logan e Naksu aplicada e conferida pelos dois em 14/10/2026, com acordo (`CONFERENCIA-*-19-1.md`); aguarda o dono**. Pasta: `2026-10-14-manutencao-nas/19-mes-fora-do-banco/` (`NOTAS.md`; plano em `2026-10-14-manutencao-nas/PLANO-DAS-TELAS.md`).
 
 ### 1. O que a tela responde
 "Posso tirar este mês? Se não, o que falta? Se sim, o que eu perco?"
