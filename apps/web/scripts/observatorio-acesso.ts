@@ -1,5 +1,5 @@
 // O comando do dono para criar a chave do perfil `observatorio_leitura` (A5 E17, degrau 2). SÓ `criar`: sem --permissao, sem --revogar, sem --apagar.
-//   npx tsx --tsconfig apps/web/tsconfig.json --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts criar --usuario <e-mail> [--dias N] [--site <uuid>]
+//   npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts criar --usuario <e-mail> [--dias N] [--site <uuid>]
 // Nenhum agente roda este comando. A lógica vive em src/lib/youtube/observatorio/acesso-ia/criar-chave.ts (sob o typecheck e os testes).
 // Antes de rodar: `git status` limpo, em `main`, igual a `origin/main` (as duas guardas são constantes do seu checkout; ver o runbook).
 import { createClient } from '@supabase/supabase-js'

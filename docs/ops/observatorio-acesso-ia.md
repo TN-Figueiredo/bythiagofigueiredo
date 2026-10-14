@@ -25,7 +25,7 @@ A E19 voltou ao aviso com o acesso aberto? O acesso fecha sozinho (503). Antes d
 Antes de rodar: `git status` limpo, em `main`, igual a `origin/main` (o comando lê as duas guardas do seu checkout: a E19 conferida e a exceção da pergunta 47).
 
 ```
-npx tsx --tsconfig apps/web/tsconfig.json --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts criar --usuario <e-mail da pessoa>
+npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts criar --usuario <e-mail da pessoa>
 ```
 
 O comando só aceita `criar` e as opções `--usuario`, `--dias` (1 a 366; padrão 180) e `--site`. Ele **só insere**, e recusa: subcomando que não seja `criar`; opção desconhecida (nunca ignorada em silêncio); a E19 não conferida; a exceção do dono ausente; e-mail que não existe ou repetido; pessoa que não vê o site (ou vê dois e `--site` não veio); nome repetido; pessoa que já tem chave ativa (a segunda é aceita a partir de 14 dias antes do vencimento: renovar sem buraco); terceira pessoa com chave ativa (o teto é de duas PESSOAS); validade fora de 1 a 366 dias. O texto da chave aparece **uma vez**; só o SHA-256 vai ao banco. O nome é sempre o gerado (`observatorio-AAAAMMDD-xxxx`), sem dado pessoal.
