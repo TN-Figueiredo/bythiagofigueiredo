@@ -401,6 +401,8 @@ Vídeos diários a mais = os de 30 a 32 dias de idade nos canais que passam do `
 
 **Precedência dos vereditos (emenda 1), quando mais de um vale na mesma execução:** falha de ida ao banco ou de forma; `marca_recusada`; `prova_inconsistente`; `marcas_perdidas`; `marcas_atrasadas` (só com nada sobrando); `sobrou`; `ok`. Os números de todos vão no detalhe de qualquer jeito. **(reconciliação 13/10, emenda 1: D-I1, S-I2) Duas chaves a mais no detalhe, que não mudam veredito nenhum: `pares_em_pausa` (pares de canal com a coleta pausada, fora de `total_pendentes` e de `atrasadas`) e `pausadas` (pares cujo buraco cruzou uma pausa registrada, fora de `perdidas`). Canal pausado some das outras contagens e aparece nestas.**
 
+**(portão T11, Phil, 14/10) Tentativas:** `parcial` com progresso não gasta tentativa (provado no `bythiago_int`: 13 ciclos, `attempts` = 1); `erro` depois de gravar (`marcas_perdidas`, `marca_recusada`, `prova_inconsistente`) gasta. Esgotar exigiria 12 lotes com erro no mesmo dia (~18 mil pares); nada se perde, o dia seguinte retoma.
+
 ### 6.2 Os leitores e o montador
 
 | Situação | O que a medida responde |

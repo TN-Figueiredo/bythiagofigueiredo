@@ -952,13 +952,13 @@ describe('marcas_de_idade: drenagem de pares pelo despachante real', () => {
     expect(r.problemasPorExecucao).toEqual([[], [], []])
     expect(new Set(r.tetos)).toEqual(new Set([12]))
   })
-  it('carga de 9.001 pares drena em 7 execuções no mesmo dia, sem problema e sem gastar tentativa', async () => {
+  it('carga de 9.001 pares drena em 7 execuções no mesmo dia, sem problema (não gastar tentativa é provado no SQL: test/integration/agenda-despacho.test.ts)', async () => {
     const r = await drenar(9_001, { feitoPorExecucao: () => LOTE, maximo: 20 })
     expect(r.execucoes).toBe(7)
     expect(r.restantes).toBe(0)
     expect(r.problemasPorExecucao.flat()).toEqual([])
-    // cada retomada traz done_n > 0 (a linha do fecho anterior): é o que a agenda lê para não gastar tentativa
-    expect(r.execucoes).toBeLessThanOrEqual(DEFINICAO_MARCAS_DE_IDADE.tetoTentativas)
+    // cada retomada traz done_n > 0 (a linha do fecho anterior); a agenda pede a tomada sempre com o teto da definição
+    expect(new Set(r.tetos)).toEqual(new Set([DEFINICAO_MARCAS_DE_IDADE.tetoTentativas]))
   })
   it('reabertura completa (4.000 motivos de versão menor) drena sem problema', async () => {
     const r = await drenar(4_000, { feitoPorExecucao: () => LOTE, maximo: 10 })
