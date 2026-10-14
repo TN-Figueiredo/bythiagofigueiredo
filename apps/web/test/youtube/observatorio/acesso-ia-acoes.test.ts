@@ -140,9 +140,9 @@ describe('serie', () => {
     expect(pedir({ ...base, canal_id: C1, ate: d }).ok).toBe(false)
   })
 
-  it('ano bissexto: 2028-02-29 existe; 2027-02-29 não', () => {
-    expect(pedir({ ...base, canal_id: C1, de: '2028-02-29', ate: '2028-03-01' }).ok).toBe(true)
-    expect(pedir({ ...base, canal_id: C1, de: '2027-02-29', ate: '2027-03-01' }).ok).toBe(false)
+  it('ano bissexto: 2024-02-29 existe; 2026-02-29 não', () => {
+    expect(pedir({ ...base, canal_id: C1, de: '2024-02-29', ate: '2024-03-01' }).ok).toBe(true)
+    expect(pedir({ ...base, canal_id: C1, de: '2026-02-29', ate: '2026-03-01' }).ok).toBe(false)
   })
 
   it('o grão padrão é dia; semana é aceito; outro valor é recusado; o limite é de 400 pontos', () => {
