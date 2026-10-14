@@ -71,6 +71,23 @@ describe('estadoDoDia', () => {
   })
 })
 
+describe('estadoDoDia: base de forma ruim e nulo que não fecha a soma (conserto da revisão, I-1 e E3)', () => {
+  it.each([[-1], [Number.NaN], [Number.POSITIVE_INFINITY]])('base %s com base medida = não medido (base_nao_medida), nunca zero', (ruim) => {
+    const d = estadoDoDia({ ...base, base: ruim })
+    expect(d.de('BR')).toEqual({ tipo: 'nao_medido', motivo: 'base_nao_medida', desde: null })
+    expect(d.emRevisao).toBe(false)
+  })
+  it('base 0 (medida, sem atividade) continua zero medido: só nulo e ruim mudam', () => {
+    expect(estadoDoDia({ ...base, base: 0 }).de('BR')).toEqual({ tipo: 'zero_medido' })
+  })
+  it('outra linha do dia com views nulo e a soma fecha com a base: o valor ausente NÃO é zero medido', () => {
+    const d = estadoDoDia({ ...base, base: 5, linhas: [{ valor: 'BR', views: 5, minutos: 1 }, { valor: 'AR', views: null, minutos: 1 }] })
+    expect(d.soma).toBe(5)
+    expect(d.de('US')).toEqual({ tipo: 'zero_ou_abaixo_do_limiar' })
+    expect(d.omitido).toBeNull()
+  })
+})
+
 describe('estadoDoDiaLido (o dia como o leitor entrega)', () => {
   it('equivale a estadoDoDia com os mesmos campos', () => {
     const dia = { dia: '2026-10-11', coberto: true, baseMedida: true, base: 3, antesDoInicio: false, desde: '2026-10-10', linhas: [{ valor: 'BR', views: 3, minutos: null }] }
@@ -120,6 +137,26 @@ describe('classificarConjunto: os seis estados são distintos', () => {
     expect(classificarConjunto({ ...sem, passoDesligado: true, temCobertura: true })).toEqual({ tipo: 'passo_desligado', comDados: true })
     expect(classificarConjunto({ ...sem, passoDesligado: true })).toEqual({ tipo: 'passo_desligado', comDados: false })
     expect(classificarConjunto({ ...sem, ultimaTentativa: { outcome: 'sem_conexao' }, temLinhas: true })).toEqual({ tipo: 'coleta_em_erro', outcome: 'sem_conexao', comDados: true })
+  })
+  it('desligado + última coleta em erro: o tipo continua passo_desligado (precedência), mas o erro e o dia ficam no estado', () => {
+    const e = classificarConjunto({ ...sem, passoDesligado: true, temCobertura: true, ultimaTentativa: { outcome: 'erro_http', dia: '2026-10-11' } })
+    expect(e).toEqual({ tipo: 'passo_desligado', comDados: true, ultimoErro: { outcome: 'erro_http', dia: '2026-10-11' } })
+  })
+  it('desligado + última coleta em erro sem o dia: dia nulo; resultado fora do catálogo vira "desconhecido"', () => {
+    expect(classificarConjunto({ ...sem, passoDesligado: true, ultimaTentativa: { outcome: 'sem_conexao' } }))
+      .toEqual({ tipo: 'passo_desligado', comDados: false, ultimoErro: { outcome: 'sem_conexao', dia: null } })
+    expect(classificarConjunto({ ...sem, passoDesligado: true, ultimaTentativa: { outcome: 'texto de fora' } }))
+      .toMatchObject({ ultimoErro: { outcome: 'desconhecido' } })
+  })
+  it('desligado + última coleta benigna ou nunca tentou: sem ultimoErro (a chave nem existe)', () => {
+    for (const ultimaTentativa of [{ outcome: 'ok', dia: '2026-10-11' }, null]) {
+      const e = classificarConjunto({ ...sem, passoDesligado: true, ultimaTentativa })
+      expect(e).toEqual({ tipo: 'passo_desligado', comDados: false })
+      expect('ultimoErro' in e).toBe(false)
+    }
+  })
+  it('schema ausente continua vencendo o passo desligado, sem ultimoErro', () => {
+    expect(classificarConjunto({ ...sem, schemaAusente: true, passoDesligado: true, ultimaTentativa: { outcome: 'erro_http' } })).toEqual({ tipo: 'schema_ausente' })
   })
   it.each(['ok', 'sem_dado_na_janela', 'video_novo'])('tentativa %s não é erro', (outcome) => {
     expect(classificarConjunto({ ...sem, ultimaTentativa: { outcome }, temCobertura: true }).tipo).toBe('coletado')
