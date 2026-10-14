@@ -893,6 +893,8 @@ bash scripts/portao-dhash.sh valer 6jL-jeux_1Y
 - I1(b): o upload de uma 480×360 não é medido pelo portão; a P4a guarda a maior; caso pequeno é item declarado no ledger da P4a.
 - M2: o dono roda o `valer` na tomada e com a tampa aberta (`caffeinate -i -s`).
 
+- Dívida com gatilho na P4a (re-revisão do Yannis, 14/10): M3 (não se sabe qual chamada falha gastou cota; até 50 unidades extras), M4 (flag `--forcar` em `lerArgs`), M5 (`ErroYouTube.status/reason` para a mensagem do código 3). N1 consertado.
+
 ### Arquivos de partida
 - /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/lib/youtube/thumb-fingerprint.ts
 - /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/lib/youtube/ab-start.ts
