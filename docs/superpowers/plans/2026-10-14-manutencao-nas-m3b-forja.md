@@ -54,7 +54,7 @@
 | Soma de controle: soma `BigInt` dos valores não nulos de **uma** coluna, como texto; nula quando a tabela não tem coluna somável | `apps/web/src/lib/youtube/observatorio/arquivo/conferir.ts:120-126`, `manifesto.ts:23-24` |
 | `csv.QUOTE_NOTNULL` só afeta o **leitor** a partir da 3.13: no 3.12 o nulo volta como `""` (sonda em 3.12.13: `['1','']` no 3.12, `['1',None]` no 3.14). O kit tem leitor próprio do formato do C0.3 | Sonda do Yannis, 14/10 (crítico 1); contrato r2, C0.3 |
 | API do B2 `b2api/v4`: `b2_authorize_account` (GET, Basic `keyId:key`) devolve `accountId`, `authorizationToken` e `apiInfo.storageApi.{apiUrl, downloadUrl, allowed.buckets[{id, name}]}`; o `accountId` **não** é o keyId; `b2_list_file_versions` tem `action` em `upload`, `start` (envio grande em curso), `hide`, `folder`; `b2_download_file_by_id` devolve `X-Bz-File-Name` e `X-Bz-Content-Sha1` (`none` em envio grande) e erra com 401, 403 `download_cap_exceeded`, 404 `not_found` | Documentação oficial da Backblaze, conferida em 14/10 (`backblaze.com/apidocs/b2-authorize-account`); revisão do Yannis, seção 4 |
-| `scripts/obs-arquivo.ts` existe (E10 T7), fino, com a lógica em `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (`interpretar`, `rodar`, `USO`); conexão só por `OBS_ARQUIVO_DB_URL` | `scripts/obs-arquivo.ts:1-60`; commit `c18bd8e11` |
+| `scripts/obs-arquivo.ts` existe (E10 T7), fino, com a lógica em `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (`interpretar`, `rodar`, `USO`); conexão só por `OBS_ARQUIVO_DB_URL` (r2.5: `pendencias` e `pode-desligar` não usam banco; leem por rota com a chave do dono) | `scripts/obs-arquivo.ts:1-60`; commit `c18bd8e11` |
 | Lista fechada de tabelas e classes da política | `02` §10.3 e §10.8 |
 
 ## Decisões deste plano (o que o spec deixou ao plano, ou que o plano muda com motivo)
@@ -72,7 +72,7 @@
 | D-F9 | **Hora do `conferir-b2`: 11:07 do relógio da forja (14:07 UTC), definitiva** | P26: a tarefa do NAS para o B2 do arquivo começa às 06:10 (M3a, P6), o copiador termina até 03:57 e 15:57; 11:07 fica 4 h 57 min depois do começo da cópia do NAS e 3 h 50 min antes do copiador da tarde |
 | D-F10 | **Sobra em `_recebendo`:** `_recebendo/<caminho final>`, a mesma árvore (contrato C0.2); o `rename` leva ao final no mesmo filho. O `channel_ref` vem no caminho (P34). O que o site manda apagar (`a_apagar`) só é aceito se for `_recebendo/` + um caminho que o construtor remonta igual (`comum.de_recebendo`) | Contrato C0.2 |
 | D-F11 | **A forja guarda a sua própria cópia das listas fechadas** (classes, tabelas, filho de cada classe, nomes reservados) e recusa item de plano fora delas (`item_recusado`, contado na linha do registro, vermelho no pulso) | `02` §10.6, "Caminho de arquivo": nada do site vira pedaço de caminho sem validação. Tabela nova no site exige commit no kit: é o comportamento desejado |
-| D-F12 | **O `pode-desligar` é um subcomando do `scripts/obs-arquivo.ts`**, com a decisão numa função pura em `apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts` e a leitura numa única chamada de `public.obs_archive_pode_desligar(p_site)` (contrato C11, criada pelo plano do site, D18 de lá), dentro de `begin transaction read only` e `rollback` | `02` §10.10 dá o nome do comando; o molde da E10 (`cli.ts` puro, script fino) |
+| D-F12 | **O `pode-desligar` é um subcomando do `scripts/obs-arquivo.ts`**, com a decisão numa função pura em `apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts` e a leitura numa única chamada de `public.obs_archive_pode_desligar(p_site)` (contrato C11, criada pelo plano do site, D18 de lá). **(emenda 14/10 noite: rota com chave, 2ª parte): o Mac lê por `GET /api/pipeline/archive/pode-desligar` (contrato C11 r2.5) com a mesma chave `archive_owner` do `pendencias`; não há conexão de banco no Mac** (o dono rejeitou a conexão de superusuário em 14/10 noite; Yannis I1). A rota, e não o Mac, abre a transação de leitura e chama a função | `02` §10.10 dá o nome do comando; o molde da E10 (`cli.ts` puro, script fino) |
 | D-F13 | **Alarme de 80% é do site, não do copiador:** o batimento leva `livre_bytes` **e** `total_bytes` do mesmo `statvfs` (C8 r2) e o site põe `nas_80:<filho>` em `vermelhos` (o pulso do arquivo fica vermelho pelo `plano.json`); a linha do copiador guarda `uso` e `alerta_80` por filho, mas `nas_quase_cheio` **não é desfecho** | Contrato r2.1, X4; I5 do Phil: como desfecho, o alarme ficaria aceso por semanas e cegaria a verificação da execução (um `site_fora` real não geraria aviso novo) |
 | D-F14 | **O copiador grava `estado/aguardando_dono.json`** (os itens `aguardando_dono` do último plano, com `b2_file_id_bom`), e a ferramenta `restaurar_do_b2.py --do-plano` o lê | P24: o dono restaura sem copiar `fileId` à mão; o `plano.json` continua exatamente na forma da M3a |
 | D-F15 | **Os blocos do pulso entram depois da primeira execução de cron de cada programa** (bloco 5 do dono, no dia seguinte ao cron), **e antes de 28/11** (a primeira selagem); o fecho da Tarefa 9 não marca a 5b no índice sem `PULSO-INSTALADO` e sem o bloco 6 com as três verificações "up" | Antes disso o bloco do copiador daria `sem-execucao` e o do B2, `jsonl-ausente`: as três verificações sairiam de "nova" direto para "fora", e o primeiro aviso ao celular seria falso. Sem prazo, nenhuma falha do arquivo tocaria o celular (I4 do Phil) |
@@ -111,7 +111,7 @@ Site (`~/Workspace/bythiagofigueiredo`):
 |---|---|
 | `apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts` (novo) | Leitura e frases do `pode-desligar`, puras |
 | `apps/web/test/youtube/observatorio/arquivo-pode-desligar.test.ts` (novo) | Item 149, parte do comando |
-| `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (alterado) | Subcomando `pode-desligar` |
+| `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (alterado) | Subcomando `pode-desligar` (por rota, r2.5) |
 | `apps/web/src/lib/youtube/observatorio/arquivo/credencial.ts`, `pendencias-script.ts`, `escrever.ts` (novos), `cli.ts`, `scripts/obs-arquivo.ts`, `package.json` da raiz (alterados) | Emenda da peça 7 (Tarefa 7a): subcomando `pendencias`, chave só de arquivo de `~/.config/obs-arquivo/chave` lida pela rota `GET pending` (emenda 14/10 noite: rota com chave), o script que vai à forja, `npm run -s obs:arquivo` |
 | `apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts`, `arquivo-pendencias-bash.test.ts`, `arquivo-obs-arquivo-npm.test.ts` (novos) | Tarefa 7a: códigos 0/1/2, script de falha, conferência antes de apagar, idempotência, script cortado, a linha de verdade |
 
@@ -127,7 +127,7 @@ Arquivos de comandos do dono (`.superpowers/sdd/manutencao-nas/m3b/`, fora do gi
 | `m3b-forja-5-pulso.sh` | forja | Os três blocos do pulso (URLs digitadas na sessão) |
 | `m3b-forja-6-conferencia.sh` | não | Item 33 e os registros, uma hora depois do bloco 5 |
 | `m3b-relogio.sh` | forja (só se preciso, com `sudo`) | Relógio da forja |
-| `m3b-casa-antes-de-desligar.sh` | não (banco, só leitura) | `pode-desligar`; pede a conexão direta sem eco (a senha nunca vai ao histórico do shell, K6) |
+| `m3b-casa-antes-de-desligar.sh` | não (site, só leitura) | `pode-desligar` pela rota C11 r2.5 com a chave do dono (sem senha de banco; `set -o pipefail`; só sai 0 com a última linha exatamente `PODE DESLIGAR`) |
 | `m3b-casa-conferir-b2-completo.sh` | forja (registro) | `conferir-b2 --completo` à mão |
 | `m3b-casa-desligar-forja.sh` | forja (`sudo`, senha digitada) | Desliga a forja (passo 3 da mudança; K6: arquivo, não comando para colar) |
 | `m3b-casa-depois-de-religar.sh` | não | Pool, chave, montagens, sentinelas, relógio, copiador |
@@ -4538,18 +4538,23 @@ git -C $K commit -m "feat: arquivo M3b, modelos dos .env (o do B2 nasce desligad
 
 ---
 
-### Task 7: o `pode-desligar` (Mac, no site)
+### Task 7: o `pode-desligar` (Mac, por rota com chave) (reescrita r2.5 (emenda 14/10 noite: rota com chave, 2ª parte))
+
+**Duas partes, em ordem diferente.** **Parte A (Steps 1 a 3, a decisão pura):** `pode-desligar.ts` e o primeiro `describe` do teste. Não depende de nada, entra no `staging` **primeiro**, porque a rota `pode-desligar` do site (Tarefa 11 de lá) importa `lerPodeDesligar` dela. **Parte B (Steps 4 a 6, o subcomando):** só depois da Tarefa 7a (usa `lerChave`, `criarPedirRotaDoDono` e `lerRotaDoDono`) e das duas rotas no `staging`.
 
 **Files:**
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts`
-- Modify: `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts`
+- Modify: `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (soma às edições da 7a)
+- Modify: `scripts/obs-arquivo.ts` (o despacho de chave da 7a passa a valer também para `pode-desligar`)
 - Test: `apps/web/test/youtube/observatorio/arquivo-pode-desligar.test.ts`
 
 **Interfaces:**
-- Consumes: contrato C11 (`public.obs_archive_pode_desligar(p_site uuid) returns jsonb`, criada pelo plano do site, Tarefa 7 de lá; `execute` também para `postgres`); `ClienteSql`, `rodar`, `interpretar`, `USO`, `DepsDoComando`, `Saida` de `cli.ts`; `arquivo-fakes.ts` (`SITE`, `AGORA`, `discoFalso`, `baixarFalso`).
-- Produces: `lerPodeDesligar(bruto: unknown): LeituraPodeDesligar`; `frasesPodeDesligar(l): { codigo: 0 | 1; saida: string[] }`; `COMANDO_CONFERIR_B2_COMPLETO`; o subcomando `npx tsx scripts/obs-arquivo.ts pode-desligar [--site <uuid>]` (0 = "PODE DESLIGAR"; 1 = pendência ou leitura que não se entende; 2 = argumento).
+- Consumes: contrato C11 r2.5 (a rota `GET /api/pipeline/archive/pode-desligar`, que chama `public.obs_archive_pode_desligar(p_site uuid) returns jsonb`, plano do site, Tarefas 7 e 11); `lerChave`, `criarPedirRotaDoDono`, `PedirPodeDesligar` de `credencial.ts` e `lerRotaDoDono` de `cli.ts` (Tarefa 7a); `rodar`, `interpretar`, `USO`, `DepsDoComando`, `Saida` de `cli.ts`; `arquivo-fakes.ts` (`SITE`, `AGORA`, `discoFalso`, `baixarFalso`).
+- Produces: `lerPodeDesligar(bruto: unknown): LeituraPodeDesligar`; `frasesPodeDesligar(l): { codigo: 0 | 1; saida: string[] }`; `COMANDO_CONFERIR_B2_COMPLETO`; o subcomando `npx tsx scripts/obs-arquivo.ts pode-desligar` (**sem opções**: o site é o da chave; 0 = "PODE DESLIGAR"; 1 = pendência ou leitura que não se entende; 2 = chave ausente, aberta ou fora da forma, ou argumento).
 
-**Trava:** esta tarefa só entra no `staging` depois de a função `obs_archive_pode_desligar` existir na migration do lado do site (o teste é com banco falso, mas o comando chamaria uma função inexistente em produção e o dono leria "não consegui ler"; é o lado seguro, mas é ruído). `cli.ts` é da E10: confira `git log -1 -- apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` antes de editar e, se outra trilha o tiver mudado desde `c18bd8e11`, faça as edições abaixo sobre a versão nova.
+**Trava:** a Parte B só entra no `staging` depois de a rota `pode-desligar` existir lá (Tarefa 11 do site, que espera a TRAVA M3b-2); antes disso o comando receberia `404` e diria "não consegui ler" (o lado seguro, mas é ruído). `cli.ts` é da E10: confira `git log -1 -- apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` antes de editar e, se outra trilha o tiver mudado desde `c18bd8e11`, faça as edições abaixo sobre a versão nova.
+
+**O que acontece quando o dado não existe:** chave ausente, aberta ou fora da forma: código 2, a frase no `stderr` e `NÃO DESLIGUE: sem a chave não há "pode desligar"` no `stdout`. Site fora do ar, 15 s sem resposta, `503 arquivo_desligado`, `401`/`403`, `404`, `5xx`, redirecionamento, corpo vazio, HTML, `{ data: null }` ou fora do C11: código 1, `não consegui ler o estado do arquivo: <motivo>` e `NÃO DESLIGUE`; **nunca** "pode desligar" por ausência de resposta.
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -4564,29 +4569,25 @@ git -C $K commit -m "feat: arquivo M3b, modelos dos .env (o do B2 nasce desligad
 import { describe, it, expect } from 'vitest'
 import { frasesPodeDesligar, lerPodeDesligar, COMANDO_CONFERIR_B2_COMPLETO } from '@/lib/youtube/observatorio/arquivo/pode-desligar'
 import { interpretar, rodar, USO, type DepsDoComando } from '@/lib/youtube/observatorio/arquivo/cli'
-import type { ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
-import { SITE, AGORA, discoFalso, baixarFalso } from './arquivo-fakes'
+import { AGORA, discoFalso, baixarFalso } from './arquivo-fakes'
 
-const ENV = { OBS_ARQUIVO_DB_URL: 'postgresql://x:SENHA@db.example.test:5432/postgres', HOME: '/home/dono' }
+const CHAVE = 'arqdono_' + 'A'.repeat(43)
 
-function banco(resposta: unknown | Error) {
-  const chamadas: string[] = []
-  const sql: ClienteSql = {
-    async query(texto) {
-      chamadas.push(texto.trim())
-      if (/obs_archive_pode_desligar\(\$1\)/.test(texto)) {
-        if (resposta instanceof Error) throw resposta
-        return { rows: [{ r: resposta }] }
-      }
-      return { rows: [] }
-    },
+/** Site falso (r2.5): status e corpo como texto; Error = rede, timeout ou redirecionamento. Conta as idas. */
+function site(status: number, corpo: unknown) {
+  let vezes = 0
+  const pedirPodeDesligar = async () => {
+    vezes++
+    if (corpo instanceof Error) throw corpo
+    return { status, corpo: typeof corpo === 'string' ? corpo : JSON.stringify(corpo) }
   }
-  return { sql, chamadas }
+  return { pedirPodeDesligar, vezes: () => vezes }
 }
 
-function deps(sql: ClienteSql): DepsDoComando {
-  return { sql, disco: discoFalso().disco, baixar: baixarFalso().baixar, agora: () => AGORA, ehTerminal: false,
-           perguntar: async () => '', versaoDoScript: 'teste' }
+/** `sql: null`: o pode-desligar não usa banco no Mac (o dono rejeitou a conexão de superusuário, 14/10 noite). */
+function deps(s: ReturnType<typeof site> | null): DepsDoComando {
+  return { sql: null, pedirPodeDesligar: s?.pedirPodeDesligar, disco: discoFalso().disco, baixar: baixarFalso().baixar, agora: () => AGORA,
+           ehTerminal: false, perguntar: async () => { throw new Error('pode-desligar não pergunta') }, versaoDoScript: 'teste' }
 }
 
 describe('lerPodeDesligar: a forma do contrato C11', () => {
@@ -4622,24 +4623,54 @@ describe('lerPodeDesligar: a forma do contrato C11', () => {
   })
 })
 
-describe('o subcomando pode-desligar', () => {
-  it('está no uso e pede a conexão direta', () => {
+describe('o subcomando pode-desligar (pela rota C11, r2.5)', () => {
+  it('está no uso, não tem opção e não pede OBS_ARQUIVO_DB_URL', () => {
     expect(USO.join('\n')).toContain('pode-desligar')
-    expect(interpretar(['pode-desligar'], { HOME: '/h' })).toEqual({ erro: expect.stringContaining('OBS_ARQUIVO_DB_URL') })
-    expect(interpretar(['pode-desligar', '--site', SITE], ENV)).toEqual({ nome: 'pode-desligar', site: SITE })
+    expect(interpretar(['pode-desligar'], { HOME: '/h' })).toEqual({ nome: 'pode-desligar' })
+    expect(interpretar(['pode-desligar', '--site', '6f1c1b9e-0000-4000-8000-000000000001'], { HOME: '/h' })).toEqual({ erro: expect.stringContaining('--site') })
   })
-  it('só lê: transação somente leitura, a função e o rollback; nada mais', async () => {
-    const b = banco({ pode: true, faltam: [] })
-    const r = await rodar({ nome: 'pode-desligar', site: SITE }, deps(b.sql))
+  it('tudo em dia: uma ida à rota, nenhuma ao banco, a última linha é exatamente PODE DESLIGAR, código 0', async () => {
+    const s = site(200, { data: { pode: true, faltam: [] } })
+    const r = await rodar({ nome: 'pode-desligar' }, deps(s))
+    expect(s.vezes()).toBe(1)
     expect(r.codigo).toBe(0)
-    expect(b.chamadas).toEqual(['begin transaction read only', 'select public.obs_archive_pode_desligar($1) as r', 'rollback'])
+    expect(r.saida.at(-1)).toBe('PODE DESLIGAR')
   })
-  it('erro do banco: recusado, nunca "pode desligar", e a mensagem do banco não sai', async () => {
-    const b = banco(Object.assign(new Error('relation "x" does not exist SENHA'), { code: '42P01' }))
-    const r = await rodar({ nome: 'pode-desligar', site: SITE }, deps(b.sql))
+  it('pendência: código 1, NÃO DESLIGUE AINDA, e nenhuma linha PODE DESLIGAR', async () => {
+    const r = await rodar({ nome: 'pode-desligar' }, deps(site(200, { data: { pode: false, faltam: [{ motivo: 'automatico_armado', classe: null, tabela: null, mes: null, detalhe: null }] } })))
     expect(r.codigo).toBe(1)
-    expect(r.saida.join('\n')).not.toMatch(/PODE DESLIGAR|SENHA/)
-    expect(b.chamadas.at(-1)).toBe('rollback')
+    expect(r.saida.at(-1)).toBe('NÃO DESLIGUE AINDA (1 pendência)')
+    expect(r.saida).not.toContain('PODE DESLIGAR')
+  })
+  it.each([
+    ['503 arquivo_desligado', 503, { error: { code: 'arquivo_desligado', message: 'arquivo desligado' } }],
+    ['401 (chave não registrada ou revogada)', 401, { error: { code: 'UNAUTHORIZED', message: 'x' } }],
+    ['403 (sem archive_owner)', 403, { error: { code: 'FORBIDDEN', message: 'x' } }],
+    ['404 (rota ainda não publicada)', 404, '<html>404</html>'],
+    ['429', 429, { error: { code: 'UNAUTHORIZED', message: 'x' } }],
+    ['500', 500, { error: { code: 'erro_do_banco', message: 'x' } }],
+    ['200 em HTML', 200, '<html>login</html>'],
+    ['200 vazio', 200, ''],
+    ['200 com data nulo', 200, { data: null }],
+    ['200 sem o envelope', 200, { pode: true, faltam: [] }],
+    ['200 com envelope e campo a mais', 200, { data: { pode: true, faltam: [] }, extra: 1 }],
+    ['200 pode com pendência (incoerente)', 200, { data: { pode: true, faltam: [{ motivo: 'automatico_armado' }] } }],
+    ['200 não pode sem pendência (incoerente)', 200, { data: { pode: false, faltam: [] } }],
+    ['timeout de 15 s', 0, Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })],
+    ['rede fora ou redirecionamento', 0, new TypeError('fetch failed')],
+  ])('%s: código 1, NÃO DESLIGUE, nunca PODE DESLIGAR, sem a chave', async (_, status, corpo) => {
+    const r = await rodar({ nome: 'pode-desligar' }, deps(site(status, corpo)))
+    const s = r.saida.join('\n') + (r.erros ?? []).join('\n')
+    expect(r.codigo).toBe(1)
+    expect(s).toContain('NÃO DESLIGUE')
+    expect(s).not.toMatch(/PODE DESLIGAR(?!\))/)
+    expect(s).not.toContain(CHAVE)
+  })
+  it('sem pedirPodeDesligar (a chave não foi lida): código 1 e NÃO DESLIGUE', async () => {
+    const r = await rodar({ nome: 'pode-desligar' }, deps(null))
+    expect(r.codigo).toBe(1)
+    expect(r.saida.join('\n')).toContain('NÃO DESLIGUE')
+    expect(r.saida).not.toContain('PODE DESLIGAR')
   })
 })
 ```
@@ -4647,7 +4678,7 @@ describe('o subcomando pode-desligar', () => {
 - [ ] **Step 2: Rodar e ver falhar**
 
 Run: `cd apps/web && npx vitest run test/youtube/observatorio/arquivo-pode-desligar.test.ts > /tmp/m3b-pd.txt 2>&1; tail -5 /tmp/m3b-pd.txt`
-Expected: falha por `Failed to resolve import "@/lib/youtube/observatorio/arquivo/pode-desligar"`.
+Expected: falha por `Failed to resolve import "@/lib/youtube/observatorio/arquivo/pode-desligar"`. (Parte A: depois do Step 3 passa o primeiro `describe`; o segundo `describe` só passa com a Parte B.)
 
 - [ ] **Step 3: Escrever a decisão pura**
 
@@ -4716,68 +4747,52 @@ export function frasesPodeDesligar(l: LeituraPodeDesligar): { codigo: 0 | 1; sai
 }
 ```
 
-- [ ] **Step 4: Ligar o subcomando em `cli.ts`** (seis edições exatas)
+- [ ] **Step 4: Ligar o subcomando em `cli.ts`** (Parte B; seis edições exatas, sobre a versão que já tem as da Tarefa 7a)
 
-1. No comentário do topo, a lista de subcomandos ganha `pode-desligar`: `(pausar, despausar, exportar, conferir, comandos-nas, confirmar-nas, remover, comandos-recarga, estado, pode-desligar)`.
+1. No comentário do topo, a lista de subcomandos ganha `pode-desligar`.
 2. Depois de `import { sinalDoBanco, type LinhaBruta } from './sinal-do-banco'`:
 
 ```ts
 import { frasesPodeDesligar, lerPodeDesligar } from './pode-desligar'
 ```
 
-3. Na união `Comando`, depois de `| { nome: 'comandos-recarga'; lote: string; pasta: string }`:
-
-```ts
-  | { nome: 'pode-desligar'; site: string | null }
-```
-
+3. Na união `Comando`: `| { nome: 'pode-desligar' }` (sem `site`).
 4. Em `USO`, antes da linha `'ambiente: OBS_ARQUIVO_DB_URL ...'`:
 
 ```ts
-  '  pode-desligar    [--site <uuid>]                                                  (só lê; antes de desligar a casa)',
+  '  pode-desligar    (sem opções; a chave vem de ~/.config/obs-arquivo/chave e a leitura, de GET /api/pipeline/archive/pode-desligar)   (só lê; antes de desligar a casa)',
 ```
 
-5. `COM_BANCO` ganha `'pode-desligar'`; `OPCOES` ganha `'pode-desligar': { valor: ['site'], bandeira: [], obrigatorias: [] },`; e no `switch (sub)` de `interpretar`, antes do `default`:
+5. `OPCOES` ganha `'pode-desligar': { valor: [], bandeira: [], obrigatorias: [] },` (**fora** de `COM_BANCO`: não usa banco); e no `switch (sub)` de `interpretar`, antes do `default`: `case 'pode-desligar': return { nome: 'pode-desligar' }`.
+6. Em `rodar`, no começo, ao lado do `pendencias` (**antes** de `d.sql === null` e de `resolverSite`): `if (c.nome === 'pode-desligar') return await podeDesligar(d)`; e, depois de `pendencias`, a função (usa o `lerRotaDoDono` da 7a):
 
 ```ts
-    case 'pode-desligar': return { nome: 'pode-desligar', site }
-```
-
-6. No `switch (c.nome)` de `rodar`, depois de `case 'remover': ...`:
-
-```ts
-      case 'pode-desligar': return await podeDesligar(sql, s.site)
-```
-
-e, depois de `rodar`, a função:
-
-```ts
-/** Só lê (02 §10.10; contrato C11): transação somente leitura, a função, rollback. Erro do banco cai no catch de `rodar`
- *  (frase do catálogo, nunca a mensagem do banco) e nunca vira "pode desligar". */
-async function podeDesligar(sql: ClienteSql, site: string): Promise<Saida> {
-  await sql.query('begin transaction read only')
-  try {
-    const r = await sql.query('select public.obs_archive_pode_desligar($1) as r', [site])
-    return frasesPodeDesligar(lerPodeDesligar(r.rows[0]?.r))
-  } finally {
-    await sql.query('rollback')
-  }
+/** Só lê, pela rota C11 (r2.2 do contrato: r2.5). Tudo que não for um `200` na forma do C11 vira "não consegui ler" e NÃO DESLIGUE
+ *  (frasesPodeDesligar com ok: false); nunca "pode desligar" por ausência de resposta. */
+async function podeDesligar(d: DepsDoComando): Promise<Saida> {
+  const rota = await lerRotaDoDono(d.pedirPodeDesligar)
+  if (!rota.ok) return frasesPodeDesligar({ ok: false, porque: rota.porque })
+  return frasesPodeDesligar(lerPodeDesligar(rota.data))
 }
 ```
 
-- [ ] **Step 5: Rodar e ver passar (com o teste da E10 junto)**
+7. `scripts/obs-arquivo.ts`: o despacho da 7a (`lerChave` + `criarPedirRotaDoDono`) vale também para `pode-desligar` (ver o item 2 do Step 5 da 7a); a saída de `pode-desligar` é **texto lido no terminal**, não script: `saidaSegura` não se aplica a ela.
 
-Run: `cd apps/web && npx vitest run test/youtube/observatorio/arquivo-pode-desligar.test.ts test/youtube/observatorio/arquivo-cli.test.ts > /tmp/m3b-pd.txt 2>&1; grep -E "Test Files|Tests|FAIL" /tmp/m3b-pd.txt`
-Expected: `Test Files  2 passed`, nenhum `FAIL`.
+- [ ] **Step 5: Rodar e ver passar (com o teste da E10 e os da 7a junto)**
+
+Run: `cd apps/web && npx vitest run test/youtube/observatorio/arquivo-pode-desligar.test.ts test/youtube/observatorio/arquivo-cli.test.ts test/youtube/observatorio/arquivo-pendencias-cli.test.ts > /tmp/m3b-pd.txt 2>&1; grep -E "Test Files|Tests|FAIL" /tmp/m3b-pd.txt`
+Expected: `Test Files  3 passed`, nenhum `FAIL`. Mutantes a provar (e restaurar): `lerRotaDoDono` devolvendo `ok: true` com `data` nulo (o caso `200 com data nulo` tem de cair); `frasesPodeDesligar` com `pode` sem conferir `faltam` (os dois incoerentes caem).
 Run: `npm run typecheck -w apps/web > /tmp/m3b-tc.txt 2>&1; tail -3 /tmp/m3b-tc.txt`
 Expected: sem erro.
 
-- [ ] **Step 6: Commit no site**
+- [ ] **Step 6: Commit no site** (Parte A primeiro, sozinha, se a rota do site já a espera)
 
 ```bash
 git add -- apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts apps/web/test/youtube/observatorio/arquivo-pode-desligar.test.ts
-git commit -m "feat: obs-arquivo pode-desligar, só leitura, nunca 'pode' sem a leitura do contrato (manutenção M3b, item 149)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts apps/web/test/youtube/observatorio/arquivo-pode-desligar.test.ts apps/web/src/lib/youtube/observatorio/arquivo/cli.ts
+git commit -m "feat: obs-arquivo pode-desligar, só leitura, nunca 'pode' sem a leitura do contrato (manutenção M3b, item 149)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo/pode-desligar.ts apps/web/test/youtube/observatorio/arquivo-pode-desligar.test.ts apps/web/src/lib/youtube/observatorio/arquivo/cli.ts scripts/obs-arquivo.ts
 ```
+
+(Na Parte A, o commit leva só os dois primeiros caminhos; o `cli.ts` e o `scripts/obs-arquivo.ts` entram no commit da Parte B.)
 
 ---
 
@@ -4981,21 +4996,29 @@ m=$(date -u +%s); f=$(ssh forja 'date -u +%s')
 echo "DIFERENCA-MAC-FORJA-S: $((f - m))" | tee -a "$OUT"
 ```
 
-`m3b-casa-antes-de-desligar.sh`:
+`m3b-casa-antes-de-desligar.sh` (r2.5 (emenda 14/10 noite: rota com chave, 2ª parte); o arquivo em disco já está nesta versão):
 
 ```bash
 #!/bin/bash
-# Mudança de casa (05 §16.11, passo 2): o pode-desligar. SÓ LEITURA do banco. Uso (Mac), depois de desarmar o automático:
+# Mudança de casa (05 §16.11, passo 2): o pode-desligar. SÓ LEITURA, pela rota GET /api/pipeline/archive/pode-desligar com a chave do dono
+# (~/.config/obs-arquivo/chave, a mesma do obs:arquivo). O Mac não guarda senha de banco (decisão do dono, 14/10 noite). Uso (Mac), depois de
+# desarmar o automático:
 #   bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-casa-antes-de-desligar.sh
-# Pede a conexão direta (com a senha do banco) sem eco: nunca vai para o histórico do shell nem para a saída (K6).
-# Saída boa: última linha "PODE DESLIGAR". Com pendência, ele diz qual e o que rodar; repita até "PODE DESLIGAR".
-[ -n "${OBS_ARQUIVO_DB_URL:-}" ] || { read -r -s -p "conexão direta (não aparece): " OBS_ARQUIVO_DB_URL; echo; }
-export OBS_ARQUIVO_DB_URL
+# Saída boa: a ÚLTIMA linha é exatamente "PODE DESLIGAR" e o código é 0. Qualquer outra coisa (inclusive erro): NÃO desligue; repita até "PODE DESLIGAR".
+set -o pipefail
+[ -f ~/.config/obs-arquivo/chave ] || { echo "PARE: falta ~/.config/obs-arquivo/chave. Rode: bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh" >&2; exit 2; }
 S=~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/saidas
 OUT=$S/m3b-pode-desligar-$(date +%Y-%m-%d-%H%M).txt
 cd ~/Workspace/bythiagofigueiredo && npx tsx scripts/obs-arquivo.ts pode-desligar 2>&1 | tee "$OUT"
+RC=${PIPESTATUS[0]}
+ULTIMA=$(grep -v '^[[:space:]]*$' "$OUT" | tail -n 1)
 echo "saída em $OUT"
+{ [ "$RC" = 0 ] && [ "$ULTIMA" = "PODE DESLIGAR" ]; } && exit 0
+echo "NÃO DESLIGUE: o comando saiu $RC e a última linha foi: $ULTIMA" >&2
+exit 1
 ```
+
+Prova do `.sh` (disco, sem banco e sem rede): `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/teste-casa-antes-de-desligar.sh` (npx falso; casos: sem chave = 2 sem chamar nada; `PODE DESLIGAR` + código 0 = 0; `PODE DESLIGAR` impresso e o comando caiu = 1; `NÃO DESLIGUE AINDA` = 1; saída boa com última linha diferente = 1; mutantes sem `pipefail` e sem a conferência da última linha caem).
 
 `m3b-casa-conferir-b2-completo.sh`:
 
@@ -5125,7 +5148,7 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 | Passo do `05` §16.11 | Arquivo | Saída boa |
 |---|---|---|
 | 1. Desarmar o automático | **(clique)** página do Arquivo | n/a |
-| 2. `pode-desligar` | `bash …/m3b/m3b-casa-antes-de-desligar.sh` (pede a conexão direta sem eco) | última linha `PODE DESLIGAR`. Com `b2_vencido_mes_fora`: `bash …/m3b/m3b-casa-conferir-b2-completo.sh` (saída boa `conferir-b2: ok`; `teto_bytes` ou `incompleto` = repetir, no dia seguinte se for o teto: continua de onde parou, pelo `retomado_de` e a `cobertura` do site, r2.2) e rodar o passo 2 de novo. Anotar a hora da última conferência do B2 no ledger (item 150) |
+| 2. `pode-desligar` | `bash …/m3b/m3b-casa-antes-de-desligar.sh` (usa a chave do dono; não pede senha de banco) | última linha `PODE DESLIGAR`. Com `b2_vencido_mes_fora`: `bash …/m3b/m3b-casa-conferir-b2-completo.sh` (saída boa `conferir-b2: ok`; `teto_bytes` ou `incompleto` = repetir, no dia seguinte se for o teto: continua de onde parou, pelo `retomado_de` e a `cobertura` do site, r2.2) e rodar o passo 2 de novo. Anotar a hora da última conferência do B2 no ledger (item 150) |
 | 3. Desligar | tela do TrueNAS; `bash …/m3b/m3b-casa-desligar-forja.sh` | a conexão cai |
 | 4. e 5. Depois de religar | `bash …/m3b/m3b-casa-depois-de-religar.sh`; o relógio, se não for `yes`: `m3b-relogio.sh`; o scrub: `bash …/m3b/m3b-casa-scrub.sh` | as linhas `BOA:` do próprio arquivo; `scrub in progress` |
 | 6. Varredura completa | nenhuma linha: o copiador a faz sozinho. O site abre a varredura no primeiro batimento bom do copiador depois de mais de 24 h sem outro (C8 r2), e também no `GET plan` (C1); o copiador pede o plano antes de mandar o batimento (D-F18) | `"modo_plano": "completo"` nas linhas de cron depois da volta, até a página do Arquivo mostrar a hora em que terminou. Arquivo diferente ou ausente num mês fora do banco aparece em `aguardando_dono`: `bash …/m3b/m3b-restaurar.sh` (saída boa: `RESTAURADO`) |
@@ -5143,17 +5166,18 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 
 | # | Decisão | Motivo |
 |---|---|---|
-| D-F21 | **`pendencias` não tem opção nenhuma** (`--site` incluído: o site é o da chave, resolvido pelo site na rota C13) e **lê a credencial de um arquivo só**, `~/.config/obs-arquivo/chave` (pasta `700` e arquivo `600`, os dois conferidos; uma linha na forma `arqdono_` + 43 caracteres `[A-Za-z0-9_-]`). **A credencial é uma chave de API só de arquivo, com a permissão `archive_owner`** (decisão do dono, 14/10 noite), que abre **só** `GET /api/pipeline/archive/pending`: a K2 (`auth.ts`, commit `c22a4c8e7`) já prende chaves `archive_*` às rotas do arquivo, e a permissão exata a prende a esta rota. **Nunca a chave permanente `PIPELINE_COWORK_KEY`** (nem outra qualquer): o leitor recusa tudo fora da forma `arqdono_`, e a do Cowork (`pk_...`) cai aí; `PIPELINE_COWORK_KEY` e `OBS_ARQUIVO_DB_URL` da sessão são **ignoradas**. A chave nasce **no Mac**, gerada pelo `m3b-obs-arquivo-credencial.sh` (Tarefa 8a), que manda ao banco só o sha256 pelo `seed_chave_forja.sh dono` (o caminho das chaves `archive_*` da M3a; nenhum agente cria nem revoga chave) e tira a pasta do Time Machine (`tmutil addexclusion`). A URL da rota é constante no código (`URL_DAS_PENDENCIAS`), sem variável (emenda 14/10 noite: rota com chave) | Requisitos 2 e 3: a linha é fixa e não carrega segredo. Uma fonte só: se uma variável valesse, a mesma linha leria sites diferentes conforme o terminal. **Por que não o papel de banco (Phil C1, Yannis 2):** com login, ele herdaria `EXECUTE` de `PUBLIC` em 115 funções (78 `security definer`); vazada a senha, apagaria conta (LGPD) e se passaria por super admin (provado em `rollback` no 54422). Vazada a chave `archive_owner`, ela só lê a lista do C12 (ids de canal e de vídeo, sem nome nem texto de terceiro); o uso fica em `last_used_at` e no registro do pipeline, e ela se revoga sem migration |
+| D-F21 | **`pendencias` não tem opção nenhuma** (`--site` incluído: o site é o da chave, resolvido pelo site na rota C13) e **lê a credencial de um arquivo só**, `~/.config/obs-arquivo/chave` (pasta `700` e arquivo `600`, os dois conferidos; uma linha na forma `arqdono_` + 43 caracteres `[A-Za-z0-9_-]`). **A credencial é uma chave de API só de arquivo, com a permissão `archive_owner`** (decisão do dono, 14/10 noite), que abre **só** `GET /api/pipeline/archive/pending` e `GET /api/pipeline/archive/pode-desligar` (as duas leituras do Mac, r2.5): a K2 (`auth.ts`, commit `c22a4c8e7`) já prende chaves `archive_*` às rotas do arquivo, e a permissão exata a prende a esta rota. **Nunca a chave permanente `PIPELINE_COWORK_KEY`** (nem outra qualquer): o leitor recusa tudo fora da forma `arqdono_`, e a do Cowork (`pk_...`) cai aí; `PIPELINE_COWORK_KEY` e `OBS_ARQUIVO_DB_URL` da sessão são **ignoradas**. A chave nasce **no Mac**, gerada pelo `m3b-obs-arquivo-credencial.sh` (Tarefa 8a), que manda ao banco só o sha256 pelo `seed_chave_forja.sh dono` (o caminho das chaves `archive_*` da M3a; nenhum agente cria nem revoga chave) e tira a pasta do Time Machine (`tmutil addexclusion`). A URL da rota é constante no código (`URL_DAS_PENDENCIAS`), sem variável (emenda 14/10 noite: rota com chave) | Requisitos 2 e 3: a linha é fixa e não carrega segredo. Uma fonte só: se uma variável valesse, a mesma linha leria sites diferentes conforme o terminal. **Por que não o papel de banco (Phil C1, Yannis 2):** com login, ele herdaria `EXECUTE` de `PUBLIC` em 115 funções (78 `security definer`); vazada a senha, apagaria conta (LGPD) e se passaria por super admin (provado em `rollback` no 54422). Vazada a chave `archive_owner`, ela só lê a lista do C12 (ids de canal e de vídeo, sem nome nem texto de terceiro); o último uso fica em `last_used_at` (sobrescrito a cada uso; o histórico de chamadas é só o log de função do Vercel, curto: Phil M4), e ela se revoga sem migration (`m3b-rotacao-chave-dono.sh`, Phil I1) |
 | D-F22 | **Códigos de saída do Mac (emenda 14/10 noite: rota com chave):** `2` = chave ausente, legível por outros, pasta aberta, sem `HOME` ou fora da forma (mensagem em português, uma linha, no `stderr`, com o caminho e o `.sh` que a grava, nunca o conteúdo); `1` = a rota não respondeu (rede, timeout de 15 s, redirecionamento), HTTP diferente de 200 (`401`/`403`: "o site recusou a chave"; `503 arquivo_desligado`: "o arquivo está desligado no site"; `404`, `429`, `5xx`: "o site não respondeu como esperado (HTTP n)"), corpo sem JSON ou fora do envelope `{ data }`, leitura fora da forma do C12 (`lerPendencias` `{ ok: false }`), ou há tempo que este código não sabe gerar (`copiar` até a M9); `0` = script gerado. **Em todo código diferente de 0 a saída padrão leva um script de falha** (`echo 'OBS-ARQUIVO: NÃO RODOU: <frase>' >&2` na forja e `exit 1`): sem ele, `bash -s` com entrada vazia sairia `0` e o `ssh` também. **Envelope único:** o `pendencias` é despachado em `rodar` **antes** de `d.sql === null` e de qualquer resolução de site, com `try/catch` próprio, e toda `Saida` com código ≠ 0 vira `{ codigo, saida: scriptDeFalha(frase), erros: [frase] }`; na borda, `saidaSegura` (pura, em `pendencias-script.ts`) nunca deixa passar `r.saida` cru: se `codigo !== 0` e `saida[0] !== '#!/bin/bash'`, escreve `scriptDeFalha` da primeira linha de `erros` (Yannis I1). **Limite conhecido:** falha antes do `main` (`node_modules` ausente, erro de compilação do `tsx`, Node morto, script ausente em checkout velho com `-s`) deixa o `stdout` vazio e o `ssh` sai `0`: por isso a regra do dono, **sem a linha final `OBS-ARQUIVO:` nada rodou**, vale na tela, no runbook e nos blocos 7b e 7c | O sistema falha em verde: o código de saída da linha é o do `ssh`, não o do `npm`. "Não consegui ler" nunca vira "nada pendente". **`200` com corpo vazio, `data` nulo ou sem `lido_em` é código 1, nunca zero medido; só `200` com `total: 0` e `itens: []` na forma é "nada pendente"** (emenda 14/10 noite: rota com chave) |
 | D-F23 | **A saída padrão de `pendencias` é só o script;** tudo o que é para o dono ler no Mac vai ao `stderr` (uma linha de resumo no sucesso). O `readline` não é criado para `pendencias`. O script é escrito por `escreverTudo` (`await new Promise(ok => process.stdout.write(texto, ok))`) e o código sai por `process.exitCode`, nunca por `process.exit` logo após o `write` | Qualquer linha a mais no `stdout` vira comando na forja. Medido (Yannis I3, macOS): `write` + `process.exit` num pipe corta em 65.536 bytes; o script de hoje tem ~2,5 KB, mas na M9 cada `apaga_conferido` tem ~200 bytes e passa de 64 KB com ~300 arquivos |
 | D-F24 | **O script impresso é seguro por construção:** (a) o corpo inteiro numa função, **chamada na mesma linha do `}` que a fecha** (`}; obs_arquivo_main; exit $?`), mais um `trap ... EXIT` logo no começo que, se a função nunca começou, escreve `OBS-ARQUIVO: NÃO RODOU: o script chegou incompleto; nada feito` e sai `1` (sonda de Phil e Yannis: com a chamada em linha própria, o corte de 1 linha deixava a função definida, nunca chamada, e a forja saía `0` calada); (b) recusa com `3` se `hostname -s` não for `forja` (lido em 14/10: `forja`); (c) **`apaga_conferido`** só apaga com o filho montado (`mountpoint -q`) e com a sentinela `.arquivo-vivo`, com a versão nova presente e com o sha256 esperado, e com o arquivo antigo com o sha256 que o site informou; arquivo já ausente é `JA-APAGADO` (rodar duas vezes não faz mal); **`rm` que falha e o arquivo continua lá é `PULADO: o rm falhou`** (conta como falha); qualquer conferência que falha é `PULADO` com o motivo, nada apagado, e o script termina com `1`; (d) **todo valor que vem do banco é interpolado entre aspas simples** (`aspas()`), inclusive nas linhas `ESPERA-*` e `BLOQUEADO`, e já foi validado pelo leitor (`CAMINHO_SEGURO`, `item_id`, `channel_ref`, `youtube_id`); (e) o B2 não é apagado pelo script: ele imprime `B2-PAINEL: <nome>` para o painel (`02` §11.3); (f) **só quando há ao menos um `apaga_conferido`**, antes do primeiro, o script toma a trava do copiador (`exec 9<"${ARQ_TRAVA_COPIADOR:-/opt/arquivo/copiador.lock}" && flock -n 9`, a mesma do `m3b-restaurar.sh`); ocupada ou ausente: `OBS-ARQUIVO: NÃO RODOU: o copiador está rodando; nada apagado, rode de novo em alguns minutos` e `1`; (g) `ARQ_MONTAGEM_ESCRITA` e `ARQ_TRAVA_COPIADOR` são lidas **de propósito** pelo script em produção (as mesmas variáveis do kit; ganchos de teste): a conferência por sha256 impede dano; (h) **toda saída do script, boa ou má, termina numa linha `OBS-ARQUIVO: ...`** | Requisito 5. A conferência é na forja, no momento do `rm`, contra o que o site registrou: nunca "apagar o que tiver esse nome". A trava existe porque o copiador lê e atesta (sha256, `nas_attested_at`, ausência) o mesmo filho: um `rm` simultâneo daria "ausente" ou atestado falso (Phil I8, Yannis M1) |
 | D-F25 | **Na M3b o script só diz o que espera** (tempo `sem_comando`: `ESPERA-COMANDO <item>`; `conferir_b2`: `ESPERA-B2 <item>`; `bloqueado`: `BLOQUEADO <item>`) e só `apagar_antigas` gera `apaga_conferido`. `copiar` é recusado (código 1) até a M9 trazer o passo (o arquivo novo tem de chegar a `_recebendo/` e o `expurgar` é dela). **A M9 reaproveita o `apaga_conferido` com D-F24 (c) e (f) já aplicados, no mesmo commit que leva o leitor ao `versao: 2`** (Phil §4b) | E-D3 do plano do site: a M3b só emite `sem_comando`. O `apaga_conferido` entra já porque é o requisito 5 e é testável sem a M9; o resto seria desenho da M9. A tela da M5 diz "nada a rodar agora" enquanto todos os itens estiverem em `sem_comando`: a cor por idade é só lembrete (Phil §4a) |
 | D-F26 | **De fora do país é condicional, com duas pernas (emenda 14/10 noite: rota com chave):** `ssh forja` vai pelo IP da tailnet (`~/.ssh/config`: `Host forja` → `100.89.6.27`, lido pelo Yannis em 14/10), então a linha funciona **com o Tailscale ligado no Mac e com a forja ligada e com internet**; a leitura das pendências é **só HTTPS ao site** (`https://bythiagofigueiredo.com`, porta 443), que rede de hotel ou móvel alcança. Sai a perna "conexão do banco pelo Session pooler (IPv4)". Sem uma das duas pernas o `ssh` sai `255` e nada roda na forja; sem acesso ao site, o `fetch` falha em 15 s com código 1 e a forja recebe o script de falha. O site não muda | Requisito 6. Não verificado estando de fato fora do país (abaixo, NÃO VERIFICADO). A conferência com o IPv6 do Mac desligado sai do bloco 7b: HTTPS ao site não depende de IPv6 |
 
-**Proposta ao dono, NÃO decidida (Yannis I6; emenda 14/10 noite: rota com chave).** O C11 e a Tarefa 7 foram aprovados como estão; esta é só a recomendação do redator. Hoje o `pode-desligar` (Tarefa 7, `m3b-casa-antes-de-desligar.sh`) pede, sem eco, a URL com a senha do `postgres` a cada rodada ("repita até PODE DESLIGAR").
-- **Proposta:** o `pode-desligar` passa a ler por uma rota `GET /api/pipeline/archive/pode-desligar`, com a **mesma chave** `archive_owner` e o mesmo `lerChave`; a rota chama `obs_archive_pode_desligar(p_site := siteId da chave)` (sem mudança de SQL: o `grant` a `service_role` já existe). O `.sh` perde o `read -s` e confere só `[ -f ~/.config/obs-arquivo/chave ] || { echo "PARE: rode m3b-obs-arquivo-credencial.sh"; exit 2; }`.
-- **Ganho:** a senha do superusuário nunca é digitada no Mac na mudança de casa; uma credencial só; funciona de qualquer rede.
-- **Custo:** uma 9ª rota (catálogo com `endpoint_count` 9, doc e testes de contrato no molde de `pending`: ~1 h no site); a Tarefa 7 troca `ClienteSql` por `pedirPodeDesligar` (~1 h; os testes de forma e de frases ficam); o C11 muda de "conexão direta" para rota (contrato r2.5); a chave do dono passa a abrir duas rotas, as duas só de leitura. O `pode-desligar` passa a depender do site no ar e de `OBS_ARQUIVO=on`: `503` vira "não consegui ler", nunca "pode desligar" (o lado seguro).
+**Adotada na r2.5 (emenda 14/10 noite: rota com chave, 2ª parte) (Yannis I1 e I6): o `pode-desligar` também lê por rota.** O dono já rejeitara a conexão de superusuário no Mac (14/10 noite); com o papel de leitura retirado, o `pode-desligar` era a única credencial de banco que sobrava ("a senha do `postgres` digitada a cada rodada"). Agora:
+- **Mesma chave, mesma permissão `archive_owner`** (uma segunda permissão não reduz risco e dobra o seed e a rotação). A rota `GET /api/pipeline/archive/pode-desligar` (C11 r2.5; Tarefa 11 do site) chama `obs_archive_pode_desligar(p_site := siteId da chave)` e valida com `lerPodeDesligar` antes de sair.
+- **Uma fábrica só para as duas idas:** `criarPedirRotaDoDono({ chave, rota, url?, timeoutMs?, fetchFn? })` em `credencial.ts` (Tarefa 7a), e **um leitor só do envelope** (`lerRotaDoDono` em `cli.ts`): `503 arquivo_desligado`, `401`/`403`, outro HTTP, rede, timeout, redirecionamento, corpo sem JSON e fora do envelope são os mesmos casos da D-F22; no `pode-desligar` todos viram "não consegui ler" e `NÃO DESLIGUE`, **nunca** "pode desligar".
+- **O `.sh` da mudança de casa** (`m3b-casa-antes-de-desligar.sh`, Tarefa 8) perde o `read -s` da URL de banco, confere só que o arquivo da chave existe, roda com `set -o pipefail` e só sai `0` se o comando saiu `0` **e** a última linha for exatamente `PODE DESLIGAR`.
+- **Custo:** uma 9ª rota no site (catálogo com `endpoint_count: 9`, doc e cinco testes de contrato, Tarefa 11 de lá); o `pode-desligar` passa a depender do site no ar e de `OBS_ARQUIVO=on` (o lado seguro: nada de "pode desligar" sem resposta). Nada é instalado na forja.
 - **Sem a proposta:** fica como aprovado; o I6 segue aberto e declarado.
 
 
@@ -5166,13 +5190,13 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts`
 - Modify: `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (subcomando `pendencias`; `Saida` ganha `erros?: string[]`, que o script imprime no `stderr`)
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo/escrever.ts` (`escreverTudo(texto)`: escrita drenada no `stdout`)
-- Modify: `scripts/obs-arquivo.ts` (credencial do arquivo para `pendencias`; `fetch` da rota com `AbortSignal.timeout(15_000)` e `redirect: 'error'`, sem `pg` para `pendencias` (emenda 14/10 noite: rota com chave); `stdout` só o script, por `escreverTudo`; `process.exitCode` no lugar de `process.exit`; script de falha em todo código ≠ 0, inclusive no `catch` de "erro inesperado")
+- Modify: `scripts/obs-arquivo.ts` (credencial do arquivo para `pendencias`; a chave lida por `lerChave` e a ida à rota por `criarPedirRotaDoDono` (`fetch` com `AbortSignal.timeout(15_000)` e `redirect: 'error'`, que mora em `credencial.ts` e é testada contra um servidor local: Yannis m1), sem `pg` para `pendencias` e `pode-desligar` (emenda 14/10 noite: rota com chave); `stdout` só o script, por `escreverTudo`; `process.exitCode` no lugar de `process.exit`; script de falha em todo código ≠ 0, inclusive no `catch` de "erro inesperado")
 - Modify: `package.json` (raiz): `"obs:arquivo": "tsx scripts/obs-arquivo.ts pendencias"`
 - Test: `apps/web/test/youtube/observatorio/arquivo-pendencias-cli.test.ts`, `apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts`, `apps/web/test/youtube/observatorio/arquivo-obs-arquivo-npm.test.ts`, fixture `apps/web/test/fixtures/escreve-grande.ts`
 
 **Interfaces:**
 - Consumes: `lerPendencias`, `LeituraPendencias`, `PendenciaDoDono`, `LINHA_DO_DONO` de `apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts` (site, Tarefa E1); C12 e a rota C13 (emenda 14/10 noite: rota com chave); `ClienteSql` (só dos outros subcomandos), `rodar`, `interpretar`, `USO`, `DepsDoComando`, `Saida` de `cli.ts`; `arquivo-fakes.ts` (`SITE`, `AGORA`, `discoFalso`, `baixarFalso`).
-- Produces: `CAMINHO_DA_CREDENCIAL = '.config/obs-arquivo/chave'` (relativo ao `HOME`); `FORMA_DA_CHAVE = /^arqdono_[A-Za-z0-9_-]{43}$/`; `URL_DAS_PENDENCIAS = 'https://bythiagofigueiredo.com/api/pipeline/archive/pending'` (constante, sem variável); `lerChave(env, ler: (caminho: string) => Promise<{ modo: number; modoPasta: number; texto: string } | null>): Promise<{ ok: true; chave: string } | { ok: false; mensagem: string }>`; `type PedirPendencias = () => Promise<{ status: number; corpo: string }>` (campo `pedirPendencias?` de `DepsDoComando`; lança em rede, timeout ou redirecionamento) (emenda 14/10 noite: rota com chave); `scriptDasPendencias(l: Extract<LeituraPendencias, { ok: true }>, o: { versao: string }): { ok: true; linhas: string[]; resumo: string } | { ok: false; porque: string }`; `scriptDeFalha(frase: string): string[]`; `saidaSegura(r: Saida): string[]`; `escreverTudo(texto: string): Promise<void>`; o subcomando `npx tsx scripts/obs-arquivo.ts pendencias` e o script `npm run -s obs:arquivo`; a linha do dono é `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` (`LINHA_DO_DONO`).
+- Produces: `CAMINHO_DA_CREDENCIAL = '.config/obs-arquivo/chave'` (relativo ao `HOME`); `FORMA_DA_CHAVE = /^arqdono_[A-Za-z0-9_-]{43}$/`; `URL_DAS_PENDENCIAS = 'https://bythiagofigueiredo.com/api/pipeline/archive/pending'` (constante, sem variável); `lerChave(env, ler: (caminho: string) => Promise<{ modo: number; modoPasta: number; texto: string } | null>): Promise<{ ok: true; chave: string } | { ok: false; mensagem: string }>`; `type PedirRota = () => Promise<{ status: number; corpo: string }>`, `PedirPendencias = PedirRota` e `PedirPodeDesligar = PedirRota` (campos `pedirPendencias?` e `pedirPodeDesligar?` de `DepsDoComando`; lançam em rede, timeout ou redirecionamento) (emenda 14/10 noite: rota com chave); **`URL_DO_ARQUIVO = 'https://bythiagofigueiredo.com/api/pipeline/archive/'`, `URL_DAS_PENDENCIAS = URL_DO_ARQUIVO + 'pending'`, `URL_DO_PODE_DESLIGAR = URL_DO_ARQUIVO + 'pode-desligar'` (constantes, sem variável) e `criarPedirRotaDoDono(o: { chave: string; rota: 'pending' | 'pode-desligar'; url?: string; timeoutMs?: number; fetchFn?: typeof fetch }): PedirRota`** (r2.5, Yannis m1: `url` e `timeoutMs` só para o teste; em produção ninguém os passa, então a URL é a constante, o tempo é 15 s e a chave nunca sai da fábrica para `console`, `erros` ou `stdout`); `scriptDasPendencias(l: Extract<LeituraPendencias, { ok: true }>, o: { versao: string }): { ok: true; linhas: string[]; resumo: string } | { ok: false; porque: string }`; `scriptDeFalha(frase: string): string[]`; `saidaSegura(r: Saida): string[]`; `escreverTudo(texto: string): Promise<void>`; o subcomando `npx tsx scripts/obs-arquivo.ts pendencias` e o script `npm run -s obs:arquivo`; a linha do dono é `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` (`LINHA_DO_DONO`).
 
 **O que acontece quando o dado não existe (emenda 14/10 noite: rota com chave):** sem `HOME`, sem o arquivo da chave, arquivo `644`, pasta aberta, arquivo vazio, duas linhas, ou fora da forma `arqdono_` (inclusive a chave do Cowork e um `db-url` velho): código `2`, a frase no `stderr`, o script de falha no `stdout` (a forja sai `1` e escreve `OBS-ARQUIVO: NÃO RODOU: ...`). Chave não registrada ou revogada (`401`), sem `archive_owner` (`403`), `OBS_ARQUIVO` apagada (`503 arquivo_desligado`), rota ainda não publicada (`404`), limite (`429`), site com erro (`5xx`), rede fora, 15 s sem resposta, redirecionamento: código `1`, idem, com a frase do caso; a chave nunca é ecoada. **A rota responde vazio:** `200` com corpo vazio, HTML, `{}`, `{ data: null }` ou sem `lido_em`: código `1` ("não consegui ler"), nunca "nada pendente". Zero medido (`200` com `total: 0` e `itens: []`): código `0` e o script imprime `OBS-ARQUIVO: NADA PENDENTE (lido em dd/mm hh:mm)`. Itens só `sem_comando`: código `0`, uma linha `ESPERA-COMANDO` por item e `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)`; nunca "nada pendente" com item na lista. Filho desmontado, sem sentinela ou com outro sha256: `PULADO`, nada apagado, `exit 1` na forja. Script cortado: nada roda, a forja sai ≠ 0 com `incompleto`. `rm` que falha: `PULADO`, `exit 1`. Copiador rodando (trava ocupada): nada apagado, `exit 1`.
 
@@ -5185,7 +5209,8 @@ Não tem data e não é tarefa de implementação: são os arquivos acima, na or
 /** Emenda da peça 7 (M3b): `pendencias` sem opções, chave só do arquivo pela rota C13 (emenda 14/10 noite: rota com chave), e leitura ruim nunca vira "nada pendente". */
 import { describe, it, expect } from 'vitest'
 import { interpretar, rodar, USO, type DepsDoComando } from '@/lib/youtube/observatorio/arquivo/cli'
-import { lerChave, CAMINHO_DA_CREDENCIAL } from '@/lib/youtube/observatorio/arquivo/credencial'
+import { createServer } from 'node:http'
+import { lerChave, criarPedirRotaDoDono, CAMINHO_DA_CREDENCIAL, URL_DAS_PENDENCIAS, URL_DO_PODE_DESLIGAR } from '@/lib/youtube/observatorio/arquivo/credencial'
 import { scriptDasPendencias, scriptDeFalha, saidaSegura } from '@/lib/youtube/observatorio/arquivo/pendencias-script'
 import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import { SITE, AGORA, discoFalso, baixarFalso } from './arquivo-fakes'
@@ -5316,6 +5341,77 @@ describe('a chave vem só do arquivo (D-F21, D-F22; emenda 14/10 noite: rota com
   })
   it('600 numa pasta 700 com uma linha arqdono_: ok, com o fim de linha tirado', async () => {
     expect(await lerChave({ HOME: '/h' }, ler({ modo: 0o600, texto: `${CHAVE}\n` }))).toEqual({ ok: true, chave: CHAVE })
+  })
+})
+
+describe('criarPedirRotaDoDono: a borda do Mac contra um servidor de verdade (r2.5, Yannis m1; a asserção "sem a chave" agora morde)', () => {
+  type Servidor = { url: string; recebidos: Array<{ chave: string | undefined; caminho: string | undefined }>; fechar: () => Promise<void> }
+  async function servir(modo: 'ok' | 'redireciona' | 'mudo' | 'corpo-parado'): Promise<Servidor> {
+    const recebidos: Servidor['recebidos'] = []
+    const sockets = new Set<import('node:net').Socket>()
+    const srv = createServer((req, res) => {
+      recebidos.push({ chave: req.headers['x-pipeline-key'] as string | undefined, caminho: req.url })
+      if (modo === 'ok') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ data: leitura([]) })) }
+      else if (modo === 'redireciona') { res.writeHead(308, { Location: 'http://127.0.0.1:1/outro' }); res.end() }
+      else if (modo === 'corpo-parado') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.write('{"data":') }   // cabeçalho sai, corpo trava
+      // 'mudo': não responde nada
+    })
+    srv.on('connection', s => { sockets.add(s); s.on('close', () => sockets.delete(s)) })
+    await new Promise<void>(ok => srv.listen(0, '127.0.0.1', ok))
+    const porta = (srv.address() as import('node:net').AddressInfo).port
+    return { url: `http://127.0.0.1:${porta}/api/pipeline/archive/pending`, recebidos,
+      fechar: () => new Promise<void>(ok => { sockets.forEach(s => s.destroy()); srv.close(() => ok()) }) }
+  }
+  const semChave = (e: unknown) => String(e) + String((e as { cause?: unknown })?.cause) + JSON.stringify(e, Object.getOwnPropertyNames(e as object))
+
+  it('manda a chave no cabeçalho X-Pipeline-Key e devolve status e corpo', async () => {
+    const s = await servir('ok')
+    try {
+      const r = await criarPedirRotaDoDono({ chave: CHAVE, rota: 'pending', url: s.url })()
+      expect(r.status).toBe(200)
+      expect(JSON.parse(r.corpo)).toEqual({ data: leitura([]) })
+      expect(s.recebidos).toEqual([{ chave: CHAVE, caminho: '/api/pipeline/archive/pending' }])
+    } finally { await s.fechar() }
+  })
+  it('redirecionamento (308): lança, e a chave não aparece no erro nem na causa', async () => {
+    const s = await servir('redireciona')
+    try {
+      const e = await criarPedirRotaDoDono({ chave: CHAVE, rota: 'pending', url: s.url })().catch(x => x)
+      expect(e).toBeInstanceOf(TypeError)
+      expect(semChave(e)).not.toContain(CHAVE)
+    } finally { await s.fechar() }
+  })
+  it.each(['mudo', 'corpo-parado'] as const)('servidor %s com timeoutMs 200: lança TimeoutError (o corpo também está sob o sinal), sem a chave', async modo => {
+    const s = await servir(modo)
+    try {
+      const e = await criarPedirRotaDoDono({ chave: CHAVE, rota: 'pode-desligar', url: s.url, timeoutMs: 200 })().catch(x => x)
+      expect((e as Error).name).toBe('TimeoutError')
+      expect(semChave(e)).not.toContain(CHAVE)
+    } finally { await s.fechar() }
+  })
+  it('rodar com a fábrica contra o servidor mudo: a frase "em 15 s", código 1, script de falha, e nenhum texto da saída contém a chave', async () => {
+    const s = await servir('mudo')
+    try {
+      const pedir = criarPedirRotaDoDono({ chave: CHAVE, rota: 'pending', url: s.url, timeoutMs: 200 })
+      const r = await rodar({ nome: 'pendencias' }, { ...deps(null), pedirPendencias: pedir })
+      expect(r.codigo).toBe(1)
+      expect(r.saida.join('\n')).toContain('em 15 s')
+      expect(r.saida.join('\n') + (r.erros ?? []).join('\n')).not.toContain(CHAVE)
+    } finally { await s.fechar() }
+  })
+  it('o padrão que nenhum teste sobrescreve: sem url nem timeoutMs, a URL é a constante e as opções são as de produção (env apagado)', async () => {
+    delete process.env.OBS_ARQUIVO_URL   // não existe variável: apagar não muda nada (D-F21)
+    for (const [rota, url] of [['pending', URL_DAS_PENDENCIAS], ['pode-desligar', URL_DO_PODE_DESLIGAR]] as const) {
+      const chamadas: Array<{ url: string; init: RequestInit }> = []
+      const fetchFn = (async (u: string, init: RequestInit) => { chamadas.push({ url: String(u), init }); return new Response('{}', { status: 200 }) }) as unknown as typeof fetch
+      await criarPedirRotaDoDono({ chave: CHAVE, rota, fetchFn })()
+      expect(chamadas).toHaveLength(1)
+      expect(chamadas[0].url).toBe(url)
+      expect(chamadas[0].init).toMatchObject({ redirect: 'error', cache: 'no-store', headers: { 'X-Pipeline-Key': CHAVE } })
+      expect(chamadas[0].init.signal).toBeInstanceOf(AbortSignal)
+    }
+    expect(URL_DAS_PENDENCIAS).toBe('https://bythiagofigueiredo.com/api/pipeline/archive/pending')
+    expect(URL_DO_PODE_DESLIGAR).toBe('https://bythiagofigueiredo.com/api/pipeline/archive/pode-desligar')
   })
 })
 
@@ -5519,6 +5615,27 @@ Expected: os dois primeiros por `Failed to resolve import "@/lib/youtube/observa
 
 - [ ] **Step 3: `credencial.ts`** (só `node:`/relativo; (emenda 14/10 noite: rota com chave)). `lerChave(env, ler)`: `HOME` ausente ou vazio → `{ ok: false, mensagem: 'obs:arquivo: sem HOME, não sei onde está a chave (~/.config/obs-arquivo/chave)' }`; `ler(\`${HOME}/${CAMINHO_DA_CREDENCIAL}\`)` nulo → `'obs:arquivo: falta ~/.config/obs-arquivo/chave. Grave com: bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh'`; `(modo & 0o077) !== 0` → `'obs:arquivo: ~/.config/obs-arquivo/chave pode ser lida por outros; trate como chave exposta (runbook) e rode chmod 600 nela'`; `(modoPasta & 0o077) !== 0` → `'obs:arquivo: a pasta ~/.config/obs-arquivo pode ser lida por outros; rode chmod 700 nela'`; `texto.replace(/\r?\n$/, '')` fora de `FORMA_DA_CHAVE` → `'obs:arquivo: ~/.config/obs-arquivo/chave não tem uma chave arqdono_ numa linha (a do Cowork não serve); rode o m3b-obs-arquivo-credencial.sh'`. Nunca ecoa o conteúdo. `PIPELINE_COWORK_KEY` e `OBS_ARQUIVO_DB_URL` não são lidas (D-F21). No `scripts/obs-arquivo.ts`, `ler` é `stat` do arquivo e da pasta (`mode & 0o777`) mais `readFile`, com `ENOENT` → `null`; outro erro de leitura → mensagem própria, código 2. `URL_DAS_PENDENCIAS` e `FORMA_DA_CHAVE` moram aqui.
 
+  A fábrica (r2.5; Yannis m1; `url`, `timeoutMs` e `fetchFn` existem para o teste, a produção não os passa):
+
+```ts
+export const URL_DO_ARQUIVO = 'https://bythiagofigueiredo.com/api/pipeline/archive/'
+export const URL_DAS_PENDENCIAS = `${URL_DO_ARQUIVO}pending`
+export const URL_DO_PODE_DESLIGAR = `${URL_DO_ARQUIVO}pode-desligar`
+export type PedirRota = () => Promise<{ status: number; corpo: string }>
+export type PedirPendencias = PedirRota
+export type PedirPodeDesligar = PedirRota
+export function criarPedirRotaDoDono(o: { chave: string; rota: 'pending' | 'pode-desligar'; url?: string; timeoutMs?: number; fetchFn?: typeof fetch }): PedirRota {
+  const url = o.url ?? (o.rota === 'pending' ? URL_DAS_PENDENCIAS : URL_DO_PODE_DESLIGAR)
+  const timeoutMs = o.timeoutMs ?? 15_000
+  const buscar = o.fetchFn ?? fetch
+  return async () => {
+    const sinal = AbortSignal.timeout(timeoutMs)   // o mesmo sinal vale para o cabeçalho e para o corpo (sondado no Node 25.6.1: os dois dão TimeoutError)
+    const r = await buscar(url, { headers: { 'X-Pipeline-Key': o.chave, Accept: 'application/json' }, redirect: 'error', cache: 'no-store', signal: sinal })
+    return { status: r.status, corpo: await r.text() }
+  }
+}
+```
+
 - [ ] **Step 4: `pendencias-script.ts`** (puro, só `node:`/relativo). `aspas(v)` = aspas simples, com `'` trocado por `'\''`. `scriptDeFalha(frase)` = `['#!/bin/bash', '# obs:arquivo: script de falha (o Mac não conseguiu gerar os passos)', \`echo ${aspas('OBS-ARQUIVO: NÃO RODOU: ' + frase.replace(/^obs:arquivo:\s*/, ''))} >&2\`, 'exit 1']`. `saidaSegura(r)`: `r.codigo === 0` ou `r.saida[0] === '#!/bin/bash'` → `r.saida`; senão `scriptDeFalha(r.erros?.[0] ?? r.saida[0] ?? 'obs:arquivo: falha sem frase')` (nunca o texto cru). `scriptDasPendencias(l, { versao })`, em que **todo valor do banco (`item_id`, `caminho`, `sha256`, `nome` do B2) entra por `aspas()`**, também nas linhas `ESPERA-*` e `BLOQUEADO`:
 
 ```bash
@@ -5562,47 +5679,55 @@ Tempo `copiar` (ou qualquer outro que este código não conheça) → `{ ok: fal
 
 - [ ] **Step 5: Ligar em `cli.ts` e no script**
 
-1. `cli.ts`: comentário do topo e `USO` ganham `'  pendencias       (sem opções; a chave vem de ~/.config/obs-arquivo/chave e a leitura, de GET /api/pipeline/archive/pending)   (só lê; cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja \'bash -s\')'`; `Comando` ganha `| { nome: 'pendencias' }`; `DepsDoComando` ganha `pedirPendencias?: PedirPendencias` (emenda 14/10 noite: rota com chave); `OPCOES.pendencias = { valor: [], bandeira: [], obrigatorias: [] }` (fora de `COM_BANCO`: não usa banco); `case 'pendencias': return { nome: 'pendencias' }`; `Saida` ganha `erros?: string[]`. **Em `rodar`, o `pendencias` é despachado ANTES de `d.sql === null` e de `resolverSite`** (que lê `competitor_channels`, vazio justamente quando a pendência é o último canal removido, e devolve `invalido(...)` em prosa que o `bash` da forja executaria como comando: Phil I4, Yannis I1):
+1. `cli.ts`: comentário do topo e `USO` ganham `'  pendencias       (sem opções; a chave vem de ~/.config/obs-arquivo/chave e a leitura, de GET /api/pipeline/archive/pending)   (só lê; cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja \'bash -s\')'`; `Comando` ganha `| { nome: 'pendencias' }`; `DepsDoComando` ganha `pedirPendencias?: PedirPendencias` e `pedirPodeDesligar?: PedirPodeDesligar` (emenda 14/10 noite: rota com chave; a segunda é usada na Tarefa 7); `OPCOES.pendencias = { valor: [], bandeira: [], obrigatorias: [] }` (fora de `COM_BANCO`: não usa banco); `case 'pendencias': return { nome: 'pendencias' }`; `Saida` ganha `erros?: string[]`. **Em `rodar`, o `pendencias` (e, da Tarefa 7, o `pode-desligar`) é despachado ANTES de `d.sql === null` e de `resolverSite`** (que lê `competitor_channels`, vazio justamente quando a pendência é o último canal removido, e devolve `invalido(...)` em prosa que o `bash` da forja executaria como comando: Phil I4, Yannis I1):
 
 ```ts
 /** Só lê, pela rota C13 (emenda 14/10 noite: rota com chave): uma chamada, nenhum banco. Todo caminho de falha devolve o script de
  *  falha, nunca prosa nem "nada pendente" (D-F22). O stdout é só o script; o que é para o dono ler no Mac vai em `erros`. */
 const Envelope = z.object({ data: z.unknown() }).strict()
 const EnvelopeDeErro = z.object({ error: z.object({ code: z.string() }).passthrough() }).passthrough()
-async function pendencias(d: DepsDoComando): Promise<Saida> {
-  const falha = (f: string): Saida => ({ codigo: 1, saida: scriptDeFalha(f), erros: [f] })
-  if (!d.pedirPendencias) return falha('obs:arquivo: sem a chave do arquivo; nada foi feito')
+/** Uma função só para as duas leituras do Mac (r2.5, Yannis I1): a ida à rota, o HTTP, o envelope. Devolve o `data` ou a frase do que deu errado,
+ *  sem prefixo nem "nada foi feito" (cada comando põe o seu). Frase do catálogo, nunca a mensagem crua (pode trazer URL ou cabeçalho). */
+async function lerRotaDoDono(pedir: PedirRota | undefined): Promise<{ ok: true; data: unknown } | { ok: false; porque: string }> {
+  if (!pedir) return { ok: false, porque: 'sem a chave do arquivo; rode o m3b-obs-arquivo-credencial.sh' }
   let r: { status: number; corpo: string }
   try {
-    r = await d.pedirPendencias()
-  } catch (e) {   // frase do catálogo, nunca a mensagem crua (pode trazer URL ou cabeçalho)
-    return falha(e instanceof Error && e.name === 'TimeoutError'
-      ? 'obs:arquivo: o site não respondeu em 15 s; confira a rede; nada foi feito'
-      : 'obs:arquivo: o site não respondeu como esperado (rede); nada foi feito')
+    r = await pedir()
+  } catch (e) {
+    return { ok: false, porque: e instanceof Error && e.name === 'TimeoutError'
+      ? 'o site não respondeu em 15 s; confira a rede'
+      : 'o site não respondeu como esperado (rede)' }
   }
   let json: unknown
   try { json = JSON.parse(r.corpo) } catch { json = undefined }
   if (r.status !== 200) {
     const erro = EnvelopeDeErro.safeParse(json)
     if (r.status === 503 && erro.success && erro.data.error.code === 'arquivo_desligado')
-      return falha('obs:arquivo: o arquivo está desligado no site (OBS_ARQUIVO); nada foi feito')
+      return { ok: false, porque: 'o arquivo está desligado no site (OBS_ARQUIVO)' }
     if (r.status === 401 || r.status === 403)
-      return falha('obs:arquivo: o site recusou a chave (não registrada, revogada ou sem archive_owner); rode o m3b-obs-arquivo-credencial.sh; nada foi feito')
-    return falha(`obs:arquivo: o site não respondeu como esperado (HTTP ${r.status}); nada foi feito`)
+      return { ok: false, porque: 'o site recusou a chave (não registrada, revogada ou sem archive_owner); rode o m3b-obs-arquivo-credencial.sh' }
+    return { ok: false, porque: `o site não respondeu como esperado (HTTP ${r.status})` }
   }
-  if (json === undefined) return falha('obs:arquivo: o site não respondeu como esperado (resposta sem JSON); nada foi feito')
+  if (json === undefined) return { ok: false, porque: 'o site não respondeu como esperado (resposta sem JSON)' }
   const env = Envelope.safeParse(json)
-  if (!env.success) return falha('obs:arquivo: não consegui ler as pendências (resposta fora do envelope); nada foi feito')
-  const l = lerPendencias(env.data.data)   // data nulo, vazio ou sem lido_em: { ok: false }, nunca zero medido
+  if (!env.success) return { ok: false, porque: 'não consegui ler a resposta (fora do envelope)' }
+  return { ok: true, data: env.data.data }   // data nulo, vazio ou fora do C12/C11: quem chama recusa, nunca zero medido
+}
+async function pendencias(d: DepsDoComando): Promise<Saida> {
+  const falha = (f: string): Saida => ({ codigo: 1, saida: scriptDeFalha(f), erros: [f] })
+  const rota = await lerRotaDoDono(d.pedirPendencias)
+  if (!rota.ok) return falha(`obs:arquivo: ${rota.porque}; nada foi feito`)
+  const l = lerPendencias(rota.data)   // data nulo, vazio ou sem lido_em: { ok: false }, nunca zero medido
   if (!l.ok) return falha(`obs:arquivo: não consegui ler as pendências (${l.porque}); nada foi feito`)
   const s = scriptDasPendencias(l, { versao: d.versaoDoScript })
   if (!s.ok) return falha(`obs:arquivo: ${s.porque}; nada foi feito`)
   return { codigo: 0, saida: s.linhas, erros: [s.resumo] }
 }
+// em rodar(), no começo: if (c.nome === 'pendencias') return await pendencias(d)   (e, na Tarefa 7, o mesmo para 'pode-desligar')
 // em rodar(), no começo: if (c.nome === 'pendencias') return await pendencias(d)
 ```
 
-2. `scripts/obs-arquivo.ts` (emenda 14/10 noite: rota com chave): depois de `interpretar`, **se `comando.nome === 'pendencias'`**: `lerChave(process.env, lerCredencial)`; falha → `console.error(mensagem)`, `await escreverTudo(scriptDeFalha(mensagem).join('\n') + '\n')`, `process.exitCode = 2`; **não cria o `Client` do `pg`** (`pendencias` não usa banco; o `import` do `pg` fica para os outros subcomandos); `pedirPendencias` = `async () => { const r = await fetch(URL_DAS_PENDENCIAS, { headers: { 'X-Pipeline-Key': chave, Accept: 'application/json' }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15_000) }); return { status: r.status, corpo: await r.text() } }` (o corpo também sob o mesmo sinal; a chave nunca vai a `console.*`, a `erros` nem ao `stdout`); não cria o `readline` (`perguntar` lança); no fim, `r.erros` vai ao `console.error` e **`saidaSegura(r)`** ao `await escreverTudo(... .join('\n') + '\n')` numa escrita só e drenada, e o código sai por `process.exitCode` (nunca `process.exit` logo após o `write`; Yannis I3). O `main().then(..., () => ...)` de "erro inesperado" escreve o script de falha no `stdout` (e espera a escrita) antes de sair com 1 quando o subcomando é `pendencias`. Os outros subcomandos não mudam (a dívida do `process.exit` deles: quando `comandos-recarga` passar de 64 KB).
+2. `scripts/obs-arquivo.ts` (emenda 14/10 noite: rota com chave): depois de `interpretar`, **se `comando.nome` é `pendencias` ou `pode-desligar`**: `lerChave(process.env, lerCredencial)`; falha → `console.error(mensagem)`, e no `pendencias` `await escreverTudo(scriptDeFalha(mensagem).join('\n') + '\n')` (no `pode-desligar`, o texto `NÃO DESLIGUE: sem a chave não há "pode desligar"`, que é lido no terminal, não vai à forja), `process.exitCode = 2`; **não cria o `Client` do `pg`** (`pendencias` não usa banco; o `import` do `pg` fica para os outros subcomandos); `pedirPendencias = criarPedirRotaDoDono({ chave, rota: 'pending' })` e `pedirPodeDesligar = criarPedirRotaDoDono({ chave, rota: 'pode-desligar' })` (a fábrica, em `credencial.ts`, faz o `fetch` com `redirect: 'error'`, `cache: 'no-store'` e `AbortSignal.timeout(15_000)` e lê o corpo sob o mesmo sinal; o script só a chama; a chave nunca vai a `console.*`, a `erros` nem ao `stdout`); não cria o `readline` (`perguntar` lança); no fim, `r.erros` vai ao `console.error` e **`saidaSegura(r)`** ao `await escreverTudo(... .join('\n') + '\n')` numa escrita só e drenada, e o código sai por `process.exitCode` (nunca `process.exit` logo após o `write`; Yannis I3). O `main().then(..., () => ...)` de "erro inesperado" escreve o script de falha no `stdout` (e espera a escrita) antes de sair com 1 quando o subcomando é `pendencias` (no `pode-desligar`, o texto `NÃO DESLIGUE`). Os outros subcomandos não mudam (a dívida do `process.exit` deles: quando `comandos-recarga` passar de 64 KB).
 3. `package.json` (raiz), em `scripts`: `"obs:arquivo": "tsx scripts/obs-arquivo.ts pendencias"` (o `tsx` é o de `node_modules/.bin`, já usado por `npx tsx`).
 
 - [ ] **Step 6: Rodar e ver passar (com os testes da E10 e da Tarefa 7 junto)**
@@ -5622,32 +5747,36 @@ git commit -m "feat: npm run -s obs:arquivo, pendências do dono num script que 
 
 **Files:**
 - Disco (fora do git): `.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh`, **reescrito por inteiro** com o bloco do Step 1.
-- Kit (git local `~/Workspace/forja/ferramentas`, editado no Mac; nada na forja): Modify `seed_chave_forja.sh` (modo `dono`) e `arquivo/teste_seed_arquivo.sh` (o laço ganha `"dono:arquivo dono:archive_owner"`).
+- Kit (git local `~/Workspace/forja/ferramentas`, editado no Mac; nada na forja): Modify `seed_chave_forja.sh` (modo `dono`, nome `mac do dono (arquivo)`, e `ROTACAO_DONO=sim`) e `arquivo/teste_seed_arquivo.sh` (o laço ganha o par do dono e sete afirmações de rotação). **Feito em 14/10 noite, kit `a7dce4b`; `teste_seed_arquivo.sh` `0 falha(s)`, regressão `teste_seed_fila.sh` `0 falha(s)`.**
+- Disco (fora do git): `m3b/m3b-rotacao-chave-dono.sh` e `m3b/teste-rotacao-chave-dono.sh` (**feitos**; abaixo, "Trocar ou revogar").
 
-**Como chaves `archive_*` nascem hoje (lido no código em 14/10):** nenhuma tela do CMS cria chave de pipeline (nenhuma escrita em `pipeline_api_keys` em `apps/web/src/app`; `acesso-ia/criar-chave.ts` só cria a do perfil `observatorio_leitura`). O caminho das três chaves do arquivo é o da M3a (Tarefas 3 e 4 de lá): o valor é gerado na máquina que o usa (`nova_chave_arquivo.py`, na forja), só o sha256 sai, e o dono roda no Mac `bash ~/Workspace/forja/ferramentas/seed_chave_forja.sh <modo> <sha256>`, que grava em produção `forja (arquivo <modo>)` com a permissão do modo, confere que ficou exatamente uma ativa com essa permissão, **nunca revoga** e para antes de escrever se já houver outra ativa com o mesmo nome. A chave do dono segue esse caminho, com o valor gerado **no Mac** (onde ela é usada) e o modo novo `dono` → `forja (arquivo dono)` `{archive_owner}`. **Nenhum agente roda o seed:** o agente escreve o `.sh` e o modo do seed; quem roda é o dono (regra "nunca criar/revogar chaves").
+**Como chaves `archive_*` nascem hoje (lido no código em 14/10):** nenhuma tela do CMS cria chave de pipeline (nenhuma escrita em `pipeline_api_keys` em `apps/web/src/app`; `acesso-ia/criar-chave.ts` só cria a do perfil `observatorio_leitura`). O caminho das três chaves do arquivo é o da M3a (Tarefas 3 e 4 de lá): o valor é gerado na máquina que o usa (`nova_chave_arquivo.py`, na forja), só o sha256 sai, e o dono roda no Mac `bash ~/Workspace/forja/ferramentas/seed_chave_forja.sh <modo> <sha256>`, que grava em produção `forja (arquivo <modo>)` com a permissão do modo, confere que ficou exatamente uma ativa com essa permissão, **nunca revoga** e para antes de escrever se já houver outra ativa com o mesmo nome. A chave do dono segue esse caminho, com o valor gerado **no Mac** (onde ela é usada) e o modo novo `dono` → `mac do dono (arquivo)` `{archive_owner}` (nome sem o prefixo `forja (`: a chave mora no Mac; Yannis m3). **Nenhum agente roda o seed:** o agente escreve o `.sh` e o modo do seed; quem roda é o dono (regra "nunca criar/revogar chaves").
 
 **Desvio do brief, para o dono decidir:** o brief pedia "grava a chave digitada sem eco". Aqui o `.sh` **gera** a chave e nunca a mostra: como nenhuma tela cria chave, digitá-la exigiria que ela aparecesse antes em algum lugar (tela, área de transferência), o que a M3a (P2) evitou de propósito. Se o dono preferir digitar, o bloco de geração vira `read -r -s` com a mesma conferência de forma; o resto não muda.
 
 **Modo `dono` no seed** (as mesmas mudanças da Tarefa 4 da M3a, para um modo a mais):
 - formas aceitas: `elif [[ "${1:-}" =~ ^(copiador|respondedor|conferidor|dono)$ ]]`, e a linha `seed_chave_forja.sh dono <sha256>          (Mac, obs:arquivo, {archive_owner})` no uso e no cabeçalho;
-- `case`: `dono) NOME='forja (arquivo dono)'; ROTULO='arquivo dono'; PERMS="array['archive_owner']"; CANON='archive_owner' ;;`;
+- `case`: `dono) NOME='mac do dono (arquivo)'; ROTULO='arquivo dono (mac)'; PERMS="array['archive_owner']"; CANON='archive_owner' ;;`;
 - fim: `dono) echo "Proximo: bloco 7b da M3b-forja (npm run -s obs:arquivo, sem o ssh)"; exit 0 ;;` junto dos modos do arquivo;
+- rotação (Phil I1): `ROTACAO_DONO=sim` (**só no modo `dono`**) deixa a chave nova conviver com a velha: a pré-checagem não para, o seed só INSERE (nunca revoga) e a conferência aceita `ativas >= 1` com a nova ativa; sem a variável, outra ativa ainda PARA e a mensagem aponta para a seção do runbook;
 - teste: `bash ~/Workspace/forja/ferramentas/arquivo/teste_seed_arquivo.sh` com o par novo → `seed arquivo: 0 falha(s)` (as afirmações de cada modo, inclusive "nunca revoga" e "outra ativa para antes de escrever"); regressão `bash ~/Workspace/forja/ferramentas/fase2/teste_seed_fila.sh`. Commit no kit: `git -C ~/Workspace/forja/ferramentas commit -m "feat: seed_chave_forja.sh, modo dono (archive_owner) para o obs:arquivo do Mac (M3b, emenda 14/10 noite)" -- seed_chave_forja.sh arquivo/teste_seed_arquivo.sh`. A cópia do kit na forja não precisa deste arquivo (o seed roda no Mac).
 
-**O que acontece quando o dado não existe:** seed sem o modo `dono`: o `.sh` para antes de gerar (`PARE`, código 2). Seed que falha (rede, projeto ligado que não é o de produção, outra `forja (arquivo dono)` ativa): a chave fica gravada no Mac e nada vai ao banco; rodar de novo reaproveita a mesma chave e o seed é idempotente; até lá a linha do dono sai 1 com "o site recusou a chave". Chave existente aberta (não `600`) ou fora da forma: `PARE`, nada registrado. `db-url` da versão anterior: apagado, com aviso.
+**O que acontece quando o dado não existe:** seed sem o modo `dono`: o `.sh` para antes de gerar (`PARE`, código 2). Seed que falha (rede, projeto ligado que não é o de produção, outra `mac do dono (arquivo)` ativa): a chave fica gravada no Mac e nada vai ao banco; rodar de novo reaproveita a mesma chave e o seed é idempotente; até lá a linha do dono sai 1 com "o site recusou a chave". Chave existente aberta (não `600`) ou fora da forma: `PARE`, nada registrado. `db-url` da versão anterior: apagado, com aviso.
 
 - [ ] **Step 1: Escrever o arquivo**
 
 ```bash
 #!/bin/bash
 # M3b, emenda da peça 7 (emenda 14/10 noite: rota com chave): gera NO MAC, uma vez, a chave só de arquivo do
-# `npm run -s obs:arquivo` (permissão archive_owner: só abre GET /api/pipeline/archive/pending) e a registra no banco de
-# produção SÓ pelo sha256, pelo seed_chave_forja.sh dono (que nunca revoga). A chave fica em ~/.config/obs-arquivo/chave
-# (pasta 700, arquivo 600, fora do Time Machine) e nunca aparece na tela, no histórico nem na área de transferência.
+# `npm run -s obs:arquivo` (permissão archive_owner: abre GET /api/pipeline/archive/pending e /pode-desligar, só leitura) e a
+# registra no banco de produção SÓ pelo sha256, pelo seed_chave_forja.sh dono (que nunca revoga). A chave fica em
+# ~/.config/obs-arquivo/chave (pasta 700, arquivo 600 ou 400, fora do Time Machine) e nunca aparece na tela, no histórico nem na
+# área de transferência. Nome no banco: 'mac do dono (arquivo)'.
 # Uso (Mac):
 #   bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh
 # Saída boa: "GRAVADO: ~/.config/obs-arquivo/chave (600)" e, do seed, "conferencia: ok (1 ativa(s), permissoes archive_owner)".
-# Rodar de novo não troca a chave: reaproveita a que existe, e o seed é idempotente. Trocar é rotação (RUNBOOK-rollback-e-referencia.md).
+# Rodar de novo não troca a chave: reaproveita a que existe, e o seed é idempotente.
+# Trocar ou revogar a chave: m3b-rotacao-chave-dono.sh (RUNBOOK-rollback-e-referencia.md, "Trocar ou revogar a chave do dono").
 set -euo pipefail
 { command -v openssl && command -v shasum; } >/dev/null || { echo "PARE: falta openssl ou shasum neste Mac; nada feito" >&2; exit 2; }
 SEED=~/Workspace/forja/ferramentas/seed_chave_forja.sh
@@ -5660,7 +5789,8 @@ if [ ! -e "$F" ]; then
   ( set -o noclobber; printf '%s\n' "$K" > "$F" ) 2>/dev/null || { unset K; echo "PARE: $F apareceu no meio; rode de novo" >&2; exit 2; }
   unset K
 fi
-[ "$(stat -f %Lp "$F")" = 600 ] || { echo "PARE: $F está aberta ($(stat -f %Lp "$F")); trate como chave exposta (runbook); nada registrado" >&2; exit 2; }
+# 600 e 400 valem (o lerChave do Mac aceita qualquer modo sem bits de grupo/outros; Yannis m4)
+case "$(stat -f %Lp "$F")" in 600|400) ;; *) echo "PARE: $F está aberta ($(stat -f %Lp "$F")); trate como chave exposta (runbook); nada registrado" >&2; exit 2 ;; esac
 { grep -Eq '^arqdono_[A-Za-z0-9_-]{43}$' "$F" && [ "$(wc -l < "$F" | tr -d ' ')" = 1 ]; } \
   || { echo "PARE: $F não tem uma chave arqdono_ numa linha; apague-o e rode de novo; nada registrado" >&2; exit 2; }
 H=$(head -n1 "$F" | tr -d '\n' | shasum -a 256 | cut -d' ' -f1)
@@ -5668,6 +5798,8 @@ tmutil addexclusion "$D" 2>/dev/null || echo "AVISO: não consegui tirar ~/.conf
 echo "GRAVADO: ~/.config/obs-arquivo/chave ($(stat -f %Lp "$F"))"
 bash "$SEED" dono "$H"
 ```
+
+**Trocar ou revogar a chave (Phil I1; feito em 14/10 noite, disco `m3b/m3b-rotacao-chave-dono.sh`, com `m3b/teste-rotacao-chave-dono.sh` `0 falha(s)` e dois mutantes mortos):** `trocar` (guarda a velha como `chave.velha`, gera a nova, `ROTACAO_DONO=sim bash seed_chave_forja.sh dono <sha>`; **nada é revogado**; imprime o próximo passo), `CONFIRMAR=sim ... revogar-antigas` (revoga as ativas com hash diferente do do arquivo, recusa-se se a chave do arquivo não está ativa no banco, exige exatamente 1 linha revogada e `ativas = 1, minha = true`) e `CONFIRMAR=sim ... revogar-todas` (a chave vazou; guarda o arquivo como `chave.revogada`). Nenhum agente roda; só o dono. Seção "Trocar ou revogar a chave do dono (Mac)" no `RUNBOOK-rollback-e-referencia.md`; o `m3a-desfazer-banco.sh` revoga também a `mac do dono (arquivo)` num rollback da M3b. **O arquivo da chave aceita modo `600` e `400`** (o `lerChave` aceita qualquer modo sem bits de grupo/outros; Yannis m4).
 
 O sha256 é o da chave sem o fim de linha, o mesmo que o `auth.ts` calcula do cabeçalho e que o `nova_chave_arquivo.py` imprime. `openssl rand -base64 32` dá 44 caracteres com um `=`; sem ele, 43.
 
@@ -5680,13 +5812,14 @@ O sha256 é o da chave sem o fim de linha, o mesmo que o `auth.ts` calcula do ca
 **Pré-condições (emenda 14/10 noite: rota com chave):** a migration da M3b com a parte 7 (a função, sem papel novo) em produção (Tarefa 10 do site), a rota `GET pending` no ar com `OBS_ARQUIVO=on` (Tarefas 11 e 14 do site), o modo `dono` no `seed_chave_forja.sh` (Tarefa 8a) e a Tarefa 7a no `staging` local do dono. Leitura de antes, pelo agente: `ssh forja 'hostname -s'` = `forja` (lido em 14/10). **Regra de leitura, para todos os blocos: a última linha que apareceu tem de começar com `OBS-ARQUIVO:`; sem ela, nada rodou, mesmo com `echo $?` = 0.**
 
 - [ ] **Bloco 7a (escrita no Mac e uma linha no banco: o sha256 da chave) (emenda 14/10 noite: rota com chave).** `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-obs-arquivo-credencial.sh` — **saída boa:** `GRAVADO: ~/.config/obs-arquivo/chave (600)` e `conferencia: ok (1 ativa(s), permissoes archive_owner)`. Depois, só leitura: `ls -ld ~/.config/obs-arquivo` (`drwx------`) e `tmutil isexcluded ~/.config/obs-arquivo` (`[Excluded]`).
-- [ ] **Bloco 7b (leitura, só no Mac) (emenda 14/10 noite: rota com chave).** `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo` (sem o `ssh`: o script só aparece no terminal) — **saída boa:** primeira linha `#!/bin/bash`, a linha `obs:arquivo: <n> pendência(s) lida(s) ...` no `stderr`, e uma das finais `OBS-ARQUIVO: NADA PENDENTE` ou `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)` (na M3b não há `apaga_conferido`). Código 2: a frase diz o que falta (a chave). Código 1: a frase diz se foi a rede, a chave recusada, o arquivo desligado, o HTTP ou a forma; parar e ler. **Conferência da K2 e da permissão exata (só leitura):** `printf 'X-Pipeline-Key: %s\n' "$(cat ~/.config/obs-arquivo/chave)" | curl -s -o /dev/null -w '%{http_code}\n' -H @- https://bythiagofigueiredo.com/api/pipeline/items` = `403` (a chave do dono não lê o resto do pipeline) e o mesmo em `.../api/pipeline/archive/plan` = `403`.
+- [ ] **Bloco 7b (leitura, só no Mac) (emenda 14/10 noite: rota com chave).** `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo` (sem o `ssh`: o script só aparece no terminal) — **saída boa:** primeira linha `#!/bin/bash`, a linha `obs:arquivo: <n> pendência(s) lida(s) ...` no `stderr`, e uma das finais `OBS-ARQUIVO: NADA PENDENTE` ou `OBS-ARQUIVO: NADA A RODAR AGORA (<n> esperando)` (na M3b não há `apaga_conferido`). Código 2: a frase diz o que falta (a chave). Código 1: a frase diz se foi a rede, a chave recusada, o arquivo desligado, o HTTP ou a forma; parar e ler. **Conferência da K2 e da permissão exata (só leitura):** `printf 'X-Pipeline-Key: %s\n' "$(cat ~/.config/obs-arquivo/chave)" | curl -s -o /dev/null -w '%{http_code}\n' -H @- https://bythiagofigueiredo.com/api/pipeline/items` = `403` (a chave do dono não lê o resto do pipeline) e o mesmo em `.../api/pipeline/archive/plan` = `403`; **e a porta do MCP (Phil M2, Yannis):** o mesmo `curl` com `-X POST https://bythiagofigueiredo.com/api/mcp` = `403` (`Insufficient permissions`).
+- [ ] **Bloco 7b2 (leitura, só no Mac) (r2.5: o `pode-desligar` por rota).** `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m3b/m3b-casa-antes-de-desligar.sh` — **saída boa:** a última linha é `PODE DESLIGAR` ou `NÃO DESLIGUE AINDA (<n> pendência...)` com o que fazer (as duas são leituras bem-formadas; só a primeira sai 0). `não consegui ler o estado do arquivo: ...` = parar e ler o motivo. Não pede senha de banco.
 - [ ] **Bloco 7c (a linha da peça 7).** `cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'` e depois `echo $?` — **saída boa:** a mesma linha final do 7b, agora impressa pela forja, e `0`. **Sem a linha `OBS-ARQUIVO:` no fim, nada rodou, mesmo com `0`.** Pela linha com `ssh`, todo erro do Mac chega como `1` (o do script de falha, com `OBS-ARQUIVO: NÃO RODOU: ...`); `3` = o script rodou fora da forja; `255` = o `ssh` não chegou (Tailscale do Mac desligado ou a forja fora, D-F26).
 - [ ] O `LEIAME-COMANDOS.md` (seção "AGORA") ganha os três blocos com o "por quê"; o ledger, a data e as saídas. O runbook da fila (`docs/ops/`, M5) repete a regra da linha `OBS-ARQUIVO:`.
 
 **NÃO VERIFICADO (emenda):** a linha rodada de fora do país (latência, CGNAT, a forja com internet, o HTTPS ao site) — prova: a primeira vez que o dono a rodar viajando, anotada no ledger; (emenda 14/10 noite: rota com chave): o `curl -H @-` (cabeçalho lido da entrada) do macOS do dono; o `fetch` do Node do Mac com `AbortSignal.timeout` e `redirect: 'error'` contra o site real (os testes usam o site falso); `openssl` e `shasum` do macOS; `tmutil addexclusion` e `stat -f %Lp` são do macOS (o `.sh` só roda no Mac); `mountpoint`, `sha256sum` e `flock` na forja: `/usr/bin/mountpoint` e `/usr/bin/sha256sum` lidos em 14/10, `flock` não lido; **antes de fechar a Tarefa 7a: `ssh forja 'ls -l /opt/arquivo/copiador.lock; command -v flock'`** (o script abre a trava só para leitura); o `trap EXIT` do bash rodar num erro de sintaxe por script cortado (o teste `cortado %i linha(s)` acusa); o comportamento do `npm` 11.9.0 (cabeçalho no `stdout`; `cd ~ && npm run -s x` sai 254 mudo) é do Mac do dono em 14/10, e o teste `por que o -s` acusa se mudar.
 
-**Fica para a M9 (registrado):** os passos do tempo `copiar` (levar a versão nova a `_recebendo/` pela mesma linha), os tempos `conferir_b2`, `apagar_antigas` e `bloqueado` emitidos pela função (`versao: 2`), e "Já rodei"; a M9 muda `pendencias-script.ts` no mesmo commit do leitor, **com o `rm` conferido (D-F24 c) e a trava do copiador (D-F24 f) já aplicados**. **Não adotado (decisão do dono, 14/10: a linha é a da tela):** o receptor do kit `obs-arquivo-receber` no lugar do `bash -s` (conserto forte do Phil I3); o limite que ele cobriria está declarado no D-F22.
+**Fica para a M9 (registrado):** rever a linha "Segredo" do C13 e a exceção do E-D4 do site quando `apagar` e `b2_nomes` vierem preenchidos (Phil M3: a rota passa a devolver caminhos do NAS, nomes do B2 e sha256 a quem tem a chave); os passos do tempo `copiar` (levar a versão nova a `_recebendo/` pela mesma linha), os tempos `conferir_b2`, `apagar_antigas` e `bloqueado` emitidos pela função (`versao: 2`), e "Já rodei"; a M9 muda `pendencias-script.ts` no mesmo commit do leitor, **com o `rm` conferido (D-F24 c) e a trava do copiador (D-F24 f) já aplicados**. **Não adotado (decisão do dono, 14/10: a linha é a da tela):** o receptor do kit `obs-arquivo-receber` no lugar do `bash -s` (conserto forte do Phil I3); o limite que ele cobriria está declarado no D-F22.
 
 ---
 
