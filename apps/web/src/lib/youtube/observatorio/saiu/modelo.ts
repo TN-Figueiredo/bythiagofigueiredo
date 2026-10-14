@@ -106,7 +106,7 @@ export type LeituraDaFila =
   | { estado: 'ok'; fila: FilaLida }
   | { estado: 'sem_acesso' }
   | { estado: 'schema_ausente'; texto: string }
-  | { estado: 'erro'; codigo: CodigoDeErro }
+  | { estado: 'erro'; codigo: CodigoDeErro; detalhe?: string }
 
 /**
  * O número da aba: cada linha conta uma vez. A que está em `apagando` não entra de novo em `voltaram` (o leitor já a põe só no primeiro), e o
