@@ -633,10 +633,8 @@ describe('wizardConfigToAbConfig — full coverage', () => {
   const baseConfig: WizardConfig = {
     confidence: 95,
     duration: 14,
-    autoApply: true,
     burnIn: 2,
     rotation: 'abba',
-    playoff: true,
   }
 
   it('converts confidence integer to decimal', () => {
@@ -659,9 +657,8 @@ describe('wizardConfigToAbConfig — full coverage', () => {
     expect(result.max_duration_days).toBe(28)
   })
 
-  it('maps autoApply to auto_apply_winner', () => {
-    const result = wizardConfigToAbConfig({ ...baseConfig, autoApply: false })
-    expect(result.auto_apply_winner).toBe(false)
+  it('não grava auto_apply_winner (A/B Lab P2)', () => {
+    expect(wizardConfigToAbConfig(baseConfig)).not.toHaveProperty('auto_apply_winner')
   })
 
   it('maps burnIn to burn_in_days', () => {
@@ -685,7 +682,6 @@ describe('wizardConfigToAbConfig — full coverage', () => {
     expect(Object.keys(result)).toEqual(expect.arrayContaining([
       'confidence_threshold',
       'max_duration_days',
-      'auto_apply_winner',
       'burn_in_days',
       'rotation_pattern',
       'stability_threshold',
@@ -698,10 +694,10 @@ describe('initWizardConfig — from site settings', () => {
     const cfg = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
     expect(cfg.confidence).toBe(95)
     expect(cfg.duration).toBe(14)
-    expect(cfg.autoApply).toBe(true)
     expect(cfg.burnIn).toBe(2)
     expect(cfg.rotation).toBe('abba')
-    expect(cfg.playoff).toBe(true)
+    expect(cfg).not.toHaveProperty('autoApply')
+    expect(cfg).not.toHaveProperty('playoff')
   })
 
   it('handles custom site settings', () => {
@@ -709,13 +705,11 @@ describe('initWizardConfig — from site settings', () => {
       ...AB_SITE_SETTINGS_DEFAULTS,
       default_confidence: 0.90,
       default_duration_days: 21,
-      default_auto_apply: false,
       default_burn_in_days: 0,
     }
     const cfg = initWizardConfig(custom)
     expect(cfg.confidence).toBe(90)
     expect(cfg.duration).toBe(21)
-    expect(cfg.autoApply).toBe(false)
     expect(cfg.burnIn).toBe(0)
   })
 
@@ -724,7 +718,7 @@ describe('initWizardConfig — from site settings', () => {
     const abConfig = wizardConfigToAbConfig(cfg)
     expect(abConfig.confidence_threshold).toBe(AB_SITE_SETTINGS_DEFAULTS.default_confidence)
     expect(abConfig.max_duration_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_duration_days)
-    expect(abConfig.auto_apply_winner).toBe(AB_SITE_SETTINGS_DEFAULTS.default_auto_apply)
+    expect(abConfig).not.toHaveProperty('auto_apply_winner')
     expect(abConfig.burn_in_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_burn_in_days)
   })
 })

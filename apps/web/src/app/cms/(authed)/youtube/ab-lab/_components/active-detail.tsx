@@ -138,9 +138,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
                 Vencedor detectado — aplicação automática em{' '}
                 {Math.max(0, Math.ceil((new Date(view.graceExpiresAt).getTime() - Date.now()) / 3600000))}h
               </p>
-              <p className="text-xs text-amber-400/70 mt-0.5">
-                O vencedor será aplicado automaticamente quando o período de graça expirar.
-              </p>
             </div>
             <div className="flex gap-2">
               {canAdminSite && (

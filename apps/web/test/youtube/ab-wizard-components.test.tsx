@@ -309,11 +309,6 @@ describe('wizardReducer — state machine', () => {
       expect(next.config.confidence).toBe(90)
     })
 
-    it('persists autoApply boolean', () => {
-      const next = wizardReducer(baseState(), { type: 'UPDATE_CONFIG', key: 'autoApply', value: false })
-      expect(next.config.autoApply).toBe(false)
-    })
-
     it('persists burnIn key', () => {
       const next = wizardReducer(baseState(), { type: 'UPDATE_CONFIG', key: 'burnIn', value: 3 })
       expect(next.config.burnIn).toBe(3)
@@ -324,19 +319,12 @@ describe('wizardReducer — state machine', () => {
       expect(next.config.rotation).toBe('random')
     })
 
-    it('persists playoff boolean', () => {
-      const next = wizardReducer(baseState(), { type: 'UPDATE_CONFIG', key: 'playoff', value: false })
-      expect(next.config.playoff).toBe(false)
-    })
-
     it('does not mutate other config keys', () => {
       const state = baseState()
       const next = wizardReducer(state, { type: 'UPDATE_CONFIG', key: 'duration', value: 28 })
       expect(next.config.confidence).toBe(state.config.confidence)
-      expect(next.config.autoApply).toBe(state.config.autoApply)
       expect(next.config.burnIn).toBe(state.config.burnIn)
       expect(next.config.rotation).toBe(state.config.rotation)
-      expect(next.config.playoff).toBe(state.config.playoff)
     })
   })
 
@@ -647,11 +635,6 @@ describe('WizardConfig adapter', () => {
       expect(wc.duration).toBe(14)
     })
 
-    it('maps default_auto_apply to autoApply', () => {
-      const wc = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
-      expect(wc.autoApply).toBe(true)
-    })
-
     it('maps default_burn_in_days to burnIn', () => {
       const wc = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
       expect(wc.burnIn).toBe(2)
@@ -662,9 +645,10 @@ describe('WizardConfig adapter', () => {
       expect(wc.rotation).toBe('abba')
     })
 
-    it('defaults playoff to true', () => {
+    it('não produz autoApply nem playoff (A/B Lab P2)', () => {
       const wc = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
-      expect(wc.playoff).toBe(true)
+      expect(wc).not.toHaveProperty('autoApply')
+      expect(wc).not.toHaveProperty('playoff')
     })
 
     it('rounds non-integer confidence correctly', () => {
@@ -680,24 +664,20 @@ describe('WizardConfig adapter', () => {
         ...AB_SITE_SETTINGS_DEFAULTS,
         default_duration_days: 21,
         default_confidence: 0.90,
-        default_auto_apply: false,
         default_burn_in_days: 0,
       })
       expect(wc.duration).toBe(21)
       expect(wc.confidence).toBe(90)
-      expect(wc.autoApply).toBe(false)
       expect(wc.burnIn).toBe(0)
     })
 
-    it('matches AB_SITE_SETTINGS_DEFAULTS — confidence=95, duration=14, autoApply=true, burnIn=2', () => {
+    it('matches AB_SITE_SETTINGS_DEFAULTS — confidence=95, duration=14, burnIn=2', () => {
       const wc = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
       expect(wc).toEqual({
         confidence: 95,
         duration: 14,
-        autoApply: true,
         burnIn: 2,
         rotation: 'abba',
-        playoff: true,
       })
     })
   })
@@ -708,10 +688,8 @@ describe('WizardConfig adapter', () => {
     const defaultWc: WizardConfig = {
       confidence: 95,
       duration: 14,
-      autoApply: true,
       burnIn: 2,
       rotation: 'abba',
-      playoff: true,
     }
 
     it('converts confidence integer 95 to decimal 0.95', () => {
@@ -729,9 +707,8 @@ describe('WizardConfig adapter', () => {
       expect(result.max_duration_days).toBe(21)
     })
 
-    it('maps autoApply to auto_apply_winner', () => {
-      const result = wizardConfigToAbConfig({ ...defaultWc, autoApply: false })
-      expect(result.auto_apply_winner).toBe(false)
+    it('não grava auto_apply_winner (A/B Lab P2)', () => {
+      expect(wizardConfigToAbConfig(defaultWc)).not.toHaveProperty('auto_apply_winner')
     })
 
     it('maps burnIn to burn_in_days', () => {
@@ -759,7 +736,6 @@ describe('WizardConfig adapter', () => {
       expect(result).toEqual({
         confidence_threshold: 0.95,
         max_duration_days: 14,
-        auto_apply_winner: true,
         burn_in_days: 2,
         rotation_pattern: 'abba',
         stability_threshold: 3,
@@ -771,7 +747,7 @@ describe('WizardConfig adapter', () => {
       const result = wizardConfigToAbConfig(wc)
       expect(result.confidence_threshold).toBe(AB_SITE_SETTINGS_DEFAULTS.default_confidence)
       expect(result.max_duration_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_duration_days)
-      expect(result.auto_apply_winner).toBe(AB_SITE_SETTINGS_DEFAULTS.default_auto_apply)
+      expect(result).not.toHaveProperty('auto_apply_winner')
       expect(result.burn_in_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_burn_in_days)
     })
   })
@@ -947,10 +923,8 @@ describe('StepConfig component', () => {
   const defaultConfig: WizardConfig = {
     confidence: 95,
     duration: 14,
-    autoApply: true,
     burnIn: 1,
     rotation: 'abba' as const,
-    playoff: true,
   }
 
   function renderConfig(overrides?: Partial<WizardConfig>) {
@@ -963,24 +937,18 @@ describe('StepConfig component', () => {
   /* --- Config rows render ---------------------------------------- */
 
   describe('config rows', () => {
-    it('renders all 6 Portuguese config labels', () => {
+    it('renders the 3 Portuguese config labels', () => {
       renderConfig()
       expect(screen.getByText('Duração máxima')).toBeDefined()
-      expect(screen.getByText('Confiança alvo')).toBeDefined()
-      expect(screen.getByText('Aplicar vencedor automaticamente')).toBeDefined()
       expect(screen.getByText('Burn-in')).toBeDefined()
       expect(screen.getByText('Padrão de rotação')).toBeDefined()
-      expect(screen.getByText('Playoff automático')).toBeDefined()
     })
 
     it('renders hint text for each config row', () => {
       renderConfig()
       expect(screen.getByText(/Tempo máximo/)).toBeDefined()
-      expect(screen.getByText(/Nível de certeza/)).toBeDefined()
-      expect(screen.getByText(/Publica a variante/)).toBeDefined()
       expect(screen.getByText(/Período inicial/)).toBeDefined()
       expect(screen.getByText(/Estratégia de alternância/)).toBeDefined()
-      expect(screen.getByText(/nenhuma variante vencer/)).toBeDefined()
     })
   })
 
@@ -994,18 +962,11 @@ describe('StepConfig component', () => {
       expect(sliders[0]!.getAttribute('max')).toBe('28')
     })
 
-    it('confidence slider: min=80 max=99', () => {
-      renderConfig()
-      const sliders = screen.getAllByRole('slider')
-      expect(sliders[1]!.getAttribute('min')).toBe('80')
-      expect(sliders[1]!.getAttribute('max')).toBe('99')
-    })
-
     it('burn-in slider: min=0 max=3', () => {
       renderConfig()
       const sliders = screen.getAllByRole('slider')
-      expect(sliders[2]!.getAttribute('min')).toBe('0')
-      expect(sliders[2]!.getAttribute('max')).toBe('3')
+      expect(sliders[1]!.getAttribute('min')).toBe('0')
+      expect(sliders[1]!.getAttribute('max')).toBe('3')
     })
 
     it('all sliders have step=1', () => {
@@ -1020,57 +981,9 @@ describe('StepConfig component', () => {
   /* --- Toggle states --------------------------------------------- */
 
   describe('toggle states', () => {
-    it('renders two switches (auto-apply and playoff)', () => {
+    it('não renderiza nenhum switch (aplicar vencedor e playoff saíram)', () => {
       renderConfig()
-      const switches = screen.getAllByRole('switch')
-      expect(switches).toHaveLength(2)
-    })
-
-    it('toggles have 42x24px dimensions', () => {
-      renderConfig()
-      const switches = screen.getAllByRole('switch')
-      for (const sw of switches) {
-        expect(sw.style.width).toBe('42px')
-        expect(sw.style.height).toBe('24px')
-      }
-    })
-
-    it('auto-apply switch reflects config.autoApply=true', () => {
-      renderConfig({ autoApply: true })
-      const switches = screen.getAllByRole('switch')
-      expect(switches[0]!.getAttribute('aria-checked')).toBe('true')
-    })
-
-    it('auto-apply switch reflects config.autoApply=false', () => {
-      renderConfig({ autoApply: false })
-      const switches = screen.getAllByRole('switch')
-      expect(switches[0]!.getAttribute('aria-checked')).toBe('false')
-    })
-
-    it('playoff switch reflects config.playoff=true', () => {
-      renderConfig({ playoff: true })
-      const switches = screen.getAllByRole('switch')
-      expect(switches[1]!.getAttribute('aria-checked')).toBe('true')
-    })
-
-    it('playoff switch reflects config.playoff=false', () => {
-      renderConfig({ playoff: false })
-      const switches = screen.getAllByRole('switch')
-      expect(switches[1]!.getAttribute('aria-checked')).toBe('false')
-    })
-
-    it('clicking auto-apply toggle calls onChange', () => {
-      const { onChange } = renderConfig()
-      const switches = screen.getAllByRole('switch')
-      fireEvent.click(switches[0]!)
-      expect(onChange).toHaveBeenCalledWith('autoApply', false)
-    })
-
-    it('clicking playoff toggle calls onChange', () => {
-      const { onChange } = renderConfig()
-      const switches = screen.getAllByRole('switch')
-      fireEvent.click(switches[1]!)
-      expect(onChange).toHaveBeenCalledWith('playoff', false)
+      expect(screen.queryAllByRole('switch')).toHaveLength(0)
     })
   })
 

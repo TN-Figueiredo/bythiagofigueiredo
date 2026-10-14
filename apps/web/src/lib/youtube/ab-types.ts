@@ -10,7 +10,8 @@ export interface AbTestConfig {
   max_duration_days: number
   confidence_threshold: number
   burn_in_days: number
-  auto_apply_winner: boolean
+  /** @deprecated ignorada desde 10/2026 (A/B Lab P2) */
+  auto_apply_winner?: boolean
   rotation_pattern: 'abba' | 'round_robin' | 'random'
   stability_threshold: number
 }
@@ -19,7 +20,6 @@ export const AB_TEST_CONFIG_DEFAULTS: AbTestConfig = {
   max_duration_days: 14,
   confidence_threshold: 0.95,
   burn_in_days: 2,
-  auto_apply_winner: true,
   rotation_pattern: 'abba',
   stability_threshold: 3,
 }
@@ -207,7 +207,8 @@ export interface EvaluationResult {
 export interface AbTestSiteSettings {
   default_duration_days: number
   default_confidence: number
-  default_auto_apply: boolean
+  /** @deprecated ignorada desde 10/2026 (A/B Lab P2) */
+  default_auto_apply?: boolean
   default_burn_in_days: number
   ctr_drop_trigger: {
     enabled: boolean
@@ -230,7 +231,6 @@ export interface AbTestSiteSettings {
 export const AB_SITE_SETTINGS_DEFAULTS: AbTestSiteSettings = {
   default_duration_days: 14,
   default_confidence: 0.95,
-  default_auto_apply: true,
   default_burn_in_days: 2,
   ctr_drop_trigger: { enabled: false, threshold_percent: 20, min_days_below: 7 },
   post_publish_trigger: { enabled: false, delay_hours: 48, requires_pipeline_thumbs: true },

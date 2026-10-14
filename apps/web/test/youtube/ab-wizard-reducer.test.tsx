@@ -239,10 +239,12 @@ describe('wizardReducer', () => {
     expect(next.config.confidence).toBe(state.config.confidence)
   })
 
-  it('UPDATE_CONFIG updates boolean config key', () => {
+  it('UPDATE_CONFIG updates rotation config key (autoApply e playoff saíram do estado)', () => {
     const state = baseState()
-    const next = wizardReducer(state, { type: 'UPDATE_CONFIG', key: 'autoApply', value: false })
-    expect(next.config.autoApply).toBe(false)
+    const next = wizardReducer(state, { type: 'UPDATE_CONFIG', key: 'rotation', value: 'random' })
+    expect(next.config.rotation).toBe('random')
+    expect(next.config).not.toHaveProperty('autoApply')
+    expect(next.config).not.toHaveProperty('playoff')
   })
 
   /* --- SET_DRAFT_ID ----------------------------------------------- */

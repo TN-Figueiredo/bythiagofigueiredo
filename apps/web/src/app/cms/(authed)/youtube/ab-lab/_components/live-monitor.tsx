@@ -119,9 +119,6 @@ export function LiveMonitorCard({ monitor }: LiveMonitorProps) {
               )
             })}
           </div>
-          <div className="text-[11.5px] text-cms-text-dim mt-[11px] leading-[1.45]">
-            Se o CTR cair abaixo do esperado, o Intelligence Engine reabre o vídeo pra um novo teste automaticamente.
-          </div>
         </div>
       </div>
     </div>

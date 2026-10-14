@@ -15,27 +15,6 @@ const ROTATION_LABELS: Record<(typeof ROTATION_OPTIONS)[number], string> = {
   random: 'Aleatório',
 }
 
-/* --- 42x24 Toggle matching settings-drawer style --- */
-function ConfigToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="shrink-0 cursor-pointer"
-      style={{
-        width: 42, height: 24, borderRadius: 99, border: 'none', padding: 3,
-        background: checked ? 'var(--cms-accent)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
-        transition: 'background 0.2s', display: 'flex',
-        justifyContent: checked ? 'flex-end' : 'flex-start',
-      }}
-    >
-      <span style={{ width: 18, height: 18, borderRadius: 99, background: '#fff', transition: '0.2s' }} />
-    </button>
-  )
-}
-
 export function StepConfig({ config, onChange }: StepConfigProps) {
   // Better estimate: accounts for confidence level
   const estDays = Math.round(config.duration * (config.confidence >= 95 ? 1 : 0.8))
@@ -56,30 +35,6 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
             max={28}
             step={1}
             format={v => `${v} dias`}
-          />
-        </CfgRow>
-
-        <CfgRow
-          label="Confiança alvo"
-          hint="Nível de certeza Bayesiana exigido para declarar um vencedor"
-        >
-          <Slider
-            value={config.confidence}
-            onChange={v => onChange('confidence', v)}
-            min={80}
-            max={99}
-            step={1}
-            format={v => `${v}%`}
-          />
-        </CfgRow>
-
-        <CfgRow
-          label="Aplicar vencedor automaticamente"
-          hint="Publica a variante vencedora assim que a confiança for atingida"
-        >
-          <ConfigToggle
-            checked={config.autoApply}
-            onChange={v => onChange('autoApply', v)}
           />
         </CfgRow>
 
@@ -107,16 +62,6 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
             onChange={v => onChange('rotation', v)}
             labels={ROTATION_LABELS}
             aria-label="Padrão de rotação"
-          />
-        </CfgRow>
-
-        <CfgRow
-          label="Playoff automático"
-          hint="Se nenhuma variante vencer, cria automaticamente um Round 2 com as finalistas"
-        >
-          <ConfigToggle
-            checked={config.playoff}
-            onChange={v => onChange('playoff', v)}
           />
         </CfgRow>
       </div>

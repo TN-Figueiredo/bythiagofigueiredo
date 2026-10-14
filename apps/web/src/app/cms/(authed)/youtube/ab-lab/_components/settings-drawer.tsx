@@ -194,29 +194,6 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
               </div>
 
               <div className="flex items-center justify-between gap-[16px] py-[13px]" style={{ borderTop: '1px solid var(--cms-border, #332D25)' }}>
-                <div className="text-[13.5px] font-semibold flex items-center">Confiança alvo <InfoTip text="O motor só declara vencedor quando a probabilidade Bayesiana atinge este limiar." /></div>
-                <div className="flex items-center gap-[12px] shrink-0" style={{ width: 200 }}>
-                  <input
-                    type="range" min={80} max={99}
-                    value={Math.round(edited.default_confidence * 100)}
-                    onChange={e => update('default_confidence', Number(e.target.value) / 100)}
-                    className="flex-1"
-                  />
-                  <span className="font-mono text-[13px] font-bold text-cms-accent w-[38px] text-right">
-                    {Math.round(edited.default_confidence * 100)}%
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-[16px] py-[13px]" style={{ borderTop: '1px solid var(--cms-border, #332D25)' }}>
-                <div className="text-[13.5px] font-semibold flex items-center">
-                  Aplicar vencedor automaticamente
-                  <InfoTip text="Quando o teste conclui, troca a thumbnail/título no YouTube para a variante vencedora." />
-                </div>
-                <SettingsToggle checked={edited.default_auto_apply} onChange={v => update('default_auto_apply', v)} />
-              </div>
-
-              <div className="flex items-center justify-between gap-[16px] py-[13px]" style={{ borderTop: '1px solid var(--cms-border, #332D25)' }}>
                 <div className="text-[13.5px] font-semibold flex items-center">
                   Burn-in
                   <InfoTip text="Ignora os primeiros N dias de dados para evitar viés do algoritmo do YouTube." />

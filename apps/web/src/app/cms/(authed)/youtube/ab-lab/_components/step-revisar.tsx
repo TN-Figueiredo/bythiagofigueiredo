@@ -4,7 +4,7 @@ import { CheckCircle } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import { Badge, VChip } from './ab-primitives'
-import { VARIANT_COLORS, TYPE_META, formatPercent } from './ab-constants'
+import { VARIANT_COLORS, TYPE_META } from './ab-constants'
 import { ClickMoment } from './click-moment'
 
 /* ------------------------------------------------------------------ */
@@ -52,8 +52,6 @@ function buildSummaryText(
     `${variants.length} variantes ${TYPE_LABELS_PT[type]}`,
     `rotação ${ROTATION_LABELS[config.rotation]}`,
     `${config.duration} dias`,
-    `confiança ${formatPercent(config.confidence, 0)}`,
-    config.playoff ? 'playoff on' : 'playoff off',
   ]
   return parts.join(' · ')
 }

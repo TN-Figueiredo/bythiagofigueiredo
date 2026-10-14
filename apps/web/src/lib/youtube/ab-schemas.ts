@@ -28,7 +28,8 @@ export const AbTestConfigSchema = z.object({
   max_duration_days: z.number().int().min(7).max(28),
   confidence_threshold: z.number().min(0.80).max(0.99),
   burn_in_days: z.number().int().min(0).max(3),
-  auto_apply_winner: z.boolean(),
+  /** @deprecated ignorada desde 10/2026 (A/B Lab P2) */
+  auto_apply_winner: z.boolean().optional(),
   rotation_pattern: z.enum(['abba', 'round_robin', 'random']),
   stability_threshold: z.number().int().min(1).max(10),
 })
@@ -36,7 +37,8 @@ export const AbTestConfigSchema = z.object({
 export const AbTestSiteSettingsSchema = z.object({
   default_duration_days: z.number().int().min(7).max(28),
   default_confidence: z.number().min(0.80).max(0.99),
-  default_auto_apply: z.boolean(),
+  /** @deprecated ignorada desde 10/2026 (A/B Lab P2) */
+  default_auto_apply: z.boolean().optional(),
   default_burn_in_days: z.number().int().min(0).max(3),
   ctr_drop_trigger: z.object({
     enabled: z.boolean(),

@@ -26,8 +26,8 @@ vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
 }))
 vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
-vi.mock('@/lib/youtube/ab-types', () => ({
-  AB_TEST_CONFIG_DEFAULTS: { duration_days: 14, confidence_threshold: 0.95, auto_apply_winner: false, rotation_pattern: 'abba' },
+vi.mock('@/lib/youtube/ab-types', async (importActual) => ({
+  AB_TEST_CONFIG_DEFAULTS: (await importActual<typeof import('@/lib/youtube/ab-types')>()).AB_TEST_CONFIG_DEFAULTS,
   VARIANT_LABELS: ['A', 'B', 'C', 'D'],
   DRIFT_STATUS_NOTE: 'Thumbnail alterado externamente',
 }))
@@ -211,6 +211,8 @@ describe('createAbTest', () => {
     const testInsert = insertCalls.find(c => c.table === 'ab_tests')
     expect(testInsert).toBeDefined()
     expect((testInsert!.data as Record<string, unknown>).original_thumbnail_url).toBe(BLOB_URL)
+    // A/B Lab P2: o config gravado na criação não carrega mais auto_apply_winner
+    expect((testInsert!.data as { config: Record<string, unknown> }).config).not.toHaveProperty('auto_apply_winner')
 
     // Revalidation
     expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
