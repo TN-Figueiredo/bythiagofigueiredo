@@ -16,6 +16,8 @@ const ORDEM_EMPATE = 'Empate: mesmo valor na tela, mesma posição.'
 const FAIXA_SEM_POSICAO = 'A posição do seu canal em relação aos outros só existe em Inscritos e Views/dia, os números de tamanho e de alcance. Aqui, a coluna P numera os canais da lista.'
 const DICA_SEM_VARIACAO = 'A diferença é menor que'
 const DICA_SEM_VARIACAO_FIM = 'dentro do que o corte da contagem pelo YouTube explica.'
+// A5_TEMA=light roda a spec no tema claro (padrão: escuro); A5_SHOTS=<pasta> salva uma captura por caso
+const TEMA = process.env.A5_TEMA === 'light' ? 'light' : 'dark'
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
 
 let intrusos: string[] = [], erros: string[] = [], cincoXX: string[] = []
@@ -28,7 +30,7 @@ test.beforeEach(async ({ page }) => {
   test.setTimeout(150_000)
   intrusos = []; erros = []; cincoXX = []
   await resetViewerPrefs(await getSeedSiteId())
-  await page.context().addCookies([{ name: 'btf_theme', value: 'dark', url: 'http://localhost:3099' }])
+  await page.context().addCookies([{ name: 'btf_theme', value: TEMA, url: 'http://localhost:3099' }])
   // FAIL-CLOSED: toda server action (POST com `next-action`) é abortada e reprova o teste no fim
   await page.context().route('**/*', async route => {
     const r = route.request()
@@ -56,7 +58,8 @@ test.beforeEach(async ({ page }) => {
     }
   })
 })
-test.afterEach(() => {
+test.afterEach(async ({ page }, info) => {
+  if (process.env.A5_SHOTS) { const v = page.viewportSize()?.width ?? 0; await page.screenshot({ path: `${process.env.A5_SHOTS}/${info.title.split('.')[0]}-${v}-${TEMA}.png` }).catch(() => {}) }
   if (intrusos.length) throw new Error(`Server action INESPERADA abortada: ${intrusos.length}. Primeira: ${intrusos[0]}`)
   expect(cincoXX, 'respostas 5xx').toEqual([])
   expect(erros, 'erros de console').toEqual([])
@@ -189,10 +192,14 @@ test('5. Clicar na dica não abre o painel; clicar no nome abre', async ({ page 
   await dica.click()
   await page.waitForTimeout(400)
   expect(param(page, 'channel'), 'a dica não abre o painel').toBeNull()
-  await linhaDe(page, NOME_A).locator('td:nth-child(2) a').first().click()
-  await expect.poll(() => param(page, 'channel'), { timeout: 10_000 }).not.toBeNull()
+  // A4: o nome de um concorrente leva à PÁGINA do canal (o painel lateral não abre mais)
+  await linhaDe(page, NOME_A).locator('.nmbtn').first().click()
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toMatch(/\/competitors\/canal\/[^/]+$/)
 })
 
+// toque de verdade: `tap()` exige hasTouch e o alvo de 44 px vive em `@media (pointer: coarse)` (isMobile)
+test.describe('celular', () => {
+test.use({ hasTouch: true, isMobile: true })
 test('6. 390 px: barra presa, Direção inverte, Trocas visível, alvos, dica abre e fecha, caixa dentro da janela', async ({ page }) => {
   await abrir(page, D390)
   const barra = page.getByTestId('canais-sortbar').locator('visible=true').first()
@@ -202,6 +209,7 @@ test('6. 390 px: barra presa, Direção inverte, Trocas visível, alvos, dica ab
   await page.waitForTimeout(300)
   const topo = await caixa(page.locator('.cms-topbar').first())
   const b0 = await caixa(barra)
+  if (process.env.A5_SHOTS) await page.screenshot({ path: `${process.env.A5_SHOTS}/6c-presa-390-${TEMA}.png` })
   expect(Math.abs(b0.y - topo.bottom), `barra y=${b0.y} vs bottom da barra do topo=${topo.bottom}`).toBeLessThanOrEqual(1)
   await rolarPara(page, 0)
   // Direção ordena; de novo inverte
@@ -219,7 +227,12 @@ test('6. 390 px: barra presa, Direção inverte, Trocas visível, alvos, dica ab
   const bb = await caixa(barra)
   expect(bt.x).toBeGreaterThanOrEqual(bb.x - 0.5); expect(bt.right).toBeLessThanOrEqual(bb.right + 0.5)
   expect(bt.y).toBeGreaterThanOrEqual(bb.y - 0.5); expect(bt.bottom).toBeLessThanOrEqual(bb.bottom + 0.5)
-  expect(bb.h, 'altura da barra (<= 112 px; se passar, devolver ao controlador)').toBeLessThanOrEqual(112)
+  const botoes = await Promise.all((await barra.getByRole('button').all()).map(caixa))
+  const linhasBarra = new Set(botoes.map(b => Math.round(b.y))).size
+  test.info().annotations.push({ type: 'barra', description: `h=${bb.h} linhas=${linhasBarra} botoes=${botoes.map(b => `${Math.round(b.w)}x${Math.round(b.h)}`).join(',')} tema=${TEMA}` })
+  if (process.env.A5_SHOTS) await barra.screenshot({ path: `${process.env.A5_SHOTS}/6b-barra-390-${TEMA}.png` })
+  console.log(`BARRA390 caixa=${Math.round(bb.x)}..${Math.round(bb.right)} cartao=${Math.round((await caixa(page.locator(`${S}:visible .cards article`).first())).x)} h=${bb.h} linhas=${linhasBarra} botoes=${botoes.map(b => `${Math.round(b.w)}x${Math.round(b.h)}@${Math.round(b.x)},${Math.round(b.y)}`).join(' ')}`)
+  expect.soft(bb.h, 'altura da barra (<= 112 px; se passar, devolver ao controlador)').toBeLessThanOrEqual(112)
   // alvo de toque de cada botão >= 44 px de altura (Naksu A2)
   for (const bot of await barra.getByRole('button').all()) expect((await caixa(bot)).h).toBeGreaterThanOrEqual(44)
   // células com dica: alvo >= 44 px (A8); tocar abre, de novo fecha, fora fecha; a caixa cabe nos 390 px na 1ª e na última coluna do cartão
@@ -246,6 +259,7 @@ test('6. 390 px: barra presa, Direção inverte, Trocas visível, alvos, dica ab
   // sem rolagem horizontal da página
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
+})
 
 test('7. Faixa do seu canal: Crescimento sem medida, links para Inscritos e Views/dia', async ({ page }) => {
   await abrir(page, D1440, '?sort=growth')
@@ -261,7 +275,7 @@ test('7. Faixa do seu canal: Crescimento sem medida, links para Inscritos e View
   await expect.poll(() => param(page, 'sort'), { timeout: 10_000 }).toBe('growth')
   await assentou(page)
   await page.getByTestId('canais-faixa').locator('visible=true').first().getByRole('link', { name: 'Ordenar por Views/dia' }).click()
-  await expect.poll(() => param(page, 'sort'), { timeout: 10_000 }).toBe('vpd')
+  await expect.poll(() => param(page, 'sort') ?? 'vpd', { timeout: 10_000 }).toBe('vpd') // vpd é a ordenação padrão: a URL não leva sort=
   await expect(tela(page)).toBeVisible()
 })
 
