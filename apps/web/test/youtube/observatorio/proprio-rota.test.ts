@@ -3,7 +3,17 @@
 // canal próprio sem vídeos é resolvido ANTES de qualquer leitura privada (D10); quem não edita o site abre a página com o token nulo;
 // o id que chega aos leitores é o RESOLVIDO do canal, nunca o texto da URL; o conjunto do site só é lido neste ramo.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { ReactElement, ReactNode } from 'react'
+import fs from 'node:fs'
+import path from 'node:path'
+import { Suspense, type ReactElement, type ReactNode } from 'react'
+import * as Sentry from '@sentry/nextjs'
+import { dims, detalhe, ok as okDado } from './proprio-origem-fixture'
+import type { OrigemLida } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem'
+import type { DiarioLongo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
+import type { OrigemView } from '@/app/cms/(authed)/youtube/competitors/_proprio/origem-model'
+import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { proprioWorld, semVideos, umCanal, DADOS } from './proprio-fixture'
 import { a3World } from './a3-fixture'
 import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
@@ -23,8 +33,13 @@ const state = {
   dados: vi.fn(async (_a: unknown) => w.dados),
   abrirSite: vi.fn(),
   extras: vi.fn(async (..._a: unknown[]) => undefined),
+  origem: vi.fn(async (_a: unknown): Promise<Privado<OrigemLida>> => ({ acesso: 'erro' })),
+  termos: vi.fn(async (_a: unknown): Promise<Privado<DetalheCanal>> => ({ acesso: 'negado' })),
+  longo: vi.fn(async (_a: unknown): Promise<Privado<DiarioLongo>> => ({ acesso: 'erro' })),
 }
-const EDICAO = { siteId: 'site-secreto-t8' } as unknown as LeituraPrivadaDoSite // só a identidade importa nesta camada (o módulo da guarda é mockado)
+// só a identidade importa nesta camada (o módulo da guarda é mockado). O `siteId` NÃO é enumerável, como no token real (getter): a página passa o token a componentes
+// de servidor dentro de `Suspense`, e o teste do "token nunca está nas props" serializa a árvore inteira.
+const EDICAO = Object.defineProperty({}, 'siteId', { value: 'site-secreto-t8', enumerable: false }) as LeituraPrivadaDoSite
 
 vi.mock('server-only', () => ({}))
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) }, notFound: () => { throw new Error('NOT_FOUND') } }))
@@ -37,7 +52,11 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   lerDadosDoCanal: (a: unknown) => state.dados(a),
   longosAcompanhadosDe: () => [],
   podeVerPrivado: async () => null,
+  lerDiarioLongo: (a: unknown) => state.longo(a),
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem', () => ({ lerOrigem: (a: unknown) => state.origem(a) }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-termos', () => ({ lerTermosESites: (a: unknown) => state.termos(a) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () => ({ carregarExtrasProprio: (...a: unknown[]) => state.extras(...a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome', () => ({ TrailChrome: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_canal/canal-screen', () => ({ CanalScreen: () => null, CanalNotFound: () => null }))
@@ -170,5 +189,121 @@ describe('T8 rota canal/[id] do canal próprio', () => {
 
   it('o relógio do dado privado é o dia do YouTube da página e o formatador de dia é o do dm', () => {
     expect(dmDia(w.hoje)).toMatch(/^\d\d\/\d\d$/)
+  })
+})
+
+describe('E5b T17: a aba Origem (17b) e os cartões da aba Retenção (17a) vão em Suspense próprio', () => {
+  type No = ReactElement<{ fallback: ReactElement; children: ReactElement<Record<string, unknown>> }>
+  const prop = (el: ReactElement<{ children: ReactNode }>, k: 'origem' | 'periodos') => filho(el).props[k] as No | undefined
+  const resolverOrigem = async (n: No) => (await (n.props.children.type as (p: unknown) => Promise<ReactElement<{ view: OrigemView }>>)(n.props.children.props)).props.view
+  const diarioOrigem = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: w.canalId, de: '2026-10-05', ate: '2026-10-11', linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map() } })
+  const origemOk = (conhecida = false, inteiro: DiarioDoPeriodo | null = null): Privado<OrigemLida> => ({ acesso: 'ok', dado: { dimensoes: dims(), diario: diarioOrigem(conhecida), diarioInteiro: inteiro, trechos: 1 } })
+  const avisos = (step: string) => vi.mocked(Sentry.captureMessage).mock.calls.filter(c => (c[1] as { tags?: { step?: string } } | undefined)?.tags?.step === step)
+  const todosOsYtIds = () => wUm.obs.videos.filter(v => v.ch === wUm.canalId).map(v => v.ytId)
+
+  beforeEach(() => {
+    state.origem.mockImplementation(async () => ({ acesso: 'erro' })); state.termos.mockImplementation(async () => ({ acesso: 'negado' })); state.longo.mockImplementation(async () => ({ acesso: 'erro' }))
+  })
+
+  it('a origem e os cartões estão cada um num Suspense com o esqueleto, e nenhum leitor roda antes do primeiro HTML', async () => {
+    const el = await rota(w.canalId)
+    const o = prop(el, 'origem')!, p = prop(el, 'periodos')!
+    expect(o.type).toBe(Suspense); expect(p.type).toBe(Suspense)
+    expect((o.props.fallback.type as { name?: string }).name).toBe('OrigemEsqueleto')
+    expect((p.props.fallback.type as { name?: string }).name).toBe('AssistidoEsqueleto')
+    expect((o.props.children.type as { name?: string }).name).toBe('OrigemDoCanal')
+    expect((p.props.children.type as { name?: string }).name).toBe('AssistidoDoCanal')
+    expect(state.origem).not.toHaveBeenCalled(); expect(state.termos).not.toHaveBeenCalled(); expect(state.longo).not.toHaveBeenCalled()
+  })
+
+  it('canal próprio sem prova (quem só lê): lerOrigem e lerTermosESites não são chamados e a vista é "só o aviso", sem número', async () => {
+    cenario({ leitura: null })
+    state.dados.mockImplementation(async () => DADOS.negado(w.canalId, w.ytIds, w.hoje))
+    const el = await rota(w.canalId)
+    expect(prop(el, 'periodos')).toBeUndefined()   // diário negado: nada para ler
+    const view = await resolverOrigem(prop(el, 'origem')!)
+    expect(view.nivel).toBe('so-aviso'); expect(view.periodos).toEqual([])
+    expect(state.origem).not.toHaveBeenCalled(); expect(state.termos).not.toHaveBeenCalled()
+  })
+
+  it('com ?tab=origem e sem prova: a mesma coisa (o aviso, nenhum número, nenhum leitor)', async () => {
+    cenario({ leitura: null })
+    state.dados.mockImplementation(async () => DADOS.negado(w.canalId, w.ytIds, w.hoje))
+    const el = await rota(w.canalId, { tab: 'origem' })
+    expect((filho(el).props.view as { state: { tab: string } }).state.tab).toBe('origem')
+    const view = await resolverOrigem(prop(el, 'origem')!)
+    expect(view.semAcesso).not.toBeNull()
+    expect(state.origem).not.toHaveBeenCalled()
+  })
+
+  it('lê TODOS os vídeos do canal (Short e vídeo não acompanhado inclusive), com o token e o último dia do diário; ownYtIds não é o conjunto', async () => {
+    state.origem.mockResolvedValue(origemOk()); state.termos.mockResolvedValue(okDado(detalhe()))
+    const el = await rota(w.canalId)
+    await resolverOrigem(prop(el, 'origem')!)
+    const a = state.origem.mock.calls[0]![0] as { canalId: string; ytIds: string[]; prova: unknown; diarioDesde: string; ate: string }
+    expect(a).toMatchObject({ canalId: w.canalId, prova: EDICAO })
+    expect([...a.ytIds].sort()).toEqual(todosOsYtIds().sort())
+    expect(a.ytIds.length).toBeGreaterThan(w.ytIds.length)   // há vídeos que não são longos acompanhados na fixture
+    const t = state.termos.mock.calls[0]![0] as { ytIds: string[] }
+    expect([...t.ytIds].sort()).toEqual([...a.ytIds].sort())
+  })
+
+  it('períodos: 7, 28, 90 dias e "Desde {ano}" com o ano do vídeo MAIS ANTIGO; o total longo vem do diário inteiro, e diarioInteiro nulo lê não medido sem derrubar as outras três', async () => {
+    state.origem.mockResolvedValue(origemOk(true, null)); state.termos.mockResolvedValue(okDado(detalhe()))
+    const el = await rota(w.canalId)
+    const view = await resolverOrigem(prop(el, 'origem')!)
+    const ano = new Date(Math.min(...wUm.obs.videos.filter(v => v.ch === wUm.canalId).map(v => v.pub))).getUTCFullYear()
+    expect(view.periodos.map(p => p.id)).toEqual(['7', '28', '90', 'tudo'])
+    expect(view.periodos[3]!.rotulo).toBe(`Desde ${ano}`)
+    expect(view.periodos[3]!.grupo.total).toMatch(/^não medido/)
+    // o contador público do canal nunca é o total
+    const publico = String(wUm.obs.channel(wUm.canalId)!.views ?? '')
+    if (publico) expect(JSON.stringify(view.periodos.map(p => p.grupo.total))).not.toContain(wUm.obs.fmt.int(Number(publico)))
+  })
+
+  it('podeEditar sai de canEdit; termos em erro para quem edita: nível tudo, bloco de termos em erro, um aviso; negados para quem só lê: sem-termos', async () => {
+    state.origem.mockResolvedValue(origemOk()); state.termos.mockResolvedValue({ acesso: 'erro' })
+    const v1 = await resolverOrigem(prop(await rota(w.canalId), 'origem')!)
+    expect(v1.nivel).toBe('tudo')
+    expect(v1.periodos[0]!.grupo.blocos.find(b => b.id === 'termos')!.estado).toBe('erro')
+    expect(avisos('origem-termos')).toHaveLength(1)
+    // tem a prova mas não edita: canEdit falso
+    cenario({ leitura: EDICAO }); state.page = { ...state.page!, canEdit: false }
+    state.termos.mockResolvedValue({ acesso: 'negado' })
+    const v2 = await resolverOrigem(prop(await rota(w.canalId), 'origem')!)
+    expect(v2.nivel).toBe('sem-termos')
+    expect(JSON.stringify(v2)).not.toMatch(/sentinela-termo-xyz|sentinela\.example/)
+  })
+
+  it('um aviso de cobertura por requisição quando há vídeo fora ou parado (só contagens, sem id de vídeo), e nenhum com a origem em erro', async () => {
+    state.origem.mockResolvedValue(origemOk(true)); state.termos.mockResolvedValue(okDado(detalhe()))
+    await resolverOrigem(prop(await rota(w.canalId), 'origem')!)
+    const c = avisos('origem-cobertura')
+    expect(c).toHaveLength(1)
+    expect(JSON.stringify(c[0])).not.toContain(todosOsYtIds()[0]!)
+    vi.mocked(Sentry.captureMessage).mockClear()
+    state.origem.mockResolvedValue({ acesso: 'erro' })
+    await resolverOrigem(prop(await rota(w.canalId), 'origem')!)
+    expect(avisos('origem-cobertura')).toHaveLength(0)
+  })
+
+  it('a aba Retenção continua lendo só os longos acompanhados (ownYtIds) e o último dia do diário, com o token', async () => {
+    const el = await rota(w.canalId)
+    const p = prop(el, 'periodos')!
+    const vista = await (p.props.children.type as (x: unknown) => Promise<ReactElement<{ view: { estado: string } }>>)(p.props.children.props)
+    expect(vista.props.view.estado).toBe('erro')   // o leitor longo do teste devolve erro
+    const a = state.longo.mock.calls[0]![0] as { canalId: string; ytIds: string[]; leitura: unknown; ultimoDia: string }
+    expect(a).toMatchObject({ canalId: w.canalId, leitura: EDICAO, ytIds: wUm.ytIds })
+  })
+
+  it('a página não importa o leitor do diário por período (a varredura proíbe) e a rota do concorrente não lê nada disto', async () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/canal/[id]/page.tsx'), 'utf8')
+    expect(src).not.toMatch(/ler-diario-periodo|lerDiarioDoPeriodo/)
+    expect("import { lerDiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'").toMatch(/ler-diario-periodo|lerDiarioDoPeriodo/)
+    const conc = w.obs.channels.find(c => !c.own)!.id
+    const wc = a3World(ds => { const c = ds.channels.find(x => x.id === conc)!; ds.channels = [c]; ds.videos = ds.videos.filter(v => v.ch === conc); ds.scope = 'canal' })
+    state.page = { ...state.page!, obs: wc.obs, ownYtIds: [] }
+    await rota(conc)
+    expect(state.origem).not.toHaveBeenCalled(); expect(state.termos).not.toHaveBeenCalled(); expect(state.longo).not.toHaveBeenCalled()
   })
 })

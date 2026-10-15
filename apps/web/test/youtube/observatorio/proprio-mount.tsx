@@ -25,12 +25,12 @@ export function viewDe(w: Mundo, sp: Record<string, string | undefined> = {}, o:
   return v
 }
 
-export function mountProprio(o: { world?: Mundo; sp?: Record<string, string | undefined>; comoEsta?: ReactNode; semConcorrente?: boolean } = {}) {
+export function mountProprio(o: { world?: Mundo; sp?: Record<string, string | undefined>; comoEsta?: ReactNode; periodos?: ReactNode; origem?: ReactNode; semConcorrente?: boolean } = {}) {
   const w = o.world ?? proprioWorld()
   const sp = o.sp ?? {}
   urlDoTeste(sp)
   const view = viewDe(w, sp, { semConcorrente: o.semConcorrente })
-  const wrap = (v: ProprioView) => <ToastProvider><div data-obs=""><ProprioScreen view={v} comoEsta={o.comoEsta} /></div></ToastProvider>
+  const wrap = (v: ProprioView) => <ToastProvider><div data-obs=""><ProprioScreen view={v} comoEsta={o.comoEsta} periodos={o.periodos} origem={o.origem} /></div></ToastProvider>
   const r = render(wrap(view))
   return {
     ...r, view, w,

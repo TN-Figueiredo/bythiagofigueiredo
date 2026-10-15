@@ -15,6 +15,13 @@ describe('estado da página do canal na URL', () => {
     expect(parseCanalState({ tab: 'retencao', sort: 'imp' }, { own: true })).toEqual({ ...CANAL_DEFAULT, tab: 'retencao', sort: 'imp' })
     expect(parseCanalState({ fmt: 'fixados', sort: 'vpd' }, { own: true })).toEqual(CANAL_DEFAULT)
   })
+  it('E5b T17: ?tab=origem abre na aba Origem no canal próprio; num canal de concorrente cai no padrão', () => {
+    expect(parseCanalState({ tab: 'origem' }, { own: true }).tab).toBe('origem')
+    expect(parseCanalState({ tab: 'origem' }, { own: false }).tab).toBe(CANAL_DEFAULT.tab)
+    expect(parseCanalState({ tab: 'origem' }).tab).toBe(CANAL_DEFAULT.tab)
+    const s = { ...CANAL_DEFAULT, tab: 'origem' as const }
+    expect(parseCanalState(Object.fromEntries(new URLSearchParams(canalQuery(s))), { own: true })).toEqual(s)
+  })
   it('n vira o múltiplo de 40 abaixo e tem teto', () => {
     expect(parseCanalState({ n: '37' }).n).toBe(0)
     expect(parseCanalState({ n: '95' }).n).toBe(80)

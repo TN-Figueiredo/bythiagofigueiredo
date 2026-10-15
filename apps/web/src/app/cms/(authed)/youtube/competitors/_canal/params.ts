@@ -24,7 +24,7 @@ const TABS: readonly CanalTab[] = ['videos', 'trocas', 'leitura']
 const FMTS: readonly CanalFmt[] = ['todos', 'longos', 'shorts', 'fixados']
 const SORTS: readonly CanalSort[] = ['recentes', 'vistos', 'multiplo', 'vpd']
 /* Canal próprio (spec 16.4): ganha a aba Retenção e a ordenação por impressões; não tem fixados nem views por dia por vídeo no motor. */
-const TABS_PROPRIO: readonly CanalTab[] = ['videos', 'trocas', 'leitura', 'retencao']
+const TABS_PROPRIO: readonly CanalTab[] = ['videos', 'trocas', 'leitura', 'retencao', 'origem']
 const FMTS_PROPRIO: readonly CanalFmt[] = ['todos', 'longos', 'shorts']
 const SORTS_PROPRIO: readonly CanalSort[] = ['recentes', 'vistos', 'multiplo', 'imp']
 const DIRS = ['asc', 'desc'] as const

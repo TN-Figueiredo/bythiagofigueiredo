@@ -219,6 +219,19 @@ describe('13.3 segurança do canal próprio: quem edita × quem só lê', () => 
     }
   })
 
+  it('E5b T17: quem só lê o site abre a aba Origem em "só o aviso": os nós da origem e dos cartões, resolvidos, não têm sentinela (nem o termo, nem o endereço), nenhum leitor roda e o cliente de serviço não é criado', async () => {
+    guarda.ok = false
+    const moldura = (await rota(w.canalId, { tab: 'origem' })) as { props: { children: { props: { origem?: { props: { children: { type: unknown; props: unknown } } }; periodos?: unknown } } } }
+    expect(moldura.props.children.props.periodos).toBeUndefined()   // diário negado: os cartões da Retenção nem existem
+    const no = moldura.props.children.props.origem!.props.children
+    render(await (no.type as (p: unknown) => Promise<ReactNode>)(no.props))
+    expect(texto()).toContain('Dado que você não vê')
+    expect(achados(SENTINELAS, html(), texto())).toEqual([])
+    for (const x of ['sentinela-termo-xyz', 'sentinela.example']) expect(html()).not.toContain(x)
+    expect(servico.criado).toBe(0)
+    expect(db.trips).toEqual([])
+  })
+
   it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (edição e leitura, nada além) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
     guarda.ok = false
     await rota(w.canalId)

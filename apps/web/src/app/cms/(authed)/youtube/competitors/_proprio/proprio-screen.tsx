@@ -1,7 +1,7 @@
 'use client'
 /**
  * A página do canal próprio (spec 16): o cabeçalho, a seção "Como o canal está" (encaixada por quem monta a página, acima das abas), as abas
- * Vídeos / Trocas / Leitura / Retenção e a aba Vídeos (a MESMA do concorrente: controles, Capas ou Lista, "Carregar mais"; as colunas de
+ * Vídeos / Trocas / Leitura / Retenção / Origem e a aba Vídeos (a MESMA do concorrente: controles, Capas ou Lista, "Carregar mais"; as colunas de
  * alcance vêm do dado). Trocas, Leitura e Retenção dizem, em frase, o que ainda não existe. Tudo troca no navegador (o servidor já mandou
  * o pacote inteiro); o estado nasce da URL e o hook o relê COMO canal próprio (`sort=imp` e `tab=retencao` não voltam ao padrão).
  * Recebe só o que o modelo montou: no estado `negado` nenhum número privado está nas props, e o token de edição não chega aqui.
@@ -55,7 +55,7 @@ export function ProprioSemVideos({ nome, canaisHref }: { nome: string; canaisHre
   )
 }
 
-const TITULOS: Record<Exclude<CanalTab, 'videos'>, string> = { trocas: 'Trocas', leitura: 'Leitura', retencao: 'Retenção' }
+const TITULOS: Record<Exclude<CanalTab, 'videos'>, string> = { trocas: 'Trocas', leitura: 'Leitura', retencao: 'Retenção', origem: 'Origem' }
 
 /** Ordem e nome das abas do canal próprio (spec 16.4). A contagem só na de Vídeos. */
 function Abas({ view, state, resumo, onAba }: { view: ProprioView; state: CanalState; resumo: string | null; onAba: (tab: CanalTab) => void }) {
@@ -64,6 +64,7 @@ function Abas({ view, state, resumo, onAba }: { view: ProprioView; state: CanalS
     { tab: 'trocas', texto: 'Trocas', n: '' },
     { tab: 'leitura', texto: 'Leitura', n: '' },
     { tab: 'retencao', texto: 'Retenção', n: '' },
+    { tab: 'origem', texto: 'Origem', n: '' },
   ]
   return (
     <nav className="ctabs" aria-label="Seções do canal">
@@ -85,7 +86,11 @@ function Abas({ view, state, resumo, onAba }: { view: ProprioView; state: CanalS
   )
 }
 
-export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?: ReactNode; children?: never }) {
+/**
+ * `periodos` = os três cartões de % assistido por período da aba Retenção e `origem` = o grupo da aba Origem, JÁ renderizados no servidor (cada um num
+ * `Suspense` da página): o cliente só decide se os mostra. Nunca recebem token nem dado cru, só nós prontos.
+ */
+export function ProprioScreen({ view, comoEsta, periodos, origem }: { view: ProprioView; comoEsta?: ReactNode; periodos?: ReactNode; origem?: ReactNode; children?: never }) {
   const h = view.header
   const [state, set] = useCanalState(view.state, true)
   const pg = usePaginaGrade(state)
@@ -185,7 +190,13 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
       {comoEsta ?? null}
       <Abas view={view} state={state} resumo={resumo} onAba={irParaAba} />
       <AbaVideos videos={view.videos} state={state} lista={lista} pg={pg} set={setAba} nome={h.name} channelId={h.id} onAmpliar={ampliarVideo} raiz={raiz} proprio />
-      {state.tab === 'retencao' ? <Retencao view={view.retencao} /> : null}
+      {state.tab === 'retencao' ? <><Retencao view={view.retencao} />{periodos ?? null}</> : null}
+      {state.tab === 'origem' ? (
+        <section aria-labelledby="pr-h2" className="ct-sec">
+          <h2 id="pr-h2" className="ct-h2" tabIndex={-1}>Origem</h2>
+          {origem ?? null}
+        </section>
+      ) : null}
       {state.tab === 'trocas' || state.tab === 'leitura' ? (
         <AbaSemConteudo id="pr-h2" titulo={TITULOS[state.tab]} frase={view.abas[state.tab]} nota={view.abasNota[state.tab]} />
       ) : null}

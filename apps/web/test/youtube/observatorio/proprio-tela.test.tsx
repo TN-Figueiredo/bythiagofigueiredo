@@ -118,11 +118,11 @@ describe('T8 a raiz e o cabeçalho', () => {
   })
 })
 
-describe('T8 abas: Vídeos, Trocas, Leitura e Retenção', () => {
-  it('as quatro abas, nessa ordem, com a contagem só na de Vídeos; Retenção só existe no canal próprio', () => {
+describe('T8 abas: Vídeos, Trocas, Leitura, Retenção e Origem', () => {
+  it('as cinco abas, nessa ordem (Origem é a quinta), com a contagem só na de Vídeos; Retenção e Origem só existem no canal próprio', () => {
     const { view } = mountProprio()
     const itens = [...raiz().querySelectorAll('nav.ctabs li a')].map(a => norm(a.textContent))
-    expect(itens).toEqual([`Vídeos ${view.videos.videos.length}`, 'Trocas', 'Leitura', 'Retenção'])
+    expect(itens).toEqual([`Vídeos ${view.videos.videos.length}`, 'Trocas', 'Leitura', 'Retenção', 'Origem'])
     expect(raiz().querySelector('nav.ctabs a[aria-current="page"]')!.textContent).toMatch(/^Vídeos/)
   })
 
@@ -155,6 +155,28 @@ describe('T8 abas: Vídeos, Trocas, Leitura e Retenção', () => {
     expect(push).not.toHaveBeenCalled() // troca no cliente
     expect(urlAtual().get('tab')).toBe('retencao')
     window.history.back()
+  })
+
+  it('E5b T17: vindo da aba Vídeos, clicar em Origem mostra o nó recebido em `origem` (e nada dele antes); ?tab=origem abre direto', async () => {
+    const user = userEvent.setup()
+    mountProprio({ origem: <p data-testid="no-origem">grupo da origem</p> })
+    expect(screen.queryByTestId('no-origem')).toBeNull()
+    await user.click(tabs().getByRole('link', { name: 'Origem' }))
+    expect(screen.getByTestId('no-origem').textContent).toBe('grupo da origem')
+    expect(screen.getByRole('heading', { level: 2, name: 'Origem' })).toBeTruthy()
+    expect(urlAtual().get('tab')).toBe('origem')
+    cleanup()
+    mountProprio({ sp: { tab: 'origem' }, origem: <p data-testid="no-origem">grupo da origem</p> })
+    expect(tabs().getByRole('link', { name: 'Origem' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByTestId('no-origem')).toBeTruthy()
+  })
+
+  it('E5b T17: os cartões de período entram na aba Retenção (e só nela)', async () => {
+    const user = userEvent.setup()
+    mountProprio({ periodos: <p data-testid="no-periodos">cartões</p> })
+    expect(screen.queryByTestId('no-periodos')).toBeNull()
+    await user.click(tabs().getByRole('link', { name: 'Retenção' }))
+    expect(screen.getByTestId('no-periodos')).toBeTruthy()
   })
 
   it('a frase das views por dia aparece UMA vez, na linha das abas, não em cada cartão (13.3: o cartão leva o número, não a frase)', () => {

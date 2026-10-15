@@ -295,11 +295,11 @@ describe('T10 "No nicho"', () => {
 })
 
 describe('T10 "O que ainda não é medido"', () => {
-  it('13.3: só a curva de retenção e a origem do tráfego (views por dia e % assistido já têm desenho)', () => {
+  it('E5b T17: só a curva de retenção (views por dia, % assistido e a origem das views já têm desenho); "O que ainda não é medido" não cita origem', () => {
     expect(v().naoMedido).toEqual([
       { rotulo: 'Curva de retenção', texto: 'ainda não é coletada.' },
-      { rotulo: 'Origem do tráfego', texto: 'ainda não aparece aqui.' },
     ])
+    expect(JSON.stringify(v().naoMedido)).not.toMatch(/origem/i)
   })
 
   it('é o mesmo com ou sem permissão (não depende do dado privado)', () => {
