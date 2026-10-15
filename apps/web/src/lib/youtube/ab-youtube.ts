@@ -118,6 +118,11 @@ export async function fetchVariantImageBuffer(
   if (!res.ok) throw new YouTubeApiError(res.status, `blob_${res.status}`, 'blob')
   const ct = res.headers.get('content-type') ?? 'image/png'
   const contentType = ct.includes('jpeg') ? ('image/jpeg' as const) : ('image/png' as const)
-  const arrayBuffer = await res.arrayBuffer()
+  let arrayBuffer: ArrayBuffer
+  try {
+    arrayBuffer = await res.arrayBuffer()
+  } catch (e) {
+    throw erroDeRede(e, 'blob')
+  }
   return { buffer: Buffer.from(arrayBuffer), contentType }
 }

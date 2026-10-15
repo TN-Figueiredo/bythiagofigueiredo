@@ -66,10 +66,11 @@ export async function applyVariantToYouTube(input: ApplyVariantInput, opcoes?: O
   try {
     // Thumbnail
     if ((testType === 'thumbnail' || testType === 'combo') && variant.blob_url) {
+      // Blob primeiro: a releitura do restore_seq fica colada na escrita (até 15 s de leitura do Blob antes).
+      const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url)
       if (opcoes?.antesDeEscrever && !(await opcoes.antesDeEscrever())) {
         return { ok: false, perdeuAVez: true, appliedThumbnail, appliedMetadata, meta }
       }
-      const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url)
       const result = await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
       appliedThumbnail = true
       meta.thumbnail_set = true

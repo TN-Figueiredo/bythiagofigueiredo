@@ -27,7 +27,12 @@ export async function lerSnippet(
     throw erroDeRede(e, 'videos.list')
   }
   if (!res.ok) throw await erroDaResposta(res, 'videos.list')
-  const data: unknown = await res.json().catch(() => null)
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch (e) {
+    throw erroDeRede(e, 'videos.list') // corpo ilegível ou timeout na leitura: rede, não "vídeo inexistente"
+  }
   const snippet = (data as { items?: Array<{ snippet?: unknown }> } | null)?.items?.[0]?.snippet
   if (!snippet) return null
   return snippet as SnippetLido
