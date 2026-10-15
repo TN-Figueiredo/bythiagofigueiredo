@@ -546,3 +546,12 @@
 [data-obs-screen="canais"] .obs-cn-frase strong{font-weight:600}
 @media (max-width:700px){[data-obs-screen="canais"] .btn,[data-obs-screen="canais"] .btn.small,[data-obs-screen="canais"] .seg button{min-height:44px}}
 [data-obs-screen="canais"] .obs-cn-dirv{display:flex;align-items:flex-start;gap:6px}
+[data-obs-screen="canais"] .obs-cn-casas-leg{margin:0 0 6px;font-size:12px;line-height:16px;color:var(--muted)}
+[data-obs-screen="canais"] .obs-cn-casa:hover .obs-cn-casa-b{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--border-strong)}
+[data-obs-screen="canais"] .obs-cn-casa:focus-visible .obs-cn-casa-b{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+[data-obs-screen="canais"] .obs-cn-casa[aria-pressed="true"]:hover .obs-cn-casa-b{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text)}
+[data-obs-screen="canais"] .obs-cn-fr-bt{display:inline;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+[data-obs-screen="canais"] .obs-cn-fr-bt:hover{text-decoration-style:solid}
+[data-obs-screen="canais"] .obs-cn-fr-bt[aria-pressed="true"]{font-weight:600}
+[data-obs-screen="canais"] .obs-cn-fr-bt:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+[data-obs-screen="canais"] .obs-cn-fora{margin:0 0 6px;font-size:13px;line-height:18px;color:var(--text)}
