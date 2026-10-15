@@ -15,6 +15,10 @@ const LER_RETENCAO = 'lib/youtube/observatorio/proprio/ler-retencao.ts'
 /** A coleta ESCREVE a curva (service role, passo `retencao`); a leitura da tela é só do leitor acima. */
 const COLETA_DIR = 'lib/youtube/coleta/'
 const DADOS = 'app/cms/(authed)/youtube/competitors/_proprio/dados.ts'
+/** E5b T9: o leitor do diário por período; as entradas da origem e dos termos (a dos termos prova a EDIÇÃO do site do token). */
+const LER_DIARIO_PERIODO = 'lib/youtube/observatorio/proprio/ler-diario-periodo.ts'
+const DADOS_ORIGEM = 'app/cms/(authed)/youtube/competitors/_proprio/dados-origem.ts'
+const DADOS_TERMOS = 'app/cms/(authed)/youtube/competitors/_proprio/dados-termos.ts'
 /** A prova de tipo do token (compilada pelo tsc do web, nunca executada): o único outro arquivo que nomeia a classe como valor. */
 const TIPOS = 'lib/youtube/observatorio/proprio/edicao.type-test.ts'
 /** Usos do token como VALOR (a classe em si), que o brand check de edicao.ts não pode deixar de cobrir: estender, protótipo, construção reflexiva, typeof, instanceof. */
@@ -39,12 +43,12 @@ const TIPOS_CHAVE = 'lib/youtube/observatorio/acesso-ia/prova.type-test.ts'
 const PAGE_DATA = 'app/cms/(authed)/youtube/competitors/_chrome/page-data.ts'
 const ABRIR_CHAVE = 'app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave.ts'
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
-const PODE_PROVAR = new Set([EDICAO, LEITURA])
-const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS])
+const PODE_PROVAR = new Set([EDICAO, LEITURA, DADOS_TERMOS])
+const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, DADOS_TERMOS])
 /** Os leitores e o módulo de dados pedem o token de LEITURA: citar o de edição neles é voltar atrás. */
 const VERSOES_LER = 'lib/youtube/observatorio/proprio-versoes/ler.ts'
 const COMENTARIOS_LER = 'lib/youtube/observatorio/medidas/ler-comentarios.ts'
-const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, DADOS, VERSOES_LER, COMENTARIOS_LER])
+const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, VERSOES_LER, COMENTARIOS_LER])
 /**
  * As DOZE tabelas privadas do canal próprio (leitura por `can_view_private_site` depois da MG11). Cópia da lista de
  * `test/integration/observatorio-a5-e17-p0-doze.test.ts` (T3, ainda fora desta base): quando os dois chegarem juntos, o teste de igualdade entra.
@@ -111,7 +115,10 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (arq !== PAGE_DATA && arq !== ABRIR_CHAVE && /\b(carregarObservatorio|carregarCanal)\s*[(<]/.test(s)) v.push(`${arq}: chama um carregador de tela sem guarda fora de page-data.ts e do abridor da chave`)
     if (arq !== LEITURA && /can_view_private_site_as/.test(s)) v.push(`${arq}: cita a função do direito fora do módulo da leitura privada`)
     if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
-    if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
+    if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem|lerDiarioDoPeriodo)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
+    // os termos e os sites de fora (texto digitado por terceiros) só saem por `dados-termos.ts`, que prova a edição; o leitor só os define
+    if (PODE_LER.has(arq) && arq !== DADOS_TERMOS && arq !== LER_DIMENSOES && /\blerDetalheDaOrigem\s*\(/.test(s)) v.push(`${arq}: chama lerDetalheDaOrigem fora de dados-termos`)
+    if (arq.startsWith('app/api/') && /yt_own_video_traffic_detail_daily/.test(s)) v.push(`${arq}: rota de API cita a tabela do detalhe da origem`)
     if (LEITORES_E_DADOS.has(arq) && /\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: o leitor voltou ao token de edição`)
     if (!arq.startsWith(COLETA_DIR) && !GRAVADORES_QUE_LEEM.has(arq) && !E9_SO_COM_EDICAO.has(arq) && DOZE.some(t => cita(s, t))) {
       const nivelPeloLeitor = LEITORES_POR_NIVEL.has(arq) && /\bnivelDeQuemVe\s*\(/.test(s)
@@ -119,8 +126,8 @@ export function violacoes(fontes: Record<string, string>): string[] {
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas com o token de edição`)
     }
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
-    if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
-    if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/edicao|_proprio\/dados)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
+    if (!PODE_LER.has(arq) && /import\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
+    if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/ler-dimensoes|proprio\/ler-diario-periodo|proprio\/edicao|_proprio\/dados|_proprio\/dados-origem|_proprio\/dados-termos)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
     if (arq !== LER_RETENCAO && !arq.startsWith(COLETA_DIR) && /yt_own_video_retention/.test(s)) v.push(`${arq}: consulta a tabela da curva de retenção fora do leitor`)
     if ((arq === LER || arq === DADOS) && /\bpodeEditar\b/.test(s)) v.push(`${arq}: volta a usar um booleano no lugar do token`)
   }
@@ -135,7 +142,7 @@ describe('varredura: o dado privado do canal próprio', () => {
     expect(violacoes(reais)).toEqual([])
   })
   it('a varredura enxerga os arquivos do módulo (não passa por varrer uma pasta errada)', () => {
-    for (const a of [EDICAO, LEITURA, LER, LER_RETENCAO, LER_DIMENSOES, DADOS]) expect(Object.keys(reais), a).toContain(a)
+    for (const a of [EDICAO, LEITURA, LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, DADOS_TERMOS]) expect(Object.keys(reais), a).toContain(a)
     expect(Object.keys(reais).length).toBeGreaterThan(300)
   })
   it('a prova de tipo do token está no tsc do web: 3 diretivas, uma única função exportada, nada fora dela', () => {
@@ -213,10 +220,30 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': 'await lerDetalheDaOrigem(sb, p)' })).toHaveLength(1)
       expect(violacoes({ ...base, 'app/x/a.ts': "import { lerDimensoes } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'" })).toEqual(['app/x/a.ts: importa os leitores do dado privado'])
       expect(violacoes({ ...base, [LER_DIMENSOES]: 'export async function lerDimensoes() {}' })).toEqual([])
-      for (const arq of [LER, LER_RETENCAO, LER_DIMENSOES, DADOS]) {
+      for (const arq of [LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM]) {
         expect(violacoes({ ...base, [arq]: "import { edicaoValida } from './edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
         expect(violacoes({ ...base, [arq]: 'p: EdicaoDoSite | null' }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
       }
+    })
+    it('E5b T9: diário por período, origem e termos: quem pode chamar, quem pode provar a edição e o que o cliente não importa', () => {
+      const chama = (arq: string) => [`${arq}: chama um leitor do dado privado`]
+      expect(violacoes({ ...base, 'app/x/a.ts': 'await lerDiarioDoPeriodo(sb, p)' })).toEqual(chama('app/x/a.ts'))
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { lerDiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'" })).toEqual(['app/x/a.ts: importa os leitores do dado privado'])
+      // só TIPO do leitor não dá acesso a nada
+      expect(violacoes({ ...base, 'app/x/a.ts': "import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'\nimport { y } from './y'" })).toEqual([])
+      // o módulo puro do total pode ser importado por qualquer um
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { totalDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'" })).toEqual([])
+      expect(violacoes({ ...base, [DADOS_ORIGEM]: 'await lerDimensoes(sb, p); await lerDiarioDoPeriodo(sb, p)', [DADOS_TERMOS]: 'await lerDetalheDaOrigem(sb, p); provarEdicao(s)', [LER_DIARIO_PERIODO]: 'export async function lerDiarioDoPeriodo() {}' })).toEqual([])
+      // o detalhe da origem (termos) só em dados-termos: nem em dados.ts nem em dados-origem
+      for (const arq of [DADOS, DADOS_ORIGEM, LER, LER_RETENCAO, LER_DIARIO_PERIODO]) expect(violacoes({ ...base, [arq]: 'await lerDetalheDaOrigem(sb, p)' }), arq).toEqual([`${arq}: chama lerDetalheDaOrigem fora de dados-termos`])
+      expect(violacoes({ ...base, [LER_DIMENSOES]: 'export async function lerDetalheDaOrigem() {}' })).toEqual([])
+      // provar a edição: só dados-termos, além do módulo da guarda
+      expect(violacoes({ ...base, [DADOS_ORIGEM]: 'await provarEdicao(s)' })).toEqual([`${DADOS_ORIGEM}: pede a prova de edição fora do módulo da guarda`])
+      // componente cliente não importa as entradas
+      for (const m of ['dados-origem', 'dados-termos']) expect(violacoes({ ...base, 'app/x/c.tsx': `'use client'\nimport { x } from '@/app/cms/(authed)/youtube/competitors/_proprio/${m}'` }), m).toEqual(['app/x/c.tsx: componente cliente importa o módulo do dado privado'])
+      // rota de API não cita a tabela do detalhe
+      expect(violacoes({ ...base, 'app/api/x/route.ts': "sb.from('yt_own_video_traffic_detail_daily')" })).toContain('app/api/x/route.ts: rota de API cita a tabela do detalhe da origem')
+      expect(violacoes({ ...base, 'lib/youtube/coleta/x.ts': "sb.from('yt_own_video_traffic_detail_daily').upsert(x)" })).toEqual([])
     })
     it('as doze tabelas: arquivo fora da coleta que cita uma delas precisa de leituraValida e não pode citar o token de edição', () => {
       for (const t of DOZE) {
