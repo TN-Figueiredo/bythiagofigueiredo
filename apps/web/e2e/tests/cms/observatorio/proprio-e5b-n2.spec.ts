@@ -41,10 +41,7 @@ interface Ambiente { siteId: string; canalId: string; ultimo: string; uuid: Reco
 let amb: (Ambiente & { base: Base }) | null = null
 
 /** A limpeza da semente ainda não apaga as tabelas de dimensões (T18 do plano pede isso): sem esta linha o reseed morre na chave estrangeira. */
-async function limparDimensoes(): Promise<void> {
-  const siteId = await getSeedSiteId(), sb = localServiceClient()
-  for (const t of ['yt_own_video_dim_daily', 'yt_own_video_traffic_detail_daily']) { const r = await sb.from(t).delete().eq('site_id', siteId); if (r.error) throw new Error(`limpar ${t}: ${r.error.message}`) }
-}
+async function limparDimensoes(): Promise<void> { /* R2: o conserto 35364a41e faz clearOwnL2 apagar as dimensões; o teste 0 prova */ }
 
 async function semearBase(base: Base): Promise<Ambiente> {
   const opts = { ownPreset: '2', ownL2: base } as const
@@ -197,7 +194,7 @@ function vigiar(page: Page): void {
     if (/ytimg\.com|ggpht\.com|blob\.vercel|challenges\.cloudflare/.test(loc + m.text())) return
     if (m.type() === 'warning' && !/hydrat|did not match/i.test(m.text())) return
     // achado F1 (aviso de chave de lista em ProprioScreen, abas Retenção e Origem): contado e relatado, não derruba os demais critérios
-    if (/unique "key" prop/.test(m.text())) { v.chaves++; return }
+    if (/unique "key" prop/.test(m.text())) { v.chaves++; v.erros.push('F1: ' + m.text().slice(0, 160)); return }
     v.erros.push(`${m.type()}: ${m.text().slice(0, 240)} @ ${loc}`)
   })
   page.on('pageerror', e => v.erros.push('pageerror: ' + e.message.slice(0, 240)))
@@ -207,7 +204,7 @@ function vigiar(page: Page): void {
 async function armar(page: Page, tema: Tema, vp: keyof typeof VP): Promise<void> {
   await page.setViewportSize(VP[vp])
   await page.emulateMedia({ colorScheme: tema })
-  await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3111' }])
+  await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3099' }])
   await page.context().route(/(ytimg|ggpht)\.com/, r => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
   // nada que escreva: toda server action é abortada
   await page.context().route('**/*', async route => {
@@ -258,6 +255,54 @@ async function abrirOrigemDoCanal(page: Page, a: Ambiente): Promise<void> {
   await page.locator('.ov-grupo, .ov-novo').first().waitFor({ timeout: 90_000 })
   await page.locator('.ov-esq').waitFor({ state: 'detached', timeout: 90_000 })
   await page.waitForLoadState('networkidle')
+}
+
+
+/** R2: forma, glifo, cor e fonte dos blocos de origem. Devolve o que leu (para o log) e afirma as regras. */
+async function checarFormas(page: Page, rotulo: string): Promise<void> {
+  const r = await page.evaluate(() => {
+    const falhas: string[] = [], estados: Record<string, string> = {}, cores: Record<string, string> = {}
+    const fam = (el: Element) => getComputedStyle(el).fontFamily
+    for (const sec of Array.from(document.querySelectorAll<HTMLElement>('section.ov-sec[data-estado]'))) {
+      const id = sec.dataset.bloco ?? '?', est = sec.dataset.estado ?? '?'
+      estados[id] = est
+      const tem = (q: string) => !!sec.querySelector(q)
+      if (est === 'nao_medido' && !tem('.ov-hach')) falhas.push(`${id}: nao_medido sem hachura`)
+      if (est === 'zero' && !tem('.ov-zero')) falhas.push(`${id}: zero sem caixa vazada`)
+      if (est === 'ainda_nao_existe' && !tem('.ov-vz svg.ov-g')) falhas.push(`${id}: ainda_nao_existe sem relogio/pontilhado`)
+      if (est === 'em_revisao' && !tem('.ov-bq svg.ov-g')) falhas.push(`${id}: em_revisao sem icone de aviso`)
+      if (est === 'erro' || tem('.ov-er')) { if (!tem('.ov-er .ov-er-i svg.ov-g')) falhas.push(`${id}: erro sem icone`) }
+      if (tem('.ov-bq') && !tem('.ov-bq svg.ov-g')) falhas.push(`${id}: bloqueio/revisao sem icone`)
+      const h3 = sec.querySelector('.ov-h3'); if (h3 && Number(getComputedStyle(h3).fontWeight) < 600) falhas.push(`${id}: titulo sem negrito (${getComputedStyle(h3).fontWeight})`)
+      // origem: cada quadrado tem glifo e cada fatia da barra tambem
+      for (const sw of Array.from(sec.querySelectorAll<HTMLElement>('.ov-sw'))) {
+        const k = sw.closest<HTMLElement>('li')?.dataset.chave ?? '?'
+        if (!sw.querySelector('svg.ov-g')) falhas.push(`${id}/${k}: quadrado sem glifo`)
+        const cs = getComputedStyle(sw); cores[k] = cs.backgroundColor + (cs.backgroundImage !== 'none' ? ' +img' : '')
+      }
+      for (const sg of Array.from(sec.querySelectorAll<HTMLElement>('.ov-sg'))) if (!sg.querySelector('svg.ov-g')) falhas.push(`${id}: fatia sem glifo`)
+      // aparelho, pais, inscritos: icone + trilha com largura
+      for (const li of Array.from(sec.querySelectorAll<HTMLElement>('li.ov-hb'))) {
+        const k = li.dataset.chave ?? '?'
+        if (!li.querySelector('.ov-ic svg.ov-g')) falhas.push(`${id}/${k}: linha sem icone`)
+        const tr = li.querySelector<HTMLElement>('.ov-tr'), i = tr?.querySelector<HTMLElement>('i')
+        if (!tr || !i) falhas.push(`${id}/${k}: sem trilha`)
+        else if (li.querySelector('.ov-v .obs-ch-nm') == null && i.getBoundingClientRect().width <= 0 && !/^0/.test(li.querySelector('.ov-p')?.textContent ?? '')) falhas.push(`${id}/${k}: trilha vazia`)
+      }
+      if (est === 'medido' && sec.querySelector('ul.ov-lg2') == null && ['aparelho', 'pais', 'inscritos'].includes(id) && sec.querySelector('li')) falhas.push(`${id}: medido sem lista com trilha`)
+      for (const v of Array.from(sec.querySelectorAll('.ov-v'))) { if (!/jetbrains|mono/i.test(fam(v))) { falhas.push(`${id}: numero .ov-v sem fonte mono (${fam(v).slice(0, 60)})`); break } }
+    }
+    const nums = Array.from(document.querySelectorAll('dl.ov-fx b.num'))
+    for (const n of nums) if (!/jetbrains|mono/i.test(fam(n))) { falhas.push('faixa: numero sem fonte mono ' + fam(n).slice(0, 60)); break }
+    // chip: "nao medido" nunca e texto solto na faixa
+    for (const dd of Array.from(document.querySelectorAll('dl.ov-fx dd'))) { const b = dd.querySelector('b'); if (b && /^(não medido|—)$/.test(b.textContent ?? '')) falhas.push('faixa: ' + b.textContent + ' como texto solto') }
+    return { falhas, estados, cores }
+  })
+  console.log(`N2R2 formas ${rotulo}:`, JSON.stringify({ estados: r.estados, cores: r.cores }))
+  expect(r.falhas, `${rotulo}: forma/fonte`).toEqual([])
+  const origens = Object.entries(r.cores).filter(([k]) => k !== 'omitido')
+  const distintas = new Set(origens.map(([, v]) => v))
+  if (origens.length > 1) expect(distintas.size, `${rotulo}: cores das origens distintas ${JSON.stringify(r.cores)}`).toBe(origens.length)
 }
 
 test.afterAll(() => { try { restaurarLeitura() } catch { /* nada */ } })
@@ -320,7 +365,7 @@ test('1c · rede lenta, clique ANTES de hidratar: o link degrada para navegaçã
 const ESTADOS_FAIXA: Array<{ id: string; dims: ModoDims; erro?: boolean; esperaDias: RegExp }> = [
   { id: 'medido', dims: 'tipico', esperaDias: /^\d+\s+de\s+\d+$/ },
   { id: 'magro', dims: 'magro', esperaDias: /^\d+\s+de\s+\d+$/ },
-  { id: 'coleta-nao-comecou', dims: 'nenhum', esperaDias: /^0\s+de\s+\d+\s*·\s*a coleta começa em \d\d\/\d\d$/ },
+  { id: 'coleta-nao-comecou', dims: 'nenhum', esperaDias: /^0\s+de\s+\d+\s*·\s*a coleta (começa|começou) em \d\d\/\d\d(; nenhum dia deste período chegou)?$/ },
   { id: 'nao-conseguimos-ler', dims: 'tipico', erro: true, esperaDias: /^—\s+de\s+\d+\s*·\s*não conseguimos ler agora$/ },
   { id: 'em-revisao', dims: 'revisao', esperaDias: /^\d+\s+de\s+\d+\s*·\s*origem em revisão$/ },
 ]
@@ -335,7 +380,7 @@ for (const est of ESTADOS_FAIXA) {
         const faixa = page.locator('dl.ov-fx').first()
         await expect(faixa).toBeVisible()
         const celulas = await faixa.locator('.ov-fx-c').evaluateAll(els => els.map(e => ({
-          rotulo: e.querySelector('dt')?.textContent?.trim() ?? '', valor: e.querySelector('dd b')?.textContent?.trim() ?? '', sub: e.querySelector('dd span')?.textContent?.trim() ?? '',
+          rotulo: e.querySelector('dt')?.textContent?.trim() ?? '', valor: (e.querySelector('dd b') ?? e.querySelector('dd .obs-ch-nm'))?.textContent?.trim() ?? '', chip: !!e.querySelector('dd .obs-ch-nm'), sub: e.querySelector('dd > span:last-child')?.textContent?.trim() ?? '',
         })))
         expect(celulas.length, 'a faixa tem duas células').toBe(2)
         console.log(`N2 faixa ${est.id} ${vp}/${tema}:`, JSON.stringify(celulas))
@@ -351,10 +396,16 @@ for (const est of ESTADOS_FAIXA) {
           const cs = Array.from(document.querySelectorAll('dl.ov-fx .ov-fx-c')).map(e => e.getBoundingClientRect())
           const dl = document.querySelector('dl.ov-fx')!.getBoundingClientRect()
           const corta = Array.from(document.querySelectorAll<HTMLElement>('dl.ov-fx *')).filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.tagName + '.' + e.className)
-          return { c0: cs[0]!.toJSON(), c1: cs[1]!.toJSON(), dl: dl.toJSON(), corta, vw: window.innerWidth }
+          const dd = Array.from(document.querySelectorAll('dl.ov-fx .ov-fx-c dd')).map(e => e.getBoundingClientRect().top)
+          const dt = Array.from(document.querySelectorAll('dl.ov-fx .ov-fx-c dt')).map(e => e.getBoundingClientRect().top)
+          const val = Array.from(document.querySelectorAll('dl.ov-fx .ov-fx-c dd > b, dl.ov-fx .ov-fx-c dd > .obs-ch-nm')).map(e => e.getBoundingClientRect().top)
+          return { c0: cs[0]!.toJSON(), c1: cs[1]!.toJSON(), dl: dl.toJSON(), corta, vw: window.innerWidth, dd, dt, val }
         })
         expect(geo.corta, 'texto cortado na faixa').toEqual([])
         expect(geo.c1.right, 'faixa passa da janela').toBeLessThanOrEqual(geo.vw)
+        console.log(`N2R2 alinhamento ${est.id} ${vp}/${tema}: lado a lado=${Math.abs(geo.c0.top - geo.c1.top) < 2} dt=${JSON.stringify(geo.dt.map(Math.round))} dd=${JSON.stringify(geo.dd.map(Math.round))} valor=${JSON.stringify(geo.val.map(Math.round))}`)
+        if (Math.abs(geo.c0.top - geo.c1.top) < 2) { expect(Math.abs(geo.dd[0]! - geo.dd[1]!), 'dd desalinhados').toBeLessThanOrEqual(1); expect(Math.abs(geo.val[0]! - geo.val[1]!), 'valores desalinhados').toBeLessThanOrEqual(1) }
+        await checarFormas(page, `canal ${est.id} ${vp}/${tema}`)
         expect(await semRolagemHorizontal(page), 'rolagem horizontal do documento').toBeLessThanOrEqual(0)
         await foto(page, `02-origem-canal-${est.id}-${vp}-${tema}`, vp)
         if (est.erro) {
@@ -411,6 +462,10 @@ for (const est of ESTADOS_VIDEO) {
         await page.waitForLoadState('networkidle')
         if (est.erro) await expect(page.locator('.ov-er[role="alert"]').first()).toBeVisible()
         else await expect(page.locator('[data-bloco="origem"]').first()).toBeVisible()
+        const faixaV = await page.evaluate(() => ({ celulas: document.querySelectorAll('.ov-grupo > dl.ov-fx .ov-fx-c').length, rotulo: document.querySelector('.ov-grupo > dl.ov-fx dt')?.textContent?.trim(), solto: document.querySelectorAll('.ov-grupo > p.ov-vtot').length, valor: document.querySelector('.ov-grupo > dl.ov-fx dd')?.textContent?.replace(/\s+/g, ' ').trim() }))
+        console.log(`N2R2 célula vídeo ${est.id} ${vp}/${tema}:`, JSON.stringify(faixaV))
+        expect(faixaV, 'célula views no período no lugar do número solto').toMatchObject({ celulas: 1, rotulo: 'views no período', solto: 0 })
+        await checarFormas(page, `vídeo ${est.id} ${vp}/${tema}`)
         console.log(`N2 vídeo ${est.id} ${vp}/${tema}: origem=`, (await texto(page, '[data-bloco="origem"]').catch(() => '(sem bloco)')).slice(0, 220))
         expect(await semRolagemHorizontal(page), 'rolagem horizontal do documento').toBeLessThanOrEqual(0)
         await sec.scrollIntoViewIfNeeded()
@@ -452,6 +507,8 @@ for (const [vp, tema] of [['1440', 'dark'], ['390', 'light'], ['1440', 'light'],
     console.log(`N2 barra ${vp}/${tema}:`, JSON.stringify(lidos))
     // a marca é a do período: o texto "normal do canal: X%" tem de ser o normal do cartão escolhido, e os períodos diferentes têm marcas diferentes (a semente deu 8 pontos de diferença antes dos últimos 28 dias)
     const textos = LEIAME_PERIODOS.map(id => lidos[id]!.marca)
+    const esperado: Record<string, RegExp> = { inteiro: /normal do canal \(canal inteiro\)/, '90': /normal do canal \(90 dias\)/, '28': /normal do canal \(28 dias\)/ }
+    for (const id of LEIAME_PERIODOS) expect(lidos[id]!.marca ?? '', `etiqueta da marca em ${id}`).toMatch(esperado[id]!)
     expect(textos.filter(Boolean).length, 'ao menos dois períodos com marca').toBeGreaterThanOrEqual(2)
     expect(new Set(textos.filter(Boolean)).size, 'a marca muda com o período').toBeGreaterThan(1)
     expect(await semRolagemHorizontal(page)).toBeLessThanOrEqual(0)
@@ -521,4 +578,59 @@ for (const [vp, tema] of [['1440', 'dark'], ['390', 'light'], ['1440', 'light'],
     await foto(page, `05v-video-inteiro-${vp}-${tema}`, vp)
     limpo(`5v ${vp} ${tema}`)
   })
+}
+
+/* ------------------------------------------------------------------------------------------ R2 */
+test('0 · a semente reexecuta limpa duas vezes seguidas (clearOwnL2 apaga as dimensões)', async () => {
+  for (let i = 1; i <= 2; i++) {
+    try { fs.rmSync(MARCA_SEED) } catch { /* nenhuma */ }
+    await ensureSeeded({ ownPreset: '2', ownL2: 'retencao' })
+    console.log(`N2R2 semente rodada ${i}: ok`)
+  }
+  amb = null
+})
+
+test('F1 · nenhum aviso de chave de lista em ?tab=origem e ?tab=retencao (20 aberturas)', async ({ page }) => {
+  test.setTimeout(900_000)
+  const a = await cenario('retencao', 'tipico')
+  await armar(page, 'dark', '1440')
+  let total = 0
+  for (let i = 0; i < 20; i++) {
+    const tab = i % 2 === 0 ? 'origem' : 'retencao'
+    await page.goto(urlCanal(a, `&tab=${tab}`))
+    await esperarCanal(page)
+    await page.locator(tab === 'origem' ? '.ov-grupo, .ov-novo' : '.ap').first().waitFor({ timeout: 90_000 })
+    await page.waitForLoadState('networkidle')
+    total += vigia.chaves
+    console.log(`N2R2 F1 abertura ${i + 1} (${tab}): avisos de chave acumulados=${vigia.chaves}`)
+  }
+  expect(total, 'avisos de chave').toBe(0)
+  limpo('F1')
+})
+
+for (const tab of ['origem', 'retencao', 'videos'] as const) {
+  for (const tema of ['light', 'dark'] as const) {
+    test(`F5 · a 390 px a aba ativa (${tab}) está inteira na vista · ${tema}`, async ({ page }) => {
+      const a = await cenario('retencao', 'tipico')
+      await armar(page, tema, '390')
+      await page.goto(urlCanal(a, tab === 'videos' ? '' : `&tab=${tab}`))
+      await esperarCanal(page)
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(600)
+      const m = await page.evaluate(() => {
+        const nav = document.querySelector('nav[aria-label="Seções do canal"]')!
+        const ul = nav.querySelector('ul') ?? nav
+        const links = Array.from(nav.querySelectorAll('a')).map(l => { const r = l.getBoundingClientRect(); return { t: (l.textContent ?? '').trim().slice(0, 14), l: Math.round(r.left), r: Math.round(r.right), cur: l.getAttribute('aria-current') } })
+        const at = nav.querySelector('a[aria-current="page"]')?.getBoundingClientRect()
+        return { vw: window.innerWidth, links, at: at ? { l: at.left, r: at.right } : null, navR: nav.getBoundingClientRect().toJSON(), ulScroll: (ul as HTMLElement).scrollLeft, docOverflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth }
+      })
+      console.log(`N2R2 F5 ${tab}/${tema}:`, JSON.stringify(m))
+      expect(m.at, 'aba ativa existe').not.toBeNull()
+      expect(m.at!.l, 'aba ativa corta à esquerda').toBeGreaterThanOrEqual(-0.5)
+      expect(m.at!.r, 'aba ativa corta à direita').toBeLessThanOrEqual(m.vw + 0.5)
+      expect(m.docOverflow).toBeLessThanOrEqual(0)
+      if (tab === 'origem') await foto(page, `f5-abas-${tab}-390-${tema}`, '390')
+      limpo(`F5 ${tab} ${tema}`)
+    })
+  }
 }
