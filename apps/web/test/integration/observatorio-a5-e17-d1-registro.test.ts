@@ -49,6 +49,8 @@ describe.skipIf(situacao === 'pula')('A5 E17 D1: o registro do botão contra o b
       }
       if (orgs.length > 0) await pg.query('delete from public.organization_members where org_id = any($1::uuid[])', [orgs])
       if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
+      // os deletes acima disparam auditoria nova (site e organização); limpa de novo antes dos donos
+      await pg.query('delete from public.audit_log where site_id = any($1::uuid[]) or org_id = any($2::uuid[])', [sites, orgs])
       if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
       if (orgs.length > 0) await pg.query('delete from public.organizations where id = any($1::uuid[])', [orgs])
     } finally { await pg.end() }
