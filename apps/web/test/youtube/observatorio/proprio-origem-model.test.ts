@@ -251,9 +251,33 @@ describe('buildOrigem: acesso, privacidade e erro', () => {
     expect(bloco(buildOrigem(entrada({ termos: { acesso: 'negado' }, podeEditar: true })), 'termos').estado).toBe('erro')
     expect(bloco(buildOrigem(entrada({ termos: { acesso: 'negado' }, podeEditar: false })), 'termos').estado).toBe('bloqueado')
   })
-  it('origem em erro: o grupo inteiro vira erro', () => {
+  it('origem em erro: o grupo inteiro vira UM bloco de erro (um alerta e um botão, não seis)', () => {
     const v = buildOrigem(entrada({ origem: { acesso: 'erro' } }))
-    expect(grupo(v).blocos.every(b => b.estado === 'erro')).toBe(true)
+    expect(grupo(v).blocos).toHaveLength(1)
+    expect(grupo(v).blocos[0]!.estado).toBe('erro')
+    expect(grupo(v).blocos[0]!.erro).toContain('Não conseguimos ler agora')
+  })
+  it('origem negada nos níveis tudo e sem-termos (as duas provas divergem): bloco de erro, nunca o grupo mudo', () => {
+    for (const nivel of ['tudo', 'sem-termos'] as const) {
+      const v = buildOrigem(entrada({ nivel, origem: { acesso: 'negado' } }))
+      expect(grupo(v).blocos).toHaveLength(1)
+      expect(grupo(v).blocos[0]!.estado).toBe('erro')
+    }
+  })
+  it('sem-termos com os termos LIDOS e cheios de sentinela: o bloco é o bloqueio e a vista não leva o termo nem o endereço (mata o mutante do ramo sem-termos)', () => {
+    const v = buildOrigem(entrada({ nivel: 'sem-termos', termos: ok(detalhe()), podeEditar: true }))
+    expect(bloco(v, 'termos').estado).toBe('bloqueado')
+    const json = JSON.stringify(v)
+    expect(json).not.toContain(SENT_TERMO); expect(json).not.toContain(SENT_SITE)
+  })
+  it('o total de "Desde" sem número diz o motivo: teto (permanente) é diferente de erro (passageiro)', () => {
+    const tudo = (motivo: 'teto' | 'erro') => buildOrigem(entrada({
+      periodos: [per('tudo', 'Desde 2024', TIP7[0]!, ATE, null, null)],
+      origem: ok({ dimensoes: dims(), diario: null as never, diarioInteiro: null, motivoInteiro: motivo, trechos: 1 }),
+    })).periodos[0]!.grupo.total
+    expect(tudo('teto')).toBe('não medido: o canal passou do tamanho que esta tela lê de uma vez')
+    expect(tudo('erro')).toBe('Não conseguimos ler agora. Tente de novo.')
+    expect(tudo('teto')).not.toBe(tudo('erro'))
   })
   it('termos vazios com omitido na origem: "Nenhum termo apareceu"; sem lista, a comparação "Sem comparar" quando os dias diferem', () => {
     const v = buildOrigem(entrada({ termos: ok(detalhe(TIP7, true)) }))

@@ -5,9 +5,9 @@
  * neste navegador (`localStorage`, sempre em try/catch, só depois do primeiro render para servidor e cliente concordarem). Valor que não existe nesta
  * tela é ignorado. Traz também o "Tentar de novo" do bloco de erro.
  */
-import { useLayoutEffect, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useState, useTransition, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CHAVE_ORIGEM, PARAM_ORIGEM } from './origem-model'
+import { CHAVE_ORIGEM, PARAM_ORIGEM } from './origem-constantes'
 import './origem.css'
 
 export interface OpcaoOrigem { id: string; rotulo: string }
@@ -67,10 +67,11 @@ export function OrigemPeriodos({ opcoes, conteudos, padrao, lembranca, dica }: {
 /** "Tentar de novo" do bloco de erro: pede os dados de novo ao servidor, uma vez por clique. */
 export function TentarDeNovo() {
   const router = useRouter()
-  const [tentando, setTentando] = useState(false)
+  // a transição termina quando o servidor responde, com sucesso ou com nova falha: o botão nunca fica preso (Yannis I2)
+  const [tentando, iniciar] = useTransition()
   return (
     <>
-      <button type="button" className="ov-pe ov-retry" disabled={tentando} onClick={() => { setTentando(true); router.refresh() }}>Tentar de novo</button>
+      <button type="button" className="ov-pe ov-retry" disabled={tentando} onClick={() => iniciar(() => router.refresh())}>Tentar de novo</button>
       {tentando ? <span role="status" className="ov-lem">Tentando de novo…</span> : null}
     </>
   )

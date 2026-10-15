@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // E5b Tarefa 11: os componentes da origem das views (barra, legenda, régua, seletor, erro, esqueleto, segurança). Fixtures sintéticas.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, cleanup } from '@testing-library/react'
+import { render, screen, within, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -130,11 +130,15 @@ describe('E5b T11: seletor de período', () => {
 })
 
 describe('E5b T11: erro e esqueleto', () => {
-  it('Tentar de novo chama refresh uma vez e mostra o texto de espera', async () => {
+  it('Tentar de novo chama refresh uma vez; terminada a transição o botão volta e o texto de espera some (a segunda falha não trava a tela)', async () => {
     render(<Origem view={view([bloco({ erro: 'Não conseguimos ler agora.' })])} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
+    const botao = () => screen.getByRole('button', { name: 'Tentar de novo' }) as HTMLButtonElement
+    await userEvent.click(botao())
     expect(refresh).toHaveBeenCalledTimes(1)
-    expect(within(screen.getByRole('status')).getByText('Tentando de novo…')).toBeTruthy()
+    await waitFor(() => expect(botao().disabled).toBe(false))
+    expect(screen.queryByRole('status')).toBeNull()
+    await userEvent.click(botao())
+    expect(refresh).toHaveBeenCalledTimes(2)
   })
   it('esqueleto: nenhuma classe de hachura nem de pontilhado', () => {
     const html = renderToStaticMarkup(<OrigemEsqueleto />)
@@ -173,7 +177,7 @@ describe('E5b T11: segurança e CSS', () => {
     const imports = src.match(/^import .* from .*$/gm) ?? []
     for (const i of imports) {
       expect(i).not.toMatch(/dados-origem|dados-termos|ler-diario|ler-dimensoes/)
-      if (/origem-model/.test(i)) expect(i).toMatch(/\{ CHAVE_ORIGEM, PARAM_ORIGEM \}/)
+      expect(i).not.toMatch(/origem-model/) // o modelo inteiro não vai para o navegador (m2)
     }
   })
   it('origem.css não contém color-mix(', () => {

@@ -26,8 +26,7 @@ export type TelaOrigem = 'video' | 'canal'
 export type IdBloco = 'origem' | 'impressoes' | 'termos' | 'aparelho' | 'pais' | 'inscritos'
 export type EstadoView = 'medido' | 'zero' | 'nao_medido' | 'ainda_nao_existe' | 'em_revisao' | 'erro' | 'bloqueado'
 
-export const CHAVE_ORIGEM = 'obs-proprio-origem-periodo'
-export const PARAM_ORIGEM = 'origem'
+export { CHAVE_ORIGEM, PARAM_ORIGEM } from './origem-constantes'
 /** Quantos dias de vida tem um vídeo "novo demais" para a origem existir. */
 export const DIAS_VIDEO_NOVO = 3
 const MAX_PAISES = 6
@@ -444,6 +443,10 @@ function ainda(id: IdBloco, e: EntradaOrigem): BlocoView {
 function totalDoGrupo(p: PeriodoEntrada, e: EntradaOrigem): string {
   const v = p.videosDoTotal
   if (p.totalDoPeriodo == null) {
+    // o diário inteiro não veio (Phil I2): teto é permanente, erro é passageiro, e a célula diz qual dos dois
+    const motivo = p.id === 'tudo' && e.origem.acesso === 'ok' ? e.origem.dado.motivoInteiro : undefined
+    if (motivo === 'teto') return 'não medido: o canal passou do tamanho que esta tela lê de uma vez' // TEXTO-A-REVISAR
+    if (motivo === 'erro') return `${MSG_ERRO} Tente de novo.` // TEXTO-A-REVISAR
     if (v && v.comBuraco > 0) return `não medido: ${e.n(v.naConta - v.comBuraco)} de ${e.n(v.naConta + v.fora)} vídeos com o período inteiro medido`
     return 'não medido'
   }
@@ -452,8 +455,8 @@ function totalDoGrupo(p: PeriodoEntrada, e: EntradaOrigem): string {
 
 function grupoDoPeriodo(p: PeriodoEntrada, e: EntradaOrigem): GrupoView {
   const total = totalDoGrupo(p, e)
-  if (e.origem.acesso === 'erro') return { total, blocos: (['origem', 'impressoes', 'termos', 'aparelho', 'pais', 'inscritos'] as const).map(id => blocoErro(id, MSG_ERRO)) }
-  if (e.origem.acesso !== 'ok') return { total, blocos: [] }
+  // um bloco só, com um alerta e um botão (Yannis m5); origem negada com nível que a libera é divergência das duas provas: também erro, nunca o grupo mudo (m4)
+  if (e.origem.acesso !== 'ok') return { total, blocos: [blocoErro('origem', MSG_ERRO)] }
   if (e.tela === 'video' && videoNovo(e.publicadoEm, e.hojePt)) return { total, blocos: (['origem', 'impressoes', 'termos', 'aparelho', 'pais', 'inscritos'] as const).map(id => ainda(id, e)) }
   const dims = e.origem.dado.dimensoes
   const de = p.de > dims.de ? p.de : dims.de
