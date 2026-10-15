@@ -29,8 +29,9 @@ const ipValido = (ip: string | null): string | null => (ip !== null && isIP(ip) 
 function codigoDoBanco(code: unknown, message?: unknown): CodigoDeErro {
   // M9: o gatilho do mês destacado recusa com P0001 e o texto `mes_destacado_em_transito` (pode vir com os meses depois)
   if (typeof message === 'string' && /^mes_destacado_em_transito\b/.test(message)) return 'mes_destacado_em_transito'
+  if (typeof message === 'string' && /^sem_direito\b/.test(message)) return 'sem_direito'
   if (code === '57014') return 'tempo_esgotado'
-  if (code === '40P01') return 'impasse'
+  if (code === '40P01' || code === '55P03') return 'impasse' // 55P03: lock_timeout de 8 s do authenticator; espera passageira (forja/sincronização), não defeito
   if (code === '23503') return 'impedido_por_tabela'
   return 'erro_de_banco'
 }
@@ -45,7 +46,7 @@ async function chamar(rpc: () => PromiseLike<{ data: unknown; error: { code?: st
     const r = await rpc()
     if (r.error) {
       const codigo = codigoDoBanco(r.error.code, r.error.message)
-      if (codigo !== 'mes_destacado_em_transito') relatar(etapa, codigo, ids) // recusa de regra: não é falha, não vai ao Sentry
+      if (codigo !== 'mes_destacado_em_transito' && codigo !== 'sem_direito') relatar(etapa, codigo, ids) // recusa de regra: não é falha, não vai ao Sentry
       return { ok: false, codigo }
     }
     return { ok: true, data: r.data }

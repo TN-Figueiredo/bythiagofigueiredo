@@ -107,8 +107,8 @@ describe('A5 E9 T6: apagar', () => {
     }
   })
 
-  it('erro 57014, 40P01, 23503 e outro viram o código certo', async () => {
-    const esperado: Record<string, string> = { '57014': 'tempo_esgotado', '40P01': 'impasse', '23503': 'impedido_por_tabela', XX000: 'erro_de_banco' }
+  it('erro 57014, 40P01, 55P03 (espera por trava), 23503 e outro viram o código certo', async () => {
+    const esperado: Record<string, string> = { '57014': 'tempo_esgotado', '40P01': 'impasse', '55P03': 'impasse', '23503': 'impedido_por_tabela', XX000: 'erro_de_banco' }
     for (const [code, codigo] of Object.entries(esperado)) {
       const f = monta({ competitor_video_purge: async () => ({ data: null, error: { message: 'segredo do banco', code } }) })
       const r = await apagarVideo(f.sb, CTX, 'v1', 'APAGAR', { apagarDoBlob: blobOk() })
@@ -129,6 +129,14 @@ describe('A5 E9 T6: apagar', () => {
     const outro = monta({ competitor_channel_purge: async () => ({ data: null, error: { message: 'outra regra', code: 'P0001' } }) })
     expect(await apagarCanal(outro.sb, CTX, 'c1', 'APAGAR', { apagarDoBlob: blobOk() })).toMatchObject({ codigo: 'erro_de_banco' })
     expect(sentry.captureException).toHaveBeenCalledTimes(1)
+  })
+
+  it('M1 do Yannis: P0001 sem_direito (recusa do arquivo pós-M3b) vira frase própria e NÃO vai ao Sentry', async () => {
+    for (const msg of ['sem_direito', 'sem_direito: ator sem direito']) {
+      const f = monta({ competitor_channel_purge: async () => ({ data: null, error: { message: msg, code: 'P0001' } }) })
+      expect(await apagarCanal(f.sb, CTX, 'c1', 'APAGAR', { apagarDoBlob: blobOk() })).toMatchObject({ desfecho: 'erro', codigo: 'sem_direito' })
+    }
+    expect(sentry.captureException).not.toHaveBeenCalled()
   })
 
   it('IP inválido vira nulo; IPv4 e IPv6 válidos passam', async () => {
