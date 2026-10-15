@@ -46,13 +46,13 @@
 - **TRAVA M5-0 (dependências):** a Tarefa 1 só começa com (a) a M3b aplicada em produção e conferida (ledger `.superpowers/sdd/manutencao-nas/m3b-site-progresso.md`, linha "TRAVA M3b-2 solta"); (b) `git ls-files apps/web/test/helpers/m3b.ts apps/web/src/lib/youtube/observatorio/arquivo-mensal/estado-remocao.ts apps/web/src/lib/youtube/observatorio/arquivo-mensal/capacidades.ts apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts` listando os quatro. Faltando um: registrar a espera no ledger e parar.
 - **TRAVA M5-1:** nenhum arquivo `*_manutencao_m5_*` em `supabase/migrations/` antes da Tarefa 13. Até lá o SQL vive em `supabase/rascunhos/m5.sql`, lido pelos testes por `M5_SQL_CAMINHO` (um só lugar: `apps/web/test/helpers/m5.ts`).
 - **TRAVA M5-2 (pedido 11):** a Tarefa 4 (troca do teto de 365 dias em `load.ts`, `load-channel.ts` e `series.ts`) só começa com a janela combinada com o controlador da A5 registrada no ledger ("janela pedido 11: <data hora>, combinada com <quem>"). Sem resposta até o dia em que as Tarefas 1 a 3 fecharem, a fase faz a troca assim mesmo (texto do pedido 11, coluna "Se não entrar"): relê os três arquivos no dia, faz a troca num commit só e resolve o conflito no próprio commit.
-- **TRAVA M5-3 (liberação, reescrita na 1ª revisão):** a parte 4 do rascunho (liberar `serie` e `horaria`) entra na mesma migration das partes 1 a 3. O código das Tarefas 4 a 11 é commitado tarefa a tarefa no `staging` (que não é produção) e vai ao `main` **no push final** da Tarefa 13, depois do `db:push:prod`. Para que o `staging` e uma inversão de ordem sobrevivam **sem** as funções novas, o código trata função ausente (`42883`/`PGRST202`) assim: `obs_archive_online_since` ausente = `{ lido: true, nulos }` (nada saiu: verdade, porque nenhuma saída existe antes da migration da M5, e as funções de saída são da M6, de migration posterior), `obs_archive_aviso` ou `obs_archive_pagina` ausente = a aba e a pastilha novas não aparecem. Nenhuma saída de mês é possível antes da M6; o teste do item 87 segura o resto da ordem: `serie` liberada com `DAILY_MAX_DAYS` ainda no carregador falha. Texto completo na Tarefa 13.
+- **TRAVA M5-3 (liberação, reescrita na 1ª revisão):** a parte 4 do rascunho (liberar `serie` e `horaria`) entra na mesma migration das partes 1 a 3. O código das Tarefas 4 a 11 é commitado tarefa a tarefa no `staging` (que não é produção) e vai ao `main` **no push final** da Tarefa 13, depois do `db:push:prod`. Para que o `staging` e uma inversão de ordem sobrevivam **sem** as funções novas, o código trata função ausente (`42883`/`PGRST202`) assim: `obs_archive_online_since` ausente = `{ lido: true, nulos }` (nada saiu: verdade, porque nenhuma saída existe antes da migration da M5, e as funções de saída são da M6, de migration posterior; **só enquanto `SAIDA_DE_MES_EXISTE` for `false`**, dívida D-M5-15), `obs_archive_aviso` ou `obs_archive_pagina` ausente = a aba e a pastilha novas não aparecem. Nenhuma saída de mês é possível antes da M6; o teste do item 87 segura o resto da ordem: `serie` liberada com `DAILY_MAX_DAYS` ainda no carregador falha. Texto completo na Tarefa 13.
 - **TRAVA M5-4 (reserva da tela do aviso):** antes de começar a Tarefa 11, a M5 escreve em `.superpowers/sdd/manutencao-nas/reserva-tela-18.md` "M5 reservou `_chrome/aviso-banco/*` e `aviso-v2.ts` em <data hora>" e confere se a A5 escreveu a mesma reserva antes; quem chegou depois espera ou implementa só a diferença (D-M5-5). Sem isso, duas trilhas desenham a mesma tela.
 - Ordem: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16. As Tarefas 7, 8, 10 e 11 são independentes entre si depois da 2 e podem correr em paralelo (agentes Sonnet, um por tarefa, sem tocar o mesmo arquivo).
 
 ## Review Focus
 
-1. **A função `obs_archive_online_since` ausente, com erro ou com `{lido:false}` no carregador.** Esperado: a série é lida inteira desde `seriesStart` (o dado fora do banco não está na tabela-mãe, então ler tudo é sempre correto); `erro_do_banco`/`fora_do_esquema`/`divergencia` mostram "Não foi possível ler desde quando há dado online." no lugar do "desde dd/mm"; função ausente (`42883`/`PGRST202`) vale "nada saiu" (decisão 1 de "Onde Phil e Yannis divergiram"); e as medidas que pedem ponto mais velho que a janela mínima garantida (181 dias para `serie`, 89 para `horaria`: a menor soma de dias de 3 meses seguidos, fevereiro incluído) saem "não medido"; nada assume 365 dias, nada interpola. Teste na Tarefa 4 (`online desde não lido`).
+1. **A função `obs_archive_online_since` ausente, com erro ou com `{lido:false}` no carregador.** Esperado: a série é lida inteira desde `seriesStart` (o dado fora do banco não está na tabela-mãe, então ler tudo é sempre correto); `erro_do_banco`/`fora_do_esquema`/`divergencia` mostram "Não foi possível ler desde quando há dado online." no lugar do "desde dd/mm"; função ausente (`42883`/`PGRST202`) vale "nada saiu" **só com `SAIDA_DE_MES_EXISTE = false`** (decisão 1 de "Onde Phil e Yannis divergiram" e D-M5-15); com `true` vale `{ lido: false, porque: 'funcao_ausente' }`, ou seja, "não medido"; e as medidas que pedem ponto mais velho que a janela mínima garantida (181 dias para `serie`, 89 para `horaria`: a menor soma de dias de 3 meses seguidos, fevereiro incluído) saem "não medido"; nada assume 365 dias, nada interpola. Teste na Tarefa 4 (`online desde não lido`).
 2. **`viewsAtAge` pedindo idade anterior ao primeiro ponto de um vídeo cortado.** Hoje (`series.ts:75-90`) o laço começa em `earliestIdx` e, se o primeiro ponto já é posterior à idade pedida, interpola entre os dois primeiros pontos, ou seja, extrapola para trás. Esperado: `null` (a tela diz "no arquivo desde dd/mm"). Teste na Tarefa 4 (`14 dias de vídeo cortado`).
 3. **Casa sem batimento nenhum (forja nunca instalada) com mês devido.** Esperado: "A casa não respondeu desde <data do último sinal>" ou, sem sinal nunca recebido, "A casa ainda não deu sinal" em triângulo, nunca "Em coleta" nem verde. Teste na Tarefa 7 (`casa sem batimento`).
 4. **Nome de canal removido com 100 caracteres, e canal removido pela vigia sem nome nem data.** Esperado: rótulo com reticências e nome inteiro em `title` e `aria-label`; frase de alerta quebra sem cortar; linha da vigia usa o código interno (8 caracteres) e a faixa de meses, nunca "removido em" sem data. Teste na Tarefa 8 (`nome longo` e `linha da vigia`).
@@ -67,7 +67,7 @@
 
 | # | Decisão | Por quê |
 |---|---|---|
-| D-M5-1 | **`online desde` não lido: a série é lida inteira e só a rotulagem cai em "não medido".** A janela mínima garantida pela política (`window_months` de `obs_archive_policy()`: 6 meses seguidos, ≥181 dias para `serie`; 3 meses seguidos, ≥89 dias para `horaria`, derivada por `minDias(n)` em `online-desde.ts` e travada contra a política por teste) separa o que é seguro mostrar. **Exceção: função ausente = "nada saiu"** (Yannis I-3) | `02` §10.4 e item 35 pedem "não medido" e proíbem os 365; apagar o Observatório inteiro por um erro de leitura do registro seria falha vermelha desnecessária; o dado fora do banco não está na tabela-mãe, então nada lido é falso |
+| D-M5-1 | **`online desde` não lido: a série é lida inteira e só a rotulagem cai em "não medido".** A janela mínima garantida pela política (`window_months` de `obs_archive_policy()`: 6 meses seguidos, ≥181 dias para `serie`; 3 meses seguidos, ≥89 dias para `horaria`, derivada por `minDias(n)` em `online-desde.ts` e travada contra a política por teste) separa o que é seguro mostrar. **Exceção com prazo de validade: função ausente = "nada saiu" só enquanto `SAIDA_DE_MES_EXISTE` for `false`** (Yannis I-3, D-M5-15) | `02` §10.4 e item 35 pedem "não medido" e proíbem os 365; apagar o Observatório inteiro por um erro de leitura do registro seria falha vermelha desnecessária; o dado fora do banco não está na tabela-mãe, então nada lido é falso |
 | D-M5-2 | **`obs_archive_removed_channel_list` ganha versão 2** com `nome` (`name_at_removal`, nulo na linha da vigia), `removido_em` (`removed_at`), `meses` e `registros` (**só do conjunto corrente de unidades; nulos, não zero, quando o canal não tem unidade**: `units_at_removal` conta unidades, não meses, `m3b.sql:2449-2452`), `primeiro_mes`, `ultimo_mes` (do conjunto, com o retrato `first_month`/`last_month` como reserva) para toda linha; contrato `versao: 2`, leitor estrito novo. **"Nome anulado ao concluir" não existe em código nenhum** (Phil M8): vira requisito da M9 no ledger (Tarefa 16), e esta decisão não o promete | O mockup aprovado (`arq-dados.js:75-85`) diz "Viagem Lenta, removido em 28/04/2028. Limpeza pedida: 14 meses, de 10/2026 a 11/2027"; a v1 da M3b exclui o nome ("Nunca `name_at_removal`", plano M3b-site, Tarefa 8). O nome de canal do YouTube é público (o dono o vê em qualquer canal: `feedback_visivel_nos_outros_e_publico`); continua fora do `audit_log` e do C12 |
 | D-M5-3 | **Uma leitura só para a página: `obs_archive_pagina(p_site) returns jsonb`**, que parte de uma **grade** (classe, tabela, mês) do início da classe até o mês corrente com `left join` no registro (a linha de `obs_archive_months` só nasce com a 1ª unidade recebida: Phil C1), com `devido_em` de cada mês, o progresso de cópia por canal dos meses sem selo (`obs_archive_expected_units` contra `obs_archive_current_units` e `obs_archive_is_terminal`), a última recuperação por (classe, tabela) com o `schema_fp_atual`, o batimento dos três programas, `online_since`, `first_month` por classe (lido de `obs_archive_switch`, sem gravar), os meses à frente (`obs_partitions_months_ahead()`), o estado do grupo de teste e os vermelhos e o atraso do pulso. **O chrome lê só `obs_archive_aviso`**, a versão leve (Phil I9). O estado de cada linha é derivado em TS puro (`estado-do-mes.ts`) | Um RPC por página (sem N+1); regra de tela testável sem banco; a função só lê (`stable`), nunca grava `first_month` (diferente de `obs_archive_first_month`, que grava) |
 | D-M5-4 | **Libera `serie` e `horaria`; `texto`, `video_antigo` e `ensaio` continuam fechadas.** | Linha M5 do `05` §15.1 ("a classe `serie` fica liberada") e item 87, cuja frase final diz que "a primeira saída real é a da leitura horária": a peça 1 (as 72 horas) e o `competitor_hourly_health` corrigido estão nesta etapa. `texto` é da onda 2 (frase digitada, M6); `video_antigo` é da M10b |
@@ -76,11 +76,12 @@
 | D-M5-7 | **Os espaços do interruptor (peça 4) e de "Vídeos antigos" (peça 8) não vão à produção** como tracejado: o cartão do tipo simplesmente não os tem até a M6 e a M10b | O tracejado "+ novo" é marca do mockup (`PLANO-DAS-TELAS.md` §1.1), não estado de produção |
 | D-M5-8 | **Peça 7, parte de leitura:** o bloco "Esperam você rodar os comandos" com a frase-resumo, a barra de idade (0 a 60 dias) e a linha fixa `LINHA_DO_DONO` (só quem administra); sem "Já rodei" (M9) | Plano M3b-site, linhas 3772 e 3805: "a tela: M5; os tempos com passo e 'Já rodei': M9" |
 | D-M5-9 | **"Meses à frente acabando"** lê `obs_partitions_months_ahead()` (M2) dentro de `obs_archive_pagina`; tabela não convertida (`months_ahead` nulo) é "não medido", e `months_ahead = -1` ("o mês corrente não existe") tem frase e octógono próprios, nunca "0 meses" nem "−1 meses" | A frase do `04` L190 depende disso; a M2 já a vigia na agenda; `-1` e nulo são os dois valores especiais da função (`m2.sql:440-475`) |
-| D-M5-10 | **Impacto da remoção em duas parcelas, sem recriar `competitor_channel_removal_impact`.** "No banco agora" é a função da A5 como está; "no arquivo" é `obs_archive_channel_archive_impact` (M3b) estendida com `registros` e `por_tabela`; nenhum campo do arquivo diz "dias" | Os resumos do arquivo não têm dias (`m3b.sql:184-203`); recriar a função da A5 de cabeça apagaria a extensão da migration de leitura horária (Phil I6, Yannis I-8) |
+| D-M5-10 | **Impacto da remoção em duas parcelas, sem recriar `competitor_channel_removal_impact`.** "No banco agora" é a função da A5 como está; "no arquivo" é `obs_archive_channel_archive_impact` (M3b) estendida com `registros` e `por_tabela`; **a soma do diálogo usa só `fora_do_banco.registros`/`.meses`** (Phil r2 N2); nenhum campo do arquivo diz "dias" | Os resumos do arquivo não têm dias (`m3b.sql:184-203`); recriar a função da A5 de cabeça apagaria a extensão da migration de leitura horária (Phil I6, Yannis I-8) |
 | D-M5-11 | **`desde` da horária por `obs_archive_horaria_desde`** (mês fora → 1º dia do mês mais antigo à meia-noite de São Paulo, precisão `mes`; senão a 1ª hora lida, precisão `hora`). Nunca `min_key` | `first_month::timestamptz` mostra 30/09 em UTC (Yannis I-14); `min_key` não tem formato verificado |
 | D-M5-12 | **Coleta por vídeo = `max(seriesStart, dia SP de channel.added_at)`** na peça 1 (`antes_da_coleta`) | Um canal adicionado depois do começo da série não tem coleta anterior a `added_at`; sem isto o vídeo diz "no arquivo" de um dado que nunca existiu (Phil I8) |
 | D-M5-13 | **A peça 7 sem a E9 nasce como seção própria do filtro `sairam`** e a E9 a move depois | A E9 não está no `staging` (Yannis I-11); a M9 espera a peça 7 em `_saiu/*` |
-| D-M5-14 | **A M6 encaixa em slots (`acoes?: ReactNode`) por linha e por cartão** e lê `reattach_out_of_order` já presente no JSON | Yannis I-12; a página funciona antes e depois da M6 sem trocar a ordem de deploy |
+| D-M5-14 | **A M6 encaixa em slots (`acoes?: ReactNode`) por linha e por cartão** e lê `reattach_out_of_order` já presente no JSON. **Quem encaixa as peças de `_arquivo-saida/` é a M6** (`montar.ts`, no servidor, preenche `acoes` depois de `montarPagina`, que continua `.ts` puro); a M5 nunca importa `_arquivo-saida/`. O plano da M6 diz o contrário em vários trechos; o que ele precisa mudar está em `.superpowers/sdd/manutencao-nas/pedidos-m6-para-m5.md` (Yannis r2 N-3) | Yannis I-12 e r2 N-3; a página funciona antes e depois da M6 sem trocar a ordem de deploy; cada lado esperando o outro era o risco |
+| D-M5-15 | **Dívida declarada: "função ausente = nada saiu" tem gatilho de validade.** Constante `SAIDA_DE_MES_EXISTE = false` em `arquivo-mensal/capacidades.ts`; a M6 a vira `true` **no mesmo commit da primeira função de saída** (requisito no ledger e em `pedidos-m6-para-m5.md`). Com `true`, `lerOnlineDesde` com função ausente devolve `{ lido: false, porque: 'funcao_ausente' }` (série lida inteira, peça 1 em "não medido"), com Sentry de erro. Gatilho de pagamento: aplicar a migration da M6 em produção | Phil r2 N1, Yannis r2 §4: depois da M6 um `PGRST202` (cache de esquema velho, migration desfeita) com "nada saiu" seria falha em verde: série com buraco, sem `truncated` e sem aviso |
 
 ### Onde Phil e Yannis divergiram (a escolha mais segura, anotada)
 
@@ -216,6 +217,8 @@ import { prepararM5 } from '../helpers/m5'
 const URL_INT = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
 
 describe.skipIf(skipIfNoLocalDb())('M5 parte 1: online desde', () => {
+  // Yannis r2 N-4: `JANELA_MINIMA_DIAS` usa minDias(6)/minDias(3) fixos; este caso é o que de fato os trava contra a política. Acrescentar:
+  //   it('window_months da política: serie 6, horaria 3', async () => { const r = await c.query(`select class, table_name, window_months from public.obs_archive_policy() where class in ('serie','horaria')`); for (const l of r.rows) expect(l.window_months, l.table_name).toBe(l.class === 'serie' ? 6 : 3) })
   let c: Client
   beforeEach(async () => { c = new Client({ connectionString: URL_INT }); await c.connect(); await c.query('begin'); await prepararM5(c, 1) })
   afterEach(async () => { await c.query('rollback'); await c.end() })
@@ -565,7 +568,7 @@ grant execute on function public.obs_archive_aviso(uuid) to service_role;
 
 **Conferir antes do commit:** as chamadas a `obs_archive_b2_teto_cor`, `obs_archive_current_units`, `obs_archive_is_terminal` e `obs_archive_hoje_sp` passam porque a função é `security definer` do dono; um teste de catálogo (`has_function_privilege('service_role', ...)` falso para elas, verdadeiro para as duas novas) já está no teste de permissão acima e na M3b. `to_jsonb(m)` com `m` nulo (linha de grade sem registro) devolve nulo, e o `coalesce` cai em `false`.
 
-- [ ] **Passo 4. Rodar e ver passar.** Esperado: os 6 testes da parte 1 e os 11 da parte 2 PASS (mesmo comando da Tarefa 1). **Medir o custo** no `bythiago_int`, em transação desfeita, com o caso cheio (a conta de Phil M6: 75 canais × 6 tabelas = 450 unidades/mês; 03/05/2028):
+- [ ] **Passo 4. Rodar e ver passar.** Esperado: os 6 testes da parte 1 e os 11 da parte 2 PASS (mesmo comando da Tarefa 1). **Medir o custo** no `bythiago_int`, em transação desfeita, com o caso cheio (a conta de Phil M6: 75 canais × 6 tabelas = 450 unidades/mês; 03/05/2028). **Só os canais não é o caso cheio (Phil r2 N3):** depois do laço abaixo, semear também 450 unidades por mês em 19 meses (10/2026 a 04/2028; parte já recebida e terminada, parte a refazer) com o helper de unidade de `apps/web/test/helpers/m3b.ts`, para medir `current_units`, `is_terminal`, `b2_month_state` e `obs_archive_vermelhos` com dado, e medir `obs_archive_aviso` nesse mesmo volume:
 
 ```ts
 // dentro de um it.skipIf(!process.env.M5_MEDIR) do mesmo arquivo; roda só com M5_MEDIR=1
@@ -754,6 +757,8 @@ print('ok', OUT)
 - Modify: `apps/web/src/lib/youtube/observatorio/load.ts:65-69 (ObservatoryRows), 113-119, 237-244, 321, 379, 544-550, 565-585, 586-595, 605, 662-664`
 - Modify: `apps/web/src/lib/youtube/observatorio/load-channel.ts:8, 35, 53-55`
 - Modify: `apps/web/src/lib/youtube/observatorio/series.ts:75-90`
+- Modify: `apps/web/src/lib/youtube/observatorio/arquivo-mensal/capacidades.ts` (acrescenta `export const SAIDA_DE_MES_EXISTE = false`, com o comentário "a M6 vira true no mesmo commit da primeira função de saída; D-M5-15")
+- Create: `apps/web/test/youtube/observatorio/helpers/fabrica-load.ts` (a fábrica movida de `load.test.ts`, ver Passo 3)
 - Modify: `apps/web/src/lib/youtube/observatorio/types.ts:47-48, 120-123`
 - Modify (testes que mudam com o conserto, no mesmo commit): `apps/web/test/youtube/observatorio/load.test.ts:384-387` e `:403-420`
 - Test: `apps/web/test/youtube/observatorio/online-desde.test.ts`, `apps/web/test/youtube/observatorio/carregador-online-desde.test.ts`
@@ -772,7 +777,7 @@ export type OnlineDesde =
 export const JANELA_MINIMA_DIAS: Record<TabelaDaSerie, number>
 export function minDias(meses: number): number
 export function lerOnlineDesdeBruto(bruto: unknown): OnlineDesde
-export async function lerOnlineDesde(sb: SupabaseClient, siteId: string): Promise<OnlineDesde>
+export async function lerOnlineDesde(sb: SupabaseClient, siteId: string, saidaDeMesExiste: boolean): Promise<OnlineDesde>
 /** Início (ms, meia-noite SP) a partir do qual há série online garantida: o online desde; não lido, agora menos a janela mínima. */
 export function inicioSeguro(o: OnlineDesde, t: TabelaDaSerie, now: number): number | null
 ```
@@ -786,7 +791,7 @@ export function dailyCappedFrom(seriesStart: number, onlineDesde: number | null)
 
 **Por que a leitura da diária não espera o `online desde` (Yannis I-4).** O plano antigo passava o `online desde` a `dailyReadFrom`, e o `online desde` só chega depois de `readSiteLive` (é lido nele); os chamadores `load.ts:605` (`readSiteScope`), `:664` (`loadRows`) e `load-channel.ts:35` (dentro de `loadChannelRows`, que roda no `buildPack` em cache, `load-page.ts:52-55`) calculam a data de leitura **antes** ou **fora** dessa leitura. Resolver isso exigiria reordenar as leituras e invalidar a chave do pacote. A tabela online não tem linhas antes do `online desde` (o mês saiu dela), então ler a partir de `seriesStart - 1 dia` devolve o mesmo que ler do `online desde`, sem a espera. O `online desde` entra em **dois** lugares só: `rowsToDataset` (a marca `truncated` e `dailyCappedFrom`) e `assembleRows` (descarta em memória as linhas do pacote em cache anteriores a ele: um pacote de até 900 s, `load-page.ts:24`, pode ter sido montado quando o mês ainda estava online, e o Dataset diria `truncated` com a série inteira à frente).
 
-**O que acontece quando o dado não existe:** `online_since` nulo para a diária (nada saiu) → `dailyCappedFrom` nulo, nenhum vídeo `truncated`, a tela não muda (item 35). Função ausente (`42883`/`PGRST202`) → `{lido:false, porque:'funcao_ausente'}` e **mesmo efeito de "nada saiu"** (D-M5-1 e a decisão 1 de "Onde Phil e Yannis divergiram": sem a migration da M5 não há saída possível, porque a liberação das classes vive nela), com `Sentry.captureMessage('obs_archive_online_since ausente', 'warning')`. `erro_do_banco`, `fora_do_esquema` e `divergencia` → `{lido:false}` com a peça 1 dizendo "Não foi possível ler desde quando há dado online." (Tarefa 5), a série inteira lida e nada anulado além do que `inicioSeguro` cobre. **Nunca 365.** Série com mais de 300 dias, lida e com todos nulos → `Sentry.captureMessage('online_since nulo com série de mais de 300 dias', 'warning')` (a primeira saída da série é em 05/2027; depois disso, nulo é sinal de que algo não saiu como previsto, não erro).
+**O que acontece quando o dado não existe:** `online_since` nulo para a diária (nada saiu) → `dailyCappedFrom` nulo, nenhum vídeo `truncated`, a tela não muda (item 35). Função ausente (`42883`/`PGRST202`) com `SAIDA_DE_MES_EXISTE = false` → `{lido:true, nulos}`, **mesmo efeito de "nada saiu"**; com `true` → `{lido:false, porque:'funcao_ausente'}` e Sentry de erro (D-M5-15; hoje o tipo `funcao_ausente` só nasce nessa posição) (D-M5-1 e a decisão 1 de "Onde Phil e Yannis divergiram": sem a migration da M5 não há saída possível, porque a liberação das classes vive nela), com `Sentry.captureMessage('obs_archive_online_since ausente', 'warning')`. `erro_do_banco`, `fora_do_esquema` e `divergencia` → `{lido:false}` com a peça 1 dizendo "Não foi possível ler desde quando há dado online." (Tarefa 5), a série inteira lida e nada anulado além do que `inicioSeguro` cobre. **Nunca 365.** Série com mais de 300 dias, lida e com todos nulos → `Sentry.captureMessage('online_since nulo com série de mais de 300 dias', 'warning')` (a primeira saída da série é em 05/2027; depois disso, nulo é sinal de que algo não saiu como previsto, não erro).
 
 - [ ] **Passo 1. Testes do leitor, falhando:**
 
@@ -794,6 +799,8 @@ export function dailyCappedFrom(seriesStart: number, onlineDesde: number | null)
 // apps/web/test/youtube/observatorio/online-desde.test.ts
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { lerOnlineDesdeBruto, lerOnlineDesde, inicioSeguro, minDias, JANELA_MINIMA_DIAS } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 
 const linha = (t: string, d: string | null) => ({ class: t === 'competitor_video_hourly' ? 'horaria' : 'serie', table_name: t, online_since: d, divergencia: false })
@@ -816,10 +823,21 @@ describe('online desde', () => {
     const t = tudo(null); t[0] = { ...t[0]!, divergencia: true }
     expect(lerOnlineDesdeBruto(t)).toEqual({ lido: false, porque: 'fora_do_esquema' })
   })
-  it('função ausente (42883 e PGRST202): lido e nulo, nada saiu', async () => {
+  it('função ausente (42883 e PGRST202) com SAIDA_DE_MES_EXISTE=false: lido e nulo, nada saiu', async () => {
     for (const code of ['42883', 'PGRST202']) {
-      expect(await lerOnlineDesde(sbCom({ code }), 's')).toEqual({ lido: true, porTabela: { competitor_video_daily: null, competitor_video_early: null, competitor_video_hourly: null } })
+      expect(await lerOnlineDesde(sbCom({ code }), 's', false)).toEqual({ lido: true, porTabela: { competitor_video_daily: null, competitor_video_early: null, competitor_video_hourly: null } })
     }
+  })
+  it('função ausente com SAIDA_DE_MES_EXISTE=true: não lido (falha em verde fechada, D-M5-15), Sentry de erro', async () => {
+    for (const code of ['42883', 'PGRST202']) {
+      expect(await lerOnlineDesde(sbCom({ code }), 's', true)).toEqual({ lido: false, porque: 'funcao_ausente' })
+    }
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('obs_archive_online_since ausente com saída de mês existindo', 'error')
+  })
+  it('a constante vale false hoje e o carregador a passa (sem ela o teste acima nunca roda em produção)', async () => {
+    const { SAIDA_DE_MES_EXISTE } = await import('@/lib/youtube/observatorio/arquivo-mensal/capacidades')
+    expect(typeof SAIDA_DE_MES_EXISTE).toBe('boolean')
+    expect(readFileSync(resolve(__dirname, '../../../src/lib/youtube/observatorio/load.ts'), 'utf8')).toMatch(/lerOnlineDesde\([^)]*SAIDA_DE_MES_EXISTE/)
   })
   it('outro erro do banco: não lido', async () => {
     expect(await lerOnlineDesde(sbCom({ code: '57014' }), 's')).toEqual({ lido: false, porque: 'erro_do_banco' })
@@ -876,10 +894,15 @@ export function lerOnlineDesdeBruto(bruto: unknown): OnlineDesde {
   return { lido: true, porTabela }
 }
 
-export async function lerOnlineDesde(sb: SupabaseClient, siteId: string): Promise<OnlineDesde> {
+/** `saidaDeMesExiste` é obrigatório (sem default, para o teste não ser vazio): o chamador servidor passa `SAIDA_DE_MES_EXISTE` de `capacidades.ts` (que é 'server-only'; este módulo continua puro). */
+export async function lerOnlineDesde(sb: SupabaseClient, siteId: string, saidaDeMesExiste: boolean): Promise<OnlineDesde> {
   const { data, error } = await sb.rpc('obs_archive_online_since', { p_site: siteId })
   if (error) {
-    if (error.code === '42883' || error.code === 'PGRST202') { Sentry.captureMessage('obs_archive_online_since ausente', 'warning'); return NADA_SAIU }
+    if (error.code === '42883' || error.code === 'PGRST202') {
+      if (!saidaDeMesExiste) { Sentry.captureMessage('obs_archive_online_since ausente', 'warning'); return NADA_SAIU }
+      Sentry.captureMessage('obs_archive_online_since ausente com saída de mês existindo', 'error')
+      return { lido: false, porque: 'funcao_ausente' }
+    }
     Sentry.captureMessage('obs_archive_online_since: ' + error.code, 'error')
     return { lido: false, porque: 'erro_do_banco' }
   }
@@ -893,7 +916,7 @@ export function inicioSeguro(o: OnlineDesde, t: TabelaDaSerie, now: number): num
 
 Antes de gravar, `grep -n "export function spDateStart" apps/web/src/lib/youtube/observatorio/time.ts` e conferir que `spDateStart('2027-05-01')` dá `Date.parse('2027-05-01T03:00:00Z')` (o teste acima o exige); se `time.ts` tiver outra assinatura, ajustar a chamada, nunca duplicar a função (Yannis m-8).
 
-- [ ] **Passo 3. Testes do carregador, falhando** (itens 34, 35, 81; Review Focus 1 e 2). Os testes usam a fábrica **que `load.test.ts` já tem** (`rows()`, `channel()`, `video()`, `daily()`, `sp()`, `iso()`, `createObservatory`; `load.test.ts:403-420` mostra o uso). Se ela não for exportada, exportá-la de `load.test.ts` para um helper `test/youtube/observatorio/helpers/fabrica-load.ts` (mover, não copiar) e importar nos dois.
+- [ ] **Passo 3. Testes do carregador, falhando** (itens 34, 35, 81; Review Focus 1 e 2). Os testes usam a fábrica que `load.test.ts` tem (`rows()`, `channel()`, `video()`, `daily()`, `sp()`, `iso()`; `load.test.ts:9-31`). **Fato conferido (Yannis r2 N-7): nada disso é exportado, `daily` é posicional (`daily(video_id, snap_date, views)`, `load.test.ts:31`, não recebe objeto), a pasta `test/youtube/observatorio/helpers/` não existe e nenhum `series.test.ts` existe** (`viewsAtAge` não tem teste hoje; `insights.test.ts` monta o `EngineCtx` por cast). Portanto: (1) **criar** `helpers/fabrica-load.ts`, movendo (não copiando) `NOW`, `H`, `sp`, `iso`, `rows`, `channel`, `video`, `version`, `legacy` e `daily` de `load.test.ts` e exportando-os com a mesma assinatura; `load.test.ts` passa a importá-los de lá; (2) **escrever** `ctxDe(ds: Dataset): EngineCtx` no mesmo helper com o formato real de `EngineCtx` (`{ ds, clock, fmt, CH, V, CHG, niches }`: abrir `grep -n "interface EngineCtx" apps/web/src/lib/youtube/observatorio/*.ts` e montar cada campo a partir do dataset, no estilo do cast de `insights.test.ts`); (3) **o commit da Tarefa 4 lista os dois arquivos** no `git add`: `apps/web/test/youtube/observatorio/helpers/fabrica-load.ts` e `apps/web/test/youtube/observatorio/load.test.ts`. Sem isso a CI fica vermelha por import inexistente. Chamadas de `daily` nos testes abaixo usam a forma posicional.
 
 ```ts
 // apps/web/test/youtube/observatorio/carregador-online-desde.test.ts
@@ -954,7 +977,7 @@ describe('carregador com online desde', () => {
 
 Antes de escrever, abrir `series.ts:75-90` e `grep -n "viewsAtAge(" apps/web/test/youtube/observatorio/*.test.ts | head -3` e ajustar a **assinatura real** de `viewsAtAge` e o contexto (`ctxDe` é o nome do que os testes de `series` usam para isso; usar o nome que existir). E o caso do cartão `assembleRows`: acrescentar a `carregador-online-desde.test.ts` um `it('assembleRows descarta as linhas do pacote anteriores ao online desde')` com `live.onlineDesde` de 2027-05-01 e um pacote com uma linha de `snap_date: '2027-04-15'`: ela não aparece em `assembleRows(...).daily`.
 
-**`viewsAtAge` (Yannis I-5).** Hoje (`series.ts:75-90`) a extrapolação para trás acontece em vídeo cortado quando `T` cai antes do primeiro ponto: o `if (T < pointTime(ctx,u,a)) return null` precisa valer **sem condição**, não só com `truncated` (um vídeo sem a marca, com buraco de coleta, extrapolava do mesmo jeito). Mexer: depois de achar o primeiro ponto `a`, `if (T < pointTime(ctx, u, a)) return null`. Rodar `expectedCurve` (`series.ts` ~L183, o consumidor) com um vídeo cortado e afirmar que ele sai da curva esperada (teste no mesmo arquivo: vídeo antigo cortado, curva dos demais inalterada).
+**`viewsAtAge` (Yannis I-5).** Hoje (`series.ts:75-90`) a extrapolação para trás acontece quando `T` cai antes do primeiro ponto, e esse `if` **não existe** no código atual (Phil r2 N8): é para **acrescentar** `if (T < pointTime(ctx,u,a)) return null`, valendo **sem condição**, não só com `truncated` (um vídeo sem a marca, com buraco de coleta, extrapolava do mesmo jeito). Mexer: depois de achar o primeiro ponto `a`, `if (T < pointTime(ctx, u, a)) return null`. **Esta mudança altera números já no deploy, sem arquivo algum** (Yannis r2 N-10): a curva esperada deixa de incluir vídeos anteriores à coleta, que antes eram extrapolados. Declarar no ledger e ao Gio (Tarefa 14), e rodar a pasta inteira `apps/web/test/youtube/observatorio` com saída em arquivo para achar teste que dependa da extrapolação. Rodar `expectedCurve` (`series.ts` ~L183, o consumidor) com um vídeo cortado e afirmar que ele sai da curva esperada (teste no mesmo arquivo: vídeo antigo cortado, curva dos demais inalterada).
 
 - [ ] **Passo 4. Rodar e ver falhar.** `npx vitest run apps/web/test/youtube/observatorio/online-desde.test.ts apps/web/test/youtube/observatorio/carregador-online-desde.test.ts > .superpowers/sdd/manutencao-nas/saidas/m5-t4.txt 2>&1; grep -E "FAIL|×" .superpowers/sdd/manutencao-nas/saidas/m5-t4.txt | head -30`.
 - [ ] **Passo 5. Implementar a troca, num commit só.**
@@ -970,7 +993,7 @@ export function dailyCappedFrom(seriesStart: number, onlineDesde: number | null)
 }
 ```
 
-  - `ObservatoryRows` (`load.ts:65`) e `LiveRows` ganham `onlineDesde?: OnlineDesde`; `readSiteLive` lê `lerOnlineDesde(sb, siteId)` dentro do mesmo `Promise.all` e o devolve; `loadLiveRows` e `loadRows` o repassam; `assembleRows` o copia de `live` (`...live`) e acrescenta ao filtro de `daily`: `&& (od == null || d.snap_date >= spDate(od))`, com `od = live.onlineDesde?.lido ? live.onlineDesde.porTabela.competitor_video_daily : null`.
+  - `ObservatoryRows` (`load.ts:65`) e `LiveRows` ganham `onlineDesde?: OnlineDesde`; `readSiteLive` lê `lerOnlineDesde(sb, siteId, SAIDA_DE_MES_EXISTE)` (constante nova de `capacidades.ts`, `false` até a M6; Phil r2 N1) dentro do mesmo `Promise.all` e o devolve; `loadLiveRows` e `loadRows` o repassam; `assembleRows` o copia de `live` (`...live`) e acrescenta ao filtro de `daily`: `&& (od == null || d.snap_date >= spDate(od))`, com `od = live.onlineDesde?.lido ? live.onlineDesde.porTabela.competitor_video_daily : null`.
   - `rowsToDataset` (`load.ts:244`): `const od = rows.onlineDesde?.lido ? rows.onlineDesde.porTabela.competitor_video_daily : null; const cappedFrom = dailyCappedFrom(seriesStart, od)`; o `Dataset` leva `...(rows.onlineDesde ? { onlineDesde: rows.onlineDesde } : {})` (`load.ts:379`). `truncated` (`:321`) fica como está (`pub >= seriesStart && pub < cappedFrom`).
   - Chamadores: `load.ts:605` → `dailyReadFrom(seriesStart ?? now)`; `:664` → `dailyReadFrom(seriesStart)`; `load-channel.ts:35` → `dailyReadFrom(seriesStart)`; `:55` → `dailyReadFrom(seriesStart ?? now)`.
   - `types.ts:47`: comentário de `truncated` passa a "The online series starts after the publication (a month of the daily series left the online database, ds.dailyCappedFrom): no day-0 baseline may be assumed."; `Dataset` (`:120-123`) ganha `onlineDesde?: OnlineDesde` com o comentário "ausente = as linhas não o traziam (oracle, golden)".
@@ -1119,16 +1142,17 @@ Quem chama `estadoDaIdade` passa `coleta = coletaDoVideo({ seriesStart: ds.serie
 // @vitest-environment node
 import { describe, it, expect, afterEach } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { writeFileSync, rmSync, mkdirSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { writeFileSync, rmSync, mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { resolve, join } from 'node:path'
 import { LEITORES_DAS_SERIES, EXCECOES_DE_DATA_FIXA } from '@/lib/youtube/observatorio/arquivo-mensal/leitores-das-series'
 import { JANELA_MINIMA_DIAS } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 
 const RAIZ = resolve(__dirname, '../../../..')
 /** `git grep` sai com 1 quando não acha: isso é "lista vazia", não erro. Qualquer outro status propaga. */
-function achar(padrao: string, dirs: string[]): string[] {
+function achar(padrao: string, dirs: string[], fora?: string): string[] {  // `fora`: diretório fora do repositório (teste do teste): git grep --no-index nele
   try {
-    return execFileSync('git', ['grep', '-l', '-E', '--untracked', padrao, '--', ...dirs], { cwd: RAIZ, encoding: 'utf8' }).split('\n').filter(Boolean)
+    return execFileSync('git', ['grep', '-l', '-E', fora ? '--no-index' : '--untracked', padrao, '--', ...dirs], { cwd: fora ?? RAIZ, encoding: 'utf8' }).split('\n').filter(Boolean)
   } catch (e) {
     if ((e as { status?: number }).status === 1) return []
     throw e
@@ -1150,8 +1174,8 @@ describe('quem lê as três séries (04 §14.1, item 82)', () => {
 })
 
 describe('janelas e datas fixas (item 83)', () => {
-  const ARQUIVO_TEMP = resolve(RAIZ, 'apps/web/src/lib/youtube/observatorio/medidas-telas/__tmp_item83.ts')
-  afterEach(() => { try { rmSync(ARQUIVO_TEMP) } catch { /* já não existe */ } })
+  const DIR_TEMP = mkdtempSync(join(tmpdir(), 'item83-')), ARQUIVO_TEMP = join(DIR_TEMP, '__tmp_item83.ts')  // fora de src (Yannis r2 N-9): processo morto não deixa lixo na árvore
+  afterEach(() => { rmSync(DIR_TEMP, { recursive: true, force: true }) })
   it('nenhum arquivo de código de tela escreve 365, 180 ou data de início de coleta, salvo a lista nomeada', () => {
     const achados = achar('\\b(365|180)\\b|2026-10-0[1-3]', DIRS_DE_TELA.flatMap(d => SO_CODIGO.map(g => d + '/' + g)))
     const permitidos = new Set(EXCECOES_DE_DATA_FIXA.map(e => e.arquivo))
@@ -1159,10 +1183,10 @@ describe('janelas e datas fixas (item 83)', () => {
   })
   it('toda exceção tem motivo escrito', () => { for (const e of EXCECOES_DE_DATA_FIXA) expect(e.motivo.length, e.arquivo).toBeGreaterThan(30) })
   it('o teste do teste: a busca enxerga um arquivo novo com a data de início', () => {
-    mkdirSync(resolve(ARQUIVO_TEMP, '..'), { recursive: true })
     writeFileSync(ARQUIVO_TEMP, "export const X = '2026-10-02'\n")
-    const achados = achar('\\b(365|180)\\b|2026-10-0[1-3]', DIRS_DE_TELA.flatMap(d => SO_CODIGO.map(g => d + '/' + g)))
-    expect(achados).toContain('apps/web/src/lib/youtube/observatorio/medidas-telas/__tmp_item83.ts')
+    // a mesma função `achar`, com cwd no diretório temporário (fora do repositório, `--no-index`)
+    const achados = achar('\\b(365|180)\\b|2026-10-0[1-3]', ['*.ts'], DIR_TEMP)
+    expect(achados.some(a => a.endsWith('__tmp_item83.ts'))).toBe(true)
   })
   it('as telas de 180 dias dependem da janela online da política, lida e não escrita', () => {
     expect(JANELA_MINIMA_DIAS.competitor_video_daily).toBeGreaterThanOrEqual(181)
@@ -1175,7 +1199,7 @@ describe('janelas e datas fixas (item 83)', () => {
 
 - [ ] **Passo 2. Rodar e ver falhar** (a lista ainda não existe).
 - [ ] **Passo 3. Escrever `leitores-das-series.ts`** com uma linha por arquivo achado pelo `git grep` do teste (hoje: `agenda/tarefas/leitura-horaria.ts` e `horaria/gravar.ts` como `escritor`, `competitor-sync.ts` como `escritor`, `observatorio/cache-tag.ts` como `janela_por_construcao`, `types/database.types.ts` como `janela_por_construcao` (tipos gerados), `competitor-health.ts` e `medidas/ler.ts` como `registro`/`texto_online_desde`, `observatorio/load.ts` e `load-channel.ts` como `registro`, `arquivo-mensal/contrato.ts` como `janela_por_construcao`; a busca do Passo 2 diz o que mais há), cada uma com um comentário de uma linha dizendo o que a tela passa a dizer depois de uma saída (`04` L92-96). Mais `EXCECOES_DE_DATA_FIXA = [{ arquivo: 'apps/web/src/lib/youtube/observatorio/medidas-telas/calendario.ts', motivo: 'INICIO_DAS_MARCAS é o início das marcas V1, V7 e V30 (competitor_video_marks), que nunca saem do banco; não é o início da série diária e não depende do online desde.' }]`.
-- [ ] **Passo 4. Ajustar os três leitores**, cada um com teste no arquivo que já o cobre (`grep -rl "prova\|removal-impact\|lerSeriesDoCanal" apps/web/test`): (a) `prova.ts` lê `online_desde` e `desde_precisao` (ausentes = `null` e `'hora'`) e mantém `desde` como o começo real; com um mês de horária fora, `desde` não pula de outubro para novembro (a função do banco é a da Tarefa 3; o teste do TS prova que o leitor passa os três campos adiante); (b) `competitor-removal-impact.ts` devolve as duas parcelas, "no banco agora" (o `competitor_channel_removal_impact` de hoje, intocado) e "no arquivo" (`obs_archive_channel_archive_impact`, tolerando função ausente = parcela `null`, "não medido"), e o diálogo de remover (da M3b) soma; nenhuma das contagens da soma cai depois de uma saída (teste com as duas respostas fixas antes e depois); nenhum campo do arquivo diz "dias"; (c) `lerSeriesDoCanal` com `desde` anterior ao `online desde` devolve `cortadoEm` e quem consome (M10 e medidas) diz "desde dd/mm".
+- [ ] **Passo 4. Ajustar os três leitores**, cada um com teste no arquivo que já o cobre (`grep -rl "prova\|removal-impact\|lerSeriesDoCanal" apps/web/test`): (a) `prova.ts` lê `online_desde` e `desde_precisao` (ausentes = `null` e `'hora'`) e mantém `desde` como o começo real; com um mês de horária fora, `desde` não pula de outubro para novembro (a função do banco é a da Tarefa 3; o teste do TS prova que o leitor passa os três campos adiante); (b) `competitor-removal-impact.ts` devolve as duas parcelas, "no banco agora" (o `competitor_channel_removal_impact` de hoje, intocado) e "no arquivo" (`obs_archive_channel_archive_impact`, tolerando função ausente = parcela `null`, "não medido"), e o diálogo de remover (da M3b) soma **"no banco agora" mais `fora_do_banco.registros` e `fora_do_banco.meses` (o que já saiu do banco), nunca os `registros`/`meses` totais do arquivo**, que incluem o que ainda está no banco e contariam o mesmo dado duas vezes (Phil r2 N2); teste com as duas respostas fixas antes e depois de uma saída: `online + fora_do_banco` é constante, e antes da saída `fora_do_banco.registros = 0` e a soma é só a parcela online; nenhum campo do arquivo diz "dias"; (c) `lerSeriesDoCanal` com `desde` anterior ao `online desde` devolve `cortadoEm` e quem consome (M10 e medidas) diz "desde dd/mm".
 - [ ] **Passo 5. Rodar, typecheck, commit** `feat: leitores das séries respeitam o online desde, lista fechada e datas fixas (manutenção M5, itens 82 e 83)`.
 
 ---
@@ -1231,7 +1255,7 @@ export function modeloNaoLido(porque: 'funcao_ausente' | 'erro_do_banco' | 'fora
 - **Etapas:** NAS (visto com verificação < 24 h; triângulo "Cópia sem verificação há N horas" acima; pontilhado sem atestação); B2 (visto com forja < 7 dias ou você < 35; triângulo quando só resta a sua; triângulo a 6 dias da forja, 2 no mês que pode sair em 7; octógono sem nenhuma válida; a origem só no texto); Recuperação (visto com a última restauração < 180 dias **e** `schema_fp` igual ao `schema_fp_atual` que o banco devolve (Phil I4: o fp muda quando uma coluna entra e o teste da época deixa de valer); senão "Refaça o teste de recuperação…"; triângulo 30 dias antes de vencer); Prazo (pontilhado até `devido_em` + janela); Pode sair.
 - **Mês sem linha de registro** (`tem_linha: false`, Phil C1): é a linha de **grade**. Frase pelo progresso: antes de `devido_em`, "Em coleta" (corrente) ou "Fechado. Cópia a partir de dd/mm" (`devido_em`); depois de `devido_em` e com `canais_prontos < canais_esperados`, "Copiando: X de Y canais" (X > 0) ou "Cópia atrasada há N dias" (X = 0; N = `hoje − devido_em`; triângulo âmbar acima de 5 dias, octógono vermelho acima de 30, as mesmas faixas de `obs_archive_atraso`, `m3b.sql:2062`). Com `canais_esperados = 0` e nenhum canal no site: "Sem canais neste mês" em `zero`, nunca "Copiando: 0 de 0".
 - **Meses à frente (Phil M3):** `months_ahead` ≥ 6 sem aviso; 3 a 5 âmbar; menos de 3 vermelho; **-1** → "O mês corrente não existe nesta tabela. Rode a criação de partições." em octógono (nunca "−1 meses"); **nulo** → "Tabela ainda não particionada: não medido" em hachura. Cada tabela da série tem a sua frase (3 tabelas).
-- **`casaDe` (Phil I2):** o sinal de cada programa (`copiador`, `respondedor`, `conferir_b2`) é `max(last_poll_at, updated_at)`: `last_poll_at` só o copiador grava (`m3b.sql:2258-2259`), os outros dois só gravam `updated_at` (`obs_archive_heartbeat_write`, `m3b.sql:2186-2225`). Sem nenhum batimento → `nunca_deu_sinal` (triângulo, "A casa ainda não deu sinal"). Sinal de qualquer programa com mais de **36 h** → octógono `nao_respondeu`; entre **24 h** e 36 h → triângulo (24 h e 36 h são o limiar da varredura do NAS, `m3b.sql` na `heartbeat_write`: "varredura abre com `nas_checked_at` anterior > 24 h"; comentário no código com essa fonte). `nas_checked_at` do copiador com mais de 24 h → `nas_sem_verificar` (triângulo), mais de 36 h → octógono. `nas_ok` falso → `nas_fora`; **"NAS cheio" não vem de `last_error`** (Phil I2): vem de um vermelho com prefixo `nas_80:` em `vermelhos` → `nas_cheio`.
+- **`casaDe` (Phil I2):** o sinal de cada programa (`copiador`, `respondedor`, `conferir_b2`) é `max(last_poll_at, updated_at)`: `last_poll_at` só o copiador grava (`m3b.sql:2258-2259`), os outros dois só gravam `updated_at` (`obs_archive_heartbeat_write`, `m3b.sql:2186-2225`). Sem nenhum batimento → `nunca_deu_sinal` (triângulo, "A casa ainda não deu sinal"). **Programa esperado sem linha (Phil r2 N7, Yannis r2 N-8):** `casaDe` exige linha do `copiador` e do `conferir_b2` (o `respondedor` só a partir da M7); a falta de qualquer um dos dois, mesmo com os outros batendo, é triângulo "<programa> ainda não deu sinal" (`estado: 'programa_sem_sinal'`), nunca "responde"; teste: só o `conferir_b2` bateu → triângulo `programa_sem_sinal` do copiador (o caso do teste "só o conferir_b2 deu sinal" abaixo muda de `responde` para isso, e `responde` passa a exigir os dois). **Âncora dos limiares (Phil r2 N6):** os limiares de 5 e 30 dias existem em `obs_archive_atraso` (SQL) e em `estado-do-mes.ts` (TS); um teste de integração semeia unidade a 5, 6, 30 e 31 dias de atraso e compara a gravidade de `obs_archive_atraso` com a de `montarPagina` para o mesmo mês (mesmos números nos dois lados). Sinal de qualquer programa com mais de **36 h** → octógono `nao_respondeu`; entre **24 h** e 36 h → triângulo (24 h e 36 h são o limiar da varredura do NAS, `m3b.sql` na `heartbeat_write`: "varredura abre com `nas_checked_at` anterior > 24 h"; comentário no código com essa fonte). `nas_checked_at` do copiador com mais de 24 h → `nas_sem_verificar` (triângulo), mais de 36 h → octógono. `nas_ok` falso → `nas_fora`; **"NAS cheio" não vem de `last_error`** (Phil I2): vem de um vermelho com prefixo `nas_80:` em `vermelhos` → `nas_cheio`.
 - **Vermelhos (Phil I1):** a seção "Problemas" lê `p.vermelhos` (a mesma lista do pulso) por **prefixo**, tabela em `vermelhos.ts` (um prefixo → frase com o resto da linha, forma `octogono` ou `triangulo`): `atraso de cópia`, `mês sem selo`, `NAS: `, `B2: `, `conteúdo divergente`, `mês descartado sem releitura`, `b2_atrasado`, `B2 recusou o fileId`, `canário do filho`, `canario_regravado:`, `nas_ilegivel:`, `b2_ilegivel:`, `nas_80:`, `tabela_ausente:`, `b2_piso_acima_do_teto`, `b2_completo_atrasado`, `b2_teto_2_dias`, `vigia da remoção: consulta`. **Prefixo desconhecido** → linha genérica "O arquivo tem um problema que esta página ainda não descreve." com o texto cru no ⓘ, em octógono (a página nunca engole um vermelho que não conhece).
 - **Arquivo desligado** (`arquivoLigado` falso, `OBS_ARQUIVO !== 'on'`) → toda a página é a frase "O arquivo está desligado neste site: nada está sendo copiado nem tirado", pontilhado neutro, e nenhum mês.
 
@@ -1322,7 +1346,9 @@ describe('Phil I2: a casa', () => {
   const h = (h: number) => new Date(AGORA - h * 3_600_000).toISOString()
   const bat = (worker: string, o: Record<string, unknown>) => ({ worker, last_poll_at: null, updated_at: null, nas_ok: true, nas_checked_at: null, last_error: null, ...o })
   it('só o conferir_b2 deu sinal, 1 h atrás por updated_at: responde (last_poll_at nulo não é silêncio)', () => {
-    expect(casaDe([bat('conferir_b2', { updated_at: h(1) })] as never, [], AGORA).estado).toBe('responde')
+    // r2 N7/N-8: sem linha do copiador não é 'responde'
+    expect(casaDe([bat('conferir_b2', { updated_at: h(1) })] as never, [], AGORA)).toMatchObject({ estado: 'programa_sem_sinal', forma: 'triangulo' })
+    expect(casaDe([bat('copiador', { last_poll_at: h(1), updated_at: h(1), nas_checked_at: h(1) }), bat('conferir_b2', { updated_at: h(1) })] as never, [], AGORA).estado).toBe('responde')
   })
   it('copiador há 25 h: triângulo; há 37 h: octógono', () => {
     expect(casaDe([bat('copiador', { last_poll_at: h(25), updated_at: h(25) })] as never, [], AGORA).forma).toBe('triangulo')
@@ -1433,6 +1459,36 @@ describe.skipIf(skipIfNoLocalDb())('as chaves do SQL são as da lista fechada do
   })
 })
 ```
+
+**Contrato SQL → Zod com a saída REAL (Yannis r2 N-5).** Comparar só chaves de topo não prova o `b2` aninhado (2 chaves sem registro: `atestada_em`, `retirada`; ~9 com registro: `via`, `por`, `forja_ok_at`, `dono_ok_at`, `forja_divergiu_em`, `ultima_tentativa`, `idade_dias`...). Um `.strict()` derivado da fixture à mão recusaria a página inteira ("Não foi possível ler o estado do arquivo") no 1º uso em produção. Acrescentar ao mesmo arquivo de integração (banco 54422) estes casos, que passam a saída crua do `pg` pelos leitores reais e exigem `ok: true`:
+
+```ts
+import { lerPaginaBruta } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
+import { lerAvisoLeveBruto } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-leve'
+import { lerCanaisRemovidosBruto } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
+import { lerOnlineDesdeBruto } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
+
+const bruto = async (c: Client, sql: string, p: unknown[]) => (await q1(c, sql, p)).x   // jsonb vem como objeto do `pg`, igual ao PostgREST
+it('obs_archive_pagina REAL passa em lerPaginaBruta: sem linha, com linha, com b2 atestado, com batimento e com unidade', async () => {
+  await semearCanal(c, { site: SITE_TESTE, videos: 0 })
+  // (1) só canais: toda a grade é "sem linha"
+  expect(lerPaginaBruta(await bruto(c, `select public.obs_archive_pagina($1) as x`, [SITE_TESTE]))).toMatchObject({ ok: true })
+  // (2) linha de registro + atestação B2 com os dois lados (preencher as colunas que o seed da M3b usa: `grep -n "b2_attested" apps/web/test/helpers/m3b.ts`)
+  await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, b2_attested_at, b2_attested_via) values ($1, 'serie', 'competitor_video_daily', '2026-10-01', now(), 'forja')`, [SITE_TESTE])
+  await c.query(`insert into public.obs_archive_heartbeat (site_id, worker, last_poll_at, updated_at, nas_ok, nas_checked_at) values ($1, 'copiador', now(), now(), true, now())`, [SITE_TESTE])
+  // (3) uma unidade recebida (função/seed de unidade do helper m3b: `grep -n "export" apps/web/test/helpers/m3b.ts`)
+  const r = lerPaginaBruta(await bruto(c, `select public.obs_archive_pagina($1) as x`, [SITE_TESTE]))
+  expect(r).toMatchObject({ ok: true })
+})
+it('obs_archive_aviso, obs_archive_removed_channel_list e obs_archive_online_since REAIS passam nos leitores', async () => {
+  await semearCanal(c, { site: SITE_TESTE, videos: 0 })
+  expect(lerAvisoLeveBruto(await bruto(c, `select public.obs_archive_aviso($1) as x`, [SITE_TESTE]))).toMatchObject({ ok: true })
+  expect(lerCanaisRemovidosBruto(await bruto(c, `select public.obs_archive_removed_channel_list($1) as x`, [SITE_TESTE]))).toMatchObject({ ok: true })
+  expect(lerOnlineDesdeBruto(await bruto(c, `select jsonb_agg(t) as x from public.obs_archive_online_since($1) t`, [SITE_TESTE]))).toMatchObject({ lido: true })
+})
+```
+
+Cada leitor `...Bruto` (síncrono, sem rede) é exportado só para este teste e para os testes unitários. Se um leitor recusar a saída real, o erro é do Zod do plano, não do SQL: ajustar o schema. **Decisão (Phil r2 N5):** `b2.por` (uuid de pessoa) NÃO vai à página: o `b2` de `meses[]` é montado na Tarefa 2 por lista fechada de chaves, sem `por` (a página não usa o campo e o navegador de quem só edita não deve receber o identificador de outra pessoa); conferir em `m3b.sql:1896` o que `p_by` guarda e registrar no ledger.
 
 Antes de gravar o teste de integração, conferir as colunas obrigatórias de `obs_archive_heartbeat` (`sed -n 157,170p supabase/rascunhos/m3b.sql`) e ajustar o `insert`. **Por que `.strict()` com lista fechada e não `to_jsonb(m)`:** `to_jsonb(m)` com Zod estrito quebrava no deploy da M6, que acrescenta colunas a `obs_archive_months` (`reattach_out_of_order` e outras); a Tarefa 2 lista as colunas à mão e a coluna da M6 entra por `coalesce(... ->> 'reattach_out_of_order', false)`, então a página funciona antes e depois da M6.
 
@@ -1561,7 +1617,8 @@ describe('bloco Canais removidos, só de leitura (item 163, parte M5)', () => {
 ### Task 9: a página Arquivo (rota, aba, componentes)
 
 **Files:**
-- Create: `apps/web/src/app/cms/(authed)/youtube/competitors/_chrome/permissoes.ts` (extraído de `page.tsx:27-31`, com `cache()` do React; Yannis I-1)
+- Create: `apps/web/src/app/cms/(authed)/youtube/competitors/_chrome/permissoes.ts` (extraído de `page.tsx:27-31`, com `cache()` do React; Yannis I-1; exporta também `podeEditarSite` e `podeAdministrarSite`, r2 N-6)
+- Create: `apps/web/test/youtube/observatorio/permissoes.test.ts` (o módulo real, r2 N-1)
 - Modify: `apps/web/src/app/cms/(authed)/youtube/competitors/page.tsx:26-31` (importa `permissoesDoSite` em vez de definir; nada mais muda)
 - Create: `apps/web/src/app/cms/(authed)/youtube/competitors/arquivo/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/youtube/competitors/_arquivo/montar.ts` (servidor: permissões e leituras), `so-le.tsx`
@@ -1750,14 +1807,64 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 
 export interface PermissoesDoSite { canUnlock: boolean; podeEditar: boolean }
-export const permissoesDoSite = cache(async (siteId: string): Promise<PermissoesDoSite> => {
+/** Só o direito de editar (2 idas: getUser + rpc). É o que o chrome usa em toda navegação (Yannis r2 N-6). */
+export const podeEditarSite = cache(async (siteId: string): Promise<boolean> => {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) return { canUnlock: false, podeEditar: false }
-  return { canUnlock: await canAdminSiteUsers(siteId), podeEditar: true }
+  return res.ok
+})
+/** Quem administra: só chamada onde a tela precisa (página Arquivo, peça 7), depois de `podeEditarSite`. */
+export const podeAdministrarSite = cache(async (siteId: string): Promise<boolean> => canAdminSiteUsers(siteId))
+export const permissoesDoSite = cache(async (siteId: string): Promise<PermissoesDoSite> => {
+  if (!(await podeEditarSite(siteId))) return { canUnlock: false, podeEditar: false }
+  return { canUnlock: await podeAdministrarSite(siteId), podeEditar: true }
 })
 ```
 
 `page.tsx` apaga a função local e faz `import { permissoesDoSite } from './_chrome/permissoes'` (o resto idêntico: `openObservatoryPage(permissoesDoSite)`). Teste existente da página, se houver, continua verde (`grep -rln "permissoesDoSite" apps/web/test`).
+
+**Teste do módulo real (Yannis r2 N-1; sem ele um `mode: 'view'` exporia o estado do arquivo a leitores e todos os outros testes, que mockam este módulo, passariam):**
+
+```ts
+// apps/web/test/youtube/observatorio/permissoes.test.ts
+// @vitest-environment node
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const requireSiteScope = vi.fn(); const canAdminSiteUsers = vi.fn()
+vi.mock('server-only', () => ({}))
+vi.mock('react', () => ({ cache: <T,>(f: T) => f }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (a: unknown) => requireSiteScope(a) }))
+vi.mock('@/lib/youtube/competitor-admin', () => ({ canAdminSiteUsers: (s: string) => canAdminSiteUsers(s) }))
+const SITE = '00000000-0000-0000-0000-00000000a3b0'
+
+describe('permissoesDoSite (módulo real)', () => {
+  beforeEach(() => { vi.resetModules(); requireSiteScope.mockReset(); canAdminSiteUsers.mockReset() })
+  it('pede o direito de EDITAR no cms do site, nunca view', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true }); canAdminSiteUsers.mockResolvedValue(false)
+    await (await import('@/app/cms/(authed)/youtube/competitors/_chrome/permissoes')).permissoesDoSite(SITE)
+    expect(requireSiteScope).toHaveBeenCalledWith({ area: 'cms', siteId: SITE, mode: 'edit' })
+  })
+  it('recusado: nada de edição e canAdminSiteUsers nem é chamado', async () => {
+    requireSiteScope.mockResolvedValue({ ok: false })
+    expect(await (await import('@/app/cms/(authed)/youtube/competitors/_chrome/permissoes')).permissoesDoSite(SITE)).toEqual({ canUnlock: false, podeEditar: false })
+    expect(canAdminSiteUsers).not.toHaveBeenCalled()
+  })
+  it('edita e administra: os dois verdadeiros; edita sem administrar: canUnlock falso', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true })
+    const { permissoesDoSite } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/permissoes')
+    canAdminSiteUsers.mockResolvedValueOnce(true)
+    expect(await permissoesDoSite(SITE)).toEqual({ canUnlock: true, podeEditar: true })
+    vi.resetModules(); canAdminSiteUsers.mockResolvedValueOnce(false)
+    expect(await (await import('@/app/cms/(authed)/youtube/competitors/_chrome/permissoes')).permissoesDoSite(SITE)).toEqual({ canUnlock: false, podeEditar: true })
+  })
+  it('podeEditarSite sozinho não toca canAdminSiteUsers (o chrome não paga a segunda ida)', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true })
+    expect(await (await import('@/app/cms/(authed)/youtube/competitors/_chrome/permissoes')).podeEditarSite(SITE)).toBe(true)
+    expect(canAdminSiteUsers).not.toHaveBeenCalled()
+  })
+})
+```
+
+Entra no `git add` da Tarefa 9 junto de `_chrome/permissoes.ts`.
 
 ```ts
 // apps/web/src/app/cms/(authed)/youtube/competitors/_arquivo/montar.ts
@@ -1866,10 +1973,11 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureM
 vi.mock('server-only', () => ({}))
 
 const SITE = '00000000-0000-0000-0000-00000000a3b0', AGORA = new Date('2028-05-03T15:00:00Z')
-const ITEM = { item_id: 'canal:aaaaaaaa-1111-2222-3333-444444444444', kind: 'canal', tempo: 'sem_comando', desde: '2028-03-01T12:00:00Z', mes: null,
+const ITEM = { item_id: 'canal:aaaaaaaa-1111-2222-3333-444444444444', kind: 'canal', tempo: 'apagar_antigas', desde: '2028-03-01T12:00:00Z', mes: null,
   channel_ref: 'aaaaaaaa-1111-2222-3333-444444444444', youtube_id: null, marcado_rodado_em: null,
-  apagar: [{ filho: 'numerico', caminho: 'canal/x.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: ['b2-secreto'] }
-const CORPO = { versao: 1, lido_em: '2028-05-03T15:00:00Z', itens: [ITEM] }
+  apagar: [{ filho: 'numerico', caminho: 'canal/x.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: ['canal/b2-secreto.csv'] }
+// Yannis r2 N-2: o Zod é estrito. `total` é obrigatório e igual a itens.length; `apagar`/`b2_nomes` só existem (e não vazios) em 'apagar_antigas'. Com 'sem_comando' o corpo era recusado e o teste ficava vazio.
+const CORPO = { versao: 1, lido_em: '2028-05-03T15:00:00Z', total: 1, itens: [ITEM] }
 const chamar = async (perm: { podeEditar: boolean; canUnlock: boolean }) => (await import('@/app/cms/(authed)/youtube/competitors/_canais/pendencias-da-fila')).lerPendenciasDaFila(SITE, perm, AGORA)
 
 describe('lerPendenciasDaFila', () => {
@@ -1881,7 +1989,7 @@ describe('lerPendenciasDaFila', () => {
   it('só edita: serializado sem linha, sem apagar, sem b2_nomes', async () => {
     rpc.mockResolvedValue({ data: CORPO, error: null })
     const r = await chamar({ podeEditar: true, canUnlock: false })
-    expect(r).toMatchObject({ estado: 'com_itens', linha: null })
+    expect(r).toMatchObject({ estado: 'com_itens', linha: null })   // se for 'nao_medido', a fixture voltou a ser inválida
     expect(JSON.stringify(r)).not.toMatch(/apagar|b2_nomes|b2Nomes|b2-secreto|canal\/x\.csv/)
   })
   it('administra: a linha é exatamente a linha do dono', async () => {
@@ -1989,7 +2097,7 @@ export async function lerPendenciasDaFila(siteId: string, perm: PermissoesDoSite
 **Files:**
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo-mensal/aviso-v2.ts` (puro)
 - Create: `apps/web/src/app/cms/(authed)/youtube/competitors/_chrome/aviso-banco/pastilha.tsx`, `painel.tsx`, `regua-tempo.tsx`, `aviso-banco.css` (D-M5-5: inteiro, se o 18 não existir em código; senão, só a diferença sobre o componente achado no Task 0, Passo 3)
-- Modify: `_chrome/freshness.tsx` (a pastilha e as marcas na faixa de frescor; `flex-wrap`), `_chrome/chrome-server.tsx` (decide a pastilha e a aba pela guarda `permissoesDoSite` em cache e lê o aviso leve **só depois** dela)
+- Modify: `_chrome/freshness.tsx` (a pastilha e as marcas na faixa de frescor; `flex-wrap`), `_chrome/chrome-server.tsx` (decide a pastilha e a aba pela guarda **`podeEditarSite`** em cache, não por `permissoesDoSite`, para não pagar `canAdminSiteUsers` em toda navegação, e lê o aviso leve **só depois** dela; a guarda e a leitura da resolução do nicho/engine correm em `Promise.all`, Yannis r2 N-6)
 - Create: `apps/web/src/app/cms/(authed)/youtube/competitors/_chrome/arquivo-do-chrome.ts` (a decisão da aba e da pastilha)
 - Create: `apps/web/src/lib/youtube/observatorio/arquivo-mensal/aviso-leve.ts` (leitor de `obs_archive_aviso`: Zod `.strict()`, `unstable_cache` com `revalidate: 60` e a tag `observatoryTag(siteId)`, chave com o `siteId`; **chamado só depois da guarda**)
 - Test: `apps/web/test/youtube/observatorio/aviso-v2.test.ts` (node), `apps/web/test/youtube/observatorio/aviso-pastilha.test.tsx` (jsdom), `apps/web/test/youtube/observatorio/aviso-chrome-leve.test.ts` (node)
@@ -2260,8 +2368,9 @@ npm run db:push:prod 2>&1 | tee .superpowers/sdd/manutencao-nas/saidas/m5-db-pus
 
 A linha que o dono roda, no clipboard (`pbcopy`), na hora (não antes): `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m5-db-push.sh`. Janela: fora de 11:30 a 13:00 UTC e dos minutos 0, 20 e 40.
 - [ ] **Passo 7. Conferências em produção** (leitura, pelo agente, `npx supabase db query --linked`, saída em arquivo; cada uma com a **data** em que vale, no ledger):
-  - **No dia do `db:push:prod`:** `select class, table_name, released from public.obs_archive_policy() where released` (três linhas `true`); `select * from public.obs_archive_online_since('<site>')` (as três tabelas, `online_since` nulo: nenhum mês saiu); `select jsonb_array_length(public.obs_archive_pagina('<site>')->'meses')` **nunca 0** com mês devido (Phil C1: zero seria a página perdendo a grade); `select public.obs_archive_pagina('<site>')->'versao'` (1); `select public.obs_archive_aviso('<site>')->'versao'` (1).
+  - **No dia do `db:push:prod`:** `select class, table_name, released from public.obs_archive_policy() where released` (três linhas `true`); `select * from public.obs_archive_online_since('<site>')` (as três tabelas, `online_since` nulo: nenhum mês saiu); `select (jsonb_path_query_first(public.obs_archive_pagina('<site>'), '$.progresso[*] ? (@.month == "2026-10-01")')->>'canais_esperados')::int` **igual a** `select count(*) from competitor_channels where site_id = '<site>' and added_at < '2026-11-01'` (Phil r2 N4: "`meses` nunca 0" era vazio, a grade sempre tem linhas); `select * from public.obs_archive_online_since('<site>')` com `divergencia = false` nas três tabelas (a divergência compara a partição mais antiga com `obs_archive_switch.first_month`, que ninguém testou em produção; `true` derruba a leitura para "não lido"); `select public.obs_archive_pagina('<site>')->'versao'` (1); `select public.obs_archive_aviso('<site>')->'versao'` (1).
   - **No dia seguinte (D+1):** `select * from public.obs_archive_heartbeat` contra o que a página mostra em "A casa" (mesmo `last_poll_at`/`updated_at`; o triângulo e o octógono nas horas certas).
+  - **No dia em que a M6 liga a primeira saída (D-M5-15):** `SAIDA_DE_MES_EXISTE = true` no mesmo commit; função ausente deixa de valer "nada saiu".
   - **Em 01/09/2027:** algum mês da série saiu do banco? A primeira saída da série é a de outubro de 2026, devida em 28/11/2026 e liberada pela janela de 6 meses (a partir de maio de 2027); se em 01/09/2027 nenhum mês da série tiver saído, abrir **achado de custo** (o volume V·D do banco) **antes de 03/10/2027**, quando a leitura de 365 dias teria sido o teto de hoje e a coleta passa a ter um ano. Depois de 03/10/2027 o carregador lê sem teto: o volume lido cresce até a primeira saída.
   Se a leitura em produção for negada no modo automático, preparar o arquivo de comandos e a linha para o dono (`reference_controlador_muitos_agentes`).
 - [ ] **Passo 8. Push do código** (staging → CI verde → promoção a `main` no mesmo dia, `feedback_push_e_promocao_do_agente`), com a migration já aplicada. Registrar no ledger: hash, hora do `db:push:prod`, hora do deploy, "M5 em produção".
@@ -2292,8 +2401,8 @@ A linha que o dono roda, no clipboard (`pbcopy`), na hora (não antes): `bash ~/
 ### Task 16: revisão de Phil e Yannis e fecho
 
 - [ ] **Passo 1. Revisão do código** (antes da Tarefa 13, Passo 3, e de novo depois de consertos de Gio/Logan/Naksu que toquem lógica): `phil-dados` (leituras: o custo medido de `obs_archive_pagina` e de `obs_archive_aviso` no caso cheio, a grade e o progresso por canal, a lista v2 e o nome, `obs_archive_horaria_desde`, `obs_archive_channel_archive_impact` estendida, a janela mínima de D-M5-1; **confirmar a exceção `INICIO_DAS_MARCAS` de `EXCECOES_DE_DATA_FIXA`**) e `yannis-software` (o commit único do pedido 11, `viewsAtAge`, permissões e cliente de serviço, Next 16, os testes que mudaram de lugar, **a exceção de `docs/ops` da Tarefa 16, Passo 3**). Opus na 1ª rodada, Sonnet nas seguintes, effort `medium`. Conserta-se até haver acordo.
-- [ ] **Passo 2. Ledger e índice:** marcar a M5 no índice dos planos (linha 7) como feita, com o hash; registrar no ledger o que fica para depois: botões da peça 3 e o interruptor (M6), "Encerrar o dado de teste" (M6, D-M5-6), sub-linha "mês fora das telas" do `18-v2` e o chip do automático (M6), o botão de `reattach_out_of_order`/`volta_fora_de_ordem` (M6; a leitura é da M5, Tarefa 9), "Já rodei" e "Ver os comandos" do canal removido (M9), a regra "nome anulado ao concluir" (**requisito novo da M9**: nenhum código a faz hoje; D-M5-2 não promete mais isso), "Ver antigo" (M7), seção "Vídeos antigos" (M10b), e o encaixe da peça 7 se a E9 chegar depois (Tarefa 10).
-- [ ] **Passo 3. `docs/ops/runbook-arquivo-mensal.md`** (criado pela Tarefa 14 da M3b-site; **conferir que existe** com `ls docs/ops/runbook-arquivo-mensal.md`, e, se não, usar `docs/ops/observatorio-arquivo-runbook.md` e anotar): acrescentar (a) a seção "A página Arquivo" (onde fica, quem vê, o que cada forma quer dizer, o que fazer quando ela diz "não medido"); (b) a **exceção à regra de RLS/RBAC do CLAUDE.md** ("leitura pelo cliente de serviço depois de `can_edit_site`, nunca `grant ... to authenticated`"), listando as cinco funções de leitura que a fase usa assim: `obs_archive_owner_pending`, `obs_archive_pagina`, `obs_archive_aviso`, `obs_archive_removed_channel_list`, `obs_archive_online_since`, mais `obs_archive_horaria_desde` e `obs_archive_channel_archive_impact`, todas `security definer`, `revoke ... from public, anon, authenticated`, `grant ... to service_role`, chamadas só depois da guarda de edição (E-D4, Yannis I-13). Commit próprio `docs: runbook do arquivo mensal ganha a página Arquivo e a exceção do cliente de serviço (manutenção M5)`.
+- [ ] **Passo 2. Ledger e índice:** marcar a M5 no índice dos planos (linha 7) como feita, com o hash; registrar no ledger o que fica para depois: botões da peça 3 e o interruptor (M6), "Encerrar o dado de teste" (M6, D-M5-6), sub-linha "mês fora das telas" do `18-v2` e o chip do automático (M6), o botão de `reattach_out_of_order`/`volta_fora_de_ordem` (M6; a leitura é da M5, Tarefa 9), "Já rodei" e "Ver os comandos" do canal removido (M9), a regra "nome anulado ao concluir" (**requisito novo da M9**: nenhum código a faz hoje; D-M5-2 não promete mais isso), "Ver antigo" (M7), seção "Vídeos antigos" (M10b), e o encaixe da peça 7 se a E9 chegar depois (Tarefa 10). **Requisito da M6 (D-M5-15):** `SAIDA_DE_MES_EXISTE = true` em `capacidades.ts` no mesmo commit da primeira função de saída, com o teste das duas posições da Tarefa 4; e o encaixe das peças de `_arquivo-saida/` é da M6 (D-M5-14, `pedidos-m6-para-m5.md`).
+- [ ] **Passo 3. `docs/ops/runbook-arquivo-mensal.md`** (criado pela Tarefa 14 da M3b-site; **conferir que existe** com `ls docs/ops/runbook-arquivo-mensal.md`, e, se não, usar `docs/ops/observatorio-arquivo-runbook.md` e anotar): acrescentar (a) a seção "A página Arquivo" (onde fica, quem vê, o que cada forma quer dizer, o que fazer quando ela diz "não medido"); (b) a **exceção à regra de RLS/RBAC do CLAUDE.md** ("leitura pelo cliente de serviço depois de `can_edit_site`, nunca `grant ... to authenticated`"), listando as sete funções de leitura que a fase usa assim (a lista abaixo tem sete; Phil r2 N8): `obs_archive_owner_pending`, `obs_archive_pagina`, `obs_archive_aviso`, `obs_archive_removed_channel_list`, `obs_archive_online_since`, mais `obs_archive_horaria_desde` e `obs_archive_channel_archive_impact`, todas `security definer`, `revoke ... from public, anon, authenticated`, `grant ... to service_role`, chamadas só depois da guarda de edição (E-D4, Yannis I-13). Commit próprio `docs: runbook do arquivo mensal ganha a página Arquivo e a exceção do cliente de serviço (manutenção M5)`.
 
 ---
 
@@ -2329,7 +2438,7 @@ A linha que o dono roda, no clipboard (`pbcopy`), na hora (não antes): `bash ~/
 
 ## NÃO VERIFICADO neste plano
 
-- O corpo de `requireSiteScope` do pacote `@tn-figueiredo/auth-nextjs` (leitura de `node_modules` negada ao redator); a evidência é `acoes-recusam-leitora.test.ts:7` ("`requireSiteScope({mode:'edit'})` recusa a leitora") e o uso idêntico em `competitors/page.tsx:27-31`.
+- (Fechado na 2ª rodada: o corpo de `requireSiteScope` foi lido por Phil em `node_modules/@tn-figueiredo/auth-nextjs/dist/server/require-site-scope.js:4-5`: `edit` → `can_edit_site`, `view` → `can_view_site`; e por Yannis no fonte do pacote.)
 - O caminho do guia do Next 16 (`node_modules/next/dist/docs/` da raiz, suposto): a Tarefa 0, Passo 4, o confere.
 - O formato de `min_key` das unidades (por isso `obs_archive_horaria_desde` não o usa); o volume V·D em produção (por isso a conferência de 01/09/2027 da Tarefa 13); a bateria de ordem de grandeza da `obs_archive_pagina` no caso cheio (medida na Tarefa 2, Passo 4, não estimada).
 - Os nomes exatos das colunas obrigatórias de `obs_archive_heartbeat`, `competitor_video_hourly` e do helper de teste que semeia canais (`semearCanal` aceita `{ site, videos, addedAt }`; conferidos por `grep` em cada tarefa antes de escrever os `insert`).
