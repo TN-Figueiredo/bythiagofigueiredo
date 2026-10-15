@@ -32,6 +32,9 @@ create table if not exists public.competitor_missing_baseline (
   primary key (video_id, missing_since)
 );
 create index if not exists idx_cmb_site on public.competitor_missing_baseline (site_id);
+-- Duas FKs em cascata de competitor_videos sem índice: cada vídeo apagado varria a tabela inteira (O(V x T)) no "apagar canal".
+create index if not exists idx_yt_intel_task_target_video on public.youtube_intelligence_tasks (target_video_id) where target_video_id is not null;
+create index if not exists idx_competitor_readings_video on public.competitor_readings (video_id);
 comment on table public.competitor_missing_baseline is 'A5 E9: piso da prova dos ausentes. lines_floor = linhas de série diária, das primeiras horas e de versões do vídeo na 1ª vez em que a prova o viu ausente. Menos linhas que o piso, sem o vídeo ter sido apagado pelo dono, é perda.';
 alter table public.competitor_missing_baseline enable row level security;
 drop policy if exists "competitor_missing_baseline_select" on public.competitor_missing_baseline;
@@ -91,7 +94,7 @@ begin
   with fk as (
     select k.conrelid as filho, k.confrelid as pai, cardinality(k.conkey) as colunas
       from pg_catalog.pg_constraint k
-     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid and k.conparentid = 0
   ), n1 as (
     select distinct fk.filho from fk where fk.pai = v_root
   ), n2 as (
@@ -116,7 +119,7 @@ begin
              (select a.attname from pg_catalog.pg_attribute a where a.attrelid = k.conrelid and a.attnum = k.conkey[1]) as col,
              (select a.attname from pg_catalog.pg_attribute a where a.attrelid = k.confrelid and a.attnum = k.confkey[1]) as ref
         from pg_catalog.pg_constraint k
-       where k.contype = 'f' and k.confdeltype = 'c' and cardinality(k.conkey) = 1
+       where k.contype = 'f' and k.confdeltype = 'c' and cardinality(k.conkey) = 1 and k.conparentid = 0
     ), n1 as (
       select fk.filho, string_agg(format('%I = $1', fk.col), ' or ' order by fk.col) as pred
         from fk
@@ -264,7 +267,7 @@ end $$;
 create or replace function public.competitor_video_purge(
   p_site uuid, p_video uuid, p_actor uuid, p_janela_min integer, p_ip text, p_ua text
 ) returns jsonb
--- (emenda 1: D-I4 e S-I6) teto próprio na DEFINIÇÃO: dentro do corpo não adianta (o relógio do comando já está armado)
+-- (emenda 1: D-I4 e S-I6) teto próprio na DEFINIÇÃO: dentro do corpo não adianta (o relógio do comando já está armado). Medido pela API em 15/10: o `set` da definição VALE (12 s passa; sem ele o authenticator corta em 8 s)
 language plpgsql security invoker set search_path = '' set statement_timeout = '30s' as $$
 declare
   v_yt text;

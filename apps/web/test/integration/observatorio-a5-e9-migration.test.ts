@@ -392,13 +392,66 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
 
   // ───────────────────────── definição ─────────────────────────
 
-  it('as duas funções de apagar carregam statement_timeout de 30 s na definição; nenhuma delas é security definer', async () => {
+  it('as duas funções de apagar não são security definer e carregam o teto de 30 s na definição', async () => {
     const r = await pg.query(`select proname, proconfig, prosecdef from pg_proc where proname in ('competitor_video_purge','competitor_channel_purge') and pronamespace = 'public'::regnamespace order by 1`)
     expect(r.rows).toHaveLength(2)
     for (const l of r.rows as Array<{ proconfig: string[]; prosecdef: boolean }>) {
       expect(l.proconfig).toContain('statement_timeout=30s')
       expect(l.prosecdef).toBe(false)
     }
+  })
+
+  // Medido em 15/10 (n6b): o `set statement_timeout` da definição VALE pela API. Função de 12 s com `set ... '30s'` passa pelo PostgREST;
+  // a mesma sem o `set` cai em 8 s (teto do authenticator) com 57014. O teste prova o comportamento, não o texto da migration.
+  it('pela API (PostgREST), o teto da definição vale: 12 s com set 30 s passa; sem o set, o authenticator corta em 8 s', async () => {
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const chave = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!base || !chave) return // sem API local configurada (só SUPABASE_DB_URL): fica para quem roda com a API
+    const teto = (await pg.query(`select p.proconfig from pg_proc p where p.proname = 'competitor_channel_purge' and p.pronamespace = 'public'::regnamespace`)).rows[0].proconfig as string[]
+    const valor = teto.find((c) => c.startsWith('statement_timeout='))!.split('=')[1]
+    try {
+      await pg.query(`create or replace function public.zz_teto_com() returns int language plpgsql set statement_timeout = '${valor}' as $$ begin perform pg_sleep(11); return 1; end $$`)
+      await pg.query(`create or replace function public.zz_teto_sem() returns int language plpgsql as $$ begin perform pg_sleep(11); return 1; end $$`)
+      await pg.query(`grant execute on function public.zz_teto_com(), public.zz_teto_sem() to service_role`)
+      await pg.query(`notify pgrst, 'reload schema'`)
+      await new Promise((r) => setTimeout(r, 1500))
+      const chama = async (f: string) => {
+        const t0 = Date.now()
+        const res = await fetch(`${base}/rest/v1/rpc/${f}`, { method: 'POST', headers: { apikey: chave, Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' }, body: '{}' })
+        return { status: res.status, corpo: await res.json() as unknown, ms: Date.now() - t0 }
+      }
+      const sem = await chama('zz_teto_sem')
+      expect(sem.status).toBeGreaterThanOrEqual(400)
+      expect(JSON.stringify(sem.corpo)).toContain('57014')
+      expect(sem.ms).toBeLessThan(10_000)
+      const com = await chama('zz_teto_com')
+      expect(com.status).toBe(200)
+      expect(com.corpo).toBe(1)
+      expect(com.ms).toBeGreaterThan(10_000)
+    } finally {
+      await pg.query(`drop function if exists public.zz_teto_com(); drop function if exists public.zz_teto_sem()`)
+    }
+  }, 40_000)
+
+  it('as chaves estrangeiras de competitor_videos que apagam em cascata têm índice com a coluna na frente (tarefas da forja e leituras)', async () => {
+    const r = await pg.query(`select c.conrelid::regclass::text as tabela, a.attname as coluna
+      from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+      where c.contype = 'f' and c.confdeltype = 'c' and c.conparentid = 0 and c.confrelid = 'public.competitor_videos'::regclass
+        and not exists (select 1 from pg_index i where i.indrelid = c.conrelid and i.indkey[0] = c.conkey[1])`)
+    expect(r.rows).toEqual([])
+  })
+
+  it('contagem: tabela filha PARTICIONADA conta uma vez (a mãe), sem as chaves das partições', async () => {
+    await dentro(async () => {
+      const c = await cena()
+      await pg.query(`create table public.zz_part (video_id uuid not null references public.competitor_videos(id) on delete cascade, dia int not null) partition by list (dia)`)
+      await pg.query(`create table public.zz_part_a partition of public.zz_part for values in (1)`)
+      await pg.query(`create table public.zz_part_b partition of public.zz_part for values in (2)`)
+      await pg.query(`insert into public.zz_part values ($1, 1), ($1, 2)`, [c.videoA])
+      const prev = await rpc('competitor_cascade_counts', ['video', c.videoA])
+      expect(prev.zz_part).toBe(2)
+      expect(Object.keys(prev).filter((k) => k.startsWith('zz_part_'))).toEqual([])
+    })
   })
 
   it('o usuário criado só serve para o ator: criarUsuario/criarCanal/criarVideo continuam disponíveis para as semeaduras', async () => {
