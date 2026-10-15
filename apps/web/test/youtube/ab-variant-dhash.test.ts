@@ -26,6 +26,16 @@ describe('dhashDoArquivo', () => {
     expect((await dhashDoArquivo(URL_BLOB, f503)).tipo).toBe('falha')
     expect((await dhashDoArquivo(URL_BLOB, fRede)).tipo).toBe('falha')
   })
+  it('corpo do Blob cortado (arrayBuffer rejeita) -> falha tentável, não sem_base (Phil T4 PODE3)', async () => {
+    const f = (async () => ({
+      ok: true, status: 200,
+      headers: new Headers({ 'content-type': 'image/png' }),
+      arrayBuffer: async () => { throw new TypeError('terminated') },
+    })) as unknown as typeof fetch
+    const r = await dhashDoArquivo(URL_BLOB, f)
+    expect(r.tipo).toBe('falha')
+    if (r.tipo === 'falha') expect(r.erro.chamada).toBe('blob')
+  })
   it('bytes que o sharp não lê -> sem_base ilegivel', async () => {
     const f = (async () => new Response('não é imagem', { headers: { 'content-type': 'image/png' } })) as typeof fetch
     expect(await dhashDoArquivo(URL_BLOB, f)).toEqual({ tipo: 'sem_base', motivo: 'ilegivel' })
