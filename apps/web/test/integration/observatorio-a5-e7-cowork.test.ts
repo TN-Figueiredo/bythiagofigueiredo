@@ -193,7 +193,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E7 Tarefa 15: Lote 2 contra o PostgREST l
     await pg.query('delete from public.competitor_channels where id = $1', [c2])
     const canais = (await listCompetitorChannels(ctxDe(site))).data
     expect(canais.channels.map(c => c.id)).toEqual([c1])
-    expect(canais.medidas_indisponiveis.total).toBe(9)
+    expect(canais.medidas_indisponiveis.total).toBe(8)
     const mud = (await listCompetitorChanges(ctxDe(site), { campos: 'todos' })).data as unknown as { mudancas_de_campo: { itens: unknown[] } }
     expect(JSON.stringify(mud)).not.toContain(c2)
     void criarVideo

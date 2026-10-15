@@ -102,7 +102,7 @@ export function medidasTodasEmFalha(): MedidasDoCanalParaCowork {
   return {
     direcao_do_canal: f(),
     estado_do_canal: { situacao: 'nao_determinada', confirmada: false, parado: f(), queda: f() },
-    por_formato: { long: formato(), short: formato() },
+    por_formato: { long: formato(), short: { ...formato(), direcao_dos_videos_novos: paraCowork(direcaoDoShort()) } },
   }
 }
 
@@ -115,14 +115,16 @@ function asNove(m: MedidasDoCanalParaCowork): Array<MedidaParaCowork<unknown>> {
   ]
 }
 
+/** Quantas das nove se aplicam a um canal: a direção dos vídeos novos do Short nunca se aplica e não entra na contagem. */
+export const MEDIDAS_QUE_SE_APLICAM = 8
+
 /**
  * O Short não tem direção dos vídeos novos na E4 (M3 b é dos longos: `PorFormato` não tem `m3b`). A chave existe nos dois
- * formatos para a forma ser a mesma; no Short ela diz "poucos vídeos" sem número, que é o exemplo do plano (apêndice B).
+ * formatos para a forma ser a mesma; no Short ela é SEMPRE `nao_se_aplica` (nem a leitura que falha muda o fato).
  */
-// TEXTO-A-REVISAR: a E4 não tem motivo "não se aplica ao Short"; ver o relatório (decisão do dono ou da E4).
-const direcaoDoShort = (videosLidos: boolean): Medida<ValorDirecaoVideos> => naoMedido(videosLidos ? 'poucos_videos' : 'leitura_falhou')
+const direcaoDoShort = (): Medida<ValorDirecaoVideos> => naoMedido('nao_se_aplica')
 
-function projetar(m: MedidasDoCanal, obsNulo: boolean, videosLidos: boolean): MedidasDoCanalParaCowork {
+function projetar(m: MedidasDoCanal, obsNulo: boolean): MedidasDoCanalParaCowork {
   const acerto = (f: PorFormato): MedidaParaCowork<ValorAcerto> => paraCowork(obsNulo ? naoMedido('leitura_falhou') : f.m4)
   const { estado, parado, queda } = m.m8
   const situacao: SituacaoDoCanal = estado.estado === 'medido' ? estado.valor : 'nao_determinada'
@@ -135,7 +137,7 @@ function projetar(m: MedidasDoCanal, obsNulo: boolean, videosLidos: boolean): Me
     estado_do_canal: { situacao, confirmada, parado: paraCowork(parado), queda: paraCowork(queda) },
     por_formato: {
       long: { direcao_dos_videos_novos: paraCowork(m.porFormato.long.m3b), ritmo: paraCowork(m.porFormato.long.m6), taxa_de_acerto: acerto(m.porFormato.long) },
-      short: { direcao_dos_videos_novos: paraCowork(direcaoDoShort(videosLidos)), ritmo: paraCowork(m.porFormato.short.m6), taxa_de_acerto: acerto(m.porFormato.short) },
+      short: { direcao_dos_videos_novos: paraCowork(direcaoDoShort()), ritmo: paraCowork(m.porFormato.short.m6), taxa_de_acerto: acerto(m.porFormato.short) },
     },
   }
 }
@@ -155,7 +157,7 @@ async function medirCanal(
     // outro site ou erro: nenhum outro leitor é chamado para este canal
     const nl = naoLida(canal)
     const insumos: Insumos = { canal, videos: nl, marcas: nl, retratos: nl, series: 'nao_pedida', mudancas: 'nao_pedida', multiplos, comentarios: 'nao_pedido' }
-    return projetar(medidasDoCanal(insumos, { agoraMs }), obs === null, false)
+    return projetar(medidasDoCanal(insumos, { agoraMs }), obs === null)
   }
   const videos = await lerVideosDoCanal(sb, e)
   const [marcas, retratos] = await Promise.all([
@@ -169,7 +171,7 @@ async function medirCanal(
   for (const f of montado.falhas) {
     Sentry.captureMessage('competitors-medidas.calculo_falhou', { extra: { medida: f.medida, classe: f.classe } })
   }
-  return projetar(montado, obs === null, canal.lido && videos.lido)
+  return projetar(montado, obs === null)
 }
 
 // ───── os canais ─────
@@ -225,12 +227,15 @@ export async function medidasDosCanais(
   for (const c of canais) {
     if (!porCanal.has(c.id)) porCanal.set(c.id, medidasTodasEmFalha())
     for (const m of asNove(porCanal.get(c.id)!)) {
-      if (m.estado === 'nao_medido') { indisponiveis++; por_motivo[m.motivo] = (por_motivo[m.motivo] ?? 0) + 1 }
+      if (m.estado === 'nao_medido' && m.motivo !== 'nao_se_aplica') { indisponiveis++; por_motivo[m.motivo] = (por_motivo[m.motivo] ?? 0) + 1 }
     }
+  }
+  if (cortados > 0) {
+    try { Sentry.captureMessage('e7.canais_cortados_por_tempo', { extra: { cortados, canais: canais.length } }) } catch { /* o aviso nunca derruba a resposta */ }
   }
   return {
     porCanal,
-    indisponiveis: { total: canais.length * 9, indisponiveis, por_motivo },
+    indisponiveis: { total: canais.length * MEDIDAS_QUE_SE_APLICAM, indisponiveis, por_motivo },
     meta: { calculado_em: new Date(o.agoraMs).toISOString(), regra: MEASURE_RULES.ruleVersion, duracao_ms: Math.max(0, relogio() - inicio), canais_cortados_por_tempo: cortados },
   }
 }

@@ -137,10 +137,21 @@ describe('as medidas de channels (Lote 2)', () => {
     const ex = exemplo().data
     const todas = todasAsMedidas(ex.channels[0]!.medidas)
     expect(todas).toHaveLength(9)
-    expect(ex.medidas_indisponiveis['total']).toBe(9)
-    expect(ex.medidas_indisponiveis['indisponiveis']).toBe(todas.filter(x => x['estado'] === 'nao_medido').length)
+    expect(ex.medidas_indisponiveis['total']).toBe(8)
+    expect(ex.medidas_indisponiveis['indisponiveis']).toBe(todas.filter(x => x['estado'] === 'nao_medido' && x['motivo'] !== 'nao_se_aplica').length)
     const soma = Object.values(ex.medidas_indisponiveis['por_motivo'] as Record<string, number>).reduce((a, b) => a + b, 0)
     expect(soma).toBe(ex.medidas_indisponiveis['indisponiveis'])
+  })
+
+  it('o documento diz que o Short é nao_se_aplica, fora da conta, e quando a situacao é nao_determinada', () => {
+    const f = frases(CHANNELS).find(x => x.includes('direcao_dos_videos_novos') && x.includes('nao_se_aplica'))
+    expect(f).toBeDefined()
+    expect(f).toContain('medidas_indisponiveis')
+    const s = frases(CHANNELS).find(x => x.includes('`nao_determinada`') && x.includes('canais_cortados_por_tempo'))
+    expect(s).toBeDefined()
+    expect(s).toContain('retratos')
+    const short = todasAsMedidas(exemplo().data.channels[0]!.medidas).filter(x => x['motivo'] === 'nao_se_aplica')
+    expect(short).toHaveLength(1)
   })
 
   it('o documento não traz número de limiar na subseção das medidas', () => {

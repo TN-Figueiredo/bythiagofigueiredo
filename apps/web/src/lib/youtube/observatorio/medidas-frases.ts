@@ -67,6 +67,7 @@ export const FRASES_DE_MOTIVO: Record<MotivoNaoMedido, (c: ContextoDaFrase) => s
   leitura_falhou: () => 'a leitura do banco falhou ou foi cortada nesta consulta; o valor não é conhecido',
   calculo_falhou: () => 'o cálculo desta medida falhou nesta consulta; o valor não é conhecido',
   coleta_pausada: () => 'a coleta deste canal está pausada, e não há leitura nova',
+  nao_se_aplica: () => 'esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos',
 }
 
 /**

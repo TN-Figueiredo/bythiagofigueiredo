@@ -74,7 +74,7 @@ describe('channels com medidas', () => {
       expect(nove(c.medidas)).toHaveLength(9)
       for (const x of nove(c.medidas)) if (x.estado === 'nao_medido') expect(x.frase.length).toBeGreaterThan(0)
     }
-    expect(data.medidas_indisponiveis.total).toBe(27)
+    expect(data.medidas_indisponiveis.total).toBe(24)
     expect(Object.values(data.medidas_indisponiveis.por_motivo).reduce((a, b) => a + b, 0)).toBe(data.medidas_indisponiveis.indisponiveis)
     expect(data.medidas_meta.regra).toBe(MEASURE_RULES.ruleVersion)
     expect(Object.keys(data.medidas_meta).sort()).toEqual(['calculado_em', 'canais_cortados_por_tempo', 'duracao_ms', 'regra'])
@@ -109,10 +109,10 @@ describe('channels com medidas', () => {
     expect(data.channels).toHaveLength(3)
     for (const c of data.channels) {
       expect(NOVE_CHAVES.every(k => k in c)).toBe(true)
-      for (const x of nove(c.medidas)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+      nove(c.medidas).forEach((x, i) => expect(x).toMatchObject({ estado: 'nao_medido', motivo: i === 6 ? 'nao_se_aplica' : 'leitura_falhou' }))
       expect(c.medidas.estado_do_canal.situacao).toBe('nao_determinada')
     }
-    expect(data.medidas_indisponiveis).toMatchObject({ total: 27, indisponiveis: 27 })
+    expect(data.medidas_indisponiveis).toMatchObject({ total: 24, indisponiveis: 24, por_motivo: { leitura_falhou: 24 } })
     expect(JSON.stringify(data)).not.toContain('SENTINELA-DEFEITO')
   })
 
@@ -154,7 +154,7 @@ describe('channels: o prazo', () => {
     expect(data.channels).toHaveLength(3)
     expect(data.medidas_meta.canais_cortados_por_tempo).toBe(1)
     const preso = data.channels.find(c => c.id === CANAL_A2)!
-    for (const x of nove(preso.medidas)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+    nove(preso.medidas).forEach((x, i) => expect(x).toMatchObject({ estado: 'nao_medido', motivo: i === 6 ? 'nao_se_aplica' : 'leitura_falhou' }))
     expect(preso.medidas.estado_do_canal.situacao).toBe('nao_determinada')
     for (const c of data.channels) expect(NOVE_CHAVES.every(k => k in c)).toBe(true)
   })
@@ -167,7 +167,7 @@ describe('channels: o prazo', () => {
     expect(ler.lerCanal).not.toHaveBeenCalled()
     expect(data.medidas_meta.canais_cortados_por_tempo).toBe(3)
     for (const c of data.channels) {
-      for (const x of nove(c.medidas)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+      nove(c.medidas).forEach((x, i) => expect(x).toMatchObject({ estado: 'nao_medido', motivo: i === 6 ? 'nao_se_aplica' : 'leitura_falhou' }))
       expect(NOVE_CHAVES.every(k => k in c)).toBe(true)
       expect(c.perfil.estado).toBeDefined()
     }

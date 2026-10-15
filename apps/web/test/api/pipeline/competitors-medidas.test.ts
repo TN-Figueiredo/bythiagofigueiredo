@@ -110,8 +110,13 @@ function nove(m: MedidasDoCanalParaCowork): Array<MedidaParaCowork<unknown>> {
     m.por_formato.short.direcao_dos_videos_novos, m.por_formato.short.ritmo, m.por_formato.short.taxa_de_acerto,
   ]
 }
-/** As nove, menos a direção dos vídeos novos do Short (a E4 não a tem: ver o relatório). */
+/** As nove, menos a direção dos vídeos novos do Short (não se aplica ao Short: motivo `nao_se_aplica`, fora da contagem). */
 const oitoReais = (m: MedidasDoCanalParaCowork): Array<MedidaParaCowork<unknown>> => nove(m).filter((_, i) => i !== 6)
+/** As oito que se aplicam saem em falha de leitura; a do Short é sempre `nao_se_aplica`. */
+function emFalha(m: MedidasDoCanalParaCowork): void {
+  for (const x of oitoReais(m)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+  expect(m.por_formato.short.direcao_dos_videos_novos).toMatchObject({ estado: 'nao_medido', motivo: 'nao_se_aplica' })
+}
 
 /** Folhas nulas, indefinidas, NaN ou Infinity. `janela` fica de fora: `{ de: null, ate: null }` é o contrato da E4. */
 function folhasRuins(x: unknown, caminho = '$', ruins: string[] = []): string[] {
@@ -159,10 +164,21 @@ describe('medidasDosCanais: o que sai', () => {
       expect(MOTIVOS_NAO_MEDIDO as readonly string[]).toContain(x.motivo)
       expect(x.frase).toBe(fraseDoMotivo({ estado: 'nao_medido', motivo: x.motivo, desde: x.desde, fechaEm: x.fechaEm, n: x.n, minimo: x.minimo, notas: [] }))
     }
-    expect(r.indisponiveis).toMatchObject({ total: 9, indisponiveis: 9 })
+    expect(r.indisponiveis).toMatchObject({ total: 8, indisponiveis: 8 })
     // o texto serializado contém a frase de cada motivo, literalmente
     const texto = JSON.stringify(r.porCanal.get('c1'))
     for (const x of nove(m)) if (x.estado === 'nao_medido') expect(texto).toContain(JSON.stringify(x.frase).slice(1, -1))
+  })
+
+  it('Short com vídeos lidos e Short com leitura falhada: os dois nao_se_aplica, e nunca poucos_videos', async () => {
+    const lido = (await pedir(falsoPostgrest(base()).sb, 1)).porCanal.get('c1')!
+    const t = base(); t.competitor_channels = []
+    const falhou = (await pedir(falsoPostgrest(t).sb, 1)).porCanal.get('c1')!
+    for (const m of [lido, falhou]) {
+      const d = m.por_formato.short.direcao_dos_videos_novos
+      expect(d).toMatchObject({ estado: 'nao_medido', motivo: 'nao_se_aplica', frase: 'esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos' })
+      expect(JSON.stringify(d)).not.toContain('poucos_videos')
+    }
   })
 
   it('base cheia: as nove medidas medidas, com valor, n e janela', async () => {
@@ -172,10 +188,10 @@ describe('medidasDosCanais: o que sai', () => {
       const m = r.porCanal.get(c)!
       const faltou = oitoReais(m).filter((x) => x.estado !== 'medido')
       expect(faltou).toEqual([])
-      expect(m.por_formato.short.direcao_dos_videos_novos.estado).toBe('nao_medido')
+      expect(m.por_formato.short.direcao_dos_videos_novos).toMatchObject({ estado: 'nao_medido', motivo: 'nao_se_aplica' })
     }
     // as 8 reais por canal; a do Short é não medida por desenho: 3 canais × 1
-    expect(r.indisponiveis).toMatchObject({ total: 27, indisponiveis: 3, por_motivo: { poucos_videos: 3 } })
+    expect(r.indisponiveis).toEqual({ total: 24, indisponiveis: 0, por_motivo: {} })
     const m = r.porCanal.get('c1')!
     // direção do canal: ganhos 130.000 e 100.000 -> +0,3
     expect(m.direcao_do_canal).toMatchObject({ estado: 'medido', valor: { direcao: 'subindo', ganhoRecente: 130_000, ganhoAnterior: 100_000 }, n: 3 })
@@ -187,6 +203,7 @@ describe('medidasDosCanais: o que sai', () => {
     expect(m.por_formato.long.taxa_de_acerto).toMatchObject({ estado: 'medido', valor: { acertos: 3, fracassos: 2, total: 11 }, n: 11 })
     expect(m.estado_do_canal).toMatchObject({ situacao: 'ativo', confirmada: true })
     expect(r.meta).toMatchObject({ regra: MEASURE_RULES.ruleVersion, canais_cortados_por_tempo: 0, calculado_em: new Date(AGORA).toISOString() })
+    expect(sentry.captureMessage.mock.calls.filter((c) => c[0] === 'e7.canais_cortados_por_tempo')).toHaveLength(0)
   })
 
   it('nenhuma folha é nula, indefinida, NaN ou Infinity, e nenhuma medida é zero por falta', async () => {
@@ -217,7 +234,7 @@ describe('medidasDosCanais: o que sai', () => {
     // (c) sem o canal: tudo leitura_falhou e nao_determinada
     const t = base(); t.competitor_channels = []
     const c = (await pedir(falsoPostgrest(t).sb, 1)).porCanal.get('c1')!
-    for (const x of nove(c)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+    emFalha(c)
     expect(c.estado_do_canal).toMatchObject({ situacao: 'nao_determinada', confirmada: false })
   })
 
@@ -334,9 +351,12 @@ describe('medidasDosCanais: o tempo', () => {
     // o relógio passa do prazo quando o 2º canal começa: só os dois primeiros começaram
     expect(r.meta.canais_cortados_por_tempo).toBe(4)
     expect(r.porCanal.size).toBe(6)
+    const avisos = sentry.captureMessage.mock.calls.filter((c) => c[0] === 'e7.canais_cortados_por_tempo')
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]![1]).toMatchObject({ extra: { cortados: 4, canais: 6 } })
     for (const c of ['c3', 'c4', 'c5', 'c6']) {
       const m = r.porCanal.get(c)!
-      for (const x of nove(m)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+      emFalha(m)
       expect(m.estado_do_canal.situacao).toBe('nao_determinada')
     }
     for (const c of ['c1', 'c2']) expect(r.porCanal.get(c)!.por_formato.long.ritmo.estado).toBe('medido')
@@ -351,7 +371,7 @@ describe('medidasDosCanais: o tempo', () => {
     await vi.advanceTimersByTimeAsync(PRAZO_DO_PEDIDO_MS)
     const r = await promessa
     expect(r.meta.canais_cortados_por_tempo).toBe(1)
-    for (const x of nove(r.porCanal.get('c2')!)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+    emFalha(r.porCanal.get('c2')!)
     for (const c of ['c1', 'c3']) expect(r.porCanal.get(c)!.por_formato.long.ritmo.estado).toBe('medido')
   })
 
@@ -361,7 +381,7 @@ describe('medidasDosCanais: o tempo', () => {
     expect(r.meta.canais_cortados_por_tempo).toBe(3)
     expect(consultas).toHaveLength(0)
     expect(ler.lerCanal).not.toHaveBeenCalled()
-    for (const m of r.porCanal.values()) for (const x of nove(m)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+    for (const m of r.porCanal.values()) emFalha(m)
   })
 
   it('contraOPrazo: termina antes, termina depois, rejeita, e prazo zero', async () => {
@@ -416,7 +436,7 @@ describe('medidasDosCanais: a robustez', () => {
     vi.mocked(ler.lerVideosDoCanal).mockImplementation((s, e) => { if (e.channelId === 'c2') throw new Error('SENTINELA-LANCADA'); return real(s, e) })
     const r = await pedir(sb, 3)
     expect([...r.porCanal.keys()].sort()).toEqual(['c1', 'c2', 'c3'])
-    for (const x of nove(r.porCanal.get('c2')!)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+    emFalha(r.porCanal.get('c2')!)
     expect(sentry.captureException).toHaveBeenCalled()
     expect(JSON.stringify(r)).not.toContain('SENTINELA-LANCADA')
     expect(r.porCanal.get('c1')!.por_formato.long.ritmo.estado).toBe('medido')
@@ -448,19 +468,20 @@ describe('medidasDosCanais: a robustez', () => {
     const t = base({ canais: 2 })
     t.competitor_channel_snapshots = t.competitor_channel_snapshots!.filter((l) => l.competitor_channel_id !== 'c2') // c2 sem retrato
     const r = await pedir(falsoPostgrest(t).sb, 2)
-    expect(r.indisponiveis.total).toBe(18)
+    expect(r.indisponiveis.total).toBe(16)
     const soma = Object.values(r.indisponiveis.por_motivo).reduce((a, b) => a + b, 0)
     expect(soma).toBe(r.indisponiveis.indisponiveis)
-    expect(r.indisponiveis.indisponiveis).toBeGreaterThan(2)
-    const contada = [...r.porCanal.values()].flatMap(nove).filter((x) => x.estado === 'nao_medido').length
+    expect(r.indisponiveis.indisponiveis).toBeGreaterThanOrEqual(2)
+    const contada = [...r.porCanal.values()].flatMap(oitoReais).filter((x) => x.estado === 'nao_medido').length
     expect(contada).toBe(r.indisponiveis.indisponiveis)
+    expect(r.indisponiveis.por_motivo['nao_se_aplica']).toBeUndefined()
   })
 
   it('mutação: o site de dep chega a todo leitor (canal de outro site: tudo leitura_falhou e nenhum outro leitor é chamado)', async () => {
     const t = base(); t.competitor_channels = [{ id: 'c1', site_id: OUTRO_SITE, collection_paused_at: null, missing_since: null }]
     const { sb, consultas } = falsoPostgrest(t)
     const r = await pedir(sb, 1)
-    for (const x of nove(r.porCanal.get('c1')!)) expect(x).toMatchObject({ estado: 'nao_medido', motivo: 'leitura_falhou' })
+    emFalha(r.porCanal.get('c1')!)
     expect(consultas.filter((c) => c.tabela !== 'competitor_channels')).toHaveLength(0)
     expect(ler.lerVideosDoCanal).not.toHaveBeenCalled()
     expect(ler.lerMarcasDoCanal).not.toHaveBeenCalled()

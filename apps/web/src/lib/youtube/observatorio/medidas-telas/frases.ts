@@ -57,6 +57,7 @@ const CURTAS: Record<MotivoNaoMedido, (c: ContextoDaFrase) => string> = {
   leitura_falhou: () => 'não carregou', // TEXTO-A-REVISAR
   calculo_falhou: () => 'não carregou', // TEXTO-A-REVISAR
   coleta_pausada: () => 'coleta pausada', // TEXTO-A-REVISAR
+  nao_se_aplica: () => 'esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos',
 }
 
 /** Variante da `curta` por tela, quando um mockup escreve o mesmo motivo de outro jeito. Vazia até um mockup pedir; nunca troca a `longa`. */

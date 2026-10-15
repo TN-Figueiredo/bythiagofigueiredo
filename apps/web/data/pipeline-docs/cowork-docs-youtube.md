@@ -735,8 +735,8 @@ Lista os canais concorrentes monitorados do site, com os números de hoje, o per
             "short": {
               "direcao_dos_videos_novos": {
                 "estado": "nao_medido",
-                "motivo": "poucos_videos",
-                "frase": "há poucos vídeos na janela para medir"
+                "motivo": "nao_se_aplica",
+                "frase": "esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos"
               },
               "ritmo": {
                 "estado": "nao_medido",
@@ -759,10 +759,10 @@ Lista os canais concorrentes monitorados do site, com os números de hoje, o per
     ],
     "count": 1,
     "medidas_indisponiveis": {
-      "total": 9,
-      "indisponiveis": 3,
+      "total": 8,
+      "indisponiveis": 2,
       "por_motivo": {
-        "poucos_videos": 2,
+        "poucos_videos": 1,
         "poucas_publicacoes": 1
       }
     },
@@ -801,8 +801,8 @@ Cada canal traz `medidas` com as mesmas nove medidas, sempre: `direcao_do_canal`
 - `estado: "medido"` traz `valor`, `n` (quantos itens entraram na conta), `janela` (datas de São Paulo) e, quando houver, `notas`.
 - `estado: "nao_medido"` traz `motivo` e `frase`: cite a frase e não estime o valor. Nunca escreva zero no lugar de uma medida que não foi feita.
 - Os números saem como a conta os fez, sem arredondar; arredonde só ao escrever para quem lê.
-- Longos e Shorts nunca se misturam: `por_formato.long` e `por_formato.short` são contas separadas. O Short não tem `direcao_dos_videos_novos`, e essa chave sai sempre `nao_medido`.
-- `estado_do_canal.situacao` é `fora_do_ar`, `pausado`, `parado`, `em_queda`, `ativo` ou `nao_determinada` (quando o canal ou os vídeos não puderam ser lidos).
+- Longos e Shorts nunca se misturam: `por_formato.long` e `por_formato.short` são contas separadas. O Short não tem `direcao_dos_videos_novos`: a chave sai sempre `nao_medido` com motivo `nao_se_aplica`, que não conta em `medidas_indisponiveis` (`total` = 8 por canal).
+- `estado_do_canal.situacao` é `fora_do_ar`, `pausado`, `parado`, `em_queda`, `ativo` ou `nao_determinada` (quando alguma leitura do canal falhou, o canal foi cortado pelo prazo do pedido (veja `canais_cortados_por_tempo`) ou a leitura dos retratos falhou).
 - Quando `confirmada` é `false`, não diga que o canal está ativo: diga que não foi possível medir a queda e cite a `frase` de `queda`.
 - `medidas_indisponiveis` conta quantas das medidas vieram `nao_medido`, por `motivo`; `leitura_falhou` ou `calculo_falhou` maior que zero é defeito do lado do servidor, não do canal.
 - `medidas_meta.calculado_em` é o carimbo do cálculo, em UTC; `regra` é a versão das regras de medida.

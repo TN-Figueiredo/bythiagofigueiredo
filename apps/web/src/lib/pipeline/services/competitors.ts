@@ -10,7 +10,7 @@ import { lerPerfis, perfilDe, type PerfilDoCanal, type ResultadoDePerfis } from 
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { listarMudancasDeCampo, FRASES_DE_CAMPO, type MudancasDeCampo } from './competitors-campos'
 import {
-  PRAZO_DO_MOTOR_MS, PRAZO_DO_PEDIDO_MS, contraOPrazo, medidasDosCanais, medidasTodasEmFalha,
+  MEDIDAS_QUE_SE_APLICAM, PRAZO_DO_MOTOR_MS, PRAZO_DO_PEDIDO_MS, contraOPrazo, medidasDosCanais, medidasTodasEmFalha,
   type MedidasDoCanalParaCowork, type MedidasIndisponiveis, type MedidasMeta,
 } from './competitors-medidas'
 
@@ -243,7 +243,7 @@ export async function listCompetitorChannels(
   } catch (e) {
     // defeito: todas as medidas de todos os canais em falha, a lista segue
     Sentry.captureException(e)
-    const total = safeChannels.length * 9
+    const total = safeChannels.length * MEDIDAS_QUE_SE_APLICAM
     medidas = {
       porCanal: new Map<string, MedidasDoCanalParaCowork>(safeChannels.map(c => [c.id, medidasTodasEmFalha()])),
       indisponiveis: { total, indisponiveis: total, por_motivo: total > 0 ? { leitura_falhou: total } : {} },
