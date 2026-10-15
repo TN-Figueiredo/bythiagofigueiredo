@@ -73,9 +73,9 @@ function decidirThumb(e: EntradaThumb): Decisao {
     return { acao: 'falhar', erro: { motivo: 'arquivo_do_destino_indisponivel' } }
   }
   if (dDestino.tipo === 'sem_base') return { acao: 'pular', estado: 'pulado_sem_original', motivo: null }
+  if (dDestino.tipo === 'falha') return { acao: 'falhar', erro: paraErroGravado(dDestino.erro) }
   if (e.atual.tipo === 'falha') return { acao: 'falhar', erro: e.atual.erro }
   if (e.atual.tipo !== 'lido') return { acao: 'falhar', erro: { motivo: 'erro_interno' } }
-  if (dDestino.tipo === 'falha') return { acao: 'falhar', erro: paraErroGravado(dDestino.erro) }
   const falhaDeBlob = [...e.dhashes.values()].find(
     (d): d is Extract<DhashDaVariante, { tipo: 'falha' }> => d.tipo === 'falha',
   )
@@ -84,6 +84,7 @@ function decidirThumb(e: EntradaThumb): Decisao {
   const casa = (d: DhashDaVariante | undefined) => d?.tipo === 'ok' && hamming(d.dhash, atual) <= DHASH_MAX_SAME
   const recente =
     e.ultimaEscrita !== null && e.agora.getTime() - e.ultimaEscrita.getTime() < HORAS_THUMB_RECENTE * 3_600_000
+  // Irmã com falha de Blob ou sem_base é ignorada aqui (sem dado, sem prova); quem chama não deve depender disso.
   const parecidas = [...e.dhashes].some(
     ([id, d]) => id !== idDestino && d.tipo === 'ok' && hamming(d.dhash, dDestino.dhash) <= DHASH_MAX_SAME,
   )

@@ -71,6 +71,32 @@ describe('thumbnail', () => {
     const dhashes = new Map<string, DhashDaVariante>([['A', ok(H.A)], ['B', ok('0000000000000003')], ['C', ok(H.C)]])
     expect(decidirCampo(base({ dhashes })).acao).toBe('escrever')
   })
+  it('DEVE-1: falha do Blob do destino e falha de probeThumb juntas → erro do Blob (chamada blob)', () => {
+    const dhashes = new Map<string, DhashDaVariante>([['A', ok(H.A)], ['B', { tipo: 'falha', erro: new YouTubeApiError(503, 'blob_503', 'blob') }], ['C', ok(H.C)]])
+    const r = decidirCampo(base({ destino: { varianteId: 'B' }, dhashes, atual: { tipo: 'falha', erro: { motivo: 'hqdefault_indisponivel' } } }))
+    expect(r).toMatchObject({ acao: 'falhar', erro: { chamada: 'blob' } })
+  })
+  it('só a leitura atual falha (destino ok) → erro da leitura', () =>
+    expect(decidirCampo(base({ atual: { tipo: 'falha', erro: { motivo: 'hqdefault_indisponivel' } } }))).toMatchObject({ acao: 'falhar', erro: { motivo: 'hqdefault_indisponivel' } }))
+  it('fronteira em casa: atual a 6 bits do destino → ok sem escrever; a 7 → pulado_drift', () => {
+    expect(decidirCampo(base({ atual: { tipo: 'lido', dhash: '000000000000003f' } })).acao).toBe('ok_sem_escrever')
+    expect(decidirCampo(base({ atual: { tipo: 'lido', dhash: '000000000000007f' } }))).toEqual({ acao: 'pular', estado: 'pulado_drift', motivo: null })
+  })
+  it('fronteira em parecidas: destino a 6 bits de outra variante → escreve; a 7 → ok sem escrever', () => {
+    const com = (d: string) => new Map<string, DhashDaVariante>([['A', ok(H.A)], ['B', ok(d)], ['C', ok(H.C)]])
+    expect(decidirCampo(base({ dhashes: com('000000000000003f') })).acao).toBe('escrever')
+    expect(decidirCampo(base({ dhashes: com('000000000000007f') })).acao).toBe('ok_sem_escrever')
+  })
+  it('ultimaEscrita nula → não recente → ok sem escrever', () =>
+    expect(decidirCampo(base({ ultimaEscrita: null })).acao).toBe('ok_sem_escrever'))
+  it('falha de Blob de variante com forcar → falhar', () => {
+    const dhashes = new Map<string, DhashDaVariante>([['A', ok(H.A)], ['B', { tipo: 'falha', erro: new YouTubeApiError(503, 'blob_503', 'blob') }], ['C', ok(H.C)]])
+    expect(decidirCampo(base({ atual: { tipo: 'lido', dhash: '0f0f0f0f0f0f0f0f' }, dhashes, forcar: true })).acao).toBe('falhar')
+  })
+  it('destino original com sem_base → pulado_sem_original', () => {
+    const dhashes = new Map<string, DhashDaVariante>([['A', { tipo: 'sem_base', motivo: 'blob_404' }], ['B', ok(H.B)], ['C', ok(H.C)]])
+    expect(decidirCampo(base({ dhashes }))).toEqual({ acao: 'pular', estado: 'pulado_sem_original', motivo: null })
+  })
 })
 
 describe('ultimaEscritaDoApp', () => {
