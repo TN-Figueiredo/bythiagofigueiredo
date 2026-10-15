@@ -80,7 +80,10 @@ export interface BlocoView {
   linhasDeContagem: string[]
   subListas: SubListaView[] | null
 }
-export interface GrupoView { total: string; blocos: BlocoView[] }
+export interface CelulaFaixaOrigem { rotulo: string; valor: string; sub: string }
+/** A faixa de duas células do topo da aba Origem do canal (mockup 12): o total do período e quantos dias têm a origem medida. */
+export interface FaixaOrigem { views: CelulaFaixaOrigem; dias: CelulaFaixaOrigem }
+export interface GrupoView { total: string; blocos: BlocoView[]; /** só na aba do canal */ faixa?: FaixaOrigem | null }
 export interface SemAcessoView { titulo: string; frases: string[]; blocos: string[] }
 export interface OrigemView {
   nivel: Nivel
@@ -453,10 +456,32 @@ function totalDoGrupo(p: PeriodoEntrada, e: EntradaOrigem): string {
   return `${e.n(p.totalDoPeriodo)}${v && v.fora + v.parados > 0 ? ` de ${e.n(v.naConta)} dos ${e.n(v.naConta + v.fora)} vídeos` : ''}`
 }
 
+/**
+ * A faixa de duas células (T17): "views no período" e "dias com origem medida". Quatro estados da segunda: "{N} de {M}"; "0 de {M} · a coleta começa em dd/mm";
+ * "— de {M} · não conseguimos ler agora"; "{N} de {M} · origem em revisão". Os textos não estão fixados no plano. // TEXTO-A-REVISAR (Logan)
+ */
+function faixaDoGrupo(p: PeriodoEntrada, e: EntradaOrigem, total: string, agregado: BlocoAgregado<GrupoOrigem> | null): FaixaOrigem {
+  const v = p.videosDoTotal
+  const intervalo = `${e.dm(p.de)} a ${e.dm(p.ate)}`
+  const views: CelulaFaixaOrigem = p.totalDoPeriodo == null
+    ? { rotulo: 'views no período', valor: 'não medido', sub: total === 'não medido' ? intervalo : total }
+    : { rotulo: 'views no período', valor: e.n(p.totalDoPeriodo), sub: intervalo + (v && v.fora + v.parados > 0 ? ` · de ${e.n(v.naConta)} dos ${e.n(v.naConta + v.fora)} vídeos` : '') }
+  const rotulo = 'dias com origem medida'
+  const de = `de ${e.n(diffDias(p.de, p.ate) + 1)}`
+  if (agregado == null) return { views, dias: { rotulo, valor: '—', sub: `${de} · não conseguimos ler agora` } }
+  const medidos = e.n(agregado.cobertura.medidos)
+  if (agregado.estado === 'em_revisao') return { views, dias: { rotulo, valor: medidos, sub: `${de} · origem em revisão` } }
+  if (agregado.estado === 'nao_medido' && (agregado.motivo === 'coleta_comeca_em' || agregado.motivo === 'coleta_nao_comecou')) {
+    return { views, dias: { rotulo, valor: '0', sub: `${de} · a coleta começa em ${e.dm(agregado.cobertura.desde ?? e.ligadoEm)}` } }
+  }
+  return { views, dias: { rotulo, valor: medidos, sub: de } }
+}
+
 function grupoDoPeriodo(p: PeriodoEntrada, e: EntradaOrigem): GrupoView {
   const total = totalDoGrupo(p, e)
+  const comFaixa = e.tela === 'canal'
   // um bloco só, com um alerta e um botão (Yannis m5); origem negada com nível que a libera é divergência das duas provas: também erro, nunca o grupo mudo (m4)
-  if (e.origem.acesso !== 'ok') return { total, blocos: [blocoErro('origem', MSG_ERRO)] }
+  if (e.origem.acesso !== 'ok') return { total, blocos: [blocoErro('origem', MSG_ERRO)], ...(comFaixa ? { faixa: faixaDoGrupo(p, e, total, null) } : {}) }
   if (e.tela === 'video' && videoNovo(e.publicadoEm, e.hojePt)) return { total, blocos: (['origem', 'impressoes', 'termos', 'aparelho', 'pais', 'inscritos'] as const).map(id => ainda(id, e)) }
   const dims = e.origem.dado.dimensoes
   const de = p.de > dims.de ? p.de : dims.de
@@ -479,7 +504,7 @@ function grupoDoPeriodo(p: PeriodoEntrada, e: EntradaOrigem): GrupoView {
     blocos.push(b)
   }
   blocos.push(blocoAparelho(dims.conjuntos.dispositivo, c), blocoPais(dims.conjuntos.pais, c), blocoInscritos(dims.conjuntos.inscrito, c))
-  return { total, blocos }
+  return { total, blocos, ...(comFaixa ? { faixa: faixaDoGrupo(p, e, total, o.agregado) } : {}) }
 }
 
 export function buildOrigem(e: EntradaOrigem): OrigemView {

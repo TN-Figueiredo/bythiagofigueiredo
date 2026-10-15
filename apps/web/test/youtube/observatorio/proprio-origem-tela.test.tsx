@@ -129,6 +129,27 @@ describe('E5b T11: seletor de período', () => {
   })
 })
 
+describe('E5b T17: a faixa de duas células no topo do grupo do canal (Yannis I3)', () => {
+  const faixa = { views: { rotulo: 'views no período', valor: '3.185', sub: '05/10 a 11/10' }, dias: { rotulo: 'dias com origem medida', valor: '0', sub: 'de 7 · a coleta começa em 14/10' } }
+  const comFaixa = (): OrigemView => {
+    const v = view([bloco()])
+    return { ...v, periodos: v.periodos.map(p => ({ ...p, grupo: { ...p.grupo, faixa } })) }
+  }
+  it('as duas células vêm antes dos blocos, com rótulo, valor e subfrase; no lugar da linha de total', () => {
+    const { container } = render(<Origem view={comFaixa()} />)
+    const fx = container.querySelector('.ov-fx')!
+    expect(fx.getAttribute('aria-label')).toBe('Números do período')
+    expect([...fx.querySelectorAll('.ov-fx-c')].map(c => c.textContent)).toEqual(['views no período3.18505/10 a 11/10', 'dias com origem medida0de 7 · a coleta começa em 14/10'])
+    expect(container.querySelector('.ov-grupo')!.firstElementChild).toBe(fx)
+    expect(container.querySelector('.ov-vtot')).toBeNull()
+  })
+  it('sem faixa (tela do vídeo) a linha de total continua', () => {
+    const { container } = render(<Origem view={view([bloco()])} />)
+    expect(container.querySelector('.ov-fx')).toBeNull()
+    expect(container.querySelector('.ov-vtot')!.textContent).toBe('Total de 28 dias')
+  })
+})
+
 describe('E5b T11: erro e esqueleto', () => {
   it('Tentar de novo chama refresh uma vez; terminada a transição o botão volta e o texto de espera some (a segunda falha não trava a tela)', async () => {
     render(<Origem view={view([bloco({ erro: 'Não conseguimos ler agora.' })])} />)

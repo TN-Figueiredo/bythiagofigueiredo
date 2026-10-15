@@ -67,6 +67,12 @@
 .ov-r.tot .ov-p{color:var(--text)}
 .ov-vtot{margin:8px 0 0;font-size:13px;color:var(--muted)}
 .ov-vtot b{color:var(--text);font-weight:500}
+.ov-fx{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:520px;margin:8px 0 0;padding:0}
+.ov-fx-c{border:1px solid var(--border-subtle);border-radius:8px;padding:8px 12px;min-width:0}
+.ov-fx dt{font-size:12px;line-height:16px;color:var(--muted)}
+.ov-fx dd{margin:2px 0 0;display:grid;gap:2px}
+.ov-fx dd b{font:600 18px/24px var(--mono);color:var(--text)}
+.ov-fx dd span{font-size:12px;line-height:16px;color:var(--muted);overflow-wrap:anywhere}
 
 /* ---- linhas com barra (aparelho, país, termos) */
 .ov-lg2{list-style:none;margin:6px 0 0;padding:0;display:grid}

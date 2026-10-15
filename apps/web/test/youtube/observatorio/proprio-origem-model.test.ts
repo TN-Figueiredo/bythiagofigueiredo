@@ -340,6 +340,45 @@ describe('buildOrigem: vídeos fora, parados, totais e vídeo novo', () => {
   })
 })
 
+describe('buildOrigem: a faixa de duas células do topo da aba (Yannis I3)', () => {
+  const faixaDe = (v: ReturnType<typeof buildOrigem>, i = 0) => grupo(v, i).faixa!
+  it('medido: "views no período" com o total e as datas, e "dias com origem medida" com "{N}" e "de {M}"', () => {
+    const f = faixaDe(buildOrigem(entrada()))
+    expect(f.views).toEqual({ rotulo: 'views no período', valor: '3.185', sub: '05/10 a 11/10' })
+    expect(f.dias).toEqual({ rotulo: 'dias com origem medida', valor: '7', sub: 'de 7' })
+  })
+  it('vídeo fora da conta: o total diz "de N dos M vídeos" na subfrase', () => {
+    const v = { naConta: 34, fora: 1, parados: 0, paradosDesde: null, comBuraco: 0 }
+    expect(faixaDe(buildOrigem(entrada({ periodos: [per('7', '7 dias', TIP7[0]!, ATE, 3185, v)] }))).views.sub).toBe('05/10 a 11/10 · de 34 dos 35 vídeos')
+  })
+  it('total nulo: o valor lê "não medido" e a subfrase traz o motivo do grupo', () => {
+    const f = faixaDe(buildOrigem(entrada({ periodos: [per('7', '7 dias', TIP7[0]!, ATE, null, { naConta: 35, fora: 0, parados: 0, paradosDesde: null, comBuraco: 2 })] })))
+    expect(f.views.valor).toBe('não medido')
+    expect(f.views.sub).toBe('não medido: 33 de 35 vídeos com o período inteiro medido')
+  })
+  it('antes da coleta: "0" e "de 7 · a coleta começa em dd/mm", nunca uma porcentagem', () => {
+    const lista = TIP7.map((d): [string, Dia] => [d, { base: 455, linhas: {} }])
+    const c = conjunto<LinhaBasica>('trafego', lista, () => ({}), { tipo: 'nao_coletado' }, '2026-10-14')
+    for (const vd of c.videos) for (const d of vd.dias) { d.coberto = false }
+    const f = faixaDe(buildOrigem(entrada({ dimensoes: dims({ trafego: c }) })))
+    expect(f.dias).toEqual({ rotulo: 'dias com origem medida', valor: '0', sub: 'de 7 · a coleta começa em 14/10' })
+  })
+  it('origem em erro: o símbolo de sem número e "não conseguimos ler agora"', () => {
+    const f = faixaDe(buildOrigem(entrada({ origem: { acesso: 'erro' } })))
+    expect(f.dias).toEqual({ rotulo: 'dias com origem medida', valor: '—', sub: 'de 7 · não conseguimos ler agora' })
+  })
+  it('origem em revisão: o número medido e "· origem em revisão"', () => {
+    const lista = TIP7.map((d, i): [string, Dia] => [d, { base: i === 0 ? 100 : 121, linhas: { YT_SEARCH: i === 0 ? 100 : 121 } }])
+    lista[3]![1] = { base: 121, linhas: { YT_SEARCH: 121, RELATED_VIDEO: 34 } }
+    const f = faixaDe(buildOrigem(entrada({ dimensoes: dims({ trafego: conjunto('trafego', lista) }) })))
+    expect(f.dias.sub).toBe('de 7 · origem em revisão')
+    expect(f.dias.valor).toBe('7')
+  })
+  it('na tela do vídeo não há faixa (ela é do topo da aba do canal)', () => {
+    expect(grupo(buildOrigem(entrada({ tela: 'video' })), 0).faixa ?? null).toBeNull()
+  })
+})
+
 describe('videosDaOrigem', () => {
   it('inclui Short e vídeo não acompanhado e não inclui vídeo de outro canal; do mais novo ao mais velho', () => {
     const obs = { videos: [

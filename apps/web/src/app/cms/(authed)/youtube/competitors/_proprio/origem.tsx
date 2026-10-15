@@ -3,7 +3,7 @@
  * recebe apenas o aviso: o modelo nem entrega número nem termo, e aqui nada é buscado. Só `OrigemPeriodos` e `TentarDeNovo` são do cliente.
  */
 import type { ReactNode } from 'react'
-import type { BlocoView, GrupoView, LinhaView, OrigemView, SubListaView } from './origem-model'
+import type { BlocoView, FaixaOrigem, GrupoView, LinhaView, OrigemView, SubListaView } from './origem-model'
 import { OrigemPeriodos, TentarDeNovo } from './origem-periodos'
 
 function Linha({ l }: { l: LinhaView }) {
@@ -83,10 +83,24 @@ function Bloco({ b }: { b: BlocoView }) {
   )
 }
 
+/** A faixa de duas células do topo da aba Origem do canal (T17): o total do período e os dias com origem medida. */
+function Faixa({ f }: { f: FaixaOrigem }) {
+  return (
+    <dl className="ov-fx" aria-label="Números do período">
+      {[f.views, f.dias].map(c => (
+        <div key={c.rotulo} className="ov-fx-c">
+          <dt>{c.rotulo}</dt>
+          <dd><b className="num">{c.valor}</b><span>{c.sub}</span></dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 function Grupo({ g }: { g: GrupoView }): ReactNode {
   return (
     <div className="ov-grupo">
-      <p className="ov-vtot">{g.total}</p>
+      {g.faixa ? <Faixa f={g.faixa} /> : <p className="ov-vtot">{g.total}</p>}
       {g.blocos.map(b => <Bloco key={b.id} b={b} />)}
     </div>
   )
