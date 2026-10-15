@@ -12,7 +12,7 @@ export type CelulaDeDirecao =
     tipo: 'medido'; pct: number; simbolo: SimboloDeDirecao; texto: string; ganhoRecente: number; ganhoAnterior: number
     foraDaEscala: 'acima' | 'abaixo' | null; fracao: number; avisoDeContagem: { ate: string } | null
   }
-  | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; curta: string; longa: string; fechaEm?: string }
+  | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; curta: string; longa: string; fechaEm?: string; n?: number }
   | { tipo: 'nao_carregou'; motivo: MotivoNaoMedido }
   /** O canal próprio: o YouTube não dá o número, e ele fica fora das quatro casas e das contagens dos filtros. */
   | { tipo: 'canal_proprio'; curta: string; longa: string }
@@ -39,7 +39,7 @@ export function celulaDeDirecao(
     if (classeDoMotivo(m3a.motivo) === 'nao_carregou') return { tipo: 'nao_carregou', motivo: m3a.motivo }
     const f = FRASES[m3a.motivo]({ desde: m3a.desde, fechaEm: m3a.fechaEm, n: m3a.n, minimo: m3a.minimo }, 'canais')
     const curta = o.semVideos && m3a.motivo === 'base_zero' ? FRASE_SEM_VIEWS : f.curta
-    return { tipo: 'nao_medido', motivo: m3a.motivo, curta, longa: f.longa, ...(m3a.fechaEm ? { fechaEm: m3a.fechaEm } : {}) }
+    return { tipo: 'nao_medido', motivo: m3a.motivo, curta, longa: f.longa, ...(m3a.fechaEm ? { fechaEm: m3a.fechaEm } : {}), ...(m3a.n != null ? { n: m3a.n } : {}) }
   }
   const { ganhoRecente, ganhoAnterior } = m3a.valor
   const pct = pctDosGanhos(ganhoRecente, ganhoAnterior)
