@@ -5,6 +5,7 @@
  * esta tela já mostra. Quem só lê o site recebe `acesso: 'negado'`: nenhum bloco privado existe no modelo, e aqui só aparece a nota única.
  */
 import type { ReactNode } from 'react'
+import { BarraAssistido } from './barra-assistido'
 import { Impressoes } from './impressoes'
 import { InfoDica } from './info-dica'
 import { ForjaIndisponivelVideo } from './forja-indisponivel-video'
@@ -56,9 +57,10 @@ function SecImpressoes({ b }: { b: BlocoImpressoes }) {
 }
 
 /** O estado "Carregando" dos cartões de período (fallback do `Suspense` de `AssistidoDoVideo`): três caixas lisas, sem número. */
-export function AssistidoEsqueleto() {
+export function AssistidoEsqueleto({ barra }: { barra?: BlocoAssistido | null }) {
   return (
     <div className="vb-ap-esq" role="status" aria-busy="true">
+      {barra ? <BarraAssistido a={barra} normal={null} /> : null}
       <div className="vb-ap-cs" aria-hidden="true"><i /><i /><i /></div>
       <p className="vb-nt">Carregando o % assistido por período…</p>
     </div>
@@ -73,18 +75,14 @@ function SecAssistido({ a, periodos }: { a: BlocoAssistido; periodos?: ReactNode
       {a.estado === 'nao-medido' ? <NaoMedido frase={a.partes.map(p => p.t).join('')} /> : (
         <div className="vb-as">
           <p className="vb-fr"><Partes partes={a.partes} pouco={pouco} /></p>
-          <div className={'vb-as-barra' + (pouco ? ' pouco' : '')} role="img" aria-label={a.alt}>
-            <i style={{ width: `${a.barraPct}%` }} />
-            {a.marcaPct != null ? <s style={{ left: `${a.marcaPct}%` }} /> : null}
-          </div>
-          {a.marcas ? <div className="vb-as-tk" aria-hidden="true"><span>{a.marcas[0]}</span><span>{a.marcas[1]}</span><span>{a.marcas[2]}</span></div> : null}
-          {a.marcaPct != null ? (
-            <div className="vb-as-med" aria-hidden="true">
-              <span className={'vb-as-med-' + (a.rotuloAncora ?? 'meio')} style={a.rotuloAncora === 'meio' ? { left: `${a.marcaPct}%` } : undefined}>normal do canal: {a.normalTexto}</span>
-            </div>
-          ) : null}
-          {a.contra && a.direcao ? <p className={'vb-nt vb-dir-' + a.direcao}><span aria-hidden="true">{SIMBOLO[a.direcao]}</span> {a.contra}</p> : null}
-          {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
+          {/* com os cartões de período, a barra, a marca e a comparação são deles (`AssistidoPeriodos`): o "normal" segue o período escolhido, nunca fica um segundo, de 28 dias, ao lado */}
+          {periodos ? null : (
+            <>
+              <BarraAssistido a={a} />
+              {a.contra && a.direcao ? <p className={'vb-nt vb-dir-' + a.direcao}><span aria-hidden="true">{SIMBOLO[a.direcao]}</span> {a.contra}</p> : null}
+              {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
+            </>
+          )}
         </div>
       )}
       {periodos}

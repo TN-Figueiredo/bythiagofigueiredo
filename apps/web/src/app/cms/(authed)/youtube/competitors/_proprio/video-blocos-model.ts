@@ -315,9 +315,15 @@ function assistidoDe(
   const contra = c.leitura === 'na-media' ? `Perto do normal do canal (${normalTexto}).`
     : c.leitura === 'acima' ? `Acima do normal do canal (${normalTexto}): +${Math.abs(c.dif)} pontos.`
       : `Abaixo do normal do canal (${normalTexto}): ${MINUS}${Math.abs(c.dif)} pontos.`
+  const marca = marcaDaBarra(normal)!
+  return { ...base, normalPct: normal, normalTexto, marcaPct: marca.marcaPct, rotuloAncora: marca.rotuloAncora, contra, direcao: c.leitura }
+}
+
+/** A marca do "normal" sobre a barra do % assistido: posição (0 a 100) e onde o rótulo se prende. Nula sem normal. A barra do vídeo e a do período escolhido usam esta. */
+export function marcaDaBarra(normal: number | null): { marcaPct: number; rotuloAncora: 'inicio' | 'meio' | 'fim'; normalTexto: string } | null {
+  if (normal == null) return null
   const marcaPct = Math.max(0, Math.min(100, Math.round(normal)))
-  const rotuloAncora = marcaPct < ANCORA_PONTA ? 'inicio' : marcaPct > 100 - ANCORA_PONTA ? 'fim' : 'meio'
-  return { ...base, normalPct: normal, normalTexto, marcaPct, rotuloAncora, contra, direcao: c.leitura }
+  return { marcaPct, rotuloAncora: marcaPct < ANCORA_PONTA ? 'inicio' : marcaPct > 100 - ANCORA_PONTA ? 'fim' : 'meio', normalTexto: int(normal) + '%' }
 }
 
 /* ---------------------------------------------------------------- forja, o que falta (a retenção é de retencao-curva-model.ts) */

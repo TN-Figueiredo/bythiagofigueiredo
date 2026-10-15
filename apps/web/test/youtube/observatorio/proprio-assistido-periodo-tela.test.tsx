@@ -6,6 +6,8 @@ import userEvent from '@testing-library/user-event'
 import fs from 'node:fs'
 import path from 'node:path'
 import { AssistidoPeriodos } from '../../../src/app/cms/(authed)/youtube/competitors/_proprio/assistido-periodos'
+import { BarraAssistido } from '../../../src/app/cms/(authed)/youtube/competitors/_proprio/barra-assistido'
+import type { BlocoAssistido } from '../../../src/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { buildAssistidoPeriodos, CHAVE_ASSISTIDO, type EntradaAssistido } from '../../../src/app/cms/(authed)/youtube/competitors/_proprio/assistido-periodo-model'
 import type { NormalDoPeriodo, PeriodoAssistido } from '../../../src/lib/youtube/observatorio/proprio/assistido-periodo'
 
@@ -127,6 +129,31 @@ describe('E5b T15: cartões de % assistido por período', () => {
     expect(c.querySelector('.obs-ch-nm')).not.toBeNull()
     expect(c.textContent).toContain('não medido: 2 de 34 vídeos sem o período inteiro medido')
     expect(c.textContent).not.toContain('poucas views')
+  })
+
+  it('a barra do vídeo mora nos cartões e a marca do "normal" segue o período escolhido: 28 dias com poucas views não tem marca, 90 dias move a marca para o normal de 90 (Phil I3)', async () => {
+    const barra: BlocoAssistido = {
+      estado: 'ok', partes: [{ t: 'x' }], pctTexto: '54%', barraPct: 54, normalPct: 52, normalTexto: '52%', marcaPct: 52, rotuloAncora: 'meio',
+      contra: 'Perto do normal do canal (52%).', direcao: 'na-media', semNormal: null, marcas: null, alt: '54% do vídeo assistido em média', metodo: [],
+    }
+    const { container } = render(<AssistidoPeriodos view={buildAssistidoPeriodos(entrada({ normais: { inteiro: ok('inteiro', 47.2, 412000), '90': ok('90', 40.4, 188000), '28': sem('28', 'poucas-views', 340) } }))} barra={barra} />)
+    const marca = () => container.querySelector<HTMLElement>('.vb-as-barra s')
+    // padrão (canal inteiro): o normal do canal inteiro, 47
+    expect(marca()!.style.left).toBe('47%')
+    await userEvent.click(radios()[2]!)  // 28 dias: poucas views, sem normal
+    expect(marca()).toBeNull()
+    expect(container.querySelector('.vb-as-med')).toBeNull()
+    expect(container.textContent).not.toContain('Perto do normal do canal')
+    await userEvent.click(radios()[1]!)  // 90 dias
+    expect(marca()!.style.left).toBe('40%')
+    expect(container.querySelector('.vb-as-med')!.textContent).toContain('normal do canal: 40%')
+  })
+
+  it('a barra sem a marca (esqueleto e leitura falha) não desenha o normal', () => {
+    const barra = { estado: 'ok', partes: [], pctTexto: '54%', barraPct: 54, normalPct: 52, normalTexto: '52%', marcaPct: 52, rotuloAncora: 'meio', contra: null, direcao: null, semNormal: null, marcas: null, alt: 'a', metodo: [] } as BlocoAssistido
+    const { container } = render(<BarraAssistido a={barra} normal={null} />)
+    expect(container.querySelector('.vb-as-barra')).not.toBeNull()
+    expect(container.querySelector('.vb-as-barra s')).toBeNull()
   })
 
   it('poucas views no período escolhido: "Ver contra o canal inteiro" volta ao canal inteiro', async () => {

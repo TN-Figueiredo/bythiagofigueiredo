@@ -300,6 +300,17 @@ describe('E5b T16 (b), tela B: o nó dos cartões de período', () => {
     expect(s.contains(getByTestId('periodos'))).toBe(true)
   })
 
+  it('com os cartões de período, a seção não desenha a barra, a marca nem a frase "contra" do normal de 28 dias (a barra mora nos cartões); fica a frase do vídeo', () => {
+    const w = mundoVideo({ mut: umaFaixa, diario: { pctFoco: 77.7, pctOutros: 60 } })
+    const { container } = comPeriodos(ok(w))
+    const s = secao(container, 'Quanto do vídeo as pessoas assistem')
+    expect(texto(s.querySelector('.vb-fr'))).toContain('Quem assiste vê em média 78% do vídeo')
+    expect(s.querySelector('.vb-as-barra')).toBeNull()
+    expect(s.querySelector('.vb-as-med')).toBeNull()
+    expect(s.querySelector('[class*="vb-dir-"]')).toBeNull()
+    expect(s.textContent).not.toMatch(/normal do canal/)
+  })
+
   it('quem só lê o site (negado) ou a leitura que falhou: o nó nem é desenhado, mesmo que a página o entregasse', () => {
     for (const acesso of ['negado', 'erro'] as const) {
       const { queryByTestId } = comPeriodos({ acesso })

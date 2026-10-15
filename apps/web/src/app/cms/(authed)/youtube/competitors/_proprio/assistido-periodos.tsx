@@ -9,6 +9,8 @@ import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type Reac
 import { useSearchParams } from 'next/navigation'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
+import { BarraAssistido } from './barra-assistido'
+import type { BlocoAssistido } from './video-blocos-model'
 import { CHAVE_ASSISTIDO, PERIODOS_ASSISTIDO, type AssistidoPeriodosView, type CelulaFaixa, type ConteudoAssistido, type Seta } from './assistido-periodo-model'
 import type { PeriodoAssistido } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 import './assistido-periodo.css'
@@ -84,7 +86,8 @@ function Conteudo({ c, selecionado, rotulos, aoVerInteiro }: { c: ConteudoAssist
   )
 }
 
-export function AssistidoPeriodos({ view }: { view: AssistidoPeriodosView }) {
+/** `barra` = a barra do % assistido do vídeo (tela B): a marca do "normal" é a do período escolhido (`normalNaBarra`), por isso a barra mora aqui. */
+export function AssistidoPeriodos({ view, barra }: { view: AssistidoPeriodosView; barra?: BlocoAssistido | null }) {
   const params = useSearchParams()
   const doUrl = params?.get('assistido') ?? null
   const idBase = useId().replace(/[^A-Za-z0-9_-]/g, '')
@@ -102,7 +105,7 @@ export function AssistidoPeriodos({ view }: { view: AssistidoPeriodosView }) {
     if (l != null) { setPeriodo(l); setSalvo(l !== view.padrao) }
   }, [doUrl, view.padrao])
 
-  if (view.vazio != null) return <p className="ap-vazio" role={view.estado === 'erro' ? 'alert' : undefined}>{view.vazio}</p>
+  if (view.vazio != null) return <>{barra ? <BarraAssistido a={barra} normal={null} /> : null}<p className="ap-vazio" role={view.estado === 'erro' ? 'alert' : undefined}>{view.vazio}</p></>
 
   const escolher = (p: PeriodoAssistido) => { setPeriodo(p); setSalvo(p !== view.padrao); guardar(p) }
   const tecla = (e: KeyboardEvent<HTMLDivElement>, i: number) => {
@@ -119,6 +122,7 @@ export function AssistidoPeriodos({ view }: { view: AssistidoPeriodosView }) {
 
   return (
     <div className="ap">
+      {barra ? <BarraAssistido a={barra} normal={view.conteudos[periodo].normalNaBarra} /> : null}
       <p className="ap-lab" id={labId}>
         {view.rotuloGrupo}:
         <button ref={btn} type="button" className="ap-info" aria-label="Como o período é contado" aria-expanded={info} aria-controls={popId} onClick={() => setInfo(o => !o)}>{Icon.info()}</button>

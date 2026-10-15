@@ -20,7 +20,7 @@ import { buildOrigem } from '../../_proprio/origem-model'
 import { Origem } from '../../_proprio/origem'
 import { OrigemEsqueleto } from '../../_proprio/origem-esqueleto'
 import { dmDia } from '../../_proprio/extras'
-import { ateDaOrigem, buildAssistidoDoVideo, buildVideoBlocos, contagensDeCobertura, janelaDaOrigemDoVideo, nivelDaOrigem, periodosDaOrigemDoVideo } from '../../_proprio/video-blocos-model'
+import { ateDaOrigem, buildAssistidoDoVideo, type BlocoAssistido, buildVideoBlocos, contagensDeCobertura, janelaDaOrigemDoVideo, nivelDaOrigem, periodosDaOrigemDoVideo } from '../../_proprio/video-blocos-model'
 import { AssistidoEsqueleto, VideoBlocos } from '../../_proprio/video-blocos'
 import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
@@ -47,10 +47,10 @@ export const maxDuration = 60
  * inteiro dos OUTROS vídeos do canal, que são muitas idas ao banco, DEPOIS de o primeiro HTML sair; `lerDadosDoVideo` não as faz. Sem diário no canal,
  * nada é lido. Só entra na página quem tem o token (a página só o monta com o dado privado `ok`).
  */
-async function AssistidoDoVideo(p: { canalId: string; ytId: string; ytIds: readonly string[]; publicacoes: ReadonlyMap<string, string | null>; diario: DiarioCanal; agora: number; leitura: LeituraPrivadaDoSite | null }) {
+async function AssistidoDoVideo(p: { barra: BlocoAssistido | null; canalId: string; ytId: string; ytIds: readonly string[]; publicacoes: ReadonlyMap<string, string | null>; diario: DiarioCanal; agora: number; leitura: LeituraPrivadaDoSite | null }) {
   const outros = p.ytIds.filter(y => y !== p.ytId)
   const longo = p.diario.ultimoDia == null ? null : await lerDiarioLongo({ canalId: p.canalId, ytIds: outros, ultimoDia: p.diario.ultimoDia, publicacoes: p.publicacoes, agora: p.agora, leitura: p.leitura })
-  return <AssistidoPeriodos view={buildAssistidoDoVideo({ ytId: p.ytId, ytIds: outros, diario: p.diario, longo })} />
+  return <AssistidoPeriodos view={buildAssistidoDoVideo({ ytId: p.ytId, ytIds: outros, diario: p.diario, longo })} barra={p.barra} />
 }
 
 /**
@@ -104,10 +104,12 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
     const dados = await lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura })
     // os blocos nascem aqui, no servidor, já em texto: só a `View` desce ao cliente (quem só lê o site recebe `acesso: 'negado'` e nenhum número privado)
     const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje: dayPt(new Date(now)), dm: dmDia, hrefVideo: hrefDeOutroVideo(flat, proprio.id) })
+    const barra = blocos.acesso === 'ok' ? blocos.assistido : null
     // os cartões de período vão em `Suspense` próprio (o bloco não espera a leitura); sem dado privado lido, não há o que ler
     const periodos = dados.acesso === 'ok' ? (
-      <Suspense fallback={<AssistidoEsqueleto />}>
+      <Suspense fallback={<AssistidoEsqueleto barra={barra} />}>
         <AssistidoDoVideo
+          barra={barra}
           canalId={proprio.id} ytId={base.header.ytId} ytIds={longosAcompanhadosDe(obs, proprio.id)} publicacoes={publicacoesDe(obs.videos.filter(v => v.ch === proprio.id))}
           diario={dados.dado.diario} agora={now} leitura={leitura}
         />
