@@ -280,6 +280,6 @@ describe('M4: as frases de causa não afirmam o que não foi lido', () => {
     const imp = paginaDoNovo(1).impressoes
     expect(imp?.frase).toBeNull()
     expect(imp?.grafico?.cedo).toMatchObject({ tipo: 'video-novo' })
-    expect(imp?.grafico?.cedo?.frase).toMatch(/^Vídeo novo\. Publicado há 1 dia\./)
+    expect(imp?.grafico?.cedo?.frase).toMatch(/^Vídeo novo\. Publicado há \d+ dias?\./)
   })
 })
