@@ -144,6 +144,17 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     expect(b.grafico!.colunas).toHaveLength(0)
   })
 
+  it('vídeo de 1 dia com a coleta parada há 40 dias: a frase "parou em dd/mm", nenhum gráfico nem casa (a coleta do canal vem antes da faixa)', () => {
+    const { w, id, dados } = comVidaDe(1)
+    const parou = addDays(w.hoje, -40)
+    const parada = ok(w, { alcance: { ...dadoDe(w).alcance, relatorios: [], linhas: [], ultimoRelatorio: parou } })
+    const b = blocos(w, parada, id).impressoes!
+    expect(b).toMatchObject({ medido: false, grafico: null, taxa: null, semTaxa: null })
+    expect(b.frase).toContain(`parou em ${dmDia(parou)}`)
+    // o par: o mesmo vídeo com relatórios em dia mostra a faixa
+    expect(blocos(w, dados, id).impressoes!.grafico!.cedo).toMatchObject({ tipo: 'video-novo' })
+  })
+
   it('vídeo de 2 dias (o "vídeo novo" da fixture): a mesma faixa (publicado ontem: faltam 5 dias)', () => {
     const b = blocos(W, ok(W), novoId).impressoes!
     expect(b).toMatchObject({ medido: true, frase: null })

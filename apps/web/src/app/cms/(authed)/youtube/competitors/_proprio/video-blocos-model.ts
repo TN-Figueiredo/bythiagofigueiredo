@@ -233,14 +233,15 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
   // a regra dos dias que valem para o vídeo (a partir da publicação; D e D-1 sem linha são "não medido") é a de `montarDias`, a mesma da régua e do cartão
   const montado = montarDias(alcance, { hoje: o.hoje, ytId: o.ytId, publicadoEm: o.pubDia })
-  // tela A (E5b T13): vídeo novo e "ainda cedo" põem a faixa de 7 casas no lugar do gráfico, ANTES de dizer "sem relatório" (o vídeo novo ainda não tem nenhum)
+  // a coleta do CANAL parada vem antes de qualquer faixa: `lerEstado` é do canal, e o vídeo novo não pode esconder o "parou em dd/mm" (falha em verde)
+  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje, o.publicacoes)
+  if (lido.estado !== 'ok') return { medido: false, frase: lido.estado === 'sem-relatorio' ? semRelatorioFrase(lido.parouEm, o.dm) : SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
+  // tela A (E5b T13): vídeo novo e "ainda cedo" põem a faixa de 7 casas no lugar do gráfico, depois de a coleta do canal estar em dia
   const cedo = estadoCedo({ publicadoEm: o.pubDia, hojePt: o.hoje, dias: montado.dias })
   if (cedo.tipo === 'video-novo' || cedo.tipo === 'ainda-cedo') {
     const faixa = buildImpressoes([], null, { escopo: 'video', alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok', hoje: o.hoje, cedo, viewsDoVideo: o.views })
     return { medido: true, frase: null, grafico: faixa, taxa: null, semTaxa: null }
   }
-  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje, o.publicacoes)
-  if (lido.estado !== 'ok') return { medido: false, frase: lido.estado === 'sem-relatorio' ? semRelatorioFrase(lido.parouEm, o.dm) : SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
   const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
   // sem nenhum dia que valha para o vídeo, e o vídeo novo já saiu acima: o último relatório é anterior à publicação,
   // a coleta atrasou. O cartão diz "não medido"; a página dá a mesma causa, com o último dia recebido, e nunca "vídeo novo".
