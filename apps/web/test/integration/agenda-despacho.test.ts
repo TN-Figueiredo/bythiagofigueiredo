@@ -156,6 +156,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
     // o arrendamento é fixo e compartilhado: se alguém o tem agora, o teste não pode seguir (tomaria o de outro)
     const preso = await q('select expires_at > now() as vivo from public.competitor_agenda_lease where name = $1', ['despachante'])
     if (preso.length > 0 && preso[0]!.vivo === true) throw new Error('o arrendamento "despachante" está tomado por outro; rode quando o banco estiver livre')
+    // medida de tamanho do banco que outro arquivo deixou (dia antigo de fixture): sem a de hoje, o sinal da E10 vira "sem leitura hoje" e
+    // pinta o cron de vermelho em todo disparo. Os casos daqui afirmam a agenda, não esse sinal: sem linha, o sinal é "nunca medido" e cala.
+    await pg.query(`delete from public.obs_db_size_daily where day < (now() at time zone 'America/Sao_Paulo')::date - 30`)
   })
 
   afterEach(async () => {
