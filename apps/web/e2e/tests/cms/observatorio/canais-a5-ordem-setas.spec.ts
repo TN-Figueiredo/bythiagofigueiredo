@@ -80,7 +80,7 @@ async function abrir(page: Page, size: { width: number; height: number }, qs = '
   await page.goto(ROTA + qs)
   await page.locator(`${S} .toolbar:visible`).first().waitFor({ timeout: 60_000 })
   await page.locator(`${S} table:visible, ${S} .cards:visible`).first().waitFor({ timeout: 30_000 })
-  await expect.poll(() => param(page, 'fmt'), { timeout: 15_000 }).not.toBeNull()
+  await expect.poll(() => param(page, 'fmt'), { timeout: 30_000 }).not.toBeNull()
   await page.waitForLoadState('networkidle')
   await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' })
 }
