@@ -95,7 +95,8 @@ export async function contraOPrazo<T>(
 
 // ───── as nove medidas quando não há o que dizer ─────
 
-function todasFalharam(): MedidasDoCanalParaCowork {
+/** As nove em `leitura_falhou` e a situação `nao_determinada`: o que um canal recebe quando nada pôde ser lido. */
+export function medidasTodasEmFalha(): MedidasDoCanalParaCowork {
   const f = (): MedidaParaCowork<never> => paraCowork(naoMedido('leitura_falhou'))
   const formato = (): MedidasPorFormatoParaCowork => ({ direcao_dos_videos_novos: f(), ritmo: f(), taxa_de_acerto: f() })
   return {
@@ -205,7 +206,7 @@ export async function medidasDosCanais(
       // defeito: o canal sai com as nove em falha, os outros seguem
       Sentry.captureException(err)
     }
-    if (!porCanal.has(id)) porCanal.set(id, todasFalharam())
+    if (!porCanal.has(id)) porCanal.set(id, medidasTodasEmFalha())
   }
 
   let proximo = 0
@@ -222,7 +223,7 @@ export async function medidasDosCanais(
   let indisponiveis = 0
   const por_motivo: Record<string, number> = {}
   for (const c of canais) {
-    if (!porCanal.has(c.id)) porCanal.set(c.id, todasFalharam())
+    if (!porCanal.has(c.id)) porCanal.set(c.id, medidasTodasEmFalha())
     for (const m of asNove(porCanal.get(c.id)!)) {
       if (m.estado === 'nao_medido') { indisponiveis++; por_motivo[m.motivo] = (por_motivo[m.motivo] ?? 0) + 1 }
     }

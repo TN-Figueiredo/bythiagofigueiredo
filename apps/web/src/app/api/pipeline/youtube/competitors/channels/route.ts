@@ -4,6 +4,8 @@ import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/ser
 import { listCompetitorChannels } from '@/lib/pipeline/services/competitors'
 
 export const dynamic = 'force-dynamic'
+// A5 · E7 (Lote 2): as medidas por canal pedem mais tempo que a lista de hoje; o prazo do pedido (40 s) cabe nos 60 s
+export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
   const result = await authenticateRead(req)

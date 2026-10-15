@@ -7,7 +7,12 @@ import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import { legacyGrids } from '@/lib/youtube/observatorio/grids'
 import * as Sentry from '@sentry/nextjs'
 import { lerPerfis, perfilDe, type PerfilDoCanal, type ResultadoDePerfis } from './competitors-perfil'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { listarMudancasDeCampo, FRASES_DE_CAMPO, type MudancasDeCampo } from './competitors-campos'
+import {
+  PRAZO_DO_MOTOR_MS, PRAZO_DO_PEDIDO_MS, contraOPrazo, medidasDosCanais, medidasTodasEmFalha,
+  type MedidasDoCanalParaCowork, type MedidasIndisponiveis, type MedidasMeta,
+} from './competitors-medidas'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,11 +30,15 @@ export interface CompetitorChannelRow {
   avg_engagement: number | null
   /** A5 · E7: o perfil lido do YouTube (handle, país, criação) ou o motivo de ainda não estar lido. */
   perfil: PerfilDoCanal
+  /** A5 · E7 (Lote 2): as nove medidas do canal, cada uma medida ou não medida com motivo e frase. */
+  medidas: MedidasDoCanalParaCowork
 }
 
 export interface CompetitorChannelList {
   channels: CompetitorChannelRow[]
   count: number
+  medidas_indisponiveis: MedidasIndisponiveis
+  medidas_meta: MedidasMeta
 }
 
 export interface CompetitorChangeRow {
@@ -163,8 +172,13 @@ const FORMULA_PATTERNS: Array<{ label: string; hint: string; test: (t: string) =
 /** List all competitor channels for the site with stats (subscriber count, engagement). */
 export async function listCompetitorChannels(
   ctx: ServiceContext,
+  o?: { relogio?: () => number },
 ): Promise<ServiceResult<CompetitorChannelList>> {
   const { supabase, siteId } = ctx
+  // A5 · E7: o prazo é do pedido e conta da primeira linha; tudo o que vem antes das medidas consome o mesmo prazo
+  const relogio = o?.relogio ?? Date.now
+  const inicio = relogio()
+  const prazoAteMs = inicio + PRAZO_DO_PEDIDO_MS
 
   const { data: channels, error: chErr } = await supabase
     .from('competitor_channels')
@@ -211,6 +225,32 @@ export async function listCompetitorChannels(
     perfis = { lido: false, motivo: 'erro_do_banco' }
   }
 
+  // A5 · E7 (Lote 2): o motor uma vez (corrida contra o relógio) e as medidas por canal. Site sem canal: nenhuma carga.
+  const agoraMs = observatoryNow()
+  let obs: Observatory | null = null
+  if (safeChannels.length > 0) {
+    try {
+      const motor = await contraOPrazo(() => loadObservatory(ctx), Math.min(relogio() + PRAZO_DO_MOTOR_MS, prazoAteMs), relogio)
+      if (motor.terminou) obs = motor.valor.obs
+      else Sentry.captureMessage('e7.motor_fora_do_prazo')
+    } catch (e) {
+      Sentry.captureException(e)
+    }
+  }
+  let medidas: Awaited<ReturnType<typeof medidasDosCanais>>
+  try {
+    medidas = await medidasDosCanais({ supabase, siteId }, safeChannels, { obs, agoraMs, prazoAteMs, relogio })
+  } catch (e) {
+    // defeito: todas as medidas de todos os canais em falha, a lista segue
+    Sentry.captureException(e)
+    const total = safeChannels.length * 9
+    medidas = {
+      porCanal: new Map<string, MedidasDoCanalParaCowork>(safeChannels.map(c => [c.id, medidasTodasEmFalha()])),
+      indisponiveis: { total, indisponiveis: total, por_motivo: total > 0 ? { leitura_falhou: total } : {} },
+      meta: { calculado_em: new Date(agoraMs).toISOString(), regra: MEASURE_RULES.ruleVersion, duracao_ms: Math.max(0, relogio() - inicio), canais_cortados_por_tempo: 0 },
+    }
+  }
+
   const result: CompetitorChannelRow[] = safeChannels.map(ch => {
     const vids = vidsByChannel.get(ch.id) ?? []
     const totalViews = vids.reduce((s, v) => s + (v.view_count ?? 0), 0)
@@ -228,10 +268,11 @@ export async function listCompetitorChannels(
       added_at: ch.added_at,
       avg_engagement: avgEngagement,
       perfil: perfilDe(ch.id, perfis),
+      medidas: medidas.porCanal.get(ch.id) ?? medidasTodasEmFalha(),
     }
   })
 
-  return ok({ channels: result, count: result.length })
+  return ok({ channels: result, count: result.length, medidas_indisponiveis: medidas.indisponiveis, medidas_meta: medidas.meta })
 }
 
 // ---------------------------------------------------------------------------

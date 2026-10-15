@@ -13,14 +13,16 @@ const servico = vi.hoisted(() => ({
   getCompetitorInsights: vi.fn(async () => ({ data: {} })),
 }))
 vi.mock('@/lib/pipeline/services/competitors', () => servico)
+const sentry = vi.hoisted(() => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => sentry)
 vi.mock('@/lib/pipeline/mcp/context', () => ({ getMcpContext: () => ({ siteId: 'site-sintetico', permissions: ['read'], keyHash: 'h' }) }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
 
 import { YoutubeObservatoryShape } from '@/lib/pipeline/mcp/tools'
-import { youtubeObservatory, PARAMETROS_LIDOS, LIMITE_MUDANCAS_TEXTO } from '@/lib/pipeline/mcp/services/youtube-observatory'
+import { youtubeObservatory, PARAMETROS_LIDOS, LIMITE_MUDANCAS_TEXTO, LIMITE_DO_TEXTO_DA_FERRAMENTA } from '@/lib/pipeline/mcp/services/youtube-observatory'
 
 const shape = z.object(YoutubeObservatoryShape)
-beforeEach(() => Object.values(servico).forEach(f => f.mockClear()))
+beforeEach(() => { Object.values(servico).forEach(f => f.mockClear()); sentry.captureMessage.mockReset() })
 
 describe('o anúncio e o adaptador', () => {
   it('falam dos mesmos parâmetros', () => {
@@ -160,5 +162,71 @@ describe('get_changes com campos pela ferramenta: o texto é medido', () => {
     expect(servico.listCompetitorChanges.mock.calls[0]?.[1]).toMatchObject({ limit: 50 })
     await youtubeObservatory({ action: 'get_changes', campos: 'todos' })
     expect(servico.listCompetitorChanges.mock.calls[1]?.[1]).toMatchObject({ limit: LIMITE_MUDANCAS_TEXTO })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// A5 · E7, Tarefa 13: `list_channels` sai sem indentação (a Tarefa 12 mediu: 15 canais passam do limite com a indentação) e avisa
+// o Sentry acima de 80% do limite. As outras três ações seguem com `toMcpSuccess`.
+// ---------------------------------------------------------------------------
+
+/** Uma lista cujo `JSON.stringify` tem exatamente `alvo` caracteres (enchimento num campo de texto). */
+function listaComTamanho(alvo: number): { channels: Array<{ nome: string }>; count: number } {
+  const vazia = { channels: [{ nome: '' }], count: 1 }
+  const falta = alvo - JSON.stringify(vazia).length
+  return { channels: [{ nome: 'x'.repeat(falta) }], count: 1 }
+}
+async function textoDe(data: unknown): Promise<string> {
+  servico.listCompetitorChannels.mockResolvedValueOnce({ data } as never)
+  const r = await youtubeObservatory({ action: 'list_channels' })
+  const c = r.content[0]
+  return c && c.type === 'text' ? c.text : ''
+}
+
+describe('list_channels: texto sem indentação e aviso de tamanho', () => {
+  it('o limite é o da P-14', () => { expect(LIMITE_DO_TEXTO_DA_FERRAMENTA).toBe(60_000) })
+
+  it('sai sem indentação, faz JSON.parse e é igual ao dado; as outras três ações seguem com o formato de antes', async () => {
+    const dado = { channels: [{ id: 'a', medidas: { x: { y: 1 } } }], count: 1, medidas_indisponiveis: { total: 9, indisponiveis: 0, por_motivo: {} } }
+    const t = await textoDe(dado)
+    expect(JSON.parse(t)).toEqual(dado)
+    expect(t).not.toContain('\n  ')
+    expect(t).toBe(JSON.stringify(dado))
+    servico.getCompetitorInsights.mockResolvedValueOnce({ data: { a: { b: 1 } } } as never)
+    const ins = await youtubeObservatory({ action: 'get_insights' })
+    const ci = ins.content[0]
+    expect(ci && ci.type === 'text' ? ci.text : '').toContain('\n  ')
+    const r = await youtubeObservatory({ action: 'list_channels' })
+    expect(r.isError).toBe(false)
+  })
+
+  it('15 canais com medidas cabem no limite sem indentação', async () => {
+    const medida = { estado: 'medido', valor: { variacao: 0.3, direcao: 'subindo', ganhoRecente: 130000, ganhoAnterior: 100000 }, n: 3, janela: { de: '2026-06-05', ate: '2026-07-31', dias: 56 } }
+    const canais = Array.from({ length: 15 }, (_, i) => ({ id: 'c' + i, channel_name: 'Canal ' + i, medidas: { a: medida, b: medida, c: medida, d: medida, e: medida, f: medida, g: medida, h: medida, i: medida } }))
+    const t = await textoDe({ channels: canais, count: 15 })
+    expect(t.length).toBeLessThan(LIMITE_DO_TEXTO_DA_FERRAMENTA)
+  })
+
+  it('avisa quando o texto passa de 80% do limite, uma vez, só com caracteres e canais; abaixo, nenhum aviso; a resposta é a mesma', async () => {
+    const abaixo = listaComTamanho(0.8 * LIMITE_DO_TEXTO_DA_FERRAMENTA - 1)
+    const acima = listaComTamanho(0.8 * LIMITE_DO_TEXTO_DA_FERRAMENTA + 1)
+    const t1 = await textoDe(abaixo)
+    expect(sentry.captureMessage).not.toHaveBeenCalled()
+    const t2 = await textoDe(acima)
+    expect(sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(sentry.captureMessage).toHaveBeenCalledWith('e7.resposta_da_ferramenta_grande', { extra: { caracteres: t2.length, canais: 1 } })
+    expect(JSON.parse(t1)).toEqual(abaixo)
+    expect(JSON.parse(t2)).toEqual(acima)
+  })
+
+  it('o aviso que lança não derruba a resposta', async () => {
+    sentry.captureMessage.mockImplementation(() => { throw new Error('Sentry fora do ar') })
+    const acima = listaComTamanho(0.8 * LIMITE_DO_TEXTO_DA_FERRAMENTA + 1)
+    servico.listCompetitorChannels.mockResolvedValueOnce({ data: acima } as never)
+    const r = await youtubeObservatory({ action: 'list_channels' })
+    expect(r.isError).toBe(false)
+    const c = r.content[0]
+    expect(JSON.parse(c && c.type === 'text' ? c.text : 'null')).toEqual(acima)
+    sentry.captureMessage.mockReset()
   })
 })
