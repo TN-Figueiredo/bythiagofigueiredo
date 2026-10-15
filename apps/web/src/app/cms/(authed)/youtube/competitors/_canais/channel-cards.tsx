@@ -1,9 +1,7 @@
 'use client'
 /** Cards view of Canais (port of canais.html card()). */
 import type { CanaisRow, CanaisView } from './view-model'
-import { DirecaoCell } from './direcao-cell'
-import { DirecaoDica } from './direcao-dica'
-import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
+import { CadenceView, ChCell, DirecaoValor, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
 import { fraseDoCartao, motivoTexto } from './posicao-model'
 import { CompararLink, type RowHandlers } from './channel-table'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
@@ -24,16 +22,16 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
         : <span className="cp num" data-testid="canais-p" aria-label="sem posição"><span className="sr">sem posição</span></span>}
       <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
       <Voce r={r} view={view} />
-      <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoCell r={r} cartao /><DirecaoDica r={r} /></div></div></div>
-      <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></div>
+      <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoValor r={r} cartao /></div></div></div>
+      <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} /></div>
       <div className="kv">
-        <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} visible /></div>
-        <div><div className="l">Crescimento, 30{' '}d</div><div className="grow"><GrowthView c={c.growth} /></div></div>
+        <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} visible dica={r.dicas.vpd} dica2={r.dicas.vpd2} /></div>
+        <div><div className="l">Crescimento, 30{' '}d</div><div className="grow"><GrowthView c={c.growth} dica={r.dicas.growth} /></div></div>
       </div>
-      <div><div className="l" style={{ marginBottom: 4 }}>Outliers, até 90{' '}d</div><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} visible /></div>
+      <div><div className="l" style={{ marginBottom: 4 }}>Outliers, até 90{' '}d</div><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} visible dica={r.dicas.out} dica2={r.dicas.out2} /></div>
       <div className="kv">
-        <div><div className="l">Trocas de título e thumbnail, 30{' '}d</div><SwapView c={c.swap} /></div>
-        <div className="sync"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></div>
+        <div><div className="l">Trocas de título e thumbnail, 30{' '}d</div><SwapView c={c.swap} dica={r.dicas.swap} /></div>
+        <div className="sync"><SyncView dica={r.dicas.sync} c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></div>
       </div>
       {r.comparar ? <div className="cmp-card"><CompararLink r={r} texto="Comparar com o meu canal" /></div> : null}
       {r.own ? null : <div><button type="button" className="btn small" data-menu={r.id} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} disabled={h.somenteLeitura} onClick={() => h.menu(r.id)}>Mais ações</button></div>}

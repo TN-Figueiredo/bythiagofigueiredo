@@ -37,6 +37,8 @@ import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { celulaDeDirecao, resumoDeDirecao, type CelulaDeDirecao, type ResumoDeDirecao } from './direcao-model'
 import { contagemDosFiltros, estadoDaLinha, linhaNoFiltro, type ContagemDosFiltros, type EstadoDaLinha, type FiltroDeEstado } from './estado-model'
 import { fraseDoResumo } from './resumo-model'
+import { dicaCrescimento, dicaDirecao, dicaInscritos, dicaOutliers, dicaRitmo, dicaSync, dicaTrocas, dicaViewsDia, type Escrita } from './dicas-model'
+import { passoDoYouTube } from '@/lib/youtube/observatorio/inscritos-28d'
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 const nb = (s: string) => s.replace(/(\d) (h|d|dias?|min)\b/g, '$1' + NB + '$2').replace(/há /g, 'há' + NB)
@@ -108,6 +110,11 @@ export interface CanaisRow {
   semMedida: MotivoSemMedida | null
   /** A frase do motivo de 'sem-views-dia-proprio' (de `motivoVpdTexto`), para `motivoTexto`; null nos outros motivos e quando o dado não foi lido. */
   semMedidaTexto: string | null
+  /** A5 2ª leva T8: o texto da dica de cada coluna (modelo puro em `dicas-model.ts`). null = a célula não tem dica (o estado já diz tudo). */
+  dicas: {
+    subs: string; vpd: string | null; cadence: string | null; out: string | null; swap: string | null; growth: string; direcao: string | null; sync: string | null
+    vpd2?: string | null; cadence2?: string | null; out2?: string | null
+  }
   cells: {
     cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell
     /** Só em "Todos": a medida dos Shorts, com o mesmo tipo da primeira (a primeira é a dos longos). */
@@ -286,6 +293,7 @@ export function nicheOptions(obs: Observatory): NicheOption[] {
  */
 export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: ExtrasProprio): CanaisView {
   const D = obs.date, F = obs.fmt, R = obs.RULES
+  const escrita: Escrita = { num: v => F.int(v), dec1: v => F.dec1(v), dm: t => D.dm(t), agora: obs.NOW }
   // `filtro` é o que a pessoa escolheu (Todos, Longos, Shorts); `fmt` é o formato que ordena e posiciona (Todos ordena pelos longos)
   const fmtLido = parseCanaisFmt(p.fmt)
   const filtro: CanaisFmt = fmtLido ?? FMT_PADRAO
@@ -592,6 +600,55 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     return { semMedida, semMedidaTexto: semMedidaTextoOf(c, S, semMedida) }
   }
 
+  /** A5 2ª leva T8: o texto da dica de cada coluna, montado dos números que a linha já tem (nenhuma leitura nova). */
+  function dicasDe(a: {
+    c: ObsChannel; S: CStats; S2: CStats | null; bf: boolean; empty: boolean; trocasG: ObsChange[] | undefined
+    cells: CanaisRow['cells']; direcao: CelulaDeDirecao; direcaoNumeros: CanaisRow['direcaoNumeros']
+  }): CanaisRow['dicas'] {
+    const { c, S, S2, bf, empty, cells } = a
+    const oculto = ocultoDe(c) || c.subs == null
+    const kl = obs.cadence(c.id, 'long'), ks = obs.cadence(c.id, 'short')
+    const ultimo = Math.max(kl.lastUpload ?? -Infinity, ks.lastUpload ?? -Infinity)
+    const dicaCad = (cell: CadenceCell): string | null => cell.kind === 'na' ? cell.title : dicaRitmo({
+      longos: kl.n, shorts: ks.n, ultimoHaDias: Number.isFinite(ultimo) ? Math.max(0, Math.floor((obs.NOW - ultimo) / obs.DAY)) : null, partialText: kl.partial ? kl.partialText : null,
+    })
+    const dicaVpd = (cell: VpdCell, SS: CStats, f: Fmt): string | null => {
+      if (cell.kind === 'na') return cell.title
+      if (c.own && cell.title) return cell.title // canal próprio com o diário: a base escrita da janela
+      return dicaViewsDia({ mediana: SS.vpdMedian, n: SS.vpdN, desde: SS.vpdWindow, porMil: SS.perMilSubs, oculto: c.subs == null, fraco: cell.weak, formato: f === 'short' ? 'short' : 'long' }, escrita)
+    }
+    const dicaOut = (cell: OutCell, SS: CStats, f: Fmt, vazio: boolean): string | null => {
+      if (cell.kind === 'ok') {
+        const o = SS.bestOutlier
+        if (!o || o.mult.base == null || o.mult.value == null) return cell.title
+        return dicaOutliers({ melhor: { titulo: o.video.title, mult: o.mult.value, views: Math.round(o.mult.value * o.mult.base), esperado: o.mult.base }, nVideos: SS.vpdN, fraco: false, formato: f === 'short' ? 'short' : 'long' }, escrita)
+      }
+      if (bf || vazio || cell.falta) return null
+      return dicaOutliers({ melhor: null, nVideos: SS.vpdN, fraco: cell.weak != null || SS.vpdN < R.weakBase, formato: f === 'short' ? 'short' : 'long' }, escrita)
+    }
+    const i0 = a.trocasG?.[0]
+    const swap = c.own || bf ? null : dicaTrocas({
+      ultima: i0 ? { tipo: (a.trocasG?.length ?? 0) > 1 ? 'ambos' : i0.type === 'title' ? 'title' : 'thumb', titulo: obs.video(i0.video)?.title ?? '', haDias: Math.max(0, Math.floor((obs.NOW - i0.at) / obs.DAY)), em: i0.at } : null,
+    }, escrita)
+    const s = c.sync
+    const sync = s.state === 'ok'
+      ? (s.last == null ? null : dicaSync({ estado: 'ok', ha: D.ago(s.last), nVideos: S.tracked, horarios: obs.SYNC.slots.map(h => String(h).padStart(2, '0') + 'h'), proprio: c.own ? T.sync : null }))
+      : s.state === 'erro' ? dicaSync({ estado: 'erro', ha: s.errorSince != null ? D.ago(s.errorSince) : '', nVideos: S.tracked, horarios: [], proprio: null })
+        : cells.sync.labelTitle
+    return {
+      subs: dicaInscritos({ subs: oculto ? null : c.subs, passo: passoDoYouTube(c.subs ?? 0) }, escrita),
+      vpd: dicaVpd(cells.vpd, S, fmt),
+      cadence: dicaCad(cells.cadence),
+      out: dicaOut(cells.out, S, fmt, empty),
+      swap, sync,
+      growth: dicaCrescimento(cells.growth, escrita, c.own),
+      direcao: dicaDirecao(a.direcao, a.direcaoNumeros, escrita),
+      ...(S2 && cells.vpd2 ? { vpd2: dicaVpd(cells.vpd2, S2, 'short') } : {}),
+      ...(S2 && cells.cadence2 ? { cadence2: dicaCad(cells.cadence2) } : {}),
+      ...(S2 && cells.out2 ? { out2: dicaOut(cells.out2, S2, 'short', false) } : {}),
+    }
+  }
+
   function rowOf(c: ObsChannel): CanaisRow {
     const S = stats(c.id), bf = isBf(c), empty = ownLongEmpty(c) && fmt === 'long'
     const k = obs.cadence(c.id, fmt)
@@ -609,6 +666,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     // inscritos ocultos: o crescimento não é zero, é "não medido: oculto" (nunca um 0)
     const growth: GrowthCell = growthCell(c, growthDe(c, S), ocultoDe(c))
     const sync = syncCell(c, S)
+    const direcao = direcaoDe(c)
+    const direcaoNumeros = direcao.tipo === 'medido' ? { recente: num(direcao.ganhoRecente), anterior: num(direcao.ganhoAnterior) } : null
+    const dicas = dicasDe({ c, S, S2, bf, empty, trocasG: g, cells: { cadence, vpd, out, swap, growth, sync, ...cells2 }, direcao, direcaoNumeros })
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     const valor = valoresOf(c), numero = numMap.get(c.id) ?? null, pos = temPosicao(sort) ? numero : null
     return {
@@ -620,11 +680,12 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'na' ? growth.title : growth.cap,
       sync: { label: sync.label, phrase: syncPhrase(c), state: c.sync.state },
-      color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: paradoDe(c), direcao: direcaoDe(c), estado: estadoDe(c), direcaoNumeros: ((d) => (d.tipo === 'medido' ? { recente: num(d.ganhoRecente), anterior: num(d.ganhoAnterior) } : null))(direcaoDe(c)), subsOculto: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true,
+      color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: paradoDe(c), direcao, estado: estadoDe(c), direcaoNumeros, subsOculto: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true,
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : c.subs < 1000 ? 'Abaixo de mil, o YouTube mostra o número exato.'
         : `O YouTube corta a contagem para 3 algarismos: ${stats(c.id, 'long').growth30.roundingText}.`,
       valor, numero, pos, ...semMedidaDe(c, S, valor, pos),
+      dicas,
       cells: { cadence, vpd, out, swap, growth, sync, ...cells2 },
       semFormato: nulos ? { n: nulos, label: `formato não confirmado (${nulos})`, tip: SEM_FORMATO_TIP } : null,
       cowork: coworkOf(c),

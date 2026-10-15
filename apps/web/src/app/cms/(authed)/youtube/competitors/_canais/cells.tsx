@@ -4,10 +4,11 @@
  * They only lay out what the view model computed.
  */
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
-import { EstadoLinha } from './direcao-cell'
+import { DirecaoCell, EstadoLinha } from './direcao-cell'
 import Link from 'next/link'
-import { useId, useRef, useState, type ReactNode } from 'react'
-import { HoverTip, useTipShown } from '../_chrome/flut/flut'
+import { useId, useRef, type ReactNode } from 'react'
+import { HoverTip } from '../_chrome/flut/flut'
+import { CelulaDica, useDica } from './celula-dica'
 import type { CadenceCell, CanaisRow, GrowthCell, OutCell, SwapCell, SyncCell, Thumb, VpdCell } from './view-model'
 import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
@@ -41,17 +42,18 @@ export function Ic({ n, spin }: { n: IconName; spin?: boolean }) {
 export function Tip({ label, children, left }: { label: string; children: ReactNode; left?: boolean }) {
   const id = useId()
   const el = useRef<HTMLSpanElement>(null)
-  // hover and focus are separate: the words stay while either one holds (as before the layer: :hover, :focus and :focus-within)
-  const [hov, setHov] = useState(false), [foc, setFoc] = useState(false)
-  const show = hov || foc
-  const shown = useTipShown(show) // the id is named only while the box is really in the document (an open popover hides it)
+  // a mesma máquina de hover, foco e Esc da dica por célula (`useDica`): hover e foco são separados, as palavras ficam enquanto um dos dois as segura
+  const d = useDica()
   return (
-    <span ref={el} className="tip" tabIndex={0} role="button" aria-label={label} aria-describedby={shown ? id : undefined}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
-      onKeyDown={e => { if (e.key === 'Escape' && show) { e.stopPropagation(); setHov(false); setFoc(false) } }}>
-      <HoverTip show={show} anchor={() => el.current} id={id} className="cn-tt" pref="baixo" align={left ? 'fim' : 'meio'} maxW={270}>{children}</HoverTip>
+    <span ref={el} className="tip" tabIndex={0} role="button" aria-label={label} aria-describedby={d.shown ? id : undefined} {...d.handlers}>
+      <HoverTip show={d.show} anchor={() => el.current} id={id} className="cn-tt" pref="baixo" align={left ? 'fim' : 'meio'} maxW={270}>{children}</HoverTip>
     </span>
   )
+}
+
+/** A5 2ª leva T8: envolve só a parte de valor da célula na dica; sem texto, a célula fica como estava. */
+function Dica({ texto, children }: { texto?: string | null; children: ReactNode }) {
+  return texto ? <CelulaDica texto={texto}>{children}</CelulaDica> : <>{children}</>
 }
 
 export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
@@ -96,18 +98,18 @@ function Fm({ label, visible, children }: { label: string; visible?: boolean; ch
   return <span className="fm">{visible ? <span className="fl">{label}</span> : <span className="sr">{label}: </span>}{children}</span>
 }
 
-export function CadenceView({ c, c2 }: { c: CadenceCell; c2?: CadenceCell }) {
-  if (c.kind === 'na') return <div className="cad"><Strip cell={c} /><span className="na" style={{ maxWidth: 150 }} title={c.title}>{c.text}</span></div>
+export function CadenceView({ c, c2, dica, dica2 }: { c: CadenceCell; c2?: CadenceCell; dica?: string | null; dica2?: string | null }) {
+  if (c.kind === 'na') return <div className="cad"><Strip cell={c} /><Dica texto={dica}><span className="na" style={{ maxWidth: 150 }}>{c.text}</span></Dica></div>
   return (
     <div className="cad">
       <Strip cell={c} />
       <div className="v">
         {/* a unidade ("longos/sem", "Shorts/sem") já rotula cada medida */}
-        <span className={c2 ? 'fm' : undefined}><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></span>
+        <span className={c2 ? 'fm' : undefined}><Dica texto={dica}><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></Dica></span>
         {c2 ? (
-          <span className="fm">{c2.kind === 'ok'
+          <span className="fm"><Dica texto={dica2 ?? dica}>{c2.kind === 'ok'
             ? <><span className="num">{c2.pw}</span> <span className="u">{c2.unit}</span></>
-            : <span className="nd" title={c2.title}>{c2.text}</span>}</span>
+            : <span className="nd">{c2.text}</span>}</Dica></span>
         ) : null}
         {c.paused ? <span className="paused"><Ic n="pause" /><span>{c.paused}</span></span> : c.sub ? <small>{c.sub}</small> : null}
       </div>
@@ -115,14 +117,14 @@ export function CadenceView({ c, c2 }: { c: CadenceCell; c2?: CadenceCell }) {
   )
 }
 
-/** Uma medida de Views/dia em uma linha (a de "Todos"): o número e a base; o resto vai na dica nativa. */
-function VpdLinha({ c }: { c: VpdCell }) {
-  if (c.kind === 'na') return <span className="nd" title={c.title}>{c.text}</span>
+/** Uma medida de Views/dia em uma linha (a de "Todos"): o número e a base; o resto vai na dica. */
+function VpdLinha({ c, dica }: { c: VpdCell; dica?: string | null }) {
+  if (c.kind === 'na') return <Dica texto={dica}><span className="nd">{c.text}</span></Dica>
   const ressalva = c.tail ? c.tail.replace(/^,\s*/, '') : null
   return (
     <span>
-      <span className="big num" data-k="vpd" title={c.title}>{c.big}</span>{' '}
-      <span className={'cap2' + (c.weak ? ' weak' : '')}>{c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span>
+      <Dica texto={dica}><span className="big num" data-k="vpd">{c.big}</span>{' '}
+      <span className={'cap2' + (c.weak ? ' weak' : '')}>{c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span></Dica>
       {/* a ressalva de dado velho fica à vista (teclado e toque não leem title): o número não parece atual */}
       {ressalva ? <span className="cap2 ressalva" data-ressalva="">{' '}{ressalva}</span> : null}
     </span>
@@ -132,83 +134,84 @@ function VpdLinha({ c }: { c: VpdCell }) {
 /** A frase da falta de formato ("sem Shorts", "sem vídeos") já diz o que é: nunca leva rótulo visível na frente. */
 const semRotulo = (c: VpdCell | OutCell) => c.kind === 'na' && c.falta === true
 
-export function VpdView({ c, c2, visible }: { c: VpdCell; c2?: VpdCell; visible?: boolean }) {
-  if (c2) return <><Fm label="longos" visible={visible}><VpdLinha c={c} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><VpdLinha c={c2} /></Fm></>
-  if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
+export function VpdView({ c, c2, visible, dica, dica2 }: { c: VpdCell; c2?: VpdCell; visible?: boolean; dica?: string | null; dica2?: string | null }) {
+  if (c2) return <><Fm label="longos" visible={visible}><VpdLinha c={c} dica={dica} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><VpdLinha c={c2} dica={dica2} /></Fm></>
+  if (c.kind === 'na') return <Dica texto={dica}><span className="na r">{c.text}</span></Dica>
   return (
-    <>
-      <span className="big num" data-k="vpd" title={c.title}>{c.big}</span>
+    <Dica texto={dica}>
+      <span className="big num" data-k="vpd">{c.big}</span>
       <span className="cap" style={{ whiteSpace: 'normal' }}>
         {c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}
         <span className={c.weak ? 'weak' : ''}>n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span>
         {c.tail}
       </span>
-    </>
+    </Dica>
   )
 }
 
 /** Uma medida de Outliers em uma linha (a de "Todos"): a contagem com o maior múltiplo, sem thumbnail. */
-function OutLinha({ c, upnextHref }: { c: OutCell; upnextHref: string }) {
-  if (c.kind === 'na') return <span className="nd">{c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}{c.upnext ? <> <a className="btn small link" href={upnextHref}>{c.upnext}</a></> : null}</span>
-  return <span title={`${c.title} ${c.videoTitle}`}><b className={`mult num ${c.tier}`}>{c.mult}</b> <span className="cap2">{c.count}</span></span>
+function OutLinha({ c, upnextHref, dica }: { c: OutCell; upnextHref: string; dica?: string | null }) {
+  // o botão "Planejar em Próximos" fica fora do gatilho da dica
+  if (c.kind === 'na') return <span className="nd"><Dica texto={dica}>{c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}</Dica>{c.upnext ? <> <a className="btn small link" href={upnextHref}>{c.upnext}</a></> : null}</span>
+  return <Dica texto={dica}><b className={`mult num ${c.tier}`}>{c.mult}</b> <span className="cap2">{c.count}</span></Dica>
 }
 
-export function OutView({ c, c2, upnextHref, visible }: { c: OutCell; c2?: OutCell; upnextHref: string; visible?: boolean }) {
-  if (c2) return <><Fm label="longos" visible={visible}><OutLinha c={c} upnextHref={upnextHref} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><OutLinha c={c2} upnextHref={upnextHref} /></Fm></>
+export function OutView({ c, c2, upnextHref, visible, dica, dica2 }: { c: OutCell; c2?: OutCell; upnextHref: string; visible?: boolean; dica?: string | null; dica2?: string | null }) {
+  if (c2) return <><Fm label="longos" visible={visible}><OutLinha c={c} upnextHref={upnextHref} dica={dica} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><OutLinha c={c2} upnextHref={upnextHref} dica={dica2} /></Fm></>
   if (c.kind === 'na') return (
     <span className="na">
-      {c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}
+      <Dica texto={dica}>{c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}</Dica>
       {c.upnext ? <> <a className="btn small link" href={upnextHref}>{c.upnext}</a></> : null}
     </span>
   )
   return (
-    <div className="out" title={c.title}>
+    <Dica texto={dica}><div className="out">
       <ThumbView t={c.thumb} />
       <div>
-        <div className="t" title={c.videoTitle}>{c.videoTitle}</div>
+        <div className="t">{c.videoTitle}</div>
         <div className="cap"><b className={`mult num ${c.tier}`} data-k="best">{c.mult}</b><span className="det"> vs {c.vs}, n{' '}={' '}<span data-k="bestN">{c.n}</span></span></div>
-        <div className="cap"><span className="det">publicado </span><span title={c.publishedTitle}>{c.published}</span><span className="det">, <span data-k="outs">{c.count}</span></span></div>
+        <div className="cap"><span className="det">publicado </span><span>{c.published}</span><span className="det">, <span data-k="outs">{c.count}</span></span></div>
       </div>
-    </div>
+    </div></Dica>
   )
 }
 
-export function SwapView({ c }: { c: SwapCell }) {
+export function SwapView({ c, dica }: { c: SwapCell; dica?: string | null }) {
   if (c.kind === 'na') return <span className="na">{c.text}</span>
-  return <div className="swap"><div className="k num" data-k="sw">{c.n}</div><div className="last">{c.lastTitle ? <span title={c.lastTitle}>{c.last}</span> : c.last}</div></div>
+  return <Dica texto={dica}><div className="swap"><div className="k num" data-k="sw">{c.n}</div><div className="last">{c.last}</div></div></Dica>
 }
 
-export function GrowthView({ c }: { c: GrowthCell }) {
-  // A5 2ª leva: sem setas; o sinal (+ ou −) e a palavra dizem o sentido. A dica por célula chega na Tarefa 8.
-  if (c.kind === 'na') return <><span className="na r">{c.text}</span><Tip label="Por que o crescimento não tem número">{c.title}</Tip></>
-  if (c.kind === 'flat') return <><span className="big num gr-flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></>
+export function GrowthView({ c, dica }: { c: GrowthCell; dica?: string | null }) {
+  // A5 2ª leva: sem setas; o sinal (+ ou −) e a palavra dizem o sentido; a dica da célula escreve o intervalo real.
+  if (c.kind === 'na') return <Dica texto={dica ?? c.title}><span className="na r">{c.text}</span></Dica>
+  if (c.kind === 'flat') return <Dica texto={dica}><span className="big num gr-flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></Dica>
   return (
-    <>
+    <Dica texto={dica}>
       <b className="big num gr-n">{c.big}</b>
       <span className="cap num capr" data-k="growth" style={{ whiteSpace: 'normal', maxWidth: 118 }}>{c.cap}</span>
-    </>
+    </Dica>
   )
 }
 
 export type LocalSync = 'now' | 'just' | 'queued' | undefined
-export function SyncView({ c, local, onRetry, onRemove, somenteLeitura = false }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void; somenteLeitura?: boolean }) {
+export function SyncView({ c, local, onRetry, onRemove, somenteLeitura = false, dica }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void; somenteLeitura?: boolean; dica?: string | null }) {
   // "Administrar o site" step: removing a channel is for admins.
   const canAdminSite = useCanAdminSite()
-  const cov = c.cov ? <div className="cov" title={c.covTitle ?? undefined}>{c.cov}</div> : null
+  const cov = c.cov ? <div className="cov">{c.cov}</div> : null
   if (local === 'now') return <><div className="st" style={{ color: 'var(--info)' }}><Ic n="spin" spin />Sincronizando agora</div>{cov}</>
-  if (local === 'queued' && c.queued) return <><div className="st" style={{ color: 'var(--muted)' }}><Ic n="clock" />{c.queued.label}</div>{c.queued.cov ? <div className="cov" title={c.queued.covTitle ?? undefined}>{c.queued.cov}</div> : null}</>
+  if (local === 'queued' && c.queued) return <><div className="st" style={{ color: 'var(--muted)' }}><Ic n="clock" />{c.queued.label}</div>{c.queued.cov ? <div className="cov">{c.queued.cov}</div> : null}</>
   if (local === 'just') return <><div className="st"><Ic n="ok" /><span style={{ color: 'var(--success)' }}>Sincronizado agora</span></div>{cov}</>
-  if (c.state === 'ok') return <><div className="st"><span className="dot" style={{ background: 'var(--success)' }} /><span title={c.labelTitle ?? undefined}>{c.label}</span></div>{cov}</>
+  if (c.state === 'ok') return <><div className="st"><span className="dot" style={{ background: 'var(--success)' }} /><Dica texto={dica}>{c.label}</Dica></div>{cov}</>
   if (c.state === 'atrasado') return (
     <>
-      <div className="st" style={{ color: 'var(--warning-text)' }}><Ic n="clock" /><span title={c.labelTitle ?? undefined}>{c.label}</span></div>
+      <div className="st" style={{ color: 'var(--warning-text)' }}><Ic n="clock" /><Dica texto={dica}>{c.label}</Dica></div>
       {c.msg ? <div className="msg late">{c.msg}</div> : null}
       {c.canRetry ? <div className="act"><button type="button" className="btn small" onClick={onRetry} disabled={somenteLeitura} title={somenteLeitura ? 'Você só pode ler esta lista.' : undefined}>Tentar de novo</button></div> : null}
     </>
   )
   if (c.state === 'erro') return (
     <>
-      <div className="st" style={{ color: 'var(--danger-text)' }}><Ic n="warn" /><span>{c.label}</span></div>
+      <div className="st" style={{ color: 'var(--danger-text)' }}><Ic n="warn" /><Dica texto={dica}>{c.label}</Dica></div>
       {c.msg ? <div className="msg">{c.msg}</div> : null}
       {c.canRemove && canAdminSite ? <div className="act"><button type="button" className="btn small" onClick={onRemove} disabled={somenteLeitura} title={somenteLeitura ? 'Você só pode ler esta lista.' : undefined}>Remover canal…</button></div> : null}
       {c.canRemove && !canAdminSite ? <div className="msg" role="note" data-testid="admin-only-note">{siteAdminOnlyText('remover um canal')}</div> : null}
@@ -259,8 +262,7 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
         ) : null}
         <div className="sub">
           {r.own ? null : <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />}
-          {r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}
-          <Tip label="Sobre o número de inscritos">{r.subsTip}</Tip>
+          <Dica texto={r.dicas.subs}>{r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}</Dica>
         </div>
         <EstadoLinha r={r} />
         {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
@@ -273,4 +275,13 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
       </div>
     </div>
   )
+}
+
+/** A5 2ª leva T8: o valor da Direção com a dica da célula (substitui o `?` ao lado). Sem `title` nativo: o texto longo do "não medido" vai na dica. */
+export function DirecaoValor({ r, cartao = false }: { r: CanaisRow; cartao?: boolean }) {
+  const d = r.direcao, dica = r.dicas.direcao
+  if (d.tipo === 'nao_medido' || d.tipo === 'canal_proprio') {
+    return <Dica texto={dica}><span className="obs-ch-nm">{d.curta}<span className="obs-md-sr">: {d.longa}</span></span></Dica>
+  }
+  return <Dica texto={dica}><DirecaoCell r={r} cartao={cartao} /></Dica>
 }

@@ -70,23 +70,24 @@ describe('lote rápido: dicas nos cabeçalhos de medida', () => {
   it('o valor da Direção tem a dica com os dois totais da própria linha', async () => {
     const { container } = mount({ medidas: medidasDoMotor(obs, {}) })
     const linha = container.querySelector('tbody tr.row:not(.you)')!
-    const tip = linha.querySelector('td.dir .tip')
+    const tip = linha.querySelector('td.dir .cdica')
     expect(tip).not.toBeNull()
-    expect(await dica(tip!)).toBe('Views dos últimos 28 dias: 120. Dos 28 anteriores: 100. Subiu 20%.')
+    expect(await dica(tip!)).toBe('Últimos 28 dias: 120 views. 28 dias anteriores: 100. Subiu 20%.')
   })
-  it('a Direção que caiu diz "Caiu" e a que ficou no meio diz "Quase igual"', async () => {
+  it('a Direção que caiu diz "Caiu" e a que ficou no meio diz "Variou"', async () => {
     const [a, b] = obs.channels.filter(c => !c.own)
     const { container } = mount({ medidas: medidasDoMotor(obs, { [a!.id]: { m3a: direcaoMedida(70, 100) }, [b!.id]: { m3a: direcaoMedida(103, 100) } }) })
-    expect(await dica(container.querySelector(`tr[data-id="${a!.id}"] td.dir .tip`)!)).toBe('Views dos últimos 28 dias: 70. Dos 28 anteriores: 100. Caiu 30%.')
-    expect(await dica(container.querySelector(`tr[data-id="${b!.id}"] td.dir .tip`)!)).toBe('Views dos últimos 28 dias: 103. Dos 28 anteriores: 100. Quase igual.')
+    expect(await dica(container.querySelector(`tr[data-id="${a!.id}"] td.dir .cdica`)!)).toBe('Últimos 28 dias: 70 views. 28 dias anteriores: 100. Caiu 30%.')
+    expect(await dica(container.querySelector(`tr[data-id="${b!.id}"] td.dir .cdica`)!)).toBe('Últimos 28 dias: 103 views. 28 dias anteriores: 100. Variou +3%. Até 10% para cima ou para baixo conta como sem mudança.')
   })
-  it('o Crescimento não usa o title nativo e não tem setas: sinal + ou −; a dica por célula chega na Tarefa 8 da 2ª leva', () => {
+  it('o Crescimento não usa o title nativo e não tem setas: sinal + ou −; a dica por célula escreve o intervalo', () => {
     const { container } = mount({ medidas: medidasDoMotor(obs) })
     const celula = [...container.querySelectorAll('tbody td.grow')].find(td => td.querySelector('.gr-n'))
     expect(celula).toBeTruthy()
     expect(celula!.querySelector('[title]')).toBeNull()
     expect(celula!.querySelector('svg')).toBeNull()
     expect(celula!.querySelector('.gr-n')!.textContent).toMatch(/^[+−]\d/)
+    expect(celula!.querySelector('.cdica')).not.toBeNull()
   })
 })
 

@@ -6,9 +6,8 @@ import type { Niche } from '@/lib/youtube/observatorio/types'
 import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
 import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
-import { DirecaoCell } from './direcao-cell'
-import { DirecaoDica } from './direcao-dica'
-import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
+import { CadenceView, ChCell, DirecaoValor, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
+import { CELULA_DICA_CLASSE } from './celula-dica'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 const JANELA = MEASURE_RULES.direction.windowDays
 
@@ -69,16 +68,16 @@ function Row({ r, h, todos, comparar }: { r: CanaisRow; h: RowHandlers; todos: b
   return (
     <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
       tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}
-      onClick={e => { if (!(e.target as HTMLElement).closest('select,button,a,.tip')) h.open(r.id) }}>
+      onClick={e => { if (!(e.target as HTMLElement).closest(`select,button,a,.tip,.${CELULA_DICA_CLASSE}`)) h.open(r.id) }}>
       <PosCell r={r} />
       <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} /></td>
-      <td className="dir"><span className="sr">Direção: </span><div className="obs-cn-dirv"><DirecaoCell r={r} /><DirecaoDica r={r} /></div></td>
-      <td><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></td>
-      <td className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} /></td>
-      <td className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} /></td>
-      <td><SwapView c={c.swap} /></td>
-      <td className="r grow c-hide"><GrowthView c={c.growth} /></td>
-      <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></td>
+      <td className="dir" data-col="direcao"><span className="sr">Direção: </span><div className="obs-cn-dirv"><DirecaoValor r={r} /></div></td>
+      <td data-col="active"><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} /></td>
+      <td data-col="vpd" className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} dica={r.dicas.vpd} dica2={r.dicas.vpd2} /></td>
+      <td data-col="outliers" className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} dica={r.dicas.out} dica2={r.dicas.out2} /></td>
+      <td data-col="swaps"><SwapView c={c.swap} dica={r.dicas.swap} /></td>
+      <td data-col="growth" className="r grow c-hide"><GrowthView c={c.growth} dica={r.dicas.growth} /></td>
+      <td data-col="sync" className="sync c-hide"><SyncView dica={r.dicas.sync} c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></td>
       {comparar ? <td className="cmp">{r.own ? <><span aria-hidden="true">–</span><span className="sr">seu canal, sem comparação</span></> : <CompararLink r={r} texto="Comparar" />}</td> : null}
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id} disabled={h.somenteLeitura}
