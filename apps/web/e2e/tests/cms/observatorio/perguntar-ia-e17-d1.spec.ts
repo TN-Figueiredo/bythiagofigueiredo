@@ -464,6 +464,84 @@ if (LIGADO) {
     }
 
     /* ---- G-1 (Gio, 15/10, consertado): o "Resumo por imagem" da tela do vídeo (≈ 14 mil de média da imagem A) não está no pacote ---- */
+    for (const [vp, tema] of [['390', 'light'], ['1440', 'dark']] as const) {
+      test(`G-3: os três ⓘ (método, tamanho, números) têm caixa de botão e abrem com clique de verdade (${vp} px, ${tema})`, async ({ browser }) => {
+        test.setTimeout(180_000)
+        const ctx = await contexto(browser, { vp, tema }), page = await ctx.newPage()
+        await irPara(page, amb!.urls.canais)
+        await abrirDialogo(page)
+        const linhas: string[] = []
+        for (const id of ['metodo', 'tamanho', 'numeros'] as const) {
+          const b = page.locator(`[data-info="${id}"]`)
+          await expect(b, `ⓘ ${id} visível`).toBeVisible()
+          const caixa = await b.boundingBox()
+          linhas.push(`${id}: ${Math.round(caixa?.width ?? 0)}x${Math.round(caixa?.height ?? 0)}`)
+          expect(caixa?.width ?? 0, `ⓘ ${id}: largura (px)`).toBeGreaterThanOrEqual(24)
+          expect(caixa?.height ?? 0, `ⓘ ${id}: altura (px)`).toBeGreaterThanOrEqual(24)
+          await b.click() // clique de verdade, sem force e sem dispatchEvent
+          await expect(page.locator(`#pi-i-${id}`), `ⓘ ${id} abriu`).toBeVisible()
+          await expect(b).toHaveAttribute('aria-expanded', 'true')
+          await page.keyboard.press('Escape') // fecha o ⓘ (o diálogo inteiro pode fechar junto: é o G-6, provado à parte)
+          await expect(page.locator(`#pi-i-${id}`)).toHaveCount(0)
+          if (!(await page.locator('dialog.pi-dlg').isVisible())) await abrirDialogo(page)
+        }
+        fs.writeFileSync(path.join(SHOTS, `g3-info-${vp}-${tema}.txt`), linhas.join('\n') + '\n')
+        await ctx.close()
+      })
+    }
+
+    // G-6 (achado do reteste): com o ⓘ aberto por clique de verdade, o Esc fecha só o ⓘ nos dois primeiros ciclos; no terceiro fecha o diálogo inteiro.
+    // `test.fail`: fica vermelho quando consertar (trocar por `test`). Causa não confirmada (suspeita: regra do Chromium para o cancel do <dialog>).
+    test.fail('G-6: três ciclos "clicar no ⓘ, Esc" seguidos: o diálogo continua aberto depois de cada Esc', async ({ browser }) => {
+      test.setTimeout(120_000)
+      const ctx = await contexto(browser), page = await ctx.newPage()
+      await irPara(page, amb!.urls.canais)
+      await abrirDialogo(page)
+      for (const id of ['metodo', 'tamanho', 'numeros'] as const) {
+        await page.locator(`[data-info="${id}"]`).click()
+        await expect(page.locator(`#pi-i-${id}`)).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(page.locator(`#pi-i-${id}`)).toHaveCount(0)
+        await expect(page.getByRole('dialog', { name: F.TITULO }), `Esc deixou o diálogo aberto (ciclo do ⓘ ${id})`).toBeVisible({ timeout: 2_000 })
+      }
+      await ctx.close()
+    })
+
+    // G-7 (achado do reteste): o painel do ⓘ aberto cobre o próprio botão; o segundo clique cai no painel, não fecha. `test.fail`: vermelho quando consertar.
+    test.fail('G-7: com o painel do ⓘ aberto, o botão continua clicável (o segundo clique fecha o painel)', async ({ browser }) => {
+      test.setTimeout(60_000)
+      const ctx = await contexto(browser), page = await ctx.newPage()
+      await irPara(page, amb!.urls.canais)
+      await abrirDialogo(page)
+      const b = page.locator('[data-info="metodo"]')
+      await b.click()
+      await expect(page.locator('#pi-i-metodo')).toBeVisible()
+      await b.click({ timeout: 3_000 })
+      await expect(page.locator('#pi-i-metodo')).toHaveCount(0)
+      await ctx.close()
+    })
+
+    test('G-5 (medida): canal próprio, tamanho de cada uma das nove partes do texto copiado e das tabelas dentro delas', async ({ browser }) => {
+      test.setTimeout(180_000)
+      const ctx = await contexto(browser), page = await ctx.newPage()
+      await irPara(page, amb!.urls['canal-proprio'])
+      await abrirDialogo(page)
+      const texto = await copiar(page)
+      const cortes = [...texto.matchAll(/(^|\n)## ([1-9])\. /g)].map(m => ({ n: Number(m[2]), ini: (m.index ?? 0) + (m[1] ? m[1].length : 0) }))
+      expect(cortes.map(c => c.n), 'partes 2 a 9 na ordem (a parte 1 é o preâmbulo, sem cabeçalho de nível 2)').toEqual([2, 3, 4, 5, 6, 7, 8, 9])
+      const linhas: string[] = [`total copiado: ${texto.length} caracteres (parte 1, o preâmbulo antes de "## 2.": ${cortes[0]!.ini} caracteres)`]
+      cortes.forEach((c, i) => {
+        const fim = i + 1 < cortes.length ? cortes[i + 1]!.ini : texto.length
+        const parte = texto.slice(c.ini, fim)
+        linhas.push(`parte ${c.n}: ${parte.length} caracteres · ${parte.split('\n')[0]!.slice(0, 80)}`)
+        for (const m of parte.matchAll(/(^|\n)(### [^\n]*)\n([\s\S]*?)(?=\n### |\n## |$)/g)) linhas.push(`    ${m[2]!.slice(0, 70)}: ${(m[2]!.length + (m[3] ?? '').length + 1)} caracteres`)
+      })
+      linhas.push(`linha "Por tamanho": ${texto.split('\n').filter(l => l.includes('Por tamanho')).join(' | ')}`)
+      linhas.push(`tamanho dito no diálogo: ${(await page.locator('.pi-pc, #pi-res').allInnerTexts()).join(' / ').replace(/\s+/g, ' ').slice(0, 300)}`)
+      fs.writeFileSync(path.join(SHOTS, 'g5-partes-canal-proprio.txt'), linhas.join('\n') + '\n')
+      await ctx.close()
+    })
+
     test('vídeo: o Resumo por imagem da tela (média e tempo no ar por imagem) está no pacote', async ({ browser }) => {
       test.setTimeout(180_000)
       const ctx = await contexto(browser), page = await ctx.newPage()
