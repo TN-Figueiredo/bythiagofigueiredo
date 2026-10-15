@@ -198,6 +198,12 @@ describe('cobertura e totalDoPeriodo', () => {
     expect(totalDoPeriodo(r, { de: d(89), ate: ATE })).toMatchObject({ total: null, comBuraco: 1 })
     expect(r.cobertura.videosIncompletos).toBe(1)
   })
+  it('linha descartada (views -3 virou nulo) dentro do período: o total é nulo, não um total menor; fora do período o total segue (Phil M3, Yannis m3)', async () => {
+    const r = await leia([linha('v1', d(1), 10), linha('v1', d(2), -3), linha('v1', d(20), -5)], [cob('v1', d(100), ATE)], { de: d(30) })
+    expect(totalDoPeriodo(r, { de: d(6), ate: ATE }).total).toBeNull()
+    expect(totalDoPeriodo(r, { de: d(10), ate: d(8) }).total).toBe(0)
+    expect(totalDoPeriodo(r, { de: d(1), ate: d(1) }).total).toBe(10)
+  })
   it('com vídeos além do teto o total é nulo (nunca um total menor em silêncio)', async () => {
     const ids = Array.from({ length: 51 }, (_, i) => 'v' + String(i).padStart(2, '0'))
     const r = await leia(ids.map(id => linha(id, d(1), 1)), ids.map(id => cob(id, d(100), ATE)), { ytIds: ids, publicacoes: pubs(ids) })

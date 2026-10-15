@@ -71,9 +71,11 @@ export function totalDoPeriodo(d: DiarioDoPeriodo, p: { de: DiaYt | null; ate: D
   }
   const conta = quemEstaNaConta({ ytIds: d.cobertura.ytIds, de, ate: p.ate, ultimoMedido })
   const somaPorVideo = new Map<string, number>()
+  let comValorDescartado = false
   for (const l of d.linhas) {
     const ate = conta.exigidoAte.get(l.ytId)
     if (ate === undefined || l.dia > ate || l.dia > p.ate || (p.de !== null && l.dia < p.de)) continue
+    if (l.views === null) comValorDescartado = true // views ilegível (negativa virou nulo): somar como 0 afirmaria um total menor
     somaPorVideo.set(l.ytId, (somaPorVideo.get(l.ytId) ?? 0) + (l.views ?? 0))
   }
   let comBuraco = 0, total = 0
@@ -84,5 +86,5 @@ export function totalDoPeriodo(d: DiarioDoPeriodo, p: { de: DiaYt | null; ate: D
     total += somaPorVideo.get(id) ?? 0
   }
   const out = { videosNaConta: conta.exigidoAte.size, videosFora: conta.fora.length, videosParados: conta.parados.length, paradosDesde: conta.paradosDesde, comBuraco }
-  return { ...out, total: comBuraco > 0 || conta.exigidoAte.size === 0 || d.foraDoTeto.length > 0 ? null : total }
+  return { ...out, total: comBuraco > 0 || comValorDescartado || conta.exigidoAte.size === 0 || d.foraDoTeto.length > 0 ? null : total }
 }
