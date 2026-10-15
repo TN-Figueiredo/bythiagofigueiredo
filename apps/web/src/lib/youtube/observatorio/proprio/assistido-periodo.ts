@@ -8,7 +8,7 @@ import type { DiarioLinha, DiaYt } from './tipos'
 export const MIN_VIEWS_PERIODO = 1000
 
 export type PeriodoAssistido = 'inteiro' | '90' | '28'
-export type MotivoSemPeriodo = 'poucas-views' | 'cobertura-parcial' | 'sem-diario' | 'sem-acesso' | 'leitura-falhou'
+export type MotivoSemPeriodo = 'poucas-views' | 'cobertura-parcial' | 'acima-do-teto' | 'sem-diario' | 'sem-acesso' | 'leitura-falhou'
 
 export interface NormalDoPeriodo {
   periodo: PeriodoAssistido

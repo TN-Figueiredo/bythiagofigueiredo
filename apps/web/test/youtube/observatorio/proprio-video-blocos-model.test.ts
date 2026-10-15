@@ -576,6 +576,8 @@ describe('buildAssistidoDoVideo (tela B)', () => {
     const teto = monta(longo({ inteiro: null, motivoInteiro: 'teto' }))
     expect(teto.cartoes.map(c => [c.id, c.valor])).toEqual([['inteiro', null], ['90', '53%'], ['28', '60%']])
     expect(teto.cartoes[0]).toMatchObject({ semNumero: 'não medido' })
+    expect(JSON.stringify(teto)).toContain('o canal passou do tamanho que esta tela lê de uma vez')
+    expect(JSON.stringify(teto)).not.toContain('não sabemos se')
     const erro = monta(longo({ inteiro: null, motivoInteiro: 'erro' }))
     expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'não conseguimos ler' })
   })

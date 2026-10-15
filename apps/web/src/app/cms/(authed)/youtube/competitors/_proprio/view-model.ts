@@ -100,7 +100,7 @@ export function buildAssistidoDoCanal(a: { ytIds: readonly string[]; videos: Rea
   const bu: Record<PeriodoAssistido, { comBuraco: number; naConta: number } | null> = { '28': buraco(d90, addDays(ate, -27)), '90': buraco(d90, d90.de), inteiro: inteiro ? buraco(inteiro, null) : null }
   const linhas = (p: PeriodoAssistido) => (p === 'inteiro' ? lInteiro : l90)
   // o diário inteiro não foi lido: teto é permanente ("não medido"), erro é passageiro
-  const semInteiro: NormalDoPeriodo = motivoInteiro === 'teto' ? { ...normalSemLeitura('inteiro', 'sem-diario'), motivo: 'cobertura-parcial' } : normalSemLeitura('inteiro', 'leitura-falhou')
+  const semInteiro: NormalDoPeriodo = motivoInteiro === 'teto' ? { ...normalSemLeitura('inteiro', 'sem-diario'), motivo: 'acima-do-teto' } : normalSemLeitura('inteiro', 'leitura-falhou')
   const normais = porPeriodo(p => { const l = linhas(p); return l ? normalDoPeriodo(l, a.ytIds, p, ate, bu[p]?.comBuraco ?? null) : semInteiro })
   const faixas = porPeriodo(p => { const l = linhas(p); return l ? normalDaFaixaNoPeriodo(l, a.videos, p, ate, bu[p]?.comBuraco ?? null) : FAIXAS.map(f => ({ faixa: f.id, normal: semInteiro })) })
   // o diário começa depois da publicação mais antiga (C-10): o primeiro cartão se chama "Desde dd/mm/aaaa", nunca "Canal inteiro"

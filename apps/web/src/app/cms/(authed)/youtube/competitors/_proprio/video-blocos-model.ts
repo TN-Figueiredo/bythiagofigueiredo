@@ -509,8 +509,8 @@ export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[
     '90': normalDoPeriodo(l90, a.ytIds, '90', ate, b90 ? b90.comBuraco : null),
     inteiro: inteiro
       ? normalDoPeriodo(linhasDe(inteiro), a.ytIds, 'inteiro', ate, bInteiro ? bInteiro.comBuraco : null)
-      // o diário inteiro não foi lido: passou do teto (permanente) ou falhou (passageiro). Teto lê "não medido" (não sabemos se o período inteiro foi coletado)
-      : motivoInteiro === 'teto' ? { ...normalSemLeitura('inteiro', 'sem-diario'), motivo: 'cobertura-parcial' } : normalSemLeitura('inteiro', 'leitura-falhou'),
+      // o diário inteiro não foi lido: passou do teto (permanente) ou falhou (passageiro). Teto lê "não medido" (o canal passou do tamanho que a tela lê de uma vez)
+      : motivoInteiro === 'teto' ? { ...normalSemLeitura('inteiro', 'sem-diario'), motivo: 'acima-do-teto' } : normalSemLeitura('inteiro', 'leitura-falhou'),
   }
   // o diário começa depois da publicação mais antiga (C-10): o primeiro cartão se chama "Desde dd/mm/aaaa", nunca "Canal inteiro"
   const primeiro = inteiro?.cobertura.primeiroDiaLido ?? null

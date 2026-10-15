@@ -107,6 +107,8 @@ function textoDoMotivo(n: NormalDoPeriodo, b: { comBuraco: number; naConta: numb
     case 'cobertura-parcial':
       // TEXTO-A-REVISAR (Logan, T18): as duas frases de cobertura parcial vêm do plano; a revisão de UX está pendente
       return b == null ? 'não medido: não sabemos se o período inteiro foi coletado' : `não medido: ${int(b.comBuraco)} de ${int(b.naConta)} vídeos sem o período inteiro medido`
+    // mesma causa e mesmo texto da origem, na mesma página: o tamanho da leitura, não um defeito de coleta
+    case 'acima-do-teto': return 'não medido: o canal passou do tamanho que esta tela lê de uma vez' // TEXTO-A-REVISAR (Logan)
     case 'sem-acesso': return TEXTO_NEGADO
     case 'leitura-falhou': return TEXTO_ERRO
     default: return 'sem dado'
@@ -123,7 +125,7 @@ function cartao(id: PeriodoAssistido, e: EntradaAssistido): CartaoAssistido {
   const r = rotuloDe(id, e)
   if (n.pctArredondado == null) {
     const motivo = n.motivo ?? 'sem-diario'
-    const semNumero = motivo === 'poucas-views' ? 'poucas views' : motivo === 'cobertura-parcial' ? 'não medido' : motivo === 'sem-acesso' ? 'sem acesso' : motivo === 'leitura-falhou' ? 'não conseguimos ler' : 'sem dado'
+    const semNumero = motivo === 'poucas-views' ? 'poucas views' : motivo === 'cobertura-parcial' || motivo === 'acima-do-teto' ? 'não medido' : motivo === 'sem-acesso' ? 'sem acesso' : motivo === 'leitura-falhou' ? 'não conseguimos ler' : 'sem dado'
     const legenda = motivo === 'poucas-views' ? `${int(n.views)} de ${int(MIN_VIEWS_PERIODO)} views` : textoDoMotivo({ ...n, motivo }, e.buracos[id])
     return { id, ...r, estado: 'sem-numero', valor: null, legenda, semNumero, seta: null, aria: `${r.rotulo}: ${semNumero}. ${legenda}` }
   }
@@ -144,7 +146,7 @@ function celula(f: { normal: NormalDoPeriodo }, inteiro: { normal: NormalDoPerio
     return { estado: 'medido', valor: `${n.pctArredondado}%`, seta: c ? seta(c.dif, c.leitura) : null, legenda: `${milV(n.views)} views`, semNumero: null }
   }
   if (n.motivo === 'poucas-views') return { estado: 'sem-numero', valor: null, seta: null, legenda: `${int(n.views)} de ${int(MIN_VIEWS_PERIODO)}`, semNumero: 'poucas views' }
-  if (n.motivo === 'cobertura-parcial') return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'não medido' }
+  if (n.motivo === 'cobertura-parcial' || n.motivo === 'acima-do-teto') return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'não medido' }
   // TEXTO-A-REVISAR (Logan, T18): "poucos vídeos" aqui, mas o LEIAME do lote 1 trocou "poucos vídeos" por "poucas views" no cartão; a mesma tela diz as duas
   if (n.motivo == null && n.views >= MIN_VIEWS_PERIODO) return { estado: 'sem-numero', valor: null, seta: null, legenda: `poucos vídeos (${n.videos}; precisa de ${MIN_VIDEOS_FAIXA})`, semNumero: 'poucos vídeos' }
   return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'sem dado' }
