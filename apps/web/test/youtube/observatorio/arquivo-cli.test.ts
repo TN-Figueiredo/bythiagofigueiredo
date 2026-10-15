@@ -400,6 +400,25 @@ describe('A5 E10 T7: confirmar-nas e remover', () => {
   })
 })
 
+describe('A5 E10 revisão Yannis M5: nome de canal sem caractere de controle no terminal', () => {
+  it('estado: o nome com sequência de escape não sai cru (pausados e lotes)', async () => {
+    const sujo = 'Canal\u001b[2J sintético\u0007'
+    const m = roteirizado([
+      rotaSite,
+      [/collection_paused_at is not null/, () => [{ id: CANAL, channel_name: sujo, desde: '2026-10-13 12:00:00+00' }]],
+      [/from public\.obs_archive_batches b/, () => [
+        { batch: 'lote-aberto', channel_ref: CANAL, canal: sujo, exportado_em: '2026-10-13', arquivos: '5', conferido: false, confirmado: false, apagado: false, encerrado: null, canal_existe: true },
+      ]],
+      [/from public\.obs_db_size_daily/, () => []],
+    ])
+    const r = await rodar(cmd(`estado --pasta /arq`), dinheiro({ sql: m.sql }))
+    const s = tudo(r)
+    expect(s).not.toContain('\u001b')
+    expect(s).not.toContain('\u0007')
+    expect(s).toContain('Canal?[2J sintético?')
+  })
+})
+
 describe('A5 E10 T7: estado', () => {
   it('lista pausados, as exportações e o passo de cada uma, o lote encerrado com o motivo e a pasta, e o histórico à parte', async () => {
     const m = roteirizado([

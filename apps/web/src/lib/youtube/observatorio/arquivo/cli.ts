@@ -129,6 +129,8 @@ const recusado = (...saida: string[]): Saida => ({ codigo: 1, saida })
 const invalido = (...saida: string[]): Saida => ({ codigo: 2, saida })
 const aspasSh = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`
 const texto = (v: unknown): string => (typeof v === 'string' ? v : String(v ?? ''))
+/** Nome de canal é texto de terceiro: sem caractere de controle (sequência de escape) no terminal do dono (revisão Yannis 14/10, M5). */
+export const limpo = (v: unknown): string => texto(v).replace(/[\u0000-\u001f\u007f-\u009f]/g, '?')
 const frase = (c: CodigoE10): string => FRASES_E10[c]
 const erroDoBanco = (e: unknown): CodigoE10 => codigoE10(e as { message?: string; code?: string })
 
@@ -235,7 +237,7 @@ async function estado(c: Extract<Comando, { nome: 'estado' }>, d: DepsDoComando,
   const pausados = await sql.query(
     `select id, channel_name, collection_paused_at::text as desde from public.competitor_channels where site_id = $1 and collection_paused_at is not null order by collection_paused_at`, [site])
   saida.push(`canais com a coleta pausada: ${pausados.rows.length}`)
-  for (const p of pausados.rows) saida.push(`  ${texto(p.id)}  ${texto(p.channel_name)}  desde ${texto(p.desde)}`)
+  for (const p of pausados.rows) saida.push(`  ${texto(p.id)}  ${limpo(p.channel_name)}  desde ${texto(p.desde)}`)
   const lotes = await sql.query(
     `select b.batch, b.channel_ref, max(b.channel_label) as canal, min(b.exported_at)::text as exportado_em, count(*) as arquivos,
             bool_and(b.verified_at is not null) as conferido, bool_and(b.nas_confirmed_at is not null) as confirmado, bool_and(b.deleted_at is not null) as apagado,
@@ -246,7 +248,7 @@ async function estado(c: Extract<Comando, { nome: 'estado' }>, d: DepsDoComando,
   for (const l of lotes.rows) {
     const passo = l.apagado === true ? 'canal removido' : l.encerrado !== null && l.encerrado !== undefined ? `encerrada (${texto(l.encerrado)}); pasta ${c.pasta.replace(/\/+$/, '')}/${texto(l.batch)}`
       : l.confirmado === true ? 'confirmada no NAS (falta remover)' : l.conferido === true ? 'conferida (falta confirmar no NAS)' : 'exportada (falta conferir)'
-    saida.push(`  ${texto(l.batch)}  ${texto(l.canal)}  ${texto(l.exportado_em)}  ${texto(l.arquivos)} arquivo(s): ${passo}`)
+    saida.push(`  ${texto(l.batch)}  ${limpo(l.canal)}  ${texto(l.exportado_em)}  ${texto(l.arquivos)} arquivo(s): ${passo}`)
   }
   if (historicos.length > 0) saida.push(`  (${historicos.length} exportação(ões) de canal que não existe mais: histórico, não pendência)`)
   const medidas = await sql.query('select day::text as day, db_bytes::text as db_bytes, competitor_bytes::text as competitor_bytes, own_bytes::text as own_bytes, measured_at::text as measured_at from public.obs_db_size_daily order by day desc limit 29')
@@ -326,7 +328,7 @@ async function remover(c: Extract<Comando, { nome: 'remover' }>, d: DepsDoComand
     `select batch from public.obs_archive_batches where site_id = $1 and channel_ref = $2 and deleted_at is null order by exported_at desc, batch desc limit 1`, [site, c.canal])).rows[0]
   if (!lote) return recusado(frase('sem_lote'))
   const nome = texto(lote.batch)
-  const digitado = (await d.perguntar(`Vai remover o canal "${texto(canal.channel_name)}" e liberar a exportação ${nome}. Digite o nome da exportação para continuar: `)).trim()
+  const digitado = (await d.perguntar(`Vai remover o canal "${limpo(canal.channel_name)}" e liberar a exportação ${nome}. Digite o nome da exportação para continuar: `)).trim()
   if (digitado !== nome) return recusado('o nome digitado não é o da exportação; nada foi apagado')
   try {
     await sql.query('begin')

@@ -311,11 +311,16 @@ export function sinalDoBanco(linhas: readonly LinhaBruta[], agoraMs: number, reg
 
   if (ultimaLinha === null) {
     return {
-      estado: hojeIlegivel ? 'sem_leitura_hoje' : 'nunca_medido',
+      // revisão Phil 14/10, M-1: linha que existe e não se lê não é "nunca medido" (ausência maquiada de leitura que falhou)
+      estado: hojeIlegivel || ilegiveis > 0 ? 'sem_leitura_hoje' : 'nunca_medido',
       cor: null, diaDeLeitura: dia, ultima: null, horasSemMedida: null,
       projecao: { estado: 'nao_medida', medidas: 0, minimo: regras.trendMinDays, existeEm: somaDias(dia, regras.trendMinDays) },
       tela: null, ilegiveis,
-      frase: hojeIlegivel ? `Sem leitura do banco do site hoje. A medida das ${horaCheia(regras.readingDayStartHourSP)} não chegou.` : FRASE_NUNCA_MEDIDO,
+      frase: hojeIlegivel
+        ? `Sem leitura do banco do site hoje. A medida das ${horaCheia(regras.readingDayStartHourSP)} não chegou.`
+        : ilegiveis > 0
+          ? `${ilegiveis} ${ilegiveis === 1 ? 'linha de medida ilegível' : 'linhas de medida ilegíveis'}; nenhuma serve para a leitura.` // TEXTO-A-REVISAR
+          : FRASE_NUNCA_MEDIDO,
     }
   }
 

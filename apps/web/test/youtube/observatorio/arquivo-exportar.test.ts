@@ -117,6 +117,14 @@ describe('A5 E10 T6: exportarCanal, recusas', () => {
 })
 
 describe('A5 E10 T6: exportarCanal, o caminho feliz', () => {
+  it('toda pasta do export é criada com o modo 0o700 (só o dono lê; revisão Yannis M4)', async () => {
+    const m = montar({ urls: TRES })
+    const r = await m.exportar()
+    expect(r.ok).toBe(true)
+    expect(m.d.modosDasPastas.length).toBeGreaterThan(0)
+    expect(m.d.modosDasPastas.every(modo => modo === 0o700)).toBe(true)
+  })
+
   it('exporta: um CSV.gz por tabela e mês, tabela sem linha e tabela ausente no manifesto, manifesto por último', async () => {
     const m = montar({ urls: TRES })
     const r = await m.exportar()

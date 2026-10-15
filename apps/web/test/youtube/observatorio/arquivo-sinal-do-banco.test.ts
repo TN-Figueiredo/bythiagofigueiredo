@@ -129,11 +129,27 @@ describe('A5 E10 T2: estados', () => {
     expect(sem.cor).toBeNull()
   })
 
-  it('só há linhas de outros dias ilegíveis: nunca_medido, e a contagem das ilegíveis fica', () => {
+  it('só há linhas ilegíveis, de outros dias: sem_leitura_hoje (nunca "nunca medido"), com a contagem e sem cor (Phil M-1)', () => {
     const s = ler([{ ...linha(-3, 100), db_bytes: -1 }])
-    expect(s.estado).toBe('nunca_medido')
+    expect(s.estado).toBe('sem_leitura_hoje')
     expect(s.ilegiveis).toBe(1)
     expect(s.cor).toBeNull()
+    expect(s.frase).toContain('1 linha de medida ilegível')
+  })
+
+  it('29 linhas quebradas e nenhuma válida: sem_leitura_hoje com "29 linhas de medida ilegíveis", nunca verde', () => {
+    const quebradas = Array.from({ length: 29 }, (_, i) => ({ ...linha(-(i + 2), 100), db_bytes: null as unknown as number }))
+    const s = ler(quebradas)
+    expect(s.estado).toBe('sem_leitura_hoje')
+    expect(s.ilegiveis).toBe(29)
+    expect(s.cor).toBeNull()
+    expect(s.frase).toContain('29 linhas de medida ilegíveis')
+  })
+
+  it('banco sem nenhuma linha continua nunca_medido', () => {
+    const s = ler([])
+    expect(s.estado).toBe('nunca_medido')
+    expect(s.ilegiveis).toBe(0)
   })
 
   it('a hora de antes das 05:00: a madrugada não acusa "sem leitura hoje" por engano', () => {

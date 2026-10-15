@@ -11,7 +11,7 @@ const DIA_MS = 86_400_000
 const SEGREDO = 'segredo-da-mensagem-do-banco'
 
 type Resposta = { data?: unknown; error?: { message: string; code?: string } | null } | null
-interface Falso { sb: SupabaseClient; lotes: { colunas: string; filtros: unknown[][]; limite: number | null }[]; rpcs: string[] }
+interface Falso { sb: SupabaseClient; lotes: { colunas: string; filtros: unknown[][]; limite: number | null; ordem: unknown[] | null }[]; rpcs: string[] }
 
 function falso(o: { rpc: Resposta | Error; lotes: Resposta | Error }): Falso {
   const lotes: Falso['lotes'] = []
@@ -21,12 +21,13 @@ function falso(o: { rpc: Resposta | Error; lotes: Resposta | Error }): Falso {
     rpc: (nome: string) => { rpcs.push(nome); return { abortSignal: (s: AbortSignal) => { expect(s).toBeInstanceOf(AbortSignal); return entrega(o.rpc) } } },
     from: (tabela: string) => {
       expect(tabela).toBe('obs_archive_batches')
-      const c = { colunas: '', filtros: [] as unknown[][], limite: null as number | null }
+      const c = { colunas: '', filtros: [] as unknown[][], limite: null as number | null, ordem: null as unknown[] | null }
       lotes.push(c)
       const b = {
         select: (cols: string) => { c.colunas = cols; return b },
         eq: (...a: unknown[]) => { c.filtros.push(['eq', ...a]); return b },
         not: (...a: unknown[]) => { c.filtros.push(['not', ...a]); return b },
+        order: (...a: unknown[]) => { c.ordem = a; return b },
         limit: (n: number) => { c.limite = n; return b },
         abortSignal: (s: AbortSignal) => { expect(s).toBeInstanceOf(AbortSignal); return entrega(o.lotes) },
       }
@@ -86,6 +87,13 @@ describe('A5 E10 T3: lerPendenciasDoArquivo', () => {
     const r = await lerPendenciasDoArquivo(falso({ rpc: { data: [], error: null }, lotes: { data: [{ deleted_at: 'ontem', blob_urls_pending: ['a'] }], error: null } }).sb, AGORA)
     expect(r.semExport).toEqual({ valor: [] })
     expect(r.miniaturas).toEqual({ porque: 'forma_invalida' })
+  })
+
+  it('o corte de 1.000 lotes é pelos mais antigos: a idade da mais antiga, que dispara o alarme, nunca se perde (Yannis M6)', async () => {
+    const f = falso({ rpc: { data: [], error: null }, lotes: { data: [removidoHa(9, ['x'])], error: null } })
+    await lerPendenciasDoArquivo(f.sb, AGORA)
+    expect(f.lotes[0]!.limite).toBe(1000)
+    expect(f.lotes[0]!.ordem).toEqual(['deleted_at', { ascending: true }])
   })
 
   it('nunca lança, nem quando o cliente inteiro está quebrado', async () => {
