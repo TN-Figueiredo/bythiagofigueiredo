@@ -719,7 +719,7 @@ async function seedRiCenario(sb: SupabaseClient, siteId: string, now: number): P
 /** R9b: retratos do canal próprio; precisa do `youtube_channels` já inserido (FK). */
 async function seedRiProprio(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
   // R9b: o canal próprio é medido pelo mesmo número público dos concorrentes, a partir de yt_own_channel_snapshots (MG20); termina HOJE
-  const Q = R.proprioRetratos
+  const Q = RI_CENARIO.proprioRetratos
   const meu = ownSeedUuid(siteId, 'tnfigueiredo')
   const propriosSnaps: object[] = []
   for (let d = Q.dias; d >= 0; d--) {

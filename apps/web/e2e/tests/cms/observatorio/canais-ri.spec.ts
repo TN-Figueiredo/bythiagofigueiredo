@@ -2,7 +2,7 @@
 // 1440 e 390, escuro e claro. Escrito antes da integração (R5): roda depois dela. As frases seguem o plano (R.1): se o modelo (R4) escrever outra, o spec acusa.
 import { test, expect, type Page } from '@playwright/test'
 import { ADMIN_STATE, clearSeeded, ensureSeeded } from './fidelity'
-import { RI_CENARIO, RI_CANAIS, localServiceClient, seedUuid } from '../../../fixtures/observatorio-seed'
+import { RI_CENARIO, RI_CANAIS, localServiceClient, ownSeedUuid, seedUuid } from '../../../fixtures/observatorio-seed'
 
 test.use({ storageState: ADMIN_STATE })
 test.describe.configure({ mode: 'serial' })
@@ -129,4 +129,21 @@ test('dado apagado: sem os retratos do canal "passa o arredondamento", a linha d
   await expect(l).toContainText('ainda não coletado')
   await expect(l).not.toContainText('sem variação')
   await expect(page.locator(`${INS} .ri-lead`)).not.toContainText(N.passaArred)
+})
+
+// Caso apagado do canal PRÓPRIO (R9b): tabela vazia = "ainda não coletado" (igual aos concorrentes), nunca "0" nem "sem variação". "histórico não carregou" é só a leitura que FALHA (não forçável no navegador sem quebrar o banco compartilhado: coberto em unidade).
+test('dado apagado: sem os retratos do canal próprio, "seu canal" diz "ainda não coletado" e os concorrentes continuam medidos', async ({ page }) => {
+  test.setTimeout(180_000)
+  const sb = localServiceClient()
+  const meu = ownSeedUuid(siteId, 'tnfigueiredo')
+  const { error } = await sb.from('yt_own_channel_snapshots').delete().eq('youtube_channel_id', meu)
+  expect(error).toBeNull()
+  await abrir(page, 1440, 'dark')
+  const proprio = page.locator(`${INS} .ri-lst > li`, { hasText: 'seu canal' })
+  await expect(proprio).toHaveCount(1)
+  await expect(proprio).toContainText('sem medida · ainda não coletado')
+  await expect(proprio).not.toContainText('sem variação')
+  await expect(proprio).not.toContainText(/\+?0\s?%/)
+  // concorrentes medidos não são arrastados
+  await expect(linha(page, INS, N.dentroArred)).toContainText('dentro do arredondamento')
 })
