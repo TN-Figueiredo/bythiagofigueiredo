@@ -79,15 +79,52 @@ describe('lerOrigem', () => {
     expect(r.dado.diario.linhas.map(l => l.views)).toEqual([5])
     expect(vi.mocked(dim.lerDimensoes).mock.calls[0]![1]).toMatchObject({ ytIds: ['v00'] })
   })
-  it('o diário inteiro passa do teto: diarioInteiro nulo, um aviso, e as dimensões e o diário curto continuam', async () => {
+  it('o teto vale para a leitura inteira, não por lote de 50: dois lotes de 6.000 linhas dão teto', async () => {
+    const dias = (n: number) => Array.from({ length: n }, (_, i) => addDays('1990-01-01', i))
+    db = fakeSupabase({ yt_own_video_daily: [...dias(6000).map(d => linha('v00', d, 1)), ...dias(6000).map(d => linha('v50', d, 1))], yt_own_video_coverage: [] })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(db.client as never)
+    const r = await lerOrigem(pedido({ ytIds: ids(60) }))
+    if (r.acesso !== 'ok') throw new Error(r.acesso)
+    expect(r.dado.diarioInteiro).toBeNull()
+    expect(r.dado.motivoInteiro).toBe('teto')
+  })
+  it('o diário inteiro passa do teto: motivo "teto" e NENHUM aviso por abertura (o estado é permanente e a célula já o diz)', async () => {
     const muitas = Array.from({ length: 10_100 }, (_, i) => linha('v00', addDays('1990-01-01', i), 1))
     db = fakeSupabase({ yt_own_video_daily: muitas, yt_own_video_coverage: [] })
     vi.mocked(getSupabaseServiceClient).mockReturnValue(db.client as never)
     const r = await lerOrigem(pedido({ ytIds: ['v00'], diarioDesde: addDays(ATE, -6) }))
     if (r.acesso !== 'ok') throw new Error(r.acesso)
+    expect(r.dado.motivoInteiro).toBe('teto')
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+  })
+  it('o diário inteiro falha por erro de banco: motivo "erro" e UM aviso; o curto e as dimensões continuam', async () => {
+    db = fakeSupabase({ yt_own_video_daily: [linha('v00', addDays(ATE, -2), 5)], yt_own_video_coverage: [] }, { failIf: (t, eqs) => t === 'yt_own_video_daily' && eqs['gte:day_pt'] === undefined })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(db.client as never)
+    const r = await lerOrigem(pedido({ ytIds: ['v00'] }))
+    if (r.acesso !== 'ok') throw new Error(r.acesso)
     expect(r.dado.diarioInteiro).toBeNull()
-    expect(r.dado.dimensoes.conjuntos.trafego.videos).toHaveLength(1)
+    expect(r.dado.motivoInteiro).toBe('erro')
+    expect(r.dado.diario.linhas).toHaveLength(1)
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+  })
+  it('diário inteiro lido: sem motivo', async () => {
+    const r = await lerOrigem(pedido({ ytIds: ['v00'] }))
+    if (r.acesso !== 'ok') throw new Error(r.acesso)
+    expect(r.dado.motivoInteiro).toBeUndefined()
+  })
+  it('as três leituras partem juntas: a das dimensões começa antes de o diário curto terminar', async () => {
+    let liberar!: () => void
+    const trava = new Promise<void>(r => { liberar = r })
+    let dimsComecou = false
+    vi.mocked(dim.lerDimensoes).mockImplementation((async (_s: unknown, p: { ytIds: string[]; de: string; ate: string }) => {
+      dimsComecou = true; await trava
+      return { acesso: 'ok', dado: { canalId: C, de: p.de, ate: p.ate, conjuntos: conjuntos(p.ytIds, p.de, p.ate), descartados: 0 } }
+    }) as never)
+    const p = lerOrigem(pedido({ ytIds: ['v00'] }))
+    await new Promise(r => setTimeout(r, 10))
+    expect(dimsComecou).toBe(true)
+    expect(db.trips.filter(t => t === 'yt_own_video_daily').length).toBeGreaterThanOrEqual(2) // curto e inteiro já foram ao banco
+    liberar(); await p
   })
   it('13 chamadas: lança por dentro, vira erro com um aviso, e nada é lido', async () => {
     const r = await lerOrigem(pedido({ ytIds: ids(60), de: addDays(ATE, -120 * 7 + 1) }))

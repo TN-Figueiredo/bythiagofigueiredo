@@ -15,7 +15,7 @@ export interface FakeDb {
   bytes: number
   tables: Record<string, Row[]>
 }
-type Result = { data: unknown; error: { message: string; code: string } | null }
+type Result = { data: unknown; error: { message: string; code: string } | null; count?: number | null }
 /** Foreign keys the loaders embed through (`child.fk → parent.id`): enough for `competitor_videos!inner(competitor_channels!inner(site_id))`. */
 const FK: Record<string, Record<string, string>> = {
   competitor_video_daily: { competitor_videos: 'video_id' },
@@ -30,6 +30,7 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
     let rows = [...(tables[table] ?? [])]
     let cols: string[] | null = null
     let selected = ''
+    let contar = false
     const orders: Array<{ col: string; asc: boolean }> = []
     const eqs: Record<string, unknown> = {}
     // value of a dotted column ("competitor_videos.competitor_channels.site_id") reached through the FK map above
@@ -48,10 +49,10 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
       const out = page.map(r => (cols ? Object.fromEntries(cols.map(c => [c, r[c] ?? null])) : r))
       const data = single ? out[0] ?? null : out
       db.bytes += JSON.stringify(data).length
-      return { data, error: null }
+      return { data, error: null, ...(contar ? { count: rows.length } : {}) }
     }
     const q = {
-      select(s: string) { db.selects.push({ table, cols: s }); selected = s; cols = s === '*' ? null : s.replace(/,?\s*[a-z_]+!inner\(.*$/, '').split(',').map(x => x.trim()).filter(Boolean); return q },
+      select(s: string, o?: { count?: string; head?: boolean }) { db.selects.push({ table, cols: s }); selected = s; contar = o?.count === 'exact'; cols = s === '*' ? null : s.replace(/,?\s*[a-z_]+!inner\(.*$/, '').split(',').map(x => x.trim()).filter(Boolean); return q },
       eq(c: string, v: unknown) {
         eqs[c] = v
         // PostgREST filters the parent rows by an embedded column only through an inner join: without `!inner` on every
@@ -62,7 +63,7 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
       in(c: string, vs: readonly unknown[]) { const set = new Set(vs); rows = rows.filter(r => set.has(r[c])); return q },
       is(c: string, v: unknown) { rows = rows.filter(r => (r[c] ?? null) === v); return q },
       gt(c: string, v: number) { rows = rows.filter(r => r[c] != null && Number(r[c]) > v); return q },
-      gte(c: string, v: string) { rows = rows.filter(r => r[c] != null && String(r[c]) >= v); return q },
+      gte(c: string, v: string) { eqs['gte:' + c] = v; rows = rows.filter(r => r[c] != null && String(r[c]) >= v); return q },
       lte(c: string, v: string) { rows = rows.filter(r => r[c] != null && String(r[c]) <= v); return q },
       order(c: string, o?: { ascending?: boolean }) { orders.push({ col: c, asc: o?.ascending !== false }); return q },
       range: async (a: number, b: number) => run([a, b]),

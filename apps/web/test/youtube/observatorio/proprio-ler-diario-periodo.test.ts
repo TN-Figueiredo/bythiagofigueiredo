@@ -99,6 +99,11 @@ describe('lerDiarioDoPeriodo: filtros e páginas', () => {
     const db = fakeSupabase({ yt_own_video_daily: Array.from({ length: 30 }, (_, i) => linha('v1', addDays('2020-01-01', i), 1)), yt_own_video_coverage: [] })
     await expect(lerDiarioDoPeriodo(db.client, pedido({ de: null, soComViews: true, tetoLinhas: 20 }))).rejects.toBeInstanceOf(ObservatoryLoadError)
   })
+  it('passa do teto: a contagem exata da primeira página para na hora (1 ida, nenhuma página descartada)', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: Array.from({ length: 3500 }, (_, i) => linha('v1', addDays('2000-01-01', i), 1)), yt_own_video_coverage: [] })
+    await expect(lerDiarioDoPeriodo(db.client, pedido({ de: null, soComViews: true, tetoLinhas: 3000 }))).rejects.toBeInstanceOf(ObservatoryLoadError)
+    expect(db.ranges.filter(x => x.table === 'yt_own_video_daily')).toHaveLength(1)
+  })
   it('51 vídeos: 50 lidos e 1 em foraDoTeto', async () => {
     const ids = Array.from({ length: 51 }, (_, i) => 'v' + String(i).padStart(2, '0'))
     const db = fakeSupabase({ yt_own_video_daily: ids.map(id => linha(id, d(1), 1)), yt_own_video_coverage: [] })

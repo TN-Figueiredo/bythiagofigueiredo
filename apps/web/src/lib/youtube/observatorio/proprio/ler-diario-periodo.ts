@@ -16,6 +16,10 @@ import type { DiaYt, Privado } from './tipos'
 export const TETO_LINHAS_DIARIO_PERIODO = 10_000
 /** Vídeos por chamada; o resto volta em `foraDoTeto`. */
 export const TETO_VIDEOS_DIARIO_PERIODO = 50
+/** O teto estourou (Phil I2): estado permanente, diferente de uma falha passageira do banco. */
+export class ErroTetoDiario extends ObservatoryLoadError {
+  constructor(tabela: string, teto: number) { super(tabela, undefined, `passou do teto de ${teto} linhas`); this.name = 'ErroTetoDiario' }
+}
 const PAGINA = 1000
 const PCT_MAX = 999.99
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -31,14 +35,16 @@ function num(x: unknown): number | null {
   return null
 }
 
-async function paginar<T>(tabela: string, teto: number, build: () => { range(a: number, b: number): PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }> }): Promise<T[]> {
+/** `build(contar)`: com `contar` o select leva `count: 'exact'`; a primeira página devolve o total e o teto estoura numa ida só (Phil I1). */
+async function paginar<T>(tabela: string, teto: number, build: (contar: boolean) => { range(a: number, b: number): PromiseLike<{ data: unknown; error: { code?: string; message: string } | null; count?: number | null }> }): Promise<T[]> {
   const out: T[] = []
   for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await build().range(de, de + PAGINA - 1)
+    const { data, error, count } = await build(de === 0 && Number.isFinite(teto) && teto < Number.MAX_SAFE_INTEGER).range(de, de + PAGINA - 1)
     if (error) throw new ObservatoryLoadError(tabela, error.code, error.message)
+    if (typeof count === 'number' && count > teto) throw new ErroTetoDiario(tabela, teto)
     const pagina = Array.isArray(data) ? (data as T[]) : []
     out.push(...pagina)
-    if (out.length > teto) throw new ObservatoryLoadError(tabela, undefined, `passou do teto de ${teto} linhas`)
+    if (out.length > teto) throw new ErroTetoDiario(tabela, teto)
     if (pagina.length < PAGINA) return out
   }
 }
@@ -66,8 +72,8 @@ export async function lerDiarioDoPeriodo(sb: SupabaseClient, p: Pedido & {
   }
   const de = p.de
   const [rows, cobRows] = await Promise.all([
-    paginar<DiarioRow>('yt_own_video_daily', teto, () => {
-      let q = sb.from('yt_own_video_daily').select('youtube_video_id, day_pt, views, avg_view_percentage')
+    paginar<DiarioRow>('yt_own_video_daily', teto, contar => {
+      let q = sb.from('yt_own_video_daily').select('youtube_video_id, day_pt, views, avg_view_percentage', contar ? { count: 'exact' } : undefined)
         .eq('site_id', siteId).eq('channel_id', p.canalId).in('youtube_video_id', lidos).lte('day_pt', p.ate)
       if (de !== null) q = q.gte('day_pt', de)
       if (p.soComViews) q = q.gt('views', 0)

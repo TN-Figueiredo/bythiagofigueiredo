@@ -10,7 +10,7 @@ import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { CONJUNTOS_DIMENSOES } from '@/lib/youtube/observatorio/proprio/dimensoes-estado'
 import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { ErroLeituraDimensoes, lerDimensoes, type DimensoesCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
-import { lerDiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
+import { ErroTetoDiario, TETO_LINHAS_DIARIO_PERIODO, lerDiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
 import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 import type { DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { CHAMADAS_EM_VOO, chamadasDe, juntarConjunto, juntarDiarios, lotesDe } from './origem-trechos'
@@ -21,6 +21,8 @@ export interface OrigemLida {
   diario: DiarioDoPeriodo
   /** o diário desde o começo (de nulo); nulo quando a leitura falhou ou passou do teto: o total do período longo lê "não medido" */
   diarioInteiro: DiarioDoPeriodo | null
+  /** por que `diarioInteiro` é nulo: `teto` = o canal passou do tamanho lido de uma vez (permanente); `erro` = falha do banco (passageira). Ausente = foi lido. */
+  motivoInteiro?: 'teto' | 'erro'
   trechos: number
 }
 
@@ -51,29 +53,41 @@ export async function lerOrigem(a: {
   const hoje = dayPt(new Date(a.agora))
   try {
     const chamadas = chamadasDe(a.ytIds, a.de, a.ate)
-    if (a.diarioDesde > a.ate) throw new RangeError('lerOrigem: diarioDesde depois de ate')
     const sb = getSupabaseServiceClient()
     const base = { leitura, canalId: a.canalId, hoje }
-    const lidas = await mapLimit(chamadas, CHAMADAS_EM_VOO, async c => {
-      const r = await lerDimensoes(sb, { ...base, ytIds: c.ytIds, de: c.de, ate: c.ate })
-      if (r.acesso !== 'ok') throw new ErroLeituraDimensoes('dimensoes-da-origem', 'erro_de_banco', null, 0)
-      return { c, dado: r.dado }
-    })
-    const conjuntos = Object.fromEntries(CONJUNTOS_DIMENSOES.map(k => [k, juntarConjunto(lidas.map(l => ({ trecho: l.c.trecho, lote: l.c.lote, conjunto: l.dado.conjuntos[k] })))])) as DimensoesCanal['conjuntos']
-    const dimensoes: DimensoesCanal = { canalId: a.canalId, de: a.de, ate: a.ate, conjuntos, descartados: lidas.reduce((s, l) => s + l.dado.descartados, 0) }
     const lotes = lotesDe(a.ytIds)
+    const dimensoesP = (async (): Promise<DimensoesCanal> => {
+      const lidas = await mapLimit(chamadas, CHAMADAS_EM_VOO, async c => {
+        const r = await lerDimensoes(sb, { ...base, ytIds: c.ytIds, de: c.de, ate: c.ate })
+        if (r.acesso !== 'ok') throw new ErroLeituraDimensoes('dimensoes-da-origem', 'erro_de_banco', null, 0)
+        return { c, dado: r.dado }
+      })
+      const conjuntos = Object.fromEntries(CONJUNTOS_DIMENSOES.map(k => [k, juntarConjunto(lidas.map(l => ({ trecho: l.c.trecho, lote: l.c.lote, conjunto: l.dado.conjuntos[k] })))])) as DimensoesCanal['conjuntos']
+      return { canalId: a.canalId, de: a.de, ate: a.ate, conjuntos, descartados: lidas.reduce((s, l) => s + l.dado.descartados, 0) }
+    })()
+    // o teto de linhas vale para a leitura INTEIRA (Yannis I1): cada lote recebe o que sobra, e a soma é conferida no fim
     const diarioDe = async (de: DiaYt | null): Promise<DiarioDoPeriodo> => {
+      let lidas = 0
       const partes = await mapLimit(lotes, CHAMADAS_EM_VOO, async ytIds => {
-        const r = await lerDiarioDoPeriodo(sb, { ...base, ytIds, de, ate: a.ate, soComViews: true, publicacoes: a.publicacoes })
+        const r = await lerDiarioDoPeriodo(sb, { ...base, ytIds, de, ate: a.ate, soComViews: true, publicacoes: a.publicacoes, tetoLinhas: Math.max(1, TETO_LINHAS_DIARIO_PERIODO - lidas) })
         if (r.acesso !== 'ok') throw new ErroLeituraDimensoes('diario-da-origem', 'erro_de_banco', null, 0)
+        lidas += r.dado.linhas.length
         return r.dado
       })
+      if (lidas > TETO_LINHAS_DIARIO_PERIODO) throw new ErroTetoDiario('yt_own_video_daily', TETO_LINHAS_DIARIO_PERIODO)
       return juntarDiarios(partes)
     }
-    const diario = await diarioDe(a.diarioDesde)
-    let diarioInteiro: DiarioDoPeriodo | null = null
-    try { diarioInteiro = await diarioDe(null) } catch (e) { avisarFalhaDeLeitura('ler-origem-diario-inteiro', e) }
-    return { acesso: 'ok', dado: { dimensoes, diario, diarioInteiro, trechos: new Set(chamadas.map(c => c.trecho)).size } }
+    if (a.diarioDesde > a.ate) throw new RangeError('lerOrigem: diarioDesde depois de ate')
+    // as três leituras são independentes e partem juntas (Yannis m6); a do diário inteiro nunca rejeita: o motivo vai no resultado
+    const inteiroP = diarioDe(null).then(
+      (d): { d: DiarioDoPeriodo | null; motivo?: 'teto' | 'erro' } => ({ d }),
+      (e: unknown) => {
+        const teto = e instanceof ErroTetoDiario
+        if (!teto) avisarFalhaDeLeitura('ler-origem-diario-inteiro', e)
+        return { d: null, motivo: teto ? 'teto' as const : 'erro' as const }
+      })
+    const [dimensoes, diario, inteiro] = await Promise.all([dimensoesP, diarioDe(a.diarioDesde), inteiroP])
+    return { acesso: 'ok', dado: { dimensoes, diario, diarioInteiro: inteiro.d, ...(inteiro.motivo ? { motivoInteiro: inteiro.motivo } : {}), trechos: new Set(chamadas.map(c => c.trecho)).size } }
   } catch (e) {
     avisarFalhaDeLeitura('ler-origem', e)
     return { acesso: 'erro' }
