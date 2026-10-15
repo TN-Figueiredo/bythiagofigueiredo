@@ -255,7 +255,8 @@ describe('Canais · immediate feedback', () => {
   it('two quick clicks on the same column: the second asks for the opposite direction', async () => {
     const user = userEvent.setup()
     render(tree())
-    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!)X    await user.click(b())
+    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!).getByRole('button', { name: 'Outliers' })
+    await user.click(b())
     await user.click(b())
     expect(replace.mock.calls.map(c => c[0])).toEqual(['/cms/youtube/competitors?sort=outliers', '/cms/youtube/competitors?sort=outliers&dir=asc'])
   })
