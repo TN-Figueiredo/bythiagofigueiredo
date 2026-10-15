@@ -48,6 +48,14 @@ const DOZE = [
 ] as const
 /** Gravadores que LEEM uma das doze só para gravar (deduplicar, achar o que falta): não mostram nada a ninguém. Lista fechada. */
 const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts'])
+/**
+ * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
+ * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura
+ * (só `leitura-privada.ts` e `_proprio/dados.ts` podem pedi-lo, e a fila não passa por `_proprio`). Lista fechada:
+ *  - `saiu/ler-fila.ts`: o leitor da aba, chamado só por `_saiu/dados.ts` depois de `requireSiteScope(mode: 'edit')`;
+ *  - `competitors/actions.ts`: a guarda de `removeCompetitorChannel` (contagem `head`, sem trazer texto), depois de `denyUnlessSiteAdmin`.
+ */
+const E9_SO_COM_EDICAO = new Set(['lib/youtube/observatorio/saiu/ler-fila.ts', 'app/cms/(authed)/youtube/competitors/actions.ts'])
 const cita = (s: string, t: string) => new RegExp(`\\.from\\(\\s*['"]${t}['"]\\s*\\)`).test(s)
 /** `yt_own_collection_attempts` é "só quem edita" no banco; fora da coleta o código lê só `attempt_day` e `outcome` (decisão I4 do portão de software). */
 const COLUNAS_TENTATIVAS = new Set(['attempt_day', 'outcome'])
@@ -87,7 +95,7 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (cliente(bruto) && /from\s+['"][^'"]*proprio\/leitura-privada['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo da leitura privada`)
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
     if (LEITORES_E_DADOS.has(arq) && /\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: o leitor voltou ao token de edição`)
-    if (!arq.startsWith(COLETA_DIR) && !GRAVADORES_QUE_LEEM.has(arq) && DOZE.some(t => cita(s, t))) {
+    if (!arq.startsWith(COLETA_DIR) && !GRAVADORES_QUE_LEEM.has(arq) && !E9_SO_COM_EDICAO.has(arq) && DOZE.some(t => cita(s, t))) {
       if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas sem passar por leituraValida`)
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas com o token de edição`)
     }
@@ -201,6 +209,9 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'lib/youtube/coleta/x.ts': "sb.from('yt_own_video_daily').upsert(x)" })).toEqual([])
       expect(violacoes({ ...base, 'lib/youtube/horaria/gravar.ts': "sb.from('yt_own_video_meta_daily').select('a')" })).toEqual([])
       expect(violacoes({ ...base, 'lib/x/novo.ts': "sb.from('yt_own_public_video_hourly').select('a')" })).toEqual([])
+      // a lista fechada do E9 vale só para os dois caminhos; o mesmo código em outro arquivo continua acusado
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/saiu/ler-fila.ts': "sb.from('competitor_video_comments').select('id')", 'app/cms/(authed)/youtube/competitors/actions.ts': "sb.from('competitor_video_comments').select('id')" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/saiu/outro.ts': "sb.from('competitor_video_comments').select('id')" })).toEqual(['lib/youtube/observatorio/saiu/outro.ts: consulta uma das doze tabelas privadas sem passar por leituraValida'])
       for (const arq of [VERSOES_LER, COMENTARIOS_LER])
         expect(violacoes({ ...base, [arq]: "import { edicaoValida } from '../proprio/edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
     })
