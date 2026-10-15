@@ -18,7 +18,7 @@ Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06).
 | 8 | M6, saída | M6 | M3b, M4 | nada | depois |
 | 9 | M10b, vídeo antigo, congelar | M10b | M10a, M3b, M4, M5 | nada | depois. **Requisito da peça 8 (14/10), para o plano:** `npm run obs:videos-desfazer -- <aaaa-mm>`, com o mês como único argumento, idempotente, recusando mês inválido com mensagem em português (atenção ao cabeçalho do `npm run` no `stdout` se a saída for a outro programa: E-D1 da emenda da M3b) |
 | 10 | M9, expurgo enxuto (fatia 12b) | M9 | M3b, M5; E9 em produção | nada | depois (1ª na ordem de prioridade) |
-| 11 | M7, período longo | M7 | M3b | nada | depois |
+| 11 | `2026-10-14-manutencao-nas-m7-periodo-longo.md` | M7 | M3b (Tarefa 10 com o Passo 1b: extrair `obs_archive_summary_calc`); M5 | nada | **acordo de Phil e Yannis (r3), commitado (c2098c44a)**; antes da Tarefa 10: dono vê a data 01/05/2027, os textos L1–L8 do Logan e decide o custo do claim (A ou B) |
 | 12 | M8, ensaio completo | M8 | M3 a M7, M10b (passo 19: M9) | dois dias de verificação na parte B; parte C: 28/11 | depois |
 | 13 | M10c, vídeo antigo, retirar | M10c | M10b, M6, M9 | selagem do mês do congelamento | depois |
 
