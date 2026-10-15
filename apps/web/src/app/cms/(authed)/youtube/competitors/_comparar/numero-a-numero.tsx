@@ -16,6 +16,7 @@ import type { Numero, NumeroId } from './numeros-model'
 import type { CompararPack } from './pack'
 import type { LinhaPar, ParView, Relacao } from './par-model'
 import { reguaDaLinha } from './regua-da-linha'
+import { definicoesDaTabela } from './definicoes'
 
 const GRUPOS: Record<LinhaPar['grupo'], { nome: string; icone: ReactNode }> = {
   tamanho: { nome: 'Tamanho', icone: <svg className="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13.5V9M8 13.5V4.5M13 13.5V7" /></svg> },
@@ -142,13 +143,7 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
       <Popover open={aberta} anchor={() => botao.current} onClose={() => setAberta(false)} id={dica} role="dialog" labelledBy={dicaTitulo} className="cp-tip" pref="baixo" align="inicio" maxW={400}>
         <h3 id={dicaTitulo}>Como ler esta tabela</h3>
         <ul>
-          <li><b>Os lados:</b> laranja é o seu canal, azul é o outro; quando nenhum dos dois é seu, o lado A é areia. Cada lado também tem a sua letra, A ou B, para não depender da cor.</li>
-          <li><b>Régua:</b> um traço por canal {par.conjunto.tipo === 'nicho' ? `de ${par.conjunto.label}` : 'do site'}, do menor ao maior; os dois traços destacados e com letra são os lados A e B. A posição escrita ao lado de cada valor é a do mesmo número (1º = o maior). {comprimidas.length ? `Escala comprimida em ${listar(comprimidas.map(minuscula))}, para o maior canal não apagar os pequenos; ` : ''}{comprimidas.length ? 'as demais, em escala linear.' : 'Escala linear em todas as réguas.'} Lado sem dado não ganha traço, e a linha diz de quem falta.</li>
-          <li><b>Barras finas:</b> nos números que só existem para os dois canais, uma barra por lado, no mesmo eixo, proporcional ao maior dos dois. Se a menor passa a ser menos de 3% da maior, ela ganha 3 px e a linha avisa.</li>
-          <li><b>Relação:</b> a partir de 2× a frase usa “×”; abaixo, percentual. Diferença menor que 10% é “praticamente igual”. ▲ marca o lado maior, ＝ os praticamente iguais. Sem relação quando um lado não foi medido.</li>
-          <li><b>Dias desde o último vídeo:</b> sem barra nem régua (menor é mais recente, e a barra cheia leria como vantagem).</li>
-          <li><b>Não medido</b> (hachura): o dado não existe para esse lado; não é zero.</li>
-          {par.fora.length ? <li><b>Ficaram de fora</b> porque nenhum dos dois tem o dado: {listar(par.fora.map(minuscula))}.</li> : null}
+          {definicoesDaTabela({ conjunto: par.conjunto, fora: par.fora, comprimidas }).map(d => <li key={d.termo}><b>{d.termo}</b>{d.depois}{d.frase}</li>)}
         </ul>
       </Popover>
       <LeituraRapida itens={par.leitura} cores={par.cores} />
@@ -189,9 +184,4 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
       <p className="cp-n">{par.rodape}</p>
     </section>
   )
-}
-
-const minuscula = (t: string) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t)
-function listar(xs: readonly string[]): string {
-  return xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`
 }

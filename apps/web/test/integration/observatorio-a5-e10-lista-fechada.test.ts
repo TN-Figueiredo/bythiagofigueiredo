@@ -32,6 +32,10 @@ const LISTA: Par[] = [
   // MG6 (esta etapa)
   { funcao: 'competitor_channel_remove_archived', tabela: 'competitor_channels', linha: '2', disparo: 'dono' },
   { funcao: 'obs_archive_register', tabela: 'obs_archive_batches', linha: '15', disparo: 'dono' },
+  // MG18 (E9, fila "Saíram do YouTube"): só o dono manda apagar, depois de ver a contagem do que há guardado; o resto cai por cascata de chave estrangeira
+  { funcao: 'competitor_video_purge', tabela: 'competitor_videos', linha: 'E9: o dono mandou apagar o vídeo que saiu do YouTube (a cascata leva série, versões e comentários dele)', disparo: 'dono' },
+  { funcao: 'competitor_channel_purge', tabela: 'competitor_channels', linha: 'E9: o dono mandou apagar o canal que saiu do YouTube', disparo: 'dono' },
+  { funcao: 'competitor_comments_purge', tabela: 'competitor_video_comments', linha: 'E9: o dono mandou apagar os comentários listados de um vídeo que saiu do YouTube', disparo: 'dono' },
   // canal de concorrente: agenda e comentários
   { funcao: 'competitor_agenda_lease_release', tabela: 'competitor_agenda_lease', linha: '3 (estado de execução, MG10)', disparo: 'agenda' },
   { funcao: 'competitor_comment_identity_purge', tabela: 'competitor_video_comment_authors', linha: '6 (identidade de autor vence em 30 dias, LGPD; não apaga texto nem série)', disparo: 'cron' },
@@ -99,7 +103,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
     const ruins = LISTA.filter(p => (p.disparo === 'cron' || p.disparo === 'agenda') && PROIBIDAS.includes(p.tabela))
     expect(ruins).toEqual([])
     // yt_own_video_daily é apagada pela regravação do mesmo dia (disparo "coleta"): a classe é declarada, não ignorada
-    expect(LISTA.filter(p => PROIBIDAS.includes(p.tabela)).every(p => p.disparo === 'coleta')).toBe(true)
+    // única exceção de dono: o texto de comentário que o dono mandou apagar na fila "Saíram do YouTube" (E9), com a lista de ids que a tela mostrou
+    const DONO_AUTORIZADO = ['competitor_comments_purge']
+    expect(LISTA.filter(p => PROIBIDAS.includes(p.tabela)).every(p => p.disparo === 'coleta' || (p.disparo === 'dono' && DONO_AUTORIZADO.includes(p.funcao)))).toBe(true)
   })
 
   it('24 meses depois nada de série foi apagado (itens 78 e 67): toda função de cron da lista, com o relógio adiantado', async () => {

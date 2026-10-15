@@ -14,8 +14,9 @@ import { ObservatoryChrome } from './observatory-chrome'
 import { buildChromeView, coworkText, type ChromeTab } from './view-model'
 import { resolveNiche, type ObsSearchParams } from './resolve-niche'
 import { contarParaAAba } from '../_saiu/dados'
+import type { PropsPerguntarIa } from './perguntar-ia/botao'
 
-export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, children }: {
+export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
   /** A page that already built the engine passes it to avoid a second load. */
   obs?: Observatory; children: ReactNode
@@ -29,6 +30,8 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   readingCopy?: string | null
   /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`); a página que já abriu o site a passa, do contrário o cookie é lido aqui. */
   meuCanalLembrado?: string | null
+  /** O botão "Perguntar a uma IA" (E17 degrau 1, Tarefa 11): a página passa a tela, os exemplos e a ação. */
+  perguntarIa?: PropsPerguntarIa
 }) {
   const resolved = await resolveNiche(searchParams)
   const engine = obs ?? (await openObservatoryPage()).obs
@@ -41,7 +44,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
-      onAskForja={askForjaReading} readingCopy={readingCopy}>
+      onAskForja={askForjaReading} readingCopy={readingCopy} perguntarIa={perguntarIa}>
       {children}
     </ObservatoryChrome>
   )

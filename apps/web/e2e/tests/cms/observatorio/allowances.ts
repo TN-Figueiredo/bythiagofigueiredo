@@ -62,3 +62,9 @@ export const F4_HISTORICO_EXCLUDE: Required<Exclude> = {
 }
 /** Fase 4, R121: the line "parte de N trocas em sequência" of a change and its definition in the card header. */
 export const F4_MUDANCAS_EXCLUDE_IMPL: string[] = ['[data-run]', '[data-run-note]']
+
+/**
+ * E17 degrau 1 (Tarefa 11): o botão "Perguntar a uma IA" aparece em todas as telas do Observatório, mas não existe nos mockups das telas já aprovadas.
+ * Mockup 22 aprovado em 13/10/2026. Só o texto do botão; a comparação das telas a aplica enquanto o botão estiver ligado.
+ */
+export const PERGUNTAR_IA_BOTAO: Allow = { drop: /Perguntar a uma IA/ }

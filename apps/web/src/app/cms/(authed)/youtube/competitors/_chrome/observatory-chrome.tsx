@@ -22,6 +22,8 @@ import type { ForjaAsk } from './forja-view-model'
 import { ForjaHeaderButtons, ForjaMachineSegment, goToForjaAnchor } from './forja-status'
 import { ForjaHeaderContext } from './forja-context'
 import { useAvisoLeituraPublicada, useForjaRefresh } from './use-forja-refresh'
+import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
+import { PerguntarIa, type PropsPerguntarIa } from './perguntar-ia/botao'
 
 export interface ObservatoryChromeProps {
   view: ChromeView
@@ -38,6 +40,8 @@ export interface ObservatoryChromeProps {
   onAskForja?: ForjaAsk
   /** Insights: the shown reading as plain text ("Copiar texto da leitura" in the menu). */
   readingCopy?: string | null
+  /** O botão "Perguntar a uma IA" (E17 degrau 1, Tarefa 11), numa faixa de topo; a ação chega por prop. Sem a prop, ou desligado, não há faixa. */
+  perguntarIa?: PropsPerguntarIa
 }
 
 export function ObservatoryChrome(props: ObservatoryChromeProps) {
@@ -52,7 +56,7 @@ export function ObservatoryChrome(props: ObservatoryChromeProps) {
 
 type Pop = null | 'menu' | 'fresh'
 
-function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy }: ObservatoryChromeProps) {
+function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy, perguntarIa }: ObservatoryChromeProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   // "Administrar o site" step: the round over every competitor spends API quota; an editor syncs one channel at a time
@@ -187,6 +191,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   const niches = view.niches
   return (
     <div className="obs-ch-content">
+      {perguntarIa && CONTEXTO_IA_RULES.ligado ? <div className="obs-tr-top pi-faixa"><PerguntarIa {...perguntarIa} /></div> : null}
       <div data-obs-chrome="">
         <div className="obs-ch-head">
           <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p></div>

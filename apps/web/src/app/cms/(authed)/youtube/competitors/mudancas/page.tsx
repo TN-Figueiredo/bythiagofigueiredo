@@ -1,11 +1,10 @@
-import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { ObservatoryChromeServer } from '../_chrome/chrome-server'
+import { gerarPacoteIa } from '../contexto-ia-actions'
+import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
-import { openObservatoryPage } from '../_chrome/page-data'
 import { toggleChangeBookmark, pinVideo, unpinVideo } from '../actions'
 import { askForjaReading } from '../forja-actions'
-import { buildMudancasView } from '../_mudancas/view-model'
-import { loadSwipeRows, savedFromRows } from '../_mudancas/swipe-rows'
+import { montarMudancas } from '../_mudancas/montar'
 import { MudancasScreen } from '../_mudancas/mudancas-screen'
 import '../_mudancas/mudancas.css'
 
@@ -17,13 +16,10 @@ export default async function MudancasPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { obs, savedNiche, meuCanalLembrado, extra: rows } = await openObservatoryPage(loadSwipeRows)
-  // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
-  const niche = obs.scopeOf(parseNiche(flat.niche) ?? savedNiche)
-  const { saved, keys } = savedFromRows(obs, rows)
-  const view = buildMudancasView(obs, { ...flat, niche }, saved, keys)
+  const { pagina: { obs, meuCanalLembrado }, view } = await montarMudancas(flat)
   return (
-    <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
+    <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
+      perguntarIa={{ tela: 'mudancas', nomeDaTela: TELAS_IA['mudancas'].nome, exemplos: TELAS_IA['mudancas'].exemplos, onGerar: gerarPacoteIa }}>
       <MudancasScreen view={view} onToggleSwipe={toggleChangeBookmark} onAskForja={askForjaReading} onPin={pinVideo} onUnpin={unpinVideo} />
     </ObservatoryChromeServer>
   )
