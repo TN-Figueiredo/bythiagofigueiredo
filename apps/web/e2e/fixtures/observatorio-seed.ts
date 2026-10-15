@@ -91,7 +91,23 @@ export interface SeedOptions {
    * dos casos de Inscritos terminam no dia de hoje da semente. Não combina com `ownPreset` (a semente lança).
    */
   riCenario?: boolean
+  /**
+   * A5 2ª leva (T10): dois concorrentes sintéticos ("Canal Teste A" e "Canal Teste B", nicho `A5_EMPATE.nicho`) com o MESMO Crescimento visível
+   * (300.000 hoje, 290.000 há 28 dias) e poucos dias de registro (41 e 31 dias: Direção "pouco registro" nos dois, `n` diferente). Não combina com `riCenario`.
+   */
+  a5Empate?: boolean
 }
+
+/** Cenário sintético da 2ª leva da tela Canais (empate de Crescimento + Direção "pouco registro"). Tudo inventado. */
+export const A5_EMPATE = {
+  nicho: { slug: 'a5-empate', label: 'Empate A5' },
+  canais: [
+    { k: 'a5-empate-a', nome: 'Canal Teste A', dias: 40 },
+    { k: 'a5-empate-b', nome: 'Canal Teste B', dias: 30 },
+  ],
+  hoje: 300_000,
+  antes: 290_000,
+} as const
 export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas' | 'retencao' | 'recente'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
 export const CANAL_COMPLETO = { canal: 'matt-wolfe', fixadoAntigo: 'matt-wolfe-l150', shortNulo: 'matt-wolfe-l5', comentariosNulo: 'matt-wolfe-l6', semData: 'canal-completo-sem-data' } as const
@@ -716,6 +732,27 @@ async function seedRiCenario(sb: SupabaseClient, siteId: string, now: number): P
   await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
 }
 
+/** A5 2ª leva: grava os dois concorrentes do empate (canais e retratos diários, sem vídeos). Dado 100% sintético; datas relativas a `now`. */
+async function seedA5Empate(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
+  const E = A5_EMPATE
+  const cid = (k: string) => seedUuid(siteId, 'channel', k)
+  await insertAll(sb, 'competitor_channels', E.canais.map((c, i) => ({
+    id: cid(c.k), site_id: siteId, channel_id: 'UC' + sha1('a5|' + c.k).slice(0, 22), channel_name: c.nome, niche: E.nicho.slug, subscriber_count: E.hoje, video_limit: 50,
+    thumbnail_url: null, sync_status: 'idle', sync_error: null, sync_error_since: null,
+    last_ok_synced_at: iso(now - 3600e3), last_synced_at: iso(now - 3600e3), full_sync_completed_at: iso(now - 3600e3),
+    youtube_video_count: null, added_at: iso(now - 100 * DAY + i * 1000),
+  })))
+  const snaps: object[] = []
+  for (const c of E.canais) {
+    for (let d = c.dias; d >= 0; d--) {
+      // 28 dias antes = `antes`; hoje = `hoje`; entre os dois, a rampa só precisa ser monótona e terminar nos dois pontos
+      const subs = d === 0 ? E.hoje : d >= 28 ? E.antes : Math.round((E.antes + (E.hoje - E.antes) * ((28 - d) / 28)) / 100) * 100
+      snaps.push({ competitor_channel_id: cid(c.k), snapshot_date: spDate(now - d * DAY), subscriber_count: subs, view_count: subs * 20 })
+    }
+  }
+  await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
+}
+
 /** R9b: retratos do canal próprio; precisa do `youtube_channels` já inserido (FK). */
 async function seedRiProprio(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
   // R9b: o canal próprio é medido pelo mesmo número público dos concorrentes, a partir de yt_own_channel_snapshots (MG20); termina HOJE
@@ -743,6 +780,10 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   if (opts.riCenario) {
     if (opts.ownPreset) throw new Error('observatorio-seed: riCenario não combina com ownPreset')
     extras.push({ slug: RI_CENARIO.nicho.slug, label: RI_CENARIO.nicho.label, channels: [] })
+  }
+  if (opts.a5Empate) {
+    if (opts.riCenario) throw new Error('observatorio-seed: a5Empate não combina com riCenario')
+    extras.push({ slug: A5_EMPATE.nicho.slug, label: A5_EMPATE.nicho.label, channels: [] })
   }
   const movedTo = new Map<string, string>()
   for (const n of extras) {
@@ -876,6 +917,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
 
   /* A5 E5a R6: os dez concorrentes sintéticos de Referências e Inscritos (nicho próprio), no relógio da semente */
   if (opts.riCenario) await seedRiCenario(sb, siteId, O.NOW)
+  if (opts.a5Empate) await seedA5Empate(sb, siteId, O.NOW)
 
   /* own channels (no series, no versions: production keeps neither for them); `niche` is null for the preset's "sem nicho" */
   await insertAll(sb, 'youtube_channels', ownChs.map(c => ({
