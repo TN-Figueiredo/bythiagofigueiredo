@@ -19,8 +19,22 @@ describe('parseChannelInput', () => {
     expect(parseChannelInput(`https://youtube.com/channel/${UC}`)).toEqual({ kind: 'id', id: UC })
     expect(parseChannelInput(UC)).toEqual({ kind: 'id', id: UC })
   })
+  it('handle com acento (letras Unicode, como o YouTube aceita): com @, sem @, URL decodificada e URL com %XX', () => {
+    const h = { kind: 'handle', handle: '@CaféComMapa' }
+    expect(parseChannelInput('@CaféComMapa')).toEqual(h)
+    expect(parseChannelInput('CaféComMapa')).toEqual(h)
+    expect(parseChannelInput('https://www.youtube.com/@CaféComMapa')).toEqual(h)
+    expect(parseChannelInput('https://www.youtube.com/@Caf%C3%A9ComMapa/videos')).toEqual(h)
+    // macOS pode colar o "é" decomposto (e + acento combinante): normaliza para NFC
+    expect(parseChannelInput('@Cafe\u0301ComMapa')).toEqual(h)
+  })
+  it('sem @ e sem esquema: assume que é o handle ou a URL do canal', () => {
+    expect(parseChannelInput('LukeDamant')).toEqual({ kind: 'handle', handle: '@LukeDamant' })
+    expect(parseChannelInput('youtube.com/@LukeDamant')).toEqual({ kind: 'handle', handle: '@LukeDamant' })
+    expect(parseChannelInput('www.youtube.com/@LukeDamant')).toEqual({ kind: 'handle', handle: '@LukeDamant' })
+  })
   it('refuses anything else', () => {
-    for (const x of ['xx', '@ab', 'https://evil.com/@x123', 'LukeDamant', '']) expect(parseChannelInput(x)).toBeNull()
+    for (const x of ['xx', '@ab', 'ab', 'https://evil.com/@x123', 'evil.com/@x123', 'https://www.youtube.com/@Caf%ZZComMapa', 'Luke Damant', 'https://www.youtube.com/watch?v=abc', '']) expect(parseChannelInput(x)).toBeNull()
   })
 })
 
