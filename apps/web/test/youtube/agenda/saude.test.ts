@@ -305,7 +305,7 @@ describe('lerAgendaDoVigia', () => {
 
 describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const SEIS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const SEIS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
 
   it('o padrão do vigia são as sete, na ordem do catálogo', () => {
     expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(SEIS)

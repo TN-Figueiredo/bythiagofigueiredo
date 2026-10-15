@@ -137,6 +137,25 @@ export const DEFINICAO_MARCAS_DE_IDADE: Definicao = {
   },
 }
 
+/**
+ * `poda_acesso_ia` (A5 E17 degrau 2, Tarefa 13b): apaga do registro de acesso de IA o que passou de 400 dias e do contador de taxa o que passou de 2 dias
+ * (`acesso-ia/poda.ts`, por fatia de 30 dias). Leve, a partir das 05:00 de São Paulo, uma vez por dia; pode ser desligada (`OBS_AGENDA_TASKS_OFF`). Sem filtro
+ * de site, de propósito: a guarda é do banco inteiro. `toleranciaVigiaH` 192 = os 8 dias que o spec dá às podas. Os quatro códigos são escritos por extenso
+ * AQUI (este módulo é leve e não importa `acesso-ia/poda.ts`, que é `server-only`; um teste confere o conjunto); `schema_ausente` é dos comuns.
+ * `ordem: 5.2`: depois de `tamanho_do_banco` (4) e antes de `marcas_de_idade` (5.5) e de toda pesada.
+ */
+export const DEFINICAO_PODA_ACESSO_IA: Definicao = {
+  nome: 'poda_acesso_ia', rotulo: 'poda do registro de acesso de IA', ordem: 5.2, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 5,
+  tetoTentativas: 12, toleranciaVigiaH: 192, naoTerminouVermelhoEm: null,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+  motivos: {
+    banco_falhou: 'o banco falhou ao podar o registro de acesso de IA',
+    contagem_ausente: 'o banco não devolveu a contagem do que podou; nada foi afirmado',
+    sem_tempo_para_terminar: 'não coube no disparo; o resto fica para o dia seguinte',
+    atraso_restante: 'ainda há registro vencido de dias anteriores; a próxima execução continua',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -144,7 +163,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {
