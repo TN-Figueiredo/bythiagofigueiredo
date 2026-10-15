@@ -280,3 +280,51 @@ test('7. Faixa do seu canal: Crescimento sem medida, links para Inscritos e View
 })
 
 // 8. Regressão: `canais-a3.spec.ts` inteiro, com FAIXA_SEM_POSICAO no lugar do texto antigo (rodar o arquivo à parte).
+
+test('8. 1440 px, Tab por linha: uma parada entre as dicas, setas andam, Enter/Esc/Tab', async ({ page }) => {
+  await abrir(page, D1440)
+  const linha = page.locator(`${S}:visible tbody tr.row`).first()
+  const dicas = linha.locator('[data-cdica]')
+  const n = await dicas.count()
+  expect(n, 'a linha tem várias dicas').toBeGreaterThan(2)
+  // uma única parada de Tab entre as dicas da linha
+  expect(await linha.locator('[data-cdica][tabindex="0"]').count(), 'dicas com tabIndex=0 na linha').toBe(1)
+  expect(await linha.locator('[data-cdica][tabindex="-1"]').count()).toBe(n - 1)
+  // entra na linha pela primeira parada, anda com as setas
+  await linha.locator('[data-cdica][tabindex="0"]').focus()
+  await expect(page.getByRole('tooltip').first()).toBeVisible()
+  const idDe = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.closest('td')?.getAttribute('data-col') ?? 'fora')
+  const c0 = await idDe()
+  await page.keyboard.press('ArrowRight')
+  const c1 = await idDe()
+  expect(c1, 'seta direita muda de dica').not.toBe(c0)
+  await page.keyboard.press('ArrowRight')
+  const c2 = await idDe()
+  expect(c2).not.toBe(c1)
+  await page.keyboard.press('ArrowLeft')
+  expect(await idDe(), 'seta esquerda volta').toBe(c1)
+  // a ativa passou a ser a única parada
+  expect(await linha.locator('[data-cdica][tabindex="0"]').count()).toBe(1)
+  expect(await page.evaluate(() => (document.activeElement as HTMLElement).getAttribute('tabindex'))).toBe('0')
+  // Esc fecha e mantém o foco; Enter reabre
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  expect(await idDe(), 'Esc mantém o foco').toBe(c1)
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('tooltip').first()).toBeVisible()
+  // Tab fecha a dica e o foco sai da dica (não vai para outra dica da mesma linha)
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  const aposTab = await page.evaluate(() => { const a = document.activeElement as HTMLElement; return { cdica: a.hasAttribute('data-cdica'), mesmaLinha: !!a.closest('tr.row') && a.closest('tr.row') === document.querySelector('[data-obs-screen="canais"] tbody tr.row') } })
+  expect(aposTab.cdica && aposTab.mesmaLinha, 'Tab não cai noutra dica da mesma linha').toBe(false)
+  // Tab pela lista inteira: no máximo 1 dica por linha e o foco chega ao fim sem ficar preso
+  const vistos: string[] = []
+  for (let i = 0; i < 120; i++) {
+    await page.keyboard.press('Tab')
+    const s = await page.evaluate(() => { const a = document.activeElement as HTMLElement; const tr = a.closest('tr.row'); return { ok: a !== document.body, id: tr?.getAttribute('data-id') ?? '', d: a.hasAttribute('data-cdica') } })
+    if (s.d) vistos.push(s.id)
+  }
+  const porLinha = vistos.reduce<Record<string, number>>((m, k) => ({ ...m, [k]: (m[k] ?? 0) + 1 }), {})
+  expect(Math.max(0, ...Object.values(porLinha)), 'paradas de dica por linha no Tab corrido').toBeLessThanOrEqual(1)
+  expect(Object.keys(porLinha).length, 'o Tab corrido atravessa várias linhas').toBeGreaterThan(2)
+})
