@@ -13,7 +13,7 @@ import {
   aplicarPlanoNasCorrentes, derivarDia,
   type AberturaSemOrigem, type CorrenteDoCampo, type FatoDoDia, type MotivoPulo, type PlanoDoDia,
 } from './versoes-derivar'
-import { atribuirOrigem, type CicloAb, type LeituraAb, type TesteAb } from './versoes-origem'
+import { atribuirOrigem, FOLGA_REGISTRO_MS, type CicloAb, type LeituraAb, type RestauroAb, type TesteAb } from './versoes-origem'
 
 export const TETO_VERSOES_MS = 5_000
 export const MAX_DIAS_POR_EXECUCAO = 30
@@ -37,6 +37,8 @@ export interface VersoesResumo {
   desc_sem_texto: number
   origem_sem_video: number
   origem_ab_incerta: number
+  /** troca cuja parada do A/B Lab (teste do mundo novo) não tem registro no histórico: vermelho */
+  origem_ab_sem_registro: number
   /** `youtube_channels.id` → dias de atraso de `derived_through` (ou do menor `day_pt`, sem estado) */
   atraso_dias: Record<string, number>
   sem_videos: string[]
@@ -87,6 +89,16 @@ interface TesteLinha {
   winner_variant_id: string | null
   winner_applied_at: string | null
   original_title: string | null
+  restore_status: unknown
+}
+interface RestauroLinha {
+  test_id: string
+  seq: number
+  campo: string
+  destino: string
+  estado: string
+  escreveu: boolean | null
+  em: string
 }
 interface CicloLinha {
   id: string
@@ -94,6 +106,31 @@ interface CicloLinha {
   variant_id: string
   started_at: string
   applied_metadata: { title_set?: unknown; thumbnail_set?: unknown } | null
+}
+
+const ESTADOS_RESTAURO: readonly string[] = ['ok', 'falhou', 'pulado_sem_original', 'pulado_drift', 'desistiu']
+const COLUNAS_RESTAUROS = 'test_id, seq, campo, destino, estado, escreveu, em'
+const instanteLegivel = (x: unknown): x is string => typeof x === 'string' && !Number.isNaN(Date.parse(x))
+
+/**
+ * `ab_tests.restore_status` (jsonb) em mundo novo/em_andamento. Nulo = mundo antigo. Forma fora do esperado (campo com estado
+ * desconhecido ou `em` que `Date.parse` não lê, como 'now') = ilegível: o Lab do canal inteiro vira `nao_se_sabe` (emenda 15/10, E.3).
+ * `erro` e `motivo` do jsonb nunca saem daqui.
+ */
+function lerRestoreStatus(rs: unknown): { ok: true; mundoNovo: boolean; emAndamento: { title?: string; thumb?: string } } | { ok: false } {
+  if (rs === null || rs === undefined) return { ok: true, mundoNovo: false, emAndamento: {} }
+  if (typeof rs !== 'object' || Array.isArray(rs)) return { ok: false }
+  const emAndamento: { title?: string; thumb?: string } = {}
+  for (const [chave, campo] of [['title', 'title'], ['thumbnail', 'thumb']] as const) {
+    const v = (rs as Record<string, unknown>)[chave]
+    if (v === undefined) continue
+    if (v === null || typeof v !== 'object') return { ok: false }
+    const { estado, em } = v as { estado?: unknown; em?: unknown }
+    if (typeof estado !== 'string' || (estado !== 'em_andamento' && !ESTADOS_RESTAURO.includes(estado))) return { ok: false }
+    if (!instanteLegivel(em)) return { ok: false }
+    if (estado === 'em_andamento') emAndamento[campo] = em
+  }
+  return { ok: true, mundoNovo: true, emAndamento }
 }
 
 /** Códigos de recusa que a função do banco lança (catálogo fechado). Qualquer outra mensagem vira `erro_desconhecido`. */
@@ -113,7 +150,7 @@ function resumoVazio(ontem: string, canais: number): VersoesResumo {
     dia_ate: ontem, canais, dias_derivados: 0, confirmadas: 0,
     abertas: { linha_de_base: 0, ab_lab: 0, fora_do_sistema: 0, nao_se_sabe: 0 },
     retoques: 0, pulados: { sem_captura: 0, sem_dhash: 0, privado: 0 }, dias_sem_linha: 0, ja_derivado: 0,
-    desc_sem_texto: 0, origem_sem_video: 0, origem_ab_incerta: 0, atraso_dias: {}, sem_videos: [], sem_tempo: false,
+    desc_sem_texto: 0, origem_sem_video: 0, origem_ab_incerta: 0, origem_ab_sem_registro: 0, atraso_dias: {}, sem_videos: [], sem_tempo: false,
     recuperando: {}, dia_sem_resposta: [], atraso_desconhecido: [], prova: {},
   }
 }
@@ -348,7 +385,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
       }
 
       // Monta as aberturas para a função do banco.
-      let descSem = 0, semVideo = 0, incerta = 0, labFalhou = 0
+      let descSem = 0, semVideo = 0, incerta = 0, semRegistro = 0, labFalhou = 0
       const origens: OrigemGravavel[] = []
       let retoques = 0
       const abrir = plano.abrir.map(a => {
@@ -357,6 +394,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
         if (a.campo === 'desc' && item.json.value_text === null) descSem++
         if (item.origemSemVideo) semVideo++
         if (item.incerta) incerta++
+        if (item.semRegistro) semRegistro++
         if (item.labFalhou) labFalhou++
         if (a.thumb?.retoque) retoques++
         return item.json
@@ -388,6 +426,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
         resumo.desc_sem_texto += descSem
         resumo.origem_sem_video += semVideo
         resumo.origem_ab_incerta += incerta
+        resumo.origem_ab_sem_registro += semRegistro
         labIlegivelTrocas += labFalhou
       }
       derivadoAte = dia
@@ -435,17 +474,22 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
     if (uuids.length === 0) return { ok: true, testes: [], ciclos: [] }
     const t = await uma<TesteLinha[]>(
       ctx.supabase.from('ab_tests')
-        .select('id, youtube_video_id, test_type, paused_at, completed_at, completed_reason, winner_variant_id, winner_applied_at, original_title')
+        .select('id, youtube_video_id, test_type, paused_at, completed_at, completed_reason, winner_variant_id, winner_applied_at, original_title, restore_status')
         .in('youtube_video_id', uuids).limit(TETO_AB),
     )
     if (t === null) return 'sem_tempo'
     if (t.error || t.data === null) return ilegivel()
     if (t.data.length >= TETO_AB) return ilegivel()
-    const testes: TesteAb[] = t.data.map(x => ({
-      id: x.id, videoId: x.youtube_video_id, tipo: x.test_type, pausadoEm: x.paused_at, concluidoEm: x.completed_at,
-      vencedorAplicadoEm: x.winner_applied_at, tituloOriginal: x.original_title, motivoConclusao: x.completed_reason,
-      varianteVencedora: x.winner_variant_id,
-    }))
+    const testes: TesteAb[] = []
+    for (const x of t.data) {
+      const rs = lerRestoreStatus(x.restore_status)
+      if (!rs.ok) return ilegivel()
+      testes.push({
+        id: x.id, videoId: x.youtube_video_id, tipo: x.test_type, pausadoEm: x.paused_at, concluidoEm: x.completed_at,
+        vencedorAplicadoEm: x.winner_applied_at, tituloOriginal: x.original_title, motivoConclusao: x.completed_reason,
+        varianteVencedora: x.winner_variant_id, mundoNovo: rs.mundoNovo, emAndamento: rs.emAndamento,
+      })
+    }
     if (testes.length === 0) return { ok: true, testes, ciclos: [] }
     // Janela dos ciclos: do menor `last_seen_at` das correntes dos vídeos COM linha no intervalo até a maior captura do intervalo.
     const ytComLinha = new Set(linhas.map(l => l.youtube_video_id))
@@ -465,21 +509,38 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
       tituloAplicado: typeof x.applied_metadata?.title_set === 'string' ? x.applied_metadata.title_set : null,
       thumbAplicada: x.applied_metadata?.thumbnail_set === true,
     }))
-    return { ok: true, testes, ciclos }
+    // Histórico de restaurações (emenda 15/10): mesma janela, alargada em 120 s no início só para o "registro existe" da R6.
+    const deRestauros = new Date(Date.parse(de) - FOLGA_REGISTRO_MS).toISOString()
+    const re = await uma<RestauroLinha[]>(
+      ctx.supabase.from('ab_test_restores').select(COLUNAS_RESTAUROS)
+        .in('test_id', testes.map(x => x.id)).gte('em', deRestauros).lte('em', ate).order('em', { ascending: false }).limit(TETO_AB),
+    )
+    if (re === null) return 'sem_tempo'
+    if (re.error || re.data === null) return ilegivel() // inclusive 42P01: erro nunca vira lista vazia (lista vazia = mundo antigo)
+    if (re.data.length >= TETO_AB) return ilegivel()
+    const restauros: RestauroAb[] = []
+    for (const x of re.data) {
+      const campo = x.campo === 'title' ? 'title' : x.campo === 'thumbnail' ? 'thumb' : null
+      if (campo === null || !ESTADOS_RESTAURO.includes(x.estado) || !instanteLegivel(x.em)) return ilegivel()
+      if (x.escreveu !== null && typeof x.escreveu !== 'boolean') return ilegivel()
+      restauros.push({ testId: x.test_id, seq: x.seq, campo, destino: x.destino, estado: x.estado as RestauroAb['estado'], escreveu: x.escreveu, em: x.em })
+    }
+    return { ok: true, testes, ciclos, restauros }
   }
 
   /** Uma abertura em JSON para `apply_day`, com a origem já atribuída. */
   function montarAbertura(a: AberturaSemOrigem, lab: LeituraAb | null, textoDesc: string | null): {
-    json: Record<string, unknown>; origem: OrigemGravavel; origemSemVideo: boolean; incerta: boolean; labFalhou: boolean
+    json: Record<string, unknown>; origem: OrigemGravavel; origemSemVideo: boolean; incerta: boolean; semRegistro: boolean; labFalhou: boolean
   } {
     let origem: OrigemGravavel = 'linha_de_base'
     let ev: string | null = null, testId: string | null = null, varId: string | null = null, instante: string | null = null
-    let incerta = false, labFalhou = false, origemSemVideo = false
+    let incerta = false, semRegistro = false, labFalhou = false, origemSemVideo = false
     if (a.precisao !== 'first') {
       const lei: LeituraAb = lab ?? { ok: false }
       const o = atribuirOrigem(a, lei)
       origem = o.origem; ev = o.eventoAb; testId = o.abTestId; varId = o.abVariantId; instante = o.instante
       incerta = o.incerta === true
+      semRegistro = o.semRegistro === true
       labFalhou = !lei.ok
       origemSemVideo = lei.ok && a.videoId === null
     }
@@ -505,12 +566,15 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
       ab_test_id: testId,
       ab_variant_id: varId,
     }
-    return { json, origem, origemSemVideo, incerta, labFalhou }
+    return { json, origem, origemSemVideo, incerta, semRegistro, labFalhou }
   }
 
   // ── notas finais do resumo ─────────────────────────────────────────────────────────────────────────
   if (labIlegivelTrocas > 0) {
     pushUnico(ctx.falhas, `versões: A/B Lab não pôde ser lido; origem de ${labIlegivelTrocas} troca(s) ficou sem resposta`)
+  }
+  if (resumo.origem_ab_sem_registro > 0) {
+    pushUnico(ctx.falhas, `versões: ${resumo.origem_ab_sem_registro} troca(s) com parada do A/B Lab sem registro de restauração`)
   }
   if (resumo.desc_sem_texto > 0) {
     pushUnico(ctx.falhas, `versões: ${resumo.desc_sem_texto} versão(ões) de descrição sem o texto guardado`)

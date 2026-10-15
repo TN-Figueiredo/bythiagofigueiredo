@@ -75,10 +75,16 @@ export const CHAVES_UNICAS_L1A: Record<string, string[][]> = {
   yt_own_video_reach_daily: [['youtube_video_id', 'day_pt']],
 }
 
+const ISO = /^\d{4}-\d{2}-\d{2}T/
 function cmp(a: unknown, b: unknown): number {
   if (a === b) return 0
   if (a == null) return -1
   if (b == null) return 1
+  // Instantes ISO comparam por Date.parse (o banco real compara timestamptz, não texto: 'Z' e '+00:00' são o mesmo instante).
+  if (typeof a === 'string' && typeof b === 'string' && ISO.test(a) && ISO.test(b)) {
+    const x = Date.parse(a), y = Date.parse(b)
+    if (!Number.isNaN(x) && !Number.isNaN(y)) return x === y ? 0 : x < y ? -1 : 1
+  }
   return (a as string | number) < (b as string | number) ? -1 : 1
 }
 
