@@ -148,7 +148,7 @@ function roundingOf(fmt: EngineCtx['fmt'], subs: number | null, base: number | n
     roundingText: err ? 'o número real é este ou um pouco maior, em menos de ' + fmt.num(unit) : 'exato',
     withinRounding: dentro, limiteArred: limite, uncertainty: b < 1000 ? 0 : unit,
     text: abs == null ? null : dentro ? (limite > 0 ? '≈ 0 (dentro do arredondamento do YouTube, ±' + fmt.num(limite) + ')' : '0 (mesmo número nas duas contagens)')
-      : (abs > 0 ? '+' : '') + fmt.num(abs) + (unit > 1 ? ' (até +' + fmt.num(unit) + ')' : ''),
+      : (abs > 0 ? '+' : '') + fmt.num(abs) + (unit > 1 ? ' (±' + fmt.num(unit) + ')' : ''),
   }
 }
 function maxBelow(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {

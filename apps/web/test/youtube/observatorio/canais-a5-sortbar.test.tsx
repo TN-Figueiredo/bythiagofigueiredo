@@ -75,6 +75,9 @@ describe('barra de ordenação', () => {
     expect(CSS).toMatch(/@media \(max-width:\s*768px\)\s*\{[^}]*\[data-obs-screen="canais"\]\s*\{[^}]*--obs-topbar-h:\s*48px/)
     expect(CSS).toMatch(/\[data-obs-screen="canais"\] \.sortbar\s*\{[^}]*position:\s*sticky[^}]*top:\s*var\(--obs-top\)/)
     expect(CSS).toMatch(/@media \(pointer:\s*coarse\)\s*\{[^}]*\.sortbar \.btn\s*\{[^}]*min-height:\s*44px/)
+    // Gio F1: 2 linhas a 390 px (<= 112 px): padding da barra como o mockup (6px 0) e botões de 10 px de lado
+    expect(CSS).toMatch(/\[data-obs-screen="canais"\] \.sortbar\s*\{[^}]*padding:\s*6px 0[;\s}]/)
+    expect(CSS).toMatch(/\.sortbar \.btn\s*\{[^}]*padding-inline:\s*10px/)
     expect(CSS.slice(CSS.indexOf('A5 2ª leva, T9'))).not.toMatch(/color-mix/) // as regras da barra; o resto do arquivo é anterior a esta leva
   })
   it('tocar o ativo inverte; tocar outro abre do maior', () => {

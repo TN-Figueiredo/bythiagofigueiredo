@@ -128,3 +128,43 @@ describe('CelulaDica', () => {
     expect(visto).toBe(true)
   })
 })
+
+describe('CelulaDica: teclado (Yannis I1/M2, Gio F2a)', () => {
+  it('Enter abre A; Tab para B: A fecha (só uma dica aberta)', () => {
+    render(<div>{dica('texto A', 'a')}{dica('texto B', 'b')}</div>)
+    const [a, b] = screen.getAllByRole('button')
+    a!.focus(); fireEvent.focus(a!)
+    fireEvent.keyDown(a!, { key: 'Enter' }); fireEvent.keyDown(a!, { key: 'Enter' })
+    expect(a!.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.blur(a!); b!.focus(); fireEvent.focus(b!)
+    expect(a!.getAttribute('aria-expanded')).toBe('false')
+  })
+  it('Enter reabre A; Tab para um link comum: A fecha, o Esc não fica órfão', () => {
+    render(<div>{dica('texto A', 'a')}<a href="#x">link</a></div>)
+    const a = screen.getByRole('button')
+    a.focus(); fireEvent.focus(a)
+    fireEvent.keyDown(a, { key: 'Enter' }); fireEvent.keyDown(a, { key: 'Enter' })
+    expect(a.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.blur(a); screen.getByRole('link').focus()
+    expect(a.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+  it('roving: uma parada de Tab por linha; as setas andam entre as dicas da linha', () => {
+    render(<div data-id="r1">{dica('A', 'a')}{dica('B', 'b')}{dica('C', 'c')}</div>)
+    const [a, b, c] = screen.getAllByRole('button')
+    expect([a, b, c].map(x => x!.tabIndex)).toEqual([0, -1, -1])
+    a!.focus(); fireEvent.focus(a!)
+    fireEvent.keyDown(a!, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(b)
+    fireEvent.focus(b!)
+    expect([a, b, c].map(x => x!.tabIndex)).toEqual([-1, 0, -1])
+    fireEvent.keyDown(b!, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(a)
+    fireEvent.keyDown(a!, { key: 'ArrowLeft' }) // na ponta: fica
+    expect(document.activeElement).toBe(a)
+  })
+  it('roving: linhas distintas têm cada uma a sua parada', () => {
+    render(<><div data-id="r1">{dica('A', 'a')}{dica('B', 'b')}</div><div data-id="r2">{dica('C', 'c')}{dica('D', 'd')}</div></>)
+    expect(screen.getAllByRole('button').map(x => x.tabIndex)).toEqual([0, -1, 0, -1])
+  })
+})

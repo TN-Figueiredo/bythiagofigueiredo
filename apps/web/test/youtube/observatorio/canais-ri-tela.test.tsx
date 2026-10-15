@@ -43,10 +43,11 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChan
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () => ({ carregarExtrasProprio: async () => undefined }))
 
+const ownSnapshots = vi.hoisted(() => ({ value: undefined as unknown }))
 const obsCheio = createObservatory(datasetFromOracle(loadOracle()))
 let obs = obsCheio
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
-  openObservatoryPage: async () => ({ siteId: 's', now: obs.NOW, rows: { settings: null }, obs, savedNiche: 'todos', meuCanalLembrado: null, extra: { canUnlock: false, podeEditar: true } }),
+  openObservatoryPage: async () => ({ siteId: 's', now: obs.NOW, rows: { settings: null, ownSnapshots: ownSnapshots.value }, obs, savedNiche: 'todos', meuCanalLembrado: null, extra: { canUnlock: false, podeEditar: true } }),
 }))
 const leitor = vi.hoisted(() => ({ lerRetratosProprios: vi.fn() }))
 vi.mock('@/lib/youtube/observatorio/retratos-proprios', () => leitor)
@@ -64,7 +65,7 @@ async function pagina(sp: Record<string, string | undefined> = {}): Promise<Cana
   return el.props.children.props
 }
 beforeEach(() => {
-  vi.clearAllMocks(); obs = obsCheio
+  vi.clearAllMocks(); obs = obsCheio; ownSnapshots.value = undefined
   leitor.lerRetratosProprios.mockResolvedValue(new Map())
   if (typeof window.localStorage.clear !== 'function') {
     const mem = new Map<string, string>()
@@ -108,37 +109,32 @@ describe('R5: a página', () => {
     expect(props.ri!.inscritos.estado).toBe('erro')
     expect(sentry.captureException).toHaveBeenCalledWith(erro, expect.objectContaining({ fingerprint: ['canais-ri', 'tudo'] }))
   })
-  it('R9b: o leitor recebe os ids dos canais próprios e o relógio da página; o canal próprio sem retrato abre "ainda não coletado" sem número', async () => {
+  it('R9b: a página lê os retratos do motor (rows.ownSnapshots), não consulta o banco; o canal próprio sem retrato abre "ainda não coletado" sem número', async () => {
     const donos = obs.ownChannels().map(c => c.id)
     expect(donos.length).toBeGreaterThan(0)
     const props = await pagina({})
-    expect(leitor.lerRetratosProprios).toHaveBeenCalledTimes(1)
-    expect(leitor.lerRetratosProprios.mock.calls[0]![1]).toEqual(donos)
-    expect(leitor.lerRetratosProprios.mock.calls[0]![2]).toBe(obs.NOW)
+    expect(leitor.lerRetratosProprios).not.toHaveBeenCalled() // a leitura é UMA, no carregador (load.ts)
     const ins = props.ri!.inscritos
     if (ins.estado !== 'ok') throw new Error('esperava ok')
     const meu = ins.linhas.find(l => l.id === donos[0])!
     expect(meu.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · ainda não coletado' })
     expect(meu.classe == null && meu.barra == null).toBe(true)
   })
-  it('R9b: o leitor lança: pílula do motivo, os concorrentes medidos, um captureException com fingerprint [canais-ri, retratos-proprios]', async () => {
-    const erro = new Error('banco')
-    leitor.lerRetratosProprios.mockRejectedValueOnce(erro)
+  it('R9b: o carregador marcou a leitura como falha ("erro"): pílula do motivo e os concorrentes medidos (o evento ao Sentry sai do carregador)', async () => {
+    ownSnapshots.value = 'erro'
     const props = await pagina({})
     const dono = obs.ownChannels()[0]!.id
     const ins = props.ri!.inscritos
     if (ins.estado !== 'ok') throw new Error('esperava ok, veio ' + ins.estado)
     expect(ins.linhas.find(l => l.id === dono)!.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · histórico não carregou' })
     expect(ins.linhas.some(l => l.id !== dono && l.classe != null)).toBe(true)
-    expect(sentry.captureException).toHaveBeenCalledTimes(1)
-    expect(sentry.captureException).toHaveBeenCalledWith(erro, expect.objectContaining({ fingerprint: ['canais-ri', 'retratos-proprios'] }))
   })
-  it('R9b: sem canal próprio no obs, o leitor é chamado com lista vazia (ele mesmo não consulta) e nada vai ao Sentry', async () => {
+  it('R9b: sem canal próprio no obs, a página não consulta nada e nada vai ao Sentry', async () => {
     const ds = datasetFromOracle(loadOracle())
     for (const c of ds.channels) c.own = false
     obs = createObservatory(ds)
     await pagina({})
-    expect(leitor.lerRetratosProprios.mock.calls[0]![1]).toEqual([])
+    expect(leitor.lerRetratosProprios).not.toHaveBeenCalled()
     expect(sentry.captureException).not.toHaveBeenCalled()
   })
   it('R9b: sessão só de leitura vê a mesma linha do canal próprio (dado público) e nenhum fetch do Analytics roda', async () => {

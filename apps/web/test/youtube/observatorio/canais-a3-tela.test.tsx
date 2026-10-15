@@ -150,7 +150,7 @@ describe('A3.3 a lista única na tabela', () => {
     const { container } = mount({ niche: 'viagem', sort: 'subs' }, w.obs)
     const td = cel(container, 'mochila-leve')
     expect(td.querySelector('.sr')!.textContent).toBe('sem posição')
-    expect(td.getAttribute('aria-label')).toBe('sem posição') // célula vazia, sem traço (A5 2ª leva)
+    expect(td.getAttribute('aria-label')).toBeNull() // Yannis M5: só o `.sr` diz (dito uma vez ao leitor de tela); célula vazia, sem traço (A5 2ª leva)
     expect(td.querySelector('[aria-hidden="true"]')).toBeNull()
     expect(linhas(container).map(x => x.dataset.id)).toEqual(ordem(v))
   })

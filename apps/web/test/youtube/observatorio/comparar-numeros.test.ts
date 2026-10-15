@@ -87,8 +87,15 @@ describe('inscritos em 30 dias', () => {
     expect(n.texto).toBe('≈ 0'); expect(n.motivo).toBeNull(); expect(n.x).not.toBeNull()
     expect(n.nota).toMatch(/^de [\d.]+ para [\d.]+$/)
   })
-  it('canal próprio → não medido com o motivo do spec 16.1 (hoje o canal próprio não tem a contagem diária)', () => {
-    for (const id of [OWN, OWN2]) naoMedido(nums(BASE.obs, id).inscritos30, 'sem contagem de 30 dias atrás')
+  it('canal próprio: a mesma conta do motor, sobre os retratos MG20 que ele recebe (I-1); sem retrato, "sem contagem"', () => {
+    for (const id of [OWN, OWN2]) {
+      const g = growthOf(BASE.obs, id)
+      const n = nums(BASE.obs, id).inscritos30
+      if (g.pending) naoMedido(n, g.pending === 'sem contagem' ? 'sem contagem de 30 dias atrás' : `sem contagem de 30 dias atrás: ${g.pending}`)
+      else { expect(n.x).not.toBeNull(); expect(n.motivo).toBeNull() }
+    }
+    const w = world(ds => { ds.channels.find(c => c.id === OWN)!.snapshots = [] })
+    naoMedido(nums(w.obs, OWN).inscritos30, 'sem contagem de 30 dias atrás')
   })
   it('concorrente sem 30 dias de contagem → o motivo do motor ("faltam N d …")', () => {
     const w = world(ds => { const c = ds.channels.find(c => c.id === CH)!; c.snapshots = c.snapshots.slice(-5) })

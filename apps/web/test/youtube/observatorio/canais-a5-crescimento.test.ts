@@ -88,7 +88,7 @@ describe('zero, oculto, retrato velho e buraco (Yannis I1/I7, Phil I3/I4)', () =
     expect(g.kind).toBe('ok')
     expect(g.atrasadoAte).toBe(velho)
     expect(g.cap).toMatch(/, até \d{2}\/\d{2}/)
-    expect(g.cap.endsWith(`, até ${w.obs.date.dmhm(velho)}`)).toBe(true) // o mesmo formatador do código (`D.dmhm`)
+    expect(g.cap.endsWith(`, até ${w.obs.date.dm(velho)}`)).toBe(true) // Phil M-2: só o dia (o retrato do próprio é diário, sem hora medida)
   })
   it('canal próprio com a contagem mais nova em dia: `atrasadoAte` nulo e cap sem ", até"', () => {
     const w = a3World()

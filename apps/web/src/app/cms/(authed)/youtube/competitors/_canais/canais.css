@@ -573,8 +573,9 @@
 [data-obs-screen="canais"] .cn-top .faixa p{margin:0;flex:1 1 280px;font-size:13px}
 
 /* A5 2ª leva, T9: a barra de ordenação dos cartões. --obs-top e --obs-topbar-h já são declarados no topo deste arquivo (52 px; 48 px até 768 px, como _shared/cms-topbar.css). */
-[data-obs-screen="canais"] .sortbar { position: sticky; top: var(--obs-top); z-index: var(--z-grudado); display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; background: var(--bg) }
-[data-obs-screen="canais"] .sortbar .btn { flex: none }
+[data-obs-screen="canais"] .sortbar { position: sticky; top: var(--obs-top); z-index: var(--z-grudado); display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; background: var(--bg) }
+/* Gio F1: a 390 px a barra tem de caber em 2 linhas (mockup: padding 6px 0; <= 112 px). 7 botões a 14 px de lado pedem 340 px na 2ª linha; a 10 px pedem 308 (cabem nos 334 da caixa). */
+[data-obs-screen="canais"] .sortbar .btn { flex: none; padding-inline: 10px }
 /* estado ativo: seta (forma) + peso + sublinha interna; o fundo --surface-2 (1,13:1 / 1,06:1) não carrega estado sozinho */
 [data-obs-screen="canais"] .sortbar .btn.on { font-weight: 600; box-shadow: inset 0 -2px 0 var(--text) }
 @media (pointer: coarse) { [data-obs-screen="canais"] .sortbar .btn { min-height: 44px } }

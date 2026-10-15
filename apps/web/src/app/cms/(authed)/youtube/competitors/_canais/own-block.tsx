@@ -42,9 +42,11 @@ type Ordenavel = 'subs' | 'vpd'
 const ORDENAR: ReadonlyArray<{ k: Ordenavel; texto: string }> = [{ k: 'subs', texto: 'Ordenar por Inscritos' }, { k: 'vpd', texto: 'Ordenar por Views/dia' }]
 
 /** A faixa das ordenações sem posição escrita: o que falta ao seu canal (se faltar), o porquê e os dois caminhos para uma ordenação com posição. */
-function Faixa({ f, hrefOrdenar, onOrdenar }: { f: NonNullable<OwnBlockProps['faixa']>; hrefOrdenar: (k: Ordenavel) => string; onOrdenar: (e: MouseEvent<HTMLAnchorElement>, href: string, k: Ordenavel) => void }) {
+function Faixa({ f, nomes, hrefOrdenar, onOrdenar }: { f: NonNullable<OwnBlockProps['faixa']>; nomes: string[]; hrefOrdenar: (k: Ordenavel) => string; onOrdenar: (e: MouseEvent<HTMLAnchorElement>, href: string, k: Ordenavel) => void }) {
   return (
     <div className="faixa" data-testid="canais-faixa">
+      {/* Gio F4 (mockup .band-n): a linha do canal próprio com o selo "seu canal" */}
+      {nomes.map(n => <span key={n} className="tn" data-testid="canais-faixa-canal"><span className="nm">{n}</span><span className="youtag">seu canal</span></span>)}
       <p>{f.linha1 ? <><b>{f.linha1}</b> </> : null}{f.linha2}</p>
       <span className="ta">
         {ORDENAR.map(o => { const href = hrefOrdenar(o.k); return <Link key={o.k} className="btn" href={href} scroll={false} onClick={e => onOrdenar(e, href, o.k)}>{o.texto}</Link> })}
@@ -65,7 +67,7 @@ export function OwnBlockView({ block, onIr, onAbrir, topoRef, faixa, hrefOrdenar
   return (
     <section className="cn-top" data-own-block="" aria-labelledby={h} ref={topoRef}>
       <h2 id={h}>{block.titulo}</h2>
-      {faixa && hrefOrdenar && onOrdenar ? <Faixa f={faixa} hrefOrdenar={hrefOrdenar} onOrdenar={onOrdenar} /> : block.linhas.length ? (
+      {faixa && hrefOrdenar && onOrdenar ? <Faixa f={faixa} nomes={block.linhas.flatMap(l => (l.tipo === 'cheia' ? [l.name] : []))} hrefOrdenar={hrefOrdenar} onOrdenar={onOrdenar} /> : block.linhas.length ? (
         <ul>
           {block.linhas.map(l => l.tipo === 'fina'
             ? <li key={l.id} className="fina" data-own-id={l.id}><p>{l.texto} <button type="button" className="lk" aria-label={`Ir até a linha de ${l.texto.slice(0, l.texto.lastIndexOf(': sem vídeos'))}`} onClick={() => onIr(l.id)}>Ir até a linha</button></p></li>

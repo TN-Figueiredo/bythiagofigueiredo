@@ -81,15 +81,15 @@ export function dicaCrescimento(g: GrowthCell, e: Escrita, proprio: boolean): st
     const gan = g.abs === 0 ? '0' : `${sinal(g.abs)}${e.num(Math.abs(g.abs))}`
     return `${abre} (${gan}). A diferença é menor que ${e.num(g.limite)}, dentro do que o corte da contagem pelo YouTube explica.${parada}`
   }
-  return `${abre}: ${sinal(g.abs)}${e.num(Math.abs(g.abs))} (${g.big}). Inscritos arredondados a 3 algarismos pelo YouTube.${parada}`
+  return `${abre}: ${sinal(g.abs)}${e.num(Math.abs(g.abs))} (${g.big}).${Math.max(g.antes, g.depois) >= 1000 ? ' Inscritos arredondados a 3 algarismos pelo YouTube.' : ''}${parada}`
 }
 
-export function dicaDirecao(d: CelulaDeDirecao, numeros: { recente: string; anterior: string } | null, _e: Escrita): string | null {
-  void _e
+export function dicaDirecao(d: CelulaDeDirecao, numeros: { recente: string; anterior: string } | null, e: Escrita): string | null {
   if (d.tipo === 'nao_carregou') return null
   if (d.tipo === 'canal_proprio') return 'Esta coluna não mede a Direção do seu canal. Sem data prevista.'
   if (d.tipo === 'nao_medido') {
-    if (d.motivo === 'pouco_registro' && d.n != null && d.fechaEm) return `Só ${d.n} dias de registro; a medida pede 56 (28 contra 28). A janela fecha em ${dmTexto(d.fechaEm)}.`
+    // Yannis M4: com a coleta atrasada a data pode já ter passado; só escreve a frase quando ainda vale
+    if (d.motivo === 'pouco_registro' && d.n != null && d.fechaEm) return `Só ${d.n} dias de registro; a medida pede 56 (28 contra 28).` + (Date.parse(d.fechaEm.slice(0, 10) + 'T23:59:59-03:00') >= e.agora ? ` A janela fecha em ${dmTexto(d.fechaEm)}.` : '')
     return d.longa
   }
   if (!numeros) return null

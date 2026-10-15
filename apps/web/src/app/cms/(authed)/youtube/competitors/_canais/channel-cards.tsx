@@ -19,7 +19,7 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
   return (
     <article role="listitem" className={'card ' + (r.own ? 'you' : '')} data-id={r.id} tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}>
       {r.numero ? <span className="cp num" data-testid="canais-p">{r.numero.pos}º{r.numero.empate ? ' · empate' : ''}</span>
-        : <span className="cp num" data-testid="canais-p" aria-label="sem posição"><span className="sr">sem posição</span></span>}
+        : <span className="cp num" data-testid="canais-p"><span className="sr">sem posição</span></span>}
       <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
       <Voce r={r} view={view} />
       <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoValor r={r} cartao /></div></div></div>

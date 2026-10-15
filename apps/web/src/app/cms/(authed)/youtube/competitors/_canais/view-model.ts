@@ -12,7 +12,7 @@ import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { crescimento30, humanizeSyncError, type ChannelStats, type Crescimento30 } from '@/lib/youtube/observatorio/channels'
-import { REGRAS_INSCRITOS } from '@/lib/youtube/observatorio/inscritos-28d'
+import { retratoVelho } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 import { canalTemVideos, langChip, ownChannelHref, ownTexts, SEM_PAGINA_LINHA, type LangChip } from '../_chrome/own-channels'
@@ -449,10 +449,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       return na(g.pending.replace(/ \(.*\)/, ''), `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}`, 'novo', { fechaEm: g.fechaEm, dias: g.diasDeRegistro })
     }
     // Retrato velho: concorrente parado pela `c.sync.state`; canal próprio pelo MESMO limite da seção Inscritos.
-    const velhoProprio = c.own && g.to != null && (obs.NOW - g.to) / obs.DAY > REGRAS_INSCRITOS.retratoVelhoDias
+    const velhoProprio = c.own && g.to != null && retratoVelho(obs.NOW, g.to)
     const velhoConc = !c.own && c.sync.state !== 'ok' && !isBf(c)
     const atrasadoAte = (velhoProprio || velhoConc) && g.to != null ? g.to : null
-    const until = atrasadoAte != null ? `, até ${D.dmhm(atrasadoAte)}` : ''
+    // Phil M-2: o retrato do próprio é diário (meio-dia fixo): só o dia, sem uma hora que ninguém mediu
+    const until = atrasadoAte != null ? `, até ${c.own ? D.dm(atrasadoAte) : D.dmhm(atrasadoAte)}` : ''
     const base = { antes: g.fromSubs ?? null, depois: g.toSubs ?? null, de: g.from ?? null, ate: g.to ?? null, atrasadoAte }
     if (g.withinRounding) return { kind: 'flat', big: 'sem variação', cap: g.limiteArred > 0 ? `dentro do arredondamento (±${F.num(g.limiteArred).replace(/ (mil|mi)/g, NB + '$1')})` : 'mesmo número nas duas contagens', limite: g.limiteArred, ...base, abs: g.abs!, passo: g.roundingUnit }
     const absTxt = `${sinal(g.abs!)}${F.num(Math.abs(g.abs!))}`.replace(/ (mil|mi)/g, NB + '$1')

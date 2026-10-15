@@ -20,6 +20,8 @@ export function passoDoYouTube(n: number): number {
 
 /** Distância em dias inteiros entre dois instantes de meio-dia de São Paulo. */
 const dias = (a: number, b: number) => Math.round((a - b) / DAY)
+/** Phil M-1: a UMA régua de "retrato velho" (seção Inscritos e lista Canais): dias inteiros até o meio-dia de hoje (SP), mais que `retratoVelhoDias`. */
+export const retratoVelho = (agoraMs: number, t: number): boolean => dias(spDayStart(agoraMs) + 12 * H, t) > REGRAS_INSCRITOS.retratoVelhoDias
 /** 'dd/mm' do dia de São Paulo do instante (só para escrever na tela). */
 const ddmm = (ms: number) => { const d = new Date(spDayStart(ms) + 12 * H - 3 * H); const p = (n: number) => String(n).padStart(2, '0'); return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) }
 
@@ -39,8 +41,7 @@ export function inscritosDoCanal(c: ObsChannel, p: { agoraMs: number; proprio?: 
   const snaps = [...retratos].sort((a, b) => a.t - b.t)
   const hoje = snaps[snaps.length - 1]
   if (!hoje) return nm('ainda_nao_coletado', null)
-  const meioDiaHoje = spDayStart(p.agoraMs) + 12 * H
-  if (dias(meioDiaHoje, hoje.t) > REGRAS_INSCRITOS.retratoVelhoDias) return nm('retrato_velho', hoje.subs, { data: ddmm(hoje.t) })
+    if (retratoVelho(p.agoraMs, hoje.t)) return nm('retrato_velho', hoje.subs, { data: ddmm(hoje.t) })
   const { janelaDias, folgaDias, multiploDoPasso } = REGRAS_INSCRITOS
   const primeiro = snaps[0]!
   const historico = dias(hoje.t, primeiro.t)

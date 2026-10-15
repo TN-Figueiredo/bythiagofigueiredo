@@ -47,6 +47,9 @@ describe('dicas à letra', () => {
       .toBe('De 1.200.000 inscritos em 12/09 para 1.220.000 em 12/10: +20.000 (+1,7%). Inscritos arredondados a 3 algarismos pelo YouTube.')
     expect(dicaCrescimento({ kind: 'flat', big: 'sem variação', cap: '', limite: 20_000, antes: 1_200_000, depois: 1_210_000, de, ate, atrasadoAte: null, abs: 10_000, passo: 10_000 }, e, false))
       .toBe('De 1.200.000 inscritos em 12/09 para 1.210.000 em 12/10 (+10.000). A diferença é menor que 20.000, dentro do que o corte da contagem pelo YouTube explica.')
+    // Phil M-6: abaixo de mil o número é exato, sem a frase do arredondamento
+    expect(dicaCrescimento({ kind: 'ok', big: '+4,0%', cap: '', antes: 500, depois: 520, de, ate, atrasadoAte: null, abs: 20, pct: 0.04 }, e, false))
+      .toBe('De 500 inscritos em 12/09 para 520 em 12/10: +20 (+4,0%).')
     expect(dicaCrescimento({ kind: 'flat', big: 'sem variação', cap: '', limite: 0, antes: 800, depois: 800, de, ate, atrasadoAte: null, abs: 0, passo: 1 }, e, false))
       .toBe('De 800 inscritos em 12/09 para 800 em 12/10: o mesmo número nas duas contagens.')
     expect(dicaCrescimento({ kind: 'ok', big: '+4,0%', cap: '', antes: 50_000, depois: 52_000, de, ate, atrasadoAte: Date.UTC(2026, 9, 8, 15), abs: 2000, pct: 0.04 }, e, true))
@@ -68,6 +71,8 @@ describe('dicas à letra', () => {
     expect(dicaDirecao({ ...med, pct: -4, simbolo: 'estavel' } as never, { recente: '96 mil', anterior: '100 mil' }, e)).toBe('Últimos 28 dias: 96 mil views. 28 dias anteriores: 100 mil. Variou −4%. Até 10% para cima ou para baixo conta como sem mudança.')
     expect(dicaDirecao({ ...med, pct: 0, simbolo: 'estavel' } as never, { recente: '100 mil', anterior: '100 mil' }, e)).toBe('Últimos 28 dias: 100 mil views. 28 dias anteriores: 100 mil. Variou 0%. Até 10% para cima ou para baixo conta como sem mudança.')
     expect(dicaDirecao({ tipo: 'nao_medido', motivo: 'pouco_registro', n: 20, fechaEm: '2026-11-15', curta: '', longa: '' } as never, null, e)).toBe('Só 20 dias de registro; a medida pede 56 (28 contra 28). A janela fecha em 15/11.')
+    // Yannis M4: coleta atrasada, a data já passou: a frase da data sai
+    expect(dicaDirecao({ tipo: 'nao_medido', motivo: 'pouco_registro', n: 54, fechaEm: '2026-10-11', curta: '', longa: '' } as never, null, e)).toBe('Só 54 dias de registro; a medida pede 56 (28 contra 28).')
   })
 })
 

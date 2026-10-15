@@ -80,11 +80,11 @@ describe('E5a T0b: o retrato antes dos números', () => {
       .replace(/Não publicou (longos|Shorts) em 90(\u00a0| )d\./g, 'Sem $1 em 90$2d.')
       .replace(/("(?:cap|growthTitle)":"?\s*")\(dentro do arredondamento do YouTube, (±[^)]*)\)/g, '$1($2)')
       // A5 2ª leva T1 (D1b): roundingText corrigido para o sentido da doc oficial (este ou um pouco maior), e o texto curto do motor
-      // "+N (±unit)" vira "+N (até +unit)"; só TEXTO, número não.
+      // só TEXTO, número não.
       .replace(/arredondamento do YouTube: ±[^"]*?(?=")/g, 'arredondamento do YouTube: <ARRED>')
-      .replace(/(\+[\d.,]+(?:\u00a0| )?(?:mil|mi)?) \(±([^)]*)\)/g, '$1 (até +$2)')
+      // (o "+N (±unit)" do ganho NÃO dobra: é o erro da diferença, 1 passo, Phil M-3)
       // A5 2ª leva D1 (dono aprovou no mockup 17, 15/10): o ±N do "dentro do arredondamento" dobra (1 passo -> 2 passos)
-      .replace(/(\(|arredondamento do YouTube, )±(\d+(?:,\d+)?)((?:\u00a0| )(?:mil|mi))?/g, (_m, pre: string, n: string, un: string | undefined) => `${pre}±${String(Number(n.replace(',', '.')) * 2).replace('.', ',')}${un ?? ''}`)
+      .replace(/(?<!\+[\d.,]+(?:\u00a0| )?(?:mil|mi)? )(\(|arredondamento do YouTube, )±(\d+(?:,\d+)?)((?:\u00a0| )(?:mil|mi))?/g, (_m, pre: string, n: string, un: string | undefined) => `${pre}±${String(Number(n.replace(',', '.')) * 2).replace('.', ',')}${un ?? ''}`)
     const novo = JSON.parse(texto) as typeof retrato
     const comTitle = (o: unknown): void => {
       if (Array.isArray(o)) { o.forEach(comTitle); return }
@@ -113,6 +113,8 @@ describe('E5a T0b: o retrato antes dos números', () => {
     const donos = new Set(obs.channels.filter(c => c.own).map(c => c.id))
     type Linha = { cells: { growth: { kind: string; big?: string; text?: string } }; growth?: string; growthTitle?: string }
     const soNumeroDoCrescimento = (r: typeof retrato) => {
+      // I-1 (Phil/Yannis): o Comparar do canal PRÓPRIO passa a ler os retratos MG20 pelo motor; o retrato antigo dizia "sem contagem". O caso novo é provado em own-crescimento-fonte.test.ts
+      for (const c of r.canais) if (donos.has(c.id)) delete (c.comparar as Record<string, unknown>).inscritos30
       for (const c of r.canais) for (const l of Object.values(c.lista)) {
         const linha = l as unknown as Linha | null
         if (!linha) continue

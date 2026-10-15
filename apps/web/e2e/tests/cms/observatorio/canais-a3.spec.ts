@@ -658,7 +658,7 @@ test('a dica dos inscritos e o "formato não confirmado" abrem na camada flutuan
   await abrir(page, '?fmt=longos')
   await rolarPara(page, 700)
   const dicas: Array<{ nome: string; gatilho: Locator }> = [
-    { nome: 'inscritos', gatilho: page.locator(`${S}:visible tbody tr.row [aria-label="Sobre o número de inscritos"]`).first() },
+    { nome: 'inscritos', gatilho: page.locator(`${S}:visible tbody tr.row .cdica:has(> .num)`).first() }, // 2ª leva: a dica por célula (CelulaDica) substituiu o "?" com aria-label
   ]
   // a semente (`canalCompleto`) dá a Matt Wolfe um vídeo com formato não confirmado: se o caso deixar de existir, o teste FALHA em vez de pular a dica
   const nc = page.locator(`${S}:visible tbody tr.row[data-id="${ids.channel(CANAL_COMPLETO.canal)}"] [aria-label="Sobre os vídeos sem formato confirmado"]`)

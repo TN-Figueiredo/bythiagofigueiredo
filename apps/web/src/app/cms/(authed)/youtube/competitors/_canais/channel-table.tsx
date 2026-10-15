@@ -51,7 +51,7 @@ const estadoDe = (on: boolean, dir: 'asc' | 'desc'): 'off' | 'desc' | 'asc' => (
 /** A posição: "13º" e, embaixo, "empate" quando divide a posição; sem número, "sem posição" só para o leitor (e um traço nas ordenações que numeram). */
 function PosCell({ r }: { r: CanaisRow }) {
   if (r.numero) return <td className="p num pcol" data-testid="canais-p">{r.numero.pos}º{r.numero.empate ? <span className="pemp">empate</span> : null}</td>
-  return <td className="p num pcol" data-testid="canais-p" aria-label="sem posição"><span className="sr">sem posição</span></td>
+  return <td className="p num pcol" data-testid="canais-p"><span className="sr">sem posição</span></td>
 }
 
 /** "Comparar" é um link visível (spec 15.2): a única ação própria da coluna. O nome acessível diz de quem; o clique simples lembra o gatilho para o Voltar devolver o foco. */

@@ -24,6 +24,15 @@ describe('crescimento30', () => {
     expect(g.withinRounding).toBe(true)
     expect(g.limiteArred).toBe(20_000)
   })
+  it('Yannis M3: perda que cruza a década (1.010.000 → 995.000) usa o passo da MAIOR contagem', () => {
+    const g = crescimento30(deps, [snap(0, 1_010_000), snap(30, 995_000)], 995_000)
+    expect(g.withinRounding).toBe(true)
+    expect(g.limiteArred).toBe(20_000)
+  })
+  it('Phil M-5: 33 dias de distância mede; 34 é buraco', () => {
+    expect(crescimento30(deps, [snap(0, 1_200_000), snap(33, 1_300_000)], 1_300_000).pending).toBeUndefined()
+    expect(crescimento30(deps, [snap(0, 1_200_000), snap(34, 1_300_000)], 1_300_000).pending).toMatch(/^buraco na contagem/)
+  })
   it('ganho de exatamente 2 passos fica fora (regra estrita, igual a inscritos-28d)', () => {
     const g = crescimento30(deps, [snap(0, 1_200_000), snap(30, 1_220_000)], 1_220_000)
     expect(g.withinRounding).toBe(false)
@@ -72,11 +81,10 @@ describe('crescimento30', () => {
     expect(crescimento30(deps, [snap(0, 800), snap(30, 800)], 800).roundingText).toBe('exato')
     expect(crescimento30(deps, [], null).roundingText).toBe('sem contagem')
   })
-  // Step 3b: o `text` do motor segue o mesmo sentido; formato curto `+N (até +unit)`, nunca "±" simétrico
-  it('text: "+N (até +passo)" fora do arredondamento, nunca "±"', () => {
+  // Phil M-3: o GANHO é a diferença de duas contagens cortadas para baixo: erra em (−passo, +passo), então o texto curto é "+N (±passo)"; o "até +" vale para o NÍVEL (roundingText)
+  it('text: "+N (±passo)" fora do arredondamento', () => {
     const g = crescimento30(deps, [snap(0, 1_200_000), snap(30, 1_250_000)], 1_250_000)
-    expect(g.text).toBe(`+${deps.fmt.num(50_000)} (até +${deps.fmt.num(10_000)})`)
-    expect(g.text).not.toContain('±')
+    expect(g.text).toBe(`+${deps.fmt.num(50_000)} (±${deps.fmt.num(10_000)})`)
     expect(crescimento30(deps, [snap(0, 800), snap(30, 803)], 803).text).toBe('+3')
   })
 })
