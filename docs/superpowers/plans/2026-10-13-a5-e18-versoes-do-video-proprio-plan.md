@@ -12,6 +12,8 @@ Escrito em 13/10/2026. Spec: `docs/superpowers/specs/2026-10-12-observatorio-a5/
 - A regeneração de `src/types/database.types.ts` (desvio 9) e a semeadura **e a limpeza** das duas tabelas na semente e2e (as duas ficam com o plano da parte 6; desvio 10). (emenda 1: S-m3)
 - A imagem de um retoque cujo dHash é idêntico ao anterior (pergunta 1).
 
+**Emenda 15/10 (dono): N canais próprios, nunca "dois".** O site terá mais de 2 canais próprios. Toda expectativa deste plano escrita com número fixo de canais ("2 esperados", "um por canal", "nos dois canais", "105") vale como **N = canais próprios do site com linha diária**, contado pela consulta no dia, nunca como constante. Vale para V4 (em 15/10 deu `canais_com_linha_sem_estado` = 1 com 35 públicos: conferir na T6 qual canal tem linha diária), D0, D+1, D+14, as conferências `e18-*` de `apps/web/src/lib/conferencias.ts` e os testes da T6/T7 (casos com 1, 2 e 3 canais; o código já compara com `> 0` por canal). A T6 começa por essa troca de texto e pelo teste com 3 canais.
+
 **O que pode começar JÁ**, sem esperar migration, mockup nem resposta do dono: as Tarefas **2, 3, 4, 5 e 8** (módulos puros, regras e a mudança de uma condição no passo de metadados). A **6** (o passo) começa quando a 3 e a 4 estiverem commitadas. A **7** (integração no cron) espera a 6, a vez de mexer em `coleta/index.ts` **e a MG12 em produção com V1 a V5 conferidas** (emenda 1: S-I3; o motivo está na Tarefa 7). Esperam o lote C: a **1** (arquivo da migration) e a **10** (testes contra o banco). Espera a A4 em `staging`: a **9** (leitor). A **11** (semente do A/B Lab) e a **12** (envio) são as últimas.
 
 ---
