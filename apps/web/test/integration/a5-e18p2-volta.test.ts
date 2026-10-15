@@ -102,6 +102,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T7: os roteiros da MG17 (bythiago
       await pg.query("set local lock_timeout = '5s'")
       await pg.query(SQL17A)
       await pg.query(LINHAS_DO_MEIO)
+      // a marca que o fim da MG17 grava e o roteiro de religar exige (revisão N9, Phil I-2)
+      await pg.query("comment on function public.yt_own_meta_linhas_do_meio(uuid, uuid, date) is 'MG17 aplicada em teste'")
       if (o.aux !== false) await pg.query(AUX)
       await fn()
     } finally {
@@ -286,7 +288,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T7: os roteiros da MG17 (bythiago
     await tx(async () => {
       const { c, original } = await dietaFeita()
       await pg.query(DESLIGAR())
-      await pg.query(VOLTA_B(S1))
+      const resp = await pg.query(VOLTA_B(S1))
+      expect(resp.rows).toEqual([{ linhas_recriadas: '79' }]) // o roteiro mostra o que fez
       expect(await linhasDe(c)).toBe(118)
       expect(await conteudo(c)).toEqual(original)
       // o instante da linha recriada é a hora nominal do cron (12:00 UTC do dia seguinte)
@@ -370,17 +373,33 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T7: os roteiros da MG17 (bythiago
     })
   })
 
-  it('11. religar num banco sem a função do critério (só a MG17a): a chamada seguinte falha com erro, não devolve ok', async () => {
+  it('11. religar num banco sem a função do critério (só a MG17a): o roteiro se recusa, e o corpo da MG17a continua', async () => {
     await pg.query('begin')
     try {
       await pg.query("set local lock_timeout = '5s'")
       await pg.query(SQL17A)
-      const c = await cena(S1, 1)
-      for (let d = 0; d < 6; d++) await meta(c, 0, d)
-      await cobrir(c, mais(D0, 5)); await estado(c, mais(D0, 5))
-      await pg.query(RELIGAR())
-      const msg = await recusa(`select public.yt_own_meta_cover($1::uuid, $2::uuid, $3::date, true)`, [c.site, c.canal, mais(D0, 5)])
-      expect(msg).toMatch(/yt_own_meta_linhas_do_meio/)
+      const msg = await recusa(RELIGAR())
+      expect(msg).toMatch(/religar recusado/)
+      const corpo = await q(`select p.prosrc like '%yt_own_meta_linhas_do_meio%' as enxuga from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'yt_own_meta_cover'`)
+      expect(corpo).toEqual([{ enxuga: false }])
+    } finally {
+      await pg.query('rollback')
+    }
+  })
+
+  it('11b. a função do critério existe mas sem a marca (recusa deixou o critério para trás): religar recusa, corpo sem o enxugamento; com a marca, passa e responde enxuga true', async () => {
+    await pg.query('begin')
+    try {
+      await pg.query("set local lock_timeout = '5s'")
+      await pg.query(SQL17A)
+      await pg.query(LINHAS_DO_MEIO) // só o bloco 1 da MG17, sem o do que grava a marca
+      const msg = await recusa(RELIGAR())
+      expect(msg).toMatch(/religar recusado/)
+      const corpo = await q(`select p.prosrc like '%yt_own_meta_linhas_do_meio%' as enxuga from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'yt_own_meta_cover'`)
+      expect(corpo).toEqual([{ enxuga: false }])
+      await pg.query("comment on function public.yt_own_meta_linhas_do_meio(uuid, uuid, date) is 'MG17 aplicada em 2026-01-01T00:00:00Z'")
+      const rs = await pg.query(RELIGAR())
+      expect(Array.isArray(rs) ? rs.at(-1)!.rows : []).toEqual([{ enxuga: true }])
     } finally {
       await pg.query('rollback')
     }
