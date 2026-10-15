@@ -118,6 +118,19 @@ describe('A5 E9 T6: apagar', () => {
     expect(await apagarVideo(lanca.sb, CTX, 'v1', 'APAGAR', { apagarDoBlob: blobOk() })).toMatchObject({ desfecho: 'erro', codigo: 'erro_de_banco' })
   })
 
+  it('M9: mês destacado em trânsito vira o código próprio, com a frase, e NÃO vai ao Sentry', async () => {
+    for (const msg of ['mes_destacado_em_transito', 'mes_destacado_em_transito: competitor_video_daily 09/2026']) {
+      const f = monta({ competitor_channel_purge: async () => ({ data: null, error: { message: msg, code: 'P0001' } }) })
+      const r = await apagarCanal(f.sb, CTX, 'c1', 'APAGAR', { apagarDoBlob: blobOk() })
+      expect(r).toMatchObject({ desfecho: 'erro', codigo: 'mes_destacado_em_transito' })
+    }
+    expect(sentry.captureException).not.toHaveBeenCalled()
+    // outro P0001 continua sendo erro de banco e vai ao Sentry
+    const outro = monta({ competitor_channel_purge: async () => ({ data: null, error: { message: 'outra regra', code: 'P0001' } }) })
+    expect(await apagarCanal(outro.sb, CTX, 'c1', 'APAGAR', { apagarDoBlob: blobOk() })).toMatchObject({ codigo: 'erro_de_banco' })
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+  })
+
   it('IP inválido vira nulo; IPv4 e IPv6 válidos passam', async () => {
     for (const [ip, esperado] of [['203.0.113.7', '203.0.113.7'], ['2001:db8::1', '2001:db8::1'], ['999.1.1.1', null], ['x', null], ['', null], [null, null]] as const) {
       const f = monta({ competitor_video_purge: async () => ok({ status: 'not_found' }) })
