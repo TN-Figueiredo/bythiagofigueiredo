@@ -69,6 +69,17 @@ describe('inscritos em 30 dias', () => {
     expect(n.motivo).toBeNull()
     expect(n.texto).toBe(buildCanalHeader(BASE.obs, id)!.faixa.find(c => c.key === 'growth30')!.value)
   })
+  it('buraco na coleta (60 d entre as duas contagens): não medido, a pendência diz buraco', () => {
+    const w = world(ds => {
+      const c = ds.channels.find(x => x.id === 'nate-herk')!
+      const fim = c.snapshots[c.snapshots.length - 1]!
+      c.snapshots = [{ ...fim, t: fim.t - 60 * DAY, subs: fim.subs - 100_000 }, fim]
+    })
+    const n = nums(w.obs, 'nate-herk').inscritos30
+    expect(n.x).toBeNull()
+    expect(JSON.stringify(n)).toContain('buraco')
+    expect(JSON.stringify(n)).not.toMatch(/NaN|Infinity/)
+  })
   it('dentro do arredondamento: "≈ 0", com a nota', () => {
     const id = 'bald-and-bankrupt', g = growthOf(BASE.obs, id)
     expect(g.withinRounding).toBe(true) // precondição do fixture: 4,51 mi → 4,51 mi

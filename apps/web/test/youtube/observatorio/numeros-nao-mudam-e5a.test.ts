@@ -79,6 +79,12 @@ describe('E5a T0b: o retrato antes dos números', () => {
       .replace(/Nenhum (?:vídeo longo|Short) com 2× ou mais em 90 d\. Maior:/g, 'Nenhum com 2×. Maior:')
       .replace(/Não publicou (longos|Shorts) em 90(\u00a0| )d\./g, 'Sem $1 em 90$2d.')
       .replace(/("(?:cap|growthTitle)":"?\s*")\(dentro do arredondamento do YouTube, (±[^)]*)\)/g, '$1($2)')
+      // A5 2ª leva T1 (D1b): roundingText corrigido para o sentido da doc oficial (este ou um pouco maior), e o texto curto do motor
+      // "+N (±unit)" vira "+N (até +unit)"; só TEXTO, número não.
+      .replace(/arredondamento do YouTube: ±[^"]*?(?=")/g, 'arredondamento do YouTube: <ARRED>')
+      .replace(/(\+[\d.,]+(?:\u00a0| )?(?:mil|mi)?) \(±([^)]*)\)/g, '$1 (até +$2)')
+      // A5 2ª leva D1 (dono aprovou no mockup 17, 15/10): o ±N do "dentro do arredondamento" dobra (1 passo -> 2 passos)
+      .replace(/(\(|arredondamento do YouTube, )±(\d+(?:,\d+)?)((?:\u00a0| )(?:mil|mi))?/g, (_m, pre: string, n: string, un: string | undefined) => `${pre}±${String(Number(n.replace(',', '.')) * 2).replace('.', ',')}${un ?? ''}`)
     const novo = JSON.parse(texto) as typeof retrato
     const comTitle = (o: unknown): void => {
       if (Array.isArray(o)) { o.forEach(comTitle); return }
@@ -99,8 +105,34 @@ describe('E5a T0b: o retrato antes dos números', () => {
         Object.values(r).forEach(semTipDoCrescimento)
       }
     }
-    const atual = JSON.parse(JSON.stringify(retrato)) as typeof retrato
+    const atual = JSON.parse(JSON.stringify(retrato).replace(/arredondamento do YouTube: o número real é este ou um pouco maior, em menos de [^"]*?(?=")/g, 'arredondamento do YouTube: <ARRED>')) as typeof retrato
     semTipDoCrescimento(atual)
     expect(atual).toEqual(novo)
+  })
+
+  // A5 2ª leva D1, parte NÚMERO da exceção: quem muda de "dentro/fora" é calculado aqui pelas duas regras; um id que mude e não caia no predicado falha.
+  it('A5 2ª leva D1: os canais que mudam de dentro/fora são exatamente os que as duas regras separam (id inexplicado falha)', () => {
+    const DIA = 86_400_000
+    const passo = (n: number) => (n < 1000 ? 0 : Math.pow(10, Math.floor(Math.log10(n)) - 2))
+    const mudaram: string[] = []
+    const deveriam: string[] = []
+    for (const c of obs.channels) {
+      const sn = c.snapshots
+      if (!sn.length || c.subs == null) continue
+      const fim = sn[sn.length - 1]!
+      const ini = [...sn].reverse().find(x => x.t <= fim.t - 30 * DIA)
+      if (!ini) continue
+      const dias = (fim.t - ini.t) / DIA
+      if (dias < 29) continue
+      const g = fim.subs - ini.subs
+      const antigo = c.subs < 1000 ? Math.abs(g) <= 1 : Math.abs(g) <= passo(c.subs)
+      const pn = passo(Math.max(ini.subs, fim.subs))
+      const novo = dias > 33 ? null : pn > 0 ? Math.abs(g) < 2 * pn : g === 0
+      if (novo === null || antigo !== novo) deveriam.push(c.id)
+      const cel = obs.channelStats(c.id, 'long').growth30
+      if (cel.withinRounding !== antigo || cel.pending) mudaram.push(c.id)
+    }
+    expect(mudaram.sort()).toEqual(deveriam.sort())
+    console.info(`D1: ${mudaram.length} de ${obs.channels.length} canais do oráculo mudam de célula`)
   })
 })

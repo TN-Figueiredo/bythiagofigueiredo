@@ -6,7 +6,8 @@ import { DAY, H, WD } from './time'
 import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
 import { assertSiteScope, type EngineCtx, type Derived } from './series'
-import type { Fmt, ObsChannel, ObsVideo, SyncState } from './types'
+import type { ChannelSnapshot, Fmt, ObsChannel, ObsVideo, SyncState } from './types'
+import { passoDoYouTube, REGRAS_INSCRITOS } from './inscritos-28d'
 import { BUILTIN_NICHES, tabOrder } from './niche'
 
 type V = ObsVideo & Derived
@@ -94,19 +95,60 @@ export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') 
   }
 }
 
-const snapAt = (ch: ObsChannel, ms: number) => { let best = null; for (const x of ch.snapshots) { if (x.t <= ms) best = x; else break } return best }
-function roundingOf(ctx: EngineCtx, ch: ObsChannel, growth: { abs: number | null }) {
-  const { fmt } = ctx
-  const subs = ch.subs
+const snapAt = (snaps: readonly ChannelSnapshot[], ms: number) => { let best: ChannelSnapshot | null = null; for (const x of snaps) { if (x.t <= ms) best = x; else break } return best }
+
+export interface Crescimento30 {
+  abs: number | null; pct: number | null; from?: number; to?: number; pending?: string
+  /** Inscritos nas duas pontas da comparação: a célula e a dica não refazem `snapshots.find`. */
+  fromSubs?: number; toSubs?: number
+  /** Quantos dias de retrato existem (primeiro → mais novo), para a dica de canal novo. null sem retrato. */
+  diasDeRegistro: number | null
+  /** Primeiro retrato + 30 dias (ms), quando ainda falta; null fora disso. */
+  fechaEm: number | null
+  roundingUnit: number; roundingError: number; roundingText: string
+  /** |abs| < 2 × passo (passo da maior das duas contagens); abaixo de mil inscritos só o zero exato. null sem contagem ou sem medida. */
+  withinRounding: boolean | null
+  /** 2 × passo: o "±N" que a tela mostra. 0 abaixo de mil inscritos. */
+  limiteArred: number
+  uncertainty: number; text: string | null
+}
+
+export function crescimento30(deps: Pick<EngineCtx, 'clock' | 'fmt'>, snapshots: readonly ChannelSnapshot[], subs: number | null): Crescimento30 {
+  const { clock, fmt } = deps
+  const now = snapshots.length ? snapshots[snapshots.length - 1]! : null
+  const first = snapshots.length ? snapshots[0]! : null
+  const prev = now ? snapAt(snapshots, now.t - 30 * DAY) : null
+  // Phil I3: "em 30 dias" não pode ser 31 a 90. Só mede com 29 <= dias <= 33; fora disso é buraco na coleta, fora da numeração.
+  const dias = now && prev ? (now.t - prev.t) / DAY : null
+  const medido = dias != null && dias >= 29 && dias <= 33
+  const buraco = dias != null && dias > 33
+  const growth: { abs: number | null; pct: number | null; from?: number; to?: number; fromSubs?: number; toSubs?: number; pending?: string } = medido
+    ? { abs: now!.subs - prev!.subs, pct: prev!.subs > 0 ? (now!.subs - prev!.subs) / prev!.subs : null, from: prev!.t, to: now!.t, fromSubs: prev!.subs, toSubs: now!.subs }
+    : { abs: null, pct: null, pending: buraco ? 'buraco na contagem (última comparação de ' + Math.round(dias!) + ' d)' : now ? 'faltam ' + Math.ceil(30 - (now.t - first!.t) / DAY) + ' d (primeira contagem ' + clock.dm(first!.t) + ')' : 'sem contagem' }
+  const diasDeRegistro = now && first ? Math.floor((now.t - first.t) / DAY) : null
+  const fechaEm = !medido && !buraco && first ? first.t + 30 * DAY : null
+  // Phil M1: o passo sai da maior das duas contagens comparadas (como inscritos-28d.ts); `subs` só decide "oculto".
+  const base = medido ? Math.max(prev!.subs, now!.subs) : subs
+  return { ...growth, diasDeRegistro, fechaEm, ...roundingOf(fmt, subs, base, growth.abs) }
+}
+
+function roundingOf(fmt: EngineCtx['fmt'], subs: number | null, base: number | null, abs: number | null) {
   // subs null = o YouTube esconde a contagem: nada a arredondar, nada a comparar.
-  if (subs == null) return { roundingUnit: 1, roundingError: 0, roundingText: 'sem contagem', withinRounding: null, uncertainty: 0, text: null }
-  const unit = subs < 1000 ? 1 : Math.pow(10, Math.floor(Math.log10(subs)) - 2)
-  const err = subs < 1000 ? 0 : unit / 2
+  if (subs == null) return { roundingUnit: 1, roundingError: 0, roundingText: 'sem contagem', withinRounding: null as boolean | null, limiteArred: 0, uncertainty: 0, text: null as string | null }
+  const b = base ?? subs
+  const unit = b < 1000 ? 1 : Math.pow(10, Math.floor(Math.log10(b)) - 2)
+  const err = b < 1000 ? 0 : unit / 2
+  // A5 2ª leva, D1: a mesma regra da seção Inscritos: menos de 2 passos pode ser só arredondamento
+  const limite = REGRAS_INSCRITOS.multiploDoPasso * passoDoYouTube(b)
+  // I1: abaixo de mil não há arredondamento (limite 0); o zero exato continua "sem variação", senão a célula escreveria "−0,0%".
+  const dentro: boolean | null = abs == null ? null : limite > 0 ? Math.abs(abs) < limite : abs === 0
   return {
-    roundingUnit: unit, roundingError: err, roundingText: err ? '±' + fmt.num(err) : 'exato',
-    withinRounding: growth.abs == null ? null : Math.abs(growth.abs) <= unit, uncertainty: subs < 1000 ? 0 : unit,
-    text: growth.abs == null ? null : Math.abs(growth.abs) <= unit ? '≈ 0 (dentro do arredondamento do YouTube, ±' + fmt.num(unit) + ')'
-      : (growth.abs > 0 ? '+' : '') + fmt.num(growth.abs) + (unit > 1 ? ' (±' + fmt.num(unit) + ')' : ''),
+    roundingUnit: unit, roundingError: err,
+    // D1b (Logan, doc oficial: o YouTube CORTA para baixo): o número real é este ou um pouco maior
+    roundingText: err ? 'o número real é este ou um pouco maior, em menos de ' + fmt.num(unit) : 'exato',
+    withinRounding: dentro, limiteArred: limite, uncertainty: b < 1000 ? 0 : unit,
+    text: abs == null ? null : dentro ? (limite > 0 ? '≈ 0 (dentro do arredondamento do YouTube, ±' + fmt.num(limite) + ')' : '0 (mesmo número nas duas contagens)')
+      : (abs > 0 ? '+' : '') + fmt.num(abs) + (unit > 1 ? ' (até +' + fmt.num(unit) + ')' : ''),
   }
 }
 function maxBelow(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
@@ -135,10 +177,6 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
   const ch = ctx.CH.get(channelId)!
   const vp = vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.vpd != null).map(v => v.vpd as number)
   const outs = outliers(ctx, { niche: 'todos', fmt: fmtId, ages: DEFAULT_AGES, channel: channelId, includeOwn: ch.own })
-  const now = ch.snapshots.length ? ch.snapshots[ch.snapshots.length - 1]! : null, prev = now ? snapAt(ch, now.t - 30 * DAY) : null
-  const growth: { abs: number | null; pct: number | null; from?: number; to?: number; pending?: string } = (now && prev && now.t - prev.t >= 29 * DAY)
-    ? { abs: now.subs - prev.subs, pct: prev.subs > 0 ? (now.subs - prev.subs) / prev.subs : null, from: prev.t, to: now.t }
-    : { abs: null, pct: null, pending: now ? 'faltam ' + Math.ceil(30 - (now.t - ch.snapshots[0]!.t) / DAY) + ' d (primeira contagem ' + clock.dm(ch.snapshots[0]!.t) + ')' : 'sem contagem' }
   const mults = strong90(ctx, ch, fmtId).map(v => v.mult!.value as number)
   const vpdMedian = median(vp)
   const s90 = strong90(ctx, ch, fmtId)
@@ -149,7 +187,7 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
     typicalMult: median(mults), typicalMultN: mults.length,
     bestOutlier: outs.items[0] || null, outliers90: outs.count,
     changes30: changesIn(ctx, { days: 30, channel: channelId }).length,
-    growth30: Object.assign(growth, roundingOf(ctx, ch, growth)),
+    growth30: crescimento30(ctx, ch.snapshots, ch.subs),
     maxMultBelowMin: maxBelow(ctx, ch, fmtId),
     pctOutliers: s90.length ? s90.filter(v => v.mult!.value! >= RULES.outlierMin).length / s90.length : null, pctOutliersN: s90.length,
     vpd7Median: median7(ctx, channelId, fmtId),

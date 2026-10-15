@@ -593,7 +593,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       sync: { label: sync.label, phrase: syncPhrase(c), state: c.sync.state },
       color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: paradoDe(c), direcao: direcaoDe(c), estado: estadoDe(c), direcaoNumeros: ((d) => (d.tipo === 'medido' ? { recente: num(d.ganhoRecente), anterior: num(d.ganhoAnterior) } : null))(direcaoDe(c)), subsOculto: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true,
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
-        : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
+        : c.subs < 1000 ? 'Abaixo de mil, o YouTube mostra o número exato.'
+        : `O YouTube corta a contagem para 3 algarismos: ${stats(c.id, 'long').growth30.roundingText}.`,
       valor, pos, ...semMedidaDe(c, S, valor, pos),
       cells: { cadence, vpd, out, swap, growth, sync, ...cells2 },
       semFormato: nulos ? { n: nulos, label: `formato não confirmado (${nulos})`, tip: SEM_FORMATO_TIP } : null,
