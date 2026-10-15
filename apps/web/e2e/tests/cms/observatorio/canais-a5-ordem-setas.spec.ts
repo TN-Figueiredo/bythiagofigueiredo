@@ -312,6 +312,13 @@ test('8. 1440 px, Tab por linha: uma parada entre as dicas, setas andam, Enter/E
   expect(await idDe(), 'Esc mantém o foco').toBe(c1)
   await page.keyboard.press('Enter')
   await expect(page.getByRole('tooltip').first()).toBeVisible()
+  // Enter/Espaço com a dica JÁ aberta a MANTÊM aberta (não alterna); fecha só com Esc, Tab ou ao sair
+  for (const tecla of ['Enter', ' ']) {
+    await page.keyboard.press(tecla)
+    await page.waitForTimeout(150)
+    await expect(page.getByRole('tooltip').first(), `${JSON.stringify(tecla)} com a dica aberta mantém aberta`).toBeVisible()
+    expect(await page.evaluate(() => (document.activeElement as HTMLElement).getAttribute('aria-expanded'))).toBe('true')
+  }
   // Tab fecha a dica e o foco sai da dica (não vai para outra dica da mesma linha)
   await page.keyboard.press('Tab')
   await expect(page.getByRole('tooltip')).toHaveCount(0)
@@ -327,4 +334,50 @@ test('8. 1440 px, Tab por linha: uma parada entre as dicas, setas andam, Enter/E
   const porLinha = vistos.reduce<Record<string, number>>((m, k) => ({ ...m, [k]: (m[k] ?? 0) + 1 }), {})
   expect(Math.max(0, ...Object.values(porLinha)), 'paradas de dica por linha no Tab corrido').toBeLessThanOrEqual(1)
   expect(Object.keys(porLinha).length, 'o Tab corrido atravessa várias linhas').toBeGreaterThan(2)
+})
+
+test('9. 1280 px com o painel aberto: a coluna escondida não deixa a linha sem parada de Tab', async ({ page }) => {
+  // O painel REAL só abre para canal próprio sem vídeos, que a semente não tem (concorrente e próprio com vídeos vão para a página do canal).
+  // Por isso o estado `.drawer-open` (que esconde `.c-hide` a partir de 1280 px) é posto na raiz por script, com o foco na dica que vai sumir.
+  await abrir(page, { width: 1280, height: 900 })
+  const linha = page.locator(`${S}:visible tbody tr.row`).nth(1)
+  const escondida = linha.locator('.c-hide [data-cdica]').first()
+  expect(await escondida.count(), 'a linha tem dica em coluna escondível (o cenário existe)').toBe(1)
+  await escondida.focus() // a ativa da linha passa a ser a dica da coluna que vai sumir
+  expect(await escondida.getAttribute('tabindex')).toBe('0')
+  await page.evaluate(() => document.querySelector('[data-obs-screen="canais"]')!.classList.add('drawer-open'))
+  expect(await escondida.evaluate(e => getComputedStyle(e.closest('.c-hide')!).display), 'a coluna some com o painel').toBe('none')
+  await page.waitForTimeout(300)
+  const estado = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-obs-screen="canais"].drawer-open tbody tr.row')].map(tr => {
+    const vis = [...tr.querySelectorAll<HTMLElement>('[data-cdica]')].filter(d => { for (let n: HTMLElement | null = d; n && n !== tr; n = n.parentElement) if (getComputedStyle(n).display === 'none') return false; return true })
+    return { id: tr.getAttribute('data-id'), visiveis: vis.length, paradas: vis.filter(d => d.tabIndex === 0).length }
+  }))
+  expect(estado.length).toBeGreaterThan(2)
+  for (const e of estado) expect(e.paradas, `linha ${e.id}: exatamente 1 parada de Tab entre as dicas visíveis (${JSON.stringify(e)})`).toBe(1)
+  // Tab de verdade pela lista: o foco nunca para em coluna escondida e atravessa várias linhas
+  await page.locator(`${S}.drawer-open tbody tr.row [data-cdica][tabindex="0"]`).first().focus()
+  const vistos = new Set<string>()
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press('Tab')
+    const s = await page.evaluate(() => { const a = document.activeElement as HTMLElement; return { id: a.closest('tr.row')?.getAttribute('data-id') ?? '', d: a.hasAttribute('data-cdica'), escondido: !!a.closest('.c-hide') } })
+    expect(s.escondido, 'o foco nunca para em coluna escondida').toBe(false)
+    if (s.d) vistos.add(s.id)
+  }
+  expect(vistos.size, 'o Tab corrido para em dicas de várias linhas').toBeGreaterThan(2)
+})
+
+test('10. 1440 px: Views/dia alinhado com as colunas vizinhas e com largura mínima 128', async ({ page }) => {
+  await abrir(page, D1440)
+  const m = await page.evaluate(() => {
+    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+    const th = (k: string) => raiz.querySelector<HTMLElement>(`thead th[data-k="${k}"]`)
+    const med = (k: string) => { const t = th(k); const b = t?.querySelector('button'); return t && b ? { w: t.getBoundingClientRect().width, top: b.getBoundingClientRect().top, h: b.getBoundingClientRect().height } : null }
+    return { vpd: med('vpd'), outliers: med('outliers'), active: med('active'), swaps: med('swaps') }
+  })
+  expect(m.vpd, 'th Views/dia existe').not.toBeNull()
+  expect(m.vpd!.w, 'largura do th Views/dia').toBeGreaterThanOrEqual(127)
+  // as vizinhas de Views/dia; Trocas tem uma unidade mais longa (mais linhas no cabeçalho) e sobe por isso, fora do critério
+  for (const k of ['outliers', 'active'] as const) {
+    if (m[k]) expect(Math.abs(m[k]!.top - m.vpd!.top), `topo do botão ${k} vs Views/dia (${JSON.stringify(m)})`).toBeLessThanOrEqual(2)
+  }
 })
