@@ -175,7 +175,9 @@ describe('T11 rota: quem só lê o site, e a leitura que falha', () => {
 
   it('canal próprio sem relatório: a frase do estado, sem número', async () => {
     state.dados.mockImplementation(async () => DADOS.vazio(w.canalId, w.ytIds, w.hoje))
-    const el = await rota(proprioVideo.id)
+    // um vídeo com mais de 3 dias: o vídeo novo (tela A) mostra a faixa de 7 casas mesmo sem relatório, e este caso é o do vídeo que já devia ter alcance
+    const velho = w.obs.videos.filter(v => v.ch === w.canalId).sort((a, b) => a.pub - b.pub)[0]!
+    const el = await rota(velho.id)
     expect(blocos(el).impressoes).toMatchObject({ medido: false, grafico: null, taxa: null, frase: 'Ainda não há relatório de alcance deste canal.' })
     expect(blocos(el).assistido!.partes.map(p => p.t).join('')).toBe('A coleta diária ainda não rodou: sem ela não há % assistido.')
   })

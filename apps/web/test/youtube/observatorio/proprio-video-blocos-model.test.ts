@@ -127,18 +127,23 @@ function comVidaDe(dias: number) {
 }
 
 describe('impressões de vídeo recente: o dia anterior à publicação não existe (I1)', () => {
-  it('vídeo de 1 dia: a frase do mockup, nenhum gráfico, nenhuma taxa e nenhum "zero medido"', () => {
+  it('vídeo de 1 dia (tela A): a faixa de 7 casas no lugar do gráfico, "Vídeo novo", nenhuma taxa e nenhuma casa em "zero medido"', () => {
     const { w, id, dados } = comVidaDe(1)
     const b = blocos(w, dados, id).impressoes!
-    expect(b).toMatchObject({ medido: false, grafico: null, taxa: null, semTaxa: null })
-    expect(b.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
-    expect(JSON.stringify(b)).not.toMatch(/zero|medidos em/i)
+    expect(b).toMatchObject({ medido: true, frase: null, taxa: null, semTaxa: null })
+    const c = b.grafico!.cedo!
+    expect(c.tipo).toBe('video-novo')
+    expect(c.casas).toHaveLength(7)
+    expect(c.casas.some(x => x.estado === 'zero-medido')).toBe(false)
+    expect(c.frase).toMatch(/^Vídeo novo\. Publicado há 1 dia\. O YouTube entrega as impressões de cada dia 2 a 3 dias depois\. O gráfico volta .* \(faltam 5 dias\)/)
+    expect(b.grafico!.colunas).toHaveLength(0)
   })
 
-  it('vídeo de 2 dias (o "vídeo novo" da fixture): a mesma frase', () => {
+  it('vídeo de 2 dias (o "vídeo novo" da fixture): a mesma faixa (publicado ontem: faltam 5 dias)', () => {
     const b = blocos(W, ok(W), novoId).impressoes!
-    expect(b).toMatchObject({ medido: false, grafico: null })
-    expect(b.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
+    expect(b).toMatchObject({ medido: true, frase: null })
+    expect(b.grafico!.cedo).toMatchObject({ tipo: 'video-novo' })
+    expect(b.grafico!.cedo!.frase).toContain('faltam 5 dias')
   })
 
   it('vídeo de 3 dias: um dia só no gráfico (o da publicação), o resto não existe; 400 impressões, 20 cliques', () => {
@@ -163,12 +168,34 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     expect(g.legenda.map(l => l.situacao)).toContain('publicacao')
   })
 
-  it('vídeo de 5 dias sem nenhuma impressão: dias desde a publicação em zero medido (só 3, não 19); a taxa não existe', () => {
+  it('vídeo de 5 dias sem nenhuma impressão (tela A): "ainda cedo", a faixa com os 3 dias medidos em zero, a frase cita as views e a taxa não existe', () => {
     const { w, id } = comVidaDe(5)
-    const sem = ok(w, { alcance: { ...dadoDe(w).alcance, linhas: dadoDe(w).alcance.linhas.filter(l => l.ytId !== w.obs.videos.find(v => v.id === id)!.ytId) } })
+    const v = w.obs.videos.find(x => x.id === id)!
+    const sem = ok(w, { alcance: { ...dadoDe(w).alcance, linhas: dadoDe(w).alcance.linhas.filter(l => l.ytId !== v.ytId) } })
     const b = blocos(w, sem, id).impressoes!
-    expect(b.grafico!.colunas).toHaveLength(3)
-    expect(b.grafico!.colunas.every(c => c.situacao === 'zero-medido')).toBe(true)
+    const c = b.grafico!.cedo!
+    expect(c.tipo).toBe('ainda-cedo')
+    expect(c.casas.filter(x => x.estado === 'zero-medido')).toHaveLength(3)
+    expect(c.frase).toMatch(/^Ainda cedo para ler as impressões\. 3 dias medidos, todos com 0; /)
+    expect(c.frase).toContain(`o vídeo já teve ${w.obs.fmt.int(v.views ?? 0)} views`)
+    expect(b.taxa).toBeNull()
+  })
+
+  it('vídeo de 5 dias com impressão em algum dia: volta o gráfico (a faixa só vale com todos os dias medidos em 0)', () => {
+    const { w, id, dados } = comVidaDe(5)
+    expect(blocos(w, dados, id).impressoes!.grafico!.cedo).toBeNull()
+  })
+
+  it('vídeo de 7 dias com todos os dias medidos em 0 (tela A, dia 7): o gráfico volta só com a linha do 0, sem a faixa dos cliques, e o resumo cita as views', () => {
+    const { w, id } = comVidaDe(7)
+    const v = w.obs.videos.find(x => x.id === id)!
+    const a0 = dadoDe(w).alcance
+    const linhas = a0.linhas.filter(l => l.ytId !== v.ytId)
+    const b = blocos(w, ok(w, { alcance: { ...a0, linhas } }), id).impressoes!
+    const g = b.grafico!
+    expect(g.cedo).toBeNull()
+    expect(g).toMatchObject({ soZeros: true, faixaCliques: false, ticks: [0] })
+    expect(g.resumo).toMatch(/^Nenhuma impressão nos \d+ dias medidos, mas o vídeo teve .* views\. O relatório de alcance do YouTube pode estar incompleto/)
     expect(b.taxa).toBeNull()
   })
 
