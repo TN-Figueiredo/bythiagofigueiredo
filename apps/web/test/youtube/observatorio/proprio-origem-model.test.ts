@@ -331,8 +331,9 @@ describe('origem-model: fronteira', () => {
     const src = readFileSync(__dirname + '/../../../src/app/cms/(authed)/youtube/competitors/_proprio/origem-model.ts', 'utf8')
     const imports = [...src.matchAll(/^import\s+(type\s+)?[^'"]*from\s+'([^']+)'/gm)]
     for (const [, tipo, de] of imports) {
-      expect(de, de).not.toMatch(/^react|server-only|proprio\/ler(-retencao|-dimensoes|-diario-periodo)?$|dados-termos|supabase/)
-      if (/dados-origem/.test(de!)) expect(tipo, 'dados-origem só como tipo').toBeTruthy()
+      expect(de, de).not.toMatch(/^react|server-only|dados-termos|supabase/)
+      // dos leitores e de dados-origem só TIPOS (apagados na compilação); nenhum import de valor
+      if (/proprio\/ler(-retencao|-dimensoes|-diario-periodo)?$|dados-origem/.test(de!)) expect(tipo, de + ' só como tipo').toBeTruthy()
     }
   })
 })
