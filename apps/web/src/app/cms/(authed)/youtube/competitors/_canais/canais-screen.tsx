@@ -103,6 +103,29 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
+/** A5 2ª leva T9: a barra de ordenação dos cartões (sem tabela não há cabeçalho para clicar). Presa abaixo da barra do topo; quebra a linha, sem rolagem. */
+const ORDEM_DA_BARRA: ReadonlyArray<{ k: CanaisSort; nome: string }> = [
+  { k: 'subs', nome: 'Inscritos' }, { k: 'vpd', nome: 'Views/dia' }, { k: 'growth', nome: 'Crescimento' }, { k: 'direcao', nome: 'Direção' },
+  { k: 'active', nome: 'Ritmo' }, { k: 'outliers', nome: 'Outliers' }, { k: 'swaps', nome: 'Trocas' },
+]
+function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'desc'; onSort: (k: CanaisSort) => void }) {
+  return (
+    <div role="group" aria-label="Ordenar canais" className="sortbar" data-testid="canais-sortbar">
+      {ORDEM_DA_BARRA.map(o => {
+        const ativo = sort === o.k
+        return (
+          // o nome acessível diz a ordem ("Inscritos, maior primeiro"); a seta é só forma, escondida do leitor de tela
+          <button key={o.k} type="button" aria-pressed={ativo} className={'btn' + (ativo ? ' on' : '')} onClick={() => onSort(o.k)}
+            aria-label={ativo ? `${o.nome}, ${dir === 'desc' ? 'maior primeiro' : 'menor primeiro'}` : undefined}>
+            {o.nome}
+            {ativo ? <span aria-hidden="true">{dir === 'desc' ? ' ↓' : ' ↑'}</span> : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
@@ -393,7 +416,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     pedidoOrd.current = { sort: k, dir: asc ? 'asc' : 'desc' }
     go({ sort: k === DEFAULT_SORT ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
   }
-  const onCardSort = (k: CanaisSort) => { pedidoOrd.current = { sort: k, dir: 'desc' }; go({ sort: k === DEFAULT_SORT ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true }) }
   // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
   const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
   // Formato: a URL sempre o traz (inclusive Longos) e o navegador o lembra; a escolha é anunciada no status
@@ -485,11 +507,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <button type="button" aria-pressed={layout === 'cards'} onClick={() => pickLayout('cards')}>Cards</button>
             </div>
             )}
-            <label className="cardsort"><span className="sr">Ordenar cards por</span>
-              <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
-                <option value="vpd">Views/dia</option><option value="subs">Inscritos</option><option value="active">Ritmo</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
-              </select>
-            </label>
           </div>
           {view.fmtNota ? <p className="cn-fnota" data-k="fmt-nota">{view.fmtNota}</p> : null}
           {view.conjuntoAviso ? <p className="cn-fnota" data-k="conjunto-aviso">{view.conjuntoAviso}</p> : null}
@@ -529,7 +546,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
           {layout === 'table'
             ? <ChannelTable view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
-            : <ChannelCards view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
+            : <><BarraDeOrdem sort={sort} dir={dir} onSort={onSort} /><ChannelCards view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} empty={empty} busy={listBusy} /></>}
 
           {!ql && concorrentes.length > permitidos.size ? (
             <>

@@ -203,16 +203,16 @@ describe('Canais · immediate feedback', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('Cards: "Ordenar cards por" keeps the picked option while the new order is on the way', async () => {
+  it('Cards: a barra de ordenação mantém o botão escolhido enquanto a nova ordem está a caminho (A5 2ª leva: no lugar do select)', async () => {
     const user = userEvent.setup()
     const r = render(tree({ layout: 'cards' }))
-    const sel = () => screen.getByRole('combobox', { name: 'Ordenar cards por' })
-    await user.selectOptions(sel(), 'outliers')
+    const btn = () => screen.getByRole('button', { name: /^Outliers/ })
+    await user.click(btn())
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=outliers', { scroll: false })
-    expect(sel()).toHaveValue('outliers')
+    expect(btn()).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelector('.cards')).toHaveAttribute('aria-busy', 'true')
     await answer(r, { layout: 'cards', sort: 'outliers' })
-    expect(sel()).toHaveValue('outliers')
+    expect(btn()).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelector('.cards')).not.toHaveAttribute('aria-busy')
   })
 
