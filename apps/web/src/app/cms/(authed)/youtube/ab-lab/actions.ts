@@ -19,9 +19,10 @@ import type {
   VariantMetadata,
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { channelAccountIdForVideo, CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
+import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { resolveVideoChannel, resolveYouTubeVideoId } from '@/lib/youtube/ab-video-context'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
@@ -43,27 +44,6 @@ export async function getVideoTestHistory(
   ...args: Parameters<typeof _getVideoTestHistory>
 ): ReturnType<typeof _getVideoTestHistory> {
   return _getVideoTestHistory(...args)
-}
-
-const CHANNEL_NOT_IDENTIFIED = CHANNEL_NOT_IDENTIFIED_MESSAGE
-
-/**
- * O id "UC…" do canal dono do vídeo, ou a mensagem pronta para a tela. Nunca cai em
- * "a conexão mais recente": sem canal identificado a operação não sai.
- */
-async function resolveVideoChannel(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  siteId: string,
-  internalVideoId: string,
-): Promise<{ ok: true; channelAccountId: string } | { ok: false; error: string }> {
-  try {
-    const channelAccountId = await channelAccountIdForVideo(supabase, siteId, internalVideoId)
-    if (!channelAccountId) return { ok: false, error: CHANNEL_NOT_IDENTIFIED }
-    return { ok: true, channelAccountId }
-  } catch (e) {
-    Sentry.captureException(e, { tags: { area: 'ab-lab' }, extra: { stage: 'resolve-video-channel', internalVideoId } })
-    return { ok: false, error: CHANNEL_NOT_IDENTIFIED }
-  }
 }
 
 async function requireEditAccess(): Promise<string> {
@@ -626,18 +606,6 @@ export async function pullPipelineThumbnails(
  * Resolve the YouTube Data API video ID (youtube_video_id column on youtube_videos)
  * given the FK stored in ab_tests (which is the PK of youtube_videos).
  */
-async function resolveYouTubeVideoId(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  internalVideoId: string,
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('youtube_videos')
-    .select('youtube_video_id')
-    .eq('id', internalVideoId)
-    .single()
-  return (data?.youtube_video_id as string | null) ?? null
-}
-
 // ---------------------------------------------------------------------------
 // startAbTest
 // ---------------------------------------------------------------------------

@@ -9,12 +9,13 @@ export async function setThumbnail(
   videoId: string,
   imageBuffer: Buffer,
   contentType: 'image/png' | 'image/jpeg',
-  accessToken: string
+  accessToken: string,
+  f: typeof fetch = fetch,
 ): Promise<SetThumbnailResult> {
   const url = `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await f(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
