@@ -11,6 +11,7 @@
  * Nenhum texto daqui afirma causa: o painel já escreve "Não prova causa" e o pacote repete isso nos avisos.
  */
 import type { Hero, MudancasView, Rich } from '../_mudancas/view-model'
+import type { ForjaView } from '../_chrome/forja-view-model'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { BlocoCitado, Celula, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -133,6 +134,10 @@ export const INVENTARIO_MUDANCAS: Inventario = {
   'forjaCard.openNiche': CTRL, 'forjaCard.outSummary': 'base', 'forjaCard.outText': 'base', 'forjaCard.shorts': CTRL, 'forjaCard.shorts.text': 'base', 'forjaCard.shorts.href': END,
   'forjaCard.confirm': CTRL, 'forjaCard.confirm.*': CTRL,
 }
+
+/** As entradas do inventário que descrevem a forja, para outro modelo que a leve sob `prefixo` (a tela do canal). */
+export const inventarioDaForja = (prefixo: string): Inventario =>
+  Object.fromEntries(Object.entries(INVENTARIO_MUDANCAS).filter(([k]) => k.startsWith('forja')).map(([k, v]) => [prefixo + k, v]))
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
 export const SEM_FOLHA_NA_MATRIZ_MUDANCAS: readonly string[] = ['forja.card.lines[]', 'forja.niches[].reading.moreItems[]', 'forja.niches[].reading.siteNotes[]', 'forjaCard.confirm']
@@ -287,12 +292,13 @@ function tabelaDoQuadro(m: ModeloMudancas): Tabela[] {
     }))]
 }
 
-function tabelaDaForja(m: ModeloMudancas): Tabela[] {
+/** O que o site escreve sobre cada leitura da forja. `raiz` é o caminho da forja no modelo (a tela do canal a usa com outro modelo). */
+export function tabelaDaForjaDe(forja: ForjaView, raiz: string): Tabela[] {
   const linhas: Celula[][] = []
-  m.forja.niches.forEach((b, i) => {
+  forja.niches.forEach((b, i) => {
     const r = b.reading
     if (!r) return
-    const p = `modelo.forja.niches[${i}]`
+    const p = `${raiz}.niches[${i}]`
     const nome = (): Celula => rotulo(b.label, `${p}.label`)
     linhas.push([nome(), base(r.when, `${p}.reading.when`)])
     if (r.countText) linhas.push([nome(), base(r.countText, `${p}.reading.countText`)])
@@ -320,11 +326,11 @@ function citadosDasDescricoes(m: ModeloMudancas): BlocoCitado[] {
   })
 }
 
-function citadosDaForja(m: ModeloMudancas): BlocoCitado[] {
-  return m.forja.niches.flatMap((b, i): BlocoCitado[] => {
+export function citadosDaForjaDe(forja: ForjaView, raiz: string): BlocoCitado[] {
+  return forja.niches.flatMap((b, i): BlocoCitado[] => {
     const r = b.reading
     if (!r) return []
-    return [{ rotulo: r.seal, texto: [...(r.lead ? [r.lead] : []), ...r.items.map((t) => `- ${t}`)].join('\n'), origem: `modelo.forja.niches[${i}].reading` }]
+    return [{ rotulo: r.seal, texto: [...(r.lead ? [r.lead] : []), ...r.items.map((t) => `- ${t}`)].join('\n'), origem: `${raiz}.niches[${i}].reading` }]
   })
 }
 
@@ -350,14 +356,14 @@ function definicoesDe(m: ModeloMudancas): PacoteModelo['definicoes'] {
 export function empacotarMudancas(modelo: ModeloMudancas): PacoteModelo {
   const tabelas: Tabela[] = [
     ...tabelaDoQuadro(modelo), ...tabelaDeTrocas(modelo), ...tabelasDeEfeito(modelo), ...tabelaDeTitulos(modelo), ...tabelaDeThumbs(modelo),
-    ...tabelaDeDescricoes(modelo), ...tabelaDeNotas(modelo), ...tabelaDaForja(modelo),
+    ...tabelaDeDescricoes(modelo), ...tabelaDeNotas(modelo), ...tabelaDaForjaDe(modelo.forja, 'modelo.forja'),
   ]
   return {
     tela: 'mudancas',
     janela: `${modelo.derivado.nichoRotulo} ${modelo.ledger.winLabel}`,
     foco: [],
     tabelas,
-    citados: [...citadosDasDescricoes(modelo), ...citadosDaForja(modelo)],
+    citados: [...citadosDasDescricoes(modelo), ...citadosDaForjaDe(modelo.forja, 'modelo.forja')],
     definicoes: definicoesDe(modelo),
     avisos: avisosDe(modelo),
     naoMede: [NAO_MEDE_CAUSA, NAO_MEDE_NAO_ACOMPANHADOS, NAO_MEDE_RETENCAO],
