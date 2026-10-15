@@ -68,6 +68,35 @@ describe('lote rápido: aviso de canais fora da lista', () => {
     await user.click(screen.getByRole('button', { name: /^Mostrar mais/ }))
     expect(container.querySelectorAll('[data-k="aviso-fora-da-lista"]').length).toBe(0)
   })
+  function comDescendoFora() {
+    const o = mundoGrande()
+    const base = vw({ medidas: medidasDoMotor(o), limit: 120 }, o)
+    const fora = [...base.list.ranked, ...base.list.unranked].filter(r => !r.own)[60]!
+    return { o, medidas: medidasDoMotor(o, { [fora.id]: { m3a: direcaoMedida(50, 100) } }) }
+  }
+  it('o atalho "Ver descendo" acende o anel da casa no clique, antes do servidor responder', async () => {
+    replace.mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    const { o, medidas } = comDescendoFora()
+    const { container } = mount({ medidas, limit: 120 }, o)
+    expect(container.querySelector('.obs-cn-casa.desce')!.getAttribute('aria-pressed')).toBe('false')
+    const aviso = [...container.querySelectorAll('[data-k="aviso-fora-da-lista"]')].find(x => x.textContent?.includes('descendo'))!
+    await user.click(within(aviso as HTMLElement).getByRole('button', { name: 'Ver descendo' }))
+    expect(container.querySelector('.obs-cn-casa.desce')!.getAttribute('aria-pressed')).toBe('true')
+  })
+  it('com direção ligada, não há aviso', () => {
+    const { o, medidas } = comDescendoFora()
+    const { container } = mount({ medidas, limit: 120, direcao: 'sobe' }, o)
+    expect(container.querySelectorAll('[data-k="aviso-fora-da-lista"]').length).toBe(0)
+  })
+  it('com busca digitada, não há aviso', async () => {
+    const user = userEvent.setup()
+    const { o, medidas } = comDescendoFora()
+    const { container } = mount({ medidas, limit: 120 }, o)
+    expect(container.querySelectorAll('[data-k="aviso-fora-da-lista"]').length).toBeGreaterThan(0)
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar canal' }), 'Canal sintético')
+    expect(container.querySelectorAll('[data-k="aviso-fora-da-lista"]').length).toBe(0)
+  })
   it('sem canal medido fora do corte, não há aviso', () => {
     const { container } = mount({ medidas: medidasDoMotor(obs) })
     expect(container.querySelector('[data-k="aviso-fora-da-lista"]')).toBeNull()

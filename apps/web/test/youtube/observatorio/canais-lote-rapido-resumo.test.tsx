@@ -19,12 +19,13 @@ import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrom
 import { direcaoMedida, medidasDoMotor } from './canais-e5a-fixture'
 
 const replace = vi.fn()
+let busca = ''
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace, refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
   usePathname: () => '/cms/youtube/competitors',
-  useSearchParams: () => new URLSearchParams(''),
+  useSearchParams: () => new URLSearchParams(busca),
 }))
-beforeEach(() => { replace.mockReset() })
+beforeEach(() => { replace.mockReset(); busca = '' })
 
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 const vw = (p: Partial<CanaisParams> = {}, o = obs) => buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
@@ -82,7 +83,10 @@ describe('lote rápido: retorno imediato do clique na casa (Gio, 14/10)', () => 
     const user = userEvent.setup()
     const { container } = mount({ medidas: medidasDoMotor(obs), direcao: 'sobe' })
     const linha = container.querySelector('[data-k="estado-do-filtro"]')!
-    expect(linha.textContent).toMatch(/^Mostrando \d+ de \d+ canais · subindo · limpar$/)
+    const v = vw({ medidas: medidasDoMotor(obs), direcao: 'sobe' })
+    const n = [...v.list.ranked, ...v.list.unranked].filter(r => !r.own).length
+    expect(n).toBeGreaterThan(0)
+    expect(linha.textContent).toBe(`Mostrando ${n} de ${v.resumo.direcao.canais} canais · subindo · limpar`)
     await user.click(within(linha as HTMLElement).getByRole('button', { name: 'limpar' }))
     expect(replace.mock.calls.at(-1)![0]).not.toContain('direcao=')
   })
@@ -96,5 +100,68 @@ describe('lote rápido: retorno imediato do clique na casa (Gio, 14/10)', () => 
     expect(zero.tagName).toBe('BUTTON')
     expect(zero.disabled).toBe(false)
     expect(zero.classList.contains('z')).toBe(true)
+  })
+})
+
+describe('lote rápido: consertos da revisão do Yannis e do Gio (14/10)', () => {
+  const spy = vi.fn()
+  const reduzir = (sim: boolean) => { window.matchMedia = vi.fn((q: string) => ({ matches: sim && q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia }
+  beforeEach(() => { spy.mockReset(); Element.prototype.scrollIntoView = spy; reduzir(false) })
+  const medidas = () => medidasDoMotor(obs)
+  function ligando(reduz: boolean) {
+    reduzir(reduz)
+    const a = mount({ medidas: medidas() })
+    expect(spy).not.toHaveBeenCalled()
+    const v = vw({ medidas: medidas(), direcao: 'sobe' })
+    a.rerender(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+    return a
+  }
+  it('ao ligar a direção, rola até o bloco do resumo (início), suave; com movimento reduzido, sem animação', () => {
+    const a = ligando(false)
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' })
+    expect((spy.mock.contexts[0] as HTMLElement).getAttribute('data-k')).toBe('resumo')
+    a.unmount(); spy.mockReset()
+    ligando(true)
+    expect(spy).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
+  })
+  it('com a lista longe da casa (tela estreita), rola até a linha "Mostrando N de M", que fica logo acima da lista', () => {
+    const real = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const k = this.getAttribute('data-k'), y = k === 'resumo' ? 0 : k === 'estado-do-filtro' ? 1300 : 0
+      return { top: y, bottom: y + 20, left: 0, right: 390, width: 390, height: 20, x: 0, y, toJSON() {} } as DOMRect
+    }
+    try { ligando(false) } finally { Element.prototype.getBoundingClientRect = real }
+    expect((spy.mock.contexts[0] as HTMLElement).getAttribute('data-k')).toBe('estado-do-filtro')
+  })
+  it('a linha de estado fica logo acima da barra de busca e da lista, não dentro do bloco das casas', () => {
+    const { container } = mount({ medidas: medidas(), direcao: 'sobe' })
+    const linha = container.querySelector('[data-k="estado-do-filtro"]')!
+    expect(linha.closest('[data-k="resumo"]')).toBeNull()
+    expect(linha.nextElementSibling?.className ?? '').toContain('toolbar')
+  })
+  it('abrir a página já com a direção ligada, e limpar o filtro, não rolam', () => {
+    const a = mount({ medidas: medidas(), direcao: 'sobe' })
+    expect(spy).not.toHaveBeenCalled()
+    a.rerender(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw({ medidas: medidas() })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+    expect(spy).not.toHaveBeenCalled()
+  })
+  it('"limpar" tira os dois filtros da URL', async () => {
+    busca = 'filter=parados&direcao=sobe'
+    const user = userEvent.setup()
+    const { container } = mount({ medidas: medidas(), direcao: 'sobe', filter: 'parados' })
+    await user.click(within(container.querySelector('[data-k="estado-do-filtro"]') as HTMLElement).getByRole('button', { name: 'limpar' }))
+    const url = replace.mock.calls.at(-1)![0] as string
+    expect(url).not.toContain('filter=')
+    expect(url).not.toContain('direcao=')
+  })
+  it('trocar de casa: a linha "Mostrando N de M" some até o servidor responder (não mostra o número de um filtro com o nome de outro)', async () => {
+    replace.mockReturnValue(new Promise(() => {}))
+    busca = 'direcao=sobe'
+    const user = userEvent.setup()
+    const { container } = mount({ medidas: medidas(), direcao: 'sobe' })
+    expect(container.querySelector('[data-k="estado-do-filtro"]')).not.toBeNull()
+    await user.click(container.querySelector('.obs-cn-casa.estavel')!)
+    expect(container.querySelector('[data-k="estado-do-filtro"]')).toBeNull()
   })
 })

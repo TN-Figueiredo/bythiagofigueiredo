@@ -29,7 +29,7 @@ import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import { OwnBlockView } from './own-block'
-import { ResumoBloco } from './resumo-bloco'
+import { ResumoBloco, EstadoDoFiltro } from './resumo-bloco'
 import { PePreso } from './pe-preso'
 import { RiAtalhos, RiSecoes } from './ri-secoes'
 import { RiFronteira } from './ri-fronteira'
@@ -322,14 +322,18 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }, [concorrentes, permitidos, ql, direcaoLigada])
   // o anel da casa aparece no clique (otimista), não quando o servidor responde
   const resumoExibido = useMemo(() => opt.direcao === undefined ? view.resumo : { ...view.resumo, casas: view.resumo.casas.map(c => ({ ...c, pressed: c.chave === opt.direcao })) }, [view.resumo, opt.direcao])
-  const filtrando = view.filter !== 'todos' || direcaoLigada !== null
+  // com direção pendente (clique otimista) o número ainda é o do filtro anterior: a linha espera o servidor
+  const filtrando = (view.filter !== 'todos' || direcaoLigada !== null) && opt.direcao === undefined
   // ao ligar uma direção, a lista filtrada vem à vista (sem animação para quem pede menos movimento)
   const direcaoAntes = useRef(direcaoLigada)
   useEffect(() => {
     if (direcaoAntes.current !== direcaoLigada && direcaoLigada !== null) {
-      const caixa = telaRef.current?.querySelector<HTMLElement>('.tablebox, .cards')
+      const bloco = telaRef.current?.querySelector<HTMLElement>('.obs-cn-res')
+      const linha = telaRef.current?.querySelector<HTMLElement>('[data-k="estado-do-filtro"]')
+      // se o bloco do resumo e a lista não cabem juntos na janela (tela estreita), rola até a linha "Mostrando N de M", que está logo acima da lista
+      const cabe = !bloco || !linha || linha.getBoundingClientRect().bottom - bloco.getBoundingClientRect().top + 120 <= window.innerHeight
       const reduzido = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      caixa?.scrollIntoView?.({ block: 'nearest', behavior: reduzido ? 'auto' : 'smooth' })
+      ;(cabe ? bloco : linha)?.scrollIntoView?.({ block: 'start', behavior: reduzido ? 'auto' : 'smooth' })
     }
     direcaoAntes.current = direcaoLigada
   }, [direcaoLigada])
@@ -455,11 +459,11 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           <ResumoBloco resumo={resumoExibido}
             onFiltro={f => go({ filter: f }, { busy: true })}
             onDirecao={d => go({ direcao: d }, { busy: true, direcao: d })}
-            mostrando={filtrando ? { n: concorrentes.length, de: view.resumo.direcao.canais } : null}
-            onLimpar={() => go({ filter: null, direcao: null }, { busy: true, direcao: null })} />
+          />
           {ri ? <RiAtalhos ri={ri} /> : null}
           {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
+          {filtrando ? <EstadoDoFiltro resumo={resumoExibido} mostrando={{ n: concorrentes.length, de: view.resumo.direcao.canais }} onLimpar={() => go({ filter: null, direcao: null }, { busy: true, direcao: null })} /> : null}
           <div className="toolbar">
             <div className="search">
               <Ic n="search" />
@@ -526,7 +530,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               return (
                 <p key={k} className="obs-cn-fora" data-k="aviso-fora-da-lista">
                   Ainda há {n} {n === 1 ? 'canal' : 'canais'} {palavra} fora desta lista.{' '}
-                  <button type="button" className="obs-cn-fr-bt" onClick={() => go({ direcao: k }, { busy: true })}>Ver {palavra}</button>
+                  <button type="button" className="obs-cn-fr-bt" onClick={() => go({ direcao: k }, { busy: true, direcao: k })}>Ver {palavra}</button>
                 </p>
               )
             })}

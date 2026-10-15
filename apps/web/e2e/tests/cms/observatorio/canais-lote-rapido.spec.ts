@@ -1,7 +1,7 @@
 // A5 E5a, lote rápido da tela Canais (Gio, 15/10): o clique numa casa de Direção tem retorno que o dono VÊ sem rolar à mão.
 // Defeito de origem: a lista fica abaixo da dobra e o clique só mudava algo fora da tela. Critério verificável:
 //  (a) em até 1 s do clique a casa está aria-pressed=true (anel otimista, antes de o servidor responder);
-//  (b) quando a lista filtrada chega, a casa ligada, a linha "Mostrando N de M canais · filtro · limpar" e a 1ª linha da lista
+//  (b) quando a lista filtrada chega (a 390 a casa pode sair da janela; só linha de estado + 1ª linha), a casa ligada, a linha "Mostrando N de M canais · filtro · limpar" e a 1ª linha da lista
 //      estão TODAS dentro da janela, sem o teste rolar nada (a página rola sozinha até onde precisa).
 // Sem esperas fixas: toBeInViewport / toHaveAttribute repetem até o prazo.
 // Semente: oráculo com ownPreset '2' (11 concorrentes "sem mudança") + 30 concorrentes sintéticos só no banco local (20 sem mudança, 10 subindo), de modo que a
@@ -92,6 +92,8 @@ for (const [w, h] of [[1440, 900], [390, 844]] as const) {
         primeira: aVista(raiz.querySelector('tr.obs-cn-row[data-id], article.card[data-id]')),
       }
     })
-    expect(visto, 'casa ligada, linha de estado e 1ª linha da lista filtrada, todas à vista ao mesmo tempo').toEqual({ casa: true, estado: true, primeira: true })
+    // 1440: casa + linha de estado + 1ª linha, tudo à vista. 390: a casa pode sair (1.200 px a separam da lista); linha de estado + 1ª linha têm de estar à vista (decisão de 14/10, parecer do Gio)
+    if (w >= 1000) expect(visto, 'casa ligada, linha de estado e 1ª linha da lista filtrada, todas à vista ao mesmo tempo').toEqual({ casa: true, estado: true, primeira: true })
+    else expect({ estado: visto.estado, primeira: visto.primeira }, 'linha de estado e 1ª linha da lista filtrada à vista (a casa pode sair a 390)').toEqual({ estado: true, primeira: true })
   })
 }

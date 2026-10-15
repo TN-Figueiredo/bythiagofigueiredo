@@ -86,7 +86,11 @@ describe('lote rápido: dicas nos cabeçalhos de medida', () => {
     expect(celula).toBeTruthy()
     expect(celula!.querySelector('[title]')).toBeNull()
     const texto = await dica(celula!.querySelector('.tip')!)
-    expect(texto).toMatch(/^De .+ para .+ em 30 dias\. Calculado sobre inscritos arredondados a 3 algarismos\.$/)
+    const id = celula!.closest('tr')!.getAttribute('data-id')!
+    const g = obs.channelStats(id).growth30
+    const subs = (t: number | undefined) => obs.fmt.subs(obs.channels.find(c => c.id === id)!.snapshots.find(x => x.t === t)!.subs).replace(/ (mil|mi)$/, '\u00a0$1')
+    expect(texto).toBe(`De ${subs(g.from)} para ${subs(g.to)} em 30 dias. Calculado sobre inscritos arredondados a 3 algarismos.`)
+    expect(subs(g.from)).not.toBe(subs(g.to))
   })
 })
 

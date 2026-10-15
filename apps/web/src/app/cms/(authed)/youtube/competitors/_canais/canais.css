@@ -4,7 +4,7 @@
 /* tokens of this screen; the shared ones come from the chrome */
 [data-obs-screen="canais"]{
   /* barra de topo da casca do CMS (52 px, presa): mesmo valor de _canal/canal.css; a régua e as abas grudadas do ri.css descem por ela */
-  --obs-topbar-h:52px;
+  --obs-topbar-h:52px;--obs-top:calc(var(--obs-sticky-h,0px) + var(--obs-topbar-h));
   --warning-subtle:var(--warn-subtle);
   --mid:var(--tier-mid);--high:var(--tier-high);--top:var(--tier-top);
   --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);
@@ -556,4 +556,5 @@
 [data-obs-screen="canais"] .obs-cn-fr-bt:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 [data-obs-screen="canais"] .obs-cn-fora{margin:0 0 6px;font-size:13px;line-height:18px;color:var(--text)}
 [data-obs-screen="canais"] .obs-cn-casa.z .obs-cn-casa-b{border:1px solid var(--border-strong);background:var(--surface)}
-[data-obs-screen="canais"] .obs-cn-estado-filtro{margin:0;font-size:13px;line-height:18px;color:var(--text)}
+[data-obs-screen="canais"] :is(.obs-cn-res,.obs-cn-estado-filtro){scroll-margin-top:calc(var(--obs-top) + 8px)}
+[data-obs-screen="canais"] .obs-cn-estado-filtro{margin:0 0 8px;font-size:13px;line-height:18px;color:var(--text)}

@@ -90,6 +90,17 @@ describe('E5a T0b: o retrato antes dos números', () => {
     }
     comTitle(novo)
     // a dica do Crescimento (campo tip, lote rápido de 14/10) é texto novo da tela, não número: fora da comparação
-    expect(JSON.parse(JSON.stringify(retrato, (k, v) => (k === 'tip' ? undefined : v)))).toEqual(novo)
+    // só cells.growth.tip sai; um campo futuro chamado tip em outro lugar continua comparado
+    const semTipDoCrescimento = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(semTipDoCrescimento); return }
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>
+        if (r.cells && typeof r.cells === 'object') { const g = (r.cells as Record<string, unknown>).growth; if (g && typeof g === 'object') delete (g as Record<string, unknown>).tip }
+        Object.values(r).forEach(semTipDoCrescimento)
+      }
+    }
+    const atual = JSON.parse(JSON.stringify(retrato)) as typeof retrato
+    semTipDoCrescimento(atual)
+    expect(atual).toEqual(novo)
   })
 })
