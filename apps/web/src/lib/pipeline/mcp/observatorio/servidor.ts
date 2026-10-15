@@ -3,6 +3,7 @@
 // (esquema estrito da Tarefa 9); o formato abaixo existe para o cliente saber o que pode mandar.
 import 'server-only'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ACOES } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -37,8 +38,13 @@ export function registrarServidorDoObservatorio(server: McpServer, responder: Re
     try {
       const r = await executarChamada(entrada, { sb: getSupabaseServiceClient(), responder, agora: Date.now })
       return { content: [{ type: 'text' as const, text: r.texto }], ...(r.erro ? { isError: true } : {}) }
-    } catch {
-      // "sem contexto" (fora da porta) ou falha imprevista: frase fechada, nada lido
+    } catch (e) {
+      // "sem contexto" (fora da porta) ou falha imprevista: frase fechada, nada lido. Vai ao Sentry SEM a mensagem crua (Yannis I-1).
+      Sentry.captureMessage('observatorio_leitura: falha fora de executarChamada', {
+        level: 'error',
+        tags: { component: 'observatorio-ia', step: 'servidor' },
+        extra: { sem_contexto: e instanceof Error && e.message.startsWith('contexto do Observatório ausente') },
+      })
       return { content: [{ type: 'text' as const, text: 'não foi possível atender: nada foi entregue' }], isError: true }
     }
   })

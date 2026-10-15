@@ -135,6 +135,8 @@ describe('o servidor: o que ele expõe', () => {
     const r = await client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'definicoes' } })
     expect(r.isError).toBe(true)
     expect(textoDe(r)).not.toContain(SENTINELA)
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(captureMessage.mock.calls[0])).not.toContain(SENTINELA)
     expect(responder).not.toHaveBeenCalled()
     expect(banco.ordem).toEqual([])
     expect(() => contextoDoObservatorio()).toThrow()
