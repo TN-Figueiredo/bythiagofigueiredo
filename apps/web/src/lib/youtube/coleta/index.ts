@@ -27,13 +27,14 @@ import { passoMetadados } from './meta-step'
 import { passoNormalizadores } from './normalizadores-step'
 import { notaNomesDesconhecidos, passoDesligado, type PassoComInterruptor } from './passos-desligados'
 import { passoRelatorios } from './reports-step'
+import { TETO_VERSOES_MS, passoVersoes } from './versoes-step'
 import { passoRetencao } from './retencao-step'
 import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
 
 /**
  * Desligar um dos cinco passos antigos é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Os passos novos
- * (retenção, dimensões, normalizadores) não estão aqui: o interruptor deles é a variável YT_OWN_STEPS_OFF (passos-desligados.ts).
+ * (retenção, dimensões, versões, normalizadores) não estão aqui: o interruptor deles é a variável YT_OWN_STEPS_OFF (passos-desligados.ts).
  */
 export const PASSOS_LIGADOS = { metadados: true, jobs: true, relatorios: true, alcance: true, diario: true } as const
 
@@ -178,6 +179,13 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     if (PASSOS_LIGADOS.metadados) {
       const r = await passo('metadados', TETOS_MS.metadados, 'meta', channels, passoMetadados)
       if (r) resumo.metadados = r
+    }
+    // A5 E18 T7: as versões do vídeo próprio, logo depois dos metadados (leem o que eles gravaram). `servidos` vazio de propósito: sem tempo o
+    // passo não registra tentativa (o `kind` não é usado). Desligado por YT_OWN_STEPS_OFF: nada é chamado, e o nome entra em `desligados` na fase 'depois'.
+    if (passoDesligado('versoes')) resumo.versoes = { desligado: true }
+    else {
+      const r = await passo('versoes', TETO_VERSOES_MS, 'meta', [], c => passoVersoes({ ...c, ontem: ontemPt(new Date()) }))
+      if (r) resumo.versoes = r
     }
     if (PASSOS_LIGADOS.jobs) {
       const r = await passo('jobs', TETOS_MS.jobs, 'sondagem', ativos, passoJobs)
@@ -350,6 +358,8 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     const notasRetencao = Array.isArray(semResposta) ? semResposta.filter((n): n is string => typeof n === 'string') : []
     if (notasRetencao.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notasRetencao])]
   }
+
+  if (passoDesligado('versoes')) desligados.push('versoes')
 
   // Passo desligado nunca some: até a 7ª execução seguida é nota em `acao_do_dono`; da 8ª em diante o critério põe o vermelho.
   const nomesRuins = notaNomesDesconhecidos()
