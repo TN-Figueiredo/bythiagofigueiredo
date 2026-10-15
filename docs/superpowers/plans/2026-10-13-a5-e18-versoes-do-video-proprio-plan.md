@@ -1241,3 +1241,109 @@ drop table if exists public.yt_own_video_versions;
 ## Trava do A/B Lab (14/10/2026, pedido da sessão bythiagofigueiredo-00, P3/P4a)
 
 A E18 não entra em funcionamento em produção (T6/T7 com a MG12, T12 e qualquer execução real da semente da T11) sem a emenda das ordens 3, 3b, 4 e 4b lendo `public.ab_test_restores` (Migration 0 do A/B, `20261014000005_ab_restore_status.sql`). Regras de leitura: `escreveu` nulo = `nao_se_sabe`; destino = id da variante ou `'original'`; `em_andamento` há mais de 15 min = interrompido (`lerCampoDeRestauracao` da P4a). O lote puro de 14/10 (T2, T3, T4, T5, T8, T9, T11 em simulação) pode ir ao staging/main porque é inerte sem a MG12; a emenda entra antes da T6.
+
+## Emenda 15/10: trava do A/B Lab (ab_test_restores)
+
+Esta emenda cumpre a trava acima **sem a P4a**: o código lê a tabela e a coluna da Migration 0 por conta própria, não importa nada de `@/lib/youtube/ab-restore` (que não existe) e, enquanto ninguém grava o histórico, dá **exatamente** o resultado de hoje. Fatos conferidos em 15/10 no `origin/staging` (`3e5af04c0`): T6 está em `apps/web/src/lib/youtube/coleta/versoes-step.ts` (leitura do Lab em `lerLab`, `:432-469`) e a origem em `apps/web/src/lib/youtube/coleta/versoes-origem.ts` (`atribuirOrigem`, `:78-146`), não em `origem.ts`. Quem implementa é uma **Tarefa 6b**, antes de tirar `versoes` de `YT_OWN_STEPS_OFF`; como o critério de passo desligado pinta vermelho a partir da 8ª execução (~23/10), a 6b tem de estar em `main` antes disso ou o passo continua desligado com o vermelho explicado.
+
+### E.1 Quem grava o quê, hoje e depois da P4a
+
+| Peça (Migration 0, `supabase/migrations/20261014000005_ab_restore_status.sql`) | Quem grava hoje | Quem grava depois da P4a |
+|---|---|---|
+| `ab_tests.restore_status` (jsonb, `:31`) e `restore_seq` (`:32`) | **ninguém**: no código só aparecem em `apps/web/src/types/database.types.ts:356` (tipos gerados); todo teste tem `restore_status` nulo | os escritores da P4a (`settleOnAir`, retomar, vigia, rotação, iniciar), plano P4a `:55-63` e `:1576-1603` |
+| `public.ab_test_restores` (`:111-127`) | **ninguém**: só o gatilho `tg_ab_tests_restore_log` (`:143-174`) escreve, e ele só dispara num `update of restore_status` com valor não nulo (`:178-182`) | o mesmo gatilho, uma linha por (teste, `restore_seq`, campo) a cada resultado final; a P4a troca o corpo do gatilho pela guarda D13 (plano P4a `:241` e `:512-541`), sem mudar colunas |
+| estado `em_andamento` | não existe | **só** em `ab_tests.restore_status`: o gatilho pula `em_andamento` (`:156`), então **o histórico nunca tem linha `em_andamento`** e o CHECK da tabela nem aceita esse valor (`:116`) |
+
+A Migration 0 **está aplicada em produção** desde 14/10 22:01 UTC (`.superpowers/sdd/a5/fila-do-db-push.md:76`, aplicada pelo dono; nada foi rodado em produção para esta emenda). Logo, em produção hoje: a tabela existe, está vazia e fica vazia até a P4a; o `select` da coluna nova não quebra. A P4a está pausada por ordem do dono (handoff `2026-10-15-1238-ab-lab-pausa-conferencias-da-manha.md`).
+
+**Regra dos 15 min, declarada (item 6 do "Aviso à A5", plano P4a `:2775-2780`):** a E18 **não usa relógio**. Um campo `em_andamento` com `em` dentro da janela dá `nao_se_sabe` com qualquer idade: abaixo de 15 min o Lab ainda pode escrever, acima de 15 min foi interrompido (`INTERROMPIDO_MIN`, plano P4a `:950`), e nos dois casos a E18 não sabe se a escrita aconteceu antes da captura. Como o dia é derivado uma vez só (`apply_day`), adiar o dia não compensa: a diferença dos 15 min serve à tela da P4a, não à origem. Consequência: nenhuma injeção de `agora` no passo, nenhum relógio falso nos testes novos.
+
+### E.2 Dois mundos por teste
+
+- **Mundo antigo:** `restore_status` nulo **e** nenhuma linha do teste no histórico lido. Vale a seção 4.4 como está (ordens 3, 3b, 4, 4b, 5, 6), sem mudança. É o caso de **todo** teste hoje, e o que garante que a emenda é inerte até a P4a.
+- **Mundo novo:** `restore_status` não nulo (inclusive `{}`) **ou** ao menos uma linha do teste no histórico. Para estes testes, **as ordens 3, 3b, 4 e 4b deixam de ser lidas das colunas** (`winner_applied_at`, `paused_at`, `completed_at`, `completed_reason`) e passam a ser lidas do histórico, como abaixo. As colunas ainda servem para uma coisa: saber que houve parada (ordem R4).
+
+Só os campos `title` e `thumb` mudam; a descrição segue as ordens 1, 2, 3 e 6 como hoje (o histórico não tem campo de descrição). "Teste que mexe no campo" é o `mexe()` de hoje (`versoes-origem.ts:48-51`).
+
+### E.3 A origem nova (o que muda na seção 4.4)
+
+As ordens 1 e 2 não mudam. **A ordem 3, 3b, 4 e 4b passam a valer só para testes do mundo antigo.** Antes delas entra o bloco R, só para testes do mundo novo que mexem no campo:
+
+| Ordem | Condição | Resultado |
+|---|---|---|
+| R1 | Candidatos, todos com instante dentro da janela (pontas inclusas): linhas do histórico do campo com `escreveu` **diferente de false** (instante = `em`); campos `em_andamento` do `restore_status` corrente (instante = `em`); e os ciclos que hoje passariam na ordem 5 (instante = `started_at`, de qualquer teste do vídeo). Vale o de instante mais recente; empate entre linhas, a de `seq` maior; empate entre linha e ciclo, a linha | segue a linha R2 a R5 conforme o vencedor |
+| R2 | vencedor é linha `estado = 'ok'`, `escreveu = true`, `destino = 'original'`. No título, exige também título novo igual a `original_title` (aparado, como a ordem 4); se não bate, o candidato sai e R1 escolhe de novo | `ab_lab`, `restauro`, instante = `em`, `abTestId` = o teste, `abVariantId` nulo |
+| R3 | vencedor é linha `estado = 'ok'`, `escreveu = true`, `destino` = uuid de variante | `ab_lab`, `vencedor`, instante = `em`, `abVariantId` = `destino` |
+| R4 | vencedor é linha com `escreveu` nulo (`falhou` por tempo na escrita, `falhou`/`interrompido`), ou linha contraditória (`escreveu = true` com estado diferente de `ok`), ou campo `em_andamento` | `nao_se_sabe`, `incerta`, `abTestId` = o teste, contado em `origem_ab_incerta`, sem vermelho |
+| R5 | vencedor é um ciclo | `ab_lab`, `rotacao`, como a ordem 5 de hoje |
+| R6 | **Sem candidato do mundo novo, mas parada sem registro:** teste do mundo novo que mexe no campo com `paused_at`, `completed_at` ou `winner_applied_at` dentro da janela, e **nenhuma** linha do histórico desse teste e campo com `em` na janela (de qualquer `escreveu`, inclusive false) e nenhum `em_andamento` desse campo na janela | `nao_se_sabe`, `semRegistro`, `abTestId` = o teste, contado no campo novo `origem_ab_sem_registro`, **com vermelho** (seção E.5) |
+| depois | nenhum dos acima | ordens 3, 3b, 4, 4b só com os testes do mundo antigo; depois 5 e 6 como hoje |
+
+Linhas com `escreveu = false` (`ok` que já estava no destino, `pulado_drift`, `pulado_sem_original`, `desistiu`, `falhou` antes de escrever) **não são candidatos**: o Lab não mudou o campo naquela reivindicação, e a troca vista vem de outra coisa (rotação anterior na janela, ou fora do sistema). Elas contam só como "registro existe" na R6. Isso cobre o item 3 do aviso: `desistiu`/`novo_teste` tem `em` = início do teste novo e não é parada; tirá-la dos candidatos impede que ela esconda uma linha `ok` anterior do mesmo teste na mesma janela.
+
+**Por que a rotação compete por instante no mundo novo** (diferente da ordem 4 antes da 5 de hoje): a justificativa da seção 4.4 ("nenhum ciclo começa depois da parada sem uma retomada, que zera `paused_at`") vale para as colunas, que a retomada apaga. O histórico não é apagado: parada, retomada e rotação no mesmo dia deixam a linha da parada **e** o ciclo novo, e o valor capturado é o do mais recente.
+
+**Tabela "o que acontece quando o dado não existe"** (pergunta 2 do brief; ordens de hoje = 3, 3b, 4, 4b):
+
+| Situação | Ordens 3, 3b, 4, 4b | 5 e 6 ainda pegam? |
+|---|---|---|
+| Teste sem linha no histórico e `restore_status` nulo (todo teste hoje; e todo teste parado antes da P4a) | como hoje (mundo antigo) | sim, como hoje |
+| Teste do mundo novo, parada na janela, sem linha nem `em_andamento` (gatilho ou escritor com defeito) | R6: `nao_se_sabe` + vermelho | não (R6 encerra) |
+| `em_andamento` com `em` na janela, menos de 15 min | R4: `nao_se_sabe`, `incerta` | só se um ciclo for mais recente (R1) |
+| `em_andamento` com `em` na janela, mais de 15 min (interrompido) | R4: idem | idem |
+| `em_andamento` com `em` fora da janela | ignorado | sim |
+| linha `escreveu` nulo | R4 | só se um ciclo for mais recente |
+| linha `escreveu = false` (qualquer estado) | não é evento; impede a R6 | sim: a troca cai em 5 (rotação na janela) ou 6 |
+| linha `escreveu = true`, `ok`, `destino = 'original'` | R2 `restauro` (título exige bater com `original_title`) | só se um ciclo for mais recente |
+| linha `escreveu = true`, `ok`, `destino` = uuid | R3 `vencedor` com a variante | idem |
+| linha `escreveu = true`, estado não `ok` | R4 (contradição; o CHECK permite, a P4a não grava) | idem |
+| `desistiu` / `pulado_*` (sempre `escreveu = false` na P4a) | não é evento, não é parada nova | sim |
+| leitura do histórico com erro, sem resposta ou com 1.000 linhas | ordem 1: `nao_se_sabe` para todas as trocas do canal, nota vermelha de hoje | não |
+
+`restore_status` com forma fora do esperado no código (o CHECK `ab_tests_restore_status_shape` impede; a guarda é defesa): o teste é do mundo novo, e cada campo ilegível conta como `em_andamento` (R4). Nunca cai no mundo antigo por erro de leitura.
+
+### E.4 Leitura, limite, idas e prazo (o que muda nas seções 4.3 e 5.2)
+
+- `ab_tests`: o `select` de `lerLab` (`versoes-step.ts:438`) ganha `restore_status`. Mesma ida. Só os campos `title` e `thumbnail`, e deles só `estado`, `destino` e `em` entram no tipo `TesteAb` (`mundoNovo: boolean`, `emAndamento: { title?: string; thumb?: string }`); `erro` e `motivo` não saem da função.
+- Leitura nova, **uma por canal e execução, só quando há troca e `testes.length > 0`**, logo depois da de ciclos e na mesma janela dela (`de` e `ate` de `versoes-step.ts:449-452`):
+  `ab_test_restores.select('test_id, seq, campo, destino, estado, escreveu, em').in('test_id', <ids dos testes lidos>).gte('em', de).lte('em', ate).order('em', { ascending: false }).limit(1_000)`, embrulhada em `uma()` (`comPrazo`, `:137-140`). Sem `motivo` nem `erro` (texto do YouTube não entra no passo). `campo` `thumbnail` vira `thumb` no tipo.
+- Resposta `null` (prazo) = `'sem_tempo'`, como os ciclos. Erro (inclusive `42P01` num banco sem a Migration 0) ou `data` nulo = `ilegivel()`. **Chegar a 1.000 linhas = `ilegivel()`** (`nao_se_sabe` + a nota de hoje, `TETO_AB`). Erro nunca vira lista vazia: lista vazia é "mundo antigo", e confundir os dois falharia em verde.
+- A janela por troca continua sendo filtrada na função pura; a leitura usa a janela do canal, igual aos ciclos.
+- **A seção 5.2 passa a dizer:** "Dia com troca num canal: + 3 leituras do A/B Lab (testes, ciclos e histórico de restauração; as duas últimas só se o vídeo tem teste), uma vez por canal e execução". **A primeira execução não muda:** o caso 19 não tem troca (as aberturas de 07/10 e 08/10 são linhas de base), não lê o Lab, e a conta fica **N + 8 por canal, 43 com N = 13 e 2 canais**. Pior caso com troca nos dois canais na primeira execução: 43 + 2 × 3 = **49 idas, cerca de 2,5 s a 50 ms**, dentro dos 5 s.
+- Risco aceito: o `em` da linha é o instante gravado pelo Lab, que fica até 60 s (teto da função da P4a) da escrita real no YouTube. Uma parada nos 60 s em torno da captura do dia pode cair do lado errado da janela; o efeito é a troca sair no dia vizinho como `restauro` ou ser vista como `fora_do_sistema`. Outro risco aceito: no dia do deploy da P4a, um vídeo com um teste do mundo antigo e outro do mundo novo na mesma janela resolve primeiro o bloco R e só depois as ordens antigas, sem comparar instantes entre os dois mundos.
+
+### E.5 Resumo, nota e runbook
+
+- `VersoesResumo` ganha `origem_ab_sem_registro: number` (e `resumoVazio` o zera). Com valor maior que zero, **uma** nota vermelha por execução: `versões: <n> troca(s) com parada do A/B Lab sem registro de restauração`. Sem título, sem nome de canal, sem id de vídeo (o id do teste fica gravado na versão, `ab_test_id`).
+- `OrigemAtribuida` ganha `semRegistro?: true` ao lado de `incerta?: true`; `montarAbertura` (`versoes-step.ts:472`) conta os dois.
+- **Runbook** (`docs/ops/youtube-coleta-canais-proprios-runbook.md`, seção 15): a linha da nota "A/B Lab não pôde ser lido" (`:890`) passa a citar `ab_test_restores` ao lado de `ab_tests`/`ab_test_cycles`; a tabela de notas ganha a linha da nota nova (causa: o Lab parou um teste do mundo novo e o gatilho do histórico não gravou; ação: `select * from ab_test_restores where test_id = <ab_test_id da versão>` e `restore_status` do teste; a origem não é corrigida depois); o parágrafo dos campos do resumo (`:899`) ganha `origem_ab_sem_registro` e passa a dizer que `origem_ab_incerta` também conta restauração com `escreveu` nulo e `em_andamento`.
+- **Conferências `e18-*`** (`apps/web/src/lib/conferencias.ts:362-376`): **não mudam**. A d14 já exige "sem nota de versões", o que cobre a nota nova; a d30 agrupa por `origin, ab_event`, que não ganhou valor. O que confere o histórico do lado do Lab é o D+0 da P4a (plano P4a `:2772-2774`), não a E18.
+
+### E.6 Banco falso e testes novos
+
+`apps/web/test/youtube/coleta/fake-supabase.ts` **não muda**: tabela nova é só `db.tables.ab_test_restores` (array), `restore_status` é objeto na linha de `ab_tests`, e `in`, `gte`, `lte`, `order`, `limit` e o corte de 1.000 (`MAX_LINHAS_RESPOSTA`, `:65`) já existem; erro por tabela via `db.errors` ou `erroNaLeitura`. Casos novos, numerados a partir de 33 (O = `versoes-origem.test.ts`, S = `versoes-step.test.ts`); nenhum título de vídeo em nota ou resumo:
+
+| # | Arquivo | Caso | Mutação que o faz falhar |
+|---|---|---|---|
+| 33 | O | Mundo antigo intacto: a tabela de casos atual da Tarefa 4 rodada com `restauros: []` e `mundoNovo: false` dá resultado idêntico | tratar `restore_status` nulo como mundo novo (tudo vira R6) |
+| 34 | O | Thumb: linha `ok`/true/`original` com `em` na janela, `paused_at` uma hora antes → `restauro`, instante = `em` | usar `paused_at` como instante; ignorar a linha |
+| 35 | O | Título: linha `ok`/true/`original` e título novo = `original_title` → `restauro`; título diferente → segue (sem ciclo: `fora_do_sistema`) | tirar a conferência do título na R2 |
+| 36 | O | Linha `ok`/true/uuid → `vencedor` com `abVariantId` = destino | variante nula ou evento `restauro` |
+| 37 | O | `escreveu = false` em `ok`, `pulado_drift`, `pulado_sem_original`, `desistiu`, `falhou`, com `paused_at` na janela: sem ciclo → `fora_do_sistema`; com ciclo de thumb na janela → `rotacao` | deixar a ordem 4 das colunas valer no mundo novo (sairia `restauro`) |
+| 38 | O | `escreveu` nulo (`falhou` por tempo; `falhou`/`interrompido`) → `nao_se_sabe`, `incerta`, com o teste | tratar nulo como true ou como false |
+| 39 | O | `escreveu = true` com `estado = 'falhou'` → `nao_se_sabe`, `incerta` | olhar só o `escreveu` |
+| 40 | O | `em_andamento` com `em` na janela, uma vez 4 min e outra 3 h antes de `ate` → `nao_se_sabe`, `incerta` nos dois; com `em` depois de `ate` → ignorado | ler relógio; ignorar `em_andamento`; não filtrar pela janela |
+| 41 | O | Mais recente vence: `desistiu`/false depois de uma `ok`/true do mesmo teste → `restauro` da `ok`; `ok`/true seguida de ciclo de thumb mais novo na janela → `rotacao`; empate de `em` → `seq` maior | escolher a última linha qualquer; ordem fixa linha antes de ciclo |
+| 42 | O | R6: combo com `restore_status = {}`, `paused_at` na janela, sem linha → `nao_se_sabe`, `semRegistro`; teste `title` parado na janela e troca de thumb → **não** é R6 | tirar o `mexe()`; tirar a R6 (falha em verde) |
+| 43 | O | Linha `pulado_drift`/false na janela conta como registro: sem R6 | contar só candidatos como registro |
+| 44 | O | Descrição: linhas e `em_andamento` não mudam nada (segue 1, 2, 3, 6) | mapear o campo `desc` no bloco R |
+| 45 | O | Borda: `em = de` e `em = ate` entram; `ate + 1 ms` não | `<` no lugar de `<=` |
+| 46 | S | Dia com troca e teste: `ab_test_restores` lido uma vez por canal, com `in(test_id)`, `gte/lte em`, `limit(1000)` e as 7 colunas exatas (sem `motivo`/`erro`); `ab_tests` com `restore_status`; vídeo sem teste → zero leitura do histórico; caso 11 estendido: sem troca → zero leitura do histórico | ler por troca ou por dia; sem filtro de janela; ler `erro` |
+| 47 | S | Histórico com erro `42P01` e com exatamente 1.000 linhas → trocas `nao_se_sabe` e a nota vermelha do caso 10 | erro tratado como lista vazia |
+| 48 | S | Histórico que não responde até o prazo → `sem_tempo`, como os ciclos | leitura fora do `comPrazo` |
+| 49 | S | `origem_ab_sem_registro` conta e dá **uma** nota por execução; `origem_ab_incerta` conta os casos 38 a 40; caso 17 estendido às duas notas | nota por troca; R6 contada em `incerta` |
+| 50 | S | Idas: caso 19 segue `<= 43` e com zero leitura do histórico; canal com troca em dois dias da execução: Lab = 3 idas no total (caso 23 estendido) | ler o histórico por dia |
+
+### E.7 Arquivos da Tarefa 6b
+
+`apps/web/src/lib/youtube/coleta/versoes-origem.ts`, `apps/web/src/lib/youtube/coleta/versoes-step.ts`, `apps/web/test/youtube/coleta/versoes-origem.test.ts`, `apps/web/test/youtube/coleta/versoes-step.test.ts`, `docs/ops/youtube-coleta-canais-proprios-runbook.md`. Nenhuma migration, nenhuma mudança na Migration 0, no banco falso ou em `conferencias.ts`. Com a 6b em `main`, a trava acima está cumprida e a P4a pode ir a produção a qualquer hora sem esperar a E18 (e vice-versa).
