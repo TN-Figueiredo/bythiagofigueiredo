@@ -80,8 +80,9 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(html(), s), s).toBe(true)
     expect(db.trips.length).toBeGreaterThan(0)
     // um cliente para o alcance, o diário e a retenção (`lerDadosDoVideo`) e, depois do primeiro HTML, outro para os cartões de período (`lerDiarioLongo`, no `Suspense`)
-    expect(servico.criado).toBeGreaterThanOrEqual(1); expect(servico.criado).toBeLessThanOrEqual(2)
-    expect(guarda.chamadas).toBe(1)
+    expect(servico.criado).toBeGreaterThanOrEqual(1); expect(servico.criado).toBeLessThanOrEqual(5)
+    // a guarda de leitura (1) e, só quando a origem é lida, a de edição dos termos (dentro de `lerTermosESites`)
+    expect(guarda.chamadas).toBeGreaterThanOrEqual(1); expect(guarda.chamadas).toBeLessThanOrEqual(2)
   })
 
   it('controle positivo da tela B: o nó `periodos` da rota é um Suspense com o esqueleto, e o componente assíncrono dentro dele devolve os três cartões de % assistido por período com a leitura do diário longo', async () => {
@@ -101,6 +102,20 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     guarda.ok = false
     const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ periodos?: unknown }> }> }>
     expect(moldura.props.children.props.children.props.periodos).toBeUndefined()
+  })
+
+  it('E5b T16 (d): quem não tem a prova abre a origem em "só o aviso": nenhum leitor roda, nenhum cliente de serviço é criado, e o HTML do grupo não tem sentinela nem número privado', async () => {
+    guarda.ok = false
+    const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ origem?: ReactElement<{ children: ReactElement<Record<string, unknown>> }> }> }> }>
+    const no = moldura.props.children.props.children.props.origem!.props.children
+    const resolvido = await (no.type as (p: Record<string, unknown>) => Promise<ReactElement>)(no.props)
+    render(resolvido)
+    expect(document.body.textContent).toContain('Dado que você não vê')
+    for (const s of [...TEXTOS_PRIVADOS, 'sentinela-termo-xyz', 'sentinela.example']) expect(temSentinela(html(), s), s).toBe(false)
+    expect(servico.criado).toBe(0)
+    expect(db.trips).toEqual([])
+    // a propriedade `leitura` da origem é nula: o nó leva à rota o que ela sabe, e nenhum token
+    expect(no.props.leitura).toBeNull()
   })
 
   it('controle positivo: o que a rota entrega ao cliente TEM os números para quem edita (a negativa abaixo não passa em vazio)', async () => {

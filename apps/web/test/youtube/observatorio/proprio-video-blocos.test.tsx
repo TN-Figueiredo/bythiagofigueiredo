@@ -227,11 +227,11 @@ describe('retenção, forja e o que falta', () => {
     expect(f.textContent).not.toMatch(/coleta diária/)
   })
 
-  it('"O que ainda não há deste vídeo": origem do tráfego e trocas de título e thumbnail; NÃO lista views por dia nem % assistido', () => {
+  it('"O que ainda não há deste vídeo": só trocas de título e thumbnail (a origem tem a sua seção); NÃO lista views por dia nem % assistido', () => {
     const { container } = montar()
     const t = texto(secao(container, 'O que ainda não há').querySelector('p'))
-    expect(t).toMatch(/Origem do tráfego/)
-    expect(t).toMatch(/trocas de título e thumbnail \(ainda não registradas; gráfico sem marca não quer dizer que não houve troca\)/)
+    expect(t).not.toMatch(/Origem do tráfego/)
+    expect(t).toMatch(/Trocas de título e thumbnail \(ainda não registradas; gráfico sem marca não quer dizer que não houve troca\)/)
     expect(t).not.toMatch(/views por dia|% assistido|retenção/i)
   })
 

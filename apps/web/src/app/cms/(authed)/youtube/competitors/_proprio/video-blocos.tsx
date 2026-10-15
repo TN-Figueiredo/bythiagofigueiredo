@@ -121,8 +121,9 @@ function SecRetencao({ r }: { r: BlocoRetencao }) {
   )
 }
 
+/** `origem` = o grupo "De onde vêm as views" já renderizado no servidor (o `Suspense` de `OrigemDoVideo`), na ordem: depois da Retenção. */
 /** `periodos` = os três cartões de % assistido por período, JÁ renderizados no servidor (o `Suspense` de `AssistidoDoVideo`): o bloco não espera a leitura. */
-export function VideoBlocos({ view, periodos }: { view: VideoBlocosView; periodos?: ReactNode }) {
+export function VideoBlocos({ view, periodos, origem }: { view: VideoBlocosView; periodos?: ReactNode; origem?: ReactNode }) {
   return (
     <>
       {view.acesso === 'ok' && view.views ? <SecViews b={view.views} /> : null}
@@ -130,6 +131,7 @@ export function VideoBlocos({ view, periodos }: { view: VideoBlocosView; periodo
       {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} periodos={periodos} /> : null}
       {view.nota ? <div className="vb-nml vb-privado">{view.acesso === 'erro' ? <span className="vb-falhou">falhou</span> : null}<p data-privado-nota="">{view.nota}</p></div> : null}
       <SecRetencao r={view.retencao} />
+      {origem !== undefined ? <section className="vb-sec" aria-labelledby="vb-ori-h"><h2 id="vb-ori-h">De onde vêm as views</h2>{origem}</section> : null}
       <section className="vb-sec" aria-labelledby="vb-canal-h">
         <h2 id="vb-canal-h">Este vídeo no canal</h2>
         <Reguas view={view.canal.reguas} />

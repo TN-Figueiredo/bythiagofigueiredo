@@ -26,7 +26,10 @@ import { serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/propri
 import { taxaComIntervalo, veredito, type TaxaComIntervalo, type Veredito } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { MIN_DIAS_VPD, vpdDoVideo } from '@/lib/youtube/observatorio/proprio/vpd'
+import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import type { DadosDoVideo, DiarioLongo } from './dados'
+import type { Nivel, OrigemView, PeriodoEntrada } from './origem-model'
 import { cliquesTexto, lerEstado } from './header-model'
 import { buildAssistidoPeriodos, type AssistidoPeriodosView } from './assistido-periodo-model'
 import { buildImpressoes, int, SEM_RELATORIO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
@@ -326,7 +329,7 @@ const FORJA: ForjaIndisponivelView = {
   porque: 'A forja só recebe dados públicos de concorrente; a leitura de vídeo do seu canal ainda não existe.',
 }
 
-const AINDA = 'Origem do tráfego (esta tela ainda não a mostra) e trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
+const AINDA = 'Trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
 
 /* ---------------------------------------------------------------- as réguas */
 
@@ -516,4 +519,50 @@ export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[
   return buildAssistidoPeriodos({
     ...base, acesso: 'ok', normais, videoPct, buracos: { inteiro: bInteiro, '90': b90, '28': b28 }, diarioDesde, ultimoDia,
   })
+}
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------
+ * "De onde vêm as views" (E5b T16 (d)): a entrada pura da origem do vídeo. A página só lê (`lerOrigem`, `lerTermosESites`) e chama estas funções.
+ * ------------------------------------------------------------------------------------------------------------------------------------------ */
+
+/** O último dia da origem: o `ultimoDia` do diário tolerante (os "7 dias" desta tela e os da A4 na mesma página são os mesmos); sem diário, três dias antes de hoje. */
+export function ateDaOrigem(ultimoDia: DiaYt | null, hojePt: DiaYt): DiaYt { return ultimoDia ?? addDays(hojePt, -3) }
+
+/** O nível (4.5): sem prova de leitura, só o aviso; termos negados para quem a página sabe que NÃO edita, sem termos; o resto (inclusive erro, e negado para quem edita) é "tudo". */
+export function nivelDaOrigem(a: { temLeitura: boolean; termos: Privado<DetalheCanal>; podeEditar: boolean }): Nivel {
+  if (!a.temLeitura) return 'so-aviso'
+  if (a.termos.acesso === 'negado' && !a.podeEditar) return 'sem-termos'
+  return 'tudo'
+}
+
+/** A janela das dimensões e do diário curto: "7 dias" sempre; "Desde a publicação" só com a data de publicação, sem passar do começo da coleta (antes dele não há dado). */
+export function janelaDaOrigemDoVideo(a: { ate: DiaYt; publicadoEm: DiaYt | null; ligadoEm: DiaYt }): { de: DiaYt; diarioDesde: DiaYt } {
+  const sete = addDays(a.ate, -6)
+  const longo = a.publicadoEm != null && a.publicadoEm <= a.ate
+  const piso = a.ligadoEm < sete ? a.ligadoEm : sete
+  // nunca depois de `ate - 6`: os "7 dias" precisam da janela inteira, mesmo para um vídeo publicado dentro dela
+  const desde = longo ? (a.publicadoEm! > piso ? a.publicadoEm! : piso) : sete
+  const de = desde > sete ? sete : desde
+  return { de, diarioDesde: sete }
+}
+
+const contagem = (t: ReturnType<typeof totalDoPeriodo>): PeriodoEntrada['videosDoTotal'] => ({ naConta: t.videosNaConta, fora: t.videosFora, parados: t.videosParados, paradosDesde: t.paradosDesde, comBuraco: t.comBuraco })
+
+/** Os períodos do vídeo: "7 dias" e "Desde a publicação" (só com data de publicação). O total vem SEMPRE do diário (`totalDoPeriodo`), nunca do contador público. */
+export function periodosDaOrigemDoVideo(a: { ate: DiaYt; publicadoEm: DiaYt | null; diario: DiarioDoPeriodo | null; diarioInteiro: DiarioDoPeriodo | null }): PeriodoEntrada[] {
+  const sete = addDays(a.ate, -6)
+  const t7 = a.diario ? totalDoPeriodo(a.diario, { de: sete, ate: a.ate }) : null
+  const out: PeriodoEntrada[] = [{ id: '7', rotulo: '7 dias', de: sete, ate: a.ate, totalDoPeriodo: t7?.total ?? null, videosDoTotal: t7 ? contagem(t7) : null }]
+  if (a.publicadoEm != null && a.publicadoEm <= a.ate) {
+    const tt = a.diarioInteiro ? totalDoPeriodo(a.diarioInteiro, { de: null, ate: a.ate }) : null
+    out.push({ id: 'tudo', rotulo: 'Desde a publicação', de: a.publicadoEm, ate: a.ate, totalDoPeriodo: tt?.total ?? null, videosDoTotal: tt ? contagem(tt) : null })
+  }
+  return out
+}
+
+/** O aviso de cobertura (um por requisição, só contagens): períodos com vídeo fora ou parado, e blocos que trazem a linha de contagem de vídeos. */
+export function contagensDeCobertura(view: OrigemView, periodos: readonly PeriodoEntrada[]): { periodosComVideoForaOuParado: number; blocosComContagem: number } | null {
+  const periodosComVideoForaOuParado = periodos.filter(p => p.videosDoTotal != null && (p.videosDoTotal.fora > 0 || p.videosDoTotal.parados > 0)).length
+  const blocosComContagem = view.periodos.reduce((n, p) => n + p.grupo.blocos.filter(b => b.linhasDeContagem.length > 0).length, 0)
+  return periodosComVideoForaOuParado > 0 || blocosComContagem > 0 ? { periodosComVideoForaOuParado, blocosComContagem } : null
 }

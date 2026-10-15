@@ -2,6 +2,10 @@
 // A4 13.4: o modelo dos blocos da tela do VÍDEO próprio (views por dia, impressões e cliques, taxa de clique, % assistido, retenção, "Este vídeo no
 // canal", forja, "o que ainda não há"). Puro: recebe o dado privado JÁ LIDO. Cada estado de dado ausente tem a sua frase e nunca vira zero; com
 // `negado` nenhum número privado entra no modelo (a regra 6 do brief).
+import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import { detalhe as detalheFx, entrada as entradaFx, per as perFx } from './proprio-origem-fixture'
+import { buildOrigem } from '@/app/cms/(authed)/youtube/competitors/_proprio/origem-model'
+import { ateDaOrigem, contagensDeCobertura, janelaDaOrigemDoVideo, nivelDaOrigem, periodosDaOrigemDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { afterEach, describe, it, expect } from 'vitest'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { buildAssistidoDoVideo, buildVideoBlocos, fraseVeredito, type EntradaBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
@@ -380,10 +384,10 @@ describe('retenção, forja e "o que ainda não há"', () => {
     expect(JSON.stringify(f)).not.toMatch(/coleta diária ainda não está no ar/)
   })
 
-  it('"O que ainda não há deste vídeo": origem do tráfego e trocas de título e thumbnail; nem views por dia nem % assistido', () => {
+  it('"O que ainda não há deste vídeo": só trocas de título e thumbnail (a origem agora tem a sua seção); nem views por dia nem % assistido', () => {
     const t = blocos(W).ainda
-    expect(t).toMatch(/origem do tráfego/i)
-    expect(t).toContain('trocas de título e thumbnail')
+    expect(t).not.toMatch(/origem do tráfego/i)
+    expect(t).toContain('Trocas de título e thumbnail')
     expect(t).toContain('gráfico sem marca não quer dizer que não houve troca')
     expect(t).not.toMatch(/views por dia|% assistido|retenção/i)
   })
@@ -578,5 +582,54 @@ describe('buildAssistidoDoVideo (tela B)', () => {
     const comBuraco = monta(longo({ inteiro: periodo(OUTROS, tarde, { primeiro: tarde }) }))
     expect(comBuraco.cartoes[0]!.rotulo).toBe(`Desde ${tarde.slice(8)}/${tarde.slice(5, 7)}/${tarde.slice(0, 4)}`)
     expect(monta(longo()).cartoes[0]!.rotulo).toBe('Canal inteiro')
+  })
+})
+
+/* ================================================================ E5b T16 (d): a entrada pura da origem do vídeo  */
+
+describe('E5b T16 (d): entrada pura de "De onde vêm as views"', () => {
+  const ATE = '2026-10-11'
+  const diarioVazio = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: 'c', de: '2026-10-05', ate: ATE, linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map() } })
+
+  it('ateDaOrigem: o último dia do diário; sem diário, três dias antes de hoje', () => {
+    expect(ateDaOrigem('2026-10-09', '2026-10-13')).toBe('2026-10-09')
+    expect(ateDaOrigem(null, '2026-10-13')).toBe('2026-10-10')
+  })
+
+  it('nivelDaOrigem: sem prova só o aviso; termos negados para quem não edita é sem-termos; erro ou negado para quem edita continua tudo', () => {
+    const ok = { acesso: 'ok' as const, dado: detalheFx() }
+    expect(nivelDaOrigem({ temLeitura: false, termos: { acesso: 'negado' }, podeEditar: false })).toBe('so-aviso')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'negado' }, podeEditar: false })).toBe('sem-termos')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'negado' }, podeEditar: true })).toBe('tudo')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'erro' }, podeEditar: true })).toBe('tudo')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'erro' }, podeEditar: false })).toBe('tudo')
+    expect(nivelDaOrigem({ temLeitura: true, termos: ok, podeEditar: true })).toBe('tudo')
+  })
+
+  it('janelaDaOrigemDoVideo: sempre 7 dias de diário; desde a publicação sem passar do começo da coleta; publicação nula ou depois do fim: só 7 dias', () => {
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: null, ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-10-12', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2019-03-01', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-04', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-09-20', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-04', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-10-08', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+    // coleta ligada depois do começo da janela de 7 dias: a janela não passa de `ate - 6`
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2019-03-01', ligadoEm: '2026-10-09' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+  })
+
+  it('periodosDaOrigemDoVideo: 7 dias e "Desde a publicação" (só com data); o total vem do diário e é nulo com a cobertura desconhecida ou o diário inteiro ausente', () => {
+    const sem = periodosDaOrigemDoVideo({ ate: ATE, publicadoEm: null, diario: diarioVazio(false), diarioInteiro: null })
+    expect(sem.map(p => p.id)).toEqual(['7'])
+    expect(sem[0]).toMatchObject({ rotulo: '7 dias', de: '2026-10-05', ate: ATE, totalDoPeriodo: null })
+    const com = periodosDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-09-01', diario: diarioVazio(true), diarioInteiro: null })
+    expect(com.map(p => p.id)).toEqual(['7', 'tudo'])
+    expect(com[1]).toMatchObject({ rotulo: 'Desde a publicação', de: '2026-09-01', totalDoPeriodo: null, videosDoTotal: null })
+    expect(com[0]!.videosDoTotal).toMatchObject({ naConta: 0 })
+  })
+
+  it('contagensDeCobertura: só contagens; nulo quando nenhum período tem vídeo fora ou parado e nenhum bloco traz a linha de contagem', () => {
+    const limpo = buildOrigem(entradaFx({ periodos: [perFx('7', '7 dias', '2026-10-05', ATE)] }))
+    expect(contagensDeCobertura(limpo, [perFx('7', '7 dias', '2026-10-05', ATE)])).toBeNull()
+    const fora = perFx('7', '7 dias', '2026-10-05', ATE, 3185, { naConta: 34, fora: 1, parados: 0, paradosDesde: null, comBuraco: 0 })
+    expect(contagensDeCobertura(limpo, [fora])).toEqual({ periodosComVideoForaOuParado: 1, blocosComContagem: 0 })
   })
 })
