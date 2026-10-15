@@ -62,6 +62,17 @@ describe('extrasDoDisparo: o sinal', () => {
     expect(sem.acao).toHaveLength(1)
     expect(sem.acao[0]).toContain('2 medida(s)')
   })
+  it('todas as linhas ilegíveis (I-1 N9): agenda há 73 h vai a problemas, uma linha só em acao; há 10 h não vai', () => {
+    const ruim = (d: number): LinhaBruta => ({ day: dia(d), db_bytes: -5, competitor_bytes: 0, own_bytes: 0, measured_at: `${dia(d)}T08:10:00.000Z` })
+    const tudo = Array.from({ length: 29 }, (_, i) => ruim(-i - 1))
+    const longa = extrasDoDisparo(entrada({ sinal: sinalDe(tudo), agendaDesde: new Date(AGORA - 73 * H).toISOString() }))
+    const frase = sinalLido(sinalDe(tudo)).frase
+    expect(longa.problemas).toEqual([frase])
+    expect(longa.acao).toEqual([frase])
+    const curta = extrasDoDisparo(entrada({ sinal: sinalDe(tudo), agendaDesde: new Date(AGORA - 10 * H).toISOString() }))
+    expect(curta.problemas).toEqual([])
+    expect(curta.acao).toEqual([frase])
+  })
   it('amarelo: uma linha em acao e um aviso por site com periodo mes; vermelho: periodo semana; nunca problema (P2)', () => {
     const duasSites = [canal('a'), canal('b', { site_id: 's2' }), canal('c')]
     const a = extrasDoDisparo(entrada({ sinal: amarelo(), todas: duasSites }))
