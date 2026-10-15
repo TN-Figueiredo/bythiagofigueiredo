@@ -914,16 +914,16 @@ Plano: `docs/superpowers/plans/2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final-pla
 
 | Valor | Significado | O que fazer |
 |---|---|---|
-| `indisponivel` | a MG17 ainda não foi aplicada (a função não existe) | nada; é o estado normal até a MG17 |
+| `indisponivel` | a MG17 ainda não foi aplicada (a função existe desde a MG17a e só cobre; quem não existe é `yt_own_meta_linhas_do_meio`) | nada; é o estado normal até a MG17 |
 | `sem_estado` | o canal não tem estado de versões (MG12) | nada no cron; quem acusa canal com linha e sem estado é a prova das versões (seção 15) |
 | `feita` | o enxugamento de um dia rodou | nada |
-| `desligada` | o banco foi desligado pelo roteiro SQL | o cron fica vermelho todo dia até religar (ver "Como desfazer") |
+| `desligada` | `cobertura.pedida` verdadeiro: o banco foi desligado pelo roteiro SQL; `pedida` falso: foi a variável `YT_OWN_META_DIETA_OFF` | o cron fica vermelho todo dia até religar (ver "Como desfazer") |
 
 **Notas vermelhas (`falhas`) e o que fazer.**
 
 | Nota | O que fazer |
 |---|---|
-| `schema_ausente: yt_own_meta_cover` | código no ar sem a MG17a: aplicar a MG17a (dono, `npm run db:push:prod`, fora de 11:55 a 12:15 UTC). Nada é perdido; a primeira execução depois cobre o que ficou para trás |
+| `schema_ausente: yt_own_meta_cover` | código no ar sem a MG17a: aplicar a MG17a (dono, `npm run db:push:prod`, fora de 11:30 a 13:00 UTC e dos minutos 0, 20 e 40 de cada hora). Nada é perdido; a primeira execução depois cobre o que ficou para trás |
 | `erro de banco ao gravar yt_own_meta_cover` / `cobertura de <canal> falhou na chamada` | erro transitório de rede ou banco: olhar de novo no dia seguinte; persistindo, olhar o log da função |
 | `cobertura de <canal> recusada (<código>)` | a função recusou (`canal_fora_do_site`, `argumento_nulo`, `conjunto_invalido`); `erro_desconhecido` = texto fora da lista. Defeito: abrir conserto |
 | `cobertura de <canal> respondeu fora da forma` | nunca vira zeros; conferir a versão da função no banco contra o Apêndice A do plano |
@@ -949,7 +949,7 @@ Plano: `docs/superpowers/plans/2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final-pla
 
 **O fim do alarme `sem_explicacao`.** Duas saídas, com o que se perde em cada uma. (a) Restaurar a linha pelo CSV (volta C): nada se perde, mas só serve para dia que o CSV tem. (b) Retirar o dia da cobertura com `docs/ops/sql/dieta-meta-retirar-dia-da-cobertura.sql` (você roda): o dia vira ausência; uma derivação refeita não avança `last_day_pt` por ele; as versões já derivadas não mudam. **A volta B não resolve esse alarme** (ela exige vizinhas idênticas).
 
-**Depois de uma recusa do `db push`.** A leitura é do controlador (funções auxiliares que podem ter ficado: `yt_own_meta_diet`, `yt_own_meta_diet_contas`, `yt_own_daily_bkp_soltar`). Nenhuma linha: nada ficou. Para cada nome que aparecer, a linha de `drop function if exists` do Apêndice E do plano (você roda), antes da nova tentativa. `yt_own_meta_linhas_do_meio` pode ficar: só lê e a nova tentativa a recria.
+**Depois de uma recusa do `db push`.** A leitura é do controlador (funções auxiliares que podem ter ficado: `yt_own_meta_diet`, `yt_own_meta_diet_contas`, `yt_own_daily_bkp_soltar`). Nenhuma linha: nada ficou. Para cada nome que aparecer, a linha de `drop function if exists` do Apêndice E do plano (você roda), antes da nova tentativa. `yt_own_meta_linhas_do_meio` pode ficar: só lê e a nova tentativa a recria. Ela fica SEM a marca `MG17 aplicada em …` (só a MG17 inteira a grava), e o roteiro de religar recusa enquanto a marca faltar; conferir com `select obj_description('public.yt_own_meta_linhas_do_meio(uuid,uuid,date)'::regprocedure, 'pg_proc')`.
 
 **Aviso.** Depois da dieta, desligar o passo de versões (`YT_OWN_STEPS_OFF=versoes`) faz a tabela voltar a crescer; é isso que guarda as linhas para ele. A função só apaga dia que o passo já derivou.
 

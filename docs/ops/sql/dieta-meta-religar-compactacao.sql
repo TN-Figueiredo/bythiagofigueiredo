@@ -1,9 +1,15 @@
 -- (você roda) RELIGAR a compactação diária dos metadados, depois de desligar pelo roteiro.
 -- Condição: a causa do desligamento foi achada E a CP13 está limpa (`descobertas` 0 e `sem_explicacao` 0 em todo canal).
 -- O que faz: instala de novo o corpo de public.yt_own_meta_cover da MG17 (cobre e enxuga). Depende de
--- public.yt_own_meta_linhas_do_meio (permanente, criada pela MG17): num banco sem ela a chamada seguinte FALHA (cron vermelho), nunca devolve ok.
+-- public.yt_own_meta_linhas_do_meio (permanente, criada pela MG17): num banco em que a MG17 não rodou até o fim (função ausente ou sem a marca 'MG17 aplicada em'), o roteiro é recusado.
 -- O primeiro cron depois enxuga o acumulado dos dias desligados de uma vez (a regra 3 e a derivação protegem o dia gravado).
--- Nada para trocar. Uma instrução. Roda duas vezes sem erro.
+-- Nada para trocar. Recusa sozinho (erro 'religar recusado') se a MG17 não tiver rodado até o fim: a marca é o comentário da função do critério. Depois: create, revoke, grant e a conferência final (`enxuga` tem de vir true). Roda duas vezes sem erro.
+do $$
+begin
+  if coalesce(pg_catalog.obj_description(to_regprocedure('public.yt_own_meta_linhas_do_meio(uuid,uuid,date)'), 'pg_proc'), '') not like 'MG17 aplicada em %' then
+    raise exception 'religar recusado: a MG17 não foi aplicada neste banco';
+  end if;
+end $$;
 -- >>> MG17 yt_own_meta_cover (início)
 create or replace function public.yt_own_meta_cover(
   p_site_id uuid, p_channel_id uuid, p_day date, p_compactar boolean
@@ -86,3 +92,5 @@ end $fn$
 ;
 revoke all on function public.yt_own_meta_cover(uuid, uuid, date, boolean) from public, anon, authenticated;
 grant execute on function public.yt_own_meta_cover(uuid, uuid, date, boolean) to service_role;
+-- Conferência: enxuga = true.
+select p.prosrc like '%yt_own_meta_linhas_do_meio%' as enxuga from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'yt_own_meta_cover';

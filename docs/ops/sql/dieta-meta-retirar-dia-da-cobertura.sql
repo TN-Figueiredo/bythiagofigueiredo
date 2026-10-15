@@ -20,4 +20,9 @@ update public.yt_own_video_coverage c
    set covered_to = date '<DIA>' - 1
  where c.site_id = '<UUID_DO_SITE>'::uuid and c.youtube_video_id = '<VIDEO>' and c.metric_set = '<CONJUNTO>'
    and c.covered_from < date '<DIA>' and c.covered_to >= date '<DIA>';
+-- 4. Confere: os intervalos que sobraram (o buraco tem de aparecer em <DIA>). Se a lista vier igual a antes, nada mudou:
+-- o dia já estava fora da cobertura ou o <VIDEO>/<CONJUNTO>/<UUID_DO_SITE> está errado.
+select c.covered_from, c.covered_to from public.yt_own_video_coverage c
+ where c.site_id = '<UUID_DO_SITE>'::uuid and c.youtube_video_id = '<VIDEO>' and c.metric_set = '<CONJUNTO>'
+ order by 1;
 commit;

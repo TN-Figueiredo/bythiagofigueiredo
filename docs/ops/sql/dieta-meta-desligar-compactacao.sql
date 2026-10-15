@@ -4,7 +4,7 @@
 -- O que faz: troca o corpo de public.yt_own_meta_cover pelo da MG17a (só COBRE, nunca apaga). Diferença única: a resposta
 -- traz compactacao = 'desligada' (a MG17a diz outra palavra). O código pede a compactação e recebe 'desligada': isso é NOTA VERMELHA
 -- no cron todo dia (é o que impede esquecer o roteiro ligado). Para religar: dieta-meta-religar-compactacao.sql.
--- Nada para trocar. Uma instrução. Roda duas vezes sem erro.
+-- Nada para trocar. Três instruções (create, revoke, grant) e a conferência final (`enxuga` tem de vir false). Roda duas vezes sem erro.
 -- >>> MG17a yt_own_meta_cover (início)
 -- 4. O que o passo de metadados chama, uma vez por canal, DEPOIS de gravar as linhas do dia.
 -- Cobre toda linha do canal até p_day que ainda não está na cobertura (a de hoje e as que ficaram para trás):
@@ -74,3 +74,5 @@ end $$;
 ;
 revoke all on function public.yt_own_meta_cover(uuid, uuid, date, boolean) from public, anon, authenticated;
 grant execute on function public.yt_own_meta_cover(uuid, uuid, date, boolean) to service_role;
+-- Conferência: enxuga = false (o corpo não chama mais o enxugamento).
+select p.prosrc like '%yt_own_meta_linhas_do_meio%' as enxuga from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'yt_own_meta_cover';
