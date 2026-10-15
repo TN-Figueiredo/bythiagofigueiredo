@@ -14,7 +14,7 @@
 
 - Base: **a 2ª leva começa depois do lote rápido (50 linhas, Tip em cabeçalhos, casas) consertado e integrado em `origin/staging`.** Os consertos do lote (veredito CORRIGE de Yannis: `yannis-lote-rapido.md`, I1, I2, M1, M3) mexem em `canais-screen.tsx`, `canais-lote-rapido-dicas.test.tsx` e `numeros-nao-mudam-e5a.test.ts`, que esta leva também toca. A Tarefa 0 prova isso **por assunto de commit, não por hash** (o hash muda se o lote for rebaseado) antes de qualquer código.
 - Sem migration e sem leitura nova de banco. Se uma tarefa achar que precisa, para e devolve ao controlador.
-- Textos de interface **à letra** (aspas tipográficas “ ”, sinal de menos U+2212 "−", espaço fino/rígido `NB` como o código já usa). Texto que este plano marca `TEXTO-A-REVISAR (Logan)` entra com esse comentário no código, igual ao resto do produto.
+- Textos de interface **à letra** (aspas tipográficas “ ”, sinal de menos U+2212 "−", espaço fino/rígido `NB` como o código já usa). Os textos já têm a revisão do Logan (2ª rodada, `.superpowers/sdd/a5/discussao-direcao/logan-textos-plano.md`) e entram à letra, **sem** marca `TEXTO-A-REVISAR`. Texto **visível** nunca diz "retrato": o nome interno do sistema vira "contagem" na tela (nomes de variável, arquivo, teste e comentário continuam `retrato`).
 - Sem medida nunca vale 0: valor `null`, fim da lista em qualquer sentido, fora da numeração.
 - Fixtures sintéticas (o repo é público): nenhum nome, id ou número de canal real em teste ou semente.
 - TypeScript strict, nunca `any`; arquivos kebab-case.
@@ -32,12 +32,12 @@
 T0 → (T1 ∥ T2) → T3 → T3b → T4 → T5 → T7 → T8 → T9 → T10 → T11
 ```
 
-- **T1 ∥ T2** podem rodar juntas: listas de arquivos disjuntas (T1: `channels.ts` e seus testes; T2: `medidas/direcao.ts` e o teste dela). Cada uma comita só os seus caminhos.
+- **T1 ∥ T2** podem rodar juntas: listas de arquivos disjuntas (T1: `channels.ts`, uma linha de `view-model.ts` e seus testes; T2: `medidas/direcao.ts` e o teste dela). Cada uma comita só os seus caminhos.
 - **T3 depende de T1** (`withinRounding`); **T3b depende de T3**; **T4 depende de T1 e T3b** (mesmo `view-model.ts`).
 - **T6 (componente `CelulaDica`) pode rodar em paralelo a T3..T5 somente porque o CSS dela vai para um arquivo novo `celula-dica.css`**, importado pelo próprio componente: a lista da T6 fica disjunta de `canais.css`. Sem esse arquivo novo, T6 entra na fila serial depois da T5.
 - **T7 depende de T2** (`n`/`fechaEm` da Direção) **e de T4** (`GrowthCell`); `dicas-model.ts` usa `import type { GrowthCell }` (evita ciclo de valor com `view-model.ts`, que importa `dicas-model` na T8).
 - **T8 depende de T4, T5, T6 e T7**; **T9 depois de T8** (`canais-screen.tsx` e `canais.css` foram tocados na T5 e na T4/T5); **T10 depois de T9**; **T11 por último**.
-- Arquivos compartilhados e a ordem em que são tocados: `canais.css` (T4 → T5 → T9), `view-model.ts` (T3 → T3b → T4 → T8), `canais-screen.tsx` (T5 → T9), `numeros-nao-mudam-e5a.test.ts` (T1 → T4 → T8), `canais-lote-rapido-dicas.test.tsx` (T4 → T5 → T8). `celula-dica.css` é só da T6.
+- Arquivos compartilhados e a ordem em que são tocados: `canais.css` (T4 → T5 → T9), `view-model.ts` (T1 → T3 → T3b → T4 → T8; a T1 só troca o `subsTip`, ver Step 3b), `canais-screen.tsx` (T5 → T9), `numeros-nao-mudam-e5a.test.ts` (T1 → T4 → T8), `canais-lote-rapido-dicas.test.tsx` (T4 → T5 → T8). `celula-dica.css` é só da T6.
 
 ## Review Focus
 
@@ -55,17 +55,21 @@ Também cobertos pelas tarefas, fora do top 5: canal abaixo de mil inscritos com
 
 ### As 3 pendências do Logan
 
-**(a) Outliers é por dia (7 d)? Não.** `lib/youtube/observatorio/multiplier.ts` compara as views **totais** do vídeo com a mediana das views dos outros vídeos acompanhados do mesmo canal **no mesmo dia de vida** (precisa de pelo menos `RULES.weakBase` = 3 vídeos; sem isso, usa a faixa de idade, "aproximação por faixa"). `vpd7` só rotula fase. Na dica: `V` = `Math.round(m.value * m.base)` (as views do vídeo na idade comparada), `E` = `m.base` (a mediana esperada). O texto do Logan ("“T”: M× as views típicas do canal (V contra E).") vale como está. A observação dele de que "a base é a mediana do canal, não a idade" está errada: a base é a mediana **na mesma idade**. Sugestão ao Logan, sem bloquear: "M× as views típicas do canal na mesma idade". Fica `TEXTO-A-REVISAR (Logan)`.
+**(a) Outliers é por dia (7 d)? Não.** `lib/youtube/observatorio/multiplier.ts` compara as views **totais** do vídeo com a mediana das views dos outros vídeos acompanhados do mesmo canal **no mesmo dia de vida** (precisa de pelo menos `RULES.weakBase` = 3 vídeos; sem isso, usa a faixa de idade, "aproximação por faixa"). `vpd7` só rotula fase. Na dica: `V` = `Math.round(m.value * m.base)` (as views do vídeo na idade comparada), `E` = `m.base` (a mediana esperada). O texto do Logan ("“T”: M× as views típicas do canal (V contra E).") vale com o acréscimo "na mesma idade". A observação dele de que "a base é a mediana do canal, não a idade" está errada: a base é a mediana **na mesma idade**. O Logan aceitou o "na mesma idade" e reconheceu o erro da observação (2ª rodada, item 4); o texto final está na Tarefa 7.
 
-**(b) Corte da mediana de Views/dia: vale o código, 3.** `S.vpdMedian` é a mediana sobre todos os vídeos acompanhados do formato, das views por dia de cada um desde o início da série (`vpdSince`), com `vpdN` e `vpdWindow` = "desde DD/MM". Abaixo de `RULES.weakBase` (3) a célula já se marca fraca. O mockup dizia 5: vale 3. **Desvio a mais:** o texto do Logan diz "dos últimos 90 dias", o que é falso no código (a janela é "desde DD/MM", o início da série). O plano usa "V views por dia, a mediana dos N vídeos longos acompanhados, desde DD/MM. Por mil inscritos: Z views por dia." e marca `TEXTO-A-REVISAR (Logan)`; não se muda a regra do número para caber no texto.
+**(b) Corte da mediana de Views/dia: vale o código, 3.** `S.vpdMedian` é a mediana sobre todos os vídeos acompanhados do formato, das views por dia de cada um desde o início da série (`vpdSince`), com `vpdN` e `vpdWindow` = "desde DD/MM". Abaixo de `RULES.weakBase` (3) a célula já se marca fraca. O mockup dizia 5: vale 3. **Desvio a mais:** o texto do Logan diz "dos últimos 90 dias", o que é falso no código (a janela é "desde DD/MM", o início da série). O plano usa "V views por dia: a mediana dos N vídeos longos acompanhados desde DD/MM. Por mil inscritos: Z views por dia." (texto final do Logan, 2ª rodada, item 3); não se muda a regra do número para caber no texto.
 
 **(c) Data em que o canal próprio passa a medir.**
 - **Crescimento:** há fonte. A página já lê os retratos públicos diários do canal próprio (`lerRetratosProprios`, tabela `yt_own_channel_snapshots`, MG20, ≤ 91 linhas por canal pelo índice da PK, janela de 90 dias) e hoje só os passa para a seção Inscritos. A Tarefa 4 passa o mesmo `Map` para `buildCanaisView` e mede o Crescimento do canal próprio pela **mesma** regra dos concorrentes (30 dias, ≥ 29 dias entre os retratos). Custo: zero consulta nova. Sem retrato: o texto do Logan ("Seu canal ainda não tem a coleta de inscritos ligada. Passa a medir 30 dias depois de ligada."). Com retratos mas menos de 30 dias: o texto de "novo" com a data (primeiro retrato + 30 d). Leitura falhou (`'erro'`): "não carregou", nunca 0.
-- **Direção:** não há fonte. O canal próprio nunca é medido na M3a (`celulaDeDirecao` devolve `canal_proprio`: o YouTube não dá o número público de views do canal próprio pela mesma via). Logo "Sem data prevista". O texto do Logan ("Seu canal ainda não tem 56 dias de coleta (28 contra 28). Sem data prevista.") sugere que bastaria esperar 56 dias, o que é falso. O plano usa "Seu canal ainda não tem Direção medida. Sem data prevista." e marca `TEXTO-A-REVISAR (Logan)`.
+- **Direção:** não há fonte. O canal próprio nunca é medido na M3a (`celulaDeDirecao` devolve `canal_proprio`: o YouTube não dá o número público de views do canal próprio pela mesma via). Logo "Sem data prevista". O texto do Logan ("Seu canal ainda não tem 56 dias de coleta (28 contra 28). Sem data prevista.") sugere que bastaria esperar 56 dias, o que é falso. O texto final do Logan (2ª rodada, item 5) diz o fato em vez de sugerir espera: "Esta coluna não mede a Direção do seu canal. Sem data prevista."
 
 ### D1. "Dentro do arredondamento" passa a ser menos de 2 passos, no motor
 
 O mockup aprovado diz "se o ganho ou a perda é menor que 2 passos do arredondamento" e mostra "±N" com N = 2 × passo. Hoje `roundingOf` (em `channels.ts`) usa `|ganho| <= passo` (1 passo). A seção Inscritos (`inscritos-28d.ts`) já usa `|ganho| < 2 × passo` (`REGRAS_INSCRITOS.multiploDoPasso`). A regra muda **no motor** (não só na lista), para a lista, o cabeçalho da página do canal (`_canal/header-model.ts:65`), o Comparar (`_comparar/numeros-model.ts:148`) e o Cowork (que lê o mesmo motor) continuarem iguais entre si. Consequência (conta do Phil, `phil-plano.md` §2): acima de mil inscritos o YouTube corta a contagem a 3 algarismos, então dentro da mesma década as duas contagens são múltiplos do passo P e o ganho é sempre d × P. A regra antiga (`|g| <= P`) e a nova (`|g| < 2P`) dão o **mesmo** resultado para d = 0, ±1 (dentro) e d >= ±2 (fora): **dentro da mesma década nenhum canal muda de "±%" para "sem variação"; o que muda é o N do "±N", que dobra** (±10 mil vira ±20 mil), e o ±2P é o limite honesto (cada leitura erra até 1 passo, a diferença erra até 2). Mudam de célula só três casos: (1) cruzou a década na janela (995.000 → 1.010.000); (2) abaixo de mil inscritos (a regra antiga tratava |g| <= 1 como "≈ 0"; a nova trata só o zero exato como "sem variação", ver I1 na Tarefa 1); (3) `ch.subs` diferente do retrato mais novo, só na virada de década. O oráculo é sintético e **não prevê produção**: a contagem real vem da consulta de leitura do dono (§ "Passo do dono" na Tarefa 1). O teste `numeros-nao-mudam-e5a.test.ts` ganha a exceção declarada **em duas partes** (texto e número, Tarefa 1). **Portão do Phil:** ele confere a exceção.
+
+### D1b. `roundingText` do motor: "este ou um pouco maior", não "±m" (Logan, doc oficial)
+
+A doc oficial da YouTube Data API (`channels`, `statistics.subscriberCount`, lida pelo Logan em 14/10) diz que a contagem é "rounded down to three significant figures": **cortada para baixo**. O "±m" simétrico que o motor escreve em `roundingText` (e que o cabeçalho do canal e a dica velha de Inscritos repetem) está errado. A Tarefa 1 (Step 3b) corrige o texto. A regra de 2 passos da D1 não muda: a diferença entre duas contagens cortadas erra por menos de 1 passo nos dois sentidos, então o limite de 2 passos é folgado e seguro (Logan, "Efeito na conta").
 
 ### D2. M3a `pouco_registro` passa a dizer quantos dias e quando fecha
 
@@ -82,10 +86,10 @@ O mockup aprovado diz "se o ganho ou a perda é menor que 2 passos do arredondam
 
 ### D4. Pontos fora do mockup, decididos aqui (para o Logan conferir na revisão do implementado)
 
-- Faixa "Seus canais" nas ordenações sem posição: os botões são "Ordenar por Inscritos" e "Ordenar por Views/dia" (o mockup); some o "Abrir meu canal" nessas ordenações. `TEXTO-A-REVISAR (Logan)` no código.
-- Barra fixa do celular: as 4 ordenações do mockup primeiro (Inscritos, Views/dia, Crescimento, Direção) e depois Ritmo, Outliers, Trocas, em rolagem horizontal da própria barra. Para a Naksu conferir.
+- Faixa "Seus canais" nas ordenações sem posição: os botões são "Ordenar por Inscritos" e "Ordenar por Views/dia" (o mockup); some o "Abrir meu canal" nessas ordenações. O Logan manteve os dois botões (2ª rodada, item 10).
+- Barra fixa do celular: as 4 ordenações do mockup primeiro (Inscritos, Views/dia, Crescimento, Direção) e depois Ritmo, Outliers, Trocas, em rolagem horizontal da própria barra. A Naksu aprovou a ordem (2ª rodada, decisão 2).
 - Shorts: as dicas trocam "vídeos longos" por "Shorts".
-- Inscritos abaixo de mil (o YouTube mostra o número exato): "N inscritos. Abaixo de mil, o YouTube mostra o número exato." `TEXTO-A-REVISAR (Logan)`.
+- Inscritos abaixo de mil (o YouTube mostra o número exato): "N inscritos. Abaixo de mil, o YouTube mostra o número exato." Aprovado pelo Logan (item 2).
 - Célula sem texto novo no Logan (estados que o mockup não desenhou: atrasado, buscando vídeos, sem Shorts, sem vídeos): a dica é o texto que hoje está no `title` nativo daquela célula, movido para a dica. **A regra "sem `title` nativo" vale para as células de valor** (`td[data-col] [title]`, o `data-col` que a Tarefa 8 cria). Ficam fora da regra, porque não são dica de valor: o nome truncado (`title={r.name}` em `cells.tsx`, a única forma de ler o nome inteiro cortado), o `abbr.langtag title` (semântica do `abbr`), o motivo de botão desabilitado ("Você só pode ler esta lista.") e o botão de ordenar do cabeçalho "Canal".
 
 ### Fonte de cada número das dicas
@@ -109,10 +113,10 @@ Base: `apps/web/src/app/cms/(authed)/youtube/competitors/` = `$C`; `apps/web/src
 
 | Arquivo | Tarefa | Responsabilidade |
 |---|---|---|
-| `$L/channels.ts` | 1 | `crescimento30()` exportada; regra de 2 passos |
+| `$L/channels.ts` | 1 | `crescimento30()` exportada; regra de 2 passos; `roundingText` "este ou um pouco maior" (D1b) |
 | `$L/medidas/direcao.ts` | 2 | `pouco_registro` com `n` e `fechaEm` |
 | `$C/_canais/posicao-model.ts` | 3, 3b | textos da numeração, faixa, divisor, frase de ordem |
-| `$C/_canais/view-model.ts` | 3, 3b, 4, 8 | `numero`, chave, `'direcao'`, Crescimento, dicas na linha |
+| `$C/_canais/view-model.ts` | 1 (só `subsTip`), 3, 3b, 4, 8 | `numero`, chave, `'direcao'`, Crescimento, dicas na linha |
 | `$C/_canais/dicas-model.ts` (novo) | 7 | texto de cada dica, puro |
 | `$C/_canais/celula-dica.tsx` (novo) | 6 | gatilho e caixa da dica por célula |
 | `$C/_canais/cells.tsx` | 4, 8 | Crescimento +/−, dicas nas células |
@@ -121,8 +125,8 @@ Base: `apps/web/src/app/cms/(authed)/youtube/competitors/` = `$C`; `apps/web/src
 | `$C/_canais/canais-screen.tsx` | 5, 9 | linha de ordem, barra fixa |
 | `$C/_canais/own-block.tsx` | 5 | faixa nas ordenações sem posição |
 | `$C/_canais/direcao-dica.tsx` | 8 | removido (substituído por `celula-dica.tsx`) |
-| `$C/_canais/canais.css` | 4, 5, 9 (nessa ordem, serial) | estilos |
-| `$C/_canais/celula-dica.css` (novo) | 6 | estilos só da dica por célula (importado por `celula-dica.tsx`; deixa a T6 disjunta de `canais.css`) |
+| `$C/_canais/canais.css` | 4, 5, 9 (nessa ordem, serial) | estilos; na T9 também `--obs-topbar-h`/`--obs-top` do escopo `canais` |
+| `$C/_canais/celula-dica.css` (novo) | 6 | estilos só da dica por célula (importado por `celula-dica.tsx`; deixa a T6 disjunta de `canais.css`); alvo de 44 px no toque, anel dentro da célula |
 | `$C/page.tsx` | 4 | passa `retratosProprios` à lista |
 | `apps/web/e2e/tests/cms/observatorio/canais-a5-ordem-setas.spec.ts` (novo) | 10 | e2e do Gio |
 | `apps/web/e2e/fixtures/observatorio-seed.ts` | 10 | empates sintéticos |
@@ -139,10 +143,16 @@ Base: `apps/web/src/app/cms/(authed)/youtube/competitors/` = `$C`; `apps/web/src
 
 - [ ] **Step 1: Provar que o lote rápido está na base**
 
-Conferir **por assunto do commit, não por hash** (o lote pode ser rebaseado antes do push e o hash muda). Dois assuntos têm de existir em `origin/staging`: o do lote rápido (o commit que "conserta o seletor do cabeçalho Outliers") **e** o do commit de consertos do lote (I1, I2, M1, M3 do `yannis-lote-rapido.md`).
+Conferir **por assunto do commit, não por hash** (o lote pode ser rebaseado antes do push e o hash muda). Dois assuntos têm de existir em `origin/staging`: o do lote rápido (o commit que "conserta o seletor do cabeçalho Outliers") **e** o do commit de consertos do lote (I1, I2, M1, M3 do `yannis-lote-rapido.md`), cujo assunto contém a expressão **`consertos do lote rápido`** (se o controlador comitar com outro assunto, ele troca a expressão na variável `ASSUNTO_CONSERTOS` abaixo antes de despachar a tarefa).
 
-Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && git fetch origin staging && git log origin/staging --format=%s > $SCRATCH/a5-t0-assuntos.txt && grep -qF "conserta o seletor do cabeçalho Outliers" $SCRATCH/a5-t0-assuntos.txt && echo LOTE-OK; grep -iE "lote rápido|lote-rapido|consert" $SCRATCH/a5-t0-assuntos.txt | head -20`
-Expected: `LOTE-OK` e, na lista, o assunto do commit de consertos do lote (I1/I2/M1/M3 do Yannis). Sem os dois: **parar** e avisar o controlador (o plano escreve sobre o `Tip` dos cabeçalhos e a `direcao-dica.tsx` do lote rápido, e as Tarefas 1, 4, 5, 8 e 9 colidem com os consertos dele em `canais-screen.tsx`, `canais-lote-rapido-dicas.test.tsx` e `numeros-nao-mudam-e5a.test.ts`). Conferir também que a árvore de trabalho está na ponta de `origin/staging` para esses três arquivos (`git log origin/staging -1 --format=%h -- <arquivo>` contra o `HEAD` local).
+Run (o gate **falha** com código de saída 1 se qualquer assunto não for achado; não há "imprimir e olhar"):
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git fetch origin staging && git log origin/staging --format=%s > "$SCRATCH/a5-t0-assuntos.txt" \
+  && ASSUNTO_LOTE="conserta o seletor do cabeçalho Outliers" && ASSUNTO_CONSERTOS="consertos do lote rápido" \
+  && grep -qF "$ASSUNTO_LOTE" "$SCRATCH/a5-t0-assuntos.txt" && echo LOTE-OK || { echo "FALTA-LOTE"; exit 1; }
+grep -qF "$ASSUNTO_CONSERTOS" "$SCRATCH/a5-t0-assuntos.txt" && echo CONSERTOS-OK || { echo "FALTA-CONSERTOS"; exit 1; }
+```
+Expected: `LOTE-OK` **e** `CONSERTOS-OK`. Qualquer outra saída: **parar** e avisar o controlador (o plano escreve sobre o `Tip` dos cabeçalhos e a `direcao-dica.tsx` do lote rápido, e as Tarefas 1, 4, 5, 8 e 9 colidem com os consertos dele em `canais-screen.tsx`, `canais-lote-rapido-dicas.test.tsx` e `numeros-nao-mudam-e5a.test.ts`). Conferir também que a árvore de trabalho está na ponta de `origin/staging` para esses três arquivos (`git log origin/staging -1 --format=%h -- <arquivo>` contra o `HEAD` local).
 
 - [ ] **Step 2: Rodar a suíte de Canais e guardar a linha de base**
 
@@ -156,6 +166,8 @@ Expected: tudo verde (ou a lista de falhas antigas em `$SCRATCH/a5-canais-t0-fal
 
 **Files:**
 - Modify: `apps/web/src/lib/youtube/observatorio/channels.ts` (`roundingOf`, `channelStats` linhas ~100-152)
+- Modify: `apps/web/src/app/cms/(authed)/youtube/competitors/_canais/view-model.ts` (**só** o `subsTip`, linha ~590; a única linha de texto visível que lê `roundingText` fora do cabeçalho do canal)
+- Modify: `apps/web/test/youtube/observatorio/canal-header-model.test.ts` (caso de buraco de 60 d, menor M-e da re-revisão)
 - Create: `apps/web/test/youtube/observatorio/crescimento30-a5.test.ts`
 - Modify: `apps/web/test/youtube/observatorio/channels.test.ts` (~linha 99)
 - Modify: `apps/web/test/youtube/observatorio/comparar-numeros.test.ts` (~linhas 64-76)
@@ -253,6 +265,14 @@ describe('crescimento30', () => {
     const g = crescimento30(deps, [snap(0, 5000), snap(30, 5100)], null)
     expect(g.withinRounding).toBeNull()
   })
+  // D1b (Logan, doc oficial: a contagem é CORTADA para baixo): o texto do arredondamento nunca é "±" simétrico.
+  it('roundingText: "este ou um pouco maior, em menos de {passo}", nunca "±"', () => {
+    const g = crescimento30(deps, [snap(0, 1_200_000), snap(30, 1_210_000)], 1_210_000)
+    expect(g.roundingText).toBe(`o número real é este ou um pouco maior, em menos de ${deps.fmt.num(10_000)}`)
+    expect(g.roundingText).not.toContain('±')
+    expect(crescimento30(deps, [snap(0, 800), snap(30, 800)], 800).roundingText).toBe('exato')
+    expect(crescimento30(deps, [], null).roundingText).toBe('sem contagem')
+  })
 })
 ```
 
@@ -300,7 +320,9 @@ function roundingOf(fmt: EngineCtx['fmt'], subs: number | null, base: number | n
   // I1 (Phil e Yannis): abaixo de mil não há arredondamento (limite 0); o zero exato continua "sem variação", senão a célula escreveria "−0,0%".
   const dentro = abs == null ? null : limite > 0 ? Math.abs(abs) < limite : abs === 0
   return {
-    roundingUnit: unit, roundingError: err, roundingText: err ? '±' + fmt.num(err) : 'exato',
+    roundingUnit: unit, roundingError: err,
+    // D1b (Logan, doc oficial: o YouTube CORTA para baixo): o número real é este ou um pouco maior, nunca "±m" simétrico
+    roundingText: err ? 'o número real é este ou um pouco maior, em menos de ' + fmt.num(unit) : 'exato',
     withinRounding: dentro, limiteArred: limite, uncertainty: b < 1000 ? 0 : unit,
     text: abs == null ? null : dentro ? (limite > 0 ? '≈ 0 (dentro do arredondamento do YouTube, ±' + fmt.num(limite) + ')' : '0 (mesmo número nas duas contagens)')
       : (abs > 0 ? '+' : '') + fmt.num(abs) + (unit > 1 ? ' (±' + fmt.num(unit) + ')' : ''),
@@ -309,6 +331,19 @@ function roundingOf(fmt: EngineCtx['fmt'], subs: number | null, base: number | n
 ```
 
 Conferir que `passoDoYouTube(b)` devolve o mesmo `unit` acima de mil (ler `inscritos-28d.ts:16`); se divergir, **parar** e avisar (as duas regras têm de concordar). Em `channelStats`, apagar o bloco `now/prev/growth` e usar `growth30: crescimento30(ctx, ch.snapshots, ch.subs)`. Exportar `Crescimento30`. O teto de 33 dias (`pending: 'buraco na contagem …'`) é conserto do Phil (I3, recomendado): os canais que ele atinge hoje entram na exceção declarada do Step 5 e a consulta do dono (abaixo) conta quantos são. Atualizar o `interface Growth` de `view-model.ts`? **Não nesta tarefa** (arquivo fora da lista): `Crescimento30` é superconjunto de `Growth`, então compila.
+
+- [ ] **Step 3b: `roundingText` no sentido certo (Logan, doc oficial; D1b)**
+
+Em `roundingOf`, trocar `roundingText: err ? '±' + fmt.num(err) : 'exato'` por `roundingText: err ? 'o número real é este ou um pouco maior, em menos de ' + fmt.num(unit) : 'exato'` (abaixo de mil continua `'exato'`; sem contagem continua `'sem contagem'`). `roundingUnit`, `roundingError` (meia unidade) e `uncertainty` ficam como estão: são campos numéricos que nenhuma tela escreve como margem simétrica. Consumidores do **texto**:
+1. `view-model.ts` (~590), `subsTip` (o ramo `c.subs == null` fica): o ramo com contagem passa a ser
+   ```ts
+   : c.subs < 1000 ? 'Abaixo de mil, o YouTube mostra o número exato.'
+   : `O YouTube corta a contagem para 3 algarismos: ${stats(c.id, 'long').growth30.roundingText}.`,
+   ```
+   (O `subsTip` sai da célula na Tarefa 8, que o troca pela dica; até lá o texto não pode contradizer a doc.)
+2. `_canal/header-model.ts:73` só interpola `g.roundingText`: o cabeçalho do canal muda sozinho, sem editar o arquivo.
+3. A cópia `test/fixtures/observatorio/dados.cjs` / `dados-teste.html` é fixture independente (o HTML de dados tem o seu próprio motor): **não tocar**.
+O `text` do motor (`(±{unit})` em `+N (±unit)`) é outro campo, fora do pedido do Logan: não mexer aqui; fica listado na seção "Consertos da 2ª rodada".
 
 - [ ] **Step 4: Rodar o teste novo e os consumidores**
 
@@ -321,8 +356,10 @@ Expected: o teste novo passa; falham só as asserções de "≈ 0 / ±passo" em 
 - `comparar-numeros.test.ts`: o par que esperava `kind: 'ok'` e agora cai em `flat` (virada de década ou abaixo de mil) é ajustado caso a caso; manter um par com ganho >= 2 passos em `ok`.
 - `numeros-nao-mudam-e5a.test.ts` (guarda de regressão; **a exceção é declarada em duas partes, por extenso**, como os desvios 13 e 14 que o arquivo já traz):
   1. **Texto:** o "±N" dos campos de texto do crescimento (`cells.growth`, `growthTitle`, `painel.stats`, `cabecalho`) passa a "±2N". Normalizar com regex que troca o "±N" pelo "±2N" no valor *antigo* antes de comparar, com o comentário `// A5 2ª leva D1 (dono aprovou no mockup 17, 15/10): o ±N do "dentro do arredondamento" dobra (1 passo -> 2 passos)`.
-  2. **Número:** a lista de ids que mudam de "dentro/fora" é uma exceção por **predicado calculado no próprio teste**, para provar que a exceção é a D1 e nada mais: `ids que mudaram == ids com (P < |g| < 2P) ou (subs < 1000 e |g| <= 1 e g != 0)` ou, pelo teto de 33 dias, com janela > 33 dias (os que passam a "buraco na contagem"). Calcular `P` com `passoDoYouTube(max(contagens))`.
+  2. **Número:** a lista de ids que mudam de "dentro/fora" é uma exceção por **predicado calculado no próprio teste**, para provar que a exceção é a D1 e nada mais: `ids que mudaram == ids onde dentroAntigo(ch.subs, g) !== dentroNovo(max(n0, n1), g)`, mais os com janela > 33 dias (os que passam a "buraco na contagem")`, em que `dentroAntigo`/`dentroNovo` são as duas regras escritas no próprio teste (antiga: `|g| <= passoDoYouTube(ch.subs)`, abaixo de mil `|g| <= 1`; nova: `|g| < 2 × passoDoYouTube(max(n0, n1))`, abaixo de mil `g === 0`). Comparar as duas decisões, em vez de reescrever um intervalo `P < |g| < 2P`, cobre também o canal cujo `ch.subs` está numa década acima do retrato mais novo (Re-revisão M-b); um id que mude e não caia no predicado faz o teste **falhar** com "id inexplicado", sem o executor regravar nada.
   3. Nunca regravar `e5a-retrato-antes.json`.
+  4. **Texto do arredondamento (D1b, Logan):** o `cabecalho` do retrato traz `arredondamento do YouTube: ±5 mil`; passa a `arredondamento do YouTube: o número real é este ou um pouco maior, em menos de 10 mil`. Normalizar os dois lados por regex para `arredondamento do YouTube: <ARRED>` antes de comparar, com o comentário `// A5 2ª leva T1 (D1b): roundingText corrigido para o sentido da doc oficial (este ou um pouco maior); só TEXTO, número não`. Exceção **só de texto**: nenhuma contagem, ganho, percentual ou posição pode diferir.
+- **Buraco chega ao cabeçalho e ao Comparar** (re-revisão M-e): `canal-header-model.test.ts` ganha um caso com duas contagens 60 d distantes (monte-as com o construtor de retratos que o arquivo já usa) e afirma que a célula de crescimento não mede (`value` nulo) e que `base` contém `buraco na contagem (última comparação de 60 d)` (texto de `header-model.ts:70-72`); `comparar-numeros.test.ts` ganha o mesmo caso e afirma que o `missing`/pendência de `numeros-model.ts:65` contém `buraco`. Nenhum `NaN`/`Infinity` na saída (`JSON.stringify`).
 - Contar quantos canais do oráculo mudam e escrever no ledger (`.superpowers/sdd/a5/progress.md`, seção "2ª leva Canais"): "D1: N de M canais do oráculo mudam de célula". **Esta contagem não prevê produção** (o oráculo é sintético, contagens podem não ser múltiplos do passo): ela só prova que a exceção é exatamente a D1. Phil confere.
 
 - [ ] **Passo do dono (leitura de produção; o agente NÃO roda): contagem real da D1 e do teto de 33 dias**
@@ -375,7 +412,7 @@ Run: `cd apps/web && npx tsc --noEmit -p . > $SCRATCH/a5-t1-tsc.txt 2>&1; tail -
 Expected: sem erro.
 
 ```bash
-git commit -m "feat: observatório: crescimento em 30 dias exportado e dentro do arredondamento abaixo de 2 passos" -- apps/web/src/lib/youtube/observatorio/channels.ts apps/web/test/youtube/observatorio/crescimento30-a5.test.ts apps/web/test/youtube/observatorio/channels.test.ts apps/web/test/youtube/observatorio/comparar-numeros.test.ts apps/web/test/youtube/observatorio/numeros-nao-mudam-e5a.test.ts
+git commit -m "feat: observatório: crescimento em 30 dias exportado e dentro do arredondamento abaixo de 2 passos" -- apps/web/src/lib/youtube/observatorio/channels.ts apps/web/test/youtube/observatorio/crescimento30-a5.test.ts apps/web/test/youtube/observatorio/channels.test.ts apps/web/test/youtube/observatorio/comparar-numeros.test.ts apps/web/test/youtube/observatorio/numeros-nao-mudam-e5a.test.ts apps/web/test/youtube/observatorio/canal-header-model.test.ts "apps/web/src/app/cms/(authed)/youtube/competitors/_canais/view-model.ts"
 ```
 
 ---
@@ -553,13 +590,14 @@ describe('Direção ordenável', () => {
   })
   it('sem medida no fim: concorrentes antes dos próprios, A–Z dentro de cada grupo (inscritos em ordem oposta ao nome)', () => {
     // 3 concorrentes "não carregou", nomes e inscritos em ordem oposta: o mutante "manter subsDesc no fim" não sobrevive.
+    const ids: string[] = [] // capturados dentro do mutador: nada de adivinhar o acessor do dataset (Re-revisão M-d)
     const { obs } = a3World(ds => {
       const [x, y, z] = comps(ds)
+      ids.push(x!.id, y!.id, z!.id)
       x!.name = 'Canal Ômega'; x!.subs = 900_000
       y!.name = 'Canal Beta'; y!.subs = 50_000
       z!.name = 'Canal Alfa'; z!.subs = 10_000
     })
-    const ids = comps(obs.dataset ?? (obs as never as { ds: Dataset }).ds).slice(0, 3).map(c => c.id) // usar o acessor de dataset que a3-fixture expõe
     const medidas = medidasDoMotor(obs, Object.fromEntries(ids.map(id => [id, 'nao_carregou'])))
     const v = view(obs, { sort: 'direcao', medidas })
     const u = v.list.unranked
@@ -813,7 +851,7 @@ git commit -m "feat: canais: textos da ordem, da faixa do seu canal e do divisor
   retratosProprios?: ReadonlyMap<string, RetratosProprios> | 'erro'
   // GrowthCell
   export type GrowthCell =
-    | { kind: 'na'; text: string; title: string; motivo: 'novo' | 'sem-registro' | 'oculto' | 'nao-carregou' | 'sem-sinal' | 'sem-percentual' | 'buraco'; fechaEm: number | null; dias: number | null }
+    | { kind: 'na'; text: string; title: string; motivo: 'novo' | 'sem-registro' | 'oculto' | 'nao-carregou' | 'sem-percentual' | 'buraco'; fechaEm: number | null; dias: number | null }
     | { kind: 'flat'; big: 'sem variação'; cap: string; limite: number; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; passo: number }
     | { kind: 'ok'; big: string; cap: string; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; pct: number }
   ```
@@ -824,10 +862,14 @@ git commit -m "feat: canais: textos da ordem, da faixa do seu canal e do divisor
 
 ```ts
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { a3World } from './a3-fixture'
-import { buildCanaisView, type CanaisParams, type CanaisRow } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
+import { buildCanaisView, type CanaisParams, type CanaisRow, type GrowthCell } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
+import { REGRAS_INSCRITOS } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
+
+// Re-revisão C3: um `it` sem asserção passa em verde e deixa o mutante vivo. Todo teste deste arquivo TEM de afirmar algo.
+beforeEach(() => { expect.hasAssertions() })
 
 const DAY = 86_400_000
 const NB = ' '
@@ -837,6 +879,11 @@ function retratos(ds: Dataset, id: string, de: number, ganho: number) {
   ch.snapshots = [{ t: fim - 30 * DAY, date: '', subs: de, views: 1 }, { t: fim, date: '', subs: de + ganho, views: 2 }]
 }
 const rowOf = (rows: CanaisRow[], id: string) => rows.find(r => r.id === id)!
+const todas = (v: ReturnType<typeof buildCanaisView>) => [...v.list.ranked, ...v.list.unranked]
+const comRetratosProprios = (w: ReturnType<typeof a3World>, retratos: Array<{ t: number; subs: number }>, oculto = false) => {
+  const own = w.obs.ownChannels()[0]!
+  return { own, retratosProprios: new Map([[own.id, { oculto, retratos: retratos.map((r, i) => ({ t: r.t, date: '', subs: r.subs, views: i + 1 })) }]]) }
+}
 
 describe('Crescimento: + e −, sem setas', () => {
   it('ganho: "+1,7%" e "+20 mil em 30 d"', () => {
@@ -861,7 +908,7 @@ describe('Crescimento: + e −, sem setas', () => {
   })
 })
 
-describe('zero, oculto e retrato velho (Yannis I1/I7, Phil I4)', () => {
+describe('zero, oculto, retrato velho e buraco (Yannis I1/I7, Phil I3/I4)', () => {
   it('abaixo de mil, 800 → 800: "sem variação", nunca "−0,0%" nem "−0"', () => {
     let id = ''
     const { obs } = a3World(ds => { id = ds.channels.find(c => !c.own)!.id; retratos(ds, id, 800, 0) })
@@ -870,15 +917,62 @@ describe('zero, oculto e retrato velho (Yannis I1/I7, Phil I4)', () => {
     expect(JSON.stringify(g)).not.toContain('−0')
     expect(g.kind === 'flat' && g.cap).toBe('mesmo número nas duas contagens')
   })
-  it('um predicado de "oculto": próprio com subs null no dataset e retratos não ocultos mede; concorrente com extras.subscribersHidden fica fora da numeração', () => {
-    // próprio: ds own.subs = null + retratosProprios com oculto:false e 31 dias → cells.growth.kind === 'ok'
-    // concorrente: extras.subscribersHidden = true (mutador do a3World) → valor.growth === null e numero === null
+  it('oculto, canal PRÓPRIO: subs null no dataset mas retratos não ocultos (MG20) medem como concorrente', () => {
+    const w = a3World(ds => { ds.channels.find(c => c.own)!.subs = null })
+    const fim = w.obs.NOW
+    const { own, retratosProprios } = comRetratosProprios(w, [{ t: fim - 30 * DAY, subs: 50_000 }, { t: fim, subs: 52_000 }])
+    const r = rowOf(todas(buildCanaisView(w.obs, { niche: 'todos', limit: 75, sort: 'growth', retratosProprios })), own.id)
+    expect(r.cells.growth.kind).toBe('ok')
+    expect(r.valor.growth).toBeCloseTo(0.04)
   })
-  it('canal próprio com retrato mais novo de 5 dias atrás: cap termina em "até DD/MM"', () => {
-    // retratosProprios com retratos de 31 dias terminando em NOW − 5 d → g.cap.endsWith(`até ${dd/mm}`) e atrasadoAte !== null
+  it('oculto, canal PRÓPRIO: retratosProprios com oculto:true fica "não medido: oculto" e fora da numeração', () => {
+    const w = a3World()
+    const fim = w.obs.NOW
+    const { own, retratosProprios } = comRetratosProprios(w, [{ t: fim - 30 * DAY, subs: 50_000 }, { t: fim, subs: 52_000 }], true)
+    const r = rowOf(todas(buildCanaisView(w.obs, { niche: 'todos', limit: 75, sort: 'growth', retratosProprios })), own.id)
+    expect(r.cells.growth).toMatchObject({ kind: 'na', motivo: 'oculto' })
+    expect(r.valor.growth).toBeNull()
+    expect(r.numero).toBeNull()
   })
-  it('buraco: comparação de 60 dias vira "buraco na contagem", fora da numeração', () => {
-    // retratos(…) com snapshots em NOW − 60 d e NOW → kind 'na', motivo 'buraco', numero null
+  it('oculto, CONCORRENTE: subs null (mesmo predicado `ocultoDe`) fica "não medido: oculto", sem valor e sem número', () => {
+    let id = ''
+    const { obs } = a3World(ds => { id = ds.channels.find(c => !c.own)!.id; retratos(ds, id, 1_200_000, 20_000); ds.channels.find(c => c.id === id)!.subs = null })
+    const r = rowOf(todas(buildCanaisView(obs, { niche: 'todos', limit: 75, sort: 'growth' })), id)
+    expect(r.cells.growth).toMatchObject({ kind: 'na', motivo: 'oculto' })
+    expect(r.valor.growth).toBeNull()
+    expect(r.numero).toBeNull()
+  })
+  it('canal próprio com a contagem mais nova velha demais: `atrasadoAte` preenchido e cap termina em ", até DD/MM"', () => {
+    const w = a3World()
+    const velho = w.obs.NOW - (REGRAS_INSCRITOS.retratoVelhoDias + 2) * DAY // 2 dias além do limite da seção Inscritos
+    const { own, retratosProprios } = comRetratosProprios(w, [{ t: velho - 31 * DAY, subs: 50_000 }, { t: velho, subs: 52_000 }])
+    const r = rowOf(todas(buildCanaisView(w.obs, { niche: 'todos', limit: 75, sort: 'growth', retratosProprios })), own.id)
+    const g = r.cells.growth as Extract<GrowthCell, { kind: 'ok' }>
+    expect(g.kind).toBe('ok')
+    expect(g.atrasadoAte).toBe(velho)
+    expect(g.cap).toMatch(/, até \d{2}\/\d{2}/)
+    expect(g.cap.endsWith(`, até ${w.obs.date.dmhm(velho)}`)).toBe(true) // o mesmo formatador do código (`D.dmhm`)
+  })
+  it('canal próprio com a contagem mais nova em dia: `atrasadoAte` nulo e cap sem ", até"', () => {
+    const w = a3World()
+    const fim = w.obs.NOW
+    const { own, retratosProprios } = comRetratosProprios(w, [{ t: fim - 30 * DAY, subs: 50_000 }, { t: fim, subs: 52_000 }])
+    const g = rowOf(todas(buildCanaisView(w.obs, { niche: 'todos', limit: 75, sort: 'growth', retratosProprios })), own.id).cells.growth as Extract<GrowthCell, { kind: 'ok' }>
+    expect(g.atrasadoAte).toBeNull()
+    expect(g.cap).not.toContain(', até')
+  })
+  it('buraco: duas contagens a 60 d viram "buraco na contagem", sem valor e fora da numeração', () => {
+    let id = ''
+    const { obs } = a3World(ds => {
+      const ch = ds.channels.find(c => !c.own)!; id = ch.id
+      ch.subs = 1_300_000
+      // `retratos()` acima gera 30 d; aqui as duas pontas ficam a 60 d, na mão
+      ch.snapshots = [{ t: ds.now - 60 * DAY, date: '', subs: 1_200_000, views: 1 }, { t: ds.now, date: '', subs: 1_300_000, views: 2 }]
+    })
+    const r = rowOf(todas(buildCanaisView(obs, { niche: 'todos', limit: 75, sort: 'growth' })), id)
+    expect(r.cells.growth).toMatchObject({ kind: 'na', motivo: 'buraco', title: 'Faltam registros: não há duas contagens de inscritos com cerca de 30 dias de distância. A medida volta quando houver.' })
+    expect(r.valor.growth).toBeNull()
+    expect(r.numero).toBeNull()
   })
 })
 
@@ -904,7 +998,7 @@ describe('Crescimento do canal próprio pelos retratos MG20 (já lidos pela pág
   it('leitura falhou: "não carregou", nunca 0', () => {
     const { v, own } = base({ sort: 'growth', retratosProprios: 'erro' })
     const r = rowOf(v.list.unranked, own.id)
-    expect(r.cells.growth).toMatchObject({ kind: 'na', motivo: 'nao-carregou' })
+    expect(r.cells.growth).toMatchObject({ kind: 'na', motivo: 'nao-carregou', title: 'Não deu para carregar os registros de inscritos do seu canal. Recarregue a página.' })
     expect(r.valor.growth).toBeNull()
   })
 })
@@ -941,11 +1035,11 @@ Expected: FAIL.
      const na = (text: string, title: string, motivo: Extract<GrowthCell, { kind: 'na' }>['motivo'], extra: { fechaEm?: number | null; dias?: number | null } = {}): GrowthCell =>
        ({ kind: 'na', text, title, motivo, fechaEm: extra.fechaEm ?? null, dias: extra.dias ?? null })
      const sinal = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') // três vias (Yannis I1): zero não ganha sinal
-     if (g === 'nao-carregou') return na('não carregou', 'Os registros de inscritos do seu canal não carregaram nesta abertura.', 'nao-carregou') // TEXTO-A-REVISAR (Logan)
+     if (g === 'nao-carregou') return na('não carregou', 'Não deu para carregar os registros de inscritos do seu canal. Recarregue a página.', 'nao-carregou') // texto final do Logan (2ª rodada, item 8)
      if (oculto) return na('não medido: oculto', 'O canal esconde a contagem de inscritos no YouTube.', 'oculto')
      if (g.pending) {
        if (g.diasDeRegistro == null) return na('sem registro', 'Sem registro de inscritos ainda.', 'sem-registro')
-       if (g.fechaEm == null) return na('buraco na contagem', 'A contagem de inscritos tem um buraco: não há dois retratos a cerca de 30 dias um do outro.', 'buraco') // TEXTO-A-REVISAR (Logan)
+       if (g.fechaEm == null) return na('buraco na contagem', 'Faltam registros: não há duas contagens de inscritos com cerca de 30 dias de distância. A medida volta quando houver.', 'buraco') // texto final do Logan (2ª rodada, item 9; "retrato" é jargão interno)
        return na(g.pending.replace(/ \(.*\)/, ''), `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}`, 'novo', { fechaEm: g.fechaEm, dias: g.diasDeRegistro })
      }
      // Retrato velho (Phil I4): concorrente parado pela `c.sync.state`; canal próprio pelo MESMO limite da seção Inscritos (`REGRAS_INSCRITOS.retratoVelhoDias`).
@@ -954,7 +1048,7 @@ Expected: FAIL.
      const atrasadoAte = (velhoProprio || velhoConc) && g.to != null ? g.to : null
      const until = atrasadoAte != null ? `, até ${D.dmhm(atrasadoAte)}` : ''
      const base = { antes: g.fromSubs ?? null, depois: g.toSubs ?? null, de: g.from ?? null, ate: g.to ?? null, atrasadoAte }
-     if (g.withinRounding) return { kind: 'flat', big: 'sem variação', cap: g.limiteArred > 0 ? `dentro do arredondamento (±${F.num(g.limiteArred).replace(/ (mil|mi)/g, NB + '$1')})` : 'mesmo número nas duas contagens', /* TEXTO-A-REVISAR (Logan): cap do zero abaixo de mil */ limite: g.limiteArred, ...base, abs: g.abs!, passo: g.roundingUnit }
+     if (g.withinRounding) return { kind: 'flat', big: 'sem variação', cap: g.limiteArred > 0 ? `dentro do arredondamento (±${F.num(g.limiteArred).replace(/ (mil|mi)/g, NB + '$1')})` : 'mesmo número nas duas contagens', /* aprovado pelo Logan (item 7) */ limite: g.limiteArred, ...base, abs: g.abs!, passo: g.roundingUnit }
      const absTxt = `${sinal(g.abs!)}${F.num(Math.abs(g.abs!))}`.replace(/ (mil|mi)/g, NB + '$1')
      if (g.pct == null) return na(`${absTxt} em 30${NB}d${until}`, 'Sem percentual: o canal não tinha inscritos na contagem anterior.', 'sem-percentual')
      return { kind: 'ok', big: `${sinal(g.pct)}${F.dec1(Math.abs(g.pct * 100))}%`, cap: `${absTxt} em 30${NB}d${until}`, ...base, abs: g.abs!, pct: g.pct }
@@ -1113,20 +1207,26 @@ git commit -m "feat: canais: coluna P com empate, cabeçalhos com chevron, Dire�
   ```tsx
   export const CELULA_DICA_CLASSE = 'cdica'
   /** hov, foc, toque, Esc, shown: a mesma máquina de estado do `Tip` (Yannis M1). A T8 troca o corpo do `Tip` de cells.tsx por este hook. */
-  export function useDica(): { show: boolean; shown: boolean; aberta: boolean; handlers: { onMouseEnter(): void; onMouseLeave(): void; onFocus(): void; onBlur(): void; onKeyDown(e: React.KeyboardEvent): void }; abrirPorToque(): void; fechar(): void }
+  export function useDica(): { show: boolean; shown: boolean; aberta: boolean; handlers: { onMouseEnter(): void; onMouseLeave(): void; onFocus(): void; onBlur(): void; onKeyDown(e: React.KeyboardEvent): void }; abrirPorToque(): void /* alterna: aberta por QUALQUER meio => fecha tudo */; fechar(): void }
   export function CelulaDica(props: { texto: string; children: React.ReactNode; className?: string }): JSX.Element
   ```
-  Gatilho: `<span className="cdica" role="button" tabIndex={0} aria-describedby={id}>`; caixa: `role="tooltip"`, `id` de `useId()`.
+  Gatilho: `<span className="cdica" role="button" tabIndex={0} aria-expanded={aberta} aria-describedby={id}>` (Enter e Espaço alternam, como no mockup; Naksu A7); caixa: `role="tooltip"`, `id` de `useId()`.
 
-Comportamento (mockup 17): abre no hover e no foco; Esc fecha; toque abre, toque fora ou em outra dica fecha; a célula inteira (a parte de valor) é o gatilho, com sublinhado pontilhado e fundo suave quando aberta; nunca `title` nativo; a caixa cabe na janela (a 390 px também).
+Comportamento (mockup 17): abre no hover e no foco; Enter/Espaço alternam; Esc fecha; toque abre, **toque na mesma dica, toque fora ou em outra dica fecha** (depois de um toque o navegador emite `mouseenter` e foco emulados: eles são ignorados, senão o 2º toque não fecha; Naksu A6 = Re-revisão C2); a célula inteira (a parte de valor) é o gatilho, com sublinhado pontilhado e fundo suave quando aberta; nunca `title` nativo; a caixa cabe na janela (a 390 px também).
 
 - [ ] **Step 1: Escrever o teste que falha**
 
 ```tsx
 // @vitest-environment jsdom
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { CelulaDica } from '@/app/cms/(authed)/youtube/competitors/_canais/celula-dica'
+import { Popover } from '@/app/cms/(authed)/youtube/competitors/_chrome/flut/flut'
+
+// Re-revisão C3: nenhum `it` deste arquivo pode passar em verde sem afirmar nada.
+beforeEach(() => { expect.hasAssertions() })
 
 // O jsdom do projeto (25.0.1) NÃO tem PointerEvent: sem isto o React recebe `e.pointerType === undefined` e o ramo de toque nunca roda (Yannis I3).
 beforeAll(() => {
@@ -1182,7 +1282,60 @@ describe('CelulaDica', () => {
     expect(screen.getByRole('tooltip')).toBeTruthy()
   })
   it('com um popover aberto, sem role="tooltip" e sem aria-describedby (useTipShown)', () => {
-    // abrir um <Popover> do _chrome/flut (helper de flut.test, se houver) e focar a célula: a caixa não existe e o gatilho não aponta para ela
+    // Props do Popover conferidas contra `_chrome/flut/flut.test.tsx` (open, anchor, onClose, label); se o teste dele montar de outro jeito, copiar o jeito dele.
+    render(<><button id="ancora-popover" type="button">menu</button><Popover open anchor={() => document.getElementById('ancora-popover')} onClose={() => {}} label="Menu de teste">conteúdo</Popover>{dica('A', '1')}</>)
+    const g = screen.getByRole('button', { name: /^1$/ })
+    fireEvent.focus(g)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(g.getAttribute('aria-describedby')).toBeNull()
+  })
+  // Naksu A6 + Re-revisão C2: o 2º toque na MESMA dica fecha, mesmo com mouseenter e foco emulados pelo navegador.
+  it('toque abre; toque na mesma dica fecha (com mouseenter e foco emulados no meio)', () => {
+    render(dica('A', '1'))
+    const g = screen.getByRole('button', { name: /1/ })
+    fireEvent.pointerDown(g, { pointerType: 'touch' }); fireEvent.mouseEnter(g); fireEvent.focus(g)
+    expect(screen.getByRole('tooltip').textContent).toBe('A')
+    fireEvent.pointerDown(g, { pointerType: 'touch' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+  it('aberta por foco e hover, um toque a fecha (sem esperar toque fora)', () => {
+    render(dica('A', '1'))
+    const g = screen.getByRole('button', { name: /1/ })
+    fireEvent.focus(g); fireEvent.mouseEnter(g)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.pointerDown(g, { pointerType: 'touch' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+  it('depois de um toque e de sair da célula, Tab de volta abre pelo foco (o ignorar-foco é só do toque)', () => {
+    render(dica('A', '1'))
+    const g = screen.getByRole('button', { name: /1/ })
+    fireEvent.pointerDown(g, { pointerType: 'touch' })
+    fireEvent.pointerDown(document.body, { pointerType: 'touch' }) // toque fora fecha
+    fireEvent.blur(g)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(g) // teclado: Tab de volta
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+  })
+  // Naksu A7: o gatilho é role="button"; Enter e Espaço têm de fazer algo.
+  it('Enter e Espaço alternam; Espaço não rola a página; aria-expanded acompanha', () => {
+    render(dica('A', '1'))
+    const g = screen.getByRole('button', { name: /1/ })
+    expect(g.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.keyDown(g, { key: 'Enter' })
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    expect(g.getAttribute('aria-expanded')).toBe('true')
+    const naoCancelado = fireEvent.keyDown(g, { key: ' ' }) // fireEvent devolve false quando preventDefault foi chamado
+    expect(naoCancelado).toBe(false)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(g.getAttribute('aria-expanded')).toBe('false')
+  })
+  // Naksu A8/A9: o que o CSS precisa garantir (o jsdom não faz layout; a medida real é o e2e do caso 6).
+  it('CSS: alvo de 44 px só em td/cartão no toque, anel dentro da célula, sublinhado pontilhado, sem color-mix', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_canais/celula-dica.css'), 'utf8')
+    expect(css).toMatch(/@media \(pointer:\s*coarse\)[^{]*\{[^}]*(td|\.cards)[^{}]*\.cdica[^{}]*\{[^}]*min-height:\s*44px/)
+    expect(css).toMatch(/(td|\.cards)[^{}]*\.cdica:focus-visible[^{}]*\{[^}]*outline-offset:\s*-2px/)
+    expect(css).toMatch(/\.cdica[^{}]*\{[^}]*text-decoration:\s*underline dotted/)
+    expect(css).not.toMatch(/color-mix/)
   })
   it('clique no gatilho não é engolido (sem stopPropagation): um ouvinte no document ainda o vê', () => {
     let visto = false
@@ -1217,21 +1370,24 @@ export function useDica() {
   const [hov, setHov] = useState(false), [foc, setFoc] = useState(false), [toque, setToque] = useState(false)
   const show = hov || foc || toque
   const shown = useTipShown(show)
+  const fechar = () => { setHov(false); setFoc(false); setToque(false) }
   return {
     show, shown, aberta: show,
     handlers: {
       onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), onFocus: () => setFoc(true), onBlur: () => setFoc(false),
-      onKeyDown: (e: KeyboardEvent) => { if (e.key === 'Escape' && show) { e.stopPropagation(); setHov(false); setFoc(false); setToque(false) } },
+      onKeyDown: (e: KeyboardEvent) => { if (e.key === 'Escape' && show) { e.stopPropagation(); fechar() } },
     },
-    abrirPorToque: () => setToque(t => !t),
-    fechar: () => { setHov(false); setFoc(false); setToque(false) },
+    // Re-revisão C2: aberta por QUALQUER meio (hover, foco emulado pelo toque, toque anterior), o toque fecha tudo. `setToque(t => !t)` deixava hov/foc abertos.
+    abrirPorToque: () => (show ? fechar() : setToque(true)),
+    fechar,
   }
 }
 
-/** A5 2ª leva: a dica de uma célula da lista. Hover e foco abrem, Esc fecha, toque alterna; toque fora ou noutra dica fecha. Sem title nativo. */
+/** A5 2ª leva: a dica de uma célula da lista. Hover e foco abrem, Enter/Espaço e toque alternam, Esc fecha; toque fora ou noutra dica fecha. Sem title nativo. */
 export function CelulaDica({ texto, children, className }: { texto: string; children: ReactNode; className?: string }) {
   const id = useId()
   const ref = useRef<HTMLSpanElement>(null)
+  const ultimoPonteiro = useRef<string>('mouse') // Naksu A6: depois de um toque o navegador dá mouseenter e foco emulados; sem isto o 2º toque não fecha
   const d = useDica()
   // Yannis M2: os ouvintes globais só existem enquanto ESTA dica está aberta (O(1) por evento, não O(linhas × colunas)).
   useEffect(() => {
@@ -1243,15 +1399,23 @@ export function CelulaDica({ texto, children, className }: { texto: string; chil
     return () => { window.removeEventListener(FECHAR_OUTRAS, outra); document.removeEventListener('pointerdown', fora) }
   }, [d.aberta, id]) // eslint-disable-line react-hooks/exhaustive-deps -- `d.fechar` é estável em comportamento
   const avisar = () => window.dispatchEvent(new CustomEvent(FECHAR_OUTRAS, { detail: id }))
+  const alternar = () => { if (d.aberta) d.fechar(); else { avisar(); d.abrirPorToque() } }
   return (
     <span
-      ref={ref} role="button" tabIndex={0} aria-describedby={d.shown ? id : undefined}
+      ref={ref} role="button" tabIndex={0} aria-expanded={d.aberta} aria-describedby={d.shown ? id : undefined}
       className={`${CELULA_DICA_CLASSE}${d.aberta ? ' on' : ''}${className ? ' ' + className : ''}`}
-      {...d.handlers}
-      onMouseEnter={() => { avisar(); d.handlers.onMouseEnter() }}
-      onFocus={() => { avisar(); d.handlers.onFocus() }}
+      onPointerDownCapture={e => { ultimoPonteiro.current = e.pointerType }}
+      onMouseEnter={() => { if (ultimoPonteiro.current === 'touch') return; avisar(); d.handlers.onMouseEnter() }}
+      onMouseLeave={d.handlers.onMouseLeave}
+      onFocus={() => { if (ultimoPonteiro.current === 'touch') return; avisar(); d.handlers.onFocus() }}
+      onBlur={() => { ultimoPonteiro.current = 'mouse'; d.handlers.onBlur() }} // sair da célula devolve o foco por teclado ao normal
+      onKeyDown={e => {
+        // Naksu A7: Enter e Espaço alternam (a caixa antes só abria pelo foco). Só quando o foco está no próprio gatilho, não num link dentro dele.
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); alternar(); return }
+        d.handlers.onKeyDown(e)
+      }}
       // Toque: alterna. Sem stopPropagation (Yannis M3): o painel do canal não abre porque a LINHA exclui `.cdica` do seu clique (Tarefa 8, testado), e o `stopPropagation` do React 19 esconderia o clique de ouvintes de document (menu "Mais ações", popover).
-      onPointerDown={e => { if (e.pointerType === 'touch') { if (!d.aberta) avisar(); d.abrirPorToque() } }}
+      onPointerDown={e => { if (e.pointerType === 'touch') alternar() }}
     >
       {children}
       <HoverTip show={d.show} anchor={() => ref.current} id={id} className="cn-tt" pref="baixo" align="meio" maxW={270}>{texto}</HoverTip>
@@ -1262,12 +1426,17 @@ export function CelulaDica({ texto, children, className }: { texto: string; chil
 
 Conferir as props reais do `HoverTip` (âncora como função `() => el`, `id`, posicionamento que cabe na janela; a 390 px também). Se `HoverTip` não desenhar `role="tooltip"` com o `id`, envolver o texto em `<span role="tooltip" id={id}>` dentro dele. O teste pede `aria-describedby` igual ao `id` da caixa **quando aberta**.
 
-`celula-dica.css` (arquivo novo desta tarefa):
+`celula-dica.css` (arquivo novo desta tarefa; Naksu A8 e A9; tokens do `chrome.css`, nunca `color-mix`):
 ```css
-.cdica { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; border-radius: 4px; outline-offset: 2px }
-.cdica.on { background: var(--surface-2) }
+.cdica{display:inline-block;max-width:100%;border-radius:4px;cursor:help;outline-offset:2px;text-decoration:underline dotted var(--dim) 1px;text-underline-offset:4px}
+.cdica:hover,.cdica.on{text-decoration-color:var(--text)}
+.cdica.on{background:var(--surface-2);box-shadow:0 0 0 4px var(--surface-2)}
+/* o anel de foco não é cortado pelo overflow-x:auto do .tablebox nem pela 1ª coluna presa */
+td .cdica:focus-visible,.cards .cdica:focus-visible{outline-offset:-2px}
+/* alvo de toque de 44 px só em td/cartão; o cabeçalho (th) fica nos 32 px do .tip */
+@media (pointer:coarse){td .cdica,.cards .cdica{min-height:44px;display:inline-flex;flex-direction:column;justify-content:center}}
 ```
-(usar o token de fundo suave que `canais.css` já usa; nunca `color-mix`.) Se o projeto não importa CSS de dentro de componente client nesta pasta, importar `celula-dica.css` no mesmo ponto onde `canais.css` é importado, **sem** editar `canais.css`.
+O fundo `--surface-2` do estado aberto (1,13:1 / 1,06:1 contra `--bg`) não conta como indicação: quem muda é o sublinhado em `--text`. Se o projeto não importa CSS de dentro de componente client nesta pasta, importar `celula-dica.css` no mesmo ponto onde `canais.css` é importado, **sem** editar `canais.css`.
 
 - [ ] **Step 4: Rodar**
 
@@ -1304,16 +1473,16 @@ git commit -m "feat: canais: componente de dica por célula (hover, foco, toque,
   ```
   `GrowthCell` vem de `view-model.ts` (Tarefa 4, `import type`), `CelulaDeDirecao` de `direcao-model.ts` (com `fechaEm` da Tarefa 2; `n` repassado: se `CelulaDeDirecao` `nao_medido` não tiver `n`, acrescentar `n?: number` no tipo e no repasse de `direcao-model.ts:44`, e esse arquivo entra na lista desta tarefa).
 
-Textos à letra (REVISAO-LOGAN-R3.md, com os desvios declarados acima):
+Textos à letra (REVISAO-LOGAN-R3.md **com os textos finais da 2ª rodada do Logan**, `logan-textos-plano.md`; "−" = U+2212; `{x}` = variável; "retrato" nunca aparece em texto visível):
 
 | Dica | Caso | Texto |
 |---|---|---|
-| Inscritos | ≥ mil | `{N} inscritos pelo YouTube, que corta para 3 algarismos: o número real fica entre {N} e {N + passo − 1}.` TEXTO-A-REVISAR (Logan; conserto do Phil I5: o YouTube corta para baixo, o "até m acima ou abaixo" do mockup dizia o contrário e metade da margem) |
-| Inscritos | < mil | `{N} inscritos. Abaixo de mil, o YouTube mostra o número exato.` TEXTO-A-REVISAR |
+| Inscritos | ≥ mil | `{N} inscritos. O YouTube corta a contagem para 3 algarismos: o número real é este ou um pouco maior, em menos de {passo}.` (Logan 1, a doc oficial manda: cortada para baixo; `{passo}` entra como número, ex.: "menos de 10 mil") |
+| Inscritos | < mil | `{N} inscritos. Abaixo de mil, o YouTube mostra o número exato.` |
 | Inscritos | oculto | `O canal esconde o número de inscritos; não há o que mostrar.` |
-| Views/dia | medido | `{V} views por dia, a mediana dos {N} vídeos longos acompanhados, {desde}. Por mil inscritos: {Z} views por dia.` (Z < 0,1 → `menos de 0,1`; oculto → `Inscritos ocultos: sem proporção por mil.` no lugar da 2ª frase; fraco → + ` Poucos vídeos: leia com cautela.`; Shorts troca `vídeos longos` por `Shorts`) TEXTO-A-REVISAR na troca de "dos últimos 90 dias" |
+| Views/dia | medido | `{V} views por dia: a mediana dos {N} vídeos longos acompanhados {desde}. Por mil inscritos: {Z} views por dia.` (`{desde}` = `desde DD/MM`, início da série; Z < 0,1 → `menos de 0,1`; oculto → `Inscritos ocultos: sem proporção por mil.` no lugar da 2ª frase; fraco → + ` Poucos vídeos: leia com cautela.`; Shorts troca `vídeos longos` por `Shorts`; sem "últimos 90 dias", que é falso no código) |
 | Ritmo | — | `Em 13 semanas: {L} vídeos longos e {S} Shorts. Último vídeo há {X} dias.` (L ou S = 1 → `1 vídeo longo` / `1 Short`; X = 0 → `Último vídeo hoje.`; X = 1 → `há 1 dia`; sem vídeo → sem a 2ª frase). Com `cadence().partial`: + ` {partialText}` (Phil M6; `cadence()` conta só os vídeos buscados e a frase subconta) |
-| Outliers | com vídeo | `“{T}”: {M}× as views típicas do canal ({V} contra {E}).` TEXTO-A-REVISAR (sugerir "na mesma idade") |
+| Outliers | com vídeo | `“{T}”: {M}× as views típicas do canal na mesma idade ({V} contra {E}).` (Logan 4: a base é a mediana na mesma idade) |
 | Outliers | nenhum | `Nenhum vídeo dos últimos 90 dias passou de 2× as views típicas do canal.` |
 | Outliers | fraco | `Só {N} vídeos longos: ainda não dá para saber o que é típico deste canal.` (Shorts: `Só {N} Shorts: …`) |
 | Trocas | nenhuma | `Nenhuma troca de título ou thumbnail nos últimos 30 dias.` |
@@ -1321,8 +1490,8 @@ Textos à letra (REVISAO-LOGAN-R3.md, com os desvios declarados acima):
 | Sync | ok | `Última sincronização {ha}, com {N} vídeos acompanhados. Automática às {00h, 06h, 12h e 18h} (São Paulo).` (`ha` já começa com "há") |
 | Sync | erro | `A tentativa de {ha} não completou. Seguimos com os dados de antes ({N} vídeos) e tentamos de novo na próxima sincronização.` (sem `errorSince` → `A última tentativa não completou. …`) |
 | Sync | canal próprio | 1ª frase igual a "ok"; a 2ª é o texto de `proprio` (o `ownTexts().sync` de hoje: `Seu canal não entra nesta rodada; ele sincroniza pelo Painel.`) |
-| Crescimento | ok | `De {X} inscritos em {DD/MM} para {Y} em {DD/MM}: {G} ({P}%).` + ` Inscritos arredondados a 3 algarismos pelo YouTube.` (G e P com sinal, − U+2212; **a dica escreve o intervalo real**, Phil I3: a janela é de 29 a 33 dias, nunca 31 a 90 rotulada "30"). Com `atrasadoAte`: + ` Último retrato em {DD/MM}: a coleta está parada.` (Phil I4) |
-| Crescimento | sem variação | `De {X} inscritos em {DD/MM} para {Y} em {DD/MM} ({G}). Dentro do arredondamento do YouTube (passo de {N}): pode ser só isso.` (G = `0` quando zero; com `atrasadoAte`, + a frase do retrato parado). Abaixo de mil (`limite` 0): `De {X} inscritos em {DD/MM} para {Y} em {DD/MM}: o mesmo número nas duas contagens.` TEXTO-A-REVISAR (Logan) |
+| Crescimento | ok | `De {X} inscritos em {DD/MM} para {Y} em {DD/MM}: {G} ({P}%).` + ` Inscritos arredondados a 3 algarismos pelo YouTube.` (G e P com sinal, − U+2212; **a dica escreve o intervalo real**, Phil I3: a janela é de 29 a 33 dias, nunca 31 a 90 rotulada "30"). Com `atrasadoAte`: + ` Última contagem em {DD/MM}: a coleta está parada.` (Phil I4; Logan: "contagem", não "retrato") |
+| Crescimento | sem variação | `De {X} inscritos em {DD/MM} para {Y} em {DD/MM} ({G}). A diferença é menor que {2×passo}, dentro do que o corte da contagem pelo YouTube explica.` (Logan 7; G = `0` quando zero; `{2×passo}` = `limite` da célula; com `atrasadoAte`, + a frase da contagem parada). Abaixo de mil (`limite` 0): `De {X} inscritos em {DD/MM} para {Y} em {DD/MM}: o mesmo número nas duas contagens.`; cap da célula `dentro do arredondamento (±{2×passo})` e `mesmo número nas duas contagens` mantidos |
 | Crescimento | próprio sem registro | `Seu canal ainda não tem a coleta de inscritos ligada. Passa a medir 30 dias depois de ligada.` |
 | Crescimento | oculto | `O canal esconde os inscritos: não há o que comparar. Sem data prevista; só muda se ele mostrar.` |
 | Crescimento | novo | `Só {N} dias de registro; a medida pede 30. A janela fecha em {DD/MM}.` Se `fechaEm < agora` (coleta parada: a data sai do último retrato, não de hoje; Phil M5): `Só {N} dias de registro; a medida pede 30.` sem a data |
@@ -1331,8 +1500,8 @@ Textos à letra (REVISAO-LOGAN-R3.md, com os desvios declarados acima):
 | Crescimento | não carregou / sem percentual | o `title` da célula |
 | Direção | subiu | `Últimos 28 dias: {R} views. 28 dias anteriores: {A}. Subiu {P}%.` |
 | Direção | caiu | `… Caiu {P}%.` (P sem sinal) |
-| Direção | sem mudança | `… Variou {+P / −P}%: dentro de ±10%, conta como sem mudança.` TEXTO-A-REVISAR (o Logan escreveu "±P") |
-| Direção | canal próprio | `Seu canal ainda não tem Direção medida. Sem data prevista.` TEXTO-A-REVISAR |
+| Direção | sem mudança | `… Variou {+P / −P}%. Até 10% para cima ou para baixo conta como sem mudança.` (Logan 6; sem "±" nem chaves de regra; P = 0 → `Variou 0%.`) |
+| Direção | canal próprio | `Esta coluna não mede a Direção do seu canal. Sem data prevista.` (Logan 5: o fato, sem sugerir espera de 56 dias) |
 | Direção | pouco registro | `Só {n} dias de registro; a medida pede 56 (28 contra 28). A janela fecha em {DD/MM}.` (Phil M3: `n` conta dias de registro do canal, não de vídeos; `fechaEm` é "a partir de", Tarefa 2) |
 | Direção | outro não medido | `d.longa` (o texto que a célula já tem) |
 | Direção | não carregou | `null` (a célula de hoje já explica; sem dica) |
@@ -1353,15 +1522,15 @@ const e: Escrita = {
 
 describe('dicas à letra', () => {
   it('Inscritos', () => {
-    expect(dicaInscritos({ subs: 1_230_000, passo: 10_000 }, e)).toBe('1.230.000 inscritos pelo YouTube, que corta para 3 algarismos: o número real fica entre 1.230.000 e 1.239.999.')
+    expect(dicaInscritos({ subs: 1_230_000, passo: 10_000 }, e)).toBe('1.230.000 inscritos. O YouTube corta a contagem para 3 algarismos: o número real é este ou um pouco maior, em menos de 10.000.')
     expect(dicaInscritos({ subs: null, passo: 0 }, e)).toBe('O canal esconde o número de inscritos; não há o que mostrar.')
     expect(dicaInscritos({ subs: 812, passo: 0 }, e)).toBe('812 inscritos. Abaixo de mil, o YouTube mostra o número exato.')
   })
   it('Views/dia', () => {
     expect(dicaViewsDia({ mediana: 1200, n: 14, desde: 'desde 01/08', porMil: 0.05, oculto: false, fraco: false, formato: 'long' }, e))
-      .toBe('1.200 views por dia, a mediana dos 14 vídeos longos acompanhados, desde 01/08. Por mil inscritos: menos de 0,1 views por dia.')
+      .toBe('1.200 views por dia: a mediana dos 14 vídeos longos acompanhados desde 01/08. Por mil inscritos: menos de 0,1 views por dia.')
     expect(dicaViewsDia({ mediana: 300, n: 2, desde: 'desde 01/08', porMil: null, oculto: true, fraco: true, formato: 'short' }, e))
-      .toBe('300 views por dia, a mediana dos 2 Shorts acompanhados, desde 01/08. Inscritos ocultos: sem proporção por mil. Poucos vídeos: leia com cautela.')
+      .toBe('300 views por dia: a mediana dos 2 Shorts acompanhados desde 01/08. Inscritos ocultos: sem proporção por mil. Poucos vídeos: leia com cautela.')
   })
   it('Ritmo', () => {
     expect(dicaRitmo({ longos: 6, shorts: 1, ultimoHaDias: 3, partialText: null })).toBe('Em 13 semanas: 6 vídeos longos e 1 Short. Último vídeo há 3 dias.')
@@ -1370,7 +1539,7 @@ describe('dicas à letra', () => {
   })
   it('Outliers', () => {
     expect(dicaOutliers({ melhor: { titulo: 'Vídeo X', mult: 3.4, views: 34_000, esperado: 10_000 }, nVideos: 9, fraco: false, formato: 'long' }, e))
-      .toBe('“Vídeo X”: 3,4× as views típicas do canal (34.000 contra 10.000).')
+      .toBe('“Vídeo X”: 3,4× as views típicas do canal na mesma idade (34.000 contra 10.000).')
     expect(dicaOutliers({ melhor: null, nVideos: 2, fraco: true, formato: 'long' }, e)).toBe('Só 2 vídeos longos: ainda não dá para saber o que é típico deste canal.')
   })
   it('Trocas', () => {
@@ -1388,11 +1557,11 @@ describe('dicas à letra', () => {
     expect(dicaCrescimento({ kind: 'ok', big: '+1,7%', cap: '', antes: 1_200_000, depois: 1_220_000, de, ate, atrasadoAte: null, abs: 20_000, pct: 20_000 / 1_200_000 }, e, false))
       .toBe('De 1.200.000 inscritos em 12/09 para 1.220.000 em 12/10: +20.000 (+1,7%). Inscritos arredondados a 3 algarismos pelo YouTube.')
     expect(dicaCrescimento({ kind: 'flat', big: 'sem variação', cap: '', limite: 20_000, antes: 1_200_000, depois: 1_210_000, de, ate, atrasadoAte: null, abs: 10_000, passo: 10_000 }, e, false))
-      .toBe('De 1.200.000 inscritos em 12/09 para 1.210.000 em 12/10 (+10.000). Dentro do arredondamento do YouTube (passo de 10.000): pode ser só isso.')
+      .toBe('De 1.200.000 inscritos em 12/09 para 1.210.000 em 12/10 (+10.000). A diferença é menor que 20.000, dentro do que o corte da contagem pelo YouTube explica.')
     expect(dicaCrescimento({ kind: 'flat', big: 'sem variação', cap: '', limite: 0, antes: 800, depois: 800, de, ate, atrasadoAte: null, abs: 0, passo: 1 }, e, false))
       .toBe('De 800 inscritos em 12/09 para 800 em 12/10: o mesmo número nas duas contagens.')
     expect(dicaCrescimento({ kind: 'ok', big: '+4,0%', cap: '', antes: 50_000, depois: 52_000, de, ate, atrasadoAte: Date.UTC(2026, 9, 8, 15), abs: 2000, pct: 0.04 }, e, true))
-      .toContain('Último retrato em 08/10: a coleta está parada.')
+      .toContain('Última contagem em 08/10: a coleta está parada.')
     expect(dicaCrescimento({ kind: 'na', text: '', title: '', motivo: 'sem-registro', fechaEm: null, dias: null }, e, true))
       .toBe('Seu canal ainda não tem a coleta de inscritos ligada. Passa a medir 30 dias depois de ligada.')
     expect(dicaCrescimento({ kind: 'na', text: '', title: '', motivo: 'novo', fechaEm: Date.UTC(2026, 10, 2, 15), dias: 12 }, e, false))
@@ -1405,7 +1574,10 @@ describe('dicas à letra', () => {
   it('Direção', () => {
     const med = { tipo: 'medido', pct: 18, simbolo: 'sobe', texto: '', ganhoRecente: 0, ganhoAnterior: 0, foraDaEscala: null, fracao: 0, avisoDeContagem: null } as const
     expect(dicaDirecao(med as never, { recente: '118 mil', anterior: '100 mil' }, e)).toBe('Últimos 28 dias: 118 mil views. 28 dias anteriores: 100 mil. Subiu 18%.')
-    expect(dicaDirecao({ tipo: 'canal_proprio', curta: '', longa: '' }, null, e)).toBe('Seu canal ainda não tem Direção medida. Sem data prevista.')
+    expect(dicaDirecao({ tipo: 'canal_proprio', curta: '', longa: '' }, null, e)).toBe('Esta coluna não mede a Direção do seu canal. Sem data prevista.')
+    // sem mudança (Logan 6): o literal de `simbolo` é o de `SimboloDeDirecao` para "estável" (ler direcao-model.ts); `pct` dentro de ±10
+    expect(dicaDirecao({ ...med, pct: -4, simbolo: 'estavel' } as never, { recente: '96 mil', anterior: '100 mil' }, e)).toBe('Últimos 28 dias: 96 mil views. 28 dias anteriores: 100 mil. Variou −4%. Até 10% para cima ou para baixo conta como sem mudança.')
+    expect(dicaDirecao({ ...med, pct: 0, simbolo: 'estavel' } as never, { recente: '100 mil', anterior: '100 mil' }, e)).toBe('Últimos 28 dias: 100 mil views. 28 dias anteriores: 100 mil. Variou 0%. Até 10% para cima ou para baixo conta como sem mudança.')
     expect(dicaDirecao({ tipo: 'nao_medido', motivo: 'pouco_registro', n: 20, fechaEm: '2026-11-15', curta: '', longa: '' } as never, null, e)).toBe('Só 20 dias de registro; a medida pede 56 (28 contra 28). A janela fecha em 15/11.')
   })
 })
@@ -1418,7 +1590,7 @@ O `simbolo` do caso medido usa o valor real de `SimboloDeDirecao` (ler `direcao-
 Run: `cd apps/web && npx vitest run test/youtube/observatorio/canais-a5-dicas-model.test.ts > $SCRATCH/a5-t7.txt 2>&1; grep -E "FAIL|×" $SCRATCH/a5-t7.txt | head`
 Expected: FAIL (módulo inexistente).
 
-- [ ] **Step 3: Implementar** as funções da tabela, uma por coluna, em `dicas-model.ts`, sem importar nada do motor além de tipos. Sinal de menos: `const sinal = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '')`. Cabeçalho do arquivo: `// A5 2ª leva: os textos das dicas por célula (REVISAO-LOGAN-R3.md, mockup 17). Puro.` Cada texto marcado TEXTO-A-REVISAR na tabela leva o comentário `// TEXTO-A-REVISAR (Logan): <motivo>` na linha.
+- [ ] **Step 3: Implementar** as funções da tabela, uma por coluna, em `dicas-model.ts`, sem importar nada do motor além de tipos. Sinal de menos: `const sinal = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '')`. Cabeçalho do arquivo: `// A5 2ª leva: os textos das dicas por célula (REVISAO-LOGAN-R3.md, mockup 17). Puro.` Os textos da tabela já são os finais do Logan: sem comentário `TEXTO-A-REVISAR` no código.
 
 - [ ] **Step 4: Rodar**
 
@@ -1463,9 +1635,12 @@ De onde cada campo sai em `rowOf` (tudo já carregado): `subs` ← `c.subs`, `pa
 
 ```tsx
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { screen, fireEvent } from '@testing-library/react'
 // montar a tabela com o helper de canais-a3-tela.test.tsx (copiar), mundo a3World()
+
+// Re-revisão C3: nenhum teste deste arquivo passa em verde sem afirmar.
+beforeEach(() => { expect.hasAssertions() })
 
 // O jsdom do projeto não tem PointerEvent (Yannis I3): o mesmo bloco beforeAll de celula-dica.test.tsx, aqui também.
 beforeAll(() => {
@@ -1485,6 +1660,14 @@ describe('dicas por célula na tela', () => {
     // …montar tabela; escolher a linha pelo id de um concorrente (a 1ª linha pode ser o canal próprio, que não tem Trocas: 7 gatilhos)
     const linha = document.querySelector(`tbody tr[data-id="${idDeUmConcorrente}"]`)!
     expect(linha.querySelectorAll('.cdica').length).toBeGreaterThanOrEqual(8)
+  })
+  it('dica aberta: o gatilho aponta para a caixa (aria-describedby = id do tooltip) e anuncia aria-expanded (Naksu A7)', () => {
+    // …montar tabela
+    const g = document.querySelector('tbody tr .cdica') as HTMLElement
+    fireEvent.focus(g)
+    const caixa = screen.getByRole('tooltip')
+    expect(g.getAttribute('aria-describedby')).toBe(caixa.id)
+    expect(g.getAttribute('aria-expanded')).toBe('true')
   })
   it('tocar a dica não abre o painel do canal (a LINHA exclui .cdica; é o único mecanismo)', () => {
     const onOpen = vi.fn()
@@ -1519,7 +1702,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implementar**
 
-- `view-model.ts`: montar `dicas` em `rowOf` pela lista acima, com `const escrita: Escrita = { num: F.num, dec1: F.dec1, dm: D.dm }` (conferir que `F.num` escreve "1.230.000"; se escrever "1,23 mi", usar o formatador inteiro que `subsTxt` usa para o número cheio).
+- `view-model.ts`: montar `dicas` em `rowOf` pela lista acima, com `const escrita: Escrita = { num: F.num, dec1: F.dec1, dm: D.dm, agora: obs.NOW }` (o campo `agora` é obrigatório desde a T7; Re-revisão M-a) (conferir que `F.num` escreve "1.230.000"; se escrever "1,23 mi", usar o formatador inteiro que `subsTxt` usa para o número cheio).
 - `cells.tsx`: cada `*View` recebe `dica?: string | null`; quando há, envolve **só** o valor (número, rótulo e legenda) em `<CelulaDica texto={dica}>`; botões e links ficam fora. Apagar os `title=` **de valor** das células (nome truncado, `abbr.langtag`, botão desabilitado e botão de ordenar "Canal" ficam, ver D4). `GrowthView` ganha a dica. **O `Tip` de `cells.tsx` passa a usar o `useDica()` da Tarefa 6** (Yannis M1: uma máquina de hover/foco/Esc só, sem dois componentes de dica divergentes).
 - `channel-table.tsx`: Inscritos e Direção usam `CelulaDica` com `r.dicas.subs` / `r.dicas.direcao`; o `Tip` de Inscritos e o `DirecaoDica` saem. No `onClick` da linha, o seletor de exclusão vira `` `select,button,a,.tip,.${CELULA_DICA_CLASSE}` `` (**único** mecanismo de "clique na dica não abre o painel"; a `CelulaDica` não usa `stopPropagation`, Yannis M3). Acrescentar `data-col={sort}` e `data-id={r.id}` nos `td`/`tr` se não houver.
 - `channel-cards.tsx`: as mesmas dicas nos rótulos de valor do cartão.
@@ -1552,33 +1735,71 @@ git commit -m "feat: canais: dica por célula em todas as colunas da tabela e do
 
 **Interfaces:**
 - Consumes: `onSort` de hoje (primeiro clique `desc`, de novo inverte), `CanaisSort` com `'direcao'`, `SORTNAME`.
-- Produces: `<div role="group" aria-label="Ordenar canais" className="sortbar" data-testid="canais-sortbar">` com um `button` por ordenação, `aria-pressed` no ativo. (`role="toolbar"` pede setas de teclado pelo padrão ARIA; sem elas, `role="group"` com o mesmo `aria-label`. Naksu decide na revisão do implementado.)
+- Produces: `<div role="group" aria-label="Ordenar canais" className="sortbar" data-testid="canais-sortbar">` com um `button.btn` por ordenação (o `.btn` de `canais.css:33`, o mesmo do mockup 17), `aria-pressed` no ativo. **Decidido pela Naksu (decisão 1):** `role="group"`, não `toolbar` (`toolbar` promete setas de teclado e foco único; a barra tem 7 `button` tabuláveis).
 
-**Onde mora (Yannis I4):** `position: sticky` só gruda dentro do bloco do pai. O `<select name="cardSort">` hoje mora dentro do `<label className="cardsort">`, filho da linha de ferramentas (`canais-screen.tsx` ~484), que termina logo depois: com a barra nesse lugar ela sairia da tela junto com a linha de ferramentas ao rolar. Por isso a barra é **irmã imediata da lista de cartões**, dentro do mesmo contêiner que a envolve. E a tela já tem barra de topo grudada (`--obs-topbar-h: 48px` abaixo de 768 px; os outros grudados da observatória usam `top: var(--obs-top)`): `top: 0` a esconderia por baixo dela.
+**Onde mora (Yannis I4):** `position: sticky` só gruda dentro do bloco do pai. O `<select name="cardSort">` hoje mora dentro do `<label className="cardsort">`, filho da linha de ferramentas (`canais-screen.tsx` ~484), que termina logo depois: com a barra nesse lugar ela sairia da tela junto com a linha de ferramentas ao rolar. Por isso a barra é **irmã imediata da lista de cartões** (`<ChannelCards>`, `canais-screen.tsx` ~492), dentro de `.wrap` e só renderizada em `.view-cards` (aprovado pela Naksu, decisão 3). **Nenhum ancestral entre a barra e `.wrap` pode ter `overflow` diferente de `visible`** (hoje `.tablebox{overflow-x:auto}` existe, mas está escondido em cartões; `.cards` não tem): o teste de estrutura abaixo afirma isso.
 
-Mockup: a 390 px a barra fica presa logo abaixo da barra do topo (`position: sticky; top: var(--obs-top)`; se outro grudado da tela usa `--obs-top`, somar a altura da barra em `--obs-sticky-h` enquanto ela existe) com um único `z-index` (`var(--z-grudado)`; se o token não existir, usar o que o pé preso `pe-preso.tsx` usa). Botões: `Inscritos`, `Views/dia`, `Crescimento`, `Direção`, depois `Ritmo`, `Outliers`, `Trocas` (D4). O ativo leva ` ↓` (maior primeiro) ou ` ↑`; tocar o ativo inverte. A barra rola na horizontal dentro dela (`overflow-x: auto`), a página não.
+**`--obs-top` e `--obs-topbar-h` não existem na tela Canais (Naksu A1 = Re-revisão C1, bloqueio).** Os dois só são declarados sob `[data-obs-screen="canal"]` (singular, `_canal/canal.css:8`); `canais.css` (escopo `canais`, `canais-screen.tsx:413`) não declara nenhum. `var()` indefinida em `top` invalida a declaração: `top` vira `auto` e o `sticky` não gruda (o e2e do caso 6 reprovaria, tarde). **Valor conferido no código da casca do CMS:** `apps/web/src/app/cms/(authed)/_shared/cms-topbar.css` declara a barra de topo com `height: 52px` (linha 7) e, em `@media (max-width: 768px)`, `height: 48px` (linhas 100-104). Logo: **52 px acima de 768 px e 48 px até 768 px** (o 48 px que o plano citava existe; o `canal.css` só declara 52, o que fica errado até 768 px, mas é outra tela e **fora deste plano**). O conserto, em `canais.css` (mesma fórmula do `canal.css:8`, com comentário apontando para ela): declarar `--obs-topbar-h` e `--obs-top` sob `[data-obs-screen="canais"]`, com o override de 48 px no `@media (max-width: 768px)`, e **escopar** a regra da barra sob `[data-obs-screen="canais"]` como o resto do arquivo.
+
+Mockup: a 390 px a barra fica presa logo abaixo da barra do topo (`position: sticky; top: var(--obs-top)`, agora declarada, ver acima; `--obs-sticky-h` é 0 nesta tela, nenhum outro grudado a escreve) com um único `z-index` (`var(--z-grudado)`; se o token não existir, usar o que o pé preso `pe-preso.tsx` usa). Botões: `Inscritos`, `Views/dia`, `Crescimento`, `Direção`, depois `Ritmo`, `Outliers`, `Trocas` (D4; ordem aprovada pela Naksu). O ativo leva ` ↓` (maior primeiro) ou ` ↑` **só como símbolo visual** (`aria-hidden`), e o nome acessível diz `Inscritos, maior primeiro` / `, menor primeiro` (Naksu A4); tocar o ativo inverte. A barra rola na horizontal dentro dela (`overflow-x: auto; flex-wrap: nowrap`: 1 linha de 44 + 2 × 8 = 60 px presos a 390 px, em vez das 2-3 linhas do `wrap` do mockup com 7 botões, ~110 px presos), a página não. O botão ativo nunca fica fora da vista (Naksu A3).
 
 - [ ] **Step 1: Escrever o teste que falha**
 
 ```tsx
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, within } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+// Re-revisão C3: nenhum teste deste arquivo passa em verde sem afirmar.
+beforeEach(() => { expect.hasAssertions() })
 // montar a tela em layout de cartões (layout: 'cards') com o helper de canais-a3-tela.test.tsx
 
 describe('barra de ordenação', () => {
-  it('7 botões na ordem do mockup, o ativo com ↓ e aria-pressed', () => {
+  it('7 botões na ordem do mockup, o ativo com ↓ visual, nome "maior primeiro" e aria-pressed', () => {
     // …montar com layout: 'cards', sort: 'subs', dir: 'desc'
     const bar = screen.getByTestId('canais-sortbar')
-    const nomes = within(bar).getAllByRole('button').map(b => b.textContent)
-    expect(nomes).toEqual(['Inscritos ↓', 'Views/dia', 'Crescimento', 'Direção', 'Ritmo', 'Outliers', 'Trocas'])
-    expect(within(bar).getByRole('button', { name: /Inscritos/ }).getAttribute('aria-pressed')).toBe('true')
+    const botoes = within(bar).getAllByRole('button')
+    expect(botoes.map(b => b.textContent)).toEqual(['Inscritos ↓, maior primeiro', 'Views/dia', 'Crescimento', 'Direção', 'Ritmo', 'Outliers', 'Trocas'])
+    // Naksu A4: o leitor de tela não lê "seta para baixo"; a seta é aria-hidden e o nome diz a ordem.
+    const ativo = within(bar).getByRole('button', { name: /Inscritos, maior primeiro/ })
+    expect(ativo.getAttribute('aria-pressed')).toBe('true')
+    expect(ativo.querySelector('[aria-hidden="true"]')!.textContent).toBe(' ↓')
+    expect(within(bar).getByRole('button', { name: 'Direção' }).getAttribute('aria-pressed')).toBe('false')
   })
-  it('estrutura (o jsdom não faz layout): a barra é irmã da lista de cartões, no mesmo contêiner', () => {
+  it('role="group" com aria-label "Ordenar canais" (não toolbar: sem setas de teclado)', () => {
     // …montar com layout: 'cards'
     const bar = screen.getByTestId('canais-sortbar')
-    expect(bar.parentElement!.contains(document.querySelector('.cards'))).toBe(true)
+    expect(bar.getAttribute('role')).toBe('group')
+    expect(bar.getAttribute('aria-label')).toBe('Ordenar canais')
+  })
+  it('estrutura (o jsdom não faz layout): a barra é irmã imediata da lista de cartões, e nenhum ancestral até a tela tem overflow', () => {
+    // …montar com layout: 'cards'
+    const bar = screen.getByTestId('canais-sortbar')
+    const cartoes = document.querySelector('.cards')!
+    expect(bar.nextElementSibling === cartoes || cartoes.nextElementSibling === bar).toBe(true) // irmã IMEDIATA, não só "no mesmo pai"
     expect(bar.closest('.cardsort')).toBeNull() // não dentro da linha de ferramentas
+    // Naksu decisão 3: o `sticky` perde o efeito se um ancestral rola. Lê as regras de canais.css cuja ÚLTIMA parte do seletor cita uma classe do ancestral.
+    const css = readFileSync(resolve(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
+    const regras = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({ seletores: m[1]!.split(',').map(x => x.trim()), corpo: m[2]! }))
+    for (let el: Element | null = bar.parentElement; el && !el.hasAttribute('data-obs-screen'); el = el.parentElement) {
+      for (const c of Array.from(el.classList)) {
+        for (const r of regras) {
+          const ultima = (sel: string) => sel.split(/[\s>+~]+/).pop() ?? ''
+          if (!r.seletores.some(sel => ultima(sel).includes('.' + c))) continue
+          expect(r.corpo, `.${c} cria rolagem e quebra o sticky`).not.toMatch(/overflow(-x|-y)?\s*:\s*(auto|hidden|scroll|clip)/)
+        }
+      }
+    }
+  })
+  // Naksu A1 + Re-revisão C1: o jsdom não faz layout, então o CSS é lido como texto (o e2e do caso 6 mede o posicionamento de verdade).
+  it('CSS: --obs-top e --obs-topbar-h declarados no escopo canais (52 px; 48 px até 768 px), barra escopada, 44 px no toque, sem color-mix', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
+    expect(css).toMatch(/\[data-obs-screen="canais"\]\s*\{[^}]*--obs-topbar-h:\s*52px[^}]*--obs-top:\s*calc\(var\(--obs-sticky-h,\s*0px\)\s*\+\s*var\(--obs-topbar-h\)\)/)
+    expect(css).toMatch(/@media \(max-width:\s*768px\)\s*\{[^}]*\[data-obs-screen="canais"\]\s*\{[^}]*--obs-topbar-h:\s*48px/)
+    expect(css).toMatch(/\[data-obs-screen="canais"\] \.sortbar\s*\{[^}]*position:\s*sticky[^}]*top:\s*var\(--obs-top\)/)
+    expect(css).toMatch(/@media \(pointer:\s*coarse\)\s*\{[^}]*\.sortbar \.btn\s*\{[^}]*min-height:\s*44px/)
+    expect(css).not.toMatch(/color-mix/)
   })
   it('tocar o ativo inverte; tocar outro abre do maior', () => {
     // …montar e capturar a navegação (o mesmo jeito que canais-a3-tela verifica onSort/URL)
@@ -1587,6 +1808,13 @@ describe('barra de ordenação', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Direção' }))
     // espera sort=direcao&dir=desc
   })
+  // Naksu A3: com 7 botões rolando na horizontal, o ativo pode estar além da borda.
+  it('o botão ativo é trazido para a vista quando a ordenação muda (scrollIntoView, sem animação)', () => {
+    const rolar = vi.fn(); Element.prototype.scrollIntoView = rolar // o jsdom não implementa
+    // …montar com sort: 'subs'; depois `rerender` com sort: 'swaps'
+    expect(rolar).toHaveBeenCalledWith({ inline: 'nearest', block: 'nearest', behavior: 'auto' })
+    expect(rolar.mock.contexts.at(-1)).toBe(within(screen.getByTestId('canais-sortbar')).getByRole('button', { name: /Trocas/ }))
+  })
   it('o select antigo saiu', () => {
     // …montar
     expect(document.querySelector('select[name="cardSort"]')).toBeNull()
@@ -1594,7 +1822,7 @@ describe('barra de ordenação', () => {
 })
 ```
 
-O executor completa as duas esperas com o mesmo mecanismo que `canais-a3-tela.test.tsx` usa para afirmar a troca de ordenação (mock de `useRouter().replace` ou de `onSort`).
+O executor completa as esperas com o mesmo mecanismo que `canais-a3-tela.test.tsx` usa para afirmar a troca de ordenação (mock de `useRouter().replace` ou de `onSort`).
 
 - [ ] **Step 2: Rodar e ver falhar**
 
@@ -1604,28 +1832,49 @@ Expected: FAIL.
 - [ ] **Step 3: Implementar**
 
 ```tsx
-const ORDEM_DA_BARRA: CanaisSort[] = ['subs', 'vpd', 'growth', 'direcao', 'active', 'outliers', 'swaps'] // D4: as 4 do mockup primeiro (Naksu confere)
+const ORDEM_DA_BARRA: CanaisSort[] = ['subs', 'vpd', 'growth', 'direcao', 'active', 'outliers', 'swaps'] // D4: as 4 do mockup primeiro (Naksu aprovou)
+const ativoRef = useRef<HTMLButtonElement>(null)
+const primeira = useRef(true)
+// Naksu A3: o ativo pode estar além da borda da rolagem horizontal; `behavior: 'auto'` (sem animação) respeita prefers-reduced-motion.
+// Não roda na 1ª montagem: `scrollIntoView` mexeria na rolagem da PÁGINA.
+useEffect(() => {
+  if (primeira.current) { primeira.current = false; return }
+  ativoRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'auto' })
+}, [v.sort])
+
 <div role="group" aria-label="Ordenar canais" className="sortbar" data-testid="canais-sortbar">
   {ORDEM_DA_BARRA.map(s => {
     const ativo = v.sort === s
     return (
-      <button key={s} type="button" aria-pressed={ativo} className={ativo ? 'on' : undefined} onClick={() => onSort(s)}>
-        {SORTNAME[s]}{ativo ? (v.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+      <button key={s} ref={ativo ? ativoRef : undefined} type="button" aria-pressed={ativo} className={'btn' + (ativo ? ' on' : '')} onClick={() => onSort(s)}>
+        {SORTNAME[s]}
+        {ativo && <>
+          <span aria-hidden="true">{v.dir === 'desc' ? ' ↓' : ' ↑'}</span>
+          <span className="sr">{v.dir === 'desc' ? ', maior primeiro' : ', menor primeiro'}</span>
+        </>}
       </button>
     )
   })}
 </div>
 ```
+(`.sr` e `.btn` já existem em `canais.css:26` e `:33`.) A barra é **irmã imediata** de `<ChannelCards>` (ver "Onde mora").
 `SORTNAME` precisa ser exportado de `view-model.ts`? Se não for, usar os rótulos que a tela já recebe (`COLS`); **não** exportar de `view-model.ts` nesta tarefa (fora da lista): ler como `canais-screen.tsx` obtém os nomes hoje e seguir.
 `onCardSort` (sempre `desc`) some; a barra usa `onSort` (alterna).
 
-`canais.css`:
+`canais.css` (Naksu A1, A2, A3, A5; Re-revisão C1). Tokens: os que `canais.css` já usa; sem `color-mix`:
 ```css
-.sortbar { position: sticky; top: var(--obs-top); z-index: var(--z-grudado); display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px; background: var(--bg) }
-.sortbar button { flex: none; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface) }
-.sortbar button.on { font-weight: 600; border-color: var(--text) }
+/* A5 2ª leva: Canais não herda --obs-top do canal.css (escopo "canal"); mesma fórmula de canal.css:8.
+   Altura da barra de topo da casca do CMS: _shared/cms-topbar.css (52 px; 48 px até 768 px). */
+[data-obs-screen="canais"] { --obs-topbar-h: 52px; --obs-top: calc(var(--obs-sticky-h, 0px) + var(--obs-topbar-h)) }
+@media (max-width: 768px) { [data-obs-screen="canais"] { --obs-topbar-h: 48px } }
+
+[data-obs-screen="canais"] .sortbar { position: sticky; top: var(--obs-top); z-index: var(--z-grudado); display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scroll-padding-inline: 16px; padding: 8px 16px; background: var(--bg) }
+[data-obs-screen="canais"] .sortbar .btn { flex: none }
+/* estado ativo: seta (forma) + peso + sublinha interna; o fundo --surface-2 (1,13:1 / 1,06:1) não carrega estado sozinho */
+[data-obs-screen="canais"] .sortbar .btn.on { font-weight: 600; box-shadow: inset 0 -2px 0 var(--text) }
+@media (pointer: coarse) { [data-obs-screen="canais"] .sortbar .btn { min-height: 44px } }
 ```
-(tokens: os que `canais.css` já usa; sem `color-mix`.)
+Altura presa a 390 px: 44 + 2 × 8 = 60 px, uma linha. A medida real (altura da barra do CMS a 390 px, anel de foco, `HoverTip` na última coluna) é do e2e do Gio (caso 6).
 
 - [ ] **Step 4: Rodar**
 
@@ -1654,10 +1903,10 @@ Casos (o Gio escreve e roda; nomes sintéticos tipo "Canal Teste A"):
 
 1. **1440 px, Crescimento:** clicar no cabeçalho Crescimento → `canais-ordem` com o texto à letra; os dois canais da semente com o mesmo valor mostram o mesmo `Nº` e "empate", em ordem A–Z; clicar de novo → lista invertida, o 1º do topo agora tem o maior `Nº`, empate continua A–Z.
 2. **1440 px, Direção:** cabeçalho Direção ordenável; o primeiro clique abre com quem mais sobe; "não medido" e o canal próprio abaixo do divisor "Ainda sem medida para ordenar"; nenhum "0%" inventado.
-3. **Sem variação:** a célula do canal da semente dentro do arredondamento mostra "sem variação" e "dentro do arredondamento (±N)"; a dica abre no hover com "Dentro do arredondamento do YouTube (passo de N): pode ser só isso."
+3. **Sem variação:** a célula do canal da semente dentro do arredondamento mostra "sem variação" e "dentro do arredondamento (±N)"; a dica abre no hover com "A diferença é menor que N, dentro do que o corte da contagem pelo YouTube explica."
 4. **Dica por célula, teclado:** Tab até uma célula de Views/dia → `role="tooltip"` visível; Esc fecha; nenhum `[title]` nas células de valor (`td[data-col] [title]`).
 5. **Clique na dica não abre o painel:** clicar numa célula com dica não abre o painel lateral; clicar no nome do canal abre.
-6. **390 px:** barra `canais-sortbar` presa logo abaixo da barra do topo ao rolar (depois de rolar 2.000 px, `bar.boundingBox().y` igual ao `bottom` da barra do topo, ± 1 px, **não** 0: com `top: 0` ela ficaria por baixo da barra do topo); tocar "Direção" ordena, tocar de novo mostra " ↑"; tocar uma dica abre, tocar fora fecha; a caixa da dica cabe na janela (`boundingBox` dentro de 0..390); sem rolagem horizontal da página (`scrollWidth <= 390`).
+6. **390 px:** barra `canais-sortbar` presa logo abaixo da barra do topo ao rolar (depois de rolar 2.000 px, `bar.boundingBox().y` igual ao `bottom` da barra do topo, ± 1 px, **não** 0: com `top: 0` ela ficaria por baixo da barra do topo); tocar "Direção" ordena, tocar de novo mostra " ↑" (nome acessível `Direção, menor primeiro`); com "Trocas" ativo, o botão está inteiramente visível dentro da barra (Naksu A3); alvo de toque de cada botão >= 44 px de altura (A2) e de uma célula com dica em `td`/cartão >= 44 px (A8); tocar uma dica abre, **tocar a mesma dica de novo fecha** (Re-revisão C2 / Naksu A6), tocar fora fecha; a caixa da dica cabe na janela (`x >= 0` e `x + largura <= 390`) com a dica aberta em célula da **1ª e da última** coluna do cartão, não só numa (Naksu A10); sem rolagem horizontal da página (`scrollWidth <= 390`).
 7. **Faixa do seu canal:** em Crescimento, `canais-faixa` com "Seu canal ainda não tem Crescimento medido." (semente sem retrato próprio) e os links "Ordenar por Inscritos" / "Ordenar por Views/dia" funcionando.
 8. **Regressão:** `canais-a3.spec.ts` inteiro verde com o texto novo.
 
@@ -1685,7 +1934,7 @@ Expected: `0` erros; só as falhas da linha de base da Tarefa 0 (comparar com `$
 
 - [ ] **Step 2: Ledger**
 
-Anotar: commits da 2ª leva; contagem da D1 (Tarefa 1, Step 5); lista dos `TEXTO-A-REVISAR (Logan)` novos (Outliers "na mesma idade", Views/dia "desde DD/MM", Direção do canal próprio, Inscritos < mil, Direção "Variou ±P", "não carregou" do Crescimento próprio, botões da faixa) e o ponto da Naksu (ordem da barra fixa); pendências para o ledger: (a) corrigir o `roundingText` do motor (hoje "±m" simétrico; o YouTube corta para baixo) fica **fora deste plano** (Phil I5); (b) a dúvida da direção do arredondamento (TEXTO-A-REVISAR da dica de Inscritos); (c) a data de conferência: **no dia do deploy (D0)**, abrir Canais ordenado por Crescimento e conferir que todo canal "sem variação" mostra `±` igual a 2 × passo (1,2 mi → ±20 mil), nenhuma célula com "−0,0%" ou "+0,0%", e o canal próprio com Crescimento no mesmo sentido (sobe/desce) da seção Inscritos e com a data do último retrato; rodar a consulta do dono (Tarefa 1) e anotar os números (`quais` deve bater com os canais que mudaram de célula); **no primeiro canal novo após o deploy**, a dica de Direção diz "fecha em DD/MM" = primeiro retrato + 56 dias, e nesse dia (ou no seguinte, por `staleDays = 1`) a célula passa a medido: anotar a data e conferir; revisão final pendente de Phil e Yannis sobre o código, Logan e Naksu sobre a tela implementada, Gio sobre o e2e.
+Anotar: commits da 2ª leva; contagem da D1 (Tarefa 1, Step 5); os textos finais do Logan (2ª rodada) já estão no plano, sem `TEXTO-A-REVISAR` pendente; o Logan só confere o implementado na tela; pendências para o ledger: (a) o `roundingText` do motor foi corrigido na Tarefa 1 (Step 3b, D1b): conferir no deploy que o cabeçalho de um canal mostra "o número real é este ou um pouco maior, em menos de N", nunca "±"; (b) o campo `text` do motor ainda escreve `(±{unit})` simétrico (fora do pedido do Logan): decidir em plano próprio; (c) a data de conferência: **no dia do deploy (D0)**, abrir Canais ordenado por Crescimento e conferir que todo canal "sem variação" mostra `±` igual a 2 × passo (1,2 mi → ±20 mil), nenhuma célula com "−0,0%" ou "+0,0%", e o canal próprio com Crescimento no mesmo sentido (sobe/desce) da seção Inscritos e com a data do último retrato; rodar a consulta do dono (Tarefa 1) e anotar os números (`quais` deve bater com os canais que mudaram de célula); **no primeiro canal novo após o deploy**, a dica de Direção diz "fecha em DD/MM" = primeiro retrato + 56 dias, e nesse dia (ou no seguinte, por `staleDays = 1`) a célula passa a medido: anotar a data e conferir; revisão final pendente de Phil e Yannis sobre o código, Logan e Naksu sobre a tela implementada, Gio sobre o e2e.
 
 - [ ] **Step 3: Commit do ledger**
 
@@ -1699,7 +1948,8 @@ git commit --no-verify -m "docs: ledger da 2ª leva da tela Canais" -- .superpow
 
 - **Cobertura do pedido:** (1) P em toda ordenação, posição canônica, empate de competição com "empate", faixa com o texto do Logan → Tarefas 3, 3b, 5. (2) Crescimento + e − e "dentro do arredondamento (±N)" por canal → Tarefas 1, 4. (3) Direção ordenável, abre com quem mais sobe, sem medida no fim e nunca 0 → Tarefas 3, 5. (4) Sortbar fixa → Tarefa 9. (5) Dica por célula com os textos da R3 → Tarefas 6, 7, 8. Pendências do Logan → "Decisões" (a), (b), (c). Fonte de cada número → tabela "Fonte de cada número das dicas". Sem migration → D1, D2 e a tabela. e2e do Gio → Tarefa 10.
 - **Tipos entre tarefas:** `Crescimento30`/`crescimento30` (T1 → T4); `numero`, `'direcao'` (T3 → T3b, T5, T9); `GrowthCell` com `motivo/fechaEm/dias/antes/depois/abs/pct/limite/passo` (T4 → T7); `CelulaDica`, `CELULA_DICA_CLASSE` (T6 → T8); `dicas` (T8). `fechaEm` da M3a é `string` 'AAAA-MM-DD' (T2) e o de Crescimento é `number` ms (T1): `dicaDirecao` formata a string (`DD/MM` de `fechaEm.slice`), `dicaCrescimento` usa `e.dm`.
-- **Decisão da dúvida do Phil I5 (arredondamento do YouTube corta para baixo?):** conferido no repositório (`git grep` por `subscriberCount`/`subscriber_count` com "arredond", "round", "trunc", "algarism", "floor", "para baixo" em `apps`, `packages`, `docs`): **nada confirma a direção**. O código só diz que o YouTube arredonda a 3 algarismos (`inscritos-28d.ts:15`, `passoDoYouTube`: "Passo com que o YouTube arredonda a contagem … 10^(⌊log10 n⌋−2)") e nenhum arquivo afirma "para baixo". O Phil cita a doc da API (recurso `channels`, `statistics.subscriberCount`: valor "rounded down" a 3 algarismos significativos) **de memória** (ele mesmo registra em §9 que não conferiu o texto). Por isso o texto da dica de Inscritos entra com o conserto exato dele e marcado `TEXTO-A-REVISAR (Logan)` com a dúvida explícita: "confirmar na doc oficial da YouTube Data API que o `subscriberCount` é cortado para baixo, não arredondado ao mais próximo; se for ao mais próximo, a frase volta a ±m simétrico". A conta do "dentro do arredondamento" (±2 passos) vale nos dois casos e não depende disso.
+- **Resolvida na 2ª rodada:** o Logan leu a doc oficial (`developers.google.com/youtube/v3/docs/channels`, `statistics.subscriberCount`: "rounded down to three significant figures"). Corta para baixo; o texto da dica e o `roundingText` do motor seguem isso (D1b, T1 Step 3b, T7). O parágrafo abaixo é o registro da 1ª rodada.
+- **Decisão da dúvida do Phil I5 (arredondamento do YouTube corta para baixo?), 1ª rodada:** conferido no repositório (`git grep` por `subscriberCount`/`subscriber_count` com "arredond", "round", "trunc", "algarism", "floor", "para baixo" em `apps`, `packages`, `docs`): **nada confirma a direção**. O código só diz que o YouTube arredonda a 3 algarismos (`inscritos-28d.ts:15`, `passoDoYouTube`: "Passo com que o YouTube arredonda a contagem … 10^(⌊log10 n⌋−2)") e nenhum arquivo afirma "para baixo". O Phil cita a doc da API (recurso `channels`, `statistics.subscriberCount`: valor "rounded down" a 3 algarismos significativos) **de memória** (ele mesmo registra em §9 que não conferiu o texto). Por isso o texto da dica de Inscritos entra com o conserto exato dele e marcado `TEXTO-A-REVISAR (Logan)` com a dúvida explícita: "confirmar na doc oficial da YouTube Data API que o `subscriberCount` é cortado para baixo, não arredondado ao mais próximo; se for ao mais próximo, a frase volta a ±m simétrico". A conta do "dentro do arredondamento" (±2 passos) vale nos dois casos e não depende disso.
 - **Riscos que pedem olho do revisor:** D1 muda número visível em três telas (Phil); `direcaoDe` chamada dentro de `valoresOf` não pode criar ciclo com `rowOf` (Yannis: `valoresOf` é cacheado por canal); `posicoes` passa a rodar em toda ordenação, O(n²) no pior caso de empates sobre ≤ 75 + próprios canais (Yannis confirmou: 77 → 0,23 ms; 1.000 → 24 ms; gatilho para trocar por ordenar + varrer, O(n log n): `channel_limit` > 300).
 
 ---
@@ -1714,7 +1964,7 @@ Fontes: `.superpowers/sdd/a5/discussao-direcao/phil-plano.md` (APROVA COM RESSAL
 | **Phil I2 + Yannis I6** (guarda `numeros-nao-mudam-e5a`) | Conserto único. T1 Step 5: exceção em duas partes (texto "±N"→"±2N" por regex; número por predicado calculado no teste), nunca regravar o retrato. T4: arquivo na lista, no Run e no commit + Step 5b (exceção de **forma**). T8: idem (lista, Run, commit, exceção de forma). |
 | Phil I3 (janela "30 dias" podia ser 31 a 90) | T1: `crescimento30` só mede com 29 <= dias <= 33, senão `pending: 'buraco na contagem …'` (fora da numeração) + teste; T4: `motivo: 'buraco'`, `de`/`ate` na célula; T7: a dica escreve "De X em DD/MM para Y em DD/MM". Consulta do dono conta `janela_maior_que_33d`. |
 | Phil I4 (canal próprio sem trava de retrato velho) | T4: `atrasadoAte` (`REGRAS_INSCRITOS.retratoVelhoDias`), `cap` com ", até DD/MM", teste; T7: frase do retrato parado. |
-| Phil I5 (YouTube corta para baixo) | T7: texto da dica de Inscritos com o conserto exato do Phil, `TEXTO-A-REVISAR (Logan)`. Conferência no repo: **não confirma** a direção; dúvida escrita na autorrevisão e no ledger (T11). Corrigir `roundingText` do motor: fora do plano, anotado no ledger. |
+| Phil I5 (YouTube corta para baixo) | T7: texto da dica de Inscritos com o conserto exato do Phil, `TEXTO-A-REVISAR (Logan)`. Conferência no repo: **não confirma** a direção; dúvida escrita na autorrevisão e no ledger (T11). Corrigir `roundingText` do motor: **superado na 2ª rodada**, agora é a T1 Step 3b (D1b). |
 | Phil M1 (passo da maior contagem) | T1: `roundingOf(fmt, subs, base, abs)` com `base = max(prev.subs, now.subs)`; teste 995.000→1.010.000. |
 | Phil M2 (teste da T1 não separava regra velha/nova) | T1 Step 1: caso "1 passo" reescrito, virada de década e os dois casos abaixo de mil. |
 | Phil M3 ("Só n dias de vídeos") | T7: "Só {n} dias de registro; …"; T2: comentário de que `n` conta dias de registro. |
@@ -1739,3 +1989,41 @@ Fontes: `.superpowers/sdd/a5/discussao-direcao/phil-plano.md` (APROVA COM RESSAL
 | Yannis complexidade (`Intl.Collator`, reusar `trocas`) | T3 (`colador`), T8 (reuso de `trocas`). |
 
 **Achados não aplicados:** nenhum. Nenhum achado exigiu mudar decisão do dono nem o mockup 17. Dois pontos de escolha entre os revisores: (1) texto do `cap` de "sem variação" abaixo de mil: usei o do Phil; (2) `role`: o Yannis deixou a decisão `toolbar`/`group` para a Naksu; o plano escreve `group` e marca a decisão dela. O teto de 33 dias (Phil I3) e a regra de 2 passos mudam número só nos casos listados na D1, já cobertos pela exceção declarada; a regra de 2 passos em si foi aprovada pelo dono no mockup.
+
+---
+
+## Consertos da 2ª rodada (Logan, Naksu, re-revisão)
+
+Fontes: `.superpowers/sdd/a5/discussao-direcao/logan-textos-plano.md`, `naksu-plano.md`, `re-revisao-plano.md`. Cada achado → onde foi aplicado. Onde dois pareceres falam do mesmo ponto, um conserto só.
+
+| Achado | Onde foi aplicado |
+|---|---|
+| **Logan 1-9** (todos os `TEXTO-A-REVISAR`) | Marca tirada de todo o plano. Texto final à letra: T7 (tabela e testes: Inscritos ≥ mil, Views/dia, Outliers "na mesma idade", Crescimento "sem variação", Direção "sem mudança" e "canal próprio"); T4 (`title` de "não carregou" e de "buraco" no código e nos testes); "Decisões" (a), (b), (c), D4; Global Constraints (sem marca). Itens 2 e 10 mantidos como estavam. |
+| **Logan, sugestão "retrato" → "contagem"** | Global Constraints (regra: texto visível nunca diz "retrato"; nomes internos ficam); T7 (`Última contagem em {DD/MM}: a coleta está parada.`, teste); T4 (`title` do buraco). |
+| **Logan, `roundingText` do motor** ("±m" → "este ou um pouco maior"; a nota que mandava isso para o ledger foi removida da T11 e da autorrevisão) | D1b; **T1 Step 3b** (código, `view-model.ts` `subsTip`, consumidores), teste novo em `crescimento30-a5.test.ts`, exceção **só de texto** na guarda `numeros-nao-mudam-e5a` (T1 Step 5, item 4). |
+| **Naksu A1 + Re-revisão C1** (bloqueio: `--obs-top` indefinido em Canais; "48 px") | T9: parágrafo "`--obs-top` e `--obs-topbar-h` não existem na tela Canais", CSS com a fórmula do `canal.css:8` sob `[data-obs-screen="canais"]`, regra escopada, teste que lê o CSS. **Valor achado:** `apps/web/src/app/cms/(authed)/_shared/cms-topbar.css`, `height: 52px` (linha 7) e `height: 48px` em `@media (max-width: 768px)` (linhas 100-104): 52 px acima de 768 px, 48 px até 768 px (o 48 existe; o `canal.css` só declara 52, fora do plano). |
+| **Naksu A6 + Re-revisão C2** (bloqueio: o 2º toque não fecha a dica) | T6: `abrirPorToque = () => (show ? fechar() : setToque(true))` e `ultimoPonteiro` (captura) que ignora `mouseenter`/foco emulados após toque; 4 testes novos (incluindo o literal da re-revisão). T10 caso 6: "tocar a mesma dica de novo fecha". |
+| Naksu A2 (alvo de 44 px na barra) | T9: reuso do `.btn`, `@media (pointer: coarse)`; T10 caso 6 mede. |
+| Naksu A3 (ativo fora da vista) | T9: `scrollIntoView({inline,block:'nearest',behavior:'auto'})` (não roda na 1ª montagem) + `scroll-padding-inline`; teste. |
+| Naksu A4 (nome acessível do ativo) | T9: seta `aria-hidden` + `.sr` ", maior primeiro"/", menor primeiro"; teste reescrito (o `textContent === 'Inscritos ↓'` saiu). |
+| Naksu A5 (estilo do ativo) | T9 CSS: peso 600 + `box-shadow: inset 0 -2px 0 var(--text)`; seta como forma. |
+| Naksu A7 (gatilho `role="button"` sem ação) | T6: `aria-expanded`, Enter/Espaço alternam (`preventDefault` no Espaço), testes; T8: teste de `aria-describedby`/`aria-expanded`. |
+| Naksu A8 (alvo e CSS do gatilho) | T6 `celula-dica.css` (inline-block, pontilhado `--dim`, `--text` no hover/aberto, 44 px só em `td`/`.cards` no toque; `th` fica em 32 px) + teste que lê o CSS. |
+| Naksu A9 (foco cortado) | T6 `celula-dica.css`: `outline-offset:-2px` em `td`/`.cards`; teste do CSS. |
+| Naksu A10 (largura da caixa a 390 px) | T10 caso 6: `x >= 0` e `x + largura <= 390` na 1ª **e** na última coluna. |
+| Naksu A11 (reduzir movimento) | T9: `behavior: 'auto'` (sem `smooth`); nenhuma animação nova. |
+| Naksu decisão 1 (`role="group"`), 2 (ordem dos botões), 3 (irmã imediata; ancestral sem `overflow`) | T9: Interfaces (decidido), D4, teste de estrutura (irmã **imediata** + varredura do CSS por `overflow` nos ancestrais). |
+| **Re-revisão C3** (esqueletos só de comentário) | T4: 4 `it` reescritos com código (oculto próprio, oculto próprio `oculto:true`, oculto concorrente, velho, em dia, buraco) e `expect.hasAssertions()`; T6: teste do popover com código (`Popover` real); `beforeEach(hasAssertions)` também em T6, T8 e T9. |
+| Re-revisão, gate da T0 | T0 Step 1: dois `grep -qF` com `exit 1`; saída esperada `LOTE-OK` e `CONSERTOS-OK`; o assunto dos consertos é a variável `ASSUNTO_CONSERTOS`. |
+| Re-revisão M-a (`agora` em `Escrita`) | T8 Step 3: `{ num, dec1, dm, agora: obs.NOW }`. |
+| Re-revisão M-b (predicado da exceção numérica) | T1 Step 5, item 2: compara `dentroAntigo(ch.subs, g)` com `dentroNovo(max(n0, n1), g)` + janela > 33 d; "id inexplicado" falha. |
+| Re-revisão M-c (`'sem-sinal'` morto) | T4 Interfaces: removido da união. |
+| Re-revisão M-d (`obs.dataset ?? ...`) | T3: ids capturados dentro do mutador do `a3World`. |
+| Re-revisão M-e (buraco no cabeçalho e no Comparar) | T1 Step 5: asserções em `canal-header-model.test.ts` (arquivo entrou na lista e no commit) e `comparar-numeros.test.ts`. |
+| Ordem das tarefas | Atualizada: `view-model.ts` e `channels.ts` na T1 (ver "Ordem" e Mapa); o grafo não mudou. |
+
+**Achados não aplicados (pedem decisão do controlador/dono, nenhum muda decisão do dono):**
+1. **Textos das dicas × mockup 17 aprovado:** o mockup (r3) mostra os textos antigos de Inscritos, Crescimento "sem variação" e Direção; o plano passa a usar os finais do Logan, que é o autor deles. Se o dono quiser o texto literal do mockup, é só reverter as linhas da T7; não mudei o HTML do mockup.
+2. **Barra no celular × mockup 17:** o mockup quebra a linha (`wrap`); a Naksu manteve rolagem horizontal de 1 linha (60 px presos em vez de ~110 px). Aplicado como ela decidiu, mas é desvio do desenho aprovado.
+3. **Campo `text` do motor** (`+N (±{unit})`, também simétrico): fora do pedido do Logan; não alterado; vai ao ledger (T11) para plano próprio.
+4. **`canal.css:8` fixa 52 px** (a barra da casca tem 48 px até 768 px): tela diferente, fora deste plano; só registrado.
