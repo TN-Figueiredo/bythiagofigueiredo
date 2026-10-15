@@ -1,7 +1,7 @@
 // A5 E5a, lote rápido da tela Canais (Gio, 15/10): o clique numa casa de Direção tem retorno que o dono VÊ sem rolar à mão.
 // Defeito de origem: a lista fica abaixo da dobra e o clique só mudava algo fora da tela. Critério verificável:
 //  (a) em até 1 s do clique a casa está aria-pressed=true (anel otimista, antes de o servidor responder);
-//  (b) quando a lista filtrada chega (a 390 a casa pode sair da janela; só linha de estado + 1ª linha), a casa ligada, a linha "Mostrando N de M canais · filtro · limpar" e a 1ª linha da lista
+//  (b) quando a lista filtrada chega (a 390 a casa pode sair da janela; só linha de estado + 1ª linha), a casa ligada, a linha "Só <filtro>: N de M canais · Limpar filtro" e a 1ª linha da lista
 //      estão TODAS dentro da janela, sem o teste rolar nada (a página rola sozinha até onde precisa).
 // Sem esperas fixas: toBeInViewport / toHaveAttribute repetem até o prazo.
 // Semente: oráculo com ownPreset '2' (11 concorrentes "sem mudança") + 30 concorrentes sintéticos só no banco local (20 sem mudança, 10 subindo), de modo que a
@@ -73,8 +73,8 @@ for (const [w, h] of [[1440, 900], [390, 844]] as const) {
     // (b) a lista filtrada chegou (a URL é a fonte) e a linha de estado diz quantos canais aparecem
     await expect(page).toHaveURL(/direcao=estavel/, { timeout: 60_000 })
     const estado = page.locator(`${S} [data-k="estado-do-filtro"]`)
-    await expect(estado).toContainText(/Mostrando \d+ de \d+ canais/, { timeout: 60_000 })
-    await expect(estado.getByRole('button', { name: 'limpar' })).toBeVisible()
+    await expect(estado).toContainText(/Só .+: \d+ de \d+ canais?/, { timeout: 60_000 })
+    await expect(estado.getByRole('button', { name: 'Limpar filtro' })).toBeVisible()
     // sem rolar: o teste não rola; quem rola é a tela (suave). Espera a rolagem ASSENTAR (a lista parada por 500 ms) e só então confere os três
     // ao mesmo tempo: um instante no meio da rolagem em que os três aparecem não conta (a 1440 existe, e some em seguida).
     await assentou(page)

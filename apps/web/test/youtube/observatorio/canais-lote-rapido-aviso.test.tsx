@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Lote rápido da tela Canais (14/10): dicas nos cabeçalhos e no valor da Direção, casas com cara de botão, frase-resumo clicável
-// e o aviso "Ainda há N canal(is) <direção> fora desta lista". Textos da Hanna (.superpowers/sdd/a5/discussao-direcao/hanna.md). Só dado sintético.
+// e o aviso "Mais N canal(is) <direção> ainda não aparece(m) aqui". Textos da Hanna (.superpowers/sdd/a5/discussao-direcao/hanna.md). Só dado sintético.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
@@ -61,8 +61,8 @@ describe('lote rápido: aviso de canais fora da lista', () => {
     expect(idx).toBeGreaterThanOrEqual(50)
     const { container } = mount({ medidas, limit: 120 }, o)
     const aviso = [...container.querySelectorAll('[data-k="aviso-fora-da-lista"]')].find(x => x.textContent?.includes('descendo'))!
-    expect(aviso.textContent).toContain('Ainda há 1 canal descendo fora desta lista.')
-    await user.click(within(aviso as HTMLElement).getByRole('button', { name: 'Ver descendo' }))
+    expect(aviso.textContent).toContain('Mais 1 canal descendo ainda não aparece aqui.')
+    await user.click(within(aviso as HTMLElement).getByRole('button', { name: 'Ver só descendo' }))
     expect(replace.mock.calls.at(-1)![0]).toContain('direcao=desce')
     await user.click(screen.getByRole('button', { name: /^Mostrar mais/ }))
     await user.click(screen.getByRole('button', { name: /^Mostrar mais/ }))
@@ -74,15 +74,37 @@ describe('lote rápido: aviso de canais fora da lista', () => {
     const fora = [...base.list.ranked, ...base.list.unranked].filter(r => !r.own)[60]!
     return { o, medidas: medidasDoMotor(o, { [fora.id]: { m3a: direcaoMedida(50, 100) } }) }
   }
-  it('o atalho "Ver descendo" acende o anel da casa no clique, antes do servidor responder', async () => {
+  it('o atalho "Ver só descendo" acende o anel da casa no clique, antes do servidor responder', async () => {
     replace.mockReturnValue(new Promise(() => {}))
     const user = userEvent.setup()
     const { o, medidas } = comDescendoFora()
     const { container } = mount({ medidas, limit: 120 }, o)
     expect(container.querySelector('.obs-cn-casa.desce')!.getAttribute('aria-pressed')).toBe('false')
     const aviso = [...container.querySelectorAll('[data-k="aviso-fora-da-lista"]')].find(x => x.textContent?.includes('descendo'))!
-    await user.click(within(aviso as HTMLElement).getByRole('button', { name: 'Ver descendo' }))
+    await user.click(within(aviso as HTMLElement).getByRole('button', { name: 'Ver só descendo' }))
     expect(container.querySelector('.obs-cn-casa.desce')!.getAttribute('aria-pressed')).toBe('true')
+  })
+  it('mais de 50 canais filtrados: a linha de estado traz o total filtrado, não os 50 da página (mata n = permitidos.size)', () => {
+    const o = mundoGrande()
+    const base = vw({ medidas: medidasDoMotor(o), limit: 120 }, o)
+    const todos = [...base.list.ranked, ...base.list.unranked].filter(r => !r.own)
+    const medidas = medidasDoMotor(o, Object.fromEntries(todos.map(r => [r.id, { m3a: direcaoMedida(100, 100) }])))
+    const { container } = mount({ medidas, limit: 120, direcao: 'estavel' }, o)
+    const v = vw({ medidas, limit: 120, direcao: 'estavel' }, o)
+    const total = [...v.list.ranked, ...v.list.unranked].filter(r => !r.own).length
+    expect(total).toBeGreaterThan(50)
+    expect(container.querySelector('[data-k="paginacao"]')!.textContent).toContain(`Mostrando 50 de ${total} canais.`)
+    expect(container.querySelector('[data-k="estado-do-filtro"]')!.textContent).toBe(`Só sem mudança: ${total} de ${v.resumo.direcao.canais} canais · Limpar filtro`)
+  })
+  it('aviso de 3 canais usa o plural e o botão não muda', async () => {
+    const o = mundoGrande()
+    const base = vw({ medidas: medidasDoMotor(o), limit: 120 }, o)
+    const linhas = [...base.list.ranked, ...base.list.unranked].filter(r => !r.own)
+    const medidas = medidasDoMotor(o, Object.fromEntries([55, 56, 57].map(i => [linhas[i]!.id, { m3a: direcaoMedida(50, 100) }])))
+    const { container } = mount({ medidas, limit: 120 }, o)
+    const aviso = [...container.querySelectorAll('[data-k="aviso-fora-da-lista"]')].find(x => x.textContent?.includes('descendo'))!
+    expect(aviso.textContent).toContain('Mais 3 canais descendo ainda não aparecem aqui.')
+    expect(within(aviso as HTMLElement).getByRole('button', { name: 'Ver só descendo' })).toBeTruthy()
   })
   it('com direção ligada, não há aviso', () => {
     const { o, medidas } = comDescendoFora()

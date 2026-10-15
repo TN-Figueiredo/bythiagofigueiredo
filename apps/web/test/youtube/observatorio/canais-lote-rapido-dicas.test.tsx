@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Lote rápido da tela Canais (14/10): dicas nos cabeçalhos e no valor da Direção, casas com cara de botão, frase-resumo clicável
-// e o aviso "Ainda há N canal(is) <direção> fora desta lista". Textos da Hanna (.superpowers/sdd/a5/discussao-direcao/hanna.md). Só dado sintético.
+// e o aviso "Mais N canal(is) <direção> ainda não aparece(m) aqui". Textos da Hanna (.superpowers/sdd/a5/discussao-direcao/hanna.md). Só dado sintético.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({

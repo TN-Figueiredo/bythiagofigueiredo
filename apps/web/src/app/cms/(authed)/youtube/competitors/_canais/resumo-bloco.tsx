@@ -100,14 +100,20 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
   )
 }
 
-/** Com filtro ligado: quantos canais a lista mostra, de quantos. Fica logo acima da lista (não no bloco das casas), para o clique mostrar o resultado perto dele. */
+/** Texto próprio de cada filtro de estado na linha de estado (sem lower-case do rótulo: "Saíram do YouTube" virava "saíram do youtube"). */
+const PALAVRA_DO_FILTRO: Record<string, string> = { parados: 'parados', 'em-queda': 'em queda', sairam: 'que saíram do YouTube', problemas: 'com problema', 'sem-videos': 'sem vídeos' }
+
+/** Com filtro ligado: o que está filtrado, quantos canais a lista mostra e de quantos. Fica logo acima da lista (não no bloco das casas), para o clique mostrar o resultado perto dele. */
 export function EstadoDoFiltro({ resumo, mostrando, onLimpar }: { resumo: ResumoView; mostrando: { n: number; de: number }; onLimpar: () => void }) {
-  const ligada = resumo.casas.find(c => c.pressed)
+  const direcao = resumo.casas.find(c => c.pressed)?.palavra
+  const filtro = resumo.filtros.find(f => f.pressed && f.chave !== 'todos')
+  const estado = filtro ? (PALAVRA_DO_FILTRO[filtro.chave] ?? filtro.rotulo) : undefined
+  const dois = Boolean(direcao && estado)
+  const quais = dois ? `${direcao} e também ${estado}` : (direcao ?? estado ?? '')
   return (
-    // TEXTO-A-REVISAR (Logan/Naksu): a linha de estado do filtro (pedido do Gio, 14/10), sem texto fixado pela Hanna; Yannis M5 sugere tirar o "Mostrando"
-    <p className="obs-cn-estado-filtro" data-k="estado-do-filtro">
-      Mostrando {mostrando.n} de {mostrando.de} canais · {[ligada?.palavra, resumo.filtros.find(f => f.pressed && f.chave !== 'todos')?.rotulo.toLowerCase()].filter(Boolean).join(' e ')} ·{' '}
-      <button type="button" className="obs-cn-fr-bt" onClick={onLimpar}>limpar</button>
+    <p className="obs-cn-estado-filtro" data-k="estado-do-filtro" aria-live="polite">
+      Só {quais}: {mostrando.n} de {mostrando.de} {mostrando.de === 1 ? 'canal' : 'canais'} ·{' '}
+      <button type="button" className="obs-cn-fr-bt" onClick={onLimpar}>{dois ? 'Limpar filtros' : 'Limpar filtro'}</button>
     </p>
   )
 }

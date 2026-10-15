@@ -554,6 +554,7 @@
 [data-obs-screen="canais"] .obs-cn-fr-bt:hover{text-decoration-style:solid}
 [data-obs-screen="canais"] .obs-cn-fr-bt[aria-pressed="true"]{font-weight:600}
 [data-obs-screen="canais"] .obs-cn-fr-bt:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+@media (pointer:coarse){[data-obs-screen="canais"] .obs-cn-fr-bt{display:inline-flex;align-items:center;min-height:44px;min-width:44px}}
 [data-obs-screen="canais"] .obs-cn-fora{margin:0 0 6px;font-size:13px;line-height:18px;color:var(--text)}
 [data-obs-screen="canais"] .obs-cn-casa.z .obs-cn-casa-b{border:1px solid var(--border-strong);background:var(--surface)}
 [data-obs-screen="canais"] :is(.obs-cn-res,.obs-cn-estado-filtro){scroll-margin-top:calc(var(--obs-top) + 8px)}

@@ -15,7 +15,7 @@ describe('RiFronteira', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<div><p>lista de canais</p><RiFronteira><Explode /></RiFronteira></div>)
     expect(screen.getByText('lista de canais')).toBeTruthy()
-    expect(screen.getByRole('alert').textContent).toContain('Não foi possível carregar as referências e os inscritos')
+    expect(screen.getByRole('alert').textContent).toContain('Não deu para mostrar as referências e os inscritos. Seus dados não mudaram. Recarregue a página.')
     expect(captureException).toHaveBeenCalledTimes(1)
     expect(captureException.mock.calls[0]![1]).toMatchObject({ fingerprint: ['canais-ri', 'render'] })
   })

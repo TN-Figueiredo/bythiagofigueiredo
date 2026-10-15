@@ -53,7 +53,7 @@ export function EstadoLinha({ r }: { r: CanaisRow }) {
   }
 }
 
-// TEXTO-A-REVISAR (Logan/Naksu): o plano diz "a linha diz não carregou" quando os campos do canal não foram lidos
+// o plano diz "a linha diz não carregou" quando os campos do canal não foram lidos
 function ExtrasNaoLidos() {
   return <div className="obs-cn-est obs-md-apoio" data-extras-nao-lidos="">Não deu para ver se o canal saiu do YouTube.</div>
 }

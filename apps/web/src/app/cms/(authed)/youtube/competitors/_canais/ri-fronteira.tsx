@@ -7,8 +7,7 @@ import type { ReactNode } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import { TabErrorBoundary } from '@/app/cms/(authed)/newsletters/_shared/tab-error-boundary'
 
-// TEXTO-A-REVISAR (Logan)
-const TEXTO_FALHA_RENDER = 'Não foi possível carregar as referências e os inscritos. Seus dados não mudaram.'
+const TEXTO_FALHA_RENDER = 'Não deu para mostrar as referências e os inscritos. Seus dados não mudaram. Recarregue a página.'
 
 export function RiFronteira({ children }: { children: ReactNode }) {
   return (

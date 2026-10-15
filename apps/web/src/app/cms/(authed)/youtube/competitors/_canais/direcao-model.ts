@@ -18,9 +18,7 @@ export type CelulaDeDirecao =
   | { tipo: 'canal_proprio'; curta: string; longa: string }
 
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-// TEXTO-A-REVISAR (Logan/Naksu): a frase do canal próprio é a do mockup 16 (S4); a longa repete a curta.
 export const FRASE_CANAL_PROPRIO = 'o YouTube não dá esse número do seu canal'
-// TEXTO-A-REVISAR (Logan/Naksu): a frase do canal sem vídeos é a do mockup 16.
 export const FRASE_SEM_VIEWS = `sem views nos ${MEASURE_RULES.direction.windowDays * 2} dias para comparar`
 
 /**
@@ -75,7 +73,6 @@ export function resumoDeDirecao(celulas: readonly CelulaDeDirecao[]): ResumoDeDi
   }
   const canais = sobe + estavel + desce + naoMedido + naoCarregou
   if (canais > 0 && naoCarregou === canais) {
-    // TEXTO-A-REVISAR (Logan/Naksu)
     return { sobe: null, estavel: null, desce: null, naoMedido: null, naoCarregou, canais, medidos: 0, frase: `A direção não carregou em ${pl(naoCarregou, 'canal', 'canais')}.` }
   }
   const medidos = sobe + estavel + desce
@@ -83,7 +80,6 @@ export function resumoDeDirecao(celulas: readonly CelulaDeDirecao[]): ResumoDeDi
   if (medidos > 0) {
     partes.push([`${sobe} subindo`, `${estavel} sem mudança`, `${desce} descendo`].join(', '))
   }
-  // TEXTO-A-REVISAR (Logan/Naksu): a frase do resumo de direção não está fixada letra por letra para todos os casos
   let frase = partes.join('')
   if (medidos < canais - naoCarregou && medidos > 0) frase += `. Direção medida em ${medidos} de ${canais} canais`
   else if (medidos === 0 && canais > 0) frase = `Direção ainda não medida em ${pl(naoMedido, 'canal', 'canais')}`

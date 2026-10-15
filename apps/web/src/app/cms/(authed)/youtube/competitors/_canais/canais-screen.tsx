@@ -63,7 +63,7 @@ export interface CanaisScreenProps {
   ri?: RiView
 }
 
-/** TEXTO-A-REVISAR não se aplica: a frase é a do mockup 16 (tabela de frases, "Só leitura"). */
+/** A frase é a do mockup 16 (tabela de frases, "Só leitura"). */
 export const FRASE_SO_LEITURA = { titulo: 'Você só pode ler esta lista.', corpo: 'Sincronizar, adicionar e remover canais ficam desligados. Esta lista só tem números públicos do YouTube, então você vê tudo o que os outros veem.' }
 export const PAGINA_INICIAL = 50, PAGINA_PASSO = 25
 
@@ -529,8 +529,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               const n = foraDaLista[k], palavra = k === 'sobe' ? 'subindo' : 'descendo'
               return (
                 <p key={k} className="obs-cn-fora" data-k="aviso-fora-da-lista">
-                  Ainda há {n} {n === 1 ? 'canal' : 'canais'} {palavra} fora desta lista.{' '}
-                  <button type="button" className="obs-cn-fr-bt" onClick={() => go({ direcao: k }, { busy: true, direcao: k })}>Ver {palavra}</button>
+                  Mais {n} {n === 1 ? 'canal' : 'canais'} {palavra} {n === 1 ? 'ainda não aparece' : 'ainda não aparecem'} aqui.{' '}
+                  <button type="button" className="obs-cn-fr-bt" onClick={() => go({ direcao: k }, { busy: true, direcao: k })}>Ver só {palavra}</button>
                 </p>
               )
             })}

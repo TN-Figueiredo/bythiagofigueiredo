@@ -687,7 +687,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   if (temPosicao(sort)) {
     if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
     if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
-    else if (filter !== 'todos' || direcaoFiltro !== 'todos') posicaoNotas.push('Posição na lista inteira, não só nos canais do filtro.') // TEXTO-A-REVISAR (Logan/Naksu)
+    else if (filter !== 'todos' || direcaoFiltro !== 'todos') posicaoNotas.push('A posição é na lista inteira, não só entre os canais do filtro.')
   }
   // o principal pode estar fora da lista (filtro de nicho de outro canal): a linha presa então fala do canal próprio que a lista mostra, pela mesma regra
   // (I-11c-1); sem isso ela some, e "Ir até a linha" só pode apontar para uma linha que existe
@@ -749,7 +749,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       } else if (filter === 'em-queda' && q.tipo === 'nao_carregou') {
         vazio = { forma: 'nao_carregou', titulo: 'Em queda não carregou.', apoio: 'O estado dos canais não carregou agora. Recarregue a página em alguns minutos.', limpar }
       } else if (filter === 'em-queda' && q.tipo === 'nao_medido') {
-        vazio = { forma: 'nao_medido', titulo: 'Em queda ainda não foi medido.', apoio: `${FRASES[q.motivo]({}, 'canais').longa}.`, limpar } // TEXTO-A-REVISAR
+        vazio = { forma: 'nao_medido', titulo: 'Em queda ainda não foi medido.', apoio: `${FRASES[q.motivo]({}, 'canais').longa}.`, limpar }
       } else if (tudoNaoCarregou) {
         vazio = { forma: 'nao_carregou', titulo: 'Não deu para contar: as medidas não carregaram.', apoio: 'Recarregue a página em alguns minutos.', limpar }
       } else if (filter !== 'todos' && dirNome === null) {
@@ -765,7 +765,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       : null
     const aviso = celulas.flatMap(c => (c.tipo === 'medido' && c.avisoDeContagem ? [c.avisoDeContagem.ate] : [])).sort().pop()
     return {
-      // TEXTO-A-REVISAR (Logan/Naksu): "sem retrato desde dd/mm" é a forma do plano (d:m7)
+      // "sem retrato desde dd/mm" é a forma do plano (d:m7)
       frase: fraseDoResumo(dirRes, contagem) + (semRetrato ? (semRetrato.desde ? ` Sem dados novos desde ${semRetrato.desde.slice(8, 10)}/${semRetrato.desde.slice(5, 7)}.` : ' Sem dados recentes.') : ''),
       carregou, casas, filtros, avisoDeContagem: aviso ? { ate: aviso } : null, contagem, direcao: dirRes, semRetrato, vazio,
     } satisfies ResumoView

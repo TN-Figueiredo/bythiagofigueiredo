@@ -27,7 +27,7 @@ export const ROTULOS_NOVOS_RI = {
   soVideosNovos: 'sem medida · só vídeos com menos de 7 dias',
   semVideos: { long: 'sem medida · sem vídeos em 90 dias', short: 'sem medida · sem Shorts em 90 dias' },
   janelaParcial: (dm: string) => `provisória · só desde ${dm}`,
-  semMedidaJanelaParcial: (dm: string) => `sem medida · só desde ${dm}`, // TEXTO-A-REVISAR
+  semMedidaJanelaParcial: (dm: string) => `sem medida · só desde ${dm}`,
   fraseRefVazia: 'Nenhum canal pôde ser medido nos últimos 90 dias.',
   fraseInsVazia: 'Nenhum canal pôde ser medido nos últimos 28 dias.',
   retratoVelho: (dm: string) => `sem medida · contagem parada desde ${dm}`,
@@ -37,7 +37,7 @@ export const ROTULOS_NOVOS_RI = {
   formato: { long: 'vídeos longos', short: 'Shorts' },
   legendaFormato: (f: string) => `Só entram ${f}.`,
   datasDaJanela: (de: string, ate: string) => `de ${de} a ${ate}`,
-  infoRefJanelaParcial: 'Mediana provisória com data: o Observatório ainda não tem os 90 dias inteiros deste canal. A conta usa só os vídeos desde essa data e pode mudar.',
+  infoRefJanelaParcial: 'Mediana provisória, com data: o Observatório ainda não tem os 90 dias inteiros deste canal. A conta usa só os vídeos desde essa data e pode mudar.',
   infoInsTrintaDias: 'Esta seção usa 28 dias; a coluna Crescimento da lista usa 30. Por isso os números podem ser diferentes.',
   erroRef: 'Não foi possível carregar as referências. Seus dados não mudaram.',
   erroIns: 'Não foi possível carregar os inscritos. Seus dados não mudaram.',
@@ -107,7 +107,7 @@ function infoRef(): { titulo: string; itens: string[] } {
       'Escala: logarítmica, cada traço vale 10 vezes o anterior, para um canal de 2 mil e um de 1 milhão caberem na mesma régua.',
       'Sem nota de corte: nenhum canal é "bom" ou "ruim" aqui; a lista só ordena.',
       'Vídeos com menos de 7 dias ficam de fora, porque ainda estão ganhando views.',
-      ROTULOS_NOVOS_RI.infoRefJanelaParcial, // TEXTO-A-REVISAR
+      ROTULOS_NOVOS_RI.infoRefJanelaParcial,
       'Cálculo do Observatório sobre dados públicos do YouTube. Views da última leitura de cada vídeo publicado nos últimos 90 dias.',
     ],
   }
@@ -207,7 +207,7 @@ function secaoReferencias(escopo: ObsChannel[], obs: RiObs, p: RiParams, ordr: '
   const legenda = [
     'vídeo típico (mediana)', 'faixa: onde ficam metade dos vídeos', 'mediana provisória, sem faixa', 'sem medida',
     'Fora da ordem, no fim da lista: mediana provisória e sem medida.',
-    ROTULOS_NOVOS_RI.legendaFormato(ROTULOS_NOVOS_RI.formato[p.fmt]), // TEXTO-A-REVISAR
+    ROTULOS_NOVOS_RI.legendaFormato(ROTULOS_NOVOS_RI.formato[p.fmt]),
   ]
   return {
     ticks: esc.ticks,

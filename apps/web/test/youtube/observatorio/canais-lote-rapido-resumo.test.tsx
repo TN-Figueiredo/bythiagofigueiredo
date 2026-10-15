@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Lote rápido da tela Canais (14/10): dicas nos cabeçalhos e no valor da Direção, casas com cara de botão, frase-resumo clicável
-// e o aviso "Ainda há N canal(is) <direção> fora desta lista". Textos da Hanna (.superpowers/sdd/a5/discussao-direcao/hanna.md). Só dado sintético.
+// e o aviso "Mais N canal(is) <direção> ainda não aparece(m) aqui". Textos da Hanna (.superpowers/sdd/a5/discussao-direcao/hanna.md). Só dado sintético.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
@@ -79,16 +79,32 @@ describe('lote rápido: retorno imediato do clique na casa (Gio, 14/10)', () => 
     expect(container.querySelector('.obs-cn-casa.sobe')!.getAttribute('aria-pressed')).toBe('true')
     expect(container.querySelector('[data-k="casas-legenda"]')!.textContent).toContain('Mostrando só: subindo')
   })
-  it('(b) com filtro ligado, a linha "Mostrando N de M · filtro · limpar" e o limpar tira o filtro', async () => {
+  it('(b) com filtro ligado, a linha "Só <filtro>: N de M canais · Limpar filtro" e o botão tira o filtro', async () => {
     const user = userEvent.setup()
     const { container } = mount({ medidas: medidasDoMotor(obs), direcao: 'sobe' })
     const linha = container.querySelector('[data-k="estado-do-filtro"]')!
     const v = vw({ medidas: medidasDoMotor(obs), direcao: 'sobe' })
     const n = [...v.list.ranked, ...v.list.unranked].filter(r => !r.own).length
     expect(n).toBeGreaterThan(0)
-    expect(linha.textContent).toBe(`Mostrando ${n} de ${v.resumo.direcao.canais} canais · subindo · limpar`)
-    await user.click(within(linha as HTMLElement).getByRole('button', { name: 'limpar' }))
+    expect(linha.textContent).toBe(`Só subindo: ${n} de ${v.resumo.direcao.canais} canais · Limpar filtro`)
+    await user.click(within(linha as HTMLElement).getByRole('button', { name: 'Limpar filtro' }))
     expect(replace.mock.calls.at(-1)![0]).not.toContain('direcao=')
+  })
+  it('(b) a linha é anunciada ao leitor de tela (aria-live polite)', () => {
+    const { container } = mount({ medidas: medidasDoMotor(obs), direcao: 'sobe' })
+    expect(container.querySelector('[data-k="estado-do-filtro"]')!.getAttribute('aria-live')).toBe('polite')
+  })
+  it('(b) dois filtros: "Só <direção> e também <estado>", estado em texto próprio (sem lower-case) e "Limpar filtros"', () => {
+    const { container } = mount({ medidas: medidasDoMotor(obs), direcao: 'sobe', filter: 'sairam' })
+    const t = container.querySelector('[data-k="estado-do-filtro"]')!.textContent!
+    expect(t).toMatch(/^Só subindo e também que saíram do YouTube: \d+ de \d+ canais · Limpar filtros$/)
+    expect(t).not.toContain('youtube')
+  })
+  it('(b) só o filtro de estado: "Só parados: ..." e "Limpar filtro"; plural pelo total', () => {
+    const { container } = mount({ medidas: medidasDoMotor(obs), filter: 'parados' })
+    const linha = container.querySelector('[data-k="estado-do-filtro"]')!
+    expect(linha.textContent).toMatch(/^Só parados: \d+ de \d+ canais · Limpar filtro$/)
+    expect(within(linha as HTMLElement).queryByRole('button', { name: 'Limpar filtros' })).toBeNull()
   })
   it('(b) sem filtro, a linha não aparece', () => {
     const { container } = mount({ medidas: medidasDoMotor(obs) })
@@ -125,7 +141,7 @@ describe('lote rápido: consertos da revisão do Yannis e do Gio (14/10)', () =>
     ligando(true)
     expect(spy).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
   })
-  it('com a lista longe da casa (tela estreita), rola até a linha "Mostrando N de M", que fica logo acima da lista', () => {
+  it('com a lista longe da casa (tela estreita), rola até a linha de estado, que fica logo acima da lista', () => {
     const real = Element.prototype.getBoundingClientRect
     Element.prototype.getBoundingClientRect = function (this: Element) {
       const k = this.getAttribute('data-k'), y = k === 'resumo' ? 0 : k === 'estado-do-filtro' ? 1300 : 0
@@ -150,12 +166,12 @@ describe('lote rápido: consertos da revisão do Yannis e do Gio (14/10)', () =>
     busca = 'filter=parados&direcao=sobe'
     const user = userEvent.setup()
     const { container } = mount({ medidas: medidas(), direcao: 'sobe', filter: 'parados' })
-    await user.click(within(container.querySelector('[data-k="estado-do-filtro"]') as HTMLElement).getByRole('button', { name: 'limpar' }))
+    await user.click(within(container.querySelector('[data-k="estado-do-filtro"]') as HTMLElement).getByRole('button', { name: 'Limpar filtros' }))
     const url = replace.mock.calls.at(-1)![0] as string
     expect(url).not.toContain('filter=')
     expect(url).not.toContain('direcao=')
   })
-  it('trocar de casa: a linha "Mostrando N de M" some até o servidor responder (não mostra o número de um filtro com o nome de outro)', async () => {
+  it('trocar de casa: a linha de estado some até o servidor responder (não mostra o número de um filtro com o nome de outro)', async () => {
     replace.mockReturnValue(new Promise(() => {}))
     busca = 'direcao=sobe'
     const user = userEvent.setup()
