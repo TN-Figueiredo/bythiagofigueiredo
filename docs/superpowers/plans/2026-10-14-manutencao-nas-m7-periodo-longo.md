@@ -1158,7 +1158,7 @@ grant execute on function public.obs_archive_request_read(uuid, text, boolean, b
 | `resumos sumiram entre a criação e o claim` | pedido com 1 arquivo; `purged_at` no resumo; claim → `{pedido: null}`, pedido `failed`/`inesperado`/`sem_arquivo_no_claim` |
 | `progresso renova o arrendamento, nunca além do prazo` | `lease_until = least(agora + 3 min, deadline_at)`; token errado → `pedido_de_outro`; cancelado → `pedido_cancelado`; passado o prazo → `pedido_vencido` |
 | `falha grava motivo` | `fail(..., 'nas_fora')` → `failed`, `fail_reason = 'nas_fora'`, `finished_at`; segunda chamada → `pedido_vencido` (não está mais `running`); motivo fora da lista → `escolha_invalida` |
-| `teto` | pedido cujo número de arquivos passa de `teto_entradas` (1.748 resumos sintéticos): o claim marca `failed`/`grande_demais` e devolve `{pedido: null}` (a criação conta pares canal × mês; o claim confere a lista) |
+| `teto` | pedido cujo número de arquivos passa de `teto_arquivos` (1.748 resumos sintéticos): o claim marca `failed`/`grande_demais` e devolve `{pedido: null}` (a criação conta pares canal × mês; o claim confere a lista) |
 
 - [ ] **Passo 2. SQL do claim e da porta dos códigos:**
 
@@ -2107,7 +2107,7 @@ ssh forja 'rm -rf /tmp/respondedor /tmp/comum.py /tmp/cliente_site.py /tmp/arqui
 | Pedido só online preso entre `create` e `finish_online` mostra "A casa não respondeu" por 60 s a 15 min (a poda N6 o troca por `failed/inesperado` após 60 s; Yannis N-8) | D20 | frase imprecisa por 60 s | 1º relato |
 | Mês `online` destacado entre o claim e o `finish` (janela de 15 min, só depois de 01/05/2027): o `calc` devolve 0 dias e o mês vira `sem_registro` (verde sem dado) (Yannis N-8) | D13 | `sem_registro` falso | risco aceito; 1º relato |
 | Teto global de 8 MB expulsa resultado sem aviso ao dono do resultado expulso (vira "venceu") | spec | resultado some antes de 30 dias | se acontecer, teto por site |
-| Gancho de relógio `obs_archive.agora` em função de produção | herdada da M3b | | |
+| Gancho de relógio `obs_archive.agora` em função de produção | herdada da M3b | um teste ou rota de produção setar `obs_archive.agora` e mudar o "agora" das funções | se aparecer um `set_config('obs_archive.agora'` fora de `apps/web/test/`, a função passa a ignorar o gancho fora do papel de teste |
 | Custo do claim variante B vs A: decisão do dono pendente; "um quinto das chamadas" é 22% ("pouco mais de um quinto") e, em A, o claim já é batimento (5.760 + 144 = 5.904 sem perder nada) (Phil seção 5) | D19 | desperdício na variante A | decisão do dono |
 
 ---
