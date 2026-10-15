@@ -691,6 +691,20 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17: a dieta dos metadados diár
     })
   })
 
+  it('13b. versoes_sem_linha filtra o site: versão do site A cuja linha só existe no site B conta como sem linha (mutação de site, revisão N9 Phil M-1)', async () => {
+    await tx(async () => {
+      const c = await semear(S1)
+      const b = await cena(S2, 1)
+      await meta(b, 0, 0)
+      await pg.query(`insert into public.yt_own_video_versions
+        (youtube_video_id, site_id, channel_id, field, value_text, value_hash, first_day_pt, last_day_pt, first_seen_at, last_seen_at, window_precision, window_start, window_end, origin, is_current)
+        values ($1, $2, $3, 'title', 'T', $4, $5, $5, now(), now(), '1d', now(), now(), 'nao_se_sabe', true)`,
+        [b.v[0]!.yt, c.site, c.canal, 'd'.repeat(16), mais(D0, 0)])
+      const r = (await q(`select public.yt_own_meta_diet_contas($1::uuid) as r`, [c.site]))[0]!.r as Json
+      expect(r.versoes_sem_linha).toBe(1)
+    })
+  })
+
   it('14. as contas não fecham: um gatilho que insere uma linha durante o delete faz a função lançar MG17 desfeita, e a contagem volta', async () => {
     await tx(async () => {
       const c = await semear(S1)
@@ -817,6 +831,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17: a dieta dos metadados diár
       expect(priv.map(x => x.proname)).toEqual(['yt_own_meta_cover', 'yt_own_meta_cover_set', 'yt_own_meta_linhas_do_meio', 'yt_own_meta_prova'])
       for (const x of priv) { expect(x.anon, String(x.proname)).toBe(false); expect(x.auth, String(x.proname)).toBe(false); expect(x.srv, String(x.proname)).toBe(true) }
       expect(priv.find(x => x.proname === 'yt_own_meta_cover')!.novo).toBe(true) // o corpo novo foi instalado
+      // a marca que o roteiro de religar exige (revisão N9, Phil I-2)
+      expect(await q(`select obj_description('public.yt_own_meta_linhas_do_meio(uuid,uuid,date)'::regprocedure, 'pg_proc') as d`)).toEqual([{ d: expect.stringMatching(/^MG17 aplicada em \d{4}-\d\d-\d\dT/) }])
       // rodado de novo, sem erro (idempotente)
       await pg.query(SQL17)
     } finally {
@@ -825,8 +841,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17: a dieta dos metadados diár
   })
 
   it('20. a consulta AD do plano dá os mesmos números que yt_own_meta_diet_contas (campos em comum, antes e depois); cp14.sql traz a expressão "limpa" letra por letra', async () => {
-    // A consulta AD (seção 11 do plano), copiada para o ensaio fora do git (como mg17.sql e cp14.sql).
-    const AD = readFileSync(`${RAIZ}.superpowers/sdd/a5-e18p2/sql/ad.sql`, 'utf8')
+    // A consulta AD (seção 11 do plano), versionada em fixtures/a5-e18p2-ad.sql (revisão N9, Yannis I-2: a CI não enxerga .superpowers).
+    const AD = readFileSync(fileURLToPath(new URL('./fixtures/a5-e18p2-ad.sql', import.meta.url)), 'utf8')
     await tx(async () => {
       const c = await semear(S1)
       await pg.query(COVER_SQL)
