@@ -324,18 +324,38 @@ describe('varredura 3: comentarios/ não tem console., não importa zod, e só r
     // as tarefas da agenda também não
     for (const n of ['anular-identidade.ts', 'retratos-comentarios.ts']) expect(usa(join(TAREFAS, n)), n).toBe(false)
   })
-  it('toda ida ao banco de comentarios/ passa por comTempo: nenhum .rpc( nem .from( fora de gravar.ts e de dentro de comTempo', () => {
-    for (const f of doComentarios().filter((x) => nome(x) !== 'gravar.ts')) {
+  // E5a C1: gravar.ts e os dois leitores (leitor.ts, leitor-contagem.ts) seguem a MESMA regra: cada .rpc( e .from( está dentro de comTempo(
+  const COM_IDA = ['gravar.ts', 'leitor.ts', 'leitor-contagem.ts']
+  const RE_IDA = /\.\s*rpc\s*\(|\.\s*from\s*\(\s*['"`]/g
+  /** Quantas idas ao banco o arquivo tem, e quantas delas estão dentro de uma chamada comTempo(. */
+  const idas = (src: string): { todos: number; emTempo: number } => {
+    const g = ler2(src).soEstrutura
+    const dentro = argumentosDe(g, 'comTempo').join('\n')
+    return { todos: [...g.matchAll(RE_IDA)].length, emTempo: [...dentro.matchAll(RE_IDA)].length }
+  }
+  it('toda ida ao banco de comentarios/ passa por comTempo: nenhum .rpc( nem .from( fora de gravar.ts, dos dois leitores e de dentro de comTempo', () => {
+    for (const f of doComentarios().filter((x) => !COM_IDA.includes(nome(x)))) {
       expect(DET.idaSemTempo(ler(f)), rel(f)).toBe(false)
     }
-    // em gravar.ts, cada .rpc( e .from( está dentro de uma chamada comTempo(
-    const g = ler2(ler(join(COMENTARIOS, 'gravar.ts'))).soEstrutura
-    const dentro = argumentosDe(g, 'comTempo').join('\n')
-    const RE_IDA = /\.\s*rpc\s*\(|\.\s*from\s*\(\s*['"`]/g
-    const todos = [...g.matchAll(RE_IDA)].length
-    const emTempo = [...dentro.matchAll(RE_IDA)].length
-    expect(todos).toBeGreaterThan(5)
-    expect(emTempo).toBe(todos)
+    // em gravar.ts e nos leitores, cada .rpc( e .from( está dentro de uma chamada comTempo(
+    for (const n of COM_IDA) {
+      const { todos, emTempo } = idas(ler(join(COMENTARIOS, n)))
+      expect(todos, n).toBeGreaterThan(n === 'gravar.ts' ? 5 : 2)
+      expect(emTempo, n).toBe(todos)
+    }
+  })
+  it('controle negativo: um .from( solto num leitor reprova; um dentro de comTempo( passa', () => {
+    const solto = "async function f(sb) { const r = await sb.from('t').select('a'); return comTempo((s) => sb.from('u').abortSignal(s)) }"
+    const { todos, emTempo } = idas(solto)
+    expect(todos).toBe(2)
+    expect(emTempo).toBe(1)
+    expect(idas("comTempo((s) => sb.from('u').abortSignal(s))")).toEqual({ todos: 1, emTempo: 1 })
+  })
+  it('os leitores existem na pasta e a lista dos que leem .message, .details ou .hint não ganhou arquivo (nenhum leitor lê o texto do erro)', () => {
+    for (const n of ['leitor.ts', 'leitor-contagem.ts', 'leitor-nivel.ts', 'leitor-tipos.ts']) expect(doComentarios().map(nome), n).toContain(n)
+    for (const n of ['leitor.ts', 'leitor-contagem.ts', 'leitor-nivel.ts', 'leitor-tipos.ts']) {
+      expect(/\.(message|details|hint)\b/.test(ler2(ler(join(COMENTARIOS, n))).soEstrutura), n).toBe(false)
+    }
   })
 })
 

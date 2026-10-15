@@ -56,6 +56,13 @@ const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/grava
  *  - `competitors/actions.ts`: a guarda de `removeCompetitorChannel` (contagem `head`, sem trazer texto), depois de `denyUnlessSiteAdmin`.
  */
 const E9_SO_COM_EDICAO = new Set(['lib/youtube/observatorio/saiu/ler-fila.ts', 'app/cms/(authed)/youtube/competitors/actions.ts'])
+/**
+ * PONTO PARA PORTÃO (E5a C1): os dois leitores dos comentários de destaque consultam `competitor_video_comments` e `competitor_video_comment_marks`
+ * sem a palavra `leituraValida` no próprio arquivo, porque quem decide o nível é `nivelDeQuemVe` (`comentarios/leitor-nivel.ts`, que valida os dois
+ * tokens, o de leitura e o de edição, e nunca sobe de nível por falta de prova). A isenção vale SÓ para estes dois arquivos, SÓ se chamarem
+ * `nivelDeQuemVe(`, e eles continuam proibidos de citar o token de edição e de pedir qualquer prova (`PODE_PROVAR` não ganha arquivo).
+ */
+const LEITORES_POR_NIVEL = new Set(['lib/youtube/observatorio/comentarios/leitor.ts', 'lib/youtube/observatorio/comentarios/leitor-contagem.ts'])
 const cita = (s: string, t: string) => new RegExp(`\\.from\\(\\s*['"]${t}['"]\\s*\\)`).test(s)
 /** `yt_own_collection_attempts` é "só quem edita" no banco; fora da coleta o código lê só `attempt_day` e `outcome` (decisão I4 do portão de software). */
 const COLUNAS_TENTATIVAS = new Set(['attempt_day', 'outcome'])
@@ -96,7 +103,8 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
     if (LEITORES_E_DADOS.has(arq) && /\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: o leitor voltou ao token de edição`)
     if (!arq.startsWith(COLETA_DIR) && !GRAVADORES_QUE_LEEM.has(arq) && !E9_SO_COM_EDICAO.has(arq) && DOZE.some(t => cita(s, t))) {
-      if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas sem passar por leituraValida`)
+      const nivelPeloLeitor = LEITORES_POR_NIVEL.has(arq) && /\bnivelDeQuemVe\s*\(/.test(s)
+      if (!/\bleituraValida\b/.test(s) && !nivelPeloLeitor) v.push(`${arq}: consulta uma das doze tabelas privadas sem passar por leituraValida`)
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas com o token de edição`)
     }
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
@@ -214,6 +222,23 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'lib/youtube/observatorio/saiu/outro.ts': "sb.from('competitor_video_comments').select('id')" })).toEqual(['lib/youtube/observatorio/saiu/outro.ts: consulta uma das doze tabelas privadas sem passar por leituraValida'])
       for (const arq of [VERSOES_LER, COMENTARIOS_LER])
         expect(violacoes({ ...base, [arq]: "import { edicaoValida } from '../proprio/edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
+    })
+    it('E5a C1: os leitores dos comentários (e a página do vídeo e a do canal) não pedem a prova de edição; a isenção só vale com nivelDeQuemVe', () => {
+      const L = 'lib/youtube/observatorio/comentarios/leitor.ts'
+      const LC = 'lib/youtube/observatorio/comentarios/leitor-contagem.ts'
+      const cita2 = "sb.from('competitor_video_comments').select('id')"
+      expect(violacoes({ ...base, [L]: 'nivelDeQuemVe(p, s); ' + cita2, [LC]: 'nivelDeQuemVe(p, s); ' + cita2 })).toEqual([])
+      // sem chamar nivelDeQuemVe, a isenção some
+      expect(violacoes({ ...base, [L]: cita2 })).toEqual([`${L}: consulta uma das doze tabelas privadas sem passar por leituraValida`])
+      // outro arquivo da pasta não ganha a isenção
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/comentarios/outro.ts': 'nivelDeQuemVe(p, s); ' + cita2 })).toHaveLength(1)
+      // com a isenção, citar o token de edição continua proibido
+      expect(violacoes({ ...base, [L]: 'nivelDeQuemVe(p, s); edicaoValida(x); ' + cita2 })).toEqual([`${L}: consulta uma das doze tabelas privadas com o token de edição`])
+      // pedir a prova de edição: violação nos leitores e nas duas páginas (PODE_PROVAR não ganha arquivo)
+      for (const arq of [L, LC, 'app/cms/(authed)/youtube/competitors/video/[id]/page.tsx', 'app/cms/(authed)/youtube/competitors/canal/[id]/page.tsx']) {
+        expect(violacoes({ ...base, [arq]: 'const e = await provarEdicao(siteId)' }), arq).toEqual([`${arq}: pede a prova de edição fora do módulo da guarda`])
+      }
+      expect(PODE_PROVAR.size).toBe(2)
     })
     it('tentativas de coleta: fora da coleta, só attempt_day e outcome', () => {
       const erro = (arq: string) => [`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`]
