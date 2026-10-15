@@ -23,10 +23,11 @@ Os pareceres do Logan (14/10) e a conferência da data mudam texto e posição d
 | L1 | Rótulo de origem de cada mês | "do banco" sem marca nos meses ainda online | por estado do mês, nunca por estar online: selado com dado "da cópia no NAS" (visto, sem marca); não selado "do banco, ainda sem cópia" + marca "parcial"; selado vazio "Sem registro neste mês (conferimos em dd/mm)" (dd/mm = dia da selagem). O rótulo "do banco" sozinho não existe | `p-ok` |
 | L2 | Frase de "antes de pedir" | "12 meses: 6 online, 6 no arquivo" (conta por onde o mês está) | por origem da leitura: "Vai ler os 12 meses de <canal>: 11 vêm da cópia no NAS e 1, o mês corrente, do banco (parcial)." A linha de apoio "depende de a casa estar ligada" fica | `a-pedir` |
 | L3 | Frase do erro `inesperado` (D16) | "A casa encontrou um erro ao montar o relatório. Nada foi perdido." + PODE | lead "Não deu para montar o resultado. Nada foi perdido."; sub "Peça de novo. Se acontecer outra vez, avise o Claude Code para investigar e diga a hora do pedido (hh:mm)."; triângulo âmbar `role="alert"` com o botão "Pedir de novo" (o mesmo do `x-nas`); nunca mostra `fail_detail` | sem quadro (estado novo) |
-| L4 | Data e verbo de "O primeiro sai em" | "O primeiro sai em 01/02/2027." (`peca6.js` linha 81) | **"Ainda não há mês no arquivo. O primeiro pode sair do banco a partir de 01/03/2027."** (a data certa é 01/03/2027, ver D15). Data já passada e ainda sem mês: "Ainda não há mês no arquivo. O primeiro já pode sair: a saída é na página do Arquivo." (link só para quem edita). Data não calculável: "Ainda não há mês no arquivo." sem data. Quem só lê: mesma frase sem o link, em quadro cinza discreto (`--muted`), uma linha, sem botão | `a-nada` |
+| L4 | Data e verbo de "O primeiro sai em" | "O primeiro sai em 01/02/2027." (`peca6.js` linha 81; **o mockup muda de 01/02/2027 para 01/05/2027**) | **"Ainda não há mês no arquivo. O primeiro pode sair do banco a partir de 01/05/2027."** (a data certa é 01/05/2027: outubro/2026 + 6 + 1, porque o registro não tem mês antes de 01/10/2026; ver D15; a de 01/03/2027 da 1ª rodada também estava errada, Phil r2 N1). Data já passada e ainda sem mês: "Ainda não há mês no arquivo. O primeiro já pode sair: a saída é na página do Arquivo." (link só para quem edita). Data não calculável: "Ainda não há mês no arquivo." sem data. Quem só lê: mesma frase sem o link, em quadro cinza discreto (`--muted`), uma linha, sem botão | `a-nada` |
 | L5 | Onde mora a tira | "logo abaixo do gráfico Views por dia" | o gráfico não existe na tela real nem no mockup 15 aprovado; a tira vai **entre `<CanalHeader>` e `<AbasNav>`** de `apps/web/src/app/cms/(authed)/youtube/competitors/_canal/canal-screen.tsx` (linhas 508 a 510), largura total, uma linha, 390 px: texto em cima, botão embaixo (alvo de 44 px). Desvio de lugar, sem novo mockup | `a-pedir`, `a-nada` |
 | L6 | Mês online sem linha: "0 de 31 dias medidos" (nunca escrever) | "0 de 31 dias medidos" | 4 casos por o que o banco sabe: (1) mês anterior à coleta do canal: "A coleta deste canal começou em <mês>/<ano>." (sem barra, sem número; mês e ano porque o dia exato some do banco quando o mês sai); (2) mês fechado, canal já coletado, nenhuma linha: "Sem registro neste mês (conferimos em dd/mm)" com a caixa vazada; (3) mês corrente sem linha ainda: "Sem registro neste mês até agora (conferimos em dd/mm)" + marca "parcial"; (4) ao menos 1 dia medido: "N de M dias medidos" com a barra. N = 0 nunca aparece | `p-ok` |
 | L7 | Textos que este plano acrescenta (derivados dos pareceres de Phil/Yannis; o Logan não os escreveu) | não existiam | mês que falta no resultado, por motivo: `sem_copia` "A cópia deste mês não está no arquivo."; `expurgado` "Este mês foi apagado do arquivo em dd/mm."; `sem_registro_do_canal` "O arquivo não tem este canal neste mês."; resultado vencido sem resultado gravado: usa a frase aprovada "O resultado de dd/mm venceu. Peça de novo."; método no ⓘ de "Views do mês" ("soma, por vídeo, da última leitura do mês menos a primeira; o ganho entre o último dia de um mês e o primeiro do seguinte não entra") e "não medido" quando a soma é nula; tira por mês ("Views por dia: ago/2026 a set/2027 no arquivo.", não por dia, porque o dia exato da primeira leitura não fica no banco depois que o mês sai) | `x-inc`, `p-ok`, tira |
+| L8 | Mês anterior ao arquivo ainda no banco (ago e set/2026, Phil r2 N2) | não existia | rótulo **"do banco (anterior ao arquivo)"**, sem marca "parcial" (o mês está fechado e completo; só nunca será selado, porque o registro começa em 01/10/2026); a frase de "antes de pedir" ganha o terceiro termo: "…e 1, o mês corrente, do banco (parcial), e 2 meses anteriores ao arquivo, do banco." | `p-ok`, `a-pedir` |
 
 Sugestão do Logan (não bloqueia): se o Gio medir que a frase fixa "Ainda não há mês no arquivo." empurra a lista de vídeos a 390 px, esconder a tira nesse estado e deixar a frase só na página do Arquivo.
 
@@ -64,7 +65,7 @@ Frase para a Hanna: "a casa pergunta a cada minuto quando ninguém pediu nada e 
 - **O sistema falha em VERDE.** Cada passo diz o que acontece quando o dado NÃO existe (mês sem registro, resumo vazio, arquivo ausente, NAS desmontado, heartbeat nunca gravado, variável apagada, casa desligada) antes do que acontece quando dá erro. Nenhum estado da tela vira "sem dados" nem zero por falta de leitura. **Invariante central:** para todo pedido concluído, `jsonb_array_length(payload->'meses') = cardinality(months) × cardinality(resolved_channel_refs)`; a função que grava o resultado levanta `invariante_do_resultado` (500) se não bater.
 - Variáveis com padrão (respondedor): `ARQ_RESP_INTERVALO_S` (15, com pedido recente), `ARQ_RESP_INTERVALO_OCIOSO_S` (60), `ARQ_RESP_BATIMENTO_S` (600), `ARQ_RESP_ORCAMENTO_S` (780), `ARQ_RESP_PAUSA_DESLIGADO_S` (300), `ARQ_MONTAGEM_LEITURA` (`/mnt/arquivo/leitura`), mais as comuns (`ARQ_SITE`, `ARQUIVO_BASE`, `ARQUIVO_CHAVE_ARQ`). Cada uma com **teste que a apaga** e afirma o padrão, e com teste do valor ilegível (vira `bug`, nunca o padrão calado; regra do `config` da M3b). No site não há variável nova: a peça 6 obedece `OBS_ARQUIVO` (só `on` liga), cujo teste de apagar já existe na M3b.
 - **Orçamento acoplado da fila da forja (CLAUDE.md, "A forja") não é tocado:** o respondedor é outro processo, com `Nice=10` e `IOSchedulingClass=idle`, sem cron, e não lê `youtube_intelligence_tasks`.
-- Sem datas-meta. O único relógio é o do dado e o da partida: **em jan/2027 o dono está na Ásia**; a instalação na forja (Tarefa 15) e a medida (Tarefa 13) são mão do dono em casa e fecham antes da partida (decisoes-dono-14-10, "o que exige a casa"). O respondedor tem o que ler desde a primeira selagem (devida em 28/11/2026); a tela só oferece o botão quando houver mês fora do banco, que pela regra da janela só existe a partir de 01/03/2027 (D15); por isso a **conferência do NAS por SQL entre 28/11/2026 e a partida** (Tarefa 15, Passo 7) é portão da partida.
+- Sem datas-meta. O único relógio é o do dado e o da partida: **em jan/2027 o dono está na Ásia**; a instalação na forja (Tarefa 15) e a medida (Tarefa 13) são mão do dono em casa e fecham antes da partida (decisoes-dono-14-10, "o que exige a casa"). O respondedor tem o que ler desde a primeira selagem (devida em 28/11/2026); a tela só oferece o botão quando houver mês fora do banco, que pela regra da janela só existe a partir de **01/05/2027** (D15: outubro/2026, o primeiro mês do registro, + 6 + 1; `m3b.sql:457-459`); por isso a **conferência do NAS por SQL entre 28/11/2026 e a partida** (Tarefa 15, Passo 7) é portão da partida. **O ponta a ponta com a tela (Tarefa 15, Passo 5) NÃO roda antes da partida para a Ásia**: só em maio/2027, com o dono fora; declarado na Tarefa 15.
 
 ## Travas e ordem de execução
 
@@ -145,13 +146,14 @@ Frase para a Hanna: "a casa pergunta a cada minuto quando ninguém pediu nada e 
 | D12 | **Vigia 5** é a função `obs_archive_vigia_resultados()` (só leitura, devolve a contagem) e a consulta do runbook a chama; o vigia 4 da M3b não é tocado | Item 160: (5) é consulta do dono no runbook |
 | D13 | **Online parcial chamado pela rota, um mês por chamada** (`obs_archive_request_online(p_site, p_request, p_month)`), antes do `obs_archive_request_finish`; a lista de meses online vem do **plano gravado no claim** (`obs_archive_request_check`), nunca recalculada | Mantém cada instrução curta; mês selado entre o claim e o `result` não some (Yannis I-7); a medida local está na Tarefa 6, Passo 7 |
 | D14 | **Respondedor: orçamento interno** = `min(ARQ_RESP_ORCAMENTO_S (780), restante_s − 60)`, onde `restante_s` vem do claim (calculado no banco, sem depender do relógio da forja); passou do orçamento → `fail grande_demais`. A 2ª tentativa herda o prazo da 1ª e tem menos de 9 min | `02` §10.6; Phil I8, Yannis I-10 |
-| D15 | **"O primeiro pode sair do banco a partir de dd/mm/aaaa"** = 1º dia do mês `primeiro_mes_com_dado + janela_da_política + 1` (`serie`, janela 6). **Data certa para coleta desde ago/2026: 01/03/2027** (não 01/02/2027). Conferência: spec `02` linha 275 ("Com janela 6, outubro pode sair quando novembro a abril estão fechados: em 01/05" = mês + 7), `04` linha 115 ("Outubro pode sair em 01/05/2027") e o portão da M6 (`make_interval(months => window_months + 1)`, plano M6 linha 1093, teste `pode_sair_em 2027-05-01`). O exemplo do D15 original e do mockup (01/02/2027) esquecia o "+ 1". **Uma função só:** `public.obs_archive_pode_sair_em(p_month date, p_window int)` (criada na Tarefa 4); a frase do Arquivo (M5) lê `pode_sair_em` do portão da M6, que tem de chamar a mesma função; pedido ao controlador da M6 registrado no ledger; teste de equivalência na Tarefa 4 (compara com `ainda_na_janela.pode_sair_em` do portão quando a M6 existir no banco, `skipIf` quando não) | Logan 3 e Phil I6 divergiam (01/03 e 01/02); a fórmula do próprio spec decide: 01/03/2027 |
+| D15 | **"O primeiro pode sair do banco a partir de dd/mm/aaaa"** = 1º dia do mês `max(primeiro_mes_com_dado, 2026-10-01) + janela_da_política + 1` (`serie`, janela 6). **Data certa: 01/05/2027** (Phil r2 N1). O registro do arquivo não tem mês antes de 01/10/2026 (`m3b.sql:457-459` e `1996`, `greatest(coalesce(v_inicio, '2026-10-01'), '2026-10-01')`; spec `03` L35), então agosto e setembro/2026 nunca são selados nem destacados; o primeiro mês que sai é outubro/2026: out + 6 + 1 = 01/05/2027 (spec `00` L75/L102/L111, `02` L275, `04` L115, plano M6 L1093 e teste L825 `2027-05-01`). As datas 01/02/2027 (mockup) e 01/03/2027 (1ª rodada, coleta desde ago/2026 sem o piso) estavam erradas. **O piso mora em UM lugar**: `public.obs_archive_pode_sair_em(p_month date, p_window int)` aplica `greatest(date_trunc('month', p_month), public.obs_archive_piso_registro())` (constante `2026-10-01`, citando `m3b.sql:457-459`); a M6 chama a mesma função. `obs_archive_first_month_canal` continua devolvendo o primeiro mês **real** de coleta (serve a `antes` e à marca "A coleta deste canal começou em…"). Teste de equivalência com o portão da M6 na Tarefa 4 (`skipIf` quando a M6 não existir no banco) | Phil r2 N1: a tira prometia uma saída que não existe em março; a mensagem "já pode sair" (data passada) apareceria de março a maio sem candidato |
 | D16 | **Frase do `inesperado`** (o `04` não tem): a do Logan (L3), em `FRASES.inesperado`, com a hora do pedido (`requested_at`) | Estado alcançável sem frase aprovada; Logan 2 |
 | D17 | **Botão só para quem edita**, só com ao menos um mês da classe `serie` destacado (`detached_at` não nulo) para o canal; sem nenhum, a tira mostra a frase de `semArquivo` (L4) sem botão; quem só lê vê só "Views por dia: <mês/aaaa> a <mês/aaaa> no arquivo." | Mockup, nota do quadro `a-nada` e linha 172 de `peca6.js` |
 | D18 | **Polling da tela a cada 10 s** enquanto o pedido está `pending` ou `running` e a aba está visível (`document.visibilityState`), **pela leitura leve** `obs_archive_request_status` (só o estado e o progresso); a leitura completa só ao mudar de estado. Para no estado final | 180 chamadas no máximo por pedido de 15 min; Phil M4: a leitura completa recalcula a prévia das 4 escolhas a cada vez |
 | D19 | **Custo do claim: ver "Decisão do dono pendente (muda o spec)" no topo.** Implementado: variante B (claim é o batimento, 60 s ocioso, 15 s com pedido recente); variante A com as duas variáveis. Com `503 arquivo_desligado` o respondedor espera `ARQ_RESP_PAUSA_DESLIGADO_S` (300 s) | Phil I1 |
 | D20 | **Plano do pedido gravado no claim** (`obs_archive_requests.plan`): a classificação de **cada** par (canal, mês) em `arquivo`, `vazio`, `online`, `faltou`, `antes`. Pedido que não tem nenhum arquivo para ler (`online_only`) é fechado **pela server action**, logo depois do `create`, por `obs_archive_request_finish_online` (sem token, só aceita `online_only` e `pending`); o claim nunca o vê. Falha ao fechar → `obs_archive_request_fail_online` (`failed/inesperado`, nunca "A casa não respondeu") | Phil C1/C2, Yannis I-2 e I-7 |
 | D21 | **Resultado anterior** (Phil M2): a leitura traz também `resultado_anterior` (o último resultado ainda válido do canal quando o pedido mais recente não terminou em `done`); a tela o oferece só nos estados `cancelado`, `nao_respondeu`, `nas_fora`, `inesperado` como "Ver o resultado de dd/mm". Texto: remessa ao Logan (lista L7) | Phil M2 |
+| D22 | **Mês anterior ao arquivo** (Phil r2 N2): par não selado, não destacado e com mês < `obs_archive_piso_registro()` (ago e set/2026) vira `k = 'online'` com `x = 'anterior_ao_arquivo'`. O resultado grava `estado: 'ok'`, `origem: 'banco_anterior_ao_arquivo'`, `parcial: false` (quando há dias medidos; sem dias, `sem_registro` como os demais); o rótulo é "do banco (anterior ao arquivo)", sem marca. `parcial` fica só para mês >= piso ainda não selado. A prévia ganha o campo `fora` (contagem desses pares; `banco` conta só os parciais). Texto novo = L8 | Phil r2 N2 |
 
 ---
 
@@ -213,7 +215,7 @@ Frase para a Hanna: "a casa pergunta a cada minuto quando ninguém pediu nada e 
 **Files:**
 - Create: `.superpowers/sdd/manutencao-nas/m7-progresso.md` (fora do git)
 
-- [ ] **Passo 1. Ledger.** Criar com as seções "Travas", "Medidas", "Levar ao dono antes do código" (a tabela L1 a L7 do topo, cada linha com "aprovada pelo dono em <data>" ou "pendente"), "Decisão do dono pendente (D19)", "Desvios declarados" e "NÃO VERIFICADO". Copiar para "Desvios declarados" as decisões D2, D4, D9, D10, D11, D15, D16 e D21, e a nota "medida com cache quente é piso, não teto". Anotar também: **pedido à M6** (controlador): o portão deve chamar `public.obs_archive_pode_sair_em(p_month, window_months)` em vez da expressão inline da linha 1093 do plano dela; **M-10 (Yannis)**: pedido que espera atrás de outro de 13 min pode vencer na fila com "A casa não respondeu" (um dono, caso raro; `expires_at` conta da criação); se acontecer de fato, contar a validade a partir do fim do pedido em andamento.
+- [ ] **Passo 1. Ledger.** Criar com as seções "Travas", "Medidas", "Levar ao dono antes do código" (a tabela L1 a L8 do topo, cada linha com "aprovada pelo dono em <data>" ou "pendente"), "Decisão do dono pendente (D19)", "Desvios declarados" e "NÃO VERIFICADO". Copiar para "Desvios declarados" as decisões D2, D4, D9, D10, D11, D15, D16 e D21, e a nota "medida com cache quente é piso, não teto". Anotar também: **pedido à M6** (controlador): o portão deve chamar `public.obs_archive_pode_sair_em(p_month, window_months)` em vez da expressão inline da linha 1093 do plano dela; **M-10 (Yannis)**: pedido que espera atrás de outro de 13 min pode vencer na fila com "A casa não respondeu" (um dono, caso raro; `expires_at` conta da criação); se acontecer de fato, contar a validade a partir do fim do pedido em andamento.
 - [ ] **Passo 2. Estado da M3b.** Rodar e anotar a saída:
 
 ```bash
@@ -322,6 +324,7 @@ describe('contrato do pedido (M7)', () => {
     expect(TETO_ENTRADAS).toBe(Math.floor(TETO_CARGA_BYTES / BYTES_POR_ENTRADA))
     expect(TETO_ENTRADAS * BYTES_POR_ENTRADA).toBeLessThanOrEqual(TETO_CARGA_BYTES)
     expect(TETO_ENTRADAS).toBe(1747)
+    expect(TETO_ARQUIVOS).toBeLessThanOrEqual(TETO_ENTRADAS)   // N-5: dois tetos, o de leitura só desce
   })
   it('impressão independe da ordem dos canais e das medidas (item 53)', () => {
     const a = impressaoDoPedido({ tipo: 'relatorio', canais: [CANAL, ID], meses: ['2027-01'], medidas: ['var_views', 'linhas'] })
@@ -358,6 +361,8 @@ export const TETO_CARGA_BYTES = 512 * 1024
 export const BYTES_POR_ENTRADA = 300
 /** D4/D8: pares (canal × mês) por pedido; cabe no teto de bytes. A medida da Tarefa 13 só pode BAIXAR o teto de arquivos, nunca subir este. */
 export const TETO_ENTRADAS = Math.floor(TETO_CARGA_BYTES / BYTES_POR_ENTRADA)
+/** Yannis N-5: arquivos que o claim manda ler. Começa igual a TETO_ENTRADAS; a medida da Tarefa 13 só pode BAIXAR este (espelho de `teto_arquivos` em obs_archive_request_limits). */
+export const TETO_ARQUIVOS = 1747
 export const TETO_TOTAL_RESULTADOS_BYTES = 8 * 1024 * 1024
 export const TETO_CORPO_RESULTADO_BYTES = 4 * 1024 * 1024
 /** As colunas do resumo .canal (M3b, obs_archive_summary_rows), na ordem do CSV. Nenhuma de comentário (02 §11.2). O respondedor confere o cabeçalho contra esta lista. */
@@ -449,7 +454,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/we
 
 **O que acontece quando o dado não existe:** leitura `null` (RPC falhou ou fora do esquema) → `nao_medido` ("Não foi possível ler o estado do pedido."), nunca "antes de pedir"; sem mês destacado → `sem_arquivo`; `OBS_ARQUIVO` desligado → `desligado`; heartbeat do respondedor nunca gravado → "Último sinal: nunca" e octógono (o site nunca ouviu a casa); **`done` sem resultado gravado (expulso pelo teto de 8 MB ou apagado) → `venceu` com a data de `finished_at`, nunca `pronto` vazio (Yannis I-6)**; viewer que só lê → `pedido` e `resultado` nulos (a RPC nem os devolve, M-8).
 
-- [ ] **Passo 1. Teste, falhando.** Uma linha de tabela por estado, com a frase exata do `peca6.js` (copiar o texto do arquivo aprovado, não deste plano, se divergirem) **e, onde a lista L1 a L7 muda o texto, a frase nova** (marcadas `// L<n>`; se o dono recusar, o teste volta ao texto do mockup):
+- [ ] **Passo 1. Teste, falhando.** Uma linha de tabela por estado, com a frase exata do `peca6.js` (copiar o texto do arquivo aprovado, não deste plano, se divergirem) **e, onde a lista L1 a L8 muda o texto, a frase nova** (marcadas `// L<n>`; se o dono recusar, o teste volta ao texto do mockup):
 
 ```ts
 // apps/web/test/youtube/observatorio/arquivo-mensal-pedido-tela.test.ts
@@ -465,7 +470,7 @@ const AGORA = new Date('2028-05-03T17:40:00Z')
 const base: LeituraDoPedido = {
   arquivo_ligado: true, meses_no_arquivo: 7, primeiro_sai_em: null, ultimo_sinal: '2028-05-03T17:39:00Z',
   no_arquivo: { de: '2026-08', ate: '2027-09' },
-  previa: { '12': { banco: 5, nas: 7, antes: 0, total: 12 }, '24': { banco: 5, nas: 19, antes: 0, total: 24 }, '36': { banco: 5, nas: 31, antes: 0, total: 36 }, tudo: { banco: 5, nas: 45, antes: 0, total: 50 } },
+  previa: { '12': { banco: 5, nas: 7, antes: 0, fora: 0, total: 12 }, '24': { banco: 5, nas: 19, antes: 0, fora: 0, total: 24 }, '36': { banco: 5, nas: 31, antes: 0, fora: 0, total: 36 }, tudo: { banco: 5, nas: 45, antes: 0, fora: 0, total: 50 } },
   pedido: null, resultado: null, resultado_anterior: null,
 }
 const pedido = (o: Partial<NonNullable<LeituraDoPedido['pedido']>>) => ({
@@ -476,7 +481,7 @@ const pedido = (o: Partial<NonNullable<LeituraDoPedido['pedido']>>) => ({
 describe('peça 6: estado e frase (item 105)', () => {
   it.each([
     ['desligado', { ...base, arquivo_ligado: false }, 'O arquivo está desligado neste site. Nada foi pedido.'],
-    ['sem_arquivo', { ...base, meses_no_arquivo: 0, primeiro_sai_em: '2027-03-01' }, 'Ainda não há mês no arquivo. O primeiro pode sair do banco a partir de 01/03/2027.'],   // L4
+    ['sem_arquivo', { ...base, meses_no_arquivo: 0, primeiro_sai_em: '2027-05-01' }, 'Ainda não há mês no arquivo. O primeiro pode sair do banco a partir de 01/05/2027.'],   // L4
     ['nao_medido', null, 'Não foi possível ler o estado do pedido.'],
     ['enviado', { ...base, pedido: pedido({}) }, 'Pedido feito às 14:32. Aguardando a casa.'],
     ['cancelado', { ...base, pedido: pedido({ status: 'cancelled', status_efetivo: 'cancelled', cancelled_at: '2028-05-03T17:36:00Z' }) }, 'Pedido cancelado às 14:36.'],
@@ -490,8 +495,8 @@ describe('peça 6: estado e frase (item 105)', () => {
     expect(e.lead).toBe(frase)
   })
   it('sem_arquivo: data passada, sem data e quem só lê (L4)', () => {
-    expect(fraseSemArquivo('2027-03-01', new Date('2027-03-02T12:00:00Z'), true)).toEqual({ texto: 'Ainda não há mês no arquivo. O primeiro já pode sair: a saída é na página do Arquivo.', link: true })
-    expect(fraseSemArquivo('2027-03-01', new Date('2027-03-02T12:00:00Z'), false).link).toBe(false)
+    expect(fraseSemArquivo('2027-05-01', new Date('2027-05-02T12:00:00Z'), true)).toEqual({ texto: 'Ainda não há mês no arquivo. O primeiro já pode sair: a saída é na página do Arquivo.', link: true })
+    expect(fraseSemArquivo('2027-05-01', new Date('2027-05-02T12:00:00Z'), false).link).toBe(false)
     expect(fraseSemArquivo(null, AGORA, true)).toEqual({ texto: 'Ainda não há mês no arquivo.', link: false })   // nunca data estimada
   })
   it('inesperado: sub com a hora do pedido, nunca o fail_detail; triângulo com botão "Pedir de novo" (L3)', () => {
@@ -519,10 +524,11 @@ describe('peça 6: estado e frase (item 105)', () => {
     expect(e.lead).toBe('O resultado de 20/04 venceu. Peça de novo.')
   })
   it('frase de antes de pedir é por origem da leitura, não por onde o mês está (L2)', () => {
-    const previa = { '12': { banco: 1, nas: 11, antes: 0, total: 12 }, '24': { banco: 1, nas: 17, antes: 6, total: 24 }, '36': { banco: 1, nas: 17, antes: 18, total: 36 }, tudo: { banco: 1, nas: 45, antes: 0, total: 50 } }
+    const previa = { '12': { banco: 1, nas: 11, antes: 0, fora: 0, total: 12 }, '24': { banco: 1, nas: 17, antes: 6, fora: 0, total: 24 }, '36': { banco: 1, nas: 17, antes: 18, fora: 0, total: 36 }, tudo: { banco: 1, nas: 45, antes: 0, fora: 0, total: 50 } }
     expect(fraseAntes('12', previa, 'Canal X')).toBe('Vai ler os 12 meses de Canal X: 11 vêm da cópia no NAS e 1, o mês corrente, do banco (parcial).')
     expect(fraseAntes('24', previa, 'Canal X')).toBe('Vai ler os 24 meses de Canal X: 17 vêm da cópia no NAS e 1, o mês corrente, do banco (parcial). Os outros 6 são de antes de a coleta começar.')
-    expect(fraseAntes('12', { ...previa, '12': { banco: 0, nas: 12, antes: 0, total: 12 } }, 'Canal X')).toBe('Vai ler os 12 meses de Canal X: os 12 vêm da cópia no NAS.')
+    expect(fraseAntes('12', { ...previa, '12': { banco: 0, nas: 12, antes: 0, fora: 0, total: 12 } }, 'Canal X')).toBe('Vai ler os 12 meses de Canal X: os 12 vêm da cópia no NAS.')
+    expect(fraseAntes('12', { ...previa, '12': { banco: 1, nas: 9, antes: 0, fora: 2, total: 12 } }, 'Canal X')).toBe('Vai ler os 12 meses de Canal X: 9 vêm da cópia no NAS, 1, o mês corrente, do banco (parcial), e 2 meses anteriores ao arquivo, também do banco.')   // N2: banco >= 3 (L8)
     expect(fraseAntes('tudo', previa, 'Canal X')).toBe('Tudo passa do que o site guarda (50 meses). Escolha até 36 meses.')
   })
   it('rótulo de origem por estado do mês; "do banco" nunca sozinho; nunca "0 de N dias medidos" (L1, L6)', () => {
@@ -530,6 +536,8 @@ describe('peça 6: estado e frase (item 105)', () => {
     expect(fraseDoMes({ ...ok }, AGORA).texto).toContain('da cópia no NAS')
     expect(fraseDoMes({ ...ok, estado: 'parcial', origem: 'banco_sem_copia', parcial: true, dias_medidos: 12 }, AGORA)).toMatchObject({ marca: 'parcial' })
     expect(fraseDoMes({ ...ok, estado: 'parcial', origem: 'banco_sem_copia', parcial: true, dias_medidos: 12 }, AGORA).texto).toContain('do banco, ainda sem cópia')
+    expect(fraseDoMes({ ...ok, origem: 'banco_anterior_ao_arquivo', parcial: false }, AGORA).texto).toContain('do banco (anterior ao arquivo)')
+    expect(fraseDoMes({ ...ok, origem: 'banco_anterior_ao_arquivo', parcial: false }, AGORA).marca).not.toBe('parcial')   // N2 / L8: sem "parcial"
     expect(fraseDoMes({ ...ok, estado: 'vazio_conferido', origem: 'nas', conferido_em: '2027-02-02', dias_medidos: null, dias_do_mes: null, views: null }, AGORA).texto).toBe('Sem registro neste mês (conferimos em 02/02)')
     expect(fraseDoMes({ ...ok, estado: 'sem_registro', origem: null, parcial: false, dias_medidos: null, dias_do_mes: null, views: null, conferido_em: '2028-05-03' }, AGORA).texto).toBe('Sem registro neste mês (conferimos em 03/05)')
     expect(fraseDoMes({ ...ok, estado: 'sem_registro', origem: null, parcial: true, dias_medidos: null, dias_do_mes: null, views: null, conferido_em: '2028-05-03' }, AGORA)).toMatchObject({ texto: 'Sem registro neste mês até agora (conferimos em 03/05)', marca: 'parcial' })
@@ -547,9 +555,10 @@ describe('peça 6: estado e frase (item 105)', () => {
     expect(formatarViews('0')).toBe('0')
     expect(formatarViews('12345')).toBe('12.345')
   })
-  it('data de "pode sair" é mês + janela + 1 (D15): coleta desde ago/2026, janela 6 → 01/03/2027; out/2026 → 01/05/2027', () => {
-    expect(podeSairEm('2026-08', 6)).toBe('2027-03-01')
+  it('data de "pode sair" é max(mês, piso 2026-10) + janela + 1 (D15): coleta desde ago/2026 → 01/05/2027 (não 01/03); out/2026 → 01/05/2027; nov/2026 → 01/06/2027', () => {
+    expect(podeSairEm('2026-08', 6)).toBe('2027-05-01')
     expect(podeSairEm('2026-10', 6)).toBe('2027-05-01')
+    expect(podeSairEm('2026-11', 6)).toBe('2027-06-01')
   })
   it('aviso: triângulo até 36 h sem sinal, octógono depois; nunca ouvido é octógono', () => {
     expect(formaDoAviso('2028-05-02T06:00:00Z', AGORA)).toBe('triangulo')
@@ -567,18 +576,18 @@ describe('peça 6: estado e frase (item 105)', () => {
 
 ```ts
 // apps/web/src/lib/youtube/observatorio/arquivo-mensal/pedido-tela.ts
-/** M7, peça 6 (spec 04 §14.6; mockup 19, peca6.js aprovado em 14/10; textos de L1 a L7 após aprovação do dono): do JSON de obs_archive_request_read ao estado e à frase. Puro. */
+/** M7, peça 6 (spec 04 §14.6; mockup 19, peca6.js aprovado em 14/10; textos de L1 a L8 após aprovação do dono): do JSON de obs_archive_request_read ao estado e à frase. Puro. */
 import { z } from 'zod'
 import { MOTIVOS_DO_MES } from './pedido'
 
 export const PODE = 'Pode esperar. Nada se resolve daqui: quando a forja e o NAS voltarem, peça de novo.'
 export const METODO_VAR_VIEWS = 'Views do mês: soma, por vídeo, da última leitura do mês menos a primeira. O ganho entre o último dia de um mês e o primeiro do seguinte não entra.'
-const previaZ = z.object({ banco: z.number().int().min(0), nas: z.number().int().min(0), antes: z.number().int().min(0), total: z.number().int().min(0) }).strict()
+const previaZ = z.object({ banco: z.number().int().min(0), fora: z.number().int().min(0), nas: z.number().int().min(0), antes: z.number().int().min(0), total: z.number().int().min(0) }).strict()
 const mesZ = z.object({
   mes: z.string().regex(/^\d{4}-\d{2}$/), canal: z.string(),
   estado: z.enum(['ok', 'parcial', 'vazio_conferido', 'sem_registro', 'antes_da_coleta', 'faltou']),
   // o SQL grava o payload com jsonb_strip_nulls: chave ausente = null (nullish); parcial ausente = false
-  origem: z.enum(['nas', 'banco_sem_copia']).nullish(), parcial: z.boolean().default(false),
+  origem: z.enum(['nas', 'banco_sem_copia', 'banco_anterior_ao_arquivo']).nullish(), parcial: z.boolean().default(false),
   dias_medidos: z.number().int().nullish(), dias_do_mes: z.number().int().nullish(),
   views: z.string().nullish(), likes: z.string().nullish(), comentarios_contagem: z.string().nullish(),
   conferido_em: z.string().nullish(), primeira_leitura: z.string().nullish(), motivo: z.enum(MOTIVOS_DO_MES).nullish(),
@@ -612,9 +621,10 @@ export const FRASES = {
   inesperado: { lead: 'Não deu para montar o resultado. Nada foi perdido.', sub: (hora: string) => `Peça de novo. Se acontecer outra vez, avise o Claude Code para investigar e diga a hora do pedido (${hora}).` },   // L3
 } as const
 
-/** Espelho de teste de public.obs_archive_pode_sair_em (D15): 1º dia do mês + janela + 1 meses. A tela NUNCA calcula: lê primeiro_sai_em da leitura. */
+/** Espelho de teste de public.obs_archive_pode_sair_em (D15): 1º dia de max(mês, piso do registro) + janela + 1 meses. A tela NUNCA calcula: lê primeiro_sai_em da leitura. */
+export const PISO_DO_REGISTRO = '2026-10'   // espelho de public.obs_archive_piso_registro() (m3b.sql:457-459)
 export function podeSairEm(primeiroMes: string, janela: number): string {
-  const [a, m] = primeiroMes.split('-').map(Number)
+  const [a, m] = (primeiroMes < PISO_DO_REGISTRO ? PISO_DO_REGISTRO : primeiroMes).split('-').map(Number)
   const t = a * 12 + (m - 1) + janela + 1
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}-01`
 }
@@ -634,7 +644,7 @@ export function formatarViews(v: string | null): string {
 
 O corpo completo das funções segue o `peca6.js` linha por linha (funções `fraseDe`, `lidos`, `pronto`, `incompleto`, `bate`); em `bate`, o texto "peça ao Claude Code para conferir <mês>" vem do mockup sem mudança. `fraseDoMes` implementa a tabela L1/L6/L7: `ok` → "da cópia no NAS" (sem marca); `parcial` → "do banco, ainda sem cópia" + marca "parcial"; `vazio_conferido` e `sem_registro` fechado → "Sem registro neste mês (conferimos em dd/mm)" (`conferido_em`); `sem_registro` com `parcial` → "Sem registro neste mês até agora (conferimos em dd/mm)" + marca; `antes_da_coleta` → "A coleta deste canal começou em <mês por extenso> de <ano>." (de `primeira_leitura`); `faltou` → a frase do motivo (L7). `fraseAntes` monta "Vai ler os N meses de <canal>: …" por origem (L2): banco 1 = "1, o mês corrente"; banco 2 = "2, o mês corrente e o último mês fechado"; sem banco "os N vêm da cópia no NAS"; com `antes > 0`, o complemento "Os outros K são de antes de a coleta começar."; `tudo` com `total > 36` mantém a frase do mockup.
 - [ ] **Passo 3.** Teste passa; `npm run typecheck -w apps/web`.
-- [ ] **Passo 4. Commit** `feat: M7: estado e frases da peça 6 (puro; textos novos marcados L1 a L7 até a aprovação do dono)` por caminho, os dois arquivos com `git add --` antes.
+- [ ] **Passo 4. Commit** `feat: M7: estado e frases da peça 6 (puro; textos novos marcados L1 a L8 até a aprovação do dono)` por caminho, os dois arquivos com `git add --` antes.
 
 ---
 
@@ -797,7 +807,7 @@ revoke insert, update, delete, truncate, references, trigger on table public.obs
   - `obs_archive_request_cancel(p_site uuid, p_request uuid, p_by uuid) returns jsonb` **[ação]** → `{status: 'cancelado'|'ja_terminado', cancelled_at}`.
   - `obs_archive_request_read(p_site uuid, p_channel text, p_ligado boolean, p_incluir_pedido boolean default true) returns jsonb` **[ação]** (o JSON de `LeituraDoPedidoZ`, Tarefa 2; `p_ligado` vem de `arquivoLigado()` no servidor; `p_incluir_pedido = false` para quem só lê: o dado nem sai do banco).
   - `obs_archive_request_status(p_site uuid, p_request uuid) returns jsonb` **[ação]** (leve, para o polling: `{id, status_efetivo, fail_reason, progress_done, progress_total}`; nulo se não existe).
-  - Internas (`revoke ... from service_role`): `obs_archive_request_limits()`, `obs_archive_pode_sair_em(date, int)`, `obs_archive_request_fingerprint(...)`, `obs_archive_request_state(r)`, `obs_archive_first_month(uuid, text, text)`, `obs_archive_request_files(uuid, text, text[], date[])`, `obs_archive_request_plan(uuid, text, text[], date[])`.
+  - Internas (`revoke ... from service_role`): `obs_archive_request_limits()`, `obs_archive_piso_registro()`, `obs_archive_pode_sair_em(date, int)`, `obs_archive_request_fingerprint(...)`, `obs_archive_request_state(r)`, `obs_archive_first_month_canal(uuid, text, text)` (renomeada, Phil r2 N11: `obs_archive_first_month(uuid, text)` já existe na M3b, `m3b.sql:1949`), `obs_archive_request_files(uuid, text, text[], date[])`, `obs_archive_request_plan(uuid, text, text[], date[])`.
 
 **O que acontece quando o dado não existe:** canal sem nenhum mês no registro e sem linha na diária → `nada_a_pedir` (o pedido não nasce; a tela nem oferece o botão, D17); pedido cujos meses não têm resumo `com_dado` listável (todos não selados, vazios ou com falta) nasce `online_only` e é resolvido só pelo banco, **sem ir à forja** (a server action o fecha logo depois do `create`; o claim nunca o vê: D20); heartbeat ausente → `ultimo_sinal: null`; viewer que só lê → `pedido`, `resultado` e `resultado_anterior` nulos sem consultar as tabelas de pedido.
 
@@ -815,7 +825,7 @@ revoke insert, update, delete, truncate, references, trigger on table public.obs
 | `canais resolvidos gravados na criação (Phil C2)` | pedido de um canal: `resolved_channel_refs = '{A}'`; pedido `null`: todos os canais do site sem remoção `apagar`; `channel_refs` do pedido nomeado continua `'{A}'` |
 | `só online: nasce online_only (Yannis I-2)` | canal com diária de 3 meses e nenhum selo: `so_online = true`, `online_only = true`, `plan` gravado; com um mês selado `com_dado` e resumo do canal: `so_online = false` |
 | `plano: cada par (canal, mês) tem uma classe (C1)` | cinco casos num canal de 6 meses: selado com resumo (`arquivo`, fora do plano), selado com resumo `empty` (`vazio`), selado `vazio_conferido` (`vazio`), selado com resumo `purged_at` (`faltou`/`expurgado`, `d` = data do `purged_at`), selado sem resumo do canal (`faltou`/`sem_registro_do_canal`), selado com resumo `lost_at` (`faltou`/`sem_copia`), destacado sem selo (`faltou`/`sem_copia`), mês não selado (`online`), mês anterior à primeira leitura (`antes`, `d` = primeiro mês); `count(plano) + count(arquivos) = cardinality(months) × canais` |
-| `primeiro mês com dado (I-3)` | semeado pela cadeia vídeo → canal (`competitor_videos`, `competitor_video_daily`): `obs_archive_first_month` devolve o 1º dia do mês da menor `snap_date`; um canal de **outro site** com diária mais antiga não interfere |
+| `primeiro mês com dado (I-3)` | semeado pela cadeia vídeo → canal (`competitor_videos`, `competitor_video_daily`): `obs_archive_first_month_canal` devolve o 1º dia do mês da menor `snap_date`; um canal de **outro site** com diária mais antiga não interfere |
 | `cancelar pendente e em andamento (D5)` | `cancelado`; `status = 'cancelled'`, `cancelled_reason = 'dono'`; cancelar `done` → `ja_terminado` sem mudar nada; cancelar pedido vencido (efetivo `expired`) → `ja_terminado` (a leitura continua dizendo "A casa não respondeu") |
 | `cancelar de outro site` | `p_site` diferente → `ja_terminado`, nada muda (não vaza existência) |
 | `item 50: expirado em 15 min calculado na leitura` | relógio +15 min +1 s: `obs_archive_request_read` traz `status: 'pending'`, `status_efetivo: 'expired'`, `fail_reason: 'sem_trabalhador'`; a linha continua `pending` no disco |
@@ -824,7 +834,9 @@ revoke insert, update, delete, truncate, references, trigger on table public.obs
 | `leitura de quem só lê` | `p_incluir_pedido = false` → `pedido`, `resultado`, `resultado_anterior` nulos mesmo com pedido gravado |
 | `resultado anterior (Phil M2)` | pedido A `done` com resultado válido; pedido B posterior `expired`: `resultado` nulo e `resultado_anterior` = o de A; com B `done`, `resultado_anterior` nulo |
 | `status leve` | `obs_archive_request_status` devolve `status_efetivo` e o progresso, e nulo para pedido de outro site |
-| `primeiro_sai_em (D15)` | primeiro mês com linha 2026-08, janela 6 → `'2027-03-01'` (**não** 2027-02-01); primeiro mês 2026-10 → `'2027-05-01'`; `obs_archive_pode_sair_em('2026-10-01', 6) = '2027-05-01'` |
+| `primeiro_sai_em (D15, piso do registro)` | coleta desde 2026-08 e piso 2026-10 → `'2027-05-01'` (**não** 2027-03-01 nem 2027-02-01); primeiro mês 2026-10 → `'2027-05-01'`; primeiro mês 2026-11 → `'2027-06-01'`; `obs_archive_pode_sair_em('2026-08-01', 6) = '2027-05-01'` e `obs_archive_pode_sair_em('2026-10-01', 6) = '2027-05-01'`; `obs_archive_first_month_canal` do canal com coleta desde 2026-08 continua `2026-08-01` (o piso não esconde a coleta real) |
+| `mês anterior ao arquivo (N2)` | pedido de 12 meses em dez/2026 num canal com diária desde 2026-08: ago e set/2026 saem do plano com `k = 'online'`, `x = 'anterior_ao_arquivo'`; `previa['12'].fora = 2` e `banco` conta só o mês corrente; após o `conclude` os dois meses têm `origem = 'banco_anterior_ao_arquivo'`, `parcial = false` |
+| `online_only órfão (N6)` | pedido `online_only`, `pending`, criado há 61 s e nunca fechado: `status_efetivo = 'failed'`, `fail_reason = 'inesperado'` (não `expired/sem_trabalhador`); há 30 s: continua `pending` |
 | `D15: a fórmula é a do portão da M6` | `skipIf` a função do portão da M6 não existir no banco: `ainda_na_janela.pode_sair_em` do portão para outubro = `obs_archive_pode_sair_em` do mesmo mês |
 | `meses_no_arquivo e no_arquivo` | 2 meses destacados com resumo do canal: `meses_no_arquivo = 2`, `no_arquivo = {de, ate}` do menor e do maior mês (`AAAA-MM`) |
 | `permissão` | `has_function_privilege('service_role', 'public.obs_archive_request_create(uuid,text,text[],text,text[],uuid)', 'EXECUTE')` verdadeiro; `anon` e `authenticated` falsos; `obs_archive_request_state`, `_plan`, `_files`, `_limits` falsos para `service_role` |
@@ -833,16 +845,23 @@ revoke insert, update, delete, truncate, references, trigger on table public.obs
 
 ```sql
 create or replace function public.obs_archive_request_limits() returns jsonb language sql immutable set search_path = '' as $$
-  -- teto_entradas = floor(carga / bytes_por_entrada): pares (canal x mês) por pedido (D4); espelho de pedido.ts
-  select jsonb_build_object('teto_meses', 36, 'bytes_por_entrada', 300, 'teto_entradas', 1747, 'carga', 524288, 'total', 8388608, 'validade_dias', 30)
+  -- teto_entradas = floor(carga / bytes_por_entrada): pares (canal x mês) por pedido (D4); espelho de pedido.ts. FIXO na carga.
+  -- teto_arquivos (Yannis N-5): arquivos que o claim manda ler; começa em 1747 e é o ÚNICO que a medida da Tarefa 13 pode baixar.
+  select jsonb_build_object('teto_meses', 36, 'bytes_por_entrada', 300, 'teto_entradas', 1747, 'teto_arquivos', 1747, 'carga', 524288, 'total', 8388608, 'validade_dias', 30)
 $$;
 revoke all on function public.obs_archive_request_limits() from public, anon, authenticated, service_role;
 
--- D15: UMA função para "o mês M pode sair em": 1º dia de M + janela + 1 meses (spec 02 linha 275: com janela 6, outubro sai em 01/05).
+-- D15: UMA função para "o mês M pode sair em": 1º dia de max(M, piso) + janela + 1 meses (spec 02 linha 275: com janela 6, outubro sai em 01/05).
 -- O portão da M6 (v_pode) chama esta mesma função (pedido ao controlador da M6 no ledger).
+-- Phil r2 N1: o registro não tem mês antes de 01/10/2026 (m3b.sql:457-459 e 1996: greatest(coalesce(v_inicio, '2026-10-01'), '2026-10-01')).
+-- Agosto e setembro/2026 nunca são selados nem destacados: o primeiro mês que pode sair é outubro (01/05/2027 com janela 6).
+create or replace function public.obs_archive_piso_registro() returns date
+language sql immutable set search_path = '' as $$ select date '2026-10-01' $$;
+revoke all on function public.obs_archive_piso_registro() from public, anon, authenticated, service_role;
+
 create or replace function public.obs_archive_pode_sair_em(p_month date, p_window integer) returns date
 language sql immutable set search_path = '' as $$
-  select (date_trunc('month', p_month) + pg_catalog.make_interval(months => p_window + 1))::date
+  select (greatest(date_trunc('month', p_month)::date, public.obs_archive_piso_registro()) + pg_catalog.make_interval(months => p_window + 1))::date
 $$;
 revoke all on function public.obs_archive_pode_sair_em(date, integer) from public, anon, authenticated, service_role;
 
@@ -858,6 +877,8 @@ revoke all on function public.obs_archive_request_fingerprint(text, text[], date
 create or replace function public.obs_archive_request_state(r public.obs_archive_requests) returns jsonb
 language sql stable set search_path = '' as $$
   select case
+    when r.online_only and r.status = 'pending' and public.obs_archive_agora() > r.requested_at + interval '60 seconds'   -- N6: a server action morreu entre create e finish_online; a casa nunca foi necessária
+      then jsonb_build_object('status', 'failed', 'motivo', 'inesperado')
     when r.status = 'pending' and public.obs_archive_agora() > r.expires_at
       then jsonb_build_object('status', 'expired', 'motivo', 'sem_trabalhador')
     when r.status = 'running' and public.obs_archive_agora() > r.deadline_at
@@ -870,7 +891,7 @@ revoke all on function public.obs_archive_request_state(public.obs_archive_reque
 
 -- Primeiro mês com dado do canal: o registro (resumo não vazio, mesmo purgado) ou a diária online. A diária não tem site_id nem channel_id:
 -- o caminho é competitor_video_daily -> competitor_videos -> competitor_channels (I-3; molde m3b.sql:1958). Cada vídeo custa uma descida no PK (video_id, snap_date).
-create or replace function public.obs_archive_first_month(p_site uuid, p_class text, p_channel text) returns date
+create or replace function public.obs_archive_first_month_canal(p_site uuid, p_class text, p_channel text) returns date
 language sql stable security definer set search_path = '' as $$
   select least(
     (select min(s.month) from public.obs_archive_summaries s
@@ -883,7 +904,7 @@ language sql stable security definer set search_path = '' as $$
         where cv.competitor_channel_id = p_channel::uuid)
     end)
 $$;
-revoke all on function public.obs_archive_first_month(uuid, text, text) from public, anon, authenticated, service_role;
+revoke all on function public.obs_archive_first_month_canal(uuid, text, text) from public, anon, authenticated, service_role;
 
 -- A lista fechada de resumos que o claim manda; a criação a usa para saber se há algo a ler na casa (um só predicado).
 create or replace function public.obs_archive_request_files(p_site uuid, p_kind text, p_channels text[], p_months date[])
@@ -907,7 +928,7 @@ create or replace function public.obs_archive_request_plan(p_site uuid, p_kind t
 language sql stable security definer set search_path = '' as $$
   with k as (select case p_kind when 'ensaio' then 'ensaio' else 'serie' end as classe),
   par as (select ch as canal, mes from unnest(p_canais) ch cross join unnest(p_months) mes),
-  prim as (select c as canal, public.obs_archive_first_month(p_site, (select classe from k), c) as primeiro from unnest(p_canais) c),
+  prim as (select c as canal, public.obs_archive_first_month_canal(p_site, (select classe from k), c) as primeiro from unnest(p_canais) c),
   cel as (
     select par.canal, par.mes, p.primeiro, m.sealed_at, m.sealed_kind, m.detached_at,
            s.id as sid, s.empty, s.purged_at, s.lost_at, s.superseded_at, s.nas_withdrawn_at
@@ -926,13 +947,14 @@ language sql stable security definer set search_path = '' as $$
           case when sid is null or purged_at is not null or lost_at is not null or superseded_at is not null or nas_withdrawn_at is not null then 'faltou'
                when empty then 'vazio' else 'arquivo' end
         when detached_at is not null then 'faltou'     -- destacado sem selo: a cópia não existe
-        else 'online' end as k,
+        else 'online' end as k,   -- 'online' + x = 'anterior_ao_arquivo' quando mes < piso (D22): nunca será selado, não é "parcial"
       case
         when primeiro is not null and mes < primeiro then null
         when sealed_at is not null and sealed_kind = 'com_dado' and sid is null then 'sem_registro_do_canal'
         when sealed_at is not null and sealed_kind = 'com_dado' and purged_at is not null then 'expurgado'
         when sealed_at is not null and sealed_kind = 'com_dado' and (lost_at is not null or superseded_at is not null or nas_withdrawn_at is not null) then 'sem_copia'
-        when sealed_at is null and detached_at is not null then 'sem_copia' end as x
+        when sealed_at is null and detached_at is not null then 'sem_copia'
+        when sealed_at is null and detached_at is null and mes < public.obs_archive_piso_registro() then 'anterior_ao_arquivo' end as x   -- N2 (D22)
       from cel),
   fim as (
     select canal, mes, k, x,
@@ -979,7 +1001,7 @@ begin
            where not exists (select 1 from public.obs_archive_channel_removals r
                               where r.site_id = p_site and r.channel_ref = x.canal and r.archive_decision = 'apagar')) end;
   if v_canais is null then return jsonb_build_object('status', 'nada_a_pedir'); end if;
-  select min(public.obs_archive_first_month(p_site, v_classe, c)) into v_first from unnest(v_canais) c;
+  select min(public.obs_archive_first_month_canal(p_site, v_classe, c)) into v_first from unnest(v_canais) c;
   if v_first is null then return jsonb_build_object('status', 'nada_a_pedir'); end if;
   v_n := case p_choice when 'tudo' then ((extract(year from v_cur) * 12 + extract(month from v_cur)) - (extract(year from v_first) * 12 + extract(month from v_first)))::int + 1
          else p_choice::int end;
@@ -1047,22 +1069,23 @@ returns jsonb language plpgsql stable security definer set search_path = '' as $
 declare
   v_agora timestamptz := public.obs_archive_agora();
   v_cur date := date_trunc('month', (v_agora at time zone 'America/Sao_Paulo'))::date;
-  v_win integer; v_first date; v_n integer; v_prev jsonb := '{}'::jsonb; v_choice text; v_months date[]; v_plan jsonb; v_banco integer; v_antes integer;
+  v_win integer; v_first date; v_n integer; v_prev jsonb := '{}'::jsonb; v_choice text; v_months date[]; v_plan jsonb; v_banco integer; v_antes integer; v_fora integer;
   v_no jsonb; v_hb timestamptz; r public.obs_archive_requests; v_st jsonb; v_pedido jsonb; v_res jsonb; v_ant jsonb;
 begin
   select w.window_months into v_win from public.obs_archive_policy() w where w.class = 'serie' and w.table_name = 'competitor_video_daily';
-  v_first := public.obs_archive_first_month(p_site, 'serie', p_channel);
+  v_first := public.obs_archive_first_month_canal(p_site, 'serie', p_channel);
   foreach v_choice in array array['12', '24', '36', 'tudo'] loop
     v_n := case v_choice when 'tudo' then case when v_first is null then 0
              else ((extract(year from v_cur) * 12 + extract(month from v_cur)) - (extract(year from v_first) * 12 + extract(month from v_first)))::int + 1 end
            else v_choice::int end;
     if v_n = 0 or v_n > 36 then   -- grande_demais: só o total (a tela desliga "Pedir")
-      v_prev := v_prev || jsonb_build_object(v_choice, jsonb_build_object('banco', 0, 'nas', 0, 'antes', 0, 'total', v_n)); continue;
+      v_prev := v_prev || jsonb_build_object(v_choice, jsonb_build_object('banco', 0, 'fora', 0, 'nas', 0, 'antes', 0, 'total', v_n)); continue;
     end if;
     select array_agg(m order by m desc) into v_months from (select (v_cur - make_interval(months => i))::date m from generate_series(0, v_n - 1) i) q;
     v_plan := public.obs_archive_request_plan(p_site, 'relatorio', array[p_channel], v_months);
-    select count(*) filter (where c->>'k' = 'online'), count(*) filter (where c->>'k' = 'antes') into v_banco, v_antes from jsonb_array_elements(v_plan->'celulas') c;
-    v_prev := v_prev || jsonb_build_object(v_choice, jsonb_build_object('banco', v_banco, 'antes', v_antes, 'nas', v_n - v_banco - v_antes, 'total', v_n));   -- L2: por origem da leitura
+    select count(*) filter (where c->>'k' = 'online' and c->>'x' is distinct from 'anterior_ao_arquivo'), count(*) filter (where c->>'k' = 'antes'),
+           count(*) filter (where c->>'k' = 'online' and c->>'x' = 'anterior_ao_arquivo') into v_banco, v_antes, v_fora from jsonb_array_elements(v_plan->'celulas') c;
+    v_prev := v_prev || jsonb_build_object(v_choice, jsonb_build_object('banco', v_banco, 'fora', v_fora, 'antes', v_antes, 'nas', v_n - v_banco - v_fora - v_antes, 'total', v_n));   -- L2: por origem da leitura
   end loop;
   select jsonb_build_object('de', to_char(min(m.month), 'YYYY-MM'), 'ate', to_char(max(m.month), 'YYYY-MM')) into v_no
     from public.obs_archive_months m
@@ -1093,7 +1116,7 @@ begin
                           where m.site_id = p_site and m.class = 'serie' and m.table_name = 'competitor_video_daily' and m.detached_at is not null
                             and exists (select 1 from public.obs_archive_summaries s where s.site_id = m.site_id and s.class = m.class and s.channel_ref = p_channel and s.month = m.month)),
     'no_arquivo', v_no,
-    'primeiro_sai_em', case when v_first is null then null else public.obs_archive_pode_sair_em(v_first, v_win) end,
+    'primeiro_sai_em', case when v_first is null then null else public.obs_archive_pode_sair_em(v_first, v_win) end,   -- N1: pode_sair_em aplica o piso 2026-10-01; v_first fica o mês real de coleta
     'ultimo_sinal', v_hb, 'previa', v_prev, 'pedido', v_pedido, 'resultado', v_res, 'resultado_anterior', v_ant);
 end $$;
 revoke all on function public.obs_archive_request_read(uuid, text, boolean, boolean) from public, anon, authenticated;
@@ -1192,7 +1215,7 @@ begin
     update public.obs_archive_requests set status = 'failed', fail_reason = 'inesperado', fail_detail = 'sem_arquivo_no_claim', finished_at = v_agora where id = r.id;
     return jsonb_build_object('pedido', null);
   end if;
-  if v_total > (v_lim->>'teto_entradas')::int then
+  if v_total > (v_lim->>'teto_arquivos')::int then      -- N-5: teto de leitura, separado do teto de pares da criação
     update public.obs_archive_requests set status = 'failed', fail_reason = 'grande_demais', finished_at = v_agora where id = r.id;
     return jsonb_build_object('pedido', null);
   end if;
@@ -1292,7 +1315,7 @@ language sql stable set search_path = '' as $$
      and coalesce(p_linha->>3, '') ~ '^[0-9]+$' and coalesce(p_linha->>4, '') ~ '^[0-9]+$'
      and coalesce(p_linha->>5, '') ~ '^[0-9]+$' and coalesce(p_linha->>6, '') ~ '^[0-9]+$'
      and coalesce(p_linha->>9, '0') ~ '^-?[0-9]+$' and coalesce(p_linha->>10, '0') ~ '^-?[0-9]+$' and coalesce(p_linha->>11, '0') ~ '^-?[0-9]+$'
-     and exists (select 1 from jsonb_each_text(p_hashes) h join public.obs_archive_units u on 'u:' || u.id = h.key
+     and exists (select 1 from jsonb_each_text(p_hashes) h join public.obs_archive_units u on u.id = (case when h.key ~ '^u:[0-9a-f-]{36}$' then substr(h.key, 3)::uuid end)   -- N10: usa a PK (antes 'u:' || u.id = h.key lia a tabela inteira por linha)
                   where u.table_name = p_linha->>1 and u.hash_conteudo = p_linha->>12 and h.value = u.hash_conteudo
                     and u.row_count = case when p_linha->>4 ~ '^[0-9]+$' then (p_linha->>4)::bigint end)
 $$;
@@ -1386,7 +1409,9 @@ begin
           when 'antes' then jsonb_build_object('estado', 'antes_da_coleta', 'primeira_leitura', c.d)
           else case
             when o.linha is null or jsonb_typeof(o.linha) <> 'array' or jsonb_array_length(o.linha) <> 14 then jsonb_build_object('estado', 'faltou', 'motivo', 'divergente')
-            when o.linha->>5 = '0' then jsonb_build_object('estado', 'sem_registro', 'parcial', c.mes = v_cur, 'conferido_em', v_hoje)   -- Logan 5: nunca "0 de 31 dias"
+            when o.linha->>5 = '0' then jsonb_build_object('estado', 'sem_registro', 'parcial', c.mes >= public.obs_archive_piso_registro() and c.mes = v_cur, 'conferido_em', v_hoje)   -- Logan 5: nunca "0 de 31 dias"
+            when c.x = 'anterior_ao_arquivo' then jsonb_build_object('estado', 'ok', 'origem', 'banco_anterior_ao_arquivo', 'parcial', false, 'dias_medidos', (o.linha->>5)::int, 'dias_do_mes', (o.linha->>6)::int,
+                   'views', o.linha->>9, 'likes', o.linha->>10, 'comentarios_contagem', o.linha->>11, 'primeira_leitura', o.linha->>7)   -- D22 / N2
             else jsonb_build_object('estado', 'parcial', 'origem', 'banco_sem_copia', 'parcial', true, 'dias_medidos', (o.linha->>5)::int, 'dias_do_mes', (o.linha->>6)::int,
                    'views', o.linha->>9, 'likes', o.linha->>10, 'comentarios_contagem', o.linha->>11, 'primeira_leitura', o.linha->>7) end
         end as j
@@ -1632,11 +1657,11 @@ $guard$;
 | `claim repassa prova` | corpo `{prova: true}` -> a RPC recebe `p_prova: true`; sem o campo, `false` (teste que apaga o campo) |
 | `claim traz restante_s` | a resposta passa pelo `.strict()` com `restante_s`; campo a mais -> `500 erro_do_banco` |
 | `claim fora do esquema` | `total` diferente do tamanho da lista -> `500 erro_do_banco`, Sentry chamado |
-| `result: corpo acima de 4 MB` | `413 grande_demais` antes do `parseBody` (lê `content-length`; sem cabeçalho, conta os bytes lidos) |
+| `result: corpo acima de 4 MB` | `413 grande_demais` antes do `parseBody` (lê `content-length`; **sem cabeçalho, lê o corpo em fluxo e para ao passar de 4 MB** — Phil N12; o teste envia corpo de 4 MB + 1 sem `content-length`) |
 | `result: check antes de online (M-12)` | pedido cancelado: a RPC `check` levanta `pedido_cancelado`, a rota responde `409` e `obs_archive_request_online` **não** foi chamada |
 | `result: ordem` | `check`, depois `online` por mês de `meses_online`, depois `finish` com `p_online` |
 | `result: replay` | `check` devolve `replay: true` -> a rota chama `finish` com `p_online = []` (nenhum `online` chamado) |
-| `result: códigos do banco` | `pedido_cancelado` -> `409`; `pedido_de_outro` -> `409`; `pedido_vencido` -> `410`; `resposta_fora_da_lista` -> `422`; **`canal_removido` -> `422`** (M-9); `invariante_do_resultado` (XX000) -> `500 erro_do_banco` + Sentry |
+| `result: códigos do banco` | `pedido_cancelado` -> `409`; `pedido_de_outro` -> `409`; `pedido_vencido` -> `409` (contrato R0/R2; Yannis N-2); `resposta_fora_da_lista` -> `422`; **`canal_removido` -> `422`** (M-9); `invariante_do_resultado` (XX000) -> `500 erro_do_banco` + Sentry |
 | `progress e fail` | repassam e validam a resposta |
 | `nenhuma resposta traz sha256, canal_rows ou unit_hashes` (molde do item 132) | varre os corpos de resposta dos testes de `result`, `progress` e `fail` |
 
@@ -1706,7 +1731,7 @@ export async function montarOnline(db: Rpc, site: string, pedido: string, token:
 }
 ```
 
-  `erroDoRpc` (M3b) ganha, em `exportar-do-banco.ts`, o mapeamento dos códigos novos (o teste de M-9 vigia): `pedido_cancelado`/`pedido_de_outro` -> 409, `pedido_vencido` -> 410, `resposta_fora_da_lista`/`canal_removido`/`grande_demais`/`medida_fora_da_lista`/`escolha_invalida` -> 422, `invariante_do_resultado` e o resto -> 500. Conferir antes com `grep -n "pedido_\|erroDoRpc" apps/web/src/lib/youtube/observatorio/arquivo-mensal/exportar-do-banco.ts`; se a M3b já tem a tabela, só acrescentar as linhas que faltam.
+  `erroDoRpc` (M3b) ganha, em `exportar-do-banco.ts`, o mapeamento dos códigos novos (o teste de M-9 vigia): `pedido_cancelado`/`pedido_de_outro` -> 409, `pedido_vencido` -> 409, `resposta_fora_da_lista`/`canal_removido`/`grande_demais`/`medida_fora_da_lista`/`escolha_invalida` -> 422, `invariante_do_resultado` e o resto -> 500. Conferir antes com `grep -n "pedido_\|erroDoRpc" apps/web/src/lib/youtube/observatorio/arquivo-mensal/exportar-do-banco.ts`; se a M3b já tem a tabela, só acrescentar as linhas que faltam.
 - [ ] **Passo 4. Integridade do pipeline:** 4 entradas no `api-registry.ts` (domínio do arquivo da M3b; `endpoint_count` + 4), seção "Pedido de período longo (respondedor)" em `cowork-docs-archive.md` com os quatro corpos do contrato R1 a R4 (r1.1), `leitura-rotas.ts` (as quatro são escrita: conferir como a M3b classificou `heartbeat`), e a contagem em `mcp-registry-sync.test.ts`.
 - [ ] **Passo 5.** `npx vitest run test/app/api/pipeline/archive-request.test.ts test/lib/pipeline > /tmp/m7-t8.txt 2>&1`, só falhas no contexto; `npm run typecheck -w apps/web`.
 - [ ] **Passo 6. Commit** `feat: M7: rotas request/claim, progress, result e fail do respondedor (archive_read; check antes do online)`.
@@ -1742,11 +1767,11 @@ export async function montarOnline(db: Rpc, site: string, pedido: string, token:
 
 **O que acontece quando o dado não existe:** `leitura` nula -> painel `nao_medido`; sem mês no arquivo -> a tira com a frase de `semArquivo` e sem botão (D17); quem só lê -> só "mmm/aaaa a mmm/aaaa no arquivo." sem botão; ação que falha durante o polling -> o painel mantém o último estado e, depois de 3 falhas seguidas, mostra `nao_medido` (nunca volta a "antes de pedir").
 
-- [ ] **Passo 1. TRAVA M7-2b: os textos novos do Logan voltam ao dono antes do código.** Abrir o ledger: a linha "L1 a L7 aprovados pelo dono" tem de existir (a tabela L1-L7 está no topo deste plano). Sem ela, **parar** e devolver ao controlador; o código só segue o mockup depois que o dono aprova os textos, e cada resposta muda só texto em `pedido-tela.ts`. Conferir também: a posição da tira (entre cabeçalho e abas) está na lista.
+- [ ] **Passo 1. TRAVA M7-2b: os textos novos do Logan voltam ao dono antes do código.** Abrir o ledger: a linha "L1 a L8 aprovados pelo dono" tem de existir (a tabela L1-L8 está no topo deste plano). Sem ela, **parar** e devolver ao controlador; o código só segue o mockup depois que o dono aprova os textos, e cada resposta muda só texto em `pedido-tela.ts`. Conferir também: a posição da tira (entre cabeçalho e abas) está na lista.
 - [ ] **Passo 2. Testes, falhando (item 105):** um teste por quadro do mockup, cada um com a frase do `pedido-tela.ts` e a forma do aviso: `a-pedir` (frase de 12 meses; trocar para "Tudo" desliga "Pedir" com `aria-describedby`), `a-nada`, `a-desl`, `a-grande`, `e-env` (botão "Cancelar pedido"), `e-and` (barra com `aria-valuenow` e "Lendo: 9 de 12 meses"), `e-reab` (reaberto), `e-rep`, `p-ok` (12 linhas; com 24, "E mais 12 meses mais antigos"), venceu, `x-inc` (meses faltando sem número), `x-bate` (`role="alert"`), não respondeu (triângulo com sinal de 10 h, octógono com 40 h), `x-nas`, cancelado com a frase própria, `x-nm`, resultado anterior (quando o último pedido não terminou e há resultado válido). Mais: o polling (via `lerStatusVerAntigo`, leve) para no estado final e com `document.visibilityState = 'hidden'` (fake timers); nenhum texto "sem dados" em nenhum estado (`expect(container.textContent).not.toMatch(/sem dados/i)`); **regex de L2:** nenhum texto casa `/do banco(?!, ainda sem cópia)/` e nenhum casa `/\b0 de \d+ dias medidos/` (Logan 5); o foco vai ao painel quando ele abre.
 - [ ] **Passo 3. Componente.** Estrutura e classes do `peca6.js` (`m-va`, `m-va-h`, `m-segs`, `m-va-lead`, `m-va-acoes`, `m-va-prog`, `m-va-meses`, `m-vam`); `role="status"` no lead dos estados de espera e `role="alert"` em `bate`, `naoResp`, `nasFora`; o foco vai ao painel (`tabIndex={-1}`) quando ele abre. Ações por props; `useTransition` nos cliques; polling com `setInterval` de 10 s só em `enviado`/`andamento`, limpo no `useEffect` de desmontagem e em `visibilitychange`. O ⓘ do método diz "variação de views no mês" (`var_views`) e "não medido" onde faltar.
 - [ ] **Passo 4.** Testes passam; typecheck; `next build` não é obrigatório (CLAUDE.md), mas a tela passa pelo **Gio** (navegador) contra o roteiro §19e antes de ir ao dono, e por Logan e Naksu (regra do dono).
-- [ ] **Passo 5. Commit** `feat: M7: painel Ver antigo na página do canal (peça 6, textos L1-L7 aprovados)`.
+- [ ] **Passo 5. Commit** `feat: M7: painel Ver antigo na página do canal (peça 6, textos L1-L8 aprovados)`.
 
 ---
 
@@ -1761,7 +1786,7 @@ export async function montarOnline(db: Rpc, site: string, pedido: string, token:
 
 **Interfaces:**
 - Produces: `responder.py` com `main(argv, env, eh_montagem, dormir, relogio)`, `uma_volta(cf, site, eh_montagem) -> str` (desfecho: `nada`, `ok`, `incompleto`, `nas_fora`, `grande_demais`, `inesperado`, `desligado`, `site_fora`, `chave`, `cancelado`, `vencido`), `atender(cf, site, pedido, eh_montagem, relogio) -> dict`; `log/respondedor.jsonl` (uma linha por pedido atendido e uma por mudança de desfecho, nunca uma a cada volta); `estado/respondedor-vivo.json` (`{"em": ISO, "desfecho": ...}`, trocado por `trocar_atomico`).
-- `comum.py`: `ler_resumo(caminho) -> (linhas, sha256, bytes)`; `sentinela_viva(raiz_numerico) -> bool` (`os.path.ismount(leitura)` e `os.path.isfile(raiz/.arquivo-vivo)`; **sem `statvfs`**, que no NFS caído trava); `COLUNAS_CANAL` (a lista dos 14 nomes do cabeçalho, copiada de `c.caminho_resumo`/do contrato C0 da M3b, conferida por `grep -n "COLUNAS" ~/Workspace/forja/ferramentas/arquivo/comum.py`).
+- `comum.py`: `ler_resumo(caminho) -> (linhas, sha256, bytes)`; `sentinela_viva(raiz_numerico, eh_montagem=os.path.ismount) -> bool` (`eh_montagem(raiz_numerico)` — a própria pasta `.../numerico`, sem `dirname` — e `os.path.isfile(raiz/.arquivo-vivo)`; **sem `statvfs`**, que no NFS caído trava); `COLUNAS_CANAL` (a lista dos 14 nomes do cabeçalho, copiada de `c.caminho_resumo`/do contrato C0 da M3b, conferida por `grep -n "COLUNAS" ~/Workspace/forja/ferramentas/arquivo/comum.py`).
 
 **O que acontece quando o dado não existe:** chave ausente ou com permissão aberta -> desfecho `chave`, dorme e tenta de novo (o programa não sai); montagem de leitura ausente ou sem `.arquivo-vivo` antes do primeiro arquivo -> `fail nas_fora` (item 102), nunca `ausente`; a sentinela some no meio (conferida a cada 50 arquivos **e** logo depois de qualquer `OSError`) -> o arquivo corrente e os seguintes vão em `falhas` com `nas_fora`, o já lido em `lidos` (D3); arquivo listado que não existe -> `ausente`; EIO -> `nas_fora` daquele arquivo, nunca `ausente`; `503 arquivo_desligado` -> dorme `ARQ_RESP_PAUSA_DESLIGADO_S`; total diferente da lista -> `fail inesperado`; **cabeçalho do CSV diferente de `COLUNAS_CANAL` -> `ilegivel`** (Phil I7c: coluna trocada de lugar com 14 colunas não passa).
 
@@ -1776,13 +1801,14 @@ export async function montarOnline(db: Rpc, site: string, pedido: string, token:
 | `sha256 diferente é divergente; arquivo ausente é ausente` | um arquivo com um byte trocado, um apagado |
 | `CSV ilegível é ilegivel` | gzip cortado; cabeçalho com colunas permutadas (14 colunas, ordem trocada) |
 | `sentinela some no meio` | `eh_montagem` vira falso depois do 2º arquivo: 2 em `lidos`, o resto `nas_fora` (conferência por `OSError` injetado no 3º) |
-| `sentinela conferida a cada 50, não a cada arquivo` | 120 arquivos: `eh_montagem` chamado no máximo 4 vezes |
+| `sentinela conferida a cada 50, não a cada arquivo (N-1)` | `eh_montagem` falso que só diz "montado" para a `raiz` EXATA (`.../numerico`, nunca o `dirname`); 120 arquivos: contador de chamadas `<= 3` (i = 0, 50, 100) **e nenhum `nas_fora`** no caminho feliz (o teste falha com o `dirname` antigo) |
+| `progresso depois de falhas (N-3)` | 60 arquivos `ausente` seguidos: `progress` chamado com `lidos` crescente (`len(lidos)+len(falhas)`), nunca só no caminho de sucesso |
 | `item 52: contador antes, e o processo que morre não repete além de 2` | o falso conta claims do mesmo pedido; exceção injetada no 1º atendimento; na volta seguinte o falso entrega `tentativa: 2`; a terceira recebe `{pedido: null}` |
 | `cancelado no meio para` | `progress` responde `409 pedido_cancelado` -> para sem `result`, desfecho `cancelado` |
 | `orçamento pelo que resta (Yannis I-10)` | `restante_s = 200`: o orçamento é `min(ARQ_RESP_ORCAMENTO_S, 200 - 60) = 140`; `relogio` falso passa de 140 s -> `fail grande_demais` antes de 200 s; com `restante_s <= 60`, `fail grande_demais` sem ler arquivo nenhum |
 | `total diferente da lista` | `fail inesperado` |
 | `claim é o batimento; heartbeat só a cada 10 min` | 10 voltas ociosas de 60 s (relógio falso): 10 claims, 1 batimento da rota `heartbeat` (que só mede disco); nenhum batimento extra por volta |
-| `ritmo: ocioso 60 s, com pedido 15 s` | o `dormir` recebe `ARQ_RESP_INTERVALO_OCIOSO_S` (60) depois de volta `nada`; `ARQ_RESP_INTERVALO_S` (15) por 5 min depois de uma volta que atendeu pedido; `ARQ_RESP_PAUSA_DESLIGADO_S` com `desligado` |
+| `ritmo: ocioso 60 s, com pedido 15 s` | o `dormir` recebe `ARQ_RESP_INTERVALO_OCIOSO_S` (60) depois de volta `nada`; `ARQ_RESP_INTERVALO_S` (15) por 15 min depois de uma volta que atendeu pedido; `ARQ_RESP_PAUSA_DESLIGADO_S` com `desligado` |
 | `--prova` | um claim com `prova: true`, imprime `pedido: null` ou `ha_pedido`, não atende, não escreve log nem estado; sai com código 3 se a resposta não for `200` |
 | `variáveis com padrão (cada uma apagada)` | sem `ARQ_RESP_INTERVALO_S` -> 15; sem `ARQ_RESP_INTERVALO_OCIOSO_S` -> 60; sem `ARQ_RESP_BATIMENTO_S` -> 600; sem `ARQ_RESP_ORCAMENTO_S` -> 780; sem `ARQ_RESP_PAUSA_DESLIGADO_S` -> 300; sem `ARQ_MONTAGEM_LEITURA` -> `/mnt/arquivo/leitura`; valor ilegível em cada uma -> `erro_config` e desfecho `bug` |
 | `nenhuma escrita no NAS` | `open` em modo de escrita sob a raiz de leitura falha o teste |
@@ -1792,9 +1818,11 @@ export async function montarOnline(db: Rpc, site: string, pedido: string, token:
 - [ ] **Passo 2. `comum.py`:** `CHAVE_DO_PROGRAMA = {"copiador": "copiador", "conferir-b2": "conferidor", "respondedor": "respondedor"}`; em `config`, para `programa == "respondedor"`: `leitura`, `intervalo_s` (15), `intervalo_ocioso_s` (60), `batimento_s` (600), `orcamento_s` (780), `pausa_desligado_s` (300), todos com o mesmo tratamento de valor ilegível (`erro_config`). Mover para cá `ler_resumo` e `sentinela_viva`:
 
 ```python
-def sentinela_viva(raiz_numerico):
-    """A montagem de leitura está de pé? ismount + isfile; nunca statvfs (trava em NFS caído)."""
-    return os.path.ismount(os.path.dirname(raiz_numerico.rstrip("/"))) and os.path.isfile(os.path.join(raiz_numerico, ".arquivo-vivo"))
+def sentinela_viva(raiz_numerico, eh_montagem=os.path.ismount):
+    """A montagem de leitura está de pé? ismount + isfile; nunca statvfs (trava em NFS caído).
+    Yannis N-1: a unidade mnt-arquivo-leitura-numerico.mount monta EM raiz_numerico (/mnt/arquivo/leitura/numerico); o dirname
+    (/mnt/arquivo/leitura) NÃO é ponto de montagem e fazia toda leitura virar nas_fora. Espelha estado_filho (comum.py:385-389)."""
+    return bool(eh_montagem(raiz_numerico)) and os.path.isfile(os.path.join(raiz_numerico, SENTINELA))   # SENTINELA já existe em comum.py:17
 
 def ler_resumo(caminho):
     """(linhas, sha256, bytes) ou levanta OSError (E/S) / ValueError (ilegível). Uma leitura só, sem cache do NFS."""
@@ -1822,7 +1850,7 @@ def ler_resumo(caminho):
 """M7 (forja): o respondedor do relatório de período longo (spec 02 §10.6; contrato R0 a R5 em contrato-rotas-m7.md).
 
 Serviço contínuo (systemd: arquivo-responder.service). O claim é também o batimento (Phil I1): pergunta a cada
-ARQ_RESP_INTERVALO_OCIOSO_S (60 s) quando ninguém pediu e a cada ARQ_RESP_INTERVALO_S (15 s) por 5 min depois de um pedido.
+ARQ_RESP_INTERVALO_OCIOSO_S (60 s) quando ninguém pediu e a cada ARQ_RESP_INTERVALO_S (15 s) por 15 min depois de um pedido.
 Com um pedido, lê SÓ os arquivos .canal que o claim listou, pela montagem de LEITURA (ro), confere o sha256 contra a lista
 e devolve as linhas; quem conclui é o site. Nunca lista pasta, nunca lê manifesto, nunca grava no NAS.
 Pasta não montada ou sem a sentinela: nas_fora (nunca 'ausente'). O contador de tentativas sobe no site antes."""
@@ -1847,12 +1875,13 @@ def _fail(site, p, motivo, detalhe=None):
     site.dados("POST", "request/fail", corpo)
 
 
-def atender(cf, site, p, eh_montagem, relogio=time.monotonic):
+def atender(cf, site, p, eh_montagem, relogio=time.monotonic, raiz=None):   # raiz: só a medida (Yannis N-6) passa; o padrão é leitura/numerico
     if p["total"] != len(p["arquivos"]):
         _fail(site, p, "inesperado", "total")
         return {"desfecho": "inesperado"}
-    raiz = os.path.join(cf["leitura"], "numerico")
-    if not c.estado_filho(cf["leitura"], "numerico", eh_montagem)["sentinela"]:
+    if raiz is None:
+        raiz = os.path.join(cf["leitura"], "numerico")
+    if not c.sentinela_viva(raiz, eh_montagem):      # raiz exata, a mesma checagem do laço (N-1)
         _fail(site, p, "nas_fora")
         return {"desfecho": "nas_fora"}
     # Yannis I-10: o orçamento é o MENOR entre o configurado e o que resta do prazo do pedido (2ª tentativa chega com o prazo gasto)
@@ -1865,11 +1894,19 @@ def atender(cf, site, p, eh_montagem, relogio=time.monotonic):
         if relogio() - t0 > orcamento:
             _fail(site, p, "grande_demais", "orçamento")
             return {"desfecho": "grande_demais", "lidos": i}
+        if i > 0 and (i % LOTE_PROGRESSO == 0 or relogio() - ult > PROGRESSO_S):     # N-3 / Phil N7: NO TOPO do laço, antes de qualquer `continue`; conta lidos + falhas
+            ult = relogio()
+            try:
+                site.dados("POST", "request/progress", {"pedido_id": p["id"], "token": p["token"], "lidos": len(lidos) + len(falhas), "total": p["total"]})
+            except Recusa as e:
+                if e.code == "pedido_cancelado":
+                    raise Cancelado()
+                raise
         _, rel = c.caminho_resumo(a["classe"], a["canal"], a["mes"], a["versao"], "canal")
         if rel != a["caminho"]:                                   # caminho refeito pelo contrato, nunca usado cru (item 104)
             _fail(site, p, "inesperado", "caminho")
             return {"desfecho": "inesperado"}
-        if i % CONFERE_A_CADA == 0 and not nas_caiu and not c.sentinela_viva(raiz):    # a cada 50, não a cada arquivo (Yannis I-11)
+        if i % CONFERE_A_CADA == 0 and not nas_caiu and not c.sentinela_viva(raiz, eh_montagem):    # a cada 50, não a cada arquivo (Yannis I-11)
             nas_caiu = True
         if nas_caiu:
             falhas.append({"arquivo_id": a["arquivo_id"], "motivo": "nas_fora"})
@@ -1882,7 +1919,7 @@ def atender(cf, site, p, eh_montagem, relogio=time.monotonic):
             linhas, sha, n = c.ler_resumo(caminho)
         except OSError:
             falhas.append({"arquivo_id": a["arquivo_id"], "motivo": "nas_fora"})
-            nas_caiu = not c.sentinela_viva(raiz)                 # confere logo depois de um erro de E/S
+            nas_caiu = not c.sentinela_viva(raiz, eh_montagem)                 # confere logo depois de um erro de E/S
             continue
         except ValueError:
             falhas.append({"arquivo_id": a["arquivo_id"], "motivo": "ilegivel"})
@@ -1891,14 +1928,6 @@ def atender(cf, site, p, eh_montagem, relogio=time.monotonic):
             falhas.append({"arquivo_id": a["arquivo_id"], "motivo": "divergente"})
             continue
         lidos.append({"arquivo_id": a["arquivo_id"], "linhas": linhas})
-        if (i + 1) % LOTE_PROGRESSO == 0 or relogio() - ult > PROGRESSO_S:     # M-4: o progresso no topo do laço conta também as falhas
-            ult = relogio()
-            try:
-                site.dados("POST", "request/progress", {"pedido_id": p["id"], "token": p["token"], "lidos": len(lidos) + len(falhas), "total": p["total"]})
-            except Recusa as e:
-                if e.code == "pedido_cancelado":
-                    raise Cancelado()
-                raise
     corpo = {"pedido_id": p["id"], "token": p["token"], "lidos": lidos, "falhas": falhas}
     if len(c.json_compacto(corpo)) > 4 * 1024 * 1024:
         _fail(site, p, "grande_demais", "corpo")
@@ -1907,9 +1936,9 @@ def atender(cf, site, p, eh_montagem, relogio=time.monotonic):
     return {"desfecho": "ok" if not falhas else "incompleto", "estado": r.get("estado"), "lidos": len(lidos), "falhas": len(falhas)}
 ```
 
-  `progress` no topo do laço (M-4): como a atualização do progresso fica depois do `continue` das falhas, uma sequência longa de falhas não renova o arrendamento; por isso o teste `sentinela some no meio` roda com 120 arquivos e confere que `progress` foi chamado com `lidos+falhas` crescendo (mova a checagem do progresso para o início do laço, antes dos `continue`, se o teste falhar). `c.json_compacto` é `json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode()`; se `comum.py` não o tem, acrescentar.
+  `progress` já está no topo do laço no código acima (M-4, Yannis N-3, Phil N7): uma sequência longa de falhas também renova o arrendamento; o teste `progresso depois de falhas` o prova. `c.json_compacto` é `json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode()`; se `comum.py` não o tem, acrescentar.
 
-  `uma_volta` faz `site.dados("POST", "request/claim", {"versao": 1, "hora_maquina": c.agora_iso()})`, chama `atender` quando há pedido, captura `Cancelado` (`cancelado`), `ArquivoDesligado` (`desligado`), `ChaveRecusada` (`chave`), `SiteFora` (`site_fora`), `Recusa` com `pedido_vencido`/`pedido_de_outro` (`vencido`). `main(argv)`: `--prova` (um claim com `prova: true`, imprime e sai; código 3 se não for `200` com `pedido: null` ou `prova`); sem argumento, o laço: lê a chave a cada volta (rotação sem reinício), `c.instalar_sigterm()`, o **claim é o batimento**; a rota `heartbeat` (C8, `c.corpo_batimento(cf["base"], filhos)`, filhos medidos pela montagem de **leitura**) vai no máximo a cada `batimento_s` (600 s), só para medir disco e montagens; `estado/respondedor-vivo.json` a cada volta; `registrar` só quando atende ou o desfecho muda; `dormir(intervalo)`: 15 s por 5 min depois de uma volta que atendeu, senão 60 s (`desligado`: `pausa_desligado_s`). Exceção não prevista: registra `bug` com o tipo e segue depois de 60 s.
+  `uma_volta` faz `site.dados("POST", "request/claim", {"versao": 1, "hora_maquina": c.agora_iso()})`, chama `atender` quando há pedido, captura `Cancelado` (`cancelado`), `ArquivoDesligado` (`desligado`), `ChaveRecusada` (`chave`), `SiteFora` (`site_fora`), `Recusa` com `pedido_vencido`/`pedido_de_outro` (`vencido`). `main(argv)`: `--prova` (um claim com `prova: true`, imprime e sai; código 3 se não for `200` com `pedido: null` ou `prova`); sem argumento, o laço: lê a chave a cada volta (rotação sem reinício), `c.instalar_sigterm()`, o **claim é o batimento**; a rota `heartbeat` (C8, `c.corpo_batimento(cf["base"], filhos)`, filhos medidos pela montagem de **leitura**) vai no máximo a cada `batimento_s` (600 s), só para medir disco e montagens; `estado/respondedor-vivo.json` a cada volta, com `dorme_s` (o intervalo escolhido; N5); `registrar` só quando atende ou o desfecho muda; `dormir(intervalo)`: 15 s por 15 min depois de uma volta que atendeu (N8: 15 min = ~60 claims por pedido, a conta da variante B), senão 60 s (`desligado`: `pausa_desligado_s`). Exceção não prevista: registra `bug` com o tipo e segue depois de 60 s.
 - [ ] **Passo 4. `falsos.py`:** `SiteArquivoFalso` ganha `pedidos` (fila de respostas do claim), `resultados`, `progressos`, `falhas_pedido`, `cancelar_no_progresso`, e os quatro espelhos Zod (`zod_claim` confere 14 colunas em cada linha do `result`, `arquivo_id` só uma vez, motivo da lista, `restante_s` presente, `prova` só aceito com `ha_pedido`).
 - [ ] **Passo 5.** `bash ~/Workspace/forja/ferramentas/arquivo/teste_tudo.sh > /tmp/m7-kit.txt 2>&1; tail -15 /tmp/m7-kit.txt` (Python 3.12) - todos passam, inclusive os do copiador e do `conferir-b2` com o `comum.py` novo.
 - [ ] **Passo 6. Commit no kit:** `git -C ~/Workspace/forja/ferramentas commit -m "feat: arquivo M7: respondedor do período longo (só leitura, só resumos .canal listados, nas_fora sem montagem)" -- arquivo/respondedor/responder.py arquivo/teste_respondedor.py arquivo/comum.py arquivo/teste_comum.py arquivo/falsos.py arquivo/teste_tudo.sh`.
@@ -1923,7 +1952,7 @@ def atender(cf, site, p, eh_montagem, relogio=time.monotonic):
 - Create: `~/Workspace/forja/ferramentas/arquivo/respondedor.env.modelo`
 - Modify: `~/Workspace/forja/ferramentas/arquivo/pulso_arquivo.py`, `teste_pulso_arquivo.py`
 
-**O que acontece quando o dado não existe:** `estado/respondedor-vivo.json` ausente -> o bloco do pulso fica **vermelho** ("respondedor sem sinal"), nunca verde; mais velho que **180 s** (três intervalos ociosos) -> vermelho; desfecho `chave`, `bug` ou `desligado` por mais de 30 min -> amarelo com o desfecho; `NRestarts` subindo -> amarelo.
+**O que acontece quando o dado não existe:** `estado/respondedor-vivo.json` ausente -> o bloco do pulso fica **vermelho** ("respondedor sem sinal"), nunca verde; mais velho que `2 x dorme_s + 30 s` -> vermelho (Phil N5: o arquivo grava `dorme_s`, o intervalo que o laço escolheu; com a flag desligada dorme 300 s e o limiar vira 630 s; sem `dorme_s`, limiar fixo de 660 s; o limiar de 180 s deixava o bloco vermelho 40% do ciclo com o serviço saudável); desfecho `chave`, `bug` ou `desligado` por mais de 30 min -> amarelo com o desfecho; `NRestarts` subindo -> amarelo.
 
 - [ ] **Passo 1. Unidade** (molde `biblioteca-trabalhar.service`):
 
@@ -1960,7 +1989,7 @@ WantedBy=multi-user.target
 
   **Conferir** com `ssh forja 'ls /opt/arquivo; systemctl cat mnt-arquivo-leitura-numerico.mount | head -5'` (leitura) os caminhos reais e o nome da unidade de montagem; ajustar `ReadOnlyPaths` e `After=`.
 - [ ] **Passo 2. `respondedor.env.modelo`** (molde `copiador.env.modelo`): as variáveis comentadas com o padrão (`ARQ_RESP_INTERVALO_S=15`, `ARQ_RESP_INTERVALO_OCIOSO_S=60`, `ARQ_RESP_BATIMENTO_S=600`, `ARQ_RESP_ORCAMENTO_S=780`, `ARQ_RESP_PAUSA_DESLIGADO_S=300`, `ARQ_MONTAGEM_LEITURA`) e a linha "Nenhum segredo aqui: a chave mora em /opt/arquivo/chaves/respondedor.chave (M3a)".
-- [ ] **Passo 3. Pulso.** `NOMES` ganha `respondedor`; o bloco lê `estado/respondedor-vivo.json` (o serviço não tem "execução do cron"); modo `--so-bloco respondedor` imprime só o trecho novo (molde `--stdin`/`--remover`). Testes: ausente -> vermelho; velho (>180 s) -> vermelho; `desligado` há 40 min -> amarelo; bom -> verde.
+- [ ] **Passo 3. Pulso.** `NOMES` ganha `respondedor`; o bloco lê `estado/respondedor-vivo.json` (o serviço não tem "execução do cron"); modo `--so-bloco respondedor` imprime só o trecho novo (molde `--stdin`/`--remover`). Testes: ausente -> vermelho; `desligado` com idade de 250 s e `dorme_s = 300` -> verde; 700 s -> vermelho; ocioso (`dorme_s = 60`) com 160 s -> vermelho; `desligado` há 40 min -> amarelo; bom -> verde.
 - [ ] **Passo 4.** `teste_tudo.sh` passa. Commit no kit `feat: arquivo M7: serviço do respondedor, modelo de ambiente e bloco do pulso`.
 
 ---
@@ -1972,7 +2001,7 @@ WantedBy=multi-user.target
 - Create (fora do git): `.superpowers/sdd/manutencao-nas/m7/m7-13-medir.sh`
 
 **Interfaces:**
-- `medir_respondedor.py --gerar N --pasta <escrita>/numerico/_medida-respondedor` cria N resumos sintéticos `.canal` (cabeçalho = `COLUNAS_CANAL`, 2 linhas, gzip, ~300 B) em `serie/canais/<uuid>/resumo/<AAAA-MM>.v1.canal.csv.gz`; `--ler N --pasta <leitura>/numerico/_medida-respondedor` **gera a lista sozinho** (sem `--lista`) e chama **`atender`** do respondedor com um `SiteFalso` (mesmo código do laço: `sentinela_viva` a cada 50, `ler_resumo`, sha256), e imprime `{"n", "segundos", "ms_por_arquivo", "p95_ms", "teto_sugerido"}` com `teto_sugerido = min(1747, floor(780 / (3 * p95_s)))`; `--apagar` remove a pasta inteira (recusa caminho que não termine em `_medida-respondedor`).
+- `medir_respondedor.py --gerar N --pasta <escrita>/numerico/_medida-respondedor` cria N resumos sintéticos `.canal` (cabeçalho = `COLUNAS_CANAL`, 2 linhas, gzip, ~300 B) em `serie/canais/<uuid>/resumo/<AAAA-MM>.v1.canal.csv.gz`; `--ler N --pasta <leitura>/numerico/_medida-respondedor` **gera a lista sozinho** (sem `--lista`) e chama **`atender(..., raiz=<pasta>)`** do respondedor (Yannis N-6: `raiz` opcional; a medida cria um `.arquivo-vivo` dentro da pasta de medida, apagado no `--apagar`; o teste da Tarefa 13 gera 30 e lê os 30 por `atender(raiz=pasta)`) com um `SiteFalso` (mesmo código do laço: `sentinela_viva` a cada 50, `ler_resumo`, sha256), e imprime `{"n", "segundos", "ms_por_arquivo", "p95_ms", "teto_sugerido"}` com `teto_sugerido = min(1747, floor(780 / (3 * p95_s)))`; `--apagar` remove a pasta inteira (recusa caminho que não termine em `_medida-respondedor`).
 
 **O que acontece quando o dado não existe:** montagem ausente -> `PARE: montagem` sem criar nada; pasta da medida já existente -> `PARE: sobra de medida anterior` (o dono apaga com `--apagar`).
 
@@ -1996,8 +2025,8 @@ ssh forja 'python3 -B /tmp/m7/medir_respondedor.py --apagar --pasta /mnt/arquivo
 ssh forja 'rm -rf /tmp/m7'
 ```
 
-  Linha curta ao clipboard: `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m7/m7-13-medir.sh > ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/saidas/m7-13-medir.txt 2>&1`. **Conferir antes** que a pasta `_medida-respondedor` não colide com `RESERVADOS` nem com a varredura do copiador e do `conferir-b2` (`grep -n "listdir\|scandir\|walk" ~/Workspace/forja/ferramentas/arquivo/copiador/copiar.py ~/Workspace/forja/ferramentas/arquivo/conferir-b2/*.py`); se algum varrer a árvore, a medida usa pasta fora de `numerico/` (o dono escolhe onde) e o plano registra.
-- [ ] **Passo 4. Ledger e decisão (regra, Phil I3 / Yannis I-11).** Anotar os três números. **O número é um piso, não um teto**: o NFS medido com `drop_caches` é o pior caso frio de um arquivo por vez, mas o ARC da casa quente ou ocupado muda o p95. Regra: `TETO_ARQUIVOS = min(1747, floor(780 / (3 * p95_s)))` (margem de 3 vezes sobre o p95 para ARC quente e concorrência com a cópia das 06:10); o valor sai em `pedido.ts` (`TETO_ENTRADAS`/`TETO_ARQUIVOS`) **e** em `obs_archive_request_limits` **antes** da Tarefa 14. Se 10.800 ou 16.200 passarem de 15 min, anotar como gatilho para quando outra classe entrar nas medidas (P22, M10b). Até a medida: `TETO_ARQUIVOS = 1747` NÃO MEDIDO.
+  Linha curta ao clipboard: `bash ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/m7/m7-13-medir.sh > ~/Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/saidas/m7-13-medir.txt 2>&1`. **Portão do Passo 3 (Phil N14, não mais "conferir antes"):** a pasta `_medida-respondedor` não pode colidir com `RESERVADOS` nem com a varredura do copiador, do `conferir-b2` **nem dos varredores de arquivo órfão de `numerico/` da M3a/M3b** (`grep -rn "listdir\|scandir\|walk\|glob" ~/Workspace/forja/ferramentas/arquivo/` e a lista de vigias de órfão da M3b); sem esse `grep` limpo, a medida não roda; se algum varrer a árvore, a medida usa pasta fora de `numerico/` (o dono escolhe onde) e o plano registra.
+- [ ] **Passo 4. Ledger e decisão (regra, Phil I3 / Yannis I-11).** Anotar os três números. **O número é um piso, não um teto**: o NFS medido com `drop_caches` é o pior caso frio de um arquivo por vez, mas o ARC da casa quente ou ocupado muda o p95. Regra: `TETO_ARQUIVOS = min(1747, floor(780 / (3 * p95_s)))` (margem de 3 vezes sobre o p95 para ARC quente e concorrência com a cópia das 06:10); o valor sai em `pedido.ts` (`TETO_ARQUIVOS`; `TETO_ENTRADAS` fica fixo na carga, Yannis N-5) **e** em `obs_archive_request_limits` (`teto_arquivos`; `teto_entradas` não muda) **antes** da Tarefa 14. Se 10.800 ou 16.200 passarem de 15 min, anotar como gatilho para quando outra classe entrar nas medidas (P22, M10b). Até a medida: `TETO_ARQUIVOS = 1747` NÃO MEDIDO.
 
 ---
 
@@ -2037,18 +2066,19 @@ ssh forja 'python3 -B /opt/arquivo/respondedor/responder.py --prova; echo "codig
 ssh forja 'rm -rf /tmp/respondedor /tmp/comum.py /tmp/cliente_site.py /tmp/arquivo-responder.service /tmp/respondedor.env.modelo'
 ```
 
-  `--prova` usa `prova: true`: **não toma pedido** (Phil M8), logo nada gasta uma das 2 tentativas. Sai com **código 3** se a resposta não for `200` com `pedido: null` (ou `prova`); o controlador lê `codigo=` na saída e **só então** entrega `m7-15-ligar.sh`. Antes de qualquer `install`: confirmar por leitura (`ssh forja 'md5sum /opt/arquivo/comum.py'` contra o do kit) que o `comum.py` instalado é o da M3b; a cópia na forja pode estar atrás (CLAUDE.md), e a troca leva as mudanças da M3b: conferir que o copiador e o `conferir-b2` passaram no `teste_tudo.sh` com este `comum.py` (Tarefa 11, Passo 5).
+  `--prova` usa `prova: true`: **não toma pedido** (Phil M8), logo nada gasta uma das 2 tentativas. Sai com **código 3** se a resposta não for `200` com `pedido: null` (ou `prova`); o controlador lê `codigo=` na saída e **só então** entrega `m7-15-ligar.sh`. **Yannis N-9:** a conferência do `comum.py` NÃO fica em prosa nem no mesmo arquivo do `install`. Um arquivo de só leitura, `m7-15-pre.sh`, é entregue ANTES de `m7-15-prova.sh`: `ssh forja 'md5sum /opt/arquivo/comum.py /opt/arquivo/cliente_site.py'` e `md5sum` dos dois no kit, lado a lado; o `m7-15-prova.sh` só é entregue se o `comum.py` da forja for o da M3b (a cópia na forja pode estar atrás, CLAUDE.md; a troca leva as mudanças da M3b, e o copiador e o `conferir-b2` já passaram no `teste_tudo.sh` com este `comum.py`, Tarefa 11, Passo 5). Também acrescentar ao `Create` da tarefa: `m7-15-pre.sh`.
 - [ ] **Passo 2. `m7-15-ligar.sh`** (só depois do código 0 da prova): `ssh forja 'sudo systemctl enable --now arquivo-responder'`.
-- [ ] **Passo 3. Bloco do pulso:** `python3 -B pulso_arquivo.py --so-bloco respondedor` gera o trecho; o dono o acrescenta pelo caminho que a M3b-forja usou para os outros blocos (`--stdin`), por arquivo de comandos. O pulso fica **vermelho** se `respondedor-vivo.json` tem mais de 180 s.
+- [ ] **Passo 3. Bloco do pulso:** `python3 -B pulso_arquivo.py --so-bloco respondedor` gera o trecho; o dono o acrescenta pelo caminho que a M3b-forja usou para os outros blocos (`--stdin`), por arquivo de comandos. O pulso fica **vermelho** se `respondedor-vivo.json` é mais velho que `2 x dorme_s + 30 s` (N5).
 - [ ] **Passo 4. `m7-15-conferir.sh`** (só leitura): `ssh forja 'systemctl show arquivo-responder -p ActiveState -p NRestarts -p ActiveEnterTimestamp'`; `ssh forja 'cat /opt/arquivo/estado/respondedor-vivo.json'`; `ssh forja 'tail -3 /opt/arquivo/log/respondedor.jsonl'`; e, no site, `supabase db query --linked "select worker, last_poll_at from public.obs_archive_heartbeat where worker = 'respondedor'"`. Esperado: `active`, `NRestarts=0`, desfecho `nada`, batimento com menos de **2 min** (o claim ocioso é de 60 s).
-- [ ] **Passo 5. Ponta a ponta** (com `OBS_ARQUIVO=on`): o dono abre a página de um canal no Opera (`open -a Opera <url>`), pede 12 meses e confere "Aguardando a casa" -> "Lendo" -> pronto. Antes de haver mês destacado (a regra da janela só destaca a partir de 01/03/2027, D15), o botão não aparece (D17) e o ponta a ponta usa **só o pedido só online**, que fecha sem a forja; o caminho da forja é provado pelo portão do Passo 7. Com mês arquivado: desmontar a leitura (`sudo systemctl stop mnt-arquivo-leitura-numerico.mount`), conferir "A forja respondeu, mas o NAS não está acessível", remontar. Anotar no ledger.
+- [ ] **Passo 5. Ponta a ponta: NÃO roda antes da partida para a Ásia (Phil r2 N4); declarado.** O botão só aparece com mês **destacado** (D17), e o primeiro destacamento é a partir de **01/05/2027** (D15: outubro/2026 + 6 + 1; o dono está fora de jan/2027 até lá). O pedido só online só é fechado pela server action, que só o botão chama; criá-lo por SQL (`obs_archive_request_create`) o deixa `pending` até vencer (e, com N6, falha como `inesperado` após 60 s). Logo a tela inteira (andamento, pronto, incompleto) só roda de verdade em maio de 2027, com o dono fora. O que SE prova antes da partida: (a) **Passo 7** (forja, respondedor, NAS e o `summary_calc` por SQL, 7.1 a 7.6), (b) **Gio no navegador contra o banco local**, com mês destacado semeado e o respondedor local do kit (Tarefa 11, Passo 5), cobrindo os estados da tela e o "A forja respondeu, mas o NAS não está acessível". **O que a conferência de antes de jan/2027 prova:** forja viva, rota respondendo `200`, mês de outubro/2026 lido do NAS com números iguais ao `summary_calc`, `failed/nas_fora` com a leitura parada e recuperação sem reiniciar. **O que NÃO prova:** a tela real em produção, o botão do Arquivo e o ciclo de pedido com mês destacado. **Conferência datada do primeiro destacamento (maio/2027, dono fora, só leitura pelo Claude Code):** no dia seguinte aos dois cliques da M6 (a partir de **08/05/2027**, depois do `wait` de 7 dias): `supabase db query --linked "select count(*) from obs_archive_months where class='serie' and detached_at is not null"` > 0, `primeiro_sai_em = 2027-05-01` na leitura do canal e a tira do canal com o botão; anotar no ledger "primeiro destacamento conferido em <data>". (Opcional, decisão do dono, muda D17 e o mockup: liberar o botão quando houver mês **selado**, não só destacado, em um canal, para provar a tela antes da partida.) O botão do Arquivo acende em 01/05/2027; o mês só fica destacado depois dos cliques da M6.
 - [ ] **Passo 6. Custo do claim (D19) em produção.** 24 h depois de ligar: contagem de invocações da rota `request/claim` (painel da Vercel, Functions, filtro pela rota). Esperado: variante B ~1.440; variante A ~5.760. Anotar no ledger; se passar de 2 vezes o esperado, olhar `respondedor.jsonl` por laço de `bug`.
-- [ ] **Passo 7. Portão da partida (Phil I6): conferência do NAS por SQL, entre 28/11/2026 e a partida.** O primeiro mês **destacado** só existe em **01/03/2027** (D15: agosto/2026 + 6 meses de janela + 1 = 01/03/2027); a data "01/02/2027" que circulou estava errada (esquecia o "+1" do spec 02 linha 275). Mas os meses **selados** existem desde 28/11/2026 (`sealed_kind = 'com_dado'`, resumo `.canal` copiado), e a forja os lê. `m7-15-portao-partida.sh` (cada comando em uma linha):
-  1. `supabase db query --linked "select count(*) from obs_archive_months where class='serie' and sealed_at is not null and sealed_kind='com_dado'"` (> 0; e `... detached_at is not null` = 0 até março: confirma que a tela não oferece o botão antes da hora).
+- [ ] **Passo 7. Portão da partida (Phil I6): conferência do NAS por SQL, entre 28/11/2026 e a partida.** O primeiro mês **destacado** só existe em **01/05/2027** (D15: o registro começa em 01/10/2026, `m3b.sql:457-459`; outubro/2026 + 6 meses de janela + 1 = 01/05/2027; as datas 01/02 do mockup e 01/03 da 1ª rodada estavam erradas). Mas os meses **selados** existem desde 28/11/2026 (`sealed_kind = 'com_dado'`, resumo `.canal` copiado), e a forja os lê. `m7-15-portao-partida.sh` (cada comando em uma linha):
+  1. `supabase db query --linked "select count(*) from obs_archive_months where class='serie' and sealed_at is not null and sealed_kind='com_dado'"` (> 0; e `... detached_at is not null` = 0 **até maio/2027**, não até março: confirma que a tela não oferece o botão antes da hora; o zero vale até 01/05/2027, então esta linha prova só a ausência, não o funcionamento da saída).
   2. Com o `<site>`, o `<canal>` e o `<dono>` preenchidos pelo controlador: `supabase db query --linked "select public.obs_archive_request_create('<site>','relatorio','{<canal>}','12',array['linhas','videos_com_linha','dias_medidos','dias_do_mes','var_views','var_likes','var_comments'],'<dono>')"` (`MEDIDAS_V1`; o claim lista os meses selados mesmo ainda não destacados).
   3. Esperar o desfecho (poll do respondedor, até 60 s): `supabase db query --linked "select status, fail_reason from obs_archive_requests order by requested_at desc limit 1"` -> `done`.
-  4. Conferir que o mês lido do NAS tem `dias_medidos`, `var_views`, `var_likes`, `var_comments` **idênticos** aos de `obs_archive_summary_calc(<site>,'serie',<canal>::uuid,'competitor_video_daily',<mês>,null,'online')->'canal'` do mesmo mês (diferença = o arquivo e o banco divergem: parar e abrir incidente).
-  5. Repetir com a montagem de leitura parada (`sudo systemctl stop mnt-arquivo-leitura-numerico.mount`): o pedido termina `incompleto` com `nas_fora`. Remontar.
+  4. Conferir que o mês lido do NAS (outubro/2026, `origem = nas`) tem `dias_medidos`, `var_views`, `var_likes`, `var_comments` **idênticos** aos de `obs_archive_summary_calc(<site>,'serie',<canal>::uuid,'competitor_video_daily',<mês>,null,'online')->'canal'` do mesmo mês (diferença = o arquivo e o banco divergem: parar e abrir incidente).
+  5. Repetir (com outra impressão) com a montagem de leitura parada (`sudo systemctl stop mnt-arquivo-leitura-numerico.mount`): com a leitura desmontada antes do primeiro arquivo, `atender` faz `fail nas_fora` do pedido inteiro, então o valor esperado é `status = 'failed'` e `fail_reason = 'nas_fora'` (**não** `incompleto`; `incompleto` com `nas_fora` só ocorre se o NAS cair no meio da leitura; Phil r2 N3). Remontar.
+  6. (Phil r2 N3) Depois de remontar, um novo pedido (outra impressão) termina `done` **sem reiniciar o serviço**. Se não terminar, o namespace de montagem do serviço (`ProtectSystem=strict`) não enxerga a remontagem do host: o conserto é `BindReadOnlyPaths` na unidade ou `systemctl restart arquivo-responder`, documentado no runbook (Tarefa 16, Passo 2).
   Registrar no ledger "portão da partida M7 ok em <data>". Sem ele, a M7 não fecha antes de jan/2027.
 
 ---
@@ -2059,9 +2089,26 @@ ssh forja 'rm -rf /tmp/respondedor /tmp/comum.py /tmp/cliente_site.py /tmp/arqui
 - Modify: `docs/ops/runbook-arquivo-mensal.md`
 
 - [ ] **Passo 1.** Trocar a consulta 5 (`to_regclass`, "a fila do relatório ainda não existe") por `select public.obs_archive_vigia_resultados();` (esperado 0) e a consulta 6 do item 160 (pedidos ativos e vencidos: `select status, count(*) from public.obs_archive_requests group by 1`; resultados e bytes: `select count(*), sum(payload_bytes) from public.obs_archive_results`), com o que cada número quer dizer.
-- [ ] **Passo 2.** Seção "Respondedor": o que é, como ver (`systemctl show`, `respondedor-vivo.json`, `respondedor.jsonl`), como **desligar** (`sudo systemctl disable --now arquivo-responder`: os pedidos vencem em 15 min com "A casa não respondeu"; nada se perde) e religar; que pedidos acumulados com a casa desligada **não** rodam no religamento (item 51); o que fazer com `arquivo não bate` (pedir ao Claude Code para conferir o mês: a conferência do NAS da M3b).
+- [ ] **Passo 2.** Seção "Respondedor": o que é, como ver (`systemctl show`, `respondedor-vivo.json`, `respondedor.jsonl`), como **desligar** (`sudo systemctl disable --now arquivo-responder`: os pedidos vencem em 15 min com "A casa não respondeu"; nada se perde) e religar; que pedidos acumulados com a casa desligada **não** rodam no religamento (item 51); se a leitura desmontada e remontada não volta sozinha (Passo 7.6 da Tarefa 15): `sudo systemctl restart arquivo-responder`; o que fazer com `arquivo não bate` (pedir ao Claude Code para conferir o mês: a conferência do NAS da M3b).
 - [ ] **Passo 3.** **Linha de volta atrás da M3b (Yannis M-11):** "voltar atrás da M3b antes de 28/11 (runbook M3b, (e)) exige desfazer a M7 primeiro: a M7 tem gatilho (`obs_archive_z_resultados_apagar`) em tabela da M3b e funções que leem `obs_archive_summary_calc`". Ordem: `drop trigger`, `drop function` da M7, `drop table obs_archive_results, obs_archive_requests`, `cron.unschedule('purge-obs-archive-requests')`; só depois o rollback da M3b. Ficha de comando só quando o dono pedir (regra "comando só na hora").
 - [ ] **Passo 4. Commit** `docs: M7: runbook do período longo (consultas 5 e 6, respondedor, volta atrás)`.
+
+---
+
+## Dívida declarada (2ª rodada de Phil e Yannis)
+
+| Dívida | Origem | Risco | Gatilho de pagamento |
+|---|---|---|---|
+| SQL só provado em banco local e CI entre as Tarefas 3 e 14 | plano | divergência com produção | Tarefa 14, Passo 1 |
+| Medida do NFS com cache quente é piso, não teto | Tarefa 13 | teto otimista | primeira leitura real lenta refaz a medida com arquivos antigos |
+| TRAVA M7-2 "mecânica" (`m7-trava.test.ts`) levanta com a existência do arquivo em `supabase/migrations/`, não com a produção (Yannis N-4; mesma forma da M3b, `m3b-site.md:1282`) | herdada | rota no ar sem a função, janela de minutos | qualquer commit de rota/painel antes da linha "TRAVA M7-2 solta" do ledger (o ledger é o portão real) |
+| `BYTES_POR_ENTRADA = 300` mede a entrada `ok`; a pior é `parcial` com `origem: banco_sem_copia` e `primeira_leitura` com microssegundos: 325 B com contadores de 15 dígitos (Phil N9) | D4 | teto de 512 kB estoura em pedido `null` com muitos meses online; o `conclude` mede o texto real antes de inserir e falha seguro (`grande_demais`) | primeiro `grande_demais` num pedido legítimo: usar `BYTES_POR_ENTRADA = 330` (teto de pares 1588) e a entrada `parcial` no teste |
+| `first_month_canal` é chamada 5 vezes por leitura da tela (4 prévias + `primeiro_sai_em`), cada uma uma descida por vídeo e, depois da M2, por partição (Phil N13) | T4 | `read` acima de 200 ms | o `explain (analyze, buffers)` do Passo 3 da Tarefa 4 passar de 200 ms: calcular uma vez e passar o valor ao `request_plan` |
+| Pedido só online preso entre `create` e `finish_online` mostra "A casa não respondeu" por 60 s a 15 min (a poda N6 o troca por `failed/inesperado` após 60 s; Yannis N-8) | D20 | frase imprecisa por 60 s | 1º relato |
+| Mês `online` destacado entre o claim e o `finish` (janela de 15 min, só depois de 01/05/2027): o `calc` devolve 0 dias e o mês vira `sem_registro` (verde sem dado) (Yannis N-8) | D13 | `sem_registro` falso | risco aceito; 1º relato |
+| Teto global de 8 MB expulsa resultado sem aviso ao dono do resultado expulso (vira "venceu") | spec | resultado some antes de 30 dias | se acontecer, teto por site |
+| Gancho de relógio `obs_archive.agora` em função de produção | herdada da M3b | | |
+| Custo do claim variante B vs A: decisão do dono pendente; "um quinto das chamadas" é 22% ("pouco mais de um quinto") e, em A, o claim já é batimento (5.760 + 144 = 5.904 sem perder nada) (Phil seção 5) | D19 | desperdício na variante A | decisão do dono |
 
 ---
 
@@ -2104,5 +2151,5 @@ ssh forja 'rm -rf /tmp/respondedor /tmp/comum.py /tmp/cliente_site.py /tmp/arqui
 - **M10b**: `ficha_do_video` (P22) e a classe `video_antigo` nas medidas; até lá recusadas.
 - **M9**: o expurgo marca `purged_at`; a M7 já trata purgado depois do claim (`expurgado` com a data).
 - **Mão do dono, antes da partida para a Ásia (jan/2027):** medida (Tarefa 13), `db:push:prod` (Tarefa 14), instalação, prova e ponta a ponta na forja, portão da partida (Tarefa 15).
-- **Aprovação do dono dos textos L1-L7** (Tarefa 10, Passo 1) e **decisão do dono sobre o custo do claim** (D19), antes da execução das Tarefas 10 e 11.
+- **Aprovação do dono dos textos L1-L8** (Tarefa 10, Passo 1) e **decisão do dono sobre o custo do claim** (D19), antes da execução das Tarefas 10 e 11.
 - Revisão de Phil e Yannis (2ª rodada) do plano, antes da execução.
