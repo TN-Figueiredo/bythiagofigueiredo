@@ -196,7 +196,7 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/suggestions', summary: 'Suggested videos for A/B testing based on underperformance', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/dashboard', summary: 'Aggregate dashboard stats for A/B tests', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/thumbnails/library', summary: 'Get thumbnail library with reusable assets', auth: 'read' },
-    { method: 'GET', path: '/api/pipeline/youtube/competitors/channels', summary: 'List competitor channels with engagement stats and the profile read from YouTube (handle, country, creation date)', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/competitors/channels', summary: 'List competitor channels with engagement stats, the profile read from YouTube (handle, country, creation date) and the nine measures per channel (direction, state, rhythm, hit rate)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/changes', summary: 'List competitor changes with type/bookmarked filters; campos=todos adds field changes (tags, category, duration, language, channel name)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/outliers', summary: 'List competitor outlier videos by tier', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/insights', summary: 'Aggregate competitor insights (play, cadence, formulas, gaps, heatmap)', auth: 'read' },

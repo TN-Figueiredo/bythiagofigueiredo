@@ -6,6 +6,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { listCompetitorChannels, listCompetitorChanges } from '@/lib/pipeline/services/competitors'
+import { MOTIVOS_NAO_MEDIDO } from '@/lib/youtube/observatorio/medidas/tipos'
+import { fraseDoMotivo } from '@/lib/pipeline/services/competitors-frases'
 import { CAMPOS_DE_VIDEO_QUE_SAEM, CAMPOS_DE_CANAL_QUE_SAEM } from '@/lib/pipeline/services/competitors-campos'
 import { YoutubeObservatoryShape } from '@/lib/pipeline/mcp/tools'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
@@ -44,11 +46,12 @@ async function mundoReal() {
     versao(3, { field: 'name', value: 'Antes', precision: 'first', first_seen_at: aoDia(5) }), versao(4, { field: 'name', value: 'Depois' }),
   ]
   const b = criarBancoFalso(t)
-  const channels = (await listCompetitorChannels(contextoDe(b))).data.channels
+  const listaDeCanais = (await listCompetitorChannels(contextoDe(b))).data
+  const channels = listaDeCanais.channels
   const changes = (await listCompetitorChanges(contextoDe(b), { campos: 'todos' })).data
   const vazio = criarBancoFalso(baseE7())
   const semHistorico = (await listCompetitorChanges(contextoDe(vazio), { campos: 'todos' })).data
-  return { channels, changes, semHistorico }
+  return { channels, listaDeCanais, changes, semHistorico }
 }
 
 describe('os exemplos do documento têm as chaves do que o código devolve', () => {
@@ -58,7 +61,7 @@ describe('os exemplos do documento têm as chaves do que o código devolve', () 
     const naoLido = channels.find(c => c.perfil.estado === 'nao_lido')!
     const [a, b] = blocosJson(CHANNELS)
     const exemplo = JSON.parse(a!) as { data: { channels: Array<Record<string, unknown>>; count: number } }
-    expect(chaves(exemplo.data)).toEqual(['channels', 'count'])
+    expect(chaves(exemplo.data)).toEqual(['channels', 'count', 'medidas_indisponiveis', 'medidas_meta'])
     expect(chaves(exemplo.data.channels[0])).toEqual(chaves(lido))
     expect(chaves(exemplo.data.channels[0]!['perfil'])).toEqual(chaves(lido.perfil))
     expect(chaves(JSON.parse(b!))).toEqual(chaves(naoLido.perfil))
@@ -96,6 +99,91 @@ describe('os exemplos do documento têm as chaves do que o código devolve', () 
     const validos = blocosJson(CHANNELS).concat(blocosJson(CHANGES))
     expect(validos.length).toBeGreaterThanOrEqual(4)
     for (const b of validos) expect(() => JSON.parse(b)).not.toThrow()
+  })
+})
+
+describe('as medidas de channels (Lote 2)', () => {
+  type Ex = { data: { channels: Array<{ medidas: Record<string, unknown> }>; medidas_indisponiveis: Record<string, unknown>; medidas_meta: Record<string, unknown> } }
+  const exemplo = (): Ex => JSON.parse(blocosJson(CHANNELS)[0]!) as Ex
+  const todasAsMedidas = (m: Record<string, unknown>): Array<Record<string, unknown>> => {
+    const e = m['estado_do_canal'] as Record<string, unknown>
+    const pf = m['por_formato'] as Record<string, Record<string, unknown>>
+    return [m['direcao_do_canal'], e['parado'], e['queda'], ...Object.values(pf.long!), ...Object.values(pf.short!)] as Array<Record<string, unknown>>
+  }
+
+  it('o exemplo de channels tem as chaves de medidas que o serviço devolve', async () => {
+    const { channels, listaDeCanais } = await mundoReal()
+    const real = channels[0]!.medidas as unknown as Record<string, unknown>
+    const ex = exemplo().data
+    const m = ex.channels[0]!.medidas
+    expect(chaves(m)).toEqual(chaves(real))
+    expect(chaves(m['por_formato'])).toEqual(chaves(real['por_formato']))
+    expect(chaves((m['por_formato'] as Record<string, unknown>)['long'])).toEqual(chaves((real['por_formato'] as Record<string, unknown>)['long']))
+    expect(chaves(m['estado_do_canal'])).toEqual(chaves(real['estado_do_canal']))
+    expect(chaves(ex.medidas_indisponiveis)).toEqual(chaves(listaDeCanais.medidas_indisponiveis))
+    expect(chaves(ex.medidas_meta)).toEqual(chaves(listaDeCanais.medidas_meta))
+  })
+
+  it('o exemplo de medida não medida tem motivo do catálogo e a frase dele', () => {
+    const naoMedidas = todasAsMedidas(exemplo().data.channels[0]!.medidas).filter(x => x['estado'] === 'nao_medido')
+    expect(naoMedidas.length).toBeGreaterThan(0)
+    for (const x of naoMedidas) {
+      expect(MOTIVOS_NAO_MEDIDO as readonly string[]).toContain(x['motivo'])
+      expect(x["frase"]).toBe(fraseDoMotivo(x as unknown as Parameters<typeof fraseDoMotivo>[0]))
+    }
+  })
+
+  it('o exemplo tem as nove medidas e a contagem de indisponíveis bate', () => {
+    const ex = exemplo().data
+    const todas = todasAsMedidas(ex.channels[0]!.medidas)
+    expect(todas).toHaveLength(9)
+    expect(ex.medidas_indisponiveis['total']).toBe(9)
+    expect(ex.medidas_indisponiveis['indisponiveis']).toBe(todas.filter(x => x['estado'] === 'nao_medido').length)
+    const soma = Object.values(ex.medidas_indisponiveis['por_motivo'] as Record<string, number>).reduce((a, b) => a + b, 0)
+    expect(soma).toBe(ex.medidas_indisponiveis['indisponiveis'])
+  })
+
+  it('o documento não traz número de limiar na subseção das medidas', () => {
+    const i = CHANNELS.indexOf('#### Medidas por canal')
+    expect(i).toBeGreaterThan(-1)
+    const texto = foraDeBloco(CHANNELS.slice(i))
+    expect(texto).not.toMatch(/\d\s*(%|dias|vídeos)/)
+  })
+
+  it('o documento e o prompt dizem o que fazer com confirmada false', () => {
+    const f = frases(CHANNELS).find(x => x.includes('`confirmada`') && x.includes('`queda`'))
+    expect(f).toBeDefined()
+    expect(f).toContain('não diga que o canal está ativo')
+    const prompts = readFileSync(join(RAIZ, 'src/lib/pipeline/mcp/prompts.ts'), 'utf8')
+    const linha = prompts.split('\n').find(l => l.includes('confirmada'))!
+    expect(linha).toContain('`queda`')
+    expect(linha).toContain('do not state the channel is active')
+  })
+
+  it('o documento manda repetir uma vez só', () => {
+    const f = frases(CHANNELS).find(x => x.includes('canais_cortados_por_tempo') && x.includes('repita'))!
+    expect(f).toContain('uma vez')
+    expect(CHANNELS).not.toContain('vale repetir a chamada')
+  })
+
+  it('o documento diz como comparar, o carimbo, o fuso e o corte', () => {
+    const d = (parte: string) => frases(CHANNELS).some(x => x.includes(parte))
+    expect(d('mesmo formato')).toBe(true)
+    expect(d('calculado_em')).toBe(true)
+    expect(frases(CHANNELS).some(x => x.includes('calculado_em') && x.includes('UTC'))).toBe(true)
+    expect(d('canais_cortados_por_tempo')).toBe(true)
+  })
+
+  it('o documento diz que o Short não tem direção dos vídeos novos e que a ferramenta devolve o mesmo conteúdo', () => {
+    expect(frases(CHANNELS).some(x => x.includes('Short') && x.includes('direcao_dos_videos_novos') && x.includes('nao_medido'))).toBe(true)
+    expect(frases(CHANNELS).some(x => x.includes('list_channels') && x.includes('mesmo conteúdo'))).toBe(true)
+  })
+
+  it('a seção Coaching continua dentro dos 8.000 caracteres', () => {
+    const i = doc.indexOf('## Coaching')
+    if (i === -1) return
+    const j = doc.indexOf('\n## ', i + 5)
+    expect(doc.slice(i, j === -1 ? undefined : j).length).toBeLessThanOrEqual(8000)
   })
 })
 
@@ -223,6 +311,7 @@ describe('o prompt e o registro', () => {
     const ent = (p: string) => dominios.flatMap(d => [...d.endpoints]).find(e => e.path === p)!
     expect(ent('/api/pipeline/youtube/competitors/changes').summary).toContain('campos')
     expect(ent('/api/pipeline/youtube/competitors/channels').summary).toContain('profile')
+    expect(ent('/api/pipeline/youtube/competitors/channels').summary).toContain('measures')
     const dominio = dominios.find(d => d.domain === 'youtube')!
     expect(dominio.endpoint_count).toBe(34)
     expect(dominio.endpoints.length).toBe(34)

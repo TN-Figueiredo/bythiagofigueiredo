@@ -1278,6 +1278,7 @@ export function registerPrompts(server: McpServer): void {
       lines.push('- When a field comes with `estado: nao_lido` or `estado: nao_medido`, quote its `frase` and do not estimate the value')
       lines.push('- Never report `-1` or a zero rate from `insights`, or a zero `video_count`, as a measurement: say the value is not known')
       lines.push('- Own-channel numbers from `analytics/*` and `videos/:id` are not Observatory numbers: say which source a number came from')
+      lines.push('- When `estado_do_canal.confirmada` is false, do not state the channel is active: say the drop could not be measured and quote the `frase` of `queda`')
       lines.push('')
 
       lines.push('### 1b. Identify outlier videos')
