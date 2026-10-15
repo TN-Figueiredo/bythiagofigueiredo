@@ -169,6 +169,15 @@ describe('a regra do dia inteiro', () => {
     expect(r.motivo).not.toBe('coleta_nao_comecou')
     expect(r.faltamNoPiorDia).toBeGreaterThan(0)
   })
+  it('vídeo publicado depois de `ate` não é "fora" (Phil I2); publicado em `ate` sem dia coberto, é', () => {
+    const cobertos = Array.from({ length: 34 }, (_, i) => video('c' + i, [dia(d(0), 10, { YT_SEARCH: 10 })]))
+    const futuro = video('novo', [dia(d(0), null, {}, { coberto: false, baseMedida: false })])
+    const pubsComNovo = (publicado: string) => new Map<string, string | null>([...cobertos.map(v => [v.ytId, null] as const), ['novo', publicado]])
+    const depois = agregarBloco(base(conj([...cobertos, futuro]), d(0), d(0), pubsComNovo(addDays(d(0), 1))))
+    expect(depois).toMatchObject({ estado: 'medido', videosFora: 0, videosNaConta: 34, total: 340 })
+    const em = agregarBloco(base(conj([...cobertos, futuro]), d(0), d(0), pubsComNovo(d(0))))
+    expect(em).toMatchObject({ videosFora: 1, videosNaConta: 34 })
+  })
   it('todos fora e conjunto coletado: cobertura_parcial com faltamNoPiorDia igual a videosFora; com nao_coletado o motivo do conjunto', () => {
     const fora = [video('a', [dia(d(0), null, {}, { baseMedida: false })]), video('b', [dia(d(0), null, {}, { coberto: false, baseMedida: false })])]
     const r = agregarBloco(base(conj(fora), d(0), d(0)))

@@ -69,7 +69,9 @@ export function totalDoPeriodo(d: DiarioDoPeriodo, p: { de: DiaYt | null; ate: D
     }
     return ultimo
   }
-  const conta = quemEstaNaConta({ ytIds: d.cobertura.ytIds, de, ate: p.ate, ultimoMedido })
+  // vídeo publicado depois do fim do período ainda não existia: não é "fora" (todo upload passaria por esse estado até o diário alcançá-lo)
+  const ytIds = d.cobertura.ytIds.filter(id => { const pub = d.cobertura.publicacoes.get(id) ?? null; return pub === null || pub <= p.ate })
+  const conta = quemEstaNaConta({ ytIds, de, ate: p.ate, ultimoMedido })
   const somaPorVideo = new Map<string, number>()
   let comValorDescartado = false
   for (const l of d.linhas) {

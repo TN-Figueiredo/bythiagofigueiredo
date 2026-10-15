@@ -561,9 +561,13 @@ export function periodosDaOrigemDoVideo(a: { ate: DiaYt; publicadoEm: DiaYt | nu
   return out
 }
 
-/** O aviso de cobertura (um por requisição, só contagens): períodos com vídeo fora ou parado, e blocos que trazem a linha de contagem de vídeos. */
+/**
+ * O aviso de cobertura (um por requisição, só contagens): períodos CURTOS com vídeo fora ou parado, e blocos curtos que trazem a linha de contagem.
+ * O período "tudo" fica de fora: vídeo que saiu do YouTube fica "parado" nele para sempre, e o estado permanente já está na tela (linha "N de M vídeos
+ * sem leitura"); avisar a cada abertura faria do alarme um ruído que nunca para.
+ */
 export function contagensDeCobertura(view: OrigemView, periodos: readonly PeriodoEntrada[]): { periodosComVideoForaOuParado: number; blocosComContagem: number } | null {
-  const periodosComVideoForaOuParado = periodos.filter(p => p.videosDoTotal != null && (p.videosDoTotal.fora > 0 || p.videosDoTotal.parados > 0)).length
-  const blocosComContagem = view.periodos.reduce((n, p) => n + p.grupo.blocos.filter(b => b.linhasDeContagem.length > 0).length, 0)
+  const periodosComVideoForaOuParado = periodos.filter(p => p.id !== 'tudo' && p.videosDoTotal != null && (p.videosDoTotal.fora > 0 || p.videosDoTotal.parados > 0)).length
+  const blocosComContagem = view.periodos.filter(p => p.id !== 'tudo').reduce((n, p) => n + p.grupo.blocos.filter(b => b.linhasDeContagem.length > 0).length, 0)
   return periodosComVideoForaOuParado > 0 || blocosComContagem > 0 ? { periodosComVideoForaOuParado, blocosComContagem } : null
 }

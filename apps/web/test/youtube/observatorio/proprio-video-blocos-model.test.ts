@@ -600,7 +600,7 @@ describe('buildAssistidoDoVideo (tela B)', () => {
 
 describe('E5b T16 (d): entrada pura de "De onde vêm as views"', () => {
   const ATE = '2026-10-11'
-  const diarioVazio = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: 'c', de: '2026-10-05', ate: ATE, linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map() } })
+  const diarioVazio = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: 'c', de: '2026-10-05', ate: ATE, linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map(), ytIds: [], publicacoes: new Map() } })
 
   it('ateDaOrigem: o último dia do diário; sem diário, três dias antes de hoje', () => {
     expect(ateDaOrigem('2026-10-09', '2026-10-13')).toBe('2026-10-09')
@@ -642,5 +642,14 @@ describe('E5b T16 (d): entrada pura de "De onde vêm as views"', () => {
     expect(contagensDeCobertura(limpo, [perFx('7', '7 dias', '2026-10-05', ATE)])).toBeNull()
     const fora = perFx('7', '7 dias', '2026-10-05', ATE, 3185, { naConta: 34, fora: 1, parados: 0, paradosDesde: null, comBuraco: 0 })
     expect(contagensDeCobertura(limpo, [fora])).toEqual({ periodosComVideoForaOuParado: 1, blocosComContagem: 0 })
+  })
+
+  it('contagensDeCobertura: vídeo parado só no período "tudo" não avisa (estado permanente); parado em 90 dias conta 1 (Yannis I2)', () => {
+    const limpo = buildOrigem(entradaFx({ periodos: [perFx('7', '7 dias', '2026-10-05', ATE)] }))
+    const parado = { naConta: 34, fora: 0, parados: 1, paradosDesde: '2026-08-01', comBuraco: 0 }
+    const tudo = perFx('tudo', 'Desde 2026', '2026-01-01', ATE, 3185, parado)
+    expect(contagensDeCobertura(limpo, [tudo])).toBeNull()
+    const noventa = perFx('90', '90 dias', '2026-07-14', ATE, 3185, parado)
+    expect(contagensDeCobertura(limpo, [tudo, noventa])).toEqual({ periodosComVideoForaOuParado: 1, blocosComContagem: 0 })
   })
 })

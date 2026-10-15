@@ -290,7 +290,7 @@ describe('E5b T16 (d), "De onde vêm as views": a origem vai em Suspense própri
   const velho = w.obs.videos.filter(v => v.ch === w.canalId).sort((x, y) => x.pub - y.pub)[0]!
   const origemDe = (el: Moldura) => (filho(el).props.children as ReactElement<{ origem?: No }>).props.origem
   const resolver = async (n: No) => (await (n.props.children.type as (p: unknown) => Promise<ReactElement<{ view: OrigemView }>>)(n.props.children.props)).props.view
-  const diarioOrigem = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: w.canalId, de: '2026-10-05', ate: '2026-10-11', linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map() } })
+  const diarioOrigem = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: w.canalId, de: '2026-10-05', ate: '2026-10-11', linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map(), ytIds: [velho.ytId], publicacoes: new Map([[velho.ytId, null]]) } })
   /** as dimensões da fixture com o ytId do vídeo da tela (a fixture usa 'v1'): sem isso o vídeo da tela seria "fora da conta" em todo bloco */
   const dimsDo = (yt: string) => { const d = dims(); for (const k of Object.keys(d.conjuntos) as Array<keyof typeof d.conjuntos>) d.conjuntos[k] = { ...d.conjuntos[k], videos: d.conjuntos[k].videos.map(v => ({ ...v, ytId: yt })) } as never; return d }
   const origemOk = (conhecida = false, yt = velho.ytId): Privado<OrigemLida> => ({ acesso: 'ok', dado: { dimensoes: dimsDo(yt), diario: diarioOrigem(conhecida), diarioInteiro: null, motivoInteiro: 'erro', trechos: 1 } })

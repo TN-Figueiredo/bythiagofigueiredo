@@ -130,7 +130,8 @@ export function agregarBloco<K extends string>(p: {
     }
     porVideo.set(v.ytId, m)
   }
-  const ytIds = [...new Set([...porVideo.keys(), ...p.publicacoes.keys()])]
+  // vídeo publicado depois de `ate` ainda não existia no período: não é "fora"
+  const ytIds = [...new Set([...porVideo.keys(), ...p.publicacoes.keys()])].filter(id => { const pub = p.publicacoes.get(id) ?? null; return pub === null || pub <= ate })
 
   const ultimoMedido = (id: string): DiaYt | null => {
     const m = porVideo.get(id)

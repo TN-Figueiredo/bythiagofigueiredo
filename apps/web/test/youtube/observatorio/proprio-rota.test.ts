@@ -196,7 +196,7 @@ describe('E5b T17: a aba Origem (17b) e os cartões da aba Retenção (17a) vão
   type No = ReactElement<{ fallback: ReactElement; children: ReactElement<Record<string, unknown>> }>
   const prop = (el: ReactElement<{ children: ReactNode }>, k: 'origem' | 'periodos') => filho(el).props[k] as No | undefined
   const resolverOrigem = async (n: No) => (await (n.props.children.type as (p: unknown) => Promise<ReactElement<{ view: OrigemView }>>)(n.props.children.props)).props.view
-  const diarioOrigem = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: w.canalId, de: '2026-10-05', ate: '2026-10-11', linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map() } })
+  const diarioOrigem = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: w.canalId, de: '2026-10-05', ate: '2026-10-11', linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map(), ytIds: [], publicacoes: new Map() } })
   const origemOk = (conhecida = false, inteiro: DiarioDoPeriodo | null = null): Privado<OrigemLida> => ({ acesso: 'ok', dado: { dimensoes: dims(), diario: diarioOrigem(conhecida), diarioInteiro: inteiro, trechos: 1 } })
   const avisos = (step: string) => vi.mocked(Sentry.captureMessage).mock.calls.filter(c => (c[1] as { tags?: { step?: string } } | undefined)?.tags?.step === step)
   const todosOsYtIds = () => wUm.obs.videos.filter(v => v.ch === wUm.canalId).map(v => v.ytId)

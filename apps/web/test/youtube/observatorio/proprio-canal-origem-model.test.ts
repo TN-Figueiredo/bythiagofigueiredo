@@ -6,7 +6,7 @@ import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 
 const ATE = '2026-10-11'
-const diarioVazio = (conhecida: boolean, ate = ATE): DiarioDoPeriodo => ({ canalId: 'c', de: '2026-07-14', ate, linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map() } })
+const diarioVazio = (conhecida: boolean, ate = ATE): DiarioDoPeriodo => ({ canalId: 'c', de: '2026-07-14', ate, linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map(), ytIds: [], publicacoes: new Map() } })
 
 describe('janelaDaOrigemDoCanal', () => {
   it('90 dias de diário; "Desde {ano}" amplia a janela até a publicação mais antiga sem passar do começo da coleta; sem data, só 90 dias', () => {

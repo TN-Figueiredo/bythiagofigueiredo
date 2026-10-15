@@ -151,6 +151,18 @@ describe('cobertura e totalDoPeriodo', () => {
     const r = await leia(linhas, ids.slice(0, 34).map(id => cob(id, d(100), ATE)), { ytIds: ids, publicacoes: pubs(ids) })
     expect(totalDoPeriodo(r, { de: d(6), ate: ATE })).toMatchObject({ total: 68, videosNaConta: 34, videosFora: 1 })
   })
+  it('vídeo publicado depois do fim do período não conta como fora: total dos 34, sem "de N dos M" (Phil I2)', async () => {
+    const ids = Array.from({ length: 35 }, (_, i) => 'v' + String(i).padStart(2, '0'))
+    const pub = new Map(ids.map((id, i) => [id, i === 34 ? addDays(ATE, 1) : d(200)] as const))
+    const r = await leia(ids.slice(0, 34).map(id => linha(id, d(1), 2)), ids.slice(0, 34).map(id => cob(id, d(100), ATE)), { ytIds: ids, publicacoes: pub })
+    expect(totalDoPeriodo(r, { de: d(6), ate: ATE })).toMatchObject({ total: 68, videosNaConta: 34, videosFora: 0 })
+  })
+  it('o mesmo vídeo publicado no último dia do período e sem cobertura: continua fora (entra na conta)', async () => {
+    const ids = ['v1', 'v2']
+    const pub = new Map([['v1', d(200)], ['v2', ATE]] as const)
+    const r = await leia([linha('v1', d(1), 2)], [cob('v1', d(100), ATE)], { ytIds: ids, publicacoes: pub })
+    expect(totalDoPeriodo(r, { de: d(6), ate: ATE })).toMatchObject({ videosNaConta: 1, videosFora: 1 })
+  })
   it('vídeo com a cobertura parada há 30 dias num trecho de 90: soma até o último dia coberto, videosParados 1, não é nulo', async () => {
     const r = await leia(
       [linha('v1', d(40), 7), linha('v1', d(10), 100), linha('v2', d(10), 4)],
