@@ -331,7 +331,7 @@ git commit -m "feat: rascunho da M5, parte 1: obs_archive_online_since (manuten�
   "online_since": [ { "class": "serie", "table_name": "competitor_video_daily", "online_since": "2027-05-01|null", "divergencia": false } ],
   "meses": [ { "class": "serie", "table_name": "competitor_video_daily", "month": "2028-04-01", "devido_em": "2028-05-28", "tem_linha": true,
                "<as colunas fechadas de obs_archive_months, sem nenhum *_by, sem id nem site_id>": "...", "reattach_out_of_order": false,
-               "b2": { "<o jsonb de obs_archive_b2_month_state>": "..." } } ],
+               "b2": { "<as chaves de obs_archive_b2_month_state, menos `por`: atestada_em, via, forja_ok_at, dono_ok_at, forja_divergiu_em, retirada, ultima_tentativa, idade_dias>": "..." } } ],
   "progresso": [ { "class": "serie", "month": "2028-04-01", "canais_esperados": 45, "canais_prontos": 12, "canais_perdidos": 0 } ],
   "recuperacao": [ { "class": "serie", "table_name": "competitor_video_daily", "done_at": "...|null", "schema_fp": "...|null", "schema_fp_atual": "...|null", "diff_rows": 0 } ],
   "meses_a_frente": [ { "table_name": "competitor_video_daily", "months_ahead": 12, "last_month": "2027-10-01", "converted_at": "...|null" } ],
@@ -475,7 +475,10 @@ begin
       'rows_dropped', m.rows_dropped, 'bytes_freed', m.bytes_freed,
       -- a coluna é da M6 (plano M6 :1020): lida pelo jsonb da linha, então existe ou não sem quebrar esta função nem a ordem do deploy
       'reattach_out_of_order', coalesce((pg_catalog.to_jsonb(m) ->> 'reattach_out_of_order')::boolean, false),
-      'b2', public.obs_archive_b2_month_state(p_site, x.cl, x.mes)
+      -- lista fechada de chaves, SEM `por` (uuid de pessoa; Phil r3 N5): nunca o jsonb inteiro de obs_archive_b2_month_state
+      'b2', (select coalesce(pg_catalog.jsonb_object_agg(e.key, e.value), '{}'::jsonb)
+               from pg_catalog.jsonb_each(public.obs_archive_b2_month_state(p_site, x.cl, x.mes)) e
+              where e.key in ('atestada_em', 'via', 'forja_ok_at', 'dono_ok_at', 'forja_divergiu_em', 'retirada', 'ultima_tentativa', 'idade_dias'))
     ) order by x.cl, x.tb, x.mes desc), '[]'::jsonb)
     into v_meses
     from (select p.class as cl, p.table_name as tb, p.seal_margin_days as mg, gs.mes
@@ -746,7 +749,7 @@ print('ok', OUT)
 
   O resto do corpo (campos `status`, `meses`, `de`, `ate`, `registros`, `videos_retirados`, `imagens_blob`) fica **idêntico** ao de `m3b.sql`.
 - [ ] **Passo 4. Rodar e ver passar.** Rodar também os testes da A5 que leem as funções: `grep -rl "competitor_hourly_health" apps/web/test > ...` e rodar esses arquivos com saída em arquivo; só as falhas no contexto. O teste de `m3b` da `obs_archive_channel_archive_impact` (se existir, `grep -rln "channel_archive_impact" apps/web/test`) tem que continuar verde: as chaves antigas não mudam.
-- [ ] **Passo 5. Commit** `feat: rascunho da M5, parte 3: lista de canais removidos v2, desde da horária e impacto da remoção (manutenção M5, 04 §14.1 e §14.2, item 82)` com os caminhos explícitos (`m5.sql`, `gerar-m5-parte3.py`, o teste).
+- [ ] **Passo 5. Commit** `feat: rascunho da M5, parte 3: lista de canais removidos v2, desde da horária e impacto da remoção (manutenção M5, 04 §14.1 e §14.2, item 82)` com os caminhos explícitos, `git add --` antes para os novos (`supabase/rascunhos/m5.sql`, `supabase/rascunhos/gerar-m5-parte3.py`, o teste de integração da parte 3).
 
 ---
 
@@ -1005,8 +1008,8 @@ export function dailyCappedFrom(seriesStart: number, onlineDesde: number | null)
 - [ ] **Passo 8. Commit único (pedido 11), caminhos explícitos** (os arquivos novos entram com `git add --` antes):
 
 ```bash
-git add -- apps/web/src/lib/youtube/observatorio/arquivo-mensal/online-desde.ts apps/web/test/youtube/observatorio/online-desde.test.ts apps/web/test/youtube/observatorio/carregador-online-desde.test.ts
-git commit -m "feat: carregador sem o teto de 365 dias, com o corte marcado pelo online desde do registro (manutenção M5, pedido 11, itens 34, 35 e 81)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo-mensal/online-desde.ts apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/load-channel.ts apps/web/src/lib/youtube/observatorio/series.ts apps/web/src/lib/youtube/observatorio/types.ts apps/web/test/youtube/observatorio/online-desde.test.ts apps/web/test/youtube/observatorio/carregador-online-desde.test.ts apps/web/test/youtube/observatorio/load.test.ts
+git add -- apps/web/src/lib/youtube/observatorio/arquivo-mensal/online-desde.ts apps/web/test/youtube/observatorio/online-desde.test.ts apps/web/test/youtube/observatorio/carregador-online-desde.test.ts apps/web/test/youtube/observatorio/helpers/fabrica-load.ts apps/web/test/youtube/observatorio/series.test.ts   # series.test.ts só se o Passo 3 o criou; se os testes de viewsAtAge ficaram em carregador-online-desde.test.ts, tirar do comando
+git commit -m "feat: carregador sem o teto de 365 dias, com o corte marcado pelo online desde do registro (manutenção M5, pedido 11, itens 34, 35 e 81)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/src/lib/youtube/observatorio/arquivo-mensal/online-desde.ts apps/web/src/lib/youtube/observatorio/arquivo-mensal/capacidades.ts apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/load-channel.ts apps/web/src/lib/youtube/observatorio/series.ts apps/web/src/lib/youtube/observatorio/types.ts apps/web/test/youtube/observatorio/online-desde.test.ts apps/web/test/youtube/observatorio/carregador-online-desde.test.ts apps/web/test/youtube/observatorio/helpers/fabrica-load.ts apps/web/test/youtube/observatorio/series.test.ts apps/web/test/youtube/observatorio/load.test.ts
 ```
 
 (Mais os arquivos de teste que o Passo 6 mandou corrigir, por caminho.) Registrar no ledger "pedido 11 feito: <hash>" e avisar o controlador da A5 no arquivo da Tarefa 0, Passo 2.
@@ -1460,7 +1463,7 @@ describe.skipIf(skipIfNoLocalDb())('as chaves do SQL são as da lista fechada do
 })
 ```
 
-**Contrato SQL → Zod com a saída REAL (Yannis r2 N-5).** Comparar só chaves de topo não prova o `b2` aninhado (2 chaves sem registro: `atestada_em`, `retirada`; ~9 com registro: `via`, `por`, `forja_ok_at`, `dono_ok_at`, `forja_divergiu_em`, `ultima_tentativa`, `idade_dias`...). Um `.strict()` derivado da fixture à mão recusaria a página inteira ("Não foi possível ler o estado do arquivo") no 1º uso em produção. Acrescentar ao mesmo arquivo de integração (banco 54422) estes casos, que passam a saída crua do `pg` pelos leitores reais e exigem `ok: true`:
+**Contrato SQL → Zod com a saída REAL (Yannis r2 N-5).** Comparar só chaves de topo não prova o `b2` aninhado (2 chaves sem registro: `atestada_em`, `retirada`; ~8 com registro (a página recebe `via`, `forja_ok_at`, `dono_ok_at`, `forja_divergiu_em`, `ultima_tentativa`, `idade_dias`; **`por` não está na lista**, Phil r3 N5). Um `.strict()` derivado da fixture à mão recusaria a página inteira ("Não foi possível ler o estado do arquivo") no 1º uso em produção. Acrescentar ao mesmo arquivo de integração (banco 54422) estes casos, que passam a saída crua do `pg` pelos leitores reais e exigem `ok: true`:
 
 ```ts
 import { lerPaginaBruta } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
@@ -1476,9 +1479,20 @@ it('obs_archive_pagina REAL passa em lerPaginaBruta: sem linha, com linha, com b
   // (2) linha de registro + atestação B2 com os dois lados (preencher as colunas que o seed da M3b usa: `grep -n "b2_attested" apps/web/test/helpers/m3b.ts`)
   await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, b2_attested_at, b2_attested_via) values ($1, 'serie', 'competitor_video_daily', '2026-10-01', now(), 'forja')`, [SITE_TESTE])
   await c.query(`insert into public.obs_archive_heartbeat (site_id, worker, last_poll_at, updated_at, nas_ok, nas_checked_at) values ($1, 'copiador', now(), now(), true, now())`, [SITE_TESTE])
-  // (3) uma unidade recebida (função/seed de unidade do helper m3b: `grep -n "export" apps/web/test/helpers/m3b.ts`)
+  // (3) uma unidade recebida (colunas de obs_archive_units: m3b.sql:59-98; `channel_ref` é o uuid do canal semeado)
+  const { canal } = await semearCanal(c, { site: SITE_TESTE, videos: 0 })
+  await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp) values ($1, 'serie', 'competitor_video_daily', $2, '2026-10-01', 1, 0, repeat('a', 64), repeat('b', 64))`, [SITE_TESTE, canal])
   const r = lerPaginaBruta(await bruto(c, `select public.obs_archive_pagina($1) as x`, [SITE_TESTE]))
   expect(r).toMatchObject({ ok: true })
+  expect(r.ok && r.valor.meses.length).toBeGreaterThan(0)   // a unidade e a linha do passo (2) aparecem de fato (ajustar o caminho à forma real de `lerPaginaBruta`)
+})
+it('b2 de meses[] NÃO traz `por` (Phil r3 N5: o identificador de pessoa não chega ao navegador de quem só edita)', async () => {
+  await semearCanal(c, { site: SITE_TESTE, videos: 0 })
+  await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, b2_attested_at, b2_attested_via, b2_attested_by) values ($1, 'serie', 'competitor_video_daily', '2026-10-01', now(), 'dono', gen_random_uuid())`, [SITE_TESTE])
+  const pg = await bruto(c, `select public.obs_archive_pagina($1) as x`, [SITE_TESTE]) as { meses: { b2: Record<string, unknown> }[] }
+  const comRegistro = pg.meses.filter((m) => m.b2 && m.b2.via != null)
+  expect(comRegistro.length).toBeGreaterThan(0)
+  for (const m of pg.meses) expect(Object.keys(m.b2)).not.toContain('por')
 })
 it('obs_archive_aviso, obs_archive_removed_channel_list e obs_archive_online_since REAIS passam nos leitores', async () => {
   await semearCanal(c, { site: SITE_TESTE, videos: 0 })
