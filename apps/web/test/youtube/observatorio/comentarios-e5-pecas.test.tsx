@@ -242,3 +242,16 @@ describe('C2 · seção montada', () => {
     expect(screen.getByText('Cálculo do Observatório sobre dados públicos do YouTube.')).toBeTruthy()
   })
 })
+
+describe('N10b · foto do autor', () => {
+  it('a foto vem sem Referer, preguiçosa, e se quebrar cai na inicial do nome', () => {
+    const v = cartaoComTexto('x', { autor: { tipo: 'com_identidade', nome: 'Ana', fotoUrl: 'https://exemplo.example/f.png', guardadaAte: '2026-11-01' } })
+    const { container } = renderCartao(v)
+    const img = container.querySelector('img.cd-foto')
+    expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
+    expect(img?.getAttribute('loading')).toBe('lazy')
+    fireEvent.error(img as Element)
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('.cd-foto-inicial')?.textContent).toBe('A')
+  })
+})

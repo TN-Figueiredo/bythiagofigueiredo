@@ -91,7 +91,7 @@ export function dmDeData(s: string): string {
 }
 const num = (n: number): string => n.toLocaleString('pt-BR')
 
-const URL_RE = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|br|io|me|ly|gg|tv|example)(?:\/\S*)?\b/i
+const URL_RE = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|br|io|me|ly|gg|tv)(?:\/\S*)?\b/i
 export const temEndereco = (s: string): boolean => URL_RE.test(s)
 
 const CHAVE: Record<MotivoDoCartao, ChaveDeMotivo> = { curtidos: 'c', criador: 'k', canal_acompanhado: 'a', inscritos: 'g', canal_proprio: 'p' }
@@ -106,7 +106,7 @@ const comTexto = (c: Cartao): c is CartaoTexto | CartaoIdentidade => 'texto' in 
 
 function abaDoEstado(e: EstadoDoMarco): { estado: string; tom: Tom } {
   switch (e.estado) {
-    case 'ok': return { estado: FRASES.abaGuardados(e.resumo.escolhidos ?? 0), tom: 'ok' }
+    case 'ok': return { estado: FRASES.abaGuardados(e.resumo.escolhidos), tom: 'ok' }
     case 'sem_comentarios': return { estado: FRASES.abaNenhum, tom: 'zero' }
     case 'desligados': return { estado: FRASES.abaDesligados, tom: 'nm' }
     case 'nao_coletado': return { estado: FRASES.abaNaoColetado, tom: 'nm' }
@@ -134,9 +134,12 @@ function estadoSemLista(m: Marco, e: EstadoDoMarco, o: OpcoesDaSecao): EstadoVie
         const quando = o.descobertoEmMs === null ? null : dmSP(o.descobertoEmMs)
         return { ...base, tom: 'nm', titulo, corpo: FRASES.tardeCorpo(desc, prazo), selo: quando ? { texto: FRASES.tardeSelo(quando), forma: 'nm' } : null, nota: null }
       }
-      if (c.causa === 'lista_vazia') return { ...base, tom: 'nm', titulo, corpo: FRASES.listaVaziaCorpo, selo: { texto: FRASES.abaNaoColetado, forma: 'nm' }, nota: FRASES.listaVaziaNota }
+      if (c.causa === 'lista_vazia') {
+        const nota = [(c.totalDoDia ?? 0) > 0 ? FRASES.listaVaziaNota : null, FRASES.erroNota(dmSP(c.ateMs), c.encerrada)].filter((x): x is string => x !== null).join(' ')
+        return { ...base, tom: 'nm', titulo, corpo: FRASES.listaVaziaCorpo(dmSP(c.tomadoEmMs), c.totalDoDia), selo: { texto: FRASES.abaNaoColetado, forma: 'nm' }, nota }
+      }
       if (c.causa === 'erro') {
-        return { ...base, tom: 'nm', titulo, corpo: FRASES.erroCorpo(dmSP(c.tentouEmMs)), selo: { texto: FRASES.erroSelo(dmSP(c.tentouEmMs)), forma: 'nm' }, nota: FRASES.erroNota(dmSP(c.ateMs)) }
+        return { ...base, tom: 'nm', titulo, corpo: FRASES.erroCorpo(dmSP(c.tentouEmMs), c.codigo), selo: { texto: FRASES.erroSelo(dmSP(c.tentouEmMs)), forma: 'nm' }, nota: FRASES.erroNota(dmSP(c.ateMs), c.encerrada) }
       }
       return { ...base, tom: 'nm', titulo: FRASES.janelaPerdida(m), corpo: null, selo: { texto: FRASES.abaNaoColetado, forma: 'nm' }, nota: FRASES.janelaPerdidaNota }
     }
@@ -151,7 +154,8 @@ function estadoSemLista(m: Marco, e: EstadoDoMarco, o: OpcoesDaSecao): EstadoVie
     case 'coleta_nao_comecou':
       return { ...base, tom: 'nm', titulo: FRASES.naoComecou, corpo: null, selo: null, nota: null }
     case 'ok':
-      return { ...base, tom: 'nm', titulo: FRASES.naoColetadoTitulo(m), corpo: FRASES.listaVaziaCorpo, selo: { texto: FRASES.abaNaoColetado, forma: 'nm' }, nota: FRASES.listaVaziaNota }
+      // retrato ok sem nenhum cartão no marco = leitura incompleta; não acusa o YouTube
+      return { ...estadoDeErro(), marco: m }
   }
 }
 
@@ -232,6 +236,10 @@ function ordenar(cs: Cartao[], m: Marco): Cartao[] {
     const ra = a.respostas ?? -1
     const rb = b.respostas ?? -1
     if (rb !== ra) return rb - ra
+    // a posição do YouTube no marco (menor = mais relevante); sem leitura vai depois
+    const pa = a.posicao[m] ?? Number.MAX_SAFE_INTEGER
+    const pb = b.posicao[m] ?? Number.MAX_SAFE_INTEGER
+    if (pa !== pb) return pa - pb
     return a.ordem - b.ordem
   })
 }
@@ -264,14 +272,14 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
   const resp = doDia.filter(c => c.motivo === 'criador' && c.criador === 'respondeu').length
   const partes: string[] = []
   if (nC > 0) partes.push(FRASES.legendaCurtidos(nC))
-  if (nK > 0) partes.push(`${nK} com o criador${resp > 0 ? ` (ele respondeu a ${resp})` : ''}`)
-  if (nA > 0) partes.push(`${nA} de canal que você acompanha`)
-  if (nG > 0) partes.push(`${nG} de canal grande`)
+  if (nK > 0) partes.push(FRASES.legendaCriador(nK, resp))
+  if (nA > 0) partes.push(FRASES.legendaAcompanhado(nA))
+  if (nG > 0) partes.push(FRASES.legendaGrandeCurta(nG))
   const abre = completo && n < CASAS && n === de
-    ? `Com ${dias(m)}, guardamos todos os ${n} comentários do vídeo`
+    ? FRASES.abreTodos(m, n)
     : completo
-      ? `Com ${dias(m)}, guardamos ${n} de todos os ${num(de)} comentários do vídeo`
-      : `Com ${dias(m)}, guardamos ${n} dos ${num(de)} primeiros comentários que o YouTube mostra, na ordem de relevância dele`
+      ? FRASES.abreDeTodos(m, n, de)
+      : FRASES.abreDosPrimeiros(m, n, de)
   const frase = `${abre}: ${juntar(partes)}.`
 
   const consultados = r.autoresConsultados ?? COMMENT_RULES.featuredLookup
@@ -300,7 +308,7 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
     if (!v) return { id: null, chave: null, rotulo: '', curtidas: null, posicao: null }
     return {
       id: v.id, chave: v.chave, posicao: i + 1, curtidas: numeroOuNulo(c.curtidas[m]),
-      rotulo: `Comentário ${i + 1} de ${n}, ${v.motivo.toLowerCase()}${numeroOuNulo(c.curtidas[m]) === null ? '' : `, ${num(numeroOuNulo(c.curtidas[m]) as number)} curtidas aos ${dias(m)}`}`,
+      rotulo: FRASES.rotuloDaCasa(i + 1, n, v.motivo, numeroOuNulo(c.curtidas[m]), m),
     }
   })
 
@@ -323,8 +331,8 @@ export function secaoDeComentarios(dados: ComentariosDoVideo, o: OpcoesDaSecao):
   }
   const abas: AbaView[] = MARCOS_DA_TELA.map(m => {
     const e = dados.marcos[m]
-    // Um painel de "ok" sem comentário nenhum cai no estado "não coletado": a aba diz o mesmo.
-    const a = e.estado === 'ok' && paineis[m].kind === 'estado' ? { estado: FRASES.abaNaoColetado, tom: 'nm' as Tom } : abaDoEstado(e)
+    // Um painel de "ok" sem comentário nenhum cai no estado "não carregou": a aba diz o mesmo.
+    const a = e.estado === 'ok' && paineis[m].kind === 'estado' ? { estado: FRASES.abaNaoCarregou, tom: 'erro' as Tom } : abaDoEstado(e)
     return { marco: m, rotulo: dias(m), estado: a.estado, tom: a.tom }
   })
   // A aba aberta é a última cujo estado não é "fecha em" nem "a caminho".

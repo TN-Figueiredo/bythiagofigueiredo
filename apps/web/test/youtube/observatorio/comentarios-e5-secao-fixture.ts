@@ -13,7 +13,7 @@ export const resumo = (o: Partial<ResumoDoMarco> = {}): ResumoDoMarco => ({
 
 export function cartao(ordem: number, motivo: MotivoDoCartao, o: Partial<CartaoIdentidade> = {}): CartaoIdentidade {
   return {
-    ordem, motivo, curtidas: { 1: 'ainda_nao', 7: 100 - ordem, 30: 'ainda_nao' }, respostas: 0, criador: 'nao_vimos', criadorNome: 'Leo', doCriador: false,
+    ordem, motivo, curtidas: { 1: 'ainda_nao', 7: 100 - ordem, 30: 'ainda_nao' }, respostas: 0, criador: 'nao_vimos', criadorNome: 'Leo', posicao: { 1: null, 7: null, 30: null }, doCriador: false,
     entrouNoMarco: 7, nosMarcos: [7], saiuDoYouTubeDesde: null, faixas: { tamanho: null, razao: null },
     texto: `Comentário sintético número ${ordem}`, cortado: false, publicadoEm: '2026-10-07', respostasDoCriador: [],
     autor: { tipo: 'espectador' }, mencoesTrocadas: 0, ...o,

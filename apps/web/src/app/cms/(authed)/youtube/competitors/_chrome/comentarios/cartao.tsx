@@ -6,12 +6,21 @@ import { FRASES } from './frases'
 import type { AutorView, CartaoView, CurtidaView, RespostaView } from './model'
 import './comentarios.css'
 
+/** A foto de quem comentou: sem Referer, preguiçosa, e se o YouTube trocar ou tirar a foto cai na inicial do nome (não fica ícone quebrado). */
+function Foto({ url, nome }: { url: string | null; nome: string }) {
+  const [quebrou, setQuebrou] = useState(false)
+  if (!url) return null
+  if (quebrou) return <span className="cd-foto cd-foto-inicial" aria-hidden="true">{Array.from(nome)[0]?.toUpperCase() ?? ''}</span>
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img className="cd-foto" src={url} alt="" width={24} height={24} referrerPolicy="no-referrer" loading="lazy" onError={() => setQuebrou(true)} />
+}
+
 function Autor({ a }: { a: AutorView }) {
   switch (a.tipo) {
     case 'identidade':
       return (
         <p className="cd-autor">
-          {a.fotoUrl ? <img className="cd-foto" src={a.fotoUrl} alt="" width={24} height={24} /> : null}
+          <Foto url={a.fotoUrl} nome={a.nome} />
           <strong dir="auto">{a.nome}</strong> <span className="cd-autor-n">{FRASES.identidadeAte(a.ate)}</span>
         </p>
       )

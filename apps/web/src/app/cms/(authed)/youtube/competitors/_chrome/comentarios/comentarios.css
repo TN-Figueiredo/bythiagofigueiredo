@@ -47,6 +47,7 @@
 [data-theme="light"] [data-obs] .cd-g-g.cd-etq{background:rgba(180,69,47,.10)}
 [data-obs] .cd-selo-c{padding:0 6px;border:1px solid currentColor;border-radius:4px;font-size:12px}
 [data-obs] .cd-foto{border-radius:50%;vertical-align:middle;margin-right:6px}
+[data-obs] .cd-foto-inicial{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:12px;font-weight:600;background:#e5e7eb;color:#374151}
 [data-obs] .cd-faixa-grande{padding:4px 8px;border:1px dashed var(--cd);border-radius:6px}
 [data-obs] .cd-texto{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap;unicode-bidi:plaintext}
 [data-obs] .cd-texto.aberto,[data-obs] .cd-texto-resp{display:block;-webkit-line-clamp:unset;overflow:visible}

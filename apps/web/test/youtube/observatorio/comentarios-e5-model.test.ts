@@ -14,8 +14,8 @@ describe('C2 · modelo · nove estados sem lista', () => {
     ['sem_comentarios', { estado: 'sem_comentarios', tomadoEmMs: T0 + 7 * DIA }, 'nenhum comentário', 'Com 7 dias, nenhum comentário.'],
     ['desligados', { estado: 'desligados', tomadoEmMs: T0 + 7 * DIA }, 'desligados pelo canal', 'Comentários desligados pelo canal.'],
     ['nao_coletado tarde', { estado: 'nao_coletado', porque: { causa: 'tarde' } }, 'não coletado', 'Não coletado com 7 dias.'],
-    ['nao_coletado lista_vazia', { estado: 'nao_coletado', porque: { causa: 'lista_vazia' } }, 'não coletado', 'Não coletado com 7 dias.'],
-    ['nao_coletado erro', { estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA } }, 'não coletado', 'Não coletado com 7 dias.'],
+    ['nao_coletado lista_vazia', { estado: 'nao_coletado', porque: { causa: 'lista_vazia', tomadoEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: false, totalDoDia: 57 } }, 'não coletado', 'Não coletado com 7 dias.'],
+    ['nao_coletado erro', { estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: false, codigo: 'rede', totalDoDia: null } }, 'não coletado', 'Não coletado com 7 dias.'],
     ['nao_coletado janela_perdida', { estado: 'nao_coletado', porque: { causa: 'janela_perdida' } }, 'não coletado', 'Não coletado com 7 dias: a coleta não rodou enquanto o vídeo tinha essa idade'],
     ['antes_da_coleta', { estado: 'antes_da_coleta', coletaDesdeMs: T0 }, 'antes da coleta', 'Este vídeo é anterior à coleta de comentários.'],
     ['fecha_em', { estado: 'fecha_em', fechaEmMs: T0 + 7 * DIA }, 'fecha em 13/10', 'O retrato de 7 dias fecha em 13/10.'],
@@ -254,4 +254,71 @@ describe('C2 · frases', () => {
   })
   it('nenhuma frase diz "não respondeu"', () => expect(textos().join('\n')).not.toMatch(/não respondeu/i))
   it('o erro de leitura é o do plano', () => expect(FRASES.erroDeLeitura).toBe('Não deu para abrir os comentários agora. A leitura falhou.'))
+})
+
+describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', () => {
+  const painel = (e: EstadoDoMarco) => {
+    const p = secaoDeComentarios(so7(e), { ...OPCOES, marcoAberto: 7 }).paineis[7]
+    if (p.kind !== 'estado') throw new Error('estado')
+    return p
+  }
+  const vazia = (total: number | null, encerrada = false): EstadoDoMarco =>
+    ({ estado: 'nao_coletado', porque: { causa: 'lista_vazia', tomadoEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada, totalDoDia: total } })
+  it('lista vazia com total: a data e a contagem guardada; a nota "a contagem diz que há" só aqui', () => {
+    const p = painel(vazia(57))
+    expect(p.corpo).toBe('Em 13/10 o vídeo tinha 57 comentários na última contagem, mas o YouTube devolveu a lista vazia.')
+    expect(p.nota).toContain('a contagem diz que há')
+  })
+  it('lista vazia sem total: nenhum algarismo de contagem, nenhum "diz que tem" e nenhuma nota de contagem', () => {
+    const p = painel(vazia(null))
+    expect(p.corpo).toBe('Em 13/10 o YouTube devolveu a lista vazia.')
+    expect(JSON.stringify(p)).not.toMatch(/diz que (tem|há)|contagem diz/)
+    expect(p.corpo).not.toMatch(/\d{3}/)
+  })
+  it('erro por código escolhe a frase (proibido, vídeo não encontrado, o resto), sem texto do banco', () => {
+    const erro = (codigo: string): EstadoDoMarco => ({ estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: false, codigo, totalDoDia: null } })
+    expect(painel(erro('proibido')).corpo).toMatch(/só para membros/)
+    expect(painel(erro('video_nao_encontrado')).corpo).toMatch(/não encontrou este vídeo/)
+    expect(painel(erro('rede')).corpo).toBe('A leitura do YouTube falhou em 13/10.')
+    expect(JSON.stringify(painel(erro('zz-texto-do-banco')))).not.toContain('zz-texto-do-banco')
+  })
+  it('janela encerrada: nenhuma frase promete "tentamos de novo" (erro e lista vazia)', () => {
+    const erro: EstadoDoMarco = { estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: true, codigo: 'rede', totalDoDia: null } }
+    for (const e of [erro, vazia(57, true), vazia(null, true)]) {
+      const t = JSON.stringify(painel(e))
+      expect(t).not.toMatch(/tentamos de novo/i)
+      expect(t).toContain('Tentamos até 16/10; esta idade ficou sem retrato.')
+    }
+    expect(JSON.stringify(painel(vazia(57, false)))).toMatch(/Tentamos de novo até 16\/10/)
+  })
+  it('retrato ok sem nenhum cartão no marco: "não carregou" com "tentar de novo", não acusa o YouTube', () => {
+    const s = secaoDeComentarios({ nivel: 'identidade', comentarios: [], marcos: { 1: { estado: 'fecha_em', fechaEmMs: T0 }, 7: { estado: 'ok', resumo: resumo() }, 30: { estado: 'fecha_em', fechaEmMs: T0 } } }, OPCOES)
+    const p = s.paineis[7]
+    expect(p).toMatchObject({ kind: 'estado', tentar: true })
+    expect(JSON.stringify(p)).not.toMatch(/devolveu a lista vazia/)
+    expect(s.abas[1]!.estado).toBe('não carregou')
+  })
+  it('escolhidos nulo: a aba diz "guardados", sem número (nulo não é 0)', () => {
+    const s = secaoDeComentarios(so7({ estado: 'ok', resumo: resumo({ escolhidos: null }) }), OPCOES)
+    expect(s.abas[1]!.estado).not.toMatch(/\d/)
+  })
+  it('um comentário, lote completo, 1 curtida: singular na frase e no rótulo da casa', () => {
+    const c = { ...cartao(1, 'curtidos', { curtidas: { 1: 1, 7: 'ainda_nao', 30: 'ainda_nao' }, nosMarcos: [1] as Marco[], entrouNoMarco: 1 as Marco }) }
+    const s = secaoDeComentarios(dados({
+      comentarios: [c],
+      marcos: { 1: { estado: 'ok', resumo: resumo({ idadeHoras: 24, amostraCompleta: true, totalDoDia: 1, amostra: 1, escolhidos: 1 }) }, 7: { estado: 'fecha_em', fechaEmMs: T0 }, 30: { estado: 'fecha_em', fechaEmMs: T0 } },
+    }), { ...OPCOES, marcoAberto: 1 })
+    const p = s.paineis[1]
+    if (p.kind !== 'lista') throw new Error('lista')
+    expect(p.frase).toBe('Com 1 dia, guardamos o único comentário do vídeo: 1 mais curtido.')
+    expect(p.casas[0]!.rotulo).toBe('Comentário 1 de 1, mais curtido, 1 curtida com 1 dia')
+  })
+  it('a posição do YouTube desempata empate de curtidas e de respostas', () => {
+    const a = cartao(1, 'curtidos', { curtidas: { 1: 'ainda_nao', 7: 10, 30: 'ainda_nao' }, posicao: { 1: null, 7: 9, 30: null } })
+    const b = cartao(2, 'curtidos', { curtidas: { 1: 'ainda_nao', 7: 10, 30: 'ainda_nao' }, posicao: { 1: null, 7: 3, 30: null } })
+    const s = secaoDeComentarios(dados({ comentarios: [a, b] }), OPCOES)
+    const p = s.paineis[7]
+    if (p.kind !== 'lista') throw new Error('lista')
+    expect(p.cartoes.map((x) => x.id)).toEqual(['cd-7-2', 'cd-7-1'])
+  })
 })
