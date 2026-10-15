@@ -29,9 +29,21 @@ export function naCelula(texto: string | null | undefined): string {
   return uma === '' ? '(sem texto)' : uma
 }
 
-/** JSON legível (dois espaços) em que nenhuma crase nem separador de linha aparece cru: cadeia de terceiros não fecha a cerca da IA. */
+/**
+ * O JSON sem a troca de crase e separador: objeto de topo com uma chave por linha; lista de topo não vazia com UMA ENTRADA POR LINHA
+ * (cada entrada em JSON compacto). Os recuos das linhas aninhadas só somavam caracteres ao pacote (portão do N3, Y1); `JSON.parse` devolve o mesmo valor.
+ */
+export function formatarJson(valor: unknown): string {
+  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return JSON.stringify(valor, null, 2) ?? 'null'
+  const linhas = Object.entries(valor as Record<string, unknown>).flatMap(([k, v]) => {
+    if (v === undefined) return []
+    const chave = `  ${JSON.stringify(k)}: `
+    return [Array.isArray(v) && v.length ? `${chave}[\n${v.map((x) => `    ${JSON.stringify(x) ?? 'null'}`).join(',\n')}\n  ]` : `${chave}${JSON.stringify(v)}`]
+  })
+  return linhas.length ? `{\n${linhas.join(',\n')}\n}` : '{}'
+}
+
+/** JSON legível em que nenhuma crase nem separador de linha aparece cru: cadeia de terceiros não fecha a cerca da IA. */
 export function noJson(valor: unknown): string {
-  const json = JSON.stringify(valor, null, 2)
-  if (json === undefined) return 'null'
-  return json.replace(/`/g, '\\u0060').replace(/\u0085/g, '\\u0085').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+  return formatarJson(valor).replace(/`/g, '\\u0060').replace(/\u0085/g, '\\u0085').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
 }

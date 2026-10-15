@@ -9,7 +9,7 @@
 import { CONTEXTO_IA_RULES } from './regras'
 import * as F from './frases'
 import type { PacoteSerializado, Segmento } from './segmentar'
-import { naCelula, noJson } from './terceiros'
+import { formatarJson, naCelula, noJson } from './terceiros'
 
 export interface TextoMontado {
   texto: string
@@ -72,8 +72,7 @@ export function medir(p: PacoteSerializado): Medido {
   const itens: Item[] = p.segmentos.map((seg) => {
     let json = 0
     if (seg.linhaDoJson) {
-      const s = JSON.stringify(seg.linhaDoJson, null, 2)
-      json = tamanhoNoJson(s) + 4 * s.split('\n').length + 2 // recuo de quatro espaços, mais a vírgula e a quebra que separam as entradas
+      json = tamanhoNoJson(JSON.stringify(seg.linhaDoJson) ?? 'null') + 4 + 2 // uma linha: recuo de quatro espaços, mais a vírgula e a quebra que separam as entradas
     }
     return { seg, texto: seg.texto.length, json }
   })
@@ -83,7 +82,7 @@ export function medir(p: PacoteSerializado): Medido {
     if (seg.corte?.classe === 'dia_a_dia' && !diaTabelas.includes(seg.corte.tabela)) diaTabelas.push(seg.corte.tabela)
     if (seg.corte?.classe === 'bloco_sem_linha') totalBlocos += 1
   }
-  const medido: Medido = { itens, diaTabelas, totalBlocos, jsonVazio: tamanhoNoJson(JSON.stringify(cabecalhoDoJson(p, []), null, 2)) }
+  const medido: Medido = { itens, diaTabelas, totalBlocos, jsonVazio: tamanhoNoJson(formatarJson(cabecalhoDoJson(p, []))) }
   medidosDoPacote.set(p, medido)
   return medido
 }

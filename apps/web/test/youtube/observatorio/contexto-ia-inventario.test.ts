@@ -229,7 +229,7 @@ describe('provarParidade', () => {
 
   it('falha quando o JSON diverge da tabela', () => {
     const e = entrada()
-    const ruim = e.textoDoPacote.replace('"texto": "41,2 mil"', '"texto": "41,3 mil"')
+    const ruim = e.textoDoPacote.replace('"texto":"41,2 mil"', '"texto":"41,3 mil"')
     expect(ruim).not.toBe(e.textoDoPacote)
     expect(() => provarParidade({ ...e, textoDoPacote: ruim })).toThrow(/\(e\) canais, linha 1, coluna "Mediana": o JSON diverge/)
   })

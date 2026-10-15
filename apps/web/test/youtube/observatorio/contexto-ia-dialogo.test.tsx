@@ -76,7 +76,7 @@ describe('os estados do mockup', () => {
     expect(soma).toBe(r.copia.totalSemCorte - r.copia.caracteres)
   })
   it('passa do completo: o botão diz o número real, nunca o literal 200.000, e "n não saem"', async () => {
-    const m = modeloEstresse(20, 90)
+    const m = modeloEstresse(30, 90)
     const r = resumir(pacoteDe(m), '')
     expect(r.naoSaem).toBeGreaterThan(0)
     expect(r.completo.caracteres).toBeLessThanOrEqual(200_000)

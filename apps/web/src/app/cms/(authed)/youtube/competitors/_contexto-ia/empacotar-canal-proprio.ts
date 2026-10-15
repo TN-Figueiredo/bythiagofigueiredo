@@ -731,7 +731,7 @@ function tabelasDaOrigem(m: ModeloCanalProprio): Tabela[] {
   if (numeros.length) saida.push({ id: 'privado-origem-numeros', titulo: `Views e dias medidos${t}${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'números da origem das views', privada: true, colunas: ['Período', 'Medida', 'Valor'], linhas: numeros })
   if (linhas.length) saida.push({ id: 'privado-origem-linhas', titulo: `De onde vêm as views${t}${TITULO_PRIVADO}`, tipo: 'lista', nomeNoCorte: 'tabela da origem das views', privada: true, colunas: ['Período', 'Bloco', 'Item', 'Views', 'Participação'], linhas })
   if (listas.length) saida.push({ id: 'privado-origem-termos-e-sites', titulo: `O que pesquisaram e de que sites vieram${TITULO_PRIVADO}`, tipo: 'lista', nomeNoCorte: 'tabela de termos e sites', privada: true, colunas: ['Período', 'Lista', 'Item', 'Views', 'Participação'], linhas: listas })
-  if (frases.length) saida.push({ id: 'privado-origem-em-frases', titulo: `Origem das views, em frases${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'frases da origem das views', privada: true, colunas: ['Período', 'Parte', 'Texto'], linhas: frases })
+  if (frases.length) saida.push({ id: 'privado-origem-em-frases', titulo: `Origem das views, em frases${TITULO_PRIVADO}`, tipo: 'lista', nomeNoCorte: 'frases da origem das views', privada: true, colunas: ['Período', 'Parte', 'Texto'], linhas: frases })
   return [...saida, ...(naoVazio(v.dica) ? tabelaDeProsa('privado-origem-dica', 'Atraso dos dados da origem das views', [[v.dica, 'modelo.origem.dica']]) : [])]
 }
 

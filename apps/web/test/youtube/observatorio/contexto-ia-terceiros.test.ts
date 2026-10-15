@@ -112,8 +112,11 @@ describe('noJson', () => {
     expect(JSON.parse(saida)).toEqual(valor)
   })
 
-  it('usa dois espaços de recuo', () => {
+  it('usa dois espaços de recuo e uma entrada de lista por linha, cada entrada compacta', () => {
     expect(noJson({ a: [1] })).toBe('{\n  "a": [\n    1\n  ]\n}')
+    const saida = noJson({ tela: 'x', medidas: [{ a: 1, b: { c: 2 } }, { a: 3 }], vazia: [] })
+    expect(saida).toBe('{\n  "tela": "x",\n  "medidas": [\n    {"a":1,"b":{"c":2}},\n    {"a":3}\n  ],\n  "vazia": []\n}')
+    expect(JSON.parse(saida)).toEqual({ tela: 'x', medidas: [{ a: 1, b: { c: 2 } }, { a: 3 }], vazia: [] })
   })
 
   it('nenhuma linha do resultado começa por crase, "Minha pergunta" ou "#" (cadeia nunca começa linha)', () => {

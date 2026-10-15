@@ -46,6 +46,17 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () =>
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async (orig) => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: async () => ({ legacy: [], bookmarked: new Set<string>() }) }))
 const modo = vi.hoisted(() => ({ ligado: true }))
+// Portão do N3 (Yannis Y1): o oráculo tem a Origem e os cartões de período em erro, que são os dois blocos que CRESCEM. O caso "completo" liga os dois.
+const extras = vi.hoisted(() => ({ completos: false }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_canal/montar', async (orig) => {
+  const m = await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_canal/montar')>()
+  const { origemDe, periodosDe } = await import('./contexto-ia-periodos-origem-fixture')
+  return {
+    ...m,
+    assistidoDoCanal: async (...a: Parameters<typeof m.assistidoDoCanal>) => (extras.completos ? periodosDe('medido') : m.assistidoDoCanal(...a)),
+    origemDoCanal: async (...a: Parameters<typeof m.origemDoCanal>) => (extras.completos ? origemDe('completa') : m.origemDoCanal(...a)),
+  }
+})
 vi.mock('@/lib/youtube/observatorio/contexto-ia/regras', async (orig) => {
   const m = await orig<typeof import('@/lib/youtube/observatorio/contexto-ia/regras')>()
   return { ...m, CONTEXTO_IA_RULES: new Proxy(m.CONTEXTO_IA_RULES, { get: (t, k) => (k === 'ligado' ? modo.ligado : Reflect.get(t, k)) }) }
@@ -117,9 +128,9 @@ import { resumir } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { CONTEXTO, modeloEstresse, modeloEstresseMudancas, modeloEstresseVideo } from './contexto-ia-fixture'
 
 const TETO = 1_000_000
-const PISO_PASSA_NO_ORACULO: readonly TelaId[] = ['canal-proprio']
-const TETO_DO_PISO_QUE_PASSA = 36_000
-beforeEach(() => { modo.ligado = true; st.acesso = { leitura: EDICAO, edita: true, negativa: null } })
+const PISO_PASSA: readonly TelaId[] = ['canal-proprio']
+const TETO_DO_PISO_QUE_PASSA = 31_500
+beforeEach(() => { extras.completos = false; modo.ligado = true; st.acesso = { leitura: EDICAO, edita: true, negativa: null } })
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('tamanhos dos pacotes', () => {
@@ -137,19 +148,28 @@ describe('tamanhos dos pacotes', () => {
       if (!r.ok) return
       const t = resumir(r.pacote, 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax))
       console.info('tamanho', tela, 'oraculo', t.copia.totalSemCorte, t.copia.caracteres, t.completo.caracteres)
-      if (PISO_PASSA_NO_ORACULO.includes(tela)) {
-        // Achado declarado (relatório N3 parte 5): as partes que nunca saem (tabelas fixas + JSON, definições, avisos) já passam de 30.000 sozinhas.
-        // Vale a pergunta 3 do plano (a cópia sai acima do limite e a barra diz o número real). O teto abaixo impede que cresça sem ninguém ver.
-        expect(t.copia.pisoPassou, `${tela} saiu da lista: tire-a de PISO_PASSA_NO_ORACULO`).toBe(true)
-        expect(t.copia.caracteres).toBeLessThanOrEqual(TETO_DO_PISO_QUE_PASSA)
-      } else {
-        expect(t.copia.pisoPassou, 'piso').toBe(false)
-        expect(t.copia.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
-      }
+      expect(t.copia.pisoPassou, 'piso').toBe(false)
+      expect(t.copia.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
       expect(t.completo.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCompleto)
       expect(JSON.stringify(r.pacote).length).toBeLessThan(TETO)
     })
   }
+
+  it('canal-proprio com os cartões de período e a Origem COMPLETOS (o estado real do canal do dono): a cópia fica abaixo do teto declarado e a resposta abaixo de 1 MB', async () => {
+    extras.completos = true
+    const r = await gerarPacoteIa({ tela: 'canal-proprio', ...PEDIDOS['canal-proprio']! })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.pacote.tabelas.some((x) => x.id === 'privado-origem-linhas'), 'a Origem entrou no pacote (sem isso o caso provaria nada)').toBe(true)
+    expect(r.pacote.tabelas.some((x) => x.id === 'privado-assistido-por-periodo'), 'os cartões de período entraram no pacote').toBe(true)
+    const t = resumir(r.pacote, 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax))
+    console.info('tamanho', 'canal-proprio', 'completo', t.copia.totalSemCorte, t.copia.caracteres, t.completo.caracteres)
+    // Pergunta 3 do plano (seção 8): a cópia desta tela pode sair um pouco acima do limite; a barra e a linha "Por tamanho" dizem o número real.
+    expect(PISO_PASSA).toContain('canal-proprio')
+    expect(t.copia.caracteres).toBeLessThanOrEqual(TETO_DO_PISO_QUE_PASSA)
+    expect(t.completo.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCompleto)
+    expect(JSON.stringify(r.pacote).length).toBeLessThan(TETO)
+  })
 
   const ESTRESSES = {
     'estresse 60 canais x 90 dias': modeloEstresse(),

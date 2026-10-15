@@ -781,6 +781,8 @@ describe('conferências de E17 degrau 1 (Perguntar a uma IA, relativas ao dia do
     expect(por['e17d1-ci']).toMatch(/observatorio-a5-e17-d1-registro/)
     expect(por['e17d1-d1']).toMatch(/pergunta/)
     expect(por['e17d1-d7']).toMatch(/piso_passou/)
+    expect(por['e17d1-d7']).toMatch(/exceto `pacote:canal-proprio`.*31\.500/)
+    expect(por['e17d1-d0']).toMatch(/total em caracteres/)
     expect(por['e17d1-d365']).toMatch(/400/)
   })
   it('E17_D1_NUCLEO_DEPLOY nula = nenhuma entrada; preenchida = uma entrada em D+1 do envio do núcleo', () => {
