@@ -479,6 +479,117 @@ describe('passoVersoes', () => {
       await rodar(m)
       expect(gte).toEqual([['started_at', cap(dia(2))]])
     })
+
+    // ── Emenda 15/10 (trava do A/B Lab): ab_test_restores e restore_status, casos 45b a 50 ─────────────────────────────
+    const T20 = (n: number): string => `${dia(n)}T20:00:00.000Z`
+    const combo = (extra: Row = {}): Row => teste({ test_type: 'combo', restore_status: {}, ...extra })
+    const restauro = (extra: Row = {}): Row => ({ test_id: 't1', seq: 1, campo: 'thumbnail', destino: 'original', estado: 'ok', escreveu: true, em: T20(1), motivo: `${SEGREDO} motivo`, erro: `${SEGREDO} erro`, ...extra })
+    const NOTA_LAB = 'versões: A/B Lab não pôde ser lido; origem de 1 troca(s) ficou sem resposta'
+
+    it('46. histórico lido uma vez por canal, só com as 7 colunas, in(test_id) e janela alargada em 120 s; ab_tests ganha restore_status; sem teste ou sem troca, zero leitura; sem erro/motivo no resumo', async () => {
+      const c = cenario('thumb')
+      c.m.db.tables.ab_tests = [combo({ restore_status: { thumbnail: { estado: 'ok', destino: 'original', em: T20(1), erro: `${SEGREDO} erro`, motivo: `${SEGREDO} motivo` } }, paused_at: T20(1) })]
+      c.m.db.tables.ab_test_restores = [restauro()]
+      const leituras: Array<[string, string]> = []
+      c.m.db.erroNaLeitura = (t, _n, colunas) => { leituras.push([t, colunas]); return undefined }
+      const gte: Record<string, unknown> = {}
+      const from = c.m.db.client.from.bind(c.m.db.client)
+      c.m.db.client.from = ((t: string) => {
+        const q = from(t)
+        if (t === 'ab_test_cycles' || t === 'ab_test_restores') { const g = q.gte.bind(q); q.gte = ((col: string, v: unknown) => { gte[t] = v; return g(col, v) }) as typeof q.gte }
+        return q
+      }) as typeof c.m.db.client.from
+      const r = await rodar(c.m)
+      expect(atual(c.m, 'thumb')).toMatchObject({ origin: 'ab_lab', ab_event: 'restauro', ab_test_id: 't1' })
+      expect(c.m.db.leituras.ab_test_restores).toBe(1)
+      expect(leituras.filter(([t]) => t === 'ab_test_restores').map(([, col]) => col)).toEqual(['test_id, seq, campo, destino, estado, escreveu, em'])
+      expect(leituras.find(([t]) => t === 'ab_tests')![1]).toContain('restore_status')
+      expect(Date.parse(gte.ab_test_restores as string)).toBe(Date.parse(gte.ab_test_cycles as string) - 120_000)
+      expect(tudoTexto(c.m, r)).not.toContain(SEGREDO)
+      expect(JSON.stringify(r)).not.toMatch(/"(erro|motivo)"/)
+      // vídeo sem teste: zero leitura do histórico
+      const s = cenario('thumb')
+      s.m.db.tables.ab_tests = [combo({ youtube_video_id: 'u-outro' })]
+      await rodar(s.m)
+      expect(s.m.db.leituras.ab_test_restores).toBeUndefined()
+      // sem troca no dia: zero leitura
+      const n = mundo()
+      const [a] = videos(n.db, 'c1', 1) as [string]
+      estadoComCorrentes(n.db, 'c1', [a], dia(1)); linha(n.db, 'c1', a, dia(0))
+      n.db.tables.ab_tests = [combo()]
+      await rodar(n)
+      expect(n.db.leituras.ab_test_restores).toBeUndefined()
+    })
+
+    it('47. histórico com erro 42P01 e com exatamente 1.000 linhas: troca nao_se_sabe e a nota vermelha do caso 10', async () => {
+      for (const modo of ['erro', 'mil'] as const) {
+        const c = cenario('thumb')
+        c.m.db.tables.ab_tests = [combo({ paused_at: T20(1) })]
+        if (modo === 'erro') c.m.db.errors.ab_test_restores = { code: '42P01', message: 'relation does not exist' }
+        else c.m.db.tables.ab_test_restores = Array.from({ length: 1000 }, (_, i) => restauro({ seq: i + 1 }))
+        const r = await rodar(c.m)
+        expect(atual(c.m, 'thumb').origin, modo).toBe('nao_se_sabe')
+        expect(c.m.ctx.falhas, modo).toContain(NOTA_LAB)
+        expect(r.abertas.nao_se_sabe, modo).toBe(1)
+      }
+    })
+
+    it('48. histórico que não responde até o prazo: sem_tempo, como os ciclos, sem nota do Lab', async () => {
+      const c = cenario('thumb')
+      c.m.db.tables.ab_tests = [combo({ paused_at: T20(1) })]
+      c.m.ctx.deadline = Date.now() + 1_800
+      const from = c.m.db.client.from.bind(c.m.db.client)
+      let pediu = false
+      c.m.ctx.supabase = { from: (t: string) => (t === 'ab_test_restores' ? (pediu = true, { select: () => ({ in: () => ({ gte: () => ({ lte: () => ({ order: () => ({ limit: () => semMais() }) }) }) }) }) }) : from(t)), rpc: c.m.db.client.rpc } as unknown as SupabaseClient
+      const r = await rodar(c.m)
+      expect(pediu).toBe(true)
+      expect(r.sem_tempo).toBe(true)
+      expect(c.m.ctx.falhas).not.toContain(NOTA_LAB)
+    })
+
+    it('45b. restore_status ilegível (em "now" ou estado desconhecido): Lab do canal ilegível, nao_se_sabe e a nota vermelha do caso 10', async () => {
+      for (const rs of [{ thumbnail: { estado: 'em_andamento', em: 'now' } }, { thumbnail: { estado: 'em_andamento', em: '2026-10-12 08:02' } }, { thumbnail: { estado: 'xyz', em: T20(1) } }]) {
+        const c = cenario('thumb')
+        c.m.db.tables.ab_tests = [combo({ restore_status: rs })]
+        await rodar(c.m)
+        expect(atual(c.m, 'thumb').origin, JSON.stringify(rs)).toBe('nao_se_sabe')
+        expect(c.m.ctx.falhas, JSON.stringify(rs)).toContain(NOTA_LAB)
+      }
+    })
+
+    it('49. parada sem registro: uma nota por execução e origem_ab_sem_registro; escreveu nulo e em_andamento contam em origem_ab_incerta, sem nota', async () => {
+      const c = cenario('ambos')
+      c.m.db.tables.ab_tests = [combo({ paused_at: T20(1), original_title: `${SEGREDO} original` })]
+      const r = await rodar(c.m)
+      expect(r.origem_ab_sem_registro).toBe(2)
+      expect(r.origem_ab_incerta).toBe(0)
+      expect(c.m.ctx.falhas.filter(f => f.includes('sem registro de restauração'))).toEqual(['versões: 2 troca(s) com parada do A/B Lab sem registro de restauração'])
+      expect(atual(c.m, 'thumb').origin).toBe('nao_se_sabe')
+      expect(tudoTexto(c.m, r)).not.toContain(SEGREDO)
+      const i = cenario('thumb')
+      i.m.db.tables.ab_tests = [combo()]
+      i.m.db.tables.ab_test_restores = [restauro({ escreveu: null, estado: 'falhou' })]
+      const ri = await rodar(i.m)
+      expect(ri.origem_ab_incerta).toBe(1)
+      expect(ri.origem_ab_sem_registro).toBe(0)
+      expect(i.m.ctx.falhas).toEqual([])
+      const e = cenario('thumb')
+      e.m.db.tables.ab_tests = [combo({ restore_status: { thumbnail: { estado: 'em_andamento', em: T20(1) } } })]
+      const re = await rodar(e.m)
+      expect(re.origem_ab_incerta).toBe(1)
+      expect(e.m.ctx.falhas).toEqual([])
+    })
+
+    it('50. troca em dois dias da mesma execução: o Lab custa 3 idas no total (testes, ciclos, histórico), não por dia; caso 19 segue sem leitura do histórico', async () => {
+      const m = mundo()
+      const [a] = videos(m.db, 'c1', 1) as [string]
+      estadoComCorrentes(m.db, 'c1', [a], dia(2))
+      linha(m.db, 'c1', a, dia(1), { titulo: `${SEGREDO} titulo B` })
+      linha(m.db, 'c1', a, dia(0), { titulo: `${SEGREDO} titulo C` })
+      m.db.tables.ab_tests = [combo()]
+      await rodar(m)
+      expect([m.db.leituras.ab_tests, m.db.leituras.ab_test_cycles, m.db.leituras.ab_test_restores]).toEqual([1, 1, 1])
+    })
   })
 
   describe('atraso, recuperação e prova', () => {

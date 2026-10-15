@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { atribuirOrigem, type CicloAb, type LeituraAb, type TesteAb } from '@/lib/youtube/coleta/versoes-origem'
+import { atribuirOrigem, P3_PROMOVIDA_EM, type CicloAb, type LeituraAb, type RestauroAb, type TesteAb } from '@/lib/youtube/coleta/versoes-origem'
 import type { CompletedReason } from '@/lib/youtube/ab-types'
 import type { AberturaSemOrigem } from '@/lib/youtube/coleta/versoes-derivar'
 
@@ -191,5 +191,158 @@ describe('atribuirOrigem', () => {
 
   it('27. (portão 14/10, Yannis M8) espaços nas pontas do título não escondem o restauro', () => {
     expect(atribuirOrigem(abertura({ tituloOuNulo: 'Original ' }), ab([teste({ pausadoEm: T(5) })])).eventoAb).toBe('restauro')
+  })
+
+  // ── Emenda 15/10 (trava do A/B Lab): histórico ab_test_restores e restore_status (casos 33 a 45d) ──────────────────────
+  describe('mundo novo (ab_test_restores)', () => {
+    const novo = (extra: Partial<TesteAb> = {}): TesteAb => teste({ mundoNovo: true, tipo: 'combo', ...extra })
+    function rest(extra: Partial<RestauroAb> = {}): RestauroAb {
+      return { testId: 't-1', seq: 1, campo: 'thumb', destino: 'original', estado: 'ok', escreveu: true, em: T(1000), ...extra }
+    }
+    const abn = (testes: TesteAb[], restauros: RestauroAb[] = [], ciclos: CicloAb[] = []): LeituraAb => ({ ok: true, testes, ciclos, restauros })
+    const incerta = { origem: 'nao_se_sabe', eventoAb: null, abTestId: 't-1', abVariantId: null, instante: null, incerta: true }
+    const mais = (inst: string, ms: number): string => new Date(Date.parse(inst) + ms).toISOString()
+
+    it('33. mundo antigo intacto: restauros vazios e mundoNovo falso dão o mesmo resultado (inclusive o caso 14: parada e ciclo, restauro)', () => {
+      const t = teste({ tipo: 'thumbnail', pausadoEm: T(1000) })
+      const c = [ciclo({ thumbAplicada: true })]
+      expect(atribuirOrigem(thumb(), { ok: true, testes: [t], ciclos: c }).eventoAb).toBe('restauro')
+      expect(atribuirOrigem(thumb(), { ok: true, testes: [t], ciclos: c, restauros: [] }).eventoAb).toBe('restauro')
+      expect(atribuirOrigem(thumb(), { ok: true, testes: [{ ...t, mundoNovo: false }], ciclos: c, restauros: [] }).eventoAb).toBe('restauro')
+    })
+
+    it('34. thumb: linha ok/true/original na janela, paused_at uma hora antes: restauro com o instante da linha', () => {
+      const r = atribuirOrigem(thumb(), abn([novo({ pausadoEm: T(940) })], [rest()]))
+      expect(r).toEqual({ origem: 'ab_lab', eventoAb: 'restauro', abTestId: 't-1', abVariantId: null, instante: T(1000) })
+    })
+
+    it('35. título: linha ok/true/original e título novo igual a original_title: restauro; diferente: fora_do_sistema', () => {
+      const l = rest({ campo: 'title' })
+      expect(atribuirOrigem(abertura({ tituloOuNulo: 'Original ' }), abn([novo()], [l])).eventoAb).toBe('restauro')
+      expect(atribuirOrigem(abertura({ tituloOuNulo: 'Novo' }), abn([novo()], [l]))).toEqual(fora)
+    })
+
+    it('36. linha ok/true/uuid: vencedor com a variante do destino e o instante da linha', () => {
+      const r = atribuirOrigem(thumb(), abn([novo()], [rest({ destino: 'var-5' })]))
+      expect(r).toEqual({ origem: 'ab_lab', eventoAb: 'vencedor', abTestId: 't-1', abVariantId: 'var-5', instante: T(1000) })
+    })
+
+    it('37. escreveu = false (ok, pulado_*, desistiu, falhou) com paused_at na janela: sem ciclo fora_do_sistema; com ciclo de thumb na janela rotacao', () => {
+      for (const estado of ['ok', 'pulado_drift', 'pulado_sem_original', 'desistiu', 'falhou'] as const) {
+        const t = novo({ pausadoEm: T(1000) })
+        const l = rest({ estado, escreveu: false })
+        expect(atribuirOrigem(thumb(), abn([t], [l])), estado).toEqual(fora)
+        expect(atribuirOrigem(thumb(), abn([t], [l], [ciclo({ thumbAplicada: true })])).eventoAb, estado).toBe('rotacao')
+      }
+    })
+
+    it('38. escreveu nulo (falhou, interrompido e ok) dá nao_se_sabe incerta com o teste', () => {
+      for (const estado of ['falhou', 'ok'] as const) {
+        expect(atribuirOrigem(thumb(), abn([novo()], [rest({ estado, escreveu: null })])), estado).toEqual(incerta)
+      }
+      expect(atribuirOrigem(thumb(), abn([novo()], [rest({ estado: 'falhou', escreveu: null, destino: 'var-1' })]))).toEqual(incerta)
+    })
+
+    it('39. escreveu = true com estado falhou: nao_se_sabe incerta', () => {
+      expect(atribuirOrigem(thumb(), abn([novo()], [rest({ estado: 'falhou', escreveu: true })]))).toEqual(incerta)
+    })
+
+    it('40. em_andamento na janela: incerta com 4 min (relógio real, sem relógio falso) e com 3 h; depois de ate, ignorado; e vence ciclo mais antigo', () => {
+      const ate = new Date().toISOString()
+      const janela = { de: mais(ate, -86_400_000), ate }
+      const a = (em: string, ciclos: CicloAb[] = []) => atribuirOrigem(abertura({ campo: 'thumb', tituloOuNulo: null, thumb: { dhash: 'a', ancoraDhash: 'a', sha256: null, blobUrl: null, retoque: false }, janela, capturadoEm: ate }),
+        abn([novo({ emAndamento: { thumb: em } })], [], ciclos))
+      expect(a(mais(ate, -4 * 60_000))).toEqual(incerta)
+      expect(a(mais(ate, -3 * 3_600_000))).toEqual(incerta)
+      expect(a(mais(ate, 1))).toEqual(fora)
+      expect(a(mais(ate, -4 * 60_000), [ciclo({ thumbAplicada: true, iniciadoEm: mais(ate, -2 * 3_600_000) })])).toEqual(incerta)
+    })
+
+    it('41. mais recente vence; empates: seq maior, linha sobre em_andamento (formatos Z e +00:00), linha sobre ciclo, id lexicográfico em qualquer ordem', () => {
+      const ok = rest()
+      expect(atribuirOrigem(thumb(), abn([novo()], [ok, rest({ seq: 2, estado: 'desistiu', escreveu: false, em: T(1100) })])).eventoAb).toBe('restauro')
+      expect(atribuirOrigem(thumb(), abn([novo()], [ok], [ciclo({ thumbAplicada: true, iniciadoEm: T(1200) })])).eventoAb).toBe('rotacao')
+      const dois = [rest({ seq: 1, destino: 'var-a' }), rest({ seq: 2, destino: 'var-b' })]
+      expect(atribuirOrigem(thumb(), abn([novo()], dois))).toMatchObject({ eventoAb: 'vencedor', abVariantId: 'var-b' })
+      expect(atribuirOrigem(thumb(), abn([novo()], [...dois].reverse()))).toMatchObject({ abVariantId: 'var-b' })
+      // em_andamento (...Z) x linha (+00:00) no mesmo instante: vale a linha
+      const emZ = T(1000)
+      const emOffset = emZ.replace('Z', '+00:00')
+      expect(atribuirOrigem(thumb(), abn([novo({ emAndamento: { thumb: emZ } })], [rest({ em: emOffset })])).eventoAb).toBe('restauro')
+      // linha x ciclo no mesmo instante: a linha
+      expect(atribuirOrigem(thumb(), abn([novo()], [rest({ em: emOffset })], [ciclo({ thumbAplicada: true, iniciadoEm: emZ })])).eventoAb).toBe('restauro')
+      // linha de t-b x ciclo de t-a no mesmo instante: a linha vence (rank, não id)
+      const ta = novo({ id: 't-a' }), tb = novo({ id: 't-b' })
+      const lb = rest({ testId: 't-b', em: emOffset })
+      expect(atribuirOrigem(thumb(), abn([ta, tb], [lb], [ciclo({ testId: 't-a', thumbAplicada: true, iniciadoEm: emZ })]))).toMatchObject({ eventoAb: 'restauro', abTestId: 't-b' })
+      // linha de t-b x em_andamento de t-a no mesmo instante: a linha vence
+      expect(atribuirOrigem(thumb(), abn([novo({ id: 't-a', emAndamento: { thumb: emZ } }), tb], [lb])).eventoAb).toBe('restauro')
+      // dois testes, mesmo instante, leitura invertida
+      const t1 = novo({ id: 't-a' }), t2 = novo({ id: 't-b' })
+      const l1 = rest({ testId: 't-a' }), l2 = rest({ testId: 't-b' })
+      expect(atribuirOrigem(thumb(), abn([t1, t2], [l1, l2])).abTestId).toBe('t-a')
+      expect(atribuirOrigem(thumb(), abn([t2, t1], [l2, l1])).abTestId).toBe('t-a')
+    })
+
+    it('42. R6: combo do mundo novo, parada na janela sem linha: semRegistro (paused_at, completed_at, winner_applied_at); teste title com troca de thumb não é R6', () => {
+      for (const col of ['pausadoEm', 'concluidoEm', 'vencedorAplicadoEm'] as const) {
+        const r = atribuirOrigem(thumb(), abn([novo({ mundoNovo: true, [col]: T(1000) })]))
+        expect(r, col).toMatchObject({ origem: 'nao_se_sabe', abTestId: 't-1', semRegistro: true })
+      }
+      expect(atribuirOrigem(thumb(), abn([novo({ tipo: 'title', pausadoEm: T(1000) })]))).toEqual(fora)
+    })
+
+    it('42b. linha 15 s antes da janela e paused_at 10 s dentro: registro existe (janela alargada em 120 s), fora_do_sistema sem semRegistro', () => {
+      const de = Date.parse(JANELA.de)
+      const l = rest({ em: new Date(de - 15_000).toISOString() })
+      const r = atribuirOrigem(thumb(), abn([novo({ pausadoEm: new Date(de + 10_000).toISOString() })], [l]))
+      expect(r).toEqual(fora)
+      // 130 s antes: fora da alargada, é parada sem registro
+      const longe = rest({ em: new Date(de - 130_000).toISOString() })
+      expect(atribuirOrigem(thumb(), abn([novo({ pausadoEm: new Date(de + 10_000).toISOString() })], [longe])).semRegistro).toBe(true)
+    })
+
+    it('43. linha pulado_drift/false na janela conta como registro: sem R6', () => {
+      const r = atribuirOrigem(thumb(), abn([novo({ pausadoEm: T(1000) })], [rest({ estado: 'pulado_drift', escreveu: false })]))
+      expect(r).toEqual(fora)
+    })
+
+    it('44. descrição: linha e em_andamento não mudam nada; ordem 3 só antes de P3_PROMOVIDA_EM, nos dois mundos', () => {
+      const d = (de: number, ate: number) => abertura({ campo: 'desc', tituloOuNulo: null, janela: { de: new Date(de).toISOString(), ate: new Date(ate).toISOString() } })
+      const p3 = Date.parse(P3_PROMOVIDA_EM)
+      expect(Number.isNaN(p3)).toBe(false)
+      const dia1 = 86_400_000
+      const antes = new Date(p3 - 3_600_000).toISOString()
+      const depois = new Date(p3 + 3_600_000).toISOString()
+      const janela = d(p3 - 10 * dia1, p3 + 10 * dia1)
+      for (const [nome, extra] of [['antigo', {}], ['novo', { mundoNovo: true, tipo: 'combo' as const }]] as const) {
+        const w = (inst: string) => abn([teste({ tipo: 'combo', ...extra, vencedorAplicadoEm: inst })])
+        expect(atribuirOrigem(janela, w(antes)), nome).toMatchObject({ eventoAb: 'vencedor', abTestId: 't-1' })
+        expect(atribuirOrigem(janela, w(depois)), nome).toEqual(fora)
+      }
+      // linha e em_andamento não explicam descrição
+      const j = abertura({ campo: 'desc', tituloOuNulo: null })
+      expect(atribuirOrigem(j, abn([novo({ emAndamento: { thumb: T(1000) } })], [rest(), rest({ campo: 'title', seq: 2 })]))).toEqual(fora)
+    })
+
+    it('45. borda: em = de e em = ate entram; um milissegundo fora não', () => {
+      const r = (em: string) => atribuirOrigem(thumb(), abn([novo()], [rest({ em })])).eventoAb
+      expect(r(JANELA.de)).toBe('restauro')
+      expect(r(JANELA.ate)).toBe('restauro')
+      expect(r(mais(JANELA.ate, 1))).toBeNull() // fora; sem parada em colunas: fora_do_sistema
+    })
+
+    it('45c. teste parado pelo código velho e encerrado pelo novo na mesma janela: fora_do_sistema (risco aceito do deploy)', () => {
+      const t = teste({ tipo: 'thumbnail', pausadoEm: T(540), concluidoEm: T(960) })
+      expect(atribuirOrigem(thumb(), abn([t], [rest({ estado: 'ok', escreveu: false, em: T(960) })]))).toEqual(fora)
+    })
+
+    it('45d. R2 do título com reescolha: linha mais nova que não bate + ciclo mais antigo com title_set igual: rotacao; R3 não confere o título', () => {
+      const l = rest({ campo: 'title', em: T(1200) })
+      const c = ciclo({ iniciadoEm: T(600), tituloAplicado: 'Novo' })
+      expect(atribuirOrigem(abertura({ tituloOuNulo: 'Novo' }), abn([novo()], [l], [c]))).toMatchObject({ eventoAb: 'rotacao', instante: T(600) })
+      const v = rest({ campo: 'title', destino: 'var-5' })
+      expect(atribuirOrigem(abertura({ tituloOuNulo: 'Qualquer' }), abn([novo()], [v]))).toMatchObject({ eventoAb: 'vencedor', abVariantId: 'var-5' })
+    })
   })
 })
