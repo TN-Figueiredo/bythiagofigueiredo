@@ -80,17 +80,13 @@ describe('lote rápido: dicas nos cabeçalhos de medida', () => {
     expect(await dica(container.querySelector(`tr[data-id="${a!.id}"] td.dir .tip`)!)).toBe('Views dos últimos 28 dias: 70. Dos 28 anteriores: 100. Caiu 30%.')
     expect(await dica(container.querySelector(`tr[data-id="${b!.id}"] td.dir .tip`)!)).toBe('Views dos últimos 28 dias: 103. Dos 28 anteriores: 100. Quase igual.')
   })
-  it('o Crescimento não usa mais o title nativo: a conta da linha vem pela dica', async () => {
+  it('o Crescimento não usa o title nativo e não tem setas: sinal + ou −; a dica por célula chega na Tarefa 8 da 2ª leva', () => {
     const { container } = mount({ medidas: medidasDoMotor(obs) })
-    const celula = [...container.querySelectorAll('tbody td.grow')].find(td => td.querySelector('.big.up, .big.down'))
+    const celula = [...container.querySelectorAll('tbody td.grow')].find(td => td.querySelector('.gr-n'))
     expect(celula).toBeTruthy()
     expect(celula!.querySelector('[title]')).toBeNull()
-    const texto = await dica(celula!.querySelector('.tip')!)
-    const id = celula!.closest('tr')!.getAttribute('data-id')!
-    const g = obs.channelStats(id).growth30
-    const subs = (t: number | undefined) => obs.fmt.subs(obs.channels.find(c => c.id === id)!.snapshots.find(x => x.t === t)!.subs).replace(/ (mil|mi)$/, '\u00a0$1')
-    expect(texto).toBe(`De ${subs(g.from)} para ${subs(g.to)} em 30 dias. Calculado sobre inscritos arredondados a 3 algarismos.`)
-    expect(subs(g.from)).not.toBe(subs(g.to))
+    expect(celula!.querySelector('svg')).toBeNull()
+    expect(celula!.querySelector('.gr-n')!.textContent).toMatch(/^[+−]\d/)
   })
 })
 

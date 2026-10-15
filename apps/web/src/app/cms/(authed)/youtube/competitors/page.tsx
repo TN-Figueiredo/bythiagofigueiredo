@@ -72,7 +72,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
     medidas,
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
     channel: canalDoPainel(obs, one(sp.channel)), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), direcao: one(sp.direcao), scale: one(sp.scale), fmt: one(sp.fmt),
-    layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor),
+    layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor), retratosProprios,
   }, extras)
   // a coleta de retratos parou em todos os canais: um evento por abertura (o aviso da tela é a frase)
   if (view.resumo.semRetrato) {

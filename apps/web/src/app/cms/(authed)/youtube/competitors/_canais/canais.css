@@ -559,3 +559,5 @@
 [data-obs-screen="canais"] .obs-cn-casa.z .obs-cn-casa-b{border:1px solid var(--border-strong);background:var(--surface)}
 [data-obs-screen="canais"] :is(.obs-cn-res,.obs-cn-estado-filtro){scroll-margin-top:calc(var(--obs-top) + 8px)}
 [data-obs-screen="canais"] .obs-cn-estado-filtro{margin:0 0 8px;font-size:13px;line-height:18px;color:var(--text)}
+[data-obs-screen="canais"] .gr-n{color:var(--text);font-weight:600}
+[data-obs-screen="canais"] .gr-flat{color:var(--muted)}

@@ -107,7 +107,24 @@ describe('E5a T0b: o retrato antes dos números', () => {
     }
     const atual = JSON.parse(JSON.stringify(retrato).replace(/arredondamento do YouTube: o número real é este ou um pouco maior, em menos de [^"]*?(?=")/g, 'arredondamento do YouTube: <ARRED>')) as typeof retrato
     semTipDoCrescimento(atual)
-    expect(atual).toEqual(novo)
+    // A5 2ª leva T4 (mockup 17): forma e texto da célula de Crescimento mudaram (sem setas, "sem variação", + e −, campos novos para a dica); NÚMERO não.
+    // Compara-se o `kind` normalizado (flat/ok/na), o percentual escrito (`big`) e o texto das células sem medida. O canal PRÓPRIO passa a ser medido pelos
+    // retratos diários (MG20) que a página já lê: o oráculo não os tem, então a célula dele vira "sem registro"; ele sai da comparação do Crescimento (desvio declarado).
+    const donos = new Set(obs.channels.filter(c => c.own).map(c => c.id))
+    type Linha = { cells: { growth: { kind: string; big?: string; text?: string } }; growth?: string; growthTitle?: string }
+    const soNumeroDoCrescimento = (r: typeof retrato) => {
+      for (const c of r.canais) for (const l of Object.values(c.lista)) {
+        const linha = l as unknown as Linha | null
+        if (!linha) continue
+        if (donos.has(c.id)) { delete (linha.cells as Partial<Linha['cells']>).growth; delete linha.growth; delete linha.growthTitle; continue }
+        const g = linha.cells.growth
+        linha.cells.growth = g.kind === 'na' ? { kind: 'na', text: g.text } : g.kind === 'flat' ? { kind: 'flat' } : { kind: 'ok', big: g.big }
+        if (linha.growth && /^≈\s0$/u.test(linha.growth)) linha.growth = 'sem variação'
+        delete linha.growthTitle
+      }
+      return r
+    }
+    expect(soNumeroDoCrescimento(atual)).toEqual(soNumeroDoCrescimento(novo))
   })
 
   // A5 2ª leva D1, parte NÚMERO da exceção: quem muda de "dentro/fora" é calculado aqui pelas duas regras; um id que mude e não caia no predicado falha.

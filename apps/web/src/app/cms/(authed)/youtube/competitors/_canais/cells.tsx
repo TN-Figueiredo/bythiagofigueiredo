@@ -179,12 +179,12 @@ export function SwapView({ c }: { c: SwapCell }) {
 }
 
 export function GrowthView({ c }: { c: GrowthCell }) {
-  // a explicação vem pela dica (abre por toque e por teclado), nunca pelo title nativo
+  // A5 2ª leva: sem setas; o sinal (+ ou −) e a palavra dizem o sentido. A dica por célula chega na Tarefa 8.
   if (c.kind === 'na') return <><span className="na r">{c.text}</span><Tip label="Por que o crescimento não tem número">{c.title}</Tip></>
-  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><Tip label="Como o crescimento foi calculado" left>{c.title ? `${c.title}. ${c.tip}` : c.tip}</Tip><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></>
+  if (c.kind === 'flat') return <><span className="big num gr-flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></>
   return (
     <>
-      <span className={`big num ${c.up ? 'up' : 'down'}`}><Ic n={c.up ? 'up' : 'down'} /> {c.big}</span><Tip label="Como o crescimento foi calculado" left>{c.tip}</Tip>
+      <b className="big num gr-n">{c.big}</b>
       <span className="cap num capr" data-k="growth" style={{ whiteSpace: 'normal', maxWidth: 118 }}>{c.cap}</span>
     </>
   )

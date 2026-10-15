@@ -11,7 +11,9 @@ import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/
 import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
-import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
+import { crescimento30, humanizeSyncError, type ChannelStats, type Crescimento30 } from '@/lib/youtube/observatorio/channels'
+import { REGRAS_INSCRITOS } from '@/lib/youtube/observatorio/inscritos-28d'
+import type { RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 import { canalTemVideos, langChip, ownChannelHref, ownTexts, SEM_PAGINA_LINHA, type LangChip } from '../_chrome/own-channels'
 import { escolherPrincipal, linhasDoMotor, principalDoMotor } from '../_chrome/own-menu'
@@ -41,7 +43,7 @@ const nb = (s: string) => s.replace(/(\d) (h|d|dias?|min)\b/g, '$1' + NB + '$2')
 const NEQ = (n: number) => `n${NB}=${NB}${n}`
 
 type CStats = ChannelStats
-interface Growth { abs: number | null; pct: number | null; from?: number; to?: number; pending?: string; roundingText: string; withinRounding: boolean | null; text: string | null }
+type Growth = Crescimento30
 
 export type CanaisSort = 'active' | 'vpd' | 'outliers' | 'swaps' | 'growth' | 'subs' | 'direcao'
 /** The order the screen opens in: views/dia in the chosen scale (per thousand subscribers unless ?scale=abs). */
@@ -63,9 +65,9 @@ export type OutCell =
   | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
-  | { kind: 'na'; text: string; title: string }
-  | { kind: 'flat'; big: string; cap: string; title?: string; tip: string }
-  | { kind: 'ok'; up: boolean; big: string; cap: string; title: string; tip: string }
+  | { kind: 'na'; text: string; title: string; motivo: 'novo' | 'sem-registro' | 'oculto' | 'nao-carregou' | 'sem-percentual' | 'buraco'; fechaEm: number | null; dias: number | null }
+  | { kind: 'flat'; big: 'sem variação'; cap: string; limite: number; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; passo: number }
+  | { kind: 'ok'; big: string; cap: string; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; pct: number }
 export interface SyncCell {
   state: SyncState; label: string; labelTitle: string | null; cov: string | null; covTitle: string | null
   msg: string | null; progress: { done: number; total: number } | null; canRetry: boolean; canRemove: boolean
@@ -262,6 +264,8 @@ export interface CanaisParams {
   nicheExplicit?: boolean
   /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`, lido no servidor); `escolherPrincipal` decide com ela. Ausente = sem escolha. */
   lembrado?: string | null
+  /** Os retratos públicos diários do canal próprio (MG20), já lidos pela página: medem o Crescimento dele. 'erro' = a leitura falhou; ausente = sem registro. */
+  retratosProprios?: ReadonlyMap<string, RetratosProprios> | 'erro'
 }
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
@@ -425,20 +429,28 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     }
     return { ...base, label: s.last != null ? `Sincronizado ${agoN(s.last)}` : cap(s.label ?? ''), labelTitle: absN(s.last), cov: `${S.tracked} vídeos acompanhados`, covTitle }
   }
-  function growthCell(c: ObsChannel, g: Growth): GrowthCell {
-    if (g.pending) return { kind: 'na', text: g.pending.replace(/ \(.*\)/, ''), title: `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}` }
-    const until = c.sync.state !== 'ok' && !isBf(c) && g.to != null ? `, até ${D.dmhm(g.to)}` : ''
-    // TEXTO da Hanna (14/10): a conta da linha ("De {antes} para {depois}") vem dos dois retratos que o crescimento usa
-    const antes = c.snapshots.find(x => x.t === g.from)?.subs, depois = c.snapshots.find(x => x.t === g.to)?.subs
-    const tip = antes != null && depois != null
-      ? `De ${subsTxt(antes)} para ${subsTxt(depois)} em 30 dias. Calculado sobre inscritos arredondados a 3 algarismos.`
-      : 'Calculado sobre inscritos arredondados a 3 algarismos.'
-    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `(${(g.text ?? '').match(/±[^)]*/)?.[0] ?? ''}), 30${NB}d`, title: g.text ?? undefined, tip }
-    const capText = `${(g.text ?? '').replace(/ (mil|mi)/g, NB + '$1')} em 30${NB}d${until}`
-    // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent and no arrow, only the absolute
-    if (g.pct == null) return { kind: 'na', text: capText, title: 'Sem percentual: o canal não tinha inscritos na contagem anterior.' }
-    const up = g.pct > 0
-    return { kind: 'ok', up, big: `${up ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, cap: capText, title: 'Calculado sobre inscritos arredondados a 3 algarismos', tip }
+  function growthCell(c: ObsChannel, g: Growth | 'nao-carregou', oculto: boolean): GrowthCell {
+    const na = (text: string, title: string, motivo: Extract<GrowthCell, { kind: 'na' }>['motivo'], extra: { fechaEm?: number | null; dias?: number | null } = {}): GrowthCell =>
+      ({ kind: 'na', text, title, motivo, fechaEm: extra.fechaEm ?? null, dias: extra.dias ?? null })
+    const sinal = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') // três vias: zero não ganha sinal
+    if (g === 'nao-carregou') return na('não carregou', 'Não deu para carregar os registros de inscritos do seu canal. Recarregue a página.', 'nao-carregou')
+    if (oculto) return na('não medido: oculto', 'O canal esconde a contagem de inscritos no YouTube.', 'oculto')
+    if (g.pending) {
+      if (g.diasDeRegistro == null) return na('sem registro', 'Sem registro de inscritos ainda.', 'sem-registro')
+      if (g.fechaEm == null) return na('buraco na contagem', 'Faltam registros: não há duas contagens de inscritos com cerca de 30 dias de distância. A medida volta quando houver.', 'buraco')
+      return na(g.pending.replace(/ \(.*\)/, ''), `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}`, 'novo', { fechaEm: g.fechaEm, dias: g.diasDeRegistro })
+    }
+    // Retrato velho: concorrente parado pela `c.sync.state`; canal próprio pelo MESMO limite da seção Inscritos.
+    const velhoProprio = c.own && g.to != null && (obs.NOW - g.to) / obs.DAY > REGRAS_INSCRITOS.retratoVelhoDias
+    const velhoConc = !c.own && c.sync.state !== 'ok' && !isBf(c)
+    const atrasadoAte = (velhoProprio || velhoConc) && g.to != null ? g.to : null
+    const until = atrasadoAte != null ? `, até ${D.dmhm(atrasadoAte)}` : ''
+    const base = { antes: g.fromSubs ?? null, depois: g.toSubs ?? null, de: g.from ?? null, ate: g.to ?? null, atrasadoAte }
+    if (g.withinRounding) return { kind: 'flat', big: 'sem variação', cap: g.limiteArred > 0 ? `dentro do arredondamento (±${F.num(g.limiteArred).replace(/ (mil|mi)/g, NB + '$1')})` : 'mesmo número nas duas contagens', limite: g.limiteArred, ...base, abs: g.abs!, passo: g.roundingUnit }
+    const absTxt = `${sinal(g.abs!)}${F.num(Math.abs(g.abs!))}`.replace(/ (mil|mi)/g, NB + '$1')
+    // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent, only the absolute
+    if (g.pct == null) return na(`${absTxt} em 30${NB}d${until}`, 'Sem percentual: o canal não tinha inscritos na contagem anterior.', 'sem-percentual')
+    return { kind: 'ok', big: `${sinal(g.pct)}${F.dec1(Math.abs(g.pct * 100))}%`, cap: `${absTxt} em 30${NB}d${until}`, ...base, abs: g.abs!, pct: g.pct }
   }
   /** Nome do formato nas frases e a unidade do ritmo. */
   const wordOf = (f: Fmt) => (f === 'long' ? 'longos' : 'Shorts')
@@ -523,6 +535,17 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
    * O valor de cada coluna para ordenar. null = sem medida (nunca -1 nem -99): a linha vai para o fim em qualquer direção
    * e não recebe posição. O canal próprio não tem trocas aqui (ficam no A/B Lab): null, não 0.
    */
+  const rp = p.retratosProprios ?? new Map<string, RetratosProprios>()
+  // UM predicado de "oculto" para a célula, o `rowOf` e o `valoresOf`: próprio pelo que a seção Inscritos lê (MG20); concorrente pelo motor e pelos extras
+  const ocultoDe = (c: ObsChannel): boolean => c.own
+    ? (rp !== 'erro' && rp.get(c.id)?.oculto === true)
+    : (c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true)
+  const growthDe = (c: ObsChannel, S: CStats): Growth | 'nao-carregou' => {
+    if (!c.own) return S.growth30
+    if (rp === 'erro') return 'nao-carregou'
+    const meu = rp.get(c.id)
+    return crescimento30({ clock: D, fmt: F }, meu?.retratos ?? [], ocultoDe(c) ? null : (meu?.retratos.at(-1)?.subs ?? c.subs))
+  }
   const valCache = new Map<string, Record<CanaisSort, number | null>>()
   const semShortsDe = (c: ObsChannel) => fmt === 'short' && faltaShorts(c) != null
   function valoresOf(c: ObsChannel): Record<CanaisSort, number | null> {
@@ -532,7 +555,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const v: Record<CanaisSort, number | null> = {
       active: semShorts || bf ? null : obs.cadence(c.id, fmt).pw,
       outliers: semShorts || bf ? null : S.outliers90,
-      growth: S.growth30.pending || S.growth30.abs == null ? null : S.growth30.withinRounding ? 0 : S.growth30.pct,
+      growth: (() => { const g = growthDe(c, S); return ocultoDe(c) || g === 'nao-carregou' || g.pending || g.abs == null ? null : g.withinRounding ? 0 : g.pct })(),
       direcao: (() => { const d = direcaoDe(c); return d.tipo === 'medido' ? d.pct : null })(),
       vpd: semShorts || bf ? null : vpdOf(c, fmt, S).val,
       swaps: bf || c.own ? null : trocas30(obs, c.id), // a mesma conta do cabeçalho do canal e da comparação: título e thumbnail
@@ -583,9 +606,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const swap: SwapCell = c.own ? { kind: 'na', text: 'Suas trocas ficam no A/B Lab.' }
       : bf ? { kind: 'na', text: 'Trocas são detectadas a partir de agora.' }
         : { kind: 'ok', n: trocas.length, last: g ? groupText(g) : `nenhuma de título ou thumbnail em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
-    const oculto = c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true
     // inscritos ocultos: o crescimento não é zero, é "não medido: oculto" (nunca um 0)
-    const growth: GrowthCell = oculto ? { kind: 'na', text: 'não medido: oculto', title: 'O canal esconde a contagem de inscritos no YouTube.' } : growthCell(c, S.growth30)
+    const growth: GrowthCell = growthCell(c, growthDe(c, S), ocultoDe(c))
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     const valor = valoresOf(c), numero = numMap.get(c.id) ?? null, pos = temPosicao(sort) ? numero : null
@@ -596,7 +618,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
-      growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
+      growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'na' ? growth.title : growth.cap,
       sync: { label: sync.label, phrase: syncPhrase(c), state: c.sync.state },
       color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: paradoDe(c), direcao: direcaoDe(c), estado: estadoDe(c), direcaoNumeros: ((d) => (d.tipo === 'medido' ? { recente: num(d.ganhoRecente), anterior: num(d.ganhoAnterior) } : null))(direcaoDe(c)), subsOculto: c.subs == null || extrasDoCanal(c.id)?.subscribersHidden === true,
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'

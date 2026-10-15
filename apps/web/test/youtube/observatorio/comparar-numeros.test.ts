@@ -514,7 +514,9 @@ describe('o mesmo canal mostra o mesmo número na comparação, no cabeçalho do
     for (const r of rows) {
       const n = nums(BASE.obs, r.id)
       const g = r.cells.growth
-      if (g.kind === 'ok' || g.kind === 'flat') expect(n.inscritos30.texto?.replace(/\s/g, ''), r.id).toBe(g.big.replace(/\s/g, ''))
+      // A5 2ª leva T4: a lista escreve "sem variação" onde a comparação ainda escreve "≈ 0" (mesmo número, outra palavra; a Comparar não faz parte desta leva)
+      if (g.kind === 'ok') expect(n.inscritos30.texto?.replace(/\s/g, ''), r.id).toBe(g.big.replace(/\s/g, ''))
+      if (g.kind === 'flat') expect(n.inscritos30.texto?.replace(/\s/g, ''), r.id).toBe('≈0')
       if (r.cells.cadence.kind === 'ok') expect(n.ritmo.texto!.split(' + ')[0]!.replace(/^0$/, '0,0'), r.id).toBe(r.cells.cadence.pw)
     }
   })
