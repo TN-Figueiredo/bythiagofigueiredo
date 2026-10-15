@@ -734,6 +734,8 @@ export function traduzir(entrada: z.infer<typeof ENTRADA>): { ok: true; pedido: 
 
 ### Tarefa 10: responder, da ação ao texto
 
+> **Pré-condição (portão do N3 do degrau 1, Yannis Y6).** Com o degrau 1, `TELAS_IA` passa a ter `canal-proprio` e `video-proprio` em `existe`, e o tradutor de `pacote_da_tela` (`acesso-ia/acoes.ts`) as aceita. O `responder` tem de montar o pacote por `EMPACOTAR` (a mesma função da ação do botão) e provar o direito ao privado pela prova de direito do degrau 2, nunca por uma segunda guarda. Teste: `pacote_da_tela` com `canal-proprio` sem o direito devolve o pacote sem o privado (estado `excluido:sem_direito`).
+
 **Contrato** (`C/_acesso-ia/responder.ts`, `server-only`):
 ```ts
 export interface Resposta { texto: string; desfecho: 'ok' | 'nao_encontrado' | 'pedido_invalido' | 'falhou'; incluiuPrivado: boolean; params: Record<string, string | number | boolean | string[]> }
