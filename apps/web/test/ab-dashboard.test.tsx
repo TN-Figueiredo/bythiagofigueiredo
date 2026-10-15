@@ -204,6 +204,13 @@ describe('DraftsBlock', () => {
     expect(screen.getByText(/Parou no passo 3 de 5/)).toBeTruthy()
   })
 
+  it('rascunho antigo de descrição mostra "Tipo antigo", nunca "description" cru', () => {
+    const draft = makeDraft({ type: 'description' as never })
+    const { container } = render(<DraftsBlock drafts={[draft]} onContinue={vi.fn()} />)
+    expect(screen.getByText('Teste de descrição (tipo retirado)')).toBeTruthy()
+    expect(container.textContent).not.toContain('description')
+  })
+
   it('collapses and expands on trigger button click', () => {
     const draft = makeDraft()
     render(<DraftsBlock drafts={[draft]} onContinue={vi.fn()} />)
@@ -288,6 +295,12 @@ describe('SuggestedCard', () => {
     const video = makeSuggestion({ grade: 'F' })
     render(<SuggestedCard video={video} onCreate={vi.fn()} />)
     expect(screen.getByText('NOTA F')).toBeTruthy()
+  })
+
+  it('sugestão com tipo antigo (description por cast) usa o rótulo de reserva', () => {
+    const video = makeSuggestion({ suggest: 'description' as never })
+    render(<SuggestedCard video={video} onCreate={vi.fn()} />)
+    expect(screen.getByText(/Testar tipo antigo/)).toBeTruthy()
   })
 
   it('renders reason text', () => {
@@ -407,6 +420,15 @@ describe('AbLabDashboard', () => {
       />,
     )
     expect(screen.getByText('Nenhum teste ativo')).toBeTruthy()
+  })
+
+  it('menu de filtro usa o token --cms-surface (sem o inexistente surface-2)', () => {
+    render(<AbLabDashboard {...baseProps} cards={[makeCardView()]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Todos os tipos/ }))
+    const opcao = screen.getAllByRole('button', { name: 'Título + thumbnail' }).pop()!
+    const menu = opcao.parentElement as HTMLElement
+    expect(menu.getAttribute('style')).toContain('var(--cms-surface)')
+    expect(menu.getAttribute('style')).not.toContain('surface-2')
   })
 
   it('opens Settings drawer when Settings button is clicked', () => {

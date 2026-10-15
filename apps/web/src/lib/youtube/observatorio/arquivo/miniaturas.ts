@@ -22,6 +22,7 @@ export function criarBaixar(buscar: (url: string, init: { signal: AbortSignal })
   }
 }
 
+/** Sem espera entre as tentativas (revisão Yannis 14/10, M4: aceito e documentado). Um 429 é tentado de novo na hora e provavelmente repete; o dado é público (miniatura do YouTube), o custo é só uma recusa a mais, e o export tem a opção `--aceitar-miniaturas-ausentes`. */
 /** 200 e 404 são respostas finais; o resto pode ser passageiro e é tentado de novo, até `tentativas` vezes. O resultado vem na ordem de `urls`. */
 export async function baixarMiniaturas(urls: string[], o: { baixar: Baixar; paralelo: number; tentativas: number }): Promise<MiniaturaBaixada[]> {
   const out: MiniaturaBaixada[] = new Array(urls.length)

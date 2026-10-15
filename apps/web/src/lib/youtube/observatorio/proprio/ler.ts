@@ -9,7 +9,7 @@ import { readAll } from '../load'
 import { ObservatoryLoadError } from '../niches-db'
 import { materializarZeros, type IntervaloCoberto } from './cobertura-leitor'
 import { JANELA_LEITURA_ALCANCE_DIAS } from './dias'
-import { edicaoValida, type EdicaoDoSite } from './edicao'
+import { leituraValida, type LeituraPrivadaDoSite } from './leitura-privada'
 import { TETO_VIDEOS_DIARIO } from './tipos'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
@@ -18,16 +18,17 @@ export const JANELA_DIARIO_DIAS = 28
 export { TETO_VIDEOS_DIARIO }
 
 /**
- * O acesso ao dado privado é a PROVA de edição do site (`EdicaoDoSite`, de `./edicao`), não um booleano: ela só nasce depois
- * da guarda `can_edit_site` (o critério da RLS das tabelas) e leva o `siteId` dentro. Sem prova (null) ou com um objeto
- * que não veio da guarda, o leitor devolve 'negado' SEM consultar nada. `canalId` é o canal próprio do site já resolvido
+ * O acesso ao dado privado é a prova de leitura privada do site (`LeituraPrivadaDoSite`, de `./leitura-privada`), não um booleano:
+ * ela só nasce depois da guarda (quem edita o site, ou quem tem o direito de ver o desempenho privado: o critério da RLS das
+ * tabelas) e leva o `siteId` dentro. Sem prova (null) ou com um objeto que não veio da guarda (um `EdicaoDoSite`, por exemplo),
+ * o leitor devolve 'negado' SEM consultar nada. `canalId` é o canal próprio do site já resolvido
  * pela página (nunca o texto cru da URL); toda consulta filtra por site E por canal.
  */
-export interface Pedido { edicao: EdicaoDoSite | null; canalId: string; hoje: DiaYt }
+export interface Pedido { leitura: LeituraPrivadaDoSite | null; canalId: string; hoje: DiaYt }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** O site da prova de edição, ou null: sem prova, ou id que não é uuid (o Postgres lançaria 22P02) = 'negado', sem consulta e sem número. A página resolve o canal ANTES e dá "não encontrado" ao id malformado. */
-const siteAutorizado = (p: Pedido): string | null => (edicaoValida(p.edicao) && UUID.test(p.canalId) ? p.edicao.siteId : null)
+/** O site da prova de leitura, ou null: sem prova, ou id que não é uuid (o Postgres lançaria 22P02) = 'negado', sem consulta e sem número. A página resolve o canal ANTES e dá "não encontrado" ao id malformado. */
+const siteAutorizado = (p: Pedido): string | null => (leituraValida(p.leitura) && UUID.test(p.canalId) ? p.leitura.siteId : null)
 
 const STATUS = new Set<string>(['listado', 'baixado', 'vazio', 'erro', 'expirado_sem_baixar'])
 const statusDe = (s: unknown): StatusRelatorio => (typeof s === 'string' && STATUS.has(s) ? (s as StatusRelatorio) : 'desconhecido')
@@ -204,4 +205,71 @@ export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonl
   })
   const linhas = desde == null || ultimoDia == null ? lidas : materializarZeros(lidas, intervalos, { desde, ate: ultimoDia })
   return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia, linhas, foraDoTeto, descartados } }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// E5b Tarefa 20a: o alcance de UM vídeo, até 400 dias para trás (a tela das trocas compara "antes" e "depois" de uma versão).
+// Só acréscimo: `lerAlcance` não muda e nenhuma função interna é exportada.
+
+/** Até quantos dias para trás a leitura do alcance de um vídeo aceita (`desde` anterior a `hoje - 400` lança). */
+export const TETO_DIAS_ALCANCE_DO_VIDEO = 400
+/** O resultado tem a forma de `AlcanceCanal`; `desde` é o pedido; `primeiroRelatorio` é o relatório MEDIDO mais antigo do canal (baixado ou vazio, e normalizado), nulo sem nenhum. */
+export interface AlcanceDoVideo { alcance: AlcanceCanal; desde: DiaYt; primeiroRelatorio: DiaYt | null }
+
+const YT_ID = /^[A-Za-z0-9_-]{11}$/
+/**
+ * O relatório medido mais antigo do canal, sem janela: UMA consulta (baixado ou vazio, e normalizado). `normalized_at` não nulo é filtrado no
+ * banco com `gte` numa data anterior a qualquer relatório (o PostgREST não devolve linha com a coluna nula; o banco falso dos testes também não).
+ */
+async function primeiroRelatorioMedido(sb: SupabaseClient, siteId: string, canalId: string): Promise<DiaYt | null> {
+  const { data, error } = await sb.from('yt_reporting_reports').select('start_time, normalized_at')
+    .eq('site_id', siteId).eq('channel_id', canalId).eq('report_type_id', TIPO_ALCANCE).in('status', ['baixado', 'vazio'])
+    .gte('normalized_at', '1970-01-01T00:00:00Z')
+    .order('start_time').order('report_id').range(0, 0)
+  if (error) throw new ObservatoryLoadError('yt_reporting_reports', error.code, error.message)
+  const linha = (Array.isArray(data) ? data : [])[0] as { start_time: string } | undefined
+  return linha == null ? null : diaUtc(linha.start_time)
+}
+
+/**
+ * Relatórios do tipo de alcance e linhas de UM vídeo a partir de `desde` (até 400 dias), mais o relatório medido mais antigo e o mais novo do canal
+ * (sem janela). Quatro consultas, as duas primeiras paginadas. Sem prova, canal ou `ytId` malformado: `negado`, sem consultar. `desde` fora de
+ * [hoje - 400, hoje] lança RangeError ANTES de consultar (quem chama é que limita). Erro de banco é LANÇADO.
+ */
+export async function lerAlcanceDoVideo(sb: SupabaseClient, p: Pedido & { ytId: string; desde: DiaYt }): Promise<Privado<AlcanceDoVideo>> {
+  const siteId = siteAutorizado(p)
+  if (siteId == null || !YT_ID.test(p.ytId)) return { acesso: 'negado' }
+  if (p.desde < addDays(p.hoje, -TETO_DIAS_ALCANCE_DO_VIDEO) || p.desde > p.hoje) {
+    throw new RangeError(`lerAlcanceDoVideo: desde ${p.desde} fora de [hoje - ${TETO_DIAS_ALCANCE_DO_VIDEO}, hoje]`)
+  }
+  const filtroRel = () => sb.from('yt_reporting_reports').select('report_id, status, start_time, normalized_at')
+    .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
+  const [rels, linhas, primeiro, recente] = await Promise.all([
+    readAll<RelatorioRow>('yt_reporting_reports', () => filtroRel().gte('start_time', p.desde + 'T00:00:00Z').order('report_id')),
+    readAll<AlcanceRow>('yt_own_video_reach_daily', () => sb.from('yt_own_video_reach_daily')
+      .select('youtube_video_id, day_pt, thumbnail_impressions, thumbnail_ctr, collected_at')
+      .eq('site_id', siteId).eq('channel_id', p.canalId).eq('youtube_video_id', p.ytId)
+      .gte('day_pt', p.desde).order('day_pt').order('youtube_video_id')),
+    primeiroRelatorioMedido(sb, siteId, p.canalId),
+    // SEM janela: o canal parado antes de `desde` ainda diz quando foi o último relatório
+    primeiraLinha<{ start_time: string }>('yt_reporting_reports', sb.from('yt_reporting_reports').select('start_time')
+      .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
+      .order('start_time', { ascending: false }).range(0, 0)),
+  ])
+  let descartados = 0
+  const relatorios: RelatorioDia[] = []
+  for (const r of rels) {
+    const dia = diaUtc(r.start_time)
+    if (dia == null) { descartados++; continue }
+    relatorios.push({ dia, status: statusDe(r.status), normalizado: r.normalized_at != null })
+  }
+  const out: AlcanceLinha[] = umaPorVideoDia(linhas).map(r => {
+    const imp = medida(r.thumbnail_impressions), ctr = ctrDe(r.thumbnail_ctr)
+    if (imp.ruim || ctr.ruim) descartados++
+    return { ytId: r.youtube_video_id, dia: r.day_pt, imp: imp.v, ctr: ctr.v }
+  })
+  return {
+    acesso: 'ok',
+    dado: { alcance: { canalId: p.canalId, relatorios, linhas: out, ultimoRelatorio: diaUtc(recente?.start_time), descartados }, desde: p.desde, primeiroRelatorio: primeiro },
+  }
 }

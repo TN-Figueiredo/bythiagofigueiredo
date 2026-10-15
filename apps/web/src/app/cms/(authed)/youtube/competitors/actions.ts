@@ -162,9 +162,34 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   let userId: string
   try { ({ siteId, userId } = await requireEditUser()) } catch { return { ok: false } }
 
+  const supabase = getSupabaseServiceClient()
+
+  // (A5 E9 T9) o canal que saiu do YouTube, ou que tem vídeo/comentário esperando resposta, é respondido na aba "Saíram do YouTube": remover por
+  // aqui apagaria sem Blob, sem registro e sem auditoria. Leitura que falha: não apaga sem saber.
+  try {
+    const canal = await supabase.from('competitor_channels').select('id, missing_since').eq('id', id).eq('site_id', siteId).limit(1)
+    if (canal.error || !Array.isArray(canal.data)) return { ok: false }
+    const linha: unknown = canal.data[0]
+    if (typeof linha === 'object' && linha !== null && (linha as Record<string, unknown>).missing_since != null) {
+      return { ok: false, error: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.' }
+    }
+    const [videos, comentarios] = await Promise.all([
+      supabase.from('competitor_videos').select('id, competitor_channels!inner(site_id)', { count: 'exact', head: true })
+        .eq('competitor_channel_id', id).eq('competitor_channels.site_id', siteId).not('missing_since', 'is', null).is('removal_decision', null),
+      supabase.from('competitor_video_comments').select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId).eq('competitor_channel_id', id).not('missing_since', 'is', null).is('removal_decision', null),
+    ])
+    if (videos.error || comentarios.error || videos.count === null || comentarios.count === null) return { ok: false }
+    const esperando = videos.count + comentarios.count
+    if (esperando > 0) {
+      return { ok: false, error: `Este canal tem ${esperando} ${esperando === 1 ? 'item esperando' : 'itens esperando'} resposta na aba Saíram do YouTube: responda primeiro.` }
+    }
+  } catch {
+    return { ok: false }
+  }
+
   // (A5 E10) a remoção só passa pela função do banco: ela exige a exportação conferida e confirmada, grava o lote e só aceita quem
   // administra a organização (`sem_direito`); uma linha de outro site ou um id que não existe volta como falha com frase fixa
-  const supabase = getSupabaseServiceClient()
   const r = await removerCanalArquivado(supabase, { siteId, canalId: id, actorId: userId })
   if (!r.ok) return { ok: false, error: r.frase }
   // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it

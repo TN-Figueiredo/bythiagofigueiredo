@@ -5,11 +5,18 @@ const requireSiteScope = vi.fn()
 const captureException = vi.fn()
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (...a: unknown[]) => requireSiteScope(...a) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: (...a: unknown[]) => captureException(...a), captureMessage: vi.fn() }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 
 import { provarEdicao, edicaoValida, EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
+import { lerRetencao } from '@/lib/youtube/observatorio/proprio/ler-retencao'
+import { lerDimensoes } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
+import { LeituraPrivadaDoSite, leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { leituraDe } from './leitura-teste'
 import { fakeSupabase } from '../../helpers/fake-supabase'
 
+const SITE = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
+const CANAL = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a11'
 beforeEach(() => { requireSiteScope.mockReset(); captureException.mockReset() })
 
 describe('provarEdicao: o token de edição do site', () => {
@@ -63,16 +70,8 @@ describe('provarEdicao: o token de edição do site', () => {
         return new F()
       } },
     ]
-    const naoAbreODado = async (f: unknown) => {
-      expect(edicaoValida(f)).toBe(false)
-      const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [] })
-      const pedido = { canalId: '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', hoje: '2026-10-10' }
-      // o leitor só aceita o que `edicaoValida` aceita; o tipo é a barreira do descuido, a execução é a do forjado
-      const edicao = f as EdicaoDoSite
-      expect(await lerAlcance(db.client, { ...pedido, edicao })).toEqual({ acesso: 'negado' })
-      expect(await lerDiario(db.client, { ...pedido, edicao, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
-      expect(db.trips).toEqual([])
-    }
+    // o forjado de EdicaoDoSite só se prova contra `edicaoValida`; contra os leitores quem manda é o token de LEITURA (bloco abaixo)
+    const naoEhEdicao = (f: unknown) => expect(edicaoValida(f)).toBe(false)
     for (const { nome, lanca, fabrica } of forjados) {
       it(nome, async () => {
         if (lanca) {
@@ -81,13 +80,46 @@ describe('provarEdicao: o token de edição do site', () => {
           expect(fabrica).toThrow(/EdicaoDoSite só nasce em provarEdicao/)
           return
         }
-        await naoAbreODado(fabrica()) // a fabricação NÃO lança: quem recusa é o brand check
+        naoEhEdicao(fabrica()) // a fabricação NÃO lança: quem recusa é o brand check
       })
     }
-    it('os três que lançam têm o que provar também no leitor: o objeto que chegasse até ele seria negado (o brand check é a segunda barreira)', async () => {
-      // o mesmo caminho de execução dos que não lançam, com um objeto sem o campo privado
-      await naoAbreODado({ siteId: 'site-1' })
-      await naoAbreODado(Object.create(null))
+    it('o que não tem o campo privado também não é um token de edição', () => {
+      naoEhEdicao({ siteId: 'site-1' })
+      naoEhEdicao(Object.create(null))
+    })
+  })
+  describe('forjados de LeituraPrivadaDoSite entregues como `leitura:` aos quatro leitores: negado e nenhuma consulta (o brand check, não o instanceof)', () => {
+    const fabricasDeLeitura: Array<{ nome: string; fabrica: () => Promise<unknown> | unknown }> = [
+      { nome: 'literal com siteId', fabrica: () => ({ siteId: SITE }) },
+      { nome: 'Object.create(prototype) puro', fabrica: () => Object.create(LeituraPrivadaDoSite.prototype) },
+      { nome: 'Object.create(prototype) com o siteId como propriedade própria (esconde o getter)', fabrica: () => Object.create(LeituraPrivadaDoSite.prototype, { siteId: { value: SITE } }) },
+      { nome: 'Reflect.construct do construtor (fabricado com a chave inventada)', fabrica: () => { try { return Reflect.construct(LeituraPrivadaDoSite, [SITE, Symbol('chave')]) } catch { return Object.create(LeituraPrivadaDoSite.prototype, { siteId: { value: SITE } }) } } },
+      { nome: 'subclasse', fabrica: () => { class F extends (LeituraPrivadaDoSite as unknown as new () => object) {} ; try { return new F() } catch { return Object.create(F.prototype, { siteId: { value: SITE } }) } } },
+      { nome: 'structuredClone de um token de verdade', fabrica: async () => { try { return structuredClone(await leituraDe(SITE)) } catch { return Object.create(LeituraPrivadaDoSite.prototype, { siteId: { value: SITE } }) } } },
+      { nome: 'Object.create(null)', fabrica: () => Object.create(null) },
+    ]
+    const pedido = { canalId: CANAL, hoje: '2026-10-10' }
+    const leitores: Array<{ nome: string; chama: (db: ReturnType<typeof fakeSupabase>, leitura: LeituraPrivadaDoSite) => Promise<unknown> }> = [
+      { nome: 'lerAlcance', chama: (db, leitura) => lerAlcance(db.client, { ...pedido, leitura }) },
+      { nome: 'lerDiario', chama: (db, leitura) => lerDiario(db.client, { ...pedido, leitura, ytIds: ['v1'] }) },
+      { nome: 'lerRetencao', chama: (db, leitura) => lerRetencao(db.client, { ...pedido, leitura, ytId: 'v1' }) },
+      { nome: 'lerDimensoes', chama: (db, leitura) => lerDimensoes(db.client, { ...pedido, leitura, ytIds: ['v1'], de: '2026-09-01', ate: '2026-10-09' }) },
+    ]
+    beforeEach(() => requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } }))
+    for (const { nome: nf, fabrica } of fabricasDeLeitura) {
+      for (const { nome: nl, chama } of leitores) {
+        it(`${nf} -> ${nl}`, async () => {
+          const forjado = await fabrica()
+          expect(leituraValida(forjado)).toBe(false)
+          const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [], yt_own_video_retention: [] })
+          const r = await chama(db, forjado as LeituraPrivadaDoSite)
+          expect(r).toMatchObject({ acesso: 'negado' })
+          expect(db.trips).toEqual([])
+        })
+      }
+    }
+    it('controle: o token de verdade passa pelo brand check', async () => {
+      expect(leituraValida(await leituraDe(SITE))).toBe(true)
     })
   })
   it('a estática do brand check não se regrava: regravá-la ou trocar `provar` não muda o veredito, e a classe está congelada', async () => {

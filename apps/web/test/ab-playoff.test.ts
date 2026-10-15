@@ -13,7 +13,6 @@ function makeVariant(
     label: id,
     blob_url: null,
     title_text: null,
-    description_text: null,
     metadata: {},
     is_original: opts.is_original ?? false,
     total_impressions: impressions,

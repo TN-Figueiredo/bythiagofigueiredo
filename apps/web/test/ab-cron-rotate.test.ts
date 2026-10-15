@@ -16,7 +16,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({
   recordCronSuccess: vi.fn().mockResolvedValue(undefined),
@@ -34,7 +33,6 @@ import {
   fetchVariantImageBuffer,
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { recordCronSuccess } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
@@ -55,7 +53,6 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     test_type: 'thumbnail',
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
-    original_description: 'Original Description',
     variants: [
       { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg' },
       { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg' },
@@ -69,7 +66,6 @@ interface BuildMockOpts {
   queuedTests?: unknown[]
   video?: { youtube_video_id: string; channel_id?: string } | null
   cycleCount?: number
-  trackedLinks?: { template_name: string; short_code: string }[]
   alreadyRotatedToday?: boolean
   channel?: { channel_id: string } | null
   /** false = sem org_admin na organização raiz. */
@@ -82,7 +78,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     queuedTests = [],
     video = { youtube_video_id: 'YT_VIDEO_123', channel_id: 'ch-1' },
     cycleCount = 0,
-    trackedLinks = [],
     alreadyRotatedToday = false,
     channel = { channel_id: 'UCpt' },
     withOwner = true,
@@ -183,14 +178,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
-    if (table === 'ab_test_tracked_links') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: trackedLinks, error: null }),
-        }),
-      }
-    }
-
     if (table === 'ab_test_polls') {
       return {
         select: vi.fn().mockReturnValue({
@@ -236,9 +223,6 @@ beforeEach(() => {
     buffer: Buffer.from('img'),
     contentType: 'image/jpeg',
   })
-  ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation(
-    (text: string) => text
-  )
 })
 
 afterEach(() => {
@@ -312,41 +296,6 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      null,
-      'fresh-token-123'
-    )
-    expect(setThumbnail).not.toHaveBeenCalled()
-  })
-
-  it('rotates a description test with link templates', async () => {
-    const test = makeTest({
-      test_type: 'description',
-      variants: [
-        { id: 'v1', sort_order: 0, description_text: 'Desc A {{link:newsletter}}' },
-        { id: 'v2', sort_order: 1, description_text: 'Desc B {{link:curso}}' },
-      ],
-    })
-    const trackedLinks = [
-      { template_name: 'curso', short_code: 'AbC123' },
-    ]
-    buildSupabaseMock({ tests: [test], trackedLinks })
-    ;(resolveTemplates as ReturnType<typeof vi.fn>).mockReturnValue(
-      'Desc B https://go.test.com/AbC123'
-    )
-
-    const req = createCronRequest('test-secret')
-    const res = await GET(req)
-    const body = await res.json()
-
-    expect(body.processed).toBe(1)
-    expect(resolveTemplates).toHaveBeenCalledWith(
-      'Desc B {{link:curso}}',
-      { curso: 'https://go.test.com/AbC123' }
-    )
-    expect(updateVideoMetadata).toHaveBeenCalledWith(
-      'YT_VIDEO_123',
-      null,
-      'Desc B https://go.test.com/AbC123',
       'fresh-token-123'
     )
     expect(setThumbnail).not.toHaveBeenCalled()
@@ -361,14 +310,12 @@ describe('GET /api/cron/ab-rotate', () => {
           sort_order: 0,
           blob_url: 'https://blob.example/a.jpg',
           title_text: 'Title A',
-          description_text: 'Desc A',
         },
         {
           id: 'v2',
           sort_order: 1,
           blob_url: 'https://blob.example/b.jpg',
           title_text: 'Title B',
-          description_text: 'Desc B',
         },
       ],
     })
@@ -388,7 +335,6 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      'Desc B',
       'fresh-token-123'
     )
   })
@@ -615,6 +561,25 @@ describe('GET /api/cron/ab-rotate', () => {
     )
   })
 
+  it('teste antigo de tipo fora dos três: pausa uma vez com status_note, sem ciclo e sem escrever no YouTube', async () => {
+    const test = makeTest({ test_type: 'description' })
+    const { updateCalls, insertCalls } = buildSupabaseMock({ tests: [test] })
+
+    const res = await GET(createCronRequest('test-secret'))
+    const body = await res.json()
+
+    expect(body.processed).toBe(0)
+    expect(insertCalls.filter(c => c.table === 'ab_test_cycles')).toHaveLength(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    const pausas = updateCalls.filter(c => c.table === 'ab_tests'
+      && (c.data as { status?: string }).status === 'paused')
+    expect(pausas).toHaveLength(1)
+    expect((pausas[0].data as { status_note: string }).status_note).toContain('fora de uso')
+    // sem marcador de escrita antecipada
+    expect(updateCalls.some(c => 'last_applied_variant_id' in (c.data as object))).toBe(false)
+  })
+
   it('auto-pauses test after 3 consecutive failures', async () => {
     const test = makeTest({
       test_type: 'thumbnail',
@@ -701,14 +666,12 @@ describe('GET /api/cron/ab-rotate', () => {
           sort_order: 0,
           blob_url: 'https://blob.example/a.jpg',
           title_text: 'Title A',
-          description_text: 'Desc A',
         },
         {
           id: 'v2',
           sort_order: 1,
           blob_url: 'https://blob.example/b.jpg',
           title_text: 'Title B',
-          description_text: 'Desc B',
         },
       ],
     })

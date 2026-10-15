@@ -215,3 +215,10 @@ describe('M8: estado do canal', () => {
     expect(estadoDoCanal({ ...base, collectionPausedAt: null, ultimaPublicacaoMs: AGORA - 90 * DAY }).estado).toBe('parado')
   })
 })
+
+describe('A5 2ª leva D2: pouco registro diz quantos dias e quando fecha', () => {
+  it('20 dias de retrato: n = 20 e fecha no primeiro + 56', () => {
+    const m = direcaoDoCanalInteiro(retratos(HOJE, 21, i => 1000 + (20 - i) * 10), HOJE)
+    expect(m).toMatchObject({ estado: 'nao_medido', motivo: 'pouco_registro', n: 20, fechaEm: '2026-11-17' })
+  })
+})

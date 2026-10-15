@@ -6,10 +6,12 @@ import { serieSemanal } from './tarefas/serie-semanal'
 import { anularIdentidade } from './tarefas/anular-identidade'
 import { retratosComentarios } from './tarefas/retratos-comentarios'
 import { tamanhoDoBanco } from './tarefas/tamanho-do-banco'
+import { marcasDeIdade } from './tarefas/marcas-de-idade'
+import { podaAcessoIa } from './tarefas/poda-acesso-ia'
 
 // As definições, o interruptor e a lista única moram em `definicoes.ts` (módulo leve, que o vigia importa sem a coleta); daqui saem as mesmas.
 export {
-  DEFINICOES, DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES, DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO,
+  DEFINICOES, DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES, DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PODA_ACESSO_IA,
   agendaLigada, notaDoInterruptorDaAgenda, tarefasDesligadas,
 } from './definicoes'
 export type { Definicao } from './definicoes'
@@ -30,6 +32,8 @@ export const CATALOGO: readonly Tarefa[] = [
   { ...definicao('leitura_horaria'), ...leituraHoraria },
   anularIdentidade,
   tamanhoDoBanco,
+  podaAcessoIa,
+  marcasDeIdade,
   { ...definicao('sincronizar_canais'), ...sincronizarCanais },
   retratosComentarios,
   { ...definicao('serie_semanal'), ...serieSemanal },

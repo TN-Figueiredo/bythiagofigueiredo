@@ -103,14 +103,12 @@ describe('A3.3 a lista única na tabela', () => {
     expect(th.textContent).toBe('Posição')
     for (const r of v.list.ranked.filter(x => x.pos)) {
       const td = cel(container, r.id)
-      expect(td.textContent).toBe(`${r.pos!.pos}º${r.pos!.empate ? ' (empate)' : ''}`)
-      if (r.pos!.empate) expect(td.querySelector('.sr')!.textContent).toBe(' (empate)')
+      expect(td.textContent).toBe(`${r.pos!.pos}º${r.pos!.empate ? 'empate' : ''}`) // A5 2ª leva: "empate" visível embaixo do número
+      if (r.pos!.empate) expect(td.querySelector('.pemp')!.textContent).toBe('empate')
     }
-    // ordenação sem posição escrita: toda linha diz "sem posição" só para o leitor, e nada visível
+    // ordenação sem posição escrita (Ritmo): a coluna P agora numera; só a linha sem valor fica sem número
     const { container: c2 } = mount({ sort: 'active' }, w.obs)
-    const td = c2.querySelector<HTMLElement>('tr.row td.p')!
-    expect(td.querySelector('.sr')!.textContent).toBe('sem posição')
-    expect(td.querySelector('[aria-hidden]')).toBeNull()
+    expect(c2.querySelector<HTMLElement>('tr.row td.p')!.textContent).toMatch(/^\d+º/)
   })
   it('a linha do canal próprio fica na posição dela, com o selo "seu canal" e a classe do fio; não se repete no topo da tabela', () => {
     const v = view({ sort: 'subs' })
@@ -152,7 +150,8 @@ describe('A3.3 a lista única na tabela', () => {
     const { container } = mount({ niche: 'viagem', sort: 'subs' }, w.obs)
     const td = cel(container, 'mochila-leve')
     expect(td.querySelector('.sr')!.textContent).toBe('sem posição')
-    expect(td.querySelector('[aria-hidden="true"]')!.textContent).toBe('–')
+    expect(td.getAttribute('aria-label')).toBeNull() // Yannis M5: só o `.sr` diz (dito uma vez ao leitor de tela); célula vazia, sem traço (A5 2ª leva)
+    expect(td.querySelector('[aria-hidden="true"]')).toBeNull()
     expect(linhas(container).map(x => x.dataset.id)).toEqual(ordem(v))
   })
 })

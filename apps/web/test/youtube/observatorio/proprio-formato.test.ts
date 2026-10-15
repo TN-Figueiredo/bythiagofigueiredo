@@ -39,7 +39,9 @@ describe('formato.ts (H21)', () => {
     expect(imports).toContain('./formato')
   })
   it('formato.ts é folha: não importa nenhum modelo, nem o leitor privado', () => {
-    for (const i of importsDe('_proprio/formato.ts')) expect(i).not.toMatch(/model|proprio\/ler|edicao|dados/)
+    const PROIBIDO = /model|proprio\/ler|edicao|leitura-privada|dados/
+    for (const i of importsDe('_proprio/formato.ts')) expect(i).not.toMatch(PROIBIDO)
+    expect('@/lib/youtube/observatorio/proprio/leitura-privada').toMatch(PROIBIDO) // controle
   })
   it('M1: o espaço sem quebra tem uma definição só (_canal/formato); a lista de canais importa em vez de repetir', () => {
     expect(fonte('_canal/formato.ts')).toMatch(/export const NB\b/)

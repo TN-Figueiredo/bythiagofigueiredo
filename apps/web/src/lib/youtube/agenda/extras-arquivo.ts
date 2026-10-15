@@ -62,7 +62,10 @@ function doSinal(e: EntradaExtras, out: ExtrasDoDisparo): void {
     if (v.cor === 'amarelo' || v.cor === 'vermelho') out.acao.push(v.frase)
   } else if (v.estado === 'sem_leitura_hoje') {
     out.acao.push(v.frase)
-    if (v.horasSemMedida !== null && v.horasSemMedida > horasRed) out.problemas.push(v.frase)
+    // sem nenhuma leitura legível (horasSemMedida nulo): mesma regra de tempo de agenda do ramo nunca_medido, senão o alarme calaria (revisão N9, I-1)
+    const horasDeAgenda0 = e.agendaDesde === null ? null : (e.agoraMs - Date.parse(e.agendaDesde)) / HORA_MS
+    const semNenhumaLegivel = v.ultima === null && horasDeAgenda0 !== null && Number.isFinite(horasDeAgenda0) && horasDeAgenda0 >= horasRed
+    if (semNenhumaLegivel || (v.horasSemMedida !== null && v.horasSemMedida > horasRed)) out.problemas.push(v.frase)
   } else {
     // nunca medido: a data da primeira leitura só é prometida com a medida agendada
     const horasDeAgenda = e.agendaDesde === null ? null : (e.agoraMs - Date.parse(e.agendaDesde)) / HORA_MS
@@ -79,7 +82,8 @@ function doSinal(e: EntradaExtras, out: ExtrasDoDisparo): void {
     }
     out.acao.push(linha)
   }
-  if (v.ilegiveis > 0) {
+  // com nenhuma legível a frase do estado já diz isso; não há cor nem previsão para duvidar
+  if (v.ilegiveis > 0 && v.ultima !== null) {
     out.acao.push(`tamanho do banco: ${v.ilegiveis} medida(s) ilegível(is) ficaram fora da conta; a cor e a previsão podem estar erradas`)
   }
   // e-mail: amarelo uma vez por mês, vermelho uma vez por semana (por site)

@@ -23,7 +23,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({
   getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }),
@@ -57,7 +56,6 @@ import {
   fetchVariantImageBuffer,
 } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
@@ -70,10 +68,9 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     test_type: 'thumbnail',
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
-    original_description: 'Original Description',
     variants: [
-      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg', is_original: true, title_text: null, description_text: null },
-      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg', is_original: false, title_text: null, description_text: null },
+      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg', is_original: true, title_text: null },
+      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg', is_original: false, title_text: null },
     ],
     ...overrides,
   }
@@ -84,7 +81,6 @@ interface BuildMockOpts {
   video?: { youtube_video_id: string; channel_id: string } | null
   channel?: { channel_id: string } | null
   cycleCount?: number
-  trackedLinks?: { template_name: string; short_code: string }[]
 }
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
@@ -93,7 +89,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     video = { youtube_video_id: 'YT_VIDEO_123', channel_id: 'ch-1' },
     channel = { channel_id: 'UC_CHANNEL_123' },
     cycleCount = 0,
-    trackedLinks = [],
   } = opts
 
   const updateCalls: { table: string; data: unknown; filters: string[] }[] = []
@@ -159,14 +154,6 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
-    if (table === 'ab_test_tracked_links') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: trackedLinks, error: null }),
-        }),
-      }
-    }
-
     // Fallback
     return {
       select: vi.fn().mockReturnThis(),
@@ -194,9 +181,6 @@ beforeEach(() => {
     buffer: Buffer.from('img'),
     contentType: 'image/jpeg',
   })
-  ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation(
-    (text: string) => text,
-  )
 })
 
 afterEach(() => {
@@ -227,8 +211,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'title',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: null, is_original: true, title_text: 'Title A', description_text: null },
-        { id: 'v2', sort_order: 1, blob_url: null, is_original: false, title_text: 'Title B', description_text: null },
+        { id: 'v1', sort_order: 0, blob_url: null, is_original: true, title_text: 'Title A' },
+        { id: 'v2', sort_order: 1, blob_url: null, is_original: false, title_text: 'Title B' },
       ],
     })
     buildSupabaseMock({ test })
@@ -239,7 +223,6 @@ describe('forceRotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      null,
       'fresh-token-123',
     )
     expect(setThumbnail).not.toHaveBeenCalled()
@@ -249,8 +232,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'combo',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/a.jpg', is_original: true, title_text: 'Title A', description_text: 'Desc A' },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/b.jpg', is_original: false, title_text: 'Title B', description_text: 'Desc B' },
+        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/a.jpg', is_original: true, title_text: 'Title A' },
+        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/b.jpg', is_original: false, title_text: 'Title B' },
       ],
     })
     buildSupabaseMock({ test })
@@ -267,9 +250,21 @@ describe('forceRotate', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
-      'Desc B',
       'fresh-token-123',
     )
+  })
+
+  it('teste ativo de tipo antigo (descrição): recusa, sem marcador, sem ciclo e sem escrever no YouTube', async () => {
+    const { updateCalls, insertCalls } = buildSupabaseMock({ test: makeTest({ test_type: 'description' }) })
+
+    const result = await forceRotate('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('A descrição não participa mais do teste A/B')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
+    expect(insertCalls).toHaveLength(0)
   })
 
   it('returns error when preflight fails', async () => {
@@ -329,8 +324,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'thumbnail',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/original.jpg', is_original: true, title_text: null, description_text: null },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/variant.jpg', is_original: false, title_text: null, description_text: null },
+        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/original.jpg', is_original: true, title_text: null },
+        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/variant.jpg', is_original: false, title_text: null },
       ],
     })
     buildSupabaseMock({ test })

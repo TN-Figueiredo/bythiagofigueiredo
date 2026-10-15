@@ -45,9 +45,9 @@ describe('medidas: regras', () => {
     expect(MEASURE_RULES.lost.weeklyTier30Counts).toBe(true)
   })
 
-  it('a lista de motivos tem 35 códigos, sem repetição, e inclui coleta_pausada', () => {
-    expect(MOTIVOS_NAO_MEDIDO).toHaveLength(35)
-    expect(new Set(MOTIVOS_NAO_MEDIDO).size).toBe(35)
+  it('a lista de motivos tem 36 códigos, sem repetição, e inclui coleta_pausada', () => {
+    expect(MOTIVOS_NAO_MEDIDO).toHaveLength(36)
+    expect(new Set(MOTIVOS_NAO_MEDIDO).size).toBe(36)
     expect(MOTIVOS_NAO_MEDIDO).toContain('coleta_pausada')
     expect(MOTIVOS_NAO_MEDIDO).toContain('calculo_falhou')
   })

@@ -129,14 +129,13 @@ describe('wizardReducer — state machine', () => {
 
     it('uses videoTitle for the original variant titleText', () => {
       const state = baseState({ videoTitle: 'Custom Title' })
-      const next = wizardReducer(state, { type: 'SET_TYPE', testType: 'description' })
+      const next = wizardReducer(state, { type: 'SET_TYPE', testType: 'combo' })
       expect(next.variants[0]!.titleText).toBe('Custom Title')
     })
 
     it('new challenger B is always blank after SET_TYPE', () => {
       const next = wizardReducer(baseState(), { type: 'SET_TYPE', testType: 'title' })
       expect(next.variants[1]!.titleText).toBe('')
-      expect(next.variants[1]!.descriptionText).toBe('')
       expect(next.variants[1]!.thumbUrl).toBeNull()
     })
 
@@ -147,7 +146,7 @@ describe('wizardReducer — state machine', () => {
       expect(next.hypothesis).toBe('test hypo')
     })
 
-    it.each<TestType>(['thumbnail', 'title', 'description', 'combo'])(
+    it.each<TestType>(['thumbnail', 'title', 'combo'])(
       'works for all test types: %s',
       (testType) => {
         const next = wizardReducer(baseState(), { type: 'SET_TYPE', testType })
@@ -214,7 +213,6 @@ describe('wizardReducer — state machine', () => {
       const added = next.variants[1]!
       expect(added.isOriginal).toBe(false)
       expect(added.titleText).toBe('')
-      expect(added.descriptionText).toBe('')
       expect(added.thumbUrl).toBeNull()
     })
   })
@@ -483,10 +481,6 @@ describe('stepIsValid', () => {
       expect(stepIsValid(0, baseState({ type: 'title' }))).toBe(true)
     })
 
-    it('valid when type is "description"', () => {
-      expect(stepIsValid(0, baseState({ type: 'description' }))).toBe(true)
-    })
-
     it('valid when type is "combo"', () => {
       expect(stepIsValid(0, baseState({ type: 'combo' }))).toBe(true)
     })
@@ -524,16 +518,6 @@ describe('stepIsValid', () => {
       expect(stepIsValid(2, state)).toBe(true)
     })
 
-    it('valid when challenger has descriptionText', () => {
-      const state = baseState({
-        variants: [
-          makeOriginalVariant('V'),
-          { ...makeEmptyVariant('B'), descriptionText: 'Some desc' },
-        ],
-      })
-      expect(stepIsValid(2, state)).toBe(true)
-    })
-
     it('valid when challenger has thumbUrl', () => {
       const state = baseState({
         variants: [
@@ -557,16 +541,6 @@ describe('stepIsValid', () => {
         variants: [
           makeOriginalVariant('V'),
           { ...makeEmptyVariant('B'), titleText: '   \t  ' },
-        ],
-      })
-      expect(stepIsValid(2, state)).toBe(false)
-    })
-
-    it('treats whitespace-only descriptionText as empty', () => {
-      const state = baseState({
-        variants: [
-          makeOriginalVariant('V'),
-          { ...makeEmptyVariant('B'), descriptionText: '  \n  ' },
         ],
       })
       expect(stepIsValid(2, state)).toBe(false)
@@ -763,18 +737,17 @@ describe('StepTipo component', () => {
     expect(screen.getByRole('radiogroup', { name: 'Tipo de teste' })).toBeDefined()
   })
 
-  it('renders exactly 4 radio options', () => {
+  it('renders exactly 3 radio options', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getAllByRole('radio')).toHaveLength(4)
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
   })
 
-  it('displays all 4 type names: Combo, Thumbnail, Titulo, Descricao', () => {
+  it('displays the 3 type names: Título + thumbnail, Thumbnail, Título', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('Combo')).toBeDefined()
+    expect(screen.getByText('Título + thumbnail')).toBeDefined()
     expect(screen.getByText('Thumbnail')).toBeDefined()
-    // Use getAllByText for labels that appear in both card title and description
     expect(screen.getByText('Título')).toBeDefined()
-    expect(screen.getAllByText(/Descrição/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByText(/Descrição/)).toBeNull()
   })
 
   /* --- Selection state ------------------------------------------- */
@@ -785,17 +758,15 @@ describe('StepTipo component', () => {
     expect(radios[0]!.tabIndex).toBe(0)
     expect(radios[1]!.tabIndex).toBe(-1)
     expect(radios[2]!.tabIndex).toBe(-1)
-    expect(radios[3]!.tabIndex).toBe(-1)
   })
 
   it('selected card has aria-checked="true", others "false"', () => {
     render(<StepTipo selected="title" onSelect={vi.fn()} />)
     const radios = screen.getAllByRole('radio')
-    // Order: combo, thumbnail, title, description
+    // Order: combo, thumbnail, title
     expect(radios[0]!.getAttribute('aria-checked')).toBe('false')
     expect(radios[1]!.getAttribute('aria-checked')).toBe('false')
     expect(radios[2]!.getAttribute('aria-checked')).toBe('true')
-    expect(radios[3]!.getAttribute('aria-checked')).toBe('false')
   })
 
   it('selected card gets accent styling via inline style', () => {
@@ -833,14 +804,6 @@ describe('StepTipo component', () => {
     expect(onSelect).toHaveBeenCalledWith('title')
   })
 
-  it('clicking fourth card selects description', () => {
-    const onSelect = vi.fn()
-    render(<StepTipo selected={null} onSelect={onSelect} />)
-    const radios = screen.getAllByRole('radio')
-    fireEvent.click(radios[3]!)
-    expect(onSelect).toHaveBeenCalledWith('description')
-  })
-
   it('clicking first card selects combo', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected={null} onSelect={onSelect} />)
@@ -849,16 +812,12 @@ describe('StepTipo component', () => {
     expect(onSelect).toHaveBeenCalledWith('combo')
   })
 
-  /* --- Badges ---------------------------------------------------- */
+  /* --- Selos ----------------------------------------------------- */
 
-  it('"recomendado" badge appears on combo type', () => {
+  it('sem selo "recomendado" nem "pontual"', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('recomendado')).toBeDefined()
-  })
-
-  it('"pontual" badge appears on description type', () => {
-    render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('pontual')).toBeDefined()
+    expect(screen.queryByText('recomendado')).toBeNull()
+    expect(screen.queryByText('pontual')).toBeNull()
   })
 
   /* --- Keyboard navigation --------------------------------------- */
@@ -870,11 +829,11 @@ describe('StepTipo component', () => {
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 
-  it('ArrowLeft from combo wraps to description (backward wrap)', () => {
+  it('ArrowLeft from combo wraps to title (backward wrap)', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected="combo" onSelect={onSelect} />)
     fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowLeft' })
-    expect(onSelect).toHaveBeenCalledWith('description')
+    expect(onSelect).toHaveBeenCalledWith('title')
   })
 
   it('ArrowDown from thumbnail navigates to title', () => {
@@ -889,20 +848,6 @@ describe('StepTipo component', () => {
     render(<StepTipo selected="title" onSelect={onSelect} />)
     fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowUp' })
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
-  })
-
-  it('ArrowRight from description wraps to combo', () => {
-    const onSelect = vi.fn()
-    render(<StepTipo selected="description" onSelect={onSelect} />)
-    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' })
-    expect(onSelect).toHaveBeenCalledWith('combo')
-  })
-
-  it('ArrowDown from description wraps to combo', () => {
-    const onSelect = vi.fn()
-    render(<StepTipo selected="description" onSelect={onSelect} />)
-    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowDown' })
-    expect(onSelect).toHaveBeenCalledWith('combo')
   })
 
   it('unrelated keys do not trigger onSelect', () => {
@@ -1080,7 +1025,6 @@ describe('variant factory helpers', () => {
       expect(v.label).toBe('A')
       expect(v.isOriginal).toBe(true)
       expect(v.titleText).toBe('My Title')
-      expect(v.descriptionText).toBe('')
       expect(v.thumbUrl).toBeNull()
     })
   })
@@ -1091,7 +1035,6 @@ describe('variant factory helpers', () => {
       expect(v.label).toBe('C')
       expect(v.isOriginal).toBe(false)
       expect(v.titleText).toBe('')
-      expect(v.descriptionText).toBe('')
       expect(v.thumbUrl).toBeNull()
     })
 

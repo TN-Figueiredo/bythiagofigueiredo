@@ -45,7 +45,7 @@ export function ehSchemaAusente(err: unknown): boolean {
  * Uma ida ao banco: o sinal aborta aos `dbTimeoutMs` (AbortController + setTimeout, que obedece ao relógio falso dos testes) e a
  * espera também é cortada ali, para o caso de o cliente não reagir ao sinal. Nunca lança: exceção vira `error`.
  */
-async function comTempo(ida: (sinal: AbortSignal) => PromiseLike<RespostaBanco>): Promise<RespostaBanco> {
+export async function comTempo(ida: (sinal: AbortSignal) => PromiseLike<RespostaBanco>): Promise<RespostaBanco> {
   const ctl = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const corte = new Promise<RespostaBanco>((resolve) => {

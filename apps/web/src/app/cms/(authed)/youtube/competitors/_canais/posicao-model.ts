@@ -29,7 +29,7 @@ export function motivoTexto(m: MotivoSemMedida, textoVpd?: string): string {
     case 'buscando-videos': return 'A primeira sincronização ainda não terminou: a medida aparece quando ela terminar. Sem posição nesta ordenação.'
     case 'inscritos-ocultos': return 'Inscritos ocultos pelo canal: sem esta medida e sem posição nesta ordenação.'
     case 'sem-nicho': return 'Sem posição dentro de um nicho: escolha o nicho do canal para ver a posição.'
-    case 'ordenacao-sem-posicao': return 'Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a do seu canal.'
+    case 'ordenacao-sem-posicao': return FAIXA_SEM_POSICAO
     default: { const nunca: never = m; return nunca }
   }
 }
@@ -81,6 +81,7 @@ export function emTexto(sort: CanaisSort, fmt: Fmt, porMil: boolean): string {
     case 'outliers': return `outliers nos ${palavraDe(fmt)}`
     case 'swaps': return 'trocas'
     case 'growth': return 'crescimento em 30 dias'
+    case 'direcao': return 'direção das views'
     default: { const nunca: never = sort; return nunca }
   }
 }
@@ -97,8 +98,38 @@ export function fraseVizinhos(acima: { nome: string; valor: string } | null, aba
   return `${a} ${b}`
 }
 
-export function divisorDe(n: number, em: string): { titulo: string; nota: string } {
-  return { titulo: `Ainda sem medida para ordenar (${n})`, nota: `sem ${em}; ficam no fim em qualquer direção` }
+export function divisorDe(n: number, em: string, sort?: CanaisSort): { titulo: string; nota: string } {
+  return { titulo: `Ainda sem medida para ordenar (${n})`, nota: (sort ? notaDoDivisor(sort) : null) ?? `sem ${em}; ficam no fim em qualquer direção` }
+}
+
+export const ORDEM_POSICAO = 'Posição: 1º é o maior valor, em qualquer sentido.'
+export const ORDEM_EMPATE = 'Empate: mesmo valor na tela, mesma posição.'
+export const FAIXA_SEM_POSICAO = 'A posição do seu canal em relação aos outros só existe em Inscritos e Views/dia, os números de tamanho e de alcance. Aqui, a coluna P numera os canais da lista.'
+
+export function sentidoDaOrdem(sort: CanaisSort, dir: 'asc' | 'desc'): string | null {
+  const d = dir === 'desc'
+  switch (sort) {
+    case 'growth': return d ? 'de quem mais ganhou a quem mais perdeu inscritos em 30 dias' : 'de quem mais perdeu a quem mais ganhou inscritos em 30 dias'
+    case 'direcao': return d ? 'de quem mais sobe a quem mais cai em views' : 'de quem mais cai a quem mais sobe em views'
+    case 'subs': return d ? 'do maior ao menor número de inscritos' : 'do menor ao maior número de inscritos'
+    case 'vpd': return d ? 'do maior ao menor número de views por dia' : 'do menor ao maior número de views por dia'
+    default: return null
+  }
+}
+export function semValorDoProprio(sort: CanaisSort): string | null {
+  if (sort === 'growth') return 'Seu canal ainda não tem Crescimento medido.'
+  if (sort === 'direcao') return 'Seu canal ainda não tem Direção medida.'
+  return null
+}
+export function notaDoDivisor(sort: CanaisSort): string | null {
+  const semNumero = (c: string) => `Estes canais não têm ${c}; o motivo está em cada linha. Sem número, não entram na numeração e nunca valem zero.`
+  switch (sort) {
+    case 'growth': return semNumero('Crescimento medido')
+    case 'direcao': return semNumero('Direção medida')
+    case 'subs': return 'Estes canais escondem os inscritos.'
+    case 'vpd': return 'Estes canais ainda não têm views por dia medidas.'
+    default: return null
+  }
 }
 
 /** Emenda 45: o aviso que a tela dá com o nicho em "Todos". */

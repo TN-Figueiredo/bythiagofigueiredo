@@ -69,6 +69,17 @@ describe('inscritos em 30 dias', () => {
     expect(n.motivo).toBeNull()
     expect(n.texto).toBe(buildCanalHeader(BASE.obs, id)!.faixa.find(c => c.key === 'growth30')!.value)
   })
+  it('buraco na coleta (60 d entre as duas contagens): não medido, a pendência diz buraco', () => {
+    const w = world(ds => {
+      const c = ds.channels.find(x => x.id === 'nate-herk')!
+      const fim = c.snapshots[c.snapshots.length - 1]!
+      c.snapshots = [{ ...fim, t: fim.t - 60 * DAY, subs: fim.subs - 100_000 }, fim]
+    })
+    const n = nums(w.obs, 'nate-herk').inscritos30
+    expect(n.x).toBeNull()
+    expect(JSON.stringify(n)).toContain('buraco')
+    expect(JSON.stringify(n)).not.toMatch(/NaN|Infinity/)
+  })
   it('dentro do arredondamento: "≈ 0", com a nota', () => {
     const id = 'bald-and-bankrupt', g = growthOf(BASE.obs, id)
     expect(g.withinRounding).toBe(true) // precondição do fixture: 4,51 mi → 4,51 mi
@@ -76,8 +87,15 @@ describe('inscritos em 30 dias', () => {
     expect(n.texto).toBe('≈ 0'); expect(n.motivo).toBeNull(); expect(n.x).not.toBeNull()
     expect(n.nota).toMatch(/^de [\d.]+ para [\d.]+$/)
   })
-  it('canal próprio → não medido com o motivo do spec 16.1 (hoje o canal próprio não tem a contagem diária)', () => {
-    for (const id of [OWN, OWN2]) naoMedido(nums(BASE.obs, id).inscritos30, 'sem contagem de 30 dias atrás')
+  it('canal próprio: a mesma conta do motor, sobre os retratos MG20 que ele recebe (I-1); sem retrato, "sem contagem"', () => {
+    for (const id of [OWN, OWN2]) {
+      const g = growthOf(BASE.obs, id)
+      const n = nums(BASE.obs, id).inscritos30
+      if (g.pending) naoMedido(n, g.pending === 'sem contagem' ? 'sem contagem de 30 dias atrás' : `sem contagem de 30 dias atrás: ${g.pending}`)
+      else { expect(n.x).not.toBeNull(); expect(n.motivo).toBeNull() }
+    }
+    const w = world(ds => { ds.channels.find(c => c.id === OWN)!.snapshots = [] })
+    naoMedido(nums(w.obs, OWN).inscritos30, 'sem contagem de 30 dias atrás')
   })
   it('concorrente sem 30 dias de contagem → o motivo do motor ("faltam N d …")', () => {
     const w = world(ds => { const c = ds.channels.find(c => c.id === CH)!; c.snapshots = c.snapshots.slice(-5) })
@@ -503,7 +521,9 @@ describe('o mesmo canal mostra o mesmo número na comparação, no cabeçalho do
     for (const r of rows) {
       const n = nums(BASE.obs, r.id)
       const g = r.cells.growth
-      if (g.kind === 'ok' || g.kind === 'flat') expect(n.inscritos30.texto?.replace(/\s/g, ''), r.id).toBe(g.big.replace(/\s/g, ''))
+      // A5 2ª leva T4: a lista escreve "sem variação" onde a comparação ainda escreve "≈ 0" (mesmo número, outra palavra; a Comparar não faz parte desta leva)
+      if (g.kind === 'ok') expect(n.inscritos30.texto?.replace(/\s/g, ''), r.id).toBe(g.big.replace(/\s/g, ''))
+      if (g.kind === 'flat') expect(n.inscritos30.texto?.replace(/\s/g, ''), r.id).toBe('≈0')
       if (r.cells.cadence.kind === 'ok') expect(n.ritmo.texto!.split(' + ')[0]!.replace(/^0$/, '0,0'), r.id).toBe(r.cells.cadence.pw)
     }
   })

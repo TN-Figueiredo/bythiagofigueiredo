@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView } from './view-model'
+import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView, type DirecaoFiltro } from './view-model'
 import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
 import { useChromeSync } from '../_chrome/sync-context'
@@ -29,10 +29,13 @@ import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import { OwnBlockView } from './own-block'
-import { ResumoBloco } from './resumo-bloco'
+import { ResumoBloco, EstadoDoFiltro } from './resumo-bloco'
 import { PePreso } from './pe-preso'
+import { RiAtalhos, RiSecoes } from './ri-secoes'
+import { RiFronteira } from './ri-fronteira'
+import type { RiView } from './ri-tipos'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
-import { fraseSeuCanal } from './posicao-model'
+import { fraseSeuCanal, ORDEM_EMPATE, ORDEM_POSICAO } from './posicao-model'
 import { comportamentoDeRolagem, contentorQueRola } from './rolagem'
 import './canais.css'
 
@@ -56,11 +59,13 @@ export interface CanaisScreenProps {
   onRemovalImpact?: (id: string) => Promise<ImpactAnswer>
   /** A5 E5a T5: quem só lê o site: sincronizar, adicionar e remover ficam desligados e a tela diz isso (os números são os mesmos). */
   somenteLeitura?: boolean
+  /** A5 E5a R5: Referências e Inscritos (modelo puro montado na página). Ausente = as seções não aparecem. */
+  ri?: RiView
 }
 
-/** TEXTO-A-REVISAR não se aplica: a frase é a do mockup 16 (tabela de frases, "Só leitura"). */
+/** A frase é a do mockup 16 (tabela de frases, "Só leitura"). */
 export const FRASE_SO_LEITURA = { titulo: 'Você só pode ler esta lista.', corpo: 'Sincronizar, adicionar e remover canais ficam desligados. Esta lista só tem números públicos do YouTube, então você vê tudo o que os outros veem.' }
-export const PAGINA_INICIAL = 20, PAGINA_PASSO = 10
+export const PAGINA_INICIAL = 50, PAGINA_PASSO = 25
 
 const UPNEXT = '/cms/up-next'
 /** After an add: one refresh every ADD_WATCH_MS, at most ADD_WATCH_MAX times (3 min). */
@@ -86,7 +91,7 @@ function useNarrow(): boolean {
  * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
  * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
  */
-interface Optimistic { channel?: string | null; fmt?: CanaisFmt; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
+interface Optimistic { channel?: string | null; fmt?: CanaisFmt; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean; direcao?: DirecaoFiltro | null }
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
 /** Tab / Shift+Tab stay inside the dialog (canais.html trapEl). */
 function trapTab(e: KeyboardEvent<HTMLElement>) {
@@ -98,7 +103,30 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false }: CanaisScreenProps) {
+/** A5 2ª leva T9: a barra de ordenação dos cartões (sem tabela não há cabeçalho para clicar). Presa abaixo da barra do topo; quebra a linha, sem rolagem. */
+const ORDEM_DA_BARRA: ReadonlyArray<{ k: CanaisSort; nome: string }> = [
+  { k: 'subs', nome: 'Inscritos' }, { k: 'vpd', nome: 'Views/dia' }, { k: 'growth', nome: 'Crescimento' }, { k: 'direcao', nome: 'Direção' },
+  { k: 'active', nome: 'Ritmo' }, { k: 'outliers', nome: 'Outliers' }, { k: 'swaps', nome: 'Trocas' },
+]
+function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'desc'; onSort: (k: CanaisSort) => void }) {
+  return (
+    <div role="group" aria-label="Ordenar canais" className="sortbar" data-testid="canais-sortbar">
+      {ORDEM_DA_BARRA.map(o => {
+        const ativo = sort === o.k
+        return (
+          // o nome acessível diz a ordem ("Inscritos, maior primeiro"); a seta é só forma, escondida do leitor de tela
+          <button key={o.k} type="button" aria-pressed={ativo} className={'btn' + (ativo ? ' on' : '')} onClick={() => onSort(o.k)}
+            aria-label={ativo ? `${o.nome}, ${dir === 'desc' ? 'maior primeiro' : 'menor primeiro'}` : undefined}>
+            {o.nome}
+            {ativo ? <span aria-hidden="true">{dir === 'desc' ? ' ↓' : ' ↑'}</span> : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -298,9 +326,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   // a busca filtra as linhas e nunca toca na posição: ela é a da lista inteira
   const rankedBusca = useMemo(() => (ql ? view.list.ranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.ranked), [view.list.ranked, ql])
   const unrankedBusca = useMemo(() => (ql ? view.list.unranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.unranked), [view.list.unranked, ql])
-  // 20 concorrentes de início e "Mostrar mais 10"; os canais próprios sempre aparecem e a busca mostra tudo o que casa
+  // 50 concorrentes de início e "Mostrar mais 25"; os canais próprios sempre aparecem e a busca mostra tudo o que casa
   const [mostrar, setMostrar] = useState(PAGINA_INICIAL)
-  // trocar de filtro (estado, direção ou nicho) volta a lista para os 20 de início
+  // trocar de filtro (estado, direção ou nicho) volta a lista para os 50 de início
   const direcaoLigada = view.resumo.casas.find(c => c.pressed)?.chave ?? null
   useEffect(() => { setMostrar(PAGINA_INICIAL) }, [view.filter, view.niche, direcaoLigada])
   const concorrentes = useMemo(() => [...rankedBusca, ...unrankedBusca].filter(r => !r.own), [rankedBusca, unrankedBusca])
@@ -308,6 +336,30 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const permitidos = useMemo(() => new Set(concorrentes.slice(0, corte).map(r => r.id)), [concorrentes, corte])
   const ranked = useMemo(() => rankedBusca.filter(r => r.own || permitidos.has(r.id)), [rankedBusca, permitidos])
   const unranked = useMemo(() => unrankedBusca.filter(r => r.own || permitidos.has(r.id)), [unrankedBusca, permitidos])
+  // canais com direção medida (subindo ou descendo) que ficaram depois do corte da página; sem filtro de direção ligado e sem busca
+  const foraDaLista = useMemo(() => {
+    const r = { sobe: 0, desce: 0 }
+    if (ql || direcaoLigada) return r
+    for (const x of concorrentes) if (!permitidos.has(x.id) && x.direcao.tipo === 'medido' && (x.direcao.simbolo === 'sobe' || x.direcao.simbolo === 'desce')) r[x.direcao.simbolo]++
+    return r
+  }, [concorrentes, permitidos, ql, direcaoLigada])
+  // o anel da casa aparece no clique (otimista), não quando o servidor responde
+  const resumoExibido = useMemo(() => opt.direcao === undefined ? view.resumo : { ...view.resumo, casas: view.resumo.casas.map(c => ({ ...c, pressed: c.chave === opt.direcao })) }, [view.resumo, opt.direcao])
+  // com direção pendente (clique otimista) o número ainda é o do filtro anterior: a linha espera o servidor
+  const filtrando = (view.filter !== 'todos' || direcaoLigada !== null) && opt.direcao === undefined
+  // ao ligar uma direção, a lista filtrada vem à vista (sem animação para quem pede menos movimento)
+  const direcaoAntes = useRef(direcaoLigada)
+  useEffect(() => {
+    if (direcaoAntes.current !== direcaoLigada && direcaoLigada !== null) {
+      const bloco = telaRef.current?.querySelector<HTMLElement>('.obs-cn-res')
+      const linha = telaRef.current?.querySelector<HTMLElement>('[data-k="estado-do-filtro"]')
+      // se o bloco do resumo e a lista não cabem juntos na janela (tela estreita), rola até a linha "Mostrando N de M", que está logo acima da lista
+      const cabe = !bloco || !linha || linha.getBoundingClientRect().bottom - bloco.getBoundingClientRect().top + 120 <= window.innerHeight
+      const reduzido = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ;(cabe ? bloco : linha)?.scrollIntoView?.({ block: 'start', behavior: reduzido ? 'auto' : 'smooth' })
+    }
+    direcaoAntes.current = direcaoLigada
+  }, [direcaoLigada])
   const vazioDoFiltro = !ql && view.resumo.vazio && !(view.filter === 'problemas' && !view.resumo.casas.some(c => c.pressed)) ? view.resumo.vazio : null
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
@@ -364,7 +416,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     pedidoOrd.current = { sort: k, dir: asc ? 'asc' : 'desc' }
     go({ sort: k === DEFAULT_SORT ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
   }
-  const onCardSort = (k: CanaisSort) => { pedidoOrd.current = { sort: k, dir: 'desc' }; go({ sort: k === DEFAULT_SORT ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true }) }
   // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
   const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
   // Formato: a URL sempre o traz (inclusive Longos) e o navegador o lembra; a escolha é anunciada no status
@@ -427,11 +478,14 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             <details className="fbar" id="forjaBar" data-forja-anchor=""><summary><b>forja</b> <span>{view.forjaBar.lines}</span></summary><p>{view.forjaBar.text}</p></details>
           ) : null}
           {somenteLeitura ? <p className="cn-fnota obs-cn-leitura" data-k="so-leitura" role="note"><b>{FRASE_SO_LEITURA.titulo}</b> {FRASE_SO_LEITURA.corpo}</p> : null}
-          <ResumoBloco resumo={view.resumo}
+          <ResumoBloco resumo={resumoExibido}
             onFiltro={f => go({ filter: f }, { busy: true })}
-            onDirecao={d => go({ direcao: d }, { busy: true })} />
-          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
+            onDirecao={d => go({ direcao: d }, { busy: true, direcao: d })}
+          />
+          {ri ? <RiAtalhos ri={ri} /> : null}
+          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} faixa={view.faixaSemPosicao} hrefOrdenar={k => urlWith({ sort: k === DEFAULT_SORT ? null : k, dir: null })} onOrdenar={(e, href, k) => { pedidoOrd.current = { sort: k, dir: 'desc' }; linkNav(e, href, { sort: k, dir: 'desc', busy: true }) }} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
+          {filtrando ? <EstadoDoFiltro resumo={resumoExibido} mostrando={{ n: concorrentes.length, de: view.resumo.direcao.canais }} onLimpar={() => go({ filter: null, direcao: null }, { busy: true, direcao: null })} /> : null}
           <div className="toolbar">
             <div className="search">
               <Ic n="search" />
@@ -453,18 +507,21 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <button type="button" aria-pressed={layout === 'cards'} onClick={() => pickLayout('cards')}>Cards</button>
             </div>
             )}
-            <label className="cardsort"><span className="sr">Ordenar cards por</span>
-              <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
-                <option value="vpd">Views/dia</option><option value="subs">Inscritos</option><option value="active">Ritmo</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
-              </select>
-            </label>
           </div>
           {view.fmtNota ? <p className="cn-fnota" data-k="fmt-nota">{view.fmtNota}</p> : null}
           {view.conjuntoAviso ? <p className="cn-fnota" data-k="conjunto-aviso">{view.conjuntoAviso}</p> : null}
           {view.posicaoNota ? <p className="cn-fnota" data-k="posicao-nota">{view.posicaoNota}</p> : null}
           {ql ? <p className="cn-fnota" data-k="busca-nota">{view.buscaNota}</p> : null}
+          <p data-testid="canais-ordem" className="sortnote ordl">Ordenado por <b>{view.ordem.coluna}</b>, {view.ordem.sentido}. {ORDEM_POSICAO}{view.ordem.empate ? ' ' + ORDEM_EMPATE : ''}</p>
+          {view.sort === 'direcao' ? (
+            <p className="ordl legendaord" data-k="legenda-ordem">
+              <span>▲ subindo, +10% ou mais</span> · <span>＝ sem mudança</span> · <span>▼ descendo, −10% ou menos</span><br />
+              <span>As setas ▲ ▼ valem só para a Direção, que mede views.</span>
+            </p>
+          ) : view.sort === 'growth' ? (
+            <p className="ordl legendaord" data-k="legenda-ordem">Crescimento mede inscritos e usa + e −. Setas ▲ ▼ ficam para a Direção, que mede views.</p>
+          ) : null}
           <div className="toolbar2">
-            <span className="sortnote">{view.sortNote}</span>
             <span>
               {view.filter === 'problemas'
                 ? <span className="chip">Só canais com problema ({view.problems.n}) <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></span>
@@ -489,13 +546,24 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
           {layout === 'table'
             ? <ChannelTable view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
-            : <ChannelCards view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
+            : <><BarraDeOrdem sort={sort} dir={dir} onSort={onSort} /><ChannelCards view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} empty={empty} busy={listBusy} /></>}
 
           {!ql && concorrentes.length > permitidos.size ? (
+            <>
+            {(['sobe', 'desce'] as const).filter(k => foraDaLista[k] > 0).map(k => {
+              const n = foraDaLista[k], palavra = k === 'sobe' ? 'subindo' : 'descendo'
+              return (
+                <p key={k} className="obs-cn-fora" data-k="aviso-fora-da-lista">
+                  Mais {n} {n === 1 ? 'canal' : 'canais'} {palavra} {n === 1 ? 'ainda não aparece' : 'ainda não aparecem'} aqui.{' '}
+                  <button type="button" className="obs-cn-fr-bt" onClick={() => go({ direcao: k }, { busy: true, direcao: k })}>Ver só {palavra}</button>
+                </p>
+              )
+            })}
             <p className="obs-cn-mais" data-k="paginacao">
               <span>Mostrando {permitidos.size} de {concorrentes.length} canais.</span>{' '}
               <button type="button" className="btn small" onClick={() => setMostrar(m => m + PAGINA_PASSO)}>Mostrar mais {Math.min(PAGINA_PASSO, concorrentes.length - permitidos.size)}</button>
             </p>
+            </>
           ) : null}
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
@@ -508,6 +576,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               versao={`${layout}|${ranked.some(r => r.id === view.pe!.canalId) ? 'com-medida' : unranked.some(r => r.id === view.pe!.canalId) ? 'sem-medida' : 'fora'}`}
               onIr={() => irAte(view.pe!.canalId)} onTopo={voltarAoTopo} />
           ) : null}
+          {ri ? <RiFronteira><RiSecoes ri={ri} ocupada={navPending} /></RiFronteira> : null}
         </div>
 
         {panel ? (

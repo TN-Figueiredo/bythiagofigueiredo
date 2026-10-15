@@ -174,7 +174,7 @@ describe('Leitura rápida: quando não aparece', () => {
     const v = buildPar(p, 'tnfigueiredo-en', 'leo-khev')
     expect(v.leitura.filter(i => i.simbolo === 'maior' && i.lado === 0)).toEqual([]) // o canal sem vídeos não é maior em nada
     const s = v.leitura.find(i => i.simbolo === 'sem')!
-    expect(s.texto).toMatch(/^Sem como comparar ainda: 12 números \(falta o dado do seu canal em /)
+    expect(s.texto).toMatch(/^Sem como comparar ainda: 11 números \(falta o dado do seu canal em /)
     expect(v.leitura.find(i => i.simbolo === 'maior' && i.lado === 1)!.texto).toMatch(/^Leo Khev é maior em: /)
   })
   it('todos os pares do fixture: no máximo quatro entradas, três itens por linha, e a ordem é maior(A), maior(B), iguais, sem', () => {

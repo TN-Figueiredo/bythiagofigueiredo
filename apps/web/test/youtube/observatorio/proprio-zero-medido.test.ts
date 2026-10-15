@@ -271,7 +271,8 @@ describe('vídeo publicado no meio da janela (10 dias de vida): régua, cartão,
     expect(g.colunas).toHaveLength(K)
     expect(g.colunas.slice(0, -1).every(c => c.situacao === 'zero-medido')).toBe(true)
     expect(g.colunas.at(-1)!.situacao).toBe('nao-medido')
-    expect(g.resumo).toBe(`Nenhuma impressão nos ${K - 1} dias medidos (1 dia sem dado).`)
+    // tela A (E5b): com as views do vídeo conhecidas, o resumo do gráfico só com zeros as cita
+    expect(g.resumo).toMatch(new RegExp(`^Nenhuma impressão nos ${K - 1} dias medidos`))
   })
 })
 
@@ -352,9 +353,11 @@ describe('N1: um limite só para "vídeo novo" (menos de DIAS_DE_VIDA_MIN dias d
       if (c.novo) {
         it('PÁGINA: a seção diz "vídeo novo" e não desenha dia nenhum', () => {
           const b = blocos().impressoes!
-          expect(b.medido).toBe(false)
-          expect(b.grafico).toBeNull()
-          expect(b.frase).toMatch(/^Vídeo novo: /)
+          // tela A (E5b T16): no lugar do gráfico vai a faixa de 7 casas, sem dia desenhado
+          expect(b.medido).toBe(true)
+          expect(b.frase).toBeNull()
+          expect(b.grafico!.cedo?.tipo).toBe('video-novo')
+          expect(b.grafico!.colunas).toHaveLength(0)
         })
         it('CARTÃO e LISTA: a palavra da coluna é "vídeo novo"; não é zero, não é "0"; a terceira linha fica vazia e a nota diz o motivo', () => {
           const x = cartao()
@@ -376,8 +379,10 @@ describe('N1: um limite só para "vídeo novo" (menos de DIAS_DE_VIDA_MIN dias d
           const pub = diaDaPub(W, A.alvo.id)
           expect(diffDias(pub, W.hoje)).toBe(3)
           const g = blocos().impressoes!.grafico!
-          expect(g.colunas).toHaveLength(1)
-          expect(g.colunas[0]!.situacao).toBe('zero-medido')
+          // 3 dias de vida sem nenhum dia com impressão: ainda cedo, a faixa de 7 casas com o dia da publicação em zero medido
+          expect(g.cedo?.tipo).toBe('ainda-cedo')
+          expect(g.cedo!.casas[0]!.estado).toBe('zero-medido')
+          expect(g.colunas).toHaveLength(0)
           const x = cartao()
           expect(x.semImpressao).toBe(true)
           expect(x.impMissing).toBeNull()
@@ -407,7 +412,7 @@ describe('N1: um limite só para "vídeo novo" (menos de DIAS_DE_VIDA_MIN dias d
       expect(b.canal.reguas.linhas.find(l => l.numero === 'impressoes')!.valor).toBe('40')
       expect(b.impressoes!.medido).toBe(true)
       expect(b.impressoes!.frase).toBeNull()
-      expect(b.impressoes!.grafico!.colunas.some(c => c.situacao === 'com-impressoes')).toBe(true)
+      expect(b.impressoes!.grafico!.cedo!.casas.some(c => c.estado === 'com-impressoes' && c.texto === '40')).toBe(true)
     })
   })
 })

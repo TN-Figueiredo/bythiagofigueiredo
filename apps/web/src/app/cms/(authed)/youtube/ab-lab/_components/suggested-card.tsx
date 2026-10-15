@@ -2,14 +2,13 @@
 
 import type { SuggestedVideo, TestType } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
-import { formatCtr, formatCompact } from './ab-constants'
+import { formatCtr, formatCompact, ROTULO_TIPO_DESCONHECIDO_CURTO } from './ab-constants'
 import { FlaskConical, Info } from 'lucide-react'
 
 const TYPE_LABELS: Record<TestType, string> = {
-  combo: 'combo',
+  combo: 'título + thumbnail',
   thumbnail: 'thumbnail',
   title: 'título',
-  description: 'descrição',
 }
 
 const GRADE_COLORS: Record<string, string> = {
@@ -124,7 +123,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
             style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
           >
             <FlaskConical size={14} aria-hidden="true" />
-            Testar {TYPE_LABELS[video.suggest]}
+            Testar {TYPE_LABELS[video.suggest as TestType] ?? ROTULO_TIPO_DESCONHECIDO_CURTO}
           </button>
           <span className="font-mono text-[10.5px] text-cms-text-dim shrink-0">
             {video.confidence ? `${video.confidence}% conf.` : ''}

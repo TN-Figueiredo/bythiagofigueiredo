@@ -85,7 +85,29 @@ export interface SeedOptions {
    * coletado" é a cobertura (`yt_own_video_coverage`, que a semente grava nos dois estados). As telas têm de mostrar os mesmos números.
    */
   ownDieta?: boolean
+  /**
+   * Referências e Inscritos (A5, E5a 2ª leva, R6): um nicho próprio (`RI_CENARIO.nicho`) com 10 concorrentes sintéticos e o canal próprio
+   * `tnfigueiredo` movido para ele, com 6 longos de 10 a 60 dias e nenhum retrato. Datas relativas ao relógio da semente (O.NOW); os retratos
+   * dos casos de Inscritos terminam no dia de hoje da semente. Não combina com `ownPreset` (a semente lança).
+   */
+  riCenario?: boolean
+  /**
+   * A5 2ª leva (T10): dois concorrentes sintéticos ("Canal Teste A" e "Canal Teste B", nicho `A5_EMPATE.nicho`) com o MESMO Crescimento visível
+   * (300.000 hoje, 290.000 há 28 dias) e poucos dias de registro (41 e 31 dias: Direção "pouco registro" nos dois, `n` diferente). Não combina com `riCenario`.
+   */
+  a5Empate?: boolean
 }
+
+/** Cenário sintético da 2ª leva da tela Canais (empate de Crescimento + Direção "pouco registro"). Tudo inventado. */
+export const A5_EMPATE = {
+  nicho: { slug: 'a5-empate', label: 'Empate A5' },
+  canais: [
+    { k: 'a5-empate-a', nome: 'Canal Teste A', dias: 40 },
+    { k: 'a5-empate-b', nome: 'Canal Teste B', dias: 30 },
+  ],
+  hoje: 300_000,
+  antes: 290_000,
+} as const
 export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas' | 'retencao' | 'recente'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
 export const CANAL_COMPLETO = { canal: 'matt-wolfe', fixadoAntigo: 'matt-wolfe-l150', shortNulo: 'matt-wolfe-l5', comentariosNulo: 'matt-wolfe-l6', semData: 'canal-completo-sem-data' } as const
@@ -116,6 +138,32 @@ export const NICHE_PRESETS: Record<'3' | '4' | '6', ExtraNiche[]> = {
 /** The mockup clock (dados.js NOW_ISO). Also the webServer's OBS_NOW_OVERRIDE. */
 export const ORACLE_NOW_ISO = '2026-10-24T15:02:00-03:00'
 export const ORACLE_NOW = Date.parse(ORACLE_NOW_ISO)
+
+/* ------------------------------------------------------------------ A5 E5a R6: cenário de Referências e Inscritos */
+/** Nomes e números do cenário; o spec `canais-ri.spec.ts` afirma contra estas constantes. Tudo sintético. */
+export const RI_CENARIO = {
+  nicho: { slug: 'ri-cenario', label: 'Cenário RI' },
+  nomes: {
+    larga: 'RI Faixa Larga', estreita: 'RI Faixa Estreita', provisoria: 'RI Provisória', soNovos: 'RI Só Novos', primeiraBusca: 'RI Primeira Busca',
+    passaArred: 'RI Passa Arredondamento', dentroArred: 'RI Dentro Arredondamento', novo: 'RI Menos de 28 Dias', oculto: 'RI Contagem Oculta', buraco: 'RI Buraco',
+  },
+  /** idades (dias) e views dos vídeos longos de cada canal de Referências; o canal próprio inclui */
+  larga: { idades: [8, 14, 20, 27, 33, 40, 47, 54, 61, 68, 74, 80], views: Array.from({ length: 12 }, (_, i) => Math.round(3000 * Math.pow(200, i / 11))) },
+  estreita: { idades: [10, 20, 30, 45, 60, 75], views: [52000, 55000, 58000, 62000, 66000, 70000] },
+  provisoria: { idades: [10, 20, 30, 40], views: [8000, 12000, 15000, 30000], idadesFora: [3, 3] },
+  soNovos: { idades: [2, 5], views: [900, 400] },
+  proprio: { idades: [10, 18, 26, 38, 50, 60], views: [9000, 14000, 18000, 24000, 33000, 52000] },
+  /** inscritos de hoje e de 28 dias antes */
+  passaArred: { hoje: 1_420_000, antes: 1_390_000 },
+  dentroArred: { hoje: 603_000, antes: 602_000 },
+  novo: { hoje: 6_900, dias: 11 },
+  oculto: { hoje: null },
+  buraco: { hoje: 48_200, antes: 44_000, diasApagados: [28, 29, 30, 31] },
+  /** retratos públicos diários do canal próprio (R9b, MG20): 40 dias, medido (+2,0%: abaixo do líder passaArred, a frase não muda) */
+  proprioRetratos: { hoje: 51_000, antes: 50_000, dias: 40 },
+} as const
+/** O id do oráculo dos canais do cenário → seedUuid(siteId, 'channel', id). */
+export const RI_CANAIS = ['ri-larga', 'ri-estreita', 'ri-provisoria', 'ri-so-novos', 'ri-primeira-busca', 'ri-passa-arred', 'ri-dentro-arred', 'ri-novo', 'ri-oculto', 'ri-buraco'] as const
 
 /* ------------------------------------------------------------------ oracle shapes (only what the seed reads) */
 type OPrec = 'publicacao' | 'desde-arquivo' | 'min' | '6h' | '1d'
@@ -294,7 +342,7 @@ export async function resetViewerPrefs(siteId: string, client?: SupabaseClient):
 export async function clearOwnL2(siteId: string, client?: SupabaseClient, ownIds?: string[]): Promise<void> {
   const sb = clientOf(client)
   const ids = ownIds ?? ['tnfigueiredo', ...OWN_EXTRA_IDS].map(id => ownSeedUuid(siteId, id))
-  for (const t of ['yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
+  for (const t of ['yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_own_video_dim_daily', 'yt_own_video_traffic_detail_daily', 'yt_own_video_reach_dim_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
     await check('delete ' + t, sb.from(t).delete().eq('site_id', siteId).in('channel_id', ids))
   }
 }
@@ -641,6 +689,83 @@ function manyVersionsVideo(O: OracleData): OVideo {
     title: TITLES[TITLES.length - 1]!, theme: null, views, viewsAt: series[series.length - 1]!.t, likes: 4100, comments: 212, series, titles, thumbs, descs,
   }
 }
+/** Grava os concorrentes do cenário RI (canais, vídeos longos e retratos). Dado 100% sintético; datas relativas a `now`. */
+async function seedRiCenario(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
+  const R = RI_CENARIO, N = R.nomes
+  const cid = (k: string) => seedUuid(siteId, 'channel', k)
+  const canais: Array<{ k: typeof RI_CANAIS[number]; nome: string; subs: number | null; primeiraBusca?: boolean }> = [
+    { k: 'ri-larga', nome: N.larga, subs: 120_000 }, { k: 'ri-estreita', nome: N.estreita, subs: 90_000 }, { k: 'ri-provisoria', nome: N.provisoria, subs: 40_000 },
+    { k: 'ri-so-novos', nome: N.soNovos, subs: 3_000 }, { k: 'ri-primeira-busca', nome: N.primeiraBusca, subs: 5_000, primeiraBusca: true },
+    { k: 'ri-passa-arred', nome: N.passaArred, subs: R.passaArred.hoje }, { k: 'ri-dentro-arred', nome: N.dentroArred, subs: R.dentroArred.hoje },
+    { k: 'ri-novo', nome: N.novo, subs: R.novo.hoje }, { k: 'ri-oculto', nome: N.oculto, subs: null }, { k: 'ri-buraco', nome: N.buraco, subs: R.buraco.hoje },
+  ]
+  await insertAll(sb, 'competitor_channels', canais.map((c, i) => ({
+    id: cid(c.k), site_id: siteId, channel_id: 'UC' + sha1('ri|' + c.k).slice(0, 22), channel_name: c.nome, niche: R.nicho.slug, subscriber_count: c.subs, video_limit: 50,
+    thumbnail_url: null, sync_status: 'idle', sync_error: null, sync_error_since: null,
+    last_ok_synced_at: c.primeiraBusca ? null : iso(now - 3600e3), last_synced_at: c.primeiraBusca ? null : iso(now - 3600e3), full_sync_completed_at: c.primeiraBusca ? null : iso(now - 3600e3),
+    youtube_video_count: c.primeiraBusca ? 40 : null, added_at: iso(now - 200 * DAY + i * 1000),
+  })))
+  const longos: Array<[typeof RI_CANAIS[number], readonly number[], readonly number[]]> = [
+    ['ri-larga', R.larga.idades, R.larga.views], ['ri-estreita', R.estreita.idades, R.estreita.views],
+    ['ri-provisoria', [...R.provisoria.idades, ...R.provisoria.idadesFora], [...R.provisoria.views, 700, 500]], ['ri-so-novos', R.soNovos.idades, R.soNovos.views],
+  ]
+  const videos: object[] = []
+  for (const [k, idades, views] of longos) {
+    idades.forEach((idade, i) => videos.push({
+      id: seedUuid(siteId, 'video', k + '-' + i), competitor_channel_id: cid(k), video_id: (k.replace(/-/g, '') + String(i).padStart(2, '0')).slice(-11).padStart(11, 'x'),
+      title: 'Vídeo RI ' + k + ' ' + (i + 1), view_count: views[i]!, like_count: 10, comment_count: 1, duration_seconds: 600,
+      published_at: iso(now - idade * DAY), is_short: false, last_checked_at: iso(now), tags: [], thumbnail_url: null,
+    }))
+  }
+  await insertAll(sb, 'competitor_videos', videos)
+  // retratos diários terminam HOJE (a regra de "retrato velho" é contra o relógio); `d` = dias antes de hoje
+  const linha = (k: typeof RI_CANAIS[number], d: number, subs: number) => ({ competitor_channel_id: cid(k), snapshot_date: spDate(now - d * DAY), subscriber_count: subs, view_count: subs * 20 })
+  const rampa = (de: number, ate: number, d: number, dMax: number) => Math.round((de + (ate - de) * ((dMax - d) / dMax)) / 1000) * 1000
+  const snaps: object[] = []
+  for (let d = 40; d >= 0; d--) {
+    // passa o arredondamento: 28 dias antes = 1.390.000, hoje = 1.420.000 (rampa de 1.380.000 a 1.420.000 em 40 dias, ajustada nos dois pontos)
+    snaps.push(linha('ri-passa-arred', d, d === 28 ? R.passaArred.antes : d === 0 ? R.passaArred.hoje : rampa(R.passaArred.antes - 10_000, R.passaArred.hoje, d, 40)))
+    snaps.push(linha('ri-dentro-arred', d, d === 0 ? R.dentroArred.hoje : R.dentroArred.antes))
+    if (!(R.buraco.diasApagados as readonly number[]).includes(d)) snaps.push(linha('ri-buraco', d, d === 0 ? R.buraco.hoje : rampa(R.buraco.antes, R.buraco.hoje, d, 40)))
+  }
+  for (let d = R.novo.dias - 1; d >= 0; d--) snaps.push(linha('ri-novo', d, R.novo.hoje - d * 10))
+  await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
+}
+
+/** A5 2ª leva: grava os dois concorrentes do empate (canais e retratos diários, sem vídeos). Dado 100% sintético; datas relativas a `now`. */
+async function seedA5Empate(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
+  const E = A5_EMPATE
+  const cid = (k: string) => seedUuid(siteId, 'channel', k)
+  await insertAll(sb, 'competitor_channels', E.canais.map((c, i) => ({
+    id: cid(c.k), site_id: siteId, channel_id: 'UC' + sha1('a5|' + c.k).slice(0, 22), channel_name: c.nome, niche: E.nicho.slug, subscriber_count: E.hoje, video_limit: 50,
+    thumbnail_url: null, sync_status: 'idle', sync_error: null, sync_error_since: null,
+    last_ok_synced_at: iso(now - 3600e3), last_synced_at: iso(now - 3600e3), full_sync_completed_at: iso(now - 3600e3),
+    youtube_video_count: null, added_at: iso(now - 100 * DAY + i * 1000),
+  })))
+  const snaps: object[] = []
+  for (const c of E.canais) {
+    for (let d = c.dias; d >= 0; d--) {
+      // 28 dias antes = `antes`; hoje = `hoje`; entre os dois, a rampa só precisa ser monótona e terminar nos dois pontos
+      const subs = d === 0 ? E.hoje : d >= 28 ? E.antes : Math.round((E.antes + (E.hoje - E.antes) * ((28 - d) / 28)) / 100) * 100
+      snaps.push({ competitor_channel_id: cid(c.k), snapshot_date: spDate(now - d * DAY), subscriber_count: subs, view_count: subs * 20 })
+    }
+  }
+  await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
+}
+
+/** R9b: retratos do canal próprio; precisa do `youtube_channels` já inserido (FK). */
+async function seedRiProprio(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
+  // R9b: o canal próprio é medido pelo mesmo número público dos concorrentes, a partir de yt_own_channel_snapshots (MG20); termina HOJE
+  const Q = RI_CENARIO.proprioRetratos
+  const meu = ownSeedUuid(siteId, 'tnfigueiredo')
+  const propriosSnaps: object[] = []
+  for (let d = Q.dias; d >= 0; d--) {
+    const subs = d === 28 ? Q.antes : d === 0 ? Q.hoje : Math.round((Q.antes - 1000 + (Q.hoje - Q.antes + 1000) * ((Q.dias - d) / Q.dias)) / 100) * 100
+    propriosSnaps.push({ youtube_channel_id: meu, snapshot_date: spDate(now - d * DAY), subscriber_count: subs, subscribers_hidden: false, view_count: subs * 20 })
+  }
+  await insertAll(sb, 'yt_own_channel_snapshots', propriosSnaps)
+}
+
 export async function seedObservatory(siteId: string, opts: SeedOptions = {}, client?: SupabaseClient): Promise<void> {
   if (opts.emptyWindow) throw new Error('observatorio-seed: emptyWindow is a filter, not data — use MockupState.query')
   if (opts.scenario && opts.scenario !== 'own-empty') throw new Error('observatorio-seed: unknown scenario ' + JSON.stringify(opts.scenario))
@@ -652,6 +777,14 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   const ownChs = O.channels.filter(c => c.own)
   // niches the owner created: validated BEFORE any write, so a bad option never leaves the site half seeded
   const extras: ExtraNiche[] = [...(opts.extraNiche ? [{ slug: opts.extraNiche.slug, label: opts.extraNiche.label, channels: [opts.extraNiche.channel] }] : []), ...(opts.extraNiches ?? [])]
+  if (opts.riCenario) {
+    if (opts.ownPreset) throw new Error('observatorio-seed: riCenario não combina com ownPreset')
+    extras.push({ slug: RI_CENARIO.nicho.slug, label: RI_CENARIO.nicho.label, channels: [] })
+  }
+  if (opts.a5Empate) {
+    if (opts.riCenario) throw new Error('observatorio-seed: a5Empate não combina com riCenario')
+    extras.push({ slug: A5_EMPATE.nicho.slug, label: A5_EMPATE.nicho.label, channels: [] })
+  }
   const movedTo = new Map<string, string>()
   for (const n of extras) {
     if (BUILTIN_SLUGS.includes(n.slug) || extras.filter(x => x.slug === n.slug).length > 1) throw new Error('observatorio-seed: nicho extra repetido ou de fábrica: ' + JSON.stringify(n.slug))
@@ -677,7 +810,18 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   const competitors = O.channels.filter(c => !c.own && (!opts.onlyProblems || c.sync.state !== 'ok'))
   const keptCh = new Set(competitors.map(c => c.id))
   // ownEmpty is the mockup's one-channel scenario: only tnfigueiredo loses its recent long videos
-  const ownVideos = O.videos.filter(v => ownIdSet.has(v.ch) && !(ownEmpty && v.ch === 'tnfigueiredo' && v.fmt === 'long' && v.ageDays <= 90))
+  const ownVideos = O.videos.filter(v => ownIdSet.has(v.ch) && !(ownEmpty && v.ch === 'tnfigueiredo' && v.fmt === 'long' && v.ageDays <= 90) && !(opts.riCenario && v.ch === 'tnfigueiredo'))
+  if (opts.riCenario) {
+    const dono = ownChs.find(c => c.id === 'tnfigueiredo')
+    if (!dono) throw new Error('observatorio-seed: riCenario precisa do canal próprio tnfigueiredo no oráculo')
+    dono.niche = RI_CENARIO.nicho.slug
+    const P = RI_CENARIO.proprio
+    P.idades.forEach((idade, i) => {
+      const pub = O.NOW - idade * DAY
+      ownVideos.push({ id: 'ri-own-' + i, ch: 'tnfigueiredo', fmt: 'long', pub, ageDays: idade, dur: '10:00', ytId: 'riOwn' + String(i).padStart(6, '0'), title: 'Vídeo próprio RI ' + (i + 1), theme: null,
+        views: P.views[i]!, viewsAt: O.NOW, likes: 10, comments: 1, series: [], titles: [], thumbs: [], descs: [] })
+    })
+  }
   const compVideos = O.videos.filter(v => keptCh.has(v.ch))
   const ids = new Map<string, string>()
   for (const c of competitors) ids.set(c.id, U('channel', c.id))
@@ -771,6 +915,10 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   }
   await insertAll(sb, 'competitor_channel_snapshots', snapRows, 2000)
 
+  /* A5 E5a R6: os dez concorrentes sintéticos de Referências e Inscritos (nicho próprio), no relógio da semente */
+  if (opts.riCenario) await seedRiCenario(sb, siteId, O.NOW)
+  if (opts.a5Empate) await seedA5Empate(sb, siteId, O.NOW)
+
   /* own channels (no series, no versions: production keeps neither for them); `niche` is null for the preset's "sem nicho" */
   await insertAll(sb, 'youtube_channels', ownChs.map(c => ({
     id: ids.get(c.id), site_id: siteId, channel_id: 'UC' + sha1('own|' + c.id).slice(0, 22), handle: c.handle, locale: localeOf(c),
@@ -782,6 +930,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
     view_count: v.views ?? 0, like_count: v.likes ?? 0, comment_count: v.comments ?? 0, duration_seconds: durSeconds(v.dur),
     updated_at: iso(v.viewsAt ?? O.NOW), tags: [],
   })))
+  if (opts.riCenario) await seedRiProprio(sb, siteId, O.NOW)
 
   /* readings: oracle ids → seeded uuids; the latest temas reading per niche carries the theme evidence */
   const latestTemas = new Map<string, OReading>()

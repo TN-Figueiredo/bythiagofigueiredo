@@ -154,7 +154,6 @@ describe('applyWinnerNow', () => {
       youtube_video_id: 'vid-db-1',
       test_type: 'thumbnail',
       original_title: 'Orig Title',
-      original_description: 'Orig Desc',
       grace_expires_at: new Date(Date.now() + 86400000).toISOString(),
       winner_applied_at: null,
       ...testOverrides,
@@ -164,7 +163,6 @@ describe('applyWinnerNow', () => {
       id: 'v-winner',
       blob_url: 'https://blob/winner.jpg',
       title_text: null,
-      description_text: null,
       is_original: false,
     }
 
@@ -301,6 +299,21 @@ describe('applyWinnerNow', () => {
     expect(setThumbnail).not.toHaveBeenCalled()
   })
 
+  it('teste antigo de descrição: devolve erro sem gravar vitória nem escrever no YouTube', async () => {
+    const { fromMock } = setupApplyWinnerMock({ test_type: 'description' })
+
+    const result = await applyWinnerNow('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('descrição')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    for (const r of fromMock.mock.results) {
+      const b = r.value as { update?: { mock: { calls: unknown[] } } }
+      expect(b.update?.mock.calls ?? []).toHaveLength(0)
+    }
+  })
+
   it('returns error when preflight fails', async () => {
     setupApplyWinnerMock()
     ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -323,7 +336,6 @@ describe('applyWinnerNow', () => {
       youtube_video_id: 'vid-db-1',
       test_type: 'title',
       original_title: 'Orig Title',
-      original_description: 'Orig Desc',
       grace_expires_at: new Date(Date.now() + 86400000).toISOString(),
       winner_applied_at: null,
     }
@@ -332,7 +344,6 @@ describe('applyWinnerNow', () => {
       id: 'v-winner',
       blob_url: null,
       title_text: 'New Winner Title',
-      description_text: null,
       is_original: false,
     }
 
@@ -408,7 +419,6 @@ describe('applyWinnerNow', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VID_001',
       'New Winner Title',
-      null,
       'fresh-token',
     )
     // Should NOT call setThumbnail since it's a title test with no blob_url
@@ -485,7 +495,6 @@ describe('revertWinner', () => {
       test_type: 'thumbnail',
       original_thumbnail_url: 'https://blob/original.jpg',
       original_title: 'Orig Title',
-      original_description: 'Orig Desc',
       revert_expires_at: new Date(Date.now() + 3 * 86400000).toISOString(),
       winner_applied_at: new Date(Date.now() - 86400000).toISOString(),
       ...testOverrides,
@@ -554,6 +563,21 @@ describe('revertWinner', () => {
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
 
+  it('teste antigo de descrição: devolve erro sem zerar winner_applied_at nem escrever no YouTube', async () => {
+    const { fromMock } = setupRevertMock({ test_type: 'description' })
+
+    const result = await revertWinner('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('descrição')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    for (const r of fromMock.mock.results) {
+      const b = r.value as { update?: { mock: { calls: unknown[] } } }
+      expect(b.update?.mock.calls ?? []).toHaveLength(0)
+    }
+  })
+
   it('dois canais: valida o token do canal dono do vídeo (PT), mesmo com o EN na primeira linha de youtube_channels', async () => {
     setupRevertMock()
 
@@ -597,7 +621,7 @@ describe('revertWinner', () => {
     expect(setThumbnail).not.toHaveBeenCalled()
   })
 
-  it('restores original title and description for title test (no setThumbnail)', async () => {
+  it('restores original title for title test (no setThumbnail)', async () => {
     setupRevertMock({
       test_type: 'title',
       original_thumbnail_url: null,
@@ -606,11 +630,10 @@ describe('revertWinner', () => {
     const result = await revertWinner('test-1')
 
     expect(result).toEqual({ ok: true })
-    // Should call updateVideoMetadata with original title + description
+    // Should call updateVideoMetadata with original title only
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VID_001',
       'Orig Title',
-      'Orig Desc',
       'fresh-token',
     )
     // Should NOT call setThumbnail since it's a title test
@@ -638,7 +661,6 @@ describe('revertWinner', () => {
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VID_001',
       'Orig Title',
-      'Orig Desc',
       'fresh-token',
     )
   })

@@ -166,12 +166,12 @@ describe('RULES.hourly', () => {
 })
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
-  it('são seis, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 6, 7, 8])
+  it('são oito, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.5, 6, 7, 8])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 1) // + tamanho_do_banco (A5 E10)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 3) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
@@ -229,5 +229,17 @@ describe('tamanho_do_banco (A5 E10, T9)', () => {
     expect(d.motivos).toEqual(MOTIVOS_TAMANHO)
     expect(TODAS_AS_DEFINICOES.map(x => x.nome)).toContain('tamanho_do_banco')
     expect(DEFINICOES.map(x => x.nome)).not.toContain('tamanho_do_banco')
+  })
+})
+
+describe('marcas_de_idade (A5 E4, T11): a posição é por relação, nunca por índice', () => {
+  it('vem depois de toda leve de ordem menor que 5,5 e antes de toda pesada', () => {
+    const m = TODAS_AS_DEFINICOES.find(d => d.nome === 'marcas_de_idade')!
+    const pos = (n: string): number => TODAS_AS_DEFINICOES.findIndex(d => d.nome === n)
+    for (const d of TODAS_AS_DEFINICOES) {
+      if (d.peso === 'leve' && d.ordem < 5.5) expect(pos(d.nome), d.nome).toBeLessThan(pos(m.nome))
+      if (d.peso === 'pesada') expect(pos(d.nome), d.nome).toBeGreaterThan(pos(m.nome))
+    }
+    expect(m.ordem).toBe(5.5)
   })
 })

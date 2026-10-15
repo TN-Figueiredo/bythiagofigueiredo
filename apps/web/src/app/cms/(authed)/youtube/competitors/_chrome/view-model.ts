@@ -8,9 +8,13 @@ import type { Niche, ObsChannel } from '@/lib/youtube/observatorio/types'
 import type { ForjaView } from './forja-view-model'
 import { ownMenuOf, type OwnMenu } from './own-menu'
 
-export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights'
-const TABS: readonly ChromeTab[] = ['canais', 'mudancas', 'outliers', 'insights']
-const TAB_NAME: Record<ChromeTab, string> = { canais: 'Canais', mudancas: 'Mudanças', outliers: 'Outliers', insights: 'Insights' }
+export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'saiu'
+/** As abas que o pacote do engine conhece; a quinta ("Saíram do YouTube", A5 E9) não vem dele. */
+type AbaDoPacote = Exclude<ChromeTab, 'saiu'>
+const TABS: readonly AbaDoPacote[] = ['canais', 'mudancas', 'outliers', 'insights']
+const TAB_NAME: Record<AbaDoPacote, string> = { canais: 'Canais', mudancas: 'Mudanças', outliers: 'Outliers', insights: 'Insights' }
+// TEXTO-A-REVISAR: rótulo e títulos da quinta aba (o mockup fixa o rótulo "Saíram do YouTube"; os títulos não)
+const SAIU_ROTULO = 'Saíram do YouTube'
 
 export const CHROME_TITLE = 'Observatório de Competidores' as const
 export const CHROME_SUBTITLE = 'O que os canais que você acompanha mudaram, o que está estourando agora e o que a forja leu disso, para decidir o próximo vídeo, título e thumbnail.'
@@ -19,7 +23,7 @@ export interface ChromeFreshRow { id: string; name: string; niche: Niche | null;
 export interface ChromeView {
   title: 'Observatório de Competidores'; subtitle: string; tzLabel: 'Horários em São Paulo'
   niche: NicheScope; nicheLabel: string; nicheColor: { dark: string; light: string } | null
-  tabs: Array<{ key: ChromeTab; label: string; href: string; count: number | null; title: string; current: boolean }>
+  tabs: Array<{ key: ChromeTab; label: string; href: string; count: number | null; /** só na aba da fila quando a contagem falhou: "?" */ countText?: string; title: string; current: boolean }>
   niches: Array<{ key: NicheScope; label: string; count: number; pressed: boolean; color: { dark: string; light: string } | null }>
   fresh: {
     channelsInNiche: number; channelsTotal: number; syncText: string; syncTitle: string
@@ -43,17 +47,25 @@ const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : obs.nicheColor(n))
 
-export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null }): ChromeView {
+export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
   const counts = obs.tabCounts(niche)
-  const countOf: Record<ChromeTab, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
-  const titleOf: Record<ChromeTab, string> = {
+  const countOf: Record<AbaDoPacote, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
+  const titleOf: Record<AbaDoPacote, string> = {
     canais: obs.TAB_TITLES.canais(counts.canais), mudancas: obs.TAB_TITLES.mud(counts.mud), outliers: obs.TAB_TITLES.out(counts.out),
     insights: 'Leituras publicadas pela forja',
   }
   // Object links (CONVENCOES F4): the niche is persisted server-side, so the tab hrefs never carry it.
-  const hrefOf: Record<ChromeTab, string> = { canais: obs.link.canais(), mudancas: obs.link.mudancas(), outliers: obs.link.outliers(), insights: obs.link.insights() }
-  const tabs = TABS.map(k => ({ key: k, label: TAB_NAME[k], href: hrefOf[k], count: countOf[k], title: cap(titleOf[k]), current: k === o.tab }))
+  const hrefOf: Record<AbaDoPacote, string> = { canais: obs.link.canais(), mudancas: obs.link.mudancas(), outliers: obs.link.outliers(), insights: obs.link.insights() }
+  const tabs: ChromeView['tabs'] = TABS.map(k => ({ key: k, label: TAB_NAME[k], href: hrefOf[k], count: countOf[k], title: cap(titleOf[k]), current: k === o.tab }))
+  if (o.fila) {
+    const n = o.fila.n
+    tabs.push({
+      key: 'saiu', label: SAIU_ROTULO, href: obs.link.saiu(), count: n, ...(n == null ? { countText: '?' } : {}),
+      title: n == null ? 'Não foi possível contar a fila' : n === 0 ? 'Nada esperando resposta' : F.plural(n, 'item esperando resposta', 'itens esperando resposta'),
+      current: o.tab === 'saiu',
+    })
+  }
 
   const competitors = obs.channels.filter(c => !c.own)
   const bad = competitors.filter(c => c.sync.state !== 'ok'), good = competitors.filter(c => c.sync.state === 'ok')
@@ -95,7 +107,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       problemsHref: obs.link.canais({ filter: 'problemas' }),
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
-    cowork: coworkText(o.tab, niche, nl),
+    cowork: coworkText(o.tab === 'saiu' ? 'canais' : o.tab, niche, nl),
     owns: ownMenuOf(obs, o.lembrado ?? null),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,
@@ -103,9 +115,9 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
 }
 
 /** "Copiar pedido para o Cowork": the mockup's default text per tab (chrome.js coworkText). `label` = the niche's label (the built-in ones are known here). */
-export function coworkText(tab: ChromeTab | 'historico', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
+export function coworkText(tab: AbaDoPacote | 'historico', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
   const n = niche === 'todos' ? 'todos os nichos' : `nicho ${label}`
-  const base: Record<ChromeTab | 'historico', string> = {
+  const base: Record<AbaDoPacote | 'historico', string> = {
     canais: `Compare os canais monitorados no Observatório (${n}) via youtube_observatory: crescimento de views, frequência de publicação e frescor da sincronização. Aponte quem acelerou.`,
     mudancas: `Liste as trocas de título e thumbnail dos concorrentes (${n}, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa.`,
     outliers: `Liste os outliers dos concorrentes (${n}, longos, até 90 dias, 2× ou mais ajustado pela idade) via youtube_observatory e sugira 3 ângulos de vídeo para o meu canal.`,

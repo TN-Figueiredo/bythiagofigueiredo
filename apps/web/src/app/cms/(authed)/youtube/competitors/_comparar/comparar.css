@@ -239,3 +239,9 @@
   [data-obs-screen="comparar"] .so{padding:12px 12px 14px}
   [data-obs-screen="comparar"] .so-linhas li{grid-template-columns:minmax(0,1fr)}
 }
+
+/* E5b T12: as cinco linhas da origem no cartão "Só o seu canal mede" */
+[data-obs-screen="comparar"] .so .so-barra { display: flex; height: 6px; margin-top: 4px; border-radius: 3px; overflow: hidden; background: rgba(120, 120, 120, 0.18); max-width: 220px; }
+[data-obs-screen="comparar"] .so .so-barra i { display: block; height: 100%; background: rgba(60, 120, 200, 0.85); border-right: 1px solid rgba(255, 255, 255, 0.7); }
+[data-obs-screen="comparar"] .so .so-cadeado { display: inline-flex; align-items: center; gap: 4px; }
+[data-obs-screen="comparar"] .so .so-erro { color: #b3261e; }

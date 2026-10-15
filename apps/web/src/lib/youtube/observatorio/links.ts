@@ -3,7 +3,7 @@ import type { Fmt } from './types'
 
 export const OBS_BASE = '/cms/youtube/competitors'
 
-export type CanalTab = 'videos' | 'trocas' | 'leitura' | 'retencao'
+export type CanalTab = 'videos' | 'trocas' | 'leitura' | 'retencao' | 'origem'
 export type CanalFmt = 'todos' | 'longos' | 'shorts' | 'fixados'
 export type CanalSort = 'recentes' | 'vistos' | 'multiplo' | 'vpd' | 'imp'
 export interface CanalLinkParams {
@@ -166,6 +166,12 @@ export const link = {
     const cleaned = semPadrao(cleanLink(p), { leitura: 'a' })
     const query = buildQuery(cleaned)
     return OBS_BASE + '/insights' + query
+  },
+
+  /** Link to the "Saíram do YouTube" queue (A5 E9). `mostrar` = how many items per group are open (multiples of 10; the default stays out). */
+  saiu(p?: { mostrar?: number }): string {
+    const query = buildQuery(p && p.mostrar && p.mostrar > 10 ? { mostrar: p.mostrar } : {})
+    return OBS_BASE + '/saiu' + query
   },
 
   /**

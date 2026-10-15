@@ -166,15 +166,15 @@ describe('Canais · immediate feedback', () => {
     const user = userEvent.setup()
     const r = render(tree())
     const th = () => document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!
-    await user.click(within(th()).getByRole('button'))
+    await user.click(within(th()).getByRole('button', { name: 'Outliers' }))
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=outliers', { scroll: false })
-    expect(within(th()).getByRole('button')).toHaveAttribute('aria-busy', 'true')
+    expect(within(th()).getByRole('button', { name: 'Outliers' })).toHaveAttribute('aria-busy', 'true')
     expect(document.querySelector('.tablebox')).toHaveAttribute('aria-busy', 'true')
     // the arrow never claims an order the rows do not have yet
     expect(th()).not.toHaveAttribute('aria-sort')
     await answer(r, { sort: 'outliers' })
     expect(th()).toHaveAttribute('aria-sort', 'descending')
-    expect(within(th()).getByRole('button')).not.toHaveAttribute('aria-busy')
+    expect(within(th()).getByRole('button', { name: 'Outliers' })).not.toHaveAttribute('aria-busy')
   })
 
   it('"Adicionar canal" opens its form at once; the problem filter marks the list as busy', async () => {
@@ -203,16 +203,16 @@ describe('Canais · immediate feedback', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('Cards: "Ordenar cards por" keeps the picked option while the new order is on the way', async () => {
+  it('Cards: a barra de ordenação mantém o botão escolhido enquanto a nova ordem está a caminho (A5 2ª leva: no lugar do select)', async () => {
     const user = userEvent.setup()
     const r = render(tree({ layout: 'cards' }))
-    const sel = () => screen.getByRole('combobox', { name: 'Ordenar cards por' })
-    await user.selectOptions(sel(), 'outliers')
+    const btn = () => screen.getByRole('button', { name: /^Outliers/ })
+    await user.click(btn())
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=outliers', { scroll: false })
-    expect(sel()).toHaveValue('outliers')
+    expect(btn()).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelector('.cards')).toHaveAttribute('aria-busy', 'true')
     await answer(r, { layout: 'cards', sort: 'outliers' })
-    expect(sel()).toHaveValue('outliers')
+    expect(btn()).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelector('.cards')).not.toHaveAttribute('aria-busy')
   })
 
@@ -255,7 +255,7 @@ describe('Canais · immediate feedback', () => {
   it('two quick clicks on the same column: the second asks for the opposite direction', async () => {
     const user = userEvent.setup()
     render(tree())
-    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!).getByRole('button')
+    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!).getByRole('button', { name: 'Outliers' })
     await user.click(b())
     await user.click(b())
     expect(replace.mock.calls.map(c => c[0])).toEqual(['/cms/youtube/competitors?sort=outliers', '/cms/youtube/competitors?sort=outliers&dir=asc'])

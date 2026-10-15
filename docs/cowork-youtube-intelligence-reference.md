@@ -10,7 +10,7 @@ O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 - Diagnósticos por vídeo (fraquezas, oportunidades)
 - Coaching cards (recomendações priorizadas por eixo)
 - Notificações acionáveis (grade drops, CTR drops, monitoramento)
-- Sugestões de A/B tests (thumb, title, description, combo)
+- Sugestões de A/B tests (thumb, title, combo)
 
 ---
 
@@ -221,7 +221,7 @@ Canais menores recebem "benefício da dúvida" — CTR e retenção naturalmente
 ```json
 {
   "video_id": "uuid",
-  "action_type": "thumbnail_test | title_test | description_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
+  "action_type": "thumbnail_test | title_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
   "priority": "high | medium | low",
   "confidence": 0.0-1.0,
   "reasoning": "Explicação em até 500 chars, PT-BR, acionável"

@@ -59,14 +59,13 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     test_type: 'thumbnail',
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
-    original_description: 'Original Description',
     ...overrides,
   }
 }
 
 const DEFAULT_VARIANTS = [
-  { id: 'v1', label: 'A', sort_order: 0, is_original: true, blob_url: 'https://blob.example/thumb-a.jpg', title_text: null, description_text: null },
-  { id: 'v2', label: 'B', sort_order: 1, is_original: false, blob_url: 'https://blob.example/thumb-b.jpg', title_text: null, description_text: null },
+  { id: 'v1', label: 'A', sort_order: 0, is_original: true, blob_url: 'https://blob.example/thumb-a.jpg', title_text: null },
+  { id: 'v2', label: 'B', sort_order: 1, is_original: false, blob_url: 'https://blob.example/thumb-b.jpg', title_text: null },
 ]
 
 interface BuildMockOpts {
@@ -216,11 +215,22 @@ describe('resumeAbTest', () => {
           blob_url: 'https://blob.example/thumb-b.jpg',
         }),
         originalTitle: 'Original Title',
-        originalDescription: 'Original Description',
       }),
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
     expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
+  })
+
+  it('teste pausado de tipo antigo (descrição): recusa, sem aplicar, sem ciclo e sem mudar status', async () => {
+    const { updateCalls, insertCalls } = buildSupabaseMock({ test: makeTest({ test_type: 'description' }) })
+
+    const result = await resumeAbTest('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('A descrição não participa mais do teste A/B')
+    expect(applyVariantToYouTube).not.toHaveBeenCalled()
+    expect(updateCalls).toHaveLength(0)
+    expect(insertCalls).toHaveLength(0)
   })
 
   it('stores applied_metadata on new cycle', async () => {

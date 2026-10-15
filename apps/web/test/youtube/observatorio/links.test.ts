@@ -193,3 +193,11 @@ describe('E5a T4: ligações e parâmetros', () => {
     expect(link.mudancas({ vista: 'outras', tipo: 'tags', win: 30 })).toBe(`${B}/mudancas?vista=outras&tipo=tags&win=30`)
   })
 })
+
+describe('link.saiu (A5 E9)', () => {
+  it('a fila não leva nicho e o padrão não aparece na URL', () => {
+    expect(link.saiu()).toBe('/cms/youtube/competitors/saiu')
+    expect(link.saiu({ mostrar: 10 })).toBe('/cms/youtube/competitors/saiu')
+    expect(link.saiu({ mostrar: 30 })).toBe('/cms/youtube/competitors/saiu?mostrar=30')
+  })
+})

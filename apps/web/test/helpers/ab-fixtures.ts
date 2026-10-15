@@ -14,7 +14,7 @@ export function makeTestRow(overrides?: Partial<AbTestRow>): AbTestRow {
     source_pipeline_id: null, name: 'Test Thumbnail A',
     status: 'active', config: { ...AB_TEST_CONFIG_DEFAULTS },
     test_type: 'thumbnail', original_thumbnail_url: 'https://img.youtube.com/vi/test/hqdefault.jpg',
-    original_title: null, original_description: null,
+    original_title: null,
     winner_variant_id: null, started_at: new Date(Date.now() - 5 * 86400000).toISOString(),
     paused_at: null, completed_at: null, completed_reason: null,
     confidence_at_completion: null, consecutive_confident_evals: 0,
@@ -29,7 +29,7 @@ export function makeVariant(overrides?: Partial<AbTestVariantRow>): AbTestVarian
   return {
     id: uid(), test_id: 'test-1', label: 'original', is_original: true,
     blob_url: null, blob_key: null, file_size_bytes: null, dimensions: null,
-    title_text: null, description_text: null, metadata: {},
+    title_text: null, metadata: {},
     sort_order: 0, created_at: new Date().toISOString(), source_variant_id: null,
     ...overrides,
   }

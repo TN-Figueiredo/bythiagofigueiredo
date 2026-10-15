@@ -13,7 +13,6 @@ function makeVariant(id: string, impressions: number, clicks: number): VariantSt
     label: id,
     blob_url: null,
     title_text: null,
-    description_text: null,
     metadata: {},
     is_original: id === 'A',
     total_impressions: impressions,

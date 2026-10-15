@@ -49,6 +49,11 @@ const ERROR_MAP: Record<string, ErrorClassification> = {
     retryable: true,
     recovery_action: 'Re-fetch the resource to get the latest version, then retry the operation with the updated X-Expected-Version.',
   },
+  DESCRICAO_FORA_DO_TESTE: {
+    severity: 'recoverable',
+    retryable: false,
+    recovery_action: 'Remove description_text (or send null) and resend only title and thumbnail. The A/B Lab no longer tests the description.',
+  },
   VALIDATION_ERROR: {
     severity: 'recoverable',
     retryable: false,

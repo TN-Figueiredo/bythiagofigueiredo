@@ -103,11 +103,10 @@ describe('13.3 gráfico "Views por dia, soma dos vídeos"', () => {
 })
 
 describe('13.3 "O que ainda não é medido"', () => {
-  it('só a curva de retenção e a origem do tráfego (some a frase "o desenho delas nesta tela ainda não existe")', () => {
+  it('só a curva de retenção (a origem agora tem a aba Origem; some a frase "o desenho delas nesta tela ainda não existe")', () => {
     const { view } = monta()
     expect(view.naoMedido).toEqual([
       { rotulo: 'Curva de retenção', texto: 'ainda não é coletada.' },
-      { rotulo: 'Origem do tráfego', texto: 'ainda não aparece aqui.' },
     ])
     expect(JSON.stringify(view.naoMedido)).not.toContain('desenho delas')
   })

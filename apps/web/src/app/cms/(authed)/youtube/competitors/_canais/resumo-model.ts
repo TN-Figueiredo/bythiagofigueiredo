@@ -7,7 +7,7 @@ import type { ContagemDosFiltros } from './estado-model'
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const pl = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`
 
-// TEXTO-A-REVISAR (Logan/Naksu): as frases abaixo seguem o mockup 16 (tabela de frases, seção 2); as que o mockup não escreve são marcadas.
+// as frases abaixo seguem o mockup 16 (tabela de frases, seção 2); as que o mockup não escreve são marcadas.
 export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): string {
   const out: string[] = []
   const parados = c.parados !== null && c.parados > 0 ? pl(c.parados, 'canal parado', 'canais parados') : ''

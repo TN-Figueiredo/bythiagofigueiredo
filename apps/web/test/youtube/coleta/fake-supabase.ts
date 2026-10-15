@@ -40,6 +40,8 @@ export interface FakeDb {
    *  select embaralha antes de ordenar (sementes diferentes por leitura); sem desempate total, a paginação repete e perde linhas.
    *  Desligado (padrão), o empate sai na ordem de inserção, estável, o que esconde a falta de desempate. */
   embaralharEmpates?: boolean
+  /** A5 E18: o que `yt_own_versions_prova` devolve. Ausente = calculado das tabelas em memória (ver `comVersoes`). */
+  provaVersoes?: Row
 }
 
 /** Embaralhamento determinístico (mulberry32): o mesmo n dá a mesma ordem, n diferentes dão ordens diferentes. */
@@ -177,7 +179,7 @@ class Consulta implements PromiseLike<Resposta> {
       }
       const total = out.length
       out = out.slice(this.desde, this.desde + Math.min(this.max ?? MAX_LINHAS_RESPOSTA, MAX_LINHAS_RESPOSTA))
-      if (this.head) return { data: null, error: null, count: total }
+      if (this.head) return { data: null, error: null, count: this.db.semContagem[this.tabela] ? null : total }
       const proj = out.map(r => this.projetar(r))
       const count = this.querCount && !this.db.semContagem[this.tabela] ? total : null
       if (this.modo === 'lista') return { data: proj, error: null, count }
@@ -286,6 +288,9 @@ export function fakeSupabase(
 
   // Tarefa 11a (E8): os fatos da retenção. `db.errors['rpc:yt_own_retention_facts']` tem precedência (função ausente).
   comRetencaoFatosPadrao(db)
+
+  // A5 E18 (Tarefa 6): as funções da MG12. `db.errors['rpc:yt_own_versions_apply_day']` tem precedência (função ausente).
+  comVersoes(db)
 
   db.client = {
     from: (tabela: string) => new Consulta(db, tabela),
@@ -423,6 +428,77 @@ export function semearCobertura(db: FakeDb, videos: readonly Row[], hoje: string
       youtube_video_id: v.youtube_video_id, metric_set: 'base', covered_from: pub < hoje ? pub : hoje, covered_to: hoje,
       site_id: v.site_id, channel_id: v.channel_id, video_id: v.id ?? null, source: 'analytics_api', collected_at: new Date().toISOString(),
     })
+  }
+  return db
+}
+
+/**
+ * A5 E18 (Tarefa 6): `yt_own_versions_apply_day` e `yt_own_versions_prova` do falso, com as mesmas recusas da MG12 (Apêndice A):
+ * `ja_derivado`, canal fora do site (só quando o canal está semeado em `youtube_channels`), dia não fechado, confirmação que não casa
+ * (`touch_recusado`), `sem_linha_do_dia`, `abertura_invalida` (a mesma regra da função: video_id, imagem e A/B Lab), e
+ * `linha_de_base_incoerente`. Atômico: erro = nada gravado. A prova devolve `db.provaVersoes` se o teste a semeou; senão conta o que
+ * o falso sabe (vídeos públicos pela última privacidade, e nenhuma explicação a dar). A lógica de verdade está no Postgres (Tarefa 1).
+ */
+export function comVersoes(db: FakeDb): FakeDb {
+  const recusa = (message: string) => ({ data: null, error: { code: 'P0001', message } })
+  db.rpcHandlers.yt_own_versions_apply_day = (a) => {
+    const canal = a.p_channel_id as string, site = a.p_site_id as string, dia = a.p_day as string
+    if (canal == null || site == null || dia == null) return recusa('argumento_nulo')
+    const touch = (a.p_touch ?? []) as Row[], abrir = (a.p_open ?? []) as Row[]
+    if (!Array.isArray(touch) || !Array.isArray(abrir)) return recusa('argumento_invalido')
+    const canais = db.tables.youtube_channels ?? []
+    const dono = canais.find(c => c.id === canal)
+    if (dono && dono.site_id !== site) return recusa('canal_fora_do_site')
+    if (dia >= dayPt(new Date())) return recusa('dia_nao_fechado')
+    const estados = (db.tables.yt_own_versions_state ??= [])
+    const estado = estados.find(e => e.channel_id === canal)
+    if (estado && dia <= (estado.derived_through as string)) return { data: { resultado: 'ja_derivado', derived_through: estado.derived_through }, error: null }
+
+    const versoes = (db.tables.yt_own_video_versions ??= [])
+    const copia = structuredClone(versoes)
+    const desfaz = (m: string) => { db.tables.yt_own_video_versions = copia; return recusa(m) }
+    let confirmadas = 0
+    for (const t of touch) {
+      const v = versoes.find(x => x.id === t.id && x.channel_id === canal && x.site_id === site && x.is_current === true && !x.pre_registro && (x.last_day_pt as string) < dia)
+      if (!v || t.seen_at == null) return desfaz('touch_recusado')
+      v.last_day_pt = dia; v.last_seen_at = t.seen_at; confirmadas++
+    }
+    let abertas = 0
+    for (const r of abrir) {
+      const m = (db.tables.yt_own_video_meta_daily ?? []).find(x => x.youtube_video_id === r.youtube_video_id && x.day_pt === dia && x.channel_id === canal && x.site_id === site)
+      if (!m) return desfaz('sem_linha_do_dia')
+      const m2 = m
+      const thumbConfere = r.field !== 'thumb' || (r.thumb_dhash === (m2.thumbnail_dhash ?? null) && r.thumb_sha256 === (m2.thumbnail_sha256_at_capture ?? null) && r.thumb_blob_url === (m2.thumbnail_blob_url ?? null))
+      if ((r.video_id ?? null) !== (m2.video_id ?? null) || !thumbConfere
+        || (r.origin === 'ab_lab' && (r.ab_test_id == null || (r.ab_event === 'rotacao' && r.ab_variant_id == null)))) return desfaz('abertura_invalida')
+      let fechadas = 0
+      for (const v of versoes) {
+        if (v.youtube_video_id === r.youtube_video_id && v.field === r.field && v.channel_id === canal && v.is_current === true) { v.is_current = false; fechadas++ }
+      }
+      if ((fechadas === 0) !== (r.origin === 'linha_de_base')) return desfaz('linha_de_base_incoerente')
+      versoes.push({
+        id: crypto.randomUUID(), youtube_video_id: r.youtube_video_id, site_id: site, video_id: r.video_id ?? null, channel_id: canal,
+        field: r.field, value_text: r.value_text ?? null, value_hash: r.value_hash, thumb_dhash: r.thumb_dhash ?? null,
+        thumb_anchor_dhash: r.thumb_anchor_dhash ?? null, thumb_sha256: r.thumb_sha256 ?? null, thumb_blob_url: r.thumb_blob_url ?? null,
+        thumb_similar: r.thumb_similar ?? false, first_day_pt: dia, last_day_pt: dia, first_seen_at: r.first_seen_at, last_seen_at: r.seen_at,
+        window_start: r.window_start ?? null, window_end: r.window_end ?? null, window_precision: r.window_precision, origin: r.origin,
+        ab_event: r.ab_event ?? null, ab_test_id: r.ab_test_id ?? null, ab_variant_id: r.ab_variant_id ?? null, pre_registro: false, is_current: true,
+      })
+      abertas++
+    }
+    if (estado) { estado.derived_through = dia } else estados.push({ channel_id: canal, site_id: site, tracking_since: dia, derived_through: dia })
+    return { data: { resultado: 'ok', confirmadas, abertas, derived_through: dia }, error: null }
+  }
+  db.rpcHandlers.yt_own_versions_prova = (a) => {
+    if (db.provaVersoes) return { data: db.provaVersoes, error: null }
+    const site = a.p_site_id as string
+    const ultima = new Map<string, unknown>()
+    for (const l of [...(db.tables.yt_own_video_meta_daily ?? [])].filter(x => x.site_id === site && x.privacy_status != null).sort((p, q) => (p.day_pt as string).localeCompare(q.day_pt as string))) {
+      ultima.set(l.youtube_video_id as string, l.privacy_status)
+    }
+    const cadastrados = new Set((db.tables.youtube_videos ?? []).map(v => v.youtube_video_id))
+    const publicos = [...ultima].filter(([id, p]) => p === 'public' && cadastrados.has(id)).length
+    return { data: { publicos, sem_titulo: 0, sem_thumb: 0, sem_explicacao: 0, canais_com_linha_sem_estado: 0, derivado_ate: null, origem_cms: 0 }, error: null }
   }
   return db
 }

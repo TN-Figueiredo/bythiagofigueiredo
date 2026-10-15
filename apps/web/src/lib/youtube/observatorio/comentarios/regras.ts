@@ -31,7 +31,7 @@ export const WORST_END_FROM_T0_MS = COMMENT_RULES.lastSnapStartsByMs + WORST_SNA
  * 'a_decidir' = a pergunta 1 não foi respondida nem o envio preencheu: a tarefa para em vermelho.
  * null = coletar tudo o que estiver na tolerância. ISO = só marco atingido a partir deste instante.
  */
-export const COMMENT_SINCE: 'a_decidir' | null | string = 'a_decidir'
+export const COMMENT_SINCE: 'a_decidir' | null | string = null
 
 export const SIZE_BANDS = [['100k_1m', 100_000], ['1m_10m', 1_000_000], ['10m_mais', 10_000_000]] as const
 export const RATIO_BANDS = [['10x_100x', 10], ['100x_1000x', 100], ['1000x_mais', 1000]] as const

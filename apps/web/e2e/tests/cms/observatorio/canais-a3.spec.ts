@@ -29,6 +29,8 @@ function medida(texto: string): void {
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
 const S = '[data-obs-screen="canais"]'
+// A5 2ª leva: o texto da faixa das ordenações sem posição (igual a FAIXA_SEM_POSICAO em _canais/posicao-model.ts)
+const FAIXA_SEM_POSICAO = 'A posição do seu canal em relação aos outros só existe em Inscritos e Views/dia, os números de tamanho e de alcance. Aqui, a coluna P numera os canais da lista.'
 const ROTA = '/cms/youtube/competitors'
 const VP = { w1440: { width: 1440, height: 900 }, alto: { width: 1440, height: 2100 } } as const
 /** Falhas do teste em curso: server action que escapou, erro de console, resposta 5xx. */
@@ -399,7 +401,7 @@ test('A3.2 o canal próprio está na posição dele (a do bloco = a da célula =
   const frase = (await blocoLinha(page).locator('.tp').textContent())!.trim()
   const anuncio = await anuncioOrd(page)
   medida(`Ritmo: bloco "${frase}"; anúncio "${anuncio}"`)
-  expect(frase).toContain('Esta ordenação não mostra posição')
+  expect(frase).toContain(FAIXA_SEM_POSICAO)
   expect(anuncio.endsWith(frase)).toBe(true)
   expect(anuncio).not.toContain('ainda sem medida nesta coluna')
   await ordenarPor(page, 'subs')
@@ -656,7 +658,7 @@ test('a dica dos inscritos e o "formato não confirmado" abrem na camada flutuan
   await abrir(page, '?fmt=longos')
   await rolarPara(page, 700)
   const dicas: Array<{ nome: string; gatilho: Locator }> = [
-    { nome: 'inscritos', gatilho: page.locator(`${S}:visible tbody tr.row [aria-label="Sobre o número de inscritos"]`).first() },
+    { nome: 'inscritos', gatilho: page.locator(`${S}:visible tbody tr.row .cdica:has(> .num)`).first() }, // 2ª leva: a dica por célula (CelulaDica) substituiu o "?" com aria-label
   ]
   // a semente (`canalCompleto`) dá a Matt Wolfe um vídeo com formato não confirmado: se o caso deixar de existir, o teste FALHA em vez de pular a dica
   const nc = page.locator(`${S}:visible tbody tr.row[data-id="${ids.channel(CANAL_COMPLETO.canal)}"] [aria-label="Sobre os vídeos sem formato confirmado"]`)

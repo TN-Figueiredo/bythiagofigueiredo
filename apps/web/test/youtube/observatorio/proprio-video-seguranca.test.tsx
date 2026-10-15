@@ -8,7 +8,7 @@
 //  - vídeo inexistente ou de concorrente nunca toca a guarda de edição nem o dado privado.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { fakeSupabase, type FakeDb, type Row } from '../../helpers/fake-supabase'
 import { TIPO_ALCANCE } from '@/lib/youtube/observatorio/proprio/ler'
 import type { AlcanceCanal, DiarioCanal } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -79,8 +79,43 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     render(await rota(proprio.id))
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(html(), s), s).toBe(true)
     expect(db.trips.length).toBeGreaterThan(0)
-    expect(servico.criado).toBe(1)
-    expect(guarda.chamadas).toBe(1)
+    // um cliente para o alcance, o diário e a retenção (`lerDadosDoVideo`) e, depois do primeiro HTML, outro para os cartões de período (`lerDiarioLongo`, no `Suspense`)
+    expect(servico.criado).toBeGreaterThanOrEqual(1); expect(servico.criado).toBeLessThanOrEqual(5)
+    // a guarda de leitura (1) e, só quando a origem é lida, a de edição dos termos (dentro de `lerTermosESites`)
+    expect(guarda.chamadas).toBeGreaterThanOrEqual(1); expect(guarda.chamadas).toBeLessThanOrEqual(2)
+  })
+
+  it('controle positivo da tela B: o nó `periodos` da rota é um Suspense com o esqueleto, e o componente assíncrono dentro dele devolve os três cartões de % assistido por período com a leitura do diário longo', async () => {
+    const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ periodos?: ReactElement<{ fallback: ReactElement; children: ReactElement<Record<string, unknown>> }> }> }> }>
+    const periodos = moldura.props.children.props.children.props.periodos!
+    expect(periodos.props.fallback.type).toBeTypeOf('function') // o esqueleto
+    const filho = periodos.props.children
+    const antes = db.trips.length
+    const resolvido = await (filho.type as (p: Record<string, unknown>) => Promise<ReactElement>)(filho.props)
+    render(resolvido)
+    expect(document.querySelectorAll('.ap-c')).toHaveLength(3)
+    expect(db.trips.length).toBeGreaterThan(antes)
+    expect(db.trips.slice(antes).some(t => JSON.stringify(t).includes('yt_own_video_coverage'))).toBe(true)
+  })
+
+  it('quem só lê o site: a rota nem monta o nó dos cartões de período', async () => {
+    guarda.ok = false
+    const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ periodos?: unknown }> }> }>
+    expect(moldura.props.children.props.children.props.periodos).toBeUndefined()
+  })
+
+  it('E5b T16 (d): quem não tem a prova abre a origem em "só o aviso": nenhum leitor roda, nenhum cliente de serviço é criado, e o HTML do grupo não tem sentinela nem número privado', async () => {
+    guarda.ok = false
+    const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ origem?: ReactElement<{ children: ReactElement<Record<string, unknown>> }> }> }> }>
+    const no = moldura.props.children.props.children.props.origem!.props.children
+    const resolvido = await (no.type as (p: Record<string, unknown>) => Promise<ReactElement>)(no.props)
+    render(resolvido)
+    expect(document.body.textContent).toContain('Dado que você não vê')
+    for (const s of [...TEXTOS_PRIVADOS, 'sentinela-termo-xyz', 'sentinela.example']) expect(temSentinela(html(), s), s).toBe(false)
+    expect(servico.criado).toBe(0)
+    expect(db.trips).toEqual([])
+    // a propriedade `leitura` da origem é nula: o nó leva à rota o que ela sabe, e nenhum token
+    expect(no.props.leitura).toBeNull()
   })
 
   it('controle positivo: o que a rota entrega ao cliente TEM os números para quem edita (a negativa abaixo não passa em vazio)', async () => {
@@ -90,8 +125,8 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
 
   it('controle positivo da DURAÇÃO MÉDIA e da TAXA: o leitor real entrega a duração do foco a quem edita (a tela não a mostra, então a negativa só vale se o dado existe), e a taxa e os dois extremos do intervalo estão no HTML', async () => {
     const { lerDadosDoVideo, podeVerPrivado } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')
-    const edicao = await podeVerPrivado(S)
-    const lido = await lerDadosDoVideo({ canalId: CANAL, ytId: w.foco.ytId, longosAcompanhados: w.outros, agora: w.obs.NOW, edicao })
+    const leitura = await podeVerPrivado(S)
+    const lido = await lerDadosDoVideo({ canalId: CANAL, ytId: w.foco.ytId, longosAcompanhados: w.outros, agora: w.obs.NOW, leitura })
     if (lido.acesso !== 'ok') throw new Error('o editor devia ler')
     const doFoco = lido.dado.diario.linhas.filter(l => l.ytId === w.foco.ytId)
     expect(doFoco.length).toBeGreaterThan(0)
@@ -130,7 +165,8 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
   it('a guarda vem antes de qualquer leitura: sem a prova de edição a ordem é guarda, depois nada (nenhum banco)', async () => {
     guarda.ok = false
     await rota(proprio.id)
-    expect(guarda.chamadas).toBe(1)
+    // E17 passo 0: a prova de leitura privada pergunta a edição e, negada, a leitura (2 guardas, nenhuma a mais); depois disso nada
+    expect(guarda.chamadas).toBe(2)
     expect(db.trips).toEqual([])
     expect(servico.criado).toBe(0)
   })

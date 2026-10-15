@@ -59,7 +59,7 @@ vi.mock('@/lib/pipeline/services/youtube', () => ({
   deleteVariant: vi.fn(),
 }))
 
-import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
+import { authenticateRead, authenticateWrite, parseBody, pipelineError } from '@/lib/pipeline/helpers'
 import {
   listVariants,
   upsertVariants,
@@ -169,6 +169,36 @@ describe('POST /api/pipeline/youtube/ab-tests/:id/variants', () => {
     const req = makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`)
     const result = await POST(req, makeParams(MOCK_TEST_ID))
     expect(result.status).toBe(200)
+  })
+
+  it('D5: corpo { variants: [...] } chega ao serviço como o vetor', async () => {
+    vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
+    vi.mocked(parseBody).mockResolvedValue({ variants: [{ label: 'B', title_text: 'T' }] })
+    vi.mocked(upsertVariants).mockResolvedValue({ data: { results: [], summary: { total: 0, succeeded: 0, failed: 0 } } } as any)
+    await POST(makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`), makeParams(MOCK_TEST_ID))
+    expect(upsertVariants).toHaveBeenCalledWith(expect.anything(), MOCK_TEST_ID, [{ label: 'B', title_text: 'T' }])
+  })
+
+  it('D5: o vetor cru também chega ao serviço como vetor', async () => {
+    vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
+    vi.mocked(parseBody).mockResolvedValue([{ label: 'B', title_text: 'T' }])
+    vi.mocked(upsertVariants).mockResolvedValue({ data: { results: [], summary: { total: 0, succeeded: 0, failed: 0 } } } as any)
+    await POST(makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`), makeParams(MOCK_TEST_ID))
+    expect(upsertVariants).toHaveBeenCalledWith(expect.anything(), MOCK_TEST_ID, [{ label: 'B', title_text: 'T' }])
+  })
+
+  it('P3: 422 DESCRICAO_FORA_DO_TESTE com o adaptador real, e o serviço real recusa o corpo do doc', async () => {
+    const adaptador = await vi.importActual<typeof import('@/lib/pipeline/services/http-adapter')>('@/lib/pipeline/services/http-adapter')
+    const servico = await vi.importActual<typeof import('@/lib/pipeline/services/youtube')>('@/lib/pipeline/services/youtube')
+    const { serviceErrorToResponse } = await import('@/lib/pipeline/services/http-adapter')
+    vi.mocked(serviceErrorToResponse).mockImplementation(adaptador.serviceErrorToResponse)
+    vi.mocked(upsertVariants).mockImplementation(servico.upsertVariants)
+    vi.mocked(authenticateWrite).mockResolvedValue(AUTH_OK)
+    vi.mocked(parseBody).mockResolvedValue({ variants: [{ label: 'B', description_text: 'x' }] })
+
+    const result = await POST(makeRequest('POST', `/api/pipeline/youtube/ab-tests/${MOCK_TEST_ID}/variants`), makeParams(MOCK_TEST_ID))
+    expect(result.status).toBe(422)
+    expect(pipelineError).toHaveBeenCalledWith('DESCRICAO_FORA_DO_TESTE', 'A descrição não participa mais do teste A/B', 422, AUTH_OK.auth)
   })
 
   it('returns 400 for duplicate variant labels in batch', async () => {

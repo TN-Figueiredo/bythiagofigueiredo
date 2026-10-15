@@ -13,6 +13,7 @@ import type { ForjaView } from './forja-view-model'
 import { ObservatoryChrome } from './observatory-chrome'
 import { buildChromeView, coworkText, type ChromeTab } from './view-model'
 import { resolveNiche, type ObsSearchParams } from './resolve-niche'
+import { contarParaAAba } from '../_saiu/dados'
 
 export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
@@ -35,8 +36,9 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
   const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
   const dropParam = resolved.dropParam || (nicheOverride == null && niche !== wanted && resolved.fromParam)
-  const lembrado = meuCanalLembrado === undefined ? await lerMeuCanalLembrado() : meuCanalLembrado
-  const view = buildChromeView(engine, { tab, niche, forja, lembrado })
+  const [lembrado, aba] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba()])
+  // A5 E9: a quinta aba só existe para quem edita o site; a contagem que falha vira "?" (n nulo)
+  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       onAskForja={askForjaReading} readingCopy={readingCopy}>

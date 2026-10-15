@@ -417,7 +417,7 @@ describe('o canal que os prompts recebem', () => {
           { id: 'v-pt', site_id: SITE, channel_id: 'ch-pt' },
         ],
         ab_tests: [{ id: TEST_EN, site_id: SITE, youtube_video_id: 'v-en' }],
-        ab_test_variants: [{ test_id: TEST_EN, label: 'B', title_text: 't', description_text: null, blob_url: null, metadata: {}, sort_order: 1 }],
+        ab_test_variants: [{ test_id: TEST_EN, label: 'B', title_text: 't', blob_url: null, metadata: {}, sort_order: 1 }],
         youtube_intelligence: [],
         ...over,
       } as FakePostgrestOptions['tables'],
@@ -560,7 +560,7 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
 
   const test_ = (id: string, over: Record<string, unknown>) => ({
     id, site_id: SITE, youtube_video_id: 'v-en', test_type: 'thumbnail', status: 'active', winner_variant_id: null,
-    completed_reason: null, completed_at: null, original_title: 'orig', original_thumbnail_url: null, original_description: null,
+    completed_reason: null, completed_at: null, original_title: 'orig', original_thumbnail_url: null,
     created_at: '2026-09-01T00:00:00Z', ...over,
   })
 
@@ -594,7 +594,7 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
         sites: ['id'],
         youtube_channels: ['id', 'site_id', 'channel_id', 'locale', 'name', 'subscriber_count', 'created_at'],
         youtube_videos: ['id', 'site_id', 'channel_id', 'youtube_video_id', 'title', 'thumbnail_url', 'ctr', 'avg_view_percentage'],
-        ab_tests: ['id', 'site_id', 'youtube_video_id', 'test_type', 'status', 'winner_variant_id', 'completed_reason', 'completed_at', 'original_title', 'original_thumbnail_url', 'original_description', 'created_at'],
+        ab_tests: ['id', 'site_id', 'youtube_video_id', 'test_type', 'status', 'winner_variant_id', 'completed_reason', 'completed_at', 'original_title', 'original_thumbnail_url', 'created_at'],
         youtube_intelligence: ['site_id', 'channel_id', 'source', 'generated_at'],
       },
     }
@@ -626,6 +626,21 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
     expect(data.snapshotAgeHours).toBe(5)
     // vencedor de auto_resolve não conta (winner_label null); o humano conta; sem ctr_lift_percent
     expect(data.testHistory).toEqual([{ test_type: 'thumbnail', winner_label: null }, { test_type: 'title', winner_label: 'variant' }])
+  })
+
+  it('P3: ab-write sobre teste gravado como description rejeita com a frase; tipo desconhecido, com "Tipo de teste desconhecido"', async () => {
+    await start(world({
+      ab_tests: [test_('t-desc', { test_type: 'description' }), test_('t-xyz', { test_type: 'xyz' })],
+    } as Partial<FakePostgrestOptions['tables']>))
+    await expect(pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: 't-desc' } })).rejects.toThrow('A descrição não participa mais do teste A/B')
+    await expect(pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: 't-xyz' } })).rejects.toThrow('Tipo de teste desconhecido')
+    expect(vi.mocked(buildAbWritePrompt)).not.toHaveBeenCalled()
+  })
+
+  it('P3: ab-ideate com test_type description lança a frase; tipo inválido lista só os três', async () => {
+    await start(world())
+    await expect(pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'description' } })).rejects.toThrow('A descrição não participa mais do teste A/B')
+    await expect(pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'xyz' } })).rejects.toThrow('Must be thumbnail, title, or combo.')
   })
 
   it('ab-write: teste de outro site → "A/B test not found"', async () => {

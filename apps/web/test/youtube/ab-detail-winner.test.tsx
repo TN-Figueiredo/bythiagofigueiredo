@@ -24,7 +24,7 @@ vi.mock('lucide-react', () => {
     AlertCircle: icon('AlertCircle'), TrendingDown: icon('TrendingDown'), Minus: icon('Minus'), Lock: icon('Lock'),
     Info: icon('Info'), Target: icon('Target'), ArrowRight: icon('ArrowRight'), ChevronRight: icon('ChevronRight'),
     Eye: icon('Eye'), ThumbsUp: icon('ThumbsUp'), MessageCircle: icon('MessageCircle'), Share2: icon('Share2'),
-    BarChart3: icon('BarChart3'),
+    BarChart3: icon('BarChart3'), HelpCircle: icon('HelpCircle'),
   }
 })
 
@@ -319,5 +319,15 @@ describe('WinnerDetail', () => {
     const tables = screen.getAllByRole('table')
     const variantTable = tables.find(t => t.getAttribute('aria-label') === 'Variant comparison')
     expect(variantTable).toBeDefined()
+  })
+
+  it('teste de tipo retirado (description) não oferece Duplicar', () => {
+    render(<WinnerDetail view={makeWinnerView({ flag: 'description' as never })} />)
+    expect(screen.queryByText('Duplicar')).toBeNull()
+  })
+
+  it('teste combo ainda oferece Duplicar', () => {
+    render(<WinnerDetail view={makeWinnerView({ flag: 'combo' })} />)
+    expect(screen.getByText('Duplicar')).toBeDefined()
   })
 })

@@ -117,11 +117,67 @@ export function conferenciasE6P2(deploy: string | null): Conferencia[] {
   ]
 }
 
+// A5 E6 P4 e E18 parte 2 (plano 2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final, seção 7): três marcos, cada um com a sua constante, todas
+// `null` até o controlador preenchê-las no commit do dia (Tarefas 13, 14 e 15). Enquanto for `null`, as entradas NÃO existem (nada vence,
+// nada deixa o cron vermelho). Os ids não colidem com os de `e6-p3-` nem com `e8-`.
+/** Dia de São Paulo (AAAA-MM-DD) em que o código da cobertura de metadados foi promovido a `main` (a MG17a já estava aplicada). `null` = ainda não. */
+export const E18P2_COBERTURA_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG16 (soltar o backup do diário). `null` = ainda não aplicada. */
+export const E6_P4_APLICADA: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG17 (a dieta de yt_own_video_meta_daily). `null` = ainda não aplicada. */
+export const E18P2_APLICADA: string | null = null
+
+const PLANO_P4 = 'docs/superpowers/plans/2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final-plan.md'
+
+/** As conferências da cobertura de metadados a partir do dia do código (D). `null` = sem entradas; data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasE18P2Cobertura(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e18p2-cob-deploy-invalido', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18P2_COBERTURA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção do código a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18p2-cob-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: VA1 a VA4 no ledger; `resumo.metadados.cobertura` da primeira execução com `ok` = `canais` e `descobertas` 0'),
+    e('d1', 1, 'D + 1: segunda execução igual; `ms_passos.metadados` sem salto (anotar); `resumo.versoes.cobertos_sem_linha` 0'),
+    e('d7', 7, 'D + 7: CP13 em 0; K1 em 0; nenhuma nota `metadados:` nova'),
+    e('d14', 14, 'D + 14: CP14: é o gatilho do portão D (junto do D + 14 do plano E18)'),
+  ]
+}
+
+/** As conferências de depois de soltar o backup do diário (MG16), a partir do dia da aplicação (D). */
+export function conferenciasE6P4(aplicada: string | null): Conferencia[] {
+  if (aplicada === null) return []
+  if (!dataReal(aplicada)) {
+    return [{ id: 'e6-p4-aplicada-invalida', etapa: 'E6', data: '1970-01-01', responsavel: 'agente', onde: `E6_P4_APLICADA (apps/web/src/lib/conferencias.ts) está malformada: "${aplicada}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono aplicou a MG16) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e6-p4-${id}`, etapa: 'E6', data: somaDias(aplicada, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e6-p4/progress.md: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: AP e VP1 a VP4 no ledger; o CSV do backup com `sha256`'),
+    e('d1', 1, 'D + 1: o cron rodou sem nota do diário; V6 do plano P3 (K4, K5, K8)'),
+    e('d7', 7, 'D + 7: diário menor que 2 MB; o teste do item 191 verde na CI'),
+  ]
+}
+
+/** As conferências de depois da dieta de metadados (MG17), a partir do dia da aplicação (D). */
+export function conferenciasE18P2(aplicada: string | null): Conferencia[] {
+  if (aplicada === null) return []
+  if (!dataReal(aplicada)) {
+    return [{ id: 'e18p2-aplicada-invalida', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18P2_APLICADA (apps/web/src/lib/conferencias.ts) está malformada: "${aplicada}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono aplicou a MG17) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18p2-${id}`, etapa: 'E18', data: somaDias(aplicada, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D: AD e VD1 a VD8; os dois retratos; `sha256` do CSV; tamanho antes e depois (item 202)'),
+    e('d1', 1, 'D + 1: `cobertura.compactacao.feita` = canais; `compactadas` perto do número de vídeos; `sem_explicacao` 0; K2 do plano E18 em 0; `versoes.confirmadas` igual à de D − 1'),
+    e('d7', 7, 'D + 7: linhas e tamanho (K4): crescimento perto de zero; K5 (a prova da leitura horária) sem vídeo "sem captura há 3 dias" que não existisse antes'),
+    e('d30', 30, 'D + 30: K4 de novo; K6: dias de teste A/B guardados, se houve teste'),
+  ]
+}
+
 // E14 (comentários de destaque dos vídeos de concorrentes): as datas dependem do dia da promoção a `main` (D), que ainda não existe.
 // O controlador preenche `E14_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as quatro entradas
 // NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E14` (o formato `E<n>` do guardião).
 /** Dia de São Paulo (AAAA-MM-DD) em que a E14 foi promovida a `main`. `null` = ainda não enviada. */
-export const E14_DEPLOY: string | null = null
+export const E14_DEPLOY: string | null = '2026-10-15'
 
 const PLANO_E14 = 'docs/superpowers/plans/2026-10-12-a5-e14-comentarios-plan.md (seção 11, V5 a V8; Tarefa 12); anotar o resultado em .superpowers/sdd/a5-e14/progress.md'
 
@@ -265,8 +321,115 @@ const BASE: readonly Conferencia[] = [
   { id: 'e20-prova-180d', etapa: 'E20', data: '2027-04-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 maior que em janeiro`, feitaEm: null },
 ]
 
+// E5a leva 2 (Referências e Inscritos, R8): as quatro conferências dependem do dia da promoção a `main` (D), que o controlador preenche em
+// `E5A_RI_DEPLOY` (dia de São Paulo, AAAA-MM-DD) no commit do envio. Enquanto for `null`, as entradas NÃO existem (nada vence, nada deixa o
+// cron vermelho). Etapa `E5` (formato `E<n>`); os ids começam por `e5a-ri-`, distintos dos da leva 1.
+/** Dia de São Paulo (AAAA-MM-DD) em que a E5a leva 2 (Referências e Inscritos) foi promovida a `main`. `null` = ainda não enviada. */
+export const E5A_RI_DEPLOY: string | null = '2026-10-15'
+
+const PLANO_E5A_RI = 'docs/superpowers/plans/2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md (Tarefa R8; consultas em .superpowers/sdd/a5-e5a/portao-plano-ri-phil.md, §7); anotar o resultado em .superpowers/sdd/a5/progress.md'
+
+/**
+ * As conferências da E5a leva 2 a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio: vira uma entrada
+ * de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE5ARi(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e5a-ri-deploy-invalido', etapa: 'E5', data: '1970-01-01', responsavel: 'agente', onde: `E5A_RI_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e5a-ri-${id}`, etapa: 'E5', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E5A_RI}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, CP-RI1: a tela Canais em produção com dado real; quantos canais medidos, provisórios e sem medida, por motivo (se mais da metade estiver "sem medida · dentro do arredondamento", vai ao dono como fato, não como defeito); quantos canais com janela parcial e quantos vídeos da janela com `missing_since`; e se `youtube_channels.last_synced_at` do canal próprio é atualizado dentro de 48 h (senão ele aparece "sem coleta desde" em Referências)'),
+    e('d1-cortes', 1, 'D+1, CP-RI2, calibração (consulta só de leitura, `supabase db query --linked`): a razão p75/p25 dos longos de 7 a 90 dias de cada concorrente e os terços dela; se os terços caírem longe de 2 e 6, a proposta de cortes novos vai ao dono, que decide (o código não muda sem ele)'),
+    e('d1-sete-dias', 1, 'D+1, CP-RI4, calibração dos 7 dias (consulta só de leitura): a razão views aos 7 dias / views aos 28 dias dos longos com série completa em `competitor_video_daily`; esperado: mediana entre 0,5 e 0,9; abaixo de 0,5 vai ao dono a proposta de subir o corte para 14 dias (o código não muda sem ele)'),
+    e('d28', 28, 'D+28, CP-RI3: o canal adicionado mais recentemente passou de "menos de 28 dias" para medido no dia certo'),
+  ]
+}
+
+// E18 (versões do vídeo próprio): as datas dependem do dia da promoção a `main` (D). O controlador preenche `E18_DEPLOY` (dia de São Paulo,
+// AAAA-MM-DD) no commit do envio, DEPOIS de a MG12 estar em produção com V1 a V5 conferidas e da Tarefa 7 commitada. Enquanto for `null`, as
+// seis entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E18` (formato `E<n>`).
+/** Dia de São Paulo (AAAA-MM-DD) em que a E18 foi promovida a `main`. `null` = ainda não enviada. */
+export const E18_DEPLOY: string | null = null
+
+const PLANO_E18 = 'docs/superpowers/plans/2026-10-13-a5-e18-versoes-do-video-proprio-plan.md (seção 7; seção "Versões do vídeo próprio" do docs/ops/youtube-coleta-canais-proprios-runbook.md); anotar o resultado em .superpowers/sdd/a5-e18/progress.md'
+
+/**
+ * As conferências das versões do vídeo próprio a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio:
+ * vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE18(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e18-deploy-invalido', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E18}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, depois do primeiro cron das 12:00 UTC: resumo.versoes em yt_own_collection_runs (dias_derivados = dias desde 07/10 por canal; abertas.linha_de_base = 105, as outras origens = 0; atraso_dias = 0; prova.sem_explicacao = 0; ms_passos.versoes abaixo de 5.000; com sem_tempo e recuperando preenchido não é falha: anotar "em recuperação" e quem prova é o D+1); as consultas de contagem por campo e origem, de estado (2 linhas, tracking_since 2026-10-07) e origin = \'cms\' = 0'),
+    e('d1', 1, 'D+1: resumo.versoes com dias_derivados = 2 (um por canal), confirmadas = 105 menos os pulados, abertas = 0 ou as trocas reais do dia, ja_derivado = 0; a consulta K2 do item 200 = 0'),
+    e('d3', 3, 'D+3: ms_passos.versoes das três execuções abaixo de 2.000 ms nas duas últimas, e falhas sem nota de versões'),
+    e('d7', 7, 'D+7: as duas consultas da Tarefa 5 (thumbnail_blob_url distintos por vídeo desde o envio dela = 0 ou só troca do dono; tentativas kind = thumbnail só com outcome ok); se falhar, reverter a Tarefa 5'),
+    e('d14', 14, 'D+14: 14 execuções seguidas com resumo.versoes presente, passo não desligado, sem nota de versões em falhas e com atraso_dias 0 nos dois canais (execução em recuperando não conta); itens 188 e 199 conferidos; é o gatilho da MG17 (parte 2)'),
+    e('d30', 30, 'D+30: item 195, select origin, ab_event, thumb_similar, count(*) from yt_own_video_versions where origin <> \'linha_de_base\' group by 1, 2, 3; retoque em vídeo que o dono não tocou revê a regra do retoque; a K7 (título que volta ao anterior em dias vizinhos, sem evento do Lab) é o sinal do furo do risco 14'),
+  ]
+}
+
+// E17 degrau 2 ("acesso direto pelo Claude Code"): três marcos, cada um com a sua constante, todas `null` até o controlador preenchê-las no commit
+// do dia. Enquanto forem `null`, as entradas NÃO existem. Etapa `E17`, ids `e17d2-`. As consultas K1 a K11 estão na seção 11 do plano.
+/** Dia de São Paulo (AAAA-MM-DD) em que o código do degrau 2 foi para `main`, com a variável AUSENTE (lote 2). `null` = ainda não enviado. */
+export const E17_D2_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que o dono abriu o acesso (A0: chave criada, variável `on`, redeploy). `null` = fechado. */
+export const E17_D2_ABERTURA: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) do envio do lote 3 (a tarefa de poda na agenda). `null` = ainda não enviado. */
+export const E17_D2_PODA_DEPLOY: string | null = null
+
+const PLANO_E17D2 = 'docs/superpowers/plans/2026-10-13-a5-e17-degrau-2-acesso-pelo-claude-code-plan.md (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e17-d2/progress.md'
+
+/** D0, D+1 e D+7 do envio com a variável ausente. Data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasE17D2(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e17d2-deploy-invalido', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D2_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, 20 minutos depois do deploy: K1 e K6 (0 chaves do perfil; as três chaves existentes com `last_used_at` da forja da fila avançando; `expires_at` e `user_id` nulos nas três); `curl` sem chave em /api/mcp dá 401 com a frase de hoje; `OBSERVATORIO_IA_EXTERNA` ausente nos três ambientes da Vercel'),
+    e('d1', 1, 'D+1: K4 e K5 (nenhuma linha de origem `mcp`; contador vazio)'),
+    e('d7', 7, 'D+7: K1 e K6 (os mesmos de D0); `OBSERVATORIO_IA_EXTERNA` continua ausente na Vercel'),
+  ]
+}
+
+/** A0, A0+1, A0+7 e A0+30 do dia em que o dono abriu o acesso. */
+export function conferenciasE17D2Abertura(abertura: string | null): Conferencia[] {
+  if (abertura === null) return []
+  if (!dataReal(abertura)) {
+    return [{ id: 'e17d2-abertura-invalida', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D2_ABERTURA (apps/web/src/lib/conferencias.ts) está malformada: "${abertura}". Corrigir para AAAA-MM-DD (dia de São Paulo em que o dono abriu o acesso) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(abertura, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
+  return [
+    e('a0', 0, 'A0, 10 minutos depois da primeira consulta: K8 e K9. Esperado: sem_desfecho = 0 em toda linha; pelo menos uma linha desfecho = ok com output_chars entre 1 e 60.000 (30.000 em pacote_da_tela); output_chars nulo em toda linha cujo desfecho não é ok; e, numa consulta do dono a canal ou vídeo PRÓPRIO, a linha com included_private = true. Só linhas falhou/tempo, ou nenhuma linha ok com included_private = true depois de uma consulta ao canal próprio: VERMELHO, fechar a variável e chamar o controlador; nunca marcar feita'),
+    e('a0-1', 1, 'A0+1: K8 (`limite` e `recusado` em zero ou explicados)'),
+    e('a0-7', 7, "A0+7: K10 (o contador com no máximo 2 dias de linhas) e K11 (tamanho do registro e bytes por linha, contra 300 a 450). Leitura a mais, do controlador, só leitura: `select (at at time zone 'UTC')::date as dia, result, count(*) from obs_ai_access_log where at > now() - interval '7 days' group by 1, 2 order by 1`. Nenhuma linha devolvida quer dizer 'ninguém usou', não 'taxa folgada'. Linhas `limite` em mais de 2 dos dias devolvidos: levar ao dono a pergunta de subir a taxa, com a contagem; o plano não sobe o número sozinho"),
+    e('a0-30', 30, 'A0+30: K11 de novo (projeção de 400 dias contra o teto do banco). Esperado: projeção de 400 dias (linhas_mcp por dia medido × 400 × bytes por linha medidos) abaixo de 50 MB e banco total abaixo de 400 MB; acima de qualquer um, levar ao dono com a conta (a volta é apagar a variável)'),
+  ]
+}
+
+/** P+1 e P+7 do envio do lote 3 (a tarefa `poda_acesso_ia`): K7. */
+export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
+  if (envio === null) return []
+  if (!dataReal(envio)) {
+    return [{ id: 'e17d2-poda-deploy-invalido', etapa: 'E17', data: '1970-01-01', responsavel: 'agente', onde: `E17_D2_PODA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${envio}". Corrigir para AAAA-MM-DD (dia de São Paulo do envio da poda) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(envio, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
+  return [
+    e('poda-p1', 1, 'P+1: K7 (a primeira execução de `poda_acesso_ia` com `ok` e os dois totais). Nenhuma linha = a tarefa não rodou: parar e avisar, nunca "nada a podar"'),
+    e('poda-p7', 7, 'P+7: K7 (7 execuções da poda sem vermelho)'),
+  ]
+}
+
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

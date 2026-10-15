@@ -2,12 +2,9 @@ import * as Sentry from '@sentry/nextjs'
 
 export async function updateVideoMetadata(
   videoId: string,
-  title: string | null,
-  description: string | null,
+  title: string,
   accessToken: string,
 ): Promise<void> {
-  if (title === null && description === null) return
-
   const listUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`
   const listRes = await fetch(listUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -25,6 +22,10 @@ export async function updateVideoMetadata(
   if (!item) throw new Error(`Video not found: ${videoId}`)
 
   const snippet = item.snippet
+  // videos.update com part=snippet apaga propriedade mutável omitida: falha alto, sem PUT.
+  if (typeof snippet?.description !== 'string') {
+    throw new Error(`videos.list sem snippet.description: ${videoId}; nada enviado`)
+  }
   const updateUrl = 'https://www.googleapis.com/youtube/v3/videos?part=snippet'
   const updateRes = await fetch(updateUrl, {
     method: 'PUT',
@@ -35,8 +36,8 @@ export async function updateVideoMetadata(
     body: JSON.stringify({
       id: videoId,
       snippet: {
-        title: title ?? snippet.title,
-        description: description ?? snippet.description,
+        title,
+        description: snippet.description, // sempre a lida: o A/B não escreve descrição (P3)
         categoryId: snippet.categoryId,
         tags: snippet.tags ?? [],
       },

@@ -26,16 +26,30 @@ function Numero({ n }: { n: number | null }): ReactNode {
   return n === 0 ? <ZeroMedido /> : <b className="num">{n}</b>
 }
 
+/** A frase-resumo com "subindo", "sem mudança" e "descendo" como botões de texto (o mesmo filtro da casa). Só vira botão a palavra com canal para mostrar. */
+function FraseClicavel({ frase, casas, onDirecao }: { frase: string; casas: ResumoView['casas']; onDirecao: (d: DirecaoFiltro | null) => void }): ReactNode {
+  const chaveDe: Record<string, DirecaoFiltro> = { subindo: 'sobe', 'sem mudança': 'estavel', descendo: 'desce' }
+  return frase.split(/(\d+(?:[.,]\d+)? (?:subindo|sem mudança|descendo))/).map((p, i) => {
+    if (i % 2 === 0) return destacarNumeros(p)
+    const [n, ...resto] = p.split(' '), palavra = resto.join(' ')
+    const casa = casas.find(c => c.chave === chaveDe[palavra])
+    if (!casa || !casa.n) return <span key={i}>{destacarNumeros(p)}</span>
+    return <span key={i}><strong>{n}</strong>{' '}<button type="button" className="obs-cn-fr-bt" aria-label={`Ver só os canais ${palavra}`} aria-pressed={casa.pressed}
+      onClick={() => onDirecao(casa.pressed ? null : casa.chave)}>{palavra}</button></span>
+  })
+}
+
 export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
   resumo: ResumoView
   onFiltro: (f: FiltroDeEstado | null) => void
   onDirecao: (d: DirecaoFiltro | null) => void
 }) {
   const { casas, filtros } = resumo
+  const ligada = casas.find(c => c.pressed)
   return (
     <section className="obs-cn-res" aria-label="Resumo dos canais" data-k="resumo">
       <p className="obs-cn-frase" data-k="resumo-frase">
-        {resumo.frase ? destacarNumeros(resumo.frase) : 'Sem canais para resumir.'}{' '}
+        {resumo.frase ? <FraseClicavel frase={resumo.frase} casas={casas} onDirecao={onDirecao} /> : 'Sem canais para resumir.'}{' '}
         <Tip label="Como o resumo e o estado são calculados">
           Parado: dias sem publicar acima do maior entre {MEASURE_RULES.stalled.floorDays} dias e {MEASURE_RULES.stalled.factor} vezes o intervalo habitual do canal. Canal que publica por temporada pode parecer parado.
           Em queda (sustentada): descendo em {PERIODOS} períodos de {JANELA} dias seguidos, só depois da mudança de contagem de 24/08/2026. Parado e descendo são medidas diferentes: um canal pode ser os dois. Saiu do YouTube: o YouTube não achou o canal em duas
@@ -43,6 +57,7 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
           YouTube não dá o número por dia. Cálculo do Observatório sobre dados públicos do YouTube.
         </Tip>
       </p>
+      <p className="obs-cn-casas-leg" data-k="casas-legenda">{ligada ? `Mostrando só: ${ligada.palavra}. Clique de novo para limpar.` : 'Clique numa direção para ver só esses canais.'}</p>
       <div className="obs-cn-casas" role="group" aria-label="Filtrar canais por direção">
         {casas.map(c => (
           <button key={c.chave} type="button" className={`obs-cn-casa ${c.chave}${c.n === null ? ' sk' : c.n === 0 ? ' z' : ''}`} aria-pressed={c.pressed} aria-label={c.leitor}
@@ -82,5 +97,23 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
         ) : null}
       </div>
     </section>
+  )
+}
+
+/** Texto próprio de cada filtro de estado na linha de estado (sem lower-case do rótulo: "Saíram do YouTube" virava "saíram do youtube"). */
+const PALAVRA_DO_FILTRO: Record<string, string> = { parados: 'parados', 'em-queda': 'em queda', sairam: 'que saíram do YouTube', problemas: 'com problema', 'sem-videos': 'sem vídeos' }
+
+/** Com filtro ligado: o que está filtrado, quantos canais a lista mostra e de quantos. Fica logo acima da lista (não no bloco das casas), para o clique mostrar o resultado perto dele. */
+export function EstadoDoFiltro({ resumo, mostrando, onLimpar }: { resumo: ResumoView; mostrando: { n: number; de: number }; onLimpar: () => void }) {
+  const direcao = resumo.casas.find(c => c.pressed)?.palavra
+  const filtro = resumo.filtros.find(f => f.pressed && f.chave !== 'todos')
+  const estado = filtro ? (PALAVRA_DO_FILTRO[filtro.chave] ?? filtro.rotulo) : undefined
+  const dois = Boolean(direcao && estado)
+  const quais = dois ? `${direcao} e também ${estado}` : (direcao ?? estado ?? '')
+  return (
+    <p className="obs-cn-estado-filtro" data-k="estado-do-filtro" aria-live="polite">
+      Só {quais}: {mostrando.n} de {mostrando.de} {mostrando.de === 1 ? 'canal' : 'canais'} ·{' '}
+      <button type="button" className="obs-cn-fr-bt" onClick={onLimpar}>{dois ? 'Limpar filtros' : 'Limpar filtro'}</button>
+    </p>
   )
 }

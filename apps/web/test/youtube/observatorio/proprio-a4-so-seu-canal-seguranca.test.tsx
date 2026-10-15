@@ -140,7 +140,8 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     expect(achados(SENTINELAS, html(), texto()).sort()).toEqual(SENTINELAS.map(x => `${x.grupo}: ${x.nome}`).sort())
     expect(db.trips.length).toBeGreaterThan(0)
     expect(servico.criado).toBeGreaterThanOrEqual(1)
-    expect(guarda.chamadas).toBe(1)
+    // a guarda da página (1) mais a prova de edição que a leitura dos termos faz por conta própria (1 por canal próprio do par; o par tem um)
+    expect(guarda.chamadas).toBe(2)
   })
 
   it('controle positivo: o que a rota entrega ao cliente TEM os números para quem edita (a negativa abaixo não passa em vazio)', async () => {
@@ -178,10 +179,11 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     expect(arvore).not.toMatch(/"eixo":\[\{"pos"|"loTxt"|"hiTxt"|"inconclusiva"|"taxa":\{"cliques"/)
   })
 
-  it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (uma só) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
+  it('a guarda vem antes de qualquer leitura: sem a prova de edição, a ordem é guarda (edição e leitura, nada além) e depois nada (nenhum banco, nenhum cliente de serviço)', async () => {
     guarda.ok = false
     await rota(PAR_PROPRIO)
-    expect(guarda.chamadas).toBe(1)
+    // E17 passo 0: a prova de leitura privada pergunta a edição e, negada, a leitura (2 guardas, nenhuma a mais); depois disso nada
+    expect(guarda.chamadas).toBe(2)
     expect(db.trips).toEqual([])
     expect(servico.criado).toBe(0)
   })

@@ -60,10 +60,10 @@ describe('13.3 views por dia e "O que ainda não é medido"', () => {
     expect(graficoViews.colunas).toHaveLength(28)
     expect(within(g).getByText('Ver como tabela')).toBeTruthy()
   })
-  it('só a curva de retenção e a origem do tráfego; some a frase "o desenho delas nesta tela ainda não existe"', () => {
+  it('só a curva de retenção (a origem tem a aba Origem); some a frase "o desenho delas nesta tela ainda não existe"', () => {
     montar()
     const dts = [...corpo().querySelectorAll('dl.pn-nm dt')].map(e => e.textContent)
-    expect(dts).toEqual(['Curva de retenção', 'Origem do tráfego'])
+    expect(dts).toEqual(['Curva de retenção'])
     expect(corpo().textContent).not.toContain('desenho delas')
   })
   it('usuário só de leitura: nenhum dígito do dado privado em todo o corpo aberto (nem a taxa, nem as views)', () => {

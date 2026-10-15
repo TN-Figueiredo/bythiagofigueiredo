@@ -331,11 +331,13 @@ describe('A4.6 cabeçalho próprio: views por dia, retenção e inscritos em 30 
     medida(por(build(comDados({ diario })).todos, 'vpdVideo'), '0')
   })
 
-  it('retenção (curva): "a curva ainda não é coletada" (13.3); inscritos em 30 dias: "sem contagem de 30 dias atrás" (D12 b, D17)', () => {
+  it('retenção (curva): "a curva fica na página de cada vídeo" (13.3; A5 E8 T13); inscritos em 30 dias: "sem contagem de 30 dias atrás" (D12 b, D17)', () => {
     const h = build(BASE)
     const r = por(h.todos, 'retencao')
-    naoMedida(r, 'a curva ainda não é coletada')
-    expect(r.base).toContain('chega com a coleta de retenção')
+    naoMedida(r, 'a curva fica na página de cada vídeo')
+    // a coleta já existe e a curva é por posição no vídeo, não por minuto
+    expect(r.base).toBe('a curva de retenção é por posição no vídeo e fica na página de cada vídeo')
+    expect(r.base).not.toMatch(/chega com a coleta|por minuto/)
     naoMedida(por(h.todos, 'inscritos30'), 'sem contagem de 30 dias atrás')
     expect(por(h.todos, 'inscritos30').base).toContain('precisa de duas contagens de inscritos com 30 dias entre elas')
   })
@@ -454,6 +456,7 @@ describe('A4.6 cabeçalho próprio: texto e dependências', () => {
     // controles: o detector pega cada uma das violações
     expect(violacoesDeImport(`import { lerAlcance } from '@/lib/youtube/observatorio/proprio/ler'`)).toHaveLength(1)
     expect(violacoesDeImport(`import { provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'`)).toHaveLength(1)
+    expect(violacoesDeImport(`import { leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'`)).toHaveLength(1)
     expect(violacoesDeImport(`import { podeVerPrivado } from './dados'`)).toHaveLength(1)
     expect(violacoesDeImport(`import 'server-only'`)).toHaveLength(1)
     expect(violacoesDeImport(`import type { DadosDoCanal } from './dados'`)).toEqual([])
@@ -655,7 +658,7 @@ describe('A4.6 cabeçalho próprio: vídeos com impressão, cliques e views/dia 
 function violacoesDeImport(src: string): string[] {
   const v: string[] = []
   if (/from\s+['"][^'"]*proprio\/ler['"]/.test(src)) v.push('importa os leitores')
-  if (/from\s+['"][^'"]*proprio\/edicao['"]/.test(src)) v.push('importa a prova de edição')
+  if (/from\s+['"][^'"]*proprio\/(edicao|leitura-privada)['"]/.test(src)) v.push('importa a prova de edição ou de leitura privada')
   if (/import\s+(?!type\b)[^'"]*from\s+['"]\.\/dados['"]/.test(src)) v.push('importa valor do módulo de servidor')
   if (/import\s+['"]server-only['"]/.test(src)) v.push('marca o modelo como módulo de servidor')
   return v

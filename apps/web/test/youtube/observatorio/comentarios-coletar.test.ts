@@ -298,10 +298,10 @@ describe('a guarda do começo', () => {
     expect(fim.feitos).toBe(1)
   })
 
-  it('4. COMMENT_SINCE a_decidir (o valor de verdade do repositório): erro inicio_nao_decidido, 0 idas ao banco, 0 chamadas', async () => {
+  it('4. COMMENT_SINCE a_decidir (guarda; o valor de verdade do repositório é null desde o envio, decisão 61): erro inicio_nao_decidido, 0 idas ao banco, 0 chamadas', async () => {
     const real = await vi.importActual<typeof import('@/lib/youtube/observatorio/comentarios/regras')>('@/lib/youtube/observatorio/comentarios/regras')
-    expect(real.COMMENT_SINCE).toBe('a_decidir')
-    desde.v = real.COMMENT_SINCE
+    expect(real.COMMENT_SINCE).toBeNull()
+    desde.v = 'a_decidir'
     mundo.linhas = lista(2)
     const s = comFrase(await rodar())
     expect(s.status).toBe('erro')

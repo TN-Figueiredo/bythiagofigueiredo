@@ -18,6 +18,7 @@ import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { foraDaLeituraFrase } from '@/lib/youtube/observatorio/proprio/vpd'
 import { assistidoDoCanal, cobertura28DoVideo, views28DoVideo } from './canal-agregados'
+import type { AssistidoPeriodosView } from './assistido-periodo-model'
 import type { DadosDoCanal } from './dados'
 import { longosAcompanhados } from './extras'
 import { int } from './impressoes-model'
@@ -82,6 +83,8 @@ export interface RetencaoView {
   videos: LinhaVideo[]
   /** "1 vídeo teve views, mas o YouTube ainda não entregou o % assistido dele."; null = nenhum */
   semPercentual: string | null
+  /** os três cartões de % assistido por período (Tarefa 15 do plano E5b); null = a página ainda não os entrega */
+  periodos: AssistidoPeriodosView | null
 }
 
 export const TITULO_ASSISTIDO = '% assistido'
@@ -104,24 +107,26 @@ function notaDe(ultimo: DiaYt | null | undefined, dm: (d: DiaYt) => string): str
   return `Dado do diário do YouTube, dia do YouTube, ${ate}. ${CURVA_NO_VIDEO}`
 }
 
-function vazia(estado: EstadoRetencao, vazio: string, nota: string): RetencaoView {
-  return { estado, titulo: TITULO_ASSISTIDO, nota, vazio, faixas: [], relance: null, videos: [], semPercentual: null }
+function vazia(estado: EstadoRetencao, vazio: string, nota: string, periodos: AssistidoPeriodosView | null): RetencaoView {
+  return { estado, titulo: TITULO_ASSISTIDO, nota, vazio, faixas: [], relance: null, videos: [], semPercentual: null, periodos }
 }
 
-export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoCanal, o: { dm: (d: DiaYt) => string }): RetencaoView {
+export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoCanal, o: { dm: (d: DiaYt) => string; periodos?: AssistidoPeriodosView | null }): RetencaoView {
   const d = dados.diario
+  // negado/erro: a frase de acesso já sai em `vazio`; os cartões repetiriam a mesma frase (Yannis m-9)
+  const periodos = d.acesso === 'ok' ? (o.periodos ?? null) : null
   const ultimo = d.acesso === 'ok' ? d.dado.ultimoDia : null
   const nota0 = notaDe(ultimo, o.dm)
-  if (d.acesso === 'negado') return vazia('negado', 'Só quem edita o site vê o % assistido.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO)
-  if (d.acesso === 'erro') return vazia('erro', 'A leitura do % assistido falhou agora; recarregue a página.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO)
+  if (d.acesso === 'negado') return vazia('negado', 'Só quem edita o site vê o % assistido.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO, periodos)
+  if (d.acesso === 'erro') return vazia('erro', 'A leitura do % assistido falhou agora; recarregue a página.', 'Dado do diário do YouTube, dia do YouTube. ' + CURVA_NO_VIDEO, periodos)
 
   const ytIds = longosAcompanhados(obs, canalId)
   const canal = assistidoDoCanal(d, ytIds)
   // os longos além do teto do diário não foram lidos: a aba não os mostra, e a nota diz quantos são
   const nota = canal.foraDoTeto > 0 ? `${nota0} ${foraDaLeituraFrase(canal.foraDoTeto)}` : nota0
-  if (canal.motivo === 'sem-diario') return vazia('sem-diario', 'A coleta diária ainda não rodou para este canal: não há % assistido de nenhum vídeo.', nota)
-  if (canal.motivo === 'sem-views') return vazia('sem-views', `Nenhum vídeo teve views nos 28 dias até ${ultimo ? o.dm(ultimo) : 'o último dia medido'}. Sem views não há % assistido para comparar. Os vídeos voltam a aparecer aqui assim que tiverem views.`, nota)
-  if (canal.motivo === 'sem-percentual') return vazia('sem-percentual', 'O YouTube ainda não entregou o % assistido de nenhum vídeo.', nota)
+  if (canal.motivo === 'sem-diario') return vazia('sem-diario', 'A coleta diária ainda não rodou para este canal: não há % assistido de nenhum vídeo.', nota, periodos)
+  if (canal.motivo === 'sem-views') return vazia('sem-views', `Nenhum vídeo teve views nos 28 dias até ${ultimo ? o.dm(ultimo) : 'o último dia medido'}. Sem views não há % assistido para comparar. Os vídeos voltam a aparecer aqui assim que tiverem views.`, nota, periodos)
+  if (canal.motivo === 'sem-percentual') return vazia('sem-percentual', 'O YouTube ainda não entregou o % assistido de nenhum vídeo.', nota, periodos)
 
   const porYt = new Map(obs.videos.filter(v => v.ch === canalId).map(v => [v.ytId, v]))
   const base = ytIds.flatMap(yt => {
@@ -200,7 +205,7 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
     : { negrito: '', resto: `Nenhum vídeo tem views acima do normal do canal com % assistido abaixo do normal da faixa.${foraDaComparacao}` }
 
   return {
-    estado: 'ok', titulo: TITULO_ASSISTIDO, nota, vazio: null, faixas, relance, videos,
+    estado: 'ok', titulo: TITULO_ASSISTIDO, nota, vazio: null, faixas, relance, videos, periodos,
     semPercentual: semPct === 0 ? null : `${int(semPct)} ${semPct === 1 ? 'vídeo teve' : 'vídeos tiveram'} views, mas o YouTube ainda não entregou o % assistido ${semPct === 1 ? 'dele' : 'deles'}.`,
   }
 }

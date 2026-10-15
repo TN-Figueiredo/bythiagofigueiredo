@@ -95,6 +95,38 @@ describe('fetchVideoDetails', () => {
 describe('fetchChannelStats', () => {
   beforeEach(() => { vi.restoreAllMocks() })
 
+  // A5 R9a: campos aditivos para o retrato público do canal próprio
+  it('statistics sem subscriberCount: subscriberCountRaw nulo, nunca 0 (o campo antigo segue 0)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ statistics: { viewCount: '900', videoCount: '7' } }] }), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCtest', 'test-key')
+    expect(stats.subscriberCountRaw).toBeNull()
+    expect(stats.subscriberCount).toBe(0)
+    expect(stats.viewCountRaw).toBe(900)
+    expect(stats.videoCountRaw).toBe(7)
+    expect(stats.hidden).toBe(false)
+  })
+
+  it.each(['-5', 'abc'])('contagem inválida %j: os três campos Raw ficam nulos, nunca número', async (v) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ statistics: { subscriberCount: v, viewCount: v, videoCount: v } }] }), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCtest', 'test-key')
+    expect(stats.subscriberCountRaw).toBeNull()
+    expect(stats.viewCountRaw).toBeNull()
+    expect(stats.videoCountRaw).toBeNull()
+  })
+
+  it('hiddenSubscriberCount true: subscriberCountRaw nulo e hidden true', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ statistics: { hiddenSubscriberCount: true, subscriberCount: '12300', viewCount: '5', videoCount: '2' } }] }), { status: 200 }),
+    )
+    const stats = await fetchChannelStats('UCtest', 'test-key')
+    expect(stats.subscriberCountRaw).toBeNull()
+    expect(stats.hidden).toBe(true)
+  })
+
   it('returns stats with null thumbnail/banner when only statistics present', async () => {
     const mockResponse = {
       items: [{
@@ -106,7 +138,7 @@ describe('fetchChannelStats', () => {
     )
 
     const stats = await fetchChannelStats('UCtest', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 4200, videoCount: 48, thumbnailUrl: null, bannerUrl: null })
+    expect(stats).toEqual({ subscriberCount: 4200, videoCount: 48, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 4200, viewCountRaw: null, videoCountRaw: 48, hidden: false })
   })
 
   it('extracts thumbnail and banner when present', async () => {
@@ -127,6 +159,10 @@ describe('fetchChannelStats', () => {
       videoCount: 10,
       thumbnailUrl: 'https://yt3.ggpht.com/avatar',
       bannerUrl: 'https://yt3.ggpht.com/banner',
+      subscriberCountRaw: 100,
+      viewCountRaw: null,
+      videoCountRaw: 10,
+      hidden: false,
     })
   })
 
@@ -135,7 +171,7 @@ describe('fetchChannelStats', () => {
       new Response(JSON.stringify({ items: [] }), { status: 200 }),
     )
     const stats = await fetchChannelStats('UCgone', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null })
+    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false })
   })
 
   it('returns zeroed defaults when items is undefined', async () => {
@@ -143,7 +179,7 @@ describe('fetchChannelStats', () => {
       new Response(JSON.stringify({}), { status: 200 }),
     )
     const stats = await fetchChannelStats('UCgone', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null })
+    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false })
   })
 
   it('returns null thumbnailUrl when snippet exists but thumbnails.medium is missing', async () => {
@@ -211,7 +247,7 @@ describe('ytFetch retry behavior', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(okResponse), { status: 200 }))
 
     const stats = await drainTimers(fetchChannelStats('UCtest', 'test-key'))
-    expect(stats).toEqual({ subscriberCount: 100, videoCount: 5, thumbnailUrl: null, bannerUrl: null })
+    expect(stats).toEqual({ subscriberCount: 100, videoCount: 5, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 100, viewCountRaw: null, videoCountRaw: 5, hidden: false })
     expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 

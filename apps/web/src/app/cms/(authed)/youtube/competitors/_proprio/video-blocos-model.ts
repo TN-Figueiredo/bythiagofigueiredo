@@ -11,21 +11,30 @@
  *  - taxa de clique: intervalo de Wilson, veredito só quando as faixas se separam; nunca "capa boa" nem "capa ruim", nunca cor de direção;
  *  - % assistido: o número real, mesmo acima de 100; abaixo de 10 views não compara; "na média" é até 2 pontos (`contraNormal`, a função única); o normal é a
  *    mediana do CANAL (os outros vídeos com views, mínimo de 5), não a da faixa de duração (a faixa é da aba Retenção do canal);
- *  - nada de troca de título/thumbnail e nada de curva de retenção com dado (A5): só os estados "ainda não coletado" e "ainda não registrado".
+ *  - retenção (A5 E8, Tarefa 13): cinco estados (coletada, sem-curva, nao-coletada, erro, negado) em `retencao-curva-model.ts`; sem a prova de acesso
+ *    o modelo não carrega ponto, data nem número da curva. Nada de troca de título/thumbnail: ainda não registradas.
  */
 import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
+import { estadoCedo } from '@/lib/youtube/observatorio/proprio/cedo'
+import { totalDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import { normalDoPeriodo, normalSemLeitura, type NormalDoPeriodo, type PeriodoAssistido } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 import { assistidoDoVideo, contraNormal, MIN_VIDEOS_FAIXA, normalDoCanal, POUCAS_VIEWS } from '@/lib/youtube/observatorio/proprio/assistido'
 import { montarDias, publicacoesDe, resumir, videoNovo, type DiaAlcance, type Periodo, type PublicacoesPorYtId } from '@/lib/youtube/observatorio/proprio/dias'
 import { serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
 import { taxaComIntervalo, veredito, type TaxaComIntervalo, type Veredito } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { MIN_DIAS_VPD, vpdDoVideo } from '@/lib/youtube/observatorio/proprio/vpd'
-import type { DadosDoVideo } from './dados'
+import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
+import type { DadosDoVideo, DiarioLongo } from './dados'
+import type { Nivel, OrigemView, PeriodoEntrada } from './origem-model'
 import { cliquesTexto, lerEstado } from './header-model'
+import { buildAssistidoPeriodos, type AssistidoPeriodosView } from './assistido-periodo-model'
 import { buildImpressoes, int, SEM_RELATORIO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
 import { buildReguas, type DiarioReguas, type ReguasView } from './reguas-model'
+import { buildRetencaoView, type RetencaoView } from './retencao-curva-model'
 import { buildTaxaFaixa, type TaxaFaixaView } from './taxa-faixa-model'
 import { canalProprioDoVideo } from './video-model'
 import { durText } from './formato'
@@ -85,7 +94,8 @@ export interface BlocoAssistido {
   metodo: string[]
 }
 
-export interface BlocoRetencao { frase: string; metodo: string[] }
+/** A seção "Retenção": os cinco estados e o desenho da curva (`retencao-curva-model.ts`). */
+export type BlocoRetencao = RetencaoView
 
 export interface ForjaIndisponivelView {
   titulo: string
@@ -219,23 +229,28 @@ function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Obse
   return { partes, faixa: { ...faixa, alt }, inconclusiva: v.inconclusivo, metodo: METODO_TAXA }
 }
 
-function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; publicacoes: PublicacoesPorYtId; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
-  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje, o.publicacoes)
-  if (lido.estado !== 'ok') return { medido: false, frase: lido.estado === 'sem-relatorio' ? semRelatorioFrase(lido.parouEm, o.dm) : SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
-  const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
+function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; views: number | null; publicacoes: PublicacoesPorYtId; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
   // a regra dos dias que valem para o vídeo (a partir da publicação; D e D-1 sem linha são "não medido") é a de `montarDias`, a mesma da régua e do cartão
   const montado = montarDias(alcance, { hoje: o.hoje, ytId: o.ytId, publicadoEm: o.pubDia })
-  // vídeo novo (menos de DIAS_DE_VIDA_MIN dias de vida) SEM linha de alcance desde a publicação: a seção diz "vídeo novo". Com linha, o dado existe e a seção o mostra (a mesma regra do cartão e da régua)
-  if (videoNovo(o.pubDia, o.hoje) && !montado.dias.some(x => x.situacao === 'com-impressoes')) return novo
-  // sem nenhum dia que valha para o vídeo, e a linha acima já tirou o vídeo novo (a regra única de `videoNovo`, a do cartão): o último relatório é anterior à publicação,
+  // a coleta do CANAL parada vem antes de qualquer faixa: `lerEstado` é do canal, e o vídeo novo não pode esconder o "parou em dd/mm" (falha em verde)
+  const lido = lerEstado({ acesso: 'ok', dado: alcance }, o.hoje, o.publicacoes)
+  if (lido.estado !== 'ok') return { medido: false, frase: lido.estado === 'sem-relatorio' ? semRelatorioFrase(lido.parouEm, o.dm) : SEM_RELATORIO, grafico: null, taxa: null, semTaxa: null }
+  // tela A (E5b T13): vídeo novo e "ainda cedo" põem a faixa de 7 casas no lugar do gráfico, depois de a coleta do canal estar em dia
+  const cedo = estadoCedo({ publicadoEm: o.pubDia, hojePt: o.hoje, dias: montado.dias })
+  if (cedo.tipo === 'video-novo' || cedo.tipo === 'ainda-cedo') {
+    const faixa = buildImpressoes([], null, { escopo: 'video', alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok', hoje: o.hoje, cedo, viewsDoVideo: o.views })
+    return { medido: true, frase: null, grafico: faixa, taxa: null, semTaxa: null }
+  }
+  const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
+  // sem nenhum dia que valha para o vídeo, e o vídeo novo já saiu acima: o último relatório é anterior à publicação,
   // a coleta atrasou. O cartão diz "não medido"; a página dá a mesma causa, com o último dia recebido, e nunca "vídeo novo".
   if (montado.periodo == null || montado.dias.length === 0) {
     return { ...novo, frase: `O último dia de alcance recebido é ${o.dm(lido.periodo.ate)}, anterior à publicação deste vídeo: ainda não medido.` }
   }
   const dias = montado.dias
   const periodo: Periodo = montado.periodo
-  const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje }
+  const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje, cedo, viewsDoVideo: o.views }
   const r = resumir(dias)
   let grafico = buildImpressoes(dias, periodo, base)
   if (r.imp != null && r.imp > 0 && r.imp < POUCO_IMPRESSAO && grafico.resumo != null) grafico = buildImpressoes(dias, periodo, { ...base, resumo: `${grafico.resumo} ${FRASE_POUCA_IMPRESSAO}` })
@@ -300,21 +315,18 @@ function assistidoDe(
   const contra = c.leitura === 'na-media' ? `Perto do normal do canal (${normalTexto}).`
     : c.leitura === 'acima' ? `Acima do normal do canal (${normalTexto}): +${Math.abs(c.dif)} pontos.`
       : `Abaixo do normal do canal (${normalTexto}): ${MINUS}${Math.abs(c.dif)} pontos.`
+  const marca = marcaDaBarra(normal)!
+  return { ...base, normalPct: normal, normalTexto, marcaPct: marca.marcaPct, rotuloAncora: marca.rotuloAncora, contra, direcao: c.leitura }
+}
+
+/** A marca do "normal" sobre a barra do % assistido: posição (0 a 100) e onde o rótulo se prende. Nula sem normal. A barra do vídeo e a do período escolhido usam esta. */
+export function marcaDaBarra(normal: number | null): { marcaPct: number; rotuloAncora: 'inicio' | 'meio' | 'fim'; normalTexto: string } | null {
+  if (normal == null) return null
   const marcaPct = Math.max(0, Math.min(100, Math.round(normal)))
-  const rotuloAncora = marcaPct < ANCORA_PONTA ? 'inicio' : marcaPct > 100 - ANCORA_PONTA ? 'fim' : 'meio'
-  return { ...base, normalPct: normal, normalTexto, marcaPct, rotuloAncora, contra, direcao: c.leitura }
+  return { marcaPct, rotuloAncora: marcaPct < ANCORA_PONTA ? 'inicio' : marcaPct > 100 - ANCORA_PONTA ? 'fim' : 'meio', normalTexto: int(normal) + '%' }
 }
 
-/* ---------------------------------------------------------------- retenção, forja, o que falta */
-
-const RETENCAO: BlocoRetencao = {
-  frase: 'Ainda não coletamos esta curva. Quando coletarmos, esta seção mostra onde as pessoas saem do vídeo e onde voltam.',
-  metodo: [
-    'Curva: a parte do público que ainda está assistindo em cada ponto do vídeo, da publicação até a coleta. Vem de uma consulta do YouTube Analytics por posição no vídeo.',
-    'Janela: a curva é da vida inteira do vídeo; o % assistido da seção anterior é dos últimos dias. As janelas são diferentes.',
-    'Acima de 100%: trecho que muita gente voltou para rever.',
-  ],
-}
+/* ---------------------------------------------------------------- forja, o que falta (a retenção é de retencao-curva-model.ts) */
 
 const FORJA: ForjaIndisponivelView = {
   titulo: 'Leitura da forja',
@@ -324,7 +336,7 @@ const FORJA: ForjaIndisponivelView = {
   porque: 'A forja só recebe dados públicos de concorrente; a leitura de vídeo do seu canal ainda não existe.',
 }
 
-const AINDA = 'Origem do tráfego (esta tela ainda não a mostra) e trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
+const AINDA = 'Trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
 
 /* ---------------------------------------------------------------- as réguas */
 
@@ -370,7 +382,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const dated = obs.video(videoId)
   const pubDia: DiaYt | null = dated ? dayPt(new Date(dated.pub)) : null
   const hrefs = { vistos: link.canal(ch.id, { sort: 'vistos', video: videoId }), imp: link.canal(ch.id, { sort: 'imp', video: videoId }) }
-  const fixos = { retencao: RETENCAO, forja: FORJA, ainda: AINDA }
+  const fixos = { forja: FORJA, ainda: AINDA }
 
   /* sem acesso ao dado privado: só a parte pública das réguas, e nenhuma conta com número privado */
   if (a.dados.acesso !== 'ok') {
@@ -381,6 +393,8 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     })
     return {
       acesso: negado ? 'negado' : 'erro', nota: negado ? NOTA_NEGADO : NOTA_ERRO, views: null, impressoes: null, assistido: null,
+      // sem acesso ao dado privado: nenhum ponto, data ou número da curva (o estado diz só quem vê)
+      retencao: buildRetencaoView({ retencao: { acesso: negado ? 'negado' : 'erro' }, duracaoSeg: este.dur, dm }),
       canal: { reguas, notaDiario: negado ? NOTA_DIARIO_NEGADO : NOTA_DIARIO_ERRO }, ...fixos,
     }
   }
@@ -392,7 +406,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const serie = serieDoVideo(diarioPriv, { ytId: este.ytId, publicadoEm: pubDia, hoje })
 
   const views = viewsDe(serie, { pubDia, dm, hoje, F })
-  const impressoes = impressoesDe(alcance, { ytId: este.ytId, pubDia, publicacoes, dm, hoje, F })
+  const impressoes = impressoesDe(alcance, { ytId: este.ytId, pubDia, views: este.views, publicacoes, dm, hoje, F })
 
   /* contas do diário, uma vez por vídeo que tem linha */
   const grupos = porVideo(diario)
@@ -456,6 +470,110 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     ...(diarioReguas ? { diario: diarioReguas } : {}),
   })
 
-  return { acesso: 'ok', nota: null, views, impressoes, assistido, canal: { reguas, notaDiario }, ...fixos }
+  const retencao = buildRetencaoView({ retencao: a.dados.dado.retencao, duracaoSeg: este.dur, dm })
+  return { acesso: 'ok', nota: null, views, impressoes, assistido, retencao, canal: { reguas, notaDiario }, ...fixos }
 }
 
+
+/* ---------------------------------------------------------------- % assistido por período (tela B) */
+
+const dmy = (d: DiaYt): string => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4)
+
+/**
+ * Os três cartões de "% assistido por período" do vídeo (E5b T16, tela B). Puro. `diario` é o diário de 28 dias do vídeo (o `lerDiario` tolerante),
+ * de onde saem o % do vídeo e o último dia; `longo` é o que `lerDiarioLongo` leu para os OUTROS vídeos do canal (`ytIds`, sem o vídeo da tela); nulo = o canal não tem diário.
+ * O `comBuraco` de cada período vem de `totalDoPeriodo` e é nulo quando a cobertura não é conhecida. Nada daqui lança.
+ */
+export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[]; diario: DiarioCanal; longo: Privado<DiarioLongo> | null }): AssistidoPeriodosView {
+  const base = { tela: 'video' as const, faixas: null, dm: (d: DiaYt) => d.slice(8, 10) + '/' + d.slice(5, 7), dmy }
+  const semLeitura = (motivo: 'sem-acesso' | 'leitura-falhou' | 'sem-diario'): Record<PeriodoAssistido, NormalDoPeriodo> => ({
+    inteiro: normalSemLeitura('inteiro', motivo), '90': normalSemLeitura('90', motivo), '28': normalSemLeitura('28', motivo),
+  })
+  const vazio = { videoPct: null, buracos: { inteiro: null, '90': null, '28': null }, diarioDesde: null, ultimoDia: null }
+  // o canal ainda não tem diário (a página nem chama o leitor): os três cartões dizem que a coleta não rodou
+  if (a.longo === null) return buildAssistidoPeriodos({ ...base, ...vazio, acesso: 'ok', normais: semLeitura('sem-diario') })
+  if (a.longo.acesso !== 'ok') {
+    const negado = a.longo.acesso === 'negado'
+    return buildAssistidoPeriodos({ ...base, ...vazio, acesso: negado ? 'negado' : 'erro', normais: semLeitura(negado ? 'sem-acesso' : 'leitura-falhou') })
+  }
+  const ultimoDia = a.diario.ultimoDia
+  const videoPct = assistidoDoVideo({ acesso: 'ok', dado: a.diario }, a.ytId).pct
+  const { d90, inteiro, motivoInteiro } = a.longo.dado
+  const ate = d90.ate
+  const linhasDe = (d: { linhas: ReadonlyArray<{ ytId: string; dia: DiaYt; views: number | null; pctAssistido: number | null }> }) =>
+    d.linhas.map(l => ({ ytId: l.ytId, dia: l.dia, views: l.views, pctAssistido: l.pctAssistido, duracaoMediaSeg: null }))
+  const l90 = linhasDe(d90)
+  const buraco = (d: typeof d90, de: DiaYt | null): { comBuraco: number; naConta: number } | null => {
+    if (!d.cobertura.conhecida) return null
+    const t = totalDoPeriodo(d, { de, ate })
+    return { comBuraco: t.comBuraco, naConta: t.videosNaConta }
+  }
+  const b28 = buraco(d90, addDays(ate, -27)), b90 = buraco(d90, d90.de)
+  const bInteiro = inteiro ? buraco(inteiro, null) : null
+  const normais: Record<PeriodoAssistido, NormalDoPeriodo> = {
+    '28': normalDoPeriodo(l90, a.ytIds, '28', ate, b28 ? b28.comBuraco : null),
+    '90': normalDoPeriodo(l90, a.ytIds, '90', ate, b90 ? b90.comBuraco : null),
+    inteiro: inteiro
+      ? normalDoPeriodo(linhasDe(inteiro), a.ytIds, 'inteiro', ate, bInteiro ? bInteiro.comBuraco : null)
+      // o diário inteiro não foi lido: passou do teto (permanente) ou falhou (passageiro). Teto lê "não medido" (o canal passou do tamanho que a tela lê de uma vez)
+      : motivoInteiro === 'teto' ? { ...normalSemLeitura('inteiro', 'sem-diario'), motivo: 'acima-do-teto' } : normalSemLeitura('inteiro', 'leitura-falhou'),
+  }
+  // o diário começa depois da publicação mais antiga (C-10): o primeiro cartão se chama "Desde dd/mm/aaaa", nunca "Canal inteiro"
+  const primeiro = inteiro?.cobertura.primeiroDiaLido ?? null
+  let maisAntiga: DiaYt | null = null
+  for (const p of (inteiro ?? d90).cobertura.publicacoes.values()) if (p != null && (maisAntiga == null || p < maisAntiga)) maisAntiga = p
+  const diarioDesde = primeiro != null && maisAntiga != null && primeiro > maisAntiga ? primeiro : null
+  return buildAssistidoPeriodos({
+    ...base, acesso: 'ok', normais, videoPct, buracos: { inteiro: bInteiro, '90': b90, '28': b28 }, diarioDesde, ultimoDia,
+  })
+}
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------
+ * "De onde vêm as views" (E5b T16 (d)): a entrada pura da origem do vídeo. A página só lê (`lerOrigem`, `lerTermosESites`) e chama estas funções.
+ * ------------------------------------------------------------------------------------------------------------------------------------------ */
+
+/** O último dia da origem: o `ultimoDia` do diário tolerante (os "7 dias" desta tela e os da A4 na mesma página são os mesmos); sem diário, três dias antes de hoje. */
+export function ateDaOrigem(ultimoDia: DiaYt | null, hojePt: DiaYt): DiaYt { return ultimoDia ?? addDays(hojePt, -3) }
+
+/** O nível (4.5): sem prova de leitura, só o aviso; termos negados para quem a página sabe que NÃO edita, sem termos; o resto (inclusive erro, e negado para quem edita) é "tudo". */
+export function nivelDaOrigem(a: { temLeitura: boolean; termos: Privado<DetalheCanal>; podeEditar: boolean }): Nivel {
+  if (!a.temLeitura) return 'so-aviso'
+  if (a.termos.acesso === 'negado' && !a.podeEditar) return 'sem-termos'
+  return 'tudo'
+}
+
+/** A janela das dimensões e do diário curto: "7 dias" sempre; "Desde a publicação" só com a data de publicação, sem passar do começo da coleta (antes dele não há dado). */
+export function janelaDaOrigemDoVideo(a: { ate: DiaYt; publicadoEm: DiaYt | null; ligadoEm: DiaYt }): { de: DiaYt; diarioDesde: DiaYt } {
+  const sete = addDays(a.ate, -6)
+  const longo = a.publicadoEm != null && a.publicadoEm <= a.ate
+  const piso = a.ligadoEm < sete ? a.ligadoEm : sete
+  // nunca depois de `ate - 6`: os "7 dias" precisam da janela inteira, mesmo para um vídeo publicado dentro dela
+  const desde = longo ? (a.publicadoEm! > piso ? a.publicadoEm! : piso) : sete
+  const de = desde > sete ? sete : desde
+  return { de, diarioDesde: sete }
+}
+
+const contagem = (t: ReturnType<typeof totalDoPeriodo>): PeriodoEntrada['videosDoTotal'] => ({ naConta: t.videosNaConta, fora: t.videosFora, parados: t.videosParados, paradosDesde: t.paradosDesde, comBuraco: t.comBuraco })
+
+/** Os períodos do vídeo: "7 dias" e "Desde a publicação" (só com data de publicação). O total vem SEMPRE do diário (`totalDoPeriodo`), nunca do contador público. */
+export function periodosDaOrigemDoVideo(a: { ate: DiaYt; publicadoEm: DiaYt | null; diario: DiarioDoPeriodo | null; diarioInteiro: DiarioDoPeriodo | null }): PeriodoEntrada[] {
+  const sete = addDays(a.ate, -6)
+  const t7 = a.diario ? totalDoPeriodo(a.diario, { de: sete, ate: a.ate }) : null
+  const out: PeriodoEntrada[] = [{ id: '7', rotulo: '7 dias', de: sete, ate: a.ate, totalDoPeriodo: t7?.total ?? null, videosDoTotal: t7 ? contagem(t7) : null }]
+  if (a.publicadoEm != null && a.publicadoEm <= a.ate) {
+    const tt = a.diarioInteiro ? totalDoPeriodo(a.diarioInteiro, { de: null, ate: a.ate }) : null
+    out.push({ id: 'tudo', rotulo: 'Desde a publicação', de: a.publicadoEm, ate: a.ate, totalDoPeriodo: tt?.total ?? null, videosDoTotal: tt ? contagem(tt) : null })
+  }
+  return out
+}
+
+/**
+ * O aviso de cobertura (um por requisição, só contagens): períodos CURTOS com vídeo fora ou parado, e blocos curtos que trazem a linha de contagem.
+ * O período "tudo" fica de fora: vídeo que saiu do YouTube fica "parado" nele para sempre, e o estado permanente já está na tela (linha "N de M vídeos
+ * sem leitura"); avisar a cada abertura faria do alarme um ruído que nunca para.
+ */
+export function contagensDeCobertura(view: OrigemView, periodos: readonly PeriodoEntrada[]): { periodosComVideoForaOuParado: number; blocosComContagem: number } | null {
+  const periodosComVideoForaOuParado = periodos.filter(p => p.id !== 'tudo' && p.videosDoTotal != null && (p.videosDoTotal.fora > 0 || p.videosDoTotal.parados > 0)).length
+  const blocosComContagem = view.periodos.filter(p => p.id !== 'tudo').reduce((n, p) => n + p.grupo.blocos.filter(b => b.linhasDeContagem.length > 0).length, 0)
+  return periodosComVideoForaOuParado > 0 || blocosComContagem > 0 ? { periodosComVideoForaOuParado, blocosComContagem } : null
+}

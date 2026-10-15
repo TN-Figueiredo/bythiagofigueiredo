@@ -21,7 +21,7 @@ export const MOTIVOS_NAO_MEDIDO = [
   'sem_registro_recente', 'sem_registro_na_borda', 'pouco_registro', 'janela_cruza_mudanca_de_contagem', 'contagem_recuou',
   'base_zero', 'poucas_views', 'poucas_curtidas', 'sem_v30', 'idade_menor_que_90', 'ao_vivo_ou_estreia', 'formato_nao_confirmado',
   'sem_reacao_publica', 'curtidas_ocultas', 'retrato_ausente', 'sem_multiplo', 'serie_nao_pedida', 'serie_diaria_incompleta',
-  'arquivado', 'sem_permissao', 'leitura_falhou', 'calculo_falhou', 'coleta_pausada',
+  'arquivado', 'sem_permissao', 'leitura_falhou', 'calculo_falhou', 'coleta_pausada', 'nao_se_aplica',
 ] as const
 export type MotivoNaoMedido = typeof MOTIVOS_NAO_MEDIDO[number]
 

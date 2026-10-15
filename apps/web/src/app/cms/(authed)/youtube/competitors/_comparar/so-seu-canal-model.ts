@@ -15,16 +15,29 @@ import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import { JANELA_LEITURA_ALCANCE_DIAS, montarDias, resumir } from '@/lib/youtube/observatorio/proprio/dias'
 import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { AlcanceCanal, DiarioCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import { nomeDoPais } from '@/lib/youtube/observatorio/proprio/pais-pt'
+import { ROTULO_ORIGEM, type GrupoOrigem } from '@/lib/youtube/observatorio/proprio/origem-grupos'
+import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
+import type { OrigemLida } from '../_proprio/dados-origem'
+import { buildOrigem, type BlocoView, type EntradaOrigem, type LinhaView, type PeriodoEntrada } from '../_proprio/origem-model'
 import { assistidoDoCanal, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS, POUCAS_VIEWS_MEDIA, taxaDoCanal, type MotivoAssistidoCanal } from '../_proprio/canal-agregados'
 import { pctUm } from '../_proprio/taxa-faixa-model'
 
-export type ChaveLinha = 'impressoes' | 'cliques' | 'taxa' | 'assistido'
+export type ChaveLinha = 'impressoes' | 'cliques' | 'taxa' | 'assistido' | 'origem' | 'termos' | 'aparelho' | 'pais' | 'inscritos'
 
 /** Uma linha do cartão. `valor` nulo = não medido (o quadradinho hachurado); `nota` = a segunda linha pequena ao lado do valor; `fraco` = valor em cinza (pouca base). */
 export interface LinhaSoSeuCanal {
   chave: ChaveLinha; rotulo: string; sub: string; valor: string | null; nota: string | null; fraco: boolean
   /** true = HÁ dado, mas pouco demais para dizer (o % assistido com menos de 7 dias): a tela escreve só a frase, SEM o quadradinho de "não medido". */
   aindaNaoDa: boolean
+  /** Só nas cinco linhas da origem (E5b T12). Ausente nas quatro do alcance. */
+  estado?: 'medido' | 'zero' | 'nao_medido' | 'ainda_nao_existe' | 'em_revisao' | 'erro' | 'bloqueado'
+  /** true = a linha de termos de quem não edita: cadeado e "só para quem edita", sem número nem termo. */
+  cadeado?: boolean
+  /** A barra pequena da origem: só rótulo e porcentagem inteira. */
+  barra?: Array<{ rotulo: string; pct: number }>
+  /** Rótulo de leitor de tela do estado (ex.: "origem em revisão"). */
+  rotuloLeitor?: string
 }
 
 export interface SoSeuCanalView {
@@ -42,7 +55,7 @@ export interface SoSeuCanalView {
 export interface SoSeuCanalDado { acesso: 'ok' | 'negado' | 'erro'; view: SoSeuCanalView | null }
 
 /** As frases do cartão (as de `header-model.ts`, ditas para o cartão inteiro). */
-export const FRASE_ABERTURA = 'Impressões, taxa de clique e % assistido só chegam ao dono do canal.'
+export const FRASE_ABERTURA = 'Impressões, taxa de clique, origem das views e termos de pesquisa só chegam ao dono do canal.'
 export const FRASE_NEGADO_CARTAO = 'Só quem edita o site vê estes números.'
 export const FRASE_ERRO_CARTAO = 'A leitura do alcance falhou agora; recarregue a página.'
 /** O trecho da frase que sai em negrito. */
@@ -110,6 +123,8 @@ export function montarSoSeuCanalDado(a: {
   dm: (d: DiaYt) => string; F: Pick<Fmt, 'int'>
   /** Hoje no dia do YouTube: D e D-1 sem linha são "não medido", nunca zero. */
   hoje: DiaYt
+  /** A origem de 7 dias (E5b T12). Ausente = o cartão tem só as quatro linhas do alcance. */
+  origem?: EntradaOrigemCartao
 }): SoSeuCanalDado {
   if (a.alcance.acesso === 'negado') return { acesso: 'negado', view: null }
   if (a.alcance.acesso === 'erro') return { acesso: 'erro', view: null }
@@ -134,6 +149,7 @@ export function montarSoSeuCanalDado(a: {
           linha('cliques', 'Cliques estimados', SUB.cliques),
           linha('taxa', 'Taxa de clique', SUB.taxa),
           linhaAssistido(a.diario, a.longos, false),
+          ...linhasDaOrigem(a.origem),
         ],
         taxa: null,
       },
@@ -151,6 +167,7 @@ export function montarSoSeuCanalDado(a: {
       ? linha('taxa', 'Taxa de clique', SUB.taxa, pctUm(t.taxa), `entre ${pctUm(t.lo)} e ${pctUm(t.hi)}${canalLargo(t) ? `. ${NOTA_TAXA_LARGA}` : ''}`)
       : linha('taxa', 'Taxa de clique', SUB.taxa, null, imp === 0 ? NOTA_SEM_IMPRESSAO : NOTA_CTR),
     linhaAssistido(a.diario, a.longos, false),
+    ...linhasDaOrigem(a.origem),
   ]
   return {
     acesso: 'ok',
@@ -159,6 +176,93 @@ export function montarSoSeuCanalDado(a: {
       taxa: t ? { cliques: t.cliques, imp: t.imp, alt: `Taxa de clique do canal ${pctUm(t.taxa)}, intervalo de 95% de ${pctUm(t.lo)} a ${pctUm(t.hi)}` } : null,
     },
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// As cinco linhas da origem (E5b T12). Vêm do MESMO `buildOrigem` da página do canal (7 dias), então os números batem.
+
+/** O que o servidor reúne por canal próprio para as cinco linhas: as duas leituras de 7 dias e o contexto de datas. */
+export interface EntradaOrigemCartao {
+  origem: Privado<OrigemLida>
+  termos: Privado<DetalheCanal>
+  periodo: PeriodoEntrada
+  hojePt: DiaYt
+  ligadoEm: DiaYt
+  publicacoes: ReadonlyMap<string, DiaYt | null>
+  /** quem edita o site lê os termos; os outros veem o cadeado */
+  podeEditar: boolean
+  dm(d: DiaYt): string
+  dmy(d: DiaYt): string
+  n(x: number): string
+}
+
+export const TEXTO_ERRO_LINHA = 'Não conseguimos ler agora'
+const TEXTO_CADEADO = 'só para quem edita'
+const ROTULO_LINHA: Record<'origem' | 'termos' | 'aparelho' | 'pais' | 'inscritos', { rotulo: string; sub: string }> = {
+  origem: { rotulo: 'Origem das views', sub: 'últimos 7 dias' },
+  termos: { rotulo: 'Termos de pesquisa', sub: 'últimos 7 dias' },
+  aparelho: { rotulo: 'Aparelho', sub: 'últimos 7 dias' },
+  pais: { rotulo: 'País', sub: 'últimos 7 dias' },
+  inscritos: { rotulo: 'Inscritos', sub: 'últimos 7 dias' },
+}
+const IDS_ORIGEM = ['origem', 'termos', 'aparelho', 'pais', 'inscritos'] as const
+
+const valores = (b: BlocoView): LinhaView[] => b.linhas.filter(l => l.tipo === 'valor' && !l.semNumero && l.valor > 0 && l.chave !== 'outros').sort((x, y) => y.valor - x.valor)
+const pct = (l: LinhaView): string => l.pctTexto
+
+function valorDoBloco(id: (typeof IDS_ORIGEM)[number], b: BlocoView): { valor: string; barra?: LinhaSoSeuCanal['barra'] } | null {
+  if (id === 'termos') {
+    const t = b.subListas?.find(x => x.id === 'termos')?.linhas.find(l => l.tipo === 'valor' && l.chave !== 'outros')
+    return t ? { valor: `“${t.rotulo}”` } : null
+  }
+  const top = valores(b)
+  const l0 = top[0]
+  if (!l0) return null
+  switch (id) {
+    case 'origem': {
+      const dois = top.slice(0, 2)
+      const de = (l: LinhaView) => ROTULO_ORIGEM[l.chave as GrupoOrigem]?.de ?? l.rotulo.toLowerCase()
+      return { valor: dois.map(l => `${pct(l)} ${de(l)}`).join(', '), barra: top.map(l => ({ rotulo: l.rotulo, pct: l.pct })) }
+    }
+    case 'aparelho': return { valor: `${pct(l0)} ${l0.chave === 'tv' ? 'em TV' : `em ${l0.rotulo.toLowerCase()}`}` }
+    case 'pais': return { valor: `${pct(l0)} ${nomeDoPais(l0.chave).de}` }
+    case 'inscritos': return { valor: `${pct(l0)} ${l0.chave === 'inscritos' ? 'de inscritos' : 'de quem não é inscrito'}` }
+  }
+}
+
+function linhaDoBloco(id: (typeof IDS_ORIGEM)[number], b: BlocoView | undefined): LinhaSoSeuCanal {
+  const { rotulo, sub } = ROTULO_LINHA[id]
+  const base = (estado: NonNullable<LinhaSoSeuCanal['estado']>, extra: Partial<LinhaSoSeuCanal> = {}): LinhaSoSeuCanal =>
+    ({ chave: id, rotulo, sub, valor: null, nota: null, fraco: false, aindaNaoDa: false, estado, ...extra })
+  if (!b || b.estado === 'erro') return base('erro', { nota: TEXTO_ERRO_LINHA })
+  switch (b.estado) {
+    case 'bloqueado': return base('bloqueado', { cadeado: true, nota: TEXTO_CADEADO })
+    case 'em_revisao': return base('em_revisao', { nota: 'em revisão', rotuloLeitor: `${id} em revisão` })
+    case 'ainda_nao_existe': return base('ainda_nao_existe', { nota: 'ainda não existe', aindaNaoDa: true })
+    case 'zero': return base('zero', { valor: '0', nota: id === 'origem' ? 'Zero medido: nenhuma view veio da pesquisa' : 'Zero medido' })
+    case 'nao_medido': return base('nao_medido')
+    case 'medido': {
+      const v = valorDoBloco(id, b)
+      // medido sem nenhuma linha com número (tudo omitido pelo YouTube): não é zero e não é medido bonito
+      if (!v) return base('nao_medido', { nota: 'o YouTube omitiu tudo' })
+      const omitido = b.linhas.find(l => l.tipo === 'omitido')
+      // o YouTube escondeu a maior parte: o número é verdadeiro mas de pouca base, e o cartão diz
+      const nota = id === 'origem' && omitido && omitido.pct > 50 ? `o YouTube omitiu ${omitido.pctTexto} das views` : null
+      return base('medido', { valor: v.valor, barra: v.barra, nota, fraco: nota != null })
+    }
+    default: { const nunca: never = b.estado; return nunca }
+  }
+}
+
+/** As cinco linhas, na ordem do mockup. Sem entrada: nenhuma (o cartão fica com as quatro do alcance). */
+export function linhasDaOrigem(e: EntradaOrigemCartao | undefined): LinhaSoSeuCanal[] {
+  if (!e) return []
+  const view = buildOrigem({
+    tela: 'canal', nivel: e.podeEditar ? 'tudo' : 'sem-termos', origem: e.origem, termos: e.termos, periodos: [e.periodo],
+    publicadoEm: null, hojePt: e.hojePt, ligadoEm: e.ligadoEm, publicacoes: e.publicacoes, podeEditar: e.podeEditar, dm: e.dm, dmy: e.dmy, n: e.n,
+  } satisfies EntradaOrigem)
+  const blocos = view.periodos[0]?.grupo.blocos ?? []
+  return IDS_ORIGEM.map(id => linhaDoBloco(id, blocos.find(b => b.id === id)))
 }
 
 /** A View de um canal seu na tela: o id do canal é a chave da lista (dois canais podem ter o mesmo nome). */

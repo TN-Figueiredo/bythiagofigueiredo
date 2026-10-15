@@ -150,3 +150,33 @@ describe('buracos da revisão da Tarefa 1', () => {
     expect(resumir(dias)).toEqual({ imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 3, diasNaoMedidos: 0, diasSemCtr: 0 })
   })
 })
+
+describe('E5b T20a: a opção desde (piso do período no lugar dos 30 dias)', () => {
+  const SEQ = (de: string, n: number): RelatorioDia[] => Array.from({ length: n }, (_, i) => rel(addDays(de, i)))
+  const FIM = '2026-10-08'
+  const sessenta = SEQ(addDays(FIM, -59), 60)
+  it('60 relatórios e desde há 60 dias: 60 dias devolvidos (falha sem a opção)', () => {
+    const { periodo, dias } = montarDias(canal(sessenta, []), { hoje: HOJE, desde: addDays(FIM, -59) })
+    expect(periodo).toEqual({ de: addDays(FIM, -59), ate: FIM, dias: 60 })
+    expect(dias).toHaveLength(60)
+  })
+  it('montarDias com desde sobre 60 dias lidos classifica o dia 45 como zero medido', () => {
+    const { dias } = montarDias(canal(sessenta, []), { hoje: HOJE, desde: addDays(FIM, -59) })
+    expect(dias.find(d => d.dia === addDays(FIM, -45))).toMatchObject({ situacao: 'zero-medido', imp: 0 })
+  })
+  it('sem a opção: 30, como hoje', () => {
+    expect(montarDias(canal(sessenta, []), { hoje: HOJE }).dias).toHaveLength(JANELA_ALCANCE_DIAS)
+    expect(periodoDoAlcance(sessenta)).toEqual(periodoDoAlcance(sessenta, undefined))
+  })
+  it('desde anterior ao relatório mais antigo: começa no relatório mais antigo', () => {
+    expect(periodoDoAlcance([rel('2026-10-01'), rel('2026-10-05')], '2026-06-01')).toEqual({ de: '2026-10-01', ate: '2026-10-05', dias: 5 })
+  })
+  it('desde posterior ao relatório mais novo: período nulo e lista vazia', () => {
+    expect(periodoDoAlcance([rel('2026-10-01'), rel('2026-10-05')], '2026-10-06')).toBeNull()
+    expect(montarDias(canal([rel('2026-10-01'), rel('2026-10-05')], []), { hoje: HOJE, desde: '2026-10-06' })).toEqual({ periodo: null, dias: [], avisos: [] })
+  })
+  it('desde com vídeo publicado depois: começa na publicação', () => {
+    const { periodo } = montarDias(canal(sessenta, []), { hoje: HOJE, ytId: 'v1', publicadoEm: addDays(FIM, -9), desde: addDays(FIM, -59) })
+    expect(periodo?.de).toBe(addDays(FIM, -9))
+  })
+})

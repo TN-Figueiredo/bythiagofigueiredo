@@ -219,10 +219,9 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
   return { top, topVazio: null, topNota }
 }
 
-/** O que ainda não é medido (A4 13.3): só a curva de retenção e a origem do tráfego; views por dia e % assistido já têm desenho. Não depende do dado privado. */
+/** O que ainda não é medido (A4 13.3): só a curva de retenção; views por dia, % assistido e a origem das views já têm desenho. Não depende do dado privado. */
 const NAO_MEDIDO: ComoEstaView['naoMedido'] = [
   { rotulo: 'Curva de retenção', texto: 'ainda não é coletada.' },
-  { rotulo: 'Origem do tráfego', texto: 'ainda não aparece aqui.' },
 ]
 
 const NOTA_TAXA = 'Compare com os seus próprios vídeos e períodos, não com outros canais: o YouTube só entrega a taxa de clique ao dono do canal.'

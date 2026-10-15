@@ -27,7 +27,6 @@ function makeOriginal(overrides: Partial<VariantData> = {}): VariantData {
     isOriginal: true,
     thumbUrl: null,
     titleText: 'Original title',
-    descriptionText: 'Original description',
     ...overrides,
   }
 }
@@ -38,7 +37,6 @@ function makeChallenger(label: 'B' | 'C' | 'D' = 'B', overrides: Partial<Variant
     isOriginal: false,
     thumbUrl: null,
     titleText: `Title ${label}`,
-    descriptionText: `Description ${label}`,
     ...overrides,
   }
 }
@@ -138,16 +136,26 @@ describe('StepVariantes', () => {
     expect(screen.queryByText('Sem thumb')).toBeNull()
   })
 
-  it('shows description textarea for "description" type', () => {
-    render(<StepVariantes {...defaultProps({ type: 'description' })} />)
-    expect(screen.getByLabelText('Description for variant B')).toBeDefined()
-    // Title input should NOT be shown for description type
-    expect(screen.queryByLabelText('Title for variant B')).toBeNull()
+  it.each(['combo', 'title', 'thumbnail'] as const)('em %s: nenhum campo de descrição nem o acordeão "Avançado"', (type) => {
+    render(<StepVariantes {...defaultProps({ type })} />)
+    expect(screen.queryByText(/descri/i)).toBeNull()
+    expect(screen.queryByLabelText(/description/i)).toBeNull()
+    expect(screen.queryByText(/Avançado/)).toBeNull()
   })
 
-  it('shows both title and description for "combo" type', () => {
+  it('combo mostra o campo de título', () => {
     render(<StepVariantes {...defaultProps({ type: 'combo' })} />)
     expect(screen.getByLabelText('Title for variant B')).toBeDefined()
-    expect(screen.getByLabelText('Description for variant B')).toBeDefined()
+  })
+
+  it('"Titulo mantido" aparece só no tipo thumbnail', () => {
+    const { unmount } = render(<StepVariantes {...defaultProps({ type: 'thumbnail' })} />)
+    expect(screen.getByText(/Titulo mantido/)).toBeDefined()
+    unmount()
+    for (const type of ['title', 'combo'] as const) {
+      const r = render(<StepVariantes {...defaultProps({ type })} />)
+      expect(screen.queryByText(/Titulo mantido/)).toBeNull()
+      r.unmount()
+    }
   })
 })

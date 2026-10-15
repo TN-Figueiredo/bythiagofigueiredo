@@ -1,21 +1,18 @@
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { AppliedMetadata } from '@/lib/youtube/ab-types'
+import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
+import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
 export interface ApplyVariantInput {
   youtubeVideoId: string
   accessToken: string
-  testType: 'thumbnail' | 'title' | 'description' | 'combo'
+  testType: TestType
   variant: {
     id?: string
     blob_url?: string | null
     title_text?: string | null
-    description_text?: string | null
   }
   originalTitle?: string | null
-  originalDescription?: string | null
 }
 
 export interface ApplyResult {
@@ -28,8 +25,7 @@ export interface ApplyResult {
 
 /**
  * Single source of truth for applying a variant to YouTube.
- * Handles thumbnail upload and/or title/description metadata update
- * with tracked link template resolution.
+ * Handles thumbnail upload and/or title update. Never writes description.
  */
 export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<ApplyResult> {
   const {
@@ -38,8 +34,18 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
     testType,
     variant,
     originalTitle,
-    originalDescription,
   } = input
+
+  // Tipo fora dos três (teste antigo de descrição): recusa, nunca "sucesso" sem escrever.
+  if (!TestTypeSchema.safeParse(testType).success) {
+    return {
+      ok: false,
+      appliedThumbnail: false,
+      appliedMetadata: false,
+      meta: {},
+      error: (testType as string) === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido',
+    }
+  }
 
   let appliedThumbnail = false
   let appliedMetadata = false
@@ -58,41 +64,13 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
       }
     }
 
-    // Metadata (title/description)
-    if (testType === 'title' || testType === 'description' || testType === 'combo') {
-      let titleToSet: string | null = null
-      let descToSet: string | null = null
-
-      if (testType === 'title' || testType === 'combo') {
-        titleToSet = variant.title_text ?? originalTitle ?? null
-      }
-
-      if (testType === 'description' || testType === 'combo') {
-        const rawDesc = variant.description_text ?? originalDescription ?? null
-        if (rawDesc && variant.id) {
-          const supabase = getSupabaseServiceClient()
-          const { data: linkMappings } = await supabase
-            .from('ab_test_tracked_links')
-            .select('template_name, short_code')
-            .eq('variant_id', variant.id)
-
-          const linkMap: Record<string, string> = {}
-          const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
-          for (const lm of linkMappings ?? []) {
-            linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
-          }
-          descToSet = resolveTemplates(rawDesc, linkMap)
-          meta.links_resolved = linkMap
-        } else if (rawDesc) {
-          descToSet = rawDesc
-        }
-      }
-
-      if (titleToSet || descToSet) {
-        await updateVideoMetadata(youtubeVideoId, titleToSet, descToSet, accessToken)
+    // Título (a descrição nunca é escrita pelo A/B)
+    if (testType === 'title' || testType === 'combo') {
+      const titleToSet = variant.title_text ?? originalTitle ?? null
+      if (titleToSet) {
+        await updateVideoMetadata(youtubeVideoId, titleToSet, accessToken)
         appliedMetadata = true
         meta.title_set = titleToSet
-        meta.description_set = descToSet
       }
     }
 

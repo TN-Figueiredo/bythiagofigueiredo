@@ -7,7 +7,8 @@ import { createNotification } from '@/lib/notifications/create'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
-import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
+import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
+import type { AbTestVariantRow, TestType } from '@/lib/youtube/ab-types'
 
 type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
 
@@ -91,6 +92,19 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
       video = videoRow
       if (!video) continue
 
+      // Teste antigo de tipo fora dos três (descrição saiu do A/B): pausa uma vez, sem ciclo e sem YouTube
+      if (!TestTypeSchema.safeParse(test.test_type ?? 'thumbnail').success) {
+        await supabase
+          .from('ab_tests')
+          .update({
+            status: 'paused',
+            status_note: 'Tipo de teste fora de uso: a descrição saiu do A/B Lab',
+            paused_at: new Date().toISOString(),
+          })
+          .eq('id', test.id)
+        continue
+      }
+
       // Idempotency: skip if we already rotated today
       const today = new Date().toISOString().slice(0, 10)
       const { data: todayCycle } = await supabase
@@ -170,15 +184,13 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
       const applyResult = await applyVariantToYouTube({
         youtubeVideoId: video.youtube_video_id,
         accessToken,
-        testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+        testType: testType as TestType,
         variant: {
           id: nextVariant.id,
           blob_url: nextVariant.blob_url,
           title_text: nextVariant.title_text,
-          description_text: nextVariant.description_text,
         },
         originalTitle: test.original_title,
-        originalDescription: test.original_description,
       })
 
       if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')

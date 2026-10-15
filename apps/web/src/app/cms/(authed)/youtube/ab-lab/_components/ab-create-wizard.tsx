@@ -21,6 +21,7 @@ import {
   fetchAbBriefingData,
   fetchLibraryEntries,
 } from '../actions'
+import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { YtPortal } from '../../_components/yt-portal'
@@ -45,12 +46,10 @@ interface DraftVariant {
   isOriginal: boolean
   thumbUrl: string | null
   titleText: string
-  descriptionText: string
 }
 
 interface PrefillData {
   testType?: TestType
-  suggestedDescription?: string
   fromOptimizationCycle?: string
   draftVariants?: DraftVariant[]
 }
@@ -146,12 +145,18 @@ function clearDraft(videoId: string): void {
   try { localStorage.removeItem(draftStorageKey(videoId)) } catch { /* ignore */ }
 }
 
+/** Tipo restaurado de rascunho (localStorage ou banco): só vale se for um dos três atuais; o antigo ('description') vira null. */
+function tipoValido(t: unknown): TestType | null {
+  const r = TestTypeSchema.safeParse(t)
+  return r.success ? r.data : null
+}
+
 function makeOriginalVariant(videoTitle: string, thumbUrl?: string | null): VariantData {
-  return { label: 'A', isOriginal: true, thumbUrl: thumbUrl ?? null, titleText: videoTitle, descriptionText: '' }
+  return { label: 'A', isOriginal: true, thumbUrl: thumbUrl ?? null, titleText: videoTitle }
 }
 
 function makeEmptyVariant(label: DisplayLabel): VariantData {
-  return { label, isOriginal: false, thumbUrl: null, titleText: '', descriptionText: '' }
+  return { label, isOriginal: false, thumbUrl: null, titleText: '' }
 }
 
 function wizardReducer(state: WizardState, action: WizardAction): WizardState {
@@ -232,7 +237,7 @@ function stepIsValid(step: number, state: WizardState): boolean {
   switch (step) {
     case 0: return state.type !== null
     case 1: return true // always valid — step is optional
-    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.descriptionText.trim() || v.thumbUrl))
+    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.thumbUrl))
     case 3: return true // has defaults
     case 4: return true
     default: return false
@@ -250,7 +255,12 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   if (continuingDraft) clearDraft(video.id)
   const saved = continuingDraft ? null : loadDraft(video.id)
 
-  const defaultVariants = prefill?.testType
+  const prefillType = tipoValido(prefill?.testType)
+  const savedType = tipoValido(saved?.type)
+  // Rascunho com tipo antigo volta ao passo "tipo" (nunca segue com tipo nulo ou inválido)
+  const tipoInvalido = Boolean((prefill?.testType && !prefillType) || (saved?.type && !savedType))
+
+  const defaultVariants = prefillType
     ? [makeOriginalVariant(video.title, video.thumbnailUrl), makeEmptyVariant('B')]
     : [makeOriginalVariant(video.title, video.thumbnailUrl)]
 
@@ -261,7 +271,6 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
     thumbFile: null as File | null,
     thumbDataUrl: null as string | null,
     titleText: v.titleText,
-    descriptionText: v.descriptionText,
   })) as VariantData[] | undefined
 
   const restoredVariants = saved?.variants?.map(v => ({
@@ -271,8 +280,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   })) as VariantData[] | undefined
 
   const [state, rawDispatch] = useReducer(wizardReducer, {
-    step: continuingDraft ? 4 : (saved?.step ?? (prefill?.testType || existingDraftId ? 2 : 0)),
-    type: prefill?.testType ?? saved?.type ?? null,
+    step: continuingDraft && !tipoInvalido ? 4 : tipoInvalido ? 0 : (saved?.step ?? (prefillType || existingDraftId ? 2 : 0)),
+    type: prefillType ?? savedType,
     variants: continuingDraft ? (dbVariants ?? defaultVariants) : (restoredVariants ?? dbVariants ?? defaultVariants),
     config: saved?.config ?? initWizardConfig(settings),
     videoId: video.id,
@@ -426,7 +435,6 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             const fd = new FormData()
             fd.append('file', file, `variant-${v.label}.jpg`)
             if (v.titleText?.trim()) fd.append('title_text', v.titleText.trim())
-            if (v.descriptionText?.trim()) fd.append('description_text', v.descriptionText.trim())
             const uploadResult = await uploadVariant(testId, fd)
             if (!uploadResult.ok) {
               dispatch({ type: 'SET_ERROR', error: uploadResult.error ?? 'Failed to upload variant' })
@@ -437,20 +445,16 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         }
       }
 
-      // 4. Create text-only variants (title/description — NOT combo, which was handled in step 3)
-      if (state.type === 'title' || state.type === 'description') {
+      // 4. Create text-only variants (title — NOT combo, which was handled in step 3)
+      if (state.type === 'title') {
         const textVariants = state.variants
           .filter(v => !v.isOriginal && !v.isCoworkGenerated)
-          .filter(v => {
-            if (state.type === 'title') return v.titleText.trim().length > 0
-            return v.descriptionText.trim().length > 0
-          })
+          .filter(v => v.titleText.trim().length > 0)
 
         for (const tv of textVariants) {
           const textResult = await createTextVariant({
             test_id: testId,
             title_text: tv.titleText.trim() || undefined,
-            description_text: tv.descriptionText.trim() || undefined,
           })
           if (!textResult.ok) {
             dispatch({ type: 'SET_ERROR', error: textResult.error ?? 'Failed to create text variant' })
@@ -603,8 +607,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between py-[16px] px-[24px] shrink-0" style={{ borderTop: '1px solid var(--cms-border, #332D25)', background: 'var(--cms-bg-side)' }}>
-          <span className="text-[11.5px] text-cms-text-dim">
+        <div className="flex flex-wrap items-center justify-between gap-x-[12px] gap-y-[10px] py-[16px] px-[16px] sm:px-[24px] shrink-0" style={{ borderTop: '1px solid var(--cms-border, #332D25)', background: 'var(--cms-bg-side)' }}>
+          <span className="text-[12px] text-cms-text-muted">
             {state.error ? (
               <span className="text-red-400">{state.error}</span>
             ) : state.step === 1 ? (
@@ -613,7 +617,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               `Passo ${state.step + 1} de 5`
             )}
           </span>
-          <div className="flex items-center gap-[10px]">
+          <div className="flex flex-col-reverse min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-end gap-[10px] w-full min-[480px]:w-auto ml-auto">
             {state.step === 0 ? (
               <button
                 onClick={onClose}
@@ -635,7 +639,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             {state.step === 1 && (
               <button
                 onClick={goNext}
-                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
+                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
                 style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
               >
                 Pular
@@ -646,7 +650,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               <button
                 onClick={goNext}
                 disabled={!canAdvance || isPending}
-                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
               >
                 Próximo
@@ -666,7 +670,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={isPending || state.isLaunching}
-                  className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40"
+                  className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40"
                   style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
                 >
                   <Play size={14} aria-hidden="true" />
@@ -727,12 +731,12 @@ function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepCli
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
                 ) : visualIdx + 1}
               </span>
-              <span className="text-[13px]" style={{ fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--cms-text)' : 'var(--cms-text-dim)' }}>
+              <span className={`text-[13px] ${isActive ? '' : 'hidden sm:inline'}`} style={{ fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--cms-text)' : 'var(--cms-text-dim)' }}>
                 {label}
               </span>
             </div>
             {visualIdx < VISIBLE_STEPS.length - 1 && (
-              <div className="flex-1 h-px mx-[12px]" style={{ background: 'var(--cms-border, #332D25)' }} />
+              <div className="flex-1 min-w-[8px] h-px mx-[6px] sm:mx-[12px]" style={{ background: 'var(--cms-border, #332D25)' }} />
             )}
           </div>
         )

@@ -71,6 +71,8 @@ function arrange(who: SessionWho) {
   cache.invalidated = 0
   resetServiceLog(log, { id: UUID, site_id: 'site-1' })
   log.rpcData = { status: 'removed', impact: {} }
+  // A5 E9: a remoção conta os itens esperando resposta na fila; o canal deste teste não tem nenhum
+  log.count = 0
 }
 
 describe('degrau "administrar o site" — canais', () => {

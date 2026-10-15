@@ -353,10 +353,10 @@ describe('CanaisScreen — concorrente leva à página do canal', () => {
     expect(push.mock.calls.filter(c => String(c[0]).includes('channel='))).toEqual([])
     expect(document.querySelector('.cn-drawer')).toBeNull()
   })
-  it('o "?" dos inscritos e o menu da linha continuam na linha do concorrente', () => {
+  it('a dica dos inscritos e o menu da linha continuam na linha do concorrente', () => {
     mount()
     const row = rowOf('luke-damant')
-    expect(within(row).getByRole('button', { name: 'Sobre o número de inscritos' })).toBeInTheDocument()
+    expect(row.querySelector('.ch .cdica')).not.toBeNull() // A5 2ª leva: a dica dos inscritos é a própria célula, sem o "?" ao lado
     expect(within(row).getByRole('button', { name: 'Mais ações para Luke Damant' })).toBeInTheDocument()
     expect(within(row).getByRole('combobox', { name: 'Nicho de Luke Damant' })).toBeInTheDocument()
   })
@@ -472,7 +472,7 @@ describe('CanaisScreen — Seus canais', () => {
       // own channels keep no ⋯ menu
       expect(r.querySelector('[data-menu]')).toBeNull()
     }
-    expect(container.querySelector('.sortnote')!.textContent).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
+    expect(container.querySelector('.sortnote')!.textContent).toContain('Ordenado por Views/dia por mil inscritos, do maior ao menor número de views por dia. Posição: 1º é o maior valor, em qualquer sentido.')
   })
   it('preset 1: bloco "Seu canal" no singular, sem chip de idioma, e a linha própria tem o seletor de nicho', () => {
     const { container } = mountOwns('1')
@@ -735,7 +735,7 @@ describe('CanaisScreen: nicho otimista', () => {
 describe('Canais · flutuantes na camada única (A0.1)', () => {
   it('a dica do "?" não é descendente de célula nem de linha: abre em #flut no foco e some no blur', () => {
     const { container } = mount()
-    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .tip')!
+    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .cdica')!
     expect(q.querySelector('[role="tooltip"]')).toBeNull()
     fireEvent.focus(q)
     const tip = document.querySelector('#flut .cn-tt')!
@@ -748,7 +748,7 @@ describe('Canais · flutuantes na camada única (A0.1)', () => {
   })
   it('a dica fica enquanto houver mouse OU foco: tirar o mouse do "?" focado não a esconde (como o :focus de antes)', () => {
     const { container } = mount()
-    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .tip')!
+    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .cdica')!
     fireEvent.mouseEnter(q); fireEvent.focus(q)
     fireEvent.mouseLeave(q)
     expect(document.querySelector('#flut .cn-tt')).not.toBeNull()
@@ -762,7 +762,7 @@ describe('Canais · flutuantes na camada única (A0.1)', () => {
   })
   it('com um popover aberto (a dica se esconde), o "?" não aponta aria-describedby para um id que não existe', () => {
     const { container } = mount()
-    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .tip')!
+    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .cdica')!
     fireEvent.focus(q)
     expect(q.getAttribute('aria-describedby')).toBe(document.querySelector('#flut .cn-tt')!.id)
     fireEvent.click(container.querySelector<HTMLElement>('[data-menu]')!)
@@ -771,7 +771,7 @@ describe('Canais · flutuantes na camada única (A0.1)', () => {
   })
   it('Esc com a dica aberta esconde a dica e mantém o foco no "?"', () => {
     const { container } = mount()
-    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .tip')!
+    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .cdica')!
     q.focus(); fireEvent.focus(q)
     expect(document.querySelector('#flut .cn-tt')).not.toBeNull()
     fireEvent.keyDown(q, { key: 'Escape' })

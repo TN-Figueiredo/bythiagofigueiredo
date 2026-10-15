@@ -620,12 +620,16 @@ describe('servidor e cliente', () => {
     expect(container.querySelector('svg.ic-svg')!.getAttribute('width')).toBe('760')
   })
 
+  const PROIBIDO_IMPORTAR = /proprio\/ler|proprio\/(edicao|leitura-privada)|_proprio\/dados|server-only/
+  it('controle: um import do módulo da leitura privada conta como violação', () => {
+    expect("import { leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'").toMatch(PROIBIDO_IMPORTAR)
+  })
   it('o componente e o modelo não usam new Date nem Date.now (o dia é a data UTC que já veio pronta)', () => {
     const dir = path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_proprio')
     for (const f of ['impressoes.tsx', 'impressoes-model.ts']) {
       const src = fs.readFileSync(path.join(dir, f), 'utf8')
       expect(src, f).not.toMatch(/new Date\(|Date\.now\(/)
-      expect(src, f).not.toMatch(/proprio\/ler|proprio\/edicao|_proprio\/dados|server-only/)
+      expect(src, f).not.toMatch(PROIBIDO_IMPORTAR)
     }
   })
 })
@@ -1281,3 +1285,81 @@ describe('13.2 consertos: dia com impressão sem valor (M1) e frases de views (M
 })
 
 const dia0 = (d: string, imp: number): DiaAlcance => ({ dia: d as DiaAlcance['dia'], situacao: 'com-impressoes', motivo: null, imp, cliques: 1 })
+
+// ---------------------------------------------------------------------------------------------------------------------
+// E5b Tarefa 13: a faixa dos 7 primeiros dias ("vídeo novo" e "ainda cedo") no lugar do gráfico, e o dia 7 com tudo 0.
+// ---------------------------------------------------------------------------------------------------------------------
+import { estadoCedo } from '@/lib/youtube/observatorio/proprio/cedo'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
+
+describe('E5b T13: faixa de 7 casas', () => {
+  const HJ = dayPt(new Date())
+  const dd = (n: number) => addDays(HJ, -n)
+  const mk = (n: number, imp: number | null): DiaAlcance => (imp == null
+    ? { dia: dd(n), situacao: 'nao-medido', motivo: 'recente', imp: null, cliques: null }
+    : { dia: dd(n), situacao: imp > 0 ? 'com-impressoes' : 'zero-medido', motivo: null, imp, cliques: imp > 0 ? 1 : 0 })
+  const diasDe = (idade: number): DiaAlcance[] => Array.from({ length: idade + 1 }, (_, i) => { const a = idade - i; return mk(a, a <= 1 ? null : 0) })
+  const view = (idade: number, o: Partial<Parameters<typeof buildImpressoes>[2]> = {}): ImpressoesView => {
+    const ds = diasDe(idade)
+    return buildImpressoes(ds, { de: dd(idade), ate: HJ, dias: idade + 1 }, {
+      ...O, escopo: 'video', alturaArea: 110, hoje: HJ, cedo: estadoCedo({ publicadoEm: dd(idade), hojePt: HJ, dias: ds }), viewsDoVideo: 598, ...o,
+    })
+  }
+
+  it('ainda cedo: a frase, sete casas em lista ordenada e nenhum SVG de gráfico', () => {
+    const { container } = montar(view(3), 'Impressões e cliques')
+    expect(container.querySelector('svg.ic-svg')).toBeNull()
+    expect(container.querySelector('[role="group"][tabindex="0"]')).toBeNull()
+    expect(container.querySelector('.ic-cedo-fr')?.textContent).toMatch(/^Ainda cedo para ler as impressões\. 2 dias medidos, todos com 0;/)
+    const casas = container.querySelectorAll('ol.ic-cedo-faixa > li')
+    expect(casas).toHaveLength(7)
+    expect([...casas].map(li => li.querySelector('.ic-cedo-n')?.textContent)).toEqual(['dia 1', 'dia 2', 'dia 3', 'dia 4', 'dia 5', 'dia 6', 'dia 7'])
+  })
+  it('cada casa tem forma E texto: 0 medido, hoje, ontem e vazia para o futuro, com aria-label', () => {
+    const { container } = montar(view(3))
+    const c = [...container.querySelectorAll<HTMLElement>('.ic-cedo-c')]
+    expect(c.map(x => x.textContent)).toEqual(['0', '0', 'ontem', 'hoje', '', '', ''])
+    expect(c.map(x => x.getAttribute('data-estado'))).toEqual(['zero-medido', 'zero-medido', 'dia-nao-chegou', 'dia-nao-chegou', 'ainda-nao-existe', 'ainda-nao-existe', 'ainda-nao-existe'])
+    expect(c[0]!.getAttribute('aria-label')).toMatch(/zero medido/)
+    expect(c[0]!.getAttribute('role')).toBe('img')
+  })
+  it('a legenda tem os quatro estados em texto', () => {
+    const { container } = montar(view(3))
+    const t = container.querySelector('.ic-cedo-leg')?.textContent ?? ''
+    expect(t).toContain('zero medido: o dia chegou e não houve impressão')
+    expect(t).toContain('com impressões')
+    expect(t).toContain('não medido: o dia ainda não chegou')
+    expect(t).toContain('ainda não existe')
+  })
+  it('vídeo novo: a frase de vídeo novo e a faixa', () => {
+    const { container } = montar(view(1))
+    expect(container.querySelector('.ic-cedo-fr')?.textContent).toMatch(/^Vídeo novo\. Publicado há 1 dia\./)
+    expect(container.querySelectorAll('ol.ic-cedo-faixa > li')).toHaveLength(7)
+  })
+  it('o título continua na figura e a figura se nomeia por ele', () => {
+    const { container } = montar(view(3), 'Impressões e cliques')
+    const fig = container.querySelector('figure')!
+    const id = fig.getAttribute('aria-labelledby')!
+    expect(container.querySelector('#' + id)?.textContent).toBe('Impressões e cliques')
+  })
+  it('dia 7 com tudo 0: o gráfico desenha só o 0 (uma marca no eixo) e não tem a faixa dos cliques', () => {
+    const v = view(6)
+    expect(v.cedo).toBeNull()
+    const { container } = montar(v)
+    expect(container.querySelector('svg.ic-svg')).not.toBeNull()
+    expect(container.querySelector('.ic-cedo-faixa')).toBeNull()
+    expect(container.querySelector('.ic-strip')).toBeNull()
+    expect(container.querySelectorAll('.ic-ax-y')).toHaveLength(1)
+    expect(container.querySelector('.ic-res')?.textContent).toMatch(/^Nenhuma impressão nos 5 dias medidos, mas o vídeo teve 598 views\./)
+  })
+  it('a saída sem a opção cedo continua com eixo de três marcas', () => {
+    const { container } = montar(cheio())
+    expect(container.querySelectorAll('.ic-ax-y').length).toBeGreaterThanOrEqual(3)
+  })
+  it('impressoes.css sem color-mix e com as classes da faixa', () => {
+    const css = fs.readFileSync(path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_proprio/impressoes.css'), 'utf8')
+    expect(css).not.toMatch(/color-mix\(/)
+    expect(css).toMatch(/\.ic-cedo-faixa/)
+    expect(css).toMatch(/\.ic-cedo-c\.fut/)
+  })
+})

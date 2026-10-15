@@ -28,6 +28,7 @@ import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '
 import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { ehVitoriaHumana, type TestType } from '@/lib/youtube/ab-types'
+import { DESCRICAO_FORA_DO_TESTE, TIPOS_DE_TESTE, TestTypeSchema, pedeDescricao } from '@/lib/youtube/ab-schemas'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PlaylistEdgeRow, PlaylistItemEnriched, PlaylistRow } from '@/lib/playlists/types'
@@ -622,9 +623,9 @@ export function registerPrompts(server: McpServer): void {
   // -------------------------------------------------------------------------
   server.prompt(
     'ab-ideate',
-    'Brainstorm A/B test variants for a YouTube video (thumbnail, title, description, or combo)',
+    'Brainstorm A/B test variants for a YouTube video (thumbnail, title, or combo)',
     {
-      test_type: z.string().describe('Test type: thumbnail, title, description, or combo'),
+      test_type: z.string().describe('Test type: thumbnail, title, or combo'),
       video_context: z.string().optional().describe('Additional context about the video or focus area'),
       lang: z.string().optional().describe('Locale: pt or en (default: pt)'),
     },
@@ -633,8 +634,9 @@ export function registerPrompts(server: McpServer): void {
       const videoContext = args.video_context ?? undefined
       const locale = (args.lang === 'en' ? 'en' : 'pt') as 'pt' | 'en'
 
-      if (!['thumbnail', 'title', 'description', 'combo'].includes(testType)) {
-        throw new Error(`Invalid test_type: ${testType}. Must be thumbnail, title, description, or combo.`)
+      if (pedeDescricao({ test_type: testType })) throw new Error(DESCRICAO_FORA_DO_TESTE.message)
+      if (!(TIPOS_DE_TESTE as readonly string[]).includes(testType)) {
+        throw new Error(`Invalid test_type: ${testType}. Must be thumbnail, title, or combo.`)
       }
 
       // Auto-inject: youtube/intelligence + youtube/ab-performance.
@@ -715,13 +717,15 @@ export function registerPrompts(server: McpServer): void {
       const { data: test, error } = siteId
         ? await supabase
           .from('ab_tests')
-          .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, original_description, status')
+          .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, status')
           .eq('id', testId)
           .eq('site_id', siteId)
           .maybeSingle()
         : { data: null, error: null }
 
       if (error || !test || !siteId) throw new Error(`A/B test not found: ${testId}`)
+      if (pedeDescricao({ test_type: test.test_type })) throw new Error(DESCRICAO_FORA_DO_TESTE.message)
+      if (!TestTypeSchema.safeParse(test.test_type).success) throw new Error('Tipo de teste desconhecido')
 
       // Fetch video performance. `ab_tests.youtube_video_id` holds the internal uuid
       // (youtube_videos.id), not the YouTube text id.
@@ -835,7 +839,7 @@ export function registerPrompts(server: McpServer): void {
       // Fetch test variants
       const { data: variants, error } = await supabase
         .from('ab_test_variants')
-        .select('label, title_text, description_text, blob_url, metadata')
+        .select('label, title_text, blob_url, metadata')
         .eq('test_id', testId)
         .order('sort_order', { ascending: true })
 
@@ -855,7 +859,6 @@ export function registerPrompts(server: McpServer): void {
         variants: variants.map(v => ({
           label: v.label as string,
           title_text: v.title_text as string | null,
-          description_text: v.description_text as string | null,
           blob_url: v.blob_url as string | null,
           metadata: (v.metadata ?? {}) as Record<string, unknown>,
         })),
@@ -1275,6 +1278,7 @@ export function registerPrompts(server: McpServer): void {
       lines.push('- When a field comes with `estado: nao_lido` or `estado: nao_medido`, quote its `frase` and do not estimate the value')
       lines.push('- Never report `-1` or a zero rate from `insights`, or a zero `video_count`, as a measurement: say the value is not known')
       lines.push('- Own-channel numbers from `analytics/*` and `videos/:id` are not Observatory numbers: say which source a number came from')
+      lines.push('- When `estado_do_canal.confirmada` is false, do not state the channel is active: say the drop could not be measured and quote the `frase` of `queda`')
       lines.push('')
 
       lines.push('### 1b. Identify outlier videos')

@@ -297,7 +297,7 @@ describe('I-2 (revisão da Tarefa 10): o nome preso fica rente à coluna da posi
   const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
   const linhas = css.split('\n')
   it('uma variável só (--cn-pos-w) dá a largura da posição e o `left` do nome preso; nenhum 48px nem 40px fixo sobrou', () => {
-    const def = linhas.find(l => /\[data-obs-screen="canais"\]\{[^}]*--cn-pos-w:\s*32px/.test(l))
+    const def = linhas.find(l => /\[data-obs-screen="canais"\]\{[^}]*--cn-pos-w:\s*64px/.test(l))
     expect(def, 'a variável é definida na raiz da tela').toBeDefined()
     const nome = linhas.find(l => /\.tablebox tbody td:nth-child\(2\)\{left:/.test(l))
     expect(nome).toMatch(/left:\s*var\(--cn-pos-w\)/)

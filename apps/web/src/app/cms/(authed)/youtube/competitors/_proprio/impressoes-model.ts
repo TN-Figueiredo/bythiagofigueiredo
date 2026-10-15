@@ -12,7 +12,8 @@
  * `cliques` nulo), sem a faixa de cliques e com legendas, dicas e método próprios (ninguém viu × o YouTube não entregou o dia). Nenhum texto de
  * views fala de relatório, de impressão ou de clique.
  */
-import { diffDias } from '@/lib/youtube/coleta/day-pt'
+import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
+import type { EstadoCedo } from '@/lib/youtube/observatorio/proprio/cedo'
 import { JANELA_LEITURA_ALCANCE_DIAS, motivoDiaTexto, resumir, type DiaAlcance, type MotivoDia, type Periodo, type ResumoAlcance, type Situacao } from '@/lib/youtube/observatorio/proprio/dias'
 import { DIARIO_PARADO_DIAS } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -38,6 +39,29 @@ export interface ColunaView {
   marca: boolean
   /** O vídeo foi publicado neste dia (linha tracejada e item da legenda). */
   publicacao: boolean
+}
+
+/** Uma casa da faixa dos 7 primeiros dias (tela A do lote 1). */
+export interface CedoCasaView {
+  dia: DiaYt
+  /** "dd/mm" */
+  rotulo: string
+  /** 1 a 7: o dia da publicação é o dia 1 */
+  numero: number
+  estado: 'zero-medido' | 'com-impressoes' | 'dia-nao-chegou' | 'ainda-nao-existe'
+  /** o que a casa escreve: "0", o número, "hoje", "ontem", "não medido" ou nada */
+  texto: string
+  aria: string
+}
+
+export interface CedoLegendaItem { tipo: 'zero' | 'com' | 'nm' | 'fut'; texto: string }
+
+/** O bloco "vídeo novo" / "ainda cedo": a frase e a faixa de 7 casas no lugar do gráfico. */
+export interface CedoView {
+  tipo: 'video-novo' | 'ainda-cedo'
+  frase: string
+  casas: CedoCasaView[]
+  legenda: CedoLegendaItem[]
 }
 
 export interface LegendaItem { situacao: Situacao | 'cliques' | 'publicacao'; texto: string }
@@ -67,6 +91,10 @@ export interface ImpressoesView {
   rotuloEixo: string
   rotuloValor: string
   rotuloSituacao: string
+  /** Vídeo novo ou ainda cedo: a faixa de 7 casas no lugar do gráfico (colunas vazias). Nulo = o gráfico de sempre. */
+  cedo: CedoView | null
+  /** Dia 7 em diante com todos os dias medidos em 0: o gráfico mostra só o 0, sem eixo inventado e sem a faixa dos cliques. */
+  soZeros: boolean
 }
 
 export type Unidade = 'impressoes' | 'views'
@@ -88,6 +116,10 @@ export interface OpcoesImpressoes {
    * a prova de tipo está em impressoes.type-test.ts.
    */
   hoje: DiaYt
+  /** O estado de `estadoCedo` (só a página do vídeo passa). Ausente ou `nao-medido` = o gráfico de sempre. */
+  cedo?: EstadoCedo | null
+  /** As views do vídeo, para a frase "o vídeo já teve N views" (só com `cedo`). Nulo = não se sabe: a frase não cita o número. */
+  viewsDoVideo?: number | null
   /** O dia do relatório mais novo do canal, sem janela: com o período vazio a frase diz desde quando a coleta parou, em vez de "ainda não há relatório". Ausente = nunca houve. */
   parouEm?: DiaYt | null
 }
@@ -374,8 +406,62 @@ const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
   const unidade = o.unidade ?? 'impressoes'
   return {
     teto: 4, ticks: [0, 2, 4], colunas: [], periodoTexto: '', vazio, legenda: [], resumo: null, avisos: [], metodo: [], escopo: o.escopo, alturaArea: o.alturaArea,
-    unidade, faixaCliques: unidade === 'impressoes', ...rotulos(unidade),
+    unidade, faixaCliques: unidade === 'impressoes', ...rotulos(unidade), cedo: null, soZeros: false,
   }
+}
+
+const quandoVolta = (dia7: DiaYt, faltam: number, dm: (d: DiaYt) => string): string =>
+  `O gráfico volta no primeiro dia com impressão ou em ${dm(dia7)} (${faltam === 1 ? 'falta 1 dia, amanhã' : `faltam ${faltam} dias`}), a última casa da faixa.`
+
+// TEXTO-A-REVISAR: o mockup diz "Publicado há 17 horas" para o vídeo de menos de um dia; o modelo só tem o dia do YouTube.
+const publicadoHa = (idade: number): string => (idade <= 0 ? 'Publicado hoje.' : `Publicado há ${plural(idade, 'dia', 'dias')}.`)
+
+function casasDoCedo(e: Extract<EstadoCedo, { casas: unknown }>, o: OpcoesImpressoes): CedoCasaView[] {
+  const ontem = addDays(o.hoje, -1)
+  return e.casas.map((c, i): CedoCasaView => {
+    const rotulo = o.dm(c.dia)
+    const numero = i + 1
+    switch (c.estado) {
+      case 'zero-medido':
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: '0', aria: `${rotulo}: zero medido: o YouTube mandou o dia e não houve impressão` }
+      case 'com-impressoes':
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: int(c.valor ?? 0), aria: `${rotulo}: ${plural(c.valor ?? 0, 'impressão', 'impressões')}` }
+      case 'dia-nao-chegou': {
+        const hoje = c.dia === o.hoje, ont = c.dia === ontem
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: hoje ? 'hoje' : ont ? 'ontem' : 'não medido', aria: `${rotulo}: não medido: o dia ainda não chegou${hoje ? ' (hoje)' : ont ? ' (ontem)' : ''}` }
+      }
+      case 'ainda-nao-existe':
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: '', aria: `${rotulo}: ainda não existe${numero === 7 ? '; neste dia o gráfico volta' : ''}` }
+      default: {
+        const _nunca: never = c.estado
+        return _nunca
+      }
+    }
+  })
+}
+
+const LEGENDA_CEDO: CedoLegendaItem[] = [
+  { tipo: 'zero', texto: 'zero medido: o dia chegou e não houve impressão' },
+  { tipo: 'com', texto: 'com impressões' },
+  { tipo: 'nm', texto: 'não medido: o dia ainda não chegou' },
+  { tipo: 'fut', texto: 'ainda não existe' },
+]
+
+function cedoView(e: Extract<EstadoCedo, { tipo: 'video-novo' | 'ainda-cedo' }>, o: OpcoesImpressoes): CedoView {
+  const quando = quandoVolta(e.dia7, e.faltam, o.dm)
+  const idade = e.idade
+  const views = o.viewsDoVideo
+  const frase = e.tipo === 'video-novo'
+    ? `Vídeo novo. ${publicadoHa(idade)} O YouTube entrega as impressões de cada dia 2 a 3 dias depois. ${quando}`
+    : `Ainda cedo para ler as impressões. ${plural(e.diasMedidos, 'dia medido', 'dias medidos')}, ${e.diasMedidos === 1 ? 'com 0' : 'todos com 0'}; ` +
+      `${views != null && views > 0 ? `o vídeo já teve ${plural(views, 'view', 'views')}, o relatório de alcance é que chega atrasado.` : 'o relatório de alcance chega atrasado.'} ${quando}`
+  return { tipo: e.tipo, frase, casas: casasDoCedo(e, o), legenda: LEGENDA_CEDO }
+}
+
+function resumoSoZeros(medidos: number, views: number | null | undefined): string {
+  const dias = medidos === 1 ? 'em 1 dia medido' : `nos ${int(medidos)} dias medidos`
+  const cabeca = views != null && views > 0 ? `Nenhuma impressão ${dias}, mas o vídeo teve ${plural(views, 'view', 'views')}.` : `Nenhuma impressão ${dias}.`
+  return `${cabeca} O relatório de alcance do YouTube pode estar incompleto: os 0 são o que ele mandou. Ontem e hoje ainda não chegaram.`
 }
 
 /** Um dia "com impressões" sem valor não é barra de 0: é não medido (este sistema falha em verde; as views entram por aqui também). */
@@ -387,6 +473,10 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   const views = unidade === 'views'
   if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o)
   if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
+  // vídeo novo e ainda cedo: a faixa de 7 casas no lugar do gráfico (antes da checagem de "sem relatório": o vídeo novo ainda não tem nenhum)
+  if (!views && o.cedo && (o.cedo.tipo === 'video-novo' || o.cedo.tipo === 'ainda-cedo')) {
+    return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o) }
+  }
   if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : semRelatorioFrase(o.parouEm, o.dm), o)
   const dias = diasIn.map(semValorViraNaoMedido)
 
@@ -395,20 +485,23 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   const teto = tetoDoEixo(max)
   const r = resumir(dias)
   const n = dias.length
+  const soZeros = o.cedo?.tipo === 'grafico' && o.cedo.soZeros && !views
   return {
     teto,
-    ticks: [0, teto / 2, teto],
+    ticks: soZeros ? [0] : [0, teto / 2, teto],
     colunas: dias.map((d, i) => colunaDe(d, i, n, teto, o)),
     periodoTexto: `de ${o.dm(periodo.de)} a ${o.dm(periodo.ate)} · ${plural(periodo.dias, 'dia', 'dias')} · dia do YouTube`,
     vazio: null,
     legenda: legendaDe(o.escopo, unidade).concat(dias.some(d => d.dia === o.publicadoEm) ? [{ situacao: 'publicacao', texto: 'dia da publicação' }] : []),
-    resumo: o.resumo !== undefined ? o.resumo : views ? resumoViews(r, n) : resumoTexto(r, n),
+    resumo: o.resumo !== undefined ? o.resumo : soZeros && o.cedo?.tipo === 'grafico' ? resumoSoZeros(o.cedo.diasMedidos, o.viewsDoVideo) : views ? resumoViews(r, n) : resumoTexto(r, n),
     avisos: avisosDe(r, periodo, o),
     metodo: metodoDe(o.escopo, unidade),
     escopo: o.escopo,
     alturaArea: o.alturaArea,
     unidade,
-    faixaCliques: !views,
+    faixaCliques: !views && !soZeros,
     ...rotulos(unidade),
+    cedo: null,
+    soZeros,
   }
 }

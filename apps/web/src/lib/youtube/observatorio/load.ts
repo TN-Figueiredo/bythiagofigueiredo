@@ -2,7 +2,9 @@
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { lerRetratosProprios, type RetratosProprios } from './retratos-proprios'
 import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo, SeriesTier, TierSpan } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
@@ -78,6 +80,11 @@ export interface ObservatoryRows {
    * and `videos`; absent (the whole site was read) changes nothing.
    */
   siteScope?: SiteScope
+  /**
+   * Os retratos públicos diários (MG20) dos canais próprios, por id: o motor mede o Crescimento do canal próprio por eles (lista, cabeçalho, Comparar
+   * e Cowork leem a mesma conta). 'erro' = a leitura falhou (o motor mede "sem contagem", a lista mostra o motivo). Ausente = nenhum lido.
+   */
+  ownSnapshots?: Record<string, RetratosProprios> | 'erro'
 }
 /** The site-wide facts a one-channel read still needs (a light read of two columns, never the videos). */
 export interface SiteScope {
@@ -362,7 +369,9 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       avatar: oc.thumbnail_url || null,
       sync: { state: 'ok', last, next, added: ms(oc.created_at) ?? last, errorSince: null, msg: null, backfill: null },
       // youtube_videos.published_at is NOT NULL (database.types.ts), so an own channel has no video without a date to list
-      activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [], undated: [],
+      activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, undated: [],
+      // MG20: o Crescimento do canal próprio sai destes retratos; contagem oculta ou leitura falha = nenhum ("sem contagem", nunca um número)
+      snapshots: rows.ownSnapshots && rows.ownSnapshots !== 'erro' && !rows.ownSnapshots[oc.id]?.oculto ? rows.ownSnapshots[oc.id]?.retratos ?? [] : [],
     })
   }
 
@@ -555,7 +564,7 @@ export function snapshotReadFrom(now: number): string { return spDate(now - SNAP
 export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseClient }
 
 /** The small tables every render reads fresh: settings, channel rows, own channels and videos, niches and the forja queue. */
-export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches' | 'siteScope'>
+export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches' | 'siteScope' | 'ownSnapshots'>
 
 /**
  * What loadLiveRows and loadChannelLiveRows read the same way: the site's settings and, in parallel with `specific`
@@ -584,12 +593,29 @@ async function readSiteLive<S>(sb: SupabaseClient, siteId: string, now: number, 
 
 /** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
 export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
-  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, () => Promise.all([
+  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, () => {
+    const ownP = readOwnChannels(sb, siteId)
+    return Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
-    readOwnChannels(sb, siteId),
+    ownP,
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
-  ] as const), true)
-  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, seriesStartAt: seriesStartAt(ssAt) }
+    ownP.then(o => readOwnSnapshots(sb, o, now)), // M2: encadeada na própria promessa, sem ida em série depois do Promise.all
+  ] as const)}, true)
+  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, seriesStartAt: seriesStartAt(ssAt) }
+}
+
+/**
+ * Os retratos MG20 dos canais próprios. Falha não derruba a página: vira 'erro' (o motor mede "sem contagem") e um evento no Sentry.
+ * Sem canal próprio: não consulta e devolve ausente.
+ */
+async function readOwnSnapshots(sb: SupabaseClient, own: readonly Pick<OwnChannelRow, 'id'>[], now: number): Promise<Record<string, RetratosProprios> | 'erro' | undefined> {
+  if (own.length === 0) return undefined
+  try {
+    return Object.fromEntries(await lerRetratosProprios(sb, own.map(c => c.id), now))
+  } catch (err) {
+    Sentry.captureException(err, { fingerprint: ['canais-ri', 'retratos-proprios'], tags: { component: 'observatorio', step: 'canais-ri' } })
+    return 'erro'
+  }
 }
 
 const seriesStartAt = (ssAt: number | null): number | null => (ssAt != null ? spDayStart(ssAt) : null)
@@ -639,11 +665,12 @@ export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, ch
   if (!channel && !own) return null
 
   // competitor_changes has no channel column, so the trade rows are the site's; only a competitor's videos can have them
-  const { settings, ssAt, specificRows: [siteScope, ownVideos], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
+  const { settings, ssAt, specificRows: [siteScope, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
     readSiteScope(sb, siteId, seriesStartAt(ssAt), now),
     own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', id).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
+    readOwnSnapshots(sb, own ? [own] : [], now),
   ] as const), channel != null)
-  return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, seriesStartAt: seriesStartAt(ssAt), siteScope }
+  return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, seriesStartAt: seriesStartAt(ssAt), siteScope }
 }
 
 export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {

@@ -703,6 +703,8 @@ delete from yt_own_collection_attempts where channel_id = '<UUID_DO_CANAL>';
 
 Desde o L1b o `channel_id` destas tabelas é chave estrangeira (`on delete restrict`). Remover o canal pela tela responde "Este canal tem série coletada. Apagar a série é um passo manual, descrito no runbook." enquanto houver qualquer linha aqui, **inclusive tentativas, jobs e, desde o L2, o diário e o alcance** — na prática, todo canal que passou por uma execução do cron. Para remover um canal: exporte (seção 12, passo 1), rode os sete `delete` acima e remova pela tela em seguida. Se o cron das 09:00 rodar no meio, ele recria tentativas e jobs e a tela volta a recusar.
 
+Desde a MG17a a cobertura do diário (`yt_own_video_coverage`) também tem os conjuntos `meta_texto` e `meta_thumb` por vídeo, e a chave dela para o canal é `restrict`: o `delete from yt_own_video_coverage where channel_id = '<UUID_DO_CANAL>';` (você roda) apaga os conjuntos todos de uma vez, e deve vir antes da remoção pela tela. A tabela de backup `yt_own_video_daily_zeros_bkp` só entra aqui se o plano P3 a tiver posto neste runbook (`grep -n zeros_bkp` neste arquivo decide); depois da MG16 ela não existe mais.
+
 ## 12. Rollback do L1a
 
 Na ordem; cada comando é seu (você roda), um por linha.
@@ -870,3 +872,95 @@ update public.yt_reporting_reports set status = 'baixado', downloaded_at = now()
 - **Depois do diário rodam sem prazo próprio** os critérios do L2, o de metadados, o de orçamento e o fechamento da rota. O diário pode usar até o fim do relógio global (270 s de 300 s): confira `ms_passos` em `yt_own_collection_runs` nas primeiras semanas.
 - **"Não consegue baixar há 3 dias" dispara no 4º dia.** O critério `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias` (e o de job em erro há 3 dias) roda na primeira fase, antes das tentativas de download do dia. No 3º dia de falha ele ainda só vê duas datas com tentativa; a nota aparece na execução do 4º dia.
 - **Quem silenciou o domínio `youtube` nas notificações não recebe o aviso de `api_nao_ativada` / `sem_acesso` / `reautorizar`.** Uma notificação suprimida pela preferência do usuário conta como entregue: não há nota `sem_destinatario` e o cron fica verde. Nesse caso o estado só aparece em `acao_do_dono`, na resposta do cron.
+
+## 15. Versões do vídeo próprio (A5 E18)
+
+**O que o passo faz.** O passo `versoes` roda no cron diário (fase `antes`, teto próprio de 5 s) e deriva, dia a dia e em ordem, as versões de título, thumbnail e descrição a partir de `yt_own_video_meta_daily`. Zero chamada ao YouTube. Grava só por `rpc('yt_own_versions_apply_day')`, um canal e um dia por transação, em `yt_own_video_versions` e `yt_own_versions_state`. O resumo fica em `resumo.versoes`. O leitor (`observatorio/proprio-versoes/ler.ts`) só lê.
+
+**Notas vermelhas (`falhas`) e o que fazer.**
+
+| Nota | O que quer dizer | O que fazer |
+|---|---|---|
+| `schema_ausente: yt_own_versions_state` | código no ar sem a MG12 | aplicar a MG12 (`npm run db:push:prod`, dono); até lá nada é gravado nem perdido; ou `YT_OWN_STEPS_OFF=versoes` e redeploy |
+| `versões: <canal> não gravou o dia <dia> (<código>)` | a função do banco recusou ou falhou; o canal parou nesse dia | o código é de catálogo (`touch_recusado`, `abertura_invalida`, `dia_nao_fechado`, `sem_linha_do_dia`, `linha_de_base_incoerente`, `erro_desconhecido`, `funcao_ausente`); amanhã o passo tenta o mesmo dia; se repetir, abrir conserto |
+| `versões: <canal> sem nenhuma linha diária em <dia>` | o passo de metadados não gravou o dia | conferir a nota do passo de metadados do mesmo dia; dia no meio é pulado (a troca seguinte sai `lacuna`), dia no fim para o canal |
+| `versões: <canal> tem vídeos e nenhuma linha diária` | canal com vídeos publicados e zero linha | conferir se o passo de metadados roda para o canal |
+| `versões: <canal> tem linhas demais para uma execução` | mais de 20.000 linhas num intervalo | derivar em etapas (a recuperação anda 30 dias por execução); se persistir, abrir conserto |
+| `versões: <canal> conferido até <dia>, <n> dias de atraso` | `derived_through` ficou mais de 1 dia para trás | olhar `ms_passos.versoes` e as outras notas; o atraso fecha sozinho quando a causa some |
+| `versões: A/B Lab não pôde ser lido; origem de <n> troca(s) ficou sem resposta` | a leitura do A/B Lab falhou ou bateu em 1.000 linhas; as trocas foram gravadas como `nao_se_sabe` | investigar a leitura de `ab_tests`/`ab_test_cycles`; a origem não é corrigida depois |
+| `versões: <n> versão(ões) de descrição sem o texto guardado` | abertura de descrição sem texto em nenhuma linha | verificar `description_text` nas linhas diárias do dia |
+| `versões: <n> vídeo(s) público(s) sem título ou thumbnail conferidos em 2 dias e sem tentativa que explique` | a prova diária achou lacuna sem motivo | ver as tentativas do passo de metadados dos vídeos; ver também o caminho mudo abaixo |
+| `versões: a prova não achou vídeo público em <site>` | `publicos = 0` com vídeos e linhas | conferir `privacy_status` das linhas recentes |
+| `versões: <n> canal(is) com linha diária e sem estado de derivação` | o passo não criou o estado de um canal que tem linha | conferir a nota do canal; o passo cria o estado na primeira derivação |
+| `versões: <n> canal(is) sem tempo para saber o atraso` | o tempo acabou antes de ler o estado | normal em recuperação; vermelho fora dela |
+| `versões: há versão com origem reservada (cms)` | origem `cms` é reservada e nenhuma escrita a produz | defeito: abrir conserto |
+| `critérios: não foi possível avaliar a prova das versões` / `...se <canal> tem vídeos` | a prova ou a contagem falhou | conferir a função `yt_own_versions_prova` e a leitura de `youtube_videos` |
+
+**Campos do resumo.** `recuperando` (canal → dias que faltam): o canal derivou 2 dias ou mais nesta execução e parou por tempo ou pelo teto de 30 dias; verde, o dia seguinte continua. `dia_sem_resposta`: a função do banco não respondeu até o prazo; o dia não conta como derivado e a execução seguinte o refaz (`ja_derivado` se tinha gravado). `atraso_desconhecido`: canais cujo atraso o passo não chegou a saber. `origem_ab_incerta`: trocas de thumbnail com encerramento do Lab na janela em que as colunas não dizem qual imagem foi enviada; gravadas como `nao_se_sabe` com o teste; verde. `prova: 'sem_tempo'` no site: a prova não respondeu até o prazo; só resumo enquanto algum canal do site está em `recuperando`, vermelho fora disso.
+
+**Caminho mudo conhecido da prova.** Vídeo apagado no YouTube e ainda em `youtube_videos` continua "público" pelo último status e fica explicado todo dia pela tentativa `erro_http` "ausente de videos.list". Quem acusa é a nota do passo de metadados; a saída é remover o vídeo de `youtube_videos`.
+
+**Desligar e voltar.** Desligar: `YT_OWN_STEPS_OFF=versoes` na Vercel e **redeploy de produção** (a variável só chega a deploy novo; a execução das 12:00 UTC que cair antes do build terminar roda com o passo ligado). Voltar: tirar `versoes` da variável e novo deploy; o passo deriva os dias que faltaram, em ordem, enquanto as linhas diárias existirem. Desligado há 8 execuções fica vermelho. Não há dado a desfazer: o passo só escreve nas duas tabelas novas.
+
+**Semente do A/B Lab (só o dono, depois do D+1).** Simulação (não grava): `cd apps/web && npx tsx --require ./scripts/_sem-server-only.cjs --env-file=.env.local scripts/semear-versoes-ab-lab.ts`. Gravar (aponta para produção; o ref é o primeiro pedaço do host de `NEXT_PUBLIC_SUPABASE_URL`, impresso na primeira linha): `cd apps/web && npx tsx --require ./scripts/_sem-server-only.cjs --env-file=.env.local scripts/semear-versoes-ab-lab.ts --gravar --confirmar=<ref>`. Sai com código 3 se algum canal ainda não tem estado de versões (rode de novo depois que a coleta diária derivar o canal). Antes, contar o que fica de fora: `select count(*) from ab_test_cycles where ended_at is null and started_at < '2026-10-07';`.
+
+## 16. Dieta dos metadados diários: cobertura e enxugamento (A5 E6 P4 / E18 parte 2, MG17a e MG17)
+
+Plano: `docs/superpowers/plans/2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final-plan.md` (seções 2, 6 e 11 e Apêndices A, C, D e E). Ritual do CSV, marca do dia e recusas: o plano P3 (`docs/superpowers/plans/2026-10-13-a5-e6-p3-apagar-linhas-vazias-do-diario-plan.md`, seção 2 e Apêndice D). Aqui só o que muda.
+
+**O que a cobertura quer dizer.** Para cada vídeo, `yt_own_video_coverage` guarda os dias em que título e thumbnail foram de fato conferidos (conjuntos `meta_texto` e `meta_thumb`). Dia coberto e sem linha em `yt_own_video_meta_daily` quer dizer "conferido, igual ao vizinho": o dia foi enxugado de propósito. Dia sem cobertura e sem linha quer dizer "não medido". As duas leituras nunca se misturam.
+
+**O que a resposta da compactação (`resumo.metadados.cobertura.compactacao`) quer dizer.**
+
+| Valor | Significado | O que fazer |
+|---|---|---|
+| `indisponivel` | a MG17 ainda não foi aplicada (a função existe desde a MG17a e só cobre; quem não existe é `yt_own_meta_linhas_do_meio`) | nada; é o estado normal até a MG17 |
+| `sem_estado` | o canal não tem estado de versões (MG12) | nada no cron; quem acusa canal com linha e sem estado é a prova das versões (seção 15) |
+| `feita` | o enxugamento de um dia rodou | nada |
+| `desligada` | `cobertura.pedida` verdadeiro: o banco foi desligado pelo roteiro SQL; `pedida` falso: foi a variável `YT_OWN_META_DIETA_OFF` | o cron fica vermelho todo dia até religar (ver "Como desfazer") |
+
+**Notas vermelhas (`falhas`) e o que fazer.**
+
+| Nota | O que fazer |
+|---|---|
+| `schema_ausente: yt_own_meta_cover` | código no ar sem a MG17a: aplicar a MG17a (dono, `npm run db:push:prod`, fora de 11:30 a 13:00 UTC e dos minutos 0, 20 e 40 de cada hora). Nada é perdido; a primeira execução depois cobre o que ficou para trás |
+| `erro de banco ao gravar yt_own_meta_cover` / `cobertura de <canal> falhou na chamada` | erro transitório de rede ou banco: olhar de novo no dia seguinte; persistindo, olhar o log da função |
+| `cobertura de <canal> recusada (<código>)` | a função recusou (`canal_fora_do_site`, `argumento_nulo`, `conjunto_invalido`); `erro_desconhecido` = texto fora da lista. Defeito: abrir conserto |
+| `cobertura de <canal> respondeu fora da forma` | nunca vira zeros; conferir a versão da função no banco contra o Apêndice A do plano |
+| `cobertura de <canal> não avaliou nenhuma linha` | o canal tem vídeo e a função não achou linha dele: `site_id` das linhas diferente do site do canal, ou a gravação do dia falhou |
+| `<n> linha(s) com captura fora da cobertura em <canal>` | linha capturada que não entrou na cobertura; rodar a consulta VA2/CP13 (plano, seção 11) |
+| `<n> dia(s) coberto(s) sem linha e fora de uma sequência igual em <canal>` | **alarme permanente da dieta** (`sem_explicacao`): ver "O fim do alarme" abaixo |
+| `a compactação está desligada no banco em <canal>` | o roteiro de desligar foi rodado: religar com `docs/ops/sql/dieta-meta-religar-compactacao.sql` quando a causa estiver achada |
+| `a dieta diária está desligada por YT_OWN_META_DIETA_OFF` | variável ligada na Vercel; retirar a variável e fazer redeploy (vale só em deploy novo) |
+| `YT_OWN_META_DIETA_OFF tem valor desconhecido` | usar `1`, `true` ou `sim` para desligar; ausente ou vazia = ligada |
+| `cobertura de metadados sem tempo em <n> canal(is)` | orçamento do passo; olhar a seção 2 |
+| `versões: <canal> abriria versão em dia sem linha (<dia>)` | o passo de versões parou o canal naquele dia sem gravar nada; abrir conserto |
+| `erro de banco ao ler yt_own_video_coverage` | o passo de versões derivou só pelas linhas (o resultado final é o mesmo); olhar no dia seguinte |
+
+**O ritual da MG17 (dono, no dia do portão D).** Segue o plano P3 (seção 2 e Apêndice D). O que muda: tabela `public.yt_own_video_meta_daily`; pasta `~/Workspace/arquivo-observatorio/dieta-meta/`; arquivo `yt_own_video_meta_daily-AAAAMMDD.csv`; marca `E18P2 armada em AAAA-MM-DD` no comentário da tabela. Os comandos, um por linha, estão no Apêndice E do plano (MG17, passo d3); o `vacuum full` só se a tabela passava de 1 MB. Nunca entre 11:30 e 13:00 UTC. Não usar `wc -l` no CSV (a descrição dos vídeos tem quebras de linha); a contagem vem do `select count(*)`.
+
+**Conferências.** AD (antes) e VD1 a VD8 (depois), texto na seção 11 do plano. Esperado: VD1 `t, 4, 4, 0, t`; VD2 com `estado: apagado` (a marca ainda lá = nada foi apagado); VD4 e VD6 com o mesmo md5 de antes; VD5 `sem_explicacao` 0.
+
+**Como desfazer (nesta ordem).**
+
+1. Desligar a compactação, para o cron não reapagar o que voltar. (você roda) no SQL Editor do painel: colar o conteúdo de `docs/ops/sql/dieta-meta-desligar-compactacao.sql` (vale na hora). Alternativa: `YT_OWN_META_DIETA_OFF=1` na Vercel **e redeploy de produção**.
+2. Volta B: `docs/ops/sql/dieta-meta-volta-b-recriar-da-cobertura.sql` (SQL Editor, você roda). Recria cada linha apagada como cópia da vizinha guardada, com `captured_at` aproximado (12:00 UTC do dia seguinte). Ou volta C, que devolve as linhas originais: os três comandos "Volta C da MG17" do Apêndice E do plano (você roda, um por linha, depois da K4).
+3. Religar, com a causa achada e `descobertas` 0 e `sem_explicacao` 0: colar `docs/ops/sql/dieta-meta-religar-compactacao.sql` no SQL Editor (você roda). **Desligado pelo roteiro, o cron fica vermelho todo dia até religar.** A execução seguinte ao religar enxuga de uma vez o que acumulou.
+
+**O fim do alarme `sem_explicacao`.** Duas saídas, com o que se perde em cada uma. (a) Restaurar a linha pelo CSV (volta C): nada se perde, mas só serve para dia que o CSV tem. (b) Retirar o dia da cobertura com `docs/ops/sql/dieta-meta-retirar-dia-da-cobertura.sql` (você roda): o dia vira ausência; uma derivação refeita não avança `last_day_pt` por ele; as versões já derivadas não mudam. **A volta B não resolve esse alarme** (ela exige vizinhas idênticas).
+
+**Depois de uma recusa do `db push`.** A leitura é do controlador (funções auxiliares que podem ter ficado: `yt_own_meta_diet`, `yt_own_meta_diet_contas`, `yt_own_daily_bkp_soltar`). Nenhuma linha: nada ficou. Para cada nome que aparecer, a linha de `drop function if exists` do Apêndice E do plano (você roda), antes da nova tentativa. `yt_own_meta_linhas_do_meio` pode ficar: só lê e a nova tentativa a recria. Ela fica SEM a marca `MG17 aplicada em …` (só a MG17 inteira a grava), e o roteiro de religar recusa enquanto a marca faltar; conferir com `select obj_description('public.yt_own_meta_linhas_do_meio(uuid,uuid,date)'::regprocedure, 'pg_proc')`.
+
+**Aviso.** Depois da dieta, desligar o passo de versões (`YT_OWN_STEPS_OFF=versoes`) faz a tabela voltar a crescer; é isso que guarda as linhas para ele. A função só apaga dia que o passo já derivou.
+
+## 17. Soltar o backup do diário (A5 E6 P4, MG16)
+
+Plano: o mesmo da seção 16 (Apêndice B e Apêndice E, passo p3). Depende da seção 14 deste runbook quando ela existir (dieta do diário, MG15), que criou o backup `yt_own_video_daily_zeros_bkp`.
+
+**O portão P** (no dia, antes de armar): MG15 aplicada há 14 dias ou mais; CSV do diário íntegro (`shasum -a 256 -c` responde `OK`); cobertura `base` gravada nas últimas 36 horas; nenhuma função ou visão citando o backup. Sem o portão verde, nada se arma.
+
+**O ritual (dono, um comando por linha, todos "você roda", no Apêndice E do plano):** conferir o `sha256` do CSV do diário; tirar o CSV do próprio backup com o seu `sha256`; gravar a marca `P4 armada em AAAA-MM-DD` no comentário de `public.yt_own_video_daily`; `npm run db:push:prod`; depois da VP2 anotada, retirar o comentário (ou devolver o texto antigo).
+
+**Conferências.** AP antes (linha inteira do comentário, A1 do plano P3 e `pg_database_size`) e VP1 a VP4 depois: VP1 `f, 0` (o backup e a função auxiliar saíram); VP2 com `estado: solto` e `linhas` igual ao da AP (**nulo ou a marca ainda lá = nada foi solto**); VP3 o diário não mudou; VP4 o banco menor em cerca do tamanho do backup.
+
+**O que resta de volta.** A cópia dentro do banco não volta. Os zeros continuam recriáveis: volta B (`docs/ops/sql/dieta-diario-volta-b-recriar-da-cobertura.sql`, quando a seção 14 existir; equivalente para todo leitor, não idêntica) e volta C (CSV do diário ou CSV do backup; os três comandos do Apêndice D do plano P3). Em recusa da migration (mensagens `MG16 recusada: …`), nada foi solto; a nova tentativa só no mesmo dia, senão o arquivo sai do repositório e o ritual recomeça em outro dia.

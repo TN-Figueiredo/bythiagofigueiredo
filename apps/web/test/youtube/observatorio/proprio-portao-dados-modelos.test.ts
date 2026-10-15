@@ -276,7 +276,10 @@ describe('M4: as frases de causa não afirmam o que não foi lido', () => {
     expect(impressoes?.frase).toBe(`O último dia de alcance recebido é ${dm(ate)}, anterior à publicação deste vídeo: ainda não medido.`)
     expect(impressoes?.frase).not.toContain('Vídeo novo')
   })
-  it('vídeo realmente novo (1 dia de vida) continua dizendo "Vídeo novo"', () => {
-    expect(paginaDoNovo(1).impressoes?.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
+  it('vídeo realmente novo (1 dia de vida) continua dizendo "Vídeo novo" (na tela A, na frase da faixa de 7 casas)', () => {
+    const imp = paginaDoNovo(1).impressoes
+    expect(imp?.frase).toBeNull()
+    expect(imp?.grafico?.cedo).toMatchObject({ tipo: 'video-novo' })
+    expect(imp?.grafico?.cedo?.frase).toMatch(/^Vídeo novo\. Publicado há \d+ dias?\./)
   })
 })

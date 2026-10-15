@@ -2,12 +2,17 @@
 // A4 13.4: o modelo dos blocos da tela do VÍDEO próprio (views por dia, impressões e cliques, taxa de clique, % assistido, retenção, "Este vídeo no
 // canal", forja, "o que ainda não há"). Puro: recebe o dado privado JÁ LIDO. Cada estado de dado ausente tem a sua frase e nunca vira zero; com
 // `negado` nenhum número privado entra no modelo (a regra 6 do brief).
+import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import { detalhe as detalheFx, entrada as entradaFx, per as perFx } from './proprio-origem-fixture'
+import { buildOrigem } from '@/app/cms/(authed)/youtube/competitors/_proprio/origem-model'
+import { ateDaOrigem, contagensDeCobertura, janelaDaOrigemDoVideo, nivelDaOrigem, periodosDaOrigemDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { afterEach, describe, it, expect } from 'vitest'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
-import { buildVideoBlocos, fraseVeredito, type EntradaBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
+import { buildAssistidoDoVideo, buildVideoBlocos, fraseVeredito, type EntradaBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
-import type { DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
-import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { DadosDoVideo, DiarioLongo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import type { DiarioCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { DiarioDoPeriodo, DiarioPeriodoLinha } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import { mundoVideo, temSentinela, TEXTOS_PRIVADOS, type MundoVideo } from './proprio-video-fixture'
 
@@ -127,18 +132,34 @@ function comVidaDe(dias: number) {
 }
 
 describe('impressões de vídeo recente: o dia anterior à publicação não existe (I1)', () => {
-  it('vídeo de 1 dia: a frase do mockup, nenhum gráfico, nenhuma taxa e nenhum "zero medido"', () => {
+  it('vídeo de 1 dia (tela A): a faixa de 7 casas no lugar do gráfico, "Vídeo novo", nenhuma taxa e nenhuma casa em "zero medido"', () => {
     const { w, id, dados } = comVidaDe(1)
     const b = blocos(w, dados, id).impressoes!
-    expect(b).toMatchObject({ medido: false, grafico: null, taxa: null, semTaxa: null })
-    expect(b.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
-    expect(JSON.stringify(b)).not.toMatch(/zero|medidos em/i)
+    expect(b).toMatchObject({ medido: true, frase: null, taxa: null, semTaxa: null })
+    const c = b.grafico!.cedo!
+    expect(c.tipo).toBe('video-novo')
+    expect(c.casas).toHaveLength(7)
+    expect(c.casas.some(x => x.estado === 'zero-medido')).toBe(false)
+    expect(c.frase).toMatch(/^Vídeo novo\. Publicado há 1 dia\. O YouTube entrega as impressões de cada dia 2 a 3 dias depois\. O gráfico volta .* \(faltam 5 dias\)/)
+    expect(b.grafico!.colunas).toHaveLength(0)
   })
 
-  it('vídeo de 2 dias (o "vídeo novo" da fixture): a mesma frase', () => {
+  it('vídeo de 1 dia com a coleta parada há 40 dias: a frase "parou em dd/mm", nenhum gráfico nem casa (a coleta do canal vem antes da faixa)', () => {
+    const { w, id, dados } = comVidaDe(1)
+    const parou = addDays(w.hoje, -40)
+    const parada = ok(w, { alcance: { ...dadoDe(w).alcance, relatorios: [], linhas: [], ultimoRelatorio: parou } })
+    const b = blocos(w, parada, id).impressoes!
+    expect(b).toMatchObject({ medido: false, grafico: null, taxa: null, semTaxa: null })
+    expect(b.frase).toContain(`parou em ${dmDia(parou)}`)
+    // o par: o mesmo vídeo com relatórios em dia mostra a faixa
+    expect(blocos(w, dados, id).impressoes!.grafico!.cedo).toMatchObject({ tipo: 'video-novo' })
+  })
+
+  it('vídeo de 2 dias (o "vídeo novo" da fixture): a mesma faixa (publicado ontem: faltam 5 dias)', () => {
     const b = blocos(W, ok(W), novoId).impressoes!
-    expect(b).toMatchObject({ medido: false, grafico: null })
-    expect(b.frase).toBe('Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.')
+    expect(b).toMatchObject({ medido: true, frase: null })
+    expect(b.grafico!.cedo).toMatchObject({ tipo: 'video-novo' })
+    expect(b.grafico!.cedo!.frase).toContain('faltam 5 dias')
   })
 
   it('vídeo de 3 dias: um dia só no gráfico (o da publicação), o resto não existe; 400 impressões, 20 cliques', () => {
@@ -163,12 +184,34 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     expect(g.legenda.map(l => l.situacao)).toContain('publicacao')
   })
 
-  it('vídeo de 5 dias sem nenhuma impressão: dias desde a publicação em zero medido (só 3, não 19); a taxa não existe', () => {
+  it('vídeo de 5 dias sem nenhuma impressão (tela A): "ainda cedo", a faixa com os 3 dias medidos em zero, a frase cita as views e a taxa não existe', () => {
     const { w, id } = comVidaDe(5)
-    const sem = ok(w, { alcance: { ...dadoDe(w).alcance, linhas: dadoDe(w).alcance.linhas.filter(l => l.ytId !== w.obs.videos.find(v => v.id === id)!.ytId) } })
+    const v = w.obs.videos.find(x => x.id === id)!
+    const sem = ok(w, { alcance: { ...dadoDe(w).alcance, linhas: dadoDe(w).alcance.linhas.filter(l => l.ytId !== v.ytId) } })
     const b = blocos(w, sem, id).impressoes!
-    expect(b.grafico!.colunas).toHaveLength(3)
-    expect(b.grafico!.colunas.every(c => c.situacao === 'zero-medido')).toBe(true)
+    const c = b.grafico!.cedo!
+    expect(c.tipo).toBe('ainda-cedo')
+    expect(c.casas.filter(x => x.estado === 'zero-medido')).toHaveLength(3)
+    expect(c.frase).toMatch(/^Ainda cedo para ler as impressões\. 3 dias medidos, todos com 0; /)
+    expect(c.frase).toContain(`o vídeo já teve ${w.obs.fmt.int(v.views ?? 0)} views`)
+    expect(b.taxa).toBeNull()
+  })
+
+  it('vídeo de 5 dias com impressão em algum dia: volta o gráfico (a faixa só vale com todos os dias medidos em 0)', () => {
+    const { w, id, dados } = comVidaDe(5)
+    expect(blocos(w, dados, id).impressoes!.grafico!.cedo).toBeNull()
+  })
+
+  it('vídeo de 7 dias com todos os dias medidos em 0 (tela A, dia 7): o gráfico volta só com a linha do 0, sem a faixa dos cliques, e o resumo cita as views', () => {
+    const { w, id } = comVidaDe(7)
+    const v = w.obs.videos.find(x => x.id === id)!
+    const a0 = dadoDe(w).alcance
+    const linhas = a0.linhas.filter(l => l.ytId !== v.ytId)
+    const b = blocos(w, ok(w, { alcance: { ...a0, linhas } }), id).impressoes!
+    const g = b.grafico!
+    expect(g.cedo).toBeNull()
+    expect(g).toMatchObject({ soZeros: true, faixaCliques: false, ticks: [0] })
+    expect(g.resumo).toMatch(/^Nenhuma impressão nos \d+ dias medidos, mas o vídeo teve .* views\. O relatório de alcance do YouTube pode estar incompleto/)
     expect(b.taxa).toBeNull()
   })
 
@@ -352,10 +395,10 @@ describe('retenção, forja e "o que ainda não há"', () => {
     expect(JSON.stringify(f)).not.toMatch(/coleta diária ainda não está no ar/)
   })
 
-  it('"O que ainda não há deste vídeo": origem do tráfego e trocas de título e thumbnail; nem views por dia nem % assistido', () => {
+  it('"O que ainda não há deste vídeo": só trocas de título e thumbnail (a origem agora tem a sua seção); nem views por dia nem % assistido', () => {
     const t = blocos(W).ainda
-    expect(t).toMatch(/origem do tráfego/i)
-    expect(t).toContain('trocas de título e thumbnail')
+    expect(t).not.toMatch(/origem do tráfego/i)
+    expect(t).toContain('Trocas de título e thumbnail')
     expect(t).toContain('gráfico sem marca não quer dizer que não houve troca')
     expect(t).not.toMatch(/views por dia|% assistido|retenção/i)
   })
@@ -464,5 +507,151 @@ describe('relógio e datas', () => {
     const g = blocos(W).views!.grafico!
     const ultimo = addDays(W.hoje, -2)
     expect(g.periodoTexto).toMatch(new RegExp(`a ${dmDia(ultimo)} · 28 dias`))
+  })
+})
+
+
+/* ---------------------------------------------------------------- tela B: % assistido por período */
+
+describe('buildAssistidoDoVideo (tela B)', () => {
+  const ATE: DiaYt = '2026-09-30'
+  const PUB = addDays(ATE, -199)
+  const OUTROS = ['o1', 'o2', 'o3']
+  /** Cada outro vídeo, 100 views por dia: 40% até 90 dias atrás, 50% de 89 a 28 dias atrás, 60% nos últimos 28 dias. */
+  function linhas(ids: readonly string[], de: DiaYt, views = 100): DiarioPeriodoLinha[] {
+    const out: DiarioPeriodoLinha[] = []
+    for (const ytId of ids) for (let n = 199; n >= 0; n--) {
+      const dia = addDays(ATE, -n)
+      if (dia < de) continue
+      out.push({ ytId, dia, views, pctAssistido: n >= 90 ? 40 : n >= 28 ? 50 : 60 })
+    }
+    return out
+  }
+  function periodo(ids: readonly string[], de: DiaYt | null, o: { conhecida?: boolean; views?: number; primeiro?: DiaYt } = {}): DiarioDoPeriodo {
+    const ls = linhas(ids, de ?? PUB, o.views)
+    return {
+      canalId: 'c', de, ate: ATE, linhas: ls, foraDoTeto: [], descartados: 0,
+      cobertura: {
+        conhecida: o.conhecida ?? true, videosCompletos: ids.length, videosIncompletos: 0, primeiroDiaLido: o.primeiro ?? (ls[0]?.dia ?? null),
+        intervalos: new Map(ids.map(id => [id, [{ de: de ?? PUB, ate: ATE }]] as const)), ytIds: ids, publicacoes: new Map(ids.map(id => [id, PUB] as const)),
+      },
+    }
+  }
+  const longo = (o: Partial<DiarioLongo> = {}): Privado<DiarioLongo> => ({ acesso: 'ok', dado: { d90: periodo(OUTROS, addDays(ATE, -89)), inteiro: periodo(OUTROS, null), ...o } })
+  const diario28: DiarioCanal = {
+    canalId: 'c', ultimoDia: ATE, descartados: 0,
+    linhas: Array.from({ length: 28 }, (_, i) => ({ ytId: 'este', dia: addDays(ATE, -i), views: 50, pctAssistido: 55, duracaoMediaSeg: null })),
+  }
+  const monta = (l: Privado<DiarioLongo> | null, diario: DiarioCanal = diario28) => buildAssistidoDoVideo({ ytId: 'este', ytIds: OUTROS, diario, longo: l })
+
+  it('os três cartões do exemplo (46, 53 e 60) com as setas contra o canal inteiro e a frase do vídeo: "Acima do normal do canal inteiro: 55% contra 46% (+9 pontos)"', () => {
+    const v = monta(longo())
+    expect(v.estado).toBe('ok')
+    expect(v.cartoes.map(c => [c.id, c.valor, c.seta?.texto ?? null])).toEqual([['inteiro', '46%', null], ['90', '53%', '▲ +7'], ['28', '60%', '▲ +14']])
+    expect(v.conteudos.inteiro.frase!.texto).toBe('Acima do normal do canal inteiro: 55% contra 46% (+9 pontos).')
+    expect(v.conteudos['90'].frase!.texto).toBe('Na média dos últimos 90 dias: 55% contra 53% (+2 pontos).')
+  })
+
+  it('o vídeo da tela não entra na conta do normal: só os OUTROS vídeos (o leitor recebe a lista sem ele)', () => {
+    const v = buildAssistidoDoVideo({ ytId: 'o1', ytIds: ['o2', 'o3'], diario: { ...diario28, linhas: [] }, longo: longo() })
+    expect(v.cartoes[0]!.valor).toBe('46%')
+    expect(v.conteudos.inteiro.frase).toBeNull() // sem % do vídeo não há comparação, e nada é inventado
+  })
+
+  it('canal sem diário (a página nem lê): os três cartões dizem "sem dado" e a frase diz que a coleta não rodou; nenhum número', () => {
+    const v = monta(null, { ...diario28, ultimoDia: null, linhas: [] })
+    expect(v.cartoes.every(c => c.estado === 'sem-numero' && c.valor === null && c.seta === null)).toBe(true)
+    expect(v.conteudos.inteiro.frase!.texto).toMatch(/coleta diária ainda não rodou/)
+  })
+
+  it('sem acesso e leitura que falhou: nenhum cartão, a frase de acesso ou de erro, e nenhum número no modelo', () => {
+    const negado = monta({ acesso: 'negado' })
+    expect(negado).toMatchObject({ estado: 'negado', cartoes: [], vazio: 'Só quem edita o site vê o % assistido.' })
+    const erro = monta({ acesso: 'erro' })
+    expect(erro).toMatchObject({ estado: 'erro', cartoes: [] })
+    expect(JSON.stringify([negado, erro])).not.toMatch(/\d+%/)
+  })
+
+  it('o diário inteiro passou do teto: o cartão do canal inteiro lê "não medido" e os de 90 e 28 dias continuam com número; falha do banco lê "não conseguimos ler"', () => {
+    const teto = monta(longo({ inteiro: null, motivoInteiro: 'teto' }))
+    expect(teto.cartoes.map(c => [c.id, c.valor])).toEqual([['inteiro', null], ['90', '53%'], ['28', '60%']])
+    expect(teto.cartoes[0]).toMatchObject({ semNumero: 'não medido' })
+    expect(JSON.stringify(teto)).toContain('o canal tem vídeos demais para esta tela ler de uma vez')
+    expect(JSON.stringify(teto)).not.toContain('não sabemos se')
+    const erro = monta(longo({ inteiro: null, motivoInteiro: 'erro' }))
+    expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'não conseguimos ler' })
+  })
+
+  it('poucas views com a cobertura inteira diz "poucas views"; com a cobertura desconhecida diz "não medido", nunca "poucas views"', () => {
+    const poucas = monta(longo({ d90: periodo(OUTROS, addDays(ATE, -89), { views: 1 }), inteiro: periodo(OUTROS, null, { views: 1 }) }))
+    expect(poucas.cartoes.map(c => c.semNumero)).toEqual(['poucas views', 'poucas views', 'poucas views'])
+    const desconhecida = monta(longo({ d90: periodo(OUTROS, addDays(ATE, -89), { views: 1, conhecida: false }), inteiro: periodo(OUTROS, null, { views: 1, conhecida: false }) }))
+    expect(desconhecida.cartoes.map(c => c.semNumero)).toEqual(['não medido', 'não medido', 'não medido'])
+    expect(JSON.stringify(desconhecida.cartoes)).not.toMatch(/poucas views/)
+  })
+
+  it('diário que começa depois da publicação mais antiga: o primeiro cartão se chama "Desde dd/mm/aaaa"; começando na publicação, "Canal inteiro"', () => {
+    const tarde = addDays(PUB, 40)
+    const comBuraco = monta(longo({ inteiro: periodo(OUTROS, tarde, { primeiro: tarde }) }))
+    expect(comBuraco.cartoes[0]!.rotulo).toBe(`Desde ${tarde.slice(8)}/${tarde.slice(5, 7)}/${tarde.slice(0, 4)}`)
+    expect(monta(longo()).cartoes[0]!.rotulo).toBe('Canal inteiro')
+  })
+})
+
+/* ================================================================ E5b T16 (d): a entrada pura da origem do vídeo  */
+
+describe('E5b T16 (d): entrada pura de "De onde vêm as views"', () => {
+  const ATE = '2026-10-11'
+  const diarioVazio = (conhecida: boolean): DiarioDoPeriodo => ({ canalId: 'c', de: '2026-10-05', ate: ATE, linhas: [], foraDoTeto: [], descartados: 0, cobertura: { conhecida, videosCompletos: 0, videosIncompletos: 0, primeiroDiaLido: null, intervalos: new Map(), ytIds: [], publicacoes: new Map() } })
+
+  it('ateDaOrigem: o último dia do diário; sem diário, três dias antes de hoje', () => {
+    expect(ateDaOrigem('2026-10-09', '2026-10-13')).toBe('2026-10-09')
+    expect(ateDaOrigem(null, '2026-10-13')).toBe('2026-10-10')
+  })
+
+  it('nivelDaOrigem: sem prova só o aviso; termos negados para quem não edita é sem-termos; erro ou negado para quem edita continua tudo', () => {
+    const ok = { acesso: 'ok' as const, dado: detalheFx() }
+    expect(nivelDaOrigem({ temLeitura: false, termos: { acesso: 'negado' }, podeEditar: false })).toBe('so-aviso')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'negado' }, podeEditar: false })).toBe('sem-termos')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'negado' }, podeEditar: true })).toBe('tudo')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'erro' }, podeEditar: true })).toBe('tudo')
+    expect(nivelDaOrigem({ temLeitura: true, termos: { acesso: 'erro' }, podeEditar: false })).toBe('tudo')
+    expect(nivelDaOrigem({ temLeitura: true, termos: ok, podeEditar: true })).toBe('tudo')
+  })
+
+  it('janelaDaOrigemDoVideo: sempre 7 dias de diário; desde a publicação sem passar do começo da coleta; publicação nula ou depois do fim: só 7 dias', () => {
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: null, ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-10-12', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2019-03-01', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-04', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-09-20', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-04', diarioDesde: '2026-10-05' })
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-10-08', ligadoEm: '2026-10-04' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+    // coleta ligada depois do começo da janela de 7 dias: a janela não passa de `ate - 6`
+    expect(janelaDaOrigemDoVideo({ ate: ATE, publicadoEm: '2019-03-01', ligadoEm: '2026-10-09' })).toEqual({ de: '2026-10-05', diarioDesde: '2026-10-05' })
+  })
+
+  it('periodosDaOrigemDoVideo: 7 dias e "Desde a publicação" (só com data); o total vem do diário e é nulo com a cobertura desconhecida ou o diário inteiro ausente', () => {
+    const sem = periodosDaOrigemDoVideo({ ate: ATE, publicadoEm: null, diario: diarioVazio(false), diarioInteiro: null })
+    expect(sem.map(p => p.id)).toEqual(['7'])
+    expect(sem[0]).toMatchObject({ rotulo: '7 dias', de: '2026-10-05', ate: ATE, totalDoPeriodo: null })
+    const com = periodosDaOrigemDoVideo({ ate: ATE, publicadoEm: '2026-09-01', diario: diarioVazio(true), diarioInteiro: null })
+    expect(com.map(p => p.id)).toEqual(['7', 'tudo'])
+    expect(com[1]).toMatchObject({ rotulo: 'Desde a publicação', de: '2026-09-01', totalDoPeriodo: null, videosDoTotal: null })
+    expect(com[0]!.videosDoTotal).toMatchObject({ naConta: 0 })
+  })
+
+  it('contagensDeCobertura: só contagens; nulo quando nenhum período tem vídeo fora ou parado e nenhum bloco traz a linha de contagem', () => {
+    const limpo = buildOrigem(entradaFx({ periodos: [perFx('7', '7 dias', '2026-10-05', ATE)] }))
+    expect(contagensDeCobertura(limpo, [perFx('7', '7 dias', '2026-10-05', ATE)])).toBeNull()
+    const fora = perFx('7', '7 dias', '2026-10-05', ATE, 3185, { naConta: 34, fora: 1, parados: 0, paradosDesde: null, comBuraco: 0 })
+    expect(contagensDeCobertura(limpo, [fora])).toEqual({ periodosComVideoForaOuParado: 1, blocosComContagem: 0 })
+  })
+
+  it('contagensDeCobertura: vídeo parado só no período "tudo" não avisa (estado permanente); parado em 90 dias conta 1 (Yannis I2)', () => {
+    const limpo = buildOrigem(entradaFx({ periodos: [perFx('7', '7 dias', '2026-10-05', ATE)] }))
+    const parado = { naConta: 34, fora: 0, parados: 1, paradosDesde: '2026-08-01', comBuraco: 0 }
+    const tudo = perFx('tudo', 'Desde 2026', '2026-01-01', ATE, 3185, parado)
+    expect(contagensDeCobertura(limpo, [tudo])).toBeNull()
+    const noventa = perFx('90', '90 dias', '2026-07-14', ATE, 3185, parado)
+    expect(contagensDeCobertura(limpo, [tudo, noventa])).toEqual({ periodosComVideoForaOuParado: 1, blocosComContagem: 0 })
   })
 })

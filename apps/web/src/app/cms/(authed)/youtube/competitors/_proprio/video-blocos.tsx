@@ -4,10 +4,13 @@
  * montado (`buildVideoBlocos`, só texto e frações) e o repassa aos filhos; o gráfico e as réguas são componentes cliente que recebem só o que
  * esta tela já mostra. Quem só lê o site recebe `acesso: 'negado'`: nenhum bloco privado existe no modelo, e aqui só aparece a nota única.
  */
+import type { ReactNode } from 'react'
+import { BarraAssistido } from './barra-assistido'
 import { Impressoes } from './impressoes'
 import { InfoDica } from './info-dica'
 import { ForjaIndisponivelVideo } from './forja-indisponivel-video'
 import { Reguas } from './reguas'
+import { RetencaoCurva } from './retencao-curva'
 import { TaxaFaixa } from './taxa-faixa'
 import type { BlocoAssistido, BlocoImpressoes, BlocoRetencao, BlocoTaxa, BlocoViews, DirecaoAssistido, Parte, VideoBlocosView } from './video-blocos-model'
 import './video-blocos.css'
@@ -53,7 +56,18 @@ function SecImpressoes({ b }: { b: BlocoImpressoes }) {
   )
 }
 
-function SecAssistido({ a }: { a: BlocoAssistido }) {
+/** O estado "Carregando" dos cartões de período (fallback do `Suspense` de `AssistidoDoVideo`): três caixas lisas, sem número. */
+export function AssistidoEsqueleto({ barra }: { barra?: BlocoAssistido | null }) {
+  return (
+    <div className="vb-ap-esq" role="status" aria-busy="true">
+      {barra ? <BarraAssistido a={barra} normal={null} /> : null}
+      <div className="vb-ap-cs" aria-hidden="true"><i /><i /><i /></div>
+      <p className="vb-nt">Carregando o % assistido por período…</p>
+    </div>
+  )
+}
+
+function SecAssistido({ a, periodos }: { a: BlocoAssistido; periodos?: ReactNode }) {
   const pouco = a.estado === 'pouco'
   return (
     <section className="vb-sec" aria-labelledby="vb-as-h">
@@ -61,42 +75,61 @@ function SecAssistido({ a }: { a: BlocoAssistido }) {
       {a.estado === 'nao-medido' ? <NaoMedido frase={a.partes.map(p => p.t).join('')} /> : (
         <div className="vb-as">
           <p className="vb-fr"><Partes partes={a.partes} pouco={pouco} /></p>
-          <div className={'vb-as-barra' + (pouco ? ' pouco' : '')} role="img" aria-label={a.alt}>
-            <i style={{ width: `${a.barraPct}%` }} />
-            {a.marcaPct != null ? <s style={{ left: `${a.marcaPct}%` }} /> : null}
-          </div>
-          {a.marcas ? <div className="vb-as-tk" aria-hidden="true"><span>{a.marcas[0]}</span><span>{a.marcas[1]}</span><span>{a.marcas[2]}</span></div> : null}
-          {a.marcaPct != null ? (
-            <div className="vb-as-med" aria-hidden="true">
-              <span className={'vb-as-med-' + (a.rotuloAncora ?? 'meio')} style={a.rotuloAncora === 'meio' ? { left: `${a.marcaPct}%` } : undefined}>normal do canal: {a.normalTexto}</span>
-            </div>
+          {/* com os cartões de período, a barra, a marca e a comparação são deles (`AssistidoPeriodos`): o "normal" segue o período escolhido, nunca fica um segundo, de 28 dias, ao lado */}
+          {periodos ? null : (
+            <>
+              <BarraAssistido a={a} rotuloPeriodo="canal inteiro" />
+              {a.contra && a.direcao ? <p className={'vb-nt vb-dir-' + a.direcao}><span aria-hidden="true">{SIMBOLO[a.direcao]}</span> {a.contra}</p> : null}
+              {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
+            </>
+          )}
+        </div>
+      )}
+      {periodos}
+    </section>
+  )
+}
+
+/** A seção "Retenção" (A5 E8, Tarefa 13): cinco estados, e o gráfico só no `coletada`. Os outros quatro dizem a frase do estado; a pastilha é por estado (`rotulo`): "não medido", "falhou" ou nenhuma. */
+function SecRetencao({ r }: { r: BlocoRetencao }) {
+  // a primeira frase em negrito, como era; uma frase só (erro, negado) vai inteira, sem ponto duplicado
+  const [primeira, ...resto] = r.frase.split('. ')
+  return (
+    <section className="vb-sec" aria-labelledby="vb-ret-h">
+      <div className="vb-h"><h2 id="vb-ret-h">Retenção</h2><InfoDica titulo="De onde vem a curva" paragrafos={r.metodo} /></div>
+      {r.estado === 'coletada' && r.curva ? (
+        <>
+          <p className="vb-fr"><Partes partes={r.partes} /></p>
+          <RetencaoCurva curva={r.curva} />
+          {r.saidas || r.revistos ? (
+            <ul className="vb-ret-ls">
+              {r.saidas ? <li><b>Maiores saídas:</b>{r.saidas.slice('Maiores saídas:'.length)}</li> : null}
+              {r.revistos ? <li><b>Trechos revistos:</b>{r.revistos.slice('Trechos revistos:'.length)}</li> : null}
+            </ul>
           ) : null}
-          {a.contra && a.direcao ? <p className={'vb-nt vb-dir-' + a.direcao}><span aria-hidden="true">{SIMBOLO[a.direcao]}</span> {a.contra}</p> : null}
-          {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
+          {r.aviso ? <p className="vb-ret-aviso">{r.aviso}</p> : null}
+        </>
+      ) : (
+        <div className="vb-nml">
+          {r.rotulo ? <span className={r.rotulo === 'falhou' ? 'vb-falhou' : 'obs-ch-nm'}>{r.rotulo}</span> : null}
+          <p>{resto.length > 0 ? <><b>{primeira}.</b> {resto.join('. ')}</> : <b>{r.frase}</b>}</p>
         </div>
       )}
     </section>
   )
 }
 
-function SecRetencao({ r }: { r: BlocoRetencao }) {
-  const [primeira, ...resto] = r.frase.split('. ')
-  return (
-    <section className="vb-sec" aria-labelledby="vb-ret-h">
-      <div className="vb-h"><h2 id="vb-ret-h">Retenção</h2><InfoDica titulo="De onde vem a curva" paragrafos={r.metodo} /></div>
-      <div className="vb-nml"><span className="obs-ch-nm">não medido</span><p><b>{primeira}.</b> {resto.join('. ')}</p></div>
-    </section>
-  )
-}
-
-export function VideoBlocos({ view }: { view: VideoBlocosView }) {
+/** `origem` = o grupo "De onde vêm as views" já renderizado no servidor (o `Suspense` de `OrigemDoVideo`), na ordem: depois da Retenção. */
+/** `periodos` = os três cartões de % assistido por período, JÁ renderizados no servidor (o `Suspense` de `AssistidoDoVideo`): o bloco não espera a leitura. */
+export function VideoBlocos({ view, periodos, origem }: { view: VideoBlocosView; periodos?: ReactNode; origem?: ReactNode }) {
   return (
     <>
       {view.acesso === 'ok' && view.views ? <SecViews b={view.views} /> : null}
       {view.acesso === 'ok' && view.impressoes ? <SecImpressoes b={view.impressoes} /> : null}
-      {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} /> : null}
-      {view.nota ? <div className="vb-nml vb-privado"><span className="obs-ch-nm">não medido</span><p data-privado-nota="">{view.nota}</p></div> : null}
+      {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} periodos={periodos} /> : null}
+      {view.nota ? <div className="vb-nml vb-privado">{view.acesso === 'erro' ? <span className="vb-falhou">falhou</span> : null}<p data-privado-nota="">{view.nota}</p></div> : null}
       <SecRetencao r={view.retencao} />
+      {origem !== undefined ? <section className="vb-sec" aria-labelledby="vb-ori-h"><h2 id="vb-ori-h">De onde vêm as views</h2>{origem}</section> : null}
       <section className="vb-sec" aria-labelledby="vb-canal-h">
         <h2 id="vb-canal-h">Este vídeo no canal</h2>
         <Reguas view={view.canal.reguas} />

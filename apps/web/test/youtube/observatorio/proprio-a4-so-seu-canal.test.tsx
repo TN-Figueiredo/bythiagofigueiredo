@@ -67,7 +67,7 @@ describe('14 modelo: buildSoSeuCanal', () => {
       expect(v.naoMedido).toBe(false)
       expect(v.linhas.map(l => l.chave)).toEqual(['impressoes', 'cliques', 'taxa', 'assistido'])
       expect(v.linhas.map(l => l.rotulo)).toEqual(['Impressões', 'Cliques estimados', 'Taxa de clique', '% assistido'])
-      expect(v.frase).toBe('Impressões, taxa de clique e % assistido só chegam ao dono do canal. Leo Khev não tem esses números aqui porque o YouTube não os entrega, não porque sejam zero.')
+      expect(v.frase).toBe('Impressões, taxa de clique, origem das views e termos de pesquisa só chegam ao dono do canal. Leo Khev não tem esses números aqui porque o YouTube não os entrega, não porque sejam zero.')
       // impressões: o total e o período; cliques: o arredondado, com a conta no sub
       expect(linha(v, 'impressoes')).toMatchObject({ valor: '140', sub: `de ${dm(d(21))} a ${dm(d(1))}`, fraco: false })
       expect(linha(v, 'cliques')).toMatchObject({ valor: '3', sub: 'impressões × taxa de cada dia' })
@@ -78,7 +78,7 @@ describe('14 modelo: buildSoSeuCanal', () => {
 
   it('o canal do outro lado que também é seu não leva a frase de "não tem esses números"', () => {
     const [a, b] = buildSoSeuCanal({ a: eu, b: eu2 }, { eu: monta(alc3de140(), DIARIO_CHEIO()), eu2: monta(alc3de140(), DIARIO_CHEIO(), 'Thiago Figueiredo') })
-    expect(a!.frase).toBe('Impressões, taxa de clique e % assistido só chegam ao dono do canal.')
+    expect(a!.frase).toBe('Impressões, taxa de clique, origem das views e termos de pesquisa só chegam ao dono do canal.')
     expect(b!.frase).toBe(a!.frase)
   })
 
@@ -247,7 +247,7 @@ describe('14 tela: o cartão na comparação', () => {
     }
     expect(within(c!).getByRole('heading', { level: 2, name: /Só o seu canal mede/ })).toBeTruthy()
     // a frase, com o trecho em negrito
-    expect(c!.textContent).toContain('Impressões, taxa de clique e % assistido só chegam ao dono do canal. Leo Khev não tem esses números aqui porque o YouTube não os entrega, não porque sejam zero.')
+    expect(c!.textContent).toContain('Impressões, taxa de clique, origem das views e termos de pesquisa só chegam ao dono do canal. Leo Khev não tem esses números aqui porque o YouTube não os entrega, não porque sejam zero.')
     expect(c!.querySelector('.so-lead b')!.textContent).toBe('não porque sejam zero')
     // as quatro linhas: rótulo, sub e valor
     const itens = [...c!.querySelectorAll('li')]
@@ -302,7 +302,7 @@ describe('14 tela: o cartão na comparação', () => {
     expect(cs).toHaveLength(2)
     expect(within(cs[0]!).getByRole('heading', { level: 2 }).textContent).toContain('tnFigueiredo')
     expect(within(cs[1]!).getByRole('heading', { level: 2 }).textContent).toContain('Thiago Figueiredo')
-    for (const c of cs) expect(c.querySelector('.so-lead')!.textContent).toBe('Impressões, taxa de clique e % assistido só chegam ao dono do canal.')
+    for (const c of cs) expect(c.querySelector('.so-lead')!.textContent).toBe('Impressões, taxa de clique, origem das views e termos de pesquisa só chegam ao dono do canal.')
     // os dois no fim, na ordem dos lados, depois de "Número a número"
     const tabela = screen.getByRole('heading', { name: /Número a número/ }).closest('section')!
     for (const c of cs) expect(tabela.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

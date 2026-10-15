@@ -42,13 +42,13 @@ function testeCompleto(over: Record<string, unknown> = {}): Record<string, unkno
     applied_by: 'auto', apply_attempts: 2, completed_at: '2026-03-10T00:00:00.000Z', completed_reason: 'manual_winner',
     confidence_at_completion: 0.97, config: {}, consecutive_confident_evals: 3, created_at: '2026-03-01T00:00:00.000Z',
     drift_acknowledged_at: null, grace_expires_at: null, id: 't1', last_applied_variant_id: null, last_apply_error: null,
-    name: 'Teste', original_description: null, original_thumbnail_url: 'https://x/y.png', original_title: 'T',
+    name: 'Teste', original_thumbnail_url: 'https://x/y.png', original_title: 'T',
     parent_test_id: null, paused_at: null, playoff_start_after: null, playoff_test_id: null, queue_start_after: null,
     result_metadata: { winner_label: 'B', ctr_lift_percent: 12, total_impressions: 5000, estimated_monthly_extra_clicks: 90 },
     revert_expires_at: null, round_number: 4, site_id: SITE, source_pipeline_id: null, started_at: '2026-03-01T00:00:00.000Z',
     status: 'completed', status_note: null, test_type: 'thumbnail', updated_at: '2026-03-10T00:00:00.000Z',
     winner_applied_at: null, winner_variant_id: 'v1', youtube_video_id: 'yt1',
-    variants: [{ id: 'v1', label: 'B', is_original: false, blob_url: null, title_text: null, description_text: null, metadata: {}, sort_order: 1 }],
+    variants: [{ id: 'v1', label: 'B', is_original: false, blob_url: null, title_text: null, metadata: {}, sort_order: 1 }],
     cycles: [{
       applied_metadata: null, avd_seconds: 31, backfill_attempts: 2, backfill_status: 'confirmed', clicks: 15, created_at: '2026-03-01T00:00:00.000Z',
       ctr: 0.1, cycle_number: 1, ended_at: null, estimated_clicks: 14, estimated_ctr: 0.09, estimated_impressions: 140, estimated_revenue: 3.5,
@@ -72,7 +72,7 @@ const semTestes = (): FakePostgrestOptions => ({
 
 /** um auto_resolve, um manual_winner, um manual_no_apply (os dois com vencedor) e um inconclusive (sem). */
 function mundoMisto(): FakePostgrestOptions {
-  const w = (tag: string) => ({ id: `w-${tag}`, label: tag, title_text: null, description_text: null, metadata: { thumbnail_tags: [tag], title_pattern: `p-${tag}` } })
+  const w = (tag: string) => ({ id: `w-${tag}`, label: tag, title_text: null, metadata: { thumbnail_tags: [tag], title_pattern: `p-${tag}` } })
   return {
     tables: {
       sites: [{ id: SITE }],
@@ -100,7 +100,7 @@ function mundoUmTeste(): FakePostgrestOptions {
   return o
 }
 
-describe('funil: impressões e cliques de entrega saem null com aviso; cliques de link continuam número', () => {
+describe('funil: impressões e cliques de entrega saem null com aviso; link_clicks sai null (P3: sem link rastreado)', () => {
   const START = '2026-03-01T00:00:00.000Z'
   const END = '2026-03-10T00:00:00.000Z'
   const world = (): FakePostgrestOptions => ({
@@ -132,10 +132,10 @@ describe('funil: impressões e cliques de entrega saem null com aviso; cliques d
     for (const v of data.per_variant) {
       expect(v.impressions).toBeNull()
       expect(v.clicks).toBeNull()
-      expect(typeof v.link_clicks).toBe('number')
+      expect(v.link_clicks).toBeNull()
     }
-    expect(data.per_variant.find(v => v.variant_id === 'v1')?.link_clicks).toBe(1)
-    expect(data.per_link[0]?.clicks).toBe(1)
+    expect(data.per_link).toEqual([])
+    expect(data.link_clicks_window).toBeNull()
   })
 
   it('paridade: ação MCP get_funnel dá o mesmo JSON do serviço', async () => {

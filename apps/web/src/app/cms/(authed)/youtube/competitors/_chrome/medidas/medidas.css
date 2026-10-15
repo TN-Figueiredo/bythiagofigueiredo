@@ -6,7 +6,7 @@
 [data-obs] .obs-md-dir.estavel{--d:var(--dir-eq)}
 [data-obs] .obs-md-dir-q{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-size:12px;line-height:1;color:var(--on-lado,#16130F);background:var(--d);border:1.5px solid var(--d)}
 [data-obs] .obs-md-dir.contorno .obs-md-dir-q{background:none;color:var(--d)}
-[data-obs] .obs-md-dir-n{font:500 15px/22px var(--mono,monospace)}
+[data-obs] .obs-md-dir-n{font:500 15px/22px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace}
 [data-obs] .obs-md-dir-w{font-size:12.5px;color:var(--text)}
 [data-obs] .obs-md-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
@@ -17,7 +17,7 @@
 
 /* Estado do canal (pastilhas sob o nome). "Ativo" não tem pastilha. */
 [data-obs] .obs-md-est{display:grid;gap:3px;justify-items:start;min-width:0;max-width:228px}
-[data-obs] .obs-md-pas{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:2px 9px;border-radius:6px;font:500 12.5px/1.25 var(--sans,sans-serif);color:var(--text);border:1.5px solid var(--c,var(--muted));background:transparent}
+[data-obs] .obs-md-pas{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:2px 9px;border-radius:6px;font:500 12.5px/1.25 var(--font-sans),system-ui,sans-serif;color:var(--text);border:1.5px solid var(--c,var(--muted));background:transparent}
 [data-obs] .obs-md-pas.em_queda{--c:var(--dir-dn)}
 /* parado e coleta pausada são estado, não direção: cor própria (item 241 reserva --dir-* à direção) */
 [data-obs] .obs-md-pas.parado{--c:var(--lado-n)}

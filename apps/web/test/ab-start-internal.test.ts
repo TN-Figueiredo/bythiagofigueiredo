@@ -21,7 +21,7 @@ vi.mock('@/lib/youtube/ab-rotation', () => ({
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { fetchVariantImageBuffer, setThumbnail } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 
 beforeEach(() => {
@@ -44,6 +44,7 @@ function buildMock(testOverrides: Record<string, unknown> = {}, channelRow: { ch
     site_id: 'site-1',
     status: 'draft',
     youtube_video_id: 'vid-1',
+    test_type: 'thumbnail',
     ...testOverrides,
   }
 
@@ -128,6 +129,22 @@ describe('startAbTestInternal', () => {
     expect(result.ok).toBe(true)
     expect(updates.some(u => (u.data as Record<string, unknown>).status === 'active')).toBe(true)
     expect(inserts.some(i => i.table === 'ab_test_cycles')).toBe(true)
+  })
+
+  it('rascunho antigo de descrição: recusa com a mensagem do 422, sem miniatura e sem update', async () => {
+    const { updates } = buildMock({ test_type: 'description' })
+    const result = await startAbTestInternal('test-1', 'site-1')
+    expect(result).toEqual({ ok: false, error: 'A descrição não participa mais do teste A/B' })
+    expect(updates.filter(u => u.table === 'ab_tests')).toHaveLength(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
+  })
+
+  it('tipo desconhecido: recusa e não inicia', async () => {
+    const { updates } = buildMock({ test_type: 'xyz' })
+    const result = await startAbTestInternal('test-1', 'site-1')
+    expect(result).toEqual({ ok: false, error: 'Tipo de teste desconhecido' })
+    expect(updates.filter(u => u.table === 'ab_tests')).toHaveLength(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
   })
 
   it('usa o token do canal dono do vídeo (UC…)', async () => {

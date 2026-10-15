@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
+import { spDateOf } from '@/lib/youtube/observatorio/time'
 import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats, lookupChannelByHandle, YouTubeQuotaError } from './api-client'
 import { autoCategorize } from './auto-categorize'
 import type { YouTubeChannelRow, YouTubeCategoryRow, SyncMode } from './types'
@@ -147,6 +149,41 @@ async function updateChannelMeta(
   }).eq('id', channel.id)
 
   if (updateErr) throw new Error(`Failed to update channel metadata: ${updateErr.message}`)
+
+  await gravarRetratoPublico(supabase, channel.id, stats)
+}
+
+/**
+ * A5 R9a (MG20): retrato público diário do canal próprio. O primeiro do dia de São Paulo fica (`ignoreDuplicates`); o `catchall`
+ * das 04:00 garante um por dia. Só grava se a linha diz algo sobre inscritos (número ou oculto). Falha aqui nunca para a sincronização.
+ */
+async function gravarRetratoPublico(
+  supabase: SupabaseClient,
+  channelId: string,
+  stats: Awaited<ReturnType<typeof fetchChannelStats>>,
+): Promise<void> {
+  if (stats.subscriberCountRaw === null && !stats.hidden) return
+  try {
+    const { error } = await supabase.from('yt_own_channel_snapshots').upsert({
+      youtube_channel_id: channelId,
+      snapshot_date: spDateOf(Date.now()),
+      subscriber_count: stats.subscriberCountRaw,
+      subscribers_hidden: stats.hidden,
+      view_count: stats.viewCountRaw,
+      video_count: stats.videoCountRaw,
+    }, { onConflict: 'youtube_channel_id,snapshot_date', ignoreDuplicates: true })
+    if (error) avisarRetratoNaoGravado(channelId, error.code ?? error.message)
+  } catch (e) {
+    avisarRetratoNaoGravado(channelId, e instanceof Error ? e.message : String(e))
+  }
+}
+
+function avisarRetratoNaoGravado(channelId: string, code: string): void {
+  Sentry.captureMessage('sync-youtube: retrato do canal próprio não gravado', {
+    level: 'warning',
+    fingerprint: ['sync-youtube', 'retrato-proprio'],
+    extra: { channelId, code },
+  })
 }
 
 async function refreshMetrics(

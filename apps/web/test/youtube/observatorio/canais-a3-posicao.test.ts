@@ -4,7 +4,7 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { a3World } from './a3-fixture'
 import { buildCanaisView, type CanaisParams, type CanaisRow, type CanaisSort, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
-import { fraseSeuCanal, motivoTexto, POSICIONADAS, type MotivoSemMedida } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
+import { FAIXA_SEM_POSICAO, fraseSeuCanal, motivoTexto, POSICIONADAS, type MotivoSemMedida } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
 import { ownChannelHref } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-channels'
 import { principalDoMotor } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 import { link } from '@/lib/youtube/observatorio/links'
@@ -12,7 +12,7 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import type { OwnPreset } from '../../fixtures/observatorio/own-presets'
 
-const SORTS: CanaisSort[] = ['subs', 'vpd', 'active', 'outliers', 'swaps', 'growth']
+const SORTS: CanaisSort[] = ['subs', 'vpd', 'active', 'outliers', 'swaps', 'growth', 'direcao']
 const FMTS = ['longos', 'todos', 'shorts'] as const
 const SCALES = ['per-mil', 'abs'] as const
 const BASE = a3World() // lido uma vez por arquivo; os testes que mutam pedem outro mundo
@@ -86,9 +86,13 @@ describe('A3.2 lista única', () => {
       expect(v.list.ranked.every(r => r.valor[sort] != null)).toBe(true)
       expect(v.list.unranked.every(r => r.valor[sort] == null)).toBe(true)
       // a ordem dos que têm valor é a da direção
-      const xs = v.list.ranked.map(r => r.valor[sort]!)
-      const ord = [...xs].sort((a, b) => (dir === 'desc' ? b - a : a - b))
-      expect(xs).toEqual(ord)
+      // A5 2ª leva D3: valores que se escrevem igual (mesma posição, "empate") ficam A–Z; entre posições distintas vale a direção
+      const rk = v.list.ranked
+      for (let i = 1; i < rk.length; i++) {
+        const a = rk[i - 1]!, b = rk[i]!
+        if (a.numero!.pos === b.numero!.pos) continue
+        expect(dir === 'desc' ? a.valor[sort]! >= b.valor[sort]! : a.valor[sort]! <= b.valor[sort]!, `${sort} ${dir}`).toBe(true)
+      }
       // nenhum grupo fixo no topo: algum concorrente vem antes de algum canal próprio com valor
       const iFirstOwn = v.list.ranked.findIndex(r => own.has(r.id))
       if (iFirstOwn > 0) pelaMeio++
@@ -162,7 +166,7 @@ describe('A3.2 conjunto da posição', () => {
 describe('A3.2 posição só onde existe', () => {
   it('posição só em Inscritos e Views/dia (nas duas escalas); em Ritmo, Outliers, Trocas e Crescimento pos é null em todas as linhas e a frase é a de D4 (b)', () => {
     expect([...POSICIONADAS]).toEqual(['subs', 'vpd'])
-    const FRASE = 'Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a do seu canal.'
+    const FRASE = FAIXA_SEM_POSICAO
     const obs = BASE.obs
     for (const scale of SCALES) for (const fmt of FMTS) for (const sort of SORTS) {
       const v = view({ sort, scale, fmt })
@@ -229,16 +233,17 @@ describe('A3.2 sem medida', () => {
     expect(byId(subs, W.oculto).valor.subs).toBeNull()
     expect(byId(subs, W.oculto).semMedida).toBe('inscritos-ocultos')
   })
-  it('o fim da lista: concorrentes antes dos canais próprios, e cada grupo por inscritos', () => {
+  it('o fim da lista: concorrentes antes dos canais próprios, e cada grupo A–Z', () => {
     for (const dir of ['desc', 'asc'] as const) {
       const v = view({ sort: 'vpd', dir }, W.obs)
       const un = v.list.unranked
       expect(un.length).toBeGreaterThan(2)
       const iPrimeiroProprio = un.findIndex(r => r.own)
       if (iPrimeiroProprio >= 0) expect(un.slice(iPrimeiroProprio).every(r => r.own)).toBe(true)
+      // A5 2ª leva D3: sem medida A–Z (mockup 17)
       for (const grupo of [un.filter(r => !r.own), un.filter(r => r.own)]) {
-        const s = grupo.map(r => r.valor.subs ?? -Infinity)
-        expect(s).toEqual([...s].sort((a, b) => b - a))
+        const nomes = grupo.map(r => r.name)
+        expect(nomes).toEqual([...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR')))
       }
     }
   })
@@ -280,10 +285,10 @@ describe('A3.2 sem medida', () => {
     const v = view({ sort: 'vpd', scale: 'per-mil' }, W.obs)
     expect(v.list.divisor).toEqual({
       titulo: `Ainda sem medida para ordenar (${v.list.unranked.length})`,
-      nota: 'sem views/dia por mil inscritos nos longos; ficam no fim em qualquer direção',
+      nota: 'Estes canais ainda não têm views por dia medidas.',
     })
-    expect(view({ sort: 'vpd', scale: 'abs', fmt: 'shorts' }, W.obs).list.divisor!.nota).toBe('sem views/dia nos Shorts; ficam no fim em qualquer direção')
-    expect(view({ sort: 'subs' }, W.obs).list.divisor!.nota).toBe('sem inscritos; ficam no fim em qualquer direção')
+    expect(view({ sort: 'vpd', scale: 'abs', fmt: 'shorts' }, W.obs).list.divisor!.nota).toBe('Estes canais ainda não têm views por dia medidas.')
+    expect(view({ sort: 'subs' }, W.obs).list.divisor!.nota).toBe('Estes canais escondem os inscritos.')
     // todos têm medida: sem divisor
     const limpo = view({ sort: 'subs' })
     expect(limpo.list.unranked).toEqual([])
@@ -512,7 +517,7 @@ describe('A3.2 invariantes', () => {
     expect(new Set(textos).size).toBe(8) // cada motivo tem a sua frase
     // 11c, D-B.1 itens 5 e 6: "primeira sincronização" é o nome da busca inicial em toda tela; "busca" fica só para o campo de busca
     expect(motivoTexto('buscando-videos')).toBe('A primeira sincronização ainda não terminou: a medida aparece quando ela terminar. Sem posição nesta ordenação.')
-    expect(motivoTexto('ordenacao-sem-posicao')).toBe('Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a do seu canal.')
+    expect(motivoTexto('ordenacao-sem-posicao')).toBe(FAIXA_SEM_POSICAO)
     for (const t of textos) expect(t.length).toBeGreaterThan(10)
     const mix = a3World(undefined, 'mix').obs
     for (const obs of [w.obs, mix]) for (const niche of ['todos', 'viagem', 'ia'] as const) for (const sort of SORTS) for (const fmt of FMTS) for (const scale of SCALES) {
@@ -529,7 +534,7 @@ describe('A3.2 invariantes', () => {
   })
   it('sortNote não promete mais que os canais próprios ficam no topo; o resto da frase fica', () => {
     const v = view({ sort: 'vpd' })
-    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
+    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, do maior ao menor número de views por dia')
     expect(v.sortNote).not.toContain('topo')
   })
   it('as estruturas antigas saíram (groups, rows, own.rows, own.group, sortKeys): a tela desenha só list e own.block', () => {

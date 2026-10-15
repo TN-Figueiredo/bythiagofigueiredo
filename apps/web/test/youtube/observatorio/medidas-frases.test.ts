@@ -17,7 +17,7 @@ beforeEach(() => capturarMensagem.mockReset())
 
 describe('a tabela cobre o catálogo', () => {
   it('todo motivo do catálogo tem frase: mais de 15 caracteres, sem undefined, null, NaN nem chaves', () => {
-    expect(MOTIVOS_NAO_MEDIDO).toHaveLength(35)
+    expect(MOTIVOS_NAO_MEDIDO).toHaveLength(36)
     for (const m of MOTIVOS_NAO_MEDIDO) for (const c of [VAZIO, CHEIO]) {
       const f = FRASES_DE_MOTIVO[m](c)
       expect(f.length, m).toBeGreaterThan(15)

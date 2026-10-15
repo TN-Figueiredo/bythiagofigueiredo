@@ -52,13 +52,12 @@ describe('buildAbBriefingPrompt', () => {
     expect(prompt).toContain('Power words')
   })
 
-  it('description template includes fold and CTA instructions', () => {
-    const prompt = buildAbBriefingPrompt({
-      testType: 'description',
-      data: makeAbBriefingData(),
-    })
-    expect(prompt).toContain('CTA')
-    expect(prompt).toContain('3 primeiras linhas')
+  it('P3: o rótulo do combo é "Título + thumbnail" / "Title + thumbnail"', () => {
+    const pt = buildAbWritePrompt({ testType: 'combo', data: makeAbBriefingData({ locale: 'pt' }) })
+    const en = buildAbWritePrompt({ testType: 'combo', data: makeAbBriefingData({ locale: 'en' }) })
+    expect(pt).toContain('A/B Test Brainstorm: Título + thumbnail')
+    expect(en).toContain('A/B Test Brainstorm: Title + thumbnail')
+    expect(pt + en).not.toContain('Combo (Thumb')
   })
 
   it('combo template includes synergy instructions', () => {
@@ -229,9 +228,18 @@ describe('edge cases', () => {
     expect(prompt).not.toMatch(/avg lift|lift não medido|12\.5%|4\.0%/)
   })
 
-  it('all 4 test types — each includes focus text when provided', () => {
+  it('P3: os modelos de título e combo não mandam mais o Cowork enviar description_text', () => {
+    for (const locale of ['pt', 'en'] as const) {
+      for (const testType of ['title', 'combo'] as const) {
+        const prompt = buildAbWritePrompt({ testType, data: makeAbBriefingData({ locale }) })
+        expect(prompt).not.toContain('description_text')
+      }
+    }
+  })
+
+  it('all 3 test types — each includes focus text when provided', () => {
     const focus = 'Priorizar contraste alto'
-    const testTypes = ['thumbnail', 'title', 'description', 'combo'] as const
+    const testTypes = ['thumbnail', 'title', 'combo'] as const
     for (const testType of testTypes) {
       const prompt = buildAbBriefingPrompt({
         testType,
@@ -583,7 +591,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Title B', description_text: null, blob_url: 'https://blob.vercel-storage.com/img.png', metadata: {} },
+        { label: 'B', title_text: 'Title B', blob_url: 'https://blob.vercel-storage.com/img.png', metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -596,7 +604,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'en',
       variants: [
-        { label: 'B', title_text: 'Title B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Title B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -611,7 +619,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Título B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -623,7 +631,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Título B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -635,7 +643,7 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'pt',
       variants: [
-        { label: 'B', title_text: 'Título B', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Título B', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })
@@ -648,8 +656,8 @@ describe('buildAbReviewPrompt', () => {
       testId: 'test-1',
       locale: 'en',
       variants: [
-        { label: 'B', title_text: 'Title B', description_text: null, blob_url: null, metadata: {} },
-        { label: 'C', title_text: 'Title C', description_text: null, blob_url: null, metadata: {} },
+        { label: 'B', title_text: 'Title B', blob_url: null, metadata: {} },
+        { label: 'C', title_text: 'Title C', blob_url: null, metadata: {} },
       ],
       channel: { tier: 'micro' as const, subscribers: 5000 },
     })

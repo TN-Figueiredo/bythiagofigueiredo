@@ -10,7 +10,7 @@ O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 - Diagnósticos por vídeo (fraquezas, oportunidades)
 - Coaching cards (recomendações priorizadas por eixo)
 - Notificações acionáveis (grade drops, CTR drops)
-- Sugestões de A/B tests (thumb, title, description, combo)
+- Sugestões de A/B tests (thumb, title, combo)
 
 ---
 
@@ -175,7 +175,7 @@ Pickup de tasks pendentes (transição atômica para 'running'). **Endpoint lega
 ```json
 {
   "video_id": "uuid",
-  "action_type": "thumbnail_test | title_test | description_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
+  "action_type": "thumbnail_test | title_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
   "priority": "high | medium | low",
   "confidence": 0.0-1.0,
   "reasoning": "Explicação em até 500 chars, PT-BR, acionável"
@@ -187,6 +187,7 @@ Pickup de tasks pendentes (transição atômica para 'running'). **Endpoint lega
 - `confidence` deve refletir certeza da análise (0.9+ = padrão claro, 0.5-0.7 = hipótese)
 - `reasoning` deve ser específico e incluir dados quando possível
 - Não sugerir `thumbnail_test` se vídeo já está em ciclo `testing`
+- `description_test` saiu: 400 com "a descrição não participa mais do teste A/B"
 
 ### Coaching (por canal)
 
@@ -457,7 +458,7 @@ Resposta da recusa: `{ "data": { "id": "uuid", "status": "refused" } }`.
 
 ### POST /api/pipeline/youtube/ab-tests/:id/variants
 
-Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLICT (test_id, label)` — idempotente.
+Batch upsert variants (B, C, D) para um teste em status `draft`. Corpo: `{ "variants": [...] }` ou o vetor. Usa `ON CONFLICT (test_id, label)` — idempotente.
 
 **Auth:** write
 
@@ -468,7 +469,6 @@ Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLIC
     {
       "label": "B",
       "title_text": "Título alternativo B",
-      "description_text": null,
       "metadata": {
         "rationale": "Versão com gancho emocional mais forte",
         "thumbnail_tags": ["expressão", "close-up"],
@@ -482,7 +482,7 @@ Batch upsert variants (B, C, D) para um teste em status `draft`. Usa `ON CONFLIC
 **Regras de validação:**
 - `label` deve ser `B`, `C` ou `D` (original não pode ser criado via este endpoint)
 - `title_text` obrigatório para `test_type: title` e `combo`
-- `description_text` obrigatório para `test_type: description`
+- `description_text`: só `null` ou ausente. Texto (inclusive vazio) devolve **422** `DESCRICAO_FORA_DO_TESTE`, "A descrição não participa mais do teste A/B". Teste gravado como `description` também devolve 422.
 - Máximo 3 variantes por chamada
 - Teste deve estar em status `draft` (409 caso contrário)
 
@@ -514,7 +514,6 @@ Lista todas as variantes de um teste, ordenadas por `sort_order` ascendente.
       "label": "original",
       "is_original": true,
       "title_text": "Título original do vídeo",
-      "description_text": null,
       "metadata": {},
       "sort_order": 0
     },
@@ -524,7 +523,6 @@ Lista todas as variantes de um teste, ordenadas por `sort_order` ascendente.
       "label": "B",
       "is_original": false,
       "title_text": "Título alternativo B",
-      "description_text": null,
       "metadata": { "rationale": "Gancho emocional" },
       "sort_order": 1
     }
@@ -608,11 +606,11 @@ O módulo Observatory monitora canais concorrentes: detecta mudanças em título
 
 ### GET /api/pipeline/youtube/competitors/channels
 
-Lista os canais concorrentes monitorados do site, com os números de hoje e o perfil lido do YouTube (handle, país e data de criação). As chaves são snake_case e `data` é um objeto com `channels` e `count`, não uma lista.
+Lista os canais concorrentes monitorados do site, com os números de hoje, o perfil lido do YouTube (handle, país e data de criação) e as nove medidas calculadas de cada canal. As chaves são snake_case e `data` é um objeto com `channels`, `count`, `medidas_indisponiveis` e `medidas_meta`, não uma lista.
 
 **Auth:** read
 
-**Response 200** (canal com o perfil já lido):
+**Response 200** (canal com o perfil já lido e as medidas; valores inventados):
 ```json
 {
   "data": {
@@ -633,10 +631,147 @@ Lista os canais concorrentes monitorados do site, com os números de hoje e o pe
           "handle": "@competitor",
           "pais": "BR",
           "criado_em": "2019-03-02T00:00:00Z"
+        },
+        "medidas": {
+          "direcao_do_canal": {
+            "estado": "medido",
+            "valor": {
+              "variacao": 0.3,
+              "direcao": "subindo",
+              "ganhoRecente": 130000,
+              "ganhoAnterior": 100000
+            },
+            "n": 3,
+            "janela": {
+              "de": "2026-06-05",
+              "ate": "2026-07-31",
+              "dias": 56
+            }
+          },
+          "estado_do_canal": {
+            "situacao": "ativo",
+            "confirmada": true,
+            "parado": {
+              "estado": "medido",
+              "valor": {
+                "dias": 8,
+                "limite": 28,
+                "ultimaEm": 1785000000000
+              },
+              "n": 1,
+              "janela": {
+                "de": null,
+                "ate": null,
+                "dias": 8
+              }
+            },
+            "queda": {
+              "estado": "medido",
+              "valor": {
+                "janelas": [
+                  0.3,
+                  0.25,
+                  0.33
+                ]
+              },
+              "n": 6,
+              "janela": {
+                "de": "2026-04-10",
+                "ate": "2026-07-31",
+                "dias": 112
+              }
+            }
+          },
+          "por_formato": {
+            "long": {
+              "direcao_dos_videos_novos": {
+                "estado": "medido",
+                "valor": {
+                  "variacao": 0.12,
+                  "direcao": "subindo",
+                  "medianaRecente": 14500,
+                  "medianaAnterior": 12900
+                },
+                "n": 18,
+                "janela": {
+                  "de": "2026-02-02",
+                  "ate": "2026-08-01",
+                  "dias": 180
+                }
+              },
+              "ritmo": {
+                "estado": "medido",
+                "valor": {
+                  "porSemana": 0.85,
+                  "intervaloMedianoDias": 7.5,
+                  "semanasComPublicacao": 10,
+                  "semanas": 13,
+                  "maiorBuracoDias": 16
+                },
+                "n": 11,
+                "janela": {
+                  "de": "2026-05-03",
+                  "ate": "2026-08-01",
+                  "dias": 91
+                }
+              },
+              "taxa_de_acerto": {
+                "estado": "medido",
+                "valor": {
+                  "acertos": 3,
+                  "fracassos": 2,
+                  "total": 11,
+                  "pctAcerto": null,
+                  "pctFracasso": null
+                },
+                "n": 11,
+                "janela": {
+                  "de": null,
+                  "ate": null,
+                  "dias": 90
+                }
+              }
+            },
+            "short": {
+              "direcao_dos_videos_novos": {
+                "estado": "nao_medido",
+                "motivo": "nao_se_aplica",
+                "frase": "esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos"
+              },
+              "ritmo": {
+                "estado": "nao_medido",
+                "motivo": "poucas_publicacoes",
+                "frase": "há 1 publicação na janela e a medida pede 4",
+                "n": 1,
+                "minimo": 4
+              },
+              "taxa_de_acerto": {
+                "estado": "nao_medido",
+                "motivo": "poucos_videos",
+                "frase": "há 1 vídeo na janela e a medida pede 3",
+                "n": 1,
+                "minimo": 3
+              }
+            }
+          }
         }
       }
     ],
-    "count": 1
+    "count": 1,
+    "medidas_indisponiveis": {
+      "total": 8,
+      "indisponiveis": 2,
+      "por_motivo": {
+        "poucos_videos": 1,
+        "poucas_publicacoes": 1
+      }
+    },
+    "medidas_meta": {
+      "calculado_em": "2026-08-01T15:00:00.000Z",
+      "regra": 1,
+      "duracao_ms": 1840,
+      "canais_cortados_por_tempo": 0
+    }
   }
 }
 ```
@@ -657,6 +792,26 @@ Lista os canais concorrentes monitorados do site, com os números de hoje e o pe
 - `perfil` com `estado: "nao_lido"` não traz `handle`, `pais` nem `criado_em`, e traz `frase`: cite a frase e não estime o valor. Os outros motivos possíveis são `tabela_ausente`, `erro_do_banco` e `cortado`.
 - O recurso MCP `pipeline://youtube/competitors/channels` lê a tabela direto e não traz `perfil`; os números do perfil vêm desta rota e da ferramenta `youtube_observatory` (ação `list_channels`). O recurso MCP `pipeline://youtube/competitors/outliers` devolve **mudanças marcadas**, não vídeos fora da curva; para os vídeos, use a rota `outliers` ou a ação `get_outliers` da ferramenta.
 - A lista traz só concorrentes; o seu canal não está nela.
+
+#### Medidas por canal (`medidas`)
+
+Cada canal traz `medidas` com as mesmas nove medidas, sempre: `direcao_do_canal`; `estado_do_canal` (com `parado` e `queda`); e, para `long` e `short` dentro de `por_formato`, `direcao_dos_videos_novos`, `ritmo` e `taxa_de_acerto`. Nenhuma é omitida: o que não foi medido vem como `nao_medido`.
+
+**Como ler uma medida:**
+- `estado: "medido"` traz `valor`, `n` (quantos itens entraram na conta), `janela` (datas de São Paulo) e, quando houver, `notas`.
+- `estado: "nao_medido"` traz `motivo` e `frase`: cite a frase e não estime o valor. Nunca escreva zero no lugar de uma medida que não foi feita.
+- Os números saem como a conta os fez, sem arredondar; arredonde só ao escrever para quem lê.
+- Longos e Shorts nunca se misturam: `por_formato.long` e `por_formato.short` são contas separadas. O Short não tem `direcao_dos_videos_novos`: a chave sai sempre `nao_medido` com motivo `nao_se_aplica`, que não conta em `medidas_indisponiveis` (`total` = 8 por canal).
+- `estado_do_canal.situacao` é `fora_do_ar`, `pausado`, `parado`, `em_queda`, `ativo` ou `nao_determinada` (quando alguma leitura do canal falhou, o canal foi cortado pelo prazo do pedido (veja `canais_cortados_por_tempo`) ou a leitura dos retratos falhou).
+- Quando `confirmada` é `false`, não diga que o canal está ativo: diga que não foi possível medir a queda e cite a `frase` de `queda`.
+- `medidas_indisponiveis` conta quantas das medidas vieram `nao_medido`, por `motivo`; `leitura_falhou` ou `calculo_falhou` maior que zero é defeito do lado do servidor, não do canal.
+- `medidas_meta.calculado_em` é o carimbo do cálculo, em UTC; `regra` é a versão das regras de medida.
+
+**Como comparar:** compare só medidas do mesmo formato e do mesmo `calculado_em` (ou diga de que momento cada número é). Duas chamadas em horas diferentes podem dar números diferentes sem que o canal tenha mudado.
+
+**Tempo:** a rota tem um prazo por pedido. Se `canais_cortados_por_tempo` for maior que zero, repita a chamada uma vez; se continuar maior que zero, não repita de novo: relate quais canais ficaram sem medida.
+
+**Ferramenta:** a ferramenta `youtube_observatory`, ação `list_channels`, devolve o mesmo conteúdo desta rota, sem indentação no texto.
 
 ---
 
@@ -1574,15 +1729,15 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 ```json
 {
   "data": {
-    "per_variant": [{ "variant_id": "uuid", "impressions": null, "clicks": null, "link_clicks": 7 }],
-    "per_link": [{ "template_name": "cta", "variant_id": "uuid", "short_code": "abc", "clicks": 7 }],
-    "link_clicks_window": { "from": "2026-04-01T10:00:00Z", "to": "2026-04-15T10:00:00Z" },
+    "per_variant": [{ "variant_id": "uuid", "impressions": null, "clicks": null, "link_clicks": null }],
+    "per_link": [],
+    "link_clicks_window": null,
     "aviso": "sem métrica de entrega"
   }
 }
 ```
 
-- Funil: `impressions` e `clicks` por variante saem `null`; `link_clicks`, `per_link` e `link_clicks_window` seguem (cliques reais de link)
+- Funil: `impressions` e `clicks` por variante saem `null`; `link_clicks` é `null`, `per_link` é `[]` e `link_clicks_window` é `null`: o A/B não cria link rastreado desde 10/2026
 - Teste (`get_test`): `confidence_at_completion`, `consecutive_confident_evals`, `result_metadata.ctr_lift_percent`, `result_metadata.total_impressions`, `result_metadata.estimated_monthly_extra_clicks` e, em cada ciclo, `impressions`, `clicks`, `ctr`, `estimated_impressions`, `estimated_clicks`, `estimated_ctr` saem `null`; `result_metadata.winner_label` e o resto continuam; `aviso` no teste
 - Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem os mesmos `null` e o seu próprio `aviso`
 - Painel (`ab-tests/dashboard`): `winRate` é `null` quando nenhum teste concluído conta

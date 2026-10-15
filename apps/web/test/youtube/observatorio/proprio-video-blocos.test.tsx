@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { VideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos'
+import { AssistidoEsqueleto, VideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos'
 import { buildVideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import type { DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
@@ -129,7 +129,7 @@ describe('% assistido', () => {
     expect(s.querySelector('.vb-as-barra')!.getAttribute('role')).toBe('img')
     expect(s.querySelector('.vb-as-barra i')!.getAttribute('style')).toContain('width: 78%')
     expect(s.querySelector('.vb-as-barra s')!.getAttribute('style')).toContain('left: 60%')
-    expect(s.querySelector('.vb-as-med')!.textContent).toContain('normal do canal: 60%')
+    expect(s.querySelector('.vb-as-med')!.textContent).toContain('normal do canal (canal inteiro): 60%')
     const contra = s.querySelector('.vb-dir-acima')!
     expect(texto(contra)).toBe('▲ Acima do normal do canal (60%): +18 pontos.')
   })
@@ -171,9 +171,9 @@ describe('% assistido', () => {
       cleanup()
       return r
     }
-    expect(rotulo(60)).toMatchObject({ classe: 'vb-as-med-meio', left: '60%', texto: 'normal do canal: 60%' })
-    expect(rotulo(3)).toMatchObject({ classe: 'vb-as-med-inicio', left: '', texto: 'normal do canal: 3%' })
-    expect(rotulo(97)).toMatchObject({ classe: 'vb-as-med-fim', left: '', texto: 'normal do canal: 97%' })
+    expect(rotulo(60)).toMatchObject({ classe: 'vb-as-med-meio', left: '60%', texto: 'normal do canal (canal inteiro): 60%' })
+    expect(rotulo(3)).toMatchObject({ classe: 'vb-as-med-inicio', left: '', texto: 'normal do canal (canal inteiro): 3%' })
+    expect(rotulo(97)).toMatchObject({ classe: 'vb-as-med-fim', left: '', texto: 'normal do canal (canal inteiro): 97%' })
   })
 
   it('o botão ⓘ não mora dentro do título (o nome acessível do h2 é só o título)', () => {
@@ -227,11 +227,11 @@ describe('retenção, forja e o que falta', () => {
     expect(f.textContent).not.toMatch(/coleta diária/)
   })
 
-  it('"O que ainda não há deste vídeo": origem do tráfego e trocas de título e thumbnail; NÃO lista views por dia nem % assistido', () => {
+  it('"O que ainda não há deste vídeo": só trocas de título e thumbnail (a origem tem a sua seção); NÃO lista views por dia nem % assistido', () => {
     const { container } = montar()
     const t = texto(secao(container, 'O que ainda não há').querySelector('p'))
-    expect(t).toMatch(/Origem do tráfego/)
-    expect(t).toMatch(/trocas de título e thumbnail \(ainda não registradas; gráfico sem marca não quer dizer que não houve troca\)/)
+    expect(t).not.toMatch(/Origem do tráfego/)
+    expect(t).toMatch(/Trocas de título e thumbnail \(ainda não registradas; gráfico sem marca não quer dizer que não houve troca\)/)
     expect(t).not.toMatch(/views por dia|% assistido|retenção/i)
   })
 
@@ -263,11 +263,14 @@ describe('usuário só de leitura e leitura que falhou', () => {
     expect(container.querySelector('.vb-ctr, .vb-as, figure')).toBeNull()
   })
 
-  it('negado e erro: a nota única e a frase do diário vêm com a pastilha "não medido" (regra 5), e não só como texto solto', () => {
+  it('negado e erro: a nota única leva a pastilha do estado (C1: erro = "falhou", negado = nenhuma, nunca "não medido") e a frase do diário continua "não medido"', () => {
     for (const dados of [{ acesso: 'negado' } as const, { acesso: 'erro' } as const]) {
       const { container } = montar(W, dados)
       const nota = container.querySelector('[data-privado-nota]')!
-      expect(nota.closest('.vb-nml')!.querySelector('.obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
+      const pastilha = nota.closest('.vb-nml')!
+      expect(pastilha.querySelector('.obs-ch-nm'), dados.acesso).toBeNull()
+      if (dados.acesso === 'erro') expect(pastilha.querySelector('.vb-falhou')!.textContent).toBe('falhou')
+      else expect(pastilha.querySelector('.vb-falhou'), dados.acesso).toBeNull()
       const canal = secao(container, 'Este vídeo no canal')
       expect(canal.querySelector(':scope > .vb-nml .obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
       cleanup()
@@ -283,5 +286,43 @@ describe('usuário só de leitura e leitura que falhou', () => {
     const { container } = montar(W, { acesso: 'erro' })
     expect(container.querySelector('[data-privado-nota]')!.textContent).toBe('A leitura dos números deste vídeo falhou agora; recarregue a página.')
     expect(container.querySelector('figure, .vb-as')).toBeNull()
+  })
+})
+
+
+describe('E5b T16 (b), tela B: o nó dos cartões de período', () => {
+  const comPeriodos = (dados: Privado<DadosDoVideo>) =>
+    render(<div data-obs-screen="video-proprio"><VideoBlocos view={buildVideoBlocos({ obs: W.obs, videoId: W.foco.id, dados, hoje: W.hoje, dm: dmDia })} periodos={<div data-testid="periodos">cartões</div>} /></div>)
+
+  it('o nó entra DENTRO da seção "Quanto do vídeo as pessoas assistem", depois da barra', () => {
+    const { container, getByTestId } = comPeriodos(ok(W))
+    const s = secao(container, 'Quanto do vídeo as pessoas assistem')
+    expect(s.contains(getByTestId('periodos'))).toBe(true)
+  })
+
+  it('com os cartões de período, a seção não desenha a barra, a marca nem a frase "contra" do normal de 28 dias (a barra mora nos cartões); fica a frase do vídeo', () => {
+    const w = mundoVideo({ mut: umaFaixa, diario: { pctFoco: 77.7, pctOutros: 60 } })
+    const { container } = comPeriodos(ok(w))
+    const s = secao(container, 'Quanto do vídeo as pessoas assistem')
+    expect(texto(s.querySelector('.vb-fr'))).toContain('Quem assiste vê em média 78% do vídeo')
+    expect(s.querySelector('.vb-as-barra')).toBeNull()
+    expect(s.querySelector('.vb-as-med')).toBeNull()
+    expect(s.querySelector('[class*="vb-dir-"]')).toBeNull()
+    expect(s.textContent).not.toMatch(/normal do canal/)
+  })
+
+  it('quem só lê o site (negado) ou a leitura que falhou: o nó nem é desenhado, mesmo que a página o entregasse', () => {
+    for (const acesso of ['negado', 'erro'] as const) {
+      const { queryByTestId } = comPeriodos({ acesso })
+      expect(queryByTestId('periodos'), acesso).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('o esqueleto é liso: uma região de status, três caixas e a frase "Carregando", sem número nem % no texto', () => {
+    const { container } = render(<AssistidoEsqueleto />)
+    expect(container.querySelector('[role="status"][aria-busy="true"]')).not.toBeNull()
+    expect(container.querySelectorAll('.vb-ap-cs i')).toHaveLength(3)
+    expect(texto(container)).toBe('Carregando o % assistido por período…')
   })
 })

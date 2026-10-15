@@ -56,6 +56,17 @@ describe('cabeçalho do canal', () => {
     const c = buildCanalHeader(obs, chId)!.faixa.find(x => x.key === 'growth30')!
     expect(c.value).toBeNull(); expect(c.missing).toBe('sem contagem de 30 dias atrás')
   })
+  it('buraco na coleta (duas contagens a 60 d): não mede e diz "buraco na contagem"', () => {
+    const { obs, chId } = canalWorld((ds, id) => {
+      const c = ds.channels.find(x => x.id === id)!
+      const fim = c.snapshots[c.snapshots.length - 1]!
+      c.snapshots = [{ ...fim, t: fim.t - 60 * 86_400_000, subs: fim.subs - 100_000 }, fim]
+    })
+    const c = buildCanalHeader(obs, chId)!.faixa.find(x => x.key === 'growth30')!
+    expect(c.value).toBeNull()
+    expect(c.base).toContain('buraco na contagem (última comparação de 60 d)')
+    expect(JSON.stringify(c)).not.toMatch(/NaN|Infinity/)
+  })
   it('inscritos ocultos pelo canal: frase, não zero', () => {
     const { obs, chId } = canalWorld((ds, id) => { ds.channels.find(x => x.id === id)!.subs = null })
     const c = buildCanalHeader(obs, chId)!.faixa.find(x => x.key === 'subs')!

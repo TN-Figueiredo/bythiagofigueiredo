@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { TIPO_ALCANCE } from '@/lib/youtube/observatorio/proprio/ler'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { mundoSemProprio, proprioWorld } from './proprio-fixture'
 
 const requireSiteScope = vi.fn()
@@ -29,7 +29,7 @@ const d = (n: number) => addDays(HOJE, -n)
 const relatorio = (dia: string, canal: string): Row => ({ report_id: 'r-' + dia + canal, site_id: S, channel_id: canal, report_type_id: TIPO_ALCANCE, status: 'baixado', start_time: dia + 'T07:00:00+00:00', normalized_at: dia + 'T12:00:00+00:00' })
 const linha = (yt: string, dia: string, imp: number, canal: string): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: canal, thumbnail_impressions: imp, thumbnail_ctr: 0.1 })
 
-async function token(): Promise<EdicaoDoSite> {
+async function token(): Promise<LeituraPrivadaDoSite> {
   requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
   const t = await podeVerPrivado(S)
   if (!t) throw new Error('esperava o token')
@@ -39,19 +39,19 @@ beforeEach(() => { requireSiteScope.mockReset(); getSupabaseServiceClient.mockRe
 
 describe('lerAlcanceDosCanais', () => {
   it('sem token: todos "negado", o cliente de serviço nem é criado e nada privado no resultado', async () => {
-    const r = await lerAlcanceDosCanais({ canalIds: [A, B], agora: AGORA, edicao: null })
+    const r = await lerAlcanceDosCanais({ canalIds: [A, B], agora: AGORA, leitura: null })
     expect([...r.entries()]).toEqual([[A, { acesso: 'negado' }], [B, { acesso: 'negado' }]])
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
   })
   it('token forjado: negado e nenhum cliente criado', async () => {
-    // @ts-expect-error literal não é um EdicaoDoSite
-    const forjado: EdicaoDoSite = { siteId: S }
-    const r = await lerAlcanceDosCanais({ canalIds: [A], agora: AGORA, edicao: forjado })
+    // @ts-expect-error literal não é um LeituraPrivadaDoSite
+    const forjado: LeituraPrivadaDoSite = { siteId: S }
+    const r = await lerAlcanceDosCanais({ canalIds: [A], agora: AGORA, leitura: forjado })
     expect(r.get(A)).toEqual({ acesso: 'negado' })
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
   })
   it('sem canais: mapa vazio e nenhuma consulta', async () => {
-    const r = await lerAlcanceDosCanais({ canalIds: [], agora: AGORA, edicao: await token() })
+    const r = await lerAlcanceDosCanais({ canalIds: [], agora: AGORA, leitura: await token() })
     expect(r.size).toBe(0)
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
   })
@@ -61,7 +61,7 @@ describe('lerAlcanceDosCanais', () => {
       yt_own_video_reach_daily: [linha('v1', d(3), 100, A), linha('v2', d(3), 7, B)],
     })
     getSupabaseServiceClient.mockReturnValue(db.client)
-    const r = await lerAlcanceDosCanais({ canalIds: [A, B], agora: AGORA, edicao: await token() })
+    const r = await lerAlcanceDosCanais({ canalIds: [A, B], agora: AGORA, leitura: await token() })
     const a = r.get(A)!, b = r.get(B)!
     if (a.acesso !== 'ok' || b.acesso !== 'ok') throw new Error('esperava ok')
     expect(a.dado.linhas.map(l => [l.ytId, l.imp])).toEqual([['v1', 100]])
@@ -75,7 +75,7 @@ describe('lerAlcanceDosCanais', () => {
       { failIf: (t, eqs) => t === 'yt_own_video_reach_daily' && String(eqs['channel_id']) !== A },
     )
     getSupabaseServiceClient.mockReturnValue(db.client)
-    const r = await lerAlcanceDosCanais({ canalIds: [A, B, UUIDS[2]!], agora: AGORA, edicao: await token() })
+    const r = await lerAlcanceDosCanais({ canalIds: [A, B, UUIDS[2]!], agora: AGORA, leitura: await token() })
     expect(r.get(A)!.acesso).toBe('ok')
     expect(r.get(B)).toEqual({ acesso: 'erro' })
     expect(r.get(UUIDS[2]!)).toEqual({ acesso: 'erro' })
@@ -86,7 +86,7 @@ describe('lerAlcanceDosCanais', () => {
     const db = fakeSupabase({}, { failIf: () => true })
     getSupabaseServiceClient.mockReturnValue(db.client)
     const avisar = vi.fn()
-    await lerAlcanceDosCanais({ canalIds: [A], agora: AGORA, edicao: await token() }, avisar)
+    await lerAlcanceDosCanais({ canalIds: [A], agora: AGORA, leitura: await token() }, avisar)
     expect(avisar).toHaveBeenCalledTimes(1)
     expect(avisar.mock.calls[0]![1]).toBe(1)
     expect(captureMessage).not.toHaveBeenCalled()
@@ -97,7 +97,7 @@ describe('lerAlcanceDosCanais', () => {
       failIf: (t) => { if (t === 'yt_reporting_reports') { voo++; pico = Math.max(pico, voo); queueMicrotask(() => { voo-- }) } return false },
     })
     getSupabaseServiceClient.mockReturnValue(db.client)
-    await lerAlcanceDosCanais({ canalIds: UUIDS, agora: AGORA, edicao: await token() })
+    await lerAlcanceDosCanais({ canalIds: UUIDS, agora: AGORA, leitura: await token() })
     expect(pico).toBeLessThanOrEqual(4 * 3) // três consultas de relatório por canal, no máximo 4 canais ao mesmo tempo
   })
 })
@@ -137,5 +137,50 @@ describe('carregarProprioDaComparacao', () => {
     const v = r.soSeuCanal[UUIDS[0]!]!
     expect(v.acesso).toBe('ok')
     expect(v.view?.naoMedido).toBe(true)
+  })
+})
+
+describe('carregarProprioDaComparacao: a origem de 7 dias (E5b T12)', () => {
+  const W = proprioWorld({
+    mut: ds => {
+      const novos = new Map(ds.channels.filter(c => c.own).map((c, i) => [c.id, UUIDS[i]!]))
+      for (const c of ds.channels) { const n = novos.get(c.id); if (n) c.id = n }
+      for (const v of ds.videos) { const n = novos.get(v.ch); if (n) v.ch = n }
+    },
+  })
+  const AG = W.obs.NOW
+  const lidos = (): string[] => {
+    const canais: string[] = []
+    const db = fakeSupabase({}, { failIf: (t, eqs) => { if (t === 'yt_own_video_dim_daily') canais.push(String(eqs['channel_id'])); return false } })
+    getSupabaseServiceClient.mockReturnValue(db.client)
+    return canais
+  }
+  it('sem par: nenhuma dimensão é lida e o cartão fica com as quatro linhas', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    const canais = lidos()
+    const r = await carregarProprioDaComparacao(W.obs, S, AG)
+    expect(canais).toEqual([])
+    expect(r.soSeuCanal[UUIDS[0]!]!.view!.linhas.map(l => l.chave)).toEqual(['impressoes', 'cliques', 'taxa', 'assistido'])
+  })
+  it('canal próprio fora do par não é lido; o do par tem as nove linhas', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    const canais = lidos()
+    const r = await carregarProprioDaComparacao(W.obs, S, AG, undefined, [UUIDS[0]!])
+    expect(new Set(canais)).toEqual(new Set([UUIDS[0]!]))
+    expect(r.soSeuCanal[UUIDS[0]!]!.view!.linhas).toHaveLength(9)
+    expect(r.soSeuCanal[UUIDS[1]!]!.view!.linhas).toHaveLength(4)
+  })
+  it('dois canais próprios no par: dois lidos', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    const canais = lidos()
+    await carregarProprioDaComparacao(W.obs, S, AG, undefined, [UUIDS[0]!, UUIDS[1]!])
+    expect(new Set(canais)).toEqual(new Set([UUIDS[0]!, UUIDS[1]!]))
+  })
+  it('sem a prova: negado, nenhuma consulta nova e nenhum número', async () => {
+    requireSiteScope.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    const canais = lidos()
+    const r = await carregarProprioDaComparacao(W.obs, S, AG, undefined, [UUIDS[0]!])
+    expect(canais).toEqual([])
+    expect(r.soSeuCanal[UUIDS[0]!]).toEqual({ acesso: 'negado', view: null })
   })
 })

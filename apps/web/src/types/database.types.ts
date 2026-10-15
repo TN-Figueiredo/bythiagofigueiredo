@@ -19,6 +19,7 @@ export type Database = {
           created_at: string
           ctr: number | null
           cycle_number: number
+          end_reason: string | null
           ended_at: string | null
           estimated_clicks: number | null
           estimated_ctr: number | null
@@ -42,6 +43,7 @@ export type Database = {
           created_at?: string
           ctr?: number | null
           cycle_number: number
+          end_reason?: string | null
           ended_at?: string | null
           estimated_clicks?: number | null
           estimated_ctr?: number | null
@@ -65,6 +67,7 @@ export type Database = {
           created_at?: string
           ctr?: number | null
           cycle_number?: number
+          end_reason?: string | null
           ended_at?: string | null
           estimated_clicks?: number | null
           estimated_ctr?: number | null
@@ -137,6 +140,62 @@ export type Database = {
             columns: ["variant_id"]
             isOneToOne: false
             referencedRelation: "ab_test_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ab_test_restores: {
+        Row: {
+          attempts: number
+          campo: string
+          destino: string
+          em: string
+          erro: string | null
+          escreveu: boolean | null
+          estado: string
+          forcado: boolean
+          gravado_em: string
+          id: number
+          motivo: string | null
+          seq: number
+          test_id: string
+        }
+        Insert: {
+          attempts: number
+          campo: string
+          destino: string
+          em: string
+          erro?: string | null
+          escreveu?: boolean | null
+          estado: string
+          forcado: boolean
+          gravado_em?: string
+          id?: never
+          motivo?: string | null
+          seq: number
+          test_id: string
+        }
+        Update: {
+          attempts?: number
+          campo?: string
+          destino?: string
+          em?: string
+          erro?: string | null
+          escreveu?: boolean | null
+          estado?: string
+          forcado?: boolean
+          gravado_em?: string
+          id?: never
+          motivo?: string | null
+          seq?: number
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_restores_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
             referencedColumns: ["id"]
           },
         ]
@@ -215,6 +274,7 @@ export type Database = {
           sort_order: number
           source_variant_id: string | null
           test_id: string
+          thumbnail_dhash: string | null
           title_text: string | null
         }
         Insert: {
@@ -231,6 +291,7 @@ export type Database = {
           sort_order?: number
           source_variant_id?: string | null
           test_id: string
+          thumbnail_dhash?: string | null
           title_text?: string | null
         }
         Update: {
@@ -247,6 +308,7 @@ export type Database = {
           sort_order?: number
           source_variant_id?: string | null
           test_id?: string
+          thumbnail_dhash?: string | null
           title_text?: string | null
         }
         Relationships: [
@@ -290,6 +352,8 @@ export type Database = {
           playoff_start_after: string | null
           playoff_test_id: string | null
           queue_start_after: string | null
+          restore_seq: number
+          restore_status: Json | null
           result_metadata: Json | null
           revert_expires_at: string | null
           round_number: number
@@ -327,6 +391,8 @@ export type Database = {
           playoff_start_after?: string | null
           playoff_test_id?: string | null
           queue_start_after?: string | null
+          restore_seq?: number
+          restore_status?: Json | null
           result_metadata?: Json | null
           revert_expires_at?: string | null
           round_number?: number
@@ -364,6 +430,8 @@ export type Database = {
           playoff_start_after?: string | null
           playoff_test_id?: string | null
           queue_start_after?: string | null
+          restore_seq?: number
+          restore_status?: Json | null
           result_metadata?: Json | null
           revert_expires_at?: string | null
           round_number?: number
@@ -9869,6 +9937,44 @@ export type Database = {
             columns: ["youtube_video_id"]
             isOneToOne: false
             referencedRelation: "youtube_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yt_own_channel_snapshots: {
+        Row: {
+          snapshot_date: string
+          subscriber_count: number | null
+          subscribers_hidden: boolean
+          taken_at: string
+          video_count: number | null
+          view_count: number | null
+          youtube_channel_id: string
+        }
+        Insert: {
+          snapshot_date: string
+          subscriber_count?: number | null
+          subscribers_hidden?: boolean
+          taken_at?: string
+          video_count?: number | null
+          view_count?: number | null
+          youtube_channel_id: string
+        }
+        Update: {
+          snapshot_date?: string
+          subscriber_count?: number | null
+          subscribers_hidden?: boolean
+          taken_at?: string
+          video_count?: number | null
+          view_count?: number | null
+          youtube_channel_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_own_channel_snapshots_youtube_channel_id_fkey"
+            columns: ["youtube_channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
             referencedColumns: ["id"]
           },
         ]

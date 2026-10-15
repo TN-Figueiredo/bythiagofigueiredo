@@ -22,7 +22,9 @@ describe('loadLiveRows', () => {
     expect(live.heartbeat).not.toBeNull()
     expect(live.seriesStartAt).toBe(spDayStart(NOW - 5 * DAY))
     expect(db.trips.filter(t => HEAVY.includes(t))).toEqual([])
-    expect(db.trips).toHaveLength(9)
+    // 8 leituras leves + 1 dos retratos MG20 do canal próprio (I-1: o motor os recebe; ≤ 91 linhas por canal próprio)
+    expect(db.trips).toHaveLength(10)
+    expect(db.trips).toContain('yt_own_channel_snapshots')
   })
   it('série não iniciada: seriesStartAt nulo, nunca o relógio', async () => {
     const db = fakeSupabase(buildTables({ siteId: 'a', now: NOW, seriesStarted: false }))
@@ -36,12 +38,27 @@ describe('loadLiveRows', () => {
     const tables = buildTables({ siteId: 'a', now: NOW, pinOldest: true })
     const { seriesStartAt: _s, ...live } = await loadLiveRows(fakeSupabase(tables).client, 'a', NOW)
     const rows = await loadRows({ siteId: 'a', now: NOW, supabase: fakeSupabase(tables).client })
-    expect({ settings: rows.settings, channels: rows.channels, ownChannels: rows.ownChannels, ownVideos: rows.ownVideos, legacyChanges: rows.legacyChanges, readings: rows.readings, tasks: rows.tasks, heartbeat: rows.heartbeat, niches: rows.niches }).toEqual(live)
+    expect({ settings: rows.settings, channels: rows.channels, ownChannels: rows.ownChannels, ownVideos: rows.ownVideos, legacyChanges: rows.legacyChanges, readings: rows.readings, tasks: rows.tasks, heartbeat: rows.heartbeat, niches: rows.niches, ownSnapshots: rows.ownSnapshots }).toEqual(live)
     expect(rows.videos).toHaveLength(8)
     // 3 tracked + 1 pinned per channel, 6 days each
     expect(rows.daily).toHaveLength(2 * 4 * 6)
   })
   it('snapshotReadFrom: 90 dias antes, em data de São Paulo', () => {
     expect(snapshotReadFrom(NOW)).toBe(new Date(NOW - 90 * DAY - 3 * 36e5).toISOString().slice(0, 10))
+  })
+})
+
+describe('loadLiveRows: retratos MG20 do canal próprio (I-1)', () => {
+  it('a leitura falha: ownSnapshots = "erro", um captureException com o fingerprint, e a página abre', async () => {
+    const db = fakeSupabase(buildTables({ siteId: 'a', now: NOW }), { failOn: 'yt_own_channel_snapshots' })
+    const live = await loadLiveRows(db.client, 'a', NOW)
+    expect(live.ownSnapshots).toBe('erro')
+    expect(live.channels).toHaveLength(2)
+  })
+  it('sem canal próprio: não consulta a tabela e ownSnapshots fica ausente', async () => {
+    const db = fakeSupabase({})
+    const live = await loadLiveRows(db.client, 'site-vazio', NOW)
+    expect(live.ownSnapshots).toBeUndefined()
+    expect(db.trips).not.toContain('yt_own_channel_snapshots')
   })
 })

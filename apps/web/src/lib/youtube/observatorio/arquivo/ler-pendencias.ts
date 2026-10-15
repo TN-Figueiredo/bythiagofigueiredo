@@ -46,6 +46,8 @@ async function lerMiniaturas(sb: SupabaseClient, agoraMs: number): Promise<Parte
       .not('deleted_at', 'is', null)
       .not('blob_urls_pending', 'is', null)
       .not('blob_urls_pending', 'eq', '{}')
+      // o corte (LOTES_MAX) pega os lotes mais antigos: a contagem de URLs é então um piso, mas a idade da mais antiga, que dispara o alarme, é exata
+      .order('deleted_at', { ascending: true })
       .limit(LOTES_MAX)
       .abortSignal(AbortSignal.timeout(TETO_LEITURA_MS))
     if (typeof res !== 'object' || res === null) return { porque: 'forma_invalida' }

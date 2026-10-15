@@ -15,7 +15,7 @@ export interface FakeDb {
   bytes: number
   tables: Record<string, Row[]>
 }
-type Result = { data: unknown; error: { message: string; code: string } | null }
+type Result = { data: unknown; error: { message: string; code: string } | null; count?: number | null }
 /** Foreign keys the loaders embed through (`child.fk → parent.id`): enough for `competitor_videos!inner(competitor_channels!inner(site_id))`. */
 const FK: Record<string, Record<string, string>> = {
   competitor_video_daily: { competitor_videos: 'video_id' },
@@ -24,12 +24,13 @@ const FK: Record<string, Record<string, string>> = {
 const cmp = (a: unknown, b: unknown) => (a === b ? 0 : (a as string | number) < (b as string | number) ? -1 : 1)
 
 /** `failOn`: every request to that table fails. `failIf`: only the requests whose table and `.eq()` filters it accepts fail (one channel of many). */
-export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: string; failIf?: (table: string, eqs: Record<string, unknown>) => boolean } = {}): FakeDb {
+export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: string; failCode?: string; failIf?: (table: string, eqs: Record<string, unknown>) => boolean } = {}): FakeDb {
   const db = { trips: [] as string[], selects: [] as Array<{ table: string; cols: string }>, ranges: [] as Array<{ table: string; range: [number, number] | null }>, bytes: 0 }
   const from = (table: string) => {
     let rows = [...(tables[table] ?? [])]
     let cols: string[] | null = null
     let selected = ''
+    let contar = false
     const orders: Array<{ col: string; asc: boolean }> = []
     const eqs: Record<string, unknown> = {}
     // value of a dotted column ("competitor_videos.competitor_channels.site_id") reached through the FK map above
@@ -42,16 +43,16 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
     const run = (slice?: [number, number], single?: boolean): Result => {
       db.trips.push(table)
       db.ranges.push({ table, range: slice ?? null })
-      if (opts.failOn === table || opts.failIf?.(table, eqs)) return { data: null, error: { message: 'boom', code: 'XX000' } }
+      if (opts.failOn === table || opts.failIf?.(table, eqs)) return { data: null, error: { message: 'boom', code: opts.failCode ?? 'XX000' } }
       const sorted = [...rows].sort((a, b) => { for (const o of orders) { const c = cmp(a[o.col], b[o.col]); if (c) return o.asc ? c : -c } return 0 })
       const page = slice ? sorted.slice(slice[0], slice[1] + 1) : sorted
       const out = page.map(r => (cols ? Object.fromEntries(cols.map(c => [c, r[c] ?? null])) : r))
       const data = single ? out[0] ?? null : out
       db.bytes += JSON.stringify(data).length
-      return { data, error: null }
+      return { data, error: null, ...(contar ? { count: rows.length } : {}) }
     }
     const q = {
-      select(s: string) { db.selects.push({ table, cols: s }); selected = s; cols = s === '*' ? null : s.replace(/,?\s*[a-z_]+!inner\(.*$/, '').split(',').map(x => x.trim()).filter(Boolean); return q },
+      select(s: string, o?: { count?: string; head?: boolean }) { db.selects.push({ table, cols: s }); selected = s; contar = o?.count === 'exact'; cols = s === '*' ? null : s.replace(/,?\s*[a-z_]+!inner\(.*$/, '').split(',').map(x => x.trim()).filter(Boolean); return q },
       eq(c: string, v: unknown) {
         eqs[c] = v
         // PostgREST filters the parent rows by an embedded column only through an inner join: without `!inner` on every
@@ -61,8 +62,9 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
       neq(c: string, v: unknown) { rows = rows.filter(r => r[c] !== v); return q },
       in(c: string, vs: readonly unknown[]) { const set = new Set(vs); rows = rows.filter(r => set.has(r[c])); return q },
       is(c: string, v: unknown) { rows = rows.filter(r => (r[c] ?? null) === v); return q },
-      gte(c: string, v: string) { rows = rows.filter(r => String(r[c]) >= v); return q },
-      lte(c: string, v: string) { rows = rows.filter(r => String(r[c]) <= v); return q },
+      gt(c: string, v: number) { rows = rows.filter(r => r[c] != null && Number(r[c]) > v); return q },
+      gte(c: string, v: string) { eqs['gte:' + c] = v; rows = rows.filter(r => r[c] != null && String(r[c]) >= v); return q },
+      lte(c: string, v: string) { rows = rows.filter(r => r[c] != null && String(r[c]) <= v); return q },
       order(c: string, o?: { ascending?: boolean }) { orders.push({ col: c, asc: o?.ascending !== false }); return q },
       range: async (a: number, b: number) => run([a, b]),
       maybeSingle: async () => run(undefined, true),

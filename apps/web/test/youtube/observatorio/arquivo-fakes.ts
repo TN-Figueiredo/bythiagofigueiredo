@@ -157,6 +157,7 @@ export const sha = (d: Uint8Array | string): string => createHash('sha256').upda
 export function discoFalso(inicial: Record<string, Uint8Array | string> = {}, opcoes: { repositorio?: boolean } = {}) {
   const arquivos = new Map<string, Uint8Array>()
   const eventos: string[] = []
+  const modosDasPastas: number[] = []
   for (const [p, c] of Object.entries(inicial)) arquivos.set(p, typeof c === 'string' ? Buffer.from(c) : c)
   const pastas = new Set<string>()
   const disco: Disco = {
@@ -166,7 +167,7 @@ export function discoFalso(inicial: Record<string, Uint8Array | string> = {}, op
     async listar(p) {
       return [...arquivos.keys()].filter(k => k.startsWith(p + '/')).map(k => k.slice(p.length + 1)).sort()
     },
-    async criarPasta(p) { eventos.push('criarPasta ' + p); pastas.add(p) },
+    async criarPasta(p, modo) { eventos.push('criarPasta ' + p); modosDasPastas.push(modo); pastas.add(p) },
     async gravar(p, d) { eventos.push('gravar ' + p); arquivos.set(p, d) },
     async ler(p) {
       const d = arquivos.get(p)
@@ -176,7 +177,7 @@ export function discoFalso(inicial: Record<string, Uint8Array | string> = {}, op
     async apagar(p) { eventos.push('apagar ' + p); arquivos.delete(p) },
     async dentroDeRepositorio() { return opcoes.repositorio === true },
   }
-  return { disco, arquivos, eventos }
+  return { disco, arquivos, eventos, modosDasPastas }
 }
 
 /** `baixar` falso: 200 com bytes derivados da URL, ou o que o mapa disser (estado, ou erro lançado). */

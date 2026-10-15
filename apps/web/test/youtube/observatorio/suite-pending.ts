@@ -16,6 +16,8 @@ export const BROWSER_ONLY_TESTS = new Set<string>([
 /** Single tests out of the production port, with the reason: browser storage, or the mockup's generator/simulation. */
 export const NOT_PORTED_TESTS = new Map<string, string>([
   ...[...BROWSER_ONLY_TESTS].map(n => [n, 'browser sessionStorage (mockup-only persistence; production state lives in the DB)'] as [string, string]),
+  ['[final] Inscritos dos snapshots com 3 algarismos significativos; growth30 a partir deles, com incerteza ("+20 mil (±10 mil)")',
+    'A5 2ª leva T1 (D1/D1b): production deliberately differs in TEXT (the official API doc says the count is cut down, so the roundingText says "este ou um pouco maior"; "dentro" is under 2 steps: "±20 mil"); the numbers are compared in channels-parity.test.ts and crescimento30-a5.test.ts'],
   ['[novo] channel.handle e channel.url: https://www.youtube.com/@<handle>, únicos, sem acento nem espaço, estáveis',
     'generator: handles/urls are invented by the mockup and checked stable across O._build(); production handles come from YouTube'],
   ['[F2] forja.byId já tem as leituras de cenário de 24/10 (sem chamar requestScenario antes)',

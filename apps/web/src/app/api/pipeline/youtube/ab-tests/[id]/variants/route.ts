@@ -17,7 +17,9 @@ export async function POST(
 
   try {
     const ctx = authToServiceContext(auth)
-    const { data } = await upsertVariants(ctx, id, body as VariantInput[])
+    // O doc manda `{ variants: [...] }`; o vetor cru também vale
+    const variants = Array.isArray(body) ? body : (body as { variants?: unknown } | null)?.variants
+    const { data } = await upsertVariants(ctx, id, variants as VariantInput[])
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

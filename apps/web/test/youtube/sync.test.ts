@@ -11,6 +11,12 @@ vi.mock('@/lib/youtube/api-client', () => ({
   },
 }))
 
+const sentryCalls = vi.hoisted(() => [] as Array<{ msg: string; ctx: unknown }>)
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (msg: string, ctx: unknown) => { sentryCalls.push({ msg, ctx }); return '' },
+  captureException: vi.fn(),
+}))
+
 vi.mock('@/lib/youtube/auto-categorize', () => ({
   autoCategorize: vi.fn(() => null),
 }))
@@ -24,6 +30,8 @@ const mockFetchDetails = vi.mocked(fetchVideoDetails)
 const mockFetchStats = vi.mocked(fetchChannelStats)
 const mockLookup = vi.mocked(lookupChannelByHandle)
 const mockAutoCategorize = vi.mocked(autoCategorize)
+
+const RAW_VAZIO = { subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false } as const
 
 function makeChannel(overrides: Partial<YouTubeChannelRow> = {}): YouTubeChannelRow {
   return {
@@ -106,7 +114,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue(['vid-1', 'vid-2'])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 1000, videoCount: 50, thumbnailUrl: null, bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 1000, videoCount: 50, thumbnailUrl: null, bannerUrl: null, ...RAW_VAZIO })
     supabase.from = vi.fn((table: string) => {
       if (table === 'youtube_videos') {
         return {
@@ -144,7 +152,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0, thumbnailUrl: null, bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0, thumbnailUrl: null, bannerUrl: null, ...RAW_VAZIO })
 
     const result = await syncChannel(supabase, channel, 'key', 'manual')
 
@@ -174,7 +182,7 @@ describe('syncChannel', () => {
       likeCount: 10,
       commentCount: 5,
     }])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 1200, videoCount: 51, thumbnailUrl: 'https://yt3.ggpht.com/new-thumb', bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 1200, videoCount: 51, thumbnailUrl: 'https://yt3.ggpht.com/new-thumb', bannerUrl: null, ...RAW_VAZIO })
 
     const result = await syncChannel(supabase, channel, 'key', 'catchall')
 
@@ -211,7 +219,7 @@ describe('syncChannel', () => {
       likeCount: 5,
       commentCount: 1,
     }])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10, thumbnailUrl: null, bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10, thumbnailUrl: null, bannerUrl: null, ...RAW_VAZIO })
     mockAutoCategorize.mockReturnValue({ categoryId: 'cat-bip', autoApprove: true })
 
     await syncChannel(supabase, channel, 'key', 'catchall')
@@ -244,7 +252,7 @@ describe('syncChannel', () => {
       likeCount: 3,
       commentCount: 0,
     }])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10, thumbnailUrl: null, bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10, thumbnailUrl: null, bannerUrl: null, ...RAW_VAZIO })
     mockAutoCategorize.mockReturnValue({ categoryId: 'cat-debug', autoApprove: false })
 
     await syncChannel(supabase, channel, 'key', 'catchall')
@@ -453,7 +461,7 @@ describe('syncChannel', () => {
     const channel = makeChannel()
 
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 500, videoCount: 25, thumbnailUrl: null, bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 500, videoCount: 25, thumbnailUrl: null, bannerUrl: null, ...RAW_VAZIO })
 
     const supabase = {
       from: vi.fn((table: string) => {
@@ -491,7 +499,7 @@ describe('syncChannel', () => {
 
     const channel = makeChannel()
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0, thumbnailUrl: 'https://yt3.ggpht.com/thumb', bannerUrl: 'https://yt3.ggpht.com/banner' })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 2, videoCount: 0, thumbnailUrl: 'https://yt3.ggpht.com/thumb', bannerUrl: 'https://yt3.ggpht.com/banner', ...RAW_VAZIO })
 
     const result = await syncChannel(supabase, channel, 'key', 'catchall')
 
@@ -523,7 +531,7 @@ describe('syncChannel', () => {
 
     const channel = makeChannel({ thumbnail_url: 'https://old.jpg', banner_url: 'https://old-banner.jpg' })
     mockFetchRecent.mockResolvedValue([])
-    mockFetchStats.mockResolvedValue({ subscriberCount: 5, videoCount: 1, thumbnailUrl: null, bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 5, videoCount: 1, thumbnailUrl: null, bannerUrl: null, ...RAW_VAZIO })
 
     await syncChannel(supabase, channel, 'key', 'catchall')
 
@@ -601,7 +609,7 @@ describe('syncChannel', () => {
       bannerUrl: null,
       customUrl: '@canal',
     })
-    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 5, thumbnailUrl: 'https://yt3.ggpht.com/new-thumb', bannerUrl: null })
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 5, thumbnailUrl: 'https://yt3.ggpht.com/new-thumb', bannerUrl: null, ...RAW_VAZIO })
 
     const result = await syncChannel(supabase, channel, 'key', 'catchall')
 
@@ -628,5 +636,91 @@ describe('syncChannel', () => {
     await expect(syncChannel(supabase, channel, 'key', 'catchall')).rejects.toThrow(
       'Channel not found on YouTube: @nonexistent',
     )
+  })
+})
+
+
+// A5 R9a: retrato público diário do canal próprio (yt_own_channel_snapshots)
+describe('syncChannel: retrato do canal próprio (MG20)', () => {
+  const TABELA = 'yt_own_channel_snapshots'
+  beforeEach(() => { vi.clearAllMocks(); sentryCalls.length = 0; vi.useRealTimers() })
+
+  function montar(retrato: () => unknown) {
+    const retratoUpsert = vi.fn(retrato)
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') {
+          return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ youtube_video_id: 'vid-1' }], error: null }) }) }) }
+        }
+        if (table === 'youtube_channels') {
+          return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }) }
+        }
+        if (table === TABELA) return { upsert: retratoUpsert }
+        return { select: vi.fn() }
+      }),
+    }
+    return { supabase: supabase as unknown as Parameters<typeof syncChannel>[0], retratoUpsert }
+  }
+  const base = { subscriberCount: 0, videoCount: 5, thumbnailUrl: null, bannerUrl: null } as const
+  const rodar = (sb: Parameters<typeof syncChannel>[0]) => { mockFetchRecent.mockResolvedValue(['vid-1']); return syncChannel(sb, makeChannel(), 'key', 'catchall') }
+
+  it('stats sem número nenhum: nenhum upsert de retrato', async () => {
+    const { supabase, retratoUpsert } = montar(() => ({ error: null }))
+    mockFetchStats.mockResolvedValue({ ...base, ...RAW_VAZIO })
+    await rodar(supabase)
+    expect(retratoUpsert).not.toHaveBeenCalled()
+  })
+
+  it('stats só com views (subscriberCountRaw nulo, hidden false): nenhum upsert de retrato', async () => {
+    const { supabase, retratoUpsert } = montar(() => ({ error: null }))
+    mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: null, viewCountRaw: 900, videoCountRaw: 5, hidden: false })
+    await rodar(supabase)
+    expect(retratoUpsert).not.toHaveBeenCalled()
+  })
+
+  it('hidden true sem contagem: upsert com subscriber_count nulo e subscribers_hidden true', async () => {
+    const { supabase, retratoUpsert } = montar(() => ({ error: null }))
+    mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: null, viewCountRaw: 10, videoCountRaw: 5, hidden: true })
+    await rodar(supabase)
+    expect(retratoUpsert).toHaveBeenCalledTimes(1)
+    expect(retratoUpsert.mock.calls[0]![0]).toMatchObject({ youtube_channel_id: 'ch-1', subscriber_count: null, subscribers_hidden: true, view_count: 10, video_count: 5 })
+  })
+
+  it('upsert recebe onConflict youtube_channel_id,snapshot_date e ignoreDuplicates true', async () => {
+    const { supabase, retratoUpsert } = montar(() => ({ error: null }))
+    mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: 1234, viewCountRaw: 99, videoCountRaw: 5, hidden: false })
+    await rodar(supabase)
+    expect(retratoUpsert.mock.calls[0]![0]).toMatchObject({ subscriber_count: 1234, subscribers_hidden: false, view_count: 99, video_count: 5 })
+    expect(retratoUpsert.mock.calls[0]![1]).toEqual({ onConflict: 'youtube_channel_id,snapshot_date', ignoreDuplicates: true })
+  })
+
+  it('upsert do retrato devolve erro: Sentry e a sincronização termina ok', async () => {
+    const { supabase } = montar(() => ({ error: { message: 'relation does not exist', code: '42P01' } }))
+    mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: 10, viewCountRaw: 1, videoCountRaw: 5, hidden: false })
+    const r = await rodar(supabase)
+    expect(r.videosFound).toBe(1)
+    expect(sentryCalls).toHaveLength(1)
+    expect(sentryCalls[0]!.msg).toBe('sync-youtube: retrato do canal próprio não gravado')
+    expect(sentryCalls[0]!.ctx).toMatchObject({ level: 'warning', fingerprint: ['sync-youtube', 'retrato-proprio'], extra: { channelId: 'ch-1', code: '42P01' } })
+  })
+
+  it('upsert do retrato LANÇA: Sentry e a sincronização termina ok', async () => {
+    const { supabase } = montar(() => { throw new Error('rede caiu') })
+    mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: 10, viewCountRaw: 1, videoCountRaw: 5, hidden: false })
+    const r = await rodar(supabase)
+    expect(r.videosFound).toBe(1)
+    expect(sentryCalls).toHaveLength(1)
+    expect(sentryCalls[0]!.ctx).toMatchObject({ fingerprint: ['sync-youtube', 'retrato-proprio'], extra: { channelId: 'ch-1' } })
+  })
+
+  it('fake timers em 02:30 UTC: snapshot_date é o dia anterior (São Paulo)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-03-10T02:30:00Z'))
+    try {
+      const { supabase, retratoUpsert } = montar(() => ({ error: null }))
+      mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: 10, viewCountRaw: 1, videoCountRaw: 5, hidden: false })
+      await rodar(supabase)
+      expect(retratoUpsert.mock.calls[0]![0]).toMatchObject({ snapshot_date: '2026-03-09' })
+    } finally { vi.useRealTimers() }
   })
 })

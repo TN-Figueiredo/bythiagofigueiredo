@@ -40,7 +40,7 @@ describe('medição: carregador das páginas (cache por canal)', () => {
     expect(hit.daily).toHaveLength(13 * 50 * (shape.days + 1))
     expect(hit).toEqual(miss)
     expect(cache.rejected).toEqual([])
-    expect(db.trips.length - missTrips).toBe(9)
+    expect(db.trips.length - missTrips).toBe(10) // 9 + a leitura dos retratos MG20 do canal próprio (I-1)
   })
 })
 

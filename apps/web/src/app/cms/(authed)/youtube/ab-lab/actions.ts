@@ -24,9 +24,8 @@ import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
+import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
 import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
-import { ensureTrackedLink } from '@/lib/links/auto-link'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
@@ -99,6 +98,10 @@ export async function createAbTest(
     return { ok: false, error: (e as Error).message }
   }
 
+  if (pedeDescricao({ test_type: input.test_type })) {
+    return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
+  }
+
   if (input.site_id !== siteId) {
     return { ok: false, error: 'site_id mismatch' }
   }
@@ -145,7 +148,6 @@ export async function createAbTest(
 
   // Capture original metadata for title/desc/combo tests
   let originalTitle: string | null = null
-  let originalDescription: string | null = null
   const testType: TestType = input.test_type ?? 'thumbnail'
 
   // Teste de thumbnail não entra aqui: o original vem de `youtube_videos` (acima).
@@ -169,7 +171,6 @@ export async function createAbTest(
         const meta = await captureOriginalMetadata(ytVideo.youtube_video_id, accessToken)
         if (meta) {
           originalTitle = meta.title
-          originalDescription = meta.description
           captured = true
         }
       }
@@ -185,7 +186,7 @@ export async function createAbTest(
       return {
         ok: false,
         error:
-          "Could not read the video's current title and description. Reconnect this channel's YouTube access and try again.",
+          "Could not read the video's current title. Reconnect this channel's YouTube access and try again.",
       }
     }
   }
@@ -213,7 +214,6 @@ export async function createAbTest(
       original_thumbnail_url: immutableOriginalUrl,
       test_type: testType,
       original_title: originalTitle,
-      original_description: originalDescription,
     })
     .select('id')
     .single()
@@ -256,6 +256,13 @@ export async function updateAbTestType(
     siteId = await requireEditAccess()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
+  }
+
+  if (!TestTypeSchema.safeParse(newType).success) {
+    return {
+      ok: false,
+      error: pedeDescricao({ test_type: newType }) ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido',
+    }
   }
 
   const supabase = getSupabaseServiceClient()
@@ -370,7 +377,6 @@ export async function uploadVariant(
       file_size_bytes: file.size,
       sort_order: sortOrder,
       title_text: formData.get('title_text') as string | null ?? null,
-      description_text: formData.get('description_text') as string | null ?? null,
     })
     .select('id')
     .single()
@@ -753,6 +759,12 @@ export async function acknowledgeAbTestDrift(
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
+/** Teste antigo com tipo fora dos três (descrição saiu do A/B): mensagem de recusa, ou null se o tipo vale. */
+function recusaTipoForaDeUso(testType: unknown): string | null {
+  if (TestTypeSchema.safeParse(testType ?? 'thumbnail').success) return null
+  return testType === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido'
+}
+
 export async function resumeAbTest(
   testId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -767,20 +779,22 @@ export async function resumeAbTest(
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, original_description, config')
+    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, config')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
+  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
+  if (tipoRecusado) return { ok: false, error: tipoRecusado }
   if (test.status_note === DRIFT_STATUS_NOTE && !test.drift_acknowledged_at) {
     return { ok: false, error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.' }
   }
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, title_text, description_text, sort_order')
+    .select('id, label, is_original, blob_url, title_text, sort_order')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -808,7 +822,7 @@ export async function resumeAbTest(
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 
-    const testType = (test.test_type ?? 'thumbnail') as 'thumbnail' | 'title' | 'description' | 'combo'
+    const testType = (test.test_type ?? 'thumbnail') as TestType
     const applyResult = await applyVariantToYouTube({
       youtubeVideoId,
       accessToken,
@@ -817,10 +831,8 @@ export async function resumeAbTest(
         id: nextVariant.id,
         blob_url: nextVariant.blob_url,
         title_text: nextVariant.title_text,
-        description_text: nextVariant.description_text,
       },
       originalTitle: test.original_title,
-      originalDescription: test.original_description,
     })
     if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
     appliedMeta = applyResult.meta
@@ -1053,6 +1065,9 @@ export async function createTextVariant(
 
   if (!test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'draft') return { ok: false, error: 'Can only add variants to draft tests' }
+  if (pedeDescricao({ test_type: test.test_type })) {
+    return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
+  }
   if (test.test_type === 'thumbnail') {
     return { ok: false, error: 'Texto não pode ser adicionado a testes de thumbnail' }
   }
@@ -1074,7 +1089,6 @@ export async function createTextVariant(
       label,
       is_original: false,
       title_text: input.title_text ?? null,
-      description_text: input.description_text ?? null,
       metadata: input.metadata ?? {},
       sort_order: sortOrder,
     })
@@ -1082,27 +1096,6 @@ export async function createTextVariant(
     .single()
 
   if (error || !variant) return { ok: false, error: error?.message ?? 'Insert failed' }
-
-  // Create tracked links for {{link:name}} templates in description
-  if (input.description_text) {
-    const tokens = parseTemplateTokens(input.description_text)
-    for (const templateName of tokens) {
-      const destinationUrl = input.link_destinations?.[templateName] ?? `https://bythiagofigueiredo.com`
-      const linkResult = await ensureTrackedLink(
-        supabase, siteId, `ab-${input.test_id}-${variant.id}-${templateName}`,
-        'ab_test', destinationUrl, `A/B: ${templateName} (${label})`,
-      )
-      if (linkResult) {
-        await supabase.from('ab_test_tracked_links').insert({
-          ab_test_id: input.test_id,
-          variant_id: variant.id,
-          link_id: linkResult.linkId,
-          template_name: templateName,
-          short_code: linkResult.code,
-        })
-      }
-    }
-  }
 
   revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
@@ -1115,7 +1108,7 @@ export async function createTextVariant(
 
 export async function updateTextVariant(
   variantId: string,
-  updates: { title_text?: string; description_text?: string; metadata?: Partial<VariantMetadata> },
+  updates: { title_text?: string; metadata?: Partial<VariantMetadata> },
 ): Promise<{ ok: boolean; error?: string }> {
   let siteId: string
   try {
@@ -1147,7 +1140,7 @@ export async function updateTextVariant(
 
   const { error } = await supabase
     .from('ab_test_variants')
-    .update(updates)
+    .update({ title_text: updates.title_text, metadata: updates.metadata })
     .eq('id', variantId)
 
   if (error) return { ok: false, error: error.message }
@@ -1177,13 +1170,15 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, test_type, original_title, original_description, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
+    .select('id, site_id, status, youtube_video_id, test_type, original_title, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'active')
     .single()
 
   if (!test) return { ok: false, error: 'Test not found or not active' }
+  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
+  if (tipoRecusado) return { ok: false, error: tipoRecusado }
 
   // Resolve channel for correct token
   const { data: video } = await supabase
@@ -1213,7 +1208,7 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 
   const nextCycle = (count ?? 0) + 1
 
-  const variants = (test.variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null; description_text: string | null }>)
+  const variants = (test.variants as Array<{ id: string; sort_order: number; blob_url: string | null; is_original: boolean; title_text: string | null }>)
     .sort((a, b) => a.sort_order - b.sort_order)
 
   const config = test.config as Record<string, unknown> | null
@@ -1235,15 +1230,13 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
   const applyResult = await applyVariantToYouTube({
     youtubeVideoId,
     accessToken,
-    testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+    testType: testType as TestType,
     variant: {
       id: nextVariant.id,
       blob_url: nextVariant.blob_url,
       title_text: nextVariant.title_text,
-      description_text: nextVariant.description_text,
     },
     originalTitle: test.original_title as string | null,
-    originalDescription: test.original_description as string | null,
   })
 
   if (!applyResult.ok) return { ok: false, error: applyResult.error ?? 'apply failed' }
@@ -1297,7 +1290,7 @@ export async function applyWinnerNow(
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, original_description, grace_expires_at, winner_applied_at')
+    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, grace_expires_at, winner_applied_at')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -1305,11 +1298,13 @@ export async function applyWinnerNow(
   if (!test || !test.winner_variant_id || test.winner_applied_at) {
     return { ok: false, error: 'Test not in grace period or already applied' }
   }
+  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
+  if (tipoRecusado) return { ok: false, error: tipoRecusado }
 
   // Get winner variant
   const { data: variant } = await supabase
     .from('ab_test_variants')
-    .select('id, blob_url, title_text, description_text, is_original')
+    .select('id, blob_url, title_text, is_original')
     .eq('id', test.winner_variant_id)
     .single()
 
@@ -1339,15 +1334,13 @@ export async function applyWinnerNow(
   const applyResult = await applyVariantToYouTube({
     youtubeVideoId: video.youtube_video_id as string,
     accessToken: preflight.accessToken,
-    testType: testType as 'thumbnail' | 'title' | 'description' | 'combo',
+    testType: testType as TestType,
     variant: {
       id: variant.id as string,
       blob_url: variant.blob_url as string | null,
       title_text: variant.title_text as string | null,
-      description_text: variant.description_text as string | null,
     },
     originalTitle: test.original_title as string | null,
-    originalDescription: test.original_description as string | null,
   })
 
   if (!applyResult.ok) {
@@ -1468,13 +1461,16 @@ export async function revertWinner(
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, original_description, revert_expires_at, winner_applied_at')
+    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, revert_expires_at, winner_applied_at')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (!test || !test.winner_applied_at) {
     return { ok: false, error: 'Test has no applied winner' }
+  }
+  if (!TestTypeSchema.safeParse(test.test_type ?? 'thumbnail').success) {
+    return { ok: false, error: 'Teste antigo de descrição: restaure a descrição pelo Studio' }
   }
 
   if (!test.revert_expires_at || new Date(test.revert_expires_at as string) < new Date()) {
@@ -1504,13 +1500,8 @@ export async function revertWinner(
       const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url as string)
       await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
     }
-    if (testType === 'title' || testType === 'description' || testType === 'combo') {
-      await updateVideoMetadata(
-        video.youtube_video_id as string,
-        test.original_title as string | null,
-        test.original_description as string | null,
-        preflight.accessToken,
-      )
+    if ((testType === 'title' || testType === 'combo') && test.original_title) {
+      await updateVideoMetadata(video.youtube_video_id as string, test.original_title as string, preflight.accessToken)
     }
   } catch (err) {
     return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
@@ -1680,7 +1671,6 @@ export async function fetchAbTestVariants(
   label: string
   is_original: boolean
   title_text: string | null
-  description_text: string | null
   metadata: Record<string, unknown> | null
 }>> {
   const siteId = await requireEditAccess()
@@ -1697,7 +1687,7 @@ export async function fetchAbTestVariants(
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('label, is_original, title_text, description_text, metadata')
+    .select('label, is_original, title_text, metadata')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -1705,7 +1695,6 @@ export async function fetchAbTestVariants(
     label: v.label as string,
     is_original: v.is_original as boolean,
     title_text: v.title_text as string | null,
-    description_text: v.description_text as string | null,
     metadata: v.metadata as Record<string, unknown> | null,
   }))
 }

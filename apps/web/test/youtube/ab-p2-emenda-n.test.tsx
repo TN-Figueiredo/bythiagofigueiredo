@@ -25,7 +25,7 @@ const FRASE = 'CTR ainda não medido. Você decide o vencedor.'
 
 function stats(id: string, label: string, imp: number, clicks: number, orig: boolean): VariantStats {
   return {
-    variant_id: id, label, blob_url: null, title_text: null, description_text: null, metadata: {},
+    variant_id: id, label, blob_url: null, title_text: null, metadata: {},
     is_original: orig, total_impressions: imp, total_clicks: clicks,
     avg_ctr: imp > 0 ? clicks / imp : 0, cycles_completed: 4,
   }

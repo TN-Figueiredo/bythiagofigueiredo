@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useId } from 'react'
-import { Lock, Plus, Trash2, Sparkles, ImageIcon, ChevronDown, Link2, AlignLeft, Image as ImageLucide } from 'lucide-react'
+import { Lock, Plus, Trash2, Sparkles, ImageIcon, Image as ImageLucide } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
@@ -17,7 +17,6 @@ export interface VariantData {
   thumbFile?: File | null
   thumbDataUrl?: string | null
   titleText: string
-  descriptionText: string
   isCoworkGenerated?: boolean
   briefing?: string
   tags?: string[]
@@ -42,7 +41,6 @@ export interface StepVariantesProps {
 const TITLE_MAX = 100
 
 const showsThumbnail = (type: TestType) => type === 'thumbnail' || type === 'combo'
-const showsDescription = (type: TestType) => type === 'description' || type === 'combo'
 
 const MAX_CHALLENGERS = 3 // B, C, D
 
@@ -276,7 +274,6 @@ interface VariantCardProps {
 
 function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibrary, onPickFromPipeline }: VariantCardProps) {
   const titleId = useId()
-  const descId = useId()
   const isLocked = variant.isOriginal
 
   // Determine role label
@@ -392,8 +389,7 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
         {/* Right: Text fields */}
         <div className="min-w-0">
           {/* Title input — shown for thumbnail, title, and combo types */}
-          {type !== 'description' && (
-            <div>
+          <div>
               {isLocked ? (
                 <>
                   <div
@@ -409,9 +405,11 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                   >
                     {variant.titleText || 'No title'}
                   </div>
-                  <p style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)', marginTop: 6, margin: '6px 0 0 0' }}>
-                    Titulo mantido — so a thumbnail esta sendo testada.
-                  </p>
+                  {type === 'thumbnail' && (
+                    <p style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)', marginTop: 6, margin: '6px 0 0 0' }}>
+                      Titulo mantido — so a thumbnail esta sendo testada.
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -442,46 +440,6 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                 </>
               )}
             </div>
-          )}
-
-          {/* Description textarea — shown for description and combo types */}
-          {showsDescription(type) && (
-            <div style={{ marginTop: type !== 'description' ? 12 : 0 }}>
-              <label
-                htmlFor={descId}
-                className="font-medium uppercase tracking-[0.14em] block"
-                style={{ fontSize: 10, color: 'var(--cms-text-dim)', marginBottom: 4 }}
-              >
-                Descricao
-              </label>
-              {isLocked ? (
-                <p className="text-xs line-clamp-2" style={{ color: 'var(--cms-text-dim)' }}>
-                  {variant.descriptionText || 'No description'}
-                </p>
-              ) : (
-                <textarea
-                  id={descId}
-                  value={variant.descriptionText}
-                  onChange={e => onUpdate({ descriptionText: e.target.value })}
-                  placeholder={`Description for variant ${variant.label}...`}
-                  aria-label={`Description for variant ${variant.label}`}
-                  rows={3}
-                  className="w-full resize-none transition-colors"
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    border: '1px solid var(--cms-border-strong, rgba(245,239,230,.15))',
-                    background: 'var(--cms-surface)',
-                    color: 'var(--cms-text)',
-                    fontSize: '13.5px',
-                    fontFamily: 'inherit',
-                    lineHeight: 1.5,
-                    outline: 'none',
-                  }}
-                />
-              )}
-            </div>
-          )}
 
           {/* Briefing box — only for non-original challengers */}
           {!isLocked && (
@@ -489,127 +447,6 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Description accordion (collapsible)                                */
-/* ------------------------------------------------------------------ */
-
-interface DescriptionAccordionProps {
-  variants: VariantData[]
-  onUpdateVariant: (index: number, data: Partial<VariantData>) => void
-}
-
-function DescriptionAccordion({ variants, onUpdateVariant }: DescriptionAccordionProps) {
-  const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-
-  return (
-    <div
-      style={{
-        marginTop: 16,
-        border: '1px solid var(--cms-border, #332D25)',
-        borderRadius: 'var(--cms-radius, 10px)',
-        overflow: 'hidden',
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-[9px] transition-colors"
-        style={{
-          padding: '12px 14px',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          color: 'var(--cms-text-dim)',
-          fontFamily: 'inherit',
-          fontSize: 12.5,
-        }}
-      >
-        <ChevronDown
-          size={14}
-          style={{
-            transition: 'transform 0.2s',
-            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-          }}
-        />
-        <Link2 size={15} style={{ color: 'var(--cms-accent)' }} />
-        <span style={{ flex: 1, textAlign: 'left', fontWeight: 600, color: 'var(--cms-text)' }}>
-          Avançado · variações de descrição
-        </span>
-        <Badge tone="neutral">OPCIONAL</Badge>
-      </button>
-      {open && (
-        <div style={{ padding: '0 14px 14px', fontSize: '12.5px', color: 'var(--cms-text-dim)', lineHeight: 1.5 }}>
-          <p style={{ margin: 0 }}>
-            Use{' '}
-            <code style={{ background: 'var(--cms-surface-2, #272219)', padding: '1px 5px', borderRadius: 4, color: 'var(--cms-accent)' }}>
-              {'{{link:nome}}'}
-            </code>
-            {' '}em cada descrição — o sistema gera um link rastreado único por variante e mede os cliques separadamente.
-            A descrição é o teste mais &ldquo;solto&rdquo;: dá pra rodar uma vez e depois fixar a vencedora.
-          </p>
-          <div style={{ marginTop: 10 }}>
-            {!editing ? (
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="inline-flex items-center gap-[7px] transition-colors"
-                style={{
-                  padding: '6px 11px',
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  borderRadius: 9,
-                  border: '1px solid var(--cms-border, #332D25)',
-                  background: 'var(--cms-surface-2, #272219)',
-                  color: 'var(--cms-text)',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <AlignLeft size={14} />
-                Editar descrições das variantes
-              </button>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
-                {variants.map((v, i) => (
-                  <div key={v.label}>
-                    <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
-                      <VChip label={v.label} size={18} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--cms-text-dim)' }}>
-                        {v.isOriginal ? 'Original (referência)' : `Variante ${v.label}`}
-                      </span>
-                    </div>
-                    <textarea
-                      value={v.descriptionText}
-                      onChange={e => onUpdateVariant(i, { descriptionText: e.target.value })}
-                      placeholder={v.isOriginal ? 'Descrição original (referência)...' : `Descrição para variante ${v.label}...`}
-                      readOnly={v.isOriginal}
-                      rows={3}
-                      className="w-full resize-none transition-colors"
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: 10,
-                        border: '1px solid var(--cms-border-strong, rgba(245,239,230,.15))',
-                        background: v.isOriginal ? 'var(--cms-surface)' : 'var(--cms-surface-2, #272219)',
-                        color: v.isOriginal ? 'var(--cms-text-dim)' : 'var(--cms-text)',
-                        fontSize: '13px',
-                        fontFamily: 'inherit',
-                        lineHeight: 1.5,
-                        outline: 'none',
-                        opacity: v.isOriginal ? 0.7 : 1,
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -702,10 +539,6 @@ export function StepVariantes({
         </div>
       )}
 
-      {/* Description accordion — for thumbnail/title tests, optionally add descriptions */}
-      {!showsDescription(type) && (
-        <DescriptionAccordion variants={variants} onUpdateVariant={onUpdateVariant} />
-      )}
     </div>
   )
 }

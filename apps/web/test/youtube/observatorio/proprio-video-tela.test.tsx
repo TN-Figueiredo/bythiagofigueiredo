@@ -305,7 +305,13 @@ describe('T11 higiene da árvore', () => {
   })
   it('a tela não importa o leitor nem a guarda, nem recebe o token (a varredura da T4 olha o resto)', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_proprio/video-screen.tsx'), 'utf8')
-    expect(src).not.toMatch(/proprio\/ler|proprio\/edicao|_proprio\/dados|EdicaoDoSite/)
+    const PROIBIDO = /proprio\/ler|proprio\/(edicao|leitura-privada)|_proprio\/dados|dados-origem|dados-termos|ler-diario-periodo|EdicaoDoSite|LeituraPrivadaDoSite/
+    expect(src).not.toMatch(PROIBIDO)
+    // controles: o token e o módulo novos contam como violação
+    expect("import { leituraValida } from '@/lib/youtube/observatorio/proprio/leitura-privada'").toMatch(PROIBIDO)
+    expect('leitura: LeituraPrivadaDoSite | null').toMatch(PROIBIDO)
+    // E5b T16 (d): os leitores da origem, dos termos e do diário por período também são barrados (controle negativo de cada um)
+    for (const m of ["from './dados-origem'", "from './dados-termos'", "from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'"]) expect(`import { x } ${m}`).toMatch(PROIBIDO)
   })
 })
 

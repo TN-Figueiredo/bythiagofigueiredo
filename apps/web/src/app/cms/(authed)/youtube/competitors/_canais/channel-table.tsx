@@ -4,11 +4,10 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
-import { temPosicao } from './posicao-model'
 import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
-import { DirecaoCell } from './direcao-cell'
-import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
+import { CadenceView, ChCell, DirecaoValor, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
+import { CELULA_DICA_CLASSE } from './celula-dica'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 const JANELA = MEASURE_RULES.direction.windowDays
 
@@ -25,18 +24,34 @@ export interface RowHandlers {
 }
 
 /** `fm`: a coluna depende do formato (em "Todos" tem duas medidas e o rótulo sobe para o cabeçalho). */
-const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean }> = [
-  { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem' },
-  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 88 },
-  { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias' },
-  { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts' },
-  { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true },
+const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean; tip: string }> = [
+  { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem', tip: 'Vídeos publicados por semana, nas últimas 13 semanas.' },
+  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 128, tip: 'Views por dia dos vídeos do canal, por mil inscritos. Compara canais de tamanhos diferentes.' },
+  { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias', tip: 'Vídeos com 2× ou mais as views típicas do canal, nos últimos 90 dias.' },
+  { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts', tip: 'Mudanças de título e de thumbnail nos últimos 30 dias, longos e Shorts.' },
+  { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true, tip: 'Inscritos que o canal ganhou (+) ou perdeu (−) em 30 dias. O YouTube arredonda os inscritos a 3 algarismos; é diferente da Direção, que mede views.' },
 ]
 
-/** A posição: "13º" (com "(empate)" só para o leitor de tela); sem posição, "sem posição" só para o leitor e, numa ordenação que tem posição, um traço. */
-function PosCell({ r, ordenacaoComPosicao }: { r: CanaisRow; ordenacaoComPosicao: boolean }) {
-  if (r.pos) return <td className="p num">{r.pos.pos}º{r.pos.empate ? <span className="sr"> (empate)</span> : null}</td>
-  return <td className="p num"><span className="sr">sem posição</span>{ordenacaoComPosicao ? <span aria-hidden="true">–</span> : null}</td>
+const TIP_P = 'Posição pelo valor da coluna ordenada. 1º é o maior. Canais empatados dividem a posição.'
+const TIP_CRESCIMENTO_EMPATE = <><b>Empate:</b> se o ganho ou a perda é menor que 2 passos do arredondamento, a diferença pode ser só arredondamento. Esses canais mostram "sem variação" com o limite de cada canal (±N) e ficam todos na mesma posição, entre quem cresceu e quem perdeu.</>
+const TIP_DIRECAO_ORDEM = <><b>Ordem:</b> o primeiro clique abre com quem mais sobe. Canais sem 56 dias medidos ficam sempre no fim, abaixo de "Sem medida", e nunca valem zero.</>
+const TIP_DIRECAO_EMPATE = <><b>Empate:</b> o mesmo percentual inteiro mostrado vale a mesma posição, em ordem alfabética; a faixa de ±10% que decide ▲ ＝ ▼ não entra nessa conta.</>
+
+/** Ícone de ordenação: duplo (inativo) ou uma seta só (ativa; para baixo = maior primeiro). */
+function Chevron({ estado }: { estado: 'off' | 'desc' | 'asc' }) {
+  return (
+    <svg className="chev" width="10" height="12" viewBox="0 0 10 12" aria-hidden="true">
+      {estado !== 'desc' && <path d="M1 5l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" />}
+      {estado !== 'asc' && <path d="M1 7l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />}
+    </svg>
+  )
+}
+const estadoDe = (on: boolean, dir: 'asc' | 'desc'): 'off' | 'desc' | 'asc' => (on ? dir : 'off')
+
+/** A posição: "13º" e, embaixo, "empate" quando divide a posição; sem número, "sem posição" só para o leitor (e um traço nas ordenações que numeram). */
+function PosCell({ r }: { r: CanaisRow }) {
+  if (r.numero) return <td className="p num pcol" data-testid="canais-p">{r.numero.pos}º{r.numero.empate ? <span className="pemp">empate</span> : null}</td>
+  return <td className="p num pcol" data-testid="canais-p"><span className="sr">sem posição</span></td>
 }
 
 /** "Comparar" é um link visível (spec 15.2): a única ação própria da coluna. O nome acessível diz de quem; o clique simples lembra o gatilho para o Voltar devolver o foco. */
@@ -48,21 +63,21 @@ export function CompararLink({ r, texto }: { r: CanaisRow; texto: string }) {
   )
 }
 
-function Row({ r, h, todos, ordenacaoComPosicao, comparar }: { r: CanaisRow; h: RowHandlers; todos: boolean; ordenacaoComPosicao: boolean; comparar: boolean }) {
+function Row({ r, h, todos, comparar }: { r: CanaisRow; h: RowHandlers; todos: boolean; comparar: boolean }) {
   const c = r.cells
   return (
     <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
       tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}
-      onClick={e => { if (!(e.target as HTMLElement).closest('select,button,a,.tip')) h.open(r.id) }}>
-      <PosCell r={r} ordenacaoComPosicao={ordenacaoComPosicao} />
+      onClick={e => { if (!(e.target as HTMLElement).closest(`select,button,a,.tip,.${CELULA_DICA_CLASSE}`)) h.open(r.id) }}>
+      <PosCell r={r} />
       <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} /></td>
-      <td className="dir"><span className="sr">Direção: </span><DirecaoCell r={r} /></td>
-      <td><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></td>
-      <td className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} /></td>
-      <td className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} /></td>
-      <td><SwapView c={c.swap} /></td>
-      <td className="r grow c-hide"><GrowthView c={c.growth} /></td>
-      <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></td>
+      <td className="dir" data-col="direcao"><span className="sr">Direção: </span><div className="obs-cn-dirv"><DirecaoValor r={r} /></div></td>
+      <td data-col="active"><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} /></td>
+      <td data-col="vpd" className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} dica={r.dicas.vpd} dica2={r.dicas.vpd2} /></td>
+      <td data-col="outliers" className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} dica={r.dicas.out} dica2={r.dicas.out2} /></td>
+      <td data-col="swaps"><SwapView c={c.swap} dica={r.dicas.swap} /></td>
+      <td data-col="growth" className="r grow c-hide"><GrowthView c={c.growth} dica={r.dicas.growth} /></td>
+      <td data-col="sync" className="sync c-hide"><SyncView dica={r.dicas.sync} c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} somenteLeitura={h.somenteLeitura} /></td>
       {comparar ? <td className="cmp">{r.own ? <><span aria-hidden="true">–</span><span className="sr">seu canal, sem comparação</span></> : <CompararLink r={r} texto="Comparar" />}</td> : null}
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id} disabled={h.somenteLeitura}
@@ -86,7 +101,6 @@ export function ChannelTable({ view, ranked, unranked, semMedidaN, buscando, h, 
   // canais.html #scrollHint: says the table scrolls sideways only when it really overflows (drawer open, narrow screen)
   const box = useRef<HTMLDivElement>(null)
   const todos = view.fmt === 'todos'
-  const ordenacaoComPosicao = temPosicao(view.sort)
   const semConcorrente = buscando ? ranked.length + unranked.length === 0 : !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
   const [overflow, setOverflow] = useState(false)
   useEffect(() => {
@@ -105,18 +119,21 @@ export function ChannelTable({ view, ranked, unranked, semMedidaN, buscando, h, 
     <div className="tablebox" ref={box} aria-busy={busy || undefined}>
       <table aria-label="Canais acompanhados" className={todos ? 'todos' : undefined}>
         <thead><tr>
-          <th scope="col" className="p"><span className="sr">Posição</span></th>
-          <th scope="col" className="sortable" data-k="subs" aria-sort={view.sort === 'subs' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
-            <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <span className="arrow" aria-hidden="true">{view.sort === 'subs' ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
+          <th scope="col" className="p"><span className="sr">Posição</span><Tip label="Sobre a posição">{TIP_P}</Tip></th>
+          <th scope="col" className="sortable" data-k="subs" data-testid="canais-th-subs" aria-sort={view.sort === 'subs' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
+            <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <Chevron estado={estadoDe(view.sort === 'subs', view.dir)} /></button>
             <span className="unit">nicho, inscritos, estado</span>
           </th>
-          <th scope="col" className="dir">Direção <Tip label="Como a direção é calculada">Views dos últimos {JANELA} dias contra as dos {JANELA} anteriores, de cada canal contra ele mesmo. ▲ se subiu 10% ou mais, ▼ se caiu 10% ou mais, ＝ no meio. A régua vai de −50% a +50%; a faixa tracejada é o “sem mudança” (−10% a +10%); passou do limite, a ponta vira triângulo. Os dois números ao lado do percentual são os que entram na conta. Inclui Shorts e vídeos depois apagados. Cálculo do Observatório sobre dados públicos do YouTube.</Tip><span className="unit">views, {JANELA} dias × {JANELA} anteriores</span></th>
+          <th scope="col" className="dir sortable" data-k="direcao" data-testid="canais-th-direcao" aria-sort={view.sort === 'direcao' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
+            <button type="button" aria-busy={busySort === 'direcao' || undefined} onClick={() => onSort('direcao')}>Direção <Chevron estado={estadoDe(view.sort === 'direcao', view.dir)} /></button>
+            <Tip label="Como a direção é calculada">Views dos últimos {JANELA} dias contra as dos {JANELA} anteriores, de cada canal contra ele mesmo. ▲ se subiu 10% ou mais, ▼ se caiu 10% ou mais, ＝ no meio. A régua vai de −50% a +50%; a faixa tracejada é o “sem mudança” (−10% a +10%); passou do limite, a ponta vira triângulo. Os dois números ao lado do percentual são os que entram na conta. Inclui Shorts e vídeos depois apagados. Cálculo do Observatório sobre dados públicos do YouTube.<span className="tp2">{TIP_DIRECAO_ORDEM}</span><span className="tp2">{TIP_DIRECAO_EMPATE}</span></Tip><span className="unit">views, {JANELA} dias × {JANELA} anteriores</span></th>
           {COLS.map(col => {
             const on = view.sort === col.k
             return (
-              <th key={col.k} scope="col" className={`sortable${col.r ? ' r' : ''}${col.hide ? ' c-hide' : ''}`} data-k={col.k}
+              <th key={col.k} scope="col" className={`sortable${col.r ? ' r' : ''}${col.hide ? ' c-hide' : ''}`} data-k={col.k} data-testid={'canais-th-' + col.k}
                 aria-sort={on ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined} style={col.minW ? { minWidth: col.minW } : undefined}>
-                <button type="button" aria-busy={busySort === col.k || undefined} onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
+                <button type="button" aria-busy={busySort === col.k || undefined} onClick={() => onSort(col.k)}>{col.label} <Chevron estado={estadoDe(on, view.dir)} /></button>
+                <Tip label={`Sobre ${col.label}`} left={col.r}>{col.tip}{col.k === 'growth' ? <span className="tp2">{TIP_CRESCIMENTO_EMPATE}</span> : null}</Tip>
                 <span className="unit">{col.unit ?? view.vpdUnit}</span>
                 {todos && col.fm && view.fmtCab ? <span className="unit cab-fmt" data-cab-fmt="">{view.fmtCab.dois}{on ? <>. <strong>{view.fmtCab.ordenado}</strong></> : null}</span> : null}
               </th>
@@ -127,11 +144,11 @@ export function ChannelTable({ view, ranked, unranked, semMedidaN, buscando, h, 
           <th scope="col"><span className="sr">Ações</span></th>
         </tr></thead>
         <tbody>
-          {ranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} comparar={view.compararColuna} />)}
+          {ranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} comparar={view.compararColuna} />)}
           {view.list.divisor && unranked.length ? (
             <tr className="group" data-divisor=""><th scope="rowgroup" colSpan={view.compararColuna ? 11 : 10}><span className="gin"><strong>{view.list.divisor.titulo.replace(/\(\d+\)$/, `(${semMedidaN})`)}</strong><small>{view.list.divisor.nota}</small></span></th></tr>
           ) : null}
-          {unranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} comparar={view.compararColuna} />)}
+          {unranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} comparar={view.compararColuna} />)}
           {semConcorrente ? <tr><td colSpan={view.compararColuna ? 11 : 10} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr> : null}
         </tbody>
       </table>

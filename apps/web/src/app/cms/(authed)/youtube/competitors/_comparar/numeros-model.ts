@@ -140,7 +140,6 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
 
   const inscritos30 = seguro('inscritos30', (): Numero => {
     if (primeiraSync) return naoMedido({ k: 'primeiraSync' })
-    if (ch.own) return naoMedido({ k: 'sem30', falta: null }) // o canal próprio não tem a contagem diária de inscritos (spec 16.1)
     const g = SL.growth30
     if (g.pending) return naoMedido({ k: 'sem30', falta: g.pending === 'sem contagem' ? null : g.pending })
     const de = ch.snapshots.find(s => s.t === g.from), para = ch.snapshots.find(s => s.t === g.to)

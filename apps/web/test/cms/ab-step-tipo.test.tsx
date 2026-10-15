@@ -16,10 +16,10 @@ vi.mock('lucide-react', () => {
 })
 
 describe('StepTipo', () => {
-  it('renders radiogroup with 4 radio options', () => {
+  it('renders radiogroup with 3 radio options', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
     expect(screen.getByRole('radiogroup', { name: 'Tipo de teste' })).toBeDefined()
-    expect(screen.getAllByRole('radio')).toHaveLength(4)
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
   })
 
   it('no selection initially shows first card focusable (tabIndex=0)', () => {
@@ -28,7 +28,6 @@ describe('StepTipo', () => {
     expect(radios[0]!.tabIndex).toBe(0)
     expect(radios[1]!.tabIndex).toBe(-1)
     expect(radios[2]!.tabIndex).toBe(-1)
-    expect(radios[3]!.tabIndex).toBe(-1)
   })
 
   it('clicking a card calls onSelect with the correct TestType', () => {
@@ -44,17 +43,20 @@ describe('StepTipo', () => {
     expect(radios[0]!.getAttribute('aria-checked')).toBe('false')
     expect(radios[1]!.getAttribute('aria-checked')).toBe('false')
     expect(radios[2]!.getAttribute('aria-checked')).toBe('true')
-    expect(radios[3]!.getAttribute('aria-checked')).toBe('false')
   })
 
-  it('"Recommended" badge appears on combo type', () => {
-    render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('recomendado')).toBeDefined()
+  it('três opções na ordem Título + thumbnail, Thumbnail, Título; sem Descrição, recomendado nem pontual', () => {
+    const { container } = render(<StepTipo selected={null} onSelect={vi.fn()} />)
+    const titulos = screen.getAllByRole('radio').map(r => r.querySelector('span')?.textContent)
+    expect(titulos).toEqual(['Título + thumbnail', 'Thumbnail', 'Título'])
+    expect(container.textContent).not.toMatch(/Descri|recomendado|pontual/i)
   })
 
-  it('"One-off" badge appears on description type', () => {
+  it('o cartão do combo traz a frase fechada pelo Logan e a introdução nova', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('pontual')).toBeDefined()
+    expect(screen.getByText('Se ganhar, você não vai saber se foi o título ou a thumbnail.')).toBeDefined()
+    expect(screen.getByText('Os dois mudam juntos.')).toBeDefined()
+    expect(screen.getByText('Escolha o que vai ser rotacionado no YouTube.')).toBeDefined()
   })
 
   it('ArrowRight from first selects second', () => {
@@ -64,11 +66,11 @@ describe('StepTipo', () => {
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 
-  it('ArrowLeft from first wraps to last', () => {
+  it('ArrowLeft from first wraps to last (title)', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected="combo" onSelect={onSelect} />)
     fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowLeft' })
-    expect(onSelect).toHaveBeenCalledWith('description')
+    expect(onSelect).toHaveBeenCalledWith('title')
   })
 
   it('ArrowDown navigates forward', () => {

@@ -303,16 +303,16 @@ describe('lerAgendaDoVigia', () => {
 
 // ---- a junção com a E14: o vigia enxerga as CINCO tarefas ------------------------------------------------------------
 
-describe('o vigia enxerga as seis tarefas (as duas da E14 e a medida do banco inclusive)', () => {
+describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const SEIS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
 
-  it('o padrão do vigia são as seis, na ordem do catálogo', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(SEIS)
+  it('o padrão do vigia são as sete, na ordem do catálogo', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(TODAS)
   })
 
   it('(A5 E10) o vigia acusa tamanho_do_banco pelo nome: sem `ok` há mais de 36 h é late, com as outras em dia', async () => {
-    const emDia = Object.fromEntries(SEIS.map(n => [n, HORAS(1)]))
+    const emDia = Object.fromEntries(TODAS.map(n => [n, HORAS(1)]))
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({ ...emDia, tamanho_do_banco: null }, HORAS(60))))
     const a = await lerAgendaDoVigia(sb as never, AGORA, {})
     expect(a.itens.filter(i => i.status === 'late').map(i => i.nome)).toEqual(['tamanho_do_banco'])
@@ -320,7 +320,7 @@ describe('o vigia enxerga as seis tarefas (as duas da E14 e a medida do banco in
   })
 
   it('(A5 E10) OBS_AGENDA_TASKS_OFF com tamanho_do_banco: desligada; a variável apagada deixa ligada', async () => {
-    const emDia = Object.fromEntries(SEIS.map(n => [n, HORAS(1)]))
+    const emDia = Object.fromEntries(TODAS.map(n => [n, HORAS(1)]))
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({ ...emDia, tamanho_do_banco: null }, HORAS(60))))
     const off = await lerAgendaDoVigia(sb as never, AGORA, { OBS_AGENDA_TASKS_OFF: 'tamanho_do_banco' } as never)
     expect(off.itens.find(i => i.nome === 'tamanho_do_banco')?.status).not.toBe('late')
@@ -534,7 +534,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
   it('/api/health com a anulação parada: degraded e agenda:anular_identidade nomeada', async () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
       leitura_horaria: iso(Date.now() - H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H),
-      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
+      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), marcas_de_idade: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
     }, iso(Date.now() - 60 * H)))) as never)
     const res = await healthGET(reqHealth())
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }

@@ -35,14 +35,14 @@ export class EdicaoDoSite {
     marca = (e: unknown): boolean => typeof e === 'object' && e !== null && #siteId in e
   }
 
-  /** O token do site, ou null (não edita, sem sessão, ou a guarda falhou: falha fechada, avisada ao Sentry). Nunca lança. */
-  static async provar(siteId: string): Promise<EdicaoDoSite | null> {
+  /** O token do site, ou null (não edita, sem sessão, ou a guarda falhou: falha fechada, avisada ao Sentry). Nunca lança. `avisou` diz se o Sentry já foi avisado (quem pede depois não repete o aviso). */
+  static async provar(siteId: string): Promise<{ token: EdicaoDoSite | null; avisou: boolean }> {
     try {
       const guarda = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-      return guarda.ok ? new EdicaoDoSite(siteId, CHAVE) : null
+      return { token: guarda.ok ? new EdicaoDoSite(siteId, CHAVE) : null, avisou: false }
     } catch (e) {
       Sentry.captureException(e, { tags: { component: 'observatorio-proprio', step: 'provar-edicao' }, extra: { siteId } })
-      return null
+      return { token: null, avisou: true }
     }
   }
 }
@@ -51,7 +51,9 @@ export class EdicaoDoSite {
 Object.freeze(EdicaoDoSite)
 
 /** A única porta: quem chama é o módulo de dados (`_proprio/dados.ts`); uma varredura de teste barra qualquer outro. */
-export const provarEdicao = (siteId: string): Promise<EdicaoDoSite | null> => EdicaoDoSite.provar(siteId)
+export const provarEdicao = async (siteId: string): Promise<EdicaoDoSite | null> => (await EdicaoDoSite.provar(siteId)).token
+/** Igual a `provarEdicao`, mas diz se a falha da guarda já foi ao Sentry (só `leitura-privada.ts` usa: um evento por requisição). */
+export const provarEdicaoComAviso = (siteId: string): Promise<{ token: EdicaoDoSite | null; avisou: boolean }> => EdicaoDoSite.provar(siteId)
 
 /** Em tempo de execução: o valor foi construído por `provar` (brand check do campo privado; um objeto forjado, ainda que com cast, não passa). */
 export const edicaoValida = (e: unknown): e is EdicaoDoSite => marca(e)

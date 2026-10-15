@@ -1,3 +1,4 @@
+import type { TestType } from './ab-types'
 /**
  * YouTube Intelligence API — Type Definitions
  *
@@ -171,7 +172,7 @@ export interface VideoTrafficSources {
 
 export interface VideoAbTestEntry {
   test_id: string
-  test_type: 'thumbnail' | 'title' | 'description' | 'combo'
+  test_type: TestType
   status: 'active' | 'completed' | 'archived'
   winner_label: string | null
   ctr_lift_percent: number | null
@@ -201,7 +202,7 @@ export interface IntelligenceAbTestSummary {
   test_id: string
   video_id: string
   video_title: string
-  test_type: 'thumbnail' | 'title' | 'description' | 'combo'
+  test_type: TestType
   status: 'active' | 'completed' | 'archived'
   started_at: string
   completed_at: string | null

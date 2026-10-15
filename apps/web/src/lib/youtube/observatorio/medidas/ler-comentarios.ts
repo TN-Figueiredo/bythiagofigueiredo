@@ -1,13 +1,13 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { edicaoValida, type EdicaoDoSite } from '../proprio/edicao'
+import { leituraValida, type LeituraPrivadaDoSite } from '../proprio/leitura-privada'
 import { lerVideosDoCanal } from './ler'
 import type { InsumoDeComentariosDoVideo, ParteDeComentarios } from './do-canal'
 import type { StatusDoRetrato } from './comentarios'
 
 /**
- * New (A5, E4, Tarefa 15): os insumos de M11 e M12 (comentários de destaque). Dado do dono: só com o token de edição do site
- * (`EdicaoDoSite`, que só nasce depois da guarda). O site é o de DENTRO do token, nunca um parâmetro. Nenhuma coluna de texto nem de
+ * New (A5, E4, Tarefa 15): os insumos de M11 e M12 (comentários de destaque). Dado do dono: só com o token de LEITURA do site
+ * (`LeituraPrivadaDoSite`: quem edita ou tem o direito de ver o desempenho privado; só nasce depois da guarda). O site é o de DENTRO do token, nunca um parâmetro. Nenhuma coluna de texto nem de
  * autor é pedida: só `video_id`, `mark`, `status`, `taken_at`, `parent_id`, `creator_replied` e `likes`.
  * Qualquer das consultas falhar torna a parte inteira não lida: não se monta M11 com metade. Nunca lança.
  */
@@ -50,12 +50,12 @@ const statusDe = (v: unknown): StatusDoRetrato | null => STATUS.find((s) => s ==
 
 export async function lerInsumosDeComentarios(
   sb: SupabaseClient,
-  edicao: EdicaoDoSite,
+  leitura: LeituraPrivadaDoSite,
   o: { channelId: string; videoIds: readonly string[]; maxPaginas?: number },
 ): Promise<ParteDeComentarios> {
   // Sem o token não há consulta nenhuma: o objeto forjado não passa no brand check.
-  if (!edicaoValida(edicao)) return { lido: false, causa: 'sem_permissao' }
-  const siteId = edicao.siteId
+  if (!leituraValida(leitura)) return { lido: false, causa: 'sem_permissao' }
+  const siteId = leitura.siteId
   const max = o.maxPaginas ?? MAX_PAGINAS
   try {
     // O canal (com o filtro de site) e os ids dos vídeos dele: o cruzamento impede ler comentário de vídeo alheio.

@@ -12,6 +12,7 @@ import type {
   DashboardStats,
   LearningsData,
   SuggestedVideo,
+  TestType,
 } from '@/lib/youtube/ab-types'
 import { KPI } from './kpi'
 import { ActiveTestCard } from './active-test-card'
@@ -59,7 +60,7 @@ export function AbLabDashboard({
   const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
   const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
   const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set())
-  const [typeFilter, setTypeFilter] = useState<'all' | 'thumbnail' | 'title' | 'description' | 'combo'>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | TestType>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [showAllCompleted, setShowAllCompleted] = useState(false)
 
@@ -67,8 +68,7 @@ export function AbLabDashboard({
     all: 'Todos os tipos',
     thumbnail: 'Thumbnail',
     title: 'Título',
-    description: 'Descrição',
-    combo: 'Combo',
+    combo: 'Título + thumbnail',
   }
 
   const filterByType = <T extends { type?: string }>(items: T[]) =>
@@ -166,7 +166,7 @@ export function AbLabDashboard({
               {filterOpen && (
                 <div
                   className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-[10px] border border-cms-border overflow-hidden shadow-lg"
-                  style={{ background: 'var(--cms-surface-2, #272219)' }}
+                  style={{ background: 'var(--cms-surface)' }}
                 >
                   {(Object.keys(TYPE_FILTER_LABELS) as Array<typeof typeFilter>).map(key => (
                     <button

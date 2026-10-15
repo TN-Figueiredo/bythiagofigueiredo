@@ -11,6 +11,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import * as competitors from '@/lib/pipeline/services/competitors'
+import * as Sentry from '@sentry/nextjs'
 import { toMcpError, toMcpSuccess } from '../errors'
 
 type Params = Record<string, unknown>
@@ -24,6 +25,22 @@ export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit'
  * mesmo número; o teste `youtube-observatory-parametros` mede.
  */
 export const LIMITE_MUDANCAS_TEXTO = 17
+
+/**
+ * O limite do texto que o cliente da ferramenta aceita (P-14: 60.000 caracteres sem a resposta do dono). Constante operacional,
+ * não regra de negócio. `list_channels` sai SEM indentação (medido na Tarefa 12: 15 canais passam do limite com a indentação de
+ * `toMcpSuccess` e cabem sem ela) e avisa o Sentry acima de 80% do limite.
+ */
+export const LIMITE_DO_TEXTO_DA_FERRAMENTA = 60_000
+
+/** O aviso nunca muda nem derruba a resposta; só o tamanho e o número de canais vão ao Sentry. */
+function avisarSeGrande(caracteres: number, canais: number): void {
+  try {
+    if (caracteres > 0.8 * LIMITE_DO_TEXTO_DA_FERRAMENTA) Sentry.captureMessage('e7.resposta_da_ferramenta_grande', { extra: { caracteres, canais } })
+  } catch {
+    // o aviso falhou: a resposta segue
+  }
+}
 
 function buildCtx(): ServiceContext {
   const mcp = getMcpContext()
@@ -43,7 +60,9 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
     switch (action) {
       case 'list_channels': {
         const result = await competitors.listCompetitorChannels(buildCtx())
-        return toMcpSuccess(result.data)
+        const text = JSON.stringify(result.data)
+        avisarSeGrande(text.length, result.data.channels?.length ?? 0)
+        return { content: [{ type: 'text', text }], isError: false }
       }
 
       case 'get_changes': {

@@ -50,7 +50,6 @@ export function estadoDaLinha(
   o: { proprio?: boolean; hojeSP: string; buscando?: boolean },
 ): EstadoDaLinha {
   if (o.proprio) {
-    // TEXTO-A-REVISAR (Logan/Naksu)
     return { ...base, pastilha: 'canal_proprio', linha: 'O estado do seu canal não é medido aqui.' }
   }
   const extrasNaoLidos = extras === null
@@ -62,12 +61,11 @@ export function estadoDaLinha(
     return { ...base, pastilha: 'fora_do_ar', dataOuDias: saiuEm, extrasNaoLidos, apoio: 'Sem resposta do YouTube em 2 leituras.' }
   }
   if (e.estado === 'medido' && e.valor === 'pausado') {
-    return { ...base, pastilha: 'pausado', extrasNaoLidos, linha: 'Coleta pausada' } // TEXTO-A-REVISAR (pergunta 10)
+    return { ...base, pastilha: 'pausado', extrasNaoLidos, linha: 'Coleta pausada' }
   }
   if (videosN === 0) {
     // zero vídeos no banco não é zero no YouTube: canal na 1ª busca, ou só com vídeos sem data, ainda está sendo lido
-    // TEXTO-A-REVISAR (Logan/Naksu)
-    if (o.buscando) return { ...base, pastilha: 'nao_medido', extrasNaoLidos, linha: 'ainda buscando os vídeos', longa: 'O canal ainda está na primeira busca: os vídeos ainda não foram lidos por inteiro.' }
+    if (o.buscando) return { ...base, pastilha: 'nao_medido', extrasNaoLidos, linha: 'ainda buscando os vídeos', longa: 'Primeira busca em andamento: os vídeos deste canal ainda não foram lidos por inteiro.' }
     return { ...base, pastilha: 'sem_videos', extrasNaoLidos, apoio: 'Ainda não publicou nada.' }
   }
   if (e.estado === 'nao_medido') {
@@ -82,7 +80,7 @@ export function estadoDaLinha(
   const quedaNaoMedida = queda.estado === 'nao_medido' && !dataDaQueda
     ? { motivo: queda.motivo, ...(queda.fechaEm ? { fechaEm: queda.fechaEm } : {}) } : null
   const quedaMedida = queda.estado === 'medido'
-  // TEXTO-A-REVISAR (Logan/Naksu): a linha do canal escreve o motivo da queda não medida
+  // a linha do canal escreve o motivo da queda não medida
   const quedaLinha = quedaNaoMedida ? `Em queda: não medido (${FRASES[quedaNaoMedida.motivo]({ fechaEm: quedaNaoMedida.fechaEm }, 'canais').curta})` : null
   const emQueda = e.valor === 'em_queda'
   const parado = m8.parado
@@ -90,7 +88,7 @@ export function estadoDaLinha(
   if (e.valor === 'parado') {
     const limite = parado.estado === 'medido' ? parado.valor.limite : null
     const passo = MEASURE_RULES.stalled.factor
-    // TEXTO-A-REVISAR (Logan/Naksu): o intervalo habitual só é recuperável quando o limite passa do piso de 28 dias
+    // o intervalo habitual só é recuperável quando o limite passa do piso de 28 dias
     const apoio = limite !== null && limite > MEASURE_RULES.stalled.floorDays ? `Costuma publicar a cada ${diasTxt(Math.round(limite / passo))}.` : null
     const ultimaEm = parado.estado === 'medido' ? parado.valor.ultimaEm : null
     return { ...base, pastilha: 'parado', dataOuDias: dias, ultimaEm, apoio, extrasNaoLidos, quedaMedida, quedaNaoMedida, quedaLinha,

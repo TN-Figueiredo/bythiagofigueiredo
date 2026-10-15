@@ -157,6 +157,11 @@ export async function fetchChannelStats(
   videoCount: number
   thumbnailUrl: string | null
   bannerUrl: string | null
+  /** Campos aditivos (A5 R9a): nulos quando o YouTube não informa; `subscriberCount`/`videoCount` acima viram 0 e não servem de retrato. */
+  subscriberCountRaw: number | null
+  viewCountRaw: number | null
+  videoCountRaw: number | null
+  hidden: boolean
 }> {
   const params = new URLSearchParams({
     part: 'snippet,statistics,brandingSettings',
@@ -165,15 +170,25 @@ export async function fetchChannelStats(
   })
   const data = (await ytFetch(`${BASE}/channels?${params}`)) as { items?: Array<{
     snippet?: { thumbnails?: { medium?: { url?: string } } }
-    statistics?: { subscriberCount?: string; videoCount?: string }
+    statistics?: { subscriberCount?: string; videoCount?: string; viewCount?: string; hiddenSubscriberCount?: boolean }
     brandingSettings?: { image?: { bannerExternalUrl?: string } }
   }> }
   const item = data.items?.[0]
+  const rawOf = (v: string | undefined): number | null => {
+    if (v === undefined) return null
+    const n = parseInt(v, 10)
+    return Number.isFinite(n) && n >= 0 ? n : null
+  }
+  const hidden = item?.statistics?.hiddenSubscriberCount === true
   return {
     subscriberCount: parseInt(item?.statistics?.subscriberCount ?? '0', 10),
     videoCount: parseInt(item?.statistics?.videoCount ?? '0', 10),
     thumbnailUrl: item?.snippet?.thumbnails?.medium?.url ?? null,
     bannerUrl: item?.brandingSettings?.image?.bannerExternalUrl ?? null,
+    subscriberCountRaw: hidden ? null : rawOf(item?.statistics?.subscriberCount),
+    viewCountRaw: rawOf(item?.statistics?.viewCount),
+    videoCountRaw: rawOf(item?.statistics?.videoCount),
+    hidden,
   }
 }
 

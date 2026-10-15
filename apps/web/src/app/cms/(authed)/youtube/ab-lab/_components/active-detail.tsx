@@ -119,7 +119,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       {/* ── Conditional Banners ── */}
       {view.graceExpiresAt && !view.winnerAppliedAt && (
         <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-amber-300">
                 Vencedor detectado — carência termina em{' '}
@@ -243,7 +243,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
             <span className="text-[13px] font-semibold text-cms-text">Métricas computadas</span>
           </div>
           {/* card-pad */}
-          <div className="flex gap-[24px] px-[16px] py-[14px]">
+          <div className="flex flex-wrap gap-[24px] px-[16px] py-[14px]">
             {view.outlier && (
               <div>
                 <span className="eyebrow">Outlier</span>

@@ -12,15 +12,13 @@ export type CelulaDeDirecao =
     tipo: 'medido'; pct: number; simbolo: SimboloDeDirecao; texto: string; ganhoRecente: number; ganhoAnterior: number
     foraDaEscala: 'acima' | 'abaixo' | null; fracao: number; avisoDeContagem: { ate: string } | null
   }
-  | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; curta: string; longa: string; fechaEm?: string }
+  | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; curta: string; longa: string; fechaEm?: string; n?: number }
   | { tipo: 'nao_carregou'; motivo: MotivoNaoMedido }
   /** O canal próprio: o YouTube não dá o número, e ele fica fora das quatro casas e das contagens dos filtros. */
   | { tipo: 'canal_proprio'; curta: string; longa: string }
 
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-// TEXTO-A-REVISAR (Logan/Naksu): a frase do canal próprio é a do mockup 16 (S4); a longa repete a curta.
 export const FRASE_CANAL_PROPRIO = 'o YouTube não dá esse número do seu canal'
-// TEXTO-A-REVISAR (Logan/Naksu): a frase do canal sem vídeos é a do mockup 16.
 export const FRASE_SEM_VIEWS = `sem views nos ${MEASURE_RULES.direction.windowDays * 2} dias para comparar`
 
 /**
@@ -41,7 +39,7 @@ export function celulaDeDirecao(
     if (classeDoMotivo(m3a.motivo) === 'nao_carregou') return { tipo: 'nao_carregou', motivo: m3a.motivo }
     const f = FRASES[m3a.motivo]({ desde: m3a.desde, fechaEm: m3a.fechaEm, n: m3a.n, minimo: m3a.minimo }, 'canais')
     const curta = o.semVideos && m3a.motivo === 'base_zero' ? FRASE_SEM_VIEWS : f.curta
-    return { tipo: 'nao_medido', motivo: m3a.motivo, curta, longa: f.longa, ...(m3a.fechaEm ? { fechaEm: m3a.fechaEm } : {}) }
+    return { tipo: 'nao_medido', motivo: m3a.motivo, curta, longa: f.longa, ...(m3a.fechaEm ? { fechaEm: m3a.fechaEm } : {}), ...(m3a.n != null ? { n: m3a.n } : {}) }
   }
   const { ganhoRecente, ganhoAnterior } = m3a.valor
   const pct = pctDosGanhos(ganhoRecente, ganhoAnterior)
@@ -75,7 +73,6 @@ export function resumoDeDirecao(celulas: readonly CelulaDeDirecao[]): ResumoDeDi
   }
   const canais = sobe + estavel + desce + naoMedido + naoCarregou
   if (canais > 0 && naoCarregou === canais) {
-    // TEXTO-A-REVISAR (Logan/Naksu)
     return { sobe: null, estavel: null, desce: null, naoMedido: null, naoCarregou, canais, medidos: 0, frase: `A direção não carregou em ${pl(naoCarregou, 'canal', 'canais')}.` }
   }
   const medidos = sobe + estavel + desce
@@ -83,7 +80,6 @@ export function resumoDeDirecao(celulas: readonly CelulaDeDirecao[]): ResumoDeDi
   if (medidos > 0) {
     partes.push([`${sobe} subindo`, `${estavel} sem mudança`, `${desce} descendo`].join(', '))
   }
-  // TEXTO-A-REVISAR (Logan/Naksu): a frase do resumo de direção não está fixada letra por letra para todos os casos
   let frase = partes.join('')
   if (medidos < canais - naoCarregou && medidos > 0) frase += `. Direção medida em ${medidos} de ${canais} canais`
   else if (medidos === 0 && canais > 0) frase = `Direção ainda não medida em ${pl(naoMedido, 'canal', 'canais')}`

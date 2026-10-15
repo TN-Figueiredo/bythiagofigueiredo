@@ -20,17 +20,21 @@ const LISTA: ParDaLista[] = [
   { arquivo: 'src/lib/pipeline/services/forja-queue.ts', tabela: 'youtube_intelligence_tasks', disparo: 'dono', classe: 'fila (só as pendentes)' },
   { arquivo: 'src/lib/pipeline/services/forja-queue.ts', tabela: 'competitor_readings', disparo: 'forja', classe: 'desfaz gravação órfã ou incompleta' },
   // R6: o apagamento por idade que a lista do spec não tinha. EXCEÇÃO declarada (pergunta R-A ao dono): nada sai antes de o retrato fazer 365 dias.
-  { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'competitor_channel_snapshots', disparo: 'cron', classe: 'retrato de canal com mais de 365 dias', excecao: 'R-A' },
+  { arquivo: 'src/lib/youtube/competitor-snapshot-prune.ts', tabela: 'competitor_channel_snapshots', disparo: 'cron', classe: 'retrato de canal com mais de 365 dias', excecao: 'R-A' },
   // Fora do Observatório (A/B Lab), mas na pasta varrida: classificado para não sair da lista sem aviso.
   { arquivo: 'src/app/api/cron/ab-watchdog/route.ts', tabela: 'ab_test_polls', disparo: 'cron', classe: 'leitura do A/B Lab com mais de 7 dias (não é do Observatório)' },
   // Linha 17 (E10 T11a): o único `del` do Blob do Observatório. Prefixo `observatorio/thumbs/`, conferido por `soMiniaturasDoObservatorio`.
   { arquivo: 'src/lib/youtube/observatorio/arquivo/remover.ts', tabela: 'blob', disparo: 'dono', classe: 'miniatura de canal removido, com cópia conferida no arquivo (prefixo observatorio/thumbs/; nova tentativa diária das pendências)' },
-  // (volta com a E17 d2: a poda do acesso externo da IA, `acesso-ia/poda.ts`, obs_ai_access_log e obs_ai_rate, fica fora deste envio)
+  // A5 E9 T5: o `del` do Blob da fila "Saíram do YouTube" (só `observatorio/thumbs/`, filtrado por `soMiniaturasDoObservatorio`).
+  { arquivo: 'src/lib/youtube/observatorio/saiu/blob.ts', tabela: 'blob', disparo: 'dono', classe: 'miniaturas do item que o dono mandou apagar na fila (prefixo observatorio/thumbs/; o que falha fica em blobs_pending)' },
+  // Poda do acesso externo da IA (E17, MG11): a tabela chega por parâmetro de `podarTabela`, resolvido em PARAMETROS_RESOLVIDOS.
+  { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_access_log', disparo: 'cron', classe: 'registro de acesso da IA com mais de 400 dias' },
+  { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_rate', disparo: 'cron', classe: 'contador de taxa da IA com mais de 2 dias' },
 ]
 
 /** Identificador de `from(...)` que não é constante, e sim parâmetro: vale só para o par (arquivo, identificador), com os valores conferidos no próprio texto. */
 const PARAMETROS_RESOLVIDOS: Array<{ arquivo: string; ident: string; funcao: string; valores: string[] }> = [
-  // (volta com a E17 d2: `acesso-ia/poda.ts`, parâmetro `tabela` de `podarTabela`)
+  { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', ident: 'tabela', funcao: 'podarTabela', valores: ['obs_ai_access_log', 'obs_ai_rate'] },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por idade nem por cron. A exceção declarada tem nome. */
@@ -217,8 +221,8 @@ describe('A5 E10 T10: a lista fechada do que apaga (estático)', () => {
     const cron = LISTA.filter(p => p.disparo === 'cron' && PROIBIDAS_POR_CRON.includes(p.tabela))
     expect(cron.map(p => `${p.tabela}:${p.excecao ?? 'SEM EXCEÇÃO'}`)).toEqual(['competitor_channel_snapshots:R-A'])
     // a exceção só vale para a retenção de 365 dias do próprio arquivo citado
-    const texto = readFileSync(join(WEB, 'src/app/api/cron/ab-watchdog/route.ts'), 'utf8')
-    expect(texto).toMatch(/365 \* 86400000/)
+    const texto = readFileSync(join(WEB, 'src/lib/youtube/competitor-snapshot-prune.ts'), 'utf8')
+    expect(texto).toMatch(/RETENCAO_DE_RETRATOS_DIAS = 365/)
   })
 
   it('o conjunto proibido não mudou sem querer', () => {

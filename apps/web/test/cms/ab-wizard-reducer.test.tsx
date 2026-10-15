@@ -42,7 +42,6 @@ describe('makeOriginalVariant', () => {
       isOriginal: true,
       thumbUrl: null,
       titleText: 'Hello World',
-      descriptionText: '',
     })
   })
 })
@@ -55,7 +54,6 @@ describe('makeEmptyVariant', () => {
       isOriginal: false,
       thumbUrl: null,
       titleText: '',
-      descriptionText: '',
     })
   })
 })
@@ -322,16 +320,6 @@ describe('stepIsValid', () => {
       variants: [
         makeOriginalVariant('V'),
         { ...makeEmptyVariant('B'), titleText: 'Alt title' },
-      ],
-    })
-    expect(stepIsValid(2, state)).toBe(true)
-  })
-
-  it('step 2 is valid when a challenger has descriptionText', () => {
-    const state = baseState({
-      variants: [
-        makeOriginalVariant('V'),
-        { ...makeEmptyVariant('B'), descriptionText: 'Some desc' },
       ],
     })
     expect(stepIsValid(2, state)).toBe(true)
