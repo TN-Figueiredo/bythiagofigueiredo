@@ -593,12 +593,14 @@ async function readSiteLive<S>(sb: SupabaseClient, siteId: string, now: number, 
 
 /** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
 export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
-  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, () => Promise.all([
+  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, () => {
+    const ownP = readOwnChannels(sb, siteId)
+    return Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
-    readOwnChannels(sb, siteId),
+    ownP,
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
-  ] as const), true)
-  const ownSnapshots = await readOwnSnapshots(sb, ownChannels, now)
+    ownP.then(o => readOwnSnapshots(sb, o, now)), // M2: encadeada na própria promessa, sem ida em série depois do Promise.all
+  ] as const)}, true)
   return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, seriesStartAt: seriesStartAt(ssAt) }
 }
 
@@ -663,11 +665,11 @@ export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, ch
   if (!channel && !own) return null
 
   // competitor_changes has no channel column, so the trade rows are the site's; only a competitor's videos can have them
-  const { settings, ssAt, specificRows: [siteScope, ownVideos], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
+  const { settings, ssAt, specificRows: [siteScope, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
     readSiteScope(sb, siteId, seriesStartAt(ssAt), now),
     own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', id).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
+    readOwnSnapshots(sb, own ? [own] : [], now),
   ] as const), channel != null)
-  const ownSnapshots = await readOwnSnapshots(sb, own ? [own] : [], now)
   return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, seriesStartAt: seriesStartAt(ssAt), siteScope }
 }
 

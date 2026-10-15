@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { CelulaDica } from '@/app/cms/(authed)/youtube/competitors/_canais/celula-dica'
@@ -105,9 +105,11 @@ describe('CelulaDica', () => {
     fireEvent.keyDown(g, { key: 'Enter' })
     expect(screen.getByRole('tooltip')).toBeTruthy()
     expect(g.getAttribute('aria-expanded')).toBe('true')
+    // Gio leva 2: Enter/Espaço com a dica já aberta a MANTÊM aberta (só Esc, Tab ou sair fecham)
     const naoCancelado = fireEvent.keyDown(g, { key: ' ' }) // fireEvent devolve false quando preventDefault foi chamado
     expect(naoCancelado).toBe(false)
-    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(g.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.keyDown(g, { key: 'Escape' })
     expect(g.getAttribute('aria-expanded')).toBe('false')
   })
   // Naksu A8/A9: o que o CSS precisa garantir (o jsdom não faz layout; a medida real é o e2e do caso 6).
@@ -166,5 +168,40 @@ describe('CelulaDica: teclado (Yannis I1/M2, Gio F2a)', () => {
   it('roving: linhas distintas têm cada uma a sua parada', () => {
     render(<><div data-id="r1">{dica('A', 'a')}{dica('B', 'b')}</div><div data-id="r2">{dica('C', 'c')}{dica('D', 'd')}</div></>)
     expect(screen.getAllByRole('button').map(x => x.tabIndex)).toEqual([0, -1, 0, -1])
+  })
+  it('N1: o foco sai da linha => a primeira volta a ser a parada de Tab', () => {
+    render(<div data-id="r1">{dica('A', 'a')}{dica('B', 'b')}{dica('C', 'c')}</div>)
+    const [a, b, c] = screen.getAllByRole('button')
+    c!.focus(); fireEvent.focus(c!)
+    expect([a, b, c].map(x => x!.tabIndex)).toEqual([-1, -1, 0])
+    fireEvent.blur(c!, { relatedTarget: document.body })
+    expect([a, b, c].map(x => x!.tabIndex)).toEqual([0, -1, -1])
+  })
+  it('N1: a ativa sai do DOM (desmonta) => a primeira restante vira a parada', () => {
+    const linha = (com: boolean) => <div data-id="r1">{dica('A', 'a')}{com && dica('B', 'b')}{dica('C', 'c')}</div>
+    const { rerender } = render(linha(true))
+    const [, b] = screen.getAllByRole('button')
+    b!.focus(); fireEvent.focus(b!)
+    expect(b!.tabIndex).toBe(0)
+    rerender(linha(false))
+    expect(screen.getAllByRole('button').map(x => x.tabIndex)).toEqual([0, -1])
+  })
+  it('N1: a ativa fica numa coluna escondida (display:none, como .drawer-open .c-hide) => outra visível assume', () => {
+    const linha = (esconde: boolean) => <div data-id="r1">{dica('A', 'a')}<div style={{ display: esconde ? 'none' : 'block' }}>{dica('B', 'b')}</div></div>
+    const { rerender } = render(linha(false))
+    const [a, b] = screen.getAllByRole('button')
+    b!.focus(); fireEvent.focus(b!)
+    expect([a, b].map(x => x!.tabIndex)).toEqual([-1, 0])
+    rerender(linha(true))
+    // a coluna escondeu sem remontar: o evento ATIVA recalcula (aqui, ao focar de novo a A e voltar)
+    act(() => { b!.parentElement!.parentElement!.dispatchEvent(new Event('canais:cdica-ativa')) })
+    expect([a, b].map(x => x!.tabIndex)).toEqual([0, -1])
+  })
+  it('Enter com a dica já aberta pelo foco a mantém aberta', () => {
+    render(dica('A', 'a'))
+    const a = screen.getByRole('button')
+    a.focus(); fireEvent.focus(a)
+    fireEvent.keyDown(a, { key: 'Enter' })
+    expect(a.getAttribute('aria-expanded')).toBe('true')
   })
 })

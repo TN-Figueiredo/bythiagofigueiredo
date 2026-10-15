@@ -10,6 +10,8 @@ const LINHA = '[data-id]'
 
 /** O grupo de Tab de uma dica: a linha (ou cartão) onde ela está; fora de uma linha, o pai. */
 const grupoDe = (el: HTMLElement | null): HTMLElement | null => el?.closest<HTMLElement>(LINHA) ?? el?.parentElement ?? null
+/** Escondida por display:none nela ou num ancestral até a linha (ex.: `.drawer-open .c-hide`). */
+const visivel = (el: HTMLElement, g: HTMLElement): boolean => { for (let n: HTMLElement | null = el; n; n = n === g ? null : n.parentElement) if (getComputedStyle(n).display === 'none') return false; return true }
 const irmas = (g: HTMLElement | null): HTMLElement[] => (g ? [...g.querySelectorAll<HTMLElement>('[data-cdica]')] : [])
 
 /** A mesma máquina do `Tip` de cells.tsx (hov e foc separados; Esc fecha e mantém o foco; `shown` = a caixa está de fato no documento). */
@@ -44,10 +46,16 @@ export function CelulaDica({ texto, children, className }: { texto: string; chil
   useEffect(() => {
     const el = ref.current, g = grupoDe(el)
     if (!el || !g) return
-    const calcula = () => { const ativa = g.dataset.cdicaAtiva; setTab(ativa ? ativa === id : irmas(g)[0] === el) }
+    // Re-revisão N1: a ativa só vale se ainda está na linha E visível (coluna escondida por `.drawer-open .c-hide` não é parada de Tab); senão a primeira visível da linha assume.
+    const calcula = () => {
+      const todas = irmas(g)
+      const viva = todas.some(x => x.dataset.cdicaId === g.dataset.cdicaAtiva && visivel(x, g))
+      const ativa = viva ? g.dataset.cdicaAtiva : undefined
+      setTab(ativa ? ativa === id : (todas.find(x => visivel(x, g)) ?? todas[0]) === el)
+    }
     calcula()
     g.addEventListener(ATIVA, calcula)
-    return () => g.removeEventListener(ATIVA, calcula)
+    return () => { g.removeEventListener(ATIVA, calcula); g.dispatchEvent(new Event(ATIVA)) }
   }, [id])
   const ativar = () => { const g = grupoDe(ref.current); if (g) { g.dataset.cdicaAtiva = id; g.dispatchEvent(new Event(ATIVA)) } }
   // Yannis M2: os ouvintes globais só existem enquanto ESTA dica está aberta (O(1) por evento, não O(linhas × colunas)).
@@ -61,19 +69,26 @@ export function CelulaDica({ texto, children, className }: { texto: string; chil
   }, [d.aberta, id]) // eslint-disable-line react-hooks/exhaustive-deps -- `d.fechar` é estável em comportamento
   const avisar = () => window.dispatchEvent(new CustomEvent(FECHAR_OUTRAS, { detail: id }))
   const alternar = () => { if (d.aberta) d.fechar(); else { avisar(); d.abrirPorToque() } }
+  // Gio leva 2 (menor): Enter/Espaço com a dica já aberta (pelo foco) a MANTÊM aberta; só abre se estava fechada. Fechar é Esc, Tab ou sair.
+  const abrirPorTeclado = () => { if (!d.aberta) { avisar(); d.abrirPorToque() } }
   return (
     <span
-      ref={ref} role="button" tabIndex={tab ? 0 : -1} data-cdica="" aria-expanded={d.aberta} aria-describedby={d.shown ? id : undefined}
+      ref={ref} role="button" tabIndex={tab ? 0 : -1} data-cdica="" data-cdica-id={id} aria-expanded={d.aberta} aria-describedby={d.shown ? id : undefined}
       className={`${CELULA_DICA_CLASSE}${d.aberta ? ' on' : ''}${className ? ' ' + className : ''}`}
       onPointerDownCapture={e => { ultimoPonteiro.current = e.pointerType }}
       onMouseEnter={() => { if (ultimoPonteiro.current === 'touch') return; avisar(); d.handlers.onMouseEnter() }}
       onMouseLeave={d.handlers.onMouseLeave}
       onFocus={() => { ativar(); if (ultimoPonteiro.current === 'touch') return; avisar(); d.handlers.onFocus() }}
       // Yannis I1: o foco sair da célula FECHA a dica do teclado (aberta por Enter, ela ficava sobre a tabela e o Esc, sem foco, não a fechava)
-      onBlur={() => { ultimoPonteiro.current = 'mouse'; d.desfocar() }}
+      onBlur={e => {
+        ultimoPonteiro.current = 'mouse'; d.desfocar()
+        // N1: o foco saiu da linha => esquece a ativa (a primeira volta a ser a parada de Tab)
+        const g = grupoDe(ref.current)
+        if (g && !g.contains(e.relatedTarget as Node | null)) { delete g.dataset.cdicaAtiva; g.dispatchEvent(new Event(ATIVA)) }
+      }}
       onKeyDown={e => {
         // Naksu A7: Enter e Espaço alternam (a caixa antes só abria pelo foco). Só quando o foco está no próprio gatilho, não num link dentro dele.
-        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); alternar(); return }
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); abrirPorTeclado(); return }
         if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && e.target === e.currentTarget) {
           const todas = irmas(grupoDe(ref.current)), i = todas.indexOf(e.currentTarget as HTMLElement), alvo = todas[i + (e.key === 'ArrowRight' ? 1 : -1)]
           if (alvo) { e.preventDefault(); alvo.focus() }
