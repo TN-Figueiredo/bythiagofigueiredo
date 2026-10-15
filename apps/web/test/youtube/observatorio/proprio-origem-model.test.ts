@@ -195,7 +195,7 @@ describe('buildOrigem: cobertura parcial, magro, zero, não medido, revisão', (
     expect(b.linhas.find(l => l.tipo === 'omitido')?.valor).toBe(140)
     expect(b.linhas.reduce((s, l) => s + l.valor, 0)).toBe(700)
     expect(b.linhas.reduce((s, l) => s + l.pct, 0)).toBe(100)
-    expect(b.frase).toContain('de valores que ainda não sabemos nomear')
+    expect(b.frase).toContain('de origem nova, ainda sem nome')
   })
   it('nenhuma porcentagem aparece quando o bloco não é medido', () => {
     const lista = TIP7.map((d): [string, Dia] => [d, { base: 455, linhas: {} }])
@@ -275,7 +275,7 @@ describe('buildOrigem: acesso, privacidade e erro', () => {
       periodos: [per('tudo', 'Desde 2024', TIP7[0]!, ATE, null, null)],
       origem: ok({ dimensoes: dims(), diario: null as never, diarioInteiro: null, motivoInteiro: motivo, trechos: 1 }),
     })).periodos[0]!.grupo.total
-    expect(tudo('teto')).toBe('não medido: o canal passou do tamanho que esta tela lê de uma vez')
+    expect(tudo('teto')).toBe('o canal tem vídeos demais para esta tela ler de uma vez')
     expect(tudo('erro')).toBe('Não conseguimos ler agora. Tente de novo.')
     expect(tudo('teto')).not.toBe(tudo('erro'))
   })
@@ -314,7 +314,7 @@ describe('buildOrigem: vídeos fora, parados, totais e vídeo novo', () => {
   it('total nulo por buraco: a célula lê não medido com a contagem, e o rodapé tem uma frase só', () => {
     const p = per('90', '90 dias', TIP7[0]!, ATE, null, { naConta: 35, fora: 0, parados: 0, paradosDesde: null, comBuraco: 1 })
     const v = buildOrigem(entrada({ periodos: [p] }))
-    expect(grupo(v).total).toBe('não medido: 34 de 35 vídeos com o período inteiro medido')
+    expect(grupo(v).total).toBe('34 de 35 vídeos com o período inteiro medido')
     expect(bloco(v, 'origem').rodape).toBe('A divisão acima usa só as 3.185 views dos dias medidos.')
   })
   it('vídeo novo (menos de 3 dias): "Ainda não existe" em todos os blocos, com a primeira leitura', () => {
@@ -354,7 +354,7 @@ describe('buildOrigem: a faixa de duas células do topo da aba (Yannis I3)', () 
   it('total nulo: o valor lê "não medido" e a subfrase traz o motivo do grupo', () => {
     const f = faixaDe(buildOrigem(entrada({ periodos: [per('7', '7 dias', TIP7[0]!, ATE, null, { naConta: 35, fora: 0, parados: 0, paradosDesde: null, comBuraco: 2 })] })))
     expect(f.views.valor).toBe('não medido')
-    expect(f.views.sub).toBe('não medido: 33 de 35 vídeos com o período inteiro medido')
+    expect(f.views.sub).toBe('33 de 35 vídeos com o período inteiro medido')
   })
   it('antes da coleta: "0" e "de 7 · a coleta começa em dd/mm", nunca uma porcentagem', () => {
     const lista = TIP7.map((d): [string, Dia] => [d, { base: 455, linhas: {} }])

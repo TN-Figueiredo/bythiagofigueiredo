@@ -216,6 +216,13 @@ describe('E5b T17: a aba Origem (17b) e os cartões da aba Retenção (17a) vão
     expect(state.origem).not.toHaveBeenCalled(); expect(state.termos).not.toHaveBeenCalled(); expect(state.longo).not.toHaveBeenCalled()
   })
 
+  it('Gio F1: os dois Suspense chegam à tela do canal com chave própria (sem aviso de "key" do React com ?tab=origem ou ?tab=retencao)', async () => {
+    const el = await rota(w.canalId)
+    const o = prop(el, 'origem')!, p = prop(el, 'periodos')!
+    expect(o.key).toEqual(expect.any(String)); expect(p.key).toEqual(expect.any(String))
+    expect(o.key).not.toBe(p.key)
+  })
+
   it('canal próprio sem prova (quem só lê): lerOrigem e lerTermosESites não são chamados e a vista é "só o aviso", sem número', async () => {
     cenario({ leitura: null })
     state.dados.mockImplementation(async () => DADOS.negado(w.canalId, w.ytIds, w.hoje))

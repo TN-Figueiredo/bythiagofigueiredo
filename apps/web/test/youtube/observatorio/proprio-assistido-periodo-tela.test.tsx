@@ -127,7 +127,7 @@ describe('E5b T15: cartões de % assistido por período', () => {
     abrir({ normais: { inteiro: ok('inteiro', 47, 300000), '90': ok('90', 49, 40000), '28': sem('28', 'cobertura-parcial', 340) }, buracos: { inteiro: { comBuraco: 0, naConta: 35 }, '90': { comBuraco: 0, naConta: 35 }, '28': { comBuraco: 2, naConta: 34 } } })
     const c = radios()[2]!
     expect(c.querySelector('.obs-ch-nm')).not.toBeNull()
-    expect(c.textContent).toContain('não medido: 2 de 34 vídeos sem o período inteiro medido')
+    expect(c.textContent).toContain('2 de 34 vídeos com dias sem leitura no período')
     expect(c.textContent).not.toContain('poucas views')
   })
 
@@ -146,7 +146,7 @@ describe('E5b T15: cartões de % assistido por período', () => {
     expect(container.textContent).not.toContain('Perto do normal do canal')
     await userEvent.click(radios()[1]!)  // 90 dias
     expect(marca()!.style.left).toBe('40%')
-    expect(container.querySelector('.vb-as-med')!.textContent).toContain('normal do canal: 40%')
+    expect(container.querySelector('.vb-as-med')!.textContent).toContain('normal do canal (90 dias): 40%')
   })
 
   it('a barra sem a marca (esqueleto e leitura falha) não desenha o normal', () => {

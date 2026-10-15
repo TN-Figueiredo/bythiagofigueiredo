@@ -342,7 +342,7 @@ export async function resetViewerPrefs(siteId: string, client?: SupabaseClient):
 export async function clearOwnL2(siteId: string, client?: SupabaseClient, ownIds?: string[]): Promise<void> {
   const sb = clientOf(client)
   const ids = ownIds ?? ['tnfigueiredo', ...OWN_EXTRA_IDS].map(id => ownSeedUuid(siteId, id))
-  for (const t of ['yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
+  for (const t of ['yt_own_video_coverage', 'yt_own_video_reach_daily', 'yt_own_video_daily', 'yt_own_video_dim_daily', 'yt_own_video_traffic_detail_daily', 'yt_own_video_reach_dim_daily', 'yt_reporting_reports', 'yt_reporting_jobs']) {
     await check('delete ' + t, sb.from(t).delete().eq('site_id', siteId).in('channel_id', ids))
   }
 }

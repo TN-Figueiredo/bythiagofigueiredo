@@ -197,7 +197,7 @@ export interface EntradaOrigemCartao {
 }
 
 export const TEXTO_ERRO_LINHA = 'Não conseguimos ler agora'
-const TEXTO_CADEADO = 'só para quem edita' // TEXTO-A-REVISAR
+const TEXTO_CADEADO = 'só para quem edita'
 const ROTULO_LINHA: Record<'origem' | 'termos' | 'aparelho' | 'pais' | 'inscritos', { rotulo: string; sub: string }> = {
   origem: { rotulo: 'Origem das views', sub: 'últimos 7 dias' },
   termos: { rotulo: 'Termos de pesquisa', sub: 'últimos 7 dias' },
@@ -244,10 +244,10 @@ function linhaDoBloco(id: (typeof IDS_ORIGEM)[number], b: BlocoView | undefined)
     case 'medido': {
       const v = valorDoBloco(id, b)
       // medido sem nenhuma linha com número (tudo omitido pelo YouTube): não é zero e não é medido bonito
-      if (!v) return base('nao_medido', { nota: 'o YouTube não deu o detalhe' }) // TEXTO-A-REVISAR
+      if (!v) return base('nao_medido', { nota: 'o YouTube omitiu tudo' })
       const omitido = b.linhas.find(l => l.tipo === 'omitido')
       // o YouTube escondeu a maior parte: o número é verdadeiro mas de pouca base, e o cartão diz
-      const nota = id === 'origem' && omitido && omitido.pct > 50 ? `o YouTube omitiu ${omitido.pctTexto} das views` : null // TEXTO-A-REVISAR
+      const nota = id === 'origem' && omitido && omitido.pct > 50 ? `o YouTube omitiu ${omitido.pctTexto} das views` : null
       return base('medido', { valor: v.valor, barra: v.barra, nota, fraco: nota != null })
     }
     default: { const nunca: never = b.estado; return nunca }

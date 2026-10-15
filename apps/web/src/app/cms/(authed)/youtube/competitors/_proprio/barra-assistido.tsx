@@ -5,7 +5,8 @@
  */
 import { marcaDaBarra, type BlocoAssistido } from './video-blocos-model'
 
-export function BarraAssistido({ a, normal }: { a: BlocoAssistido; normal?: number | null }) {
+/** `rotuloPeriodo` = a que período o normal da marca se refere ("28 dias", "canal inteiro"); sem ele a etiqueta fica como era (Logan D1). */
+export function BarraAssistido({ a, normal, rotuloPeriodo }: { a: BlocoAssistido; normal?: number | null; rotuloPeriodo?: string }) {
   if (a.estado === 'nao-medido' || a.barraPct == null) return null
   const pouco = a.estado === 'pouco'
   // abaixo de 10 views não se compara: sem marca, qualquer que seja o período
@@ -19,7 +20,7 @@ export function BarraAssistido({ a, normal }: { a: BlocoAssistido; normal?: numb
       {a.marcas ? <div className="vb-as-tk" aria-hidden="true"><span>{a.marcas[0]}</span><span>{a.marcas[1]}</span><span>{a.marcas[2]}</span></div> : null}
       {marca ? (
         <div className="vb-as-med" aria-hidden="true">
-          <span className={'vb-as-med-' + marca.rotuloAncora} style={marca.rotuloAncora === 'meio' ? { left: `${marca.marcaPct}%` } : undefined}>normal do canal: {marca.normalTexto}</span>
+          <span className={'vb-as-med-' + marca.rotuloAncora} style={marca.rotuloAncora === 'meio' ? { left: `${marca.marcaPct}%` } : undefined}>{rotuloPeriodo ? `normal do canal (${rotuloPeriodo}): ` : 'normal do canal: '}{marca.normalTexto}</span>
         </div>
       ) : null}
     </>

@@ -362,6 +362,10 @@
   [data-obs-screen="canal"] .ctabs ul::-webkit-scrollbar{display:none}
 }
 @media (pointer:coarse){[data-obs-screen="canal"] .ctabs a{min-height:44px}}
+@media (max-width:640px){
+  [data-obs-screen="canal"] .ctabs ul{flex:1 1 100%;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  [data-obs-screen="canal"] .ctabs a{padding:0 10px}
+}
 
 /* ---------------------------------------------------------------- aba Trocas (spec 5.7; mockup canal.css "ABA TROCAS", rodadas 3 e 4) */
 [data-obs-screen="canal"] .ct-sec{margin-top:6px}

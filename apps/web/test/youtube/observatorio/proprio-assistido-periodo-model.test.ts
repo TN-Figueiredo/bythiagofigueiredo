@@ -63,16 +63,16 @@ describe('E5b T15: modelo de % assistido por período', () => {
     expect(v.conteudos['28'].frase?.texto).toBe('Sem comparação com os últimos 28 dias: o canal teve só 340 views no período (precisa de 1.000).')
   })
 
-  it('cobertura-parcial: "não medido: N de M vídeos sem o período inteiro medido", e o cartão não diz "poucas views"', () => {
+  it('cobertura-parcial: "N de M vídeos com dias sem leitura no período", e o cartão não diz "poucas views"', () => {
     const v = buildAssistidoPeriodos(entrada({ normais: { inteiro: ok('inteiro', 47, 300000), '90': ok('90', 49, 40000), '28': sem('28', 'cobertura-parcial', 340) }, buracos: { inteiro: { comBuraco: 0, naConta: 35 }, '90': { comBuraco: 0, naConta: 35 }, '28': { comBuraco: 2, naConta: 34 } } }))
     const c = v.cartoes[2]!
-    expect([c.valor, c.seta, c.legenda]).toEqual([null, null, 'não medido: 2 de 34 vídeos sem o período inteiro medido'])
+    expect([c.valor, c.seta, c.legenda]).toEqual([null, null, '2 de 34 vídeos com dias sem leitura no período'])
     expect(JSON.stringify(c)).not.toContain('poucas views')
   })
 
   it('cobertura não conhecida: "não sabemos se o período inteiro foi coletado"', () => {
     const v = buildAssistidoPeriodos(entrada({ normais: { inteiro: ok('inteiro', 47, 300000), '90': ok('90', 49, 40000), '28': sem('28', 'cobertura-parcial', 340) }, buracos: { inteiro: null, '90': null, '28': null } }))
-    expect(v.cartoes[2]?.legenda).toBe('não medido: não sabemos se o período inteiro foi coletado')
+    expect(v.cartoes[2]?.legenda).toBe('não sabemos se todos os dias foram coletados')
   })
 
   it('diário que começa depois da publicação: o primeiro cartão se chama "Desde dd/mm/aaaa"', () => {
@@ -117,14 +117,14 @@ describe('E5b T15: modelo de % assistido por período', () => {
     const f = faixasOk()!
     f['28'][0] = { faixa: 'ate-5', normal: sem('28', 'poucas-views', 100) }
     const v = buildAssistidoPeriodos(entrada({ tela: 'canal', faixas: f }))
-    expect(v.conteudos['28'].tabela![0]?.celulas['28']).toMatchObject({ estado: 'sem-numero', valor: null, seta: null, semNumero: 'poucas views', legenda: '100 de 1.000' })
+    expect(v.conteudos['28'].tabela![0]?.celulas['28']).toMatchObject({ estado: 'sem-numero', valor: null, seta: null, semNumero: 'poucas views', legenda: '100 de 1.000 views' })
   })
 
-  it('faixa com views mas menos de 5 vídeos: "poucos vídeos (n; precisa de 5)"', () => {
+  it('faixa com views mas menos de 5 vídeos: "n de 5 vídeos"', () => {
     const f = faixasOk()!
     f['90'][2] = { faixa: 'acima-15', normal: { ...sem('90', 'poucas-views'), motivo: null, views: 5000, videos: 3 } }
     const v = buildAssistidoPeriodos(entrada({ tela: 'canal', faixas: f }))
-    expect(v.conteudos['90'].tabela![2]?.celulas['90']?.legenda).toBe('poucos vídeos (3; precisa de 5)')
+    expect(v.conteudos['90'].tabela![2]?.celulas['90']?.legenda).toBe('3 de 5 vídeos')
   })
 
   it('o título da lista segue o período', () => {

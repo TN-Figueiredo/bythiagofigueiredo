@@ -78,7 +78,7 @@ function SecAssistido({ a, periodos }: { a: BlocoAssistido; periodos?: ReactNode
           {/* com os cartões de período, a barra, a marca e a comparação são deles (`AssistidoPeriodos`): o "normal" segue o período escolhido, nunca fica um segundo, de 28 dias, ao lado */}
           {periodos ? null : (
             <>
-              <BarraAssistido a={a} />
+              <BarraAssistido a={a} rotuloPeriodo="canal inteiro" />
               {a.contra && a.direcao ? <p className={'vb-nt vb-dir-' + a.direcao}><span aria-hidden="true">{SIMBOLO[a.direcao]}</span> {a.contra}</p> : null}
               {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
             </>

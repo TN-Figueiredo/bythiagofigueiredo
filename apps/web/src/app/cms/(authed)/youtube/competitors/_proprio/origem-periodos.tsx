@@ -54,8 +54,8 @@ export function OrigemPeriodos({ opcoes, conteudos, padrao, lembranca, dica }: {
           ))}
         </div>
         {salvo && periodo !== padrao ? (
-          // TEXTO-A-REVISAR: "Voltar ao padrão" (o plano fixa só a frase da lembrança)
-          <p className="ov-lem">{lembranca} <button type="button" className="ov-lk" onClick={() => escolher(padrao)}>Voltar ao padrão</button></p>
+          // mesmo conceito, mesmo nome do % assistido da A4: "Salvo neste navegador" e "Voltar ao padrão (rótulo do padrão)"
+          <p className="ov-lem">{lembranca} <button type="button" className="ov-lk" onClick={() => escolher(padrao)}>Voltar ao padrão ({opcoes.find(o => o.id === padrao)?.rotulo ?? padrao})</button></p>
         ) : null}
       </div>
       {dica ? <p className="ov-lem">{dica}</p> : null}

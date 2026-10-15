@@ -46,3 +46,5 @@
   .ap-t .s{display:inline}
   .ap-c{padding:10px 8px}
 }
+/* alvo de 44 px em ponteiro grosso; a margem negativa guarda o ritmo do texto (Naksu N6) */
+@media (pointer:coarse),(max-width:640px){.ap-info{min-width:44px;min-height:44px;margin:-10px}}

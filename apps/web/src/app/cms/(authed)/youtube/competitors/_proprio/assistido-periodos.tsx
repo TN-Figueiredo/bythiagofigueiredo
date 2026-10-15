@@ -17,6 +17,8 @@ import './assistido-periodo.css'
 
 const valido = (x: string | null | undefined): x is PeriodoAssistido => x != null && (PERIODOS_ASSISTIDO as readonly string[]).includes(x)
 
+const ROTULO_DA_MARCA: Record<PeriodoAssistido, string> = { inteiro: 'canal inteiro', '90': '90 dias', '28': '28 dias' }
+
 function lembrado(): PeriodoAssistido | null {
   try {
     const x = window.localStorage.getItem(CHAVE_ASSISTIDO)
@@ -122,7 +124,7 @@ export function AssistidoPeriodos({ view, barra }: { view: AssistidoPeriodosView
 
   return (
     <div className="ap">
-      {barra ? <BarraAssistido a={barra} normal={view.conteudos[periodo].normalNaBarra} /> : null}
+      {barra ? <BarraAssistido a={barra} normal={view.conteudos[periodo].normalNaBarra} rotuloPeriodo={ROTULO_DA_MARCA[periodo]} /> : null}
       <p className="ap-lab" id={labId}>
         {view.rotuloGrupo}:
         <button ref={btn} type="button" className="ap-info" aria-label="Como o período é contado" aria-expanded={info} aria-controls={popId} onClick={() => setInfo(o => !o)}>{Icon.info()}</button>

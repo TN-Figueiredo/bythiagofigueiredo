@@ -123,7 +123,7 @@ describe('E5b T11: seletor de período', () => {
   it('volta ao padrão pela lembrança', async () => {
     store.set(CHAVE_ORIGEM, '90')
     render(<Origem view={view([bloco()])} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Voltar ao padrão' }))
+    await userEvent.click(screen.getByRole('button', { name: /^Voltar ao padrão \(/ }))
     expect(ativos()).toEqual(['28'])
     expect(store.has(CHAVE_ORIGEM)).toBe(false)
   })
@@ -147,6 +147,14 @@ describe('E5b T17: a faixa de duas células no topo do grupo do canal (Yannis I3
     const { container } = render(<Origem view={view([bloco()])} />)
     expect(container.querySelector('.ov-fx')).toBeNull()
     expect(container.querySelector('.ov-vtot')!.textContent).toBe('Total de 28 dias')
+  })
+  it('Logan F3: com a célula de views o vídeo não mostra número solto, só a célula rotulada "views no período"', () => {
+    const v = view([bloco()])
+    v.periodos[1]!.grupo = { ...v.periodos[1]!.grupo, views: { rotulo: 'views no período', valor: '232', sub: '05/10 a 11/10' } }
+    const { container } = render(<Origem view={v} />)
+    expect(container.querySelector('.ov-vtot')).toBeNull()
+    expect(container.querySelectorAll('.ov-fx-c')).toHaveLength(1)
+    expect(container.querySelector('.ov-fx dt')!.textContent).toBe('views no período')
   })
 })
 

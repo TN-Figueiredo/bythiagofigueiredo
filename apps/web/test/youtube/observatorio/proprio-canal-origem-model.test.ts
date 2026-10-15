@@ -57,10 +57,10 @@ describe('buildAssistidoDoCanal', () => {
     expect(v.estado).toBe('ok')
     expect(JSON.stringify(v)).toMatch(/coleta diária ainda não rodou/)
   })
-  it('diário inteiro acima do teto: o cartão diz a causa da origem ("o canal passou do tamanho que esta tela lê de uma vez"), nunca "não sabemos se" (Phil I4)', () => {
+  it('diário inteiro acima do teto: o cartão diz a causa da origem ("o canal tem vídeos demais para esta tela ler de uma vez"), nunca "não sabemos se" (Phil I4)', () => {
     const v = buildAssistidoDoCanal({ ytIds: [], videos: [], diario, longo: { acesso: 'ok', dado: { d90: diarioVazio(true), inteiro: null, motivoInteiro: 'teto' } } })
     const j = JSON.stringify(v)
-    expect(j).toContain('o canal passou do tamanho que esta tela lê de uma vez')
+    expect(j).toContain('o canal tem vídeos demais para esta tela ler de uma vez')
     expect(j).not.toContain('não sabemos se')
     expect(v.cartoes.find(c => c.id === 'inteiro')).toMatchObject({ estado: 'sem-numero', semNumero: 'não medido' })
   })

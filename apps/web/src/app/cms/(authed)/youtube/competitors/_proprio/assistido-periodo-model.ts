@@ -87,6 +87,8 @@ const NOME: Record<PeriodoAssistido, { nome: string; de: string; rot: string; cu
   '28': { nome: 'últimos 28 dias', de: 'dos últimos 28 dias', rot: 'Últimos 28 dias', curto: '28 dias' },
 }
 const SIMBOLO = { acima: '▲', abaixo: '▼', 'na-media': '＝' } as const
+/** A causa do "acima do teto", dita igual nos cartões do % assistido e na origem das views (mesma página, mesma causa). */
+export const TEXTO_ACIMA_DO_TETO = 'o canal tem vídeos demais para esta tela ler de uma vez'
 export const TEXTO_NEGADO = 'Só quem edita o site vê o % assistido.'
 export const TEXTO_ERRO = 'A leitura do % assistido falhou agora; recarregue a página.'
 const TEXTO_SEM_DIARIO = 'A coleta diária ainda não rodou: sem ela não há % assistido, nem do vídeo nem do canal.'
@@ -105,10 +107,10 @@ function textoDoMotivo(n: NormalDoPeriodo, b: { comBuraco: number; naConta: numb
   switch (n.motivo) {
     case 'poucas-views': return 'poucas views'
     case 'cobertura-parcial':
-      // TEXTO-A-REVISAR (Logan, T18): as duas frases de cobertura parcial vêm do plano; a revisão de UX está pendente
-      return b == null ? 'não medido: não sabemos se o período inteiro foi coletado' : `não medido: ${int(b.comBuraco)} de ${int(b.naConta)} vídeos sem o período inteiro medido`
+      // sem o prefixo "não medido: ": a legenda já fica sob o valor "não medido" (Logan, item 4)
+      return b == null ? 'não sabemos se todos os dias foram coletados' : `${int(b.comBuraco)} de ${int(b.naConta)} vídeos com dias sem leitura no período`
     // mesma causa e mesmo texto da origem, na mesma página: o tamanho da leitura, não um defeito de coleta
-    case 'acima-do-teto': return 'não medido: o canal passou do tamanho que esta tela lê de uma vez' // TEXTO-A-REVISAR (Logan)
+    case 'acima-do-teto': return TEXTO_ACIMA_DO_TETO
     case 'sem-acesso': return TEXTO_NEGADO
     case 'leitura-falhou': return TEXTO_ERRO
     default: return 'sem dado'
@@ -145,10 +147,10 @@ function celula(f: { normal: NormalDoPeriodo }, inteiro: { normal: NormalDoPerio
     const c = id !== 'inteiro' && inteiro ? contraNormal(n.pctArredondado, inteiro.normal.pctArredondado) : null
     return { estado: 'medido', valor: `${n.pctArredondado}%`, seta: c ? seta(c.dif, c.leitura) : null, legenda: `${milV(n.views)} views`, semNumero: null }
   }
-  if (n.motivo === 'poucas-views') return { estado: 'sem-numero', valor: null, seta: null, legenda: `${int(n.views)} de ${int(MIN_VIEWS_PERIODO)}`, semNumero: 'poucas views' }
+  if (n.motivo === 'poucas-views') return { estado: 'sem-numero', valor: null, seta: null, legenda: `${int(n.views)} de ${int(MIN_VIEWS_PERIODO)} views`, semNumero: 'poucas views' }
   if (n.motivo === 'cobertura-parcial' || n.motivo === 'acima-do-teto') return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'não medido' }
-  // TEXTO-A-REVISAR (Logan, T18): "poucos vídeos" aqui, mas o LEIAME do lote 1 trocou "poucos vídeos" por "poucas views" no cartão; a mesma tela diz as duas
-  if (n.motivo == null && n.views >= MIN_VIEWS_PERIODO) return { estado: 'sem-numero', valor: null, seta: null, legenda: `poucos vídeos (${n.videos}; precisa de ${MIN_VIDEOS_FAIXA})`, semNumero: 'poucos vídeos' }
+  // "poucos vídeos" é outra causa que "poucas views" (views bastam, vídeos de menos), por isso o rótulo é diferente
+  if (n.motivo == null && n.views >= MIN_VIEWS_PERIODO) return { estado: 'sem-numero', valor: null, seta: null, legenda: `${n.videos} de ${MIN_VIDEOS_FAIXA} vídeos`, semNumero: 'poucos vídeos' }
   return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'sem dado' }
 }
 

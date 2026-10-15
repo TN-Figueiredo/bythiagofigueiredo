@@ -129,7 +129,7 @@ describe('% assistido', () => {
     expect(s.querySelector('.vb-as-barra')!.getAttribute('role')).toBe('img')
     expect(s.querySelector('.vb-as-barra i')!.getAttribute('style')).toContain('width: 78%')
     expect(s.querySelector('.vb-as-barra s')!.getAttribute('style')).toContain('left: 60%')
-    expect(s.querySelector('.vb-as-med')!.textContent).toContain('normal do canal: 60%')
+    expect(s.querySelector('.vb-as-med')!.textContent).toContain('normal do canal (canal inteiro): 60%')
     const contra = s.querySelector('.vb-dir-acima')!
     expect(texto(contra)).toBe('▲ Acima do normal do canal (60%): +18 pontos.')
   })
@@ -171,9 +171,9 @@ describe('% assistido', () => {
       cleanup()
       return r
     }
-    expect(rotulo(60)).toMatchObject({ classe: 'vb-as-med-meio', left: '60%', texto: 'normal do canal: 60%' })
-    expect(rotulo(3)).toMatchObject({ classe: 'vb-as-med-inicio', left: '', texto: 'normal do canal: 3%' })
-    expect(rotulo(97)).toMatchObject({ classe: 'vb-as-med-fim', left: '', texto: 'normal do canal: 97%' })
+    expect(rotulo(60)).toMatchObject({ classe: 'vb-as-med-meio', left: '60%', texto: 'normal do canal (canal inteiro): 60%' })
+    expect(rotulo(3)).toMatchObject({ classe: 'vb-as-med-inicio', left: '', texto: 'normal do canal (canal inteiro): 3%' })
+    expect(rotulo(97)).toMatchObject({ classe: 'vb-as-med-fim', left: '', texto: 'normal do canal (canal inteiro): 97%' })
   })
 
   it('o botão ⓘ não mora dentro do título (o nome acessível do h2 é só o título)', () => {

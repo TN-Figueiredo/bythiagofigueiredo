@@ -3,7 +3,6 @@
  * Recebe o que as entradas leram (`OrigemLida`, `DetalheCanal`) como TIPOS e devolve só texto e números prontos.
  * Regras de ouro: "não medido" nunca vira zero; nível `so-aviso` não leva NENHUM número nem termo privado na vista; termos e sites
  * só existem no nível `tudo`; a soma das origens mais o omitido mais o que o catálogo não conhece fecha o total medido.
- * Toda frase marcada `TEXTO-A-REVISAR` é texto novo, fora da tabela de frases do mockup, para o revisor de UX.
  */
 import type { BlocoAgregado, Cobertura, LinhaBloco } from '@/lib/youtube/observatorio/proprio/origem-agregar'
 import { MARCA_DE_CONTAGEM, agregarBloco, diasMedidosEmComum, pctTexto } from '@/lib/youtube/observatorio/proprio/origem-agregar'
@@ -18,6 +17,7 @@ import {
 import type { DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { OrigemLida } from './dados-origem'
+import { TEXTO_ACIMA_DO_TETO } from './assistido-periodo-model'
 
 export type PeriodoCanal = '7' | '28' | '90' | 'tudo'
 export type PeriodoVideo = '7' | 'tudo'
@@ -83,7 +83,7 @@ export interface BlocoView {
 export interface CelulaFaixaOrigem { rotulo: string; valor: string; sub: string }
 /** A faixa de duas células do topo da aba Origem do canal (mockup 12): o total do período e quantos dias têm a origem medida. */
 export interface FaixaOrigem { views: CelulaFaixaOrigem; dias: CelulaFaixaOrigem }
-export interface GrupoView { total: string; blocos: BlocoView[]; /** só na aba do canal */ faixa?: FaixaOrigem | null }
+export interface GrupoView { total: string; /** a célula "views no período", nas duas telas */ views?: CelulaFaixaOrigem; blocos: BlocoView[]; /** só na aba do canal */ faixa?: FaixaOrigem | null }
 export interface SemAcessoView { titulo: string; frases: string[]; blocos: string[] }
 export interface OrigemView {
   nivel: Nivel
@@ -130,6 +130,7 @@ const METODO_TERMOS = [
 const MSG_REVISAO_FRASE = 'Não mostramos de onde vêm as views por enquanto: a origem está em revisão.'
 const MSG_REVISAO_AVISO = 'Em revisão: as origens somaram mais views do que o total do dia a dia, então não mostramos a divisão até conferir. Não é zero.'
 const MSG_ERRO = 'Não conseguimos ler agora.'
+const ROTULO_NAO_CATALOGADO = 'Origem nova, ainda sem nome'
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Linhas
@@ -145,8 +146,7 @@ function linhasDoBloco(b: BlocoAgregado<string>, rotulo: (k: string) => string, 
   const out = b.linhas.map(l => linhaView(l, rotulo(l.chave), n))
   out.push({ chave: 'omitido', rotulo: 'Omitido pelo YouTube', valor: b.omitido, valorTexto: n(b.omitido), pct: b.pctOmitido, pctTexto: pctTexto(b.pctOmitido, b.omitido), semNumero: false, tipo: 'omitido', rotuloLeitor: `Omitido pelo YouTube: ${pctTexto(b.pctOmitido, b.omitido)}, ${n(b.omitido)}` })
   if (b.valorNaoCatalogado > 0) {
-    // TEXTO-A-REVISAR
-    out.push({ chave: 'nao_catalogado', rotulo: 'Origem que ainda não sabemos nomear', valor: b.valorNaoCatalogado, valorTexto: n(b.valorNaoCatalogado), pct: b.pctNaoCatalogado, pctTexto: pctTexto(b.pctNaoCatalogado, b.valorNaoCatalogado), semNumero: false, tipo: 'nao_catalogado', rotuloLeitor: `Origem que ainda não sabemos nomear: ${pctTexto(b.pctNaoCatalogado, b.valorNaoCatalogado)}, ${n(b.valorNaoCatalogado)}` })
+    out.push({ chave: 'nao_catalogado', rotulo: ROTULO_NAO_CATALOGADO, valor: b.valorNaoCatalogado, valorTexto: n(b.valorNaoCatalogado), pct: b.pctNaoCatalogado, pctTexto: pctTexto(b.pctNaoCatalogado, b.valorNaoCatalogado), semNumero: false, tipo: 'nao_catalogado', rotuloLeitor: `${ROTULO_NAO_CATALOGADO}: ${pctTexto(b.pctNaoCatalogado, b.valorNaoCatalogado)}, ${n(b.valorNaoCatalogado)}` })
   }
   return out
 }
@@ -158,13 +158,22 @@ function textoNaoMedido(b: BlocoAgregado<string>, id: 'origem' | 'aparelho' | 'p
   const coisa = SUBSTANTIVO[id]
   const desde = b.cobertura.desde
   switch (b.motivo) {
-    case 'coleta_comeca_em': return `A coleta começa em ${desde ? e.dm(desde) : e.dm(e.ligadoEm)}. Antes dessa data não guardamos ${coisa}; não é zero.`
-    case 'coleta_nao_comecou': return `A coleta ainda não começou. Antes dela não guardamos ${coisa}; não é zero.`
+    case 'coleta_comeca_em': {
+      const dia = desde ?? e.ligadoEm
+      // data passada dita no futuro confunde: depois do início, a causa é que nenhum dia do período chegou (Logan D2)
+      return dia > e.hojePt
+        ? `A coleta começa em ${e.dm(dia)}. Antes dessa data não guardamos ${coisa}; não é zero.`
+        : `A coleta começou em ${e.dm(dia)}, mas nenhum dia deste período chegou. Não é zero.`
+    }
+    case 'coleta_nao_comecou':
+      return desde
+        ? `A coleta começou em ${e.dm(desde)}, mas nenhum dia deste período chegou. Não é zero.`
+        : `A coleta ainda não começou. Antes dela não guardamos ${coisa}; não é zero.`
     case 'relatorio_nao_chegou': return 'Ainda não coletado: o relatório do YouTube ainda não chegou. Quando chegar, esta lista aparece sozinha.'
-    case 'busca_falhou': return 'A última busca falhou e nenhum dia do período foi medido. Não é zero.' // TEXTO-A-REVISAR
+    case 'busca_falhou': return 'A última busca falhou e nenhum dia do período foi medido. Não é zero.'
     case 'coleta_desligada': return 'A coleta da origem está desligada.'
-    case 'cobertura_parcial': return `Não medido: nenhum dia do período tem todos os vídeos medidos. Não é zero.` // TEXTO-A-REVISAR
-    case 'ainda_nao_existe': return 'Ainda não existe nenhum vídeo medido neste período.' // TEXTO-A-REVISAR
+    case 'cobertura_parcial': return `Não medido: nenhum dia do período tem todos os vídeos medidos. Não é zero.`
+    case 'ainda_nao_existe': return 'Ainda não há leitura de nenhum vídeo neste período.'
     default: return 'Não medido neste período. Não é zero.'
   }
 }
@@ -173,7 +182,7 @@ function avisoDeConjunto(b: BlocoAgregado<string>, e: EntradaOrigem): string | n
   if (b.cobertura.medidos === 0) return null
   const est = b.conjunto
   const ate = b.cobertura.ultimoMedido
-  if (est.tipo === 'coleta_em_erro') return `A última busca falhou. A tela mostra os dias medidos${ate ? ` até ${e.dm(ate)}` : ''}.` // TEXTO-A-REVISAR (sem a data da falha)
+  if (est.tipo === 'coleta_em_erro') return `A última busca falhou. A tela mostra os dias medidos${ate ? ` até ${e.dm(ate)}` : ''}.`
   if (est.tipo === 'passo_desligado') {
     if (est.ultimoErro?.dia) return `A última busca falhou em ${e.dm(est.ultimoErro.dia)}. A tela mostra os dias medidos${ate ? ` até ${e.dm(ate)}` : ''}.`
     return 'A coleta da origem está desligada.'
@@ -206,11 +215,17 @@ const comPrefixo = (pre: string, resto: string): string => (pre === '' ? cap(res
 function contagemDeVideos(b: BlocoAgregado<string>, e: EntradaOrigem): string[] {
   const m = b.videosNaConta + b.videosFora
   const out: string[] = []
-  if (b.videosFora > 0) out.push(`${e.n(b.videosFora)} de ${e.n(m)} vídeos fora desta conta: sem leitura no período.`) // TEXTO-A-REVISAR
+  // em bloco sem leitura a ausência é da coleta, não da conta: a frase não se repete em cada bloco (Logan, item 12)
+  const comLeitura = (b.estado === 'medido' || b.estado === 'zero') && b.cobertura.medidos > 0
+  if (b.videosFora > 0 && comLeitura) {
+    out.push(m === 1 || e.tela === 'video'
+      ? 'Este vídeo está fora desta conta: sem leitura no período.'
+      : `${e.n(b.videosFora)} de ${e.n(m)} vídeos fora desta conta: sem leitura no período.`)
+  }
   if (b.videosParados > 0) {
     out.push(e.tela === 'video'
       ? `Sem leitura depois de ${e.dm(b.paradosDesde as DiaYt)}.`
-      : `${e.n(b.videosParados)} de ${e.n(m)} vídeos sem leitura depois de ${e.dm(b.paradosDesde as DiaYt)}: os dias seguintes contam só os outros.`) // TEXTO-A-REVISAR
+      : `${e.n(b.videosParados)} de ${e.n(m)} vídeos sem leitura depois de ${e.dm(b.paradosDesde as DiaYt)}: os dias seguintes contam só os outros.`)
   }
   return out
 }
@@ -253,7 +268,7 @@ function rodapeDoBloco(c: Ctx, viewsMedidas: number): string {
 
 function pctOmitidoClausula(b: BlocoAgregado<string>, e: EntradaOrigem): string {
   void e
-  const nc = b.valorNaoCatalogado > 0 ? `; ${pctTexto(b.pctNaoCatalogado, b.valorNaoCatalogado)} de valores que ainda não sabemos nomear` : '' // TEXTO-A-REVISAR
+  const nc = b.valorNaoCatalogado > 0 ? `; ${pctTexto(b.pctNaoCatalogado, b.valorNaoCatalogado)} de ${ROTULO_NAO_CATALOGADO.toLowerCase()}` : ''
   return (b.omitido > 0 ? `; ${pctTexto(b.pctOmitido, b.omitido)} omitido pelo YouTube` : '') + nc
 }
 
@@ -448,9 +463,10 @@ function totalDoGrupo(p: PeriodoEntrada, e: EntradaOrigem): string {
   if (p.totalDoPeriodo == null) {
     // o diário inteiro não veio (Phil I2): teto é permanente, erro é passageiro, e a célula diz qual dos dois
     const motivo = p.id === 'tudo' && e.origem.acesso === 'ok' ? e.origem.dado.motivoInteiro : undefined
-    if (motivo === 'teto') return 'não medido: o canal passou do tamanho que esta tela lê de uma vez' // TEXTO-A-REVISAR
-    if (motivo === 'erro') return `${MSG_ERRO} Tente de novo.` // TEXTO-A-REVISAR
-    if (v && v.comBuraco > 0) return `não medido: ${e.n(v.naConta - v.comBuraco)} de ${e.n(v.naConta + v.fora)} vídeos com o período inteiro medido`
+    // a célula já diz "não medido" no valor: a causa vem sem o prefixo (Logan, item 14)
+    if (motivo === 'teto') return TEXTO_ACIMA_DO_TETO
+    if (motivo === 'erro') return `${MSG_ERRO} Tente de novo.`
+    if (v && v.comBuraco > 0) return `${e.n(v.naConta - v.comBuraco)} de ${e.n(v.naConta + v.fora)} vídeos com o período inteiro medido`
     return 'não medido'
   }
   return `${e.n(p.totalDoPeriodo)}${v && v.fora + v.parados > 0 ? ` de ${e.n(v.naConta)} dos ${e.n(v.naConta + v.fora)} vídeos` : ''}`
@@ -458,31 +474,53 @@ function totalDoGrupo(p: PeriodoEntrada, e: EntradaOrigem): string {
 
 /**
  * A faixa de duas células (T17): "views no período" e "dias com origem medida". Quatro estados da segunda: "{N} de {M}"; "0 de {M} · a coleta começa em dd/mm";
- * "— de {M} · não conseguimos ler agora"; "{N} de {M} · origem em revisão". Os textos não estão fixados no plano. // TEXTO-A-REVISAR (Logan)
+ * "— de {M} · não conseguimos ler agora"; "{N} de {M} · origem em revisão". Nos "0 de {M}" a causa vem sempre junto (Logan D2).
  */
-function faixaDoGrupo(p: PeriodoEntrada, e: EntradaOrigem, total: string, agregado: BlocoAgregado<GrupoOrigem> | null): FaixaOrigem {
+function celulaViews(p: PeriodoEntrada, e: EntradaOrigem, total: string): CelulaFaixaOrigem {
   const v = p.videosDoTotal
   const intervalo = `${e.dm(p.de)} a ${e.dm(p.ate)}`
-  const views: CelulaFaixaOrigem = p.totalDoPeriodo == null
+  return p.totalDoPeriodo == null
     ? { rotulo: 'views no período', valor: 'não medido', sub: total === 'não medido' ? intervalo : total }
     : { rotulo: 'views no período', valor: e.n(p.totalDoPeriodo), sub: intervalo + (v && v.fora + v.parados > 0 ? ` · de ${e.n(v.naConta)} dos ${e.n(v.naConta + v.fora)} vídeos` : '') }
+}
+
+/** Por que o motivo de `nao_medido` deixa os dias em zero: a causa que a célula de dias escreve depois do "de {M}". */
+function causaDoNaoMedido(motivo: MotivoNaoMedido | null | undefined): string {
+  switch (motivo) {
+    case 'busca_falhou': return 'a última busca falhou'
+    case 'cobertura_parcial': return 'nenhum dia com todos os vídeos'
+    case 'coleta_desligada': return 'coleta desligada'
+    case 'relatorio_nao_chegou': return 'relatório do YouTube ainda não chegou'
+    default: return 'não medido'
+  }
+}
+
+function faixaDoGrupo(p: PeriodoEntrada, e: EntradaOrigem, total: string, agregado: BlocoAgregado<GrupoOrigem> | null): FaixaOrigem {
+  const views = celulaViews(p, e, total)
   const rotulo = 'dias com origem medida'
   const de = `de ${e.n(diffDias(p.de, p.ate) + 1)}`
   if (agregado == null) return { views, dias: { rotulo, valor: '—', sub: `${de} · não conseguimos ler agora` } }
   const medidos = e.n(agregado.cobertura.medidos)
   if (agregado.estado === 'em_revisao') return { views, dias: { rotulo, valor: medidos, sub: `${de} · origem em revisão` } }
   if (agregado.estado === 'nao_medido' && (agregado.motivo === 'coleta_comeca_em' || agregado.motivo === 'coleta_nao_comecou')) {
-    return { views, dias: { rotulo, valor: '0', sub: `${de} · a coleta começa em ${e.dm(agregado.cobertura.desde ?? e.ligadoEm)}` } }
+    const dia = agregado.cobertura.desde ?? (agregado.motivo === 'coleta_comeca_em' ? e.ligadoEm : null)
+    const sub = dia == null ? `${de} · a coleta ainda não começou`
+      : dia > e.hojePt ? `${de} · a coleta começa em ${e.dm(dia)}`
+        : `${de} · a coleta começou em ${e.dm(dia)}; nenhum dia deste período chegou`
+    return { views, dias: { rotulo, valor: '0', sub } }
   }
+  if (agregado.estado === 'nao_medido') return { views, dias: { rotulo, valor: '0', sub: `${de} · ${causaDoNaoMedido(agregado.motivo)}` } }
   return { views, dias: { rotulo, valor: medidos, sub: de } }
 }
 
 function grupoDoPeriodo(p: PeriodoEntrada, e: EntradaOrigem): GrupoView {
   const total = totalDoGrupo(p, e)
   const comFaixa = e.tela === 'canal'
+  // a página do vídeo não leva a célula de dias (cada bloco já diz "N de M dias"), mas o total ganha rótulo (Logan F3)
+  const views = celulaViews(p, e, total)
   // um bloco só, com um alerta e um botão (Yannis m5); origem negada com nível que a libera é divergência das duas provas: também erro, nunca o grupo mudo (m4)
-  if (e.origem.acesso !== 'ok') return { total, blocos: [blocoErro('origem', MSG_ERRO)], ...(comFaixa ? { faixa: faixaDoGrupo(p, e, total, null) } : {}) }
-  if (e.tela === 'video' && videoNovo(e.publicadoEm, e.hojePt)) return { total, blocos: (['origem', 'impressoes', 'termos', 'aparelho', 'pais', 'inscritos'] as const).map(id => ainda(id, e)) }
+  if (e.origem.acesso !== 'ok') return { total, views, blocos: [blocoErro('origem', MSG_ERRO)], ...(comFaixa ? { faixa: faixaDoGrupo(p, e, total, null) } : {}) }
+  if (e.tela === 'video' && videoNovo(e.publicadoEm, e.hojePt)) return { total, views, blocos: (['origem', 'impressoes', 'termos', 'aparelho', 'pais', 'inscritos'] as const).map(id => ainda(id, e)) }
   const dims = e.origem.dado.dimensoes
   const de = p.de > dims.de ? p.de : dims.de
   const c: Ctx = { e, de: de > p.ate ? p.ate : de, ate: p.ate, dias: diffDias(p.de, p.ate) + 1, total: p }
@@ -504,11 +542,11 @@ function grupoDoPeriodo(p: PeriodoEntrada, e: EntradaOrigem): GrupoView {
     blocos.push(b)
   }
   blocos.push(blocoAparelho(dims.conjuntos.dispositivo, c), blocoPais(dims.conjuntos.pais, c), blocoInscritos(dims.conjuntos.inscrito, c))
-  return { total, blocos, ...(comFaixa ? { faixa: faixaDoGrupo(p, e, total, o.agregado) } : {}) }
+  return { total, views, blocos, ...(comFaixa ? { faixa: faixaDoGrupo(p, e, total, o.agregado) } : {}) }
 }
 
 export function buildOrigem(e: EntradaOrigem): OrigemView {
-  const base = { nivel: e.nivel, lembranca: 'Escolha salva neste navegador.', dica: '' }
+  const base = { nivel: e.nivel, lembranca: 'Salvo neste navegador', dica: '' }
   if (e.nivel === 'so-aviso') {
     return {
       ...base, periodos: [], padrao: '',

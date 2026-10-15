@@ -126,16 +126,17 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
         concorrentes: concorrentesDoSite(site.obs, proprio.id),
         publicacoes,
       })
+      // as duas chaves existem porque o React 19 em dev avisa de chave ausente em elemento vindo do servidor (Gio F1)
       // os cartões de período da aba Retenção e a aba Origem vão cada um num `Suspense` próprio (o primeiro HTML não espera a leitura); sem dado privado lido, não há o que ler
       const duracoes = new Map(doCanal.map(v => [v.ytId, v.dur ?? null]))
       const videosLongos = ownYtIds.map(ytId => ({ ytId, dur: duracoes.get(ytId) ?? null }))
       const periodos = dados.diario.acesso === 'ok' ? (
-        <Suspense fallback={<AssistidoEsqueleto />}>
+        <Suspense key="assistido-periodos" fallback={<AssistidoEsqueleto />}>
           <AssistidoDoCanal canalId={proprio.id} ytIds={ownYtIds} videos={videosLongos} publicacoes={publicacoes} diario={dados.diario.dado} agora={now} leitura={leituraPrivada} />
         </Suspense>
       ) : undefined
       const origem = (
-        <Suspense fallback={<OrigemEsqueleto />}>
+        <Suspense key="origem-do-canal" fallback={<OrigemEsqueleto />}>
           <OrigemDoCanal canalId={proprio.id} ytIds={videosDaOrigem(obs, proprio.id)} publicacoes={publicacoes} maisAntiga={publicacaoMaisAntiga(obs, proprio.id, ms => dayPt(new Date(ms)))} n={obs.fmt.int} diaFinal={dados.diario.acesso === 'ok' ? dados.diario.dado.ultimoDia : null} agora={now} leitura={leituraPrivada} podeEditar={canEdit} />
         </Suspense>
       )

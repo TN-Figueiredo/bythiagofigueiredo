@@ -66,9 +66,14 @@ function Abas({ view, state, resumo, onAba }: { view: ProprioView; state: CanalS
     { tab: 'retencao', texto: 'Retenção', n: '' },
     { tab: 'origem', texto: 'Origem', n: '' },
   ]
+  // a barra rola na horizontal em tela estreita: a aba ativa nunca fica escondida (Naksu N4, Gio F5)
+  const lista = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    lista.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })
+  }, [state.tab])
   return (
     <nav className="ctabs" aria-label="Seções do canal">
-      <ul>
+      <ul ref={lista}>
         {abas.map(a => {
           const href = link.canal(view.header.id, { tab: a.tab, fmt: state.fmt, sort: state.sort, dir: state.dir, q: state.q, ver: state.ver, n: state.n, nums: state.nums ? 1 : undefined })
           return (
