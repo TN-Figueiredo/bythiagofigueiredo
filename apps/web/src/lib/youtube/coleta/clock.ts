@@ -4,11 +4,15 @@ export const RELOGIO_GLOBAL_MS = 270_000
 // Soma dos tetos: 240 s. Com os 30 s de reserva da parte antiga da rota fecha os 270 s do relógio (clock.test.ts).
 export const TETOS_MS = { metadados: 30_000, jobs: 20_000, relatorios: 120_000, alcance: 20_000, diario: 50_000 } as const
 // Passos que só gastam o que sobra dos 270 s: não entram na soma de `TETOS_MS`; `relogio.prazo` os corta no fim do relógio.
-export const TETOS_DE_FIM_MS = { retencao: 20_000, dimensoes: 30_000, normalizadores: 20_000 } as const
+export const TETOS_DE_FIM_MS = { retencao: 45_000, dimensoes: 30_000, normalizadores: 20_000 } as const
 // A função morre aos 300 s; 4 s ficam para a resposta da rota.
 export const LIMITE_DA_FUNCAO_MS = 296_000
 export const FETCH_TIMEOUT_MS = 15_000
 export const PARALELO = 4
+// Retenção vitalícia de vídeo de 2017-2019 passa de 15 s na Analytics API (15/10/2026): 30 s por chamada e 2 em voo.
+// 2 x 30 s cabem no teto de 45 s do passo (TETOS_DE_FIM_MS.retencao). Os outros passos seguem em 15 s e 4.
+export const FETCH_TIMEOUT_RETENCAO_MS = 30_000
+export const PARALELO_RETENCAO = 2
 
 export interface Relogio {
   inicio: number
@@ -51,10 +55,10 @@ export class SemTempoError extends Error {
   }
 }
 
-/** Um `fetch` que aborta em min(15 s, o que resta ao passo). Sem tempo, lança sem tocar na rede. */
-export function fetchComPrazo(deadline: number, f: typeof fetch = fetch): typeof fetch {
+/** Um `fetch` que aborta em min(`limiteMs` (padrão 15 s), o que resta ao passo). Sem tempo, lança sem tocar na rede. */
+export function fetchComPrazo(deadline: number, f: typeof fetch = fetch, limiteMs: number = FETCH_TIMEOUT_MS): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const ms = Math.min(FETCH_TIMEOUT_MS, restante(deadline))
+    const ms = Math.min(limiteMs, restante(deadline))
     if (ms <= 0) throw new SemTempoError()
     const prazo = AbortSignal.timeout(ms)
     const signal = init?.signal ? AbortSignal.any([init.signal, prazo]) : prazo
@@ -62,10 +66,10 @@ export function fetchComPrazo(deadline: number, f: typeof fetch = fetch): typeof
       return await f(input, { ...init, signal })
     } catch (e) {
       // O prazo do passo acabou com a chamada no ar: não é erro de rede, é falta de tempo.
-      // Se sobrou tempo (estourou só o limite de 15 s da chamada, ou outro erro), o erro original segue.
+      // Se sobrou tempo (estourou só o limite da chamada, ou outro erro), o erro original segue.
       // O timer do Node dispara até ~1 ms antes de `Date.now()` chegar ao prazo (1 em 10, medido): se quem cortou foi o
       // prazo do passo (ms < 15 s), é falta de tempo mesmo com `restante` em 1 ms (A5, 14/10, vídeo da retenção).
-      if (restante(deadline) <= 0 || (prazo.aborted && ms < FETCH_TIMEOUT_MS)) throw new SemTempoError()
+      if (restante(deadline) <= 0 || (prazo.aborted && ms < limiteMs)) throw new SemTempoError()
       throw e
     }
   }) as typeof fetch

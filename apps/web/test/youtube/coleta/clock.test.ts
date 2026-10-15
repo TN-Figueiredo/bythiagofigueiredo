@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   criarRelogio, restante, fetchComPrazo, emParalelo, comPrazo, SemTempoError,
-  RELOGIO_GLOBAL_MS, TETOS_MS, TETOS_DE_FIM_MS, LIMITE_DA_FUNCAO_MS, prazoDoCriterio, FETCH_TIMEOUT_MS, PARALELO,
+  FETCH_TIMEOUT_RETENCAO_MS, PARALELO_RETENCAO, RELOGIO_GLOBAL_MS, TETOS_MS, TETOS_DE_FIM_MS, LIMITE_DA_FUNCAO_MS, prazoDoCriterio, FETCH_TIMEOUT_MS, PARALELO,
 } from '@/lib/youtube/coleta/clock'
 
 afterEach(() => {
@@ -26,7 +26,7 @@ describe('relógio da coleta', () => {
   })
 
   it('TETOS_DE_FIM_MS tem as três chaves e não entra na soma de TETOS_MS', () => {
-    expect(TETOS_DE_FIM_MS).toEqual({ retencao: 20_000, dimensoes: 30_000, normalizadores: 20_000 })
+    expect(TETOS_DE_FIM_MS).toEqual({ retencao: 45_000, dimensoes: 30_000, normalizadores: 20_000 })
     expect(Object.keys(TETOS_MS)).not.toContain('retencao')
     expect(Object.keys(TETOS_MS)).not.toContain('dimensoes')
     expect(Object.keys(TETOS_MS)).not.toContain('normalizadores')
@@ -84,6 +84,21 @@ describe('relógio da coleta', () => {
     await fetchComPrazo(Date.now() + 4_000, f as unknown as typeof fetch)('https://x.test')
     expect(timeout).toHaveBeenLastCalledWith(4_000)
     expect((f.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('fetchComPrazo com limite de 30 s (retenção): 30 s quando sobra mais; o que resta quando sobra menos; sem o parâmetro, 15 s', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const f = vi.fn(async () => new Response('ok')) as unknown as typeof fetch
+    expect(FETCH_TIMEOUT_RETENCAO_MS).toBe(30_000)
+    expect(PARALELO_RETENCAO).toBe(2)
+    await fetchComPrazo(Date.now() + 60_000, f, FETCH_TIMEOUT_RETENCAO_MS)('https://x.test')
+    expect(timeout).toHaveBeenLastCalledWith(30_000)
+    await fetchComPrazo(Date.now() + 8_000, f, FETCH_TIMEOUT_RETENCAO_MS)('https://x.test')
+    expect(timeout).toHaveBeenLastCalledWith(8_000)
+    await fetchComPrazo(Date.now() + 60_000, f)('https://x.test')
+    expect(timeout).toHaveBeenLastCalledWith(15_000)
+    expect(PARALELO).toBe(4)
   })
 
   it('fetchComPrazo sem tempo lança SemTempoError e não chama a rede', async () => {

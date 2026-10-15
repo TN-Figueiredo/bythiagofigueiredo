@@ -6,7 +6,7 @@ export const REASONS_CONHECIDOS = [
   'quotaExceeded', 'rateLimitExceeded', 'userRateLimitExceeded', 'dailyLimitExceeded', 'forbidden',
   'insufficientPermissions', 'badRequest', 'invalid', 'notFound', 'backendError', 'internalError',
 ] as const
-export const MOTIVOS_FIXOS = ['erro_de_banco', 'forma_inesperada', 'corpo_invalido', 'retorno_inesperado', 'excecao'] as const
+export const MOTIVOS_FIXOS = ['erro_de_banco', 'forma_inesperada', 'corpo_invalido', 'retorno_inesperado', 'excecao', 'demorou'] as const
 /** Sempre um valor que passa em `ehMotivo`. */
 export type Motivo = string
 
@@ -59,6 +59,7 @@ const TEXTO_FIXO: Record<string, string> = {
   corpo_invalido: 'a resposta do YouTube veio ilegível',
   retorno_inesperado: 'o passo devolveu algo inesperado',
   excecao: 'erro interno (detalhe no Sentry)',
+  demorou: 'o YouTube demorou mais de 30 s; tenta de novo amanhã',
 }
 
 const TEXTO_REASON: Record<string, string> = {

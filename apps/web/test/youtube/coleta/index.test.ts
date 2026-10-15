@@ -1034,7 +1034,7 @@ describe('rodarColeta: E8 (retenção)', () => {
     const r = await rodar()
     expect(passoRetencao).toHaveBeenCalledTimes(1)
     const c = vi.mocked(passoRetencao).mock.calls[0]![0]
-    expect(c.deadline - Date.now()).toBe(20_000)
+    expect(c.deadline - Date.now()).toBe(45_000)
     expect(c.channels.map(x => x.id)).toEqual(['ch-1', 'ch-2'])
     expect(r.resumo.retencao).toEqual(retResumo({ gravados: 3 }))
     expect(r.resumo.retencao).not.toHaveProperty('desligado')

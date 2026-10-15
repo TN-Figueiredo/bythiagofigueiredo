@@ -348,7 +348,8 @@ describe('passoRetencao: erros', () => {
     const ctx = ctxDe(db)
     await passoRetencao(ctx)
     expect(ctx.channels[0]!.collection_status).toBe('reautorizar')
-    for (let n = 1; n <= 3; n++) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'sem_autorizacao', http_status: 403 })
+    for (let n = 1; n <= 2; n++) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'sem_autorizacao', http_status: 403 })
+    expect(tentVideo(db, idDoVideo(3))).toMatchObject({ outcome: 'sem_autorizacao' }) // esperava a vez (2 em paralelo): não chamou a API
     expect(tentativas(db).filter(t => t.outcome === 'erro_http')).toEqual([])
     expect(ctx.falhas.join('|')).not.toContain('não devolveu')
     expect(ctx.falhas.join('|')).not.toContain('leituras com erro')
@@ -395,15 +396,15 @@ describe('passoRetencao: erros', () => {
   })
 
   it('cota estourada (403 quotaExceeded) é erro do vídeo, não perda de autorização; quem estava em voo termina', async () => {
-    // 4 vídeos = os 4 em voo (PARALELO): nenhum ficou esperando a vez.
+    // 2 vídeos = os 2 em voo (PARALELO_RETENCAO): nenhum ficou esperando a vez.
     fetchFalso({ [idDoVideo(2)]: () => erroGoogle(403, 'quotaExceeded') })
-    const db = bd(lidosHoje(4))
+    const db = bd(lidosHoje(2))
     const ctx = ctxDe(db)
     const r = await passoRetencao(ctx)
     expect(tentVideo(db, idDoVideo(2))).toMatchObject({ outcome: 'erro_http', http_status: 403, error: 'http_403_quotaExceeded' })
     expect(ctx.channels[0]!.collection_status).toBe('ok')
-    expect(r.gravados).toBe(3)
-    expect(ctx.falhas).toContain('retenção: Canal Um: 1 de 4 leituras com erro (o YouTube recusou por cota (403))')
+    expect(r.gravados).toBe(1)
+    expect(ctx.falhas).toContain('retenção: Canal Um: 1 de 2 leituras com erro (o YouTube recusou por cota (403))')
     expect(tentCanal(db)).toMatchObject({ outcome: 'ok' })
   })
 
@@ -415,22 +416,22 @@ describe('passoRetencao: erros', () => {
       ['403 quotaExceeded', 403, 'quotaExceeded', 'http_403_quotaExceeded'],
       ['403 rateLimitExceeded', 403, 'rateLimitExceeded', 'http_403_rateLimitExceeded'],
       ['429', 429, 'rateLimitExceeded', 'http_429_rateLimitExceeded'],
-    ])('%s: os 3 em voo terminam, os 4 que esperavam a vez ficam nao_alcancado_orcamento e contam em pendentes', async (_n, status, reason, codigo) => {
-      // 8 vídeos, 4 em voo: o 1º devolve a cota na hora; o 2º ao 4º demoram e terminam bem.
+    ])('%s: o em voo termina, os 6 que esperavam a vez ficam nao_alcancado_orcamento e contam em pendentes', async (_n, status, reason, codigo) => {
+      // 8 vídeos, 2 em voo: o 1º devolve a cota na hora; o 2º demora e termina bem.
       const f = fetchFalso({
-        [idDoVideo(1)]: quota(status, reason), [idDoVideo(2)]: devagar, [idDoVideo(3)]: devagar, [idDoVideo(4)]: devagar,
+        [idDoVideo(1)]: quota(status, reason), [idDoVideo(2)]: devagar,
       })
       const db = bd(lidosHoje(8))
       const ctx = ctxDe(db)
       const r = await passoRetencao(ctx)
-      expect(idsChamados(f).sort()).toEqual([1, 2, 3, 4].map(idDoVideo))
+      expect(idsChamados(f).sort()).toEqual([1, 2].map(idDoVideo))
       expect(tentVideo(db, idDoVideo(1))).toMatchObject({ outcome: 'erro_http', http_status: status, error: codigo })
-      for (const n of [2, 3, 4]) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'ok' })
-      for (const n of [5, 6, 7, 8]) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
-      expect(r.gravados).toBe(3)
-      expect(r.pendentes).toBe(4)
-      expect(r.chamadas).toBe(4)
-      expect(retencoes(db)).toHaveLength(3)
+      expect(tentVideo(db, idDoVideo(2))).toMatchObject({ outcome: 'ok' })
+      for (const n of [3, 4, 5, 6, 7, 8]) expect(tentVideo(db, idDoVideo(n))).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+      expect(r.gravados).toBe(1)
+      expect(r.pendentes).toBe(6)
+      expect(r.chamadas).toBe(2)
+      expect(retencoes(db)).toHaveLength(1)
       // o canal fica vermelho pela cota E marcado como não alcançado (a próxima execução refaz os 4)
       expect(ctx.falhas).toEqual([expect.stringMatching(/^retenção: Canal Um: 1 de 8 leituras com erro \(/)])
       expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
@@ -438,7 +439,7 @@ describe('passoRetencao: erros', () => {
     })
 
     it('a parada é do canal em curso: o canal seguinte começa de novo (a cota é lida de novo por quem a recebe)', async () => {
-      const f = fetchFalso({ [idDoVideo(1)]: quota(403, 'quotaExceeded'), [idDoVideo(2)]: devagar, [idDoVideo(3)]: devagar, [idDoVideo(4)]: devagar })
+      const f = fetchFalso({ [idDoVideo(1)]: quota(403, 'quotaExceeded'), [idDoVideo(2)]: devagar })
       const um = lidosHoje(8)
       const dois = [fato(101, { ultimo_dia_com_view: addDays(HOJE, -1) })]
       const db = bd({ 'ch-1': um, 'ch-2': dois }, [canal1, canal2])
@@ -446,7 +447,7 @@ describe('passoRetencao: erros', () => {
       expect(idsChamados(f)).toContain(idDoVideo(101))
       expect(tentVideo(db, idDoVideo(101))).toMatchObject({ outcome: 'ok' })
       expect(tentCanal(db, 'ch-2')).toMatchObject({ outcome: 'ok' })
-      expect(r.pendentes).toBe(4)
+      expect(r.pendentes).toBe(6)
     })
 
     it('403 que NÃO é cota (reason fora do catálogo) e 404 não param o canal: todos os 8 são chamados', async () => {
@@ -826,5 +827,84 @@ describe('passoRetencao: tentativa sem resposta nunca conta como leitura (foco d
     const dosVideos = tentativas(db).filter(t => t.scope_type === 'video')
     expect(dosVideos.map(t => t.outcome)).toEqual(['nao_alcancado_orcamento', 'nao_alcancado_orcamento'])
     expect(retencoes(db)).toEqual([])
+  })
+})
+
+describe('passoRetencao: demora de vídeo antigo (30 s por chamada, 2 em paralelo)', () => {
+  const demora = () => new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+  const tentativaAnterior = (db: FakeDb, id: string, dia: string, error: string): void => {
+    ;(db.tables.yt_own_collection_attempts ??= []).push({
+      scope_type: 'video', scope_id: id, kind: 'retencao_vida', attempt_day: dia, site_id: 'site-1', channel_id: 'ch-1',
+      outcome: 'erro_http', http_status: null, error, attempts: 1,
+    })
+  }
+
+  it('no máximo 2 leituras em voo, e cada fetch recebe o limite de 30 s', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    let voo = 0
+    let pico = 0
+    fetchFalso({}, async () => {
+      voo++
+      pico = Math.max(pico, voo)
+      await new Promise<void>(r => setImmediate(r))
+      voo--
+      return json(curva())
+    })
+    const db = bd(lidosHoje(6))
+    await passoRetencao(ctxDe(db))
+    expect(pico).toBe(2)
+    expect(timeout).toHaveBeenCalledWith(30_000)
+    expect(timeout).not.toHaveBeenCalledWith(15_000)
+  })
+
+  it('TimeoutError com tempo sobrando: demorou, pendente, nota em sem_resposta_do_youtube, nada em falhas, sem Sentry', async () => {
+    fetchFalso({ [idDoVideo(1)]: demora() })
+    const db = bd(lidosHoje(3))
+    const ctx = ctxDe(db)
+    const r = await passoRetencao(ctx)
+    expect(tentVideo(db, idDoVideo(1))).toMatchObject({ outcome: 'erro_http', error: 'demorou' })
+    expect(ehMotivo('demorou')).toBe(true)
+    expect(r.pendentes).toBe(1)
+    expect(r.gravados).toBe(2)
+    expect(ctx.falhas).toEqual([])
+    expect(r.sem_resposta_do_youtube).toHaveLength(1)
+    expect(r.sem_resposta_do_youtube[0]).toContain('demorou mais de 30 s')
+    expect(r.sem_resposta_do_youtube[0]).toContain(idDoVideo(1))
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+    expect(tentCanal(db)).toMatchObject({ outcome: 'ok' })
+  })
+
+  it('3º dia seguido com demorou: vai para falhas (e não para a nota)', async () => {
+    fetchFalso({ [idDoVideo(1)]: demora() })
+    const db = bd(lidosHoje(2))
+    tentativaAnterior(db, idDoVideo(1), '2026-10-19', 'demorou')
+    tentativaAnterior(db, idDoVideo(1), '2026-10-18', 'demorou')
+    const ctx = ctxDe(db)
+    const r = await passoRetencao(ctx)
+    expect(ctx.falhas).toHaveLength(1)
+    expect(ctx.falhas[0]).toContain('3 dias seguidos')
+    expect(r.sem_resposta_do_youtube).toEqual([])
+  })
+
+  it('só 1 dia anterior com demorou (ou o outro com outro erro): segue nota, sem falhas', async () => {
+    fetchFalso({ [idDoVideo(1)]: demora() })
+    const db = bd(lidosHoje(2))
+    tentativaAnterior(db, idDoVideo(1), '2026-10-19', 'demorou')
+    tentativaAnterior(db, idDoVideo(1), '2026-10-18', 'http_500')
+    const ctx = ctxDe(db)
+    const r = await passoRetencao(ctx)
+    expect(ctx.falhas).toEqual([])
+    expect(r.sem_resposta_do_youtube).toHaveLength(1)
+  })
+
+  it('erro que não é timeout continua excecao, em falhas, com Sentry', async () => {
+    fetchFalso({ [idDoVideo(1)]: new Error('qualquer coisa') })
+    const db = bd(lidosHoje(2))
+    const ctx = ctxDe(db)
+    const r = await passoRetencao(ctx)
+    expect(tentVideo(db, idDoVideo(1))).toMatchObject({ outcome: 'erro_http', error: 'excecao' })
+    expect(ctx.falhas).toHaveLength(1)
+    expect(r.sem_resposta_do_youtube).toEqual([])
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
 })

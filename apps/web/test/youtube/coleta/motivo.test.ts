@@ -80,7 +80,7 @@ describe('ehMotivo', () => {
     }
   })
   it('o catálogo tem os cinco fixos e os onze reasons do plano', () => {
-    expect([...MOTIVOS_FIXOS]).toEqual(['erro_de_banco', 'forma_inesperada', 'corpo_invalido', 'retorno_inesperado', 'excecao'])
+    expect([...MOTIVOS_FIXOS]).toEqual(['erro_de_banco', 'forma_inesperada', 'corpo_invalido', 'retorno_inesperado', 'excecao', 'demorou'])
     expect([...REASONS_CONHECIDOS]).toEqual(['quotaExceeded', 'rateLimitExceeded', 'userRateLimitExceeded', 'dailyLimitExceeded',
       'forbidden', 'insufficientPermissions', 'badRequest', 'invalid', 'notFound', 'backendError', 'internalError'])
   })
