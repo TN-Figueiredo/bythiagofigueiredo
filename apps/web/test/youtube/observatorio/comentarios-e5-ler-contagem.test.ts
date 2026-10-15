@@ -76,11 +76,13 @@ describe('lerContagemDeRespostas (E5a C1)', () => {
     if (!r.lido) throw new Error('esperava lido')
     expect(r.dados.porVideo.get('v9')).toEqual({ retrato30: null, algumComRespostaDoCriador: false })
   })
-  it('lê só video_id e creator_replied dos comentários; filtra por site e canal em toda consulta de dado', async () => {
+  it('lê só id e video_id dos topos com resposta do criador (filtrados no banco); filtra por site e canal em toda consulta de dado', async () => {
     const db = falsoComentarios(base())
     await lerContagemDeRespostas(db.client, { siteId: S, channelId: CANAL, videoIds: ['v1'] })
     const c = db.pedidos.find((p) => p.table === 'competitor_video_comments')
-    expect(c?.cols).toBe('video_id, creator_replied')
+    expect(c?.cols).toBe('id, video_id')
+    expect(c?.cols).not.toMatch(/body|published_at|youtube_comment_id/)
+    expect(c?.eqs).toMatchObject({ creator_replied: true, 'parent_id:is': null })
     for (const p of db.pedidos.filter((x) => x.table !== 'competitor_agenda_runs')) expect(p.eqs.site_id, p.table).toBe(S)
     expect(c?.eqs.competitor_channel_id).toBe(CANAL)
   })
@@ -90,6 +92,31 @@ describe('lerContagemDeRespostas (E5a C1)', () => {
     await lerContagemDeRespostas(db.client, { siteId: S, channelId: CANAL, videoIds: ids })
     const blocos = db.pedidos.filter((p) => p.table === 'competitor_video_comments').map((p) => p.ins.video_id?.length)
     expect(blocos).toEqual([150, 150, 20])
+  })
+  it('150 vídeos x 30 linhas no mesmo canal (4.500): lido, e o último vídeo aparece (paginado por id)', async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => 'p' + i)
+    const t = base()
+    const linhas: Linha[] = []
+    let n = 1000
+    for (const v of ids) for (let k = 0; k < 30; k++) linhas.push(coment(n++, v, { creator_replied: v === 'p149' && k === 29 }))
+    t.competitor_video_comments = linhas
+    const db = falsoComentarios(t)
+    const r = await lerContagemDeRespostas(db.client, { siteId: S, channelId: CANAL, videoIds: ids })
+    if (!r.lido) throw new Error('esperava lido, veio ' + r.codigo)
+    expect(r.dados.porVideo.get('p149')?.algumComRespostaDoCriador).toBe(true)
+    expect(r.dados.porVideo.get('p0')?.algumComRespostaDoCriador).toBe(false)
+  })
+  it('página com exatamente 1.000 linhas: pede a seguinte e conta tudo; mais de 1.000 voltas-teto: não lida', async () => {
+    const t = base()
+    t.competitor_video_comments = Array.from({ length: 1000 }, (_, i) => coment(2000 + i, 'w' + (i % 2), { creator_replied: true }))
+    const db = falsoComentarios(t)
+    const r = await lerContagemDeRespostas(db.client, { siteId: S, channelId: CANAL, videoIds: ['w0', 'w1'] })
+    expect(r.lido).toBe(true)
+    expect(db.pedidos.filter((p) => p.table === 'competitor_video_comments').length).toBe(2)
+    const grande = base()
+    grande.competitor_video_comments = Array.from({ length: 21_000 }, (_, i) => coment(5000 + i, 'g', { creator_replied: true }))
+    expect(await lerContagemDeRespostas(falsoComentarios(grande).client, { siteId: S, channelId: CANAL, videoIds: ['g'] }))
+      .toEqual({ lido: false, causa: 'erro_do_banco', codigo: 'forma_inesperada' })
   })
   it('erro do banco e tabela ausente: não lida, com o código e sem texto', async () => {
     expect(await lerContagemDeRespostas(falsoComentarios(base(), { erroEm: { competitor_video_comments: { code: '42P01', message: SENT } } }).client, { siteId: S, channelId: CANAL, videoIds: ['v1'] }))
@@ -133,6 +160,29 @@ describe('lerRespostasDoCriador (E5a C1)', () => {
     t.competitor_video_comments = [...(t.competitor_video_comments ?? []), coment(70, 'v1', { site_id: OUTRO_SITE, creator_replied: true })]
     const { r } = await pedir(null, {}, t)
     expect(r).toMatchObject({ lido: true, dados: { total: 1 } })
+  })
+  it('muitos vídeos e muitas linhas (4.500): lido, com a contagem certa nos três níveis', async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => 'p' + i)
+    const t = base()
+    const linhas: Linha[] = []
+    let n = 1000
+    for (const v of ids) for (let k = 0; k < 30; k++) linhas.push(coment(n++, v, { creator_replied: k === 0 }))
+    for (let k = 0; k < 150; k++) linhas.push(coment(9000 + k, 'p' + k, { parent_id: 1000 + k * 30, is_creator: true, body: 'resp' }))
+    t.competitor_video_comments = linhas
+    for (const provas of [null, provasTexto]) {
+      const { r } = await pedir(provas, { videoIds: ids }, t)
+      if (!r.lido) throw new Error('esperava lido, veio ' + r.codigo)
+      expect(r.dados.total, String(provas)).toBe(150)
+      if (provas) expect(r.dados.itens.length).toBe(150)
+    }
+  })
+  it('nível texto: total é o número de itens listados (topo sem a resposta presa não conta)', async () => {
+    const t = base()
+    t.competitor_video_comments = [...(t.competitor_video_comments ?? []), coment(60, 'v1', { creator_replied: true })]
+    const { r: texto } = await pedir(provasTexto, {}, t)
+    expect(texto).toMatchObject({ lido: true, dados: { total: 1 } })
+    const { r: cont } = await pedir(null, {}, t)
+    expect(cont).toMatchObject({ lido: true, dados: { total: 2 } })
   })
   it('erro do banco: não lida', async () => {
     const db = falsoComentarios(base(), { erroEm: { competitor_video_comments: { code: 'XX000' } } })

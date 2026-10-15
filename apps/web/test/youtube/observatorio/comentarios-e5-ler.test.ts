@@ -308,19 +308,60 @@ describe('lerComentariosDeDestaque: o estado de cada marco (E5a C1)', () => {
     const r = await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(null))
     expect(r).toEqual({ lido: false, causa: 'erro_do_banco', codigo: 'forma_inesperada' })
   })
-  it('retrato ok com zero selecionados e 57 comentários no vídeo: nao_coletado por lista_vazia, não sem_comentarios', async () => {
+  it('erro + lista_vazia_com_contagem (a forma que a E14 grava) com 57 no vídeo: lista_vazia com o total e a data, não "erro"', async () => {
+    const t = base()
+    t.competitor_video_comment_snaps = [snap(1, { status: 'erro', error_reason: 'lista_vazia_com_contagem', selected_count: null, video_comment_count: 57 })]
+    const d = await so(t)
+    expect(d.marcos[1]).toEqual({ estado: 'nao_coletado', porque: { causa: 'lista_vazia', tomadoEmMs: T0 + 27 * H, ateMs: T0 + 72 * H, encerrada: true, totalDoDia: 57 } })
+  })
+  it('erro + lista_vazia_com_contagem com a contagem nula: lista_vazia com total nulo (nunca afirma contagem)', async () => {
+    const t = base()
+    t.competitor_video_comment_snaps = [snap(1, { status: 'erro', error_reason: 'lista_vazia_com_contagem', selected_count: null, video_comment_count: null })]
+    const d = await so(t)
+    expect(d.marcos[1]).toMatchObject({ estado: 'nao_coletado', porque: { causa: 'lista_vazia', totalDoDia: null } })
+  })
+  it('defesa: ok com zero escolhidos continua lista_vazia, com a data e o total do retrato (57 e nulo)', async () => {
     const t = base()
     t.competitor_video_comment_snaps = [snap(1, { selected_count: 0, video_comment_count: 57 })]
-    const d = await so(t)
-    expect(d.marcos[1]).toEqual({ estado: 'nao_coletado', porque: { causa: 'lista_vazia' } })
+    expect((await so(t)).marcos[1]).toMatchObject({ estado: 'nao_coletado', porque: { causa: 'lista_vazia', totalDoDia: 57, tomadoEmMs: T0 + 27 * H } })
+    t.competitor_video_comment_snaps = [snap(1, { selected_count: 0, video_comment_count: null })]
+    expect((await so(t)).marcos[1]).toMatchObject({ porque: { causa: 'lista_vazia', totalDoDia: null } })
+  })
+  it('erro com outro código (proibido): causa erro com o código; sem código gravado: sem_codigo', async () => {
+    const t = base()
+    t.competitor_video_comment_snaps = [snap(1, { status: 'erro', error_reason: 'proibido', selected_count: null, video_comment_count: 12 })]
+    expect((await so(t)).marcos[1]).toMatchObject({ estado: 'nao_coletado', porque: { causa: 'erro', codigo: 'proibido', totalDoDia: 12 } })
+    t.competitor_video_comment_snaps = [snap(1, { status: 'erro', error_reason: null, selected_count: null })]
+    expect((await so(t)).marcos[1]).toMatchObject({ porque: { causa: 'erro', codigo: 'sem_codigo' } })
+  })
+  it('encerrada: a janela do marco já fechou (agora > t0 + untilH), no erro e na lista vazia', async () => {
+    const t = base()
+    t.competitor_video_comment_snaps = [snap(1, { status: 'erro', error_reason: 'rede', selected_count: null }), snap(7, { status: 'erro', error_reason: 'lista_vazia_com_contagem', selected_count: null })]
+    const d = await so(t, { agoraMs: T0 + 73 * H })
+    expect(d.marcos[1]).toMatchObject({ porque: { causa: 'erro', encerrada: true } })
+    expect(d.marcos[7]).toMatchObject({ porque: { causa: 'lista_vazia', encerrada: false } })
   })
   it('sem_comentarios, desligados e erro (com a data da tentativa e até quando se tenta)', async () => {
     const t = base()
-    t.competitor_video_comment_snaps = [snap(1, { status: 'sem_comentarios', selected_count: 0 }), snap(7, { status: 'erro', error_reason: 'rede' }), snap(30, { status: 'desligados' })]
+    t.competitor_video_comment_snaps = [snap(1, { status: 'sem_comentarios', selected_count: 0 }), snap(7, { status: 'erro', error_reason: 'rede', video_comment_count: null }), snap(30, { status: 'desligados' })]
     const d = await so(t, { agoraMs: T0 + 40 * 24 * H })
     expect(d.marcos[1].estado).toBe('sem_comentarios')
     expect(d.marcos[30].estado).toBe('desligados')
-    expect(d.marcos[7]).toEqual({ estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + (7 * 24 + 3) * H, ateMs: T0 + 240 * H } })
+    expect(d.marcos[7]).toEqual({ estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + (7 * 24 + 3) * H, ateMs: T0 + 240 * H, encerrada: true, codigo: 'rede', totalDoDia: null } })
+  })
+  it('cliente sem leitura (zero comentários) com retrato ok e escolhidos > 0: parte não lida, nunca "lista vazia"', async () => {
+    const t = base()
+    t.competitor_video_comments = []
+    t.competitor_video_comment_marks = []
+    expect(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(null))).toEqual({ lido: false, causa: 'erro_do_banco', codigo: 'forma_inesperada' })
+    expect((await lerComentariosDeDestaque(falsoComentarios(base()).client, pedido(null))).lido).toBe(true)
+  })
+  it('a posição do YouTube (relevance_rank) vai ao cartão por marco; nula onde não há leitura', async () => {
+    const t = base()
+    t.competitor_video_comment_marks = (t.competitor_video_comment_marks ?? []).map((m) => (m.comment_id === 2 ? { ...m, relevance_rank: 7 } : m))
+    const d = await so(t)
+    expect(d.comentarios.find((c) => c.entrouNoMarco === 1 && c.posicao[1] === 7)).toBeDefined()
+    expect(d.comentarios[0]?.posicao[30]).toBeNull()
   })
   it('o resumo do marco ok traz o total do dia, não o de hoje', async () => {
     const d = await so(base())
@@ -329,7 +370,7 @@ describe('lerComentariosDeDestaque: o estado de cada marco (E5a C1)', () => {
     if (m.estado === 'ok') expect(m.resumo).toMatchObject({ totalDoDia: 500, amostra: 100, amostraCompleta: true, escolhidos: 3 })
   })
   // ---- as fronteiras de idade, sem linha de retrato ----
-  const semLinha = (): Record<string, Linha[]> => ({ ...base(), competitor_video_comment_snaps: [snap(30, { video_age_hours: 800 })], competitor_video_comments: [], competitor_video_comment_marks: [] })
+  const semLinha = (): Record<string, Linha[]> => ({ ...base(), competitor_video_comment_snaps: [snap(30, { video_age_hours: 800, selected_count: 1 })], competitor_video_comments: [coment(1)], competitor_video_comment_marks: [marca(1, 1, 5, 'curtidos'), marca(1, 7, 5, 'curtidos'), marca(1, 30, 5, 'curtidos')] })
   const COM = (marco: 1 | 7 | 30) => COMMENT_RULES.marks.find((m) => m.mark === marco)
   it('sem linha, idade futura e coleta viva: fecha_em, com a data', async () => {
     const d = await so(semLinha())

@@ -36,6 +36,8 @@ export interface CartaoBase {
   respostas: number | null
   criador: 'respondeu' | 'nao_vimos' | 'nao_sabemos'
   criadorNome: string | null
+  /** A posição do comentário na ordem de relevância do YouTube em cada marco (`relevance_rank`); nulo = sem leitura naquele marco. Dado público. */
+  posicao: Record<Marco, number | null>
   /** O comentário foi escrito pelo criador do vídeo (não diz quem é o autor dos outros). */
   doCriador: boolean
   /** O primeiro marco em que o comentário foi escolhido. */
@@ -85,9 +87,11 @@ export interface ResumoDoMarco {
 }
 
 export type CausaNaoColetado =
-  | { causa: 'erro'; tentouEmMs: number; ateMs: number }
+  /** `codigo` é o `error_reason` gravado pela coleta (escolhe a frase, nunca é mostrado); `encerrada`: a janela do marco já fechou. */
+  | { causa: 'erro'; tentouEmMs: number; ateMs: number; encerrada: boolean; codigo: string; totalDoDia: number | null }
   | { causa: 'tarde' }
-  | { causa: 'lista_vazia' }
+  /** A coleta grava a lista vazia com contagem positiva como `erro` + `lista_vazia_com_contagem`; `totalDoDia` é a contagem guardada (pode ser nula). */
+  | { causa: 'lista_vazia'; tomadoEmMs: number; ateMs: number; encerrada: boolean; totalDoDia: number | null }
   | { causa: 'janela_perdida' }
 
 export type EstadoDoMarco =

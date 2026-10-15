@@ -40,6 +40,8 @@ export function falsoComentarios(tabelas: Record<string, Linha[]>, opts: OpcoesF
       select(s: string) { colsBruto = s; cols = s.split(',').map((x) => x.trim()).filter(Boolean); return q },
       eq(c: string, v: unknown) { eqs[c] = v; rows = rows.filter((r) => r[c] === v); return q },
       in(c: string, vs: readonly unknown[]) { ins[c] = vs; const set = new Set(vs.map(String)); rows = rows.filter((r) => set.has(String(r[c]))); return q },
+      is(c: string, v: null) { eqs[c + ':is'] = v; rows = rows.filter((r) => (r[c] ?? null) === v); return q },
+      gt(c: string, v: unknown) { eqs[c + ':gt'] = v; rows = rows.filter((r) => Number(r[c]) > Number(v)); return q },
       order(c: string, o?: { ascending?: boolean }) { orders.push({ col: c, asc: o?.ascending !== false }); return q },
       limit(n: number) { limite = n; return q },
       abortSignal() { return q },

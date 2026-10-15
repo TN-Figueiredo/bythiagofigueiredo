@@ -1,4 +1,7 @@
 // A5 · E5a · Tarefa C1: o leitor dos comentários de destaque de UM vídeo, por nível de quem vê.
+// CONTRATO DO CLIENTE: `sb` é o cliente de SERVIÇO. A página chama depois da sua guarda de leitura do site, e o nível vem só das provas
+// (`nivelDeQuemVe`). Com o cliente do usuário a RLS devolve zero linha em vez de erro (comentários e marcas só abrem a quem edita; a agenda,
+// a `is_member_staff()`), então o leitor RECUSA o que não bate (marco ok com escolhidos e zero comentários) em vez de contar uma história.
 // Recebe o cliente por parâmetro (quem chama é a página, depois da guarda dela) e NUNCA lança: o que não foi lido vira
 // `{ lido: false, causa, codigo }`. Toda ida ao banco passa por `comTempo` (varredura 3). O erro é classificado por `erro.ts`: nenhum
 // `.message`, `.details` nem `.hint` é lido aqui. Sem cache, sem Sentry (quem relata é a página), sem frase: o leitor entrega dado.
@@ -55,6 +58,18 @@ export function linhasDe(r: Resposta): Obj[] {
   return saida
 }
 export function cortada(linhas: Obj[]): boolean { return linhas.length >= PAGINA }
+/** Teto de voltas da paginação por chave (`id`): acima disso a parte fica não lida (`ForaDaForma`) em vez de rodar sem fim. */
+export const VOLTAS_MAX = 20
+/** O `id` da última linha de uma página cheia (para pedir a próxima com `.gt('id', …)`); nulo quando a página veio incompleta (acabou). */
+export function depoisDe(pagina: Obj[]): string | null {
+  if (pagina.length < PAGINA) return null
+  const ultima = pagina[pagina.length - 1]
+  if (ultima === undefined) throw new ForaDaForma()
+  const id = ultima.id
+  if (typeof id === 'number' && Number.isInteger(id)) return String(id)
+  if (typeof id === 'string' && /^\d+$/.test(id)) return id
+  throw new ForaDaForma()
+}
 
 // ───── guardas de tipo, uma por campo ─────
 export function txt(v: unknown): string { if (typeof v !== 'string') throw new ForaDaForma(); return v }
@@ -108,6 +123,8 @@ export function viva(a: DaAgenda, agoraMs: number): ReturnType<typeof tarefaViva
 interface Snap {
   mark: Marco
   status: 'ok' | 'sem_comentarios' | 'desligados' | 'erro'
+  /** O `error_reason` gravado pela coleta (só no `erro`). */
+  motivo: string | null
   tomadoEmMs: number
   idadeHoras: number
   amostra: number | null
@@ -125,7 +142,7 @@ function snapDe(x: Obj): Snap | null {
   const status = txt(x.status)
   if (!STATUS.has(status)) throw new ForaDaForma()
   return {
-    mark, status: status as Snap['status'], tomadoEmMs: msDe(x.taken_at), idadeHoras: num(x.video_age_hours),
+    mark, status: status as Snap['status'], motivo: txtOuNulo(x.error_reason), tomadoEmMs: msDe(x.taken_at), idadeHoras: num(x.video_age_hours),
     amostra: numOuNulo(x.pool_size), amostraCompleta: boolOuNulo(x.pool_complete), totalDoDia: numOuNulo(x.video_comment_count),
     escolhidos: numOuNulo(x.selected_count), autoresConsultados: numOuNulo(x.featured_lookup_n), autoresSemTamanho: numOuNulo(x.featured_unknown_n),
   }
@@ -143,9 +160,19 @@ function estadoDoMarco(
   if (snap !== undefined) {
     if (snap.status === 'sem_comentarios') return { estado: 'sem_comentarios', tomadoEmMs: snap.tomadoEmMs }
     if (snap.status === 'desligados') return { estado: 'desligados', tomadoEmMs: snap.tomadoEmMs }
-    if (snap.status === 'erro') return { estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: snap.tomadoEmMs, ateMs: untilMs } }
-    if (snap.escolhidos === 0 && snap.totalDoDia !== null && snap.totalDoDia > 0) return { estado: 'nao_coletado', porque: { causa: 'lista_vazia' } }
-    if (snap.escolhidos === 0 && snap.totalDoDia === null) return { estado: 'nao_coletado', porque: { causa: 'lista_vazia' } }
+    const encerrada = agoraMs > untilMs
+    const listaVazia = (): EstadoDoMarco => ({
+      estado: 'nao_coletado', porque: { causa: 'lista_vazia', tomadoEmMs: snap.tomadoEmMs, ateMs: untilMs, encerrada, totalDoDia: snap.totalDoDia },
+    })
+    // A coleta grava a lista vazia com contagem positiva como `erro` + `lista_vazia_com_contagem` (coletar.ts); `ok` com 0 escolhidos é só defesa.
+    if (snap.status === 'erro') {
+      if (snap.motivo === 'lista_vazia_com_contagem') return listaVazia()
+      return {
+        estado: 'nao_coletado',
+        porque: { causa: 'erro', tentouEmMs: snap.tomadoEmMs, ateMs: untilMs, encerrada, codigo: snap.motivo ?? 'sem_codigo', totalDoDia: snap.totalDoDia },
+      }
+    }
+    if (snap.escolhidos === 0) return listaVazia()
     const resumo: ResumoDoMarco = {
       tomadoEmMs: snap.tomadoEmMs, idadeHoras: snap.idadeHoras, amostra: snap.amostra, amostraCompleta: snap.amostraCompleta,
       totalDoDia: snap.totalDoDia, escolhidos: snap.escolhidos, autoresConsultados: snap.autoresConsultados, autoresSemTamanho: snap.autoresSemTamanho,
@@ -180,7 +207,7 @@ export interface PedidoDeComentarios {
 const COLUNAS_SNAP = 'mark, status, error_reason, taken_at, video_age_hours, pool_size, pool_complete, video_comment_count, selected_count, featured_lookup_n, featured_unknown_n'
 const COLUNAS_COMENTARIO = 'id, parent_id, is_creator, creator_replied, featured_reason, featured_size_band, featured_ratio_band, missing_since'
 const COLUNAS_COMENTARIO_TEXTO = COLUNAS_COMENTARIO + ', body, body_truncated, published_at, first_seen_at, author_purged_at'
-const COLUNAS_MARCA = 'comment_id, mark, likes, reply_count, slot, creator_replied'
+const COLUNAS_MARCA = 'comment_id, mark, likes, reply_count, slot, creator_replied, relevance_rank'
 const COLUNAS_AUTOR = 'comment_id, display_name, avatar_url, expires_at'
 
 interface Comentario {
@@ -196,7 +223,7 @@ interface Comentario {
   publicadoMs: number | null
   purgadoEm: string | null
 }
-interface Marca { mark: Marco; likes: number; respostas: number | null; slot: string | null }
+interface Marca { mark: Marco; likes: number; respostas: number | null; slot: string | null; posicao: number | null }
 interface Autor { nome: string | null; foto: string | null; expiraMs: number; expiraEm: string }
 
 const idDe = (v: unknown): string => {
@@ -251,7 +278,12 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
 
   const topo = comentarios.filter((c) => c.parentId === null)
   const filhos = new Map<string, Comentario[]>()
-  for (const c of comentarios) if (c.parentId !== null) filhos.set(c.parentId, [...(filhos.get(c.parentId) ?? []), c])
+  for (const c of comentarios) {
+    if (c.parentId === null) continue
+    const lista = filhos.get(c.parentId)
+    if (lista === undefined) filhos.set(c.parentId, [c])
+    else lista.push(c)
+  }
 
   // as leituras por comentário de topo
   const marcas = new Map<string, Map<Marco, Marca>>()
@@ -263,9 +295,17 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
       if (mark === null) continue
       const id = idDe(x.comment_id)
       const doComentario = marcas.get(id) ?? new Map<Marco, Marca>()
-      doComentario.set(mark, { mark, likes: num(x.likes), respostas: numOuNulo(x.reply_count), slot: txtOuNulo(x.slot) })
+      doComentario.set(mark, { mark, likes: num(x.likes), respostas: numOuNulo(x.reply_count), slot: txtOuNulo(x.slot), posicao: numOuNulo(x.relevance_rank) })
       marcas.set(id, doComentario)
     }
+  }
+
+  // Coerência com o cliente: retrato ok com escolhidos e nenhum comentário com vaga naquele marco = leitura incompleta (cliente sem RLS
+  // de leitura, ou retrato e comentários fora de sincronia). Nunca vira "lista vazia".
+  for (const m of MARCOS) {
+    const s = snaps.get(m)
+    if (s === undefined || s.status !== 'ok' || s.escolhidos === null || s.escolhidos <= 0) continue
+    if (!topo.some((c) => (marcas.get(c.id)?.get(m)?.slot ?? null) !== null)) throw new ForaDaForma()
   }
 
   // a identidade: só o nível `identidade` toca a tabela de autores
@@ -304,6 +344,7 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
     return {
       ordem, motivo, curtidas, respostas: ultima?.respostas ?? null,
       criador: x.c.criadorRespondeu === true ? 'respondeu' : x.c.criadorRespondeu === false ? 'nao_vimos' : 'nao_sabemos',
+      posicao: { 1: x.doComentario.get(1)?.posicao ?? null, 7: x.doComentario.get(7)?.posicao ?? null, 30: x.doComentario.get(30)?.posicao ?? null },
       criadorNome: nomeDoCriador, doCriador: x.c.isCreator, entrouNoMarco: entrada(x), nosMarcos: x.nos, saiuDoYouTubeDesde: x.c.saiuDesde,
       faixas: x.c.faixas, _c: x.c,
     }
