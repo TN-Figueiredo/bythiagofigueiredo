@@ -58,13 +58,24 @@ function Cartao({ v, unico }: { v: SoSeuCanalCartao; unico: boolean }) {
             <li key={l.chave} data-linha={l.chave}>
               <div className="so-rt">{l.rotulo}<small>{l.sub}</small></div>
               <div className="so-val">
-                {l.valor != null
+                {l.cadeado
+                  ? <span className="so-cadeado" role="img" aria-label="só para quem edita o site"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" /><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg> <small className="so-nota">{l.nota}</small></span>
+                  : l.estado === 'erro'
+                    ? <small className="so-nota so-erro" role="alert">{l.nota}</small>
+                    : l.estado === 'em_revisao'
+                      ? <small className="so-nota so-revisao" role="img" aria-label={l.rotuloLeitor}>{l.nota}</small>
+                      : l.valor != null
                   ? <span className={'so-vl num' + (l.fraco ? ' fraco' : '')}>{l.valor}{l.nota ? <small>{l.nota}</small> : null}</span>
                   : l.aindaNaoDa
                     // há dado, pouco demais: só a frase, sem o quadradinho (que é "não medido")
                     ? <small className="so-nota so-ainda">{l.nota}</small>
                     : <Fragment><span className="obs-ch-nm so-nm" role="img" aria-label="não medido" />{l.nota ? <small className="so-nota">{l.nota}</small> : null}</Fragment>}
                 {l.chave === 'taxa' && v.taxa ? <FaixaDaTaxa taxa={v.taxa} /> : null}
+                {l.barra && l.barra.length > 0 ? (
+                  <div className="so-barra" role="img" aria-label={l.barra.map(b => `${b.rotulo} ${b.pct}%`).join(', ')}>
+                    {l.barra.map(b => <i key={b.rotulo} style={{ width: `${b.pct}%` }} />)}
+                  </div>
+                ) : null}
               </div>
             </li>
           ))}

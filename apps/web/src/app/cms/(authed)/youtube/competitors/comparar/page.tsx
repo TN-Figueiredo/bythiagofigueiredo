@@ -25,9 +25,10 @@ export default async function CompararPage({ searchParams }: { searchParams: Pro
   const [sp, { siteId, now, obs, meuCanalLembrado }] = await Promise.all([searchParams, openObservatoryPage()])
   // as views por dia e o cartão "Só o seu canal mede" dos canais próprios: lidos só para quem edita o site, depois da guarda; sem canal próprio no site
   // nada é consultado, e quem só lê recebe 'negado' sem nenhum número
-  const { extras, soSeuCanal } = await carregarProprioDaComparacao(obs, siteId, now)
+  // o par da URL decide de quais canais próprios se lê a origem (7 dias): o seletor do navegador não volta ao servidor (D14)
+  const inicial = resolverPar(buildCompararPack(obs, undefined, undefined, {}), primeiro(sp?.a), primeiro(sp?.b), meuCanalLembrado)
+  const { extras, soSeuCanal } = await carregarProprioDaComparacao(obs, siteId, now, undefined, inicial ? [inicial.a, inicial.b] : [])
   const pack = buildCompararPack(obs, undefined, extras, soSeuCanal)
-  const inicial = resolverPar(pack, primeiro(sp?.a), primeiro(sp?.b), meuCanalLembrado)
   return (
     <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs, meuCanalLembrado)}>
       <CompararScreen pack={pack} inicial={inicial} />

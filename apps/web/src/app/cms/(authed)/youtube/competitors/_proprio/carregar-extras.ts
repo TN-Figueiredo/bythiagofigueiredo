@@ -2,13 +2,19 @@
 // `dados.ts`: não cria guarda própria nem importa o leitor (uma varredura de teste barra). Sem canal próprio no site nada é
 // consultado. Sem permissão de edição, cada canal chega como 'sem-acesso' (sem consulta alguma).
 import 'server-only'
-import { dayPt } from '@/lib/youtube/coleta/day-pt'
+import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
+import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
+import { mapLimit } from '@/lib/youtube/observatorio/load'
 import type { Observatory } from '@/lib/youtube/observatorio'
-import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { AlcanceCanal, DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
-import { montarSoSeuCanalDado, type SoSeuCanalDado } from '../_comparar/so-seu-canal-model'
-import { lerAlcanceDosCanais, lerDiarioDosCanais, longosAcompanhadosDe, podeVerPrivado } from './dados'
+import { totalDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import { montarSoSeuCanalDado, type EntradaOrigemCartao, type SoSeuCanalDado } from '../_comparar/so-seu-canal-model'
+import { acessoPrivado, lerAlcanceDosCanais, lerDiarioDosCanais, longosAcompanhadosDe, podeVerPrivado } from './dados'
+import { lerOrigem } from './dados-origem'
+import { lerTermosESites } from './dados-termos'
+import { videosDaOrigem } from './origem-model'
 import { dmDia, type ExtrasProprio } from './extras'
 
 /**
@@ -40,10 +46,13 @@ export async function carregarExtrasProprio(
  */
 export async function carregarProprioDaComparacao(
   obs: Observatory, siteId: string, agora: number, avisar?: (e: unknown, n: number) => void,
+  /** Os ids dos canais do par da URL: só estes têm as cinco linhas da origem (7 dias). Ausente = nenhum (o cartão fica com as quatro do alcance). */
+  par: readonly string[] = [],
 ): Promise<{ extras: ExtrasProprio | undefined; soSeuCanal: Record<string, SoSeuCanalDado> }> {
   const owns = obs.ownChannels()
   if (owns.length === 0) return { extras: undefined, soSeuCanal: {} }
-  const leitura = await podeVerPrivado(siteId)
+  const acesso = await acessoPrivado(siteId)
+  const leitura = acesso.leitura
   const longos = new Map(owns.map(c => [c.id, longosAcompanhadosDe(obs, c.id)]))
   const [diarios, alcances] = await Promise.all([
     lerDiarioDosCanais({ canais: owns.map(c => ({ id: c.id, longosAcompanhados: longos.get(c.id) ?? [] })), agora, leitura }, avisar),
@@ -52,10 +61,35 @@ export async function carregarProprioDaComparacao(
   const hoje = dayPt(new Date(agora))
   const NEGADO = { acesso: 'negado' } as const
   const vpd = new Map<string, VpdCanal>(owns.map(c => [c.id, vpdDoCanal(diarios.get(c.id) ?? NEGADO, longos.get(c.id) ?? [], hoje)]))
+  // as cinco linhas da origem: só para os canais próprios do par, no máximo 4 em voo; a falha de um vira `erro` naquele canal (a leitura já avisa o Sentry)
+  const doPar = owns.filter(c => par.includes(c.id))
+  const ordemPub = (v: { pub: number }) => dayPt(new Date(v.pub))
+  const origens = new Map<string, EntradaOrigemCartao>()
+  if (leituraValida(leitura)) {
+    await mapLimit(doPar, 4, async c => {
+      const diario = diarios.get(c.id)
+      const ate = diario?.acesso === 'ok' && diario.dado.ultimoDia ? diario.dado.ultimoDia : addDays(hoje, -3)
+      const de = addDays(ate, -6)
+      const ytIds = videosDaOrigem(obs, c.id)
+      const publicacoes = new Map<string, string | null>(obs.videos.filter(v => v.ch === c.id).map(v => [v.ytId, ordemPub(v)]))
+      const [origem, termos] = await Promise.all([
+        lerOrigem({ canalId: c.id, ytIds, de, ate, diarioDesde: de, publicacoes, agora, prova: leitura }),
+        acesso.edita ? lerTermosESites({ canalId: c.id, ytIds, de, ate, agora, prova: leitura }) : Promise.resolve(NEGADO),
+      ])
+      const total = origem.acesso === 'ok' ? totalDoPeriodo(origem.dado.diario, { de, ate }) : null
+      origens.set(c.id, {
+        origem, termos, hojePt: hoje, ligadoEm: DIMENSOES_LIGADO_EM, publicacoes, podeEditar: acesso.edita, dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, n: x => obs.fmt.int(x),
+        periodo: {
+          id: '7', rotulo: '7 dias', de, ate, totalDoPeriodo: total?.total ?? null,
+          videosDoTotal: total ? { naConta: total.videosNaConta, fora: total.videosFora, parados: total.videosParados, paradosDesde: total.paradosDesde, comBuraco: total.comBuraco } : null,
+        },
+      })
+    })
+  }
   const soSeuCanal: Record<string, SoSeuCanalDado> = {}
   for (const c of owns) {
     const alcance: Privado<AlcanceCanal> = alcances.get(c.id) ?? NEGADO
-    soSeuCanal[c.id] = montarSoSeuCanalDado({ nome: c.name, alcance, diario: diarios.get(c.id) ?? NEGADO, longos: longos.get(c.id) ?? [], dm: dmDia, F: obs.fmt, hoje })
+    soSeuCanal[c.id] = montarSoSeuCanalDado({ nome: c.name, alcance, diario: diarios.get(c.id) ?? NEGADO, longos: longos.get(c.id) ?? [], dm: dmDia, F: obs.fmt, hoje, origem: origens.get(c.id) })
   }
   return { extras: { vpd, dm: dmDia }, soSeuCanal }
 }

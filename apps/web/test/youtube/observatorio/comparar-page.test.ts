@@ -38,7 +38,8 @@ describe('a rota comparar', () => {
   it('a página chama openObservatoryPage, e a guarda de acesso vem antes da leitura do pacote', async () => {
     await pagina({})
     expect(abrir).toHaveBeenCalledTimes(1)
-    expect(ordem).toEqual(['guarda', 'pack'])
+    // o pacote é montado duas vezes: uma sem dado privado, só para resolver o par da URL, e outra com o cartão (E5b T12); a guarda vem antes das duas
+    expect(ordem).toEqual(['guarda', 'pack', 'pack'])
   })
   it('a guarda que recusa (redirect) interrompe a página: nenhum pacote é montado', async () => {
     abrir.mockImplementation(async () => { throw new Error('REDIRECT /cms/login') })

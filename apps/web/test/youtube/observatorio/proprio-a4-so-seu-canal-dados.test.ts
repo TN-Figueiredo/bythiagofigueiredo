@@ -139,3 +139,48 @@ describe('carregarProprioDaComparacao', () => {
     expect(v.view?.naoMedido).toBe(true)
   })
 })
+
+describe('carregarProprioDaComparacao: a origem de 7 dias (E5b T12)', () => {
+  const W = proprioWorld({
+    mut: ds => {
+      const novos = new Map(ds.channels.filter(c => c.own).map((c, i) => [c.id, UUIDS[i]!]))
+      for (const c of ds.channels) { const n = novos.get(c.id); if (n) c.id = n }
+      for (const v of ds.videos) { const n = novos.get(v.ch); if (n) v.ch = n }
+    },
+  })
+  const AG = W.obs.NOW
+  const lidos = (): string[] => {
+    const canais: string[] = []
+    const db = fakeSupabase({}, { failIf: (t, eqs) => { if (t === 'yt_own_video_dim_daily') canais.push(String(eqs['channel_id'])); return false } })
+    getSupabaseServiceClient.mockReturnValue(db.client)
+    return canais
+  }
+  it('sem par: nenhuma dimensão é lida e o cartão fica com as quatro linhas', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    const canais = lidos()
+    const r = await carregarProprioDaComparacao(W.obs, S, AG)
+    expect(canais).toEqual([])
+    expect(r.soSeuCanal[UUIDS[0]!]!.view!.linhas.map(l => l.chave)).toEqual(['impressoes', 'cliques', 'taxa', 'assistido'])
+  })
+  it('canal próprio fora do par não é lido; o do par tem as nove linhas', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    const canais = lidos()
+    const r = await carregarProprioDaComparacao(W.obs, S, AG, undefined, [UUIDS[0]!])
+    expect(new Set(canais)).toEqual(new Set([UUIDS[0]!]))
+    expect(r.soSeuCanal[UUIDS[0]!]!.view!.linhas).toHaveLength(9)
+    expect(r.soSeuCanal[UUIDS[1]!]!.view!.linhas).toHaveLength(4)
+  })
+  it('dois canais próprios no par: dois lidos', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    const canais = lidos()
+    await carregarProprioDaComparacao(W.obs, S, AG, undefined, [UUIDS[0]!, UUIDS[1]!])
+    expect(new Set(canais)).toEqual(new Set([UUIDS[0]!, UUIDS[1]!]))
+  })
+  it('sem a prova: negado, nenhuma consulta nova e nenhum número', async () => {
+    requireSiteScope.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    const canais = lidos()
+    const r = await carregarProprioDaComparacao(W.obs, S, AG, undefined, [UUIDS[0]!])
+    expect(canais).toEqual([])
+    expect(r.soSeuCanal[UUIDS[0]!]).toEqual({ acesso: 'negado', view: null })
+  })
+})

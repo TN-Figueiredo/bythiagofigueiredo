@@ -86,7 +86,7 @@ describe('M1: a frase de "Não medido" lista só o que não foi medido', () => {
     }
     expect(assistido(viewDe(alcOk(), semDiario)).valor).toBeNull()
     expect(assistido(viewDe(alcOk(), diarioDe(20))).valor).toBe('61%')
-    expect(frase(alcOk(), diarioDe(20))).toBe('Impressões, taxa de clique e % assistido só chegam ao dono do canal.')
+    expect(frase(alcOk(), diarioDe(20))).toBe('Impressões, taxa de clique, origem das views e termos de pesquisa só chegam ao dono do canal.')
   })
 })
 

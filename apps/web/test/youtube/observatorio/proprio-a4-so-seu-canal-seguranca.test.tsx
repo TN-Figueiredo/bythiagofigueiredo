@@ -140,7 +140,8 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     expect(achados(SENTINELAS, html(), texto()).sort()).toEqual(SENTINELAS.map(x => `${x.grupo}: ${x.nome}`).sort())
     expect(db.trips.length).toBeGreaterThan(0)
     expect(servico.criado).toBeGreaterThanOrEqual(1)
-    expect(guarda.chamadas).toBe(1)
+    // a guarda da página (1) mais a prova de edição que a leitura dos termos faz por conta própria (1 por canal próprio do par; o par tem um)
+    expect(guarda.chamadas).toBe(2)
   })
 
   it('controle positivo: o que a rota entrega ao cliente TEM os números para quem edita (a negativa abaixo não passa em vazio)', async () => {

@@ -19,7 +19,8 @@ vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: dados.abrir }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
-  podeVerPrivado: dados.podeVerPrivado, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
+  podeVerPrivado: dados.podeVerPrivado,
+  acessoPrivado: async (s: string) => { const leitura = await dados.podeVerPrivado(s); return { leitura, edita: leitura != null, negativa: null } }, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
 }))
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
