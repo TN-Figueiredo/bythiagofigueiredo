@@ -870,3 +870,34 @@ update public.yt_reporting_reports set status = 'baixado', downloaded_at = now()
 - **Depois do diário rodam sem prazo próprio** os critérios do L2, o de metadados, o de orçamento e o fechamento da rota. O diário pode usar até o fim do relógio global (270 s de 300 s): confira `ms_passos` em `yt_own_collection_runs` nas primeiras semanas.
 - **"Não consegue baixar há 3 dias" dispara no 4º dia.** O critério `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias` (e o de job em erro há 3 dias) roda na primeira fase, antes das tentativas de download do dia. No 3º dia de falha ele ainda só vê duas datas com tentativa; a nota aparece na execução do 4º dia.
 - **Quem silenciou o domínio `youtube` nas notificações não recebe o aviso de `api_nao_ativada` / `sem_acesso` / `reautorizar`.** Uma notificação suprimida pela preferência do usuário conta como entregue: não há nota `sem_destinatario` e o cron fica verde. Nesse caso o estado só aparece em `acao_do_dono`, na resposta do cron.
+
+## 15. Versões do vídeo próprio (A5 E18)
+
+**O que o passo faz.** O passo `versoes` roda no cron diário (fase `antes`, teto próprio de 5 s) e deriva, dia a dia e em ordem, as versões de título, thumbnail e descrição a partir de `yt_own_video_meta_daily`. Zero chamada ao YouTube. Grava só por `rpc('yt_own_versions_apply_day')`, um canal e um dia por transação, em `yt_own_video_versions` e `yt_own_versions_state`. O resumo fica em `resumo.versoes`. O leitor (`observatorio/proprio-versoes/ler.ts`) só lê.
+
+**Notas vermelhas (`falhas`) e o que fazer.**
+
+| Nota | O que quer dizer | O que fazer |
+|---|---|---|
+| `schema_ausente: yt_own_versions_state` | código no ar sem a MG12 | aplicar a MG12 (`npm run db:push:prod`, dono); até lá nada é gravado nem perdido; ou `YT_OWN_STEPS_OFF=versoes` e redeploy |
+| `versões: <canal> não gravou o dia <dia> (<código>)` | a função do banco recusou ou falhou; o canal parou nesse dia | o código é de catálogo (`touch_recusado`, `abertura_invalida`, `dia_nao_fechado`, `sem_linha_do_dia`, `linha_de_base_incoerente`, `erro_desconhecido`, `funcao_ausente`); amanhã o passo tenta o mesmo dia; se repetir, abrir conserto |
+| `versões: <canal> sem nenhuma linha diária em <dia>` | o passo de metadados não gravou o dia | conferir a nota do passo de metadados do mesmo dia; dia no meio é pulado (a troca seguinte sai `lacuna`), dia no fim para o canal |
+| `versões: <canal> tem vídeos e nenhuma linha diária` | canal com vídeos publicados e zero linha | conferir se o passo de metadados roda para o canal |
+| `versões: <canal> tem linhas demais para uma execução` | mais de 20.000 linhas num intervalo | derivar em etapas (a recuperação anda 30 dias por execução); se persistir, abrir conserto |
+| `versões: <canal> conferido até <dia>, <n> dias de atraso` | `derived_through` ficou mais de 1 dia para trás | olhar `ms_passos.versoes` e as outras notas; o atraso fecha sozinho quando a causa some |
+| `versões: A/B Lab não pôde ser lido; origem de <n> troca(s) ficou sem resposta` | a leitura do A/B Lab falhou ou bateu em 1.000 linhas; as trocas foram gravadas como `nao_se_sabe` | investigar a leitura de `ab_tests`/`ab_test_cycles`; a origem não é corrigida depois |
+| `versões: <n> versão(ões) de descrição sem o texto guardado` | abertura de descrição sem texto em nenhuma linha | verificar `description_text` nas linhas diárias do dia |
+| `versões: <n> vídeo(s) público(s) sem título ou thumbnail conferidos em 2 dias e sem tentativa que explique` | a prova diária achou lacuna sem motivo | ver as tentativas do passo de metadados dos vídeos; ver também o caminho mudo abaixo |
+| `versões: a prova não achou vídeo público em <site>` | `publicos = 0` com vídeos e linhas | conferir `privacy_status` das linhas recentes |
+| `versões: <n> canal(is) com linha diária e sem estado de derivação` | o passo não criou o estado de um canal que tem linha | conferir a nota do canal; o passo cria o estado na primeira derivação |
+| `versões: <n> canal(is) sem tempo para saber o atraso` | o tempo acabou antes de ler o estado | normal em recuperação; vermelho fora dela |
+| `versões: há versão com origem reservada (cms)` | origem `cms` é reservada e nenhuma escrita a produz | defeito: abrir conserto |
+| `critérios: não foi possível avaliar a prova das versões` / `...se <canal> tem vídeos` | a prova ou a contagem falhou | conferir a função `yt_own_versions_prova` e a leitura de `youtube_videos` |
+
+**Campos do resumo.** `recuperando` (canal → dias que faltam): o canal derivou 2 dias ou mais nesta execução e parou por tempo ou pelo teto de 30 dias; verde, o dia seguinte continua. `dia_sem_resposta`: a função do banco não respondeu até o prazo; o dia não conta como derivado e a execução seguinte o refaz (`ja_derivado` se tinha gravado). `atraso_desconhecido`: canais cujo atraso o passo não chegou a saber. `origem_ab_incerta`: trocas de thumbnail com encerramento do Lab na janela em que as colunas não dizem qual imagem foi enviada; gravadas como `nao_se_sabe` com o teste; verde. `prova: 'sem_tempo'` no site: a prova não respondeu até o prazo; só resumo enquanto algum canal do site está em `recuperando`, vermelho fora disso.
+
+**Caminho mudo conhecido da prova.** Vídeo apagado no YouTube e ainda em `youtube_videos` continua "público" pelo último status e fica explicado todo dia pela tentativa `erro_http` "ausente de videos.list". Quem acusa é a nota do passo de metadados; a saída é remover o vídeo de `youtube_videos`.
+
+**Desligar e voltar.** Desligar: `YT_OWN_STEPS_OFF=versoes` na Vercel e **redeploy de produção** (a variável só chega a deploy novo; a execução das 12:00 UTC que cair antes do build terminar roda com o passo ligado). Voltar: tirar `versoes` da variável e novo deploy; o passo deriva os dias que faltaram, em ordem, enquanto as linhas diárias existirem. Desligado há 8 execuções fica vermelho. Não há dado a desfazer: o passo só escreve nas duas tabelas novas.
+
+**Semente do A/B Lab (só o dono, depois do D+1).** Simulação (não grava): `cd apps/web && npx tsx --require ./scripts/_sem-server-only.cjs --env-file=.env.local scripts/semear-versoes-ab-lab.ts`. Gravar (aponta para produção; o ref é o primeiro pedaço do host de `NEXT_PUBLIC_SUPABASE_URL`, impresso na primeira linha): `cd apps/web && npx tsx --require ./scripts/_sem-server-only.cjs --env-file=.env.local scripts/semear-versoes-ab-lab.ts --gravar --confirmar=<ref>`. Sai com código 3 se algum canal ainda não tem estado de versões (rode de novo depois que a coleta diária derivar o canal). Antes, contar o que fica de fora: `select count(*) from ab_test_cycles where ended_at is null and started_at < '2026-10-07';`.

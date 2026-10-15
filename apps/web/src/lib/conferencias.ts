@@ -291,8 +291,36 @@ export function conferenciasE5ARi(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E18 (versões do vídeo próprio): as datas dependem do dia da promoção a `main` (D). O controlador preenche `E18_DEPLOY` (dia de São Paulo,
+// AAAA-MM-DD) no commit do envio, DEPOIS de a MG12 estar em produção com V1 a V5 conferidas e da Tarefa 7 commitada. Enquanto for `null`, as
+// seis entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E18` (formato `E<n>`).
+/** Dia de São Paulo (AAAA-MM-DD) em que a E18 foi promovida a `main`. `null` = ainda não enviada. */
+export const E18_DEPLOY: string | null = null
+
+const PLANO_E18 = 'docs/superpowers/plans/2026-10-13-a5-e18-versoes-do-video-proprio-plan.md (seção 7; seção "Versões do vídeo próprio" do docs/ops/youtube-coleta-canais-proprios-runbook.md); anotar o resultado em .superpowers/sdd/a5-e18/progress.md'
+
+/**
+ * As conferências das versões do vídeo próprio a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio:
+ * vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE18(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e18-deploy-invalido', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E18}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D0, depois do primeiro cron das 12:00 UTC: resumo.versoes em yt_own_collection_runs (dias_derivados = dias desde 07/10 por canal; abertas.linha_de_base = 105, as outras origens = 0; atraso_dias = 0; prova.sem_explicacao = 0; ms_passos.versoes abaixo de 5.000; com sem_tempo e recuperando preenchido não é falha: anotar "em recuperação" e quem prova é o D+1); as consultas de contagem por campo e origem, de estado (2 linhas, tracking_since 2026-10-07) e origin = \'cms\' = 0'),
+    e('d1', 1, 'D+1: resumo.versoes com dias_derivados = 2 (um por canal), confirmadas = 105 menos os pulados, abertas = 0 ou as trocas reais do dia, ja_derivado = 0; a consulta K2 do item 200 = 0'),
+    e('d3', 3, 'D+3: ms_passos.versoes das três execuções abaixo de 2.000 ms nas duas últimas, e falhas sem nota de versões'),
+    e('d7', 7, 'D+7: as duas consultas da Tarefa 5 (thumbnail_blob_url distintos por vídeo desde o envio dela = 0 ou só troca do dono; tentativas kind = thumbnail só com outcome ok); se falhar, reverter a Tarefa 5'),
+    e('d14', 14, 'D+14: 14 execuções seguidas com resumo.versoes presente, passo não desligado, sem nota de versões em falhas e com atraso_dias 0 nos dois canais (execução em recuperando não conta); itens 188 e 199 conferidos; é o gatilho da MG17 (parte 2)'),
+    e('d30', 30, 'D+30: item 195, select origin, ab_event, thumb_similar, count(*) from yt_own_video_versions where origin <> \'linha_de_base\' group by 1, 2, 3; retoque em vídeo que o dono não tocou revê a regra do retoque; a K7 (título que volta ao anterior em dias vizinhos, sem evento do Lab) é o sinal do furo do risco 14'),
+  ]
+}
+
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

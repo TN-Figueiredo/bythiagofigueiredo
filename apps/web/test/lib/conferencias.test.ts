@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE5A, conferenciasE5ARi, conferenciasE14, conferenciasE16E15, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE5A, conferenciasE5ARi, conferenciasE14, conferenciasE16E15, conferenciasE18, conferenciasE1E2, conferenciasE6P2, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, type Conferencia,
 } from '@/lib/conferencias'
 
 // Duas partes. A primeira testa as funções puras com datas RELATIVAS a um AGORA com timers falsos (nenhum ano futuro
@@ -595,6 +595,57 @@ describe('conferências de E16 e E15 (agenda e captura horária, relativas ao di
     if (E16_E15_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E16_E15_DEPLOY)).toBe(true)
+      expect([...publicadas].sort()).toEqual([...IDS].sort())
+    }
+  })
+})
+
+// E18 (versões do vídeo próprio): as seis conferências nascem do dia do envio; a constante fica `null` até o controlador preencher.
+describe('conferências da E18 (versões do vídeo próprio, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const IDS = ['e18-d0', 'e18-d1', 'e18-d3', 'e18-d7', 'e18-d14', 'e18-d30']
+  const DIAS = [0, 1, 3, 7, 14, 30]
+
+  it('E18_DEPLOY nula não cria entrada, e nada vence por mais longe que esteja o dia', () => {
+    expect(conferenciasE18(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE18(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE18(null))).toEqual([])
+  })
+  it('data malformada vira a entrada vermelha de 1970 que manda corrigir a constante', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '12/10/2026', '']) {
+      const l = conferenciasE18(ruim)
+      expect(l.map(x => x.id), ruim).toEqual(['e18-deploy-invalido'])
+      expect(l[0]!.data).toBe('1970-01-01')
+      expect(l[0]!.onde).toContain('E18_DEPLOY')
+      expect(conferenciasEmFalha(dia(0), l).map(x => x.id), ruim).toEqual(['e18-deploy-invalido'])
+    }
+  })
+  it('com a data, as seis entradas em D0, D+1, D+3, D+7, D+14 e D+30, do agente, sem feitaEm', () => {
+    const l = conferenciasE18(dia(-40))
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual(DIAS.map(n => dia(-40 + n)))
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E18')
+      expect(x.onde.length, x.id).toBeGreaterThan(40)
+    }
+  })
+  it('cada uma vence no dia seguinte à sua data, e com 8 dias de atraso deixa o cron vermelho', () => {
+    const l = conferenciasE18(dia(0))
+    for (const [i, x] of l.entries()) {
+      expect(conferenciasVencidas(dia(DIAS[i]!), [x]), x.id).toEqual([])
+      expect(conferenciasVencidas(dia(DIAS[i]! + 1), [x]).map(y => y.id), x.id).toEqual([x.id])
+      expect(conferenciasEmFalha(dia(DIAS[i]! + 7), [x]), x.id).toEqual([])
+      expect(conferenciasEmFalha(dia(DIAS[i]! + 8), [x]).map(y => y.id), x.id).toEqual([x.id])
+    }
+  })
+  it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as seis)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e18-')).map(x => x.id)
+    if (E18_DEPLOY === null) expect(publicadas).toEqual([])
+    else {
+      expect(/^\d{4}-\d{2}-\d{2}$/.test(E18_DEPLOY)).toBe(true)
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
   })
