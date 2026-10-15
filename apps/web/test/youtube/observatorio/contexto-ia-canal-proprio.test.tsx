@@ -166,7 +166,8 @@ describe('7a: o inventário', () => {
     expect(sobrando).toEqual(SEM_FOLHA_NAS_FIXTURES)
   })
 })
-const SEM_FOLHA_NAS_FIXTURES: string[] = ['videos.videos[].pin.*'] // `pin` é nulo em todo vídeo das fixtures; o destino do resto fica declarado para o dia em que existir
+// `cedo` (a faixa dos 7 primeiros dias) é nulo no canal em toda fixture: as folhas dele são provadas na 7b (vídeo novo), pelo inventário compartilhado
+const SEM_FOLHA_NAS_FIXTURES: string[] = ['videos.videos[].pin.*', ...Object.keys(INVENTARIO_CANAL_PROPRIO).filter(k => /\.cedo\./.test(k))] // `pin` é nulo em todo vídeo das fixtures; o destino do resto fica declarado para o dia em que existir
 
 describe('7a: o dado privado em quatro estados', () => {
   const cheio = () => modeloDe(CHEIO_COM_ASSISTIDO)

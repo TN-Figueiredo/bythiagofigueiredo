@@ -127,6 +127,12 @@ export function inventarioDeColunasDeGrafico(p: string): Inventario {
     [`${p}.avisos[]`]: 'base',
     [`${p}.metodo[]`]: 'base', // o ⓘ do gráfico: vai nas definições
     [`${p}.rotuloEixo`]: 'rotulo', [`${p}.rotuloValor`]: 'rotulo', [`${p}.rotuloSituacao`]: 'rotulo',
+    [`${p}.soZeros`]: CTRL, // o gráfico só com o 0: as colunas já dizem 0 medido
+    // vídeo novo / ainda cedo (E5b): a faixa de 7 casas no lugar do gráfico; vira tabela própria (`tabelaDoCedo`)
+    [`${p}.cedo`]: CTRL, [`${p}.cedo.tipo`]: CTRL, [`${p}.cedo.frase`]: 'base',
+    [`${p}.cedo.casas[].dia`]: REP, [`${p}.cedo.casas[].rotulo`]: 'rotulo', [`${p}.cedo.casas[].numero`]: REP, [`${p}.cedo.casas[].estado`]: CTRL,
+    [`${p}.cedo.casas[].texto`]: 'numero', [`${p}.cedo.casas[].aria`]: 'motivo',
+    [`${p}.cedo.legenda[].tipo`]: APAR, [`${p}.cedo.legenda[].texto`]: APAR,
   }
 }
 
@@ -170,6 +176,9 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   'videos.videos[].pacote.vpdDiario.texto': 'numero', 'videos.videos[].pacote.vpdDiario.motivo': 'base',
   // a aba % assistido
   'retencao.estado': CTRL, 'retencao.titulo': 'rotulo', 'retencao.nota': 'base', 'retencao.vazio': 'base', 'retencao.semPercentual': 'base',
+  // os cartões de % assistido por período vêm de `buildAssistidoDoCanal`, montado pela PÁGINA fora de `ProprioView` (E5b T15): o modelo daqui não os recebe.
+  // Pendência da Tarefa 8b (`montarCanal`); o pacote diz isso em `naoMede` (NAO_MEDE_PERIODOS). Sempre nulo neste modelo.
+  'retencao.periodos': CTRL,
   'retencao.relance': REP, 'retencao.relance.negrito': 'base', 'retencao.relance.resto': 'base',
   'retencao.faixas[].rotulo': 'rotulo', 'retencao.faixas[].videos': 'numero', 'retencao.faixas[].normal': 'numero', 'retencao.faixas[].estado': CTRL, 'retencao.faixas[].texto': 'motivo',
   'retencao.videos[].id': IDENT, 'retencao.videos[].titulo': REP, 'retencao.videos[].href': END, 'retencao.videos[].ordem': 'rotulo',
@@ -207,6 +216,7 @@ export const AVISO_PARCIAL_PROPRIO = 'Parte do dado privado do canal não foi li
 export const ITENS_PRIVADOS_PROPRIO = 'impressões, cliques estimados, taxa de clique, views por dia dos vídeos e % assistido'
 export const NAO_MEDE_CAUSA = 'a causa de uma mudança nos números: nada aqui prova que uma capa ou um título fez a diferença'
 export const NAO_MEDE_OUTROS = 'impressões, taxa de clique e % assistido de outros canais: o YouTube só os entrega ao dono do canal'
+export const NAO_MEDE_PERIODOS = 'os cartões de % assistido por período (canal inteiro, 90 e 28 dias) e a origem das views por período: esta versão do pacote não os traz'
 export const TITULO_PRIVADO = ', dado privado do canal'
 
 // ───────────────────────── células
@@ -346,6 +356,7 @@ function tabelaDeViewsDosVideos(m: ModeloCanalProprio): Tabela[] {
 
 /** O gráfico dia a dia: uma linha por dia, com a origem em `raiz` (`modelo.grafico`, `modelo.blocos.views.grafico`). `comCliques` só no de impressões. */
 export function tabelaDeDiaADia(g: ImpressoesView, raiz: string, id: string, titulo: string, nomeNoCorte: string, comCliques: boolean): Tabela[] {
+  if (g.cedo) return tabelaDoCedo(g, raiz, id, titulo, nomeNoCorte)
   if (g.colunas.length === 0) return []
   const linhas = g.colunas.map((c, i): Celula[] => {
     const o = `${raiz}.colunas[${i}]`
@@ -358,6 +369,24 @@ export function tabelaDeDiaADia(g: ImpressoesView, raiz: string, id: string, tit
     id, titulo: `${titulo}${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true,
     colunas: comCliques ? ['Dia', g.rotuloValor, 'Cliques estimados', g.rotuloSituacao] : ['Dia', g.rotuloValor, g.rotuloSituacao], linhas,
   }]
+}
+
+/**
+ * A faixa dos 7 primeiros dias (vídeo novo ou ainda cedo): uma linha por casa. Casa que o YouTube ainda não mandou ("hoje", "ontem") e casa que ainda não
+ * existe entram como NÃO medido, com a frase que a tela fala (`aria`); só "0" (zero medido) e o número de impressões entram como valor.
+ */
+function tabelaDoCedo(g: ImpressoesView, raiz: string, id: string, titulo: string, nomeNoCorte: string): Tabela[] {
+  const c = g.cedo
+  if (!c) return []
+  const linhas = c.casas.map((x, i): Celula[] => {
+    const o = `${raiz}.cedo.casas[${i}]`
+    const medido = x.estado === 'zero-medido' || x.estado === 'com-impressoes'
+    return [rot(x.rotulo, `${o}.rotulo`), medido ? numero(x.texto, null, `${o}.texto`, `${o}.aria`) : numero(null, x.aria, `${o}.texto`, `${o}.aria`)]
+  })
+  return [
+    { id, titulo: `${titulo}, primeiros 7 dias${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true, colunas: ['Dia', g.rotuloValor], linhas },
+    ...tabelaDeProsa(`${id}-frase`, `${titulo}, frase dos primeiros dias`, [[c.frase, `${raiz}.cedo.frase`]]),
+  ]
 }
 
 function tabelaDoGrafico(g: ImpressoesView, chave: 'grafico' | 'graficoViews', id: string, titulo: string, comCliques: boolean): Tabela[] {
@@ -534,7 +563,7 @@ export function empacotarCanalProprio(m: ModeloCanalProprio, privado: EstadoDoPr
   if (naoVazio(m.videos.nota)) avisos.push(m.videos.nota)
   if (naoVazio(m.videos.semVideos)) avisos.push(m.videos.semVideos)
 
-  const naoMede = [NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, ...m.comoEsta.naoMedido.map((x) => `${x.rotulo}: ${x.texto}`), `Trocas: ${m.abas.trocas} ${m.abasNota.trocas}`, `Leitura: ${m.abas.leitura} ${m.abasNota.leitura}`]
+  const naoMede = [NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, NAO_MEDE_PERIODOS, ...m.comoEsta.naoMedido.map((x) => `${x.rotulo}: ${x.texto}`), `Trocas: ${m.abas.trocas} ${m.abasNota.trocas}`, `Leitura: ${m.abas.leitura} ${m.abasNota.leitura}`]
 
   return {
     tela: 'canal-proprio',

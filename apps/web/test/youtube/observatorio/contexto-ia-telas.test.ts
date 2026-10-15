@@ -25,7 +25,8 @@ const ONZE_IDS = ['canais', 'canal', 'video', 'comparar', 'outliers', 'insights'
  * no mesmo lote OU acrescenta uma linha aqui, com a pasta, a etapa e a data.
  */
 interface PaginaSemEmpacotador { tela: TelaId; pasta: string; etapa: string; desde: string }
-const PAGINA_SEM_EMPACOTADOR: readonly PaginaSemEmpacotador[] = []
+// A página `saiu/` (Saíram do YouTube, E9) entrou em origin antes do empacotador da fila (Tarefa 16, condicional): fica declarada aqui.
+const PAGINA_SEM_EMPACOTADOR: readonly PaginaSemEmpacotador[] = [{ tela: 'fila', pasta: 'saiu', etapa: 'E9', desde: '2026-10-14' }]
 
 type Registro = typeof TELAS_IA
 
@@ -127,6 +128,9 @@ describe('registro de telas (TELAS_IA)', () => {
   })
 })
 
+// os controles negativos partem do disco SEM a pasta saiu/ (que existe de verdade e está declarada em PAGINA_SEM_EMPACOTADOR)
+const semSaiu = noDisco.filter((p) => p !== 'saiu')
+
 describe('registro de páginas (S-I6, S-N3)', () => {
   it('toda pasta com page.tsx em competitors/ pertence a uma rota do registro ou é a pasta de uma entrada de PAGINA_SEM_EMPACOTADOR', () => {
     expect(noDisco.length).toBeGreaterThanOrEqual(7) // controle de que o glob olha para alguma coisa
@@ -134,7 +138,7 @@ describe('registro de páginas (S-I6, S-N3)', () => {
   })
 
   it('controle negativo: uma pasta inventada falha', () => {
-    expect(pastasSemDono([...noDisco, 'pasta-inventada'], [], TELAS_IA)).toEqual(['pasta-inventada'])
+    expect(pastasSemDono([...semSaiu, 'pasta-inventada'], [], TELAS_IA)).toEqual(['pasta-inventada'])
   })
 
   it('página no disco com a tela em espera_a_tela só passa se o id estiver em PAGINA_SEM_EMPACOTADOR, com pasta, etapa e data', () => {
@@ -143,14 +147,14 @@ describe('registro de páginas (S-I6, S-N3)', () => {
   })
 
   it('controle negativo: uma pasta saiu/ de mentira, fora da lista, falha com a mensagem das duas saídas', () => {
-    const msgs = paginasSemSaida([...noDisco, 'saiu'], [], TELAS_IA)
+    const msgs = paginasSemSaida([...semSaiu, 'saiu'], [], TELAS_IA)
     expect(msgs).toHaveLength(1)
     expect(msgs[0]).toContain('Tarefa 16')
     expect(msgs[0]).toContain('PAGINA_SEM_EMPACOTADOR')
   })
 
   it('o caso da E9: com a pasta saiu/ de mentira e a entrada de fila, os testes passam sem tocar em L/telas.ts', () => {
-    const pastas = [...noDisco, 'saiu']
+    const pastas = [...semSaiu, 'saiu']
     const entradas: PaginaSemEmpacotador[] = [{ tela: 'fila', pasta: 'saiu', etapa: 'E9', desde: '2026-10-13' }]
     expect(pastasSemDono(pastas, entradas, TELAS_IA)).toEqual([])
     expect(paginasSemSaida(pastas, entradas, TELAS_IA)).toEqual([])
@@ -159,12 +163,12 @@ describe('registro de páginas (S-I6, S-N3)', () => {
 
   it('tela em espera_a_tela com rota própria (sem dividir com tela que existe) e página no disco: falha sem a entrada', () => {
     const registro: Registro = { ...TELAS_IA, ritmo: { ...TELAS_IA.ritmo, rota: 'ritmo' } }
-    expect(paginasSemSaida([...noDisco, 'ritmo'], [], registro)).toHaveLength(1)
-    expect(paginasSemSaida([...noDisco, 'ritmo'], [{ tela: 'ritmo', pasta: 'ritmo', etapa: 'E16', desde: '2026-10-13' }], registro)).toEqual([])
+    expect(paginasSemSaida([...semSaiu, 'ritmo'], [], registro)).toHaveLength(1)
+    expect(paginasSemSaida([...semSaiu, 'ritmo'], [{ tela: 'ritmo', pasta: 'ritmo', etapa: 'E16', desde: '2026-10-13' }], registro)).toEqual([])
   })
 
   it('entrada em PAGINA_SEM_EMPACOTADOR cuja pasta não tem page.tsx no disco: falha', () => {
-    const msgs = entradasInvalidas(noDisco, [{ tela: 'fila', pasta: 'saiu', etapa: 'E9', desde: '2026-10-13' }], TELAS_IA)
+    const msgs = entradasInvalidas(semSaiu, [{ tela: 'fila', pasta: 'saiu', etapa: 'E9', desde: '2026-10-13' }], TELAS_IA)
     expect(msgs).toHaveLength(1)
     expect(msgs[0]).toContain('não tem page.tsx')
   })
@@ -179,8 +183,8 @@ describe('registro de páginas (S-I6, S-N3)', () => {
     expect(entradasInvalidas([...noDisco, 'saiu'], [{ tela: 'fila', pasta: 'saiu', etapa: '', desde: '' }], TELAS_IA)).toHaveLength(1)
   })
 
-  it('PAGINA_SEM_EMPACOTADOR nasce vazia', () => {
-    expect(PAGINA_SEM_EMPACOTADOR).toHaveLength(0)
+  it('PAGINA_SEM_EMPACOTADOR tem só a página saiu/ da E9 (a Tarefa 16 a tira)', () => {
+    expect(PAGINA_SEM_EMPACOTADOR.map((e) => e.pasta)).toEqual(['saiu'])
   })
 })
 
