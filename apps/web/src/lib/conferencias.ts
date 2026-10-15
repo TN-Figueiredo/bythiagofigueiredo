@@ -464,8 +464,36 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
   return [{ id: 'e17d1-nucleo-d1', etapa: 'E17', data: somaDias(envio, 1), responsavel: 'agente', onde: `${PLANO_E17D1}: Sentry sem evento novo nos sete page.tsx refeitos pela extração montar (Tarefas 8a e 8b)`, feitaEm: null }]
 }
 
+// E9 (fila "Saíram do YouTube"): as datas dependem do dia da promoção do Envio B a `main` (D). O controlador preenche `E9_DEPLOY` (dia de São Paulo,
+// AAAA-MM-DD) no commit do envio, DEPOIS de o Envio A estar em `main` (conferência A1) e da MG18 estar em produção com V1 a V3 anotadas. Enquanto for
+// `null`, as entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E9`. As conferências por evento (`e9-primeiro-apagar`) e a condicional
+// (`e9-religar-prova`, só se `OBS_PROVA_AUSENTES=off` for usado) não têm data fixa e ficam no runbook, não aqui.
+/** Dia de São Paulo (AAAA-MM-DD) em que a E9 (Envio B) foi promovida a `main`. `null` = ainda não enviada. */
+export const E9_DEPLOY: string | null = null
+
+const PLANO_E9 = 'docs/superpowers/plans/2026-10-13-a5-e9-fila-sairam-do-youtube-plan.md (seção 7 e Tarefa 13; consultas K1 a K7 da seção 11); runbook docs/ops/observatorio-fila-sairam-runbook.md; anotar o resultado em .superpowers/sdd/a5-e9/progress.md'
+
+/**
+ * As conferências da fila "Saíram do YouTube" a partir do dia do envio (D). `null` = sem entradas. Data malformada não some em silêncio:
+ * vira uma entrada de 1970 (vermelha) que manda corrigir a constante. Em ordem de data.
+ */
+export function conferenciasE9(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e9-deploy-invalido', etapa: 'E9', data: '1970-01-01', responsavel: 'agente', onde: `E9_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e9-${id}`, etapa: 'E9', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E9}: ${onde}`, feitaEm: null })
+  return [
+    e('d0', 0, 'D, retorno do primeiro disparo do cron de concorrentes depois do deploy: o campo `prova_ausentes` PRESENTE, com as dez chaves da prova (campo ausente = a prova não está ligada naquele caminho = falha da conferência); `prova` sem problema novo; nota da prova coerente com a CP1; K1: `pisos` = vídeos ausentes; aba aberta nos dois temas; se a CP1 tinha ausente, o painel de um item real lido SEM confirmar'),
+    e('d1', 1, 'D+1: K1 de novo com `ausentes_com_queda = 0`; K3: nenhum item "apagando"; nenhum erro "conferir os vídeos já apagados" em 72 disparos'),
+    e('d7', 7, 'D+7: K1; K4 (ausentes por idade: quantos esperam há mais de 7 dias, número para o dono, não falha); se houve "apagar": K2 daquele item'),
+    e('d30', 30, 'D+30: K1; K5 (toda linha de `competitor_removed_items` tem auditoria); CP5 de novo (a recusa foi exercida alguma vez?); CP10 de novo se a MG11 entrou'),
+  ]
+}
+
+
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
