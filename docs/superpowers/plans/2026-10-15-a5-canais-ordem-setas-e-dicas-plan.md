@@ -84,10 +84,15 @@ A doc oficial da YouTube Data API (`channels`, `statistics.subscriberCount`, lid
 - `CanaisSort` ganha `'direcao'`, valor `d.pct` quando `direcao.tipo === 'medido'`, senão `null`. Primeiro clique: maior primeiro (quem mais sobe).
 - Crescimento "sem variação" vale 0 para ordenar (fica entre quem cresceu e quem perdeu) e chave `"0"` (empate de todos eles).
 
+### D5. Duas decisões do controlador sobre o mockup 17 (15/10)
+
+- **Barra de ordenação:** segue o mockup 17 aprovado: quebra a linha, sem rolagem horizontal e sem `scrollIntoView` (T9).
+- **Textos das dicas:** valem os do Logan (corrigem um fato: a contagem é cortada para baixo), mesmo divergindo do mockup. **O dono é avisado** dessa divergência.
+
 ### D4. Pontos fora do mockup, decididos aqui (para o Logan conferir na revisão do implementado)
 
 - Faixa "Seus canais" nas ordenações sem posição: os botões são "Ordenar por Inscritos" e "Ordenar por Views/dia" (o mockup); some o "Abrir meu canal" nessas ordenações. O Logan manteve os dois botões (2ª rodada, item 10).
-- Barra fixa do celular: as 4 ordenações do mockup primeiro (Inscritos, Views/dia, Crescimento, Direção) e depois Ritmo, Outliers, Trocas, em rolagem horizontal da própria barra. A Naksu aprovou a ordem (2ª rodada, decisão 2).
+- Barra fixa do celular: as 4 ordenações do mockup primeiro (Inscritos, Views/dia, Crescimento, Direção) e depois Ritmo, Outliers, Trocas, na mesma barra, que quebra a linha como no mockup 17 (decisão do controlador, sem rolagem horizontal). A Naksu aprovou a ordem (2ª rodada, decisão 2).
 - Shorts: as dicas trocam "vídeos longos" por "Shorts".
 - Inscritos abaixo de mil (o YouTube mostra o número exato): "N inscritos. Abaixo de mil, o YouTube mostra o número exato." Aprovado pelo Logan (item 2).
 - Célula sem texto novo no Logan (estados que o mockup não desenhou: atrasado, buscando vídeos, sem Shorts, sem vídeos): a dica é o texto que hoje está no `title` nativo daquela célula, movido para a dica. **A regra "sem `title` nativo" vale para as células de valor** (`td[data-col] [title]`, o `data-col` que a Tarefa 8 cria). Ficam fora da regra, porque não são dica de valor: o nome truncado (`title={r.name}` em `cells.tsx`, a única forma de ler o nome inteiro cortado), o `abbr.langtag title` (semântica do `abbr`), o motivo de botão desabilitado ("Você só pode ler esta lista.") e o botão de ordenar do cabeçalho "Canal".
@@ -273,6 +278,13 @@ describe('crescimento30', () => {
     expect(crescimento30(deps, [snap(0, 800), snap(30, 800)], 800).roundingText).toBe('exato')
     expect(crescimento30(deps, [], null).roundingText).toBe('sem contagem')
   })
+  // Step 3b: o `text` do motor segue o mesmo sentido; formato curto `+N (até +unit)`, nunca "±" simétrico
+  it('text: "+N (até +passo)" fora do arredondamento, nunca "±"', () => {
+    const g = crescimento30(deps, [snap(0, 1_200_000), snap(30, 1_250_000)], 1_250_000)
+    expect(g.text).toBe(`+${deps.fmt.num(50_000)} (até +${deps.fmt.num(10_000)})`)
+    expect(g.text).not.toContain('±')
+    expect(crescimento30(deps, [snap(0, 800), snap(30, 803)], 803).text).toBe('+3')
+  })
 })
 ```
 
@@ -325,7 +337,7 @@ function roundingOf(fmt: EngineCtx['fmt'], subs: number | null, base: number | n
     roundingText: err ? 'o número real é este ou um pouco maior, em menos de ' + fmt.num(unit) : 'exato',
     withinRounding: dentro, limiteArred: limite, uncertainty: b < 1000 ? 0 : unit,
     text: abs == null ? null : dentro ? (limite > 0 ? '≈ 0 (dentro do arredondamento do YouTube, ±' + fmt.num(limite) + ')' : '0 (mesmo número nas duas contagens)')
-      : (abs > 0 ? '+' : '') + fmt.num(abs) + (unit > 1 ? ' (±' + fmt.num(unit) + ')' : ''),
+      : (abs > 0 ? '+' : '') + fmt.num(abs) + (unit > 1 ? ' (até +' + fmt.num(unit) + ')' : ''),
   }
 }
 ```
@@ -343,7 +355,7 @@ Em `roundingOf`, trocar `roundingText: err ? '±' + fmt.num(err) : 'exato'` por 
    (O `subsTip` sai da célula na Tarefa 8, que o troca pela dica; até lá o texto não pode contradizer a doc.)
 2. `_canal/header-model.ts:73` só interpola `g.roundingText`: o cabeçalho do canal muda sozinho, sem editar o arquivo.
 3. A cópia `test/fixtures/observatorio/dados.cjs` / `dados-teste.html` é fixture independente (o HTML de dados tem o seu próprio motor): **não tocar**.
-O `text` do motor (`(±{unit})` em `+N (±unit)`) é outro campo, fora do pedido do Logan: não mexer aqui; fica listado na seção "Consertos da 2ª rodada".
+O `text` do motor (`+N (±unit)`) entra neste mesmo passo, com o mesmo sentido (este ou um pouco maior): o formato curto não comporta a frase inteira do `roundingText`, então vira `+N (até +unit)` (só quando `unit > 1`; o ramo "dentro" `≈ 0 (…, ±limite)` não muda, é o texto aprovado). **O Logan confere esse texto curto na T11** (revisão do implementado). Teste novo em `crescimento30-a5.test.ts` (abaixo): o `text` fora do arredondamento é `+N (até +unit)`, sem `±`.
 
 - [ ] **Step 4: Rodar o teste novo e os consumidores**
 
@@ -1741,7 +1753,7 @@ git commit -m "feat: canais: dica por célula em todas as colunas da tabela e do
 
 **`--obs-top` e `--obs-topbar-h` não existem na tela Canais (Naksu A1 = Re-revisão C1, bloqueio).** Os dois só são declarados sob `[data-obs-screen="canal"]` (singular, `_canal/canal.css:8`); `canais.css` (escopo `canais`, `canais-screen.tsx:413`) não declara nenhum. `var()` indefinida em `top` invalida a declaração: `top` vira `auto` e o `sticky` não gruda (o e2e do caso 6 reprovaria, tarde). **Valor conferido no código da casca do CMS:** `apps/web/src/app/cms/(authed)/_shared/cms-topbar.css` declara a barra de topo com `height: 52px` (linha 7) e, em `@media (max-width: 768px)`, `height: 48px` (linhas 100-104). Logo: **52 px acima de 768 px e 48 px até 768 px** (o 48 px que o plano citava existe; o `canal.css` só declara 52, o que fica errado até 768 px, mas é outra tela e **fora deste plano**). O conserto, em `canais.css` (mesma fórmula do `canal.css:8`, com comentário apontando para ela): declarar `--obs-topbar-h` e `--obs-top` sob `[data-obs-screen="canais"]`, com o override de 48 px no `@media (max-width: 768px)`, e **escopar** a regra da barra sob `[data-obs-screen="canais"]` como o resto do arquivo.
 
-Mockup: a 390 px a barra fica presa logo abaixo da barra do topo (`position: sticky; top: var(--obs-top)`, agora declarada, ver acima; `--obs-sticky-h` é 0 nesta tela, nenhum outro grudado a escreve) com um único `z-index` (`var(--z-grudado)`; se o token não existir, usar o que o pé preso `pe-preso.tsx` usa). Botões: `Inscritos`, `Views/dia`, `Crescimento`, `Direção`, depois `Ritmo`, `Outliers`, `Trocas` (D4; ordem aprovada pela Naksu). O ativo leva ` ↓` (maior primeiro) ou ` ↑` **só como símbolo visual** (`aria-hidden`), e o nome acessível diz `Inscritos, maior primeiro` / `, menor primeiro` (Naksu A4); tocar o ativo inverte. A barra rola na horizontal dentro dela (`overflow-x: auto; flex-wrap: nowrap`: 1 linha de 44 + 2 × 8 = 60 px presos a 390 px, em vez das 2-3 linhas do `wrap` do mockup com 7 botões, ~110 px presos), a página não. O botão ativo nunca fica fora da vista (Naksu A3).
+Mockup: a 390 px a barra fica presa logo abaixo da barra do topo (`position: sticky; top: var(--obs-top)`, agora declarada, ver acima; `--obs-sticky-h` é 0 nesta tela, nenhum outro grudado a escreve) com um único `z-index` (`var(--z-grudado)`; se o token não existir, usar o que o pé preso `pe-preso.tsx` usa). Botões: `Inscritos`, `Views/dia`, `Crescimento`, `Direção`, depois `Ritmo`, `Outliers`, `Trocas` (D4; ordem aprovada pela Naksu). O ativo leva ` ↓` (maior primeiro) ou ` ↑` **só como símbolo visual** (`aria-hidden`), e o nome acessível diz `Inscritos, maior primeiro` / `, menor primeiro` (Naksu A4); tocar o ativo inverte. A barra **quebra a linha** (`flex-wrap: wrap`), como o mockup 17 aprovado pelo dono, sem rolagem horizontal (decisão do controlador, que substitui a rolagem de 1 linha da Naksu). Todos os botões ficam à vista, então não há `scrollIntoView` (a Naksu A3 só existia por causa da rolagem). Se a barra quebrada a 390 px ocupar mais de 2 linhas (2 × 44 + 6 + 2 × 8 = 110 px presos), **o Gio mede isso na T11** e devolve ao controlador.
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -1808,13 +1820,6 @@ describe('barra de ordenação', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Direção' }))
     // espera sort=direcao&dir=desc
   })
-  // Naksu A3: com 7 botões rolando na horizontal, o ativo pode estar além da borda.
-  it('o botão ativo é trazido para a vista quando a ordenação muda (scrollIntoView, sem animação)', () => {
-    const rolar = vi.fn(); Element.prototype.scrollIntoView = rolar // o jsdom não implementa
-    // …montar com sort: 'subs'; depois `rerender` com sort: 'swaps'
-    expect(rolar).toHaveBeenCalledWith({ inline: 'nearest', block: 'nearest', behavior: 'auto' })
-    expect(rolar.mock.contexts.at(-1)).toBe(within(screen.getByTestId('canais-sortbar')).getByRole('button', { name: /Trocas/ }))
-  })
   it('o select antigo saiu', () => {
     // …montar
     expect(document.querySelector('select[name="cardSort"]')).toBeNull()
@@ -1833,20 +1838,11 @@ Expected: FAIL.
 
 ```tsx
 const ORDEM_DA_BARRA: CanaisSort[] = ['subs', 'vpd', 'growth', 'direcao', 'active', 'outliers', 'swaps'] // D4: as 4 do mockup primeiro (Naksu aprovou)
-const ativoRef = useRef<HTMLButtonElement>(null)
-const primeira = useRef(true)
-// Naksu A3: o ativo pode estar além da borda da rolagem horizontal; `behavior: 'auto'` (sem animação) respeita prefers-reduced-motion.
-// Não roda na 1ª montagem: `scrollIntoView` mexeria na rolagem da PÁGINA.
-useEffect(() => {
-  if (primeira.current) { primeira.current = false; return }
-  ativoRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'auto' })
-}, [v.sort])
-
 <div role="group" aria-label="Ordenar canais" className="sortbar" data-testid="canais-sortbar">
   {ORDEM_DA_BARRA.map(s => {
     const ativo = v.sort === s
     return (
-      <button key={s} ref={ativo ? ativoRef : undefined} type="button" aria-pressed={ativo} className={'btn' + (ativo ? ' on' : '')} onClick={() => onSort(s)}>
+      <button key={s} type="button" aria-pressed={ativo} className={'btn' + (ativo ? ' on' : '')} onClick={() => onSort(s)}>
         {SORTNAME[s]}
         {ativo && <>
           <span aria-hidden="true">{v.dir === 'desc' ? ' ↓' : ' ↑'}</span>
@@ -1868,13 +1864,13 @@ useEffect(() => {
 [data-obs-screen="canais"] { --obs-topbar-h: 52px; --obs-top: calc(var(--obs-sticky-h, 0px) + var(--obs-topbar-h)) }
 @media (max-width: 768px) { [data-obs-screen="canais"] { --obs-topbar-h: 48px } }
 
-[data-obs-screen="canais"] .sortbar { position: sticky; top: var(--obs-top); z-index: var(--z-grudado); display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scroll-padding-inline: 16px; padding: 8px 16px; background: var(--bg) }
+[data-obs-screen="canais"] .sortbar { position: sticky; top: var(--obs-top); z-index: var(--z-grudado); display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; background: var(--bg) }
 [data-obs-screen="canais"] .sortbar .btn { flex: none }
 /* estado ativo: seta (forma) + peso + sublinha interna; o fundo --surface-2 (1,13:1 / 1,06:1) não carrega estado sozinho */
 [data-obs-screen="canais"] .sortbar .btn.on { font-weight: 600; box-shadow: inset 0 -2px 0 var(--text) }
 @media (pointer: coarse) { [data-obs-screen="canais"] .sortbar .btn { min-height: 44px } }
 ```
-Altura presa a 390 px: 44 + 2 × 8 = 60 px, uma linha. A medida real (altura da barra do CMS a 390 px, anel de foco, `HoverTip` na última coluna) é do e2e do Gio (caso 6).
+Altura presa a 390 px: 2 linhas de 44 + 6 de espaço + 2 × 8 = 110 px (o mockup tem ~110); o CSS não tem `overflow` (o teste de estrutura continua valendo). A medida real (altura da barra do CMS a 390 px, anel de foco, `HoverTip` na última coluna) é do e2e do Gio (caso 6).
 
 - [ ] **Step 4: Rodar**
 
@@ -1906,7 +1902,7 @@ Casos (o Gio escreve e roda; nomes sintéticos tipo "Canal Teste A"):
 3. **Sem variação:** a célula do canal da semente dentro do arredondamento mostra "sem variação" e "dentro do arredondamento (±N)"; a dica abre no hover com "A diferença é menor que N, dentro do que o corte da contagem pelo YouTube explica."
 4. **Dica por célula, teclado:** Tab até uma célula de Views/dia → `role="tooltip"` visível; Esc fecha; nenhum `[title]` nas células de valor (`td[data-col] [title]`).
 5. **Clique na dica não abre o painel:** clicar numa célula com dica não abre o painel lateral; clicar no nome do canal abre.
-6. **390 px:** barra `canais-sortbar` presa logo abaixo da barra do topo ao rolar (depois de rolar 2.000 px, `bar.boundingBox().y` igual ao `bottom` da barra do topo, ± 1 px, **não** 0: com `top: 0` ela ficaria por baixo da barra do topo); tocar "Direção" ordena, tocar de novo mostra " ↑" (nome acessível `Direção, menor primeiro`); com "Trocas" ativo, o botão está inteiramente visível dentro da barra (Naksu A3); alvo de toque de cada botão >= 44 px de altura (A2) e de uma célula com dica em `td`/cartão >= 44 px (A8); tocar uma dica abre, **tocar a mesma dica de novo fecha** (Re-revisão C2 / Naksu A6), tocar fora fecha; a caixa da dica cabe na janela (`x >= 0` e `x + largura <= 390`) com a dica aberta em célula da **1ª e da última** coluna do cartão, não só numa (Naksu A10); sem rolagem horizontal da página (`scrollWidth <= 390`).
+6. **390 px:** barra `canais-sortbar` presa logo abaixo da barra do topo ao rolar (depois de rolar 2.000 px, `bar.boundingBox().y` igual ao `bottom` da barra do topo, ± 1 px, **não** 0: com `top: 0` ela ficaria por baixo da barra do topo); tocar "Direção" ordena, tocar de novo mostra " ↑" (nome acessível `Direção, menor primeiro`); com "Trocas" ativo, o botão está inteiramente visível dentro da barra e a barra não passa de 2 linhas (altura <= 112 px; se passar, devolver ao controlador); alvo de toque de cada botão >= 44 px de altura (A2) e de uma célula com dica em `td`/cartão >= 44 px (A8); tocar uma dica abre, **tocar a mesma dica de novo fecha** (Re-revisão C2 / Naksu A6), tocar fora fecha; a caixa da dica cabe na janela (`x >= 0` e `x + largura <= 390`) com a dica aberta em célula da **1ª e da última** coluna do cartão, não só numa (Naksu A10); sem rolagem horizontal da página (`scrollWidth <= 390`).
 7. **Faixa do seu canal:** em Crescimento, `canais-faixa` com "Seu canal ainda não tem Crescimento medido." (semente sem retrato próprio) e os links "Ordenar por Inscritos" / "Ordenar por Views/dia" funcionando.
 8. **Regressão:** `canais-a3.spec.ts` inteiro verde com o texto novo.
 
@@ -1934,7 +1930,7 @@ Expected: `0` erros; só as falhas da linha de base da Tarefa 0 (comparar com `$
 
 - [ ] **Step 2: Ledger**
 
-Anotar: commits da 2ª leva; contagem da D1 (Tarefa 1, Step 5); os textos finais do Logan (2ª rodada) já estão no plano, sem `TEXTO-A-REVISAR` pendente; o Logan só confere o implementado na tela; pendências para o ledger: (a) o `roundingText` do motor foi corrigido na Tarefa 1 (Step 3b, D1b): conferir no deploy que o cabeçalho de um canal mostra "o número real é este ou um pouco maior, em menos de N", nunca "±"; (b) o campo `text` do motor ainda escreve `(±{unit})` simétrico (fora do pedido do Logan): decidir em plano próprio; (c) a data de conferência: **no dia do deploy (D0)**, abrir Canais ordenado por Crescimento e conferir que todo canal "sem variação" mostra `±` igual a 2 × passo (1,2 mi → ±20 mil), nenhuma célula com "−0,0%" ou "+0,0%", e o canal próprio com Crescimento no mesmo sentido (sobe/desce) da seção Inscritos e com a data do último retrato; rodar a consulta do dono (Tarefa 1) e anotar os números (`quais` deve bater com os canais que mudaram de célula); **no primeiro canal novo após o deploy**, a dica de Direção diz "fecha em DD/MM" = primeiro retrato + 56 dias, e nesse dia (ou no seguinte, por `staleDays = 1`) a célula passa a medido: anotar a data e conferir; revisão final pendente de Phil e Yannis sobre o código, Logan e Naksu sobre a tela implementada, Gio sobre o e2e.
+Anotar: commits da 2ª leva; contagem da D1 (Tarefa 1, Step 5); os textos finais do Logan (2ª rodada) já estão no plano, sem `TEXTO-A-REVISAR` pendente; o Logan só confere o implementado na tela; pendências para o ledger: (a) o `roundingText` do motor foi corrigido na Tarefa 1 (Step 3b, D1b): conferir no deploy que o cabeçalho de um canal mostra "o número real é este ou um pouco maior, em menos de N", nunca "±"; (b) o Logan confere o `text` curto do motor (`+N (até +unit)`) e o Gio mede a barra de ordenação a 390 px (no máximo 2 linhas); (c) a data de conferência: **no dia do deploy (D0)**, abrir Canais ordenado por Crescimento e conferir que todo canal "sem variação" mostra `±` igual a 2 × passo (1,2 mi → ±20 mil), nenhuma célula com "−0,0%" ou "+0,0%", e o canal próprio com Crescimento no mesmo sentido (sobe/desce) da seção Inscritos e com a data do último retrato; rodar a consulta do dono (Tarefa 1) e anotar os números (`quais` deve bater com os canais que mudaram de célula); **no primeiro canal novo após o deploy**, a dica de Direção diz "fecha em DD/MM" = primeiro retrato + 56 dias, e nesse dia (ou no seguinte, por `staleDays = 1`) a célula passa a medido: anotar a data e conferir; revisão final pendente de Phil e Yannis sobre o código, Logan e Naksu sobre a tela implementada, Gio sobre o e2e.
 
 - [ ] **Step 3: Commit do ledger**
 
@@ -2004,14 +2000,14 @@ Fontes: `.superpowers/sdd/a5/discussao-direcao/logan-textos-plano.md`, `naksu-pl
 | **Naksu A1 + Re-revisão C1** (bloqueio: `--obs-top` indefinido em Canais; "48 px") | T9: parágrafo "`--obs-top` e `--obs-topbar-h` não existem na tela Canais", CSS com a fórmula do `canal.css:8` sob `[data-obs-screen="canais"]`, regra escopada, teste que lê o CSS. **Valor achado:** `apps/web/src/app/cms/(authed)/_shared/cms-topbar.css`, `height: 52px` (linha 7) e `height: 48px` em `@media (max-width: 768px)` (linhas 100-104): 52 px acima de 768 px, 48 px até 768 px (o 48 existe; o `canal.css` só declara 52, fora do plano). |
 | **Naksu A6 + Re-revisão C2** (bloqueio: o 2º toque não fecha a dica) | T6: `abrirPorToque = () => (show ? fechar() : setToque(true))` e `ultimoPonteiro` (captura) que ignora `mouseenter`/foco emulados após toque; 4 testes novos (incluindo o literal da re-revisão). T10 caso 6: "tocar a mesma dica de novo fecha". |
 | Naksu A2 (alvo de 44 px na barra) | T9: reuso do `.btn`, `@media (pointer: coarse)`; T10 caso 6 mede. |
-| Naksu A3 (ativo fora da vista) | T9: `scrollIntoView({inline,block:'nearest',behavior:'auto'})` (não roda na 1ª montagem) + `scroll-padding-inline`; teste. |
+| Naksu A3 (ativo fora da vista) | **Superado pela decisão do controlador:** a barra quebra a linha (sem rolagem), então `scrollIntoView`, `scroll-padding-inline` e o teste saíram da T9. |
 | Naksu A4 (nome acessível do ativo) | T9: seta `aria-hidden` + `.sr` ", maior primeiro"/", menor primeiro"; teste reescrito (o `textContent === 'Inscritos ↓'` saiu). |
 | Naksu A5 (estilo do ativo) | T9 CSS: peso 600 + `box-shadow: inset 0 -2px 0 var(--text)`; seta como forma. |
 | Naksu A7 (gatilho `role="button"` sem ação) | T6: `aria-expanded`, Enter/Espaço alternam (`preventDefault` no Espaço), testes; T8: teste de `aria-describedby`/`aria-expanded`. |
 | Naksu A8 (alvo e CSS do gatilho) | T6 `celula-dica.css` (inline-block, pontilhado `--dim`, `--text` no hover/aberto, 44 px só em `td`/`.cards` no toque; `th` fica em 32 px) + teste que lê o CSS. |
 | Naksu A9 (foco cortado) | T6 `celula-dica.css`: `outline-offset:-2px` em `td`/`.cards`; teste do CSS. |
 | Naksu A10 (largura da caixa a 390 px) | T10 caso 6: `x >= 0` e `x + largura <= 390` na 1ª **e** na última coluna. |
-| Naksu A11 (reduzir movimento) | T9: `behavior: 'auto'` (sem `smooth`); nenhuma animação nova. |
+| Naksu A11 (reduzir movimento) | T9: nenhuma animação nova (sem rolagem programática). |
 | Naksu decisão 1 (`role="group"`), 2 (ordem dos botões), 3 (irmã imediata; ancestral sem `overflow`) | T9: Interfaces (decidido), D4, teste de estrutura (irmã **imediata** + varredura do CSS por `overflow` nos ancestrais). |
 | **Re-revisão C3** (esqueletos só de comentário) | T4: 4 `it` reescritos com código (oculto próprio, oculto próprio `oculto:true`, oculto concorrente, velho, em dia, buraco) e `expect.hasAssertions()`; T6: teste do popover com código (`Popover` real); `beforeEach(hasAssertions)` também em T6, T8 e T9. |
 | Re-revisão, gate da T0 | T0 Step 1: dois `grep -qF` com `exit 1`; saída esperada `LOTE-OK` e `CONSERTOS-OK`; o assunto dos consertos é a variável `ASSUNTO_CONSERTOS`. |
@@ -2022,8 +2018,10 @@ Fontes: `.superpowers/sdd/a5/discussao-direcao/logan-textos-plano.md`, `naksu-pl
 | Re-revisão M-e (buraco no cabeçalho e no Comparar) | T1 Step 5: asserções em `canal-header-model.test.ts` (arquivo entrou na lista e no commit) e `comparar-numeros.test.ts`. |
 | Ordem das tarefas | Atualizada: `view-model.ts` e `channels.ts` na T1 (ver "Ordem" e Mapa); o grafo não mudou. |
 
-**Achados não aplicados (pedem decisão do controlador/dono, nenhum muda decisão do dono):**
-1. **Textos das dicas × mockup 17 aprovado:** o mockup (r3) mostra os textos antigos de Inscritos, Crescimento "sem variação" e Direção; o plano passa a usar os finais do Logan, que é o autor deles. Se o dono quiser o texto literal do mockup, é só reverter as linhas da T7; não mudei o HTML do mockup.
-2. **Barra no celular × mockup 17:** o mockup quebra a linha (`wrap`); a Naksu manteve rolagem horizontal de 1 linha (60 px presos em vez de ~110 px). Aplicado como ela decidiu, mas é desvio do desenho aprovado.
-3. **Campo `text` do motor** (`+N (±{unit})`, também simétrico): fora do pedido do Logan; não alterado; vai ao ledger (T11) para plano próprio.
-4. **`canal.css:8` fixa 52 px** (a barra da casca tem 48 px até 768 px): tela diferente, fora deste plano; só registrado.
+**Decididos pelo controlador (15/10), aplicados:**
+1. **Textos das dicas × mockup 17:** valem os do Logan (D5); o dono é avisado.
+2. **Barra no celular × mockup 17:** quebra a linha como o mockup; `scrollIntoView` e seu teste removidos; o Gio mede o número de linhas a 390 px na T11 (T9, T10 caso 6).
+3. **Campo `text` do motor:** corrigido junto do `roundingText` na T1 Step 3b (`+N (até +unit)`, teste novo); o Logan confere o texto curto na T11.
+
+**Fora do plano:**
+1. **`canal.css:8` fixa 52 px** (a barra da casca tem 48 px até 768 px): tela diferente, fora deste plano; só registrado.
