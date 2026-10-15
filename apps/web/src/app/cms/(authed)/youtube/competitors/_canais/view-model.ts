@@ -64,8 +64,8 @@ export type OutCell =
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
   | { kind: 'na'; text: string; title: string }
-  | { kind: 'flat'; big: string; cap: string; title?: string }
-  | { kind: 'ok'; up: boolean; big: string; cap: string; title: string }
+  | { kind: 'flat'; big: string; cap: string; title?: string; tip: string }
+  | { kind: 'ok'; up: boolean; big: string; cap: string; title: string; tip: string }
 export interface SyncCell {
   state: SyncState; label: string; labelTitle: string | null; cov: string | null; covTitle: string | null
   msg: string | null; progress: { done: number; total: number } | null; canRetry: boolean; canRemove: boolean
@@ -422,12 +422,17 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   function growthCell(c: ObsChannel, g: Growth): GrowthCell {
     if (g.pending) return { kind: 'na', text: g.pending.replace(/ \(.*\)/, ''), title: `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}` }
     const until = c.sync.state !== 'ok' && !isBf(c) && g.to != null ? `, até ${D.dmhm(g.to)}` : ''
-    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `(${(g.text ?? '').match(/±[^)]*/)?.[0] ?? ''}), 30${NB}d`, title: g.text ?? undefined }
+    // TEXTO da Hanna (14/10): a conta da linha ("De {antes} para {depois}") vem dos dois retratos que o crescimento usa
+    const antes = c.snapshots.find(x => x.t === g.from)?.subs, depois = c.snapshots.find(x => x.t === g.to)?.subs
+    const tip = antes != null && depois != null
+      ? `De ${subsTxt(antes)} para ${subsTxt(depois)} em 30 dias. Calculado sobre inscritos arredondados a 3 algarismos.`
+      : 'Calculado sobre inscritos arredondados a 3 algarismos.'
+    if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `(${(g.text ?? '').match(/±[^)]*/)?.[0] ?? ''}), 30${NB}d`, title: g.text ?? undefined, tip }
     const capText = `${(g.text ?? '').replace(/ (mil|mi)/g, NB + '$1')} em 30${NB}d${until}`
     // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent and no arrow, only the absolute
     if (g.pct == null) return { kind: 'na', text: capText, title: 'Sem percentual: o canal não tinha inscritos na contagem anterior.' }
     const up = g.pct > 0
-    return { kind: 'ok', up, big: `${up ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, cap: capText, title: 'Calculado sobre inscritos arredondados a 3 algarismos' }
+    return { kind: 'ok', up, big: `${up ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, cap: capText, title: 'Calculado sobre inscritos arredondados a 3 algarismos', tip }
   }
   /** Nome do formato nas frases e a unidade do ritmo. */
   const wordOf = (f: Fmt) => (f === 'long' ? 'longos' : 'Shorts')

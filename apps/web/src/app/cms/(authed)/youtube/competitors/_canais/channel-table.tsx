@@ -8,6 +8,7 @@ import { temPosicao } from './posicao-model'
 import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import { DirecaoCell } from './direcao-cell'
+import { DirecaoDica } from './direcao-dica'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 const JANELA = MEASURE_RULES.direction.windowDays
@@ -25,12 +26,12 @@ export interface RowHandlers {
 }
 
 /** `fm`: a coluna depende do formato (em "Todos" tem duas medidas e o rótulo sobe para o cabeçalho). */
-const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean }> = [
-  { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem' },
-  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 88 },
-  { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias' },
-  { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts' },
-  { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true },
+const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean; tip: string }> = [
+  { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem', tip: 'Vídeos publicados por semana, nas últimas 13 semanas.' },
+  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 88, tip: 'Views por dia dos vídeos do canal, por mil inscritos. Compara canais de tamanhos diferentes.' },
+  { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias', tip: 'Vídeos com 2× ou mais as views típicas do canal, nos últimos 90 dias.' },
+  { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts', tip: 'Mudanças de título e de thumbnail nos últimos 30 dias, longos e Shorts.' },
+  { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true, tip: 'Inscritos que o canal ganhou ou perdeu em 30 dias. O YouTube arredonda os inscritos a 3 algarismos: variação pequena pode ser só arredondamento. É diferente da Direção, que mede views.' },
 ]
 
 /** A posição: "13º" (com "(empate)" só para o leitor de tela); sem posição, "sem posição" só para o leitor e, numa ordenação que tem posição, um traço. */
@@ -56,7 +57,7 @@ function Row({ r, h, todos, ordenacaoComPosicao, comparar }: { r: CanaisRow; h: 
       onClick={e => { if (!(e.target as HTMLElement).closest('select,button,a,.tip')) h.open(r.id) }}>
       <PosCell r={r} ordenacaoComPosicao={ordenacaoComPosicao} />
       <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} /></td>
-      <td className="dir"><span className="sr">Direção: </span><DirecaoCell r={r} /></td>
+      <td className="dir"><span className="sr">Direção: </span><div className="obs-cn-dirv"><DirecaoCell r={r} /><DirecaoDica r={r} /></div></td>
       <td><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></td>
       <td className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} /></td>
       <td className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} /></td>
@@ -105,7 +106,7 @@ export function ChannelTable({ view, ranked, unranked, semMedidaN, buscando, h, 
     <div className="tablebox" ref={box} aria-busy={busy || undefined}>
       <table aria-label="Canais acompanhados" className={todos ? 'todos' : undefined}>
         <thead><tr>
-          <th scope="col" className="p"><span className="sr">Posição</span></th>
+          <th scope="col" className="p"><span className="sr">Posição</span>{ordenacaoComPosicao ? null : <Tip label="Por que não há posição">Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a posição.</Tip>}</th>
           <th scope="col" className="sortable" data-k="subs" aria-sort={view.sort === 'subs' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
             <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <span className="arrow" aria-hidden="true">{view.sort === 'subs' ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
             <span className="unit">nicho, inscritos, estado</span>
@@ -117,6 +118,7 @@ export function ChannelTable({ view, ranked, unranked, semMedidaN, buscando, h, 
               <th key={col.k} scope="col" className={`sortable${col.r ? ' r' : ''}${col.hide ? ' c-hide' : ''}`} data-k={col.k}
                 aria-sort={on ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined} style={col.minW ? { minWidth: col.minW } : undefined}>
                 <button type="button" aria-busy={busySort === col.k || undefined} onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
+                <Tip label={`Sobre ${col.label}`} left={col.r}>{col.tip}</Tip>
                 <span className="unit">{col.unit ?? view.vpdUnit}</span>
                 {todos && col.fm && view.fmtCab ? <span className="unit cab-fmt" data-cab-fmt="">{view.fmtCab.dois}{on ? <>. <strong>{view.fmtCab.ordenado}</strong></> : null}</span> : null}
               </th>

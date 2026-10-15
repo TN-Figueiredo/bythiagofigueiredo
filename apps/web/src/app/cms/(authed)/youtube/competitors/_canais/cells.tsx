@@ -179,11 +179,12 @@ export function SwapView({ c }: { c: SwapCell }) {
 }
 
 export function GrowthView({ c }: { c: GrowthCell }) {
-  if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
-  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth" title={c.kind === 'flat' ? c.title : undefined}>{c.cap}</span></span></>
+  // a explicação vem pela dica (abre por toque e por teclado), nunca pelo title nativo
+  if (c.kind === 'na') return <><span className="na r">{c.text}</span><Tip label="Por que o crescimento não tem número">{c.title}</Tip></>
+  if (c.kind === 'flat') return <><span className="big num flat">{c.big}</span><Tip label="Como o crescimento foi calculado" left>{c.title ? `${c.title}. ${c.tip}` : c.tip}</Tip><span className="cap capr" style={{ whiteSpace: 'normal', maxWidth: 135 }}><span data-k="growth">{c.cap}</span></span></>
   return (
     <>
-      <span className={`big num ${c.up ? 'up' : 'down'}`} title={c.title}><Ic n={c.up ? 'up' : 'down'} /> {c.big}</span>
+      <span className={`big num ${c.up ? 'up' : 'down'}`}><Ic n={c.up ? 'up' : 'down'} /> {c.big}</span><Tip label="Como o crescimento foi calculado" left>{c.tip}</Tip>
       <span className="cap num capr" data-k="growth" style={{ whiteSpace: 'normal', maxWidth: 118 }}>{c.cap}</span>
     </>
   )

@@ -545,3 +545,4 @@
 
 [data-obs-screen="canais"] .obs-cn-frase strong{font-weight:600}
 @media (max-width:700px){[data-obs-screen="canais"] .btn,[data-obs-screen="canais"] .btn.small,[data-obs-screen="canais"] .seg button{min-height:44px}}
+[data-obs-screen="canais"] .obs-cn-dirv{display:flex;align-items:flex-start;gap:6px}

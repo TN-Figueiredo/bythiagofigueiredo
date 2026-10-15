@@ -2,6 +2,7 @@
 /** Cards view of Canais (port of canais.html card()). */
 import type { CanaisRow, CanaisView } from './view-model'
 import { DirecaoCell } from './direcao-cell'
+import { DirecaoDica } from './direcao-dica'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
 import { fraseDoCartao, motivoTexto, temPosicao } from './posicao-model'
 import { CompararLink, type RowHandlers } from './channel-table'
@@ -23,7 +24,7 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
         : <span className="cp num">{temPosicao(view.sort) ? <span aria-hidden="true">–</span> : null}<span className="sr">sem posição</span></span>}
       <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
       <Voce r={r} view={view} />
-      <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><DirecaoCell r={r} cartao /></div></div>
+      <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoCell r={r} cartao /><DirecaoDica r={r} /></div></div></div>
       <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></div>
       <div className="kv">
         <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} visible /></div>
