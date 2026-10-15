@@ -183,17 +183,13 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
 describe('provarAcessoPrivadoDaChave: a leitura privada por chave do perfil', () => {
   const KEY = '7c1d2e3f-0000-4000-8000-00000000bbbb'
   const prova = () => fabricarProva(SITE, USUARIA, KEY, '2999-01-01T00:00:00Z')
-  /** O rpc devolve um construtor que aceita sinal de cancelamento e então resolve com `resposta`. */
+  /** O mock do cliente de serviço (no topo) já dá o `abortSignal`: aqui o `rpc` devolve uma função do sinal, que resolve com `resposta`. */
   const responde = (resposta: unknown) => {
-    const sinais: AbortSignal[] = []
-    rpc.mockImplementation(() => ({ abortSignal: (s: AbortSignal) => { sinais.push(s); return Promise.resolve(resposta) } }))
+    rpc.mockImplementation(() => (s: AbortSignal) => { void s; return Promise.resolve(resposta) })
     return sinais
   }
   const naoResponde = () => {
-    const sinais: AbortSignal[] = []
-    rpc.mockImplementation(() => ({
-      abortSignal: (s: AbortSignal) => { sinais.push(s); return new Promise((_, rej) => s.addEventListener('abort', () => rej(new Error('abortado')))) },
-    }))
+    rpc.mockImplementation(() => (s: AbortSignal) => new Promise((_, rej) => s.addEventListener('abort', () => rej(new Error('abortado')))))
     return sinais
   }
   const SEM_CONFERIR = { leitura: null, edita: false, negativa: 'nao_foi_possivel_conferir' }
@@ -219,7 +215,7 @@ describe('provarAcessoPrivadoDaChave: a leitura privada por chave do perfil', ()
       responde(r)
       expect(await provarAcessoPrivadoDaChave(prova()), JSON.stringify(r)).toEqual(SEM_CONFERIR)
     }
-    rpc.mockImplementation(() => ({ abortSignal: () => Promise.reject(new Error('rede')) }))
+    rpc.mockImplementation(() => () => Promise.reject(new Error('rede')))
     expect(await provarAcessoPrivadoDaChave(prova())).toEqual(SEM_CONFERIR)
     rpc.mockImplementation(() => { throw new Error('síncrono') })
     expect(await provarAcessoPrivadoDaChave(prova())).toEqual(SEM_CONFERIR)

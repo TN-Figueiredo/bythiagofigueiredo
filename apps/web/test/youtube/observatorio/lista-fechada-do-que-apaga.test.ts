@@ -27,12 +27,14 @@ const LISTA: ParDaLista[] = [
   { arquivo: 'src/lib/youtube/observatorio/arquivo/remover.ts', tabela: 'blob', disparo: 'dono', classe: 'miniatura de canal removido, com cópia conferida no arquivo (prefixo observatorio/thumbs/; nova tentativa diária das pendências)' },
   // A5 E9 T5: o `del` do Blob da fila "Saíram do YouTube" (só `observatorio/thumbs/`, filtrado por `soMiniaturasDoObservatorio`).
   { arquivo: 'src/lib/youtube/observatorio/saiu/blob.ts', tabela: 'blob', disparo: 'dono', classe: 'miniaturas do item que o dono mandou apagar na fila (prefixo observatorio/thumbs/; o que falha fica em blobs_pending)' },
-  // (volta com a E17 d2: a poda do acesso externo da IA, `acesso-ia/poda.ts`, obs_ai_access_log e obs_ai_rate, fica fora deste envio)
+  // Poda do acesso externo da IA (E17, MG11): a tabela chega por parâmetro de `podarTabela`, resolvido em PARAMETROS_RESOLVIDOS.
+  { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_access_log', disparo: 'cron', classe: 'registro de acesso da IA com mais de 400 dias' },
+  { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_rate', disparo: 'cron', classe: 'contador de taxa da IA com mais de 2 dias' },
 ]
 
 /** Identificador de `from(...)` que não é constante, e sim parâmetro: vale só para o par (arquivo, identificador), com os valores conferidos no próprio texto. */
 const PARAMETROS_RESOLVIDOS: Array<{ arquivo: string; ident: string; funcao: string; valores: string[] }> = [
-  // (volta com a E17 d2: `acesso-ia/poda.ts`, parâmetro `tabela` de `podarTabela`)
+  { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', ident: 'tabela', funcao: 'podarTabela', valores: ['obs_ai_access_log', 'obs_ai_rate'] },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por idade nem por cron. A exceção declarada tem nome. */
