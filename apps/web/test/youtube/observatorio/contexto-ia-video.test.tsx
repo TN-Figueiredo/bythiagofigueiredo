@@ -117,7 +117,7 @@ describe('Vídeo: paridade em cada estado da matriz', () => {
       const m = await montar(id, sp)
       expect(m.textoDaTela.length).toBeGreaterThan(50)
       expect(() => paridade(m)).not.toThrow()
-    })
+    }, 60_000) // as fichas da fase 4 levam ~5 s local e passaram de 20 s no runner da CI
   }
 
   it('toda folha do modelo tem destino em todos os estados, e o inventário não guarda declaração velha (união da matriz)', async () => {
