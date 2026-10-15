@@ -66,3 +66,35 @@ describe('lote rápido: frase-resumo clicável e aviso de canais fora da lista',
     expect(within(frase as HTMLElement).queryByRole('button', { name: 'Ver só os canais descendo' })).toBeNull()
   })
 })
+
+describe('lote rápido: retorno imediato do clique na casa (Gio, 14/10)', () => {
+  it('(a) o anel aparece no clique, antes de o servidor responder', async () => {
+    replace.mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    const { container } = mount({ medidas: medidasDoMotor(obs) })
+    const casa = container.querySelector<HTMLElement>('.obs-cn-casa.sobe')!
+    expect(casa.getAttribute('aria-pressed')).toBe('false')
+    await user.click(casa)
+    expect(container.querySelector('.obs-cn-casa.sobe')!.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('[data-k="casas-legenda"]')!.textContent).toContain('Mostrando só: subindo')
+  })
+  it('(b) com filtro ligado, a linha "Mostrando N de M · filtro · limpar" e o limpar tira o filtro', async () => {
+    const user = userEvent.setup()
+    const { container } = mount({ medidas: medidasDoMotor(obs), direcao: 'sobe' })
+    const linha = container.querySelector('[data-k="estado-do-filtro"]')!
+    expect(linha.textContent).toMatch(/^Mostrando \d+ de \d+ canais · subindo · limpar$/)
+    await user.click(within(linha as HTMLElement).getByRole('button', { name: 'limpar' }))
+    expect(replace.mock.calls.at(-1)![0]).not.toContain('direcao=')
+  })
+  it('(b) sem filtro, a linha não aparece', () => {
+    const { container } = mount({ medidas: medidasDoMotor(obs) })
+    expect(container.querySelector('[data-k="estado-do-filtro"]')).toBeNull()
+  })
+  it('(d) a casa com 0 é um botão ativo, com a classe que ganha a borda', () => {
+    const { container } = mount({ medidas: medidasDoMotor(obs) })
+    const zero = container.querySelector<HTMLButtonElement>('.obs-cn-casa.desce')!
+    expect(zero.tagName).toBe('BUTTON')
+    expect(zero.disabled).toBe(false)
+    expect(zero.classList.contains('z')).toBe(true)
+  })
+})

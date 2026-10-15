@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView } from './view-model'
+import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView, type DirecaoFiltro } from './view-model'
 import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
 import { useChromeSync } from '../_chrome/sync-context'
@@ -91,7 +91,7 @@ function useNarrow(): boolean {
  * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
  * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
  */
-interface Optimistic { channel?: string | null; fmt?: CanaisFmt; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
+interface Optimistic { channel?: string | null; fmt?: CanaisFmt; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean; direcao?: DirecaoFiltro | null }
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
 /** Tab / Shift+Tab stay inside the dialog (canais.html trapEl). */
 function trapTab(e: KeyboardEvent<HTMLElement>) {
@@ -320,6 +320,19 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     for (const x of concorrentes) if (!permitidos.has(x.id) && x.direcao.tipo === 'medido' && (x.direcao.simbolo === 'sobe' || x.direcao.simbolo === 'desce')) r[x.direcao.simbolo]++
     return r
   }, [concorrentes, permitidos, ql, direcaoLigada])
+  // o anel da casa aparece no clique (otimista), não quando o servidor responde
+  const resumoExibido = useMemo(() => opt.direcao === undefined ? view.resumo : { ...view.resumo, casas: view.resumo.casas.map(c => ({ ...c, pressed: c.chave === opt.direcao })) }, [view.resumo, opt.direcao])
+  const filtrando = view.filter !== 'todos' || direcaoLigada !== null
+  // ao ligar uma direção, a lista filtrada vem à vista (sem animação para quem pede menos movimento)
+  const direcaoAntes = useRef(direcaoLigada)
+  useEffect(() => {
+    if (direcaoAntes.current !== direcaoLigada && direcaoLigada !== null) {
+      const caixa = telaRef.current?.querySelector<HTMLElement>('.tablebox, .cards')
+      const reduzido = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      caixa?.scrollIntoView?.({ block: 'nearest', behavior: reduzido ? 'auto' : 'smooth' })
+    }
+    direcaoAntes.current = direcaoLigada
+  }, [direcaoLigada])
   const vazioDoFiltro = !ql && view.resumo.vazio && !(view.filter === 'problemas' && !view.resumo.casas.some(c => c.pressed)) ? view.resumo.vazio : null
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
@@ -439,9 +452,11 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             <details className="fbar" id="forjaBar" data-forja-anchor=""><summary><b>forja</b> <span>{view.forjaBar.lines}</span></summary><p>{view.forjaBar.text}</p></details>
           ) : null}
           {somenteLeitura ? <p className="cn-fnota obs-cn-leitura" data-k="so-leitura" role="note"><b>{FRASE_SO_LEITURA.titulo}</b> {FRASE_SO_LEITURA.corpo}</p> : null}
-          <ResumoBloco resumo={view.resumo}
+          <ResumoBloco resumo={resumoExibido}
             onFiltro={f => go({ filter: f }, { busy: true })}
-            onDirecao={d => go({ direcao: d }, { busy: true })} />
+            onDirecao={d => go({ direcao: d }, { busy: true, direcao: d })}
+            mostrando={filtrando ? { n: concorrentes.length, de: view.resumo.direcao.canais } : null}
+            onLimpar={() => go({ filter: null, direcao: null }, { busy: true, direcao: null })} />
           {ri ? <RiAtalhos ri={ri} /> : null}
           {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>

@@ -39,8 +39,11 @@ function FraseClicavel({ frase, casas, onDirecao }: { frase: string; casas: Resu
   })
 }
 
-export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
+export function ResumoBloco({ resumo, onFiltro, onDirecao, mostrando = null, onLimpar }: {
   resumo: ResumoView
+  /** Com filtro ligado: quantos canais a lista mostra, de quantos. */
+  mostrando?: { n: number; de: number } | null
+  onLimpar?: () => void
   onFiltro: (f: FiltroDeEstado | null) => void
   onDirecao: (d: DirecaoFiltro | null) => void
 }) {
@@ -72,6 +75,13 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
           </button>
         ))}
       </div>
+      {mostrando ? (
+        // TEXTO-A-REVISAR (Logan/Naksu): a linha de estado do filtro (pedido do Gio, 14/10), sem texto fixado pela Hanna
+        <p className="obs-cn-estado-filtro" data-k="estado-do-filtro">
+          Mostrando {mostrando.n} de {mostrando.de} canais · {[ligada?.palavra, filtros.find(f => f.pressed && f.chave !== 'todos')?.rotulo.toLowerCase()].filter(Boolean).join(' e ')} ·{' '}
+          <button type="button" className="obs-cn-fr-bt" onClick={onLimpar}>limpar</button>
+        </p>
+      ) : null}
       <div className="obs-cn-filtros" role="group" aria-label="Filtrar canais por estado">
         {filtros.map(f => (
           <button key={f.chave} type="button" className="obs-cn-filtro" aria-pressed={f.pressed} aria-label={f.leitor}

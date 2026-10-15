@@ -166,15 +166,15 @@ describe('Canais · immediate feedback', () => {
     const user = userEvent.setup()
     const r = render(tree())
     const th = () => document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!
-    await user.click(within(th()).getByRole('button'))
+    await user.click(within(th()).getByRole('button', { name: 'Outliers' }))
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=outliers', { scroll: false })
-    expect(within(th()).getByRole('button')).toHaveAttribute('aria-busy', 'true')
+    expect(within(th()).getByRole('button', { name: 'Outliers' })).toHaveAttribute('aria-busy', 'true')
     expect(document.querySelector('.tablebox')).toHaveAttribute('aria-busy', 'true')
     // the arrow never claims an order the rows do not have yet
     expect(th()).not.toHaveAttribute('aria-sort')
     await answer(r, { sort: 'outliers' })
     expect(th()).toHaveAttribute('aria-sort', 'descending')
-    expect(within(th()).getByRole('button')).not.toHaveAttribute('aria-busy')
+    expect(within(th()).getByRole('button', { name: 'Outliers' })).not.toHaveAttribute('aria-busy')
   })
 
   it('"Adicionar canal" opens its form at once; the problem filter marks the list as busy', async () => {
@@ -255,8 +255,7 @@ describe('Canais · immediate feedback', () => {
   it('two quick clicks on the same column: the second asks for the opposite direction', async () => {
     const user = userEvent.setup()
     render(tree())
-    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!).getByRole('button')
-    await user.click(b())
+    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!)X    await user.click(b())
     await user.click(b())
     expect(replace.mock.calls.map(c => c[0])).toEqual(['/cms/youtube/competitors?sort=outliers', '/cms/youtube/competitors?sort=outliers&dir=asc'])
   })

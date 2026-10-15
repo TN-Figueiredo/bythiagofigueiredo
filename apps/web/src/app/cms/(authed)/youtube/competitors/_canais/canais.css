@@ -555,3 +555,5 @@
 [data-obs-screen="canais"] .obs-cn-fr-bt[aria-pressed="true"]{font-weight:600}
 [data-obs-screen="canais"] .obs-cn-fr-bt:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 [data-obs-screen="canais"] .obs-cn-fora{margin:0 0 6px;font-size:13px;line-height:18px;color:var(--text)}
+[data-obs-screen="canais"] .obs-cn-casa.z .obs-cn-casa-b{border:1px solid var(--border-strong);background:var(--surface)}
+[data-obs-screen="canais"] .obs-cn-estado-filtro{margin:0;font-size:13px;line-height:18px;color:var(--text)}

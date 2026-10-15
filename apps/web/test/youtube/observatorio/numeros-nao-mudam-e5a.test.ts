@@ -89,6 +89,7 @@ describe('E5a T0b: o retrato antes dos números', () => {
       }
     }
     comTitle(novo)
-    expect(retrato).toEqual(novo)
+    // a dica do Crescimento (campo tip, lote rápido de 14/10) é texto novo da tela, não número: fora da comparação
+    expect(JSON.parse(JSON.stringify(retrato, (k, v) => (k === 'tip' ? undefined : v)))).toEqual(novo)
   })
 })
