@@ -5,6 +5,7 @@ import { recordCronFailure, recordCronSuccess } from '@/lib/cron-health'
 import { logCron } from '../../../../lib/logger'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { loadBatchRows, semPausados, type BatchResult, type BatchRow } from '@/lib/youtube/competitor-sync-batch'
+import { fecharApagamentos, type ResultadoDoFecho } from '@/lib/youtube/competitor-missing-proof'
 import { lerPendenciasDoArquivo, type PendenciasDoArquivo } from '@/lib/youtube/observatorio/arquivo/ler-pendencias'
 import { lerSinalDoBanco, type SinalLido } from '@/lib/youtube/observatorio/arquivo/ler-sinal'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
@@ -327,6 +328,18 @@ export async function executarAgenda(o: {
       try { avisosEnviados = await avisarDono(sb, avisos, { agoraMs: agora(), prazoMs: Math.min(AVISO_MAX_MS, restante) }) } catch { /* o aviso nunca muda a resposta */ }
     }
 
+    // 10b. (A5 E9) Termina o que ficou no Blob. Só com tempo sobrando; dentro de um prazo próprio; nunca muda a resposta nem o `cron_health`.
+    let apagamentos: ResultadoDoFecho | null = null
+    if (LIMITE_FUNCAO_MS - FOLGA_FIM_MS - (agora() - t0) >= 8000) {
+      try {
+        const c = await comPrazo(fecharApagamentos(sb, { prazoMs: 5000 }), 6000)
+        if ('valor' in c) {
+          apagamentos = c.valor
+          for (const siteId of c.valor.sites) invalidateObservatory(siteId)
+        }
+      } catch { /* a conclusão nunca muda a resposta */ }
+    }
+
     // 11. A resposta.
     const semanal = resumo.tarefas.find(t => t.tarefa === 'serie_semanal')?.extra
     const corpo = {
@@ -334,7 +347,7 @@ export async function executarAgenda(o: {
       tarefas: resumo.tarefas.map(({ extra: _extra, ...resto }) => resto),
       ...(f.lote ? resumoDoLote(f.lote) : {}),
       ...(typeof semanal === 'object' && semanal !== null ? { weekly: semanal } : {}),
-      prova: f.prova, prova_horaria: f.provaHoraria, acao_do_dono: [...f.acaoDoDono, ...extras.acao], banco: extras.banco, notas, avisos_enviados: avisosEnviados,
+      prova: f.prova, prova_horaria: f.provaHoraria, prova_ausentes: f.provaAusentes, apagamentos, acao_do_dono: [...f.acaoDoDono, ...extras.acao], banco: extras.banco, notas, avisos_enviados: avisosEnviados,
     }
     logCron({ job: JOB, run_id: runId, status: 'ok', duration_ms: Math.max(0, agora() - t0), ...corpo })
     return { resposta: Response.json({ status: 'ok', ...corpo }) }

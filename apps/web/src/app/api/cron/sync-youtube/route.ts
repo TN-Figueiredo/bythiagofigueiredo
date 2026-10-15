@@ -10,6 +10,8 @@ import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
 import { CATALOGO, agendaLigada } from '@/lib/youtube/agenda/catalogo'
 import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo, type AntesDoLote, type CaminhoSemAgenda } from '@/lib/youtube/agenda/executar'
 import { PROOF_MIN_MS, failureMessage, plural, readProofWithin } from '@/lib/youtube/agenda/fecho'
+import { comPrazo } from '@/lib/youtube/agenda/relogio'
+import { fecharApagamentos, provaDosAusentes, type ResultadoDoFecho } from '@/lib/youtube/competitor-missing-proof'
 import { lerArquivoSemAgenda, type ArquivoSemAgenda } from '@/lib/youtube/agenda/arquivo-sem-agenda'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
@@ -220,7 +222,11 @@ export async function GET(req: NextRequest) {
           ? { ok: false, problems: ['não foi possível ler a lista de sites da prova (veio vazia com canais tentados)'], notes: [] }
           : { ok: true, problems: [], notes: ['nenhum canal de concorrente ativo'] }
       } else {
-        const verdicts = await Promise.all(result.healthSiteIds.map(siteId => readProofWithin(() => readSiteHealth(supabase, siteId, nowIso, { slotDone, e2: true, ...(WEEKLY_PHASE ? {} : { weekly: false }) }), proofMs)))
+        // (A5 E9) a prova dos ausentes corre em paralelo com a da série, sob o mesmo teto
+        const verdicts = await Promise.all(result.healthSiteIds.flatMap(siteId => [
+          readProofWithin(() => readSiteHealth(supabase, siteId, nowIso, { slotDone, e2: true, ...(WEEKLY_PHASE ? {} : { weekly: false }) }), proofMs),
+          provaDosAusentes(supabase, siteId, nowIso, ler => readProofWithin(ler, proofMs)),
+        ]))
         prova = { ok: verdicts.every(v => v.ok), problems: [...new Set(verdicts.flatMap(v => v.problems))], notes: [...new Set(verdicts.flatMap(v => v.notes))] }
       }
       // Cota que nem a nova tentativa do fim do disparo conseguiu gravar: o cron só tem verde e vermelho, e verde mudo é o que não pode
@@ -234,7 +240,18 @@ export async function GET(req: NextRequest) {
       // the cached heavy rows of every site this run wrote to (errored channels keep partial data)
       const { siteIds, healthSiteIds: _healthSiteIds, ...summary } = result
       for (const siteId of siteIds) invalidateObservatory(siteId)
-      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, ...alemDoLote(), health_written: true }
+      // (A5 E9) termina o que ficou no Blob, só com tempo sobrando; nunca muda a resposta nem o cron_health (já gravado)
+      let apagamentos: ResultadoDoFecho | null = null
+      if (FUNCTION_LIMIT_MS - 3000 - (Date.now() - t0) >= 8000) {
+        try {
+          const c = await comPrazo(fecharApagamentos(supabase, { prazoMs: 5000 }), 6000)
+          if ('valor' in c) {
+            apagamentos = c.valor
+            for (const siteId of c.valor.sites) invalidateObservatory(siteId)
+          }
+        } catch { /* a conclusão nunca muda a resposta */ }
+      }
+      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, apagamentos, ...alemDoLote(), health_written: true }
     }
 
     let query = supabase

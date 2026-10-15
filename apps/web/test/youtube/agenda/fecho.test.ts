@@ -5,12 +5,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/youtube/competitor-health', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/competitor-health')>()), readSiteHealth: vi.fn() }))
+vi.mock('@/lib/youtube/competitor-missing-proof', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/competitor-missing-proof')>()), provaDosAusentes: vi.fn() }))
 vi.mock('@/lib/youtube/horaria/prova', async (orig) => {
   const o = await orig<typeof import('@/lib/youtube/horaria/prova')>()
   return { ...o, lerProvaHoraria: vi.fn(), lerNegadosDoDono: vi.fn(), veredictoHorario: vi.fn(o.veredictoHorario) }
 })
 
 import { schemaTablesReady, schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
+import { provaDosAusentes } from '@/lib/youtube/competitor-missing-proof'
+import { VERDE_AUSENTES, ZEROS_AUSENTES } from '../prova-ausentes-falsa'
 import { lerNegadosDoDono, lerProvaHoraria, veredictoHorario, type ProvaHoraria } from '@/lib/youtube/horaria/prova'
 import { currentSlotStart, ownerActions, weeklyPendingCount, type BatchRow } from '@/lib/youtube/competitor-sync-batch'
 import { failureMessage, fecharDisparo, listaDeConcorrentesVazia, type EntradaFecho } from '@/lib/youtube/agenda/fecho'
@@ -231,6 +234,7 @@ describe('fecharDisparo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(readSiteHealth).mockResolvedValue(OK)
+    vi.mocked(provaDosAusentes).mockResolvedValue(VERDE_AUSENTES)
     vi.mocked(lerProvaHoraria).mockResolvedValue({ valor: PROVA })
     vi.mocked(lerNegadosDoDono).mockResolvedValue({ valor: { negados: 0, semClasse: 0 } })
   })
@@ -390,5 +394,69 @@ describe('fecharDisparo', () => {
     expect(f.prova.problems[0]).toMatch(/não foi possível ler a prova a tempo.*passou de 20 s/)
     expect(f.provaHoraria.problems).toContain('não foi possível ler a prova da leitura horária')
     expect(JSON.stringify(f)).not.toContain(SENTINELA)
+  })
+})
+
+describe('fecharDisparo: a prova dos ausentes (A5 E9, Tarefa 8)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(readSiteHealth).mockResolvedValue(OK)
+    vi.mocked(provaDosAusentes).mockResolvedValue(VERDE_AUSENTES)
+    vi.mocked(lerProvaHoraria).mockResolvedValue({ valor: PROVA })
+    vi.mocked(lerNegadosDoDono).mockResolvedValue({ valor: { negados: 0, semClasse: 0 } })
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('a prova dos ausentes vermelha deixa o disparo da agenda vermelho, com a frase na mensagem', async () => {
+    vi.mocked(provaDosAusentes).mockResolvedValue({ ok: false, problems: ['prova dos ausentes: 2 vídeos fora do ar perderam linhas sem resposta de apagar'], notes: [], numeros: null })
+    const f = await fecharDisparo(entrada())
+    expect(vi.mocked(provaDosAusentes).mock.calls.map(c => c[1])).toEqual(['s1', 's2'])
+    expect(f.vermelho).toBe(true)
+    expect(f.prova.ok).toBe(false)
+    expect(f.mensagem).toContain('prova dos ausentes: 2 vídeos fora do ar perderam linhas sem resposta de apagar')
+  })
+
+  it('sem a MG-E9 o disparo da agenda fica vermelho com "schema ausente"', async () => {
+    vi.mocked(provaDosAusentes).mockResolvedValue({ ok: false, problems: ['prova dos ausentes: schema ausente (MG-E9 não aplicada)'], notes: [], numeros: null })
+    const f = await fecharDisparo(entrada())
+    expect(f.vermelho).toBe(true)
+    expect(f.mensagem).toContain('schema ausente (MG-E9 não aplicada)')
+  })
+
+  it('a prova dos ausentes desligada vira nota e não deixa vermelho', async () => {
+    vi.mocked(provaDosAusentes).mockResolvedValue({ ok: true, problems: [], notes: ['prova dos ausentes desligada (OBS_PROVA_AUSENTES=off)'], numeros: null })
+    const f = await fecharDisparo(entrada())
+    expect(f.vermelho).toBe(false)
+    expect(f.prova.notes).toContain('prova dos ausentes desligada (OBS_PROVA_AUSENTES=off)')
+    expect(f.provaAusentes).toEqual([null, null])
+  })
+
+  it('provaAusentes traz as dez chaves por site, sem o id do site', async () => {
+    const f = await fecharDisparo(entrada())
+    expect(f.provaAusentes).toHaveLength(2)
+    for (const n of f.provaAusentes) expect(Object.keys(n ?? {}).sort()).toEqual(Object.keys(ZEROS_AUSENTES).sort())
+    expect(Object.keys(ZEROS_AUSENTES)).toHaveLength(10)
+  })
+
+  it('sem sites na lista: a prova dos ausentes não roda e provaAusentes fica vazio', async () => {
+    const f = await fecharDisparo(entrada({ linhas: [] }))
+    expect(vi.mocked(provaDosAusentes)).not.toHaveBeenCalled()
+    expect(f.provaAusentes).toEqual([])
+  })
+
+  it('as duas provas penduradas: o fecho volta dentro de proofMs, não de duas vezes proofMs', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.mocked(readSiteHealth).mockReturnValue(new Promise(() => undefined))
+    vi.mocked(provaDosAusentes).mockImplementation(async (_sb, _s, _n, dentro) => {
+      const v = await dentro(() => new Promise(() => undefined))
+      return { ...v, problems: v.problems.map(p => 'prova dos ausentes: ' + p), numeros: null }
+    })
+    let pronto = false
+    const p = fecharDisparo(entrada()).then(f => { pronto = true; return f })
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(pronto).toBe(true)
+    const f = await p
+    expect(f.vermelho).toBe(true)
+    expect(f.mensagem).toMatch(/prova dos ausentes: .*passou de 20 s/)
   })
 })

@@ -17,13 +17,21 @@ vi.mock('@/lib/youtube/competitor-sync-batch', async (importOriginal) => ({ ...(
 vi.mock('@/lib/youtube/agenda/arquivo-sem-agenda', () => ({ lerArquivoSemAgenda: vi.fn(async () => ({ problemas: [], notas: [], acao: [], banco: {} })) }))
 vi.mock('@/lib/youtube/competitor-health', () => ({ schemaReady: vi.fn(), readSiteHealth: vi.fn() }))
 // OBS_AGENDA=off (abaixo): a rota roda o lote antigo inteiro. A lista que roda antes dele é falso de módulo, só arranjo (não afirmação).
+vi.mock('@/lib/youtube/competitor-missing-proof', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/competitor-missing-proof')>()), provaDosAusentes: vi.fn(), fecharApagamentos: vi.fn() }))
 vi.mock('@/lib/youtube/agenda/executar', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/agenda/executar')>()), rodarAntesDoLoteAntigo: vi.fn(async () => ({ tarefas: [], problemas: [], notas: [] })) }))
 
 import { GET } from '@/app/api/cron/sync-youtube/route'
 import { revalidateTag } from 'next/cache'
 import { runCompetitorBatch, batchHealth, currentSlotStart } from '@/lib/youtube/competitor-sync-batch'
 import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
+import { provaDosAusentes, fecharApagamentos } from '@/lib/youtube/competitor-missing-proof'
+import { VERDE_AUSENTES, FECHO_VAZIO } from './prova-ausentes-falsa'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+
+beforeEach(() => {
+  vi.mocked(provaDosAusentes).mockResolvedValue(VERDE_AUSENTES)
+  vi.mocked(fecharApagamentos).mockResolvedValue(FECHO_VAZIO)
+})
 
 const req = () => new NextRequest('http://localhost/api/cron/sync-youtube?mode=competitors', { headers: { authorization: 'Bearer test-secret' } })
 
@@ -352,6 +360,80 @@ describe('cron de concorrentes: a prova lida a cada disparo', () => {
       expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
       expect(vi.mocked(recordCronFailure)).toHaveBeenCalledWith('sync-youtube-competitors', expect.stringMatching(/passou de 20 s/))
     } finally { vi.useRealTimers() }
+  })
+  describe('A5 E9 T8: a prova dos ausentes e a conclusão de apagamentos (lote antigo)', () => {
+    const T0 = Date.parse('2026-10-24T15:00:00.000Z')
+    const penduradaPeloLimitador = async (_sb: unknown, _s: string, _n: string, dentro: (ler: () => Promise<never>) => Promise<{ ok: boolean; problems: string[]; notes: string[] }>) => {
+      const v = await dentro(() => new Promise<never>(() => undefined))
+      return { ...v, problems: v.problems.map(x => 'prova dos ausentes: ' + x), numeros: null }
+    }
+    it('a prova dos ausentes vermelha deixa o disparo vermelho com a frase', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(provaDosAusentes).mockResolvedValue({ ok: false, problems: ['prova dos ausentes: 2 vídeos fora do ar perderam linhas sem resposta de apagar'], notes: [], numeros: null })
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+      expect(failMsg()).toContain('prova dos ausentes: 2 vídeos fora do ar perderam linhas sem resposta de apagar')
+      expect(body.prova.ok).toBe(false)
+    })
+    it('prova desligada: nota no retorno e o disparo não fica vermelho por ela', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(provaDosAusentes).mockResolvedValue({ ok: true, problems: [], notes: ['prova dos ausentes desligada (OBS_PROVA_AUSENTES=off)'], numeros: null })
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(recordCronSuccess)).toHaveBeenCalled()
+      expect(body.prova.notes).toContain('prova dos ausentes desligada (OBS_PROVA_AUSENTES=off)')
+    })
+    it('a prova é pedida por site, com o teto de tempo do disparo', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result({ healthSiteIds: ['s1', 's2'] }) as never)
+      await GET(req())
+      expect(vi.mocked(provaDosAusentes).mock.calls.map(c => c[1])).toEqual(['s1', 's2'])
+    })
+    it('a prova dos ausentes que não responde a tempo é vermelho, não verde', async () => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }); vi.setSystemTime(T0)
+      try {
+        vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+        vi.mocked(provaDosAusentes).mockImplementation(penduradaPeloLimitador)
+        const pending = GET(req())
+        await vi.advanceTimersByTimeAsync(20_000)
+        await pending
+        expect(vi.mocked(recordCronSuccess)).not.toHaveBeenCalled()
+        expect(failMsg()).toMatch(/prova dos ausentes: .*passou de 20 s/)
+      } finally { vi.useRealTimers() }
+    })
+    it('as duas provas penduradas: o disparo grava a falha dentro do prazo, não de duas vezes o prazo', async () => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }); vi.setSystemTime(T0)
+      try {
+        vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+        vi.mocked(readSiteHealth).mockReturnValue(new Promise(() => undefined))
+        vi.mocked(provaDosAusentes).mockImplementation(penduradaPeloLimitador)
+        const pending = GET(req())
+        await vi.advanceTimersByTimeAsync(20_000)
+        await pending
+        expect(vi.mocked(recordCronFailure)).toHaveBeenCalledTimes(1)
+      } finally { vi.useRealTimers() }
+    })
+    it('com tempo sobrando, fecharApagamentos roda DEPOIS de gravar o cron_health, e a resposta traz o resultado', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(fecharApagamentos).mockResolvedValue({ tentados: 2, concluidos: 1, sites: ['s1'] })
+      const body = await (await GET(req())).json()
+      expect(vi.mocked(fecharApagamentos)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(recordCronSuccess).mock.invocationCallOrder[0]!).toBeLessThan(vi.mocked(fecharApagamentos).mock.invocationCallOrder[0]!)
+      expect(body.apagamentos).toEqual({ tentados: 2, concluidos: 1, sites: ['s1'] })
+    })
+    it('sem tempo sobrando, fecharApagamentos não é chamado', async () => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }); vi.setSystemTime(T0)
+      try {
+        vi.mocked(runCompetitorBatch).mockImplementation(async () => { vi.setSystemTime(T0 + 292_000); return result() as never })
+        await GET(req())
+        expect(vi.mocked(fecharApagamentos)).not.toHaveBeenCalled()
+      } finally { vi.useRealTimers() }
+    })
+    it('fecharApagamentos que lança não muda a resposta nem o cron_health', async () => {
+      vi.mocked(runCompetitorBatch).mockResolvedValue(result() as never)
+      vi.mocked(fecharApagamentos).mockRejectedValue(new Error('x'))
+      const res = await GET(req())
+      expect(res.status).toBe(200)
+      expect(vi.mocked(recordCronSuccess)).toHaveBeenCalled()
+    })
   })
   it('E: canal em erro há mais de 3 dias: o cron fica VERDE e a resposta traz acao_do_dono em toda execução', async () => {
     vi.mocked(runCompetitorBatch).mockResolvedValue(result({ acao_do_dono: ['canal X em erro há 4 dias: não encontrado no YouTube (404)'] }) as never)

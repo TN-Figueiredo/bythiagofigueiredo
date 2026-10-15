@@ -21,6 +21,7 @@ vi.mock('@/lib/youtube/competitor-sync-batch', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/competitor-sync-batch')>()),
   runCompetitorBatch: vi.fn(), runWeeklyPhase: vi.fn(), loadBatchRows: vi.fn(),
 }))
+vi.mock('@/lib/youtube/competitor-missing-proof', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/competitor-missing-proof')>()), provaDosAusentes: vi.fn(), fecharApagamentos: vi.fn() }))
 vi.mock('@/lib/youtube/horaria/prova', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/horaria/prova')>()),
   lerProvaHoraria: vi.fn(), lerNegadosDoDono: vi.fn(),
@@ -45,6 +46,8 @@ import { logCron } from '../../../lib/logger'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { avisarDono } from '@/lib/youtube/agenda/aviso'
 import { schemaTablesReady, readSiteHealth } from '@/lib/youtube/competitor-health'
+import { provaDosAusentes, fecharApagamentos } from '@/lib/youtube/competitor-missing-proof'
+import { VERDE_AUSENTES, FECHO_VAZIO } from '../prova-ausentes-falsa'
 import { runCompetitorBatch, runWeeklyPhase, loadBatchRows, type BatchResult, type BatchRow } from '@/lib/youtube/competitor-sync-batch'
 import { lerProvaHoraria, lerNegadosDoDono, type ProvaHoraria } from '@/lib/youtube/horaria/prova'
 import { adiar, esgotar, fechar, lerEstado, soltarArrendamento, tomar, tomarArrendamento } from '@/lib/youtube/agenda/estado'
@@ -143,6 +146,8 @@ beforeEach(() => {
   banco = bancoDaAgenda()
   vi.mocked(loadBatchRows).mockResolvedValue([linha('a'), linha('b')])
   vi.mocked(readSiteHealth).mockResolvedValue({ ok: true, problems: [], notes: [] })
+  vi.mocked(provaDosAusentes).mockResolvedValue(VERDE_AUSENTES)
+  vi.mocked(fecharApagamentos).mockResolvedValue(FECHO_VAZIO)
   vi.mocked(lerProvaHoraria).mockResolvedValue({ valor: PROVA })
   vi.mocked(lerNegadosDoDono).mockResolvedValue({ valor: { negados: 0, semClasse: 0 } })
   vi.mocked(runCompetitorBatch).mockResolvedValue(lote())
@@ -928,5 +933,49 @@ describe('executarAgenda: o sinal do tamanho do banco (A5 E10)', () => {
     expect(c.notas).toContain('banco: não foi possível ler o tamanho')
     expect(Date.now() - T0).toBeLessThan(4_000)
     expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('executarAgenda: a conclusão de apagamentos e a prova dos ausentes (A5 E9, Tarefa 8)', () => {
+  it('com tempo, chama fecharApagamentos depois de gravar cron_health (ordem das chamadas)', async () => {
+    vi.mocked(fecharApagamentos).mockResolvedValue({ tentados: 2, concluidos: 1, sites: ['s1'] })
+    const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso() }))
+    expect(vi.mocked(fecharApagamentos)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordCronSuccess).mock.invocationCallOrder[0]!).toBeLessThan(vi.mocked(fecharApagamentos).mock.invocationCallOrder[0]!)
+    expect(c.apagamentos).toEqual({ tentados: 2, concluidos: 1, sites: ['s1'] })
+    expect(vi.mocked(invalidateObservatory)).toHaveBeenCalledWith('s1')
+  })
+
+  it('a resposta traz prova_ausentes, um item por site', async () => {
+    const c = await corpo(await rodarAgenda({ catalogo: catalogoFalso() }))
+    expect(c.prova_ausentes).toHaveLength(2)
+    expect((c.prova_ausentes as unknown[])[0]).toEqual(VERDE_AUSENTES.numeros)
+  })
+
+  it('sem tempo, não chama', async () => {
+    vi.mocked(readSiteHealth).mockImplementation(async () => { vi.setSystemTime(T0 + 293_000); return { ok: true, problems: [], notes: [] } })
+    await rodarAgenda({ catalogo: catalogoFalso() })
+    expect(vi.mocked(fecharApagamentos)).not.toHaveBeenCalled()
+  })
+
+  it('fecharApagamentos que lança não muda a resposta nem o cron_health', async () => {
+    vi.mocked(fecharApagamentos).mockRejectedValue(new Error('x'))
+    const r = await rodarAgenda({ catalogo: catalogoFalso() })
+    expect(r.resposta?.status).toBe(200)
+    expect(vi.mocked(recordCronSuccess)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordCronFailure)).not.toHaveBeenCalled()
+  })
+
+  it('fecharApagamentos que nunca volta: o disparo responde em até 6 s (relógio falso)', async () => {
+    vi.mocked(fecharApagamentos).mockReturnValue(new Promise(() => undefined))
+    let pronto = false
+    const p = rodarAgenda({ catalogo: catalogoFalso() }).then(r => { pronto = true; return r })
+    await vi.advanceTimersByTimeAsync(5_999)
+    expect(pronto).toBe(false)
+    await vi.advanceTimersByTimeAsync(2)
+    const r = await p
+    expect(pronto).toBe(true)
+    expect(r.resposta?.status).toBe(200)
+    expect(vi.mocked(logCron)).toHaveBeenCalledWith(expect.objectContaining({ job: JOB, status: 'ok' }))
   })
 })

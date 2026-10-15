@@ -5,6 +5,7 @@ import {
   type BatchResult, type BatchRow,
 } from '@/lib/youtube/competitor-sync-batch'
 import { readSiteHealth, type HealthVerdict } from '@/lib/youtube/competitor-health'
+import { provaDosAusentes, type ProvaDosAusentes } from '@/lib/youtube/competitor-missing-proof'
 import { lerNegadosDoDono, lerProvaHoraria, veredictoHorario, type ProvaHoraria } from '@/lib/youtube/horaria/prova'
 import type { EstadoFinalTarefa, ResumoDisparo } from './despachante'
 import { LIMITE_FUNCAO_MS, comPrazo } from './relogio'
@@ -133,6 +134,8 @@ export interface EntradaFecho {
 export interface Fechamento {
   prova: ResumoDaProva
   provaHoraria: ResumoDaProva
+  /** Os números da prova dos ausentes, um por site (sem o id); nulo quando a prova está desligada ou não foi lida. */
+  provaAusentes: Array<ProvaDosAusentes | null>
   avisos: Aviso[]
   lote: BatchResult | null
   acaoDoDono: string[]
@@ -177,6 +180,7 @@ export async function fecharDisparo(e: EntradaFecho): Promise<Fechamento> {
   let prova: ResumoDaProva
   let provaHoraria: ResumoDaProva = { ok: true, problems: [], notes: [] }
   const avisos: Aviso[] = []
+  let provaAusentes: Array<ProvaDosAusentes | null> = []
 
   if (sites === null) {
     // a lista de sites não veio: não dá para saber o que ler, e "nada lido" nunca é verde
@@ -192,7 +196,7 @@ export async function fecharDisparo(e: EntradaFecho): Promise<Fechamento> {
         )
       : Promise.resolve({ porque: 'leitura horária desligada' })
     const porSite = await Promise.all(sites.map(async siteId => {
-      const [serie, provaLida] = await Promise.all([
+      const [serie, provaLida, ausentes] = await Promise.all([
         readProofWithin(() => readSiteHealth(sb, siteId, nowIso, { slotDone, e2: true, ...(semanalDesligada ? { weekly: false } : {}) }), proofMs),
         horariaLigada
           ? comPrazo(lerProvaHoraria(sb, siteId, nowIso), proofMs).then(
@@ -200,6 +204,7 @@ export async function fecharDisparo(e: EntradaFecho): Promise<Fechamento> {
               (): Lido<ProvaHoraria> => ({ porque: 'a prova da leitura horária falhou (ver Sentry)' }),
             )
           : Promise.resolve<Lido<ProvaHoraria>>({ porque: 'leitura horária desligada' }),
+        provaDosAusentes(sb, siteId, nowIso, ler => readProofWithin(ler, proofMs)),
       ])
       const negados = await negadosLido
       const veredito = veredictoHorario('valor' in provaLida ? provaLida.valor : null, {
@@ -207,9 +212,10 @@ export async function fecharDisparo(e: EntradaFecho): Promise<Fechamento> {
         negadosDoDono: 'valor' in negados ? negados.valor.negados : null,
         negadosSemClasse: 'valor' in negados ? negados.valor.semClasse : 0,
       })
-      return { siteId, serie, veredito }
+      return { siteId, serie, veredito, ausentes }
     }))
-    prova = juntar(porSite.map(s => s.serie))
+    prova = juntar([...porSite.map(s => s.serie), ...porSite.map(s => s.ausentes)])
+    provaAusentes = porSite.map(s => s.ausentes.numeros)
     provaHoraria = juntar(porSite.map(s => s.veredito))
     for (const s of porSite) for (const a of s.veredito.avisos) avisos.push({ siteId: s.siteId, chave: a.chave, tarefa: rotulo('leitura_horaria', 'leitura horária'), frase: a.frase })
   }
@@ -232,7 +238,7 @@ export async function fecharDisparo(e: EntradaFecho): Promise<Fechamento> {
   const cota = lote?.quotaLost ? plural(lote.quotaLost, 'unidade', 'unidades') + ' de cota ' + (lote.quotaLost === 1 ? 'não registrada' : 'não registradas') : null
   const vermelho = tarefasProblemas.length > 0 || loteMensagem !== null || !prova.ok || !provaHoraria.ok || cota !== null
   return {
-    prova, provaHoraria, avisos, lote, cota, vermelho, loteMensagem, tarefasProblemas,
+    prova, provaHoraria, provaAusentes, avisos, lote, cota, vermelho, loteMensagem, tarefasProblemas,
     acaoDoDono: e.linhas ? ownerActions(e.linhas, nowMs) : [],
     mensagem: vermelho
       ? failureMessage({ tarefas: tarefasProblemas, lote: loteMensagem, prova: prova.ok ? [] : prova.problems, horaria: provaHoraria.ok ? [] : provaHoraria.problems, cota })

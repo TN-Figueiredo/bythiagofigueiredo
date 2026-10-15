@@ -25,6 +25,7 @@ vi.mock('@/lib/youtube/competitor-health', async (orig) => ({
   schemaReady: vi.fn(async () => null), readSiteHealth: vi.fn(async () => ({ ok: true, problems: [], notes: [] })), schemaTablesReady: vi.fn(async () => null),
 }))
 // O catálogo de teste (4 tarefas) e a lista (1 delas): para dizer o que NÃO roda com a agenda desligada.
+vi.mock('@/lib/youtube/competitor-missing-proof', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/competitor-missing-proof')>()), provaDosAusentes: vi.fn(), fecharApagamentos: vi.fn() }))
 vi.mock('@/lib/youtube/agenda/catalogo', async (orig) => {
   const o = await orig<typeof import('@/lib/youtube/agenda/catalogo')>()
   const t = (nome: string, rotulo: string, ordem: number) => ({ ...o.DEFINICOES[0]!, nome, rotulo, ordem, rodar: async () => ({ estado: 'ok' as const, feitas: 0, deixadas: 0 }) })
@@ -44,6 +45,8 @@ import { GET } from '@/app/api/cron/sync-youtube/route'
 import { withCronLock } from '../../lib/logger'
 import { runCompetitorBatch, batchHealth } from '@/lib/youtube/competitor-sync-batch'
 import { schemaReady, schemaTablesReady } from '@/lib/youtube/competitor-health'
+import { provaDosAusentes, fecharApagamentos } from '@/lib/youtube/competitor-missing-proof'
+import { VERDE_AUSENTES, FECHO_VAZIO } from './prova-ausentes-falsa'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { executarAgenda, rodarAntesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import { lerArquivoSemAgenda } from '@/lib/youtube/agenda/arquivo-sem-agenda'
@@ -62,6 +65,8 @@ beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret'); vi.stubEnv('YOUTUBE_API_KEY', 'yt-key')
   vi.stubEnv('OBS_AGENDA', 'off')
   vi.mocked(schemaReady).mockResolvedValue(null)
+  vi.mocked(provaDosAusentes).mockResolvedValue(VERDE_AUSENTES)
+  vi.mocked(fecharApagamentos).mockResolvedValue(FECHO_VAZIO)
   vi.mocked(batchHealth).mockReturnValue({ ok: true })
   vi.mocked(runCompetitorBatch).mockResolvedValue(lote() as never)
   vi.mocked(rodarAntesDoLoteAntigo).mockResolvedValue(agendaVazia)
