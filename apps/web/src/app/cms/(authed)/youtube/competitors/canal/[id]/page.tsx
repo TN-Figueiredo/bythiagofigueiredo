@@ -2,6 +2,8 @@ import { Suspense, type ReactNode } from 'react'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
+import { gerarPacoteIa } from '../../contexto-ia-actions'
+import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { CanalScreen, CanalNotFound } from '../../_canal/canal-screen'
 import { LeituraDoNicho } from '../../_canal/leitura'
 import { assistidoDoCanal, montarCanal, origemDoCanal, type PropsAssistidoDoCanal, type PropsOrigemDoCanal } from '../../_canal/montar'
@@ -65,7 +67,8 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
       </Suspense>
     )
     return (
-      <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: proprio.name }]} owns={owns} atual={proprio.id}>
+      <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: proprio.name }]} owns={owns} atual={proprio.id}
+        perguntarIa={{ tela: 'canal-proprio', id: id, nomeDaTela: TELAS_IA['canal-proprio'].nome, exemplos: TELAS_IA['canal-proprio'].exemplos, onGerar: gerarPacoteIa }}>
         <ProprioScreen view={pv} periodos={periodos} origem={origem} comoEsta={<ComoEsta key={proprio.id} view={view} grafico={grafico} graficoViews={graficoViews} painel={painelDe(m.flat.painel)} canalId={proprio.id} />} />
       </TrailChrome>
     )
@@ -80,7 +83,8 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const { view, obs, canAdmin } = m
   const leitura = view.state.tab === 'leitura' ? leituraDoNicho(view.header.niche, view.header.nicheLabel, m.leituraMv) : null
   return (
-    <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]} owns={owns}>
+    <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]} owns={owns}
+      perguntarIa={{ tela: 'canal', id: id, nomeDaTela: TELAS_IA['canal'].nome, exemplos: TELAS_IA['canal'].exemplos, onGerar: gerarPacoteIa }}>
       <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
         actions={{ onSyncOne: syncCompetitorNow, onRemove: removeCompetitorChannel, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
     </TrailChrome>

@@ -1,4 +1,6 @@
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
+import { gerarPacoteIa } from './contexto-ia-actions'
+import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
 import { competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
@@ -25,7 +27,8 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   // O redirecionamento roda logo depois de abrir o conjunto e antes de qualquer leitura privada (montarCanais, aoAbrir).
   const { pagina: { obs, meuCanalLembrado, extra: permissoes }, view, ri } = await montarCanais(flat, { aoAbrir: o => competitorChannelRedirect(o, flat.channel) })
   return (
-    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
+    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
+      perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
         view={view} ri={ri} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
         onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}

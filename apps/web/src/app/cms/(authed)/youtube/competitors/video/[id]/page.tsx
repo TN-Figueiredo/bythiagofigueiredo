@@ -1,5 +1,7 @@
 import { cache, Suspense } from 'react'
 import { TrailChrome } from '../../_chrome/trail-chrome'
+import { gerarPacoteIa } from '../../contexto-ia-actions'
+import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { openObservatoryPage } from '../../_chrome/page-data'
 import { ownMenuOf } from '../../_chrome/own-menu'
@@ -62,7 +64,8 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
       </Suspense>
     )
     return (
-      <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}>
+      <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}
+        perguntarIa={{ tela: 'video-proprio', id: id, nomeDaTela: TELAS_IA['video-proprio'].nome, exemplos: TELAS_IA['video-proprio'].exemplos, onGerar: gerarPacoteIa }}>
         <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal}>
           <VideoBlocos view={blocos} periodos={periodos} origem={origem} />
         </ProprioVideoScreen>
@@ -73,7 +76,8 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   // The frame is only the trail (spec A2.6, emenda 25): no section tabs, no niche bar, in every origin. The trail is the way back for whoever
   // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
-    <TrailChrome crumbs={historicoTrail(view.crumbs)} owns={ownMenuOf(obs, meuCanalLembrado)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}>
+    <TrailChrome crumbs={historicoTrail(view.crumbs)} owns={ownMenuOf(obs, meuCanalLembrado)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}
+      perguntarIa={view.notFound ? undefined : { tela: 'video', id, nomeDaTela: TELAS_IA['video'].nome, exemplos: TELAS_IA['video'].exemplos, onGerar: gerarPacoteIa }}>
       <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onSyncChannel={syncCompetitorNow} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha />
     </TrailChrome>
   )

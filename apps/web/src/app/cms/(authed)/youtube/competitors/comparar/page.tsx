@@ -4,6 +4,8 @@ import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { TrailChrome } from '../_chrome/trail-chrome'
 import { CompararScreen } from '../_comparar/comparar-screen'
 import { montarComparar } from '../_comparar/montar'
+import { gerarPacoteIa } from '../contexto-ia-actions'
+import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 
 export const metadata = { title: 'Comparar canais · Competidores' }
 export const dynamic = 'force-dynamic'
@@ -22,7 +24,8 @@ export default async function CompararPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams
   const { pagina: { obs, meuCanalLembrado }, pack, inicial } = await montarComparar({ a: primeiro(sp?.a), b: primeiro(sp?.b) })
   return (
-    <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs, meuCanalLembrado)}>
+    <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs, meuCanalLembrado)}
+      perguntarIa={{ tela: 'comparar', nomeDaTela: TELAS_IA['comparar'].nome, exemplos: TELAS_IA['comparar'].exemplos, onGerar: gerarPacoteIa }}>
       <CompararScreen pack={pack} inicial={inicial} />
     </TrailChrome>
   )
