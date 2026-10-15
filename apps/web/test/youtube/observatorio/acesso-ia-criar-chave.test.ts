@@ -43,6 +43,7 @@ function fazer(c: Partial<Cenario> = {}) {
   const cen: Cenario = { usuarios: [{ id: ANA, email: EMAIL }], ve: { [ANA]: [SITE_A] }, sites: [SITE_A], chaves: [], paginaComErro: null, rpcErro: false, insertErro: false, tamanhoDaPagina: 1000, ...c }
   const inserts: Array<Record<string, unknown>> = []
   const paginas: number[] = []
+  const selects: string[] = []
   const sb = {
     auth: { admin: { listUsers: async ({ page, perPage }: { page: number; perPage: number }) => {
       paginas.push(page)
@@ -56,7 +57,7 @@ function fazer(c: Partial<Cenario> = {}) {
       return { data: (cen.ve[a.p_user] ?? []).includes(a.p_site), error: null }
     },
     from: (tabela: string) => ({
-      select: async () => ({ data: tabela === 'sites' ? cen.sites.map((id) => ({ id })) : cen.chaves, error: null }),
+      select: async (colunas?: string) => { selects.push(`${tabela}:${String(colunas)}`); return { data: tabela === 'sites' ? cen.sites.map((id) => ({ id })) : cen.chaves, error: null } },
       insert: async (linha: Record<string, unknown>) => {
         if (tabela !== 'pipeline_api_keys') throw new Error('tabela inesperada')
         if (cen.insertErro) return { error: { code: '23505' } }
@@ -73,7 +74,7 @@ function fazer(c: Partial<Cenario> = {}) {
     excecaoEm: ANTES,
     aleatorio: (k) => Buffer.alloc(k, ++n === 1 ? 0xab : 0x01 * n),
   }
-  return { cen, deps, inserts, paginas }
+  return { cen, deps, inserts, paginas, selects }
 }
 const pedido = (o: Partial<PedidoDeChave> = {}): PedidoDeChave => ({ email: EMAIL, ...o })
 
@@ -81,10 +82,14 @@ afterEach(() => { vi.restoreAllMocks() })
 
 describe('criarChaveDoPerfil: o caminho feliz', () => {
   it('um insert, com permissions exatamente [observatorio_leitura], user_id, expires_at de 180 dias, created_by nulo e o nome sem dado pessoal; o hash gravado é o SHA-256 da chave devolvida', async () => {
-    const { deps, inserts } = fazer()
+    const { deps, inserts, selects } = fazer()
     const r = await criarChaveDoPerfil(deps, pedido())
     expect(r.ok).toBe(true)
     if (!r.ok) return
+    // lista explícita de colunas: nunca o hash das chaves alheias (Yannis M-6 / Phil M1)
+    expect(selects).toContain('pipeline_api_keys:name, site_id, user_id, expires_at, permissions, revoked_at')
+    expect(selects.join('|')).not.toContain('key_hash')
+    expect(selects.join('|')).not.toContain('*')
     expect(inserts).toHaveLength(1)
     const l = inserts[0]!
     expect(l.permissions).toEqual([PERFIL])

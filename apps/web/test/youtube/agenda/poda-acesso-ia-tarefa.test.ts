@@ -64,7 +64,7 @@ describe('poda_acesso_ia: o adaptador', () => {
   it('as duas tabelas vazias: ok com zeros (dado lido, não ausente)', async () => {
     podar.mockResolvedValue({ ok: true, r: { registroTotal: 0, registroApagadas: 0, taxaTotal: 0, taxaApagadas: 0 } })
     const r = await podaAcessoIa.rodar(ctx())
-    expect(r).toMatchObject({ estado: 'ok', feitas: 0, deixadas: 0 })
+    expect(r).toEqual({ estado: 'ok', feitas: 0, deixadas: 0, detalhe: { registro_total: 0, registro_apagadas: 0, taxa_total: 0, taxa_apagadas: 0 } })
   })
   it('passa o relógio do disparo e a sobra até o fimAteMs', async () => {
     podar.mockResolvedValue({ ok: true, r: R })

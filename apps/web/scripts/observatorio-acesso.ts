@@ -27,4 +27,5 @@ async function main(): Promise<number> {
   return 0
 }
 
-main().then((c) => process.exit(c), () => { console.error('falha inesperada: nada foi criado ou o resultado é desconhecido; confira as chaves no banco'); process.exit(1) })
+// exitCode (não process.exit): deixa a saída em pipe terminar de escrever antes do processo acabar (Yannis M-5)
+main().then((c) => { process.exitCode = c }, () => { console.error('falha inesperada: nada foi criado ou o resultado é desconhecido; confira as chaves no banco'); process.exitCode = 1 })

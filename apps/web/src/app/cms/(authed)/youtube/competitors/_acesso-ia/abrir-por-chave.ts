@@ -1,6 +1,6 @@
 // O abridor da chave do perfil (E17 degrau 2, plano 4.7): chama os carregadores de `page-data.ts` com o site e a pessoa DA PROVA, sem
 // `getSiteContext`, sem `requireSiteScope`, sem `cookies`, sem `redirect`. Nada aqui lê preferência: nicho `todos`, "meu canal" pela regra de
-// recência, `canEdit` falso. As funções `carregar…` NÃO têm guarda: é a varredura de `acesso-ia-abridor.test.ts` que as tranca (só `page-data.ts`
+// recência, `canEdit` falso. As funções `carregar…` NÃO têm guarda: é a varredura de `proprio-varredura.test.ts` que as tranca (só `page-data.ts`
 // e este arquivo as chamam). Só a rota do MCP deve chamar `abridorDaChave`, com a prova que a porta acabou de devolver.
 import 'server-only'
 import { chaveProvada, type ChaveDoPerfilProvada } from '@/lib/youtube/observatorio/acesso-ia/prova'

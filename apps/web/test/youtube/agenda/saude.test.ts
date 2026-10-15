@@ -305,14 +305,14 @@ describe('lerAgendaDoVigia', () => {
 
 describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const SEIS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
 
   it('o padrão do vigia são as sete, na ordem do catálogo', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(SEIS)
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(TODAS)
   })
 
   it('(A5 E10) o vigia acusa tamanho_do_banco pelo nome: sem `ok` há mais de 36 h é late, com as outras em dia', async () => {
-    const emDia = Object.fromEntries(SEIS.map(n => [n, HORAS(1)]))
+    const emDia = Object.fromEntries(TODAS.map(n => [n, HORAS(1)]))
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({ ...emDia, tamanho_do_banco: null }, HORAS(60))))
     const a = await lerAgendaDoVigia(sb as never, AGORA, {})
     expect(a.itens.filter(i => i.status === 'late').map(i => i.nome)).toEqual(['tamanho_do_banco'])
@@ -320,7 +320,7 @@ describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e a
   })
 
   it('(A5 E10) OBS_AGENDA_TASKS_OFF com tamanho_do_banco: desligada; a variável apagada deixa ligada', async () => {
-    const emDia = Object.fromEntries(SEIS.map(n => [n, HORAS(1)]))
+    const emDia = Object.fromEntries(TODAS.map(n => [n, HORAS(1)]))
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({ ...emDia, tamanho_do_banco: null }, HORAS(60))))
     const off = await lerAgendaDoVigia(sb as never, AGORA, { OBS_AGENDA_TASKS_OFF: 'tamanho_do_banco' } as never)
     expect(off.itens.find(i => i.nome === 'tamanho_do_banco')?.status).not.toBe('late')

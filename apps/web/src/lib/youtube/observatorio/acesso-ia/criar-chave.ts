@@ -132,7 +132,7 @@ export async function criarChaveDoPerfil(deps: DepsDeCriar, p: PedidoDeChave): P
   // 5. as chaves que existem (todas, revogadas ou não: o nome é único entre todas)
   let linhas: LinhaDeChave[]
   try {
-    const r = await sb.from('pipeline_api_keys').select('*')
+    const r = await sb.from('pipeline_api_keys').select('name, site_id, user_id, expires_at, permissions, revoked_at')
     if (r.error) return falha('nao_conferido', codigoDe(r.error))
     linhas = (r.data ?? []) as LinhaDeChave[]
   } catch { return falha('nao_conferido', 'excecao') }

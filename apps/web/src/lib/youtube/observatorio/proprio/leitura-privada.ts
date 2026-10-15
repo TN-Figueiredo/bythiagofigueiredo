@@ -4,7 +4,7 @@
 //   - não se fabrica de fora: construtor privado, campo `#siteId` e chave `Symbol` que só este módulo conhece; o brand check em
 //     execução é `#siteId in e` (objeto literal, `Object.create(prototype)`, `Reflect.construct`, subclasse e `structuredClone` não passam);
 //   - o site vem DENTRO do token; a instância e a classe são congeladas; é um objeto de servidor (não serializa);
-//   - nasce por UM caminho, `provarAcessoPrivado`: (1) `provarEdicao` (quem edita lê, sem tocar a MG11); (2) a guarda de sessão
+//   - nasce por DOIS caminhos: `provarAcessoPrivado` (sessão) e `provarAcessoPrivadoDaChave` (prova da porta). O da sessão: (1) `provarEdicao` (quem edita lê, sem tocar a MG11); (2) a guarda de sessão
 //     com `mode: 'view'` (sem sessão ou sem vínculo: sem token); (3) a função `can_view_private_site_as` pelo cliente de serviço,
 //     com o id que a guarda devolveu. Só `data === true` faz o token nascer; erro, nulo ou qualquer outra forma = sem token (falha fechada);
 //   - NÃO autoriza escrita: o token de edição continua sendo o único que autoriza (uma Leitura não é atribuível a uma Edicao, e vice-versa).
@@ -27,7 +27,7 @@ let fabricar: (siteId: string) => LeituraPrivadaDoSite = () => { throw new TypeE
 export class LeituraPrivadaDoSite {
   readonly #siteId: string
   private constructor(siteId: string, chave: symbol) {
-    if (new.target !== LeituraPrivadaDoSite || chave !== CHAVE) throw new TypeError('LeituraPrivadaDoSite só nasce em provarAcessoPrivado, depois da guarda')
+    if (new.target !== LeituraPrivadaDoSite || chave !== CHAVE) throw new TypeError('LeituraPrivadaDoSite só nasce em provarAcessoPrivado ou provarAcessoPrivadoDaChave, depois da guarda')
     this.#siteId = siteId
     Object.freeze(this)
   }
@@ -55,7 +55,26 @@ const codigoDe = (e: unknown): string | undefined => {
   return typeof c === 'string' ? c : undefined
 }
 
-/** A única porta: nunca lança. O `extra` leva o código do erro, nunca a mensagem crua nem o id da pessoa. */
+/** A pergunta ao banco, comum às duas portas: prazo com cancelamento; só `data === true` faz a leitura nascer; nunca lança. */
+async function perguntarDireito(userId: string, siteId: string, prazoMs: number, avisar: (motivo: MotivoSentry, e?: unknown) => void): Promise<AcessoPrivado> {
+  const controle = new AbortController()
+  const relogio = setTimeout(() => controle.abort(), prazoMs)
+  try {
+    const { data, error } = await getSupabaseServiceClient().rpc('can_view_private_site_as', { p_user: userId, p_site: siteId }).abortSignal(controle.signal)
+    if (error) { avisar('funcao_ausente_ou_erro', error); return semResposta }
+    if (data === true) return { leitura: fabricar(siteId), edita: false, negativa: null }
+    if (data === false) return semDireito
+    avisar('resposta_inesperada')
+    return semResposta
+  } catch (e) {
+    avisar('funcao_ausente_ou_erro', e)
+    return semResposta
+  } finally {
+    clearTimeout(relogio)
+  }
+}
+
+/** A porta da sessão: nunca lança. O `extra` leva o código do erro, nunca a mensagem crua nem o id da pessoa. */
 export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado> {
   const { token: edicao, avisou: edicaoAvisou } = await provarEdicaoComAviso(siteId)
   if (edicaoValida(edicao)) return { leitura: fabricar(edicao.siteId), edita: true, negativa: null }
@@ -77,21 +96,7 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
     return semResposta
   }
   // prazo de 5 s (m-2 do portão de dados): se o banco travar, a página abre com `nao_foi_possivel_conferir`, não espera a função inteira
-  const controle = new AbortController()
-  const relogio = setTimeout(() => controle.abort(), PRAZO_MS)
-  try {
-    const { data, error } = await getSupabaseServiceClient().rpc('can_view_private_site_as', { p_user: userId, p_site: siteId }).abortSignal(controle.signal)
-    if (error) { avisar('funcao_ausente_ou_erro', error); return semResposta }
-    if (data === true) return { leitura: fabricar(siteId), edita: false, negativa: null }
-    if (data === false) return semDireito
-    avisar('resposta_inesperada')
-    return semResposta
-  } catch (e) {
-    avisar('funcao_ausente_ou_erro', e)
-    return semResposta
-  } finally {
-    clearTimeout(relogio)
-  }
+  return perguntarDireito(userId, siteId, PRAZO_MS, avisar)
 }
 
 /**
@@ -109,21 +114,7 @@ export async function provarAcessoPrivadoDaChave(prova: ChaveDoPerfilProvada, op
     if (motivo === 'resposta_inesperada') Sentry.captureMessage('can_view_private_site_as devolveu forma inesperada', { level: 'warning', tags: TAGS, extra })
     else Sentry.captureException(new Error(`leitura privada: ${motivo}`), { tags: TAGS, extra })
   }
-  const controle = new AbortController()
-  const relogio = setTimeout(() => controle.abort(), opcoes?.prazoMs ?? PRAZO_MS)
-  try {
-    const { data, error } = await getSupabaseServiceClient().rpc('can_view_private_site_as', { p_user: prova.userId, p_site: siteId }).abortSignal(controle.signal)
-    if (error) { avisar('funcao_ausente_ou_erro', error); return semResposta }
-    if (data === true) return { leitura: fabricar(siteId), edita: false, negativa: null }
-    if (data === false) return semDireito
-    avisar('resposta_inesperada')
-    return semResposta
-  } catch (e) {
-    avisar('funcao_ausente_ou_erro', e)
-    return semResposta
-  } finally {
-    clearTimeout(relogio)
-  }
+  return perguntarDireito(prova.userId, siteId, opcoes?.prazoMs ?? PRAZO_MS, avisar)
 }
 
 export const provarLeituraPrivada = async (siteId: string): Promise<LeituraPrivadaDoSite | null> => (await provarAcessoPrivado(siteId)).leitura
