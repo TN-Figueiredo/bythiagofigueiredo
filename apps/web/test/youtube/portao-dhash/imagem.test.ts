@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import sharp from 'sharp'
 import { hamming, dhashOf } from '@/lib/youtube/thumb-fingerprint'
 import { maiorCopia, baixar, dhashComoHq, gerarImagemTeste, hqdefaultLike, distancias } from '@/lib/youtube/portao-dhash/imagem'
+import { hqdefaultLike as daLib } from '@/lib/youtube/thumb-fingerprint'
 import { imagemSintetica, respostaImagem, fetchFalso } from './util'
 
 describe('maiorCopia', () => {
@@ -45,4 +46,8 @@ describe('comparação como hqdefault', () => {
     expect(l).toHaveLength(3)
     expect(l[0]).toBe('a × a2: 0')
   })
+})
+
+describe('hqdefaultLike (reexportada da lib)', () => {
+  it('é a mesma função de thumb-fingerprint', () => { expect(hqdefaultLike).toBe(daLib) })
 })

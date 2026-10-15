@@ -1,6 +1,9 @@
 import type { TestType } from '@/lib/youtube/ab-types'
 import { DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest'
+import sharp from 'sharp'
+import { dhashOf } from '@/lib/youtube/thumb-fingerprint'
+import { hqdefaultLike } from '@/lib/youtube/portao-dhash/imagem'
 
 // Mock modules before imports
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
@@ -69,7 +72,7 @@ function makeInput(overrides: Partial<AbTestCreateInput> = {}): AbTestCreateInpu
 interface BuildMockOpts {
   /** Canal dono do vídeo (o que `youtube_videos → youtube_channels` devolve). */
   videoOwner?: { channel_id: string } | null
-  video?: { id: string; duration_seconds: number; thumbnail_hq_url: string | null } | null
+  video?: { id: string; youtube_video_id?: string; duration_seconds: number; thumbnail_hq_url: string | null } | null
   existingTest?: { id: string } | null
   insertTestResult?: { data: { id: string } | null; error: { message: string } | null }
   insertVariantResult?: { data: null; error: { message: string } | null }
@@ -77,7 +80,7 @@ interface BuildMockOpts {
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const {
-    video = { id: 'video-1', duration_seconds: 600, thumbnail_hq_url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg' },
+    video = { id: 'video-1', youtube_video_id: 'abc', duration_seconds: 600, thumbnail_hq_url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg' },
     existingTest = null,
     insertTestResult = { data: { id: 'new-test-id' }, error: null },
     insertVariantResult = { data: null, error: null },
@@ -164,16 +167,21 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   return { client, fromMock, insertCalls, deleteCalls, siteFilters }
 }
 
+let JPEG_1280: Buffer
+let JPEG_480: Buffer
 let fetchSpy: ReturnType<typeof vi.spyOn>
+
+beforeAll(async () => {
+  JPEG_1280 = await sharp({ create: { width: 1280, height: 720, channels: 3, background: '#c33' } }).jpeg().toBuffer()
+  JPEG_480 = await sharp({ create: { width: 480, height: 360, channels: 3, background: '#39c' } }).jpeg().toBuffer()
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
 
-  fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-    new Response(Buffer.from('fake-image-bytes'), {
-      status: 200,
-      headers: { 'content-type': 'image/jpeg' },
-    }),
+  // Toda variante pública (maxres, sd, hq) responde com um JPEG real 1280x720.
+  fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+    new Response(new Uint8Array(JPEG_1280), { status: 200, headers: { 'content-type': 'image/jpeg' } }),
   )
   ;(put as ReturnType<typeof vi.fn>).mockResolvedValue({ url: BLOB_URL })
 })
@@ -187,6 +195,7 @@ describe('createAbTest', () => {
     const { insertCalls } = buildSupabaseMock({
       video: {
         id: 'video-1',
+        youtube_video_id: 'abc',
         duration_seconds: 600,
         thumbnail_hq_url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
       },
@@ -196,15 +205,15 @@ describe('createAbTest', () => {
 
     expect(result).toEqual({ ok: true, id: 'new-test-id' })
 
-    // preserveOriginalThumbnail should have fetched the YouTube CDN URL
+    // A cópia guardada vem da maior resolução (maxres), não da hqdefault
     expect(fetchSpy).toHaveBeenCalledWith(
-      'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+      'https://i.ytimg.com/vi/abc/maxresdefault.jpg',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
 
     // Should have uploaded to Vercel Blob
     expect(put).toHaveBeenCalledWith(
-      expect.stringMatching(/^ab-originals\/.+\/original\.jpg$/),
+      expect.stringMatching(/^ab-originals\/.+\.jpg$/),
       expect.any(Buffer),
       { access: 'public', contentType: 'image/jpeg', addRandomSuffix: true },
     )
@@ -225,6 +234,7 @@ describe('createAbTest', () => {
     buildSupabaseMock({
       video: {
         id: 'video-1',
+        youtube_video_id: 'abc',
         duration_seconds: 600,
         thumbnail_hq_url: 'https://yt3.ggpht.com/thumb',
       },
@@ -233,11 +243,6 @@ describe('createAbTest', () => {
     const result = await createAbTest(makeInput())
 
     expect(result).toEqual({ ok: true, id: 'new-test-id' })
-    // Should have fetched the ggpht URL
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://yt3.ggpht.com/thumb',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    )
     // Should have uploaded to blob
     expect(put).toHaveBeenCalled()
   })
@@ -294,6 +299,45 @@ describe('createAbTest', () => {
     })
   })
 
+  it('createAbTest guarda a maior cópia (maxres) e grava dimensions e thumbnail_dhash da original', async () => {
+    const { insertCalls } = buildSupabaseMock()
+    const result = await createAbTest(makeInput())
+    expect(result).toEqual({ ok: true, id: 'new-test-id' })
+
+    const enviados = (put as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Buffer
+    expect(Buffer.compare(enviados, JPEG_1280)).toBe(0) // os bytes enviados ao put = os da maxres
+    const v = insertCalls.find(c => c.table === 'ab_test_variants')!.data as Record<string, unknown>
+    expect(v.dimensions).toBe('1280x720')
+    expect(v.thumbnail_dhash).toMatch(/^[0-9a-f]{16}$/)
+    expect(v.thumbnail_dhash).toBe(await dhashOf(await hqdefaultLike(JPEG_1280)))
+  })
+
+  it('sem maxres nem sd: guarda a hqdefault e dimensions 480x360 (o diálogo avisará baixa resolução)', async () => {
+    const { insertCalls } = buildSupabaseMock()
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('maxresdefault') || url.includes('sddefault')) return new Response('', { status: 404 })
+      return new Response(new Uint8Array(JPEG_480), { status: 200, headers: { 'content-type': 'image/jpeg' } })
+    })
+    const result = await createAbTest(makeInput())
+    expect(result).toEqual({ ok: true, id: 'new-test-id' })
+
+    const enviados = (put as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Buffer
+    expect(Buffer.compare(enviados, JPEG_480)).toBe(0)
+    const v = insertCalls.find(c => c.table === 'ab_test_variants')!.data as Record<string, unknown>
+    expect(v.dimensions).toBe('480x360')
+    expect(v.thumbnail_dhash).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('sem nenhuma cópia pública: falha com a mensagem de hoje e nada é criado', async () => {
+    const { insertCalls } = buildSupabaseMock()
+    fetchSpy.mockImplementation(async () => new Response('', { status: 404 }))
+    const result = await createAbTest(makeInput())
+    expect(result).toEqual({ ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' })
+    expect(insertCalls).toHaveLength(0)
+    expect(put).not.toHaveBeenCalled()
+  })
+
   it('returns error when video not found', async () => {
     buildSupabaseMock({ video: null })
 
@@ -308,12 +352,13 @@ describe('createAbTest', () => {
     buildSupabaseMock({
       video: {
         id: 'video-1',
+        youtube_video_id: 'abc',
         duration_seconds: 600,
         thumbnail_hq_url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
       },
     })
 
-    fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+    fetchSpy.mockRejectedValue(new Error('Network error'))
 
     const result = await createAbTest(makeInput())
 

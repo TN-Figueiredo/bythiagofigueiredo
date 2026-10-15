@@ -29,25 +29,14 @@ import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
+import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
-async function preserveOriginalThumbnail(ytUrl: string): Promise<string> {
-  const hostname = new URL(ytUrl).hostname
-  const allowed = ['.ytimg.com', '.ggpht.com', '.googleusercontent.com', '.blob.vercel-storage.com']
-  if (!allowed.some(s => hostname.endsWith(s))) throw new Error(`Blocked fetch from untrusted host: ${hostname}`)
-  const imgRes = await fetch(ytUrl, { signal: AbortSignal.timeout(15_000) })
-  if (!imgRes.ok) throw new Error(`Fetch failed: ${imgRes.status}`)
-  const buffer = Buffer.from(await imgRes.arrayBuffer())
-  const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
-  const ext = ct.includes('png') ? 'png' : 'jpg'
-  const blob = await put(
-    `ab-originals/${crypto.randomUUID()}/original.${ext}`,
-    buffer,
-    { access: 'public', contentType: ct, addRandomSuffix: true },
-  )
-  return blob.url
+/** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
+async function preserveOriginalThumbnail(youtubeId: string) {
+  return guardarOriginalMaior(youtubeId, crypto.randomUUID())
 }
 
 export async function getVideoTestHistory(
@@ -111,7 +100,7 @@ export async function createAbTest(
   // Fetch video
   const { data: video, error: videoError } = await supabase
     .from('youtube_videos')
-    .select('id, duration_seconds, thumbnail_hq_url')
+    .select('id, youtube_video_id, duration_seconds, thumbnail_hq_url')
     .eq('id', input.youtube_video_id)
     .eq('site_id', siteId)
     .single()
@@ -194,9 +183,14 @@ export async function createAbTest(
   // O blob da thumbnail original só é gravado agora que a criação vai acontecer: nenhuma
   // recusa acima (teste já existe, originais não capturados) deixa blob órfão.
   let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
+  let originalDhash: string | null = null
+  let originalDimensions: string | null = null
   if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
     try {
-      immutableOriginalUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
+      const guardada = await preserveOriginalThumbnail(video.youtube_video_id)
+      immutableOriginalUrl = guardada.url
+      originalDhash = guardada.dhash
+      originalDimensions = `${guardada.largura}x${guardada.altura}`
     } catch {
       return { ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' }
     }
@@ -228,6 +222,8 @@ export async function createAbTest(
     label: 'original',
     is_original: true,
     blob_url: immutableOriginalUrl,
+    thumbnail_dhash: originalDhash,
+    dimensions: originalDimensions,
     blob_key: null,
     sort_order: 0,
   })
@@ -363,6 +359,7 @@ export async function uploadVariant(
     addRandomSuffix: false,
     contentType: file.type,
   })
+  const thumbnailDhash = await dhashOuNulo(buffer, `uploadVariant:${testId}`)
 
   // Insert variant row
   const sortOrder = 1 + (existingVariants?.length ?? 0)
@@ -374,6 +371,7 @@ export async function uploadVariant(
       is_original: false,
       blob_url: blob.url,
       blob_key: blob.pathname,
+      thumbnail_dhash: thumbnailDhash,
       file_size_bytes: file.size,
       sort_order: sortOrder,
       title_text: formData.get('title_text') as string | null ?? null,
@@ -585,6 +583,7 @@ export async function pullPipelineThumbnails(
         addRandomSuffix: false,
         contentType,
       })
+      const thumbnailDhash = await dhashOuNulo(buffer, `pullPipelineThumbnails:${testId}`)
 
       const sortOrder = 1 + existingCount + added
       const { error: insertError } = await supabase.from('ab_test_variants').insert({
@@ -593,6 +592,7 @@ export async function pullPipelineThumbnails(
         is_original: false,
         blob_url: blob.url,
         blob_key: blob.pathname,
+        thumbnail_dhash: thumbnailDhash,
         file_size_bytes: buffer.byteLength,
         sort_order: sortOrder,
       })
@@ -1739,7 +1739,7 @@ export async function batchStartTests(
   for (const videoId of eligible) {
     const { data: video } = await supabase
       .from('youtube_videos')
-      .select('id, title, thumbnail_hq_url')
+      .select('id, youtube_video_id, title, thumbnail_hq_url')
       .eq('id', videoId)
       .eq('site_id', siteId)
       .single()
@@ -1747,9 +1747,14 @@ export async function batchStartTests(
     if (!video) continue
 
     let batchImmutableUrl: string | null = video.thumbnail_hq_url ?? null
+    let batchDhash: string | null = null
+    let batchDimensions: string | null = null
     if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
       try {
-        batchImmutableUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
+        const guardada = await preserveOriginalThumbnail(video.youtube_video_id)
+        batchImmutableUrl = guardada.url
+        batchDhash = guardada.dhash
+        batchDimensions = `${guardada.largura}x${guardada.altura}`
       } catch {
         continue
       }
@@ -1775,6 +1780,8 @@ export async function batchStartTests(
         label: 'original',
         is_original: true,
         blob_url: batchImmutableUrl,
+        thumbnail_dhash: batchDhash,
+        dimensions: batchDimensions,
         blob_key: null,
         sort_order: 0,
       })

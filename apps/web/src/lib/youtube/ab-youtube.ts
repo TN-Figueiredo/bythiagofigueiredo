@@ -88,7 +88,8 @@ export async function fetchAnalyticsForDateRange(
 }
 
 export async function fetchVariantImageBuffer(
-  blobUrl: string
+  blobUrl: string,
+  f: typeof fetch = fetch,
 ): Promise<{ buffer: Buffer; contentType: 'image/png' | 'image/jpeg' }> {
   // Defense-in-depth: only allow known image hosts
   const allowed = [
@@ -110,7 +111,7 @@ export async function fetchVariantImageBuffer(
 
   let res: Response
   try {
-    res = await fetch(blobUrl, { signal: AbortSignal.timeout(15_000) })
+    res = await f(blobUrl, { signal: AbortSignal.timeout(15_000) })
   } catch (e) {
     throw erroDeRede(e, 'blob')
   }

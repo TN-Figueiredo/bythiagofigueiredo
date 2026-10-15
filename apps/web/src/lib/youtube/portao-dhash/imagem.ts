@@ -1,5 +1,5 @@
 import sharp from 'sharp'
-import { dhashOf, hamming } from '@/lib/youtube/thumb-fingerprint'
+import { dhashOf, hamming, hqdefaultLike } from '@/lib/youtube/thumb-fingerprint'
 import { Recusa } from './regras'
 
 export type Variante = 'maxresdefault' | 'sddefault' | 'hqdefault'
@@ -27,10 +27,7 @@ export async function maiorCopia(video: string, f: typeof fetch): Promise<{ vari
   throw new Recusa(`nenhuma cópia pública da thumbnail de ${video}: nada foi escrito`)
 }
 
-/** Spec 3.4: como o YouTube monta a hqdefault (480×360, faixas pretas). A P4a decide onde a versão definitiva mora. */
-export async function hqdefaultLike(bytes: Buffer): Promise<Buffer> {
-  return sharp(bytes).resize(480, 360, { fit: 'contain', background: '#000' }).jpeg().toBuffer()
-}
+export { hqdefaultLike }
 
 export const dhashComoHq = async (bytes: Buffer): Promise<string> => dhashOf(await hqdefaultLike(bytes))
 
