@@ -146,7 +146,11 @@ export const INVENTARIO_VIDEO: Inventario = {
   'forjaCard.vazio': 'base', 'forjaCard.excluido': 'base', 'forjaCard.bloqueado': CTRL, 'forjaCard.bloqueado.text': 'base', 'forjaCard.bloqueado.title': REP, 'forjaCard.bloqueado.href': END,
   'forjaCard.doNicho': CTRL, 'forjaCard.doNicho.text': 'base', 'forjaCard.doNicho.items[].text': 'base', 'forjaCard.doNicho.items[].href': END, 'forjaCard.doNicho.items[].label': REP,
   'forjaCard.doNicho.foot': 'base',
-  imageSummary: CTRL, 'imageSummary.src': 'base', 'imageSummary.note': 'base', 'imageSummary.rows[]*': REP, 'imageSummary.rows[].segs[]*': GEO, 'imageSummary.total.*': REP,
+  imageSummary: CTRL, 'imageSummary.src': 'base', 'imageSummary.note': 'base', 'imageSummary.rows[].segs[]*': GEO,
+  'imageSummary.rows[].label': 'rotulo', 'imageSummary.rows[].thumb': IMG, 'imageSummary.rows[].thumb.*': IMG, 'imageSummary.rows[].now': REP,
+  'imageSummary.rows[].dur': 'numero', 'imageSummary.rows[].passes': 'numero', 'imageSummary.rows[].rate': 'base', 'imageSummary.rows[].segsText': 'base',
+  'imageSummary.rows[].rowName': REP, 'imageSummary.rows[].pinName': REP,
+  'imageSummary.total.label': 'rotulo', 'imageSummary.total.dur': 'numero', 'imageSummary.total.passes': 'numero', 'imageSummary.total.rate': 'base',
   groupLegend: REP,
   ...Object.fromEntries(['leitura', 'anterior'].flatMap((k) => [
     [`forjaCard.${k}`, CTRL], [`forjaCard.${k}.id`, ID], [`forjaCard.${k}.selo`, 'rotulo'], [`forjaCard.${k}.seloInfo`, REP], [`forjaCard.${k}.leu`, 'base'],
@@ -158,6 +162,7 @@ export const INVENTARIO_VIDEO: Inventario = {
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (o oráculo não tem vídeo com a forja em andamento, nem marcas de ruído, nem faixa agrupada). A forja da tela do vídeo é a do canal e tem a prova no teste do canal; o teste daqui só exige que a lista não cresça sem querer. */
 export const SEM_FOLHA_NA_MATRIZ_VIDEO: readonly string[] = [
   'legends.*[]*',
+  'imageSummary.rows[].thumb',
   'legends[]*',
   'comparisons[].ba[].thumb',
   'comparisons[].full.scale.iqr',
@@ -265,6 +270,22 @@ function tabelasDeVersoes(m: ModeloVideo, id: string, titulo: string, nome: stri
   const marcas = itens.filter(({ v }) => v.tag !== null)
   if (marcas.length) saida.push(tabelaLista(`${id}-marca`, `${titulo}: marcas`, `${nome} (marcas)`, ['Versão', 'Marca'], marcas.map(({ v, p }) => [rotulo(v.label, `${p}.label`), base(v.tag!.text, `${p}.tag.text`)])))
   return saida
+}
+
+// G-1 (Gio, portão N3): o "Resumo por imagem" da tela, uma linha por imagem mais o total; os números são os que o modelo já formatou.
+function tabelaResumoPorImagem(m: ModeloVideo): Tabela[] {
+  const r = m.imageSummary
+  if (!r) return []
+  const linhas: Celula[][] = r.rows.map((x, i) => {
+    const p = `modelo.imageSummary.rows[${i}]`
+    return [rotulo(x.label, `${p}.label`), medido(x.dur, `${p}.dur`), medido(String(x.passes), `${p}.passes`), base(x.rate, `${p}.rate`), base(x.segsText, `${p}.segsText`)]
+  })
+  const t = 'modelo.imageSummary.total'
+  return [
+    tabelaLista('resumo-por-imagem', 'Resumo por imagem', 'resumo por imagem', ['Imagem', 'No ar', 'Passagens', 'Média de views/dia', 'Quando esteve no ar'], linhas),
+    tabelaFixa('resumo-por-imagem-total', 'Resumo por imagem: o total', 'total do resumo por imagem', ['Total', 'No ar', 'Passagens', 'Média de views/dia'],
+      [[rotulo(r.total.label, `${t}.label`), medido(r.total.dur, `${t}.dur`), medido(String(r.total.passes), `${t}.passes`), base(r.total.rate, `${t}.rate`)]]),
+  ]
 }
 
 function tabelasDeComparacoes(m: ModeloVideo): Tabela[] {
@@ -377,7 +398,7 @@ export function empacotarVideo(modelo: ModeloVideo): PacoteModelo {
       ...tabelasDeVersoes(modelo, 'versoes-thumbs', 'As versões da thumbnail', 'tabela de versões da thumbnail', v.thumbs.cards, 'modelo.versions.thumbs.cards', false),
       ...tabelasDeVersoes(modelo, 'versoes-descricoes', 'As versões da descrição', 'tabela de versões da descrição', v.descs.rows, 'modelo.versions.descs.rows', false),
     ] : []),
-    ...tabelasDeComparacoes(modelo), ...tabelaDeDescricoes(modelo),
+    ...tabelaResumoPorImagem(modelo), ...tabelasDeComparacoes(modelo), ...tabelaDeDescricoes(modelo),
   ]
   return {
     tela: 'video',

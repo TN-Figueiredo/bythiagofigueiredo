@@ -28,7 +28,7 @@ import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/to
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { dmDia, type ExtrasProprio } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import {
-  empacotarCanais, INVENTARIO_CANAIS, modeloDeCanais, NAO_COBERTO, SEM_FOLHA_NA_MATRIZ_CANAIS, SEM_PROVA_POR_IGUALDADE_CANAIS_VAZIA, type ModeloCanais,
+  empacotarCanais, INVENTARIO_CANAIS, modeloDeCanais, NAO_COBERTO, SEM_FOLHA_NA_MATRIZ_CANAIS, SEM_PROVA_POR_IGUALDADE_CANAIS_VAZIA, type ModeloCanais, VPD_POR_MIL, VPD_MEDIANA, RITMO_COM_UNIDADE,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -98,7 +98,7 @@ void LINHA
 const TAB = (pre: string): Record<string, Record<string, string | readonly string[]>> => ({
   [`${pre}canais`]: {
     Posição: ['.posicao', '.semPosicao'], Canal: '.name', Inscritos: ['.subs', '.subsOcultos'], Direção: ['.direcao.texto', '.direcaoNaoCarregou', '.direcao.longa'],
-    'Ritmo de publicação': ['.cells.cadence.pw', '.cells.cadence.text'], 'Views por dia': ['.cells.vpd.big', '.cells.vpd.text'], Outliers: ['.cells.out.mult', '.cells.out.text'],
+    [RITMO_COM_UNIDADE]: ['.cells.cadence.pw', '.cells.cadence.text'], [VPD_POR_MIL]: ['.cells.vpd.big', '.cells.vpd.text'], [VPD_MEDIANA]: ['.cells.vpd.big', '.cells.vpd.text'], Outliers: ['.cells.out.mult', '.cells.out.text'],
     Trocas: ['.cells.swap.n', '.cells.swap.text'], Crescimento: ['.cells.growth.big', '.cells.growth.text'], Sincronização: '.cells.sync.label',
   },
   [`${pre}canais-nicho`]: { Canal: '.name', Nicho: '.nicho' },

@@ -90,6 +90,8 @@ const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   'trocas-efeito': { Troca: ['.label', '.chip'], Veredito: '.effect.label' },
   'trocas-notas': { Troca: ['.label', '.chip'], Nota: ['.nobase.strong', '.nobase.text', '.full.what', '.full.whatWhen', '.full.days', '.full.verdictStrong', '.full.verdictText', '.full.src', '.full.second.strong', '.full.second.text', ...Array.from({ length: 32 }, (_, k) => k).map((k) => `.full.caveats[${k}]`), ...Array.from({ length: 32 }, (_, k) => k).map((k) => `.runLines[${k}]`)] },
   'descricoes-trocas': { 'Resumo da troca': '.sum' },
+  'resumo-por-imagem': { Imagem: '.label', 'No ar': '.dur', Passagens: '.passes', 'Média de views/dia': '.rate', 'Quando esteve no ar': '.segsText' },
+  'resumo-por-imagem-total': { Total: '.label', 'No ar': '.dur', Passagens: '.passes', 'Média de views/dia': '.rate' },
 }
 const paridade = (m: Montado) => provarParidade({
   modelo: m.modelo, inventario: INVENTARIO_VIDEO, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [],
@@ -189,6 +191,16 @@ describe('Vídeo: descrição citada presa à linha da troca', () => {
       expect(b.linha!.posicao).toBeGreaterThanOrEqual(1)
       expect(b.linha!.posicao).toBeLessThanOrEqual(t.linhas.length)
     }
+  })
+
+  it('G-1: o Resumo por imagem da tela está no pacote, com a linha de cada imagem e o total', async () => {
+    const m = await montar(PICK.full, { range: 'tudo' }, false)
+    const r = m.modelo.imageSummary
+    expect(r).not.toBeNull()
+    const t = m.pacote.tabelas.find((x) => x.id === 'resumo-por-imagem')
+    expect(t?.linhas.length).toBe(r!.rows.length)
+    expect(m.pacote.tabelas.some((x) => x.id === 'resumo-por-imagem-total')).toBe(true)
+    expect(m.textoDoPacote).toContain(r!.rows[0]!.dur)
   })
 
   it('o pacote não afirma causa: "Não prova causa." está nos avisos', async () => {

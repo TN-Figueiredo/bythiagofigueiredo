@@ -318,13 +318,17 @@ function celulasDaLinha(l: Linha): Celula[] {
     base(c.sync.label, `${p}.cells.sync.label`),
   ]
 }
-const COLUNAS_DA_LISTA = ['Posição', 'Canal', 'Inscritos', 'Direção', 'Ritmo de publicação', 'Views por dia', 'Outliers', 'Trocas', 'Crescimento', 'Sincronização']
+/** G-4 (Gio): os rótulos de Ritmo e Views/dia são os da tela, com a unidade dela (a coluna de views/dia é por mil inscritos ou a mediana, conforme a escala). */
+export const VPD_POR_MIL = 'Views/dia por mil inscritos'
+export const VPD_MEDIANA = 'Views/dia, mediana dos vídeos'
+export const RITMO_COM_UNIDADE = 'Ritmo (uploads por semana, 13 semanas)'
+const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Inscritos', 'Direção', RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, 'Outliers', 'Trocas', 'Crescimento', 'Sincronização']
 
 function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): Tabela[] {
   if (!ls.length) return []
   const pre = privada ? 'privado-' : '', suf = privada ? ', canal seu com views por dia' : ''
   const nome = (n: string) => (privada ? `${n} (dado privado)` : n)
-  const out: Tabela[] = [tabelaLista(`${pre}canais`, `Os canais acompanhados${suf}`, nome('tabela de canais'), COLUNAS_DA_LISTA, ls.map(celulasDaLinha), privada)]
+  const out: Tabela[] = [tabelaLista(`${pre}canais`, `Os canais acompanhados${suf}`, nome('tabela de canais'), colunasDaLista(modelo.vpdUnit), ls.map(celulasDaLinha), privada)]
 
   const nicho = ls.filter(({ dl }) => dl.nicho !== null)
   if (nicho.length) out.push(tabelaLista(`${pre}canais-nicho`, `O nicho de cada canal${suf}`, nome('tabela de nichos'), ['Canal', 'Nicho'], nicho.map(({ r, p, dl, dp }) => [terceiros(r.name, `${p}.name`), rotulo(dl.nicho!, `${dp}.nicho`)]), privada))

@@ -463,9 +463,8 @@ if (LIGADO) {
       })
     }
 
-    /* ---- ACHADO G-1 (Gio, 15/10): o "Resumo por imagem" da tela do vídeo (≈ 14 mil de média da imagem A) não está no pacote ---- */
+    /* ---- G-1 (Gio, 15/10, consertado): o "Resumo por imagem" da tela do vídeo (≈ 14 mil de média da imagem A) não está no pacote ---- */
     test('vídeo: o Resumo por imagem da tela (média e tempo no ar por imagem) está no pacote', async ({ browser }) => {
-      test.fail(true, 'ACHADO G-1 (portão N3, 15/10): a seção "Resumo por imagem" da tela do vídeo tem números agregados por imagem (≈ 11,4 d no ar, ≈ 14 mil/dia na imagem A) que o pacote não traz; só traz cada passagem. Vira vermelho quando consertar: trocar por test().')
       test.setTimeout(180_000)
       const ctx = await contexto(browser), page = await ctx.newPage()
       await irPara(page, amb!.urls.video)
