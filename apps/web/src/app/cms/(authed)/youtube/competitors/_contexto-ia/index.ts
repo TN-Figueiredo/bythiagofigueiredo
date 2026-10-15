@@ -93,8 +93,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (alvo === null) return null
     const m = await montarCanal(alvo, sp)
     if (m.tipo !== 'proprio') return null
-    const periodos = m.periodosProps ? await assistidoDoCanal(m.periodosProps) : null
-    const origem = await origemDoCanal(m.origemProps)
+    const [periodos, origem] = await Promise.all([m.periodosProps ? assistidoDoCanal(m.periodosProps) : Promise.resolve(null), origemDoCanal(m.origemProps)])
     const modelo = modeloDeCanalProprio(m.pv, m.comoEsta, { periodos, origem })
     return { modelo: empacotarCanalProprio(modelo, m.privado), recente: m.recente, estado: textoDe(m.estado) }
   },

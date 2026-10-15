@@ -58,6 +58,7 @@ export async function gerarPacoteIa(pedido: PedidoDePacote): Promise<RespostaDeP
   let pacote: ReturnType<typeof segmentar>
   let copiaCaracteres: number
   let completoCaracteres: number
+  let totalSemCorte: number
   let degrau: number | null
   let pisoPassou: boolean
   let estado: Record<string, string>
@@ -69,8 +70,10 @@ export async function gerarPacoteIa(pedido: PedidoDePacote): Promise<RespostaDeP
     const r = resumir(pacote, '')
     copiaCaracteres = r.copia.caracteres
     completoCaracteres = r.completo.caracteres
+    totalSemCorte = r.copia.totalSemCorte
     degrau = r.copia.degrau
-    pisoPassou = r.copia.pisoPassou
+    // o piso é definido com a pergunta cheia (plano 5.2), não com a pergunta vazia
+    pisoPassou = resumir(pacote, 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax)).copia.pisoPassou
   } catch (e) {
     if (ehRedirecionamento(e)) throw e
     // sem a mensagem da exceção, sem o pedido, sem o pacote
@@ -86,9 +89,9 @@ export async function gerarPacoteIa(pedido: PedidoDePacote): Promise<RespostaDeP
     ...(id !== undefined ? { id } : {}),
     estado: lista,
     versao: pacote.versao,
-    total: pacote.numeros.medidos + pacote.numeros.zerosMedidos + pacote.numeros.naoMedidos,
+    total: totalSemCorte, // caracteres do texto inteiro, sem corte e sem pergunta (a conferência e17d1-d7 lê isto)
     completo: completoCaracteres,
-    degrau: degrau ?? 0,
+    ...(degrau !== null ? { degrau } : {}), // ausente = nenhuma linha de lista cortada; 0 = todas cortadas
     piso_passou: pisoPassou,
     tabelas: pacote.tabelas.length,
     medidos: pacote.numeros.medidos,

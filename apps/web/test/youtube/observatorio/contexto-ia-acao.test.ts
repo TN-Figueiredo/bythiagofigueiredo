@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PacoteModelo, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 import { E17_D1_DEPLOY } from '@/lib/conferencias'
-import { modeloCheio, modeloComComentarios, modeloPrivadoExcluido, modeloPrivadoIncluido, modeloVazio, SENTINELA } from './contexto-ia-fixture'
+import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
+import { resumir } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
+import { CONTEXTO, modeloCheio, modeloComComentarios, modeloEstresse, modeloEstresseMudancas, modeloPrivadoExcluido, modeloPrivadoIncluido, modeloVazio, SENTINELA } from './contexto-ia-fixture'
 
 vi.mock('server-only', () => ({}))
 const modo = vi.hoisted(() => ({ real: false, ligado: true }))
@@ -171,13 +173,46 @@ describe('o registro', () => {
       siteId: SITE, userId: USUARIO, tela: 'canal', incluiuPrivado: false, caracteres: expect.any(Number),
       params: {
         tela: 'canal', id: ID, estado: ['niche=todos'], versao: 1,
-        total: p.numeros.medidos + p.numeros.zerosMedidos + p.numeros.naoMedidos, completo: expect.any(Number), degrau: expect.any(Number),
+        total: resumir(p, '').copia.totalSemCorte, completo: expect.any(Number),
         piso_passou: expect.any(Boolean), tabelas: p.tabelas.length, medidos: p.numeros.medidos, zeros_medidos: p.numeros.zerosMedidos,
         nao_medidos: p.numeros.naoMedidos, privado: 'na', privado_medidos: 0, comentarios: 'na', tem_busca: true,
       },
     })
     expect(l.caracteres).toBeGreaterThan(100)
     expect(l.params.completo).toBeGreaterThanOrEqual(l.caracteres)
+  })
+
+  it('total é o texto inteiro sem corte, em caracteres: acima de 30.000 num pacote cortado, e nunca menor que caracteres', async () => {
+    const m = modeloEstresse(60, 90)
+    empacotarSim.mockResolvedValue(montado(m))
+    await pedir('canais')
+    const l = registro.mock.calls[0]![0]
+    expect(l.params.total).toBe(resumir(segmentar(m, CONTEXTO), '').copia.totalSemCorte)
+    expect(l.params.total).toBeGreaterThan(30_000)
+    expect(l.caracteres).toBeLessThanOrEqual(30_000)
+    expect(l.params.total).toBeGreaterThan(l.caracteres)
+  })
+
+  it('degrau: ausente quando nenhuma linha de lista foi cortada; presente quando houve corte', async () => {
+    empacotarSim.mockResolvedValue(montado(modeloCheio()))
+    await pedir('outliers')
+    expect(registro.mock.calls[0]![0].params).not.toHaveProperty('degrau')
+    registro.mockClear()
+    const m = modeloEstresseMudancas(40, 5_000)
+    const r = resumir(segmentar(m, CONTEXTO), '').copia
+    empacotarSim.mockResolvedValue(montado(m))
+    await pedir('mudancas')
+    const p = registro.mock.calls[0]![0].params
+    expect(r.degrau).not.toBeNull()
+    expect(p.degrau).toBe(r.degrau)
+  })
+
+  it('piso_passou é calculado com a pergunta cheia (1.000), não com a vazia', async () => {
+    const m = modeloEstresseMudancas(40, 5_000)
+    const pac = segmentar(m, CONTEXTO)
+    empacotarSim.mockResolvedValue(montado(m))
+    await pedir('mudancas')
+    expect(registro.mock.calls[0]![0].params.piso_passou).toBe(resumir(pac, 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax)).copia.pisoPassou)
   })
 
   it('params não tem a chave pergunta, nem a consulta crua, nem o título sentinela; a busca vira tem_busca', async () => {
