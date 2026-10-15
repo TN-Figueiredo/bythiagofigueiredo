@@ -24,6 +24,8 @@ A E19 voltou ao aviso com o acesso aberto? O acesso fecha sozinho (503). Antes d
 
 Antes de rodar: `git status` limpo, em `main`, igual a `origin/main` (o comando lê as duas guardas do seu checkout: a E19 conferida e a exceção da pergunta 47).
 
+Rode num terminal comum, fora do Claude Code (nem com "!"): nenhum agente roda este comando nem lê a chave, porque o texto dela ficaria gravado no histórico da sessão. Entregue a chave da outra pessoa por um canal que apaga a mensagem (ou em mãos), nunca por e-mail nem por chat com histórico; depois de instalada, apague a mensagem. Rode um comando de cada vez (a conferência e o insert não são atômicos).
+
 ```
 npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts criar --usuario <e-mail da pessoa>
 ```
@@ -48,6 +50,8 @@ returning k.id, k.name, k.revoked_at;
 
 Uma linha devolvida: revogada. Nenhuma linha: **nada mudou** (nome errado, chave já revogada, ou mais de uma chave com esse nome: nesse caso chame o controlador). Com o nome de `cowork-permanent`, `forja (fila)` ou `forja (so leitura)`, nenhuma linha vem.
 
+Texto da chave perdido: revogue com o SQL acima e crie outra; o comando recusa a segunda enquanto a primeira estiver ativa.
+
 **Obrigatório: rode em seguida a consulta de ver as chaves: a linha tem de aparecer com `revoked_at` preenchida.** Se não aparecer assim, a chave NÃO foi revogada.
 
 ## Consultas (só leitura)
@@ -63,6 +67,10 @@ Quem consultou o quê, nos últimos 7 dias. **`result = 'ok'` não quer dizer en
 ```sql
 select l.at, u.email, l.action, l.result, l.params->>'desfecho' as desfecho, l.included_private, l.output_chars from public.obs_ai_access_log l left join auth.users u on u.id = l.user_id where l.origin = 'mcp' and l.at > now() - interval '7 days' order by l.at desc limit 200;
 ```
+
+## A poda e o tempo estourado
+
+`banco_falhou` na poda do registro (`poda_acesso_ia`) não garante "nada apagado": o corte do prazo de 2,5 s fecha a conexão, mas o banco pode ter concluído o `delete`. O número de apagadas daquele dia pode estar subcontado no registro da agenda; só sai o que já venceu e a execução seguinte converge.
 
 ## O que o registro guarda e o que não guarda
 
@@ -83,8 +91,10 @@ Decisão do dono: **o `pipeline` NÃO é instalado no Claude Code.** A chave per
 Instalação na máquina da pessoa (por usuário; **a chave nunca vai a arquivo do repositório**):
 
 ```
-claude mcp add --scope user --transport http observatorio https://bythiagofigueiredo.com/api/mcp --header "Authorization: Bearer <a chave dela>"
+read -s OBS_CHAVE && claude mcp add --scope user --transport http observatorio https://bythiagofigueiredo.com/api/mcp --header "Authorization: Bearer $OBS_CHAVE"; unset OBS_CHAVE
 ```
+
+A chave é digitada sem eco e não vai ao histórico do shell. A chave fica em texto puro no arquivo de configuração do Claude Code do seu usuário; se o computador for perdido ou emprestado, revogue (SQL acima).
 
 Dentro do Claude Code, `/mcp` tem de mostrar `observatorio` conectado, com uma ferramenta só, `observatorio_leitura`. A regra de permissão que libera `observatorio_leitura` na configuração do **usuário** tem o nome exato lido no `/mcp` no dia; **não foi conferido** como o modo automático e os subagentes tratam ferramenta MCP.
 

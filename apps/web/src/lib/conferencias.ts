@@ -352,10 +352,10 @@ export function conferenciasE17D2Abertura(abertura: string | null): Conferencia[
   }
   const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e17d2-${id}`, etapa: 'E17', data: somaDias(abertura, mais), responsavel: 'agente', onde: `${PLANO_E17D2}: ${onde}`, feitaEm: null })
   return [
-    e('a0', 0, 'A0, 10 minutos depois da primeira consulta: K8 e K9 (linhas `mcp` com `result = ok`, uma por chamada; `output_chars` abaixo de 60.000; duração por chamada)'),
+    e('a0', 0, 'A0, 10 minutos depois da primeira consulta: K8 e K9. Esperado: sem_desfecho = 0 em toda linha; pelo menos uma linha desfecho = ok com output_chars entre 1 e 60.000 (30.000 em pacote_da_tela); output_chars nulo em toda linha cujo desfecho não é ok; e, numa consulta do dono a canal ou vídeo PRÓPRIO, a linha com included_private = true. Só linhas falhou/tempo, ou nenhuma linha ok com included_private = true depois de uma consulta ao canal próprio: VERMELHO, fechar a variável e chamar o controlador; nunca marcar feita'),
     e('a0-1', 1, 'A0+1: K8 (`limite` e `recusado` em zero ou explicados)'),
     e('a0-7', 7, "A0+7: K10 (o contador com no máximo 2 dias de linhas) e K11 (tamanho do registro e bytes por linha, contra 300 a 450). Leitura a mais, do controlador, só leitura: `select (at at time zone 'UTC')::date as dia, result, count(*) from obs_ai_access_log where at > now() - interval '7 days' group by 1, 2 order by 1`. Nenhuma linha devolvida quer dizer 'ninguém usou', não 'taxa folgada'. Linhas `limite` em mais de 2 dos dias devolvidos: levar ao dono a pergunta de subir a taxa, com a contagem; o plano não sobe o número sozinho"),
-    e('a0-30', 30, 'A0+30: K11 de novo (projeção de 400 dias contra o teto do banco)'),
+    e('a0-30', 30, 'A0+30: K11 de novo (projeção de 400 dias contra o teto do banco). Esperado: projeção de 400 dias (linhas_mcp por dia medido × 400 × bytes por linha medidos) abaixo de 50 MB e banco total abaixo de 400 MB; acima de qualquer um, levar ao dono com a conta (a volta é apagar a variável)'),
   ]
 }
 

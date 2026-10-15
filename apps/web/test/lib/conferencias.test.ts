@@ -679,6 +679,9 @@ describe('E17 degrau 2: conferências de envio, abertura e poda', () => {
   })
   it('a K10 só está em A0+7 (não em A0+1) e a leitura a mais traz a consulta por dia de UTC e a frase "ninguém usou"', () => {
     const a = Object.fromEntries(conferenciasE17D2Abertura(dia(-10)).map(x => [x.id, x.onde]))
+    expect(a['e17d2-a0']).toContain('included_private = true')
+    expect(a['e17d2-a0']).toContain('sem_desfecho = 0')
+    expect(a['e17d2-a0-30']).toContain('50 MB')
     expect(a['e17d2-a0-7']).toMatch(/K10/)
     expect(a['e17d2-a0-1']).not.toMatch(/K10/)
     expect(a['e17d2-a0-7']).toMatch(/at at time zone 'UTC'/)

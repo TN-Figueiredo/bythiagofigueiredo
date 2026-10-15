@@ -260,6 +260,11 @@ describe('runbook do acesso externo da IA (docs/ops/observatorio-acesso-ia.md)',
     expect(sql.match(/;/g)).toHaveLength(1)
     expect(sql).not.toMatch(/\b(begin|commit|rollback)\s*;/i)
     expect(runbook).toContain('rode em seguida a consulta de ver as chaves')
+    expect(runbook).toContain('fora do Claude Code')
+    expect(runbook).toContain('read -s OBS_CHAVE')
+    expect(runbook).toContain('texto puro')
+    expect(runbook).toContain('Texto da chave perdido')
+    expect(runbook).toContain('não garante "nada apagado"')
   })
   it('a seção dos dois servidores: observatorio com --scope user; pipeline NÃO instalado; uma chave por pessoa e uso registrado; sem comando de instalação do pipeline; sem .mcp.json como destino de chave', () => {
     const i = runbook.indexOf('## Os dois servidores no Claude Code')
