@@ -1,0 +1,7 @@
+.cdica{display:inline-block;max-width:100%;border-radius:4px;cursor:help;outline-offset:2px;text-decoration:underline dotted var(--dim) 1px;text-underline-offset:4px}
+.cdica:hover,.cdica.on{text-decoration-color:var(--text)}
+.cdica.on{background:var(--surface-2);box-shadow:0 0 0 4px var(--surface-2)}
+/* o anel de foco não é cortado pelo overflow-x:auto do .tablebox nem pela 1ª coluna presa */
+td .cdica:focus-visible,.cards .cdica:focus-visible{outline-offset:-2px}
+/* alvo de toque de 44 px só em td/cartão; o cabeçalho (th) fica nos 32 px do .tip */
+@media (pointer:coarse){td .cdica,.cards .cdica{min-height:44px;display:inline-flex;flex-direction:column;justify-content:center}}
