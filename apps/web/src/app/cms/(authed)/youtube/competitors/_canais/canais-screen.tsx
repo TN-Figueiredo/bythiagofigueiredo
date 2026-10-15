@@ -35,7 +35,7 @@ import { RiAtalhos, RiSecoes } from './ri-secoes'
 import { RiFronteira } from './ri-fronteira'
 import type { RiView } from './ri-tipos'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
-import { fraseSeuCanal } from './posicao-model'
+import { fraseSeuCanal, ORDEM_EMPATE, ORDEM_POSICAO } from './posicao-model'
 import { comportamentoDeRolagem, contentorQueRola } from './rolagem'
 import './canais.css'
 
@@ -461,7 +461,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             onDirecao={d => go({ direcao: d }, { busy: true, direcao: d })}
           />
           {ri ? <RiAtalhos ri={ri} /> : null}
-          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
+          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} faixa={view.faixaSemPosicao} hrefOrdenar={k => urlWith({ sort: k === DEFAULT_SORT ? null : k, dir: null })} onOrdenar={(e, href, k) => { pedidoOrd.current = { sort: k, dir: 'desc' }; linkNav(e, href, { sort: k, dir: 'desc', busy: true }) }} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
           {filtrando ? <EstadoDoFiltro resumo={resumoExibido} mostrando={{ n: concorrentes.length, de: view.resumo.direcao.canais }} onLimpar={() => go({ filter: null, direcao: null }, { busy: true, direcao: null })} /> : null}
           <div className="toolbar">
@@ -495,8 +495,16 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           {view.conjuntoAviso ? <p className="cn-fnota" data-k="conjunto-aviso">{view.conjuntoAviso}</p> : null}
           {view.posicaoNota ? <p className="cn-fnota" data-k="posicao-nota">{view.posicaoNota}</p> : null}
           {ql ? <p className="cn-fnota" data-k="busca-nota">{view.buscaNota}</p> : null}
+          <p data-testid="canais-ordem" className="sortnote ordl">Ordenado por <b>{view.ordem.coluna}</b>, {view.ordem.sentido}. {ORDEM_POSICAO}{view.ordem.empate ? ' ' + ORDEM_EMPATE : ''}</p>
+          {view.sort === 'direcao' ? (
+            <p className="ordl legendaord" data-k="legenda-ordem">
+              <span>▲ subindo, +10% ou mais</span> · <span>＝ sem mudança</span> · <span>▼ descendo, −10% ou menos</span><br />
+              <span>As setas ▲ ▼ valem só para a Direção, que mede views.</span>
+            </p>
+          ) : view.sort === 'growth' ? (
+            <p className="ordl legendaord" data-k="legenda-ordem">Crescimento mede inscritos e usa + e −. Setas ▲ ▼ ficam para a Direção, que mede views.</p>
+          ) : null}
           <div className="toolbar2">
-            <span className="sortnote">{view.sortNote}</span>
             <span>
               {view.filter === 'problemas'
                 ? <span className="chip">Só canais com problema ({view.problems.n}) <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></span>

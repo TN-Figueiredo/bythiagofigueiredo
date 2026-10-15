@@ -48,7 +48,7 @@ describe('lote rápido: dicas nos cabeçalhos de medida', () => {
     vpd: 'Views por dia dos vídeos do canal, por mil inscritos. Compara canais de tamanhos diferentes.',
     outliers: 'Vídeos com 2× ou mais as views típicas do canal, nos últimos 90 dias.',
     swaps: 'Mudanças de título e de thumbnail nos últimos 30 dias, longos e Shorts.',
-    growth: 'Inscritos que o canal ganhou ou perdeu em 30 dias. O YouTube arredonda os inscritos a 3 algarismos: variação pequena pode ser só arredondamento. É diferente da Direção, que mede views.',
+    growth: 'Inscritos que o canal ganhou (+) ou perdeu (−) em 30 dias. O YouTube arredonda os inscritos a 3 algarismos; é diferente da Direção, que mede views.Empate: se o ganho ou a perda é menor que 2 passos do arredondamento, a diferença pode ser só arredondamento. Esses canais mostram "sem variação" com o limite de cada canal (±N) e ficam todos na mesma posição, entre quem cresceu e quem perdeu.',
   }
   for (const [k, texto] of Object.entries(TEXTOS)) {
     it(`o cabeçalho ${k} abre a dica com o texto da Hanna`, async () => {
@@ -58,14 +58,14 @@ describe('lote rápido: dicas nos cabeçalhos de medida', () => {
       expect(await dica(tip!)).toBe(texto)
     })
   }
-  it('a coluna de posição explica a ausência só quando a ordenação não tem posição', async () => {
+  it('a coluna de posição explica a posição em toda ordenação (A5 2ª leva)', async () => {
     const sem = mount({ medidas: medidasDoMotor(obs), sort: 'growth' })
     const tip = sem.container.querySelector('thead th.p .tip')
     expect(tip).not.toBeNull()
-    expect(await dica(tip!)).toBe('Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a posição.')
+    expect(await dica(tip!)).toBe('Posição pelo valor da coluna ordenada. 1º é o maior. Canais empatados dividem a posição.')
     sem.unmount()
     const com = mount({ medidas: medidasDoMotor(obs), sort: 'subs' })
-    expect(com.container.querySelector('thead th.p .tip')).toBeNull()
+    expect(com.container.querySelector('thead th.p .tip')).not.toBeNull()
   })
   it('o valor da Direção tem a dica com os dois totais da própria linha', async () => {
     const { container } = mount({ medidas: medidasDoMotor(obs, {}) })

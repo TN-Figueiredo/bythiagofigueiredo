@@ -4,7 +4,7 @@ import type { CanaisRow, CanaisView } from './view-model'
 import { DirecaoCell } from './direcao-cell'
 import { DirecaoDica } from './direcao-dica'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
-import { fraseDoCartao, motivoTexto, temPosicao } from './posicao-model'
+import { fraseDoCartao, motivoTexto } from './posicao-model'
 import { CompararLink, type RowHandlers } from './channel-table'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 const JANELA = MEASURE_RULES.direction.windowDays
@@ -20,8 +20,8 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
   const c = r.cells, todos = view.fmt === 'todos'
   return (
     <article role="listitem" className={'card ' + (r.own ? 'you' : '')} data-id={r.id} tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}>
-      {r.pos ? <span className="cp num">{r.pos.pos}º{r.pos.empate ? <span className="sr"> (empate)</span> : null}</span>
-        : <span className="cp num">{temPosicao(view.sort) ? <span aria-hidden="true">–</span> : null}<span className="sr">sem posição</span></span>}
+      {r.numero ? <span className="cp num" data-testid="canais-p">{r.numero.pos}º{r.numero.empate ? ' · empate' : ''}</span>
+        : <span className="cp num" data-testid="canais-p" aria-label="sem posição"><span className="sr">sem posição</span></span>}
       <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
       <Voce r={r} view={view} />
       <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoCell r={r} cartao /><DirecaoDica r={r} /></div></div></div>
