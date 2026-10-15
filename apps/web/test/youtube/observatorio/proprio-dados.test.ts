@@ -14,7 +14,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (...a: u
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => getSupabaseServiceClient() }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a), captureException: (...a: unknown[]) => captureException(...a) }))
 
-import { podeVerPrivado, acessoPrivado, lerDadosDoCanal, lerDadosDoVideo, lerDiarioDosCanais, longosAcompanhadosDe } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import { podeVerPrivado, acessoPrivado, lerDadosDoCanal, lerDadosDoVideo, lerDiarioDosCanais, lerDiarioLongo, longosAcompanhadosDe } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 
 const S = 'site-1'
 const BOM = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', RUIM = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a11', TERC = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a12'
@@ -370,5 +370,71 @@ describe('longosAcompanhadosDe', () => {
     const depois = longosAcompanhadosDe(mut, canal)
     expect(depois).toHaveLength(antes.length - 2)
     for (const y of fora) expect(depois).not.toContain(y)
+  })
+})
+
+describe('lerDiarioLongo (E5b T16, tela B)', () => {
+  const ULTIMO = d(3)
+  const dia = (yt: string, n: number, canal = BOM): Row => ({ youtube_video_id: yt, day_pt: d(n), site_id: S, channel_id: canal, views: 10, avg_view_percentage: 50 })
+  const cob = (yt: string, de: string, ate: string): Row => ({ youtube_video_id: yt, site_id: S, channel_id: BOM, metric_set: 'base', covered_from: de, covered_to: ate })
+  const pubs = (ids: string[]) => new Map(ids.map(y => [y, d(300)] as const))
+  const pedido = (ytIds: string[], leitura: LeituraPrivadaDoSite | null) => ({ canalId: BOM, ytIds, ultimoDia: ULTIMO, publicacoes: pubs(ytIds), agora: AGORA, leitura })
+
+  it('sem prova: negado, o cliente de serviço nem é criado', async () => {
+    expect(await lerDiarioLongo(pedido(['v1'], null))).toEqual({ acesso: 'negado' })
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+  })
+
+  it('lê os 90 dias que terminam no último dia e o diário inteiro, do site e do canal pedidos, com a cobertura', async () => {
+    const linhas: Row[] = []
+    for (let n = 200; n >= 3; n--) linhas.push(dia('v1', n))
+    linhas.push(dia('v9', 5, RUIM))
+    const db = fakeSupabase({ yt_own_video_daily: linhas, yt_own_video_coverage: [cob('v1', d(200), d(3))] })
+    com(db)
+    const r = await lerDiarioLongo(pedido(['v1'], await token()))
+    if (r.acesso !== 'ok' || !r.dado.inteiro) throw new Error('esperava ok')
+    expect(r.dado.d90.linhas).toHaveLength(90)
+    expect(r.dado.d90.de).toBe(d(92))
+    expect(r.dado.d90.ate).toBe(ULTIMO)
+    expect(r.dado.inteiro.de).toBeNull()
+    expect(r.dado.inteiro.linhas).toHaveLength(198)
+    expect(r.dado.inteiro.linhas.every(l => l.ytId === 'v1')).toBe(true)
+    expect(r.dado.inteiro.cobertura.conhecida).toBe(true)
+    expect(r.dado.motivoInteiro).toBeUndefined()
+    expect(db.trips).toContain('yt_own_video_coverage')
+  })
+
+  it('o diário inteiro passa do teto de linhas: fica nulo com o motivo "teto", o de 90 dias vem, e nenhum aviso (é permanente, não uma falha)', async () => {
+    const ids = Array.from({ length: 50 }, (_, i) => 'v' + String(i).padStart(2, '0'))
+    const linhas: Row[] = []
+    for (const y of ids) for (let n = 203; n >= 3; n--) linhas.push(dia(y, n))
+    com(fakeSupabase({ yt_own_video_daily: linhas, yt_own_video_coverage: [] }))
+    const r = await lerDiarioLongo(pedido(ids, await token()))
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.inteiro).toBeNull()
+    expect(r.dado.motivoInteiro).toBe('teto')
+    expect(r.dado.d90.linhas).toHaveLength(50 * 90)
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('falha do banco: { acesso: "erro" } e UM aviso só (os dois diários falham, a mensagem não se repete)', async () => {
+    com(fakeSupabase({ yt_own_video_daily: [], yt_own_video_coverage: [] }, { failOn: 'yt_own_video_daily' }))
+    const r = await lerDiarioLongo(pedido(['v1'], await token()))
+    expect(r).toEqual({ acesso: 'erro' })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(captureMessage.mock.calls)).not.toMatch(/v1|boom/)
+  })
+
+  it('lerDadosDoVideo não chama lerDiarioDoPeriodo (a consulta dele não aparece): o diário longo fica para o componente dentro do Suspense', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3))], yt_own_video_reach_daily: [], yt_own_video_daily: [diario('v1', d(3), 4)], yt_own_video_coverage: [cob('v1', d(10), d(3))], yt_own_video_retention: [] })
+    com(db)
+    await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, leitura: await token() })
+    // a consulta de `lerDiarioDoPeriodo` é a única que pede `youtube_video_id, day_pt, views, avg_view_percentage` (sem a duração média e sem a data de coleta)
+    expect(db.selects.filter(x => x.cols === 'youtube_video_id, day_pt, views, avg_view_percentage')).toEqual([])
+    // controle negativo: o diário longo, sim, faz essa consulta
+    const db2 = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)], yt_own_video_coverage: [] })
+    com(db2)
+    await lerDiarioLongo({ canalId: BOM, ytIds: ['v1'], ultimoDia: d(3), publicacoes: pubs(['v1']), agora: AGORA, leitura: await token() })
+    expect(db2.selects.some(x => x.cols === 'youtube_video_id, day_pt, views, avg_view_percentage')).toBe(true)
   })
 })

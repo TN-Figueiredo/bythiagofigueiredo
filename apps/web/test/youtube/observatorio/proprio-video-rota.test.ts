@@ -3,14 +3,14 @@
 // Vídeo de canal próprio abre a tela nova; vídeo de concorrente continua abrindo o Histórico, sem tocar o dado privado; id desconhecido continua
 // "Vídeo não encontrado" na moldura (status 200); quem só lê o site abre a página sem os números privados.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { ReactElement, ReactNode } from 'react'
+import { Suspense, type ReactElement, type ReactNode } from 'react'
 import { proprioWorld, primeiroProprio, DADOS } from './proprio-fixture'
 import { link } from '@/lib/youtube/observatorio/links'
 import { buildHistoricoView, historicoTrail } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import type { ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 import { provarLeituraPrivada, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
-import type { DadosDoCanal, DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import type { DadosDoCanal, DadosDoVideo, DiarioLongo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { VideoBlocosView } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 
@@ -43,6 +43,7 @@ const state = {
   abrir: vi.fn(),
   leitura: vi.fn(async (_s: string): Promise<LeituraPrivadaDoSite | null> => EDICAO),
   dados: vi.fn(async (_a: unknown) => w.dados),
+  longo: vi.fn(async (_a: unknown): Promise<Privado<DiarioLongo>> => ({ acesso: 'erro' })),
   swipe: vi.fn(async () => []),
   /** `buildProprioVideoBase` da vez: por padrão o de verdade (a factory do mock o guarda em `real`); um teste troca para simular o cartão que não se achou. */
   base: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu', async orig =>
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   podeVerPrivado: (s: string) => state.leitura(s),
   lerDadosDoVideo: async (a: unknown) => paraVideo(await state.dados(a)),
+  lerDiarioLongo: (a: unknown) => state.longo(a),
   longosAcompanhadosDe: (_obs: unknown, id: string) => ['yt-longos-de-' + id],
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: () => state.swipe() }))
@@ -214,5 +216,54 @@ describe('T13.0 H5/H7/H8 rota: título, concorrente sem data, modelo antes do da
     state.base.mockImplementation(() => null)
     await expect(rota(proprioVideo.id)).rejects.toThrow(/vídeo próprio/i)
     expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('E5b T16 (b), tela B: os cartões de % assistido por período vão em Suspense próprio', () => {
+  type Periodos = ReactElement<{ fallback: ReactElement; children: ReactElement<{ canalId: string; ytId: string; ytIds: string[]; diario: { ultimoDia: string | null } }> }>
+  const periodosDe = (el: Moldura) => (filho(el).props.children as ReactElement<{ periodos?: Periodos }>).props.periodos
+
+  it('os cartões de período estão dentro de outro Suspense, com o esqueleto como fallback, e o bloco não espera a leitura (nenhum leitor do diário longo roda na rota)', async () => {
+    const el = await rota(proprioVideo.id)
+    const p = periodosDe(el)!
+    expect(p.type).toBe(Suspense)
+    expect((p.props.fallback.type as { name?: string }).name).toBe('AssistidoEsqueleto')
+    expect((p.props.children.type as { name?: string }).name).toBe('AssistidoDoVideo')
+    expect(p.props.children.props).toMatchObject({ canalId: w.canalId, ytId: proprioVideo.ytId })
+    expect(state.longo).not.toHaveBeenCalled()
+  })
+
+  it('o componente do Suspense lê com o token, o último dia do diário e os OUTROS vídeos do canal (nunca o da tela)', async () => {
+    const el = await rota(proprioVideo.id)
+    const filhoP = periodosDe(el)!.props.children
+    state.longo.mockResolvedValueOnce({ acesso: 'erro' })
+    const vista = await (filhoP.type as (p: unknown) => Promise<ReactElement<{ view: { estado: string } }>>)(filhoP.props)
+    expect(vista.props.view.estado).toBe('erro')
+    expect(state.longo).toHaveBeenCalledTimes(1)
+    const a = state.longo.mock.calls[0]![0] as { canalId: string; ytIds: string[]; ultimoDia: string; leitura: unknown; agora: number }
+    expect(a).toMatchObject({ canalId: w.canalId, leitura: EDICAO, agora: w.obs.NOW, ultimoDia: filhoP.props.diario.ultimoDia })
+    expect(a.ytIds).not.toContain(proprioVideo.ytId)
+    expect(a.ytIds).toEqual(['yt-longos-de-' + w.canalId])
+  })
+
+  it('canal sem diário (sem último dia): o componente nem chama o leitor e os cartões dizem que a coleta não rodou', async () => {
+    state.dados.mockImplementation(async () => DADOS.vazio(w.canalId, w.ytIds, w.hoje))
+    const el = await rota(proprioVideo.id)
+    const filhoP = periodosDe(el)!.props.children
+    const vista = await (filhoP.type as (p: unknown) => Promise<ReactElement<{ view: { estado: string; conteudos: { inteiro: { frase: { texto: string } } } } }>>)(filhoP.props)
+    expect(state.longo).not.toHaveBeenCalled()
+    expect(vista.props.view.estado).toBe('ok')
+    expect(vista.props.view.conteudos.inteiro.frase.texto).toMatch(/coleta diária ainda não rodou/)
+  })
+
+  it('quem só lê o site: o nó dos cartões nem existe e o leitor longo não roda; vídeo de concorrente não lê nada disto', async () => {
+    state.leitura.mockImplementation(async () => null)
+    state.dados.mockImplementation(async () => ({ alcance: { acesso: 'negado' }, diario: { acesso: 'negado' } }))
+    expect(periodosDe(await rota(proprioVideo.id))).toBeUndefined()
+    state.leitura.mockImplementation(async () => EDICAO)
+    const el = await rota(concorrente.id)
+    expect(nome(el)).toBe('HistoricoScreen')
+    expect(state.longo).not.toHaveBeenCalled()
   })
 })

@@ -8,7 +8,7 @@
 //  - vídeo inexistente ou de concorrente nunca toca a guarda de edição nem o dado privado.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { fakeSupabase, type FakeDb, type Row } from '../../helpers/fake-supabase'
 import { TIPO_ALCANCE } from '@/lib/youtube/observatorio/proprio/ler'
 import type { AlcanceCanal, DiarioCanal } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -79,8 +79,28 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     render(await rota(proprio.id))
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(html(), s), s).toBe(true)
     expect(db.trips.length).toBeGreaterThan(0)
-    expect(servico.criado).toBe(1)
+    // um cliente para o alcance, o diário e a retenção (`lerDadosDoVideo`) e, depois do primeiro HTML, outro para os cartões de período (`lerDiarioLongo`, no `Suspense`)
+    expect(servico.criado).toBeGreaterThanOrEqual(1); expect(servico.criado).toBeLessThanOrEqual(2)
     expect(guarda.chamadas).toBe(1)
+  })
+
+  it('controle positivo da tela B: o nó `periodos` da rota é um Suspense com o esqueleto, e o componente assíncrono dentro dele devolve os três cartões de % assistido por período com a leitura do diário longo', async () => {
+    const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ periodos?: ReactElement<{ fallback: ReactElement; children: ReactElement<Record<string, unknown>> }> }> }> }>
+    const periodos = moldura.props.children.props.children.props.periodos!
+    expect(periodos.props.fallback.type).toBeTypeOf('function') // o esqueleto
+    const filho = periodos.props.children
+    const antes = db.trips.length
+    const resolvido = await (filho.type as (p: Record<string, unknown>) => Promise<ReactElement>)(filho.props)
+    render(resolvido)
+    expect(document.querySelectorAll('.ap-c')).toHaveLength(3)
+    expect(db.trips.length).toBeGreaterThan(antes)
+    expect(db.trips.slice(antes).some(t => JSON.stringify(t).includes('yt_own_video_coverage'))).toBe(true)
+  })
+
+  it('quem só lê o site: a rota nem monta o nó dos cartões de período', async () => {
+    guarda.ok = false
+    const moldura = (await rota(proprio.id)) as unknown as ReactElement<{ children: ReactElement<{ children: ReactElement<{ periodos?: unknown }> }> }>
+    expect(moldura.props.children.props.children.props.periodos).toBeUndefined()
   })
 
   it('controle positivo: o que a rota entrega ao cliente TEM os números para quem edita (a negativa abaixo não passa em vazio)', async () => {

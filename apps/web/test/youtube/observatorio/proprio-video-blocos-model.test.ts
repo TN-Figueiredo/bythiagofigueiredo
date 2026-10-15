@@ -4,10 +4,11 @@
 // `negado` nenhum número privado entra no modelo (a regra 6 do brief).
 import { afterEach, describe, it, expect } from 'vitest'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
-import { buildVideoBlocos, fraseVeredito, type EntradaBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
+import { buildAssistidoDoVideo, buildVideoBlocos, fraseVeredito, type EntradaBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
-import type { DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
-import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { DadosDoVideo, DiarioLongo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import type { DiarioCanal, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { DiarioDoPeriodo, DiarioPeriodoLinha } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import { mundoVideo, temSentinela, TEXTOS_PRIVADOS, type MundoVideo } from './proprio-video-fixture'
 
@@ -491,5 +492,91 @@ describe('relógio e datas', () => {
     const g = blocos(W).views!.grafico!
     const ultimo = addDays(W.hoje, -2)
     expect(g.periodoTexto).toMatch(new RegExp(`a ${dmDia(ultimo)} · 28 dias`))
+  })
+})
+
+
+/* ---------------------------------------------------------------- tela B: % assistido por período */
+
+describe('buildAssistidoDoVideo (tela B)', () => {
+  const ATE: DiaYt = '2026-09-30'
+  const PUB = addDays(ATE, -199)
+  const OUTROS = ['o1', 'o2', 'o3']
+  /** Cada outro vídeo, 100 views por dia: 40% até 90 dias atrás, 50% de 89 a 28 dias atrás, 60% nos últimos 28 dias. */
+  function linhas(ids: readonly string[], de: DiaYt, views = 100): DiarioPeriodoLinha[] {
+    const out: DiarioPeriodoLinha[] = []
+    for (const ytId of ids) for (let n = 199; n >= 0; n--) {
+      const dia = addDays(ATE, -n)
+      if (dia < de) continue
+      out.push({ ytId, dia, views, pctAssistido: n >= 90 ? 40 : n >= 28 ? 50 : 60 })
+    }
+    return out
+  }
+  function periodo(ids: readonly string[], de: DiaYt | null, o: { conhecida?: boolean; views?: number; primeiro?: DiaYt } = {}): DiarioDoPeriodo {
+    const ls = linhas(ids, de ?? PUB, o.views)
+    return {
+      canalId: 'c', de, ate: ATE, linhas: ls, foraDoTeto: [], descartados: 0,
+      cobertura: {
+        conhecida: o.conhecida ?? true, videosCompletos: ids.length, videosIncompletos: 0, primeiroDiaLido: o.primeiro ?? (ls[0]?.dia ?? null),
+        intervalos: new Map(ids.map(id => [id, [{ de: de ?? PUB, ate: ATE }]] as const)), ytIds: ids, publicacoes: new Map(ids.map(id => [id, PUB] as const)),
+      },
+    }
+  }
+  const longo = (o: Partial<DiarioLongo> = {}): Privado<DiarioLongo> => ({ acesso: 'ok', dado: { d90: periodo(OUTROS, addDays(ATE, -89)), inteiro: periodo(OUTROS, null), ...o } })
+  const diario28: DiarioCanal = {
+    canalId: 'c', ultimoDia: ATE, descartados: 0,
+    linhas: Array.from({ length: 28 }, (_, i) => ({ ytId: 'este', dia: addDays(ATE, -i), views: 50, pctAssistido: 55, duracaoMediaSeg: null })),
+  }
+  const monta = (l: Privado<DiarioLongo> | null, diario: DiarioCanal = diario28) => buildAssistidoDoVideo({ ytId: 'este', ytIds: OUTROS, diario, longo: l })
+
+  it('os três cartões do exemplo (46, 53 e 60) com as setas contra o canal inteiro e a frase do vídeo: "Acima do normal do canal inteiro: 55% contra 46% (+9 pontos)"', () => {
+    const v = monta(longo())
+    expect(v.estado).toBe('ok')
+    expect(v.cartoes.map(c => [c.id, c.valor, c.seta?.texto ?? null])).toEqual([['inteiro', '46%', null], ['90', '53%', '▲ +7'], ['28', '60%', '▲ +14']])
+    expect(v.conteudos.inteiro.frase!.texto).toBe('Acima do normal do canal inteiro: 55% contra 46% (+9 pontos).')
+    expect(v.conteudos['90'].frase!.texto).toBe('Na média dos últimos 90 dias: 55% contra 53% (+2 pontos).')
+  })
+
+  it('o vídeo da tela não entra na conta do normal: só os OUTROS vídeos (o leitor recebe a lista sem ele)', () => {
+    const v = buildAssistidoDoVideo({ ytId: 'o1', ytIds: ['o2', 'o3'], diario: { ...diario28, linhas: [] }, longo: longo() })
+    expect(v.cartoes[0]!.valor).toBe('46%')
+    expect(v.conteudos.inteiro.frase).toBeNull() // sem % do vídeo não há comparação, e nada é inventado
+  })
+
+  it('canal sem diário (a página nem lê): os três cartões dizem "sem dado" e a frase diz que a coleta não rodou; nenhum número', () => {
+    const v = monta(null, { ...diario28, ultimoDia: null, linhas: [] })
+    expect(v.cartoes.every(c => c.estado === 'sem-numero' && c.valor === null && c.seta === null)).toBe(true)
+    expect(v.conteudos.inteiro.frase!.texto).toMatch(/coleta diária ainda não rodou/)
+  })
+
+  it('sem acesso e leitura que falhou: nenhum cartão, a frase de acesso ou de erro, e nenhum número no modelo', () => {
+    const negado = monta({ acesso: 'negado' })
+    expect(negado).toMatchObject({ estado: 'negado', cartoes: [], vazio: 'Só quem edita o site vê o % assistido.' })
+    const erro = monta({ acesso: 'erro' })
+    expect(erro).toMatchObject({ estado: 'erro', cartoes: [] })
+    expect(JSON.stringify([negado, erro])).not.toMatch(/\d+%/)
+  })
+
+  it('o diário inteiro passou do teto: o cartão do canal inteiro lê "não medido" e os de 90 e 28 dias continuam com número; falha do banco lê "não conseguimos ler"', () => {
+    const teto = monta(longo({ inteiro: null, motivoInteiro: 'teto' }))
+    expect(teto.cartoes.map(c => [c.id, c.valor])).toEqual([['inteiro', null], ['90', '53%'], ['28', '60%']])
+    expect(teto.cartoes[0]).toMatchObject({ semNumero: 'não medido' })
+    const erro = monta(longo({ inteiro: null, motivoInteiro: 'erro' }))
+    expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'não conseguimos ler' })
+  })
+
+  it('poucas views com a cobertura inteira diz "poucas views"; com a cobertura desconhecida diz "não medido", nunca "poucas views"', () => {
+    const poucas = monta(longo({ d90: periodo(OUTROS, addDays(ATE, -89), { views: 1 }), inteiro: periodo(OUTROS, null, { views: 1 }) }))
+    expect(poucas.cartoes.map(c => c.semNumero)).toEqual(['poucas views', 'poucas views', 'poucas views'])
+    const desconhecida = monta(longo({ d90: periodo(OUTROS, addDays(ATE, -89), { views: 1, conhecida: false }), inteiro: periodo(OUTROS, null, { views: 1, conhecida: false }) }))
+    expect(desconhecida.cartoes.map(c => c.semNumero)).toEqual(['não medido', 'não medido', 'não medido'])
+    expect(JSON.stringify(desconhecida.cartoes)).not.toMatch(/poucas views/)
+  })
+
+  it('diário que começa depois da publicação mais antiga: o primeiro cartão se chama "Desde dd/mm/aaaa"; começando na publicação, "Canal inteiro"', () => {
+    const tarde = addDays(PUB, 40)
+    const comBuraco = monta(longo({ inteiro: periodo(OUTROS, tarde, { primeiro: tarde }) }))
+    expect(comBuraco.cartoes[0]!.rotulo).toBe(`Desde ${tarde.slice(8)}/${tarde.slice(5, 7)}/${tarde.slice(0, 4)}`)
+    expect(monta(longo()).cartoes[0]!.rotulo).toBe('Canal inteiro')
   })
 })

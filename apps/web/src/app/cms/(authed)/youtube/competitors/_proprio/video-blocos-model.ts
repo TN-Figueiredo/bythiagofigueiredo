@@ -18,14 +18,17 @@ import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 import { estadoCedo } from '@/lib/youtube/observatorio/proprio/cedo'
+import { totalDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import { normalDoPeriodo, normalSemLeitura, type NormalDoPeriodo, type PeriodoAssistido } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 import { assistidoDoVideo, contraNormal, MIN_VIDEOS_FAIXA, normalDoCanal, POUCAS_VIEWS } from '@/lib/youtube/observatorio/proprio/assistido'
 import { montarDias, publicacoesDe, resumir, videoNovo, type DiaAlcance, type Periodo, type PublicacoesPorYtId } from '@/lib/youtube/observatorio/proprio/dias'
 import { serieDoVideo, type SerieVideo } from '@/lib/youtube/observatorio/proprio/serie-video'
 import { taxaComIntervalo, veredito, type TaxaComIntervalo, type Veredito } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { DiarioCanal, DiarioLinha, DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { MIN_DIAS_VPD, vpdDoVideo } from '@/lib/youtube/observatorio/proprio/vpd'
-import type { DadosDoVideo } from './dados'
+import type { DadosDoVideo, DiarioLongo } from './dados'
 import { cliquesTexto, lerEstado } from './header-model'
+import { buildAssistidoPeriodos, type AssistidoPeriodosView } from './assistido-periodo-model'
 import { buildImpressoes, int, SEM_RELATORIO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
 import { buildReguas, type DiarioReguas, type ReguasView } from './reguas-model'
 import { buildRetencaoView, type RetencaoView } from './retencao-curva-model'
@@ -461,3 +464,56 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   return { acesso: 'ok', nota: null, views, impressoes, assistido, retencao, canal: { reguas, notaDiario }, ...fixos }
 }
 
+
+/* ---------------------------------------------------------------- % assistido por período (tela B) */
+
+const dmy = (d: DiaYt): string => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4)
+
+/**
+ * Os três cartões de "% assistido por período" do vídeo (E5b T16, tela B). Puro. `diario` é o diário de 28 dias do vídeo (o `lerDiario` tolerante),
+ * de onde saem o % do vídeo e o último dia; `longo` é o que `lerDiarioLongo` leu para os OUTROS vídeos do canal (`ytIds`, sem o vídeo da tela); nulo = o canal não tem diário.
+ * O `comBuraco` de cada período vem de `totalDoPeriodo` e é nulo quando a cobertura não é conhecida. Nada daqui lança.
+ */
+export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[]; diario: DiarioCanal; longo: Privado<DiarioLongo> | null }): AssistidoPeriodosView {
+  const base = { tela: 'video' as const, faixas: null, dm: (d: DiaYt) => d.slice(8, 10) + '/' + d.slice(5, 7), dmy }
+  const semLeitura = (motivo: 'sem-acesso' | 'leitura-falhou' | 'sem-diario'): Record<PeriodoAssistido, NormalDoPeriodo> => ({
+    inteiro: normalSemLeitura('inteiro', motivo), '90': normalSemLeitura('90', motivo), '28': normalSemLeitura('28', motivo),
+  })
+  const vazio = { videoPct: null, buracos: { inteiro: null, '90': null, '28': null }, diarioDesde: null, ultimoDia: null }
+  // o canal ainda não tem diário (a página nem chama o leitor): os três cartões dizem que a coleta não rodou
+  if (a.longo === null) return buildAssistidoPeriodos({ ...base, ...vazio, acesso: 'ok', normais: semLeitura('sem-diario') })
+  if (a.longo.acesso !== 'ok') {
+    const negado = a.longo.acesso === 'negado'
+    return buildAssistidoPeriodos({ ...base, ...vazio, acesso: negado ? 'negado' : 'erro', normais: semLeitura(negado ? 'sem-acesso' : 'leitura-falhou') })
+  }
+  const ultimoDia = a.diario.ultimoDia
+  const videoPct = assistidoDoVideo({ acesso: 'ok', dado: a.diario }, a.ytId).pct
+  const { d90, inteiro, motivoInteiro } = a.longo.dado
+  const ate = d90.ate
+  const linhasDe = (d: { linhas: ReadonlyArray<{ ytId: string; dia: DiaYt; views: number | null; pctAssistido: number | null }> }) =>
+    d.linhas.map(l => ({ ytId: l.ytId, dia: l.dia, views: l.views, pctAssistido: l.pctAssistido, duracaoMediaSeg: null }))
+  const l90 = linhasDe(d90)
+  const buraco = (d: typeof d90, de: DiaYt | null): { comBuraco: number; naConta: number } | null => {
+    if (!d.cobertura.conhecida) return null
+    const t = totalDoPeriodo(d, { de, ate })
+    return { comBuraco: t.comBuraco, naConta: t.videosNaConta }
+  }
+  const b28 = buraco(d90, addDays(ate, -27)), b90 = buraco(d90, d90.de)
+  const bInteiro = inteiro ? buraco(inteiro, null) : null
+  const normais: Record<PeriodoAssistido, NormalDoPeriodo> = {
+    '28': normalDoPeriodo(l90, a.ytIds, '28', ate, b28 ? b28.comBuraco : null),
+    '90': normalDoPeriodo(l90, a.ytIds, '90', ate, b90 ? b90.comBuraco : null),
+    inteiro: inteiro
+      ? normalDoPeriodo(linhasDe(inteiro), a.ytIds, 'inteiro', ate, bInteiro ? bInteiro.comBuraco : null)
+      // o diário inteiro não foi lido: passou do teto (permanente) ou falhou (passageiro). Teto lê "não medido" (não sabemos se o período inteiro foi coletado)
+      : motivoInteiro === 'teto' ? { ...normalSemLeitura('inteiro', 'sem-diario'), motivo: 'cobertura-parcial' } : normalSemLeitura('inteiro', 'leitura-falhou'),
+  }
+  // o diário começa depois da publicação mais antiga (C-10): o primeiro cartão se chama "Desde dd/mm/aaaa", nunca "Canal inteiro"
+  const primeiro = inteiro?.cobertura.primeiroDiaLido ?? null
+  let maisAntiga: DiaYt | null = null
+  for (const p of (inteiro ?? d90).cobertura.publicacoes.values()) if (p != null && (maisAntiga == null || p < maisAntiga)) maisAntiga = p
+  const diarioDesde = primeiro != null && maisAntiga != null && primeiro > maisAntiga ? primeiro : null
+  return buildAssistidoPeriodos({
+    ...base, acesso: 'ok', normais, videoPct, buracos: { inteiro: bInteiro, '90': b90, '28': b28 }, diarioDesde, ultimoDia,
+  })
+}

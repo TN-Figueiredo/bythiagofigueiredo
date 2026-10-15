@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { VideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos'
+import { AssistidoEsqueleto, VideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos'
 import { buildVideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
 import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import type { DadosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
@@ -286,5 +286,32 @@ describe('usuário só de leitura e leitura que falhou', () => {
     const { container } = montar(W, { acesso: 'erro' })
     expect(container.querySelector('[data-privado-nota]')!.textContent).toBe('A leitura dos números deste vídeo falhou agora; recarregue a página.')
     expect(container.querySelector('figure, .vb-as')).toBeNull()
+  })
+})
+
+
+describe('E5b T16 (b), tela B: o nó dos cartões de período', () => {
+  const comPeriodos = (dados: Privado<DadosDoVideo>) =>
+    render(<div data-obs-screen="video-proprio"><VideoBlocos view={buildVideoBlocos({ obs: W.obs, videoId: W.foco.id, dados, hoje: W.hoje, dm: dmDia })} periodos={<div data-testid="periodos">cartões</div>} /></div>)
+
+  it('o nó entra DENTRO da seção "Quanto do vídeo as pessoas assistem", depois da barra', () => {
+    const { container, getByTestId } = comPeriodos(ok(W))
+    const s = secao(container, 'Quanto do vídeo as pessoas assistem')
+    expect(s.contains(getByTestId('periodos'))).toBe(true)
+  })
+
+  it('quem só lê o site (negado) ou a leitura que falhou: o nó nem é desenhado, mesmo que a página o entregasse', () => {
+    for (const acesso of ['negado', 'erro'] as const) {
+      const { queryByTestId } = comPeriodos({ acesso })
+      expect(queryByTestId('periodos'), acesso).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('o esqueleto é liso: uma região de status, três caixas e a frase "Carregando", sem número nem % no texto', () => {
+    const { container } = render(<AssistidoEsqueleto />)
+    expect(container.querySelector('[role="status"][aria-busy="true"]')).not.toBeNull()
+    expect(container.querySelectorAll('.vb-ap-cs i')).toHaveLength(3)
+    expect(texto(container)).toBe('Carregando o % assistido por período…')
   })
 })

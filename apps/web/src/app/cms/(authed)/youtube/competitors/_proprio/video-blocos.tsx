@@ -4,6 +4,7 @@
  * montado (`buildVideoBlocos`, só texto e frações) e o repassa aos filhos; o gráfico e as réguas são componentes cliente que recebem só o que
  * esta tela já mostra. Quem só lê o site recebe `acesso: 'negado'`: nenhum bloco privado existe no modelo, e aqui só aparece a nota única.
  */
+import type { ReactNode } from 'react'
 import { Impressoes } from './impressoes'
 import { InfoDica } from './info-dica'
 import { ForjaIndisponivelVideo } from './forja-indisponivel-video'
@@ -54,7 +55,17 @@ function SecImpressoes({ b }: { b: BlocoImpressoes }) {
   )
 }
 
-function SecAssistido({ a }: { a: BlocoAssistido }) {
+/** O estado "Carregando" dos cartões de período (fallback do `Suspense` de `AssistidoDoVideo`): três caixas lisas, sem número. */
+export function AssistidoEsqueleto() {
+  return (
+    <div className="vb-ap-esq" role="status" aria-busy="true">
+      <div className="vb-ap-cs" aria-hidden="true"><i /><i /><i /></div>
+      <p className="vb-nt">Carregando o % assistido por período…</p>
+    </div>
+  )
+}
+
+function SecAssistido({ a, periodos }: { a: BlocoAssistido; periodos?: ReactNode }) {
   const pouco = a.estado === 'pouco'
   return (
     <section className="vb-sec" aria-labelledby="vb-as-h">
@@ -76,6 +87,7 @@ function SecAssistido({ a }: { a: BlocoAssistido }) {
           {a.semNormal ? <p className="vb-nt">{a.semNormal}</p> : null}
         </div>
       )}
+      {periodos}
     </section>
   )
 }
@@ -109,12 +121,13 @@ function SecRetencao({ r }: { r: BlocoRetencao }) {
   )
 }
 
-export function VideoBlocos({ view }: { view: VideoBlocosView }) {
+/** `periodos` = os três cartões de % assistido por período, JÁ renderizados no servidor (o `Suspense` de `AssistidoDoVideo`): o bloco não espera a leitura. */
+export function VideoBlocos({ view, periodos }: { view: VideoBlocosView; periodos?: ReactNode }) {
   return (
     <>
       {view.acesso === 'ok' && view.views ? <SecViews b={view.views} /> : null}
       {view.acesso === 'ok' && view.impressoes ? <SecImpressoes b={view.impressoes} /> : null}
-      {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} /> : null}
+      {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} periodos={periodos} /> : null}
       {view.nota ? <div className="vb-nml vb-privado">{view.acesso === 'erro' ? <span className="vb-falhou">falhou</span> : null}<p data-privado-nota="">{view.nota}</p></div> : null}
       <SecRetencao r={view.retencao} />
       <section className="vb-sec" aria-labelledby="vb-canal-h">

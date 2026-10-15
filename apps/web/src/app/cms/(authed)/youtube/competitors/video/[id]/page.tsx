@@ -1,4 +1,4 @@
-import { cache } from 'react'
+import { cache, Suspense } from 'react'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
@@ -10,10 +10,14 @@ import { buildHistoricoView, historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
 import { Pager } from '../../_historico/pager'
 import '../../_historico/historico.css'
-import { lerDadosDoVideo, longosAcompanhadosDe, podeVerPrivado } from '../../_proprio/dados'
+import { AssistidoPeriodos } from '../../_proprio/assistido-periodos'
+import { lerDadosDoVideo, lerDiarioLongo, longosAcompanhadosDe, podeVerPrivado } from '../../_proprio/dados'
 import { dmDia } from '../../_proprio/extras'
-import { buildVideoBlocos } from '../../_proprio/video-blocos-model'
-import { VideoBlocos } from '../../_proprio/video-blocos'
+import { buildAssistidoDoVideo, buildVideoBlocos } from '../../_proprio/video-blocos-model'
+import { AssistidoEsqueleto, VideoBlocos } from '../../_proprio/video-blocos'
+import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
+import type { DiarioCanal } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { buildProprioVideoBase, canalProprioDoVideo, hrefDeOutroVideo } from '../../_proprio/video-model'
 import { ProprioVideoScreen } from '../../_proprio/video-screen'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
@@ -29,6 +33,17 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+/**
+ * Os três cartões de "% assistido por período" (tela B). Componente de servidor assíncrono dentro de um `Suspense` próprio: lê o diário de 90 dias e o
+ * inteiro dos OUTROS vídeos do canal, que são muitas idas ao banco, DEPOIS de o primeiro HTML sair; `lerDadosDoVideo` não as faz. Sem diário no canal,
+ * nada é lido. Só entra na página quem tem o token (a página só o monta com o dado privado `ok`).
+ */
+async function AssistidoDoVideo(p: { canalId: string; ytId: string; ytIds: readonly string[]; publicacoes: ReadonlyMap<string, string | null>; diario: DiarioCanal; agora: number; leitura: LeituraPrivadaDoSite | null }) {
+  const outros = p.ytIds.filter(y => y !== p.ytId)
+  const longo = p.diario.ultimoDia == null ? null : await lerDiarioLongo({ canalId: p.canalId, ytIds: outros, ultimoDia: p.diario.ultimoDia, publicacoes: p.publicacoes, agora: p.agora, leitura: p.leitura })
+  return <AssistidoPeriodos view={buildAssistidoDoVideo({ ytId: p.ytId, ytIds: outros, diario: p.diario, longo })} />
+}
 
 export default async function HistoricoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<ObsSearchParams> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams])
@@ -47,10 +62,19 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
     const dados = await lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura })
     // os blocos nascem aqui, no servidor, já em texto: só a `View` desce ao cliente (quem só lê o site recebe `acesso: 'negado'` e nenhum número privado)
     const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje: dayPt(new Date(now)), dm: dmDia, hrefVideo: hrefDeOutroVideo(flat, proprio.id) })
+    // os cartões de período vão em `Suspense` próprio (o bloco não espera a leitura); sem dado privado lido, não há o que ler
+    const periodos = dados.acesso === 'ok' ? (
+      <Suspense fallback={<AssistidoEsqueleto />}>
+        <AssistidoDoVideo
+          canalId={proprio.id} ytId={base.header.ytId} ytIds={longosAcompanhadosDe(obs, proprio.id)} publicacoes={publicacoesDe(obs.videos.filter(v => v.ch === proprio.id))}
+          diario={dados.dado.diario} agora={now} leitura={leitura}
+        />
+      </Suspense>
+    ) : undefined
     return (
       <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}>
         <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal}>
-          <VideoBlocos view={blocos} />
+          <VideoBlocos view={blocos} periodos={periodos} />
         </ProprioVideoScreen>
       </TrailChrome>
     )

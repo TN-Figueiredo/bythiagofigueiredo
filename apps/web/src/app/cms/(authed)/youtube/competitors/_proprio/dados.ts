@@ -7,14 +7,18 @@ import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { dayPt } from '@/lib/youtube/coleta/day-pt'
+import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
 import { leituraValida, provarAcessoPrivado, type AcessoPrivado, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerRetencao, type RetencaoDoVideo } from '@/lib/youtube/observatorio/proprio/ler-retencao'
-import { TETO_VIDEOS_DIARIO, type AlcanceCanal, type DiarioCanal, type Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import { ErroTetoDiario, erroTetoDoDiario, lerDiarioDoPeriodo, TETO_LINHAS_DIARIO_PERIODO } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
+import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
+import { TETO_VIDEOS_DIARIO, type AlcanceCanal, type DiarioCanal, type DiaYt, type Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import { avisarFalhaDeLeitura } from './dados-origem'
 import { longosAcompanhados } from './extras'
+import { CHAMADAS_EM_VOO, juntarDiarios, lotesDe } from './origem-trechos'
 
 /** Canais lidos ao mesmo tempo na lista de Canais e na comparação. */
 const CANAIS_EM_VOO = 4
@@ -113,6 +117,62 @@ export async function lerDadosDoVideo(a: { canalId: string; ytId: string; longos
   // com token válido as duas leituras são 'ok' ou lançam; isto só fecha o tipo (e se um dia não for, é 'erro', nunca 'negado')
   if (alcance.acesso !== 'ok' || diario.acesso !== 'ok') return { acesso: 'erro' }
   return { acesso: 'ok', dado: { alcance: alcance.dado, diario: diario.dado, retencao } }
+}
+
+/** Os dias da janela longa do % assistido por período (90 dias terminando no último dia do diário tolerante). */
+const DIAS_JANELA_LONGA = 90
+
+/**
+ * O diário longo da tela "% assistido por período" (E5b T16, tela B): `d90` (os 90 dias que terminam em `ultimoDia`, o do `lerDiario` tolerante)
+ * e `inteiro` (desde o começo). Só linhas com views; em lotes de até 50 vídeos, 2 em voo; o teto de linhas vale para a leitura INTEIRA.
+ * Sem token: `negado`, sem criar o cliente de serviço. Falha do banco no `d90`: `{ acesso: 'erro' }` e UM aviso. O `inteiro` nunca derruba o `d90`:
+ * passou do teto (`motivoInteiro: 'teto'`, permanente) ou falhou (`'erro'`, passageiro), fica nulo e o cartão lê "não medido" com o motivo.
+ * NÃO é chamado por `lerDadosDoVideo`: dezenas de idas ao banco em série segurariam toda abertura de vídeo próprio; quem chama é o componente
+ * assíncrono da página, dentro de um `Suspense`.
+ */
+export interface DiarioLongo { d90: DiarioDoPeriodo; inteiro: DiarioDoPeriodo | null; motivoInteiro?: 'teto' | 'erro' }
+
+export async function lerDiarioLongo(a: {
+  canalId: string
+  ytIds: readonly string[]
+  ultimoDia: DiaYt
+  publicacoes: ReadonlyMap<string, DiaYt | null>
+  agora: number
+  leitura: LeituraPrivadaDoSite | null
+}): Promise<Privado<DiarioLongo>> {
+  if (!leituraValida(a.leitura)) return { acesso: 'negado' }
+  const leitura = a.leitura
+  const base = { leitura, canalId: a.canalId, hoje: dayPt(new Date(a.agora)) }
+  const lotes = lotesDe(a.ytIds)
+  try {
+    const sb = getSupabaseServiceClient()
+    const diarioDe = async (de: DiaYt | null): Promise<DiarioDoPeriodo> => {
+      let lidas = 0
+      const partes = await mapLimit(lotes, CHAMADAS_EM_VOO, async ytIds => {
+        const r = await lerDiarioDoPeriodo(sb, { ...base, ytIds, de, ate: a.ultimoDia, soComViews: true, publicacoes: a.publicacoes, tetoLinhas: Math.max(1, TETO_LINHAS_DIARIO_PERIODO - lidas) })
+        if (r.acesso !== 'ok') throw new Error('diário do período: leitura negada com o token válido')
+        lidas += r.dado.linhas.length
+        return r.dado
+      })
+      if (lidas > TETO_LINHAS_DIARIO_PERIODO) throw erroTetoDoDiario(TETO_LINHAS_DIARIO_PERIODO)
+      return juntarDiarios(partes)
+    }
+    // o aviso do diário inteiro só sai se o de 90 dias deu certo: quando os dois falham é UM aviso (o do `catch`)
+    let falhaInteiro: unknown
+    const inteiroP = diarioDe(null).then(
+      (d): { d: DiarioDoPeriodo | null; motivo?: 'teto' | 'erro' } => ({ d }),
+      (e: unknown) => {
+        const teto = e instanceof ErroTetoDiario
+        if (!teto) falhaInteiro = e
+        return { d: null, motivo: teto ? 'teto' as const : 'erro' as const }
+      })
+    const [d90, inteiro] = await Promise.all([diarioDe(addDays(a.ultimoDia, -(DIAS_JANELA_LONGA - 1))), inteiroP])
+    if (inteiro.motivo === 'erro') avisarFalhaDeLeitura('ler-diario-longo-inteiro', falhaInteiro)
+    return { acesso: 'ok', dado: { d90, inteiro: inteiro.d, ...(inteiro.motivo ? { motivoInteiro: inteiro.motivo } : {}) } }
+  } catch (e) {
+    avisarFalhaDeLeitura('ler-diario-longo', e)
+    return { acesso: 'erro' }
+  }
 }
 
 /**
