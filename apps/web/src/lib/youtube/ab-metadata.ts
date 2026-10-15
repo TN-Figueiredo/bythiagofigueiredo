@@ -1,56 +1,86 @@
 import * as Sentry from '@sentry/nextjs'
+import { YouTubeApiError, erroDaResposta, erroDeRede } from '@/lib/youtube/youtube-api-error'
 
-export async function updateVideoMetadata(
+// `tags` é opcional: o YouTube OMITE a chave em vídeo sem tag (F-D9, Y-P8).
+export interface SnippetLido {
+  title: string
+  description: string
+  categoryId: string
+  tags?: string[]
+  defaultLanguage?: string
+  defaultAudioLanguage?: string
+}
+
+const TIMEOUT_MS = 10_000
+
+// null = o vídeo não veio na resposta. `description`/`categoryId` saem como lidos (podem faltar): quem escreve valida.
+export async function lerSnippet(
   videoId: string,
-  title: string,
   accessToken: string,
+  f: typeof fetch = fetch,
+): Promise<SnippetLido | null> {
+  const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}`
+  let res: Response
+  try {
+    res = await f(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+  } catch (e) {
+    throw erroDeRede(e, 'videos.list')
+  }
+  if (!res.ok) throw await erroDaResposta(res, 'videos.list')
+  const data: unknown = await res.json().catch(() => null)
+  const snippet = (data as { items?: Array<{ snippet?: unknown }> } | null)?.items?.[0]?.snippet
+  if (!snippet) return null
+  return snippet as SnippetLido
+}
+
+export async function escreverTitulo(
+  videoId: string,
+  titulo: string,
+  accessToken: string,
+  f: typeof fetch = fetch,
 ): Promise<void> {
-  const listUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`
-  const listRes = await fetch(listUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!listRes.ok) {
-    const err = await listRes.json().catch(() => ({}))
-    const msg = `videos.list failed: ${listRes.status}`
-    Sentry.captureException(new Error(msg), { extra: { videoId, error: err } })
-    throw new Error(msg)
+  // P4a-I20: nunca "" gravado.
+  if (titulo.trim().length === 0) throw new YouTubeApiError(0, 'titulo_vazio', 'videos.update')
+
+  const lido = await lerSnippet(videoId, accessToken, f)
+  if (!lido) throw new YouTubeApiError(404, 'video_inexistente', 'videos.list')
+  // videos.update com part=snippet apaga propriedade mutável omitida: aborta sem PUT. "" é valor, não ausência.
+  if (typeof lido.description !== 'string') throw new YouTubeApiError(0, 'snippet_sem_descricao', 'videos.update')
+  if (typeof lido.categoryId !== 'string' || lido.categoryId.length === 0) {
+    throw new YouTubeApiError(0, 'snippet_sem_categoria', 'videos.update')
   }
 
-  const listData = await listRes.json()
-  const item = listData.items?.[0]
-  if (!item) throw new Error(`Video not found: ${videoId}`)
-
-  const snippet = item.snippet
-  // videos.update com part=snippet apaga propriedade mutável omitida: falha alto, sem PUT.
-  if (typeof snippet?.description !== 'string') {
-    throw new Error(`videos.list sem snippet.description: ${videoId}; nada enviado`)
+  const snippet: Record<string, unknown> = {
+    title: titulo,
+    description: lido.description, // sempre a lida: o A/B não escreve descrição (P3)
+    categoryId: lido.categoryId,
   }
-  const updateUrl = 'https://www.googleapis.com/youtube/v3/videos?part=snippet'
-  const updateRes = await fetch(updateUrl, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      id: videoId,
-      snippet: {
-        title,
-        description: snippet.description, // sempre a lida: o A/B não escreve descrição (P3)
-        categoryId: snippet.categoryId,
-        tags: snippet.tags ?? [],
-      },
-    }),
-    signal: AbortSignal.timeout(15_000),
-  })
+  // Só se vieram: não inventar tags nem idioma (Y-P8, F-D9).
+  if (lido.tags !== undefined) snippet.tags = lido.tags
+  if (lido.defaultLanguage !== undefined) snippet.defaultLanguage = lido.defaultLanguage
+  if (lido.defaultAudioLanguage !== undefined) snippet.defaultAudioLanguage = lido.defaultAudioLanguage
 
-  if (!updateRes.ok) {
-    const err = await updateRes.json().catch(() => ({}))
-    const msg = `videos.update failed: ${updateRes.status}`
-    Sentry.captureException(new Error(msg), { extra: { videoId, error: err } })
-    throw new Error(msg)
+  let res: Response
+  try {
+    res = await f('https://www.googleapis.com/youtube/v3/videos?part=snippet', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: videoId, snippet }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (e) {
+    throw erroDeRede(e, 'videos.update')
   }
+  if (!res.ok) {
+    const erro = await erroDaResposta(res, 'videos.update')
+    Sentry.captureException(erro, { extra: { videoId, status: erro.status, reason: erro.reason } })
+    throw erro
+  }
+}
+
+// Nome mantido: os vi.mock existentes apontam para ele.
+export async function updateVideoMetadata(videoId: string, title: string, accessToken: string): Promise<void> {
+  await escreverTitulo(videoId, title, accessToken)
 }
 
 export async function captureOriginalMetadata(

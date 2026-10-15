@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { escreverTitulo, lerSnippet } from '@/lib/youtube/ab-metadata'
 
 describe('YouTube metadata helpers', () => {
   beforeEach(() => {
@@ -71,7 +72,7 @@ describe('YouTube metadata helpers', () => {
       const mockFetch = vi.fn().mockResolvedValueOnce(listOk({ title: 'T0', categoryId: '22' }))
       vi.stubGlobal('fetch', mockFetch)
       const mod = await import('@/lib/youtube/ab-metadata')
-      await expect(mod.updateVideoMetadata('V1', 'Novo', 'TOKEN')).rejects.toThrow(/sem snippet\.description/)
+      await expect(mod.updateVideoMetadata('V1', 'Novo', 'TOKEN')).rejects.toMatchObject({ reason: 'snippet_sem_descricao' })
       expect(mockFetch).toHaveBeenCalledTimes(1)
       vi.unstubAllGlobals()
     })
@@ -96,7 +97,7 @@ describe('YouTube metadata helpers', () => {
 
       const mod = await import('@/lib/youtube/ab-metadata')
       await expect(mod.updateVideoMetadata('V1', 'T', 'TOKEN'))
-        .rejects.toThrow('videos.list failed: 403')
+        .rejects.toMatchObject({ status: 403, reason: 'desconhecido', chamada: 'videos.list' })
 
       vi.unstubAllGlobals()
     })
@@ -118,7 +119,7 @@ describe('YouTube metadata helpers', () => {
 
       const mod = await import('@/lib/youtube/ab-metadata')
       await expect(mod.updateVideoMetadata('V1', 'New', 'TOKEN'))
-        .rejects.toThrow('videos.update failed: 400')
+        .rejects.toMatchObject({ status: 400, reason: 'desconhecido', chamada: 'videos.update' })
 
       vi.unstubAllGlobals()
     })
@@ -154,6 +155,96 @@ describe('YouTube metadata helpers', () => {
       expect(result).toBeNull()
 
       vi.unstubAllGlobals()
+    })
+  })
+  describe('escreverTitulo e lerSnippet (P4a)', () => {
+    interface YtFalsoOpcoes { snippet: Record<string, unknown>; putStatus?: number; putReason?: string }
+    function ytFalso(o: YtFalsoOpcoes) {
+      const corpos: Array<{ snippet: Record<string, unknown> }> = []
+      const f = (async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'PUT') {
+          corpos.push(JSON.parse(String(init.body)))
+          if (o.putStatus && o.putStatus >= 400) {
+            return new Response(JSON.stringify({ error: { errors: [{ reason: o.putReason ?? 'x', message: 'segredo' }] } }), { status: o.putStatus })
+          }
+          return new Response('{}')
+        }
+        return new Response(JSON.stringify({ items: [{ snippet: o.snippet }] }))
+      }) as typeof fetch
+      return { f, corpoDoPut: () => corpos[0], puts: () => corpos.length }
+    }
+
+    it('escreverTitulo relê o snippet e reenvia descrição, categoria, tags e os dois idiomas lidos', async () => {
+      const chamadas: Array<{ url: string; init?: RequestInit }> = []
+      const f = (async (url: string, init?: RequestInit) => {
+        chamadas.push({ url, init })
+        if (!init?.method) return new Response(JSON.stringify({ items: [{ snippet: { title: 'Velho', description: 'Desc\ncom link https://x', categoryId: '19', tags: ['a'], defaultLanguage: 'pt-BR', defaultAudioLanguage: 'pt' } }] }))
+        return new Response('{}')
+      }) as typeof fetch
+      await escreverTitulo('vid', 'Novo', 'tok', f)
+      const corpo = JSON.parse(String(chamadas[1].init!.body))
+      expect(corpo.snippet).toEqual({ title: 'Novo', description: 'Desc\ncom link https://x', categoryId: '19', tags: ['a'], defaultLanguage: 'pt-BR', defaultAudioLanguage: 'pt' })
+    })
+
+    it('snippet sem description aborta antes do PUT (Review Focus 2)', async () => {
+      const { f, puts } = ytFalso({ snippet: { title: 'V', categoryId: '19' } })
+      await expect(escreverTitulo('vid', 'Novo', 'tok', f)).rejects.toMatchObject({ reason: 'snippet_sem_descricao' })
+      expect(puts()).toBe(0)
+    })
+
+    it('sem idioma lido: o PUT não inventa idioma', async () => {
+      const { f, corpoDoPut } = ytFalso({ snippet: { title: 'V', description: 'D', categoryId: '19' } })
+      await escreverTitulo('vid', 'Novo', 'tok', f)
+      expect('defaultLanguage' in corpoDoPut().snippet).toBe(false)
+      expect('defaultAudioLanguage' in corpoDoPut().snippet).toBe(false)
+    })
+
+    it('F-D9: snippet sem tags → o PUT vai sem a chave tags (não [])', async () => {
+      const { f, corpoDoPut } = ytFalso({ snippet: { title: 'V', description: 'D', categoryId: '19' } })
+      await escreverTitulo('vid', 'Novo', 'tok', f)
+      expect('tags' in corpoDoPut().snippet).toBe(false)
+    })
+
+    it('F-D9: description "" é valor, não ausência → o PUT sai com description ""', async () => {
+      const { f, corpoDoPut, puts } = ytFalso({ snippet: { title: 'V', description: '', categoryId: '19' } })
+      await escreverTitulo('vid', 'Novo', 'tok', f)
+      expect(puts()).toBe(1)
+      expect(corpoDoPut().snippet.description).toBe('')
+    })
+
+    it('F-D9: categoryId ausente aborta antes do PUT (snippet_sem_categoria)', async () => {
+      const { f, puts } = ytFalso({ snippet: { title: 'V', description: 'D' } })
+      await expect(escreverTitulo('vid', 'Novo', 'tok', f)).rejects.toMatchObject({ reason: 'snippet_sem_categoria' })
+      expect(puts()).toBe(0)
+    })
+
+    it('videos.list sem o vídeo → lerSnippet devolve null', async () => {
+      const f = (async () => new Response(JSON.stringify({ items: [] }))) as typeof fetch
+      expect(await lerSnippet('vid', 'tok', f)).toBeNull()
+    })
+
+    it('videos.list sem o vídeo → escreverTitulo lança video_inexistente (404, videos.list)', async () => {
+      const f = (async () => new Response(JSON.stringify({ items: [] }))) as typeof fetch
+      await expect(escreverTitulo('vid', 'Novo', 'tok', f)).rejects.toMatchObject({ status: 404, reason: 'video_inexistente', chamada: 'videos.list' })
+    })
+
+    it('PUT 403 lança YouTubeApiError com reason e chamada', async () => {
+      const { f } = ytFalso({ snippet: { title: 'V', description: 'D', categoryId: '19' }, putStatus: 403, putReason: 'forbidden' })
+      await expect(escreverTitulo('vid', 'Novo', 'tok', f)).rejects.toMatchObject({ status: 403, reason: 'forbidden', chamada: 'videos.update' })
+    })
+
+    it.each(['', '   ', '\n\t'])('título vazio (%j) lança titulo_vazio sem chamar o YouTube (P4a-I20)', async (titulo) => {
+      const f = vi.fn() as unknown as typeof fetch
+      await expect(escreverTitulo('vid', titulo, 'tok', f)).rejects.toMatchObject({ status: 0, reason: 'titulo_vazio', chamada: 'videos.update' })
+      expect(f).not.toHaveBeenCalled()
+    })
+
+    it('erro de rede no PUT vira YouTubeApiError(0, rede, videos.update)', async () => {
+      const f = (async (_u: string, init?: RequestInit) => {
+        if (init?.method === 'PUT') throw new TypeError('fetch failed')
+        return new Response(JSON.stringify({ items: [{ snippet: { title: 'V', description: 'D', categoryId: '19' } }] }))
+      }) as typeof fetch
+      await expect(escreverTitulo('vid', 'Novo', 'tok', f)).rejects.toMatchObject({ status: 0, reason: 'rede', chamada: 'videos.update' })
     })
   })
 })

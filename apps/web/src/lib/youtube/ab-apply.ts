@@ -1,6 +1,8 @@
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
+import { paraErroGravado, YouTubeApiError } from '@/lib/youtube/youtube-api-error'
+import type { ErroGravado } from '@/lib/youtube/ab-restore'
 import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
 export interface ApplyVariantInput {
@@ -21,13 +23,23 @@ export interface ApplyResult {
   appliedMetadata: boolean
   meta: AppliedMetadata
   error?: string
+  /** Erro do YouTube/Blob, quando houve (Y-D1); `error` segue sendo a mensagem. */
+  erroApi?: YouTubeApiError
+  erroGravado?: ErroGravado
+  /** `antesDeEscrever` devolveu false: outra ação reivindicou o teste; nada foi escrito depois disso. */
+  perdeuAVez?: boolean
+}
+
+export interface OpcoesApply {
+  /** Chamado antes de CADA escrita (thumbnail e título); false = parar sem escrever (Y-D8). */
+  antesDeEscrever?: () => Promise<boolean>
 }
 
 /**
  * Single source of truth for applying a variant to YouTube.
  * Handles thumbnail upload and/or title update. Never writes description.
  */
-export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<ApplyResult> {
+export async function applyVariantToYouTube(input: ApplyVariantInput, opcoes?: OpcoesApply): Promise<ApplyResult> {
   const {
     youtubeVideoId,
     accessToken,
@@ -54,6 +66,9 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
   try {
     // Thumbnail
     if ((testType === 'thumbnail' || testType === 'combo') && variant.blob_url) {
+      if (opcoes?.antesDeEscrever && !(await opcoes.antesDeEscrever())) {
+        return { ok: false, perdeuAVez: true, appliedThumbnail, appliedMetadata, meta }
+      }
       const { buffer, contentType } = await fetchVariantImageBuffer(variant.blob_url)
       const result = await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
       appliedThumbnail = true
@@ -68,6 +83,9 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
     if (testType === 'title' || testType === 'combo') {
       const titleToSet = variant.title_text ?? originalTitle ?? null
       if (titleToSet) {
+        if (opcoes?.antesDeEscrever && !(await opcoes.antesDeEscrever())) {
+          return { ok: false, perdeuAVez: true, appliedThumbnail, appliedMetadata, meta }
+        }
         await updateVideoMetadata(youtubeVideoId, titleToSet, accessToken)
         appliedMetadata = true
         meta.title_set = titleToSet
@@ -82,6 +100,8 @@ export async function applyVariantToYouTube(input: ApplyVariantInput): Promise<A
       appliedMetadata,
       meta,
       error: (err as Error).message,
+      erroApi: err instanceof YouTubeApiError ? err : undefined,
+      erroGravado: paraErroGravado(err),
     }
   }
 }
