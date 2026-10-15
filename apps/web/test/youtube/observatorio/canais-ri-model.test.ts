@@ -255,11 +255,11 @@ describe('Dado apagado e relógio', () => {
     expect(l.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · menos de 28 dias' })
     expect(l.nota).toBe('Entrou há 11 dias; faltam 17 para ter 28 dias de histórico.')
   })
-  it('R9b: retratosProprios \'erro\': a pílula "não foi possível ler os retratos do seu canal" e os concorrentes seguem medidos', () => {
+  it('R9b: retratosProprios \'erro\': a pílula "histórico não carregou" e os concorrentes seguem medidos', () => {
     const cs = [canal('prop', { own: true }), canal('a', { snapshots: serie(1_420_000, 1_390_000) })]
     const { view, falhas } = buildRiView(obsDe(cs, []), { ...P, retratosProprios: 'erro' })
     const por = Object.fromEntries(ok(view.inscritos).linhas.map(l => [l.id, l]))
-    expect(por.prop.pilula!.texto).toBe('sem medida · não foi possível ler os retratos do seu canal')
+    expect(por.prop.pilula!.texto).toBe('sem medida · histórico não carregou')
     expect(por.a.classe).not.toBeNull()
     expect(falhas).toEqual([])
   })
@@ -286,12 +286,19 @@ describe('Dado apagado e relógio', () => {
   it('R9b: ⓘ de Inscritos diz desde quando o canal próprio é medido; sem "desde" com o primeiro retrato a 85 dias ou mais; sem retrato, sem a frase', () => {
     const o = obsDe([canal('prop', { own: true })], [])
     const info = (m: ReadonlyMap<string, { retratos: ChannelSnapshot[]; oculto: boolean }> | 'erro') => ok(buildRiView(o, { ...P, retratosProprios: m }).view.inscritos).info.itens.join(' | ')
-    expect(info(new Map([['prop', { retratos: [snap(40, 1000), snap(0, 1100)], oculto: false }]]))).toMatch(/Seu canal é medido pelo mesmo número público dos outros canais, desde \d\d\/\d\d\./)
+    expect(info(new Map([['prop', { retratos: [snap(40, 1000), snap(0, 1100)], oculto: false }]]))).toMatch(/ser justa\. Medido desde \d\d\/\d\d\./)
     const longo = info(new Map([['prop', { retratos: [snap(85, 1000), snap(0, 1100)], oculto: false }]]))
-    expect(longo).toContain('Seu canal é medido pelo mesmo número público dos outros canais.')
+    expect(longo).toMatch(/ser justa\.(?: \||$)/)
     expect(longo).not.toContain('desde')
-    expect(info(new Map())).not.toContain('Seu canal é medido')
-    expect(info('erro')).not.toContain('Seu canal é medido')
+    expect(info(new Map())).not.toContain('Seu canal usa')
+    expect(info('erro')).not.toContain('Seu canal usa')
+  })
+  it('R9b: "Medido desde" sai com o canal próprio oculto; com "novo" fica; com buraco/medido fica', () => {
+    const o = obsDe([canal('prop', { own: true })], [])
+    const info = (oculto: boolean, dias: number) => ok(buildRiView(o, { ...P, retratosProprios: new Map([['prop', { retratos: [snap(dias, 1000), snap(0, 1100)], oculto }]]) }).view.inscritos).info.itens.join(' | ')
+    expect(info(true, 40)).not.toContain('Medido desde')
+    expect(info(false, 10)).toMatch(/Medido desde \d\d\/\d\d\./) // 'novo': mede desde aquela data
+    expect(info(false, 40)).toMatch(/Medido desde \d\d\/\d\d\./)
   })
   it('motivos novos de Inscritos', () => {
     const cs = [

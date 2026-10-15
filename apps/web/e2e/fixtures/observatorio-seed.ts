@@ -144,7 +144,7 @@ export const RI_CENARIO = {
   oculto: { hoje: null },
   buraco: { hoje: 48_200, antes: 44_000, diasApagados: [28, 29, 30, 31] },
   /** retratos públicos diários do canal próprio (R9b, MG20): 40 dias, medido (+2,0%: abaixo do líder passaArred, a frase não muda) */
-  proprioRetratos: { hoje: 102_000, antes: 100_000, dias: 40 },
+  proprioRetratos: { hoje: 51_000, antes: 50_000, dias: 40 },
 } as const
 /** O id do oráculo dos canais do cenário → seedUuid(siteId, 'channel', id). */
 export const RI_CANAIS = ['ri-larga', 'ri-estreita', 'ri-provisoria', 'ri-so-novos', 'ri-primeira-busca', 'ri-passa-arred', 'ri-dentro-arred', 'ri-novo', 'ri-oculto', 'ri-buraco'] as const
@@ -714,6 +714,10 @@ async function seedRiCenario(sb: SupabaseClient, siteId: string, now: number): P
   }
   for (let d = R.novo.dias - 1; d >= 0; d--) snaps.push(linha('ri-novo', d, R.novo.hoje - d * 10))
   await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
+}
+
+/** R9b: retratos do canal próprio; precisa do `youtube_channels` já inserido (FK). */
+async function seedRiProprio(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
   // R9b: o canal próprio é medido pelo mesmo número público dos concorrentes, a partir de yt_own_channel_snapshots (MG20); termina HOJE
   const Q = R.proprioRetratos
   const meu = ownSeedUuid(siteId, 'tnfigueiredo')
@@ -884,6 +888,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
     view_count: v.views ?? 0, like_count: v.likes ?? 0, comment_count: v.comments ?? 0, duration_seconds: durSeconds(v.dur),
     updated_at: iso(v.viewsAt ?? O.NOW), tags: [],
   })))
+  if (opts.riCenario) await seedRiProprio(sb, siteId, O.NOW)
 
   /* readings: oracle ids → seeded uuids; the latest temas reading per niche carries the theme evidence */
   const latestTemas = new Map<string, OReading>()

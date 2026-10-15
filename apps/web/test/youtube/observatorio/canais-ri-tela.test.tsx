@@ -128,7 +128,7 @@ describe('R5: a página', () => {
     const dono = obs.ownChannels()[0]!.id
     const ins = props.ri!.inscritos
     if (ins.estado !== 'ok') throw new Error('esperava ok, veio ' + ins.estado)
-    expect(ins.linhas.find(l => l.id === dono)!.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · não foi possível ler os retratos do seu canal' })
+    expect(ins.linhas.find(l => l.id === dono)!.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · histórico não carregou' })
     expect(ins.linhas.some(l => l.id !== dono && l.classe != null)).toBe(true)
     expect(sentry.captureException).toHaveBeenCalledTimes(1)
     expect(sentry.captureException).toHaveBeenCalledWith(erro, expect.objectContaining({ fingerprint: ['canais-ri', 'retratos-proprios'] }))

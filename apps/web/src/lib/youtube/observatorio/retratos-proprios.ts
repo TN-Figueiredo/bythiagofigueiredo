@@ -1,10 +1,11 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChannelSnapshot } from './types'
+import { JANELA_RETRATOS_DIAS } from './inscritos-28d'
 import { DAY, H, spDateOf, spDateStart } from './time'
 
-/** A mesma janela dos concorrentes (`SNAPSHOT_DAYS`, load.ts). */
-const SNAPSHOT_DAYS = 90
+/** O PostgREST corta em 1.000 linhas sem avisar: chegar a esse número é erro visível, não dado parcial. */
+const TETO_LINHAS = 1000
 
 /** Mesma regra de `dmyOf` em load.ts (privado lá; provado igual por teste). */
 const dmyOf = (date: string): string => { const [y, m, d] = date.slice(0, 10).split('-'); return d + '/' + m + '/' + y }
@@ -35,10 +36,11 @@ export async function lerRetratosProprios(
     .from('yt_own_channel_snapshots')
     .select('youtube_channel_id, snapshot_date, subscriber_count, subscribers_hidden, view_count')
     .in('youtube_channel_id', [...ownIds])
-    .gte('snapshot_date', spDateOf(agoraMs - SNAPSHOT_DAYS * DAY))
+    .gte('snapshot_date', spDateOf(agoraMs - JANELA_RETRATOS_DIAS * DAY))
     .order('snapshot_date')
   if (error) throw new Error(`retratos do canal próprio: ${error.message}`)
   const rows = (data ?? []) as LinhaRetrato[]
+  if (rows.length >= TETO_LINHAS) throw new Error(`retratos do canal próprio: teto de ${TETO_LINHAS} linhas`)
   for (const id of ownIds) {
     const mine = rows.filter(r => r.youtube_channel_id === id).sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
     const newest = mine[mine.length - 1]

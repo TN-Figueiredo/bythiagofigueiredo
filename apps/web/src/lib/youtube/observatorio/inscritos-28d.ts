@@ -2,6 +2,9 @@ import type { ChannelSnapshot, ObsChannel } from './types'
 import { DAY, H, spDayStart } from './time'
 
 /** Regras de Inscritos em 28 dias (neutras: o Cowork lê as mesmas). A coluna "Crescimento, 30 d" da lista tem outra janela (RI-D2). */
+/** Janela dos retratos lidos (concorrentes e canal próprio): o leitor pede só estes dias; o ⓘ de Inscritos depende dela. */
+export const JANELA_RETRATOS_DIAS = 90
+
 export const REGRAS_INSCRITOS = { janelaDias: 28, folgaDias: 3, exatoAbaixoDe: 1000, multiploDoPasso: 2, retratoVelhoDias: 2 } as const
 
 export type MotivoInscritos = 'canal_proprio' | 'oculto' | 'ainda_nao_coletado' | 'retrato_velho' | 'novo' | 'buraco' | 'arred'

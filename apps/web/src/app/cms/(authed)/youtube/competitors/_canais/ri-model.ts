@@ -5,7 +5,7 @@
  */
 import { DAY, H, MINUS } from '@/lib/youtube/observatorio/time'
 import { referenciaDoCanal, REGRAS_REFERENCIAS, type ReferenciaDoCanal } from '@/lib/youtube/observatorio/referencias'
-import { inscritosDoCanal, REGRAS_INSCRITOS, type InscritosDoCanal, type RetratosDoProprio } from '@/lib/youtube/observatorio/inscritos-28d'
+import { inscritosDoCanal, JANELA_RETRATOS_DIAS, REGRAS_INSCRITOS, type InscritosDoCanal, type RetratosDoProprio } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { Fmt, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { RiFrase, RiLinhaIns, RiLinhaRef, RiPilula, RiSecao, RiView } from './ri-tipos'
@@ -32,8 +32,8 @@ export const ROTULOS_NOVOS_RI = {
   fraseInsVazia: 'Nenhum canal pôde ser medido nos últimos 28 dias.',
   retratoVelho: (dm: string) => `sem medida · contagem parada desde ${dm}`,
   buraco: (dm: string) => `sem medida · falta a contagem de ${dm}`,
-  canalProprio: 'sem medida · não foi possível ler os retratos do seu canal', // TEXTO-A-REVISAR (Logan)
-  infoInsProprio: (desde: string | null) => `Seu canal é medido pelo mesmo número público dos outros canais${desde != null ? `, desde ${desde}` : ''}.`, // TEXTO-A-REVISAR (Logan)
+  canalProprio: 'sem medida · histórico não carregou',
+  infoInsProprio: (desde: string | null) => `Seu canal usa a mesma contagem pública e arredondada dos outros, para a comparação ser justa${desde != null ? `. Medido desde ${desde}` : ''}.`,
   formato: { long: 'vídeos longos', short: 'Shorts' },
   legendaFormato: (f: string) => `Só entram ${f}.`,
   datasDaJanela: (de: string, ate: string) => `de ${de} a ${ate}`,
@@ -264,8 +264,9 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
   const nums = escopo.map(c => ({ c, r: inscritosDoCanal(c, { agoraMs: p.agoraMs, proprio: proprioDe(c) }) }))
   // ⓘ: desde quando o canal próprio é medido (primeiro retrato lido). undefined = sem frase (sem canal próprio no escopo ou sem retrato);
   // null = frase sem data (o leitor só vê 90 dias: com o primeiro retrato a 85 dias ou mais a data andaria com a janela e mentiria)
-  const ts = escopo.flatMap(c => (proprioDe(c)?.retratos ?? []).map(x => x.t))
-  const proprioDesde = ts.length === 0 ? undefined : p.agoraMs - Math.min(...ts) >= 85 * 864e5 ? null : ddmm(Math.min(...ts))
+  // canal próprio oculto: a linha diz "contagem oculta", então não há "Medido desde" (em 'novo' fica: mede desde aquela data)
+  const ts = escopo.flatMap(c => { const q = proprioDe(c); return q && !q.oculto ? q.retratos.map(x => x.t) : [] })
+  const proprioDesde = ts.length === 0 ? undefined : p.agoraMs - Math.min(...ts) >= (JANELA_RETRATOS_DIAS - 5) * DAY ? null : ddmm(Math.min(...ts))
   const oks = nums.filter((x): x is { c: ObsChannel; r: InsOk } => x.r.tipo === 'ok')
   const nms = nums.filter((x): x is { c: ObsChannel; r: InsNm } => x.r.tipo === 'nm')
   const nome = (c: ObsChannel) => c.name

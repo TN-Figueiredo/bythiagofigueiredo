@@ -67,6 +67,12 @@ describe('lerRetratosProprios', () => {
     expect(ts).toEqual([10, 20, 30])
   })
 
+  it('11 canais x 91 linhas (>= 1.000): lança em vez de entregar dado cortado', async () => {
+    const ids = Array.from({ length: 11 }, (_, i) => `0a1b2c3d-1111-4222-8333-${String(i).padStart(12, '0')}`)
+    const { sb } = banco(ids.flatMap(id => Array.from({ length: 91 }, (_, d) => linha(id, d, 1000 + d))))
+    await expect(lerRetratosProprios(sb, ids, AGORA)).rejects.toThrow(/teto de 1000 linhas/)
+  })
+
   it('pede só 90 dias, pelo índice da PK, para todos os canais de uma vez', async () => {
     const { sb, chamadas } = banco([linha(A, 89, 1), linha(A, 95, 2), linha(B, 5, 3)])
     const r = await lerRetratosProprios(sb, [A, B], AGORA)
