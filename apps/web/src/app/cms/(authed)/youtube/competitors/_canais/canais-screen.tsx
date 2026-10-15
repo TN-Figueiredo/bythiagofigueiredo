@@ -65,7 +65,7 @@ export interface CanaisScreenProps {
 
 /** TEXTO-A-REVISAR não se aplica: a frase é a do mockup 16 (tabela de frases, "Só leitura"). */
 export const FRASE_SO_LEITURA = { titulo: 'Você só pode ler esta lista.', corpo: 'Sincronizar, adicionar e remover canais ficam desligados. Esta lista só tem números públicos do YouTube, então você vê tudo o que os outros veem.' }
-export const PAGINA_INICIAL = 20, PAGINA_PASSO = 10
+export const PAGINA_INICIAL = 50, PAGINA_PASSO = 25
 
 const UPNEXT = '/cms/up-next'
 /** After an add: one refresh every ADD_WATCH_MS, at most ADD_WATCH_MAX times (3 min). */
@@ -303,9 +303,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   // a busca filtra as linhas e nunca toca na posição: ela é a da lista inteira
   const rankedBusca = useMemo(() => (ql ? view.list.ranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.ranked), [view.list.ranked, ql])
   const unrankedBusca = useMemo(() => (ql ? view.list.unranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.unranked), [view.list.unranked, ql])
-  // 20 concorrentes de início e "Mostrar mais 10"; os canais próprios sempre aparecem e a busca mostra tudo o que casa
+  // 50 concorrentes de início e "Mostrar mais 25"; os canais próprios sempre aparecem e a busca mostra tudo o que casa
   const [mostrar, setMostrar] = useState(PAGINA_INICIAL)
-  // trocar de filtro (estado, direção ou nicho) volta a lista para os 20 de início
+  // trocar de filtro (estado, direção ou nicho) volta a lista para os 50 de início
   const direcaoLigada = view.resumo.casas.find(c => c.pressed)?.chave ?? null
   useEffect(() => { setMostrar(PAGINA_INICIAL) }, [view.filter, view.niche, direcaoLigada])
   const concorrentes = useMemo(() => [...rankedBusca, ...unrankedBusca].filter(r => !r.own), [rankedBusca, unrankedBusca])

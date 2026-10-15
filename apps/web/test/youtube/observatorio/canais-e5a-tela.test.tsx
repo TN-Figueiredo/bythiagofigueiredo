@@ -247,7 +247,7 @@ describe('E5a T5: fronteira', () => {
     expect(lista).toHaveAttribute('role', 'list')
     expect(lista.querySelectorAll('article[role="listitem"]').length).toBe(rowsOf(vw({ medidas: medidasDoMotor(obs), layout: 'cards' })).length)
   })
-  it('78 canais: 20 por vez e "Mostrar mais 10"', async () => {
+  it('78 canais: 50 por vez e "Mostrar mais 25"', async () => {
     const user = userEvent.setup()
     const w = a3World(ds => {
       const modelo = ds.channels.find(c => !c.own)!
@@ -256,10 +256,10 @@ describe('E5a T5: fronteira', () => {
     const medidas = medidasDoMotor(w.obs)
     mount({ medidas, limit: 120 }, {}, w.obs)
     const total = w.obs.channels.filter(c => !c.own).length
-    expect(document.querySelectorAll('tbody tr.row:not(.you)').length).toBe(20)
-    expect(screen.getByText(`Mostrando 20 de ${total} canais.`)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Mostrar mais 10' }))
-    expect(document.querySelectorAll('tbody tr.row:not(.you)').length).toBe(30)
+    expect(document.querySelectorAll('tbody tr.row:not(.you)').length).toBe(50)
+    expect(screen.getByText(`Mostrando 50 de ${total} canais.`)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Mostrar mais 25' }))
+    expect(document.querySelectorAll('tbody tr.row:not(.you)').length).toBe(75)
   })
   it('as frases do resumo e da célula passam na auditoria de vocabulário e de texto solto', () => {
     const { container } = mount({ medidas: medidasDoMotor(obs, { 'matt-wolfe': { m3a: naoMedido('fecha_em', { fechaEm: '2026-10-17' }) } }) })
