@@ -377,7 +377,7 @@ Primeiro a ausência, depois o erro. "Vermelho" quer dizer resposta de erro para
 | Apagou | verde | `feitas: N`, com `registro_apagadas` e `taxa_apagadas` |
 | Tabela não existe (`42P01`, `PGRST205`) | **vermelho** | `schema_ausente` ("migration não aplicada") |
 | Erro do banco ao contar ou ao apagar | **vermelho** | `banco_falhou` |
-| Apagou uma tabela e a outra falhou, ou faltou tempo | nota (`parcial`) | `sem_tempo_para_terminar` ou `banco_falhou`, com o que foi feito em `detalhe`; vira vermelho só se o vigia passar de 192 horas sem um `ok` |
+| Apagou uma tabela e a outra falhou, ou faltou tempo | `sem_tempo_para_terminar`: nota (`parcial`); `banco_falhou` depois de uma tabela podada: **vermelho** (`erro`), com o que foi feito em `detalhe` | falha de banco persistente não espera as 192 h do vigia (emenda do portão de 15/10, Yannis D1 / Phil R1); o vigia de 192 horas sem um `ok` continua valendo para os demais casos |
 | A contagem veio nula (o cliente não devolveu `count`) | **vermelho** | `contagem_ausente`: sem número, não se afirma que apagou |
 | (emenda 1: D-m6) Apagou a fatia e ainda há linha vencida (a tarefa ficou parada e há atraso) | nota (`parcial`) | `atraso_restante`, com `registro_apagadas` e a data da linha mais antiga que ficou em `detalhe`; vira vermelho só se o vigia passar de 192 horas sem um `ok` |
 | (emenda 1: D-m6) O total é maior que zero e a leitura da linha mais antiga veio vazia | **vermelho** | `contagem_ausente`: os dois números se contradizem, e não se apaga sem saber o começo da fatia |
