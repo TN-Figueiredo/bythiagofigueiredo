@@ -78,6 +78,10 @@ export type SetupOpts = {
   failUpdates?: Record<string, string>
   /** (A5) Linhas correntes de competitor_field_versions e de competitor_raw que o banco "já tem"; omitido = nenhuma (primeira execução). */
   fields?: Record<string, unknown>[]; raws?: Record<string, unknown>[]
+  /** (A5 E9) Linhas de competitor_removed_items (kind video) que o banco "já tem"; omitido = nenhum apagado (a tabela existe e está vazia). */
+  removed?: Array<{ youtube_id: string; return_decision?: string | null; returned_seen_at?: string | null }>
+  /** (A5 E9) A leitura de competitor_removed_items falha com este texto / o carimbo (update) falha. */
+  removedSelectError?: string; removedUpdateError?: string
   /** Função SQL (nome sem `rpc:`) que devolve erro de banco. */
   rpcFail?: string
   /** Leitura (select) desta tabela devolve erro; para `competitor_channels` falha a trava do canal. */
@@ -142,6 +146,15 @@ export function setup(opts: SetupOpts = {}) {
   const startReads = channelRows ? Math.ceil(channelRows.filter(r => r.series_tier === 'semanal').length / 100) : 1
   const db = fakeDb((c) => {
     if (opts.failWrite && writeMatches(opts.failWrite, c) && writesSeen++ === (opts.failWriteSkip ?? 0)) return { data: null, error: { message: 'boom' } }
+    // (A5 E9) a consulta do que o dono apagou: vazia por padrão, para os testes antigos continuarem como eram
+    if (c.table === 'competitor_removed_items') {
+      if (first(c) === 'select') {
+        if (opts.removedSelectError) return { data: null, error: { message: opts.removedSelectError } }
+        const ids = c.ops.find(o => o[0] === 'in' && o[1][0] === 'youtube_id')?.[1][1] as string[] | undefined
+        return { data: (opts.removed ?? []).filter(r => !ids || ids.includes(r.youtube_id)).map(r => ({ return_decision: null, returned_seen_at: null, ...r })) }
+      }
+      if (first(c) === 'update') return opts.removedUpdateError ? { data: null, error: { message: opts.removedUpdateError } } : { data: null, error: null }
+    }
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
     // (A5 E10) o banco só toma a trava se a condição `.is('collection_paused_at', null)` estiver no update: sem ela o canal pausado seria tomado
     if (opts.paused && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or') && c.ops.some(o => o[0] === 'is' && o[1][0] === 'collection_paused_at' && o[1][1] === null)) return { data: [] }

@@ -12,6 +12,7 @@ import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYou
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 import { recordQuota } from '@/lib/youtube/competitor-quota'
+import { apagadosDaPagina } from '@/lib/youtube/competitor-removed'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, sanitizeForDb, cleanText, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats, type RawCapture } from '@/lib/youtube/competitor-capture'
 import { classifyTiers, earlyEligible, weeklyDue, shouldPromote, addDays, dayNumber, type Tier } from '@/lib/youtube/competitor-tiers'
 import { RULES } from '@/lib/youtube/observatorio/rules'
@@ -41,6 +42,8 @@ export interface SyncResult {
   paused?: boolean
   /** Houve mudança a avisar e nenhum org_admin da organização raiz para receber. */
   sem_destinatario?: boolean
+  /** (A5 E9) Vídeos novos da página que o dono apagou e não mandou voltar: não foram inseridos. */
+  removedSkipped?: number
   /** Itens que vieram sem uma parte inteira (snippet, statistics ou contentDetails): os campos dela não foram comparados. */
   partsMissing?: number
   /** (A5) Canal que veio sem snippet ou sem statistics: os campos da parte ausente não foram comparados nem gravados na linha. */
@@ -551,6 +554,8 @@ async function runChannel(
     lateFailure ??= e instanceof Error ? e : new Error(String(e))
   }
   let channelPartsMissing = 0
+  /** (A5 E9) Vídeos novos de páginas lidas que o dono apagou (não inseridos). */
+  let removedSkipped = 0
   /** (A5 E2) O que a classificação das faixas decidiu nesta sincronização, e os vídeos pedidos na passada diária que vieram sem contagem. */
   let tierChanges = 0, tierCut = 0, excludedNoCount = 0
   /** (A5 E2) Leituras das primeiras horas gravadas (zero não aparece no resultado). */
@@ -588,6 +593,7 @@ async function runChannel(
   const counters = (): SyncResult => ({
     videosChecked, changesDetected, dailyRecorded, unitsUsed,
     ...(partsMissingIds.size ? { partsMissing: partsMissingIds.size } : {}),
+    ...(removedSkipped ? { removedSkipped } : {}),
     ...(channelPartsMissing ? { channelPartsMissing } : {}),
     ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.fieldsClosed ? { fieldsClosed: cap.fieldsClosed } : {}),
     ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawClosed ? { rawClosed: cap.rawClosed } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
@@ -1081,6 +1087,18 @@ async function runChannel(
       // (A5) os já gravados que a lista de uploads trouxe foram pedidos a videos.list; o lançamento de `!videosRes.ok` vem antes, então uma chamada que falhou não chega aqui
       for (const v of existingVideos ?? []) asked.add(v.id as string)
 
+      // (A5 E9, D-11) Vídeo NOVO que o dono apagou não volta a ser coletado sem ele decidir. Só valem os ids que `videos.list` DEVOLVEU
+      // (a lista de envios cita o vídeo que continua privado, e isso não é "voltou ao ar"). Erro na consulta: nenhum vídeo novo entra.
+      const novosDaPagina = ((videosData.items ?? []) as Array<Record<string, unknown>>)
+        .map(v => v.id).filter((id): id is string => typeof id === 'string' && !existingMap.has(id))
+      let apagadosPular = new Set<string>()
+      let semConferencia = false
+      if (novosDaPagina.length > 0) {
+        const apagados = await apagadosDaPagina(supabase, { siteId: channelRow.site_id, videoIds: novosDaPagina, nowIso })
+        if ('erro' in apagados) { late('não foi possível conferir os vídeos já apagados', { message: apagados.erro }); semConferencia = true }
+        else apagadosPular = apagados.pular
+      }
+
       // Current versions of every known video in this page, one query
       const currentByVideo = await loadCurrent((existingVideos ?? []).map(v => v.id as string))
       const touchIds: string[] = []
@@ -1095,12 +1113,17 @@ async function runChannel(
       // Shorts de 61–180 s: a sonda decide (R109), só para vídeos novos, dentro do teto da execução.
       const probeCandidates = ((videosData.items ?? []) as Array<Record<string, unknown>>)
         .map(v => ({ id: v.id as string, dur: parseIsoDuration((v.contentDetails as { duration?: string } | undefined)?.duration), title: ((v.snippet as { title?: string } | undefined)?.title) ?? '' }))
-        .filter(v => needsShortProbe(v.dur) && !v.title.includes('#Shorts') && !existingMap.has(v.id)) // só novos; os já gravados são do backfill (I-1)
+        .filter(v => needsShortProbe(v.dur) && !v.title.includes('#Shorts') && !existingMap.has(v.id) && !semConferencia && !apagadosPular.has(v.id)) // só novos; os já gravados são do backfill (I-1); o apagado que reaparece não gasta sonda
       if (probeCandidates.length) await ensureControl()
       const probes = await probeShortsBatch(probeCandidates.map(v => v.id), probeBudget, f)
       if (probeBudget.stats) probeBudget.stats.pending += probeCandidates.filter(v => isYoutubeVideoId(v.id) && !probes.has(v.id)).length
 
       for (const video of videosData.items ?? []) {
+        // (A5 E9) o mais cedo possível e antes de qualquer gravação: não conta como conhecido, não entra em `asked` nem em `seen`
+        if (!existingMap.has(video.id as string) && (semConferencia || apagadosPular.has(video.id as string))) {
+          if (!semConferencia) removedSkipped++
+          continue
+        }
         videosChecked++
         const videoId = video.id as string
         const apiTitle = (video.snippet?.title as string | undefined) ?? ''
