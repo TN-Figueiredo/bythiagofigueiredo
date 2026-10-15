@@ -849,7 +849,9 @@ update public.competitor_removed_items set blobs_pending = array_remove(blobs_pe
 
 ### Apêndice A: MG-E9 (`observatorio_a5_e9_apagar_o_que_saiu`)
 
-SQL final do desenho. **Não executado** por quem o escreveu: a Tarefa 1 o roda duas vezes e corrige este bloco onde for preciso. O arquivo em `supabase/migrations/` só é criado na Tarefa 2.
+**SUBSTITUÍDO PELO ARQUIVO DA MIGRATION (15/10, lote N6).** A fonte é `supabase/migrations/20261015000001_observatorio_a5_e9_apagar_o_que_saiu.sql`; o bloco abaixo é o desenho original e NÃO deve ser revisado nem copiado (a M9 da manutenção também lê o arquivo, não este bloco). Desvios aceitos pelos portões de Phil e Yannis (15/10): (a) `lotes_exportados` nas três funções de apagar e nas prévias (`null` quando a tabela de lotes não existe, nunca 0); (b) apagar canal fecha os lotes abertos do canal com `closed_reason = 'canal_apagado'`; (c) M9 condicional: `competitor_channel_purge` chama `competitor_channel_remove(uuid,uuid,text,text,uuid)` se ela existir (`to_regprocedure` a cada chamada), senão delete direto; (d) `apagando_ha_mais_de_1d` olha só o Blob (`archive_pending` é sempre falso até a M9, que tem de trazer o próprio vermelho com prazo para o arquivo); (e) `revoke select` de `anon` em `competitor_missing_baseline`. Acréscimos do N6b: `conparentid = 0` nos dois CTEs de `competitor_cascade_counts` (tabela particionada conta uma vez) e dois índices (`idx_yt_intel_task_target_video`, `idx_competitor_readings_video`). O teto `set statement_timeout = '30s'` da definição VALE pela API (medido em 15/10: função de 12 s passa; sem o `set`, o authenticator corta em 8 s).
+
+SQL final do desenho (original). **Não executado** por quem o escreveu: a Tarefa 1 o roda duas vezes e corrige este bloco onde for preciso. O arquivo em `supabase/migrations/` só é criado na Tarefa 2.
 
 ```sql
 -- Fase A5 do Observatório, etapa E9 (spec v2.3, arquivo 01, seção 4.5): a fila "Saíram do YouTube".
