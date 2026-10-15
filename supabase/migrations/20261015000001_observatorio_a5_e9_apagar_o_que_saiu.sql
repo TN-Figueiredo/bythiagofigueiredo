@@ -1,6 +1,6 @@
 -- Fase A5 do Observatório, etapa E9 (spec v2.3, arquivo 01, seção 4.5): a fila "Saíram do YouTube".
 -- DEPENDE da MG1 (competitor_removed_items, colunas de ausência), da MG2 (competitor_video_early) e da MG8
--- (competitor_video_comments). NÃO altera tabela nem função existente: cria uma tabela pequena e treze funções.
+-- (competitor_video_comments). NÃO altera dado nem função existente: cria uma tabela pequena, treze funções e dois índices em chaves estrangeiras já existentes.
 -- Idempotência: create table/index if not exists, create or replace function, drop policy if exists antes de create policy.
 -- Código antigo depois desta migration: inerte (ninguém chama as funções; a tabela nova fica vazia).
 

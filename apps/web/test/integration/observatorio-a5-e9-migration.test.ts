@@ -403,10 +403,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
 
   // Medido em 15/10 (n6b): o `set statement_timeout` da definição VALE pela API. Função de 12 s com `set ... '30s'` passa pelo PostgREST;
   // a mesma sem o `set` cai em 8 s (teto do authenticator) com 57014. O teste prova o comportamento, não o texto da migration.
-  it('pela API (PostgREST), o teto da definição vale: 12 s com set 30 s passa; sem o set, o authenticator corta em 8 s', async () => {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const chave = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!base || !chave) return // sem API local configurada (só SUPABASE_DB_URL): fica para quem roda com a API
+  // Sem API local configurada (só SUPABASE_DB_URL), o caso aparece como pulado, nunca verde sem provar nada.
+  it.skipIf(!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)('pela API (PostgREST), o teto da definição vale: 12 s com set 30 s passa; sem o set, o authenticator corta em 8 s', async () => {
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const chave = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const teto = (await pg.query(`select p.proconfig from pg_proc p where p.proname = 'competitor_channel_purge' and p.pronamespace = 'public'::regnamespace`)).rows[0].proconfig as string[]
     const valor = teto.find((c) => c.startsWith('statement_timeout='))!.split('=')[1]
     try {
