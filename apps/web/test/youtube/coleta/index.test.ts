@@ -15,6 +15,7 @@ vi.mock('@/lib/youtube/coleta/criteria-desligados', () => ({ criterioDesligados:
 vi.mock('@/lib/youtube/coleta/retencao-step', () => ({ passoRetencao: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-retencao', () => ({ criteriosRetencao: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-cobertura', () => ({ criterioCobertura: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/versoes-step', async (orig) => ({ ...(await orig<typeof import('@/lib/youtube/coleta/versoes-step')>()), passoVersoes: vi.fn() }))
 // Item 246: a lista publicada de conferências é trocada por uma lista de teste (mutável, esvaziada a cada teste).
 const conferenciasDeTeste = vi.hoisted(() => [] as Array<{ id: string; etapa: string; data: string; responsavel: 'agente' | 'dono'; onde: string; feitaEm: string | null }>)
 vi.mock('@/lib/conferencias', async (orig) => ({ ...(await orig<typeof import('@/lib/conferencias')>()), CONFERENCIAS: conferenciasDeTeste }))
@@ -39,6 +40,8 @@ import { criterioDesligados } from '@/lib/youtube/coleta/criteria-desligados'
 import { passoRetencao, type RetencaoResumo } from '@/lib/youtube/coleta/retencao-step'
 import { criteriosRetencao } from '@/lib/youtube/coleta/criteria-retencao'
 import { criterioCobertura } from '@/lib/youtube/coleta/criteria-cobertura'
+import { passoVersoes, type VersoesResumo } from '@/lib/youtube/coleta/versoes-step'
+import { ontemPt } from '@/lib/youtube/coleta/day-pt'
 import { notaNomesDesconhecidos } from '@/lib/youtube/coleta/passos-desligados'
 import { pushUnico } from '@/lib/youtube/coleta/schema'
 import { DIMENSOES_DESDE, DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
@@ -71,6 +74,8 @@ const retResumo = (o: Partial<RetencaoResumo> = {}): RetencaoResumo => ({
   sem_resposta_do_youtube: [], novos: 0, ...o,
 })
 
+const verResumo = (o: Partial<VersoesResumo> = {}): VersoesResumo => ({ dias_derivados: 1, ...o } as VersoesResumo)
+
 beforeEach(() => {
   vi.clearAllMocks()
   conferenciasDeTeste.length = 0
@@ -93,6 +98,7 @@ beforeEach(() => {
   vi.mocked(passoRetencao).mockResolvedValue(retResumo({ gravados: 3 }))
   vi.mocked(criteriosRetencao).mockResolvedValue(undefined)
   vi.mocked(criterioCobertura).mockResolvedValue({ acaoDoDono: [] })
+  vi.mocked(passoVersoes).mockResolvedValue(verResumo())
   delete process.env.YT_OWN_STEPS_OFF
 })
 afterEach(() => {
@@ -366,7 +372,7 @@ describe('rodarColeta: L1b', () => {
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
     expect(r.resumo.reautorizar).toEqual(['ch-1'])
     expect(r.resumo.acao_do_dono).toContain('Canal Um: reautorizar')
-    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['jobs', 'metadados'])
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['jobs', 'metadados', 'versoes'])
     for (const v of Object.values(r.resumo.ms as Record<string, number>)) expect(v).toBeGreaterThanOrEqual(0)
     const ctxMeta = vi.mocked(passoMetadados).mock.calls[0]![0] as StepCtx
     expect(ctxMeta.channels.map(c => [c.collection_status, c.video_count])).toEqual([['reautorizar', 0], ['ok', 0]])
@@ -1250,5 +1256,94 @@ describe('rodarColeta: a dieta do diário entra no cron (A5 E6, Tarefa 11b)', ()
     expect(ok.falhas.some(f => f.includes('yt-antigo'))).toBe(true) // o mesmo cenário em `ok` DÁ a nota: a prova de que a ausência abaixo é do estado
     const re = await rodarColeta({ supabase: db('reautorizar').client, relogio: criarRelogio(), fase: 'depois' })
     expect(re.falhas.some(f => f.includes('yt-antigo') || f.includes('cobertura'))).toBe(false)
+  })
+})
+
+describe('rodarColeta: passo de versões (E18 T7)', () => {
+  const rodar = (extra: Partial<Parameters<typeof rodarColeta>[0]> = {}) => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    return rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes', ...extra }).then(r => ({ r, db }))
+  }
+
+  it('1. sem a variável (apagada): o passo roda na fase antes e o resumo traz dias_derivados', async () => {
+    delete process.env.YT_OWN_STEPS_OFF
+    const { r } = await rodar()
+    expect(passoVersoes).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(passoVersoes).mock.calls[0]![0].ontem).toBe(ontemPt(new Date()))
+    expect(r.resumo.versoes).toMatchObject({ dias_derivados: 1 })
+    expect(r.resumo.versoes).not.toHaveProperty('desligado')
+  })
+
+  it('2. com versoes na variável: resumo exato { desligado: true }, nenhuma apply_day, e criterioDesligados recebe versoes na fase depois', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'versoes'
+    const { r, db } = await rodar()
+    expect(passoVersoes).not.toHaveBeenCalled()
+    expect(r.resumo.versoes).toEqual({ desligado: true })
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_versions_apply_day')).toEqual([])
+    await rodar({ fase: 'depois' })
+    expect(vi.mocked(criterioDesligados).mock.calls[0]![1]).toContain('versoes')
+  })
+
+  it('3. " Versoes " (espaço e maiúscula): desligado', async () => {
+    process.env.YT_OWN_STEPS_OFF = ' Versoes '
+    const { r } = await rodar()
+    expect(passoVersoes).not.toHaveBeenCalled()
+    expect(r.resumo.versoes).toEqual({ desligado: true })
+  })
+
+  it('4. "versao" não desliga e a nota de nome desconhecido aparece', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'versao'
+    expect((await rodar()).r.resumo.versoes).toMatchObject({ dias_derivados: 1 })
+    const { r } = await rodar({ fase: 'depois' })
+    expect(r.falhas).toContain('YT_OWN_STEPS_OFF tem nome desconhecido: versao')
+  })
+
+  it('5. o passo roda depois dos metadados e antes dos jobs', async () => {
+    await rodar()
+    const o = (f: unknown) => vi.mocked(f as never).mock.invocationCallOrder[0]!
+    expect(o(passoMetadados)).toBeLessThan(o(passoVersoes))
+    expect(o(passoVersoes)).toBeLessThan(o(passoJobs))
+  })
+
+  it('6. o passo que lança não derruba a fase: falhas ganha versoes e os jobs rodam', async () => {
+    vi.mocked(passoVersoes).mockRejectedValue(new Error('boom'))
+    const { r } = await rodar()
+    expect(r.falhas.some(f => f.startsWith('versoes: '))).toBe(true)
+    expect(passoJobs).toHaveBeenCalledTimes(1)
+    expect(r.resumo.versoes).toBeUndefined()
+  })
+
+  it('7. relógio sem tempo: sem_tempo verdadeiro, passo não chamado e nenhuma tentativa nao_alcancado_orcamento a mais', async () => {
+    const { r, db } = await rodar({ relogio: criarRelogio(Date.now() - 300_000) })
+    expect(passoVersoes).not.toHaveBeenCalled()
+    expect((r.resumo.versoes as { sem_tempo?: boolean }).sem_tempo).toBe(true)
+    // `servidos` vazio de propósito: só os metadados (um por canal) gravam tentativa de kind meta.
+    expect((db.tables.yt_own_collection_attempts ?? []).filter(t => t.kind === 'meta' && t.outcome === 'nao_alcancado_orcamento')).toHaveLength(canais.length)
+  })
+
+  it('8. a nota de conferências continua sendo a última de falhas', async () => {
+    conferenciasDeTeste.push({ id: 'x-1', etapa: 'E0', data: '2026-01-01', responsavel: 'agente', onde: 'onde', feitaEm: null })
+    process.env.YT_OWN_STEPS_OFF = 'versoes,xx'
+    const { r } = await rodar({ fase: 'depois' })
+    expect(r.falhas.length).toBeGreaterThan(0)
+    expect(r.falhas[r.falhas.length - 1]).toMatch(/onferên/)
+  })
+
+  it('9. item 247: ligado ou desligado, os outros campos do resumo da fase antes são iguais', async () => {
+    const ligado = (await rodar()).r.resumo
+    process.env.YT_OWN_STEPS_OFF = 'versoes'
+    const desligado = (await rodar()).r.resumo
+    const { versoes: _a, ms: msLigado, ...restoLigado } = ligado
+    const { versoes: _b, ms: msDesligado, ...restoDesligado } = desligado
+    expect(Object.keys(msLigado as object)).toContain('versoes')
+    expect(Object.keys(msDesligado as object)).not.toContain('versoes')
+    expect(restoDesligado).toEqual(restoLigado)
+  })
+
+  it('10. sem tempo na entrada o passo não é chamado e nenhuma nota de atraso sai (a execução seguinte acusa o atraso)', async () => {
+    // Na fase 'antes' isso só acontece se os passos anteriores gastarem os 270 s. A posição alternativa (fim da fase 'depois') exige a tarefa 7b do desvio 6.
+    const { r } = await rodar({ relogio: criarRelogio(Date.now() - 300_000) })
+    expect(passoVersoes).not.toHaveBeenCalled()
+    expect(r.falhas.some(f => f.includes('atraso'))).toBe(false)
   })
 })
