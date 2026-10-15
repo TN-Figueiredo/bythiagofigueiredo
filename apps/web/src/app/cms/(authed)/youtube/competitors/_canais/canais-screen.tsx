@@ -313,6 +313,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const permitidos = useMemo(() => new Set(concorrentes.slice(0, corte).map(r => r.id)), [concorrentes, corte])
   const ranked = useMemo(() => rankedBusca.filter(r => r.own || permitidos.has(r.id)), [rankedBusca, permitidos])
   const unranked = useMemo(() => unrankedBusca.filter(r => r.own || permitidos.has(r.id)), [unrankedBusca, permitidos])
+  // canais com direção medida (subindo ou descendo) que ficaram depois do corte da página; sem filtro de direção ligado e sem busca
+  const foraDaLista = useMemo(() => {
+    const r = { sobe: 0, desce: 0 }
+    if (ql || direcaoLigada) return r
+    for (const x of concorrentes) if (!permitidos.has(x.id) && x.direcao.tipo === 'medido' && (x.direcao.simbolo === 'sobe' || x.direcao.simbolo === 'desce')) r[x.direcao.simbolo]++
+    return r
+  }, [concorrentes, permitidos, ql, direcaoLigada])
   const vazioDoFiltro = !ql && view.resumo.vazio && !(view.filter === 'problemas' && !view.resumo.casas.some(c => c.pressed)) ? view.resumo.vazio : null
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
@@ -498,10 +505,21 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             : <ChannelCards view={view} ranked={ranked} unranked={unranked} semMedidaN={ql ? unranked.length : view.list.unranked.length} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
 
           {!ql && concorrentes.length > permitidos.size ? (
+            <>
+            {(['sobe', 'desce'] as const).filter(k => foraDaLista[k] > 0).map(k => {
+              const n = foraDaLista[k], palavra = k === 'sobe' ? 'subindo' : 'descendo'
+              return (
+                <p key={k} className="obs-cn-fora" data-k="aviso-fora-da-lista">
+                  Ainda há {n} {n === 1 ? 'canal' : 'canais'} {palavra} fora desta lista.{' '}
+                  <button type="button" className="obs-cn-fr-bt" onClick={() => go({ direcao: k }, { busy: true })}>Ver {palavra}</button>
+                </p>
+              )
+            })}
             <p className="obs-cn-mais" data-k="paginacao">
               <span>Mostrando {permitidos.size} de {concorrentes.length} canais.</span>{' '}
               <button type="button" className="btn small" onClick={() => setMostrar(m => m + PAGINA_PASSO)}>Mostrar mais {Math.min(PAGINA_PASSO, concorrentes.length - permitidos.size)}</button>
             </p>
+            </>
           ) : null}
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
