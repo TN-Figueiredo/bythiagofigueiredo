@@ -582,10 +582,10 @@ describe('E14: as duas tarefas dos comentários de destaque', () => {
       }
       expect(Object.keys(def.motivos).sort()).toEqual(Object.keys(FRASES_FIXAS).filter(c => !Object.hasOwn(MOTIVOS_COMUNS, c)).sort())
     })
-    it('a coleta com COMMENT_SINCE a decidir (o valor de hoje) é vermelha e visível: inicio_nao_decidido, sem chamar o YouTube nem o banco', async () => {
-      vi.mocked(runRetratosComentarios).mockRestore()
-      const real = await vi.importActual<typeof import('@/lib/youtube/observatorio/comentarios/coletar')>('@/lib/youtube/observatorio/comentarios/coletar')
-      vi.mocked(runRetratosComentarios).mockImplementation(real.runRetratosComentarios)
+    // Desde a E14 Tarefa 14 COMMENT_SINCE é null; a guarda `a_decidir` do módulo fica coberta em comentarios-coletar.test.ts.
+    // Aqui só o adaptador: a saída `inicio_nao_decidido` do módulo vira tarefa vermelha com a frase fixa.
+    it('a coleta com COMMENT_SINCE a decidir é vermelha e visível: inicio_nao_decidido', async () => {
+      vi.mocked(runRetratosComentarios).mockResolvedValueOnce({ status: 'erro', feitos: 0, ficaram: 0, motivo: 'inicio_nao_decidido', numeros: { ms: 0, vermelhos: 1 } })
       const r = await rodarTarefa('retratos_comentarios')
       expect(r).toMatchObject({ estado: 'erro', motivo: 'inicio_nao_decidido' })
       expect(fraseDoMotivo(tarefa('retratos_comentarios'), r.motivo, r.detalhe)).toMatch(/^retratos de comentários: a data de início da coleta não foi decidida/)
