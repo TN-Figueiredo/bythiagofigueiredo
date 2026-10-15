@@ -9,6 +9,9 @@ import { join } from 'node:path'
 import { proprioWorld, type CenarioDados } from './proprio-fixture'
 import { comDiario, diarioComPct, duracoesDosLongos, ultimoVideoHa, type PlanoDoVideo } from './proprio-assistido-fixture'
 import { mountProprio, viewDe, type Mundo } from './proprio-mount'
+import { origemDe, periodosDe } from './contexto-ia-periodos-origem-fixture'
+import { AssistidoPeriodos } from '@/app/cms/(authed)/youtube/competitors/_proprio/assistido-periodos'
+import { Origem } from '@/app/cms/(authed)/youtube/competitors/_proprio/origem'
 import { expandirTela, normalizar, provarParidade, provarQueExcluidoNaoVaza } from './contexto-ia-paridade'
 import { ComoEsta } from '@/app/cms/(authed)/youtube/competitors/_proprio/como-esta'
 import { montarComoEsta } from '@/app/cms/(authed)/youtube/competitors/_proprio/como-esta-model'
@@ -49,7 +52,7 @@ const PARADO = proprioWorld({ cenario: 'parado' })
 const NEGADO = proprioWorld({ cenario: 'negado' })
 const ERRO = proprioWorld({ cenario: 'erro' })
 
-function modeloDe(w: Mundo, sp: Record<string, string | undefined> = {}): ModeloCanalProprio {
+function modeloDe(w: Mundo, sp: Record<string, string | undefined> = {}, extras: Parameters<typeof modeloDeCanalProprio>[2] = {}): ModeloCanalProprio {
   const pv = viewDe(w, sp)
   const { posicao } = posicaoDoSite(w.obs, w.canalId)
   const ce = montarComoEsta({
@@ -57,14 +60,14 @@ function modeloDe(w: Mundo, sp: Record<string, string | undefined> = {}): Modelo
     videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
     concorrentes: concorrentesDoSite(w.obs, w.canalId), publicacoes: publicacoesDe(w.obs.videos.filter(v => v.ch === w.canalId)),
   })
-  return modeloDeCanalProprio(pv, ce)
+  return modeloDeCanalProprio(pv, ce, extras)
 }
 
 const lido = (id: string): EstadoDoPrivado => ({ acessoPorCanal: { [id]: { diario: 'ok', alcance: 'ok' } }, negativa: null })
 const negadoPara = (id: string, negativa: EstadoDoPrivado['negativa']): EstadoDoPrivado => ({ acessoPorCanal: { [id]: { diario: 'negado', alcance: 'negado' } }, negativa })
 const falhou = (id: string): EstadoDoPrivado => ({ acessoPorCanal: { [id]: { diario: 'erro', alcance: 'erro' } }, negativa: null })
 
-const textoCompleto = (p: PacoteModelo): string => montarTexto(segmentar(p, CTX), '', 200_000, 'um_por_vez').texto
+const textoCompleto = (p: PacoteModelo): string => montarTexto(segmentar(p, CTX), '', 5_000_000, 'um_por_vez').texto // sem corte: a paridade compara a tela expandida com o pacote inteiro
 const jsonDoPacote = (texto: string): string => texto.slice(texto.indexOf('## 8. Bloco estruturado'), texto.indexOf('## 9. Minha pergunta'))
 
 /** O texto de cada ⓘ da tela: abre um por vez (a camada única fecha o anterior), lê a camada e fecha. */
@@ -80,9 +83,9 @@ async function textosDosPopovers(raiz: HTMLElement): Promise<string[]> {
 }
 
 /** O texto da tela com tudo aberto, nos estados que mudam o que ela escreve: capas, lista, "Todos os números", aba % assistido, aba Trocas e aba Leitura. */
-async function textoDaTela(w: Mundo): Promise<string> {
+async function textoDaTela(w: Mundo, extras: Parameters<typeof modeloDeCanalProprio>[2] = {}): Promise<string> {
   const textos: string[] = []
-  for (const sp of [{}, { ver: 'lista' }, { nums: '1' }, { tab: 'retencao' }, { tab: 'trocas' }, { tab: 'leitura' }] as Array<Record<string, string>>) {
+  for (const sp of [{}, { ver: 'lista' }, { nums: '1' }, { tab: 'retencao' }, { tab: 'trocas' }, { tab: 'leitura' }, { tab: 'origem' }] as Array<Record<string, string>>) {
     const pv = viewDe(w, sp)
     const { posicao } = posicaoDoSite(w.obs, w.canalId)
     const ce = montarComoEsta({
@@ -90,7 +93,10 @@ async function textoDaTela(w: Mundo): Promise<string> {
       videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
       concorrentes: concorrentesDoSite(w.obs, w.canalId), publicacoes: publicacoesDe(w.obs.videos.filter(v => v.ch === w.canalId)),
     })
-    const r = mountProprio({ world: w, sp, comoEsta: <ComoEsta view={ce.view} grafico={ce.grafico} graficoViews={ce.graficoViews} painel="1" canalId={w.canalId} /> })
+    const r = mountProprio({
+      world: w, sp, comoEsta: <ComoEsta view={ce.view} grafico={ce.grafico} graficoViews={ce.graficoViews} painel="1" canalId={w.canalId} />,
+      periodos: extras.periodos ? <AssistidoPeriodos view={extras.periodos} /> : undefined, origem: extras.origem ? <Origem view={extras.origem} /> : undefined,
+    })
     textos.push(await expandirTela(r.container as HTMLElement))
     textos.push(...await textosDosPopovers(r.container as HTMLElement))
     r.unmount()
@@ -126,6 +132,21 @@ const COLUNAS = (m: ModeloCanalProprio): Record<string, Record<string, string | 
     'privado-assistido-faixas': { 'Faixa': '.rotulo', 'Vídeos': '.videos', 'Normal': ['.normal', '.texto'] },
     'privado-assistido-por-video': { 'Vídeo': '.ordem', 'Faixa de duração': '.faixa', 'Views em 28 dias': '.views28', '% assistido': '.pct', 'Contra o normal da faixa': 'contra.texto' },
     'privado-assistido-por-video-notas': { 'Vídeo': '.ordem', 'Nota': ['.cobertura', '.nViews'] },
+    'privado-assistido-por-periodo': { 'Período': '.rotulo', '% assistido': ['.valor', '.semNumero'], 'Legenda': '.legenda' },
+    'privado-assistido-por-periodo-diferenca': { 'Período': '.rotulo', 'Diferença em pontos': 'seta.texto' },
+    'privado-assistido-por-periodo-frases': { 'Período': '.rotulo', 'Texto': 'frase.texto' },
+    'privado-assistido-faixa-por-periodo': {
+      'Faixa': '.rotulo', '% assistido, Inteiro': ['celulas.inteiro.valor', 'celulas.inteiro.semNumero'], 'Legenda, Inteiro': 'celulas.inteiro.legenda',
+      '% assistido, 90 dias': ['celulas.90.valor', 'celulas.90.semNumero'], 'Legenda, 90 dias': 'celulas.90.legenda', '% assistido, 28 dias': ['celulas.28.valor', 'celulas.28.semNumero'], 'Legenda, 28 dias': 'celulas.28.legenda',
+    },
+    'privado-assistido-faixa-diferenca-90': { 'Faixa': '.rotulo', 'Diferença em pontos': 'seta.texto' },
+    'privado-assistido-faixa-diferenca-28': { 'Faixa': '.rotulo', 'Diferença em pontos': 'seta.texto' },
+    'privado-assistido-por-periodo-texto': { Texto: '.rotuloGrupo' },
+    'privado-origem-numeros': { 'Período': '.rotulo', 'Medida': '.rotulo', 'Valor': ['.pacote.texto', '.pacote.motivo'] },
+    'privado-origem-linhas': { 'Período': '.rotulo', 'Bloco': '.titulo', 'Item': '.rotulo', 'Views': ['pacote.views.texto', 'pacote.views.motivo'], 'Participação': ['pacote.pct.texto', 'pacote.pct.motivo'] },
+    'privado-origem-termos-e-sites': { 'Período': '.rotulo', 'Lista': '.titulo', 'Item': '.rotulo', 'Views': ['pacote.views.texto', 'pacote.views.motivo'], 'Participação': ['pacote.pct.texto', 'pacote.pct.motivo'] },
+    'privado-origem-em-frases': { 'Período': '.rotulo', 'Parte': ['.rotulo', '.titulo'], 'Texto': ['.sub', '.frase', '.aviso', '.bloqueio', '.erro', '.cobertura', '.rodape', ']', '.comparacao'] },
+    'privado-origem-dica': { Texto: '.dica' },
     'privado-impressoes-por-dia': { 'Dia': '.rotulo', [m.grafico.rotuloValor]: ['.imp', '.dica'], 'Cliques estimados': ['.cliques', '.dica'], [m.grafico.rotuloSituacao]: '.situacaoTexto' },
     'privado-views-por-dia': { 'Dia': '.rotulo', [m.graficoViews.rotuloValor]: ['.imp', '.dica'], [m.graficoViews.rotuloSituacao]: '.situacaoTexto' },
   }
@@ -135,6 +156,24 @@ const MATRIZ: Array<[string, Mundo]> = [
   ['cheio', CHEIO], ['cheio com % assistido por vídeo', CHEIO_COM_ASSISTIDO], ['coleta curta (magro)', CURTO], ['sem nenhum relatório', VAZIO],
   ['coleta parada', PARADO],
 ]
+
+const EXTRAS_COMPLETOS = { periodos: periodosDe('medido'), origem: origemDe('completa') }
+const COM_PERIODOS_E_ORIGEM: Array<[string, Mundo, Parameters<typeof modeloDeCanalProprio>[2]]> = [
+  ['cheio, com os cartões de período e a origem completa', CHEIO, EXTRAS_COMPLETOS],
+  ['cartões com "poucas views" e origem sem termos', CHEIO, { periodos: periodosDe('poucas-views'), origem: origemDe('sem-termos') }],
+]
+
+describe('8b: paridade dos cartões de período e da aba Origem', () => {
+  for (const [nome, w, extras] of COM_PERIODOS_E_ORIGEM) {
+    it(`${nome}: toda folha tem destino, toda célula tem origem concreta e o pacote diz o que a tela diz`, async () => {
+      const m = modeloDe(w, {}, extras)
+      const p = empacotarCanalProprio(m, lido(w.canalId))
+      expect(p.tabelas.some((t) => t.id === 'privado-assistido-por-periodo')).toBe(true)
+      expect(p.tabelas.some((t) => t.id === 'privado-origem-linhas')).toBe(true)
+      provarParidade({ modelo: m, inventario: INVENTARIO_CANAL_PROPRIO, pacote: p, textoDaTela: await textoDaTela(w, extras), textoDoPacote: textoCompleto(p), colunas: COLUNAS(m), cruas: [] })
+    })
+  }
+})
 
 describe('7a: paridade com a tela real, em cada estado da matriz (lido)', () => {
   for (const [nome, w] of MATRIZ) {
@@ -153,21 +192,28 @@ describe('7a: paridade com a tela real, em cada estado da matriz (lido)', () => 
   })
 })
 
+/** Os estados dos cartões de período e da origem que o inventário precisa ver: completos, com "poucas views", sem termos, sem acesso (nenhum bloco) e negado/erro. */
+const EXTRAS_DO_INVENTARIO: Array<[string, Mundo, Parameters<typeof modeloDeCanalProprio>[2]]> = [
+  ...COM_PERIODOS_E_ORIGEM, ['cartões negados e origem só com o aviso', CHEIO, { periodos: periodosDe('negado'), origem: origemDe('so-aviso') }], ['cartões com erro', CHEIO, { periodos: periodosDe('erro'), origem: null }],
+]
+
 describe('7a: o inventário', () => {
   it('toda folha de todos os mundos tem destino (campo novo no modelo sem empacotador derruba este teste)', () => {
     for (const [nome, w] of [...MATRIZ, ['negado', NEGADO] as [string, Mundo], ['erro', ERRO] as [string, Mundo]]) {
       expect(semDestino(modeloDe(w), INVENTARIO_CANAL_PROPRIO), nome).toEqual([])
     }
+    for (const [nome, w, extras] of EXTRAS_DO_INVENTARIO) expect(semDestino(modeloDe(w, {}, extras), INVENTARIO_CANAL_PROPRIO), nome).toEqual([])
   })
   it('toda chave do inventário tem folha de verdade por trás em algum mundo (declaração velha derruba)', () => {
-    const modelos = [...MATRIZ.map(([, w]) => modeloDe(w)), modeloDe(NEGADO), modeloDe(ERRO)]
+    const modelos = [...MATRIZ.map(([, w]) => modeloDe(w)), modeloDe(NEGADO), modeloDe(ERRO), ...EXTRAS_DO_INVENTARIO.map(([, w, extras]) => modeloDe(w, {}, extras))]
     const sobrando = Object.keys(INVENTARIO_CANAL_PROPRIO).filter(chave => modelos.every(m => semUso(m, { [chave]: INVENTARIO_CANAL_PROPRIO[chave]! }).length > 0))
     // chaves de campos que nenhuma fixture sintética produz hoje (lista fechada; cada uma com o motivo)
-    expect(sobrando).toEqual(SEM_FOLHA_NAS_FIXTURES)
+    expect([...sobrando].sort()).toEqual([...SEM_FOLHA_NAS_FIXTURES].sort())
   })
 })
 // `cedo` (a faixa dos 7 primeiros dias) é nulo no canal em toda fixture: as folhas dele são provadas na 7b (vídeo novo), pelo inventário compartilhado
-const SEM_FOLHA_NAS_FIXTURES: string[] = ['videos.videos[].pin.*', ...Object.keys(INVENTARIO_CANAL_PROPRIO).filter(k => /\.cedo\./.test(k))] // `pin` é nulo em todo vídeo das fixtures; o destino do resto fica declarado para o dia em que existir
+// 8b: `grupo.faixa` é nula só no vídeo (esta tela é a do canal) e `linhasDeContagem[]` só aparece quando o vídeo do período está parado: as fixtures de origem não os produzem
+const SEM_FOLHA_NAS_FIXTURES: string[] = ['videos.videos[].pin.*', 'origem.periodos[].grupo.faixa', 'origem.periodos[].grupo.blocos[].linhasDeContagem[]', ...Object.keys(INVENTARIO_CANAL_PROPRIO).filter(k => /\.cedo\./.test(k))] // `pin` é nulo em todo vídeo das fixtures; o destino do resto fica declarado para o dia em que existir
 
 describe('7a: o dado privado em quatro estados', () => {
   const cheio = () => modeloDe(CHEIO_COM_ASSISTIDO)

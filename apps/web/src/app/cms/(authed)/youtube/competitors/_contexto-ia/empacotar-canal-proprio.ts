@@ -21,9 +21,11 @@ import { METODO_ASSISTIDO } from '../_proprio/retencao-model'
 import type { ComoEstaTop, ComoEstaView } from '../_proprio/como-esta-model'
 import type { ImpressoesView } from '../_proprio/impressoes-model'
 import { METODO_TAXA_CANAL } from '../_proprio/taxa-faixa-model'
+import type { AssistidoPeriodosView } from '../_proprio/assistido-periodo-model'
+import type { BlocoView, GrupoView, LinhaView, OrigemView, SubListaView, CelulaFaixaOrigem, FaixaOrigem } from '../_proprio/origem-model'
 import { AGUARDANDO } from '../_canal/videos-model'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
-import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
+import type { Destino, Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
 // ───────────────────────── o modelo
@@ -58,7 +60,19 @@ export interface ModeloCanalProprio extends Omit<ProprioView, 'videos' | 'retenc
   comoEsta: Omit<ComoEstaView, 'top'> & { top: TopDoModelo[] }
   grafico: ImpressoesView
   graficoViews: ImpressoesView
+  /** Os três cartões de "% assistido por período" (E5b T15), montados pela página fora de `ProprioView`; nulo = a página não os montou (sem diário lido). */
+  periodos: AssistidoPeriodosView | null
+  /** A aba Origem (E5b T17), idem; nulo = o modelo não a recebeu. Cada linha e cada célula ganham `pacote`, a mesma arrumação das colunas do vídeo. */
+  origem: OrigemDoModelo | null
 }
+
+export interface LinhaDoModelo extends LinhaView { pacote: { views: MedidaDoVideo; pct: MedidaDoVideo } }
+export interface CelulaDoModelo extends CelulaFaixaOrigem { pacote: MedidaDoVideo }
+export interface BlocoDoModelo extends Omit<BlocoView, 'linhas' | 'subListas'> { linhas: LinhaDoModelo[]; subListas: Array<Omit<SubListaView, 'linhas'> & { linhas: LinhaDoModelo[] }> | null }
+export interface GrupoDoModelo extends Omit<GrupoView, 'blocos' | 'views' | 'faixa'> {
+  views?: CelulaDoModelo; faixa?: (Omit<FaixaOrigem, 'views' | 'dias'> & { views: CelulaDoModelo; dias: CelulaDoModelo }) | null; blocos: BlocoDoModelo[]
+}
+export interface OrigemDoModelo extends Omit<OrigemView, 'periodos'> { periodos: Array<{ id: string; rotulo: string; grupo: GrupoDoModelo }> }
 
 const medida = (texto: string | null, motivo: string): MedidaDoVideo => (texto !== null ? { texto, motivo: null } : { texto: null, motivo })
 
@@ -86,7 +100,37 @@ function colunasDe(v: ProprioVideoView, i: number): ColunasDoVideo {
   }
 }
 
-export function modeloDeCanalProprio(pv: ProprioView, ce: { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView }): ModeloCanalProprio {
+/** Linha da origem: "sem número" vira o motivo (`valorTexto`) no lugar do número, uma só palavra para as duas colunas. */
+const linhaDoModelo = (l: LinhaView): LinhaDoModelo => ({ ...l, pacote: { views: medida(l.semNumero ? null : l.valorTexto, l.valorTexto), pct: medida(l.semNumero ? null : l.pctTexto, l.valorTexto) } })
+const celulaDoModelo = (c: CelulaFaixaOrigem): CelulaDoModelo => {
+  const nm = c.valor === 'não medido' || c.valor === '—'
+  return { ...c, pacote: medida(nm ? null : c.valor, c.sub !== '' ? c.sub : c.valor) }
+}
+function origemDoModelo(o: OrigemView): OrigemDoModelo {
+  return {
+    ...o,
+    periodos: o.periodos.map((p) => {
+      const { views: _v, faixa: _f, ...resto } = p.grupo
+      void _v; void _f
+      return {
+      id: p.id, rotulo: p.rotulo,
+      grupo: {
+        ...resto,
+        ...(p.grupo.views ? { views: celulaDoModelo(p.grupo.views) } : {}),
+        ...(p.grupo.faixa ? { faixa: { ...p.grupo.faixa, views: celulaDoModelo(p.grupo.faixa.views), dias: celulaDoModelo(p.grupo.faixa.dias) } } : p.grupo.faixa === null ? { faixa: null } : {}),
+        blocos: p.grupo.blocos.map((b): BlocoDoModelo => ({
+          ...b, linhas: b.linhas.map(linhaDoModelo),
+          subListas: b.subListas ? b.subListas.map((s) => ({ ...s, linhas: s.linhas.map(linhaDoModelo) })) : null,
+        })),
+      },
+      }
+    }),
+  }
+}
+
+export function modeloDeCanalProprio(
+  pv: ProprioView, ce: { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView }, extras: { periodos?: AssistidoPeriodosView | null; origem?: OrigemView | null } = {},
+): ModeloCanalProprio {
   const videos = pv.videos.videos.map((v, i): VideoDoModelo => ({ ...v, pacote: colunasDe(v, i) }))
   const ordemPorId = new Map(videos.map((v) => [v.id, v.pacote.ordem]))
   const ordem = (id: string): string => ordemPorId.get(id) ?? 'Vídeo fora da lista'
@@ -97,6 +141,8 @@ export function modeloDeCanalProprio(pv: ProprioView, ce: { view: ComoEstaView; 
     comoEsta: { ...ce.view, top: ce.view.top.map((t): TopDoModelo => ({ ...t, ordem: ordem(t.id) })) },
     grafico: ce.grafico,
     graficoViews: ce.graficoViews,
+    periodos: extras.periodos ?? null,
+    origem: extras.origem ? origemDoModelo(extras.origem) : null,
   }
 }
 
@@ -138,6 +184,62 @@ export function inventarioDeColunasDeGrafico(p: string): Inventario {
 
 export const MEDIDA = (c: string): Inventario => ({ [`${c}.texto`]: 'numero', [`${c}.motivo`]: 'motivo' })
 
+// ───────────────────────── os cartões de período e a aba Origem (Tarefa 8b)
+const PERIODOS_ASSISTIDO = ['inteiro', '90', '28'] as const
+const SETA = (c: string): Inventario => ({ [c]: REP, [`${c}.simbolo`]: APAR, [`${c}.leitura`]: CTRL, [`${c}.sinal`]: REP, [`${c}.texto`]: 'base', [`${c}.palavra`]: REP })
+const CELULA_FAIXA = (c: string): Inventario => ({
+  [`${c}.estado`]: CTRL, [`${c}.valor`]: 'numero', [`${c}.legenda`]: 'base', [`${c}.semNumero`]: 'motivo', ...SETA(`${c}.seta`),
+})
+
+/** A célula do período "canal inteiro" nunca leva seta (a seta é contra ele mesmo): a seta é sempre nula. */
+const CELULA_FAIXA_INTEIRO = (c: string): Inventario => ({ [`${c}.estado`]: CTRL, [`${c}.valor`]: 'numero', [`${c}.legenda`]: 'base', [`${c}.semNumero`]: 'motivo', [`${c}.seta`]: REP })
+
+export const INVENTARIO_PERIODOS: Inventario = {
+  periodos: REP, // nulo: a página não montou os cartões (sem diário lido)
+  'periodos.tela': CTRL, 'periodos.estado': CTRL, 'periodos.rotuloGrupo': 'base', 'periodos.vazio': 'base', 'periodos.padrao': CTRL, 'periodos.lembranca': CTRL,
+  'periodos.voltar': CTRL, 'periodos.legenda': CTRL, 'periodos.metodo[]': 'base',
+  'periodos.cartoes[].id': IDENT, 'periodos.cartoes[].rotulo': 'rotulo', 'periodos.cartoes[].curto': REP, 'periodos.cartoes[].estado': CTRL,
+  'periodos.cartoes[].valor': 'numero', 'periodos.cartoes[].legenda': 'base', 'periodos.cartoes[].semNumero': 'motivo', 'periodos.cartoes[].aria': REP,
+  ...SETA('periodos.cartoes[].seta'),
+  ...Object.fromEntries(PERIODOS_ASSISTIDO.flatMap((p) => {
+    const c = `periodos.conteudos.${p}`
+    const faixa: Inventario = p === 'inteiro'
+      ? { [`${c}.tabela`]: REP, [`${c}.tabela[].rotulo`]: 'rotulo', ...Object.assign({}, ...PERIODOS_ASSISTIDO.map((q) => (q === 'inteiro' ? CELULA_FAIXA_INTEIRO(`${c}.tabela[].celulas.inteiro`) : CELULA_FAIXA(`${c}.tabela[].celulas.${q}`)))) as Inventario }
+      : { [`${c}.tabela`]: REP, [`${c}.tabela[].*`]: REP }
+    return [
+      [`${c}.frase`, REP], [`${c}.frase.sinal`, APAR], [`${c}.frase.leitura`, CTRL], [`${c}.frase.texto`, 'base'], [`${c}.frase.negrito[]`, APAR], [`${c}.frase.verInteiro`, CTRL],
+      [`${c}.tituloLista`, CTRL], [`${c}.normalNaBarra`, APAR], // `tituloLista` nenhum componente escreve
+      // a tabela por faixa é a mesma nos três períodos: o pacote a lê do `inteiro`
+      ...Object.entries(faixa),
+    ] as Array<[string, Destino]>
+  })),
+}
+
+const LINHA = (c: string, rotuloDe: Destino): Inventario => ({
+  [`${c}.chave`]: IDENT, [`${c}.rotulo`]: rotuloDe, [`${c}.valor`]: REP, [`${c}.valorTexto`]: REP, [`${c}.pct`]: REP, [`${c}.pctTexto`]: REP,
+  [`${c}.semNumero`]: CTRL, [`${c}.tipo`]: CTRL, [`${c}.rotuloLeitor`]: REP, ...MEDIDA(`${c}.pacote.views`), ...MEDIDA(`${c}.pacote.pct`),
+})
+const CELULA_ORIGEM = (c: string): Inventario => ({ [`${c}.rotulo`]: 'rotulo', [`${c}.valor`]: REP, [`${c}.sub`]: 'base', ...MEDIDA(`${c}.pacote`) })
+
+export const INVENTARIO_ORIGEM: Inventario = {
+  origem: REP, // nulo: o modelo não recebeu a aba Origem
+  'origem.nivel': CTRL, 'origem.padrao': CTRL, 'origem.lembranca': CTRL, 'origem.dica': 'base',
+  'origem.semAcesso': REP, 'origem.semAcesso.titulo': 'rotulo', 'origem.semAcesso.frases[]': 'base', 'origem.semAcesso.blocos[]': 'base',
+  'origem.periodos[].id': IDENT, 'origem.periodos[].rotulo': 'rotulo',
+  'origem.periodos[].grupo.total': REP, // a tela mostra a célula "views no período" (`views`/`faixa.views`), que leva o mesmo total
+  ...CELULA_ORIGEM('origem.periodos[].grupo.views'),
+  'origem.periodos[].grupo.faixa': REP, ...CELULA_ORIGEM('origem.periodos[].grupo.faixa.views'), ...CELULA_ORIGEM('origem.periodos[].grupo.faixa.dias'),
+  'origem.periodos[].grupo.blocos[].id': IDENT, 'origem.periodos[].grupo.blocos[].titulo': 'rotulo', 'origem.periodos[].grupo.blocos[].estado': CTRL,
+  'origem.periodos[].grupo.blocos[].frase': 'base', 'origem.periodos[].grupo.blocos[].cobertura': 'base', 'origem.periodos[].grupo.blocos[].aviso': 'base',
+  'origem.periodos[].grupo.blocos[].bloqueio': 'base', 'origem.periodos[].grupo.blocos[].erro': 'base', 'origem.periodos[].grupo.blocos[].rodape': 'base',
+  'origem.periodos[].grupo.blocos[].linhasDeContagem[]': 'base', 'origem.periodos[].grupo.blocos[].metodo[]': 'base',
+  'origem.periodos[].grupo.blocos[].regua': REP, 'origem.periodos[].grupo.blocos[].regua.*': CTRL, // a régua é o desenho da cobertura; a frase dela está em `cobertura`
+  ...LINHA('origem.periodos[].grupo.blocos[].linhas[]', 'rotulo'),
+  'origem.periodos[].grupo.blocos[].subListas': REP, 'origem.periodos[].grupo.blocos[].subListas[].id': IDENT, 'origem.periodos[].grupo.blocos[].subListas[].titulo': 'rotulo',
+  'origem.periodos[].grupo.blocos[].subListas[].estado': CTRL, 'origem.periodos[].grupo.blocos[].subListas[].frase': 'base', 'origem.periodos[].grupo.blocos[].subListas[].comparacao': 'base',
+  ...LINHA('origem.periodos[].grupo.blocos[].subListas[].linhas[]', 'terceiros'), // termo de pesquisa e domínio de site: texto de terceiros
+}
+
 export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   // cabeçalho
   'header.id': IDENT, 'header.name': 'terceiros', 'header.handle': 'rotulo', 'header.url': END, 'header.avatar': IMG, 'header.ini': APAR, 'header.color': APAR,
@@ -176,8 +278,7 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   'videos.videos[].pacote.vpdDiario.texto': 'numero', 'videos.videos[].pacote.vpdDiario.motivo': 'base',
   // a aba % assistido
   'retencao.estado': CTRL, 'retencao.titulo': 'rotulo', 'retencao.nota': 'base', 'retencao.vazio': 'base', 'retencao.semPercentual': 'base',
-  // os cartões de % assistido por período vêm de `buildAssistidoDoCanal`, montado pela PÁGINA fora de `ProprioView` (E5b T15): o modelo daqui não os recebe.
-  // Pendência da Tarefa 8b (`montarCanal`); o pacote diz isso em `naoMede` (NAO_MEDE_PERIODOS). Sempre nulo neste modelo.
+  // os cartões de período vêm de `buildAssistidoDoCanal`, montado pela PÁGINA fora de `ProprioView`: entram em `periodos` (Tarefa 8b); este campo é sempre nulo.
   'retencao.periodos': CTRL,
   'retencao.relance': REP, 'retencao.relance.negrito': 'base', 'retencao.relance.resto': 'base',
   'retencao.faixas[].rotulo': 'rotulo', 'retencao.faixas[].videos': 'numero', 'retencao.faixas[].normal': 'numero', 'retencao.faixas[].estado': CTRL, 'retencao.faixas[].texto': 'motivo',
@@ -205,6 +306,8 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   'comoEsta.taxa.vazio': 'base', 'comoEsta.taxa.nota': 'base',
   ...inventarioDeColunasDeGrafico('grafico'),
   ...inventarioDeColunasDeGrafico('graficoViews'),
+  ...INVENTARIO_PERIODOS,
+  ...INVENTARIO_ORIGEM,
 }
 
 /** Folhas de número cru: o componente escreve, o empacotador usa o MESMO texto por nome. Nenhuma neste modelo: tudo o que a tela escreve já é texto no modelo. */
@@ -517,6 +620,121 @@ function motivosDoModelo(m: ModeloCanalProprio, leitura: 'alcance' | 'diario'): 
   return [...new Set(todos.filter(naoVazio))]
 }
 
+
+// ───────────────────────── tabelas dos cartões de período e da origem (Tarefa 8b); tudo é do diário lido, portanto privado
+const TITULO_ASSISTIDO = '% assistido por período'
+
+function tabelasDosPeriodos(m: ModeloCanalProprio): Tabela[] {
+  const v = m.periodos
+  if (!v || v.estado !== 'ok') return []
+  const saida: Tabela[] = []
+  const c = (i: number): string => `modelo.periodos.cartoes[${i}]`
+  saida.push({
+    // TEXTO-A-REVISAR (Logan/Naksu): títulos e colunas das tabelas de período e de origem abaixo.
+    id: 'privado-assistido-por-periodo', titulo: `${TITULO_ASSISTIDO}${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'tabela do % assistido por período', privada: true,
+    colunas: ['Período', '% assistido', 'Legenda'],
+    linhas: v.cartoes.map((x, i): Celula[] => [rot(x.rotulo, `${c(i)}.rotulo`), numero(x.valor, x.semNumero, `${c(i)}.valor`, x.semNumero ? `${c(i)}.semNumero` : `${c(i)}.valor`), bas(x.legenda, `${c(i)}.legenda`)]),
+  })
+  const setas = v.cartoes.flatMap((x, i): Celula[][] => (x.seta ? [[rot(x.rotulo, `${c(i)}.rotulo`), bas(x.seta.texto, `${c(i)}.seta.texto`)]] : []))
+  if (setas.length) {
+    saida.push({
+      id: 'privado-assistido-por-periodo-diferenca', titulo: `${TITULO_ASSISTIDO}, diferença contra o canal inteiro${TITULO_PRIVADO}`, tipo: 'fixa',
+      nomeNoCorte: 'tabela da diferença do % assistido', privada: true, colunas: ['Período', 'Diferença em pontos'], linhas: setas,
+    })
+  }
+  const frases: Celula[][] = []
+  v.cartoes.forEach((x, i) => {
+    const p = x.id
+    const f = v.conteudos[p].frase
+    if (f && naoVazio(f.texto)) frases.push([rot(x.rotulo, `${c(i)}.rotulo`), bas(f.texto, `modelo.periodos.conteudos.${p}.frase.texto`)])
+  })
+  if (frases.length) {
+    saida.push({
+      id: 'privado-assistido-por-periodo-frases', titulo: `${TITULO_ASSISTIDO}, em frases${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'frases do % assistido por período', privada: true,
+      colunas: ['Período', 'Texto'], linhas: frases,
+    })
+  }
+  const faixas = v.conteudos.inteiro.tabela
+  if (faixas && faixas.length) {
+    const cab = PERIODOS_ASSISTIDO.flatMap((p) => { const n = v.cartoes.find((x) => x.id === p)?.curto ?? p; return [`% assistido, ${n}`, `Legenda, ${n}`] })
+    saida.push({
+      id: 'privado-assistido-faixa-por-periodo', titulo: `% assistido normal por faixa de duração e por período${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'tabela do % assistido por faixa e período', privada: true,
+      colunas: ['Faixa', ...cab],
+      linhas: faixas.map((f, i): Celula[] => {
+        const o = `modelo.periodos.conteudos.inteiro.tabela[${i}]`
+        return [rot(f.rotulo, `${o}.rotulo`), ...PERIODOS_ASSISTIDO.flatMap((p): Celula[] => {
+          const x = f.celulas[p]
+          return [numero(x.valor, x.semNumero, `${o}.celulas.${p}.valor`, x.semNumero ? `${o}.celulas.${p}.semNumero` : `${o}.celulas.${p}.valor`), bas(x.legenda, `${o}.celulas.${p}.legenda`)]
+        })]
+      }),
+    })
+    for (const p of ['90', '28'] as const) {
+      const k = v.cartoes.findIndex((y) => y.id === p)
+      const difs = faixas.flatMap((f, i): Celula[][] => {
+        const x = f.celulas[p]
+        return x.seta ? [[rot(f.rotulo, `modelo.periodos.conteudos.inteiro.tabela[${i}].rotulo`), bas(x.seta.texto, `modelo.periodos.conteudos.inteiro.tabela[${i}].celulas.${p}.seta.texto`)]] : []
+      })
+      if (difs.length) {
+        const nome = (k >= 0 ? v.cartoes[k]!.rotulo : p).toLowerCase()
+        saida.push({
+          id: `privado-assistido-faixa-diferenca-${p}`, titulo: `% assistido por faixa, diferença do período "${nome}" contra o canal inteiro${TITULO_PRIVADO}`, tipo: 'fixa',
+          nomeNoCorte: `tabela da diferença por faixa, ${p} dias`, privada: true, colunas: ['Faixa', 'Diferença em pontos'], linhas: difs,
+        })
+      }
+    }
+  }
+  const prosa: Array<[string, string]> = []
+  if (naoVazio(v.rotuloGrupo)) prosa.push([v.rotuloGrupo, 'modelo.periodos.rotuloGrupo'])
+  return [...saida, ...tabelaDeProsa('privado-assistido-por-periodo-texto', 'Cartões do % assistido', prosa)]
+}
+
+function tabelasDaOrigem(m: ModeloCanalProprio): Tabela[] {
+  const v = m.origem
+  if (!v || v.semAcesso != null || v.periodos.length === 0) return []
+  const saida: Tabela[] = []
+  const rp = (i: number): Celula => rot(v.periodos[i]!.rotulo, `modelo.origem.periodos[${i}].rotulo`)
+  const numeros: Celula[][] = []
+  const frases: Celula[][] = []
+  const linhas: Celula[][] = []
+  const listas: Celula[][] = []
+  v.periodos.forEach((p, i) => {
+    const g = `modelo.origem.periodos[${i}].grupo`
+    const medidas: Array<[CelulaDoModelo, string]> = p.grupo.faixa
+      ? [[p.grupo.faixa.views, `${g}.faixa.views`], [p.grupo.faixa.dias, `${g}.faixa.dias`]]
+      : p.grupo.views ? [[p.grupo.views, `${g}.views`]] : []
+    for (const [c, o] of medidas) {
+      numeros.push([rp(i), rot(c.rotulo, `${o}.rotulo`), daMedida(c.pacote, `${o}.pacote`)])
+      if (naoVazio(c.sub) && c.pacote.texto !== null) frases.push([rp(i), rot(c.rotulo, `${o}.rotulo`), bas(c.sub, `${o}.sub`)])
+    }
+    p.grupo.blocos.forEach((b, j) => {
+      const ob = `${g}.blocos[${j}]`
+      const rb = (): Celula => rot(b.titulo, `${ob}.titulo`)
+      const texto = (t: string | null, caminho: string): void => { if (naoVazio(t)) frases.push([rp(i), rb(), bas(t, caminho)]) }
+      texto(b.frase, `${ob}.frase`); texto(b.aviso, `${ob}.aviso`); texto(b.bloqueio, `${ob}.bloqueio`); texto(b.erro, `${ob}.erro`); texto(b.cobertura, `${ob}.cobertura`); texto(b.rodape, `${ob}.rodape`)
+      b.linhasDeContagem.forEach((t, k) => texto(t, `${ob}.linhasDeContagem[${k}]`))
+      b.linhas.forEach((l, k) => {
+        const o = `${ob}.linhas[${k}]`
+        linhas.push([rp(i), rb(), rot(l.rotulo, `${o}.rotulo`), daMedida(l.pacote.views, `${o}.pacote.views`), daMedida(l.pacote.pct, `${o}.pacote.pct`)])
+      })
+      b.subListas?.forEach((s, q) => {
+        const os = `${ob}.subListas[${q}]`
+        if (naoVazio(s.frase)) frases.push([rp(i), rot(s.titulo, `${os}.titulo`), bas(s.frase, `${os}.frase`)])
+        if (naoVazio(s.comparacao)) frases.push([rp(i), rot(s.titulo, `${os}.titulo`), bas(s.comparacao, `${os}.comparacao`)])
+        s.linhas.forEach((l, k) => {
+          const o = `${os}.linhas[${k}]`
+          listas.push([rp(i), rot(s.titulo, `${os}.titulo`), ter(l.rotulo, `${o}.rotulo`), daMedida(l.pacote.views, `${o}.pacote.views`), daMedida(l.pacote.pct, `${o}.pacote.pct`)])
+        })
+      })
+    })
+  })
+  const t = ', origem das views'
+  if (numeros.length) saida.push({ id: 'privado-origem-numeros', titulo: `Views e dias medidos${t}${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'números da origem das views', privada: true, colunas: ['Período', 'Medida', 'Valor'], linhas: numeros })
+  if (linhas.length) saida.push({ id: 'privado-origem-linhas', titulo: `De onde vêm as views${t}${TITULO_PRIVADO}`, tipo: 'lista', nomeNoCorte: 'tabela da origem das views', privada: true, colunas: ['Período', 'Bloco', 'Item', 'Views', 'Participação'], linhas })
+  if (listas.length) saida.push({ id: 'privado-origem-termos-e-sites', titulo: `O que pesquisaram e de que sites vieram${TITULO_PRIVADO}`, tipo: 'lista', nomeNoCorte: 'tabela de termos e sites', privada: true, colunas: ['Período', 'Lista', 'Item', 'Views', 'Participação'], linhas: listas })
+  if (frases.length) saida.push({ id: 'privado-origem-em-frases', titulo: `Origem das views, em frases${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'frases da origem das views', privada: true, colunas: ['Período', 'Parte', 'Texto'], linhas: frases })
+  return [...saida, ...(naoVazio(v.dica) ? tabelaDeProsa('privado-origem-dica', 'Atraso dos dados da origem das views', [[v.dica, 'modelo.origem.dica']]) : [])]
+}
+
 // ───────────────────────── o empacotador
 export function empacotarCanalProprio(m: ModeloCanalProprio, privado: EstadoDoPrivado): PacoteModelo {
   const { alcance, diario } = leituraDe(privado, m.header.id)
@@ -544,6 +762,7 @@ export function empacotarCanalProprio(m: ModeloCanalProprio, privado: EstadoDoPr
     privadas.push(
       ...tabelasDoCabecalho(m, true, 'diario'), ...prosaDoDiario(m), ...tabelaDeViewsDosVideos(m), ...tabelasDaRetencao(m),
       ...tabelaDoGrafico(m.graficoViews, 'graficoViews', 'privado-views-por-dia', 'Views por dia, soma dos vídeos', false),
+      ...tabelasDosPeriodos(m), ...tabelasDaOrigem(m),
     )
     for (const [i, p] of m.graficoViews.metodo.entries()) definicoes.push({ medida: `Como ler o gráfico de views (${i + 1})`, frase: p, limiares: [], privado: true })
     for (const p of METODO_ASSISTIDO) definicoes.push({ medida: 'De onde vem o % assistido', frase: p, limiares: [], privado: true })
@@ -563,7 +782,7 @@ export function empacotarCanalProprio(m: ModeloCanalProprio, privado: EstadoDoPr
   if (naoVazio(m.videos.nota)) avisos.push(m.videos.nota)
   if (naoVazio(m.videos.semVideos)) avisos.push(m.videos.semVideos)
 
-  const naoMede = [NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, NAO_MEDE_PERIODOS, ...m.comoEsta.naoMedido.map((x) => `${x.rotulo}: ${x.texto}`), `Trocas: ${m.abas.trocas} ${m.abasNota.trocas}`, `Leitura: ${m.abas.leitura} ${m.abasNota.leitura}`]
+  const naoMede = [NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, ...(m.origem === null ? [NAO_MEDE_PERIODOS] : []), ...m.comoEsta.naoMedido.map((x) => `${x.rotulo}: ${x.texto}`), `Trocas: ${m.abas.trocas} ${m.abasNota.trocas}`, `Leitura: ${m.abas.leitura} ${m.abasNota.leitura}`]
 
   return {
     tela: 'canal-proprio',

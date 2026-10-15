@@ -208,6 +208,18 @@ export async function expandirTela(raiz: HTMLElement): Promise<string> {
     }
     if (original) { await clicar(original); estados.push(textoDe(raiz)) }
   }
+  // seletor de período da origem (E5b T17): botões com `aria-pressed` dentro de `role="group"` (não é tablist nem radiogroup)
+  for (const grupo of raiz.querySelectorAll<HTMLElement>('[role="group"]')) {
+    const opcoes = [...grupo.querySelectorAll<HTMLElement>('button[aria-pressed]')]
+    if (opcoes.length < 2) continue
+    const original = opcoes.find((o) => o.getAttribute('aria-pressed') === 'true')
+    for (const o of opcoes) {
+      if (o === original) continue
+      await clicar(o)
+      estados.push(textoDe(raiz))
+    }
+    if (original) { await clicar(original); estados.push(textoDe(raiz)) }
+  }
   return estados.join('\n')
 }
 
