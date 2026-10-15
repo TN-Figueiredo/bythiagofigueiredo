@@ -683,4 +683,33 @@ describe('passoVersoes', () => {
       expect(n.m.ctx.falhas).toEqual([])
     })
   })
+
+  // Emenda 15/10 (dono): o número de canais próprios é N (canais com linha diária), nunca uma constante do produto.
+  describe.each([1, 2, 3])('N canais próprios = %i', (N) => {
+    const ids = Array.from({ length: N }, (_, i) => `c${i + 1}`)
+    it('188 por N: linhas de base = vídeos × campos, zero trocas, derived_through = ontem em cada canal', async () => {
+      const VIDEOS = 4
+      const m = mundo(ids.map(i => canal(i)))
+      for (const ch of ids) {
+        const yts = videos(m.db, ch, VIDEOS)
+        for (let n = 2; n >= 0; n--) for (const yt of yts) linha(m.db, ch, yt, dia(n), n === 2 ? { priv: null } : {})
+      }
+      const r = await rodar(m)
+      expect(r.abertas).toEqual({ linha_de_base: N * VIDEOS * 3, ab_lab: 0, fora_do_sistema: 0, nao_se_sabe: 0 })
+      expect(versoes(m.db)).toHaveLength(N * VIDEOS * 3)
+      for (const ch of ids) expect(estadoDe(m.db, ch)).toBe(ONTEM)
+      expect(m.ctx.falhas).toEqual([])
+    })
+    it('27 por N: canais_com_linha_sem_estado = N dá a nota com N; zero não dá nota', async () => {
+      const base = { publicos: 1, sem_titulo: 0, sem_thumb: 0, sem_explicacao: 0, canais_com_linha_sem_estado: N, derivado_ate: null, origem_cms: 0 }
+      const m = mundo(ids.map(i => canal(i)))
+      m.db.provaVersoes = base
+      await rodar(m)
+      expect(m.ctx.falhas).toContain(`versões: ${N} canal(is) com linha diária e sem estado de derivação`)
+      const z = mundo(ids.map(i => canal(i)))
+      z.db.provaVersoes = { ...base, canais_com_linha_sem_estado: 0 }
+      await rodar(z)
+      expect(z.ctx.falhas.some(f => f.includes('sem estado de derivação'))).toBe(false)
+    })
+  })
 })
