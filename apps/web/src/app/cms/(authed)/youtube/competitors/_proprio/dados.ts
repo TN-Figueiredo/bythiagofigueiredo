@@ -13,12 +13,12 @@ import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
 import { leituraValida, provarAcessoPrivado, type AcessoPrivado, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerRetencao, type RetencaoDoVideo } from '@/lib/youtube/observatorio/proprio/ler-retencao'
-import { ErroTetoDiario, erroTetoDoDiario, lerDiarioDoPeriodo, TETO_LINHAS_DIARIO_PERIODO } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
+import { ErroTetoDiario } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
 import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 import { TETO_VIDEOS_DIARIO, type AlcanceCanal, type DiarioCanal, type DiaYt, type Privado } from '@/lib/youtube/observatorio/proprio/tipos'
-import { avisarFalhaDeLeitura } from './dados-origem'
+import { avisarFalhaDeLeitura, lerDiarioEmLotes } from './dados-origem'
 import { longosAcompanhados } from './extras'
-import { CHAMADAS_EM_VOO, juntarDiarios, lotesDe } from './origem-trechos'
+import { lotesDe } from './origem-trechos'
 
 /** Canais lidos ao mesmo tempo na lista de Canais e na comparação. */
 const CANAIS_EM_VOO = 4
@@ -146,17 +146,7 @@ export async function lerDiarioLongo(a: {
   const lotes = lotesDe(a.ytIds)
   try {
     const sb = getSupabaseServiceClient()
-    const diarioDe = async (de: DiaYt | null): Promise<DiarioDoPeriodo> => {
-      let lidas = 0
-      const partes = await mapLimit(lotes, CHAMADAS_EM_VOO, async ytIds => {
-        const r = await lerDiarioDoPeriodo(sb, { ...base, ytIds, de, ate: a.ultimoDia, soComViews: true, publicacoes: a.publicacoes, tetoLinhas: Math.max(1, TETO_LINHAS_DIARIO_PERIODO - lidas) })
-        if (r.acesso !== 'ok') throw new Error('diário do período: leitura negada com o token válido')
-        lidas += r.dado.linhas.length
-        return r.dado
-      })
-      if (lidas > TETO_LINHAS_DIARIO_PERIODO) throw erroTetoDoDiario(TETO_LINHAS_DIARIO_PERIODO)
-      return juntarDiarios(partes)
-    }
+    const diarioDe = (de: DiaYt | null) => lerDiarioEmLotes(sb, base, { lotes, de, ate: a.ultimoDia, publicacoes: a.publicacoes, negado: () => new Error('diário do período: leitura negada com o token válido') })
     // o aviso do diário inteiro só sai se o de 90 dias deu certo: quando os dois falham é UM aviso (o do `catch`)
     let falhaInteiro: unknown
     const inteiroP = diarioDe(null).then(

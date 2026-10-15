@@ -82,7 +82,7 @@ async function OrigemDoVideo(p: { canalId: string; ytId: string; publicadoEm: st
     dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, n: p.n,
   })
   const cobertura = contagensDeCobertura(view, periodos)
-  if (cobertura) Sentry.captureMessage('observatório: a origem do vídeo tem vídeos fora, parados ou cobertura parcial', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'origem-cobertura' }, extra: cobertura })
+  if (cobertura) Sentry.captureMessage('observatório: a origem do vídeo tem vídeos fora, parados ou com a linha de contagem', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'origem-cobertura' }, extra: cobertura })
   return <Origem view={view} />
 }
 

@@ -81,7 +81,7 @@ async function OrigemDoCanal(p: { canalId: string; ytIds: readonly string[]; pub
     dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, n: p.n,
   })
   const cobertura = contagensDeCobertura(view, periodos)
-  if (cobertura) Sentry.captureMessage('observatório: a origem do canal tem vídeos fora, parados ou cobertura parcial', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'origem-cobertura' }, extra: cobertura })
+  if (cobertura) Sentry.captureMessage('observatório: a origem do canal tem vídeos fora, parados ou com a linha de contagem', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'origem-cobertura' }, extra: cobertura })
   return <Origem view={view} />
 }
 
@@ -118,15 +118,16 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
     const pv = buildProprioView(obs, proprio.id, flat, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })
     if (pv) {
       // "Como o canal está" (16.5): o MESMO dado que o cabeçalho leu; a posição é a linha do cabeçalho (uma fonte só); os concorrentes do formulário vêm do conjunto do site
+      const doCanal = obs.videos.filter(v => v.ch === proprio.id)
+      const publicacoes = publicacoesDe(doCanal)
       const { view, grafico, graficoViews } = montarComoEsta({
         dados, hoje, dm: dmDia, posicao, posicaoItens: pv.header.posicaoItens, canalId: proprio.id,
         videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
         concorrentes: concorrentesDoSite(site.obs, proprio.id),
-        publicacoes: publicacoesDe(obs.videos.filter(v => v.ch === proprio.id)),
+        publicacoes,
       })
       // os cartões de período da aba Retenção e a aba Origem vão cada um num `Suspense` próprio (o primeiro HTML não espera a leitura); sem dado privado lido, não há o que ler
-      const publicacoes = publicacoesDe(obs.videos.filter(v => v.ch === proprio.id))
-      const duracoes = new Map(obs.videos.filter(v => v.ch === proprio.id).map(v => [v.ytId, v.dur ?? null]))
+      const duracoes = new Map(doCanal.map(v => [v.ytId, v.dur ?? null]))
       const videosLongos = ownYtIds.map(ytId => ({ ytId, dur: duracoes.get(ytId) ?? null }))
       const periodos = dados.diario.acesso === 'ok' ? (
         <Suspense fallback={<AssistidoEsqueleto />}>
