@@ -2,6 +2,8 @@ import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
 import { carregarProprioDaComparacao } from '../_proprio/carregar-extras'
 import { buildCompararPack, type CompararPack } from './pack'
 import { resolverPar } from './par-model'
+import { privadoDaLista } from '../_canais/montar'
+import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
 type ParIds = ReturnType<typeof resolverPar>
 
@@ -10,7 +12,7 @@ type ParIds = ReturnType<typeof resolverPar>
  * (E17 degrau 1, Tarefa 8a). `sp` são os parâmetros planos da URL. A guarda vem antes de qualquer leitura; o `siteId` não é parâmetro.
  */
 export async function montarComparar(sp: Record<string, string | undefined>): Promise<{
-  pagina: ObservatoryPage<undefined>; pack: CompararPack; inicial: ParIds; recente: string | null; estado: ParIds
+  pagina: ObservatoryPage<undefined>; pack: CompararPack; inicial: ParIds; recente: string | null; estado: ParIds; privado: EstadoDoPrivado
 }> {
   const pagina = await openObservatoryPage()
   const { siteId, now, obs, meuCanalLembrado } = pagina
@@ -20,5 +22,8 @@ export async function montarComparar(sp: Record<string, string | undefined>): Pr
   const inicial = resolverPar(buildCompararPack(obs, undefined, undefined, {}), sp.a, sp.b, meuCanalLembrado)
   const { extras, soSeuCanal } = await carregarProprioDaComparacao(obs, siteId, now, undefined, inicial ? [inicial.a, inicial.b] : [])
   const pack = buildCompararPack(obs, undefined, extras, soSeuCanal)
-  return { pagina, pack, inicial, recente: obs.SYNC.last == null ? null : obs.SYNC.title, estado: inicial }
+  // O acesso cru de cada leitura (E17 degrau 1, D-I1): o diário vem do que a lista também lê; o alcance, do cartão "Só o seu canal mede". `negativa` nasce nula.
+  const privado = privadoDaLista(extras)
+  for (const [id, d] of Object.entries(soSeuCanal)) privado.acessoPorCanal[id] = { diario: privado.acessoPorCanal[id]?.diario ?? 'ok', alcance: d.acesso }
+  return { pagina, pack, inicial, recente: obs.SYNC.last == null ? null : obs.SYNC.title, estado: inicial, privado }
 }
