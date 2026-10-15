@@ -6,7 +6,11 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 const O = loadOracle(), P = createObservatory(datasetFromOracle(loadOracle()))
 const J = (x: unknown) => JSON.parse(JSON.stringify(x))
 // bestOutlier.video is the whole video: the oracle's carries mockup-only fields (thumb, target, showcase) the input dataset does not.
-const stripVideo = (st: Record<string, unknown>) => { const b = st.bestOutlier as { video: { id: string } } | null; return { ...st, bestOutlier: b ? { ...b, video: b.video.id } : null } }
+// A5 2ª leva T1 (D1, D1b): growth30 é declaradamente diferente do mockup em campos novos (contagens das pontas, dias de registro, fechaEm, limiteArred)
+// e no TEXTO do arredondamento (a doc oficial diz que o YouTube corta para baixo; a regra passou a 2 passos). Os NÚMEROS (abs, pct, from, to, unit) seguem comparados.
+const DECLARADOS = ['diasDeRegistro', 'fechaEm', 'fromSubs', 'toSubs', 'limiteArred', 'roundingText', 'text', 'withinRounding'] as const
+const semDeclarados = (g: Record<string, unknown>) => Object.fromEntries(Object.entries(g).filter(([k]) => !(DECLARADOS as readonly string[]).includes(k)))
+const stripVideo = (st: Record<string, unknown>) => { const b = st.bestOutlier as { video: { id: string } } | null; return { ...st, growth30: semDeclarados(st.growth30 as Record<string, unknown>), bestOutlier: b ? { ...b, video: b.video.id } : null } }
 const ids: string[] = O.channels.map((c: { id: string }) => c.id)
 describe('channels parity with dados.js', () => {
   for (const f of ['long', 'short'] as const) {
