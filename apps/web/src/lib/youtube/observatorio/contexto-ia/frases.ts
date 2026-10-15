@@ -46,6 +46,8 @@ export const FOCO_VAZIO = '- (nada em foco nesta tela)' // novo
 export const NUMEROS_TITULO = '## 4. Os números' // do mockup
 export const nenhumaTabela = (motivo: string) => `(nenhuma tabela: ${motivo})` // do mockup
 export const A_TELA_NAO_INFORMA_O_MOTIVO = 'a tela não informa o motivo' // novo
+// TEXTO-A-REVISAR: no lugar da mensagem técnica crua da coleta (portão do N3, Y2); a tela continua mostrando-a a quem administra.
+export const ERRO_DA_COLETA_SEM_DETALHE = 'erro técnico na coleta (o detalhe fica só na tela)' // novo
 export const naoMedido = (motivo: string) => `não medido (${motivo})` // novo (o mockup escreve só "não medido" na célula)
 export const zeroMedido = (texto: string) => `${texto} (zero medido)` // novo
 export const citado = (rotulo: string) => `[${rotulo} · texto de terceiros]` // novo
@@ -103,7 +105,7 @@ export const PERGUNTA_ROTULO = 'Minha pergunta:' // do mockup
  * `origem: 'mockup'` tem de existir no mockup versionado; `origem: 'novo'` não pode existir no `pi.js`.
  * `parte` diz onde a frase sai: 'segmentar' (partes 1 a 6) ou 'montagem' (partes 7 a 9, Tarefa 4).
  */
-export interface FraseDoCatalogo { id: string; origem: 'mockup' | 'novo'; parte: 'segmentar' | 'montagem'; fragmentos: readonly string[] }
+export interface FraseDoCatalogo { id: string; origem: 'mockup' | 'novo'; parte: 'segmentar' | 'montagem' | 'mascarar'; fragmentos: readonly string[] }
 export const CATALOGO: readonly FraseDoCatalogo[] = [
   { id: 'titulo', origem: 'mockup', parte: 'segmentar', fragmentos: ['# Observatório · tela '] },
   { id: 'janela', origem: 'mockup', parte: 'segmentar', fragmentos: ['Janela e formato: '] },
@@ -125,6 +127,7 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
   { id: 'foco-vazio', origem: 'novo', parte: 'segmentar', fragmentos: [FOCO_VAZIO] },
   { id: 'nao-medido', origem: 'novo', parte: 'segmentar', fragmentos: ['não medido ('] },
   { id: 'zero-medido', origem: 'novo', parte: 'segmentar', fragmentos: [' (zero medido)'] },
+  { id: 'erro-da-coleta', origem: 'novo', parte: 'mascarar', fragmentos: [ERRO_DA_COLETA_SEM_DETALHE] },
   { id: 'sem-motivo', origem: 'novo', parte: 'segmentar', fragmentos: [A_TELA_NAO_INFORMA_O_MOTIVO] },
   { id: 'citado', origem: 'novo', parte: 'segmentar', fragmentos: [' · texto de terceiros]'] },
   { id: 'nao-incluido-nao-conferido', origem: 'novo', parte: 'segmentar', fragmentos: ['Não foi possível conferir agora se quem gerou este pacote tem o direito de ver desempenho privado; gere o pacote de novo.'] },

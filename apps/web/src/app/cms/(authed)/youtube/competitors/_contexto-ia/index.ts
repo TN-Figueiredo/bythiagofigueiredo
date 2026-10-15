@@ -12,6 +12,8 @@ import { montarOutliers } from '../_outliers/montar'
 import { montarInsights } from '../_insights/montar'
 import { montarMudancas } from '../_mudancas/montar'
 import { acessoPrivado } from '../_proprio/dados'
+import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
+import { mascararCrus } from '@/lib/youtube/observatorio/contexto-ia/mascarar'
 import { empacotarCanais, modeloDeCanais } from './empacotar-canais'
 import { empacotarCanal, modeloDeCanal } from './empacotar-canal'
 import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-proprio'
@@ -73,20 +75,29 @@ async function comNegativa(privado: EstadoDoPrivado, siteId: string): Promise<Es
   return a.negativa === null ? privado : { ...privado, negativa: a.negativa }
 }
 
+/**
+ * As mensagens técnicas CRUAS da coleta que o pacote não leva: a de um canal em `erro` que `humanizeSyncError` não reconhece (devolve igual). As frases
+ * conhecidas (404, cota, tempo) passam; o resto vira uma frase fixa em `mascararCrus` (portão do N3: Yannis Y2, Phil C3). A tela continua mostrando a crua.
+ */
+export const crusDaColeta = (obs: { channels: ReadonlyArray<{ sync: { state: string; msg: string | null } }> }): string[] =>
+  obs.channels.flatMap((c) => (c.sync.state === 'erro' && c.sync.msg && humanizeSyncError(c.sync.msg) === c.sync.msg ? [c.sync.msg] : []))
+
+const sem = (modelo: PacoteModelo, obs: Parameters<typeof crusDaColeta>[0]): PacoteModelo => mascararCrus(modelo, crusDaColeta(obs))
+
 const EXIGE_ID = (id: string | undefined): string | null => (id === undefined || id === '' ? null : id)
 
 export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
   canais: async ({ sp }) => {
     const m = await montarCanais(sp)
     const privado = await comNegativa(m.privado, m.pagina.siteId)
-    return { modelo: empacotarCanais(modeloDeCanais(m.view, m.ri), privado), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarCanais(modeloDeCanais(m.view, m.ri), privado), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   canal: async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     const m = await montarCanal(alvo, sp)
     if (m.tipo !== 'concorrente') return null
-    return { modelo: empacotarCanal(modeloDeCanal(m.view, m.leituraMv)), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'canal-proprio': async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
@@ -95,21 +106,21 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (m.tipo !== 'proprio') return null
     const [periodos, origem] = await Promise.all([m.periodosProps ? assistidoDoCanal(m.periodosProps) : Promise.resolve(null), origemDoCanal(m.origemProps)])
     const modelo = modeloDeCanalProprio(m.pv, m.comoEsta, { periodos, origem })
-    return { modelo: empacotarCanalProprio(modelo, m.privado), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarCanalProprio(modelo, m.privado), m.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   video: async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     const m = await montarVideo(alvo, sp)
     if (m.tipo !== 'concorrente' || m.view.notFound) return null
-    return { modelo: empacotarVideo(modeloDeVideo(m.view)), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'video-proprio': async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     const m = await montarVideo(alvo, sp)
     if (m.tipo !== 'proprio') return null
-    return { modelo: empacotarVideoProprio(modeloDeVideoProprio(m.base.header, m.blocos), m.privado), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarVideoProprio(modeloDeVideoProprio(m.base.header, m.blocos), m.privado), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   comparar: async ({ sp }) => {
     const m = await montarComparar(sp)
@@ -117,19 +128,19 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     const par = m.inicial ? buildPar(m.pack, m.inicial.a, m.inicial.b) : null
     const modelo = par ? modeloDeComparar(m.pack, par) : null
     const estado: Record<string, string> = m.estado ? { a: m.estado.a, b: m.estado.b } : {}
-    return { modelo: empacotarComparar(modelo, privado), recente: m.recente, estado }
+    return { modelo: sem(empacotarComparar(modelo, privado), m.pagina.obs), recente: m.recente, estado }
   },
   outliers: async ({ sp }) => {
     const m = await montarOutliers(sp)
-    return { modelo: empacotarOutliers(modeloDeOutliers(m.view, m.pagina.obs.nicheLabel(m.view.query.niche))), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarOutliers(modeloDeOutliers(m.view, m.pagina.obs.nicheLabel(m.view.query.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   insights: async ({ sp }) => {
     const m = await montarInsights(sp)
-    return { modelo: empacotarInsights(modeloDeInsights(m.view, m.pagina.obs.nicheLabel(m.estado.niche))), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarInsights(modeloDeInsights(m.view, m.pagina.obs.nicheLabel(m.estado.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   mudancas: async ({ sp }) => {
     const m = await montarMudancas(sp)
-    return { modelo: empacotarMudancas(modeloDeMudancas(m.view, m.pagina.obs.nicheLabel(m.view.filters.niche))), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarMudancas(modeloDeMudancas(m.view, m.pagina.obs.nicheLabel(m.view.filters.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
 }
 

@@ -22,13 +22,17 @@ const SENT = {
   syncMsg: 'SEM_ERRO_DA_COLETA_123',
   blob: 'https://sentinela-blob.exemplo/miniatura.jpg?SEM_BLOB',
 } as const
+const MSG_CONHECIDA = 'YouTube API 404 for channel X'
 const TITULO_CONTROLE = 'SEM_TITULO_CONTROLE_9'
 const w = proprioWorld({
   mut: (ds) => {
     for (const c of ds.channels) {
       c.avatar = SENT.avatar; c.color = SENT.color; c.ini = SENT.ini
-      c.sync.msg = SENT.syncMsg
+      // canal em ERRO com a mensagem crua em toda tela que mostra o canal; o último concorrente leva uma mensagem que a tela humaniza (controle positivo)
+      c.sync.msg = SENT.syncMsg; c.sync.state = 'erro'; c.sync.errorSince = c.sync.errorSince ?? (c.sync.last ?? 0)
     }
+    const conhecido = [...ds.channels].reverse().find((c) => !c.own)
+    if (conhecido) conhecido.sync.msg = MSG_CONHECIDA
     for (const v of ds.videos) for (const t of v.thumbs) t.blobUrl = SENT.blob
     const alvo = ds.videos.find((v) => !ds.channels.find((c) => c.id === v.ch)!.own)
     if (alvo) alvo.title = TITULO_CONTROLE
@@ -150,18 +154,25 @@ describe('varredura por valor-semente, por coluna', () => {
       const r = await gerarPacoteIa({ tela, ...PEDIDOS[tela]! })
       expect(r.ok).toBe(true)
       const saida = JSON.stringify(r)
-      for (const [coluna, valor] of Object.entries(SENT)) if (coluna !== 'syncMsg') expect(saida, `${tela}: coluna ${coluna}`).not.toContain(valor.replace(/^https?:\/\//, ''))
+      for (const [coluna, valor] of Object.entries(SENT)) expect(saida, `${tela}: coluna ${coluna}`).not.toContain(valor.replace(/^https?:\/\//, ''))
       expect(saida).not.toContain('sentinela-')
     })
   }
-  // DEFEITO ABERTO (achado da parte 5 do N3): a mensagem CRUA de `sync_error` que `humanizeSyncError` não reconhece chega ao pacote de Canais (coluna
-  // Sincronização) e de Outliers, porque `problemPhrase` a anexa e os empacotadores copiam a frase da tela. O plano (Tarefa 12) manda sentinela de `sync_error`
-  // ausente. `it.fails` documenta sem pôr o CI vermelho e VIRA vermelho quando for consertado: aí trocar por `it` e tirar o `if (coluna !== 'syncMsg')` acima.
-  it.fails('DEFEITO ABERTO: a mensagem crua de sync_error não chega ao pacote de nenhuma tela', async () => {
+  // Portão do N3 (Yannis Y2): a mensagem crua de `sync_error` que `humanizeSyncError` não reconhece é trocada por uma frase fixa em toda tela (mascararCrus).
+  it('a mensagem crua de sync_error não chega ao pacote de nenhuma tela, e o texto técnico do canal em erro fica só na tela', async () => {
     for (const tela of TELAS_EXISTE) {
       const r = await gerarPacoteIa({ tela, ...PEDIDOS[tela]! })
+      expect(r.ok, tela).toBe(true)
       expect(JSON.stringify(r), tela).not.toContain(SENT.syncMsg)
     }
+  })
+  it('controle positivo: a mensagem que a tela humaniza ("YouTube API 404") sai como "não encontrado no YouTube (404)", e a mascarada deixa a frase fixa em Canais', async () => {
+    const r = await gerarPacoteIa({ tela: 'canais', ...PEDIDOS.canais! })
+    expect(r.ok).toBe(true)
+    const saida = JSON.stringify(r)
+    expect(saida).toContain('não encontrado no YouTube (404)')
+    expect(saida).not.toContain(MSG_CONHECIDA)
+    expect(saida).toContain('erro técnico na coleta (o detalhe fica só na tela)')
   })
   it('controle: o sentinela de um campo que o pacote emite (título de vídeo de concorrente) aparece em alguma tela, só como texto de terceiros', async () => {
     let achado = 0

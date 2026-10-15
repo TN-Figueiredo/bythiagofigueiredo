@@ -9,7 +9,7 @@ vi.mock('server-only', () => ({}))
 vi.mock('next/navigation', () => ({ redirect: () => { throw new Error('REDIRECT') }, notFound: () => { throw new Error('NOT_FOUND') } }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
-import { estadoDoRegistro, parametrosPlanos, EMPACOTAR } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia'
+import { crusDaColeta, estadoDoRegistro, parametrosPlanos, EMPACOTAR } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 
 describe('parametrosPlanos', () => {
@@ -42,5 +42,21 @@ describe('EMPACOTAR', () => {
     for (const [tela, t] of Object.entries(TELAS_IA)) {
       expect(Object.prototype.hasOwnProperty.call(EMPACOTAR, tela), tela).toBe(t.estado === 'existe')
     }
+  })
+})
+
+describe('crusDaColeta', () => {
+  const ch = (state: string, msg: string | null) => ({ sync: { state, msg } })
+  it('só a mensagem de canal em erro que a tela NÃO humaniza é crua; as conhecidas, as vazias e as de canal sem erro passam', () => {
+    expect(crusDaColeta({ channels: [
+      ch('erro', 'duplicate key value violates unique constraint'),
+      ch('erro', 'YouTube API 404 for channel X'),
+      ch('erro', 'quotaExceeded'),
+      ch('erro', 'timeout'),
+      ch('erro', null),
+      ch('erro', ''),
+      ch('ok', 'resto de erro antigo'),
+      ch('atrasado', 'outro resto'),
+    ] })).toEqual(['duplicate key value violates unique constraint'])
   })
 })
