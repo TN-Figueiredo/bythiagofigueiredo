@@ -43,14 +43,19 @@ function bordas(retratos: readonly RetratoDoCanal[]): Bordas | null {
   return d === null || primeiro === null ? null : { d, views, primeiro }
 }
 
-type Falha = { motivo: 'sem_registro_recente' | 'pouco_registro' | 'sem_registro_na_borda'; desde?: string }
+type Falha = { motivo: 'sem_registro_recente' | 'pouco_registro' | 'sem_registro_na_borda'; desde?: string; n?: number; fechaEm?: string }
 
 /** Acha os `k + 1` retratos D, D−28, ..., D−28k, ou diz por que não dá. */
 function pontos(retratos: readonly RetratoDoCanal[], hojeSP: string, k: number): { d: string; v: number[] } | Falha {
   const b = bordas(retratos)
   if (!b || b.d < somaDias(hojeSP, -MEASURE_RULES.direction.staleDays)) return { motivo: 'sem_registro_recente' }
   const passo = MEASURE_RULES.direction.windowDays
-  if (b.primeiro > somaDias(b.d, -passo * k)) return { motivo: 'pouco_registro' }
+  if (b.primeiro > somaDias(b.d, -passo * k)) {
+    // A5 2ª leva D2: quantos dias há e quando a janela fecha. `n` conta dias de REGISTRO do canal, não de vídeos.
+    // `fechaEm` é "a partir de" (a data mais cedo): faltando retrato com views em D−28 ou D−56, depois dela o motivo vira `sem_registro_na_borda`.
+    const n = Math.round((Date.parse(b.d) - Date.parse(b.primeiro)) / 86_400_000)
+    return { motivo: 'pouco_registro', n, fechaEm: somaDias(b.primeiro, passo * k) }
+  }
   const v: number[] = []
   for (let j = 0; j <= k; j++) {
     const dia = somaDias(b.d, -passo * j)
@@ -65,7 +70,7 @@ const ehFalha = (x: { d: string; v: number[] } | Falha): x is Falha => 'motivo' 
 
 export function direcaoDoCanalInteiro(retratos: readonly RetratoDoCanal[], hojeSP: string): Medida<ValorDirecaoCanal> {
   const p = pontos(retratos, hojeSP, 2)
-  if (ehFalha(p)) return naoMedido(p.motivo, p.desde ? { desde: p.desde } : {})
+  if (ehFalha(p)) return naoMedido(p.motivo, { ...(p.desde ? { desde: p.desde } : {}), ...(p.n != null ? { n: p.n } : {}), ...(p.fechaEm ? { fechaEm: p.fechaEm } : {}) })
   const [v0, v1, v2] = p.v as [number, number, number]
   const ganhoRecente = v0 - v1, ganhoAnterior = v1 - v2
   if (ganhoRecente < 0 || ganhoAnterior < 0) return naoMedido('contagem_recuou')
@@ -81,7 +86,7 @@ export function variacoesDoCanal(retratos: readonly RetratoDoCanal[], hojeSP: st
   const passo = MEASURE_RULES.direction.windowDays
   const k = janelas + 1
   const p = pontos(retratos, hojeSP, k)
-  if (ehFalha(p)) return naoMedido(p.motivo, p.desde ? { desde: p.desde } : {})
+  if (ehFalha(p)) return naoMedido(p.motivo, { ...(p.desde ? { desde: p.desde } : {}), ...(p.n != null ? { n: p.n } : {}), ...(p.fechaEm ? { fechaEm: p.fechaEm } : {}) })
   const de = somaDias(p.d, -passo * k)
   if (cruzaMudancaDeContagem(de, p.d)) return naoMedido('janela_cruza_mudanca_de_contagem')
   const ganhos = p.v.slice(0, -1).map((x, j) => x - p.v[j + 1]!)
