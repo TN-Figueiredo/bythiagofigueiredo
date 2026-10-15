@@ -656,11 +656,14 @@ describe('E17 degrau 2: conferências de envio, abertura e poda', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
   afterEach(() => { vi.useRealTimers() })
 
-  it('com as constantes nulas (o valor real publicado), nenhuma entrada de E17 do degrau 2 existe', () => {
-    expect(E17_D2_DEPLOY).toBeNull()
+  it('valores publicados: envio e poda em 15/10 (promoção a main), abertura ainda fechada; só as entradas de envio e poda existem', () => {
+    expect(E17_D2_DEPLOY).toBe('2026-10-15')
     expect(E17_D2_ABERTURA).toBeNull()
-    expect(E17_D2_PODA_DEPLOY).toBeNull()
-    expect(CONFERENCIAS.filter(x => x.id.startsWith('e17d2-'))).toEqual([])
+    expect(E17_D2_PODA_DEPLOY).toBe('2026-10-15')
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e17d2-')).map(x => x.id)
+    expect([...publicadas].sort()).toEqual([...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].map(x => x.id).sort())
+    expect(publicadas.every(id => !id.includes('invalid'))).toBe(true)
+    expect(conferenciasE17D2Abertura(E17_D2_ABERTURA)).toEqual([])
     expect(conferenciasE17D2(null)).toEqual([])
     expect(conferenciasE17D2Abertura(null)).toEqual([])
     expect(conferenciasE17D2Poda(null)).toEqual([])

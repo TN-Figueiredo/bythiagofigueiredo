@@ -378,11 +378,11 @@ export function conferenciasE18(deploy: string | null): Conferencia[] {
 // E17 degrau 2 ("acesso direto pelo Claude Code"): três marcos, cada um com a sua constante, todas `null` até o controlador preenchê-las no commit
 // do dia. Enquanto forem `null`, as entradas NÃO existem. Etapa `E17`, ids `e17d2-`. As consultas K1 a K11 estão na seção 11 do plano.
 /** Dia de São Paulo (AAAA-MM-DD) em que o código do degrau 2 foi para `main`, com a variável AUSENTE (lote 2). `null` = ainda não enviado. */
-export const E17_D2_DEPLOY: string | null = null
+export const E17_D2_DEPLOY: string | null = '2026-10-15'
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono abriu o acesso (A0: chave criada, variável `on`, redeploy). `null` = fechado. */
 export const E17_D2_ABERTURA: string | null = null
 /** Dia de São Paulo (AAAA-MM-DD) do envio do lote 3 (a tarefa de poda na agenda). `null` = ainda não enviado. */
-export const E17_D2_PODA_DEPLOY: string | null = null
+export const E17_D2_PODA_DEPLOY: string | null = '2026-10-15'
 
 const PLANO_E17D2 = 'docs/superpowers/plans/2026-10-13-a5-e17-degrau-2-acesso-pelo-claude-code-plan.md (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e17-d2/progress.md'
 
