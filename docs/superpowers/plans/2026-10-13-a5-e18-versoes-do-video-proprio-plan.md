@@ -1321,7 +1321,7 @@ Linhas com `escreveu = false` (`ok` que já estava no destino, `pulado_drift`, `
 
 ### E.6 Banco falso e testes novos
 
-`apps/web/test/youtube/coleta/fake-supabase.ts` **não muda** (ele compara `gte`/`lte` como texto, `:78-83`: nos casos S semear `em` no mesmo formato de `captured_at`, `...000Z`; o código decide por `Date.parse`): tabela nova é só `db.tables.ab_test_restores` (array), `restore_status` é objeto na linha de `ab_tests`, e `in`, `gte`, `lte`, `order`, `limit` e o corte de 1.000 (`MAX_LINHAS_RESPOSTA`, `:65`) já existem; erro por tabela via `db.errors` ou `erroNaLeitura`. Casos novos, numerados a partir de 33 (O = `versoes-origem.test.ts`, S = `versoes-step.test.ts`); nenhum título de vídeo em nota ou resumo:
+`apps/web/test/youtube/coleta/fake-supabase.ts` **passou a comparar instantes por `Date.parse`** nas strings ISO (desvio da 6b, aceito na re-revisão de código: o banco real compara `timestamptz`, e o texto antigo, que comparava `gte`/`lte` como texto, `:78-83`, ficava aquém); os demais 53 arquivos de teste seguem verdes: tabela nova é só `db.tables.ab_test_restores` (array), `restore_status` é objeto na linha de `ab_tests`, e `in`, `gte`, `lte`, `order`, `limit` e o corte de 1.000 (`MAX_LINHAS_RESPOSTA`, `:65`) já existem; erro por tabela via `db.errors` ou `erroNaLeitura`. Casos novos, numerados a partir de 33 (O = `versoes-origem.test.ts`, S = `versoes-step.test.ts`); nenhum título de vídeo em nota ou resumo:
 
 | # | Arquivo | Caso | Mutação que o faz falhar |
 |---|---|---|---|
@@ -1350,4 +1350,6 @@ Linhas com `escreveu = false` (`ok` que já estava no destino, `pulado_drift`, `
 
 ### E.7 Arquivos da Tarefa 6b
 
-`apps/web/src/lib/youtube/coleta/versoes-origem.ts`, `apps/web/src/lib/youtube/coleta/versoes-step.ts`, `apps/web/test/youtube/coleta/versoes-origem.test.ts`, `apps/web/test/youtube/coleta/versoes-step.test.ts`, `docs/ops/youtube-coleta-canais-proprios-runbook.md`. Nenhuma migration, nenhuma mudança na Migration 0, no banco falso ou em `conferencias.ts`. Com a 6b em `main`, a trava acima está cumprida e a P4a pode ir a produção a qualquer hora sem esperar a E18 (e vice-versa).
+`apps/web/src/lib/youtube/coleta/versoes-origem.ts`, `apps/web/src/lib/youtube/coleta/versoes-step.ts`, `apps/web/test/youtube/coleta/versoes-origem.test.ts`, `apps/web/test/youtube/coleta/versoes-step.test.ts`, `docs/ops/youtube-coleta-canais-proprios-runbook.md`. Nenhuma migration, nenhuma mudança na Migration 0 ou em `conferencias.ts` (o banco falso mudou só na comparação de instantes, ver E.6). Com a 6b em `main`, a trava acima está cumprida e a P4a pode ir a produção a qualquer hora sem esperar a E18 (e vice-versa).
+
+**Dívida (re-revisão Yannis, M-3):** a leitura de `ab_test_restores` usa `in('test_id', <todos os testes do canal>)` sem teto de URL, mesmo padrão da leitura de ciclos. Com até `TETO_AB = 1.000` uuids (~38 KB) estouraria o limite de URL do PostgREST antes do teto de linhas; o erro vira `ilegivel()` (nota vermelha, nunca verde), então a falha é visível. Gatilho: mais de ~150 testes no intervalo; conserto: filtrar para os testes dos vídeos com troca ou partir a lista em blocos de 100.

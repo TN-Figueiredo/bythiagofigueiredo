@@ -110,7 +110,9 @@ interface CicloLinha {
 
 const ESTADOS_RESTAURO: readonly string[] = ['ok', 'falhou', 'pulado_sem_original', 'pulado_drift', 'desistiu']
 const COLUNAS_RESTAUROS = 'test_id, seq, campo, destino, estado, escreveu, em'
-const instanteLegivel = (x: unknown): x is string => typeof x === 'string' && !Number.isNaN(Date.parse(x))
+// Fuso explícito (Z ou ±hh:mm): sem ele o V8 lê como horário local do servidor e a janela desloca em silêncio.
+const ISO_COM_FUSO = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/
+const instanteLegivel = (x: unknown): x is string => typeof x === 'string' && ISO_COM_FUSO.test(x) && !Number.isNaN(Date.parse(x))
 
 /**
  * `ab_tests.restore_status` (jsonb) em mundo novo/em_andamento. Nulo = mundo antigo. Forma fora do esperado (campo com estado

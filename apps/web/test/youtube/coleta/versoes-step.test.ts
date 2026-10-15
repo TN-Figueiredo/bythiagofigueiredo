@@ -548,7 +548,7 @@ describe('passoVersoes', () => {
     })
 
     it('45b. restore_status ilegível (em "now" ou estado desconhecido): Lab do canal ilegível, nao_se_sabe e a nota vermelha do caso 10', async () => {
-      for (const rs of [{ thumbnail: { estado: 'em_andamento', em: 'now' } }, { thumbnail: { estado: 'xyz', em: T20(1) } }]) {
+      for (const rs of [{ thumbnail: { estado: 'em_andamento', em: 'now' } }, { thumbnail: { estado: 'em_andamento', em: '2026-10-12 08:02' } }, { thumbnail: { estado: 'xyz', em: T20(1) } }]) {
         const c = cenario('thumb')
         c.m.db.tables.ab_tests = [combo({ restore_status: rs })]
         await rodar(c.m)

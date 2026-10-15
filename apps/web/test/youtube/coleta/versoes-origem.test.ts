@@ -271,6 +271,12 @@ describe('atribuirOrigem', () => {
       expect(atribuirOrigem(thumb(), abn([novo({ emAndamento: { thumb: emZ } })], [rest({ em: emOffset })])).eventoAb).toBe('restauro')
       // linha x ciclo no mesmo instante: a linha
       expect(atribuirOrigem(thumb(), abn([novo()], [rest({ em: emOffset })], [ciclo({ thumbAplicada: true, iniciadoEm: emZ })])).eventoAb).toBe('restauro')
+      // linha de t-b x ciclo de t-a no mesmo instante: a linha vence (rank, não id)
+      const ta = novo({ id: 't-a' }), tb = novo({ id: 't-b' })
+      const lb = rest({ testId: 't-b', em: emOffset })
+      expect(atribuirOrigem(thumb(), abn([ta, tb], [lb], [ciclo({ testId: 't-a', thumbAplicada: true, iniciadoEm: emZ })]))).toMatchObject({ eventoAb: 'restauro', abTestId: 't-b' })
+      // linha de t-b x em_andamento de t-a no mesmo instante: a linha vence
+      expect(atribuirOrigem(thumb(), abn([novo({ id: 't-a', emAndamento: { thumb: emZ } }), tb], [lb])).eventoAb).toBe('restauro')
       // dois testes, mesmo instante, leitura invertida
       const t1 = novo({ id: 't-a' }), t2 = novo({ id: 't-b' })
       const l1 = rest({ testId: 't-a' }), l2 = rest({ testId: 't-b' })
