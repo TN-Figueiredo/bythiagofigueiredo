@@ -10,7 +10,7 @@ import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { CONJUNTOS_DIMENSOES } from '@/lib/youtube/observatorio/proprio/dimensoes-estado'
 import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { ErroLeituraDimensoes, lerDimensoes, type DimensoesCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
-import { ErroTetoDiario, TETO_LINHAS_DIARIO_PERIODO, lerDiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
+import { ErroTetoDiario, erroTetoDoDiario, TETO_LINHAS_DIARIO_PERIODO, lerDiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'
 import type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 import type { DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { CHAMADAS_EM_VOO, chamadasDe, juntarConjunto, juntarDiarios, lotesDe } from './origem-trechos'
@@ -74,7 +74,7 @@ export async function lerOrigem(a: {
         lidas += r.dado.linhas.length
         return r.dado
       })
-      if (lidas > TETO_LINHAS_DIARIO_PERIODO) throw new ErroTetoDiario('yt_own_video_daily', TETO_LINHAS_DIARIO_PERIODO)
+      if (lidas > TETO_LINHAS_DIARIO_PERIODO) throw erroTetoDoDiario(TETO_LINHAS_DIARIO_PERIODO)
       return juntarDiarios(partes)
     }
     if (a.diarioDesde > a.ate) throw new RangeError('lerOrigem: diarioDesde depois de ate')

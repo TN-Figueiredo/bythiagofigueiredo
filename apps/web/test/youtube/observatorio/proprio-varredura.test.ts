@@ -67,6 +67,8 @@ const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/grava
  *  - `saiu/ler-fila.ts`: o leitor da aba, chamado só por `_saiu/dados.ts` depois de `requireSiteScope(mode: 'edit')`;
  *  - `competitors/actions.ts`: a guarda de `removeCompetitorChannel` (contagem `head`, sem trazer texto), depois de `denyUnlessSiteAdmin`.
  */
+const DADOS_SAIU = 'app/cms/(authed)/youtube/competitors/_saiu/dados.ts'
+const FILA_LER = 'lib/youtube/observatorio/saiu/ler-fila.ts'
 const E9_SO_COM_EDICAO = new Set(['lib/youtube/observatorio/saiu/ler-fila.ts', 'app/cms/(authed)/youtube/competitors/actions.ts'])
 /**
  * PONTO PARA PORTÃO (E5a C1): os dois leitores dos comentários de destaque consultam `competitor_video_comments` e `competitor_video_comment_marks`
@@ -127,6 +129,11 @@ export function violacoes(fontes: Record<string, string>): string[] {
     }
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
     if (!PODE_LER.has(arq) && /import\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
+    if (!PODE_LER.has(arq) && /export\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
+    // a exceção E9 (fila "Saíram do YouTube") só vale com estas amarras: um único chamador, com a guarda de edição, e sem texto de terceiros
+    if (arq !== DADOS_SAIU && arq !== FILA_LER && /\blerFila\s*\(|saiu\/ler-fila['"]/.test(s)) v.push(`${arq}: chama ou importa lerFila fora de _saiu/dados.ts`)
+    if (arq === DADOS_SAIU && /\blerFila\s*\(/.test(s) && !/requireSiteScope\(\s*\{\s*area:\s*'cms',\s*siteId,\s*mode:\s*'edit'\s*\}\s*\)/.test(s)) v.push(`${arq}: chama lerFila sem a guarda de edição do site`)
+    if (arq === FILA_LER && /\bbody\b/.test(s)) v.push(`${arq}: o leitor da fila cita body (texto de terceiros pede leituraValida além da edição)`)
     if (cliente(bruto) && /from\s+['"][^'"]*(proprio\/ler|proprio\/ler-retencao|proprio\/ler-dimensoes|proprio\/ler-diario-periodo|proprio\/edicao|_proprio\/dados|_proprio\/dados-origem|_proprio\/dados-termos)['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
     if (arq !== LER_RETENCAO && !arq.startsWith(COLETA_DIR) && /yt_own_video_retention/.test(s)) v.push(`${arq}: consulta a tabela da curva de retenção fora do leitor`)
     if ((arq === LER || arq === DADOS) && /\bpodeEditar\b/.test(s)) v.push(`${arq}: volta a usar um booleano no lugar do token`)
@@ -276,7 +283,25 @@ describe('varredura: o dado privado do canal próprio', () => {
       for (const arq of [L, LC, 'app/cms/(authed)/youtube/competitors/video/[id]/page.tsx', 'app/cms/(authed)/youtube/competitors/canal/[id]/page.tsx']) {
         expect(violacoes({ ...base, [arq]: 'const e = await provarEdicao(siteId)' }), arq).toEqual([`${arq}: pede a prova de edição fora do módulo da guarda`])
       }
-      expect(PODE_PROVAR.size).toBe(2)
+      expect(PODE_PROVAR.size).toBe(3) // guarda de edição, de leitura e os dados dos termos (E5b)
+    })
+    it('re-export dos leitores é acusado como importação; export type não (Yannis I3)', () => {
+      const msg = ['app/x/a.ts: importa os leitores do dado privado']
+      expect(violacoes({ ...base, 'app/x/a.ts': "export { lerDiarioDoPeriodo as l } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'" })).toEqual(msg)
+      expect(violacoes({ ...base, 'app/x/a.ts': "export { lerDimensoes as ler } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'" })).toEqual(msg)
+      expect(violacoes({ ...base, 'app/x/a.ts': "export * from '@/lib/youtube/observatorio/proprio/ler-retencao'" })).toEqual(msg)
+      expect(violacoes({ ...base, 'app/x/a.ts': "export type { DiarioDoPeriodo } from '@/lib/youtube/observatorio/proprio/ler-diario-periodo'" })).toEqual([])
+    })
+    it('a exceção E9: lerFila só é chamada de _saiu/dados.ts, que tem a guarda de edição, e ler-fila.ts nunca cita body (Yannis I4)', () => {
+      const DADOS_SAIU = 'app/cms/(authed)/youtube/competitors/_saiu/dados.ts'
+      const FILA = 'lib/youtube/observatorio/saiu/ler-fila.ts'
+      const guarda = "requireSiteScope({ area: 'cms', siteId, mode: 'edit' })"
+      expect(violacoes({ ...base, [DADOS_SAIU]: `import { lerFila } from '@/lib/youtube/observatorio/saiu/ler-fila'\nawait ${guarda}\nlerFila(sb, {})` })).toEqual([])
+      expect(violacoes({ ...base, 'app/api/pipeline/x/route.ts': "import { lerFila } from '@/lib/youtube/observatorio/saiu/ler-fila'\nlerFila(sb, {})" })).toEqual(['app/api/pipeline/x/route.ts: chama ou importa lerFila fora de _saiu/dados.ts'])
+      expect(violacoes({ ...base, [DADOS_SAIU]: "import { lerFila } from '@/lib/youtube/observatorio/saiu/ler-fila'\nlerFila(sb, {})" })).toEqual([`${DADOS_SAIU}: chama lerFila sem a guarda de edição do site`])
+      expect(violacoes({ ...base, [DADOS_SAIU]: `import { lerFila } from '@/lib/youtube/observatorio/saiu/ler-fila'\nawait requireSiteScope({ area: 'cms', siteId, mode: 'view' })\nlerFila(sb, {})` })).toEqual([`${DADOS_SAIU}: chama lerFila sem a guarda de edição do site`])
+      expect(violacoes({ ...base, [FILA]: "const C = 'id, body'\nsb.from('competitor_video_comments').select(C)" })).toEqual([`${FILA}: o leitor da fila cita body (texto de terceiros pede leituraValida além da edição)`])
+      expect(violacoes({ ...base, [FILA]: "const C = 'id, video_id'\nsb.from('competitor_video_comments').select(C)" })).toEqual([])
     })
     it('tentativas de coleta: fora da coleta, só attempt_day e outcome', () => {
       const erro = (arq: string) => [`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`]

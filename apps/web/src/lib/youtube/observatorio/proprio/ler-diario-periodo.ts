@@ -20,6 +20,8 @@ export const TETO_VIDEOS_DIARIO_PERIODO = 50
 export class ErroTetoDiario extends ObservatoryLoadError {
   constructor(tabela: string, teto: number) { super(tabela, undefined, `passou do teto de ${teto} linhas`); this.name = 'ErroTetoDiario' }
 }
+/** O erro de teto da leitura inteira (a soma entre lotes), sem o chamador citar a tabela. */
+export const erroTetoDoDiario = (teto: number): ErroTetoDiario => new ErroTetoDiario('yt_own_video_daily', teto)
 const PAGINA = 1000
 const PCT_MAX = 999.99
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
