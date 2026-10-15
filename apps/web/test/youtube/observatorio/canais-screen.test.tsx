@@ -472,7 +472,7 @@ describe('CanaisScreen — Seus canais', () => {
       // own channels keep no ⋯ menu
       expect(r.querySelector('[data-menu]')).toBeNull()
     }
-    expect(container.querySelector('.sortnote')!.textContent).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
+    expect(container.querySelector('.sortnote')!.textContent).toBe('Ordenado por Views/dia por mil inscritos, do maior ao menor número de views por dia')
   })
   it('preset 1: bloco "Seu canal" no singular, sem chip de idioma, e a linha própria tem o seletor de nicho', () => {
     const { container } = mountOwns('1')

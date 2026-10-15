@@ -141,7 +141,7 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     expect(v.slots.tip).toContain('o seu canal não ocupa vaga')
     expect(v.add.cap).toContain('(o seu canal não conta)')
     expect(v.syncbar.meta).toBe(SYNC_ONE)
-    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
+    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, do maior ao menor número de views por dia')
   })
   it('preset 2, Todos: grupo com "2 canais", ordem R73, chips PT/EN, textos no plural', () => {
     const v = viewOf('2')
@@ -156,7 +156,7 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     expect(v.slots.tip).toContain('os seus canais não ocupam vaga')
     expect(v.add.cap).toContain('(os seus canais não contam)')
     expect(v.syncbar.meta).toBe(SYNC_MANY)
-    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
+    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, do maior ao menor número de views por dia')
     expect(v.slots.text).toBe('14 de 75 canais')
   })
   it('preset 2, IA: nenhuma linha própria e o grupo diz onde os canais estão', () => {
@@ -203,9 +203,9 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     const def = viewOf('1')
     expect(def.sort).toBe('vpd')
     expect(comp(def).map(r => r.id)).toEqual(comp(viewOf('1', { sort: 'vpd' })).map(r => r.id))
-    expect(viewOf('1', { scale: 'abs' }).sortNote).toBe('Ordenado por Views/dia em número absoluto, maior primeiro')
+    expect(viewOf('1', { scale: 'abs' }).sortNote).toBe('Ordenado por Views/dia em número absoluto, do maior ao menor número de views por dia')
     const subs = viewOf('1', { sort: 'subs', niche: 'viagem' })
-    expect(subs.sortNote).toBe('Ordenado por Inscritos, maior primeiro')
+    expect(subs.sortNote).toBe('Ordenado por Inscritos, do maior ao menor número de inscritos')
     const keys = comp(subs).map(r => r.valor.subs as number)
     expect(keys.length).toBeGreaterThan(2)
     expect(keys).toEqual([...keys].sort((a, b) => b - a))
@@ -253,7 +253,7 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
       expect(v.slots.tip).toContain('o seu canal não ocupa vaga')
       expect(v.add.cap).toContain('(o seu canal não conta)')
       expect(v.syncbar.meta).toBe(SYNC_ONE)
-      expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
+      expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, do maior ao menor número de views por dia')
       expect(v.vpdUnit).toBe(`por mil inscritos, mediana desde ${o.SERIES_START_LABEL}`)
       expect(JSON.stringify(v)).not.toMatch(/undefined|NaN/)
     }

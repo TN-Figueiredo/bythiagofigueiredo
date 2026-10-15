@@ -17,7 +17,7 @@ import { canalTemVideos, langChip, ownChannelHref, ownTexts, SEM_PAGINA_LINHA, t
 import { escolherPrincipal, linhasDoMotor, principalDoMotor } from '../_chrome/own-menu'
 import { posicoes, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import {
-  BUSCA_NOTA, CONJUNTO_AVISO, PROBLEMAS_NOTA, divisorDe, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
+  BUSCA_NOTA, CONJUNTO_AVISO, FAIXA_SEM_POSICAO, PROBLEMAS_NOTA, divisorDe, semValorDoProprio, sentidoDaOrdem, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
   type MotivoSemMedida,
 } from './posicao-model'
 import { effView } from '../_chrome/effect-view'
@@ -43,7 +43,7 @@ const NEQ = (n: number) => `n${NB}=${NB}${n}`
 type CStats = ChannelStats
 interface Growth { abs: number | null; pct: number | null; from?: number; to?: number; pending?: string; roundingText: string; withinRounding: boolean | null; text: string | null }
 
-export type CanaisSort = 'active' | 'vpd' | 'outliers' | 'swaps' | 'growth' | 'subs'
+export type CanaisSort = 'active' | 'vpd' | 'outliers' | 'swaps' | 'growth' | 'subs' | 'direcao'
 /** The order the screen opens in: views/dia in the chosen scale (per thousand subscribers unless ?scale=abs). */
 export const DEFAULT_SORT: CanaisSort = 'vpd'
 export type DrawerTab = 'trocas' | 'videos' | 'outliers'
@@ -98,7 +98,9 @@ export interface CanaisRow {
   subsOculto: boolean
   /** O valor de cada coluna para ordenar neste formato. null = sem medida: a linha vai para o fim, em qualquer direção; nunca um número de mentira. */
   valor: Record<CanaisSort, number | null>
-  /** A posição na ordenação atual, no conjunto da lista (`CanaisView.conjunto`); null fora de POSICIONADAS, sem valor ou sem conjunto. */
+  /** A posição canônica na ordenação atual (toda ordenação), no conjunto da lista; null sem valor ou fora do conjunto (canal próprio sem nicho num nicho). */
+  numero: Posicao | null
+  /** O mesmo que `numero`, só nas ordenações de POSICIONADAS (Inscritos e Views/dia), onde as frases do dono falam da posição do canal. */
   pos: Posicao | null
   /** Por que não tem posição: sem valor na coluna ordenada, ou (só canal próprio) sem nicho num nicho escolhido, ou ordenação sem posição. */
   semMedida: MotivoSemMedida | null
@@ -168,6 +170,10 @@ export interface CanaisView {
   /** Só em "Todos": o rótulo que sobe para o cabeçalho das colunas que dependem de formato. */
   fmtCab: { dois: string; ordenado: string } | null
   sort: CanaisSort; dir: 'asc' | 'desc'; sortNote: string; vpdUnit: string
+  /** A linha "Ordenado por …" (mockup 17): a coluna, o sentido e se há empate na lista. */
+  ordem: { coluna: string; sentido: string | null; empate: boolean }
+  /** O que a faixa "Seus canais" diz nas ordenações sem posição (fora de Inscritos e Views/dia); null com posição ou sem canal próprio. */
+  faixaSemPosicao: { linha1: string | null; linha2: string } | null
   /** A lista única (A3): os canais próprios na posição deles entre os concorrentes, em qualquer filtro de nicho. */
   list: CanaisLista
   /** A coluna "Com o meu canal" (e o link dos cartões) existe só quando há um canal próprio com vídeos para comparar. */
@@ -259,7 +265,7 @@ export interface CanaisParams {
 }
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
-const SORTNAME: Record<CanaisSort, string> = { active: 'Ritmo', vpd: 'Views/dia', outliers: 'Outliers', swaps: 'Trocas', growth: 'Crescimento', subs: 'Inscritos' }
+const SORTNAME: Record<CanaisSort, string> = { active: 'Ritmo', vpd: 'Views/dia', outliers: 'Outliers', swaps: 'Trocas', growth: 'Crescimento', subs: 'Inscritos', direcao: 'Direção' }
 /** The colour of a niche the owner created, as the CSS variables the chrome's niche bar already uses (plus the subtle fills). */
 export interface NicheVars { dark: string; light: string; darkSubtle: string; lightSubtle: string }
 export interface NicheOption { id: Niche; label: string; color: NicheVars | null }
@@ -284,7 +290,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const scale = p.scale === 'abs' ? 'abs' : 'per-mil'
   const rel = scale === 'per-mil'
   const layout = pick(p.layout, ['table', 'cards'] as const, 'table')
-  const sort = pick(p.sort, ['active', 'vpd', 'outliers', 'swaps', 'growth', 'subs'] as const, DEFAULT_SORT)
+  const sort = pick(p.sort, ['active', 'vpd', 'outliers', 'swaps', 'growth', 'subs', 'direcao'] as const, DEFAULT_SORT)
   const dir = pick(p.dir, ['asc', 'desc'] as const, 'desc')
   const filter = pick(p.filter, ['todos', 'problemas', 'parados', 'em-queda', 'sairam', 'sem-videos'] as const, 'todos')
   const direcaoFiltro = pick(p.direcao, ['sobe', 'estavel', 'desce', 'nao-medido'] as const, 'todos' as 'todos' | DirecaoFiltro)
@@ -526,7 +532,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const v: Record<CanaisSort, number | null> = {
       active: semShorts || bf ? null : obs.cadence(c.id, fmt).pw,
       outliers: semShorts || bf ? null : S.outliers90,
-      growth: S.growth30.pending ? null : S.growth30.pct,
+      growth: S.growth30.pending || S.growth30.abs == null ? null : S.growth30.withinRounding ? 0 : S.growth30.pct,
+      direcao: (() => { const d = direcaoDe(c); return d.tipo === 'medido' ? d.pct : null })(),
       vpd: semShorts || bf ? null : vpdOf(c, fmt, S).val,
       swaps: bf || c.own ? null : trocas30(obs, c.id), // a mesma conta do cabeçalho do canal e da comparação: título e thumbnail
       subs: c.subs,
@@ -581,7 +588,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const growth: GrowthCell = oculto ? { kind: 'na', text: 'não medido: oculto', title: 'O canal esconde a contagem de inscritos no YouTube.' } : growthCell(c, S.growth30)
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
-    const valor = valoresOf(c), pos = posMap.get(c.id) ?? null
+    const valor = valoresOf(c), numero = numMap.get(c.id) ?? null, pos = temPosicao(sort) ? numero : null
     return {
       id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? (canalTemVideos(obs, c.id) ? ownChannelHref(c.id) : null) : obs.link.canal(c.id),
       semPagina: c.own && !canalTemVideos(obs, c.id) ? SEM_PAGINA_LINHA : null,
@@ -595,7 +602,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : c.subs < 1000 ? 'Abaixo de mil, o YouTube mostra o número exato.'
         : `O YouTube corta a contagem para 3 algarismos: ${stats(c.id, 'long').growth30.roundingText}.`,
-      valor, pos, ...semMedidaDe(c, S, valor, pos),
+      valor, numero, pos, ...semMedidaDe(c, S, valor, pos),
       cells: { cadence, vpd, out, swap, growth, sync, ...cells2 },
       semFormato: nulos ? { n: nulos, label: `formato não confirmado (${nulos})`, tip: SEM_FORMATO_TIP } : null,
       cowork: coworkOf(c),
@@ -630,14 +637,30 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const x = valoresOf(c)[sort]!
     return sort === 'subs' ? subsTxt(x) : vpdAbs(x)
   }
-  const posMap: Map<string, Posicao | null> = temPosicao(sort)
-    ? posicoes(all.filter(inNiche).map(c => { const x = valoresOf(c)[sort]; return { id: c.id, x, chave: x == null ? undefined : valorTxt(c) } }))
-    : new Map()
+  /** A chave do empate: o valor como a tela o escreve. Quem se escreve igual divide a posição e fica em ordem alfabética. */
+  const chaveDe = (c: ObsChannel, s: CanaisSort): string | undefined => {
+    const x = valoresOf(c)[s]
+    if (x == null) return undefined
+    switch (s) {
+      case 'subs': return subsTxt(x)
+      case 'vpd': return vpdAbs(x)
+      case 'growth': return x === 0 ? '0' : `${x > 0 ? '+' : '−'}${F.dec1(Math.abs(x * 100))}`
+      case 'direcao': return String(x)
+      case 'active': return F.dec1(x)
+      case 'outliers': case 'swaps': return String(x)
+      default: { const nunca: never = s; return nunca }
+    }
+  }
+  // A5 2ª leva D3: uma posição canônica por ordenação, sobre o conjunto da lista (filtro e busca não renumeram)
+  const numMap: Map<string, Posicao | null> = posicoes(all.filter(inNiche).map(c => ({ id: c.id, x: valoresOf(c)[sort], chave: chaveDe(c, sort) })))
   const sgn = dir === 'desc' ? 1 : -1
-  // sem valor (null) vai para o fim em qualquer direção; a ordem entre os que têm valor é a de sempre
+  const colador = new Intl.Collator('pt-BR')
+  const aZ = (a: { name: string }, b: { name: string }) => colador.compare(a.name, b.name)
+  // sem valor (null) vai para o fim em qualquer direção; mesma chave (empate) fica A–Z nos dois sentidos
   const byKey = (a: CanaisRow, b: CanaisRow) => {
     const x = a.valor[sort], y = b.valor[sort]
     if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1
+    if (chaveDe(obs.channel(a.id)!, sort) === chaveDe(obs.channel(b.id)!, sort)) return aZ(a, b)
     return (y - x) * sgn
   }
   const compRows = visible.map(rowOf).sort(byKey)
@@ -656,12 +679,18 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const ordemDoMotor = new Map(all.map((c, i) => [c.id, i]))
   const baseLista = [...ownRows, ...compRows].sort((a, b) => ordemDoMotor.get(a.id)! - ordemDoMotor.get(b.id)!) // estável nos empates
   const ranked = baseLista.filter(r => r.valor[sort] != null).sort(byKey)
-  // o fim da lista, sempre: concorrentes antes dos próprios, e dentro de cada grupo os maiores inscritos primeiro
-  const subsDesc = (a: CanaisRow, b: CanaisRow) => (a.valor.subs == null || b.valor.subs == null ? (a.valor.subs == null ? 1 : 0) - (b.valor.subs == null ? 1 : 0) : b.valor.subs - a.valor.subs)
-  const unranked = baseLista.filter(r => r.valor[sort] == null).sort((a, b) => (a.own ? 1 : 0) - (b.own ? 1 : 0) || subsDesc(a, b))
+  // o fim da lista, sempre: concorrentes antes dos próprios, e dentro de cada grupo A–Z (A5 2ª leva D3)
+  const unranked = baseLista.filter(r => r.valor[sort] == null).sort((a, b) => (a.own ? 1 : 0) - (b.own ? 1 : 0) || aZ(a, b))
   const emDaOrdem = emTexto(sort, fmt, rel)
-  const list: CanaisLista = { ranked, unranked, divisor: unranked.length ? divisorDe(unranked.length, emDaOrdem) : null }
-  const fila = temPosicao(sort) ? all.filter(c => inNiche(c) && valoresOf(c)[sort] != null).sort((a, b) => (valoresOf(b)[sort]! - valoresOf(a)[sort]!) * sgn) : []
+  const ordem: CanaisView['ordem'] = {
+    coluna: SORTNAME[sort] + (sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''),
+    sentido: sentidoDaOrdem(sort, dir) ?? (dir === 'desc' ? 'maior primeiro' : 'menor primeiro'),
+    empate: ranked.some(r => r.numero?.empate === true),
+  }
+  const faixaSemPosicao: CanaisView['faixaSemPosicao'] = temPosicao(sort) || !allOwns.length ? null
+    : { linha1: ownRows.some(r => r.valor[sort] == null) ? semValorDoProprio(sort) : null, linha2: FAIXA_SEM_POSICAO }
+  const list: CanaisLista = { ranked, unranked, divisor: unranked.length ? divisorDe(unranked.length, emDaOrdem, sort) : null }
+  const fila = temPosicao(sort) ? all.filter(c => inNiche(c) && valoresOf(c)[sort] != null).sort((a, b) => (chaveDe(a, sort) === chaveDe(b, sort) ? aZ(a, b) : (valoresOf(b)[sort]! - valoresOf(a)[sort]!) * sgn)) : []
   const fraseDe = (r: CanaisRow): { frase: string; vizinhos: string | null } => {
     const c = obs.channel(r.id)!
     if (!r.pos) return { frase: r.semMedida ? motivoTexto(r.semMedida, r.semMedidaTexto ?? undefined) : '', vizinhos: null } // sem motivo seria erro do modelo (testado): nunca inventa um
@@ -685,7 +714,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   // o que o "de N" conta quando a lista mostra outra coisa: o canal próprio sem nicho (fora do conjunto de um nicho) e o filtro "só com problema"
   const semNichoNaLista = niche !== 'todos' ? ownRows.filter(r => r.niche == null) : []
   const posicaoNotas: string[] = []
-  if (temPosicao(sort)) {
+  {
     if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
     if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
     else if (filter !== 'todos' || direcaoFiltro !== 'todos') posicaoNotas.push('A posição é na lista inteira, não só entre os canais do filtro.')
@@ -938,7 +967,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     fmtNota: filtro === 'todos' ? 'Longos e Shorts lado a lado, sem mediana única (views de Short e de longo não se comparam); ordem pelos longos.'
       : filtro === 'shorts' ? 'Só Shorts; quem não publica Shorts fica no fim da lista.' : null,
     fmtCab: todos ? { dois: 'longos em cima, Shorts embaixo', ordenado: 'ordenado pelos longos' } : null,
-    sortNote: `Ordenado por ${SORTNAME[sort]}${sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${todos && (sort === 'vpd' || sort === 'active' || sort === 'outliers') ? '; ordenado pelos longos' : ''}`,
+    ordem, faixaSemPosicao,
+    sortNote: `Ordenado por ${ordem.coluna}, ${ordem.sentido}${todos && (sort === 'vpd' || sort === 'active' || sort === 'outliers') ? '; ordenado pelos longos' : ''}`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
     own: { many, block: ownBlock },
     compararColuna: principal != null,
