@@ -57,7 +57,7 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
   /** Módulos de definição, de limiar e de formatador de folha crua de onde um empacotador pode importar VALOR. */
   const PERMITIDOS = new Set([
     '@/lib/youtube/observatorio/contexto-ia/frases', '@/lib/youtube/observatorio/medidas/regras',
-    '../_comparar/definicoes', '../_comparar/regua-da-linha', '../_comparar/so-seu-canal-model', '../_proprio/taxa-faixa-model', '../_proprio/retencao-model',
+    '../_comparar/definicoes', '../_comparar/medidas-do-par', './modelo-medidas-comparar', '../_comparar/regua-da-linha', '../_comparar/so-seu-canal-model', '../_proprio/taxa-faixa-model', '../_proprio/retencao-model',
     '../_canal/videos-model', '../_canal/lista',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
