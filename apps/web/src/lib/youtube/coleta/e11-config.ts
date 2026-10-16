@@ -11,8 +11,8 @@ import { ehSchemaAusente, type ErroBanco } from './schema'
  * toda execução de `rodarColeta` ganhava uma nota em `falhas`. A Tarefa 14 as confirma no commit do envio
  * (`DIMENSOES_LIGADO_EM` = dia do deploy; `DIMENSOES_DESDE` = dia do deploy − 10).
  */
-export const DIMENSOES_LIGADO_EM = '2026-10-20'
-export const DIMENSOES_DESDE = '2026-10-10'
+export const DIMENSOES_LIGADO_EM = '2026-10-17'
+export const DIMENSOES_DESDE = '2026-10-07'
 
 export const JANELA_DIAS = 10
 export const MAX_CONSULTAS_DIMENSOES = 400

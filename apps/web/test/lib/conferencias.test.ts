@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -865,5 +866,48 @@ describe('conferências de E17 degrau 1 (Perguntar a uma IA, relativas ao dia do
   // (por exemplo durante o portão de UX) e um envio que esqueça de ligar. A data do núcleo NÃO entra: o núcleo vai desligado.
   it('E17_D1_DEPLOY nula exige CONTEXTO_IA_RULES.ligado falso; preenchida exige verdadeiro', () => {
     expect(CONTEXTO_IA_RULES.ligado).toBe(E17_D1_DEPLOY !== null)
+  })
+})
+
+// A5 E11 (Tarefa 14): as conferências do canal próprio em tabelas dependem do dia da promoção a `main` (D), preenchido em E11_DEPLOY no commit do envio.
+describe('conferências de E11 (canal próprio em tabelas, relativas ao dia do envio)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  const IDS = ['e11-d1', 'e11-d5', 'e11-religar-dimensoes', 'e11-d14', 'e11-relatorio-refeito']
+
+  it('E11_DEPLOY nula = nenhuma entrada, e nada vence nem fica vermelho', () => {
+    expect(conferenciasE11(null)).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE11(null))).toEqual([])
+    expect(conferenciasEmFalha(dia(4000), conferenciasE11(null))).toEqual([])
+  })
+  it('malformada = uma entrada de erro (vermelha) que manda corrigir a constante', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '17/10/2026', '']) {
+      const l = conferenciasE11(ruim)
+      expect(l.map(x => x.id), ruim).toEqual(['e11-deploy-invalido'])
+      expect(l[0]!.etapa).toBe('E11')
+      expect(conferenciasEmFalha(dia(0), l).map(x => x.id), ruim).toEqual(['e11-deploy-invalido'])
+      expect(l[0]!.onde).toContain('E11_DEPLOY')
+    }
+  })
+  it('preenchida = as cinco entradas com as datas certas (D+1, D+5, D+5, D+14, D+60), do agente, etapa E11, sem feitaEm', () => {
+    const l = conferenciasE11('2026-10-17')
+    expect(l.map(x => x.id)).toEqual(IDS)
+    expect(l.map(x => x.data)).toEqual(['2026-10-18', '2026-10-22', '2026-10-22', '2026-10-31', '2026-12-16'])
+    for (const x of l) {
+      expect(x.responsavel, x.id).toBe('agente')
+      expect(x.feitaEm, x.id).toBeNull()
+      expect(x.etapa, x.id).toBe('E11')
+      expect(x.onde.length, x.id).toBeGreaterThan(20)
+    }
+  })
+  it('a lista publicada espalha as entradas (ou nenhuma, se E11_DEPLOY é nula)', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e11-') && x.id !== 'e11-religar-ou-retirar').map(x => x.id)
+    if (E11_DEPLOY === null) expect(publicadas).toEqual([])
+    else expect([...publicadas].sort()).toEqual([...IDS].sort())
+  })
+  it('E11_DEPLOY (dia de São Paulo) e DIMENSOES_LIGADO_EM (dia do Pacífico) não diferem em mais de um dia', () => {
+    expect(E11_DEPLOY).not.toBeNull()
+    const dif = Math.abs(Date.parse(`${E11_DEPLOY}T00:00:00.000Z`) - Date.parse(`${DIMENSOES_LIGADO_EM}T00:00:00.000Z`)) / 86_400_000
+    expect(dif).toBeLessThanOrEqual(1)
   })
 })
