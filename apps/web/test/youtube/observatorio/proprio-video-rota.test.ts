@@ -72,6 +72,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   lerDiarioLongo: (a: unknown) => state.longo(a),
   longosAcompanhadosDe: (_obs: unknown, id: string) => ['yt-longos-de-' + id],
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-trocas', () => ({ lerTrocas: async () => ({ acesso: 'negado' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem', () => ({ lerOrigem: (a: unknown) => state.origem(a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-termos', () => ({ lerTermosESites: (a: unknown) => state.termos(a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: () => state.swipe() }))

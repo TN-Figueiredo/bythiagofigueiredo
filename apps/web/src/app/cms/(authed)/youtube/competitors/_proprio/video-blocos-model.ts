@@ -125,6 +125,8 @@ export interface VideoBlocosView {
 }
 
 export interface EntradaBlocos {
+  /** faixas e marcas das trocas nos dois gráficos do vídeo (T22a); ausente = os gráficos de sempre */
+  trocasNoGrafico?: import('./trocas-model').TrocasNoGrafico | null
   obs: Observatory
   videoId: string
   dados: Privado<DadosDoVideo>
@@ -159,7 +161,7 @@ const plural = (n: number, um: string, muitos: string): string => `${int(n)} ${n
 
 /* ---------------------------------------------------------------- views por dia */
 
-function viewsDe(serie: SerieVideo, o: { pubDia: DiaYt | null; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoViews {
+function viewsDe(serie: SerieVideo, o: { tr?: import('./trocas-model').TrocasNoGrafico | null; pubDia: DiaYt | null; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoViews {
   switch (serie.estado) {
     case 'video-novo': return { medido: false, frase: FRASE_VIDEO_NOVO_VIEWS, grafico: null }
     case 'sem-diario': return { medido: false, frase: FRASE_SEM_DIARIO_VIEWS, grafico: null }
@@ -190,7 +192,7 @@ function viewsDe(serie: SerieVideo, o: { pubDia: DiaYt | null; dm: (d: DiaYt) =>
     dia: d.dia, situacao: d.estado === 'com-views' ? 'com-impressoes' : d.estado === 'zero-medido' ? 'zero-medido' : 'nao-medido', motivo: null, imp: d.views, cliques: null,
   }))
   const periodo: Periodo = { de: serie.janela!.de, ate: serie.janela!.ate, dias: dias.length }
-  const grafico = buildImpressoes(alcance, periodo, { escopo: 'video', unidade: 'views', alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, resumo: frase, dm: o.dm, acesso: 'ok', hoje: o.hoje })
+  const grafico = buildImpressoes(alcance, periodo, { escopo: 'video', unidade: 'views', alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, resumo: frase, dm: o.dm, acesso: 'ok', hoje: o.hoje, ...o.tr })
   return { medido: true, frase, grafico }
 }
 
@@ -229,7 +231,7 @@ function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Obse
   return { partes, faixa: { ...faixa, alt }, inconclusiva: v.inconclusivo, metodo: METODO_TAXA }
 }
 
-function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDia: DiaYt | null; views: number | null; publicacoes: PublicacoesPorYtId; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
+function impressoesDe(alcance: DadosDoVideo['alcance'], o: { tr?: import('./trocas-model').TrocasNoGrafico | null; ytId: string; pubDia: DiaYt | null; views: number | null; publicacoes: PublicacoesPorYtId; dm: (d: DiaYt) => string; hoje: DiaYt; F: Observatory['fmt'] }): BlocoImpressoes {
   // o dia anterior à publicação não existe (nem "zero medido" nem "não medido"): a série começa no dia da publicação, como a de views
   // a regra dos dias que valem para o vídeo (a partir da publicação; D e D-1 sem linha são "não medido") é a de `montarDias`, a mesma da régua e do cartão
   const montado = montarDias(alcance, { hoje: o.hoje, ytId: o.ytId, publicadoEm: o.pubDia })
@@ -250,7 +252,7 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
   }
   const dias = montado.dias
   const periodo: Periodo = montado.periodo
-  const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje, cedo, viewsDoVideo: o.views }
+  const base = { escopo: 'video' as const, alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok' as const, hoje: o.hoje, cedo, viewsDoVideo: o.views, ...o.tr }
   const r = resumir(dias)
   let grafico = buildImpressoes(dias, periodo, base)
   if (r.imp != null && r.imp > 0 && r.imp < POUCO_IMPRESSAO && grafico.resumo != null) grafico = buildImpressoes(dias, periodo, { ...base, resumo: `${grafico.resumo} ${FRASE_POUCA_IMPRESSAO}` })
@@ -405,8 +407,8 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   const diarioPriv: Privado<DiarioCanal> = { acesso: 'ok', dado: diario }
   const serie = serieDoVideo(diarioPriv, { ytId: este.ytId, publicadoEm: pubDia, hoje })
 
-  const views = viewsDe(serie, { pubDia, dm, hoje, F })
-  const impressoes = impressoesDe(alcance, { ytId: este.ytId, pubDia, views: este.views, publicacoes, dm, hoje, F })
+  const views = viewsDe(serie, { tr: a.trocasNoGrafico, pubDia, dm, hoje, F })
+  const impressoes = impressoesDe(alcance, { tr: a.trocasNoGrafico, ytId: este.ytId, pubDia, views: este.views, publicacoes, dm, hoje, F })
 
   /* contas do diário, uma vez por vídeo que tem linha */
   const grupos = porVideo(diario)
