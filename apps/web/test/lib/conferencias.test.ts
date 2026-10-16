@@ -873,7 +873,7 @@ describe('conferências de E17 degrau 1 (Perguntar a uma IA, relativas ao dia do
 describe('conferências de E11 (canal próprio em tabelas, relativas ao dia do envio)', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
   afterEach(() => { vi.useRealTimers() })
-  const IDS = ['e11-d1', 'e11-d5', 'e11-religar-dimensoes', 'e11-d14', 'e11-relatorio-refeito']
+  const IDS = ['e11-d1', 'e11-d5', 'e11-d14', 'e11-relatorio-refeito']
 
   it('E11_DEPLOY nula = nenhuma entrada, e nada vence nem fica vermelho', () => {
     expect(conferenciasE11(null)).toEqual([])
@@ -889,10 +889,10 @@ describe('conferências de E11 (canal próprio em tabelas, relativas ao dia do e
       expect(l[0]!.onde).toContain('E11_DEPLOY')
     }
   })
-  it('preenchida = as cinco entradas com as datas certas (D+1, D+5, D+5, D+14, D+60), do agente, etapa E11, sem feitaEm', () => {
+  it('preenchida = as quatro entradas com as datas certas (D+1, D+5, D+14, D+60), do agente, etapa E11, sem feitaEm', () => {
     const l = conferenciasE11('2026-10-17')
     expect(l.map(x => x.id)).toEqual(IDS)
-    expect(l.map(x => x.data)).toEqual(['2026-10-18', '2026-10-22', '2026-10-22', '2026-10-31', '2026-12-16'])
+    expect(l.map(x => x.data)).toEqual(['2026-10-18', '2026-10-22', '2026-10-31', '2026-12-16'])
     for (const x of l) {
       expect(x.responsavel, x.id).toBe('agente')
       expect(x.feitaEm, x.id).toBeNull()
