@@ -136,7 +136,7 @@ describe('Canal: paridade em cada estado da matriz', () => {
       const m = await montar(sp, mut)
       expect(m.textoDaTela.length).toBeGreaterThan(100)
       expect(() => paridade(m)).not.toThrow()
-    })
+    }, 60_000) // as fichas levam alguns segundos local e passaram de 20 s no runner da CI (mesmo caso do teste do vídeo, 10f6b90e8)
   }
 
   it('toda folha do modelo tem destino em todos os estados, e o inventário não guarda declaração velha (união da matriz)', async () => {
