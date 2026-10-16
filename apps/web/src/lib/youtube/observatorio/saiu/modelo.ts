@@ -19,6 +19,7 @@ export type TipoDeItem = 'video' | 'canal' | 'comentarios'
 
 export const CODIGOS_DE_ERRO = [
   'schema_ausente', 'erro_de_banco', 'tempo_esgotado', 'impasse', 'impedido_por_tabela', 'contagem_indisponivel', 'resposta_inesperada', 'blob_nao_configurado',
+  'mes_destacado_em_transito', 'sem_direito',
 ] as const
 export type CodigoDeErro = (typeof CODIGOS_DE_ERRO)[number]
 
@@ -162,6 +163,10 @@ const FRASES_DE_ERRO: Record<CodigoDeErro, string> = {
   contagem_indisponivel: 'Não foi possível contar o que há guardado deste item.',
   resposta_inesperada: 'O banco respondeu algo que não esperávamos. Confira a fila antes de tentar de novo.',
   blob_nao_configurado: 'O armazenamento das miniaturas não está configurado neste ambiente.',
+  // M9 (aviso de 15/10): recusa de regra da manutenção, não falha; nada foi apagado
+  mes_destacado_em_transito: 'O mês está saindo do banco; tente de novo depois que o copiador receber.',
+  // Yannis M1 (15/10): recusa do banco pós-M3b (competitor_channel_remove exige org_admin); não é falha
+  sem_direito: 'Só quem administra a organização pode apagar canais. Nada foi apagado.',
 }
 
 export function fraseDoErro(codigo: CodigoDeErro): string {

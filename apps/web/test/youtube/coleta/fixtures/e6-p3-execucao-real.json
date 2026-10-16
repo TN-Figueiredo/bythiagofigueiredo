@@ -1,0 +1,20 @@
+{
+  "_origem": "yt_own_collection_runs, execução de 2026-10-16 12:04:32 UTC (só falhas e resumo.diario)",
+  "falhas": [
+    "orçamento: 1 escopo(s) de retencao_vida sem alcançar nas 3 últimas tentativas"
+  ],
+  "resumo": {
+    "diario": {
+      "apagadas": 0,
+      "ate": "2026-10-16",
+      "atrasados_antigos": 0,
+      "com_buraco": 0,
+      "estendidas_ausentes": 0,
+      "estendidas_recusadas": 0,
+      "gravados": 8,
+      "intervalos": 70,
+      "pendentes": 0,
+      "tentativas": { "ok": 36 }
+    }
+  }
+}

@@ -248,7 +248,7 @@ describe('Canal: provas por mutação (a paridade cai)', () => {
     void _fora
     expect(() => provarParidade({ modelo: m.modelo, inventario: sem, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [] }))
       .toThrow(/\(a\).*viewsText/)
-  })
+  }, 60_000) // estoura 20 s até isolado; o caso irmão acima já tem 60_000 (parecer Yannis, L3)
 })
 
 describe('Canal: lista de números sem prova por igualdade direta', () => {

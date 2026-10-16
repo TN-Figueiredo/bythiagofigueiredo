@@ -26,9 +26,12 @@ const ehObjeto = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const ipValido = (ip: string | null): string | null => (ip !== null && isIP(ip) !== 0 ? ip : null)
 
 /** Código do Postgres para o código do catálogo: o texto do banco nunca chega à tela. */
-function codigoDoBanco(code: unknown): CodigoDeErro {
+function codigoDoBanco(code: unknown, message?: unknown): CodigoDeErro {
+  // M9: o gatilho do mês destacado recusa com P0001 e o texto `mes_destacado_em_transito` (pode vir com os meses depois)
+  if (typeof message === 'string' && /^mes_destacado_em_transito\b/.test(message)) return 'mes_destacado_em_transito'
+  if (typeof message === 'string' && /^sem_direito\b/.test(message)) return 'sem_direito'
   if (code === '57014') return 'tempo_esgotado'
-  if (code === '40P01') return 'impasse'
+  if (code === '40P01' || code === '55P03') return 'impasse' // 55P03: lock_timeout de 8 s do authenticator; espera passageira (forja/sincronização), não defeito
   if (code === '23503') return 'impedido_por_tabela'
   return 'erro_de_banco'
 }
@@ -38,12 +41,12 @@ function relatar(etapa: string, codigo: CodigoDeErro, ids: Record<string, string
 }
 
 type Chamada = { ok: true; data: unknown } | { ok: false; codigo: CodigoDeErro }
-async function chamar(rpc: () => PromiseLike<{ data: unknown; error: { code?: string } | null }>, etapa: string, ids: Record<string, string | number>): Promise<Chamada> {
+async function chamar(rpc: () => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>, etapa: string, ids: Record<string, string | number>): Promise<Chamada> {
   try {
     const r = await rpc()
     if (r.error) {
-      const codigo = codigoDoBanco(r.error.code)
-      relatar(etapa, codigo, ids)
+      const codigo = codigoDoBanco(r.error.code, r.error.message)
+      if (codigo !== 'mes_destacado_em_transito' && codigo !== 'sem_direito') relatar(etapa, codigo, ids) // recusa de regra: não é falha, não vai ao Sentry
       return { ok: false, codigo }
     }
     return { ok: true, data: r.data }

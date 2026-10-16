@@ -43,7 +43,13 @@ type NicheRow = { slug: string; label: string; color_dark: string; color_light: 
 const BUILTIN_ROWS: NicheRow[] = [{ slug: 'viagem', label: 'Viagem', color_dark: '#5BBF8A', color_light: '#11692F', sort_order: 10 }, { slug: 'ia', label: 'IA', color_dark: '#6EA8FE', color_light: '#1D4ED8', sort_order: 20 }]
 const JOGOS: NicheRow = { slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', color_light: '#7B2A91', sort_order: 100 }
 /** `niches`: the site's youtube_niches rows; 'missing' = the table is not in this database yet (42P01). Default: the two built-in. */
-interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' | 'broken' }
+interface Db {
+  own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' | 'broken'
+  /** (A5 E9) linhas de competitor_removed_items (kind canal) que o banco "já tem"; 'broken' = a leitura falha. Omitido = nenhuma. */
+  removed?: Array<{ id: number; decided_at: string }> | 'broken'
+  /** (A5 E9) o que a ação gravou em competitor_removed_items (update) e em audit_log (insert); `falha` faz a gravação da volta falhar. */
+  volta?: { updates: unknown[]; audits: unknown[]; falha?: 'update' | 'audit' }
+}
 /** What the action handed to after(): nothing here runs until a test runs it. */
 let queued: Array<() => unknown> = []
 const revalidateTag = vi.fn()
@@ -64,7 +70,12 @@ function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: bo
   const chain = (data: unknown) => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data }) }) }) }) })
   vi.doMock('@/lib/supabase/service', () => ({
     getSupabaseServiceClient: () => ({
-      from: (t: string) => t === 'youtube_channels' ? { select: () => ({ eq: async () => ({ data: db.own }) }) } : t === 'youtube_niches' ? { select: () => {
+      from: (t: string) => t === 'competitor_removed_items' ? {
+        select: () => { const q = { eq: () => q, limit: async () => (db.removed === 'broken' ? { data: null, error: { message: 'boom' } } : { data: db.removed ?? [], error: null }) }; return q },
+        update: (row: unknown) => { db.volta?.updates.push(row); const q = { eq: () => q, then: (ok: (r: unknown) => unknown) => Promise.resolve({ error: db.volta?.falha === 'update' ? { message: 'boom' } : null }).then(ok) }; return q },
+      } : t === 'audit_log' ? {
+        insert: async (row: unknown) => { db.volta?.audits.push(row); return { error: db.volta?.falha === 'audit' ? { message: 'boom' } : null } },
+      } : t === 'youtube_channels' ? { select: () => ({ eq: async () => ({ data: db.own }) }) } : t === 'youtube_niches' ? { select: () => {
         const res = db.niches === 'missing' ? { data: null, error: { code: '42P01', message: 'relation does not exist' } } : db.niches === 'broken' ? { data: null, error: { code: '57014', message: 'timeout' } } : { data: db.niches ?? BUILTIN_ROWS, error: null }
         const q = { eq: () => q, order: () => q, then: (ok: (r: typeof res) => unknown) => Promise.resolve(res).then(ok) }
         return q
@@ -212,5 +223,55 @@ describe('removeCompetitorChannel', () => {
     setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] }, undefined, { ok: false, reason: 'forbidden' })
     expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: false })
     expect(revalidateTag).not.toHaveBeenCalled()
+  })
+})
+
+describe('A5 E9 T7: addCompetitorChannel e o canal que o dono apagou', () => {
+  const env = process.env.YOUTUBE_API_KEY
+  beforeEach(() => { process.env.YOUTUBE_API_KEY = 'k' })
+  afterEach(() => { vi.unstubAllGlobals(); if (env === undefined) delete process.env.YOUTUBE_API_KEY; else process.env.YOUTUBE_API_KEY = env })
+  const APAGADO = [{ id: 9, decided_at: '2026-10-10T15:00:00Z' }]
+
+  it('canal apagado readicionado registra a volta, audita e avisa com a data', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], removed: APAGADO, volta: { updates: [], audits: [] } }
+    setup(db)
+    const res = await (await load())(UC)
+    expect(res.ok).toBe(true)
+    expect(res.aviso).toBe('Você apagou este canal em 10/10; ele entra de novo como novo, sem o histórico.')
+    expect(db.inserted).toHaveLength(1)
+    expect(db.volta!.updates).toEqual([expect.objectContaining({ return_decision: 'voltar' })])
+    expect(db.volta!.audits).toEqual([expect.objectContaining({ action: 'competitor_return_follow', site_id: 's1', actor_user_id: 'u1', after_data: { kind: 'canal', youtube_id: UC } })])
+  })
+  it('a conferência falha: não adiciona', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], removed: 'broken', volta: { updates: [], audits: [] } }
+    setup(db)
+    expect(await (await load())(UC)).toEqual({ ok: false, error: 'Não foi possível conferir se este canal já foi apagado. Tente de novo.' })
+    expect(db.inserted).toHaveLength(0)
+  })
+  it('canal nunca apagado: nada muda (sem aviso, sem gravação da volta)', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], volta: { updates: [], audits: [] } }
+    setup(db)
+    const res = await (await load())(UC)
+    expect(res.ok).toBe(true)
+    expect(res.aviso).toBeUndefined()
+    expect(db.volta!.updates).toHaveLength(0)
+    expect(db.volta!.audits).toHaveLength(0)
+  })
+  it('sem vaga: não registra a volta nem audita', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], removed: APAGADO, volta: { updates: [], audits: [] } }
+    setup(db, { used: 14, limit: 14, free: 0 })
+    expect((await (await load())(UC)).ok).toBe(false)
+    expect(db.volta!.updates).toHaveLength(0)
+    expect(db.volta!.audits).toHaveLength(0)
+  })
+  it('o registro da volta falha depois do insert: o canal fica e o aviso diz', async () => {
+    for (const falha of ['update', 'audit'] as const) {
+      const db: Db = { own: null, existing: null, inserted: [], removed: APAGADO, volta: { updates: [], audits: [], falha } }
+      setup(db)
+      const res = await (await load())(UC)
+      expect(res.ok, falha).toBe(true)
+      expect(db.inserted, falha).toHaveLength(1)
+      expect(res.aviso, falha).toMatch(/não foi possível registrar a volta na fila/)
+    }
   })
 })

@@ -20,7 +20,7 @@ test.use({ storageState: process.env.N2_STATE ?? ADMIN_STATE })
 
 const SHOTS = process.env.N2_SHOTS_DIR ?? path.resolve(__dirname, '../../../../test-results/n2-shots')
 const MARCA_SEED = path.resolve(__dirname, '../../../../test-results/.observatorio-seed.json')
-const DESDE = '2026-10-10' // DIMENSOES_DESDE
+const DESDE = '2026-10-07' // DIMENSOES_DESDE
 const ROTA = '/cms/youtube/competitors'
 const TABELA_DIM = 'public.yt_own_video_dim_daily'
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')

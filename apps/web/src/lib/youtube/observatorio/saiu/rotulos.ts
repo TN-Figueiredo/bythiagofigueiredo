@@ -28,6 +28,9 @@ export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
   competitor_hour_fold_log: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_video_marks: { um: 'marca do vídeo', muitos: 'marcas do vídeo' }, // TEXTO-A-REVISAR (MG4)
   competitor_missing_baseline: { um: 'registro interno', muitos: 'registros internos', interno: true },
+  // achados pela integração da Tarefa 12 (a prévia devolvia o nome cru): tabelas das MG6 e MG4 que entram na cascata do canal e do vídeo
+  competitor_collection_pauses: { um: 'registro interno', muitos: 'registros internos', interno: true },
+  competitor_video_mark_misses: { um: 'registro interno', muitos: 'registros internos', interno: true },
 }
 
 /** Ordem do mockup: o que o dono reconhece primeiro. */

@@ -2513,3 +2513,100 @@ describe('A5 E10: canal com a coleta pausada (Tarefa 4a)', () => {
     expect(f).not.toHaveBeenCalled()
   })
 })
+
+// ── A5 E9, Tarefa 7: o que o dono apagou não volta sem ele decidir (obrigação D-11) ──
+describe('A5 E9 T7: a sincronização consulta o apagado', () => {
+  /** A lista de envios cita `envios`; `videos.list` devolve só `devolvidos`. */
+  const paginaCom = (envios: string[], devolvidos: Array<Record<string, unknown>>, chamadas?: string[]): typeof fetch => (async (input: RequestInfo | URL) => {
+    const u = String(input)
+    chamadas?.push(u)
+    if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+    if (u.includes('/playlistItems?')) return Response.json({ items: envios.map(id => ({ snippet: { resourceId: { videoId: id } } })) })
+    return Response.json({ items: devolvidos })
+  }) as typeof fetch
+  const consultas = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_removed_items' && first(c) === 'select')
+  const carimbos = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_removed_items' && first(c) === 'update')
+  const v1 = page({ id: 'vid-1' }), v2 = page({ id: 'vid-2' })
+
+  it('vídeo apagado na página não é inserido, não ganha versão, miniatura nem série; os outros novos da mesma página entram', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], removed: [{ youtube_id: 'vid-1' }] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: paginaCom(['vid-1', 'vid-2'], [v1, v2]), ...quiet })
+    expect(inserts(db).map(i => i.video_id)).toEqual(['vid-2'])
+    expect(r.removedSkipped).toBe(1)
+    expect(carimbos(db)).toHaveLength(1) // a volta é carimbada uma vez, no item do apagado
+    expect(arg(carimbos(db)[0]!, 'update')).toEqual({ returned_seen_at: EARLY.toISOString() })
+    // nada gravado para o apagado em nenhuma tabela do vídeo (conta as gravações que citam o id)
+    const citam = db.calls.filter(c => c.table !== 'competitor_removed_items' && ['insert', 'update', 'upsert'].includes(String(first(c))) && JSON.stringify(c.ops).includes('vid-1'))
+    expect(citam).toHaveLength(0)
+    expect(vi.mocked(archiveThumb)).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('vid-1'), expect.anything())
+  })
+
+  it('apagado com "voltar" entra como novo, com discovered_at de agora, e não é carimbado', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], removed: [{ youtube_id: 'vid-1', return_decision: 'voltar', returned_seen_at: '2026-10-20T00:00:00Z' }] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: paginaCom(['vid-1'], [v1]), ...quiet })
+    expect(inserts(db)[0]).toMatchObject({ video_id: 'vid-1', discovered_at: EARLY.toISOString() })
+    expect(r.removedSkipped).toBeUndefined()
+    expect(carimbos(db)).toHaveLength(0)
+  })
+
+  it('a consulta falha: nenhum vídeo novo da página entra, os já gravados são atualizados e o erro aparece', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1], removedSelectError: 'boom' })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: paginaCom(['vid-1', 'vid-2'], [v1, v2]), ...quiet }))
+      .rejects.toThrow(/não foi possível conferir os vídeos já apagados/)
+    expect(inserts(db)).toHaveLength(0)
+    expect(updatesOf(db, 'v-1').length).toBeGreaterThan(0)
+  })
+
+  it('página sem vídeo novo não consulta (conta zero chamadas)', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: paginaCom(['vid-1'], [v1]), ...quiet })
+    expect(consultas(db)).toHaveLength(0)
+  })
+
+  it('o vídeo pulado não para a leitura incremental (não é "conhecido")', async () => {
+    // a página 1 só tem o apagado; se ele contasse como conhecido a leitura pararia e a página 2 não seria pedida
+    const chamadas: string[] = []
+    let pagina = 0
+    const f = (async (input: RequestInfo | URL) => {
+      const u = String(input)
+      chamadas.push(u)
+      if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+      if (u.includes('/playlistItems?')) { pagina++; return Response.json({ items: [{ snippet: { resourceId: { videoId: pagina === 1 ? 'vid-1' : 'vid-2' } } }], ...(pagina === 1 ? { nextPageToken: 'p2' } : {}) }) }
+      return Response.json({ items: [u.includes('id=vid-1') ? v1 : v2] })
+    }) as typeof fetch
+    const db = setup({ lastDaily: '2026-10-24', existing: [], removed: [{ youtube_id: 'vid-1' }], videoLimit: 100 })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })
+    expect(chamadas.filter(u => u.includes('/playlistItems?'))).toHaveLength(2)
+    expect(inserts(db).map(i => i.video_id)).toEqual(['vid-2'])
+  })
+
+  it('apagado que a lista de envios cita mas videos.list NÃO devolve: não é inserido e NÃO ganha returned_seen_at', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], removed: [{ youtube_id: 'vid-gone' }] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: paginaCom(['vid-gone', 'vid-2'], [v2]), ...quiet })
+    expect(inserts(db).map(i => i.video_id)).toEqual(['vid-2'])
+    expect(carimbos(db)).toHaveLength(0)
+    const pedidos = consultas(db).map(c => c.ops.find(o => o[0] === 'in')![1][1])
+    expect(pedidos).toEqual([['vid-2']]) // só o id que videos.list devolveu vai à consulta
+  })
+
+  it('página em que só a lista de envios traz id desconhecido não consulta', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: paginaCom(['vid-1', 'vid-fantasma'], [v1]), ...quiet })
+    expect(consultas(db)).toHaveLength(0)
+  })
+
+  it('o apagado que reaparece não entra na sonda de Shorts (conta as chamadas da sonda)', async () => {
+    const curto = (id: string) => ({ id, snippet: { title: 'Um vídeo', description: 'd', publishedAt: recent(), thumbnails: {} }, contentDetails: { duration: 'PT1M30S' }, statistics: { viewCount: '9' } })
+    const base = paginaCom(['AAAAAAAAAA1', 'AAAAAAAAAA2'], [curto('AAAAAAAAAA1'), curto('AAAAAAAAAA2')])
+    const sondas: string[] = []
+    const f = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('youtube.com/shorts/')) { sondas.push(String(input)); return new Response('', { status: 200 }) }
+      return base(input, init)
+    }) as typeof fetch
+    const db = setup({ lastDaily: '2026-10-24', existing: [], removed: [{ youtube_id: 'AAAAAAAAAA1' }] })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f })
+    expect(sondas.some(u => u.includes('AAAAAAAAAA2')), 'a sonda não rodou: o teste seria vazio').toBe(true)
+    expect(sondas.filter(u => u.includes('AAAAAAAAAA1'))).toHaveLength(0)
+    expect(inserts(db).map(i => i.video_id)).toEqual(['AAAAAAAAAA2'])
+  })
+})

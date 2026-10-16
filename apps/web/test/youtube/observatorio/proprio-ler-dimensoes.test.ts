@@ -11,6 +11,7 @@ import {
 } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import { estadoDoDiaLido, type DiaLido } from '@/lib/youtube/observatorio/proprio/dimensoes-estado'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
+import { DIMENSOES_DESDE } from '@/lib/youtube/coleta/e11-config'
 
 const captureException = vi.fn()
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u1' } })) }))
@@ -458,7 +459,7 @@ describe('os dias: nunca zero por ausência', () => {
     const r = await lerDimensoes(db.client, { ...pedido, desde: { pais: d(4) } })
     expect(estadoDoDiaLido(dia(r, 'pais', 5)).de('BR')).toEqual({ tipo: 'nao_medido', motivo: 'antes_do_inicio', desde: d(4) })
     expect(dia(r, 'pais', 4).antesDoInicio).toBe(false)
-    expect(dia(r, 'trafego', 5).desde).toBe('2026-10-10')
+    expect(dia(r, 'trafego', 5).desde).toBe(DIMENSOES_DESDE)
     expect(dia(r, 'alcance_dim', 5).desde).toBe('2026-09-08')
   })
   it('código desconhecido aparece com rótulo de desconhecido, e o valor cru fica', async () => {

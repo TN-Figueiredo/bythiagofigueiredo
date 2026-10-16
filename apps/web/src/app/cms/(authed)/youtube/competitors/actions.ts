@@ -11,6 +11,7 @@ import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getCompetitorRemovalImpact, type CompetitorRemovalImpact } from '@/lib/youtube/competitor-removal-impact'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { syncSchemaBlock } from '@/lib/youtube/competitor-sync-guard'
+import { canalApagado, registrarVoltaDoCanal } from '@/lib/youtube/competitor-removed'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { removerCanalArquivado } from '@/lib/youtube/observatorio/arquivo/remover'
@@ -63,7 +64,7 @@ export async function addCompetitorChannel(
   channelInput: string,
   niche?: Niche,
   videoLimit?: number,
-): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots; title?: string }> {
+): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots; title?: string; aviso?: string }> {
   const parsed = parseChannelInput(channelInput)
   if (!parsed) return { ok: false, error: BAD_INPUT }
   if (niche !== undefined && !isNicheSlug(niche)) return { ok: false, error: 'Nicho inválido.' }
@@ -71,7 +72,8 @@ export async function addCompetitorChannel(
   if (limit !== undefined && !(limit >= 10 && limit <= 200)) return { ok: false, error: 'Escolha entre 10 e 200 vídeos.' }
 
   let siteId: string
-  try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
+  let userId: string
+  try { ({ siteId, userId } = await requireEditUser()) } catch { return { ok: false, error: 'forbidden' } }
 
   // o primeiro sync lê e grava colunas da MG2: sem as migrations, nada é gravado nem pedido ao YouTube
   const notReady = await syncSchemaBlock()
@@ -113,6 +115,11 @@ export async function addCompetitorChannel(
     return { ok: false, error: `${existing.channel_name || title} já está no observatório${n}.` }
   }
 
+  // (A5 E9, D-11) O dono apagou este canal pela fila "Saíram do YouTube"? Não dá para saber = não adiciona (na dúvida não se coleta).
+  // Achou: segue para as vagas e o insert; a volta só é registrada DEPOIS do insert (sem vaga, não fica auditoria de uma volta que não houve).
+  const apagado = await canalApagado(supabase, siteId, ytId)
+  if (apagado !== null && 'erro' in apagado) return { ok: false, error: 'Não foi possível conferir se este canal já foi apagado. Tente de novo.' } // TEXTO-A-REVISAR
+
   // after the duplicate check: a channel already in the observatório says so even when there is no free slot
   const before = await getChannelSlots(siteId)
   if (before.free === 0) return { ok: false, error: `Sem vagas: ${before.used} de ${before.limit} concorrentes. Remova um canal para adicionar outro.`, slots: before }
@@ -141,16 +148,41 @@ export async function addCompetitorChannel(
     })
   }
 
+  // (A5 E9) a volta do canal apagado: o canal entra de novo como novo (sem o histórico); o item da fila fica com a decisão "voltar"
+  let aviso: string | undefined
+  if (apagado !== null) {
+    const agora = new Date().toISOString()
+    let falha = await registrarVoltaDoCanal(supabase, siteId, apagado.itemId, agora)
+    if (falha === null) {
+      let orgId: string | null = null
+      try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
+      const aud = await supabase.from('audit_log').insert({
+        actor_user_id: userId, action: 'competitor_return_follow', resource_type: 'competitor_removed_item', resource_id: null,
+        org_id: orgId, site_id: siteId, after_data: { kind: 'canal', youtube_id: ytId },
+      })
+      falha = aud.error ? aud.error.message : null
+    }
+    if (falha !== null) {
+      // o canal fica (nenhuma rotina lê return_decision de canal); a falha vai ao Sentry com o código, sem o nome do canal
+      Sentry.captureException(new Error('competitors: volta do canal apagado não registrada'), { tags: { component: 'competitors', step: 'return-follow' }, extra: { siteId, itemId: apagado.itemId } })
+      aviso = 'O canal foi adicionado, mas não foi possível registrar a volta na fila.' // TEXTO-A-REVISAR
+    } else {
+      const quando = new Date(apagado.apagadoEm)
+      const dd = Number.isNaN(quando.getTime()) ? null : new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }).format(quando)
+      aviso = `Você apagou este canal${dd ? ` em ${dd}` : ''}; ele entra de novo como novo, sem o histórico.` // TEXTO-A-REVISAR
+    }
+  }
+
   revalidatePath('/cms/youtube/competitors', 'layout')
   // the resolved YouTube title; a bare id has none until the first sync
-  return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}) }
+  return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}), ...(aviso ? { aviso } : {}) }
 }
 
 /** The Canais dialog's submit (one object, so the client passes what it validated). */
-export async function addChannelFromCanais(input: { channel: string; niche: Niche; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string }> {
+export async function addChannelFromCanais(input: { channel: string; niche: Niche; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string; aviso?: string }> {
   if (!input || typeof input.channel !== 'string' || typeof input.videoLimit !== 'number') return { ok: false, error: 'Pedido inválido.' }
   const res = await addCompetitorChannel(input.channel, input.niche, input.videoLimit)
-  return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}) }
+  return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}), ...(res.aviso ? { aviso: res.aviso } : {}) }
 }
 
 export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean; error?: string }> {
