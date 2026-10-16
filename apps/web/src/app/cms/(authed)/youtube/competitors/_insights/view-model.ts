@@ -3,6 +3,7 @@
  * by the engine (patternsNow, cadence, heatmap, themeTrend, nicheStats, ownCoverage, RULES). The components only lay it
  * out. The frozen-reading hero ("Leitura da forja", insights.html renderForja) comes from the forja view model (Task 35).
  */
+import type { DirecaoNichoView } from './direcao-nicho-model'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt as VideoFmt, Niche } from '@/lib/youtube/observatorio/types'
@@ -159,6 +160,8 @@ export interface InsightsView {
   all: { title: string; text: string; go: Array<{ niche: Niche; label: string; href: string }>; forja: { title: string; lines: string[]; text: string | null; note: string | null } } | null
   formulas: FormulasSection | null; cadence: CadenceSection | null; heatmap: HeatmapSection | null
   themes: ThemesSection | null; youInNiche: YouSection | null; gaps: GapsSection | null
+  /** E5a T9 (mockup 17c): quem sobe e quem desce no nicho. Montado fora daqui (precisa das medidas do site); ausente com Todos e onde ninguém o trouxe. */
+  direcaoNicho?: DirecaoNichoView | null
 }
 
 const FMT_LABEL: Record<VideoFmt, string> = { long: 'longos', short: 'Shorts' }
