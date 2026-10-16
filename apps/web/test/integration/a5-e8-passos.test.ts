@@ -35,7 +35,7 @@ import { passoRetencao, type DepsRetencao, type RetencaoResumo } from '@/lib/you
 import { ALARME_RETENCAO, criteriosRetencao } from '@/lib/youtube/coleta/criteria-retencao'
 import { lerFatos, RETENCAO_JANELAS_DESDE } from '@/lib/youtube/coleta/retencao-regra'
 import { registrarTentativa } from '@/lib/youtube/coleta/attempts'
-import { criarRelogio } from '@/lib/youtube/coleta/clock'
+import { criarRelogio, PARALELO_RETENCAO } from '@/lib/youtube/coleta/clock'
 import { addDays, dayPt, utcDay } from '@/lib/youtube/coleta/day-pt'
 import { metricVersion } from '@/lib/youtube/coleta/metric-version'
 import type { ColetaChannel, StepCtx } from '@/lib/youtube/coleta/types'
@@ -468,23 +468,23 @@ describe.skipIf(skipIfNoLocalDb())('A5 E8 (9b): o passo e o alarme da retenção
       expect(await vidaDe(b)).toEqual([])
     })
 
-    it('403 de cota: o passo para de chamar (só os 4 em voo saem), grava os pendentes e conta quantos (c)', async () => {
+    it('403 de cota: o passo para de chamar (só os PARALELO_RETENCAO em voo saem), grava os pendentes e conta quantos (c)', async () => {
       const c = await cenario()
       const id = grupoDeIds()
       for (let i = 1; i <= 10; i++) await vivo(c, { yt: id(String(i).padStart(2, '0')) })
       instalarYt({}, () => erroGoogle(403, 'quotaExceeded'))
       const { r, ctx } = await passo(c)
-      expect(chamadasYt).toHaveLength(4)
-      expect(r.pendentes).toBe(6)
-      expect(r.chamadas).toBe(4)
+      expect(chamadasYt).toHaveLength(PARALELO_RETENCAO)
+      expect(r.pendentes).toBe(10 - PARALELO_RETENCAO)
+      expect(r.chamadas).toBe(PARALELO_RETENCAO)
       const t = await q(`select outcome, http_status, error, count(*)::int as n from public.yt_own_collection_attempts
         where scope_type = 'video' and kind = 'retencao_vida' and site_id = $1 group by 1, 2, 3 order by 1`, [c.site])
       expect(t).toEqual([
-        { outcome: 'erro_http', http_status: 403, error: 'http_403_quotaExceeded', n: 4 },
-        { outcome: 'nao_alcancado_orcamento', http_status: null, error: null, n: 6 },
+        { outcome: 'erro_http', http_status: 403, error: 'http_403_quotaExceeded', n: PARALELO_RETENCAO },
+        { outcome: 'nao_alcancado_orcamento', http_status: null, error: null, n: 10 - PARALELO_RETENCAO },
       ])
       expect(await tentCanal(c)).toEqual([expect.objectContaining({ outcome: 'nao_alcancado_orcamento' })])
-      expect(ctx.falhas).toEqual([`retenção: ${c.nome}: 4 de 10 leituras com erro (o YouTube recusou por cota (403))`])
+      expect(ctx.falhas).toEqual([`retenção: ${c.nome}: ${PARALELO_RETENCAO} de 10 leituras com erro (o YouTube recusou por cota (403))`])
       expect(Number((await q('select count(*) as n from public.yt_own_video_retention where site_id = $1 and window_kind = \'vida\'', [c.site]))[0]!.n)).toBe(0)
       // nenhum virou resposta
       const todos = await fatos(c)

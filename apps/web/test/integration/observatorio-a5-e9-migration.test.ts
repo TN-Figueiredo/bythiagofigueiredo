@@ -41,7 +41,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
     return (await escalar<Record<string, unknown>>(pg, `select public.${nome}(${marcas})`, args))
   }
   const ausente = (tabela: 'competitor_videos' | 'competitor_channels' | 'competitor_video_comments', id: string, dias = 5) =>
-    pg.query(`update public.${tabela} set missing_since = current_date - $2::int where id = $1`, [id, dias])
+    pg.query(`update public.${tabela} set missing_since = (now() at time zone 'America/Sao_Paulo')::date - $2::int where id = $1`, [id, dias])
   const n = (tabela: string, col: string, id: string) =>
     escalar<number>(pg, `select count(*)::int from public.${tabela} where ${col} = $1`, [id])
   const TABELAS_DO_VIDEO = ['competitor_video_daily', 'competitor_video_versions', 'competitor_field_versions', 'competitor_changes',
