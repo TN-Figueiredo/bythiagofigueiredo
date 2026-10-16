@@ -31,6 +31,13 @@ describe('rawOf', () => {
   it('tira statistics, etag e concurrentViewers; o resto fica como veio', () => {
     expect(rawOf(item).raw).toEqual({ kind: 'youtube#video', id: 'vid', snippet: { title: 'T', tags: ['a'] }, liveStreamingDetails: { actualStartTime: '2026-01-01T00:00:00Z' } })
   })
+  it('I-7: topicDetails entra no raw e a ordem dos tópicos não muda o hash', () => {
+    const a = { ...item, topicDetails: { topicIds: ['/m/1', '/g/2'], topicCategories: ['https://x/B', 'https://x/A'] } }
+    const b = { ...item, topicDetails: { topicIds: ['/g/2', '/m/1'], topicCategories: ['https://x/A', 'https://x/B'] } }
+    expect(rawOf(a).raw).toHaveProperty('topicDetails')
+    expect(rawOf(a).sha).toBe(rawOf(b).sha)
+    expect(rawOf({ ...a, topicDetails: { topicIds: ['/m/9'] } }).sha).not.toBe(rawOf(a).sha)
+  })
   it('(M-1) não altera o item de ENTRADA: statistics e concurrentViewers continuam nele', () => {
     const before = structuredClone(item)
     rawOf(item)

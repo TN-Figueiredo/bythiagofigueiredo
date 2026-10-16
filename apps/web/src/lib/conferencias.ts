@@ -61,6 +61,7 @@ export function conferenciasE1E2(deploy: string | null): Conferencia[] {
     e('d7', 7, 'D+7, depois das 19:10: K5; K16; select count(*) from competitor_videos where daily_until >= current_date; todo semanal com ponto; videos_sem_versao_de_miniatura só de ausentes e sem contagem'),
     e('d8', 8, 'D+8, depois das 19:10: K5 (semanal_atrasados = 0); K11; R1 com o mesmo corte de antes do deploy (igual ao de antes); tamanho real das tabelas contra a tabela do parecer'),
     e('d9', 9, 'D+9: K5 (semanal_atrasados_9d = 0 e sem_miniatura_9d = 0); K16 (correntes_sem_copia = 0)'),
+    { id: 'i7-k6-d3', etapa: 'E1', data: '2026-10-19', responsavel: 'agente', onde: 'parecer .superpowers/sdd/a5-e1-e2/portao-final-dados.md I-7: K6 de novo com as partes novas; fechadas acima de 5% → tirar a parte que gira (decisão do dono 16/10)', feitaEm: null },
   ]
 }
 
