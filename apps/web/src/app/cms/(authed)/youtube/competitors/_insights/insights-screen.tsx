@@ -14,6 +14,7 @@ import { Themes } from './themes'
 import { YouInNiche } from './you-in-niche'
 import { Gaps } from './gaps'
 import { ReadingHero } from './reading-hero'
+import { DirecaoNicho } from './direcao-nicho'
 
 export function InsightsScreen({ view, heatMode }: { view: InsightsView; heatMode?: 'uploads' | 'views' }) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
@@ -50,6 +51,7 @@ export function InsightsScreen({ view, heatMode }: { view: InsightsView; heatMod
         <div className="grid" id="grid">
           {view.hero ? <ReadingHero hero={view.hero} /> : null}
           {view.youInNiche ? <YouInNiche s={view.youInNiche} /> : null}
+          {view.direcaoNicho ? <div className="c12"><DirecaoNicho v={view.direcaoNicho} /></div> : null}
           {view.cadence ? <Cadence s={view.cadence} /> : null}
           {view.gaps ? <Gaps s={view.gaps} /> : null}
           {view.formulas ? <Formulas s={view.formulas} /> : null}

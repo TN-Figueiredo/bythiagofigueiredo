@@ -6,6 +6,7 @@ import { montarInsights } from '../_insights/montar'
 import { InsightsScreen } from '../_insights/insights-screen'
 import { readingCopyText } from '../_chrome/forja-view-model'
 import '../_insights/insights.css'
+import '../_insights/direcao-nicho.css'
 
 export const metadata = { title: 'Insights · Competidores' }
 export const dynamic = 'force-dynamic'
