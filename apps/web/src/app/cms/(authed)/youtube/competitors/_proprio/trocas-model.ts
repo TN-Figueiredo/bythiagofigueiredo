@@ -138,7 +138,7 @@ function base(estado: EstadoTrocas, motivo: MotivoNaoMedido | null): TrocasView 
   }
 }
 
-export const BLOQUEIO: readonly string[] = [
+export const BLOQUEIO: readonly string[] = [ // TEXTO-A-REVISAR (Logan): texto do bloqueio inventado pelo plano
   'Você não vê as trocas deste vídeo.',
   'As trocas guardam impressões e cliques, que são privados do canal e só aparecem para quem administra.',
 ]
@@ -158,6 +158,7 @@ function testeView(t: TesteAb, e: EntradaTrocas, diag: TrocasView['diagnostico']
   if (fim === 'nao-registrado') diag.fimNaoRegistrado++
   const de = e.diaPt(t.inicio)
   const ciclos = t.ciclos.map(c => e.diaPt(c.inicio))
+  // TEXTO-A-REVISAR (Logan): "fim do teste não registrado" é texto inventado
   const quando = ate && fim === 'registrado' ? `de ${e.dm(de)} a ${e.dm(ate)}` : fim === 'andamento' ? `desde ${e.dm(de)}, em andamento` : `desde ${e.dm(de)}, fim do teste não registrado`
   const resultado = t.vencedorAplicadoEm ? ` Resultado: o vencedor foi aplicado em ${e.dm(e.diaPt(t.vencedorAplicadoEm))}.` : t.pausadoEm ? ` O teste foi parado em ${e.dm(e.diaPt(t.pausadoEm))}.` : ''
   return {
@@ -361,7 +362,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
   }
 
   // atraso
-  const atraso = registro.atrasoDias >= 2 ? { linhas: [
+  const atraso = registro.atrasoDias >= 2 ? { linhas: [ // TEXTO-A-REVISAR (Logan): linhas do aviso de atraso inventadas
     `O registro das trocas está ${registro.atrasoDias} dias atrasado.`,
     `As trocas até ${e.dm(registro.conferidoAte)} estão certas. Se você trocou algo depois disso, ainda não aparece aqui.`,
   ] } : null
@@ -575,7 +576,7 @@ function ladoDe(nome: 'Antes' | 'Depois', lado: 'antes' | 'depois', l: Lado | un
   const rot = rotuloMedido(nome, ctx, cand, l)
   if (forma === 'zero') return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'zero', taxa: null, faixa: null, barra: null, causa: 'zero medido: o vídeo não apareceu', aria: `${rot.longo}: zero medido` }
   if (forma === 'poucas' || l.taxa === null || l.lo === null || l.hi === null) {
-    return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'poucas', taxa: null, faixa: null, barra: null, causa: `só ${e.n(l.imp)} ${l.imp === 1 ? 'impressão' : 'impressões'}: sem faixa`, aria: `${rot.longo}: poucas impressões, sem faixa` }
+    return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'poucas', taxa: null, faixa: null, barra: null, causa: l.imp >= c.minImp ? 'sem comparação: o outro lado não tem dias para comparar' : `só ${e.n(l.imp)} ${l.imp === 1 ? 'impressão' : 'impressões'}: sem faixa`, aria: l.imp >= c.minImp ? `${rot.longo}: sem comparação` : `${rot.longo}: poucas impressões, sem faixa` } // TEXTO-A-REVISAR (Logan): o lado tem impressões de sobra mas a E18 não devolve taxa quando o outro lado não tem dias
   }
   return {
     rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'numero', taxa: pct1(l.taxa), faixa: `${pct1(l.lo)} a ${pct1(l.hi)}`,
