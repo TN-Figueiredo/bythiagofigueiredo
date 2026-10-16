@@ -965,3 +965,46 @@ Plano: o mesmo da seção 16 (Apêndice B e Apêndice E, passo p3). Depende da s
 **Conferências.** AP antes (linha inteira do comentário, A1 do plano P3 e `pg_database_size`) e VP1 a VP4 depois: VP1 `f, 0` (o backup e a função auxiliar saíram); VP2 com `estado: solto` e `linhas` igual ao da AP (**nulo ou a marca ainda lá = nada foi solto**); VP3 o diário não mudou; VP4 o banco menor em cerca do tamanho do backup.
 
 **O que resta de volta.** A cópia dentro do banco não volta. Os zeros continuam recriáveis: volta B (`docs/ops/sql/dieta-diario-volta-b-recriar-da-cobertura.sql`, quando a seção 14 existir; equivalente para todo leitor, não idêntica) e volta C (CSV do diário ou CSV do backup; os três comandos do Apêndice D do plano P3). Em recusa da migration (mensagens `MG16 recusada: …`), nada foi solto; a nova tentativa só no mesmo dia, senão o arquivo sai do repositório e o ritual recomeça em outro dia.
+
+## 18. Canal próprio em tabelas: dimensões e normalizadores (A5 E11)
+
+Plano: `docs/superpowers/plans/2026-10-12-a5-e11-canal-proprio-em-tabelas-plan.md` (Tarefa 14, seções 7 e 11). Envio previsto para 17/10/2026; as conferências com data saem de `E11_DEPLOY` em `apps/web/src/lib/conferencias.ts`.
+
+**Os dois passos.** Ambos rodam no cron diário da coleta, dentro do orçamento de tempo.
+- `dimensoes`: para cada vídeo e cada um dos quatro conjuntos, cobre de `maior(DIMENSOES_DESDE, menor(hoje − 10, último dia coberto))` até `menor(hoje, base)`. Pede à Analytics API só o que a cobertura não diz já medido (teto de 400 consultas por execução). `DIMENSOES_DESDE` e `DIMENSOES_LIGADO_EM` ficam em `apps/web/src/lib/youtube/coleta/e11-config.ts` (dia do Pacífico; desde = ligado em − 10). Depende da `base` gravada pelo diário (E6 P2): sem a E6 P2 em produção, este passo fica desligado.
+- `normalizadores`: lê o bruto dos relatórios `channel_traffic_source_a3` (detalhe) e `channel_reach_combined_a1` (alcance por dimensão) e grava nas tabelas da E11; o dia normalizado ganha cobertura `detalhe` ou `alcance_dim`. Não lê a `base`.
+
+**Interruptor.** `YT_OWN_STEPS_OFF` na Vercel, lista separada por vírgula: `dimensoes`, `normalizadores`, ou `dimensoes,normalizadores`. A variável só vale para deploys feitos DEPOIS da mudança: **mudou o valor, faça um redeploy de produção** (custa um build). Desligado por 8 execuções seguidas o critério dos passos desligados deixa o cron vermelho: ligar de novo ou retirar o passo do cron. As tabelas ficam; o passo religado retoma do último dia coberto (a primeira execução pede a janela inteira, dentro do teto de 400). Se o lote subiu com `dimensoes` desligado (E6 P2 ainda fora), a conferência `e11-religar-dimensoes` cobra tirar `dimensoes` da lista e refazer o deploy.
+
+**Refazer um relatório.** As funções de normalização são idempotentes. Voce roda (escreve no banco):
+
+```sql
+update yt_reporting_reports set normalized_at = null where report_id = '<REPORT_ID>';
+```
+
+e, **junto**, ponha `normalized_at = null` nos OUTROS relatórios do mesmo canal e do mesmo dia (mesmo tipo): um relatório mais velho não grava por cima de um mais novo já aplicado, e o dia só fica certo se a fila refizer todos na ordem (mais velho primeiro; o mais novo substitui o dia inteiro). Para relatório em `erro`: depois de consertar o código e estar no ar, `update yt_reporting_reports set status = 'baixado', error = null where report_id = '<REPORT_ID>'` e a regra acima para os irmãos. Antes, confirme que o bruto existe (seção 8).
+
+**Troca de modo de uma família.** Se o YouTube passar uma família de relatório de um modo para outro (ex.: de combinado para separado, ou o tipo trocar de dimensões), o normalizador recusa o cabeçalho (`cabecalho_inesperado`) e o relatório vai a `erro`. Não editar linhas à mão: adicionar o leitor do novo cabeçalho no código (`apps/web/src/lib/youtube/reporting/`), subir, e só então devolver os relatórios à fila. Os dias já normalizados ficam; o dia refeito é substituído inteiro.
+
+**O que cada número do resumo quer dizer** (`resumo.dimensoes` e `resumo.normalizadores`, e a prova `yt_own_dim_prova`):
+- `faltando_cobertura`: conjuntos (vídeo, conjunto, dia) que deveriam estar cobertos até `menor(hoje − 4, base)` e não estão. Vermelho depois de 3 dias de carência.
+- `pendentes_normalizar`: relatórios baixados há mais de 5 dias e ainda sem normalizar. Vermelho depois da carência.
+- `videos_com_base`: vídeos com cobertura `base` no período. `videos_sem_base`: vídeos publicados há mais de 5 dias sem nenhuma `base`. `videos_base_antes_do_inicio`: vídeos cuja `base` termina antes de `DIMENSOES_DESDE`. **Os dois últimos não são alarme desta etapa**: dizem que o diário (E6) ainda não cobriu o vídeo, e a E11 espera por ele.
+- `base_ate`: o menor `base` entre os canais (limita a janela).
+- `dias_dois_relatorios_detalhe` / `_alcance`: dias do mesmo canal com duas origens de relatório (a soma por origem tem de ser ≤ diário; ver C4).
+- `dias_mantidos`: dia com view cuja resposta da API veio SEM linha mas tinha linha antiga: a linha fica enquanto o diário não a contradiz. `dias_em_revisao`: o diário foi revisado para baixo depois da gravação; o dia espera a próxima janela.
+- `consultas`: chamadas à Analytics API da execução (teto 400). `ms_passos`: tempo de cada passo; `fora_do_teto`: linhas além do teto de linhas por consulta (a zerada não entra). `codigos_fora_do_catalogo`: códigos de origem de tráfego que o catálogo (`codigos.ts`) não conhece; gravados como vêm, sem erro. Subiu: acrescentar ao catálogo.
+
+**Códigos de `MOTIVOS_NORMALIZADOR`** (coluna `error` de `yt_reporting_reports`; a frase sai de `motivoNormalizadorHumano`):
+
+| código | significa | o que fazer |
+|---|---|---|
+| `bruto_ausente` | o arquivo bruto não está guardado | sem bruto não há como refazer; baixar de novo só se o YouTube ainda listar o relatório |
+| `gzip_invalido` | o arquivo não abriu (compactação inválida) | conferir o bruto (seção 7); se corrompido, tratar como `bruto_ausente` |
+| `cabecalho_inesperado` | o cabeçalho não é o esperado | provável troca de modo/colunas pelo YouTube (ver acima); consertar o leitor, depois devolver à fila |
+| `linha_invalida` | uma linha não pôde ser lida | exportar o CSV (seção 7), achar a linha, consertar o leitor |
+| `canal_inesperado` | linhas de outro canal | conferir o canal do job; não devolver à fila sem entender |
+| `dia_inesperado` | dia fora do esperado | conferir o dia do relatório contra o job |
+| `recusado_pelo_banco` | o banco recusou a gravação | ler o erro no log do cron; geralmente migration faltando (MG7) ou restrição violada |
+
+**Volta.** `YT_OWN_STEPS_OFF=dimensoes,normalizadores` na Vercel e redeploy de produção (ou reverter o commit). As tabelas ficam. Refazer a normalização: `normalized_at = null` nos relatórios dos dois tipos.

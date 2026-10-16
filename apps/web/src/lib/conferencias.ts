@@ -465,7 +465,33 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
 }
 
 /** A lista publicada, em ordem de data (a ordenação é estável: na mesma data vale a ordem de escrita). */
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+// A5 E11 (canal próprio em tabelas: passos "dimensões" e "normalizadores"): dia de São Paulo da promoção a `main` (D), preenchido no commit
+// do envio (Tarefa 14). Tem de diferir de `DIMENSOES_LIGADO_EM` (dia do Pacífico, e11-config.ts) em no máximo um dia. Etapa `E11`.
+/** Dia de São Paulo (AAAA-MM-DD) em que o lote E11 foi promovido a `main`. `null` = ainda não enviado. */
+export const E11_DEPLOY: string | null = '2026-10-17'
+
+const PLANO_E11 = 'docs/superpowers/plans/2026-10-12-a5-e11-canal-proprio-em-tabelas-plan.md (seção 7 e seção 11, consultas C1 a C4 e V4); anotar o resultado em .superpowers/sdd/a5/'
+
+/**
+ * As conferências da E11 a partir do dia do envio (D). `null` = sem entradas. Data malformada vira entrada de 1970 (vermelha).
+ * `e11-religar-dimensoes` só vale se o lote foi com `dimensoes` em `YT_OWN_STEPS_OFF` (E6 P2 ainda fora de produção): se não foi, marcar `feitaEm`.
+ */
+export function conferenciasE11(deploy: string | null): Conferencia[] {
+  if (deploy === null) return []
+  if (!dataReal(deploy)) {
+    return [{ id: 'e11-deploy-invalido', etapa: 'E11', data: '1970-01-01', responsavel: 'agente', onde: `E11_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção a main) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e11-${id}`, etapa: 'E11', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E11}: ${onde}`, feitaEm: null })
+  return [
+    e('d1', 1, 'D+1, resumo do primeiro cron: `dimensoes` e `normalizadores` presentes, `ms_passos` dos dois, `consultas`, `dias_mantidos` (dias com view cuja resposta veio sem linha e que tinham linha antiga: só vale para respostas de dias com view), `dias_em_revisao`, `codigos_fora_do_catalogo`; V4 em produção'),
+    e('d5', 5, 'D+5: item 84 (fila dos dois tipos zerada, consulta C1); item 249 (C2) = 0 e 0; NP-E11 (C3) = 0'),
+    e('religar-dimensoes', 5, 'D+5, SÓ se o lote foi com `dimensoes` desligado (antes da 8ª execução, que deixa o cron vermelho): a E6 P2 está em produção? Tirar `dimensoes` de `YT_OWN_STEPS_OFF` e refazer o deploy de produção. Se o lote foi com tudo ligado, marcar como feita'),
+    e('d14', 14, 'D+14: item 92 com 14 dias de dado; a soma por origem <= diário em todo dia (C4); tamanho das três tabelas'),
+    e('relatorio-refeito', 60, 'D+60: F3 de novo: apareceu relatório refeito pelo YouTube? Se sim, conferir que o `create_time` é maior e que o dia ficou com um relatório só'),
+  ]
+}
+
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE11(E11_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
