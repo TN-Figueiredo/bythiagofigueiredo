@@ -5,8 +5,9 @@ import { median, quant } from './stats'
 import { DAY, H } from './time'
 import type { Fmt, ObsChannel, ObsVideo } from './types'
 
+// Cortes de regularidade (razão p75/p25): provisórios (16/10, terços medidos em 22 canais); revisar em 12/11 (CP-RI3/CP-RI4).
 export const REGRAS_REFERENCIAS = {
-  janelaDias: 90, idadeMinimaDias: 7, minVideosFaixa: 5, minVideosProvisoria: 3, corteEstreita: 2, corteMedia: 6, coletaVelhaHoras: 48,
+  janelaDias: 90, idadeMinimaDias: 7, minVideosFaixa: 5, minVideosProvisoria: 3, corteEstreita: 1.4, corteMedia: 2.6, coletaVelhaHoras: 48,
 } as const
 
 export type MotivoReferencia = 'ainda_nao_coletado' | 'coleta_velha' | 'so_videos_novos' | 'sem_videos_90d' | 'poucos_videos' | 'janela_parcial'
