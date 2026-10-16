@@ -474,7 +474,6 @@ const PLANO_E11 = 'docs/superpowers/plans/2026-10-12-a5-e11-canal-proprio-em-tab
 
 /**
  * As conferências da E11 a partir do dia do envio (D). `null` = sem entradas. Data malformada vira entrada de 1970 (vermelha).
- * `e11-religar-dimensoes` só vale se o lote foi com `dimensoes` em `YT_OWN_STEPS_OFF` (E6 P2 ainda fora de produção): se não foi, marcar `feitaEm`.
  */
 export function conferenciasE11(deploy: string | null): Conferencia[] {
   if (deploy === null) return []
@@ -485,7 +484,6 @@ export function conferenciasE11(deploy: string | null): Conferencia[] {
   return [
     e('d1', 1, 'D+1, resumo do primeiro cron: `dimensoes` e `normalizadores` presentes, `ms_passos` dos dois, `consultas`, `dias_mantidos` (dias com view cuja resposta veio sem linha e que tinham linha antiga: só vale para respostas de dias com view), `dias_em_revisao`, `codigos_fora_do_catalogo`; V4 em produção'),
     e('d5', 5, 'D+5: item 84 (fila dos dois tipos zerada, consulta C1); item 249 (C2) = 0 e 0; NP-E11 (C3) = 0'),
-    e('religar-dimensoes', 5, 'D+5, SÓ se o lote foi com `dimensoes` desligado (antes da 8ª execução, que deixa o cron vermelho): a E6 P2 está em produção? Tirar `dimensoes` de `YT_OWN_STEPS_OFF` e refazer o deploy de produção. Se o lote foi com tudo ligado, marcar como feita'),
     e('d14', 14, 'D+14: item 92 com 14 dias de dado; a soma por origem <= diário em todo dia (C4); tamanho das três tabelas'),
     e('relatorio-refeito', 60, 'D+60: F3 de novo: apareceu relatório refeito pelo YouTube? Se sim, conferir que o `create_time` é maior e que o dia ficou com um relatório só'),
   ]
