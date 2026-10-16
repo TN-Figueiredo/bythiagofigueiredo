@@ -12,6 +12,7 @@ import { contarPorResultado, registrarTentativa } from './attempts'
 import { comPrazo, emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
 import { addDays, boundsAnalytics, boundsReporting, diffDias, ontemPt, utcDay } from './day-pt'
 import { ehPerdaDeAutorizacao } from './google-erro'
+import { cobrirMetadados, type CoberturaMetaResumo } from './meta-cobertura'
 import { conferirBanco, pushUnico } from './schema'
 import type { StepCtx, StepResumo } from './types'
 import { DataApiError, videosList, type VideoCapturado } from './videos-list'
@@ -24,6 +25,8 @@ export interface MetaResumo extends StepResumo {
   sem_privacidade: number
   /** Linhas gravadas nesta execução cujo `is_short` ficou nulo (duração desconhecida ou sonda sem confirmação). */
   sem_is_short: number
+  /** A5 E18 P2: a cobertura do dia (yt_own_meta_cover). Ausente = o passo parou antes e não avaliou. */
+  cobertura?: CoberturaMetaResumo
 }
 
 interface VideoRow {
@@ -543,5 +546,6 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     }
   }
 
+  resumo.cobertura = await cobrirMetadados(ctx, day, canais.filter(c => videos.some(v => v.channel_id === c.id)))
   return fechar()
 }

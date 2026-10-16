@@ -70,7 +70,7 @@ describe('meta-cobertura', () => {
   })
 
   it('5. função ausente (PGRST202): nota schema_ausente, falhas 1, ok 0', async () => {
-    const db = fakeSupabase({}); const ctx = ctxDe(db) // sem handler: o fake devolve PGRST202
+    const db = fakeSupabase({}); delete db.rpcHandlers.yt_own_meta_cover; const ctx = ctxDe(db) // sem handler: o fake devolve PGRST202
     const r = await cobrirMetadados(ctx, DIA, [canalA])
     expect(r).toMatchObject({ ok: 0, falhas: 1 })
     expect(ctx.falhas).toEqual(['schema_ausente: yt_own_meta_cover'])
