@@ -177,7 +177,7 @@ export function conferenciasE18P2(aplicada: string | null): Conferencia[] {
 // São Paulo), preenchido na Tarefa 7 do plano no commit do envio. Enquanto for `null`, as quatro entradas NÃO existem (nada vence, nada
 // deixa o cron vermelho). Etapa `E6` (o formato `E<n>` do guardião). Os ids começam por `e6-p3-`, distintos dos da P2.
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG15. `null` = ainda não aplicada. */
-export const E6_P3_APLICADA: string | null = null
+export const E6_P3_APLICADA: string | null = '2026-10-16'
 
 const PLANO_E6P3 = 'docs/superpowers/plans/2026-10-13-a5-e6-p3-apagar-linhas-vazias-do-diario-plan.md (seção 7 e seção 11: V1 a V7, CP4, CP6, CP8); anotar o resultado em .superpowers/sdd/a5-e6-p3/progress.md'
 
