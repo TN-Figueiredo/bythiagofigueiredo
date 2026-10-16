@@ -14,6 +14,7 @@ import { ParamChips } from './param-chips'
 import { PhaseGroup } from './phase-group'
 import { OutIcon, RichText } from './outlier-card'
 import { ForjaBar } from './forja-bar'
+import { AvisoDeErro, Faixa, LinhaDoSelo, NotaDeNenhumMedido } from './idade-ui'
 
 export function OutliersScreen({ view: v }: { view: OutliersView }) {
   const router = useRouter()
@@ -43,7 +44,7 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
           </div>
           <select className="obs-out-select" aria-label="Ordenar por" value={v.query.sort}
             onChange={e => { const o = v.sortOptions.find(x => x.value === e.target.value); if (o) go(o.href) }}>
-            {v.sortOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {v.sortOptions.map(o => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
           </select>
         </div>
       </section>
@@ -81,6 +82,11 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
       {near ? null : <ParamChips v={v} />}
       {v.forjaBar && !hasChips ? <div className="obs-out-notices" data-forja-slot=""><ForjaBar bar={v.forjaBar} /></div> : null}
 
+      {v.idade?.aoVivo ? <LinhaDoSelo aoVivo={v.idade.aoVivo} /> : null}
+      {v.idade?.erro ? <AvisoDeErro onTentar={() => router.refresh()} /> : null}
+      {v.idade && !v.empty ? <Faixa idade={v.idade} /> : null}
+      {v.idade?.voltar ? <NotaDeNenhumMedido voltar={v.idade.voltar} onVoltar={go} /> : null}
+
       <div className="obs-out-results">
         {v.empty ? (
           <div className="obs-out-empty" role="status">
@@ -97,7 +103,7 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
             </div>
           </div>
         ) : <>
-          {v.groups.map(g => <PhaseGroup key={g.id} g={g} view={v.query.view} shorts={shorts} />)}
+          {v.groups.map(g => <PhaseGroup key={g.id} g={g} view={v.query.view} shorts={shorts} ordem={v.idade?.ordem ?? null} />)}
           {v.more ? <div className="obs-out-morebar"><Link className="obs-out-btn" href={v.more.href} scroll={false} data-more="">{v.more.label}</Link><span className="obs-out-pagenote">{v.more.note}</span></div> : null}
         </>}
       </div>

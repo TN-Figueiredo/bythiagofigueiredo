@@ -133,7 +133,7 @@ export function Actions({ c }: { c: OutlierCardView }) {
   return (
     <div className="obs-out-acts">
       <IbLink tip="Ver histórico do vídeo" data-hist={c.id} href={c.historyHref} aria-label={'Ver histórico do vídeo: ' + c.title}><OutIcon name="hist" /></IbLink>
-      <IbLink tip="Abrir no YouTube" data-yt={c.id} href={c.url} target="_blank" rel="noopener noreferrer" aria-label={'Abrir no YouTube: ' + c.title}><OutIcon name="ext" /></IbLink>
+      {c.idade?.saiu ? null : <IbLink tip="Abrir no YouTube" data-yt={c.id} href={c.url} target="_blank" rel="noopener noreferrer" aria-label={'Abrir no YouTube: ' + c.title}><OutIcon name="ext" /></IbLink>}
     </div>
   )
 }
