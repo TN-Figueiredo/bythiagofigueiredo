@@ -100,6 +100,10 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   'empty.actions[].primary': APAR, 'empty.actions[].dest': ID,
   count: REP, 'pageIds[]': ID,
 
+  // E5a T8 (colunas de 7 e 30 dias, faixa de cobertura, selo): a tela as mostra; o pacote ainda NÃO as leva (pendência declarada: o empacotador de Outliers
+  // ganha as duas colunas numa tarefa própria da E17, com a prova de paridade). Até lá a folha fica declarada como controle de tela, e não como número.
+  'idade*': CTRL, 'groups[].cards[].idade*': CTRL, 'sortOptions[].disabled': CTRL,
+
   // a forja: o botão e o estado do cabeçalho são chrome; a barra de leituras é desta tela
   'forja.*': CTRL,
   'forjaBar.bad': CTRL,
@@ -116,6 +120,8 @@ export const INVENTARIO_OUTLIERS: Inventario = {
 export const SEM_FOLHA_NA_MATRIZ_OUTLIERS: readonly string[] = [
   // o aviso do canal próprio e o pedido da forja em andamento: cada um tem teste sintético próprio, que monta a tela e o pacote
   'chips[].link.label', 'chips[].link.href',
+  // E5a T8: a opção por idade só existe quando a página trouxe os dados das marcas (a matriz monta o modelo sem eles)
+  'sortOptions[].disabled',
   'forjaBar.summary.chip', 'forjaBar.summary.chipCls', 'forjaBar.summary.line', 'forjaBar.summary.split', 'forjaBar.summary.statusText',
   'forjaBar.req.cls', 'forjaBar.req.text', 'forjaBar.req.trackHref', 'forjaBar.sideBad[]',
 ]

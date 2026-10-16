@@ -9,13 +9,69 @@ import type { OutlierItem, OutlierQuery, OutlierSort } from '@/lib/youtube/obser
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import type { Fmt, Niche, ObsChannel, ObsVideo, ThumbArt } from '@/lib/youtube/observatorio/types'
 import { buildForjaView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import type { Medida } from '@/lib/youtube/observatorio/medidas/tipos'
+import type { ValorM1 } from '@/lib/youtube/observatorio/medidas/m1'
+import { FRASE_FIXA_DA_FONTE } from '@/lib/youtube/observatorio/medidas-telas/frases'
+import { INICIO_DAS_MARCAS, somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
+import { celulaDeIdade, diasEntre, cobertura, dm as dmDe, fraseDaOrdem, IDADES, motivosAgrupados, ordenarPorIdade, quandoFecham, type Celula, type Idade } from './idade-model'
+
+/** A ordem da tela: as três do motor e as duas por idade (E5a T8). O tipo do motor não muda. */
+export type SortDaTela = OutlierSort | 'v7' | 'v30'
+
+/**
+ * Os dados da Tarefa 8, já lidos: o que a tela precisa para as colunas de 7 e 30 dias. Quem monta (a página) entrega isto ou `'erro'`
+ * (a leitura das marcas falhou por inteiro); `undefined` é a tela de antes (sem as colunas, sem as duas opções).
+ */
+export interface DadosDeIdade {
+  /** 'AAAA-MM-DD' de São Paulo. */
+  hojeSP: string
+  /** Por id do vídeo. Ausente = o canal dele não carregou. */
+  m1: ReadonlyMap<string, Record<Idade, Medida<ValorM1>>>
+  /** Por id do vídeo: o que a medida não traz. Ausente = não se sabe. */
+  videos: ReadonlyMap<string, { wasLive: boolean | null; missingSince: number | null }>
+  /** Por canal e formato: quantos vídeos ao vivo ou estreia ficaram fora do cálculo do normal do canal (nota `ao_vivo_fora`). */
+  foraDoNormal: ReadonlyMap<string, { long: number; short: number }>
+}
+export type EntradaDeIdade = DadosDeIdade | 'erro'
+
+export type CasaDaFaixa = 'cheia' | 'zero' | 'nao' | 'erro'
+export interface CelulaDeIdadeView {
+  kind: 'medido' | 'zero' | 'nao' | 'erro'
+  /** O número curto ('82,4 mil'); nulo fora de medido. */
+  texto: string | null; dica: string | null
+  /** Largura da barra, em % do maior da lista naquela idade; nulo fora de medido (e do zero). */
+  pct: number | null
+  /** A frase curta do motivo ('antes de 03/10'); só em não medido. */
+  curta: string | null
+  aria: string
+}
+export interface IdadeDoCartao { c7: CelulaDeIdadeView; c30: CelulaDeIdadeView; aoVivo: boolean; saiu: boolean }
+export interface ColunaDeIdadeView {
+  idade: Idade; ordenada: boolean; medidos: number; total: number; zeros: number
+  casas: CasaDaFaixa[]; contagem: string; aria: string; motivos: string[]
+}
+export interface IdadeView {
+  erro: boolean
+  /** A ordem por idade em vigor (nulo no multiplicador, nas views por dia e no mais recente). */
+  ordem: Idade | null
+  colunas: ColunaDeIdadeView[]
+  /** A linha do selo: quantos ficaram fora do cálculo do normal do canal e quantos aparecem na lista. */
+  aoVivo: { fora: number; naLista: number; texto: string } | null
+  /** "Quando fecham": hoje e as datas; só quando alguém ainda fecha na idade ordenada. */
+  quando: null | { hoje: string; marcas: Array<{ pct: number; dm: string }>; rotulos: Array<{ pct: number; dm: string }>; aria: string }
+  /** Nenhum medido na idade ordenada: o botão que volta ao multiplicador e a frase que explica. */
+  voltar: null | { href: string; texto: string; explica: string }
+  /** O que o ⓘ conta. */
+  info: string[]
+}
+
 
 /** Inline text with emphasis: strings, bold runs, warning runs and an abbreviation with its explanation. */
 export type RichPart = string | { b: string } | { w: string } | { abbr: string; title: string }
 export type Rich = RichPart[]
 
 export type PhaseKey = 'estourando' | 'recente' | 'perene' | 'antigo' | 'novos' | 'sem-ritmo'
-export type GroupKey = PhaseKey | 'flat' | 'above' | 'below'
+export type GroupKey = PhaseKey | 'flat' | 'above' | 'below' | 'idade-med' | 'idade-sem'
 export type Tone = 'hot' | 'mid' | 'ever' | 'old' | 'none' | 'flat' | 'above' | 'below'
 export type Tier = 'mid' | 'high' | 'top'
 
@@ -31,6 +87,8 @@ export interface OutlierCardView {
   /** "Como o 6,0× é calculado" (tooltip) and, on the main card, the visible explanation. */
   tip: Rich; why: Rich | null
   flags: string[]
+  /** E5a T8: as células de 7 e 30 dias, o selo e a marca de "saiu do YouTube". Nulo = a tela de antes. */
+  idade: IdadeDoCartao | null
   phase: { id: PhaseKey; label: string; tone: Tone }; showPhase: boolean; phaseWhy: string | null
   reuse: null | { month: string; vpd7: string; median: string }
   /** Log scale 1×..50× in % of the track; ticks at 2×, 5×, 10×. */
@@ -52,7 +110,7 @@ export interface OutlierEmptyAction { label: string; href: string; n: number; pr
 export interface OutliersView {
   query: {
     niche: NicheScope; fmt: Fmt; ages: string[] | 'all'; min: number; topic: string | null; formula: string | null; channel: string | null
-    asof: string | null; reading: string | null; sort: OutlierSort; view: 'grid' | 'list'
+    asof: string | null; reading: string | null; sort: SortDaTela; view: 'grid' | 'list'
   }
   /** Shortcut "Até 90 dias" (the default) and the exclusive windows. */
   shortcut: { label: string; count: number; selected: boolean; disabled: boolean; href: string; title: string | null; ariaLabel: string }
@@ -60,7 +118,7 @@ export interface OutliersView {
   allCount: number; allHref: string; allSelected: boolean; allLabel: 'Todos' | 'Leitura'; allTitle: string | null; allAriaLabel: string
   fmtLinks: Array<{ value: Fmt; label: string; href: string; pressed: boolean }>
   viewLinks: Array<{ value: 'grid' | 'list'; label: string; href: string; pressed: boolean }>
-  sortOptions: Array<{ value: OutlierSort; label: string; href: string }>
+  sortOptions: Array<{ value: SortDaTela; label: string; href: string; disabled?: boolean }>
   chipsLead: string | null; chips: OutlierChipView[]
   /** Summary line (plain text and with emphasis) and the "Como contamos" paragraphs. */
   baseText: string; baseParts: Rich; basisMore: string[]
@@ -79,6 +137,8 @@ export interface OutliersView {
   /** The forja (padrões de título): header button/status and the collapsed forja bar (Task 35). */
   forja: ForjaView
   forjaBar: OutliersForjaBar | null
+  /** E5a T8: as colunas de 7 e 30 dias, a faixa de cobertura e o selo. Nulo = a tela de antes (quem montou não trouxe os dados). */
+  idade: IdadeView | null
 }
 export interface OutliersForjaBar {
   bad: boolean
@@ -117,7 +177,7 @@ const plainOf = (r: Rich) => r.map(p => (typeof p === 'string' ? p : 'b' in p ? 
 
 interface Bad { key: string; value: string }
 interface State {
-  niche: NicheScope; fmt: Fmt; ages: string[]; sort: OutlierSort; view: 'grid' | 'list'; limit: number
+  niche: NicheScope; fmt: Fmt; ages: string[]; sort: SortDaTela; view: 'grid' | 'list'; limit: number
   min: number | null; theme: string | null; formula: string | null; channel: string | null
   reading: string | null; own: string | null; notOut: { id: string; label: string } | null
   asofNone: string | null; asofPick: { af: string; ids: string[] } | null; from: string | null; bad: Bad[]
@@ -125,7 +185,7 @@ interface State {
 /** What an href changes from the current state (null = drop). */
 type Nav = Partial<Pick<State, 'fmt' | 'ages' | 'sort' | 'view' | 'limit' | 'min' | 'theme' | 'formula' | 'channel' | 'reading' | 'bad' | 'asofPick'>> & { niche?: NicheScope; agesAll?: boolean }
 
-export function buildOutliersView(obs: Observatory, p: Record<string, string | undefined>): OutliersView {
+export function buildOutliersView(obs: Observatory, p: Record<string, string | undefined>, entrada?: EntradaDeIdade): OutliersView {
   const F = obs.fmt, D = obs.date, RULES = obs.RULES
   const ALL_AGES = obs.OUT_WINDOWS.map(w => w.id)
   const DEFAULT = [...obs.DEFAULT_AGES]
@@ -155,8 +215,13 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   const m0 = get('min'); if (m0 != null) { const x = Number(m0.replace(',', '.')); if (!Number.isNaN(x) && x >= 0 && x <= 100) S.min = x; else S.bad.push({ key: 'min', value: m0 }) }
   const th0 = get('theme'), tp = get('topic') ?? (th0 && th0 !== 'light' && th0 !== 'dark' && obs.theme(th0) ? th0 : null)
   if (tp) { if (obs.theme(tp)) S.theme = tp; else S.bad.push({ key: 'topic', value: tp }) }
-  const so = get('sort'); if (so) { if (so === 'mult' || so === 'vpd' || so === 'recent') S.sort = so; else S.bad.push({ key: 'sort', value: so }) }
+  const so = get('sort'); if (so) { if (so === 'mult' || so === 'vpd' || so === 'recent' || so === 'v7' || so === 'v30') S.sort = so; else S.bad.push({ key: 'sort', value: so }) }
   const vw = get('view'); if (vw) { if (vw === 'grid' || vw === 'list') S.view = vw; else S.bad.push({ key: 'view', value: vw }) }
+  // E5a T8: as duas ordens por idade só existem com os dados lidos. Sem eles (leitura falhou, ou quem montou não trouxe) a ordem fica a do multiplicador.
+  const dados: DadosDeIdade | null = entrada && entrada !== 'erro' ? entrada : null
+  const erroDeIdade = entrada === 'erro'
+  if ((S.sort === 'v7' || S.sort === 'v30') && !dados) S.sort = 'mult'
+  if (S.sort === 'v7' || S.sort === 'v30') S.view = 'list'
   const fo = get('formula'); if (fo) { if (obs.formula(fo)) S.formula = fo; else S.bad.push({ key: 'formula', value: fo }) }
   const chKey = get('channel') != null ? 'channel' : get('canal') != null ? 'canal' : null
   if (chKey) { const id = get(chKey)!, o = ch(id); if (o && o.own) S.own = id; else if (o) S.channel = id; else S.bad.push({ key: chKey, value: id }) }
@@ -300,6 +365,29 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   const outsInList = nm ? q({ min: RULES.outlierMin }).count : 0
   const noBase = nm ? R.noBase : 0
   const where = scope ? 'no escopo da leitura' : ages2label(obs, effAges)
+  /* ---------------- E5a T8: as células de 7 e 30 dias, a faixa de cobertura e o selo */
+  const idadeOrd: Idade | null = dados ? (S.sort === 'v7' ? 7 : S.sort === 'v30' ? 30 : null) : null
+  const cel: Record<Idade, Map<string, Celula>> = { 7: new Map(), 30: new Map() }
+  if (entrada) for (const idade of IDADES) for (const it of Rw.items) cel[idade].set(it.id, dados ? celulaDeIdade(dados.m1.get(it.id)?.[idade], idade) : { estado: 'nao_carregou' })
+  const ord = idadeOrd ? ordenarPorIdade(Rw.items.map(it => ({ id: it.id, celula: cel[idadeOrd].get(it.id)! }))) : null
+  const maxIdade: Record<Idade, number> = { 7: 1, 30: 1 }
+  for (const idade of IDADES) for (const c of cel[idade].values()) if (c.estado === 'medido' && c.valor > maxIdade[idade]) maxIdade[idade] = c.valor
+  const celView = (c: Celula, idade: Idade): CelulaDeIdadeView => {
+    if (c.estado === 'medido') {
+      if (c.valor === 0) return { kind: 'zero', texto: '0', dica: null, pct: null, curta: null, aria: 'zero medido: o vídeo tinha 0 views aos ' + idade + ' dias' }
+      const dica = F.int(c.valor) + ' views aos ' + idade + ' dias'
+      return { kind: 'medido', texto: F.num(c.valor), dica, pct: Math.min(100, Math.max(1.5, c.valor / maxIdade[idade] * 100)), curta: null, aria: dica }
+    }
+    if (c.estado === 'nao_medido') return { kind: 'nao', texto: null, dica: null, pct: null, curta: c.curta, aria: 'não medido: ' + c.longa }
+    return { kind: 'erro', texto: null, dica: null, pct: null, curta: null, aria: 'não carregou: as views aos ' + idade + ' dias não puderam ser lidas agora' }
+  }
+  const idadeDoCartao = (id: string): IdadeDoCartao | null => {
+    if (!entrada) return null
+    const info = dados?.videos.get(id)
+    return { c7: celView(cel[7].get(id)!, 7), c30: celView(cel[30].get(id)!, 30), aoVivo: info?.wasLive === true, saiu: info?.missingSince != null }
+  }
+  const listaIds: string[] = ord ? [...ord.medidos, ...ord.resto].map(x => x.id) : Rw.orderedGroups(S.sort as OutlierSort).flatMap(g => g.ids)
+
   const flat = S.sort !== 'mult' || nm
   const order = !Rw.countWithWeak ? '' : flat ? (S.sort === 'vpd' ? 'ordenados por views/dia, canais atrasados no fim' : S.sort === 'recent' ? 'do mais recente ao mais antigo' : '') : 'agrupados por fase'
   const baseParts: Rich = nm
@@ -313,6 +401,11 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
       + (W ? ' Os vídeos com base fraca (menos de ' + RULES.weakBase + ' vídeos para comparar) aparecem em cinza tracejado, fora da contagem.' : ''),
     'Publicados desde ' + obs.SERIES_START_LABEL + ' são comparados no mesmo dia de vida quando há ' + RULES.weakBase + ' ou mais vídeos para comparar; senão, e para os mais antigos, vale a aproximação por faixa (' + obs.AGE_BANDS.map(b => b.label.replace(' dias', '').replace('mais de 365', '365+')).join(', ') + ' dias). Views/dia: últimos 7 dias; vídeos com menos de 7 dias mostram a média desde a publicação.',
   ]
+
+  if (ord && idadeOrd) {
+    const cs = [...ord.medidos, ...ord.resto].map(x => x.celula)
+    baseParts.splice(0, baseParts.length, ...fraseDaOrdem(idadeOrd, { medidos: ord.medidos.length, total: cs.length, zeros: cobertura(cs).zeros }, quandoFecham(cs, dados!.hojeSP)))
+  }
 
   /* ---------------- channels with a sync problem (probs) */
   const probCh = selCh.map(id => ch(id)).filter((c): c is ObsChannel => !!c && !!c.sync.problemPhrase)
@@ -371,10 +464,12 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   const itemById = new Map(Rw.items.map(it => [it.id, it]))
   const PH = obs.PHASES
   let left = S.limit
-  const ordered = Rw.orderedGroups(S.sort)
+  const ordered = ord
+    ? [{ k: 'idade-med', ids: ord.medidos.map(x => x.id) }, { k: 'idade-sem', ids: ord.resto.map(x => x.id) }].filter(g => g.ids.length)
+    : Rw.orderedGroups(S.sort as OutlierSort)
   const pageIds = ((): string[] => { let l = S.limit; const ids: string[] = []; for (const g of ordered) { const take = g.ids.slice(0, Math.max(0, l)); ids.push(...take); l -= take.length } return ids })()
   const backQs = '?' + (hrefOf().split('?')[1] ?? '')
-  const cardOf = (it: OutlierItem, main: boolean): OutlierCardView => buildCard(obs, it, { main, flat, nm, channelFilter: !!S.channel, pageIds, back: backQs })
+  const cardOf = (it: OutlierItem, main: boolean): OutlierCardView => ({ ...buildCard(obs, it, { main, flat, nm, channelFilter: !!S.channel, pageIds, back: backQs }), idade: idadeDoCartao(it.id) })
   const groups: OutlierGroupView[] = []
   for (const g of ordered) {
     const full = g.ids.map(id => itemById.get(id)!).filter(Boolean)
@@ -382,17 +477,19 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     if (!items.length) continue
     const k = g.k as GroupKey
     const phaseCount = (R.byPhase as Record<string, number>)[k]
-    const nIn = k === 'above' || k === 'below' || k === 'flat' ? full.filter(it => !it.weak).length : phaseCount ?? 0
+    const isIdadeG = k === 'idade-med' || k === 'idade-sem'
+    const nIn = isIdadeG ? full.length : k === 'above' || k === 'below' || k === 'flat' ? full.filter(it => !it.weak).length : phaseCount ?? 0
     const nW = full.length - nIn
-    const label = k === 'above' ? 'Com ' + F.mult(RULES.outlierMin) + ' ou mais (' + nIn + ')' : k === 'below' ? 'Abaixo de ' + F.mult(RULES.outlierMin) + ' (' + nIn + ')' : k === 'flat' ? 'Todos os outliers' : PHASE_TITLE[k as PhaseKey]
-    const why = k === 'above' ? 'Os outliers' + (tf ? ' com ' + tf : '') + ': ' + F.mult(RULES.outlierMin) + ' ou mais a mediana do canal.'
+    const nomeIdade = idadeOrd ? 'views aos ' + idadeOrd + ' dias' : ''
+    const label = k === 'idade-med' ? 'Do maior para o menor: ' + nomeIdade : k === 'idade-sem' ? (ord!.medidos.length ? 'Sem a medida' : 'Na ordem do multiplicador') : k === 'above' ? 'Com ' + F.mult(RULES.outlierMin) + ' ou mais (' + nIn + ')' : k === 'below' ? 'Abaixo de ' + F.mult(RULES.outlierMin) + ' (' + nIn + ')' : k === 'flat' ? 'Todos os outliers' : PHASE_TITLE[k as PhaseKey]
+    const why = k === 'idade-med' ? 'medidas' : k === 'idade-sem' ? (ord!.medidos.length ? 'ficam no fim, na ordem do multiplicador' : 'ainda sem ' + nomeIdade) : k === 'above' ? 'Os outliers' + (tf ? ' com ' + tf : '') + ': ' + F.mult(RULES.outlierMin) + ' ou mais a mediana do canal.'
       : k === 'below' ? (tf ? 'Têm ' + tf : 'Entram na lista') + ', mas ficam abaixo de ' + F.mult(RULES.outlierMin) + ' a mediana do canal. Sem cor de faixa.'
       : k === 'flat' ? '' : cap(PH.find(x => x.id === k)!.why) + '.'
-    const isPhase = k !== 'above' && k !== 'below' && k !== 'flat'
+    const isPhase = k !== 'above' && k !== 'below' && k !== 'flat' && !isIdadeG
     const withLead = !flat && !nm && items.length > 1 && !NO_LEAD.includes(k)
     groups.push({
-      id: k, label, tone: isPhase ? PHASE_TONE[k as PhaseKey] : (k as Tone), why,
-      count: isPhase && nIn ? nIn : null, weakCount: nW,
+      id: k, label, tone: isPhase ? PHASE_TONE[k as PhaseKey] : isIdadeG ? 'flat' : (k as Tone), why,
+      count: (isPhase || isIdadeG) && nIn ? nIn : null, weakCount: nW,
       countText: nW && (nIn || !isPhase) ? '+' + nW + ' com base fraca' : null,
       onlyWeakText: isPhase && !nIn ? 'Só com base fraca (' + nW + ')' : null,
       cards: items.map((it, i) => cardOf(it, withLead && i === 0 && !it.weak)),
@@ -458,17 +555,88 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     return { title, text, actions }
   }
 
+  const idade = ((): IdadeView | null => {
+    if (!entrada) return null
+    const total = listaIds.length
+    const celulasNaOrdem = (idade: Idade): Celula[] => listaIds.map(id => cel[idade].get(id)!)
+    const colunas: ColunaDeIdadeView[] = !dados || !total ? [] : IDADES.map(idade => {
+      const cs = celulasNaOrdem(idade), c = cobertura(cs), mo = motivosAgrupados(cs).map(m => m.texto)
+      const sem = c.total - c.medidos
+      return {
+        idade, ordenada: idade === idadeOrd, medidos: c.medidos, total: c.total, zeros: c.zeros, casas: c.casas, motivos: mo,
+        contagem: c.medidos + ' de ' + c.total + ' medidos' + (c.zeros ? ' (' + c.zeros + ' com zero medido)' : ''),
+        aria: idade + ' dias: ' + c.medidos + ' de ' + c.total + ' medidos' + (c.zeros ? ', ' + c.zeros + ' com zero medido' : '') + (sem ? '; ' + sem + ' não medidos' + (mo.length ? ': ' + mo.join(', ') : '') : '') + '. Uma casa por vídeo, na ordem da lista.',
+      }
+    })
+    let quando: IdadeView['quando'] = null
+    if (dados && idadeOrd) {
+      const q = quandoFecham(celulasNaOrdem(idadeOrd), dados.hojeSP)
+      if (q) {
+        const span = Math.max(1, diasEntre(dados.hojeSP, q.ultima)), pct = (d: string) => Math.round(diasEntre(dados.hojeSP, d) / span * 1000) / 10
+        const uniq = [...new Set(q.datas)], rot = uniq.length <= 3 ? uniq : [uniq[0]!, uniq[uniq.length - 1]!]
+        quando = {
+          hoje: dmDe(dados.hojeSP), marcas: q.datas.map(d => ({ pct: pct(d), dm: dmDe(d) })), rotulos: rot.map(d => ({ pct: pct(d), dm: dmDe(d) })),
+          aria: 'Régua do tempo: hoje, ' + dmDe(dados.hojeSP) + '; passam a ter a medida de ' + idadeOrd + ' dias em ' + q.datas.map(dmDe).join(', ') + '.',
+        }
+      }
+    }
+    let aoVivo: IdadeView['aoVivo'] = null
+    if (dados && total) {
+      const fora = selCh.reduce((n, id) => n + (dados.foraDoNormal.get(id)?.[effFmt === 'short' ? 'short' : 'long'] ?? 0), 0)
+      const naLista = Rw.items.filter(it => dados.videos.get(it.id)?.wasLive === true).length
+      if (fora || naLista) {
+        aoVivo = {
+          fora, naLista,
+          texto: fora + ' ' + (fora === 1 ? 'vídeo ao vivo ou estreia ficou fora' : 'vídeos ao vivo ou estreia ficaram fora') + ' do cálculo do normal do canal'
+            + (naLista ? '; ' + (naLista === 1 ? 'um aparece' : naLista + ' aparecem') + ' na lista com o selo' : '') + '.',
+        }
+      }
+    }
+    const semInfo = dados ? Rw.items.filter(it => dados.videos.get(it.id)?.wasLive == null).length : 0
+    const dmy = (d: string) => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4)
+    const info = [
+      'Conta: as views do vídeo no instante “publicação + 7 dias” (ou + 30), por interpolação linear entre as duas leituras vizinhas. Todo vídeo é medido na mesma idade, então um vídeo de 9 dias pode ser comparado com um de 52.',
+      'Fonte: ' + FRASE_FIXA_DA_FONTE,
+      'Viés: interpolar entre leituras espaçadas subestima a subida inicial; o horário da publicação e o fim de semana pesam mais aos 7 dias do que aos 30.',
+      'Não medido: “antes de ' + dmDe(INICIO_DAS_MARCAS) + '” (a contagem diária começou em ' + dmDe(INICIO_DAS_MARCAS) + '); “fecha em dd/mm” (o vídeo ainda não tem a idade); “descoberto tarde” (descobrimos o vídeo mais de 24 horas depois de publicado); ou leituras vizinhas muito distantes (mais de 36 horas).',
+      'Quando passa a existir: aos 7 dias desde ' + dmy(somaDias(INICIO_DAS_MARCAS, 7)) + ' e aos 30 dias desde ' + dmy(somaDias(INICIO_DAS_MARCAS, 30)) + ', para os vídeos publicados desde ' + dmDe(INICIO_DAS_MARCAS) + '.',
+      'Ao vivo ou estreia: fica fora do cálculo do normal do canal (as medianas de views na idade, de curva por idade e de engajamento). O vídeo continua na lista, com o selo.',
+      'Zero medido: o vídeo existia, mas tinha 0 views naquela idade; por exemplo, ficou privado ou agendado e foi liberado depois. Não é o mesmo que “não medido”, que quer dizer que não temos a leitura.',
+      ...(semInfo ? [semInfo + ' ' + (semInfo === 1 ? 'vídeo da lista está sem a informação de ao vivo ou estreia' : 'vídeos da lista estão sem a informação de ao vivo ou estreia') + ': nenhum recebe o selo.'] : []),
+    ]
+    return {
+      erro: erroDeIdade, ordem: idadeOrd, colunas, aoVivo, quando, info,
+      voltar: ord && !ord.medidos.length && total
+        ? { href: hrefOf({ sort: 'mult', limit: PAGE }), texto: 'Voltar ao multiplicador (padrão)', explica: 'A lista abaixo está na ordem do multiplicador porque nenhum vídeo pode ser ordenado ainda.' }
+        : null,
+    }
+  })()
+  const idadeSort = entrada !== undefined
+  const optIdade = (idade: Idade): OutliersView['sortOptions'][number] => {
+    const v = idade === 7 ? 'v7' as const : 'v30' as const
+    const c = idade_cobertura(idade)
+    return {
+      value: v, href: hrefOf({ sort: v, limit: PAGE, view: 'list' }), disabled: erroDeIdade,
+      label: 'Ordenar: views aos ' + idade + ' dias ' + (erroDeIdade ? '(indisponível agora)' : c.total ? '(' + c.medidos + ' de ' + c.total + ' medidos)' : '(sem vídeos)'),
+    }
+  }
+  function idade_cobertura(i: Idade) { return cobertura(listaIds.map(id => cel[i].get(id)!).filter(Boolean)) }
+  const opcoesDeOrdem = (): OutliersView['sortOptions'] => {
+    const base = (v: OutlierSort) => ({ value: v, label: SORT_LABEL[v], href: hrefOf({ sort: v, limit: PAGE }) })
+    return idadeSort ? [base('mult'), optIdade(7), optIdade(30), base('vpd'), base('recent')] : [base('mult'), base('vpd'), base('recent')]
+  }
+
   return {
     query: { niche: effNiche, fmt: effFmt, ages: isAll ? 'all' : effAges, min: minOf(), topic: S.theme, formula: S.formula, channel: S.channel, asof: get('asof'), reading: S.reading, sort: S.sort, view: S.view },
     shortcut, timeline,
     allCount: all.count, allHref: scope ? hrefOf() : hrefOf(off({ agesAll: true })), allSelected: scope ? true : isAll,
     allLabel: scope ? 'Leitura' : 'Todos', allTitle: scope ? readingSent : null, allAriaLabel: 'Todas as idades: ' + F.plural(all.count, unit[0], unit[1]),
     fmtLinks: (['long', 'short'] as const).map(v => ({ value: v, label: v === 'long' ? 'Longos' : 'Shorts', href: hrefOf(off({ fmt: v, ages: effAges })), pressed: effFmt === v })),
-    viewLinks: (['grid', 'list'] as const).map(v => ({ value: v, label: v === 'grid' ? 'Grade' : 'Lista', href: hrefOf({ view: v }), pressed: S.view === v })),
-    sortOptions: (['mult', 'vpd', 'recent'] as const).map(v => ({ value: v, label: SORT_LABEL[v], href: hrefOf({ sort: v, limit: PAGE }) })),
+    viewLinks: (['grid', 'list'] as const).map(v => ({ value: v, label: v === 'grid' ? 'Grade' : 'Lista', href: hrefOf(idadeOrd && v === 'grid' ? { view: v, sort: 'mult' } : { view: v }), pressed: S.view === v })),
+    sortOptions: opcoesDeOrdem(),
     chipsLead, chips, asofNote,
     baseText: plainOf(baseParts), baseParts, basisMore, nicheNotice,
-    problems, groups, more, empty, count: R.count, pageIds,
+    problems, groups, more, empty, count: R.count, pageIds, idade,
     ...forjaBarOf(obs, S.channel ? obs.channel(S.channel)?.niche ?? effNiche : effNiche, effFmt),
   }
 }
@@ -611,7 +779,7 @@ function buildCard(obs: Observatory, it: OutlierItem, o: { main: boolean; flat: 
     views: F.num(v.views), vpd7: v.vpd7 != null ? F.num(v.vpd7) : null, vpdText, vpdTitle, vpdShort, vpdShortNote,
     historyHref: obs.link.historico(v.id, { from: 'outliers', ids: o.pageIds, back: o.back }), url: v.url,
     thumb, art: thumbV?.art ?? null, dur: durOf(v.dur),
-    tip, why, flags,
+    tip, why, flags, idade: null,
     phase: { id: phaseId, label: cap(it.phase.label), tone: PHASE_TONE[phaseId] }, showPhase: o.flat,
     phaseWhy: o.flat && NO_LEAD.includes(phaseId) ? cap(it.phase.why) + '.' : null,
     reuse,

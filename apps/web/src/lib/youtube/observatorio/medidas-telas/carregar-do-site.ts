@@ -37,7 +37,10 @@ export interface MedidasDoSite {
   extras: Parte<Map<string, ExtrasDoCanal>> | { lido: false; causa: 'tempo_esgotado' }
   falhas: Array<{ canal: string; medida: string; classe: string }>
   esgotou: number
+  /** E5a T8 (Outliers): de cada vídeo lido, só o que a tela não acha nas medidas (`was_live` e `missing_since`). Ausente = quem montou o conjunto não o trouxe. */
+  videos?: Map<string, InfoDoVideo>
 }
+export interface InfoDoVideo { wasLive: boolean | null; missingSince: number | null }
 
 /** Lançado dentro do cache quando alguma parte voltou não lida: o Next não guarda o que lança. Carrega o que foi lido. */
 export class LeituraParcial extends Error {
@@ -178,6 +181,7 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     avisos.add(medida, classe, canal)
   }
   const porCanal: MedidasDoSite['porCanal'] = new Map()
+  const videos = new Map<string, InfoDoVideo>()
   let esgotou = 0
   const proprios = new Set(p.obs.channels.filter((c) => c.own).map((c) => c.id))
   const aLer = [...new Set(p.canais)].filter((id) => !proprios.has(id))
@@ -207,6 +211,12 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     }
     if (!planos.canal.lido) return { naoCarregou: planos.canal.causa }
     const insumos = remontar(planos)
+    if (insumos.videos.lido) {
+      for (const v of insumos.videos.dados) {
+        const ms = v.missingSince === null ? Number.NaN : Date.parse(v.missingSince)
+        videos.set(v.id, { wasLive: v.wasLive, missingSince: Number.isNaN(ms) ? null : ms })
+      }
+    }
     const series = p.seriesDe?.get(channelId)
     if (series !== undefined && series.length > 0) {
       insumos.series = await lerSeriesDoCanal(sb, { siteId: p.siteId, channelId, videoIds: series, desde: new Date(p.agoraMs - 120 * DAY).toISOString().slice(0, 10) })
@@ -247,5 +257,5 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
   const extras: MedidasDoSite['extras'] = extrasLidos === 'tempo_esgotado' ? { lido: false, causa: 'tempo_esgotado' } : extrasLidos
   if (!extras.lido) avisos.add('extras', extras.causa, '-')
   avisos.fechar()
-  return { porCanal, extras, falhas, esgotou }
+  return { porCanal, extras, falhas, esgotou, videos }
 }
