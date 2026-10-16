@@ -537,7 +537,7 @@ describe('passoRetencao: erros', () => {
 
   it('tabela ausente na escrita: para o canal em curso e os seguintes', async () => {
     const f = fetchFalso()
-    const db = bd({ 'ch-1': lidosHoje(3), 'ch-2': [fato(50, { ultimo_dia_com_view: addDays(HOJE, -1) })] }, [canal1, canal2])
+    const db = bd({ 'ch-1': lidosHoje(1), 'ch-2': [fato(50, { ultimo_dia_com_view: addDays(HOJE, -1) })] }, [canal1, canal2])
     db.writeErrors.yt_own_video_retention = { code: '42P01', message: 'relation does not exist' }
     const ctx = ctxDe(db, [canal1, canal2])
     const r = await passoRetencao(ctx)
@@ -546,7 +546,8 @@ describe('passoRetencao: erros', () => {
     expect(tentCanal(db, 'ch-2')).toMatchObject({ outcome: 'schema_ausente' })
     expect(idsChamados(f)).not.toContain(idDoVideo(50))
     expect(r.gravados).toBe(0)
-    expect(chamadasDeFatos(db).map(c => c.args.p_channel_id)).toEqual(['ch-1'])
+    // os fatos de todos são lidos antes da API (fase A); só a API para no canal em curso
+    expect(chamadasDeFatos(db).map(c => c.args.p_channel_id)).toEqual(['ch-1', 'ch-2'])
   })
 
   it('função de fatos ausente: schema_ausente; nenhum token, nenhuma chamada', async () => {
@@ -607,6 +608,29 @@ describe('passoRetencao: o relógio', () => {
     expect(chamadasDeFatos(db)).toHaveLength(0)
     expect(ensureFreshToken).not.toHaveBeenCalled()
     expect(f).not.toHaveBeenCalled()
+  })
+
+  it('ordem justa: o canal 1 esgota o prazo, o canal 2 sem nada a ler fecha ok (não nao_alcancado_orcamento)', async () => {
+    const f = fetchFalso()
+    const db = bd({ 'ch-1': lidosHoje(2), 'ch-2': [] }, [canal1, canal2])
+    const ctx = ctxDe(db, [canal1, canal2])
+    f.mockImplementation(async () => {
+      vi.setSystemTime(new Date(AGORA.getTime() + 60_000))
+      return json(curva())
+    })
+    await passoRetencao(ctx)
+    expect(tentCanal(db, 'ch-2')).toMatchObject({ outcome: 'ok' })
+    expect(tentCanal(db, 'ch-1')).toMatchObject({ outcome: 'ok' })
+    expect(tentativas(db).filter(t => t.outcome === 'nao_alcancado_orcamento' && t.scope_type === 'canal')).toEqual([])
+  })
+
+  it('ordem justa: com leituras nos dois, o de menos leituras é servido primeiro', async () => {
+    const f = fetchFalso()
+    const db = bd({ 'ch-1': lidosHoje(3), 'ch-2': lidosHoje(1).map(x => ({ ...x, youtube_video_id: idDoVideo(9) })) }, [canal1, canal2])
+    await passoRetencao(ctxDe(db, [canal1, canal2]))
+    expect(idsChamados(f)[0]).toBe(idDoVideo(9))
+    expect(idsChamados(f)).toHaveLength(4)
+    expect(chamadasDeFatos(db).map(c => c.args.p_channel_id)).toEqual(['ch-1', 'ch-2'])
   })
 
   it('o tempo acaba entre dois canais: o segundo fica nao_alcancado_orcamento', async () => {
