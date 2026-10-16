@@ -245,3 +245,33 @@
 [data-obs-screen="comparar"] .so .so-barra i { display: block; height: 100%; background: rgba(60, 120, 200, 0.85); border-right: 1px solid rgba(255, 255, 255, 0.7); }
 [data-obs-screen="comparar"] .so .so-cadeado { display: inline-flex; align-items: center; gap: 4px; }
 [data-obs-screen="comparar"] .so .so-erro { color: #b3261e; }
+
+/* A5 E5a T7 (mockup 17a): estado do lado, grupo Direção, primeiros dias, acerto e reação. Mesmas regras: literais, sem color-mix, sem z-index, texto >= 12px. */
+[data-obs-screen="comparar"] .cp-est{margin-top:6px;font-size:12.5px;min-width:0}
+[data-obs-screen="comparar"] .cp-est-q{margin-top:3px}
+[data-obs-screen="comparar"] .cp-erro{margin:0 0 10px;padding:8px 12px;border:1.5px solid var(--text);border-radius:6px;font-size:13px;line-height:1.5}
+[data-obs-screen="comparar"] .cp-ctx{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--muted);max-width:92ch}
+[data-obs-screen="comparar"] .cp-gsub{margin-left:10px;font:400 12.5px/1.4 var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+[data-obs-screen="comparar"] .cp-tagp{display:block;font:600 12px/1.4 var(--font-sans),system-ui,sans-serif;color:var(--text);margin-bottom:2px}
+[data-obs-screen="comparar"] .cp-t tr.dir-p th.rl{border-left:3px solid var(--text)}
+[data-obs-screen="comparar"] .cp-t tr.sub-grp th{font:500 12.5px/1.4 var(--font-sans),system-ui,sans-serif;color:var(--muted);text-align:left;padding:8px 12px 2px}
+[data-obs-screen="comparar"] .cp-t tr.cp-fr td{padding:6px 12px 8px;font-size:13px;line-height:1.5}
+[data-obs-screen="comparar"] .cp-t tr.cp-fr ul{margin:0;padding:0;list-style:none;display:grid;gap:3px}
+[data-obs-screen="comparar"] .cp-nota-c{display:block;color:var(--muted);margin-top:3px}
+[data-obs-screen="comparar"] .cp-marca{display:block;color:var(--muted);margin-top:3px}
+[data-obs-screen="comparar"] .cp-t td .why.own{color:var(--muted)}
+/* régua de direção por nicho */
+[data-obs-screen="comparar"] .cp-rd{display:grid;gap:3px;min-width:120px}
+[data-obs-screen="comparar"] .cp-rd+.cp-rd{margin-top:8px}
+[data-obs-screen="comparar"] .cp-rd-n,[data-obs-screen="comparar"] .cp-rd-s{font-size:12px;color:var(--muted)}
+[data-obs-screen="comparar"] .cp-rd-t{position:relative;display:block;height:22px;border-radius:4px;background:var(--border-subtle)}
+[data-obs-screen="comparar"] .cp-rd-0{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--muted)}
+[data-obs-screen="comparar"] .cp-rd-k{position:absolute;top:7px;width:2px;height:8px;margin-left:-1px;background:var(--dim)}
+[data-obs-screen="comparar"] .cp-rd-m{position:absolute;top:2px;transform:translateX(-50%);min-width:18px;height:18px;padding:0 3px;border-radius:4px;background:var(--c);color:var(--on-lado,#16130F);font:700 12px/18px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;text-align:center}
+/* acerto em casas e chips de idade */
+[data-obs-screen="comparar"] .cp-casas{display:flex;flex-wrap:wrap;gap:2px;margin-top:5px;max-width:200px}
+[data-obs-screen="comparar"] .cp-casas i{width:9px;height:9px;border-radius:2px;border:1.5px solid var(--c);background:none}
+[data-obs-screen="comparar"] .cp-casas i.hit{background:var(--c)}
+[data-obs-screen="comparar"] .cp-casas i.fail{border-style:dashed}
+[data-obs-screen="comparar"] .cp-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+[data-obs-screen="comparar"] .cp-chip{display:inline-block;padding:0 6px;border:1px solid var(--border-strong);border-radius:4px;font-size:12px;line-height:18px;color:var(--muted)}

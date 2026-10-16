@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { CompararPack } from './pack'
 import { buildPar } from './par-model'
+import { buildMedidasDoPar } from './medidas-do-par'
 import { Lados } from './lados'
 import { NumeroANumero } from './numero-a-numero'
 import { SoSeuCanal } from './so-seu-canal'
@@ -38,6 +39,8 @@ function SemPar() {
 function ComPar({ pack, inicial }: { pack: CompararPack; inicial: { a: string; b: string } }) {
   const { a, b, trocar, inverter } = usePar(pack, inicial)
   const par = useMemo(() => buildPar(pack, a, b), [pack, a, b])
+  // as medidas novas saem do mesmo pacote: trocar o seletor ou inverter não vai à rede
+  const medidas = useMemo(() => buildMedidasDoPar(pack, a, b), [pack, a, b])
   const h1 = useRef<HTMLHeadingElement>(null)
   // o anúncio só depois de uma troca: na abertura a tela fala por si
   const [anuncio, setAnuncio] = useState('')
@@ -58,8 +61,8 @@ function ComPar({ pack, inicial }: { pack: CompararPack; inicial: { a: string; b
         </button>
       </header>
       <p className="obs-ch-sr" role="status" aria-atomic="true">{anuncio}</p>
-      <Lados pack={pack} a={par.a} b={par.b} cores={par.cores} onTrocar={trocar} />
-      <NumeroANumero pack={pack} par={par} />
+      <Lados pack={pack} a={par.a} b={par.b} cores={par.cores} onTrocar={trocar} medidas={medidas?.lados ?? null} />
+      <NumeroANumero pack={pack} par={par} medidas={medidas} />
       <MaisVistos par={par} />
       <Publicacao par={par} pack={pack} />
       {/* decisão do dono (12/10): "Só o seu canal mede" não compara nada (só um lado tem os números), então fica no fim, depois de "Número a número"
