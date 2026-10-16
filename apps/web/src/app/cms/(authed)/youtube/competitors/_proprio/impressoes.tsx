@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { HoverTip, Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
-import { indiceDoMaior, int, PX_POR_CARACTERE, quaisCabem, type CedoView, type ColunaView, type ImpressoesView } from './impressoes-model'
+import { FAIXA_ALTURA_PX, indiceDoMaior, int, linhasDasMarcas, PX_POR_CARACTERE, quaisCabem, type CedoView, type ColunaView, type ImpressoesView } from './impressoes-model'
 import './impressoes.css'
 
 /** Largura de partida: a do servidor e do primeiro render do cliente (hidratação idêntica). Depois da montagem vale a medida. */
@@ -26,7 +26,7 @@ const LARGURA_PADRAO = 760
 const ESTREITO = 560
 const MIN_W = 300
 const MAX_W = 860
-const T = 30      // espaço dos números em cima da barra mais alta
+const T0 = 30     // espaço dos números em cima da barra mais alta
 const DR = 22     // faixa das datas
 const CR = 48     // a faixa própria dos cliques (retângulo rebaixado sob as datas)
 const B = 6
@@ -44,12 +44,17 @@ interface Estado { sig: string; i: number; ponteiro: boolean; semDica: boolean }
 const blocoNaoMedido = (alturaArea: number): number => Math.round(Math.min(24, alturaArea * 0.25))
 
 function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid: string; ativo: number }) {
-  const { colunas, teto, ticks, alturaArea: PH, faixaCliques } = view
+  const { colunas, teto, ticks, alturaArea: PH, faixaCliques, faixas, marcas } = view
   const n = colunas.length
   const estreito = W < ESTREITO
   const L = Math.max(estreito ? 52 : 58, Math.max(...ticks.map(t => int(t).length)) * PX_POR_CARACTERE + 14)
   const bw = Math.min((W - L - R) / n, COLUNA_MAX)
   const largBarra = Math.min(40, Math.max(4, bw * 0.7))
+  const xsMarca = marcas.map(m => L + m.i * bw + bw / 2)
+  const linhasMarca = linhasDasMarcas(xsMarca)
+  const nLinhasMarca = marcas.length ? Math.max(...linhasMarca) + 1 : 0
+  const altMarcas = nLinhasMarca * 16 + (nLinhasMarca ? 4 : 0)
+  const T = T0 + view.alturaFaixas + altMarcas   // faixas e marcas moram numa área própria acima das barras: nunca sobre elas
   const yDatas = T + PH + 15
   const yFaixa = T + PH + DR                  // topo da faixa dos cliques (retângulo rebaixado de 48 px)
   const H = T + PH + DR + (faixaCliques ? CR : 0) + B
@@ -75,6 +80,33 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
         </pattern>
       </defs>
       <text className="ic-an" x="0" y="11">{view.rotuloEixo}</text>
+      {faixas.map((f, k) => {
+        const linha = faixas.findIndex(g => g.k === f.k)   // uma linha por tipo de faixa
+        const yF = 4 + (f.k === 'cheia' ? 0 : faixas.some(g => g.k === 'cheia') ? 1 : 0) * FAIXA_ALTURA_PX
+        const x0 = L + f.i0 * bw, x1 = L + (f.i1 + 1) * bw
+        const rotCabe = (x1 - x0) > f.rotCurto.length * 6.4 + 12
+        return (
+          <g key={k + f.k + f.i0} className={'ic-faixa ic-faixa-' + f.k} data-linha={linha}>
+            <rect className="ic-faixa-fundo" x={x0} y={yF} width={x1 - x0} height={FAIXA_ALTURA_PX - 6} rx="3" />
+            {f.k === 'pontilhada' ? <line className="ic-faixa-corte" x1={x1} x2={x1} y1={yF} y2={T + PH} /> : null}
+            {f.dentes.map(i => <line key={i} className="ic-faixa-dente" x1={L + i * bw} x2={L + i * bw} y1={yF} y2={yF + FAIXA_ALTURA_PX - 6} />)}
+            <text className="ic-faixa-rot" x={x0 + 6} y={yF + 12}>{rotCabe ? f.rotCurto : ''}</text>
+            {f.aberta && f.k === 'cheia' ? <text className="ic-faixa-seta" x={x1 - 12} y={yF + 12}>→</text> : null}
+          </g>
+        )
+      })}
+      {marcas.map((m, k) => {
+        const x = xsMarca[k]!, yM = view.alturaFaixas + 4 + (linhasMarca[k] ?? 0) * 16 + 7
+        return (
+          <g key={'m' + k} className="ic-marca" data-forma={m.forma}>
+            <line className="ic-marca-haste" x1={x} x2={x} y1={yM + 6} y2={T - 14} />
+            {m.forma === 'losango'
+              ? <path className="ic-marca-f" d={`M${x} ${yM - 6}L${x + 6} ${yM}L${x} ${yM + 6}L${x - 6} ${yM}Z`} />
+              : <path className="ic-marca-f" d={`M${x} ${yM - 6}L${x + 6} ${yM + 5}L${x - 6} ${yM + 5}Z`} />}
+            <text className="ic-marca-n" x={x + 9} y={yM + 4}>{m.n}</text>
+          </g>
+        )
+      })}
       {ticks.map(v => (
         <g key={v}>
           <line className="ic-grid" x1={L} x2={W - R} y1={y(v)} y2={y(v)} />
@@ -179,6 +211,8 @@ function Legenda({ view }: { view: ImpressoesView }) {
         <span key={l.situacao} className="ic-lg">
           {l.situacao === 'nao-medido'
             ? <i className="ic-sw nm obs-ch-nm" aria-hidden="true" />
+            : l.situacao === 'faixa-cheia' || l.situacao === 'faixa-pontilhada'
+            ? <i className={'ic-sw ' + l.situacao} aria-hidden="true" />
             : <i className={'ic-sw ' + (l.situacao === 'com-impressoes' ? 'imp' : l.situacao === 'cliques' ? 'cl' : l.situacao === 'publicacao' ? 'pub' : 'zero')} aria-hidden="true" />}
           {l.texto}
         </span>
@@ -398,6 +432,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
             {coluna?.dica}
           </HoverTip>
           <Legenda view={view} />
+          {view.notaFaixas ? <p className="ic-nota-trocas">{view.notaFaixas}</p> : null}
           <div className="ic-step" ref={passoRef} onPointerDown={() => { noPasso.current = true }} onPointerCancel={() => { noPasso.current = false }}>
             <button type="button" aria-label="Dia anterior" aria-disabled={noPrimeiro} onClick={() => passo(-1)}>{Icon.prev()}</button>
             {/* a frase do dia é a mesma da dica, da seta e da tabela; o mouse não fala (aria-live desligado) para quem usa leitor de tela com mouse */}
