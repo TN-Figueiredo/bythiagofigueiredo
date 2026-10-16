@@ -468,7 +468,7 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
 // A5 E11 (canal próprio em tabelas: passos "dimensões" e "normalizadores"): dia de São Paulo da promoção a `main` (D), preenchido no commit
 // do envio (Tarefa 14). Tem de diferir de `DIMENSOES_LIGADO_EM` (dia do Pacífico, e11-config.ts) em no máximo um dia. Etapa `E11`.
 /** Dia de São Paulo (AAAA-MM-DD) em que o lote E11 foi promovido a `main`. `null` = ainda não enviado. */
-export const E11_DEPLOY: string | null = '2026-10-17'
+export const E11_DEPLOY: string | null = '2026-10-16'
 
 const PLANO_E11 = 'docs/superpowers/plans/2026-10-12-a5-e11-canal-proprio-em-tabelas-plan.md (seção 7 e seção 11, consultas C1 a C4 e V4); anotar o resultado em .superpowers/sdd/a5/'
 
