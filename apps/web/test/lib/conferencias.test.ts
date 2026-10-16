@@ -909,6 +909,9 @@ describe('conferências de E11 (canal próprio em tabelas, relativas ao dia do e
     expect(E11_DEPLOY).not.toBeNull()
     const dif = Math.abs(Date.parse(`${E11_DEPLOY}T00:00:00.000Z`) - Date.parse(`${DIMENSOES_LIGADO_EM}T00:00:00.000Z`)) / 86_400_000
     expect(dif).toBeLessThanOrEqual(1)
+  })
+})
+
 // E9 (fila "Saíram do YouTube"): as quatro conferências com data nascem do dia do envio; a constante fica `null` até o controlador preencher.
 describe('conferências da E9 (fila "Saíram do YouTube", relativas ao dia do envio)', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
