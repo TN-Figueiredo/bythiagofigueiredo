@@ -13,6 +13,7 @@ import {
   aplicarPlanoNasCorrentes, derivarDia,
   type AberturaSemOrigem, type CorrenteDoCampo, type FatoDoDia, type MotivoPulo, type PlanoDoDia,
 } from './versoes-derivar'
+import { fatosDoDia, videosCobertosSemLinha, type IntervaloMeta } from './versoes-fatos-cobertura'
 import { atribuirOrigem, FOLGA_REGISTRO_MS, type CicloAb, type LeituraAb, type RestauroAb, type TesteAb } from './versoes-origem'
 
 export const TETO_VERSOES_MS = 5_000
@@ -23,6 +24,8 @@ export const TETO_LINHAS_VERSOES = 20_000
 const TETO_AB = 1_000
 /** Com menos que isto antes de um dia, o passo para (um `apply_day` ainda cabe em ~1 s). */
 const FOLGA_MIN_MS = 1_500
+/** Vídeos por leitura da última linha guardada (o `in` vai na URL). */
+const LOTE_ULTIMAS = 150
 
 export interface VersoesResumo {
   dia_ate: string
@@ -51,6 +54,10 @@ export interface VersoesResumo {
   atraso_desconhecido: string[]
   /** por site: a resposta da prova diária, ou 'sem_tempo' */
   prova: Record<string, unknown>
+  /** A5 E18 P2: dias derivados em que o vídeo estava coberto e sem linha (a dieta tirou a linha igual à vizinha). */
+  cobertos_sem_linha: number
+  /** A5 E18 P2: leitura de `yt_own_video_coverage`. `nao_lida` = nenhum canal chegou a ler (nunca vira "lida" em silêncio). */
+  cobertura_meta: 'nao_lida' | 'lida' | 'schema_ausente' | 'erro'
 }
 
 interface LinhaDia {
@@ -153,7 +160,7 @@ function resumoVazio(ontem: string, canais: number): VersoesResumo {
     abertas: { linha_de_base: 0, ab_lab: 0, fora_do_sistema: 0, nao_se_sabe: 0 },
     retoques: 0, pulados: { sem_captura: 0, sem_dhash: 0, privado: 0 }, dias_sem_linha: 0, ja_derivado: 0,
     desc_sem_texto: 0, origem_sem_video: 0, origem_ab_incerta: 0, origem_ab_sem_registro: 0, atraso_dias: {}, sem_videos: [], sem_tempo: false,
-    recuperando: {}, dia_sem_resposta: [], atraso_desconhecido: [], prova: {},
+    recuperando: {}, dia_sem_resposta: [], atraso_desconhecido: [], prova: {}, cobertos_sem_linha: 0, cobertura_meta: 'nao_lida',
   }
 }
 
@@ -272,6 +279,54 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
     if (linhas.length === 0 && avaliaVideos && nVideos === 0) { resumo.sem_videos.push(c.id); return }
     if (avaliaVideos && nVideos > 0 && (linhas.length > 0 || temEstado)) comCaptura.add(c.id)
 
+    // 4b. cobertura de metadados (A5 E18 P2, Tarefa 5): uma leitura por canal e execução. Falha dela nunca para a derivação pelas linhas.
+    let cobertura: IntervaloMeta[] = []
+    {
+      const r = await paginada<IntervaloMeta>((de, ate) =>
+        ctx.supabase.from('yt_own_video_coverage').select('youtube_video_id, metric_set, covered_from, covered_to')
+          .eq('site_id', c.site_id).eq('channel_id', c.id).in('metric_set', ['meta_texto', 'meta_thumb'])
+          .gte('covered_to', ini).lte('covered_from', fim)
+          .order('youtube_video_id', { ascending: true }).order('metric_set', { ascending: true }).order('covered_from', { ascending: true }).range(de, ate))
+      if (r.ok) {
+        cobertura = r.linhas
+        if (resumo.cobertura_meta === 'nao_lida') resumo.cobertura_meta = 'lida'
+      } else if (r.motivo === 'sem_tempo') {
+        resumo.sem_tempo = true; semDia(c, derivadoAte, menorDia, temEstado); return
+      } else if (r.schemaAusente) {
+        if (resumo.cobertura_meta === 'nao_lida') resumo.cobertura_meta = 'schema_ausente'
+      } else {
+        resumo.cobertura_meta = 'erro'
+        pushUnico(ctx.falhas, 'erro de banco ao ler yt_own_video_coverage')
+      }
+    }
+    // A última linha guardada de cada vídeo coberto e sem linha em algum dia do intervalo (só se algum existe): uma leitura em lotes.
+    const ultimas = new Map<string, LinhaDia>()
+    if (cobertura.length > 0) {
+      const precisados = new Set<string>()
+      for (let i = 0; i < aDerivar; i++) {
+        const d = addDays(ini, i)
+        for (const id of videosCobertosSemLinha(d, porDia.get(d) ?? [], cobertura)) precisados.add(id)
+      }
+      const ids = [...precisados]
+      for (let k = 0; k < ids.length; k += LOTE_ULTIMAS) {
+        const lote = ids.slice(k, k + LOTE_ULTIMAS)
+        const r = await paginada<LinhaDia>((de, ate) =>
+          ctx.supabase.from('yt_own_video_meta_daily').select(COLUNAS_DIA)
+            .eq('site_id', c.site_id).eq('channel_id', c.id).in('youtube_video_id', lote).lt('day_pt', ini)
+            .order('youtube_video_id', { ascending: true }).order('day_pt', { ascending: false }).range(de, ate))
+        if (r.ok) {
+          for (const l of r.linhas) if (!ultimas.has(l.youtube_video_id)) ultimas.set(l.youtube_video_id, l)
+        } else if (r.motivo === 'sem_tempo') {
+          resumo.sem_tempo = true; semDia(c, derivadoAte, menorDia, temEstado); return
+        } else if (r.motivo === 'passou_do_teto') {
+          pushUnico(ctx.falhas, `versões: ${c.name} tem linhas demais para uma execução`) // os vídeos deste lote ficam sem fato
+        } else {
+          pushUnico(ctx.falhas, 'erro de banco ao ler yt_own_video_meta_daily')
+        }
+      }
+    }
+    const coberto = (d: string): boolean => videosCobertosSemLinha(d, [], cobertura).length > 0
+
     // 5. correntes
     const lerCorrentes = async (): Promise<CorrenteDoCampo[] | 'sem_tempo' | null> => {
       const r = await paginada<LinhaCorrente>((de, ate) =>
@@ -306,12 +361,15 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
     const privVista = new Map<string, FatoDoDia['privacidadeConhecida']>() // última privacidade não nula de dia ANTERIOR
     const todosDias: string[] = []
     for (let i = 0; i < aDerivar; i++) todosDias.push(addDays(ini, i))
-    const haDiaDepois = (dia: string): boolean => todosDias.some(d => d > dia && (porDia.get(d)?.length ?? 0) > 0)
+    const haDiaDepois = (dia: string): boolean => todosDias.some(d => d > dia && ((porDia.get(d)?.length ?? 0) > 0 || coberto(d)))
 
     for (const dia of todosDias) {
       if (restante(ctx.deadline) < FOLGA_MIN_MS) { resumo.sem_tempo = true; paradoPorTempo = true; break }
       const doDia = porDia.get(dia) ?? []
-      if (doDia.length === 0) {
+      // Dia coberto e sem linha: a cópia da última linha guardada do vídeo é o fato do dia (item 202).
+      const f = fatosDoDia(dia, doDia, ultimas, cobertura)
+      const linhasFato = f.linhas
+      if (linhasFato.length === 0) {
         // Dia sem nenhuma linha (item 189).
         const n = dia === ontem ? nVideos : await contar(fimDoDia(dia))
         if (n === 'sem_tempo') { resumo.sem_tempo = true; paradoPorTempo = true; break }
@@ -322,7 +380,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
 
       // Privacidade conhecida de dia anterior: das linhas já vistas; senão, uma leitura por canal e execução.
       const precisaAnterior = temEstado && privAnterior === null
-        && doDia.some(l => l.privacy_status === null && l.thumbnail_dhash !== null && !privVista.has(l.youtube_video_id))
+        && linhasFato.some(l => l.privacy_status === null && l.thumbnail_dhash !== null && !privVista.has(l.youtube_video_id))
       if (precisaAnterior) {
         const r = await paginada<{ youtube_video_id: string; day_pt: string; privacy_status: FatoDoDia['privacidadeConhecida'] }>((de, ate) =>
           ctx.supabase.from('yt_own_video_meta_daily').select('youtube_video_id, day_pt, privacy_status')
@@ -340,7 +398,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
         }
       }
       let thumbsSemPrivacidade = 0
-      const fatos: FatoDoDia[] = doDia.map(l => {
+      const fatos: FatoDoDia[] = linhasFato.map(l => {
         let conhecida = privVista.get(l.youtube_video_id) ?? null
         if (conhecida === null && privAnterior instanceof Map) conhecida = privAnterior.get(l.youtube_video_id) ?? null
         let dhash = l.thumbnail_dhash
@@ -357,6 +415,13 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
       const plano: PlanoDoDia = derivarDia(correntes, fatos)
       plano.pulados.sem_dhash -= thumbsSemPrivacidade
       plano.pulados.sem_captura += thumbsSemPrivacidade
+
+      // Fato repetido nunca abre versão: abrir exige a linha real do dia (`sem_linha_do_dia` no banco). O canal para aqui, sem gravar.
+      if (plano.abrir.some(a => f.repetidos.has(a.ytId))) {
+        pushUnico(ctx.falhas, `versões: ${c.name} abriria versão em dia sem linha (${dia})`)
+        paradoPorErro = true
+        break
+      }
 
       // Origem das trocas (só se há troca; o Lab é lido uma vez por canal).
       const trocas = plano.abrir.filter(a => a.precisao !== 'first')
@@ -418,6 +483,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
         resumo.ja_derivado++
       } else {
         resumo.dias_derivados++
+        resumo.cobertos_sem_linha += f.repetidos.size + f.cobertos_sem_linha
         derivadosAqui++
         resumo.confirmadas += plano.confirmar.length
         for (const o of origens) resumo.abertas[o]++
@@ -434,6 +500,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
       derivadoAte = dia
       temEstado = true
       for (const l of doDia) if (l.privacy_status !== null) privVista.set(l.youtube_video_id, l.privacy_status)
+      for (const l of doDia) ultimas.set(l.youtube_video_id, l) // a "última" anda em memória, dia a dia
 
       // Atualiza as correntes: em memória se não houve abertura; relendo do banco se houve (os ids nascem lá) ou se já estava derivado.
       if (out.resultado !== 'ja_derivado' && plano.abrir.length === 0) {
