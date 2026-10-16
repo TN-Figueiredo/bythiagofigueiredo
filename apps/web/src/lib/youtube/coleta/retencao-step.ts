@@ -14,8 +14,8 @@ import { AnalyticsApiError } from './analytics-diario'
 import { retencaoDoVideo, type RespostaRetencao } from './analytics-retencao'
 import { marcarAutorizado, marcarReautorizar, obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa } from './attempts'
-import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
-import { dayPt, utcDay } from './day-pt'
+import { emParalelo, FETCH_TIMEOUT_RETENCAO_MS, fetchComPrazo, PARALELO_RETENCAO, restante, SemTempoError } from './clock'
+import { addDays, dayPt, utcDay } from './day-pt'
 import { ehPerdaDeAutorizacao } from './google-erro'
 import { metricVersion } from './metric-version'
 import { motivoDoErro, textoDoMotivo } from './motivo'
@@ -27,6 +27,8 @@ import type { ColetaChannel, StepCtx, StepResumo, Tentativa } from './types'
 /** A PK de `yt_own_video_retention`: a mesma chave deixa a regravação da mesma janela idempotente. */
 const CHAVE_DA_CURVA = 'youtube_video_id,window_kind,segment,window_end'
 const MAX_IDS_NA_NOTA = 5
+/** Dias seguidos com `demorou` (hoje incluído) a partir dos quais o vídeo deixa de ser nota e vira falha. */
+const DIAS_DEMOROU_PARA_FALHA = 3
 
 export interface RetencaoResumo extends StepResumo {
   /** "Hoje" no Pacífico: o fim da janela da vida inteira. */
@@ -57,7 +59,24 @@ type TentativaBase = Omit<Tentativa, 'outcome' | 'http_status' | 'error'>
 const ehCota = (status: number, motivo: string): boolean =>
   status === 429 || (status === 403 && /_(quotaExceeded|rateLimitExceeded|userRateLimitExceeded|dailyLimitExceeded)$/.test(motivo))
 
+/** O limite POR CHAMADA estourou com tempo sobrando no passo (o `fetchComPrazo` só repassa o `TimeoutError` nesse caso). */
+const ehDemora = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'TimeoutError'
+
 const ids = (l: readonly string[]): string => l.slice(0, MAX_IDS_NA_NOTA).join(', ')
+
+/** `demorou` nos dois dias UTC anteriores (a tentativa do dia é uma linha por chave): com o de hoje, o 3º seguido. Falha ao ler = não seguido. */
+async function demorouNosDiasAnteriores(ctx: StepCtx, ytId: string, kind: string, hojeUtc: string): Promise<boolean> {
+  const dias = [addDays(hojeUtc, -1), addDays(hojeUtc, -2)]
+  try {
+    const { data, error } = await ctx.supabase.from('yt_own_collection_attempts').select('attempt_day,outcome,error')
+      .eq('scope_type', 'video').eq('scope_id', ytId).eq('kind', kind).in('attempt_day', dias)
+    if (error || !Array.isArray(data)) return false
+    const lidos = data as Array<{ attempt_day: string; outcome: string; error: string | null }>
+    return dias.every(d => lidos.some(r => r.attempt_day === d && r.outcome === 'erro_http' && r.error === 'demorou'))
+  } catch {
+    return false
+  }
+}
 
 export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Promise<RetencaoResumo> {
   const agora = new Date()
@@ -166,7 +185,7 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     }
     if (token === null) continue
 
-    // 5. As leituras, 4 em paralelo.
+    // 5. As leituras, 2 em paralelo (a vitalícia de vídeo antigo demora; 30 s por chamada).
     let negado = false
     // Cota estourada: quem ainda não começou não chama a API (quem está em voo termina).
     let cota = false
@@ -174,11 +193,13 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     let comErro = 0
     let primeiraCausa = ''
     let pendentesDoCanal = 0
+    const demoraram: string[] = []
+    const demoraramHa3Dias: string[] = []
     // Uma promessa por canal: quatro vídeos em paralelo não disparam quatro gravações.
     let autorizadoP: Promise<void> | null = null
     let reautorizarP: Promise<void> | null = null
 
-    await emParalelo(d.ler, PARALELO, async (l: Leitura) => {
+    await emParalelo(d.ler, PARALELO_RETENCAO, async (l: Leitura) => {
       const base: TentativaBase = { site_id: l.siteId, scope_type: 'video', scope_id: l.ytId, kind: l.kind, channel_id: c.id }
       if (schemaAusenteNaEscrita) return
       if (negado) {
@@ -205,7 +226,7 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
         let r: RespostaRetencao
         try {
           r = await retencaoDoVideo({
-            token, canalUc: c.channel_id, videoId: l.ytId, inicio: l.inicio, fim: l.fim, f: fetchComPrazo(ctx.deadline, contado),
+            token, canalUc: c.channel_id, videoId: l.ytId, inicio: l.inicio, fim: l.fim, f: fetchComPrazo(ctx.deadline, contado, FETCH_TIMEOUT_RETENCAO_MS),
           })
         } finally {
           resumo.chamadas += gasto.n
@@ -261,10 +282,20 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
         resumo.gravados++
         await registrarTentativa(ctx, { ...base, outcome: 'ok' })
       } catch (e) {
-        if (e instanceof SemTempoError) {
+        if (e instanceof SemTempoError || (ehDemora(e) && restante(ctx.deadline) <= 0)) {
           await registrarTentativa(ctx, { ...base, outcome: 'nao_alcancado_orcamento' })
           resumo.pendentes++
           pendentesDoCanal++
+        } else if (ehDemora(e)) {
+          // Cortado pelo limite da chamada com tempo sobrando: pendente para amanhã, nota em vez de vermelho; no 3º dia seguido, falha.
+          const seguido = await demorouNosDiasAnteriores(ctx, l.ytId, l.kind, hojeUtc)
+          await registrarTentativa(ctx, { ...base, outcome: 'erro_http', error: 'demorou' })
+          resumo.pendentes++
+          if (seguido) {
+            demoraramHa3Dias.push(l.ytId)
+          } else {
+            demoraram.push(l.ytId)
+          }
         } else if (e instanceof AnalyticsApiError && ehPerdaDeAutorizacao(e.status, e.reason)) {
           negado = true
           reautorizarP ??= marcarReautorizar(ctx, c)
@@ -291,6 +322,14 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     }
 
     // 6 e 7. A nota do canal e a tentativa de canal.
+    if (demoraram.length > 0) {
+      resumo.sem_resposta_do_youtube.push(
+        `retenção: ${channelNote(c.name, `${demoraram.length} vídeo(s) em que o YouTube demorou mais de 30 s (${ids(demoraram)}); tenta de novo amanhã`)}`,
+      )
+    }
+    if (demoraramHa3Dias.length > 0) {
+      pushUnico(ctx.falhas, `retenção: ${channelNote(c.name, `${demoraramHa3Dias.length} vídeo(s) em que o YouTube demora mais de 30 s há ${DIAS_DEMOROU_PARA_FALHA} dias seguidos (${ids(demoraramHa3Dias)})`)}`)
+    }
     if (comErro > 0) {
       pushUnico(ctx.falhas, `retenção: ${channelNote(c.name, `${comErro} de ${d.ler.length} leituras com erro (${textoDoMotivo(primeiraCausa)})`)}`)
     }
