@@ -33,3 +33,19 @@ export function definicoesDaTabela(par: Pick<ParView, 'conjunto' | 'fora'> & { c
   if (par.fora.length) itens.push({ termo: 'Ficaram de fora', depois: ' ', frase: `porque nenhum dos dois tem o dado: ${listar(par.fora.map(minuscula))}.` })
   return itens
 }
+
+/** O ⓘ das linhas novas (A5 E5a T7). Todos dizem de onde vem o número. */
+export function definicoesDasMedidas(): DefinicaoDaTabela[] {
+  const ORIGEM = ' Cálculo do Observatório sobre dados públicos do YouTube.'
+  return [
+    { termo: 'Direção:', depois: ' ', frase: `para onde o canal vai. A leitura principal é uma só por par; as de apoio servem para conferir, não são vereditos. Dentro de ±10% é "estável".${ORIGEM}` },
+    { termo: 'Três leituras:', depois: ' ', frase: `canal inteiro (views ganhas em 28 dias contra os 28 anteriores), vídeos novos com as views de hoje e vídeos novos na mesma idade. Descer na segunda pode ser só idade.${ORIGEM}` },
+    { termo: 'Praticamente igual:', depois: ' ', frase: `diferença menor que 10% não é dita como maior.${ORIGEM}` },
+    { termo: 'Longos publicados:', depois: ' ', frase: `contagem dos últimos 90 dias contra os 90 anteriores. É contagem, não frequência.${ORIGEM}` },
+    { termo: 'Nichos diferentes:', depois: ' ', frase: `a régua ordena cada canal dentro do próprio nicho; não diz quem é melhor.${ORIGEM}` },
+    { termo: 'Estado do canal:', depois: ' ', frase: `ativo, parado, em queda sustentada, pausado ou fora do YouTube. "Fora do YouTube" mostra "até dd/mm" nos números.${ORIGEM}` },
+    { termo: 'Acerto:', depois: ' ', frase: `vídeos longos contra a mediana do próprio canal; mede regularidade, não tamanho. A porcentagem só aparece com 10 vídeos ou mais.${ORIGEM}` },
+    { termo: 'Reação do público:', depois: ' ', frase: `curtidas e comentários por view. Idades ou componentes diferentes (total de hoje, primeiros 30 dias, só curtidas) não se comparam.${ORIGEM}` },
+    { termo: 'Primeiros dias:', depois: ' ', frase: `mediana das views dos longos aos 7 e 30 dias de contagem e nas primeiras 24 horas (só vídeos com a leitura das primeiras horas).${ORIGEM}` },
+  ]
+}

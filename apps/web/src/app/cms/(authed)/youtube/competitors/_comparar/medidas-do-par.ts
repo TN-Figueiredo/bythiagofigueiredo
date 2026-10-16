@@ -9,6 +9,8 @@ import { grupoDeDirecao, type GrupoDeDirecao } from './direcao-model'
 import { relacaoDoPar, type RelacaoNova } from './relacao-do-par'
 import type { CompararPack } from './pack'
 
+export const TEXTO_LEITURAS_DIFERENTES = 'Leituras diferentes: não dá para dizer qual é maior.'
+
 export interface LinhaDePrimeirosDias {
   idade: 1 | 7 | 30
   titulo: string

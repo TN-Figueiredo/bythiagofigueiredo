@@ -10,6 +10,8 @@ import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { Icon } from '../_chrome/icons'
 import type { CanalPack, CompararPack } from './pack'
 import type { CorLado } from './par-model'
+import type { LadoMedidas } from './medidas-do-lado'
+import { EstadoDoLado } from './estado-do-lado'
 
 export const corVar = (c: CorLado) => `var(--lado-${c})`
 
@@ -34,8 +36,8 @@ export function gruposDoSeletor(pack: CompararPack): Grupo[] {
   return out
 }
 
-function Lado({ lado, canal, outro, cor, grupos, onTrocar, titleId }: {
-  lado: 'A' | 'B'; canal: CanalPack; outro: string; cor: CorLado; grupos: Grupo[]; onTrocar: (id: string) => void; titleId: string
+function Lado({ lado, canal, outro, cor, grupos, onTrocar, titleId, medidas }: {
+  medidas: LadoMedidas | null; lado: 'A' | 'B'; canal: CanalPack; outro: string; cor: CorLado; grupos: Grupo[]; onTrocar: (id: string) => void; titleId: string
 }) {
   const selId = useId()
   const inscritos = canal.subsTexto ?? canal.numeros.inscritos.motivo
@@ -58,11 +60,12 @@ function Lado({ lado, canal, outro, cor, grupos, onTrocar, titleId }: {
         <ChannelAvatar src={canal.avatar} ini={canal.ini} color={canal.color} className="av" />
         <div className="cp-nm">
           <h2 id={titleId}>{canal.name}</h2>
-          <p className="cp-m">
+          {medidas?.naoCarregou ? null : <p className="cp-m">
             {canal.own ? <span className="cp-seal">seu canal</span> : null}
             {canal.nicheLabel ? <span>{canal.nicheLabel}</span> : null}
             <span>{canal.subsTexto ? <><b className="num">{canal.subsTexto}</b> inscritos</> : inscritos}</span>
-          </p>
+          </p>}
+          {medidas ? <EstadoDoLado lado={medidas} /> : null}
         </div>
       </div>
       <p className="cp-open">
@@ -74,15 +77,15 @@ function Lado({ lado, canal, outro, cor, grupos, onTrocar, titleId }: {
   )
 }
 
-export function Lados({ pack, a, b, cores, onTrocar }: {
-  pack: CompararPack; a: CanalPack; b: CanalPack; cores: [CorLado, CorLado]; onTrocar: (lado: 'a' | 'b', id: string) => void
+export function Lados({ pack, a, b, cores, onTrocar, medidas = null }: {
+  medidas?: [LadoMedidas, LadoMedidas] | null; pack: CompararPack; a: CanalPack; b: CanalPack; cores: [CorLado, CorLado]; onTrocar: (lado: 'a' | 'b', id: string) => void
 }) {
   const grupos = useMemo(() => gruposDoSeletor(pack), [pack])
   const ida = useId(), idb = useId()
   return (
     <div className="cp-sides">
-      <Lado lado="A" canal={a} outro={b.id} cor={cores[0]} grupos={grupos} onTrocar={id => onTrocar('a', id)} titleId={ida} />
-      <Lado lado="B" canal={b} outro={a.id} cor={cores[1]} grupos={grupos} onTrocar={id => onTrocar('b', id)} titleId={idb} />
+      <Lado medidas={medidas?.[0] ?? null} lado="A" canal={a} outro={b.id} cor={cores[0]} grupos={grupos} onTrocar={id => onTrocar('a', id)} titleId={ida} />
+      <Lado medidas={medidas?.[1] ?? null} lado="B" canal={b} outro={a.id} cor={cores[1]} grupos={grupos} onTrocar={id => onTrocar('b', id)} titleId={idb} />
     </div>
   )
 }

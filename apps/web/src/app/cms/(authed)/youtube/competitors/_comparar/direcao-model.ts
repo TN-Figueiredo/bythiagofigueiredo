@@ -163,3 +163,21 @@ export function grupoDeDirecao(pack: CompararPack, hojeSP: string, canais: reado
   }
 }
 
+
+/** O fecho de cada frase de lado, como a tela e o pacote o escrevem. */
+function fechoDoApoio(a: ApoioDoLado): string {
+  switch (a.tipo) {
+    case 'concordam': return ' As outras leituras concordam.'
+    case 'em_parte': return ` Concordam em parte: ${a.detalhe}.`
+    case 'divergem': return ` As leituras divergem: ${a.detalhe}.`
+    case 'sem': return ''
+  }
+}
+/** A frase de um lado do grupo Direção, escrita. */
+export function fraseEscrita(f: FraseDoLado): string {
+  switch (f.tipo) {
+    case 'erro': return `${f.nome}: os números não carregaram.`
+    case 'sem_direcao': return `${f.nome}: sem direção, ${f.porque}.`
+    case 'direcao': return `${f.nome}: ${PALAVRA[f.simbolo]}, ${f.corpo}.${fechoDoApoio(f.apoio)}`
+  }
+}

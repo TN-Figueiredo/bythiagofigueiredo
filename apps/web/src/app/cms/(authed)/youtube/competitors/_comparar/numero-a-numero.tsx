@@ -16,7 +16,10 @@ import type { Numero, NumeroId } from './numeros-model'
 import type { CompararPack } from './pack'
 import type { LinhaPar, ParView, Relacao } from './par-model'
 import { reguaDaLinha } from './regua-da-linha'
-import { definicoesDaTabela } from './definicoes'
+import { definicoesDaTabela, definicoesDasMedidas } from './definicoes'
+import type { MedidasDoPar } from './medidas-do-par'
+import { GrupoDirecao } from './grupo-direcao'
+import { GrupoAcerto, GrupoPrimeirosDias, GrupoReacao } from './blocos-novos'
 
 const GRUPOS: Record<LinhaPar['grupo'], { nome: string; icone: ReactNode }> = {
   tamanho: { nome: 'Tamanho', icone: <svg className="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13.5V9M8 13.5V4.5M13 13.5V7" /></svg> },
@@ -117,7 +120,7 @@ function CelulaEixo({ linha, par, regua, chave }: { linha: LinhaPar; par: ParVie
   }
 }
 
-export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView }) {
+export function NumeroANumero({ pack, par, medidas = null }: { pack: CompararPack; par: ParView; medidas?: MedidasDoPar | null }) {
   const titulo = useId(), dica = useId(), dicaTitulo = useId()
   const [aberta, setAberta] = useState(false)
   const botao = useRef<HTMLButtonElement>(null)
@@ -128,7 +131,6 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
     for (const l of par.linhas) if (l.eixo.tipo === 'regua') { const r = reguaDaLinha(pack, par, l.id); if (r) m.set(l.id, r) }
     return m
   }, [pack, par])
-  const grupos = (['tamanho', 'publicacao', 'desempenho'] as const).map(g => ({ g, linhas: par.linhas.filter(l => l.grupo === g) })).filter(x => x.linhas.length)
   const mediana = par.conjunto.tipo === 'nicho' ? 'No nicho' : 'No geral'
   const comprimidas = par.linhas.filter(l => reguas.get(l.id)?.comprimida).map(l => l.nome)
   const [ca, cb] = par.cores
@@ -144,8 +146,16 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
         <h3 id={dicaTitulo}>Como ler esta tabela</h3>
         <ul>
           {definicoesDaTabela({ conjunto: par.conjunto, fora: par.fora, comprimidas }).map(d => <li key={d.termo}><b>{d.termo}</b>{d.depois}{d.frase}</li>)}
+          {medidas ? definicoesDasMedidas().map(d => <li key={d.termo} data-info-nova=""><b>{d.termo}</b>{d.depois}{d.frase}</li>) : null}
         </ul>
       </Popover>
+      {medidas?.semCarregar.length ? (
+        <p className="cp-erro" role="alert" data-erro-lado="">
+          Os números de {medidas.semCarregar.map(x => `${x.nome} (lado ${x.lado})`).join(' e ')} não carregaram. A tabela mostra só o que veio.{' '}
+          <button type="button" className="lk" onClick={() => window.location.reload()}>Tentar de novo</button>
+        </p>
+      ) : null}
+      {medidas?.contexto ? <p className="cp-ctx" data-contexto="">{medidas.contexto}</p> : null}
       <LeituraRapida itens={par.leitura} cores={par.cores} />
       <div className="cp-tw">
         <table className="cp-t" role="table">
@@ -159,20 +169,29 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
               <th scope="col" role="columnheader" className="cR">Relação</th>
             </tr>
           </thead>
-          {grupos.map(({ g, linhas }) => (
-            <tbody role="rowgroup" key={g}>
-              <tr role="row" className="grp"><th scope="rowgroup" role="rowheader" colSpan={5}>{GRUPOS[g].icone}{GRUPOS[g].nome}</th></tr>
-              {linhas.map(l => (
-                <tr role="row" key={l.id}>
-                  <th scope="row" role="rowheader" className="rl">{l.nome}<small>{l.base}</small></th>
-                  <Celula n={l.lados[0]} pos={posDoLado(l, reguas.get(l.id), 0)} classe="cA" cor={corVar(ca)} />
-                  <Celula n={l.lados[1]} pos={posDoLado(l, reguas.get(l.id), 1)} classe="cB" cor={corVar(cb)} />
-                  <CelulaEixo linha={l} par={par} regua={reguas.get(l.id) ?? null} chave={`${chaveDoPar}|${l.id}`} />
-                  <CelulaRelacao linha={l} par={par} />
-                </tr>
-              ))}
-            </tbody>
-          ))}
+          {/* a ordem: Tamanho, Direção, Publicação, Primeiros dias, Desempenho, Acerto, Reação; os grupos novos existem mesmo sem os antigos */}
+          {(['tamanho', 'direcao', 'publicacao', 'primeiros', 'desempenho'] as const).map(g => {
+            if (g === 'direcao') return medidas ? <GrupoDirecao key={g} m={medidas} cores={par.cores} /> : null
+            if (g === 'primeiros') return medidas ? <GrupoPrimeirosDias key={g} m={medidas} cores={par.cores} /> : null
+            const linhas = par.linhas.filter(l => l.grupo === g)
+            if (!linhas.length) return null
+            return (
+              <tbody role="rowgroup" key={g}>
+                <tr role="row" className="grp"><th scope="rowgroup" role="rowheader" colSpan={5}>{GRUPOS[g].icone}{GRUPOS[g].nome}</th></tr>
+                {linhas.map(l => (
+                  <tr role="row" key={l.id}>
+                    <th scope="row" role="rowheader" className="rl">{l.nome}<small>{l.base}</small></th>
+                    <Celula n={l.lados[0]} pos={posDoLado(l, reguas.get(l.id), 0)} classe="cA" cor={corVar(ca)} />
+                    <Celula n={l.lados[1]} pos={posDoLado(l, reguas.get(l.id), 1)} classe="cB" cor={corVar(cb)} />
+                    <CelulaEixo linha={l} par={par} regua={reguas.get(l.id) ?? null} chave={`${chaveDoPar}|${l.id}`} />
+                    <CelulaRelacao linha={l} par={par} />
+                  </tr>
+                ))}
+              </tbody>
+            )
+          })}
+          {medidas ? <GrupoAcerto m={medidas} cores={par.cores} /> : null}
+          {medidas ? <GrupoReacao m={medidas} cores={par.cores} /> : null}
         </table>
       </div>
       {janelasDiferentes ? (
@@ -181,6 +200,7 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
           <span>As duas janelas de tempo são diferentes: 28 dias de um lado, desde {pack.serieDesde} do outro. Maior não quer dizer melhor: são canais de tamanhos diferentes.</span>
         </p>
       ) : null}
+      {medidas?.semCanalProprio ? <p className="cp-n" data-sem-proprio="">Nenhum dos dois canais é seu, então esta comparação não tem os números que só o dono de um canal vê.</p> : null}
       <p className="cp-n">{par.rodape}</p>
     </section>
   )
