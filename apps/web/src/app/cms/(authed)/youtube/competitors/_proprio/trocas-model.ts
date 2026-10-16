@@ -10,6 +10,7 @@ import type { MotivoNaoMedido } from '@/lib/youtube/observatorio/proprio/motivos
 import type { DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { TesteAb } from '@/lib/youtube/observatorio/proprio/ler-testes-ab'
 import type { TrocasLidas } from './dados-trocas'
+import { SEM_RELATORIO, type FaixaDoGrafico, type MarcaDoGrafico } from './impressoes-model'
 import { diaDaTroca, desdeDaTroca, trocasQueContam } from './trocas-contam'
 import type { Parte } from './video-blocos-model'
 
@@ -106,7 +107,7 @@ export interface EntradaTrocas {
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Textos fixos. TEXTO-A-REVISAR (Logan): todos, menos os copiados do mockup 3b (NOTAS seção 2).
-export const SEM_RELATORIO = 'Ainda não há relatório de alcance deste canal.'
+export { SEM_RELATORIO }
 /** As duas frases da A4 para o mesmo vídeo (`video-blocos-model.ts`, bloco de impressões): copiadas, e um teste as compara com o que o bloco escreve. */
 export const FRASE_VIDEO_NOVO = 'O vídeo é novo: o YouTube entrega as impressões com 2 a 3 dias de atraso, então ainda não há dia fechado.'
 export const rotuloChip = (c: Chip): string => ROTULO[c]
@@ -655,3 +656,15 @@ function metodoDasTrocas(conferidoAte: DiaYt, desde: DiaYt, e: EntradaTrocas): s
 }
 
 void DIAS_DE_VIDA_MIN
+
+/** O que o gráfico de views e o de impressões recebem da troca: faixas e marcas no formato do gráfico (ele não conhece a troca) e a nota sob ele. */
+export interface TrocasNoGrafico { faixas: FaixaDoGrafico[]; marcas: MarcaDoGrafico[]; notaFaixas: string | null }
+export function trocasNoGrafico(v: Pick<TrocasView, 'faixas' | 'marcas' | 'notaGrafico'>): TrocasNoGrafico {
+  return {
+    faixas: v.faixas.map((f): FaixaDoGrafico => (f.k === 'ab'
+      ? { k: 'cheia', de: f.de, ate: f.ate, dentes: f.ciclos, rot: f.rot, rotCurto: f.rotCurto, fala: f.fala }
+      : { k: 'pontilhada', de: null, ate: f.ate, dentes: [], rot: f.rot, rotCurto: f.rotCurto, fala: f.fala })),
+    marcas: v.marcas.map((m): MarcaDoGrafico => ({ dia: m.dia, n: m.n, forma: m.campo === 'title' ? 'losango' : 'triangulo', fala: m.fala })),
+    notaFaixas: v.notaGrafico,
+  }
+}

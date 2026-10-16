@@ -17,6 +17,8 @@ import type { BlocoAssistido } from '../../_proprio/video-blocos-model'
 import { canalProprioDoVideo } from '../../_proprio/video-model'
 import { ProprioVideoScreen } from '../../_proprio/video-screen'
 import { AssistidoEsqueleto, VideoBlocos } from '../../_proprio/video-blocos'
+import { LinhaDasTrocas, Trocas } from '../../_proprio/trocas'
+import * as Sentry from '@sentry/nextjs'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
 import { pinVideo, unpinVideo, syncCompetitorNow } from '../../actions'
 
@@ -47,10 +49,17 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
   // O dono do canal do vídeo decide a tela (spec 17); a decisão é do servidor, a partir do canal resolvido do vídeo.
-  const m = await montarVideo(id, flat, abrirPagina)
+  const m = await montarVideo(id, flat, abrirPagina, { trocas: true })
   const { obs, meuCanalLembrado } = m.pagina
   if (m.tipo === 'proprio') {
-    const { base, blocos, barra } = m
+    const { base, blocos, barra, trocas } = m
+    // diagnóstico das trocas: UM evento só com contagens e o ytId (nunca título, imagem nem data); `diagnostico` não segue para nenhum componente
+    if (trocas) {
+      const d = trocas.diagnostico
+      if (d.foraDaJanelaSemCausa + d.fimNaoRegistrado + d.origemCms + d.estadoInesperado > 0) {
+        Sentry.captureMessage('observatório: trocas do vídeo com caso sem causa conhecida', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'trocas-modelo' }, extra: { ...d, ytId: base.header.ytId } })
+      }
+    }
     // os cartões de período vão em `Suspense` próprio (o bloco não espera a leitura); sem dado privado lido, não há o que ler
     const periodos = m.periodosProps ? (
       <Suspense fallback={<AssistidoEsqueleto barra={barra} />}>
@@ -67,7 +76,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
       <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}
         perguntarIa={{ tela: 'video-proprio', id: id, nomeDaTela: TELAS_IA['video-proprio'].nome, exemplos: TELAS_IA['video-proprio'].exemplos, onGerar: gerarPacoteIa }}>
         <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal}>
-          <VideoBlocos view={blocos} periodos={periodos} origem={origem} />
+          <VideoBlocos view={blocos} periodos={periodos} origem={origem} linhaTrocas={trocas ? <LinhaDasTrocas view={trocas} /> : undefined} trocas={trocas ? <Trocas view={trocas} /> : undefined} />
         </ProprioVideoScreen>
       </TrailChrome>
     )

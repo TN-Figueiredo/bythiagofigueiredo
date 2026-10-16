@@ -17,6 +17,8 @@ import { dmDia } from '../_proprio/extras'
 import { ateDaOrigem, buildAssistidoDoVideo, buildVideoBlocos, contagensDeCobertura, janelaDaOrigemDoVideo, nivelDaOrigem, periodosDaOrigemDoVideo, type BlocoAssistido } from '../_proprio/video-blocos-model'
 import type { AssistidoPeriodosView } from '../_proprio/assistido-periodo-model'
 import { buildProprioVideoBase, canalProprioDoVideo, hrefDeOutroVideo } from '../_proprio/video-model'
+import { lerTrocas } from '../_proprio/dados-trocas'
+import { buildTrocas, trocasNoGrafico, type TrocasView } from '../_proprio/trocas-model'
 import { buildHistoricoView } from './view-model'
 
 /** Os três cartões de "% assistido por período" (tela B): lê o diário de 90 dias e o inteiro dos OUTROS vídeos do canal, DEPOIS do primeiro HTML. */
@@ -62,6 +64,8 @@ type Base = NonNullable<ReturnType<typeof buildProprioVideoBase>>
 export type MontarVideo =
   | { tipo: 'proprio'; pagina: Pagina; proprio: { id: string }; base: Base; blocos: ReturnType<typeof buildVideoBlocos>; barra: BlocoAssistido | null
       periodosProps: PropsAssistidoDoVideo | null; origemProps: PropsOrigemDoVideo
+      /** só com `{ trocas: true }` (a página); o pacote "Perguntar a uma IA" não o pede */
+      trocas: TrocasView | null
       recente: string | null; estado: Flat; privado: EstadoDoPrivado }
   | { tipo: 'concorrente'; pagina: Pagina; view: ReturnType<typeof buildHistoricoView>; recente: string | null; estado: Flat }
 
@@ -70,7 +74,13 @@ export type MontarVideo =
  * URL; a decisão própria/concorrente é do servidor, a partir do canal resolvido do vídeo. Vídeo desconhecido: `concorrente` com a vista "não encontrado"
  * do Histórico (`view.notFound`). O `siteId` não é parâmetro. Os cartões de período e a origem voltam como funções, para a página os pedir num `Suspense`.
  */
-export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pagina> = () => openObservatoryPage()): Promise<MontarVideo> {
+const quandoSp = (iso: string): { dia: string; hora: string } => {
+  const f = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(iso))
+  const p = (t: string): string => f.find(x => x.type === t)?.value ?? ''
+  return { dia: `${p('day')}/${p('month')}`, hora: `${p('hour')}:${p('minute')}` }
+}
+
+export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pagina> = () => openObservatoryPage(), opcoes: { trocas?: boolean } = {}): Promise<MontarVideo> {
   const pagina = await abrir()
   const { siteId, obs, savedNiche, now } = pagina
   const recente = obs.SYNC.last == null ? null : obs.SYNC.title
@@ -83,7 +93,18 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     const acesso = await acessoPrivado(siteId)
     const leitura = acesso.leitura
     const dados = await lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura })
-    const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje: dayPt(new Date(now)), dm: dmDia, hrefVideo: hrefDeOutroVideo(sp, proprio.id) })
+    const hoje = dayPt(new Date(now))
+    // as trocas (T16e): lidas DEPOIS da guarda de edição, com a mesma prova; sem a opção (pacote da IA) nada é lido
+    let trocas: TrocasView | null = null
+    if (opcoes.trocas) {
+      const pub = obs.video(id)
+      const lidas = await lerTrocas({ canalId: proprio.id, ytId: base.header.ytId, videoUuid: id, agora: now, prova: leitura })
+      trocas = buildTrocas({
+        lidas, ytId: base.header.ytId, publicadoEm: pub ? dayPt(new Date(pub.pub)) : null, hojePt: hoje, podeEditar: acesso.edita,
+        dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, quandoSp, diaPt: iso => dayPt(new Date(iso)), n: obs.fmt.int,
+      })
+    }
+    const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje, dm: dmDia, hrefVideo: hrefDeOutroVideo(sp, proprio.id), trocasNoGrafico: trocas && trocas.estado === 'ok' ? trocasNoGrafico(trocas) : null })
     const barra = blocos.acesso === 'ok' ? blocos.assistido : null
     const diario = dados.acesso === 'ok' ? dados.dado.diario : null
     const ytIds = longosAcompanhadosDe(obs, proprio.id)
@@ -96,7 +117,7 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     }
     // `negativa` vem da MESMA resposta que decidiu a leitura (nunca de uma segunda chamada)
     const privado: EstadoDoPrivado = { acessoPorCanal: { [proprio.id]: { diario: dados.acesso, alcance: dados.acesso } }, negativa: acesso.negativa }
-    return { tipo: 'proprio', pagina, proprio, base, blocos, barra, periodosProps, origemProps, recente, estado: sp, privado }
+    return { tipo: 'proprio', pagina, proprio, base, blocos, barra, periodosProps, origemProps, trocas, recente, estado: sp, privado }
   }
   const formParam = parseNiche(sp.niche) ?? undefined
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)
