@@ -8,6 +8,8 @@ export type MotivoNaoMedido =
   | 'relatorio_nao_chegou' | 'busca_falhou' | 'dia_nao_chegou' | 'poucas_views' | 'coleta_desligada'
   /** a coleta roda e nenhum dia do período tem todos os vídeos medidos */
   | 'cobertura_parcial'
+  /** a tela das trocas: o registro de versões não foi ligado ou o vídeo não tem nenhuma versão guardada */
+  | 'nao_registrado'
 
 export type OrigemDoMotivo = 'spec-6.1.5' | 'mockup-11b' | 'mockup-12' | 'lote-1' | 'plano-e5b'
 
@@ -28,4 +30,5 @@ export const MOTIVOS_NAO_MEDIDO: Readonly<Record<MotivoNaoMedido, { origem: Orig
   poucas_views: { origem: 'lote-1' },
   coleta_desligada: { origem: 'plano-e5b' },
   cobertura_parcial: { origem: 'plano-e5b' },
+  nao_registrado: { origem: 'plano-e5b' },
 }
