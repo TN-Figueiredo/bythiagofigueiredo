@@ -95,6 +95,7 @@ export const INVENTARIO_INSIGHTS: Inventario = {
   // o que a tela repete ou guarda para o menu do navegador (o chrome): nada disto é número da tela
   'reading*': { descartado: 'repetido' }, // a leitura da forja do nicho; o texto vem de `hero.view`
   'forja*': { descartado: 'controle de tela' }, // botão, estado da máquina e do pedido: chrome
+  'direcaoNicho*': { descartado: 'controle de tela' }, // E5a T9: a direção do nicho ainda não vai no pacote (pendência declarada no relatório do L4b)
   niche: { descartado: 'identificador' }, fmt: 'rotulo',
   'window.label': 'rotulo', 'window.dates': 'rotulo', 'window.title': { descartado: 'controle de tela' },
   'fmtOptions[].key': { descartado: 'identificador' }, 'fmtOptions[].label': 'rotulo', 'fmtOptions[].pressed': { descartado: 'controle de tela' },
@@ -225,6 +226,7 @@ export const INVENTARIO_INSIGHTS: Inventario = {
  * sem temas. Cada um tem teste sintético próprio, que monta o modelo à mão.
  */
 export const SEM_FOLHA_NA_MATRIZ_INSIGHTS: readonly string[] = [
+  'direcaoNicho*', // E5a T9: a matriz do teste monta o modelo sem as medidas do site; o cartão nasce em `montarInsights`
   'hero.statusChip', 'hero.statusChip.text', 'hero.statusChip.dot', 'hero.statusChip.pulse', 'hero.askLine', 'hero.publishedNote', 'hero.prevLabel',
   'hero.box', 'hero.box.*', 'derivado.hero.box[]', 'hero.view.notes[]',
   'formulas.empty.title', 'formulas.empty.text', 'formulas.rows[]sentence*',
