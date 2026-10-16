@@ -240,7 +240,7 @@ describe('Canal: provas por mutação (a paridade cai)', () => {
     const c = t.linhas[0]![0]!
     t.linhas[0]![0] = { ...c, origem: c.origem.replace(/videos\[(\d+)\]\.title/, 'videos[1].title') }
     expect(() => paridade(m)).toThrow(/\(d2\)/)
-  })
+  }, 60_000) // mesmo caso das fichas acima: passou de 20 s no runner da CI (16/10)
 
   it('apagar uma entrada do inventário derruba a regra (a)', async () => {
     const m = await montar({})

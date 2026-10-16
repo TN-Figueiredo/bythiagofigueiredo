@@ -111,6 +111,10 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     for (const k of restantes) await registrarTentativa(ctx, { ...tCanal(k), outcome: 'schema_ausente' })
   }
 
+  // Duas fases: A lê os fatos de TODOS os canais (só banco, barato) e fecha já quem não tem nada a ler; B serve da API
+  // primeiro o canal mais barato (menos leituras). Ordem: o caro (fila de vídeos antigos) não deixa o outro sem vez.
+  const fila: Array<{ c: ColetaChannel; d: Decisao }> = []
+
   for (let i = 0; i < canais.length; i++) {
     const c = canais[i]!
 
@@ -167,6 +171,20 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
       await registrarTentativa(ctx, { ...tCanal(c), outcome: 'ok' })
       continue
     }
+    fila.push({ c, d })
+  }
+
+  // Estável: empate de custo mantém a ordem de entrada.
+  fila.sort((a, b) => a.d.ler.length - b.d.ler.length)
+  const canaisB = fila.map(f => f.c)
+
+  for (let j = 0; j < fila.length; j++) {
+    const { c, d } = fila[j]!
+
+    if (restante(ctx.deadline) <= 0) {
+      await semTempoDe(canaisB.slice(j))
+      break
+    }
 
     // 4. O token (só agora: lista vazia nunca chega aqui).
     let token: string | null
@@ -174,7 +192,7 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
       token = await pegarToken(c)
     } catch (e) {
       if (e instanceof SemTempoError) {
-        await semTempoDe(canais.slice(i))
+        await semTempoDe(canaisB.slice(j))
         break
       }
       Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'retencao' }, extra: { canal: c.channel_id } })
@@ -192,7 +210,6 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     let schemaAusenteNaEscrita = false
     let comErro = 0
     let primeiraCausa = ''
-    let pendentesDoCanal = 0
     const demoraram: string[] = []
     const demoraramHa3Dias: string[] = []
     // Uma promessa por canal: quatro vídeos em paralelo não disparam quatro gravações.
@@ -209,7 +226,6 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
       if (cota || restante(ctx.deadline) <= 0) {
         await registrarTentativa(ctx, { ...base, outcome: 'nao_alcancado_orcamento' })
         resumo.pendentes++
-        pendentesDoCanal++
         return
       }
       const falhou = (motivo: string): void => {
@@ -285,7 +301,6 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
         if (e instanceof SemTempoError || (ehDemora(e) && restante(ctx.deadline) <= 0)) {
           await registrarTentativa(ctx, { ...base, outcome: 'nao_alcancado_orcamento' })
           resumo.pendentes++
-          pendentesDoCanal++
         } else if (ehDemora(e)) {
           // Cortado pelo limite da chamada com tempo sobrando: pendente para amanhã, nota em vez de vermelho; no 3º dia seguido, falha.
           const seguido = await demorouNosDiasAnteriores(ctx, l.ytId, l.kind, hojeUtc)
@@ -317,7 +332,7 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
 
     if (schemaAusenteNaEscrita) {
       // A migration sumiu no meio: o canal em curso e os seguintes não chamam mais a API.
-      await schemaAusenteDe(canais.slice(i))
+      await schemaAusenteDe(canaisB.slice(j))
       return fechar()
     }
 
@@ -333,9 +348,12 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     if (comErro > 0) {
       pushUnico(ctx.falhas, `retenção: ${channelNote(c.name, `${comErro} de ${d.ler.length} leituras com erro (${textoDoMotivo(primeiraCausa)})`)}`)
     }
+    // Canal alcançado (o passo chegou nele, mesmo que o prazo vença antes do 1º vídeo) é 'ok' mesmo com vídeos antigos pendentes: eles giram, e a fome
+    // de vídeo é vigiada pelas tentativas de escopo 'video'. 'nao_alcancado_orcamento' do canal é só para quem o
+    // prazo nem alcançou (semTempoDe). Sem isto o teto de 45 s deixava o canal "faltou" todo dia.
     await registrarTentativa(ctx, {
       ...tCanal(c),
-      outcome: negado ? 'sem_autorizacao' : pendentesDoCanal > 0 ? 'nao_alcancado_orcamento' : 'ok',
+      outcome: negado ? 'sem_autorizacao' : 'ok',
     })
   }
 

@@ -85,17 +85,17 @@ describe('referenciaDoCanal: fronteiras', () => {
     expect(ref(canal(), vs([1, 2, 3, 4])).tipo).toBe('prov')
     expect(ref(canal(), vs([1, 2, 3, 4, 5])).tipo).toBe('ok')
   })
-  it('razão 2 é estreita, 2,01 média, 6 média, 6,01 larga', () => {
+  it('razão 1,4 é estreita, 1,41 média, 2,6 média, 2,61 larga', () => {
     const f = (p25: number, p75: number) => {
       // 5 valores: p25 = 2º, p75 = 4º
       const r = ref(canal(), vs([p25 / 2, p25, (p25 + p75) / 2, p75, p75 * 2]))
       if (r.tipo !== 'ok') throw new Error('esperava ok')
       return r
     }
-    expect(f(100, 200).classe).toBe('estreita')
-    expect(f(100, 201).classe).toBe('media')
-    expect(f(100, 600).classe).toBe('media')
-    expect(f(100, 601).classe).toBe('larga')
+    expect(f(100, 140).classe).toBe('estreita')
+    expect(f(100, 141).classe).toBe('media')
+    expect(f(100, 260).classe).toBe('media')
+    expect(f(100, 261).classe).toBe('larga')
   })
   it('p25 = 0: larga e razao null', () => {
     const r = ref(canal(), vs([0, 0, 10, 20, 30]))
@@ -201,6 +201,6 @@ describe('referenciaDoCanal: canal próprio e regras', () => {
     expect(ref(canal({ own: true }), vs([1, 2, 3, 4, 5]))).toMatchObject({ tipo: 'ok', k: 5 })
   })
   it('as regras são as aprovadas', () => {
-    expect(REGRAS_REFERENCIAS).toEqual({ janelaDias: 90, idadeMinimaDias: 7, minVideosFaixa: 5, minVideosProvisoria: 3, corteEstreita: 2, corteMedia: 6, coletaVelhaHoras: 48 })
+    expect(REGRAS_REFERENCIAS).toEqual({ janelaDias: 90, idadeMinimaDias: 7, minVideosFaixa: 5, minVideosProvisoria: 3, corteEstreita: 1.4, corteMedia: 2.6, coletaVelhaHoras: 48 })
   })
 })

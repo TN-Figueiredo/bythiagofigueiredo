@@ -483,7 +483,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E8 (9b): o passo e o alarme da retenção
         { outcome: 'erro_http', http_status: 403, error: 'http_403_quotaExceeded', n: PARALELO_RETENCAO },
         { outcome: 'nao_alcancado_orcamento', http_status: null, error: null, n: 10 - PARALELO_RETENCAO },
       ])
-      expect(await tentCanal(c)).toEqual([expect.objectContaining({ outcome: 'nao_alcancado_orcamento' })])
+      expect(await tentCanal(c)).toEqual([expect.objectContaining({ outcome: 'ok' })]) // canal alcançado é 'ok' com pendentes (16/10); a fome é por vídeo
       expect(ctx.falhas).toEqual([`retenção: ${c.nome}: ${PARALELO_RETENCAO} de 10 leituras com erro (o YouTube recusou por cota (403))`])
       expect(Number((await q('select count(*) as n from public.yt_own_video_retention where site_id = $1 and window_kind = \'vida\'', [c.site]))[0]!.n)).toBe(0)
       // nenhum virou resposta

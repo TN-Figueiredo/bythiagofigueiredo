@@ -98,6 +98,14 @@ export function rawOf(item: unknown): RawCapture {
       out[k] = live
       continue
     }
+    if (k === 'topicDetails') {
+      // I-7: a API devolve os tópicos em ordem que varia entre leituras (medido em 12 de 31 canais); é um conjunto, então ordena
+      // para o hash não girar sem mudança real.
+      const t = { ...(obj(src[k]) ?? {}) }
+      for (const f of Object.keys(t)) { const a = t[f]; if (Array.isArray(a)) t[f] = [...a].sort() }
+      out[k] = t
+      continue
+    }
     out[k] = src[k]
   }
   // o hash é do que vai ser gravado: limpa antes de calcular

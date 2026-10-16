@@ -11,7 +11,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
+import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts, VIDEO_PARTS, CHANNEL_PARTS } from '@/lib/youtube/competitor-sync'
 import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 import { probeThumb, archiveThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
@@ -21,6 +21,13 @@ import { createNotification } from '@/lib/notifications/create'
 import { fakeDb, setup, apiFetch, traced, updatesOf, first, arg, rpcs, NOW, NOW_ISO, EARLY, ch, lockRow, recent, quiet, SINAIS, SNIPPET0, type FetchLog } from './competitor-sync-harness'
 import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from '../helpers/fake-owner-db'
 
+
+describe('I-7: partes pedidas', () => {
+  it('videos.list e channels.list pedem as partes gratuitas novas', () => {
+    for (const p of ['status', 'topicDetails']) expect(VIDEO_PARTS.split(',')).toContain(p)
+    for (const p of ['brandingSettings', 'topicDetails', 'status']) expect(CHANNEL_PARTS.split(',')).toContain(p)
+  })
+})
 
 describe('isDailyRecordDue (12:00 São Paulo)', () => {
   it('before 12:00 SP is not due', () => {
@@ -552,7 +559,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
   const LATER = new Date(NOW.getTime() - 3_600_000)     // 11:00 SP, same SP day: still not the daily pass
   const OLD = new Date(NOW.getTime() - 400 * 86_400_000).toISOString()
   const idsOf = (url: string) => decodeURIComponent(url.match(/[?&]id=([^&]*)/)![1]!).split(',')
-  const CH_CALL = 'channels?part=contentDetails,snippet,statistics&id=UC_test'
+  const CH_CALL = 'channels?part=contentDetails,snippet,statistics,brandingSettings,topicDetails,status&id=UC_test'
   const PL_CALL = 'playlistItems?part=snippet&playlistId=UU&maxResults=50'
   const DETAILS = 'videos?part=' + VIDEO_PARTS + '&id=vid-1'
   const page = { id: 'vid-1', snippet: { title: 'T', description: '', publishedAt: recent() }, statistics: {} }

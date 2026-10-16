@@ -78,8 +78,9 @@ describe('Referências: o texto do mockup cheio', () => {
     expect(falhas).toEqual([])
     const s = ok(view.referencias)
     expect(texto(s.frase)).toBe(
+      // Cortes 1,4 e 2,6 (16/10): a mesma semente tem 7 canais de faixa larga (eram 5 com 2 e 6).
       'Nos últimos 90 dias, o vídeo típico de Rota Solta tem 1,2 mi de views, o mais alto entre os 22 canais medidos. ' +
-      'Seu canal está em 7º (88 mil). 5 têm faixa larga (as views variam muito de um vídeo para outro); 3 sem medida, 2 com mediana provisória.')
+      'Seu canal está em 7º (88 mil). 7 têm faixa larga (as views variam muito de um vídeo para outro); 3 sem medida, 2 com mediana provisória.')
     expect(s.frase.filter(x => x.b).map(x => x.t)).toEqual(['Rota Solta tem 1,2 mi de views', 'Seu canal está em 7º (88 mil).'])
   })
   it('lista: unidade única em mil, 1,42 mi acima de 999 mil, nunca 1.180 mil', () => {
@@ -107,7 +108,7 @@ describe('Referências: o texto do mockup cheio', () => {
     expect(por('Estreia Recente').pilula).toEqual({ tipo: 'nm', texto: 'sem medida · poucos vídeos (2)' })
     expect(por('Canal Recém-Adicionado').pilula).toEqual({ tipo: 'nm', texto: 'sem medida · ainda não coletado' })
     expect(por('Sem Postar Desde Julho').pilula).toEqual({ tipo: 'nm', texto: 'sem medida · sem vídeos em 90 dias' })
-    expect(por('Rota Solta').sub).toBe('～ faixa média · 3,0× · 5 vídeos')
+    expect(por('Rota Solta').sub).toBe('≋ faixa larga · 3,0× · 5 vídeos')
     expect(por('Dois Passaportes').sub).toBe('≋ faixa larga · 12× · 5 vídeos')
   })
   it('seu canal e os dois ganham o selo (proprio)', () => {

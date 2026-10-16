@@ -24,7 +24,9 @@ const CHANGE_DETECTION_WINDOW_DAYS = 90
 const PAGE_DELAY_MS = 300
 
 /** As partes pedidas em TODA chamada videos.list. O quadro de cota cobra 1 unidade por chamada, qualquer que seja o número de partes. */
-export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails'
+export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails,status,topicDetails'
+/** As partes pedidas em channels.list (I-7, decisão do dono 16/10): brandingSettings, topicDetails e status entram de graça no raw. */
+export const CHANNEL_PARTS = 'contentDetails,snippet,statistics,brandingSettings,topicDetails,status'
 
 /** provisional until spike S1 (Last-Modified granularity) */
 const LAST_MODIFIED_MINUTE = true
@@ -947,7 +949,7 @@ async function runChannel(
 
     // ── 1. Channel metadata ──
     const channelRes = await api(
-      `${YOUTUBE_API_BASE}/channels?part=contentDetails,snippet,statistics&id=${channelRow.channel_id}&key=${apiKey}`,
+      `${YOUTUBE_API_BASE}/channels?part=${CHANNEL_PARTS}&id=${channelRow.channel_id}&key=${apiKey}`,
     )
     if (!channelRes.ok) throw new Error(`YouTube API ${channelRes.status} for channel ${channelRow.channel_id}`)
 

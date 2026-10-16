@@ -300,6 +300,7 @@ export function conferenciasE16E15(deploy: string | null): Conferencia[] {
 const PLANO_E4 = 'docs/superpowers/plans/2026-10-13-a5-e4-medidas-e-marcas-plan.md, Tarefa 12 (conferência com data); anotar o resultado em .superpowers/sdd/a5/conferencias-com-data.md'
 
 const BASE: readonly Conferencia[] = [
+  { id: 'i7-k6-d3', etapa: 'E1', data: '2026-10-19', responsavel: 'agente', onde: 'parecer .superpowers/sdd/a5-e1-e2/portao-final-dados.md I-7: K6 de novo com as partes novas; fechadas acima de 5% → tirar a parte que gira (decisão do dono 16/10)', feitaEm: null },
   { id: 'e19-d1', etapa: 'E19', data: '2026-10-13', responsavel: 'agente', onde: `${PLANO_E19}: contagem do dia 0 por chave, painel do CMS e /admin/audit sem as linhas, tamanho de audit_log (base: 204.800 bytes, 140 linhas)`, feitaEm: null },
   { id: 'e20-segundo-cron', etapa: 'E20', data: '2026-10-14', responsavel: 'agente', onde: `${PLANO_E20}: resumo do segundo cron depois do envio (consulta B do runbook da coleta): guarda.blobs_guardados_antes é número, baixados_sem_bruto = 0, conferencias_vencidas = [], ms_total e ms_passos.guarda; conta exata blobs_guardados = antes + baixados + vazios`, feitaEm: null },
   { id: 'e12-d3', etapa: 'E12', data: '2026-10-16', responsavel: 'agente', onde: `${PLANO_E12}: D+3: quais dos 9 tipos novos o YouTube gera (consulta C, zero relatórios de um tipo é "não ok"), maior_lido_por_tipo contra os tetos (um tipo recusado por tamanho só tem conserto enquanto o arquivo existe na origem) e ms_passos.relatorios`, feitaEm: null },
