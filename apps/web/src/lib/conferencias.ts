@@ -495,7 +495,7 @@ export function conferenciasE17D1Nucleo(envio: string | null): Conferencia[] {
 // `null`, as entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E9`. As conferências por evento (`e9-primeiro-apagar`) e a condicional
 // (`e9-religar-prova`, só se `OBS_PROVA_AUSENTES=off` for usado) não têm data fixa e ficam no runbook, não aqui.
 /** Dia de São Paulo (AAAA-MM-DD) em que a E9 (Envio B) foi promovida a `main`. `null` = ainda não enviada. */
-export const E9_DEPLOY: string | null = null
+export const E9_DEPLOY: string | null = '2026-10-16'
 
 const PLANO_E9 = 'docs/superpowers/plans/2026-10-13-a5-e9-fila-sairam-do-youtube-plan.md (seção 7 e Tarefa 13; consultas K1 a K7 da seção 11); runbook docs/ops/observatorio-fila-sairam-runbook.md; anotar o resultado em .superpowers/sdd/a5-e9/progress.md'
 
