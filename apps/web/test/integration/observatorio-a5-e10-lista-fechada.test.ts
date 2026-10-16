@@ -12,8 +12,18 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
+import { readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { emTransacao, escalar, q1, tenta, semearCena, type Cena } from '../helpers/mg6'
+
+/** A MG17a (E18 parte 2) ainda não está em nenhum banco persistente: o teste a aplica DENTRO da transação desfeita (idempotente se já estiver). */
+function sqlDaMg17a(): string {
+  const dir = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
+  const arq = readdirSync(dir).find(f => f.endsWith('observatorio_a5_e18p2_cobertura_de_metadados.sql'))
+  if (!arq) throw new Error('migration da MG17a ausente em supabase/migrations')
+  return readFileSync(`${dir}${arq}`, 'utf8')
+}
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -54,6 +64,8 @@ const LISTA: Par[] = [
   { funcao: 'yt_own_dim_coverage_extend', tabela: 'yt_own_video_coverage', linha: '14', disparo: 'coleta' },
   { funcao: 'yt_own_reach_dim_apply', tabela: 'yt_own_video_reach_dim_daily', linha: '14', disparo: 'coleta' },
   { funcao: 'yt_own_traffic_detail_apply', tabela: 'yt_own_video_traffic_detail_daily', linha: '14', disparo: 'coleta' },
+  // canal próprio: cobertura de metadados (MG17a): refaz o recorte do MESMO vídeo e conjunto, nunca por idade (a MG17 troca o corpo de yt_own_meta_cover e acrescenta o par dela)
+  { funcao: 'yt_own_meta_cover_set', tabela: 'yt_own_video_coverage', linha: '202 (MG17a: funde dias na cobertura)', disparo: 'coleta' },
   // fase de manutenção, M1 (pedido 8; disparo: cron; classe: estado de execução): `20261014000001_manutencao_m1_podas_execucao.sql`, aplicada no `bythiago_int` fora de transação.
   { funcao: 'yt_own_collection_attempts_purge', tabela: 'yt_own_collection_attempts', linha: 'manutenção, pedido 8 (estado de execução)', disparo: 'cron' },
 ]
@@ -81,6 +93,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
 
   it('toda função com delete tem par e todo par tem função', async () => {
     await emTransacao(pg, async () => {
+      await pg.query(sqlDaMg17a())
       const achadas = (await pg.query(DELETES_SQL)).rows as { funcao: string; tabela: string }[]
       const chaves = new Set(achadas.map(a => `${a.funcao}::${a.tabela}`))
       const daLista = new Set(LISTA.map(p => `${p.funcao}::${p.tabela}`))
