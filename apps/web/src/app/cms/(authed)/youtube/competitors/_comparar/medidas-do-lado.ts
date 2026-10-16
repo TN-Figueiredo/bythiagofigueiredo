@@ -234,3 +234,10 @@ export function medidasDoLado(c: { id: string; own: boolean; medidasDoLado?: Med
     acerto: acertoDe(m.m4), reacao: reacaoDe(m.m7),
   }
 }
+
+/* ================================================================================================================== textos que a tela e o pacote escrevem igual */
+
+/** A janela de uma direção cruza a mudança de contagem do YouTube de 24/08. */
+export const textoDaMarca = (ate: string): string => `A janela cruza a mudança de contagem do YouTube de 24/08 (vale até ${ate}).`
+/** A variação em % que o quadrado de direção mostra para a contagem de longos publicados (a mesma regra de ±10% das outras direções). */
+export const pctDaContagem = (c: { recente: number; anterior: number }): number => (c.anterior > 0 ? Math.round(((c.recente - c.anterior) / c.anterior) * 100) : c.recente > 0 ? 100 : 0)
