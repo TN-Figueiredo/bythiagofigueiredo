@@ -432,9 +432,9 @@ describe('passoRetencao: erros', () => {
       expect(r.pendentes).toBe(6)
       expect(r.chamadas).toBe(2)
       expect(retencoes(db)).toHaveLength(1)
-      // o canal fica vermelho pela cota E marcado como não alcançado (a próxima execução refaz os 4)
+      // o canal fica vermelho pela cota; a tentativa de canal é ok (foi atendido), a fome fica nas de vídeo
       expect(ctx.falhas).toEqual([expect.stringMatching(/^retenção: Canal Um: 1 de 8 leituras com erro \(/)])
-      expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+      expect(tentCanal(db)).toMatchObject({ outcome: 'ok' })
       expect(ctx.channels[0]!.collection_status).toBe('ok')
     })
 
@@ -623,7 +623,7 @@ describe('passoRetencao: o relógio', () => {
     expect(r.gravados).toBe(1)
   })
 
-  it('sem tempo no meio: os restantes ficam nao_alcancado_orcamento do kind certo; pendentes conta; o canal também', async () => {
+  it('sem tempo no meio: os restantes ficam nao_alcancado_orcamento do kind certo; pendentes conta; o canal, atendido, fica ok', async () => {
     const pub = '2026-10-10'
     const f = fetchFalso()
     // 8 vídeos da vida e a janela de 7 dias do vídeo 1 (kind retencao_7d)
@@ -648,7 +648,8 @@ describe('passoRetencao: o relógio', () => {
     // cada uma leva o kind da sua janela: a de 7 dias do vídeo 1 é retencao_7d; as outras são da vida
     expect(orc.filter(t => t.kind === 'retencao_7d').map(t => t.scope_id)).toEqual([idDoVideo(1)])
     expect(orc.filter(t => t.kind === 'retencao_vida')).toHaveLength(total - 2)
-    expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    // canal atendido (houve leitura): tentativa ok; a fome fica nas tentativas de vídeo acima
+    expect(tentCanal(db)).toMatchObject({ outcome: 'ok' })
     expect(ctx.falhas).toEqual([])
   })
 

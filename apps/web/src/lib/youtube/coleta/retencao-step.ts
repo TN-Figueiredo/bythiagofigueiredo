@@ -192,7 +192,6 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     let schemaAusenteNaEscrita = false
     let comErro = 0
     let primeiraCausa = ''
-    let pendentesDoCanal = 0
     const demoraram: string[] = []
     const demoraramHa3Dias: string[] = []
     // Uma promessa por canal: quatro vídeos em paralelo não disparam quatro gravações.
@@ -209,7 +208,6 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
       if (cota || restante(ctx.deadline) <= 0) {
         await registrarTentativa(ctx, { ...base, outcome: 'nao_alcancado_orcamento' })
         resumo.pendentes++
-        pendentesDoCanal++
         return
       }
       const falhou = (motivo: string): void => {
@@ -285,7 +283,6 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
         if (e instanceof SemTempoError || (ehDemora(e) && restante(ctx.deadline) <= 0)) {
           await registrarTentativa(ctx, { ...base, outcome: 'nao_alcancado_orcamento' })
           resumo.pendentes++
-          pendentesDoCanal++
         } else if (ehDemora(e)) {
           // Cortado pelo limite da chamada com tempo sobrando: pendente para amanhã, nota em vez de vermelho; no 3º dia seguido, falha.
           const seguido = await demorouNosDiasAnteriores(ctx, l.ytId, l.kind, hojeUtc)
@@ -333,9 +330,12 @@ export async function passoRetencao(ctx: StepCtx, deps: DepsRetencao = {}): Prom
     if (comErro > 0) {
       pushUnico(ctx.falhas, `retenção: ${channelNote(c.name, `${comErro} de ${d.ler.length} leituras com erro (${textoDoMotivo(primeiraCausa)})`)}`)
     }
+    // Canal atendido (o passo chegou nele e leu) é 'ok' mesmo com vídeos antigos pendentes: eles giram, e a fome
+    // de vídeo é vigiada pelas tentativas de escopo 'video'. 'nao_alcancado_orcamento' do canal é só para quem o
+    // prazo nem alcançou (semTempoDe). Sem isto o teto de 45 s deixava o canal "faltou" todo dia.
     await registrarTentativa(ctx, {
       ...tCanal(c),
-      outcome: negado ? 'sem_autorizacao' : pendentesDoCanal > 0 ? 'nao_alcancado_orcamento' : 'ok',
+      outcome: negado ? 'sem_autorizacao' : 'ok',
     })
   }
 
