@@ -173,6 +173,8 @@ export function inventarioDeColunasDeGrafico(p: string): Inventario {
     [`${p}.avisos[]`]: 'base',
     [`${p}.metodo[]`]: 'base', // o ⓘ do gráfico: vai nas definições
     [`${p}.rotuloEixo`]: 'rotulo', [`${p}.rotuloValor`]: 'rotulo', [`${p}.rotuloSituacao`]: 'rotulo',
+    // faixas[] e marcas[] (o desenho das trocas) só têm folha quando há troca; a tela do vídeo, com trocas, ainda não vai ao pacote (E17 depois): sem declaração aqui, um mundo com elas derruba o teste
+    [`${p}.alturaFaixas`]: APAR, [`${p}.notaFaixas`]: 'base',
     [`${p}.soZeros`]: CTRL, // o gráfico só com o 0: as colunas já dizem 0 medido
     // vídeo novo / ainda cedo (E5b): a faixa de 7 casas no lugar do gráfico; vira tabela própria (`tabelaDoCedo`)
     [`${p}.cedo`]: CTRL, [`${p}.cedo.tipo`]: CTRL, [`${p}.cedo.frase`]: 'base',
