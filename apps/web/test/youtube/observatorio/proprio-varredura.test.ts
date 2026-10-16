@@ -19,6 +19,8 @@ const DADOS = 'app/cms/(authed)/youtube/competitors/_proprio/dados.ts'
 const LER_DIARIO_PERIODO = 'lib/youtube/observatorio/proprio/ler-diario-periodo.ts'
 const DADOS_ORIGEM = 'app/cms/(authed)/youtube/competitors/_proprio/dados-origem.ts'
 const DADOS_TERMOS = 'app/cms/(authed)/youtube/competitors/_proprio/dados-termos.ts'
+const DADOS_TROCAS = 'app/cms/(authed)/youtube/competitors/_proprio/dados-trocas.ts'
+const LER_TESTES_AB = 'lib/youtube/observatorio/proprio/ler-testes-ab.ts'
 /** A prova de tipo do token (compilada pelo tsc do web, nunca executada): o único outro arquivo que nomeia a classe como valor. */
 const TIPOS = 'lib/youtube/observatorio/proprio/edicao.type-test.ts'
 /** Usos do token como VALOR (a classe em si), que o brand check de edicao.ts não pode deixar de cobrir: estender, protótipo, construção reflexiva, typeof, instanceof. */
@@ -44,11 +46,11 @@ const PAGE_DATA = 'app/cms/(authed)/youtube/competitors/_chrome/page-data.ts'
 const ABRIR_CHAVE = 'app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave.ts'
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
 const PODE_PROVAR = new Set([EDICAO, LEITURA, DADOS_TERMOS])
-const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, DADOS_TERMOS])
+const PODE_LER = new Set([LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, DADOS_TERMOS, DADOS_TROCAS])
 /** Os leitores e o módulo de dados pedem o token de LEITURA: citar o de edição neles é voltar atrás. */
 const VERSOES_LER = 'lib/youtube/observatorio/proprio-versoes/ler.ts'
 const COMENTARIOS_LER = 'lib/youtube/observatorio/medidas/ler-comentarios.ts'
-const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, VERSOES_LER, COMENTARIOS_LER])
+const LEITORES_E_DADOS = new Set([LER, LER_RETENCAO, LER_DIMENSOES, LER_DIARIO_PERIODO, DADOS, DADOS_ORIGEM, DADOS_TROCAS, LER_TESTES_AB, VERSOES_LER, COMENTARIOS_LER])
 /**
  * As DOZE tabelas privadas do canal próprio (leitura por `can_view_private_site` depois da MG11). Cópia da lista de
  * `test/integration/observatorio-a5-e17-p0-doze.test.ts` (T3, ainda fora desta base): quando os dois chegarem juntos, o teste de igualdade entra.
@@ -120,6 +122,11 @@ export function violacoes(fontes: Record<string, string>): string[] {
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario|lerRetencao|lerDimensoes|lerDetalheDaOrigem|lerDiarioDoPeriodo)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
     // os termos e os sites de fora (texto digitado por terceiros) só saem por `dados-termos.ts`, que prova a edição; o leitor só os define
     if (PODE_LER.has(arq) && arq !== DADOS_TERMOS && arq !== LER_DIMENSOES && /\blerDetalheDaOrigem\s*\(/.test(s)) v.push(`${arq}: chama lerDetalheDaOrigem fora de dados-termos`)
+    // E5b T20c: as trocas (versões, testes do Lab, alcance do vídeo) só entram por `dados-trocas.ts`; o Lab só é lido por `ler-testes-ab.ts`
+    if (arq !== DADOS_TROCAS && arq !== 'lib/pipeline/services/competitors-campos.ts' && !arq.startsWith('lib/youtube/observatorio/proprio/') && !arq.startsWith('lib/youtube/observatorio/proprio-versoes/') && /\b(lerAlcanceDoVideo|lerTestesAb|lerVersoes)\s*\(/.test(s)) v.push(`${arq}: chama um leitor das trocas fora de dados-trocas`)
+    if (arq.startsWith('lib/youtube/observatorio/proprio/') && arq !== LER_TESTES_AB && /['"`](ab_tests|ab_test_cycles)['"`]/.test(s)) v.push(`${arq}: cita as tabelas do A/B Lab fora de ler-testes-ab`)
+    if (arq === LER_TESTES_AB && !/\bleituraValida\b/.test(s)) v.push(`${arq}: a guarda copiada não confere o token do HEAD`)
+    if (cliente(bruto) && /from\s+['"][^'"]*_proprio\/dados-trocas['"]/.test(s)) v.push(`${arq}: componente cliente importa o módulo do dado privado`)
     if (arq.startsWith('app/api/') && /yt_own_video_traffic_detail_daily/.test(s)) v.push(`${arq}: rota de API cita a tabela do detalhe da origem`)
     if (LEITORES_E_DADOS.has(arq) && /\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: o leitor voltou ao token de edição`)
     if (!arq.startsWith(COLETA_DIR) && !GRAVADORES_QUE_LEEM.has(arq) && !E9_SO_COM_EDICAO.has(arq) && DOZE.some(t => cita(s, t))) {
@@ -251,6 +258,17 @@ describe('varredura: o dado privado do canal próprio', () => {
       // rota de API não cita a tabela do detalhe
       expect(violacoes({ ...base, 'app/api/x/route.ts': "sb.from('yt_own_video_traffic_detail_daily')" })).toContain('app/api/x/route.ts: rota de API cita a tabela do detalhe da origem')
       expect(violacoes({ ...base, 'lib/youtube/coleta/x.ts': "sb.from('yt_own_video_traffic_detail_daily').upsert(x)" })).toEqual([])
+    })
+    it('E5b T20c: leitores das trocas só por dados-trocas; o Lab só em ler-testes-ab; guarda sem o token é violação; cliente não importa dados-trocas', () => {
+      const chama = (arq: string) => [`${arq}: chama um leitor das trocas fora de dados-trocas`]
+      for (const f of ['lerVersoes(sb, p)', 'lerTestesAb(sb, p)', 'lerAlcanceDoVideo(sb, p)']) expect(violacoes({ ...base, 'app/x/a.ts': 'await ' + f }), f).toContain('app/x/a.ts: chama um leitor das trocas fora de dados-trocas')
+      expect(chama('x')).toHaveLength(1)
+      expect(violacoes({ ...base, [DADOS_TROCAS]: 'await lerVersoes(sb, p); await lerTestesAb(sb, p); await lerAlcanceDoVideo(sb, p)' })).toEqual([])
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/proprio/novo.ts': "sb.from('ab_tests')" })).toEqual(['lib/youtube/observatorio/proprio/novo.ts: cita as tabelas do A/B Lab fora de ler-testes-ab'])
+      expect(violacoes({ ...base, [LER_TESTES_AB]: "sb.from('ab_tests'); const s = leituraValida(x)" })).toEqual([])
+      expect(violacoes({ ...base, [LER_TESTES_AB]: "sb.from('ab_tests')" })).toEqual([`${LER_TESTES_AB}: a guarda copiada não confere o token do HEAD`])
+      expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport { x } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados-trocas'" })).toEqual(['app/x/c.tsx: componente cliente importa o módulo do dado privado'])
+      expect(violacoes({ ...base, [DADOS_TROCAS]: "import { edicaoValida } from './edicao'" })).toEqual([`${DADOS_TROCAS}: o leitor voltou ao token de edição`])
     })
     it('as doze tabelas: arquivo fora da coleta que cita uma delas precisa de leituraValida e não pode citar o token de edição', () => {
       for (const t of DOZE) {
