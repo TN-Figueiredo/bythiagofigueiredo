@@ -14,7 +14,9 @@ import { COM_FAIXA } from '../_canal/medidas/estado-model'
 import { fraseDoTopo } from '../_canal/medidas/frase-do-topo'
 import { blocoDeDirecao, type BlocoDeDirecao } from '../_canal/medidas/direcao-model'
 import { blocoDeRitmo, type BlocoDeRitmo } from '../_canal/medidas/ritmo-model'
-import { dm, dmy } from '../_canal/medidas/formatos'
+import { horasDoCanal, type ModeloDe72Horas, type ModeloDeLancamentos } from '../_canal/medidas/lancamentos-model'
+import { linhaDoTempo, type LinhaDoTempo } from '../_canal/medidas/linha-do-tempo-model'
+import { dm, dmy, ptn } from '../_canal/medidas/formatos'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 
 // ───────────────────────── a projeção: só texto, na ordem da tela
@@ -51,11 +53,48 @@ export interface RitmoIa {
   ponteiro: { rotulo: string; dias: string; limiteRotulo: string; limite: string; tipicoRotulo: string; tipico: string | null } | null
 }
 
+export interface LancamentosIa {
+  /** A frase do bloco quando não há vídeo com normal para citar (não carregou, vazio, sem normal); nulo quando cada vídeo traz a sua frase. */
+  rotulo: string
+  frase: string | null
+  motivo: string | null
+  videos: Array<{
+    titulo: string; legenda: string; razao: string | null; faixaNome: string; ultimoPonto: string | null
+    /** A frase do vídeo cita o título dele: entra como texto de terceiros. */
+    frase: string
+  }>
+  temNormal: boolean
+  normal: Array<{ idade: string; videos: string }>
+  semPonto: string | null
+}
+
+export interface HorasIa {
+  rotulo: string
+  frase: string | null
+  aviso: string | null
+  motivo: string | null
+  marcos: Array<{ rotulo: string; valor: string }>
+}
+
+export interface LinhaDoTempoIa {
+  frase: string
+  motivo: string | null
+  nota: string | null
+  corte: string | null
+  dias: Array<{ dia: string; views: string; situacao: string }>
+  /** Cada evento cita o título de um vídeo: texto de terceiros. */
+  eventos: Array<{ dia: string; texto: string }>
+  raiasNaoCarregou: Array<{ nome: string; motivo: string }>
+}
+
 export interface MedidasIa {
   topo: { faixa: string | null; frase: string }
   celulas: CelulaDeMedidaIa[]
   direcao: DirecaoIa
   ritmo: RitmoIa
+  lancamentos: LancamentosIa
+  horas: HorasIa
+  tempo: LinhaDoTempoIa
 }
 
 const progressoDaTela = (p: { feitos: number; total: number; fechaEm: string }, motivo: string): string => `${p.feitos} de ${p.total} dias · ${motivo}; passa a existir em ${dmy(p.fechaEm)}`
@@ -109,6 +148,40 @@ function ritmoIa(b: BlocoDeRitmo, semanas: number): RitmoIa {
 
 const UNIDADE: Record<string, string> = { ritmo: ' (por semana)' }
 
+function lancamentosIa(m: ModeloDeLancamentos): LancamentosIa {
+  if (m.tipo === 'nao_carregou') return { rotulo: 'Lançamentos', frase: null, motivo: m.motivo, videos: [], temNormal: false, normal: [], semPonto: null }
+  if (m.tipo === 'vazio') return { rotulo: 'Lançamentos', frase: `${m.frase}${m.explicacao}`, motivo: null, videos: [], temNormal: false, normal: [], semPonto: null }
+  return {
+    rotulo: 'Lançamentos', frase: m.temNormal ? null : `${m.frase!.negrito}${m.frase!.resto}`, motivo: null, temNormal: m.temNormal,
+    videos: m.videos.map((v) => ({ titulo: v.titulo, legenda: v.legenda, razao: v.razao, faixaNome: v.faixaNome, ultimoPonto: v.ultimoPonto?.texto ?? null, frase: `${v.frase.negrito}${v.frase.resto}` })),
+    normal: m.normal.flatMap((p) => (p.n === null ? [] : [{ idade: `dia ${p.idadeDias}`, videos: ptn(p.n, 'vídeo', 'vídeos') }])),
+    semPonto: m.temNormal && m.temCasaSemPonto ? 'menos de 3 vídeos: sem ponto' : null,
+  }
+}
+
+function horasIa(m: ModeloDe72Horas): HorasIa {
+  if (m.tipo !== 'medido') return { rotulo: 'Primeiras 72 horas', frase: null, aviso: null, motivo: m.motivo, marcos: [] }
+  const h = (n: number): string => `${n} ${n === 1 ? 'hora' : 'horas'} depois de publicar`
+  return {
+    rotulo: 'Primeiras 72 horas', frase: `${m.frase.negrito}${m.frase.resto}`, aviso: m.aviso, motivo: null,
+    marcos: [{ rotulo: '1/4 das views', valor: h(m.umQuarto) }, { rotulo: '1/2 das views', valor: h(m.metade) }, { rotulo: '3/4 das views', valor: h(m.tresQuartos) }],
+  }
+}
+
+const NOMES_DAS_RAIAS = { videos: 'Vídeos', campos: 'Campos', trocas: 'Trocas' } as const
+
+function tempoIa(t: LinhaDoTempo): LinhaDoTempoIa {
+  const b = t.barras
+  return {
+    frase: `${t.frase.negrito}${t.frase.resto}`,
+    motivo: b.tipo === 'dias' ? null : b.motivo, nota: b.tipo === 'dias' ? b.nota : null,
+    corte: t.legenda.find((l) => l.chave === 'corte')?.texto ?? null,
+    dias: t.tabela.map(([dia, views, situacao]) => ({ dia, views, situacao })),
+    eventos: t.tabela.flatMap(([dia, , , aconteceu]) => (aconteceu === '' ? [] : [{ dia, texto: aconteceu }])),
+    raiasNaoCarregou: (['videos', 'campos', 'trocas'] as const).flatMap((r) => (t.raias[r].tipo === 'nao_carregou' ? [{ nome: NOMES_DAS_RAIAS[r], motivo: NAO_CARREGOU_TELA }] : [])),
+  }
+}
+
 export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal): MedidasIa {
   const d = derivar(ctx, c)
   const frase = fraseDoTopo(entradaDaFrase(ctx, d))
@@ -119,8 +192,16 @@ export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal): MedidasI
   }).filter((x) => x.chave !== 'inscritos' && x.chave !== 'criador')
   const direcao = blocoDeDirecao({ F: ctx.F, medidas: d.medidas, soShorts: d.formato.soShorts, estado: d.estado, hojeSP: ctx.hojeSP })
   const ritmo = blocoDeRitmo({ medidas: d.medidas, videos: d.videos, formato: d.formato, estado: d.estado, ultimaLeituraMs: ctx.sync.last, agoraMs: ctx.agoraMs, hojeSP: ctx.hojeSP })
+  const horasLidas = c.horas !== 'nao_pedida' && c.horas.lido ? c.horas.dados : null
+  const tempo = linhaDoTempo({
+    F: ctx.F, medidas: d.medidas, retratos: c.retratos.lido ? c.retratos.dados : null, videos: d.videos,
+    mudancas: c.mudancas !== 'nao_pedida' && c.mudancas.lido ? c.mudancas.dados : null,
+    trocas: ctx.trocas, titulos: d.titulos, estado: d.estado, formato: d.formato,
+    foraEm: d.estado.tipo === 'saiu' ? d.estado.ate : null, hojeSP: ctx.hojeSP,
+  })
   return {
     direcao: direcaoIa(direcao), ritmo: ritmoIa(ritmo, MEASURE_RULES.rhythm.weeks),
+    lancamentos: lancamentosIa(d.lanc.modelo), horas: horasIa(horasDoCanal({ videos: d.videos, horas: horasLidas, formato: d.formato, agoraMs: ctx.agoraMs })), tempo: tempoIa(tempo),
     topo: { faixa: COM_FAIXA.has(d.estado.tipo) ? d.estado.pastilha : null, frase: frase.texto },
     celulas: celulas.map((x): CelulaDeMedidaIa => {
       const det = x.detalhe
@@ -156,6 +237,21 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   'derivado.medidas.direcao.linhas[].avisos[]': 'base',
   'derivado.medidas.direcao.queda.rotulo': 'rotulo', 'derivado.medidas.direcao.queda.casas[].rotulo': 'rotulo', 'derivado.medidas.direcao.queda.casas[].valor': 'numero', 'derivado.medidas.direcao.queda.casas[].motivo': 'motivo',
   'derivado.medidas.direcao.queda.veredito.valor': 'numero', 'derivado.medidas.direcao.queda.veredito.motivo': 'motivo', 'derivado.medidas.direcao.queda.nota': 'base',
+
+  // Lançamentos
+  'derivado.medidas.lancamentos.rotulo': 'rotulo', 'derivado.medidas.lancamentos.frase': 'base', 'derivado.medidas.lancamentos.motivo': 'motivo', 'derivado.medidas.lancamentos.temNormal': CTRL,
+  'derivado.medidas.lancamentos.videos[].titulo': 'terceiros', 'derivado.medidas.lancamentos.videos[].legenda': 'base', 'derivado.medidas.lancamentos.videos[].razao': 'numero',
+  'derivado.medidas.lancamentos.videos[].faixaNome': 'base', 'derivado.medidas.lancamentos.videos[].ultimoPonto': 'numero', 'derivado.medidas.lancamentos.videos[].frase': 'terceiros',
+  'derivado.medidas.lancamentos.normal[].idade': 'rotulo', 'derivado.medidas.lancamentos.normal[].videos': 'numero', 'derivado.medidas.lancamentos.semPonto': 'base',
+
+  // as 72 horas
+  'derivado.medidas.horas.rotulo': 'rotulo', 'derivado.medidas.horas.frase': 'base', 'derivado.medidas.horas.aviso': 'base', 'derivado.medidas.horas.motivo': 'motivo',
+  'derivado.medidas.horas.marcos[].rotulo': 'rotulo', 'derivado.medidas.horas.marcos[].valor': 'numero',
+
+  // Linha do tempo
+  'derivado.medidas.tempo.frase': 'base', 'derivado.medidas.tempo.motivo': 'base', 'derivado.medidas.tempo.nota': 'base', 'derivado.medidas.tempo.corte': 'base',
+  'derivado.medidas.tempo.dias[].dia': 'rotulo', 'derivado.medidas.tempo.dias[].views': 'numero', 'derivado.medidas.tempo.dias[].situacao': 'base',
+  'derivado.medidas.tempo.eventos[].dia': 'rotulo', 'derivado.medidas.tempo.eventos[].texto': 'terceiros', 'derivado.medidas.tempo.raiasNaoCarregou[].nome': 'rotulo', 'derivado.medidas.tempo.raiasNaoCarregou[].motivo': 'motivo',
 
   // Ritmo
   'derivado.medidas.ritmo.frase': 'base',
@@ -237,6 +333,47 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
       ...(pt.tipico !== null ? [[rotulo(pt.tipicoRotulo, `${R}.ponteiro.tipicoRotulo`), medido(pt.tipico, `${R}.ponteiro.tipico`)]] : []),
     ]))
   }
+  const L = `${O}.lancamentos`
+  const lan = m.lancamentos
+  if (lan.videos.length) {
+    tabelas.push({ id: 'canal-lancamentos', titulo: 'Lançamentos: os vídeos recentes com contagem por vídeo', tipo: 'lista', nomeNoCorte: 'lançamentos', privada: false, colunas: ['Vídeo', 'Quando saiu'],
+      linhas: lan.videos.map((v, i) => [terceiros(v.titulo, `${L}.videos[${i}].titulo`), base(v.legenda, `${L}.videos[${i}].legenda`)]) })
+    if (lan.temNormal) {
+      tabelas.push({ id: 'canal-lancamentos-normal', titulo: 'Lançamentos: contra o normal do canal', tipo: 'lista', nomeNoCorte: 'lançamentos contra o normal', privada: false, colunas: ['Vídeo', 'Contra o normal', 'Faixa'],
+        linhas: lan.videos.map((v, i) => [terceiros(v.titulo, `${L}.videos[${i}].titulo`), v.razao !== null ? medido(v.razao, `${L}.videos[${i}].razao`) : naoMedido('sem normal', `${L}.videos[${i}].razao`), base(v.faixaNome, `${L}.videos[${i}].faixaNome`)]) })
+      tabelas.push({ id: 'canal-lancamentos-frases', titulo: 'Lançamentos: a frase de cada vídeo', tipo: 'lista', nomeNoCorte: 'frases dos lançamentos', privada: false, colunas: ['Frase'],
+        linhas: lan.videos.map((v, i) => [terceiros(v.frase, `${L}.videos[${i}].frase`)]) })
+      if (lan.normal.length) {
+        tabelas.push(tabelaFixa('canal-lancamentos-base', 'Lançamentos: quantos vídeos entram em cada ponto do normal', 'base do normal', ['Idade', 'Vídeos'],
+          lan.normal.map((p, i) => [rotulo(p.idade, `${L}.normal[${i}].idade`), medido(p.videos, `${L}.normal[${i}].videos`)])))
+      }
+    } else {
+      tabelas.push({ id: 'canal-lancamentos-ultimo-ponto', titulo: 'Lançamentos: views no último ponto medido de cada vídeo', tipo: 'lista', nomeNoCorte: 'último ponto dos lançamentos', privada: false, colunas: ['Vídeo', 'Views no último ponto medido'],
+        linhas: lan.videos.map((v, i) => [terceiros(v.titulo, `${L}.videos[${i}].titulo`), v.ultimoPonto !== null ? medido(v.ultimoPonto, `${L}.videos[${i}].ultimoPonto`) : naoMedido('sem ponto medido', `${L}.videos[${i}].ultimoPonto`)]) })
+    }
+  }
+  if (lan.motivo !== null) tabelas.push(tabelaFixa('canal-lancamentos-estado', 'Lançamentos', 'lançamentos', ['Medida', 'Valor'], [[rotulo(lan.rotulo, `${L}.rotulo`), naoMedido(lan.motivo, `${L}.motivo`)]]))
+  const H = `${O}.horas`
+  const hor = m.horas
+  tabelas.push(tabelaFixa('canal-horas', 'As primeiras 72 horas do canal', 'primeiras 72 horas', ['Medida', 'Valor'],
+    hor.motivo !== null
+      ? [[rotulo(hor.rotulo, `${H}.rotulo`), naoMedido(hor.motivo, `${H}.motivo`)]]
+      : hor.marcos.map((x, i) => [rotulo(x.rotulo, `${H}.marcos[${i}].rotulo`), medido(x.valor, `${H}.marcos[${i}].valor`)])))
+  const T = `${O}.tempo`
+  const tem = m.tempo
+  if (tem.dias.length) {
+    tabelas.push({ id: 'canal-linha-do-tempo', titulo: 'Linha do tempo: views ganhas por dia, do dia mais recente ao mais antigo', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia do canal', privada: false, colunas: ['Dia', 'Views ganhas', 'Situação'],
+      linhas: tem.dias.map((d, i) => [rotulo(d.dia, `${T}.dias[${i}].dia`), d.views === 'sem registro' ? naoMedido('sem registro', `${T}.dias[${i}].views`) : medido(d.views, `${T}.dias[${i}].views`, d.views === '0'), base(d.situacao, `${T}.dias[${i}].situacao`)]) })
+  }
+  if (tem.eventos.length) {
+    tabelas.push({ id: 'canal-linha-do-tempo-eventos', titulo: 'Linha do tempo: o que aconteceu em cada dia', tipo: 'lista', nomeNoCorte: 'o que aconteceu por dia', privada: false, colunas: ['Dia', 'O que aconteceu'],
+      linhas: tem.eventos.map((e, i) => [rotulo(e.dia, `${T}.eventos[${i}].dia`), terceiros(e.texto, `${T}.eventos[${i}].texto`)]) })
+  }
+  if (tem.raiasNaoCarregou.length) {
+    tabelas.push(tabelaFixa('canal-linha-do-tempo-raias', 'Linha do tempo: raias que não carregaram', 'raias da linha do tempo', ['Raia', 'Estado'],
+      tem.raiasNaoCarregou.map((r, i) => [rotulo(r.nome, `${T}.raiasNaoCarregou[${i}].nome`), naoMedido(r.motivo, `${T}.raiasNaoCarregou[${i}].motivo`)])))
+  }
+  const avisosDoBloco = [lan.frase, lan.semPonto, hor.frase, hor.aviso, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
   const ausentes = rit.raias.flatMap((r) => (r.ausente ? [r.ausente] : []))
-  return { tabelas, avisos: [...(m.topo.faixa ? [m.topo.faixa] : []), dir.frase, ...(dir.queda.nota ? [dir.queda.nota] : []), rit.frase, ...ausentes] }
+  return { tabelas, avisos: [...(m.topo.faixa ? [m.topo.faixa] : []), dir.frase, ...(dir.queda.nota ? [dir.queda.nota] : []), rit.frase, ...ausentes, ...avisosDoBloco] }
 }

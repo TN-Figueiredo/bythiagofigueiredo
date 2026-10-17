@@ -61,7 +61,7 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '../_canal/videos-model', '../_canal/lista',
     // TG: os modelos puros das medidas da página do canal (os mesmos que a tela usa)
     '../_canal/medidas/canal-derivado', '../_canal/medidas/cabecalho-model', '../_canal/medidas/estado-model', '../_canal/medidas/frase-do-topo', '../_canal/medidas/formatos',
-    '../_canal/medidas/direcao-model', '../_canal/medidas/ritmo-model',
+    '../_canal/medidas/direcao-model', '../_canal/medidas/ritmo-model', '../_canal/medidas/lancamentos-model', '../_canal/medidas/linha-do-tempo-model',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
   it('há onze empacotadores', () => { expect(empacotadores).toHaveLength(11) })
