@@ -287,13 +287,17 @@ describe('14 tela: o cartão na comparação', () => {
   it('sem permissão ou leitura que falhou: o cartão diz o motivo, sem linhas e sem número', () => {
     wrap(pacote({ eu: monta(NEGADO, NEGADO) }), 'eu', 'c1')
     let c = cartoes()[0]!
-    expect(c.querySelector('.so-lead')!.textContent).toBe('Só quem edita o site vê estes números.')
+    // decisão 75: a pastilha restrito (cadeado) vem antes da frase
+    expect(c.querySelector('.so-lead .obs-au-restrito')).not.toBeNull()
+    expect(c.querySelector('.so-lead')!.textContent).toBe('restritoSó quem edita o site vê estes números.')
     expect(c.querySelectorAll('li')).toHaveLength(0)
     cleanup()
     wrap(pacote({ eu: monta(ERRO, ERRO) }), 'eu', 'c1')
     c = cartoes()[0]!
-    expect(c.querySelector('.so-lead')!.textContent).toBe('A leitura do alcance falhou agora; recarregue a página.')
+    expect(c.querySelector('.so-lead .obs-au-falhou')).not.toBeNull()
+    expect(c.querySelector('.so-lead')!.textContent).toBe('falhouA leitura do alcance falhou agora; recarregue a página.')
     expect(c.querySelectorAll('li')).toHaveLength(0)
+    expect(c.querySelectorAll('[role="alert"]')).toHaveLength(0)
   })
 
   it('dois canais seus: dois cartões, cada um com o nome do canal no título', () => {

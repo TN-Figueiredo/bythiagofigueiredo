@@ -3,6 +3,7 @@
  * Cells shared by the table and the cards (port of canais.html cells/chCell/syncCell/growthCell/strip/thumb).
  * They only lay out what the view model computed.
  */
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import { DirecaoCell, EstadoLinha } from './direcao-cell'
 import Link from 'next/link'
@@ -117,9 +118,14 @@ export function CadenceView({ c, c2, dica, dica2 }: { c: CadenceCell; c2?: Caden
   )
 }
 
+/** Decisão 75: a pastilha de `restrito` / `falhou` antes da frase de views por dia do canal próprio; o resto segue só a frase. */
+function AusenciaDoVpd({ c }: { c: Extract<VpdCell, { kind: 'na' }> }) {
+  return c.ausencia === 'falhou' || c.ausencia === 'restrito' ? <><PastilhaAusencia estado={c.ausencia} />{' '}</> : null
+}
+
 /** Uma medida de Views/dia em uma linha (a de "Todos"): o número e a base; o resto vai na dica. */
 function VpdLinha({ c, dica }: { c: VpdCell; dica?: string | null }) {
-  if (c.kind === 'na') return <Dica texto={dica}><span className="nd">{c.text}</span></Dica>
+  if (c.kind === 'na') return <Dica texto={dica}><AusenciaDoVpd c={c} /><span className="nd">{c.text}</span></Dica>
   const ressalva = c.tail ? c.tail.replace(/^,\s*/, '') : null
   return (
     <span>
@@ -136,7 +142,7 @@ const semRotulo = (c: VpdCell | OutCell) => c.kind === 'na' && c.falta === true
 
 export function VpdView({ c, c2, visible, dica, dica2 }: { c: VpdCell; c2?: VpdCell; visible?: boolean; dica?: string | null; dica2?: string | null }) {
   if (c2) return <><Fm label="longos" visible={visible}><VpdLinha c={c} dica={dica} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><VpdLinha c={c2} dica={dica2} /></Fm></>
-  if (c.kind === 'na') return <Dica texto={dica}><span className="na r">{c.text}</span></Dica>
+  if (c.kind === 'na') return <Dica texto={dica}><AusenciaDoVpd c={c} /><span className="na r">{c.text}</span></Dica>
   return (
     <Dica texto={dica}>
       <span className="big num" data-k="vpd">{c.big}</span>

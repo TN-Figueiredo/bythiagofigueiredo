@@ -154,7 +154,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   publicacao: { descartado: 'controle de tela' },
   'fora[]': { descartado: 'repetido' }, // vai no rodapé e na definição "Ficaram de fora"
   rodape: 'base',
-  'leitura[].simbolo': { descartado: 'aparência' }, 'leitura[].lado': { descartado: 'aparência' }, 'leitura[].texto': 'base',
+  'leitura[].simbolo': { descartado: 'aparência' }, 'leitura[].lado': { descartado: 'aparência' }, 'leitura[].texto': 'base', 'leitura[].ausencia': { descartado: 'controle de tela' },
   serieDesde: 'base',
   'eixo[]': 'rotulo',
   'comprimidas[]': { descartado: 'repetido' }, // vai na definição "Régua"
@@ -169,6 +169,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   'linhas[].a.texto': 'numero', 'linhas[].b.texto': 'numero',
   'linhas[].a.motivo': 'motivo', 'linhas[].b.motivo': 'motivo',
   'linhas[].a.nota': 'base', 'linhas[].b.nota': 'base',
+  'linhas[].a.ausencia': { descartado: 'controle de tela' }, 'linhas[].b.ausencia': { descartado: 'controle de tela' }, // a forma da pastilha; a palavra da célula vem do `motivo` (a Task 9 põe `falhou`/`restrito` na célula)
   'linhas[].posA': { descartado: 'repetido' }, 'linhas[].posB': { descartado: 'repetido' },
   'linhas[].posA.texto': 'base', 'linhas[].posB.texto': 'base',
   'linhas[].posA.geral': 'base', 'linhas[].posB.geral': 'base',

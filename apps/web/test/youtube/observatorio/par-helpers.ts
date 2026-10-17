@@ -7,9 +7,9 @@ import type { CanalPack, CompararPack } from '@/app/cms/(authed)/youtube/competi
 export type Val = number | [number, string] | null
 
 export function numero(v: Val | undefined, motivo = 'sem dado'): Numero {
-  if (v == null) return { x: null, texto: null, motivo, nota: null }
+  if (v == null) return { x: null, texto: null, motivo, nota: null, ausencia: 'nao_medido' }
   const [x, texto] = Array.isArray(v) ? v : [v, String(v).replace('.', ',')]
-  return { x, texto, motivo: null, nota: null }
+  return { x, texto, motivo: null, nota: null, ausencia: null }
 }
 
 export interface OpcoesCanal {
