@@ -9,9 +9,11 @@ import { ErroConhecido } from '@/lib/youtube/youtube-api-error'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { dhashOf, hamming } from '@/lib/youtube/thumb-fingerprint'
 import { H, YouTubeFalso, imagemComDhash } from '../helpers/youtube-falso'
+import * as Sentry from '@sentry/nextjs'
 
-const { fanOut } = vi.hoisted(() => ({ fanOut: vi.fn() }))
+const { fanOut, ensureFreshToken } = vi.hoisted(() => ({ fanOut: vi.fn(), ensureFreshToken: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken }))
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: fanOut }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { throw new Error('serviço real não é para testes') } }))
 
@@ -112,7 +114,7 @@ interface Opcoes {
   anterior?: { title?: CampoAnterior; thumbnail?: CampoAnterior }
   inicioUltimoCiclo?: '2 dias atrás'; originalTitle?: string | null
   vencedor?: 'B'; reversivel?: boolean; token?: 'recusado'; canal?: 'nao_identificado'
-  videoApagado?: boolean; variantes?: { A?: Fila; B?: Fila }; relogioAvancaPorChamada?: number
+  videoApagado?: boolean; originalThumbnailUrl?: string | null; variantes?: { A?: Fila; B?: Fila }; relogioAvancaPorChamada?: number
 }
 
 function montar(o: Opcoes = {}) {
@@ -125,7 +127,7 @@ function montar(o: Opcoes = {}) {
   const teste: Fila = {
     id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'combo', status: o.status ?? 'active', restore_seq: 0,
     restore_status: anterior ?? null, original_title: o.originalTitle === undefined ? 'Título A' : o.originalTitle,
-    original_thumbnail_url: null, last_applied_variant_id: null, youtube_video_id: 'video-interno', config: {},
+    original_thumbnail_url: o.originalThumbnailUrl ?? null, last_applied_variant_id: null, youtube_video_id: 'video-interno', config: {},
     winner_variant_id: o.vencedor ?? null, completed_reason: null, applied_by: null, status_note: null, paused_at: null, completed_at: null,
     winner_applied_at: o.vencedor ? iso(T0 - 86_400_000) : null,
     revert_expires_at: o.vencedor ? iso(T0 + (o.reversivel ? 6 : -1) * 86_400_000) : null,
@@ -292,10 +294,16 @@ describe('settleOnAir: ordem e corridas (3.2, 22, P4a-I1, I3)', () => {
     expect(banco.teste().restore_status.title).toMatchObject({ estado: 'em_andamento', forcado: false, attempts: 2 })
     expect(banco.teste().restore_status.title!.em).toBeTruthy()
   })
-  it('erro desconhecido na escrita (host de imagem fora da lista) relança e o campo fica em_andamento para o vigia', async () => {
-    const { banco, portas, op } = await preparar({ status: 'active', testType: 'thumbnail', variantes: { A: { blob_url: 'https://evil.example.com/x.jpg' } } })
-    await expect(settleOnAir(banco.testId, op('pausa'), portas)).rejects.toThrow('Blocked')
-    expect(banco.teste().restore_status.thumbnail).toMatchObject({ estado: 'em_andamento' })
+  it('DEVE-2: combo, título escrito e imagem com host bloqueado → título ok/escreveu true, thumbnail falhou/erro_interno/escreveu false, Sentry uma vez', async () => {
+    const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C }, variantes: { B: { blob_url: 'https://evil.example.com/x.jpg' } } })
+    const r = await settleOnAir(banco.testId, { ...op('encerrado'), destino: { tipo: 'variante', id: 'B' } }, portas)
+    expect(r.resultado).toBe('feito')
+    expect(banco.teste().restore_status).toMatchObject({
+      title: { estado: 'ok', escreveu: true },
+      thumbnail: { estado: 'falhou', erro: { motivo: 'erro_interno' }, escreveu: false },
+    })
+    expect(yt.escritas()).toEqual(['videos.update'])
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
   })
   it('Y-D12: token recusado → falhou/token e o estado mudou (erro conhecido, não relança)', async () => {
     const { banco, portas, op } = await preparar({ status: 'active', testType: 'title', token: 'recusado' })
@@ -474,5 +482,148 @@ describe('avisarRestauracao (P-4, Y-P3)', () => {
       'O título do teste "Teste do Lab" não voltou ao original: o YouTube recusou. Corrija no YouTube Studio.',
       'O vídeo do teste "Teste do Lab" não foi encontrado no YouTube. O Lab não vai mais tentar restaurar a thumbnail.',
     ])
+  })
+})
+
+describe('Tarefa 6, rodada 1 (consertos dos pareceres)', () => {
+  const YTIMG = 'https://i.ytimg.com/vi/yt-1/hqdefault.jpg'
+
+  it('DEVE-1: original com URL do i.ytimg.com (sem cópia no Blob) e B no ar → pulado_sem_original, nenhuma escrita, dHash da original intacto', async () => {
+    const { banco, yt, portas, op } = await preparar({
+      status: 'active', testType: 'thumbnail', noAr: { dhash: H.B }, originalThumbnailUrl: YTIMG,
+      variantes: { A: { blob_url: null, thumbnail_dhash: null } },
+    })
+    const r = await settleOnAir(banco.testId, op('pausa'), portas)
+    expect(r.resultado).toBe('feito')
+    expect(banco.teste().restore_status.thumbnail).toMatchObject({ estado: 'pulado_sem_original', escreveu: false })
+    expect(yt.escritas()).toEqual([])
+    expect(banco.variante('A').thumbnail_dhash).toBeNull()
+  })
+  it('DEVE-1: a blob_url da própria variante original apontando para o i.ytimg.com também é sem original (dHash guardado não salva)', async () => {
+    const { banco, yt, portas, op } = await preparar({
+      status: 'active', testType: 'thumbnail', noAr: { dhash: H.B }, originalThumbnailUrl: YTIMG,
+      variantes: { A: { blob_url: YTIMG } },
+    })
+    await settleOnAir(banco.testId, op('pausa'), portas)
+    expect(banco.teste().restore_status.thumbnail).toMatchObject({ estado: 'pulado_sem_original', escreveu: false })
+    expect(yt.escritas()).toEqual([])
+  })
+  it('DEVE-1: original sem blob_url mas com original_thumbnail_url do Blob (teste antigo) segue e escreve', async () => {
+    const { banco, yt, portas, op } = await preparar({
+      status: 'active', testType: 'thumbnail', noAr: { dhash: H.B }, originalThumbnailUrl: BLOB('A'),
+      variantes: { A: { blob_url: null } },
+    })
+    await settleOnAir(banco.testId, op('pausa'), portas)
+    expect(banco.teste().restore_status.thumbnail).toMatchObject({ estado: 'ok', escreveu: true })
+    expect(yt.escritas()).toEqual(['thumbnails.set'])
+  })
+
+  it('DEVE-3 (Phil): perda de vez depois de escrita aceita → Sentry com o parcial (title.escreveu true)', async () => {
+    const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo' })
+    yt.depoisDeEscrever((c) => { if (c === 'videos.update') banco.incrementarSeq() })
+    await settleOnAir(banco.testId, op('pausa'), portas)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-settle: resultado perdido', expect.objectContaining({
+      extra: expect.objectContaining({ restoreStatus: expect.objectContaining({ title: expect.objectContaining({ escreveu: true }) }) }),
+    }))
+  })
+  it('perda de vez ANTES de qualquer escrita não vai ao Sentry', async () => {
+    const { banco, portas, op } = await preparar({ status: 'active', testType: 'thumbnail', noAr: { dhash: H.B } })
+    banco.antesDaReleitura(() => banco.incrementarSeq())
+    await settleOnAir(banco.testId, op('pausa'), portas)
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('DEVE-3 (Yannis): passo 4 guardado por restore_seq: outro escritor entre as escritas e o fim → resultado não gravado, Sentry, sem aviso nem import', async () => {
+    const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C } })
+    // incrementa DEPOIS da última releitura: a 2ª escrita termina e o seq já não é o reivindicado
+    yt.depoisDeEscrever((c) => { if (c === 'thumbnails.set') banco.incrementarSeq() })
+    const r = await settleOnAir(banco.testId, { ...op('encerrado'), destino: { tipo: 'variante', id: 'B' } }, portas)
+    expect(r.resultado).toBe('em_andamento')
+    expect(banco.teste().restore_status).toMatchObject({ title: { estado: 'em_andamento' }, thumbnail: { estado: 'em_andamento' } })
+    expect(banco.teste().winner_applied_at).toBeNull()
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-settle: resultado perdido', expect.anything())
+    expect(fanOut).not.toHaveBeenCalled()
+    expect(portas.autoImportWinner).not.toHaveBeenCalled()
+  })
+
+  it('em final: o fim do campo, entre o claim e claim + 55 s (nunca antes do claim)', async () => {
+    const { banco, portas, op } = await preparar({ status: 'active', testType: 'combo', relogioAvancaPorChamada: 5_000 })
+    await settleOnAir(banco.testId, op('pausa'), portas)
+    const claim = Date.parse(banco.teste().paused_at as string)
+    for (const c of ['title', 'thumbnail'] as const) {
+      const em = Date.parse(banco.teste().restore_status[c]!.em as string)
+      expect(em).toBeGreaterThanOrEqual(claim)
+      expect(em).toBeLessThanOrEqual(claim + 55_000)
+    }
+    expect(Date.parse(banco.teste().restore_status.thumbnail!.em as string)).toBeGreaterThan(claim) // pós-escrita, não o instante do claim
+  })
+
+  it('claim vazio com o status já fora de p_de → ja_encerrado; ainda em p_de (outro escritor) → em_andamento', async () => {
+    const a = await preparar({ status: 'active', testType: 'title' })
+    const retrato = (await a.banco.retratoAntigo()) as Retrato
+    a.banco.setTeste({ status: 'paused' })
+    expect((await settleOnAir(a.banco.testId, a.op('pausa'), { ...a.portas, lerRetrato: async () => retrato })).resultado).toBe('ja_encerrado')
+    const b = await preparar({ status: 'active', testType: 'title' })
+    const rb = (await b.banco.retratoAntigo()) as Retrato
+    b.banco.incrementarSeq()
+    expect((await settleOnAir(b.banco.testId, b.op('pausa'), { ...b.portas, lerRetrato: async () => rb })).resultado).toBe('em_andamento')
+  })
+  it('erro na releitura do status depois do claim vazio sobe (não vira ja_encerrado)', async () => {
+    const { banco, portas, op } = await preparar({ status: 'active', testType: 'title' })
+    const retrato = (await banco.retratoAntigo()) as Retrato
+    banco.incrementarSeq()
+    const quebrado = {
+      rpc: (n: string, a: Record<string, unknown>) => (banco.supabase as unknown as { rpc: (n: string, a: Record<string, unknown>) => Promise<unknown> }).rpc(n, a),
+      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'banco fora' } }) }) }) }),
+    } as unknown as SupabaseClient
+    await expect(settleOnAir(banco.testId, op('pausa'), { ...portas, supabase: quebrado, lerRetrato: async () => retrato })).rejects.toThrow('banco fora')
+  })
+
+  it('fronteira F-D4: em_andamento há 119 s bloqueia; há exatamente 120 s reivindica', async () => {
+    const a = await preparar({ status: 'paused', testType: 'thumbnail', anterior: { thumbnail: { estado: 'em_andamento', segundosAtras: 119 } }, noAr: { dhash: H.A } })
+    expect((await settleOnAir(a.banco.testId, a.op('encerrado'), a.portas)).resultado).toBe('em_andamento')
+    const b = await preparar({ status: 'paused', testType: 'thumbnail', anterior: { thumbnail: { estado: 'em_andamento', segundosAtras: 120 } }, noAr: { dhash: H.A } })
+    expect((await settleOnAir(b.banco.testId, b.op('encerrado'), b.portas)).resultado).toBe('feito')
+  })
+  it('fronteira F-D3: folga de exatamente 25 s escreve; 24,999 s é tempo_esgotado', async () => {
+    const a = await preparar({ status: 'active', testType: 'title', noAr: { titulo: 'Título B' } })
+    await settleOnAir(a.banco.testId, a.op('pausa', { prazo: a.portas.agora().getTime() + 25_000 }), a.portas)
+    expect(a.banco.teste().restore_status.title).toMatchObject({ estado: 'ok', escreveu: true })
+    const b = await preparar({ status: 'active', testType: 'title', noAr: { titulo: 'Título B' } })
+    await settleOnAir(b.banco.testId, b.op('pausa', { prazo: b.portas.agora().getTime() + 24_999 }), b.portas)
+    expect(b.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', erro: { motivo: 'tempo_esgotado' }, escreveu: false })
+  })
+
+  it('porta padrão do token (sem `token` injetado): rejeição de ensureFreshToken → falhou/token; sucesso usa o accessToken', async () => {
+    const a = await preparar({ status: 'active', testType: 'title' })
+    ensureFreshToken.mockRejectedValueOnce(new Error('revogado'))
+    const { token: _t, ...semToken } = a.portas
+    await settleOnAir(a.banco.testId, a.op('pausa'), semToken)
+    expect(a.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', erro: { motivo: 'token' }, escreveu: false })
+    expect(ensureFreshToken).toHaveBeenCalledWith(SITE, 'youtube', expect.anything())
+    const b = await preparar({ status: 'active', testType: 'title', noAr: { titulo: 'Título B' } })
+    ensureFreshToken.mockResolvedValueOnce({ accessToken: 'tok' })
+    const { token: _u, ...semToken2 } = b.portas
+    await settleOnAir(b.banco.testId, b.op('pausa'), semToken2)
+    expect(b.banco.teste().restore_status.title).toMatchObject({ estado: 'ok', escreveu: true })
+  })
+
+  describe('avisos', () => {
+    const rs = (): RestoreStatus => ({ title: { estado: 'falhou', destino: 'original', em: new Date(T0).toISOString(), forcado: false, escreveu: false, erro: { status: 403, reason: 'forbidden', chamada: 'videos.update' }, attempts: 1 } })
+    const teste = { id: 'teste-1', site_id: SITE, name: 'Teste do Lab', restore_seq: 1 }
+    it('fan-out que lança libera a chave: a próxima tentativa avisa', async () => {
+      const { banco } = await preparar()
+      fanOut.mockRejectedValueOnce(new Error('rede'))
+      await expect(avisarRestauracao(banco.supabase, teste, rs())).rejects.toThrow('rede')
+      expect(await avisarRestauracao(banco.supabase, teste, rs())).toBe('enviado')
+    })
+    it('tudo suprimido por dedup do fan-out → repetido (não falha de envio) e a chave continua gasta', async () => {
+      const { banco } = await preparar()
+      fanOut.mockResolvedValueOnce({ total: 1, sent: 0, suppressed: 1, errors: [] })
+      expect(await avisarRestauracao(banco.supabase, teste, rs())).toBe('repetido')
+      expect(await avisarRestauracao(banco.supabase, teste, rs())).toBe('repetido')
+      expect(fanOut).toHaveBeenCalledTimes(1)
+    })
   })
 })

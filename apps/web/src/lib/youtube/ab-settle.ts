@@ -83,6 +83,26 @@ const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
 const REVERT_MS = 7 * 86_400_000
 
+/**
+ * Só uma URL do Blob é cópia imutável. A do i.ytimg.com serve o que está no ar AGORA, não o original
+ * (testes anteriores à P4a gravaram `thumbnail_hq_url` como original). Mesma regra de ab-evaluate-phases,
+ * ab-rotate-phases e ab-watchdog (`blob.vercel-storage.com`); quando o vigia antigo sair, fica só este.
+ */
+export function ehCopiaNoBlob(url: string | null | undefined): url is string {
+  if (!url) return false
+  try {
+    return new URL(url).hostname.endsWith('.blob.vercel-storage.com')
+  } catch {
+    return false
+  }
+}
+
+/** Fonte do original: a cópia do Blob da variante original ou a do teste; nula quando nenhuma é do Blob. */
+function fonteDoOriginal(r: Retrato): string | null {
+  const original = r.variantes.find((v) => v.is_original)
+  return [original?.blob_url, r.original_thumbnail_url].find(ehCopiaNoBlob) ?? null
+}
+
 type Destino = 'original' | { varianteId: string }
 
 /**
@@ -227,10 +247,10 @@ interface Leitura {
 }
 
 function variantesParaDhash(r: Retrato) {
-  // A original sem cópia no Blob usa a URL guardada no teste (testes anteriores à P4a).
+  // A original só vale com cópia no Blob (a do teste serve para testes anteriores à P4a); sem ela, sem base.
   return r.variantes.map((v) => ({
     id: v.id,
-    blob_url: v.blob_url ?? (v.is_original ? r.original_thumbnail_url : null),
+    blob_url: v.is_original ? fonteDoOriginal(r) : v.blob_url,
     thumbnail_dhash: v.thumbnail_dhash,
   }))
 }
@@ -274,7 +294,7 @@ function entrada(
         : (l.thumb ?? { tipo: 'falha', erro: { motivo: 'hqdefault_indisponivel' } })
   return {
     campo, destino: d, atual,
-    originalNoBlob: (original?.blob_url ?? r.original_thumbnail_url) !== null && (original?.blob_url ?? r.original_thumbnail_url) !== undefined,
+    originalNoBlob: fonteDoOriginal(r) !== null,
     dhashes: l.dhashes, idOriginal: original?.id ?? '', ultimaEscrita: ctx.ultimaEscrita, marcador: ctx.marcador, agora, forcar,
   }
 }
@@ -306,6 +326,11 @@ function classificar(e: unknown): { erro: ErroGravado; escreveu: boolean | null 
 
 interface Base { destino: string; forcado: boolean; anterior: number }
 
+/**
+ * `em` de um campo FINAL = instante em que o settle concluiu aquele campo (depois da escrita, quando houve):
+ * fica entre a reivindicação (claim) e o claim + prazo (55 s). NÃO é o instante do claim (esse é o `em` do
+ * `em_andamento`). Contrato com a E18 (versoes-origem.ts); não "conserte" para o instante do claim.
+ */
 function montarCampo(b: Base, agora: Date, p: { estado: EstadoCampo; escreveu: boolean | null; erro?: ErroGravado; motivo?: string | null }): CampoRestauracao {
   return {
     estado: p.estado, destino: b.destino, em: agora.toISOString(), forcado: b.forcado, escreveu: p.escreveu,
@@ -319,7 +344,7 @@ async function restaurarCampos(
   portas: PortasSaida, r: Retrato, campos: CampoNome[], destino: Destino,
   contexto: (c: CampoNome) => { ultimaEscrita: Date | null; marcador: string | null },
   forcar: boolean, seq: number, prazo: number,
-): Promise<RestoreStatus | 'perdeu_a_vez'> {
+): Promise<RestoreStatus | { perdeu: true; parcial: RestoreStatus }> {
   const final: RestoreStatus = {}
   const base = (c: CampoNome): Base => ({ destino: nomeDoDestino(destino), forcado: forcar, anterior: r.restore_status?.[c]?.attempts ?? 0 })
   const todosFalharam = (erro: ErroGravado) => {
@@ -357,12 +382,19 @@ async function restaurarCampos(
       let imagem: Awaited<ReturnType<typeof fetchVariantImageBuffer>> | null = null
       if (c === 'thumbnail') {
         const alvo = destino === 'original'
-          ? (r.variantes.find((v) => v.is_original)?.blob_url ?? r.original_thumbnail_url)
+          ? fonteDoOriginal(r)
           : r.variantes.find((v) => v.id === destino.varianteId)?.blob_url
         if (!alvo) throw new ErroConhecido('erro_interno')
-        imagem = await fetchVariantImageBuffer(alvo, portas.fetch)
+        try {
+          imagem = await fetchVariantImageBuffer(alvo, portas.fetch)
+        } catch (e) {
+          // Erro simples (host bloqueado, URL inválida) nasce ANTES da escrita: vira falhou deste campo, o outro campo fica como está.
+          if (e instanceof YouTubeApiError || e instanceof ErroConhecido) throw e
+          Sentry.captureException(e, { tags: { area: 'ab-settle' }, extra: { testId: r.id, campo: c } })
+          throw new ErroConhecido('erro_interno')
+        }
       }
-      if ((await lerSeq(portas, r.id)) !== seq) return 'perdeu_a_vez'
+      if ((await lerSeq(portas, r.id)) !== seq) return { perdeu: true, parcial: final }
       if (c === 'title') {
         const titulo = destino === 'original' ? r.original_title : r.variantes.find((v) => v.id === destino.varianteId)?.title_text
         if (titulo == null) throw new ErroConhecido('titulo_vazio')
@@ -461,14 +493,21 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
   const seq = (claim.data as Array<{ claimed_seq: number }> | null)?.[0]?.claimed_seq
   if (seq === undefined) {
-    const { data } = await portas.supabase.from('ab_tests').select('status').eq('id', testId).maybeSingle()
+    const { data, error } = await portas.supabase.from('ab_tests').select('status').eq('id', testId).maybeSingle()
+    if (error) throw new Error(`ab-settle: status do teste ${testId}: ${(error as { message: string }).message}`)
     const status = (data as { status: string } | null)?.status
     return status && caminho.de.includes(status) ? { resultado: 'em_andamento', campos: null } : { resultado: 'ja_encerrado', campos: null }
   }
 
   // Passos 2 e 3: só erro CONHECIDO vira falhou; o resto relança e o campo fica em_andamento para o vigia.
   const final = await restaurarCampos(portas, r, campos, destino, contexto, op.forcar === true, seq, prazo)
-  if (final === 'perdeu_a_vez') return { resultado: 'em_andamento', campos: null }
+  if ('perdeu' in final) {
+    // Outro escritor é dono do restore_status; mas escrita já aceita no YouTube não pode ficar sem rastro.
+    if (campos.some((c) => final.parcial[c] && final.parcial[c]!.escreveu !== false)) {
+      Sentry.captureMessage('ab-settle: resultado perdido', { extra: { testId: r.id, seq, restoreStatus: final.parcial } })
+    }
+    return { resultado: 'em_andamento', campos: null }
+  }
 
   const { gravou, vencedorAplicado } = await gravarResultado(portas, r, seq, final, campos, destino, op)
   if (!gravou) return { resultado: 'em_andamento', campos: null }

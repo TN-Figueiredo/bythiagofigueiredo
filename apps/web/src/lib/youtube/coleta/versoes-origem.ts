@@ -35,6 +35,7 @@ export interface RestauroAb {
   estado: 'ok' | 'falhou' | 'pulado_sem_original' | 'pulado_drift' | 'desistiu'
   /** nulo = não se sabe se escreveu */
   escreveu: boolean | null
+  /** Fim do campo no settle (depois da escrita, quando houve): entre o claim e claim + 55 s; não é o instante do claim. */
   em: string
 }
 
@@ -67,7 +68,7 @@ export interface OrigemAtribuida {
  */
 export const P3_PROMOVIDA_EM = '2026-10-15T04:02:28-03:00'
 
-/** Folga entre o `em` da reivindicação (início do settleOnAir) e `paused_at`/`completed_at` (now() do banco), emenda 15/10 R6. */
+/** Folga entre o `em` de um campo (fim do campo no settleOnAir, entre o claim e claim + 55 s) e `paused_at`/`completed_at` (now() do banco, no claim), emenda 15/10 R6. */
 export const FOLGA_REGISTRO_MS = 120_000
 
 const SEM_EVENTO = { eventoAb: null, abTestId: null, abVariantId: null, instante: null } as const

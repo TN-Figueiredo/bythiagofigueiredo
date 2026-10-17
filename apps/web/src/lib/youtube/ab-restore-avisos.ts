@@ -47,11 +47,18 @@ export async function avisarRestauracao(supabase: SupabaseClient, teste: Teste, 
   const href = `/cms/youtube/ab-lab/${teste.id}`
 
   const enviar = async (chaves: string[], extra: { priority: number; title: string; message: string; campo: CampoNome[] }) => {
-    const r = await fanOutToSiteAdminsDetailed({
-      siteId: teste.site_id, domain: 'youtube', type: 'youtube.ab_restore_failed', priority: extra.priority,
-      title: extra.title, message: extra.message, dedupKey: chaves[0]!, actionHref: href,
-      payload: { testId: teste.id, restoreSeq: teste.restore_seq, campos: extra.campo },
-    })
+    let r: Awaited<ReturnType<typeof fanOutToSiteAdminsDetailed>>
+    try {
+      r = await fanOutToSiteAdminsDetailed({
+        siteId: teste.site_id, domain: 'youtube', type: 'youtube.ab_restore_failed', priority: extra.priority,
+        title: extra.title, message: extra.message, dedupKey: chaves[0]!, actionHref: href,
+        payload: { testId: teste.id, restoreSeq: teste.restore_seq, campos: extra.campo },
+      })
+    } catch (e) {
+      for (const k of chaves) await releaseAlert(supabase, k) // exceção no envio: a chave não pode ficar gasta por 10 anos
+      throw e
+    }
+    if (r.sent === 0 && r.suppressed > 0 && r.errors.length === 0) { sobe('repetido'); return } // dedup do fan-out: já avisado
     if (r.total === 0 || r.sent === 0) {
       for (const k of chaves) await releaseAlert(supabase, k) // nenhuma chave do grupo fica gasta sem aviso entregue
       sobe(r.total === 0 ? 'sem_destinatario' : 'falha_de_envio')
