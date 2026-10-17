@@ -22,6 +22,7 @@ describe('tokens de direção (E5a T3)', () => {
       '_canal/medidas/canal-medidas.css', // E5a T15: frase do topo, pastilha em queda e setas da direção usam --dir-up/dn/eq
       '_chrome/medidas/graficos.css', // E5a T14c: a faixa da subida usa --dir-up
       '_chrome/medidas/medidas.css',
+      '_historico/medidas/historico-medidas.css', // E5a T21a: a subida do Histórico do vídeo usa --dir-up (cartão e faixa)
       '_insights/direcao-nicho.css', // E5a T9: a régua desdobrada de Insights usa --dir-up/dn/eq
       '_proprio/assistido-periodo.css',
       '_proprio/proprio.css',

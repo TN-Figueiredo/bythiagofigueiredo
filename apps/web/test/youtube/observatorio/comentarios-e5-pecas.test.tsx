@@ -104,7 +104,7 @@ describe('C2 · lista', () => {
     render(<ListaDoPainel v={lista()} />)
     expect(screen.getByText(/guardamos 12 dos 100 primeiros/)).toBeTruthy()
     expect(screen.getAllByText('12 de 100').length).toBeGreaterThan(0)
-    expect(screen.getByText('nenhum canal que você acompanha comentou')).toBeTruthy()
+    expect(screen.getAllByText('0 comentários').length).toBeGreaterThan(0)
   })
   it('"Ver os N que saíram" abre os cartões dos que saíram', () => {
     const cs = doze().map((c, i) => ({ ...c, nosMarcos: (i < 10 ? [1, 7] : [1]) as Marco[] }))
@@ -210,7 +210,7 @@ describe('C2 · estados', () => {
   it('erro de leitura: role alert e "Tentar de novo" que pede nova leitura', () => {
     render(<EstadoDoPainel v={estadoDeErro()} />)
     const a = screen.getByRole('alert')
-    expect(a.textContent).toContain('Não deu para abrir os comentários agora. A leitura falhou.')
+    expect(a.textContent).toContain('Não deu para abrir os comentários agora.')
     expect(a.textContent).not.toContain('Nada foi apagado')
     fireEvent.click(within(a).getByRole('button', { name: 'Tentar de novo' }))
     expect(refresh).toHaveBeenCalledTimes(1)

@@ -39,8 +39,13 @@ function Valor({ c }: { c: CelulaDoCabecalho }) {
     }
     case 'ritmo':
       return <><b className="num">{d.porSemana}</b><span className="un">por semana</span></>
-    case 'criador':
-      return null
+    case 'criador': {
+      if (d.k === null || d.n === null) return null
+      const pc = d.pct === null ? null : <span className="pc-pc"> ({d.pct}%)</span>
+      return d.k === 0
+        ? <><ZeroMedido /><b className="num">0 de {d.n}</b>{pc}</>
+        : <><b className="num">{d.k} de {d.n}</b>{pc}</>
+    }
   }
 }
 

@@ -105,7 +105,7 @@ describe('C2 · modelo · motivo com zero dito', () => {
   }
   it('canal acompanhado e canal grande', () => {
     const p = lista({})
-    expect(p.legenda[2]!.texto).toBe('nenhum canal que você acompanha comentou')
+    expect(p.legenda[2]!.texto).toBe('0 comentários')
     expect(p.legenda[3]!.texto).toBe('nenhum canal grande entre os 20 mais curtidos')
   })
   it('com inscritos ocultos: "entre os 19 que deu para medir"', () => {
@@ -120,10 +120,16 @@ describe('C2 · modelo · motivo com zero dito', () => {
   it('um canal grande: legenda e base em duas escadas de três degraus', () => {
     const g = cartao(1, 'inscritos', { nosMarcos: [7], autor: { tipo: 'canal_grande' }, faixas: { tamanho: '1m_10m', razao: null } })
     const p = lista({}, [g, ...doze().slice(1).map(c => ({ ...c, nosMarcos: [7] as Marco[] }))])
-    expect(p.legenda[3]!.texto).toBe('1 de canal grande, entre os 20 mais curtidos')
+    expect(p.legenda[3]!.texto).toBe('1 comentário, entre os 20 mais curtidos')
     const v = p.cartoes.find(c => c.chave === 'g')!
     expect(v.base).toEqual({ tamanho: { degrau: 2, texto: 'de 1 a 10 milhões de inscritos' }, razao: 'nao_medida' })
-    expect(v.autor).toEqual({ tipo: 'grande' })
+    expect(v.autor).toEqual({ tipo: 'grande', faixa: '1m_10m' })
+  })
+  it('a frase do canal grande segue a faixa de inscritos, nunca fixa em 10 milhões (trem 5, defeito 2)', () => {
+    expect(FRASES.canalGrandeSemNome('100k_1m')).toBe('Um canal de 100 mil a 1 milhão de inscritos comentou')
+    expect(FRASES.canalGrandeSemNome('1m_10m')).toBe('Um canal de 1 a 10 milhões de inscritos comentou')
+    expect(FRASES.canalGrandeSemNome('10m_mais')).toBe('Um canal com mais de 10 milhões de inscritos comentou')
+    expect(FRASES.canalGrandeSemNome(null)).not.toContain('10 milhões')
   })
 })
 
@@ -251,9 +257,11 @@ describe('C2 · frases', () => {
     expect(FRASES.paradaSemOk('08/10')).toContain('sem execução completa desde 08/10')
     expect(FRASES.aCaminho(7, '13/10', '16/10')).toContain('o retrato sai na próxima coleta, até 16/10')
     expect(FRASES.infoParagrafos(1).join(' ')).toContain('“@…”')
+    expect(FRASES.infoParagrafos(0).join(' ')).toContain('nome escrito por extenso')
+    expect(FRASES.infoParagrafos(1).join(' ')).toContain('aparece como foi guardado')
   })
   it('nenhuma frase diz "não respondeu"', () => expect(textos().join('\n')).not.toMatch(/não respondeu/i))
-  it('o erro de leitura é o do plano', () => expect(FRASES.erroDeLeitura).toBe('Não deu para abrir os comentários agora. A leitura falhou.'))
+  it('o erro de leitura é o do plano', () => expect(FRASES.erroDeLeitura).toBe('Não deu para abrir os comentários agora.'))
 })
 
 describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', () => {

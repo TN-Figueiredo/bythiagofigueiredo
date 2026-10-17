@@ -19,7 +19,7 @@ import type { IMotorDeMultiplos } from '../medidas-multiplos'
  * e nunca é guardado). Nunca derruba a tela: canal que falha vira `{ naoCarregou: causa }`.
  */
 
-export const MEDIDAS_TELAS_V = 1
+export const MEDIDAS_TELAS_V = 2
 export const CANAIS_AO_MESMO_TEMPO = 6
 export const PRAZO_DAS_MEDIDAS_MS = 12_000
 const VALIDADE_S = 900

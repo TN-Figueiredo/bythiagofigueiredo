@@ -7,13 +7,13 @@
 [data-obs] .cd-g-g{--cd:var(--cd-g)}
 [data-obs] .cd-g-p{--cd:var(--cd-p)}
 [data-obs] .cd-tablist{display:flex;gap:6px;flex-wrap:wrap}
-[data-obs] .cd-aba{display:grid;gap:2px;justify-items:start;min-height:44px;padding:6px 12px;border:1.5px solid var(--nm-line,#888);border-radius:8px;background:transparent;color:var(--text);font:inherit;cursor:pointer;text-align:left}
+[data-obs] .cd-aba{display:grid;gap:2px;justify-items:start;min-height:44px;padding:6px 12px;border:1.5px solid var(--dim);border-radius:8px;background:transparent;color:var(--text);font:inherit;cursor:pointer;text-align:left}
 [data-obs] .cd-aba[aria-selected="true"]{border-color:var(--text);background:rgba(127,127,127,.14)}
 [data-obs] .cd-aba.cd-tom-pontilhado{border-style:dashed}
 [data-obs] .cd-aba-r{font-weight:600}
 [data-obs] .cd-aba-e{font-size:12px;color:var(--muted)}
 [data-obs] .cd-paineis{margin-top:12px}
-[data-obs] .cd-estado{display:grid;gap:6px;padding:12px 14px;border:1.5px solid var(--nm-line,#888);border-radius:8px}
+[data-obs] .cd-estado{display:grid;gap:6px;padding:12px 14px;border:1.5px solid var(--border-strong);border-radius:8px}
 [data-obs] .cd-estado.cd-tom-pontilhado{border-style:dashed}
 [data-obs] .cd-estado.cd-tom-erro{border-color:var(--danger,#C0392B)}
 [data-obs] .cd-estado p{margin:0}
@@ -30,11 +30,11 @@
 [data-obs] .cd-leg-p{display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:2px;background:var(--cd)}
 [data-obs] .cd-leg.zero{color:var(--muted)}
 [data-obs] .cd-fileira{display:flex;gap:4px;margin:8px 0;padding:0;list-style:none;flex-wrap:wrap}
-[data-obs] .cd-casa{display:flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:6px;font-size:12px;color:var(--text);text-decoration:none;border:1.5px solid var(--cd,var(--nm-line,#888));border-top-width:5px}
-[data-obs] .cd-casa-vazia{border:1.5px dashed var(--nm-line,#888);border-top-width:1.5px;opacity:.5}
+[data-obs] .cd-casa{display:flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:6px;font-size:12px;color:var(--text);text-decoration:none;border:1.5px solid var(--cd,var(--border-strong));border-top-width:5px}
+[data-obs] .cd-casa-vazia{border:1.5px dashed var(--dim);border-top-width:1.5px;opacity:.5}
 [data-obs] .cd-movimento{margin:4px 0}
 [data-obs] .cd-cartoes{display:grid;gap:10px;margin:10px 0 0;padding:0;list-style:none}
-[data-obs] .cd-cartao{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--nm-line,#888);border-left:5px solid var(--cd,var(--nm-line,#888));border-radius:8px;background:rgba(127,127,127,.06)}
+[data-obs] .cd-cartao{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--border-strong);border-left:5px solid var(--cd,var(--border-strong));border-radius:8px;background:rgba(127,127,127,.06)}
 [data-obs] .cd-cartao[hidden]{display:none}
 [data-obs] .cd-cartao>p{margin:0}
 [data-obs] .cd-cartao-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -47,7 +47,7 @@
 [data-theme="light"] [data-obs] .cd-g-g.cd-etq{background:rgba(180,69,47,.10)}
 [data-obs] .cd-selo-c{padding:0 6px;border:1px solid currentColor;border-radius:4px;font-size:12px}
 [data-obs] .cd-foto{border-radius:50%;vertical-align:middle;margin-right:6px}
-[data-obs] .cd-foto-inicial{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:12px;font-weight:600;background:#e5e7eb;color:#374151}
+[data-obs] .cd-foto-inicial{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:12px;font-weight:600;background:var(--border-subtle);color:var(--muted)}
 [data-obs] .cd-faixa-grande{padding:4px 8px;border:1px dashed var(--cd);border-radius:6px}
 [data-obs] .cd-texto{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap;unicode-bidi:plaintext}
 [data-obs] .cd-texto.aberto,[data-obs] .cd-texto-resp{display:block;-webkit-line-clamp:unset;overflow:visible}
@@ -64,3 +64,11 @@
 [data-obs] .cd-deg i{display:block;width:14px;height:8px;border-radius:2px;border:1px solid var(--cd);background:transparent}
 [data-obs] .cd-deg i.on{background:var(--cd)}
 [data-obs] .cd-rodape{font-size:12.5px;color:var(--muted)}
+/* Gio C5, defeito A: o título e o ⓘ da seção seguem o chrome dos outros blocos (h2 600 15px/22px como .hv-h h2; ⓘ 24 px, 44 px no toque e a 390),
+   porque as regras de .ibtn existentes são escopadas a outras telas e o ⓘ daqui media 0x21 px. */
+[data-obs] .cd-secao .cd-titulo{display:inline-block;margin:0 6px 0 0;font:600 15px/22px var(--font-sans),system-ui,sans-serif}
+[data-obs] .cd-secao .ibtn{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;vertical-align:middle;color:var(--muted);border-radius:50%;margin:-10px 0}
+[data-obs] .cd-secao .ibtn:hover{color:var(--text)}
+[data-obs] .cd-secao .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs] .cd-secao .ibtn svg{width:16px;height:16px}
+@media (pointer:coarse),(max-width:900px){ [data-obs] .cd-secao .ibtn{width:44px;height:44px;margin:-10px} }

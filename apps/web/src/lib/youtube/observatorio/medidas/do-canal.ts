@@ -163,6 +163,17 @@ function mudancasDoVideo(lista: readonly MudancaLida[]): MudancaDoVideo[] {
   return out
 }
 
+/**
+ * M5(ii) de UM vídeo a partir da série e das mudanças dele (as do canal inteiro só cobrem a janela de 180 dias; o vídeo mais velho é lido à parte).
+ * Só a leitura DIÁRIA forma o ponto do dia: a leitura por hora das primeiras 72 horas nunca vira "o valor do dia" (portão Phil I3).
+ */
+export function subidasDoVideoLido(leituras: readonly Leitura[], mudancas: readonly MudancaLida[]): Medida<Subida[]> {
+  return subidasDoVideo(
+    leituras.filter((l) => l.porHora !== true).map((l) => ({ dia: spDateOf(l.t), t: l.t, views: l.views })),
+    mudancasDoVideo(mudancas),
+  )
+}
+
 export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCanal {
   const c: Ctx = { agoraMs: o.agoraMs, falhas: [] }
   const agoraMs = o.agoraMs
@@ -319,10 +330,8 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
   const m5De = (p: VideoPronto): Medida<Subida[]> => {
     if (i.series === 'nao_pedida' || i.mudancas === 'nao_pedida') return naoMedido('serie_nao_pedida')
     if (seriesLida === null || mudancasLidas === null) return falhou()
-    return seguro(c, 'm5', () => subidasDoVideo(
-      (p.leituras ?? []).map((l) => ({ dia: spDateOf(l.t), t: l.t, views: l.views })),
-      mudancasDoVideo(mudancasLidas.get(p.v.id) ?? []),
-    ))
+    // a leitura por hora das primeiras 72 horas nunca é "o valor do dia" (portão Phil I3): `subidasDoVideoLido` filtra
+    return seguro(c, 'm5', () => subidasDoVideoLido(p.leituras ?? [], mudancasLidas.get(p.v.id) ?? []))
   }
 
   const porVideo = new Map<string, MedidasDoVideo>()

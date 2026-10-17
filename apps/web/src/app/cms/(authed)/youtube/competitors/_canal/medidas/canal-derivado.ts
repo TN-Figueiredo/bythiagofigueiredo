@@ -1,5 +1,6 @@
 // E5a Tarefa 19: o que os três elementos de servidor (topo, células, blocos) tiram, cada um por conta própria, da MESMA promessa de medidas.
 // Puro: relógio e dados entram por parâmetro. Nada aqui lê banco.
+import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
@@ -24,6 +25,8 @@ export interface ContextoDoCanal {
   /** id do vídeo, título. */
   titulos: ReadonlyArray<readonly [string, string]>
   trocas: readonly TrocaDoMotor[]
+  /** C4: quem lê os comentários. Ausente = a leitura não é feita (célula "não pedida"). */
+  comentarios?: { siteId: string; channelId: string; nome: string; provas: ProvasDeQuemVe | null; permissaoFalhou?: boolean }
 }
 
 export interface CanalDerivado {

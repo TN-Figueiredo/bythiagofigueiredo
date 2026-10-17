@@ -32,6 +32,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { RequestState } from '../../src/lib/youtube/observatorio/types'
+import { COMMENT_RULES, ruleParams } from '../../src/lib/youtube/observatorio/comentarios/regras'
 import { OWN_PRESETS, OWN_EXTRA_IDS, applyOwnPreset, type OwnPreset } from '../../test/fixtures/observatorio/own-presets'
 
 export interface SeedOptions {
@@ -96,6 +97,12 @@ export interface SeedOptions {
    * (300.000 hoje, 290.000 há 28 dias) e poucos dias de registro (41 e 31 dias: Direção "pouco registro" nos dois, `n` diferente). Não combina com `riCenario`.
    */
   a5Empate?: boolean
+  /**
+   * A5 E5a, grupo C (C5): um canal sintético (`C5.canal`) com sete vídeos nos estados da seção "Comentários de destaque" e da lista "O que o criador
+   * respondeu": cheio (3 retratos ok, 13 comentários, sentinelas de texto e de nome), sem comentários, desligados, com erro, anterior à coleta, novo (só
+   * 1 dia) e a caminho (30 h, sem retrato). Datas relativas ao relógio da semente. Grava também UMA execução ok da tarefa da agenda (para o "a caminho").
+   */
+  comentariosC5?: boolean
 }
 
 /** Cenário sintético da 2ª leva da tela Canais (empate de Crescimento + Direção "pouco registro"). Tudo inventado. */
@@ -107,6 +114,24 @@ export const A5_EMPATE = {
   ],
   hoje: 300_000,
   antes: 290_000,
+} as const
+/** Grupo C da E5a (C5): ids e sentinelas do cenário de comentários. Tudo inventado; os nomes e textos sentinela não existem em nenhuma outra semente. */
+export const C5 = {
+  canal: 'c5-canal', acompanhado: 'c5-acompanhado',
+  video: { cheio: 'c5-cheio', semComentarios: 'c5-sem-comentarios', desligados: 'c5-desligados', erro: 'c5-erro', anterior: 'c5-anterior', novo: 'c5-novo', aCaminho: 'c5-a-caminho' },
+  /** O texto sentinela (nos corpos dos comentários) e os nomes dos autores. Nome por extenso e `@nome` são strings diferentes de propósito. */
+  texto: 'zzsentc5texto',
+  nomeValido: 'Zenobio Quaresma', nomeVencido: 'Hortencio Vasconcelos', nomeAcompanhadoVencido: 'Canal Acompanhado Zeta',
+  fotoValida: 'https://yt3.ggpht.com/c5-foto-valida=s48', fotoVencida: 'https://yt3.ggpht.com/c5-foto-vencida=s48',
+  /** O endereço de 200 caracteres do comentário 6. */
+  endereco200: 'https://exemplo.invalid/' + 'a'.repeat(176),
+  /** Os textos das respostas do criador que carregam menção. */
+  respostas: {
+    arrobaValido: '@Zenobio obrigado pela visita', arrobaVencido: '@Hortencio obrigado, boa pergunta',
+    extensoVencido: 'Valeu, Hortencio Vasconcelos', duasPalavras: '@Hortencio Vasconcelos obrigado',
+  },
+  /** A execução da tarefa da agenda que a semente grava (chave da tabela, para o clear apagar só a dela). */
+  agenda: { task: 'retratos_comentarios', period: 'c5-seed' },
 } as const
 export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas' | 'retencao' | 'recente'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
@@ -313,6 +338,8 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
   // cascades: competitor_videos → versions, daily; snapshots
   await check('delete competitor_channels', sb.from('competitor_channels').delete().eq('site_id', siteId))
   await check('delete competitor_settings', sb.from('competitor_settings').delete().eq('site_id', siteId))
+  // a execução da agenda que o grupo C (C5) grava: sem site, então só a linha dela (task + period_key), nunca outra
+  await check('delete competitor_agenda_runs (C5)', sb.from('competitor_agenda_runs').delete().eq('task', C5.agenda.task).eq('period_key', C5.agenda.period))
   // as tabelas privadas do canal próprio (FK `on delete restrict` para youtube_channels): só as dos canais que a semente escreve
   await clearOwnL2(siteId, sb, ownIds)
   await check('delete youtube_videos', sb.from('youtube_videos').delete().eq('site_id', siteId).in('channel_id', ownIds))
@@ -753,6 +780,133 @@ async function seedA5Empate(sb: SupabaseClient, siteId: string, now: number): Pr
   await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
 }
 
+/**
+ * A5 E5a, grupo C (C5): o canal sintético dos comentários de destaque. Tudo inventado e relativo a `now`. Os retratos seguem as janelas de `COMMENT_RULES`
+ * (1 dia: 24 a 72 h; 7 dias: 168 a 240 h; 30 dias: 720 a 888 h), então o vídeo cheio tem 40 dias. Os comentários do vídeo cheio:
+ *  1 criador respondeu, autor com identidade VÁLIDA (resposta com `@nome`)      2 criador respondeu, identidade VENCIDA com a linha no banco (3 respostas com menção)
+ *  3 canal acompanhado, identidade vencida        4 canal grande (1 a 10 mi), sem linha de autor        5 `<script>`, aspas e emoji        6 endereço de 200 caracteres
+ *  7 árabe        8 2.000 caracteres, cortado        9 saiu do YouTube        10 quebras de linha exóticas        11 emoji + texto sentinela        12 só no dia 1        13 só nos dias 7 e 30
+ */
+async function seedComentariosC5(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
+  const H = 36e5
+  const cid = (k: string) => seedUuid(siteId, 'channel', k)
+  const vid = (k: string) => seedUuid(siteId, 'video', k)
+  await insertAll(sb, 'competitor_channels', [
+    { k: C5.canal, nome: 'Canal C5 Sintético', subs: 48_000 },
+    { k: C5.acompanhado, nome: 'Canal Acompanhado Zeta', subs: 300_000 },
+  ].map((c, i) => ({
+    id: cid(c.k), site_id: siteId, channel_id: 'UC' + sha1('c5|' + c.k).slice(0, 22), channel_name: c.nome, niche: 'viagem', subscriber_count: c.subs, video_limit: 50,
+    thumbnail_url: null, sync_status: 'idle', sync_error: null, sync_error_since: null,
+    last_ok_synced_at: iso(now - 3600e3), last_synced_at: iso(now - 3600e3), full_sync_completed_at: iso(now - 3600e3), youtube_video_count: null, added_at: iso(now - 200 * DAY + i * 1000),
+  })))
+  const snaps: object[] = []
+  for (let d = 40; d >= 0; d--) snaps.push({ competitor_channel_id: cid(C5.canal), snapshot_date: spDate(now - d * DAY), subscriber_count: 48_000 - d * 20, view_count: (48_000 - d * 20) * 20 })
+  await insertAll(sb, 'competitor_channel_snapshots', snaps, 2000)
+
+  // idade em horas de cada vídeo (a publicação é `now - idade`)
+  const V = C5.video
+  const idadeH: Record<string, number> = { [V.cheio]: 40 * 24, [V.semComentarios]: 12 * 24, [V.desligados]: 12 * 24, [V.erro]: 12 * 24, [V.anterior]: 60 * 24, [V.novo]: 28, [V.aCaminho]: 30 }
+  const titulo: Record<string, string> = {
+    [V.cheio]: 'C5 Vídeo cheio (3 retratos, 13 comentários)', [V.semComentarios]: 'C5 Vídeo sem comentários (zero medido)', [V.desligados]: 'C5 Vídeo com comentários desligados',
+    [V.erro]: 'C5 Vídeo com retrato em erro', [V.anterior]: 'C5 Vídeo anterior à coleta', [V.novo]: 'C5 Vídeo novo (só o retrato de 1 dia)', [V.aCaminho]: 'C5 Vídeo com 30 horas e sem retrato',
+  }
+  const ordemV = [V.cheio, V.semComentarios, V.desligados, V.erro, V.anterior, V.novo, V.aCaminho]
+  await insertAll(sb, 'competitor_videos', ordemV.map((k, i) => ({
+    id: vid(k), competitor_channel_id: cid(C5.canal), video_id: ('c5v' + String(i)).padEnd(11, 'x'), title: titulo[k], view_count: 9000 - i * 700, like_count: 300, comment_count: 1240,
+    duration_seconds: 600, published_at: iso(now - idadeH[k]! * H), is_short: false, last_checked_at: iso(now), tags: [], thumbnail_url: null,
+  })))
+
+  type Marco = 1 | 7 | 30
+  const t0 = (k: string) => now - idadeH[k]! * H
+  const snap = (k: string, mark: Marco, ageH: number, over: Record<string, unknown> = {}) => ({
+    video_id: vid(k), mark, site_id: siteId, competitor_channel_id: cid(C5.canal), taken_at: iso(t0(k) + ageH * H), video_age_hours: ageH, status: 'ok', error_reason: null,
+    pool_size: 100, pool_complete: false, video_comment_count: 1240, selected_count: 12, featured_lookup_n: 20, featured_unknown_n: 1,
+    rule_version: COMMENT_RULES.version, rule_params: ruleParams(), units_used: 5, ...over,
+  })
+  const vazio = { pool_size: 0, pool_complete: true, video_comment_count: 0, selected_count: 0, featured_lookup_n: 0, featured_unknown_n: 0 }
+  await insertAll(sb, 'competitor_video_comment_snaps', [
+    snap(V.cheio, 1, 25), snap(V.cheio, 7, 169), snap(V.cheio, 30, 721),
+    snap(V.semComentarios, 1, 25, { status: 'sem_comentarios', ...vazio }), snap(V.semComentarios, 7, 169, { status: 'sem_comentarios', ...vazio }),
+    snap(V.desligados, 1, 25, { status: 'desligados', ...vazio, video_comment_count: null }), snap(V.desligados, 7, 169, { status: 'desligados', ...vazio, video_comment_count: null }),
+    snap(V.erro, 1, 25, { status: 'erro', error_reason: 'http_5xx', ...vazio, pool_size: null, pool_complete: null, video_comment_count: null }),
+    snap(V.erro, 7, 169, { status: 'erro', error_reason: 'lista_vazia_com_contagem', ...vazio, pool_size: 0, pool_complete: false, video_comment_count: 80 }),
+    // o novo: 5 comentários no vídeo, todos guardados ("todos os 5")
+    snap(V.novo, 1, 26, { pool_size: 5, pool_complete: true, video_comment_count: 5, selected_count: 5 }),
+  ])
+
+  // a execução ok da tarefa da agenda: sem ela o vídeo de 30 h (sem linha de retrato) cai em "não lida" e a seção mostra o erro de leitura
+  await check('competitor_agenda_runs (C5)', sb.from('competitor_agenda_runs').upsert({
+    task: C5.agenda.task, period_key: C5.agenda.period, status: 'ok', attempts: 1, runs: 1, unfinished_n: 0, started_at: iso(now - 2 * H), finished_at: iso(now - 1 * H), duration_ms: 3_600_000, done_n: 1, left_n: 0,
+  }, { onConflict: 'task,period_key' }))
+
+  // os comentários (o vídeo cheio e o novo)
+  const um = (id: string) => 'zzsentc5yt' + id
+  const longo = ('Texto longo do comentário oito com bastante conteúdo para passar do corte. ').repeat(40).slice(0, 2000)
+  interface Com {
+    k: string; video?: string; pai?: string; body: string; criador?: boolean; respondeu?: boolean | null; motivo?: 'canal_acompanhado' | 'inscritos' | null; faixa?: string | null; razao?: string | null
+    cortado?: boolean; saiu?: boolean; pubH?: number
+  }
+  const topo: Com[] = [
+    { k: 'c1', body: 'Roteiro ótimo, anotei tudo ' + C5.texto + ' e já comprei o passe.', respondeu: true },
+    { k: 'c2', body: 'Dá para fazer esse roteiro com criança pequena?', respondeu: true },
+    { k: 'c3', body: 'Também fui em outubro, recomendo muito.', motivo: 'canal_acompanhado' },
+    { k: 'c4', body: 'Um canal grande comentando aqui.', motivo: 'inscritos', faixa: '1m_10m', razao: '10x_100x' },
+    { k: 'c5', body: `<script>alert('c5')</script> "aspas" & 'simples' 😀 fim`, respondeu: null },
+    { k: 'c6', body: 'Mapa completo aqui: ' + C5.endereco200 + ' obrigado' },
+    { k: 'c7', body: 'مرحبا بك في هذا الفيديو الرائع، شكرا جزيلا على كل المعلومات' },
+    { k: 'c8', body: longo, cortado: true },
+    { k: 'c9', body: 'Este comentário saiu do YouTube depois.', saiu: true },
+    { k: 'c10', body: 'linha um\r\nlinha dois\n\n\nlinha três linha quatro\ttab' },
+    { k: 'c11', body: 'Valeu pelo vídeo 👍 ' + C5.texto },
+    { k: 'c12', body: 'Comentário só do dia um.' },
+    { k: 'c13', body: 'Comentário que entrou depois, no dia sete.' },
+    ...[1, 2, 3, 4, 5].map((i): Com => ({ k: 'n' + i, video: V.novo, body: `Comentário ${i} do vídeo novo.` })),
+  ]
+  const filhos: Com[] = [
+    { k: 'c1r1', pai: 'c1', body: C5.respostas.arrobaValido, criador: true },
+    { k: 'c2r1', pai: 'c2', body: C5.respostas.arrobaVencido, criador: true },
+    { k: 'c2r2', pai: 'c2', body: C5.respostas.extensoVencido, criador: true },
+    { k: 'c2r3', pai: 'c2', body: C5.respostas.duasPalavras, criador: true },
+  ]
+  const linhaCom = (c: Com) => {
+    const video = c.video ?? V.cheio
+    return {
+      site_id: siteId, competitor_channel_id: cid(C5.canal), video_id: vid(video), youtube_comment_id: um(c.k), body: c.body, body_truncated: !!c.cortado,
+      published_at: iso(t0(video) + (c.pubH ?? 3 + topo.indexOf(c) + 1) * H), is_creator: !!c.criador, creator_replied: c.criador ? null : (c.respondeu === undefined ? false : c.respondeu),
+      featured_reason: c.motivo ?? null, featured_channel_id: c.motivo === 'canal_acompanhado' ? cid(C5.acompanhado) : null, featured_size_band: c.faixa ?? null, featured_ratio_band: c.razao ?? null,
+      first_seen_at: iso(t0(video) + 5 * H), last_seen_at: iso(now - 2 * H), missing_since: c.saiu ? spDate(now - 5 * DAY) : null,
+    }
+  }
+  const inseridos = await sb.from('competitor_video_comments').insert(topo.map(linhaCom)).select('id, youtube_comment_id')
+  if (inseridos.error) throw new Error('observatorio-seed: comentários C5: ' + inseridos.error.message)
+  const idDe = new Map((inseridos.data ?? []).map(r => [String((r as { youtube_comment_id: string }).youtube_comment_id), (r as { id: number }).id]))
+  const pais = (c: Com) => ({ ...linhaCom(c), parent_id: idDe.get(um(c.pai!)), video_id: vid(topo.find(t => t.k === c.pai)!.video ?? V.cheio) })
+  const r2 = await sb.from('competitor_video_comments').insert(filhos.map(pais))
+  if (r2.error) throw new Error('observatorio-seed: respostas C5: ' + r2.error.message)
+  const idC = (k: string) => idDe.get(um(k))!
+
+  // as leituras por marco: o dia 1 tem c1..c12; os dias 7 e 30 têm c1..c11 e c13
+  const slotDe = (c: Com): string => (c.respondeu === true ? 'criador' : c.motivo ? 'destaque' : 'curtidos')
+  const marcas: object[] = []
+  const nosMarcos = (k: string): Marco[] => (k === 'c12' ? [1] : k === 'c13' ? [7, 30] : [1, 7, 30])
+  topo.filter(c => !c.video).forEach((c, i) => {
+    for (const m of nosMarcos(c.k)) marcas.push({
+      comment_id: idC(c.k), mark: m, site_id: siteId, likes: Math.max(1, 900 - i * 60 + (m === 1 ? 0 : m === 7 ? 120 : 260)), reply_count: c.respondeu === true ? 4 : 1,
+      relevance_rank: i + 1, slot: slotDe(c), creator_replied: c.respondeu ?? null,
+    })
+  })
+  topo.filter(c => c.video === V.novo).forEach((c, i) => marcas.push({ comment_id: idC(c.k), mark: 1, site_id: siteId, likes: 40 - i * 10, reply_count: 0, relevance_rank: i + 1, slot: 'curtidos', creator_replied: false }))
+  await insertAll(sb, 'competitor_video_comment_marks', marcas)
+
+  // os autores: válido (guardado até daqui a 12 dias), vencido (a linha ainda existe), canal acompanhado vencido; o canal grande não tem linha
+  const autor = (k: string, nome: string, foto: string | null, expiraEmH: number) => ({
+    comment_id: idC(k), site_id: siteId, display_name: nome, channel_id: 'UC' + sha1('c5-autor|' + k).slice(0, 22), avatar_url: foto, expires_at: iso(now + expiraEmH * H), created_at: iso(now - 20 * DAY),
+  })
+  await insertAll(sb, 'competitor_video_comment_authors', [
+    autor('c1', C5.nomeValido, C5.fotoValida, 12 * 24), autor('c2', C5.nomeVencido, C5.fotoVencida, -3 * 24), autor('c3', C5.nomeAcompanhadoVencido, null, -3 * 24),
+  ])
+}
+
 /** R9b: retratos do canal próprio; precisa do `youtube_channels` já inserido (FK). */
 async function seedRiProprio(sb: SupabaseClient, siteId: string, now: number): Promise<void> {
   // R9b: o canal próprio é medido pelo mesmo número público dos concorrentes, a partir de yt_own_channel_snapshots (MG20); termina HOJE
@@ -918,6 +1072,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   /* A5 E5a R6: os dez concorrentes sintéticos de Referências e Inscritos (nicho próprio), no relógio da semente */
   if (opts.riCenario) await seedRiCenario(sb, siteId, O.NOW)
   if (opts.a5Empate) await seedA5Empate(sb, siteId, O.NOW)
+  if (opts.comentariosC5) await seedComentariosC5(sb, siteId, O.NOW)
 
   /* own channels (no series, no versions: production keeps neither for them); `niche` is null for the preset's "sem nicho" */
   await insertAll(sb, 'youtube_channels', ownChs.map(c => ({

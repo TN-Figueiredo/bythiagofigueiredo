@@ -36,7 +36,6 @@ export const FRASES = {
   legendaCurtidos: (n: number) => (n === 1 ? '1 mais curtido' : `${n} mais curtidos`),
   legendaCriador: (n: number, respondeu = 0) => `${n} com o criador${respondeu > 0 ? ` (ele respondeu a ${respondeu})` : ''}`,
   legendaAcompanhado: (n: number) => `${n} de canal que você acompanha`,
-  legendaGrande: (n: number, ate: string) => `${n} de canal grande, ${ate}`,
   legendaGrandeCurta: (n: number) => `${n} de canal grande`,
   // Frases de abertura da lista (singular no 1)
   abreTodos: (d: number, n: number) => `Com ${dias(d)}, guardamos ${n === 1 ? 'o único comentário do vídeo' : `todos os ${n} comentários do vídeo`}`,
@@ -45,9 +44,11 @@ export const FRASES = {
     `Com ${dias(d)}, guardamos ${n} dos ${de.toLocaleString('pt-BR')} primeiros comentários que o YouTube mostra, na ordem de relevância dele`,
   rotuloDaCasa: (i: number, n: number, motivo: string, curtidas: number | null, d: number) =>
     `Comentário ${i} de ${n}, ${motivo.toLowerCase()}${curtidas === null ? '' : `, ${curtidas === 1 ? '1 curtida' : `${curtidas.toLocaleString('pt-BR')} curtidas`} com ${dias(d)}`}`,
-  zeroCurtidos: '0 mais curtidos',
-  zeroCriador: '0 com o criador',
-  zeroAcompanhado: 'nenhum canal que você acompanha comentou',
+  // Legenda por motivo: o rótulo já diz o motivo, o texto diz só quantos (sem repetir o motivo: Gio C5 menor M2).
+  legendaN: (n: number) => (n === 1 ? '1 comentário' : `${n} comentários`),
+  legendaNCriador: (n: number, respondeu = 0) => `${n === 1 ? '1 comentário' : `${n} comentários`}${respondeu > 0 ? (n === 1 ? ' (ele respondeu)' : ` (ele respondeu a ${respondeu} deles)`) : ''}`,
+  legendaNGrande: (n: number, ate: string) => `${n === 1 ? '1 comentário' : `${n} comentários`}, ${ate}`,
+  zeroN: '0 comentários',
   zeroGrande: (ate: string) => `nenhum canal grande ${ate}`,
   entreOs20: (n: number) => `entre os ${n} mais curtidos`,
   entreOsMedidos: (n: number) => `entre os ${n} que deu para medir`,
@@ -70,7 +71,13 @@ export const FRASES = {
   textoReservado: 'Texto reservado.',
   textoReservadoSub: 'Há um comentário aqui que você não vê.',
   identidadeAte: (dm: string) => `identidade guardada até ${dm}`,
-  canalGrandeSemNome: 'Um canal com mais de 10 milhões de inscritos comentou',
+  canalGrandeSemNome: (faixa: string | null) =>
+    faixa === '10m_mais' ? 'Um canal com mais de 10 milhões de inscritos comentou'
+      : faixa === '100k_1m' ? 'Um canal de 100 mil a 1 milhão de inscritos comentou'
+        : faixa === '1m_10m' ? 'Um canal de 1 a 10 milhões de inscritos comentou'
+          : 'Um canal grande comentou',
+  // Permissão que não se conferiu: o nível cai para o número e a tela diz por quê (a C3 e a C4 usam a mesma frase)
+  permissaoNaoConferida: 'Não deu para conferir a sua permissão agora, então os comentários aparecem só como número. Recarregue a página para tentar de novo.',
   // Texto
   verTudo: 'Ver tudo',
   mostrarMenos: 'Mostrar menos',
@@ -150,7 +157,7 @@ export const FRASES = {
   paradaSemOk: (dm: string) => `A coleta de comentários está parada: sem execução completa desde ${dm}.`,
   paradaSelo: 'coleta parada',
   carregando: 'Carregando os comentários guardados…',
-  erroDeLeitura: 'Não deu para abrir os comentários agora. A leitura falhou.',
+  erroDeLeitura: 'Não deu para abrir os comentários agora.',
   tentarDeNovo: 'Tentar de novo',
   // ⓘ da seção
   infoParagrafos: (mencoesTrocadas: number): string[] => [
@@ -160,6 +167,7 @@ export const FRASES = {
     'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Um espectador”.',
     'Guardamos até 3 respostas do criador por comentário.',
     ...(mencoesTrocadas > 0 ? ['Menções a outras pessoas aparecem como “@…”: o nome delas fica escondido.'] : []),
+    'Só as menções com @ ficam escondidas. Um nome escrito por extenso dentro do texto do comentário não é reconhecido e aparece como foi guardado.',
     'Cálculo do Observatório sobre dados públicos do YouTube.',
   ],
 } as const

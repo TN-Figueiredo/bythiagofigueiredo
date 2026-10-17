@@ -24,6 +24,7 @@ import { buildForjaCard, type ForjaCardView } from './forja-card-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
+export type { AcrescimosDoGrafico } from './medidas/dias-model'
 export type FromTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'comparar'
 /** How the start of a version is known: at publication, to the minute, inside a 6 h / 1 d window, or not observed. */
 export type VersionPrecision = 'publicacao' | 'min' | '6h' | '1d' | 'aberto'

@@ -11,8 +11,8 @@ export function ZeroMedido() {
 export function NaoMedido({ curta, longa }: { curta: string; longa: string }) {
   return (
     <span className="obs-ch-nm" title={longa}>
-      {curta}
-      <span className="obs-md-sr">: {longa}</span>
+      {curta}{' '}
+      <span className="obs-md-sr">{longa}</span>
     </span>
   )
 }

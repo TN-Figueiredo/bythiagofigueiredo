@@ -8,6 +8,7 @@ import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { aindaNaoExiste } from '@/lib/youtube/observatorio/medidas-telas/calendario'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import type { MedidasDoVideo } from '@/lib/youtube/observatorio/medidas/do-canal'
+import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { leituraDoVideo, type Leitura } from './estourou-model'
 
 /** O pedaço do `Observatory` de que a leitura precisa: o vídeo e o canal dele, e o que o carregador das medidas pede. */
@@ -78,3 +79,33 @@ export async function lerLeituraDoVideo(p: {
   }
 }
 
+
+/**
+ * A mesma leitura, tirada do conjunto do canal que a página do vídeo JÁ leu (plano E5a §4.8: uma leitura só). Não consulta a base do canal de novo.
+ * Cai na leitura própria de `lerLeituraDoVideo` só quando o conjunto não tem como responder: o vídeo está fora da janela da série do conjunto
+ * (180 dias) e o pico pede a série dele. Receber o conjunto SEM a sobreposição do vídeo (a de `completarVideoForaDaJanela`): é o que mostra que a série faltava.
+ */
+export async function lerLeituraDoConjunto(p: {
+  c: CanalInteiro; sb: SupabaseClient; siteId: string; obs: IObservatorioDaLeitura; videoId: string; now: number
+  carregar?: typeof carregarMedidasDoSite
+}): Promise<Leitura | null> {
+  const antes = leituraSemConsulta(p.obs, p.videoId, p.now)
+  if (antes !== 'ler') return antes
+  const v = p.obs.video(p.videoId)!
+  const canal = p.obs.channel(v.ch)!
+  const hojeSP = spDateOf(p.now)
+  const video = { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name }
+  try {
+    const mv = 'naoCarregou' in p.c.medidas ? null : (p.c.medidas.porVideo.get(v.id) ?? null)
+    if (mv === null) return await lerLeituraDoVideo(p)
+    const serieTemOVideo = p.c.serie !== 'nao_pedida' && p.c.serie.lido && p.c.serie.dados.has(v.id)
+    const m10 = mv.m10
+    if (m10.estado === 'nao_medido' && (m10.motivo === 'serie_nao_pedida' || (m10.motivo === 'serie_diaria_incompleta' && !serieTemOVideo))) return await lerLeituraDoVideo(p)
+    const ar = mv.m9.aindaRende
+    if (ar.estado === 'nao_medido' && (ar.motivo === 'leitura_falhou' || ar.motivo === 'serie_nao_pedida' || ar.motivo === 'calculo_falhou')) return leituraDoVideo(null, null, hojeSP, video)
+    return leituraDoVideo(mv.m10, mv.m1[30], hojeSP, video)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'estourou-e-parou' } })
+    return leituraDoVideo(null, null, hojeSP, video)
+  }
+}

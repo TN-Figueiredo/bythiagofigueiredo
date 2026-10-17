@@ -33,6 +33,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', () => ({ loadSwipeRows: async () => [], savedFromRows: () => ({ saved: new Set<string>() }) }))
 const ask = vi.hoisted(() => vi.fn())
+vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/medidas/blocos-do-video', () => import('./blocos-sincronos'))
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: ask, cancelForjaReading: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({ pinVideo: vi.fn(), unpinVideo: vi.fn(), syncCompetitorNow: vi.fn() }))
 

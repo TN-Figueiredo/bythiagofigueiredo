@@ -30,7 +30,7 @@ export interface CurtidaView {
 }
 export type AutorView =
   | { tipo: 'identidade'; nome: string; fotoUrl: string | null; ate: string }
-  | { tipo: 'espectador' } | { tipo: 'reservado' } | { tipo: 'grande' }
+  | { tipo: 'espectador' } | { tipo: 'reservado' } | { tipo: 'grande'; faixa: string | null }
   | { tipo: 'criador'; nome: string } | { tipo: 'proprio' }
 export type RespostaView =
   | { forma: 'respondeu'; titulo: string; textos: Array<{ texto: string; cortado: boolean }> | null; reservado: string | null }
@@ -179,7 +179,7 @@ function autorDoCartao(c: Cartao, nivel: Nivel, canalNome: string): AutorView {
   if (!comTexto(c)) return { tipo: 'reservado' }
   const a = c.autor
   if (a.tipo === 'criador') return { tipo: 'criador', nome: nomeDoCriador }
-  if (a.tipo === 'canal_grande') return { tipo: 'grande' }
+  if (a.tipo === 'canal_grande') return { tipo: 'grande', faixa: c.faixas.tamanho }
   if (a.tipo === 'com_identidade' && nivel === 'identidade') return { tipo: 'identidade', nome: a.nome, fotoUrl: a.fotoUrl, ate: dmDeData(a.guardadaAte) }
   return { tipo: 'espectador' }
 }
@@ -289,10 +289,10 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
     ? FRASES.entreOsDoVideo
     : semTamanho > 0 ? FRASES.entreOsMedidos(consultados - semTamanho) : FRASES.entreOs20(COMMENT_RULES.featuredLookup)
   const legenda: LegendaView[] = [
-    { chave: 'c', rotulo: FRASES.motivoCurtidos, n: nC, zero: nC === 0, texto: nC === 0 ? FRASES.zeroCurtidos : FRASES.legendaCurtidos(nC) },
-    { chave: 'k', rotulo: FRASES.motivoCriador, n: nK, zero: nK === 0, texto: nK === 0 ? FRASES.zeroCriador : FRASES.legendaCriador(nK) },
-    { chave: 'a', rotulo: FRASES.motivoAcompanhado, n: nA, zero: nA === 0, texto: nA === 0 ? FRASES.zeroAcompanhado : FRASES.legendaAcompanhado(nA) },
-    { chave: 'g', rotulo: FRASES.motivoGrande, n: nG, zero: nG === 0, texto: nG === 0 ? FRASES.zeroGrande(ate) : FRASES.legendaGrande(nG, ate) },
+    { chave: 'c', rotulo: FRASES.motivoCurtidos, n: nC, zero: nC === 0, texto: nC === 0 ? FRASES.zeroN : FRASES.legendaN(nC) },
+    { chave: 'k', rotulo: FRASES.motivoCriador, n: nK, zero: nK === 0, texto: nK === 0 ? FRASES.zeroN : FRASES.legendaNCriador(nK, resp) },
+    { chave: 'a', rotulo: FRASES.motivoAcompanhado, n: nA, zero: nA === 0, texto: nA === 0 ? FRASES.zeroN : FRASES.legendaN(nA) },
+    { chave: 'g', rotulo: FRASES.motivoGrande, n: nG, zero: nG === 0, texto: nG === 0 ? FRASES.zeroGrande(ate) : FRASES.legendaNGrande(nG, ate) },
   ]
 
   const movimento: MovimentoView = anterior === null

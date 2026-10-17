@@ -8,12 +8,16 @@ import type { ReactNode } from 'react'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { RiInfo } from '../../_canais/ri-info'
 import { canalDerivadoDe, type ContextoDoCanal } from './canal-derivado-async'
+import type { CanalDerivado } from './canal-derivado'
 import { CelulasDoCabecalho } from './celulas'
 import { celulasDoCabecalho } from './cabecalho-model'
 import { DirecaoBloco } from './direcao-bloco'
 import { blocoDeDirecao } from './direcao-model'
 import { FaixaDeEstado } from './faixa-de-estado'
-import { FRASE_CRIADOR_NAO_PEDIDA } from './criador-model'
+import { criadorDoCanal, FRASE_CRIADOR_NAO_PEDIDA } from './criador-model'
+import { CriadorResponde } from './criador-responde'
+import { listaDoCriador } from './criador-lista-model'
+import { lerComentariosDoCanal } from './comentarios-do-canal'
 import { HorasDoCanal } from './horas-do-canal'
 import { Lancamentos } from './lancamentos'
 import { horasDoCanal } from './lancamentos-model'
@@ -46,10 +50,10 @@ export async function TopoDoCanal({ medidas, contexto }: PropsDosBlocos): Promis
 
 export async function CelulasDoCanal({ medidas, contexto }: PropsDosBlocos): Promise<ReactNode> {
   const { c, d } = await canalDerivadoDe(medidas, contexto)
-  void c
+  const cr = await criadorDe(medidas, contexto, c, d)
   const cels = celulasDoCabecalho({
     F: contexto.F, subs: contexto.subs, medidas: d.medidas, formato: d.formato, estado: d.estado, extras: { missingSince: null },
-    semVideos: contexto.semVideos, hojeSP: contexto.hojeSP,
+    semVideos: contexto.semVideos, hojeSP: contexto.hojeSP, criador: cr?.modelo.celula,
   }).filter(x => x.chave !== 'inscritos')
   return (
     <dl className="pc-cels" aria-label="Números do canal" data-celulas-do-canal>
@@ -60,27 +64,26 @@ export async function CelulasDoCanal({ medidas, contexto }: PropsDosBlocos): Pro
 
 const ATALHOS: Array<[string, string]> = [['direcao', 'Direção'], ['lancamentos', 'Lançamentos'], ['tempo', 'Linha do tempo'], ['ritmo', 'Ritmo'], ['criador', 'O que o criador respondeu']]
 
-/** O bloco "O que o criador respondeu" no estado sem dado; a C4 o completa. */
-function CriadorVazio({ extra }: { extra?: ReactNode }) {
-  const itens = [
-    'Base: vídeos longos publicados nos últimos 90 dias que já têm dias de comentários guardados.',
-    'Conta: em quantos desses vídeos vimos pelo menos uma resposta do criador. Percentual só com 10 vídeos ou mais; menos de 5, não medido.',
-    'Piso: só vemos as respostas entre os comentários guardados; “não vimos resposta” não quer dizer que ele não respondeu.',
-  ]
+function CriadorSemLeitura(): ReactNode {
   return (
     <section className="pc-sec" id="criador" aria-labelledby="hCri">
-      <div className="pc-sh">
-        <h2 id="hCri">O que o criador respondeu</h2>
-        <RiInfo titulo="as respostas do criador" itens={itens} rotuloBotao="Como ler as respostas do criador" />
-      </div>
-      {extra ?? (
-        <>
-          <p className="pc-fr2" data-frase-do-bloco><span><b>Ainda não dá para dizer se o criador responde.</b></span></p>
-          <p className="pc-lc"><span className="obs-ch-nm">{FRASE_CRIADOR_NAO_PEDIDA}</span></p>
-        </>
-      )}
+      <div className="pc-sh"><h2 id="hCri">O que o criador respondeu</h2></div>
+      <p className="pc-fr2" data-frase-do-bloco><span><b>Ainda não dá para dizer se o criador responde.</b></span></p>
+      <p className="pc-lc"><span className="obs-ch-nm">{FRASE_CRIADOR_NAO_PEDIDA}</span></p>
     </section>
   )
+}
+
+/** C4: o modelo do criador (célula e bloco) e a lista, lidos uma vez por promessa. Sem `contexto.comentarios`, nada é lido (estado "não pedida"). */
+async function criadorDe(medidas: Promise<CanalInteiro>, contexto: ContextoDoCanal, c: CanalInteiro, d: CanalDerivado) {
+  const k = contexto.comentarios
+  if (!k) return null
+  const lidos = await lerComentariosDoCanal(medidas, c, k, { formato: d.formato, agoraMs: contexto.agoraMs })
+  const modelo = criadorDoCanal({ nome: k.nome, formato: d.formato, videos: d.videos, contagem: lidos.contagem, estado: d.estado, agoraMs: contexto.agoraMs, hojeSP: contexto.hojeSP })
+  const lista = modelo.bloco.tipo === 'medido' || modelo.bloco.tipo === 'zero' || modelo.bloco.tipo === 'nao_medido'
+    ? listaDoCriador({ nome: k.nome, resposta: lidos.respostas, videos: d.videos, titulos: d.titulos, nBase: modelo.bloco.nBase, permissaoFalhou: k.permissaoFalhou })
+    : null
+  return { modelo, lista }
 }
 
 export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Promise<ReactNode> {
@@ -95,6 +98,7 @@ export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Prom
     trocas: contexto.trocas, titulos: d.titulos, estado: d.estado, formato: d.formato,
     foraEm: d.estado.tipo === 'saiu' ? d.estado.ate : null, hojeSP: contexto.hojeSP,
   })
+  const cr = await criadorDe(medidas, contexto, c, d)
   return (
     <div className="pc-blocos" data-blocos-do-canal>
       <nav className="pc-nav" aria-label="Nesta página">{ATALHOS.map(([id, t]) => <a key={id} href={`#${id}`}>{t}</a>)}</nav>
@@ -102,7 +106,7 @@ export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Prom
       <Lancamentos modelo={d.lanc.modelo} horas={<HorasDoCanal modelo={horasDoCanal({ videos: d.videos, horas, formato: d.formato, agoraMs: contexto.agoraMs })} />} />
       <LinhaDoTempoBloco modelo={tempo} />
       <RitmoBloco bloco={ritmo} />
-      <CriadorVazio />
+      {cr ? <CriadorResponde bloco={cr.modelo.bloco} lista={cr.lista} canalId={contexto.comentarios?.channelId} /> : <CriadorSemLeitura />}
     </div>
   )
 }
