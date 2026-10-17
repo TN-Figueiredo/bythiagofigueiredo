@@ -47,6 +47,8 @@ export function LinhasDeFora({ cabe, cortes, privado, comentarios }: { cabe: boo
       )}
       {comentarios.estado === 'na' ? (
         <Linha cls="na" icone={<Icones.nao />} titulo={F.TEXTO_DE_COMENTARIOS} status={F.ESTA_TELA_NAO_TEM} />
+      ) : comentarios.estado === 'nao_carregou' ? (
+        <Linha cls="na" icone={<Icones.nao />} titulo={F.TEXTO_DE_COMENTARIOS} status={F.A_LEITURA_FALHOU} />
       ) : comentarios.estado === 'incluido' ? (
         <Linha cls="ok" icone={<Icones.ok />} titulo={F.TEXTO_DE_COMENTARIOS} status={F.INCLUIDO} detalhe={F.comentariosIncluidos(comentarios.quantos)} />
       ) : (

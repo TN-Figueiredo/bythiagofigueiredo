@@ -53,6 +53,8 @@ export interface PropsComentariosDeDestaque {
   canalNome: string
   /** `link.saiu`: o botão "Ver na fila “Saíram do YouTube”" só existe se este link existir. */
   hrefFilaSaiu?: string
+  /** Quem pediu a leitura: vira tag do Sentry para separar a falha da tela da falha do pacote da IA (M5 do portão Yannis). */
+  origem?: 'pagina' | 'contexto-ia'
 }
 
 /** O que a seção lê e monta, antes de virar tela: a página e o pacote "Perguntar a uma IA" usam o MESMO caminho (leitor, nível e modelo). */
@@ -70,12 +72,12 @@ export async function lerSecaoDeComentarios(p: PropsComentariosDeDestaque): Prom
     })
   } catch (err) {
     // por contrato o leitor não relata ("quem relata é a página"): quem relata é esta seção, com tags e sem id de autor nem texto (portão Yannis I-5)
-    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'comentarios-destaque' } })
+    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'comentarios-destaque', origem: p.origem ?? 'pagina' } })
     lido = { lido: false, causa: 'erro_do_banco', codigo: 'excecao' }
   }
   if (!lido.lido) {
     if (lido.codigo !== 'excecao') {
-      Sentry.captureMessage('observatório: comentários de destaque não lidos', { level: 'warning', tags: { component: 'observatorio', step: 'comentarios-destaque' }, extra: { causa: lido.causa, codigo: lido.codigo } })
+      Sentry.captureMessage('observatório: comentários de destaque não lidos', { level: 'warning', tags: { component: 'observatorio', step: 'comentarios-destaque', origem: p.origem ?? 'pagina' }, extra: { causa: lido.causa, codigo: lido.codigo } })
     }
     return { ok: false, titulo: estadoDeErro().titulo }
   }

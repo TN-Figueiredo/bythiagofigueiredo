@@ -25,7 +25,7 @@ import { empacotarVideo, modeloDeVideo } from './empacotar-video'
 import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
 import { clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
 import { lerSecaoDeComentarios, resolverProvas } from '../_historico/comentarios-de-destaque'
-import { projetarComentariosDoVideo, type ComentariosVideoIa } from './empacotar-video-comentarios'
+import { comentariosDoVideoNaoCarregaram, projetarComentariosDoVideo, type ComentariosVideoIa } from './empacotar-video-comentarios'
 import * as Sentry from '@sentry/nextjs'
 import { empacotarVideoProprio, modeloDeVideoProprio } from './empacotar-video-proprio'
 import { empacotarComparar, modeloDeComparar } from './empacotar-comparar'
@@ -133,23 +133,34 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     let comentarios: ComentariosVideoIa | null = null
     if (doMotor) {
       const pedido = { obterSb: clienteDeServicoDoVideo, siteId: m.pagina.siteId, obs: m.pagina.obs, agoraMs: m.pagina.now, view: m.view, video: doMotor }
+      // as provas nascem ANTES da leitura das medidas, como na página (M2 do portão Yannis): a latência de `acessoPrivado` não soma em série
+      const provas = resolverProvas(acessoPrivado(m.pagina.siteId))
       try {
         const lidas = await lerMedidasDoVideo(pedido)
-        medidas = lidas === null ? medidasDoVideoNaoCarregaram() : projetarMedidasDoVideo(lidas.d, await lerEstourouDoVideo({ ...pedido, lidas }))
+        // a leitura de "Estourou e parou" falhar não apaga as medidas já lidas: só ela vira "não carregou" (I1 do portão Yannis)
+        let estourou: Awaited<ReturnType<typeof lerEstourouDoVideo>> = null
+        try {
+          estourou = await lerEstourouDoVideo({ ...pedido, lidas })
+        } catch (err) {
+          Sentry.captureException(err, { tags: { component: 'observatorio-video', step: 'contexto-ia-estourou' } })
+          estourou = { tipo: 'nao_carregou' }
+        }
+        medidas = lidas === null ? medidasDoVideoNaoCarregaram() : projetarMedidasDoVideo(lidas.d, estourou)
         // a seção de comentários só existe na tela quando o conjunto foi lido; o nível é o do leitor, com as mesmas provas da página (edição: nula, como na página)
         if (lidas !== null) {
           const canais = new Map(m.pagina.obs.channels.map((x) => [x.id, { nome: x.name }] as const))
           const canalNome = canais.get(doMotor.ch)?.nome ?? ''
           const lida = await lerSecaoDeComentarios({
-            sb: lidas.sb, siteId: m.pagina.siteId, videoId: doMotor.id, agoraMs: m.pagina.now, canaisDoSite: canais, canalNome,
-            provas: resolverProvas(acessoPrivado(m.pagina.siteId)),
+            sb: lidas.sb, siteId: m.pagina.siteId, videoId: doMotor.id, agoraMs: m.pagina.now, canaisDoSite: canais, canalNome, provas,
             video: { t0Ms: lidas.t0Ms, descobertoEmMs: lidas.descobertoMs, canalId: doMotor.ch },
+            origem: 'contexto-ia',
           })
           comentarios = projetarComentariosDoVideo(lida, canalNome)
-        }
+        } else comentarios = comentariosDoVideoNaoCarregaram()
       } catch (err) {
         Sentry.captureException(err, { tags: { component: 'observatorio-video', step: 'contexto-ia-medidas' } })
         medidas = medidas ?? medidasDoVideoNaoCarregaram()
+        comentarios = comentarios ?? comentariosDoVideoNaoCarregaram()
       }
     }
     return { modelo: sem(empacotarVideo(modeloDeVideo(m.view, medidas, comentarios)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }

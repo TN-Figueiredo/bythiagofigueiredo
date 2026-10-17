@@ -11,6 +11,7 @@
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, Comentario, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import type { Nivel } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
+import { semMencoes } from '@/lib/youtube/observatorio/comentarios/leitor-nivel'
 import { FRASES } from '../_chrome/comentarios/frases'
 import type { CartaoView, PainelView, SecaoView } from '../_chrome/comentarios/model'
 import type { SecaoLida } from '../_historico/comentarios-de-destaque'
@@ -42,12 +43,15 @@ export interface ComentariosVideoIa {
 const ORDEM_DO_ID = /^cd-(?:1|7|30)-(\d+)$/
 const fim = (n: PainelView): n is Extract<PainelView, { kind: 'lista' }> => n.kind === 'lista'
 
-/** O número que a tela escreve nas curtidas do marco mais recente que tem leitura ("1.234" volta a 1234). */
-function curtidasDe(v: CartaoView): number | null {
+/**
+ * As curtidas do marco mais recente que tem leitura (o número cru do modelo, não o texto formatado). `antigoDoDia` diz o dia quando o marco usado é
+ * mais velho do que a idade mais nova em que o comentário aparece listado: a IA não pode ler um número velho como o de hoje (M-1 do portão Phil).
+ */
+function curtidasDe(v: CartaoView, listadoAte: number): { n: number | null; antigoDoDia: number | null } {
   for (const c of [...v.curtidas].sort((a, b) => b.marco - a.marco)) {
-    if (c.tipo === 'n') { const n = Number(c.texto.replace(/\./g, '')); return Number.isFinite(n) ? n : null }
+    if (c.tipo === 'n') return { n: c.n, antigoDoDia: c.marco < listadoAte ? c.marco : null }
   }
-  return null
+  return { n: null, antigoDoDia: null }
 }
 
 const SEM = '—'
@@ -70,16 +74,24 @@ export function projetarComentariosDoVideo(lida: SecaoLida, canalNome: string): 
   }))
   // cada comentário uma vez, na ordem de aparição (a idade mais nova primeiro, como a tela abre)
   const vistos = new Map<number, CartaoView>()
-  for (const p of paineis.filter(fim)) for (const c of p.cartoes) { const m = ORDEM_DO_ID.exec(c.id); if (m && !vistos.has(Number(m[1]))) vistos.set(Number(m[1]), c) }
+  const listadoAte = new Map<number, number>()
+  for (const p of paineis.filter(fim)) for (const c of p.cartoes) {
+    const m = ORDEM_DO_ID.exec(c.id)
+    if (!m) continue
+    if (!vistos.has(Number(m[1]))) vistos.set(Number(m[1]), c)
+    listadoAte.set(Number(m[1]), Math.max(listadoAte.get(Number(m[1])) ?? 0, p.marco))
+  }
   const todos = [...vistos.values()]
   const saidos = todos.filter((c) => c.saiu !== null).length
   const itens: Comentario[] = s.nivel === 'contagem' ? [] : todos.flatMap((c): Comentario[] => {
     if (c.saiu !== null || c.texto === null) return []
     const r = c.resposta
-    const respostas = r && r.forma === 'respondeu' && r.textos ? r.textos.map((t) => t.texto).filter((t) => t !== '') : []
+    // as menções de terceiros saem em QUALQUER nível (I-2 do portão Phil): o pacote é anônimo mesmo quando a tela mostra o @handle
+    const respostas = r && r.forma === 'respondeu' && r.textos ? r.textos.map((t) => semMencoes(t.texto).texto).filter((t) => t !== '') : []
+    const cur = curtidasDe(c, listadoAte.get(Number(ORDEM_DO_ID.exec(c.id)?.[1])) ?? 0)
     return [{
-      texto: c.texto.texto, curtidas: curtidasDe(c), respostas: c.rodape.respostas?.n ?? null, idade: c.rodape.publicado ?? 'sem data',
-      sinalizadores: [c.motivo, ...(c.texto.cortado ? [FRASES.cortadoAos] : [])],
+      texto: semMencoes(c.texto.texto).texto, curtidas: cur.n, respostas: c.rodape.respostas?.n ?? null, idade: c.rodape.publicado ?? 'sem data',
+      sinalizadores: [c.motivo, ...(cur.antigoDoDia !== null ? [`curtidas do dia ${cur.antigoDoDia}`] : []), ...(c.texto.cortado ? [FRASES.cortadoAos] : [])],
       respostaDoCriador: respostas.length ? { canal: canalNome, texto: respostas.join('\n') } : null,
     }]
   })
@@ -141,7 +153,8 @@ export function tabelasDeComentariosDoVideo(c: ComentariosVideoIa | null): { tab
 }
 
 /** O campo `comentarios` do pacote: texto só no nível que o leitor liberou; sem o direito, só a contagem; sem leitura, "na". */
-export function comentariosDoPacote(c: ComentariosVideoIa | null): { estado: 'na' } | { estado: 'incluido'; itens: Comentario[] } | { estado: 'excluido'; quantos: number } {
-  if (c === null || c.estado === 'nao_carregou') return { estado: 'na' }
+export function comentariosDoPacote(c: ComentariosVideoIa | null): { estado: 'na' } | { estado: 'nao_carregou' } | { estado: 'incluido'; itens: Comentario[] } | { estado: 'excluido'; quantos: number } {
+  if (c === null) return { estado: 'na' }
+  if (c.estado === 'nao_carregou') return { estado: 'nao_carregou' }
   return c.nivel === 'contagem' ? { estado: 'excluido', quantos: c.quantos } : { estado: 'incluido', itens: c.itens }
 }

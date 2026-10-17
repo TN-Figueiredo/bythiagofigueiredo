@@ -214,6 +214,16 @@ describe('o que acontece quando o dado não existe', () => {
     }
   })
 
+  it('vídeo de concorrente com a leitura das medidas/comentários que não carregou: o pacote diz "não carregou", nunca "esta tela não tem" (I1 e M-2, trem 6)', async () => {
+    const r = await pedir('video')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const texto = textoTodo(r.pacote)
+    // neste mundo o cliente de serviço do vídeo não existe: a leitura das medidas não carrega, e o campo de comentários não pode calar
+    expect(r.pacote.comentarios).toEqual({ estado: 'nao_carregou' })
+    expect(texto).toContain('Não deu para abrir os comentários agora.')
+  })
+
   it('fila (Saíram do YouTube): sem acesso de edição é nao_encontrado, falha de leitura é falhou (nunca fila vazia), e a fila vazia leva a frase da tela com o aviso', async () => {
     filaSt.leitura = { estado: 'sem_acesso' }
     expect(await pedir('fila')).toEqual({ ok: false, motivo: 'nao_encontrado' })

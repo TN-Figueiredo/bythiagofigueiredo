@@ -95,6 +95,7 @@ export async function lerRespostasDoCriador(
         const r = await comTempo((sinal) => {
           let q = sb.from('competitor_video_comments').select(colunas).eq('site_id', siteId)
             .eq('competitor_channel_id', p.channelId).in('video_id', bloco).is('parent_id', null).eq('creator_replied', true)
+            .is('missing_since', null) // comentário que saiu do YouTube nunca entra (nem na tela, nem no pacote da IA)
           if (marcado !== null) q = q.gt('id', marcado)
           return q.order('id', { ascending: true }).limit(PAGINA).abortSignal(sinal)
         })
@@ -113,7 +114,7 @@ export async function lerRespostasDoCriador(
     const respostas = new Map<string, Array<{ id: string; texto: string; cortado: boolean; publicadoMs: number }>>()
     for (const bloco of blocos(topos.map((t) => t.id))) {
       const r = await comTempo((sinal) => sb.from('competitor_video_comments').select('id, parent_id, body, body_truncated, published_at')
-        .eq('site_id', siteId).eq('competitor_channel_id', p.channelId).in('parent_id', bloco).limit(PAGINA).abortSignal(sinal))
+        .eq('site_id', siteId).eq('competitor_channel_id', p.channelId).in('parent_id', bloco).is('missing_since', null).limit(PAGINA).abortSignal(sinal))
       const linhas = linhasDe(r)
       if (cortada(linhas)) throw new ForaDaForma()
       for (const x of linhas) {

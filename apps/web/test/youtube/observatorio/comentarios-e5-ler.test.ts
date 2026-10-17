@@ -182,6 +182,13 @@ describe('lerComentariosDeDestaque: o que cada cartão diz (E5a C1)', () => {
     expect(d.comentarios[2]?.saiuDoYouTubeDesde).toBe('2026-10-12')
     expect(d.comentarios[0]?.saiuDoYouTubeDesde).toBeNull()
   })
+  it('I-1 (trem 6): a resposta do criador que saiu do YouTube nunca entra no cartão', async () => {
+    const t = base()
+    const extra = [coment(20, { parent_id: 2, is_creator: true, body: 'resp-saiu-sentinela', missing_since: '2026-10-12', published_at: iso(T0 + 1 * H) })]
+    t.competitor_video_comments = [...(t.competitor_video_comments ?? []), ...extra]
+    const d = dados(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(provasTexto)))
+    expect(JSON.stringify(d)).not.toContain('resp-saiu-sentinela')
+  })
   it('no máximo 3 respostas do criador por comentário, em ordem de data', async () => {
     const t = base()
     const extra = [10, 11, 12].map((id, i) => coment(id, { parent_id: 2, is_creator: true, body: 'r' + i, published_at: iso(T0 + (10 - i) * H) }))
