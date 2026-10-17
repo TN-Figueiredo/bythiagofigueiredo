@@ -44,4 +44,6 @@ export function paraErroGravado(e: unknown): ErroGravado {
 }
 
 // 403 do Blob não é "sem permissão do YouTube" (Y-D10); cota esgotada tem tratamento próprio.
-export const contaParaFalhas = (e: YouTubeApiError): boolean => e.chamada !== 'blob' && e.reason !== 'quotaExceeded'
+const REASONS_DE_COTA = ['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded']
+export const ehCotaEsgotada = (e: YouTubeApiError): boolean => REASONS_DE_COTA.includes(e.reason)
+export const contaParaFalhas = (e: YouTubeApiError): boolean => e.chamada !== 'blob' && !ehCotaEsgotada(e)

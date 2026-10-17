@@ -60,6 +60,8 @@ export async function phaseAutoStartPlayoffs(supabase: SupabaseClient): Promise<
 /** Orçamento da rota (`maxDuration` 120 s): sobram menos de 40 s (25 s de escrita + 5 s do passo 4 e do aviso + folga) e o teste fica para amanhã. */
 export const CORTE_DA_AVALIACAO_MS = 120_000
 export const SETTLE_MINIMO_MS = 40_000
+/** Rota de 120 s: 15 s ficam para longevidade, recordCron e escalada. O prazo do settle e o corte de "não inicia" medem contra este fim. */
+export const FIM_DA_AVALIACAO_MS = 105_000
 
 export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioDaFuncao: number = Date.now()): Promise<EvaluateResult> {
   let evaluated = 0
@@ -95,14 +97,15 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioD
       }
 
       // F-D3: settle novo só começa com pelo menos SETTLE_MINIMO_MS de rota pela frente; o resto fica para a próxima rodada.
-      const restante = inicioDaFuncao + CORTE_DA_AVALIACAO_MS - Date.now()
+      const fimDaAvaliacao = inicioDaFuncao + FIM_DA_AVALIACAO_MS
+      const restante = fimDaAvaliacao - Date.now()
       if (restante < SETTLE_MINIMO_MS) {
         Sentry.captureMessage('ab-evaluate: duração máxima adiada por tempo', { extra: { testId: test.id, restanteMs: restante } })
         evaluated++
         continue
       }
 
-      const saida = await settleOnAir(test.id as string, { siteId: test.site_id as string, destino: ORIGINAL, motivo: 'duracao_maxima' })
+      const saida = await settleOnAir(test.id as string, { siteId: test.site_id as string, destino: ORIGINAL, motivo: 'duracao_maxima', prazo: fimDaAvaliacao })
       evaluated++
       // ja_encerrado / em_andamento: outro escritor é dono do teste; nada a fazer aqui.
       if (saida.resultado !== 'feito') continue

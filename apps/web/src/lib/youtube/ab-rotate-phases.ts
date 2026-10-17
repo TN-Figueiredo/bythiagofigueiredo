@@ -8,7 +8,7 @@ import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { ORIGINAL, settleOnAir } from '@/lib/youtube/ab-settle'
-import { YouTubeApiError, contaParaFalhas } from '@/lib/youtube/youtube-api-error'
+import { YouTubeApiError, contaParaFalhas, ehCotaEsgotada } from '@/lib/youtube/youtube-api-error'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import type { AbTestVariantRow, TestType } from '@/lib/youtube/ab-types'
 
@@ -58,6 +58,7 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
 // ─── Falha de API na rotação (T8) ────────────────────────────────────────────
 
 const MAX_FAILURES = 3
+const PRAZO_FIM_DA_ROTA_MS = 285_000 // rota de 300 s, 15 s de reserva
 const MOTIVO_DO_STATUS: Record<number, string> = { 401: 'token expirado', 403: 'sem permissão', 429: 'cota' }
 export const NOTA_COTA_ESGOTADA = 'cota do YouTube esgotada hoje; a rotação tenta de novo amanhã'
 
@@ -73,12 +74,22 @@ async function contarFalhaDaRotacao(
   test: { id: string; site_id: string; config?: unknown },
   err: unknown,
   seqAtual: number,
+  inicioDaFuncao: number,
 ): Promise<void> {
   if (!(err instanceof YouTubeApiError)) return
   try {
-    if (err.reason === 'quotaExceeded' && err.chamada !== 'blob') {
-      Sentry.captureMessage('ab-rotate: cota do YouTube esgotada', { extra: { testId: test.id } })
-      await supabase.from('ab_tests').update({ status_note: NOTA_COTA_ESGOTADA }).eq('id', test.id).eq('restore_seq', seqAtual)
+    if (ehCotaEsgotada(err) && err.chamada !== 'blob') {
+      Sentry.captureMessage('ab-rotate: cota do YouTube esgotada', { extra: { testId: test.id, reason: err.reason } })
+      const { data: notaGravada, error: erroNota } = await supabase
+        .from('ab_tests')
+        .update({ status_note: NOTA_COTA_ESGOTADA })
+        .eq('id', test.id)
+        .eq('restore_seq', seqAtual)
+        .select('id')
+      if (erroNota) throw new Error(`ab-rotate: gravação da nota de cota do teste ${test.id}: ${erroNota.message}`)
+      if (!notaGravada || notaGravada.length === 0) {
+        Sentry.captureMessage('ab-rotate: nota de cota não gravada', { extra: { testId: test.id, seqAtual } })
+      }
       return
     }
     const motivo = MOTIVO_DO_STATUS[err.status]
@@ -90,13 +101,19 @@ async function contarFalhaDaRotacao(
     const falhas = ((config.consecutive_failures as number | undefined) ?? 0) + 1
 
     if (falhas >= MAX_FAILURES) {
-      await settleOnAir(test.id, {
+      // Ruling T8 r1: o settle não passa do fim da rota (300 s menos 15 s para o resto) e só vale para este restore_seq.
+      const saida = await settleOnAir(test.id, {
         siteId: test.site_id,
         destino: ORIGINAL,
         motivo: 'falha_api',
         statusNote: `pausado após ${falhas} falhas seguidas: ${motivo}`,
         consecutiveFailures: falhas,
+        prazo: Math.min(Date.now() + 55_000, inicioDaFuncao + PRAZO_FIM_DA_ROTA_MS),
+        seqEsperado: seqAtual,
       })
+      if (saida.resultado !== 'feito') {
+        Sentry.captureMessage('ab-rotate: pausa por falha não feita', { extra: { testId: test.id, resultado: saida.resultado } })
+      }
       return
     }
     const { data: gravadas, error: erroGravacao } = await supabase
@@ -297,7 +314,7 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
         extra: { testId: test.id },
       })
 
-      await contarFalhaDaRotacao(supabase, test, err, seqReivindicado ?? (test.restore_seq as number))
+      await contarFalhaDaRotacao(supabase, test, err, seqReivindicado ?? (test.restore_seq as number), inicioDaFuncao)
     }
   }
 
