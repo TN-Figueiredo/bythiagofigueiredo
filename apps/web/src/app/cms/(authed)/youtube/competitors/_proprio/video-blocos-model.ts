@@ -241,7 +241,7 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { tr?: import('./troc
   // tela A (E5b T13): vídeo novo e "ainda cedo" põem a faixa de 7 casas no lugar do gráfico, depois de a coleta do canal estar em dia
   const cedo = estadoCedo({ publicadoEm: o.pubDia, hojePt: o.hoje, dias: montado.dias })
   if (cedo.tipo === 'video-novo' || cedo.tipo === 'ainda-cedo') {
-    const faixa = buildImpressoes([], null, { escopo: 'video', alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok', hoje: o.hoje, cedo, viewsDoVideo: o.views })
+    const faixa = buildImpressoes([], null, { escopo: 'video', alturaArea: ALTURA_GRAFICO, publicadoEm: o.pubDia, dm: o.dm, acesso: 'ok', hoje: o.hoje, cedo, viewsDoVideo: o.views, notaFaixas: o.tr?.notaFaixas ?? null })
     return { medido: true, frase: null, grafico: faixa, taxa: null, semTaxa: null }
   }
   const novo: BlocoImpressoes = { medido: false, frase: FRASE_VIDEO_NOVO_IMPRESSOES, grafico: null, taxa: null, semTaxa: null }
