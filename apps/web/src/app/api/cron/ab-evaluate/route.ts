@@ -17,10 +17,11 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
 
+  const inicio = Date.now()
   const supabase = getSupabaseServiceClient()
 
   const playoffs = await phaseAutoStartPlayoffs(supabase)
-  const evaluation = await phaseEvaluateActiveTests(supabase)
+  const evaluation = await phaseEvaluateActiveTests(supabase, inicio)
 
   // Phase 5: Longevity checks
   let longevityChecked = 0

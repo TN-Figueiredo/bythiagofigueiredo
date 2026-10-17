@@ -7,6 +7,8 @@ import { createNotification } from '@/lib/notifications/create'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { ORIGINAL, settleOnAir } from '@/lib/youtube/ab-settle'
+import { YouTubeApiError, contaParaFalhas } from '@/lib/youtube/youtube-api-error'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import type { AbTestVariantRow, TestType } from '@/lib/youtube/ab-types'
 
@@ -53,6 +55,65 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
   return started
 }
 
+// ─── Falha de API na rotação (T8) ────────────────────────────────────────────
+
+const MAX_FAILURES = 3
+const MOTIVO_DO_STATUS: Record<number, string> = { 401: 'token expirado', 403: 'sem permissão', 429: 'cota' }
+export const NOTA_COTA_ESGOTADA = 'cota do YouTube esgotada hoje; a rotação tenta de novo amanhã'
+
+/**
+ * Conta a falha de uma rotação (F-D1, Y-D10). Só `YouTubeApiError` 401/403/429 com `contaParaFalhas` (não é Blob, não é
+ * `quotaExceeded`) entra na conta; erro de banco, 403 do Blob e cota esgotada não pausam. `consecutive_failures` é
+ * RELIDO do banco e a gravação leva `.eq('restore_seq', seqAtual)`: zero linhas = outro escritor mexeu no teste, a
+ * falha não foi contada e isso vai ao Sentry. Na 3ª, `settleOnAir(original, 'falha_api')` pausa e restaura.
+ * Nunca lança: o laço da rotação segue para o próximo teste.
+ */
+async function contarFalhaDaRotacao(
+  supabase: SupabaseClient,
+  test: { id: string; site_id: string; config?: unknown },
+  err: unknown,
+  seqAtual: number,
+): Promise<void> {
+  if (!(err instanceof YouTubeApiError)) return
+  try {
+    if (err.reason === 'quotaExceeded' && err.chamada !== 'blob') {
+      Sentry.captureMessage('ab-rotate: cota do YouTube esgotada', { extra: { testId: test.id } })
+      await supabase.from('ab_tests').update({ status_note: NOTA_COTA_ESGOTADA }).eq('id', test.id).eq('restore_seq', seqAtual)
+      return
+    }
+    const motivo = MOTIVO_DO_STATUS[err.status]
+    if (!motivo || !contaParaFalhas(err)) return
+
+    const { data: lido, error: erroLeitura } = await supabase.from('ab_tests').select('config').eq('id', test.id).single()
+    if (erroLeitura || !lido) throw new Error(`ab-rotate: leitura de consecutive_failures do teste ${test.id}: ${erroLeitura?.message ?? 'sem linha'}`)
+    const config = ((lido as { config: Record<string, unknown> | null }).config ?? {}) as Record<string, unknown>
+    const falhas = ((config.consecutive_failures as number | undefined) ?? 0) + 1
+
+    if (falhas >= MAX_FAILURES) {
+      await settleOnAir(test.id, {
+        siteId: test.site_id,
+        destino: ORIGINAL,
+        motivo: 'falha_api',
+        statusNote: `pausado após ${falhas} falhas seguidas: ${motivo}`,
+        consecutiveFailures: falhas,
+      })
+      return
+    }
+    const { data: gravadas, error: erroGravacao } = await supabase
+      .from('ab_tests')
+      .update({ config: { ...config, consecutive_failures: falhas }, status_note: `nova tentativa ${falhas}/${MAX_FAILURES}: ${motivo}` })
+      .eq('id', test.id)
+      .eq('restore_seq', seqAtual)
+      .select('id')
+    if (erroGravacao) throw new Error(`ab-rotate: gravação de consecutive_failures do teste ${test.id}: ${erroGravacao.message}`)
+    if (!gravadas || gravadas.length === 0) {
+      Sentry.captureMessage('ab-rotate: falha não contada', { extra: { testId: test.id, seqAtual } })
+    }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { cron: 'ab-rotate', action: 'contar-falha' }, extra: { testId: test.id } })
+  }
+}
+
 // ─── Phase 2: Rotate active tests ───────────────────────────────────────────
 
 /**
@@ -89,6 +150,8 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
     // Hoist video + channel so they're accessible in the catch block (auto-pause-revert)
     let video: { youtube_video_id: string; channel_id: string } | null = null
     let channel: { channel_id: string } | null = null
+    // restore_seq depois da reivindicação (F-D1, Y-D10): a falha conta contra ESTE seq, não o lido no início do laço.
+    let seqReivindicado: number | null = null
 
     try {
       const variants = (test.variants as AbTestVariantRow[]).sort(
@@ -197,6 +260,7 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
       // Reivindica a vez ANTES de escrever (restore_seq + 1 e marcador); zero linhas = outro escritor ganhou.
       const seq = await reivindicarRotacao(supabase, test.id, test.restore_seq as number, nextVariant.id, marcadorLido)
       if (seq === null) continue
+      seqReivindicado = seq
 
       const resultado = await aplicarRotacao(supabase, {
         testId: test.id,
@@ -233,59 +297,7 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
         extra: { testId: test.id },
       })
 
-      // Track consecutive failures for auth/quota errors — only pause after 3
-      const msg = err instanceof Error ? err.message : ''
-      if (msg.includes('401') || msg.includes('403') || msg.includes('429')) {
-        const reason = msg.includes('401') ? 'token expired'
-          : msg.includes('403') ? 'insufficient permissions'
-          : 'API quota exceeded'
-
-        const prevFailures = (test.config?.consecutive_failures as number) ?? 0
-        const failures = prevFailures + 1
-        const MAX_FAILURES = 3
-
-        if (failures >= MAX_FAILURES) {
-          try {
-            const { data: testFull } = await supabase
-              .from('ab_tests')
-              .select('original_thumbnail_url, site_id')
-              .eq('id', test.id)
-              .single()
-            if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com') && video) {
-              const { ensureFreshToken } = await import('@/lib/social/token-refresh')
-              const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
-              if (!channel?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-              const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channel.channel_id)
-              const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
-              await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
-            }
-          } catch (revertErr) {
-            Sentry.captureException(revertErr, {
-              tags: { cron: 'ab-rotate', action: 'auto-pause-revert' },
-              extra: { testId: test.id },
-            })
-          }
-
-          await supabase
-            .from('ab_tests')
-            .update({
-              status: 'paused',
-              status_note: `auto-paused after ${failures} consecutive failures: ${reason}`,
-              paused_at: new Date().toISOString(),
-              config: { ...test.config, consecutive_failures: failures },
-            })
-            .eq('id', test.id)
-        } else {
-          // Keep active but track the failure
-          await supabase
-            .from('ab_tests')
-            .update({
-              config: { ...test.config, consecutive_failures: failures },
-              status_note: `retry ${failures}/${MAX_FAILURES}: ${reason}`,
-            })
-            .eq('id', test.id)
-        }
-      }
+      await contarFalhaDaRotacao(supabase, test, err, seqReivindicado ?? (test.restore_seq as number))
     }
   }
 

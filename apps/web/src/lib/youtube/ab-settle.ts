@@ -151,7 +151,7 @@ function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
         },
       }
     case 'duracao_maxima':
-      return { de: ['active'], para: 'completed', endReason: 'duracao_maxima', extra: { completed_reason: 'inconclusive', limpar_confianca: true } }
+      return { de: ['active'], para: 'completed', endReason: 'duracao_maxima', extra: { completed_reason: 'inconclusive', winner_variant_id: null, limpar_confianca: true } }
     case 'drift':
       return { de: ['active'], para: 'paused', endReason: 'drift', extra: { status_note: DRIFT_STATUS_NOTE, limpar_drift_ack: true } }
   }
