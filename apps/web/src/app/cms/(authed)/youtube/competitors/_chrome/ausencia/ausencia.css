@@ -1,0 +1,19 @@
+/* Pastilhas "falhou" e "restrito" e o "Tentar de novo" (decisão 75; mockup 2026-10-17-decisao-75). Sem color-mix, nenhum texto abaixo de 12 px.
+   Falhou: contorno --danger + triângulo + palavra. Restrito: chapa lisa neutra + cadeado, sem vermelho. */
+[data-obs] .obs-au{display:inline-flex;align-items:center;gap:5px;padding:1px 7px 1px 5px;border-radius:4px;font:500 12px/16px var(--font-sans),system-ui,sans-serif;white-space:nowrap}
+[data-obs] .obs-au svg{flex:none}
+[data-obs] .obs-au-falhou{border:1.5px solid var(--danger);background:var(--danger-subtle);color:var(--text);font-weight:600}
+[data-obs] .obs-au-falhou svg{color:var(--danger-text)}
+[data-obs] .obs-au-restrito{border:1px solid var(--res-line);background:var(--res-bg);color:var(--res-ink)}
+[data-obs] .obs-au-restrito svg{color:var(--res-ink)}
+[data-obs] .obs-au-q{display:inline-grid;place-items:center;width:18px;height:18px;padding:0;border-radius:4px;vertical-align:middle;flex:none}
+[data-obs] .obs-au-q.obs-au-falhou{border:1.5px solid var(--danger);background:var(--danger-subtle)}
+[data-obs] .obs-au-q.obs-au-restrito{border:1px solid var(--res-line);background:var(--res-bg)}
+[data-obs] .obs-au-q svg{width:12px;height:12px}
+[data-obs] .obs-au-retry{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:132px;padding:0 12px;font:500 13px/18px var(--font-sans),system-ui,sans-serif;color:var(--text);background:var(--surface-2);border:1px solid var(--muted);border-radius:6px;cursor:pointer}
+[data-obs] .obs-au-retry:hover{border-color:var(--text)}
+[data-obs] .obs-au-retry[aria-disabled="true"]{cursor:progress;color:var(--muted);border-style:dashed}
+[data-obs] .obs-au-retry-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px}
+[data-obs] .obs-au-retry-row p{margin:0;flex:1 1 220px}
+[data-obs] .obs-au-val{display:flex;align-items:center;gap:8px;min-height:44px}
+[data-obs] .obs-au-val [data-valor]:focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
