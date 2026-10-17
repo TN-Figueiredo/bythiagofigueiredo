@@ -2,6 +2,7 @@
 // A5 · E5a, Tarefa C3 (mockup 20): a seção "Comentários de destaque" na página do vídeo de concorrente.
 // Server components async: chamados como função (`await ComentariosDeDestaque(props)`), com o leitor falso. A página é afirmada na árvore de `await Page(props)`.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { Suspense, isValidElement, type ReactElement, type ReactNode } from 'react'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -32,7 +33,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/contexto-ia-actions', () => ({ g
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import { BlocosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/blocos-do-video'
 import { HistoricoScreen } from '@/app/cms/(authed)/youtube/competitors/_historico/historico-screen'
-import { ComentariosDeDestaque, FAIXA_PERMISSAO_NAO_CONFERIDA, type ProvasResolvidas } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
+import { ComentariosDeDestaque, FAIXA_PERMISSAO_NAO_CONFERIDA, lerSecaoDeComentarios, type ProvasResolvidas } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
 import { EstadoDoPainel } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/estados'
 import { SecaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/secao'
 import { FRASES } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/frases'
@@ -72,7 +73,7 @@ const contagem: ComentariosContagem = {
 const pr = (provas: ProvasDeQuemVe | null, permissaoFalhou = false): Promise<ProvasResolvidas> => Promise.resolve({ provas, permissaoFalhou })
 const props = (extra: Record<string, unknown> = {}) => ({
   sb: {} as SupabaseClient, siteId: 's1', provas: pr(null), videoId: FULL, agoraMs: AGORA, canaisDoSite: new Map([[video.ch, { nome: 'Matt' }]]),
-  video: { t0Ms: video.pub, descobertoEmMs: null, canalId: video.ch }, canalNome: 'Matt', ...extra,
+  video: { t0Ms: video.pub, descobertoEmMs: null, canalId: video.ch }, criador: { nome: 'Matt', avatar: null, ini: 'M', color: '#336699' }, ...extra,
 })
 const paginaCom = (v: typeof view) => {
   mocks.montarVideo.mockResolvedValue({ tipo: 'concorrente', pagina: { obs, meuCanalLembrado: null, siteId: 's1', now: AGORA }, view: v })
@@ -98,6 +99,30 @@ describe('a seção, depois do último bloco do Histórico', () => {
     expect(secao.type).toBe(ComentariosDeDestaque)
     expect(secao.props.provas).toBe(provas)
     expect(f.indexOf(ultimo)).toBeGreaterThan(0)
+  })
+
+  it('a foto do canal (h.chan.avatar), o nome, a inicial e a cor chegam ao fio como `criador`', async () => {
+    const el = await blocos({ provas: pr(null) })
+    const secao = achar(el.props.depoisDoGrafico as ReactNode, (e) => e.type === ComentariosDeDestaque)!
+    const h = view.header!.chan
+    expect(secao.props.criador).toEqual({ nome: h.name, avatar: h.avatar, ini: h.ini, color: h.color })
+  })
+
+  it('a foto do canal chega ao img da resposta do criador', async () => {
+    const c = { nivel: 'texto' as const, marcos: { 1: { estado: 'fecha_em', fechaEmMs: AGORA }, 7: { estado: 'ok', resumo: { tomadoEmMs: AGORA, idadeHoras: 168, amostra: 5, amostraCompleta: true, totalDoDia: 5, escolhidos: 1, autoresConsultados: 1, autoresSemTamanho: 0 } }, 30: { estado: 'fecha_em', fechaEmMs: AGORA } },
+      comentarios: [{ ordem: 1, motivo: 'curtidos', curtidas: { 1: 'ainda_nao', 7: 3, 30: 'ainda_nao' }, respostas: 1, criador: 'respondeu', criadorNome: 'Matt', posicao: { 1: null, 7: null, 30: null }, doCriador: false, entrouNoMarco: 7, nosMarcos: [7], saiuDoYouTubeDesde: null, faixas: { tamanho: null, razao: null }, texto: 'oi', cortado: false, publicadoEm: '2026-10-07T12:00:00.000Z', respostasDoCriador: [{ texto: 'valeu', cortado: false, publicadoEm: '2026-10-08T12:00:00.000Z' }], autor: { tipo: 'espectador' }, mencoesTrocadas: 0 }] }
+    mocks.leitor.mockResolvedValue({ lido: true, dados: c })
+    const criador = { nome: 'Matt', avatar: 'https://yt3.ggpht.com/matt=s88', ini: 'M', color: '#336699' }
+    const el = (await ComentariosDeDestaque(props({ criador }))) as El
+    const html = renderToStaticMarkup(el as ReactElement)
+    expect(html).toMatch(/class="cf-av cri[^"]*"[^>]*>\s*<img[^>]*src="https:\/\/yt3\.ggpht\.com\/matt=s88"/)
+  })
+
+  it('N1: lerSecaoDeComentarios continua aceitando { canalNome } sem `criador` (o pacote da IA não muda)', async () => {
+    mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
+    const { criador: _c, ...semCriador } = props()
+    const r = await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt' })
+    expect(r.ok).toBe(true)
   })
 
   it('estreia: o marco de comentário conta do início real (live_actual_start_at), não de published_at (portão Phil I4)', async () => {

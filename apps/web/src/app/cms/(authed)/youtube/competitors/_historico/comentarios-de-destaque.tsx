@@ -13,6 +13,7 @@ import type { ComentariosDoVideo, ProvasDeQuemVe } from '@/lib/youtube/observato
 import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import type { AcessoPrivado } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
+import type { CriadorDoFio } from '../_chrome/comentarios/fio-model'
 import { FRASES } from '../_chrome/comentarios/frases'
 import { EstadoDoPainel } from '../_chrome/comentarios/estados'
 import { estadoDeErro, secaoDeComentarios, type SecaoView } from '../_chrome/comentarios/model'
@@ -40,7 +41,8 @@ export async function resolverProvas(acesso: Promise<AcessoPrivado>): Promise<Pr
   }
 }
 
-export interface PropsComentariosDeDestaque {
+/** O que a leitura (e o pacote "Perguntar a uma IA") precisa: só o NOME do canal, sem foto nem cor. */
+export interface PropsDaLeitura {
   /** Cliente de serviço, chamado DEPOIS da guarda de leitura do site (a RLS devolveria zero linha com o cliente do usuário). */
   sb: SupabaseClient
   siteId: string
@@ -63,7 +65,7 @@ export type SecaoLida =
   | { ok: true; secao: SecaoView; dados: ComentariosDoVideo; permissaoFalhou: boolean }
 
 /** Nunca lança: parte não lida vira `ok: false` com o título do estado de erro, e o motivo vai ao Sentry (sem texto nem id de autor). */
-export async function lerSecaoDeComentarios(p: PropsComentariosDeDestaque): Promise<SecaoLida> {
+export async function lerSecaoDeComentarios(p: PropsDaLeitura): Promise<SecaoLida> {
   let lido: Awaited<ReturnType<typeof lerComentariosDeDestaque>>
   const { provas, permissaoFalhou } = await p.provas.catch((): ProvasResolvidas => ({ provas: null, permissaoFalhou: true }))
   try {
@@ -85,8 +87,12 @@ export async function lerSecaoDeComentarios(p: PropsComentariosDeDestaque): Prom
   return { ok: true, secao: permissaoFalhou ? { ...v, faixa: FAIXA_PERMISSAO_NAO_CONFERIDA } : v, dados: lido.dados, permissaoFalhou }
 }
 
+/** A tela recebe o criador inteiro (nome, foto, inicial e cor do canal); a leitura continua recebendo só o nome. */
+export type PropsComentariosDeDestaque = Omit<PropsDaLeitura, 'canalNome'> & { criador: CriadorDoFio }
+
 export async function ComentariosDeDestaque(p: PropsComentariosDeDestaque) {
-  const r = await lerSecaoDeComentarios(p)
+  const { criador, ...resto } = p
+  const r = await lerSecaoDeComentarios({ ...resto, canalNome: criador.nome })
   if (!r.ok) {
     return (
       <section className="cd-secao" aria-labelledby="cd-titulo" data-comentarios="erro">
@@ -95,5 +101,5 @@ export async function ComentariosDeDestaque(p: PropsComentariosDeDestaque) {
       </section>
     )
   }
-  return <SecaoDeComentarios v={r.secao} hrefFilaSaiu={p.hrefFilaSaiu} />
+  return <SecaoDeComentarios v={r.secao} criador={criador} hrefFilaSaiu={p.hrefFilaSaiu} />
 }
