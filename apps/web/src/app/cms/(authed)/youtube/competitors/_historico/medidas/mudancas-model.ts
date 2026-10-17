@@ -60,6 +60,12 @@ export function tipoDaMudanca(campos: readonly CampoDoVideo[]): TipoDeMudanca {
   return 'outras'
 }
 
+/** O nome da mudança: título e miniatura no mesmo instante são UMA mudança que diz os dois ("título e miniatura"), nunca só o primeiro (D3 do Gio). */
+function nomeDaMudanca(m: Pick<MudancaNumerada, 'tipo' | 'campos' | 'nomeDosCampos'>): string {
+  if (m.tipo === 'outras') return m.nomeDosCampos
+  return juntar(m.campos.filter((c) => c === 'titulo' || c === 'miniatura').sort((a, b) => (a === 'titulo' ? -1 : b === 'titulo' ? 1 : 0)).map(nomeDoCampo))
+}
+
 const horaDe = (ms: number): number => Number(horaSP(ms).slice(0, 2))
 
 /** A janela real escrita: "em 11/10, entre 06:00 e 12:00" · "em algum momento entre 08/10 e 10/10 (a leitura ficou parada)" · "em 13/10". */
@@ -126,7 +132,7 @@ export function resumoDasMudancas(mudancas: readonly MudancaNumerada[]): { negri
   if (mudancas.length === 0) return null
   const n = mudancas.length
   const dias = [...new Set(mudancas.map((m) => m.dia))].sort()
-  const nome = (m: MudancaNumerada): string => (m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos)
+  const nome = nomeDaMudanca
   const tipos = juntar([...new Set(mudancas.map(nome))])
   const plural = `${n} mudanças`
   if (dias.length === 1) {
@@ -145,7 +151,7 @@ export function listaDeMudancas(
   const dentro = sub === null ? null : mudancas.filter((m) => dentroDosDiasAntes(m, sub)).length
   const itens = mudancas.map((m): ItemDaLista => ({
     n: m.n, tipo: m.tipo,
-    rotulo: m.tipo === 'titulo' ? 'Título' : m.tipo === 'miniatura' ? 'Miniatura' : `Outras: ${m.nomeDosCampos}`,
+    rotulo: m.tipo === 'outras' ? `Outras: ${m.nomeDosCampos}` : ((n) => n.charAt(0).toUpperCase() + n.slice(1))(nomeDaMudanca(m)),
     quando: m.quando.replace(/^em (?=\d)/, ''),
     depoisDaLeitura: m.tardia,
     deParaTexto: m.de !== null && m.para !== null ? `de “${m.de}” para “${m.para}”` : null,
@@ -171,9 +177,9 @@ export function listaAgrupadaDosAntes(mudancas: readonly MudancaNumerada[], subi
   const antes = mudancas.filter((m) => dentroDosDiasAntes(m, subidaDia))
   const por = new Map<string, string[]>()
   for (const m of antes) {
-    const chave = m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos
+    const chave = nomeDaMudanca(m)
     por.set(chave, [...(por.get(chave) ?? []), dm(m.dia)])
   }
-  const ordem = (k: string): number => (k === 'título' ? 0 : k === 'miniatura' ? 1 : 2)
+  const ordem = (k: string): number => (k.startsWith('título') ? 0 : k === 'miniatura' ? 1 : 2)
   return [...por.keys()].sort((a, b) => ordem(a) - ordem(b)).map((k) => `${k} em ${juntar(por.get(k)!)}`)
 }

@@ -38,3 +38,14 @@ describe('E5a T20, mudanças', () => {
     expect(listaDeMudancas([], { subidaDia: null, inicioDoHistorico: '2026-10-01' }).resumo).toBeNull()
   })
 })
+
+describe('título e miniatura no mesmo instante (D3 do Gio)', () => {
+  it('viram uma mudança que diz os dois, na lista e no resumo', () => {
+    const l = numerarMudancas([{ campos: ['titulo', 'miniatura'], deMs: base - 30 * H, ateMs: base, precisao: 'dia' }])
+    expect(tipoDaMudanca(l[0]!.campos)).toBe('titulo')
+    const r = listaDeMudancas(l, { subidaDia: null, inicioDoHistorico: '2026-10-01' })
+    expect(r.itens).toHaveLength(1)
+    expect(r.itens[0]!.rotulo).toBe('Título e miniatura')
+    expect(r.resumo!.resto).toContain('título e miniatura')
+  })
+})
