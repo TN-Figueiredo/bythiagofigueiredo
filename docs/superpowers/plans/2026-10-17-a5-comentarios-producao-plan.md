@@ -36,7 +36,7 @@ Os fatos para decidir se passa a guardar estão na seção **F2** (insumos para 
 - Token novo, em `[data-obs]`: `--cf-criador: var(--lado-b)`; `--cf-criador-bg: rgba(124,200,248,.10)` (escuro) e `rgba(11,107,168,.08)` (`[data-theme="light"] [data-obs]`). O espectador é neutro e não tem cor.
 - Um nome por conceito. O selo é **"Criador"** (maiúscula inicial). O motivo, na legenda, é "com o criador na conversa". O espectador é **"Espectador"**, nunca "Um espectador" nem "?". O verbo de recolher é sempre **"Recolher"**. A imagem do vídeo se chama **"thumbnail"** em qualquer texto (decisão do trem 7, `234bb3f57`). A palavra "miniatura" do mockup não vai para produção.
 - Nunca escrever "não respondeu" onde não vimos resposta.
-- **Nível `contagem` (reporter), regra única:** o fio **é** desenhado, mas sem nenhum texto de terceiro: `raiz.texto = null` (aparece `FRASES.textoReservado`, "Texto reservado"), `respostaReservada` no lugar das respostas ("O criador respondeu. O texto da resposta é reservado."), meta e pastilha como hoje. O cliente reporter **não recebe** texto nem nome por HTML, DOM ou RSC. É o que a tela faz hoje (`cartao.tsx:90-93`, `model.ts:202`); o plano só mantém. As frases de contagem continuam como hoje.
+- **Nível `contagem` (reporter), regra única (vídeo):** o fio **é** desenhado, mas sem nenhum texto de terceiro: `raiz.texto = null` (aparece `FRASES.textoReservado`, "Texto reservado"), `respostaReservada` no lugar das respostas ("O criador respondeu. O texto da resposta é reservado."), meta e pastilha como hoje. O cliente reporter **não recebe** texto nem nome por HTML, DOM ou RSC. É o que a tela faz hoje (`cartao.tsx:90-93`, `model.ts:202`); o plano só mantém. As frases de contagem continuam como hoje. **No canal**, o nível `contagem` não tem fio: `ModeloDaLista` `'contagem'` (frase + aviso, sem itens) fica como está (teste na T5).
 - **Texto com "Não carregou" não se mexe aqui:** `abaNaoCarregou`, `model.ts:347` e a frase "Não carregou:" da lista do canal são da decisão 75, T8. O CQ só preserva.
 - **Data de fala = `dmDeData`** (`_chrome/comentarios/model.ts:90`, fuso `America/Sao_Paulo`) nas duas telas e nos dois pacotes. **Nunca** o `dm` de `_canal/medidas/formatos.ts:5` (corta o ISO em UTC: `2026-10-17T01:30:00Z` sairia 17/10 no canal e 16/10 no vídeo).
 - Commits: um por tarefa, por caminho explícito, **sem `--no-verify`** (é código). `npm run build:packages` só se algum `packages/*/src` mudar (não previsto).
@@ -62,9 +62,9 @@ Os fatos para decidir se passa a guardar estão na seção **F2** (insumos para 
 | `C/_chrome/comentarios/model.ts`, `frases.ts` | frase-resumo, legenda só com o que existe, curtidas do marco, `fio` no cartão; sai `casas`; `autorDaFala` mora aqui | 3 |
 | `C/_chrome/comentarios/cartao.tsx`, `lista.tsx`, `secao.tsx`, `comentarios.css`; apaga `fileira.tsx` | a tela do vídeo usa o fio | 4 |
 | `C/_historico/comentarios-de-destaque.tsx`, `C/_historico/medidas/blocos-do-video.tsx` | passam `criador` (foto do canal) | 4 |
-| `C/_canal/medidas/criador-lista-model.ts`, `criador-model.ts`, `criador-responde.tsx`, `grupo-do-criador.tsx` (novo, `'use client'`), `canal-medidas.css`, `contexto-do-canal.ts`, `criador-do-canal.ts`, `blocos-do-canal.tsx` | grupo por vídeo, fio único, frase na ordem do mockup; saem `.pc-cm*` e `.chip own` | 5 |
+| `C/_canal/medidas/criador-lista-model.ts`, `criador-model.ts`, `criador-responde.tsx`, `grupo-do-criador.tsx` (novo, `'use client'`), `canal-medidas.css`, `contexto-do-canal.ts`, `canal-derivado.ts`, `criador-do-canal.ts`, `blocos-do-canal.tsx` | grupo por vídeo, fio único, frase na ordem do mockup; saem `.pc-cm*` e `.chip own` | 5 |
 | `C/_contexto-ia/empacotar-video-comentarios.ts` (+ inventário) | o pacote do vídeo acompanha o texto da tela; **vai no commit da T3+T4** | 3+4+6a |
-| `C/_contexto-ia/empacotar-canal-medidas.ts` (+ inventário, tabela), `apps/web/src/lib/youtube/observatorio/contexto-ia/tipos.ts` | o pacote do canal acompanha a tela; **vai no commit da T5** | 5+6b |
+| `C/_contexto-ia/empacotar-canal-medidas.ts` (+ inventário, tabela), `apps/web/src/lib/youtube/observatorio/contexto-ia/tipos.ts` (`ListaDoCriadorIa`: `grupos` no lugar de `itens`/`aMais`/`subtitulo`) | o pacote do canal acompanha a tela; **vai no commit da T5** | 5+6b |
 | `apps/web/e2e/tests/cms/observatorio/e5a-comentarios*.spec.ts`, `t6-tela-gio.spec.ts`, `canal.spec.ts`, `allowances.ts` | e2e do Gio | 7 |
 
 ---
@@ -79,11 +79,12 @@ Os fatos para decidir se passa a guardar estão na seção **F2** (insumos para 
 **Interfaces:**
 - Produz (leitor):
   - `RespostaDoCriadorVista { texto: string; cortado: boolean; publicadoEm: string | null }` (ISO; `leitor.ts` já seleciona `published_at`). `null` quando a linha vier sem data (o leitor do vídeo usa `publicadoMs ?? 0`, `leitor.ts:369,373`): a fala então tem `data: null` e nunca escreve 31/12/1970.
-  - `RespostaDoCriador` (canal) troca `respostaTexto/respostaCortada` por `respostas: Array<{ texto: string; cortado: boolean; publicadoEm: string | null }>` (até `COMMENT_RULES.creatorRepliesMax`, da mais antiga para a mais nova, **desempate por `id`** como no leitor do vídeo, `leitor.ts:369`; o select do passo 2 não tem `order`, a ordenação é em memória; sem `missing_since`) e ganha `publicadoEm: string | null` (do topo; acrescentar `published_at` ao select dos topos). Cada texto passa por `semMencoes`, e `mencoesTrocadas` soma todas.
+  - `RespostaDoCriador` (canal) troca `respostaTexto/respostaCortada` por `respostas: Array<{ texto: string; cortado: boolean; publicadoEm: string | null }>` (até `COMMENT_RULES.creatorRepliesMax`, da mais antiga para a mais nova, **desempate numérico por `BigInt(id)`** (o `id` é string de bigint; comparar string ordenaria '10' antes de '9'), como no leitor do vídeo, `leitor.ts:369`; o select do passo 2 não tem `order`, a ordenação é em memória; o filtro `.is('missing_since', null)` já existe em `leitor-contagem.ts:117` e fica) e ganha `publicadoEm: string | null` (do topo; acrescentar `published_at` ao select dos topos). Cada texto passa por `semMencoes`, e `mencoesTrocadas` soma todas.
 - Produz (`fio-model.ts`):
 ```ts
 export interface CriadorDoFio { nome: string; avatar: string | null; ini: string; color: string }
-export type ChaveDeMotivo = /* movido de model.ts, que reexporta (sem ciclo de import) */ string
+// mover a união literal de `model.ts` SEM mudar (nunca `string`: `CHAVE[c.motivo]` perderia a checagem); `model.ts` reexporta (sem ciclo de import)
+export type ChaveDeMotivo = /* união literal movida de model.ts */
 export type AutorDaFala =
   | { tipo: 'espectador' }                               // sem `n`: a F2 devolve o campo, com teste, se for aprovada
   | { tipo: 'criador' }                                  // nome e foto vêm de CriadorDoFio
@@ -106,7 +107,7 @@ export function rotuloDoAutor(a: AutorDaFala, criador: CriadorDoFio): string
 
 - [ ] **Passo 1: testes que falham.**
   - `comentarios-e5-ler.test.ts`: `respostasDoCriador[0].publicadoEm` é o ISO do `published_at` da linha filha falsa, e a ordem continua da mais antiga para a mais nova.
-  - `comentarios-e5-ler-contagem.test.ts`: a consulta das respostas leva `is('missing_since', null)` (afirmar o filtro, como os testes do leitor já fazem; o dublê não prova a consulta); com 3 filhas devolvidas pelo dublê, `respostas.length === 3`, em ordem de `published_at` e, no empate, de `id`; com 4 devolvidas, corta em 3. `publicadoEm` do topo vem preenchido. `mencoesTrocadas` soma o topo e as respostas.
+  - `comentarios-e5-ler-contagem.test.ts`: a consulta das respostas leva `is('missing_since', null)` (afirmar o filtro, como os testes do leitor já fazem; o dublê não prova a consulta); com 3 filhas devolvidas pelo dublê, `respostas.length === 3`, em ordem de `published_at` e, no empate, de `BigInt(id)` (R2: empate com ids `'9'` e `'10'` e o mesmo `published_at` devolve '9' antes de '10'); com 4 devolvidas, corta em 3. `publicadoEm` do topo vem preenchido. `mencoesTrocadas` soma o topo e as respostas.
   - `comentarios-fio-model.test.ts`: `rotuloDoAutor({tipo:'espectador'}) === 'Espectador'`; `rotuloDoAutor({tipo:'criador'}, {nome:'Matheus Fonseca',...}) === 'Matheus Fonseca'`; `autorDaFala({tipo:'criador',nome:'X'})` (teste em `comentarios-e5-model.test.ts`) devolve `{tipo:'criador'}`.
 - [ ] **Passo 2:** `npx vitest run T/comentarios-e5-ler.test.ts T/comentarios-e5-ler-contagem.test.ts T/comentarios-fio-model.test.ts > /tmp/t1.txt 2>&1; grep -E 'FAIL|✗|Error' /tmp/t1.txt`. Esperado: FAIL.
 - [ ] **Passo 3:** implementar. Os consumidores de `respostaTexto` (`criador-lista-model.ts`, `empacotar-canal-medidas.ts`) passam a ler `respostas[0]` só para compilar. A troca de verdade é nas Tarefas 5 e 6.
@@ -152,7 +153,7 @@ Estrutura (copiada do mockup `fio.css`, variante B): grade `32px 1fr`, `column-g
 - Consome: `FioView`, `autorDaFala` (T1).
 - Produz:
   - `CartaoView` ganha `fio: FioView` e **mantém** `rodape`, `motivo`, `curtidas`, `texto`, `resposta`, que o pacote da IA lê (Tarefa 6). Sai do cartão: nada que o pacote use.
-  - O nome do criador vem **só** de `criador.nome` (prop de `ComentariosDeDestaque`), passado ao modelo como `canalNome`; não usar `canaisDoSite` (`blocos-do-video.tsx:79`) para a frase, para que frase e fio nunca divirjam.
+  - O nome do criador vem de `criador.nome` (prop de `ComentariosDeDestaque`), passado ao modelo como `canalNome`; não usar `canaisDoSite` (`blocos-do-video.tsx:79`) para a frase, para que frase e fio nunca divirjam. **Declarado (Yannis M-h):** o modelo mantém `c.criadorNome ?? canalNome` (`model.ts:188,203`); `criadorNome` vem de `canaisDoSite` no leitor (`leitor.ts:348`) e continua a fonte de `resposta.titulo`/`respostaDoCriador.canal` do pacote. "Só `criador.nome`" vale para a frase e para o fio da tela; o pacote mantém a fonte do leitor.
   - `ListaView`: sai `casas` (e `CasaView`, `CASAS`, `FRASES.rotuloDaCasa`). `frase` vira `frase: { negrito: string; resto: string | null }`. `barra.texto` vira `"12 de 132"` (sem "(todos)"). `legenda` passa a ser só os motivos com n > 0, e ganha `zeros: string | null`. `movimento.texto` vai para o rodapé da lista (a tela decide o lugar; o modelo só não o põe no topo).
 
 Texto exato (do mockup aprovado):
@@ -187,7 +188,8 @@ Texto exato (do mockup aprovado):
 - Modificar: `C/_chrome/comentarios/cartao.tsx` (vira um envoltório fino de `FioDeComentario`, com o `extra`), `lista.tsx` (sem `Fileira`; barra fina na linha da frase, `.resumo-linha`; legenda numa linha; `zeros` apagado; movimento no rodapé), `secao.tsx` (`criador` como prop), `comentarios.css` (apagar `.cd-casa*`, `.cd-fileira`, `.cd-cur*`, `.cd-selo-c`, `.cd-foto*`, `.cd-autor`, `.cd-resp*`, `.cd-cartao-h`, `.cd-etq`; manter abas, estados, `.cd-link`, título e ⓘ)
 - Apagar: `C/_chrome/comentarios/fileira.tsx`. Junto, o listener do evento `cd-revelar` e o atributo `data-cd-lista` em `lista.tsx:18-28` (só a `fileira.tsx:12` disparava o evento: código morto).
 - Modificar (**T6a, no mesmo commit**): `C/_contexto-ia/empacotar-video-comentarios.ts` (`frase = negrito + ' ' + resto`, `barra = "12 de 132"`, `legenda` só dos presentes, campo novo `zeros: string | null`, resposta do criador como `dd/mm: texto` com ` …` quando cortada; `:71,73`) e seu inventário `INVENTARIO_COMENTARIOS_VIDEO` (`:104-116`): entra `'derivado.comentarios.listas[].zeros': 'base'`; se `legenda[].zero` deixar de existir, a chave de `:112` sai também (o teste de declaração velha, `semUso`, `contexto-ia-video-comentarios.test.tsx:115`, acusa a sobra). Teste: `T/contexto-ia-video-comentarios.test.tsx` (ver T6a abaixo).
-- Modificar: `C/_historico/comentarios-de-destaque.tsx` (prop `criador: CriadorDoFio`, e **só ela**: `canalNome` do modelo vem de `criador.nome`), `C/_historico/medidas/blocos-do-video.tsx:78-80` (passa `criador` de `p.view.chan`: `{ nome: chan.name, avatar: chan.avatar, ini: chan.ini, color: chan.color }`)
+- Modificar: `C/_historico/comentarios-de-destaque.tsx` (**só `ComentariosDeDestaque`, a tela**, recebe `criador: CriadorDoFio` e chama `lerSecaoDeComentarios({ ...p, canalNome: criador.nome })`; **`lerSecaoDeComentarios` mantém `canalNome`** (leitura + modelo, sem desenho): `PropsDaLeitura` tem `canalNome` e não tem `criador`; `PropsComentariosDeDestaque = Omit<PropsDaLeitura,'canalNome'> & { criador: CriadorDoFio }`. Motivo: `_contexto-ia/index.ts:155-159` chama `lerSecaoDeComentarios({ ..., canalNome, ... })` e `projetarComentariosDoVideo(lida, canalNome)`; o pacote não tem foto nem `CriadorDoFio`, e trocar a prop quebraria o `tsc` ou inventaria foto e cor), `C/_historico/medidas/blocos-do-video.tsx:78-80` (passa `criador` de `p.view.chan`: `{ nome: chan.name, avatar: chan.avatar, ini: chan.ini, color: chan.color }`)
+- Conferido, **sem mudança**: `C/_contexto-ia/index.ts` (N1: continua chamando `lerSecaoDeComentarios` com `canalNome`)
 - Teste: `T/comentarios-e5-pecas.test.tsx`, `T/historico-e5-comentarios.test.tsx`, `T/comentarios-e5-saida.test.tsx`
 
 **Interfaces:**
@@ -199,6 +201,7 @@ Texto exato (do mockup aprovado):
   - `historico-e5-comentarios`: a foto do canal (`h.chan.avatar`) chega ao `img` da resposta.
   - `comentarios-e5-saida` (o teste de saída que já existe): o nome-sentinela do espectador vencido continua fora do HTML e do RSC. A silhueta não leva nome. Fixture `contagem`: nenhum texto da fixture `texto` aparece (mesma sentinela).
   - o painel dos que saíram dos 12 ("Ver os N que saíram") é desenhado com `FioDeComentario` e a classe `cf-saiu`; `entrouNoDia` aparece como "entrou no dia 7".
+  - **N1:** `lerSecaoDeComentarios` continua aceitando `{ canalNome }` sem `criador` (o tipo compila sem a prop; o pacote da IA não muda).
   - **T6a:** a frase do pacote é igual, caractere por caractere, a `negrito + ' ' + resto` do modelo da tela (fixture `tipico`); `barra === '12 de 132'`; `zeros` presente; nenhuma string do pacote contém "Um espectador", "(todos)" nem "não respondeu"; varredura de saída: o nome-sentinela continua ausente; o inventário não tem chave sem uso nem campo sem chave.
 - [ ] **Passo 2:** FAIL.
 - [ ] **Passo 3:** implementar.
@@ -209,7 +212,7 @@ Texto exato (do mockup aprovado):
 
 **Arquivos:**
 - Modificar (**T6b, no mesmo commit**): `C/_contexto-ia/empacotar-canal-medidas.ts` (ver T6b abaixo); sem isso o commit não compila (`:216-219` lê `m.subtitulo`, `m.aMais`, `m.itens[]`; `:445-453` monta a tabela de `cri.lista.itens`).
-- Modificar: `C/_canal/medidas/criador-lista-model.ts`, `criador-model.ts` (só a frase de `nao_medido`), `criador-responde.tsx`, `canal-medidas.css` (apagar as linhas 257-263, de `.pc-cm` a `.pc-cma`, e `.pc-cmv a` da :323), `criador-do-canal.ts`, `C/_canal/medidas/contexto-do-canal.ts` (`thumbs` e `criador`), `blocos-do-canal.tsx:105`
+- Modificar: `C/_canal/medidas/criador-lista-model.ts`, `criador-model.ts` (só a frase de `nao_medido`), `criador-responde.tsx`, `canal-medidas.css` (apagar as linhas 257-263, de `.pc-cm` a `.pc-cma`, e `.pc-cmv a` da :323), `criador-do-canal.ts`, `C/_canal/medidas/contexto-do-canal.ts` (`thumbs` e `criador`), `C/_canal/medidas/canal-derivado.ts` (interface `ContextoDoCanal`, `:17-30`, ganha `thumbs` e `criador`; `contextoDoCanal()` em `contexto-do-canal.ts:29` é o único construtor em `src`, o pacote herda sem outro arquivo), `blocos-do-canal.tsx:105`
 - Criar: `C/_canal/medidas/grupo-do-criador.tsx` (`'use client'`: o botão "Ver as outras N deste vídeo")
 - Teste: `T/medidas-canal-criador.test.tsx`, `T/medidas-canal-criador-leitura.test.ts`
 
@@ -228,14 +231,16 @@ export interface GrupoDoCriador { videoId: string; titulo: string; thumb: string
 
 Texto exato (mockup `canal.html`):
 - Frase da lista, em negrito, **antes** da régua: `${nome} respondeu a ${ptn(total,'comentário guardado','comentários guardados')}, em ${ptn(nVideos,'vídeo','vídeos')}.` (sai " O vídeo mais recente primeiro." e sai "com retrato de 30 dias").
-- Frase do bloco `nao_medido` com fecha-em (`criador-model.ts:199`): sem o negrito "Ainda não dá para medir."; o texto vira `Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${já tem|já têm} o retrato de 30 dias; o primeiro dos outros fecha em ${dm}. Quanto ele responde por vídeo ainda não é medido.`, com a pastilha "não medido" **logo depois da frase**, não no `.pc-sh`. As outras variantes de `nao_medido` mantêm o texto e só mudam o lugar da pastilha.
-- Ordem da seção: título + ⓘ (sem pastilha) → frase da lista → frase do bloco + pastilha → régua → grupos.
-- **Costura com a decisão 75 (D75 T8):** `criador-responde.tsx` tem **um único lugar** que desenha o estado do bloco, `EstadoDoBloco({ bloco })`, logo depois da frase do bloco, com `switch (bloco.tipo)`. O ramo `nao_medido` desenha a pastilha (o mockup a move do `.pc-sh` para depois da frase; se a D75 T1-T2 já tiver entrado, usar `PastilhaAusencia estado="nao_medido"` em vez de `<span class="obs-ch-nm">`). O ramo `nao_carregou` continua com `<NaoCarregou medida="O que o criador respondeu" />`, **intocado**. A lista mantém o ramo `m.tipo === 'nao_carregou'` separado do ramo dos grupos, com a frase "Não carregou:" **igual à de hoje**. O CQ não muda nenhuma frase com "Não carregou".
+- Frase do bloco `nao_medido` com fecha-em (`criador-model.ts:199`): sem o negrito "Ainda não dá para medir."; o texto vira `Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${já tem|já têm} o retrato de 30 dias; o primeiro dos outros fecha em ${dm}. Quanto ele responde por vídeo ainda não é medido.`, com a pastilha "não medido" **logo depois da frase**, não no `.pc-sh`. As outras variantes de `nao_medido` mantêm o texto e só mudam o lugar da pastilha; `fora` e `desligados` mantêm o texto que têm.
+- Ordem da seção: título + ⓘ (sem pastilha) → frase da lista → frase do bloco + pastilha → régua → grupos. **Só em `itens`** a frase da lista vem antes da frase do bloco; em `vazia`, `contagem` e `nao_carregou` da lista a ordem de hoje (bloco primeiro) fica (menos texto novo e menos choque com a D75 T8).
+- **Costura com a decisão 75 (D75 T8):** `criador-responde.tsx` tem **um único lugar** que desenha o estado do bloco, `EstadoDoBloco({ bloco })`, logo depois da frase do bloco, com `switch (bloco.tipo)`. Os ramos `case 'nao_medido': case 'fora': case 'desligados':` desenham a pastilha "não medido" (hoje `criador-responde.tsx:25,31` a desenha para os três; `criador-model.ts:123` e `:142` passam `'não medido'` em `fora` e `desligados`; só `nao_medido` no `switch` faria a pastilha sumir nos canais que saíram do YouTube e nos que desligaram os comentários) (o mockup a move do `.pc-sh` para depois da frase; se a D75 T1-T2 já tiver entrado, usar `PastilhaAusencia estado="nao_medido"` em vez de `<span class="obs-ch-nm">`). O ramo `nao_carregou` continua com `<NaoCarregou medida="O que o criador respondeu" />`, **intocado**. A lista mantém o ramo `m.tipo === 'nao_carregou'` separado do ramo dos grupos, com a frase "Não carregou:" **igual à de hoje**. O CQ não muda nenhuma frase com "Não carregou".
 - Cabeçalho do grupo: thumbnail 64×36 (`width`/`height` declarados, `loading="lazy"`, `alt=""`, fundo `--surface-2`; sem `ytId`, só o fundo) + título com `-webkit-line-clamp:2` dentro do `Link` para o Histórico (alvo de 44 px; o `Link` fica no componente de servidor, nunca vira prop do cliente) + `${n} ${n===1?'resposta dele':'respostas dele'}`.
 - Botão: `Ver as outras ${n} deste vídeo` / `Recolher`. O foco vai para o 4º fio ao abrir e volta ao botão ao recolher.
 
 - [ ] **Passo 1: testes que falham:**
   - `medidas-canal-criador`: **data em fuso:** `publicadoEm = '2026-10-17T01:30:00Z'` → `'16/10'` na raiz e em cada resposta; `publicadoEm: null` → `data: null`; **respostas do canal têm data** (`dd/mm`); autores do canal: raiz `espectador`; com 12 respostas num vídeo, 1 grupo, 3 `.cf` visíveis, o botão "Ver as outras 9 deste vídeo"; não existem `.pc-cm`, `.pc-cma` nem `.chip`; "Espectador" aparece e "?" não; `.cf-selo` com o texto "Criador"; o título do vídeo aparece **1** vez; a pastilha "não medido" não está dentro de `.pc-sh`; a frase da lista vem antes de `.pc-rqs` no DOM.
+  - **N2:** para cada tipo `nao_medido`, `fora` e `desligados`: a pastilha "não medido" existe, vem **depois** de `[data-frase-do-bloco]` e **não** está dentro de `.pc-sh`.
+  - **M-c:** reporter (`contagem`) no canal: não existe `.cf` nem texto de terceiro.
   - vídeo sem título e sem `ytId` (Foco 4): o grupo mostra "(sem título)" e nenhum `img` de thumbnail.
   - a frase do bloco do caso 1/6/7/14 continua citando só números da legenda (o teste do CM item 3 continua verde).
   - `medidas-canal-criador-leitura`: com 2 vídeos, os grupos vêm em ordem de idade; `respostasDele` usa singular e plural certos.
@@ -262,12 +267,13 @@ Não há commit "T6" próprio: o `tsc` do pre-commit falharia no meio do lote. *
 - **`COLUNAS`** em `contexto-ia-canal-medidas.test.tsx:121-148` muda junto, para as colunas acima.
 - `avisosDoCriador` (`:453`) perde `subtitulo` e `aMais`.
 - **Frases (sem duplicar):** `CriadorIa.frase` (o bloco) e `lista.frase` ficam **separados**, como na tabela `canal-criador-frases` (`:443-444`); só se inverte a ordem das linhas para `[lista.frase, cri.frase]`, que é a ordem da tela. A frase da lista aparece **1 vez** no texto montado.
+- **Datas (Phil R3):** `grupos[].fios[].data` e as datas das respostas são **lidas do modelo da T5** (`FioView`/`ModeloDaLista`, strings dd/mm prontas por `dmDeData`). O empacotador do canal **não** importa `dmDeData` de `_chrome/comentarios/model.ts` (fora de `PERMITIDOS`, `contexto-ia-varredura-de-codigo.test.ts:58-69`) e **não** chama `dm`/`dmDeData` para fala (o `dm` de `empacotar-canal-medidas.ts:23` corta em UTC). O teste `01:30Z -> 16/10` é sobre o texto montado do pacote.
 - **Allowance:** os empacotadores **não** importam `fio-model.ts`; `PERMITIDOS` de `contexto-ia-varredura-de-codigo.test.ts` fica igual. Se o executor precisar importar, acrescentar `'../_chrome/comentarios/fio-model'` ao `PERMITIDOS`, com a razão na linha.
 
 - [ ] **Passo 1: testes que falham:**
   - T6a: os do Passo 1 da T4.
   - T6b: com 12 respostas, a tabela tem 12 linhas (um fio por linha), nenhuma string contém "não cabem"; `data` do pacote com `01:30Z` → `16/10`; a frase da lista aparece 1 vez; o inventário não tem chave sem uso nem campo sem chave.
-  - `contexto-ia-tamanhos.test.ts`: canal com 24 vídeos × 20 fios de 2.000 caracteres ⇒ arquivo completo ≤ 200.000, linha "Por tamanho" presente, nenhum fio pela metade.
+  - `contexto-ia-tamanhos.test.ts`: canal com 24 vídeos × 20 fios, **cada fio com topo e 3 respostas de 2.000 caracteres** (fio no teto: título 100 + 4 × 2.000 ≈ 8,1 mil; 25 linhas ≈ 202 mil > 200 mil, 10 linhas ≈ 81 mil; só o fio no teto força o degrau 10 e prova que o laço segue até caber) ⇒ texto montado ≤ 200.000, a linha "Por tamanho" cita 10 (não 25) e nenhuma linha vem pela metade.
   - varredura de saída: o nome-sentinela continua ausente.
 - [ ] **Passo 2:** FAIL.
 - [ ] **Passo 3:** implementar.
@@ -277,8 +283,9 @@ Não há commit "T6" próprio: o `tsc` do pre-commit falharia no meio do lote. *
 ### Tarefa 7: e2e do Gio, oráculo e allowances
 
 **Arquivos:**
-- Modificar: `apps/web/e2e/tests/cms/observatorio/e5a-comentarios.spec.ts`, `e5a-comentarios-alvos.spec.ts`, **`t6-tela-gio.spec.ts`** (`:51-69` mede `.cd-casa-vazia` e injeta `.cd-foto-inicial` dentro de `.cd-autor`, classes que somem na T4: o caso da casa vazia sai porque a fileira deixa de existir; o da inicial passa a `.cf-av [data-avatar="ini"]`), `canal.spec.ts` (se citar `.pc-cm` ou o texto antigo), `allowances.ts` (entradas que citem "Um espectador", "Mostrar menos", "Mostrar os outros", "(todos)", "Com o criador", "não cabem")
-- Varredura obrigatória antes: `grep -rn "Um espectador\|Mostrar menos\|Mostrar os outros\|(todos)\|Com o criador\|não cabem\|cd-casa\|cd-fileira\|cd-autor\|cd-foto\|cd-cartao\|cd-resp\|cd-texto\|cd-cur\|cd-mais\|cd-selo-c\|cd-etq\|pc-cm\|chip own" apps/web/e2e apps/web/test apps/web/src`. Todo acerto ou muda nesta tarefa ou já mudou antes. As fixtures do oráculo (`apps/web/test/fixtures/observatorio/dados.cjs`, `dados-teste.html`) só mudam se citarem esses textos da seção de comentários (o oráculo do Observatório não desenha esta seção; conferir com o grep).
+- Modificar: `apps/web/e2e/tests/cms/observatorio/e5a-comentarios.spec.ts`, `e5a-comentarios-alvos.spec.ts`, **`t6-tela-gio.spec.ts`** (`:51-69` mede `.cd-casa-vazia` e injeta `.cd-foto-inicial` dentro de `.cd-autor`, classes que somem na T4: o caso da casa vazia sai porque a fileira deixa de existir; o da inicial passa a **injetar o markup real do `ChannelAvatar` (`data-avatar="ini"`) no primeiro `.cf-av:visible` e medir a letra (≥ 4,5)**, porque o nível `identidade` é inalcançável pela sessão; e, no lugar do caso da casa vazia, **medir a silhueta** (anel `--dim` sobre `--surface-2` ≥ 3, cobertura que o teste perderia). M-b: o título de `it()` em `comentarios-e5-ler.test.ts:108` ("Um espectador") é renomeado junto, só texto), `canal.spec.ts` (se citar `.pc-cm` ou o texto antigo), `allowances.ts` (entradas que citem "Um espectador", "Mostrar menos", "Mostrar os outros", "(todos)", "Com o criador", "respostas guardadas não cabem")
+- **Portão duro, pré-condição fora deste lote (Phil r2 da 75):** antes de qualquer tela ler M12 do canal próprio, `nao_pedido` ganha motivo próprio e `ler-comentarios.ts:57` separa `sem_direito` de `nao_foi_possivel_conferir`. Este plano não toca no canal próprio; a T7 só registra a pré-condição.
+- Varredura obrigatória antes: `grep -rn "Um espectador\|Mostrar menos\|Mostrar os outros\|(todos)\|Com o criador\|respostas guardadas não cabem\|cd-casa\|cd-fileira\|cd-autor\|cd-foto\|cd-cartao\|cd-resp\|cd-texto\|cd-cur\|cd-mais\|cd-selo-c\|cd-etq\|pc-cm\|chip own" apps/web/e2e apps/web/test apps/web/src`. Todo acerto ou muda nesta tarefa ou já mudou antes. As fixtures do oráculo (`apps/web/test/fixtures/observatorio/dados.cjs`, `dados-teste.html`) só mudam se citarem esses textos da seção de comentários (o oráculo do Observatório não desenha esta seção; conferir com o grep).
 
 - [ ] **Passo 1: specs novos ou ajustados (o Gio escreve):**
   - `e5a-comentarios-alvos`, para cada combinação de {390, 600, 1440} × {escuro, claro}: sem rolagem horizontal (`scrollWidth <= clientWidth`); `.cf-link`, `.aba` e `.info` com pelo menos 44 px; nenhuma fonte abaixo de 12 px dentro de `.cf`; a 390 com nome típico, "N de 12" na linha do nome (o `top` do `.cf-meta.push` igual ao do `.cf-nome`); com nome de 60 caracteres afirmar só "sem rolagem horizontal e o nome com reticências" (a Naksu aceita que o "N de 12" quebre, `t7-cj-naksu.md:63`); a resposta continua distinta (fundo `--cf-criador-bg`).
@@ -314,7 +321,7 @@ Pontos de contato (para o rebase): `frases.ts` (CQ T3 × D75 T8 `abaNaoCarregou`
 - **Texto novo sem mockup:** a segunda frase sem lote completo (`Lemos os N primeiros por relevância.`) e os zeros parciais. O Logan confirma.
 - **`container-type` na seção:** consulta de contêiner no lugar errado quebra a 390 sem aparecer no unitário. O Gio cobre.
 - **Fio cliente dentro de componente de servidor:** `FioDeComentario` é `'use client'`. O `Link` do grupo fica no servidor (regra do Next 16, CLAUDE.md). Não passar `Link` como prop.
-- **Pacote da IA crescer no canal:** sem `MAX_NA_LISTA`, o pacote leva todos os fios. No teto, são 14 vídeos × 12 fios × (2.000 + 3 × 2.000 caracteres). O teste de tamanho (`contexto-ia-tamanhos.test.ts`, T6b) cobre o canal; o corte é o genérico por linha, com a linha "Por tamanho" dita, nunca em silêncio.
+- **Pacote da IA crescer no canal:** sem `MAX_NA_LISTA`, o pacote leva todos os fios. No teto, são cerca de 24 vídeos (janela de 90 dias, `medidas/regras.ts:28`) × 20 fios × (2.000 + 3 × 2.000 caracteres). O teste de tamanho (`contexto-ia-tamanhos.test.ts`, T6b) cobre o canal; o corte é o genérico por linha, com a linha "Por tamanho" dita, nunca em silêncio.
 
 ---
 
@@ -328,6 +335,8 @@ Pontos de contato (para o rebase): `frases.ts` (CQ T3 × D75 T8 `abaNaoCarregou`
 ---
 
 ## F2: insumos para a decisão do dono (nenhuma tarefa planejada)
+
+**Decisão do dono, 17/10 (o plano da F2-coleta herda):** (1) teto `thirdPartyRepliesMax = 20`; (2) numeração do "Espectador N" na coleta, sem chave guardada; (3) a tela só depois da revisão visual. **Ficam para a emenda do spec 02 (portão duro antes da coleta):** o fato 6 (apagar fala de terceiro que some e quando o fio perde a resposta do criador) e o fato 7(i) (`creatorRepliesMax` 3 → 5; muda a D3 e o botão "Ver as outras", hoje inalcançável).
 
 **Status:** não planejada. Esta seção só junta fatos (Phil, `t7-cq-phil.md`, sem leitura de produção) para o dono decidir. Se ele aprovar, nasce um plano próprio, depois da emenda assinada do spec 02.
 
@@ -396,3 +405,20 @@ Pareceres: `t7-cq-yannis.md`, `t7-cq-phil.md`. Todas as linhas citadas foram con
 | Phil F1 a F7 e conta refeita (F2) | seção F2, fatos 1 a 9 (sem tarefas) |
 | "5 mais antigas", não "documentação não garante" | Resposta ao dono, item 5; F2, fato 1 |
 
+## Emenda 17/10 (rodada 3): re-revisão de Yannis e Phil -> onde foram resolvidos
+
+Pareceres: `t7-cq-yannis-r2.md`, `t7-cq-phil-r2.md`.
+
+| Achado | Resolvido em |
+|---|---|
+| Yannis N1 (`index.ts` chama `lerSecaoDeComentarios` com `canalNome`) | T4 (arquivos: `lerSecaoDeComentarios` mantém `canalNome`, só `ComentariosDeDestaque` recebe `criador`; `index.ts` conferido sem mudança; teste N1) |
+| Yannis N2 (`fora`/`desligados` perdem a pastilha) | T5 (`case` triplo `nao_medido`/`fora`/`desligados`; teste N2 para cada tipo) |
+| Yannis N3 (costura D75 `EstadoDoBloco`) | plano D75, Task 8a/8b (condição `falhou` escrita); aqui, "Ordem dos commits" |
+| Yannis M-a, M-g, M-h | T1 (`missing_since` já existe; união literal), T3 (declaração de `criadorNome`) |
+| Yannis M-b, M-d | T7 (grep com `respostas guardadas não cabem`; título de `it()` renomeado; injeção do `ChannelAvatar` e silhueta) |
+| Yannis M-c, M-e, M-f | Regras gerais (nível `contagem` do vídeo) + T5 (teste do canal; ordem só em `itens`; `canal-derivado.ts` e `tipos.ts` listados) |
+| Phil R1 (fio no teto) | T6b (24 vídeos × 20 fios com topo e 3 respostas de 2.000; degrau 10), Riscos (24 vídeos) |
+| Phil R2 (`BigInt(id)`) | T1 (interface e teste `'9'`/`'10'`) |
+| Phil R3 (data vem do modelo da T5) | T6b ("Datas") |
+| Phil F2 (decisão do dono 17/10) | topo da seção F2; fatos 6 e 7(i) para a emenda do spec 02 |
+| Phil r2 da 75 (`nao_pedido`, `ler-comentarios.ts:57`) | T7 (portão duro, pré-condição fora do lote) |
