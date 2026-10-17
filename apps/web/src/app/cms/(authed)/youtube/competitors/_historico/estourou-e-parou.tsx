@@ -7,18 +7,19 @@ import type { ReactNode } from 'react'
 import { EstourouInfo } from './estourou-info'
 import { EstourouCasas } from '../_chrome/medidas/estourou-casas'
 import { TextoIndicio } from '../_chrome/medidas/texto-indicio'
-import { dataBR, milhar, NOME_DA_LEITURA, pct, REGRAS_DA_LEITURA, somaDiasBR, vezes, type CartaoQuaseNada, type CartaoReacao, type CartaoViewsCedo, type Leitura, type PassaAExistir } from '../_chrome/medidas/estourou-model'
+import { dataBR, milhar, NOME_DA_LEITURA, pct, REGRAS_DA_LEITURA, vezes, type CartaoQuaseNada, type CartaoReacao, type CartaoViewsCedo, type Leitura, type PassaAExistir } from '../_chrome/medidas/estourou-model'
 
 const R = REGRAS_DA_LEITURA
 const IND = <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 13.4 4.6 4l2.4 8.2h8" /></svg>
 const AVISO = <svg className="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 14.4 13.4H1.6Z" /><path d="M8 6.6v3.2M8 11.5v.1" /></svg>
+const dmBR = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const NM = <span className="lm-nm">não medido</span>
 
-function Cabeca({ rotulo }: { rotulo: boolean }) {
+function Cabeca({ rotulo, ainda = false }: { rotulo: boolean; ainda?: boolean }) {
   return (
     <header className="lm-h">
       <h2>{rotulo ? <><span className="lm-rot">Leitura:</span> </> : null}{NOME_DA_LEITURA}</h2>
-      <span className="lm-ind">{IND}indício</span>
+      {ainda ? <span className="lm-ainda">ainda não medido</span> : <span className="lm-ind">{IND}indício</span>}
       <EstourouInfo />
     </header>
   )
@@ -167,44 +168,20 @@ function Frase({ texto, pico }: { texto: string; pico: boolean }) {
 }
 
 
-/** A linha do tempo de "ainda não existe": hoje, a data em que passa a existir e a do canal médio. Pontilhada, nunca hachura. */
-function Linha({ hojeSP, existeEm }: { hojeSP: string; existeEm: string }) {
-  const fim = somaDiasBR(existeEm, R.minDias)
-  const dias = (a: string, b: string): number => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5)
-  const total = Math.max(1, dias(hojeSP, fim))
-  const p1 = (dias(hojeSP, existeEm) / total) * 100
-  const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-  const baixo = p1 < 30
-  return (
-    <div className={`lm-tl${baixo ? ' perto' : ''}`} role="img" aria-label={`Linha do tempo: hoje, ${dataBR(hojeSP)}; a leitura passa a existir em ${dataBR(existeEm)} para o primeiro vídeo e por volta de ${dataBR(fim)} num canal mediano`}>
-      <i className="trk" />
-      <i className="m" style={{ left: 0 }} /><span className="l" style={{ left: 0 }}>hoje, {dm(hojeSP)}</span>
-      <i className="m ex2" style={{ left: `${p1}%` }} /><span className={`l c${baixo ? ' baixo' : ''}`} style={{ left: `${p1}%` }}>{dm(existeEm)}</span>
-      <i className="m ex2" style={{ left: '100%' }} /><span className="l r" style={{ left: '100%' }}>{dm(fim)}</span>
-    </div>
-  )
-}
-
 /** O bloco, em cada estado da leitura. */
 export function EstourouEParou({ leitura }: { leitura: Leitura }) {
-  const sec = (filho: ReactNode, rotulo: boolean) => (
+  const sec = (filho: ReactNode, rotulo: boolean, ainda = false) => (
     <section className="lm" aria-label={NOME_DA_LEITURA} data-leitura={leitura.tipo}>
-      <Cabeca rotulo={rotulo} />
+      <Cabeca rotulo={rotulo} ainda={ainda} />
       {filho}
     </section>
   )
   switch (leitura.tipo) {
     case 'ainda_nao_existe':
       return sec(
-        <div className="lm-sd">
-          <div className="lm-fr">
-            <EstourouCasas casas="ppp" rotulo="Três sinais: ainda não existem" />
-            <span><b>Esta leitura ainda não existe para nenhum vídeo.</b> Ela precisa de {R.minDias} dias de vídeo e da medida dos 30 primeiros dias.</span>
-          </div>
-          <Linha hojeSP={leitura.hojeSP} existeEm={leitura.existeEm} />
-          {/* Texto revisto pelo Logan: o mockup traz "Janeiro" e "Abril" para o dia de exemplo; aqui as datas saem do calendário. */}
-          <p className="lm-rz"><b>{dataBR(leitura.existeEm)}:</b> o primeiro vídeo chega aos {R.minDias} dias. <b>{dataBR(somaDiasBR(leitura.existeEm, R.minDias))}:</b> um canal que publica cerca de {R.minVideos} vídeos longos a cada {R.minDias} dias passa a ter {R.minVideos} para comparar.</p>
-        </div>, true)
+        <p className="lm-sd">
+          <b>Ainda sem leitura.</b> Este vídeo faz {R.minDias} dias em {dmBR(leitura.esteVideoEm)}; a leitura sai nesse dia se houver {R.minVideos} vídeos do canal com {R.minDias} dias para comparar.
+        </p>, true, true)
     case 'nao_carregou':
       return sec(
         <div className="lm-err" role="alert">
