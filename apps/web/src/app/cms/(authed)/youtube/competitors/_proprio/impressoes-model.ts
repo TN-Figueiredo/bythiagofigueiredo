@@ -17,6 +17,7 @@ import type { EstadoCedo } from '@/lib/youtube/observatorio/proprio/cedo'
 import { JANELA_LEITURA_ALCANCE_DIAS, motivoDiaTexto, resumir, type DiaAlcance, type MotivoDia, type Periodo, type ResumoAlcance, type Situacao } from '@/lib/youtube/observatorio/proprio/dias'
 import { DIARIO_PARADO_DIAS } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
+import { ausenciaDoAcesso, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 
 export interface ColunaView {
   dia: DiaYt
@@ -106,6 +107,8 @@ export interface ImpressoesView {
   periodoTexto: string
   /** A frase quando não há o que desenhar (sem relatório, sem permissão). */
   vazio: string | null
+  /** Decisão 75: o estado de ausência de `vazio` (negado→restrito só com a negativa `sem_direito`, erro→falhou, sem relatório→nao_medido). null = não há `vazio`. */
+  vazioEstado: EstadoAusencia | null
   legenda: LegendaItem[]
   /** A frase-resumo acima do gráfico; null quando não há o que resumir. */
   resumo: string | null
@@ -149,6 +152,8 @@ export interface OpcoesImpressoes {
   dm: (d: DiaYt) => string
   /** 'erro' = a leitura falhou: a frase diz que falhou, nunca "sem relatório" (falha em verde). */
   acesso: 'ok' | 'negado' | 'erro'
+  /** Por que o acesso foi negado (a que a página carrega). Ausente = não preenchida: negado vira `falhou`, nunca cadeado (decisão 75). */
+  negativa?: NegativaPrivada
   /**
    * O dia de hoje (dia do YouTube), para dizer que a coleta parou. OBRIGATÓRIO: opcional, quem esquecesse perdia o aviso em silêncio (falha em verde);
    * a prova de tipo está em impressoes.type-test.ts.
@@ -444,11 +449,11 @@ const rotulos = (u: Unidade) => (u === 'views'
   ? { rotuloEixo: 'views', rotuloValor: 'Views', rotuloSituacao: 'Situação do dia' }
   : { rotuloEixo: 'impressões', rotuloValor: 'Impressões', rotuloSituacao: 'Situação do relatório' })
 
-const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
+const vazioView = (vazio: string, o: OpcoesImpressoes, vazioEstado: EstadoAusencia = 'nao_medido'): ImpressoesView => {
   const unidade = o.unidade ?? 'impressoes'
   return {
     faixas: [], marcas: [], alturaFaixas: 0, notaFaixas: null,
-    teto: 4, ticks: [0, 2, 4], colunas: [], periodoTexto: '', vazio, legenda: [], resumo: null, avisos: [], metodo: [], escopo: o.escopo, alturaArea: o.alturaArea,
+    teto: 4, ticks: [0, 2, 4], colunas: [], periodoTexto: '', vazio, vazioEstado: vazio === '' ? null : vazioEstado, legenda: [], resumo: null, avisos: [], metodo: [], escopo: o.escopo, alturaArea: o.alturaArea,
     unidade, faixaCliques: unidade === 'impressoes', ...rotulos(unidade), cedo: null, soZeros: false,
   }
 }
@@ -551,8 +556,8 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   // sem permissão nada do dado privado entra na view, mesmo que alguém tenha passado os dias
   const unidade = o.unidade ?? 'impressoes'
   const views = unidade === 'views'
-  if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o)
-  if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
+  if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o, ausenciaDoAcesso('negado', o.negativa ?? null) ?? 'falhou')
+  if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o, 'falhou')
   // vídeo novo e ainda cedo: a faixa de 7 casas no lugar do gráfico (antes da checagem de "sem relatório": o vídeo novo ainda não tem nenhum)
   if (!views && o.cedo && (o.cedo.tipo === 'video-novo' || o.cedo.tipo === 'ainda-cedo')) {
     return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o), notaFaixas: o.notaFaixas ?? null }
@@ -584,6 +589,7 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
     colunas: colunas.map(c => frasesDasTrocas(c, faixas, marcas, colunas)),
     periodoTexto: `de ${o.dm(periodo.de)} a ${o.dm(periodo.ate)} · ${plural(periodo.dias, 'dia', 'dias')} · dia do YouTube`,
     vazio: null,
+    vazioEstado: null,
     legenda: legendaDe(o.escopo, unidade).concat(dias.some(d => d.dia === o.publicadoEm) ? [{ situacao: 'publicacao', texto: 'dia da publicação' }] : []).concat(legendaFaixas),
     resumo: o.resumo !== undefined ? o.resumo : soZeros && o.cedo?.tipo === 'grafico' ? resumoSoZeros(o.cedo.diasMedidos, o.viewsDoVideo) : views ? resumoViews(r, n) : resumoTexto(r, n),
     avisos: avisosDe(r, periodo, o),

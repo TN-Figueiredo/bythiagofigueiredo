@@ -15,6 +15,7 @@ import { parseCanalState, type CanalState } from '../_canal/params'
 import { buildAssistidoPeriodos, type AssistidoPeriodosView } from './assistido-periodo-model'
 import type { DadosDoCanal, DiarioLongo } from './dados'
 import type { PeriodoEntrada } from './origem-model'
+import type { NegativaPrivada } from '../_chrome/ausencia/estado'
 import { buildProprioHeader, type PosicaoNoNicho, type ProprioHeaderView } from './header-model'
 import type { ConcorrenteAcima } from './posicao-do-site'
 import { buildRetencao, type RetencaoView } from './retencao-model'
@@ -49,10 +50,10 @@ export const ABAS_PROPRIO_NOTA = {
 
 export function buildProprioView(
   obs: Observatory, canalId: string, sp: Record<string, string | undefined>, dados: DadosDoCanal,
-  o: { hoje: DiaYt; dm: (d: DiaYt) => string; posicao: PosicaoNoNicho | null; concorrenteAcima: ConcorrenteAcima | null; muitosProprios: boolean },
+  o: { hoje: DiaYt; dm: (d: DiaYt) => string; posicao: PosicaoNoNicho | null; concorrenteAcima: ConcorrenteAcima | null; muitosProprios: boolean; negativa?: NegativaPrivada },
 ): ProprioView | null {
-  const header = buildProprioHeader(obs, canalId, dados, { hoje: o.hoje, dm: o.dm, posicao: o.posicao, muitosProprios: o.muitosProprios })
-  const videos = buildProprioVideos(obs, canalId, dados, { hoje: o.hoje, dm: o.dm })
+  const header = buildProprioHeader(obs, canalId, dados, { hoje: o.hoje, dm: o.dm, posicao: o.posicao, muitosProprios: o.muitosProprios, negativa: o.negativa })
+  const videos = buildProprioVideos(obs, canalId, dados, { hoje: o.hoje, dm: o.dm, negativa: o.negativa })
   if (!header || !videos) return null
   const c = o.concorrenteAcima
   return {

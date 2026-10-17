@@ -65,6 +65,15 @@ describe('as réguas do vídeo', () => {
     const r = buildReguas({ ...base, alcanceLido: false, porVideo: new Map(), periodoTexto: null, videoId: 'v0' })
     expect(r.linhas[0]!.semRegua).toBe('impressões não medidas'); expect(r.frase).not.toMatch(/impress/i)
   })
+  it('decisão 75: a linha de impressões leva a ausência do alcance (restrito, falhou, nao_medido) e as demais com valor, null', () => {
+    const sem = { ...base, alcanceLido: false, porVideo: new Map(), periodoTexto: null, videoId: 'v0' }
+    expect(buildReguas({ ...sem, ausenciaImpressoes: 'restrito' }).linhas[0]!.ausencia).toBe('restrito')
+    expect(buildReguas({ ...sem, ausenciaImpressoes: 'falhou' }).linhas[0]!.ausencia).toBe('falhou')
+    expect(buildReguas(sem).linhas[0]!.ausencia).toBe('nao_medido')
+    const ok = buildReguas({ ...base, videoId: 'v0' })
+    expect(ok.linhas.filter(l => l.valor != null).every(l => l.ausencia === null)).toBe(true)
+    expect(buildReguas({ ...base, videoId: 'v5' }).linhas[0]).toMatchObject({ zeroMedido: true, ausencia: null })
+  })
   it('comentário nulo: o vídeo fica fora da régua de comentários e de engajamento ("de 5")', () => {
     const r = buildReguas({ ...base, videoId: 'v0' })
     expect(r.linhas.find(l => l.numero === 'comentarios')!.pos!.de).toBe(5)

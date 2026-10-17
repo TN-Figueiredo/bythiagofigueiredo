@@ -530,3 +530,61 @@ function violacoesDeImport(src: string): string[] {
   if (/import\s+['"]server-only['"]/.test(src)) v.push('marca o modelo como módulo de servidor')
   return v
 }
+
+describe('decisão 75: o estado de ausência de cada coluna sai do modelo, não do texto', () => {
+  const buildN = (dados: DadosDoCanal, negativa?: 'sem_direito' | 'nao_foi_possivel_conferir' | null): ProprioVideosView => {
+    const v = buildProprioVideos(BASE.obs, BASE.canalId, dados, { hoje: BASE.hoje, dm: BASE.dm, negativa })
+    if (!v) throw new Error('o canal próprio devia ter modelo de vídeos')
+    return v
+  }
+  const negado = DADOS.negado(BASE.canalId, BASE.ytIds, BASE.hoje)
+
+  it('alcance negado com sem_direito: impEstado e cliquesEstado "restrito" em todo vídeo', () => {
+    const v = buildN(negado, 'sem_direito')
+    expect(v.videos.length).toBeGreaterThan(0)
+    expect(v.motivoAlcanceEstado).toBe('restrito')
+    for (const x of v.videos) { expect(x.impEstado).toBe('restrito'); expect(x.cliquesEstado).toBe('restrito') }
+  })
+  it('diário negado com sem_direito: vpdDiarioEstado e viewsPorDiaEstado "restrito"', () => {
+    const v = buildN(negado, 'sem_direito')
+    expect(v.viewsPorDiaEstado).toBe('restrito')
+    for (const x of v.videos) expect(x.vpdDiarioEstado).toBe('restrito')
+  })
+  it('guarda caída (nao_foi_possivel_conferir) ou negativa não preenchida: "falhou", nunca "restrito"', () => {
+    for (const n of ['nao_foi_possivel_conferir', null, undefined] as const) {
+      const v = buildN(negado, n)
+      expect(v.motivoAlcanceEstado).toBe('falhou')
+      expect(v.viewsPorDiaEstado).toBe('falhou')
+      for (const x of v.videos) { expect(x.impEstado).toBe('falhou'); expect(x.cliquesEstado).toBe('falhou'); expect(x.vpdDiarioEstado).toBe('falhou') }
+    }
+  })
+  it('alcance erro: "falhou" em todo vídeo', () => {
+    const v = buildN(DADOS.erro(BASE.canalId, BASE.ytIds, BASE.hoje), 'sem_direito')
+    expect(v.motivoAlcanceEstado).toBe('falhou')
+    for (const x of v.videos) { expect(x.impEstado).toBe('falhou'); expect(x.cliquesEstado).toBe('falhou') }
+  })
+  it('sem relatório e nada lido: "nao_medido"', () => {
+    const vazio = buildN(DADOS.vazio(BASE.canalId, BASE.ytIds, BASE.hoje))
+    expect(vazio.motivoAlcanceEstado).toBe('nao_medido')
+    for (const x of vazio.videos) expect(x.impEstado).toBe('nao_medido')
+    const nada = buildN({ alcance: { acesso: 'ok', dado: alcanceNadaLido(BASE.canalId, BASE.hoje) }, diario: BASE.dados.diario })
+    expect(nada.motivoAlcanceEstado).toBe('nao_medido')
+    for (const x of nada.videos) { expect(x.impEstado).toBe('nao_medido'); expect(x.cliquesEstado).toBe('nao_medido') }
+  })
+  it('vídeo novo (o alcance ainda não chegou): impEstado "nao_medido"', () => {
+    const x = por(buildN(BASE.dados), SHORT)
+    expect(x.impMissing).toBe('vídeo novo')
+    expect(x.impEstado).toBe('nao_medido')
+    expect(x.cliquesEstado).toBe('nao_medido')
+  })
+  it('zero medido (semImpressao) e número: nenhum estado de ausência (dois casos separados)', () => {
+    const v = buildN(BASE.dados)
+    const zero = BASE.ytIds.slice(2).map(id => por(v, id)).filter(x => x.semImpressao)
+    expect(zero.length).toBeGreaterThan(0)
+    for (const x of zero) { expect(x.impEstado).toBeNull(); expect(x.cliquesEstado).toBeNull() }
+    const comNumero = v.videos.filter(x => x.imp != null)
+    expect(comNumero.length).toBeGreaterThan(0)
+    for (const x of comNumero) expect(x.impEstado).toBeNull()
+    expect(v.motivoAlcanceEstado).toBeNull()
+  })
+})
