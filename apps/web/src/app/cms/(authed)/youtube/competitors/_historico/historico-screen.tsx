@@ -4,7 +4,7 @@
  * thumbnail and description, the before/after comparison per change, and the versions. The forja (Task 35): the
  * screen's single filled button in the video header and the "Leitura da forja" card below the comparison.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
@@ -36,11 +36,13 @@ const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia 
  * a tela não o desenha de novo, mas continua sendo ela que decide o foco depois de Anterior/Próximo e que atende `[` e `]`, então procura os
  * botões em toda a moldura (`[data-obs]`), não só na própria raiz.
  */
-export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel, onPin, onUnpin, pagerNaTrilha = false }: {
+export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel, onPin, onUnpin, pagerNaTrilha = false, estourou }: {
   view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel
   /** "Sincronizar este canal" (a situação "Precisa de você"): a mesma ação de servidor que a página do canal usa. */
   onSyncChannel?: (channelRowId: string) => Promise<{ ok: boolean }>
   onPin?: PinAction; onUnpin?: PinAction; pagerNaTrilha?: boolean
+  /** A5 E5a T10a: o bloco "Estourou e parou", já pronto (elemento de servidor dentro de um Suspense; nunca um componente). Ausente = o vídeo não tem o bloco. */
+  estourou?: ReactNode
 }) {
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hover, setHover] = useState<Hl | null>(null)
@@ -300,6 +302,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
                 <Timeline chart={view.chart} lanes={view.lanes} legend={legend} pair={pair} hl={hl} onHl={onHl}
                   onSelectPair={selectPair} onGoVersion={onClip} onZoomVersion={viewer ? onClipDouble : undefined} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
               ) : null}
+              {/* bloco: estourou-e-parou (a Tarefa 21 só muda esta linha de lugar) */}
+              {estourou ?? null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}
                 filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} zoomOf={zoomOf} />

@@ -9,6 +9,9 @@ import { historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
 import { assistidoDoVideo, montarVideo, origemDoVideo, type PropsAssistidoDoVideo, type PropsOrigemDoVideo } from '../../_historico/montar'
 import { Pager } from '../../_historico/pager'
+import { EstourouCarregando, EstourouEParou } from '../../_historico/estourou-e-parou'
+import { leituraSemConsulta, lerLeituraDoVideo, type IObservatorioDaLeitura } from '../../_chrome/medidas/estourou-leitura'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import '../../_historico/historico.css'
 import { AssistidoPeriodos } from '../../_proprio/assistido-periodos'
 import { Origem } from '../../_proprio/origem'
@@ -37,6 +40,12 @@ export const maxDuration = 60
 async function AssistidoDoVideo(p: PropsAssistidoDoVideo & { barra: BlocoAssistido | null }) {
   const { barra, ...entrada } = p
   return <AssistidoPeriodos view={await assistidoDoVideo(entrada)} barra={barra} />
+}
+
+/** A5 E5a T10a: o bloco "Estourou e parou", num `Suspense` próprio; a leitura do servidor nunca lança e devolve nulo para o vídeo que não é do site. */
+async function EstourouDoVideo(p: { siteId: string; obs: IObservatorioDaLeitura; videoId: string; now: number }) {
+  const leitura = await lerLeituraDoVideo({ sb: getSupabaseServiceClient(), ...p })
+  return leitura ? <EstourouEParou leitura={leitura} /> : null
 }
 
 /** "De onde vêm as views" (tela do vídeo), num `Suspense` próprio. */
@@ -83,12 +92,20 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
     )
   }
   const { view } = m
+  // A5 E5a T10a: o bloco "Estourou e parou" só existe para um vídeo acompanhado que achou o seu cartão (nunca "não encontrado" nem fora dos acompanhados);
+  // vai num Suspense próprio, para o resto do Histórico não esperar a leitura. O id é cruzado com o conjunto do site dentro do bloco, antes de qualquer consulta.
+  const sincrona = !view.notFound && !view.untracked && view.video ? leituraSemConsulta(obs, view.video.id, m.pagina.now) : null
+  const estourou = sincrona === null ? undefined : sincrona !== 'ler' ? <EstourouEParou leitura={sincrona} /> : (
+    <Suspense key={view.video!.id} fallback={<EstourouCarregando />}>
+      <EstourouDoVideo siteId={m.pagina.siteId} obs={obs} videoId={view.video!.id} now={m.pagina.now} />
+    </Suspense>
+  )
   // The frame is only the trail (spec A2.6, emenda 25): no section tabs, no niche bar, in every origin. The trail is the way back for whoever
   // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
     <TrailChrome crumbs={historicoTrail(view.crumbs)} owns={ownMenuOf(obs, meuCanalLembrado)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}
       perguntarIa={view.notFound ? undefined : { tela: 'video', id, nomeDaTela: TELAS_IA['video'].nome, exemplos: TELAS_IA['video'].exemplos, onGerar: gerarPacoteIa }}>
-      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onSyncChannel={syncCompetitorNow} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha />
+      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onSyncChannel={syncCompetitorNow} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha estourou={estourou} />
     </TrailChrome>
   )
 }

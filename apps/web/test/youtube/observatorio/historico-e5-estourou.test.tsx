@@ -1,0 +1,239 @@
+// @vitest-environment node
+// apps/web/test/youtube/observatorio/historico-e5-estourou.test.tsx
+// A5 · E5a, Tarefa 10a: o bloco "Estourou e parou" no Histórico do vídeo (desenho, texto obrigatório, leitura do servidor).
+import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import fs from 'node:fs'
+import path from 'node:path'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
+
+import { EstourouCarregando, EstourouEParou } from '@/app/cms/(authed)/youtube/competitors/_historico/estourou-e-parou'
+import { leituraSemConsulta, lerLeituraDoVideo, type IObservatorioDaLeitura } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-leitura'
+import { leituraDoVideo, type Leitura } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-model'
+import { TEXTO_M10 } from '@/lib/youtube/observatorio/medidas-telas/texto-m10'
+import { picoSemCauda, type EntradaPico } from '@/lib/youtube/observatorio/medidas/pico'
+import { estourouExisteEm, somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
+import { medido, naoMedido, type Medida } from '@/lib/youtube/observatorio/medidas/tipos'
+import type { ValorM1 } from '@/lib/youtube/observatorio/medidas/m1'
+import type { MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
+import type { MedidasDoVideo } from '@/lib/youtube/observatorio/medidas/do-canal'
+
+const COMP = path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors')
+const HOJE = somaDias(estourouExisteEm(), 30)
+const AGORA = Date.parse(HOJE + 'T15:00:00Z')
+const J = { de: null, ate: null, dias: null }
+const v30 = (views: number): Medida<ValorM1> => medido({ views, gapHoras: 0, fonte: 'marca' as const }, 1, J)
+const VIDEO = { idadeDias: 120, canal: 'Leo' }
+const entrada = (over: Partial<EntradaPico> = {}, canal: Partial<EntradaPico['canal']> = {}): EntradaPico => ({
+  wasLive: false, idadeDias: 120, v30: 2000, cauda: 0.2, aindaRende: 0.02, reacao: { taxa: 0.01, componente: 'os_dois' },
+  canal: { nElegiveis: 5, medianaV30: 1000, medianaCauda: 0.4, medianaReacao: 0.02, ...canal }, ...over,
+})
+const leitura = (e: EntradaPico): Leitura => leituraDoVideo(picoSemCauda(e), v30(e.v30 ?? 0), HOJE, VIDEO)
+const html = (l: Leitura) => renderToStaticMarkup(<EstourouEParou leitura={l} />)
+const texto = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+
+describe('o bloco, em cada estado', () => {
+  it('três condições: o texto obrigatório aparece com as três frases inteiras, abaixo da frase-resumo e antes dos cartões', () => {
+    const h = html(leitura(entrada()))
+    const t = texto(h)
+    for (const f of [TEXTO_M10.titulo, TEXTO_M10.oQueVimos, TEXTO_M10.hipoteseNossa, TEXTO_M10.oQueNinguemDeForaVe]) expect(t).toContain(f)
+    expect(h.indexOf('Os 3 sinais batem')).toBeLessThan(h.indexOf('lm-txt'))
+    expect(h.indexOf('lm-txt')).toBeLessThan(h.indexOf('lm-cards'))
+    expect(h).toContain('indício')
+    expect(h).toContain('Estourou e parou')
+  })
+  it('duas de três: "não é o caso", os três cartões com os números e nenhum texto obrigatório', () => {
+    const h = html(leitura(entrada({ v30: 1990 })))
+    const t = texto(h)
+    expect(t).toContain('não é o caso')
+    expect(t).not.toContain(TEXTO_M10.oQueVimos)
+    expect(t).not.toContain('Indício, não medição')
+    expect((h.match(/class="lm-c"/g) ?? []).length).toBe(3)
+    expect(h).toContain('Leitura:')
+  })
+  it('as frases dos cartões são as do NOTAS', () => {
+    const t = texto(html(leitura(entrada())))
+    for (const f of ['Muitas views cedo', 'views nos 30 primeiros dias', 'Bate se tiver 2.000 views ou mais (2× o normal).', 'Quase nada depois', 'das views vieram depois do dia 30', 'E ainda rende pouco', 'Bate se for até 2% das views dos 30 primeiros dias.', 'Pouca reação do público', 'curtidas e comentários por view, aos 30 dias', 'Igual ao limite: bate.']) {
+      expect(t, f).toContain(f)
+    }
+  })
+  it('nenhuma cor de direção nem de erro nos cartões, e nenhum percentual de chance, nota ou "veredito" no HTML', () => {
+    for (const l of [leitura(entrada()), leitura(entrada({ v30: 1990 }))]) {
+      const h = html(l)
+      expect(h).not.toMatch(/--dir-|--danger|dir-up|dir-dn|sobe|desce/)
+      expect(h.toLowerCase()).not.toMatch(/veredito|retenção/)
+    }
+  })
+  it('cada cartão traz a régua com texto por extenso e o texto das casas por extenso', () => {
+    const h = html(leitura(entrada()))
+    expect(h).toContain('aria-label="Três sinais: muitas views cedo bate; quase nada depois bate; pouca reação bate"')
+    expect((h.match(/aria-label="Régua\. Este vídeo:/g) ?? []).length).toBe(4)
+  })
+  it('antes da data: pontilhado com a linha do tempo, sem hachura e sem o texto obrigatório', () => {
+    const l = leituraDoVideo(null, null, somaDias(estourouExisteEm(), -10), VIDEO)
+    const h = html(l)
+    expect(h).toContain('lm-sd')
+    expect(h).toContain('lm-tl')
+    expect(h).toContain('lm-cs p')
+    expect(h).not.toContain('lm-cs m')
+    expect(texto(h)).toContain('Esta leitura ainda não existe para nenhum vídeo.')
+    expect(texto(h)).not.toContain(TEXTO_M10.oQueVimos)
+    expect(texto(h)).toContain(`${estourouExisteEm().slice(8, 10)}/${estourouExisteEm().slice(5, 7)}/${estourouExisteEm().slice(0, 4)}`)
+  })
+  it('medida que não veio: forma de erro e "Isto não quer dizer que o vídeo não estourou"', () => {
+    const h = html(leituraDoVideo(null, null, HOJE, VIDEO))
+    expect(h).toContain('role="alert"')
+    expect(texto(h)).toContain('Isto não quer dizer que o vídeo não estourou')
+    expect(texto(h.replace(/<details.*<\/details>/s, ''))).not.toContain('não é o caso')
+    expect(h).not.toContain('lm-cards')
+  })
+  it('sem reação pública: três casas em hachura, os cartões não são desenhados, e a condição para passar a existir', () => {
+    const h = html(leitura(entrada({ reacao: null })))
+    expect(h).toContain('lm-cs m')
+    expect(h).not.toContain('lm-cs n')
+    expect(h).not.toContain('lm-cards')
+    expect(texto(h)).toContain('Curtidas ocultas e comentários desligados: nenhum número de reação, nem zero.')
+    expect(texto(h)).toContain('Passa a existir: se o canal mostrar as curtidas ou ligar os comentários.')
+  })
+  it('menos de 1.000 views: a barra "640 de 1.000" e "nunca para este vídeo"', () => {
+    const h = html(leitura(entrada({ v30: 640 })))
+    expect(texto(h)).toContain('640 de 1.000')
+    expect(texto(h)).toContain('Passa a existir: nunca para este vídeo (a medida dos 30 primeiros dias não muda).')
+  })
+  it('só um motivo na tela (os outros não aparecem)', () => {
+    // 640 views, canal com 3 e vídeo de 61 dias: três motivos possíveis, um só na tela, na ordem do NOTAS (30 dias, depois views, depois canal, depois idade)
+    const l = leituraDoVideo(picoSemCauda(entrada({ v30: 640, idadeDias: 61 }, { nElegiveis: 3 })), v30(640), HOJE, { idadeDias: 61, canal: 'Leo' })
+    const t = texto(html(l).replace(/<details.*<\/details>/s, ''))
+    expect(t).toContain('o vídeo teve menos de 1.000 views')
+    expect(t).not.toContain('o canal tem menos de 5')
+    expect(t).not.toContain('ainda não tem 90 dias')
+  })
+  it('a pastilha "indício" acompanha o nome em todos os estados', () => {
+    for (const l of [leitura(entrada()), leitura(entrada({ v30: 1990 })), leitura(entrada({ v30: 640 })), leituraDoVideo(null, null, HOJE, VIDEO), leituraDoVideo(null, null, somaDias(estourouExisteEm(), -1), VIDEO)]) {
+      expect(html(l), l.tipo).toContain('lm-ind')
+    }
+    expect(renderToStaticMarkup(<EstourouCarregando />)).toContain('lm-ind')
+  })
+  it('carregando: role=status com aria-busy', () => {
+    expect(renderToStaticMarkup(<EstourouCarregando />)).toMatch(/role="status" aria-busy="true"/)
+  })
+  it('ao vivo: o chip "ao vivo ou estreia" e "nunca para este vídeo"', () => {
+    const h = html(leituraDoVideo(naoMedido('ao_vivo_ou_estreia'), null, HOJE, VIDEO))
+    expect(texto(h)).toContain('ao vivo ou estreia')
+    expect(texto(h)).toContain('Ao vivo e estreia ficam de fora.')
+  })
+})
+
+describe('arquivos novos', () => {
+  const ler = (p: string) => fs.readFileSync(path.join(COMP, p), 'utf8')
+  it('historico.css não tem color-mix nem z-index numérico novo no bloco', () => {
+    const css = ler('_historico/historico.css')
+    const bloco = css.slice(css.indexOf('prefixo lm-'))
+    expect(bloco).not.toMatch(/color-mix|z-index/)
+  })
+  it('nenhum next/link nem componente passa como prop para componente cliente', () => {
+    for (const f of ['_historico/estourou-e-parou.tsx', '_chrome/medidas/estourou-casas.tsx', '_chrome/medidas/texto-indicio.tsx', '_chrome/medidas/estourou-leitura.ts']) {
+      expect(ler(f), f).not.toMatch(/next\/link/)
+    }
+    expect(ler('video/[id]/page.tsx')).toMatch(/estourou=\{estourou\}/)
+  })
+  it('a página: antes da data o bloco sai pronto (sem Suspense nem consulta); depois dela, num Suspense com a reserva', () => {
+    const pagina = ler('video/[id]/page.tsx')
+    expect(pagina).toMatch(/leituraSemConsulta\(obs, view\.video\.id/)
+    expect(pagina).toMatch(/<Suspense key=\{view\.video!\.id\} fallback=\{<EstourouCarregando \/>\}>/)
+  })
+  it('o bloco de CSS usa media query, não container query (o teste da Fase 4 exige todo seletor dentro da tela)', () => {
+    const css = ler('_historico/historico.css')
+    expect(css.slice(css.indexOf('prefixo lm-'))).not.toContain('@container')
+  })
+  it('a tela de histórico só desenha o bloco num bloco isolado e com a marca', () => {
+    expect(ler('_historico/historico-screen.tsx')).toContain('bloco: estourou-e-parou')
+  })
+})
+
+// ───── a leitura do servidor ─────
+
+const m1Ok = v30(2000)
+function videoMedido(over: Partial<MedidasDoVideo> = {}): MedidasDoVideo {
+  return {
+    formato: 'long', m1: { 1: m1Ok, 7: m1Ok, 30: m1Ok }, m5: naoMedido('serie_nao_pedida'), m7: naoMedido('sem_reacao_publica'),
+    m9: { cauda: medido(0.2, 1, J), aindaRende: medido(0.02, 1, J) }, m10: picoSemCauda(entrada()), m12: { 7: naoMedido('serie_nao_pedida'), 30: naoMedido('serie_nao_pedida') }, ...over,
+  } as MedidasDoVideo
+}
+const siteCom = (mv: MedidasDoVideo | null, canal = 'c1'): MedidasDoSite => ({
+  porCanal: new Map([[canal, mv === null ? { naoCarregou: 'erro_do_banco' as const } : { porVideo: new Map([['v1', mv]]) } as unknown as NonNullable<MedidasDoSite['porCanal'] extends Map<string, infer T> ? T : never>]]),
+  extras: { lido: true, dados: new Map() }, falhas: [], esgotou: 0,
+})
+function obsDe(over: { ageDays?: number; own?: boolean; semVideo?: boolean } = {}): IObservatorioDaLeitura {
+  return {
+    channels: [{ id: 'c1', own: over.own ?? false, sync: { last: AGORA } }],
+    video: (id: string) => (id === 'v1' && !over.semVideo ? { id: 'v1', ch: 'c1', ageDays: over.ageDays ?? 120 } : undefined),
+    channel: (id: string) => (id === 'c1' ? { id: 'c1', name: 'Leo', own: over.own ?? false } : undefined),
+  } as unknown as IObservatorioDaLeitura
+}
+const sb = {} as SupabaseClient
+const pedir = (obs: IObservatorioDaLeitura, carregar: ReturnType<typeof vi.fn>, now = AGORA) =>
+  lerLeituraDoVideo({ sb, siteId: 's1', obs, videoId: 'v1', now, carregar: carregar as never })
+
+describe('lerLeituraDoVideo', () => {
+  it('antes da data nada é pedido: zero consultas', async () => {
+    const carregar = vi.fn()
+    const l = await pedir(obsDe(), carregar, Date.parse(somaDias(estourouExisteEm(), -3) + 'T15:00:00Z'))
+    expect(l?.tipo).toBe('ainda_nao_existe')
+    expect(carregar).not.toHaveBeenCalled()
+  })
+  it('vídeo de outro site na URL: nenhuma consulta de série e nenhuma medida (prova por mutação: sem o cruzamento o teste falha)', async () => {
+    const carregar = vi.fn()
+    expect(await pedir(obsDe({ semVideo: true }), carregar)).toBeNull()
+    expect(carregar).not.toHaveBeenCalled()
+  })
+  it('canal próprio: nenhuma medida de concorrente é lida', async () => {
+    const carregar = vi.fn()
+    expect(await pedir(obsDe({ own: true }), carregar)).toBeNull()
+    expect(carregar).not.toHaveBeenCalled()
+  })
+  it('uma leitura basta quando a série não faz falta (a medida já veio completa)', async () => {
+    const carregar = vi.fn().mockResolvedValue(siteCom(videoMedido()))
+    const l = await pedir(obsDe(), carregar)
+    expect(l?.tipo).toBe('estourou_e_parou')
+    expect(carregar).toHaveBeenCalledTimes(1)
+    expect(carregar.mock.calls[0]![1].seriesDe).toBeUndefined()
+  })
+  it('a série só é pedida, para este vídeo, quando a primeira leitura diz que falta', async () => {
+    const carregar = vi.fn()
+      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') })))
+      .mockResolvedValueOnce(siteCom(videoMedido()))
+    const l = await pedir(obsDe(), carregar)
+    expect(l?.tipo).toBe('estourou_e_parou')
+    expect(carregar).toHaveBeenCalledTimes(2)
+    expect([...carregar.mock.calls[1]![1].seriesDe.entries()]).toEqual([['c1', ['v1']]])
+  })
+  it('série não pedida depois da data e que continua sem leitura: não carregou, nunca "não é o caso"', async () => {
+    const falhou = videoMedido({ m10: naoMedido('serie_nao_pedida'), m9: { cauda: medido(0.2, 1, J), aindaRende: naoMedido('leitura_falhou') } })
+    const carregar = vi.fn().mockResolvedValue(siteCom(falhou))
+    expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
+  })
+  it('canal que não carregou, vídeo ausente do canal e carregador que lança: não carregou, sem lançar', async () => {
+    expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(null))))?.tipo).toBe('nao_carregou')
+    expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(videoMedido(), 'outro'))))?.tipo).toBe('nao_carregou')
+    expect((await pedir(obsDe(), vi.fn().mockRejectedValue(new Error('banco'))))?.tipo).toBe('nao_carregou')
+  })
+  it('vídeo com menos de 90 dias: a idade vem do conjunto, e a série não é pedida', async () => {
+    const carregar = vi.fn().mockResolvedValue(siteCom(videoMedido({ m10: naoMedido('idade_menor_que_90'), m1: { 1: m1Ok, 7: m1Ok, 30: naoMedido('fecha_em') } })))
+    const l = await pedir(obsDe({ ageDays: 61 }), carregar)
+    expect(l).toMatchObject({ tipo: 'nao_medido', motivo: 'menos_de_90_dias' })
+    expect(carregar).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('leituraSemConsulta', () => {
+  it('antes da data: a leitura sai pronta; depois: "ler"; vídeo fora do site ou de canal próprio: nulo', () => {
+    expect(leituraSemConsulta(obsDe(), 'v1', Date.parse(somaDias(estourouExisteEm(), -1) + 'T15:00:00Z'))).toMatchObject({ tipo: 'ainda_nao_existe' })
+    expect(leituraSemConsulta(obsDe(), 'v1', AGORA)).toBe('ler')
+    expect(leituraSemConsulta(obsDe({ semVideo: true }), 'v1', AGORA)).toBeNull()
+    expect(leituraSemConsulta(obsDe({ own: true }), 'v1', AGORA)).toBeNull()
+  })
+})
