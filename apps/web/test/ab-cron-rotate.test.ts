@@ -599,7 +599,7 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateCalls).toContainEqual(
       expect.objectContaining({
         table: 'ab_tests',
-        data: { status: 'queued', queue_start_after: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) }, // Y-D5: nunca nulo
+        data: { status: 'queued', queue_start_after: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/), config: { queue_start_failures: 1 } }, // Y-D5: nunca nulo
       }),
     )
     // Sentry captured the exception

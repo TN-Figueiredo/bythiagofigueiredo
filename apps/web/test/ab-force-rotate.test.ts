@@ -471,6 +471,27 @@ describe('forceRotate', () => {
     expect(updateCalls.some((c) => JSON.stringify(c.data) === JSON.stringify({ last_applied_variant_id: null }))).toBe(false)
   })
 
+  it('prazo (Yannis DEVE 3): combo com a thumbnail escrita e o relógio a 40 s -> o título NÃO é escrito e o erro diz que demorou', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const test = makeTest({
+        test_type: 'combo',
+        variants: [
+          { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg', is_original: true, title_text: 'Title A' },
+          { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg', is_original: false, title_text: 'Title B' },
+        ],
+      })
+      buildSupabaseMock({ test })
+      ;(setThumbnail as ReturnType<typeof vi.fn>).mockImplementation(async () => { vi.setSystemTime(new Date(Date.now() + 40_000)); return { highUrl: null } })
+      const result = await forceRotate('test-1')
+      expect(result).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringContaining('demorou demais') })
+      expect(setThumbnail).toHaveBeenCalledTimes(1)
+      expect(updateVideoMetadata).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('applies blob_url even for original variant', async () => {
     const test = makeTest({
       test_type: 'thumbnail',

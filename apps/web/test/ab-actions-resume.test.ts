@@ -322,3 +322,44 @@ describe('retomarTeste: desfechos', () => {
     expect(JSON.stringify(r)).not.toContain('SEGREDO-NO-CORPO')
   })
 })
+
+describe('retomarTeste: prazo (F-D3, Yannis DEVE 3) e falha de canal/token (DEVE 4)', () => {
+  const relogioDoTeste = () => new Date(Date.now())
+  it('combo: o relógio anda 35 s depois da thumbnail -> o título NÃO é escrito; thumbnail ok/destino B, título = anterior, continua pausado', async () => {
+    const { banco, yt, retomar } = await montar({ testType: 'combo', restoreStatus: { thumbnail: antigo() } })
+    yt.depoisDeEscrever((c) => { if (c === 'thumbnails.set') vi.setSystemTime(new Date(Date.now() + 35_000)) })
+    const r = await retomar({ agora: relogioDoTeste })
+    expect(r).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringContaining('demorou demais') })
+    expect(yt.escritas()).toEqual(['thumbnails.set'])
+    expect(banco.teste().status).toBe('paused')
+    const rs = banco.teste().restore_status as Record<string, Fila>
+    expect(rs.thumbnail).toMatchObject({ estado: 'ok', destino: 'B', escreveu: true })
+    expect(rs.title).toBeUndefined()
+    expect(banco.ciclosAbertos()).toHaveLength(0)
+  })
+  it('o prazo vale já na primeira escrita: se o relógio estourou durante a leitura do Blob, nada é escrito e o retrato anterior volta', async () => {
+    const { banco, yt, retomar } = await montar()
+    yt.antesDeEscrever(() => {}) // (não chega: a checagem vem antes)
+    const anterior = structuredClone(banco.teste().restore_status)
+    let blobs = 0
+    const f = yt.fetch
+    vi.stubGlobal('fetch', (async (u: string, i?: RequestInit) => {
+      const r = await f(u, i)
+      if (String(u).includes('blob.vercel-storage.com') && ++blobs === 1) vi.setSystemTime(new Date(Date.now() + 40_000))
+      return r
+    }) as typeof fetch)
+    const r = await retomar({ agora: relogioDoTeste })
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('demorou demais') })
+    expect(yt.escritas()).toEqual([])
+    expect(banco.teste().restore_status).toEqual(anterior)
+    expect(banco.teste().status).toBe('paused')
+  })
+  it('DEVE 4: token que lança vira resultado com a mensagem, sem exceção e sem reivindicar', async () => {
+    const { banco, yt, retomar } = await montar()
+    const seq = banco.teste().restore_seq
+    const r = await retomar({ token: async () => { throw new Error('YouTube token expired') } })
+    expect(r).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringMatching(/token expired/) })
+    expect(yt.escritas()).toEqual([])
+    expect(banco.teste().restore_seq).toBe(seq)
+  })
+})

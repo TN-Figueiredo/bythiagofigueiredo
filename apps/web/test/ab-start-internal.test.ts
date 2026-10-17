@@ -27,12 +27,12 @@ const antes = (ms: number) => new Date(AGORA.getTime() - ms).toISOString()
 const campo = (o: Fila) => ({ estado: 'falhou', destino: 'original', em: antes(10 * MINUTO), forcado: false, escreveu: false, erro: null, attempts: 1, ...o })
 
 /** Rascunho de 2 variantes (A original, B). `primeiraB` põe a B em sort_order 0 (a 1ª do ciclo 0 deixa de ser a original). */
-async function montar(o: OpcoesBanco & { primeiraB?: boolean; thumb?: Buffer; titulo?: string } = {}) {
+async function montar(o: OpcoesBanco & { primeiraB?: boolean; thumb?: Buffer; titulo?: string; ytOpcoes?: Partial<ConstructorParameters<typeof YouTubeFalso>[0]> } = {}) {
   const banco = criarBanco({
     status: 'draft', semCiclos: true, restoreSeq: 0, ...o,
     ajustar: (v) => { if (o.primeiraB) { v[0]!.sort_order = 1; v[1]!.sort_order = 0 }; o.ajustar?.(v) },
   })
-  const yt = new YouTubeFalso({ titulo: o.titulo ?? 'Título A', thumb: o.thumb ?? IMG.A, blobs: { [BLOB('A')]: IMG.A, [BLOB('B')]: IMG.B } })
+  const yt = new YouTubeFalso({ titulo: o.titulo ?? 'Título A', thumb: o.thumb ?? IMG.A, blobs: { [BLOB('A')]: IMG.A, [BLOB('B')]: IMG.B }, ...o.ytOpcoes })
   vi.stubGlobal('fetch', yt.fetch)
   const iniciar = () => startAbTestInternal('teste-1', SITE, { supabase: banco.supabase })
   return { banco, yt, iniciar }
@@ -321,5 +321,69 @@ describe('startAbTestInternal: testes anteriores do mesmo vídeo (Y-5)', () => {
     expect(r.ok).toBe(true)
     expect(Sentry.captureException).toHaveBeenCalled()
     expect(banco.teste().status).toBe('active')
+  })
+})
+
+describe('startAbTestInternal: escrita parcial, prazo e guarda de conteúdo (T10 r1)', () => {
+  const avancar = (ms: number) => vi.setSystemTime(new Date(Date.now() + ms))
+  it('DEVE 1: combo, a thumbnail da B entrou e o título foi recusado -> a thumbnail ORIGINAL volta ao ar antes do rascunho', async () => {
+    const { banco, yt, iniciar } = await montar({ testType: 'combo', primeiraB: true })
+    yt.recusar('videos.update', 403, 'forbidden')
+    const r = await iniciar()
+    expect(r.ok).toBe(false)
+    expect(banco.teste()).toMatchObject({ status: 'draft', started_at: null })
+    expect(yt.escritas()).toEqual(['thumbnails.set', 'videos.update', 'thumbnails.set']) // B, título recusado, a original
+    expect(Buffer.compare(yt.thumb, IMG.A)).toBe(0)
+    expect(banco.ciclos()).toHaveLength(0)
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+    expect(fanOut).not.toHaveBeenCalled()
+  })
+  it('DEVE 1: a volta da thumbnail também falha -> Sentry nível error e UM aviso ao dono (tipo ab_start_partial)', async () => {
+    const { yt, iniciar } = await montar({ testType: 'combo', primeiraB: true })
+    yt.recusar('videos.update', 403, 'forbidden')
+    const f = yt.fetch
+    let sets = 0
+    vi.stubGlobal('fetch', (async (u: string, i?: RequestInit) =>
+      String(u).includes('thumbnails/set') && ++sets === 2 ? new Response('{}', { status: 500 }) : f(u, i)) as typeof fetch)
+    const r = await iniciar()
+    expect(r.ok).toBe(false)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('ficou no ar'), expect.objectContaining({ level: 'error' }))
+    expect(fanOut).toHaveBeenCalledTimes(1)
+    expect(fanOut.mock.calls[0]![0]).toMatchObject({ siteId: SITE, type: 'youtube.ab_start_partial' })
+  })
+  it('prazo antes da escrita: o relógio andou 45 s nas leituras -> rascunho, zero escritas, zero ciclos', async () => {
+    const { banco, yt, iniciar } = await montar({
+      testType: 'combo', primeiraB: true,
+      ytOpcoes: { avancaPorChamada: 15_000, relogio: { avancar } },
+    })
+    const r = await iniciar()
+    expect(r).toEqual({ ok: false, error: expect.stringContaining('demorou demais') })
+    expect(banco.teste()).toMatchObject({ status: 'draft', started_at: null })
+    expect(yt.escritas()).toEqual([])
+    expect(yt.chamadas).not.toContain('blob') // a checagem do início poupa a leitura do Blob
+    expect(banco.ciclos()).toHaveLength(0)
+  })
+  it('prazo entre as duas escritas do combo: a thumbnail entrou, o relógio estoura, o título não é escrito e nem a volta é tentada (sem tempo): Sentry + aviso', async () => {
+    const { banco, yt, iniciar } = await montar({ testType: 'combo', primeiraB: true })
+    yt.depoisDeEscrever((c) => { if (c === 'thumbnails.set') avancar(40_000) })
+    const r = await iniciar()
+    expect(r.ok).toBe(false)
+    expect(yt.escritas()).toEqual(['thumbnails.set'])
+    expect(banco.teste().status).toBe('draft')
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('ficou no ar'), expect.objectContaining({ level: 'error' }))
+    expect(fanOut).toHaveBeenCalledTimes(1)
+  })
+  it('desvio 10: 1ª variante (B) sem texto de título num teste de título -> recusa antes de reivindicar, zero escritas', async () => {
+    const { banco, yt, iniciar } = await montar({ testType: 'title', primeiraB: true, ajustar: (v) => { v[1]!.title_text = '  ' } })
+    const r = await iniciar()
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('sem texto de título') })
+    expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
+    expect(yt.chamadas).toEqual([])
+  })
+  it('desvio 10: variante com blob_url que não é cópia no Blob (i.ytimg) -> recusa, nada reivindicado', async () => {
+    const { banco, iniciar } = await montar({ primeiraB: true, ajustar: (v) => { v[1]!.blob_url = 'https://i.ytimg.com/vi/x/hqdefault.jpg' } })
+    const r = await iniciar()
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('sem arquivo da thumbnail no Blob') })
+    expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
   })
 })
