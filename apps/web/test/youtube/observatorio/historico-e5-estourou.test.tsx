@@ -163,6 +163,11 @@ describe('arquivos novos', () => {
     expect(h).toContain('class="g pto"')
     expect(h).not.toMatch(/class="g mk"/)
   })
+  it('o estado "não carregou" traz o botão "Tentar de novo" (G-3)', () => {
+    const h = html({ tipo: 'nao_carregou' })
+    expect(texto(h)).toContain('Tentar de novo')
+    expect(h).toMatch(/<a class="btn" href="">Tentar de novo<\/a>/)
+  })
   it('a tela de histórico só desenha o bloco num bloco isolado e com a marca', () => {
     expect(ler('_historico/historico-screen.tsx')).toContain('bloco: estourou-e-parou')
   })

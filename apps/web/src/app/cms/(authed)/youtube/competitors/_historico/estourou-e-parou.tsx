@@ -233,6 +233,8 @@ export function EstourouEParou({ leitura }: { leitura: Leitura }) {
         <div className="lm-err" role="alert">
           {AVISO}
           <div className="tx"><b>Não foi possível calcular a leitura agora.</b><span>Isto não quer dizer que o vídeo não estourou: a leitura não foi calculada. Os números do vídeo acima estão certos.</span></div>
+          {/* G-3 (NOTAS 14, linha "Erro"): recarrega a mesma página; o componente é de servidor, então um link basta */}
+          <a className="btn" href="">Tentar de novo</a>
         </div>, true)
     case 'nao_medido':
       return sec(
