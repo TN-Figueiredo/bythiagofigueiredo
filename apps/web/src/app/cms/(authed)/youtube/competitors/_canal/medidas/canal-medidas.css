@@ -317,3 +317,4 @@
 [data-obs-screen="canal"] .ri-ibtn{min-width:44px;min-height:44px;margin:-10px -6px -10px -4px}
 [data-obs-screen="canal"] .pc-cmv a,[data-obs-screen="canal"] .pc-nav a{display:inline-flex;align-items:center;min-height:44px}
 }
+[data-obs-screen="canal"] .pc-sub{margin:8px 0 2px;font:600 13.5px/20px var(--font-sans),system-ui,sans-serif;color:var(--muted)}

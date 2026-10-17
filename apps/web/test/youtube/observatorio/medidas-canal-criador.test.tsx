@@ -46,6 +46,28 @@ function quadro(n: number, k: number): { videos: VideoLido[]; c: ParteLida<Conta
   return { videos, c: contagem(videos.map((v, i) => [v.id, 'ok', i < k])) }
 }
 
+describe('criadorDoCanal: sem contradição (trem 5.1)', () => {
+  it('vídeos em coleta e nenhum com retrato: nunca "não têm coleta"; diz quantos estão em coleta e quando o primeiro fecha', () => {
+    const videos = [vid(1, 5), vid(2, 9), vid(3, 12)]
+    const c = contagem(videos.map(v => [v.id, null, false]), { coletaDoSiteDesdeMs: AGORA - 20 * DIA, coletaDoCanalDesdeMs: null })
+    const b = criadorDoCanal(entrada(videos, c)).bloco
+    expect(b.tipo).toBe('nao_medido')
+    expect(b.frase.resto).not.toContain('ainda não têm coleta')
+    expect(b.frase.resto).toContain('3 vídeos estão em coleta; o primeiro fecha 30 dias em 11/11.')
+    expect(b.semColeta).toBeUndefined()
+  })
+  it('nenhum vídeo em coleta e nenhum retrato: a frase "não têm coleta" fica e a lista de respostas não aparece', () => {
+    const videos = [vid(1, 40), vid(2, 50)]
+    const c = contagem(videos.map(v => [v.id, null, false]), { coletaDoSiteDesdeMs: AGORA - 20 * DIA, coletaDoCanalDesdeMs: null })
+    const b = criadorDoCanal(entrada(videos, c)).bloco
+    expect(b.frase.resto).toContain('ainda não têm coleta de comentários')
+    expect(b.semColeta).toBe(true)
+    const lista = listaDoCriador({ nome: 'Matt', resposta: ok({ nivel: 'texto', total: 0, itens: [] } as unknown as RespostasDoCriador), videos, titulos: new Map(), nBase: 0 })
+    const h = renderToStaticMarkup(<CriadorResponde bloco={b} lista={lista} />)
+    expect(h).not.toContain('data-lista-do-criador')
+  })
+})
+
 describe('criadorDoCanal: estados', () => {
   it('nenhum retrato no site: a coleta ainda não começou', () => {
     const { videos } = quadro(6, 0)
@@ -172,8 +194,8 @@ describe('a lista', () => {
     if (l.tipo === 'contagem') {
       const t = l.frase.negrito + l.frase.resto
       expect(t).not.toMatch(/respondeu a 0/)
-      expect(t).toContain('Nenhuma resposta do criador entre os comentários guardados.')
-      expect(t).toContain('Ele pode ter respondido a outros')
+      expect(t).toContain('Nenhuma resposta dele nos comentários guardados até agora.')
+      expect(t).toContain('ele pode ter respondido a outros')
     }
     const um = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', total: 1, itens: [] }), videos, titulos, nBase: 6 })
     if (um.tipo === 'contagem') expect(um.frase.negrito).toBe('Matt respondeu a 1 comentário guardados.'.replace('guardados', 'guardado'))

@@ -30,7 +30,7 @@ export type ModeloDaLista =
   | { tipo: 'nao_carregou'; frase: { negrito: string; resto: string } }
   | { tipo: 'vazia'; frase: { negrito: string; resto: string } }
   | { tipo: 'contagem'; total: number; frase: { negrito: string; resto: string }; aviso: { negrito: string; resto: string } }
-  | { tipo: 'itens'; total: number; nVideos: number; frase: { negrito: string; resto: string }; itens: ItemDaLista[]; aMais: number }
+  | { tipo: 'itens'; total: number; nVideos: number; subtitulo: string; frase: { negrito: string; resto: string }; itens: ItemDaLista[]; aMais: number }
 
 const curtidasDe = (n: number | null, marco: number | null): string | null =>
   n === null || marco === null ? null : `${ptn(n, 'curtida', 'curtidas')} ${marco === 1 ? 'no dia 1' : `aos ${marco} dias`}`
@@ -51,12 +51,12 @@ export function listaDoCriador(e: {
     return {
       tipo: 'contagem', total: r.total, aviso: e.permissaoFalhou ? { negrito: FRASES.permissaoNaoConferida, resto: '' } : FRASE_SO_CONTAGEM,
       frase: r.total === 0
-        ? { negrito: 'Nenhuma resposta do criador entre os comentários guardados.', resto: ` Ele pode ter respondido a outros: só vemos os ${MAX_COMENTARIOS_GUARDADOS} guardados de cada vídeo.` }
+        ? { negrito: 'Nenhuma resposta dele nos comentários guardados até agora.', resto: ` Guardamos até ${MAX_COMENTARIOS_GUARDADOS} comentários por vídeo; ele pode ter respondido a outros.` }
         : { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado', 'comentários guardados')}.`, resto: '' },
     }
   }
   if (r.itens.length === 0) {
-    return { tipo: 'vazia', frase: { negrito: 'Nenhuma resposta do criador entre os comentários guardados.', resto: ` Ele pode ter respondido a outros: só vemos os ${MAX_COMENTARIOS_GUARDADOS} guardados de cada vídeo.` } }
+    return { tipo: 'vazia', frase: { negrito: 'Nenhuma resposta dele nos comentários guardados até agora.', resto: ` Guardamos até ${MAX_COMENTARIOS_GUARDADOS} comentários por vídeo; ele pode ter respondido a outros.` } }
   }
   const pub = new Map((e.videos ?? []).map(v => [v.id, baseDaIdade(v) ?? 0]))
   const ordenados = r.itens.map((x, i) => ({ x, i })).sort((a, b) => (pub.get(b.x.videoId) ?? 0) - (pub.get(a.x.videoId) ?? 0) || a.i - b.i).map(o => o.x)
@@ -66,7 +66,7 @@ export function listaDoCriador(e: {
     respostaCortada: x.respostaCortada, curtidas: curtidasDe(x.curtidas, x.marco), mencoes: x.mencoesTrocadas,
   }))
   return {
-    tipo: 'itens', total: r.total, nVideos: videos, itens, aMais: Math.max(0, ordenados.length - itens.length),
+    tipo: 'itens', total: r.total, nVideos: videos, subtitulo: `Respostas dele nos comentários já guardados (${ptn(videos, 'vídeo', 'vídeos')})`, itens, aMais: Math.max(0, ordenados.length - itens.length),
     frase: {
       negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado', 'comentários guardados')}, em ${ptn(videos, 'vídeo', 'vídeos')}${e.nBase > 0 ? ' com retrato de 30 dias' : ''}.`,
       resto: ' O vídeo mais recente primeiro.',
