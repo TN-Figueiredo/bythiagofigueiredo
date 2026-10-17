@@ -1,6 +1,6 @@
 // A5 · E5a, Tarefa 10a: a leitura "Estourou e parou" (M10), do dado da E4 para o que a tela escreve. Módulo puro: sem relógio (a data vem por
 // parâmetro) e sem consulta. A tela lê estado, motivo e as constantes de regra; não refaz mediana nem condição (as três condições vêm prontas
-// de `ValorPico.condicoes`). Toda frase nova, que o mockup 14 não traz, leva a marca TEXTO-A-REVISAR para o Logan.
+// de `ValorPico.condicoes`). Toda frase nova, que o mockup 14 não traz, foi revista pelo Logan.
 import { RULES } from '@/lib/youtube/observatorio/rules'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { FALTAS_DE_MARCA, type Medida } from '@/lib/youtube/observatorio/medidas/tipos'
@@ -93,12 +93,10 @@ const CURTA: Record<MotivoDaLeitura, string> = {
   poucos_videos: `o canal tem menos de ${RULES.medianMinN} vídeos longos para comparar`,
   menos_de_90_dias: `o vídeo ainda não tem ${DIAS_MIN} dias`,
   sem_reacao_publica: 'sem reação pública para comparar',
-  // TEXTO-A-REVISAR: os três motivos abaixo o mockup 14 não desenha
-  serie_incompleta: 'faltam leituras diárias das últimas 4 semanas deste vídeo',
-  base_zero: 'o vídeo não tinha views na base da comparação',
-  contagem_recuou: 'a contagem de views do vídeo recuou na janela de leitura',
-  // TEXTO-A-REVISAR: motivo que o mockup 14 não desenha (série diária incompleta, base zero, sem publicação)
-  sem_calculo: 'a leitura não pôde ser calculada para este vídeo',
+  serie_incompleta: 'faltam leituras diárias das últimas 4 semanas',
+  base_zero: 'sem views no começo do período',
+  contagem_recuou: 'o total de views diminuiu no período',
+  sem_calculo: 'ainda não calculada',
 }
 const TITULO: Record<MotivoDaLeitura, string> = {
   ao_vivo_ou_estreia: 'Ao vivo e estreia ficam de fora.',
@@ -107,13 +105,13 @@ const TITULO: Record<MotivoDaLeitura, string> = {
   poucos_videos: 'O canal ainda tem poucos vídeos para servir de normal.',
   menos_de_90_dias: `O vídeo ainda não tem ${DIAS_MIN} dias.`,
   sem_reacao_publica: 'Sem reação pública para comparar.',
-  serie_incompleta: 'Faltam leituras diárias das últimas 4 semanas deste vídeo.', // TEXTO-A-REVISAR
-  base_zero: 'O vídeo não tinha views na base da comparação.', // TEXTO-A-REVISAR
-  contagem_recuou: 'A contagem de views do vídeo recuou na janela de leitura.', // TEXTO-A-REVISAR
-  sem_calculo: 'A leitura não foi calculada para este vídeo.', // TEXTO-A-REVISAR
+  serie_incompleta: 'Faltam leituras diárias das últimas 4 semanas deste vídeo.',
+  base_zero: 'O vídeo não tinha views no começo do período comparado.',
+  contagem_recuou: 'O total de views do vídeo diminuiu durante o período lido; assim a conta não fecha.',
+  sem_calculo: 'Esta leitura não foi calculada para este vídeo.',
 }
 
-/** TEXTO-A-REVISAR: motivo sem data nem condição conhecida; a tela diz isso em vez de calar. */
+/** Motivo sem data nem condição conhecida; a tela diz isso em vez de calar. */
 const SEM_PREVISAO: PassaAExistir = { tipo: 'condicao', texto: 'sem previsão' }
 const NUNCA = (texto = 'nunca para este vídeo'): PassaAExistir => ({ tipo: 'nunca', texto })
 
@@ -164,7 +162,7 @@ function medidoParaTela(v: ValorPico): Leitura {
   else if (!valeRende) motivos.push(`o vídeo ainda rende ${pct(n.aindaRende)} nos últimos 28 dias, acima do limite de ${pct(limiteRende)}`)
   if (!c.poucaReacao) motivos.push(`a reação do público (${pct(n.reacao)} das views) ficou acima do limite de ${pct(limiteReacao)}`)
   const batem = [c.muitasViewsCedo, c.quaseNadaDepois, c.poucaReacao].filter(Boolean).length
-  // O mockup 14 desenha só "2 de 3". TEXTO-A-REVISAR: as frases de 1 e de 0 sinais.
+  // O mockup 14 desenha só "2 de 3"; as frases de 1 e de 0 sinais foram revistas pelo Logan.
   const abre = batem === 2 ? 'Só 2 dos 3 sinais batem, então não é o caso:' : batem === 1 ? 'Só 1 dos 3 sinais bate, então não é o caso:' : 'Nenhum dos 3 sinais bate, então não é o caso:'
   return { tipo: 'nao_e_o_caso', casas, cartoes, frase: `${abre} ${motivos.join('; ')}.` }
 }

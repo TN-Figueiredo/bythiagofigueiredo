@@ -230,7 +230,7 @@ describe('frases das horas', () => {
   })
   it('a ponta vazia diz a hora e as views; "poucos vídeos" diz o hoje', () => {
     expect(FRASES_DAS_HORAS.sem_contagem_no_fim_das_72_horas({ k: 60, views: 1200 }).longa).toBe(
-      'não medido: a contagem por hora parou na hora 60, com 1.200 views; o total das 72 horas não foi lido',
+      'não medido: a leitura por hora parou na hora 60, com 1.200 views até ali; o total das 72 horas não foi lido',
     )
     expect(FRASES_DAS_HORAS.poucos_videos({ n: 1 }).longa).toBe('menos de 3 vídeos com as 72 primeiras horas acompanhadas (hoje 1).')
   })

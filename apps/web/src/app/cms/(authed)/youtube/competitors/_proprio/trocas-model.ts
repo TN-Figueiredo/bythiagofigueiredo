@@ -106,7 +106,7 @@ export interface EntradaTrocas {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-// Textos fixos. TEXTO-A-REVISAR (Logan): todos, menos os copiados do mockup 3b (NOTAS seção 2).
+// Textos fixos. Revistos pelo Logan (17/10).
 export { SEM_RELATORIO }
 /** As duas frases da A4 para o mesmo vídeo (`video-blocos-model.ts`, bloco de impressões): copiadas, e um teste as compara com o que o bloco escreve. */
 export const FRASE_VIDEO_NOVO = 'O vídeo é novo: o YouTube entrega as impressões com 2 a 3 dias de atraso, então ainda não há dia fechado.'
@@ -138,7 +138,7 @@ function base(estado: EstadoTrocas, motivo: MotivoNaoMedido | null): TrocasView 
   }
 }
 
-export const BLOQUEIO: readonly string[] = [ // TEXTO-A-REVISAR (Logan): texto do bloqueio inventado pelo plano
+export const BLOQUEIO: readonly string[] = [
   'Você não vê as trocas deste vídeo.',
   'As trocas mostram impressões e cliques, dados privados do canal: só quem administra o site vê.',
 ]
@@ -158,7 +158,6 @@ function testeView(t: TesteAb, e: EntradaTrocas, diag: TrocasView['diagnostico']
   if (fim === 'nao-registrado') diag.fimNaoRegistrado++
   const de = e.diaPt(t.inicio)
   const ciclos = t.ciclos.map(c => e.diaPt(c.inicio))
-  // TEXTO-A-REVISAR (Logan): "fim do teste não registrado" é texto inventado
   const quando = ate && fim === 'registrado' ? `de ${e.dm(de)} a ${e.dm(ate)}` : fim === 'andamento' ? `desde ${e.dm(de)}, em andamento` : `desde ${e.dm(de)}, sem data de fim registrada`
   const resultado = t.vencedorAplicadoEm ? ` Resultado: o vencedor foi aplicado em ${e.dm(e.diaPt(t.vencedorAplicadoEm))}.` : t.pausadoEm ? ` O teste foi parado em ${e.dm(e.diaPt(t.pausadoEm))}.` : ''
   return {
@@ -237,7 +236,7 @@ type CortePor = { tipo: 'troca'; n: number } | { tipo: 'ciclo' }
 
 /** O aviso de registro atrasado (2 dias ou mais). */
 function atrasoDe(registro: { atrasoDias: number; conferidoAte: DiaYt }, e: EntradaTrocas): { linhas: string[] } | null {
-  return registro.atrasoDias >= 2 ? { linhas: [ // TEXTO-A-REVISAR (Logan): linhas do aviso de atraso inventadas
+  return registro.atrasoDias >= 2 ? { linhas: [
     `O registro das trocas está ${registro.atrasoDias} dias atrasado.`,
     `As trocas até ${e.dm(registro.conferidoAte)} estão certas. Se você trocou algo depois disso, ainda não aparece aqui.`,
   ] } : null
@@ -276,7 +275,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
     // portão L5, Phil I-2: registro atrasado e vídeo publicado depois da última conferência não é "nunca registrado": o atraso aparece
     if (estado.estado === 'registrando') {
       const saiuDepois = e.publicadoEm !== null && e.publicadoEm > estado.conferidoAte
-      if (saiuDepois) v.frase = `Ainda não conferimos as trocas deste vídeo: a última conferência foi em ${e.dm(estado.conferidoAte)} e o vídeo saiu depois.` // TEXTO-A-REVISAR (Logan)
+      if (saiuDepois) v.frase = `Ainda não conferimos as trocas deste vídeo: a última conferência foi em ${e.dm(estado.conferidoAte)} e o vídeo saiu depois.`
       v.atraso = atrasoDe(estado, e)
       if (v.atraso || saiuDepois) v.topo.aviso = `A conferência das trocas parou em ${e.dm(estado.conferidoAte)}.`
     }
@@ -572,9 +571,9 @@ function vizinho(v: VersaoPropria, lado: 'antes' | 'depois', trocas: readonly Ve
  */
 export function causaSemTaxa(l: Pick<Lado, 'imp'>, outro: Pick<Lado, 'imp' | 'diasMedidos'> | undefined, minImp: number, n: (x: number) => string): string {
   if (l.imp < minImp) return `só ${n(l.imp)} ${l.imp === 1 ? 'impressão' : 'impressões'}: sem faixa`
-  if (outro === undefined) return 'sem comparação possível' // TEXTO-A-REVISAR (Logan)
-  if (outro.diasMedidos === 0) return 'sem comparação: o outro lado não tem dia medido' // TEXTO-A-REVISAR (Logan)
-  if (outro.imp < minImp) return `sem comparação: o outro lado tem só ${n(outro.imp)} ${outro.imp === 1 ? 'impressão' : 'impressões'}` // TEXTO-A-REVISAR (Logan)
+  if (outro === undefined) return 'sem comparação possível'
+  if (outro.diasMedidos === 0) return 'sem comparação: o outro lado não tem dia medido'
+  if (outro.imp < minImp) return `sem comparação: o outro lado tem só ${n(outro.imp)} ${outro.imp === 1 ? 'impressão' : 'impressões'}`
   return 'sem comparação possível'
 }
 

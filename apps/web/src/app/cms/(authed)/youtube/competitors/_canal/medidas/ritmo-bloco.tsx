@@ -1,6 +1,6 @@
 /**
  * E5a Tarefa 16: o bloco "Ritmo e regularidade". Componente de servidor, sem estado. Treze casas por semana, duas raias; caixa vazada com 0
- * é semana medida sem publicação; hachura com "—" é semana não lida (nunca zero). TEXTO-A-REVISAR: as frases novas passam pelo Logan.
+ * é semana medida sem publicação; hachura com "—" é semana não lida (nunca zero).
  */
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { ZeroMedido } from '../../_chrome/medidas/marcas'

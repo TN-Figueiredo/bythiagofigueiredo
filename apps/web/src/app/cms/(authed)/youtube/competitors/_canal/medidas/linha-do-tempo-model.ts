@@ -1,7 +1,6 @@
 // E5a Tarefa 18: a Linha do tempo (views por dia e o que mudou). Puro: relógio e dados entram por parâmetro.
 // As duas somas da frase são `m3a.ganhoRecente` e `m3a.ganhoAnterior`, os mesmos números do percentual do cabeçalho (emenda 13/10,
 // resposta 1: d:I11): um dia sem retrato ou em que o total diminuiu fica fora das barras e dentro dessas somas. O percentual NÃO é recalculado.
-// TEXTO-A-REVISAR: as frases novas passam pelo Logan.
 import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import type { RetratoDoCanal } from '@/lib/youtube/observatorio/medidas/direcao'
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
@@ -93,8 +92,8 @@ export function linhaDoTempo(o: EntradaDaLinhaDoTempo): LinhaDoTempo {
   const ultimoRetrato = comViews[comViews.length - 1] ?? null
   if (primeiro === null || ultimoRetrato === null) {
     return {
-      frase: { simbolo: null, negrito: 'Ainda não há registro de views deste canal:', resto: ' as barras aparecem quando houver dois dias seguidos de leitura.' },
-      barras: { tipo: 'sem_registro', motivo: 'ainda não há registro de views deste canal' },
+      frase: { simbolo: null, negrito: 'Ainda não há leitura de views deste canal:', resto: ' as barras aparecem quando houver dois dias seguidos de leitura.' },
+      barras: { tipo: 'sem_registro', motivo: 'ainda não há leitura de views deste canal' },
       raias: marcasDasRaias(o, null), legenda: [], tabela: [],
     }
   }
@@ -111,8 +110,8 @@ export function linhaDoTempo(o: EntradaDaLinhaDoTempo): LinhaDoTempo {
       : g.tipo === 'medido' ? (g.ganho === 0 ? 'zero' : 'com') : g.tipo === 'diminuiu' ? 'diminuiu' : 'sem_registro'
     const ganho = situacao === 'com' || situacao === 'zero' ? (g as { ganho: number }).ganho : null
     const texto = situacao === 'fora' ? 'depois que o canal saiu do YouTube'
-      : situacao === 'sem_registro' ? 'sem registro neste dia'
-      : situacao === 'diminuiu' ? 'o total diminuiu neste dia (o YouTube corrigiu a contagem), então não há ganho a mostrar' // TEXTO-A-REVISAR (pergunta 23)
+      : situacao === 'sem_registro' ? 'sem leitura neste dia'
+      : situacao === 'diminuiu' ? 'o total de views diminuiu neste dia, então não há ganho a mostrar (o YouTube às vezes corrige a conta)'
       : situacao === 'zero' ? 'nenhuma view ganha (zero medido)' : `${o.F.num(ganho)} views ganhas`
     void k
     return {

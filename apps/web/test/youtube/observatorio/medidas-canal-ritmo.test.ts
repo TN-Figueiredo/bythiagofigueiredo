@@ -35,7 +35,7 @@ describe('bloco Ritmo: dado ausente', () => {
     const e = entrada([pub('a', 3), pub('b', 40)])
     const b = blocoDeRitmo(e)
     expect(b.frase.tom).toBe('sem_base')
-    expect(b.frase.negrito).toBe('Ritmo ainda sem base:')
+    expect(b.frase.negrito).toBe('Ritmo ainda não medido:')
     expect(b.raias[0]!.casas).toHaveLength(13)
     expect(b.cartoes.every(c => c.valor.tipo === 'nao_medido')).toBe(true)
   })

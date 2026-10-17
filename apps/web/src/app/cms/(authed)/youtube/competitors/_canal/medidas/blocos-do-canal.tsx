@@ -2,7 +2,7 @@
  * E5a Tarefa 19: os três elementos de servidor da página do canal do concorrente. Cada um recebe a MESMA promessa de medidas (a página
  * chama o carregador uma vez) e faz `await` dela; nenhum chama o carregador. Entram em `CanalScreen` como elemento pronto, nunca como
  * componente (Next 16). `TopoDoCanal` = a frase do topo e a faixa de estado; `CelulasDoCanal` = as cinco células que dependem de medida;
- * `BlocosDoCanal` = os atalhos e os cinco blocos. TEXTO-A-REVISAR nas frases novas.
+ * `BlocosDoCanal` = os atalhos e os cinco blocos.
  */
 import type { ReactNode } from 'react'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'

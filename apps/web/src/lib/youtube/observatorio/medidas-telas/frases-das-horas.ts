@@ -1,7 +1,7 @@
 // apps/web/src/lib/youtube/observatorio/medidas-telas/frases-das-horas.ts
 // E5a Tarefa 14d: as frases dos motivos de "não medido" das 72 horas. Puro. Os textos são os dos NOTAS 13 e 15;
-// os marcados TEXTO-A-REVISAR são do desvio 16 do plano (Logan confere).
-import type { MotivoDeHora, MotivoDeHoras } from './tracao-72h'
+// textos revistos pelo Logan (17/10, trem 4). Termo único: "leitura por hora" (nunca "contagem", que colide com a mudança do YouTube).
+import { REGRAS_DAS_72_HORAS, type MotivoDeHora, type MotivoDeHoras } from './tracao-72h'
 
 export interface ContextoDeHoras {
   /** "dd/mm" ou "dd/mm/aaaa" já escritos pela tela (fuso de São Paulo). */
@@ -45,70 +45,63 @@ export const CLASSE_DO_MOTIVO: Record<MotivoDeHoras, ClasseDoMotivo> = {
 }
 
 export const FRASES_DAS_HORAS: Record<MotivoDeHoras, (c: ContextoDeHoras) => Frase> = {
-  // TEXTO-A-REVISAR (desvio 16, pergunta 20)
   leitura_por_hora_nao_comecou: () => ({
-    curta: 'a leitura por hora ainda não começou',
-    longa: 'A leitura por hora ainda não começou.',
+    curta: 'leitura por hora ainda não começou',
+    longa: 'A leitura por hora ainda não começou; as barras aparecem a partir do primeiro vídeo publicado depois dela.',
   }),
   publicado_antes_da_leitura_por_hora: (c) => ({
     curta: `publicado antes de ${c.comecouEm ?? ''}`.trim(),
-    longa: `publicado em ${c.publicadoEm ?? ''}, antes de ${c.comecouEm ?? ''}: a contagem por hora começou nesse dia e só vale para vídeos publicados depois`,
+    longa: `publicado em ${c.publicadoEm ?? ''}, antes de ${c.comecouEm ?? ''}: a leitura por hora começou em ${c.comecouEm ?? ''} e só vale para vídeos publicados depois`,
   }),
   entrou_tarde: (c) => ({
-    curta: 'entrou tarde na contagem',
-    longa: `entrou tarde na contagem: o vídeo só entrou na contagem ${num(c.horasAteEntrar ?? 0)} horas depois de publicado, quando as 72 horas já tinham passado`,
+    curta: 'leitura por hora começou tarde',
+    longa: `a leitura por hora só começou ${num(c.horasAteEntrar ?? 0)} horas depois da publicação, quando as 72 horas já tinham passado`,
   }),
   ja_tinha_passado: (c) => ({
     curta: `${c.fracao ?? ''} não medido`.trim(),
-    longa: `Deste vídeo, ${c.fracao ?? ''} não medido: o vídeo já tinha mais de ${c.fracao ?? ''} das views quando a contagem por hora começou (${c.depoisDePublicar ?? ''} depois de publicar).`,
+    longa: `Falta ${c.fracao ?? ''} da medida deste vídeo: ele já tinha mais de ${c.fracao ?? ''} das views quando a leitura por hora começou (${c.depoisDePublicar ?? ''} depois de publicar).`,
   }),
   poucos_videos: (c) => ({
     curta: 'menos de 3 vídeos com as 72 horas',
     longa: `menos de ${c.minimo ?? 3} vídeos com as 72 primeiras horas acompanhadas (hoje ${c.n ?? 0}).`,
   }),
-  // TEXTO-A-REVISAR (desvio 16: não afirma o que ninguém mediu)
   muitas_horas_sem_contagem: () => ({
-    curta: 'muitas horas sem contagem',
-    longa: 'não medido: mais de 20% das 72 horas ficaram sem contagem',
+    curta: 'muitas horas sem leitura',
+    longa: `não medido: mais de ${Math.round(REGRAS_DAS_72_HORAS.MAX_HORAS_SEM_CONTAGEM * 100)}% das 72 horas ficaram sem leitura`,
   }),
-  // TEXTO-A-REVISAR
   ainda_nao_tem_72_horas: () => ({
     curta: 'ainda não tem 72 horas',
-    longa: 'ainda não existe: o vídeo ainda não fez 72 horas',
+    longa: 'ainda não dá para medir: o vídeo não fez 72 horas',
   }),
   ao_vivo_ou_estreia: () => ({
     curta: 'ao vivo ou estreia',
     longa: 'fora do normal do canal: ao vivo ou estreia',
   }),
-  // TEXTO-A-REVISAR
   leitura_falhou: () => ({
     curta: 'não carregou',
-    longa: 'não carregou: a leitura por hora falhou; tente de novo',
+    longa: 'não carregou: não deu para ler as horas deste vídeo; tente de novo',
   }),
-  // TEXTO-A-REVISAR (a décima oitava do desvio 16)
   sem_contagem_no_fim_das_72_horas: (c) => ({
-    curta: 'contagem parou antes das 72 horas',
-    longa: `não medido: a contagem por hora parou na hora ${c.k ?? 0}, com ${num(c.views ?? 0)} views; o total das 72 horas não foi lido`,
+    curta: 'leitura parou antes das 72 horas',
+    longa: `não medido: a leitura por hora parou na hora ${c.k ?? 0}, com ${num(c.views ?? 0)} views até ali; o total das 72 horas não foi lido`,
   }),
-  // TEXTO-A-REVISAR (desvio 16)
   sem_contagem_nas_72_horas: () => ({
-    curta: 'sem contagem nas 72 horas',
-    longa: 'não medido: a contagem por hora não rodou para este vídeo nas primeiras 72 horas',
+    curta: 'sem leitura nas 72 horas',
+    longa: 'não medido: não há leitura por hora deste vídeo nas primeiras 72 horas',
   }),
-  // TEXTO-A-REVISAR (desvio 16)
   leitura_por_hora_parada: (c) => ({
     curta: 'leitura por hora parada',
     longa: `a leitura por hora está parada desde ${c.paradaDesde ?? ''}`.trim(),
   }),
 }
 
-/** Frases de uma hora sem barra (desvio 16). TEXTO-A-REVISAR em todas, menos a primeira (NOTAS 13). */
+/** Frases de uma hora sem barra (desvio 16), revistas pelo Logan. */
 export const FRASES_DE_HORA: Record<MotivoDeHora | 'diminuiu', string> = {
-  antes_da_primeira_contagem: 'não medido: antes da primeira contagem',
-  sem_contagem_nesta_hora: 'não medido: sem contagem nesta hora',
-  fora_da_hora_cheia: 'não medido: contagem fora da hora cheia',
-  cobre_mais_de_uma_hora: 'não medido: a contagem cobre mais de uma hora',
-  diminuiu: 'a contagem diminuiu nesta hora',
+  antes_da_primeira_contagem: 'não medido: antes da primeira leitura',
+  sem_contagem_nesta_hora: 'não medido: sem leitura nesta hora',
+  fora_da_hora_cheia: 'não medido: leitura fora da hora cheia',
+  cobre_mais_de_uma_hora: 'não medido: a leitura cobre mais de uma hora',
+  diminuiu: 'o total de views diminuiu nesta hora',
 }
 
 /** "N horas sem barra: o ganho delas está no total, não nas barras". Nula quando não há o que dizer ou o total não foi lido. */

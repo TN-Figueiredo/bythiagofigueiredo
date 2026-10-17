@@ -1,6 +1,5 @@
 // E5a Tarefa 17: Lançamentos (como os vídeos novos começam) e as 72 horas do canal. Puro: relógio e dados entram por parâmetro.
 // A linha do normal é a M2 da E4, com o `n` de cada ponto. A razão de cada vídeo usa o normal SEM o próprio vídeo (pergunta 21).
-// TEXTO-A-REVISAR: as frases novas passam pelo Logan.
 import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import type { PontoDaCurva, VideoComSerie } from '@/lib/youtube/observatorio/medidas/curva'
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
@@ -108,7 +107,7 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
   const quem = f === 'long' ? 'vídeo longo' : 'Short'
   const nc = (motivo: string): ResultadoDeLancamentos => ({ modelo: { tipo: 'nao_carregou', motivo }, ultimo: { tipo: o.primeiraBusca ? 'canal_novo' : 'nenhum' } })
   if (o.medidas === null || o.videos === null || o.marcas === null) return nc('a leitura dos vídeos ou das medidas falhou')
-  if (o.serie === null) return nc('a contagem dia a dia não foi lida')
+  if (o.serie === null) return nc('não deu para ler o dia a dia dos vídeos')
   const m2 = o.medidas.porFormato[f].m2
   if (m2.estado === 'nao_medido' && classeDoMotivo(m2.motivo) === 'nao_carregou') return nc('a linha do normal não carregou')
 

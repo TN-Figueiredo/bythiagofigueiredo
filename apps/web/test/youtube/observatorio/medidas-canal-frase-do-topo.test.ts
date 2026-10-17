@@ -47,7 +47,7 @@ describe('frase do topo', () => {
   it('medidas não carregaram: a frase não afirma direção nem estado', () => {
     const f = fraseDoTopo(base({ direcao: null }))
     expect(f.texto).not.toMatch(/Subindo|Descendo|Ativo|Parado|queda/)
-    expect(f.texto).toMatch(/não carregaram/)
+    expect(f.texto).toMatch(/não deu para ler as medidas deste canal agora/)
   })
   it('parado, em queda, erro, fora e canal novo (frases da tabela)', () => {
     const par = estadoDaPagina(m8('parado', { dias: 64, limite: 28 }), sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA)
@@ -82,15 +82,15 @@ describe('oração do último vídeo', () => {
     expect(oracaoDoUltimoVideo({ tipo: 'medido', v: { tipo: 'faixa', titulo: 'A', dia: 1, razao: 0.5 } }, q)).toBe('O último vídeo, “A”, está abaixo do normal (0,5× no dia 1).')
     expect(oracaoDoUltimoVideo({ tipo: 'medido', v: { tipo: 'sem_normal', titulo: 'A' } }, q)).toBe('O último vídeo, “A”, ainda não tem normal para comparar: faltam vídeos medidos na mesma idade.')
     expect(oracaoDoUltimoVideo({ tipo: 'saiu_agora', quando: 'hoje', anterior: { tipo: 'faixa', titulo: 'B', dia: 3, razao: 1.2 } }, q))
-      .toBe('O último vídeo saiu hoje e ainda não completou um dia de contagem. O anterior, “B”, está perto do normal (1,2× no dia 3).')
-    expect(oracaoDoUltimoVideo({ tipo: 'sem_contagem', motivo: 'antes_da_contagem' }, q)).toBe('Sem leitura do último vídeo: ele saiu antes de a contagem por vídeo começar (03/10).')
+      .toBe('O último vídeo saiu hoje e ainda não fechou o primeiro dia de leitura. O anterior, “B”, está perto do normal (1,2× no dia 3).')
+    expect(oracaoDoUltimoVideo({ tipo: 'sem_contagem', motivo: 'antes_da_contagem' }, q)).toBe('Sem leitura do último vídeo: ele saiu antes de começarmos a guardar as views por vídeo (03/10).')
     expect(oracaoDoUltimoVideo({ tipo: 'canal_novo' }, q)).toBe('Sem leitura do último vídeo: a primeira busca ainda não terminou.')
     expect(oracaoDoUltimoVideo({ tipo: 'medido', v: { tipo: 'faixa', titulo: 'A', dia: 1, razao: 1.4 } }, { quem: 'vídeo', ate: '04/10' })).toMatch(/^Até 04\/10, o último vídeo, “A”/)
   })
   it('sem contagem por vídeo: a oração diz o motivo e não inventa "perto do normal"', () => {
     const t = oracaoDoUltimoVideo({ tipo: 'sem_contagem', motivo: 'sem_dia_completo' }, q)!
     expect(t).not.toMatch(/perto do normal/)
-    expect(t).toMatch(/ainda não completou um dia de contagem/)
+    expect(t).toMatch(/ainda não fechou o primeiro dia de leitura/)
   })
   it('nenhum vídeo: a frase não tem a oração do último vídeo', () => {
     expect(oracaoDoUltimoVideo({ tipo: 'nenhum' }, q)).toBeNull()

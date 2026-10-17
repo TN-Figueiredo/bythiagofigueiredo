@@ -202,8 +202,8 @@ export function EstourouEParou({ leitura }: { leitura: Leitura }) {
             <span><b>Esta leitura ainda não existe para nenhum vídeo.</b> Ela precisa de {R.minDias} dias de vídeo e da medida dos 30 primeiros dias.</span>
           </div>
           <Linha hojeSP={leitura.hojeSP} existeEm={leitura.existeEm} />
-          {/* TEXTO-A-REVISAR: o mockup traz "Janeiro" e "Abril" para o dia de exemplo; aqui as datas saem do calendário. */}
-          <p className="lm-rz"><b>{dataBR(leitura.existeEm)}:</b> o primeiro vídeo chega aos {R.minDias} dias. <b>{dataBR(somaDiasBR(leitura.existeEm, R.minDias))}:</b> um canal com cerca de {R.minVideos} vídeos longos a cada {R.minDias} dias passa a ter {R.minVideos} para comparar.</p>
+          {/* Texto revisto pelo Logan: o mockup traz "Janeiro" e "Abril" para o dia de exemplo; aqui as datas saem do calendário. */}
+          <p className="lm-rz"><b>{dataBR(leitura.existeEm)}:</b> o primeiro vídeo chega aos {R.minDias} dias. <b>{dataBR(somaDiasBR(leitura.existeEm, R.minDias))}:</b> um canal que publica cerca de {R.minVideos} vídeos longos a cada {R.minDias} dias passa a ter {R.minVideos} para comparar.</p>
         </div>, true)
     case 'nao_carregou':
       return sec(

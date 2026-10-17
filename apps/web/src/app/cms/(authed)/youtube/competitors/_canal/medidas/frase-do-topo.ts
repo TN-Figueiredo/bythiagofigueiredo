@@ -1,5 +1,5 @@
 // E5a Tarefa 15: a frase do topo da página do canal e a oração do último vídeo. Puro; as frases são as da tabela do NOTAS 15.
-// O estado é dito uma vez só (decisão 13): a frase não repete o título da faixa. Texto novo leva TEXTO-A-REVISAR.
+// O estado é dito uma vez só (decisão 13): a frase não repete o título da faixa.
 import type { CelulaDeDirecao } from '@/app/cms/(authed)/youtube/competitors/_canais/direcao-model'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { progresso } from '@/lib/youtube/observatorio/medidas-telas/progresso'
@@ -47,13 +47,13 @@ export function oracaoDoUltimoVideo(u: UltimoVideo, o: { quem: string; ate: stri
     case 'canal_novo': return `Sem leitura do último ${o.quem}: a primeira busca ainda não terminou.`
     case 'sem_contagem':
       return u.motivo === 'antes_da_contagem'
-        ? `Sem leitura do último ${o.quem}: ele saiu antes de a contagem por vídeo começar (03/10).`
+        ? `Sem leitura do último ${o.quem}: ele saiu antes de começarmos a guardar as views por vídeo (03/10).`
         : u.motivo === 'sem_leitura'
-          ? `Sem leitura do último ${o.quem}: a contagem dele não tem views nos primeiros dias.` // TEXTO-A-REVISAR
-          : `Sem leitura do último ${o.quem}: ele ainda não completou um dia de contagem.`
+          ? `Sem leitura do último ${o.quem}: ainda não temos as views dos primeiros dias dele.`
+          : `Sem leitura do último ${o.quem}: ele ainda não fechou o primeiro dia de leitura.`
     case 'medido': return orac(u.v, `${ultimo}, `)
     case 'saiu_agora': {
-      const a = `${ultimo} saiu ${u.quando} e ainda não completou um dia de contagem.`
+      const a = `${ultimo} saiu ${u.quando} e ainda não fechou o primeiro dia de leitura.`
       return u.anterior ? `${a} ${orac(u.anterior, 'O anterior, ')}` : a
     }
   }
@@ -93,18 +93,18 @@ export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
 
   // as medidas não carregaram: a frase não afirma direção nem estado
   if (e.direcao === null || e.estado.tipo === 'nao_carregou') {
-    return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' as medidas deste canal não carregaram agora.' }], null) // TEXTO-A-REVISAR
+    return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' não deu para ler as medidas deste canal agora. Os números abaixo não valem; tente de novo.' }], null)
   }
   switch (e.estado.tipo) {
-    case 'nao_medido': // TEXTO-A-REVISAR
-      return montar('eq', 'aviso', [{ t: 'Ainda sem base para o estado:', k: 'forte' }, { t: ` ${e.estado.base}.` }], oracaoNormal)
+    case 'nao_medido':
+      return montar('eq', 'aviso', [{ t: 'Ainda não dá para dizer como o canal está:', k: 'forte' }, { t: ` ${e.estado.base}.` }], oracaoNormal)
     case 'saiu':
       return montar('eq', 'x', [{ t: `Os números valem até ${ate ?? 'a última leitura'}.`, k: 'forte' }], oracaoParada)
     case 'erro':
       return montar('eq', 'aviso', [{ t: `Os números abaixo são de ${ate ?? 'a última leitura'}.`, k: 'forte' }], oracaoParada)
     case 'primeira_busca':
       return montar('eq', 'sync', [{ t: 'Canal novo na lista:', k: 'forte' }, { t: ' os números aparecem aos poucos.' }], oracaoNormal)
-    case 'pausado': // TEXTO-A-REVISAR
+    case 'pausado':
       return montar('eq', 'pausa', [{ t: 'Coleta pausada:', k: 'forte' }, { t: ' os números param na última leitura.' }], oracaoNormal)
     case 'parado': {
       const p = e.parado

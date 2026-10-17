@@ -1,6 +1,6 @@
 // E5a Tarefa 16: o bloco "Ritmo e regularidade". Puro. As casas contam publicações por semana com a MESMA divisão em semanas da M6
 // (`floor((agora − t) / 7 dias)`, 0 = a mais recente), então "casas com publicação" e `semanasComPublicacao` da M6 nunca discordam.
-// Semana não lida é "—" (hachura), fora da conta, nas duas raias; nunca zero. TEXTO-A-REVISAR: as frases novas passam pelo Logan.
+// Semana não lida é "—" (hachura), fora da conta, nas duas raias; nunca zero.
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
 import { baseDaIdade } from '@/lib/youtube/observatorio/medidas/m1'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
@@ -127,7 +127,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
   if (m === null || o.videos === null) {
     const nc: ValorDoCartao = { tipo: 'nao_carregou' }
     return {
-      frase: { negrito: 'Ritmo não carregou:', resto: ' a leitura dos vídeos ou das medidas falhou. Nada aqui vale como zero.', tom: 'nao_carregou' },
+      frase: { negrito: 'Ritmo não carregou:', resto: ' não deu para ler os vídeos ou as medidas. Nada aqui vale como zero.', tom: 'nao_carregou' },
       raias: [], eixoFim: 'esta semana', ponteiro: null, semanasLidas: 0,
       cartoes: [
         { chave: 'intervalo', rotulo: 'Intervalo típico (valor do meio)', valor: nc },
@@ -179,7 +179,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
   } else if (e6.tom === 'sem_leitura') {
     frase = { negrito: 'Ritmo não medido:', resto: ` sem leitura desde ${ate ? dm(ate) : 'a última leitura'}. As casas abaixo mostram o que foi lido até lá.`, tom: 'sem_leitura' }
   } else {
-    frase = { negrito: 'Ritmo ainda sem base:', resto: ` ${e6.motivo}. As casas abaixo mostram o que já foi buscado.`, tom: 'sem_base' }
+    frase = { negrito: 'Ritmo ainda não medido:', resto: ` ${e6.motivo}. As casas abaixo mostram o que já foi buscado.`, tom: 'sem_base' }
   }
 
   // Régua "dias desde o último vídeo" contra o limite de "parado" que M8 devolve.

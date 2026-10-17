@@ -1,7 +1,6 @@
 /**
  * E5a Tarefa 16: o bloco "Para onde o canal anda". Componente de servidor, sem estado. As três linhas e a queda sustentada vêm prontas do
  * modelo; aqui só se desenha. Quatro estados que não trocam de aparência: régua (medido), barra com data, hachura, casas pontilhadas.
- * TEXTO-A-REVISAR: as frases novas deste arquivo ainda passam pelo Logan.
  */
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { Direcao } from '../../_chrome/medidas/direcao'
@@ -120,7 +119,7 @@ export function DirecaoBloco({ bloco }: { bloco: BlocoDeDirecao }) {
           </div>
           {queda.estado === 'progresso' ? (
             <div className="pc-nmw pc-escp">
-              <BarraDeProgresso feitos={queda.progresso.feitos} total={queda.progresso.total} rotulo="dias limpos de registro" />
+              <BarraDeProgresso feitos={queda.progresso.feitos} total={queda.progresso.total} rotulo="dias limpos de leitura" />
               <p className="pc-pgl"><b className="num">{queda.progresso.feitos} de {queda.progresso.total} dias</b> · {queda.motivo}; passa a existir em <b className="num">{dmy(queda.progresso.fechaEm)}</b></p>
             </div>
           ) : queda.estado === 'medida'

@@ -153,7 +153,7 @@ describe('os três elementos com as medidas em não carregou', () => {
     const contexto = await ctx()
     const medidas = Promise.resolve(canalNaoCarregou())
     const topo = html(await TopoDoCanal({ medidas, contexto }))
-    expect(topo).toMatch(/não carregaram/)
+    expect(topo).toMatch(/não deu para ler as medidas deste canal agora/)
     expect(topo).not.toMatch(/Subindo|Descendo|Ativo|Parado/)
     const cel = html(await CelulasDoCanal({ medidas, contexto }))
     for (const c of ['direcao', 'estado', 'acerto', 'ritmo']) expect(cel).toMatch(new RegExp(`data-celula="${c}" data-valor="nao_carregou"`))
@@ -166,7 +166,7 @@ describe('os três elementos com as medidas em não carregou', () => {
   it('uma promessa que rejeita (defeito do carregador) também não derruba os elementos', async () => {
     const contexto = await ctx()
     const medidas = Promise.reject<CanalInteiro>(new Error('x'))
-    expect(html(await TopoDoCanal({ medidas, contexto }))).toMatch(/não carregaram/)
+    expect(html(await TopoDoCanal({ medidas, contexto }))).toMatch(/não deu para ler as medidas deste canal agora/)
   })
 })
 

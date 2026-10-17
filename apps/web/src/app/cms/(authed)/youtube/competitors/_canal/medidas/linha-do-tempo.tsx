@@ -1,7 +1,7 @@
 /**
  * E5a Tarefa 18: a Linha do tempo do canal (views por dia, mais três raias de marcas). Componente de servidor; o desenho é SVG com os dias em barras.
  * Quatro estados que nunca trocam de aparência: dia com views (barra), zero medido (caixa vazada), sem registro (hachura, um retângulo por sequência),
- * depois que saiu (pontilhado). TEXTO-A-REVISAR nas frases novas.
+ * depois que saiu (pontilhado).
  */
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { NaoCarregou } from '../../_chrome/medidas/marcas'

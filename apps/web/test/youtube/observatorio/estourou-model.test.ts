@@ -172,8 +172,8 @@ describe('fronteira: a conta é a da E4, a tela só a mostra', () => {
 describe('motivos com frase própria e "sem previsão" (G-2 do Gio)', () => {
   it.each([
     ['serie_diaria_incompleta', 'serie_incompleta', 'Faltam leituras diárias das últimas 4 semanas deste vídeo.'],
-    ['base_zero', 'base_zero', 'O vídeo não tinha views na base da comparação.'],
-    ['contagem_recuou', 'contagem_recuou', 'A contagem de views do vídeo recuou na janela de leitura.'],
+    ['base_zero', 'base_zero', 'O vídeo não tinha views no começo do período comparado.'],
+    ['contagem_recuou', 'contagem_recuou', 'O total de views do vídeo diminuiu durante o período lido; assim a conta não fecha.'],
   ] as const)('%s: título específico, "sem previsão" e nunca "não foi calculada"', (m, motivo, titulo) => {
     const l = nm(leituraDoVideo(naoMedido(m), null, HOJE, VIDEO))
     expect(l.motivo).toBe(motivo)

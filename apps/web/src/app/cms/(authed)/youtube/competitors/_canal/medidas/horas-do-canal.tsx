@@ -1,7 +1,7 @@
 /**
  * E5a Tarefa 17: as primeiras 72 horas do canal. Componente de servidor. A curva é a mediana, entre os vídeos, da parte das views das 72
  * horas que já aconteceu em cada hora; hora sem mediana (menos de 3 vídeos com contagem) deixa o traço aberto, nunca interpola.
- * Não medido traz o motivo de `frases-das-horas`, sem data inventada. TEXTO-A-REVISAR nas frases novas.
+ * Não medido traz o motivo de `frases-das-horas`, sem data inventada.
  */
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { NaoCarregou } from '../../_chrome/medidas/marcas'

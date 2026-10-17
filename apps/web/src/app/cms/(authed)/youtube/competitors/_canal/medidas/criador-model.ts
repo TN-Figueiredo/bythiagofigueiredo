@@ -5,7 +5,7 @@ export type EstadoDaColetaDeComentarios = 'nao_pedida'
 
 export interface CelulaDoCriador {
   tipo: 'nao_medido'
-  /** TEXTO-A-REVISAR (desvio 16): a frase da pergunta 26, terceira forma. */
+  /** Frase revista pelo Logan (desvio 16): a frase da pergunta 26, terceira forma. */
   curta: string
   longa: string
 }

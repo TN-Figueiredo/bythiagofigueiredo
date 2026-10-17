@@ -95,7 +95,7 @@ describe('Lançamentos: o modelo', () => {
     expect(r.modelo.videos.some(v => v.id === 'novo')).toBe(false)
     expect(r.modelo.videos[0]!.legenda).toMatch(/^o mais recente com contagem · /)
     expect(r.ultimo.tipo).toBe('saiu_agora')
-    expect(oracaoDoUltimoVideo(r.ultimo, { quem: 'vídeo', ate: null })).toMatch(/^O último vídeo saiu hoje e ainda não completou um dia de contagem\. O anterior, “Título v0”/)
+    expect(oracaoDoUltimoVideo(r.ultimo, { quem: 'vídeo', ate: null })).toMatch(/^O último vídeo saiu hoje e ainda não fechou o primeiro dia de leitura\. O anterior, “Título v0”/)
   })
   it('vídeo anterior à contagem por vídeo: sem leitura, com o motivo', () => {
     const ins = so(v => v.id === 'v0')
@@ -174,7 +174,7 @@ describe('as 72 horas do canal', () => {
   })
   it('leitura por hora não começou: não medido com a frase nova, sem data', () => {
     const m = horasDoCanal({ ...base, horas: horasDe([], vs, { primeiraHoraDoSiteMs: null }) })
-    expect(m).toEqual({ tipo: 'nao_medido', motivo: 'A leitura por hora ainda não começou.' })
+    expect(m).toEqual({ tipo: 'nao_medido', motivo: 'A leitura por hora ainda não começou; as barras aparecem a partir do primeiro vídeo publicado depois dela.' })
     expect(m.tipo === 'nao_medido' && /\d\d\/\d\d/.test(m.motivo)).toBe(false)
   })
   it('2 vídeos com as 72 horas: não medido com o n', () => {

@@ -36,7 +36,7 @@ describe('Linha do tempo', () => {
     const m = linhaDoTempo(entrada({ retratos: [] }))
     expect(m.barras.tipo).toBe('sem_registro')
     const h = html(entrada({ retratos: [] }))
-    expect(h).toContain('Ainda não há registro')
+    expect(h).toContain('Ainda não há leitura')
     expect(h).not.toContain('gl-barra')
     expect(h).not.toContain('data-zero')
   })

@@ -2,7 +2,7 @@
 /**
  * E5a Tarefa 17: Lançamentos, como os vídeos novos começam. O vídeo escolhido é estado local (nenhuma ida à rede: a frase de cada vídeo já
  * vem pronta no modelo). Abre sempre pelo último vídeo. As 72 horas chegam como elemento pronto (`horas`), sem componente na prop.
- * O desenho é SVG dentro de `GraficoLegivel`; tudo o que ele diz existe como texto nos pontos e na tabela. TEXTO-A-REVISAR nas frases novas.
+ * O desenho é SVG dentro de `GraficoLegivel`; tudo o que ele diz existe como texto nos pontos e na tabela.
  */
 import { useState, type ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
