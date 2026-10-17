@@ -158,10 +158,10 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
     const l: BlocoDoCriador['legenda'] = []
     if (cont('com')) l.push({ chave: 'com', texto: `${ptn(cont('com'), 'vídeo', 'vídeos')} com resposta dele` })
     if (cont('sem')) l.push({ chave: 'sem', texto: `${ptn(cont('sem'), 'vídeo', 'vídeos')} em que não vimos resposta` })
-    if (cont('espera')) l.push({ chave: 'espera', texto: `${cont('espera')} ainda sem retrato de 30 dias, não entram na conta` })
+    if (cont('espera')) l.push({ chave: 'espera', texto: `${cont('espera')} em coleta, ainda sem os 30 dias` })
     if (cont('sem_retrato')) {
       const so = cont('sem_retrato') - antes
-      if (antes > 0) l.push({ chave: 'sem_retrato', texto: `${ptn(antes, 'vídeo anterior à coleta', 'vídeos anteriores à coleta')}${c.coletaDoSiteDesdeMs !== null ? `, que começou em ${dm(spDateOf(c.coletaDoSiteDesdeMs))}` : ''}` })
+      if (antes > 0) l.push({ chave: 'sem_retrato', texto: `${antes} ${antes === 1 ? 'já tinha' : 'já tinham'} mais de 37 dias quando a coleta começou${c.coletaDoSiteDesdeMs !== null ? ` (${dm(spDateOf(c.coletaDoSiteDesdeMs))})` : ''}` })
       if (so > 0) l.push({ chave: 'sem_retrato', texto: `${so} sem retrato de 30 dias (o motivo de cada um está na página do vídeo)` })
     }
     return l
@@ -192,14 +192,11 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
     }
   }
   // não medido: as três frases de M11 da tabela do NOTAS 20 (fecha em, poucos vídeos, sem retrato do canal)
-  // tem coleta o vídeo que já tem retrato (de qualquer marco) OU que saiu depois do começo da coleta do canal: um vídeo anterior com retrato de 30 dias
-  // também foi coletado, e a frase não pode dizer "só 0" ao lado de uma legenda que conta esse vídeo (item d do Gio, trem 6)
-  const comColeta = doFormato.filter(x => retrato(x.v.id) !== null || (c.coletaDoCanalDesdeMs !== null && x.base >= c.coletaDoCanalDesdeMs)).length
   let frase: BlocoDoCriador['frase']
   let curta: string
   let semColeta = false
   if (m.motivo === 'fecha_em' && m.fechaEm) {
-    frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${comColeta} dos ${total} vídeos dos últimos ${janela} dias têm coleta de comentários, e o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}.` }
+    frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${nBase === 1 ? 'já tem' : 'já têm'} o retrato de 30 dias; o primeiro dos outros fecha em ${dm(m.fechaEm)}.` }
     curta = `não medido: o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}`
   } else if (m.motivo === 'poucos_videos') {
     frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${m.n ?? nBase} dos ${total} vídeos têm retrato de 30 dias, e a conta pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos}.` }
