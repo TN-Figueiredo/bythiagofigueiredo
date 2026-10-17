@@ -57,7 +57,7 @@ describe('leitura Estourou e parou: dado ausente', () => {
     }
   })
   it('motivo fora da lista não promete data (coleta pausada, sem publicação)', () => {
-    for (const m of ['coleta_pausada', 'sem_publicacao', 'serie_diaria_incompleta', 'base_zero'] as const) {
+    for (const m of ['coleta_pausada', 'sem_publicacao'] as const) {
       const l = nm(leituraDoVideo(naoMedido(m), null, HOJE, VIDEO))
       expect(l.passaAExistir, m).toEqual({ tipo: 'sem_promessa' })
     }
@@ -166,5 +166,19 @@ describe('fronteira: a conta é a da E4, a tela só a mostra', () => {
     const l = nm(ler(entrada({ v30: 640 })))
     expect(l.curta).toContain('1.000')
     expect(l.passaAExistir).toMatchObject({ tipo: 'nunca' })
+  })
+})
+
+describe('motivos com frase própria e "sem previsão" (G-2 do Gio)', () => {
+  it.each([
+    ['serie_diaria_incompleta', 'serie_incompleta', 'Faltam leituras diárias das últimas 4 semanas deste vídeo.'],
+    ['base_zero', 'base_zero', 'O vídeo não tinha views na base da comparação.'],
+    ['contagem_recuou', 'contagem_recuou', 'A contagem de views do vídeo recuou na janela de leitura.'],
+  ] as const)('%s: título específico, "sem previsão" e nunca "não foi calculada"', (m, motivo, titulo) => {
+    const l = nm(leituraDoVideo(naoMedido(m), null, HOJE, VIDEO))
+    expect(l.motivo).toBe(motivo)
+    expect(l.titulo).toBe(titulo)
+    expect(l.passaAExistir).toEqual({ tipo: 'condicao', texto: 'sem previsão' })
+    expect(JSON.stringify(l)).not.toContain('não foi calculada')
   })
 })

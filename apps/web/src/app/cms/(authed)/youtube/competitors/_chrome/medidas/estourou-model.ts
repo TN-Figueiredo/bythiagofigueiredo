@@ -22,7 +22,7 @@ export const NOME_DA_LEITURA = 'Estourou e parou'
 export type Casa = 'v' | 'n' | 'm' | 'p'
 export type Casas = `${Casa}${Casa}${Casa}`
 
-export type MotivoDaLeitura = 'ao_vivo_ou_estreia' | 'sem_v30' | 'poucas_views' | 'poucos_videos' | 'menos_de_90_dias' | 'sem_reacao_publica' | 'sem_calculo'
+export type MotivoDaLeitura = 'ao_vivo_ou_estreia' | 'sem_v30' | 'poucas_views' | 'poucos_videos' | 'menos_de_90_dias' | 'sem_reacao_publica' | 'serie_incompleta' | 'base_zero' | 'contagem_recuou' | 'sem_calculo'
 
 export type PassaAExistir =
   | { tipo: 'nunca'; texto: string }
@@ -93,6 +93,10 @@ const CURTA: Record<MotivoDaLeitura, string> = {
   poucos_videos: `o canal tem menos de ${RULES.medianMinN} vídeos longos para comparar`,
   menos_de_90_dias: `o vídeo ainda não tem ${DIAS_MIN} dias`,
   sem_reacao_publica: 'sem reação pública para comparar',
+  // TEXTO-A-REVISAR: os três motivos abaixo o mockup 14 não desenha
+  serie_incompleta: 'faltam leituras diárias das últimas 4 semanas deste vídeo',
+  base_zero: 'o vídeo não tinha views na base da comparação',
+  contagem_recuou: 'a contagem de views do vídeo recuou na janela de leitura',
   // TEXTO-A-REVISAR: motivo que o mockup 14 não desenha (série diária incompleta, base zero, sem publicação)
   sem_calculo: 'a leitura não pôde ser calculada para este vídeo',
 }
@@ -103,9 +107,14 @@ const TITULO: Record<MotivoDaLeitura, string> = {
   poucos_videos: 'O canal ainda tem poucos vídeos para servir de normal.',
   menos_de_90_dias: `O vídeo ainda não tem ${DIAS_MIN} dias.`,
   sem_reacao_publica: 'Sem reação pública para comparar.',
+  serie_incompleta: 'Faltam leituras diárias das últimas 4 semanas deste vídeo.', // TEXTO-A-REVISAR
+  base_zero: 'O vídeo não tinha views na base da comparação.', // TEXTO-A-REVISAR
+  contagem_recuou: 'A contagem de views do vídeo recuou na janela de leitura.', // TEXTO-A-REVISAR
   sem_calculo: 'A leitura não foi calculada para este vídeo.', // TEXTO-A-REVISAR
 }
 
+/** TEXTO-A-REVISAR: motivo sem data nem condição conhecida; a tela diz isso em vez de calar. */
+const SEM_PREVISAO: PassaAExistir = { tipo: 'condicao', texto: 'sem previsão' }
 const NUNCA = (texto = 'nunca para este vídeo'): PassaAExistir => ({ tipo: 'nunca', texto })
 
 function naoMedido(motivo: MotivoDaLeitura, resto: { casas?: Casas; explica?: string | null; falta?: Falta | null; passaAExistir: PassaAExistir }): Leitura {
@@ -200,6 +209,12 @@ export function leituraDoVideo(m10: Medida<ValorPico> | null | undefined, m1aos3
         explica: 'Curtidas ocultas e comentários desligados: nenhum número de reação, nem zero.',
         passaAExistir: { tipo: 'condicao', texto: 'se o canal mostrar as curtidas ou ligar os comentários' },
       })
+    case 'serie_diaria_incompleta':
+      return naoMedido('serie_incompleta', { passaAExistir: SEM_PREVISAO })
+    case 'base_zero':
+      return naoMedido('base_zero', { passaAExistir: SEM_PREVISAO })
+    case 'contagem_recuou':
+      return naoMedido('contagem_recuou', { passaAExistir: SEM_PREVISAO })
     case 'leitura_falhou':
     case 'calculo_falhou':
     case 'serie_nao_pedida':
