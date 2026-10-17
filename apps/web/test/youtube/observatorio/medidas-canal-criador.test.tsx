@@ -211,8 +211,8 @@ describe('criadorDoCanal: a conta', () => {
 
 const resp = (over: Partial<RespostasDoCriador> = {}): ParteLida<RespostasDoCriador> => ok({
   nivel: 'texto', total: 2, itens: [
-    { videoId: 'v0', texto: 'ótimo @ana', cortado: false, respostaTexto: 'valeu @…', respostaCortada: false, curtidas: 12, marco: 7, mencoesTrocadas: 2 },
-    { videoId: 'v1', texto: 'um', cortado: true, respostaTexto: 'dois', respostaCortada: false, curtidas: null, marco: null, mencoesTrocadas: 0 },
+    { videoId: 'v0', texto: 'ótimo @ana', cortado: false, publicadoEm: '2026-10-12T15:00:00.000Z', respostas: [{ texto: 'valeu @…', cortado: false, publicadoEm: '2026-10-12T16:00:00.000Z' }], curtidas: 12, marco: 7, mencoesTrocadas: 2 },
+    { videoId: 'v1', texto: 'um', cortado: true, publicadoEm: '2026-10-12T15:00:00.000Z', respostas: [{ texto: 'dois', cortado: false, publicadoEm: '2026-10-12T16:00:00.000Z' }], curtidas: null, marco: null, mencoesTrocadas: 0 },
   ], ...over,
 })
 

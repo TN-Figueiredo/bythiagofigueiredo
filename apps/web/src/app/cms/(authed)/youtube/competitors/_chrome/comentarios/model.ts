@@ -7,13 +7,14 @@ import type {
   CartaoBase, CartaoContagem, CartaoIdentidade, CartaoTexto, ComentariosDoVideo, CurtidasNoMarco, EstadoDoMarco, MotivoDoCartao, Nivel,
 } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import { FRASES, RESPOSTAS_QUE_O_YOUTUBE_MOSTRA, dias } from './frases'
+import type { AutorDaFala, ChaveDeMotivo } from './fio-model'
 
 export const MARCOS_DA_TELA: readonly Marco[] = [1, 7, 30]
 export const CASAS = 12
 const DIA_MS = 86_400_000
 
 export type Tom = 'ok' | 'zero' | 'nm' | 'erro' | 'pontilhado'
-export type ChaveDeMotivo = 'c' | 'k' | 'a' | 'g' | 'p'
+export type { ChaveDeMotivo }
 
 export interface AbaView { marco: Marco; rotulo: string; estado: string; tom: Tom }
 export interface SeloView { texto: string; forma: Tom }
@@ -193,6 +194,11 @@ function autorDoCartao(c: Cartao, nivel: Nivel, canalNome: string): AutorView {
   if (a.tipo === 'canal_grande') return { tipo: 'grande', faixa: c.faixas.tamanho }
   if (a.tipo === 'com_identidade' && nivel === 'identidade') return { tipo: 'identidade', nome: a.nome, fotoUrl: a.fotoUrl, ate: dmDeData(a.guardadaAte) }
   return { tipo: 'espectador' }
+}
+
+/** O autor da tela do vídeo no formato do fio: o `'criador'` perde o nome (vem de `CriadorDoFio`). */
+export function autorDaFala(a: AutorView): AutorDaFala {
+  return a.tipo === 'criador' ? { tipo: 'criador' } : a
 }
 
 function respostaDoCartao(c: Cartao, canalNome: string): RespostaView | null {

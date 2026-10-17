@@ -62,8 +62,8 @@ export function listaDoCriador(e: {
   const ordenados = r.itens.map((x, i) => ({ x, i })).sort((a, b) => (pub.get(b.x.videoId) ?? 0) - (pub.get(a.x.videoId) ?? 0) || a.i - b.i).map(o => o.x)
   const videos = new Set(ordenados.map(x => x.videoId)).size
   const itens: ItemDaLista[] = ordenados.slice(0, MAX_NA_LISTA).map(x => ({
-    videoId: x.videoId, titulo: e.titulos.get(x.videoId) ?? '(sem título)', texto: x.texto, cortado: x.cortado, respostaTexto: x.respostaTexto,
-    respostaCortada: x.respostaCortada, curtidas: curtidasDe(x.curtidas, x.marco), mencoes: x.mencoesTrocadas,
+    videoId: x.videoId, titulo: e.titulos.get(x.videoId) ?? '(sem título)', texto: x.texto, cortado: x.cortado, respostaTexto: x.respostas[0]?.texto ?? '',
+    respostaCortada: x.respostas[0]?.cortado ?? false, curtidas: curtidasDe(x.curtidas, x.marco), mencoes: x.mencoesTrocadas,
   }))
   return {
     tipo: 'itens', total: r.total, nVideos: videos, subtitulo: `Respostas dele nos comentários já guardados (${ptn(videos, 'vídeo', 'vídeos')})`, itens, aMais: Math.max(0, ordenados.length - itens.length),

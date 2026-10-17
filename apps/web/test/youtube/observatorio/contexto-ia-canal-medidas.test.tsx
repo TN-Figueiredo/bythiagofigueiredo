@@ -356,9 +356,15 @@ function contagemDe(o: { com?: (i: number) => boolean; retrato?: string; siteDes
     ultimoOkDaTarefaMs: o.ultimoOk === undefined ? AGORA_CHEIA - 3_600_000 : o.ultimoOk, primeiraExecucaoDaTarefaMs: o.primeira === undefined ? AGORA_CHEIA - 400 * 86_400_000 : o.primeira,
   })
 }
-const item = (i: number, extra: Partial<RespostaDoCriador> = {}): RespostaDoCriador => ({
-  videoId: IDS()[i % IDS().length]!, texto: `Comentário ${i} do espectador`, cortado: false, respostaTexto: `Resposta ${i} do criador`, respostaCortada: false, curtidas: 10 + i, marco: 7, mencoesTrocadas: 0, ...extra,
-})
+type ExtraItem = Partial<RespostaDoCriador> & { respostaTexto?: string; respostaCortada?: boolean }
+const item = (i: number, extra: ExtraItem = {}): RespostaDoCriador => {
+  const { respostaTexto, respostaCortada, ...resto } = extra
+  return {
+    videoId: IDS()[i % IDS().length]!, texto: `Comentário ${i} do espectador`, cortado: false, publicadoEm: '2026-10-12T15:00:00.000Z',
+    respostas: [{ texto: respostaTexto ?? `Resposta ${i} do criador`, cortado: respostaCortada ?? false, publicadoEm: '2026-10-12T16:00:00.000Z' }],
+    curtidas: 10 + i, marco: 7, mencoesTrocadas: 0, ...resto,
+  }
+}
 const respostas = (nivel: RespostasDoCriador['nivel'], itens: RespostaDoCriador[], total = itens.length): ParteLida<RespostasDoCriador> => OK({ nivel, total, itens })
 const lidos = (contagem: ParteLida<ContagemDeRespostas> | null, r: ParteLida<RespostasDoCriador> | null): ComentariosDoCanal => ({ contagem, respostas: r })
 
