@@ -45,3 +45,16 @@ describe('"n = k" das celulas do canal (Gio T15-3)', () => {
     expect(css).toMatch(/\.pc-cel dd\.v small\{font-size:12px/)
   })
 })
+
+describe('textos sem promessa de acao que a tela nao tem (Gio T15-4)', () => {
+  const ler = (p: string): string => readFileSync(p, 'utf8')
+  it('frase do topo e frase das horas nao mandam "tente de novo"', () => {
+    expect(ler('src/app/cms/(authed)/youtube/competitors/_canal/medidas/frase-do-topo.ts')).not.toMatch(/tente de novo/)
+    expect(ler('src/lib/youtube/observatorio/medidas-telas/frases-das-horas.ts')).not.toMatch(/tente de novo/)
+  })
+  it('erro de sync sem mensagem diz "Erro sem mensagem registrada." e nunca "Erro: erro sem..."', () => {
+    const src = ler('src/app/cms/(authed)/youtube/competitors/_canal/header-model.ts')
+    expect(src).toContain("'Erro sem mensagem registrada'")
+    expect(src).not.toMatch(/Erro: erro sem/)
+  })
+})

@@ -86,9 +86,9 @@ export function sincronizacaoDoCanal(obs: Observatory, ch: ObsChannel, tail: str
     banner = `${p ? `Sincronizando: ${p.done} de ${p.total} vídeos` : 'Sincronizando os vídeos do canal'}. Os números aparecem quando a sincronização terminar.`
   } else if (s.state === 'erro') {
     tone = 'danger'
-    const reason = ch.sync.problemLabel ?? 'erro sem mensagem registrada'
+    const reason = ch.sync.problemLabel != null ? `Erro: ${ch.sync.problemLabel}` : 'Erro sem mensagem registrada'
     atText = last == null ? null : stamp(last)
-    text = `Erro: ${reason}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `A última sincronização boa foi ${stamp(last)}.`}${tail}`
+    text = `${reason}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `A última sincronização boa foi ${stamp(last)}.`}${tail}`
     banner = `Erro: a última sincronização falhou${s.errorSince != null ? ` em ${stamp(s.errorSince)}` : ''}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `Os números são de ${D.dm(last)}.`}`
   } else if (s.state === 'atrasado') {
     tone = 'warn'

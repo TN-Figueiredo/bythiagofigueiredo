@@ -93,7 +93,7 @@ export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
 
   // as medidas não carregaram: a frase não afirma direção nem estado
   if (e.direcao === null || e.estado.tipo === 'nao_carregou') {
-    return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' não deu para ler as medidas deste canal agora. Os números abaixo não valem; tente de novo.' }], null)
+    return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' não deu para ler as medidas deste canal agora. Os números abaixo não valem.' }], null)
   }
   switch (e.estado.tipo) {
     case 'nao_medido':
