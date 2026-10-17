@@ -89,7 +89,7 @@ function videoNaIdade(p: PontoDoVideo, e: EntradaDeIdade): VideoNaIdade {
     }
     case 'descoberto_tarde': {
       const h = e.horasAteEntrar
-      return nao('nao_medido', 'entrou tarde na contagem', h !== null && h > 0 ? `entrou tarde na contagem: o vídeo entrou na contagem ${milhar(h)} horas depois de publicado` : 'entrou tarde na contagem')
+      return nao('nao_medido', 'entrou tarde na contagem', h !== null && h > 0 ? `entrou tarde na contagem: o vídeo entrou na contagem ${milhar(h)} ${h === 1 ? 'hora' : 'horas'} depois de publicado` : 'entrou tarde na contagem')
     }
     case 'leituras_distantes': {
       const falta = m.desde ? ` (falta a contagem de ${dm(m.desde)})` : ''

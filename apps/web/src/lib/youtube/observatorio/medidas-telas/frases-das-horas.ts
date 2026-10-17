@@ -55,7 +55,7 @@ export const FRASES_DAS_HORAS: Record<MotivoDeHoras, (c: ContextoDeHoras) => Fra
   }),
   entrou_tarde: (c) => ({
     curta: 'leitura por hora começou tarde',
-    longa: `a leitura por hora só começou ${num(c.horasAteEntrar ?? 0)} horas depois da publicação, quando as 72 horas já tinham passado`,
+    longa: `a leitura por hora só começou ${num(c.horasAteEntrar ?? 0)} ${c.horasAteEntrar === 1 ? 'hora' : 'horas'} depois da publicação, quando as 72 horas já tinham passado`,
   }),
   ja_tinha_passado: (c) => ({
     curta: `${c.fracao ?? ''} não medido`.trim(),

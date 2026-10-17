@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { derivarDoVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/derivar-do-video'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
+import { FRASES_DAS_HORAS } from '@/lib/youtube/observatorio/medidas-telas/frases-das-horas'
 import type { Leitura } from '@/lib/youtube/observatorio/medidas/m1'
 
 const DAY = 864e5
@@ -88,5 +89,28 @@ describe('derivarDoVideo: dia de contagem é o da leitura diária (portão Phil 
     const d = derivarDoVideo(canal(lidoDe(pub), { serie: serieDe(new Map([['v1', horarias]])) }), { ...pedido(pub), agoraMs: agora })
     // série lida, mas nenhum dia de contagem diária: é "vazio" (a primeira contagem é amanhã às 12:00), não "1 dia de contagem"
     expect(d.resumo.variante).toBe('vazio')
+  })
+})
+
+describe('derivarDoVideo: uma âncora só, o início real (portão Phil I4, Yannis I-2)', () => {
+  const inicio = AGORA - 5 * DAY // hora cheia
+  const pub = inicio - 4 * DAY // estreia agendada 4 dias antes
+  const horas = (): CanalInteiro['horas'] => ({
+    lido: true,
+    dados: {
+      porVideo: new Map([['v1', Array.from({ length: 73 }, (_, k) => ({ horaMs: inicio + k * H, lidaEmMs: inicio + k * H + 60_000, views: 1000 * (k + 1), likes: null, comments: null }))]]),
+      primeiraHoraDoSiteMs: inicio - H, ultimoOkDaTarefaMs: AGORA - H, primeiraExecucaoDaTarefaMs: inicio - H, foraDoCanal: 0,
+    },
+  }) as unknown as CanalInteiro['horas']
+
+  it('estreia com início 4 dias depois de published_at e leituras por hora desde o início: as 72 horas são medidas, nunca "entrou tarde"', () => {
+    const v = lidoDe(pub, { liveActualStartAt: new Date(inicio).toISOString(), discoveredAt: new Date(inicio).toISOString(), wasLive: true })
+    const d = derivarDoVideo(canal(v, { serie: serieDe(new Map()), horas: horas() }), pedido(pub))
+    expect(d.horas.tipo).toBe('ok')
+  })
+
+  it('"1 hora", no singular (frase de entrou tarde e do bloco de idade)', () => {
+    expect(FRASES_DAS_HORAS.entrou_tarde({ horasAteEntrar: 1 } as never).longa).toMatch(/\b1 hora depois/)
+    expect(FRASES_DAS_HORAS.entrou_tarde({ horasAteEntrar: 5 } as never).longa).toMatch(/\b5 horas depois/)
   })
 })

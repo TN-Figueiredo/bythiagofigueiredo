@@ -128,7 +128,8 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
     })
     normal = normalSem(comSerie, video.id, { formato, agoraMs })
   }
-  const horasAteEntrar = descobertoMs === null ? null : (descobertoMs - pub) / H
+  // uma âncora só: o início real (live ou estreia) quando há, a publicação quando não; idade, horas e tração contam dela (portão Phil I4, Yannis I-2)
+  const horasAteEntrar = descobertoMs === null ? null : (descobertoMs - baseMs) / H
   const idade = blocoDeIdade({
     hojeSP, inicioDaContagem: INICIO_DAS_MARCAS, publicadoEm: spDateOf(pub), aoVivo, saiuDoYoutube: saiuEm !== null,
     horasAteEntrar, pontos, normal,
@@ -153,7 +154,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
     const daTracao: VideoDaTracao[] = []
     for (const v of videos) {
       if (v.id === video.id) continue
-      const vp = ms(v.publishedAt)
+      const vp = baseDaIdade(v) ?? ms(v.publishedAt)
       if (vp === null) continue
       const d = ms(v.discoveredAt)
       daTracao.push({
@@ -166,7 +167,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   const diarias = leituras === null ? [] : leituras.filter((l) => l.porHora !== true)
   const primeiroDia = diarias.length > 0 ? spDateOf(Math.min(...diarias.map((l) => l.t))) : null
   const horas = blocoDeHoras({
-    agoraMs, publicadoEmMs: pub, descobertoEmMs: descobertoMs, aoVivo, viewsAgora: video.viewsAgora,
+    agoraMs, publicadoEmMs: baseMs, descobertoEmMs: descobertoMs, aoVivo, viewsAgora: video.viewsAgora,
     horas: horasLidas, leituras: horasLidas?.porVideo.get(video.id) ?? [], toleranciaH: TOLERANCIA_HORARIA_H,
     normal: normalHoras, contagemPorDiaDesde: primeiroDia,
   })
