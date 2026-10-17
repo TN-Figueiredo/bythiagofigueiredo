@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Fase A2, tarefa 6, no Histórico: os quatro gatilhos do visualizador de thumbnail (spec 6.3), a legenda do gráfico e o foco quando o gatilho some.
+// Fase A2, tarefa 6, no Histórico: os quatro gatilhos do visualizador de miniatura (spec 6.3), a legenda do gráfico e o foco quando o gatilho some.
 // jsdom não tem layout: o gráfico tem 1100 px (o padrão do componente) e o ponteiro é fino. A rede de imagens não existe: o diálogo abre e mostra o que a tela já tinha.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup, screen, within, act } from '@testing-library/react'
@@ -24,7 +24,7 @@ vi.mock('next/link', () => ({
 beforeEach(() => { nav.replace.mockClear(); nav.search = 'from=canais' })
 afterEach(() => { cleanup(); document.getElementById('flut')?.remove(); document.querySelectorAll('.obs-tv-host').forEach(e => e.remove()); vi.restoreAllMocks() })
 
-// matt-opus55 tem quatro períodos de thumbnail: A, B, A (voltou), C (no ar). O oráculo não traz as imagens arquivadas: aqui todas têm cópia, menos a B.
+// matt-opus55 tem quatro períodos de miniatura: A, B, A (voltou), C (no ar). O oráculo não traz as imagens arquivadas: aqui todas têm cópia, menos a B.
 const FULL = 'matt-opus55'
 const BLOB = (i: number) => `https://x.public.blob.vercel-storage.com/t/${i}.jpg`
 const comImagens = (ds: Dataset) => {
@@ -48,7 +48,7 @@ const fechar = () => { fireEvent.keyDown(document.body, { key: 'Escape' }) }
 const gatilho = (el: Element | null) => el as HTMLElement
 
 describe('o modelo entrega o visualizador', () => {
-  it('HistoricoView.viewer traz uma versão por período de thumbnail, a atual é a última, com o id do YouTube só nela', () => {
+  it('HistoricoView.viewer traz uma versão por período de miniatura, a atual é a última, com o id do YouTube só nela', () => {
     const v = build().viewer!
     expect(v.versions.map(x => x.label)).toEqual(['Capa A', 'Capa B', 'Capa A', 'Capa C'])
     expect(v.start).toBe(3)
@@ -65,18 +65,18 @@ describe('o modelo entrega o visualizador', () => {
     })
     expect(v.versions[3]!.caption.startsWith('Capa C (')).toBe(true)
   })
-  it('vídeo sem nenhuma versão de thumbnail: viewer nulo', () => {
+  it('vídeo sem nenhuma versão de miniatura: viewer nulo', () => {
     const { obs: o } = canalWorld(ds => { ds.videos.find(x => x.id === FULL)!.thumbs = [] })
     expect(build({}, o).viewer).toBeNull()
   })
 })
 
-describe('gatilho 1: a thumbnail do cabeçalho', () => {
+describe('gatilho 1: a miniatura do cabeçalho', () => {
   it('abre o visualizador na versão atual, com o título do vídeo', () => {
     const { root, view } = mount()
     const g = gatilho(root.querySelector('.vhead .cur [role="button"]'))
     expect(g).not.toBeNull()
-    expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a thumbnail/)
+    expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a miniatura/)
     fireEvent.click(g)
     expect(dialog().querySelector('h2')!.textContent).toBe('Thumbnail: ' + view.video!.title)
     expect(posicao()).toBe('Capa C · 4 de 4')
@@ -103,7 +103,7 @@ describe('gatilho 1: a thumbnail do cabeçalho', () => {
   })
 })
 
-describe('gatilho 2: as thumbnails de "Antes e depois"', () => {
+describe('gatilho 2: as miniaturas de "Antes e depois"', () => {
   it('cada lado abre na versão dele', () => {
     const { root, view } = mount({ troca: thumbChange.id })
     const par = view.comparisons.find(c => c.changeId === view.defaultPair)!
@@ -121,16 +121,16 @@ describe('gatilho 2: as thumbnails de "Antes e depois"', () => {
   })
 })
 
-describe('gatilho 3: os cartões de "Thumbnails"', () => {
+describe('gatilho 3: os cartões de "Miniaturas"', () => {
   const cartoes = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('.film .fcard')]
-  it('cada thumbnail tem a lupa e role="button" com nome acessível, e abre na versão do cartão', () => {
+  it('cada miniatura tem a lupa e role="button" com nome acessível, e abre na versão do cartão', () => {
     const { root } = mount()
     const cs = cartoes(root)
     expect(cs).toHaveLength(4)
     cs.forEach((c, i) => {
       const g = gatilho(c.querySelector('[role="button"]'))
       expect(g, 'cartão ' + i).not.toBeNull()
-      expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a thumbnail: Capa [ABC]/)
+      expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a miniatura: Capa [ABC]/)
       expect(g.getAttribute('tabindex')).toBe('0')
       expect(g.querySelector('.th-lupa svg')).not.toBeNull()
       expect(g.querySelector('.th-lupa')!.getAttribute('aria-hidden')).toBe('true')
@@ -139,7 +139,7 @@ describe('gatilho 3: os cartões de "Thumbnails"', () => {
       fechar()
     })
   })
-  it('thumbnail sem imagem não vira botão quebrado: abre o visualizador no quadro explicativo', () => {
+  it('miniatura sem imagem não vira botão quebrado: abre o visualizador no quadro explicativo', () => {
     const { root } = mount()
     const sem = cartoes(root)[1]!
     expect(sem.querySelector('img')).toBeNull()
@@ -284,10 +284,10 @@ describe('a legenda do gráfico', () => {
   it('diz que o clique duplo amplia e que o simples leva ao cartão da versão', () => {
     const { root } = mount()
     const leg = root.querySelector('[data-legend]')!.textContent!
-    expect(leg).toMatch(/clique duplo numa miniatura da faixa Thumbnail a amplia/)
+    expect(leg).toMatch(/clique duplo numa miniatura da faixa Miniatura a amplia/)
     expect(leg).toMatch(/o clique simples leva ao cartão da versão/)
   })
-  it('sem nenhuma thumbnail a legenda não promete o clique', () => {
+  it('sem nenhuma miniatura a legenda não promete o clique', () => {
     const { obs: o } = canalWorld(ds => { ds.videos.find(x => x.id === FULL)!.thumbs = [] })
     const { root } = mount({}, o)
     expect(root.querySelector('[data-legend]')?.textContent ?? '').not.toMatch(/clique duplo/)

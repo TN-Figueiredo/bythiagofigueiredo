@@ -40,7 +40,7 @@ describe('faixas densas (Task 6)', () => {
       expect(laneOf(t).querySelectorAll('.ln-i[tabindex="0"]').length).toBe(1)
     }
     expect(root.querySelectorAll('.lanes [tabindex="0"]').length).toBe(3)
-    expect(laneOf('thumb').getAttribute('aria-label')).toBe('Faixa de thumbnail: 24 períodos e 23 trocas, em ordem de tempo. As setas para a esquerda e para a direita andam pela faixa.')
+    expect(laneOf('thumb').getAttribute('aria-label')).toBe('Faixa de miniatura: 24 períodos e 23 trocas, em ordem de tempo. As setas para a esquerda e para a direita andam pela faixa.')
   })
   it('as setas, Home e End andam pela faixa e levam a parada de Tab junto', () => {
     const { laneOf } = mount(VID.many)
@@ -58,7 +58,7 @@ describe('faixas densas (Task 6)', () => {
   it('o grupo NÃO abre ao receber foco: mostra só a dica; abre com clique (Enter e espaço são o clique do botão)', () => {
     const { root, laneOf } = mount(VID.many)
     const g = laneOf('thumb').querySelector<HTMLElement>('.cgrp')!
-    expect(g.getAttribute('aria-label')).toMatch(/^\d+ períodos de thumbnail, de 13\/10 11:00 até .+: A, B, A/)
+    expect(g.getAttribute('aria-label')).toMatch(/^\d+ períodos de miniatura, de 13\/10 11:00 até .+: A, B, A/)
     fireEvent.focus(g)
     expect(g.getAttribute('aria-expanded')).toBe('false')
     const tip = document.getElementById('hv-tip')!
@@ -107,7 +107,7 @@ describe('faixas densas (Task 6)', () => {
   })
   it('trocas em sequência: barra com nome completo em cada faixa que tem; descrição não tem', () => {
     const { laneOf } = mount(VID.open)
-    expect(laneOf('thumb').querySelector('.runb')!.getAttribute('aria-label')).toBe('Trocas em sequência: 5 trocas em 9 dias, ainda aberta (thumbnail). Pode ser um teste; o YouTube não informa.')
+    expect(laneOf('thumb').querySelector('.runb')!.getAttribute('aria-label')).toBe('Trocas em sequência: 5 trocas em 9 dias, ainda aberta (miniatura). Pode ser um teste; o YouTube não informa.')
     expect(laneOf('thumb').classList.contains('has-run')).toBe(true)
     expect(laneOf('title').querySelector('.runb')).toBeNull()
     expect(laneOf('desc').querySelector('.runb')).toBeNull()
@@ -117,7 +117,7 @@ describe('faixas densas (Task 6)', () => {
     const few = mount(VID.few).root
     expect([few.querySelector('[data-legend-kind="grp"]'), few.querySelector('[data-legend-kind="run"]')]).toEqual([null, null])
   })
-  it('toda thumbnail da tela tem width e height', () => {
+  it('toda miniatura da tela tem width e height', () => {
     const { root } = mount(VID.many)
     const imgs = [...root.querySelectorAll('img')]
     expect(imgs.length).toBeGreaterThan(24)
@@ -148,7 +148,7 @@ describe('filtro de período (Task 6)', () => {
     const { root, laneOf } = mount(VID.many, { range: '7' })
     const txt = root.querySelector('#hv-rngtxt')!
     expect(txt.getAttribute('role')).toBe('status')
-    expect(txt.textContent).toBe('De 05/12 15:02 até agora: 3 de 24 períodos de thumbnail, 2 de 9 títulos, 1 de 3 descrições, 3 de 33 trocas e 7 de 60 dias de views. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.')
+    expect(txt.textContent).toBe('De 05/12 15:02 até agora: 3 de 24 períodos de miniatura, 2 de 9 títulos, 1 de 3 descrições, 3 de 33 trocas e 7 de 60 dias de views. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.')
     expect(txt.compareDocumentPosition(root.querySelector('.lanes')!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     expect(laneOf('thumb').querySelectorAll('[data-k]').length + laneOf('thumb').querySelectorAll('[data-sl]').length).toBe(3)
     expect(root.querySelectorAll('.vlines > *').length).toBe(3)
@@ -224,7 +224,7 @@ describe('resumo por imagem e grade recolhida (Task 7)', () => {
     fireEvent.blur(card)
     expect(card.classList.contains('target')).toBe(false)
   })
-  it('notas da sequência: thumbnails e títulos, com a ressalva; a nota "alternância típica" vem antes da grade', () => {
+  it('notas da sequência: miniaturas e títulos, com a ressalva; a nota "alternância típica" vem antes da grade', () => {
     const { root } = mount(VID.many)
     const th = root.querySelector<HTMLElement>('section[aria-labelledby="hv-thh"]')!
     expect(th.querySelector('.note.seq')!.textContent).toContain('Trocas em sequência: 12 trocas em 20 dias, encerrada em 04/11 (de 15/10 09:14 a 04/11 13:22).')
@@ -248,7 +248,7 @@ describe('comparação em lista (Task 8)', () => {
     const many = mount(VID.many).root
     expect([many.querySelectorAll('#hv-clist [role="option"]').length, many.querySelectorAll('.pair').length]).toEqual([33, 0])
     expect(many.querySelector('#hv-clist')!.getAttribute('aria-label')).toBe('Trocas, da mais recente para a mais antiga')
-    expect(sel(many).textContent).toContain('Thumbnail D → E')
+    expect(sel(many).textContent).toContain('Miniatura D → E')
     expect(many.querySelector('.cmp-sum')!.textContent).toMatch(/^33 trocas: /)
     const open = mount(VID.open).root
     expect([open.querySelectorAll('#hv-clist').length, open.querySelectorAll('.pair').length, open.querySelectorAll('.flt').length]).toEqual([0, 4, 0])
@@ -257,7 +257,7 @@ describe('comparação em lista (Task 8)', () => {
     const { root } = mount(VID.many)
     const count = root.querySelector('#hv-cmpcount')!
     expect(count.getAttribute('role')).toBe('status')
-    expect(count.textContent).toBe('Mostrando 33 de 33 trocas. Selecionada: Thumbnail D → E.')
+    expect(count.textContent).toBe('Mostrando 33 de 33 trocas. Selecionada: Miniatura D → E.')
     const btn = (g: string, v: string) => root.querySelector<HTMLElement>('[data-flt="' + g + '"][data-v="' + v + '"]')!
     expect(['all', 'title', 'thumb', 'desc'].map(v => btn('field', v).querySelector('.c')!.textContent)).toEqual(['33', '8', '23', '2'])
     fireEvent.click(btn('field', 'title'))
@@ -307,7 +307,7 @@ describe('comparação em lista (Task 8)', () => {
   })
   it('com 7 d: a frase diz quantas trocas há no período e no vídeo inteiro', () => {
     const { root } = mount(VID.many, { range: '7' })
-    expect(root.querySelector('#hv-cmpcount')!.textContent).toBe('Mostrando 3 de 3 trocas no período (33 no vídeo inteiro). Selecionada: Thumbnail D → E.')
+    expect(root.querySelector('#hv-cmpcount')!.textContent).toBe('Mostrando 3 de 3 trocas no período (33 no vídeo inteiro). Selecionada: Miniatura D → E.')
   })
   it('período sem nenhuma troca: diz isso e oferece voltar ao vídeo inteiro', () => {
     const w = loadFase4(), t = w.ds.now

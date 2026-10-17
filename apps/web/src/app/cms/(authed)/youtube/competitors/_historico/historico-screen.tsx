@@ -104,7 +104,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
   /** The trigger of the thumbnail of version `i` ("Capa B"); null/out of range = not a version, so not a button. */
   const zoomOf = (i: number | null): ThumbZoom | undefined => {
     const ver = viewer && i != null ? viewer.versions[i] : undefined
-    return ver ? { label: 'Ampliar a thumbnail: ' + ver.label, onOpen: el => ampliar(i!, el) } : undefined
+    return ver ? { label: 'Ampliar a miniatura: ' + ver.label, onOpen: el => ampliar(i!, el) } : undefined
   }
   // Which pager button (or key) was used and the video it leads to lives OUTSIDE this component (pager-usado.ts): Anterior/Próximo change the
   // `[id]` segment, Next may remount the screen, and a ref would be born empty in the new one.
