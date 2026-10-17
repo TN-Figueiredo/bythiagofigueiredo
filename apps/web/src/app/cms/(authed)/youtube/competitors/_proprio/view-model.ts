@@ -80,14 +80,14 @@ const dmySimples = (d: DiaYt): string => d.slice(8, 10) + '/' + d.slice(5, 7) + 
  * duração, para as três faixas de cada período. `longo` é o que `lerDiarioLongo` leu; nulo = o canal ainda não tem diário. O `comBuraco` de cada período
  * vem de `totalDoPeriodo` e é nulo com a cobertura desconhecida. Nada daqui lança.
  */
-export function buildAssistidoDoCanal(a: { ytIds: readonly string[]; videos: ReadonlyArray<{ ytId: string; dur: number | null }>; diario: DiarioCanal; longo: Privado<DiarioLongo> | null }): AssistidoPeriodosView {
+export function buildAssistidoDoCanal(a: { ytIds: readonly string[]; videos: ReadonlyArray<{ ytId: string; dur: number | null }>; diario: DiarioCanal; longo: Privado<DiarioLongo> | null; negativa?: NegativaPrivada }): AssistidoPeriodosView {
   const base = { tela: 'canal' as const, videoPct: null, dm: (d: DiaYt) => d.slice(8, 10) + '/' + d.slice(5, 7), dmy: dmySimples }
   const porPeriodo = <T,>(f: (p: PeriodoAssistido) => T): Record<PeriodoAssistido, T> => ({ inteiro: f('inteiro'), '90': f('90'), '28': f('28') })
   const faixasSemLeitura = (motivo: 'sem-acesso' | 'leitura-falhou' | 'sem-diario') => porPeriodo(p => FAIXAS.map(f => ({ faixa: f.id, normal: normalSemLeitura(p, motivo) })))
   if (a.longo === null || a.longo.acesso !== 'ok') {
     const motivo = a.longo === null ? 'sem-diario' : a.longo.acesso === 'negado' ? 'sem-acesso' : 'leitura-falhou'
     const acesso = a.longo === null ? 'ok' : a.longo.acesso === 'negado' ? 'negado' : 'erro'
-    return buildAssistidoPeriodos({ ...base, acesso, normais: porPeriodo(p => normalSemLeitura(p, motivo)), faixas: faixasSemLeitura(motivo), buracos: porPeriodo(() => null), diarioDesde: null, ultimoDia: null })
+    return buildAssistidoPeriodos({ ...base, acesso, negativa: a.negativa, normais: porPeriodo(p => normalSemLeitura(p, motivo)), faixas: faixasSemLeitura(motivo), buracos: porPeriodo(() => null), diarioDesde: null, ultimoDia: null })
   }
   const { d90, inteiro, motivoInteiro } = a.longo.dado
   const ate = d90.ate

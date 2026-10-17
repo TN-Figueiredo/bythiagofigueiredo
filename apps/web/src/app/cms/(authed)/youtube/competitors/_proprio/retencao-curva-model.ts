@@ -14,6 +14,7 @@
  */
 import type { DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { lerCurva, type CurvaCompleta, type LeituraDaCurva } from '@/lib/youtube/observatorio/proprio/retencao-curva'
+import { ausenciaDoAcesso, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 import type { RetencaoDoVideo } from './dados'
 
 /** O texto com destaque: `b` = negrito (o número que a frase informa). */
@@ -55,6 +56,8 @@ export interface RetencaoView {
   aviso: string | null
   /** a pastilha do estado sem curva (C1 do portão de UX): "não medido" só para o que não foi medido; "falhou" para erro; nenhuma para negado */
   rotulo: 'não medido' | 'falhou' | null
+  /** Decisão 75: o estado de ausência (nao-coletada/sem-curva→nao_medido; erro→falhou; negado→restrito só com `sem_direito`, senão falhou; coletada→null). `rotulo` fica até a Task 6. */
+  ausencia: EstadoAusencia | null
 }
 
 export const METODO_RETENCAO: string[] = [
@@ -102,8 +105,10 @@ export function diaDeSaoPaulo(instante: string): DiaYt {
 }
 
 const ROTULO: Record<Exclude<EstadoRetencao, 'coletada'>, RetencaoView['rotulo']> = { 'nao-coletada': 'não medido', 'sem-curva': 'não medido', erro: 'falhou', negado: null }
-function vazio(estado: Exclude<EstadoRetencao, 'coletada'>, frase: string): RetencaoView {
-  return { estado, frase, partes: [{ t: frase }], metodo: METODO_RETENCAO, curva: null, saidas: null, revistos: null, aviso: null, rotulo: ROTULO[estado] }
+const AUSENCIA: Record<Exclude<EstadoRetencao, 'coletada' | 'negado'>, EstadoAusencia> = { 'nao-coletada': 'nao_medido', 'sem-curva': 'nao_medido', erro: 'falhou' }
+function vazio(estado: Exclude<EstadoRetencao, 'coletada'>, frase: string, negativa: NegativaPrivada = null): RetencaoView {
+  const ausencia = estado === 'negado' ? (ausenciaDoAcesso('negado', negativa) ?? 'falhou') : AUSENCIA[estado]
+  return { estado, frase, partes: [{ t: frase }], metodo: METODO_RETENCAO, curva: null, saidas: null, revistos: null, aviso: null, rotulo: ROTULO[estado], ausencia }
 }
 
 const eixoDe = (dur: number | null): CurvaDesenho['eixo'] => {
@@ -165,7 +170,7 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
   const aviso = `Coletada em ${dm(diaDeSaoPaulo(curva.coletadaEm))}. Mostra a vida inteira do vídeo; "Quanto do vídeo as pessoas assistem" mostra só os últimos dias.` + cobre
 
   return {
-    estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso, rotulo: null,
+    estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso, rotulo: null, ausencia: null,
     curva: {
       pontos: curva.pontos.map(p => ({ t: p.t, ratio: p.ratio })),
       eixo: eixoDe(dur),
@@ -183,10 +188,10 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
  * A vista da seção. `retencao` ausente (`undefined`/`null`) = a leitura não foi pedida a este modelo: é "ainda não coletamos", o texto de sempre.
  * `duracaoSeg` desconhecido ou zero: tudo em % do vídeo.
  */
-export function buildRetencaoView(a: { retencao: Privado<RetencaoDoVideo> | null | undefined; duracaoSeg: number | null; dm: (d: DiaYt) => string }): RetencaoView {
+export function buildRetencaoView(a: { retencao: Privado<RetencaoDoVideo> | null | undefined; duracaoSeg: number | null; dm: (d: DiaYt) => string; negativa?: NegativaPrivada }): RetencaoView {
   const r = a.retencao
   if (r == null) return vazio('nao-coletada', FRASE_NAO_COLETADA)
-  if (r.acesso === 'negado') return vazio('negado', FRASE_NEGADO)
+  if (r.acesso === 'negado') return vazio('negado', FRASE_NEGADO, a.negativa ?? null)
   if (r.acesso === 'erro') return vazio('erro', FRASE_ERRO)
   const d = r.dado
   const vida = d.curvas.vida

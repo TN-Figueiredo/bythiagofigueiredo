@@ -7,6 +7,7 @@
 import { contraNormal, FAIXAS, MIN_VIDEOS_FAIXA, type FaixaId } from '@/lib/youtube/observatorio/proprio/assistido'
 import { MIN_VIEWS_PERIODO, type NormalDoPeriodo, type PeriodoAssistido } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
+import { ausenciaDoAcesso, ausenciaDoVpdComNegativa, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 import { int } from './impressoes-model'
 
 export type TelaAssistido = 'video' | 'canal'
@@ -16,6 +17,8 @@ export const CHAVE_ASSISTIDO = 'obs-proprio-assistido-periodo'
 export interface EntradaAssistido {
   tela: TelaAssistido
   acesso: 'ok' | 'negado' | 'erro'
+  /** Por que o acesso foi negado (a da página). Ausente = não preenchida: `sem-acesso` vira `falhou`, nunca cadeado (decisão 75). */
+  negativa?: NegativaPrivada
   normais: Record<PeriodoAssistido, NormalDoPeriodo>
   /** as três faixas por período; null na página do vídeo */
   faixas: Record<PeriodoAssistido, Array<{ faixa: FaixaId; normal: NormalDoPeriodo }>> | null
@@ -44,6 +47,8 @@ export interface CartaoAssistido {
   legenda: string
   /** o que fica no lugar do número ("poucas views", "não medido", "sem dado") */
   semNumero: string | null
+  /** Decisão 75: o estado de ausência do cartão (null ⇔ há número). A palavra de `semNumero` não muda aqui. */
+  ausencia: EstadoAusencia | null
   seta: Seta | null
   /** o que o leitor de tela ouve */
   aria: string
@@ -72,6 +77,8 @@ export interface AssistidoPeriodosView {
   rotuloGrupo: string
   /** a frase quando não há acesso ou a leitura falhou: nenhum número na vista */
   vazio: string | null
+  /** Decisão 75: o estado de ausência de `vazio` (negado→restrito só com `sem_direito`, senão falhou; erro→falhou); null = há cartões. */
+  vazioEstado: EstadoAusencia | null
   cartoes: CartaoAssistido[]
   conteudos: Record<PeriodoAssistido, ConteudoAssistido>
   padrao: PeriodoAssistido
@@ -129,14 +136,14 @@ function cartao(id: PeriodoAssistido, e: EntradaAssistido): CartaoAssistido {
     const motivo = n.motivo ?? 'sem-diario'
     const semNumero = motivo === 'poucas-views' ? 'poucas views' : motivo === 'cobertura-parcial' || motivo === 'acima-do-teto' ? 'não medido' : motivo === 'sem-acesso' ? 'sem acesso' : motivo === 'leitura-falhou' ? 'não conseguimos ler' : 'sem dado'
     const legenda = motivo === 'poucas-views' ? `${int(n.views)} de ${int(MIN_VIEWS_PERIODO)} views` : textoDoMotivo({ ...n, motivo }, e.buracos[id])
-    return { id, ...r, estado: 'sem-numero', valor: null, legenda, semNumero, seta: null, aria: `${r.rotulo}: ${semNumero}. ${legenda}` }
+    return { id, ...r, estado: 'sem-numero', valor: null, legenda, semNumero, ausencia: ausenciaDoVpdComNegativa(motivo, e.negativa ?? null) ?? 'nao_medido', seta: null, aria: `${r.rotulo}: ${semNumero}. ${legenda}` }
   }
   const inteiro = e.normais.inteiro
   const c = id !== 'inteiro' ? contraNormal(n.pctArredondado, inteiro.pctArredondado) : null
   const s = c ? seta(c.dif, c.leitura) : null
   const palavra = c ? (c.leitura === 'na-media' ? 'na média do canal inteiro' : `${Math.abs(c.dif)} ${pontos(c.dif)} ${c.leitura === 'acima' ? 'acima' : 'abaixo'} do canal inteiro`) : null
   return {
-    id, ...r, estado: 'medido', valor: `${n.pctArredondado}%`, legenda: `${milV(n.views)} views`, semNumero: null, seta: s,
+    id, ...r, estado: 'medido', valor: `${n.pctArredondado}%`, legenda: `${milV(n.views)} views`, semNumero: null, ausencia: null, seta: s,
     aria: `${r.rotulo}: ${n.pctArredondado}% assistido, ${milV(n.views)} views${palavra ? `, ${palavra}` : ''}`,
   }
 }
@@ -201,7 +208,7 @@ export function buildAssistidoPeriodos(e: EntradaAssistido): AssistidoPeriodosVi
   }
   if (e.acesso !== 'ok') {
     const vazio = e.acesso === 'negado' ? TEXTO_NEGADO : TEXTO_ERRO
-    return { ...base, estado: e.acesso, vazio, cartoes: [], conteudos: { inteiro: vazia(), '90': vazia(), '28': vazia() } }
+    return { ...base, estado: e.acesso, vazio, vazioEstado: ausenciaDoAcesso(e.acesso, e.negativa ?? null), cartoes: [], conteudos: { inteiro: vazia(), '90': vazia(), '28': vazia() } }
   }
   const cartoes = PERIODOS_ASSISTIDO.map(id => cartao(id, e))
   const semDiario = PERIODOS_ASSISTIDO.every(id => e.normais[id].motivo === 'sem-diario')
@@ -216,7 +223,7 @@ export function buildAssistidoPeriodos(e: EntradaAssistido): AssistidoPeriodosVi
     const frase = semDiario ? { sinal: '—' as const, leitura: 'sem' as const, texto: TEXTO_SEM_DIARIO, negrito: [], verInteiro: false } : e.tela === 'video' ? fraseDoVideo(id, e) : fraseDoCanal(id, e)
     return [id, { frase, tabela, tituloLista: `Vídeos mais assistidos, contra o normal da faixa (${NOME[id].nome})`, normalNaBarra: e.normais[id].pctArredondado }]
   })) as Record<PeriodoAssistido, ConteudoAssistido>
-  return { ...base, estado: 'ok', vazio: null, cartoes, conteudos }
+  return { ...base, estado: 'ok', vazio: null, vazioEstado: null, cartoes, conteudos }
 }
 
 function vazia(): ConteudoAssistido {

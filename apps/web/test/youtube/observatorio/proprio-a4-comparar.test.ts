@@ -20,6 +20,7 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: dados.abrir }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   podeVerPrivado: dados.podeVerPrivado,
+  ausenciaDaProva: (a: { leitura: unknown; negativa: string | null }) => (a.leitura != null ? 'ok' : a.negativa === 'nao_foi_possivel_conferir' ? { acesso: 'erro' } : { acesso: 'negado' }),
   acessoPrivado: async (s: string) => { const leitura = await dados.podeVerPrivado(s); return { leitura, edita: leitura != null, negativa: null } }, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
 }))
 

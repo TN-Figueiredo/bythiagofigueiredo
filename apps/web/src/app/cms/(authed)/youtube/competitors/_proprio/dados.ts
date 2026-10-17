@@ -34,6 +34,16 @@ export async function podeVerPrivado(siteId: string): Promise<LeituraPrivadaDoSi
   return (await acessoPrivado(siteId)).leitura
 }
 
+/**
+ * Decisão 75, o ponto único de decisão sobre a prova de acesso (a `negativa` que a página já carrega): leitura → `ok`; `sem_direito` → `negado`;
+ * `nao_foi_possivel_conferir` (guarda caída ou passada do prazo) → `erro`. Guarda caída NUNCA é `negado`: negado é a única entrada do cadeado.
+ * Erro continua fechado: nenhum número sai.
+ */
+export function ausenciaDaProva(acesso: AcessoPrivado): 'ok' | { acesso: 'negado' } | { acesso: 'erro' } {
+  if (acesso.leitura != null) return 'ok'
+  return acesso.negativa === 'nao_foi_possivel_conferir' ? { acesso: 'erro' } : { acesso: 'negado' }
+}
+
 export interface DadosDoCanal { alcance: Privado<AlcanceCanal>; diario: Privado<DiarioCanal> }
 
 const NEGADO: DadosDoCanal = { alcance: { acesso: 'negado' }, diario: { acesso: 'negado' } }

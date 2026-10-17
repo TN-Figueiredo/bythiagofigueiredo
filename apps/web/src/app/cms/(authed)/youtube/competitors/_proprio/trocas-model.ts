@@ -44,6 +44,8 @@ export interface TrocaView {
   origem: { chip: string; frase: string; teste: { href: string } | 'sem-acesso' | null }
   chip: Chip
   rotuloChip: string
+  /** Decisão 75: `falhou` quando o chip é `leitura-falhou`; null nos demais (nenhum outro chip é ausência de leitura). */
+  ausencia: 'falhou' | null
   frase: string
   antes: LadoView | null
   depois: LadoView | null
@@ -110,6 +112,9 @@ export interface EntradaTrocas {
 export { SEM_RELATORIO }
 /** As duas frases da A4 para o mesmo vídeo (`video-blocos-model.ts`, bloco de impressões): copiadas, e um teste as compara com o que o bloco escreve. */
 export const FRASE_VIDEO_NOVO = 'O vídeo é novo: o YouTube entrega as impressões com 2 a 3 dias de atraso, então ainda não há dia fechado.'
+/** Decisão 75: a frase da troca cujo teste A/B só abre para quem edita, e a da troca cuja leitura falhou. Só exportadas aqui; o uso é da Task 6. */
+export const FRASE_TESTE_RESTRITO = 'Teste A/B restrito: o teste que gerou esta troca só abre para quem edita o site.'
+export const FRASE_TROCA_FALHOU = 'A leitura falhou: não foi possível ler as impressões deste vídeo agora. A troca está certa; o antes e o depois não puderam ser calculados.'
 export const rotuloChip = (c: Chip): string => ROTULO[c]
 const ROTULO: Record<Chip, string> = {
   subiu: '▲ taxa subiu', caiu: '▼ taxa caiu', 'sem-diferenca': '≈ sem diferença firme', 'ainda-nao-da': '… ainda não dá para dizer',
@@ -337,7 +342,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
 
     const bruta: TrocaView = {
       n, campo, dia, quando: e.dmy(dia), de: img(anterior), para: img(t), origem: { chip: origemChip, frase: origemFrase, teste: hrefTeste },
-      chip: 'origem-nao-sabida', rotuloChip: ROTULO['origem-nao-sabida'], frase: '', antes: null, depois: null, notas: [],
+      chip: 'origem-nao-sabida', rotuloChip: ROTULO['origem-nao-sabida'], ausencia: null, frase: '', antes: null, depois: null, notas: [],
     }
     if (desconhecida) {
       bruta.frase = 'Sem comparação. O sistema não conseguiu ler o A/B Lab neste dia, então não sabe se a troca foi sua ou de um ciclo de teste. Comparar ciclos é do A/B Lab.'
@@ -455,7 +460,7 @@ function ladoSem(nome: string, forma: 'sem-antes' | 'sem-dias' | 'nao-medido', c
 function lerTroca(t: TrocaView, v: VersaoPropria, trocas: readonly VersaoPropria[], video: VersoesDoVideo, ctx: Ctx, c: Contexto): TrocaView {
   const { e } = ctx
   const dia = t.dia
-  const fim = (chip: Chip, frase: string, antes: LadoView | null, depois: LadoView | null, rotulo?: string): TrocaView => ({ ...t, chip, rotuloChip: rotulo ?? ROTULO[chip], frase, antes, depois })
+  const fim = (chip: Chip, frase: string, antes: LadoView | null, depois: LadoView | null, rotulo?: string): TrocaView => ({ ...t, chip, rotuloChip: rotulo ?? ROTULO[chip], ausencia: chip === 'leitura-falhou' ? 'falhou' : null, frase, antes, depois })
   // a coleta parou: o dado não vai chegar, então o rótulo não promete ("ainda")
   const parado = (frase: string): TrocaView => fim('depois-nao-medido', frase, ladoSem('Antes', 'nao-medido', frase, true), ladoSem('Depois', 'nao-medido', frase, true), '? não medido')
   if (c.alcancoErro || c.alcanceOk === null || !c.alcanceOk) {
