@@ -126,7 +126,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   // a coleta de comentários decide ANTES de qualquer conta: zero retrato no site e a medida nem é chamada
   if (c.coletaDoSiteDesdeMs === null) {
     const f = celulaDoCriador('nao_comecou')
-    return { celula: vazio('nao_medido', f.longa), bloco: semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários ainda não começou.', 'não medido') }
+    return { celula: vazio('nao_medido', f.longa), bloco: { ...semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários ainda não começou.', 'não medido'), semColeta: true } }
   }
   const viva = tarefaViva({ ultimoOkMs: c.ultimoOkDaTarefaMs, primeiraExecucaoMs: c.primeiraExecucaoDaTarefaMs, toleranciaH: DEFINICAO_RETRATOS_COMENTARIOS.toleranciaVigiaH, agoraMs: e.agoraMs })
   if (viva.estado === 'nao_lida') {
@@ -134,7 +134,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   }
   if (viva.estado === 'parada') {
     const f = celulaDoCriador('parada')
-    return { celula: vazio('nao_medido', f.longa), bloco: semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários está parada.', 'não medido') }
+    return { celula: vazio('nao_medido', f.longa), bloco: { ...semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários está parada.', 'não medido'), semColeta: true } }
   }
 
   const retrato = (id: string): StatusDoRetrato | null => (c.porVideo.get(id)?.retrato30 ?? null) as StatusDoRetrato | null

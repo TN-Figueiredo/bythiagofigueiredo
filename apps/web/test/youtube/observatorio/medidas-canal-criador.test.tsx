@@ -68,6 +68,22 @@ describe('criadorDoCanal: sem contradição (trem 5.1)', () => {
   })
 })
 
+describe('criadorDoCanal: sem coleta esconde a lista (D2 do Gio)', () => {
+  const vazia = (videos: VideoLido[]) => listaDoCriador({ nome: 'Matt', resposta: ok({ nivel: 'texto', total: 0, itens: [] } as unknown as RespostasDoCriador), videos, titulos: new Map(), nBase: 0 })
+  it('coleta que ainda não começou: a lista de respostas não renderiza', () => {
+    const { videos } = quadro(6, 0)
+    const b = criadorDoCanal(entrada(videos, contagem([], { coletaDoSiteDesdeMs: null, coletaDoCanalDesdeMs: null, ultimoOkDaTarefaMs: null, primeiraExecucaoDaTarefaMs: null }))).bloco
+    expect(b.semColeta).toBe(true)
+    expect(renderToStaticMarkup(<CriadorResponde bloco={b} lista={vazia(videos)} />)).not.toContain('data-lista-do-criador')
+  })
+  it('coleta parada: a lista de respostas não renderiza', () => {
+    const { videos } = quadro(6, 2)
+    const b = criadorDoCanal(entrada(videos, contagem(videos.map(v => [v.id, 'ok', false]), { ultimoOkDaTarefaMs: AGORA - 30 * DIA }))).bloco
+    expect(b.semColeta).toBe(true)
+    expect(renderToStaticMarkup(<CriadorResponde bloco={b} lista={vazia(videos)} />)).not.toContain('data-lista-do-criador')
+  })
+})
+
 describe('criadorDoCanal: estados', () => {
   it('nenhum retrato no site: a coleta ainda não começou', () => {
     const { videos } = quadro(6, 0)
