@@ -13,7 +13,15 @@ describe('canal: consertos da Naksu', () => {
     expect(css).toMatch(/\.pc-cs-l\{[^}]*minmax\(26px,1fr\)[^}]*overflow-x:auto/)
   })
   it('N4: alvos de 44 px por largura de tela', () => {
-    expect(css).toMatch(/@media \(max-width:600px\)\{[^@]*\.obs-ch-btn\{min-height:44px\}/)
+    // o override mora no mesmo arquivo da regra base (canal.css) e depois dela: por ordem de carga, medidas/ perderia (Gio A2)
+    const base = readFileSync('src/app/cms/(authed)/youtube/competitors/_canal/canal.css', 'utf8')
+    const regraBase = base.indexOf('.ibtn{')
+    const override = base.indexOf('@media (pointer:coarse),(max-width:600px){')
+    expect(regraBase).toBeGreaterThan(-1)
+    expect(override).toBeGreaterThan(regraBase)
+    expect(base.slice(override)).toMatch(/^[^}]*\{[^}]*\}\s*\n?\s*\[data-obs-screen="canal"\] \.chead \.acts \.obs-ch-btn\.obs-ch-icon[\s\S]*?\.ibtn\{width:44px;height:44px\}[\s\S]*?\.niche\{height:44px\}/)
+    expect(css).not.toMatch(/\.ibtn\{width:44px/)
+    expect(css).not.toMatch(/\.niche\{height:44px/)
     expect(css).toMatch(/\.gl-tab summary\{min-height:44px\}/)
   })
   it('rótulo: marca de idade do vídeo, sem pendência', () => {

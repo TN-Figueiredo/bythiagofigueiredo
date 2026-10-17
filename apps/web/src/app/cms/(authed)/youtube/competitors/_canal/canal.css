@@ -98,7 +98,7 @@
   [data-obs-screen="canal"] .nstrip .nc,[data-obs-screen="canal"] .nclip.n2 .nstrip .nc{flex:0 0 50%;box-sizing:border-box}
   [data-obs-screen="canal"] .chead .acts .obs-ch-btn:not(.obs-ch-icon){padding:0 10px}
 }
-@media (pointer:coarse){
+@media (pointer:coarse),(max-width:600px){
   [data-obs-screen="canal"] .chead .acts .obs-ch-btn{min-height:44px}
   [data-obs-screen="canal"] .chead .acts .obs-ch-btn.obs-ch-icon{width:44px;min-width:44px}
   [data-obs-screen="canal"] .ibtn{width:44px;height:44px}

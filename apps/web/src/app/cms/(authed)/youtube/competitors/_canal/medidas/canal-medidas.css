@@ -300,10 +300,6 @@
 }
 /* N4 (Naksu): alvos de toque de 44 px por largura de tela, não só por ponteiro (a captura de 390 px não é coarse) */
 @media (max-width:600px){
-[data-obs-screen="canal"] .chead .acts .obs-ch-btn{min-height:44px}
-[data-obs-screen="canal"] .chead .acts .obs-ch-btn.obs-ch-icon{width:44px;min-width:44px}
-[data-obs-screen="canal"] .ibtn{width:44px;height:44px}
-[data-obs-screen="canal"] .niche{height:44px}
 [data-obs-screen="canal"] .nmore{min-height:44px;padding:0 8px}
 [data-obs-screen="canal"] .gl-tab summary{min-height:44px}
 }
