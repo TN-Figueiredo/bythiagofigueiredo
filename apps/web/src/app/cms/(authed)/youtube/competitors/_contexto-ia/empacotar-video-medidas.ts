@@ -93,6 +93,8 @@ export interface MedidasVideoIa {
   sem: string
   /** Os textos que a tela mostra no lugar dos blocos quando o conjunto do canal falhou; vazio quando as medidas chegaram. */
   falhou: string[]
+  /** Verdadeiro quando o vídeo acompanhado não está em `obs.videos`: a tela pinta só o "Estourou e parou" (síncrono) e nenhum outro bloco de medida. */
+  soEstourou: boolean
   resumo: ResumoIa
   idade: IdadeIa
   estourou: EstourouIa | null
@@ -242,7 +244,7 @@ function mudancasIa(l: ListaDeMudancas | null): MudancasIa {
 /** A projeção das medidas do vídeo. `estourou` é a leitura que a página mostraria (nula = o vídeo não tem o bloco). */
 export function projetarMedidasDoVideo(d: DerivadoDoVideo, estourou: Leitura | null): MedidasVideoIa {
   return {
-    sem: SEM, falhou: [],
+    sem: SEM, falhou: [], soEstourou: false,
     resumo: resumoIa(d), idade: idadeIa(d.idade), estourou: estourouIa(estourou), horas: horasIa(d.horas), subida: subidaIa(d.subida), mudancas: mudancasIa(d.lista),
   }
 }
@@ -254,7 +256,7 @@ export const TEXTOS_DO_ERRO_DO_HISTORICO = ['Não deu para abrir o histórico de
 export function medidasDoVideoNaoCarregaram(): MedidasVideoIa {
   const vazio = { tipo: 'nao_carregou' as const, frase: '', extra: '' }
   return {
-    sem: SEM, falhou: [...TEXTOS_DO_ERRO_DO_HISTORICO],
+    sem: SEM, falhou: [...TEXTOS_DO_ERRO_DO_HISTORICO], soEstourou: false,
     resumo: { frase: '', viewsAgora: { rotulo: '', texto: '', sub: '' }, subida: { rotulo: '', estado: 'nao_carregou', valor: null, motivo: NAO_CARREGOU_TELA, razao: null, sub: null } },
     idade: { ...vazio, pontos: [] }, estourou: null,
     horas: { ...vazio, estado: '', publicacao: '', total: '', barras: [], antes: '', frases: [], regua: [], frasesDaRegua: [] },
@@ -263,11 +265,16 @@ export function medidasDoVideoNaoCarregaram(): MedidasVideoIa {
   }
 }
 
+/** Vídeo acompanhado fora de `obs.videos`: a MESMA leitura síncrona que a tela pinta, e nenhuma outra medida (os demais blocos não existem na tela). */
+export function medidasDoVideoSoEstourou(estourou: Leitura): MedidasVideoIa {
+  return { ...medidasDoVideoNaoCarregaram(), falhou: [], soEstourou: true, estourou: estourouIa(estourou) }
+}
+
 // ───────────────────────── o inventário de folhas
 const CTRL = { descartado: 'controle de tela' } as const
 
 export const INVENTARIO_MEDIDAS_VIDEO: Inventario = {
-  'derivado.medidas.sem': 'rotulo', 'derivado.medidas.falhou[]': 'base',
+  'derivado.medidas.sem': 'rotulo', 'derivado.medidas.falhou[]': 'base', 'derivado.medidas.soEstourou': CTRL,
   // resumo
   'derivado.medidas.resumo.frase': 'base',
   'derivado.medidas.resumo.viewsAgora.rotulo': 'rotulo', 'derivado.medidas.resumo.viewsAgora.texto': 'numero', 'derivado.medidas.resumo.viewsAgora.sub': 'base',
@@ -315,6 +322,24 @@ const naoMedido = (motivo: string | null, origem: string): Celula => ({ papel: '
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
 
+/** O bloco "Estourou e parou" do pacote do vídeo: frase, textos, indício e a tabela dos três sinais. */
+function tabelasDoEstourou(m: MedidasVideoIa, tabelas: Tabela[], avisos: string[], SEMC: Celula): void {
+  const E = `${O}.estourou`
+  const es = m.estourou
+  if (es) {
+    avisos.push(es.frase, ...es.textos, ...es.indicio)
+    if (es.cartoes.length) {
+      tabelas.push(tabelaFixa('video-estourou', 'Estourou e parou: os três sinais', 'estourou e parou', ['Sinal', 'Resultado do cartão', 'Resultado da condição', 'Valor do vídeo', 'O que o valor mede', 'Contra o normal', 'Regra'],
+        es.cartoes.map((c, i) => [
+          rotulo(c.sinal, `${E}.cartoes[${i}].sinal`), base(c.cartao, `${E}.cartoes[${i}].cartao`), base(c.condicao, `${E}.cartoes[${i}].condicao`),
+          medido(c.valor, `${E}.cartoes[${i}].valor`, c.valorEstado === 'zero'), base(c.mede, `${E}.cartoes[${i}].mede`),
+          c.contra !== null ? base(c.contra, `${E}.cartoes[${i}].contra`) : SEMC, base(c.regra, `${E}.cartoes[${i}].regra`),
+        ])))
+    }
+  }
+
+}
+
 /** As tabelas e os avisos dos blocos de medida do vídeo; vazio quando as medidas não foram pedidas ao empacotador. */
 export function tabelasDeMedidasDoVideo(m: MedidasVideoIa | null): { tabelas: Tabela[]; avisos: string[] } {
   if (m === null) return { tabelas: [], avisos: [] }
@@ -322,6 +347,11 @@ export function tabelasDeMedidasDoVideo(m: MedidasVideoIa | null): { tabelas: Ta
   const tabelas: Tabela[] = []
   const avisos: string[] = []
   const SEMC = rotulo(m.sem, `${O}.sem`)
+
+  if (m.soEstourou) {
+    tabelasDoEstourou(m, tabelas, avisos, SEMC)
+    return { tabelas, avisos }
+  }
 
   // resumo e faixa de números
   const r = m.resumo
@@ -350,20 +380,7 @@ export function tabelasDeMedidasDoVideo(m: MedidasVideoIa | null): { tabelas: Ta
       ])))
   }
 
-  // Estourou e parou
-  const E = `${O}.estourou`
-  const es = m.estourou
-  if (es) {
-    avisos.push(es.frase, ...es.textos, ...es.indicio)
-    if (es.cartoes.length) {
-      tabelas.push(tabelaFixa('video-estourou', 'Estourou e parou: os três sinais', 'estourou e parou', ['Sinal', 'Resultado do cartão', 'Resultado da condição', 'Valor do vídeo', 'O que o valor mede', 'Contra o normal', 'Regra'],
-        es.cartoes.map((c, i) => [
-          rotulo(c.sinal, `${E}.cartoes[${i}].sinal`), base(c.cartao, `${E}.cartoes[${i}].cartao`), base(c.condicao, `${E}.cartoes[${i}].condicao`),
-          medido(c.valor, `${E}.cartoes[${i}].valor`, c.valorEstado === 'zero'), base(c.mede, `${E}.cartoes[${i}].mede`),
-          c.contra !== null ? base(c.contra, `${E}.cartoes[${i}].contra`) : SEMC, base(c.regra, `${E}.cartoes[${i}].regra`),
-        ])))
-    }
-  }
+  tabelasDoEstourou(m, tabelas, avisos, SEMC)
 
   // as 72 horas
   const H = `${O}.horas`

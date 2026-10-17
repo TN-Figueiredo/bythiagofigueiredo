@@ -22,7 +22,7 @@ import { canalNaoCarregou } from '../_canal/medidas/canal-derivado-async'
 import { contextoDoCanal, lerComentariosDoCanalParaOPacote, lerMedidasDoCanal } from '../_canal/medidas/contexto-do-canal'
 import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-proprio'
 import { empacotarVideo, modeloDeVideo } from './empacotar-video'
-import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
+import { medidasDoVideoNaoCarregaram, medidasDoVideoSoEstourou, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
 import { alvoDoHistorico, clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
 import { lerSecaoDeComentarios, resolverProvas } from '../_historico/comentarios-de-destaque'
 import { comentariosDoVideoNaoCarregaram, projetarComentariosDoVideo, type ComentariosVideoIa } from './empacotar-video-comentarios'
@@ -128,9 +128,11 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     const m = await montarVideo(alvo, sp)
     if (m.tipo !== 'concorrente' || m.view.notFound) return null
     // as MESMAS medidas que a página lê (uma leitura só); defeito vira "não carregou" no pacote, nunca bloco vazio
-    const { doMotor } = alvoDoHistorico(m.view, m.pagina.obs, m.pagina.now)
+    const { doMotor, sincrona } = alvoDoHistorico(m.view, m.pagina.obs, m.pagina.now)
     let medidas: MedidasVideoIa | null = null
     let comentarios: ComentariosVideoIa | null = null
+    // vídeo acompanhado FORA de `obs.videos`: a tela pinta o "Estourou e parou" síncrono (e nada mais), então o pacote leva só ele (portão Phil M-3)
+    if (!doMotor && sincrona !== null && sincrona !== 'ler') medidas = medidasDoVideoSoEstourou(sincrona)
     if (doMotor) {
       const pedido = { obterSb: clienteDeServicoDoVideo, siteId: m.pagina.siteId, obs: m.pagina.obs, agoraMs: m.pagina.now, view: m.view, video: doMotor }
       // as provas nascem ANTES da leitura das medidas, como na página (M2 do portão Yannis): a latência de `acessoPrivado` não soma em série
