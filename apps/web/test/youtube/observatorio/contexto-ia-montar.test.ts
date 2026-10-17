@@ -17,7 +17,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () =>
   carregarProprioDaComparacao: async () => ({ extras: undefined, soSeuCanal: {} }),
   carregarExtrasProprio: lerExtras,
 }))
-vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-site', () => ({ carregarMedidasDoSite: async () => null }))
+vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-site', () => ({ carregarMedidasDoSite: async () => ({ porCanal: new Map(), extras: { lido: false, causa: 'tempo_esgotado' }, falhas: [], esgotou: 0, videos: new Map() }) }))
 vi.mock('@/lib/youtube/competitor-admin', () => ({ canAdminSiteUsers: async () => false }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true }) }))
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error(`REDIRECT ${u}`) }, notFound: () => { throw new Error('NOT_FOUND') } }))

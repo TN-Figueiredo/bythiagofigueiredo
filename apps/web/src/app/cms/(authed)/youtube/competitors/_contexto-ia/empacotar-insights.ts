@@ -95,7 +95,7 @@ export const INVENTARIO_INSIGHTS: Inventario = {
   // o que a tela repete ou guarda para o menu do navegador (o chrome): nada disto é número da tela
   'reading*': { descartado: 'repetido' }, // a leitura da forja do nicho; o texto vem de `hero.view`
   'forja*': { descartado: 'controle de tela' }, // botão, estado da máquina e do pedido: chrome
-  'direcaoNicho*': { descartado: 'controle de tela' }, // E5a T9: a direção do nicho ainda não vai no pacote (pendência declarada no relatório do L4b)
+  'direcaoNicho*': { descartado: 'controle de tela' }, // PENDENTE-E17-PACOTE(direcaoNicho*): E5a T9, a direção do nicho ainda não vai no pacote; o portão de ligar a IA (G-5) exige esta lista vazia
   niche: { descartado: 'identificador' }, fmt: 'rotulo',
   'window.label': 'rotulo', 'window.dates': 'rotulo', 'window.title': { descartado: 'controle de tela' },
   'fmtOptions[].key': { descartado: 'identificador' }, 'fmtOptions[].label': 'rotulo', 'fmtOptions[].pressed': { descartado: 'controle de tela' },

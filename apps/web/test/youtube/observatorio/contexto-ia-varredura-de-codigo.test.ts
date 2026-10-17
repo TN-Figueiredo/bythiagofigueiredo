@@ -129,3 +129,10 @@ describe('nomes e vocabulário', () => {
     expect(/\b(revenue|rpm|cpm|adsense)\b/i.test('cpmx')).toBe(false)
   })
 })
+
+describe('pendências do pacote da IA (Yannis, 17/10)', () => {
+  it('as marcas PENDENTE-E17-PACOTE no código são exatamente as declaradas; o portão G-5 (ligar a IA) exige esta lista vazia', () => {
+    const achadas = arquivos(join(C, '_contexto-ia')).flatMap((p) => [...ler(p).matchAll(/PENDENTE-E17-PACOTE\(([^)]*)\)/g)].flatMap((m) => m[1]!.split(';').map((x) => x.trim())))
+    expect(achadas.sort()).toEqual(['direcaoNicho*', 'groups[].cards[].idade*', 'idade*'])
+  })
+})
