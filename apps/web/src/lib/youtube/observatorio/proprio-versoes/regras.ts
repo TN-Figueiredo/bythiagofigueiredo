@@ -8,6 +8,8 @@ export const PROPRIO_RULES = {
   trocaJanelaDias: 7,
   /** Retoque (bytes mudaram, imagem quase igual) conta como troca para cortar o lado da vizinha? */
   retoqueContaComoTroca: false,
+  /** Folga (em pontos de taxa, 0,004 = 0,4 ponto) abaixo da qual as faixas de um "subiu" ou "caiu" "quase se tocam" na frase. */
+  trocaFaixasQuaseSeTocam: 0.004,
 }
 
 export type RegrasTroca = typeof PROPRIO_RULES

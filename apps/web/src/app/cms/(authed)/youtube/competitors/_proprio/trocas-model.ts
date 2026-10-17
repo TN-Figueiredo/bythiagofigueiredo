@@ -1,8 +1,8 @@
 // A5 · E5b · Tarefa 21: o modelo de tela das trocas do vídeo próprio (puro: sem React, sem banco, sem `server-only`).
 // Recebe o que `lerTrocas` leu e devolve só texto, dias e frações. Quem decide cada número é `anteDepoisDaTroca` (E18); aqui só se escolhe
 // a forma e a frase. Nenhuma palavra afirma causa. A data de hoje entra por parâmetro; nenhuma data é digitada.
-import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
-import { DIAS_RECENTES, JANELA_LEITURA_ALCANCE_DIAS, montarDias, motivoDiaTexto, videoNovo, DIAS_DE_VIDA_MIN, type DiaAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
+import { DIAS_RECENTES, JANELA_LEITURA_ALCANCE_DIAS, montarDias, motivoDiaTexto, videoNovo, type DiaAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import { anteDepoisDaTroca, type Lado } from '@/lib/youtube/observatorio/proprio-versoes/antes-depois'
 import { PROPRIO_RULES } from '@/lib/youtube/observatorio/proprio-versoes/regras'
 import type { VersaoPropria, VersoesDoVideo } from '@/lib/youtube/observatorio/proprio-versoes/tipos'
@@ -189,9 +189,9 @@ function candidatos(t: VersaoPropria, lado: 'antes' | 'depois', n: number, pub: 
   const sem = todos.filter(d => d !== pub)
   return lado === 'antes' ? sem.slice(Math.max(0, sem.length - n)) : sem.slice(0, n)
 }
-// `diaDaTroca` só aceita a versão; para um instante solto usamos a mesma conta pela data da própria versão.
+/** O dia do Pacífico de um instante (a mesma conta de `diaDaTroca`). */
 function diaDe(iso: string): DiaYt {
-  return diaDaTroca({ janela: { de: iso, ate: iso } } as VersaoPropria)
+  return dayPt(new Date(iso))
 }
 
 function promete(d: DiaYt, porDia: ReadonlyMap<DiaYt, DiaAlcance>, hojePt: DiaYt, ultimoDaLista: DiaYt | null): boolean {
@@ -207,20 +207,19 @@ function promete(d: DiaYt, porDia: ReadonlyMap<DiaYt, DiaAlcance>, hojePt: DiaYt
 
 interface Ctx { e: EntradaTrocas; alcanceDias: DiaAlcance[]; porDia: Map<DiaYt, DiaAlcance>; ultimoDaLista: DiaYt | null }
 
-function intervalo(e: EntradaTrocas, cand: readonly DiaYt[], porDia: ReadonlyMap<DiaYt, DiaAlcance>): { medidos: DiaYt[]; nm: DiaYt[] } {
+function intervalo(cand: readonly DiaYt[], porDia: ReadonlyMap<DiaYt, DiaAlcance>): { medidos: DiaYt[]; nm: DiaYt[] } {
   const medidos: DiaYt[] = [], nm: DiaYt[] = []
   for (const d of cand) {
     const x = porDia.get(d)
     if (x && (x.situacao === 'com-impressoes' || x.situacao === 'zero-medido') && x.imp !== null && x.cliques !== null) medidos.push(d)
     else nm.push(d)
   }
-  void e
   return { medidos, nm }
 }
 
 function rotuloMedido(nome: string, ctx: Ctx, cand: readonly DiaYt[], l: Lado): { longo: string; curto: string } {
   const { e } = ctx
-  const { medidos, nm } = intervalo(e, cand, ctx.porDia)
+  const { medidos, nm } = intervalo(cand, ctx.porDia)
   if (medidos.length === 0) return { longo: `${nome}: ainda sem dia medido`, curto: `${nome}: ainda sem dia medido` }
   const de = medidos[0]!, ate = medidos[medidos.length - 1]!
   const dentro = nm.filter(d => d > de && d < ate)
@@ -235,6 +234,14 @@ function rotuloMedido(nome: string, ctx: Ctx, cand: readonly DiaYt[], l: Lado): 
 }
 
 type CortePor = { tipo: 'troca'; n: number } | { tipo: 'ciclo' }
+
+/** O aviso de registro atrasado (2 dias ou mais). */
+function atrasoDe(registro: { atrasoDias: number; conferidoAte: DiaYt }, e: EntradaTrocas): { linhas: string[] } | null {
+  return registro.atrasoDias >= 2 ? { linhas: [ // TEXTO-A-REVISAR (Logan): linhas do aviso de atraso inventadas
+    `O registro das trocas está ${registro.atrasoDias} dias atrasado.`,
+    `As trocas até ${e.dm(registro.conferidoAte)} estão certas. Se você trocou algo depois disso, ainda não aparece aqui.`,
+  ] } : null
+}
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 export function buildTrocas(a: EntradaTrocas): TrocasView {
@@ -266,6 +273,13 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
         ? 'As trocas deste canal ainda não são registradas: o registro ainda não começou.'
         : 'As trocas deste vídeo ainda não são registradas: nenhuma versão do título nem da thumbnail foi guardada.'
     v.topo.partes = [{ t: 'Trocas deste vídeo:', b: true }, { t: ' não registradas.' }]
+    // portão L5, Phil I-2: registro atrasado e vídeo publicado depois da última conferência não é "nunca registrado": o atraso aparece
+    if (estado.estado === 'registrando') {
+      const saiuDepois = e.publicadoEm !== null && e.publicadoEm > estado.conferidoAte
+      if (saiuDepois) v.frase = `As trocas deste vídeo ainda não aparecem: o registro foi conferido até ${e.dm(estado.conferidoAte)} e o vídeo saiu depois.` // TEXTO-A-REVISAR (Logan)
+      v.atraso = atrasoDe(estado, e)
+      if (v.atraso || saiuDepois) v.topo.aviso = `A conferência das trocas parou em ${e.dm(estado.conferidoAte)}.`
+    }
     return v
   }
 
@@ -362,10 +376,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
   }
 
   // atraso
-  const atraso = registro.atrasoDias >= 2 ? { linhas: [ // TEXTO-A-REVISAR (Logan): linhas do aviso de atraso inventadas
-    `O registro das trocas está ${registro.atrasoDias} dias atrasado.`,
-    `As trocas até ${e.dm(registro.conferidoAte)} estão certas. Se você trocou algo depois disso, ainda não aparece aqui.`,
-  ] } : null
+  const atraso = atrasoDe(registro, e)
   const aviso = atraso ? `A conferência das trocas parou em ${e.dm(registro.conferidoAte)} (aviso abaixo).` : null
   if (aviso) partes.push({ t: ' ' + aviso })
 
@@ -496,8 +507,8 @@ function lerTroca(t: TrocaView, v: VersaoPropria, trocas: readonly VersaoPropria
       c.diag.foraDaJanelaSemCausa++
       return fim('leitura-falhou', 'Não foi possível calcular o antes e o depois desta troca.', ladoErro('Antes'), ladoErro('Depois'))
     }
-    // o depois, quando o estado real não o traz, vem da leitura dos dias
-    const depois = ladoDe('Depois', 'depois', undefined, v, trocas, video, ctx, c, periodo.de)
+    // o depois vem medido da E18 (já cortado pela troca vizinha); a tela nunca recalcula dias (portão L5, Phil I-1)
+    const depois = addDays(dia, 1) < periodo.de ? ladoSem('Depois', 'sem-dias', 'troca antiga') : ladoDe('Depois', 'depois', r.depois, undefined, v, trocas, video, ctx, c)
     return fim(chip, causaFrase, antes, depois)
   }
   if (!('antes' in r)) {
@@ -505,8 +516,8 @@ function lerTroca(t: TrocaView, v: VersaoPropria, trocas: readonly VersaoPropria
     return fim('origem-nao-sabida', 'Sem comparação.', null, null)
   }
 
-  const antes = ladoDe('Antes', 'antes', r.antes, v, trocas, video, ctx, c, periodo.de)
-  const depois = ladoDe('Depois', 'depois', r.depois, v, trocas, video, ctx, c, periodo.de)
+  const antes = ladoDe('Antes', 'antes', r.antes, r.depois, v, trocas, video, ctx, c)
+  const depois = ladoDe('Depois', 'depois', r.depois, r.antes, v, trocas, video, ctx, c)
   // o teto também corta o "Antes" parcial: nunca taxa sobre parte dos dias
   let antesV = antes
   let depoisV = depois
@@ -516,7 +527,6 @@ function lerTroca(t: TrocaView, v: VersaoPropria, trocas: readonly VersaoPropria
     antesV = ladoSem('Antes', 'sem-dias', 'troca antiga')
     if (addDays(dia, 1) < periodo.de) depoisV = ladoSem('Depois', 'sem-dias', 'troca antiga')
   }
-  void fa; void fd
   if (antesV.forma === 'sem-dias' && antesV.causa === 'troca antiga') chip = 'sem-dias'
   else if (fd === 'nao-medido') chip = 'depois-nao-medido'
   else if (fd === 'cortado' && fa === 'cortado') chip = 'sem-dias'
@@ -525,7 +535,7 @@ function lerTroca(t: TrocaView, v: VersaoPropria, trocas: readonly VersaoPropria
   else if (r.estado === 'com_leitura') chip = r.leitura === 'subiu' ? 'subiu' : r.leitura === 'caiu' ? 'caiu' : 'sem-diferenca'
   else chip = 'ainda-nao-da'
 
-  return fim(chip, fraseDe(chip, t, r.antes, r.depois, antesV, depoisV, v, ctx, c), antesV, depoisV)
+  return fim(chip, fraseDe(chip, t, r.antes, r.depois, antesV, depoisV, ctx, c), antesV, depoisV)
 }
 
 function data(e: EntradaTrocas, d: DiaYt, hojePt: DiaYt): string {
@@ -535,7 +545,7 @@ function data(e: EntradaTrocas, d: DiaYt, hojePt: DiaYt): string {
 /** O vizinho que fechou o lado: a troca numerada mais próxima ou a rotação de um teste. */
 function vizinho(v: VersaoPropria, lado: 'antes' | 'depois', trocas: readonly VersaoPropria[], video: VersoesDoVideo): CortePor | null {
   const fimT = Date.parse(v.janela!.ate)
-  const cand = video.versoes.filter(x => x.id !== v.id && x.janela !== null && x.origem !== 'linha_de_base' && !x.preRegistro && x.campo !== 'desc' && x.thumb?.retoque !== true
+  const cand = video.versoes.filter(x => x.id !== v.id && x.janela !== null && x.origem !== 'linha_de_base' && !x.preRegistro && x.campo !== 'desc' && (PROPRIO_RULES.retoqueContaComoTroca || x.thumb?.retoque !== true)
     && (lado === 'antes' ? Date.parse(x.janela.ate) < fimT : Date.parse(x.janela.ate) > fimT))
   const x = lado === 'antes' ? cand.sort((a, b) => Date.parse(b.janela!.ate) - Date.parse(a.janela!.ate))[0] : cand.sort((a, b) => Date.parse(a.janela!.ate) - Date.parse(b.janela!.ate))[0]
   if (!x) return null
@@ -543,21 +553,20 @@ function vizinho(v: VersaoPropria, lado: 'antes' | 'depois', trocas: readonly Ve
   return i >= 0 ? { tipo: 'troca', n: i + 1 } : { tipo: 'ciclo' }
 }
 
-function ladoDe(nome: 'Antes' | 'Depois', lado: 'antes' | 'depois', l: Lado | undefined, v: VersaoPropria, trocas: readonly VersaoPropria[], video: VersoesDoVideo, ctx: Ctx, c: Contexto, inicioLista: DiaYt): LadoView {
+/**
+ * Por que um lado sem taxa não tem número, escolhido pelo OUTRO lado (portão L5, Yannis I1): nunca "o outro lado não tem dias" quando ele tem.
+ * Com menos de `minImp` impressões a causa é a própria falta; com impressões de sobra e sem taxa é o outro lado (ou dado impossível).
+ */
+export function causaSemTaxa(l: Pick<Lado, 'imp'>, outro: Pick<Lado, 'imp' | 'diasMedidos'> | undefined, minImp: number, n: (x: number) => string): string {
+  if (l.imp < minImp) return `só ${n(l.imp)} ${l.imp === 1 ? 'impressão' : 'impressões'}: sem faixa`
+  if (outro === undefined) return 'sem comparação' // TEXTO-A-REVISAR (Logan)
+  if (outro.diasMedidos === 0) return 'sem comparação: o outro lado não tem dia medido' // TEXTO-A-REVISAR (Logan)
+  if (outro.imp < minImp) return `sem comparação: o outro lado tem só ${n(outro.imp)} ${outro.imp === 1 ? 'impressão' : 'impressões'}` // TEXTO-A-REVISAR (Logan)
+  return 'sem comparação'
+}
+
+function ladoDe(nome: 'Antes' | 'Depois', lado: 'antes' | 'depois', l: Lado, outro: Lado | undefined, v: VersaoPropria, trocas: readonly VersaoPropria[], video: VersoesDoVideo, ctx: Ctx, c: Contexto): LadoView {
   const { e } = ctx
-  const dia = diaDe(v.janela!.ate)
-  if (!l) {
-    // estado fora da janela: o depois sai direto dos dias lidos
-    const cand = candidatos(v, 'depois', c.J, e.publicadoEm, c.J)
-    const lidos = cand.filter(d => d >= inicioLista && ctx.porDia.has(d))
-    if (addDays(dia, 1) < inicioLista) return ladoSem(nome, 'sem-dias', 'troca antiga')
-    if (lidos.length === 0) return ladoSem(nome, 'nao-medido', 'ainda sem dia fechado')
-    let imp = 0, cl = 0, med = 0
-    for (const d of lidos) { const x = ctx.porDia.get(d)!; if ((x.situacao === 'com-impressoes' || x.situacao === 'zero-medido') && x.imp !== null && x.cliques !== null) { imp += x.imp; cl += x.cliques; med++ } }
-    if (med === 0) return ladoSem(nome, 'nao-medido', 'ainda sem dia fechado')
-    const rot = rotuloMedido(nome, ctx, lidos, { diasCandidatos: lidos.length, diasMedidos: med, diasSemClique: 0, imp, cliquesEst: cl, taxa: null, lo: null, hi: null })
-    return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: imp === 0 ? 'zero' : 'poucas', taxa: null, faixa: null, barra: null, causa: imp === 0 ? 'zero medido: o vídeo não apareceu' : `só ${e.n(imp)} impressões: sem faixa`, aria: rot.longo }
-  }
   const forma = formaBruta(l, c.minImp)
   const cand = candidatos(v, lado, l.diasCandidatos, e.publicadoEm, c.J)
   if (forma === 'cortado') {
@@ -576,7 +585,8 @@ function ladoDe(nome: 'Antes' | 'Depois', lado: 'antes' | 'depois', l: Lado | un
   const rot = rotuloMedido(nome, ctx, cand, l)
   if (forma === 'zero') return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'zero', taxa: null, faixa: null, barra: null, causa: 'zero medido: o vídeo não apareceu', aria: `${rot.longo}: zero medido` }
   if (forma === 'poucas' || l.taxa === null || l.lo === null || l.hi === null) {
-    return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'poucas', taxa: null, faixa: null, barra: null, causa: l.imp >= c.minImp ? 'sem comparação: o outro lado não tem dias para comparar' : `só ${e.n(l.imp)} ${l.imp === 1 ? 'impressão' : 'impressões'}: sem faixa`, aria: l.imp >= c.minImp ? `${rot.longo}: sem comparação` : `${rot.longo}: poucas impressões, sem faixa` } // TEXTO-A-REVISAR (Logan): o lado tem impressões de sobra mas a E18 não devolve taxa quando o outro lado não tem dias
+    const causa = causaSemTaxa(l, outro, c.minImp, e.n)
+    return { rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'poucas', taxa: null, faixa: null, barra: null, causa, aria: l.imp >= c.minImp ? `${rot.longo}: sem comparação` : `${rot.longo}: poucas impressões, sem faixa` }
   }
   return {
     rotulo: rot.longo, rotuloCurto: rot.curto, forma: 'numero', taxa: pct1(l.taxa), faixa: `${pct1(l.lo)} a ${pct1(l.hi)}`,
@@ -584,7 +594,7 @@ function ladoDe(nome: 'Antes' | 'Depois', lado: 'antes' | 'depois', l: Lado | un
   }
 }
 
-function fraseDe(chip: Chip, t: TrocaView, ra: Lado, rd: Lado, antes: LadoView, depois: LadoView, v: VersaoPropria, ctx: Ctx, c: Contexto): string {
+function fraseDe(chip: Chip, t: TrocaView, ra: Lado, rd: Lado, antes: LadoView, depois: LadoView, ctx: Ctx, c: Contexto): string {
   const { e } = ctx
   const dia = t.dia
   switch (chip) {
@@ -613,9 +623,9 @@ function fraseDe(chip: Chip, t: TrocaView, ra: Lado, rd: Lado, antes: LadoView, 
     case 'sem-diferenca': return `De ${antes.taxa} para ${depois.taxa}, mas as faixas se cruzam: a diferença pode ser só acaso.`
     case 'subiu': case 'caiu': {
       const gap = chip === 'subiu' ? (rd.lo ?? 0) - (ra.hi ?? 0) : (ra.lo ?? 0) - (rd.hi ?? 0)
-      return `${chip === 'subiu' ? 'Subiu' : 'Caiu'} de ${antes.taxa} para ${depois.taxa}. As faixas ${gap < 0.004 ? 'quase se tocam: a diferença é pequena.' : 'não se cruzam.'}`
+      return `${chip === 'subiu' ? 'Subiu' : 'Caiu'} de ${antes.taxa} para ${depois.taxa}. As faixas ${gap < PROPRIO_RULES.trocaFaixasQuaseSeTocam ? 'quase se tocam: a diferença é pequena.' : 'não se cruzam.'}`
     }
-    default: void v; return ''
+    default: return ''
   }
 }
 
@@ -655,8 +665,6 @@ function metodoDasTrocas(conferidoAte: DiaYt, desde: DiaYt, e: EntradaTrocas): s
     `Trocas conferidas até ${e.dm(conferidoAte)}.`,
   ]
 }
-
-void DIAS_DE_VIDA_MIN
 
 /** O que o gráfico de views e o de impressões recebem da troca: faixas e marcas no formato do gráfico (ele não conhece a troca) e a nota sob ele. */
 export interface TrocasNoGrafico { faixas: FaixaDoGrafico[]; marcas: MarcaDoGrafico[]; notaFaixas: string | null }

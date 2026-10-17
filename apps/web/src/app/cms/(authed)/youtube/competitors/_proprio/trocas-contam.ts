@@ -1,6 +1,7 @@
 // A5 · E5b · Tarefa 20c: quais versões do vídeo contam como "troca" para a tela, e o dia delas. Puro: sem banco, sem React.
 // Nenhuma palavra daqui afirma causa.
 import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
+import { PROPRIO_RULES } from '@/lib/youtube/observatorio/proprio-versoes/regras'
 import type { DiaYt, VersaoPropria, VersoesDoVideo } from '@/lib/youtube/observatorio/proprio-versoes/tipos'
 
 /**
@@ -9,7 +10,7 @@ import type { DiaYt, VersaoPropria, VersoesDoVideo } from '@/lib/youtube/observa
  */
 export function trocasQueContam(v: VersoesDoVideo): VersaoPropria[] {
   const lista = v.versoes.filter(x =>
-    (x.campo === 'title' || x.campo === 'thumb') && x.origem !== 'linha_de_base' && !x.preRegistro && x.thumb?.retoque !== true && x.eventoAb !== 'rotacao')
+    (x.campo === 'title' || x.campo === 'thumb') && x.origem !== 'linha_de_base' && !x.preRegistro && (PROPRIO_RULES.retoqueContaComoTroca || x.thumb?.retoque !== true) && x.eventoAb !== 'rotacao')
   const dia = (x: VersaoPropria): DiaYt => dayPt(new Date(x.janela ? x.janela.ate : x.vistaDesde))
   return lista.sort((a, b) => {
     const da = dia(a), db = dia(b)

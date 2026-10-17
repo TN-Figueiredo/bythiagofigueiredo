@@ -6,7 +6,8 @@ import type { VersaoPropria, VersoesCanal } from '@/lib/youtube/observatorio/pro
 import type { TesteAb } from '@/lib/youtube/observatorio/proprio/ler-testes-ab'
 import type { AlcanceCanal, RelatorioDia } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { TrocasLidas } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados-trocas'
-import { buildTrocas, SEM_RELATORIO, type EntradaTrocas, type TrocasView } from '@/app/cms/(authed)/youtube/competitors/_proprio/trocas-model'
+import { trocasQueContam as trocasQueContamDoTeste } from '@/app/cms/(authed)/youtube/competitors/_proprio/trocas-contam'
+import { buildTrocas, causaSemTaxa, SEM_RELATORIO, type EntradaTrocas, type TrocasView } from '@/app/cms/(authed)/youtube/competitors/_proprio/trocas-model'
 
 const YT = 'abcdefghijk', C = 'canal-1'
 const HOJE = '2026-11-17'
@@ -280,6 +281,76 @@ describe('leitura de cada troca', () => {
       const t = troca1(run([troca(dia)], alcance(addDays(HOJE, -400), HOJE), { publicadoEm: pub }, addDays(HOJE, -400)))
       expect(t.antes?.causa).not.toBe('troca antiga')
     })
+  })
+})
+
+describe('portão L5 (17/10): consertos', () => {
+  const troca = (dia: string, o: Partial<VersaoPropria> = {}) => versao({ dia, ...o })
+  const run = (vs: VersaoPropria[], a: AlcanceCanal, over: Partial<EntradaTrocas> = {}, desde?: string) => buildTrocas(entrada(comAlcance([base(), ...vs], a, desde), over))
+  const trocasDoItem = (v: TrocasView) => v.itens.flatMap(i => (i.tipo === 'troca' ? [i.v] : []))
+
+  it('Phil I-1: troca vizinha no estado antes_fora_da_janela_lida: o depois da troca 1 para na troca 2, sem "só N impressões" nem contagem dupla', () => {
+    const d1 = '2026-11-03', d2 = '2026-11-06' // publicado antes, relatórios só desde d1 + 1 (antes fora da janela lida)
+    const a = alcance(addDays(d1, 1), HOJE, 1000, 0.05)
+    const v = run([troca(d1), troca(d2)], a, { publicadoEm: addDays(d1, -2) }, addDays(d1, -9))
+    const [t1, t2] = trocasDoItem(v)
+    // o depois da troca 1 vai só até o dia antes da janela da troca 2: 1 dia (04/11), 1.000 impressões
+    expect(t1!.depois!.rotulo).toBe('Depois: 1 dia (04/11), 1000 impressões')
+    expect(t1!.depois!.causa ?? '').not.toMatch(/^só /)
+    expect(t1!.depois!.forma).toBe('numero')
+    // o depois da troca 2 tem os seus 7 dias e nenhum deles é o da troca 1
+    expect(t2!.depois!.rotulo).toContain('7 dias'); expect(t2!.depois!.rotulo).not.toContain('04/11')
+  })
+
+  it('Phil I-2: registro atrasado e vídeo publicado depois da última conferência: não é "nunca registrado", o atraso e o dia da conferência aparecem', () => {
+    const l = lidas([], {}, { atrasoDias: 9, conferidoAte: '2026-11-08' })
+    l.versoes.videos[0]!.registro.title = { estado: 'sem_versao', conferidoAte: null }
+    const v = buildTrocas(entrada(l, { publicadoEm: '2026-11-12' }))
+    expect(v.estado).toBe('nao-registrado')
+    expect(v.atraso).not.toBeNull()
+    expect(v.frase).toContain('08/11'); expect(v.frase).toContain('saiu depois')
+    expect(v.topo.aviso).toContain('08/11')
+    // sem atraso e publicado antes da conferência: a frase de sempre e nenhum aviso
+    const l2 = lidas([], {}, { atrasoDias: 0, conferidoAte: HOJE })
+    l2.versoes.videos[0]!.registro.title = { estado: 'sem_versao', conferidoAte: null }
+    const v2 = buildTrocas(entrada(l2, { publicadoEm: '2026-09-22' }))
+    expect(v2.atraso).toBeNull(); expect(v2.topo.aviso).toBeNull(); expect(v2.frase).toContain('nenhuma versão')
+  })
+
+  it('Yannis I1: a causa do lado sem taxa vem do OUTRO lado, nunca "não tem dias" quando ele tem', () => {
+    const n = (x: number) => String(x)
+    // lado com impressões de sobra e sem taxa; o outro tem dias medidos mas poucas impressões
+    expect(causaSemTaxa({ imp: 7000 }, { imp: 21, diasMedidos: 7 }, 100, n)).toBe('sem comparação: o outro lado tem só 21 impressões')
+    expect(causaSemTaxa({ imp: 7000 }, { imp: 0, diasMedidos: 0 }, 100, n)).toBe('sem comparação: o outro lado não tem dia medido')
+    expect(causaSemTaxa({ imp: 7000 }, { imp: 900, diasMedidos: 3 }, 100, n)).toBe('sem comparação')
+    expect(causaSemTaxa({ imp: 7000 }, undefined, 100, n)).toBe('sem comparação')
+    expect(causaSemTaxa({ imp: 21 }, { imp: 7000, diasMedidos: 7 }, 100, n)).toBe('só 21 impressões: sem faixa')
+    expect(causaSemTaxa({ imp: 1 }, undefined, 100, n)).toBe('só 1 impressão: sem faixa')
+  })
+  it('Yannis I1 pela tela: dado impossível (cliques acima das impressões) no depois com antes de poucas impressões', () => {
+    const dia = '2026-11-03'
+    const a = alcance(addDays(dia, -3), addDays(dia, -3), 3, 0.05), b = alcance(addDays(dia, 2), addDays(dia, 2), 1000, 1.5)
+    const v = run([troca(dia)], { ...a, relatorios: [...a.relatorios, ...b.relatorios, { dia: HOJE, status: 'baixado', normalizado: true }], linhas: [...a.linhas, ...b.linhas] })
+    const [t] = trocasDoItem(v)
+    expect(t!.depois!.causa ?? '').not.toContain('não tem dia')
+  })
+
+  it('Phil M-2: com retoqueContaComoTroca ligada, a lista das trocas e a vizinha seguem a mesma regra', () => {
+    const retoque = { dhash: 'r', sha256: null, blobUrl: null, imagemExata: true, retoque: true }
+    const vs = [base('thumb'), versao({ dia: '2026-11-03', campo: 'thumb', texto: null, thumb: retoque })]
+    const lista = (video: VersaoPropria[]) => trocasQueContamDoTeste(canal(video).videos[0]!)
+    expect(lista(vs)).toHaveLength(0)
+    PROPRIO_RULES.retoqueContaComoTroca = true
+    expect(lista(vs)).toHaveLength(1)
+  })
+  it('Phil M-4 / Yannis M4: o limiar de "quase se tocam" é regra viva', () => {
+    expect(PROPRIO_RULES.trocaFaixasQuaseSeTocam).toBe(0.004)
+    const dia = '2026-11-03'
+    const a = alcance(addDays(dia, -20), HOJE, 1000, 0.02)
+    for (const l of a.linhas) if (l.dia > dia) l.ctr = 0.09
+    PROPRIO_RULES.trocaFaixasQuaseSeTocam = 0.5
+    const [t] = trocasDoItem(run([troca(dia)], a))
+    expect(t!.chip).toBe('subiu'); expect(t!.frase).toContain('quase se tocam')
   })
 })
 
