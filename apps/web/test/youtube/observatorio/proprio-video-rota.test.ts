@@ -391,7 +391,7 @@ describe('E5b T16 (d), "De onde vêm as views": a origem vai em Suspense própri
   it('a ordem das seções: a origem entra em VideoBlocos como `origem` e a constante "o que ainda não há" não cita mais a origem', async () => {
     const el = await rota(proprioVideo.id)
     expect(origemDe(el)).toBeDefined()
-    expect(blocos(el).ainda).not.toMatch(/origem do tráfego/i)
+    expect(blocos(el).ainda ?? "").not.toMatch(/origem do tráfego/i)
   })
 })
 

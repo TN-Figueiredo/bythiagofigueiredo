@@ -270,7 +270,7 @@ export function empacotarVideoProprio(m: ModeloVideoProprio, privado: EstadoDoPr
 
   const f = b.forja
   const naoMede = [
-    NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, `${f.titulo}: ${f.estado}. ${f.oQue} ${f.porque}`, b.ainda,
+    NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, `${f.titulo}: ${f.estado}. ${f.oQue} ${f.porque}`, ...(b.ainda ? [b.ainda] : []),
   ]
 
   return {

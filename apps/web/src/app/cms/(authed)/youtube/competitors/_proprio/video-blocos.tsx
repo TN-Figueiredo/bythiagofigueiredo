@@ -138,10 +138,12 @@ export function VideoBlocos({ view, periodos, origem, linhaTrocas, trocas }: { v
         {view.canal.notaDiario ? <NaoMedido frase={view.canal.notaDiario} /> : null}
       </section>
       <ForjaIndisponivelVideo view={view.forja} />
-      <section className="vb-sec" aria-labelledby="vb-ainda-h">
-        <h2 id="vb-ainda-h">O que ainda não há deste vídeo</h2>
-        <p className="vb-ainda">{view.ainda}</p>
-      </section>
+      {view.ainda ? (
+        <section className="vb-sec" aria-labelledby="vb-ainda-h">
+          <h2 id="vb-ainda-h">O que ainda não há deste vídeo</h2>
+          <p className="vb-ainda">{view.ainda}</p>
+        </section>
+      ) : null}
     </>
   )
 }

@@ -12,7 +12,7 @@
  *  - % assistido: o número real, mesmo acima de 100; abaixo de 10 views não compara; "na média" é até 2 pontos (`contraNormal`, a função única); o normal é a
  *    mediana do CANAL (os outros vídeos com views, mínimo de 5), não a da faixa de duração (a faixa é da aba Retenção do canal);
  *  - retenção (A5 E8, Tarefa 13): cinco estados (coletada, sem-curva, nao-coletada, erro, negado) em `retencao-curva-model.ts`; sem a prova de acesso
- *    o modelo não carrega ponto, data nem número da curva. Nada de troca de título/thumbnail: ainda não registradas.
+ *    o modelo não carrega ponto, data nem número da curva. As trocas têm o seu bloco; o cartão "o que ainda não há" não cita troca.
  */
 import { addDays, dayPt, diffDias } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
@@ -121,7 +121,8 @@ export interface VideoBlocosView {
   retencao: BlocoRetencao
   canal: BlocoCanal
   forja: ForjaIndisponivelView
-  ainda: string
+  /** G-1 (Gio 17/10): as trocas já têm a sua linha e o seu bloco (ou a nota do gráfico); o cartão não tem mais item. Nulo = a seção não aparece. */
+  ainda: string | null
 }
 
 export interface EntradaBlocos {
@@ -338,7 +339,7 @@ const FORJA: ForjaIndisponivelView = {
   porque: 'A forja só recebe dados públicos de concorrente; a leitura de vídeo do seu canal ainda não existe.',
 }
 
-const AINDA = 'Trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
+const AINDA: string | null = null
 
 /* ---------------------------------------------------------------- as réguas */
 

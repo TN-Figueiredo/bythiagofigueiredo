@@ -34,11 +34,11 @@ const montar = (dados: Privado<DadosDoVideo>) => render(
 )
 
 describe('ordem das seções com as trocas', () => {
-  it('Linha das trocas → Views → Impressões → Trocas deste vídeo → % assistido → Retenção → ... → "O que ainda não há"', () => {
+  it('Linha das trocas → Views → Impressões → Trocas deste vídeo → % assistido → Retenção → ...', () => {
     const t = titulos(montar(dadosOk()).container)
     expect(t.slice(0, 5)).toEqual(['LINHA-TROCAS', 'Views por dia', 'Impressões e cliques', 'Trocas deste vídeo', 'Quanto do vídeo as pessoas assistem'])
     expect(t.indexOf('Retenção')).toBeGreaterThan(t.indexOf('Trocas deste vídeo'))
-    expect(t[t.length - 1]).toBe('O que ainda não há deste vídeo')
+    expect(t).not.toContain('O que ainda não há deste vídeo')
   })
   it('sem acesso ao vídeo (privado): nem a linha nem o bloco das trocas entram', () => {
     const t = titulos(montar({ acesso: 'negado' }).container)

@@ -407,12 +407,8 @@ describe('retenção, forja e "o que ainda não há"', () => {
     expect(JSON.stringify(f)).not.toMatch(/coleta diária ainda não está no ar/)
   })
 
-  it('"O que ainda não há deste vídeo": só trocas de título e thumbnail (a origem agora tem a sua seção); nem views por dia nem % assistido', () => {
-    const t = blocos(W).ainda
-    expect(t).not.toMatch(/origem do tráfego/i)
-    expect(t).toContain('Trocas de título e thumbnail')
-    expect(t).toContain('gráfico sem marca não quer dizer que não houve troca')
-    expect(t).not.toMatch(/views por dia|% assistido|retenção/i)
+  it('G-1: o cartão "O que ainda não há" não cita as trocas (elas têm o bloco próprio); sem item, sem cartão', () => {
+    expect(blocos(W).ainda).toBeNull()
   })
 
   it('nada de troca fora do parágrafo "o que ainda não há": nenhum losango, triângulo nem "Trocas deste vídeo" nos blocos', () => {

@@ -33,10 +33,10 @@ const secao = (c: HTMLElement, h: string) => [...c.querySelectorAll('section')].
 const texto = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ')
 
 describe('a ordem e os títulos', () => {
-  it('Views por dia → Impressões e cliques → Quanto do vídeo as pessoas assistem → Retenção → Este vídeo no canal → forja → "O que ainda não há"', () => {
+  it('Views por dia → Impressões e cliques → Quanto do vídeo as pessoas assistem → Retenção → Este vídeo no canal → forja (sem cartão "O que ainda não há": G-1)', () => {
     const { container } = montar()
     expect([...container.querySelectorAll('section')].map(s => s.querySelector('h2, h3')!.textContent!.replace(/ⓘ.*$/, '').trim())).toEqual([
-      'Views por dia', 'Impressões e cliques', 'Quanto do vídeo as pessoas assistem', 'Retenção', 'Este vídeo no canal', 'Leitura da forjaainda não disponível para o seu canal', 'O que ainda não há deste vídeo',
+      'Views por dia', 'Impressões e cliques', 'Quanto do vídeo as pessoas assistem', 'Retenção', 'Este vídeo no canal', 'Leitura da forjaainda não disponível para o seu canal'
     ])
   })
 })
@@ -227,19 +227,15 @@ describe('retenção, forja e o que falta', () => {
     expect(f.textContent).not.toMatch(/coleta diária/)
   })
 
-  it('"O que ainda não há deste vídeo": só trocas de título e thumbnail (a origem tem a sua seção); NÃO lista views por dia nem % assistido', () => {
+  it('G-1: não há cartão "O que ainda não há deste vídeo" (nem a frase de que as trocas não são registradas)', () => {
     const { container } = montar()
-    const t = texto(secao(container, 'O que ainda não há').querySelector('p'))
-    expect(t).not.toMatch(/Origem do tráfego/)
-    expect(t).toMatch(/Trocas de título e thumbnail \(ainda não registradas; gráfico sem marca não quer dizer que não houve troca\)/)
-    expect(t).not.toMatch(/views por dia|% assistido|retenção/i)
+    expect(container.querySelector('.vb-ainda, #vb-ainda-h')).toBeNull()
+    expect(texto(container)).not.toMatch(/ainda não registradas/)
   })
 
-  it('nada de troca: nenhum losango, triângulo nem "Trocas deste vídeo" e a palavra "troca" só no parágrafo "o que ainda não há"', () => {
+  it('nada de troca: nenhum losango, triângulo nem "Trocas deste vídeo" ', () => {
     const { container } = montar()
-    const ainda = secao(container, 'O que ainda não há')
-    const resto = texto(container).replace(texto(ainda), '')
-    expect(resto).not.toMatch(/troca|losango|triângulo|Trocas deste/i)
+    expect(texto(container)).not.toMatch(/troca|losango|triângulo|Trocas deste/i)
     expect(container.querySelector('.tr-mk, .tr-vazia, #trocas')).toBeNull()
   })
 
@@ -258,7 +254,7 @@ describe('usuário só de leitura e leitura que falhou', () => {
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(container.innerHTML, s), s).toBe(false)
     expect(container.querySelector('[data-privado-nota]')!.textContent).toMatch(/^Só quem edita o site vê as views por dia/)
     expect([...container.querySelectorAll('section')].map(s => s.querySelector('h2, h3')!.textContent!.replace(/ⓘ.*$/, '').trim())).toEqual([
-      'Retenção', 'Este vídeo no canal', 'Leitura da forjaainda não disponível para o seu canal', 'O que ainda não há deste vídeo',
+      'Retenção', 'Este vídeo no canal', 'Leitura da forjaainda não disponível para o seu canal'
     ])
     expect(container.querySelector('.vb-ctr, .vb-as, figure')).toBeNull()
   })
