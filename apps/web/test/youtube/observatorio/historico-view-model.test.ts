@@ -27,7 +27,7 @@ describe('historico view model', () => {
     for (const [k, id] of Object.entries(PICK)) expect([k, buildHistoricoView(obs, id, {}).state]).toEqual([k, k])
   })
 
-  it('participle follows the type: title visto/trocado; miniatura and description vista/trocada', () => {
+  it('participle follows the type: title visto/trocado; thumbnail and description vista/trocada', () => {
     const t = lane(PICK.full, 'title').versions[1]!, th = lane(PICK.full, 'thumb').versions[1]!, d = lane(PICK.full, 'desc').versions[1]!
     expect([t.participle, t.changedParticiple]).toEqual(['visto', 'trocado'])
     expect([th.participle, th.changedParticiple]).toEqual(['vista', 'trocada'])
@@ -37,7 +37,7 @@ describe('historico view model', () => {
     expect(lane(PICK.full, 'title').versions[0]!.to).toBe('trocado entre 11/10 06h e 12h')
     expect(lane(PICK.full, 'desc').versions[0]!.to).toBe('trocada entre 14/10 06h e 12h')
     expect(lane(PICK.full, 'title').markers[0]!.aria).toBe('Título trocado entre 11/10 06h e 12h')
-    expect(lane(PICK.full, 'thumb').markers[0]!.aria).toBe('Miniatura trocada em 13/10 09:40')
+    expect(lane(PICK.full, 'thumb').markers[0]!.aria).toBe('Thumbnail trocada em 13/10 09:40')
   })
 
   it('"pelo menos" when the start was not observed (first_seen = seriesStart)', () => {
@@ -59,7 +59,7 @@ describe('historico view model', () => {
     expect(v.dur).toMatch(/^pelo menos /)
   })
 
-  it('windows of 6 h / 1 d, and the exact minute for miniaturas', () => {
+  it('windows of 6 h / 1 d, and the exact minute for thumbnails', () => {
     expect(lane(PICK.full, 'title').versions[1]!.precision).toBe('6h')
     expect(lane(PICK.full, 'title').versions[1]!.win).not.toBeNull()
     expect(lane(PICK.full, 'thumb').versions[1]!.precision).toBe('min')
@@ -190,8 +190,8 @@ describe('historico view model', () => {
     expect(v.defaultPair).toBe((decidedPairs[0] ?? v.comparisons[0])!.changeId)
     const d = v.comparisons.find(c => c.changeId === v.defaultPair)!
     expect(d.full!.verdictText).toContain(d.effect.detail)
-    // the reverted miniatura is one comparison A → B → A
-    expect(v.comparisons.some(c => /^Miniatura A → B: .+ · B → A: /.test(c.chip))).toBe(true)
+    // the reverted thumbnail is one comparison A → B → A
+    expect(v.comparisons.some(c => /^Thumbnail A → B: .+ · B → A: /.test(c.chip))).toBe(true)
   })
   it('R115: some video of the oracle still opens on a decided comparison', () => {
     const withDecided = obs.changes.filter(c => ['neutro', 'ganhou', 'perdeu'].includes(obs.effect(c.id)!.status)).map(c => c.video)
@@ -202,7 +202,7 @@ describe('historico view model', () => {
 
   describe('production-shaped first versions (precision first, first_seen = sync time)', () => {
     const H3 = 3 * 36e5
-    /** Rewrites a video's first title/miniatura/description as the sync writes them (competitor-versions.ts). */
+    /** Rewrites a video's first title/thumbnail/description as the sync writes them (competitor-versions.ts). */
     const productionShaped = (id: string, firstSeen: (pub: number) => number) => {
       const ds = datasetFromOracle(oracle)
       const vv = ds.videos.find(x => x.id === id)!
@@ -224,7 +224,7 @@ describe('historico view model', () => {
         expect(first.fromH).toBe(0)
       }
       expect(v.lanes.find(l => l.type === 'thumb')!.pre).toBeNull()
-      expect(v.versions!.thumbs.notes.some(n => /Miniatura vista desde/.test(n.text))).toBe(false)
+      expect(v.versions!.thumbs.notes.some(n => /Thumbnail vista desde/.test(n.text))).toBe(false)
       expect(v.versions!.titles.same).toBe('Mesmo título desde a publicação.')
       expect(JSON.stringify(v)).not.toMatch(/pelo menos|vist[oa] desde|não registrada/)
     })
@@ -236,8 +236,8 @@ describe('historico view model', () => {
       expect(t1.atLeast).toBe(true)
       expect(t1.from).toMatch(/^visto desde /)
       const th = v.lanes.find(l => l.type === 'thumb')!
-      expect(th.pre!.title).toBe('Miniatura antes de 03/10: não registrada')
-      expect(v.versions!.thumbs.notes.some(n => /^Miniatura vista desde 03\/10, quando o arquivo de imagens começou/.test(n.text))).toBe(true)
+      expect(th.pre!.title).toBe('Thumbnail antes de 03/10: não registrada')
+      expect(v.versions!.thumbs.notes.some(n => /^Thumbnail vista desde 03\/10, quando o arquivo de imagens começou/.test(n.text))).toBe(true)
     })
   })
 
@@ -279,22 +279,22 @@ describe('historico view model', () => {
     })
   })
 
-  it('miniaturas show the archived blob when present, else the honest text', () => {
-    expect(lane(PICK.full, 'thumb').versions[0]!.thumb).toEqual({ src: null, missing: 'A imagem desta versão não foi arquivada.', alt: 'Miniatura A' })
+  it('thumbnails show the archived blob when present, else the honest text', () => {
+    expect(lane(PICK.full, 'thumb').versions[0]!.thumb).toEqual({ src: null, missing: 'A imagem desta versão não foi arquivada.', alt: 'Thumbnail A' })
     expect(lane(PICK.none, 'thumb').versions[0]!.thumb!.missing).toBe('A imagem desta versão não foi arquivada.')
     // what lies before the archive uses the series start label
     const pre = buildHistoricoView(obs, PICK.pre, { range: 'tudo' })
     expect(pre.lanes.find(l => l.type === 'thumb')!.pre!.text).toBe('antes de ' + obs.SERIES_START_LABEL)
-    expect(pre.comparisons[0]!.ba![0]!.thumb!.missing).toBe('Miniatura antes de ' + obs.SERIES_START_LABEL + ': não registrada')
+    expect(pre.comparisons[0]!.ba![0]!.thumb!.missing).toBe('Thumbnail antes de ' + obs.SERIES_START_LABEL + ': não registrada')
     const ds = datasetFromOracle(oracle)
     ds.videos.find(x => x.id === PICK.full)!.thumbs[0]!.blobUrl = 'https://blob.example/a.jpg'
     const o2 = createObservatory(ds)
     expect(buildHistoricoView(o2, PICK.full, {}).lanes.find(l => l.type === 'thumb')!.versions[0]!.thumb!.src).toBe('https://blob.example/a.jpg')
   })
 
-  it('an old video with the miniatura seen since the archive says so (antes de DD/MM)', () => {
+  it('an old video with the thumbnail seen since the archive says so (antes de DD/MM)', () => {
     const v = buildHistoricoView(obs, PICK.old, {})
-    expect(v.lanes.find(l => l.type === 'thumb')!.pre!.title).toBe('Miniatura antes de 03/10: não registrada')
+    expect(v.lanes.find(l => l.type === 'thumb')!.pre!.title).toBe('Thumbnail antes de 03/10: não registrada')
     expect(v.header!.counts).toEqual([{ type: null, text: 'Nenhuma troca registrada' }])
     expect(v.versions!.titles.same).toBe('Sem troca de título vista desde 31/05.')
   })
@@ -304,7 +304,7 @@ describe('historico view model', () => {
     const ch = obs.channel(obs.video(PICK.untr)!.ch)!
     expect(v.chart).toBeNull()
     expect(v.untracked!.href).toBe(obs.link.canais({ channel: ch.id }))
-    expect(v.untracked!.notice).toBe('Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '. Mostramos o histórico de títulos, miniaturas e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
+    expect(v.untracked!.notice).toBe('Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '. Mostramos o histórico de títulos, thumbnails e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
     expect(v.lanes.map(l => l.versions.length)).toEqual([1, 1, 1])
     expect(v.versions!.titles.items).toHaveLength(1)
     expect(v.comparisons).toEqual([])

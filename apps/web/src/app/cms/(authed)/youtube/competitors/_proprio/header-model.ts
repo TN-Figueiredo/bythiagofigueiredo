@@ -194,8 +194,8 @@ export function buildProprioHeader(
     value: alc.estado === 'ok' && !nada ? F.num(alc.resumo.imp ?? 0) : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok'
-      ? `Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia medido', 'dias medidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem dado ficam fora da soma` : 'nenhum dia fica sem relatório'}. ${DIA_YT}${INCLUI}`
-      : 'Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas no período dos relatórios de alcance do canal.',
+      ? `Vezes em que a thumbnail de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia medido', 'dias medidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem dado ficam fora da soma` : 'nenhum dia fica sem relatório'}. ${DIA_YT}${INCLUI}`
+      : 'Vezes em que a thumbnail de um vídeo apareceu no YouTube, somadas no período dos relatórios de alcance do canal.',
   }, { sub: periodoTxt && !nada ? periodoTxt : null })
 
   const diasComImpressao = cell('diasComImpressao', 'dias com impressão', {

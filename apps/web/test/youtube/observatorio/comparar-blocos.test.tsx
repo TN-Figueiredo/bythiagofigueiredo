@@ -137,12 +137,12 @@ describe('Os 5 vídeos mais vistos de cada canal', () => {
     const { container } = dentro(<MaisVistos par={par(p, 'a1', 'b1')} />)
     const itens = [...container.querySelectorAll('.cp-vc')[0]!.querySelectorAll('li')]
     expect(itens[0]!.querySelector('img')).toBeNull()
-    expect(itens[0]!.textContent).toContain('sem capa')
+    expect(itens[0]!.textContent).toContain('sem thumbnail')
     const img = itens[1]!.querySelector('img')!
-    expect(itens[1]!.textContent).not.toContain('sem capa')
+    expect(itens[1]!.textContent).not.toContain('sem thumbnail')
     fireEvent.error(img)
     expect(itens[1]!.querySelector('img')).toBeNull()
-    expect(itens[1]!.textContent).toContain('sem capa')
+    expect(itens[1]!.textContent).toContain('sem thumbnail')
   })
 
   it('título com HTML ou emoji aparece escapado, como texto', () => {

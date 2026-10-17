@@ -817,7 +817,7 @@ Cada canal traz `medidas` com as mesmas nove medidas, sempre: `direcao_do_canal`
 
 ### GET /api/pipeline/youtube/competitors/changes
 
-Lista as trocas de título, miniatura e descrição detectadas em vídeos de concorrentes. Com `campos=todos`, acrescenta as mudanças de campo (tags, categoria, duração, idioma, nome do canal e outras).
+Lista as trocas de título, thumbnail e descrição detectadas em vídeos de concorrentes. Com `campos=todos`, acrescenta as mudanças de campo (tags, categoria, duração, idioma, nome do canal e outras).
 
 **Auth:** read
 
@@ -911,7 +911,7 @@ Os outros motivos são `tabela_ausente`, `erro_do_banco` e `cortado`. `nao_lido`
 **Campos de canal que saem:** `name`, `custom_url`, `country`, `avatar_url`, `subscribers_hidden`, `availability`. A descrição do canal não é entregue.
 
 **Notas:**
-- Mudança de miniatura traz `old_thumbnail_url` e `new_thumbnail_url`. `view_count_at_change` mostra as views no momento da detecção, para avaliar o timing da mudança.
+- Mudança de thumbnail traz `old_thumbnail_url` e `new_thumbnail_url`. `view_count_at_change` mostra as views no momento da detecção, para avaliar o timing da mudança.
 - `precisao` diz a largura da janela em que a mudança aconteceu: `6h`, `1d` ou `7d`; `gap` quer dizer que a janela da mudança é um buraco de coleta. `janela_desde` é o começo dela. `valor_novo` nulo é valor: o YouTube deixou de informar o campo. `valor_anterior` com `estado: "nao_lido"` e `sem_versao_anterior` quer dizer que a leitura anterior não existe, não que o valor era vazio.
 - A lista de mudanças de campo cobre de `coleta_desde` até `lido_ate`. `coleta_desde` é a primeira leitura do site; canal acrescentado depois tem cobertura menor. Canal com leitura mais antiga que a de hoje não foi conferido depois dela: se `lido_ate.mais_recente` não for de hoje, diga até quando a lista vale e não escreva "nada mudou".
 - `lido_ate.mais_recente` e `mais_antigo` valem para os campos do canal (nome, handle, país, avatar, inscritos ocultos, disponibilidade). Os campos de vídeo são relidos na cadência de cada vídeo (parte todo dia, parte uma vez por semana): a ausência de mudança num vídeo só vale até a última leitura dele. Se `lido_ate.videos_mais_recente` não for de hoje, diga até quando os campos de vídeo valem e não escreva "nada mudou".

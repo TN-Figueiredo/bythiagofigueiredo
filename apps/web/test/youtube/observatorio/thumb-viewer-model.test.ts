@@ -70,5 +70,6 @@ describe('thumb-viewer · nome do arquivo baixado', () => {
   it('a anterior arquivada leva o nome da capa e a extensão da cópia', () => {
     expect(downloadName({ label: 'Capa Ã', youtubeId: null }, 'a.PNG', true)).toBe('thumbnail-capa-a.png')
     expect(downloadName({ label: 'Capa A', youtubeId: null }, 'semextensao', true)).toBe('thumbnail-capa-a.jpg')
+    expect(downloadName({ label: 'Thumbnail A', youtubeId: null }, 'a.png', true)).toBe('thumbnail-a.png') // sem repetir a palavra
   })
 })

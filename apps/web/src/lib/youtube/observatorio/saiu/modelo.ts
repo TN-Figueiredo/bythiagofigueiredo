@@ -162,7 +162,7 @@ const FRASES_DE_ERRO: Record<CodigoDeErro, string> = {
   impedido_por_tabela: 'Algo ligado a este item ainda impede o apagamento. Nada foi apagado. Peça ao agente.',
   contagem_indisponivel: 'Não deu para contar o que há guardado deste item.',
   resposta_inesperada: 'O banco respondeu algo que não esperávamos. Confira a fila antes de tentar de novo.',
-  blob_nao_configurado: 'As miniaturas não podem ser apagadas aqui: falta ligar o armazenamento delas. Nada foi apagado.',
+  blob_nao_configurado: 'As thumbnails não podem ser apagadas aqui: falta ligar o armazenamento delas. Nada foi apagado.',
   // M9 (aviso de 15/10): recusa de regra da manutenção, não falha; nada foi apagado
   mes_destacado_em_transito: 'Este mês está sendo enviado ao arquivo. Tente de novo depois que terminar.',
   // Yannis M1 (15/10): recusa do banco pós-M3b (competitor_channel_remove exige org_admin); não é falha
@@ -191,11 +191,11 @@ export function fraseDoDesfecho(d: Desfecho, o: OpcoesDaFrase): string {
     case 'apagado': return 'Apagado.'
     case 'apagando': {
       const f = o.faltam
-      if (!f) return 'Apagando: falta concluir a limpeza das miniaturas.'
+      if (!f) return 'Apagando: falta concluir a limpeza das thumbnails.'
       const partes: string[] = []
-      if (f.miniaturas > 0) partes.push(plural(f.miniaturas, 'miniatura', 'miniaturas'))
-      if (f.pastas > 0) partes.push(plural(f.pastas, 'pasta de miniaturas', 'pastas de miniaturas'))
-      return partes.length > 0 ? `Apagando: faltam ${partes.join(' e ')}.` : 'Apagando: falta concluir a limpeza das miniaturas.'
+      if (f.miniaturas > 0) partes.push(plural(f.miniaturas, 'thumbnail', 'thumbnails'))
+      if (f.pastas > 0) partes.push(plural(f.pastas, 'pasta de thumbnails', 'pastas de thumbnails'))
+      return partes.length > 0 ? `Apagando: faltam ${partes.join(' e ')}.` : 'Apagando: falta concluir a limpeza das thumbnails.'
     }
     case 'no_ar':
       return o.tipo === 'canal' ? 'Este canal voltou a vir do YouTube; nada foi apagado.'

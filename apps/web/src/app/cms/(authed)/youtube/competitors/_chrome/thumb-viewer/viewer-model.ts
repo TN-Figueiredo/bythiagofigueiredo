@@ -62,5 +62,5 @@ const slug = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').t
 export function downloadName(v: Pick<ViewerVersion, 'label' | 'youtubeId'>, file: string, archived: boolean): string {
   if (!archived && v.youtubeId) return `thumbnail-${v.youtubeId}-${file}`
   const ext = /\.[a-z0-9]{2,5}$/i.exec(file)?.[0].toLowerCase() ?? '.jpg'
-  return `thumbnail-${slug(v.label) || 'versao'}${ext}`
+  return `thumbnail-${slug(v.label).replace(/^thumbnail-/, '') || 'versao'}${ext}`
 }

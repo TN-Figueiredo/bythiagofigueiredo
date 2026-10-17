@@ -119,7 +119,7 @@ describe('healthVerdict', () => {
     [{ semanal_atrasados: 2 }, '2 vídeos da faixa semanal no 8º dia sem ponto'],
     [{ semanal_atrasados: 3, semanal_atrasados_9d: 3 }, '3 vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)'],
     [{ semanal_devidos_hoje: 4 }, '4 vídeos da faixa semanal devidos hoje e ainda sem ponto'],
-    [{ sem_miniatura_9d: 6 }, '6 vídeos sem cópia da miniatura depois de 9 dias'],
+    [{ sem_miniatura_9d: 6 }, '6 vídeos sem cópia da thumbnail depois de 9 dias'],
     [{ diaria_sem_ponto_hoje: 5 }, '5 vídeos da faixa diária sem ponto hoje'],
   ] as Array<[Partial<SeriesHealth>, string]>)('série %j → %s', (over, msg) => {
     expect(healthVerdict(C, { ...S, ...over }, done)).toMatchObject({ ok: false, problems: [msg] })
@@ -141,7 +141,7 @@ describe('healthVerdict', () => {
     expect(healthVerdict(C, { ...S, semanal_atrasados: 2, semanal_devidos_hoje: 30 }, { slotDone: false, e2: true }).ok).toBe(true)
     expect(healthVerdict(C, { ...early, semanal_atrasados: 5, semanal_atrasados_9d: 3 }, done)).toEqual({ ok: false, problems: ['3 vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)'], notes: ['2 vídeos da faixa semanal no 8º dia sem ponto'] })
   })
-  it('thumbs: false (pergunta 1 vetada): a falta de cópia da miniatura não é cobrada', () => {
+  it('thumbs: false (pergunta 1 vetada): a falta de cópia da thumbnail não é cobrada', () => {
     expect(healthVerdict(C, { ...S, sem_miniatura_9d: 687 }, { ...done, thumbs: false }).ok).toBe(true)
   })
   it('ausentes e fora da prova são nota (o dono vê o número), não falha', () => {
@@ -176,7 +176,7 @@ describe('healthVerdict', () => {
   it('singular e plural de cada frase', () => {
     expect(healthVerdict(C, { ...S, semanal_atrasados: 1, semanal_devidos_hoje: 1, sem_miniatura_9d: 1, sem_faixa: 1, diaria_buracos_3d: 1, diaria_sem_ponto_hoje: 1, semanal_atrasados_9d: 0 }, done).problems).toEqual([
       '1 vídeo sem faixa de série', '1 buraco na série diária nos últimos 3 dias', '1 vídeo da faixa semanal no 8º dia sem ponto',
-      '1 vídeo da faixa semanal devidos hoje e ainda sem ponto', '1 vídeo sem cópia da miniatura depois de 9 dias', '1 vídeo da faixa diária sem ponto hoje',
+      '1 vídeo da faixa semanal devidos hoje e ainda sem ponto', '1 vídeo sem cópia da thumbnail depois de 9 dias', '1 vídeo da faixa diária sem ponto hoje',
     ])
   })
   it('vermelho que NÃO some só porque o disparo não tinha o que fazer: a captura não depende de slotDone', () => {

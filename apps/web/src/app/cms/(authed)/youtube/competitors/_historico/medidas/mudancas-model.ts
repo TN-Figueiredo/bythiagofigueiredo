@@ -49,7 +49,7 @@ export interface MudancaNumerada {
 }
 
 const NOME_DO_CAMPO: Record<CampoDoVideo, string> = {
-  titulo: 'título', miniatura: 'miniatura', descricao: 'descrição', tags: 'tags', categoria: 'categoria', duracao: 'duração', capitulos: 'capítulos', idioma: 'idioma',
+  titulo: 'título', miniatura: 'thumbnail', descricao: 'descrição', tags: 'tags', categoria: 'categoria', duracao: 'duração', capitulos: 'capítulos', idioma: 'idioma',
 }
 export const nomeDoCampo = (c: CampoDoVideo): string => NOME_DO_CAMPO[c]
 
@@ -180,6 +180,6 @@ export function listaAgrupadaDosAntes(mudancas: readonly MudancaNumerada[], subi
     const chave = nomeDaMudanca(m)
     por.set(chave, [...(por.get(chave) ?? []), dm(m.dia)])
   }
-  const ordem = (k: string): number => (k.startsWith('título') ? 0 : k === 'miniatura' ? 1 : 2)
+  const ordem = (k: string): number => (k.startsWith('título') ? 0 : k === 'thumbnail' ? 1 : 2)
   return [...por.keys()].sort((a, b) => ordem(a) - ordem(b)).map((k) => `${k} em ${juntar(por.get(k)!)}`)
 }

@@ -48,7 +48,7 @@ function Amostra({ chave }: { chave: string }) {
 const GLIFO = { sobe: '▲', estavel: '＝', desce: '▼' } as const
 const ITENS = [
   'Barras: views que o canal inteiro ganhou em cada dia, pela diferença do contador público (a mesma conta da direção). Inclui Shorts e vídeos apagados.',
-  'Janela: os últimos 90 dias; as marcas vêm das publicações, das mudanças de título, miniatura, descrição, tags, categoria e duração, registradas desde 03/10/2026.',
+  'Janela: os últimos 90 dias; as marcas vêm das publicações, das mudanças de título, thumbnail, descrição, tags, categoria e duração, registradas desde 03/10/2026.',
   `Corte de ${dm(MEASURE_RULES.countChange)}: o YouTube mudou a forma de contar views; antes dessa data os dias não se comparam com os de depois.`,
   'Sem playlists: esta fase não registra playlists, então não há raia delas.',
   'Coincidência, não causa: a tela lista o que mudou perto de uma subida; não afirma que uma coisa causou a outra.',

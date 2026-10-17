@@ -47,7 +47,7 @@ function Lado({ l }: { l: LadoView }) {
 
 function Imagem({ t }: { t: TrocaView['de'] }) {
   if (t.texto != null) return <span className="tr-txt">{t.texto}</span>
-  return <span className="tr-img-nota">{t.notaImagem ?? 'Miniatura'}</span>
+  return <span className="tr-img-nota">{t.notaImagem ?? 'Thumbnail'}</span>
 }
 
 function LinhaTeste({ v }: { v: TesteView }) {
@@ -66,7 +66,7 @@ function ItemTroca({ v }: { v: TrocaView }) {
   return (
     <li className="tr-item tr-troca" data-chip={v.chip}>
       <div className="tr-item-cab">
-        <span className="tr-n">{v.n}</span> <b>{v.campo === 'title' ? 'Título' : 'Miniatura'}</b> <span className="tr-quando">{v.quando}</span> <ChipTroca chip={v.chip} />
+        <span className="tr-n">{v.n}</span> <b>{v.campo === 'title' ? 'Título' : 'Thumbnail'}</b> <span className="tr-quando">{v.quando}</span> <ChipTroca chip={v.chip} />
       </div>
       <p className="tr-de-para"><Imagem t={v.de} /> <span aria-hidden="true">→</span> <Imagem t={v.para} /></p>
       <p className="tr-origem"><span className="tr-origem-chip">{v.origem.chip}</span> {v.origem.frase}

@@ -55,23 +55,23 @@ describe('resumo por imagem e selo do cabeçalho', () => {
   })
   it('selo do cabeçalho: "(uma voltou)" deixa de ser fixo', () => {
     const count = (id: string) => view(id).header!.counts.find(c => c.type === 'thumb')!.text
-    expect(count(VID.many)).toBe('5 miniaturas em 24 períodos (5 voltaram)')
-    expect(count(VID.open)).toBe('4 miniaturas em 6 períodos (2 voltaram)')
-    expect(count(VID.few)).toBe('2 miniaturas em 2 períodos')
+    expect(count(VID.many)).toBe('5 thumbnails em 24 períodos (5 voltaram)')
+    expect(count(VID.open)).toBe('4 thumbnails em 6 períodos (2 voltaram)')
+    expect(count(VID.few)).toBe('2 thumbnails em 2 períodos')
     const one = loadFase4(); setThumbs(one.ds, VID.few, [['A'], ['B', one.ds.now - 5 * DAY], ['A', one.ds.now - 3 * DAY]])
-    expect(buildHistoricoView(createObservatory(one.ds), VID.few, {}).header!.counts.find(c => c.type === 'thumb')!.text).toBe('2 miniaturas em 3 períodos (uma voltou)')
+    expect(buildHistoricoView(createObservatory(one.ds), VID.few, {}).header!.counts.find(c => c.type === 'thumb')!.text).toBe('2 thumbnails em 3 períodos (uma voltou)')
   })
 })
 
 describe('trocas em sequência na tela', () => {
-  it('estado 6a: nota na seção de miniaturas, barra na faixa, legenda e linha na comparação', () => {
+  it('estado 6a: nota na seção de thumbnails, barra na faixa, legenda e linha na comparação', () => {
     const v = view(VID.open)
     expect(v.versions!.thumbs.runNote).toEqual({
       items: [{ strong: 'Trocas em sequência: 5 trocas em 9 dias, ainda aberta', text: ' (desde 30/11 09:20; a mais recente em 09/12 10:20).' }],
-      def: 'Chamamos de trocas em sequência as trocas de miniatura com até 14 dias entre uma e outra. Pode ser um teste; o YouTube não informa.',
+      def: 'Chamamos de trocas em sequência as trocas de thumbnail com até 14 dias entre uma e outra. Pode ser um teste; o YouTube não informa.',
     })
     const bar = v.lanes.find(l => l.type === 'thumb')!.runs[0]!
-    expect([bar.rest, bar.short, bar.open, bar.cutLeft, bar.aria]).toEqual(['5 trocas em 9 dias, ainda aberta', '5 trocas em sequência', true, false, 'Trocas em sequência: 5 trocas em 9 dias, ainda aberta (miniatura). Pode ser um teste; o YouTube não informa.'])
+    expect([bar.rest, bar.short, bar.open, bar.cutLeft, bar.aria]).toEqual(['5 trocas em 9 dias, ainda aberta', '5 trocas em sequência', true, false, 'Trocas em sequência: 5 trocas em 9 dias, ainda aberta (thumbnail). Pode ser um teste; o YouTube não informa.'])
     expect(bar.toH).toBeCloseTo(v.chart!.H, 6)
     expect(v.legends['']!.find(l => l.kind === 'run')!.text).toBe('trocas em sequência: trocas do mesmo campo com até 14 dias entre uma e outra. Pode ser um teste; o YouTube não informa.')
     expect(v.comparisons.map(c => c.runLines)).toEqual([['Parte de 5 trocas em sequência em 9 dias. Pode ser um teste; o YouTube não informa.'], ['Parte de 5 trocas em sequência em 9 dias. Pode ser um teste; o YouTube não informa.'], [], ['Parte de 5 trocas em sequência em 9 dias. Pode ser um teste; o YouTube não informa.']])
@@ -102,11 +102,11 @@ describe('trocas em sequência na tela', () => {
 
 describe('filtro de período', () => {
   it('estado 3 (7 d): a frase diz quanto de cada coisa ficou dentro', () => {
-    expect(flat(view(VID.many, '7').range!.text)).toBe('De 05/12 15:02 até agora: 3 de 24 períodos de miniatura, 2 de 9 títulos, 1 de 3 descrições, 3 de 33 trocas e 7 de 60 dias de views. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.')
-    expect(flat(view(VID.many, '30').range!.text)).toMatch(/^De 12\/11 15:02 até agora: 12 de 24 períodos de miniatura, 4 de 9 títulos, 2 de 3 descrições, 15 de 33 trocas e 30 de 60 dias de views\./)
+    expect(flat(view(VID.many, '7').range!.text)).toBe('De 05/12 15:02 até agora: 3 de 24 períodos de thumbnail, 2 de 9 títulos, 1 de 3 descrições, 3 de 33 trocas e 7 de 60 dias de views. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.')
+    expect(flat(view(VID.many, '30').range!.text)).toMatch(/^De 12\/11 15:02 até agora: 12 de 24 períodos de thumbnail, 4 de 9 títulos, 2 de 3 descrições, 15 de 33 trocas e 30 de 60 dias de views\./)
   })
   it('a mesma forma de frase em todos os filtros; filtro maior que o vídeo diz que é o vídeo inteiro', () => {
-    expect(flat(view(VID.many).range!.text)).toBe('Vídeo inteiro, desde 13/10 11:00: 24 de 24 períodos de miniatura, 9 de 9 títulos, 3 de 3 descrições, 33 de 33 trocas e 60 de 60 dias de views. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.')
+    expect(flat(view(VID.many).range!.text)).toBe('Vídeo inteiro, desde 13/10 11:00: 24 de 24 períodos de thumbnail, 9 de 9 títulos, 3 de 3 descrições, 33 de 33 trocas e 60 de 60 dias de views. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.')
     const v90 = view(VID.many, '90')
     expect([v90.range!.value, v90.range!.cut, v90.chart!.fromH]).toEqual(['90', false, 0])
     expect(flat(v90.range!.text)).toMatch(/^Vídeo inteiro, desde 13\/10 11:00 \(menos que os 90 dias do filtro\): 24 de 24/)
@@ -183,11 +183,11 @@ describe('filtro de período', () => {
     ch.sync = { ...ch.sync, state: 'erro', last: w.ds.now - 10 * DAY, errorSince: w.ds.now - 10 * DAY, msg: 'quota' }
     const v = buildHistoricoView(createObservatory(w.ds), VID.closed, { range: '7' })
     expect(v.lanes[1]!.versions.filter(x => x.inRange)).toEqual([])
-    expect(v.versions!.thumbs.empty).toBe('Nenhum período de miniatura neste intervalo.')
+    expect(v.versions!.thumbs.empty).toBe('Nenhum período de thumbnail neste intervalo.')
     expect(v.imageSummary).toBeNull()
-    expect(flat(v.range!.text)).toMatch(/^De 05\/12 15:02 até agora, sem nenhuma conferência \(a última foi em 02\/12 15:02\): 0 de 6 períodos de miniatura, 0 de 1 título, 0 de 1 descrição, 0 de 5 trocas/)
+    expect(flat(v.range!.text)).toMatch(/^De 05\/12 15:02 até agora, sem nenhuma conferência \(a última foi em 02\/12 15:02\): 0 de 6 períodos de thumbnail, 0 de 1 título, 0 de 1 descrição, 0 de 5 trocas/)
     const v30 = buildHistoricoView(createObservatory(w.ds), VID.closed, { range: '30' })
-    expect(flat(v30.range!.text)).toMatch(/^De 12\/11 15:02 até 02\/12 15:02 \(última conferência\): 1 de 6 períodos de miniatura/)
+    expect(flat(v30.range!.text)).toMatch(/^De 12\/11 15:02 até 02\/12 15:02 \(última conferência\): 1 de 6 períodos de thumbnail/)
     expect(v30.imageSummary!.src).toMatch(/^só o período mostrado, de 12\/11 15:02 até 02\/12 15:02 \(última conferência\);/)
     expect(v30.imageSummary!.rows[0]!.segsText).not.toMatch(/agora/)
     expect(texts(v)).not.toMatch(/NaN|undefined|Infinity/)
@@ -198,7 +198,7 @@ describe('comparação em lista', () => {
   it('uma linha por troca, da mais recente para a mais antiga, com campo, situação e motivo curto', () => {
     const v = view(VID.many), c = v.comparisons
     expect(c.length).toBe(33)
-    expect(c[0]).toMatchObject({ changeId: VID.many + '/thumb/23', field: 'thumb', label: 'Miniatura D → E', when: '10/12 16:25', situation: 'aguardando', inRange: true })
+    expect(c[0]).toMatchObject({ changeId: VID.many + '/thumb/23', field: 'thumb', label: 'Thumbnail D → E', when: '10/12 16:25', situation: 'aguardando', inRange: true })
     expect(new Set(c.map(x => x.changeId)).size).toBe(33)
     expect(c.filter(x => x.field === 'title').length + c.filter(x => x.field === 'thumb').length + c.filter(x => x.field === 'desc').length).toBe(33)
     expect([c.filter(x => x.field === 'title').length, c.filter(x => x.field === 'thumb').length, c.filter(x => x.field === 'desc').length]).toEqual([8, 23, 2])
@@ -215,7 +215,7 @@ describe('comparação em lista', () => {
     for (const l of v.lanes) for (const m of l.markers) { expect(m.pairK).toBe(m.changeId); expect(ids.has(m.pairK!)).toBe(true) }
   })
   it('até 6 trocas: os botões de hoje, com a troca e a volta dela juntas', () => {
-    expect(view(VID.open).comparisons.map(c => c.label)).toEqual(['Miniatura A → B', 'Miniatura B → C → A', 'Título T1 → T2', 'Miniatura A → D → B'])
+    expect(view(VID.open).comparisons.map(c => c.label)).toEqual(['Thumbnail A → B', 'Thumbnail B → C → A', 'Título T1 → T2', 'Thumbnail A → D → B'])
   })
 })
 
@@ -224,12 +224,12 @@ describe('textos de grupo que a faixa monta', () => {
     const v = view(VID.open), th = v.lanes[1]!, ti = v.lanes[0]!
     expect(th.versions[0]!.edge).toEqual({ from: '25/11 10:00', to: '30/11 09:20' })
     expect(th.versions[5]!.edge).toEqual({ from: '09/12 10:20', to: 'agora' })
-    expect(th.versions[5]!.name).toBe('Miniatura B: 09/12 10:20 até agora, voltou, no ar')
+    expect(th.versions[5]!.name).toBe('Thumbnail B: 09/12 10:20 até agora, voltou, no ar')
     expect(th.markers[0]!.edge).toEqual({ from: '30/11 09:20', to: '30/11 09:20' })
     expect(th.markers[0]!.list).toEqual({ label: 'A → B, 30/11 09:20', status: 'inconclusivo', line: 'inconclusivo: outra troca nos 7 dias depois' })
     expect(ti.markers[0]!.edge).toEqual({ from: '03/12 06h', to: '03/12 12h' })
-    expect([th.unit, th.changeWord, ti.unit]).toEqual([['período', 'períodos'], 'miniatura', ['título', 'títulos']])
-    expect(th.aria).toBe('Faixa de miniatura: 6 períodos e 5 trocas, em ordem de tempo. As setas para a esquerda e para a direita andam pela faixa.')
+    expect([th.unit, th.changeWord, ti.unit]).toEqual([['período', 'períodos'], 'thumbnail', ['título', 'títulos']])
+    expect(th.aria).toBe('Faixa de thumbnail: 6 períodos e 5 trocas, em ordem de tempo. As setas para a esquerda e para a direita andam pela faixa.')
   })
 })
 
@@ -259,7 +259,7 @@ describe('entradas que a especificação não descreve', () => {
   it('o oráculo de 02/10 continua igual nos campos que já existiam: só a legenda da sequência entra', () => {
     const o = createObservatory(datasetFromOracle(loadOracle())), v = buildHistoricoView(o, 'matt-opus55', { range: 'tudo' })
     expect([v.range?.value, v.compare.mode, v.versions!.thumbs.more, !!v.imageSummary]).toEqual(['tudo', 'pairs', null, true])
-    expect(v.header!.counts.find(c => c.type === 'thumb')!.text).toBe('3 miniaturas em 4 períodos (uma voltou)')
+    expect(v.header!.counts.find(c => c.type === 'thumb')!.text).toBe('3 thumbnails em 4 períodos (uma voltou)')
     expect(v.legends['']!.filter(l => l.kind === 'run').length).toBe(1)
     expect(v.versions!.thumbs.runNote!.items[0]!.strong).toBe('Trocas em sequência: 3 trocas em 5 dias, ainda aberta')
   })

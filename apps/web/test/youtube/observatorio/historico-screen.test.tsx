@@ -85,12 +85,12 @@ describe('HistoricoScreen', () => {
   it('lanes: windows and markers name the change with the participle of the type', () => {
     const { root } = mount(PICK.full)
     expect(within(root.querySelector('[data-lane="title"]') as HTMLElement).getByRole('button', { name: 'Título trocado entre 11/10 06h e 12h' })).toBeTruthy()
-    // Fase 4 (faixas densas): the two miniatura changes of 13/10 are 10 h 35 min apart, less than 32 px at this width. They are
+    // Fase 4 (faixas densas): the two thumbnail changes of 13/10 are 10 h 35 min apart, less than 32 px at this width. They are
     // ONE counter now (no marker is pushed away from its instant any more); each change is a row of its list.
     const th = root.querySelector('[data-lane="thumb"]') as HTMLElement
-    fireEvent.click(within(th).getByRole('button', { name: '2 trocas de miniatura entre 13/10 09:40 e 13/10 20:15' }))
+    fireEvent.click(within(th).getByRole('button', { name: '2 trocas de thumbnail entre 13/10 09:40 e 13/10 20:15' }))
     expect(within(document.getElementById('flut')!).getByRole('button', { name: /^A → B, 13\/10 09:40/ })).toBeTruthy()
-    expect(within(th).getByRole('button', { name: 'Miniatura trocada em 18/10 09:14' })).toBeTruthy()
+    expect(within(th).getByRole('button', { name: 'Thumbnail trocada em 18/10 09:14' })).toBeTruthy()
     expect(root.querySelectorAll('[data-lane="title"] .win').length).toBe(2)
   })
 
@@ -159,7 +159,7 @@ describe('HistoricoScreen', () => {
   it('untracked video (R117): the notice, the stored versions, no curve and nothing about views', () => {
     const { root } = mount(PICK.untr)
     const notice = root.querySelector('[data-untracked]')!
-    expect(notice.textContent).toMatch(/^Este vídeo está fora dos \d+ mais recentes acompanhados de .+\. Mostramos o histórico de títulos, miniaturas e descrições guardado\. O gráfico de views só aparece para vídeos acompanhados ou fixados\.$/)
+    expect(notice.textContent).toMatch(/^Este vídeo está fora dos \d+ mais recentes acompanhados de .+\. Mostramos o histórico de títulos, thumbnails e descrições guardado\. O gráfico de views só aparece para vídeos acompanhados ou fixados\.$/)
     expect(root.querySelector('.timeline svg.hv-chart, .timeline .empty-chart')).toBeNull()
     expect(root.querySelector('.timeline .lanes')).not.toBeNull()
     expect(root.querySelector('.lane-axis.fx-axis')).not.toBeNull()

@@ -13,7 +13,7 @@ const x1 = (h: number) => h
 const ver = (label: string, fromH: number, toH: number, o: Partial<VersionView> = {}): VersionView => ({ label, fromH, toH, inRange: true, edge: { from: 'de' + fromH, to: 'ate' + toH }, ...o } as VersionView)
 const mk = (idx: number, h: number, o: Partial<MarkerView> = {}): MarkerView => ({ idx, h, changeId: 'c' + idx, inRange: true, edge: { from: 'em' + h, to: 'em' + h }, ...o } as MarkerView)
 const lane = (versions: VersionView[], markers: MarkerView[], type: LaneView['type'] = 'thumb'): LaneView =>
-  ({ type, versions, markers, unit: type === 'thumb' ? ['período', 'períodos'] : ['título', 'títulos'], changeWord: type === 'thumb' ? 'miniatura' : 'título' } as LaneView)
+  ({ type, versions, markers, unit: type === 'thumb' ? ['período', 'períodos'] : ['título', 'títulos'], changeWord: type === 'thumb' ? 'thumbnail' : 'título' } as LaneView)
 const kinds = (items: LaneItem[]) => items.map(i => (i.kind === 'clip' ? (i.small ? 's' : 'c') : i.kind === 'pgroup' ? 'P' + i.members.length : i.kind === 'mk' ? 'm' : 'M' + i.n)).join(' ')
 
 describe('marcadores', () => {
@@ -23,7 +23,7 @@ describe('marcadores', () => {
     expect(kinds(items)).toBe('c M30')
     if (g?.kind !== 'mgroup') throw new Error('sem grupo')
     expect(g.members.map(m => m.px)).toEqual(Array.from({ length: 30 }, (_, i) => 100 + i * 5))
-    expect([g.left, g.width, g.name]).toEqual([100, 145, '30 trocas de miniatura entre em100 e em245'])
+    expect([g.left, g.width, g.name]).toEqual([100, 145, '30 trocas de thumbnail entre em100 e em245'])
   })
   it('marcador sozinho fica exatamente no horário (o spread() antigo empurrava 16 px para cada lado)', () => {
     const items = layoutLane(lane([ver('A', 0, 1000)], [mk(1, 100), mk(2, 132), mk(3, 400)]), x1, MINPX)
@@ -56,7 +56,7 @@ describe('períodos', () => {
     if (g.kind !== 'pgroup') throw new Error('sem grupo')
     expect(kinds(items)).toBe('c P3 c')
     expect([g.left, g.width, g.unit, g.seq, g.letters, g.from, g.to]).toEqual([400, 40, '3 períodos', 'B → A → C', 'B A C', 'de400', 'ate440'])
-    expect(g.name).toBe('3 períodos de miniatura, de de400 até ate440: B, A, C')
+    expect(g.name).toBe('3 períodos de thumbnail, de de400 até ate440: B, A, C')
     expect(g.members.map(m => [m.i, m.left, m.width])).toEqual([[1, 0, 10], [2, 10, 15], [3, 25, 15]])
   })
   it('nenhum item passa do vizinho, nos vídeos do mockup, em três larguras', () => {
@@ -75,7 +75,7 @@ describe('períodos', () => {
       }
     }
   })
-  it('estado 2 em 760 px: a faixa de miniatura vira dois grupos com as letras em ordem', () => {
+  it('estado 2 em 760 px: a faixa de thumbnail vira dois grupos com as letras em ordem', () => {
     const v = buildHistoricoView(obs, VID.many, { range: 'tudo' }), H = v.chart!.H
     const items = layoutLane(v.lanes[1]!, h => 92 + (h / H) * (620 - 106), MINPX_COARSE).filter(i => i.kind === 'pgroup')
     expect(items.map(i => i.kind === 'pgroup' && [i.letters, i.count])).toEqual([['A B A C A B C D A D B D', '12 períodos'], ['E C E B E D E C E D E', '11 períodos']])

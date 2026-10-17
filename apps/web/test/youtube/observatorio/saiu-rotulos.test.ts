@@ -50,7 +50,7 @@ describe('A5 E9 T3: rótulos', () => {
 
   it('resumo guardado em uma linha', () => {
     const s = resumoGuardado({ competitor_videos: 1, competitor_video_daily: 41, competitor_changes: 5 }, 2, { title: 3, thumb: 2, desc: 1 })
-    expect(s).toBe('41 dias de views, 3 títulos, 2 miniaturas, 1 descrição, 5 mudanças')
+    expect(s).toBe('41 dias de views, 3 títulos, 2 thumbnails, 1 descrição, 5 mudanças')
     expect(resumoGuardado({}, 0)).toBe('')
   })
 

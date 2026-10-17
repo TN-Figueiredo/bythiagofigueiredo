@@ -319,7 +319,7 @@ export const SEM_PROVA_POR_IGUALDADE_DIRETA_CANAL_PROPRIO = [] as const
 // Revisto pelo Logan (17/10): as frases abaixo.
 export const AVISO_PARCIAL_PROPRIO = 'Parte do dado privado do canal não foi lida agora.'
 export const ITENS_PRIVADOS_PROPRIO = 'impressões, cliques estimados, taxa de clique, views por dia dos vídeos e % assistido'
-export const NAO_MEDE_CAUSA = 'a causa de uma mudança nos números: nada aqui prova que uma capa ou um título fez a diferença'
+export const NAO_MEDE_CAUSA = 'a causa de uma mudança nos números: nada aqui prova que uma thumbnail ou um título fez a diferença'
 export const NAO_MEDE_OUTROS = 'impressões, taxa de clique e % assistido de outros canais: o YouTube só os entrega ao dono do canal'
 export const NAO_MEDE_PERIODOS = 'os cartões de % assistido por período (canal inteiro, 90 e 28 dias) e a origem das views por período: esta versão do pacote não os traz'
 export const TITULO_PRIVADO = ', dado privado do canal'
