@@ -112,10 +112,10 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
     const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: ownYtIds, agora: now, leitura: leituraPrivada })
     // as posições precisam do conjunto do site: lido só neste ramo, com o diário do próprio canal já lido (sem segunda guarda, sem segunda leitura)
     const site = await openObservatoryPage()
-    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario })
+    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario, negativa: pagina.negativa })
     const { posicao, concorrenteAcima } = posicaoDoSite(site.obs, proprio.id, extras)
     const hoje = dayPt(new Date(now))
-    const pv = buildProprioView(obs, proprio.id, sp, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })
+    const pv = buildProprioView(obs, proprio.id, sp, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1, negativa: pagina.negativa })
     if (pv) {
       const doCanal = obs.videos.filter(v => v.ch === proprio.id)
       const publicacoes = publicacoesDe(doCanal)
@@ -123,7 +123,7 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
         dados, hoje, dm: dmDia, posicao, posicaoItens: pv.header.posicaoItens, canalId: proprio.id,
         videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
         concorrentes: concorrentesDoSite(site.obs, proprio.id),
-        publicacoes,
+        publicacoes, negativa: pagina.negativa,
       })
       const duracoes = new Map(doCanal.map(v => [v.ytId, v.dur ?? null]))
       const videosLongos = ownYtIds.map(ytId => ({ ytId, dur: duracoes.get(ytId) ?? null }))

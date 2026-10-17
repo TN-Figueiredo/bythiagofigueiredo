@@ -423,3 +423,22 @@ describe('palavras e datas', () => {
     for (const d of datas) expect(permitidas.has(d), d).toBe(true)
   })
 })
+
+describe('decisão 75: ausência da troca e frases fixas', () => {
+  const troca = (dia: string, o: Partial<VersaoPropria> = {}) => versao({ dia, ...o })
+  const run = (vs: VersaoPropria[], a: AlcanceCanal, over: Partial<EntradaTrocas> = {}, desde?: string) => buildTrocas(entrada(comAlcance([base(), ...vs], a, desde), over))
+  const troca1 = (v: TrocasView) => (v.itens.find(i => i.tipo === 'troca') as { tipo: 'troca'; v: import('@/app/cms/(authed)/youtube/competitors/_proprio/trocas-model').TrocaView }).v
+  it('chip leitura-falhou → ausencia "falhou"; qualquer outro chip → null', () => {
+    const t = troca1(buildTrocas(entrada(lidas([base(), troca('2026-11-03')], { alcance: { acesso: 'erro' } }))))
+    expect(t.chip).toBe('leitura-falhou')
+    expect(t.ausencia).toBe('falhou')
+    const outra = troca1(run([troca('2026-10-21')], alcance('2026-10-20', HOJE), { publicadoEm: '2026-10-20' }, addDays(HOJE, -60)))
+    expect(outra.chip).not.toBe('leitura-falhou')
+    expect(outra.ausencia).toBeNull()
+  })
+  it('as constantes novas (o uso é da Task 6)', async () => {
+    const m = await import('@/app/cms/(authed)/youtube/competitors/_proprio/trocas-model')
+    expect(m.FRASE_TESTE_RESTRITO).toBe('Teste A/B restrito: o teste que gerou esta troca só abre para quem edita o site.')
+    expect(m.FRASE_TROCA_FALHOU.startsWith('A leitura falhou:')).toBe(true)
+  })
+})

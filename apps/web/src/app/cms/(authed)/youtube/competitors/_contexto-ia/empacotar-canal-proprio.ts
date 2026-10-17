@@ -198,7 +198,7 @@ const CELULA_FAIXA_INTEIRO = (c: string): Inventario => ({ [`${c}.estado`]: CTRL
 
 export const INVENTARIO_PERIODOS: Inventario = {
   periodos: REP, // nulo: a página não montou os cartões (sem diário lido)
-  'periodos.tela': CTRL, 'periodos.estado': CTRL, 'periodos.rotuloGrupo': 'base', 'periodos.vazio': 'base', 'periodos.padrao': CTRL, 'periodos.lembranca': CTRL,
+  'periodos.tela': CTRL, 'periodos.vazioEstado': CTRL, 'periodos.cartoes[].ausencia': CTRL, 'periodos.estado': CTRL, 'periodos.rotuloGrupo': 'base', 'periodos.vazio': 'base', 'periodos.padrao': CTRL, 'periodos.lembranca': CTRL,
   'periodos.voltar': CTRL, 'periodos.legenda': CTRL, 'periodos.metodo[]': 'base',
   'periodos.cartoes[].id': IDENT, 'periodos.cartoes[].rotulo': 'rotulo', 'periodos.cartoes[].curto': REP, 'periodos.cartoes[].estado': CTRL,
   'periodos.cartoes[].valor': 'numero', 'periodos.cartoes[].legenda': 'base', 'periodos.cartoes[].semNumero': 'motivo', 'periodos.cartoes[].aria': REP,
@@ -249,7 +249,7 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   ...Object.fromEntries(['faixa', 'todos'].flatMap((g) => [
     [`header.${g}[].key`, IDENT], [`header.${g}[].label`, 'rotulo'], [`header.${g}[].value`, 'numero'], [`header.${g}[].missing`, 'motivo'],
     [`header.${g}[].base`, 'base'], [`header.${g}[].sub`, 'base'], [`header.${g}[].n`, 'base'],
-    [`header.${g}[].fraco`, APAR], [`header.${g}[].parado`, CTRL], [`header.${g}[].semNumero`, CTRL], [`header.${g}[].explicada`, CTRL],
+    [`header.${g}[].fraco`, APAR], [`header.${g}[].parado`, CTRL], [`header.${g}[].semNumero`, CTRL], [`header.${g}[].explicada`, CTRL], [`header.${g}[].ausencia`, CTRL],
   ])),
   'header.resumo.destaque': 'base', 'header.resumo.parado': CTRL, 'header.resumo.resto': 'base',
   'header.faixaMotivo': REP, 'header.todosMotivo': REP, // junta o `missing` de cada célula sem número, que a tabela já leva
@@ -257,6 +257,8 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   'header.posicaoLinha': REP, // é a junção de `posicaoItens`
   'header.posicaoItens.intro': 'base', 'header.posicaoItens.itens[].chave': IDENT, 'header.posicaoItens.itens[].href': END, 'header.posicaoItens.itens[].texto': 'base',
   // a lista de vídeos
+  'videos.videos[].impEstado': CTRL, 'videos.videos[].cliquesEstado': CTRL, 'videos.videos[].vpdDiarioEstado': CTRL, 'videos.motivoAlcanceEstado': CTRL, 'videos.viewsPorDiaEstado': CTRL,
+  'comoEsta.fraseEstado': CTRL, 'comoEsta.topVazioEstado': CTRL, 'comoEsta.taxa.vazioEstado': CTRL, 'grafico.vazioEstado': CTRL, 'graficoViews.vazioEstado': CTRL,
   'videos.nota': 'base', 'videos.semVideos': 'base', 'videos.viewsPorDiaFrase': 'base', 'videos.motivoAlcance': 'base',
   'videos.videos[].id': IDENT, 'videos.videos[].ytId': IDENT, 'videos.videos[].url': END, 'videos.videos[].grupo': CTRL,
   'videos.videos[].title': 'terceiros',

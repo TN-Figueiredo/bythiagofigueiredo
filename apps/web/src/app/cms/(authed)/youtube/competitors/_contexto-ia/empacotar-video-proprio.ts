@@ -54,7 +54,7 @@ export const INVENTARIO_VIDEO_PROPRIO: Inventario = {
   'header.viewer.*': IMG, // o visualizador abre num diálogo: versões e legendas das capas são dado privado e não entram (item 198)
   'header.semData': REP, // "sem data de publicação" já está na meta
   // os blocos
-  'blocos.acesso': CTRL, 'blocos.nota': 'base',
+  'blocos.acesso': CTRL, 'blocos.ausencia': CTRL, 'blocos.views.grafico.vazioEstado': CTRL, 'blocos.impressoes.grafico.vazioEstado': CTRL, 'blocos.retencao.ausencia': CTRL, 'blocos.canal.reguas.linhas[].ausencia': CTRL, 'blocos.nota': 'base',
   // objetos que são nulos quando a leitura privada não veio: a folha é o próprio nulo
   'blocos.views': CTRL, 'blocos.impressoes': CTRL, 'blocos.assistido': CTRL, 'blocos.views.grafico': CTRL, 'blocos.impressoes.grafico': CTRL, 'blocos.impressoes.taxa': CTRL,
   'blocos.assistido.marcas': CTRL, 'blocos.retencao.curva': CTRL, 'blocos.canal.reguas.linhas[].pos': CTRL,

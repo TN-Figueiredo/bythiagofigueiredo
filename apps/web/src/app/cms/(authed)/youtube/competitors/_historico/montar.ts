@@ -107,7 +107,7 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
         dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, quandoSp, diaPt: iso => dayPt(new Date(iso)), n: obs.fmt.int,
       })
     }
-    const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje, dm: dmDia, hrefVideo: hrefDeOutroVideo(sp, proprio.id), trocasNoGrafico: trocas && trocas.estado !== 'privado' ? trocasNoGrafico(trocas) : null })
+    const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje, dm: dmDia, hrefVideo: hrefDeOutroVideo(sp, proprio.id), negativa: acesso.negativa, trocasNoGrafico: trocas && trocas.estado !== 'privado' ? trocasNoGrafico(trocas) : null })
     const barra = blocos.acesso === 'ok' ? blocos.assistido : null
     const diario = dados.acesso === 'ok' ? dados.dado.diario : null
     const ytIds = longosAcompanhadosDe(obs, proprio.id)

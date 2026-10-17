@@ -470,3 +470,16 @@ describe('lerCurva: nenhuma saída não finita', () => {
     expect(JSON.stringify(p)).toBe(antes)
   })
 })
+
+describe('decisão 75: ausencia da retenção do vídeo', () => {
+  it('erro → falhou; negado → restrito só com sem_direito (senão falhou); nao-coletada → nao_medido; coletada → null', async () => {
+    const { buildRetencaoView } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/retencao-curva-model')
+    const dm = (d: string) => d
+    expect(buildRetencaoView({ retencao: { acesso: 'erro' }, duracaoSeg: 100, dm }).ausencia).toBe('falhou')
+    expect(buildRetencaoView({ retencao: { acesso: 'negado' }, duracaoSeg: 100, dm, negativa: 'sem_direito' }).ausencia).toBe('restrito')
+    for (const negativa of ['nao_foi_possivel_conferir', null, undefined] as const) {
+      expect(buildRetencaoView({ retencao: { acesso: 'negado' }, duracaoSeg: 100, dm, negativa }).ausencia).toBe('falhou')
+    }
+    expect(buildRetencaoView({ retencao: undefined, duracaoSeg: 100, dm }).ausencia).toBe('nao_medido')
+  })
+})

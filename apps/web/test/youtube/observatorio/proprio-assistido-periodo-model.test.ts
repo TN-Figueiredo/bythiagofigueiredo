@@ -140,3 +140,25 @@ describe('E5b T15: modelo de % assistido por período', () => {
     expect(buildAssistidoPeriodos(entrada()).padrao).toBe('inteiro')
   })
 })
+
+describe('decisão 75: o estado de ausência de cada cartão', () => {
+  const todos = (m: NonNullable<NormalDoPeriodo['motivo']>) => ({ inteiro: sem('inteiro', m), '90': sem('90', m), '28': sem('28', m) })
+  it('sem-acesso com sem_direito → restrito; guarda caída ou sem negativa → falhou (nunca cadeado)', () => {
+    // sem acesso a vista não tem cartões: o estado vai em `vazioEstado`
+    const restrito = buildAssistidoPeriodos(entrada({ acesso: 'negado', negativa: 'sem_direito', normais: todos('sem-acesso') }))
+    expect(restrito.cartoes).toEqual([])
+    expect(restrito.vazioEstado).toBe('restrito')
+    for (const negativa of ['nao_foi_possivel_conferir', null, undefined] as const) {
+      expect(buildAssistidoPeriodos(entrada({ acesso: 'negado', negativa, normais: todos('sem-acesso') })).vazioEstado).toBe('falhou')
+    }
+    expect(buildAssistidoPeriodos(entrada({ acesso: 'ok' })).vazioEstado).toBeNull()
+  })
+  it('leitura-falhou → falhou; acima-do-teto, cobertura-parcial, poucas-views e sem-diario → nao_medido; medido → null', () => {
+    expect(buildAssistidoPeriodos(entrada({ acesso: 'erro', normais: todos('leitura-falhou') })).vazioEstado).toBe('falhou')
+    expect(buildAssistidoPeriodos(entrada({ normais: todos('leitura-falhou') })).cartoes.every(c => c.ausencia === 'falhou')).toBe(true)
+    for (const m of ['acima-do-teto', 'cobertura-parcial', 'poucas-views', 'sem-diario'] as const) {
+      expect(buildAssistidoPeriodos(entrada({ normais: todos(m) })).cartoes.every(c => c.ausencia === 'nao_medido')).toBe(true)
+    }
+    expect(buildAssistidoPeriodos(entrada()).cartoes.every(c => c.ausencia === null)).toBe(true)
+  })
+})
