@@ -23,7 +23,7 @@ import { contextoDoCanal, lerComentariosDoCanalParaOPacote, lerMedidasDoCanal } 
 import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-proprio'
 import { empacotarVideo, modeloDeVideo } from './empacotar-video'
 import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
-import { clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
+import { alvoDoHistorico, clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
 import { lerSecaoDeComentarios, resolverProvas } from '../_historico/comentarios-de-destaque'
 import { comentariosDoVideoNaoCarregaram, projetarComentariosDoVideo, type ComentariosVideoIa } from './empacotar-video-comentarios'
 import * as Sentry from '@sentry/nextjs'
@@ -128,7 +128,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     const m = await montarVideo(alvo, sp)
     if (m.tipo !== 'concorrente' || m.view.notFound) return null
     // as MESMAS medidas que a página lê (uma leitura só); defeito vira "não carregou" no pacote, nunca bloco vazio
-    const doMotor = !m.view.untracked && m.view.video ? m.pagina.obs.videos.find((x) => x.id === m.view.video!.id) : undefined
+    const { doMotor } = alvoDoHistorico(m.view, m.pagina.obs, m.pagina.now)
     let medidas: MedidasVideoIa | null = null
     let comentarios: ComentariosVideoIa | null = null
     if (doMotor) {

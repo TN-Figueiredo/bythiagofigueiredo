@@ -11,7 +11,7 @@ import { BlocosDoVideo } from '../../_historico/medidas/blocos-do-video'
 import { assistidoDoVideo, montarVideo, origemDoVideo, type PropsAssistidoDoVideo, type PropsOrigemDoVideo } from '../../_historico/montar'
 import { Pager } from '../../_historico/pager'
 import { EstourouEParou } from '../../_historico/estourou-e-parou'
-import { leituraSemConsulta } from '../../_chrome/medidas/estourou-leitura'
+import { alvoDoHistorico } from '../../_historico/medidas/ler-do-video'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import '../../_historico/historico.css'
 import { acessoPrivado } from '../../_proprio/dados'
@@ -92,12 +92,11 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   // A5 E5a T10a: o bloco "Estourou e parou" só existe para um vídeo acompanhado que achou o seu cartão (nunca "não encontrado" nem fora dos acompanhados).
   // Pronto sem consulta (antes da data em que a leitura existe): vai como elemento. Com leitura a fazer: `'ler'`, e o bloco sai do MESMO conjunto do canal
   // que a tela de medidas lê (uma leitura da base do canal por visita, plano E5a §4.8); o id é cruzado com o conjunto do site antes de qualquer consulta.
-  const sincrona = !view.notFound && !view.untracked && view.video ? leituraSemConsulta(obs, view.video.id, m.pagina.now) : null
+  const { doMotor, sincrona } = alvoDoHistorico(view, obs, m.pagina.now)
   const estourou = sincrona === null ? undefined : sincrona !== 'ler' ? <EstourouEParou leitura={sincrona} /> : undefined
   // A5 E5a T21c: um vídeo acompanhado, de canal de concorrente, ganha os blocos de medidas. A reserva do `Suspense` é o PRÓPRIO `HistoricoScreen`
   // (cabeçalho e botões de verdade, três cartões no lugar do resto); o `key` do vídeo faz a reserva voltar a cada troca de vídeo. As cinco ações de
   // servidor e `pagerNaTrilha` chegam ao bloco por prop daqui (servidor para servidor); o bloco não importa ação nenhuma.
-  const doMotor = !view.notFound && !view.untracked && view.video ? obs.videos.find((x) => x.id === view.video!.id) : undefined
   const acoes = { onAskForja: askForjaReading, onCancelForja: cancelForjaReading, onSyncChannel: syncCompetitorNow, onPin: pinVideo, onUnpin: unpinVideo, pagerNaTrilha: true }
   // C3: `acessoPrivado` depois da guarda, uma vez, SEM esperar: a promessa segue ao bloco e a seção espera dentro do `Suspense` dela, para o cabeçalho
   // sair na hora (portão Yannis I-1). As provas seguem de servidor a servidor; a página NÃO chama `provarEdicao` nem decide nível (quem decide é o leitor).
