@@ -5,7 +5,7 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { proprioWorld, alcanceCheio, CHEIO, type CenarioDados } from './proprio-fixture'
 import { comDiario, diarioComPct, ultimoVideoHa } from './proprio-assistido-fixture'
-import { buildProprioHeader, type ProprioHeaderView } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
+import { buildProprioHeader, motivoDasCelulas, type ProprioHeaderView } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 type World = ReturnType<typeof proprioWorld>
@@ -152,5 +152,37 @@ describe('13.3 % assistido do canal', () => {
     for (const c of privadas) expect(c, c.key).toMatchObject({ value: null, sub: null, n: null })
     // o texto do resumo e as frases de motivo não levam dígito nenhum do dado privado (o "666" é público: é a idade do vídeo)
     expect((h.resumo?.resto ?? '') + (h.faixaMotivo ?? '') + privadas.map(c => c.missing).join(' ')).not.toMatch(/\d/)
+  })
+})
+
+describe('decisão 75: o estado de ausência de cada célula e a frase de cima', () => {
+  const buildN = (w: World, negativa?: 'sem_direito' | 'nao_foi_possivel_conferir' | null): ProprioHeaderView =>
+    buildProprioHeader(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm, posicao: null, muitosProprios: false, negativa })!
+  const ALCANCE = ['impressoes', 'diasComImpressao', 'cliques', 'taxaClique', 'videosComImpressao']
+
+  it('alcance negado com sem_direito: as células de alcance são "restrito"; as públicas não têm ausência', () => {
+    const h = buildN(mundo(12, 'negado'), 'sem_direito')
+    for (const k of ALCANCE) expect(cel(h, k).ausencia).toBe('restrito')
+    expect(cel(h, 'videos').ausencia).toBeNull()
+    expect(cel(h, 'vpdVideo').ausencia).toBe('restrito')
+  })
+  it('guarda caída ou negativa não preenchida: "falhou", nunca "restrito"', () => {
+    for (const n of ['nao_foi_possivel_conferir', null, undefined] as const) {
+      const h = buildN(mundo(12, 'negado'), n)
+      for (const c of [...h.faixa, ...h.todos]) expect(c.ausencia).not.toBe('restrito')
+      for (const k of [...ALCANCE, 'vpdVideo']) expect(cel(h, k).ausencia).toBe('falhou')
+    }
+  })
+  it('alcance com erro: "falhou"; sem relatório: "nao_medido"; com número: null', () => {
+    for (const k of ALCANCE) expect(cel(buildN(mundo(12, 'erro')), k).ausencia).toBe('falhou')
+    for (const k of ALCANCE) expect(cel(buildN(mundo(12, 'vazio')), k).ausencia).toBe('nao_medido')
+    expect(cel(buildN(mundo(12)), 'impressoes').ausencia).toBeNull()
+  })
+  it('estado misto (Review Focus 1): restrito, falhou e não medido viram três frases, e o erro NÃO entra depois de "Não medido:"', () => {
+    const base = cel(build(mundo(12)), 'videos')
+    const c = (key: string, missing: string, ausencia: 'restrito' | 'falhou' | 'nao_medido') => ({ ...base, key, value: null, missing, explicada: false, ausencia })
+    const m = motivoDasCelulas([c('a', 'só quem edita o site vê este número', 'restrito'), c('b', 'a leitura do alcance falhou agora', 'falhou'), c('c', 'ainda sem relatório', 'nao_medido')])
+    expect(m).toBe('Só quem edita o site vê este número. A leitura do alcance falhou agora. Não medido: ainda sem relatório. Nenhum destes números é zero, só falta medir.')
+    expect(m).not.toMatch(/Não medido:[^.]*falhou/)
   })
 })

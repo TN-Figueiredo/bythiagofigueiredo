@@ -45,3 +45,11 @@ export function ausenciaDoMotivoNaoMedido(m: MotivoNaoMedido, lado: { proprio: b
   const e = MAPA[m]
   return e === 'restrito' && !lado.proprio ? 'nao_medido' : e
 }
+
+/** Views por dia / % assistido: `sem-acesso` só vira cadeado com a prova de que não há direito (`sem_direito`); guarda caída vira falhou. Motivo desconhecido = nao_medido. */
+export function ausenciaDoVpdComNegativa(m: string | null, negativa: NegativaPrivada): EstadoAusencia | null {
+  if (m === null) return null
+  if (m === 'sem-acesso') return ausenciaDoAcesso('negado', negativa)
+  if (m === 'leitura-falhou') return 'falhou'
+  return 'nao_medido'
+}

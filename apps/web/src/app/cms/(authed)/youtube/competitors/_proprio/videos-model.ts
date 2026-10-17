@@ -23,6 +23,7 @@ import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd, type VpdCana
 import { buildCanalVideos, type ChannelVideoView } from '../_canal/videos-model'
 import { numNb } from '../_canal/formato'
 import { vpdText } from '../_canal/numeros'
+import { ausenciaDoAcesso, ausenciaDoVpdComNegativa, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 import type { DadosDoCanal } from './dados'
 import { cliquesTexto, FRASE_NADA_LIDO, fraseDoAlcance, lerEstado } from './header-model'
 import { VPD_SO_LONGOS, longosAcompanhados } from './extras'
@@ -39,6 +40,9 @@ export interface ProprioVideoView extends ChannelVideoView {
   impText: string | null
   /** A palavra curta da coluna quando não há número ("só quem edita vê", "leitura falhou"…); null quando há número ou quando é zero medido (`semImpressao`). */
   impMissing: string | null
+  /** Decisão 75: o estado de ausência de impressões e de cliques (null ⇔ há número ou zero medido). A forma da pastilha sai DAQUI, nunca da palavra. */
+  impEstado: EstadoAusencia | null
+  cliquesEstado: EstadoAusencia | null
   /** Cliques estimados (impressões × CTR por dia, somados SEM arredondar). null = sem impressão, alcance não lido ou CTR nulo em algum dia. */
   cliques: number | null
   /** Arredondado só aqui, pela mesma função do cabeçalho. */
@@ -50,6 +54,8 @@ export interface ProprioVideoView extends ChannelVideoView {
   vpdDiario: number | null
   vpdDiarioText: string | null
   vpdDiarioMissing: string | null
+  /** Decisão 75: o estado de ausência das views por dia deste vídeo (null ⇔ há número). */
+  vpdDiarioEstado: EstadoAusencia | null
 }
 
 export interface ProprioVideosView {
@@ -61,6 +67,10 @@ export interface ProprioVideosView {
   viewsPorDiaFrase: string
   /** Por que não há impressão nem clique em NENHUM vídeo (negado, erro, sem relatório, nada lido). null = o alcance foi lido. */
   motivoAlcance: string | null
+  /** Decisão 75: o estado de `motivoAlcance` (null ⇔ o alcance foi lido). */
+  motivoAlcanceEstado: EstadoAusencia | null
+  /** Decisão 75: o estado de ausência de `viewsPorDiaFrase` quando ela é o motivo de não haver views por dia (null = é a base). */
+  viewsPorDiaEstado: EstadoAusencia | null
 }
 
 /** A base das views por dia que o cartão mostra. Uma só na tela. */
@@ -85,13 +95,13 @@ export function terceiraLinha(a: AlcanceVideo): string {
 /** Onde o alcance está para este modelo: o do cabeçalho mais "nada lido" (relatórios existem, nenhum foi lido). */
 type EstadoVideos = 'negado' | 'erro' | 'sem-relatorio' | 'nada-lido' | 'ok'
 
-/** A palavra curta que a coluna diz em cada estado sem número. Switch exaustivo: estado novo não compila sem a sua palavra. */
-function palavraDaColuna(e: Exclude<EstadoVideos, 'ok'>): string {
+/** A palavra curta que a coluna diz em cada estado sem número e o estado de ausência dela. Switch exaustivo: estado novo não compila sem a sua palavra. `negado` só é restrito com a negativa `sem_direito` (guarda caída = falhou). */
+function colunaSemNumero(e: Exclude<EstadoVideos, 'ok'>, negativa: NegativaPrivada): { palavra: string; estado: EstadoAusencia } {
   switch (e) {
-    case 'negado': return 'só quem edita vê'
-    case 'erro': return 'leitura falhou'
-    case 'sem-relatorio': return 'sem relatório'
-    case 'nada-lido': return 'ainda não lido'
+    case 'negado': return { palavra: 'só quem edita vê', estado: ausenciaDoAcesso('negado', negativa) ?? 'falhou' }
+    case 'erro': return { palavra: 'leitura falhou', estado: 'falhou' }
+    case 'sem-relatorio': return { palavra: 'sem relatório', estado: 'nao_medido' }
+    case 'nada-lido': return { palavra: 'ainda não lido', estado: 'nao_medido' }
     default: { const nunca: never = e; return nunca }
   }
 }
@@ -100,11 +110,12 @@ function palavraDaColuna(e: Exclude<EstadoVideos, 'ok'>): string {
 const MOTIVOS_DE_LEITURA: readonly MotivoSemVpd[] = ['sem-acesso', 'leitura-falhou', 'sem-diario', 'diario-parado']
 
 export function buildProprioVideos(
-  obs: Observatory, canalId: string, dados: DadosDoCanal, o: { hoje: DiaYt; dm: (d: DiaYt) => string },
+  obs: Observatory, canalId: string, dados: DadosDoCanal, o: { hoje: DiaYt; dm: (d: DiaYt) => string; negativa?: NegativaPrivada },
 ): ProprioVideosView | null {
   const ch = obs.channel(canalId)
   if (!ch || !ch.own) return null
   const F = obs.fmt, { dm } = o
+  const negativa = o.negativa ?? null
   const base = buildCanalVideos(obs, canalId)
 
   const alc = lerEstado(dados.alcance, o.hoje, publicacoesDe(base.videos))
@@ -112,6 +123,8 @@ export function buildProprioVideos(
   const motivoAlcance = estado === 'ok' ? null : estado === 'nada-lido' ? FRASE_NADA_LIDO : fraseDoAlcance(estado, alc.estado === 'sem-relatorio' ? { parouEm: alc.parouEm, dm } : undefined)
   const periodoTxt = alc.estado === 'ok' ? `de ${dm(alc.periodo.de)} a ${dm(alc.periodo.ate)}` : null
   const porVideo = alc.estado === 'ok' && estado === 'ok' ? alc.porVideo : null
+  const semNumero = estado === 'ok' ? null : colunaSemNumero(estado, negativa)
+  const motivoAlcanceEstado = semNumero?.estado ?? null
 
   // views por dia de cada vídeo: o motivo de leitura vale para todos; o resto, vídeo a vídeo
   const longos = new Set(longosAcompanhados(obs, canalId))
@@ -129,10 +142,12 @@ export function buildProprioVideos(
 
     /* alcance: impressões, cliques e a terceira linha */
     let imp: number | null = null, impText: string | null = null, impMissing: string | null = null, semImpressao = false
+    let impEstado: EstadoAusencia | null = null, cliquesEstado: EstadoAusencia | null = null
     let cliques: number | null = null, cliquesText: string | null = null, cliquesMissing: string | null = null
     let terceira = ''
-    if (estado !== 'ok') {
-      impMissing = cliquesMissing = palavraDaColuna(estado)
+    if (semNumero != null) {
+      impMissing = cliquesMissing = semNumero.palavra
+      impEstado = cliquesEstado = semNumero.estado
     } else {
       const a = porVideo?.get(v.ytId) ?? null
       terceira = a == null ? '' : terceiraLinha(a)
@@ -142,11 +157,13 @@ export function buildProprioVideos(
         if (videoNovo(publicadoEm, o.hoje)) {
           // menos de 3 dias de vida (o mesmo limite da página e da régua): o alcance chega com 2 a 3 dias de atraso, então ausência de linha nunca é zero
           impMissing = cliquesMissing = PALAVRA_VIDEO_NOVO
+          impEstado = cliquesEstado = 'nao_medido'
           terceira = ''
           notas.push(`Impressões e cliques: ${FRASE_VIDEO_NOVO}.`)
         } else if (dv.resumo.diasLidos === 0) {
           // nenhum dia valeu para ESTE vídeo (o último dia medido é anterior à publicação dele): ainda não há o que dizer, e zero seria inventar
           impMissing = cliquesMissing = 'não medido'
+          impEstado = cliquesEstado = 'nao_medido'
           terceira = ''
         } else {
           // há dia medido desde a publicação (D e D-1 não contam) e o vídeo não apareceu em nenhum: zero medido, não "não medido"
@@ -162,6 +179,7 @@ export function buildProprioVideos(
         notas.push(`Impressões: ${F.num(a.imp)} em ${plural(a.diasComImpressao, 'dia', 'dias')}, ${periodoTxt} (dia do YouTube).`)
         if (a.cliques == null) {
           cliquesMissing = 'não medido'
+          cliquesEstado = 'nao_medido'
           notas.push('Cliques: o YouTube não informou a taxa de clique de algum dia com impressões deste vídeo.')
         } else {
           cliques = a.cliques
@@ -172,10 +190,13 @@ export function buildProprioVideos(
 
     /* views por dia deste vídeo (o diário por vídeo) */
     let vpdDiario: number | null = null, vpdDiarioText: string | null = null, vpdDiarioMissing: string | null = null
+    let vpdDiarioEstado: EstadoAusencia | null = null
     if (motivoLeitura != null) {
       vpdDiarioMissing = motivoVpdTexto(motivoLeitura, leitura, dm)
+      vpdDiarioEstado = ausenciaDoVpdComNegativa(motivoLeitura, negativa) ?? 'nao_medido'
     } else if (!longos.has(v.ytId)) {
       vpdDiarioMissing = VPD_SO_LONGOS
+      vpdDiarioEstado = 'nao_medido'
     } else {
       const c = vpdDoCanal(dados.diario, [v.ytId], o.hoje)
       if (c.valor != null && c.janela != null && dados.diario.acesso === 'ok') {
@@ -184,6 +205,7 @@ export function buildProprioVideos(
         notas.push(`Views por dia: ${vpdDiarioText}, média de ${plural(vpdDoVideo(dados.diario.dado, v.ytId).dias, 'dia', 'dias')} com medida (de ${dm(c.janela.de)} a ${dm(c.janela.ate)}).`)
       } else if (c.motivo != null) {
         vpdDiarioMissing = motivoVpdTexto(c.motivo, c, dm)
+        vpdDiarioEstado = ausenciaDoVpdComNegativa(c.motivo, negativa) ?? 'nao_medido'
       }
     }
     if (vpdDiario == null && vpdDiarioMissing != null) notas.push(`Views por dia: ${vpdDiarioMissing}.`)
@@ -192,8 +214,8 @@ export function buildProprioVideos(
       ...v, notas,
       // o cartão do canal próprio tem as suas colunas: "views/dia e múltiplo: não medido" é frase do concorrente
       semMedida: null,
-      semImpressao, imp, impText, impMissing, cliques, cliquesText, cliquesMissing, terceira,
-      vpdDiario, vpdDiarioText, vpdDiarioMissing,
+      semImpressao, imp, impText, impMissing, impEstado, cliquesEstado, cliques, cliquesText, cliquesMissing, terceira,
+      vpdDiario, vpdDiarioText, vpdDiarioMissing, vpdDiarioEstado,
     }
   })
 
@@ -209,5 +231,7 @@ export function buildProprioVideos(
   const canalVpd = vpdDoCanal(dados.diario, [...longos], o.hoje)
   const viewsPorDiaFrase = videos.some(v => v.vpdDiarioText != null) || canalVpd.motivo == null ? VIEWS_POR_DIA_BASE : viewsPorDiaSemDado(canalVpd.motivo, canalVpd, dm)
 
-  return { videos, nota, semVideos: base.semVideos, viewsPorDiaFrase, motivoAlcance }
+  const viewsPorDiaEstado = videos.some(v => v.vpdDiarioText != null) || canalVpd.motivo == null ? null : (ausenciaDoVpdComNegativa(canalVpd.motivo, negativa) ?? 'nao_medido')
+
+  return { videos, nota, semVideos: base.semVideos, viewsPorDiaFrase, motivoAlcance, motivoAlcanceEstado, viewsPorDiaEstado }
 }

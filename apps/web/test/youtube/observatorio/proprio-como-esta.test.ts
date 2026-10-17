@@ -399,3 +399,25 @@ describe('T10 montarComoEsta: a seção e o gráfico saem do mesmo dado, pela me
     expect(grafico.avisos.join(' ')).toContain(`parou em ${dia![1]}`)
   })
 })
+
+describe('decisão 75: o estado de ausência de cada frase de vazio', () => {
+  it('negado com sem_direito → restrito em frase, topVazio e taxa', () => {
+    const x = v({ acesso: 'negado', negativa: 'sem_direito' })
+    expect([x.fraseEstado, x.topVazioEstado, x.taxa.vazioEstado]).toEqual(['restrito', 'restrito', 'restrito'])
+  })
+  it('guarda caída ou negativa não preenchida → falhou, nunca restrito', () => {
+    for (const negativa of ['nao_foi_possivel_conferir', null, undefined] as const) {
+      const x = v({ acesso: 'negado', negativa })
+      expect([x.fraseEstado, x.topVazioEstado, x.taxa.vazioEstado]).toEqual(['falhou', 'falhou', 'falhou'])
+    }
+  })
+  it('erro → falhou; sem relatório → nao_medido; com dado → null', () => {
+    const e = v({ acesso: 'erro' })
+    expect([e.fraseEstado, e.topVazioEstado, e.taxa.vazioEstado]).toEqual(['falhou', 'falhou', 'falhou'])
+    const s = v({ periodo: null })
+    expect([s.fraseEstado, s.topVazioEstado, s.taxa.vazioEstado]).toEqual(['nao_medido', 'nao_medido', 'nao_medido'])
+    const ok = v()
+    expect(ok.fraseEstado).toBeNull()
+    expect(ok.taxa.vazioEstado).toBeNull()
+  })
+})
