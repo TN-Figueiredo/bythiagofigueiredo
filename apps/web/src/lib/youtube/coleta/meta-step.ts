@@ -15,9 +15,15 @@ import { ehPerdaDeAutorizacao } from './google-erro'
 import { cobrirMetadados, type CoberturaMetaResumo } from './meta-cobertura'
 import { conferirBanco, pushUnico } from './schema'
 import type { StepCtx, StepResumo } from './types'
+import { gravarEstadoProprio } from './estado-proprio'
 import { DataApiError, videosList, type VideoCapturado } from './videos-list'
 
 export interface MetaResumo extends StepResumo {
+  /** X1/X5: estado do vídeo (linhas novas na série), vídeos sem parte, contador público do dia gravado e sem contador. */
+  estado_gravado?: number
+  estado_sem_parte?: number
+  publicos_gravados?: number
+  publicos_sem_contador?: number
   day_pt: string
   /** Por `youtube_channels.id`: dias entre a última linha gravada e o dia em gravação. */
   dias_sem_meta: Record<string, number>
@@ -256,6 +262,11 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list falhou (${causa})`)
       await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: e instanceof DataApiError ? e.status : null, error: causa })
     }
+  }
+
+  // X1 + X5: o que a mesma resposta trouxe e não vira coluna do dia. Nunca lança e nunca atrasa as linhas do dia.
+  if (captura.size > 0) {
+    Object.assign(resumo, await gravarEstadoProprio(ctx, videos, captura, agora.getTime()))
   }
 
   // dias_sem_meta: por canal, ANTES de gravar o dia. Sem linha anterior vale 0.

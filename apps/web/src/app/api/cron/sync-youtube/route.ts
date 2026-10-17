@@ -317,7 +317,7 @@ export async function GET(req: NextRequest) {
           id: channel.id,
           name: channel.name,
           status: 'completed',
-          detail: `found=${result.videosFound} inserted=${result.videosInserted} updated=${result.videosUpdated} quota=${result.quotaUsed}`,
+          detail: `found=${result.videosFound} inserted=${result.videosInserted} updated=${result.videosUpdated} quota=${result.quotaUsed}${result.avisos && result.avisos.length > 0 ? ` avisos=[${result.avisos.join('; ')}]` : ''}`,
         })
 
         if (logId) {

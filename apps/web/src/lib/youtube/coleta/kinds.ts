@@ -3,7 +3,7 @@
 
 export const COLLECTION_KINDS = [
   'sondagem', 'meta', 'thumbnail', 'relatorio', 'diario', 'retencao_vida', 'retencao_7d', 'retencao_30d',
-  'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim',
+  'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim', 'retrato_canal', 'estado_canal',
 ] as const
 
 export type AttemptKind = (typeof COLLECTION_KINDS)[number]

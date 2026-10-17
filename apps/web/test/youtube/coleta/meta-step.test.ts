@@ -737,7 +737,7 @@ describe('passoMetadados: URL da thumbnail na segunda execução', () => {
 })
 
 const cap = (n: number, extra: Partial<VideoCapturado> = {}): [string, VideoCapturado] => [`yt-${n}`, {
-  id: `yt-${n}`, title: `Título API ${n}`, description: `Descrição API ${n}`, tags: ['x'], durationSeconds: 600, privacyStatus: 'public', ...extra,
+  id: `yt-${n}`, title: `Título API ${n}`, description: `Descrição API ${n}`, tags: ['x'], durationSeconds: 600, privacyStatus: 'public', estado: { sha: 'sha-estado', raw: {} }, estadoAusentes: [], contadores: { views: 10, likes: 1, comments: 0 }, ...extra,
 }]
 const comToken = () => vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'tok', connectionId: 'c1' })
 const canais = (extra: Row = {}): Row[] => [{ id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', collection_status: 'ok', authorization_verified_at: null, ...extra }]
@@ -760,6 +760,33 @@ describe('passoMetadados: captura pela Data API (L1b)', () => {
     expect(db.tables.youtube_channels![0]!.authorization_verified_at).toBe(AGORA.toISOString())
     expect(resumo).toMatchObject({ gravados: 1, sem_privacidade: 0, sem_is_short: 0 })
     expect(ctx.falhas).toEqual([])
+  })
+
+  it('X1/X5: grava o estado do vídeo (só na mudança) e o contador do dia dos vídeos com mais de 14 dias; resumo conta', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValue(new Map([cap(1)]))
+    const db = fakeSupabase({ youtube_videos: [video(1)], youtube_channels: canais() })
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(resumo).toMatchObject({ estado_gravado: 1, estado_sem_parte: 0, publicos_gravados: 1, publicos_sem_contador: 0 })
+    expect(db.tables.yt_own_video_state_raw).toHaveLength(1)
+    expect(db.tables.yt_own_video_public_daily![0]).toMatchObject({ youtube_video_id: 'yt-1', view_count: 10, like_count: 1, comment_count: 0 })
+    const de2 = await passoMetadados(ctxDe(db))
+    expect(de2).toMatchObject({ estado_gravado: 0, publicos_gravados: 1 })
+    expect(db.tables.yt_own_video_state_raw).toHaveLength(1)
+    expect(db.tables.yt_own_video_public_daily).toHaveLength(1)
+  })
+
+  it('X1/X5: parte que não veio não grava estado nem contador e deixa a nota em falhas (nunca ok calado)', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValue(new Map([cap(1, { estado: null, estadoAusentes: ['status'], contadores: null })]))
+    const db = fakeSupabase({ youtube_videos: [video(1)], youtube_channels: canais() })
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    expect(resumo).toMatchObject({ gravados: 1, estado_gravado: 0, estado_sem_parte: 1, publicos_gravados: 0, publicos_sem_contador: 1 })
+    expect(db.tables.yt_own_video_state_raw ?? []).toEqual([])
+    expect(db.tables.yt_own_video_public_daily ?? []).toEqual([])
+    expect(ctx.falhas.some(f => f.startsWith('estado do vídeo próprio'))).toBe(true)
+    expect(ctx.falhas.some(f => f.startsWith('contador público do vídeo próprio'))).toBe(true)
   })
 
   it('id ausente da resposta: a linha é gravada com os campos de youtube_videos, privacy_status nulo e tentativa erro_http', async () => {

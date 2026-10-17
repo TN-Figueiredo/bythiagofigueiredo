@@ -645,9 +645,14 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
   const TABELA = 'yt_own_channel_snapshots'
   beforeEach(() => { vi.clearAllMocks(); sentryCalls.length = 0; vi.useRealTimers() })
 
-  function montar(retrato: () => unknown) {
+  function montar(retrato: () => unknown, estado: () => unknown = () => ({ data: 1, error: null })) {
     const retratoUpsert = vi.fn(retrato)
+    const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = []
     const supabase = {
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ fn, args })
+        return fn === 'yt_own_channel_state_record' ? estado() : { data: 1, error: null }
+      }),
       from: vi.fn((table: string) => {
         if (table === 'youtube_videos') {
           return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ youtube_video_id: 'vid-1' }], error: null }) }) }) }
@@ -659,16 +664,23 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
         return { select: vi.fn() }
       }),
     }
-    return { supabase: supabase as unknown as Parameters<typeof syncChannel>[0], retratoUpsert }
+    const tentativas = (kind: string) => rpcCalls.filter(c => c.fn === 'yt_own_attempt_record' && c.args.p_kind === kind).map(c => c.args)
+    return { supabase: supabase as unknown as Parameters<typeof syncChannel>[0], retratoUpsert, rpcCalls, tentativas }
   }
   const base = { subscriberCount: 0, videoCount: 5, thumbnailUrl: null, bannerUrl: null } as const
   const rodar = (sb: Parameters<typeof syncChannel>[0]) => { mockFetchRecent.mockResolvedValue(['vid-1']); return syncChannel(sb, makeChannel(), 'key', 'catchall') }
 
-  it('stats sem número nenhum: nenhum upsert de retrato', async () => {
-    const { supabase, retratoUpsert } = montar(() => ({ error: null }))
+  it('stats sem número nenhum: nenhum upsert de retrato, mas tentativa com motivo, aviso e Sentry (G-1)', async () => {
+    const { supabase, retratoUpsert, tentativas } = montar(() => ({ error: null }))
     mockFetchStats.mockResolvedValue({ ...base, ...RAW_VAZIO })
-    await rodar(supabase)
+    const r = await rodar(supabase)
     expect(retratoUpsert).not.toHaveBeenCalled()
+    expect(tentativas('retrato_canal')).toHaveLength(1)
+    expect(tentativas('retrato_canal')[0]).toMatchObject({ p_outcome: 'sem_dado_na_janela', p_scope_type: 'canal', p_scope_id: 'ch-1', p_site_id: 'site-1' })
+    expect(String(tentativas('retrato_canal')[0]!.p_error)).toContain('subscriberCount ausente')
+    expect(r.avisos?.some(a => a.startsWith('retrato do canal não gravado'))).toBe(true)
+    expect(sentryCalls).toHaveLength(1)
+    expect(sentryCalls[0]!.ctx).toMatchObject({ level: 'error', fingerprint: ['sync-youtube', 'retrato-proprio'] })
   })
 
   it('stats só com views (subscriberCountRaw nulo, hidden false): nenhum upsert de retrato', async () => {
@@ -676,6 +688,7 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
     mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: null, viewCountRaw: 900, videoCountRaw: 5, hidden: false })
     await rodar(supabase)
     expect(retratoUpsert).not.toHaveBeenCalled()
+    expect(sentryCalls).toHaveLength(1)
   })
 
   it('hidden true sem contagem: upsert com subscriber_count nulo e subscribers_hidden true', async () => {
@@ -695,13 +708,15 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
   })
 
   it('upsert do retrato devolve erro: Sentry e a sincronização termina ok', async () => {
-    const { supabase } = montar(() => ({ error: { message: 'relation does not exist', code: '42P01' } }))
+    const { supabase, tentativas } = montar(() => ({ error: { message: 'relation does not exist', code: '42P01' } }))
     mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: 10, viewCountRaw: 1, videoCountRaw: 5, hidden: false })
     const r = await rodar(supabase)
     expect(r.videosFound).toBe(1)
+    expect(tentativas('retrato_canal')[0]).toMatchObject({ p_outcome: 'erro_http', p_error: '42P01' })
+    expect(r.avisos).toContain('retrato do canal não gravado: 42P01')
     expect(sentryCalls).toHaveLength(1)
     expect(sentryCalls[0]!.msg).toBe('sync-youtube: retrato do canal próprio não gravado')
-    expect(sentryCalls[0]!.ctx).toMatchObject({ level: 'warning', fingerprint: ['sync-youtube', 'retrato-proprio'], extra: { channelId: 'ch-1', code: '42P01' } })
+    expect(sentryCalls[0]!.ctx).toMatchObject({ level: 'error', fingerprint: ['sync-youtube', 'retrato-proprio'], extra: { channelId: 'ch-1', code: '42P01' } })
   })
 
   it('upsert do retrato LANÇA: Sentry e a sincronização termina ok', async () => {
@@ -722,5 +737,58 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
       await rodar(supabase)
       expect(retratoUpsert.mock.calls[0]![0]).toMatchObject({ snapshot_date: '2026-03-09' })
     } finally { vi.useRealTimers() }
+  })
+})
+
+// A5 X2: estado do canal próprio como série (yt_own_channel_state_record)
+describe('syncChannel: estado do canal próprio (X2)', () => {
+  beforeEach(() => { vi.clearAllMocks(); sentryCalls.length = 0 })
+  function montar(estado: () => unknown) {
+    const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = []
+    const supabase = {
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ fn, args })
+        return fn === 'yt_own_channel_state_record' ? estado() : { data: 1, error: null }
+      }),
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [{ youtube_video_id: 'vid-1' }], error: null }) }) }) }
+        if (table === 'youtube_channels') return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }) }
+        if (table === 'yt_own_channel_snapshots') return { upsert: vi.fn(() => ({ error: null })) }
+        return { select: vi.fn() }
+      }),
+    }
+    const tent = () => rpcCalls.filter(c => c.fn === 'yt_own_attempt_record' && c.args.p_kind === 'estado_canal').map(c => c.args)
+    return { supabase: supabase as unknown as Parameters<typeof syncChannel>[0], rpcCalls, tent }
+  }
+  const stats = { subscriberCount: 0, videoCount: 5, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 10, viewCountRaw: 1, videoCountRaw: 5, hidden: false } as const
+  const rodar = (sb: Parameters<typeof syncChannel>[0]) => { mockFetchRecent.mockResolvedValue(['vid-1']); return syncChannel(sb, makeChannel(), 'key', 'catchall') }
+
+  it('estado presente: chama a função com o hash e o bruto, tentativa ok', async () => {
+    const { supabase, rpcCalls, tent } = montar(() => ({ data: 1, error: null }))
+    mockFetchStats.mockResolvedValue({ ...stats, estado: { sha: 'abc', raw: { status: { privacyStatus: 'public' } } }, estadoAusentes: [] })
+    const r = await rodar(supabase)
+    const c = rpcCalls.find(x => x.fn === 'yt_own_channel_state_record')!
+    expect(c.args).toEqual({ p_rows: [{ youtube_channel_id: 'ch-1', site_id: 'site-1', state_sha256: 'abc', raw: { status: { privacyStatus: 'public' } } }] })
+    expect(tent()[0]).toMatchObject({ p_outcome: 'ok' })
+    expect(r.avisos ?? []).toEqual([])
+  })
+
+  it('parte ausente (estado nulo): nada é gravado, tentativa sem_dado_na_janela com o motivo e aviso, nunca ok', async () => {
+    const { supabase, rpcCalls, tent } = montar(() => ({ data: 1, error: null }))
+    mockFetchStats.mockResolvedValue({ ...stats, estado: null, estadoAusentes: ['status'] })
+    const r = await rodar(supabase)
+    expect(rpcCalls.some(x => x.fn === 'yt_own_channel_state_record')).toBe(false)
+    expect(tent()[0]).toMatchObject({ p_outcome: 'sem_dado_na_janela' })
+    expect(String(tent()[0]!.p_error)).toContain('status')
+    expect(r.avisos?.some(a => a.includes('parte ausente (status)'))).toBe(true)
+  })
+
+  it('a função do banco falha: aviso, Sentry de erro e tentativa erro_http; a sincronização termina', async () => {
+    const { supabase, tent } = montar(() => ({ data: null, error: { code: '42883', message: 'x' } }))
+    mockFetchStats.mockResolvedValue({ ...stats, estado: { sha: 'abc', raw: {} }, estadoAusentes: [] })
+    const r = await rodar(supabase)
+    expect(r.videosFound).toBe(1)
+    expect(tent()[0]).toMatchObject({ p_outcome: 'erro_http' })
+    expect(sentryCalls.some(c => (c.ctx as { fingerprint?: string[] }).fingerprint?.[1] === 'estado-proprio')).toBe(true)
   })
 })

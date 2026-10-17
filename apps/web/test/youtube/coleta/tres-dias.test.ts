@@ -19,7 +19,7 @@ vi.mock('@/lib/youtube/coleta/videos-list', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/coleta/videos-list')>()),
   // O passo de metadados chama videos.list com o token do canal: aqui a rede é simulada, o YouTube devolve todos como públicos.
   videosList: vi.fn(async (_token: string, ids: readonly string[]) => new Map(ids.map(id => [id, {
-    id, title: null, description: null, tags: ['a'], durationSeconds: null, privacyStatus: 'public',
+    id, title: null, description: null, tags: ['a'], durationSeconds: null, privacyStatus: 'public', estado: { sha: 'sha-estado', raw: {} }, estadoAusentes: [], contadores: { views: 10, likes: 1, comments: 0 },
   }]))),
 }))
 vi.mock('@/lib/youtube/coleta/analytics-diario', async (orig) => ({
