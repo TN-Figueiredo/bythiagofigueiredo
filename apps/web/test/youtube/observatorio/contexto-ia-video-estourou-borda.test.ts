@@ -64,3 +64,12 @@ describe('vídeo acompanhado fora de obs.videos (M-3)', () => {
     }
   })
 })
+
+describe('lerEstourouDoVideo lança', () => {
+  it('só o Estourou vira "não carregou"; as medidas já lidas ficam', async () => {
+    st.lanca = true
+    const { medidas } = await modeloDe()
+    expect(medidas.marca).toBe('medidas')
+    expect(st.projetado).toEqual([{ tipo: 'nao_carregou' }])
+  })
+})
