@@ -376,8 +376,8 @@ test('10. 1440 px: Views/dia alinhado com as colunas vizinhas e com largura mín
   })
   expect(m.vpd, 'th Views/dia existe').not.toBeNull()
   expect(m.vpd!.w, 'largura do th Views/dia').toBeGreaterThanOrEqual(127)
-  // as vizinhas de Views/dia; Trocas tem uma unidade mais longa (mais linhas no cabeçalho) e sobe por isso, fora do critério
-  for (const k of ['outliers', 'active'] as const) {
+  // as vizinhas de Views/dia, Trocas incluída (L6: th com vertical-align:top; antes a unidade longa de Trocas subia o botão 15 px)
+  for (const k of ['outliers', 'active', 'swaps'] as const) {
     if (m[k]) expect(Math.abs(m[k]!.top - m.vpd!.top), `topo do botão ${k} vs Views/dia (${JSON.stringify(m)})`).toBeLessThanOrEqual(2)
   }
 })
