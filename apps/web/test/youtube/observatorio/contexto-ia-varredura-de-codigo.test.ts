@@ -64,6 +64,8 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '../_canal/medidas/direcao-model', '../_canal/medidas/ritmo-model', '../_canal/medidas/lancamentos-model', '../_canal/medidas/linha-do-tempo-model',
     // TG: os modelos puros das medidas do Histórico do vídeo (os mesmos que a tela usa) e a leitura de "Estourou e parou"
     '../_historico/medidas/formatos', '../_chrome/medidas/estourou-model', '@/lib/youtube/observatorio/medidas-telas/texto-m10',
+    // E5a: menções trocadas por marcador, módulo puro (sem server-only) separado do leitor-nivel por causa do portão do Phil I-1
+    '@/lib/youtube/observatorio/comentarios/leitor-mencao',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
   it('há treze empacotadores', () => { expect(empacotadores).toHaveLength(13) })

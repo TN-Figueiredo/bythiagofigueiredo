@@ -11,7 +11,7 @@
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, Comentario, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import type { Nivel } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
-import { semMencoes } from '@/lib/youtube/observatorio/comentarios/leitor-nivel'
+import { semMencoes } from '@/lib/youtube/observatorio/comentarios/leitor-mencao'
 import { FRASES } from '../_chrome/comentarios/frases'
 import type { CartaoView, PainelView, SecaoView } from '../_chrome/comentarios/model'
 import type { SecaoLida } from '../_historico/comentarios-de-destaque'

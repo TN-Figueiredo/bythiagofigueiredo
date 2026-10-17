@@ -19,15 +19,5 @@ export function nivelDeQuemVe(provas: ProvasDeQuemVe | null, siteDaGuarda: strin
   return contagem
 }
 
-/** O marcador que ocupa o lugar de uma menção. */
-export const MARCADOR_DE_MENCAO = '@…'
-
-/**
- * Troca toda menção (`@` seguido de caracteres até o primeiro espaço) pelo marcador fixo. Limites conhecidos: nome por extenso, sem `@`,
- * não é reconhecido; nome de exibição de duas palavras perde só a primeira ("@João Silva" vira "@… Silva").
- */
-export function semMencoes(texto: string): { texto: string; trocadas: number } {
-  let trocadas = 0
-  const saida = texto.replace(/@\S*/g, () => { trocadas += 1; return MARCADOR_DE_MENCAO })
-  return { texto: saida, trocadas }
-}
+// Menções moram em módulo puro; re-exportadas aqui para quem já importava deste.
+export { MARCADOR_DE_MENCAO, semMencoes } from './leitor-mencao'

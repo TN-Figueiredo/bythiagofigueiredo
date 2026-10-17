@@ -437,6 +437,7 @@ describe('frases.ts e o mockup versionado', () => {
     'Listas completas do período; a tela mostra em páginas.',
     'Dado mais recente: não medido (nenhuma sincronização registrada)',
     '- (nada em foco nesta tela)',
+    '- Texto de comentários: a tela não conseguiu ler agora; não diga que o vídeo não tem comentários.',
     'não medido (',
     ' (zero medido)',
     'a tela não informa o motivo',
