@@ -321,7 +321,7 @@ const medirTabela = (page: Page) => page.evaluate(() => {
   const cortes: string[] = []
   // (1) elemento com overflow oculto cujo conteúdo passa da caixa: só vale se mostra reticências
   box.querySelectorAll<HTMLElement>('*').forEach(e => {
-    if (e.closest('.sr') || e.getClientRects().length === 0) return
+    if (e.closest('.sr, .obs-md-sr') || e.getClientRects().length === 0) return
     const cs = getComputedStyle(e)
     if (cs.overflowX !== 'visible' && e.scrollWidth > e.clientWidth + 1 && cs.textOverflow !== 'ellipsis') cortes.push(`${e.tagName}.${String(e.className).slice(0, 24)} oculta ${e.scrollWidth - e.clientWidth} px sem reticências`)
   })
@@ -330,7 +330,7 @@ const medirTabela = (page: Page) => page.evaluate(() => {
     const r = td.getBoundingClientRect()
     td.querySelectorAll<HTMLElement>('*').forEach(e => {
       // o alvo de toque do "?" (.tip, 32 px) passa 1 a 2 px da célula; o glifo não: não é texto cortado
-      if (e.closest('.sr') || e.classList.contains('tip') || e.getClientRects().length === 0) return
+      if (e.closest('.sr, .obs-md-sr') || e.classList.contains('tip') || e.getClientRects().length === 0) return
       const b = e.getBoundingClientRect()
       if (b.width > 0 && b.right > r.right + 1) cortes.push(`${e.tagName}.${String(e.className).slice(0, 24)} passa ${Math.round(b.right - r.right)} px da célula`)
     })
