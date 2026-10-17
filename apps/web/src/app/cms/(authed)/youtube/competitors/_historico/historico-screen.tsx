@@ -49,7 +49,7 @@ function ErroDoHistorico() {
       <div className="hv-erro" role="alert" data-erro="historico">
         <div className="tx">
           <h2 tabIndex={-1} data-erro-titulo="">Não deu para abrir o histórico deste vídeo</h2>
-          <p>O servidor não respondeu. Tente de novo; se continuar assim, avise.</p>
+          <p>Não deu para ler o histórico agora. Toque em “Tentar de novo”; se continuar, abra a tela mais tarde.</p>
         </div>
         <a className="btn pri big" href={aqui}>Tentar de novo</a>
       </div>

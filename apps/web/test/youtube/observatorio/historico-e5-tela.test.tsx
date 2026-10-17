@@ -221,7 +221,7 @@ describe('foco entre a reserva e o conteúdo (correção 4)', () => {
   it('o erro sem reserva tira da tela só o que depende das medidas: o aviso, "Tentar de novo" e o bloco de o que dá para ver', () => {
     render(<ToastProvider><HistoricoScreen view={viewDe()} erro /></ToastProvider>)
     const t = raiz().textContent!
-    expect(t).toContain('O servidor não respondeu. Tente de novo; se continuar assim, avise.')
+    expect(t).toContain('Não deu para ler o histórico agora. Toque em “Tentar de novo”; se continuar, abra a tela mais tarde.')
     expect(t).toContain('O que dá para ver enquanto isso')
     expect(raiz().querySelector<HTMLAnchorElement>('a.btn.pri')!.textContent).toBe('Tentar de novo')
     expect(raiz().querySelector('.timeline')).toBeNull()

@@ -112,7 +112,7 @@ function videoNaIdade(p: PontoDoVideo, e: EntradaDeIdade): VideoNaIdade {
       return nao('nao_carregou', 'não carregou', 'não carregou: o dia a dia do vídeo não foi lido')
     case 'leitura_falhou':
     case 'calculo_falhou':
-      return nao('nao_carregou', 'não carregou', 'não carregou: a leitura falhou; tente de novo')
+      return nao('nao_carregou', 'não carregou', 'não carregou: não deu para ler este vídeo; recarregue a página')
     default:
       // Outro motivo da E4: a tela não inventa texto.
       return nao('nao_medido', 'não medido', 'não medido')
@@ -212,7 +212,7 @@ function aoVivoFora(normal: Medida<PontoDaCurva[]> | null): number {
  * 30 dias é anterior à contagem; `nao_carregou` quando a série não foi lida (o cabeçalho segue).
  */
 export function blocoDeIdade(e: EntradaDeIdade): BlocoDeIdade {
-  if (e.pontos === null) return { tipo: 'nao_carregou', frase: 'não carregou: o histórico por idade deste vídeo não foi lido; tente de novo' }
+  if (e.pontos === null) return { tipo: 'nao_carregou', frase: 'não carregou: o histórico por idade deste vídeo não foi lido; recarregue a página' }
   const dados = e.pontos
   const pontos: PontoDeIdade[] = IDADES_DO_EIXO.map((idade) => {
     const dado = dados.find((p) => p.idadeDias === idade)

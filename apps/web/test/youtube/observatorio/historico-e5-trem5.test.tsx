@@ -78,3 +78,16 @@ describe('defeito 5: alvos de 44 px a 390 px, o override no mesmo arquivo depois
     expect(over).toBeGreaterThan(base)
   })
 })
+
+describe('defeito 6: bloco de servidor não manda "tente de novo" onde não há botão', () => {
+  it('nenhum texto dos modelos de bloco manda tentar de novo (só recarregar a página)', () => {
+    for (const f of ['resumo-model.ts', 'subida-model.ts', 'idade-model.ts', 'horas-model.ts', 'dias-model.ts', 'mudancas-model.ts']) {
+      expect(readFileSync(join(DIR, f), 'utf8'), f).not.toMatch(/tente de novo/i)
+    }
+  })
+  it('o erro do histórico inteiro tem o botão, e o texto aponta para ele', () => {
+    const t = readFileSync(join(DIR, '..', 'historico-screen.tsx'), 'utf8')
+    expect(t).toContain('Tentar de novo')
+    expect(t).not.toContain('O servidor não respondeu')
+  })
+})

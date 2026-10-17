@@ -90,7 +90,7 @@ export function resumoDoVideo(e: EntradaDoResumo): Resumo {
   if (e.diasDeContagem === null && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
     variante = 'nao_carregou'
     // TEXTO-A-REVISAR: a série não foi lida; o histórico existe, só não carregou (nunca "ainda não há histórico")
-    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. O histórico por dia não carregou; tente de novo.`
+    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. O histórico por dia não carregou; recarregue a página.`
   } else if (e.diasDeContagem === 0 && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
     variante = 'vazio'
     frase = `O vídeo tem ${viewsTxt(views, true)} views agora. Ainda não há histórico: a primeira contagem por dia é às 12:00 de amanhã.`

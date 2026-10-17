@@ -68,7 +68,7 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
       texto: 'Com uma contagem por semana não dá para dizer se uma mudança veio antes de uma subida.', info: INFO_DA_SEMANA,
     }
   }
-  if (e.subidas === null) return { tipo: 'nao_carregou', frase: 'Subida: não carregou. A contagem por dia deste vídeo não foi lida; tente de novo.' }
+  if (e.subidas === null) return { tipo: 'nao_carregou', frase: 'Subida: não carregou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
   if (e.subidas.estado === 'medido') {
     const s = e.subidas.valor[0]
     if (!s) {
@@ -90,7 +90,7 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
   // não medido. Série não lida, ou medida que falhou na E4 (leitura/cálculo) ou nem foi pedida: não se calcula "faltam N dias" (portão Phil I1, Yannis I-6)
   const m = e.subidas
   if (e.diasDeContagem === null || m.motivo === 'leitura_falhou' || m.motivo === 'calculo_falhou' || m.motivo === 'serie_nao_pedida') {
-    return { tipo: 'nao_carregou', frase: 'Subida: não carregou. A contagem por dia deste vídeo não foi lida; tente de novo.' }
+    return { tipo: 'nao_carregou', frase: 'Subida: não carregou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
   }
   const dias = e.diasDeContagem
   const feitos = Math.min(DIAS_NECESSARIOS, Math.max(0, dias))
