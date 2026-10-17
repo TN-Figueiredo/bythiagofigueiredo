@@ -53,6 +53,17 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     expect(a.negativa).toBeNull()
     expect(modosPedidos()).toEqual(['edit', 'view'])
   })
+  it('decisão 75 (M4): só a guarda de EDIÇÃO lança e a de leitura concede = leitura, edita false e edicaoNaoConferida (a tela mostra falhou, nunca "só quem edita")', async () => {
+    requireSiteScope.mockImplementation(async (o: { mode: string }) => { if (o.mode === 'edit') throw new Error('edição fora'); return { ok: true, user: { id: USUARIA } } })
+    rpc.mockResolvedValue({ data: true, error: null })
+    const a = await provarAcessoPrivado(SITE)
+    expect(a.leitura).toBeInstanceOf(LeituraPrivadaDoSite)
+    expect(a.edita).toBe(false)
+    expect(a.edicaoNaoConferida).toBe(true)
+    // negação de verdade (a guarda de edição respondeu que não): NÃO é "não conferida"
+    soLe(); rpc.mockResolvedValue({ data: true, error: null })
+    expect((await provarAcessoPrivado(SITE)).edicaoNaoConferida).toBeUndefined()
+  })
   it('a função responde false: sem token, negativa sem_direito', async () => {
     soLe(); rpc.mockResolvedValue({ data: false, error: null })
     expect(await provarAcessoPrivado(SITE)).toEqual({ leitura: null, edita: false, negativa: 'sem_direito' })

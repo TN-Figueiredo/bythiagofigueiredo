@@ -14,6 +14,8 @@ import type { CanalState } from './params'
 import { ehProprio } from '../_proprio/eh-proprio'
 import { AGUARDANDO, type ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 
 /** Coluna ordenável -> ordenação (a mesma do select "Ordenar"). */
 const COLUNAS: Array<[CanalSort, string]> = [['recentes', 'Publicado'], ['vistos', 'Views'], ['vpd', 'Views/dia'], ['multiplo', 'Múltiplo']]
@@ -52,6 +54,10 @@ function Cabecalho({ state, onSort, proprio }: { state: CanalState; onSort: (s: 
 }
 
 const Nm = ({ children }: { children: string }) => <span className="obs-ch-nm">{children}</span>
+/** Decisão 75: célula sem número do vídeo próprio. `falhou` e `restrito` ganham a pastilha da forma certa (sem role: o aviso é UM, acima da tabela); `nao_medido` segue a hachura com a palavra do motivo. */
+function Ausente({ estado, palavra }: { estado: EstadoAusencia | null; palavra: string }) {
+  return estado === 'falhou' || estado === 'restrito' ? <PastilhaAusencia estado={estado} /> : <Nm>{palavra}</Nm>
+}
 /** Zero medido: o alcance foi lido e o vídeo não apareceu em nenhum dia medido. A caixa vazada do gráfico, nunca a hachura de "não medido". */
 const Zero = () => <span className="obs-ch-zero">0<span className="obs-ch-sr"> (zero medido)</span></span>
 
@@ -95,7 +101,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
       </td>
       <td className={'r num' + on('vistos')} data-label="Views">{v.viewsText ?? <Nm>{v.viewsMissing ?? 'sem contagem'}</Nm>}</td>
       {ehProprio(v) ? (
-        <td className={'r num' + on('imp')} data-label="Impressões">{v.impText ?? (v.semImpressao ? <Zero /> : <Nm>{v.impMissing ?? 'não medido'}</Nm>)}</td>
+        <td className={'r num' + on('imp')} data-label="Impressões">{v.impText ?? (v.semImpressao ? <Zero /> : <Ausente estado={v.impEstado} palavra={v.impMissing ?? 'não medido'} />)}</td>
       ) : (
         <td className={'r num' + on('vpd')} data-label="Views/dia">{v.vpdText ?? <Nm>{sem}</Nm>}</td>
       )}
@@ -107,17 +113,19 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
       <td className="r num" data-label="Curtidas">{v.likesText ?? <Nm>não medido</Nm>}</td>
       <td className="r num" data-label="Comentários">{v.commentsText ?? <Nm>não medido</Nm>}</td>
       {ehProprio(v)
-        ? <td className="r num" data-label="Cliques">{v.cliquesText ?? (v.semImpressao ? <Zero /> : <Nm>{v.cliquesMissing ?? 'não medido'}</Nm>)}</td>
+        ? <td className="r num" data-label="Cliques">{v.cliquesText ?? (v.semImpressao ? <Zero /> : <Ausente estado={v.cliquesEstado} palavra={v.cliquesMissing ?? 'não medido'} />)}</td>
         : <td className="r num" data-label="Trocas">{v.aguardando ? <Nm>{AGUARDANDO}</Nm> : v.swaps}</td>}
       <td className="a"><VideoMenu v={v} onAmpliar={onAmpliar} onTrocas={onTrocas} /></td>
     </tr>
   )
 }
 
-export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar, onTrocas, proprio = false }: {
+export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar, onTrocas, proprio = false, avisoAlcance = null }: {
   lista: ListaView; state: CanalState; nome: string
   /** A Lista do canal próprio: colunas Impressões e Cliques. */
   proprio?: boolean
+  /** Decisão 75: o motivo do alcance não lido quando ele é `falhou` ou `restrito`. UM `role=status` acima da tabela (leitor de tela não ouve 40 vezes); as células não levam role. */
+  avisoAlcance?: { texto: string; estado: EstadoAusencia } | null
   /** O id da nota fixa da tela, que descreve a tabela. */
   descrito?: string
   hrefDe: (v: ChannelVideoView) => string
@@ -126,6 +134,7 @@ export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar
 }) {
   return (
     <div className="cv-tw">
+      {avisoAlcance ? <p role="status" className="obs-au-frase"><PastilhaAusencia estado={avisoAlcance.estado} /> {avisoAlcance.texto}</p> : null}
       <table className="cv-lst" aria-describedby={descrito}>
         <caption className="obs-ch-sr">Vídeos de {nome}</caption>
         <Cabecalho state={state} onSort={onSort} proprio={proprio} />

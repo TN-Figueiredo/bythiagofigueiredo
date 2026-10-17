@@ -3,7 +3,8 @@
 // cada tela (lista de Canais, canal, vídeo, Histórico do vídeo e Comparar): a guarda de edição e a de leitura lançam, o `acessoPrivado` real devolve
 // `nao_foi_possivel_conferir`, os montadores e os modelos rodam, e a varredura do modelo montado não acha estado "restrito" em lugar nenhum.
 // O contraste: com `sem_direito` o MESMO caminho mostra restrito, para provar que a varredura enxerga o estado.
-// Escopo desta task (4): o estado nos modelos. A pastilha `falhou` + "Tentar de novo" no DOM de cada tela entra com as Tasks 6, 7 e 8b.
+// O DOM (Tasks 6 e 7): a tela real do canal próprio e os blocos do vídeo, montados do modelo da guarda caída, mostram a pastilha `falhou` e nenhum `.obs-au-restrito`.
+// O botão "Tentar de novo" só existe no canal de fora (Task 8b); no canal próprio a frase manda recarregar a página (regra F1), então aqui ele NÃO aparece.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
@@ -13,7 +14,11 @@ import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own
 
 const requireSiteScope = vi.fn()
 vi.mock('server-only', () => ({}))
-vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) }, notFound: () => { throw new Error('NOT_FOUND') } }))
+vi.mock('next/navigation', () => ({
+  redirect: (u: string) => { throw new Error('REDIRECT ' + u) }, notFound: () => { throw new Error('NOT_FOUND') },
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/cms/youtube/competitors/canal/x', useSearchParams: () => new URLSearchParams(window.location.search),
+}))
+vi.mock('next/link', () => ({ default: ({ href, children }: { href: string; children?: unknown }) => <a href={href}>{children as never}</a> }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (...a: unknown[]) => requireSiteScope(...a) }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => fakeSupabase({ yt_reporting_reports: [] as Row[], yt_own_video_reach_daily: [] as Row[], yt_own_video_daily: [] as Row[] }).client }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -25,8 +30,10 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openObservatoryPage: async () => pagina.site,
 }))
 
-import { PastilhaAusencia } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/pastilhas'
-import { ROTULO_AUSENCIA, type EstadoAusencia } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
+import { ProprioScreen } from '@/app/cms/(authed)/youtube/competitors/_proprio/proprio-screen'
+import { VideoBlocos } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos'
+import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
+import { ROTULO_AUSENCIA } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
 import { acessoPrivado } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import { montarCanal, origemDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/montar'
 import { montarCanais } from '@/app/cms/(authed)/youtube/competitors/_canais/montar'
@@ -57,6 +64,8 @@ function estadosDe(v: unknown): { restrito: number; falhou: number } {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/')
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined, removeItem: () => undefined })
   requireSiteScope.mockReset()
   pagina.canal = null; pagina.site = null
 })
@@ -70,12 +79,6 @@ async function abrir(): Promise<{ canal: ChannelPage; site: ObservatoryPage<unde
   const site = { siteId: SITE, now: w.obs.NOW, rows: {} as ObservatoryPage<undefined>['rows'], obs: w.obs, meuCanalLembrado: null, savedNiche: 'todos', extra: undefined, canAdmin: false } as unknown as ObservatoryPage<undefined>
   pagina.canal = canal; pagina.site = site
   return { canal, site }
-}
-
-/** A pastilha de cada estado achado: a de restrito nunca existe no DOM da guarda caída. */
-function pastilhasNoDom(estados: EstadoAusencia[]): HTMLElement {
-  const { container } = render(<div>{estados.map((e, i) => <PastilhaAusencia key={i} estado={e} motivo="m" />)}</div>)
-  return container
 }
 
 describe('guarda caída: nenhuma tela vira cadeado', () => {
@@ -122,17 +125,29 @@ describe('guarda caída: nenhuma tela vira cadeado', () => {
     expect(estadosDe(r.pack).restrito).toBe(0)
     expect(JSON.stringify(r.pack)).not.toContain('"acesso":"negado"')
   })
-  it('no DOM: as pastilhas dos estados achados (falhou) não trazem .obs-au-restrito', async () => {
+  it('no DOM: a tela real do canal próprio (cabeçalho e tabela) mostra a pastilha falhou e nenhum cadeado; sem botão, a frase manda recarregar', async () => {
     GUARDA_CAIDA()
     await abrir()
     const m = await montarCanal(wUm.canalId, {})
     if (m.tipo !== 'proprio') throw new Error('esperava o canal próprio')
-    const achados: EstadoAusencia[] = []
-    for (const c of [...m.pv.header.faixa, ...m.pv.header.todos]) if (c.ausencia) achados.push(c.ausencia)
-    expect(achados.length).toBeGreaterThan(0)
-    const dom = pastilhasNoDom(achados)
-    expect(dom.querySelectorAll('.obs-au-restrito')).toHaveLength(0)
-    expect(dom.textContent).not.toContain(ROTULO_AUSENCIA.restrito)
+    window.history.replaceState(null, '', '/cms/youtube/competitors/canal/x?tab=videos&ver=lista')
+    const { container } = render(<ToastProvider><div data-obs=""><ProprioScreen view={m.pv} /></div></ToastProvider>)
+    expect(container.querySelectorAll('.nstrip .obs-au-falhou').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('td[data-label="Impressões"] .obs-au-falhou').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('.obs-au-restrito')).toHaveLength(0)
+    expect(container.textContent).not.toContain(ROTULO_AUSENCIA.restrito)
+    expect(container.textContent).not.toContain('Tentar de novo')
+    expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0)
+  })
+  it('no DOM: os blocos do vídeo (nota e retenção) mostram a pastilha falhou e nenhum cadeado', async () => {
+    GUARDA_CAIDA()
+    await abrir()
+    const video = w.obs.videos.find(v => v.ch === w.canalId)!
+    const m = await montarVideo(video.id, {}, async () => pagina.site as ObservatoryPage<undefined>, { trocas: true })
+    if (m.tipo !== 'proprio') throw new Error('esperava o vídeo próprio')
+    const { container } = render(<div data-obs-screen="video-proprio"><VideoBlocos view={m.blocos} /></div>)
+    expect(container.querySelectorAll('.obs-au-falhou').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('.obs-au-restrito')).toHaveLength(0)
   })
 })
 

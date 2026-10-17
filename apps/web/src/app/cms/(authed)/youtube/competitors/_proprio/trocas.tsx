@@ -4,8 +4,16 @@
  * Estado nunca é só cor: todo chip leva símbolo E texto; lado sem número tem forma própria de borda (cheia, tracejada, pontilhada, dupla, dupla tracejada).
  */
 import { InfoDica } from './info-dica'
-import { rotuloChip, simboloDoChip, type Chip, type LadoView, type TesteView, type TrocaView, type TrocasView } from './trocas-model'
+import { FRASE_TESTE_RESTRITO, FRASE_TROCA_FALHOU, rotuloChip, simboloDoChip, type Chip, type LadoView, type TesteView, type TrocaView, type TrocasView } from './trocas-model'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import './trocas.css'
+
+/** Decisão 75: o teste A/B que a pessoa não abre. `sem-acesso` = restrito (cadeado); `falhou` = a guarda de edição não pôde ser conferida. */
+function SemTeste({ teste }: { teste: 'sem-acesso' | 'falhou' }) {
+  return teste === 'falhou'
+    ? <span className="tr-sem-acesso"><PastilhaAusencia estado="falhou" /> A leitura falhou: não deu para conferir se você edita o site. Recarregue a página.</span>
+    : <span className="tr-sem-acesso"><PastilhaAusencia estado="restrito" /> {FRASE_TESTE_RESTRITO}</span>
+}
 
 function ChipTroca({ chip }: { chip: Chip }) {
   return <span className={'tr-chip tr-chip-' + chip} data-chip={chip}><span aria-hidden="true">{simboloDoChip(chip)}</span> {rotuloChip(chip).replace(/^\S+\s/, '')}</span>
@@ -55,8 +63,8 @@ function LinhaTeste({ v }: { v: TesteView }) {
     <li className="tr-item tr-teste">
       <div className="tr-item-cab"><b>{v.titulo}</b> <span className="tr-quando">{v.quando}</span> <span className="tr-ciclos">{v.nCiclos}</span></div>
       <p>{v.frase}</p>
-      {v.teste === 'sem-acesso'
-        ? <span className="tr-sem-acesso">Teste A/B (sem acesso)</span>
+      {v.teste === 'sem-acesso' || v.teste === 'falhou'
+        ? <SemTeste teste={v.teste} />
         : <a className="tr-link" href={v.teste.href}>Abrir o teste A/B</a>}
     </li>
   )
@@ -66,14 +74,14 @@ function ItemTroca({ v }: { v: TrocaView }) {
   return (
     <li className="tr-item tr-troca" data-chip={v.chip}>
       <div className="tr-item-cab">
-        <span className="tr-n">{v.n}</span> <b>{v.campo === 'title' ? 'Título' : 'Thumbnail'}</b> <span className="tr-quando">{v.quando}</span> <ChipTroca chip={v.chip} />
+        <span className="tr-n">{v.n}</span> <b>{v.campo === 'title' ? 'Título' : 'Thumbnail'}</b> <span className="tr-quando">{v.quando}</span> {v.ausencia === 'falhou' ? <PastilhaAusencia estado="falhou" /> : <ChipTroca chip={v.chip} />}
       </div>
       <p className="tr-de-para"><Imagem t={v.de} /> <span aria-hidden="true">→</span> <Imagem t={v.para} /></p>
       <p className="tr-origem"><span className="tr-origem-chip">{v.origem.chip}</span> {v.origem.frase}
-        {v.origem.teste === 'sem-acesso' ? <span className="tr-sem-acesso"> Teste A/B (sem acesso)</span>
+        {v.origem.teste === 'sem-acesso' || v.origem.teste === 'falhou' ? <> <SemTeste teste={v.origem.teste} /></>
           : v.origem.teste ? <> <a className="tr-link" href={v.origem.teste.href}>Abrir o teste A/B</a></> : null}
       </p>
-      <p className="tr-frase">{v.frase}</p>
+      <p className="tr-frase">{v.ausencia === 'falhou' ? FRASE_TROCA_FALHOU : v.frase}</p>
       {v.antes || v.depois ? <div className="tr-lados">{v.antes ? <Lado l={v.antes} /> : null}{v.depois ? <Lado l={v.depois} /> : null}</div> : null}
       {v.notas.map((n, i) => <p key={i} className="tr-nota">{n}</p>)}
     </li>

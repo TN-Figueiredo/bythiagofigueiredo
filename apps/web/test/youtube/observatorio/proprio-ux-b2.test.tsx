@@ -208,10 +208,11 @@ describe('B2 cartões e lista: zero medido na caixa vazada, "não medido" só se
       expect(td.querySelector('.obs-ch-nm'), rot).toBeNull()
     }
   })
-  it('sem leitura do alcance (negado): a hachura com a palavra do motivo continua nos cartões e na lista', () => {
-    mountProprio({ world: mundo('negado') })
+  it('sem leitura do alcance (negado, sem_direito): a pastilha "restrito" (cadeado, decisão 75) no lugar da hachura nos cartões; nenhum zero', () => {
+    mountProprio({ world: mundo('negado'), negativa: 'sem_direito' })
     for (const c of cartoes()) {
-      expect(c.querySelector('.cv-nums3 > .cv-c:nth-child(2) .obs-ch-nm')!.textContent).toBe('só quem edita vê')
+      expect(c.querySelector('.cv-nums3 > .cv-c:nth-child(2) .obs-au-restrito')!.textContent).toBe('restrito')
+      expect(c.querySelector('.cv-nums3 > .cv-c:nth-child(2) .obs-ch-nm')).toBeNull()
       expect(c.querySelector('.obs-ch-zero')).toBeNull()
     }
   })

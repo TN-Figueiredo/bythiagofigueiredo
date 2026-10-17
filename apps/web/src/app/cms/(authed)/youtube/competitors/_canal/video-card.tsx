@@ -11,6 +11,8 @@ import { ehProprio } from '../_proprio/eh-proprio'
 import type { ProprioVideoView } from '../_proprio/videos-model'
 import type { ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 
 function Cell({ valor, rotulo, on, tier, sr }: { valor: string; rotulo: string; on: boolean; tier?: string | null; sr?: string }) {
   const t = tier ? ' t-' + tier : ''
@@ -23,6 +25,11 @@ function Cell({ valor, rotulo, on, tier, sr }: { valor: string; rotulo: string; 
 /** Sem valor: a palavra "não medido" (rosa, hachurada) e o rótulo; para o leitor de tela, o rótulo vem primeiro. */
 function Nd({ rotulo }: { rotulo: string }) {
   return <span className="cv-c nd"><span className="obs-ch-sr">{rotulo}: </span><span className="obs-ch-nm">não medido</span> <i aria-hidden="true">{rotulo}</i></span>
+}
+
+/** Decisão 75: a palavra da célula sem número do vídeo próprio. `falhou` e `restrito` levam a pastilha com palavra; `nao_medido` segue a hachura com o motivo. */
+function Palavra({ estado, texto }: { estado: EstadoAusencia | null; texto: string | null }) {
+  return estado === 'falhou' || estado === 'restrito' ? <PastilhaAusencia estado={estado} /> : <span className="obs-ch-nm">{texto}</span>
 }
 
 /**
@@ -39,7 +46,7 @@ function NumerosProprios({ v, sort }: { v: ProprioVideoView; sort: CanalSort }) 
     ? <Cell valor={v.impText} rotulo={v.imp === 1 ? 'impressão' : 'impressões'} on={sort === 'imp'} />
     : v.semImpressao
     ? <span className={'cv-c' + (sort === 'imp' ? ' on' : '')}><b className="num"><span className="obs-ch-zero" title="zero medido: o YouTube mediu e o vídeo não apareceu">0<span className="obs-ch-sr"> (zero medido)</span></span></b> <i>impressões</i></span>
-    : <span className="cv-c nd"><span className="obs-ch-sr">impressões: </span><span className="obs-ch-nm">{v.impMissing}</span> <i aria-hidden="true">impressões</i></span>
+    : <span className="cv-c nd"><span className="obs-ch-sr">impressões: </span><Palavra estado={v.impEstado} texto={v.impMissing} /> <i aria-hidden="true">impressões</i></span>
   const mult = v.multText != null
     ? <Cell valor={v.multText} rotulo={v.multWord ?? 'múltiplo'} on={sort === 'multiplo'} tier={v.multTier} sr={v.multWord ? ' (múltiplo)' : undefined} />
     : <Nd rotulo="múltiplo" />

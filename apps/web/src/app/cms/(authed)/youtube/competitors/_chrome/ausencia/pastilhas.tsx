@@ -25,3 +25,8 @@ export function PastilhaAusencia(p: { estado: EstadoAusencia; motivo?: string; q
     </span>
   )
 }
+
+/** A pastilha que vem ANTES da frase de vazio, só para `falhou` e `restrito` (o `nao_medido` segue sendo só a frase). Nada quando não há estado. */
+export function PastilhaAntes({ estado }: { estado: EstadoAusencia | null | undefined }) {
+  return estado === 'falhou' || estado === 'restrito' ? <><PastilhaAusencia estado={estado} />{' '}</> : null
+}

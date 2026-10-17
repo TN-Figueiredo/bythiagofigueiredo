@@ -55,8 +55,7 @@ export interface RetencaoView {
   /** "Coletada em dd/mm. …"; null fora de `coletada` */
   aviso: string | null
   /** a pastilha do estado sem curva (C1 do portão de UX): "não medido" só para o que não foi medido; "falhou" para erro; nenhuma para negado */
-  rotulo: 'não medido' | 'falhou' | null
-  /** Decisão 75: o estado de ausência (nao-coletada/sem-curva→nao_medido; erro→falhou; negado→restrito só com `sem_direito`, senão falhou; coletada→null). `rotulo` fica até a Task 6. */
+  /** Decisão 75: o estado de ausência (nao-coletada/sem-curva→nao_medido; erro→falhou; negado→restrito só com `sem_direito`, senão falhou; coletada→null). */
   ausencia: EstadoAusencia | null
 }
 
@@ -104,11 +103,10 @@ export function diaDeSaoPaulo(instante: string): DiaYt {
   return FMT_SP.format(new Date(t))
 }
 
-const ROTULO: Record<Exclude<EstadoRetencao, 'coletada'>, RetencaoView['rotulo']> = { 'nao-coletada': 'não medido', 'sem-curva': 'não medido', erro: 'falhou', negado: null }
 const AUSENCIA: Record<Exclude<EstadoRetencao, 'coletada' | 'negado'>, EstadoAusencia> = { 'nao-coletada': 'nao_medido', 'sem-curva': 'nao_medido', erro: 'falhou' }
 function vazio(estado: Exclude<EstadoRetencao, 'coletada'>, frase: string, negativa: NegativaPrivada = null): RetencaoView {
   const ausencia = estado === 'negado' ? (ausenciaDoAcesso('negado', negativa) ?? 'falhou') : AUSENCIA[estado]
-  return { estado, frase, partes: [{ t: frase }], metodo: METODO_RETENCAO, curva: null, saidas: null, revistos: null, aviso: null, rotulo: ROTULO[estado], ausencia }
+  return { estado, frase, partes: [{ t: frase }], metodo: METODO_RETENCAO, curva: null, saidas: null, revistos: null, aviso: null, ausencia }
 }
 
 const eixoDe = (dur: number | null): CurvaDesenho['eixo'] => {
@@ -170,7 +168,7 @@ function coletada(a: { curva: NonNullable<RetencaoDoVideo['curvas']['vida']>; du
   const aviso = `Coletada em ${dm(diaDeSaoPaulo(curva.coletadaEm))}. Mostra a vida inteira do vídeo; "Quanto do vídeo as pessoas assistem" mostra só os últimos dias.` + cobre
 
   return {
-    estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso, rotulo: null, ausencia: null,
+    estado: 'coletada', frase, partes, metodo: METODO_RETENCAO, saidas, revistos, aviso, ausencia: null,
     curva: {
       pontos: curva.pontos.map(p => ({ t: p.t, ratio: p.ratio })),
       eixo: eixoDe(dur),

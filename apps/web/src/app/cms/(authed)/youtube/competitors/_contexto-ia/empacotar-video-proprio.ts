@@ -69,7 +69,7 @@ export const INVENTARIO_VIDEO_PROPRIO: Inventario = {
   'blocos.assistido.pctTexto': REP, 'blocos.assistido.barraPct': APAR, 'blocos.assistido.normalPct': REP, 'blocos.assistido.normalTexto': REP,
   'blocos.assistido.marcaPct': APAR, 'blocos.assistido.rotuloAncora': APAR, 'blocos.assistido.contra': 'base', 'blocos.assistido.direcao': CTRL,
   'blocos.assistido.semNormal': 'base', 'blocos.assistido.marcas[]': APAR, 'blocos.assistido.alt': REP, 'blocos.assistido.metodo[]': 'base',
-  'blocos.retencao.estado': CTRL, 'blocos.retencao.rotulo': REP, // a etiqueta "não medido"/"falhou" da tela: a frase e o estado já dizem o mesmo
+  'blocos.retencao.estado': CTRL,
   'blocos.retencao.frase': 'base', 'blocos.retencao.partes[].t': REP, 'blocos.retencao.partes[].b': APAR,
   'blocos.retencao.metodo[]': 'base', 'blocos.retencao.saidas': 'base', 'blocos.retencao.revistos': 'base', 'blocos.retencao.aviso': 'base',
   'blocos.retencao.curva.pontos[].t': APAR, 'blocos.retencao.curva.pontos[].ratio': APAR, 'blocos.retencao.curva.eixo[]': APAR, 'blocos.retencao.curva.meioT': APAR,

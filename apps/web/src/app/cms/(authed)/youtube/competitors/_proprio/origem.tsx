@@ -2,6 +2,7 @@
  * A origem das views na tela (plano E5b, Tarefa 11). Servidor: recebe o `OrigemView` JÁ montado (`buildOrigem`) e só desenha. Nível `so-aviso`
  * recebe apenas o aviso: o modelo nem entrega número nem termo, e aqui nada é buscado. Só `OrigemPeriodos` e `TentarDeNovo` são do cliente.
  */
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import type { ReactNode } from 'react'
 import type { BlocoView, CelulaFaixaOrigem, GrupoView, LinhaView, OrigemView, SubListaView } from './origem-model'
 import { OrigemPeriodos, TentarDeNovo } from './origem-periodos'
@@ -142,6 +143,7 @@ export function Origem({ view }: { view: OrigemView }) {
     return (
       <section className="ov-novo ov-sem-acesso" aria-label={view.semAcesso.titulo}>
         <h3 className="ov-h3">{view.semAcesso.titulo}</h3>
+        <p className="ov-fr"><PastilhaAusencia estado="restrito" /></p>
         {view.semAcesso.frases.map(f => <p key={f} className="ov-fr"><span>{f}</span></p>)}
       </section>
     )

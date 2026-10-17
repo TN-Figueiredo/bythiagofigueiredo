@@ -41,7 +41,7 @@ export interface TrocaView {
   quando: string
   de: ImagemTroca
   para: ImagemTroca
-  origem: { chip: string; frase: string; teste: { href: string } | 'sem-acesso' | null }
+  origem: { chip: string; frase: string; teste: { href: string } | 'sem-acesso' | 'falhou' | null }
   chip: Chip
   rotuloChip: string
   /** Decisão 75: `falhou` quando o chip é `leitura-falhou`; null nos demais (nenhum outro chip é ausência de leitura). */
@@ -63,7 +63,7 @@ export interface TesteView {
   quando: string
   nCiclos: string
   frase: string
-  teste: { href: string } | 'sem-acesso'
+  teste: { href: string } | 'sem-acesso' | 'falhou'
 }
 
 export type FaixaGrafico =
@@ -92,12 +92,19 @@ export interface TrocasView {
   diagnostico: { foraDaJanelaSemCausa: number; fimNaoRegistrado: number; origemCms: number; estadoInesperado: number }
 }
 
+/** O link do teste A/B: quem edita abre; guarda de edição caída = `falhou`; o resto é `sem-acesso` (restrito). */
+function testeDe(e: Pick<EntradaTrocas, 'podeEditar' | 'edicaoNaoConferida'>, id: string): { href: string } | 'sem-acesso' | 'falhou' {
+  return e.podeEditar ? { href: `/cms/youtube/ab-lab/${id}` } : e.edicaoNaoConferida ? 'falhou' : 'sem-acesso'
+}
+
 export interface EntradaTrocas {
   lidas: Privado<TrocasLidas>
   ytId: string
   publicadoEm: DiaYt | null
   hojePt: DiaYt
   podeEditar: boolean
+  /** Decisão 75 (M4): a guarda de edição caiu com a leitura concedida; o link do teste vira `falhou`, nunca `sem-acesso`. */
+  edicaoNaoConferida?: boolean
   dm(d: DiaYt): string
   dmy(d: DiaYt): string
   /** dia e hora de São Paulo do MESMO instante, para as linhas reconstruídas */
@@ -169,7 +176,7 @@ function testeView(t: TesteAb, e: EntradaTrocas, diag: TrocasView['diagnostico']
     id: t.id, de, ate: fim === 'andamento' ? null : ate, andamento: fim === 'andamento', fim, ciclos, titulo: 'Teste A/B', quando,
     nCiclos: plural(t.ciclos.length, 'ciclo', 'ciclos'),
     frase: `${t.ciclos.length === 1 && fim !== 'andamento' ? 'A troca de ciclo não entra' : t.ciclos.length > 1 && fim !== 'andamento' ? `As ${t.ciclos.length} trocas de ciclo não entram` : 'As trocas de ciclo não entram'} aqui.${resultado}`,
-    teste: e.podeEditar ? { href: `/cms/youtube/ab-lab/${t.id}` } : 'sem-acesso',
+    teste: testeDe(e, t.id),
   }
 }
 
@@ -327,7 +334,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
       return { texto: v.texto, imagem: null, notaImagem: null }
     }
     const lidaTeste = t.abTestId ? testesLidos.find(x => x.id === t.abTestId) : undefined
-    const hrefTeste: TrocaView['origem']['teste'] = t.abTestId && lidaTeste ? (e.podeEditar ? { href: `/cms/youtube/ab-lab/${t.abTestId}` } : 'sem-acesso') : null
+    const hrefTeste: TrocaView['origem']['teste'] = t.abTestId && lidaTeste ? testeDe(e, t.abTestId) : null
     // origem
     let origemChip = 'Origem não sabida', origemFrase = 'o sistema não conseguiu ler o A/B Lab neste dia e não afirma de onde veio'
     let desconhecida = false

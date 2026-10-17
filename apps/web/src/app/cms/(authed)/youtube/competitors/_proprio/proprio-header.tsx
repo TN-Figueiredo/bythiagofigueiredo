@@ -13,6 +13,7 @@ import { cliqueSimples } from '../_chrome/clique-simples'
 import { Popover } from '../_chrome/flut/flut'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import { Icon } from '../_chrome/icons'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { cap, Ext } from '../_canal/canal-header'
 import type { PosicaoItem, ProprioCell, ProprioHeaderView } from './header-model'
 
@@ -27,9 +28,11 @@ function Celula({ c }: { c: ProprioCell }) {
     <div className={classe}>
       {c.value != null
         ? <dd><b className="num">{c.value}</b>{c.n ? <small className="num"> {c.n}</small> : null}{c.parado ? <span className="parado-tag">parado</span> : null}</dd>
-        : c.semNumero
-          ? <dd className="nf">{c.missing}</dd>
-          : <dd className="nf"><span className="obs-ch-nm nm-q" role="img" aria-label="não medido" /></dd>}
+        : c.ausencia === 'falhou' || c.ausencia === 'restrito'
+          ? <dd className="nf"><PastilhaAusencia estado={c.ausencia} quadradinho /></dd>
+          : c.semNumero
+            ? <dd className="nf">{c.missing}</dd>
+            : <dd className="nf"><PastilhaAusencia estado="nao_medido" quadradinho /></dd>}
       <dt>{c.label}</dt>
       {c.sub ? <dd className="nsub">{c.sub}</dd> : null}
     </div>

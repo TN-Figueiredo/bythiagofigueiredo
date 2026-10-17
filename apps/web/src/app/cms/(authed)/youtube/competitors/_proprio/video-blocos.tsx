@@ -13,6 +13,7 @@ import { Reguas } from './reguas'
 import { RetencaoCurva } from './retencao-curva'
 import { TaxaFaixa } from './taxa-faixa'
 import type { BlocoAssistido, BlocoImpressoes, BlocoRetencao, BlocoTaxa, BlocoViews, DirecaoAssistido, Parte, VideoBlocosView } from './video-blocos-model'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import './video-blocos.css'
 
 const SIMBOLO: Record<DirecaoAssistido, string> = { acima: '▲', 'na-media': '＝', abaixo: '▼' }
@@ -90,7 +91,7 @@ function SecAssistido({ a, periodos }: { a: BlocoAssistido; periodos?: ReactNode
   )
 }
 
-/** A seção "Retenção" (A5 E8, Tarefa 13): cinco estados, e o gráfico só no `coletada`. Os outros quatro dizem a frase do estado; a pastilha é por estado (`rotulo`): "não medido", "falhou" ou nenhuma. */
+/** A seção "Retenção" (A5 E8, Tarefa 13): cinco estados, e o gráfico só no `coletada`. Os outros quatro dizem a frase do estado; a pastilha é por estado (`ausencia`): "não medido", "falhou" ou nenhuma. */
 function SecRetencao({ r }: { r: BlocoRetencao }) {
   // a primeira frase em negrito, como era; uma frase só (erro, negado) vai inteira, sem ponto duplicado
   const [primeira, ...resto] = r.frase.split('. ')
@@ -111,7 +112,7 @@ function SecRetencao({ r }: { r: BlocoRetencao }) {
         </>
       ) : (
         <div className="vb-nml">
-          {r.rotulo ? <span className={r.rotulo === 'falhou' ? 'vb-falhou' : 'obs-ch-nm'}>{r.rotulo}</span> : null}
+          {r.ausencia ? <PastilhaAusencia estado={r.ausencia} /> : null}
           <p>{resto.length > 0 ? <><b>{primeira}.</b> {resto.join('. ')}</> : <b>{r.frase}</b>}</p>
         </div>
       )}
@@ -129,7 +130,7 @@ export function VideoBlocos({ view, periodos, origem, linhaTrocas, trocas }: { v
       {view.acesso === 'ok' && view.impressoes ? <SecImpressoes b={view.impressoes} /> : null}
       {view.acesso === 'ok' ? trocas : null}
       {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} periodos={periodos} /> : null}
-      {view.nota ? <div className="vb-nml vb-privado">{view.acesso === 'erro' ? <span className="vb-falhou">falhou</span> : null}<p data-privado-nota="">{view.nota}</p></div> : null}
+      {view.nota ? <div className="vb-nml vb-privado">{view.ausencia ? <PastilhaAusencia estado={view.ausencia} /> : null}<p data-privado-nota="">{view.nota}</p></div> : null}
       <SecRetencao r={view.retencao} />
       {origem !== undefined ? <section className="vb-sec" aria-labelledby="vb-ori-h"><h2 id="vb-ori-h">De onde vêm as views</h2>{origem}</section> : null}
       <section className="vb-sec" aria-labelledby="vb-canal-h">

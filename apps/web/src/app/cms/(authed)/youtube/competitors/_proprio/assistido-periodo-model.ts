@@ -7,7 +7,7 @@
 import { contraNormal, FAIXAS, MIN_VIDEOS_FAIXA, type FaixaId } from '@/lib/youtube/observatorio/proprio/assistido'
 import { MIN_VIEWS_PERIODO, type NormalDoPeriodo, type PeriodoAssistido } from '@/lib/youtube/observatorio/proprio/assistido-periodo'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
-import { ausenciaDoAcesso, ausenciaDoVpdComNegativa, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
+import { ausenciaDoAcesso, ausenciaDoVpdComNegativa, ROTULO_AUSENCIA, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 import { int } from './impressoes-model'
 
 export type TelaAssistido = 'video' | 'canal'
@@ -60,6 +60,8 @@ export interface CelulaFaixa {
   /** "412 mil views" ou "340 de 1.000" ou o texto do motivo */
   legenda: string
   semNumero: string | null
+  /** Decisão 75: `restrito` / `falhou` quando a célula sem número vem de acesso negado / leitura falha; ausente = hachura de sempre. */
+  ausencia?: EstadoAusencia | null
 }
 export interface ConteudoAssistido {
   /** a frase de comparação (vídeo) ou de tendência (canal); `leitura` dá a direção para o desenho */
@@ -134,9 +136,11 @@ function cartao(id: PeriodoAssistido, e: EntradaAssistido): CartaoAssistido {
   const r = rotuloDe(id, e)
   if (n.pctArredondado == null) {
     const motivo = n.motivo ?? 'sem-diario'
-    const semNumero = motivo === 'poucas-views' ? 'poucas views' : motivo === 'cobertura-parcial' || motivo === 'acima-do-teto' ? 'não medido' : motivo === 'sem-acesso' ? 'sem acesso' : motivo === 'leitura-falhou' ? 'não conseguimos ler' : 'sem dado'
+    const ausencia = ausenciaDoVpdComNegativa(motivo, e.negativa ?? null) ?? 'nao_medido'
+    // decisão 75: a palavra da pastilha é a do estado (restrito / falhou); guarda de permissão caída dá `falhou`, nunca "sem acesso"
+    const semNumero = motivo === 'poucas-views' ? 'poucas views' : motivo === 'cobertura-parcial' || motivo === 'acima-do-teto' ? 'não medido' : motivo === 'sem-acesso' || motivo === 'leitura-falhou' ? ROTULO_AUSENCIA[ausencia] : 'sem dado'
     const legenda = motivo === 'poucas-views' ? `${int(n.views)} de ${int(MIN_VIEWS_PERIODO)} views` : textoDoMotivo({ ...n, motivo }, e.buracos[id])
-    return { id, ...r, estado: 'sem-numero', valor: null, legenda, semNumero, ausencia: ausenciaDoVpdComNegativa(motivo, e.negativa ?? null) ?? 'nao_medido', seta: null, aria: `${r.rotulo}: ${semNumero}. ${legenda}` }
+    return { id, ...r, estado: 'sem-numero', valor: null, legenda, semNumero, ausencia, seta: null, aria: `${r.rotulo}: ${semNumero}. ${legenda}` }
   }
   const inteiro = e.normais.inteiro
   const c = id !== 'inteiro' ? contraNormal(n.pctArredondado, inteiro.pctArredondado) : null
@@ -158,6 +162,10 @@ function celula(f: { normal: NormalDoPeriodo }, inteiro: { normal: NormalDoPerio
   if (n.motivo === 'cobertura-parcial' || n.motivo === 'acima-do-teto') return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'não medido' }
   // "poucos vídeos" é outra causa que "poucas views" (views bastam, vídeos de menos), por isso o rótulo é diferente
   if (n.motivo == null && n.views >= MIN_VIEWS_PERIODO) return { estado: 'sem-numero', valor: null, seta: null, legenda: `${n.videos} de ${MIN_VIDEOS_FAIXA} vídeos`, semNumero: 'poucos vídeos' }
+  if (n.motivo === 'sem-acesso' || n.motivo === 'leitura-falhou') {
+    const ausencia = ausenciaDoVpdComNegativa(n.motivo, e.negativa ?? null) ?? 'falhou'
+    return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: ROTULO_AUSENCIA[ausencia], ausencia }
+  }
   return { estado: 'sem-numero', valor: null, seta: null, legenda: textoDoMotivo(n, e.buracos[id]), semNumero: 'sem dado' }
 }
 

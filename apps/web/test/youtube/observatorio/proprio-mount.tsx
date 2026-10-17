@@ -18,24 +18,24 @@ export function urlDoTeste(sp: Record<string, string | undefined>): void {
   window.history.replaceState(null, '', '/cms/youtube/competitors/canal/x' + (uq.toString() ? '?' + uq.toString() : ''))
 }
 
-export function viewDe(w: Mundo, sp: Record<string, string | undefined> = {}, o: { semConcorrente?: boolean } = {}): ProprioView {
+export function viewDe(w: Mundo, sp: Record<string, string | undefined> = {}, o: { semConcorrente?: boolean; negativa?: 'sem_direito' | 'nao_foi_possivel_conferir' | null } = {}): ProprioView {
   const { posicao, concorrenteAcima } = posicaoDoSite(w.obs, w.canalId)
-  const v = buildProprioView(w.obs, w.canalId, sp, w.dados, { hoje: w.hoje, dm: w.dm, posicao, concorrenteAcima: o.semConcorrente ? null : concorrenteAcima, muitosProprios: w.obs.ownChannels().length > 1 })
+  const v = buildProprioView(w.obs, w.canalId, sp, w.dados, { hoje: w.hoje, dm: w.dm, posicao, concorrenteAcima: o.semConcorrente ? null : concorrenteAcima, muitosProprios: w.obs.ownChannels().length > 1, negativa: o.negativa })
   if (!v) throw new Error('o canal devia ter página')
   return v
 }
 
-export function mountProprio(o: { world?: Mundo; sp?: Record<string, string | undefined>; comoEsta?: ReactNode; periodos?: ReactNode; origem?: ReactNode; semConcorrente?: boolean } = {}) {
+export function mountProprio(o: { world?: Mundo; sp?: Record<string, string | undefined>; comoEsta?: ReactNode; periodos?: ReactNode; origem?: ReactNode; semConcorrente?: boolean; negativa?: 'sem_direito' | 'nao_foi_possivel_conferir' | null } = {}) {
   const w = o.world ?? proprioWorld()
   const sp = o.sp ?? {}
   urlDoTeste(sp)
-  const view = viewDe(w, sp, { semConcorrente: o.semConcorrente })
+  const view = viewDe(w, sp, { semConcorrente: o.semConcorrente, negativa: o.negativa })
   const wrap = (v: ProprioView) => <ToastProvider><div data-obs=""><ProprioScreen view={v} comoEsta={o.comoEsta} periodos={o.periodos} origem={o.origem} /></div></ToastProvider>
   const r = render(wrap(view))
   return {
     ...r, view, w,
     /** O que o servidor faz quando só a query muda: outra view, a mesma árvore (o Next 16 não remonta). */
-    rerenderCom: (nova: Record<string, string | undefined>) => { urlDoTeste(nova); const v = viewDe(w, nova, { semConcorrente: o.semConcorrente }); r.rerender(wrap(v)); return v },
+    rerenderCom: (nova: Record<string, string | undefined>) => { urlDoTeste(nova); const v = viewDe(w, nova, { semConcorrente: o.semConcorrente, negativa: o.negativa }); r.rerender(wrap(v)); return v },
     all: view.videos.videos,
   }
 }

@@ -180,15 +180,16 @@ describe('E5b T15: cartões de % assistido por período', () => {
   })
 
   it('negado: os três cartões somem, só a frase de acesso, e nenhum número no HTML', () => {
-    const { container } = abrir({ acesso: 'negado', normais: { inteiro: ok('inteiro', 73.5, 73519), '90': ok('90', 73.5, 73519), '28': ok('28', 73.5, 73519) } })
-    expect(container.textContent).toBe('Só quem edita o site vê o % assistido.')
+    const { container } = abrir({ acesso: 'negado', negativa: 'sem_direito', normais: { inteiro: ok('inteiro', 73.5, 73519), '90': ok('90', 73.5, 73519), '28': ok('28', 73.5, 73519) } })
+    expect(container.textContent).toBe('restrito Só quem edita o site vê o % assistido.')
     expect(container.innerHTML).not.toMatch(/73519|73%|74%|title=|data-/)
     expect(screen.queryAllByRole('radio')).toHaveLength(0)
   })
 
   it('erro de leitura: role alert com a frase de falha', () => {
     abrir({ acesso: 'erro' })
-    expect(screen.getByRole('alert').textContent).toBe('A leitura do % assistido falhou agora; recarregue a página.')
+    expect(screen.getByRole('alert').textContent).toBe('falhou A leitura do % assistido falhou agora; recarregue a página.')
+    expect(screen.getByRole('alert').querySelector('.obs-au-falhou')).not.toBeNull()
   })
 
   it('o componente cliente não importa leitor, dados nem model com dado privado', () => {

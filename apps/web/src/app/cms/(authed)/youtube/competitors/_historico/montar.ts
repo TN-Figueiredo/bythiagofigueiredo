@@ -107,7 +107,7 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
       // decisão 75: guarda caída é erro de leitura (nunca "privado"/restrito); só `sem_direito` fica negado
       const semProva = ausenciaDaProva(acesso)
       trocas = buildTrocas({
-        lidas: semProva !== 'ok' && semProva.acesso === 'erro' ? semProva : lidas, ytId: base.header.ytId, publicadoEm: pub ? dayPt(new Date(pub.pub)) : null, hojePt: hoje, podeEditar: acesso.edita,
+        lidas: semProva !== 'ok' && semProva.acesso === 'erro' ? semProva : lidas, ytId: base.header.ytId, publicadoEm: pub ? dayPt(new Date(pub.pub)) : null, hojePt: hoje, podeEditar: acesso.edita, edicaoNaoConferida: acesso.edicaoNaoConferida,
         dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, quandoSp, diaPt: iso => dayPt(new Date(iso)), n: obs.fmt.int,
       })
     }

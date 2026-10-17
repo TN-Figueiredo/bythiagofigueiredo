@@ -580,14 +580,14 @@ describe('buildAssistidoDoVideo (tela B)', () => {
     expect(JSON.stringify([negado, erro])).not.toMatch(/\d+%/)
   })
 
-  it('o diário inteiro passou do teto: o cartão do canal inteiro lê "não medido" e os de 90 e 28 dias continuam com número; falha do banco lê "não conseguimos ler"', () => {
+  it('o diário inteiro passou do teto: o cartão do canal inteiro lê "não medido" e os de 90 e 28 dias continuam com número; falha do banco lê "falhou"', () => {
     const teto = monta(longo({ inteiro: null, motivoInteiro: 'teto' }))
     expect(teto.cartoes.map(c => [c.id, c.valor])).toEqual([['inteiro', null], ['90', '53%'], ['28', '60%']])
     expect(teto.cartoes[0]).toMatchObject({ semNumero: 'não medido' })
     expect(JSON.stringify(teto)).toContain('o canal tem vídeos demais para esta tela ler de uma vez')
     expect(JSON.stringify(teto)).not.toContain('não sabemos se')
     const erro = monta(longo({ inteiro: null, motivoInteiro: 'erro' }))
-    expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'não conseguimos ler' })
+    expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'falhou' })
   })
 
   it('poucas views com a cobertura inteira diz "poucas views"; com a cobertura desconhecida diz "não medido", nunca "poucas views"', () => {

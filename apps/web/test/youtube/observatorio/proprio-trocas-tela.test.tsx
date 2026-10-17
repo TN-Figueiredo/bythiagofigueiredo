@@ -26,14 +26,15 @@ describe('a linha de teste', () => {
     expect(li.querySelector('.tr-lados, .tr-lado')).toBeNull()
     expect(txt(li)).toContain('Teste A/B')
   })
-  it('link do teste com alvo de 44 px declarado; sem acesso: nenhum <a> e o texto com o cadeado/sem acesso', () => {
+  it('link do teste com alvo de 44 px declarado; sem acesso: nenhum <a> e a pastilha restrito com a frase do teste restrito', () => {
     const com = tela(comTeste(true)).container
     const a = com.querySelector('li.tr-teste a.tr-link') as HTMLAnchorElement
     expect(a.getAttribute('href')).toBe('/cms/youtube/ab-lab/t1')
     cleanup()
     const sem = tela(comTeste(false)).container
     expect(sem.querySelector('li.tr-teste a')).toBeNull()
-    expect(txt(sem.querySelector('li.tr-teste'))).toContain('sem acesso')
+    expect(sem.querySelector('li.tr-teste .obs-au-restrito')).not.toBeNull()
+    expect(txt(sem.querySelector('li.tr-teste'))).toContain('Teste A/B restrito')
   })
 })
 
