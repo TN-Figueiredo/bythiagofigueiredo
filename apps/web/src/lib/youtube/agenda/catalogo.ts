@@ -8,10 +8,11 @@ import { retratosComentarios } from './tarefas/retratos-comentarios'
 import { tamanhoDoBanco } from './tarefas/tamanho-do-banco'
 import { marcasDeIdade } from './tarefas/marcas-de-idade'
 import { podaAcessoIa } from './tarefas/poda-acesso-ia'
+import { playlistsSemanais } from './tarefas/playlists-semanais'
 
 // As definições, o interruptor e a lista única moram em `definicoes.ts` (módulo leve, que o vigia importa sem a coleta); daqui saem as mesmas.
 export {
-  DEFINICOES, DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES, DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PODA_ACESSO_IA,
+  DEFINICOES, DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES, DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_PLAYLISTS_SEMANAIS,
   agendaLigada, notaDoInterruptorDaAgenda, tarefasDesligadas,
 } from './definicoes'
 export type { Definicao } from './definicoes'
@@ -21,6 +22,11 @@ function definicao(nome: string): Definicao {
   const d = DEFINICOES.find(x => x.nome === nome)
   if (!d) throw new Error('definição ausente: ' + nome)
   return d
+}
+
+/** O catálogo recusa definição com `ligaCom` E `nuncaDesliga` (uma obrigação de LGPD não pode depender de variável). Lança. */
+export function validarCatalogo(catalogo: readonly Pick<Tarefa, 'nome' | 'nuncaDesliga' | 'ligaCom'>[]): void {
+  for (const t of catalogo) if (t.ligaCom !== undefined && t.nuncaDesliga === true) throw new Error('catálogo inválido: ligaCom e nuncaDesliga juntos em ' + t.nome)
 }
 
 /**
@@ -34,7 +40,10 @@ export const CATALOGO: readonly Tarefa[] = [
   tamanhoDoBanco,
   podaAcessoIa,
   marcasDeIdade,
+  playlistsSemanais,
   { ...definicao('sincronizar_canais'), ...sincronizarCanais },
   retratosComentarios,
   { ...definicao('serie_semanal'), ...serieSemanal },
 ]
+
+validarCatalogo(CATALOGO)

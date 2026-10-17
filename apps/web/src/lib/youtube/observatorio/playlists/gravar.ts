@@ -36,6 +36,8 @@ export interface OpsX3 {
   cotaDoDia(siteIds: readonly string[], nowMs: number): Promise<Map<string, number>>
   /** Uma vez por disparo, SÓ dos canais devidos; paginado, nunca truncado. Lança em erro (e `ErroX3` ao bater o teto de páginas). */
   lerCanais(siteId: string, channelIds: readonly string[]): Promise<Map<string, EstadoDoCanal>>
+  /** Quantos dos canais têm ao menos uma versão de seções gravada (só para o `detalhe`). Lança em erro. */
+  canaisComSecoes(channelIds: readonly string[]): Promise<number>
   /** Quantos itens presentes (não removidos) a playlist tem. */
   itensPresentes(playlistRef: string): Promise<number>
   playlistsRecord(a: { siteId: string; channelId: string; nowMs: number; rows: readonly PlaylistLida[]; complete: boolean }): Promise<RetornoPlaylists>
@@ -188,6 +190,16 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
         est.ultima_secao_vazia = itens.length === 0
       }))
       return out
+    },
+
+    async canaisComSecoes(channelIds) {
+      const com = new Set<string>()
+      for (const bloco of blocos(channelIds)) {
+        const linhas = await paginar((de, ate) => sb.from('competitor_channel_sections').select('competitor_channel_id')
+          .in('competitor_channel_id', bloco).order('competitor_channel_id').order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)))
+        for (const l of linhas) { const id = texto(l.competitor_channel_id); if (id !== null) com.add(id) }
+      }
+      return com.size
     },
 
     async itensPresentes(playlistRef) {

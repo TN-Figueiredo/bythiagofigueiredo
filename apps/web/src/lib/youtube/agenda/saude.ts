@@ -22,11 +22,13 @@ export interface ItemAgenda {
   motivo?: string
 }
 
-type DaTarefa = Pick<Tarefa, 'nome' | 'toleranciaVigiaH' | 'nuncaDesliga'>
+type DaTarefa = Pick<Tarefa, 'nome' | 'toleranciaVigiaH' | 'nuncaDesliga' | 'ligaCom'>
 
 const HORA_MS = 3_600_000
 export const MOTIVO_AGENDA_OFF = 'agenda off'
 export const MOTIVO_TAREFA_OFF = 'tarefa desligada (OBS_AGENDA_TASKS_OFF)'
+/** Frase da tarefa com `ligaCom` cuja variável não é `on`; leva o NOME da variável (fixo no código), nunca o valor. */
+export const MOTIVO_TAREFA_NAO_LIGADA = (variavel: string): string => `tarefa ainda não ligada (${variavel})`
 export const MOTIVO_NAO_LIDO = 'não foi possível ler a agenda'
 export const MOTIVO_SCHEMA_AUSENTE = 'não conferida (schema ausente)'
 export const MOTIVO_SEM_LEITURA = 'sem leitura'
@@ -49,7 +51,12 @@ const instante = (s: string | null): number | null => {
  */
 export function avaliarAgenda(e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa[], agoraMs: number, env: NodeJS.ProcessEnv): ItemAgenda[] {
   const ligada = agendaLigada(env)
-  const { desligadas } = tarefasDesligadas(env, catalogo)
+  const { desligadas, naoLigadas } = tarefasDesligadas(env, catalogo)
+  const porNome = new Map(catalogo.map(t => [t.nome, t]))
+  const motivoDeDesligada = (nome: string): string => {
+    const v = porNome.get(nome)?.ligaCom
+    return naoLigadas.has(nome) && v !== undefined ? MOTIVO_TAREFA_NAO_LIGADA(v) : MOTIVO_TAREFA_OFF
+  }
   const linhas = 'valor' in e ? new Map(e.valor.tarefas.map(l => [l.task, l])) : null
   const desde = 'valor' in e ? instante(e.valor.desde) : null
 
@@ -58,7 +65,7 @@ export function avaliarAgenda(e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa
     const itens = catalogo.map((t): ItemAgenda => {
       const base = { nome: t.nome, toleranciaH: t.toleranciaVigiaH, ultimoOk: null }
       if (!ligada && !t.nuncaDesliga) return { ...base, status: 'desligada', motivo: MOTIVO_AGENDA_OFF }
-      if (desligadas.has(t.nome)) return { ...base, status: 'desligada', motivo: MOTIVO_TAREFA_OFF }
+      if (desligadas.has(t.nome)) return { ...base, status: 'desligada', motivo: motivoDeDesligada(t.nome) }
       return { ...base, status: 'unknown', motivo: MOTIVO_SCHEMA_AUSENTE }
     })
     if (causa === 'schema_ausente') return itens
@@ -73,7 +80,7 @@ export function avaliarAgenda(e: Lido<EstadoAgenda>, catalogo: readonly DaTarefa
     const ultimoOk = linhas.get(t.nome)?.last_ok_at ?? null
 
     if (!ligada && !t.nuncaDesliga) return { ...base, status: 'desligada', ultimoOk, motivo: MOTIVO_AGENDA_OFF }
-    if (desligadas.has(t.nome)) return { ...base, status: 'desligada', ultimoOk, motivo: MOTIVO_TAREFA_OFF }
+    if (desligadas.has(t.nome)) return { ...base, status: 'desligada', ultimoOk, motivo: motivoDeDesligada(t.nome) }
 
     const toleranciaMs = t.toleranciaVigiaH * HORA_MS
     const okMs = instante(ultimoOk)
@@ -99,7 +106,7 @@ export async function lerAgendaDoVigia(
   sb: SupabaseClient,
   agoraMs: number,
   env: NodeJS.ProcessEnv,
-  catalogo: readonly Pick<Tarefa, 'nome' | 'periodo' | 'toleranciaVigiaH' | 'nuncaDesliga'>[] = TODAS_AS_DEFINICOES,
+  catalogo: readonly Pick<Tarefa, 'nome' | 'periodo' | 'toleranciaVigiaH' | 'nuncaDesliga' | 'ligaCom'>[] = TODAS_AS_DEFINICOES,
 ): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
   try {
     const pares = catalogo.map(t => ({ task: t.nome, period_key: chaveDoPeriodo(t.periodo, agoraMs) }))

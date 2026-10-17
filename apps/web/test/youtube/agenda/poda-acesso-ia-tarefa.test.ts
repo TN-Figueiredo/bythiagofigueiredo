@@ -1,6 +1,6 @@
 // @vitest-environment node
 /** A5 · E17 degrau 2, Tarefa 13b: `poda_acesso_ia` = adaptador de `podarAcessoIa` para a agenda. A poda em si é provada em acesso-ia-poda.test.ts. */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const podar = vi.fn()
@@ -17,6 +17,10 @@ const T0 = Date.parse('2026-10-12T21:10:00Z')
 const ctx = (o: Partial<ContextoTarefa> = {}): ContextoTarefa => ({ t0: T0, agora: () => T0, apiKey: 'k', sb: {} as SupabaseClient, linhas: null, ...o })
 const R = { registroTotal: 10, registroApagadas: 3, taxaTotal: 8, taxaApagadas: 5 }
 beforeEach(() => { podar.mockReset() })
+
+// A tarefa `playlists_semanais` só liga com `OBS_X3_PLAYLISTS=on`; os testes deste arquivo não são sobre ela (os dela: playlists-semanais.test.ts).
+beforeEach(() => { process.env.OBS_X3_PLAYLISTS = 'on' })
+afterEach(() => { delete process.env.OBS_X3_PLAYLISTS })
 
 describe('poda_acesso_ia: definição', () => {
   it('cada campo da tabela do plano', () => {

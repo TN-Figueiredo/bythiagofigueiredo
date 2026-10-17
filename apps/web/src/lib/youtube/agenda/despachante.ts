@@ -203,6 +203,10 @@ export async function despachar(d: EntradaDespacho): Promise<ResumoDisparo> {
     const semCota = detalhe?.cota_nao_registrada
     if (typeof semCota === 'number' && semCota > 0) problemas.push(`${t.rotulo}: ${semCota} unidades de cota não registradas`)
 
+    // X3 (P-1): canal que nunca fecha a volta há mais de 14 dias é problema do disparo, qualquer que seja o estado
+    const semVolta = detalhe?.canais_sem_volta_14d
+    if (typeof semVolta === 'number' && semVolta > 0) problemas.push(`${t.rotulo}: ${semVolta} canais sem volta completa há mais de 14 dias`)
+
     if (r.estado === 'erro') {
       problemas.push(fraseDoMotivo(t, r.motivo, detalhe))
     } else if (r.estado === 'parcial' && t.naoTerminouVermelhoEm !== null) {

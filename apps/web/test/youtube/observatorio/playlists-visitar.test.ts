@@ -44,6 +44,7 @@ function opsFalsos(sobre: Partial<OpsX3> = {}) {
     lerLeituras: async () => new Map(),
     cotaDoDia: async () => new Map(),
     lerCanais: async () => new Map(),
+    canaisComSecoes: async () => 0,
     itensPresentes: async () => 0,
     playlistsRecord: vi.fn(async a => { log.push({ fn: 'playlistsRecord', a }); return { ids: new Map(a.rows.map(r => [r.playlist_id, `ref-${r.playlist_id.slice(2)}`])), atrasada: false, sumidas: 0, versoes: 0 } }),
     itemsRecord: vi.fn(async a => { log.push({ fn: 'itemsRecord', a }); return { gravados: a.rows.length, saidos: 0, massa: false, atrasada: false } }),

@@ -12,7 +12,7 @@ const API = 'https://www.googleapis.com/youtube/v3'
 export const PRIORIDADE_DE_MOTIVOS: readonly string[] = [
   'cota_esgotada', 'canal_pausado', 'gravacao_falhou', 'lista_cortada', 'api_falhou', 'resposta_invalida', 'contagem_difere', 'teto_por_canal',
   'itens_cortados', 'playlist_sumiu_no_meio', 'itens_incoerentes', 'teto_itens', 'saida_em_massa_a_confirmar', 'lista_vazia_a_confirmar',
-  'secoes_vazias_a_confirmar', 'sobrou',
+  'secoes_vazias_a_confirmar', 'teto_do_dia', 'sobrou',
 ]
 export const maisGrave = (motivos: readonly string[]): string | null => PRIORIDADE_DE_MOTIVOS.find(m => motivos.includes(m)) ?? null
 
