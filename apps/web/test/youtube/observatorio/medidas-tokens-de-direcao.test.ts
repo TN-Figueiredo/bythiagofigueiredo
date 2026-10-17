@@ -19,6 +19,7 @@ describe('tokens de direção (E5a T3)', () => {
     expect(usam).toEqual([
       '_canais/canais.css',
       '_canais/ri.css', // E5a R3: barra divergente e setas de Inscritos usam --dir-up/dn/eq
+      '_chrome/medidas/graficos.css', // E5a T14c: a faixa da subida usa --dir-up
       '_chrome/medidas/medidas.css',
       '_insights/direcao-nicho.css', // E5a T9: a régua desdobrada de Insights usa --dir-up/dn/eq
       '_proprio/assistido-periodo.css',
