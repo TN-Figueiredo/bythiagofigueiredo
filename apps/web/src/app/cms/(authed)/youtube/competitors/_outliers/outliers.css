@@ -346,7 +346,7 @@
 .obs-out .obs-out-cb{list-style:none;margin:0;padding:0;display:grid;gap:12px}
 .obs-out .obs-out-cr{display:grid;grid-template-columns:128px minmax(160px,500px) minmax(0,1fr);gap:4px 14px;align-items:center}
 .obs-out .obs-out-cn{font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;min-height:22px;white-space:nowrap}
-.obs-out .obs-out-ordm{display:inline-flex;align-items:center;font:600 12px/16px var(--sans,inherit);color:var(--text);border:1px solid var(--text);border-radius:4px;padding:0 5px}
+.obs-out .obs-out-ordm{display:inline-flex;align-items:center;font:600 12px/16px var(--font-sans,inherit);color:var(--text);border:1px solid var(--text);border-radius:4px;padding:0 5px}
 .obs-out .obs-out-cs{list-style:none;margin:0;padding:0;display:flex;gap:3px}
 .obs-out .obs-out-cs li{flex:1 1 0;max-width:44px;min-width:0;height:22px;border-radius:4px;display:grid;place-items:center;font:600 12px/1 "JetBrains Mono",ui-monospace,monospace}
 .obs-out .obs-out-casa-cheia{background:var(--lado-n)}
@@ -389,7 +389,7 @@
   .obs-out table.obs-out-list:has(col.obs-out-c-i7) tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 14px;padding:12px;border-bottom:1px solid var(--border-subtle)}
   .obs-out table.obs-out-list:has(col.obs-out-c-i7) td{display:block;padding:0;border:0;min-width:0;text-align:left}
   .obs-out table.obs-out-list:has(col.obs-out-c-i7) td.obs-out-v,.obs-out table.obs-out-list:has(col.obs-out-c-i7) td:last-child{grid-column:1/3}
-  .obs-out table.obs-out-list:has(col.obs-out-c-i7) td[data-l]::before{content:attr(data-l);display:block;font:400 12px/16px var(--sans,inherit);color:var(--muted);margin-bottom:3px}
+  .obs-out table.obs-out-list:has(col.obs-out-c-i7) td[data-l]::before{content:attr(data-l);display:block;font:400 12px/16px var(--font-sans,inherit);color:var(--muted);margin-bottom:3px}
   .obs-out table.obs-out-list:has(col.obs-out-c-i7) td.obs-out-on{background:none;box-shadow:inset 2px 0 0 var(--text);padding-left:8px}
   .obs-out table.obs-out-list:has(col.obs-out-c-i7) td.obs-out-on::before{color:var(--text);font-weight:600}
   .obs-out table.obs-out-list:has(col.obs-out-c-i7) .obs-out-wide{display:none}

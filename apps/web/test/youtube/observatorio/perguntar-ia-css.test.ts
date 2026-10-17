@@ -26,6 +26,6 @@ describe('perguntar-ia.css', () => {
     const pop = css.match(/\.pi-pop\s*\{([^}]*)\}/)
     expect(pop).not.toBeNull()
     expect(pop![1]).not.toMatch(/pointer-events\s*:\s*none/)
-    expect(css).toMatch(/\.pi-dlg \.ibtn\[aria-expanded="true"\]\s*\{[^}]*position:relative;z-index:1/)
+    expect(css).toMatch(/\.pi-dlg \.ibtn\[aria-expanded="true"\]\s*\{[^}]*position:relative;z-index:var\(--z-conteudo\)/)
   })
 })

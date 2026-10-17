@@ -2,13 +2,13 @@
 /* o cartão novo */
 .q-cartao{--q-cols:56px minmax(250px,1.35fr) minmax(280px,1.5fr) 190px 140px;display:grid;gap:12px;padding:18px 20px 14px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;min-width:0}
 .q-ch{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
-.q-ch h2{font:600 17px/1.3 var(--sans);letter-spacing:-.005em}
+.q-ch h2{font:600 17px/1.3 var(--font-sans);letter-spacing:-.005em}
 .q-meta{margin-left:auto;font-size:13px;color:var(--muted)}
 .q-ch .ibtn{margin:-3px 0}
 .q-magro{min-height:22px}
 
 /* símbolo de direção: quadrado cheio (forma e cor); vazado quando é leitura de apoio */
-.q-sy{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;border-radius:5px;background:var(--d);color:var(--on-lado);font:700 12px/1 var(--sans)}
+.q-sy{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;border-radius:5px;background:var(--d);color:var(--on-lado);font:700 12px/1 var(--font-sans)}
 .q-sy.up{--d:var(--dir-up)}.q-sy.dn{--d:var(--dir-dn)}.q-sy.eq{--d:var(--dir-eq)}
 .q-sy.vz{background:transparent;color:var(--d);border:2px solid var(--d)}
 .q-sy.f{width:20px;height:20px;font-size:12px;vertical-align:-4px;margin-right:2px}
@@ -37,12 +37,12 @@
 .q-op:hover{background:var(--surface-2)}
 .q-op[aria-pressed="true"]{background:var(--surface-2);border-color:var(--text);box-shadow:inset 0 -2px 0 var(--text)}
 .q-op[aria-pressed="true"] .q-on::before{content:"\2713\00a0";font-weight:700}
-.q-on{font:600 14px/20px var(--sans)}
+.q-on{font:600 14px/20px var(--font-sans)}
 .q-op small{font-size:12.5px;line-height:17px;color:var(--muted)}
 .q-oc{font-size:12px;line-height:17px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .q-cap{display:flex;align-items:center;gap:4px;margin:0;font-size:13px;line-height:19px;color:var(--muted)}
 .q-selw .q-cap,.q-selw .q-aviso{margin:0}
-.q-lk{display:inline-flex;align-items:center;min-height:32px;margin-left:8px;padding:0 12px;border:1px solid var(--border-strong);border-radius:6px;background:transparent;color:var(--text);font:500 13px var(--sans);cursor:pointer;vertical-align:middle}
+.q-lk{display:inline-flex;align-items:center;min-height:32px;margin-left:8px;padding:0 12px;border:1px solid var(--border-strong);border-radius:6px;background:transparent;color:var(--text);font:500 13px var(--font-sans);cursor:pointer;vertical-align:middle}
 .q-lk:hover{background:var(--surface-2)}
 .q-ocw{margin-left:0}
 .q-aviso{display:flex;align-items:flex-start;gap:8px;margin:0;font-size:13px;line-height:19px;color:var(--muted)}
@@ -53,7 +53,7 @@
 .q-ea{grid-column:3;position:relative;height:36px}
 .q-ep{position:relative;display:block;height:17px;font-size:12.5px;line-height:17px;color:var(--muted)}
 .q-ep .e1{position:absolute;left:0}.q-ep .e2{position:absolute;left:50%;transform:translateX(-50%)}.q-ep .e3{position:absolute;right:0}
-.q-en{position:absolute;top:19px;left:0;right:0;height:16px;font:12px/16px var(--mono);color:var(--dim)}
+.q-en{position:absolute;top:19px;left:0;right:0;height:16px;font:12px/16px var(--font-mono);color:var(--dim)}
 .q-en span{position:absolute;transform:translateX(-50%)}
 .q-en span:first-child{left:0!important;transform:none}
 .q-en span:last-child{left:auto!important;right:0;transform:none}
@@ -63,9 +63,9 @@
   grid-template-areas:"pos nome reg dir mais" "pos sub reg dir mais"}
 .q-pos{grid-area:pos;font-size:16px;line-height:20px;display:grid;justify-items:start}
 .q-pos b{font-weight:600}
-.q-pos small{font:400 12px/14px var(--sans);color:var(--muted);white-space:nowrap}
+.q-pos small{font:400 12px/14px var(--font-sans);color:var(--muted);white-space:nowrap}
 .q-pos.nada{color:var(--dim)}
-.q-nome{grid-area:nome;align-self:end;font:600 14.5px/20px var(--sans);overflow-wrap:anywhere}
+.q-nome{grid-area:nome;align-self:end;font:600 14.5px/20px var(--font-sans);overflow-wrap:anywhere}
 .q-nome a{color:var(--text);text-decoration:none}
 .q-nome a:hover{text-decoration:underline}
 .q-sub{grid-area:sub;align-self:start;font-size:12.5px;line-height:18px;min-width:0}
@@ -80,7 +80,7 @@
 .q-bar{position:absolute;top:50%;height:14px;margin-top:-7px;border-radius:2px;background:var(--d)}
 .q-bar-0{min-width:3px;margin-left:-1.5px}
 .q-bar.up{--d:var(--dir-up)}.q-bar.dn{--d:var(--dir-dn)}.q-bar.eq{--d:var(--dir-eq)}
-.q-seta{position:absolute;top:50%;margin-top:-10px;font:700 18px/20px var(--sans);color:var(--on-lado)}
+.q-seta{position:absolute;top:50%;margin-top:-10px;font:700 18px/20px var(--font-sans);color:var(--on-lado)}
 .q-seta.d{right:3px}.q-seta.e{left:3px}
 .q-nmw{position:absolute;left:3%;right:3%;top:50%;height:14px;margin-top:-7px;border:1.5px dotted var(--nm-line);border-radius:3px;overflow:hidden}
 .q-prog{position:absolute;left:0;top:0;bottom:0;background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}
@@ -91,7 +91,7 @@
 .q-li.q-nao .q-dir{flex-direction:column;align-items:flex-start;gap:4px}
 .q-mot{font-size:12.5px;line-height:17px;color:var(--muted)}
 .q-z{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 3px;border:2px solid var(--im-zero);border-radius:3px;font-size:12px;line-height:1;color:var(--text);vertical-align:middle;margin:-3px 0}
-.q-mais{grid-area:mais;justify-self:end;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px 0 12px;border:1px solid var(--border-strong);border-radius:6px;background:transparent;color:var(--muted);font:500 13px var(--sans);cursor:pointer}
+.q-mais{grid-area:mais;justify-self:end;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px 0 12px;border:1px solid var(--border-strong);border-radius:6px;background:transparent;color:var(--muted);font:500 13px var(--font-sans);cursor:pointer}
 .q-mais:hover{background:var(--surface-2);color:var(--text)}
 .q-mais svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .q-mais[aria-expanded="true"] svg{transform:rotate(180deg)}
@@ -102,15 +102,15 @@
 .q-3{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .q-3 li{display:grid;grid-template-columns:230px 190px minmax(0,1fr);gap:6px 16px;align-items:center;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px}
 .q-3 li.pr{background:var(--surface-2);border-color:var(--border-strong)}
-.q-ln{font:600 13px/18px var(--sans);display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline}
-.q-ln small{font:400 12.5px/18px var(--sans);color:var(--muted)}
-.q-pr{flex-basis:100%;font:400 12px/17px var(--sans);color:var(--text)}
+.q-ln{font:600 13px/18px var(--font-sans);display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline}
+.q-ln small{font:400 12.5px/18px var(--font-sans);color:var(--muted)}
+.q-pr{flex-basis:100%;font:400 12px/17px var(--font-sans);color:var(--text)}
 .q-lv{display:flex;align-items:center;gap:8px}
 .q-lb{font-size:12.5px;line-height:18px;color:var(--muted)}
 
 /* seu canal fica fora, e a tela diz */
 .q-seu{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;padding-top:2px}
-.q-seu b{font:600 14px var(--sans)}
+.q-seu b{font:600 14px var(--font-sans)}
 .q-fora{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border:1.5px dotted var(--dim);border-radius:4px;font-size:12.5px;color:var(--muted)}
 .q-seu .ibtn{margin:-3px 0}
 .q-unico{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;color:var(--muted)}
@@ -121,7 +121,7 @@
 .q-vi{display:grid;place-items:center;width:40px;height:40px;color:var(--muted)}
 .q-vi svg{width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .q-vazio>div:not(.q-leit),.q-erro>div{flex:1 1 260px;display:grid;gap:3px}
-.q-vazio b,.q-erro b{font:600 15px/22px var(--sans);color:var(--text)}
+.q-vazio b,.q-erro b{font:600 15px/22px var(--font-sans);color:var(--text)}
 .q-vazio span,.q-erro span{font-size:13.5px;line-height:20px;color:var(--muted)}
 .q-leit{display:grid;gap:4px;justify-items:start}
 .q-leit small{font-size:12.5px;color:var(--muted)}
@@ -164,7 +164,7 @@
   .q-op{display:grid;justify-items:start;align-content:center;gap:0;min-height:48px;padding:4px 6px}
   .q-op small,.q-onl{display:none}
   .q-onc{display:inline}
-  .q-on{font:600 12.5px/18px var(--sans);white-space:nowrap}
+  .q-on{font:600 12.5px/18px var(--font-sans);white-space:nowrap}
   .q-op[aria-pressed="true"] .q-on::before{content:"\2713\00a0"}
   .q-oc{margin-left:0;font-size:12px}
   .q-ocw,.q-dt b{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
