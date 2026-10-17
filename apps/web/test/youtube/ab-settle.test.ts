@@ -109,7 +109,7 @@ function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[
 // ---------------------------------------------------------------------------
 interface CampoAnterior { estado?: string; attempts?: number; segundosAtras?: number }
 interface Opcoes {
-  status?: string; testType?: 'thumbnail' | 'title' | 'combo'
+  status?: string; testType?: 'thumbnail' | 'title' | 'combo' | 'description'
   noAr?: { titulo?: string; dhash?: string }
   anterior?: { title?: CampoAnterior; thumbnail?: CampoAnterior }
   inicioUltimoCiclo?: '2 dias atrás'; originalTitle?: string | null
@@ -205,9 +205,11 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(d.banco.teste().status_note).toBe(DRIFT_STATUS_NOTE)
   })
   it('encerrar deixando B: manual_winner, winner_applied_at, applied_by manual, revert_expires_at +7d, autoImportWinner uma vez', async () => {
-    const { banco, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C } })
+    const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C } })
     await settleOnAir(banco.testId, { ...op('encerrado'), destino: { tipo: 'variante', id: 'B' } }, portas)
     const t = banco.teste()
+    expect(await dhashOf(yt.thumb)).toBe(H.B)                                         // o vencedor ficou no ar
+    expect(yt.titulo).toBe('Título B')
     expect(t).toMatchObject({ completed_reason: 'manual_winner', winner_variant_id: 'B', applied_by: 'manual' })
     expect(new Date(t.winner_applied_at!).getTime()).toBe(portas.agora().getTime())
     expect(new Date(t.revert_expires_at!).getTime() - portas.agora().getTime()).toBe(7 * 86_400_000)
@@ -237,6 +239,29 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(b.banco.teste().restore_status.title).toMatchObject({ estado: 'pulado_drift' })
     expect(b.banco.teste().winner_applied_at).not.toBeNull()
     const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: false })
+    const r = await settleOnAir(c.banco.testId, c.op('reverter'), c.portas)
+    expect(r.resultado).toBe('ja_encerrado'); expect(c.banco.teste().restore_seq).toBe(0); expect(c.yt.escritas()).toEqual([])
+  })
+  it.each([
+    ['pausa', { status: 'active' }],
+    ['encerrado', { status: 'active' }],
+    ['reverter', { status: 'completed', vencedor: 'B', reversivel: true }],
+  ] as const)('DEVE-2: teste do tipo description (fora do escopo, Q8) em %s → ja_encerrado, sem escrever nem mudar estado', async (motivo, extra) => {
+    const { banco, yt, portas, op } = await preparar({ ...extra, testType: 'description', noAr: { titulo: 'Título B' } })
+    const antes = { ...banco.teste() }
+    const r = await settleOnAir(banco.testId, op(motivo), portas)
+    expect(r.resultado).toBe('ja_encerrado')
+    expect(banco.teste()).toMatchObject({ status: antes.status, restore_seq: 0, winner_applied_at: antes.winner_applied_at, revert_expires_at: antes.revert_expires_at })
+    expect(yt.escritas()).toEqual([])
+  })
+  it('PODE-5: encerrar um teste já completed → ja_encerrado, nada escrito', async () => {
+    const c = await preparar({ status: 'completed', testType: 'combo' })
+    expect((await settleOnAir(c.banco.testId, c.op('encerrado'), c.portas)).resultado).toBe('ja_encerrado')
+    expect(c.banco.teste().restore_seq).toBe(0); expect(c.yt.escritas()).toEqual([])
+  })
+  it('PODE-4: reverter com winner_applied_at nulo e revert_expires_at no futuro → ja_encerrado, nada escrito', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true })
+    c.banco.setTeste({ winner_applied_at: null })
     const r = await settleOnAir(c.banco.testId, c.op('reverter'), c.portas)
     expect(r.resultado).toBe('ja_encerrado'); expect(c.banco.teste().restore_seq).toBe(0); expect(c.yt.escritas()).toEqual([])
   })
@@ -601,7 +626,7 @@ describe('Tarefa 6, rodada 1 (consertos dos pareceres)', () => {
     const { token: _t, ...semToken } = a.portas
     await settleOnAir(a.banco.testId, a.op('pausa'), semToken)
     expect(a.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', erro: { motivo: 'token' }, escreveu: false })
-    expect(ensureFreshToken).toHaveBeenCalledWith(SITE, 'youtube', expect.anything())
+    expect(ensureFreshToken).toHaveBeenCalledWith(SITE, 'youtube', 'UC1') // canal DONO do vídeo (video.youtube_channels.channel_id)
     const b = await preparar({ status: 'active', testType: 'title', noAr: { titulo: 'Título B' } })
     ensureFreshToken.mockResolvedValueOnce({ accessToken: 'tok' })
     const { token: _u, ...semToken2 } = b.portas

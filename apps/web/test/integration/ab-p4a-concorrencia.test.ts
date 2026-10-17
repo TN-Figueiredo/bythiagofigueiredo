@@ -4,7 +4,7 @@ import { semearTesteAb, clienteServico } from '../helpers/db-seed'
 import { YouTubeFalso, imagemComDhash, H } from '../helpers/youtube-falso'
 
 // Fora o YouTube (falso, por fetch) tudo é real: o banco bythiago_int e as funções SQL da P4a.
-vi.mock('@/lib/notifications/fan-out', () => ({
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
   fanOutToSiteAdminsDetailed: vi.fn(async () => ({ total: 1, sent: 1, suppressed: 0, errors: [] })),
 }))
 
@@ -57,16 +57,19 @@ describe.skipIf(skipIfNoLocalDb())('P4a T7: concorrência de settleOnAir no banc
     expect(ciclos.data?.filter((c) => c.ended_at !== null)).toHaveLength(1)
   })
 
-  it('pausar e encerrar ao mesmo tempo: pelo menos um vence, no máximo duas escritas de thumbnail, restore_seq avança', async () => {
+  it('pausar e encerrar ao mesmo tempo: pelo menos um vence; restore_seq = nº de feito; thumbnails.set <= nº de feito; status coerente', async () => {
     const [a, b] = await Promise.all([
       settleOnAir(t.testId, { siteId: t.siteId, destino: ORIGINAL, motivo: 'pausa' }, portas),
       settleOnAir(t.testId, { siteId: t.siteId, destino: ORIGINAL, motivo: 'encerrado' }, portas),
     ])
-    expect([a.resultado, b.resultado].filter((x) => x === 'feito').length).toBeGreaterThanOrEqual(1)
-    expect(yt.escritas().filter((e) => e === 'thumbnails.set').length).toBeLessThanOrEqual(2)
+    const feitos = [a, b].filter((x) => x.resultado === 'feito').length
+    expect(feitos).toBeGreaterThanOrEqual(1)
+    expect(yt.escritas().filter((e) => e === 'thumbnails.set').length).toBeLessThanOrEqual(feitos)
     const t1 = await teste()
-    expect(t1.restore_seq).toBeGreaterThanOrEqual(1)
-    expect(['paused', 'completed']).toContain(t1.status)
+    expect(t1.restore_seq).toBe(feitos)
+    // dois feitos = pausa e depois encerra (completed); um feito só = o status do vencedor.
+    if (feitos === 2) expect(t1.status).toBe('completed')
+    else expect(['paused', 'completed']).toContain(t1.status)
   })
 
   // ── T9: a rotação do cron contra o banco real ────────────────────────────────────────────────────────────────
