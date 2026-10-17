@@ -126,3 +126,17 @@ describe('menor 10: texto de leitor de tela não começa com ": "', () => {
     expect(s).not.toMatch(/obs-md-sr">: /)
   })
 })
+
+describe('Logan trem 5: "leitura" no lugar de "contagem" nos textos do Histórico', () => {
+  it('os modelos e blocos não escrevem mais as formas antigas', () => {
+    const velhas = /contagem por (dia|hora|semana)|primeira contagem|última contagem|contagem de hoje|a contagem (diminuiu|parou|termina|se perdeu)|entrou na contagem|duas contagens|Nenhuma mudança registrada|contagens? (vizinhas|a mais)/
+    for (const f of ['resumo-model.ts', 'subida-model.ts', 'idade-model.ts', 'horas-model.ts', 'dias-model.ts', 'mudancas-model.ts', 'horas-72.tsx', 'curva-por-idade.tsx', 'contagem-por-semana.tsx', 'cartao-subida.tsx']) {
+      const linhas = readFileSync(join(DIR, f), 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      expect(linhas.filter((l) => velhas.test(l)), f).toEqual([])
+    }
+  })
+  it('concordância: "Nenhum dos N pontos ... tem leitura" e o único ponto no singular', () => {
+    const s = html(<CurvaPorIdade bloco={blocoDeIdade({ ...baseIdade, pontos: [], normal: normal(14) })} />)
+    expect(s).not.toMatch(/Nenhum dos \d+ pontos que já existem têm/)
+  })
+})

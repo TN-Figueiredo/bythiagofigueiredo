@@ -219,7 +219,7 @@ function montarBarras(e: EntradaDeHoras, curva: CurvaDe72Horas): BarraDaHora[] {
     const pc = curva.primeiraContagem
     const fala =
       motivo === 'antes_da_primeira_contagem' && pc
-        ? `${cab}: não medido: antes da primeira contagem, que foi às ${horaSP(floorHour(pc.emMs))} (${duracaoHM(Math.max(0, (floorHour(pc.emMs) - pub) / MIN))} depois de publicar).`
+        ? `${cab}: não medido: antes da primeira leitura, que foi às ${horaSP(floorHour(pc.emMs))} (${duracaoHM(Math.max(0, (floorHour(pc.emMs) - pub) / MIN))} depois de publicar).`
         : `${cab}: ${FRASES_DE_HORA[motivo]}.`
     out.push({ ...base, tipo: 'nao_medido', ganho: null, motivo, acumulado, fala })
   }
@@ -276,7 +276,7 @@ function reguaDe(e: EntradaDeHoras, curva: CurvaDe72Horas, barras: readonly Barr
     const n = e.normal?.n ?? 0
     const nao = e.normal !== null && e.normal.estado === 'nao_medido' ? e.normal.motivo : 'poucos_videos'
     const soN = n === 0 ? 'nenhum vídeo' : `só ${n} ${n === 1 ? 'vídeo' : 'vídeos'}`
-    const desde = comecouEm ? `, e a contagem por hora começou em ${comecouEm}` : ''
+    const desde = comecouEm ? `, e a leitura por hora começou em ${comecouEm}` : ''
     normal = {
       tipo: 'nao_medido', n,
       frase: nao === 'poucos_videos' || e.normal === null
@@ -316,7 +316,7 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
   const pub = e.publicadoEmMs
   const nao = (motivo: MotivoDeHoras, ctx: ContextoDeHoras = {}): BlocoDeHoras => ({
     tipo: 'nao_medido', estado, motivo, classe: CLASSE_DO_MOTIVO[motivo], frase: FRASES_DAS_HORAS[motivo](ctx).longa,
-    extra: motivo === 'entrou_tarde' && e.contagemPorDiaDesde ? `A contagem por dia, a partir de ${dm(e.contagemPorDiaDesde)}, continua abaixo.` : null,
+    extra: motivo === 'entrou_tarde' && e.contagemPorDiaDesde ? `A leitura por dia, a partir de ${dm(e.contagemPorDiaDesde)}, continua abaixo.` : null,
   })
   const ctxMotivo = (): ContextoDeHoras => ({
     comecouEm: comecouEm ?? '',
@@ -337,7 +337,7 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
       // TEXTO-A-REVISAR: o estado "ainda não existe" do bloco de 72 horas (o do mockup tem a hora de exemplo)
       return {
         tipo: 'ainda_nao_existe', estado, primeiraContagemEmMs: proxima,
-        frase: `${descoberto}A primeira contagem por hora entra às ${horaSP(proxima)} ${spDateOfMs(proxima) === spDateOfMs(e.agoraMs) ? 'de hoje' : `de ${dataSP(proxima)}`}; a curva ganha uma barra por hora, até 72 horas depois de publicar.`,
+        frase: `${descoberto}A primeira leitura por hora entra às ${horaSP(proxima)} ${spDateOfMs(proxima) === spDateOfMs(e.agoraMs) ? 'de hoje' : `de ${dataSP(proxima)}`}; depois a curva ganha uma barra por hora, até 72 horas depois de publicar.`,
       }
     }
     return nao('sem_contagem_nas_72_horas')
@@ -393,14 +393,14 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
   // as frases
   const atraso = pc ? Math.max(0, (floorHour(pc.emMs) - pub) / MIN) : 0
   const primeiraHora = pc ? horaSP(floorHour(pc.emMs)) : ''
-  const comeca = pc ? `A curva começa ${duracaoHM(atraso)} depois de publicar (primeira contagem às ${primeiraHora}), com ${milhar(pc.views)} views já` : ''
+  const comeca = pc ? `A curva começa ${duracaoHM(atraso)} depois de publicar (primeira leitura às ${primeiraHora}), já com ${milhar(pc.views)} views` : ''
   let frase: string
   if (medidas > 0 && zeros * 2 >= medidas) {
     frase = `Em ${zeros} das ${medidas} horas medidas o vídeo não ganhou nenhuma view (medido: 0, caixa vazada). Em ${medidas - zeros} ${medidas - zeros === 1 ? 'hora' : 'horas'} ganhou algumas.`
   } else if (metade.horas !== null && totalLido) {
     frase = `Metade das views das 72 horas veio nas primeiras ${metade.horas} horas. ${comeca}.`
   } else if (metade.motivo === 'ja_tinha_passado') {
-    frase = `${comeca}; metade das views ainda não dá para dizer (o vídeo já tinha mais da metade quando a contagem por hora começou).`
+    frase = `${comeca}; ainda não dá para dizer quando chegou à metade das views (o vídeo já tinha mais da metade quando a leitura por hora começou).`
   } else {
     // TEXTO-A-REVISAR: a metade não foi medida por outro motivo (ponta vazia, menos de 72 horas)
     frase = `${comeca}; metade das views ainda não dá para dizer.`
@@ -408,9 +408,9 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
 
   const frasesDasHoras: string[] = []
   // TEXTO-A-REVISAR: quantas horas ficaram em cada caso (desvio 16)
-  if (fora > 0) frasesDasHoras.push(`${plural(fora, 'hora', 'horas')} com a contagem fora da hora cheia`)
-  if (cobre > 0) frasesDasHoras.push(`${plural(cobre, 'hora', 'horas')} em que a contagem cobre mais de uma hora`)
-  if (diminuiu > 0) frasesDasHoras.push(`${plural(diminuiu, 'hora', 'horas')} em que a contagem diminuiu`)
+  if (fora > 0) frasesDasHoras.push(`${plural(fora, 'hora', 'horas')} com a leitura fora da hora cheia`)
+  if (cobre > 0) frasesDasHoras.push(`${plural(cobre, 'hora', 'horas')} em que a leitura cobre mais de uma hora`)
+  if (diminuiu > 0) frasesDasHoras.push(`${plural(diminuiu, 'hora', 'horas')} em que o total de views diminuiu`)
   const sem = fraseDasHorasSemBarra(semBarra, totalLido)
   if (sem) frasesDasHoras.push(sem)
 
@@ -421,13 +421,13 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
     : `publicado ${diaEDataSP(pub)}, ${horaSP(pub)}`
   return {
     tipo: 'ok', estado, publicacao,
-    subtitulo: pc ? `Horário de São Paulo. Primeira contagem às ${primeiraHora} de ${dataSP(floorHour(pc.emMs))}.` : 'Horário de São Paulo.',
+    subtitulo: pc ? `Horário de São Paulo. Primeira leitura às ${primeiraHora} de ${dataSP(floorHour(pc.emMs))}.` : 'Horário de São Paulo.',
     frase, frasesDasHoras, barras, eixo: eixoDe(e),
     antesDaPrimeira: pc && atraso > 0 ? { xAte: atraso / 60, texto: `${duracaoHM(atraso)} depois de publicar` } : null,
-    primeiraContagem: pc ? { ...pc, texto: `primeira contagem às ${primeiraHora}, ${duracaoHM(atraso)} depois de publicar` } : null,
+    primeiraContagem: pc ? { ...pc, texto: `primeira leitura às ${primeiraHora}, ${duracaoHM(atraso)} depois de publicar` } : null,
     pico, linhaDaMetade, total,
     horasSemBarra: semBarra, horasFinaisSemContagem: finais, horasForaDaHoraCheia: fora, horasCobremMaisDeUma: cobre, horasQueDiminuiram: diminuiu,
     zeros, medidas, regua,
-    legenda: ['hora com views', 'zero medido', 'não medido (antes da primeira contagem)', 'publicação'],
+    legenda: ['hora com views', 'zero medido', 'não medido (antes da primeira leitura)', 'publicação'],
   }
 }

@@ -115,7 +115,7 @@ export function linhaSaiu(saiuEm: string | null, diasDoEixo: readonly string[]):
   const pontilhados = diasDoEixo.filter((d) => d >= saiuEm)
   return {
     dia: saiuEm < diasDoEixo[0]! ? diasDoEixo[0]! : saiuEm,
-    rotulo: `✕ saiu do YouTube em ${dm(saiuEm)}: a contagem termina aqui`,
+    rotulo: `✕ saiu do YouTube em ${dm(saiuEm)}: a leitura termina aqui`,
     rotuloCurto: `✕ saiu em ${dm(saiuEm)}`,
     diasPontilhados: pontilhados,
   }
@@ -180,7 +180,7 @@ export function barrasPorDia(o: {
   const viewsNoDiaDaPublicacao = lidas.get(pub) ?? null
   const out: DiaDaBarra[] = [{
     dia: pub, tipo: 'pub', ganho: viewsNoDiaDaPublicacao, junto: null, motivo: null,
-    fala: `${dm(pub)}: o vídeo foi publicado às ${horaSP(o.publicadoEmMs)}${viewsNoDiaDaPublicacao === null ? ', sem contagem das 12:00 nesse dia' : `; até as 12:00 ganhou ${milhar(viewsNoDiaDaPublicacao)} views`}.`,
+    fala: `${dm(pub)}: o vídeo foi publicado às ${horaSP(o.publicadoEmMs)}${viewsNoDiaDaPublicacao === null ? ', sem leitura das 12:00 nesse dia' : `; até as 12:00 ganhou ${milhar(viewsNoDiaDaPublicacao)} views`}.`,
   }]
   const dias: string[] = []
   for (let d = somaDias(pub, 1); d <= ultimoDia; d = somaDias(d, 1)) dias.push(d)
@@ -190,7 +190,7 @@ export function barrasPorDia(o: {
   let anterior: { dia: string; views: number } | null = viewsNoDiaDaPublicacao === null ? null : { dia: pub, views: viewsNoDiaDaPublicacao }
   for (const d of dias) {
     if (o.saiuEm !== null && d >= o.saiuEm) {
-      montados.set(d, { dia: d, tipo: 'saiu', ganho: null, junto: null, motivo: 'o vídeo não está mais no YouTube', fala: `${dm(d)}: o vídeo não está mais no YouTube: não há contagem.` })
+      montados.set(d, { dia: d, tipo: 'saiu', ganho: null, junto: null, motivo: 'o vídeo não está mais no YouTube', fala: `${dm(d)}: o vídeo não está mais no YouTube: não há leitura.` })
       continue
     }
     const v = lidas.get(d)
@@ -198,8 +198,8 @@ export function barrasPorDia(o: {
       const ate = primeiraLida === null || d < primeiraLida
       montados.set(d, {
         dia: d, tipo: 'nm', ganho: null, junto: null,
-        motivo: ate ? 'sem contagem antes da primeira leitura do vídeo' : 'falta a contagem das 12:00 deste dia',
-        fala: `${dm(d)}: não medido: ${ate ? `sem contagem antes de ${primeiraLida === null ? 'hoje' : dm(primeiraLida)}` : 'falta a contagem das 12:00 deste dia'}.`,
+        motivo: ate ? 'sem leitura antes da primeira leitura do vídeo' : 'falta a leitura das 12:00 deste dia',
+        fala: `${dm(d)}: não medido: ${ate ? `sem leitura antes de ${primeiraLida === null ? 'hoje' : dm(primeiraLida)}` : 'falta a leitura das 12:00 deste dia'}.`,
       })
       continue
     }
@@ -208,20 +208,20 @@ export function barrasPorDia(o: {
     const desdeAPublicacao = d === somaDias(pub, 1)
     if (veioDeFato || desdeAPublicacao) {
       const ganho = v - (veioDeFato ? anterior!.views : 0)
-      if (ganho < 0) montados.set(d, { dia: d, tipo: 'diminuiu', ganho: null, junto: null, motivo: 'a contagem diminuiu', fala: `${dm(d)}: a contagem diminuiu neste dia.` })
+      if (ganho < 0) montados.set(d, { dia: d, tipo: 'diminuiu', ganho: null, junto: null, motivo: 'o total de views diminuiu', fala: `${dm(d)}: o total de views diminuiu neste dia.` })
       else if (ganho === 0) montados.set(d, { dia: d, tipo: 'zero', ganho: 0, junto: null, motivo: null, fala: `${dm(d)}: 0 views (medido).` })
       else montados.set(d, { dia: d, tipo: 'com', ganho, junto: null, motivo: null, fala: `${dm(d)}: ${milhar(ganho)} views.` })
     } else if (anterior !== null) {
       // há leituras antes, mas o dia anterior está faltando: este dia e o anterior se juntam
       const junto = v - anterior.views
       const ontem = somaDias(d, -1)
-      const motivo = 'falta a contagem do dia anterior'
+      const motivo = 'falta a leitura do dia anterior'
       montados.set(d, { dia: d, tipo: 'nm', ganho: null, junto: junto >= 0 ? junto : null, motivo, fala: `${dm(d)}: não medido: ${motivo}.${junto >= 0 ? ` Os dois dias juntos ganharam ${milhar(junto)} views.` : ''}` })
       const m = montados.get(ontem)
       if (m && m.tipo === 'nm' && junto >= 0) montados.set(ontem, { ...m, junto, fala: `${m.fala.replace(/\.$/, '.')} Os dois dias juntos ganharam ${milhar(junto)} views.` })
     } else {
       // a primeira leitura do vídeo, sem a anterior para tirar a diferença
-      montados.set(d, { dia: d, tipo: 'nm', ganho: null, junto: null, motivo: 'primeira contagem do vídeo, sem a anterior para tirar a diferença', fala: `${dm(d)}: não medido: primeira contagem do vídeo, sem a anterior para tirar a diferença.` })
+      montados.set(d, { dia: d, tipo: 'nm', ganho: null, junto: null, motivo: 'primeira leitura do vídeo, sem a anterior para tirar a diferença', fala: `${dm(d)}: não medido: primeira leitura do vídeo, sem a anterior para tirar a diferença.` })
     }
     anterior = { dia: d, views: v }
   }
@@ -259,31 +259,31 @@ export interface EntradaDaFraseDosDias {
 }
 
 export function fraseDosDias(e: EntradaDaFraseDosDias): string {
-  if (e.semanal) return 'Uma contagem por semana: cada ponto é a média de views por dia da semana. Sem barra por dia e sem dizer se uma mudança “funcionou”.'
+  if (e.semanal) return 'Uma leitura por semana: cada ponto é a média de views por dia da semana. Sem barra por dia e sem dizer se uma mudança “funcionou”.'
   const comDado = e.dias.filter((d) => d.tipo === 'com' || d.tipo === 'zero')
   const comValor = e.dias.filter((d) => d.tipo === 'com')
   const contados = e.dias.filter((d) => d.tipo !== 'pub')
   const nm = e.dias.filter((d) => d.tipo === 'nm')
   const zeros = e.dias.filter((d) => d.tipo === 'zero').length
   const melhor = comValor.reduce<DiaDaBarra | null>((a, d) => (a === null || (d.ganho ?? 0) > (a.ganho ?? 0) ? d : a), null)
-  const mud = e.nMudancas > 0 ? `${e.nMudancas} ${e.nMudancas === 1 ? 'mudança registrada' : 'mudanças registradas'}` : null
+  const mud = e.nMudancas > 0 ? `${e.nMudancas} ${e.nMudancas === 1 ? 'mudança vista' : 'mudanças vistas'}` : null
   if (nm.length > 0 && e.saiuEm === null) {
     const toque = e.ponteiro === 'dedo' ? 'Toque em' : 'Passe o mouse sobre'
-    return `Dos ${contados.length} dias desde a publicação, ${nm.length} ${nm.length === 1 ? 'está “não medido”' : 'estão “não medido”'}: uma contagem se perdeu. ${toque} cada barra com hachura rosa para ver o motivo.`
+    return `Dos ${contados.length} dias desde a publicação, ${nm.length} ${nm.length === 1 ? 'está “não medido”' : 'estão “não medido”'}: uma leitura não foi feita. ${toque} cada barra com hachura rosa para ver o motivo.`
   }
   if (e.saiuEm !== null && e.totalViews !== null) {
     const termina = e.ultimaContagem ?? e.saiuEm
-    return `O vídeo ganhou ${milhar(e.totalViews)} views em ${comDado.length} ${comDado.length === 1 ? 'dia' : 'dias'} com contagem. A contagem termina em ${dm(termina)}, o último dia em que o vídeo respondeu.`
+    return `O vídeo ganhou ${milhar(e.totalViews)} views em ${comDado.length} ${comDado.length === 1 ? 'dia' : 'dias'} com leitura. A leitura termina em ${dm(termina)}, o último dia em que o vídeo respondeu.`
   }
   if (e.publicadoAntesDoInicio && melhor) {
-    return `A contagem por dia só existe desde ${dm(e.inicioDaContagem)} (${contados.length} dias). Melhor dia: ${dm(melhor.dia)}, com ${milhar(melhor.ganho ?? 0)} views. ${mud ? `Houve ${mud}.` : 'Nenhuma mudança registrada.'}`
+    return `A leitura por dia só existe desde ${dm(e.inicioDaContagem)} (${contados.length} dias). Melhor dia: ${dm(melhor.dia)}, com ${milhar(melhor.ganho ?? 0)} views. ${mud ? `Houve ${mud}.` : 'Nenhuma mudança vista.'}`
   }
   if (zeros > 0 && zeros * 2 >= comDado.length && melhor) {
-    return `Dos ${contados.length} dias, ${zeros} ${zeros === 1 ? 'teve' : 'tiveram'} zero view (caixa vazada, medido) e o melhor teve ${milhar(melhor.ganho ?? 0)}. ${mud ? `Houve ${mud}.` : 'Nenhuma mudança registrada.'}`
+    return `Dos ${contados.length} dias, ${zeros} ${zeros === 1 ? 'teve' : 'tiveram'} zero view (caixa vazada, medido) e o melhor teve ${milhar(melhor.ganho ?? 0)}. ${mud ? `Houve ${mud}.` : 'Nenhuma mudança vista.'}`
   }
-  if (!melhor) return mud ? `Houve ${mud}.` : 'Nenhuma mudança registrada.'
+  if (!melhor) return mud ? `Houve ${mud}.` : 'Nenhuma mudança vista.'
   const sub = e.subidaDia ? ` ▲ Subida em ${dm(e.subidaDia)}.` : ''
-  const m = mud ? ` O canal mudou o vídeo ${e.nMudancas} ${e.nMudancas === 1 ? 'vez' : 'vezes'} (${e.tiposDeMudanca}).` : ' Nenhuma mudança registrada.'
+  const m = mud ? ` O canal mudou o vídeo ${e.nMudancas} ${e.nMudancas === 1 ? 'vez' : 'vezes'} (${e.tiposDeMudanca}).` : ' Nenhuma mudança vista.'
   return `O melhor dia foi ${dm(melhor.dia)}, com ${milhar(melhor.ganho ?? 0)} views.${sub}${m}`
 }
 
@@ -316,10 +316,10 @@ export function contagemPorSemana(leituras: readonly Leitura[], publicadoEmMs: n
   const pontos: PontoDaSemana[] = ord.map((l, i): PontoDaSemana => {
     const dia = spDateOfMs(l.t)
     const ant = ord[i - 1]
-    if (!ant) return { dia, tipo: 'primeira', mediaPorDia: null, fala: `${dm(dia)}: não medido: primeira contagem do vídeo, sem a anterior para tirar a diferença.` }
+    if (!ant) return { dia, tipo: 'primeira', mediaPorDia: null, fala: `${dm(dia)}: não medido: primeira leitura do vídeo, sem a anterior para tirar a diferença.` }
     const dias = Math.max(1, Math.round((l.t - ant.t) / DAY))
     const d = l.views - ant.views
-    if (d < 0) return { dia, tipo: 'diminuiu', mediaPorDia: null, fala: `${dm(dia)}: a contagem diminuiu nesta semana.` }
+    if (d < 0) return { dia, tipo: 'diminuiu', mediaPorDia: null, fala: `${dm(dia)}: o total de views diminuiu nesta semana.` }
     const media = d / dias
     return { dia, tipo: 'medido', mediaPorDia: media, fala: `Semana que termina em ${dm(dia)}: ${milhar(media)} views por dia em média.` }
   })
@@ -329,9 +329,9 @@ export function contagemPorSemana(leituras: readonly Leitura[], publicadoEmMs: n
   const corte = linhaDeCorteDoEixo(de, ate)
   return {
     pontos, semContagemAntesDe: primeiro, linhaDeCorte: corte,
-    rotuloSemContagem: primeiro ? `sem contagem antes de ${dm(primeiro)}` : null,
+    rotuloSemContagem: primeiro ? `sem leitura antes de ${dm(primeiro)}` : null,
     legenda: [
-      'média por dia da semana (um ponto por semana)', 'sem contagem (antes da primeira leitura)',
+      'média por dia da semana (um ponto por semana)', 'sem leitura (antes da primeira leitura)',
       ...(corte ? [`${dm(corte.dia)}: mudou a regra de contar views`] : []),
     ],
   }

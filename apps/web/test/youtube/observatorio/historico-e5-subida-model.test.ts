@@ -25,7 +25,7 @@ describe('E5a T20, subida', () => {
   it('contagem por semana: inconclusivo, sem hachura', () => {
     const c = cartaoDaSubida(ent({ semanal: true }))
     expect(c.tipo).toBe('inconclusivo')
-    expect(celulaDaSubida(c, 15).valor).toBe('contagem por semana')
+    expect(celulaDaSubida(c, 15).valor).toBe('leitura por semana')
   })
   it('15 dias inteiros e nenhuma subida: "＝ Sem subida"', () => {
     const c = cartaoDaSubida(ent({}))

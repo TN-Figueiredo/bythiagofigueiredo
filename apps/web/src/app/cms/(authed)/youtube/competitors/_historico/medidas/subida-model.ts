@@ -13,7 +13,7 @@ const R = MEASURE_RULES.rise
 export const DIAS_NECESSARIOS = 2 * R.days + 1
 
 export const NOTA_DA_LISTA = 'É só uma lista de coincidências: não diz o que causou a subida.'
-export const INFO_DA_SEMANA = 'Contagem por semana: uma contagem a cada semana, em vez de uma por dia.'
+export const INFO_DA_SEMANA = 'Leitura por semana: uma leitura a cada semana, em vez de uma por dia.'
 
 export interface EntradaDaSubida {
   hojeSP: string
@@ -53,10 +53,10 @@ const ritmo = (ganho: number): string => milhar(Math.round(ganho / R.days))
 
 function listaDosAntes(s: Subida, mudancas: readonly MudancaNumerada[] | null): { texto: string; carregou: boolean } {
   // TEXTO-A-REVISAR: mudanças não lidas nunca viram "nenhuma mudança"
-  if (mudancas === null) return { texto: 'Não carregou: as mudanças deste vídeo não foram lidas.', carregou: false }
+  if (mudancas === null) return { texto: 'Não carregou: não deu para ler as mudanças deste vídeo.', carregou: false }
   const antes = listaAgrupadaDosAntes(mudancas, s.dia)
   const n = mudancas.filter((m) => dentroDosDiasAntes(m, s.dia)).length
-  if (n === 0) return { texto: `Nenhuma mudança registrada nos ${R.lookbackDays} dias antes.`, carregou: true }
+  if (n === 0) return { texto: `Nenhuma mudança vista nos ${R.lookbackDays} dias antes.`, carregou: true }
   if (n > LISTA_CURTA_ATE) return { texto: `${n} mudanças nos ${R.lookbackDays} dias antes da subida (a lista está logo abaixo).`, carregou: true }
   return { texto: `Mudanças nos ${R.lookbackDays} dias antes: ${antes.join(' e ')}.`, carregou: true }
 }
@@ -64,8 +64,8 @@ function listaDosAntes(s: Subida, mudancas: readonly MudancaNumerada[] | null): 
 export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
   if (e.semanal) {
     return {
-      tipo: 'inconclusivo', titulo: 'inconclusivo: contagem por semana',
-      texto: 'Com uma contagem por semana não dá para dizer se uma mudança veio antes de uma subida.', info: INFO_DA_SEMANA,
+      tipo: 'inconclusivo', titulo: 'inconclusivo: leitura por semana',
+      texto: 'Com uma leitura por semana não dá para dizer se uma mudança veio antes de uma subida.', info: INFO_DA_SEMANA,
     }
   }
   if (e.subidas === null) return { tipo: 'nao_carregou', frase: 'Subida: não carregou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
@@ -95,12 +95,12 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
   const dias = e.diasDeContagem
   const feitos = Math.min(DIAS_NECESSARIOS, Math.max(0, dias))
   const fecha = subidaFechaEm(dias, e.hojeSP)
-  const precisa = `Precisa de ${DIAS_NECESSARIOS} dias de contagem por dia (${R.days} antes, o dia da subida e ${R.days} depois)`
+  const precisa = `Precisa de ${DIAS_NECESSARIOS} dias de leitura por dia (${R.days} antes, o dia da subida e ${R.days} depois)`
   const titulo = 'Subida: não medido.'
   if (e.saiu) {
     return {
       tipo: 'nao_medido', titulo, motivo: 'saiu', curto: 'o vídeo saiu antes', fechaEm: null, feitos, total: DIAS_NECESSARIOS,
-      texto: `${precisa}; o vídeo saiu do YouTube com ${dias} ${dias === 1 ? 'dia' : 'dias'} de contagem, então a subida não vai ser medida`,
+      texto: `${precisa}; o vídeo saiu do YouTube com ${dias} ${dias === 1 ? 'dia' : 'dias'} de leitura, então a subida não vai ser medida`,
     }
   }
   if (dias < DIAS_NECESSARIOS) {
@@ -113,7 +113,7 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
   }
   return {
     tipo: 'nao_medido', titulo, motivo: 'contagem_perdida', curto: 'faltam dias', fechaEm: null, feitos, total: DIAS_NECESSARIOS,
-    texto: `faltam contagens por dia (o vídeo entrou tarde na contagem e uma contagem se perdeu): sem ${R.days} dias antes e ${R.days} depois seguidos, não dá`,
+    texto: `faltam leituras por dia (o vídeo entrou tarde e uma leitura não foi feita): sem ${R.days} dias antes e ${R.days} depois seguidos, não dá para medir a subida`,
   }
 }
 
@@ -131,7 +131,7 @@ export interface CelulaDaSubida {
 
 export function celulaDaSubida(c: CartaoDaSubida, diasDeContagem: number | null): CelulaDaSubida {
   switch (c.tipo) {
-    case 'inconclusivo': return { rotulo: 'Subida', estado: 'neutro', valor: 'contagem por semana', razao: null, sub: 'não dá para ver o dia' }
+    case 'inconclusivo': return { rotulo: 'Subida', estado: 'neutro', valor: 'leitura por semana', razao: null, sub: 'não dá para ver o dia' }
     case 'nao_carregou': return { rotulo: 'Subida', estado: 'nao_carregou', valor: null, razao: null, sub: 'não carregou' }
     case 'subiu':
       return { rotulo: 'Subida', estado: 'ok', valor: dm(c.dia), razao: c.fator === null ? '▲' : `▲ ${dec(c.fator, 1)}× o ritmo`, sub: `${R.days} dias depois contra ${R.days} antes` }

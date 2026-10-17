@@ -16,9 +16,9 @@ import './historico-medidas.css'
 export const TITULO_DAS_HORAS = 'As primeiras 72 horas, hora a hora'
 // TEXTO-A-REVISAR: o ⓘ do bloco (texto do NOTAS 13, enxugado)
 export const INFO_DAS_HORAS = [
-  'Cada barra: views ganhas naquela hora, em horário de São Paulo (diferença entre duas contagens seguidas, uma por hora cheia). O eixo é o tempo real: a primeira barra é parcial, da hora da publicação até a primeira hora cheia.',
+  'Cada barra: views ganhas naquela hora, em horário de São Paulo (diferença entre duas leituras seguidas, uma por hora cheia). O eixo é o tempo real: a primeira barra é parcial, da hora da publicação até a primeira hora cheia.',
   'O total das 72 horas para na última hora cheia antes de o vídeo completar 3 dias; por isso pode ficar um pouco abaixo do “Com 3 dias” da curva por idade.',
-  'Começa na primeira contagem depois que o vídeo é descoberto; antes disso fica “não medido”.',
+  'Começa na primeira leitura depois que o site descobre o vídeo; antes disso fica “não medido”.',
   '1/2 das views: a primeira hora em que o vídeo chega à metade do que tinha com 72 horas.',
   'Cálculo do Observatório sobre dados públicos do YouTube.',
 ]

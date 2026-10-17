@@ -85,26 +85,26 @@ function videoNaIdade(p: PontoDoVideo, e: EntradaDeIdade): VideoNaIdade {
       return { tipo: 'ainda_nao_existe', fechaEm: m.fechaEm ?? null }
     case 'leitura_comecou_depois': {
       const d = dm(e.inicioDaContagem)
-      return nao('nao_medido', `publicado antes de ${d}`, `publicado antes de ${d}: a contagem por dia começou em ${d}`)
+      return nao('nao_medido', `publicado antes de ${d}`, `publicado antes de ${d}: a leitura por dia começou em ${d}`)
     }
     case 'descoberto_tarde': {
       const h = e.horasAteEntrar
-      return nao('nao_medido', 'entrou tarde na contagem', h !== null && h > 0 ? `entrou tarde na contagem: o vídeo entrou na contagem ${milhar(h)} ${h === 1 ? 'hora' : 'horas'} depois de publicado` : 'entrou tarde na contagem')
+      return nao('nao_medido', 'leitura começou tarde', h !== null && h > 0 ? `a leitura deste vídeo só começou ${milhar(h)} ${h === 1 ? 'hora' : 'horas'} depois de publicado` : 'a leitura deste vídeo começou tarde')
     }
     case 'leituras_distantes': {
-      const falta = m.desde ? ` (falta a contagem de ${dm(m.desde)})` : ''
-      return nao('nao_medido', `contagens a mais de ${MEASURE_RULES.maxGapHours} h`, `contagens vizinhas a mais de ${MEASURE_RULES.maxGapHours} horas${falta}`)
+      const falta = m.desde ? ` (falta a de ${dm(m.desde)})` : ''
+      return nao('nao_medido', `leituras a mais de ${MEASURE_RULES.maxGapHours} h`, `as leituras vizinhas estão a mais de ${MEASURE_RULES.maxGapHours} horas uma da outra${falta}`)
     }
     case 'leitura_parou_antes':
       return e.saiuDoYoutube
         ? nao('nao_medido', 'saiu do YouTube', 'o vídeo saiu do YouTube antes desta idade')
         // TEXTO-A-REVISAR: vídeo que não saiu e cuja contagem parou antes da idade
-        : nao('nao_medido', 'contagem parou', 'a contagem parou antes desta idade')
+        : nao('nao_medido', 'leitura parou', 'a leitura deste vídeo parou antes desta idade')
     case 'sem_leitura':
-      return nao('nao_medido', 'sem contagem', 'sem contagem nesta idade')
+      return nao('nao_medido', 'sem leitura', 'sem leitura nesta idade')
     case 'views_ocultas':
       // TEXTO-A-REVISAR
-      return nao('nao_medido', 'views ocultas', 'o canal ocultou as views do vídeo')
+      return nao('nao_medido', 'views ocultas', 'o YouTube não mostra as views deste vídeo (ocultas pelo canal ou pelo vídeo)')
     case 'sem_publicacao':
       return nao('nao_medido', 'sem data de publicação', 'o vídeo não tem data de publicação')
     case 'serie_nao_pedida':
@@ -188,11 +188,11 @@ function fraseDoBloco(pontos: readonly PontoDeIdade[], e: EntradaDeIdade, videos
   const ult = ok[ok.length - 1]
   if (!ult || ult.video.tipo !== 'medido') {
     // TEXTO-A-REVISAR: nenhum ponto que já existe tem contagem
-    return `Nenhum dos ${nm.length} ${nm.length === 1 ? 'ponto que já existe tem' : 'pontos que já existem têm'} contagem; ${nm.length === 1 ? 'ele é' : 'cada um é'} “não medido”, com o motivo.`
+    return nm.length === 1 ? 'O único ponto que já existe não tem leitura; ele é “não medido”, com o motivo.' : `Nenhum dos ${nm.length} pontos que já existem tem leitura; cada um é “não medido”, com o motivo.`
   }
   if (nm.length > 0) {
     const f = fut.length
-    return `Só ${ok.length} dos ${ok.length + nm.length} pontos que já existem ${ok.length === 1 ? 'tem' : 'têm'} contagem; ${nm.length === 1 ? 'o outro é' : `os outros ${nm.length} são`} “não medido”, cada um com o motivo.${
+    return `Só ${ok.length} dos ${ok.length + nm.length} pontos que já existem ${ok.length === 1 ? 'tem' : 'têm'} leitura; ${nm.length === 1 ? 'o outro é' : `os outros ${nm.length} são`} “não medido”, cada um com o motivo.${
       f === 0 ? '' : f === 1 ? ' O ponto de idade maior ainda não existe.' : ` Os ${f} pontos de idades maiores ainda não existem.`}`
   }
   if (ult.normal.tipo !== 'medido') {
@@ -216,7 +216,7 @@ export function blocoDeIdade(e: EntradaDeIdade): BlocoDeIdade {
   const dados = e.pontos
   const pontos: PontoDeIdade[] = IDADES_DO_EIXO.map((idade) => {
     const dado = dados.find((p) => p.idadeDias === idade)
-    const video: VideoNaIdade = dado ? videoNaIdade(dado, e) : { tipo: 'nao_medido', classe: 'nao_medido', motivo: 'sem_leitura', curto: 'sem contagem', longo: 'sem contagem nesta idade' }
+    const video: VideoNaIdade = dado ? videoNaIdade(dado, e) : { tipo: 'nao_medido', classe: 'nao_medido', motivo: 'sem_leitura', curto: 'sem leitura', longo: 'sem leitura nesta idade' }
     const normal = normalNaIdade(e.normal, idade, e.aoVivo)
     const razao = video.tipo === 'medido' && normal.tipo === 'medido' ? razaoEscrita(video.views, normal.views) : null
     return { idade, rotulo: `${idade} d`, video, normal, razao, fala: falaDoPonto(idade, video, normal, razao) }
@@ -229,7 +229,7 @@ export function blocoDeIdade(e: EntradaDeIdade): BlocoDeIdade {
     const nVideos = n1 && n1.tipo !== 'fora' ? n1.n : 0
     return {
       tipo: 'nao_medido',
-      motivo: `publicado em ${dmy(e.publicadoEm)}, antes de ${d}: a contagem por dia começou em ${d}, então não sabemos quantas views o vídeo tinha nas idades até 30 dias`,
+      motivo: `publicado em ${dmy(e.publicadoEm)}, antes de ${d}: a leitura por dia começou em ${d}, então não sabemos quantas views o vídeo tinha nas idades até 30 dias`,
       extra: `O normal do canal continua existindo para os vídeos publicados desde ${d}: ${nVideos >= MINIMO_DO_NORMAL ? `${nVideos} vídeos com 1 dia` : 'ainda poucos vídeos'}.`,
       curto: `publicado antes de ${d}`, pontos,
     }

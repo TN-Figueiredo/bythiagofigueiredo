@@ -36,7 +36,7 @@ export function CartaoSubida({ cartao }: { cartao: CartaoDaSubida }) {
           <div className="hv-nmb2">
             <div className="mot"><NaoMedido curta={cartao.curto} longa={cartao.texto} /><b>{cartao.titulo}</b></div>
             {cartao.motivo === 'faltam_dias' ? (
-              <div className="hv-pg" role="img" aria-label={`Dias de contagem: ${cartao.feitos} de ${cartao.total}`}><span className="hv-pg-f" style={{ width: `${pc}%` }} /><span className="hv-pg-r" /></div>
+              <div className="hv-pg" role="img" aria-label={`Dias de leitura: ${cartao.feitos} de ${cartao.total}`}><span className="hv-pg-f" style={{ width: `${pc}%` }} /><span className="hv-pg-r" /></div>
             ) : null}
             <p className="hv-fr">{cartao.texto}.</p>
           </div>

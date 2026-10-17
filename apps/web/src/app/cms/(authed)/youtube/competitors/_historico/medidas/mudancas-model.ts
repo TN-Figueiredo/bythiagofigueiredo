@@ -62,10 +62,10 @@ export function tipoDaMudanca(campos: readonly CampoDoVideo[]): TipoDeMudanca {
 
 const horaDe = (ms: number): number => Number(horaSP(ms).slice(0, 2))
 
-/** A janela real escrita: "em 11/10, entre 06:00 e 12:00" · "em algum momento entre 08/10 e 10/10 (a contagem ficou parada)" · "em 13/10". */
+/** A janela real escrita: "em 11/10, entre 06:00 e 12:00" · "em algum momento entre 08/10 e 10/10 (a leitura ficou parada)" · "em 13/10". */
 export function quandoMudou(m: Pick<MudancaDoVideo, 'deMs' | 'ateMs' | 'precisao'>): string {
   const dia = dm(spDateOfMs(m.ateMs))
-  if (m.precisao === 'parada' && m.deMs !== null) return `em algum momento entre ${dm(spDateOfMs(m.deMs))} e ${dia} (a contagem ficou parada)`
+  if (m.precisao === 'parada' && m.deMs !== null) return `em algum momento entre ${dm(spDateOfMs(m.deMs))} e ${dia} (a leitura ficou parada)`
   if (m.precisao === '6h' && m.deMs !== null) return `em ${dia}, entre ${horaSP(m.deMs)} e ${horaSP(m.ateMs)}`
   if (m.precisao === 'min') return `em ${dia}, às ${horaSP(m.ateMs)}`
   return `em ${dia}`
@@ -98,7 +98,7 @@ export interface ItemDaLista {
   /** "Título" · "Miniatura" · "Outras: descrição e tags" */
   rotulo: string
   quando: string
-  /** "Mudou neste dia, depois da contagem das 12:00" quando a barra do dia já tinha fechado. */
+  /** "Mudou neste dia, depois da leitura das 12:00" quando a barra do dia já tinha fechado. */
   notaDoDia: string | null
   deParaTexto: string | null
   /** "fora dos 14 dias antes": só nos itens de fora, e só quando há subida. */
@@ -128,8 +128,8 @@ export function listaDeMudancas(
     n: m.n, tipo: m.tipo,
     rotulo: m.tipo === 'titulo' ? 'Título' : m.tipo === 'miniatura' ? 'Miniatura' : `Outras: ${m.nomeDosCampos}`,
     quando: m.quando,
-    // TEXTO-A-REVISAR: a nota do dia quando a mudança vem depois da contagem das 12:00 (a frase é a do mockup, com o número da mudança)
-    notaDoDia: m.tardia ? `Mudou neste dia, depois da contagem das 12:00: ${m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos} (mudança ${m.n}).` : null,
+    // TEXTO-A-REVISAR: a nota do dia quando a mudança vem depois da leitura das 12:00 (a frase é a do mockup, com o número da mudança)
+    notaDoDia: m.tardia ? `Mudou neste dia, depois da leitura das 12:00: ${m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos} (mudança ${m.n}).` : null,
     deParaTexto: m.de !== null && m.para !== null ? `de “${m.de}” para “${m.para}”` : null,
     marcaFora: sub !== null && !dentroDosDiasAntes(m, sub),
   }))
@@ -143,7 +143,7 @@ export function listaDeMudancas(
   }
   return {
     titulo: 'Mudanças deste vídeo', itens, dentro, fraseDeDentro,
-    vazia: mudancas.length === 0 ? `Nenhuma mudança registrada desde ${dm(o.inicioDoHistorico)} (o histórico de mudanças começou nesse dia).` : null,
+    vazia: mudancas.length === 0 ? `Nenhuma mudança vista desde ${dm(o.inicioDoHistorico)} (o histórico de mudanças começou nesse dia).` : null,
     emColunas: mudancas.length > MUITAS_MUDANCAS,
   }
 }

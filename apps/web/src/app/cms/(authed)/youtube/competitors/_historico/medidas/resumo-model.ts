@@ -52,10 +52,10 @@ const viewsTxt = (n: number | null, exato: boolean): string => (n === null ? 'se
 /** A frase "Nos 14 dias antes, o canal mudou…" (só com subida). */
 function fraseAntes(mudancas: readonly MudancaNumerada[] | null, subidaDia: string): string {
   // TEXTO-A-REVISAR: mudanças não lidas nunca viram "nenhuma mudança"
-  if (mudancas === null) return ' Não carregou: as mudanças deste vídeo não foram lidas.'
+  if (mudancas === null) return ' Não carregou: não deu para ler as mudanças deste vídeo.'
   const antes = mudancas.filter((m) => dentroDosDiasAntes(m, subidaDia))
   const dias = MEASURE_RULES.rise.lookbackDays
-  if (antes.length === 0) return ` Nenhuma mudança registrada nos ${dias} dias antes.`
+  if (antes.length === 0) return ` Nenhuma mudança vista nos ${dias} dias antes.`
   if (antes.length > LISTA_CURTA_ATE) return ` O canal fez ${mudancas.length} mudanças no vídeo, ${antes.length} delas nos ${dias} dias antes (a lista está no fim da página).`
   const por = new Map<string, string[]>()
   for (const m of antes) {
@@ -93,27 +93,27 @@ export function resumoDoVideo(e: EntradaDoResumo): Resumo {
     frase = `O vídeo tem ${viewsTxt(views, true)} views agora. O histórico por dia não carregou; recarregue a página.`
   } else if (e.diasDeContagem === 0 && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
     variante = 'vazio'
-    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. Ainda não há histórico: a primeira contagem por dia é às 12:00 de amanhã.`
+    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. Ainda não há histórico: a primeira leitura por dia é às 12:00 de amanhã (horário de São Paulo).`
   } else if (e.saiu !== null) {
     variante = 'saiu'
     const n = e.diasDeContagem
     // sem leitura (ou série não lida) não há "última contagem": nem data nem número inventados
     frase = e.saiu.ultimaContagem === null || n === null || n === 0
-      ? `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. ${n === null ? 'A contagem por dia não carregou' : 'Não há nenhuma contagem por dia dele'}, então não há última contagem para mostrar.`
-      : `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. A última contagem, em ${dm(e.saiu.ultimaContagem)}, foi de ${viewsTxt(views, true)} views, depois de ${n} ${n === 1 ? 'dia' : 'dias'} de contagem. A contagem termina em ${dm(e.saiu.ultimaContagem)}.`
+      ? `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. ${n === null ? 'Não deu para ler o dia a dia dele' : 'Não há nenhuma leitura por dia dele'}, então não há última leitura para mostrar.`
+      : `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. A última leitura, em ${dm(e.saiu.ultimaContagem)}, foi de ${viewsTxt(views, true)} views, depois de ${n} ${n === 1 ? 'dia' : 'dias'} de leitura.`
   } else if (e.aoVivo) {
     variante = 'ao_vivo'
-    frase = `Vídeo ao vivo ou estreia: tem ${viewsTxt(views, false)} views e fica fora do normal do canal, que só conta vídeos comuns.${sub}`
+    frase = `Vídeo ao vivo ou estreia: tem ${viewsTxt(views, false)} views e fica fora do normal do canal, que só considera vídeos comuns.${sub}`
   } else if (e.idade.tipo === 'nao_medido') {
     variante = 'magro'
-    frase = `O vídeo tem ${viewsTxt(views, false)} views agora. Foi publicado antes de ${dm(e.inicioDaContagem)}, então a contagem por dia só existe desde ${dm(e.inicioDaContagem)} e a comparação por idade não dá.`
+    frase = `O vídeo tem ${viewsTxt(views, false)} views agora. Foi publicado antes de ${dm(e.inicioDaContagem)}, quando começamos a ler o dia a dia, então a comparação por idade não é possível.`
   } else if (e.semanal) {
     variante = 'semanal'
-    frase = `O vídeo tem ${viewsTxt(views, false)} views e uma contagem por semana: o que sobe e desce dentro da semana não aparece.`
+    frase = `O vídeo tem ${viewsTxt(views, false)} views e uma leitura por semana: o que sobe e desce dentro da semana não aparece.`
   } else if (e.entrouTarde !== null) {
     variante = 'nao_medido'
     const falta = e.entrouTarde.falta ? ` e falta a de ${dm(e.entrouTarde.falta)}` : ''
-    frase = `O vídeo tem ${viewsTxt(views, false)} views agora, mas entrou na contagem só em ${dm(e.entrouTarde.em)}${falta}: quase tudo abaixo é “não medido”, cada um com o motivo.`
+    frase = `O vídeo tem ${viewsTxt(views, false)} views agora, mas só entrou na leitura em ${dm(e.entrouTarde.em)}${falta}: quase tudo abaixo é “não medido”, cada um com o motivo.`
   } else if (pouquissimo) {
     variante = 'zero'
     const h = zeros.horas !== null && zeros.horasMedidas !== null ? `, e em ${zeros.horas} das ${zeros.horasMedidas} horas medidas também não` : ''
@@ -136,7 +136,7 @@ export function resumoDoVideo(e: EntradaDoResumo): Resumo {
       viewsAgora: {
         rotulo: 'Views agora',
         texto: viewsTxt(views, saiu),
-        sub: saiu ? (e.saiu!.ultimaContagem === null ? 'sem contagem por dia' : `última contagem, ${dm(e.saiu!.ultimaContagem)}`) : 'contagem de hoje',
+        sub: saiu ? (e.saiu!.ultimaContagem === null ? 'sem leitura por dia' : `última leitura, ${dm(e.saiu!.ultimaContagem)}`) : 'leitura de hoje',
       },
       idades: celulasDaFaixa(e.idade),
       subida: celulaDaSubida(e.subida, e.diasDeContagem),

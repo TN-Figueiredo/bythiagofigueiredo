@@ -27,7 +27,7 @@ export function ContagemPorSemanaHistorico({ semana }: { semana: ContagemPorSema
     <GraficoLegivel
       titulo="Views por semana: média por dia"
       pontos={semana.pontos.map((p) => ({ rotulo: dm(p.dia), fala: p.fala }))}
-      tabela={{ cabecalho: ['Semana que termina em', 'Média por dia'], linhas: semana.pontos.map((p) => [dm(p.dia), p.mediaPorDia === null ? (p.tipo === 'primeira' ? 'não medido (primeira contagem)' : 'a contagem diminuiu') : milhar(p.mediaPorDia)]) }}
+      tabela={{ cabecalho: ['Semana que termina em', 'Média por dia'], linhas: semana.pontos.map((p) => [dm(p.dia), p.mediaPorDia === null ? (p.tipo === 'primeira' ? 'não medido (primeira leitura)' : 'o total de views diminuiu') : milhar(p.mediaPorDia)]) }}
       legenda={<ul className="ic-leg">{semana.legenda.map((l) => <li key={l}>{l}</li>)}</ul>}
     >
       <svg viewBox={`0 0 ${W} ${base + 28}`} width="100%" aria-hidden="true" data-contagem-por-semana>

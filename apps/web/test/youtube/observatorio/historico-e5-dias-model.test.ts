@@ -36,7 +36,7 @@ describe('E5a T20, dias: a leitura por hora não é dia de contagem (portão Phi
     const b = barrasPorDia({ leituras: [...horarias, ...diarias], publicadoEmMs: PUB, agoraMs: agora, saiuEm: null })
     const pub = b.find((x) => x.tipo === 'pub')!
     expect(pub.ganho).toBeNull()
-    expect(pub.fala).toContain('sem contagem das 12:00')
+    expect(pub.fala).toContain('sem leitura das 12:00')
     expect(b.find((x) => x.dia === '2026-10-23')).toMatchObject({ tipo: 'com', ganho: 24_000 })
     expect(b.find((x) => x.dia === '2026-10-24')).toMatchObject({ tipo: 'com', ganho: 24_000 })
   })
