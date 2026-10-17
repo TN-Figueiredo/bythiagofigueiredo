@@ -278,13 +278,12 @@ describe('lerLeituraDoConjunto (plano E5a §4.8: uma leitura da base do canal po
     const carregar = vi.fn()
     expect(await doConjunto(conjuntoCom(videoMedido()), carregar)).toEqual(await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(videoMedido()))))
   })
-  it('vídeo fora da série do conjunto (180 dias) e a medida pede a série dele: cai na leitura própria, uma vez', async () => {
-    const carregar = vi.fn()
-      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') }))) // a leitura própria, sem a série, devolve "não pedida"
-      .mockResolvedValueOnce(siteCom(videoMedido()))
+  it('vídeo fora da série do conjunto (180 dias) e a medida pede a série dele: cai na leitura própria, uma chamada que já pede a série dele', async () => {
+    const carregar = vi.fn().mockResolvedValueOnce(siteCom(videoMedido()))
     const l = await doConjunto(conjuntoCom(videoMedido({ m10: naoMedido('serie_diaria_incompleta') })), carregar)
     expect(l?.tipo).toBe('estourou_e_parou')
-    expect(carregar).toHaveBeenCalledTimes(2)
+    expect(carregar).toHaveBeenCalledTimes(1)
+    expect(carregar.mock.calls[0][1].seriesDe).toBeInstanceOf(Map)
   })
   it('série incompleta de verdade (o vídeo está na série do conjunto): não relê a base', async () => {
     const carregar = vi.fn()
