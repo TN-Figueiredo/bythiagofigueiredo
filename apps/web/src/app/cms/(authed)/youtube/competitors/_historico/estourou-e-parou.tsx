@@ -4,6 +4,7 @@
  * O texto obrigatório só entra no estado `estourou_e_parou`. Componente de servidor: sem estado, sem efeito.
  */
 import type { ReactNode } from 'react'
+import { EstourouInfo } from './estourou-info'
 import { EstourouCasas } from '../_chrome/medidas/estourou-casas'
 import { TextoIndicio } from '../_chrome/medidas/texto-indicio'
 import { dataBR, milhar, NOME_DA_LEITURA, pct, REGRAS_DA_LEITURA, somaDiasBR, vezes, type CartaoQuaseNada, type CartaoReacao, type CartaoViewsCedo, type Leitura, type PassaAExistir } from '../_chrome/medidas/estourou-model'
@@ -13,36 +14,12 @@ const IND = <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 13.4 4.6 4
 const AVISO = <svg className="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 14.4 13.4H1.6Z" /><path d="M8 6.6v3.2M8 11.5v.1" /></svg>
 const NM = <span className="lm-nm">não medido</span>
 
-/** O ⓘ: um `<details>` (sem JavaScript), com o método. Texto do NOTAS 14, linha "ⓘ (corpo)". */
-function Info() {
-  const base = `Base: só vídeos com ${R.minDias} dias ou mais e com a medida dos 30 primeiros dias. O normal do canal é a mediana dos vídeos longos (Shorts à parte) que têm essa medida; o canal precisa de ${R.minVideos} deles.`
-  return (
-    <details className="lm-info">
-      <summary aria-label={`Como a leitura ${NOME_DA_LEITURA} é calculada`}>
-        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.5" /><path d="M8 7.2v4M8 4.8v.1" /></svg>
-      </summary>
-      <div className="lm-info-c">
-        <h3>Como a leitura é calculada</h3>
-        <p>Cálculo do Observatório sobre dados públicos do YouTube. É um indício, não uma medição.</p>
-        <ul>
-          <li>{base}</li>
-          <li><b>Muitas views cedo:</b> as views dos 30 primeiros dias são {R.outlierMin}× o normal do canal ou mais.</li>
-          <li><b>Quase nada depois:</b> a parte das views que veio depois do dia 30 é no máximo metade do normal do canal, e o vídeo ganhou no máximo {pct(R.stillMax)} das views dos 30 primeiros dias nos últimos {R.stillDias} dias. As duas precisam bater juntas.</li>
-          <li><b>Pouca reação:</b> (curtidas + comentários) ÷ views aos 30 dias é no máximo metade do normal do canal. Sem curtidas e sem comentários visíveis, a leitura não é dada.</li>
-          <li>Igual ao limite bate. Se só 2 dos 3 sinais batem, não é o caso. Ao vivo e estreia ficam de fora.</li>
-          <li>Os limites são nossos, valem para este canal e são só um ponto de partida: vamos conferi-los contra vídeos reais.</li>
-        </ul>
-      </div>
-    </details>
-  )
-}
-
 function Cabeca({ rotulo }: { rotulo: boolean }) {
   return (
     <header className="lm-h">
       <h2>{rotulo ? <><span className="lm-rot">Leitura:</span> </> : null}{NOME_DA_LEITURA}</h2>
       <span className="lm-ind">{IND}indício</span>
-      <Info />
+      <EstourouInfo />
     </header>
   )
 }
