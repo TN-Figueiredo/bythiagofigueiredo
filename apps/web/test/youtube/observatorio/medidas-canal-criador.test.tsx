@@ -78,7 +78,7 @@ describe('criadorDoCanal: a frase só cita números que estão na legenda (C2 do
     const legenda = b.legenda.map(l => l.texto).join(' | ')
     expect(legenda).toContain('6 em coleta, ainda sem os 30 dias')
     expect(legenda).toContain('7 já tinham mais de 37 dias quando a coleta começou (15/10)')
-    expect(b.frase.resto).toMatch(/^ Só 1 dos 14 vídeos dos últimos \d+ dias já tem o retrato de 30 dias; o primeiro dos outros fecha em \d{2}\/\d{2}\.$/)
+    expect(b.frase.resto).toMatch(/^Só 1 dos 14 vídeos dos últimos \d+ dias já tem o retrato de 30 dias; o primeiro dos outros fecha em \d{2}\/\d{2}\. Quanto ele responde por vídeo ainda não é medido\.$/)
     // os números da frase (fora a janela e a data) são os da legenda e da base
     const numeros = (b.frase.resto.replace(/dos últimos \d+ dias/, '').replace(/retrato de 30 dias/, '').replace(/\d{2}\/\d{2}/, '').match(/\d+/g) ?? []).map(Number)
     const nosDados = new Set([1, 6, 7, 14])
@@ -116,7 +116,7 @@ describe('criadorDoCanal: estados', () => {
     const c = contagem(videos.map(v => [v.id, null, false]), { coletaDoCanalDesdeMs: AGORA - 20 * DIA })
     const m = criadorDoCanal(entrada(videos, c))
     expect(m.celula.valor).toBe('nao_medido')
-    expect(m.bloco.frase.negrito).toBe('Ainda não dá para medir.')
+    expect(m.bloco.frase.negrito).toBe('')
     expect(m.bloco.frase.resto).toMatch(/fecha em \d{2}\/\d{2}/)
   })
   it('item d do Gio (trem 6), refeito no C2: vídeo anterior à coleta mas com retrato de 30 dias é o "1" da frase; nunca "Só 0 dos"', () => {
@@ -230,7 +230,7 @@ describe('a lista', () => {
   it('o vídeo mais recente primeiro, com título', () => {
     const l = listaDoCriador({ nome: 'Matt', resposta: resp(), videos, titulos, nBase: 6 })
     expect(l.tipo).toBe('itens')
-    if (l.tipo === 'itens') expect(l.itens.map(i => i.videoId)).toEqual(['v1', 'v0'])
+    if (l.tipo === 'itens') expect(l.grupos.map(g => g.videoId)).toEqual(['v1', 'v0'])
   })
   it('nível contagem: só o número e a frase de quem vê só a contagem, sem texto', () => {
     const l = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', itens: [] }), videos, titulos, nBase: 6 })

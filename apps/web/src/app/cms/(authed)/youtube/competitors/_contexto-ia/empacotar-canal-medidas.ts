@@ -97,10 +97,8 @@ export interface ListaDoCriadorIa {
   frase: string
   /** O aviso de quem vê só a contagem (ou a permissão não conferida). */
   aviso: string | null
-  subtitulo: string | null
-  /** O título do vídeo, o comentário e a resposta do criador são texto de terceiros. */
-  itens: Array<{ titulo: string; curtidas: string | null; texto: string; resposta: string }>
-  aMais: string | null
+  /** O título do vídeo, o comentário e a resposta do criador são texto de terceiros. O pacote leva TODOS os fios (a tela esconde, o pacote não corta). */
+  grupos: Array<{ titulo: string; respostasDele: string; fios: Array<{ data: string | null; curtidas: string | null; texto: string; /** uma por linha: `dd/mm: texto`, ` …` quando cortada */ respostas: string }> }>
 }
 
 export interface CriadorIa {
@@ -209,18 +207,23 @@ function tempoIa(t: LinhaDoTempo): LinhaDoTempoIa {
   }
 }
 
-const MAIS_RESPOSTAS = (n: number): string => `Mais ${n} ${n === 1 ? 'resposta guardada' : 'respostas guardadas'} não ${n === 1 ? 'cabe' : 'cabem'} nesta lista.`
-
 function listaIa(m: ModeloDaLista): ListaDoCriadorIa {
   const fr = (f: { negrito: string; resto: string }): string => `${f.negrito}${f.resto}`
   if (m.tipo === 'itens') {
+    // as datas vêm prontas do modelo da tela (`dmDeData`, fuso de São Paulo); o pacote não as recalcula
     return {
-      tipo: 'itens', frase: fr(m.frase), aviso: null, subtitulo: m.subtitulo, aMais: m.aMais > 0 ? MAIS_RESPOSTAS(m.aMais) : null,
-      itens: m.itens.map((x) => ({ titulo: x.titulo, curtidas: x.curtidas, texto: `${x.texto}${x.cortado ? ' …' : ''}`, resposta: `${x.respostaTexto}${x.respostaCortada ? ' …' : ''}` })),
+      tipo: 'itens', frase: fr(m.frase), aviso: null,
+      grupos: m.grupos.map((g) => ({
+        titulo: g.titulo, respostasDele: g.respostasDele,
+        fios: g.fios.map((f) => ({
+          data: f.raiz.data, curtidas: f.meta.curtidas, texto: `${f.raiz.texto ?? ''}${f.raiz.cortado ? ' …' : ''}`,
+          respostas: f.respostas.map((x) => `${x.data ? `${x.data}: ` : ''}${x.texto ?? ''}${x.cortado ? ' …' : ''}`).join('\n'),
+        })),
+      })),
     }
   }
   // sem texto de comentário em nenhum outro tipo (a contagem não o carrega)
-  return { tipo: m.tipo, frase: fr(m.frase), aviso: m.tipo === 'contagem' ? fr(m.aviso) : null, subtitulo: null, itens: [], aMais: null }
+  return { tipo: m.tipo, frase: fr(m.frase), aviso: m.tipo === 'contagem' ? fr(m.aviso) : null, grupos: [] }
 }
 
 /** O bloco do criador como a tela o escreve; sem leitura pedida, a frase e a pastilha da tela "não pedida". */
@@ -314,9 +317,9 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   // O que o criador respondeu
   'derivado.medidas.criador.frase': 'terceiros', 'derivado.medidas.criador.pastilha': 'base', 'derivado.medidas.criador.legenda[]': 'base', 'derivado.medidas.criador.sem': 'rotulo',
   'derivado.medidas.criador.lista': CTRL, 'derivado.medidas.criador.lista.tipo': CTRL, 'derivado.medidas.criador.lista.frase': 'terceiros', 'derivado.medidas.criador.lista.aviso': 'base',
-  'derivado.medidas.criador.lista.subtitulo': 'base', 'derivado.medidas.criador.lista.aMais': 'base',
-  'derivado.medidas.criador.lista.itens[].titulo': 'terceiros', 'derivado.medidas.criador.lista.itens[].curtidas': 'base',
-  'derivado.medidas.criador.lista.itens[].texto': 'terceiros', 'derivado.medidas.criador.lista.itens[].resposta': 'terceiros',
+  'derivado.medidas.criador.lista.grupos[].titulo': 'terceiros', 'derivado.medidas.criador.lista.grupos[].respostasDele': 'base',
+  'derivado.medidas.criador.lista.grupos[].fios[].data': 'base', 'derivado.medidas.criador.lista.grupos[].fios[].curtidas': 'base',
+  'derivado.medidas.criador.lista.grupos[].fios[].texto': 'terceiros', 'derivado.medidas.criador.lista.grupos[].fios[].respostas': 'terceiros',
 
   // Ritmo
   'derivado.medidas.ritmo.frase': 'base',
@@ -441,16 +444,21 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
   const K = `${O}.criador`
   const cri = m.criador
   tabelas.push({ id: 'canal-criador-frases', titulo: 'O que o criador respondeu: as frases do bloco e da lista', tipo: 'lista', nomeNoCorte: 'frases do criador', privada: false, colunas: ['Frase'],
-    linhas: [[terceiros(cri.frase, `${K}.frase`)], ...(cri.lista ? [[terceiros(cri.lista.frase, `${K}.lista.frase`)]] : [])] })
-  if (cri.lista && cri.lista.itens.length) {
+    linhas: [...(cri.lista ? [[terceiros(cri.lista.frase, `${K}.lista.frase`)]] : []), [terceiros(cri.frase, `${K}.frase`)]] })
+  if (cri.lista && cri.lista.grupos.length) {
+    // uma linha por fio, na ordem da tela (vídeo mais novo primeiro): o corte por degraus do pacote age sobre as linhas
     tabelas.push({ id: 'canal-criador-respostas', titulo: 'O que o criador respondeu: as respostas guardadas, do vídeo mais recente ao mais antigo', tipo: 'lista', nomeNoCorte: 'respostas do criador', privada: false,
-      colunas: ['Vídeo', 'Curtidas do comentário', 'Comentário', 'Resposta do criador'],
-      linhas: cri.lista.itens.map((x, i): Celula[] => [
-        terceiros(x.titulo, `${K}.lista.itens[${i}].titulo`), x.curtidas !== null ? base(x.curtidas, `${K}.lista.itens[${i}].curtidas`) : rotulo(cri.sem, `${K}.sem`),
-        terceiros(x.texto, `${K}.lista.itens[${i}].texto`), terceiros(x.resposta, `${K}.lista.itens[${i}].resposta`),
-      ]) })
+      colunas: ['Vídeo', 'Respostas dele no vídeo', 'Data', 'Curtidas do comentário', 'Comentário', 'Respostas do criador'],
+      linhas: cri.lista.grupos.flatMap((g, gi) => g.fios.map((f, fi): Celula[] => {
+        const F = `${K}.lista.grupos[${gi}]`
+        return [
+          terceiros(g.titulo, `${F}.titulo`), base(g.respostasDele, `${F}.respostasDele`), f.data !== null ? base(f.data, `${F}.fios[${fi}].data`) : rotulo(cri.sem, `${K}.sem`),
+          f.curtidas !== null ? base(f.curtidas, `${F}.fios[${fi}].curtidas`) : rotulo(cri.sem, `${K}.sem`),
+          terceiros(f.texto, `${F}.fios[${fi}].texto`), terceiros(f.respostas, `${F}.fios[${fi}].respostas`),
+        ]
+      })) })
   }
-  const avisosDoCriador = [cri.pastilha, ...cri.legenda, cri.lista?.aviso ?? null, cri.lista?.subtitulo ?? null, cri.lista?.aMais ?? null].flatMap((x) => (x === null ? [] : [x]))
+  const avisosDoCriador = [cri.pastilha, ...cri.legenda, cri.lista?.aviso ?? null].flatMap((x) => (x === null ? [] : [x]))
   const avisosDoBloco = [...avisosDoCriador, lan.frase, lan.semPonto, hor.frase, hor.aviso, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
   const ausentes = rit.raias.flatMap((r) => (r.ausente ? [r.ausente] : []))
   return { tabelas, avisos: [...(m.topo.faixa ? [m.topo.faixa] : []), dir.frase, ...(dir.queda.nota ? [dir.queda.nota] : []), rit.frase, ...ausentes, ...avisosDoBloco] }

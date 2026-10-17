@@ -34,6 +34,8 @@ export function contextoDoCanal(obs: Observatory, view: CanalView, agoraMs: numb
     sync: { state: ch?.sync.state ?? 'ok', last: ch?.sync.last ?? null, errorSince: ch?.sync.errorSince ?? null },
     hojeSP: dayPt(new Date(agoraMs)), agoraMs, primeiraBusca: ch?.sync.state === 'backfill', semVideos: view.videos.videos.length === 0,
     titulos: view.videos.videos.map(v => [v.id, v.title] as const),
+    thumbs: view.videos.videos.map(v => [v.id, v.ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.ytId)}/mqdefault.jpg` : null] as const),
+    criador: { nome: view.header.name, avatar: view.header.avatar, ini: view.header.ini, color: view.header.color },
     trocas: obs.changesIn({ days: 90, channel: view.header.id }).filter(contaComoTroca).map(c => ({ videoId: c.video, campo: c.type === 'title' ? 'titulo' as const : 'miniatura' as const, emMs: c.at })),
   }
 }

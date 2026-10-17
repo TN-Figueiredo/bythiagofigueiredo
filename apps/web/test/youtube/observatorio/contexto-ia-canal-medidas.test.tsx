@@ -92,6 +92,7 @@ function contexto(caso: Caso): ContextoDoCanal {
     F: { num: (v: number | null) => (v === null ? '—' : String(Math.round(v))), subs: (v: number) => String(v) } as unknown as ContextoDoCanal['F'],
     subs: 84_000, sync: caso.sync ?? SYNC_OK, hojeSP: HOJE_CHEIA, agoraMs: AGORA_CHEIA, primeiraBusca: caso.sync?.state === 'backfill', semVideos: caso.semVideos ?? false,
     titulos: ins.map((v) => [v.id, caso.titulo ? caso.titulo(v.id) : `Título ${v.id}`] as const), trocas: [],
+    thumbs: ins.map((v) => [v.id, null] as const), criador: { nome: 'Matt Wolfe', avatar: null, ini: 'MW', color: '#336699' },
     ...(caso.lidos ? { comentarios: { siteId: 'site-1', channelId: 'ch-1', nome: 'Matt Wolfe', provas: null, permissaoFalhou: caso.permissaoFalhou ?? false } } : {}),
   }
 }
@@ -140,7 +141,7 @@ const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   'canal-linha-do-tempo-eventos': { Dia: '.dia', 'O que aconteceu': '.texto' },
   'canal-linha-do-tempo-raias': { Raia: '.nome', Estado: '.motivo' },
   'canal-criador-frases': { Frase: ['.frase', '.lista.frase'] },
-  'canal-criador-respostas': { Vídeo: '.titulo', 'Curtidas do comentário': ['.curtidas', '.sem'], Comentário: '.texto', 'Resposta do criador': '.resposta' },
+  'canal-criador-respostas': { Vídeo: '.titulo', 'Respostas dele no vídeo': '.respostasDele', Data: ['.data', '.sem'], 'Curtidas do comentário': ['.curtidas', '.sem'], Comentário: '.texto', 'Respostas do criador': '.respostas' },
   'canal-ritmo-parado': { Medida: ['.rotulo', '.limiteRotulo', '.tipicoRotulo'], Valor: ['.dias', '.limite', '.tipico'] },
 }
 const paridade = (m: Montado) => provarParidade({
@@ -428,16 +429,18 @@ describe('Canal, criador: paridade com o bloco, a lista e a célula em cada esta
     const m = await montar(CASOS_CRIADOR[0]![1](), false)
     const t = m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!
     expect(t.linhas).toHaveLength(4)
-    for (const l of t.linhas) { expect(l[0]!.papel).toBe('terceiros'); expect(l[2]!.papel).toBe('terceiros'); expect(l[3]!.papel).toBe('terceiros') }
-    expect(t.linhas.some((l) => l[1]!.papel === 'rotulo' && l[1]!.texto === '—')).toBe(true)
+    for (const l of t.linhas) { expect(l[0]!.papel).toBe('terceiros'); expect(l[4]!.papel).toBe('terceiros'); expect(l[5]!.papel).toBe('terceiros') }
+    expect(t.linhas.some((l) => l[3]!.papel === 'rotulo' && l[3]!.texto === '—')).toBe(true)
     expect(m.textoDoPacote).toContain('Resposta 0 do criador')
   })
 
-  it('mais do que cabe: dez itens na lista e a frase da tela diz quantas ficaram de fora', async () => {
+  it('mais do que cabe na tela: o pacote leva um fio por linha, todos, e nunca diz que não cabem', async () => {
     const m = await montar(CASOS_CRIADOR[1]![1]())
-    expect(m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!.linhas).toHaveLength(10)
-    expect(CRIADOR_PELO_MODELO(m).lista!.aMais).toBe('Mais 3 respostas guardadas não cabem nesta lista.')
-    expect(m.pacote.avisos).toContain('Mais 3 respostas guardadas não cabem nesta lista.')
+    expect(m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!.linhas).toHaveLength(13)
+    expect(m.textoDoPacote).not.toMatch(/não cabem/)
+    const fr = CRIADOR_PELO_MODELO(m).lista!.frase
+    const ocs = m.textoDoPacote.split('\n').filter((l) => l.startsWith('|') && l.includes(fr))
+    expect(ocs, ocs.join(' ## ').slice(0, 1200)).toHaveLength(1)
   })
 
   it('nível contagem: nenhum texto de comentário nem de resposta sai, mesmo que o dado lido traga itens (sentinela)', async () => {
