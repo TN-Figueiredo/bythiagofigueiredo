@@ -35,7 +35,7 @@ import { ListaDeMudancasHistorico } from '@/app/cms/(authed)/youtube/competitors
 import { listaDeMudancas, numerarMudancas, type ListaDeMudancas, type MudancaDoVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/mudancas-model'
 import { leituraDoVideo, type Leitura } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-model'
 import { empacotarVideo, INVENTARIO_VIDEO, modeloDeVideo, type ModeloVideo } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video'
-import { INVENTARIO_MEDIDAS_VIDEO, medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, TEXTOS_DO_ERRO_DO_HISTORICO, type MedidasVideoIa } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-medidas'
+import { INVENTARIO_MEDIDAS_VIDEO, medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, tabelasDeMedidasDoVideo, TEXTOS_DO_ERRO_DO_HISTORICO, type MedidasVideoIa } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-medidas'
 import type { IObservatorioDeMedidas } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import type { HorasDoCanal as HorasLidas, LeituraPorHora } from '@/lib/youtube/observatorio/medidas-telas/ler-horas'
@@ -105,6 +105,7 @@ const LEITURAS: Array<[string, Leitura | null]> = [
   ['não medido (poucos vídeos no canal)', leit(entrada({}, { nElegiveis: 1 }))],
   ['ainda sem leitura', { tipo: 'ainda_nao_existe', existeEm: somaDias(HOJE, 5), esteVideoEm: somaDias(HOJE, 5), hojeSP: HOJE, casas: 'ppp' }],
   ['não foi possível calcular', { tipo: 'nao_carregou' }],
+  ['ainda sem leitura, o vídeo já tem a idade e o canal não tem vídeos para comparar', { tipo: 'ainda_nao_existe', existeEm: somaDias(HOJE, 1), esteVideoEm: somaDias(HOJE, -3), hojeSP: HOJE, casas: 'ppp' }],
 ]
 
 // ───────────────────────── os estados da página
@@ -129,6 +130,7 @@ const CASOS: Caso[] = [
   { nome: 'cheio, não é o caso', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios()) }), leitura: LEITURAS[2]![1] },
   { nome: 'cheio, estourou não medido', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios()) }), leitura: LEITURAS[3]![1] },
   { nome: 'ainda sem leitura do estourou', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios()) }), leitura: LEITURAS[4]![1] },
+  { nome: 'ainda sem leitura do estourou, o vídeo já fez a idade', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios()) }), leitura: LEITURAS[6]![1] },
   { nome: 'estourou não calculou', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios()) }), leitura: LEITURAS[5]![1] },
   { nome: 'sem a leitura por hora (72 horas não medidas)', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios(), { primeiraHoraDoSiteMs: null, porVideo: new Map() }) }) },
   { nome: 'leitura por hora parada', canal: () => canalDe(insumosCheios(), { horas: horasDe(insumosCheios(), { ultimoOkDaTarefaMs: AGORA_CHEIA - 5 * H }) }) },
@@ -209,6 +211,11 @@ describe('Vídeo, medidas: paridade em cada estado da página', () => {
       const m = await montar(caso)
       expect(m.textoDaTela.length).toBeGreaterThan(100)
       expect(() => paridade(m)).not.toThrow()
+      // I2 (portão Yannis, trem 6): a prova de volta. Todo aviso e todo texto de estado que o pacote escreve tem de estar na tela (a regra (b) só vai da tela ao pacote)
+      const tela = normalizar(m.textoDaTela)
+      for (const aviso of tabelasDeMedidasDoVideo(m.medidas).avisos) expect(tela, `aviso: ${aviso}`).toContain(normalizar(aviso))
+      const e = m.medidas.estourou
+      if (e !== null) for (const t of [e.frase, ...e.textos, ...e.indicio]) expect(tela, `estourou: ${t}`).toContain(normalizar(t))
     })
   }
 

@@ -13,7 +13,7 @@ import { canalNaoCarregou } from '@/app/cms/(authed)/youtube/competitors/_canal/
 import type { ContextoDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/canal-derivado'
 import { maisNumeros } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/cabecalho-model'
 import { empacotarCanal, INVENTARIO_CANAL, modeloDeCanal, type ModeloCanal } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal'
-import { INVENTARIO_MEDIDAS_CANAL, projetarMedidas } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-medidas'
+import { INVENTARIO_MEDIDAS_CANAL, projetarMedidas, tabelasDeMedidas } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-medidas'
 import { medidasDoCanal, type Insumos } from '@/lib/youtube/observatorio/medidas/do-canal'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { HorasDoCanal as HorasLidas, LeituraPorHora } from '@/lib/youtube/observatorio/medidas-telas/ler-horas'

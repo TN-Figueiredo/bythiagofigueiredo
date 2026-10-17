@@ -15,7 +15,7 @@ import type { BlocoDeIdade } from '../_historico/medidas/idade-model'
 import type { BlocoDeHoras } from '../_historico/medidas/horas-model'
 import type { CartaoDaSubida, CelulaDaSubida } from '../_historico/medidas/subida-model'
 import type { ListaDeMudancas } from '../_historico/medidas/mudancas-model'
-import { dataBR, milhar, pct, REGRAS_DA_LEITURA as R, vezes, type Leitura } from '../_chrome/medidas/estourou-model'
+import { dataBR, fraseAindaSemLeitura, milhar, pct, REGRAS_DA_LEITURA as R, TEXTOS_NAO_CARREGOU, TITULO_AINDA_SEM_LEITURA, vezes, type Leitura } from '../_chrome/medidas/estourou-model'
 
 // ───────────────────────── a projeção: só texto, na ordem da tela
 const NAO_CARREGOU_TELA = 'Não carregou'
@@ -101,7 +101,6 @@ export interface MedidasVideoIa {
   mudancas: MudancasIa
 }
 
-const dmBR = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 
 function resumoIa(d: DerivadoDoVideo): ResumoIa {
   const r = d.resumo
@@ -143,16 +142,14 @@ function estourouIa(l: Leitura | null): EstourouIa | null {
     case 'ainda_nao_existe':
       return {
         tipo: l.tipo, indicio: [], cartoes: [],
-        frase: `Ainda sem leitura. ${l.esteVideoEm >= l.hojeSP
-          ? `Este vídeo faz ${R.minDias} dias em ${dmBR(l.esteVideoEm)}; a leitura sai nesse dia se houver ${R.minVideos} vídeos do canal com ${R.minDias} dias para comparar.`
-          : `Este vídeo já fez ${R.minDias} dias, em ${dmBR(l.esteVideoEm)}; a leitura ainda não saiu porque o canal não tem ${R.minVideos} vídeos com ${R.minDias} dias para comparar.`}`,
+        frase: `${TITULO_AINDA_SEM_LEITURA} ${fraseAindaSemLeitura(l)}`,
         textos: [],
       }
     case 'nao_carregou':
       return {
         tipo: l.tipo, indicio: [], cartoes: [],
-        frase: 'Não foi possível calcular a leitura agora.',
-        textos: ['Isto não quer dizer que o vídeo não estourou: a leitura não foi calculada. Os números do vídeo acima estão certos.'],
+        frase: TEXTOS_NAO_CARREGOU.titulo,
+        textos: [TEXTOS_NAO_CARREGOU.corpo],
       }
     case 'nao_medido': {
       const passa = l.passaAExistir
