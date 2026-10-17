@@ -11,7 +11,7 @@ import { dm } from './formatos'
 import type { LinhaDoTempo, MarcaDaLinha, RaiaDaLinha } from './linha-do-tempo-model'
 import './canal-medidas.css'
 
-const W = 760, LM = 46, RM = 12, TM = 10, PH = 120, RAIA = 22
+const W = 760, LM = 66, RM = 12, TM = 10, PH = 120, RAIA = 22
 const PW = W - LM - RM
 const NOMES = { videos: 'Vídeos', campos: 'Campos', trocas: 'Trocas' } as const
 const ORDEM = ['videos', 'campos', 'trocas'] as const
@@ -78,7 +78,7 @@ function Miolo({ modelo }: { modelo: LinhaDoTempo }) {
         tabela={{ cabecalho: ['Dia', 'Views ganhas', 'Situação', 'O que aconteceu'], linhas: modelo.tabela.map(l => [...l]) }}
         legenda={<ul className="pc-leg">{modelo.legenda.map(l => <li key={l.chave} data-leg={l.chave}>{l.texto}</li>)}</ul>}
       >
-        <svg className="pc-svg" viewBox={`0 0 ${W} ${alturaTotal}`} width="100%" aria-hidden="true">
+        <svg className="pc-svg" viewBox={`0 0 ${W} ${alturaTotal}`} width={W} height={alturaTotal} aria-hidden="true">
           {[0, 0.5, 1].map((f, i) => (
             <g key={f}>
               <line className="gl-grade" x1={LM} x2={W - RM} y1={Y(b.ymax * f)} y2={Y(b.ymax * f)} />

@@ -14,7 +14,7 @@ import './canal-medidas.css'
 
 const CLASSE: Record<VideoDeLancamento['faixa'], string> = { muito_acima: 'topo', acima: 'alto', perto: 'medio', abaixo: 'baixo', sem_normal: 'sem' }
 
-const W = 640, H = 300, LM = 58, RM = 18, TM = 16, BM = 32
+const W = 640, H = 300, LM = 66, RM = 18, TM = 16, BM = 32
 const PW = W - LM - RM, PH = H - TM - BM
 const IDADES = [1, 2, 3, 5, 7, 14, 21, 30]
 
@@ -33,7 +33,7 @@ function Grafico({ m, sel }: { m: Extract<ModeloDeLancamentos, { tipo: 'curvas' 
   const pts = m.normal.filter((p): p is PontoDoNormal & { valor: number } => p.valor !== null)
   const v0 = m.videos[sel]
   return (
-    <svg className="pc-svg" viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
+    <svg className="pc-svg" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
       <defs>
         <pattern id="pcH" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" className="pc-hp-b" /><line x1="0" y1="0" x2="0" y2="6" className="pc-hp-l" /></pattern>
       </defs>

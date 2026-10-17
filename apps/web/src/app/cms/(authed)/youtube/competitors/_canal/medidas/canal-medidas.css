@@ -134,7 +134,7 @@
 }
 [data-obs-screen="canal"] .pc-chartw{margin-top:4px;min-width:0}
 [data-obs-screen="canal"] .pc-chart{min-width:0;width:100%}
-[data-obs-screen="canal"] .pc-svg{display:block;max-width:100%;overflow:visible}
+[data-obs-screen="canal"] .pc-svg{display:block;max-width:none;overflow:visible}
 [data-obs-screen="canal"] .ic-ax{font:400 12px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;fill:var(--muted)}
 [data-obs-screen="canal"] .pc-tick{stroke:var(--dim);stroke-width:1}
 [data-obs-screen="canal"] .pc-ln{fill:none;stroke-width:1.9;stroke-linejoin:round;stroke-linecap:round;stroke:var(--muted)}

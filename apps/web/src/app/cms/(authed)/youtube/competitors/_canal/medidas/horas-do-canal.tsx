@@ -22,7 +22,7 @@ function Curva({ m }: { m: Extract<ModeloDe72Horas, { tipo: 'medido' }> }) {
     aberto = true
   })
   return (
-    <svg className="pc-svg" viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
+    <svg className="pc-svg" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
       {[0, 0.5, 1].map(f => (
         <g key={f}>
           <line className="ic-grid" x1={LM} x2={W - RM} y1={Y(f)} y2={Y(f)} />
