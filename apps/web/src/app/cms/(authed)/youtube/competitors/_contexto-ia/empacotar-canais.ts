@@ -122,7 +122,7 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP,
   ...Object.fromEntries(['vpd', 'vpd2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.big`, 'numero'], [`${r}.cells.${k}.abs`, 'numero'], [`${r}.cells.${k}.n`, 'numero'],
-    [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL],
+    [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL], [`${r}.cells.${k}.ausencia`, CTRL],
   ])),
   ...Object.fromEntries(['out', 'out2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.videoTitle`, 'terceiros'], [`${r}.cells.${k}.thumb`, IMG], [`${r}.cells.${k}.thumb.*`, IMG],
@@ -219,6 +219,9 @@ export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
   'list.unranked[].cells.out2.thumb',
   'list.unranked[].cells.out2.thumb.*',
   'list.ranked[].cells.vpd.falta',
+  'list.ranked[].cells.vpd.ausencia',
+  'list.ranked[].cells.vpd2.ausencia',
+  'list.unranked[].cells.vpd2.ausencia',
   'list.ranked[].cells.out.falta',
   'list.ranked[].semFormato.label',
   'list.ranked[].semFormato.tip',

@@ -107,6 +107,12 @@ describe('E5a T0b: o retrato antes dos números', () => {
     }
     const atual = JSON.parse(JSON.stringify(retrato).replace(/arredondamento do YouTube: o número real é este ou um pouco maior, em menos de [^"]*?(?=")/g, 'arredondamento do YouTube: <ARRED>')) as typeof retrato
     semTipDoCrescimento(atual)
+    // Desvio 16 (decisão 75): campo NOVO `ausencia` (estado tipado da ausência) em `Numero` e nas células da lista; nenhum número nem texto muda.
+    const semAusencia = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(semAusencia); return }
+      if (o && typeof o === 'object') { const r = o as Record<string, unknown>; delete r.ausencia; Object.values(r).forEach(semAusencia) }
+    }
+    semAusencia(atual)
     // A5 2ª leva T4 (mockup 17): forma e texto da célula de Crescimento mudaram (sem setas, "sem variação", + e −, campos novos para a dica); NÚMERO não.
     // Compara-se o `kind` normalizado (flat/ok/na), o percentual escrito (`big`) e o texto das células sem medida. O canal PRÓPRIO passa a ser medido pelos
     // retratos diários (MG20) que a página já lê: o oráculo não os tem, então a célula dele vira "sem registro"; ele sai da comparação do Crescimento (desvio declarado).
