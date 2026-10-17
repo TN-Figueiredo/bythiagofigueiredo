@@ -532,6 +532,9 @@ if (LIGADO) {
       await expect(pop).toBeVisible()
       const box = await pop.boundingBox()
       expect(box, 'o painel do ⓘ tem caixa medida').not.toBeNull()
+      // com `.pi-pop{pointer-events:none}` (o conserto antigo do G-7) o alvo do clique no meio do painel seria o que está embaixo; o painel tem de ser o alvo
+      const alvoEhOPainel = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#pi-i-metodo'), [box!.x + box!.width / 2, box!.y + box!.height / 2])
+      expect(alvoEhOPainel, 'o meio do painel do ⓘ recebe o clique (não é inerte)').toBe(true)
       await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
       await expect(page.locator('#pi-i-tamanho'), 'o clique no painel atravessou e abriu o ⓘ de baixo').toHaveCount(0)
       await expect(page.locator('#pi-i-numeros')).toHaveCount(0)
