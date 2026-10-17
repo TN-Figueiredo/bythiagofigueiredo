@@ -58,7 +58,13 @@ export async function lerLeituraDoVideo(p: {
       const comSerie = doVideo(await carregar(p.sb, { ...base, seriesDe: new Map([[canal.id, [v.id]]]) }))
       // série pedida e não lida: o motor devolve "série incompleta", que é um motivo de verdade; aqui é falha de leitura
       const ar = comSerie?.m9.aindaRende
-      if (comSerie && ar && ar.estado === 'nao_medido' && (ar.motivo === 'leitura_falhou' || ar.motivo === 'serie_nao_pedida' || ar.motivo === 'calculo_falhou')) return leituraDoVideo(null, null, hojeSP, video)
+      if (comSerie && ar && ar.estado === 'nao_medido' && (ar.motivo === 'leitura_falhou' || ar.motivo === 'serie_nao_pedida' || ar.motivo === 'calculo_falhou')) {
+        // só o motivo no agrupamento: nem id nem título
+        Sentry.captureMessage('observatório: série do vídeo não lida (estourou-e-parou)', {
+          level: 'warning', fingerprint: ['medidas-telas', 'estourou-serie', ar.motivo], tags: { component: 'observatorio', step: 'estourou-e-parou' },
+        })
+        return leituraDoVideo(null, null, hojeSP, video)
+      }
       mv = comSerie
     }
     if (!mv) return leituraDoVideo(null, null, hojeSP, video)

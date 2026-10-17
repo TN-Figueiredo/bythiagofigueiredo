@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
@@ -221,6 +222,7 @@ describe('lerLeituraDoVideo', () => {
       .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') })))
       .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_diaria_incompleta'), m9: { cauda: medido(0.2, 1, J), aindaRende: naoMedido(motivo) } })))
     expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('série do vídeo não lida'), expect.objectContaining({ fingerprint: ['medidas-telas', 'estourou-serie', motivo] }))
   })
   it('canal que não carregou, vídeo ausente do canal e carregador que lança: não carregou, sem lançar', async () => {
     expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(null))))?.tipo).toBe('nao_carregou')
