@@ -20,9 +20,14 @@ import {
 describe.skipIf(skipIfNoLocalDb())('LGPD export flow', () => {
   let admin: SupabaseClient
   let scenario: Awaited<ReturnType<typeof seedLgpdScenario>>
+  // O bythiago_int sobe sem o serviço de storage (listBuckets devolve erro 5xx): os 2 casos de bucket
+  // pulam com motivo explícito em vez de reprovar. Com storage no ar (supabase start completo) rodam.
+  let storageUp = true
 
   beforeAll(async () => {
     admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+    const probe = await admin.storage.listBuckets()
+    storageUp = probe.error === null
     scenario = await seedLgpdScenario(admin, { pendingExport: false })
   })
 
@@ -135,14 +140,16 @@ describe.skipIf(skipIfNoLocalDb())('LGPD export flow', () => {
     await admin.from('lgpd_requests').delete().eq('id', inserted!.id)
   })
 
-  it('lgpd-exports storage bucket exists and is private', async () => {
+  it('lgpd-exports storage bucket exists and is private', async (ctx) => {
+    if (!storageUp) ctx.skip()
     const { data } = await admin.storage.listBuckets()
     const bucket = (data ?? []).find((b) => b.id === 'lgpd-exports')
     expect(bucket).toBeTruthy()
     expect(bucket?.public).toBe(false)
   })
 
-  it('service-role can upload to lgpd-exports bucket', async () => {
+  it('service-role can upload to lgpd-exports bucket', async (ctx) => {
+    if (!storageUp) ctx.skip()
     const path = `${scenario.editorAId}/${randomUUID()}.json`
     const payload = JSON.stringify({ hello: 'world' })
     const { error: upErr } = await admin.storage.from('lgpd-exports').upload(path, payload, {

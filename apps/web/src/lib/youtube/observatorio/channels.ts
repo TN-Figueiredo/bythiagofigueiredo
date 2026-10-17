@@ -50,12 +50,13 @@ export function backfillProgress(row: Pick<SyncRow, 'tracked' | 'video_limit' | 
 
 const vids = (ctx: EngineCtx, ch: Ch): V[] => ch.videos.map(v => ctx.V.get(v.id) ?? (v as V))
 
+export const SEM_MENSAGEM = 'erro sem mensagem registrada'
 export const NEVER_SYNCED = 'nunca sincronizado com sucesso'
 
 /** Owner-facing reason for a channel in trouble; null when ok. */
 export function problemLabel(ctx: EngineCtx, ch: ObsChannel): string | null {
   const s = ch.sync
-  if (s.state === 'erro') return s.msg ? humanizeSyncError(s.msg) : 'erro sem mensagem registrada'
+  if (s.state === 'erro') return s.msg ? humanizeSyncError(s.msg) : SEM_MENSAGEM
   if (s.state === 'atrasado') return s.last == null ? NEVER_SYNCED : 'sem sincronização boa há ' + Math.round((ctx.clock.now - s.last) / H) + ' h'
   if (s.state === 'backfill') return s.backfill ? 'ainda buscando vídeos (' + s.backfill.done + ' de ' + s.backfill.total + ')' : 'ainda buscando vídeos'
   return null

@@ -2,7 +2,7 @@
  * A5 · E9, Tarefa 3: os rótulos do painel "o que some" e a linha "Guardado". Puro. Tabela fora do catálogo aparece com o nome (nunca é omitida):
  * a contagem por catálogo do banco enxerga tabela nova de outra etapa e o painel não pode esconder linha apagada.
  */
-// Rótulos revistos pelo Logan (17/10); única pendência: confirmar com a Naksu se "marca do vídeo" é o termo das telas do A/B (TEXTO-A-REVISAR em competitor_video_marks).
+// Rótulos revistos pelo Logan (17/10).
 import { ehTabelaDeIdentidade } from '../comentarios/identidade'
 
 export interface RotuloDaTabela { um: string; muitos: string; interno?: true }
@@ -26,7 +26,7 @@ export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
   competitor_raw: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_video_tier_spans: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_hour_fold_log: { um: 'registro interno', muitos: 'registros internos', interno: true },
-  competitor_video_marks: { um: 'marca do vídeo', muitos: 'marcas do vídeo' }, // TEXTO-A-REVISAR (MG4)
+  competitor_video_marks: { um: 'marca de idade do vídeo', muitos: 'marcas de idade do vídeo' },
   competitor_missing_baseline: { um: 'registro interno', muitos: 'registros internos', interno: true },
   // achados pela integração da Tarefa 12 (a prévia devolvia o nome cru): tabelas das MG6 e MG4 que entram na cascata do canal e do vídeo
   competitor_collection_pauses: { um: 'registro interno', muitos: 'registros internos', interno: true },

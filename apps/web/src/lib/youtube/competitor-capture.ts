@@ -53,7 +53,8 @@ export const fieldHash = (v: Json): string => sha256Hex(canonicalJson(v)).slice(
 /** Acima disto a resposta de um item não é guardada (e a execução acusa): a maior descrição real tem 5 kB. */
 export const RAW_MAX_BYTES = 100_000
 /** `sanitized`: o texto trazia o que o Postgres rejeita (NUL ou substituto solitário) e foi limpo antes do hash. */
-export interface RawCapture { sha: string; raw: Json; bytes: number; sanitized?: boolean }
+/** `localizacoesCortadas`: o bruto passava de RAW_MAX_BYTES por causa de `localizations`; ela foi trocada por um marcador `{ _omitido: 'tamanho', bytes }`. */
+export interface RawCapture { sha: string; raw: Json; bytes: number; sanitized?: boolean; localizacoesCortadas?: boolean }
 
 /**
  * O que o `text` e o `jsonb` do Postgres rejeitam: o caractere NUL (U+0000) e, no `jsonb`, metade de par UTF-16 sem a outra.
@@ -109,9 +110,17 @@ export function rawOf(item: unknown): RawCapture {
     out[k] = src[k]
   }
   // o hash é do que vai ser gravado: limpa antes de calcular
-  const clean = sanitizeForDb(out)
-  const text = canonicalJson(clean.value as Json)
-  return { sha: sha256Hex(text), raw: JSON.parse(text) as Json, bytes: Buffer.byteLength(text), sanitized: clean.changed }
+  let clean = sanitizeForDb(out)
+  let text = canonicalJson(clean.value as Json)
+  let cut = false
+  if (Buffer.byteLength(text) > RAW_MAX_BYTES && 'localizations' in out) {
+    // X4: o bruto só passa do limite por causa de localizations? Grava sem elas, com marcador explícito (nunca perde o que já era gravado antes do X4)
+    const locBytes = Buffer.byteLength(canonicalJson(sanitizeForDb(out.localizations).value as Json))
+    clean = sanitizeForDb({ ...out, localizations: { _omitido: 'tamanho', bytes: locBytes } })
+    text = canonicalJson(clean.value as Json)
+    cut = true
+  }
+  return { sha: sha256Hex(text), raw: JSON.parse(text) as Json, bytes: Buffer.byteLength(text), sanitized: clean.changed, ...(cut ? { localizacoesCortadas: true } : {}) }
 }
 
 export interface ObservedField { field: string; value: Json }
@@ -219,7 +228,7 @@ export interface PlanClose { id: number; last_seen_at: string | null }
 export interface FieldOpen { video_id: string | null; field: string; value: Json; value_hash: string; first_seen_at: string; window_start: string | null; precision: FieldPrecision }
 export interface RawOpen { video_id: string | null; raw_sha256: string; first_seen_at: string; raw: Json }
 /** sanitized: itens cujo texto trazia NUL ou substituto solitário e foi limpo (M-4). duplicates: itens repetidos no lote (o primeiro vale). invalid: itens de vídeo sem videoId (ficam fora do plano). */
-export interface CaptureStats { fieldsOpened: number; fieldsClosed: number; rawOpened: number; rawClosed: number; rawTooBig: number; sanitized: number; duplicates: number; invalid: number }
+export interface CaptureStats { fieldsOpened: number; fieldsClosed: number; rawOpened: number; rawClosed: number; rawTooBig: number; rawLocalizacoesCortadas: number; sanitized: number; duplicates: number; invalid: number }
 export interface MissedRow { id: string; miss_streak: number; miss_first_at: string | null; missing_since: string | null; last_seen_at: string | null }
 
 const HOUR = 3_600_000
@@ -313,7 +322,7 @@ async function readCurrent<T>(sb: SupabaseClient, table: 'competitor_field_versi
 }
 
 export async function captureItems(sb: SupabaseClient, p: { siteId: string; channelId: string; scope: FieldScope; items: readonly CaptureItem[]; nowIso: string }): Promise<CaptureStats> {
-  const stats: CaptureStats = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 }
+  const stats: CaptureStats = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, rawLocalizacoesCortadas: 0, sanitized: 0, duplicates: 0, invalid: 0 }
   if (!p.items.length) return stats
   if (p.items.length > CAPTURE_CHUNK) throw new Error('não foi possível guardar a captura: no máximo ' + CAPTURE_CHUNK + ' itens por chamada (vieram ' + p.items.length + ')')
   // item de vídeo sem id não tem onde gravar; o repetido (mesmo escopo e id) vale só na primeira vez: os dois abririam a mesma versão e o índice único derrubaria o lote em toda rodada
@@ -337,6 +346,7 @@ export async function captureItems(sb: SupabaseClient, p: { siteId: string; chan
   }
   const rp = planRaw(curRaw, valid, p.nowIso)
   stats.rawTooBig = rp.tooBig
+  stats.rawLocalizacoesCortadas = valid.filter(i => i.raw?.localizacoesCortadas && i.raw.bytes <= RAW_MAX_BYTES).length // cortada por tamanho e gravada: visível, não silencioso
   // lotes de até 1 MB: o fecho de um vídeo vai no mesmo lote da abertura dele (a função fecha antes de abrir)
   const prevId = new Map(curRaw.map(c => [c.video_id ?? '', c.id]))
   const bytesOf = new Map(valid.filter(i => i.raw).map(i => [i.videoId ?? '', i.raw!.bytes]))

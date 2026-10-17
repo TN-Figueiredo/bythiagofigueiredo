@@ -25,7 +25,7 @@ const CHANGE_DETECTION_WINDOW_DAYS = 90
 const PAGE_DELAY_MS = 300
 
 /** As partes pedidas em TODA chamada videos.list. O quadro de cota cobra 1 unidade por chamada, qualquer que seja o número de partes. */
-export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails,status,topicDetails'
+export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails,status,topicDetails,paidProductPlacementDetails,localizations,recordingDetails'
 /** As partes pedidas em channels.list (I-7, decisão do dono 16/10): brandingSettings, topicDetails e status entram de graça no raw. */
 export const CHANNEL_PARTS = 'contentDetails,snippet,statistics,brandingSettings,topicDetails,status'
 
@@ -58,6 +58,7 @@ export interface SyncResult {
   rawClosed?: number
   /** (A5) Respostas acima do teto de tamanho, não guardadas. */
   rawTooBig?: number
+  rawLocalizacoesCortadas?: number
   /** (A5) Itens cujo texto trazia NUL ou substituto solitário e foi limpo antes de gravar. */
   sanitized?: number
   /** (A5) Itens repetidos na mesma resposta (só o primeiro vale). */
@@ -542,7 +543,7 @@ async function runChannel(
   const asked = new Set<string>()
   let missedStats = { missed: 0, newlyMissing: 0 }
   // A captura nunca impede a série do dia: a falha vai para a mesma `lateFailure` (não há segunda variável).
-  const cap = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 }
+  const cap = { fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, rawLocalizacoesCortadas: 0, sanitized: 0, duplicates: 0, invalid: 0 }
   const addCap = (st: CaptureStats): void => { for (const k of Object.keys(cap) as Array<keyof typeof cap>) cap[k] += st[k] }
   // Disjuntor por canal: depois da PRIMEIRA falha de captura nenhum bloco seguinte lê nem grava captura (o banco doente seria
   // repetido a cada bloco). O que deixou de ser capturado por isso conta em `captureSkipped`; quem já foi tentado e falhou não conta.
@@ -596,7 +597,7 @@ async function runChannel(
     ...(removedSkipped ? { removedSkipped } : {}),
     ...(channelPartsMissing ? { channelPartsMissing } : {}),
     ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.fieldsClosed ? { fieldsClosed: cap.fieldsClosed } : {}),
-    ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawClosed ? { rawClosed: cap.rawClosed } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
+    ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawClosed ? { rawClosed: cap.rawClosed } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}), ...(cap.rawLocalizacoesCortadas ? { rawLocalizacoesCortadas: cap.rawLocalizacoesCortadas } : {}),
     ...(cap.sanitized ? { sanitized: cap.sanitized } : {}),
     ...(cap.duplicates ? { duplicates: cap.duplicates } : {}), ...(cap.invalid ? { invalid: cap.invalid } : {}),
     ...(captureSkippedIds.size ? { captureSkipped: captureSkippedIds.size } : {}),

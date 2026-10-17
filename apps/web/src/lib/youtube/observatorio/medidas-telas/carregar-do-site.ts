@@ -100,9 +100,9 @@ const naoLidas = (p: InsumosPlanos): Array<{ medida: string; causa: CausaNaoLida
  * do Sentry; uma falha persistente por canal e por abertura a esgotaria). Depois de fechado, escritas tardias (leitura que estourou o
  * prazo) são descartadas.
  */
-interface Avisos { add(medida: string, causa: string, canal: string): void; fechar(): void; readonly fechado: boolean }
+export interface Avisos { add(medida: string, causa: string, canal: string): void; fechar(): void; readonly fechado: boolean }
 
-function novosAvisos(): Avisos {
+export function novosAvisos(): Avisos {
   const grupos = new Map<string, { medida: string; causa: string; canais: Set<string> }>()
   let fechado = false
   return {
@@ -127,14 +127,14 @@ function novosAvisos(): Avisos {
   }
 }
 
-function comPrazo<T>(p: Promise<T>, ms: number): Promise<T | 'tempo_esgotado'> {
+export function comPrazo<T>(p: Promise<T>, ms: number): Promise<T | 'tempo_esgotado'> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => resolve('tempo_esgotado'), ms)
     p.then((v) => { clearTimeout(t); resolve(v) }, (e: unknown) => { clearTimeout(t); reject(e) })
   })
 }
 
-async function mapaComLimite<A, B>(itens: readonly A[], limite: number, f: (a: A) => Promise<B>): Promise<B[]> {
+export async function mapaComLimite<A, B>(itens: readonly A[], limite: number, f: (a: A) => Promise<B>): Promise<B[]> {
   const out = new Array<B>(itens.length)
   let prox = 0
   const operario = async (): Promise<void> => { for (let i = prox++; i < itens.length; i = prox++) out[i] = await f(itens[i]!) }
@@ -171,6 +171,25 @@ async function lerExtras(sb: SupabaseClient, siteId: string, agoraMs: number): P
   }
 }
 
+/**
+ * E5a T14a: os quatro leitores baratos de UM canal, pela mesma entrada de cache de `carregarMedidasDoSite` (mesma função, mesma chave:
+ * a página do canal depois da lista não relê). Devolve os planos mesmo parciais (`LeituraParcial`); qualquer outro erro lança.
+ */
+export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, last: number | null, avisos: Avisos): Promise<InsumosPlanos> {
+  try {
+    let entrada: EntradaDoCanal
+    if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o, avisos)
+    else {
+      const guardada = await unstable_cache(() => lerParaOCache(sb, o, avisos), ['medidas-telas', String(MEDIDAS_TELAS_V), o.siteId, o.channelId, String(last)], { tags: [observatoryTag(o.siteId)], revalidate: VALIDADE_S })()
+      entrada = o.agoraMs - guardada.lidoEm > VALIDADE_MS ? await lerParaOCache(sb, o, avisos) : guardada
+    }
+    return entrada.planos
+  } catch (err) {
+    if (err instanceof LeituraParcial) return err.insumos
+    throw err
+  }
+}
+
 export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedidas): Promise<MedidasDoSite> {
   const falhas: MedidasDoSite['falhas'] = []
   const avisos = novosAvisos()
@@ -192,19 +211,10 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     const last = lastDe.get(channelId) ?? null
     let planos: InsumosPlanos
     try {
-      let entrada: EntradaDoCanal
-      if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o, avisos)
-      else {
-        const guardada = await unstable_cache(() => lerParaOCache(sb, o, avisos), ['medidas-telas', String(MEDIDAS_TELAS_V), p.siteId, channelId, String(last)], { tags: [observatoryTag(p.siteId)], revalidate: VALIDADE_S })()
-        entrada = p.agoraMs - guardada.lidoEm > VALIDADE_MS ? await lerParaOCache(sb, o, avisos) : guardada
-      }
-      planos = entrada.planos
-    } catch (err) {
-      if (!(err instanceof LeituraParcial)) {
-        falhou(channelId, 'leitura', 'erro_do_banco')
-        return { naoCarregou: 'erro_do_banco' }
-      }
-      planos = err.insumos
+      planos = await lerPlanosDoCanal(sb, o, last, avisos)
+    } catch {
+      falhou(channelId, 'leitura', 'erro_do_banco')
+      return { naoCarregou: 'erro_do_banco' }
     }
     for (const f of naoLidas(planos)) {
       falhou(channelId, f.medida, f.causa)

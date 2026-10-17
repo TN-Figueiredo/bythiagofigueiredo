@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { fakeSupabase, type FakeDb, type Row } from '../../helpers/fake-supabase'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { TIPO_ALCANCE } from '@/lib/youtube/observatorio/proprio/ler'
@@ -101,6 +102,33 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChan
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: vi.fn(), cancelForjaReading: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn(), back: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/x', useSearchParams: () => new URLSearchParams('') }))
 vi.mock('next/link', () => ({ default: ({ href, children }: { href: string; children?: ReactNode }) => <a href={href}>{children}</a> }))
+
+// ---- lista fechada do canal de concorrente (falha 4 do portão da tela 15) ----
+interface Leitura1 { tabela: string; eqs: Record<string, unknown> }
+/** Tudo o que `carregarMedidasDoCanalInteiro` pode ler de um concorrente: dado PÚBLICO do canal e dos vídeos dele. */
+const LISTA_FECHADA = new Set([
+  'competitor_channels', 'competitor_videos', 'competitor_video_marks', 'competitor_video_mark_misses', 'competitor_channel_snapshots',
+  'competitor_video_daily', 'competitor_video_early', 'competitor_video_versions', 'competitor_field_versions', 'competitor_video_hourly', 'competitor_agenda_runs',
+])
+/** Têm coluna `site_id` e são sempre lidas com ela. As outras (snapshots, daily, early, versions, agenda_runs) filhas de vídeo/canal já do site, ou do banco inteiro (agenda). */
+const COM_SITE = ['competitor_channels', 'competitor_video_marks', 'competitor_video_mark_misses', 'competitor_field_versions', 'competitor_video_hourly']
+/** Nenhuma tabela do dado privado do canal próprio, de comentário ou de pessoa. */
+const PRIVADAS = /^yt_own_|^yt_reporting_|comment|author|user|profile|member|subscriber|audience/i
+const foraDaLista = (ls: Leitura1[]) => [...new Set(ls.map(l => l.tabela).filter(t => !LISTA_FECHADA.has(t)))]
+const semSite = (ls: Leitura1[]) => [...new Set(ls.filter(l => COM_SITE.includes(l.tabela) && l.eqs.site_id !== S).map(l => l.tabela))]
+/** Embrulha o cliente: cada `.from(t)` guarda a tabela e os `.eq()` dessa consulta. */
+function espiao(real: SupabaseClient): { client: SupabaseClient; lidas: Leitura1[] } {
+  const lidas: Leitura1[] = []
+  const from = (tabela: string) => {
+    const q = real.from(tabela) as unknown as { eq: (c: string, v: unknown) => unknown }
+    const eqs: Record<string, unknown> = {}
+    lidas.push({ tabela, eqs })
+    const eq = q.eq.bind(q)
+    q.eq = (c, v) => { eqs[c] = v; return eq(c, v) }
+    return q
+  }
+  return { client: { from } as unknown as SupabaseClient, lidas }
+}
 
 let db: FakeDb
 beforeEach(() => {
@@ -256,16 +284,42 @@ describe('13.3 segurança do canal próprio: quem edita × quem só lê', () => 
     }
   })
 
-  it('canal de concorrente e canal inexistente: nenhum dado privado é lido nem o cliente de serviço criado, mesmo para quem edita (a única guarda é a da própria página-base)', async () => {
-    for (const id of [concorrente.id, 'nao-existe', 'x\'; drop table', w.canalId.replace(/.$/, '1')]) {
+  it('canal inexistente: nem o cliente de serviço é criado nem o banco consultado; canal de concorrente: só a lista fechada de tabelas públicas é lida, sempre com o site, e nada privado', async () => {
+    // (a) inexistente (e ids hostis): nada é lido nem criado
+    for (const id of ['nao-existe', 'x\'; drop table', w.canalId.replace(/.$/, '1')]) {
       guarda.chamadas = 0
       render(await rota(id))
-      // o "NN%" curto colide com percentuais PÚBLICOS da página do concorrente (engajamento…): essas procuram-se só nas telas do canal próprio
       expect(achados(SENTINELAS.filter(x => !/^\d\d%$/.test(x.nome)), html(), texto()), id).toEqual([])
       expect(guarda.chamadas, id).toBe(1)
       expect(servico.criado, id).toBe(0)
       expect(db.trips, id).toEqual([])
       cleanup()
     }
+    // (b) concorrente (falha 4 do portão da tela 15): a T19 lê as medidas do concorrente com o cliente de serviço DEPOIS da guarda da
+    // página (como `_outliers/montar.ts`). Só as tabelas públicas de `carregarMedidasDoCanalInteiro` podem aparecer.
+    guarda.chamadas = 0; servico.criado = 0; db.trips.length = 0
+    const { client, lidas } = espiao(db.client)
+    servico.cliente = client
+    render(await rota(concorrente.id))
+    expect(achados(SENTINELAS.filter(x => !/^\d\d%$/.test(x.nome)), html(), texto()), 'concorrente').toEqual([])
+    expect(guarda.chamadas).toBe(1)
+    expect(lidas.length).toBeGreaterThan(0)
+    expect(foraDaLista(lidas)).toEqual([])
+    expect(lidas.map(l => l.tabela).filter(t => PRIVADAS.test(t))).toEqual([])
+    expect(semSite(lidas)).toEqual([])
+    cleanup()
+  })
+
+  it('controle negativo: uma leitura de yt_own_video_daily, de yt_reporting_*, de comentário ou sem site_id reprova as afirmações da lista fechada', () => {
+    const boa: Leitura1[] = [{ tabela: 'competitor_channels', eqs: { id: 'c', site_id: S } }, { tabela: 'competitor_video_daily', eqs: {} }]
+    expect(foraDaLista(boa)).toEqual([])
+    expect(semSite(boa)).toEqual([])
+    for (const t of ['yt_own_video_daily', 'yt_reporting_reports', 'yt_own_video_reach_daily', 'competitor_comments', 'competitor_comment_authors']) {
+      const ruim = [...boa, { tabela: t, eqs: { site_id: S } }]
+      expect(foraDaLista(ruim), t).toEqual([t])
+      expect(ruim.map(l => l.tabela).filter(x => PRIVADAS.test(x)), t).toEqual([t])
+    }
+    expect(semSite([{ tabela: 'competitor_channels', eqs: { id: 'c' } }])).toEqual(['competitor_channels'])
+    expect(semSite([{ tabela: 'competitor_video_hourly', eqs: { site_id: 'outro' } }])).toEqual(['competitor_video_hourly'])
   })
 })

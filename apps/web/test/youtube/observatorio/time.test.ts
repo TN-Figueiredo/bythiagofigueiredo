@@ -54,6 +54,11 @@ describe('pt-BR numbers', () => {
     expect(f.mult(4)).toBe('4,0×'); expect(f.pct(-0.41)).toBe('−41%'); expect(f.pp(-3.4)).toBe('−3 pp'); expect(f.pp(12.6)).toBe('+13 pp')
   })
   it('subs keeps 3 significant digits', () => { expect(f.subs(3214)).toBe('3,21 mil'); expect(f.subs(128_400)).toBe('128 mil') })
+  it('subs never drops zeros of a whole number', () => {
+    expect(f.subs(100_000)).toBe('100 mil'); expect(f.subs(120_000)).toBe('120 mil'); expect(f.subs(250_000)).toBe('250 mil')
+    expect(f.subs(10_000)).toBe('10 mil'); expect(f.subs(10_000_000)).toBe('10 mi'); expect(f.subs(2_000)).toBe('2 mil')
+    expect(f.subs(2_500)).toBe('2,5 mil'); expect(f.subs(1_200_000)).toBe('1,2 mi')
+  })
   it('age uses whole days, hours under a day', () => {
     expect(f.age({ ageDays: 30, pub: NOW - 30.9 * DAY })).toBe('há 30 dias')
     expect(f.age({ ageDays: 0, pub: NOW - 11 * 36e5 })).toBe('há 11 h')

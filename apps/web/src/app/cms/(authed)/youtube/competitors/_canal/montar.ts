@@ -21,6 +21,7 @@ import { dmDia } from '../_proprio/extras'
 import { concorrentesDoSite, posicaoDoSite } from '../_proprio/posicao-do-site'
 import { buildAssistidoDoCanal, buildProprioView, janelaDaOrigemDoCanal, periodosDaOrigemDoCanal, publicacaoMaisAntiga } from '../_proprio/view-model'
 import type { AssistidoPeriodosView } from '../_proprio/assistido-periodo-model'
+import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { buildCanalView } from './view-model'
 
 type Obs = NonNullable<ChannelPage['obs']>
@@ -79,7 +80,9 @@ export type MontarCanal =
       recente: string | null; estado: Flat; privado: EstadoDoPrivado }
   | { tipo: 'proprio_sem_videos'; pagina: ChannelPage; obs: Obs; proprio: Canal; recente: string | null }
   | { tipo: 'concorrente'; pagina: ChannelPage; obs: Obs; view: NonNullable<ReturnType<typeof buildCanalView>>; canAdmin: boolean
-      leituraMv: ReturnType<typeof buildMudancasView> | null; recente: string | null; estado: Flat }
+      leituraMv: ReturnType<typeof buildMudancasView> | null; recente: string | null; estado: Flat
+      /** A leitura das medidas do canal, já em andamento (E5a T19); nula quando quem monta não a pediu (o pacote "Perguntar a uma IA"). */
+      medidas: Promise<CanalInteiro> | null }
   | { tipo: 'nao_encontrado'; pagina: ChannelPage; recente: null }
 
 const recenteDe = (obs: Obs): string | null => (obs.SYNC.last == null ? null : obs.SYNC.title)
@@ -89,7 +92,15 @@ const recenteDe = (obs: Obs): string | null => (obs.SYNC.last == null ? null : o
  * parâmetros planos da URL. Canal próprio sem vídeos é resolvido ANTES de qualquer leitura privada. O `siteId` não é parâmetro: vem da guarda.
  * Os cartões de período e a origem voltam como funções, para a página continuar a pedi-los num `Suspense` próprio.
  */
-export async function montarCanal(id: string, sp: Flat): Promise<MontarCanal> {
+export interface OpcoesDoMontarCanal {
+  /**
+   * Chamada UMA vez no ramo do concorrente, depois de `view` existir e ANTES de `canAdminSiteUsers` (a leitura corre em paralelo com ela e
+   * com a leitura do nicho). Devolve a promessa, que a página passa aos três elementos de servidor. Ausente = nenhuma leitura de medida.
+   */
+  iniciarMedidas?: (c: { pagina: ChannelPage; obs: Obs; view: NonNullable<ReturnType<typeof buildCanalView>> }) => Promise<CanalInteiro>
+}
+
+export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCanal = {}): Promise<MontarCanal> {
   const pagina = await openChannelPage(id)
   const { obs, siteId, now, leitura: leituraPrivada, ownYtIds, canEdit, owns } = pagina
   if (!obs) return { tipo: 'nao_encontrado', pagina, recente: null }
@@ -128,6 +139,7 @@ export async function montarCanal(id: string, sp: Flat): Promise<MontarCanal> {
   }
   const view = buildCanalView(obs, id, sp)
   if (!view) return { tipo: 'nao_encontrado', pagina, recente: null }
+  const medidas = opcoes.iniciarMedidas ? opcoes.iniciarMedidas({ pagina, obs, view }) : null
   const canAdmin = await canAdminSiteUsers(siteId)
   // Só a aba Leitura lê o conjunto do site (o do canal não tem o que agrega entre canais, como forja.niches); as outras abas não pagam por isso.
   let leituraMv: ReturnType<typeof buildMudancasView> | null = null
@@ -135,5 +147,5 @@ export async function montarCanal(id: string, sp: Flat): Promise<MontarCanal> {
     const site = await openObservatoryPage()
     leituraMv = buildMudancasView(site.obs, { niche: view.header.niche }, new Set())
   }
-  return { tipo: 'concorrente', pagina, obs, view, canAdmin, leituraMv, recente: recenteDe(obs), estado: sp }
+  return { tipo: 'concorrente', pagina, obs, view, canAdmin, leituraMv, recente: recenteDe(obs), estado: sp, medidas }
 }

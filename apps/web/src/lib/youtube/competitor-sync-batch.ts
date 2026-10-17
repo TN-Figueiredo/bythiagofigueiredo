@@ -87,7 +87,7 @@ const isBatchRow = (x: unknown): x is BatchRow => {
 
 export interface BatchTotals {
   unitsUsed: number; dailyRecorded: number; weeklyRecorded: number; weeklyDeferred: number; earlyRecorded: number
-  fieldsOpened: number; fieldsClosed: number; rawOpened: number; rawClosed: number; rawTooBig: number
+  fieldsOpened: number; fieldsClosed: number; rawOpened: number; rawClosed: number; rawTooBig: number; rawLocalizacoesCortadas: number
   missed: number; newlyMissing: number; returned: number; tierChanges: number; cutByCap: number; excludedNoCount: number
   promoted: number; promotionExtended: number; longWindowChanges: number
   partsMissing: number; channelPartsMissing: number; sanitized: number; duplicates: number; invalid: number; captureSkipped: number
@@ -96,7 +96,7 @@ export interface BatchTotals {
 }
 const zeroTotals = (): BatchTotals => ({
   unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, weeklyDeferred: 0, earlyRecorded: 0,
-  fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0,
+  fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, rawLocalizacoesCortadas: 0,
   missed: 0, newlyMissing: 0, returned: 0, tierChanges: 0, cutByCap: 0, excludedNoCount: 0,
   promoted: 0, promotionExtended: 0, longWindowChanges: 0,
   partsMissing: 0, channelPartsMissing: 0, sanitized: 0, duplicates: 0, invalid: 0, captureSkipped: 0,
@@ -105,7 +105,7 @@ const zeroTotals = (): BatchTotals => ({
 })
 /** Os contadores da sincronização de um canal que somam direto nos totais do disparo (os mesmos nomes nos dois lados). */
 const SYNC_SUMMED = [
-  'unitsUsed', 'dailyRecorded', 'earlyRecorded', 'fieldsOpened', 'fieldsClosed', 'rawOpened', 'rawClosed', 'rawTooBig',
+  'unitsUsed', 'dailyRecorded', 'earlyRecorded', 'fieldsOpened', 'fieldsClosed', 'rawOpened', 'rawClosed', 'rawTooBig', 'rawLocalizacoesCortadas',
   'missed', 'newlyMissing', 'returned', 'tierChanges', 'cutByCap', 'excludedNoCount', 'promotionExtended',
   'partsMissing', 'channelPartsMissing', 'sanitized', 'duplicates', 'invalid', 'captureSkipped', 'quotaUnitsLost',
 ] as const satisfies ReadonlyArray<keyof BatchTotals & keyof SyncResult>

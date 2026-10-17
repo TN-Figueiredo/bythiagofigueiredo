@@ -38,6 +38,32 @@ describe('rawOf', () => {
     expect(rawOf(a).sha).toBe(rawOf(b).sha)
     expect(rawOf({ ...a, topicDetails: { topicIds: ['/m/9'] } }).sha).not.toBe(rawOf(a).sha)
   })
+  it('X4: paidProductPlacementDetails, localizations e recordingDetails entram no raw e a ordem das chaves não muda o hash', () => {
+    const a = { ...item, paidProductPlacementDetails: { hasPaidProductPlacement: true }, localizations: { pt: { title: 'T', description: 'D' }, en: { title: 'E', description: 'F' } }, recordingDetails: { recordingDate: '2026-01-01T00:00:00Z' } }
+    const b = { ...item, recordingDetails: { recordingDate: '2026-01-01T00:00:00Z' }, localizations: { en: { description: 'F', title: 'E' }, pt: { description: 'D', title: 'T' } }, paidProductPlacementDetails: { hasPaidProductPlacement: true } }
+    for (const k of ['paidProductPlacementDetails', 'localizations', 'recordingDetails']) expect(rawOf(a).raw).toHaveProperty(k)
+    expect(rawOf(a).sha).toBe(rawOf(b).sha)
+    expect(rawOf({ ...a, localizations: { pt: { title: 'X', description: 'D' } } }).sha).not.toBe(rawOf(a).sha)
+  })
+  it('X4 bruto grande: (a) passa só por causa de localizations → grava sem elas, com marcador; (b) grande sem localizations → segue grande; (c) hash estável', () => {
+    const big = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => ['l' + i, { title: 'T'.repeat(500), description: 'D'.repeat(500) }]))
+    const a = { ...item, localizations: big(150) }
+    const r = rawOf(a)
+    expect(r.localizacoesCortadas).toBe(true)
+    expect(r.bytes).toBeLessThanOrEqual(RAW_MAX_BYTES)
+    const loc = (r.raw as Record<string, unknown>).localizations as Record<string, unknown>
+    expect(loc._omitido).toBe('tamanho')
+    expect(loc.bytes).toBeGreaterThan(RAW_MAX_BYTES)
+    expect((r.raw as Record<string, unknown>).snippet).toEqual((item as Record<string, unknown>).snippet)
+    expect(rawOf({ ...a }).sha).toBe(r.sha)
+    expect(planRaw([], [{ videoId: 'v1', fields: [], raw: r, prevSeenAt: null, weeklySince: null }], '2026-06-10T15:00:00.000Z')).toMatchObject({ tooBig: 0 })
+    const pequeno = rawOf({ ...item, localizations: big(2) })
+    expect(pequeno.localizacoesCortadas).toBeUndefined()
+    const semLoc = rawOf({ ...item, description: 'x'.repeat(RAW_MAX_BYTES + 10) })
+    expect(semLoc.localizacoesCortadas).toBeUndefined()
+    expect(semLoc.bytes).toBeGreaterThan(RAW_MAX_BYTES)
+    expect(rawOf({ ...item, description: 'x'.repeat(RAW_MAX_BYTES + 10), localizations: big(2) }).bytes).toBeGreaterThan(RAW_MAX_BYTES)
+  })
   it('(M-1) não altera o item de ENTRADA: statistics e concurrentViewers continuam nele', () => {
     const before = structuredClone(item)
     rawOf(item)
@@ -420,7 +446,7 @@ describe('captureItems', () => {
   const item: CaptureItem = { videoId: 'v1', fields: [{ field: 'tags', value: ['a'] }], raw: { sha: 'r1', raw: { id: 'x' }, bytes: 10 }, prevSeenAt: null, weeklySince: null }
   it('item 223: nada mudou → duas leituras e ZERO gravações', async () => {
     const db = captureDb({ fields: [{ id: 1, video_id: 'v1', field: 'tags', value_hash: fieldHash(['a']) }], raws: [{ id: 2, video_id: 'v1', raw_sha256: 'r1' }] })
-    expect(await captureItems(db.sb, { ...base, items: [item] })).toEqual({ fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 })
+    expect(await captureItems(db.sb, { ...base, items: [item] })).toEqual({ fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, rawLocalizacoesCortadas: 0, sanitized: 0, duplicates: 0, invalid: 0 })
     expect(db.calls.filter(c => c.kind === 'rpc')).toEqual([])
     expect(db.calls.filter(c => c.kind === 'select')).toHaveLength(2)
   })

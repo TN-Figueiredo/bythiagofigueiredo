@@ -677,6 +677,27 @@ describe('passoRetencao: o relógio', () => {
     expect(ctx.falhas).toEqual([])
   })
 
+  it('canal alcançado com zero leituras (o prazo vence no token, antes da 1ª chamada): canal ok, vídeos nao_alcancado_orcamento, nenhuma chamada', async () => {
+    const f = fetchFalso()
+    const db = bd(lidosHoje(3))
+    const ctx = ctxDe(db)
+    const r = await passoRetencao(ctx, {
+      token: async () => {
+        vi.setSystemTime(new Date(AGORA.getTime() + 60_000))
+        return 'tok'
+      },
+    })
+    expect(f).not.toHaveBeenCalled()
+    expect(r.gravados).toBe(0)
+    expect(r.pendentes).toBe(3)
+    // o passo chegou no canal: 'ok' (a fome é vigiada pelas tentativas de vídeo, abaixo), nunca 'nao_alcancado_orcamento'
+    expect(tentCanal(db)).toMatchObject({ outcome: 'ok' })
+    const videos = tentativas(db).filter(t => t.scope_type === 'video')
+    expect(videos).toHaveLength(3)
+    expect(videos.every(t => t.outcome === 'nao_alcancado_orcamento')).toBe(true)
+    expect(ctx.falhas).toEqual([])
+  })
+
   it('o relógio acaba com a chamada no ar: SemTempoError vira orçamento, não erro', async () => {
     fetchFalso({ [idDoVideo(1)]: () => { vi.setSystemTime(new Date(AGORA.getTime() + 60_000)); return new Error('abortado') } })
     const db = bd(lidosHoje(1))
