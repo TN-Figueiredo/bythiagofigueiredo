@@ -126,7 +126,7 @@ describe('R5: a página', () => {
     const dono = obs.ownChannels()[0]!.id
     const ins = props.ri!.inscritos
     if (ins.estado !== 'ok') throw new Error('esperava ok, veio ' + ins.estado)
-    expect(ins.linhas.find(l => l.id === dono)!.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · histórico não carregou' })
+    expect(ins.linhas.find(l => l.id === dono)!.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · a leitura do histórico falhou' })
     expect(ins.linhas.some(l => l.id !== dono && l.classe != null)).toBe(true)
   })
   it('R9b: sem canal próprio no obs, a página não consulta nada e nada vai ao Sentry', async () => {

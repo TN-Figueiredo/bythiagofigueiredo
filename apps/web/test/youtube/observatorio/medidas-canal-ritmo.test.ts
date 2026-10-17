@@ -73,7 +73,7 @@ describe('bloco Ritmo: dado ausente', () => {
     expect(b.frase.tom).toBe('nao_carregou')
     expect(b.raias).toEqual([])
     expect(b.cartoes.every(c => c.valor.tipo === 'nao_carregou')).toBe(true)
-    expect(html(entrada(seis, { medidas: null }))).toContain('Não carregou')
+    expect(html(entrada(seis, { medidas: null }))).toContain('falhou')
   })
   it('canal ainda buscando vídeos: "Ritmo parcial" e "pelo que já foi buscado"', () => {
     const e = entrada(seis, { estado: estadoDaPagina(m8('ativo'), { state: 'backfill', last: null, errorSince: null }, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA) })

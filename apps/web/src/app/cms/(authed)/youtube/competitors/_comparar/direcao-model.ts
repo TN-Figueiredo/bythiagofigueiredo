@@ -103,7 +103,7 @@ function fraseDoLado(l: LadoMedidas, nome: string, principal: 'a' | 'c'): FraseD
   if (l.naoCarregou) return { tipo: 'erro', nome }
   const p = medidaDe(l, principal)
   if (p.tipo !== 'medido') {
-    const porque = p.tipo === 'nao_medido' || p.tipo === 'canal_proprio' ? p.porque : p.tipo === 'nao_carregou' ? 'os números não carregaram' : 'ainda não existe'
+    const porque = p.tipo === 'nao_medido' || p.tipo === 'canal_proprio' ? p.porque : p.tipo === 'nao_carregou' ? 'a leitura dos números falhou' : 'ainda não existe'
     return { tipo: 'sem_direcao', nome, porque }
   }
   const corpo = principal === 'a' ? `${p.texto} de views no canal inteiro, 28 dias contra 28` : `${p.texto} de views aos 30 dias nos vídeos novos, 90 dias contra 90`
@@ -176,7 +176,7 @@ function fechoDoApoio(a: ApoioDoLado): string {
 /** A frase de um lado do grupo Direção, escrita. */
 export function fraseEscrita(f: FraseDoLado): string {
   switch (f.tipo) {
-    case 'erro': return `${f.nome}: os números não carregaram.`
+    case 'erro': return `${f.nome}: a leitura dos números falhou.`
     case 'sem_direcao': return `${f.nome}: sem direção, ${f.porque}.`
     case 'direcao': return `${f.nome}: ${PALAVRA[f.simbolo]}, ${f.corpo}.${fechoDoApoio(f.apoio)}`
   }

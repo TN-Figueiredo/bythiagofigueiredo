@@ -3,13 +3,14 @@ import type { CanaisRow } from './view-model'
 import { Direcao, PALAVRA_DA_DIRECAO } from '../_chrome/medidas/direcao'
 import { ReguaDirecao } from '../_chrome/medidas/regua-direcao'
 import { EstadoDoCanal } from '../_chrome/medidas/estado-canal'
-import { NaoCarregou, NaoMedido } from '../_chrome/medidas/marcas'
+import { NaoMedido } from '../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 const JANELA = MEASURE_RULES.direction.windowDays
 
 export function DirecaoCell({ r, cartao = false }: { r: CanaisRow; cartao?: boolean }) {
   const d = r.direcao
-  if (d.tipo === 'nao_carregou') return <NaoCarregou />
+  if (d.tipo === 'nao_carregou') return <PastilhaAusencia estado="falhou" />
   if (d.tipo === 'nao_medido' || d.tipo === 'canal_proprio') return <NaoMedido curta={d.curta} longa={d.longa} />
   const n = r.direcaoNumeros
   const exato = (d.ganhoRecente - d.ganhoAnterior) / d.ganhoAnterior
@@ -37,7 +38,7 @@ export function EstadoLinha({ r }: { r: CanaisRow }) {
     case 'canal_proprio':
       return e.linha ? <div className="obs-cn-est obs-md-apoio" data-estado="canal_proprio">{e.linha}</div> : null
     case 'nao_carregou':
-      return <div className="obs-cn-est" data-estado="nao_carregou"><NaoCarregou /></div>
+      return <div className="obs-cn-est" data-estado="nao_carregou"><PastilhaAusencia estado="falhou" /></div>
     case 'nao_medido':
       return <div className="obs-cn-est" data-estado="nao_medido"><NaoMedido curta={e.linha ?? 'não medido'} longa={e.longa ?? ''} /></div>
     case 'pausado':

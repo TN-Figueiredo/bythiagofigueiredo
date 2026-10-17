@@ -2,7 +2,8 @@
  * E5a Tarefa 21a: a faixa de números do resumo (Views agora; Com 1, 7 e 30 dias; Subida). Cada célula tem uma das quatro formas
  * (número, zero medido em caixa vazada, não medido em hachura, ainda não existe pontilhado) e nunca troca de aparência. Componente de servidor.
  */
-import { NaoCarregou, NaoMedido, ZeroMedido } from '../../_chrome/medidas/marcas'
+import { NaoMedido, ZeroMedido } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { abrev } from './formatos'
 import type { FaixaDeNumeros } from './resumo-model'
 import type { CelulaDeIdade } from './idade-model'
@@ -30,7 +31,7 @@ function Subida({ c }: { c: CelulaDaSubida }) {
       <dd>
         {c.estado === 'ok' ? <><b className="num">{c.valor}</b>{c.razao ? <span className="rz">{c.razao}</span> : null}</>
           : c.estado === 'neutro' ? <span className="hv-neu">{c.valor}</span>
-          : c.estado === 'nao_carregou' ? <NaoCarregou />
+          : c.estado === 'nao_carregou' ? <PastilhaAusencia estado="falhou" />
           : <NaoMedido curta={c.sub} longa={`Subida: ${c.sub}`} />}
       </dd>
     </div>

@@ -55,8 +55,8 @@ const CURTAS: Record<MotivoNaoMedido, (c: ContextoDaFrase) => string> = {
   serie_diaria_incompleta: () => 'dia a dia incompleto',
   arquivado: () => 'vídeo arquivado',
   sem_permissao: () => 'só para quem edita',
-  leitura_falhou: () => 'não carregou',
-  calculo_falhou: () => 'não carregou',
+  leitura_falhou: () => 'a leitura falhou',
+  calculo_falhou: () => 'o cálculo falhou',
   coleta_pausada: () => 'coleta pausada',
   nao_se_aplica: () => 'esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos',
 }

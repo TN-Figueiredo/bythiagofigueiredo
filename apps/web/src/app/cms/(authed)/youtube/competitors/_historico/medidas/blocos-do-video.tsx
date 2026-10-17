@@ -12,7 +12,7 @@ import { lerLeituraDoConjunto, type IObservatorioDaLeitura } from '../../_chrome
 import type { ForjaAsk, ForjaCancel } from '../../_chrome/forja-view-model'
 import type { PinAction } from '../../_chrome/pin-kit'
 import { Carregando } from '../../_chrome/comentarios/estados'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { ComentariosDeDestaque, type ProvasResolvidas } from '../comentarios-de-destaque'
 import { EstourouEParou } from '../estourou-e-parou'
 import { HistoricoScreen } from '../historico-screen'
@@ -98,7 +98,7 @@ export async function BlocosDoVideo(p: PropsBlocosDoVideo) {
       {estourou}
       <Horas72 bloco={d.horas} />
       {/* a série não foi lida; o gráfico por dia vem do motor, só os acréscimos dele faltam */}
-      {d.serieLida ? null : <section className="hv-card" aria-label="Acréscimos do gráfico por dia" data-dias="nao_carregou"><NaoCarregou medida="os acréscimos do gráfico por dia (subida, saída do YouTube, forma por semana)" /></section>}
+      {d.serieLida ? null : <section className="hv-card" aria-label="Acréscimos do gráfico por dia" data-dias="nao_carregou"><PastilhaAusencia estado="falhou" motivo="os acréscimos do gráfico por dia (subida, saída do YouTube, forma por semana)" /></section>}
     </>
   )
   const depois = (

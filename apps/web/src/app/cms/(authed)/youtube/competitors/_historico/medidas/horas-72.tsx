@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { BlocoAindaNaoExiste, BlocoNaoMedido, CabecaDoBloco } from './hv-pecas'
 import { Regua72h } from './regua-72h'
 import { milhar } from './formatos'
@@ -86,11 +86,11 @@ function Estado({ texto, tipo }: { texto: string; tipo: string }) {
 
 export function Horas72({ bloco }: { bloco: BlocoDeHoras }) {
   const ROT = 'Como ler as 72 horas'
-  if (bloco.tipo === 'nao_carregou') {
+  if (bloco.tipo === 'nao_carregou' || (bloco.tipo === 'nao_medido' && bloco.classe === 'nao_carregou')) {
     return (
       <section className="hv-card" aria-labelledby="hHoras" data-bloco-estado="nao_carregou">
         <CabecaDoBloco id="hHoras" titulo={TITULO_DAS_HORAS} info={INFO_DAS_HORAS} rotuloDoInfo={ROT} />
-        <NaoCarregou medida="As primeiras 72 horas" />
+        <PastilhaAusencia estado="falhou" motivo="As primeiras 72 horas" />
         <p className="hv-fr hv-mut">{bloco.frase}</p>
         <Estado tipo={bloco.estado.tipo} texto={bloco.estado.texto} />
       </section>
@@ -99,7 +99,7 @@ export function Horas72({ bloco }: { bloco: BlocoDeHoras }) {
   if (bloco.tipo === 'ainda_nao_existe') return <BlocoAindaNaoExiste titulo={TITULO_DAS_HORAS} linhas={[bloco.frase]} />
   if (bloco.tipo === 'nao_medido') {
     return (
-      <BlocoNaoMedido id="hHoras" titulo={TITULO_DAS_HORAS} curta={bloco.classe === 'nao_carregou' ? 'não carregou' : 'não medido'} motivo={bloco.frase} extra={bloco.extra} info={INFO_DAS_HORAS} rotuloDoInfo={ROT}>
+      <BlocoNaoMedido id="hHoras" titulo={TITULO_DAS_HORAS} curta="não medido" motivo={bloco.frase} extra={bloco.extra} info={INFO_DAS_HORAS} rotuloDoInfo={ROT}>
         <Estado tipo={bloco.estado.tipo} texto={bloco.estado.texto} />
       </BlocoNaoMedido>
     )

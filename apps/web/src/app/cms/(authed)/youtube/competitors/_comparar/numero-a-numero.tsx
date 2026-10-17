@@ -152,7 +152,7 @@ export function NumeroANumero({ pack, par, medidas = null }: { pack: CompararPac
       </Popover>
       {medidas?.semCarregar.length ? (
         <p className="cp-erro" role="alert" data-erro-lado="">
-          Os números de {medidas.semCarregar.map(x => `${x.nome} (lado ${x.lado})`).join(' e ')} não carregaram. A tabela mostra só o que veio.{' '}
+          A leitura dos números de {medidas.semCarregar.map(x => `${x.nome} (lado ${x.lado})`).join(' e ')} falhou. A tabela mostra só o que veio.{' '}
           <button type="button" className="lk" onClick={() => window.location.reload()}>Tentar de novo</button>
         </p>
       ) : null}

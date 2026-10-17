@@ -256,11 +256,11 @@ describe('Dado apagado e relógio', () => {
     expect(l.pilula).toEqual({ tipo: 'nm', texto: 'sem medida · menos de 28 dias' })
     expect(l.nota).toBe('Entrou há 11 dias; faltam 17 para ter 28 dias de histórico.')
   })
-  it('R9b: retratosProprios \'erro\': a pílula "histórico não carregou" e os concorrentes seguem medidos', () => {
+  it('R9b: retratosProprios \'erro\': a pílula "a leitura do histórico falhou" e os concorrentes seguem medidos', () => {
     const cs = [canal('prop', { own: true }), canal('a', { snapshots: serie(1_420_000, 1_390_000) })]
     const { view, falhas } = buildRiView(obsDe(cs, []), { ...P, retratosProprios: 'erro' })
     const por = Object.fromEntries(ok(view.inscritos).linhas.map(l => [l.id, l]))
-    expect(por.prop.pilula!.texto).toBe('sem medida · histórico não carregou')
+    expect(por.prop.pilula!.texto).toBe('sem medida · a leitura do histórico falhou')
     expect(por.a.classe).not.toBeNull()
     expect(falhas).toEqual([])
   })

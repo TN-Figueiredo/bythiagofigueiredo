@@ -3,7 +3,7 @@
  * janela real ("entre 06:00 e 12:00") e, quando há subida, a marca "fora dos 14 dias antes" só nos itens de fora. Nenhuma frase diz "depois da
  * troca" nem afirma causa. Mudanças não lidas são "não carregou", nunca "nenhuma mudança". Componente de servidor.
  */
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { RiInfo } from '../../_canais/ri-info'
 import type { ListaDeMudancas } from './mudancas-model'
 import './historico-medidas.css'
@@ -15,7 +15,7 @@ export function ListaDeMudancasHistorico({ lista }: { lista: ListaDeMudancas | n
     return (
       <section className="hv-card" aria-labelledby="hMud" data-mudancas="nao_carregou">
         <div className="hv-h"><h2 id="hMud">Mudanças deste vídeo</h2></div>
-        <NaoCarregou medida="Mudanças deste vídeo" />
+        <PastilhaAusencia estado="falhou" motivo="Mudanças deste vídeo" />
       </section>
     )
   }

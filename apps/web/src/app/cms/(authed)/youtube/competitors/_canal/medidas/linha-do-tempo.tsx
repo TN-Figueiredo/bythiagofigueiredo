@@ -5,7 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { RiInfo } from '../../_canais/ri-info'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { dm } from './formatos'
@@ -27,7 +27,7 @@ function Marca({ m, x, y }: { m: MarcaDaLinha; x: number; y: number }) {
 }
 
 function Raia({ raia }: { raia: RaiaDaLinha }) {
-  return raia.tipo === 'nao_carregou' ? <NaoCarregou medida="esta raia" /> : null
+  return raia.tipo === 'nao_carregou' ? <PastilhaAusencia estado="falhou" motivo="esta raia" /> : null
 }
 
 /** N1 (Naksu): a amostra de cada item da legenda é o mesmo desenho e a mesma classe do gráfico. */
@@ -73,7 +73,7 @@ function Miolo({ modelo }: { modelo: LinhaDoTempo }) {
     return (
       <>
         {frase}
-        {b.tipo === 'nao_carregou' ? <NaoCarregou medida="Linha do tempo" /> : <p className="pc-pgl" data-sem-registro>{b.motivo}</p>}
+        {b.tipo === 'nao_carregou' ? <PastilhaAusencia estado="falhou" motivo="Linha do tempo" /> : <p className="pc-pgl" data-sem-registro>{b.motivo}</p>}
         <div className="pc-raias">{ORDEM.map(r => <div key={r}><b>{NOMES[r]}</b> <Raia raia={modelo.raias[r]} /></div>)}</div>
       </>
     )
@@ -124,7 +124,7 @@ function Miolo({ modelo }: { modelo: LinhaDoTempo }) {
             return (
               <g key={r}>
                 <text className="ic-ax" x={LM - 6} y={y + 4} textAnchor="end">{NOMES[r]}</text>
-                {raia.tipo === 'marcas' ? raia.marcas.map((m, mi) => <Marca key={`${r}${mi}`} m={m} x={X(m.indice) + passo / 2} y={y} />) : <text className="ic-ax" x={LM + 4} y={y + 4}>não carregou</text>}
+                {raia.tipo === 'marcas' ? raia.marcas.map((m, mi) => <Marca key={`${r}${mi}`} m={m} x={X(m.indice) + passo / 2} y={y} />) : <text className="ic-ax" x={LM + 4} y={y + 4}>a leitura falhou</text>}
               </g>
             )
           })}

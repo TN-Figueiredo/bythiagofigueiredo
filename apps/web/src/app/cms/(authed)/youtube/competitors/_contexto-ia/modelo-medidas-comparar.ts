@@ -53,7 +53,7 @@ const medido = (texto: string, palavra: string | null = null, notas: Array<strin
 
 function falta(c: Falta | Ainda): CelulaDoModeloMedidas {
   switch (c.tipo) {
-    case 'nao_carregou': return sem('Não carregou')
+    case 'nao_carregou': return sem('falhou')
     case 'canal_proprio': return sem(c.porque)
     case 'ainda_nao_existe': return sem(`só a partir de ${dm(c.existeEm)}`)
     case 'nao_medido': return sem(c.porque)
@@ -81,11 +81,11 @@ const relacionar = (r: RelacaoNova | null): string | null => (r === null ? null 
 
 /** A pastilha como a tela escreve (o `EstadoDoCanal` do kit, ou a forma de erro/não medido). */
 export function pastilhaDoEstado(e: EstadoDaLinha, naoCarregou: boolean): string | null {
-  if (naoCarregou) return 'Não carregou'
+  if (naoCarregou) return 'falhou'
   const dias = (n: number): string => `${n} ${n === 1 ? 'dia' : 'dias'}`
   switch (e.pastilha) {
     case 'ativo': case 'canal_proprio': return null
-    case 'nao_carregou': return 'Não carregou'
+    case 'nao_carregou': return 'falhou'
     case 'nao_medido': return e.linha ?? 'não medido'
     case 'pausado': return 'Coleta pausada'
     case 'sem_videos': return 'Sem vídeos'

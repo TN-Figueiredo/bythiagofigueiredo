@@ -73,6 +73,14 @@ describe('OutliersScreen: views aos 7 e aos 30 dias', () => {
     expect(container.textContent).not.toContain('não medido')
   })
 
+  it('decisão 75, 8a: a célula em erro é a pastilha falhou, nunca a hachura de não medido nem "não carregou"', () => {
+    const { container } = mount({ sort: 'v7', view: 'list' }, 'erro')
+    expect(container.querySelectorAll('[data-estado="erro"] .obs-au-falhou').length).toBeGreaterThan(0)
+    expect(container.querySelector('[data-estado="erro"] .obs-ch-nm')).toBeNull()
+    expect(container.textContent).not.toMatch(/não carregou/i)
+    expect(container.querySelector('[data-estado="erro"] [role="alert"]')).toBeNull()
+  })
+
   it('nenhum medido: o botão volta ao multiplicador e a frase diz quando fecha', () => {
     mount({ sort: 'v30' }, dados())
     expect(screen.getByText(/Nenhum/).closest('span')!.textContent).toContain('a primeira medida fecha em 03/11 (faltam 18 dias)')

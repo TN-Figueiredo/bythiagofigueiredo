@@ -7,7 +7,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 import { RiInfo } from '../../_canais/ri-info'
 import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import type { CriadorDoFio } from '../../_chrome/comentarios/fio-model'
-import { NaoCarregou, ZeroMedido } from '../../_chrome/medidas/marcas'
+import { ZeroMedido } from '../../_chrome/medidas/marcas'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { BlocoDoCriador, CasaDoCriador } from './criador-model'
 import type { ModeloDaLista } from './criador-lista-model'
@@ -32,7 +32,7 @@ function EstadoDoBloco({ bloco }: { bloco: BlocoDoCriador }) {
     case 'desligados':
       return <p className="pc-lc" data-estado-do-bloco><PastilhaAusencia estado="nao_medido" /></p>
     case 'nao_carregou':
-      return <NaoCarregou medida="O que o criador respondeu" />
+      return <PastilhaAusencia estado="falhou" motivo="O que o criador respondeu" />
     default:
       return null
   }

@@ -215,15 +215,15 @@ describe('direcaoDoNicho: falha de carga não é espera (Yannis I1, 17/10)', () 
   })
   it('parcial: a frase conta quem não carregou e a barra tem o 5º segmento, sem misturar com "não medido"', () => {
     const v = direcaoDoNicho(site({ x: { a: a(0.3) }, y: 'falhou', z: {} }), [canal('x'), canal('y'), canal('z')], O())
-    expect(v.frase).toContain('1 canal não carregou.')
+    expect(v.frase).toContain('1 canal: a leitura falhou.')
     expect(v.frase).toContain('1 canal ainda não pôde ser medido.')
     const seg = Object.fromEntries(v.barra!.segmentos.map(s => [s.tipo, s.n]))
     expect(seg).toMatchObject({ nao_carregou: 1, nao_medido: 1 })
-    expect(v.barra!.aria).toContain('1 não carregou')
+    expect(v.barra!.aria).toContain('a leitura falhou')
   })
   it('sem nenhum medido mas com um que não carregou: o "ainda" vem com a ressalva', () => {
     const v = direcaoDoNicho(site({ x: {}, y: 'falhou' }), [canal('x'), canal('y')], O())
-    expect(v.frase).toMatch(/ainda.*1 canal não carregou\.$/)
+    expect(v.frase).toMatch(/ainda.*1 canal: a leitura falhou\.$/)
   })
 })
 

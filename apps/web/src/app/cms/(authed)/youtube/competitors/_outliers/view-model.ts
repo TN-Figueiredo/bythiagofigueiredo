@@ -379,7 +379,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
       return { kind: 'medido', texto: F.num(c.valor), dica, pct: Math.min(100, Math.max(1.5, c.valor / maxIdade[idade] * 100)), curta: null, aria: dica }
     }
     if (c.estado === 'nao_medido') return { kind: 'nao', texto: null, dica: null, pct: null, curta: c.curta, aria: 'não medido: ' + c.longa }
-    return { kind: 'erro', texto: null, dica: null, pct: null, curta: null, aria: 'não carregou: as views aos ' + idade + ' dias não puderam ser lidas agora' }
+    return { kind: 'erro', texto: null, dica: null, pct: null, curta: null, aria: 'falhou: as views aos ' + idade + ' dias não puderam ser lidas agora' }
   }
   const idadeDoCartao = (id: string): IdadeDoCartao | null => {
     if (!entrada) return null

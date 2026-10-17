@@ -8,6 +8,7 @@ import { ReguaDirecao } from '../../_chrome/medidas/regua-direcao'
 import { RiInfo } from '../../_canais/ri-info'
 import { BarraDeProgresso } from './barra-de-progresso'
 import { TOTAL_CANAL, TOTAL_JUSTA, TOTAL_QUEDA, type BlocoDeDirecao, type CasaDaQueda, type LinhaDeDirecao } from './direcao-model'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { dm, dmy } from './formatos'
 import './canal-medidas.css'
 
@@ -46,7 +47,7 @@ function Linha({ l }: { l: LinhaDeDirecao }) {
       <div className={`pc-dr${l.principal ? ' main' : ''}`} data-linha={l.chave}>
         {rotulo}
         <div className="pc-dg"><div className="pc-nmw"><div className="pc-nmbar" aria-hidden="true" /><p className="pc-pgl">{l.motivo}</p></div></div>
-        <div className="pc-dv"><span className="obs-md-nc" role="alert"><span>Não carregou</span></span></div>
+        <div className="pc-dv"><PastilhaAusencia estado="falhou" /></div>
       </div>
     )
   }
@@ -114,7 +115,7 @@ export function DirecaoBloco({ bloco }: { bloco: BlocoDeDirecao }) {
           <div className="pc-dv">
             {queda.estado === 'medida'
               ? (queda.emQueda ? <span className="pc-est queda"><span aria-hidden="true">▼</span><span>Em queda sustentada</span></span> : <span className="pc-est ativo"><span aria-hidden="true">✓</span><span>Fora da queda</span></span>)
-              : queda.estado === 'nao_carregou' ? <span className="obs-md-nc" role="alert"><span>Não carregou</span></span>
+              : queda.estado === 'nao_carregou' ? <PastilhaAusencia estado="falhou" />
               : <span className="obs-ch-nm">não medido</span>}
           </div>
           {queda.estado === 'progresso' ? (

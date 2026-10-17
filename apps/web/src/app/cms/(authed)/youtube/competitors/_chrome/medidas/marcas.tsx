@@ -25,13 +25,3 @@ export function AindaNaoExiste({ existeEm }: { existeEm: string }) {
   return <span className="obs-md-ainda">só a partir de {dm(existeEm)}</span>
 }
 
-/** "Não carregou" é falha, nunca "não medido" nem zero. O botão só existe quando quem chama dá a função. */
-/** `medida` nomeia o que não carregou quando a célula está isolada ("Não carregou: views aos 30 dias"); dentro de tabela fica só "Não carregou". */
-export function NaoCarregou({ onTentar, medida }: { onTentar?: () => void; medida?: string }) {
-  return (
-    <span className="obs-md-nc" role="alert">
-      <span>{medida ? `Não carregou: ${medida}` : 'Não carregou'}</span>
-      {onTentar ? <button type="button" onClick={onTentar}>Tentar de novo</button> : null}
-    </span>
-  )
-}

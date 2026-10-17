@@ -53,7 +53,7 @@ const ritmo = (ganho: number): string => milhar(Math.round(ganho / R.days))
 
 function listaDosAntes(s: Subida, mudancas: readonly MudancaNumerada[] | null): { texto: string; carregou: boolean } {
   // mudanças não lidas nunca viram "nenhuma mudança"
-  if (mudancas === null) return { texto: 'Não carregou: não deu para ler as mudanças deste vídeo.', carregou: false }
+  if (mudancas === null) return { texto: 'A leitura falhou: não deu para ler as mudanças deste vídeo.', carregou: false }
   const antes = listaAgrupadaDosAntes(mudancas, s.dia)
   const n = mudancas.filter((m) => dentroDosDiasAntes(m, s.dia)).length
   if (n === 0) return { texto: `Nenhuma mudança vista nos ${R.lookbackDays} dias antes.`, carregou: true }
@@ -68,7 +68,7 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
       texto: 'Com uma leitura por semana não dá para dizer se uma mudança veio antes de uma subida.', info: INFO_DA_SEMANA,
     }
   }
-  if (e.subidas === null) return { tipo: 'nao_carregou', frase: 'Subida: não carregou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
+  if (e.subidas === null) return { tipo: 'nao_carregou', frase: 'Subida: a leitura falhou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
   if (e.subidas.estado === 'medido') {
     const s = e.subidas.valor[0]
     if (!s) {
@@ -90,7 +90,7 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
   // não medido. Série não lida, ou medida que falhou na E4 (leitura/cálculo) ou nem foi pedida: não se calcula "faltam N dias" (portão Phil I1, Yannis I-6)
   const m = e.subidas
   if (e.diasDeContagem === null || m.motivo === 'leitura_falhou' || m.motivo === 'calculo_falhou' || m.motivo === 'serie_nao_pedida') {
-    return { tipo: 'nao_carregou', frase: 'Subida: não carregou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
+    return { tipo: 'nao_carregou', frase: 'Subida: a leitura falhou. Não deu para ler o dia a dia deste vídeo; recarregue a página.' }
   }
   const dias = e.diasDeContagem
   const feitos = Math.min(DIAS_NECESSARIOS, Math.max(0, dias))
@@ -132,10 +132,10 @@ export interface CelulaDaSubida {
 export function celulaDaSubida(c: CartaoDaSubida, diasDeContagem: number | null): CelulaDaSubida {
   switch (c.tipo) {
     case 'inconclusivo': return { rotulo: 'Subida', estado: 'neutro', valor: 'leitura por semana', razao: null, sub: 'não dá para ver o dia' }
-    case 'nao_carregou': return { rotulo: 'Subida', estado: 'nao_carregou', valor: null, razao: null, sub: 'não carregou' }
+    case 'nao_carregou': return { rotulo: 'Subida', estado: 'nao_carregou', valor: null, razao: null, sub: 'a leitura falhou' }
     case 'subiu':
       return { rotulo: 'Subida', estado: 'ok', valor: dm(c.dia), razao: c.fator === null ? '▲' : `▲ ${dec(c.fator, 1)}× o ritmo`, sub: `${R.days} dias depois contra ${R.days} antes` }
-    case 'sem_subida': return { rotulo: 'Subida', estado: 'ok', valor: 'nenhuma', razao: '＝', sub: diasDeContagem === null ? 'não carregou' : `em ${diasDeContagem} dias` }
+    case 'sem_subida': return { rotulo: 'Subida', estado: 'ok', valor: 'nenhuma', razao: '＝', sub: diasDeContagem === null ? 'a leitura falhou' : `em ${diasDeContagem} dias` }
     case 'nao_medido': return { rotulo: 'Subida', estado: 'nao_medido', valor: null, razao: null, sub: c.curto }
   }
 }

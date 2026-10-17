@@ -44,13 +44,13 @@ describe('Linha do tempo', () => {
     const m = linhaDoTempo(entrada({ retratos: null }))
     expect(m.barras.tipo).toBe('nao_carregou')
     expect(m.raias.videos.tipo).toBe('marcas')
-    expect(m.frase.negrito).toMatch(/^Não carregou/)
+    expect(m.frase.negrito).toMatch(/^A leitura falhou/)
   })
   it('mudanças não lidas: a raia diz não carregou e a frase não diz 0 mudanças de campo', () => {
     const m = linhaDoTempo(entrada({ mudancas: null }))
     expect(m.raias.campos.tipo).toBe('nao_carregou')
     expect(m.frase.resto).not.toMatch(/0 mudanças de campo/)
-    expect(m.frase.resto).toContain('Mudanças de campo: não carregou.')
+    expect(m.frase.resto).toContain('Mudanças de campo: a leitura falhou.')
   })
   it('trinta dias sem retrato viram um retângulo só', () => {
     const r = retratos(120).filter((_, k) => k < 40 || k >= 70)

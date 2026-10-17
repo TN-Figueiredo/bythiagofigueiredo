@@ -18,7 +18,7 @@ import type { ListaDeMudancas } from '../_historico/medidas/mudancas-model'
 import { dataBR, fraseAindaSemLeitura, milhar, pct, REGRAS_DA_LEITURA as R, TEXTOS_NAO_CARREGOU, TITULO_AINDA_SEM_LEITURA, vezes, type Leitura } from '../_chrome/medidas/estourou-model'
 
 // ───────────────────────── a projeção: só texto, na ordem da tela
-const NAO_CARREGOU_TELA = 'Não carregou'
+const NAO_CARREGOU_TELA = 'falhou'
 const SEM = '—'
 
 export interface ResumoIa {

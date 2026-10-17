@@ -3,14 +3,15 @@
  * de dias ("são N. Faltam M: fecha em dd/mm"), inconclusivo (contagem por semana: caixa neutra, nunca a hachura rosa) e não carregou.
  * Nenhuma frase afirma causa; a lista das mudanças dos 14 dias antes leva a nota fixa de coincidência. Componente de servidor.
  */
-import { NaoCarregou, NaoMedido } from '../../_chrome/medidas/marcas'
+import { NaoMedido } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import type { CartaoDaSubida } from './subida-model'
 import './historico-medidas.css'
 
 export function CartaoSubida({ cartao }: { cartao: CartaoDaSubida }) {
   switch (cartao.tipo) {
     case 'nao_carregou':
-      return <section className="hv-card" aria-label="Subida" data-subida="nao_carregou"><NaoCarregou medida="Subida" /><p className="hv-fr hv-mut">{cartao.frase}</p></section>
+      return <section className="hv-card" aria-label="Subida" data-subida="nao_carregou"><PastilhaAusencia estado="falhou" motivo="Subida" /><p className="hv-fr hv-mut">{cartao.frase}</p></section>
     case 'inconclusivo':
       return (
         <section className="hv-incl hv-card" aria-label="Subida" data-subida="inconclusivo">

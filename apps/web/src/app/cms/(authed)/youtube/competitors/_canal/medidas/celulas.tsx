@@ -6,6 +6,7 @@
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { Direcao } from '../../_chrome/medidas/direcao'
 import { ZeroMedido } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { dm } from './formatos'
 import type { CelulaDoCabecalho } from './cabecalho-model'
 import './canal-medidas.css'
@@ -14,7 +15,7 @@ const PASTILHA_CLASSE: Record<string, string> = { ativo: 'ativo', parado: 'parad
 const PASTILHA_GLIFO: Record<string, string> = { ativo: '✓', parado: '⏸', em_queda: '▼', saiu: '✕', erro: '!', primeira_busca: '↻', pausado: '⏸', nao_carregou: '!', nao_medido: '–' }
 
 function Valor({ c }: { c: CelulaDoCabecalho }) {
-  if (c.valor === 'nao_carregou') return <span className="obs-md-nc"><span>Não carregou</span></span>
+  if (c.valor === 'nao_carregou') return <PastilhaAusencia estado="falhou" />
   if (c.valor === 'nao_medido') return <span className="obs-ch-nm">{c.chave === 'estado' ? 'não confirmado' : 'não medido'}</span>
   const d = c.detalhe
   switch (d.chave) {

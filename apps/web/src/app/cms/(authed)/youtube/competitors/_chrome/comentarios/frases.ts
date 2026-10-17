@@ -23,7 +23,7 @@ export const FRASES = {
   abaACaminho: 'a caminho',
   abaParada: 'coleta parada',
   abaNaoComecou: 'coleta não começou',
-  abaNaoCarregou: 'não carregou',
+  abaNaoCarregou: 'a leitura falhou',
   // Motivos
   motivoCurtidos: 'Mais curtido',
   motivoCriador: 'Com o criador',

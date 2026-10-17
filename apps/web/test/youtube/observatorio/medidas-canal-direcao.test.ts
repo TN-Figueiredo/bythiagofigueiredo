@@ -63,7 +63,10 @@ describe('bloco Direção: dado ausente', () => {
     expect(b.linhas.every(l => l.estado === 'nao_carregou')).toBe(true)
     expect(b.queda.estado).toBe('nao_carregou')
     expect(b.frase.simbolo).toBeNull()
-    expect(html(ent({ medidas: null }))).toContain('Não carregou')
+    const h = html(ent({ medidas: null }))
+    expect(h).toContain('obs-au-falhou')
+    expect(h).not.toContain('obs-ch-nm')
+    expect(h).not.toContain('role="alert"')
   })
 })
 

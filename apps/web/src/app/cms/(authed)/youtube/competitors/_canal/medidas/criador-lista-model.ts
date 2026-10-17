@@ -52,7 +52,7 @@ export function listaDoCriador(e: {
   /** A conferência da permissão falhou (guarda fora do ar): no nível contagem, a frase é a da C3, não a de "falta de direito". */
   permissaoFalhou?: boolean
 }): ModeloDaLista {
-  if (e.resposta === null || !e.resposta.lido) return { tipo: 'nao_carregou', frase: { negrito: 'Não carregou:', resto: ' não deu para ler a lista de respostas do criador agora.' } }
+  if (e.resposta === null || !e.resposta.lido) return { tipo: 'nao_carregou', frase: { negrito: 'A leitura falhou:', resto: ' não deu para ler a lista de respostas do criador agora.' } }
   const r = e.resposta.dados
   if (r.nivel === 'contagem') {
     return {

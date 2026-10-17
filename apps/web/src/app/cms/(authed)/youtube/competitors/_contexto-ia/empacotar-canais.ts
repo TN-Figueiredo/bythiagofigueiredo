@@ -56,7 +56,7 @@ export interface DerivadoCanais {
 }
 export type ModeloCanais = CanaisView & { ri: RiView | null; derivado: DerivadoCanais }
 
-const NAO_CARREGOU = 'Não carregou'
+const NAO_CARREGOU = 'falhou'
 const SEM_POSICAO = 'sem posição'
 
 /** As linhas da lista, na ordem da tela: as com medida e, sob o divisor, as sem. */

@@ -6,7 +6,8 @@
 import type { ReactNode } from 'react'
 import type { DirecaoFiltro, ResumoView } from './view-model'
 import type { FiltroDeEstado } from './estado-model'
-import { AindaNaoExiste, NaoCarregou, ZeroMedido } from '../_chrome/medidas/marcas'
+import { AindaNaoExiste, ZeroMedido } from '../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { Tip } from './cells'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 
@@ -22,7 +23,7 @@ function destacarNumeros(frase: string): ReactNode {
 }
 
 function Numero({ n }: { n: number | null }): ReactNode {
-  if (n === null) return <NaoCarregou />
+  if (n === null) return <PastilhaAusencia estado="falhou" />
   return n === 0 ? <ZeroMedido /> : <b className="num">{n}</b>
 }
 
@@ -79,7 +80,7 @@ export function ResumoBloco({ resumo, onFiltro, onDirecao }: {
             {GLIFO_FILTRO[f.chave] ? <span className={`obs-cn-filtro-i ${f.chave}`} aria-hidden="true">{GLIFO_FILTRO[f.chave]}</span> : null}
             <span aria-hidden="true">{f.rotulo}</span>{' '}
             <span className="obs-cn-filtro-n" aria-hidden="true">
-              {f.ainda ? <AindaNaoExiste existeEm={f.ainda} /> : f.naoMedido ? <span className="obs-ch-nm">{f.naoMedido}</span> : f.n === null ? <NaoCarregou /> : f.base ? <><b className="num">{f.n}</b><span className="obs-cn-filtro-b"> de {f.base.medidos}</span></> : f.n === 0 ? <ZeroMedido /> : <b className="num">{f.n}</b>}
+              {f.ainda ? <AindaNaoExiste existeEm={f.ainda} /> : f.naoMedido ? <span className="obs-ch-nm">{f.naoMedido}</span> : f.n === null ? <PastilhaAusencia estado="falhou" /> : f.base ? <><b className="num">{f.n}</b><span className="obs-cn-filtro-b"> de {f.base.medidos}</span></> : f.n === 0 ? <ZeroMedido /> : <b className="num">{f.n}</b>}
             </span>
           </button>
         ))}

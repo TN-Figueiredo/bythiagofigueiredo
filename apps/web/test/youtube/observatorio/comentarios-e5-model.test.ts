@@ -400,7 +400,7 @@ describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', 
     const p = s.paineis[7]
     expect(p).toMatchObject({ kind: 'estado', tentar: true })
     expect(JSON.stringify(p)).not.toMatch(/devolveu a lista vazia/)
-    expect(s.abas[1]!.estado).toBe('não carregou')
+    expect(s.abas[1]!.estado).toBe('a leitura falhou')
   })
   it('escolhidos nulo: a aba diz "guardados", sem número (nulo não é 0)', () => {
     const s = secaoDeComentarios(so7({ estado: 'ok', resumo: resumo({ escolhidos: null }) }), OPCOES)

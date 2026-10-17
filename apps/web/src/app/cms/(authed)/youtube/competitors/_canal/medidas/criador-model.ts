@@ -79,7 +79,7 @@ export interface EntradaDoCriador {
 }
 
 const MAX_COMENTARIOS = 12
-const NC = 'não carregou'
+const NC = 'a leitura falhou'
 
 function vazio(valor: TipoDaCelulaDoCriador, texto: string): CelulaDoCriadorComDado {
   return { valor, base: texto, motivo: texto, k: null, n: null, pct: null }
@@ -110,7 +110,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   if (e.videos === null || e.contagem === null || !e.contagem.lido) {
     return {
       celula: vazio('nao_carregou', NC),
-      bloco: semCasas('nao_carregou', 'Não carregou:', ' não deu para ler os comentários deste canal agora.', NC),
+      bloco: semCasas('nao_carregou', 'A leitura falhou:', ' não deu para ler os comentários deste canal agora.', NC),
     }
   }
   const c = e.contagem.dados
@@ -130,7 +130,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   }
   const viva = tarefaViva({ ultimoOkMs: c.ultimoOkDaTarefaMs, primeiraExecucaoMs: c.primeiraExecucaoDaTarefaMs, toleranciaH: DEFINICAO_RETRATOS_COMENTARIOS.toleranciaVigiaH, agoraMs: e.agoraMs })
   if (viva.estado === 'nao_lida') {
-    return { celula: vazio('nao_carregou', NC), bloco: semCasas('nao_carregou', 'Não carregou:', ' não deu para saber se a coleta de comentários está rodando.', NC) }
+    return { celula: vazio('nao_carregou', NC), bloco: semCasas('nao_carregou', 'A leitura falhou:', ' não deu para saber se a coleta de comentários está rodando.', NC) }
   }
   if (viva.estado === 'parada') {
     const f = celulaDoCriador('parada')

@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Direcao } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/direcao'
-import { ZeroMedido, NaoMedido, AindaNaoExiste, NaoCarregou } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/marcas'
+import { PastilhaAusencia } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/pastilhas'
+import { ZeroMedido, NaoMedido, AindaNaoExiste } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/marcas'
 import { EstadoDoCanal } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estado-canal'
 import { ReguaDirecao } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/regua-direcao'
 
@@ -34,7 +35,7 @@ describe('peças comuns de tela (E5a T3)', () => {
     const z = renderToStaticMarkup(<ZeroMedido />)
     const n = renderToStaticMarkup(<NaoMedido curta="fecha em 17/12" longa="a janela ainda não fechou" />)
     const a = renderToStaticMarkup(<AindaNaoExiste existeEm="2026-12-14" />)
-    const c = renderToStaticMarkup(<NaoCarregou />)
+    const c = renderToStaticMarkup(<PastilhaAusencia estado="falhou" />)
     const classes = [z, n, a, c].map(h => /class="([^"]*)"/.exec(h)![1])
     expect(new Set(classes).size).toBe(4)
     expect(texto(z)).toBe('0')
@@ -44,10 +45,9 @@ describe('peças comuns de tela (E5a T3)', () => {
     const t = texto(renderToStaticMarkup(<NaoMedido curta="fecha em 17/12" longa="a janela ainda não fechou" />))
     expect(t).toContain('fecha em 17/12'); expect(t).toContain('a janela ainda não fechou')
   })
-  it('NaoCarregou tem role alert e nunca o texto "não medido"', () => {
-    const html = renderToStaticMarkup(<NaoCarregou onTentar={() => undefined} />)
-    expect(html).toContain('role="alert"'); expect(html.toLowerCase()).not.toContain('não medido'); expect(html).toContain('<button')
-    expect(renderToStaticMarkup(<NaoCarregou />)).not.toContain('<button')
+  it('a pastilha falhou não tem role alert, não tem botão e nunca diz "não medido"', () => {
+    const html = renderToStaticMarkup(<PastilhaAusencia estado="falhou" />)
+    expect(html).not.toContain('role="alert"'); expect(html.toLowerCase()).not.toContain('não medido'); expect(html).not.toContain('<button'); expect(html).toContain('falhou')
   })
   it('AindaNaoExiste sem data lança (a data é obrigatória)', () => {
     expect(() => renderToStaticMarkup(<AindaNaoExiste existeEm="" />)).toThrow()

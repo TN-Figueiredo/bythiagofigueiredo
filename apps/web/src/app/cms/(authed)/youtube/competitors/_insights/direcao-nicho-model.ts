@@ -184,7 +184,7 @@ function noPainel(key: LeituraDaDirecao, principal: boolean, l: Leitura): Leitur
   if (l.tipo === 'medido') return { ...comum, simbolo: l.simbolo, texto: l.texto, base: l.base, motivo: null }
   if (l.tipo === 'sem_base') return { ...comum, simbolo: null, texto: null, base: l.base, motivo: l.curta }
   if (l.tipo === 'nao_medido') return { ...comum, simbolo: null, texto: null, base: l.base, motivo: l.curta }
-  return { ...comum, simbolo: null, texto: null, base: [], motivo: 'não carregou' }
+  return { ...comum, simbolo: null, texto: null, base: [], motivo: 'a leitura falhou' }
 }
 
 const PALAVRA: Record<SimboloDeDirecao, string> = { sobe: 'subindo', desce: 'descendo', estavel: 'estável' }
@@ -202,7 +202,7 @@ function fraseDoCaso(
   }
   const medidos = c.sobem + c.descem + c.estaveis
   // Quem não carregou é dito à parte; nunca vira "ainda" nem some da frase
-  const falhou = c.naoCarregaram ? ` ${c.naoCarregaram} ${plural(c.naoCarregaram, 'canal não carregou.', 'canais não carregaram.')}` : ''
+  const falhou = c.naoCarregaram ? ` ${c.naoCarregaram} ${plural(c.naoCarregaram, 'canal: a leitura falhou.', 'canais: a leitura falhou.')}` : ''
   if (!medidos) {
     const quando = primeiraData ? `: o primeiro fecha em ${leitura === 'c' ? dma(primeiraData) : dm(primeiraData)}` : ''
     return `Nenhum canal do nicho ${nicho} tem medida ${t.objeto} ainda${quando}.${falhou}`
@@ -344,7 +344,7 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
     if (x.l.tipo === 'nao_medido') {
       return { ...comum, estado: 'nao_medido', simbolo: null, texto: null, posicao: '–', empate: false, fracao: null, fora: null, base: x.l.base, motivo: x.l.curta, motivoLongo: x.l.longa, progresso: x.l.progresso, aria: `${x.c.name}: não medido, ${x.l.curta}. Sem posição.` }
     }
-    return { ...comum, estado: 'nao_carregou', simbolo: null, texto: null, posicao: '–', empate: false, fracao: null, fora: null, base: [], motivo: 'não carregou', motivoLongo: null, progresso: null, aria: `${x.c.name}: não carregou. Sem posição.` }
+    return { ...comum, estado: 'nao_carregou', simbolo: null, texto: null, posicao: '–', empate: false, fracao: null, fora: null, base: [], motivo: 'a leitura falhou', motivoLongo: null, progresso: null, aria: `${x.c.name}: a leitura falhou. Sem posição.` }
   }
   const linhas = [...medidos.map((x, i) => montar(x, i)), ...naoMedidos.map(x => montar(x, null)), ...naoCarregaram.map(x => montar(x, null))]
 
@@ -366,10 +366,10 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
     { tipo: 'desce', n: contagem.descem, texto: `▼ ${contagem.descem} ${plural(contagem.descem, 'desce', 'descem')}` },
     { tipo: 'estavel', n: contagem.estaveis, texto: `＝ ${contagem.estaveis} ${plural(contagem.estaveis, 'estável', 'estáveis')}` },
     { tipo: 'nao_medido', n: contagem.naoMedidos, texto: `◌ ${contagem.naoMedidos} ${plural(contagem.naoMedidos, 'não medido', 'não medidos')}` },
-    { tipo: 'nao_carregou', n: contagem.naoCarregaram, texto: `✕ ${contagem.naoCarregaram} ${plural(contagem.naoCarregaram, 'não carregou', 'não carregaram')}` },
+    { tipo: 'nao_carregou', n: contagem.naoCarregaram, texto: `✕ ${contagem.naoCarregaram}: a leitura falhou` },
   ]
   const barra = unico ? null : {
-    aria: `${contagem.sobem} ${plural(contagem.sobem, 'sobe', 'sobem')}, ${contagem.descem} ${plural(contagem.descem, 'desce', 'descem')}, ${contagem.estaveis} ${plural(contagem.estaveis, 'estável', 'estáveis')}, ${contagem.naoMedidos} ${plural(contagem.naoMedidos, 'não medido', 'não medidos')}, ${contagem.naoCarregaram ? `${contagem.naoCarregaram} ${plural(contagem.naoCarregaram, 'não carregou', 'não carregaram')}, ` : ''}de ${contagem.total} canais`,
+    aria: `${contagem.sobem} ${plural(contagem.sobem, 'sobe', 'sobem')}, ${contagem.descem} ${plural(contagem.descem, 'desce', 'descem')}, ${contagem.estaveis} ${plural(contagem.estaveis, 'estável', 'estáveis')}, ${contagem.naoMedidos} ${plural(contagem.naoMedidos, 'não medido', 'não medidos')}, ${contagem.naoCarregaram ? `${contagem.naoCarregaram} a leitura falhou, ` : ''}de ${contagem.total} canais`,
     segmentos,
   }
   return {

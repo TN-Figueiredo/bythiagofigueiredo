@@ -231,11 +231,11 @@ describe('Canais: o dado privado do canal próprio', () => {
 })
 
 describe('Canais: o que acontece quando o dado não existe', () => {
-  it('medidas não carregaram: toda direção diz "Não carregou" como não medido, nunca zero', async () => {
+  it('medidas não carregaram: toda direção diz "falhou" como não medido, nunca zero', async () => {
     const m = await montar(lido({ medidas: null }), false)
     const t = m.pacote.tabelas.find((x) => x.id === 'canais')!
     const col = t.colunas.indexOf('Direção')
-    expect(t.linhas.some((l) => l[col]!.papel === 'numero' && l[col]!.estado === 'nao_medido' && (l[col] as { motivo: string }).motivo === 'Não carregou')).toBe(true)
+    expect(t.linhas.some((l) => l[col]!.papel === 'numero' && l[col]!.estado === 'nao_medido' && (l[col] as { motivo: string }).motivo === 'falhou')).toBe(true)
     expect(t.linhas.every((l) => !(l[col]!.papel === 'numero' && l[col]!.estado === 'zero_medido'))).toBe(true)
   })
 

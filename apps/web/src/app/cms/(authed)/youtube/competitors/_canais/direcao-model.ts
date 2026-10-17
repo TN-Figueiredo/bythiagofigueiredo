@@ -73,7 +73,7 @@ export function resumoDeDirecao(celulas: readonly CelulaDeDirecao[]): ResumoDeDi
   }
   const canais = sobe + estavel + desce + naoMedido + naoCarregou
   if (canais > 0 && naoCarregou === canais) {
-    return { sobe: null, estavel: null, desce: null, naoMedido: null, naoCarregou, canais, medidos: 0, frase: `A direção não carregou em ${pl(naoCarregou, 'canal', 'canais')}.` }
+    return { sobe: null, estavel: null, desce: null, naoMedido: null, naoCarregou, canais, medidos: 0, frase: `A leitura da direção falhou em ${pl(naoCarregou, 'canal', 'canais')}.` }
   }
   const medidos = sobe + estavel + desce
   const partes: string[] = []
@@ -83,6 +83,6 @@ export function resumoDeDirecao(celulas: readonly CelulaDeDirecao[]): ResumoDeDi
   let frase = partes.join('')
   if (medidos < canais - naoCarregou && medidos > 0) frase += `. Direção medida em ${medidos} de ${canais} canais`
   else if (medidos === 0 && canais > 0) frase = `Direção ainda não medida em ${pl(naoMedido, 'canal', 'canais')}`
-  if (naoCarregou > 0) frase += `${frase ? '; ' : ''}${naoCarregou === 1 ? '1 canal não carregou' : `${naoCarregou} canais não carregaram`}`
+  if (naoCarregou > 0) frase += `${frase ? '; ' : ''}${naoCarregou === 1 ? 'a leitura falhou em 1 canal' : `a leitura falhou em ${naoCarregou} canais`}`
   return { sobe, estavel, desce, naoMedido, naoCarregou, canais, medidos, frase: frase ? frase + '.' : '' }
 }

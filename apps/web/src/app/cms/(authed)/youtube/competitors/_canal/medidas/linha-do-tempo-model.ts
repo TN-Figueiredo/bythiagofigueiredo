@@ -77,14 +77,14 @@ export function linhaDoTempo(o: EntradaDaLinhaDoTempo): LinhaDoTempo {
   const titulo = (id: string): string => o.titulos.get(id) ?? '(sem título)'
   const ate = o.estado.ate
   const nc = (motivo: string): LinhaDoTempo => ({
-    frase: { simbolo: null, negrito: 'Não carregou:', resto: ` ${motivo}` },
+    frase: { simbolo: null, negrito: 'A leitura falhou:', resto: ` ${motivo}` },
     barras: { tipo: 'nao_carregou', motivo }, raias: raiasVazias('nao_carregou'), legenda: [], tabela: [],
   })
   void ate
 
   // ── os retratos e a janela de 90 dias, que termina no último retrato com views ──
   if (o.retratos === null) {
-    const base = nc('os retratos do canal não carregaram agora.')
+    const base = nc('a leitura dos retratos do canal falhou agora.')
     return { ...base, raias: marcasDasRaias(o, null) }
   }
   const comViews = o.retratos.filter(r => typeof r.views === 'number' && Number.isFinite(r.views)).map(r => r.dia).sort()
@@ -297,9 +297,9 @@ function nesseTempoDe(o: EntradaDaLinhaDoTempo, jan: DiaDaLinha[], regDesde: str
   if (tro) itens.push(tro)
   const lista = itens.length === 3 ? `${itens[0]}, ${itens[1]} e ${itens[2]}` : itens.join(' e ')
   const resto: string[] = []
-  if (camposNc) resto.push('Mudanças de campo: não carregou.')
+  if (camposNc) resto.push('Mudanças de campo: a leitura falhou.')
   else if (!cam) resto.push(`Mudanças de campo: ${pnm}.`)
-  if (trocasNc) resto.push('Trocas: não carregou.')
+  if (trocasNc) resto.push('Trocas: a leitura falhou.')
   else if (!tro) resto.push(`Trocas: ${pnm}.`)
   return `${lista}.${resto.length ? ` ${resto.join(' ')}` : ''}${cauda}`
 }

@@ -39,6 +39,16 @@ const view = (n: number, f: (i: number) => number | null, leitura: 'a' | 'b' | '
 const CSS = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../src/app/cms/(authed)/youtube/competitors/_insights/direcao-nicho.css'), 'utf8')
 
 describe('DirecaoNicho', () => {
+  it('decisão 75, 8a: canal cuja leitura falhou desenha a pastilha falhou, sem a hachura de não medido nem "não carregou"', () => {
+    const cs = canais(3)
+    const sitio = site(cs.map(c => c.id), i => (i === 0 ? 0.3 : null))
+    for (const c of cs.slice(1)) (sitio.porCanal as Map<string, unknown>).set(c.id, { naoCarregou: 'tempo_esgotado' })
+    const v = direcaoDoNicho(sitio, cs, { leitura: 'a', hojeSP: HOJE, nicho: 'Viagem', seusCanais: [] })
+    const { container } = render(<DirecaoNicho v={v} />)
+    expect(container.querySelectorAll('li.q-li .obs-au-falhou').length).toBe(2)
+    expect(container.querySelector('li.q-li .obs-ch-nm')).toBeNull()
+    expect(container.textContent).not.toMatch(/não carregou/i)
+  })
   it('trocar a leitura reescreve a frase no mesmo nó aria-live (o nó não é recriado)', () => {
     const { rerender } = render(<DirecaoNicho v={view(4, i => 0.3 - i * 0.2)} />)
     const antes = document.querySelector('p[aria-live="polite"]')!

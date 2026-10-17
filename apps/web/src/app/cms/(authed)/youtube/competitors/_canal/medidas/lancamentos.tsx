@@ -6,7 +6,7 @@
  */
 import { useState, type ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { RiInfo } from '../../_canais/ri-info'
 import { ptn } from './formatos'
 import type { ModeloDeLancamentos, PontoDoNormal, VideoDeLancamento } from './lancamentos-model'
@@ -110,7 +110,7 @@ export function Lancamentos({ modelo, horas }: { modelo: ModeloDeLancamentos; ho
     return (
       <section className="pc-sec" id="lancamentos" aria-labelledby="hLan">
         {cabeca}
-        <div className="pc-lc"><NaoCarregou medida="lançamentos" /><p>{modelo.motivo}</p></div>
+        <div className="pc-lc"><PastilhaAusencia estado="falhou" motivo="lançamentos" /><p>{modelo.motivo}</p></div>
         {rodape}
       </section>
     )

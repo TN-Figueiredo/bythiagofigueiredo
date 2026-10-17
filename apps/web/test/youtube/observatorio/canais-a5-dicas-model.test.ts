@@ -87,7 +87,7 @@ describe('dicas à letra: casos restantes da tabela', () => {
   })
   it('Crescimento oculto, não carregou (title) e Direção não carregou / outro não medido', () => {
     expect(dicaCrescimento({ kind: 'na', text: '', title: '', motivo: 'oculto', fechaEm: null, dias: null }, e, false)).toBe('O canal esconde os inscritos: não há o que comparar. Sem data prevista; só muda se ele mostrar.')
-    expect(dicaCrescimento({ kind: 'na', text: '', title: 'não carregou', motivo: 'nao-carregou', fechaEm: null, dias: null }, e, false)).toBe('não carregou')
+    expect(dicaCrescimento({ kind: 'na', text: '', title: 'a leitura falhou', motivo: 'nao-carregou', fechaEm: null, dias: null }, e, false)).toBe('a leitura falhou')
     expect(dicaDirecao({ tipo: 'nao_carregou', motivo: 'leitura_falhou' }, null, e)).toBeNull()
     expect(dicaDirecao({ tipo: 'nao_medido', motivo: 'base_zero', curta: 'c', longa: 'texto longo' }, null, e)).toBe('texto longo')
   })

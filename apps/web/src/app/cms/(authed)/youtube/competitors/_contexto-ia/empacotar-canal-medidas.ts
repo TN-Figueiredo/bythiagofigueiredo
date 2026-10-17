@@ -36,7 +36,7 @@ export interface CelulaDeMedidaIa {
 }
 
 /** O texto que a tela escreve quando a medida não chegou. */
-const NAO_CARREGOU_TELA = 'Não carregou'
+const NAO_CARREGOU_TELA = 'falhou'
 const NAO_MEDIDO_TELA = 'não medido'
 
 export interface DirecaoIa {
@@ -438,7 +438,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
       linhas: tem.eventos.map((e, i) => [rotulo(e.dia, `${T}.eventos[${i}].dia`), terceiros(e.texto, `${T}.eventos[${i}].texto`)]) })
   }
   if (tem.raiasNaoCarregou.length) {
-    tabelas.push(tabelaFixa('canal-linha-do-tempo-raias', 'Linha do tempo: raias que não carregaram', 'raias da linha do tempo', ['Raia', 'Estado'],
+    tabelas.push(tabelaFixa('canal-linha-do-tempo-raias', 'Linha do tempo: raias em que a leitura falhou', 'raias da linha do tempo', ['Raia', 'Estado'],
       tem.raiasNaoCarregou.map((r, i) => [rotulo(r.nome, `${T}.raiasNaoCarregou[${i}].nome`), naoMedido(r.motivo, `${T}.raiasNaoCarregou[${i}].motivo`)])))
   }
   const K = `${O}.criador`

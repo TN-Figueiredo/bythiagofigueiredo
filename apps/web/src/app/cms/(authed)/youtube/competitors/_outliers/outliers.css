@@ -318,8 +318,6 @@
 .obs-out .obs-out-vbar{height:8px;border-radius:2px;background:var(--sunk,var(--surface-2));border:1px solid var(--border-strong);max-width:112px;overflow:hidden}
 .obs-out .obs-out-vbar i{display:block;height:100%;background:var(--lado-n);min-width:2px}
 .obs-out .obs-out-vt{display:block;margin-top:3px;font-size:12px;line-height:16px;color:var(--muted)}
-.obs-out .obs-out-er{display:inline-flex;align-items:center;gap:6px;min-height:26px;font-size:12px;line-height:16px;color:var(--text)}
-.obs-out .obs-out-er svg{width:14px;height:14px;color:var(--danger)}
 .obs-out td[data-cel] .obs-ch-nm,.obs-out div[data-cel] .obs-ch-nm{display:inline-block;font-size:12px;line-height:16px;overflow-wrap:anywhere}
 
 .obs-out .obs-out-selo{display:inline-flex;align-items:center;gap:6px;min-height:22px;padding:0 8px;border:1px solid var(--dim);border-radius:5px;font-size:12px;line-height:16px;color:var(--text);white-space:nowrap}

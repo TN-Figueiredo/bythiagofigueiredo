@@ -5,6 +5,7 @@
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { ZeroMedido } from '../../_chrome/medidas/marcas'
 import { RiInfo } from '../../_canais/ri-info'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { dm } from './formatos'
 import type { BlocoDeRitmo, CartaoDeRitmo, CasaDaSemana, RaiaDeRitmo } from './ritmo-model'
 import './canal-medidas.css'
@@ -38,7 +39,7 @@ function Cartao({ c }: { c: CartaoDeRitmo }) {
     <li data-cartao={c.chave}>
       <span>{c.rotulo}</span>
       {c.valor.tipo === 'medido' ? <><b className="num">{c.valor.texto}</b>{c.valor.pequeno ? <small className="num">{c.valor.pequeno}</small> : null}</>
-        : c.valor.tipo === 'nao_carregou' ? <span className="obs-md-nc" role="alert"><span>Não carregou</span></span>
+        : c.valor.tipo === 'nao_carregou' ? <PastilhaAusencia estado="falhou" />
         : <span className="obs-ch-nm" title={c.valor.motivo}>não medido<span className="obs-md-sr">: {c.valor.motivo}</span></span>}
     </li>
   )

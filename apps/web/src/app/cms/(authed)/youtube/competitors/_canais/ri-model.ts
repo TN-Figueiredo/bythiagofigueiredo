@@ -32,7 +32,7 @@ export const ROTULOS_NOVOS_RI = {
   fraseInsVazia: 'Nenhum canal pôde ser medido nos últimos 28 dias.',
   retratoVelho: (dm: string) => `sem medida · contagem parada desde ${dm}`,
   buraco: (dm: string) => `sem medida · falta a contagem de ${dm}`,
-  canalProprio: 'sem medida · histórico não carregou',
+  canalProprio: 'sem medida · a leitura do histórico falhou',
   infoInsProprio: (desde: string | null) => `Seu canal usa a mesma contagem pública e arredondada dos outros, para a comparação ser justa${desde != null ? `. Medido desde ${desde}` : ''}.`,
   formato: { long: 'vídeos longos', short: 'Shorts' },
   legendaFormato: (f: string) => `Só entram ${f}.`,

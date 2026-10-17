@@ -162,7 +162,7 @@ export interface DrawerView {
   id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; avatar: string | null; niche: Niche | null
   lang: LangChip | null
   handle: string; url: string; subsText: string; cov: string
-  stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean; /** A sub-linha é a forma de erro da seção 4.2 ("não carregou"), nunca texto fraco. */ subErro?: boolean }>
+  stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean; /** A sub-linha é a forma de erro da seção 4.2 ("a leitura falhou"), nunca texto fraco. */ subErro?: boolean }>
   swaps: { count: number; intro: string; note: string | null; cards: SwapCard[]; link: LinkN | null }
   outliers: { tabN: string; tabTitle: string; intro: string; note: string | null; sections: Array<{ fmt: Fmt; title: string; rows: OutRow[]; link: LinkN | null; note: string | null }> }
   videos: {
@@ -444,7 +444,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const na = (text: string, title: string, motivo: Extract<GrowthCell, { kind: 'na' }>['motivo'], extra: { fechaEm?: number | null; dias?: number | null } = {}): GrowthCell =>
       ({ kind: 'na', text, title, motivo, fechaEm: extra.fechaEm ?? null, dias: extra.dias ?? null })
     const sinal = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') // três vias: zero não ganha sinal
-    if (g === 'nao-carregou') return na('não carregou', 'Não deu para carregar os registros de inscritos do seu canal. Recarregue a página.', 'nao-carregou')
+    if (g === 'nao-carregou') return na('a leitura falhou', 'Não deu para carregar os registros de inscritos do seu canal. Recarregue a página.', 'nao-carregou')
     if (oculto) return na('não medido: oculto', 'O canal esconde a contagem de inscritos no YouTube.', 'oculto')
     if (g.pending) {
       if (g.diasDeRegistro == null) return na('sem registro', 'Sem registro de inscritos ainda.', 'sem-registro')
@@ -487,7 +487,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       kind: 'ok', weeks: kl.weeks.map((w, i) => ({ long: w.n, short: ks.weeks[i]?.n ?? 0 })),
       label: `${kl.n} vídeos longos e ${ks.n} Shorts nas últimas 13 semanas`, pw: F.dec1(k.pw), unit: `${wordOf(f)}/sem`,
       // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
-      sub: empty ? 'nenhum em 13 semanas' : !second && paradoDe(c) === 'nao_carregou' ? 'não carregou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
+      sub: empty ? 'nenhum em 13 semanas' : !second && paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
       paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: ${ultimaDoParado(c) != null ? `último vídeo em ${D.dm(ultimaDoParado(c)!)}, ` : ''}${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
     }
   }
@@ -824,7 +824,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const datas = chave === 'nao-medido' ? celulas.flatMap(c => (c.tipo === 'nao_medido' && c.fechaEm ? [c.fechaEm] : [])).sort() : []
       const data = datas.length ? (datas.length === 1 || datas[0] === datas[datas.length - 1] ? `fecha em ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)}` : `fecham de ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)} a ${datas[datas.length - 1]!.slice(8, 10)}/${datas[datas.length - 1]!.slice(5, 7)}`) : null
       return { chave, n, palavra, pressed, data,
-        leitor: n === null ? `${palavra}: não carregou` : `${n} ${palavra}${pressed ? ', filtro ligado' : ''}` }
+        leitor: n === null ? `${palavra}: a leitura falhou` : `${n} ${palavra}${pressed ? ', filtro ligado' : ''}` }
     }
     const casas = [casa('sobe', dirRes.sobe, 'subindo'), casa('estavel', dirRes.estavel, 'sem mudança'), casa('desce', dirRes.desce, 'descendo'), casa('nao-medido', dirRes.naoMedido, 'não medido')]
     const q = contagem.queda
@@ -835,7 +835,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       // falha parcial: o estado foi lido em `estadoMedidoEm` de `todos` canais, e o número vale só para eles ("0 de 9", nunca "0 medido")
       const base = porEstado && n !== null && contagem.estadoMedidoEm < contagem.todos ? { medidos: contagem.estadoMedidoEm, de: contagem.todos } : null
       return { chave, rotulo, n: ainda || naoMedido ? null : n, ainda, naoMedido, pressed, base,
-        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : n === null ? `${rotulo}: não carregou`
+        leitor: ainda ? `${rotulo}: não medido até ${ainda.slice(8, 10)}/${ainda.slice(5, 7)}` : naoMedido ? `${rotulo}: não medido` : n === null ? `${rotulo}: a leitura falhou`
           : base ? `${rotulo}: ${n} de ${base.medidos} medidos (estado medido em ${base.medidos} de ${base.de} canais)` : `${rotulo}: ${n}` }
     }
     const filtros = [
@@ -861,14 +861,14 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
         vazio = {
           forma: 'ainda_nao_existe', titulo: 'Em queda ainda não pode ser medido.', limpar,
           acaoDescendo: dirRes.desce !== null,
-          apoio: `Em queda pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos, e a contagem de views mudou em 24/08/2026. Só a partir de ${dataBR} (daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}) dá para medir. ${dirRes.desce === null ? 'A direção dos canais não carregou agora.' : `Enquanto isso, ${dirRes.desce} ${dirRes.desce === 1 ? 'canal está descendo' : 'canais estão descendo'} neste período.`}`,
+          apoio: `Em queda pede ${MEASURE_QUEDA_JANELAS} períodos de ${MEASURE_JANELA_DIAS} dias seguidos, e a contagem de views mudou em 24/08/2026. Só a partir de ${dataBR} (daqui a ${dias} ${dias === 1 ? 'dia' : 'dias'}) dá para medir. ${dirRes.desce === null ? 'A leitura da direção dos canais falhou agora.' : `Enquanto isso, ${dirRes.desce} ${dirRes.desce === 1 ? 'canal está descendo' : 'canais estão descendo'} neste período.`}`,
         }
       } else if (filter === 'em-queda' && q.tipo === 'nao_carregou') {
-        vazio = { forma: 'nao_carregou', titulo: 'Em queda não carregou.', apoio: 'O estado dos canais não carregou agora. Recarregue a página em alguns minutos.', limpar }
+        vazio = { forma: 'nao_carregou', titulo: 'A leitura de "Em queda" falhou.', apoio: 'A leitura do estado dos canais falhou agora. Recarregue a página em alguns minutos.', limpar }
       } else if (filter === 'em-queda' && q.tipo === 'nao_medido') {
         vazio = { forma: 'nao_medido', titulo: 'Em queda ainda não foi medido.', apoio: `${FRASES[q.motivo]({}, 'canais').longa}.`, limpar }
       } else if (tudoNaoCarregou) {
-        vazio = { forma: 'nao_carregou', titulo: 'Não deu para contar: as medidas não carregaram.', apoio: 'Recarregue a página em alguns minutos.', limpar }
+        vazio = { forma: 'nao_carregou', titulo: 'Não deu para contar: a leitura das medidas falhou.', apoio: 'Recarregue a página em alguns minutos.', limpar }
       } else if (filter !== 'todos' && dirNome === null) {
         vazio = { forma: 'zero', titulo: `Nenhum canal ${nomeFiltro[filter] ?? 'neste filtro'}`, apoio: apoioZero[filter] ?? '', limpar }
       } else if (filter === 'todos' && dirNome !== null) {
@@ -932,7 +932,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const until = c.sync.state !== 'ok' && g.to != null ? ', até ' + D.dmhm(g.to) : ''
       statsV = [
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
-          sub: paradoDe(c) === 'sim' ? `Parado: último vídeo ${diasParado(c) == null ? 'há muito tempo' : nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : paradoDe(c) === 'nao_carregou' ? 'não carregou' : 'longos + Shorts por semana', subTitle: null, subWeak: paradoDe(c) === 'sim', ...(paradoDe(c) === 'nao_carregou' ? { subErro: true } : {}) },
+          sub: paradoDe(c) === 'sim' ? `Parado: último vídeo ${diasParado(c) == null ? 'há muito tempo' : nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : 'longos + Shorts por semana', subTitle: null, subWeak: paradoDe(c) === 'sim', ...(paradoDe(c) === 'nao_carregou' ? { subErro: true } : {}) },
         { label: `Views/dia, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: null, value: rel ? vRel : vAbs,
           sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : videosOf(c.id).some(x => x.fmt === fmt && x.tracked) ? 'Aguardando o 2º registro diário.' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
         g.pending

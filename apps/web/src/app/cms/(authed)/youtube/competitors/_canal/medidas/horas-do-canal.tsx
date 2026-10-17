@@ -4,7 +4,7 @@
  * Não medido traz o motivo de `frases-das-horas`, sem data inventada.
  */
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import type { ModeloDe72Horas } from './lancamentos-model'
 import './canal-medidas.css'
 
@@ -38,7 +38,7 @@ function Curva({ m }: { m: Extract<ModeloDe72Horas, { tipo: 'medido' }> }) {
 }
 
 export function HorasDoCanal({ modelo }: { modelo: ModeloDe72Horas }) {
-  if (modelo.tipo === 'nao_carregou') return <div className="pc-lc"><NaoCarregou medida="72 horas" /><p>{modelo.motivo}</p></div>
+  if (modelo.tipo === 'nao_carregou') return <div className="pc-lc"><PastilhaAusencia estado="falhou" motivo="72 horas" /><p>{modelo.motivo}</p></div>
   if (modelo.tipo === 'nao_medido') return <div className="pc-lc"><span className="obs-ch-nm">não medido</span><p>{modelo.motivo}</p></div>
   const pontos = [
     { rotulo: '1/4 das views', fala: `${modelo.umQuarto} ${modelo.umQuarto === 1 ? 'hora' : 'horas'} depois de publicar` },
