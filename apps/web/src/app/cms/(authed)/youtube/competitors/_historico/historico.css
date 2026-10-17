@@ -652,6 +652,9 @@
 [data-obs-screen="historico"] .lm-tl .l{position:absolute;top:30px;font-size:12.5px;line-height:16px;white-space:nowrap}
 [data-obs-screen="historico"] .lm-tl .l.r{transform:translateX(-100%);text-align:right}
 [data-obs-screen="historico"] .lm-tl .l.c{transform:translateX(-50%)}
+/* G-1: perto de "hoje" o rótulo do meio desce uma linha, para não escrever em cima do primeiro */
+[data-obs-screen="historico"] .lm-tl.perto{height:74px}
+[data-obs-screen="historico"] .lm-tl .l.c.baixo{top:48px}
 
 /* erro e carregando */
 [data-obs-screen="historico"] .lm-err{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;padding:12px 14px;border:1.5px solid var(--danger);border-radius:8px;background:var(--danger-subtle)}

@@ -150,6 +150,14 @@ describe('arquivos novos', () => {
     const css = ler('_historico/historico.css')
     expect(css.slice(css.indexOf('prefixo lm-'))).not.toContain('@container')
   })
+  it('linha do tempo: perto do dia em que a leitura passa a existir o rótulo do meio desce (G-1); longe, não', () => {
+    const perto = html(leituraDoVideo(null, null, somaDias(estourouExisteEm(), -1), VIDEO))
+    const longe = html(leituraDoVideo(null, null, somaDias(estourouExisteEm(), -40), VIDEO))
+    expect(perto).toContain('class="l c baixo"')
+    expect(perto).toContain('lm-tl perto')
+    expect(longe).not.toContain('baixo')
+    expect(longe).toContain('class="l c"')
+  })
   it('a tela de histórico só desenha o bloco num bloco isolado e com a marca', () => {
     expect(ler('_historico/historico-screen.tsx')).toContain('bloco: estourou-e-parou')
   })

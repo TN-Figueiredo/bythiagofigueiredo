@@ -197,11 +197,12 @@ function Linha({ hojeSP, existeEm }: { hojeSP: string; existeEm: string }) {
   const total = Math.max(1, dias(hojeSP, fim))
   const p1 = (dias(hojeSP, existeEm) / total) * 100
   const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+  const baixo = p1 < 30
   return (
-    <div className="lm-tl" role="img" aria-label={`Linha do tempo: hoje, ${dataBR(hojeSP)}; a leitura passa a existir em ${dataBR(existeEm)} para o primeiro vídeo e por volta de ${dataBR(fim)} num canal mediano`}>
+    <div className={`lm-tl${baixo ? ' perto' : ''}`} role="img" aria-label={`Linha do tempo: hoje, ${dataBR(hojeSP)}; a leitura passa a existir em ${dataBR(existeEm)} para o primeiro vídeo e por volta de ${dataBR(fim)} num canal mediano`}>
       <i className="trk" />
       <i className="m" style={{ left: 0 }} /><span className="l" style={{ left: 0 }}>hoje, {dm(hojeSP)}</span>
-      <i className="m ex2" style={{ left: `${p1}%` }} /><span className="l c" style={{ left: `${p1}%` }}>{dm(existeEm)}</span>
+      <i className="m ex2" style={{ left: `${p1}%` }} /><span className={`l c${baixo ? ' baixo' : ''}`} style={{ left: `${p1}%` }}>{dm(existeEm)}</span>
       <i className="m ex2" style={{ left: '100%' }} /><span className="l r" style={{ left: '100%' }}>{dm(fim)}</span>
     </div>
   )
