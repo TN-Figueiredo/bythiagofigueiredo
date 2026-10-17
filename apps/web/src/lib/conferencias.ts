@@ -378,9 +378,9 @@ export function conferenciasE5ARi(deploy: string | null): Conferencia[] {
 // a coleta de comentários foi ligada (resposta da CP24, preenchida pelo controlador; NÃO é `E14_DEPLOY`, porque a coleta subiu desligada).
 // Enquanto `E5A_COMENTARIOS_DEPLOY` for `null`, as entradas NÃO existem. Etapa `E5`; ids `e5a-comentarios-*`, distintos dos da leva 1 e 2.
 /** Dia de São Paulo (AAAA-MM-DD) em que o grupo C da E5a (Comentários de destaque) foi promovido a `main`. `null` = ainda não enviado. */
-export const E5A_COMENTARIOS_DEPLOY: string | null = null
+export const E5A_COMENTARIOS_DEPLOY: string | null = '2026-10-17'
 /** Dia de São Paulo (AAAA-MM-DD) em que a coleta de comentários foi ligada (CP24). `null` = as entradas de mais 29 e mais 31 não existem. */
-export const E5A_COMENTARIOS_COLETA_LIGADA: string | null = null
+export const E5A_COMENTARIOS_COLETA_LIGADA: string | null = '2026-10-15'
 
 const PLANO_E5A_COMENTARIOS = 'docs/superpowers/plans/2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md (seção 7, D0 do grupo C, e Tarefa C5); anotar o resultado em .superpowers/sdd/a5/progress.md'
 
