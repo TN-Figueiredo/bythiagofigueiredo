@@ -12,7 +12,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
 
 import { EstourouCarregando, EstourouEParou } from '@/app/cms/(authed)/youtube/competitors/_historico/estourou-e-parou'
-import { leituraSemConsulta, lerLeituraDoVideo, type IObservatorioDaLeitura } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-leitura'
+import { leituraSemConsulta, lerLeituraDoVideo, lerLeituraDoConjunto, type IObservatorioDaLeitura } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-leitura'
 import { leituraDoVideo, type Leitura } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-model'
 import { TEXTO_M10 } from '@/lib/youtube/observatorio/medidas-telas/texto-m10'
 import { picoSemCauda, type EntradaPico } from '@/lib/youtube/observatorio/medidas/pico'
@@ -141,10 +141,13 @@ describe('arquivos novos', () => {
     }
     expect(ler('video/[id]/page.tsx')).toMatch(/estourou=\{estourou\}/)
   })
-  it('a página: antes da data o bloco sai pronto (sem Suspense nem consulta); depois dela, num Suspense com a reserva', () => {
+  it('a página: antes da data o bloco sai pronto (sem consulta); depois dela, vai como "ler" e sai do MESMO conjunto do canal (nenhuma leitura própria da página)', () => {
     const pagina = ler('video/[id]/page.tsx')
     expect(pagina).toMatch(/leituraSemConsulta\(obs, view\.video\.id/)
-    expect(pagina).toMatch(/<Suspense key=\{view\.video!\.id\} fallback=\{<EstourouCarregando \/>\}>/)
+    expect(pagina).toMatch(/sincrona === 'ler' \? 'ler'/)
+    expect(pagina).not.toContain('lerLeituraDoVideo')
+    expect(pagina).not.toContain('carregarMedidasDoSite')
+    expect(ler('_historico/medidas/blocos-do-video.tsx')).toContain('lerLeituraDoConjunto')
   })
   it('o bloco de CSS usa media query, não container query (o teste da Fase 4 exige todo seletor dentro da tela)', () => {
     const css = ler('_historico/historico.css')
@@ -254,6 +257,51 @@ describe('lerLeituraDoVideo', () => {
     const l = await pedir(obsDe({ ageDays: 61 }), carregar)
     expect(l).toMatchObject({ tipo: 'nao_medido', motivo: 'menos_de_90_dias' })
     expect(carregar).toHaveBeenCalledTimes(1)
+  })
+})
+
+const conjuntoCom = (mv: MedidasDoVideo | null, serie: Map<string, never[]> | null = new Map()) => ({
+  medidas: mv === null ? { naoCarregou: 'erro_do_banco' } : { porVideo: new Map([['v1', mv]]) },
+  serie: serie === null ? { lido: false, causa: 'erro_do_banco' } : { lido: true, dados: serie },
+}) as unknown as Parameters<typeof lerLeituraDoConjunto>[0]['c']
+const doConjunto = (c: Parameters<typeof lerLeituraDoConjunto>[0]['c'], carregar: ReturnType<typeof vi.fn>, obs = obsDe(), now = AGORA) =>
+  lerLeituraDoConjunto({ c, sb, siteId: 's1', obs, videoId: 'v1', now, carregar: carregar as never })
+
+describe('lerLeituraDoConjunto (plano E5a §4.8: uma leitura da base do canal por visita)', () => {
+  it('a medida já está no conjunto: nenhuma leitura da base do canal (carregarMedidasDoSite não é chamado)', async () => {
+    const carregar = vi.fn()
+    const l = await doConjunto(conjuntoCom(videoMedido()), carregar)
+    expect(l?.tipo).toBe('estourou_e_parou')
+    expect(carregar).not.toHaveBeenCalled()
+  })
+  it('Estourou sai do mesmo conjunto: o m10 do conjunto aparece no bloco', async () => {
+    const carregar = vi.fn()
+    expect(await doConjunto(conjuntoCom(videoMedido()), carregar)).toEqual(await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(videoMedido()))))
+  })
+  it('vídeo fora da série do conjunto (180 dias) e a medida pede a série dele: cai na leitura própria, uma vez', async () => {
+    const carregar = vi.fn()
+      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') }))) // a leitura própria, sem a série, devolve "não pedida"
+      .mockResolvedValueOnce(siteCom(videoMedido()))
+    const l = await doConjunto(conjuntoCom(videoMedido({ m10: naoMedido('serie_diaria_incompleta') })), carregar)
+    expect(l?.tipo).toBe('estourou_e_parou')
+    expect(carregar).toHaveBeenCalledTimes(2)
+  })
+  it('série incompleta de verdade (o vídeo está na série do conjunto): não relê a base', async () => {
+    const carregar = vi.fn()
+    const l = await doConjunto(conjuntoCom(videoMedido({ m10: naoMedido('serie_diaria_incompleta') }), new Map([['v1', []]])), carregar)
+    expect(l).not.toBeNull()
+    expect(carregar).not.toHaveBeenCalled()
+  })
+  it('série do conjunto que falhou: não carregou, nunca "não é o caso"', async () => {
+    const falhou = videoMedido({ m10: naoMedido('leitura_falhou'), m9: { cauda: medido(0.2, 1, J), aindaRende: naoMedido('leitura_falhou') } })
+    expect((await doConjunto(conjuntoCom(falhou, null), vi.fn()))?.tipo).toBe('nao_carregou')
+  })
+  it('antes da data, outro site e canal próprio: nada é lido', async () => {
+    const carregar = vi.fn()
+    expect((await doConjunto(conjuntoCom(videoMedido()), carregar, obsDe(), Date.parse(somaDias(estourouExisteEm(), -3) + 'T15:00:00Z')))?.tipo).toBe('ainda_nao_existe')
+    expect(await doConjunto(conjuntoCom(videoMedido()), carregar, obsDe({ semVideo: true }))).toBeNull()
+    expect(await doConjunto(conjuntoCom(videoMedido()), carregar, obsDe({ own: true }))).toBeNull()
+    expect(carregar).not.toHaveBeenCalled()
   })
 })
 

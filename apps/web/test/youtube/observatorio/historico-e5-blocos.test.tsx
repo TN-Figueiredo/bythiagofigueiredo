@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   carregar: vi.fn(),
   servico: vi.fn(() => ({ from: vi.fn() })),
   montarVideo: vi.fn(),
+  completar: vi.fn(),
+  doConjunto: vi.fn(),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: mocks.servico }))
@@ -21,7 +23,8 @@ vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-canal', () => ({ c
 vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/montar', () => ({ montarVideo: mocks.montarVideo, assistidoDoVideo: vi.fn(), origemDoVideo: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu', () => ({ ownMenuOf: () => [] }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-leitura', () => ({ leituraSemConsulta: () => null, lerLeituraDoVideo: vi.fn() }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/medidas/estourou-leitura', () => ({ leituraSemConsulta: () => null, lerLeituraDoVideo: vi.fn(), lerLeituraDoConjunto: mocks.doConjunto }))
+vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-video', () => ({ completarVideoForaDaJanela: mocks.completar }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: vi.fn(), cancelForjaReading: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({ pinVideo: vi.fn(), unpinVideo: vi.fn(), syncCompetitorNow: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/contexto-ia-actions', () => ({ gerarPacoteIa: vi.fn() }))
@@ -56,7 +59,11 @@ const props = (extra: Record<string, unknown> = {}) => ({
 const html = (n: ReactNode) => renderToStaticMarkup(<>{n}</>)
 const tela = async (extra: Record<string, unknown> = {}) => (await BlocosDoVideo(props(extra))) as ReactElement<Record<string, ReactNode | boolean | undefined>>
 
-beforeEach(() => { mocks.carregar.mockReset(); mocks.servico.mockClear(); mocks.montarVideo.mockReset() })
+beforeEach(() => {
+  mocks.carregar.mockReset(); mocks.servico.mockClear(); mocks.montarVideo.mockReset(); mocks.doConjunto.mockReset()
+  // por padrão o vídeo está dentro da janela: o conjunto segue como veio
+  mocks.completar.mockReset(); mocks.completar.mockImplementation(async (_sb: unknown, c: CanalInteiro) => ({ canal: c, semLeitura: {}, leituraExtra: false }))
+})
 
 describe('BlocosDoVideo', () => {
   it('devolve o HistoricoScreen (cliente) com os acréscimos como dado e os blocos como elemento; a leitura é UMA, do canal do vídeo, com série, mudanças e horas', async () => {
@@ -66,6 +73,29 @@ describe('BlocosDoVideo', () => {
     expect(el.props.acrescimos).toBeTruthy()
     expect(mocks.carregar).toHaveBeenCalledTimes(1)
     expect(mocks.carregar.mock.calls[0]![1]).toMatchObject({ channelId: video.ch, agoraMs: AGORA, pedir: { serie: true, mudancas: true, horas: true } })
+  })
+
+  it('vídeo fora da janela: a leitura só dele entra (o conjunto completado vai a derivarDoVideo) e o que falhou vira "não carregou", nunca "nenhuma mudança"', async () => {
+    const c = canal({ serie: { lido: true, dados: new Map() }, mudancas: { lido: true, dados: new Map() } })
+    mocks.carregar.mockResolvedValue(c)
+    mocks.completar.mockResolvedValue({ canal: c, semLeitura: { serie: true, mudancas: true }, leituraExtra: false })
+    const el = await tela()
+    expect(mocks.completar).toHaveBeenCalledTimes(1)
+    expect(mocks.completar.mock.calls[0]![2]).toMatchObject({ siteId: 's1', channelId: video.ch, video: { id: video.id, publicadoEmMs: video.pub } })
+    const depois = html(el.props.depoisDoGrafico)
+    expect(depois).toContain('data-mudancas="nao_carregou"')
+    expect(depois).not.toMatch(/nenhuma mudan/i)
+    expect(el.props.acrescimos).toBeTruthy()
+  })
+
+  it('"Estourou e parou" pedido como "ler" sai do conjunto lido, sem leitura própria: lerLeituraDoConjunto recebe o conjunto ORIGINAL (sem a sobreposição do vídeo)', async () => {
+    const c = canal()
+    mocks.carregar.mockResolvedValue(c)
+    mocks.completar.mockResolvedValue({ canal: { ...c }, semLeitura: {}, leituraExtra: true })
+    mocks.doConjunto.mockResolvedValue(null)
+    await tela({ estourou: 'ler' })
+    expect(mocks.doConjunto).toHaveBeenCalledTimes(1)
+    expect(mocks.doConjunto.mock.calls[0]![0]).toMatchObject({ c, siteId: 's1', videoId: video.id })
   })
 
   it('o conjunto do canal falhou: devolve o estado de erro (não lança) e nenhum bloco', async () => {

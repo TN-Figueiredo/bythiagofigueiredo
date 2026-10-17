@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   leitor: vi.fn(),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+import * as Sentry from '@sentry/nextjs'
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: mocks.servico }))
 vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-canal', () => ({ carregarMedidasDoCanalInteiro: mocks.carregar }))
 vi.mock('@/lib/youtube/observatorio/comentarios/leitor', () => ({ lerComentariosDeDestaque: mocks.leitor }))
@@ -31,7 +32,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/contexto-ia-actions', () => ({ g
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import { BlocosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/blocos-do-video'
 import { HistoricoScreen } from '@/app/cms/(authed)/youtube/competitors/_historico/historico-screen'
-import { ComentariosDeDestaque, FAIXA_PERMISSAO_NAO_CONFERIDA } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
+import { ComentariosDeDestaque, FAIXA_PERMISSAO_NAO_CONFERIDA, type ProvasResolvidas } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
 import { EstadoDoPainel } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/estados'
 import { SecaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/secao'
 import { FRASES } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/frases'
@@ -68,8 +69,9 @@ const contagem: ComentariosContagem = {
   nivel: 'contagem', comentarios: [],
   marcos: { 1: { estado: 'desligados' }, 7: { estado: 'desligados' }, 30: { estado: 'desligados' } } as unknown as ComentariosContagem['marcos'],
 }
+const pr = (provas: ProvasDeQuemVe | null, permissaoFalhou = false): Promise<ProvasResolvidas> => Promise.resolve({ provas, permissaoFalhou })
 const props = (extra: Record<string, unknown> = {}) => ({
-  sb: {} as SupabaseClient, siteId: 's1', provas: null as ProvasDeQuemVe | null, videoId: FULL, agoraMs: AGORA, canaisDoSite: new Map([[video.ch, { nome: 'Matt' }]]),
+  sb: {} as SupabaseClient, siteId: 's1', provas: pr(null), videoId: FULL, agoraMs: AGORA, canaisDoSite: new Map([[video.ch, { nome: 'Matt' }]]),
   video: { t0Ms: video.pub, descobertoEmMs: null, canalId: video.ch }, canalNome: 'Matt', ...extra,
 })
 const paginaCom = (v: typeof view) => {
@@ -78,6 +80,8 @@ const paginaCom = (v: typeof view) => {
 }
 
 beforeEach(() => {
+  vi.mocked(Sentry.captureMessage).mockClear()
+  vi.mocked(Sentry.captureException).mockClear()
   for (const m of Object.values(mocks)) m.mockReset()
   mocks.servico.mockImplementation(() => ({ from: vi.fn() }))
   mocks.carregar.mockResolvedValue(canal())
@@ -85,7 +89,7 @@ beforeEach(() => {
 
 describe('a seção, depois do último bloco do Histórico', () => {
   it('vai por último, num Suspense próprio (não atrasa os blocos de cima), com as provas por prop de servidor', async () => {
-    const provas: ProvasDeQuemVe = { leitura: null, edicao: null }
+    const provas = pr({ leitura: null, edicao: null })
     const el = await blocos({ provas })
     const f = filhos(el.props.depoisDoGrafico)
     const ultimo = f[f.length - 1] as El
@@ -96,16 +100,25 @@ describe('a seção, depois do último bloco do Histórico', () => {
     expect(f.indexOf(ultimo)).toBeGreaterThan(0)
   })
 
+  it('estreia: o marco de comentário conta do início real (live_actual_start_at), não de published_at (portão Phil I4)', async () => {
+    const inicio = video.pub + 4 * 864e5
+    const lido = { id: FULL, videoId: video.ytId, publishedAt: new Date(video.pub).toISOString(), liveActualStartAt: new Date(inicio).toISOString(), liveBroadcastContent: 'none', wasLive: true, isShort: false, durationSeconds: null, viewCount: 1, likeCount: null, commentCount: null, likesHidden: null, commentsDisabled: null, viewsHidden: null, discoveredAt: new Date(inicio).toISOString(), missingSince: null, seriesTier: 'diaria' as const, lastCheckedAt: null }
+    mocks.carregar.mockResolvedValue({ ...canal(), videos: { lido: true, dados: [lido] } })
+    const el = await blocos({ provas: pr(null) })
+    const secao = achar(el.props.depoisDoGrafico as ReactNode, (e) => e.type === ComentariosDeDestaque)!
+    expect((secao.props.video as { t0Ms: number }).t0Ms).toBe(inicio)
+  })
+
   it('sem o pedido da página (provas ausente) a seção não existe; com provas nulas ela existe no nível contagem', async () => {
     const sem = await blocos({})
     expect(achar(sem.props.depoisDoGrafico as ReactNode, (e) => e.type === ComentariosDeDestaque)).toBeNull()
-    const com = await blocos({ provas: null })
+    const com = await blocos({ provas: pr(null) })
     expect(achar(com.props.depoisDoGrafico as ReactNode, (e) => e.type === ComentariosDeDestaque)).not.toBeNull()
   })
 
   it('os tokens não aparecem nas props da tela (cliente): nem na reserva, nem no conteúdo; só o elemento de servidor os carrega', async () => {
     const token = { sentinela: 'TOKEN-QUE-NAO-PODE-SAIR' } as unknown as ProvasDeQuemVe['leitura']
-    const provas: ProvasDeQuemVe = { leitura: token, edicao: null }
+    const provas = pr({ leitura: token, edicao: null })
     const el = await blocos({ provas })
     const { antesDoGrafico: _a, depoisDoGrafico: _d, ...resto } = el.props
     expect(el.type).toBe(HistoricoScreen)
@@ -128,16 +141,36 @@ describe('a seção, estados', () => {
     expect(JSON.stringify(el.props)).not.toContain('Nada foi apagado')
   })
 
-  it('o leitor que lança vira a mesma faixa de erro, nunca uma exceção', async () => {
+  it('o leitor que lança vira a mesma faixa de erro, nunca uma exceção, e vai ao Sentry', async () => {
     mocks.leitor.mockRejectedValue(new Error('x'))
     const el = (await ComentariosDeDestaque(props())) as El
     expect(achar(el, (e) => e.type === EstadoDoPainel)).not.toBeNull()
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect((vi.mocked(Sentry.captureException).mock.calls[0]![1] as { tags: Record<string, string> }).tags).toMatchObject({ component: 'observatorio', step: 'comentarios-destaque' })
+  })
+
+  it('leitura não lida: um aviso ao Sentry com causa e código, sem id de vídeo nem texto (portão Yannis I-5)', async () => {
+    mocks.leitor.mockResolvedValue({ lido: false, causa: 'erro_do_banco', codigo: '57014' })
+    await ComentariosDeDestaque(props())
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    const [msg, ctx] = vi.mocked(Sentry.captureMessage).mock.calls[0]! as [string, { level: string; tags: Record<string, string>; extra: Record<string, string> }]
+    expect(msg).toContain('comentários de destaque')
+    expect(ctx.tags).toMatchObject({ step: 'comentarios-destaque' })
+    expect(ctx.extra).toEqual({ causa: 'erro_do_banco', codigo: '57014' })
+    expect(JSON.stringify(ctx)).not.toContain(FULL)
+  })
+
+  it('leitura lida: nada vai ao Sentry', async () => {
+    mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
+    await ComentariosDeDestaque(props())
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+    expect(Sentry.captureException).not.toHaveBeenCalled()
   })
 
   it('o leitor decide o nível: a seção chama o leitor com as provas, o site da guarda e o vídeo, e não passa nível nenhum', async () => {
     mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
     const provas: ProvasDeQuemVe = { leitura: null, edicao: null }
-    await ComentariosDeDestaque(props({ provas }))
+    await ComentariosDeDestaque(props({ provas: pr(provas) }))
     const [, pedido] = mocks.leitor.mock.calls[0]!
     expect(pedido).toMatchObject({ siteDaGuarda: 's1', provas, videoId: FULL })
     expect('nivel' in pedido).toBe(false)
@@ -145,7 +178,7 @@ describe('a seção, estados', () => {
 
   it('permissão não conferida: nível contagem com a faixa de permissão, nunca texto', async () => {
     mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
-    const el = (await ComentariosDeDestaque(props({ permissaoFalhou: true }))) as El
+    const el = (await ComentariosDeDestaque(props({ provas: pr(null, true) }))) as El
     expect(el.type).toBe(SecaoDeComentarios)
     expect((el.props.v as { faixa: string }).faixa).toBe(FAIXA_PERMISSAO_NAO_CONFERIDA)
     expect(mocks.leitor.mock.calls[0]![1].provas).toBeNull()
@@ -158,8 +191,8 @@ describe('a página: acesso e provas', () => {
     const arvore = await paginaCom(view)
     const filho = (achar(arvore, (e) => e.type === Suspense)!.props as { children: El }).children
     expect(filho.type).toBe(BlocosDoVideo)
-    expect(filho.props.provas).toBeNull()   // provas nulas: o leitor decide contagem
-    expect(filho.props.permissaoFalhou).toBe(true)
+    // provas nulas: o leitor decide contagem; a faixa de permissão vem junto
+    expect(await (filho.props.provas as Promise<ProvasResolvidas>)).toEqual({ provas: null, permissaoFalhou: true })
   })
 
   it('acesso sem o campo edicao: no máximo texto (edicao nula, mesmo com edita verdadeiro)', async () => {
@@ -167,8 +200,15 @@ describe('a página: acesso e provas', () => {
     mocks.acesso.mockResolvedValue({ leitura, edita: true, negativa: null })
     const arvore = await paginaCom(view)
     const filho = (achar(arvore, (e) => e.type === Suspense)!.props as { children: El }).children
-    expect(filho.props.provas).toEqual({ leitura, edicao: null })
-    expect(filho.props.permissaoFalhou).toBe(false)
+    expect(await (filho.props.provas as Promise<ProvasResolvidas>)).toEqual({ provas: { leitura, edicao: null }, permissaoFalhou: false })
+  })
+
+  it('a página devolve a árvore sem esperar acessoPrivado (a prova lenta não segura o cabeçalho; a seção espera dentro do Suspense dela)', async () => {
+    mocks.acesso.mockReturnValue(new Promise(() => { /* nunca resolve */ }))
+    const arvore = await paginaCom(view)
+    const filho = (achar(arvore, (e) => e.type === Suspense)!.props as { children: El }).children
+    expect(filho.type).toBe(BlocosDoVideo)
+    expect(filho.props.provas).toBeInstanceOf(Promise)
   })
 
   it('vídeo de outro site na URL: nenhuma consulta de comentário, nenhum acesso privado e nenhum cliente de serviço', async () => {

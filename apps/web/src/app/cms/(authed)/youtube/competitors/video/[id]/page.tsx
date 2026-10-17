@@ -10,13 +10,12 @@ import { HistoricoScreen } from '../../_historico/historico-screen'
 import { BlocosDoVideo } from '../../_historico/medidas/blocos-do-video'
 import { assistidoDoVideo, montarVideo, origemDoVideo, type PropsAssistidoDoVideo, type PropsOrigemDoVideo } from '../../_historico/montar'
 import { Pager } from '../../_historico/pager'
-import { EstourouCarregando, EstourouEParou } from '../../_historico/estourou-e-parou'
-import { leituraSemConsulta, lerLeituraDoVideo, type IObservatorioDaLeitura } from '../../_chrome/medidas/estourou-leitura'
+import { EstourouEParou } from '../../_historico/estourou-e-parou'
+import { leituraSemConsulta } from '../../_chrome/medidas/estourou-leitura'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import '../../_historico/historico.css'
 import { acessoPrivado } from '../../_proprio/dados'
-import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import { resolverProvas } from '../../_historico/comentarios-de-destaque'
 import { AssistidoPeriodos } from '../../_proprio/assistido-periodos'
 import { Origem } from '../../_proprio/origem'
 import { OrigemEsqueleto } from '../../_proprio/origem-esqueleto'
@@ -44,12 +43,6 @@ export const maxDuration = 60
 async function AssistidoDoVideo(p: PropsAssistidoDoVideo & { barra: BlocoAssistido | null }) {
   const { barra, ...entrada } = p
   return <AssistidoPeriodos view={await assistidoDoVideo(entrada)} barra={barra} />
-}
-
-/** A5 E5a T10a: o bloco "Estourou e parou", num `Suspense` próprio; a leitura do servidor nunca lança e devolve nulo para o vídeo que não é do site. */
-async function EstourouDoVideo(p: { siteId: string; obs: IObservatorioDaLeitura; videoId: string; now: number }) {
-  const leitura = await lerLeituraDoVideo({ sb: getSupabaseServiceClient(), ...p })
-  return leitura ? <EstourouEParou leitura={leitura} /> : null
 }
 
 /** "De onde vêm as views" (tela do vídeo), num `Suspense` próprio. */
@@ -96,38 +89,23 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
     )
   }
   const { view } = m
-  // A5 E5a T10a: o bloco "Estourou e parou" só existe para um vídeo acompanhado que achou o seu cartão (nunca "não encontrado" nem fora dos acompanhados);
-  // vai num Suspense próprio, para o resto do Histórico não esperar a leitura. O id é cruzado com o conjunto do site dentro do bloco, antes de qualquer consulta.
+  // A5 E5a T10a: o bloco "Estourou e parou" só existe para um vídeo acompanhado que achou o seu cartão (nunca "não encontrado" nem fora dos acompanhados).
+  // Pronto sem consulta (antes da data em que a leitura existe): vai como elemento. Com leitura a fazer: `'ler'`, e o bloco sai do MESMO conjunto do canal
+  // que a tela de medidas lê (uma leitura da base do canal por visita, plano E5a §4.8); o id é cruzado com o conjunto do site antes de qualquer consulta.
   const sincrona = !view.notFound && !view.untracked && view.video ? leituraSemConsulta(obs, view.video.id, m.pagina.now) : null
-  const estourou = sincrona === null ? undefined : sincrona !== 'ler' ? <EstourouEParou leitura={sincrona} /> : (
-    <Suspense key={view.video!.id} fallback={<EstourouCarregando />}>
-      <EstourouDoVideo siteId={m.pagina.siteId} obs={obs} videoId={view.video!.id} now={m.pagina.now} />
-    </Suspense>
-  )
+  const estourou = sincrona === null ? undefined : sincrona !== 'ler' ? <EstourouEParou leitura={sincrona} /> : undefined
   // A5 E5a T21c: um vídeo acompanhado, de canal de concorrente, ganha os blocos de medidas. A reserva do `Suspense` é o PRÓPRIO `HistoricoScreen`
   // (cabeçalho e botões de verdade, três cartões no lugar do resto); o `key` do vídeo faz a reserva voltar a cada troca de vídeo. As cinco ações de
   // servidor e `pagerNaTrilha` chegam ao bloco por prop daqui (servidor para servidor); o bloco não importa ação nenhuma.
   const doMotor = !view.notFound && !view.untracked && view.video ? obs.videos.find((x) => x.id === view.video!.id) : undefined
   const acoes = { onAskForja: askForjaReading, onCancelForja: cancelForjaReading, onSyncChannel: syncCompetitorNow, onPin: pinVideo, onUnpin: unpinVideo, pagerNaTrilha: true }
-  // C3: `acessoPrivado` depois da guarda, uma vez; que lance (não deveria) é nível contagem com a faixa de permissão, nunca texto. As provas
-  // seguem de servidor a servidor ao bloco; a página NÃO chama `provarEdicao` (a varredura do token) nem decide nível (quem decide é o leitor).
-  let provas: ProvasDeQuemVe | null = null
-  let permissaoFalhou = false
-  if (doMotor) {
-    try {
-      const acesso = await acessoPrivado(m.pagina.siteId)
-      // `edicao` é o campo do pedido P11 (passo 0 da E17); sem ele, no máximo texto
-      const edicao = (acesso as typeof acesso & { edicao?: EdicaoDoSite | null }).edicao ?? null
-      provas = { leitura: acesso.leitura, edicao }
-      permissaoFalhou = acesso.negativa === 'nao_foi_possivel_conferir'
-    } catch {
-      permissaoFalhou = true
-    }
-  }
+  // C3: `acessoPrivado` depois da guarda, uma vez, SEM esperar: a promessa segue ao bloco e a seção espera dentro do `Suspense` dela, para o cabeçalho
+  // sair na hora (portão Yannis I-1). As provas seguem de servidor a servidor; a página NÃO chama `provarEdicao` nem decide nível (quem decide é o leitor).
+  const provas = doMotor ? resolverProvas(acessoPrivado(m.pagina.siteId)) : undefined
   const tela = doMotor ? (
     <Suspense key={doMotor.id} fallback={<HistoricoScreen view={view} carregando {...acoes} />}>
       <BlocosDoVideo obterSb={getSupabaseServiceClient} siteId={m.pagina.siteId} obs={obs} agoraMs={m.pagina.now} view={view} video={doMotor}
-        estourou={estourou} linkSaiu={{ href: obs.link.saiu() }} provas={provas} permissaoFalhou={permissaoFalhou}
+        estourou={sincrona === 'ler' ? 'ler' : estourou} linkSaiu={{ href: obs.link.saiu() }} provas={provas}
         canaisDoSite={new Map(obs.channels.map((x) => [x.id, { nome: x.name }]))} {...acoes} />
     </Suspense>
   ) : (

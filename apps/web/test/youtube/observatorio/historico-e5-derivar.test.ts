@@ -114,3 +114,10 @@ describe('derivarDoVideo: uma âncora só, o início real (portão Phil I4, Yann
     expect(FRASES_DAS_HORAS.entrou_tarde({ horasAteEntrar: 5 } as never).longa).toMatch(/\b5 horas depois/)
   })
 })
+
+describe('derivarDoVideo: a definição da leitura horária existe (portão Yannis m-3)', () => {
+  it('o fallback de 2 horas nunca roda em silêncio: a definição "leitura_horaria" tem toleranciaVigiaH', async () => {
+    const { DEFINICOES } = await import('@/lib/youtube/agenda/definicoes')
+    expect(typeof DEFINICOES.find((d) => d.nome === 'leitura_horaria')?.toleranciaVigiaH).toBe('number')
+  })
+})

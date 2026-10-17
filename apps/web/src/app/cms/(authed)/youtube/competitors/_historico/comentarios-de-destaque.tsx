@@ -7,8 +7,11 @@
  * `SecaoView` é dado deste componente: não é campo de `HistoricoView`.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import { lerComentariosDeDestaque } from '@/lib/youtube/observatorio/comentarios/leitor'
 import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
+import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
+import type { AcessoPrivado } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import { FRASES } from '../_chrome/comentarios/frases'
 import { EstadoDoPainel } from '../_chrome/comentarios/estados'
@@ -19,13 +22,30 @@ import '../_chrome/comentarios/comentarios.css'
 /** TEXTO-A-REVISAR: a faixa quando a conferência de permissão falhou; o nível cai para a contagem e a tela diz por quê (nunca sobe por falta de resposta). */
 export const FAIXA_PERMISSAO_NAO_CONFERIDA = 'Não deu para conferir a sua permissão agora, então os comentários aparecem só em contagem. Tente de novo em instantes.'
 
+/** As provas de quem vê, já resolvidas, e se a conferência da permissão falhou. */
+export interface ProvasResolvidas { provas: ProvasDeQuemVe | null; permissaoFalhou: boolean }
+
+/**
+ * Do acesso privado (que a página pede SEM esperar, para o cabeçalho sair na hora) às provas de quem vê. Nunca rejeita: que a prova lance (não
+ * deveria) é nível contagem com a faixa de permissão, nunca texto. A página NÃO chama `provarEdicao` nem decide nível (quem decide é o leitor).
+ * `edicao` é o campo do pedido P11 (passo 0 da E17): enquanto `AcessoPrivado` não o tiver, é sempre nulo (no máximo texto).
+ */
+export async function resolverProvas(acesso: Promise<AcessoPrivado>): Promise<ProvasResolvidas> {
+  try {
+    const a = await acesso
+    const edicao = 'edicao' in a ? ((a as AcessoPrivado & { edicao?: EdicaoDoSite | null }).edicao ?? null) : null
+    return { provas: { leitura: a.leitura, edicao }, permissaoFalhou: a.negativa === 'nao_foi_possivel_conferir' }
+  } catch {
+    return { provas: null, permissaoFalhou: true }
+  }
+}
+
 export interface PropsComentariosDeDestaque {
   /** Cliente de serviço, chamado DEPOIS da guarda de leitura do site (a RLS devolveria zero linha com o cliente do usuário). */
   sb: SupabaseClient
   siteId: string
-  provas: ProvasDeQuemVe | null
-  /** A conferência de permissão falhou: a faixa diz isso. */
-  permissaoFalhou?: boolean
+  /** As provas de quem vê, em promessa: a seção espera DENTRO do `Suspense` dela, não a página (portão Yannis I-1). */
+  provas: Promise<ProvasResolvidas>
   videoId: string
   agoraMs: number
   canaisDoSite: ReadonlyMap<string, { nome: string }>
@@ -37,14 +57,20 @@ export interface PropsComentariosDeDestaque {
 
 export async function ComentariosDeDestaque(p: PropsComentariosDeDestaque) {
   let lido: Awaited<ReturnType<typeof lerComentariosDeDestaque>>
+  const { provas, permissaoFalhou } = await p.provas.catch((): ProvasResolvidas => ({ provas: null, permissaoFalhou: true }))
   try {
     lido = await lerComentariosDeDestaque(p.sb, {
-      siteDaGuarda: p.siteId, provas: p.provas, videoId: p.videoId, agoraMs: p.agoraMs, canaisDoSite: p.canaisDoSite, video: p.video,
+      siteDaGuarda: p.siteId, provas, videoId: p.videoId, agoraMs: p.agoraMs, canaisDoSite: p.canaisDoSite, video: p.video,
     })
-  } catch {
+  } catch (err) {
+    // por contrato o leitor não relata ("quem relata é a página"): quem relata é esta seção, com tags e sem id de autor nem texto (portão Yannis I-5)
+    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'comentarios-destaque' } })
     lido = { lido: false, causa: 'erro_do_banco', codigo: 'excecao' }
   }
   if (!lido.lido) {
+    if (lido.codigo !== 'excecao') {
+      Sentry.captureMessage('observatório: comentários de destaque não lidos', { level: 'warning', tags: { component: 'observatorio', step: 'comentarios-destaque' }, extra: { causa: lido.causa, codigo: lido.codigo } })
+    }
     return (
       <section className="cd-secao" aria-labelledby="cd-titulo" data-comentarios="erro">
         <h2 id="cd-titulo" className="cd-titulo">{FRASES.titulo}</h2>
@@ -53,5 +79,5 @@ export async function ComentariosDeDestaque(p: PropsComentariosDeDestaque) {
     )
   }
   const v = secaoDeComentarios(lido.dados, { hojeSP: spDateOf(p.agoraMs), canalNome: p.canalNome, t0Ms: p.video.t0Ms, descobertoEmMs: p.video.descobertoEmMs })
-  return <SecaoDeComentarios v={p.permissaoFalhou ? { ...v, faixa: FAIXA_PERMISSAO_NAO_CONFERIDA } : v} hrefFilaSaiu={p.hrefFilaSaiu} />
+  return <SecaoDeComentarios v={permissaoFalhou ? { ...v, faixa: FAIXA_PERMISSAO_NAO_CONFERIDA } : v} hrefFilaSaiu={p.hrefFilaSaiu} />
 }

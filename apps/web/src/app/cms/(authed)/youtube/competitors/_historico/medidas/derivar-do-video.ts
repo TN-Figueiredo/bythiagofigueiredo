@@ -30,6 +30,11 @@ export interface PedidoDeDerivacao {
   video: { id: string; publicadoEmMs: number; viewsAgora: number | null; dur: number | null }
   /** O recorte do eixo do gráfico: de `fromH` a `H`, em horas desde a publicação. */
   eixoH: { fromH: number; H: number }
+  /**
+   * O vídeo está fora da janela do conjunto do canal (180 dias da série e das mudanças, 90 das horas) e a leitura só dele falhou: aquela parte é
+   * "não lida" (`null`), nunca lista vazia (portão Phil I2).
+   */
+  semLeitura?: { serie?: boolean; mudancas?: boolean; horas?: boolean }
 }
 
 export interface DerivadoDoVideo {
@@ -96,7 +101,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   const baseMs = lido ? (baseDaIdade(lido) ?? pub) : pub
   const formato: Formato = (lido ? formatoDe(lido) : null) ?? 'long'
   const serie = c.serie !== 'nao_pedida' && c.serie.lido ? c.serie.dados : null
-  const leituras = serie ? (serie.get(video.id) ?? []) : null
+  const leituras = serie && p.semLeitura?.serie !== true ? (serie.get(video.id) ?? []) : null
   const marcas = c.marcas.lido ? c.marcas.dados : null
   const semanal = lido?.seriesTier === 'semanal'
   const aoVivo = lido?.liveBroadcastContent === 'live'
@@ -136,7 +141,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   })
 
   // ───── mudanças e subida ─────
-  const mudLidas = c.mudancas !== 'nao_pedida' && c.mudancas.lido ? (c.mudancas.dados.get(video.id) ?? []) : null
+  const mudLidas = c.mudancas !== 'nao_pedida' && c.mudancas.lido && p.semLeitura?.mudancas !== true ? (c.mudancas.dados.get(video.id) ?? []) : null
   const numeradas: MudancaNumerada[] | null = mudLidas === null ? null : numerarMudancas(mudancasDoModelo(mudLidas, leituras))
   // dia de contagem = dia com a leitura diária das 12:00; o dia que só tem leitura por hora não conta (portão Phil I3)
   const diasDeContagem = leituras === null ? null : new Set(leituras.filter((l) => l.porHora !== true).map((l) => spDateOf(l.t))).size
@@ -148,7 +153,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   const subidaDia = subida.tipo === 'subiu' ? subida.dia : null
 
   // ───── As 72 horas ─────
-  const horasLidas = c.horas !== 'nao_pedida' && c.horas.lido ? c.horas.dados : null
+  const horasLidas = c.horas !== 'nao_pedida' && c.horas.lido && p.semLeitura?.horas !== true ? c.horas.dados : null
   let normalHoras: ReturnType<typeof tracaoDoCanal> | null = null
   if (horasLidas !== null && videos !== null) {
     const daTracao: VideoDaTracao[] = []
