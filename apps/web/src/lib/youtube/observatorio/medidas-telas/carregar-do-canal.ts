@@ -6,7 +6,7 @@ import { observatoryCacheEnabled } from '../load-page'
 import { DAY } from '../time'
 import { medidasDoCanal, type Insumos, type MedidasDoCanal } from '../medidas/do-canal'
 import { MEASURE_RULES } from '../medidas/regras'
-import { lerMudancasDoCanal, lerSeriesDoCanal, type CausaNaoLida, type MudancaLida, type Parte, type VideoLido } from '../medidas/ler'
+import { lerMudancasDoCanal, lerSeriesDoCanal, type CausaNaoLida, type MarcasDoCanal, type MudancaLida, type Parte, type VideoLido } from '../medidas/ler'
 import type { Leitura } from '../medidas/m1'
 import type { RetratoDoCanal } from '../medidas/direcao'
 import { remontar, type InsumosPlanos } from './insumos-planos'
@@ -45,6 +45,8 @@ export interface CanalInteiro {
   medidas: MedidasDoCanal | { naoCarregou: CausaDeFalha }
   videos: ParteDoCanal<VideoLido[]>
   retratos: ParteDoCanal<RetratoDoCanal[]>
+  /** As marcas de 1, 7 e 30 dias (as telas refazem o normal sem o próprio vídeo). */
+  marcas: ParteDoCanal<MarcasDoCanal>
   serie: ParteDoCanal<Map<string, Leitura[]>> | 'nao_pedida'
   /** Por id do vídeo (a lista plana perderia o vídeo de cada mudança). */
   mudancas: ParteDoCanal<Map<string, MudancaLida[]>> | 'nao_pedida'
@@ -109,7 +111,7 @@ export async function carregarMedidasDoCanalInteiro(sb: SupabaseClient, p: Pedid
     // erro de código, nunca do banco: nada rejeita
     const pedida = <T>(pediu: boolean): ParteDoCanal<T> | 'nao_pedida' => (pediu ? naoLida('erro_do_banco') : 'nao_pedida')
     return {
-      medidas: { naoCarregou: 'erro_do_banco' }, videos: naoLida('erro_do_banco'), retratos: naoLida('erro_do_banco'),
+      medidas: { naoCarregou: 'erro_do_banco' }, videos: naoLida('erro_do_banco'), retratos: naoLida('erro_do_banco'), marcas: naoLida('erro_do_banco'),
       serie: pedida(p.pedir.serie), mudancas: pedida(p.pedir.mudancas), horas: pedida(p.pedir.horas),
       falhas: [{ medida: 'canal', classe: 'calculo_falhou' }], esgotou: [],
     }
@@ -128,7 +130,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
   const canal = p.obs.channels.find((c) => c.id === channelId)
   if (canal === undefined || canal.own) {
     return {
-      medidas: { naoCarregou: 'canal_de_outro_site' }, videos: naoLida('canal_de_outro_site'), retratos: naoLida('canal_de_outro_site'),
+      medidas: { naoCarregou: 'canal_de_outro_site' }, videos: naoLida('canal_de_outro_site'), retratos: naoLida('canal_de_outro_site'), marcas: naoLida('canal_de_outro_site'),
       serie: pedida(pedir.serie, 'canal_de_outro_site'), mudancas: pedida(pedir.mudancas, 'canal_de_outro_site'), horas: pedida(pedir.horas, 'canal_de_outro_site'),
       falhas, esgotou,
     }
@@ -148,7 +150,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     falhou('leitura', 'erro_do_banco')
     avisos.fechar()
     return {
-      medidas: { naoCarregou: 'erro_do_banco' }, videos: naoLida('erro_do_banco'), retratos: naoLida('erro_do_banco'),
+      medidas: { naoCarregou: 'erro_do_banco' }, videos: naoLida('erro_do_banco'), retratos: naoLida('erro_do_banco'), marcas: naoLida('erro_do_banco'),
       serie: pedida(pedir.serie, 'erro_do_banco'), mudancas: pedida(pedir.mudancas, 'erro_do_banco'), horas: pedida(pedir.horas, 'erro_do_banco'),
       falhas, esgotou,
     }
@@ -158,7 +160,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     falhou('leitura', 'tempo_esgotado')
     avisos.fechar()
     return {
-      medidas: { naoCarregou: 'tempo_esgotado' }, videos: naoLida('tempo_esgotado'), retratos: naoLida('tempo_esgotado'),
+      medidas: { naoCarregou: 'tempo_esgotado' }, videos: naoLida('tempo_esgotado'), retratos: naoLida('tempo_esgotado'), marcas: naoLida('tempo_esgotado'),
       serie: pedida(pedir.serie, 'tempo_esgotado'), mudancas: pedida(pedir.mudancas, 'tempo_esgotado'), horas: pedida(pedir.horas, 'tempo_esgotado'),
       falhas, esgotou,
     }
@@ -168,7 +170,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     avisos.fechar()
     const c = planos.canal.causa
     return {
-      medidas: { naoCarregou: c }, videos: naoLida(c), retratos: naoLida(c),
+      medidas: { naoCarregou: c }, videos: naoLida(c), retratos: naoLida(c), marcas: naoLida(c),
       serie: pedida(pedir.serie, c), mudancas: pedida(pedir.mudancas, c), horas: pedida(pedir.horas, c),
       falhas, esgotou,
     }
@@ -300,5 +302,5 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     medidas = { naoCarregou: 'erro_do_banco' }
   }
   avisos.fechar()
-  return { medidas, videos, retratos, serie, mudancas, horas, falhas, esgotou }
+  return { medidas, videos, retratos, marcas: insumos.marcas, serie, mudancas, horas, falhas, esgotou }
 }
