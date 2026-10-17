@@ -7,10 +7,9 @@ import type {
   CartaoBase, CartaoContagem, CartaoIdentidade, CartaoTexto, ComentariosDoVideo, CurtidasNoMarco, EstadoDoMarco, MotivoDoCartao, Nivel,
 } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import { FRASES, RESPOSTAS_QUE_O_YOUTUBE_MOSTRA, dias } from './frases'
-import type { AutorDaFala, ChaveDeMotivo } from './fio-model'
+import type { AutorDaFala, ChaveDeMotivo, FalaView, FioView } from './fio-model'
 
 export const MARCOS_DA_TELA: readonly Marco[] = [1, 7, 30]
-export const CASAS = 12
 const DIA_MS = 86_400_000
 
 export type Tom = 'ok' | 'zero' | 'nm' | 'erro' | 'pontilhado'
@@ -23,7 +22,8 @@ export interface EstadoView {
   /** Só no erro de leitura: mostra "Tentar de novo". */
   tentar: boolean
 }
-export interface LegendaView { chave: ChaveDeMotivo; rotulo: string; texto: string; n: number; zero: boolean }
+/** Só os motivos que existem na lista (n > 0): o texto diz quantos. */
+export interface LegendaView { chave: ChaveDeMotivo; rotulo: string; texto: string; n: number }
 export interface CurtidaView {
   marco: Marco; rotulo: string; tipo: 'n' | 'fora' | 'fecha' | 'ainda'; texto: string
   /** O número cru quando `tipo === 'n'` (o pacote da IA lê daqui, nunca do texto formatado). */
@@ -36,7 +36,7 @@ export type AutorView =
   | { tipo: 'espectador' } | { tipo: 'reservado' } | { tipo: 'grande'; faixa: string | null }
   | { tipo: 'criador'; nome: string } | { tipo: 'proprio' }
 export type RespostaView =
-  | { forma: 'respondeu'; titulo: string; textos: Array<{ texto: string; cortado: boolean }> | null; reservado: string | null }
+  | { forma: 'respondeu'; titulo: string; textos: Array<{ texto: string; cortado: boolean; data: string | null }> | null; reservado: string | null }
   | { forma: 'nao_vimos' | 'nao_sabemos'; texto: string }
 export interface DegrauView { degrau: 1 | 2 | 3; texto: string }
 export interface CartaoView {
@@ -54,15 +54,19 @@ export interface CartaoView {
   rodape: { publicado: string | null; respostas: { n: number; texto: string } | null }
   /** O comentário é um retrato antigo de quem saiu dos 12 (lista "Ver os N que saíram"). */
   saidoDosDoze: boolean
+  /** O mesmo comentário no formato do fio único (a tela desenha daqui; o pacote da IA lê os campos acima). */
+  fio: FioView
 }
-export interface CasaView { id: string | null; chave: ChaveDeMotivo | null; rotulo: string; curtidas: number | null; posicao: number | null }
 export interface MovimentoView { texto: string; saidas: string | null; primeiro: string | null; entraram: number; sairam: number }
 export interface ListaView {
-  kind: 'lista'; marco: Marco; frase: string
+  kind: 'lista'; marco: Marco; frase: { negrito: string; resto: string | null }
   barra: { n: number; de: number; todos: boolean; texto: string }
-  legenda: LegendaView[]; inscritosOcultos: string | null
+  legenda: LegendaView[]
+  /** Uma frase apagada com os motivos opcionais que ficaram em zero; nulo sem zero. */
+  zeros: string | null
+  inscritosOcultos: string | null
   movimento: MovimentoView
-  casas: CasaView[]; cartoes: CartaoView[]; saidos: CartaoView[]
+  cartoes: CartaoView[]; saidos: CartaoView[]
 }
 export type PainelView = EstadoView | ListaView
 export interface SecaoView {
@@ -206,7 +210,7 @@ function respostaDoCartao(c: Cartao, canalNome: string): RespostaView | null {
   const nome = c.criadorNome ?? canalNome
   if (c.criador === 'respondeu') {
     if (!comTexto(c)) return { forma: 'respondeu', titulo: FRASES.respondeu(nome), textos: null, reservado: FRASES.respondeuReservado }
-    return { forma: 'respondeu', titulo: FRASES.respondeu(nome), textos: c.respostasDoCriador.map(r => ({ texto: r.texto, cortado: r.cortado })), reservado: null }
+    return { forma: 'respondeu', titulo: FRASES.respondeu(nome), textos: c.respostasDoCriador.map(r => ({ texto: r.texto, cortado: r.cortado, data: r.publicadoEm ? dmDeData(r.publicadoEm) : null })), reservado: null }
   }
   if (c.respostas === null || c.respostas <= 0) return null
   if (c.criador === 'nao_vimos') return { forma: 'nao_vimos', texto: FRASES.naoVimos(c.respostas) }
@@ -215,7 +219,7 @@ function respostaDoCartao(c: Cartao, canalNome: string): RespostaView | null {
   return { forma: 'nao_sabemos', texto: FRASES.naoSabemos(RESPOSTAS_QUE_O_YOUTUBE_MOSTRA, c.respostas) }
 }
 
-function cartaoView(c: Cartao, i: number, de: number, m: Marco, ctx: { nivel: Nivel; marcos: Record<Marco, EstadoDoMarco>; max: number; hojeSP: string; canalNome: string; entrou: boolean; saido: boolean }): CartaoView {
+function cartaoView(c: Cartao, i: number, de: number, m: Marco, ctx: { nivel: Nivel; marcos: Record<Marco, EstadoDoMarco>; max: number; maxPainel: number; hojeSP: string; canalNome: string; entrou: boolean; saido: boolean }): CartaoView {
   const chave = CHAVE[c.motivo]
   const t = comTexto(c) ? c.texto : null
   const tamanho = c.faixas.tamanho
@@ -228,18 +232,64 @@ function cartaoView(c: Cartao, i: number, de: number, m: Marco, ctx: { nivel: Ni
     : null
   const resp = c.respostas === null ? null : FRASES.respostasN(c.respostas)
   const pub = comTexto(c) ? FRASES.publicadoEm(dmDeData(c.publicadoEm)) : null
+  const autor = autorDoCartao(c, ctx.nivel, ctx.canalNome)
+  const resposta = respostaDoCartao(c, ctx.canalNome)
+  const curtidasDoMarco: CurtidasNoMarco = c.curtidas[m]
+  const entrou = ctx.entrou ? FRASES.entrouNoDia(m) : null
+  const rotuloDaPosicao = FRASES.posicao(i + 1, de)
+  const textoPronto = t === null ? null : { texto: t, cortado: comTexto(c) ? c.cortado : false, temEndereco: temEndereco(t) }
+  const view = fioDoCartao({
+    id: `cd-${m}-${c.ordem}`, c, autor, resposta, texto: textoPronto, curtidasDoMarco, marco: m, maxPainel: ctx.maxPainel,
+    posicao: rotuloDaPosicao, entrou, saido: ctx.saido, chave, pastilha: ROTULO[chave], respostas: c.respostas === null ? null : { n: c.respostas, texto: resp as string },
+    publicado: comTexto(c) ? dmDeData(c.publicadoEm) : null,
+  })
   return {
-    id: `cd-${m}-${c.ordem}`, posicao: i + 1, de, rotuloDaPosicao: FRASES.posicao(i + 1, de), chave, motivo: ROTULO[chave],
-    entrouNoDia: ctx.entrou ? FRASES.entrouNoDia(m) : null,
-    autor: autorDoCartao(c, ctx.nivel, ctx.canalNome),
-    texto: t === null ? null : { texto: t, cortado: comTexto(c) ? c.cortado : false, temEndereco: temEndereco(t) },
+    id: `cd-${m}-${c.ordem}`, posicao: i + 1, de, rotuloDaPosicao, chave, motivo: ROTULO[chave],
+    entrouNoDia: entrou,
+    autor,
+    texto: textoPronto,
     textoReservado: t === null,
-    resposta: respostaDoCartao(c, ctx.canalNome),
+    resposta,
     curtidas: curtidasDoCartao(c, ctx.marcos, ctx.max),
     base,
     saiu: c.saiuDoYouTubeDesde === null ? null : FRASES.saiuDesde(c.saiuDoYouTubeDesde === ctx.hojeSP ? `hoje (${dmDeData(c.saiuDoYouTubeDesde)})` : dmDeData(c.saiuDoYouTubeDesde)),
     rodape: { publicado: pub, respostas: c.respostas === null ? null : { n: c.respostas, texto: resp as string } },
     saidoDosDoze: ctx.saido,
+    fio: view,
+  }
+}
+
+interface InsumoDoFio {
+  id: string; c: Cartao; autor: AutorView; resposta: RespostaView | null; texto: CartaoView['texto']
+  curtidasDoMarco: CurtidasNoMarco; marco: Marco; maxPainel: number; posicao: string; entrou: string | null; saido: boolean
+  chave: ChaveDeMotivo; pastilha: string; respostas: { n: number; texto: string } | null; publicado: string | null
+}
+
+/** Converte o cartão para o fio único. A régua compara com o mais curtido DA LISTA daquele painel, na idade da aba. */
+function fioDoCartao(x: InsumoDoFio): FioView {
+  const v = x.curtidasDoMarco
+  let curtidas: string | null = null
+  let regua: number | null = null
+  if (typeof v === 'number') {
+    curtidas = `${num(v)} com ${dias(x.marco)}`
+    regua = v <= 0 || x.maxPainel <= 0 ? 0 : Math.min(100, Math.max(4, Math.round((v / x.maxPainel) * 100)))
+  } else if (v === 'fora_dos_12') {
+    curtidas = FRASES.foraDos12
+  }
+  const r = x.resposta
+  const respostas: FalaView[] = r && r.forma === 'respondeu' && r.textos
+    ? r.textos.map((t): FalaView => ({ autor: { tipo: 'criador' }, data: t.data, texto: t.texto, cortado: t.cortado }))
+    : []
+  const raiz: FalaView = { autor: autorDaFala(x.autor), data: x.publicado, texto: x.texto === null ? null : x.texto.texto, cortado: x.texto?.cortado ?? false }
+  return {
+    id: x.id,
+    raiz,
+    respostas,
+    respostaReservada: r && r.forma === 'respondeu' ? r.reservado : null,
+    meta: { curtidas, regua, posicao: x.posicao, respostas: x.respostas },
+    marcas: { entrou: x.entrou, saido: x.saido },
+    // o motivo "com o criador" já é dito pela resposta com foto; o próprio canal já é dito pelo selo do autor
+    pastilha: x.chave === 'k' || x.chave === 'p' || x.c.doCriador ? null : { chave: x.chave, texto: x.pastilha },
   }
 }
 
@@ -262,11 +312,6 @@ function ordenar(cs: Cartao[], m: Marco): Cartao[] {
   })
 }
 
-function juntar(partes: string[]): string {
-  if (partes.length <= 1) return partes[0] ?? ''
-  return `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
-}
-
 function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMarco, { estado: 'ok' }>, max: number, o: OpcoesDaSecao): ListaView | null {
   const todos = dados.comentarios as Cartao[]
   const doDia = ordenar(todos.filter(c => noMarco(c, m)), m)
@@ -277,40 +322,33 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
   const proximo = MARCOS_DA_TELA.find(x => x > m) ?? null
   const entraram = anterior === null ? [] : doDia.filter(c => !noMarco(c, anterior))
   const saidosBrutos = anterior === null ? [] : ordenar(todos.filter(c => noMarco(c, anterior) && !noMarco(c, m)), anterior)
+  const maxDe = (cs: Cartao[], marco: Marco): number => {
+    let mx = 0
+    for (const c of cs) { const v = numeroOuNulo(c.curtidas[marco]); if (v !== null && v > mx) mx = v }
+    return mx
+  }
   const ctx = { nivel: dados.nivel, marcos: dados.marcos, max, hojeSP: o.hojeSP, canalNome: o.canalNome }
-  const cartoes = doDia.map((c, i) => cartaoView(c, i, doDia.length, m, { ...ctx, entrou: anterior !== null && !noMarco(c, anterior), saido: false }))
-  const saidos = saidosBrutos.map((c, i) => cartaoView(c, i, saidosBrutos.length, anterior as Marco, { ...ctx, entrou: false, saido: true }))
-    .map(v => ({ ...v, id: v.id.replace(/^cd-/, 'cd-saiu-') + `-${m}` }))
+  const cartoes = doDia.map((c, i) => cartaoView(c, i, doDia.length, m, { ...ctx, maxPainel: maxDe(doDia, m), entrou: anterior !== null && !noMarco(c, anterior), saido: false }))
+  const saidos = saidosBrutos.map((c, i) => cartaoView(c, i, saidosBrutos.length, anterior as Marco, { ...ctx, maxPainel: maxDe(saidosBrutos, anterior as Marco), entrou: false, saido: true }))
+    .map(v => ({ ...v, id: v.id.replace(/^cd-/, 'cd-saiu-') + `-${m}`, fio: { ...v.fio, id: v.id.replace(/^cd-/, 'cd-saiu-') + `-${m}` } }))
 
   const n = doDia.length
   const completo = r.amostraCompleta === true
   const de = completo ? (r.totalDoDia ?? r.amostra ?? n) : (r.amostra ?? COMMENT_RULES.pool)
   const conta = (k: MotivoDoCartao) => doDia.filter(c => c.motivo === k).length
   const nC = conta('curtidos'), nK = conta('criador'), nA = conta('canal_acompanhado'), nG = conta('inscritos')
-  const resp = doDia.filter(c => c.motivo === 'criador' && c.criador === 'respondeu').length
-  const partes: string[] = []
-  if (nC > 0) partes.push(FRASES.legendaCurtidos(nC))
-  if (nK > 0) partes.push(FRASES.legendaCriador(nK, resp))
-  if (nA > 0) partes.push(FRASES.legendaAcompanhado(nA))
-  if (nG > 0) partes.push(FRASES.legendaGrandeCurta(nG))
-  const abre = completo && n < CASAS && n === de
-    ? FRASES.abreTodos(m, n)
-    : completo
-      ? FRASES.abreDeTodos(m, n, de)
-      : FRASES.abreDosPrimeiros(m, n, de)
-  const frase = `${abre}: ${juntar(partes)}.`
-
-  const consultados = r.autoresConsultados ?? COMMENT_RULES.featuredLookup
+  const resp = doDia.filter(c => !c.doCriador && c.criador === 'respondeu').length
+  const legenda: LegendaView[] = []
+  if (nC > 0) legenda.push({ chave: 'c', rotulo: FRASES.motivoCurtidos, n: nC, texto: FRASES.legendaCurtidos(nC) })
+  if (nK > 0) legenda.push({ chave: 'k', rotulo: FRASES.motivoCriador, n: nK, texto: FRASES.legendaCriador(nK) })
+  if (nA > 0) legenda.push({ chave: 'a', rotulo: FRASES.motivoAcompanhado, n: nA, texto: FRASES.legendaAcompanhado(nA) })
+  if (nG > 0) legenda.push({ chave: 'g', rotulo: FRASES.motivoGrande, n: nG, texto: FRASES.legendaGrandeCurta(nG) })
+  const zeros = nA === 0 && nG === 0 ? FRASES.zerosAmbos : nA === 0 ? FRASES.zeroAcompanhado : nG === 0 ? FRASES.zeroGrande : null
+  const frase = {
+    negrito: resp > 0 ? FRASES.resumoRespondeu(resp, n, m) : FRASES.resumoNaoVimos(n, m),
+    resto: completo ? FRASES.resumoVideoTinha(de) : FRASES.resumoLemos(de),
+  }
   const semTamanho = r.autoresSemTamanho ?? 0
-  const ate = consultados < COMMENT_RULES.featuredLookup && completo
-    ? FRASES.entreOsDoVideo
-    : semTamanho > 0 ? FRASES.entreOsMedidos(consultados - semTamanho) : FRASES.entreOs20(COMMENT_RULES.featuredLookup)
-  const legenda: LegendaView[] = [
-    { chave: 'c', rotulo: FRASES.motivoCurtidos, n: nC, zero: nC === 0, texto: nC === 0 ? FRASES.zeroN : FRASES.legendaN(nC) },
-    { chave: 'k', rotulo: FRASES.motivoCriador, n: nK, zero: nK === 0, texto: nK === 0 ? FRASES.zeroN : FRASES.legendaNCriador(nK, resp) },
-    { chave: 'a', rotulo: FRASES.motivoAcompanhado, n: nA, zero: nA === 0, texto: nA === 0 ? FRASES.zeroN : FRASES.legendaN(nA) },
-    { chave: 'g', rotulo: FRASES.motivoGrande, n: nG, zero: nG === 0, texto: nG === 0 ? FRASES.zeroGrande(ate) : FRASES.legendaNGrande(nG, ate) },
-  ]
 
   const movimento: MovimentoView = anterior === null
     ? { texto: FRASES.primeiroRetrato(proximo), saidas: null, primeiro: FRASES.primeiroRetrato(proximo), entraram: 0, sairam: 0 }
@@ -319,22 +357,11 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
         primeiro: null, entraram: entraram.length, sairam: saidosBrutos.length,
       }
 
-  const casas: CasaView[] = Array.from({ length: Math.max(CASAS, n) }, (_, i) => {
-    const c = doDia[i]
-    if (!c) return { id: null, chave: null, rotulo: '', curtidas: null, posicao: null }
-    const v = cartoes[i]
-    if (!v) return { id: null, chave: null, rotulo: '', curtidas: null, posicao: null }
-    return {
-      id: v.id, chave: v.chave, posicao: i + 1, curtidas: numeroOuNulo(c.curtidas[m]),
-      rotulo: FRASES.rotuloDaCasa(i + 1, n, v.motivo, numeroOuNulo(c.curtidas[m]), m),
-    }
-  })
-
   return {
     kind: 'lista', marco: m, frase,
-    barra: { n, de, todos: completo, texto: completo ? `${n} de ${num(de)} (todos)` : `${n} de ${num(de)}` },
-    legenda, inscritosOcultos: semTamanho > 0 ? FRASES.inscritosOcultos(semTamanho) : null,
-    movimento, casas, cartoes, saidos,
+    barra: { n, de, todos: completo, texto: FRASES.barra(n, de) },
+    legenda, zeros, inscritosOcultos: semTamanho > 0 ? FRASES.inscritosOcultos(semTamanho) : null,
+    movimento, cartoes, saidos,
   }
 }
 

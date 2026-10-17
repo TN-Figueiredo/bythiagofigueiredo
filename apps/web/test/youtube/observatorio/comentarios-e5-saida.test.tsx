@@ -66,7 +66,7 @@ async function saida(provas: ProvasDeQuemVe | null): Promise<{ html: string; jso
   const db = falsoComentarios(tabelas())
   const el = await ComentariosDeDestaque({
     sb: db.client as SupabaseClient, siteId: S, provas: Promise.resolve({ provas, permissaoFalhou: false }), videoId: V, agoraMs: AGORA,
-    canaisDoSite: new Map([[CANAL, { nome: 'Leo' }]]), video: { t0Ms: T0, descobertoEmMs: T0 + 2 * H, canalId: CANAL }, canalNome: 'Leo',
+    canaisDoSite: new Map([[CANAL, { nome: 'Leo' }]]), video: { t0Ms: T0, descobertoEmMs: T0 + 2 * H, canalId: CANAL }, criador: { nome: 'Leo', avatar: null, ini: 'L', color: '#336699' },
   })
   return { html: renderToStaticMarkup(el as ReactNode as ReactElement), json: carga(el) }
 }

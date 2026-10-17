@@ -80,67 +80,141 @@ describe('C2 · modelo · aba aberta', () => {
   it('marcoAberto vence', () => expect(secaoDeComentarios(dados(), { ...OPCOES, marcoAberto: 1 }).aberta).toBe(1))
 })
 
-describe('C2 · modelo · soma 8+4=12 em barra, aba, casas e cartões', () => {
-  const s = secaoDeComentarios(dados(), OPCOES)
+// 12 cartões: 8 mais curtidos e 4 do criador, todos os 4 com resposta vista; lote completo de 132
+const tipico = () => doze().map((c, i) => ({
+  ...c, nosMarcos: [1, 7] as Marco[], entrouNoMarco: 1 as Marco,
+  ...(i === 11 ? { criador: 'respondeu' as const, respostasDoCriador: [{ texto: 'Resposta 12', cortado: false, publicadoEm: '2026-10-08T15:00:00.000Z' }] } : {}),
+}))
+const marcos132 = () => ({ ...dados().marcos, 7: { estado: 'ok' as const, resumo: resumo({ amostra: 132, amostraCompleta: true, totalDoDia: 132 }) } })
+
+describe('C2 · modelo · soma 8+4=12 em barra, aba e cartões; frase-resumo antes das abas', () => {
+  const s = secaoDeComentarios(dados({ comentarios: tipico(), marcos: marcos132() }), OPCOES)
   const p = s.paineis[7]
-  it('os quatro lugares dizem 12', () => {
+  it('os lugares dizem 12 e a barra é "12 de 132"', () => {
     if (p.kind !== 'lista') throw new Error('lista')
-    expect(p.barra.texto).toBe('12 de 100')
+    expect(p.barra.texto).toBe('12 de 132')
     expect(s.abas[1]!.estado).toBe('12 guardados')
-    expect(p.casas.filter(c => c.id !== null)).toHaveLength(12)
     expect(p.cartoes).toHaveLength(12)
     expect(p.cartoes[0]!.rotuloDaPosicao).toBe('1 de 12')
-    expect(p.legenda.map(l => l.n)).toEqual([8, 4, 0, 0])
+    expect(p.legenda.map(l => l.n)).toEqual([8, 4])
+    expect('casas' in p).toBe(false)
   })
-  it('frase-resumo com o trecho "ele respondeu a 2" só quando há resposta vista', () => {
+  it('frase-resumo: negrito e resto, no texto do mockup', () => {
     if (p.kind !== 'lista') throw new Error('lista')
-    expect(p.frase).toBe('Com 7 dias, guardamos 12 dos 100 primeiros comentários que o YouTube mostra, na ordem de relevância dele: 8 mais curtidos e 4 com o criador (ele respondeu a 3).')
-    const sem = secaoDeComentarios(dados({ comentarios: doze().map(c => ({ ...c, nosMarcos: [7], criador: 'nao_vimos' as const })) }), OPCOES).paineis[7]
-    expect(sem.kind === 'lista' && sem.frase).not.toMatch(/ele respondeu/)
+    expect(p.frase.negrito).toBe('O criador respondeu a 4 dos 12 comentários guardados com 7 dias.')
+    expect(p.frase.resto).toBe('O vídeo tinha 132.')
   })
-  it('lote completo: "12 de todos os 37" e "todos os 9" com menos de 12', () => {
-    const c = dados({ marcos: { ...dados().marcos, 7: { estado: 'ok', resumo: resumo({ amostra: 37, amostraCompleta: true, totalDoDia: 37 }) } } })
-    const a = secaoDeComentarios(c, OPCOES).paineis[7]
-    expect(a.kind === 'lista' && a.barra.texto).toBe('12 de 37 (todos)')
-    expect(a.kind === 'lista' && a.frase).toContain('12 de todos os 37 comentários do vídeo')
-    const nove = doze().slice(0, 9).map(x => ({ ...x, nosMarcos: [7] as Marco[] }))
-    const b = secaoDeComentarios(dados({ comentarios: nove, marcos: { ...dados().marcos, 7: { estado: 'ok', resumo: resumo({ amostra: 9, amostraCompleta: true, totalDoDia: 9 }) } } }), OPCOES).paineis[7]
-    expect(b.kind === 'lista' && b.frase).toContain('guardamos todos os 9 comentários do vídeo')
-  })
-  it('a fileira ordena por curtidas do marco aberto (maior primeiro)', () => {
+  it('legenda só dos motivos que existem e os zeros numa frase apagada', () => {
     if (p.kind !== 'lista') throw new Error('lista')
-    const v = p.casas.filter(c => c.curtidas !== null).map(c => c.curtidas as number)
-    expect(v).toEqual([...v].sort((a, b) => b - a))
+    expect(p.legenda.map(l => l.texto)).toEqual(['8 mais curtidos', '4 com o criador na conversa'])
+    expect(p.zeros).toBe('Nenhum de canal que você acompanha nem de canal grande.')
+  })
+  it('sem resposta vista: "Não vimos resposta do criador nos 12 ..."; nenhum texto diz "não respondeu"', () => {
+    const sem = secaoDeComentarios(dados({ comentarios: doze().map(c => ({ ...c, nosMarcos: [7] as Marco[], criador: 'nao_vimos' as const })), marcos: marcos132() }), OPCOES).paineis[7]
+    if (sem.kind !== 'lista') throw new Error('lista')
+    expect(sem.frase.negrito).toMatch(/^Não vimos resposta do criador nos 12 comentários guardados com 7 dias\.$/)
+    expect(JSON.stringify(sem)).not.toMatch(/não respondeu/i)
+  })
+  it('lote incompleto: "Lemos os 100 primeiros por relevância."', () => {
+    const a = secaoDeComentarios(dados({ comentarios: tipico() }), OPCOES).paineis[7]
+    if (a.kind !== 'lista') throw new Error('lista')
+    expect(a.frase.resto).toBe('Lemos os 100 primeiros por relevância.')
+    expect(a.barra.texto).toBe('12 de 100')
+  })
+  it('um comentário só: singular na frase', () => {
+    const nove = doze().slice(0, 1).map(x => ({ ...x, nosMarcos: [7] as Marco[], criador: 'nao_vimos' as const }))
+    const b = secaoDeComentarios(dados({ comentarios: nove, marcos: { ...dados().marcos, 7: { estado: 'ok', resumo: resumo({ amostra: 1, amostraCompleta: true, totalDoDia: 1 }) } } }), OPCOES).paineis[7]
+    expect(b.kind === 'lista' && b.frase.negrito).toBe('Não vimos resposta do criador no único comentário guardado com 7 dias.')
+  })
+  describe('fio do cartão', () => {
+    const lista = () => { if (p.kind !== 'lista') throw new Error('lista'); return p }
+    it('cartão 1: curtidas do marco, posição, pastilha, régua e data', () => {
+      const f = lista().cartoes[0]!.fio
+      expect(f.meta.curtidas).toBe('99 com 7 dias')
+      expect(f.meta.posicao).toBe('1 de 12')
+      expect(f.meta.regua).toBe(100)
+      expect(f.pastilha).toEqual({ chave: 'c', texto: 'Mais curtido' })
+      expect(f.raiz.data).toBe('07/10')
+      expect(f.raiz.autor).toEqual({ tipo: 'espectador' })
+    })
+    it('cartão do criador com resposta: pastilha nula, resposta com autor criador e data em dd/mm', () => {
+      const f = lista().cartoes.find(c => c.chave === 'k')!.fio
+      expect(f.pastilha).toBeNull()
+      expect(f.respostas[0]!.autor.tipo).toBe('criador')
+      expect(f.respostas[0]!.data).toMatch(/^\d\d\/\d\d$/)
+      expect(f.respostas[0]!.data).toBe('08/10')
+    })
+    it('comentário de topo escrito pelo criador (Foco 3): raiz criador, sem resposta, sem pastilha', () => {
+      const c = cartao(1, 'criador', { doCriador: true, autor: { tipo: 'criador' }, criador: 'respondeu', nosMarcos: [7] })
+      const pp = secaoDeComentarios(dados({ comentarios: [c] }), OPCOES).paineis[7]
+      if (pp.kind !== 'lista') throw new Error('lista')
+      const f = pp.cartoes[0]!.fio
+      expect(f.raiz.autor.tipo).toBe('criador')
+      expect(f.respostas).toHaveLength(0)
+      expect(f.pastilha).toBeNull()
+    })
+    it('marcas e meta saem do mesmo dado do cartão antigo', () => {
+      const cs = tipico().map((c, i) => ({ ...c, nosMarcos: (i === 11 ? [7] : [1, 7]) as Marco[], entrouNoMarco: (i === 11 ? 7 : 1) as Marco, respostas: i === 0 ? 0 : 3 }))
+      const pp = secaoDeComentarios(dados({ comentarios: cs, marcos: marcos132() }), OPCOES).paineis[7]
+      if (pp.kind !== 'lista') throw new Error('lista')
+      const doze12 = pp.cartoes.find(c => c.entrouNoDia)!
+      expect(doze12.fio.marcas.entrou).toBe('entrou no dia 7')
+      expect(doze12.fio.marcas.entrou).toBe(doze12.entrouNoDia)
+      expect(pp.cartoes.every(c => c.fio.meta.respostas?.texto === c.rodape.respostas?.texto)).toBe(true)
+      expect(pp.cartoes.some(c => c.fio.meta.respostas?.n === 0)).toBe(true)
+      expect(pp.cartoes.every(c => !c.fio.marcas.saido)).toBe(true)
+      expect(pp.saidos.every(c => c.fio.marcas.saido)).toBe(true)
+    })
+    it('régua: 0 com 0 curtidas, mínimo 4 com número pequeno, nulo sem número; fora dos 12 diz o texto', () => {
+      const mk = (n: number, v: number | 'fora_dos_12' | 'ainda_nao') => cartao(n, 'curtidos', { nosMarcos: [7], curtidas: { 1: 'ainda_nao', 7: v, 30: 'ainda_nao' } })
+      const pp = secaoDeComentarios(dados({ comentarios: [mk(1, 1000), mk(2, 1), mk(3, 0), mk(4, 'fora_dos_12'), mk(5, 'ainda_nao')] }), OPCOES).paineis[7]
+      if (pp.kind !== 'lista') throw new Error('lista')
+      const por = (o: number) => pp.cartoes.find(c => c.id === `cd-7-${o}`)!.fio.meta
+      expect(por(1).regua).toBe(100)
+      expect(por(2).regua).toBe(4)
+      expect(por(3).regua).toBe(0)
+      expect(por(4)).toMatchObject({ curtidas: FRASES.foraDos12, regua: null })
+      expect(por(5)).toMatchObject({ curtidas: null, regua: null })
+    })
   })
 })
 
-describe('C2 · modelo · motivo com zero dito', () => {
+describe('C2 · modelo · zeros e legenda por motivo', () => {
   const lista = (r: Partial<ReturnType<typeof resumo>>, cs = doze().map(c => ({ ...c, nosMarcos: [7] as Marco[] }))) => {
     const p = secaoDeComentarios(dados({ comentarios: cs, marcos: { ...dados().marcos, 7: { estado: 'ok', resumo: resumo(r) } } }), OPCOES).paineis[7]
     if (p.kind !== 'lista') throw new Error('lista')
     return p
   }
-  it('canal acompanhado e canal grande', () => {
-    const p = lista({})
-    expect(p.legenda[2]!.texto).toBe('0 comentários')
-    expect(p.legenda[3]!.texto).toBe('nenhum canal grande entre os 20 mais curtidos')
+  const todos = () => doze().map(c => ({ ...c, nosMarcos: [7] as Marco[] }))
+  it('um zero só: "Nenhum de canal grande." (acompanhado presente)', () => {
+    const a = cartao(1, 'canal_acompanhado', { nosMarcos: [7] })
+    const p = lista({}, [a, ...todos().slice(1)])
+    expect(p.zeros).toBe('Nenhum de canal grande.')
+    expect(p.legenda.map(l => l.chave)).toEqual(['c', 'k', 'a'])
+    expect(p.legenda[2]!.texto).toBe('1 de canal que você acompanha')
   })
-  it('com inscritos ocultos: "entre os 19 que deu para medir"', () => {
-    const p = lista({ autoresSemTamanho: 1 })
-    expect(p.legenda[3]!.texto).toBe('nenhum canal grande entre os 19 que deu para medir')
-    expect(p.inscritosOcultos).toBe('1 autor com inscritos ocultos')
+  it('só acompanhado em zero: "Nenhum de canal que você acompanha."', () => {
+    const g = cartao(1, 'inscritos', { nosMarcos: [7], autor: { tipo: 'canal_grande' }, faixas: { tamanho: '1m_10m', razao: null } })
+    const p = lista({}, [g, ...todos().slice(1)])
+    expect(p.zeros).toBe('Nenhum de canal que você acompanha.')
   })
-  it('com menos de 20 comentários principais: "entre os comentários do vídeo"', () => {
-    const p = lista({ autoresConsultados: 9, amostra: 9, amostraCompleta: true, totalDoDia: 9 })
-    expect(p.legenda[3]!.texto).toBe('nenhum canal grande entre os comentários do vídeo')
+  it('sem zero nenhum: nulo', () => {
+    const a = cartao(1, 'canal_acompanhado', { nosMarcos: [7] })
+    const g = cartao(2, 'inscritos', { nosMarcos: [7], autor: { tipo: 'canal_grande' }, faixas: { tamanho: '1m_10m', razao: null } })
+    expect(lista({}, [a, g, ...todos().slice(2)]).zeros).toBeNull()
   })
-  it('um canal grande: legenda e base em duas escadas de três degraus', () => {
+  it('com inscritos ocultos o aviso continua', () => {
+    expect(lista({ autoresSemTamanho: 1 }).inscritosOcultos).toBe('1 autor com inscritos ocultos')
+  })
+  it('um canal grande: a base em duas escadas de três degraus', () => {
     const g = cartao(1, 'inscritos', { nosMarcos: [7], autor: { tipo: 'canal_grande' }, faixas: { tamanho: '1m_10m', razao: null } })
     const p = lista({}, [g, ...doze().slice(1).map(c => ({ ...c, nosMarcos: [7] as Marco[] }))])
-    expect(p.legenda[3]!.texto).toBe('1 comentário, entre os 20 mais curtidos')
+    expect(p.legenda.find(l => l.chave === 'g')!.texto).toBe('1 de canal grande')
     const v = p.cartoes.find(c => c.chave === 'g')!
     expect(v.base).toEqual({ tamanho: { degrau: 2, texto: 'de 1 a 10 milhões de inscritos' }, razao: 'nao_medida' })
     expect(v.autor).toEqual({ tipo: 'grande', faixa: '1m_10m' })
+    expect(v.fio.raiz.autor).toEqual({ tipo: 'grande', faixa: '1m_10m' })
+    expect(v.fio.pastilha).toEqual({ chave: 'g', texto: 'Canal grande' })
   })
   it('a frase do canal grande segue a faixa de inscritos, nunca fixa em 10 milhões (trem 5, defeito 2)', () => {
     expect(FRASES.canalGrandeSemNome('100k_1m')).toBe('Um canal de 100 mil a 1 milhão de inscritos comentou')
@@ -160,7 +234,7 @@ describe('C2 · modelo · entraram e saíram', () => {
     expect(p7.movimento.texto).toBe('1 entrou nos 12 do dia 1 ao dia 7')
     expect(p7.movimento.saidas).toBe('2 saíram')
     expect(p7.saidos).toHaveLength(2)
-    expect(p7.cartoes.find(c => c.entrouNoDia)?.entrouNoDia).toBe('entrou nos 12 no dia 7')
+    expect(p7.cartoes.find(c => c.entrouNoDia)?.entrouNoDia).toBe('entrou no dia 7')
   })
   it('ids dos cartões nunca se repetem entre painéis', () => {
     const s = secaoDeComentarios(dados(), OPCOES)
@@ -179,7 +253,7 @@ describe('C2 · modelo · cartão', () => {
     expect(um(cartao(1, 'curtidos', { criador: 'nao_vimos', respostas: 4 })).resposta).toEqual({ forma: 'nao_vimos', texto: 'Não vimos resposta do criador. Conferimos as 4 respostas que o YouTube mostrou e nenhuma é dele.' })
     expect(um(cartao(1, 'curtidos', { criador: 'nao_vimos', respostas: 1 })).resposta).toEqual({ forma: 'nao_vimos', texto: 'Não vimos resposta do criador. Conferimos a única resposta que o YouTube mostrou e ela não é dele.' })
     expect(um(cartao(1, 'curtidos', { criador: 'nao_sabemos', respostas: 62 })).resposta).toEqual({ forma: 'nao_sabemos', texto: 'Não sabemos se o criador respondeu. O YouTube mostrou só 5 das 62 respostas e nenhuma é dele.' })
-    expect(um(cartao(1, 'curtidos', { criador: 'respondeu', respostas: 3, respostasDoCriador: [{ texto: 'x', cortado: false }] })).resposta).toMatchObject({ forma: 'respondeu', titulo: 'Leo respondeu' })
+    expect(um(cartao(1, 'curtidos', { criador: 'respondeu', respostas: 3, respostasDoCriador: [{ texto: 'x', cortado: false, publicadoEm: '2026-10-08T15:00:00.000Z' }] })).resposta).toMatchObject({ forma: 'respondeu', titulo: 'Leo respondeu' })
   })
   it('com 5 respostas ou menos nunca "Não sabemos"; sem respostas nada', () => {
     expect(um(cartao(1, 'curtidos', { criador: 'nao_sabemos', respostas: 5 })).resposta).toBeNull()
@@ -230,6 +304,11 @@ describe('C2 · modelo · níveis', () => {
     if (p.kind !== 'lista') throw new Error('lista')
     expect(p.cartoes.every(c => c.texto === null && c.textoReservado)).toBe(true)
     expect(p.cartoes[0]!.autor).toEqual({ tipo: 'reservado' })
+    // o fio do nível contagem é desenhado, mas sem nenhum texto de terceiro
+    expect(p.cartoes.every(c => c.fio.raiz.texto === null && c.fio.respostas.length === 0)).toBe(true)
+    expect(p.cartoes.find(c => c.resposta?.forma === 'respondeu')!.fio.respostaReservada).toBe('O criador respondeu. O texto da resposta é reservado.')
+    expect(p.cartoes[0]!.fio.raiz.autor).toEqual({ tipo: 'reservado' })
+    expect(JSON.stringify(p.cartoes.map(c => c.fio))).not.toMatch(/Comentário sintético|Resposta \d/)
     expect(p.cartoes.find(c => c.resposta?.forma === 'respondeu')!.resposta).toMatchObject({ textos: null, reservado: 'O criador respondeu. O texto da resposta é reservado.' })
   })
   it('texto: sem nome e sem foto; identidade: sem faixa', () => {
@@ -327,7 +406,7 @@ describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', 
     const s = secaoDeComentarios(so7({ estado: 'ok', resumo: resumo({ escolhidos: null }) }), OPCOES)
     expect(s.abas[1]!.estado).not.toMatch(/\d/)
   })
-  it('um comentário, lote completo, 1 curtida: singular na frase e no rótulo da casa', () => {
+  it('um comentário, lote completo, 1 curtida: singular na frase e nas curtidas', () => {
     const c = { ...cartao(1, 'curtidos', { curtidas: { 1: 1, 7: 'ainda_nao', 30: 'ainda_nao' }, nosMarcos: [1] as Marco[], entrouNoMarco: 1 as Marco }) }
     const s = secaoDeComentarios(dados({
       comentarios: [c],
@@ -335,8 +414,10 @@ describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', 
     }), { ...OPCOES, marcoAberto: 1 })
     const p = s.paineis[1]
     if (p.kind !== 'lista') throw new Error('lista')
-    expect(p.frase).toBe('Com 1 dia, guardamos o único comentário do vídeo: 1 mais curtido.')
-    expect(p.casas[0]!.rotulo).toBe('Comentário 1 de 1, mais curtido, 1 curtida com 1 dia')
+    expect(p.frase.negrito).toBe('Não vimos resposta do criador no único comentário guardado com 1 dia.')
+    expect(p.frase.resto).toBe('O vídeo tinha 1.')
+    expect(p.legenda.map(l => l.texto)).toEqual(['1 mais curtido'])
+    expect(p.cartoes[0]!.fio.meta.curtidas).toBe('1 com 1 dia')
   })
   it('a posição do YouTube desempata empate de curtidas e de respostas', () => {
     const a = cartao(1, 'curtidos', { curtidas: { 1: 'ainda_nao', 7: 10, 30: 'ainda_nao' }, posicao: { 1: null, 7: 9, 30: null } })

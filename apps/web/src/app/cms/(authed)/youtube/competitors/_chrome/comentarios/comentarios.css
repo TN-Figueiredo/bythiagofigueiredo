@@ -22,48 +22,23 @@
 [data-obs] .cd-selo-erro{border:1.5px solid var(--danger,#C0392B)}
 [data-obs] .cd-tentar,[data-obs] .cd-mais,[data-obs] .cd-link{font:inherit;color:inherit;background:none;border:0;padding:0;text-decoration:underline;cursor:pointer;min-height:44px;text-align:left}
 [data-obs] .cd-mais{display:block;margin-top:8px}
-[data-obs] .cd-frase{margin:0 0 8px}
-[data-obs] .cd-barra{display:flex;gap:10px;align-items:center;margin:0 0 8px}
-[data-obs] .cd-barra-f{flex:1;height:8px;border-radius:4px;background:rgba(127,127,127,.22);overflow:hidden}
-[data-obs] .cd-barra-f>span{display:block;height:100%;background:var(--text)}
-[data-obs] .cd-legenda{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 8px;padding:0;list-style:none}
+[data-obs] .cd-legenda{display:flex;flex-wrap:wrap;gap:4px 16px;margin:12px 0 4px;padding:0;list-style:none;font-size:13px}
 [data-obs] .cd-leg-p{display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:2px;background:var(--cd)}
-[data-obs] .cd-leg.zero{color:var(--muted)}
-[data-obs] .cd-fileira{display:flex;gap:4px;margin:8px 0;padding:0;list-style:none;flex-wrap:wrap}
-[data-obs] .cd-casa{display:flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:6px;font-size:12px;color:var(--text);text-decoration:none;border:1.5px solid var(--cd,var(--border-strong));border-top-width:5px}
-[data-obs] .cd-casa-vazia{border:1.5px dashed var(--dim);border-top-width:1.5px}
-[data-obs] .cd-movimento{margin:4px 0}
-[data-obs] .cd-cartoes{display:grid;gap:10px;margin:10px 0 0;padding:0;list-style:none}
-[data-obs] .cd-cartao{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--border-strong);border-left:5px solid var(--cd,var(--border-strong));border-radius:8px;background:rgba(127,127,127,.06)}
-[data-obs] .cd-cartao[hidden]{display:none}
-[data-obs] .cd-cartao>p{margin:0}
-[data-obs] .cd-cartao-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-[data-obs] .cd-etq{padding:1px 7px;border-radius:4px;border:1.5px solid var(--cd);font-size:12.5px}
-[data-obs] .cd-g-c.cd-etq{background:rgba(167,139,250,.16)}
-[data-obs] .cd-g-g.cd-etq{background:rgba(224,115,92,.16)}
-[data-obs] .cd-g-k.cd-etq{background:rgba(124,200,248,.16)}
-[data-obs] .cd-g-a.cd-etq{background:rgba(217,192,143,.16)}
-[data-theme="light"] [data-obs] .cd-g-c.cd-etq{background:rgba(109,40,217,.10)}
-[data-theme="light"] [data-obs] .cd-g-g.cd-etq{background:rgba(180,69,47,.10)}
-[data-obs] .cd-selo-c{padding:0 6px;border:1px solid currentColor;border-radius:4px;font-size:12px}
-[data-obs] .cd-foto{border-radius:50%;vertical-align:middle;margin-right:6px}
-[data-obs] .cd-foto-inicial{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:12px;font-weight:600;background:var(--border-subtle);color:var(--muted)}
-[data-obs] .cd-faixa-grande{padding:4px 8px;border:1px dashed var(--cd);border-radius:6px}
-[data-obs] .cd-texto{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap;unicode-bidi:plaintext}
-[data-obs] .cd-texto.aberto,[data-obs] .cd-texto-resp{display:block;-webkit-line-clamp:unset;overflow:visible}
-[data-obs] .cd-resp{padding:6px 10px;border-left:3px solid var(--cd-k);background:rgba(127,127,127,.08)}
-[data-obs] .cd-resp p{margin:0}
-[data-obs] .cd-curtidas{display:grid;gap:4px;margin:0;padding:0;list-style:none}
-[data-obs] .cd-cur{display:grid;grid-template-columns:56px 1fr auto;gap:8px;align-items:center}
-[data-obs] .cd-cur-b{height:8px;border-radius:4px;background:rgba(127,127,127,.18);overflow:hidden}
-[data-obs] .cd-cur-b>span{display:block;height:100%;background:var(--cd,var(--text))}
-[data-obs] .cd-cur-fora .cd-cur-b,[data-obs] .cd-cur-ainda .cd-cur-b,[data-obs] .cd-cur-fecha .cd-cur-b{background:repeating-linear-gradient(135deg,rgba(127,127,127,.5) 0 2px,transparent 2px 5px)}
-[data-obs] .cd-cur-fecha .cd-cur-v{border:1px dashed var(--muted);border-radius:4px;padding:0 4px}
+[data-obs] .cd-leg{display:inline-flex;align-items:center}
+[data-obs] .cd-zeros{margin:0 0 12px;font-size:12.5px;color:var(--muted)}
+[data-obs] .cd-movimento{margin:12px 0 4px;font-size:13px;color:var(--muted)}
+[data-obs] .cd-resumo-linha{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;margin:0 0 14px}
+[data-obs] .cd-resumo{margin:0;flex:0 1 auto;max-width:76ch;font-size:14.5px;line-height:1.5}
+[data-obs] .cd-resumo b{font-weight:600}
+[data-obs] .cd-apagado{color:var(--muted)}
+[data-obs] .cd-barra-fina{display:flex;align-items:center;gap:10px;margin:0;flex:1 1 180px;min-width:160px;color:var(--muted);font-size:12.5px}
+[data-obs] .cd-barra-fina .cd-barra-t{flex:none}
+[data-obs] .cd-barra-fina .cd-barra-f{flex:1;max-width:320px;height:4px;border-radius:2px;background:var(--border-strong);overflow:hidden}
+[data-obs] .cd-barra-fina .cd-barra-f>span{display:block;height:100%;background:var(--text);opacity:.8}
 [data-obs] .cd-degraus{display:flex;gap:8px;align-items:center;margin:0}
 [data-obs] .cd-deg{display:inline-flex;gap:3px}
 [data-obs] .cd-deg i{display:block;width:14px;height:8px;border-radius:2px;border:1px solid var(--cd);background:transparent}
 [data-obs] .cd-deg i.on{background:var(--cd)}
-[data-obs] .cd-rodape{font-size:12.5px;color:var(--muted)}
 /* Gio C5, defeito A: o título e o ⓘ da seção seguem o chrome dos outros blocos (h2 600 15px/22px como .hv-h h2; ⓘ 24 px, 44 px no toque e a 390),
    porque as regras de .ibtn existentes são escopadas a outras telas e o ⓘ daqui media 0x21 px. */
 [data-obs] .cd-secao .cd-titulo{display:inline-block;margin:0 6px 0 0;font:600 15px/22px var(--font-sans),system-ui,sans-serif}
