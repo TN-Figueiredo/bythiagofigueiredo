@@ -89,7 +89,7 @@ export function planejarCanais(e: {
   agoraMs: number
   /** Lido de `youtube_quota_usage` (dia do Pacífico) pelo `rodar`: nunca derivado de `last_units`. */
   unidadesJaGastasHoje: number
-  /** Playlists conhecidas por canal (para a estimativa); ausente = 10. */
+  /** Playlists conhecidas por canal (para a estimativa); o `rodar` não passa (estimativa fixa de 12 por canal): quem segura o dia é o freio durante a execução (Phil M-6). */
   playlistsPorCanal?: ReadonlyMap<string, number>
 }): ResultadoDoPlano {
   const ativos = e.canais.filter(c => c.missing_since === null)
@@ -122,6 +122,6 @@ export function planejarCanais(e: {
  * `p_ciclo`: a volta terminou. Verdadeiro só se não sobrou playlist devida (`playlistsLeft = 0`), a lista veio completa (ou vazia já
  * confirmada) e NENHUM motivo recuperável apareceu na visita inteira (lista, seções ou qualquer playlist). Motivos estruturais não contam.
  */
-export function calcularCiclo(v: { playlistsLeft: number; listaCompleta: boolean; motivos: readonly (string | null | undefined)[] }): boolean {
+export function calcularCiclo(v: { playlistsLeft: number | null; listaCompleta: boolean; motivos: readonly (string | null | undefined)[] }): boolean {
   return v.playlistsLeft === 0 && v.listaCompleta && !v.motivos.some(ehRecuperavel)
 }

@@ -37,7 +37,7 @@ export interface ResultadoDaVisita {
   estado: 'ok' | 'parcial' | 'erro'
   motivo: string | null
   unidades: number
-  playlistsLeft: number
+  playlistsLeft: number | null
   cotaEsgotada: boolean
   tetoPorCanal: boolean
   /** Unidades cuja cota não pôde ser registrada (estouro ou erro). */
@@ -89,7 +89,8 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   let secoesVazias: boolean | null = null
   let canalPausado = false
   let gravacaoFalhou = false
-  let left = 0
+  /** Nulo = não medido (a etapa de itens não rodou); 0 só quando medido (Phil M-5). */
+  let left: number | null = null
   let devidasN = 0
   let visitadas = 0
 
@@ -155,7 +156,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
     if (listaCompleta && lidas.length === 0) {
       if (e.estado.empty_streak < 1) { listaVazia = true; motivo('lista_vazia_a_confirmar') } else {
         const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: true }))
-        if (r !== undefined) { listaVazia = false; if (r.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') } }
+        if (r !== undefined) { listaVazia = true; if (r.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') } }
       }
     } else if (lidas.length > 0) {
       const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: lidas, complete: listaCompleta }))
@@ -189,7 +190,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
       if (abortou()) break
     }
     left = devidasN - visitadas
-  }
+  } else if (listaCompleta && candidatas.length === 0) left = 0
 
   async function lerItens(p: PlaylistConhecida): Promise<void> {
     const rows: ItemLido[] = []

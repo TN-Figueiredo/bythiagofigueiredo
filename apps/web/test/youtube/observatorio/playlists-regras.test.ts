@@ -5,11 +5,11 @@ import { RULES } from '@/lib/youtube/observatorio/rules'
 import { BANCO_MS, LEVE_FIM_MS } from '@/lib/youtube/agenda/relogio'
 
 describe('X3 regras: tempos amarrados (Phil I-3, Yannis I-1)', () => {
-  it('a última chamada termina com folga para três idas ao banco antes do fim da tarefa', () => {
-    expect(X3_RULES.chamadaComecaAteMs + X3_RULES.chamadaMs + 3 * BANCO_MS + 2_000).toBeLessThanOrEqual(FIM_ATE_MS)
+  it('a última chamada termina com folga para quatro idas ao banco (itensPresentes, items_record, visit_close, recordQuota) antes do fim da tarefa', () => {
+    expect(X3_RULES.chamadaComecaAteMs + X3_RULES.chamadaMs + 4 * BANCO_MS + 2_000).toBeLessThanOrEqual(FIM_ATE_MS)
   })
-  it('a fórmula dá 60 s e o canal novo começa antes da chamada (50 s)', () => {
-    expect(X3_RULES.chamadaComecaAteMs).toBe(60_000)
+  it('a fórmula dá 55 s e o canal novo começa antes da chamada (50 s)', () => {
+    expect(X3_RULES.chamadaComecaAteMs).toBe(55_000)
     expect(X3_RULES.canalComecaAteMs).toBe(50_000)
     expect(X3_RULES.canalComecaAteMs).toBeLessThan(X3_RULES.chamadaComecaAteMs)
   })

@@ -18,8 +18,8 @@ export const X3_RULES = {
   /** Nenhum canal novo começa depois disto (e a tarefa só é tomada até aqui: `comecaAteMs` da definição). */
   canalComecaAteMs: 50_000,
   /**
-   * Nenhuma chamada à API começa depois disto: `fimAteMs − chamadaMs − 3 × BANCO_MS − 2 s` = 85 − 8 − 15 − 2 = 60 s
-   * (a última chamada termina em 68 s e ainda cabem `items_record`, `recordQuota` e `visit_close` de 5 s cada).
+   * Nenhuma chamada à API começa depois disto: `fimAteMs − chamadaMs − 4 × BANCO_MS − 2 s` = 85 − 8 − 20 − 2 = 55 s
+   * (a última chamada termina em 63 s e ainda cabem `itensPresentes`, `items_record`, `visit_close` e `recordQuota` de 5 s cada; Phil M-8 = Yannis M-1).
    */
-  chamadaComecaAteMs: FIM_ATE_MS - CHAMADA_MS - 3 * BANCO_MS - 2_000,
+  chamadaComecaAteMs: FIM_ATE_MS - CHAMADA_MS - 4 * BANCO_MS - 2_000,
 } as const

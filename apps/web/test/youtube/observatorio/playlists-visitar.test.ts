@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { visitarCanal, type EntradaDaVisita } from '@/lib/youtube/observatorio/playlists/visitar'
-import { ErroX3, criarOpsX3, type EstadoDoCanal, type OpsX3, type PlaylistConhecida } from '@/lib/youtube/observatorio/playlists/gravar'
+import { ErroX3, TETO_DE_PAGINAS, criarOpsX3, type EstadoDoCanal, type OpsX3, type PlaylistConhecida } from '@/lib/youtube/observatorio/playlists/gravar'
 import { X3_RULES } from '@/lib/youtube/observatorio/playlists/regras'
 
 const AGORA = Date.parse('2026-03-20T15:00:00Z')
@@ -135,7 +135,39 @@ describe('X3 visitar: caminho feliz e lista', () => {
     const r2 = await visitar(m2, b.ops, { ...vazio(), playlists: [conhecida(1)], empty_streak: 1 })
     expect(r2).toMatchObject({ estado: 'ok', motivo: null })
     expect(b.log.find(l => l.fn === 'playlistsRecord')!.a).toMatchObject({ rows: [], complete: true })
-    expect(fechos(b.log)[0]).toMatchObject({ listaVazia: false, ciclo: true })
+    expect(fechos(b.log)[0]).toMatchObject({ listaVazia: true, ciclo: true })
+  })
+
+  it('Phil M-1: três visitas vazias em dias diferentes dão a_confirmar, ok, ok; o contador sobe (listaVazia verdadeiro) e nunca zera', async () => {
+    const res: { estado: string; motivo: string | null; lista: unknown }[] = []
+    for (const streak of [0, 1, 2]) {
+      const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([], undefined, 0) }) })
+      const { ops, log } = opsFalsos()
+      const r = await visitar(m, ops, { ...vazio(), playlists: [conhecida(1)], empty_streak: streak })
+      res.push({ estado: r.estado, motivo: r.motivo, lista: fechos(log)[0]!.listaVazia })
+    }
+    expect(res).toEqual([
+      { estado: 'parcial', motivo: 'lista_vazia_a_confirmar', lista: true },
+      { estado: 'ok', motivo: null, lista: true },
+      { estado: 'ok', motivo: null, lista: true },
+    ])
+  })
+
+  it('Phil M-5: 403 de cota na lista (etapa de itens não rodou): visit_close grava left nulo, não zero', async () => {
+    const m = montar({ secoes: secoesOk, playlists: () => ({ status: 403, json: { error: { errors: [{ reason: 'quotaExceeded' }] } } }) })
+    const { ops, log } = opsFalsos()
+    const r = await visitar(m, ops)
+    expect(r.playlistsLeft).toBeNull()
+    expect(fechos(log)[0]!.left).toBeNull()
+  })
+
+  it('Yannis M-3: lista cortada; playlist conhecida e devida que não foi vista nesta leitura é lida mesmo assim', async () => {
+    const m = montar({ secoes: secoesOk, playlists: (_p, n) => (n === 1 ? { json: paginaPlaylists([1], 'T2', 3) } : { status: 500, json: {} }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
+    const { ops, log } = opsFalsos()
+    await visitar(m, ops, { ...vazio(), playlists: [conhecida(99)] })
+    const lidas = itens(log).map(i => i.playlistRef)
+    expect(lidas).toContain('ref-99')
+    expect(lidas).toHaveLength(2)
   })
 
   it('1º vazio de canal sem histórico: lista_vazia_a_confirmar, parcial', async () => {
@@ -191,6 +223,23 @@ describe('X3 visitar: itens', () => {
     expect(r.motivo).toBe('itens_incoerentes')
     expect(itens(log)[0]).toMatchObject({ rows: [], complete: false, status: 'parcial', reason: 'itens_incoerentes' })
     expect(fechos(log)[0]).toMatchObject({ ciclo: true })
+  })
+  it('Yannis I-2: itens vazios com item_count nulo e itensPresentes que lança: erro gravacao_falhou, nenhum itemsRecord completo, fecho em erro', async () => {
+    const m = montar({ secoes: secoesOk, playlists: () => ({ json: { items: [{ id: 'PL1', snippet: { title: 'x' } }], pageInfo: { totalResults: 1 } } }), itens: () => ({ json: { items: [], pageInfo: { totalResults: 0 } } }) })
+    const { ops, log } = opsFalsos({ itensPresentes: async () => { throw new ErroX3('gravacao_falhou') } })
+    const r = await visitar(m, ops)
+    expect(r).toMatchObject({ estado: 'erro', motivo: 'gravacao_falhou' })
+    expect(itens(log).some(i => i.complete === true)).toBe(false)
+    expect(itens(log)).toHaveLength(0)
+    expect(fechos(log)[0]).toMatchObject({ status: 'erro', ciclo: false })
+  })
+  it('Phil I-1/T0: totalResults conta TODO item devolvido, inclusive privado e apagado sem videoOwnerChannelId', async () => {
+    const privado = (i: number) => ({ id: `it${i}`, snippet: { position: i, title: 'Private video' }, contentDetails: { videoId: video(i) }, status: { privacyStatus: 'private' } })
+    const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1], undefined, 1) }), itens: () => ({ json: { items: [privado(0), privado(1), privado(2)], pageInfo: { totalResults: 3 } } }) })
+    const { ops, log } = opsFalsos()
+    const r = await visitar(m, ops)
+    expect(r.estado).toBe('ok')
+    expect(itens(log)[0]).toMatchObject({ complete: true, status: 'ok' })
   })
   it('itens vazios com item_count 0 e totalResults 0: completo ok', async () => {
     const m = montar({ secoes: secoesOk, playlists: () => ({ json: { items: [{ id: 'PL1', snippet: { title: 'x' }, contentDetails: { itemCount: 0 } }], pageInfo: { totalResults: 1 } } }), itens: () => ({ json: { items: [], pageInfo: { totalResults: 0 } } }) })
@@ -324,6 +373,16 @@ describe('X3 visitar: tempo', () => {
     expect(ops.visitClose).not.toHaveBeenCalled()
     expect(ops.registrarCota).not.toHaveBeenCalled()
   })
+  it('Yannis M-4: exatamente em chamadaComecaAteMs a chamada não sai; 1 ms antes, sai', async () => {
+    relogio = X3_RULES.chamadaComecaAteMs
+    const a = montar({})
+    expect((await visitar(a, opsFalsos().ops)).iniciada).toBe(false)
+    expect(a.fetchImpl).not.toHaveBeenCalled()
+    relogio = X3_RULES.chamadaComecaAteMs - 1
+    const b = montar({ secoes: secoesOk })
+    expect((await visitar(b, opsFalsos().ops)).iniciada).toBe(true)
+    expect(b.contagem.channelSections).toBe(1)
+  })
   it('em 59,9 s a chamada sai; passando de 60 s nenhuma chamada nova, mas o que foi lido está gravado e o visit_close sai', async () => {
     relogio = X3_RULES.chamadaComecaAteMs - 100
     const m = montar({
@@ -389,9 +448,21 @@ describe('X3 gravar: lerCanais paginado (I-1)', () => {
     expect(m.get('c1')!.playlists.length).toBe(1000)
     expect(consultas.filter(c => c.tabela === 'competitor_playlists').length).toBe(2)
   })
-  it('teto de páginas estourado: lança gravacao_falhou, nunca trunca', async () => {
-    const infinitas = { from: () => { const b: Record<string, unknown> = {}; for (const m of ['select', 'eq', 'in', 'order', 'range', 'abortSignal']) b[m] = () => b; b.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: muitas(1000), error: null }).then(res); return b } }
-    await expect(criarOpsX3(infinitas as never).lerCanais('s1', ['c1'])).rejects.toMatchObject({ codigo: 'gravacao_falhou' })
+  it('teto de páginas estourado: lança gravacao_falhou, nunca trunca (Yannis I-1: só competitor_playlists é infinita, e conta as idas)', async () => {
+    let idas = 0
+    const infinitas = {
+      from: (tabela: string) => {
+        const b: Record<string, unknown> = {}
+        for (const m of ['select', 'eq', 'in', 'order', 'range', 'is', 'limit', 'abortSignal']) b[m] = () => b
+        b.then = (res: (v: unknown) => unknown) => {
+          if (tabela === 'competitor_playlists') idas++
+          return Promise.resolve({ data: tabela === 'competitor_playlists' ? muitas(1000) : [], error: null }).then(res)
+        }
+        return b
+      },
+    }
+    await expect(criarOpsX3(infinitas as never).lerCanais('s1', ['c1'])).rejects.toMatchObject({ codigo: 'gravacao_falhou', message: 'gravacao_falhou' })
+    expect(idas).toBe(TETO_DE_PAGINAS)
   })
   it('erro de leitura lança (nunca "nenhuma vista")', async () => {
     const quebrado = { from: () => { const b: Record<string, unknown> = {}; for (const m of ['select', 'eq', 'in', 'order', 'range', 'abortSignal']) b[m] = () => b; b.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: '57014', message: 'texto do banco' } }).then(res); return b } }

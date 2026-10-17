@@ -494,7 +494,7 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
 
 // A5 X3 (coleta de playlists e seções dos concorrentes): as datas dependem do dia em que o dono LIGA a coleta (`OBS_X3_PLAYLISTS=on` na Vercel + redeploy,
 // depois da migration aplicada). `X3_LIGADA` é preenchida no commit desse dia; enquanto for `null`, as entradas NÃO existem. A X3 não tem número `E<n>`:
-// a etapa é `E21` só porque o guardião exige o formato (ids `x3-`). As consultas estão na seção 11 do plano; a C1 ampliada (tamanho) é a da x3-d1.
+// a etapa é `E21` só porque o guardião exige o formato (ids `x3-`); `E21` está RESERVADA à X3 e nenhuma etapa da A5 pode usá-la (Yannis M-6). As consultas estão na seção 11 do plano; a C1 ampliada (tamanho) é a da x3-d1.
 /** Dia de São Paulo (AAAA-MM-DD) em que a coleta de playlists foi ligada. `null` = ainda desligada. */
 export const X3_LIGADA: string | null = null
 
@@ -508,7 +508,7 @@ export function conferenciasX3(ligada: string | null): Conferencia[] {
   }
   const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `x3-${id}`, etapa: 'E21', data: somaDias(ligada, mais), responsavel: 'agente', onde: `${PLANO_X3}: ${onde}`, feitaEm: null })
   return [
-    e('d1', 1, 'D+1: a consulta do §11 devolve 0 linhas (todo canal ativo tem linha em competitor_playlist_reads); a unidade do dia em competitors_playlists está entre 200 e 400; C1 ampliada (playlists e itens por canal: máximo, mediana, soma; projeção soma x 330 B até 15 MB, senão desligar e voltar ao Phil); C3'),
+    e('d1', 1, 'D+1: a consulta do §11 devolve 0 linhas (todo canal ativo tem linha em competitor_playlist_reads); a unidade do dia em competitors_playlists está entre 200 e 400; C1 ampliada (playlists e itens por canal: máximo, mediana, soma; projeção soma x 330 B até 15 MB, senão desligar e voltar ao Phil); PORTÃO contagem_difere: `select items_reason, count(*) from public.competitor_playlists where missing_since is null group by 1;` e `select last_reason, count(*) from public.competitor_playlist_reads group by 1;` com contagem_difere em mais de 10% das playlists ou dos canais = desligar a coleta (OBS_X3_PLAYLISTS=off) e voltar ao Phil; C3'),
     e('d7', 7, 'D+7: todo canal ativo com last_cycle_at em até 7 dias; canais_com_secoes > 0 (o número da C2); tamanho das cinco tabelas até 1,5 x a projeção da C1; nenhuma linha com reason = cota_nao_registrada; C4'),
     e('d30', 30, 'D+30: versões por playlist por mês até 1 (acima disso, rever o hash); removed_after preenchido em toda linha com removed_since, exceto a de playlist sem leitura completa anterior (items_complete_at nulo na época: nulo é honesto)'),
   ]

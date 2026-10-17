@@ -169,6 +169,28 @@ describe('playlists_semanais: rodar', () => {
     expect(r).toMatchObject({ estado: 'parcial', motivo: 'teto_do_dia' })
     expect(v).not.toHaveBeenCalled()
   })
+  it('Yannis I-3: o teto do dia vale DURANTE a execução: 3 canais, cota lida 0, visita de 300 unidades: 2 visitados, o 3º não, parcial teto_do_dia', async () => {
+    const v = vi.fn(async () => resultado({ unidades: 300 }))
+    const r = await rodar(ctx([linhaCanal(1), linhaCanal(2), linhaCanal(3)]), ops(), v)
+    expect(v).toHaveBeenCalledTimes(2)
+    expect(r).toMatchObject({ estado: 'parcial', feitas: 2, motivo: 'teto_do_dia' })
+  })
+  it('Yannis M-4: exatamente em canalComecaAteMs o canal não começa; 1 ms antes, começa', async () => {
+    const v = vi.fn(async () => resultado())
+    const noLimite = await rodar(ctx([linhaCanal(1)], () => T0 + X3_RULES.canalComecaAteMs), ops(), v)
+    expect(v).not.toHaveBeenCalled()
+    expect(noLimite).toMatchObject({ estado: 'parcial', feitas: 0, motivo: 'sem_tempo' })
+    await rodar(ctx([linhaCanal(1)], () => T0 + X3_RULES.canalComecaAteMs - 1), ops(), v)
+    expect(v).toHaveBeenCalledTimes(1)
+  })
+  it('Yannis M-5: o relógio salta para 50 s durante as leituras iniciais: parcial sem_tempo, feitas 0, nenhuma visita', async () => {
+    let t = T0
+    const v = vi.fn(async () => resultado())
+    const o = ops({ lerCanais: async (_s, ids) => { t = T0 + X3_RULES.canalComecaAteMs; return new Map(ids.map(i => [i, ESTADO])) } })
+    const r = await rodar(ctx([linhaCanal(1)], () => t), o, v)
+    expect(v).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ estado: 'parcial', feitas: 0, motivo: 'sem_tempo', deixadas: 1 })
+  })
   it('falha ao ler a cota do dia: erro gravacao_falhou, nenhuma visita, nunca teto 0', async () => {
     const v = vi.fn()
     expect(await rodar(ctx([linhaCanal(1)]), ops({ cotaDoDia: async () => { throw new Error('x') } }), v)).toMatchObject({ estado: 'erro', motivo: 'gravacao_falhou' })
