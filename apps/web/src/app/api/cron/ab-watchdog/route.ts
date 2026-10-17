@@ -3,9 +3,9 @@ import { getCronHealth, recordCronSuccess, recordCronFailure } from '@/lib/cron-
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteOwners, logSemDestinatario, SEM_DESTINATARIO } from '@/lib/notifications/get-site-owners'
-import { checkDrift } from '@/lib/youtube/ab-drift'
+import { faseDriftEInterrompidos } from '@/lib/youtube/ab-watchdog-drift'
+import type { ResultadoDrift } from '@/lib/youtube/ab-watchdog-drift'
 import { podarRetratosDeCanal } from '@/lib/youtube/competitor-snapshot-prune'
-import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 60
@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
 
+  const inicio = Date.now()
   try {
     let semDestinatario = 0
     let avisosEnviados = 0
@@ -72,123 +73,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Drift detection: compare current YouTube thumbnail vs expected variant
-    const apiKey = process.env.YOUTUBE_API_KEY
-    if (apiKey) {
-      const driftClient = getSupabaseServiceClient()
-      const { data: driftTests } = await driftClient
-        .from('ab_tests')
-        .select('id, site_id, test_type, youtube_video_id')
-        .eq('status', 'active')
-
-      if (driftTests?.length) {
-        for (const test of driftTests) {
-          if (test.test_type !== 'thumbnail' && test.test_type !== 'combo') continue
-
-          // Read YouTube URL from cycle's applied_metadata (not variant blob_url)
-          const { data: openCycle } = await driftClient
-            .from('ab_test_cycles')
-            .select('id, variant_id, applied_metadata, started_at')
-            .eq('test_id', test.id)
-            .is('ended_at', null)
-            .limit(1)
-            .maybeSingle()
-
-          if (!openCycle) continue
-
-          // Skip drift checks for cycles started less than 3 hours ago —
-          // YouTube CDN needs time to propagate uploaded thumbnails.
-          const cycleAge = Date.now() - new Date(openCycle.started_at).getTime()
-          const THREE_HOURS = 3 * 60 * 60 * 1000
-          if (cycleAge < THREE_HOURS) continue
-
-          const appliedMeta = openCycle.applied_metadata as import('@/lib/youtube/ab-types').AppliedMetadata | null
-          const expectedUrl = appliedMeta?.youtube_thumbnail_url ?? null
-          if (!expectedUrl) continue
-
-          // Get YouTube video ID
-          const { data: video } = await driftClient
-            .from('youtube_videos')
-            .select('youtube_video_id')
-            .eq('id', test.youtube_video_id)
-            .single()
-
-          if (!video?.youtube_video_id) continue
-
-          const { drifted } = await checkDrift(test.id, video.youtube_video_id, expectedUrl, apiKey)
-
-          if (drifted) {
-            const now = new Date().toISOString()
-
-            // 1. Close the open cycle
-            await driftClient
-              .from('ab_test_cycles')
-              .update({ ended_at: now })
-              .eq('test_id', test.id)
-              .is('ended_at', null)
-
-            // 2. Attempt thumbnail revert to original
-            let originalRestored = false
-            try {
-              const { data: testFull } = await driftClient
-                .from('ab_tests')
-                .select('original_thumbnail_url, site_id')
-                .eq('id', test.id)
-                .single()
-
-              if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
-                const { ensureFreshToken } = await import('@/lib/social/token-refresh')
-                const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
-                const { channelAccountIdForVideo } = await import('@/lib/youtube/channel-account')
-                // O token é o do canal DONO do vídeo. Sem conta, saía "a conexão
-                // mais recente": com o token de outro canal o YouTube recusa, e o
-                // teste ficava pausado com a thumbnail da variante no ar.
-                const channelAccountId = await channelAccountIdForVideo(driftClient, testFull.site_id, test.youtube_video_id)
-                if (!channelAccountId) {
-                  throw new Error(`ab-watchdog: video ${test.youtube_video_id} has no channel — original thumbnail NOT restored`)
-                }
-                const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channelAccountId)
-                const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
-                await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
-                originalRestored = true
-              }
-            } catch (revertErr) {
-              Sentry.captureException(revertErr, { extra: { context: 'ab-watchdog-revert', testId: test.id } })
-            }
-
-            // 3. Pause the test
-            await driftClient
-              .from('ab_tests')
-              .update({ status: 'paused', paused_at: now, status_note: DRIFT_STATUS_NOTE })
-              .eq('id', test.id)
-
-            // 4. Notify owner
-            const owners = await getSiteOwners(driftClient, test.site_id)
-            if (owners.length === 0) {
-              semDestinatario++
-              logSemDestinatario('ab-watchdog:drift', test.site_id)
-            }
-            for (const owner of owners) {
-              avisosEnviados++
-              await createNotification({
-                site_id: test.site_id,
-                user_id: owner.userId,
-                type: 'youtube.drift_detected',
-                domain: 'youtube',
-                priority: 1,
-                title: DRIFT_STATUS_NOTE,
-                message: originalRestored
-                  ? 'O teste foi pausado automaticamente. Acesse o teste para reconhecer a mudança e retomar a rotação.'
-                  : 'O teste foi pausado automaticamente, mas a thumbnail original NÃO foi devolvida ao vídeo: a variante pode continuar no ar. Troque a thumbnail manualmente no YouTube Studio e depois acesse o teste para reconhecer a mudança.',
-                action_href: `/cms/youtube/ab-lab/${test.id}`,
-                dedup_key: `drift-${test.id}-${new Date().toISOString().slice(0, 10)}`,
-              })
-            }
-          }
-        }
-      }
-    }
-
     // Prune old polls (7-day retention)
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
     const pruneClient = getSupabaseServiceClient()
@@ -205,13 +89,29 @@ export async function GET(req: NextRequest) {
     const podaRetratos = await podarRetratosDeCanal(pruneClient, Date.now())
     if (!podaRetratos.ok) console.error('[ab-watchdog] snapshot prune skipped:', podaRetratos.motivo)
 
-    await recordCronSuccess('ab-watchdog', 'info')
+    // Drift pela imagem e conversão do `em_andamento` interrompido (P4a T11). Depois das podas (custo zero, não
+    // dependem desta fase). Acumulada, não lançada: a morte por tempo não passa pelo catch, então a fase se limita sozinha.
+    const drift: ResultadoDrift = await faseDriftEInterrompidos(getSupabaseServiceClient(), { agora: Date.now, inicio })
+      .catch((e: unknown): ResultadoDrift => {
+        Sentry.captureException(e, { extra: { context: 'ab-watchdog-drift' } })
+        return { verificados: 0, pausados: 0, falhas: 1, adiados: 0, interrompidos: 0, semDestinatario: false }
+      })
+    if (drift.semDestinatario) semDestinatario++
+    const atencao = drift.falhas > 0 || drift.adiados > 0 || drift.semDestinatario
+    if (atencao) {
+      await recordCronFailure('ab-watchdog', `drift: falhas ${drift.falhas}, adiados ${drift.adiados}${drift.semDestinatario ? ', sem destinatário' : ''}`)
+    } else {
+      await recordCronSuccess('ab-watchdog', 'info')
+    }
 
     return Response.json({
-      status: 'ok',
+      status: atencao ? 'atencao' : 'ok',
       rotate_healthy: !!rotateRanToday,
       poda_retratos: podaRetratos,
       last_rotate: rotateHealth?.last_success_at ?? null,
+      drift: { verificados: drift.verificados, pausados: drift.pausados, falhas: drift.falhas },
+      ...(drift.adiados > 0 ? { adiados: drift.adiados } : {}),
+      ...(drift.interrompidos > 0 ? { interrompidos: drift.interrompidos } : {}),
       avisos: {
         enviados: avisosEnviados,
         // Havia aviso a dar e ninguém a quem dar: não é "ok" mudo.

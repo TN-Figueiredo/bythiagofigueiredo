@@ -85,8 +85,8 @@ const REVERT_MS = 7 * 86_400_000
 
 /**
  * Só uma URL do Blob é cópia imutável. A do i.ytimg.com serve o que está no ar AGORA, não o original
- * (testes anteriores à P4a gravaram `thumbnail_hq_url` como original). Mesma regra de ab-evaluate-phases,
- * ab-rotate-phases e ab-watchdog (`blob.vercel-storage.com`); quando o vigia antigo sair, fica só este.
+ * (testes anteriores à P4a gravaram `thumbnail_hq_url` como original). Regra única: o vigia antigo (que repetia
+ * o teste com `includes('blob.vercel-storage.com')`) saiu na T11.
  */
 export function ehCopiaNoBlob(url: string | null | undefined): url is string {
   if (!url) return false

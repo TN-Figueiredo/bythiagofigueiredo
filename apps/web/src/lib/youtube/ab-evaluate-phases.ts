@@ -57,8 +57,7 @@ export async function phaseAutoStartPlayoffs(supabase: SupabaseClient): Promise<
 // P4a T8: a volta ao original e o encerramento são UMA chamada, `settleOnAir(original, 'duracao_maxima')`
 // (reivindica por restore_seq, escreve só o que o YouTube ainda mostra de nosso, fecha o ciclo e grava o retrato por campo).
 
-/** Orçamento da rota (`maxDuration` 120 s): sobram menos de 40 s (25 s de escrita + 5 s do passo 4 e do aviso + folga) e o teste fica para amanhã. */
-export const CORTE_DA_AVALIACAO_MS = 120_000
+/** Sobram menos de 40 s (25 s de escrita + 5 s do passo 4 e do aviso + folga) e o teste fica para amanhã. */
 export const SETTLE_MINIMO_MS = 40_000
 /** Rota de 120 s: 15 s ficam para longevidade, recordCron e escalada. O prazo do settle e o corte de "não inicia" medem contra este fim. */
 export const FIM_DA_AVALIACAO_MS = 105_000
