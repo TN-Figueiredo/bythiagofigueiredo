@@ -23,7 +23,7 @@ export type UltimoVideo =
   | { tipo: 'medido'; v: VideoDaOracao }
   /** Saiu agora: sem um dia completo de contagem; a resposta vem do anterior (se houver). */
   | { tipo: 'saiu_agora'; quando: string; anterior: VideoDaOracao | null }
-  | { tipo: 'sem_contagem'; motivo: 'antes_da_contagem' | 'sem_dia_completo' }
+  | { tipo: 'sem_contagem'; motivo: 'antes_da_contagem' | 'sem_dia_completo' | 'sem_leitura' }
   | { tipo: 'canal_novo' }
   /** Nenhum vídeo do formato. */
   | { tipo: 'nenhum' }
@@ -48,7 +48,9 @@ export function oracaoDoUltimoVideo(u: UltimoVideo, o: { quem: string; ate: stri
     case 'sem_contagem':
       return u.motivo === 'antes_da_contagem'
         ? `Sem leitura do último ${o.quem}: ele saiu antes de a contagem por vídeo começar (03/10).`
-        : `Sem leitura do último ${o.quem}: ele ainda não completou um dia de contagem.`
+        : u.motivo === 'sem_leitura'
+          ? `Sem leitura do último ${o.quem}: a contagem dele não tem views nos primeiros dias.` // TEXTO-A-REVISAR
+          : `Sem leitura do último ${o.quem}: ele ainda não completou um dia de contagem.`
     case 'medido': return orac(u.v, `${ultimo}, `)
     case 'saiu_agora': {
       const a = `${ultimo} saiu ${u.quando} e ainda não completou um dia de contagem.`
