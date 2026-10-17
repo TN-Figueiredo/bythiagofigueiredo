@@ -63,6 +63,16 @@ describe('E5a T14a: um canal inteiro, dado ausente', () => {
     }
     expect(f.consultas.length).toBe(0)
   })
+  it('Phil I1: as horas de uma estreia contam a partir do início real (liveActualStartAt), não de publishedAt', async () => {
+    const pub = T0 - 8 * D, inicio = pub + 4 * D
+    const hora = (k: number): Linha => ({ site_id: 's1', video_id: 'av1', hour_slot: iso(Math.floor((inicio + k * H) / H) * H), taken_at: iso(inicio + k * H), views: 100 + k, likes: null, comments: null })
+    const t = tabelas(['a'], { competitor_video_hourly: [hora(1), hora(2), hora(30)] })
+    t.competitor_videos = t.competitor_videos!.map((v) => (v.id === 'av1' ? { ...v, published_at: iso(pub), live_actual_start_at: iso(inicio) } : v))
+    const r = await carregarMedidasDoCanalInteiro(falsoPostgrest(t).sb, pedido({ pedir: { serie: false, mudancas: false, horas: true } }))
+    expect(r.horas !== 'nao_pedida' && r.horas.lido).toBe(true)
+    if (r.horas === 'nao_pedida' || !r.horas.lido) return
+    expect(r.horas.dados.porVideo.get('av1')?.length).toBe(3)
+  })
   it('série não lida: as medidas de 1, 7 e 30 dias saem pelas marcas e o resto do canal segue', async () => {
     const t = tabelas(['a']); delete (t as Partial<typeof t>).competitor_video_daily
     const f = falsoPostgrest(t)

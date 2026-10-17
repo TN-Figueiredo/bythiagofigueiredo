@@ -7,7 +7,7 @@ import { DAY } from '../time'
 import { medidasDoCanal, type Insumos, type MedidasDoCanal } from '../medidas/do-canal'
 import { MEASURE_RULES } from '../medidas/regras'
 import { lerMudancasDoCanal, lerSeriesDoCanal, type CausaNaoLida, type MarcasDoCanal, type MudancaLida, type Parte, type VideoLido } from '../medidas/ler'
-import type { Leitura } from '../medidas/m1'
+import { baseDaIdade, type Leitura } from '../medidas/m1'
 import type { RetratoDoCanal } from '../medidas/direcao'
 import { remontar, type InsumosPlanos } from './insumos-planos'
 import { multiplosDoCanal } from './multiplos'
@@ -183,12 +183,13 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
   const retratos: ParteDoCanal<RetratoDoCanal[]> = insumos.retratos
 
   // ───── série, mudanças e horas, ao mesmo tempo ─────
-  const publicados = (dias: number): Array<{ id: string; publicadoEmMs: number }> => {
+  // `pelaBase`: as horas contam 72 h a partir do início real (live/estreia), como a curva (`baseDaIdade`), e não de `publishedAt`
+  const publicados = (dias: number, pelaBase = false): Array<{ id: string; publicadoEmMs: number }> => {
     if (!videos.lido) return []
     const minimo = agoraMs - dias * DAY
     const out: Array<{ id: string; publicadoEmMs: number }> = []
     for (const v of videos.dados) {
-      const ms = v.publishedAt === null ? Number.NaN : Date.parse(v.publishedAt)
+      const ms = pelaBase ? (baseDaIdade(v) ?? Number.NaN) : v.publishedAt === null ? Number.NaN : Date.parse(v.publishedAt)
       if (!Number.isNaN(ms) && ms >= minimo) out.push({ id: v.id, publicadoEmMs: ms })
     }
     return out
@@ -242,7 +243,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
   const pedirHoras = async (): Promise<ParteDoCanal<HorasDoCanal>> => {
     const semVideos = quandoVideosNaoLidos()
     if (semVideos !== null) return semVideos
-    const dosNoventa = publicados(R72.VIDEOS_DOS_ULTIMOS_DIAS)
+    const dosNoventa = publicados(R72.VIDEOS_DOS_ULTIMOS_DIAS, true)
     const l = await lerEntrada<EntradaHoras>(() => viaCache({
       chave: ['medidas-telas-horas', String(MEDIDAS_TELAS_V), siteId, channelId], siteId, agoraMs, validadeS: VALIDADE_HORAS_S, usarCache: observatoryCacheEnabled(),
       ler: async () => {
