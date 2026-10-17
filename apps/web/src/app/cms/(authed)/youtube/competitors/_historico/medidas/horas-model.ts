@@ -214,7 +214,7 @@ function montarBarras(e: EntradaDeHoras, curva: CurvaDe72Horas): BarraDaHora[] {
     let motivo: MotivoDeHora
     if (iv && !iv.limpo) motivo = motivoDoIntervalo(iv)
     else if (iv) motivo = 'sem_contagem_nesta_hora'
-    else if (!primeira || primeira.lidaEmMs > ateMs) motivo = 'antes_da_primeira_contagem'
+    else if (!primeira || primeira.lidaEmMs >= ateMs) motivo = 'antes_da_primeira_contagem'
     else motivo = 'sem_contagem_nesta_hora'
     const pc = curva.primeiraContagem
     const fala =
