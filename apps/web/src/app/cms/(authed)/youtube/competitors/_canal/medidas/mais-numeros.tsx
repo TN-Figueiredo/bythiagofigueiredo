@@ -9,7 +9,7 @@ export function MaisNumeros({ numeros }: { numeros: NumeroDeMais[] }) {
   return (
     <details className="pc-mais" data-mais-numeros="">
       <summary>Mais números do canal<span className="mut"> ({numeros.length})</span></summary>
-      <dl className="pc-cels pc-cels2" aria-label="Mais números do canal">
+      <dl className="pc-cels pc-cels2" aria-label="Os quatro números que saíram da faixa">
         {numeros.map(n => (
           <div key={n.chave} className="pc-cel" data-celula={n.chave}>
             <dt>{n.rotulo}</dt>

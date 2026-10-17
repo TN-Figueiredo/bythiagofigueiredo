@@ -308,8 +308,10 @@ export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSy
   )
 }
 
-export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null }: {
+export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null, topo = null, celulas = null, blocos = null }: {
   view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions
+  /** E5a T19: a frase do topo e a faixa de estado, as cinco células e os blocos, como ELEMENTO pronto de servidor (cada um no seu `<Suspense>`); nunca componente. Ausentes = a tela de antes, sem os blocos. */
+  topo?: ReactNode; celulas?: ReactNode; blocos?: ReactNode
   /** A comparação deste canal com o canal próprio principal (`escolherPrincipal`), montada pelo servidor; null = sem canal próprio com vídeos (sem o botão "Comparar com o meu canal"). */
   compararHref?: string | null
 }) {
@@ -505,8 +507,10 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     <NicheOptionsContext.Provider value={niches}>
       <NichePendingContext.Provider value={pending}>
         <div data-obs-screen="canal" ref={raiz} onClickCapture={guardarSaida}>
-          <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn} compararHref={compararHref}
+          <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn} compararHref={compararHref} celulas={celulas}
             onToggleNums={toggleNums} onSync={() => { void syncOne() }} onAskRemove={() => setConfirm(true)} onNiche={n => { void setNiche(n) }} />
+          {topo}
+          {blocos}
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>

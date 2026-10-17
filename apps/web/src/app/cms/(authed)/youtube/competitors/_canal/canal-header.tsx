@@ -16,6 +16,8 @@ import { NicheSelect } from '../_canais/niche-editor'
 import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import type { CanalHeaderView, NumCell } from './header-model'
+import { maisNumeros } from './medidas/cabecalho-model'
+import { MaisNumeros } from './medidas/mais-numeros'
 
 export const Ext = () => (
   <svg className="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5" /></svg>
@@ -61,8 +63,10 @@ function MenuItems({ syncing, canAdmin, onSync, onRemove }: { syncing: boolean; 
   )
 }
 
-export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHref = null, onToggleNums, onSync, onAskRemove, onNiche }: {
+export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHref = null, celulas = null, onToggleNums, onSync, onAskRemove, onNiche }: {
   h: CanalHeaderView; nums: boolean; syncing: boolean; canAdmin: boolean
+  /** E5a T19: as cinco células que dependem de medida (Direção, Estado, Acerto, Ritmo, Criador responde), como elemento pronto de servidor. A base delas é desenhada dentro dele; o ⓘ daqui não as lista. */
+  celulas?: ReactNode
   /** A comparação deste canal com o canal próprio principal (`escolherPrincipal`); null = sem canal próprio com vídeos: o botão não existe. Chega pronto do servidor. */
   compararHref?: string | null
   menuBtnRef: RefObject<HTMLButtonElement | null>
@@ -71,7 +75,11 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHr
   const [menu, setMenu] = useState(false)
   const [tip, setTip] = useState(false)
   const tipBtn = useRef<HTMLButtonElement>(null)
-  const cells = nums ? [...h.faixa, ...h.todos] : h.faixa
+  // com `celulas` só Inscritos fica desta faixa: os outros cinco números saíram da tela (três vão para "Mais números"). Sem `celulas` (quem
+  // monta a tela sem as medidas, como o pacote "Perguntar a uma IA") a faixa é a de antes, de seis.
+  const nova = celulas !== null
+  const subs = nova ? h.faixa.filter(c => c.key === 'subs') : h.faixa
+  const cells = nums ? [...subs, ...h.todos] : subs
   const tone = h.sync.tone === 'warn' ? ' warn' : h.sync.tone === 'danger' ? ' err' : ''
   return (
     <header className="chead">
@@ -102,8 +110,10 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHr
 
       <div className="nrow">
         <div className="nclip">
-          <dl className="nstrip" aria-label="Números do canal">{h.faixa.map(c => <Cell key={c.key} c={c} />)}</dl>
+          <dl className="nstrip" aria-label={nova ? 'Inscritos do canal' : 'Números do canal'}>{subs.map(c => <Cell key={c.key} c={c} />)}</dl>
         </div>
+        {celulas}
+        {nova ? <MaisNumeros numeros={maisNumeros(h)} /> : null}
       </div>
 
       <div className="lrow">

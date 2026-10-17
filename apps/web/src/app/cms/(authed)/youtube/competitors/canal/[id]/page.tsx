@@ -1,4 +1,9 @@
 import { Suspense, type ReactNode } from 'react'
+import * as Sentry from '@sentry/nextjs'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { carregarMedidasDoCanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
+import { contaComoTroca } from '@/lib/youtube/observatorio/changes'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
@@ -6,6 +11,9 @@ import { gerarPacoteIa } from '../../contexto-ia-actions'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { CanalScreen, CanalNotFound } from '../../_canal/canal-screen'
 import { LeituraDoNicho } from '../../_canal/leitura'
+import { BlocosDoCanal, CelulasDoCanal, TopoDoCanal, type ContextoDoCanal } from '../../_canal/medidas/blocos-do-canal'
+import { canalNaoCarregou } from '../../_canal/medidas/canal-derivado-async'
+import { EsqueletoDasCelulas, EsqueletoDosBlocos, EsqueletoDoTopo } from '../../_canal/medidas/esqueleto'
 import { assistidoDoCanal, montarCanal, origemDoCanal, type PropsAssistidoDoCanal, type PropsOrigemDoCanal } from '../../_canal/montar'
 import { nicheOptions } from '../../_canais/view-model'
 import { removeCompetitorChannel, syncCompetitorNow, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from '../../actions'
@@ -44,7 +52,20 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const m = await montarCanal(id, flat)
+  const m = await montarCanal(id, flat, {
+    // a leitura das medidas nasce depois de `view` existir e antes de `canAdminSiteUsers` (dentro de `montarCanal`): corre em paralelo com ele e com a leitura do nicho
+    iniciarMedidas: async ({ pagina, obs, view }) => {
+      // `async`: o corpo roda até o primeiro `await` na hora da chamada (a promessa nasce aqui, antes de `canAdminSiteUsers`) e nada lança para fora dela
+      try {
+        return await carregarMedidasDoCanalInteiro(getSupabaseServiceClient(), {
+          siteId: pagina.siteId, obs, channelId: view.header.id, agoraMs: pagina.now, pedir: { serie: true, mudancas: true, horas: true },
+        })
+      } catch (err) {
+        Sentry.captureException(err, { tags: { component: 'observatorio-canal', step: 'medidas' } })
+        return canalNaoCarregou()
+      }
+    },
+  })
   const { owns } = m.pagina
   if (m.tipo === 'proprio_sem_videos') {
     return (
@@ -80,12 +101,19 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
       </TrailChrome>
     )
   }
-  const { view, obs, canAdmin } = m
+  const { view, obs, canAdmin, medidas } = m
   const leitura = view.state.tab === 'leitura' ? leituraDoNicho(view.header.niche, view.header.nicheLabel, m.leituraMv) : null
+  // as medidas chegam depois do primeiro HTML: três elementos de servidor, cada um no seu Suspense, com a MESMA promessa
+  const contexto = contextoDoCanal(obs, view, m.pagina.now)
+  const promessa = medidas ?? Promise.resolve(canalNaoCarregou())
+  const topo = <Suspense key="topo-do-canal" fallback={<EsqueletoDoTopo />}><TopoDoCanal medidas={promessa} contexto={contexto} /></Suspense>
+  const celulas = <Suspense key="celulas-do-canal" fallback={<EsqueletoDasCelulas />}><CelulasDoCanal medidas={promessa} contexto={contexto} /></Suspense>
+  const blocos = <Suspense key="blocos-do-canal" fallback={<EsqueletoDosBlocos />}><BlocosDoCanal medidas={promessa} contexto={contexto} /></Suspense>
   return (
     <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]} owns={owns}
       perguntarIa={{ tela: 'canal', id: id, nomeDaTela: TELAS_IA['canal'].nome, exemplos: TELAS_IA['canal'].exemplos, onGerar: gerarPacoteIa }}>
       <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
+        topo={topo} celulas={celulas} blocos={blocos}
         actions={{ onSyncOne: syncCompetitorNow, onRemove: removeCompetitorChannel, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
     </TrailChrome>
   )
@@ -104,4 +132,16 @@ function leituraDoNicho(niche: string | null, nicheLabel: string | null, mv: Par
       <div data-obs-screen="mudancas"><section className="forja"><ReadingCard view={mv} /></section></div>
     </LeituraDoNicho>
   )
+}
+
+/** O que a página já sabe, sem esperar medida: os títulos dos vídeos, as trocas do motor (90 dias), a sincronização e os inscritos. */
+function contextoDoCanal(obs: NonNullable<Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['obs']>, view: Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['view'], agoraMs: number): ContextoDoCanal {
+  const ch = obs.channel(view.header.id)
+  return {
+    F: obs.fmt, subs: ch?.subs ?? null,
+    sync: { state: ch?.sync.state ?? 'ok', last: ch?.sync.last ?? null, errorSince: ch?.sync.errorSince ?? null },
+    hojeSP: dayPt(new Date(agoraMs)), agoraMs, primeiraBusca: ch?.sync.state === 'backfill', semVideos: view.videos.videos.length === 0,
+    titulos: view.videos.videos.map(v => [v.id, v.title] as const),
+    trocas: obs.changesIn({ days: 90, channel: view.header.id }).filter(contaComoTroca).map(c => ({ videoId: c.video, campo: c.type === 'title' ? 'titulo' as const : 'miniatura' as const, emMs: c.at })),
+  }
 }

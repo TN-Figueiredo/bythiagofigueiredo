@@ -5,6 +5,9 @@
  */
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { RiInfo } from '../../_canais/ri-info'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+import { dm } from './formatos'
 import type { LinhaDoTempo, MarcaDaLinha, RaiaDaLinha } from './linha-do-tempo-model'
 import './canal-medidas.css'
 
@@ -26,9 +29,30 @@ function Raia({ raia }: { raia: RaiaDaLinha }) {
   return raia.tipo === 'nao_carregou' ? <NaoCarregou medida="esta raia" /> : null
 }
 
+const GLIFO = { sobe: '▲', estavel: '＝', desce: '▼' } as const
+const ITENS = [
+  'Barras: views que o canal inteiro ganhou em cada dia, pela diferença do contador público (a mesma conta da direção). Inclui Shorts e vídeos apagados.',
+  'Janela: os últimos 90 dias; as marcas vêm das publicações, das mudanças de título, miniatura, descrição, tags, categoria e duração, registradas desde 03/10/2026.',
+  `Corte de ${dm(MEASURE_RULES.countChange)}: o YouTube mudou a forma de contar views; antes dessa data os dias não se comparam com os de depois.`,
+  'Sem playlists: esta fase não registra playlists, então não há raia delas.',
+  'Coincidência, não causa: a tela lista o que mudou perto de uma subida; não afirma que uma coisa causou a outra.',
+]
+
 export function LinhaDoTempoBloco({ modelo }: { modelo: LinhaDoTempo }) {
+  return (
+    <section className="pc-sec" id="tempo" aria-labelledby="hTem">
+      <div className="pc-sh">
+        <h2 id="hTem">Linha do tempo: views por dia e o que mudou</h2>
+        <RiInfo titulo="a linha do tempo" itens={ITENS} rotuloBotao="Como ler a linha do tempo" />
+      </div>
+      <Miolo modelo={modelo} />
+    </section>
+  )
+}
+
+function Miolo({ modelo }: { modelo: LinhaDoTempo }) {
   const b = modelo.barras
-  const frase = <p className="pc-fr3" data-frase-da-linha>{modelo.frase.simbolo ? <span aria-hidden="true">{modelo.frase.simbolo} </span> : null}<b>{modelo.frase.negrito}</b>{modelo.frase.resto}</p>
+  const frase = <p className="pc-fr3" data-frase-da-linha>{modelo.frase.simbolo ? <span aria-hidden="true">{GLIFO[modelo.frase.simbolo]} </span> : null}<b>{modelo.frase.negrito}</b>{modelo.frase.resto}</p>
   if (b.tipo !== 'dias') {
     return (
       <>
