@@ -84,6 +84,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/video-model', async ori
   return { ...m, buildProprioVideoBase: (...a: Parameters<typeof m.buildProprioVideoBase>) => state.base(...a) }
 })
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome', () => ({ TrailChrome: () => null }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/medidas/blocos-do-video', () => import('./blocos-sincronos'))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/historico-screen', () => ({ HistoricoScreen: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/video-screen', () => ({ ProprioVideoScreen: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: vi.fn(), cancelForjaReading: vi.fn() }))
@@ -94,7 +95,7 @@ async function rota(id: string, sp: Record<string, string> = {}) {
   const { default: VideoPage } = await import('@/app/cms/(authed)/youtube/competitors/video/[id]/page')
   return (await VideoPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(sp) })) as Moldura
 }
-const filho = (el: Moldura) => el.props.children
+const filho = (el: Moldura) => { const c = el.props.children as ReactElement<{ fallback?: ReactElement }>; return (c.type === Suspense ? c.props.fallback : c) as Moldura['props']['children'] } // concorrente: a tela vem num Suspense (21c); a reserva leva a mesma view
 /** O modelo dos blocos que a rota monta no servidor e entrega ao `VideoBlocos` (a única coisa privada que desce). */
 const blocos = (el: Moldura): VideoBlocosView => (filho(el).props.children as ReactElement<{ view: VideoBlocosView }>).props.view
 const nome = (el: Moldura) => (filho(el).type as { name?: string }).name
@@ -132,13 +133,14 @@ describe('T11 rota video/[id]: o dono do canal decide', () => {
     expect(state.dados.mock.calls[0]![0]).toMatchObject({ canalId: w.canalId, ytId: proprioVideo.ytId, leitura: EDICAO, agora: w.obs.NOW, longosAcompanhados: ['yt-longos-de-' + w.canalId] })
   })
 
-  it('vídeo de concorrente continua abrindo o Histórico, igual a hoje: mesma view, mesma trilha, SEM tocar a guarda de edição nem o dado privado', async () => {
+  it('vídeo de concorrente continua abrindo o Histórico, igual a hoje: mesma view, mesma trilha, pede só a prova de leitura (C3) e NÃO toca o dado privado', async () => {
     const el = await rota(concorrente.id, { from: 'canais', canal: concorrente.ch })
     expect(nome(el)).toBe('HistoricoScreen')
     const esperado = buildHistoricoView(w.obs, concorrente.id, { from: 'canais', canal: concorrente.ch, niche: 'todos' })
     expect(el.props.crumbs).toEqual(historicoTrail(esperado.crumbs))
     expect((filho(el).props as { view: { video: { id: string } } }).view.video.id).toBe(concorrente.id)
-    expect(state.leitura).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+    // C3: a seção de comentários pede a prova de leitura UMA vez (nunca a de edição como decisão); o dado privado continua intocado
+    expect(state.leitura).toHaveBeenCalledTimes(1); expect(state.dados).not.toHaveBeenCalled()
   })
 
   it('a decisão NÃO vem da URL: ?canal=<canal próprio> num vídeo de concorrente continua no Histórico; ?canal=<concorrente> num vídeo próprio continua na tela nova', async () => {

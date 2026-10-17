@@ -178,7 +178,8 @@ describe('HistoricoScreen', () => {
 
   it('no number is computed in the screen: the components import no runtime from the engine', () => {
     const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../src/app/cms/(authed)/youtube/competitors/_historico')
-    for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.tsx'))) {
+    // `comentarios-de-destaque.tsx` é componente de SERVIDOR que lê o banco (C3): é o único que importa o motor em runtime
+    for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.tsx') && x !== 'comentarios-de-destaque.tsx')) {
       const src = fs.readFileSync(path.join(dir, f), 'utf8')
       expect([f, /from '@\/lib\/youtube\/observatorio[^']*'/.test(src.replace(/import type [^\n]+\n/g, ''))]).toEqual([f, false])
       expect([f, /toFixed|toLocaleString|\.fmt\.|Intl\./.test(src)]).toEqual([f, false])

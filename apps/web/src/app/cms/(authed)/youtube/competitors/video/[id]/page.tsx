@@ -7,12 +7,16 @@ import { openObservatoryPage } from '../../_chrome/page-data'
 import { ownMenuOf } from '../../_chrome/own-menu'
 import { historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
+import { BlocosDoVideo } from '../../_historico/medidas/blocos-do-video'
 import { assistidoDoVideo, montarVideo, origemDoVideo, type PropsAssistidoDoVideo, type PropsOrigemDoVideo } from '../../_historico/montar'
 import { Pager } from '../../_historico/pager'
 import { EstourouCarregando, EstourouEParou } from '../../_historico/estourou-e-parou'
 import { leituraSemConsulta, lerLeituraDoVideo, type IObservatorioDaLeitura } from '../../_chrome/medidas/estourou-leitura'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import '../../_historico/historico.css'
+import { acessoPrivado } from '../../_proprio/dados'
+import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
+import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { AssistidoPeriodos } from '../../_proprio/assistido-periodos'
 import { Origem } from '../../_proprio/origem'
 import { OrigemEsqueleto } from '../../_proprio/origem-esqueleto'
@@ -100,12 +104,41 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
       <EstourouDoVideo siteId={m.pagina.siteId} obs={obs} videoId={view.video!.id} now={m.pagina.now} />
     </Suspense>
   )
+  // A5 E5a T21c: um vídeo acompanhado, de canal de concorrente, ganha os blocos de medidas. A reserva do `Suspense` é o PRÓPRIO `HistoricoScreen`
+  // (cabeçalho e botões de verdade, três cartões no lugar do resto); o `key` do vídeo faz a reserva voltar a cada troca de vídeo. As cinco ações de
+  // servidor e `pagerNaTrilha` chegam ao bloco por prop daqui (servidor para servidor); o bloco não importa ação nenhuma.
+  const doMotor = !view.notFound && !view.untracked && view.video ? obs.videos.find((x) => x.id === view.video!.id) : undefined
+  const acoes = { onAskForja: askForjaReading, onCancelForja: cancelForjaReading, onSyncChannel: syncCompetitorNow, onPin: pinVideo, onUnpin: unpinVideo, pagerNaTrilha: true }
+  // C3: `acessoPrivado` depois da guarda, uma vez; que lance (não deveria) é nível contagem com a faixa de permissão, nunca texto. As provas
+  // seguem de servidor a servidor ao bloco; a página NÃO chama `provarEdicao` (a varredura do token) nem decide nível (quem decide é o leitor).
+  let provas: ProvasDeQuemVe | null = null
+  let permissaoFalhou = false
+  if (doMotor) {
+    try {
+      const acesso = await acessoPrivado(m.pagina.siteId)
+      // `edicao` é o campo do pedido P11 (passo 0 da E17); sem ele, no máximo texto
+      const edicao = (acesso as typeof acesso & { edicao?: EdicaoDoSite | null }).edicao ?? null
+      provas = { leitura: acesso.leitura, edicao }
+      permissaoFalhou = acesso.negativa === 'nao_foi_possivel_conferir'
+    } catch {
+      permissaoFalhou = true
+    }
+  }
+  const tela = doMotor ? (
+    <Suspense key={doMotor.id} fallback={<HistoricoScreen view={view} carregando {...acoes} />}>
+      <BlocosDoVideo obterSb={getSupabaseServiceClient} siteId={m.pagina.siteId} obs={obs} agoraMs={m.pagina.now} view={view} video={doMotor}
+        estourou={estourou} linkSaiu={{ href: obs.link.saiu() }} provas={provas} permissaoFalhou={permissaoFalhou}
+        canaisDoSite={new Map(obs.channels.map((x) => [x.id, { nome: x.name }]))} {...acoes} />
+    </Suspense>
+  ) : (
+    <HistoricoScreen view={view} {...acoes} estourou={estourou} />
+  )
   // The frame is only the trail (spec A2.6, emenda 25): no section tabs, no niche bar, in every origin. The trail is the way back for whoever
   // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
     <TrailChrome crumbs={historicoTrail(view.crumbs)} owns={ownMenuOf(obs, meuCanalLembrado)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}
       perguntarIa={view.notFound ? undefined : { tela: 'video', id, nomeDaTela: TELAS_IA['video'].nome, exemplos: TELAS_IA['video'].exemplos, onGerar: gerarPacoteIa }}>
-      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onSyncChannel={syncCompetitorNow} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha estourou={estourou} />
+      {tela}
     </TrailChrome>
   )
 }

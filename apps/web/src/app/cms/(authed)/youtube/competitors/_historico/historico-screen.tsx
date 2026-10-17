@@ -4,15 +4,17 @@
  * thumbnail and description, the before/after comparison per change, and the versions. The forja (Task 35): the
  * screen's single filled button in the video header and the "Leitura da forja" card below the comparison.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
 import { DOUBLE_CLICK_MS } from '../_canal/use-rolagem-ao-voltar'
 import { useAvisoLeituraPublicada, useForjaRefresh } from '../_chrome/use-forja-refresh'
-import { marcarPagerUsado, tomarPagerUsado, videoDoHref } from './pager-usado'
+import { marcarChegadaNaReserva, marcarPagerUsado, soltarChegadaDaReserva, tomarChegadaNaReserva, tomarPagerUsado, videoDoHref } from './pager-usado'
 import { currentFlut } from '../_chrome/flut/store'
-import type { HistoricoView, LaneType } from './view-model'
+import type { AcrescimosDoGrafico, HistoricoView, LaneType } from './view-model'
+import { Esqueleto } from './medidas/esqueleto'
+import type { CabecalhoDoSaiu } from './medidas/saiu-model'
 import type { Hl } from './lanes'
 import { Pager } from './pager'
 import { Timeline } from './views-chart'
@@ -31,18 +33,57 @@ import { PinProvider, PinButton, PinMessage, PinChips, PinIcon, type PinAction }
 
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+/** A reserva: o clique nos botões que guardam estado não chama a ação (o pager e as ligações seguem ativos). */
+function bloquearNaReserva(e: ReactMouseEvent<HTMLElement>) {
+  if ((e.target as HTMLElement).closest('button')) { e.preventDefault(); e.stopPropagation() }
+}
+
+/** O conjunto do canal não carregou (mockup 13, estado `erro`): o aviso não afirma o que está guardado, a tela não sabe. */
+function ErroDoHistorico() {
+  const pathname = usePathname()
+  const search = useSearchParams()
+  const aqui = (pathname ?? '') + (search && search.toString() ? '?' + search.toString() : '')
+  return (
+    <>
+      {/* TEXTO-A-REVISAR: frases do mockup 13 (NOTAS 13, linha 84) */}
+      <div className="hv-erro" role="alert" data-erro="historico">
+        <div className="tx">
+          <h2 tabIndex={-1} data-erro-titulo="">Não deu para abrir o histórico deste vídeo</h2>
+          <p>O servidor não respondeu. Tente de novo; se continuar assim, avise.</p>
+        </div>
+        <a className="btn pri big" href={aqui}>Tentar de novo</a>
+      </div>
+      <section className="hv-vz" aria-label="O que dá para ver enquanto isso">
+        <div className="hv-h"><h2>O que dá para ver enquanto isso</h2></div>
+        <p>O título, o canal e a data de publicação acima vieram da lista, não do histórico. Os números e os gráficos aparecem quando o histórico abrir.</p>
+      </section>
+    </>
+  )
+}
+
 /**
  * `pagerNaTrilha`: a página já pôs o pager na linha da trilha da moldura (mockup aprovado: trilha à esquerda, pager à direita, a mesma linha);
  * a tela não o desenha de novo, mas continua sendo ela que decide o foco depois de Anterior/Próximo e que atende `[` e `]`, então procura os
  * botões em toda a moldura (`[data-obs]`), não só na própria raiz.
  */
-export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel, onPin, onUnpin, pagerNaTrilha = false, estourou }: {
+export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel, onPin, onUnpin, pagerNaTrilha = false, estourou, carregando = false, erro = false, acrescimos = null, antesDoGrafico, depoisDoGrafico, cabecalhoDoSaiu }: {
   view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel
   /** "Sincronizar este canal" (a situação "Precisa de você"): a mesma ação de servidor que a página do canal usa. */
   onSyncChannel?: (channelRowId: string) => Promise<{ ok: boolean }>
   onPin?: PinAction; onUnpin?: PinAction; pagerNaTrilha?: boolean
   /** A5 E5a T10a: o bloco "Estourou e parou", já pronto (elemento de servidor dentro de um Suspense; nunca um componente). Ausente = o vídeo não tem o bloco. */
   estourou?: ReactNode
+  /** A5 E5a T21c: a reserva do `<Suspense>`. O cabeçalho e os botões são os de verdade; no lugar do gráfico e dos blocos entram os três cartões do esqueleto. */
+  carregando?: boolean
+  /** A5 E5a T21c: o conjunto do canal não carregou. O cabeçalho continua; o resto da tela é o aviso do mockup 13. */
+  erro?: boolean
+  /** Dado serializável dos acréscimos do gráfico (faixas, linhas, raia "Outras", forma por semana). Ausente = o gráfico de hoje. */
+  acrescimos?: AcrescimosDoGrafico | null
+  /** Elementos de servidor já desenhados (nunca componentes): os blocos de cima e os de baixo do gráfico por dia. */
+  antesDoGrafico?: ReactNode
+  depoisDoGrafico?: ReactNode
+  /** Vídeo que saiu do YouTube / ao vivo: as pastilhas, o "Sem link" e o botão da fila. */
+  cabecalhoDoSaiu?: CabecalhoDoSaiu | null
 }) {
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hover, setHover] = useState<Hl | null>(null)
@@ -105,24 +146,60 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
   // goes away on the same video (a period chosen by hand that no longer holds the change), and never when it COMES BACK (another period
   // that holds the same change again): the arrival is read once per video opened. The focus stays where the person put it.
   const arrivalKey = view.arrival ? view.arrival.changeId : ''
+  const videoId = view.video?.id
   const seen = useRef<{ video: string | undefined; arrival: string; last: string } | null>(null)
   useEffect(() => {
     const r = root.current
-    const used = tomarPagerUsado()
+    // A5 E5a T21c (correção 4): a instância dos blocos não decide o foco de novo quando a reserva do mesmo vídeo já o decidiu
+    const marca = !carregando && r && videoId ? tomarChegadaNaReserva(videoId) : null
+    const used = marca ? null : tomarPagerUsado()
     const before = seen.current
     const sameVideo = !!before && before.video === view.video?.id
     // the last arrival this video had on screen: coming back to it (a period that holds it again) is not an arrival
     seen.current = { video: view.video?.id, arrival: arrivalKey, last: arrivalKey || (sameVideo ? before.last : '') }
     if (!r || view.state === 'not-found') return
     const frame = r.closest<HTMLElement>('[data-obs]') ?? r   // the pager may live in the frame's trail row (pagerNaTrilha)
+    const titulo = () => r.querySelector<HTMLElement>(erro ? '[data-erro-titulo]' : '.vhead h2')
+    if (marca) {
+      const at = document.activeElement as HTMLElement | null
+      const solto = !at || at === document.body
+      const a = view.arrival
+      const marcador = a && !erro ? r.querySelector<HTMLElement>('[data-arrival]') : null
+      const chaveDeEntrada = marca.foco === 'titulo' || marca.foco === 'pager-prev' || marca.foco === 'pager-next'
+      // 1. chegada por mudança e a pessoa não mexeu no foco: o marcador, uma vez
+      if (marcador && a && chaveDeEntrada && (solto || at === r.querySelector('.vhead h2') || !!at?.closest('[data-pager]'))) {
+        marcador.focus({ preventScroll: true })
+        const box = marcador.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+        const pos = marcador.getBoundingClientRect()
+        if (pos.top < box.top + 8 || pos.bottom > box.bottom - 8) marcador.scrollIntoView?.({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
+        setLive(a.status)
+        return
+      }
+      // 2. o foco caiu no body com a troca da reserva: o controle equivalente da árvore nova, ou o título; nunca fica no body
+      if (solto && marca.foco) {
+        const k = marca.foco
+        const eq = k === 'titulo' || erro ? titulo()
+          : k === 'pager-prev' || k === 'pager-next' ? frame.querySelector<HTMLElement>('[data-' + k + ']')
+          : (() => { const w = r.querySelector<HTMLElement>('[data-foco="' + k + '"]'); return w ? (w.matches('button, a[href]') ? w : w.querySelector<HTMLElement>('button, a[href]')) : null })()
+        ;(eq ?? titulo())?.focus({ preventScroll: true })
+        return
+      }
+      // 3. o foco está vivo fora da tela (menu, pager da trilha): ninguém toca
+      return
+    }
     if (sameVideo && !used && (arrivalKey === '' || arrivalKey === before.last)) return
     // the button that was used, if the video it promised is the one that arrived; when it is gone (end of the list) the other one
     const btn = used && used.to === view.video?.id && view.pager
       ? frame.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? frame.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null
-    if (btn && view.pager) { btn.focus({ preventScroll: true }); setLive(view.pager.status); return }
+    if (btn && view.pager) {
+      btn.focus({ preventScroll: true }); setLive(view.pager.status)
+      if (carregando && videoId) marcarChegadaNaReserva(videoId, btn.hasAttribute('data-pager-prev') ? 'pager-prev' : 'pager-next')
+      return
+    }
+    if (carregando && videoId) marcarChegadaNaReserva(videoId, 'titulo')
     const a = view.arrival
     const mark = a ? r.querySelector<HTMLElement>('[data-arrival]') : null
-    if (!a || !mark) { r.querySelector<HTMLElement>('.vhead h2')?.focus({ preventScroll: true }); return }
+    if (!a || !mark) { titulo()?.focus({ preventScroll: true }); return }
     mark.focus({ preventScroll: true })
     const box = mark.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
     const at = mark.getBoundingClientRect()
@@ -130,6 +207,22 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
     setLive(a.status)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the arrival is read through its key
   }, [view.video?.id, arrivalKey])
+  // A reserva guarda qual controle dela tem o foco (a marca da correção 4); ao desmontar, a marca passa a valer só por VALE_DA_TROCA_MS
+  useEffect(() => {
+    const r = root.current
+    if (!carregando || !r || !videoId) return
+    const frame = r.closest<HTMLElement>('[data-obs]') ?? r
+    const on = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t) return
+      const k = t.matches('.vhead h2') ? 'titulo' : t.closest('[data-pager-prev]') ? 'pager-prev' : t.closest('[data-pager-next]') ? 'pager-next' : t.closest('[data-foco]')?.getAttribute('data-foco') ?? null
+      if (k) marcarChegadaNaReserva(videoId, k)
+    }
+    frame.addEventListener('focusin', on)
+    // os botões que guardam estado na instância ficam em aria-disabled até os blocos chegarem (o estado de uma ação pendente seria descartado na troca)
+    r.querySelectorAll<HTMLElement>('.actions button').forEach(b => { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-describedby', 'hv-carregando') })
+    return () => { frame.removeEventListener('focusin', on); soltarChegadaDaReserva(videoId) }
+  }, [carregando, videoId])
   // `[` and `]` do what Anterior and Próximo do, only with the focus on the title or inside the pager (never in a field, never with a modifier)
   useEffect(() => {
     const pg = view.pager
@@ -150,7 +243,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
     return () => document.removeEventListener('keydown', key)
   }, [view.pager, router, onPage])
   // the last video seen from a channel page: its page puts the focus on that card when the person comes back
-  const fromChannel = view.crumbs.canal, videoId = view.video?.id
+  const fromChannel = view.crumbs.canal
   useEffect(() => { if (fromChannel && videoId) lembrarUltimoVideo(fromChannel, videoId) }, [fromChannel, videoId])
   // the record expires (30 min): leaving through any link of this screen renews it, so a long visit still gets its focus back on the Voltar
   useEffect(() => {
@@ -251,15 +344,22 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
           <section className="vhead" id="vhead" aria-label="Vídeo">
             <div className="cur"><Thumb t={h.thumb} dur={h.dur} zoom={zoomOf(viewer ? viewer.start : null)} /></div>
             <div className="vt"><h2 tabIndex={-1}>{v.title}</h2></div>
-            <div className="actions">
+            <div className="actions" onClickCapture={carregando ? bloquearNaReserva : undefined}>
               <div className="fx-top">
                 <div className="arow">
-                  {pv ? <PinButton pin={pv} className="btn" /> : null}
-                  <a className="btn" href={v.url} target="_blank" rel="noopener noreferrer"><HIcon name="ext" />Abrir no YouTube</a>
+                  {pv ? <span data-foco="fixar" style={{ display: 'contents' }}><PinButton pin={pv} className="btn" /></span> : null}
+                  {cabecalhoDoSaiu && !cabecalhoDoSaiu.abrirNoYoutube ? (
+                    <>
+                      {cabecalhoDoSaiu.semLink ? <span className="hv-semlink" data-sem-link="">{cabecalhoDoSaiu.semLink}</span> : null}
+                      {cabecalhoDoSaiu.botaoDaFila ? <a className="btn" data-foco="fila" href={cabecalhoDoSaiu.botaoDaFila.href}>{cabecalhoDoSaiu.botaoDaFila.texto}</a> : null}
+                    </>
+                  ) : (
+                    <a className="btn" data-foco="abrir" href={v.url} target="_blank" rel="noopener noreferrer"><HIcon name="ext" />Abrir no YouTube</a>
+                  )}
                 </div>
                 <div className="fx-under">{pv ? <PinMessage k={pv.videoId} /> : null}</div>
               </div>
-              {forjaCard ? <div className="frow"><HeaderAskButton ask={headerAsk(forjaCard)} pedido={pedido} cardRef={cardRef} say={setLive} videoId={view.video?.id} bloqueado={forjaCard.botao.por === 'bloqueado' ? forjaCard.bloqueado : null} /></div> : null}
+              {forjaCard ? <div className="frow" data-foco="forja"><HeaderAskButton ask={headerAsk(forjaCard)} pedido={pedido} cardRef={cardRef} say={setLive} videoId={view.video?.id} bloqueado={forjaCard.botao.por === 'bloqueado' ? forjaCard.bloqueado : null} /></div> : null}
             </div>
             <div className="vm">
               <div className="facts">
@@ -273,6 +373,11 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
                 {quiet ? null : <span className={h.sync.bad ? 'syncbad' : undefined} title={h.sync.title || undefined}>{h.sync.bad ? <HIcon name="warn" /> : null}{h.sync.text}</span>}
                 {view.untracked ? null : <span title={h.mult.title || undefined}>{h.mult.text}</span>}
               </div>
+              {cabecalhoDoSaiu && cabecalhoDoSaiu.pastilhas.length > 0 ? (
+                <div className="hv-pastilhas">
+                  {cabecalhoDoSaiu.pastilhas.map((q, i) => <span key={i} className="hv-pastilha" data-tipo={q.tipo}>{q.texto}</span>)}
+                </div>
+              ) : null}
               {h.fallback && !view.untracked ? <div className="fallback">{h.fallback}</div> : null}
               {(pv && pv.chips.length) || h.counts.length ? (
                 <div className="counts">
@@ -283,7 +388,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
             </div>
           </section>
           <p className="sr" id="hv-live" role="status">{live}</p>
-          {view.untracked ? (
+          {carregando ? <Esqueleto /> : erro ? <ErroDoHistorico /> : view.untracked ? (
             <>
               <section className="card fx-notice" data-untracked="" aria-label="Vídeo fora dos acompanhados">
                 <PinIcon name="out" />
@@ -298,11 +403,13 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
             </>
           ) : (
             <>
+              {antesDoGrafico ?? null}
               {view.chart ? (
                 <Timeline chart={view.chart} lanes={view.lanes} legend={legend} pair={pair} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={onClip} onZoomVersion={viewer ? onClipDouble : undefined} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
+                  onSelectPair={selectPair} onGoVersion={onClip} onZoomVersion={viewer ? onClipDouble : undefined} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} acrescimos={acrescimos} />
               ) : null}
-              {/* bloco: estourou-e-parou (a Tarefa 21 só muda esta linha de lugar) */}
+              {depoisDoGrafico ?? null}
+              {/* bloco: estourou-e-parou; com `antesDoGrafico` ele já veio dentro dos blocos de cima (depois de "Views por idade") */}
               {estourou ?? null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}

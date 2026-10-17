@@ -52,6 +52,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu')>()), ownMenuOf: () => ({ itens: [], principal: null, listaHref: '/l' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: async () => [] }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome', () => ({ TrailChrome: ({ children }: { children: ReactNode }) => <div data-obs="">{children}</div> }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/medidas/blocos-do-video', () => import('./blocos-sincronos'))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/historico-screen', () => ({ HistoricoScreen: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: vi.fn(), cancelForjaReading: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({ pinVideo: vi.fn(), unpinVideo: vi.fn(), syncCompetitorNow: vi.fn() }))
@@ -185,10 +186,12 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     }
   })
 
-  it('vídeo de concorrente e id inexistente: nem a guarda de edição nem o dado privado são tocados, mesmo para quem edita', async () => {
+  it('vídeo de concorrente e id inexistente: o dado privado não é tocado (só a prova de leitura, do concorrente), mesmo para quem edita', async () => {
     for (const id of [concorrente.id, 'nao-existe', 'x\'; drop table']) {
+      guarda.chamadas = 0
       await rota(id)
-      expect(guarda.chamadas, id).toBe(0)
+      // C3: só o vídeo de concorrente rastreado pede a prova de leitura (a seção de comentários), uma vez
+      expect(guarda.chamadas, id).toBe(id === concorrente.id ? 1 : 0)
       expect(servico.criado, id).toBe(0)
       expect(db.trips, id).toEqual([])
     }
