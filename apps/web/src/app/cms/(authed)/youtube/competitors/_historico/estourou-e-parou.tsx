@@ -68,7 +68,7 @@ function Regua({ valor, limite, normal, max, mais, tipo }: { valor: number; limi
         </div>
       </div>
       <ul className={`lm-key${normal === null ? ' dois' : ''}`} aria-hidden="true">
-        <li><span className="g mk" /><span className="k">Este vídeo</span><span className="vv">{f(valor)}</span></li>
+        <li><span className="g pto" /><span className="k">Este vídeo</span><span className="vv">{f(valor)}</span></li>
         <li><span className="g lim" /><span className="k">Limite</span><span className="vv">{f(limite)}</span></li>
         {normal === null ? null : <li><span className="g nor" /><span className="k">Normal</span><span className="vv">{f(normal)}</span></li>}
       </ul>

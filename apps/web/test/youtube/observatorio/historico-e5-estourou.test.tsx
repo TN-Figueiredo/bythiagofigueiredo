@@ -158,6 +158,11 @@ describe('arquivos novos', () => {
     expect(longe).not.toContain('baixo')
     expect(longe).toContain('class="l c"')
   })
+  it('a legenda não usa a classe .mk da linha do tempo do gráfico, que é um botão absoluto de 32 px (G-5)', () => {
+    const h = html(leitura(entrada()))
+    expect(h).toContain('class="g pto"')
+    expect(h).not.toMatch(/class="g mk"/)
+  })
   it('a tela de histórico só desenha o bloco num bloco isolado e com a marca', () => {
     expect(ler('_historico/historico-screen.tsx')).toContain('bloco: estourou-e-parou')
   })
