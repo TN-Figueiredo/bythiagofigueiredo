@@ -56,7 +56,7 @@ export function canalDevido(l: LinhaDeLeitura | null, agoraMs: number): boolean 
  * anterior (senão a confirmação de uma saída em massa esperaria 6 dias). Playlist com `missing_since` nunca é devida.
  * Ordem: `items_read_at` nulo primeiro, depois o mais antigo, desempate pelo id.
  */
-export function playlistsDevidas(playlists: readonly PlaylistDoCanal[], agoraMs: number): PlaylistDoCanal[] {
+export function playlistsDevidas<T extends PlaylistDoCanal>(playlists: readonly T[], agoraMs: number): T[] {
   const hoje = spDateOf(agoraMs)
   const seisDias = (X3_RULES.diasEntreVoltas - 1) * DAY
   return playlists
