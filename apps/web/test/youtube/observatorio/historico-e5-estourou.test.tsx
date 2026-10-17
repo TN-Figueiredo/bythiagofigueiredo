@@ -124,7 +124,7 @@ describe('o bloco, em cada estado', () => {
     // sem leitura, o selo de grau de certeza sai e entra o "ainda não medido"
     const ainda = html(leituraDoVideo(null, null, somaDias(estourouExisteEm(), -1), VIDEO))
     expect(ainda).not.toContain('lm-ind')
-    expect(ainda).toContain('lm-ainda')
+    expect(ainda).toContain('obs-ch-nm')
     expect(renderToStaticMarkup(<EstourouCarregando />)).toContain('lm-ind')
   })
   it('carregando: role=status com aria-busy', () => {

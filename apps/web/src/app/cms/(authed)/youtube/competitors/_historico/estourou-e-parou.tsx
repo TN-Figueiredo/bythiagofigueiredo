@@ -19,7 +19,7 @@ function Cabeca({ rotulo, ainda = false }: { rotulo: boolean; ainda?: boolean })
   return (
     <header className="lm-h">
       <h2>{rotulo ? <><span className="lm-rot">Leitura:</span> </> : null}{NOME_DA_LEITURA}</h2>
-      {ainda ? <span className="lm-ainda">ainda não medido</span> : <span className="lm-ind">{IND}indício</span>}
+      {ainda ? <span className="obs-ch-nm">ainda não medido</span> : <span className="lm-ind">{IND}indício</span>}
       <EstourouInfo />
     </header>
   )

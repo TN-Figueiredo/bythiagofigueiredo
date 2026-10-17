@@ -653,7 +653,6 @@
 /* ainda não existe: contorno pontilhado, nunca hachura */
 [data-obs-screen="historico"] .lm-sd{margin:0;padding:12px 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--sunk);font-size:14px;line-height:21px}
 [data-obs-screen="historico"] .lm-sd b{font-weight:600}
-[data-obs-screen="historico"] .lm-ainda{display:inline-block;padding:1px 6px;border:1px dotted var(--muted);border-radius:4px;color:var(--muted);font:400 12.5px/18px var(--font-sans),system-ui,sans-serif}
 [data-obs-screen="historico"] .lm-tl{position:relative;height:56px;margin:4px 8px 0}
 [data-obs-screen="historico"] .lm-tl .trk{position:absolute;left:0;right:0;top:12px;height:0;border-top:2px dotted var(--muted)}
 [data-obs-screen="historico"] .lm-tl .m{position:absolute;top:2px;width:0;height:22px;border-left:2px solid var(--text)}
