@@ -1,6 +1,6 @@
 /**
  * E5a Tarefa C4: o bloco "O que o criador respondeu" com dado. Componente de servidor, sem estado. Texto de terceiros com `dir="auto"` e sem link
- * (endereço dentro do texto é texto). Nenhum nome de autor. O vídeo de cada item leva ao Histórico. TEXTO-A-REVISAR nas frases novas.
+ * (endereço dentro do texto é texto). Nenhum nome de autor. O vídeo de cada item leva ao Histórico.
  */
 import Link from 'next/link'
 import { link } from '@/lib/youtube/observatorio/links'

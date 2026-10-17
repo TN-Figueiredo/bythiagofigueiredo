@@ -1,7 +1,7 @@
 // A5 E5a, Tarefa 20 (mockup 13, bloco 2): "As primeiras 72 horas, hora a hora". Puro, com o relógio por parâmetro.
 // A escala é UMA só, a do tempo real: cada barra vai de `t − 1` a `t` horas desde a publicação, onde `t` é a hora cheia em que ela acaba;
 // a primeira barra é parcial, da publicação até a hora cheia. O total e os marcos saem da curva da Tarefa 14d (acumulado por bordas),
-// NUNCA da soma das barras. Toda frase nova leva a marca TEXTO-A-REVISAR para o Logan.
+// NUNCA da soma das barras.
 import { intervalos, type Intervalo } from '@/lib/youtube/horaria/regra'
 import { H, floorHour } from '@/lib/youtube/observatorio/time'
 import { RULES } from '@/lib/youtube/observatorio/rules'
@@ -145,8 +145,8 @@ export function estadoDaLeituraPorHora(
   toleranciaH: number,
   agoraMs: number,
 ): EstadoDaLeituraPorHora {
-  // TEXTO-A-REVISAR: a linha de estado (a forma de erro é a de "parada")
-  if (h === null) return { tipo: 'nao_lida', texto: 'não carregou: a leitura por hora não foi lida' }
+  // a linha de estado (a forma de erro é a de "parada")
+  if (h === null) return { tipo: 'nao_lida', texto: 'não carregou: leitura por hora' }
   if (h.primeiraHoraDoSiteMs === null) return { tipo: 'nao_comecou', texto: 'ainda não começou' }
   const viva = tarefaViva({ ultimoOkMs: h.ultimoOkDaTarefaMs, primeiraExecucaoMs: h.primeiraExecucaoDaTarefaMs, toleranciaH, agoraMs })
   if (viva.estado === 'parada') return { tipo: 'parada', texto: `parada desde ${dataEHoraSP(viva.desdeMs)}` }
@@ -334,7 +334,7 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
       // o vídeo ainda está dentro das 72 horas e a leitura por hora vai chegar
       const proxima = floorHour(e.agoraMs) + H
       const descoberto = e.descobertoEmMs === null ? '' : `O vídeo foi descoberto às ${horaSP(e.descobertoEmMs)}${e.viewsAgora === null ? '' : `, com ${milhar(e.viewsAgora)} views`}. `
-      // TEXTO-A-REVISAR: o estado "ainda não existe" do bloco de 72 horas (o do mockup tem a hora de exemplo)
+      // o estado "ainda não existe" do bloco de 72 horas (o do mockup tem a hora de exemplo)
       return {
         tipo: 'ainda_nao_existe', estado, primeiraContagemEmMs: proxima,
         frase: `${descoberto}A primeira leitura por hora entra às ${horaSP(proxima)} ${spDateOfMs(proxima) === spDateOfMs(e.agoraMs) ? 'de hoje' : `de ${dataSP(proxima)}`}; depois a curva ganha uma barra por hora, até 72 horas depois de publicar.`,
@@ -402,12 +402,12 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
   } else if (metade.motivo === 'ja_tinha_passado') {
     frase = `${comeca}; ainda não dá para dizer quando chegou à metade das views (o vídeo já tinha mais da metade quando a leitura por hora começou).`
   } else {
-    // TEXTO-A-REVISAR: a metade não foi medida por outro motivo (ponta vazia, menos de 72 horas)
-    frase = `${comeca}; metade das views ainda não dá para dizer.`
+    // a metade não foi medida por outro motivo (ponta vazia, menos de 72 horas)
+    frase = `${comeca}; a metade das views não foi medida.`
   }
 
   const frasesDasHoras: string[] = []
-  // TEXTO-A-REVISAR: quantas horas ficaram em cada caso (desvio 16)
+  // quantas horas ficaram em cada caso (desvio 16)
   if (fora > 0) frasesDasHoras.push(`${plural(fora, 'hora', 'horas')} com a leitura fora da hora cheia`)
   if (cobre > 0) frasesDasHoras.push(`${plural(cobre, 'hora', 'horas')} em que a leitura cobre mais de uma hora`)
   if (diminuiu > 0) frasesDasHoras.push(`${plural(diminuiu, 'hora', 'horas')} em que o total de views diminuiu`)
@@ -415,9 +415,9 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
   if (sem) frasesDasHoras.push(sem)
 
   // Gio trem 5 (7): para uma live, as 72 horas contam do início real (a âncora `baseDaIdade`), não da hora marcada que o cabeçalho mostra.
-  // TEXTO-A-REVISAR: rótulo da âncora da live
+  // rótulo da âncora da live
   const publicacao = e.aoVivo
-    ? `início da live ${diaEDataSP(pub)}, ${horaSP(pub)} (as 72 horas contam daqui; o cabeçalho mostra a hora de publicação marcada)`
+    ? `início da live ${diaEDataSP(pub)}, ${horaSP(pub)} (as 72 horas contam daqui, não da hora marcada)`
     : `publicado ${diaEDataSP(pub)}, ${horaSP(pub)}`
   return {
     tipo: 'ok', estado, publicacao,

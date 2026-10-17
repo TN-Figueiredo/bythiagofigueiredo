@@ -14,7 +14,7 @@ import type { BlocoDeHoras, BlocoDeHorasOk } from './horas-model'
 import './historico-medidas.css'
 
 export const TITULO_DAS_HORAS = 'As primeiras 72 horas, hora a hora'
-// TEXTO-A-REVISAR: o ⓘ do bloco (texto do NOTAS 13, enxugado)
+// o ⓘ do bloco (texto do NOTAS 13, enxugado)
 export const INFO_DAS_HORAS = [
   'Cada barra: views ganhas naquela hora, em horário de São Paulo (diferença entre duas leituras seguidas, uma por hora cheia). O eixo é o tempo real: a primeira barra é parcial, da hora da publicação até a primeira hora cheia.',
   'O total das 72 horas para na última hora cheia antes de o vídeo completar 3 dias; por isso pode ficar um pouco abaixo do “Com 3 dias” da curva por idade.',

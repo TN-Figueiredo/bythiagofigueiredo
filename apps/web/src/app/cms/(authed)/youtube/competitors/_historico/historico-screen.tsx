@@ -45,7 +45,7 @@ function ErroDoHistorico() {
   const aqui = (pathname ?? '') + (search && search.toString() ? '?' + search.toString() : '')
   return (
     <>
-      {/* TEXTO-A-REVISAR: frases do mockup 13 (NOTAS 13, linha 84) */}
+      {/* frases do mockup 13 (NOTAS 13, linha 84) */}
       <div className="hv-erro" role="alert" data-erro="historico">
         <div className="tx">
           <h2 tabIndex={-1} data-erro-titulo="">Não deu para abrir o histórico deste vídeo</h2>
@@ -55,7 +55,7 @@ function ErroDoHistorico() {
       </div>
       <section className="hv-vz" aria-label="O que dá para ver enquanto isso">
         <div className="hv-h"><h2>O que dá para ver enquanto isso</h2></div>
-        <p>O título, o canal e a data de publicação acima vieram da lista, não do histórico. Os números e os gráficos aparecem quando o histórico abrir.</p>
+        <p>O título, o canal e a data de publicação acima vieram da lista, não do histórico. Os números e os gráficos voltam quando o histórico carregar.</p>
       </section>
     </>
   )

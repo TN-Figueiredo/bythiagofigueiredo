@@ -13,7 +13,7 @@ import type { BlocoDeIdade, PontoDeIdade } from './idade-model'
 import './historico-medidas.css'
 
 export const TITULO_DA_IDADE = 'Views por idade: o vídeo contra o normal do canal'
-// TEXTO-A-REVISAR: o ⓘ do bloco (texto do NOTAS 13, enxugado)
+// o ⓘ do bloco (texto do NOTAS 13, enxugado)
 export const INFO_DA_IDADE = [
   'Cada ponto: views do vídeo no instante “publicação + N dias”, calculadas entre as duas leituras vizinhas.',
   'O normal do canal: mediana das views dos outros vídeos longos do canal na mesma idade, entre os publicados nos últimos 180 dias. Cada ponto mostra o n; com menos de 3 vídeos fica “não medido”.',

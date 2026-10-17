@@ -128,7 +128,7 @@ export function listaDeMudancas(
     n: m.n, tipo: m.tipo,
     rotulo: m.tipo === 'titulo' ? 'Título' : m.tipo === 'miniatura' ? 'Miniatura' : `Outras: ${m.nomeDosCampos}`,
     quando: m.quando,
-    // TEXTO-A-REVISAR: a nota do dia quando a mudança vem depois da leitura das 12:00 (a frase é a do mockup, com o número da mudança)
+    // a nota do dia quando a mudança vem depois da leitura das 12:00 (a frase é a do mockup, com o número da mudança)
     notaDoDia: m.tardia ? `Mudou neste dia, depois da leitura das 12:00: ${m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos} (mudança ${m.n}).` : null,
     deParaTexto: m.de !== null && m.para !== null ? `de “${m.de}” para “${m.para}”` : null,
     marcaFora: sub !== null && !dentroDosDiasAntes(m, sub),

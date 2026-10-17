@@ -19,7 +19,7 @@ import { estadoDeErro, secaoDeComentarios } from '../_chrome/comentarios/model'
 import { SecaoDeComentarios } from '../_chrome/comentarios/secao'
 import '../_chrome/comentarios/comentarios.css'
 
-/** TEXTO-A-REVISAR: a faixa quando a conferência de permissão falhou; o nível cai para a contagem e a tela diz por quê (nunca sobe por falta de resposta). */
+/** a faixa quando a conferência de permissão falhou; o nível cai para a contagem e a tela diz por quê (nunca sobe por falta de resposta). */
 export const FAIXA_PERMISSAO_NAO_CONFERIDA = FRASES.permissaoNaoConferida
 
 /** As provas de quem vê, já resolvidas, e se a conferência da permissão falhou. */

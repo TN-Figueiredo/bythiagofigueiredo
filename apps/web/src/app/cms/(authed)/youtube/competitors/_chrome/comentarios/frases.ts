@@ -45,9 +45,8 @@ export const FRASES = {
   rotuloDaCasa: (i: number, n: number, motivo: string, curtidas: number | null, d: number) =>
     `Comentário ${i} de ${n}, ${motivo.toLowerCase()}${curtidas === null ? '' : `, ${curtidas === 1 ? '1 curtida' : `${curtidas.toLocaleString('pt-BR')} curtidas`} com ${dias(d)}`}`,
   // Legenda por motivo: o rótulo já diz o motivo, o texto diz só quantos (sem repetir o motivo: Gio C5 menor M2).
-  // TEXTO-A-REVISAR (Logan)
   legendaN: (n: number) => (n === 1 ? '1 comentário' : `${n} comentários`),
-  legendaNCriador: (n: number, respondeu = 0) => `${n === 1 ? '1 comentário' : `${n} comentários`}${respondeu > 0 ? ` (ele respondeu a ${respondeu})` : ''}`,
+  legendaNCriador: (n: number, respondeu = 0) => `${n === 1 ? '1 comentário' : `${n} comentários`}${respondeu > 0 ? (n === 1 ? ' (ele respondeu)' : ` (ele respondeu a ${respondeu} deles)`) : ''}`,
   legendaNGrande: (n: number, ate: string) => `${n === 1 ? '1 comentário' : `${n} comentários`}, ${ate}`,
   zeroN: '0 comentários',
   zeroGrande: (ate: string) => `nenhum canal grande ${ate}`,
@@ -168,8 +167,7 @@ export const FRASES = {
     'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Um espectador”.',
     'Guardamos até 3 respostas do criador por comentário.',
     ...(mencoesTrocadas > 0 ? ['Menções a outras pessoas aparecem como “@…”: o nome delas fica escondido.'] : []),
-    // TEXTO-A-REVISAR (Logan)
-    'Só as menções com @ são trocadas: um nome escrito por extenso dentro do texto do comentário não é trocado.',
+    'Só as menções com @ ficam escondidas. Um nome escrito por extenso dentro do texto do comentário não é reconhecido e aparece como foi guardado.',
     'Cálculo do Observatório sobre dados públicos do YouTube.',
   ],
 } as const

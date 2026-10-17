@@ -173,7 +173,7 @@ describe('a lista', () => {
       const t = l.frase.negrito + l.frase.resto
       expect(t).not.toMatch(/respondeu a 0/)
       expect(t).toContain('Nenhuma resposta do criador entre os comentários guardados.')
-      expect(t).toContain('Isso não prova que ele não respondeu')
+      expect(t).toContain('Ele pode ter respondido a outros')
     }
     const um = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', total: 1, itens: [] }), videos, titulos, nBase: 6 })
     if (um.tipo === 'contagem') expect(um.frase.negrito).toBe('Matt respondeu a 1 comentário guardados.'.replace('guardados', 'guardado'))

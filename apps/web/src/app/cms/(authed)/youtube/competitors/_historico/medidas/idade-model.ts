@@ -1,6 +1,6 @@
 // A5 E5a, Tarefa 20 (mockup 13, bloco 1): "Views por idade: o vídeo contra o normal do canal". Puro: sem banco, sem relógio (`hojeSP` por
 // parâmetro) e sem conta nova. Os dez pontos saem de `pontosDoVideo` (Tarefa 14b), o normal de `normalSem` (14b); aqui só se escolhe o que a
-// tela escreve. Toda frase nova leva a marca TEXTO-A-REVISAR para o Logan.
+// tela escreve.
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 import type { PontoDaCurva } from '@/lib/youtube/observatorio/medidas/curva'
@@ -98,17 +98,15 @@ function videoNaIdade(p: PontoDoVideo, e: EntradaDeIdade): VideoNaIdade {
     case 'leitura_parou_antes':
       return e.saiuDoYoutube
         ? nao('nao_medido', 'saiu do YouTube', 'o vídeo saiu do YouTube antes desta idade')
-        // TEXTO-A-REVISAR: vídeo que não saiu e cuja contagem parou antes da idade
+        // vídeo que não saiu e cuja contagem parou antes da idade
         : nao('nao_medido', 'leitura parou', 'a leitura deste vídeo parou antes desta idade')
     case 'sem_leitura':
       return nao('nao_medido', 'sem leitura', 'sem leitura nesta idade')
     case 'views_ocultas':
-      // TEXTO-A-REVISAR
       return nao('nao_medido', 'views ocultas', 'o YouTube não mostra as views deste vídeo (ocultas pelo canal ou pelo vídeo)')
     case 'sem_publicacao':
       return nao('nao_medido', 'sem data de publicação', 'o vídeo não tem data de publicação')
     case 'serie_nao_pedida':
-      // TEXTO-A-REVISAR
       return nao('nao_carregou', 'não carregou', 'não carregou: o dia a dia do vídeo não foi lido')
     case 'leitura_falhou':
     case 'calculo_falhou':
@@ -187,7 +185,7 @@ function fraseDoBloco(pontos: readonly PontoDeIdade[], e: EntradaDeIdade, videos
   const prox = proximo && proximo.video.tipo === 'ainda_nao_existe' && proximo.video.fechaEm ? ` O próximo ponto, ${idadeTxt(proximo.idade)}, fecha em ${dm(proximo.video.fechaEm)}.` : ''
   const ult = ok[ok.length - 1]
   if (!ult || ult.video.tipo !== 'medido') {
-    // TEXTO-A-REVISAR: nenhum ponto que já existe tem contagem
+    // nenhum ponto que já existe tem contagem
     return nm.length === 1 ? 'O único ponto que já existe não tem leitura; ele é “não medido”, com o motivo.' : `Nenhum dos ${nm.length} pontos que já existem tem leitura; cada um é “não medido”, com o motivo.`
   }
   if (nm.length > 0) {

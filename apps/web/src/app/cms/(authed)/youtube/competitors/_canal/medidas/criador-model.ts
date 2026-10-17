@@ -1,6 +1,6 @@
 // E5a Tarefa 15 e C4: a célula "Criador responde" e o bloco "O que o criador respondeu". Puro: relógio e leitura entram por parâmetro.
 // A conta é SEMPRE `criadorResponde` da E4 (M11); aqui só se escolhe o estado e a frase. A tela NUNCA escreve "não respondeu": o que a medida
-// não viu não é afirmado ("não vimos resposta"). TEXTO-A-REVISAR nas frases novas (as três de M11 são as da tabela do NOTAS 20).
+// não viu não é afirmado ("não vimos resposta").
 import { DEFINICAO_RETRATOS_COMENTARIOS } from '@/lib/youtube/agenda/definicoes'
 import type { ContagemDeRespostas, ParteLida } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import { criadorResponde, type StatusDoRetrato, type VideoParaResposta } from '@/lib/youtube/observatorio/medidas/comentarios'

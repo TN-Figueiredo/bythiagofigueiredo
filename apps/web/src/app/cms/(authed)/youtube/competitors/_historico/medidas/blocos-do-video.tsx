@@ -112,8 +112,8 @@ export async function BlocosDoVideo(p: PropsBlocosDoVideo) {
       <CurvaPorIdade bloco={d.idade} />
       {estourou}
       <Horas72 bloco={d.horas} />
-      {/* TEXTO-A-REVISAR: a série não foi lida; o gráfico por dia vem do motor, só os acréscimos dele faltam */}
-      {d.serieLida ? null : <section className="hv-card" aria-label="Acréscimos do gráfico por dia" data-dias="nao_carregou"><NaoCarregou medida="a contagem extra do gráfico por dia (subida, saída do YouTube, forma por semana)" /></section>}
+      {/* a série não foi lida; o gráfico por dia vem do motor, só os acréscimos dele faltam */}
+      {d.serieLida ? null : <section className="hv-card" aria-label="Acréscimos do gráfico por dia" data-dias="nao_carregou"><NaoCarregou medida="os acréscimos do gráfico por dia (subida, saída do YouTube, forma por semana)" /></section>}
     </>
   )
   const depois = (

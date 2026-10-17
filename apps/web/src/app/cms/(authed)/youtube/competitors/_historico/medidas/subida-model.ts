@@ -52,7 +52,7 @@ export type CartaoDaSubida =
 const ritmo = (ganho: number): string => milhar(Math.round(ganho / R.days))
 
 function listaDosAntes(s: Subida, mudancas: readonly MudancaNumerada[] | null): { texto: string; carregou: boolean } {
-  // TEXTO-A-REVISAR: mudanças não lidas nunca viram "nenhuma mudança"
+  // mudanças não lidas nunca viram "nenhuma mudança"
   if (mudancas === null) return { texto: 'Não carregou: não deu para ler as mudanças deste vídeo.', carregou: false }
   const antes = listaAgrupadaDosAntes(mudancas, s.dia)
   const n = mudancas.filter((m) => dentroDosDiasAntes(m, s.dia)).length
@@ -81,8 +81,8 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
     const antes = ritmo(s.ganho7Antes)
     const fraseTopo =
       s.fator === null
-        // TEXTO-A-REVISAR: os 7 dias antes sem nenhuma view (a razão não existe)
-        ? `▲ Subida em ${dm(s.dia)}: nos ${R.days} dias seguintes o vídeo ganhou ${milhar(s.ganho7)} views (${depois} por dia); nos ${R.days} dias antes não ganhou nenhuma.`
+        // os 7 dias antes sem nenhuma view (a razão não existe)
+        ? `▲ Subida em ${dm(s.dia)}: nos ${R.days} dias seguintes o vídeo ganhou ${milhar(s.ganho7)} views (${depois} por dia); nos ${R.days} dias antes não ganhou nenhuma view (medido: 0).`
         : `▲ Subida em ${dm(s.dia)}: nos ${R.days} dias seguintes o vídeo ganhou ${milhar(s.ganho7)} views, ${dec(s.fator, 1)} ${Number(dec(s.fator, 1).replace(',', '.')) >= 2 ? 'vezes' : 'vez'} o ritmo dos ${R.days} dias antes (${depois} contra ${antes} por dia).`
     const l = listaDosAntes(s, e.mudancas)
     return { tipo: 'subiu', dia: s.dia, ganho7: s.ganho7, fator: s.fator, fraseTopo, lista: l.texto, listaCarregou: l.carregou, nota: NOTA_DA_LISTA }

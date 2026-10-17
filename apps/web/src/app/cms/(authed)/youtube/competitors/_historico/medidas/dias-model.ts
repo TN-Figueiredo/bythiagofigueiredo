@@ -1,6 +1,6 @@
 // A5 E5a, Tarefa 20 (mockup 13, bloco 3): o que o gráfico "Views por dia e cada mudança" ganha. Puro, com o relógio por parâmetro.
 // O cabeçalho e a forma do gráfico de hoje NÃO são redesenhados: aqui estão as raias, o agrupamento "×N", as faixas, a linha "saiu do YouTube",
-// a linha de 24/08 e a forma "contagem por semana". Toda frase nova leva a marca TEXTO-A-REVISAR para o Logan.
+// a linha de 24/08 e a forma "contagem por semana".
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { Leitura } from '@/lib/youtube/observatorio/medidas/m1'
 import { somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
