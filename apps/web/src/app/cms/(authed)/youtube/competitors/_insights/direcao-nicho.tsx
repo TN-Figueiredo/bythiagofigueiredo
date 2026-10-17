@@ -138,7 +138,7 @@ export function DirecaoNicho({ v }: { v: DirecaoNichoView }) {
                 </button>
               ))}
             </div>
-            <p className="q-cap">{v.legenda}<Info rotulo="As três leituras da direção" linhas={v.info.leituras} /></p>
+            <div className="q-cap">{v.legenda}<Info rotulo="As três leituras da direção" linhas={v.info.leituras} /></div>
             {v.avisos.map(a => <p key={a} className="q-aviso" data-aviso="contagem">{a}</p>)}
           </div>
           {v.eixo ? (

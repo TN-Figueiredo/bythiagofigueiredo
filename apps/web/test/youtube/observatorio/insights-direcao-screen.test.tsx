@@ -114,3 +114,15 @@ describe('DirecaoNicho', () => {
     expect(CSS).not.toMatch(/--nm-fio/)
   })
 })
+
+describe('DirecaoNicho: HTML válido (G-1 do Gio, 17/10)', () => {
+  it('renderizar o cartão não emite aviso de aninhamento (<details> dentro de <p>)', () => {
+    const erros: string[] = []
+    const spy = vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => { erros.push(a.map(String).join(' ')) })
+    try {
+      render(<DirecaoNicho v={view(4, i => 0.3 - i * 0.2, 'a', ['Meu'])} />)
+    } finally { spy.mockRestore() }
+    expect(erros.filter(e => /cannot be a descendant|hydration/i.test(e))).toEqual([])
+    expect(document.querySelector('p details')).toBeNull()
+  })
+})
