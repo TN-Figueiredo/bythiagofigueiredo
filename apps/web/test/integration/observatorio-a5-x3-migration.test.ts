@@ -305,9 +305,49 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
     })
   })
 
+  it('Phil M-2: item gravado sem data e depois com data fica com a data (video_published_at e added_at)', async () => {
+    await emTransacaoComX3(pg, async () => {
+      const { c, ref } = await comPlaylist(0)
+      await itRec(c, c.canalA, ref, T(12), [item(1, { video_published_at: null, added_at: null })], true)
+      const antes = await q1(pg, `select video_published_at, added_at from public.competitor_playlist_items where playlist_ref = $1`, [ref])
+      expect([antes.video_published_at, antes.added_at]).toEqual([null, null])
+      await itRec(c, c.canalA, ref, T(13), [item(1)], true)
+      const depois = await q1(pg, `select video_published_at::text as v, added_at::text as a from public.competitor_playlist_items where playlist_ref = $1`, [ref])
+      expect(new Date(depois.v as string).toISOString()).toBe('2025-12-01T00:00:00.000Z')
+      expect(new Date(depois.a as string).toISOString()).toBe('2026-01-01T00:00:00.000Z')
+      // e uma leitura sem a data depois não a apaga
+      await itRec(c, c.canalA, ref, T(14), [item(1, { video_published_at: null, added_at: null })], true)
+      expect(await n(`select count(*)::int from public.competitor_playlist_items where playlist_ref = $1 and video_published_at is not null and added_at is not null`, [ref])).toBe(1)
+    })
+  })
+
+  it('Phil M-3: saída em massa pendente no dia 1, leitura parcial no dia 2 e completa no dia 3 marca removed_since', async () => {
+    await emTransacaoComX3(pg, async () => {
+      const { c, ref } = await comPlaylist(30)
+      const dia = () => escalar<string | null>(pg, `select mass_exit_day::text from public.competitor_playlists where id = $1`, [ref])
+      expect((await itRec(c, c.canalA, ref, T(12), itens(1, 10), true)).saida_em_massa_a_confirmar).toBe(true)
+      expect(await dia()).toBe('2026-03-12')
+      await itRec(c, c.canalA, ref, T(13), itens(1, 5), false, 'parcial', 'itens_cortados')
+      expect(await dia()).toBe('2026-03-12')
+      const r3 = await itRec(c, c.canalA, ref, T(14), itens(1, 10), true)
+      expect(r3.saidos).toBe(20)
+      expect(await n(`select count(*)::int from public.competitor_playlist_items where playlist_ref = $1 and removed_since is not null`, [ref])).toBe(20)
+    })
+  })
+
+  it('Phil M-4: sections_record atrasado (p_now anterior à última versão) devolve 0 e não grava versão velha', async () => {
+    await emTransacaoComX3(pg, async () => {
+      const c = await semearCena(pg, { semX3: true })
+      const sec = (now: string, sha: string) => q1(pg, `select public.competitor_x3_sections_record($1, $2, $3::timestamptz, $4, '{"items":[]}'::jsonb) as k`, [c.site, c.canalA, now, sha])
+      expect((await sec(T(12), 'B')).k).toBe(1)
+      expect((await sec(T(11), 'A')).k).toBe(0)
+      expect(await n(`select count(*)::int from public.competitor_channel_sections where competitor_channel_id = $1`, [c.canalA])).toBe(1)
+    })
+  })
+
   it('canal pausado, ausente ou de outro site: as funções recusam X3:canal_indisponivel', async () => {
     await emTransacaoComX3(pg, async () => {
-      const { c, ref } = await comPlaylist(1)
+      const { c, ref } = await comPlaylist(0)
       const chamadas = (canal: string, site: string) => [
         `select public.competitor_x3_playlists_record('${site}', '${canal}', '${T(20)}', '[]', false)`,
         `select public.competitor_x3_items_record('${site}', '${canal}', '${ref}', '${T(20)}', '[]', false, 'parcial', null)`,

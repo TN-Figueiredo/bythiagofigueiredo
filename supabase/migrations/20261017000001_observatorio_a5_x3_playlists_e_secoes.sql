@@ -227,10 +227,15 @@ begin
     from lido l
   on conflict (playlist_ref, item_id) do update
     set position = excluded.position, privacy = excluded.privacy, video_owner_channel_id = excluded.video_owner_channel_id,
-        note = excluded.note, removed_since = null, removed_after = null
+        note = excluded.note, removed_since = null, removed_after = null,
+        -- Phil M-2: campo que a origem passa a mandar depois (vídeo privado que vira público) não se perde
+        video_published_at = coalesce(excluded.video_published_at, i.video_published_at),
+        added_at = coalesce(excluded.added_at, i.added_at)
     where i.position is distinct from excluded.position or i.privacy is distinct from excluded.privacy
        or i.video_owner_channel_id is distinct from excluded.video_owner_channel_id or i.note is distinct from excluded.note
-       or i.removed_since is not null;
+       or i.removed_since is not null
+       or (i.video_published_at is null and excluded.video_published_at is not null)
+       or (i.added_at is null and excluded.added_at is not null);
   get diagnostics v_novos = row_count;   -- inseridos + alterados
 
   if p_complete then
@@ -254,7 +259,8 @@ begin
          items_complete_at = case when p_complete and not v_massa then p_now else p.items_complete_at end,
          items_status = case when v_massa then 'parcial' else p_status end,
          items_reason = case when v_massa then 'saida_em_massa_a_confirmar' else p_reason end,
-         mass_exit_day = case when v_massa then coalesce(v_massa_dia, v_hoje) else null end
+         -- Phil M-3: leitura parcial não apaga a marca pendente; só a leitura completa sem massa a zera
+         mass_exit_day = case when v_massa then coalesce(v_massa_dia, v_hoje) when p_complete then null else p.mass_exit_day end
    where p.id = p_playlist;   -- o portão monotônico está no topo (J2)
   return jsonb_build_object('gravados', v_novos, 'saidos', v_saidos, 'saida_em_massa_a_confirmar', v_massa, 'atrasada', false);
 end $$;
@@ -267,6 +273,10 @@ begin
   perform public.competitor_x3_guard(p_site, p_channel);
   if p_now is null or p_sha is null or p_raw is null then
     raise exception 'X3:parametro_invalido' using errcode = '22023';
+  end if;
+  -- Phil M-4: portão monotônico, como nas outras três: execução abandonada com p_now velho não grava versão antiga
+  if exists (select 1 from public.competitor_channel_sections m where m.competitor_channel_id = p_channel and m.observed_at > p_now) then
+    return 0;
   end if;
   -- prev_seen_at (Phil I-6): last_visit_at do canal, lido aqui, antes do visit_close que o sobrescreve.
   -- Yannis M-6: "último" por (observed_at desc, id desc), casando com idx_ccs_channel.
