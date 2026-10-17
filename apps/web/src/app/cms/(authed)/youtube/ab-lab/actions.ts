@@ -32,10 +32,11 @@ import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { reivindicarRotacao, aplicarRotacao } from '@/lib/youtube/ab-rotate-claim'
 import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_SEM_PERMISSAO_VARIANTE, daFormaAntiga, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, daFormaAntiga, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
@@ -1013,34 +1014,30 @@ export async function updateTextVariant(
 // ---------------------------------------------------------------------------
 
 export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
-  return daFormaAntiga(await forceRotateLegado(testId))
-}
-
-async function forceRotateLegado(testId: string): Promise<{ ok: boolean; error?: string }> {
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
   const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'forçar a rotação de um teste A/B no canal')
-  if (denied) return denied
+  if (denied) return { ok: false, resultado: 'sem_permissao', error: denied.error }
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
 
   const supabase = getSupabaseServiceClient()
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, test_type, original_title, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
+    .select('id, site_id, name, status, restore_seq, youtube_video_id, test_type, original_title, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'active')
     .single()
 
-  if (!test) return { ok: false, error: 'Test not found or not active' }
+  if (!test) return { ok: false, resultado: 'erro', error: 'Test not found or not active' }
   const tipoRecusado = recusaTipoForaDeUso(test.test_type)
-  if (tipoRecusado) return { ok: false, error: tipoRecusado }
+  if (tipoRecusado) return { ok: false, resultado: 'erro', error: tipoRecusado }
 
   // Resolve channel for correct token
   const { data: video } = await supabase
@@ -1048,16 +1045,16 @@ async function forceRotateLegado(testId: string): Promise<{ ok: boolean; error?:
     .select('youtube_video_id, channel_id')
     .eq('id', test.youtube_video_id)
     .single()
-  if (!video) return { ok: false, error: 'Video not found' }
+  if (!video) return { ok: false, resultado: 'erro', error: 'Video not found' }
 
   // O canal dono do vídeo (filtro de site; erro de banco não vira "canal não identificado")
   const channelResolved = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-  if (!channelResolved.ok) return { ok: false, error: channelResolved.error }
+  if (!channelResolved.ok) return { ok: false, resultado: 'erro', error: channelResolved.error }
 
   // Pre-flight token check (validates token works against YouTube API)
   const preflight = await preflightTokenCheck(siteId, 'youtube', channelResolved.channelAccountId)
   if (!preflight.ok) {
-    return { ok: false, error: `Token inválido: ${preflight.reason}` }
+    return { ok: false, resultado: 'erro', error: `Token inválido: ${preflight.reason}` }
   }
   const accessToken = preflight.accessToken
 
@@ -1077,57 +1074,44 @@ async function forceRotateLegado(testId: string): Promise<{ ok: boolean; error?:
   const pattern = (config?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined) ?? 'abba'
   const nextIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
   const nextVariant = variants[nextIndex]
-  if (!nextVariant) return { ok: false, error: 'Invalid variant index' }
+  if (!nextVariant) return { ok: false, resultado: 'erro', error: 'Invalid variant index' }
 
-  // Write-ahead marker: record intent BEFORE calling YouTube API
-  await supabase
-    .from('ab_tests')
-    .update({ last_applied_variant_id: nextVariant.id })
-    .eq('id', testId)
+  // Reivindica a vez ANTES de escrever, como o cron; o marcador velho (queda anterior) é aceito exatamente
+  // (Y-D9). Zero linhas = outra rotação, pausa ou encerramento chegou antes: não escreve.
+  const seq = await reivindicarRotacao(
+    supabase, testId, test.restore_seq as number, nextVariant.id, (test.last_applied_variant_id as string | null) ?? null,
+  )
+  if (seq === null) return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
 
-  // Apply variant based on test type (matches cron logic)
-  const testType = (test.test_type as string) ?? 'thumbnail'
-  const youtubeVideoId = video.youtube_video_id as string
-
-  const applyResult = await applyVariantToYouTube({
-    youtubeVideoId,
+  const resultado = await aplicarRotacao(supabase, {
+    testId,
+    siteId,
+    testName: (test.name as string | null) ?? '',
+    seq,
+    youtubeVideoId: video.youtube_video_id as string,
     accessToken,
-    testType: testType as TestType,
-    variant: {
-      id: nextVariant.id,
-      blob_url: nextVariant.blob_url,
-      title_text: nextVariant.title_text,
-    },
+    testType: ((test.test_type as string) ?? 'thumbnail') as 'thumbnail' | 'title' | 'combo',
+    variante: nextVariant as AbTestVariantRow,
     originalTitle: test.original_title as string | null,
+    cycleNumber: nextCycle,
+    metaExtra: { trigger: 'manual' },
   })
 
-  if (!applyResult.ok) return { ok: false, error: applyResult.error ?? 'apply failed' }
-  const appliedMeta: Record<string, unknown> = { trigger: 'manual', ...applyResult.meta }
-
-  // Close old cycle + open new cycle AFTER YouTube confirms
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  await supabase.from('ab_test_cycles').insert({
-    test_id: testId,
-    variant_id: nextVariant.id,
-    cycle_number: nextCycle,
-    started_at: new Date().toISOString(),
-    applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
-  })
-
-  // Clear write-ahead marker after success
-  await supabase
-    .from('ab_tests')
-    .update({ last_applied_variant_id: null })
-    .eq('id', testId)
+  if (!resultado.ok) {
+    if (resultado.motivo !== 'youtube') {
+      if (resultado.motivo === 'perdeu_a_vez') return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
+      return { ok: false, resultado: 'erro', error: 'A rotação e uma pausa se cruzaram. Confira a thumbnail e o título do vídeo no YouTube.' }
+    }
+    // Sem escrita, limpa o marcador; com escrita parcial ele fica (sinal para o settleOnAir).
+    if (!resultado.appliedThumbnail && !resultado.appliedMetadata) {
+      await supabase.from('ab_tests').update({ last_applied_variant_id: null }).eq('id', testId).eq('restore_seq', seq)
+    }
+    return { ok: false, resultado: 'erro', error: resultado.erro.message }
+  }
 
   revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  return { ok: true, resultado: 'feito', campos: {} }
 }
 
 // ---------------------------------------------------------------------------

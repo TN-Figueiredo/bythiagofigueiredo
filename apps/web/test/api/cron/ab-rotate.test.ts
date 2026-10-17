@@ -6,15 +6,17 @@ vi.mock('@/lib/youtube/channel-account', async (orig) => ({
   channelAccountIdForVideo: mockChannelAccountId,
 }))
 import type { NextRequest } from 'next/server'
+import { cadeiaUpdate } from '../../helpers/cadeia-update'
 
 const CRON_SECRET = 'test-cron-secret'
 process.env.CRON_SECRET = CRON_SECRET
 
 // ── Supabase mock ────────────────────────────────────────────────────────────
 const mockFrom = vi.fn()
+const mockRpc = vi.fn()
 
 vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: () => ({ from: mockFrom }),
+  getSupabaseServiceClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }))
 
 // ── Token refresh mock ───────────────────────────────────────────────────────
@@ -80,6 +82,8 @@ function makeRequest(authHeader?: string): NextRequest {
 function makeTest(overrides: Record<string, unknown> = {}) {
   return {
     id: 'test-1',
+    name: 'Teste do Lab',
+    restore_seq: 0,
     site_id: 'site-1',
     youtube_video_id: 'vid-1',
     status: 'active',
@@ -109,7 +113,10 @@ function queuedTestsQuery(data: unknown[] = []) {
 function activeTestsQuery(data: unknown[]) {
   return {
     select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data, error: null }),
+      // `{ data }` = leitura dos ativos; `.single()` = releitura de restore_seq antes de cada escrita
+      eq: vi.fn().mockReturnValue(Object.assign(Promise.resolve({ data, error: null }), {
+        single: vi.fn().mockResolvedValue({ data: { restore_seq: 1 }, error: null }),
+      })),
     }),
   }
 }
@@ -171,6 +178,7 @@ function insertQuery() {
 describe('GET /api/cron/ab-rotate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRpc.mockResolvedValue({ data: 'ciclo-novo', error: null })
   mockChannelAccountId.mockResolvedValue('UCpt')
   })
 
@@ -218,7 +226,7 @@ describe('GET /api/cron/ab-rotate', () => {
         if (abTestsCallCount === 1) return queuedTestsQuery([])
         return {
           ...activeTestsQuery([test]),
-          ...updateQuery(),
+          update: vi.fn((d: unknown) => cadeiaUpdate(d)),
         }
       }
       if (table === 'youtube_videos') return singleQuery(video)
@@ -259,13 +267,12 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.processed).toBe(1)
     expect(body.errors).toBe(0)
     expect(mockSetThumbnail).toHaveBeenCalled()
+    expect(mockRpc).toHaveBeenCalledWith('ab_rotate_commit', expect.objectContaining({ p_test_id: 'test-1', p_seq: 1, p_variant_id: 'var-b' }))
   })
 
   it('auto-pauses test on 401 auth error', async () => {
     const test = makeTest({ config: { rotation_pattern: 'abba', consecutive_failures: 2 } })
-    const mockUpdate = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    })
+    const mockUpdate = vi.fn((d: unknown) => cadeiaUpdate(d))
 
     // Simulate YouTube API returning 401 when setThumbnail is called
     mockSetThumbnail.mockRejectedValueOnce(new Error('401 unauthorized'))

@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
+import { reivindicarRotacao, aplicarRotacao } from '@/lib/youtube/ab-rotate-claim'
 import { createNotification } from '@/lib/notifications/create'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
@@ -117,17 +117,14 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
 
       if (todayCycle) continue
 
-      // Write-ahead marker recovery: if marker is set, previous run crashed after YouTube call
-      if (test.last_applied_variant_id) {
+      // Marcador velho (queda anterior depois de reivindicar): registra e segue. A reivindicação por restore_seq
+      // aceita esse marcador exato (R2-7); quem perder a corrida não escreve.
+      const marcadorLido = (test.last_applied_variant_id as string | null) ?? null
+      if (marcadorLido) {
         Sentry.captureMessage(
-          `ab-rotate: write-ahead marker found for test ${test.id} (variant ${test.last_applied_variant_id}). Previous run likely crashed after YouTube API call. Clearing marker and skipping.`,
+          `ab-rotate: write-ahead marker found for test ${test.id} (variant ${marcadorLido}). Previous run likely crashed after claiming. Continuing by restore_seq claim.`,
           'warning'
         )
-        await supabase
-          .from('ab_tests')
-          .update({ last_applied_variant_id: null })
-          .eq('id', test.id)
-        continue
       }
 
       // Resolve the YouTube channel_id to use the correct OAuth token
@@ -172,66 +169,36 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
 
       if (!nextVariant) continue
 
-      // Write-ahead marker: record intent BEFORE calling YouTube API
-      await supabase
-        .from('ab_tests')
-        .update({ last_applied_variant_id: nextVariant.id })
-        .eq('id', test.id)
+      // Reivindica a vez ANTES de escrever (restore_seq + 1 e marcador); zero linhas = outro escritor ganhou.
+      const seq = await reivindicarRotacao(supabase, test.id, test.restore_seq as number, nextVariant.id, marcadorLido)
+      if (seq === null) continue
 
-      // Apply variant based on test type
-      const testType = test.test_type ?? 'thumbnail'
-
-      const applyResult = await applyVariantToYouTube({
+      const resultado = await aplicarRotacao(supabase, {
+        testId: test.id,
+        siteId: test.site_id,
+        testName: (test.name as string | null) ?? '',
+        seq,
         youtubeVideoId: video.youtube_video_id,
         accessToken,
-        testType: testType as TestType,
-        variant: {
-          id: nextVariant.id,
-          blob_url: nextVariant.blob_url,
-          title_text: nextVariant.title_text,
-        },
+        testType: (test.test_type ?? 'thumbnail') as TestType,
+        variante: nextVariant,
         originalTitle: test.original_title,
+        cycleNumber: nextCycle,
       })
 
-      if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
-      const appliedMeta = applyResult.meta
-
-      // Snapshot latest poll stats before closing cycle
-      const { data: cyclePolls } = await supabase
-        .from('ab_test_polls')
-        .select('views, likes')
-        .eq('test_id', test.id)
-        .order('polled_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      // Close old cycle + open new cycle AFTER YouTube confirms
-      await supabase
-        .from('ab_test_cycles')
-        .update({
-          ended_at: new Date().toISOString(),
-          views: cyclePolls?.views ?? null,
-          likes: cyclePolls?.likes ?? null,
-        })
-        .eq('test_id', test.id)
-        .is('ended_at', null)
-
-      await supabase.from('ab_test_cycles').insert({
-        test_id: test.id,
-        variant_id: nextVariant.id,
-        cycle_number: nextCycle,
-        started_at: new Date().toISOString(),
-        applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
-      })
-
-      // Success — reset failure counter + clear write-ahead marker
-      await supabase
-        .from('ab_tests')
-        .update({
-          last_applied_variant_id: null,
-          ...(test.config?.consecutive_failures ? { config: { ...test.config, consecutive_failures: 0 } } : {}),
-        })
-        .eq('id', test.id)
+      if (!resultado.ok) {
+        if (resultado.motivo !== 'youtube') continue // perdeu a vez / cruzou com pausa: já registrado, sem falha de rotação
+        // Y-D9: sem escrita, limpa o marcador (senão o dia seguinte entra em "marcador velho" e o Sentry dispara em toda
+        // falha comum); com escrita parcial o marcador fica: é o sinal para o settleOnAir.
+        if (!resultado.appliedThumbnail && !resultado.appliedMetadata) {
+          await supabase
+            .from('ab_tests')
+            .update({ last_applied_variant_id: null })
+            .eq('id', test.id)
+            .eq('restore_seq', seq)
+        }
+        throw resultado.erro
+      }
 
       processed++
     } catch (err) {
