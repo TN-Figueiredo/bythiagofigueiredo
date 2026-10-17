@@ -216,6 +216,12 @@ describe('lerLeituraDoVideo', () => {
     const carregar = vi.fn().mockResolvedValue(siteCom(falhou))
     expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
   })
+  it.each(['leitura_falhou', 'calculo_falhou'] as const)('série pedida e não lida (2ª leitura: serie_diaria_incompleta e aindaRende %s): não carregou, nunca não medido (I-1)', async (motivo) => {
+    const carregar = vi.fn()
+      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') })))
+      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_diaria_incompleta'), m9: { cauda: medido(0.2, 1, J), aindaRende: naoMedido(motivo) } })))
+    expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
+  })
   it('canal que não carregou, vídeo ausente do canal e carregador que lança: não carregou, sem lançar', async () => {
     expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(null))))?.tipo).toBe('nao_carregou')
     expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(videoMedido(), 'outro'))))?.tipo).toBe('nao_carregou')
