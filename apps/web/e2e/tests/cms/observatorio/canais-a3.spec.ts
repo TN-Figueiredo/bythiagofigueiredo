@@ -940,7 +940,7 @@ for (const fmt of ['longos', 'shorts', 'todos'] as const) {
   })
 }
 
-test('A3.10 o gráfico de ritmo da tabela, em 100 px, mostra as 13 semanas inteiras (nada cortado)', async ({ page }) => {
+test('A3.10 o gráfico de ritmo da tabela, em 84 px, mostra as 13 semanas inteiras (nada cortado)', async ({ page }) => {
   await abrir(page, '?fmt=longos&sort=subs')
   const r = await page.evaluate(() => {
     const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
@@ -950,7 +950,7 @@ test('A3.10 o gráfico de ritmo da tabela, em 100 px, mostra as 13 semanas intei
     return { w: Math.round(b.width), h: Math.round(b.height), viewBox: svg.getAttribute('viewBox'), foraDoSvg: barras.filter(x => x.right > b.right + 0.5 || x.left < b.left - 0.5).length, barras: barras.length }
   })
   medida(`gráfico de ritmo na tabela: ${r.w} x ${r.h} px, viewBox ${r.viewBox}, ${r.barras} barras, ${r.foraDoSvg} fora do desenho`)
-  expect(r.viewBox).toBe('0 0 130 30'); expect(r.w).toBe(100); expect(r.foraDoSvg).toBe(0)
+  expect(r.viewBox).toBe('0 0 130 30'); expect(r.w).toBe(84); expect(r.foraDoSvg).toBe(0)
   // nos cartões continua com 130 px
   await abrir(page, '?fmt=longos&sort=subs&layout=cards')
   const c = await page.evaluate(() => Math.round(([...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!.querySelector('.cards .cad > svg') as SVGSVGElement).getBoundingClientRect().width))

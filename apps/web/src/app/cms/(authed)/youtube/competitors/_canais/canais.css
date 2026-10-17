@@ -591,6 +591,11 @@
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad{min-width:84px}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad > svg{width:84px;height:auto}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox table th.cmp,[data-obs-screen="canais"]:not(.drawer-open) .tablebox table td.cmp{width:56px;min-width:56px}
+/* L6 (17/10, Gio): a 1440 px sem painel Longos e Shorts ainda pediam 1.162 px para 1.152. O texto da célula do Ritmo ("N vídeos/sem" + a nota) fixava a coluna em 103 px contra os 84 do desenho
+   e o link "Comparar" fixava "Com o meu canal" em 67 px contra 56: a célula do Ritmo pode quebrar em duas linhas, o respiro lateral do "Comparar" cai a 1 px e Views/dia pede 112 px (eram 128).
+   Folga mínima de 20 px sobre os 1.152 (orçamento em canais-largura-css.test.ts). */
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad .v{white-space:normal}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox td.cmp{padding-left:1px;padding-right:1px}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox td .fm{flex-wrap:wrap;white-space:normal;column-gap:6px}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox td .fm .nd{max-width:none}
 /* L6: o botão de ordenar fica no topo do cabeçalho em toda coluna (com "bottom", a unidade longa de Trocas, em 3 linhas, subia o botão 15 px acima das vizinhas). */
