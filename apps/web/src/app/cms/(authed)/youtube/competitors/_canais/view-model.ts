@@ -25,6 +25,7 @@ import {
 import { effView } from '../_chrome/effect-view'
 import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
 import { NB, nbMilMi, numNb } from '../_canal/formato'
+import { quandoMs } from '../_canal/medidas/formatos'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 import { SEM_LEITURA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
 import { baseVpdTexto, motivoVpdTexto, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
@@ -357,7 +358,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const ownLongEmpty = (c: ObsChannel) => c.own && !videosOf(c.id).some(v => v.fmt === 'long' && v.ageDays <= 90)
   const ownEmptyText = (c: ObsChannel) => {
     const k = obs.cadence(c.id, 'long')
-    return k.lastUpload != null ? `Nenhum vídeo longo nos últimos 90 dias (último em ${D.dm(k.lastUpload)}, ${k.lastUploadAgo}).` : 'Nenhum vídeo longo nos últimos 90 dias.'
+    return k.lastUpload != null ? `Nenhum vídeo longo nos últimos 90 dias (último em ${D.dm(k.lastUpload)}, ${quandoMs(k.lastUpload, D.now)}).` : 'Nenhum vídeo longo nos últimos 90 dias.'
   }
   const outs = (c: ObsChannel, f: Fmt) => obs.outliers({ channel: c.id, fmt: f, niche: 'todos', includeOwn: c.own })
   const ch30 = (c: ObsChannel) => (c.own ? [] : obs.changesIn({ days: 30, channel: c.id }))
