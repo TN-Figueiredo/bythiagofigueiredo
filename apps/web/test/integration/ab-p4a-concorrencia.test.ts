@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { semearTesteAb, clienteServico } from '../helpers/db-seed'
 import { YouTubeFalso, imagemComDhash, H } from '../helpers/youtube-falso'
@@ -8,7 +8,14 @@ vi.mock('@/lib/notifications/fan-out', () => ({
   fanOutToSiteAdminsDetailed: vi.fn(async () => ({ total: 1, sent: 1, suppressed: 0, errors: [] })),
 }))
 
+vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn(async () => ({ ok: true, accessToken: 'tok' })) }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: vi.fn(async () => 'UCint'),
+}))
+
 import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
+import { phaseRotateActiveTests } from '@/lib/youtube/ab-rotate-phases'
 import type { PortasSaida } from '@/lib/youtube/ab-settle'
 
 const BLOB = (v: string) => `https://t7.public.blob.vercel-storage.com/${v}.png`
@@ -60,5 +67,47 @@ describe.skipIf(skipIfNoLocalDb())('P4a T7: concorrência de settleOnAir no banc
     const t1 = await teste()
     expect(t1.restore_seq).toBeGreaterThanOrEqual(1)
     expect(['paused', 'completed']).toContain(t1.status)
+  })
+
+  // ── T9: a rotação do cron contra o banco real ────────────────────────────────────────────────────────────────
+  describe('rotação do cron (T9)', () => {
+    const DIA = 86_400_000
+    beforeEach(async () => {
+      const db = clienteServico()
+      // phaseRotateActiveTests varre todo teste ativo do banco: o bythiago_int é só nosso, então pausa os restos de outros arquivos.
+      await db.from('ab_tests').update({ status: 'paused' }).eq('status', 'active').neq('id', t.testId)
+      await db.from('ab_tests').update({ last_applied_variant_id: null }).eq('id', t.testId)
+      await db.from('ab_test_cycles').update({ started_at: new Date(Date.now() - 2 * DIA).toISOString() }).eq('test_id', t.testId)
+      // O Supabase fala por fetch também: só o que não é do banco local (127.0.0.1) vai para o YouTube falso.
+      const fetchReal = globalThis.fetch
+      vi.stubGlobal('fetch', ((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).includes('127.0.0.1') ? fetchReal(input, init) : yt.fetch(input, init)) as typeof fetch)
+    })
+    afterEach(() => { vi.unstubAllGlobals() })
+
+    it('Y-P13 / (b): dois phaseRotateActiveTests ao mesmo tempo → uma escrita no YouTube, restore_seq +1, um ciclo aberto', async () => {
+      await Promise.all([phaseRotateActiveTests(clienteServico()), phaseRotateActiveTests(clienteServico())])
+      expect(yt.escritas().filter((e) => e === 'thumbnails.set')).toHaveLength(1)
+      const t1 = await teste()
+      expect(t1.restore_seq).toBe(1)
+      const ciclos = await clienteServico().from('ab_test_cycles').select('cycle_number, ended_at, end_reason, variant_id').eq('test_id', t.testId).order('cycle_number')
+      expect(ciclos.data?.filter((c) => c.ended_at === null)).toEqual([expect.objectContaining({ cycle_number: 1, variant_id: t.varB })])
+      expect(ciclos.data?.[0]).toMatchObject({ cycle_number: 0, end_reason: 'rotacao' })
+    })
+
+    it('F-D7: teste auto-pausado pelo código antigo (ciclo 1 aberto) e retomado (ciclo 2 aberto): a rotação não colide em cycle_number, fecha os dois e abre o 3', async () => {
+      const db = clienteServico()
+      await db.from('ab_test_cycles').update({ ended_at: new Date(Date.now() - 2 * DIA).toISOString(), end_reason: 'rotacao' }).eq('test_id', t.testId)
+      await db.from('ab_test_cycles').insert([
+        { test_id: t.testId, variant_id: t.varB, cycle_number: 1, started_at: new Date(Date.now() - 4 * DIA).toISOString() },
+        { test_id: t.testId, variant_id: t.varA, cycle_number: 2, started_at: new Date(Date.now() - 3 * DIA).toISOString() },
+      ])
+      const r = await phaseRotateActiveTests(db)
+      expect(r).toMatchObject({ processed: 1, errors: 0 })
+      const ciclos = await db.from('ab_test_cycles').select('cycle_number, ended_at, end_reason').eq('test_id', t.testId).order('cycle_number')
+      expect(ciclos.data?.map((c) => c.cycle_number)).toEqual([0, 1, 2, 3])
+      expect(ciclos.data?.filter((c) => c.ended_at === null).map((c) => c.cycle_number)).toEqual([3])
+      expect(ciclos.data?.slice(1, 3).map((c) => c.end_reason)).toEqual(['rotacao', 'rotacao'])
+    })
   })
 })
