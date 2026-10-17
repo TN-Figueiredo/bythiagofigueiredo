@@ -9,7 +9,7 @@ import { celulaDeDirecao, type CelulaDeDirecao } from '@/app/cms/(authed)/youtub
 import { dec1 } from './formatos'
 import type { EstadoDaPagina } from './estado-model'
 import type { CanalHeaderView, NumCell } from '../header-model'
-import { celulaDoCriador } from './criador-model'
+import { celulaDoCriador, type CelulaDoCriadorComDado } from './criador-model'
 
 export type TipoDeCelula = 'medido' | 'zero' | 'nao_medido' | 'ainda_nao_existe' | 'nao_carregou'
 
@@ -29,7 +29,7 @@ export type DetalheDaCelula =
   | { chave: 'estado'; estado: EstadoDaPagina }
   | { chave: 'acerto'; k: number; n: number; pct: number | null; pontos: Array<'a' | 'm' | 'f'>; colunas: number; soNumero: boolean }
   | { chave: 'ritmo'; porSemana: string }
-  | { chave: 'criador' }
+  | { chave: 'criador'; k: number | null; n: number | null; pct: number | null }
 
 export interface CelulaDoCabecalho {
   chave: DetalheDaCelula['chave']
@@ -50,6 +50,8 @@ export interface EntradaDoCabecalho {
   estado: EstadoDaPagina
   extras: { missingSince: string | null } | null
   semVideos: boolean
+  /** C4: a célula já calculada de "Criador responde". Ausente = a leitura não foi pedida. */
+  criador?: CelulaDoCriadorComDado
   /** Semanas das 13 com leitura (padrão 13). */
   semanasLidas?: number
   hojeSP: string
@@ -131,9 +133,14 @@ export function celulasDoCabecalho(o: EntradaDoCabecalho): CelulaDoCabecalho[] {
     out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: 'medido', base, motivo: null, detalhe: { chave: 'ritmo', porSemana: dec1(m6.valor.porSemana) } })
   }
 
-  // 6. Criador responde (a coleta de comentários só é lida pela C4)
-  const cr = celulaDoCriador('nao_pedida')
-  out.push({ chave: 'criador', rotulo: 'Criador responde', valor: 'nao_medido', base: cr.longa, motivo: cr.longa, detalhe: { chave: 'criador' } })
+  // 6. Criador responde (C4: a célula vem de `criadorDoCanal`; sem ela, a leitura não foi pedida)
+  if (o.criador) {
+    const cr = o.criador
+    out.push({ chave: 'criador', rotulo: 'Criador responde', valor: cr.valor, base: cr.base, motivo: cr.motivo, detalhe: { chave: 'criador', k: cr.k, n: cr.n, pct: cr.pct } })
+  } else {
+    const cr = celulaDoCriador('nao_pedida')
+    out.push({ chave: 'criador', rotulo: 'Criador responde', valor: 'nao_medido', base: cr.longa, motivo: cr.longa, detalhe: { chave: 'criador', k: null, n: null, pct: null } })
+  }
   return out
 }
 

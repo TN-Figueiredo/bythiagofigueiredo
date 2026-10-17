@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoCanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { contaComoTroca } from '@/lib/youtube/observatorio/changes'
+import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
@@ -104,7 +105,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const { view, obs, canAdmin, medidas } = m
   const leitura = view.state.tab === 'leitura' ? leituraDoNicho(view.header.niche, view.header.nicheLabel, m.leituraMv) : null
   // as medidas chegam depois do primeiro HTML: três elementos de servidor, cada um no seu Suspense, com a MESMA promessa
-  const contexto = contextoDoCanal(obs, view, m.pagina.now)
+  const contexto = contextoDoCanal(obs, view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null } })
   const promessa = medidas ?? Promise.resolve(canalNaoCarregou())
   const topo = <Suspense key="topo-do-canal" fallback={<EsqueletoDoTopo />}><TopoDoCanal medidas={promessa} contexto={contexto} /></Suspense>
   const celulas = <Suspense key="celulas-do-canal" fallback={<EsqueletoDasCelulas />}><CelulasDoCanal medidas={promessa} contexto={contexto} /></Suspense>
@@ -135,9 +136,10 @@ function leituraDoNicho(niche: string | null, nicheLabel: string | null, mv: Par
 }
 
 /** O que a página já sabe, sem esperar medida: os títulos dos vídeos, as trocas do motor (90 dias), a sincronização e os inscritos. */
-function contextoDoCanal(obs: NonNullable<Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['obs']>, view: Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['view'], agoraMs: number): ContextoDoCanal {
+function contextoDoCanal(obs: NonNullable<Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['obs']>, view: Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['view'], agoraMs: number, quem: { siteId: string; provas: ProvasDeQuemVe }): ContextoDoCanal {
   const ch = obs.channel(view.header.id)
   return {
+    comentarios: { siteId: quem.siteId, channelId: view.header.id, nome: view.header.name, provas: quem.provas },
     F: obs.fmt, subs: ch?.subs ?? null,
     sync: { state: ch?.sync.state ?? 'ok', last: ch?.sync.last ?? null, errorSince: ch?.sync.errorSince ?? null },
     hojeSP: dayPt(new Date(agoraMs)), agoraMs, primeiraBusca: ch?.sync.state === 'backfill', semVideos: view.videos.videos.length === 0,

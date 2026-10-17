@@ -303,3 +303,5 @@
 [data-obs-screen="canal"] .nmore{min-height:44px;padding:0 8px}
 [data-obs-screen="canal"] .gl-tab summary{min-height:44px}
 }
+[data-obs-screen="canal"] .pc-rq.esp{border:1.5px dotted var(--muted);background:transparent}
+[data-obs-screen="canal"] .pc-rq.nm{border:1.5px solid var(--nm-line);background:var(--nm-bg)}

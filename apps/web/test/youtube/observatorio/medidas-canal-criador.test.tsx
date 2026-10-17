@@ -1,0 +1,209 @@
+// @vitest-environment jsdom
+// E5a Tarefa C4: "O que o criador respondeu" (célula e bloco). A conta é a M11 da E4; aqui se prova o estado, a frase e a lista.
+import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { falsoComentarios, type Linha } from './comentarios-e5-fake'
+import { criadorDoCanal, type EntradaDoCriador } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/criador-model'
+import { listaDoCriador } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/criador-lista-model'
+import { CriadorResponde } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/criador-responde'
+import { lerComentariosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/comentarios-do-canal'
+import { canalNaoCarregou } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/canal-derivado-async'
+import { link } from '@/lib/youtube/observatorio/links'
+import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
+import type { ContagemDeRespostas, ParteLida, RespostasDoCriador } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
+import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
+
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => '/', useSearchParams: () => new URLSearchParams('') }))
+
+const DIA = 86_400_000
+const AGORA = Date.UTC(2026, 9, 24, 18)
+const HOJE = '2026-10-24'
+
+const vid = (i: number, idade: number, over: Partial<VideoLido> = {}): VideoLido => ({
+  id: `v${i}`, videoId: `v${i}`, publishedAt: new Date(AGORA - idade * DIA).toISOString(), liveActualStartAt: null, liveBroadcastContent: 'none', wasLive: false,
+  isShort: false, durationSeconds: 600, viewCount: 1000, likeCount: 10, commentCount: 5, likesHidden: false, commentsDisabled: false, viewsHidden: false,
+  discoveredAt: null, missingSince: null, seriesTier: null, lastCheckedAt: null, ...over,
+})
+const ok = <T,>(dados: T): ParteLida<T> => ({ lido: true, dados }) as ParteLida<T>
+const contagem = (porVideo: Array<[string, string | null, boolean]>, over: Partial<ContagemDeRespostas> = {}): ParteLida<ContagemDeRespostas> => ok({
+  porVideo: new Map(porVideo.map(([id, r, c]) => [id, { retrato30: r, algumComRespostaDoCriador: c }])),
+  coletaDoSiteDesdeMs: AGORA - 200 * DIA, coletaDoCanalDesdeMs: AGORA - 200 * DIA, ultimoOkDaTarefaMs: AGORA - 3_600_000, primeiraExecucaoDaTarefaMs: AGORA - 200 * DIA, ...over,
+})
+const ativo = { tipo: 'ativo', pastilha: 'Ativo', base: '', ate: null } as unknown as EntradaDoCriador['estado']
+const LONGO = { fmt: 'long' as const, doisFormatos: false, soShorts: false }
+
+function entrada(videos: VideoLido[], c: ParteLida<ContagemDeRespostas> | null, over: Partial<EntradaDoCriador> = {}): EntradaDoCriador {
+  return { nome: 'Matt', formato: LONGO, videos, contagem: c, estado: ativo, agoraMs: AGORA, hojeSP: HOJE, ...over }
+}
+/** n vídeos com 40+ dias, retrato ok; os `k` primeiros com resposta. */
+function quadro(n: number, k: number): { videos: VideoLido[]; c: ParteLida<ContagemDeRespostas> } {
+  const videos = Array.from({ length: n }, (_, i) => vid(i, 35 + i))
+  return { videos, c: contagem(videos.map((v, i) => [v.id, 'ok', i < k])) }
+}
+
+describe('criadorDoCanal: estados', () => {
+  it('nenhum retrato no site: a coleta ainda não começou', () => {
+    const { videos } = quadro(6, 0)
+    const m = criadorDoCanal(entrada(videos, contagem([], { coletaDoSiteDesdeMs: null, coletaDoCanalDesdeMs: null, ultimoOkDaTarefaMs: null, primeiraExecucaoDaTarefaMs: null })))
+    expect(m.celula.valor).toBe('nao_medido')
+    expect(m.celula.motivo).toContain('a coleta de comentários ainda não começou')
+    expect(m.bloco.frase.resto).toContain('A coleta de comentários ainda não começou')
+  })
+  it('coleta do canal há 20 dias: "Ainda não dá para medir", com a data em que fecha', () => {
+    const videos = [...Array.from({ length: 6 }, (_, i) => vid(i, 5 + i * 3)), vid(7, 60), vid(8, 70)]
+    const c = contagem(videos.map(v => [v.id, null, false]), { coletaDoCanalDesdeMs: AGORA - 20 * DIA })
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.celula.valor).toBe('nao_medido')
+    expect(m.bloco.frase.negrito).toBe('Ainda não dá para medir.')
+    expect(m.bloco.frase.resto).toMatch(/fecha em \d{2}\/\d{2}/)
+  })
+  it('coleta parada', () => {
+    const { videos, c } = quadro(6, 2)
+    const parada = contagem(videos.map(v => [v.id, 'ok', false]), { ultimoOkDaTarefaMs: AGORA - 30 * DIA })
+    const m = criadorDoCanal(entrada(videos, parada))
+    expect(m.celula.motivo).toBe('não medido: a coleta de comentários está parada')
+    void c
+  })
+  it('3 vídeos: pede pelo menos 5', () => {
+    const { videos, c } = quadro(3, 1)
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.celula.valor).toBe('nao_medido')
+    expect(m.bloco.frase.resto).toContain('pelo menos 5')
+  })
+  it('desligados pelo canal', () => {
+    const videos = Array.from({ length: 6 }, (_, i) => vid(i, 35 + i))
+    const m = criadorDoCanal(entrada(videos, contagem(videos.map(v => [v.id, 'desligados', false]))))
+    expect(m.bloco.tipo).toBe('desligados')
+    expect(m.celula.valor).toBe('nao_medido')
+  })
+  it('a leitura falhou: não carregou, nunca "0 de 0"', () => {
+    const { videos } = quadro(6, 2)
+    for (const c of [{ lido: false, causa: 'erro_do_banco' } as ParteLida<ContagemDeRespostas>, null]) {
+      const m = criadorDoCanal(entrada(videos, c))
+      expect(m.celula.valor).toBe('nao_carregou')
+      expect(m.bloco.tipo).toBe('nao_carregou')
+      expect(JSON.stringify(m)).not.toMatch(/0 de 0/)
+    }
+    expect(criadorDoCanal(entrada(null as unknown as VideoLido[], null)).celula.valor).toBe('nao_carregou')
+  })
+  it('o canal saiu do YouTube', () => {
+    const { videos, c } = quadro(6, 2)
+    const m = criadorDoCanal(entrada(videos, c, { estado: { tipo: 'saiu', pastilha: 'x', base: '', ate: null } as unknown as EntradaDoCriador['estado'] }))
+    expect(m.bloco.tipo).toBe('fora')
+  })
+})
+
+describe('criadorDoCanal: a conta', () => {
+  it('5 de 14 = 36%', () => {
+    const { videos, c } = quadro(14, 5)
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.celula).toMatchObject({ valor: 'medido', k: 5, n: 14, pct: 36 })
+    expect(m.bloco.frase.negrito).toContain('5 de 14')
+    expect(m.bloco.frase.negrito).toContain('(36%)')
+  })
+  it('0 de 16: zero medido, caixa vazada, "(0%)"', () => {
+    const { videos, c } = quadro(16, 0)
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.celula).toMatchObject({ valor: 'zero', k: 0, n: 16, pct: 0 })
+    expect(m.bloco.tipo).toBe('zero')
+    expect(m.bloco.frase.negrito).toContain('em nenhum dos 16 vídeos')
+    expect(m.bloco.frase.resto).toContain('zero medido')
+  })
+  it('5 de 9: sem percentual', () => {
+    const { videos, c } = quadro(9, 5)
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.celula).toMatchObject({ valor: 'medido', k: 5, n: 9, pct: null })
+    expect(m.bloco.frase.negrito).not.toContain('%')
+  })
+  it('vídeo sem retrato de 30 dias fica fora do denominador e vira casa hachurada', () => {
+    const { videos } = quadro(7, 3)
+    const c = contagem(videos.map((v, i) => [v.id, i === 6 ? 'falhou' : 'ok', i < 3]))
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.celula.n).toBe(6)
+    expect(m.bloco.casas.filter(x => x === 'sem_retrato')).toHaveLength(1)
+    expect(m.bloco.casas).toHaveLength(7)
+  })
+  it('vídeo recente (menos de 30 dias) é "espera", pontilhado, fora da conta', () => {
+    const { videos } = quadro(6, 2)
+    const novo = vid(99, 4)
+    const m = criadorDoCanal(entrada([...videos, novo], contagem([...videos.map(v => [v.id, 'ok', false] as [string, string, boolean]), [novo.id, null, false]])))
+    expect(m.bloco.casas.filter(x => x === 'espera')).toHaveLength(1)
+    expect(m.celula.n).toBe(6)
+  })
+  it('nunca escreve "não respondeu"', () => {
+    for (const [n, k] of [[14, 5], [16, 0], [9, 5], [3, 1]]) {
+      const { videos, c } = quadro(n, k)
+      const m = criadorDoCanal(entrada(videos, c))
+      expect(JSON.stringify(m).toLowerCase()).not.toMatch(/n[ãa]o respondeu/)
+    }
+  })
+})
+
+const resp = (over: Partial<RespostasDoCriador> = {}): ParteLida<RespostasDoCriador> => ok({
+  nivel: 'texto', total: 2, itens: [
+    { videoId: 'v0', texto: 'ótimo @ana', cortado: false, respostaTexto: 'valeu @…', respostaCortada: false, curtidas: 12, marco: 7, mencoesTrocadas: 2 },
+    { videoId: 'v1', texto: 'um', cortado: true, respostaTexto: 'dois', respostaCortada: false, curtidas: null, marco: null, mencoesTrocadas: 0 },
+  ], ...over,
+})
+
+describe('a lista', () => {
+  const titulos = new Map([['v0', 'Vídeo zero'], ['v1', 'Vídeo um']])
+  const videos = [vid(0, 40), vid(1, 35)]
+  it('o vídeo mais recente primeiro, com título', () => {
+    const l = listaDoCriador({ nome: 'Matt', resposta: resp(), videos, titulos, nBase: 6 })
+    expect(l.tipo).toBe('itens')
+    if (l.tipo === 'itens') expect(l.itens.map(i => i.videoId)).toEqual(['v1', 'v0'])
+  })
+  it('nível contagem: só o número e a frase de quem vê só a contagem, sem texto', () => {
+    const l = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', itens: [] }), videos, titulos, nBase: 6 })
+    expect(l.tipo).toBe('contagem')
+    const html = renderToStaticMarkup(<CriadorResponde bloco={criadorDoCanal(entrada(...Object.values(quadro(14, 5)) as [VideoLido[], ParteLida<ContagemDeRespostas>])).bloco} lista={l} />)
+    expect(html).toContain('Você vê a contagem, não o texto.')
+    expect(html).not.toContain('ótimo')
+  })
+  it('lista falhou: não carregou', () => {
+    expect(listaDoCriador({ nome: 'M', resposta: { lido: false, causa: 'erro_do_banco' } as ParteLida<RespostasDoCriador>, videos, titulos, nBase: 6 }).tipo).toBe('nao_carregou')
+  })
+  it('sem nome de autor, texto com dir=auto, menção "@…", ligação ao Histórico, nunca "não respondeu"', () => {
+    const { videos: vs, c } = quadro(14, 5)
+    const bloco = criadorDoCanal(entrada(vs, c)).bloco
+    const l = listaDoCriador({ nome: 'Matt', resposta: resp(), videos, titulos, nBase: bloco.nBase })
+    const html = renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" />)
+    expect(html).toContain(link.historico('v1', { from: 'canais', canal: 'c1' }).replace(/&/g, '&amp;'))
+    expect(html).toContain('dir="auto"')
+    expect(html).toContain('@…')
+    expect(html.toLowerCase()).not.toMatch(/n[ãa]o respondeu/)
+    expect(html).not.toMatch(/author|display_name|autor:/i)
+    expect(html).toContain('id="criador"')
+  })
+  it('as casas do bloco têm os mesmos vídeos da conta', () => {
+    const { videos: vs, c } = quadro(14, 5)
+    const b = criadorDoCanal(entrada(vs, c)).bloco
+    expect(b.casas.filter(x => x === 'com' || x === 'sem')).toHaveLength(14)
+    expect(b.casas.filter(x => x === 'com')).toHaveLength(5)
+  })
+})
+
+describe('lerComentariosDoCanal', () => {
+  const inteiro = (lido: boolean): CanalInteiro => ({ ...canalNaoCarregou(), videos: lido ? { lido: true, dados: [vid(0, 40)] } : { lido: false, causa: 'erro_do_banco' } })
+  const linhas = (): Record<string, Linha[]> => ({ competitor_video_comment_snaps: [], competitor_video_comments: [], competitor_video_comment_marks: [], competitor_agenda_runs: [] })
+  it('se os vídeos do canal não foram lidos (canal de outro site), zero consultas', async () => {
+    const f = falsoComentarios(linhas())
+    const p = Promise.resolve(inteiro(false))
+    const r = await lerComentariosDoCanal(p, inteiro(false), { siteId: 's', channelId: 'c', nome: 'n', provas: null }, () => f.client)
+    expect(f.pedidos).toHaveLength(0)
+    expect(r.contagem).toBeNull()
+  })
+  it('com os vídeos lidos, lê uma vez por promessa', async () => {
+    const f = falsoComentarios(linhas())
+    const c = inteiro(true)
+    const p = Promise.resolve(c)
+    await lerComentariosDoCanal(p, c, { siteId: 's', channelId: 'c', nome: 'n', provas: null }, () => f.client)
+    const n = f.pedidos.length
+    expect(n).toBeGreaterThan(0)
+    await lerComentariosDoCanal(p, c, { siteId: 's', channelId: 'c', nome: 'n', provas: null }, () => f.client)
+    expect(f.pedidos).toHaveLength(n)
+  })
+})
