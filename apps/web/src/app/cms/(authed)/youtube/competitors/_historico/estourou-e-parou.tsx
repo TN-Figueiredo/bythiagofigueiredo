@@ -180,7 +180,10 @@ export function EstourouEParou({ leitura }: { leitura: Leitura }) {
     case 'ainda_nao_existe':
       return sec(
         <p className="lm-sd">
-          <b>Ainda sem leitura.</b> Este vídeo faz {R.minDias} dias em {dmBR(leitura.esteVideoEm)}; a leitura sai nesse dia se houver {R.minVideos} vídeos do canal com {R.minDias} dias para comparar.
+          <b>Ainda sem leitura.</b>{' '}
+          {leitura.esteVideoEm >= leitura.hojeSP
+            ? <>Este vídeo faz {R.minDias} dias em {dmBR(leitura.esteVideoEm)}; a leitura sai nesse dia se houver {R.minVideos} vídeos do canal com {R.minDias} dias para comparar.</>
+            : <>Este vídeo já fez {R.minDias} dias, em {dmBR(leitura.esteVideoEm)}; a leitura ainda não saiu porque o canal não tem {R.minVideos} vídeos com {R.minDias} dias para comparar.</>}
         </p>, true, true)
     case 'nao_carregou':
       return sec(

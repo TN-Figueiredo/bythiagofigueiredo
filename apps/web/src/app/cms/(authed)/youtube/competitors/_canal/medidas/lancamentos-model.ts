@@ -17,7 +17,7 @@ import { REGRAS_DAS_72_HORAS as R72, curvaDe72Horas, tracaoDoCanal, type VideoDa
 import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
 import type { UltimoVideo, VideoDaOracao } from './frase-do-topo'
 import type { FormatoDoCanal } from './cabecalho-model'
-import { dec1, dm, ptn, quando } from './formatos'
+import { dec1, dm, ptn, quandoMs } from './formatos'
 
 export const QUANTOS_VIDEOS = 6
 /** As idades da linha do normal na tela (as oito casas): de 1 a 30 dias. */
@@ -171,7 +171,7 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
     const faixa: FaixaDeLancamento | 'sem_normal' = ult ? faixaDeLancamento(ult.razao) : 'sem_normal'
     const dias = Math.floor((o.agoraMs - l.baseMs) / DAY)
     const prefixo = i === 0 ? (ultimoDoFormato && ultimoDoFormato.v.id === l.v.id ? (o.formato.doisFormatos ? 'o último longo · ' : 'o último · ') : 'o mais recente com contagem · ') : ''
-    const legenda = `${prefixo}publicado ${quando(spDateOf(l.baseMs), o.hojeSP)} · ${l.v.viewCount === null ? 'sem views lidas' : `${o.F.num(l.v.viewCount)} views`}`
+    const legenda = `${prefixo}publicado ${quandoMs(l.baseMs, o.agoraMs)} · ${l.v.viewCount === null ? 'sem views lidas' : `${o.F.num(l.v.viewCount)} views`}`
     let frase: { negrito: string; resto: string }
     if (pas) frase = { negrito: `“${titulo}” saiu acima do normal já no dia ${pas.dia}:`, resto: ` ${o.F.num(Math.round(pas.views))} views, ${x1(pas.razao)}× o normal do canal (${o.F.num(Math.round(pas.valor))}).` }
     else if (ult) frase = { negrito: `“${titulo}” está ${NOME_DA_FAIXA[faixa]}:`, resto: ` ${x1(ult.razao)}× o normal do canal no dia ${ult.dia}.` }
@@ -195,7 +195,7 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
   else if (!ultimoDoFormato) ultimo = { tipo: 'nenhum' }
   else if (videosDeTela[0] && videosDeTela[0].id === ultimoDoFormato.v.id) ultimo = { tipo: 'medido', v: oracaoDe(videosDeTela[0]) }
   else if (o.agoraMs - ultimoDoFormato.baseMs < DAY) {
-    ultimo = { tipo: 'saiu_agora', quando: quando(spDateOf(ultimoDoFormato.baseMs), o.hojeSP), anterior: videosDeTela[0] ? oracaoDe(videosDeTela[0]) : null }
+    ultimo = { tipo: 'saiu_agora', quando: quandoMs(ultimoDoFormato.baseMs, o.agoraMs), anterior: videosDeTela[0] ? oracaoDe(videosDeTela[0]) : null }
   } else ultimo = { tipo: 'sem_contagem', motivo: ultimoDoFormato.baseMs < Date.parse(`${INICIO_DAS_MARCAS}T00:00:00-03:00`) ? 'antes_da_contagem' : 'sem_leitura' }
 
   if (videosDeTela.length === 0) {

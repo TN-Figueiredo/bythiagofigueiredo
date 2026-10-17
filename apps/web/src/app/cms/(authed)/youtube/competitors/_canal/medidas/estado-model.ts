@@ -4,7 +4,7 @@ import type { CanalLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { M8DoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
 import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
 import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
-import { dm, quando } from './formatos'
+import { dm, quandoMs } from './formatos'
 
 export type TipoDeEstadoDaPagina = 'saiu' | 'erro' | 'primeira_busca' | 'pausado' | 'parado' | 'em_queda' | 'ativo' | 'nao_carregou' | 'nao_medido'
 
@@ -62,10 +62,10 @@ export function estadoDaPagina(
   const ultimo = ult ? spDateOf(ult.ultimaEm) : null
   const e = m8.estado.valor
   if (e === 'parado') {
-    return { tipo: 'parado', pastilha: 'Parado', base: ult && ultimo ? `${quem} ${quando(ultimo, hojeSP)}` : 'sem data do último vídeo', ate: null }
+    return { tipo: 'parado', pastilha: 'Parado', base: ult && ultimo ? `${quem} ${quandoMs(ult.ultimaEm, agoraMs)}` : 'sem data do último vídeo', ate: null }
   }
   if (e === 'em_queda') {
-    return { tipo: 'em_queda', pastilha: 'Em queda sustentada', base: ult && ultimo ? `${quem} ${quando(ultimo, hojeSP)}` : 'três janelas de 28 dias seguidas', ate: null }
+    return { tipo: 'em_queda', pastilha: 'Em queda sustentada', base: ult && ultimo ? `${quem} ${quandoMs(ult.ultimaEm, agoraMs)}` : 'três janelas de 28 dias seguidas', ate: null }
   }
-  return { tipo: 'ativo', pastilha: 'Ativo', base: ult && ultimo ? `${quem} ${quando(ultimo, hojeSP)}` : 'sem data do último vídeo', ate: null }
+  return { tipo: 'ativo', pastilha: 'Ativo', base: ult && ultimo ? `${quem} ${quandoMs(ult.ultimaEm, agoraMs)}` : 'sem data do último vídeo', ate: null }
 }
