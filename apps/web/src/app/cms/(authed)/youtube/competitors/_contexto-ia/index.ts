@@ -19,7 +19,7 @@ import { empacotarCanais, modeloDeCanais } from './empacotar-canais'
 import { empacotarCanal, modeloDeCanal } from './empacotar-canal'
 import { projetarMedidas } from './empacotar-canal-medidas'
 import { canalNaoCarregou } from '../_canal/medidas/canal-derivado-async'
-import { contextoDoCanal, lerMedidasDoCanal } from '../_canal/medidas/contexto-do-canal'
+import { contextoDoCanal, lerComentariosDoCanalParaOPacote, lerMedidasDoCanal } from '../_canal/medidas/contexto-do-canal'
 import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-proprio'
 import { empacotarVideo, modeloDeVideo } from './empacotar-video'
 import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
@@ -107,7 +107,8 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     const m = await montarCanal(alvo, sp, { iniciarMedidas: lerMedidasDoCanal })
     if (m.tipo !== 'concorrente') return null
     const contexto = contextoDoCanal(m.obs, m.view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
-    const medidas = projetarMedidas(await (m.medidas ?? Promise.resolve(canalNaoCarregou())), contexto)
+    const promessa = m.medidas ?? Promise.resolve(canalNaoCarregou())
+    const medidas = projetarMedidas(await promessa.catch(canalNaoCarregou), contexto, await lerComentariosDoCanalParaOPacote(promessa, contexto))
     return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv, medidas)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'canal-proprio': async ({ id, sp }) => {

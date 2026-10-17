@@ -8,7 +8,8 @@ import { contaComoTroca } from '@/lib/youtube/observatorio/changes'
 import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { CanalView } from '../view-model'
-import { canalNaoCarregou } from './canal-derivado-async'
+import { canalDerivadoDe, canalNaoCarregou } from './canal-derivado-async'
+import { lerComentariosDoCanal, type ComentariosDoCanal } from './comentarios-do-canal'
 import type { ContextoDoCanal } from './canal-derivado'
 
 /** A leitura das medidas do canal; nunca lança (defeito vira "não carregou" e vai ao Sentry). */
@@ -35,4 +36,12 @@ export function contextoDoCanal(obs: Observatory, view: CanalView, agoraMs: numb
     titulos: view.videos.videos.map(v => [v.id, v.title] as const),
     trocas: obs.changesIn({ days: 90, channel: view.header.id }).filter(contaComoTroca).map(c => ({ videoId: c.video, campo: c.type === 'title' ? 'titulo' as const : 'miniatura' as const, emMs: c.at })),
   }
+}
+
+/** A leitura dos comentários do canal que a página faz (uma vez por promessa de medidas); nula quando o contexto não traz o que ler. Nunca lança. */
+export async function lerComentariosDoCanalParaOPacote(medidas: Promise<CanalInteiro>, contexto: ContextoDoCanal): Promise<ComentariosDoCanal | null> {
+  const k = contexto.comentarios
+  if (!k) return null
+  const { c, d } = await canalDerivadoDe(medidas, contexto)
+  return lerComentariosDoCanal(medidas, c, k, { formato: d.formato, agoraMs: contexto.agoraMs })
 }

@@ -14,9 +14,9 @@ import { celulasDoCabecalho } from './cabecalho-model'
 import { DirecaoBloco } from './direcao-bloco'
 import { blocoDeDirecao } from './direcao-model'
 import { FaixaDeEstado } from './faixa-de-estado'
-import { criadorDoCanal, FRASE_CRIADOR_NAO_PEDIDA } from './criador-model'
+import { FRASE_CRIADOR_NAO_PEDIDA } from './criador-model'
+import { criadorComLeitura } from './criador-do-canal'
 import { CriadorResponde } from './criador-responde'
-import { listaDoCriador } from './criador-lista-model'
 import { lerComentariosDoCanal } from './comentarios-do-canal'
 import { HorasDoCanal } from './horas-do-canal'
 import { Lancamentos } from './lancamentos'
@@ -79,11 +79,7 @@ async function criadorDe(medidas: Promise<CanalInteiro>, contexto: ContextoDoCan
   const k = contexto.comentarios
   if (!k) return null
   const lidos = await lerComentariosDoCanal(medidas, c, k, { formato: d.formato, agoraMs: contexto.agoraMs })
-  const modelo = criadorDoCanal({ nome: k.nome, formato: d.formato, videos: d.videos, contagem: lidos.contagem, estado: d.estado, agoraMs: contexto.agoraMs, hojeSP: contexto.hojeSP })
-  const lista = modelo.bloco.tipo === 'medido' || modelo.bloco.tipo === 'zero' || modelo.bloco.tipo === 'nao_medido'
-    ? listaDoCriador({ nome: k.nome, resposta: lidos.respostas, videos: d.videos, titulos: d.titulos, nBase: modelo.bloco.nBase, permissaoFalhou: k.permissaoFalhou })
-    : null
-  return { modelo, lista }
+  return criadorComLeitura(k, contexto, d, lidos)
 }
 
 export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Promise<ReactNode> {

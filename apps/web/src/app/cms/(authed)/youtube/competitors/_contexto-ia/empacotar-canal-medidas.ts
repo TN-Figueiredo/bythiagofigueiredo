@@ -16,6 +16,10 @@ import { blocoDeDirecao, type BlocoDeDirecao } from '../_canal/medidas/direcao-m
 import { blocoDeRitmo, type BlocoDeRitmo } from '../_canal/medidas/ritmo-model'
 import { horasDoCanal, type ModeloDe72Horas, type ModeloDeLancamentos } from '../_canal/medidas/lancamentos-model'
 import { linhaDoTempo, type LinhaDoTempo } from '../_canal/medidas/linha-do-tempo-model'
+import type { ComentariosDoCanal } from '../_canal/medidas/comentarios-do-canal'
+import { criadorComLeitura } from '../_canal/medidas/criador-do-canal'
+import { FRASE_CRIADOR_NAO_PEDIDA } from '../_canal/medidas/criador-model'
+import type { ModeloDaLista } from '../_canal/medidas/criador-lista-model'
 import { dm, dmy, ptn } from '../_canal/medidas/formatos'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 
@@ -87,7 +91,30 @@ export interface LinhaDoTempoIa {
   raiasNaoCarregou: Array<{ nome: string; motivo: string }>
 }
 
+export interface ListaDoCriadorIa {
+  tipo: 'nao_carregou' | 'vazia' | 'contagem' | 'itens'
+  /** A frase da lista cita o nome do criador: texto de terceiros. */
+  frase: string
+  /** O aviso de quem vê só a contagem (ou a permissão não conferida). */
+  aviso: string | null
+  subtitulo: string | null
+  /** O título do vídeo, o comentário e a resposta do criador são texto de terceiros. */
+  itens: Array<{ titulo: string; curtidas: string | null; texto: string; resposta: string }>
+  aMais: string | null
+}
+
+export interface CriadorIa {
+  /** A frase do bloco cita o nome do criador: texto de terceiros. */
+  frase: string
+  pastilha: string | null
+  legenda: string[]
+  lista: ListaDoCriadorIa | null
+  /** A casa sem valor nas tabelas (curtidas que a tela não mostra). */
+  sem: string
+}
+
 export interface MedidasIa {
+  criador: CriadorIa
   topo: { faixa: string | null; frase: string }
   celulas: CelulaDeMedidaIa[]
   direcao: DirecaoIa
@@ -182,14 +209,44 @@ function tempoIa(t: LinhaDoTempo): LinhaDoTempoIa {
   }
 }
 
-export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal): MedidasIa {
+const MAIS_RESPOSTAS = (n: number): string => `Mais ${n} ${n === 1 ? 'resposta guardada' : 'respostas guardadas'} não ${n === 1 ? 'cabe' : 'cabem'} nesta lista.`
+
+function listaIa(m: ModeloDaLista): ListaDoCriadorIa {
+  const fr = (f: { negrito: string; resto: string }): string => `${f.negrito}${f.resto}`
+  if (m.tipo === 'itens') {
+    return {
+      tipo: 'itens', frase: fr(m.frase), aviso: null, subtitulo: m.subtitulo, aMais: m.aMais > 0 ? MAIS_RESPOSTAS(m.aMais) : null,
+      itens: m.itens.map((x) => ({ titulo: x.titulo, curtidas: x.curtidas, texto: `${x.texto}${x.cortado ? ' …' : ''}`, resposta: `${x.respostaTexto}${x.respostaCortada ? ' …' : ''}` })),
+    }
+  }
+  // sem texto de comentário em nenhum outro tipo (a contagem não o carrega)
+  return { tipo: m.tipo, frase: fr(m.frase), aviso: m.tipo === 'contagem' ? fr(m.aviso) : null, subtitulo: null, itens: [], aMais: null }
+}
+
+/** O bloco do criador como a tela o escreve; sem leitura pedida, a frase e a pastilha da tela "não pedida". */
+function criadorIa(ctx: ContextoDoCanal, d: ReturnType<typeof derivar>, lidos: ComentariosDoCanal | null): { ia: CriadorIa; celula: Parameters<typeof celulasDoCabecalho>[0]['criador'] } {
+  const k = ctx.comentarios
+  if (!k) {
+    return { ia: { frase: 'Ainda não dá para dizer se o criador responde.', pastilha: FRASE_CRIADOR_NAO_PEDIDA, legenda: [], lista: null, sem: '—' }, celula: undefined }
+  }
+  const { modelo, lista } = criadorComLeitura(k, ctx, d, lidos ?? { contagem: null, respostas: null })
+  const b = modelo.bloco
+  const semMedida = b.tipo === 'nao_medido' || b.tipo === 'desligados' || b.tipo === 'fora'
+  return {
+    celula: modelo.celula,
+    ia: { frase: `${b.frase.negrito}${b.frase.resto}`, pastilha: semMedida ? b.pastilha : null, legenda: b.legenda.map((l) => l.texto), lista: lista ? listaIa(lista) : null, sem: '—' },
+  }
+}
+
+export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal, comentarios: ComentariosDoCanal | null = null): MedidasIa {
   const d = derivar(ctx, c)
+  const cr = criadorIa(ctx, d, comentarios)
   const frase = fraseDoTopo(entradaDaFrase(ctx, d))
   const celulas = celulasDoCabecalho({
     F: ctx.F, subs: ctx.subs, medidas: d.medidas, formato: d.formato, estado: d.estado, extras: { missingSince: null },
     semVideos: ctx.semVideos, hojeSP: ctx.hojeSP,
-    // PENDENTE: a célula "Criador responde" entra com o bloco do criador (leitura dos comentários)
-  }).filter((x) => x.chave !== 'inscritos' && x.chave !== 'criador')
+    criador: cr.celula,
+  }).filter((x) => x.chave !== 'inscritos')
   const direcao = blocoDeDirecao({ F: ctx.F, medidas: d.medidas, soShorts: d.formato.soShorts, estado: d.estado, hojeSP: ctx.hojeSP })
   const ritmo = blocoDeRitmo({ medidas: d.medidas, videos: d.videos, formato: d.formato, estado: d.estado, ultimaLeituraMs: ctx.sync.last, agoraMs: ctx.agoraMs, hojeSP: ctx.hojeSP })
   const horasLidas = c.horas !== 'nao_pedida' && c.horas.lido ? c.horas.dados : null
@@ -200,7 +257,7 @@ export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal): MedidasI
     foraEm: d.estado.tipo === 'saiu' ? d.estado.ate : null, hojeSP: ctx.hojeSP,
   })
   return {
-    direcao: direcaoIa(direcao), ritmo: ritmoIa(ritmo, MEASURE_RULES.rhythm.weeks),
+    criador: cr.ia, direcao: direcaoIa(direcao), ritmo: ritmoIa(ritmo, MEASURE_RULES.rhythm.weeks),
     lancamentos: lancamentosIa(d.lanc.modelo), horas: horasIa(horasDoCanal({ videos: d.videos, horas: horasLidas, formato: d.formato, agoraMs: ctx.agoraMs })), tempo: tempoIa(tempo),
     topo: { faixa: COM_FAIXA.has(d.estado.tipo) ? d.estado.pastilha : null, frase: frase.texto },
     celulas: celulas.map((x): CelulaDeMedidaIa => {
@@ -209,6 +266,7 @@ export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal): MedidasI
       if (x.valor === 'medido' || x.valor === 'zero') {
         if (det.chave === 'direcao' && det.direcao.tipo === 'medido') valor = det.direcao.texto
         else if (det.chave === 'estado') valor = det.estado.pastilha
+        else if (det.chave === 'criador' && det.k !== null && det.n !== null) valor = `${det.k} de ${det.n}${det.pct === null ? '' : ` (${det.pct}%)`}`
         else if (det.chave === 'acerto') valor = `${det.k} de ${det.n}${det.pct === null ? '' : ` (${det.pct}%)`}`
         else if (det.chave === 'ritmo') valor = det.porSemana
       }
@@ -252,6 +310,13 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   'derivado.medidas.tempo.frase': 'base', 'derivado.medidas.tempo.motivo': 'base', 'derivado.medidas.tempo.nota': 'base', 'derivado.medidas.tempo.corte': 'base',
   'derivado.medidas.tempo.dias[].dia': 'rotulo', 'derivado.medidas.tempo.dias[].views': 'numero', 'derivado.medidas.tempo.dias[].situacao': 'base',
   'derivado.medidas.tempo.eventos[].dia': 'rotulo', 'derivado.medidas.tempo.eventos[].texto': 'terceiros', 'derivado.medidas.tempo.raiasNaoCarregou[].nome': 'rotulo', 'derivado.medidas.tempo.raiasNaoCarregou[].motivo': 'motivo',
+
+  // O que o criador respondeu
+  'derivado.medidas.criador.frase': 'terceiros', 'derivado.medidas.criador.pastilha': 'base', 'derivado.medidas.criador.legenda[]': 'base', 'derivado.medidas.criador.sem': 'rotulo',
+  'derivado.medidas.criador.lista': CTRL, 'derivado.medidas.criador.lista.tipo': CTRL, 'derivado.medidas.criador.lista.frase': 'terceiros', 'derivado.medidas.criador.lista.aviso': 'base',
+  'derivado.medidas.criador.lista.subtitulo': 'base', 'derivado.medidas.criador.lista.aMais': 'base',
+  'derivado.medidas.criador.lista.itens[].titulo': 'terceiros', 'derivado.medidas.criador.lista.itens[].curtidas': 'base',
+  'derivado.medidas.criador.lista.itens[].texto': 'terceiros', 'derivado.medidas.criador.lista.itens[].resposta': 'terceiros',
 
   // Ritmo
   'derivado.medidas.ritmo.frase': 'base',
@@ -373,7 +438,20 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
     tabelas.push(tabelaFixa('canal-linha-do-tempo-raias', 'Linha do tempo: raias que não carregaram', 'raias da linha do tempo', ['Raia', 'Estado'],
       tem.raiasNaoCarregou.map((r, i) => [rotulo(r.nome, `${T}.raiasNaoCarregou[${i}].nome`), naoMedido(r.motivo, `${T}.raiasNaoCarregou[${i}].motivo`)])))
   }
-  const avisosDoBloco = [lan.frase, lan.semPonto, hor.frase, hor.aviso, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
+  const K = `${O}.criador`
+  const cri = m.criador
+  tabelas.push({ id: 'canal-criador-frases', titulo: 'O que o criador respondeu: as frases do bloco e da lista', tipo: 'lista', nomeNoCorte: 'frases do criador', privada: false, colunas: ['Frase'],
+    linhas: [[terceiros(cri.frase, `${K}.frase`)], ...(cri.lista ? [[terceiros(cri.lista.frase, `${K}.lista.frase`)]] : [])] })
+  if (cri.lista && cri.lista.itens.length) {
+    tabelas.push({ id: 'canal-criador-respostas', titulo: 'O que o criador respondeu: as respostas guardadas, do vídeo mais recente ao mais antigo', tipo: 'lista', nomeNoCorte: 'respostas do criador', privada: false,
+      colunas: ['Vídeo', 'Curtidas do comentário', 'Comentário', 'Resposta do criador'],
+      linhas: cri.lista.itens.map((x, i): Celula[] => [
+        terceiros(x.titulo, `${K}.lista.itens[${i}].titulo`), x.curtidas !== null ? base(x.curtidas, `${K}.lista.itens[${i}].curtidas`) : rotulo(cri.sem, `${K}.sem`),
+        terceiros(x.texto, `${K}.lista.itens[${i}].texto`), terceiros(x.resposta, `${K}.lista.itens[${i}].resposta`),
+      ]) })
+  }
+  const avisosDoCriador = [cri.pastilha, ...cri.legenda, cri.lista?.aviso ?? null, cri.lista?.subtitulo ?? null, cri.lista?.aMais ?? null].flatMap((x) => (x === null ? [] : [x]))
+  const avisosDoBloco = [...avisosDoCriador, lan.frase, lan.semPonto, hor.frase, hor.aviso, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
   const ausentes = rit.raias.flatMap((r) => (r.ausente ? [r.ausente] : []))
   return { tabelas, avisos: [...(m.topo.faixa ? [m.topo.faixa] : []), dir.frase, ...(dir.queda.nota ? [dir.queda.nota] : []), rit.frase, ...ausentes, ...avisosDoBloco] }
 }
