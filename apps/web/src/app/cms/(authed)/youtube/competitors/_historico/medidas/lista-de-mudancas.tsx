@@ -30,8 +30,7 @@ export function ListaDeMudancasHistorico({ lista }: { lista: ListaDeMudancas | n
               <div>
                 <b>{i.rotulo}</b>{' '}<span className="hv-mq">{i.quando}</span>
                 {i.marcaFora ? <span className="dentro">fora dos 14 dias antes</span> : null}
-                {i.deParaTexto ? <div className="hv-mq">{i.deParaTexto}</div> : null}
-                {i.notaDoDia ? <div className="hv-mq">{i.notaDoDia}</div> : null}
+                {i.deParaTexto || i.notaDoDia ? <div className="hv-mq" data-detalhe>{[i.deParaTexto, i.notaDoDia].filter(Boolean).join(' ')}</div> : null}
               </div>
             </li>
           ))}

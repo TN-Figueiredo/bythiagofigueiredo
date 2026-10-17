@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { blocoDeHoras, primeiraHoraCheia, type EntradaDeHoras } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/horas-model'
 import { blocoDeIdade } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/idade-model'
 import { CurvaPorIdade } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/curva-por-idade'
+import { ListaDeMudancasHistorico } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/lista-de-mudancas'
 import { Horas72 } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/horas-72'
 import type { LeituraPorHora } from '@/lib/youtube/observatorio/medidas-telas/ler-horas'
 
@@ -100,5 +101,19 @@ describe('menor: rótulo da hora da live', () => {
     expect(live.publicacao).toMatch(/^início da live .*as 72 horas contam daqui/)
     expect(live.publicacao).not.toMatch(/^publicado/)
     expect(comum.publicacao).toMatch(/^publicado /)
+  })
+})
+
+describe('menor 8: item de mudança com os detalhes numa linha só', () => {
+  it('de→para e nota do dia dividem um bloco; ícones de losango e triângulo têm a mesma caixa de 26 px', () => {
+    const lista = {
+      titulo: 'Mudanças deste vídeo', fraseDeDentro: null, vazia: null, emColunas: false,
+      itens: [{ n: 1, tipo: 'miniatura', rotulo: 'Miniatura', quando: 'em 11/10', marcaFora: false, deParaTexto: 'de A para B', notaDoDia: 'Mudou neste dia.' }],
+    } as unknown as Parameters<typeof ListaDeMudancasHistorico>[0]
+    const s = html(<ListaDeMudancasHistorico lista={lista} />)
+    expect(s.match(/data-detalhe/g)).toHaveLength(1)
+    expect(s).toContain('de A para B Mudou neste dia.')
+    expect(css).toMatch(/\.hv-mi\.t\{[^}]*width:26px;height:26px\}/)
+    expect(css).toMatch(/\.hv-mi\.m\{[^}]*width:26px;height:26px\}/)
   })
 })
