@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { brDec } from '@/lib/youtube/format'
 import { AbCreateWizard } from '../_components/ab-create-wizard'
@@ -47,7 +47,7 @@ interface NewTestClientProps {
 
 export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext, initialVideoId, aviso }: NewTestClientProps) {
   const router = useRouter()
-  const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(
+  const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(() =>
     draftPrefill
       ? {
           id: draftPrefill.videoId,
@@ -63,6 +63,11 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
         })(),
   )
   const [search, setSearch] = useState('')
+  // Região viva montada vazia e preenchida depois, para o leitor de tela anunciar.
+  const [avisoAnunciado, setAvisoAnunciado] = useState<string | null>(null)
+  useEffect(() => {
+    setAvisoAnunciado(aviso ?? null)
+  }, [aviso])
 
   if (selectedVideo) {
     return (
@@ -94,15 +99,14 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       {competitorContext && <ReferenciaConcorrente contexto={competitorContext} />}
-      {aviso && (
-        <div
-          role="status"
-          className="mb-4 flex items-start gap-2 rounded-lg border border-cms-border bg-cms-accent-subtle px-4 py-3 text-sm text-cms-text"
-        >
-          <Info size={15} className="mt-0.5 shrink-0 text-cms-accent" aria-hidden="true" />
-          <span>{aviso}</span>
-        </div>
-      )}
+      <div role="status">
+        {avisoAnunciado && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-cms-border bg-cms-accent-subtle px-4 py-3 text-sm text-cms-text">
+            <Info size={15} className="mt-0.5 shrink-0 text-cms-accent" aria-hidden="true" />
+            <span>{avisoAnunciado}</span>
+          </div>
+        )}
+      </div>
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-cms-text">Escolha um vídeo</h2>
         <p className="text-sm text-cms-text-muted mt-1">

@@ -18,12 +18,16 @@ export function resolverVideoPedido(
   elegiveis: VideoElegivel[],
   pedido: string | undefined,
   idResolvido: string | null,
+  falhou = false,
 ): EntradaResolvida {
   if (!pedido) return { videoId: null, aviso: null }
+  if (falhou && !elegiveis.some((v) => v.id === pedido)) {
+    return { videoId: null, aviso: 'Não foi possível abrir esse vídeo agora. Escolha um vídeo abaixo.' }
+  }
   const alvo = elegiveis.find((v) => v.id === pedido) ?? (idResolvido ? elegiveis.find((v) => v.id === idResolvido) : undefined)
   if (alvo) {
     if (alvo.hasActiveTest) {
-      return { videoId: null, aviso: 'Este vídeo já tem um teste em andamento, então não dá para criar outro agora. Escolha outro vídeo abaixo.' }
+      return { videoId: null, aviso: 'Este vídeo já tem um teste (ou rascunho) aberto, então não dá para criar outro agora. Escolha outro vídeo abaixo.' }
     }
     return { videoId: alvo.id, aviso: null }
   }
@@ -33,12 +37,30 @@ export function resolverVideoPedido(
   return { videoId: null, aviso: 'Não encontramos esse vídeo no seu canal. Escolha um vídeo abaixo.' }
 }
 
-/** Só mostra imagem de referência vinda da URL se o host for o do YouTube. */
+const ID_YOUTUBE = /^[A-Za-z0-9_-]{11}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Filtro `.or()` do PostgREST para achar o vídeo pelo pedido, ou null se o
+ * pedido não é nem id do YouTube nem uuid (nunca interpola texto livre).
+ */
+export function filtroBuscaVideo(pedido: string): string | null {
+  if (ID_YOUTUBE.test(pedido)) return `youtube_video_id.eq.${pedido}`
+  if (UUID.test(pedido)) return `id.eq.${pedido}`
+  return null
+}
+
+/** Só mostra imagem de referência vinda da URL se o host for o do YouTube ou o Blob do projeto. */
 export function thumbReferenciaSegura(url: string | undefined): string | null {
   if (!url) return null
   try {
     const u = new URL(url)
-    return u.protocol === 'https:' && u.hostname === 'i.ytimg.com' ? u.toString() : null
+    if (u.protocol !== 'https:') return null
+    const h = u.hostname
+    if (h === 'i.ytimg.com' || h.endsWith('.public.blob.vercel-storage.com')) {
+      return `https://${h}${u.pathname}`
+    }
+    return null
   } catch {
     return null
   }
