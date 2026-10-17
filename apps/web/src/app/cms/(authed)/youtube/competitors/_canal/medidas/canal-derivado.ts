@@ -26,7 +26,7 @@ export interface ContextoDoCanal {
   titulos: ReadonlyArray<readonly [string, string]>
   trocas: readonly TrocaDoMotor[]
   /** C4: quem lê os comentários. Ausente = a leitura não é feita (célula "não pedida"). */
-  comentarios?: { siteId: string; channelId: string; nome: string; provas: ProvasDeQuemVe | null }
+  comentarios?: { siteId: string; channelId: string; nome: string; provas: ProvasDeQuemVe | null; permissaoFalhou?: boolean }
 }
 
 export interface CanalDerivado {

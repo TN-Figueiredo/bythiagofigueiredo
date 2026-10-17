@@ -78,10 +78,10 @@ function CriadorSemLeitura(): ReactNode {
 async function criadorDe(medidas: Promise<CanalInteiro>, contexto: ContextoDoCanal, c: CanalInteiro, d: CanalDerivado) {
   const k = contexto.comentarios
   if (!k) return null
-  const lidos = await lerComentariosDoCanal(medidas, c, k)
+  const lidos = await lerComentariosDoCanal(medidas, c, k, { formato: d.formato, agoraMs: contexto.agoraMs })
   const modelo = criadorDoCanal({ nome: k.nome, formato: d.formato, videos: d.videos, contagem: lidos.contagem, estado: d.estado, agoraMs: contexto.agoraMs, hojeSP: contexto.hojeSP })
   const lista = modelo.bloco.tipo === 'medido' || modelo.bloco.tipo === 'zero' || modelo.bloco.tipo === 'nao_medido'
-    ? listaDoCriador({ nome: k.nome, resposta: lidos.respostas, videos: d.videos, titulos: d.titulos, nBase: modelo.bloco.nBase })
+    ? listaDoCriador({ nome: k.nome, resposta: lidos.respostas, videos: d.videos, titulos: d.titulos, nBase: modelo.bloco.nBase, permissaoFalhou: k.permissaoFalhou })
     : null
   return { modelo, lista }
 }

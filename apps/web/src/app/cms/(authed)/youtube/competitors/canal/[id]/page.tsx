@@ -105,7 +105,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const { view, obs, canAdmin, medidas } = m
   const leitura = view.state.tab === 'leitura' ? leituraDoNicho(view.header.niche, view.header.nicheLabel, m.leituraMv) : null
   // as medidas chegam depois do primeiro HTML: três elementos de servidor, cada um no seu Suspense, com a MESMA promessa
-  const contexto = contextoDoCanal(obs, view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null } })
+  const contexto = contextoDoCanal(obs, view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
   const promessa = medidas ?? Promise.resolve(canalNaoCarregou())
   const topo = <Suspense key="topo-do-canal" fallback={<EsqueletoDoTopo />}><TopoDoCanal medidas={promessa} contexto={contexto} /></Suspense>
   const celulas = <Suspense key="celulas-do-canal" fallback={<EsqueletoDasCelulas />}><CelulasDoCanal medidas={promessa} contexto={contexto} /></Suspense>
@@ -136,10 +136,10 @@ function leituraDoNicho(niche: string | null, nicheLabel: string | null, mv: Par
 }
 
 /** O que a página já sabe, sem esperar medida: os títulos dos vídeos, as trocas do motor (90 dias), a sincronização e os inscritos. */
-function contextoDoCanal(obs: NonNullable<Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['obs']>, view: Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['view'], agoraMs: number, quem: { siteId: string; provas: ProvasDeQuemVe }): ContextoDoCanal {
+function contextoDoCanal(obs: NonNullable<Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['obs']>, view: Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['view'], agoraMs: number, quem: { siteId: string; provas: ProvasDeQuemVe; permissaoFalhou: boolean }): ContextoDoCanal {
   const ch = obs.channel(view.header.id)
   return {
-    comentarios: { siteId: quem.siteId, channelId: view.header.id, nome: view.header.name, provas: quem.provas },
+    comentarios: { siteId: quem.siteId, channelId: view.header.id, nome: view.header.name, provas: quem.provas, permissaoFalhou: quem.permissaoFalhou },
     F: obs.fmt, subs: ch?.subs ?? null,
     sync: { state: ch?.sync.state ?? 'ok', last: ch?.sync.last ?? null, errorSince: ch?.sync.errorSince ?? null },
     hojeSP: dayPt(new Date(agoraMs)), agoraMs, primeiraBusca: ch?.sync.state === 'backfill', semVideos: view.videos.videos.length === 0,

@@ -20,7 +20,7 @@ import { SecaoDeComentarios } from '../_chrome/comentarios/secao'
 import '../_chrome/comentarios/comentarios.css'
 
 /** TEXTO-A-REVISAR: a faixa quando a conferência de permissão falhou; o nível cai para a contagem e a tela diz por quê (nunca sobe por falta de resposta). */
-export const FAIXA_PERMISSAO_NAO_CONFERIDA = 'Não deu para conferir a sua permissão agora, então os comentários aparecem só como número. Recarregue a página para tentar de novo.'
+export const FAIXA_PERMISSAO_NAO_CONFERIDA = FRASES.permissaoNaoConferida
 
 /** As provas de quem vê, já resolvidas, e se a conferência da permissão falhou. */
 export interface ProvasResolvidas { provas: ProvasDeQuemVe | null; permissaoFalhou: boolean }

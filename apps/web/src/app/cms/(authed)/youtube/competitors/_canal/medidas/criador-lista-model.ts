@@ -4,10 +4,15 @@
 import type { ParteLida, RespostasDoCriador } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import { baseDaIdade } from '@/lib/youtube/observatorio/medidas/m1'
+import { FRASES } from '../../_chrome/comentarios/frases'
 import { ptn } from './formatos'
 
-export const FRASE_SO_CONTAGEM = 'Você vê a contagem, não o texto. O texto dos comentários e das respostas só aparece para quem edita o site ou tem o direito de ver desempenho privado.'
+export const FRASE_SO_CONTAGEM = {
+  negrito: 'Você vê o número, não o texto.',
+  resto: ' O texto dos comentários e das respostas só aparece para quem edita o site ou tem acesso ao desempenho privado do canal.',
+} as const
 export const MAX_NA_LISTA = 10
+const MAX_COMENTARIOS_GUARDADOS = 12
 
 export interface ItemDaLista {
   videoId: string
@@ -24,7 +29,7 @@ export interface ItemDaLista {
 export type ModeloDaLista =
   | { tipo: 'nao_carregou'; frase: { negrito: string; resto: string } }
   | { tipo: 'vazia'; frase: { negrito: string; resto: string } }
-  | { tipo: 'contagem'; total: number; frase: { negrito: string; resto: string }; aviso: string }
+  | { tipo: 'contagem'; total: number; frase: { negrito: string; resto: string }; aviso: { negrito: string; resto: string } }
   | { tipo: 'itens'; total: number; nVideos: number; frase: { negrito: string; resto: string }; itens: ItemDaLista[]; aMais: number }
 
 const curtidasDe = (n: number | null, marco: number | null): string | null =>
@@ -37,17 +42,19 @@ export function listaDoCriador(e: {
   titulos: ReadonlyMap<string, string>
   /** O n de vídeos com retrato de 30 dias da conta (a frase diz "em N vídeos com retrato de 30 dias"). */
   nBase: number
+  /** A conferência da permissão falhou (guarda fora do ar): no nível contagem, a frase é a da C3, não a de "falta de direito". */
+  permissaoFalhou?: boolean
 }): ModeloDaLista {
-  if (e.resposta === null || !e.resposta.lido) return { tipo: 'nao_carregou', frase: { negrito: 'Não carregou:', resto: ' a lista de respostas do criador falhou agora.' } }
+  if (e.resposta === null || !e.resposta.lido) return { tipo: 'nao_carregou', frase: { negrito: 'Não carregou:', resto: ' não deu para ler a lista de respostas do criador agora.' } }
   const r = e.resposta.dados
   if (r.nivel === 'contagem') {
     return {
-      tipo: 'contagem', total: r.total, aviso: FRASE_SO_CONTAGEM,
+      tipo: 'contagem', total: r.total, aviso: e.permissaoFalhou ? { negrito: FRASES.permissaoNaoConferida, resto: '' } : FRASE_SO_CONTAGEM,
       frase: { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário', 'comentários')} guardados.`, resto: '' },
     }
   }
   if (r.itens.length === 0) {
-    return { tipo: 'vazia', frase: { negrito: 'Nenhuma resposta do criador entre os comentários guardados.', resto: ' É só o que aparece entre os comentários guardados.' } }
+    return { tipo: 'vazia', frase: { negrito: 'Nenhuma resposta do criador entre os comentários guardados.', resto: ` Isso não prova que ele não respondeu: só vemos os ${MAX_COMENTARIOS_GUARDADOS} guardados de cada vídeo.` } }
   }
   const pub = new Map((e.videos ?? []).map(v => [v.id, baseDaIdade(v) ?? 0]))
   const ordenados = r.itens.map((x, i) => ({ x, i })).sort((a, b) => (pub.get(b.x.videoId) ?? 0) - (pub.get(a.x.videoId) ?? 0) || a.i - b.i).map(o => o.x)

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // E5a Tarefa C4: "O que o criador respondeu" (célula e bloco). A conta é a M11 da E4; aqui se prova o estado, a frase e a lista.
 import { describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { falsoComentarios, type Linha } from './comentarios-e5-fake'
 import { criadorDoCanal, type EntradaDoCriador } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/criador-model'
@@ -8,6 +9,7 @@ import { listaDoCriador } from '@/app/cms/(authed)/youtube/competitors/_canal/me
 import { CriadorResponde } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/criador-responde'
 import { lerComentariosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/comentarios-do-canal'
 import { canalNaoCarregou } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/canal-derivado-async'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { ContagemDeRespostas, ParteLida, RespostasDoCriador } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
@@ -20,6 +22,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePat
 const DIA = 86_400_000
 const AGORA = Date.UTC(2026, 9, 24, 18)
 const HOJE = '2026-10-24'
+const BASE = { formato: { fmt: 'long' as const, doisFormatos: false, soShorts: false }, agoraMs: AGORA }
 
 const vid = (i: number, idade: number, over: Partial<VideoLido> = {}): VideoLido => ({
   id: `v${i}`, videoId: `v${i}`, publishedAt: new Date(AGORA - idade * DIA).toISOString(), liveActualStartAt: null, liveBroadcastContent: 'none', wasLive: false,
@@ -160,7 +163,7 @@ describe('a lista', () => {
     const l = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', itens: [] }), videos, titulos, nBase: 6 })
     expect(l.tipo).toBe('contagem')
     const html = renderToStaticMarkup(<CriadorResponde bloco={criadorDoCanal(entrada(...Object.values(quadro(14, 5)) as [VideoLido[], ParteLida<ContagemDeRespostas>])).bloco} lista={l} />)
-    expect(html).toContain('Você vê a contagem, não o texto.')
+    expect(html).toContain('Você vê o número, não o texto.')
     expect(html).not.toContain('ótimo')
   })
   it('lista falhou: não carregou', () => {
@@ -192,7 +195,7 @@ describe('lerComentariosDoCanal', () => {
   it('se os vídeos do canal não foram lidos (canal de outro site), zero consultas', async () => {
     const f = falsoComentarios(linhas())
     const p = Promise.resolve(inteiro(false))
-    const r = await lerComentariosDoCanal(p, inteiro(false), { siteId: 's', channelId: 'c', nome: 'n', provas: null }, () => f.client)
+    const r = await lerComentariosDoCanal(p, inteiro(false), { siteId: 's', channelId: 'c', nome: 'n', provas: null }, BASE, () => f.client)
     expect(f.pedidos).toHaveLength(0)
     expect(r.contagem).toBeNull()
   })
@@ -200,10 +203,65 @@ describe('lerComentariosDoCanal', () => {
     const f = falsoComentarios(linhas())
     const c = inteiro(true)
     const p = Promise.resolve(c)
-    await lerComentariosDoCanal(p, c, { siteId: 's', channelId: 'c', nome: 'n', provas: null }, () => f.client)
+    await lerComentariosDoCanal(p, c, { siteId: 's', channelId: 'c', nome: 'n', provas: null }, BASE, () => f.client)
     const n = f.pedidos.length
     expect(n).toBeGreaterThan(0)
-    await lerComentariosDoCanal(p, c, { siteId: 's', channelId: 'c', nome: 'n', provas: null }, () => f.client)
+    await lerComentariosDoCanal(p, c, { siteId: 's', channelId: 'c', nome: 'n', provas: null }, BASE, () => f.client)
     expect(f.pedidos).toHaveLength(n)
+  })
+})
+
+// ───── trem 5: consertos do portão da C4 (Phil e Yannis I1 e I2, menores) e do Gio (defeito 3) ─────
+describe('I2: "anterior à coleta" usa o começo da coleta do SITE', () => {
+  it('site desde 120 dias, canal desde 40: vídeo de 60 dias sem retrato é "sem retrato", não "anterior"', () => {
+    const { videos } = quadro(6, 2)
+    const sem = vid(50, 60)
+    const c = contagem([...videos.map(v => [v.id, 'ok', false] as [string, string, boolean]), [sem.id, null, false]], { coletaDoSiteDesdeMs: AGORA - 120 * DIA, coletaDoCanalDesdeMs: AGORA - 40 * DIA })
+    const m = criadorDoCanal(entrada([...videos, sem], c))
+    const textos = m.bloco.legenda.map(l => l.texto).join(' | ')
+    expect(textos).toContain('sem retrato de 30 dias')
+    expect(textos).not.toContain('anterior')
+  })
+  it('vídeo publicado antes da coleta do site: "anterior à coleta, que começou em" a data do site', () => {
+    const { videos } = quadro(6, 2)
+    const velho = vid(51, 80)
+    const c = contagem([...videos.map(v => [v.id, 'ok', false] as [string, string, boolean]), [velho.id, null, false]], { coletaDoSiteDesdeMs: AGORA - 50 * DIA, coletaDoCanalDesdeMs: AGORA - 40 * DIA })
+    const m = criadorDoCanal(entrada([...videos, velho], c))
+    const l = m.bloco.legenda.find(x => x.texto.includes('anterior'))
+    expect(l?.texto).toMatch(/anterior à coleta, que começou em \d{2}\/\d{2}/)
+    expect(l?.texto).toContain(new Date(AGORA - 50 * DIA).toISOString().slice(8, 10))
+  })
+})
+
+describe('menores da C4', () => {
+  const titulos = new Map<string, string>()
+  const videos = [vid(0, 40)]
+  it('permissão não conferida no nível contagem: a frase da C3, não "falta de direito"', () => {
+    const l = listaDoCriador({ nome: 'M', resposta: resp({ nivel: 'contagem', itens: [] }), videos, titulos, nBase: 6, permissaoFalhou: true })
+    const { quadroBloco } = { quadroBloco: criadorDoCanal(entrada(...Object.values(quadro(14, 5)) as [VideoLido[], ParteLida<ContagemDeRespostas>])).bloco }
+    const html = renderToStaticMarkup(<CriadorResponde bloco={quadroBloco} lista={l} />)
+    expect(html).toContain('Não deu para conferir a sua permissão agora')
+    expect(html).not.toContain('Você vê o número')
+  })
+  it('o aviso do nível contagem é negrito + resto, sem partir a frase por ponto', () => {
+    const l = listaDoCriador({ nome: 'M', resposta: resp({ nivel: 'contagem', itens: [] }), videos, titulos, nBase: 6 })
+    expect(l.tipo === 'contagem' ? l.aviso.negrito : '').toBe('Você vê o número, não o texto.')
+  })
+  it('o ⓘ puxa 10 e 5 de MEASURE_RULES.comments', () => {
+    const { videos: vs, c } = quadro(14, 5)
+    const html = renderToStaticMarkup(<CriadorResponde bloco={criadorDoCanal(entrada(vs, c)).bloco} lista={null} />)
+    expect(html).toContain(`Percentual só com ${MEASURE_RULES.comments.pctFromN} vídeos ou mais; menos de ${MEASURE_RULES.comments.minVideos}`)
+  })
+  it('canal diferente do tamanho dos inscritos: nenhuma frase fixa de "10 milhões" na página do canal', () => {
+    const { videos: vs, c } = quadro(14, 5)
+    const html = renderToStaticMarkup(<CriadorResponde bloco={criadorDoCanal(entrada(vs, c)).bloco} lista={null} />)
+    expect(html).not.toContain('10 milhões')
+  })
+  it('CanalView não tem campo de comentário nem de criador (a lista é de servidor, fora do modelo da página)', () => {
+    const dir = 'src/app/cms/(authed)/youtube/competitors/_canal'
+    for (const f of ['view-model.ts', 'header-model.ts', 'videos-model.ts', 'trocas-model.ts']) {
+      const src = readFileSync(`${dir}/${f}`, 'utf8')
+      expect(src, f).not.toMatch(/criador-|comentarios-do-canal|comentarios\/|RespostasDoCriador|ComentariosDoCanal/i)
+    }
   })
 })

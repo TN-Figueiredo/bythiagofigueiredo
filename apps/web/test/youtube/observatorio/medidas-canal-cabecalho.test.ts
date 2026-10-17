@@ -75,10 +75,10 @@ describe('as seis células', () => {
     expect(e2.tipo).toBe('nao_carregou')
     expect(estadoDaPagina(null, sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA).tipo).toBe('nao_carregou')
   })
-  it('sem o grupo C: Criador responde diz que a medida chega com a tela de comentários, sem "ainda não começou" nem "parada"', () => {
+  it('sem o grupo C: Criador responde diz que a coleta não foi pedida, sem "ainda não começou" nem "parada"', () => {
     const c = por(celulasDoCabecalho(entrada()), 'criador')
     expect(c.valor).toBe('nao_medido')
-    expect(c.motivo).toBe('não medido: esta medida chega com a tela de comentários')
+    expect(c.motivo).toBe('não medido: a coleta de comentários não foi pedida')
     expect(JSON.stringify(c)).not.toMatch(/ainda não começou|parada/)
   })
   it('nenhuma célula não medida fica sem motivo (varredura)', () => {

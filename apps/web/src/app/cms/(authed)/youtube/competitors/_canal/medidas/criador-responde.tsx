@@ -6,13 +6,14 @@ import Link from 'next/link'
 import { link } from '@/lib/youtube/observatorio/links'
 import { RiInfo } from '../../_canais/ri-info'
 import { NaoCarregou, ZeroMedido } from '../../_chrome/medidas/marcas'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { BlocoDoCriador, CasaDoCriador } from './criador-model'
 import type { ModeloDaLista } from './criador-lista-model'
 import './canal-medidas.css'
 
 const ITENS_DO_INFO = [
-  'Base: vídeos longos publicados nos últimos 90 dias que já têm retrato de 30 dias dos comentários (cerca de 12 comentários por vídeo, escolhidos pelo YouTube).',
-  'Conta: em quantos desses vídeos vimos pelo menos uma resposta do criador. Percentual só com 10 vídeos ou mais; menos de 5, não medido.',
+  `Base: vídeos longos publicados nos últimos ${MEASURE_RULES.comments.windowDays} dias que já têm retrato de 30 dias dos comentários (cerca de 12 comentários por vídeo, escolhidos pelo YouTube).`,
+  `Conta: em quantos desses vídeos vimos pelo menos uma resposta do criador. Percentual só com ${MEASURE_RULES.comments.pctFromN} vídeos ou mais; menos de ${MEASURE_RULES.comments.minVideos}, não medido.`,
   'Piso: só vemos as respostas entre os comentários guardados; onde não vimos resposta, ele pode ter respondido fora dos comentários guardados.',
   'Cálculo do Observatório sobre dados públicos do YouTube. O texto dos comentários é de terceiros e aparece como veio; endereço dentro dele é texto, nunca link.',
 ]
@@ -51,7 +52,7 @@ function Lista({ m, canalId }: { m: ModeloDaLista; canalId?: string }) {
     return (
       <div data-lista-do-criador="contagem">
         <p className="pc-fr2"><span><b>{m.frase.negrito}</b></span></p>
-        <div className="pc-ro-box"><p><b>{m.aviso.split('. ')[0]}.</b> {m.aviso.split('. ').slice(1).join('. ')}</p></div>
+        <div className="pc-ro-box"><p><b>{m.aviso.negrito}</b>{m.aviso.resto}</p></div>
       </div>
     )
   }
@@ -67,7 +68,7 @@ function Lista({ m, canalId }: { m: ModeloDaLista; canalId?: string }) {
           </li>
         ))}
       </ul>
-      {m.aMais > 0 ? <p className="pc-pgl">Mais {m.aMais} {m.aMais === 1 ? 'resposta guardada' : 'respostas guardadas'} não aparecem aqui.</p> : null}
+      {m.aMais > 0 ? <p className="pc-pgl">Mais {m.aMais} {m.aMais === 1 ? 'resposta guardada' : 'respostas guardadas'} não {m.aMais === 1 ? 'cabe' : 'cabem'} nesta lista.</p> : null}
     </div>
   )
 }

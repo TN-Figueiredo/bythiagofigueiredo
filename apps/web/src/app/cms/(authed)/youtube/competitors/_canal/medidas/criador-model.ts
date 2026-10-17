@@ -22,7 +22,7 @@ export interface CelulaDoCriador {
   longa: string
 }
 
-export const FRASE_CRIADOR_NAO_PEDIDA = 'não medido: esta medida chega com a tela de comentários'
+export const FRASE_CRIADOR_NAO_PEDIDA = 'não medido: a coleta de comentários não foi pedida'
 export const FRASE_CRIADOR_NAO_COMECOU = 'não medido: a coleta de comentários ainda não começou'
 export const FRASE_CRIADOR_PARADA = 'não medido: a coleta de comentários está parada'
 
@@ -86,23 +86,34 @@ function vazio(valor: TipoDaCelulaDoCriador, texto: string): CelulaDoCriadorComD
 const semCasas = (tipo: BlocoDoCriador['tipo'], negrito: string, resto: string, pastilha: string | null): BlocoDoCriador =>
   ({ tipo, frase: { negrito, resto }, casas: [], legenda: [], pastilha, nBase: 0 })
 
+/**
+ * A base da conta: os vídeos do formato do canal, fora os que ainda vão estrear, com idade de 0 a `windowDays` dias, o mais novo primeiro.
+ * É a ÚNICA fonte da base: a conta, as casas e a leitura dos comentários (ids) saem daqui, para a lista nunca contar vídeo fora das casas.
+ */
+export function videosDaBase(videos: readonly VideoLido[], fmt: 'long' | 'short', agoraMs: number): Array<{ v: VideoLido; base: number; idade: number }> {
+  const janela = MEASURE_RULES.comments.windowDays
+  return videos
+    .map(v => ({ v, base: baseDaIdade(v) }))
+    .filter((x): x is { v: VideoLido; base: number } => x.base !== null && (fmt === 'short' ? x.v.isShort === true : x.v.isShort === false) && x.v.liveBroadcastContent !== 'upcoming')
+    .map(x => ({ ...x, idade: Math.floor((agoraMs - x.base) / DAY) }))
+    .filter(x => x.idade >= 0 && x.idade <= janela)
+    .sort((a, b) => b.base - a.base)
+}
+
+export const idsDaBaseDoCriador = (videos: readonly VideoLido[], fmt: 'long' | 'short', agoraMs: number): string[] => videosDaBase(videos, fmt, agoraMs).map(x => x.v.id)
+
 export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   const fmt = e.formato.fmt
   const quem = e.formato.soShorts ? 'Shorts' : 'vídeos longos'
   if (e.videos === null || e.contagem === null || !e.contagem.lido) {
     return {
       celula: vazio('nao_carregou', NC),
-      bloco: semCasas('nao_carregou', 'Não carregou:', ' a leitura dos comentários deste canal falhou agora.', NC),
+      bloco: semCasas('nao_carregou', 'Não carregou:', ' não deu para ler os comentários deste canal agora.', NC),
     }
   }
   const c = e.contagem.dados
   const janela = MEASURE_RULES.comments.windowDays
-  const doFormato = e.videos
-    .map(v => ({ v, base: baseDaIdade(v) }))
-    .filter((x): x is { v: VideoLido; base: number } => x.base !== null && (fmt === 'short' ? x.v.isShort === true : x.v.isShort === false) && x.v.liveBroadcastContent !== 'upcoming')
-    .map(x => ({ ...x, idade: Math.floor((e.agoraMs - x.base) / DAY) }))
-    .filter(x => x.idade >= 0 && x.idade <= janela)
-    .sort((a, b) => b.base - a.base)
+  const doFormato = videosDaBase(e.videos, fmt, e.agoraMs)
 
   if (e.estado.tipo === 'saiu') {
     return {
@@ -117,7 +128,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   }
   const viva = tarefaViva({ ultimoOkMs: c.ultimoOkDaTarefaMs, primeiraExecucaoMs: c.primeiraExecucaoDaTarefaMs, toleranciaH: DEFINICAO_RETRATOS_COMENTARIOS.toleranciaVigiaH, agoraMs: e.agoraMs })
   if (viva.estado === 'nao_lida') {
-    return { celula: vazio('nao_carregou', NC), bloco: semCasas('nao_carregou', 'Não carregou:', ' a leitura da coleta de comentários falhou agora.', NC) }
+    return { celula: vazio('nao_carregou', NC), bloco: semCasas('nao_carregou', 'Não carregou:', ' não deu para saber se a coleta de comentários está rodando.', NC) }
   }
   if (viva.estado === 'parada') {
     const f = celulaDoCriador('parada')
@@ -139,15 +150,16 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
     return x.idade < 30 ? 'espera' : 'sem_retrato'
   })
   const cont = (k: CasaDoCriador): number => casas.filter(x => x === k).length
-  const antes = c.coletaDoCanalDesdeMs === null ? 0 : doFormato.filter((x, i) => casas[i] === 'sem_retrato' && x.base < c.coletaDoCanalDesdeMs!).length
+  // "antes da coleta" usa o começo da coleta do SITE (emenda d:m2); o do canal só entra na M11. Aqui o do site nunca é nulo (já passou pelo "não começou").
+  const antes = c.coletaDoSiteDesdeMs === null ? 0 : doFormato.filter((x, i) => casas[i] === 'sem_retrato' && x.base < c.coletaDoSiteDesdeMs!).length
   const legendaDe = (): BlocoDoCriador['legenda'] => {
     const l: BlocoDoCriador['legenda'] = []
     if (cont('com')) l.push({ chave: 'com', texto: `${ptn(cont('com'), 'vídeo', 'vídeos')} com resposta dele` })
     if (cont('sem')) l.push({ chave: 'sem', texto: `${ptn(cont('sem'), 'vídeo', 'vídeos')} em que não vimos resposta` })
-    if (cont('espera')) l.push({ chave: 'espera', texto: `${cont('espera')} ainda sem retrato de 30 dias, fora da conta` })
+    if (cont('espera')) l.push({ chave: 'espera', texto: `${cont('espera')} ainda sem retrato de 30 dias, não entram na conta` })
     if (cont('sem_retrato')) {
       const so = cont('sem_retrato') - antes
-      if (antes > 0) l.push({ chave: 'sem_retrato', texto: `${ptn(antes, 'vídeo anterior à coleta', 'vídeos anteriores à coleta')}${c.coletaDoCanalDesdeMs !== null ? `, que começou em ${dm(spDateOf(c.coletaDoCanalDesdeMs))}` : ''}` })
+      if (antes > 0) l.push({ chave: 'sem_retrato', texto: `${ptn(antes, 'vídeo anterior à coleta', 'vídeos anteriores à coleta')}${c.coletaDoSiteDesdeMs !== null ? `, que começou em ${dm(spDateOf(c.coletaDoSiteDesdeMs))}` : ''}` })
       if (so > 0) l.push({ chave: 'sem_retrato', texto: `${so} sem retrato de 30 dias (o motivo de cada um está na página do vídeo)` })
     }
     return l
@@ -160,13 +172,13 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
     const pctTxt = pct === null ? null : Math.round(pct * 100)
     const espera = cont('espera')
     const resto = (espera > 0 ? ` Outros ${ptn(espera, 'vídeo recente ainda não fechou', 'vídeos recentes ainda não fecharam')} os 30 dias.` : '') +
-      ` É um mínimo: só vemos as respostas dele nos ${MAX_COMENTARIOS} comentários guardados de cada vídeo.`
+      ` É só um piso: só vemos os ${MAX_COMENTARIOS} comentários guardados de cada vídeo.`
     const celula: CelulaDoCriadorComDado = { valor: com === 0 ? 'zero' : 'medido', base: `${quem} de até ${janela} dias com retrato de 30 dias`, motivo: null, k: com, n, pct: pctTxt }
     if (com === 0) {
       return {
         celula, bloco: {
           tipo: 'zero', casas, legenda: legendaDe(), pastilha: null, nBase,
-          frase: { negrito: `Não vimos resposta de ${e.nome} em nenhum dos ${n} vídeos.`, resto: ` É um zero medido: os comentários guardados foram conferidos e nenhum traz resposta dele.${resto}` },
+          frase: { negrito: `Não vimos resposta de ${e.nome} em nenhum dos ${n} vídeos.`, resto: ` É um zero medido: conferimos os comentários guardados e nenhum traz resposta dele.${resto}` },
         },
       }
     }

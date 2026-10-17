@@ -75,6 +75,8 @@ export const FRASES = {
       : faixa === '100k_1m' ? 'Um canal de 100 mil a 1 milhão de inscritos comentou'
         : faixa === '1m_10m' ? 'Um canal de 1 a 10 milhões de inscritos comentou'
           : 'Um canal grande comentou',
+  // Permissão que não se conferiu: o nível cai para o número e a tela diz por quê (a C3 e a C4 usam a mesma frase)
+  permissaoNaoConferida: 'Não deu para conferir a sua permissão agora, então os comentários aparecem só como número. Recarregue a página para tentar de novo.',
   // Texto
   verTudo: 'Ver tudo',
   mostrarMenos: 'Mostrar menos',
