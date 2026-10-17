@@ -250,7 +250,7 @@ describe('a lista', () => {
     const { videos: vs, c } = quadro(14, 5)
     const bloco = criadorDoCanal(entrada(vs, c)).bloco
     const l = listaDoCriador({ nome: 'Matt', resposta: resp(), videos, titulos, nBase: bloco.nBase })
-    const html = renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" />)
+    const html = renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" criador={{ nome: 'Matt', avatar: null, ini: 'M', color: '#336699' }} />)
     expect(html).toContain(link.historico('v1', { from: 'canais', canal: 'c1' }).replace(/&/g, '&amp;'))
     expect(html).toContain('dir="auto"')
     expect(html).toContain('@…')

@@ -45,7 +45,14 @@ export function TextoDaFala({ texto }: { texto: string }) {
   const [aberto, setAberto] = useState(false)
   useEffect(() => {
     const el = ref.current
-    if (el && !aberto) setPassa(el.scrollHeight > el.clientHeight + 1)
+    if (!el || aberto) return
+    const medir = () => setPassa(el.scrollHeight > el.clientHeight + 1)
+    medir()
+    // fio que montou escondido (display:none) mede 0: mede de novo quando o elemento ganha tamanho
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [texto, aberto])
   return (
     <>

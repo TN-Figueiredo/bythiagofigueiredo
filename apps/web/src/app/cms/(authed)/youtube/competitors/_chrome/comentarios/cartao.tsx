@@ -5,7 +5,7 @@
 import { FioDeComentario } from './fio'
 import type { CriadorDoFio } from './fio-model'
 import { FRASES } from './frases'
-import type { CartaoView } from './model'
+import type { CartaoEnxuto, ExtraView } from './enxuto'
 import './comentarios.css'
 
 function Degraus({ rotulo, n }: { rotulo: string; n: number }) {
@@ -17,12 +17,11 @@ function Degraus({ rotulo, n }: { rotulo: string; n: number }) {
   )
 }
 
-function Extra({ v, hrefFilaSaiu }: { v: CartaoView; hrefFilaSaiu?: string }) {
-  const r = v.resposta
-  const semResposta = r && r.forma !== 'respondeu' ? r.texto : null
+function Extra({ v, hrefFilaSaiu }: { v: ExtraView; hrefFilaSaiu?: string }) {
+  const { semResposta } = v
   const itens = [
-    v.texto?.cortado ? <p key="corte" className="cd-nota">{FRASES.cortadoAos}</p> : null,
-    v.texto?.temEndereco ? <p key="url" className="cd-nota">{FRASES.temEndereco}</p> : null,
+    v.cortado ? <p key="corte" className="cd-nota">{FRASES.cortadoAos}</p> : null,
+    v.temEndereco ? <p key="url" className="cd-nota">{FRASES.temEndereco}</p> : null,
     semResposta ? <p key="sem" className="cd-nota">{semResposta}</p> : null,
     v.base ? (
       <div key="base" className="cd-base">
@@ -42,7 +41,7 @@ function Extra({ v, hrefFilaSaiu }: { v: CartaoView; hrefFilaSaiu?: string }) {
   return itens.length > 0 ? <>{itens}</> : null
 }
 
-export function Cartao({ v, criador, escondido = false, hrefFilaSaiu }: { v: CartaoView; criador: CriadorDoFio; escondido?: boolean; hrefFilaSaiu?: string }) {
-  const extra = Extra({ v, hrefFilaSaiu })
+export function Cartao({ v, criador, escondido = false, hrefFilaSaiu }: { v: CartaoEnxuto; criador: CriadorDoFio; escondido?: boolean; hrefFilaSaiu?: string }) {
+  const extra = Extra({ v: v.extra, hrefFilaSaiu })
   return <FioDeComentario v={v.fio} criador={criador} densidade="cartao" escondido={escondido} extra={extra} />
 }

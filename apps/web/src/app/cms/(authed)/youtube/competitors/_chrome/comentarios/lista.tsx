@@ -5,12 +5,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Cartao } from './cartao'
 import type { CriadorDoFio } from './fio-model'
 import { FRASES } from './frases'
-import type { ListaView } from './model'
+import type { ListaEnxuta } from './enxuto'
 import './comentarios.css'
 
 const POR_VEZ = 5
 
-export function ListaDoPainel({ v, criador, hrefFilaSaiu }: { v: ListaView; criador: CriadorDoFio; hrefFilaSaiu?: string }) {
+export function ListaDoPainel({ v, criador, hrefFilaSaiu }: { v: ListaEnxuta; criador: CriadorDoFio; hrefFilaSaiu?: string }) {
   const [todos, setTodos] = useState(false)
   const [saidas, setSaidas] = useState(false)
   const foco = useRef<string | null>(null)

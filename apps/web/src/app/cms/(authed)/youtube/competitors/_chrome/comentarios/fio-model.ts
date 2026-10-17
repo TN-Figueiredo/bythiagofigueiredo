@@ -38,7 +38,7 @@ export function rotuloDoAutor(a: AutorDaFala, criador: CriadorDoFio): string {
     case 'espectador': return 'Espectador'
     case 'criador': return criador.nome
     case 'identidade': return a.nome
-    case 'proprio': return criador.nome
+    case 'proprio': return 'Seu canal'
     case 'grande': return 'Canal grande'
     case 'reservado': return 'Espectador'
   }

@@ -328,7 +328,8 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
     return mx
   }
   const ctx = { nivel: dados.nivel, marcos: dados.marcos, max, hojeSP: o.hojeSP, canalNome: o.canalNome }
-  const cartoes = doDia.map((c, i) => cartaoView(c, i, doDia.length, m, { ...ctx, maxPainel: maxDe(doDia, m), entrou: anterior !== null && !noMarco(c, anterior), saido: false }))
+  const maxDoDia = maxDe(doDia, m)
+  const cartoes = doDia.map((c, i) => cartaoView(c, i, doDia.length, m, { ...ctx, maxPainel: maxDoDia, entrou: anterior !== null && !noMarco(c, anterior), saido: false }))
   const saidos = saidosBrutos.map((c, i) => cartaoView(c, i, saidosBrutos.length, anterior as Marco, { ...ctx, maxPainel: maxDe(saidosBrutos, anterior as Marco), entrou: false, saido: true }))
     .map(v => ({ ...v, id: v.id.replace(/^cd-/, 'cd-saiu-') + `-${m}`, fio: { ...v.fio, id: v.id.replace(/^cd-/, 'cd-saiu-') + `-${m}` } }))
 

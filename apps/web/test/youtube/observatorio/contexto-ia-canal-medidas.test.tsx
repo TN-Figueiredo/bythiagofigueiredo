@@ -472,3 +472,62 @@ describe('Canal, criador: paridade com o bloco, a lista e a célula em cada esta
     expect(normalizar(m.textoDaTela)).toContain(normalizar(cr.pastilha!))
   })
 })
+
+// ───────────────────────── CQ fase 1, correções do parecer do Yannis (I2, I4, M3, M5)
+describe('Canal, criador: correções do parecer (I2, I4, M3, M5)', () => {
+  const dois = (videoId: string, i: number, n: number, extra: Partial<RespostaDoCriador> = {}): RespostaDoCriador => ({
+    ...item(i, extra), videoId, respostas: Array.from({ length: n }, (_, k) => ({ texto: `Resposta ${i}.${k}`, cortado: false, publicadoEm: '2026-10-12T16:00:00.000Z' })),
+  })
+
+  it('I2: "N respostas dele" soma as respostas, não os fios (2 fios, 3 e 1 respostas: 4), na tela e na célula do pacote', async () => {
+    const id = IDS()[0]!
+    const m = await montar({ canal: canalDe(insumosCheios()), lidos: lidos(contagemDe(), respostas('texto', [dois(id, 0, 3), dois(id, 1, 1)])) })
+    expect(CRIADOR_PELO_MODELO(m).lista!.grupos[0]!.respostasDele).toBe('4 respostas dele')
+    const t = m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!
+    expect(t.linhas).toHaveLength(2)
+    expect(t.linhas.every((l) => l[1]!.texto === '4 respostas dele')).toBe(true)
+  })
+
+  it('M3: na célula da tabela as respostas do criador vêm separadas por " · "', async () => {
+    const id = IDS()[0]!
+    const m = await montar({ canal: canalDe(insumosCheios()), lidos: lidos(contagemDe(), respostas('texto', [dois(id, 0, 2)])) }, false)
+    const t = m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!
+    expect(t.linhas[0]![5]!.texto).toContain(' · ')
+  })
+
+  it('M5: a data do pacote vem no fuso de São Paulo (01:30Z do dia 17 é 16/10)', async () => {
+    const m = await montar({ canal: canalDe(insumosCheios()), lidos: lidos(contagemDe(), respostas('texto', [item(0, { publicadoEm: '2026-10-17T01:30:00.000Z', respostas: [{ texto: 'R', cortado: false, publicadoEm: '2026-10-17T01:30:00.000Z' }] })])) }, false)
+    const t = m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!
+    expect(t.linhas[0]![2]!.texto).toBe('16/10')
+    expect(m.textoDoPacote).toContain('16/10: R')
+    expect(m.textoDoPacote).not.toContain('17/10: R')
+  })
+
+  it('I4: canal no teto (24 vídeos x 20 fios x 4 falas de 2.000 caracteres): cabe em 200.000, "Por tamanho" cita o degrau 10 e nenhuma linha vem pela metade', async () => {
+    const LONGO_TXT = (t: string) => t.padEnd(2000, 'x')
+    const itens: RespostaDoCriador[] = []
+    for (let v = 0; v < 24; v += 1) for (let f = 0; f < 20; f += 1) {
+      itens.push({
+        videoId: `w${v}`, texto: LONGO_TXT(`Topo w${v}-${f} `), cortado: false, publicadoEm: '2026-10-12T15:00:00.000Z',
+        respostas: [0, 1, 2].map((k) => ({ texto: LONGO_TXT(`Resp w${v}-${f}-${k} `), cortado: false, publicadoEm: '2026-10-12T16:00:00.000Z' })),
+        curtidas: 10, marco: 7, mencoesTrocadas: 0,
+      })
+    }
+    const m = await montar({ canal: canalDe(insumosCheios()), lidos: lidos(contagemDe(), respostas('texto', itens)) }, false)
+    expect(m.pacote.tabelas.find((x) => x.id === 'canal-criador-respostas')!.linhas).toHaveLength(480)
+    const r = montarTexto(segmentar(m.pacote, CONTEXTO), '', 200_000, 'todos')
+    expect(r.texto.length).toBeLessThanOrEqual(200_000)
+    // cada fio vale ~16 mil caracteres (a linha da tabela e a cópia em JSON do pacote): o degrau 10 passa de 207 mil, então o laço segue até o 5
+    const por = r.texto.split('\n').find((l) => l.startsWith('- Por tamanho: cortei'))
+    expect(por, 'linha Por tamanho').toBeDefined()
+    expect(por).toContain('linhas além da 5ª')
+    expect(por).not.toMatch(/além da (25|10)ª/)
+    // nenhuma linha pela metade: as 5 que sobraram têm as 6 colunas (tabela) ou o objeto fechado (JSON), com as 3 respostas inteiras
+    const tabela = r.texto.split('\n').filter((l) => l.startsWith('| ') && l.includes('Topo w'))
+    const json = r.texto.split('\n').filter((l) => l.includes('"canal-criador-respostas"'))
+    expect(tabela).toHaveLength(5)
+    expect(json).toHaveLength(5)
+    for (const l of tabela) { expect(l.trimEnd().endsWith('|'), l.slice(-30)).toBe(true); for (const k of [0, 1, 2]) expect(l).toMatch(new RegExp(`Resp w0-\\d+-${k} `)) }
+    for (const l of json) { expect(l.trimEnd().replace(/,$/, '').endsWith('}'), l.slice(-30)).toBe(true); expect(() => JSON.parse(l.trim().replace(/,$/, ''))).not.toThrow() }
+  })
+})

@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { Abas } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/abas'
 import { SecaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/secao'
 import { Cartao } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/cartao'
+import { enxugarCartao, enxugarLista } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/enxuto'
 import { EstadoDoPainel, Carregando } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/estados'
 import { ListaDoPainel } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/lista'
 import { estadoDeErro, secaoDeComentarios, type CartaoView, type ListaView } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/model'
@@ -28,7 +29,7 @@ const cartaoComTexto = (texto: string, o = {}): CartaoView => {
   return p.cartoes[0]!
 }
 const CRIADOR: CriadorDoFio = { nome: 'Leo', avatar: 'https://yt3.ggpht.com/leo=s88', ini: 'L', color: '#336699' }
-const renderCartao = (v: CartaoView) => render(<ol><Cartao v={v} criador={CRIADOR} /></ol>)
+const renderCartao = (v: CartaoView) => render(<ol><Cartao v={enxugarCartao(v)} criador={CRIADOR} /></ol>)
 
 describe('C2 · abas', () => {
   const abas = secaoDeComentarios(dados(), OPCOES).abas
@@ -70,7 +71,7 @@ describe('C2 · abas', () => {
 describe('C2 · lista', () => {
   it('cinco fios por vez; o botão "Ver as outras 7" alterna para "Recolher" e o foco vai para o 6º fio', () => {
     const v = lista()
-    const { container } = render(<ListaDoPainel v={v} criador={CRIADOR} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(v)} criador={CRIADOR} />)
     expect(container.querySelector('.cd-fileira')).toBeNull()
     expect(container.querySelector('.cd-casa')).toBeNull()
     expect(container.querySelectorAll('li.cf')).toHaveLength(12)
@@ -88,25 +89,25 @@ describe('C2 · lista', () => {
   })
   it('o fio escondido ainda é alvo de foco (tabindex -1)', () => {
     const v = lista()
-    const { container } = render(<ListaDoPainel v={v} criador={CRIADOR} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(v)} criador={CRIADOR} />)
     const alvo = v.cartoes[9]!
     expect(container.querySelector(`#${alvo.id}`)!.hasAttribute('hidden')).toBe(true)
     expect(container.querySelector(`#${alvo.id}`)!.getAttribute('tabindex')).toBe('-1')
   })
   it('a legenda só tem os motivos que existem e os zeros vão numa frase apagada', () => {
-    const { container } = render(<ListaDoPainel v={lista()} criador={CRIADOR} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(lista())} criador={CRIADOR} />)
     expect([...container.querySelectorAll('.cd-leg')].map(e => e.textContent)).toEqual(['8 mais curtidos', '4 com o criador na conversa'])
     expect(container.querySelector('.cd-zeros')!.textContent).toBe('Nenhum de canal que você acompanha nem de canal grande.')
   })
   it('o selo "Criador" aparece uma vez por resposta do criador vista (3 no fixture)', () => {
-    const { container } = render(<ListaDoPainel v={lista()} criador={CRIADOR} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(lista())} criador={CRIADOR} />)
     expect(container.querySelectorAll('.cf-selo')).toHaveLength(3)
   })
   it('"Ver os N que saíram" abre os fios dos que saíram, com cf-saiu', () => {
     const cs = doze().map((c, i) => ({ ...c, nosMarcos: (i < 10 ? [1, 7] : [1]) as Marco[] }))
     const p = secaoDeComentarios(dados({ comentarios: cs }), OPCOES).paineis[7]
     if (p.kind !== 'lista') throw new Error('lista')
-    const { container } = render(<ListaDoPainel v={p} criador={CRIADOR} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(p)} criador={CRIADOR} />)
     expect(container.querySelector('.cd-cartoes-saidos')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Ver os 2 que saíram dos 12' }))
     const saidos = container.querySelectorAll('.cd-cartoes-saidos li.cf')
@@ -117,7 +118,7 @@ describe('C2 · lista', () => {
     const cs = doze().map((c, i) => ({ ...c, nosMarcos: (i < 11 ? [1, 7] : [7]) as Marco[] }))
     const p = secaoDeComentarios(dados({ comentarios: cs }), OPCOES).paineis[7]
     if (p.kind !== 'lista') throw new Error('lista')
-    const { container } = render(<ListaDoPainel v={p} criador={CRIADOR} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(p)} criador={CRIADOR} />)
     expect(container.querySelector('.cf-entrou')!.textContent).toBe('entrou no dia 7')
   })
 })
@@ -217,7 +218,7 @@ describe('C2 · cartão', () => {
     expect(screen.getByText(/Não veio mais do YouTube desde hoje \(13\/10\)/)).toBeTruthy()
     expect(screen.queryByText('Ver na fila “Saíram do YouTube”')).toBeNull()
     cleanup()
-    render(<ol><Cartao v={v} criador={CRIADOR} hrefFilaSaiu="/cms/x" /></ol>)
+    render(<ol><Cartao v={enxugarCartao(v)} criador={CRIADOR} hrefFilaSaiu="/cms/x" /></ol>)
     expect(screen.getByText('Ver na fila “Saíram do YouTube”').getAttribute('href')).toBe('/cms/x')
   })
   it('as três formas da resposta do criador', () => {

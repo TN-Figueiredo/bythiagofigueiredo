@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // Comentários em produção · T2: o componente FioDeComentario.
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, fireEvent, cleanup } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, fireEvent, cleanup, act } from '@testing-library/react'
+import { rotuloDoAutor } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/fio-model'
 import { FioDeComentario } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/fio'
 import type { AutorDaFala, CriadorDoFio, FalaView, FioView } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/fio-model'
 
@@ -136,5 +137,29 @@ describe('FioDeComentario · respostas, texto e meta', () => {
     expect(container.querySelector('.cf-motivo')?.textContent).toBe('Mais curtido')
     expect(container.querySelector('li.cf')?.className).toContain('m-c')
     expect(container.querySelector('.cf-extra')?.textContent).toBe('aviso do vídeo')
+  })
+})
+
+describe('TextoDaFala · fio que montou escondido (I1)', () => {
+  afterEach(() => { vi.unstubAllGlobals(); delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollHeight; delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientHeight })
+  it('mede 0 enquanto escondido e, quando o observer avisa que ganhou tamanho, o "Ver tudo" aparece', () => {
+    let aviso: () => void = () => undefined
+    class RO { constructor(cb: () => void) { aviso = cb } observe() {} disconnect() {} unobserve() {} }
+    vi.stubGlobal('ResizeObserver', RO)
+    const medida = { scroll: 0, client: 0 }
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, get: () => medida.scroll })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => medida.client })
+    const { container } = montar(fio({ raiz: fala({ tipo: 'espectador' }, 'texto longo '.repeat(80)) }))
+    expect(container.querySelector('.cf-link')).toBeNull()
+    medida.scroll = 200; medida.client = 84
+    act(() => aviso())
+    expect(container.querySelector('.cf-link')?.textContent).toBe('Ver tudo')
+  })
+})
+
+describe('rotuloDoAutor · proprio (M4)', () => {
+  it('não devolve o nome do canal do vídeo (no concorrente seria o nome do concorrente)', () => {
+    expect(rotuloDoAutor({ tipo: 'proprio' }, criador)).toBe('Seu canal')
+    expect(rotuloDoAutor({ tipo: 'proprio' }, criador)).not.toContain(criador.nome)
   })
 })
