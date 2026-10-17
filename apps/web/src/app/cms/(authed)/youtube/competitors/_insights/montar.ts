@@ -22,10 +22,18 @@ async function carregarDirecao(pagina: ObservatoryPage<undefined>, niche: Niche,
       Sentry.captureException(err, { tags: { component: 'observatorio', step: 'medidas-telas-insights' } })
     }
   }
-  return direcaoDoNicho(medidas, concorrentes.map(c => ({ id: c.id, name: c.name, href: obs.link.canais({ channel: c.id }) })), {
+  const cartoes = concorrentes.map(c => ({ id: c.id, name: c.name, href: obs.link.canais({ channel: c.id }) }))
+  const opcoes = {
     leitura: parseLeitura(leitura), hojeSP: spDateOf(now), nicho: obs.nicheLabel(niche),
     seusCanais: obs.channels.filter(c => c.own && c.niche === niche).map(c => c.name),
-  })
+  }
+  // o modelo também nunca derruba a página: dado fora da forma vira o cartão em erro, com o erro no Sentry (Yannis I2)
+  try {
+    return direcaoDoNicho(medidas, cartoes, opcoes)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'direcao-nicho-modelo' } })
+    return direcaoDoNicho('erro', cartoes, opcoes)
+  }
 }
 
 /**

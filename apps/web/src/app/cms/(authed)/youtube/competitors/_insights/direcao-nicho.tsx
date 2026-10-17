@@ -124,7 +124,7 @@ export function DirecaoNicho({ v }: { v: DirecaoNichoView }) {
           {v.barra ? (
             <ul className="q-cont" role="img" aria-label={v.barra.aria}>
               {v.barra.segmentos.filter(s => s.n > 0).map(s => (
-                <li key={s.tipo} className={s.tipo === 'sobe' ? 'up' : s.tipo === 'desce' ? 'dn' : s.tipo === 'estavel' ? 'eq' : 'nm'} style={{ flexGrow: s.n }}>{s.texto}</li>
+                <li key={s.tipo} className={s.tipo === 'sobe' ? 'up' : s.tipo === 'desce' ? 'dn' : s.tipo === 'estavel' ? 'eq' : s.tipo === 'nao_carregou' ? 'er' : 'nm'} style={{ flexGrow: s.n }}><span className="q-ct">{s.texto}</span></li>
               ))}
             </ul>
           ) : null}
@@ -132,7 +132,7 @@ export function DirecaoNicho({ v }: { v: DirecaoNichoView }) {
             <div className="q-sel" role="group" aria-label="Leitura da direção">
               {v.botoes.map(b => (
                 <button type="button" key={b.key} className={'q-op' + (b.nenhum ? ' q-op-nenhum' : '')} data-leitura={b.key} aria-pressed={b.pressed} aria-label={`${b.aria}, ${b.janela}, ${b.contagem}`} onClick={() => escolher(b.key)}>
-                  <span className="q-on">{b.nome}</span>
+                  <span className="q-on"><span className="q-onl">{b.nome}</span><span className="q-onc">{b.curto}</span></span>
                   <small>{b.janela}</small>
                   <span className="q-oc">{b.contagem}</span>
                 </button>

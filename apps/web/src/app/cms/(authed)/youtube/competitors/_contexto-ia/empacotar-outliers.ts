@@ -100,6 +100,7 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   'empty.actions[].primary': APAR, 'empty.actions[].dest': ID,
   count: REP, 'pageIds[]': ID,
 
+  // PENDENTE-E17-PACOTE(idade*; groups[].cards[].idade*): o portão de ligar a IA (G-5) exige esta lista vazia.
   // E5a T8 (colunas de 7 e 30 dias, faixa de cobertura, selo): a tela as mostra; o pacote ainda NÃO as leva (pendência declarada: o empacotador de Outliers
   // ganha as duas colunas numa tarefa própria da E17, com a prova de paridade). Até lá a folha fica declarada como controle de tela, e não como número.
   'idade*': CTRL, 'groups[].cards[].idade*': CTRL, 'sortOptions[].disabled': CTRL,

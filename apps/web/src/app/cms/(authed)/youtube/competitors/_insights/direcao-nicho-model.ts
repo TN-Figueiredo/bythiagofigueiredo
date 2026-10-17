@@ -156,8 +156,8 @@ export interface DirecaoNichoView {
   /** O botão sob a frase quando nada está medido e outra leitura mede ao menos um canal. */
   sugestao: { key: LeituraDaDirecao; texto: string } | null
   contagem: ContagemDaDirecao
-  /** A barra: aria e os quatro segmentos; nula com um canal só ou sem canal. */
-  barra: { aria: string; segmentos: Array<{ tipo: 'sobe' | 'desce' | 'estavel' | 'nao_medido'; n: number; texto: string }> } | null
+  /** A barra: aria e os cinco segmentos; nula com um canal só ou sem canal. */
+  barra: { aria: string; segmentos: Array<{ tipo: 'sobe' | 'desce' | 'estavel' | 'nao_medido' | 'nao_carregou'; n: number; texto: string }> } | null
   botoes: BotaoDeLeitura[]
   legenda: string
   avisos: string[]
@@ -201,13 +201,15 @@ function fraseDoCaso(
     return `Só 1 canal no nicho ${nicho}, e ele ainda não pôde ser medido ${t.objeto}. Sem outro canal, não há com quem comparar.`
   }
   const medidos = c.sobem + c.descem + c.estaveis
+  // TEXTO-A-REVISAR (Logan): quem não carregou é dito à parte; nunca vira "ainda" nem some da frase
+  const falhou = c.naoCarregaram ? ` ${c.naoCarregaram} ${plural(c.naoCarregaram, 'canal não carregou.', 'canais não carregaram.')}` : ''
   if (!medidos) {
     const quando = primeiraData ? `: o primeiro fecha em ${leitura === 'c' ? dma(primeiraData) : dm(primeiraData)}` : ''
-    return `Nenhum canal do nicho ${nicho} tem medida ${t.objeto} ainda${quando}.`
+    return `Nenhum canal do nicho ${nicho} tem medida ${t.objeto} ainda${quando}.${falhou}`
   }
   let f = `▲ ${c.sobem} ${plural(c.sobem, 'sobe', 'sobem')}, ▼ ${c.descem} ${plural(c.descem, 'desce', 'descem')} e ＝ ${c.estaveis} ${plural(c.estaveis, 'fica estável', 'ficam estáveis')} ${t.objeto}, no nicho ${nicho}.`
   if (c.naoMedidos) f += ` ${c.naoMedidos} ${plural(c.naoMedidos, 'canal ainda não pôde ser medido.', 'canais ainda não puderam ser medidos.')}`
-  return f
+  return f + falhou
 }
 
 function contar(ls: ReadonlyArray<Leitura>): ContagemDaDirecao {
@@ -276,17 +278,20 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
       semDado: { ...SEM_DADO, texto: `Adicione um canal de ${nicho} para ver quem sobe e quem desce.` }, erro: null,
     }
   }
-  if (medidas === 'erro') {
+  const emErro = (): DirecaoNichoView => {
     return {
       ...base, estado: 'erro', frase: '', contagem: { ...vazia, total: canais.length, naoCarregaram: canais.length }, botoes: botoesVazios, semDado: null,
       erro: { titulo: 'Não deu para carregar as views dos canais deste nicho.', texto: 'Os outros cartões desta tela carregaram. Tente de novo; se o erro continuar, confira se a sincronização dos canais está atrasada.' },
     }
   }
+  if (medidas === 'erro') return emErro()
 
   // as três leituras de cada canal; só a escolhida ordena
   const todas = new Map<string, Record<LeituraDaDirecao, Leitura>>(canais.map(c => [c.id, {
     a: leituraDoCanal('a', medidas, c.id, hojeSP), b: leituraDoCanal('b', medidas, c.id, hojeSP), c: leituraDoCanal('c', medidas, c.id, hojeSP),
   }]))
+  // nenhum canal carregou: a leitura inteira falhou, e isso não é "ainda não deu tempo" (as três leituras derivam do mesmo carregamento do canal)
+  if (canais.every(c => todas.get(c.id)!.a.tipo === 'nao_carregou')) return emErro()
   const doNicho = (k: LeituraDaDirecao): Leitura[] => canais.map(c => todas.get(c.id)![k])
   const contagemDe = (k: LeituraDaDirecao): ContagemDaDirecao => contar(doNicho(k))
   const botoes: BotaoDeLeitura[] = LEITURAS.map(k => {
@@ -347,14 +352,15 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
     if (aviso) avisos.push(`Até ${dm(aviso.ate)}, os ${t.dias} dias anteriores incluem a mudança de contagem do YouTube (${dm(MEASURE_RULES.countChange)}).`)
   }
 
-  const segmentos: Array<{ tipo: 'sobe' | 'desce' | 'estavel' | 'nao_medido'; n: number; texto: string }> = [
+  const segmentos: Array<{ tipo: 'sobe' | 'desce' | 'estavel' | 'nao_medido' | 'nao_carregou'; n: number; texto: string }> = [
     { tipo: 'sobe', n: contagem.sobem, texto: `▲ ${contagem.sobem} ${plural(contagem.sobem, 'sobe', 'sobem')}` },
     { tipo: 'desce', n: contagem.descem, texto: `▼ ${contagem.descem} ${plural(contagem.descem, 'desce', 'descem')}` },
     { tipo: 'estavel', n: contagem.estaveis, texto: `＝ ${contagem.estaveis} ${plural(contagem.estaveis, 'estável', 'estáveis')}` },
-    { tipo: 'nao_medido', n: contagem.naoMedidos + contagem.naoCarregaram, texto: `◌ ${contagem.naoMedidos + contagem.naoCarregaram} ${plural(contagem.naoMedidos + contagem.naoCarregaram, 'não medido', 'não medidos')}` },
+    { tipo: 'nao_medido', n: contagem.naoMedidos, texto: `◌ ${contagem.naoMedidos} ${plural(contagem.naoMedidos, 'não medido', 'não medidos')}` },
+    { tipo: 'nao_carregou', n: contagem.naoCarregaram, texto: `✕ ${contagem.naoCarregaram} ${plural(contagem.naoCarregaram, 'não carregou', 'não carregaram')}` },
   ]
   const barra = unico ? null : {
-    aria: `${contagem.sobem} ${plural(contagem.sobem, 'sobe', 'sobem')}, ${contagem.descem} ${plural(contagem.descem, 'desce', 'descem')}, ${contagem.estaveis} ${plural(contagem.estaveis, 'estável', 'estáveis')}, ${contagem.naoMedidos + contagem.naoCarregaram} ${plural(contagem.naoMedidos + contagem.naoCarregaram, 'não medido', 'não medidos')}, de ${contagem.total} canais`,
+    aria: `${contagem.sobem} ${plural(contagem.sobem, 'sobe', 'sobem')}, ${contagem.descem} ${plural(contagem.descem, 'desce', 'descem')}, ${contagem.estaveis} ${plural(contagem.estaveis, 'estável', 'estáveis')}, ${contagem.naoMedidos} ${plural(contagem.naoMedidos, 'não medido', 'não medidos')}, ${contagem.naoCarregaram ? `${contagem.naoCarregaram} ${plural(contagem.naoCarregaram, 'não carregou', 'não carregaram')}, ` : ''}de ${contagem.total} canais`,
     segmentos,
   }
   return {
