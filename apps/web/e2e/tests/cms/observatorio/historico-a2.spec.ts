@@ -986,7 +986,7 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     const d = await baixar
     medida(`D10 Baixar da arquivada: ${d ? 'download "' + d.suggestedFilename() + '"' : 'SEM download (popup: ' + ((await popup2)?.url() ?? 'não') + ')'}`)
     expect(d, 'Baixar da arquivada baixa o arquivo').not.toBeNull()
-    expect(d!.suggestedFilename()).toBe('thumbnail-capa-a.svg')
+    expect(d!.suggestedFilename()).toBe('thumbnail-a.svg')
   })
 
   test('A2.3 o diálogo fica acima de tudo e dentro da janela em 1440 e 390 px', async ({ page }) => {
@@ -1078,7 +1078,7 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     const d = await baixou
     medida(`B2 Baixar do lado direito: ${d ? 'download "' + d.suggestedFilename() + '"' : 'SEM download'}`)
     expect(d, 'Baixar do lado arquivado baixa o arquivo').not.toBeNull()
-    expect(d!.suggestedFilename()).toBe(`thumbnail-${nomeLado[1]!.toLowerCase().replace(/\s+/g, '-')}.svg`)
+    expect(d!.suggestedFilename()).toBe(`thumbnail-${nomeLado[1]!.toLowerCase().replace(/\s+/g, '-').replace(/^thumbnail-/, '')}.svg`)
     await expect(dlg(page).locator('.obs-tv-msg'), 'o retorno aparece no modo comparar').toContainText('Download iniciado')
     // Baixar do lado esquerdo (YouTube): a CSP barra o fetch, então abre a imagem em outra aba, com o aviso
     const popupB = page.waitForEvent('popup', { timeout: 15_000 }).catch(() => null)

@@ -199,8 +199,8 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
     frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${nBase === 1 ? 'já tem' : 'já têm'} o retrato de 30 dias; o primeiro dos outros fecha em ${dm(m.fechaEm)}.` }
     curta = `não medido: o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}`
   } else if (m.motivo === 'poucos_videos') {
-    frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${m.n ?? nBase} dos ${total} vídeos têm retrato de 30 dias, e a conta pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos}.` }
-    curta = `não medido: só ${m.n ?? nBase} de ${total} vídeos têm retrato de 30 dias (pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos})`
+    frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${m.n ?? nBase} dos ${total} vídeos ${(m.n ?? nBase) === 1 ? 'tem' : 'têm'} retrato de 30 dias, e a conta pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos}.` }
+    curta = `não medido: só ${m.n ?? nBase} de ${total} vídeos ${(m.n ?? nBase) === 1 ? 'tem' : 'têm'} retrato de 30 dias (pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos})`
   } else if (cont('espera') > 0) {
     // Há vídeos em coleta (ainda sem os 30 dias): dizer "não têm coleta" contradiria as casas e a lista. A data é a do mais antigo em espera.
     const emEspera = doFormato.filter((_, i) => casas[i] === 'espera')

@@ -140,6 +140,14 @@ describe('criadorDoCanal: estados', () => {
     expect(m.celula.valor).toBe('nao_medido')
     expect(m.bloco.frase.resto).toContain('pelo menos 5')
   })
+  it('poucos vídeos com N=1: verbo no singular na frase e na célula (Gio CO, trem 7)', () => {
+    const { videos, c } = quadro(1, 0)
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.bloco.frase.resto).toContain('Só 1 dos 1 vídeos tem retrato de 30 dias')
+    expect(m.celula.motivo).toContain('só 1 de 1 vídeos tem retrato')
+    const dois = criadorDoCanal(entrada(...Object.values(quadro(2, 0)) as [VideoLido[], ParteLida<ContagemDeRespostas>]))
+    expect(dois.bloco.frase.resto).toContain('Só 2 dos 2 vídeos têm retrato')
+  })
   it('desligados pelo canal', () => {
     const videos = Array.from({ length: 6 }, (_, i) => vid(i, 35 + i))
     const m = criadorDoCanal(entrada(videos, contagem(videos.map(v => [v.id, 'desligados', false]))))
