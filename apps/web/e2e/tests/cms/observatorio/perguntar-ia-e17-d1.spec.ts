@@ -491,8 +491,8 @@ if (LIGADO) {
     }
 
     // G-6 (achado do reteste): com o ⓘ aberto por clique de verdade, o Esc fecha só o ⓘ nos dois primeiros ciclos; no terceiro fecha o diálogo inteiro.
-    // `test.fail`: fica vermelho quando consertar (trocar por `test`). Causa não confirmada (suspeita: regra do Chromium para o cancel do <dialog>).
-    test.fail('G-6: três ciclos "clicar no ⓘ, Esc" seguidos: o diálogo continua aberto depois de cada Esc', async ({ browser }) => {
+    // Consertado (L6, 16/10): `dialogo.tsx` cancela o keydown do Esc quando há ⓘ aberto, em vez de depender do `cancel` do <dialog>.
+    test('G-6: três ciclos "clicar no ⓘ, Esc" seguidos: o diálogo continua aberto depois de cada Esc', async ({ browser }) => {
       test.setTimeout(120_000)
       const ctx = await contexto(browser), page = await ctx.newPage()
       await irPara(page, amb!.urls.canais)
@@ -507,8 +507,8 @@ if (LIGADO) {
       await ctx.close()
     })
 
-    // G-7 (achado do reteste): o painel do ⓘ aberto cobre o próprio botão; o segundo clique cai no painel, não fecha. `test.fail`: vermelho quando consertar.
-    test.fail('G-7: com o painel do ⓘ aberto, o botão continua clicável (o segundo clique fecha o painel)', async ({ browser }) => {
+    // G-7 (achado do reteste): o painel do ⓘ aberto cobre o próprio botão; o segundo clique caía no painel. Consertado (L6): `.pi-pop{pointer-events:none}`.
+    test('G-7: com o painel do ⓘ aberto, o botão continua clicável (o segundo clique fecha o painel)', async ({ browser }) => {
       test.setTimeout(60_000)
       const ctx = await contexto(browser), page = await ctx.newPage()
       await irPara(page, amb!.urls.canais)
