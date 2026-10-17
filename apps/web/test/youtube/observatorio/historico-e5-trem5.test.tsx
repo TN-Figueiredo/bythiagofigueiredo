@@ -62,3 +62,19 @@ describe('defeito 4: legenda das 72 horas com a amostra de cada marca', () => {
     expect(leg).toContain('gl-nm-risco')
   })
 })
+
+describe('defeito 5: alvos de 44 px a 390 px, o override no mesmo arquivo depois da regra base', () => {
+  const hist = readFileSync(join(DIR, '..', 'historico.css'), 'utf8')
+  it('ⓘ: regra base e depois o override de 44 px', () => {
+    const base = css.indexOf('.ri-ibtn{')
+    const over = css.indexOf('@media (pointer:coarse),(max-width:900px){\n[data-obs-screen="historico"] .ri-ibtn{min-width:44px;min-height:44px')
+    expect(base).toBeGreaterThan(-1)
+    expect(over).toBeGreaterThan(base)
+  })
+  it('chips de troca (.pair): 44 px no bloco de largura estreita, depois da regra base', () => {
+    const base = hist.indexOf('.pair{display:inline-flex')
+    const over = hist.indexOf('a.inl,[data-obs-screen="historico"] .pair{min-height:44px}')
+    expect(base).toBeGreaterThan(-1)
+    expect(over).toBeGreaterThan(base)
+  })
+})

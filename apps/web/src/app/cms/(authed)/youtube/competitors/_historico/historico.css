@@ -341,7 +341,7 @@
 [data-obs-screen="historico"]{--f4-hit:32px;--f4-row:36px}
 @media (pointer:coarse),(max-width:900px){
   [data-obs-screen="historico"]{--f4-hit:44px;--f4-row:44px}
-  [data-obs-screen="historico"] .btn,[data-obs-screen="historico"] details.data summary,[data-obs-screen="historico"] .expander summary,[data-obs-screen="historico"] .toggle,[data-obs-screen="historico"] a.inl{min-height:44px}
+  [data-obs-screen="historico"] .btn,[data-obs-screen="historico"] details.data summary,[data-obs-screen="historico"] .expander summary,[data-obs-screen="historico"] .toggle,[data-obs-screen="historico"] a.inl,[data-obs-screen="historico"] .pair{min-height:44px}
 }
 
 /* botões segmentados (mesmo desenho dos filtros de Mudanças) */
