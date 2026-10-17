@@ -43,8 +43,14 @@ export interface MedidasDoCanalPack {
   buscando: boolean
   /** "dd/mm" da última leitura boa do canal (só serve de "até dd/mm" para canal fora do ar). */
   ultimaBoa: string | null
-  /** Longos publicados nos últimos 90 dias e nos 90 anteriores (contagem, não frequência). */
-  longos: { recente: number; anterior: number }
+  /** Longos publicados nos últimos 90 dias e nos 90 anteriores (contagem, não frequência). Só longos de formato confirmado, sem lives e sem estreias agendadas. */
+  longos: {
+    recente: number; anterior: number
+    /** O histórico guardado alcança o começo do período anterior? Sem isso, "N contra 0" é falta de cobertura, não queda. `desde` = 'AAAA-MM-DD' do vídeo mais antigo guardado. */
+    cobertura: { ok: true } | { ok: false; desde: string | null }
+    /** Quantos vídeos ficaram fora da conta nos 180 dias (a célula diz). */
+    fora: { semFormato: number; aoVivo: number; agendados: number }
+  }
 }
 
 /** A forma mínima de `MedidasDoCanal` que o pacote guarda; o resto (porVideo, falhas) não vai ao navegador. */
@@ -99,7 +105,15 @@ export type CelulaAcerto =
   | Falta
 export interface Reacao { x: number; texto: string; idade: '30' | 'hoje'; soCurtidas: boolean; soComentarios: boolean; n: number }
 export type CelulaReacao = { tipo: 'medido' } & Reacao | Falta
-export type CelulaContagem = { tipo: 'medido'; simbolo: SimboloDeDirecao; recente: number; anterior: number } | Falta
+export type CelulaContagem =
+  | {
+    tipo: 'medido'; simbolo: SimboloDeDirecao; recente: number; anterior: number
+    /** Variação em %; null quando o período anterior tem 0 (dividir por 0 não dá percentual). */
+    pct: number | null
+    /** "Fora da conta: ..." quando há vídeos de formato não confirmado, ao vivo ou agendados; senão null. */
+    fora: string | null
+  }
+  | Falta
 
 export interface LadoMedidas {
   id: string
@@ -178,8 +192,25 @@ function acertoDe(m: Medida<ValorAcerto>): CelulaAcerto {
   return { tipo: 'medido', acertos: v.acertos, fracassos: v.fracassos, total: v.total, meio: v.total - v.acertos - v.fracassos, pct: v.pctAcerto === null ? null : Math.round(v.pctAcerto * 100) }
 }
 
-/** M? "longos publicados": a mesma regra de ±10% das outras direções, sem piso escondido; com 0 antes só há "subindo" ou "estável". */
+/** TEXTO-A-REVISAR (Logan): os vídeos que a conta deixa de fora. */
+function textoFora(f: MedidasDoCanalPack['longos']['fora']): string | null {
+  const partes = [
+    f.semFormato ? `${f.semFormato} de formato não confirmado` : null,
+    f.aoVivo ? `${f.aoVivo} ao vivo` : null,
+    f.agendados ? `${f.agendados} ${f.agendados === 1 ? 'agendado' : 'agendados'}` : null,
+  ].filter((x): x is string => x !== null)
+  return partes.length ? `Fora da conta: ${partes.join(', ')}.` : null
+}
+
+/** M? "longos publicados": a mesma regra de ±10% das outras direções, sem piso escondido. Período anterior sem cobertura = não medido; base 0 = "subindo" sem percentual. */
 function contagemDe(l: MedidasDoCanalPack['longos']): CelulaContagem {
+  if (!l.cobertura.ok) {
+    // TEXTO-A-REVISAR (Logan)
+    const porque = l.cobertura.desde
+      ? `os vídeos guardados deste canal só vão até ${dm(l.cobertura.desde)}; o período anterior ficaria incompleto`
+      : 'ainda não há vídeos com data guardados deste canal'
+    return { tipo: 'nao_medido', motivo: 'leitura_comecou_depois', porque }
+  }
   const min = 3
   if (l.recente < min && l.anterior < min) {
     const porque = l.recente === 0 && l.anterior === 0 ? 'nenhum longo nos dois períodos' : `${longos(l.recente)} contra ${l.anterior}; precisa de ${min} em um dos períodos`
@@ -187,7 +218,10 @@ function contagemDe(l: MedidasDoCanalPack['longos']): CelulaContagem {
   }
   const d = l.recente - l.anterior
   const variacao = l.anterior > 0 ? d / l.anterior : d > 0 ? 1 : 0
-  return { tipo: 'medido', simbolo: direcaoExibida(variacao).simbolo, recente: l.recente, anterior: l.anterior }
+  return {
+    tipo: 'medido', simbolo: direcaoExibida(variacao).simbolo, recente: l.recente, anterior: l.anterior,
+    pct: l.anterior > 0 ? pctDaContagem(l) : null, fora: textoFora(l.fora),
+  }
 }
 
 /* ================================================================================================================== o lado inteiro */
@@ -229,7 +263,7 @@ export function medidasDoLado(c: { id: string; own: boolean; medidasDoLado?: Med
     id: c.id, proprio: false, naoCarregou: false, estado, ate, a,
     b: direcaoDeVideos(m.m3b, hojeSP, null),
     c: direcaoDeVideos(m.m3c, hojeSP, 'mesma_idade'),
-    pub: contagemDe(mp?.longos ?? { recente: 0, anterior: 0 }),
+    pub: contagemDe(mp?.longos ?? { recente: 0, anterior: 0, cobertura: { ok: true }, fora: { semFormato: 0, aoVivo: 0, agendados: 0 } }),
     m1: { 1: numeroDeIdade(m.m1[1], 1, ate), 7: numeroDeIdade(m.m1[7], 7, ate), 30: numeroDeIdade(m.m1[30], 30, ate) },
     acerto: acertoDe(m.m4), reacao: reacaoDe(m.m7),
   }
@@ -240,4 +274,4 @@ export function medidasDoLado(c: { id: string; own: boolean; medidasDoLado?: Med
 /** A janela de uma direção cruza a mudança de contagem do YouTube de 24/08. */
 export const textoDaMarca = (ate: string): string => `A janela cruza a mudança de contagem do YouTube de 24/08 (vale até ${ate}).`
 /** A variação em % que o quadrado de direção mostra para a contagem de longos publicados (a mesma regra de ±10% das outras direções). */
-export const pctDaContagem = (c: { recente: number; anterior: number }): number => (c.anterior > 0 ? Math.round(((c.recente - c.anterior) / c.anterior) * 100) : c.recente > 0 ? 100 : 0)
+export const pctDaContagem = (c: { recente: number; anterior: number }): number | null => (c.anterior > 0 ? Math.round(((c.recente - c.anterior) / c.anterior) * 100) : null)

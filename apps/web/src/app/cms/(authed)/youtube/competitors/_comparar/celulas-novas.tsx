@@ -6,7 +6,7 @@
 import type { CSSProperties } from 'react'
 import { Direcao } from '../_chrome/medidas/direcao'
 import { AindaNaoExiste, NaoCarregou, ZeroMedido } from '../_chrome/medidas/marcas'
-import { pctDaContagem, textoDaMarca, type Falta, type Ainda, type CelulaDirecao, type CelulaAcerto, type CelulaContagem, type CelulaNumero, type CelulaReacao } from './medidas-do-lado'
+import { textoDaMarca, type Falta, type Ainda, type CelulaDirecao, type CelulaAcerto, type CelulaContagem, type CelulaNumero, type CelulaReacao } from './medidas-do-lado'
 import { TEXTO_LEITURAS_DIFERENTES } from './medidas-do-par'
 import type { RelacaoNova } from './relacao-do-par'
 import { corVar } from './lados'
@@ -38,7 +38,13 @@ export const cor = (c: CorLado) => corVar(c)
 export function Direcional({ c }: { c: CelulaDirecao | CelulaContagem }) {
   if (c.tipo !== 'medido') return <Sem c={c} />
   if ('recente' in c) {
-    return <><Direcao variante="cheio" simbolo={c.simbolo} pct={pctDaContagem(c)} palavraVisivel /><small className="sub num">{c.recente} contra {c.anterior}</small></>
+    return (
+      <>
+        <Direcao variante="cheio" simbolo={c.simbolo} pct={c.pct} palavraVisivel />
+        <small className="sub num">{c.recente} contra {c.anterior}{c.pct === null ? ' (sem base para percentual)' : ''}</small>
+        {c.fora ? <small className="sub" data-fora-da-conta="">{c.fora}</small> : null}
+      </>
+    )
   }
   return (
     <>

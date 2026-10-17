@@ -8,7 +8,7 @@ import { PALAVRA, fraseEscrita, type LinhaDeDirecao } from '../_comparar/direcao
 import type {
   CelulaAcerto, CelulaContagem, CelulaDirecao, CelulaNumero, CelulaReacao, Falta, Ainda,
 } from '../_comparar/medidas-do-lado'
-import { pctDaContagem, textoDaMarca } from '../_comparar/medidas-do-lado'
+import { textoDaMarca } from '../_comparar/medidas-do-lado'
 import { TEXTO_LEITURAS_DIFERENTES, type MedidasDoPar } from '../_comparar/medidas-do-par'
 import type { RelacaoNova } from '../_comparar/relacao-do-par'
 import { direcaoExibida } from '@/lib/youtube/observatorio/medidas-telas/direcao-exibida'
@@ -63,7 +63,10 @@ function falta(c: Falta | Ainda): CelulaDoModeloMedidas {
 
 function direcional(c: CelulaDirecao | CelulaContagem): CelulaDoModeloMedidas {
   if (c.tipo !== 'medido') return falta(c)
-  if ('recente' in c) return medido(direcaoExibida(pctDaContagem(c) / 100).texto, PALAVRA[c.simbolo], [`${c.recente} contra ${c.anterior}`])
+  if ('recente' in c) {
+    const notas = [`${c.recente} contra ${c.anterior}${c.pct === null ? ' (sem base para percentual)' : ''}`, c.fora]
+    return medido(c.pct === null ? PALAVRA[c.simbolo] : direcaoExibida(c.pct / 100).texto, PALAVRA[c.simbolo], notas)
+  }
   return medido(c.texto, PALAVRA[c.simbolo], [c.sub, c.marca ? textoDaMarca(c.marca.ate) : null])
 }
 const numerico = (c: CelulaNumero): CelulaDoModeloMedidas => (c.tipo === 'medido' ? medido(c.texto, null, [c.sub]) : falta(c))

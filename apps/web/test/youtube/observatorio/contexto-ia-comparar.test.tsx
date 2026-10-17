@@ -170,7 +170,7 @@ const planas = (o: Record<string, unknown> = {}): MedidasPlanas => ({
 } as unknown as MedidasPlanas)
 const doLado = (m: MedidasPlanas | null, o: Partial<MedidasDoCanalPack> = {}): MedidasDoCanalPack => ({
   fonte: m ? { tipo: 'medidas', m, extras: null } : { tipo: 'nao_carregou', causa: 'leitura_falhou' },
-  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5 }, ...o,
+  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5, cobertura: { ok: true }, fora: { semFormato: 0, aoVivo: 0, agendados: 0 } }, ...o,
 })
 const comMedidas = (c: Cenario, hojeSP: string, a: MedidasDoCanalPack | undefined, b: MedidasDoCanalPack | undefined): Cenario => ({
   ...c, pack: { ...c.pack, hojeSP, canais: c.pack.canais.map((x) => (x.id === c.a ? { ...x, medidasDoLado: a } : x.id === c.b ? { ...x, medidasDoLado: b } : x)) },

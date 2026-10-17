@@ -27,7 +27,7 @@ const planas = (o: Record<string, unknown> = {}): MedidasPlanas => ({
 } as unknown as MedidasPlanas)
 const doLado = (m: MedidasPlanas | null, o: Partial<MedidasDoCanalPack> = {}): MedidasDoCanalPack => ({
   fonte: m ? { tipo: 'medidas', m, extras: null } : { tipo: 'nao_carregou', causa: 'leitura_falhou' },
-  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5 }, ...o,
+  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5, cobertura: { ok: true }, fora: { semFormato: 0, aoVivo: 0, agendados: 0 } }, ...o,
 })
 
 function pacote(hojeSP: string, lados: Record<string, MedidasDoCanalPack | undefined>, ajusta?: (c: ReturnType<typeof canalDe>[]) => void): CompararPack {

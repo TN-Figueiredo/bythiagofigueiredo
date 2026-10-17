@@ -342,7 +342,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       },
       activity: activityOf(vs.map(x => x.pub), now),
       lastIdx: state === 'backfill' ? null : lastIdx,
-      snapshots, undated,
+      snapshots, undated, youtubeVideoCount: c.youtube_video_count,
       ...(omitted.has(c.id) ? { weeklyOmitted: true } : {}),
     })
   }

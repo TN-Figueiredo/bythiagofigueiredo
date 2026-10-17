@@ -22,7 +22,7 @@ function planas(o: Partial<MedidasPlanas> = {}): MedidasPlanas {
 }
 const pack = (m: MedidasPlanas | null, extra: Partial<MedidasDoCanalPack> = {}): MedidasDoCanalPack => ({
   fonte: m ? { tipo: 'medidas', m, extras: null } : { tipo: 'nao_carregou', causa: 'leitura_falhou' },
-  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5 }, ...extra,
+  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5, cobertura: { ok: true }, fora: { semFormato: 0, aoVivo: 0, agendados: 0 } }, ...extra,
 })
 function par(a: MedidasDoCanalPack | undefined, b: MedidasDoCanalPack | undefined, hojeSP = '2026-12-01') {
   const ca = { ...canalDe('a', { name: 'Ana' }), medidasDoLado: a }
