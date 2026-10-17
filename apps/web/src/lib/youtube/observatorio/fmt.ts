@@ -24,7 +24,7 @@ export function createFmt(clock: Clock, videoOf?: (id: string) => { ageDays?: nu
       if (v == null) return '—'
       if (v < 1000) return String(Math.round(v))
       const big = v >= 1e6, x = big ? v / 1e6 : v / 1e3, d = Math.max(0, 2 - Math.floor(Math.log10(x)))
-      let t = x.toPrecision(3); t = Number(t).toFixed(d).replace(/\.?0+$/, '')
+      let t = x.toPrecision(3); t = Number(t).toFixed(d); if (t.includes('.')) t = t.replace(/0+$/, '').replace(/\.$/, '')
       return t.replace('.', ',') + (big ? ' mi' : ' mil')
     },
     int: v => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'),
