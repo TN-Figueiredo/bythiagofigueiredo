@@ -210,7 +210,7 @@ describe('C2 · estados', () => {
   it('erro de leitura: role alert e "Tentar de novo" que pede nova leitura', () => {
     render(<EstadoDoPainel v={estadoDeErro()} />)
     const a = screen.getByRole('alert')
-    expect(a.textContent).toContain('Não deu para abrir os comentários agora. A leitura falhou.')
+    expect(a.textContent).toContain('Não deu para abrir os comentários agora.')
     expect(a.textContent).not.toContain('Nada foi apagado')
     fireEvent.click(within(a).getByRole('button', { name: 'Tentar de novo' }))
     expect(refresh).toHaveBeenCalledTimes(1)

@@ -26,7 +26,7 @@ function Autor({ a }: { a: AutorView }) {
       )
     case 'criador': return <p className="cd-autor"><strong dir="auto">{a.nome}</strong> <span className="cd-selo-c">{FRASES.seloCriador}</span></p>
     case 'proprio': return <p className="cd-autor"><span className="cd-selo-c">{FRASES.seloSeuCanal}</span> {FRASES.voceComentou}</p>
-    case 'grande': return <p className="cd-faixa-grande">{FRASES.canalGrandeSemNome}</p>
+    case 'grande': return <p className="cd-faixa-grande">{FRASES.canalGrandeSemNome(a.faixa)}</p>
     case 'reservado': return <p className="cd-autor cd-reservado">{FRASES.autorReservado}</p>
     case 'espectador': return <p className="cd-autor">{FRASES.espectador}</p>
   }

@@ -30,7 +30,7 @@ export interface CurtidaView {
 }
 export type AutorView =
   | { tipo: 'identidade'; nome: string; fotoUrl: string | null; ate: string }
-  | { tipo: 'espectador' } | { tipo: 'reservado' } | { tipo: 'grande' }
+  | { tipo: 'espectador' } | { tipo: 'reservado' } | { tipo: 'grande'; faixa: string | null }
   | { tipo: 'criador'; nome: string } | { tipo: 'proprio' }
 export type RespostaView =
   | { forma: 'respondeu'; titulo: string; textos: Array<{ texto: string; cortado: boolean }> | null; reservado: string | null }
@@ -179,7 +179,7 @@ function autorDoCartao(c: Cartao, nivel: Nivel, canalNome: string): AutorView {
   if (!comTexto(c)) return { tipo: 'reservado' }
   const a = c.autor
   if (a.tipo === 'criador') return { tipo: 'criador', nome: nomeDoCriador }
-  if (a.tipo === 'canal_grande') return { tipo: 'grande' }
+  if (a.tipo === 'canal_grande') return { tipo: 'grande', faixa: c.faixas.tamanho }
   if (a.tipo === 'com_identidade' && nivel === 'identidade') return { tipo: 'identidade', nome: a.nome, fotoUrl: a.fotoUrl, ate: dmDeData(a.guardadaAte) }
   return { tipo: 'espectador' }
 }

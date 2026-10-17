@@ -3,7 +3,7 @@
  * `Suspense` PRÓPRIO dentro dos blocos do Histórico: a seção não segura os blocos de cima. Recebe as PROVAS de quem vê (os dois tokens do passo 0
  * da E17); os tokens passam de servidor a servidor e nunca chegam a componente cliente nem ao RSC. Quem decide o nível é o leitor
  * (`lerComentariosDeDestaque` chama `nivelDeQuemVe`); esta tela não decide nível nenhum e nunca lê texto por conta própria.
- * Nunca lança: parte não lida vira o estado de erro da seção ("Não deu para abrir os comentários agora. A leitura falhou.").
+ * Nunca lança: parte não lida vira o estado de erro da seção ("Não deu para abrir os comentários agora.").
  * `SecaoView` é dado deste componente: não é campo de `HistoricoView`.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -20,7 +20,7 @@ import { SecaoDeComentarios } from '../_chrome/comentarios/secao'
 import '../_chrome/comentarios/comentarios.css'
 
 /** TEXTO-A-REVISAR: a faixa quando a conferência de permissão falhou; o nível cai para a contagem e a tela diz por quê (nunca sobe por falta de resposta). */
-export const FAIXA_PERMISSAO_NAO_CONFERIDA = 'Não deu para conferir a sua permissão agora, então os comentários aparecem só em contagem. Tente de novo em instantes.'
+export const FAIXA_PERMISSAO_NAO_CONFERIDA = 'Não deu para conferir a sua permissão agora, então os comentários aparecem só como número. Recarregue a página para tentar de novo.'
 
 /** As provas de quem vê, já resolvidas, e se a conferência da permissão falhou. */
 export interface ProvasResolvidas { provas: ProvasDeQuemVe | null; permissaoFalhou: boolean }

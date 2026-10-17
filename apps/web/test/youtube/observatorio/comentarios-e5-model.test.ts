@@ -123,7 +123,13 @@ describe('C2 · modelo · motivo com zero dito', () => {
     expect(p.legenda[3]!.texto).toBe('1 de canal grande, entre os 20 mais curtidos')
     const v = p.cartoes.find(c => c.chave === 'g')!
     expect(v.base).toEqual({ tamanho: { degrau: 2, texto: 'de 1 a 10 milhões de inscritos' }, razao: 'nao_medida' })
-    expect(v.autor).toEqual({ tipo: 'grande' })
+    expect(v.autor).toEqual({ tipo: 'grande', faixa: '1m_10m' })
+  })
+  it('a frase do canal grande segue a faixa de inscritos, nunca fixa em 10 milhões (trem 5, defeito 2)', () => {
+    expect(FRASES.canalGrandeSemNome('100k_1m')).toBe('Um canal de 100 mil a 1 milhão de inscritos comentou')
+    expect(FRASES.canalGrandeSemNome('1m_10m')).toBe('Um canal de 1 a 10 milhões de inscritos comentou')
+    expect(FRASES.canalGrandeSemNome('10m_mais')).toBe('Um canal com mais de 10 milhões de inscritos comentou')
+    expect(FRASES.canalGrandeSemNome(null)).not.toContain('10 milhões')
   })
 })
 

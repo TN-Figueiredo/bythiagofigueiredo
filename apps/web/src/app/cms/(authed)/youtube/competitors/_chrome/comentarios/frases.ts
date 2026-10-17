@@ -70,7 +70,11 @@ export const FRASES = {
   textoReservado: 'Texto reservado.',
   textoReservadoSub: 'Há um comentário aqui que você não vê.',
   identidadeAte: (dm: string) => `identidade guardada até ${dm}`,
-  canalGrandeSemNome: 'Um canal com mais de 10 milhões de inscritos comentou',
+  canalGrandeSemNome: (faixa: string | null) =>
+    faixa === '10m_mais' ? 'Um canal com mais de 10 milhões de inscritos comentou'
+      : faixa === '100k_1m' ? 'Um canal de 100 mil a 1 milhão de inscritos comentou'
+        : faixa === '1m_10m' ? 'Um canal de 1 a 10 milhões de inscritos comentou'
+          : 'Um canal grande comentou',
   // Texto
   verTudo: 'Ver tudo',
   mostrarMenos: 'Mostrar menos',
@@ -150,7 +154,7 @@ export const FRASES = {
   paradaSemOk: (dm: string) => `A coleta de comentários está parada: sem execução completa desde ${dm}.`,
   paradaSelo: 'coleta parada',
   carregando: 'Carregando os comentários guardados…',
-  erroDeLeitura: 'Não deu para abrir os comentários agora. A leitura falhou.',
+  erroDeLeitura: 'Não deu para abrir os comentários agora.',
   tentarDeNovo: 'Tentar de novo',
   // ⓘ da seção
   infoParagrafos: (mencoesTrocadas: number): string[] => [
