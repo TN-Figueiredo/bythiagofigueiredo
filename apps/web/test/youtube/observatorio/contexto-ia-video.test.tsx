@@ -16,6 +16,7 @@ import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/to
 import {
   empacotarVideo, INVENTARIO_VIDEO, modeloDeVideo, SEM_FOLHA_NA_MATRIZ_VIDEO, SEM_PROVA_POR_IGUALDADE_DIRETA_VIDEO, type ModeloVideo,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video'
+import { INVENTARIO_COMENTARIOS_VIDEO } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-comentarios'
 import { INVENTARIO_MEDIDAS_VIDEO } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-medidas'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -130,7 +131,7 @@ describe('Vídeo: paridade em cada estado da matriz', () => {
       const sobra = new Set(semUso(m.modelo, INVENTARIO_VIDEO))
       for (const k of Object.keys(INVENTARIO_VIDEO)) if (!sobra.has(k)) usos.add(k)
     }
-    expect(Object.keys(INVENTARIO_VIDEO).filter((k) => !usos.has(k) && !SEM_FOLHA_NA_MATRIZ_VIDEO.includes(k) && !(k in INVENTARIO_MEDIDAS_VIDEO))).toEqual([])
+    expect(Object.keys(INVENTARIO_VIDEO).filter((k) => !usos.has(k) && !SEM_FOLHA_NA_MATRIZ_VIDEO.includes(k) && !(k in INVENTARIO_MEDIDAS_VIDEO) && !(k in INVENTARIO_COMENTARIOS_VIDEO))).toEqual([])
   })
 
   it('o pacote da tela: nome do vídeo e do canal como terceiros, sem privado nem comentários', async () => {

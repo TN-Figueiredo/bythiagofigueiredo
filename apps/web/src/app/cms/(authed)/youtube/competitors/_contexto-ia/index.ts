@@ -24,6 +24,8 @@ import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-p
 import { empacotarVideo, modeloDeVideo } from './empacotar-video'
 import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
 import { clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
+import { lerSecaoDeComentarios, resolverProvas } from '../_historico/comentarios-de-destaque'
+import { projetarComentariosDoVideo, type ComentariosVideoIa } from './empacotar-video-comentarios'
 import * as Sentry from '@sentry/nextjs'
 import { empacotarVideoProprio, modeloDeVideoProprio } from './empacotar-video-proprio'
 import { empacotarComparar, modeloDeComparar } from './empacotar-comparar'
@@ -128,17 +130,29 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     // as MESMAS medidas que a página lê (uma leitura só); defeito vira "não carregou" no pacote, nunca bloco vazio
     const doMotor = !m.view.untracked && m.view.video ? m.pagina.obs.videos.find((x) => x.id === m.view.video!.id) : undefined
     let medidas: MedidasVideoIa | null = null
+    let comentarios: ComentariosVideoIa | null = null
     if (doMotor) {
       const pedido = { obterSb: clienteDeServicoDoVideo, siteId: m.pagina.siteId, obs: m.pagina.obs, agoraMs: m.pagina.now, view: m.view, video: doMotor }
       try {
         const lidas = await lerMedidasDoVideo(pedido)
         medidas = lidas === null ? medidasDoVideoNaoCarregaram() : projetarMedidasDoVideo(lidas.d, await lerEstourouDoVideo({ ...pedido, lidas }))
+        // a seção de comentários só existe na tela quando o conjunto foi lido; o nível é o do leitor, com as mesmas provas da página (edição: nula, como na página)
+        if (lidas !== null) {
+          const canais = new Map(m.pagina.obs.channels.map((x) => [x.id, { nome: x.name }] as const))
+          const canalNome = canais.get(doMotor.ch)?.nome ?? ''
+          const lida = await lerSecaoDeComentarios({
+            sb: lidas.sb, siteId: m.pagina.siteId, videoId: doMotor.id, agoraMs: m.pagina.now, canaisDoSite: canais, canalNome,
+            provas: resolverProvas(acessoPrivado(m.pagina.siteId)),
+            video: { t0Ms: lidas.t0Ms, descobertoEmMs: lidas.descobertoMs, canalId: doMotor.ch },
+          })
+          comentarios = projetarComentariosDoVideo(lida, canalNome)
+        }
       } catch (err) {
         Sentry.captureException(err, { tags: { component: 'observatorio-video', step: 'contexto-ia-medidas' } })
-        medidas = medidasDoVideoNaoCarregaram()
+        medidas = medidas ?? medidasDoVideoNaoCarregaram()
       }
     }
-    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view, medidas)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
+    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view, medidas, comentarios)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'video-proprio': async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
