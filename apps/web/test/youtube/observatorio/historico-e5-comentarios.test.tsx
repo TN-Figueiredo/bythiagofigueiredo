@@ -131,7 +131,7 @@ describe('a seção, depois do último bloco do Histórico', () => {
 })
 
 describe('a seção, estados', () => {
-  it('a leitura falhou: "Não deu para abrir os comentários agora. A leitura falhou." e "Tentar de novo", sem a frase do desvio 18', async () => {
+  it('a leitura falhou: "Não deu para abrir os comentários agora." e "Tentar de novo", sem a frase do desvio 18', async () => {
     mocks.leitor.mockResolvedValue({ lido: false, causa: 'erro_do_banco', codigo: 'x' })
     const el = (await ComentariosDeDestaque(props())) as El
     const painel = achar(el, (e) => e.type === EstadoDoPainel)!

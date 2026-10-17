@@ -259,7 +259,7 @@ describe('C2 · frases', () => {
     expect(FRASES.infoParagrafos(1).join(' ')).toContain('“@…”')
   })
   it('nenhuma frase diz "não respondeu"', () => expect(textos().join('\n')).not.toMatch(/não respondeu/i))
-  it('o erro de leitura é o do plano', () => expect(FRASES.erroDeLeitura).toBe('Não deu para abrir os comentários agora. A leitura falhou.'))
+  it('o erro de leitura é o do plano', () => expect(FRASES.erroDeLeitura).toBe('Não deu para abrir os comentários agora.'))
 })
 
 describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', () => {
