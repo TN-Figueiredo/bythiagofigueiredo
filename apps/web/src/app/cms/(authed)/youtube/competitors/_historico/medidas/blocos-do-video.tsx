@@ -8,9 +8,6 @@
 import { Suspense, type ReactNode } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ObsVideo } from '@/lib/youtube/observatorio/types'
-import { baseDaIdade } from '@/lib/youtube/observatorio/medidas/m1'
-import { carregarMedidasDoCanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
-import { completarVideoForaDaJanela } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-video'
 import { lerLeituraDoConjunto, type IObservatorioDaLeitura } from '../../_chrome/medidas/estourou-leitura'
 import type { ForjaAsk, ForjaCancel } from '../../_chrome/forja-view-model'
 import type { PinAction } from '../../_chrome/pin-kit'
@@ -22,14 +19,13 @@ import { HistoricoScreen } from '../historico-screen'
 import type { HistoricoView } from '../view-model'
 import { CartaoSubida } from './cartao-subida'
 import { CurvaPorIdade } from './curva-por-idade'
-import { derivarDoVideo } from './derivar-do-video'
+import { lerMedidasDoVideo } from './ler-do-video'
 import { Horas72 } from './horas-72'
 import { ListaDeMudancasHistorico } from './lista-de-mudancas'
 import { ResumoDoVideo } from './resumo'
 import { cabecalhoDoSaiu } from './saiu-model'
 import './historico-medidas.css'
 
-const H = 3_600_000
 
 export interface PropsBlocosDoVideo {
   /** O cliente de serviço só nasce quando o bloco roda (a página não o cria à toa: vídeo não encontrado nem toca nele). */
@@ -71,36 +67,17 @@ async function estourouDoConjunto(p: PropsBlocosDoVideo, sb: SupabaseClient, c: 
 
 export async function BlocosDoVideo(p: PropsBlocosDoVideo) {
   const comum = { onAskForja: p.onAskForja, onCancelForja: p.onCancelForja, onSyncChannel: p.onSyncChannel, onPin: p.onPin, onUnpin: p.onUnpin, pagerNaTrilha: p.pagerNaTrilha }
-  const sb = p.obterSb()
-  const c = await carregarMedidasDoCanalInteiro(sb, {
-    siteId: p.siteId, obs: p.obs, channelId: p.video.ch, agoraMs: p.agoraMs, pedir: { serie: true, mudancas: true, horas: true },
-  })
+  const lidas = await lerMedidasDoVideo(p)
   // "O conjunto falhou" é só a base (canal, vídeos, marcas, retratos): parte não lida de série, mudanças ou horas não é falha do conjunto
-  if ('naoCarregou' in c.medidas) return <HistoricoScreen view={p.view} erro {...comum} />
-
-  const lidoDoCanal = c.videos.lido ? c.videos.dados.find((v) => v.id === p.video.id) : undefined
-  // uma âncora só para idade, horas e marcos de comentário: o início real (live ou estreia) quando há, a publicação quando não (portão Phil I4)
-  const t0Ms = lidoDoCanal ? (baseDaIdade(lidoDoCanal) ?? p.video.pub) : p.video.pub
-  // vídeo fora da janela do conjunto (180 dias de série e mudanças, 90 de horas): lê só o dele; dentro da janela, nenhuma consulta (portão Phil I2)
-  const ultimoOk = p.obs.channels.find((x) => x.id === p.video.ch)?.sync.last ?? null
-  const comVideo = await completarVideoForaDaJanela(sb, c, {
-    siteId: p.siteId, channelId: p.video.ch, agoraMs: p.agoraMs, okSyncedAt: ultimoOk, video: { id: p.video.id, publicadoEmMs: p.video.pub, baseMs: t0Ms },
-  })
-  const chart = p.view.chart
-  const d = derivarDoVideo(comVideo.canal, {
-    agoraMs: p.agoraMs,
-    video: { id: p.video.id, publicadoEmMs: p.video.pub, viewsAgora: p.video.views, dur: p.video.dur },
-    semLeitura: comVideo.semLeitura,
-    eixoH: chart ? { fromH: chart.fromH, H: chart.H } : { fromH: 0, H: Math.max(0, (p.agoraMs - p.video.pub) / H) },
-  })
-  const descobertoMs = lidoDoCanal?.discoveredAt ? Date.parse(lidoDoCanal.discoveredAt) : NaN
+  if (lidas === null) return <HistoricoScreen view={p.view} erro {...comum} />
+  const { sb, c, d, t0Ms, descobertoMs } = lidas
   const canais = p.canaisDoSite ?? new Map<string, { nome: string }>()
   // C3: a seção de comentários vai por último e num `Suspense` PRÓPRIO: ela não segura os blocos de cima
   const comentarios = p.provas === undefined ? null : (
     <Suspense fallback={<Carregando />}>
       <ComentariosDeDestaque sb={sb} siteId={p.siteId} provas={p.provas} videoId={p.video.id} agoraMs={p.agoraMs}
         canaisDoSite={canais} canalNome={canais.get(p.video.ch)?.nome ?? ''}
-        video={{ t0Ms, descobertoEmMs: Number.isNaN(descobertoMs) ? null : descobertoMs, canalId: p.video.ch }} hrefFilaSaiu={p.linkSaiu?.href} />
+        video={{ t0Ms, descobertoEmMs: descobertoMs, canalId: p.video.ch }} hrefFilaSaiu={p.linkSaiu?.href} />
     </Suspense>
   )
   // "Estourou e parou" do conjunto que a tela já leu (o conjunto SEM a sobreposição do vídeo, que é o que mostra se a série dele faltava)

@@ -22,6 +22,9 @@ import { canalNaoCarregou } from '../_canal/medidas/canal-derivado-async'
 import { contextoDoCanal, lerMedidasDoCanal } from '../_canal/medidas/contexto-do-canal'
 import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-proprio'
 import { empacotarVideo, modeloDeVideo } from './empacotar-video'
+import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
+import { clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
+import * as Sentry from '@sentry/nextjs'
 import { empacotarVideoProprio, modeloDeVideoProprio } from './empacotar-video-proprio'
 import { empacotarComparar, modeloDeComparar } from './empacotar-comparar'
 import { empacotarOutliers, modeloDeOutliers } from './empacotar-outliers'
@@ -121,7 +124,20 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (alvo === null) return null
     const m = await montarVideo(alvo, sp)
     if (m.tipo !== 'concorrente' || m.view.notFound) return null
-    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
+    // as MESMAS medidas que a página lê (uma leitura só); defeito vira "não carregou" no pacote, nunca bloco vazio
+    const doMotor = !m.view.untracked && m.view.video ? m.pagina.obs.videos.find((x) => x.id === m.view.video!.id) : undefined
+    let medidas: MedidasVideoIa | null = null
+    if (doMotor) {
+      const pedido = { obterSb: clienteDeServicoDoVideo, siteId: m.pagina.siteId, obs: m.pagina.obs, agoraMs: m.pagina.now, view: m.view, video: doMotor }
+      try {
+        const lidas = await lerMedidasDoVideo(pedido)
+        medidas = lidas === null ? medidasDoVideoNaoCarregaram() : projetarMedidasDoVideo(lidas.d, await lerEstourouDoVideo({ ...pedido, lidas }))
+      } catch (err) {
+        Sentry.captureException(err, { tags: { component: 'observatorio-video', step: 'contexto-ia-medidas' } })
+        medidas = medidasDoVideoNaoCarregaram()
+      }
+    }
+    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view, medidas)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'video-proprio': async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)

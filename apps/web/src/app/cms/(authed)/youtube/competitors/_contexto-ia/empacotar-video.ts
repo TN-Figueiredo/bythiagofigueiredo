@@ -15,12 +15,15 @@ import type { Rich } from '../_mudancas/view-model'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { BlocoCitado, Celula, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import { INVENTARIO_MEDIDAS_VIDEO, tabelasDeMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
 
 // ───────────────────────── o modelo
 export interface DerivadoVideo {
   rico: { rangeText: string | null; compareSum: string | null }
   registros: Array<{ registro: string; acumuladas: string; porDia: string; esperado: string }>
   descricoes: Array<{ linha: number | null }>
+  /** Os blocos de medida do Histórico (resumo, idade, estourou e parou, 72 horas, subida, mudanças); nulo = não pedidos ao empacotador. */
+  medidas: MedidasVideoIa | null
 }
 export type ModeloVideo = HistoricoView & { derivado: DerivadoVideo }
 
@@ -28,7 +31,7 @@ const cap = (t: string): string => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 const comCap = <T extends { span: string }>(xs: T[]): T[] => xs.map((x) => ({ ...x, span: cap(x.span) }))
 const textoDoRico = (r: Rich): string => r.map((p) => (typeof p === 'string' ? p : 'num' in p ? p.num : p.b)).join('')
 
-export function modeloDeVideo(view: HistoricoView): ModeloVideo {
+export function modeloDeVideo(view: HistoricoView, medidas: MedidasVideoIa | null = null): ModeloVideo {
   const rotulos = view.versions?.descs.rows.map((r) => r.label) ?? []
   // A tela escreve o período de cada versão com a primeira letra maiúscula (`cap`): o modelo do pacote traz o texto como a tela o mostra.
   const versions = view.versions
@@ -45,6 +48,7 @@ export function modeloDeVideo(view: HistoricoView): ModeloVideo {
         const i = m ? rotulos.indexOf(m[1]!) : -1
         return { linha: i >= 0 ? i + 1 : null }
       }),
+      medidas,
     },
   }
 }
@@ -77,6 +81,7 @@ export const INVENTARIO_VIDEO: Inventario = {
   'video.id': ID, 'video.title': 'terceiros', 'video.channel': 'terceiros', 'video.niche': ID, 'video.age': REP, 'video.url': END,
   video: CTRL, range: CTRL, 'crumbs.*': CTRL, 'crumbs.sub.*': CTRL, 'crumbs.sub': CTRL,
   'derivado.rico.rangeText': 'base', 'derivado.rico.compareSum': 'base',
+  'derivado.medidas': CTRL, ...INVENTARIO_MEDIDAS_VIDEO,
 
   // o cabeçalho
   header: CTRL, 'header.thumb.*': IMG, 'header.dur': 'numero', 'header.chan.*': REP, 'header.views.num': 'numero', 'header.views.text': REP,
@@ -385,6 +390,7 @@ function avisosDe(m: ModeloVideo): string[] {
     out.push(...presentes([fc.frase, fc.andamento, fc.vazio, fc.excluido, fc.botao.motivo, fc.bloqueado?.text, fc.doNicho?.text, fc.doNicho?.foot, ...(fc.doNicho?.items.map((i) => i.text) ?? []), ...(fc.etapas?.map((e) => e.texto) ?? [])]))
     for (const k of ['leitura', 'anterior'] as const) if (fc[k]) out.push(...presentes([fc[k]!.leu, ...fc[k]!.doSite]))
   }
+  out.push(...tabelasDeMedidasDoVideo(m.derivado.medidas).avisos)
   return out
 }
 
@@ -392,7 +398,7 @@ function avisosDe(m: ModeloVideo): string[] {
 export function empacotarVideo(modelo: ModeloVideo): PacoteModelo {
   const v = modelo.versions
   const tabelas: Tabela[] = modelo.notFound ? [] : [
-    ...tabelasDoCabecalho(modelo), ...tabelaDeRegistros(modelo),
+    ...tabelasDoCabecalho(modelo), ...tabelasDeMedidasDoVideo(modelo.derivado.medidas).tabelas, ...tabelaDeRegistros(modelo),
     ...(v ? [
       ...tabelasDeVersoes(modelo, 'versoes-titulos', 'As versões do título', 'tabela de versões do título', v.titles.items, 'modelo.versions.titles.items', true),
       ...tabelasDeVersoes(modelo, 'versoes-thumbs', 'As versões da thumbnail', 'tabela de versões da thumbnail', v.thumbs.cards, 'modelo.versions.thumbs.cards', false),
