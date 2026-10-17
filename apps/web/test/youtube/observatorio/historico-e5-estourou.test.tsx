@@ -196,30 +196,26 @@ describe('lerLeituraDoVideo', () => {
     expect(await pedir(obsDe({ own: true }), carregar)).toBeNull()
     expect(carregar).not.toHaveBeenCalled()
   })
-  it('uma leitura basta quando a série não faz falta (a medida já veio completa)', async () => {
+  it('vídeo de 90 dias ou mais: UMA chamada ao motor, com a série só deste vídeo (M-1)', async () => {
     const carregar = vi.fn().mockResolvedValue(siteCom(videoMedido()))
     const l = await pedir(obsDe(), carregar)
     expect(l?.tipo).toBe('estourou_e_parou')
     expect(carregar).toHaveBeenCalledTimes(1)
-    expect(carregar.mock.calls[0]![1].seriesDe).toBeUndefined()
+    expect([...carregar.mock.calls[0]![1].seriesDe.entries()]).toEqual([['c1', ['v1']]])
   })
-  it('a série só é pedida, para este vídeo, quando a primeira leitura diz que falta', async () => {
-    const carregar = vi.fn()
-      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') })))
-      .mockResolvedValueOnce(siteCom(videoMedido()))
-    const l = await pedir(obsDe(), carregar)
-    expect(l?.tipo).toBe('estourou_e_parou')
-    expect(carregar).toHaveBeenCalledTimes(2)
-    expect([...carregar.mock.calls[1]![1].seriesDe.entries()]).toEqual([['c1', ['v1']]])
+  it('vídeo com menos de 90 dias: UMA chamada, sem série (M-1)', async () => {
+    const carregar = vi.fn().mockResolvedValue(siteCom(videoMedido()))
+    await pedir(obsDe({ ageDays: 61 }), carregar)
+    expect(carregar).toHaveBeenCalledTimes(1)
+    expect(carregar.mock.calls[0]![1].seriesDe).toBeUndefined()
   })
   it('série não pedida depois da data e que continua sem leitura: não carregou, nunca "não é o caso"', async () => {
     const falhou = videoMedido({ m10: naoMedido('serie_nao_pedida'), m9: { cauda: medido(0.2, 1, J), aindaRende: naoMedido('leitura_falhou') } })
     const carregar = vi.fn().mockResolvedValue(siteCom(falhou))
     expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
   })
-  it.each(['leitura_falhou', 'calculo_falhou'] as const)('série pedida e não lida (2ª leitura: serie_diaria_incompleta e aindaRende %s): não carregou, nunca não medido (I-1)', async (motivo) => {
+  it.each(['leitura_falhou', 'calculo_falhou'] as const)('série pedida e não lida (serie_diaria_incompleta e aindaRende %s): não carregou, nunca não medido (I-1)', async (motivo) => {
     const carregar = vi.fn()
-      .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_nao_pedida') })))
       .mockResolvedValueOnce(siteCom(videoMedido({ m10: naoMedido('serie_diaria_incompleta'), m9: { cauda: medido(0.2, 1, J), aindaRende: naoMedido(motivo) } })))
     expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
     expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('série do vídeo não lida'), expect.objectContaining({ fingerprint: ['medidas-telas', 'estourou-serie', motivo] }))

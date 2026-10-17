@@ -4,6 +4,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { carregarMedidasDoSite, type IObservatorioDeMedidas, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { aindaNaoExiste } from '@/lib/youtube/observatorio/medidas-telas/calendario'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import type { MedidasDoVideo } from '@/lib/youtube/observatorio/medidas/do-canal'
@@ -33,8 +34,8 @@ export function leituraSemConsulta(obs: Pick<IObservatorioDaLeitura, 'video' | '
 /**
  * Lê a leitura de UM vídeo. Nunca lança: qualquer falha vira "não carregou" (e vai ao Sentry), nunca "não é o caso".
  * O id da URL é cruzado com `obs.video` ANTES de qualquer consulta: vídeo que não é do site, ou de canal próprio, não lê nada.
- * Antes da data em que a leitura passa a existir nada é pedido. Depois, a série diária só é pedida (para esse vídeo) se a primeira leitura disser
- * que ela falta (`serie_nao_pedida`): vídeo ao vivo, sem a medida de 30 dias ou com menos de 90 dias não paga a série.
+ * Antes da data em que a leitura passa a existir nada é pedido. Depois, UMA chamada ao motor por vídeo: a série diária deste vídeo só é pedida
+ * se ele tem 90 dias ou mais (menos que isso não paga a série).
  */
 export async function lerLeituraDoVideo(p: {
   sb: SupabaseClient; siteId: string; obs: IObservatorioDaLeitura; videoId: string; now: number
@@ -53,19 +54,17 @@ export async function lerLeituraDoVideo(p: {
   }
   try {
     const base = { siteId: p.siteId, obs: p.obs, canais: [canal.id], agoraMs: p.now }
-    let mv = doVideo(await carregar(p.sb, base))
-    if (mv && mv.m10.estado === 'nao_medido' && mv.m10.motivo === 'serie_nao_pedida') {
-      const comSerie = doVideo(await carregar(p.sb, { ...base, seriesDe: new Map([[canal.id, [v.id]]]) }))
-      // série pedida e não lida: o motor devolve "série incompleta", que é um motivo de verdade; aqui é falha de leitura
-      const ar = comSerie?.m9.aindaRende
-      if (comSerie && ar && ar.estado === 'nao_medido' && (ar.motivo === 'leitura_falhou' || ar.motivo === 'serie_nao_pedida' || ar.motivo === 'calculo_falhou')) {
-        // só o motivo no agrupamento: nem id nem título
-        Sentry.captureMessage('observatório: série do vídeo não lida (estourou-e-parou)', {
-          level: 'warning', fingerprint: ['medidas-telas', 'estourou-serie', ar.motivo], tags: { component: 'observatorio', step: 'estourou-e-parou' },
-        })
-        return leituraDoVideo(null, null, hojeSP, video)
-      }
-      mv = comSerie
+    // UMA chamada ao motor por vídeo: com 90 dias ou mais a série diária deste vídeo (e só dele) vem junto; com menos, nem é pedida
+    const comSerie = video.idadeDias >= MEASURE_RULES.tail.minAgeDays
+    const mv = doVideo(await carregar(p.sb, comSerie ? { ...base, seriesDe: new Map([[canal.id, [v.id]]]) } : base))
+    const ar = comSerie ? mv?.m9.aindaRende : undefined
+    // série pedida e não lida: o motor devolve "série incompleta", que é um motivo de verdade; aqui é falha de leitura
+    if (ar && ar.estado === 'nao_medido' && (ar.motivo === 'leitura_falhou' || ar.motivo === 'serie_nao_pedida' || ar.motivo === 'calculo_falhou')) {
+      // só o motivo no agrupamento: nem id nem título
+      Sentry.captureMessage('observatório: série do vídeo não lida (estourou-e-parou)', {
+        level: 'warning', fingerprint: ['medidas-telas', 'estourou-serie', ar.motivo], tags: { component: 'observatorio', step: 'estourou-e-parou' },
+      })
+      return leituraDoVideo(null, null, hojeSP, video)
     }
     if (!mv) return leituraDoVideo(null, null, hojeSP, video)
     // "sem reação pública" com a reação que falhou ao ser calculada não é "curtidas ocultas": é leitura que não carregou
