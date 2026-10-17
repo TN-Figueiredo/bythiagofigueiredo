@@ -264,7 +264,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     }
   }
 
-  // X1 + X5: o que a mesma resposta trouxe e não vira coluna do dia. Nunca lança e nunca atrasa as linhas do dia.
+  // X1 + X5: o que a mesma resposta trouxe e não vira coluna do dia. Nunca lança. Roda em série ANTES das linhas do dia e sem prazo próprio (1 RPC + 1 upsert por 200 vídeos, <1 s com ~70 vídeos, dentro do teto do passo); com o banco lento ele consome o teto de metadados.
   if (captura.size > 0) {
     Object.assign(resumo, await gravarEstadoProprio(ctx, videos, captura, agora.getTime()))
   }
