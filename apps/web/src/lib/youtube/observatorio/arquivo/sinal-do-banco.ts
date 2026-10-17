@@ -319,7 +319,7 @@ export function sinalDoBanco(linhas: readonly LinhaBruta[], agoraMs: number, reg
       frase: hojeIlegivel
         ? `Sem leitura do banco do site hoje. A medida das ${horaCheia(regras.readingDayStartHourSP)} não chegou.`
         : ilegiveis > 0
-          ? `${ilegiveis} ${ilegiveis === 1 ? 'linha de medida ilegível' : 'linhas de medida ilegíveis'}; nenhuma serve para a leitura.` // TEXTO-A-REVISAR
+          ? `${ilegiveis} ${ilegiveis === 1 ? 'medida do banco não pôde ser lida' : 'medidas do banco não puderam ser lidas'}; sem leitura válida ainda.`
           : FRASE_NUNCA_MEDIDO,
     }
   }

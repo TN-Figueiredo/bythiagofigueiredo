@@ -146,7 +146,7 @@ export const SEM_FOLHA_NA_MATRIZ_MUDANCAS: readonly string[] = ['forja.card.line
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_MUDANCAS = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
+// Revisto pelo Logan (17/10): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
 const NAO_MEDE_CAUSA = 'se a troca explica a mudança nas views: o efeito compara o vídeo com os outros do canal sem troca, e mostra o que veio junto, não a origem'
 const NAO_MEDE_NAO_ACOMPANHADOS = 'o efeito dos vídeos que o site não acompanha: sem a série diária do vídeo, a tela mostra a troca e diz por que não mede'
 const NAO_MEDE_RETENCAO = 'retenção, taxa de clique e recomendação por vídeo dos concorrentes: o YouTube só entrega esses dados ao dono do canal'

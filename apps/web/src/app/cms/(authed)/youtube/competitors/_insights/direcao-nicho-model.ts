@@ -201,7 +201,7 @@ function fraseDoCaso(
     return `Só 1 canal no nicho ${nicho}, e ele ainda não pôde ser medido ${t.objeto}. Sem outro canal, não há com quem comparar.`
   }
   const medidos = c.sobem + c.descem + c.estaveis
-  // TEXTO-A-REVISAR (Logan): quem não carregou é dito à parte; nunca vira "ainda" nem some da frase
+  // Quem não carregou é dito à parte; nunca vira "ainda" nem some da frase
   const falhou = c.naoCarregaram ? ` ${c.naoCarregaram} ${plural(c.naoCarregaram, 'canal não carregou.', 'canais não carregaram.')}` : ''
   if (!medidos) {
     const quando = primeiraData ? `: o primeiro fecha em ${leitura === 'c' ? dma(primeiraData) : dm(primeiraData)}` : ''
@@ -233,12 +233,12 @@ export interface OpcoesDaDirecao {
   anteriorIncompleto?: readonly string[]
 }
 
-/** TEXTO-A-REVISAR (Logan): a nota das leituras b e c quando o histórico guardado não alcança o período anterior (portão Phil I2). */
+/** A nota das leituras b e c quando o histórico guardado não alcança o período anterior (portão Phil I2). */
 function notaAnteriorIncompleto(n: number): string {
-  return `Atenção: o período anterior pode estar incompleto em ${n} ${plural(n, 'canal', 'canais')}: o histórico guardado não alcança o começo dele, e a comparação pode puxar para cima.`
+  return `Atenção: em ${n} ${plural(n, 'canal', 'canais')} falta histórico do período anterior, e a alta pode estar exagerada.`
 }
 
-function infoDoCartao(nota: string | null = null): DirecaoNichoView['info'] {
+function infoDoCartao(): DirecaoNichoView['info'] {
   const lim = LIMITE_DA_REGUA, eq = Math.round(MEASURE_RULES.equalPct * 100), dias = MEASURE_RULES.direction.windowDays, jan = MEASURE_RULES.channelWindowDays
   return {
     regua: [
@@ -255,7 +255,6 @@ function infoDoCartao(nota: string | null = null): DirecaoNichoView['info'] {
       `Canal inteiro: as views ganhas nos últimos ${dias} dias contra as dos ${dias} anteriores, com ${2 * dias} dias de registro do canal; inclui Shorts e vídeos apagados.`,
       `Vídeos novos: a mediana das views dos longos publicados nos últimos ${jan} dias contra a dos ${jan} anteriores, com ${RULES.weakBase} longos em cada período; descer pode ser só idade.`,
       `Mesma idade: o mesmo, com as views de cada vídeo aos 30 dias de vida; passa a existir em ${dma(mesmaIdadeExisteEm())}.`,
-      ...(nota ? [nota] : []),
       FRASE_FIXA_DA_FONTE,
     ],
     seuCanal: ['O Observatório não coleta o dia a dia público do seu canal, e inventar uma direção para ele seria falsa precisão.', FRASE_FIXA_DA_FONTE],
@@ -275,7 +274,7 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
   const incompletos = leitura === 'a' ? 0 : canais.filter(c => o.anteriorIncompleto?.includes(c.id)).length
   const nota = incompletos ? notaAnteriorIncompleto(incompletos) : null
   const base = {
-    titulo: `Quem sobe e quem desce no nicho ${nicho}`, meta: t.meta, leitura, legenda: t.legenda, fonte: FRASE_FIXA_DA_FONTE, seuCanal, info: infoDoCartao(nota),
+    titulo: `Quem sobe e quem desce no nicho ${nicho}`, meta: t.meta, leitura, legenda: t.legenda, fonte: FRASE_FIXA_DA_FONTE, seuCanal, info: infoDoCartao(),
     sugestao: null, barra: null, avisos: [] as string[], eixo: false, linhas: [] as LinhaDaDirecao[],
   }
   const vazia: ContagemDaDirecao = { sobem: 0, descem: 0, estaveis: 0, naoMedidos: 0, naoCarregaram: 0, total: 0 }

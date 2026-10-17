@@ -20,7 +20,7 @@ export function AgeTimeline({ v }: { v: OutliersView }) {
             <span className="obs-out-t">{s.label}</span><span className="obs-out-c"><span className="obs-out-mono" data-count="q90">{s.count}</span></span>
           </button>
         </div>
-        <div className="obs-out-tl-group">
+        <div className="obs-out-tl-group" tabIndex={0} role="group" aria-label="Faixas de idade do vídeo (rola para o lado em tela estreita)">
           {v.timeline.map(w => (
             <button key={w.id} type="button" className="obs-out-tl-btn" data-age={w.id} aria-pressed={w.selected} title={w.title ?? undefined}
               aria-label={w.ariaLabel} onClick={() => go(w.href)}>

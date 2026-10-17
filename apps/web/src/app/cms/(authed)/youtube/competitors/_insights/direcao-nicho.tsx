@@ -6,6 +6,7 @@
 import { useOptimistic, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { FRASE_FIXA_DA_FONTE } from '@/lib/youtube/observatorio/medidas-telas/frases'
 import { LINHAS_POR_PAGINA, type DirecaoNichoView, type LeituraDaDirecao, type LeituraNoPainel, type LinhaDaDirecao } from './direcao-nicho-model'
 
 const CLASSE = { sobe: 'up', desce: 'dn', estavel: 'eq' } as const
@@ -15,7 +16,7 @@ function Info({ rotulo, linhas }: { rotulo: string; linhas: readonly string[] })
   return (
     <details className="q-info">
       <summary aria-label={rotulo}>ⓘ</summary>
-      <ul>{linhas.map((t, i) => <li key={i}>{t}</li>)}</ul>
+      <ul>{linhas.map((t, i) => <li key={i} className={t === FRASE_FIXA_DA_FONTE ? 'nota' : undefined}>{t}</li>)}</ul>
     </details>
   )
 }
@@ -30,7 +31,7 @@ function Trilha({ l }: { l: LinhaDaDirecao }) {
     return (
       <span className="q-trk" role="img" aria-label={l.aria}>
         <span className="q-banda" /><span className="q-zero" />
-        <span className={'q-bar ' + CLASSE[l.simbolo]} style={{ left: `${esquerda * 100}%`, width: `${largura * 100}%` }} />
+        <span className={'q-bar ' + CLASSE[l.simbolo] + (largura === 0 ? ' q-bar-0' : '')} style={{ left: `${esquerda * 100}%`, width: `${largura * 100}%` }} />
         {l.fora ? <span className={'q-seta ' + (l.fora === 'acima' ? 'd' : 'e')} aria-hidden="true">{l.fora === 'acima' ? '›' : '‹'}</span> : null}
       </span>
     )

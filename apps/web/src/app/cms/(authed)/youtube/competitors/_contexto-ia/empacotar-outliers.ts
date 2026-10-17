@@ -131,7 +131,7 @@ export const SEM_FOLHA_NA_MATRIZ_OUTLIERS: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_OUTLIERS = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as três frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
+// Revisto pelo Logan (17/10): as três frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
 const NAO_MEDE_CAUSA = 'a causa do sucesso de um vídeo: o múltiplo compara o vídeo com os outros do mesmo canal, não diz por que ele foi bem'
 const NAO_MEDE_SO_ACOMPANHADOS = 'os vídeos que o canal tem fora da lista acompanhada: o múltiplo só conta os vídeos que o site já viu de cada canal'
 const NAO_MEDE_RETENCAO = 'retenção, taxa de clique e recomendação por vídeo dos concorrentes: o YouTube só entrega esses dados ao dono do canal'

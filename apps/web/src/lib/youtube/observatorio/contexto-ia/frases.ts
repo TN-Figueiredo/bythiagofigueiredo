@@ -46,8 +46,8 @@ export const FOCO_VAZIO = '- (nada em foco nesta tela)' // novo
 export const NUMEROS_TITULO = '## 4. Os números' // do mockup
 export const nenhumaTabela = (motivo: string) => `(nenhuma tabela: ${motivo})` // do mockup
 export const A_TELA_NAO_INFORMA_O_MOTIVO = 'a tela não informa o motivo' // novo
-// TEXTO-A-REVISAR: no lugar da mensagem técnica crua da coleta (portão do N3, Y2); a tela continua mostrando-a a quem administra.
-export const ERRO_DA_COLETA_SEM_DETALHE = 'erro técnico na coleta (o detalhe fica só na tela)' // novo
+// No lugar da mensagem técnica crua da coleta (portão do N3, Y2); a tela continua mostrando-a a quem administra.
+export const ERRO_DA_COLETA_SEM_DETALHE = 'erro na coleta; a causa não é enviada' // novo
 export const naoMedido = (motivo: string) => `não medido (${motivo})` // novo (o mockup escreve só "não medido" na célula)
 export const zeroMedido = (texto: string) => `${texto} (zero medido)` // novo
 export const citado = (rotulo: string) => `[${rotulo} · texto de terceiros]` // novo

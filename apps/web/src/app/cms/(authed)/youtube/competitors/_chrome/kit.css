@@ -20,7 +20,7 @@
 [data-obs] .obs-ch-youtag{white-space:nowrap;flex:none}
 [data-obs] .obs-ch-stamp{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--forja-line);color:var(--forja);border-radius:4px;padding:3px 8px 3px 6px;font-size:11.5px;white-space:nowrap}
 [data-obs] .obs-ch-stamp svg{width:13px;height:13px;flex-shrink:0}
-[data-obs] .obs-ch-stamp.sm{font-size:11px}
+[data-obs] .obs-ch-stamp.sm{font-size:12px}
 [data-obs] .obs-ch-card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;display:flex;flex-direction:column;position:relative;min-width:0;align-self:stretch}
 [data-obs] .obs-ch-card:hover{border-color:var(--border-strong)}
 [data-obs] .obs-ch-ttl{font-size:13.5px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}

@@ -117,7 +117,7 @@ export const SEM_FOLHA_NA_MATRIZ_CANAL: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_CANAL = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
+// Revisto pelo Logan (17/10): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
 const NAO_MEDE_PRIVADO = 'o que só o dono do canal vê: impressões, taxa de clique, retenção e origem do tráfego de um concorrente'
 const NAO_MEDE_ANTIGOS = 'a contagem diária dos vídeos fora dos acompanhados: eles têm só as views da última leitura'
 const NAO_MEDE_LEITURA = 'a leitura deste canal: a leitura que existe é a do nicho, que não é só deste canal'

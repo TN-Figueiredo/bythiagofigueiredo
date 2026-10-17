@@ -126,3 +126,34 @@ describe('DirecaoNicho: HTML válido (G-1 do Gio, 17/10)', () => {
     expect(document.querySelector('p details')).toBeNull()
   })
 })
+
+describe('DirecaoNicho: painel do ⓘ como popover ancorado (Naksu 17/10, por regra de largura: 390, 1000 e 1210 px)', () => {
+  const regra = (seletor: string): string => {
+    const i = CSS.indexOf(seletor + '{')
+    expect(i, seletor).toBeGreaterThanOrEqual(0)
+    return CSS.slice(i, CSS.indexOf('}', i))
+  }
+  it('o painel é absoluto, não passa da largura do cartão e fica acima das linhas posicionadas', () => {
+    const r = regra('.q-info>ul')
+    expect(r).toMatch(/position:absolute/)
+    expect(r).toMatch(/width:min\(70ch,100%\)/) // 390 px: 100% do cartão; 1000 e 1210 px: 70ch cabe
+    expect(r).toMatch(/box-sizing:border-box/)
+    expect(r).toMatch(/z-index:var\(--z-conteudo\)/)
+    expect(r).toMatch(/border:1px solid var\(--dim\)/)
+  })
+  it('o ⓘ não muda de lugar aberto ou fechado: sem quebra de linha no flex, âncora no cartão', () => {
+    expect(CSS).not.toMatch(/\.q-info\[open\]\{[^}]*flex-basis/)
+    expect(CSS).not.toMatch(/\.q-cap\{flex-wrap/)
+    expect(regra('.q-info')).toMatch(/position:static/)
+    expect(regra('.q-cap,.q-seu')).toMatch(/position:relative/)
+  })
+  it('alvo de 44 px a 390 px (tela estreita ou toque) e foco visível no summary', () => {
+    const media = CSS.slice(CSS.indexOf('@media (max-width:640px),(pointer:coarse){', CSS.indexOf('.q-ocw')))
+    expect(media).toMatch(/\.q-info>summary\{min-width:44px;min-height:44px/)
+    expect(regra('.q-info>summary:focus-visible')).toMatch(/outline:2px solid/)
+  })
+  it('a barra "estável" a 0% continua visível, e o texto só para leitor de tela tem uma definição por faixa de largura', () => {
+    expect(regra('.q-bar-0')).toMatch(/min-width:3px/)
+    expect((CSS.match(/clip:rect\(0 0 0 0\)/g) ?? []).length).toBe(2)
+  })
+})

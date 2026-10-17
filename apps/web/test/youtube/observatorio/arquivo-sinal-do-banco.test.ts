@@ -134,16 +134,16 @@ describe('A5 E10 T2: estados', () => {
     expect(s.estado).toBe('sem_leitura_hoje')
     expect(s.ilegiveis).toBe(1)
     expect(s.cor).toBeNull()
-    expect(s.frase).toContain('1 linha de medida ilegível')
+    expect(s.frase).toContain('1 medida do banco não pôde ser lida')
   })
 
-  it('29 linhas quebradas e nenhuma válida: sem_leitura_hoje com "29 linhas de medida ilegíveis", nunca verde', () => {
+  it('29 linhas quebradas e nenhuma válida: sem_leitura_hoje com "29 medidas do banco não puderam ser lidas", nunca verde', () => {
     const quebradas = Array.from({ length: 29 }, (_, i) => ({ ...linha(-(i + 2), 100), db_bytes: null as unknown as number }))
     const s = ler(quebradas)
     expect(s.estado).toBe('sem_leitura_hoje')
     expect(s.ilegiveis).toBe(29)
     expect(s.cor).toBeNull()
-    expect(s.frase).toContain('29 linhas de medida ilegíveis')
+    expect(s.frase).toContain('29 medidas do banco não puderam ser lidas')
   })
 
   it('banco sem nenhuma linha continua nunca_medido', () => {

@@ -32,6 +32,9 @@ describe('CSS das telas estreitas', () => {
   it('Outliers: a linha do tempo de idades rola dentro do grupo, não corta nem alarga a página (G-6)', () => {
     expect(css('_outliers/outliers.css')).toMatch(/\.obs-out-tl-group\{flex:0 1 auto;max-width:100%;overflow-x:auto\}/)
   })
+  it('Outliers: o grupo que rola é alcançável por teclado (tabindex 0, role group e rótulo; Naksu 2.3)', () => {
+    expect(css('_outliers/age-timeline.tsx')).toMatch(/className="obs-out-tl-group" tabIndex=\{0\} role="group" aria-label="Faixas de idade/)
+  })
   it('Insights: o título não nasce com base zero ao lado da meta (G-2)', () => {
     expect(css('_insights/direcao-nicho.css')).toMatch(/\.q-ch h2\{order:1;flex:1 1 200px;/)
   })

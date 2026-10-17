@@ -193,7 +193,7 @@ function acertoDe(m: Medida<ValorAcerto>): CelulaAcerto {
   return { tipo: 'medido', acertos: v.acertos, fracassos: v.fracassos, total: v.total, meio: v.total - v.acertos - v.fracassos, pct: v.pctAcerto === null ? null : Math.round(v.pctAcerto * 100) }
 }
 
-/** TEXTO-A-REVISAR (Logan): os vídeos que a conta deixa de fora. */
+/** Os vídeos que a conta deixa de fora (texto revisto pelo Logan, 17/10). */
 function textoFora(f: MedidasDoCanalPack['longos']['fora']): string | null {
   const partes = [
     f.semFormato ? `${f.semFormato} de formato não confirmado` : null,
@@ -206,9 +206,8 @@ function textoFora(f: MedidasDoCanalPack['longos']['fora']): string | null {
 /** M? "longos publicados": a mesma regra de ±10% das outras direções, sem piso escondido. Período anterior sem cobertura = não medido; base 0 = "subindo" sem percentual. */
 function contagemDe(l: MedidasDoCanalPack['longos']): CelulaContagem {
   if (!l.cobertura.ok) {
-    // TEXTO-A-REVISAR (Logan)
     const porque = l.cobertura.desde
-      ? `os vídeos guardados deste canal só vão até ${dm(l.cobertura.desde)}; o período anterior ficaria incompleto`
+      ? `os vídeos guardados deste canal só começam em ${dm(l.cobertura.desde)}; o período anterior ficaria incompleto`
       : 'ainda não há vídeos com data guardados deste canal'
     return { tipo: 'nao_medido', motivo: 'leitura_comecou_depois', porque }
   }
