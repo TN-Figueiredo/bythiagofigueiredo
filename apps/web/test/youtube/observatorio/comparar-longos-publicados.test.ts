@@ -116,3 +116,25 @@ describe('buildCompararPack: quais vídeos entram na contagem', () => {
     expect(l.cobertura.ok).toBe(false)
   })
 })
+
+describe('textos menores (Gio M-1, M-2, M-3, M-4)', () => {
+  it('M-1: a data do aviso de 24/08 sai em dd/mm, não em ISO', async () => {
+    const { textoDaMarca } = await import('@/app/cms/(authed)/youtube/competitors/_comparar/medidas-do-lado')
+    expect(textoDaMarca('2027-02-19')).toBe('A janela cruza a mudança de contagem do YouTube de 24/08 (vale até 19/02).')
+    expect(textoDaMarca('19/02')).toContain('vale até 19/02)')
+  })
+  it('M-2: "nenhum longo", não "nenhum longos"', () => {
+    const c = medidasDoLado({
+      id: 'x', own: false,
+      medidasDoLado: {
+        fonte: { tipo: 'medidas', m: { m8: { estado: { estado: 'medido', valor: 'ativo', n: 10, janela: { de: '2026-07-01', ate: '2026-09-30', dias: 90 }, notas: [] }, parado: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] }, queda: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] } },
+          m3a: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] }, m3b: { estado: 'nao_medido', motivo: 'poucos_videos', n: 0, minimo: 3, notas: [] }, m3c: { estado: 'nao_medido', motivo: 'poucos_videos', n: 1, minimo: 3, notas: [] },
+          m1: { 1: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] }, 7: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] }, 30: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] } }, m4: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] }, m7: { estado: 'nao_medido', motivo: 'poucos_videos', notas: [] } } as never, extras: null },
+        videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5, cobertura: OK, fora: FORA0 },
+      },
+    }, '2027-12-01')
+    expect(JSON.stringify(c.b)).toContain('nenhum longo num dos')
+    expect(JSON.stringify(c.b)).not.toMatch(/nenhum longos/)
+    expect(JSON.stringify(c.c)).toContain('só 1 longo num dos')
+  })
+})

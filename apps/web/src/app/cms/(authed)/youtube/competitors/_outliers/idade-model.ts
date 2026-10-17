@@ -126,7 +126,7 @@ export function fraseDaOrdem(idade: Idade, f: FraseDaOrdem, primeira: QuandoFech
   if (!medidos) {
     const quando = primeira
       ? ['a primeira medida fecha em ', { b: dm(primeira.primeira) }, primeira.faltam === 1 ? ' (falta 1 dia)' : ` (faltam ${primeira.faltam} dias)`] as Array<string | { b: string }>
-      : ['nenhuma vai fechar']
+      : ['a medida ainda não foi calculada']
     return [{ b: 'Nenhum' }, (total === 1 ? ` do único outlier tem ${nome} ainda: ` : ` dos ${total} outliers tem ${nome} ainda: `), ...quando, '. Enquanto isso, a lista segue o multiplicador.']
   }
   const sem = total - medidos

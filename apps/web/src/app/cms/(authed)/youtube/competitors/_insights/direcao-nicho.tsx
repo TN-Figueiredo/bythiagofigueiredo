@@ -3,7 +3,7 @@
  * Quem sobe e quem desce no nicho (mockup 17c). Nenhum texto é montado aqui: tudo vem de `direcaoDoNicho`. A leitura escolhida vai em `?leitura=` (só na
  * URL). A frase é um nó `aria-live` que NUNCA é recriado: trocar a leitura troca só o texto dele.
  */
-import { useState } from 'react'
+import { useOptimistic, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { LINHAS_POR_PAGINA, type DirecaoNichoView, type LeituraDaDirecao, type LeituraNoPainel, type LinhaDaDirecao } from './direcao-nicho-model'
@@ -95,16 +95,22 @@ function Linha({ l }: { l: LinhaDaDirecao }) {
 export function DirecaoNicho({ v }: { v: DirecaoNichoView }) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const [mostrar, setMostrar] = useState(LINHAS_POR_PAGINA)
+  // trocar a leitura vai ao servidor (~2 s no dev): o botão marca na hora e a seção diz que está atualizando (Gio M-5)
+  const [pendente, comecar] = useTransition()
+  const [leituraOt, marcar] = useOptimistic(v.leitura)
   const escolher = (k: LeituraDaDirecao) => {
     const q = new URLSearchParams(search?.toString() ?? '')
     if (k === 'a') q.delete('leitura'); else q.set('leitura', k)
     const s = q.toString()
-    router.replace((pathname ?? '') + (s ? '?' + s : ''), { scroll: false })
+    comecar(() => {
+      marcar(k)
+      router.replace((pathname ?? '') + (s ? '?' + s : ''), { scroll: false })
+    })
   }
   const semInfo = v.estado === 'sem-dado' || v.estado === 'erro'
   const visiveis = v.linhas.slice(0, mostrar), resto = v.linhas.length - visiveis.length
   return (
-    <section className="q-cartao" id="direcaoCard" aria-labelledby="direcaoH" data-estado={v.estado}>
+    <section className="q-cartao" id="direcaoCard" aria-labelledby="direcaoH" data-estado={v.estado} aria-busy={pendente || undefined} data-pendente={pendente ? '' : undefined}>
       <div className="q-ch">
         <h2 id="direcaoH">{v.titulo}</h2>
         {semInfo ? null : <Info rotulo="Como ler esta régua" linhas={v.info.regua} />}
@@ -131,7 +137,7 @@ export function DirecaoNicho({ v }: { v: DirecaoNichoView }) {
           <div className="q-selw">
             <div className="q-sel" role="group" aria-label="Leitura da direção">
               {v.botoes.map(b => (
-                <button type="button" key={b.key} className={'q-op' + (b.nenhum ? ' q-op-nenhum' : '')} data-leitura={b.key} aria-pressed={b.pressed} aria-label={`${b.aria}, ${b.janela}, ${b.contagem}`} onClick={() => escolher(b.key)}>
+                <button type="button" key={b.key} className={'q-op' + (b.nenhum ? ' q-op-nenhum' : '')} data-leitura={b.key} aria-pressed={b.key === leituraOt} aria-label={`${b.aria}, ${b.janela}, ${b.contagem}`} onClick={() => escolher(b.key)}>
                   <span className="q-on"><span className="q-onl">{b.nome}</span><span className="q-onc">{b.curto}</span></span>
                   <small>{b.janela}</small>
                   <span className="q-oc">{b.contagem}</span>

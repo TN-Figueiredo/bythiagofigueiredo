@@ -19,9 +19,14 @@ function Regua({ r, cores }: { r: ReguaDeDirecao; cores: [CorLado, CorLado] }) {
       <span className="cp-rd-t" role="img" aria-label={r.alt}>
         <i className="cp-rd-0" aria-hidden="true" />
         {r.tracos.map((f, i) => <i key={i} className="cp-rd-k" aria-hidden="true" style={{ left: `${f * 100}%` }} />)}
-        {r.marcas.map(m => (
-          <b key={m.letra} className="cp-rd-m" aria-hidden="true" style={{ left: `${m.fracao * 100}%`, '--c': COR_LETRA(m.letra, cores) } as CSSProperties}>{m.letra}{m.fora ? (m.fora === 'acima' ? '›' : '‹') : ''}</b>
-        ))}
+        {r.marcas.map(m => {
+          // dois marcadores no mesmo ponto (ex.: os dois em 0%): afastados um de cada lado, para o A não ficar escondido atrás do B (Gio G-4)
+          const junto = r.marcas.length > 1 && r.marcas.every(o => o.fracao === m.fracao)
+          const desloca = junto ? (m.letra === 'A' ? -11 : 11) : 0
+          return (
+          <b key={m.letra} className="cp-rd-m" aria-hidden="true" data-junto={junto ? '' : undefined} style={{ left: `${m.fracao * 100}%`, marginLeft: desloca, '--c': COR_LETRA(m.letra, cores) } as CSSProperties}>{m.letra}{m.fora ? (m.fora === 'acima' ? '›' : '‹') : ''}</b>
+          )
+        })}
       </span>
       {r.semTraco.length ? <small className="cp-rd-s">Sem traço: {r.semTraco.join(', ')}.</small> : null}
     </div>

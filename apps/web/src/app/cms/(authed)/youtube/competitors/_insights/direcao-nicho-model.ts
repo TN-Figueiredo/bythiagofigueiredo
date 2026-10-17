@@ -25,7 +25,7 @@ export interface CanalDoNicho { id: string; name: string; href: string }
 
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const dma = (d: string): string => `${dm(d)}/${d.slice(0, 4)}`
-const n0 = (n: number): string => new Intl.NumberFormat('pt-BR').format(n)
+const n0 = (n: number): string => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n)
 const plural = (n: number, um: string, varios: string): string => (n === 1 ? um : varios)
 
 interface Texto { nome: string; curto: string; janela: string; objeto: string; meta: string; legenda: string; dias: number }

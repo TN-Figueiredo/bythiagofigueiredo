@@ -196,3 +196,6 @@
 .q-mt{margin-right:2px}
 .q-op-nenhum .q-oc{background:var(--surface);border:1px dashed var(--nm-line);color:var(--text);padding:0 6px;border-radius:4px}
 .q-cartao{margin-top:0}
+
+/* troca de leitura em andamento: o conteúdo antigo fica visível, mais fraco, até a resposta chegar */
+.q-cartao[data-pendente] .q-fr,.q-cartao[data-pendente] .q-lista,.q-cartao[data-pendente] .q-cont{opacity:.55}
