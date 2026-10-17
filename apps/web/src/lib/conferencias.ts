@@ -374,6 +374,43 @@ export function conferenciasE5ARi(deploy: string | null): Conferencia[] {
   ]
 }
 
+// E5a grupo C (Comentários de destaque, Tarefa C5): as conferências dependem do dia da promoção a `main` (D) e, as duas últimas, do dia em que
+// a coleta de comentários foi ligada (resposta da CP24, preenchida pelo controlador; NÃO é `E14_DEPLOY`, porque a coleta subiu desligada).
+// Enquanto `E5A_COMENTARIOS_DEPLOY` for `null`, as entradas NÃO existem. Etapa `E5`; ids `e5a-comentarios-*`, distintos dos da leva 1 e 2.
+/** Dia de São Paulo (AAAA-MM-DD) em que o grupo C da E5a (Comentários de destaque) foi promovido a `main`. `null` = ainda não enviado. */
+export const E5A_COMENTARIOS_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que a coleta de comentários foi ligada (CP24). `null` = as entradas de mais 29 e mais 31 não existem. */
+export const E5A_COMENTARIOS_COLETA_LIGADA: string | null = null
+
+const PLANO_E5A_COMENTARIOS = 'docs/superpowers/plans/2026-10-13-a5-e5a-telas-dos-concorrentes-plan.md (seção 7, D0 do grupo C, e Tarefa C5); anotar o resultado em .superpowers/sdd/a5/progress.md'
+
+/**
+ * As conferências do grupo C a partir do dia do envio (D) e do dia em que a coleta foi ligada. `deploy` nulo = sem entradas. Data malformada
+ * (de qualquer dos dois) não some em silêncio: vira uma entrada de 1970 (vermelha). `coletaLigada` nula: só a D0. Entrada com data anterior ao
+ * envio NÃO é gerada (nasceria vencida e deixaria o cron vermelho por conferência que ninguém deixou de fazer); o esperado dela vai para a D0.
+ * Em ordem de data.
+ */
+export function conferenciasE5AComentarios(deploy: string | null, coletaLigada: string | null = null): Conferencia[] {
+  if (deploy === null) return []
+  const invalida = (nome: string, v: string): Conferencia => ({ id: `e5a-comentarios-${nome}-invalido`, etapa: 'E5', data: '1970-01-01', responsavel: 'agente', onde: `${nome === 'deploy' ? 'E5A_COMENTARIOS_DEPLOY' : 'E5A_COMENTARIOS_COLETA_LIGADA'} (apps/web/src/lib/conferencias.ts) está malformada: "${v}". Corrigir para AAAA-MM-DD (dia de São Paulo) ou null`, feitaEm: null })
+  if (!dataReal(deploy)) return [invalida('deploy', deploy)]
+  if (coletaLigada !== null && !dataReal(coletaLigada)) return [invalida('coleta', coletaLigada)]
+  const e = (id: string, data: string, onde: string): Conferencia => ({ id: `e5a-comentarios-${id}`, etapa: 'E5', data, responsavel: 'agente', onde: `${PLANO_E5A_COMENTARIOS}: ${onde}`, feitaEm: null })
+  const m29 = coletaLigada === null ? null : somaDias(coletaLigada, 29)
+  const m31 = coletaLigada === null ? null : somaDias(coletaLigada, 31)
+  const antes29 = m29 !== null && m29 < deploy
+  const antes31 = m31 !== null && m31 < deploy
+  const identidade = 'identidade vencida: nenhum cartão com mais de 28 dias mostra nome ou foto, nem o do canal acompanhado; a prova do item 125 em produção dá zero'
+  const trinta = 'o retrato de 30 dias e M11: a aba de 30 dias de algum vídeo com retrato, e "O criador responde" medido ou "Só N dos M vídeos têm retrato de 30 dias, e a conta pede pelo menos 5"'
+  const d0Extra = `${antes29 ? ` Também nesta D0 (a entrada de mais 29 dias da coleta ligada caiu antes do envio e não foi gerada): ${identidade}.` : ''}${antes31 ? ` Também nesta D0 (a de mais 31 dias caiu antes do envio e não foi gerada): ${trinta}.` : ''}`
+  const l = [
+    e('d0', deploy, `D0 do grupo C: a seção num vídeo com retrato ok, num sem retrato e num com comentários desligados (se houver), com o dono, com um usuário com o direito de ver e com um só leitura, e a página de um canal; os três níveis mostram o que a seção 4.7 do spec 02 diz; curl autenticado como só leitura não acha o texto nem o nome no HTML; a foto carrega ou cai na inicial; nenhuma aba promete data com a coleta parada.${d0Extra}`),
+  ]
+  if (m29 !== null && !antes29) l.push(e('identidade-vencida', m29, `a coleta ligada mais 29 dias: ${identidade}`))
+  if (m31 !== null && !antes31) l.push(e('retrato-30-dias', m31, `a coleta ligada mais 31 dias: ${trinta}`))
+  return l.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+}
+
 // E18 (versões do vídeo próprio): as datas dependem do dia da promoção a `main` (D). O controlador preenche `E18_DEPLOY` (dia de São Paulo,
 // AAAA-MM-DD) no commit do envio, DEPOIS de a MG12 estar em produção com V1 a V5 conferidas e da Tarefa 7 commitada. Enquanto for `null`, as
 // seis entradas NÃO existem (nada vence, nada deixa o cron vermelho). Etapa `E18` (formato `E<n>`).
@@ -543,7 +580,7 @@ export function conferenciasE11(deploy: string | null): Conferencia[] {
   ]
 }
 
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */

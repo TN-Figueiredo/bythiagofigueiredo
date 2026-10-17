@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
+  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -532,7 +532,7 @@ describe('conferências de E5a (tela Canais e conta da aba Mudanças, relativas 
     expect(por['e5a-em-queda']).toMatch(/em queda/)
   })
   it('a constante publicada é nula (sem as entradas na lista) ou uma data real (e a lista tem as quatro)', () => {
-    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-') && !x.id.startsWith('e5a-ri-')).map(x => x.id)
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-') && !x.id.startsWith('e5a-ri-') && !x.id.startsWith('e5a-comentarios-')).map(x => x.id)
     if (E5A_DEPLOY === null) expect(publicadas).toEqual([])
     else {
       expect(ehData(E5A_DEPLOY)).toBe(true)
@@ -591,6 +591,53 @@ describe('conferências de E5a RI (Referências e Inscritos, relativas ao dia do
       expect(ehData(E5A_RI_DEPLOY)).toBe(true)
       expect([...publicadas].sort()).toEqual([...IDS].sort())
     }
+  })
+})
+
+// A5 E5a grupo C (Comentários de destaque, C5): D0 pelo dia do envio; mais 29 e mais 31 pelo dia em que a coleta foi ligada (CP24).
+describe('conferências de E5a grupo C (Comentários de destaque)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+  it('E5A_COMENTARIOS_DEPLOY nula: nenhuma entrada, e nada vence', () => {
+    expect(conferenciasE5AComentarios(null, dia(-100))).toEqual([])
+    expect(conferenciasVencidas(dia(4000), conferenciasE5AComentarios(null))).toEqual([])
+  })
+  it('malformada: uma entrada vermelha, de qualquer das duas datas', () => {
+    for (const ruim of ['amanhã', '2026-13-45', '']) {
+      const a = conferenciasE5AComentarios(ruim)
+      expect(a.map(x => x.id), ruim).toEqual(['e5a-comentarios-deploy-invalido'])
+      expect(conferenciasEmFalha(dia(0), a).map(x => x.id), ruim).toEqual(['e5a-comentarios-deploy-invalido'])
+      const b = conferenciasE5AComentarios(dia(0), ruim)
+      expect(b.map(x => x.id), ruim).toEqual(['e5a-comentarios-coleta-invalido'])
+      expect(b[0]!.onde).toContain('E5A_COMENTARIOS_COLETA_LIGADA')
+    }
+  })
+  it('coleta ligada nula: só a D0', () => {
+    const l = conferenciasE5AComentarios(dia(-10), null)
+    expect(l.map(x => x.id)).toEqual(['e5a-comentarios-d0'])
+    expect(l[0]!.data).toBe(dia(-10))
+    expect(l[0]!.onde).not.toContain('Também nesta D0')
+  })
+  it('coleta ligada depois do envio: D0, mais 29 e mais 31, em ordem', () => {
+    const l = conferenciasE5AComentarios(dia(-50), dia(-45))
+    expect(l.map(x => x.id)).toEqual(['e5a-comentarios-d0', 'e5a-comentarios-identidade-vencida', 'e5a-comentarios-retrato-30-dias'])
+    expect(l.map(x => x.data)).toEqual([dia(-50), dia(-16), dia(-14)])
+    for (const x of l) { expect(x.etapa, x.id).toBe('E5'); expect(x.feitaEm, x.id).toBeNull() }
+    expect(l[1]!.onde).toMatch(/item 125/)
+    expect(l[2]!.onde).toMatch(/pelo menos 5/)
+  })
+  it('coleta ligada há 40 dias no dia do envio: mais 29 e mais 31 não são geradas e a D0 traz o esperado das duas', () => {
+    const l = conferenciasE5AComentarios(dia(0), dia(-40))
+    expect(l.map(x => x.id)).toEqual(['e5a-comentarios-d0'])
+    expect(l[0]!.onde).toMatch(/item 125/)
+    expect(l[0]!.onde).toMatch(/pelo menos 5/)
+    expect(conferenciasVencidas(dia(0), l)).toEqual([])
+  })
+  it('a constante publicada é nula (sem entradas) ou uma data real', () => {
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e5a-comentarios-')).map(x => x.id)
+    if (E5A_COMENTARIOS_DEPLOY === null) expect(publicadas).toEqual([])
+    else expect(publicadas).toContain('e5a-comentarios-d0')
+    expect(E5A_COMENTARIOS_COLETA_LIGADA === null || /^\d{4}-\d{2}-\d{2}$/.test(E5A_COMENTARIOS_COLETA_LIGADA)).toBe(true)
   })
 })
 
