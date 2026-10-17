@@ -643,8 +643,9 @@ describe('syncChannel', () => {
 // A5 R9a: retrato público diário do canal próprio (yt_own_channel_snapshots)
 describe('syncChannel: retrato do canal próprio (MG20)', () => {
   const TABELA = 'yt_own_channel_snapshots'
-  beforeEach(() => { vi.clearAllMocks(); sentryCalls.length = 0; vi.useRealTimers() })
+  beforeEach(() => { vi.clearAllMocks(); sentryCalls.length = 0; vi.useRealTimers(); diaCoberto = { count: 0, error: null } })
 
+  let diaCoberto: unknown = { count: 0, error: null }
   function montar(retrato: () => unknown, estado: () => unknown = () => ({ data: 1, error: null })) {
     const retratoUpsert = vi.fn(retrato)
     const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = []
@@ -660,7 +661,7 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
         if (table === 'youtube_channels') {
           return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }) }
         }
-        if (table === TABELA) return { upsert: retratoUpsert }
+        if (table === TABELA) return { upsert: retratoUpsert, select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue(diaCoberto) }) }) }
         return { select: vi.fn() }
       }),
     }
@@ -681,6 +682,37 @@ describe('syncChannel: retrato do canal próprio (MG20)', () => {
     expect(r.avisos?.some(a => a.startsWith('retrato do canal não gravado'))).toBe(true)
     expect(sentryCalls).toHaveLength(1)
     expect(sentryCalls[0]!.ctx).toMatchObject({ level: 'error', fingerprint: ['sync-youtube', 'retrato-proprio'] })
+  })
+
+  it('leitura ruim num dia que JÁ tem retrato: tentativa ok, sem aviso e sem Sentry (portão I-3)', async () => {
+    diaCoberto = { count: 1, error: null }
+    const { supabase, tentativas } = montar(() => ({ error: null }))
+    mockFetchStats.mockResolvedValue({ ...base, ...RAW_VAZIO })
+    const r = await rodar(supabase)
+    expect(tentativas('retrato_canal')).toHaveLength(1)
+    expect(tentativas('retrato_canal')[0]).toMatchObject({ p_outcome: 'ok' })
+    expect(r.avisos?.some(a => a.startsWith('retrato do canal'))).toBeFalsy()
+    expect(sentryCalls).toHaveLength(0)
+  })
+
+  it('a conferência do dia falha: segue o caminho da falha (desconhecido não é ok)', async () => {
+    diaCoberto = { count: null, error: { message: 'x' } }
+    const { supabase, tentativas } = montar(() => ({ error: null }))
+    mockFetchStats.mockResolvedValue({ ...base, ...RAW_VAZIO })
+    await rodar(supabase)
+    expect(tentativas('retrato_canal')[0]).toMatchObject({ p_outcome: 'sem_dado_na_janela' })
+    expect(sentryCalls).toHaveLength(1)
+  })
+
+  it('a tentativa que não grava vira aviso (M-4 do portão)', async () => {
+    const { supabase, rpcCalls } = montar(() => ({ error: null }))
+    const orig = (supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => Promise<unknown> }).rpc
+    ;(supabase as unknown as { rpc: unknown }).rpc = vi.fn(async (fn: string, a: Record<string, unknown>) =>
+      fn === 'yt_own_attempt_record' ? { data: null, error: { code: '42883', message: 'boom' } } : orig(fn, a))
+    mockFetchStats.mockResolvedValue({ ...base, subscriberCountRaw: 10, viewCountRaw: 1, videoCountRaw: 5, hidden: false })
+    const r = await rodar(supabase)
+    expect(rpcCalls.length).toBeGreaterThanOrEqual(0)
+    expect(r.avisos?.some(a => a.includes('não anotada'))).toBe(true)
   })
 
   it('stats só com views (subscriberCountRaw nulo, hidden false): nenhum upsert de retrato', async () => {
@@ -768,7 +800,7 @@ describe('syncChannel: estado do canal próprio (X2)', () => {
     mockFetchStats.mockResolvedValue({ ...stats, estado: { sha: 'abc', raw: { status: { privacyStatus: 'public' } } }, estadoAusentes: [] })
     const r = await rodar(supabase)
     const c = rpcCalls.find(x => x.fn === 'yt_own_channel_state_record')!
-    expect(c.args).toEqual({ p_rows: [{ youtube_channel_id: 'ch-1', site_id: 'site-1', state_sha256: 'abc', raw: { status: { privacyStatus: 'public' } } }] })
+    expect(c.args).toEqual({ p_rows: [{ channel_id: 'ch-1', site_id: 'site-1', state_sha256: 'abc', raw: { status: { privacyStatus: 'public' } } }] })
     expect(tent()[0]).toMatchObject({ p_outcome: 'ok' })
     expect(r.avisos ?? []).toEqual([])
   })
