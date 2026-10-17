@@ -1,0 +1,82 @@
+{
+  "kind": "youtube#playlistListResponse",
+  "etag": "e0",
+  "nextPageToken": "CAUQAA",
+  "pageInfo": {
+    "totalResults": 4,
+    "resultsPerPage": 50
+  },
+  "items": [
+    {
+      "kind": "youtube#playlist",
+      "etag": "ea",
+      "id": "PLsint0000000000000000000000000001",
+      "snippet": {
+        "publishedAt": "2024-05-01T12:00:00Z",
+        "channelId": "UCsint",
+        "title": "Viagem à Ásia",
+        "description": "Roteiro, dicas",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.example.test/a.jpg"
+          }
+        },
+        "channelTitle": "Canal sintético",
+        "localized": {
+          "title": "Viagem à Ásia",
+          "description": "Roteiro, dicas"
+        }
+      },
+      "status": {
+        "privacyStatus": "public"
+      },
+      "contentDetails": {
+        "itemCount": 12
+      },
+      "localizations": {
+        "en": {
+          "title": "Asia trip",
+          "description": "x"
+        }
+      }
+    },
+    {
+      "kind": "youtube#playlist",
+      "etag": "eb",
+      "id": "PLsint0000000000000000000000000002",
+      "snippet": {
+        "publishedAt": "2024-06-01T12:00:00Z",
+        "channelId": "UCsint",
+        "title": "Vazia",
+        "description": "",
+        "thumbnails": {},
+        "channelTitle": "Canal sintético"
+      },
+      "status": {
+        "privacyStatus": "unlisted"
+      }
+    },
+    {
+      "kind": "youtube#playlist",
+      "etag": "ec",
+      "id": "UUsint000000000000000000",
+      "snippet": {
+        "title": "Envios"
+      },
+      "contentDetails": {
+        "itemCount": 99
+      }
+    },
+    {
+      "kind": "youtube#playlist",
+      "etag": "ed",
+      "id": "UULFsint00000000000000000",
+      "snippet": {
+        "title": "Envios longos"
+      },
+      "contentDetails": {
+        "itemCount": 9
+      }
+    }
+  ]
+}

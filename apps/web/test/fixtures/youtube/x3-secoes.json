@@ -1,0 +1,31 @@
+{
+  "kind": "youtube#channelSectionListResponse",
+  "etag": "s0",
+  "items": [
+    {
+      "kind": "youtube#channelSection",
+      "etag": "sb",
+      "id": "sec-b",
+      "snippet": {
+        "type": "multiplePlaylists",
+        "position": 1,
+        "title": "Séries"
+      },
+      "contentDetails": {
+        "playlists": [
+          "PLsint0000000000000000000000000001",
+          "PLsint0000000000000000000000000002"
+        ]
+      }
+    },
+    {
+      "kind": "youtube#channelSection",
+      "etag": "sa",
+      "id": "sec-a",
+      "snippet": {
+        "type": "recentUploads",
+        "position": 0
+      }
+    }
+  ]
+}
