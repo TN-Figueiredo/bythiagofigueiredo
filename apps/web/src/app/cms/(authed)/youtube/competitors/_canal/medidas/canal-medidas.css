@@ -293,3 +293,17 @@
 [data-obs-screen="canal"] .pc-amostra{flex:none;display:block}
 /* N2 (Naksu): a régua do bloco de direção ocupa a coluna inteira, alinhada ao texto, e não os 124 px do chrome compartilhado */
 [data-obs-screen="canal"] .pc-dg .obs-md-rg{width:100%;min-width:160px;max-width:420px}
+/* N3 (Naksu): a 390 px as 13 casas de Ritmo não cabem com dígito de 12 px; a faixa rola dentro dela, o dígito não encolhe nem encosta na borda */
+@media (max-width:520px){
+[data-obs-screen="canal"] .pc-cs-l{grid-template-columns:repeat(13,minmax(26px,1fr));overflow-x:auto;padding-bottom:2px}
+[data-obs-screen="canal"] .pc-cs.com b{padding:0 2px;font-variant-numeric:tabular-nums}
+}
+/* N4 (Naksu): alvos de toque de 44 px por largura de tela, não só por ponteiro (a captura de 390 px não é coarse) */
+@media (max-width:600px){
+[data-obs-screen="canal"] .chead .acts .obs-ch-btn{min-height:44px}
+[data-obs-screen="canal"] .chead .acts .obs-ch-btn.obs-ch-icon{width:44px;min-width:44px}
+[data-obs-screen="canal"] .ibtn{width:44px;height:44px}
+[data-obs-screen="canal"] .niche{height:44px}
+[data-obs-screen="canal"] .nmore{min-height:44px;padding:0 8px}
+[data-obs-screen="canal"] .gl-tab summary{min-height:44px}
+}
