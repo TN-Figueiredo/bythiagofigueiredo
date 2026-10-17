@@ -71,6 +71,8 @@ A frase vem do catálogo (`arquivo/codigos.ts`); a mensagem do banco nunca apare
 
 `npx tsx scripts/obs-arquivo.ts comandos-recarga --lote <exportação>` imprime as linhas `\copy <tabela> (<colunas do manifesto>) from program 'gzip -dc <arquivo>' csv header`, na ordem pai antes de filho. **Nunca usar o `\copy` sem a lista de colunas.** Ensaio de recarga (reduzido): `.superpowers/sdd/a5-e10/recarga-prova.sql` e `recarga-prova-saida.txt`: 0 linhas de diferença nos dois sentidos; nulo e texto vazio continuam distintos.
 
+**Sequências (setval).** Depois dos `\copy`, `comandos-recarga` imprime um `select setval(pg_get_serial_sequence('public.<tabela>', 'id'), (select max(id) from public.<tabela>));` por tabela com coluna `id` gerada. Rodar todos antes de qualquer gravação nova; sem isso o próximo insert repete um `id` carregado e quebra na chave primária.
+
 **Chave estrangeira na recarga.** `competitor_video_comments.featured_channel_id` pode apontar para um canal que não existe mais: o `\copy` quebra na chave estrangeira. Recarregar essa coluna como nula (`\copy` para uma tabela temporária e depois `insert ... select ..., null`), ou recarregar antes o canal destacado.
 
 **Rastro sem teto (M-14).** A remoção grava no `audit_log` o rastro dos comentários destacados que apontavam para o canal (`featured_refs`), cerca de 100 B por comentário destacado, sem teto de tamanho. Conhecido e aceito; olhar o tamanho se um canal tiver muitos destaques.
