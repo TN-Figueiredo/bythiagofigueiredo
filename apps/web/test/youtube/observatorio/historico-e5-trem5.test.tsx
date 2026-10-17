@@ -108,14 +108,20 @@ describe('menor: rótulo da hora da live', () => {
 describe('menor 8: item de mudança com os detalhes numa linha só', () => {
   it('de→para e nota do dia dividem um bloco; ícones de losango e triângulo têm a mesma caixa de 26 px', () => {
     const lista = {
-      titulo: 'Mudanças deste vídeo', fraseDeDentro: null, vazia: null, emColunas: false,
-      itens: [{ n: 1, tipo: 'miniatura', rotulo: 'Miniatura', quando: 'em 11/10', marcaFora: false, deParaTexto: 'de A para B', notaDoDia: 'Mudou neste dia.' }],
+      titulo: 'Mudanças deste vídeo', resumo: { negrito: '1 mudança, em 11/10:', resto: ' miniatura.' }, fraseDeDentro: null, vazia: null, emColunas: false,
+      itens: [{ n: 1, tipo: 'miniatura', rotulo: 'Miniatura', quando: '11/10', marcaFora: false, deParaTexto: 'de A para B', depoisDaLeitura: true }],
     } as unknown as Parameters<typeof ListaDeMudancasHistorico>[0]
     const s = html(<ListaDeMudancasHistorico lista={lista} />)
     expect(s.match(/data-detalhe/g)).toHaveLength(1)
-    expect(s).toContain('de A para B Mudou neste dia.')
-    expect(css).toMatch(/\.hv-mi\.t\{[^}]*width:26px;height:26px\}/)
-    expect(css).toMatch(/\.hv-mi\.m\{[^}]*width:26px;height:26px\}/)
+    expect(s).toContain('de A para B')
+    expect(s).toContain('<b>1 mudança, em 11/10:</b> miniatura.')
+    expect(s).toContain('<b>Miniatura</b> · <span class="hv-mq">11/10</span><span class="hv-mq"> · depois da leitura do dia</span>')
+    // regressão do dono (17/10): a classe solta `m` caía na regra genérica de historico.css e jogava o texto numa coluna de 30 px
+    expect(s).toContain('class="hv-mi hv-mi-m"')
+    expect(s).not.toMatch(/class="hv-mi [mto]"/)
+    expect(css).toMatch(/\.hv-mi\.hv-mi-t\{[^}]*width:26px;height:26px\}/)
+    expect(css).toMatch(/\.hv-mi\.hv-mi-m\{[^}]*width:26px;height:26px\}/)
+    expect(css).toContain('.hv-muda li > .hv-mi{grid-column:1}')
   })
 })
 

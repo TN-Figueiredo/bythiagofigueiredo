@@ -73,16 +73,21 @@ describe('o bloco, em cada estado', () => {
     expect(h).toContain('aria-label="Três sinais: muitas views cedo bate; quase nada depois bate; pouca reação bate"')
     expect((h.match(/aria-label="Régua\. Este vídeo:/g) ?? []).length).toBe(4)
   })
-  it('antes da data: pontilhado com a linha do tempo, sem hachura e sem o texto obrigatório', () => {
-    const l = leituraDoVideo(null, null, somaDias(estourouExisteEm(), -10), VIDEO)
+  it('antes da data: uma linha só, sem casas, sem régua, sem selo "indício"; a data é a deste vídeo', () => {
+    const hoje = somaDias(estourouExisteEm(), -10)
+    const l = leituraDoVideo(null, null, hoje, VIDEO)
     const h = html(l)
     expect(h).toContain('lm-sd')
-    expect(h).toContain('lm-tl')
-    expect(h).toContain('lm-cs p')
-    expect(h).not.toContain('lm-cs m')
-    expect(texto(h)).toContain('Esta leitura ainda não existe para nenhum vídeo.')
+    expect(h).not.toContain('lm-tl')
+    expect(h).not.toContain('lm-cs')
+    expect(h).not.toContain('lm-ind')
+    expect(h).toContain('ainda não medido')
+    expect(texto(h)).toContain('Ainda sem leitura.')
     expect(texto(h)).not.toContain(TEXTO_M10.oQueVimos)
-    expect(texto(h)).toContain(`${estourouExisteEm().slice(8, 10)}/${estourouExisteEm().slice(5, 7)}/${estourouExisteEm().slice(0, 4)}`)
+    // a data vem da mesma conta do "fecha em" do bloco de cima: hoje + os dias que faltam a ESTE vídeo
+    const d = somaDias(hoje, Math.max(0, 90 - VIDEO.idadeDias))
+    expect(texto(h)).toContain(`faz 90 dias em ${d.slice(8, 10)}/${d.slice(5, 7)}`)
+    expect(texto(h)).not.toContain('nenhum vídeo')
   })
   it('medida que não veio: forma de erro e "Isto não quer dizer que o vídeo não estourou"', () => {
     const h = html(leituraDoVideo(null, null, HOJE, VIDEO))
@@ -113,9 +118,13 @@ describe('o bloco, em cada estado', () => {
     expect(t).not.toContain('ainda não tem 90 dias')
   })
   it('a pastilha "indício" acompanha o nome em todos os estados', () => {
-    for (const l of [leitura(entrada()), leitura(entrada({ v30: 1990 })), leitura(entrada({ v30: 640 })), leituraDoVideo(null, null, HOJE, VIDEO), leituraDoVideo(null, null, somaDias(estourouExisteEm(), -1), VIDEO)]) {
+    for (const l of [leitura(entrada()), leitura(entrada({ v30: 1990 })), leitura(entrada({ v30: 640 })), leituraDoVideo(null, null, HOJE, VIDEO)]) {
       expect(html(l), l.tipo).toContain('lm-ind')
     }
+    // sem leitura, o selo de grau de certeza sai e entra o "ainda não medido"
+    const ainda = html(leituraDoVideo(null, null, somaDias(estourouExisteEm(), -1), VIDEO))
+    expect(ainda).not.toContain('lm-ind')
+    expect(ainda).toContain('obs-ch-nm')
     expect(renderToStaticMarkup(<EstourouCarregando />)).toContain('lm-ind')
   })
   it('carregando: role=status com aria-busy', () => {
@@ -152,14 +161,6 @@ describe('arquivos novos', () => {
   it('o bloco de CSS usa media query, não container query (o teste da Fase 4 exige todo seletor dentro da tela)', () => {
     const css = ler('_historico/historico.css')
     expect(css.slice(css.indexOf('prefixo lm-'))).not.toContain('@container')
-  })
-  it('linha do tempo: perto do dia em que a leitura passa a existir o rótulo do meio desce (G-1); longe, não', () => {
-    const perto = html(leituraDoVideo(null, null, somaDias(estourouExisteEm(), -1), VIDEO))
-    const longe = html(leituraDoVideo(null, null, somaDias(estourouExisteEm(), -40), VIDEO))
-    expect(perto).toContain('class="l c baixo"')
-    expect(perto).toContain('lm-tl perto')
-    expect(longe).not.toContain('baixo')
-    expect(longe).toContain('class="l c"')
   })
   it('a legenda não usa a classe .mk da linha do tempo do gráfico, que é um botão absoluto de 32 px (G-5)', () => {
     const h = html(leitura(entrada()))

@@ -216,14 +216,20 @@
 [data-obs-screen="canal"] .pc-cs.com{background:var(--sunk);border:1px solid var(--border)}
 [data-obs-screen="canal"] .pc-cs.com b{display:block;text-align:center;font:500 12px/16px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--text)}
 [data-obs-screen="canal"] .pc-csb{display:block;background:var(--lado-o)}
-[data-obs-screen="canal"] .pc-cs.zero{border:2px solid var(--im-zero);align-items:center;justify-content:center}
+[data-obs-screen="canal"] .pc-cs.zero{border:1px solid var(--im-zero);align-items:center;justify-content:center}
 [data-obs-screen="canal"] .pc-cs.zero .pc-zero{border:0;background:transparent;width:auto;height:auto}
 [data-obs-screen="canal"] .pc-cs.nm{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+[data-obs-screen="canal"] .pc-rola{display:none}
 [data-obs-screen="canal"] .pc-eixo{display:flex;justify-content:space-between;margin:0;padding-left:80px;font-size:12px;line-height:16px;color:var(--muted)}
 [data-obs-screen="canal"] .pc-par{grid-template-areas:"l g v";border-top:1px solid var(--border-subtle);border-bottom:0;padding-bottom:24px}
 [data-obs-screen="canal"] .pc-rp{grid-area:g;position:relative;height:14px;border:1px solid var(--dim);border-radius:4px;background:var(--sunk);margin:0 8px 0 0}
 [data-obs-screen="canal"] .pc-rp-f{display:block;height:100%;background:var(--dim);border-radius:3px 0 0 3px}
 [data-obs-screen="canal"] .pc-rp-f.dn{background:var(--dir-dn)}
+[data-obs-screen="canal"] .pc-par{grid-template-columns:minmax(0,190px) minmax(0,1fr);grid-template-areas:"l g";padding-top:30px}
+[data-obs-screen="canal"] .pc-dn{display:flex;align-items:center;gap:8px;font-size:inherit}
+[data-obs-screen="canal"] .pc-dl .pc-dn b.num{font:500 17px/24px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;display:inline}
+[data-obs-screen="canal"] .pc-rp-t{position:absolute;top:-5px;bottom:-5px;width:0;border-left:1px solid var(--muted)}
+[data-obs-screen="canal"] .pc-rp-t em{position:absolute;bottom:100%;margin-bottom:2px;left:0;transform:translateX(-50%);font:12px/16px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;font-style:normal;color:var(--muted);white-space:nowrap}
 [data-obs-screen="canal"] .pc-rp-l{position:absolute;top:-5px;bottom:-5px;width:0;border-left:2px dashed var(--text)}
 [data-obs-screen="canal"] .pc-rp-l em{position:absolute;top:100%;margin-top:7px;left:0;transform:translateX(-50%);font:12px/16px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;font-style:normal;color:var(--muted);white-space:nowrap}
 [data-obs-screen="canal"] .pc-mets{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -232,7 +238,9 @@
 [data-obs-screen="canal"] .pc-mets b{font:500 17px/24px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace}
 [data-obs-screen="canal"] .pc-mets small{font-size:12px;color:var(--muted)}
 @media (max-width:760px){
-[data-obs-screen="canal"] .pc-par{grid-template-areas:"l v" "g g"}
+[data-obs-screen="canal"] .pc-par{grid-template-columns:minmax(0,1fr);grid-template-areas:"l" "g"}
+/* a/Gio: empilhada, a marca "típico" fica acima da régua e encostava no texto "desde o último…" de cima: a régua desce o que o rótulo ocupa (sem z-index) */
+[data-obs-screen="canal"] .pc-par .pc-rp{margin-top:24px}
 [data-obs-screen="canal"] .pc-mets{grid-template-columns:minmax(0,1fr)}
 [data-obs-screen="canal"] .pc-sem{grid-template-columns:58px minmax(0,1fr);gap:6px}
 [data-obs-screen="canal"] .pc-eixo{padding-left:64px}
@@ -296,6 +304,8 @@
 /* N3 (Naksu): a 390 px as 13 casas de Ritmo não cabem com dígito de 12 px; a faixa rola dentro dela, o dígito não encolhe nem encosta na borda */
 @media (max-width:520px){
 [data-obs-screen="canal"] .pc-cs-l{grid-template-columns:repeat(13,minmax(26px,1fr));overflow-x:auto;padding-bottom:2px}
+/* a/Gio: a raia de 13 casas rola a 390 px; o aviso de rolagem só aparece nesta largura */
+[data-obs-screen="canal"] .pc-rola{display:block;margin:0 0 4px;font-size:12px;line-height:16px;color:var(--muted)}
 [data-obs-screen="canal"] .pc-cs.com b{padding:0 2px;font-variant-numeric:tabular-nums}
 }
 /* N4 (Naksu): alvos de toque de 44 px por largura de tela, não só por ponteiro (a captura de 390 px não é coarse) */
@@ -312,3 +322,4 @@
 [data-obs-screen="canal"] .ri-ibtn{min-width:44px;min-height:44px;margin:-10px -6px -10px -4px}
 [data-obs-screen="canal"] .pc-cmv a,[data-obs-screen="canal"] .pc-nav a{display:inline-flex;align-items:center;min-height:44px}
 }
+[data-obs-screen="canal"] .pc-sub{margin:8px 0 2px;font:600 13.5px/20px var(--font-sans),system-ui,sans-serif;color:var(--muted)}

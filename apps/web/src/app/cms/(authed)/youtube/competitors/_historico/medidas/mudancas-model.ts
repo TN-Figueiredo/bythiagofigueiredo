@@ -60,6 +60,12 @@ export function tipoDaMudanca(campos: readonly CampoDoVideo[]): TipoDeMudanca {
   return 'outras'
 }
 
+/** O nome da mudança: título e miniatura no mesmo instante são UMA mudança que diz os dois ("título e miniatura"), nunca só o primeiro (D3 do Gio). */
+function nomeDaMudanca(m: Pick<MudancaNumerada, 'tipo' | 'campos' | 'nomeDosCampos'>): string {
+  if (m.tipo === 'outras') return m.nomeDosCampos
+  return juntar(m.campos.filter((c) => c === 'titulo' || c === 'miniatura').sort((a, b) => (a === 'titulo' ? -1 : b === 'titulo' ? 1 : 0)).map(nomeDoCampo))
+}
+
 const horaDe = (ms: number): number => Number(horaSP(ms).slice(0, 2))
 
 /** A janela real escrita: "em 11/10, entre 06:00 e 12:00" · "em algum momento entre 08/10 e 10/10 (a leitura ficou parada)" · "em 13/10". */
@@ -97,9 +103,10 @@ export interface ItemDaLista {
   tipo: TipoDeMudanca
   /** "Título" · "Miniatura" · "Outras: descrição e tags" */
   rotulo: string
+  /** A janela sem o "em " da frente ("05/10, entre 12:01 e 16:19"); o tipo já está no rótulo. */
   quando: string
-  /** "Mudou neste dia, depois da leitura das 12:00" quando a barra do dia já tinha fechado. */
-  notaDoDia: string | null
+  /** Mudança depois da leitura das 12:00: o marcador curto "depois da leitura do dia" (a explicação fica no ⓘ do bloco). */
+  depoisDaLeitura: boolean
   deParaTexto: string | null
   /** "fora dos 14 dias antes": só nos itens de fora, e só quando há subida. */
   marcaFora: boolean
@@ -108,6 +115,8 @@ export interface ItemDaLista {
 export interface ListaDeMudancas {
   titulo: 'Mudanças deste vídeo'
   itens: ItemDaLista[]
+  /** A frase-resumo do topo: "2 mudanças, as duas em 05/10:" + " miniatura e título." Nula sem mudança. */
+  resumo: { negrito: string; resto: string } | null
   /** Quantas estão dentro dos 14 dias antes (nulo sem subida). */
   dentro: number | null
   /** A frase de quantas estão dentro (nula sem subida ou sem mudança). */
@@ -118,6 +127,22 @@ export interface ListaDeMudancas {
   emColunas: boolean
 }
 
+/** "2 mudanças, as duas em 05/10:" + " miniatura e título." · "1 mudança, em 05/10:" · "3 mudanças entre 05/10 e 09/10." */
+export function resumoDasMudancas(mudancas: readonly MudancaNumerada[]): { negrito: string; resto: string } | null {
+  if (mudancas.length === 0) return null
+  const n = mudancas.length
+  const dias = [...new Set(mudancas.map((m) => m.dia))].sort()
+  const nome = nomeDaMudanca
+  const tipos = juntar([...new Set(mudancas.map(nome))])
+  const plural = `${n} mudanças`
+  if (dias.length === 1) {
+    const d = dm(dias[0]!)
+    const negrito = n === 1 ? `1 mudança, em ${d}:` : n === 2 ? `${plural}, as duas em ${d}:` : `${plural}, todas em ${d}:`
+    return { negrito, resto: ` ${tipos}.` }
+  }
+  return { negrito: `${plural} entre ${dm(dias[0]!)} e ${dm(dias[dias.length - 1]!)}.`, resto: ` ${tipos[0]!.toUpperCase()}${tipos.slice(1)}.` }
+}
+
 export function listaDeMudancas(
   mudancas: readonly MudancaNumerada[],
   o: { subidaDia: string | null; inicioDoHistorico: string },
@@ -126,10 +151,9 @@ export function listaDeMudancas(
   const dentro = sub === null ? null : mudancas.filter((m) => dentroDosDiasAntes(m, sub)).length
   const itens = mudancas.map((m): ItemDaLista => ({
     n: m.n, tipo: m.tipo,
-    rotulo: m.tipo === 'titulo' ? 'Título' : m.tipo === 'miniatura' ? 'Miniatura' : `Outras: ${m.nomeDosCampos}`,
-    quando: m.quando,
-    // a nota do dia quando a mudança vem depois da leitura das 12:00 (a frase é a do mockup, com o número da mudança)
-    notaDoDia: m.tardia ? `Mudou neste dia, depois da leitura das 12:00: ${m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos} (mudança ${m.n}).` : null,
+    rotulo: m.tipo === 'outras' ? `Outras: ${m.nomeDosCampos}` : ((n) => n.charAt(0).toUpperCase() + n.slice(1))(nomeDaMudanca(m)),
+    quando: m.quando.replace(/^em (?=\d)/, ''),
+    depoisDaLeitura: m.tardia,
     deParaTexto: m.de !== null && m.para !== null ? `de “${m.de}” para “${m.para}”` : null,
     marcaFora: sub !== null && !dentroDosDiasAntes(m, sub),
   }))
@@ -142,7 +166,7 @@ export function listaDeMudancas(
         : `${dentro} das ${total} mudanças estão nos 14 dias antes da subida; as outras levam a marca “fora dos 14 dias antes”.`
   }
   return {
-    titulo: 'Mudanças deste vídeo', itens, dentro, fraseDeDentro,
+    titulo: 'Mudanças deste vídeo', itens, resumo: resumoDasMudancas(mudancas), dentro, fraseDeDentro,
     vazia: mudancas.length === 0 ? `Nenhuma mudança vista desde ${dm(o.inicioDoHistorico)} (o histórico de mudanças começou nesse dia).` : null,
     emColunas: mudancas.length > MUITAS_MUDANCAS,
   }
@@ -153,9 +177,9 @@ export function listaAgrupadaDosAntes(mudancas: readonly MudancaNumerada[], subi
   const antes = mudancas.filter((m) => dentroDosDiasAntes(m, subidaDia))
   const por = new Map<string, string[]>()
   for (const m of antes) {
-    const chave = m.tipo === 'titulo' ? 'título' : m.tipo === 'miniatura' ? 'miniatura' : m.nomeDosCampos
+    const chave = nomeDaMudanca(m)
     por.set(chave, [...(por.get(chave) ?? []), dm(m.dia)])
   }
-  const ordem = (k: string): number => (k === 'título' ? 0 : k === 'miniatura' ? 1 : 2)
+  const ordem = (k: string): number => (k.startsWith('título') ? 0 : k === 'miniatura' ? 1 : 2)
   return [...por.keys()].sort((a, b) => ordem(a) - ordem(b)).map((k) => `${k} em ${juntar(por.get(k)!)}`)
 }

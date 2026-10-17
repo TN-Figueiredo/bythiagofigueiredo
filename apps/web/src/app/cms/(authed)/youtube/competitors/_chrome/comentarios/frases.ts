@@ -144,9 +144,10 @@ export const FRASES = {
   // desvio 16
   janelaPerdida: (d: number) => `Não coletado com ${dias(d)}: a coleta não rodou enquanto o vídeo tinha essa idade`,
   janelaPerdidaNota: 'Isto não é “nenhum comentário”. Essa idade não terá retrato.',
-  antesDaColetaTitulo: 'Este vídeo é anterior à coleta de comentários.',
-  antesDaColetaCorpo: (coleta: string, publicado: string) => `A coleta começou em ${coleta}; o vídeo foi publicado em ${publicado}.`,
-  antesDaColetaSelo: (coleta: string) => `a coleta começou em ${coleta}`,
+  // Por marco (trem 5.1): a frase fala do retrato desta idade, nunca do vídeo inteiro; o marco seguinte que ainda vem é dito na mesma frase.
+  antesDaColetaTitulo: (d: number) => `Sem comentários do dia ${d}.`,
+  antesDaColetaCorpo: (coleta: string, publicado: string, proximo: { d: number; dm: string } | null) =>
+    `O vídeo saiu em ${publicado} e a coleta começou em ${coleta}.${proximo ? ` Os comentários dele aparecem no retrato de ${dias(proximo.d)}, em ${proximo.dm}.` : ''}`,
   fechaEmTitulo: (d: number, dm: string) => `O retrato de ${dias(d)} fecha em ${dm}.`,
   fechaEmSelo: 'ainda não existe',
   fechaEmNota: (d: number, dm: string) => `O vídeo faz ${dias(d)} em ${dm}. Até lá não há o que mostrar, e isto não é zero.`,

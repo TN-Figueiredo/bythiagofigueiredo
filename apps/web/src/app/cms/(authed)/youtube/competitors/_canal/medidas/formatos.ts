@@ -13,6 +13,11 @@ export const ptz = (n: number, um: string, varios: string): string => `${n} ${n 
 /** Um decimal, vírgula, sem ",0" na ponta quando `semZero`. */
 export const dec1 = (x: number): string => (Math.round(x * 10) / 10).toFixed(1).replace('.', ',')
 export const dias = (de: string, ate: string): number => Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / DAY)
+/** "hoje", "ontem" ou "há N dias" em dias completos de 24 h desde `ms`: a regra única de `daysAgo`, do Ritmo e do cabeçalho. */
+export function quandoMs(ms: number, agoraMs: number): string {
+  const d = Math.floor((agoraMs - ms) / DAY)
+  return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`
+}
 /** "hoje", "ontem" ou "há N dias" entre duas datas de São Paulo. */
 export function quando(dia: string, hojeSP: string): string {
   const d = dias(dia, hojeSP)

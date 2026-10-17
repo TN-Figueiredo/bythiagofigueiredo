@@ -35,6 +35,8 @@ export interface PonteiroDeRitmo {
   /** "vira parado depois de N dias" e, só quando 4 × o intervalo passa de 28, a conta entre parênteses. */
   limite: number
   conta: string | null
+  /** O intervalo típico (mediana) em dias, para a marca "típico" na régua; nulo quando o canal não tem intervalo medido. */
+  tipico: number | null
   dias: number
   passou: boolean
   ate: string | null
@@ -99,7 +101,9 @@ function raia(rotulo: 'Longos' | 'Shorts', f: Formato, pubs: readonly Pub[], o: 
     casas.push(n === 0 ? { estado: 'zero' } : { estado: 'com', n, fracao: n / mx })
   }
   const semNenhum = contagem.every(n => n === 0)
-  return { rotulo, casas, semNenhum, ausente: semNenhum && o.formato.soShorts && rotulo === 'Longos' }
+  // Raia toda zero (13 semanas medidas, nenhuma não lida) vira uma linha só; "—" nunca vira "nenhum".
+  const todaZero = casas.every(c => c.estado === 'zero')
+  return { rotulo, casas, semNenhum, ausente: (semNenhum && o.formato.soShorts && rotulo === 'Longos') || todaZero }
 }
 
 function motivoDe(m: Extract<Medida<unknown>, { estado: 'nao_medido' }>): { carregou: boolean; longa: string } {
@@ -160,18 +164,34 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     e6 = mt.carregou ? { tipo: 'nao_medido', motivo: mt.longa, tom: 'sem_base' } : { tipo: 'nao_carregou' }
   } else e6 = { tipo: 'medido', v: m6.valor }
 
+  // Régua "dias desde o último vídeo" contra o limite de "parado" que M8 devolve. O limite é arredondado aqui (a mediana vem em dias
+  // fracionários, de milissegundos): na tela nunca sai "48.000277…". O número da API do Cowork não muda.
+  const todas = pubs.filter(p => p.ms <= refMs)
+  const ultimaMs = todas.length ? Math.max(...todas.map(p => p.ms)) : null
+  let ponteiro: PonteiroDeRitmo | null = null
+  if (ultimaMs !== null) {
+    const dias = Math.max(0, Math.floor((refMs - ultimaMs) / DAY))
+    const par = m.m8.parado
+    const limite = Math.round(par.estado === 'medido' ? par.valor.limite : MEASURE_RULES.stalled.floorDays)
+    const tipico = par.estado === 'medido' && par.valor.limite > MEASURE_RULES.stalled.floorDays ? par.valor.limite / MEASURE_RULES.stalled.factor : (e6.tipo === 'medido' ? e6.v.intervaloMedianoDias : null)
+    const conta = limite > MEASURE_RULES.stalled.floorDays ? `4 × o intervalo típico, ${umDia((par.estado === 'medido' ? par.valor.limite : limite) / MEASURE_RULES.stalled.factor)} dias` : null
+    ponteiro = {
+      rotulo: `desde o último ${o.formato.doisFormatos ? 'vídeo (longo ou Short)' : nome.um1}`, limite, conta, tipico, dias, passou: dias > limite,
+      ate: parou && ate ? ate : null, pelaBusca: parcial, escala: Math.max(limite * 1.25, dias * 1.12),
+    }
+  }
+
   let frase: BlocoDeRitmo['frase']
   if (e6.tipo === 'medido') {
     const v = e6.v
-    const parado = o.estado.tipo === 'parado'
-    const lidas = semanasLidas
-    const partes = [`${parado ? 'Publicou' : 'Publica'} ${dec1(v.porSemana)} ${nome.pl} por semana${parado ? ' nas últimas 13 semanas' : ''},`]
-    const resto = [` e teve ${nome.um} em `]
-    const b = buracoComDatas(pubs, o.formato.fmt, refMs)
-    const buraco = b === null ? '' : b.aberto
-      ? ` O maior intervalo sem publicar ${nome.um}, em ${MEASURE_RULES.rhythm.gapWeeks} semanas, é o que começou em ${dm(b.de)} e ainda não acabou: ${ptn(Math.round(v.maiorBuracoDias), 'dia', 'dias')}.`
-      : ` O maior intervalo sem publicar ${nome.um}, em ${MEASURE_RULES.rhythm.gapWeeks} semanas, foi de ${ptn(Math.round(v.maiorBuracoDias), 'dia', 'dias')}.`
-    frase = { negrito: partes[0]!, resto: `${resto[0]}${v.semanasComPublicacao} de ${lidas} semanas${lidas < SEMANAS ? ' com leitura' : ''}.${buraco}`, tom: 'medido' }
+    const tipicoTxt = ptn(Math.round(v.intervaloMedianoDias), 'dia', 'dias')
+    const aCada = v.intervaloMedianoDias <= 1 ? 'por dia' : `a cada ${tipicoTxt}`
+    const d = ponteiro?.dias ?? null
+    if (ponteiro?.passou && d !== null) {
+      frase = { negrito: `Parado: nenhum ${o.formato.doisFormatos ? 'vídeo' : nome.um1} há ${ptn(d, 'dia', 'dias')}.`, resto: ` Antes, publicava ${nome.um} ${aCada}.`, tom: 'medido' }
+    } else {
+      frase = { negrito: `Publica ${nome.um} ${aCada}.`, resto: d !== null ? ` O último saiu há ${ptn(d, 'dia', 'dias')}.` : '', tom: 'medido' }
+    }
   } else if (e6.tipo === 'nao_carregou') {
     frase = { negrito: 'Ritmo não carregou:', resto: ' o cálculo falhou. As casas abaixo mostram o que foi lido.', tom: 'nao_carregou' }
   } else if (e6.tom === 'parcial') {
@@ -180,21 +200,6 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     frase = { negrito: 'Ritmo não medido:', resto: ` sem leitura desde ${ate ? dm(ate) : 'a última leitura'}. As casas abaixo mostram o que foi lido até lá.`, tom: 'sem_leitura' }
   } else {
     frase = { negrito: 'Ritmo ainda não medido:', resto: ` ${e6.motivo}. As casas abaixo mostram o que já foi buscado.`, tom: 'sem_base' }
-  }
-
-  // Régua "dias desde o último vídeo" contra o limite de "parado" que M8 devolve.
-  const todas = pubs.filter(p => p.ms <= refMs)
-  const ultimaMs = todas.length ? Math.max(...todas.map(p => p.ms)) : null
-  let ponteiro: PonteiroDeRitmo | null = null
-  if (ultimaMs !== null) {
-    const dias = Math.max(0, Math.floor((refMs - ultimaMs) / DAY))
-    const par = m.m8.parado
-    const limite = par.estado === 'medido' ? par.valor.limite : MEASURE_RULES.stalled.floorDays
-    const conta = limite > MEASURE_RULES.stalled.floorDays ? `4 × o intervalo típico, ${umDia(limite / MEASURE_RULES.stalled.factor)} dias` : null
-    ponteiro = {
-      rotulo: `Dias desde o último vídeo${o.formato.doisFormatos ? ' (longo ou Short)' : ''}`, limite, conta, dias, passou: dias > limite,
-      ate: parou && ate ? ate : null, pelaBusca: parcial, escala: Math.max(limite * 1.25, dias * 1.12),
-    }
   }
 
   const sem = (texto: string): ValorDoCartao => ({ tipo: 'nao_medido', motivo: texto })
@@ -206,7 +211,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     cartoes.push(
       { chave: 'intervalo', rotulo: 'Intervalo típico (valor do meio)', valor: { tipo: 'medido', texto: `${umDia(v.intervaloMedianoDias)} ${v.intervaloMedianoDias === 1 ? 'dia' : 'dias'}`, pequeno: null } },
       { chave: 'semanas', rotulo: `Semanas com ${nome.um}`, valor: { tipo: 'medido', texto: `${v.semanasComPublicacao} de ${semanasLidas}`, pequeno: semanasLidas < SEMANAS ? 'semanas com leitura' : null } },
-      { chave: 'buraco', rotulo: rotuloBuraco, valor: { tipo: 'medido', texto: ptn(Math.round(v.maiorBuracoDias), 'dia', 'dias'), pequeno: b === null ? null : b.aberto ? `sem ${nome.um1} desde ${dm(b.de)}` : `${dm(b.de)} a ${dm(b.ate!)}` } },
+      { chave: 'buraco', rotulo: rotuloBuraco, valor: { tipo: 'medido', texto: ptn(Math.floor(v.maiorBuracoDias), 'dia', 'dias'), pequeno: b === null ? null : b.aberto ? `sem ${nome.um1} desde ${dm(b.de)}` : `${dm(b.de)} a ${dm(b.ate!)}` } },
     )
   } else if (e6.tipo === 'nao_carregou') {
     const nc: ValorDoCartao = { tipo: 'nao_carregou' }

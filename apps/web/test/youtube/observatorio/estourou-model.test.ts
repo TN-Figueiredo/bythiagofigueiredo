@@ -28,6 +28,12 @@ describe('leitura Estourou e parou: dado ausente', () => {
     expect(l).toMatchObject({ tipo: 'ainda_nao_existe', casas: 'ppp', existeEm: estourouExisteEm() })
     expect(JSON.stringify(l)).not.toMatch(/cartoes|Indício/)
   })
+  it('D1: com a data de publicação, "este vídeo faz 90 dias em" é publicação + 90, a mesma do "fecha em" do ponto de 90 d', () => {
+    const hoje = somaDias(estourouExisteEm(), -1)
+    const publicado = somaDias(hoje, -40)
+    const l = leituraDoVideo(null, null, hoje, { ...VIDEO, idadeDias: 39, publicadoSP: publicado })
+    expect(l).toMatchObject({ tipo: 'ainda_nao_existe', esteVideoEm: somaDias(publicado, MEASURE_RULES.tail.minAgeDays) })
+  })
   it('antes da data vale mesmo que a medida diga outra coisa: nunca promete nem nega', () => {
     expect(leituraDoVideo(picoSemCauda(entrada()), v30(2000), somaDias(estourouExisteEm(), -1), VIDEO).tipo).toBe('ainda_nao_existe')
   })

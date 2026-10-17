@@ -50,12 +50,6 @@ function Grafico({ m, sel }: { m: Extract<ModeloDeLancamentos, { tipo: 'curvas' 
         </g>
       ))}
       <text className="ic-ax" x={W - RM} y={H - 2} textAnchor="end">dias desde a publicação</text>
-      {!m.temNormal ? (
-        <>
-          <rect x={LM + 8} y={TM + 8} width={PW - 8} height={24} fill="url(#pcH)" className="pc-hb" />
-          <text className="pc-hbt" x={LM + 16} y={TM + 24}>sem a linha do normal: faltam vídeos medidos na mesma idade</text>
-        </>
-      ) : null}
       {ordem.map(i => {
         const v = m.videos[i]!
         const cls = CLASSE[v.faixa]
@@ -133,34 +127,43 @@ export function Lancamentos({ modelo, horas }: { modelo: ModeloDeLancamentos; ho
   }
   const i = Math.min(sel, modelo.videos.length - 1)
   const frase = modelo.temNormal ? modelo.videos[i]!.frase : modelo.frase!
-  const pontos = modelo.videos.map(v => ({ rotulo: `Vídeo ${v.ordem}`, fala: `${v.titulo}: ${v.razao ?? 'sem ponto para comparar com o normal'}, ${v.faixaNome}` }))
+  // Sem normal: o leitor e a tabela dizem o fato do último ponto medido, não o aviso (que já está na frase do topo).
+  const pontos = modelo.videos.map(v => ({
+    rotulo: `Vídeo ${v.ordem}`,
+    fala: modelo.temNormal ? `${v.titulo}: ${v.razao ?? 'sem ponto para comparar com o normal'}, ${v.faixaNome}` : `${v.titulo}: ${v.ultimoPonto?.texto ?? 'sem ponto medido'}`,
+  }))
+  const tabela = modelo.temNormal ? undefined : { cabecalho: ['Vídeo', 'Views no último ponto medido'], linhas: modelo.videos.map(v => [`Vídeo ${v.ordem}: ${v.titulo}`, v.ultimoPonto?.texto ?? 'sem ponto medido']) }
   const nome = modelo.soShorts ? 'Shorts' : 'vídeos'
   return (
     <section className="pc-sec" id="lancamentos" aria-labelledby="hLan">
       {cabeca}
       <p className="pc-fr2" data-frase-do-bloco><span><b>{frase.negrito}</b>{frase.resto}</span></p>
-      <GraficoLegivel titulo="Views acumuladas nos 30 primeiros dias de cada vídeo recente, sobre a linha do normal do canal" pontos={pontos}>
+      <GraficoLegivel titulo="Views acumuladas nos 30 primeiros dias de cada vídeo recente, sobre a linha do normal do canal" pontos={pontos} tabela={tabela}>
         <div className="pc-chartw"><div className="pc-chart"><Grafico m={modelo} sel={i} /></div></div>
       </GraficoLegivel>
-      <ol className="pc-nrow" aria-label={`Quantos ${nome} entram em cada ponto da linha do normal`}>
-        {modelo.normal.map(p => (
-          <li key={p.idadeDias} className={p.valor === null ? 'nm' : ''}>
-            <span>dia {p.idadeDias}</span>
-            <b className="num">{p.n === null ? '—' : ptn(p.n, 'vídeo', 'vídeos')}</b>
-          </li>
-        ))}
-      </ol>
-      <p className="pc-leg2">
-        {modelo.temNormal ? <span className="pc-lg"><svg width="30" height="12" aria-hidden="true"><path className="pc-ln med" d="M2 6H20" /><circle className="pc-mk med" cx="25" cy="6" r="4" /></svg>o normal do canal</span> : null}
-        {modelo.temCasaSemPonto ? <span className="pc-lg"><i className="nm-h" aria-hidden="true" />menos de 3 vídeos: sem ponto</span> : null}
-      </p>
+      {modelo.temNormal ? (
+        <>
+        <ol className="pc-nrow" aria-label={`Quantos ${nome} entram em cada ponto da linha do normal`}>
+          {modelo.normal.map(p => (
+            <li key={p.idadeDias} className={p.valor === null ? 'nm' : ''}>
+              <span>dia {p.idadeDias}</span>
+              <b className="num">{p.n === null ? '—' : ptn(p.n, 'vídeo', 'vídeos')}</b>
+            </li>
+          ))}
+        </ol>
+        <p className="pc-leg2">
+          {modelo.temNormal ? <span className="pc-lg"><svg width="30" height="12" aria-hidden="true"><path className="pc-ln med" d="M2 6H20" /><circle className="pc-mk med" cx="25" cy="6" r="4" /></svg>o normal do canal</span> : null}
+          {modelo.temCasaSemPonto ? <span className="pc-lg"><i className="nm-h" aria-hidden="true" />menos de 3 vídeos: sem ponto</span> : null}
+        </p>
+        </>
+      ) : null}
       <ul className="pc-vl" aria-label="Vídeos recentes">
         {modelo.videos.map((v, k) => (
           <li key={v.id}>
             <button type="button" className={`pc-vb${k === i ? ' on' : ''}`} aria-pressed={k === i} onClick={() => setSel(k)}>
               <Swatch cls={CLASSE[v.faixa]} />
               <span className="pc-vt"><span className="pc-vn num">{v.ordem}</span> {v.titulo}<small>{v.legenda}</small></span>
-              <span className="pc-vr">{v.razao ? <><b className="num">{v.razao}</b><small>{v.faixaNome}</small></> : <span className="obs-ch-nm">sem normal</span>}</span>
+              <span className="pc-vr">{v.razao ? <><b className="num">{v.razao}</b><small>{v.faixaNome}</small></> : modelo.temNormal ? <span className="obs-ch-nm">sem normal</span> : null}</span>
             </button>
           </li>
         ))}

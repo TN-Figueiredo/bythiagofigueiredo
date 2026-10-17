@@ -118,7 +118,7 @@ function abaDoEstado(e: EstadoDoMarco): { estado: string; tom: Tom } {
   }
 }
 
-function estadoSemLista(m: Marco, e: EstadoDoMarco, o: OpcoesDaSecao): EstadoView {
+function estadoSemLista(m: Marco, e: EstadoDoMarco, o: OpcoesDaSecao, marcos: Record<Marco, EstadoDoMarco>): EstadoView {
   const base = { kind: 'estado' as const, marco: m, tentar: false }
   switch (e.estado) {
     case 'sem_comentarios':
@@ -143,8 +143,17 @@ function estadoSemLista(m: Marco, e: EstadoDoMarco, o: OpcoesDaSecao): EstadoVie
       }
       return { ...base, tom: 'nm', titulo: FRASES.janelaPerdida(m), corpo: null, selo: { texto: FRASES.abaNaoColetado, forma: 'nm' }, nota: FRASES.janelaPerdidaNota }
     }
-    case 'antes_da_coleta':
-      return { ...base, tom: 'nm', titulo: FRASES.antesDaColetaTitulo, corpo: FRASES.antesDaColetaCorpo(dmSP(e.coletaDesdeMs), dmSP(o.t0Ms)), selo: { texto: FRASES.antesDaColetaSelo(dmSP(e.coletaDesdeMs)), forma: 'nm' }, nota: null }
+    case 'antes_da_coleta': {
+      // O próximo retrato que ainda vem (fecha em / a caminho) é dito junto: o vídeo anterior à coleta pode ganhar os marcos seguintes.
+      let proximo: { d: number; dm: string } | null = null
+      for (const x of MARCOS_DA_TELA) {
+        const ex = marcos[x]
+        if (x <= m) continue
+        if (ex.estado === 'fecha_em') { proximo = { d: x, dm: dmSP(ex.fechaEmMs) }; break }
+        if (ex.estado === 'a_caminho') { proximo = { d: x, dm: dmSP(ex.ateMs) }; break }
+      }
+      return { ...base, tom: 'nm', titulo: FRASES.antesDaColetaTitulo(m), corpo: FRASES.antesDaColetaCorpo(dmSP(e.coletaDesdeMs), dmSP(o.t0Ms), proximo), selo: null, nota: null }
+    }
     case 'fecha_em':
       return { ...base, tom: 'pontilhado', titulo: FRASES.fechaEmTitulo(m, dmSP(e.fechaEmMs)), corpo: null, selo: { texto: FRASES.fechaEmSelo, forma: 'pontilhado' }, nota: FRASES.fechaEmNota(m, dmSP(e.fechaEmMs)) }
     case 'a_caminho':
@@ -328,7 +337,7 @@ export function secaoDeComentarios(dados: ComentariosDoVideo, o: OpcoesDaSecao):
   const paineis = {} as Record<Marco, PainelView>
   for (const m of MARCOS_DA_TELA) {
     const e = dados.marcos[m]
-    paineis[m] = (e.estado === 'ok' ? listaDoMarco(m, dados, e, max, o) : null) ?? estadoSemLista(m, e, o)
+    paineis[m] = (e.estado === 'ok' ? listaDoMarco(m, dados, e, max, o) : null) ?? estadoSemLista(m, e, o, dados.marcos)
   }
   const abas: AbaView[] = MARCOS_DA_TELA.map(m => {
     const e = dados.marcos[m]
@@ -338,7 +347,12 @@ export function secaoDeComentarios(dados: ComentariosDoVideo, o: OpcoesDaSecao):
   })
   // A aba aberta é a última cujo estado não é "fecha em" nem "a caminho".
   const abertas = MARCOS_DA_TELA.filter(m => dados.marcos[m].estado !== 'fecha_em' && dados.marcos[m].estado !== 'a_caminho')
-  const aberta = o.marcoAberto ?? abertas[abertas.length - 1] ?? 1
+  let aberta = o.marcoAberto ?? abertas[abertas.length - 1] ?? 1
+  // Vídeo anterior à coleta: a aba aberta é a primeira que vai ter dado (o retrato seguinte), não a de uma idade que nunca terá.
+  if (o.marcoAberto === undefined && dados.marcos[aberta].estado === 'antes_da_coleta') {
+    const prox = MARCOS_DA_TELA.find(m => m > aberta && (dados.marcos[m].estado === 'fecha_em' || dados.marcos[m].estado === 'a_caminho'))
+    if (prox !== undefined) aberta = prox
+  }
   const mencoes = cartoes.reduce((s, c) => s + (comTexto(c) ? c.mencoesTrocadas : 0), 0)
   return {
     titulo: FRASES.titulo,

@@ -17,7 +17,7 @@ describe('C2 · modelo · nove estados sem lista', () => {
     ['nao_coletado lista_vazia', { estado: 'nao_coletado', porque: { causa: 'lista_vazia', tomadoEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: false, totalDoDia: 57 } }, 'não coletado', 'Não coletado com 7 dias.'],
     ['nao_coletado erro', { estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: false, codigo: 'rede', totalDoDia: null } }, 'não coletado', 'Não coletado com 7 dias.'],
     ['nao_coletado janela_perdida', { estado: 'nao_coletado', porque: { causa: 'janela_perdida' } }, 'não coletado', 'Não coletado com 7 dias: a coleta não rodou enquanto o vídeo tinha essa idade'],
-    ['antes_da_coleta', { estado: 'antes_da_coleta', coletaDesdeMs: T0 }, 'antes da coleta', 'Este vídeo é anterior à coleta de comentários.'],
+    ['antes_da_coleta', { estado: 'antes_da_coleta', coletaDesdeMs: T0 }, 'antes da coleta', 'Sem comentários do dia 7.'],
     ['fecha_em', { estado: 'fecha_em', fechaEmMs: T0 + 7 * DIA }, 'fecha em 13/10', 'O retrato de 7 dias fecha em 13/10.'],
     ['a_caminho', { estado: 'a_caminho', fezEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA }, 'a caminho', 'Ainda não existe: o vídeo fez 7 dias em 13/10; o retrato sai na próxima coleta, até 16/10.'],
     ['coleta_parada', { estado: 'coleta_parada', desdeMs: T0 + 2 * DIA, semOk: false }, 'coleta parada', 'A coleta de comentários está parada desde 08/10.'],
@@ -40,6 +40,23 @@ describe('C2 · modelo · nove estados sem lista', () => {
       if (nome === 'sem_comentarios') expect(t).toMatch(/informou 0 comentários/)
       else expect(t, nome).not.toMatch(/(^|[^\d/.])0(?![\d/.])/)
     }
+  })
+  it('trem 5.1: título por marco: o vídeo anterior à coleta diz que o retrato de 30 dias vem, e a aba aberta é a de 30', () => {
+    const antes = { estado: 'antes_da_coleta', coletaDesdeMs: T0 } as EstadoDoMarco
+    const d = { nivel: 'identidade', comentarios: [], marcos: { 1: antes, 7: antes, 30: { estado: 'fecha_em', fechaEmMs: T0 + 30 * DIA } } } as unknown as ComentariosDoVideo
+    const s = secaoDeComentarios(d, OPCOES)
+    const p7 = s.paineis[7]
+    if (p7.kind !== 'estado') throw new Error('estado')
+    expect(p7.titulo).toBe('Sem comentários do dia 7.')
+    expect(p7.corpo).toContain('Os comentários dele aparecem no retrato de 30 dias, em 05/11.')
+    expect(p7.corpo).not.toContain('anterior à coleta')
+    expect(p7.selo).toBeNull()
+    expect(s.aberta).toBe(30)
+    // sem marco seguinte por vir: nada de promessa
+    const d2 = { ...d, marcos: { 1: antes, 7: antes, 30: antes } } as unknown as ComentariosDoVideo
+    const p = secaoDeComentarios(d2, OPCOES).paineis[7]
+    if (p.kind !== 'estado') throw new Error('estado')
+    expect(p.corpo).not.toContain('aparecem no retrato')
   })
   it('a_caminho e coleta parada não prometem "fecha em"', () => {
     for (const e of [casos[8]![1], casos[9]![1]]) {

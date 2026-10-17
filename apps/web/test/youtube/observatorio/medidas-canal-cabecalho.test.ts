@@ -162,3 +162,13 @@ describe('Mais números', () => {
   })
 })
 void m8
+
+describe('b (Gio): "há N dias" do último vídeo são dias completos', () => {
+  it('14 d 14 h dizem 14 dias (nunca 15), a mesma regra do ponteiro do Ritmo', async () => {
+    const { diasDesde } = await import('@/app/cms/(authed)/youtube/competitors/_canal/header-model')
+    const agora = Date.UTC(2026, 9, 17, 15)
+    const D = { daysAgo: (ms: number) => Math.floor((agora - ms) / 864e5), ago: () => 'há 5 h' }
+    expect(diasDesde(D, agora - (14 * 24 + 14) * 36e5 / 1)).toBe('há 14 dias')
+    expect(diasDesde(D, agora - 5 * 36e5)).toBe('há 5 h')
+  })
+})

@@ -27,20 +27,20 @@ export function CriadorResponde({ bloco, lista, canalId }: { bloco: BlocoDoCriad
       <div className="pc-sh">
         <h2 id="hCri">O que o criador respondeu</h2>
         <RiInfo titulo="as respostas do criador" itens={ITENS_DO_INFO} rotuloBotao="Como ler as respostas do criador" />
+        {semMedida && bloco.tipo !== 'nao_carregou' && bloco.pastilha ? <span className="obs-ch-nm">{bloco.pastilha}</span> : null}
       </div>
       <p className="pc-fr2" data-frase-do-bloco>
         {bloco.tipo === 'zero' ? <ZeroMedido /> : null}
         <span><b>{bloco.frase.negrito}</b>{bloco.frase.resto}</span>
       </p>
       {bloco.tipo === 'nao_carregou' ? <NaoCarregou medida="O que o criador respondeu" /> : null}
-      {semMedida && bloco.tipo !== 'nao_carregou' && bloco.pastilha ? <p className="pc-lc"><span className="obs-ch-nm">{bloco.pastilha}</span></p> : null}
       {bloco.casas.length > 0 ? (
         <div className="pc-rqs" role="img" aria-label={`${bloco.casas.filter(c => c === 'com').length} de ${bloco.nBase} vídeos com resposta vista; ${bloco.casas.filter(c => c === 'espera').length} ainda esperando os 30 dias; ${bloco.casas.filter(c => c === 'sem_retrato').length} sem retrato de 30 dias`}>
           <span className="pc-rql">{bloco.casas.map((c, i) => <i key={i} className={`pc-rq ${CLASSE[c]}`} data-casa={c} />)}</span>
           <span className="pc-rqt">{bloco.legenda.map(l => <span key={l.texto} data-leg={l.chave}><i className={`pc-rq ${CLASSE[l.chave]}`} /> {l.texto}</span>)}</span>
         </div>
       ) : null}
-      {lista ? <Lista m={lista} canalId={canalId} /> : null}
+      {lista && !(bloco.semColeta && lista.tipo === 'vazia') ? <Lista m={lista} canalId={canalId} /> : null}
     </section>
   )
 }
@@ -58,6 +58,7 @@ function Lista({ m, canalId }: { m: ModeloDaLista; canalId?: string }) {
   }
   return (
     <div data-lista-do-criador="itens">
+      <h3 className="pc-sub">{m.subtitulo}</h3>
       <p className="pc-fr2"><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
       <ul className="pc-cm">
         {m.itens.map((x, i) => (

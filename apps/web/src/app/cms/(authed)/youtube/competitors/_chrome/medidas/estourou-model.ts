@@ -44,10 +44,13 @@ export interface DadosDoVideo {
   /** Dias inteiros no ar, a mesma conta da E4. */
   idadeDias: number
   canal: string
+  /** Dia (SP, AAAA-MM-DD) da publicação: com ele "este vídeo faz N dias em" é publicação + N, a mesma fonte do "fecha em" do ponto de 90 d (D1 do Gio). */
+  publicadoSP?: string
 }
 
 export type Leitura =
-  | { tipo: 'ainda_nao_existe'; existeEm: string; hojeSP: string; casas: 'ppp' }
+  /** `esteVideoEm`: o dia em que ESTE vídeo faz os dias mínimos (a mesma conta de "fecha em" do bloco de cima: hoje + o que falta). */
+  | { tipo: 'ainda_nao_existe'; existeEm: string; esteVideoEm: string; hojeSP: string; casas: 'ppp' }
   | { tipo: 'nao_carregou' }
   | { tipo: 'nao_medido'; motivo: MotivoDaLeitura; casas: Casas; curta: string; titulo: string; explica: string | null; falta: Falta | null; passaAExistir: PassaAExistir; aoVivo: boolean }
   | { tipo: 'nao_e_o_caso' | 'estourou_e_parou'; casas: Casas; cartoes: { viewsCedo: CartaoViewsCedo; quaseNada: CartaoQuaseNada; reacao: CartaoReacao }; frase: string }
@@ -174,7 +177,7 @@ function medidoParaTela(v: ValorPico): Leitura {
  */
 export function leituraDoVideo(m10: Medida<ValorPico> | null | undefined, m1aos30: Medida<ValorM1> | null | undefined, hojeSP: string, video: DadosDoVideo): Leitura {
   const antes = aindaNaoExiste('estourou', hojeSP)
-  if (antes) return { tipo: 'ainda_nao_existe', existeEm: antes.existeEm, hojeSP, casas: 'ppp' }
+  if (antes) return { tipo: 'ainda_nao_existe', existeEm: antes.existeEm, esteVideoEm: video.publicadoSP ? somaDias(video.publicadoSP, DIAS_MIN) : somaDias(hojeSP, Math.max(0, DIAS_MIN - video.idadeDias)), hojeSP, casas: 'ppp' }
   if (!m10) return { tipo: 'nao_carregou' }
   if (m10.estado === 'medido') return medidoParaTela(m10.valor)
   switch (m10.motivo) {

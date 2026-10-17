@@ -21,10 +21,12 @@ const yPx = (f: number) => TOP + PH - f * PH
 
 export function geomOf(w: number, chart: ChartView): Geom {
   const pw = w - PADL - PADR, H = chart.H, f = chart.fromH
+  // never a non-finite coordinate in the SVG: a change older than the daily collection (or a degenerate span) is pinned to the left edge
+  const fin = (px: number, h: number): number => (Number.isFinite(px) ? px : h > 0 ? PADL + pw : PADL)
   // with a period filter the axis starts at fromH: what is older is pinned to the left edge, never drawn outside
-  if (chart.B0 == null) return { w, H, x: h => PADL + ((Math.max(f, h) - f) / Math.max(1e-9, H - f)) * pw }
+  if (chart.B0 == null || !(chart.B0 > 0) || !(H - chart.B0 > 0)) return { w, H, x: h => fin(PADL + ((Math.max(f, h) - f) / Math.max(1e-9, H - f)) * pw, h) }
   const B0 = chart.B0, preW = Math.min(120, pw * 0.14)
-  return { w, H, x: h => (h <= B0 ? PADL + (h / B0) * preW : PADL + preW + ((h - B0) / (H - B0)) * (pw - preW)) }
+  return { w, H, x: h => fin(h <= B0 ? PADL + (Math.max(0, h) / B0) * preW : PADL + preW + ((h - B0) / (H - B0)) * (pw - preW), h) }
 }
 
 /** Linear geometry of the lanes when there is no chart (R117): from the first stored version to the last check. */

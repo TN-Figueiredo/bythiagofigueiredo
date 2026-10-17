@@ -17,7 +17,7 @@ import { REGRAS_DAS_72_HORAS as R72, curvaDe72Horas, tracaoDoCanal, type VideoDa
 import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
 import type { UltimoVideo, VideoDaOracao } from './frase-do-topo'
 import type { FormatoDoCanal } from './cabecalho-model'
-import { dec1, dm, ptn, quando } from './formatos'
+import { dec1, dm, ptn, quandoMs } from './formatos'
 
 export const QUANTOS_VIDEOS = 6
 /** As idades da linha do normal na tela (as oito casas): de 1 a 30 dias. */
@@ -42,6 +42,8 @@ export interface VideoDeLancamento {
   /** O último ponto com normal, em números (a frase do topo usa). */
   ultima: { dia: number; razao: number } | null
   curva: Array<{ idadeDias: number; views: number }>
+  /** O último ponto medido da curva, em texto ("12,4 mil views no dia 7"): o leitor e a tabela mostram este fato quando não há normal. */
+  ultimoPonto: { dia: number; views: number; texto: string } | null
   passou: { dia: number; razao: number; valor: number } | null
   frase: { negrito: string; resto: string }
 }
@@ -169,14 +171,16 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
     const faixa: FaixaDeLancamento | 'sem_normal' = ult ? faixaDeLancamento(ult.razao) : 'sem_normal'
     const dias = Math.floor((o.agoraMs - l.baseMs) / DAY)
     const prefixo = i === 0 ? (ultimoDoFormato && ultimoDoFormato.v.id === l.v.id ? (o.formato.doisFormatos ? 'o último longo · ' : 'o último · ') : 'o mais recente com contagem · ') : ''
-    const legenda = `${prefixo}publicado ${quando(spDateOf(l.baseMs), o.hojeSP)} · ${l.v.viewCount === null ? 'sem views lidas' : `${o.F.num(l.v.viewCount)} views`}`
+    const legenda = `${prefixo}publicado ${quandoMs(l.baseMs, o.agoraMs)} · ${l.v.viewCount === null ? 'sem views lidas' : `${o.F.num(l.v.viewCount)} views`}`
     let frase: { negrito: string; resto: string }
     if (pas) frase = { negrito: `“${titulo}” saiu acima do normal já no dia ${pas.dia}:`, resto: ` ${o.F.num(Math.round(pas.views))} views, ${x1(pas.razao)}× o normal do canal (${o.F.num(Math.round(pas.valor))}).` }
     else if (ult) frase = { negrito: `“${titulo}” está ${NOME_DA_FAIXA[faixa]}:`, resto: ` ${x1(ult.razao)}× o normal do canal no dia ${ult.dia}.` }
     else frase = { negrito: `“${titulo}” ainda não tem um ponto para comparar com o normal.`, resto: ` Ele tem ${ptn(dias, 'dia', 'dias')} e a linha do normal começa no dia 1.` }
     return {
       id: l.v.id, ordem: i + 1, titulo, legenda, faixa, faixaNome: NOME_DA_FAIXA[faixa], razao: ult ? `${x1(ult.razao)}× no dia ${ult.dia}` : null, ultima: ult ? { dia: ult.dia, razao: ult.razao } : null,
-      curva: l.pontos, passou: pas ? { dia: pas.dia, razao: pas.razao, valor: pas.views } : null, frase,
+      curva: l.pontos,
+      ultimoPonto: l.pontos.length ? (() => { const u = l.pontos[l.pontos.length - 1]!; return { dia: u.idadeDias, views: u.views, texto: `${o.F.num(Math.round(u.views))} views no dia ${u.idadeDias}` } })() : null,
+      passou: pas ? { dia: pas.dia, razao: pas.razao, valor: pas.views } : null, frase,
     }
   })
 
@@ -191,7 +195,7 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
   else if (!ultimoDoFormato) ultimo = { tipo: 'nenhum' }
   else if (videosDeTela[0] && videosDeTela[0].id === ultimoDoFormato.v.id) ultimo = { tipo: 'medido', v: oracaoDe(videosDeTela[0]) }
   else if (o.agoraMs - ultimoDoFormato.baseMs < DAY) {
-    ultimo = { tipo: 'saiu_agora', quando: quando(spDateOf(ultimoDoFormato.baseMs), o.hojeSP), anterior: videosDeTela[0] ? oracaoDe(videosDeTela[0]) : null }
+    ultimo = { tipo: 'saiu_agora', quando: quandoMs(ultimoDoFormato.baseMs, o.agoraMs), anterior: videosDeTela[0] ? oracaoDe(videosDeTela[0]) : null }
   } else ultimo = { tipo: 'sem_contagem', motivo: ultimoDoFormato.baseMs < Date.parse(`${INICIO_DAS_MARCAS}T00:00:00-03:00`) ? 'antes_da_contagem' : 'sem_leitura' }
 
   if (videosDeTela.length === 0) {
@@ -215,8 +219,14 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
     melhorN = Math.max(0, ...por.values())
   }
   const escolhido = videosDeTela[0]!
+  // Sem normal em nenhum ponto: a frase diz isso UMA vez; o resto da seção mostra o fato que existe (as curvas e as views de cada vídeo).
+  const noDia7 = videosDeTela.flatMap(v => { const p = v.curva.find(c => c.idadeDias === 7); return p ? [{ v, views: p.views }] : [] })
+  const maisForte = noDia7.length >= 2 ? noDia7.reduce((a, b) => (b.views > a.views ? b : a)) : null
   const frase = !temNormal
-    ? { negrito: 'Ainda não há “normal” para comparar.', resto: ` Cada ponto da linha pede 3 ${f === 'long' ? 'vídeos' : 'Shorts'} medidos na mesma idade; hoje o melhor ponto tem ${melhorN ?? 0}. As curvas abaixo já mostram como cada ${f === 'long' ? 'vídeo' : 'Short'} novo começou.` }
+    ? {
+      negrito: 'Ainda sem o normal do canal para comparar.',
+      resto: ` A conta pede 3 ${f === 'long' ? 'vídeos' : 'Shorts'} medidos na mesma idade; hoje há no máximo ${melhorN ?? 0}. As curvas mostram como cada ${f === 'long' ? 'vídeo' : 'Short'} novo começou.${maisForte ? ` No dia 7, o que começou mais forte foi o ${f === 'long' ? 'vídeo' : 'Short'} ${maisForte.v.ordem} (${o.F.num(Math.round(maisForte.views))} views).` : ''}`,
+    }
     : escolhido.frase
   let mx = 10
   for (const v of videosDeTela) for (const p of v.curva) mx = Math.max(mx, p.views)

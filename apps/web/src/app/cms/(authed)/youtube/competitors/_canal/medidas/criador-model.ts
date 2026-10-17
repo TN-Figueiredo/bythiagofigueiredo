@@ -61,6 +61,8 @@ export interface BlocoDoCriador {
   pastilha: string | null
   /** O n de vídeos com retrato de 30 dias (a base da conta), para a lista dizer "em N vídeos com retrato de 30 dias". */
   nBase: number
+  /** Nenhum vídeo do canal tem coleta: é o único estado em que a frase "ainda não têm coleta" vale e a lista de respostas não aparece. */
+  semColeta?: boolean
 }
 
 export interface ModeloDoCriador { celula: CelulaDoCriadorComDado; bloco: BlocoDoCriador }
@@ -124,7 +126,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   // a coleta de comentários decide ANTES de qualquer conta: zero retrato no site e a medida nem é chamada
   if (c.coletaDoSiteDesdeMs === null) {
     const f = celulaDoCriador('nao_comecou')
-    return { celula: vazio('nao_medido', f.longa), bloco: semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários ainda não começou.', 'não medido') }
+    return { celula: vazio('nao_medido', f.longa), bloco: { ...semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários ainda não começou.', 'não medido'), semColeta: true } }
   }
   const viva = tarefaViva({ ultimoOkMs: c.ultimoOkDaTarefaMs, primeiraExecucaoMs: c.primeiraExecucaoDaTarefaMs, toleranciaH: DEFINICAO_RETRATOS_COMENTARIOS.toleranciaVigiaH, agoraMs: e.agoraMs })
   if (viva.estado === 'nao_lida') {
@@ -132,7 +134,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   }
   if (viva.estado === 'parada') {
     const f = celulaDoCriador('parada')
-    return { celula: vazio('nao_medido', f.longa), bloco: semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários está parada.', 'não medido') }
+    return { celula: vazio('nao_medido', f.longa), bloco: { ...semCasas('nao_medido', 'Ainda não dá para dizer se o criador responde.', ' A coleta de comentários está parada.', 'não medido'), semColeta: true } }
   }
 
   const retrato = (id: string): StatusDoRetrato | null => (c.porVideo.get(id)?.retrato30 ?? null) as StatusDoRetrato | null
@@ -193,18 +195,30 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   const comColeta = doFormato.filter(x => c.coletaDoCanalDesdeMs !== null && x.base >= c.coletaDoCanalDesdeMs).length
   let frase: BlocoDoCriador['frase']
   let curta: string
+  let semColeta = false
   if (m.motivo === 'fecha_em' && m.fechaEm) {
     frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${comColeta} dos ${total} vídeos dos últimos ${janela} dias têm coleta de comentários, e o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}.` }
     curta = `não medido: o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}`
   } else if (m.motivo === 'poucos_videos') {
     frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${m.n ?? nBase} dos ${total} vídeos têm retrato de 30 dias, e a conta pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos}.` }
     curta = `não medido: só ${m.n ?? nBase} de ${total} vídeos têm retrato de 30 dias (pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos})`
+  } else if (cont('espera') > 0) {
+    // Há vídeos em coleta (ainda sem os 30 dias): dizer "não têm coleta" contradiria as casas e a lista. A data é a do mais antigo em espera.
+    const emEspera = doFormato.filter((_, i) => casas[i] === 'espera')
+    const primeiro = Math.min(...emEspera.map(x => x.base)) + 30 * DAY
+    const n = emEspera.length
+    const antigos = antes > 0 && c.coletaDoSiteDesdeMs !== null
+      ? ` ${antes === 1 ? 'O mais antigo saiu' : `Os ${antes} mais antigos saíram`} antes da coleta começar (${dm(spDateOf(c.coletaDoSiteDesdeMs))}).`
+      : ''
+    frase = { negrito: 'Ainda não dá para medir.', resto: ` ${n === 1 ? '1 vídeo está' : `${n} vídeos estão`} em coleta; o primeiro fecha 30 dias em ${dm(spDateOf(primeiro))}.${antigos}` }
+    curta = `não medido: o primeiro retrato de 30 dias fecha em ${dm(spDateOf(primeiro))}`
   } else {
     frase = { negrito: 'Ainda não dá para medir.', resto: ' Os vídeos deste canal ainda não têm coleta de comentários.' }
     curta = 'não medido: os vídeos deste canal ainda não têm coleta de comentários'
+    semColeta = true
   }
   return {
     celula: { valor: 'nao_medido', base: curta, motivo: curta, k: null, n: null, pct: null },
-    bloco: { tipo: 'nao_medido', frase, casas, legenda: legendaDe(), pastilha: 'não medido', nBase },
+    bloco: { tipo: 'nao_medido', frase, casas, legenda: legendaDe(), pastilha: 'não medido', nBase, ...(semColeta ? { semColeta: true } : {}) },
   }
 }
