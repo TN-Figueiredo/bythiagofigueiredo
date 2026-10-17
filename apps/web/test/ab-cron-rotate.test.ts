@@ -24,6 +24,11 @@ vi.mock('@/lib/cron-health', () => ({
   recordCronFailure: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+// T8: a 3ª falha PEDE settleOnAir(original, falha_api); o contrato dele está em ab-settle.test.ts.
+vi.mock('@/lib/youtube/ab-settle', async (orig) => {
+  const { settleOnAirFalso } = await import('./helpers/montar-saida-automatica')
+  return { ...(await orig<typeof import('@/lib/youtube/ab-settle')>()), settleOnAir: settleOnAirFalso }
+})
 
 import { GET } from '@/app/api/cron/ab-rotate/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -40,6 +45,8 @@ import { recordCronSuccess } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
 import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from './helpers/fake-owner-db'
 import { cadeiaUpdate } from './helpers/cadeia-update'
+import { settleOnAirFalso } from './helpers/montar-saida-automatica'
+import { YouTubeApiError } from '@/lib/youtube/youtube-api-error'
 import type { FiltroRegistrado } from './helpers/cadeia-update'
 
 function createCronRequest(secret: string) {
@@ -116,7 +123,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
               return { not: vi.fn().mockReturnValue({ lte: vi.fn().mockResolvedValue({ data: queuedTests }) }) }
             }
             // `{ data }` é a leitura dos ativos; `.single()` é a releitura de restore_seq antes de cada escrita.
-            return { data: tests, single: vi.fn().mockResolvedValue({ data: { restore_seq: seqNaReleitura }, error: null }) }
+            return { data: tests, single: vi.fn().mockResolvedValue({ data: { restore_seq: seqNaReleitura, config: (tests[0] as { config?: unknown } | undefined)?.config }, error: null }) }
           }),
         }),
         update: vi.fn((data: unknown) => cadeiaUpdate(data, {
@@ -228,6 +235,7 @@ beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret')
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
   vi.clearAllMocks()
+  settleOnAirFalso.mockResolvedValue({ resultado: 'feito', campos: {} })
   mockChannelAccountId.mockResolvedValue('UCpt')
   fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
   ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -512,7 +520,7 @@ describe('GET /api/cron/ab-rotate', () => {
     const test = makeTest({ test_type: 'thumbnail' })
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
     ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('YouTube API returned 401: token expired')
+      new YouTubeApiError(401, 'authError', 'thumbnails.set')
     )
 
     const req = createCronRequest('test-secret')
@@ -627,7 +635,7 @@ describe('GET /api/cron/ab-rotate', () => {
     })
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
     ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('YouTube API returned 401: token expired')
+      new YouTubeApiError(401, 'authError', 'thumbnails.set')
     )
 
     const req = createCronRequest('test-secret')
@@ -637,17 +645,12 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.errors).toBe(1)
     expect(body.processed).toBe(0)
 
-    // Test is paused with consecutive_failures: 3
-    expect(updateCalls).toContainEqual(
-      expect.objectContaining({
-        table: 'ab_tests',
-        data: expect.objectContaining({
-          status: 'paused',
-          status_note: expect.stringContaining('3 consecutive failures'),
-          config: expect.objectContaining({ consecutive_failures: 3 }),
-        }),
-      }),
-    )
+    // Terceira falha: a saída é PEDIDA a settleOnAir (volta ao original e pausa numa só reivindicação); a fase não grava a pausa
+    expect(settleOnAirFalso).toHaveBeenCalledTimes(1)
+    expect(settleOnAirFalso).toHaveBeenCalledWith('test-1', expect.objectContaining({
+      siteId: 'site-1', destino: { tipo: 'original' }, motivo: 'falha_api', consecutiveFailures: 3,
+    }))
+    expect(updateCalls.some((c) => (c.data as { status?: string }).status === 'paused')).toBe(false)
   })
 
   it('does not process queued tests with future queue_start_after', async () => {
@@ -720,7 +723,7 @@ describe('GET /api/cron/ab-rotate', () => {
     // Thumbnail succeeds, metadata throws
     ;(setThumbnail as ReturnType<typeof vi.fn>).mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' })
     ;(updateVideoMetadata as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('YouTube API returned 401: token expired')
+      new YouTubeApiError(401, 'authError', 'videos.update')
     )
 
     const req = createCronRequest('test-secret')

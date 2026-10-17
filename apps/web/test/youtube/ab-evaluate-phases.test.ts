@@ -29,7 +29,12 @@ vi.mock('@/lib/youtube/ab-playoff', () => ({
 }))
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+// T8: a duração máxima é um PEDIDO a settleOnAir (o contrato dele está em ab-settle.test.ts; o caminho real, em ab-evaluate-duracao-maxima.test.ts).
+vi.mock('@/lib/youtube/ab-settle', async (orig) => {
+  const { settleOnAirFalso } = await import('../helpers/montar-saida-automatica')
+  return { ...(await orig<typeof import('@/lib/youtube/ab-settle')>()), settleOnAir: settleOnAirFalso }
+})
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn().mockResolvedValue(1) }))
 
 import {
@@ -43,6 +48,7 @@ import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { settleOnAirFalso as settle } from '../helpers/montar-saida-automatica'
 
 // ─── Cliente falso POR TABELA ───────────────────────────────────────────────
 
@@ -229,6 +235,8 @@ beforeEach(() => {
     buffer: Buffer.from('x'), contentType: 'image/jpeg',
   })
   ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation((text: string) => text)
+  settle.mockReset()
+  settle.mockResolvedValue({ resultado: 'feito', campos: { thumbnail: { estado: 'ok' } } })
 })
 
 afterEach(() => {
@@ -252,19 +260,13 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
   })
 
-  it('critérios todos verdes e duração vencida: encerra inconclusive, sem vencedor, sem carência, ciclos fechados', async () => {
-    const { supabase, gravadoEm } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14, ciclos: ciclosComVencedorClaro(), comVencedorSugerido: true, carenciaAte: 'futuro' })])
+  it('duração vencida, critérios todos verdes: pede settleOnAir(original, duracao_maxima) e NÃO grava nada pela fase (vencedor e carência são do banco)', async () => {
+    const { supabase, escritas } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14, ciclos: ciclosComVencedorClaro(), comVencedorSugerido: true, carenciaAte: 'futuro' })])
     const r = await phaseEvaluateActiveTests(supabase)
     expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
-    const linha = gravadoEm('ab_tests')
-    expect(linha).toMatchObject({
-      status: 'completed', completed_reason: 'inconclusive', confidence_at_completion: null,
-      winner_variant_id: null, grace_expires_at: null,
-    })
-    for (const chave of ['winner_applied_at', 'applied_by', 'consecutive_confident_evals', 'result_metadata']) {
-      expect(linha).not.toHaveProperty(chave)
-    }
-    expect(gravadoEm('ab_test_cycles')).toHaveProperty('ended_at')
+    expect(settle).toHaveBeenCalledTimes(1)
+    expect(settle).toHaveBeenCalledWith('test-1', { siteId: 'site-1', destino: { tipo: 'original' }, motivo: 'duracao_maxima' })
+    expect(escritas()).toHaveLength(0)
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
@@ -287,44 +289,24 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect((await phaseEvaluateActiveTests(velho.supabase)).resolved).toBe(1)
   })
 
-  it.each(['thumbnail', 'combo'] as const)('%s, com ciclo (foi ao ar) e original no Blob: tenta restaurar uma vez', async (tipo) => {
-    const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo, diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
-    const r = await phaseEvaluateActiveTests(supabase)
-    expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
-    expect(setThumbnail).toHaveBeenCalledTimes(1)
-    expect(gravadoEm('ab_tests')).not.toHaveProperty('status_note')
-  })
-
-  it.each(['title'] as const)('teste de %s não chama setThumbnail e encerra sem erro', async (tipo) => {
-    const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo, diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
-    const r = await phaseEvaluateActiveTests(supabase)
-    expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
-    expect(setThumbnail).not.toHaveBeenCalled()
-    expect(gravadoEm('ab_tests')).not.toHaveProperty('status_note')
-  })
-
-  it('thumbnail que nunca foi ao ar (nenhum ciclo): não chama o YouTube, encerra sem erro', async () => {
-    const { supabase } = clienteCom([testeAtivo({ tipo: 'thumbnail', diasNoAr: 15, maxDuracao: 14, ciclos: [], originalNoBlob: true })])
-    const r = await phaseEvaluateActiveTests(supabase)
-    expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
+  it.each(['thumbnail', 'title', 'combo'] as const)('teste de %s vencido: um pedido de saída, sem escrita direta no YouTube', async (tipo) => {
+    const { supabase } = clienteCom([testeAtivo({ tipo, diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
+    expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
+    expect(settle).toHaveBeenCalledTimes(1)
     expect(setThumbnail).not.toHaveBeenCalled()
   })
 
-  it('original fora do Blob, com variante que foi ao ar: encerra, status_note preenchido, errors 1, sem chamar o YouTube', async () => {
-    const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo: 'thumbnail', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: false })])
-    const r = await phaseEvaluateActiveTests(supabase)
-    expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 1 })
-    expect(setThumbnail).not.toHaveBeenCalled()
-    expect(gravadoEm('ab_tests').status_note).toMatch(/original não restaurado \(sem_original_no_blob\)/)
+  it('campo que não voltou ao original (falhou): resolved 1, errors 1 (o cron fica vermelho), sem Sentry de exceção', async () => {
+    settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'falhou' }, title: { estado: 'ok' } } })
+    const { supabase } = clienteCom([testeAtivo({ tipo: 'combo', diasNoAr: 15, maxDuracao: 14 })])
+    expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 1, errors: 1 })
   })
 
-  it('a restauração falha (setThumbnail rejeita): encerra, resolved 1, errors 1, status_note preenchido, Sentry chamado', async () => {
-    ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('token expirado'))
-    const { supabase, gravadoEm } = clienteCom([testeAtivo({ tipo: 'thumbnail', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })])
-    const r = await phaseEvaluateActiveTests(supabase)
-    expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 1 })
-    expect(gravadoEm('ab_tests').status_note).toMatch(/original não restaurado \(falhou\)/)
-    expect(Sentry.captureException).toHaveBeenCalled()
+  it('campo desistiu também deixa o cron vermelho; pulado_drift e pulado_sem_original não', async () => {
+    settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'desistiu' } } })
+    expect((await phaseEvaluateActiveTests(clienteCom([testeAtivo({ diasNoAr: 15 })]).supabase)).errors).toBe(1)
+    settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'pulado_drift' }, title: { estado: 'pulado_sem_original' } } })
+    expect((await phaseEvaluateActiveTests(clienteCom([testeAtivo({ diasNoAr: 15 })]).supabase)).errors).toBe(0)
   })
 
   it('a leitura de ab_tests falha: conta erro, não devolve zero em verde', async () => {
@@ -332,40 +314,37 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 0, resolved: 0, errors: 1 })
   })
 
-  it('a gravação do encerramento falha: conta erro e não conta como resolvido', async () => {
-    const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })], { falhaAoGravar: 'ab_tests' })
-    expect(await phaseEvaluateActiveTests(supabase)).toMatchObject({ resolved: 0, errors: 1 })
-  })
-
-  it('fechar os ciclos falha: resolved 0, errors 1 e ab_tests não é gravado', async () => {
-    const { supabase, escritasEm } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })], { falhaAoGravar: 'ab_test_cycles' })
-    expect(await phaseEvaluateActiveTests(supabase)).toMatchObject({ resolved: 0, errors: 1 })
-    expect(escritasEm('ab_tests')).toHaveLength(0)
-  })
-
-  it('dois testes vencidos, o primeiro falha: o segundo encerra', async () => {
-    const { supabase } = clienteCom(
-      [testeAtivo({ id: 'a', diasNoAr: 15, maxDuracao: 14 }), testeAtivo({ id: 'b', diasNoAr: 15, maxDuracao: 14 })],
-      { falhaAoGravar: { tabela: 'ab_test_cycles', idDoTeste: 'a' } },
-    )
+  it('settleOnAir lança no primeiro de dois testes vencidos: conta erro, vai ao Sentry e o segundo é pedido', async () => {
+    settle.mockRejectedValueOnce(new Error('ab_settle_claim caiu'))
+    const { supabase } = clienteCom([testeAtivo({ id: 'a', diasNoAr: 15, maxDuracao: 14 }), testeAtivo({ id: 'b', diasNoAr: 15, maxDuracao: 14 })])
     expect(await phaseEvaluateActiveTests(supabase)).toMatchObject({ resolved: 1, errors: 1 })
+    expect(settle).toHaveBeenCalledTimes(2)
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
 
-  it('o teste deixou de ser active entre a leitura e a restauração: setThumbnail não é chamado e nada é gravado', async () => {
-    const { supabase, escritas } = clienteCom(
-      [testeAtivo({ tipo: 'thumbnail', diasNoAr: 15, maxDuracao: 14, ciclos: [cicloVazio()], originalNoBlob: true })],
-      { statusNaReleitura: 'completed' },
-    )
-    const r = await phaseEvaluateActiveTests(supabase)
-    expect(r).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
-    expect(setThumbnail).not.toHaveBeenCalled()
-    expect(escritas()).toHaveLength(0)
-  })
-
-  it('o update final casa zero linha (alguém encerrou ou pausou à mão): resolved 0, errors 0, e o filtro status=active foi enviado', async () => {
-    const { supabase, filtrosDoUpdate } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })], { updateCasaZeroLinha: true })
+  it.each(['ja_encerrado', 'em_andamento'] as const)('settleOnAir devolve %s (outro escritor é dono do teste): não conta resolvido nem erro', async (resultado) => {
+    settle.mockResolvedValueOnce({ resultado, campos: null })
+    const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })])
     expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
-    expect(filtrosDoUpdate('ab_tests')).toMatchObject({ id: expect.any(String), status: 'active' })
+  })
+
+  it('F-D3: corte de tempo: com menos de 40 s de rota pela frente não inicia a saída, adia com Sentry e o teste não conta como resolvido', async () => {
+    const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })])
+    const r = await phaseEvaluateActiveTests(supabase, Date.now() - 100_000) // 20 s sobram dos 120 s
+    expect(r).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
+    expect(settle).not.toHaveBeenCalled()
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-evaluate: duração máxima adiada por tempo', expect.anything())
+  })
+
+  it('F-D3: no limite (40 s sobrando) ainda inicia; o relógio anda entre dois testes e o segundo é adiado', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      settle.mockImplementation(async () => { vi.advanceTimersByTime(45_000); return { resultado: 'feito', campos: {} } })
+      const { supabase } = clienteCom([testeAtivo({ id: 'a', diasNoAr: 15 }), testeAtivo({ id: 'b', diasNoAr: 15 }), testeAtivo({ id: 'c', diasNoAr: 15 })])
+      const r = await phaseEvaluateActiveTests(supabase, Date.now() - 40_000) // restam 80 s: o 1º começa (80), o 2º tem 35 s e é adiado
+      expect(settle).toHaveBeenCalledTimes(1)
+      expect(r).toEqual({ evaluated: 3, resolved: 1, errors: 0 })
+    } finally { vi.useRealTimers() }
   })
 
   it('AB_AUTO_APPLY_WINNER=true com carência vencida não aplica nada nem escreve em ab_tests', async () => {

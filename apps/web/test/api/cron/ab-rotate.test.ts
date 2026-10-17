@@ -7,6 +7,14 @@ vi.mock('@/lib/youtube/channel-account', async (orig) => ({
 }))
 import type { NextRequest } from 'next/server'
 import { cadeiaUpdate } from '../../helpers/cadeia-update'
+import { settleOnAirFalso } from '../../helpers/montar-saida-automatica'
+import { YouTubeApiError } from '@/lib/youtube/youtube-api-error'
+
+// T8: a 3ª falha PEDE settleOnAir(original, falha_api); o contrato dele está em ab-settle.test.ts.
+vi.mock('@/lib/youtube/ab-settle', async (orig) => {
+  const { settleOnAirFalso: falso } = await import('../../helpers/montar-saida-automatica')
+  return { ...(await orig<typeof import('@/lib/youtube/ab-settle')>()), settleOnAir: falso }
+})
 
 const CRON_SECRET = 'test-cron-secret'
 process.env.CRON_SECRET = CRON_SECRET
@@ -115,7 +123,7 @@ function activeTestsQuery(data: unknown[]) {
     select: vi.fn().mockReturnValue({
       // `{ data }` = leitura dos ativos; `.single()` = releitura de restore_seq antes de cada escrita
       eq: vi.fn().mockReturnValue(Object.assign(Promise.resolve({ data, error: null }), {
-        single: vi.fn().mockResolvedValue({ data: { restore_seq: 1 }, error: null }),
+        single: vi.fn().mockResolvedValue({ data: { restore_seq: 1, config: (data[0] as { config?: unknown } | undefined)?.config }, error: null }),
       })),
     }),
   }
@@ -271,12 +279,14 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(mockRpc).toHaveBeenCalledWith('ab_rotate_commit', expect.objectContaining({ p_test_id: 'test-1', p_seq: 1, p_variant_id: 'var-b' }))
   })
 
-  it('auto-pauses test on 401 auth error', async () => {
+  it('auto-pauses test on 401 auth error: a 3ª falha pede a saída por settleOnAir', async () => {
+    settleOnAirFalso.mockReset()
+    settleOnAirFalso.mockResolvedValue({ resultado: 'feito', campos: {} })
     const test = makeTest({ config: { rotation_pattern: 'abba', consecutive_failures: 2 } })
     const mockUpdate = vi.fn((d: unknown) => cadeiaUpdate(d))
 
     // Simulate YouTube API returning 401 when setThumbnail is called
-    mockSetThumbnail.mockRejectedValueOnce(new Error('401 unauthorized'))
+    mockSetThumbnail.mockRejectedValueOnce(new YouTubeApiError(401, 'authError', 'thumbnails.set'))
 
     let abTestsCallCount = 0
     let cyclesSelectCount = 0
@@ -313,5 +323,7 @@ describe('GET /api/cron/ab-rotate', () => {
     const body = await res.json()
     expect(body.errors).toBe(1)
     expect(mockUpdate).toHaveBeenCalled()
+    expect(settleOnAirFalso).toHaveBeenCalledTimes(1)
+    expect(settleOnAirFalso).toHaveBeenCalledWith('test-1', expect.objectContaining({ motivo: 'falha_api', consecutiveFailures: 3 }))
   })
 })
