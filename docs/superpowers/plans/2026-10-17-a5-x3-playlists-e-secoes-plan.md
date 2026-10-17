@@ -331,8 +331,8 @@ primária), nunca `find` dentro de `map` no código: no código a lista de playl
   nunca é inferida para aquela playlist (a entrada continua, pelo `added_at`).
 - **Teto do dia:** `unidadesPorDia = 600` (6%), lido de `youtube_quota_usage.operations->>'competitors_playlists'` do dia do Pacífico
   (o contador que o dono lê), não da soma de `last_units`. Só dispara em defeito; a primeira semana com os 24 canais no mesmo dia gasta ~290.
-- **Tempo:** ~12 chamadas × ~0,4 s ≈ 5 s por canal (não medido). Pior caso da cauda: 8 + 3 × 5 + 2 = 25 s, por isso a última chamada
-  começa até 60 s e o canal novo até 50 s (4.6). **Q1 do Phil, medida em 17/10 pelo controlador:** a leitura horária em produção leva p50
+- **Tempo:** ~12 chamadas × ~0,4 s ≈ 5 s por canal (não medido). Pior caso da cauda: 8 + 4 × 5 + 2 = 30 s, por isso a última chamada
+  começa até 55 s (`85 − 8 − 4 × 5 − 2`, com a ida de `itensPresentes`; Phil M-8) e o canal novo até 50 s (4.6). **Q1 do Phil, medida em 17/10 pelo controlador:** a leitura horária em produção leva p50
   2,5 s, p90 3,3 s, p99 5,2 s (89 rodadas em 7 dias): não aperta o orçamento (esperado p90 ≤ 50 s). Primeiro dia: 24 canais ≈ 120 s,
   espalhados em ~6 disparos; depois ~3 a 4 canais por dia.
 - **Espaço (Phil I-7):** com 10 playlists × 30 itens por canal (número ainda **não medido**), a linha de item custa ~330 B com índices
@@ -668,6 +668,9 @@ select c.id, c.channel_name from public.competitor_channels c join public.compet
 select p.competitor_channel_id, count(*) as playlists, sum(coalesce(p.item_count, 0)) as itens,
        round(sum(coalesce(p.item_count, 0)) * 330 / 1048576.0, 2) as mb_projetado
   from public.competitor_playlists p group by 1 order by 3 desc;
+-- portão contagem_difere (Phil I-1, x3-d1): mais de 10% das playlists ou dos canais com contagem_difere = desligar e voltar ao Phil
+select items_reason, count(*) from public.competitor_playlists where missing_since is null group by 1;
+select last_reason, count(*) from public.competitor_playlist_reads group by 1;
 -- unidades por dia
 select date, operations->>'competitors_playlists' from public.youtube_quota_usage order by date desc limit 10;
 -- tamanho
@@ -685,6 +688,11 @@ select relname, pg_size_pretty(pg_total_relation_size(oid)) from pg_class
 - **Perdas conscientes (Phil M-6, P-4):** a ordem dos itens (`position`) é sobrescrita (a história de reordenação se perde; guardar custaria uma
   versão por vídeo novo no topo, toda semana); a troca de capa **sozinha** não gera versão de playlist (a capa de cada versão fica no `raw`).
 - Dívidas declaradas (Yannis, 2ª rodada): `position` reescreve a playlist inteira quando entra item no topo; `unfinished_n` da agenda é compartilhado entre `parcial` e `adiada`. Aceitos.
+- `teto_do_dia` e `sem_tempo` com `feitas = 0` saem `parcial` sem progresso: gastam tentativa e somam `unfinished_n` (o alarme dispara, correto: o teto só bate em defeito, mas a frase não diz "teto do dia"). Dívida aceita; gatilho: o 1º dia com `teto_do_dia` (Yannis M-2).
+- A estimativa por canal no planejamento é fixa (12); quem segura o dia é o freio durante a execução (teto de 600 + no máximo 39), não a estimativa (Phil M-6).
+- Última versão de seções por 1 consulta por canal (N+1 declarado, em paralelo); gatilho: canais ativos > 100, trocar por coluna `last_sections_empty` (Yannis, desvio 2).
+- A etapa `E21` das conferências é reservada à X3 (Yannis M-6).
+- Na API real (T0 do controlador, 17/10) `totalResults = itemCount` = itens devolvidos, contando privados e apagados; o código compara com `lidos` (antes de qualquer descarte).
 - A saída de item é uma janela (`removed_after` a `removed_since`), não um instante.
 - A primeira linha de cada versão é "pelo menos desde" o dia da ligação; o que saiu antes dela não volta (dito pelo spec).
 - `channelSections` pode ter mudado de comportamento (C2).
