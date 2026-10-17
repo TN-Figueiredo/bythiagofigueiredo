@@ -492,6 +492,28 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
   ]
 }
 
+// A5 X3 (coleta de playlists e seções dos concorrentes): as datas dependem do dia em que o dono LIGA a coleta (`OBS_X3_PLAYLISTS=on` na Vercel + redeploy,
+// depois da migration aplicada). `X3_LIGADA` é preenchida no commit desse dia; enquanto for `null`, as entradas NÃO existem. A X3 não tem número `E<n>`:
+// a etapa é `E21` só porque o guardião exige o formato (ids `x3-`). As consultas estão na seção 11 do plano; a C1 ampliada (tamanho) é a da x3-d1.
+/** Dia de São Paulo (AAAA-MM-DD) em que a coleta de playlists foi ligada. `null` = ainda desligada. */
+export const X3_LIGADA: string | null = null
+
+const PLANO_X3 = 'docs/superpowers/plans/2026-10-17-a5-x3-playlists-e-secoes-plan.md (seção 11 e Tarefa 8); anotar o resultado em .superpowers/sdd/a5/x3/progress.md'
+
+/** D+1, D+7 e D+30 de `X3_LIGADA`. Data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasX3(ligada: string | null): Conferencia[] {
+  if (ligada === null) return []
+  if (!dataReal(ligada)) {
+    return [{ id: 'x3-ligada-invalida', etapa: 'E21', data: '1970-01-01', responsavel: 'agente', onde: `X3_LIGADA (apps/web/src/lib/conferencias.ts) está malformada: "${ligada}". Corrigir para AAAA-MM-DD (dia de São Paulo em que a coleta foi ligada) ou null`, feitaEm: null }]
+  }
+  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `x3-${id}`, etapa: 'E21', data: somaDias(ligada, mais), responsavel: 'agente', onde: `${PLANO_X3}: ${onde}`, feitaEm: null })
+  return [
+    e('d1', 1, 'D+1: a consulta do §11 devolve 0 linhas (todo canal ativo tem linha em competitor_playlist_reads); a unidade do dia em competitors_playlists está entre 200 e 400; C1 ampliada (playlists e itens por canal: máximo, mediana, soma; projeção soma x 330 B até 15 MB, senão desligar e voltar ao Phil); C3'),
+    e('d7', 7, 'D+7: todo canal ativo com last_cycle_at em até 7 dias; canais_com_secoes > 0 (o número da C2); tamanho das cinco tabelas até 1,5 x a projeção da C1; nenhuma linha com reason = cota_nao_registrada; C4'),
+    e('d30', 30, 'D+30: versões por playlist por mês até 1 (acima disso, rever o hash); removed_after preenchido em toda linha com removed_since, exceto a de playlist sem leitura completa anterior (items_complete_at nulo na época: nulo é honesto)'),
+  ]
+}
+
 // E17 degrau 1 ("Perguntar a uma IA"): as datas dependem do dia da promoção a `main` (D). `E17_D1_DEPLOY` é preenchida no commit do
 // envio que LIGA o botão (CONTEXTO_IA_RULES.ligado = true, no MESMO commit; um teste amarra as duas). `E17_D1_NUCLEO_DEPLOY` é a
 // do envio do núcleo, que vai desligado e não liga nada. Enquanto forem `null`, as entradas NÃO existem. Etapa `E17`.
@@ -580,7 +602,7 @@ export function conferenciasE11(deploy: string | null): Conferencia[] {
   ]
 }
 
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
