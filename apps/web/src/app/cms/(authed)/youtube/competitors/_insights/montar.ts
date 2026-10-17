@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
+import { anteriorCoberto } from '@/lib/youtube/observatorio/medidas-telas/cobertura'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import { parseNiche, type Niche } from '@/lib/youtube/observatorio/niche'
 import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
@@ -23,7 +24,16 @@ async function carregarDirecao(pagina: ObservatoryPage<undefined>, niche: Niche,
     }
   }
   const cartoes = concorrentes.map(c => ({ id: c.id, name: c.name, href: obs.link.canais({ channel: c.id }) }))
+  // mesma regra do Comparar: o histórico guardado alcança o começo do período anterior? (portão Phil I2)
+  const pubs = new Map<string, number>()
+  for (const v of obs.videos) { const m = pubs.get(v.ch); if (m === undefined || v.pub < m) pubs.set(v.ch, v.pub) }
+  const contagem = new Map<string, number>()
+  for (const v of obs.videos) contagem.set(v.ch, (contagem.get(v.ch) ?? 0) + 1)
+  const anteriorIncompleto = concorrentes
+    .filter(c => !anteriorCoberto({ desde: pubs.get(c.id) ?? null, guardados: (contagem.get(c.id) ?? 0) + c.undated.length, noYouTube: c.youtubeVideoCount ?? null, backfill: c.sync.state === 'backfill' }, now).ok)
+    .map(c => c.id)
   const opcoes = {
+    anteriorIncompleto,
     leitura: parseLeitura(leitura), hojeSP: spDateOf(now), nicho: obs.nicheLabel(niche),
     seusCanais: obs.channels.filter(c => c.own && c.niche === niche).map(c => c.name),
   }
