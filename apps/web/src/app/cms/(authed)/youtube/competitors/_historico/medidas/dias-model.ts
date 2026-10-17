@@ -5,7 +5,7 @@ import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { Leitura } from '@/lib/youtube/observatorio/medidas/m1'
 import { somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
 import { linhaDeCorteNaJanela } from '@/lib/youtube/observatorio/medidas-telas/calendario-das-paginas'
-import { DAY } from '@/lib/youtube/observatorio/time'
+import { DAY, H, spDateStart } from '@/lib/youtube/observatorio/time'
 import { dm, horaSP, milhar, spDateOfMs } from './formatos'
 import { MUITAS_MUDANCAS, type CampoDoVideo, type MudancaNumerada, type TipoDeMudanca } from './mudancas-model'
 
@@ -330,5 +330,50 @@ export function contagemPorSemana(leituras: readonly Leitura[], publicadoEmMs: n
       'média por dia da semana (um ponto por semana)', 'sem contagem (antes da primeira leitura)',
       ...(corte ? [`${dm(corte.dia)}: mudou a regra de contar views`] : []),
     ],
+  }
+}
+
+
+// ───── o que o gráfico por dia ganha, em dado serializável (Tarefa 21) ─────
+
+/**
+ * Os acréscimos do gráfico "Views por dia e cada mudança", prontos para atravessar do servidor ao `HistoricoScreen` (cliente): só números,
+ * textos e a forma por semana. O eixo é o do gráfico de hoje, horas desde a publicação. A barra de cada dia fecha na leitura das 12:00, então
+ * "a borda direita do dia D" é as 12:00 de D e a esquerda, as 12:00 do dia anterior.
+ */
+export interface AcrescimosDoGrafico {
+  faixaSubida: { deH: number; ateH: number; rotulo: string } | null
+  /** Os 14 dias antes da subida (tracejada). */
+  faixaAntes: { deH: number; ateH: number; rotulo: string } | null
+  saiu: { h: number; rotulo: string } | null
+  corte: { h: number; rotulo: string } | null
+  /** As marcas da raia "Outras" (descrição, tags, categoria, duração e capítulos). */
+  outras: Array<{ h: number; rotulo: string; aria: string; n: number }>
+  /** Só com `series_tier` semanal: a forma por semana no lugar das barras por dia. */
+  semanal: ContagemPorSemana | null
+}
+
+export function acrescimosDoGrafico(o: {
+  publicadoEmMs: number
+  subidaDia: string | null
+  saiuEm: string | null
+  eixo: { de: string; ate: string }
+  mudancas: readonly MudancaNumerada[] | null
+  semanal: ContagemPorSemana | null
+}): AcrescimosDoGrafico {
+  const direita = (dia: string): number => (spDateStart(dia) + 12 * H - o.publicadoEmMs) / H
+  const esquerda = (dia: string): number => direita(somaDias(dia, -1))
+  const f = o.subidaDia ? faixasDaSubida(o.subidaDia) : null
+  const saiu = linhaSaiu(o.saiuEm, [o.eixo.de, o.eixo.ate])
+  const corte = linhaDeCorteDoEixo(o.eixo.de, o.eixo.ate)
+  return {
+    faixaSubida: f && o.subidaDia ? { deH: direita(o.subidaDia), ateH: direita(f.subida.dias[f.subida.dias.length - 1]!), rotulo: `os ${f.subida.dias.length} dias da subida` } : null,
+    faixaAntes: f && o.subidaDia ? { deH: esquerda(f.antes.dias[0]!), ateH: direita(f.antes.dias[f.antes.dias.length - 1]!), rotulo: `os ${f.antes.dias.length} dias antes` } : null,
+    saiu: saiu ? { h: esquerda(saiu.dia), rotulo: saiu.rotulo } : null,
+    corte: corte ? { h: esquerda(corte.dia), rotulo: corte.rotulo } : null,
+    outras: (o.mudancas ?? []).filter((m) => m.tipo === 'outras').map((m) => ({
+      h: (m.ateMs - o.publicadoEmMs) / H, rotulo: m.nomeDosCampos, n: m.n, aria: `Mudança ${m.n}: ${m.nomeDosCampos}, ${m.quando}`,
+    })),
+    semanal: o.semanal,
   }
 }

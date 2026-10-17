@@ -5,7 +5,10 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { HoverTip } from '../_chrome/flut/flut'
-import type { ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView, RangeView } from './view-model'
+import type { AcrescimosDoGrafico, ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView, RangeView } from './view-model'
+import { LEGENDA_DE_OUTRAS } from './medidas/dias-model'
+import { ContagemPorSemanaHistorico } from './medidas/contagem-por-semana'
+import './medidas/historico-medidas.css'
 import { RichText } from '../_mudancas/rich'
 import type { RangeId } from './many-versions'
 import { Lanes, type Geom, type GroupTip, type Hl } from './lanes'
@@ -43,7 +46,7 @@ interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; e
 const ZOOM_HINT = 'clique duplo numa miniatura da faixa Thumbnail a amplia; o clique simples leva ao cartão da versão'
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer:coarse),(max-width:900px)').matches
 
-export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, onZoomVersion, range, onRange, groupLegend, arrivalId }: {
+export function Timeline({ chart, axis, lanes: lanesIn, legend, pair, hl, onHl, onSelectPair, onGoVersion, onZoomVersion, range, onRange, groupLegend, arrivalId, acrescimos = null }: {
   chart: ChartView | null; axis?: LanesAxisView | null; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
   hl: Hl | null; onHl: (h: Hl | null) => void
   onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number, detail?: number) => void
@@ -53,7 +56,11 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
   range?: RangeView | null; onRange?: (id: RangeId) => void; groupLegend?: string
   /** The change `troca=` opened the screen on (its marker gets the ring). */
   arrivalId?: string | null
+  /** E5a T21b: as faixas da subida, a linha de "saiu", a de 24/08, as marcas de "Outras" e a forma por semana (dado serializável; ausente = o gráfico de hoje). */
+  acrescimos?: AcrescimosDoGrafico | null
 }) {
+  // com os acréscimos a raia da descrição passa a se chamar "Outras" (descrição, tags, categoria, duração e capítulos); o campo continua `desc`
+  const lanes = useMemo(() => (acrescimos ? lanesIn.map(l => (l.type === 'desc' ? { ...l, label: 'Outras' } : l)) : lanesIn), [lanesIn, acrescimos])
   const wrap = useRef<HTMLDivElement>(null)
   const [w, setW] = useState(1100)
   const [tip, setTip] = useState<TipState | null>(null)
@@ -82,7 +89,7 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
   const layouts = useMemo(() => lanes.map(l => layoutLane(l, geom.x, minpx)), [lanes, geom, minpx])
   const anyGroup = layouts.some(l => l.some(i => i.kind === 'pgroup' || i.kind === 'mgroup'))
   const zoomHint = onZoomVersion && lanes.some(l => l.type === 'thumb' && l.versions.some(v => v.inRange && v.thumb))
-  const fullLegend: LegendItem[] = [...legend, ...(anyGroup && groupLegend ? [{ kind: 'grp' as const, text: groupLegend }] : []), ...(zoomHint ? [{ kind: 'thumb' as const, text: ZOOM_HINT }] : [])]
+  const fullLegend: LegendItem[] = [...legend, ...(acrescimos ? [{ kind: 'text' as const, text: LEGENDA_DE_OUTRAS }] : []), ...(anyGroup && groupLegend ? [{ kind: 'grp' as const, text: groupLegend }] : []), ...(zoomHint ? [{ kind: 'thumb' as const, text: ZOOM_HINT }] : [])]
 
   const onMarker = (m: MarkerView, type: LaneType, el: HTMLElement | null) => {
     if (!el) { setTip(null); onHl(null); return }
@@ -115,7 +122,9 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
       </div>
       {range?.why ? <p className="rng-why" data-rng-why="">{range.why}</p> : null}
       <div className="tl-wrap" ref={wrap}>
-        {chart ? (chart.few && chart.empty ? (
+        {chart && acrescimos?.semanal ? (
+          <div data-forma-por-semana=""><ContagemPorSemanaHistorico semana={acrescimos.semanal} /></div>
+        ) : chart ? (chart.few && chart.empty ? (
           <div className="empty-chart" data-empty-chart="">
             <div>
               <strong>{chart.empty.title}</strong>{chart.empty.text}
@@ -125,10 +134,10 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
             </div>
           </div>
         ) : (
-          <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
+          <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} acrescimos={acrescimos} />
         )) : null}
         <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} tipMarker={tip?.m?.changeId ?? null} arrivalId={arrivalId ?? null} onHl={onHl}
-          onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onClipDouble={onZoomVersion} onGroupTip={onGroupTip} />
+          outras={acrescimos?.outras ?? null} onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onClipDouble={onZoomVersion} onGroupTip={onGroupTip} />
         {!chart && ticks.length ? (
           <div className="lane-axis fx-axis" aria-hidden="true">
             {ticks.map((t, i) => <i key={'m' + i} style={{ left: t.px }} />)}
@@ -194,7 +203,7 @@ function TipBody({ m }: { m: MarkerView }) {
   )
 }
 
-function ChartSvg({ chart, geom, pair, hlRange }: { chart: ChartView; geom: Geom; pair: ComparisonView | null; hlRange: [number, number] | null }) {
+function ChartSvg({ chart, geom, pair, hlRange, acrescimos = null }: { chart: ChartView; geom: Geom; pair: ComparisonView | null; hlRange: [number, number] | null; acrescimos?: AcrescimosDoGrafico | null }) {
   const { w, x, H } = geom
   const B = chart.bins
   const parts: ReactNode[] = []
@@ -211,6 +220,14 @@ function ChartSvg({ chart, geom, pair, hlRange }: { chart: ChartView; geom: Geom
     } else parts.push(<text key="pn" className="note" x={x(0) + 8} y={TOP + 18}>{chart.pre.lines[0]}</text>)
   }
   if (hlRange) parts.push(<rect key="hl" data-hlrect="" x={x(Math.max(0, hlRange[0]))} y={TOP} width={Math.max(0, x(hlRange[1]) - x(Math.max(0, hlRange[0])))} height={PH} fill="var(--text)" opacity={0.07} />)
+  if (acrescimos?.faixaAntes) {
+    const a = acrescimos.faixaAntes, x0 = x(Math.max(chart.fromH, a.deH))
+    parts.push(<rect key="ac-antes" className="hv-ac-antes" data-faixa="antes" x={x0} y={TOP} width={Math.max(0, x(a.ateH) - x0)} height={PH}><title>{a.rotulo}</title></rect>)
+  }
+  if (acrescimos?.faixaSubida) {
+    const a = acrescimos.faixaSubida, x0 = x(Math.max(chart.fromH, a.deH))
+    parts.push(<rect key="ac-sub" className="hv-ac-sub" data-faixa="subida" x={x0} y={TOP} width={Math.max(0, x(a.ateH) - x0)} height={PH}><title>{a.rotulo}</title></rect>)
+  }
   if (pair?.windows) {
     const [b0, b1] = pair.windows.before, [a0, a1] = pair.windows.after
     parts.push(<rect key="wb" x={x(b0)} y={TOP} width={Math.max(0, x(b1) - x(b0))} height={PH} fill="var(--text)" opacity={0.05} />)
@@ -248,6 +265,17 @@ function ChartSvg({ chart, geom, pair, hlRange }: { chart: ChartView; geom: Geom
       parts.push(<line key="fn" x1={x(0)} x2={fx} y1={TOP + PH - 1} y2={TOP + PH - 1} stroke="var(--muted)" strokeWidth={2} />)
       parts.push(<text key="fnt" className="note" x={x(0) + 4} y={TOP + PH - 8}>{chart.firstNote.text}</text>)
     }
+  }
+  if (acrescimos?.saiu) {
+    const sx = x(acrescimos.saiu.h)
+    parts.push(<rect key="ac-resto" className="hv-ac-resto" data-resto-pontilhado="" x={sx} y={TOP} width={Math.max(0, w - PADR - sx)} height={PH} />)
+    parts.push(<line key="ac-saiu" className="hv-ac-saiu" data-linha="saiu" x1={sx} x2={sx} y1={TOP} y2={TOP + PH} />)
+    parts.push(<text key="ac-saiut" className="hv-ac-rot" x={Math.max(PADL, sx - 6)} y={TOP + 14} textAnchor="end">{acrescimos.saiu.rotulo}</text>)
+  }
+  if (acrescimos?.corte) {
+    const cx = x(acrescimos.corte.h)
+    parts.push(<line key="ac-corte" className="hv-ac-corte" data-linha="corte" x1={cx} x2={cx} y1={TOP} y2={TOP + PH} />)
+    parts.push(<text key="ac-cortet" className="hv-ac-rot" x={cx + 4} y={TOP + 28}>{acrescimos.corte.rotulo}</text>)
   }
   const tk: Array<{ h: number; label: string }> = []
   chart.xTicks.forEach((t, i) => {

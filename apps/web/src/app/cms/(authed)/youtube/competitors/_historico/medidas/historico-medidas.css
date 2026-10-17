@@ -170,3 +170,14 @@
 [data-obs-screen="historico"] .hv-pg-r{display:block;flex:1;height:100%;border:2px dotted var(--muted);border-left:0;border-radius:0 6px 6px 0}
 [data-obs-screen="historico"] .hv-lista-h{margin:0;padding-left:18px;font:400 13px/20px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
 [data-obs-screen="historico"] .hv-svg72{max-width:none;min-width:520px}
+
+/* E5a T21b: os acréscimos do gráfico por dia. A faixa da subida usa a cor de direção para cima (com contorno: a cor não fala sozinha). */
+[data-obs-screen="historico"] .hv-ac-sub{fill:rgba(34,197,94,.16);stroke:var(--dir-up);stroke-width:1.2}
+[data-theme="light"] [data-obs-screen="historico"] .hv-ac-sub{fill:rgba(17,105,47,.12)}
+[data-obs-screen="historico"] .hv-ac-antes{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3}
+[data-obs-screen="historico"] .hv-ac-resto{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:2 3}
+[data-obs-screen="historico"] .hv-ac-saiu{stroke:var(--text);stroke-width:2}
+[data-obs-screen="historico"] .hv-ac-corte{stroke:var(--terco-baixo);stroke-width:1.5;stroke-dasharray:5 3}
+[data-obs-screen="historico"] .hv-ac-rot{font:500 12px var(--font-sans),system-ui,sans-serif;fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+[data-obs-screen="historico"] .hv-om{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--tr);display:inline-grid;place-items:center}
+[data-obs-screen="historico"] .hv-om b{font:700 12px/1 var(--font-jetbrains-var),ui-monospace,monospace;color:var(--on-tr);position:absolute;left:12px;top:-2px;background:var(--surface);color:var(--text);padding:0 2px;border-radius:3px;white-space:nowrap}

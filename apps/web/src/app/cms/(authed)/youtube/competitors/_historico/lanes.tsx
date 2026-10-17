@@ -8,6 +8,7 @@ import { useEffect, useState, type KeyboardEvent as RKeyboardEvent, type ReactNo
 import { Popover } from '../_chrome/flut/flut'
 import type { LaneType, LaneView, MarkerView } from './view-model'
 import { fitCount, type LaneItem, type MarkGroup, type PeriodGroup } from './lane-layout'
+import { agruparMarcas, type AcrescimosDoGrafico } from './medidas/dias-model'
 import { HIcon, TYPE_COLOR, type HIconName } from './icons'
 import { Thumb } from './thumb'
 
@@ -27,7 +28,7 @@ export function isHl(hl: Hl | null, lane: LaneView, i: number): boolean {
   return lane.type === 'thumb' && lane.versions[i]?.label === lane.versions[hl.i]?.label
 }
 
-export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, arrivalId = null, onHl, onMarker, onMarkerClick, onClip, onClipDouble, onGroupTip }: {
+export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, arrivalId = null, outras = null, onHl, onMarker, onMarkerClick, onClip, onClipDouble, onGroupTip }: {
   lanes: LaneView[]; layouts: LaneItem[][]; geom: Geom
   stale: { fromH: number; title: string } | null
   fewAxis: Array<{ h: number; label: string }> | null
@@ -38,6 +39,8 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
   tipMarker: string | null
   /** The change `troca=` opened the screen on: its marker (or the counter of the group that holds it) carries the ring (`data-arrival`). */
   arrivalId?: string | null
+  /** E5a T21b: as marcas da raia "Outras" (tags, categoria, duração e capítulos), desenhadas na raia da descrição; marcas a menos de 26 px viram "×N". */
+  outras?: AcrescimosDoGrafico['outras'] | null
   onHl: (h: Hl | null) => void
   onMarker: (m: MarkerView, type: LaneType, el: HTMLElement | null) => void
   onMarkerClick: (m: MarkerView) => void
@@ -170,6 +173,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
               return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} arrivalId={arrivalId} wrapBlur={wrapBlur} tipTitle={tip.title} onClose={closeList}
                 onPick={m => { setOpen(null); onMarkerClick(m) }} />
             })}
+            {lane.type === 'desc' && outras && outras.length > 0 ? <OutrasMarcas outras={outras} x={x} fromH={fromH} /> : null}
             {lane.runs.length ? (
               <div className="runrow">
                 {lane.runs.map((r, i) => {
@@ -231,5 +235,21 @@ function GroupPop({ id, gkey, open, gap, onClose, title, children }: { id: strin
       <h4 id={id + '-t'}>{title}</h4>
       <ul>{children}</ul>
     </Popover>
+  )
+}
+
+/** As marcas de "Outras" que não são versões da descrição: um ponto por mudança, "×N" quando duas ficam a menos de 26 px. Sem clique: o texto está no `aria-label`. */
+function OutrasMarcas({ outras, x, fromH }: { outras: NonNullable<AcrescimosDoGrafico['outras']>; x: (h: number) => number; fromH: number }) {
+  const marcas = outras.filter(o => o.h >= fromH).map(o => ({ ...o, x: x(o.h), raia: 'outras' as const }))
+  const grupos = agruparMarcas(marcas)
+  return (
+    <>
+      {grupos.map(g => (
+        <span key={`o${g.itens[0]!.n}`} className="hv-om" data-outras-marca="" role="img" style={{ left: g.x }}
+          aria-label={g.itens.map(i => i.aria).join('; ')} title={g.itens.map(i => i.rotulo).join(', ')}>
+          {g.rotulo ? <b aria-hidden="true">{g.rotulo}</b> : null}
+        </span>
+      ))}
+    </>
   )
 }
