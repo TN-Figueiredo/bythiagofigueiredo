@@ -3,6 +3,7 @@
  * Quatro estados que nunca trocam de aparência: dia com views (barra), zero medido (caixa vazada), sem registro (hachura, um retângulo por sequência),
  * depois que saiu (pontilhado).
  */
+import type { ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { NaoCarregou } from '../../_chrome/medidas/marcas'
 import { RiInfo } from '../../_canais/ri-info'
@@ -27,6 +28,21 @@ function Marca({ m, x, y }: { m: MarcaDaLinha; x: number; y: number }) {
 
 function Raia({ raia }: { raia: RaiaDaLinha }) {
   return raia.tipo === 'nao_carregou' ? <NaoCarregou medida="esta raia" /> : null
+}
+
+/** N1 (Naksu): a amostra de cada item da legenda é o mesmo desenho e a mesma classe do gráfico. */
+function Amostra({ chave }: { chave: string }) {
+  const marca = (forma: MarcaDaLinha['forma']) => <Marca m={{ indice: -1, forma } as MarcaDaLinha} x={8} y={8} />
+  let corpo: ReactNode = null
+  if (chave === 'com' || chave === 'diminuiu') corpo = <rect className="gl-barra" x={1} y={3} width={14} height={10} />
+  else if (chave === 'zero') corpo = <rect className="gl-zero" data-zero x={1} y={9} width={14} height={6} />
+  else if (chave === 'sem_registro') corpo = <><rect className="gl-nm-fundo pc-trecho" x={1} y={2} width={14} height={12} /><line className="gl-nm-risco" x1={2} y1={13} x2={14} y2={3} /></>
+  else if (chave === 'fora') corpo = <rect className="gl-pontilhado" x={1} y={2} width={14} height={12} />
+  else if (chave === 'corte') corpo = <line className="gl-corte" x1={8} x2={8} y1={1} y2={15} />
+  else if (chave === 'longo' || chave === 'short' || chave === 'campo' || chave === 'titulo') corpo = marca(chave)
+  else if (chave === 'miniatura') corpo = marca('miniatura' as MarcaDaLinha['forma'])
+  if (!corpo) return null
+  return <svg className="pc-amostra" viewBox="0 0 16 16" width={16} height={16} aria-hidden="true">{corpo}</svg>
 }
 
 const GLIFO = { sobe: '▲', estavel: '＝', desce: '▼' } as const
@@ -76,7 +92,7 @@ function Miolo({ modelo }: { modelo: LinhaDoTempo }) {
         titulo={`Views ganhas por dia nos últimos ${n} dias, com publicações, mudanças de campo e trocas.`}
         pontos={pontos}
         tabela={{ cabecalho: ['Dia', 'Views ganhas', 'Situação', 'O que aconteceu'], linhas: modelo.tabela.map(l => [...l]) }}
-        legenda={<ul className="pc-leg">{modelo.legenda.map(l => <li key={l.chave} data-leg={l.chave}>{l.texto}</li>)}</ul>}
+        legenda={<ul className="pc-leg">{modelo.legenda.map(l => <li key={l.chave} data-leg={l.chave}><Amostra chave={l.chave} />{l.texto}</li>)}</ul>}
       >
         <svg className="pc-svg" viewBox={`0 0 ${W} ${alturaTotal}`} width={W} height={alturaTotal} aria-hidden="true">
           {[0, 0.5, 1].map((f, i) => (

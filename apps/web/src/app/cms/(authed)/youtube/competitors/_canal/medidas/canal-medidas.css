@@ -289,3 +289,5 @@
 [data-obs-screen="canal"] .pc-esq-topo i:last-child{width:46%}
 [data-obs-screen="canal"] .pc-esq-blocos{display:grid;gap:14px;margin:14px 0}
 [data-obs-screen="canal"] .pc-esq-blocos .pc-sec i:nth-child(2){height:90px}
+[data-obs-screen="canal"] .pc-leg li{display:inline-flex;align-items:center;gap:6px}
+[data-obs-screen="canal"] .pc-amostra{flex:none;display:block}
