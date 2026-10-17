@@ -91,8 +91,8 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     original_title: null,
     config: { rotation_pattern: 'abba' },
     variants: [
-      { id: 'var-a', sort_order: 0, label: 'A', blob_url: 'https://blob/a.png', title_text: null, metadata: {}, is_original: true },
-      { id: 'var-b', sort_order: 1, label: 'B', blob_url: 'https://blob/b.png', title_text: null, metadata: {}, is_original: false },
+      { id: 'var-a', sort_order: 0, label: 'A', blob_url: 'https://abc.public.blob.vercel-storage.com/a.png', title_text: null, metadata: {}, is_original: true },
+      { id: 'var-b', sort_order: 1, label: 'B', blob_url: 'https://abc.public.blob.vercel-storage.com/b.png', title_text: null, metadata: {}, is_original: false },
     ],
     ...overrides,
   }
@@ -235,7 +235,8 @@ describe('GET /api/cron/ab-rotate', () => {
         return {
           ...updateQuery(),
           ...insertQuery(),
-          select: vi.fn().mockImplementation(() => {
+          select: vi.fn().mockImplementation((cols?: string) => {
+            if (cols === 'started_at') return { eq: vi.fn().mockReturnValue({ is: vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) }
             cyclesSelectCount++
             if (cyclesSelectCount === 1) {
               return idempotencyQuery(false).select()
@@ -294,7 +295,8 @@ describe('GET /api/cron/ab-rotate', () => {
         return {
           ...updateQuery(),
           ...insertQuery(),
-          select: vi.fn().mockImplementation(() => {
+          select: vi.fn().mockImplementation((cols?: string) => {
+            if (cols === 'started_at') return { eq: vi.fn().mockReturnValue({ is: vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) }
             cyclesSelectCount++
             if (cyclesSelectCount === 1) {
               return idempotencyQuery(false).select()

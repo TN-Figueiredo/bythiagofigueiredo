@@ -32,7 +32,7 @@ import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
-import { reivindicarRotacao, aplicarRotacao } from '@/lib/youtube/ab-rotate-claim'
+import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
@@ -1046,7 +1046,7 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, name, status, restore_seq, youtube_video_id, test_type, original_title, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
+    .select('id, site_id, name, status, restore_seq, youtube_video_id, test_type, original_title, config, last_applied_variant_id, updated_at, variants:ab_test_variants!test_id(*)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'active')
@@ -1093,8 +1093,19 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
   const nextVariant = variants[nextIndex]
   if (!nextVariant) return { ok: false, resultado: 'erro', error: 'Invalid variant index' }
 
-  // Reivindica a vez ANTES de escrever, como o cron; o marcador velho (queda anterior) é aceito exatamente
-  // (Y-D9). Zero linhas = outra rotação, pausa ou encerramento chegou antes: não escreve.
+  // Phil I-1: variante da vez sem arquivo no Blob / sem título não vai ao ar (antes de reivindicar).
+  const semConteudo = motivoVarianteSemConteudo(((test.test_type as string) ?? 'thumbnail') as 'thumbnail' | 'title' | 'combo', nextVariant, test.original_title as string | null)
+  if (semConteudo) {
+    await avisarRotacaoSemConteudo({
+      testId, siteId, testName: (test.name as string | null) ?? '', motivo: semConteudo, variantId: nextVariant.id,
+    })
+    // TEXTO-A-REVISAR (Logan, T17)
+    return { ok: false, resultado: 'erro', error: `A rotação não foi feita: a variante da vez está ${semConteudo}. Abra o teste e confira as variantes.` }
+  }
+
+  // Reivindica a vez ANTES de escrever, como o cron; o marcador velho (queda anterior, mais antigo que
+  // MARCADOR_VELHO_MS) é aceito exatamente (Y-D9). Zero linhas = outra rotação (marcador novo = em voo), pausa ou
+  // encerramento chegou antes: não escreve.
   const seq = await reivindicarRotacao(
     supabase, testId, test.restore_seq as number, nextVariant.id, (test.last_applied_variant_id as string | null) ?? null,
   )

@@ -60,8 +60,8 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
     variants: [
-      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg' },
-      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg' },
+      { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/thumb-a.jpg' },
+      { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/thumb-b.jpg' },
     ],
     ...overrides,
   }
@@ -153,7 +153,9 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
             is: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         }),
-        select: vi.fn().mockImplementation(() => {
+        select: vi.fn().mockImplementation((cols?: string) => {
+          // Leitura do ciclo aberto no fecho (M-2): fora da paridade impar/par abaixo.
+          if (cols === 'started_at') return { eq: vi.fn().mockReturnValue({ is: vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) }
           cyclesSelectCallCount++
           if (cyclesSelectCallCount % 2 === 1) {
             // Odd calls = idempotency check (select('id').eq.gte.limit.maybeSingle)
@@ -281,7 +283,7 @@ describe('GET /api/cron/ab-rotate', () => {
 
     expect(body.processed).toBe(1)
     expect(fetchVariantImageBuffer).toHaveBeenCalledWith(
-      'https://blob.example/thumb-b.jpg'
+      'https://abc.public.blob.vercel-storage.com/thumb-b.jpg'
     )
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
@@ -322,13 +324,13 @@ describe('GET /api/cron/ab-rotate', () => {
         {
           id: 'v1',
           sort_order: 0,
-          blob_url: 'https://blob.example/a.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg',
           title_text: 'Title A',
         },
         {
           id: 'v2',
           sort_order: 1,
-          blob_url: 'https://blob.example/b.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg',
           title_text: 'Title B',
         },
       ],
@@ -702,13 +704,13 @@ describe('GET /api/cron/ab-rotate', () => {
         {
           id: 'v1',
           sort_order: 0,
-          blob_url: 'https://blob.example/a.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg',
           title_text: 'Title A',
         },
         {
           id: 'v2',
           sort_order: 1,
-          blob_url: 'https://blob.example/b.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg',
           title_text: 'Title B',
         },
       ],

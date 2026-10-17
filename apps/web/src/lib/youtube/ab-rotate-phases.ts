@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
-import { reivindicarRotacao, aplicarRotacao } from '@/lib/youtube/ab-rotate-claim'
+import { reivindicarRotacao, aplicarRotacao, marcadorEhVelho, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { createNotification } from '@/lib/notifications/create'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
@@ -55,7 +55,15 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
 
 // ─── Phase 2: Rotate active tests ───────────────────────────────────────────
 
-export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<RotateResult> {
+/**
+ * Orçamento do laço (Phil M-1): o cron tem `maxDuration` 300 s e a fila (`phaseProcessQueue`) roda ANTES no mesmo
+ * disparo. `inicioDaFuncao` é o instante em que a rota começou (a fila entra na conta). Teste novo só começa se
+ * faltam pelo menos 50 s (45 s de uma rotação + folga) para o corte de 240 s; senão fica para amanhã, com Sentry.
+ */
+export const CORTE_DA_ROTACAO_MS = 240_000
+export const ROTACAO_MAXIMA_MS = 50_000
+
+export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaFuncao: number = Date.now()): Promise<RotateResult> {
   // Query all active tests with their variants and video info
   const { data: tests } = await supabase
     .from('ab_tests')
@@ -73,6 +81,11 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
   let errors = 0
 
   for (const test of tests) {
+    const restante = inicioDaFuncao + CORTE_DA_ROTACAO_MS - Date.now()
+    if (restante < ROTACAO_MAXIMA_MS) {
+      Sentry.captureMessage('ab-rotate: rotação adiada por tempo', { extra: { testId: test.id, restanteMs: restante } })
+      break
+    }
     // Hoist video + channel so they're accessible in the catch block (auto-pause-revert)
     let video: { youtube_video_id: string; channel_id: string } | null = null
     let channel: { channel_id: string } | null = null
@@ -117,10 +130,12 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
 
       if (todayCycle) continue
 
-      // Marcador velho (queda anterior depois de reivindicar): registra e segue. A reivindicação por restore_seq
-      // aceita esse marcador exato (R2-7); quem perder a corrida não escreve.
+      // Marcador com idade: só é "velho" (queda anterior) depois de MARCADOR_VELHO_MS (Yannis DEVE-1). Mais novo que isso
+      // é uma rotação em voo (cron duplicado, forçar): calado, sem tocar. Velho: registra e segue; a reivindicação por
+      // restore_seq (com o mesmo corte de idade) aceita esse marcador exato (R2-7).
       const marcadorLido = (test.last_applied_variant_id as string | null) ?? null
       if (marcadorLido) {
+        if (!marcadorEhVelho(test.updated_at as string | null)) continue
         Sentry.captureMessage(
           `ab-rotate: write-ahead marker found for test ${test.id} (variant ${marcadorLido}). Previous run likely crashed after claiming. Continuing by restore_seq claim.`,
           'warning'
@@ -168,6 +183,16 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
       const nextVariant = variants[nextVariantIndex]
 
       if (!nextVariant) continue
+
+      // Phil I-1: variante da vez sem arquivo no Blob (ou sem título) não vai ao ar: não reivindica, não abre ciclo.
+      const semConteudo = motivoVarianteSemConteudo((test.test_type ?? 'thumbnail') as TestType, nextVariant, test.original_title as string | null)
+      if (semConteudo) {
+        errors++
+        await avisarRotacaoSemConteudo({
+          testId: test.id, siteId: test.site_id, testName: (test.name as string | null) ?? '', motivo: semConteudo, variantId: nextVariant.id,
+        })
+        continue
+      }
 
       // Reivindica a vez ANTES de escrever (restore_seq + 1 e marcador); zero linhas = outro escritor ganhou.
       const seq = await reivindicarRotacao(supabase, test.id, test.restore_seq as number, nextVariant.id, marcadorLido)
