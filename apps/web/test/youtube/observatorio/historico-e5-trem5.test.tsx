@@ -8,6 +8,7 @@ import { blocoDeHoras, primeiraHoraCheia, type EntradaDeHoras } from '@/app/cms/
 import { blocoDeIdade } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/idade-model'
 import { CurvaPorIdade } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/curva-por-idade'
 import { ListaDeMudancasHistorico } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/lista-de-mudancas'
+import { NaoMedido } from '@/app/cms/(authed)/youtube/competitors/_chrome/medidas/marcas'
 import { Horas72 } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/horas-72'
 import type { LeituraPorHora } from '@/lib/youtube/observatorio/medidas-telas/ler-horas'
 
@@ -115,5 +116,13 @@ describe('menor 8: item de mudança com os detalhes numa linha só', () => {
     expect(s).toContain('de A para B Mudou neste dia.')
     expect(css).toMatch(/\.hv-mi\.t\{[^}]*width:26px;height:26px\}/)
     expect(css).toMatch(/\.hv-mi\.m\{[^}]*width:26px;height:26px\}/)
+  })
+})
+
+describe('menor 10: texto de leitor de tela não começa com ": "', () => {
+  it('NaoMedido: o texto longo só para o leitor de tela começa pelas palavras dele', () => {
+    const s = html(<NaoMedido curta="sem leitura" longa="Subida: precisa de 15 dias" />)
+    expect(s).toContain('<span class="obs-md-sr">Subida: precisa de 15 dias</span>')
+    expect(s).not.toMatch(/obs-md-sr">: /)
   })
 })
