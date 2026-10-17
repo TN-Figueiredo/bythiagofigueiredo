@@ -681,6 +681,7 @@ select relname, pg_size_pretty(pg_total_relation_size(oid)) from pg_class
   Aparece como `parcial` todo dia e, depois de 14 dias sem `last_cycle_at`, em `canais_sem_volta_14d`; o número decide se o teto sobe.
   Motivo estrutural (`teto_itens`, `contagem_difere`) não reabre o canal todo dia (Phil I-4).
 - Playlist com mais de 500 itens nunca tem saída inferida.
+- Playlist que falha de forma permanente (ex.: sempre `itens_cortados`) bloqueia o `p_ciclo` e deixa o canal devido todo dia: custo de 1 a 2 unidades por dia por playlist (desprezível) e o alarme `canais_sem_volta_14d` a acusa (honesto). Dívida aceita; gatilho: alarme maior que zero (Yannis M-2c).
 - **Perdas conscientes (Phil M-6, P-4):** a ordem dos itens (`position`) é sobrescrita (a história de reordenação se perde; guardar custaria uma
   versão por vídeo novo no topo, toda semana); a troca de capa **sozinha** não gera versão de playlist (a capa de cada versão fica no `raw`).
 - Dívidas declaradas (Yannis, 2ª rodada): `position` reescreve a playlist inteira quando entra item no topo; `unfinished_n` da agenda é compartilhado entre `parcial` e `adiada`. Aceitos.
