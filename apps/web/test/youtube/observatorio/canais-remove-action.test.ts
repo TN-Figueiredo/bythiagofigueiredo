@@ -61,9 +61,9 @@ describe('removeCompetitorChannel (E10 T11b)', () => {
     expect(remover).not.toHaveBeenCalled()
   })
   it('canal sem lote: a frase diz o que falta e nada é apagado nem invalidado', async () => {
-    remover.mockResolvedValue({ ok: false, codigo: 'sem_lote', frase: 'Este canal ainda não foi exportado.' })
+    remover.mockResolvedValue({ ok: false, codigo: 'sem_lote', frase: 'frase longa do agente' })
     const a = await carregar()
-    expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: false, error: 'Este canal ainda não foi exportado.' })
+    expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: false, error: 'Antes de remover, é preciso exportar este canal. Peça ao agente.' })
     expect(revalidateTag).not.toHaveBeenCalled()
   })
   it('canal com lote confirmado: remove com o usuário da sessão e invalida o cache', async () => {

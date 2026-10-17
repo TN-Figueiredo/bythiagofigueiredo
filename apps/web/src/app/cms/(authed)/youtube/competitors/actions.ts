@@ -39,6 +39,8 @@ async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
   return { siteId, userId: res.user.id }
 }
 
+const SEM_LOTE_NA_TELA = 'Antes de remover, é preciso exportar este canal. Peça ao agente.'
+
 /** (A5 E10) a frase de quando a coleta do canal está pausada (a trava do sync não toma canal pausado). */
 const FRASE_PAUSADA = 'A coleta deste canal está pausada.' // TEXTO-A-REVISAR
 
@@ -191,7 +193,8 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   // (A5 E10) a remoção só passa pela função do banco: ela exige a exportação conferida e confirmada, grava o lote e só aceita quem
   // administra a organização (`sem_direito`); uma linha de outro site ou um id que não existe volta como falha com frase fixa
   const r = await removerCanalArquivado(supabase, { siteId, canalId: id, actorId: userId })
-  if (!r.ok) return { ok: false, error: r.frase }
+  // sem_lote: a frase longa é a do agente (CLI); o aviso da tela é a versão curta do Logan (cabe em 2 linhas do toast)
+  if (!r.ok) return { ok: false, error: r.codigo === 'sem_lote' ? SEM_LOTE_NA_TELA : r.frase }
   // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
