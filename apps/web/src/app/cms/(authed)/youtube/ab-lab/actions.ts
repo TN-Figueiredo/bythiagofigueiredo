@@ -9,7 +9,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
-import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS, DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
+import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
   AbTestVariantRow,
@@ -22,21 +22,21 @@ import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
-import { resolveVideoChannel, resolveYouTubeVideoId } from '@/lib/youtube/ab-video-context'
+import { resolveVideoChannel } from '@/lib/youtube/ab-video-context'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
 import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, daFormaAntiga, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
@@ -705,114 +705,23 @@ export async function acknowledgeAbTestDrift(
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
-/** Teste antigo com tipo fora dos três (descrição saiu do A/B): mensagem de recusa, ou null se o tipo vale. */
-function recusaTipoForaDeUso(testType: unknown): string | null {
-  if (TestTypeSchema.safeParse(testType ?? 'thumbnail').success) return null
-  return testType === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido'
-}
-
-/** Corpo de T9 entra aqui; até lá devolve a forma antiga, adaptada pelo wrapper. */
 export async function resumeAbTest(testId: string): Promise<ResultadoAcaoSaida> {
-  return daFormaAntiga(await resumeAbTestLegado(testId))
-}
-
-async function resumeAbTestLegado(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, config')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
-  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
-  if (tipoRecusado) return { ok: false, error: tipoRecusado }
-  if (test.status_note === DRIFT_STATUS_NOTE && !test.drift_acknowledged_at) {
-    return { ok: false, error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.' }
-  }
-
-  const { data: variants } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, title_text, sort_order')
-    .eq('test_id', testId)
-    .order('sort_order', { ascending: true })
-
-  if (!variants || variants.length < 2) {
-    return { ok: false, error: 'No variants found' }
-  }
-
-  const { count: totalCycleCount } = await supabase
-    .from('ab_test_cycles')
-    .select('id', { count: 'exact', head: true })
-    .eq('test_id', testId)
-
-  const nextCycleNumber = totalCycleCount ?? 0
-  const nextIndex = getNextVariantIndex(test.config?.rotation_pattern ?? 'abba', variants.length, nextCycleNumber)
-  if (nextIndex < 0 || nextIndex >= variants.length) {
-    return { ok: false, error: 'Invalid variant rotation index' }
-  }
-  const nextVariant = variants[nextIndex] as AbTestVariantRow
-
-  let appliedMeta: import('@/lib/youtube/ab-types').AppliedMetadata = {}
-  try {
-    const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-    if (!channel.ok) return { ok: false, error: channel.error }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    const testType = (test.test_type ?? 'thumbnail') as TestType
-    const applyResult = await applyVariantToYouTube({
-      youtubeVideoId,
-      accessToken,
-      testType,
-      variant: {
-        id: nextVariant.id,
-        blob_url: nextVariant.blob_url,
-        title_text: nextVariant.title_text,
-      },
-      originalTitle: test.original_title,
-    })
-    if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
-    appliedMeta = applyResult.meta
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
-    test_id: testId,
-    variant_id: nextVariant.id,
-    cycle_number: nextCycleNumber,
-    started_at: now,
-    applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
+  // O corpo mora em lib/youtube/ab-resume.ts: as portas injetáveis (banco, relógio, token, leitura) não podem ser
+  // parâmetro de uma server action (todo parâmetro vem da rede).
+  const r = await retomarTeste(testId, siteId, {
+    supabase: getSupabaseServiceClient(),
+    agora: () => new Date(),
+    token: async (sid, canal) => (await ensureFreshToken(sid, 'youtube', canal)).accessToken,
   })
-
-  if (cycleError) return { ok: false, error: cycleError.message }
-
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({ status: 'active', paused_at: null, drift_acknowledged_at: null, status_note: null, updated_at: now })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  revalidateTag('youtube', { expire: 0 })
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  // A reivindicação já mexeu no teste (restore_seq, restore_status): qualquer desfecho depois dela invalida as telas.
+  if (r.ok || r.resultado === 'erro' || r.resultado === 'em_andamento') invalidarTelasDoAbLab()
+  return r
 }
 
 // ---------------------------------------------------------------------------

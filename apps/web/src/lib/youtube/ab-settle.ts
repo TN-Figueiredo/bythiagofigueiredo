@@ -212,7 +212,7 @@ export async function lerRetratoPadrao(supabase: SupabaseClient, testId: string,
   }
 }
 
-function emAndamentoRecente(rs: RestoreStatus | null, agora: Date): boolean {
+export function emAndamentoRecente(rs: RestoreStatus | null, agora: Date): boolean {
   if (!rs) return false
   return (['title', 'thumbnail'] as const).some((c) => {
     const campo = rs[c]

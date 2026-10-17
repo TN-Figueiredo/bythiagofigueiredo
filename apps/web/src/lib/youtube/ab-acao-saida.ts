@@ -32,13 +32,6 @@ export function recusaDeSessao(e: unknown): ResultadoAcaoSaida {
   return { ok: false, resultado: 'sem_permissao', error: e instanceof Error ? e.message : 'forbidden' }
 }
 
-/** Adapta o retorno antigo `{ ok, error }` (retomar e forçar rotação até T9/T10 preencherem o corpo). */
-export function daFormaAntiga(r: { ok: boolean; error?: string }): ResultadoAcaoSaida {
-  return r.ok
-    ? { ok: true, resultado: 'feito', campos: {} }
-    : { ok: false, resultado: 'erro', error: r.error ?? 'Não foi possível concluir.' }
-}
-
 /** Id da variante is_original do teste (filtrado pelo site), ou null. */
 export async function varianteOriginalId(testId: string, siteId: string): Promise<string | null> {
   const supabase = getSupabaseServiceClient()

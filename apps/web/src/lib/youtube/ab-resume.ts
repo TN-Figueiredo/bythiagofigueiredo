@@ -1,0 +1,227 @@
+/**
+ * Retomar um teste pausado (P4a, T10, emenda 32 i). NÃO é server action: o corpo mora aqui para que as portas
+ * (banco, relógio, token, leitura do retrato) sejam injetáveis sem virar parâmetro de endpoint HTTP.
+ * `resumeAbTest` (actions.ts) só resolve a sessão e chama `retomarTeste`.
+ *
+ * Ordem: lê (restore_seq, restore_status anterior em memória) -> recusa se há tentativa em voo (< 2 min) ->
+ * reivindica por restore_seq MANTENDO `paused` -> escreve no YouTube (relendo restore_seq antes de CADA escrita) ->
+ * fecha por `ab_resume_commit` (uma transação). Falha tratada grava o resultado por campo (nunca "voltou ao original"
+ * com escrita parcial); morte sem tratamento deixa o campo `em_andamento` com destino = variante e o vigia converte.
+ */
+import * as Sentry from '@sentry/nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
+import { avisarRotacaoCruzada, motivoVarianteSemConteudo } from '@/lib/youtube/ab-rotate-claim'
+import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import type { CampoNome, CampoRestauracao, RestoreStatus } from '@/lib/youtube/ab-restore'
+import { emAndamentoRecente } from '@/lib/youtube/ab-settle'
+import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO } from '@/lib/youtube/ab-acao-saida'
+import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
+import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
+import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
+import type { AbTestVariantRow, TestType } from '@/lib/youtube/ab-types'
+import { resolveVideoChannel, resolveYouTubeVideoId } from '@/lib/youtube/ab-video-context'
+
+/** A linha do teste que a retomada precisa (o que `lerRetrato` devolve). */
+export interface RetratoRetomar {
+  id: string
+  site_id: string
+  name: string | null
+  status: string
+  status_note: string | null
+  drift_acknowledged_at: string | null
+  youtube_video_id: string
+  test_type: string | null
+  original_title: string | null
+  config: { rotation_pattern?: 'abba' | 'round_robin' | 'random' } | null
+  restore_seq: number
+  restore_status: unknown
+}
+
+export interface PortasRetomar {
+  supabase: SupabaseClient
+  agora: () => Date
+  /** Token do canal (a porta embrulha ensureFreshToken). */
+  token: (siteId: string, channelAccountId: string) => Promise<string>
+  lerRetrato?: (testId: string, siteId: string) => Promise<RetratoRetomar | null>
+}
+
+const COLUNAS = 'id, site_id, name, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, config, restore_seq, restore_status'
+
+const erro = (error: string): ResultadoAcaoSaida => ({ ok: false, resultado: 'erro', error })
+
+/** Relê `restore_seq` antes de cada escrita (Y-D8): false = outra ação reivindicou o teste. */
+export function antesDeEscreverPorSeq(supabase: SupabaseClient, testId: string, seq: number): () => Promise<boolean> {
+  return async () => {
+    const { data, error } = await supabase.from('ab_tests').select('restore_seq').eq('id', testId).single()
+    if (error || !data) throw new Error(`ab-resume: releitura de restore_seq do teste ${testId}: ${error?.message ?? 'sem linha'}`)
+    return (data as { restore_seq: number }).restore_seq === seq
+  }
+}
+
+/** Teste de tipo fora dos três (descrição saiu do A/B): mensagem de recusa, ou null se o tipo vale. */
+export function recusaTipoForaDeUso(testType: unknown): string | null {
+  if (TestTypeSchema.safeParse(testType ?? 'thumbnail').success) return null
+  return testType === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido'
+}
+
+async function lerPadrao(supabase: SupabaseClient, testId: string, siteId: string): Promise<RetratoRetomar | null> {
+  const { data } = await supabase.from('ab_tests').select(COLUNAS).eq('id', testId).eq('site_id', siteId).single()
+  return (data as RetratoRetomar | null) ?? null
+}
+
+/**
+ * Valor de `restore_status` depois de uma retomada que falhou. Campo escrito (a verdade: está no ar) vira `ok`;
+ * campo não escrito volta ao VALOR ANTERIOR, inclusive nulo (F-P10: teste antigo continua antigo). Nada escrito =
+ * o anterior inteiro.
+ */
+export function restoreStatusDaFalha(
+  anterior: RestoreStatus | null,
+  escritos: Partial<Record<CampoNome, boolean>>,
+  varianteId: string,
+  em: string,
+  attemptsAnterior: Partial<Record<CampoNome, number>>,
+): RestoreStatus | null {
+  const campos = (Object.keys(escritos) as CampoNome[]).filter((c) => escritos[c])
+  if (campos.length === 0) return anterior
+  const saida: RestoreStatus = { ...(anterior ?? {}) }
+  for (const c of campos) {
+    const ok: CampoRestauracao = { estado: 'ok', destino: varianteId, em, forcado: false, escreveu: true, erro: null, attempts: attemptsAnterior[c] ?? 0 }
+    saida[c] = ok
+  }
+  return saida
+}
+
+export async function retomarTeste(testId: string, siteId: string, portas: PortasRetomar): Promise<ResultadoAcaoSaida> {
+  const { supabase } = portas
+  const teste = await (portas.lerRetrato ?? ((t, s) => lerPadrao(supabase, t, s)))(testId, siteId)
+  if (!teste) return erro('Test not found')
+  if (teste.status !== 'paused') return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+  const tipoRecusado = recusaTipoForaDeUso(teste.test_type)
+  if (tipoRecusado) return erro(tipoRecusado)
+  if (teste.status_note === DRIFT_STATUS_NOTE && !teste.drift_acknowledged_at) {
+    return erro('Drift não reconhecido. Reconheça a mudança antes de retomar o teste.')
+  }
+
+  // Retrato anterior, em memória (F-P10): restore_status ilegível conta como "sem retrato" para a conta, mas o valor
+  // bruto é o que se regrava numa falha sem escrita.
+  const anteriorBruto = teste.restore_status ?? null
+  const anterior = paraRestoreStatus(anteriorBruto)
+  // F-D4: tentativa em voo há menos de 2 min (60 s do teto da função + folga) -> recusa, sem reivindicar.
+  if (emAndamentoRecente(anterior, portas.agora())) return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
+
+  const { data: variantes } = await supabase
+    .from('ab_test_variants')
+    .select('id, label, is_original, blob_url, title_text, sort_order')
+    .eq('test_id', testId)
+    .order('sort_order', { ascending: true })
+  if (!variantes || variantes.length < 2) return erro('No variants found')
+
+  const { count: totalCiclos } = await supabase.from('ab_test_cycles').select('id', { count: 'exact', head: true }).eq('test_id', testId)
+  const indice = getNextVariantIndex(teste.config?.rotation_pattern ?? 'abba', variantes.length, totalCiclos ?? 0)
+  if (indice < 0 || indice >= variantes.length) return erro('Invalid variant rotation index')
+  const proxima = variantes[indice] as AbTestVariantRow
+  const testType = (teste.test_type ?? 'thumbnail') as TestType
+
+  // Guarda de conteúdo (T9 R1): variante sem cópia no Blob ou sem título não reivindica.
+  const semConteudo = motivoVarianteSemConteudo(testType as 'thumbnail' | 'title' | 'combo', proxima, teste.original_title)
+  if (semConteudo) {
+    // TEXTO-A-REVISAR (Logan, T17)
+    return erro(`A retomada não foi feita: a variante da vez está ${semConteudo}. Abra o teste e confira as variantes.`)
+  }
+
+  const canal = await resolveVideoChannel(supabase, siteId, teste.youtube_video_id)
+  if (!canal.ok) return erro(canal.error)
+  const accessToken = await portas.token(siteId, canal.channelAccountId)
+  const youtubeVideoId = await resolveYouTubeVideoId(supabase, teste.youtube_video_id)
+  if (!youtubeVideoId) return erro('YouTube video ID not found')
+
+  // Reivindica mantendo `paused`: restore_seq + 1 e os campos que vai escrever em em_andamento (destino = a variante).
+  const campos = camposDoTeste(testType as 'thumbnail' | 'title' | 'combo')
+  const emIso = portas.agora().toISOString()
+  const reivindicado: RestoreStatus = { ...(anterior ?? {}) }
+  const attemptsAnterior: Partial<Record<CampoNome, number>> = {}
+  for (const c of campos) {
+    attemptsAnterior[c] = anterior?.[c]?.attempts ?? 0
+    reivindicado[c] = { estado: 'em_andamento', destino: proxima.id, em: emIso, forcado: false, escreveu: null, erro: null, attempts: attemptsAnterior[c]! }
+  }
+  const { data: linhas, error: erroClaim } = await supabase
+    .from('ab_tests')
+    .update({ restore_seq: teste.restore_seq + 1, restore_status: reivindicado })
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .eq('status', 'paused')
+    .eq('restore_seq', teste.restore_seq)
+    .select('restore_seq')
+  if (erroClaim) throw new Error(`ab-resume: reivindicação do teste ${testId}: ${erroClaim.message}`)
+  const seq = (linhas as Array<{ restore_seq: number }> | null)?.[0]?.restore_seq
+  if (seq === undefined) return outroEscritorGanhou(supabase, testId)
+
+  const aplicado = await applyVariantToYouTube(
+    {
+      youtubeVideoId,
+      accessToken,
+      testType,
+      variant: { id: proxima.id, blob_url: proxima.blob_url, title_text: proxima.title_text },
+      originalTitle: teste.original_title,
+    },
+    { antesDeEscrever: antesDeEscreverPorSeq(supabase, testId, seq) },
+  )
+
+  const nomeDoTeste = teste.name ?? ''
+  if (aplicado.perdeuAVez) {
+    if (aplicado.appliedThumbnail || aplicado.appliedMetadata) {
+      Sentry.captureMessage('ab-resume: perdeu a vez no meio da escrita', { extra: { testId, seq } })
+      await avisarCruzada({ testId, siteId, testName: nomeDoTeste, seq, youtubeVideoId })
+    }
+    return outroEscritorGanhou(supabase, testId)
+  }
+
+  if (!aplicado.ok) {
+    // Y-B2: resultado por campo. A thumbnail vai antes do título, então `appliedThumbnail && !appliedMetadata` é possível.
+    const escritos: Partial<Record<CampoNome, boolean>> = {}
+    for (const c of campos) escritos[c] = c === 'thumbnail' ? aplicado.appliedThumbnail : aplicado.appliedMetadata
+    const valor = restoreStatusDaFalha(anterior === null ? (anteriorBruto as RestoreStatus | null) : anterior, escritos, proxima.id, emIso, attemptsAnterior)
+    const { error: erroGrava } = await supabase
+      .from('ab_tests')
+      .update({ restore_status: valor })
+      .eq('id', testId)
+      .eq('restore_seq', seq)
+    if (erroGrava) throw new Error(`ab-resume: gravação do resultado da falha do teste ${testId}: ${erroGrava.message}`)
+    return erro(aplicado.error ?? 'apply failed')
+  }
+
+  const { data: cicloId, error: erroFecho } = await supabase.rpc('ab_resume_commit', {
+    p_test_id: testId,
+    p_seq: seq,
+    p_de: 'paused',
+    p_variant_id: proxima.id,
+    p_applied_metadata: aplicado.meta,
+  })
+  if (erroFecho) throw new Error(`ab-resume: fecho da retomada do teste ${testId}: ${erroFecho.message}`)
+  if (!cicloId) {
+    // Outro escritor ganhou entre a escrita e o fecho: nenhum ciclo foi aberto e o YouTube foi escrito por nós.
+    Sentry.captureMessage('ab-resume: reivindicação perdida depois da escrita', { extra: { testId, seq } })
+    await avisarCruzada({ testId, siteId, testName: nomeDoTeste, seq, youtubeVideoId })
+    return outroEscritorGanhou(supabase, testId)
+  }
+  return { ok: true, resultado: 'feito', campos: {} }
+}
+
+async function avisarCruzada(args: Parameters<typeof avisarRotacaoCruzada>[0]): Promise<void> {
+  try {
+    await avisarRotacaoCruzada(args)
+  } catch (e) {
+    Sentry.captureException(e, { extra: { testId: args.testId, context: 'aviso-retomada-cruzada' } })
+  }
+}
+
+/** Perdeu a reivindicação: a releitura diz se o teste segue pausado (outra tentativa em voo) ou já mudou. */
+async function outroEscritorGanhou(supabase: SupabaseClient, testId: string): Promise<ResultadoAcaoSaida> {
+  const { data } = await supabase.from('ab_tests').select('status').eq('id', testId).maybeSingle()
+  const status = (data as { status: string } | null)?.status
+  return status === 'paused'
+    ? { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
+    : { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+}

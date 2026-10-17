@@ -9,12 +9,21 @@
 
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from './ab-schemas'
 import * as Sentry from '@sentry/nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { channelAccountIdForVideo, CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
-import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
+import { antesDeEscreverPorSeq } from '@/lib/youtube/ab-resume'
+import { MSG_EM_ANDAMENTO } from '@/lib/youtube/ab-acao-saida'
+import { converterInterrompido, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
+import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
+import { lerSnippet } from '@/lib/youtube/ab-metadata'
+import { guardarOriginalMaior } from '@/lib/youtube/ab-variant-dhash'
+import { DHASH_MAX_SAME, hamming, probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
-import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
+import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
 // ---------------------------------------------------------------------------
 // Internal helper — mirrors the one in actions.ts (kept separate to avoid
@@ -23,7 +32,7 @@ import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
 // ---------------------------------------------------------------------------
 
 async function resolveYouTubeVideoId(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  supabase: SupabaseClient,
   internalVideoId: string,
 ): Promise<string | null> {
   const { data } = await supabase
@@ -35,8 +44,107 @@ async function resolveYouTubeVideoId(
 }
 
 // ---------------------------------------------------------------------------
+// Testes anteriores do mesmo vídeo (Y-5, emenda 46)
+// ---------------------------------------------------------------------------
+
+const CAMPOS_DO_VIDEO: CampoNome[] = ['title', 'thumbnail']
+const FINAIS_QUE_DESISTEM = new Set(['falhou', 'pulado_sem_original', 'pulado_drift'])
+
+/** Reivindica por restore_seq e grava `restore_status`; devolve o novo restore_seq, ou null se outro escritor ganhou. */
+async function reivindicarRestoreStatus(supabase: SupabaseClient, testId: string, seq: number, rs: RestoreStatus): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('ab_tests')
+    .update({ restore_seq: seq + 1, restore_status: rs })
+    .eq('id', testId)
+    .eq('restore_seq', seq)
+    .select('restore_seq')
+  if (error) throw new Error(`ab-start: reivindicação do teste ${testId}: ${error.message}`)
+  return (data as Array<{ restore_seq: number }> | null)?.[0]?.restore_seq ?? null
+}
+
+/**
+ * Y-5 (a): (i) só em banco e sempre: campo `em_andamento` há mais de 15 min vira `falhou/interrompido` ANTES de
+ * `desistiu`, para a linha do histórico existir (duas reivindicações = dois restore_seq = duas linhas); (ii) campos
+ * `falhou`/`pulado_*` viram `desistiu/novo_teste` (`em` = agora, `escreveu` false, `attempts` mantido; F-P11) e o dono
+ * recebe UM aviso por teste afetado. Campo já `desistiu` não é regravado (nova linha e novo aviso seriam ruído).
+ * Nunca lança: a contabilidade de outro teste não pode impedir o início deste (o erro vai ao Sentry).
+ */
+async function resolverPendenciasDoVideo(
+  supabase: SupabaseClient, siteId: string, testId: string, internalVideoId: string, agora: Date,
+): Promise<void> {
+  const { data } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, name, restore_seq, restore_status')
+    .eq('site_id', siteId)
+    .eq('youtube_video_id', internalVideoId)
+  type Outro = { id: string; site_id: string; name: string | null; restore_seq: number; restore_status: unknown }
+  for (const outro of ((data ?? []) as Outro[]).filter((o) => o.id !== testId)) {
+    try {
+      let rs = paraRestoreStatus(outro.restore_status)
+      if (!rs) continue
+      let seq = outro.restore_seq
+
+      const convertido: RestoreStatus = { ...rs }
+      let converteu = false
+      for (const c of CAMPOS_DO_VIDEO) {
+        const campo = rs[c]
+        const novo = campo ? converterInterrompido(campo, agora) : null
+        if (novo) { convertido[c] = novo; converteu = true }
+      }
+      if (converteu) {
+        const proximo = await reivindicarRestoreStatus(supabase, outro.id, seq, convertido)
+        if (proximo === null) continue // outro escritor ganhou: não mexe
+        seq = proximo
+        rs = convertido
+      }
+
+      const desistido: RestoreStatus = { ...rs }
+      let desistiu = false
+      for (const c of CAMPOS_DO_VIDEO) {
+        const campo = rs[c]
+        if (!campo || !FINAIS_QUE_DESISTEM.has(campo.estado)) continue
+        desistido[c] = { ...campo, estado: 'desistiu', motivo: 'novo_teste', em: agora.toISOString(), escreveu: false }
+        desistiu = true
+      }
+      if (!desistiu) continue
+      const proximo = await reivindicarRestoreStatus(supabase, outro.id, seq, desistido)
+      if (proximo === null) continue
+      await avisarRestauracao(supabase, { id: outro.id, site_id: outro.site_id, name: outro.name ?? '', restore_seq: proximo }, desistido)
+    } catch (e) {
+      Sentry.captureException(e, { tags: { area: 'ab-start' }, extra: { testId, outroTesteId: outro.id, context: 'pendencias-do-video' } })
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // startAbTestInternal
 // ---------------------------------------------------------------------------
+
+/** Volta um teste reivindicado para `draft`, só se o restore_seq ainda é o nosso (nenhuma outra ação mexeu). */
+async function voltarParaRascunho(supabase: SupabaseClient, testId: string, seq: number): Promise<void> {
+  const { error } = await supabase
+    .from('ab_tests')
+    .update({ status: 'draft', started_at: null })
+    .eq('id', testId)
+    .eq('status', 'active')
+    .eq('restore_seq', seq)
+  if (error) Sentry.captureException(new Error(error.message), { tags: { area: 'ab-start' }, extra: { testId, context: 'voltar-a-rascunho' } })
+}
+
+interface VarianteInicio {
+  id: string
+  label: string
+  is_original: boolean
+  blob_url: string | null
+  title_text: string | null
+  thumbnail_dhash: string | null
+  sort_order: number
+}
+
+export interface PortasInicio {
+  supabase: SupabaseClient
+  agora: () => Date
+}
 
 /**
  * Start an AB test given its ID and the site it belongs to.
@@ -45,20 +153,23 @@ async function resolveYouTubeVideoId(
  * - Authentication / authorisation (the server action wraps this with requireEditAccess)
  * - Cache invalidation (revalidateTag) after a successful return
  *
- * The conditional update (.eq('status', 'draft')) acts as an optimistic lock:
- * only the first concurrent caller will flip the row; subsequent ones see
- * count === 0 and return an error.
+ * Ordem (P4a, emendas 32 m, 46): (0) variante sem imagem recusa antes de qualquer escrita; (0b) pendências de outros
+ * testes do vídeo; (1) reivindica `draft -> active` com `restore_seq + 1` (zero linhas = outro processo ganhou); (2) relê
+ * título e thumbnail do YouTube e grava o que mudou como original; (3) escreve a 1ª variante, se não for a original;
+ * (4) abre o ciclo 0 por `ab_resume_commit`. Qualquer falha depois de (1) volta o teste a `draft`.
  */
 export async function startAbTestInternal(
   testId: string,
   siteId: string,
+  portas: Partial<PortasInicio> = {},
 ): Promise<{ ok: boolean; error?: string }> {
-  const supabase = getSupabaseServiceClient()
+  const supabase = portas.supabase ?? getSupabaseServiceClient()
+  const agora = portas.agora ?? (() => new Date())
 
   // 1. Fetch the test row and validate ownership + status.
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, test_type')
+    .select('id, site_id, status, youtube_video_id, test_type, restore_seq, restore_status, original_title')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -67,11 +178,12 @@ export async function startAbTestInternal(
   if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can be started' }
   if (pedeDescricao({ test_type: test.test_type })) return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
   if (!TestTypeSchema.safeParse(test.test_type).success) return { ok: false, error: 'Tipo de teste desconhecido' }
+  const testType = test.test_type as TestType
 
   // 2. Fetch variants.
   const { data: variants, error: variantsError } = await supabase
     .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, sort_order')
+    .select('id, label, is_original, blob_url, title_text, thumbnail_dhash, sort_order')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -80,15 +192,22 @@ export async function startAbTestInternal(
     return { ok: false, error: 'A test needs at least 2 variants (original + 1) to start' }
   }
 
+  // (0) Variante de thumbnail sem imagem: recusa antes de qualquer escrita (P4a-I11).
+  if (testType === 'thumbnail' || testType === 'combo') {
+    const semImagem = (variants as VarianteInicio[]).find((v) => !v.is_original && !v.blob_url)
+    if (semImagem) return { ok: false, error: `a variante ${semImagem.label} não tem imagem` }
+  }
+
   // 3. Compute the first variant via rotation.
   const firstIndex = getVariantForCycle(variants.length, 0)
   if (firstIndex < 0 || firstIndex >= variants.length) {
     return { ok: false, error: 'Invalid variant rotation index' }
   }
-  const firstVariant = variants[firstIndex] as AbTestVariantRow
+  const firstVariant = variants[firstIndex] as VarianteInicio
 
-  // 4. Set thumbnail on YouTube — resolve correct channel token.
-  let cycle0Meta: AppliedMetadata = {}
+  // 4. Canal e token (só leitura): falha aqui não toca em nada.
+  let accessToken: string
+  let youtubeVideoId: string
   try {
     let channelAccountId: string | null
     try {
@@ -101,75 +220,134 @@ export async function startAbTestInternal(
     if (!channelAccountId) {
       return { ok: false, error: CHANNEL_NOT_IDENTIFIED_MESSAGE }
     }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    if (!firstVariant.is_original && firstVariant.blob_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(firstVariant.blob_url)
-      const result = await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-      cycle0Meta.thumbnail_set = true
-      if (result.highUrl) {
-        cycle0Meta.youtube_thumbnail_url = result.highUrl
-      }
-    } else if (firstVariant.is_original) {
-      // Original stays on YouTube — snapshot current URL for drift baseline
-      const apiKey = process.env.YOUTUBE_API_KEY
-      if (!apiKey) {
-        Sentry.addBreadcrumb({
-          category: 'ab-start',
-          message: 'YOUTUBE_API_KEY not set — cycle 0 will have no drift baseline',
-          level: 'warning',
-        })
-      }
-      if (apiKey) {
-        try {
-          const ytRes = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${youtubeVideoId}&key=${apiKey}`,
-            { signal: AbortSignal.timeout(10_000) },
-          )
-          if (ytRes.ok) {
-            const ytData = await ytRes.json()
-            const highUrl = ytData?.items?.[0]?.snippet?.thumbnails?.high?.url
-            if (typeof highUrl === 'string') {
-              cycle0Meta.youtube_thumbnail_url = highUrl
-            }
-          }
-        } catch {
-          // Non-fatal
-        }
-      }
-    }
+    ;({ accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId))
+    const ytId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
+    if (!ytId) return { ok: false, error: 'YouTube video ID not found' }
+    youtubeVideoId = ytId
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
 
-  const now = new Date().toISOString()
+  // (0b) Pendências de outros testes do mesmo vídeo (só banco; roda sempre).
+  await resolverPendenciasDoVideo(supabase, siteId, testId, test.youtube_video_id as string, agora())
 
-  // 5. Conditional update — only succeeds when status is still 'draft'.
-  //    This prevents two concurrent callers (cron + user) from both winning.
-  const { data: updated, error: updateError } = await supabase
+  // (1) Reivindica draft -> active. `restore_status` nunca fica nulo depois da P4a (F-P3): o supabase-js não faz
+  // `coalesce` em coluna, então grava o valor lido (ou {}) sob a guarda de restore_seq, que é equivalente.
+  const lidoSeq = test.restore_seq as number
+  const agoraIso = agora().toISOString()
+  const { data: reivindicado, error: updateError } = await supabase
     .from('ab_tests')
-    .update({ status: 'active', started_at: now, paused_at: null, updated_at: now })
+    .update({
+      status: 'active', started_at: agoraIso, paused_at: null, updated_at: agoraIso,
+      restore_seq: lidoSeq + 1, restore_status: test.restore_status ?? {},
+    })
     .eq('id', testId)
     .eq('status', 'draft')
-    .select('id')
+    .eq('restore_seq', lidoSeq)
+    .select('restore_seq')
 
   if (updateError) return { ok: false, error: updateError.message }
-  if (!updated || updated.length === 0) {
-    return { ok: false, error: 'Test was already started by another process' }
+  const seq = (reivindicado as Array<{ restore_seq: number }> | null)?.[0]?.restore_seq
+  if (seq === undefined) return { ok: false, error: 'Teste já iniciado por outro processo' }
+
+  const desfazer = async (error: string): Promise<{ ok: false; error: string }> => {
+    await voltarParaRascunho(supabase, testId, seq)
+    return { ok: false, error }
   }
 
-  // 6. Insert cycle 0.
-  const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
-    test_id: testId,
-    variant_id: firstVariant.id,
-    cycle_number: 0,
-    started_at: now,
-    applied_metadata: Object.keys(cycle0Meta).length ? cycle0Meta : null,
-  })
+  // (2) Relê título e thumbnail no YouTube; o que mudou desde a criação vira o original.
+  const comTitulo = testType === 'title' || testType === 'combo'
+  const comThumb = testType === 'thumbnail' || testType === 'combo'
+  const original = (variants as VarianteInicio[]).find((v) => v.is_original)
+  const patchTeste: Record<string, unknown> = {}
+  let guardada: Awaited<ReturnType<typeof guardarOriginalMaior>> | null = null
+  try {
+    if (comTitulo) {
+      const snippet = await lerSnippet(youtubeVideoId, accessToken)
+      if (!snippet) return await desfazer('Vídeo não encontrado no YouTube')
+      if (snippet.title !== test.original_title) patchTeste.original_title = snippet.title
+    }
+    if (comThumb) {
+      const sonda = await probeThumb(youtubeVideoId, null)
+      if (!sonda.dhash) return await desfazer('Não foi possível ler a thumbnail atual do vídeo. Tente de novo.')
+      const guardado = original?.thumbnail_dhash ?? null
+      if (guardado === null || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
+        guardada = await guardarOriginalMaior(youtubeVideoId, testId)
+        patchTeste.original_thumbnail_url = guardada.url
+      }
+    }
+  } catch (e) {
+    return await desfazer((e as Error).message)
+  }
+  if (Object.keys(patchTeste).length > 0) {
+    const { data: gravado, error: erroPatch } = await supabase
+      .from('ab_tests').update(patchTeste).eq('id', testId).eq('restore_seq', seq).select('restore_seq')
+    if (erroPatch) return await desfazer(erroPatch.message)
+    if (!gravado || gravado.length === 0) return { ok: false, error: MSG_EM_ANDAMENTO }
+  }
+  if (guardada && original) {
+    const { error: erroVariante } = await supabase
+      .from('ab_test_variants')
+      .update({ blob_url: guardada.url, thumbnail_dhash: guardada.dhash, dimensions: `${guardada.largura}x${guardada.altura}` })
+      .eq('id', original.id)
+    if (erroVariante) return await desfazer(erroVariante.message)
+  }
 
-  if (cycleError) return { ok: false, error: cycleError.message }
+  // (3) Escreve a 1ª variante, se não for a original.
+  const cycle0Meta: AppliedMetadata = {}
+  if (!firstVariant.is_original) {
+    const aplicado = await applyVariantToYouTube(
+      {
+        youtubeVideoId,
+        accessToken,
+        testType,
+        variant: { id: firstVariant.id, blob_url: firstVariant.blob_url, title_text: firstVariant.title_text },
+        originalTitle: (patchTeste.original_title as string | undefined) ?? (test.original_title as string | null),
+      },
+      { antesDeEscrever: antesDeEscreverPorSeq(supabase, testId, seq) },
+    )
+    if (aplicado.perdeuAVez) return { ok: false, error: MSG_EM_ANDAMENTO }
+    if (!aplicado.ok) return await desfazer(aplicado.error ?? 'apply failed')
+    Object.assign(cycle0Meta, aplicado.meta)
+  } else {
+    // Original stays on YouTube — snapshot current URL for drift baseline
+    const apiKey = process.env.YOUTUBE_API_KEY
+    if (!apiKey) {
+      Sentry.addBreadcrumb({
+        category: 'ab-start',
+        message: 'YOUTUBE_API_KEY not set — cycle 0 will have no drift baseline',
+        level: 'warning',
+      })
+    }
+    if (apiKey) {
+      try {
+        const ytRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${youtubeVideoId}&key=${apiKey}`,
+          { signal: AbortSignal.timeout(10_000) },
+        )
+        if (ytRes.ok) {
+          const ytData = await ytRes.json()
+          const highUrl = ytData?.items?.[0]?.snippet?.thumbnails?.high?.url
+          if (typeof highUrl === 'string') {
+            cycle0Meta.youtube_thumbnail_url = highUrl
+          }
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+  }
+
+  // (4) Abre o ciclo 0 (mesma função de retomar, D12): nenhum teste `active` fica sem ciclo aberto.
+  const { data: cicloId, error: cycleError } = await supabase.rpc('ab_resume_commit', {
+    p_test_id: testId,
+    p_seq: seq,
+    p_de: 'active',
+    p_variant_id: firstVariant.id,
+    p_applied_metadata: Object.keys(cycle0Meta).length ? cycle0Meta : {},
+  })
+  if (cycleError) return await desfazer(cycleError.message)
+  if (!cicloId) return { ok: false, error: MSG_EM_ANDAMENTO }
 
   return { ok: true }
 }

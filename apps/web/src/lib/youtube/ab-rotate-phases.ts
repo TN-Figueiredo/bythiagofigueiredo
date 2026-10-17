@@ -4,6 +4,8 @@ import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { reivindicarRotacao, aplicarRotacao, marcadorEhVelho, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { createNotification } from '@/lib/notifications/create'
+import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
+import { claimAlert } from '@/lib/ops/alert-state'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
@@ -21,10 +23,49 @@ export interface RotateResult {
 
 // ─── Phase 1: Process queued tests whose start time has arrived ──────────────
 
+const UM_DIA_MS = 86_400_000
+
+/**
+ * Início que falhou: a fila tenta de novo amanhã. O supabase-js não faz aritmética de coluna em `update`, então a data
+ * nova sai do valor lido (ou de agora, o que for maior). `queue_start_after` NUNCA volta a nulo: a consulta da fila exige
+ * não nulo e um teste `queued` com a data nula nunca mais seria pego (Y-D5). Um aviso por dia por teste.
+ */
+async function adiarInicioDaFila(
+  supabase: SupabaseClient,
+  queued: { id: string; site_id: string; name?: string | null; queue_start_after?: string | null },
+  motivo: string,
+): Promise<void> {
+  const lido = queued.queue_start_after ? Date.parse(queued.queue_start_after) : Number.NaN
+  const base = Math.max(Number.isNaN(lido) ? 0 : lido, Date.now())
+  await supabase
+    .from('ab_tests')
+    .update({ status: 'queued', queue_start_after: new Date(base + UM_DIA_MS).toISOString() })
+    .eq('id', queued.id)
+    .eq('status', 'draft')
+  try {
+    if (await claimAlert(supabase, `ab-queue:${queued.id}`, '1 day')) {
+      await fanOutToSiteAdminsDetailed({
+        siteId: queued.site_id,
+        domain: 'youtube',
+        type: 'youtube.ab_queue_start_failed',
+        priority: 1,
+        // TEXTO-A-REVISAR (Logan, T17)
+        title: 'A/B: o teste da fila não começou',
+        message: `O teste "${queued.name ?? ''}" não conseguiu começar (${motivo}). O Lab tenta de novo amanhã.`,
+        dedupKey: `ab-queue:${queued.id}:${new Date().toISOString().slice(0, 10)}`,
+        actionHref: `/cms/youtube/ab-lab/${queued.id}`,
+        payload: { testId: queued.id },
+      })
+    }
+  } catch (e) {
+    Sentry.captureException(e, { extra: { testId: queued.id, context: 'aviso-fila' } })
+  }
+}
+
 export async function phaseProcessQueue(supabase: SupabaseClient): Promise<number> {
   const { data: queuedTests } = await supabase
     .from('ab_tests')
-    .select('id, site_id, youtube_video_id, name')
+    .select('id, site_id, youtube_video_id, name, queue_start_after')
     .eq('status', 'queued')
     .not('queue_start_after', 'is', null)
     .lte('queue_start_after', new Date().toISOString())
@@ -40,15 +81,15 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
         .eq('id', queued.id)
         .eq('status', 'queued')
 
-      await startAbTestInternal(queued.id, queued.site_id)
-      started++
+      const result = await startAbTestInternal(queued.id, queued.site_id)
+      if (result?.ok) {
+        started++
+      } else {
+        await adiarInicioDaFila(supabase, queued, result?.error ?? 'motivo desconhecido')
+      }
     } catch (err) {
-      // Revert status on failure
-      await supabase
-        .from('ab_tests')
-        .update({ status: 'queued' })
-        .eq('id', queued.id)
       Sentry.captureException(err, { extra: { testId: queued.id, context: 'queue-start' } })
+      await adiarInicioDaFila(supabase, queued, err instanceof Error ? err.message : 'erro inesperado')
     }
   }
 
