@@ -48,7 +48,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openChannelPage: async () => state.page,
   openObservatoryPage: async () => { state.abrirSite(); return state.site },
 }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) => ({
+  ausenciaDaProva: (await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')>()).ausenciaDaProva,
   lerDadosDoCanal: (a: unknown) => state.dados(a),
   longosAcompanhadosDe: () => [],
   podeVerPrivado: async () => null,

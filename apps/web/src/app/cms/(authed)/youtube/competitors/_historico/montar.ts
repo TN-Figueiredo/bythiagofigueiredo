@@ -5,11 +5,11 @@ import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import type { DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
-import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import type { LeituraPrivadaDoSite, MotivoSemLeitura } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
 import { loadSwipeRows, savedFromRows } from '../_mudancas/swipe-rows'
-import { acessoPrivado, lerDadosDoVideo, lerDiarioLongo, longosAcompanhadosDe } from '../_proprio/dados'
+import { acessoPrivado, ausenciaDaProva, lerDadosDoVideo, lerDiarioLongo, longosAcompanhadosDe } from '../_proprio/dados'
 import { lerOrigem } from '../_proprio/dados-origem'
 import { lerTermosESites } from '../_proprio/dados-termos'
 import { buildOrigem, type OrigemView } from '../_proprio/origem-model'
@@ -30,21 +30,23 @@ export async function assistidoDoVideo(p: PropsAssistidoDoVideo): Promise<Assist
 }
 
 /** "De onde vêm as views" (tela do vídeo). Sem prova de leitura nada é lido e o nível é "só o aviso". */
-export type PropsOrigemDoVideo = { canalId: string; ytId: string; publicadoEm: string | null; ultimoDia: string | null; agora: number; leitura: LeituraPrivadaDoSite | null; podeEditar: boolean; n: (x: number) => string }
+export type PropsOrigemDoVideo = { canalId: string; ytId: string; publicadoEm: string | null; ultimoDia: string | null; agora: number; leitura: LeituraPrivadaDoSite | null; negativa: MotivoSemLeitura | null; podeEditar: boolean; n: (x: number) => string }
 export async function origemDoVideo(p: PropsOrigemDoVideo): Promise<OrigemView> {
   const hojePt = dayPt(new Date(p.agora))
   const ate = ateDaOrigem(p.ultimoDia, hojePt)
   const { de, diarioDesde } = janelaDaOrigemDoVideo({ ate, publicadoEm: p.publicadoEm, ligadoEm: DIMENSOES_LIGADO_EM })
   const publicacoes = new Map<string, string | null>([[p.ytId, p.publicadoEm]])
-  const NEGADO = { acesso: 'negado' } as const
-  const temLeitura = p.leitura != null
+  // decisão 75: sem leitura, só `sem_direito` é negado (o aviso); guarda caída é erro (o bloco único de erro), nunca o "você não vê"
+  const semLeitura = ausenciaDaProva({ leitura: p.leitura, edita: p.podeEditar, negativa: p.negativa })
+  const sem = semLeitura === 'ok' ? null : semLeitura
+  const temLeitura = sem === null
   const [origem, termos]: [Awaited<ReturnType<typeof lerOrigem>>, Privado<DetalheCanal>] = temLeitura
     ? await Promise.all([
       lerOrigem({ canalId: p.canalId, ytIds: [p.ytId], de, ate, diarioDesde, publicacoes, agora: p.agora, prova: p.leitura }),
       lerTermosESites({ canalId: p.canalId, ytIds: [p.ytId], de, ate, agora: p.agora, prova: p.leitura }),
     ])
-    : [NEGADO, NEGADO]
-  const nivel = nivelDaOrigem({ temLeitura, termos, podeEditar: p.podeEditar })
+    : [sem as NonNullable<typeof sem>, sem as NonNullable<typeof sem>]
+  const nivel = nivelDaOrigem({ temLeitura, termos, podeEditar: p.podeEditar, falhou: sem?.acesso === 'erro' })
   if (temLeitura && p.podeEditar && termos.acesso !== 'ok') {
     Sentry.captureMessage('observatório: quem edita não leu os termos da origem do vídeo', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'origem-termos' }, extra: { acesso: termos.acesso } })
   }
@@ -102,8 +104,10 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     let trocas: TrocasView | null = null
     if (lidas) {
       const pub = obs.video(id)
+      // decisão 75: guarda caída é erro de leitura (nunca "privado"/restrito); só `sem_direito` fica negado
+      const semProva = ausenciaDaProva(acesso)
       trocas = buildTrocas({
-        lidas, ytId: base.header.ytId, publicadoEm: pub ? dayPt(new Date(pub.pub)) : null, hojePt: hoje, podeEditar: acesso.edita,
+        lidas: semProva !== 'ok' && semProva.acesso === 'erro' ? semProva : lidas, ytId: base.header.ytId, publicadoEm: pub ? dayPt(new Date(pub.pub)) : null, hojePt: hoje, podeEditar: acesso.edita,
         dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, quandoSp, diaPt: iso => dayPt(new Date(iso)), n: obs.fmt.int,
       })
     }
@@ -116,7 +120,7 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
       : null
     const origemProps = {
       canalId: proprio.id, ytId: base.header.ytId, publicadoEm: publicacoesDe(obs.videos.filter(v => v.ytId === base.header.ytId)).get(base.header.ytId) ?? null,
-      ultimoDia: diario ? diario.ultimoDia : null, agora: now, leitura, podeEditar: acesso.edita, n: obs.fmt.int,
+      ultimoDia: diario ? diario.ultimoDia : null, agora: now, leitura, negativa: acesso.negativa, podeEditar: acesso.edita, n: obs.fmt.int,
     }
     // `negativa` vem da MESMA resposta que decidiu a leitura (nunca de uma segunda chamada)
     const privado: EstadoDoPrivado = { acessoPorCanal: { [proprio.id]: { diario: dados.acesso, alcance: dados.acesso } }, negativa: acesso.negativa }

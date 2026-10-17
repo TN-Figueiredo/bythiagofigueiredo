@@ -68,7 +68,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openObservatoryPage: async () => { state.abrir(); return { siteId: 's1', now: w.obs.NOW, rows: {}, obs: w.obs, meuCanalLembrado: null, savedNiche: 'todos', extra: undefined } satisfies Omit<ObservatoryPage<undefined>, 'rows'> & { rows: object } },
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_chrome/own-menu')>()), ownMenuOf: () => OWNS }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) => ({
+  ausenciaDaProva: (await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')>()).ausenciaDaProva,
   acessoPrivado: async (s: string) => { const leitura = await state.leitura(s); return { leitura, edita: leitura != null && state.edita, negativa: null } },
   lerDadosDoVideo: async (a: unknown) => paraVideo(await state.dados(a)),
   lerDiarioLongo: (a: unknown) => state.longo(a),

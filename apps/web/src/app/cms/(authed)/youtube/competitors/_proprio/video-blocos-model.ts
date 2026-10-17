@@ -546,8 +546,9 @@ export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[
 export function ateDaOrigem(ultimoDia: DiaYt | null, hojePt: DiaYt): DiaYt { return ultimoDia ?? addDays(hojePt, -3) }
 
 /** O nível (4.5): sem prova de leitura, só o aviso; termos negados para quem a página sabe que NÃO edita, sem termos; o resto (inclusive erro, e negado para quem edita) é "tudo". */
-export function nivelDaOrigem(a: { temLeitura: boolean; termos: Privado<DetalheCanal>; podeEditar: boolean }): Nivel {
-  if (!a.temLeitura) return 'so-aviso'
+/** `falhou`: sem leitura porque a guarda de permissão caiu (decisão 75): o nível libera o bloco único de erro, nunca o aviso "você não vê". */
+export function nivelDaOrigem(a: { temLeitura: boolean; termos: Privado<DetalheCanal>; podeEditar: boolean; falhou?: boolean }): Nivel {
+  if (!a.temLeitura) return a.falhou ? 'tudo' : 'so-aviso'
   if (a.termos.acesso === 'negado' && !a.podeEditar) return 'sem-termos'
   return 'tudo'
 }
