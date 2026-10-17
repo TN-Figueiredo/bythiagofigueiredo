@@ -54,13 +54,30 @@ export async function getVideoTestHistory(
 
 export type { OpcaoEncerrar, ResultadoAcaoSaida }
 
-/** Traduz o resultado de settleOnAir e, se saiu do ar, invalida as telas. */
-async function concluirSaida(r: ResultadoSaida): Promise<ResultadoAcaoSaida> {
-  const out = traduzirSaida(r)
-  if (out.ok && out.resultado === 'feito') {
-    revalidateTag('youtube', { expire: 0 })
-    revalidatePath('/cms/youtube/ab-lab')
+/** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
+const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Atualize a página e confira o estado do teste.'
+
+function invalidarTelasDoAbLab(): void {
+  revalidateTag('youtube', { expire: 0 })
+  revalidatePath('/cms/youtube/ab-lab')
+}
+
+/**
+ * Traduz o resultado de settleOnAir e, se saiu do ar, invalida as telas. Uma exceção (settleOnAir relança o erro
+ * desconhecido por desenho) vira `resultado: 'erro'` + Sentry, em vez de derrubar a tela no error boundary;
+ * revalida porque o estado pode ter mudado.
+ */
+async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoAcaoSaida> {
+  let r: ResultadoSaida
+  try {
+    r = await saida
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
+    invalidarTelasDoAbLab()
+    return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
   }
+  const out = traduzirSaida(r)
+  if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
   return out
 }
 
@@ -657,7 +674,7 @@ export async function pauseAbTest(testId: string): Promise<ResultadoAcaoSaida> {
   } catch (e) {
     return recusaDeSessao(e)
   }
-  return concluirSaida(await settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true }))
 }
 
 // ---------------------------------------------------------------------------
@@ -823,7 +840,7 @@ export async function endAbTest(testId: string, opcao: OpcaoEncerrar): Promise<R
     }
   }
   const forcar = opcao.destino === 'variante' && opcao.forcar !== undefined ? { forcar: opcao.forcar } : {}
-  return concluirSaida(await settleOnAir(testId, { siteId, destino, motivo: 'encerrado', humano: true, ...forcar }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino, motivo: 'encerrado', humano: true, ...forcar }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1130,7 +1147,7 @@ export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> 
   } catch (e) {
     return recusaDeSessao(e)
   }
-  return concluirSaida(await settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true }))
 }
 
 // ---------------------------------------------------------------------------
