@@ -55,7 +55,7 @@ export function layoutLane(lane: LaneView, x: (h: number) => number, minpx: numb
       kind: 'pgroup', key: lane.type + ':p' + grp[0]!.i, left: L0, width: ext, x: L0, o: 1,
       members: grp.map(g => ({ i: g.i, v: g.v, left: g.L - L0, width: Math.max(3, g.W) })),
       unit, from, to, seq: labels.join(' → '),
-      name: unit + (lane.type === 'thumb' ? ' de miniatura' : '') + ', de ' + from + ' até ' + to + ': ' + labels.join(', '),
+      name: unit + (lane.type === 'thumb' ? ' de thumbnail' : '') + ', de ' + from + ' até ' + to + ': ' + labels.join(', '),
       letters: lane.type === 'thumb' ? fitLetters(labels, ext) : '', count: fitCount(unit, String(grp.length), ext),
     })
     a = b

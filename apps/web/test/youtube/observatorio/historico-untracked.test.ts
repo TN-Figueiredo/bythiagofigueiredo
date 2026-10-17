@@ -47,7 +47,7 @@ const build = (o: { pinned?: boolean; pinnedAt?: number; checked?: string | null
   versions: o.versions ?? [], daily: o.daily ?? [],
   heartbeat: { last_poll_at: iso(NOW - 60_000), capabilities: ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] },
 }), NOW))
-const NOTICE = 'Este vídeo está fora dos 10 mais recentes acompanhados de Canal Um. Mostramos o histórico de títulos, miniaturas e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.'
+const NOTICE = 'Este vídeo está fora dos 10 mais recentes acompanhados de Canal Um. Mostramos o histórico de títulos, thumbnails e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.'
 
 describe('R117: vídeo fora dos observados com versões guardadas', () => {
   const v = buildHistoricoView(build({ versions: TWO }), 'b', {})
@@ -106,7 +106,7 @@ describe('R117: vídeo fora dos observados SEM versão guardada (o dado não exi
     expect(v.lanes).toEqual([])
     expect(v.versions).toBeNull()
     expect(v.lanesAxis).toBeNull()
-    expect(v.untracked!.notice).toBe('Este vídeo está fora dos 10 mais recentes acompanhados de Canal Um. Não há títulos, miniaturas nem descrições guardados dele. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
+    expect(v.untracked!.notice).toBe('Este vídeo está fora dos 10 mais recentes acompanhados de Canal Um. Não há títulos, thumbnails nem descrições guardados dele. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
     expect('text' in v.untracked!).toBe(false)
   })
 })

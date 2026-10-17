@@ -54,7 +54,7 @@ describe('I2: a legenda do visualizador é a mesma no canal e no Histórico', ()
     const h = buildHistoricoView(obs, FULL, {}).viewer!
     const cv = buildCanalVideos(obs, chId).videos.find(x => x.id === FULL)!.viewer!
     expect(cv.versions.map(x => x.caption)).toEqual(h.versions.map(x => x.caption))
-    expect(h.versions[3]!.caption).toMatch(/^Capa C \(última vista\)/)
+    expect(h.versions[3]!.caption).toMatch(/^Thumbnail C \(última vista\)/)
   })
 })
 

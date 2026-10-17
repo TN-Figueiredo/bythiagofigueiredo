@@ -137,7 +137,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
               }
               const isOpen = open === it.key, id = 'hv-gp-' + it.key.replace(':', '-')
               const tip: GroupTip = it.kind === 'pgroup'
-                ? { type: lane.type, title: it.unit + (lane.type === 'thumb' ? ' de miniatura' : ''), when: 'de ' + it.from + ' até ' + it.to, seq: it.seq }
+                ? { type: lane.type, title: it.unit + (lane.type === 'thumb' ? ' de thumbnail' : ''), when: 'de ' + it.from + ' até ' + it.to, seq: it.seq }
                 : { type: lane.type, title: it.n + ' trocas de ' + lane.changeWord, when: 'entre ' + it.from + ' e ' + it.to, seq: null }
               const btn = {
                 type: 'button' as const, tabIndex: tab, 'aria-expanded': isOpen, 'aria-controls': isOpen ? id : undefined, 'aria-label': it.name, 'data-group': it.key,

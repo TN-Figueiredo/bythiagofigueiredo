@@ -97,9 +97,9 @@ describe('impressões e cliques', () => {
     expect(g.resumo).toBe('7.919 impressões e 1.584 cliques estimados em 19 dias: 1 dia com impressão e 18 sem impressão.')
   })
 
-  it('abaixo de 100 impressões a frase acrescenta "É pouco para dizer se a capa funciona: leia como contagem."; de 100 em diante, não', () => {
+  it('abaixo de 100 impressões a frase acrescenta "É pouco para dizer se a thumbnail funciona: leia como contagem."; de 100 em diante, não', () => {
     const poucas = blocos(mundoVideo({ mut: umaFaixa, alcance: { impFoco: 99, ctrFoco: 0.1 } })).impressoes!.grafico!.resumo!
-    expect(poucas).toMatch(/ É pouco para dizer se a capa funciona: leia como contagem\.$/)
+    expect(poucas).toMatch(/ É pouco para dizer se a thumbnail funciona: leia como contagem\.$/)
     expect(blocos(mundoVideo({ mut: umaFaixa, alcance: { impFoco: 100, ctrFoco: 0.1 } })).impressoes!.grafico!.resumo!).not.toMatch(/É pouco/)
     expect(blocos(W).impressoes!.grafico!.resumo!).not.toMatch(/É pouco/)
   })
@@ -249,7 +249,7 @@ describe('taxa de clique deste vídeo', () => {
   it('caso magro (2 de 18): 3,1% a 32,8%, "Pode ser igual", faixa do vídeo tracejada com a nota "faixa tracejada: ainda não conclui"', () => {
     const t = blocos(mundoVideo({ mut: umaFaixa, alcance: { impFoco: 18, ctrFoco: 2 / 18 } })).impressoes!.taxa!
     const frase = t.partes.map(p => p.t).join('')
-    expect(frase).toMatch(/^11,1% das impressões viraram clique \(2 de 18\)\. A taxa real fica entre 3,1% e 32,8%\. Pode ser igual à taxa do canal \(.+\): com este volume, não dá para dizer que a capa funciona melhor ou pior\.$/)
+    expect(frase).toMatch(/^11,1% das impressões viraram clique \(2 de 18\)\. A taxa real fica entre 3,1% e 32,8%\. Pode ser igual à taxa do canal \(.+\): com este volume, não dá para dizer que a thumbnail funciona melhor ou pior\.$/)
     expect(t.inconclusiva).toBe(true)
     const meu = t.faixa.linhas.find(l => l.rotulo === 'Este vídeo')!
     expect(meu).toMatchObject({ classe: 'inc', nota: 'faixa tracejada: ainda não conclui', loTxt: '3,1%', hiTxt: '32,8%' })
@@ -261,15 +261,15 @@ describe('taxa de clique deste vídeo', () => {
     expect(fraseVeredito({ direcao: 'abaixo', quaseSeTocam: false, inconclusivo: false }, c)).toBe('Fica abaixo da taxa do canal (4,3% a 5,8%), mesmo contando a incerteza.')
     expect(fraseVeredito({ direcao: 'acima', quaseSeTocam: true, inconclusivo: false }, c)).toBe('Fica um pouco acima da taxa do canal (4,3% a 5,8%): as duas faixas quase se tocam, então a diferença é pequena.')
     expect(fraseVeredito({ direcao: 'abaixo', quaseSeTocam: true, inconclusivo: false }, c)).toBe('Fica um pouco abaixo da taxa do canal (4,3% a 5,8%): as duas faixas quase se tocam, então a diferença é pequena.')
-    expect(fraseVeredito({ direcao: 'igual', quaseSeTocam: false, inconclusivo: true }, c)).toBe('Pode ser igual à taxa do canal (4,3% a 5,8%): com este volume, não dá para dizer que a capa funciona melhor ou pior.')
+    expect(fraseVeredito({ direcao: 'igual', quaseSeTocam: false, inconclusivo: true }, c)).toBe('Pode ser igual à taxa do canal (4,3% a 5,8%): com este volume, não dá para dizer que a thumbnail funciona melhor ou pior.')
     expect(fraseVeredito({ direcao: null, quaseSeTocam: false, inconclusivo: false }, c)).toBeNull()
   })
 
-  it('nenhuma frase diz que a capa é boa ou ruim; nenhuma classe de direção (verde/âmbar) no bloco', () => {
+  it('nenhuma frase diz que a thumbnail é boa ou ruim; nenhuma classe de direção (verde/âmbar) no bloco', () => {
     for (const w of [W, mundoVideo({ mut: umaFaixa, alcance: { impFoco: 18, ctrFoco: 2 / 18 } }), mundoVideo({ mut: umaFaixa, alcance: { impFoco: 100000, ctrFoco: 0.01 } })]) {
       const t = blocos(w).impressoes!.taxa!
       const texto = t.partes.map(p => p.t).join(' ') + ' ' + t.metodo.join(' ') + ' ' + t.faixa.alt
-      expect(texto).not.toMatch(/capa (boa|ruim)|funciona bem|funciona mal|ganhou|perdeu/i)
+      expect(texto).not.toMatch(/thumbnail (boa|ruim)|funciona bem|funciona mal|ganhou|perdeu/i)
       expect(JSON.stringify(t)).not.toMatch(/dir-up|dir-dn|dir-eq/)
     }
   })

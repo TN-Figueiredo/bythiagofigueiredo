@@ -31,7 +31,7 @@ const CAP: PinResult = { ok: false, kind: 'cap', error: 'Sem vagas: 10 de 10 ví
 const at = (root: Element, sel: string) => [...root.querySelectorAll('*')].indexOf(root.querySelector(sel)!)
 
 describe('Histórico: cabeçalho em quatro blocos', () => {
-  it('ordem no DOM = miniatura, título, ações, fatos e selos; só o título vem antes do botão', () => {
+  it('ordem no DOM = thumbnail, título, ações, fatos e selos; só o título vem antes do botão', () => {
     const { root } = mount(FULL)
     const order = ['.vhead .cur', '.vhead .vt', '.vhead .actions', '.vhead .vm'].map(s => at(root, s))
     expect(order.every(i => i >= 0)).toBe(true)
@@ -117,7 +117,7 @@ describe('Histórico: vídeo fora dos observados (R117)', () => {
   })
   it('faixas com o eixo próprio: título da seção, uma marca por rótulo do eixo, primeira e última sempre visíveis', () => {
     const { root, view } = mount(UNTR)
-    expect(root.querySelector('#hv-tlh')!.textContent).toBe('Trocas de título, miniatura e descrição')
+    expect(root.querySelector('#hv-tlh')!.textContent).toBe('Trocas de título, thumbnail e descrição')
     const axis = root.querySelector('.lane-axis.fx-axis')!
     expect(axis.querySelectorAll('i')).toHaveLength(view.lanesAxis!.ticks.length)
     const labels = [...axis.querySelectorAll('span')].map(e => e.textContent)

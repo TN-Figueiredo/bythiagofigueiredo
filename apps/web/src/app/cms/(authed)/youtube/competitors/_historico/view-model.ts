@@ -302,12 +302,12 @@ export interface HistoricoView {
   groupLegend: string
 }
 const H_MS = 36e5, DAY = 864e5
-const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Miniatura', desc: 'Descrição' }
+const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' }
 const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
 const PIN_GONE_NOTE = 'Fixado. O YouTube não devolveu este vídeo na última sincronização; ele pode ter sido apagado ou ficado privado.'
 const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: 'Outliers', canais: 'Canais', insights: 'Insights', comparar: 'Comparar canais' }
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
-const TYPE_LOW: Record<LaneType, string> = { title: 'título', thumb: 'miniatura', desc: 'descrição' }
+const TYPE_LOW: Record<LaneType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
 const LANE_UNIT: Record<LaneType, [string, string]> = { title: ['título', 'títulos'], thumb: ['período', 'períodos'], desc: ['descrição', 'descrições'] }
 const GROUP_LEGEND = 'trocas ou períodos próximos demais para caber lado a lado: o contador diz quantos são e abre a lista; os traços ficam no horário de cada um'
 const EMPTY_COMPARE: CompareView = { mode: 'pairs', sum: null, scope: '', total: 0, fields: [], situations: [] }
@@ -424,7 +424,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     // A version without its archived image says so; the "antes de DD/MM" text is only for what lies before the archive
     // (the hatched lane region and the "Antes" side of a comparison), never for a version that was seen.
     missing: 'A imagem desta versão não foi arquivada.',
-    alt: 'Miniatura ' + label,
+    alt: 'Thumbnail ' + label,
   })
 
   function versionsOf(type: LaneType, arr: Ver[]): VersionView[] {
@@ -459,7 +459,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const thumbs = versionsOf('thumb', v.thumbs)
   // o visualizador de thumbnail (spec 6.3): a legenda, o período e o tempo no ar são os do cartão da versão, sem recalcular
   const viewerVersions: ViewerVersion[] = thumbs.map(t => ({
-    label: 'Capa ' + t.label, current: t.cur, archived: t.thumb?.src ?? null, youtubeId: t.cur ? v.ytId || null : null,
+    label: 'Thumbnail ' + t.label, current: t.cur, archived: t.thumb?.src ?? null, youtubeId: t.cur ? v.ytId || null : null,
     caption: thumbCaption(t.label, t.cur, t.tag?.text ?? 'no ar', t.span, t.dur),
     from: t.from, to: t.to, span: t.span,
     preview: t.thumb?.src ?? null,
@@ -474,7 +474,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- comparison pairs ----------
   const nameOf = (c: ObsChange) => c.type === 'thumb'
-    ? 'Miniatura ' + keyOf((c.before as { key: string }).key) + ' → ' + keyOf((c.after as { key: string }).key)
+    ? 'Thumbnail ' + keyOf((c.before as { key: string }).key) + ' → ' + keyOf((c.after as { key: string }).key)
     : c.typeLabel + ' ' + (verLabel.get(c.fromId) ?? c.fromId) + ' → ' + (verLabel.get(c.toId) ?? c.toId)
   const partAgo = (c: ObsChange) => { const o = FEM[c.type] ? 'a' : 'o'; return c.window ? 'vist' + o + ' pela 1ª vez ' + c.agoShort : 'trocad' + o + ' ' + c.agoShort }
   interface Pair { k: string; label: string; group: ObsChange[]; e: EffectResult; e2: EffectResult | null; labs: string[] | null }
@@ -495,7 +495,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const rev = group.length === 2 && group.every(g => g.type === 'thumb')
       if (!rev) group.sort((a, b) => ord[a.type] - ord[b.type])
       const label = rev
-        ? 'Miniatura ' + keyOf((group[0]!.before as { key: string }).key) + ' → ' + keyOf((group[0]!.after as { key: string }).key) + ' → ' + keyOf((group[1]!.after as { key: string }).key)
+        ? 'Thumbnail ' + keyOf((group[0]!.before as { key: string }).key) + ' → ' + keyOf((group[0]!.after as { key: string }).key) + ' → ' + keyOf((group[1]!.after as { key: string }).key)
         : group.map(nameOf).join(' + ') + (group.length > 1 ? ' (mesma janela)' : '')
       const e = obs.effect(group[0]!.id)
       if (!e) continue
@@ -547,7 +547,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     })),
     pre: type === 'thumb' && thumbPreAt != null
       && hx(thumbPreAt) > fromH
-      ? { fromH: 0, toH: hx(thumbPreAt), text: compress ? 'antes de ' + preLabel : 'antes de ' + preLabel + ': não registrada', title: 'Miniatura antes de ' + preLabel + ': não registrada' }
+      ? { fromH: 0, toH: hx(thumbPreAt), text: compress ? 'antes de ' + preLabel : 'antes de ' + preLabel + ': não registrada', title: 'Thumbnail antes de ' + preLabel + ': não registrada' }
       : null,
     runs: type === 'desc' ? [] : shownRuns(type).map(r => ({
       fromH: hx(Math.max(r.from, t0)), toH: r.open ? hx(now) : hx(Math.max(r.to, t0)), open: r.open, cutLeft: r.from < t0,
@@ -616,7 +616,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     if (!parseNiche(params.niche)) params.niche = userNiche
     const { f, ordered } = mudancasList(obs, params, new Set(opts?.savedChangeIds ?? []))
     const ids = [...new Set(ordered.map(c => c.video))]
-    const TL: Record<string, string> = { title: 'títulos', thumb: 'miniaturas', desc: 'descrições' }, SL: Record<string, string | null> = { recent: null, gain: 'maior ganho primeiro', loss: 'maior perda primeiro' }
+    const TL: Record<string, string> = { title: 'títulos', thumb: 'thumbnails', desc: 'descrições' }, SL: Record<string, string | null> = { recent: null, gain: 'maior ganho primeiro', loss: 'maior perda primeiro' }
     const desc = [f.niche !== 'todos' ? 'nicho ' + obs.nicheLabel(f.niche) : 'todos os nichos', f.type !== 'all' ? TL[f.type] ?? f.type : null, f.channel !== 'all' ? obs.channel(f.channel)?.name ?? null : null,
       f.fmt !== 'all' && !f.video ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
       f.changes ? F.plural(f.changes.length, 'troca marcada', 'trocas marcadas') : f.win + ' dias', f.measured ? 'só efeito medido' : null,
@@ -673,7 +673,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const sinceTxt = obsSince != null ? 'Observamos ' + ch.name + ' desde ' + D.dmOrDmy(obsSince) : 'Observamos ' + ch.name
     if (sy.added != null && now - sy.added < 48 * H_MS) return 'Canal adicionado ' + D.ago(sy.added) + ': as trocas são conferidas a partir de ' + dmhmY(sy.added) + ', ' + obs.SYNC.cadence
     if (!syncOk) return sinceTxt + ', mas as trocas não estão sendo conferidas' + (sy.last != null ? ' desde ' + dmhmY(sy.last) : '') + syncTail()
-    return sinceTxt + '; título, miniatura e descrição são conferidos a cada sincronização, ' + obs.SYNC.cadence
+    return sinceTxt + '; título, thumbnail e descrição são conferidos a cada sincronização, ' + obs.SYNC.cadence
   }
 
   // ---------- image summary (Fase 4 item 1) ----------
@@ -706,7 +706,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const nT = titles.length, distinct = new Set(v!.thumbs.map(t => t.key)).size, nD = descs.length, back = sumAll.returned
     const counts: HeaderView['counts'] = !observed ? [] : !changes.length ? [{ type: null, text: 'Nenhuma troca registrada' }] : [
       { type: 'title', text: F.plural(nT, 'título', 'títulos') },
-      { type: 'thumb', text: thumbs.length > 1 ? distinct + ' miniaturas em ' + thumbs.length + ' períodos' + (back === 1 ? ' (uma voltou)' : back > 1 ? ' (' + back + ' voltaram)' : '') : thumbPreAt != null ? '1 miniatura (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'miniatura', 'miniaturas') },
+      { type: 'thumb', text: thumbs.length > 1 ? distinct + ' thumbnails em ' + thumbs.length + ' períodos' + (back === 1 ? ' (uma voltou)' : back > 1 ? ' (' + back + ' voltaram)' : '') : thumbPreAt != null ? '1 thumbnail (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'thumbnail', 'thumbnails') },
       { type: 'desc', text: F.plural(nD, 'descrição', 'descrições') },
     ]
     const lastP = pts[pts.length - 1]
@@ -720,7 +720,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
     const cur = thumbs[thumbs.length - 1]
     return {
-      thumb: cur?.thumb ?? { src: null, missing: 'Nenhuma miniatura registrada.', alt: 'Miniatura' },
+      thumb: cur?.thumb ?? { src: null, missing: 'Nenhuma thumbnail registrada.', alt: 'Thumbnail' },
       dur: fmtDur(vv.dur),
       chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), avatar: ch.avatar ?? null, color: ch.color || '#3B2F8F', niche: vv.niche ? obs.nicheLabel(vv.niche) : null },
       views: !observed ? { num: null, text: 'contagem de views não acompanhada' }
@@ -743,7 +743,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const tc = changes.filter(c => c.type === 'thumb' && c.testCompare && c.revertedBy && c.revertedImmediate && c.at >= t0)
   const thumbNotes: VersionsView['thumbs']['notes'] = []
   if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.' }) }
-  if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Miniatura vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de miniatura anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
+  if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
   const dc = changes.filter(c => c.type === 'desc' && c.at >= t0), withText = dc.filter(c => c.diff)
   const nIn = (list: VersionView[]) => list.filter(x => x.inRange).length
   const showing = (list: VersionView[]) => (cut ? '; mostrando ' + nIn(list) + ' de ' + list.length : '')
@@ -759,13 +759,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const nThumbIn = nIn(thumbs), ofPeriod = cut ? ' do período' : ''
   const versions: VersionsView = {
     thumbs: {
-      src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma miniatura registrada',
+      src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada',
       cards: thumbs, notes: thumbNotes, runNote: runNote('thumb'),
       more: nThumbIn > HR.collapseAbove ? {
         keep: HR.collapseAbove, open: 'Ver todas (' + nThumbIn + ')', close: 'Mostrar só as ' + HR.collapseAbove + ' mais recentes',
         srcClosed: 'mostrando os ' + HR.collapseAbove + ' períodos mais recentes de ' + nThumbIn + ofPeriod, srcOpen: 'mostrando os ' + nThumbIn + ' períodos' + ofPeriod,
       } : null,
-      empty: thumbs.length && !nThumbIn ? 'Nenhum período de miniatura neste intervalo.' : null,
+      empty: thumbs.length && !nThumbIn ? 'Nenhum período de thumbnail neste intervalo.' : null,
     },
     titles: { src: titles.length > 1 ? 'trechos alterados contra o anterior' + showing(titles) : 'sem troca vista', same: titles.length > 1 ? null : sameSinceText('título'), items: titles, runNote: runNote('title') },
     descs: {
@@ -783,9 +783,9 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   /** The legend items that describe the lanes (shared by the chart legend and by the lanes-only view of R117). */
   const laneLegend = (): LegendItem[] => {
     const out: LegendItem[] = []
-    if (thumbPreAt != null) out.push({ kind: 'hatch', text: 'miniatura antes de ' + preLabel + ': não registrada' })
+    if (thumbPreAt != null) out.push({ kind: 'hatch', text: 'thumbnail antes de ' + preLabel + ': não registrada' })
     if (shown.some(e => e.win)) out.push({ kind: 'win', text: 'janela entre duas sincronizações: título e descrição não têm minuto; sincronização ' + obs.SYNC.cadence })
-    if (shown.some(e => e.type === 'thumb')) out.push({ kind: 'thumb', text: 'troca de miniatura com horário exato (detectada pela mudança do arquivo da imagem)' })
+    if (shown.some(e => e.type === 'thumb')) out.push({ kind: 'thumb', text: 'troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)' })
     if (lanes.some(l => l.runs.length)) out.push({ kind: 'run', text: 'trocas em sequência: trocas do mesmo campo com até ' + obs.RULES.testRunGapDays + ' dias entre uma e outra. ' + RUN_CAVEAT })
     if (!shown.length) out.push({ kind: 'text', text: events.length ? 'Nenhuma troca neste período.' : 'Nenhuma troca registrada.' })
     return out
@@ -805,7 +805,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND }
     const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
     const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
-    if (!stored) return { ...common, lanes: [], legends: {}, versions: null, lanesAxis: null, untracked: { href, notice: outside + ' Não há títulos, miniaturas nem descrições guardados dele. ' + noChart } }
+    if (!stored) return { ...common, lanes: [], legends: {}, versions: null, lanesAxis: null, untracked: { href, notice: outside + ' Não há títulos, thumbnails nem descrições guardados dele. ' + noChart } }
     const axisFrom = Math.max(pub, Math.min(...[...v.titles, ...v.thumbs, ...v.descs].map(x => (lateObs(x) ? obsSince! : startMs(x)))))
     const tick = (ms: number) => ({ h: hx(ms), label: dmhmY(ms) }) // D14: DD/MM HH:MM, never the hour-only form
     const ticks = [tick(axisFrom), ...changes.filter(c => c.at > axisFrom && c.at < endNow).map(c => tick(c.at)), tick(endNow)]
@@ -816,7 +816,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       legends: { '': laneLegend() },
       versions,
       lanesAxis: { fromH: hx(axisFrom), toH: hx(endNow), ticks },
-      untracked: { href, notice: outside + ' Mostramos o histórico de títulos, miniaturas e descrições guardado. ' + noChart },
+      untracked: { href, notice: outside + ' Mostramos o histórico de títulos, thumbnails e descrições guardado. ' + noChart },
     }
   }
 
@@ -900,8 +900,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
         const tb = versionAt('thumb', preMs), ta = versionAt('thumb', postMs), Tb = versionAt('title', preMs), Ta = versionAt('title', postMs)
         const known = !!tb.raw && !(openStart(tb.raw) && tb.raw.first_seen > preMs)
         ba = [
-          { thumb: known ? tb.view!.thumb : tb.raw ? { src: null, missing: 'Miniatura antes de ' + preLabel + ': não registrada', alt: 'Miniatura' } : null, title: Tb.text, label: 'Antes (' + (Tb.view?.label ?? '') + (known ? ', miniatura ' + tb.view!.label : '') + ')', at: known ? verAt(tb.view) : null },
-          { thumb: ta.view?.thumb ?? null, title: Ta.text, label: 'Depois (' + (Ta.view?.label ?? '') + (ta.view ? ', miniatura ' + ta.view.label : '') + ')', at: verAt(ta.view) },
+          { thumb: known ? tb.view!.thumb : tb.raw ? { src: null, missing: 'Thumbnail antes de ' + preLabel + ': não registrada', alt: 'Thumbnail' } : null, title: Tb.text, label: 'Antes (' + (Tb.view?.label ?? '') + (known ? ', thumbnail ' + tb.view!.label : '') + ')', at: known ? verAt(tb.view) : null },
+          { thumb: ta.view?.thumb ?? null, title: Ta.text, label: 'Depois (' + (Ta.view?.label ?? '') + (ta.view ? ', thumbnail ' + ta.view.label : '') + ')', at: verAt(ta.view) },
         ]
       }
     }
@@ -926,7 +926,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const cav = (e.inconclusiveKind === 'troca-seguinte' ? [] : [...obs.caveats(e.id)]).sort((a, b) => cDate(a) - cDate(b))
       if (q.group.some(g => g.testCompare && (g.revertImmediate || g.revertedImmediate))) cav.unshift('Alternância compatível com Testar e comparar (teste A/B do YouTube), não confirmada: o YouTube não informa o teste nem o vencedor.')
       full = {
-        what: q.e2 ? 'Miniatura ' + q.labs![0] : q.label,
+        what: q.e2 ? 'Thumbnail ' + q.labs![0] : q.label,
         whatWhen: ', ' + c0.whenText + ' (' + partAgo(c0) + ')',
         days: 'antes: ' + F.plural(e.beforeDays ?? 0, 'dia', 'dias') + '; depois: ' + F.plural(e.afterDays ?? 0, 'dia', 'dias') + '; o dia da troca fica de fora',
         verdictStrong: (hasBase ? cap(e.numbersFlat ?? '') : 'Observado ' + F.pct(e.observed) + '; ' + (e.noBaseText ?? '')) + '.',
@@ -951,7 +951,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return {
       changeId: q.k, before: e.beforeAvg != null ? F.num(e.beforeAvg) : '—', after: e.afterAvg != null ? F.num(e.afterAvg) : '—', scale: scaleTxt,
       effect: ev,
-      chip: q.e2 ? 'Miniatura ' + q.labs![0] + ': ' + effLabel(e) + ' · ' + q.labs![1] + ': ' + effLabel(q.e2) : q.label + ': ' + effLabel(e),
+      chip: q.e2 ? 'Thumbnail ' + q.labs![0] + ': ' + effLabel(e) + ' · ' + q.labs![1] + ': ' + effLabel(q.e2) : q.label + ': ' + effLabel(e),
       ba, nobase, full, descLink: c0.type === 'desc' && !!c0.diff, windows,
       field: c0.type, situation: situationOf(e), label: q.label, when: c0.whenText, statusLine: statusLine(obs, e),
       runLines: [...new Map(q.group.filter(g => g.testRun).map(g => [g.testRun!.id, g.testRun!])).values()].map(r => cap(runCardText(r)) + '. ' + RUN_CAVEAT),
@@ -987,7 +987,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       value: rangeId, fromH, cut,
       why: widenedBy && arrival ? 'Período ampliado para ' + (rangeId === 'tudo' ? 'o vídeo inteiro' : rangeId + ' dias') + ' para incluir a troca aberta.' : null,
       options: RANGE_IDS.map(id => ({ id, label: RANGE_LABEL[id], aria: RANGE_LABEL[id] + ': ' + RANGE_LONG[id] })),
-      text: [head + ': ', ...one(nIn(thumbs), thumbs.length, 'período de miniatura', 'períodos de miniatura'), ', ', ...one(nIn(titles), titles.length, 'título', 'títulos'), ', ',
+      text: [head + ': ', ...one(nIn(thumbs), thumbs.length, 'período de thumbnail', 'períodos de thumbnail'), ', ', ...one(nIn(titles), titles.length, 'título', 'títulos'), ', ',
         ...one(nIn(descs), descs.length, 'descrição', 'descrições'), ', ', ...one(shown.length, events.length, 'troca', 'trocas'), ' e ',
         ...one(dayN(binsIn), dayN(allBins), 'dia de views', 'dias de views'), '. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.'],
     }
@@ -1014,7 +1014,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   return {
     video: videoOut, crumbs, header, chart, lanes, legends, comparisons, defaultPair, arrival,
-    compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, miniatura ou descrição, a troca aparece na curva acima e entra em Mudanças.',
+    compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
     versions, pager, viewer, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
     range: rangeView, imageSummary: imageSummaryView, compare, groupLegend: GROUP_LEGEND,
   }
@@ -1028,7 +1028,7 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
   return { forja, forjaCard: buildForjaCard(obs, v, ch, forja) }
 }
 
-const miss = (): ThumbImg => ({ src: null, missing: 'Imagem não registrada.', alt: 'Miniatura' })
+const miss = (): ThumbImg => ({ src: null, missing: 'Imagem não registrada.', alt: 'Thumbnail' })
 
 /** Duration of the video: seconds → "24:18" / "1:02:03" (the oracle already carries the text). */
 function fmtDur(d: number | string | null): string | null {

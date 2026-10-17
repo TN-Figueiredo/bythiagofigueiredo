@@ -160,7 +160,7 @@
         ['Impressões', '18,4 mil', 'soma dos 11 dias medidos'], ['Cliques estimados', '1,1 mil', 'impressões × taxa de clique estimada'], ['Dias sem leitura', 'não medido', '2 dias antes de 05/10'] ] } ],
     meio: 'resto da seção 4 (4 tabelas), 5. Definições e método e 6. Avisos',
     meioSem: 'resto da seção 4 (3 tabelas), 5. Definições e método e 6. Avisos',
-    sug: ['A miniatura está funcionando?', 'O que os comentários pedem?'],
+    sug: ['A thumbnail está funcionando?', 'O que os comentários pedem?'],
     amostra: [ '[comentário 1 · 6 curtidas · há 2 dias · texto de terceiros]', '│ Dá para fazer a versão com hostel também?', '[resposta do criador (tnFigueiredo)]', '│ Boa ideia, anotei.' ]
   };
 

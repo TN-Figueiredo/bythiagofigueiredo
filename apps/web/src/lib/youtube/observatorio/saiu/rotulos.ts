@@ -68,7 +68,7 @@ export function linhasDoPainel(linhas: Record<string, number>, miniaturas: numbe
   for (const t of ORDEM) { vistas.add(t); emitir(t) }
   const resto = Object.keys(linhas).filter(t => !vistas.has(t)).sort()
   for (const t of resto) emitir(t)
-  if (miniaturas > 0) saida.push({ n: miniaturas, texto: pl(miniaturas, 'arquivo de miniatura', 'arquivos de miniatura') })
+  if (miniaturas > 0) saida.push({ n: miniaturas, texto: pl(miniaturas, 'arquivo de thumbnail', 'arquivos de thumbnail') })
   if (identidades > 0) saida.push({ n: identidades, texto: pl(identidades, 'identidade de autor de comentário (dado pessoal; some sozinha aos 28 dias)', 'identidades de autores de comentário (dado pessoal; somem sozinhas aos 28 dias)') })
   if (internas > 0) saida.push({ n: internas, texto: pl(internas, 'registro interno', 'registros internos') })
   return saida
@@ -85,7 +85,7 @@ export function resumoGuardado(
   if (dias > 0) p.push(pl(dias, 'dia de views', 'dias de views'))
   if (versoes) {
     if (versoes.title > 0) p.push(pl(versoes.title, 'título', 'títulos'))
-    if (versoes.thumb > 0) p.push(pl(versoes.thumb, 'miniatura', 'miniaturas'))
+    if (versoes.thumb > 0) p.push(pl(versoes.thumb, 'thumbnail', 'thumbnails'))
     if (versoes.desc > 0) p.push(pl(versoes.desc, 'descrição', 'descrições'))
   }
   const mud = linhas.competitor_changes ?? 0

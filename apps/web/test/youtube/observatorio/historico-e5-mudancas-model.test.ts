@@ -25,7 +25,7 @@ describe('E5a T20, mudanças', () => {
       { campos: ['titulo'], deMs: base, ateMs: base + 3 * H, precisao: '6h' },
     ])
     const r = listaDeMudancas(l, { subidaDia: null, inicioDoHistorico: '2026-10-01' })
-    expect(r.resumo).toEqual({ negrito: '2 mudanças, as duas em 10/10:', resto: ' miniatura e título.' })
+    expect(r.resumo).toEqual({ negrito: '2 mudanças, as duas em 10/10:', resto: ' thumbnail e título.' })
     expect(r.itens[0]!.quando.startsWith('em ')).toBe(false)
     expect(JSON.stringify(r)).not.toContain('Mudou neste dia')
     const um = listaDeMudancas(l.slice(0, 1), { subidaDia: null, inicioDoHistorico: '2026-10-01' })
@@ -45,7 +45,7 @@ describe('título e miniatura no mesmo instante (D3 do Gio)', () => {
     expect(tipoDaMudanca(l[0]!.campos)).toBe('titulo')
     const r = listaDeMudancas(l, { subidaDia: null, inicioDoHistorico: '2026-10-01' })
     expect(r.itens).toHaveLength(1)
-    expect(r.itens[0]!.rotulo).toBe('Título e miniatura')
-    expect(r.resumo!.resto).toContain('título e miniatura')
+    expect(r.itens[0]!.rotulo).toBe('Título e thumbnail')
+    expect(r.resumo!.resto).toContain('título e thumbnail')
   })
 })

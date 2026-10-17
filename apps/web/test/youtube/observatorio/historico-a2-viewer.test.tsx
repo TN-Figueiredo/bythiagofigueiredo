@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Fase A2, tarefa 6, no Histórico: os quatro gatilhos do visualizador de miniatura (spec 6.3), a legenda do gráfico e o foco quando o gatilho some.
+// Fase A2, tarefa 6, no Histórico: os quatro gatilhos do visualizador de thumbnail (spec 6.3), a legenda do gráfico e o foco quando o gatilho some.
 // jsdom não tem layout: o gráfico tem 1100 px (o padrão do componente) e o ponteiro é fino. A rede de imagens não existe: o diálogo abre e mostra o que a tela já tinha.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup, screen, within, act } from '@testing-library/react'
@@ -48,9 +48,9 @@ const fechar = () => { fireEvent.keyDown(document.body, { key: 'Escape' }) }
 const gatilho = (el: Element | null) => el as HTMLElement
 
 describe('o modelo entrega o visualizador', () => {
-  it('HistoricoView.viewer traz uma versão por período de miniatura, a atual é a última, com o id do YouTube só nela', () => {
+  it('HistoricoView.viewer traz uma versão por período de thumbnail, a atual é a última, com o id do YouTube só nela', () => {
     const v = build().viewer!
-    expect(v.versions.map(x => x.label)).toEqual(['Capa A', 'Capa B', 'Capa A', 'Capa C'])
+    expect(v.versions.map(x => x.label)).toEqual(['Thumbnail A', 'Thumbnail B', 'Thumbnail A', 'Thumbnail C'])
     expect(v.start).toBe(3)
     expect(v.versions.map(x => x.current)).toEqual([false, false, false, true])
     expect(v.versions.map(x => x.youtubeId != null)).toEqual([false, false, false, true])
@@ -63,7 +63,7 @@ describe('o modelo entrega o visualizador', () => {
       expect(x.caption).toContain(cards[i]!.span)
       expect(x.caption).toContain('no ar por ' + cards[i]!.dur)
     })
-    expect(v.versions[3]!.caption.startsWith('Capa C (')).toBe(true)
+    expect(v.versions[3]!.caption.startsWith('Thumbnail C (')).toBe(true)
   })
   it('vídeo sem nenhuma versão de miniatura: viewer nulo', () => {
     const { obs: o } = canalWorld(ds => { ds.videos.find(x => x.id === FULL)!.thumbs = [] })
@@ -71,15 +71,15 @@ describe('o modelo entrega o visualizador', () => {
   })
 })
 
-describe('gatilho 1: a miniatura do cabeçalho', () => {
+describe('gatilho 1: a thumbnail do cabeçalho', () => {
   it('abre o visualizador na versão atual, com o título do vídeo', () => {
     const { root, view } = mount()
     const g = gatilho(root.querySelector('.vhead .cur [role="button"]'))
     expect(g).not.toBeNull()
-    expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a miniatura/)
+    expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a thumbnail/)
     fireEvent.click(g)
     expect(dialog().querySelector('h2')!.textContent).toBe('Thumbnail: ' + view.video!.title)
-    expect(posicao()).toBe('Capa C · 4 de 4')
+    expect(posicao()).toBe('Thumbnail C · 4 de 4')
   })
   it('Enter e espaço abrem, como num botão', () => {
     const { root } = mount()
@@ -103,7 +103,7 @@ describe('gatilho 1: a miniatura do cabeçalho', () => {
   })
 })
 
-describe('gatilho 2: as miniaturas de "Antes e depois"', () => {
+describe('gatilho 2: as thumbnails de "Antes e depois"', () => {
   it('cada lado abre na versão dele', () => {
     const { root, view } = mount({ troca: thumbChange.id })
     const par = view.comparisons.find(c => c.changeId === view.defaultPair)!
@@ -121,16 +121,16 @@ describe('gatilho 2: as miniaturas de "Antes e depois"', () => {
   })
 })
 
-describe('gatilho 3: os cartões de "Miniaturas"', () => {
+describe('gatilho 3: os cartões de "Thumbnails"', () => {
   const cartoes = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('.film .fcard')]
-  it('cada miniatura tem a lupa e role="button" com nome acessível, e abre na versão do cartão', () => {
+  it('cada thumbnail tem a lupa e role="button" com nome acessível, e abre na versão do cartão', () => {
     const { root } = mount()
     const cs = cartoes(root)
     expect(cs).toHaveLength(4)
     cs.forEach((c, i) => {
       const g = gatilho(c.querySelector('[role="button"]'))
       expect(g, 'cartão ' + i).not.toBeNull()
-      expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a miniatura: Capa [ABC]/)
+      expect(g.getAttribute('aria-label')).toMatch(/^Ampliar a thumbnail: Thumbnail [ABC]/)
       expect(g.getAttribute('tabindex')).toBe('0')
       expect(g.querySelector('.th-lupa svg')).not.toBeNull()
       expect(g.querySelector('.th-lupa')!.getAttribute('aria-hidden')).toBe('true')
@@ -139,7 +139,7 @@ describe('gatilho 3: os cartões de "Miniaturas"', () => {
       fechar()
     })
   })
-  it('miniatura sem imagem não vira botão quebrado: abre o visualizador no quadro explicativo', () => {
+  it('thumbnail sem imagem não vira botão quebrado: abre o visualizador no quadro explicativo', () => {
     const { root } = mount()
     const sem = cartoes(root)[1]!
     expect(sem.querySelector('img')).toBeNull()
@@ -153,16 +153,16 @@ describe('gatilho 3: os cartões de "Miniaturas"', () => {
   })
 })
 
-describe('gatilho 4: o clique duplo na miniatura da raia', () => {
+describe('gatilho 4: o clique duplo na thumbnail da raia', () => {
   const clip = (root: HTMLElement, i: number) => root.querySelector<HTMLElement>(`.lane[data-lane="thumb"] [data-k="thumb:${i}"]`)
-  it('o duplo clique abre o visualizador na versão da miniatura', () => {
+  it('o duplo clique abre o visualizador na versão da thumbnail', () => {
     const { root } = mount()
     const c = clip(root, 3)
     expect(c, 'a raia desenha o período').not.toBeNull()
     fireEvent.doubleClick(c!)
-    expect(posicao()).toBe('Capa C · 4 de 4')
+    expect(posicao()).toBe('Thumbnail C · 4 de 4')
   })
-  it('cada miniatura abre na versão dela', () => {
+  it('cada thumbnail abre na versão dela', () => {
     const { root } = mount()
     for (const i of [0, 2]) {
       const c = clip(root, i)
@@ -209,14 +209,14 @@ describe('I1: o clique simples da raia espera a janela do duplo clique', () => {
     expect(rolagens).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog')).toBeNull()
   })
-  it('dois cliques dentro da janela: o visualizador abre na versão da miniatura e a rolagem nunca acontece', () => {
+  it('dois cliques dentro da janela: o visualizador abre na versão da thumbnail e a rolagem nunca acontece', () => {
     const { root } = mount()
     const c = clip(root, 2)
     fireEvent.click(c, { detail: 1 })
     act(() => { vi.advanceTimersByTime(120) })
     fireEvent.click(c, { detail: 2 })
     fireEvent.doubleClick(c)
-    expect(posicao()).toBe('Capa A · 3 de 4')
+    expect(posicao()).toBe('Thumbnail A · 3 de 4')
     act(() => { vi.advanceTimersByTime(5000) })
     expect(rolagens).not.toHaveBeenCalled()
     expect(document.activeElement).not.toBe(aoCartao(root, 2))
@@ -229,7 +229,7 @@ describe('I1: o clique simples da raia espera a janela do duplo clique', () => {
     act(() => { vi.advanceTimersByTime(5000) })
     expect(rolagens).not.toHaveBeenCalled()
   })
-  it('Enter na miniatura (teclado, detail 0) vai ao cartão na hora, sem espera', () => {
+  it('Enter na thumbnail (teclado, detail 0) vai ao cartão na hora, sem espera', () => {
     const { root } = mount()
     fireEvent.click(clip(root, 3), { detail: 0 })
     expect(rolagens).toHaveBeenCalledTimes(1)
@@ -250,9 +250,9 @@ describe('I1: o clique simples da raia espera a janela do duplo clique', () => {
     fireEvent.click(c, { detail: 2 }); fireEvent.doubleClick(c)
     act(() => { vi.advanceTimersByTime(1000) })
     expect(rolagens).not.toHaveBeenCalled()
-    expect(posicao()).toBe('Capa C · 4 de 4')
+    expect(posicao()).toBe('Thumbnail C · 4 de 4')
   })
-  it('ao fechar, o foco volta à miniatura da raia', () => {
+  it('ao fechar, o foco volta à thumbnail da raia', () => {
     const { root } = mount()
     const c = clip(root, 3)
     c.focus()
@@ -284,10 +284,10 @@ describe('a legenda do gráfico', () => {
   it('diz que o clique duplo amplia e que o simples leva ao cartão da versão', () => {
     const { root } = mount()
     const leg = root.querySelector('[data-legend]')!.textContent!
-    expect(leg).toMatch(/clique duplo numa miniatura da faixa Miniatura a amplia/)
+    expect(leg).toMatch(/clique duplo numa thumbnail da faixa Thumbnail a amplia/)
     expect(leg).toMatch(/o clique simples leva ao cartão da versão/)
   })
-  it('sem nenhuma miniatura a legenda não promete o clique', () => {
+  it('sem nenhuma thumbnail a legenda não promete o clique', () => {
     const { obs: o } = canalWorld(ds => { ds.videos.find(x => x.id === FULL)!.thumbs = [] })
     const { root } = mount({}, o)
     expect(root.querySelector('[data-legend]')?.textContent ?? '').not.toMatch(/clique duplo/)

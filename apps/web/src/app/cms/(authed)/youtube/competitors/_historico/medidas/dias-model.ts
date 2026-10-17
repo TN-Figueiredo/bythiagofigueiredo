@@ -18,7 +18,7 @@ import { MUITAS_MUDANCAS, type CampoDoVideo, type MudancaNumerada, type TipoDeMu
 export type RaiaDoGrafico = 'title' | 'thumb' | 'outras'
 export const RAIAS_DO_GRAFICO: ReadonlyArray<{ id: RaiaDoGrafico; nome: string; forma: 'losango' | 'triangulo' | 'circulo' }> = [
   { id: 'title', nome: 'Título', forma: 'losango' },
-  { id: 'thumb', nome: 'Miniatura', forma: 'triangulo' },
+  { id: 'thumb', nome: 'Thumbnail', forma: 'triangulo' },
   { id: 'outras', nome: 'Outras', forma: 'circulo' },
 ]
 

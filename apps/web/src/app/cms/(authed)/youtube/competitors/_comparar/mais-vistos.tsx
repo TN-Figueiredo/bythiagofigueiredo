@@ -21,7 +21,7 @@ export function voltarParaComparacao(a: string, b: string): string {
 
 function Capa({ thumb }: { thumb: string | null }) {
   const [falhou, setFalhou] = useState(false)
-  if (!thumb || falhou) return <span className="cp-capa sem" aria-hidden="true">sem capa</span>
+  if (!thumb || falhou) return <span className="cp-capa sem" aria-hidden="true">sem thumbnail</span>
   // eslint-disable-next-line @next/next/no-img-element
   return <img className="cp-capa" src={thumb} alt="" width={64} height={36} loading="lazy" onError={() => setFalhou(true)} />
 }

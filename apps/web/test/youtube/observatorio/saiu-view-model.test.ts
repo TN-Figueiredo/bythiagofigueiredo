@@ -98,12 +98,12 @@ describe('A5 E9 T10b: view model da fila', () => {
     expect(v45.estado === 'ok' && v45.cartoes[0]!.painel!.recusa).toContain('até 45 minutos')
   })
 
-  it('apagando: "faltam 3 miniaturas"; só pastas: "falta conferir 2 pastas"; sem botões de NAS', () => {
+  it('apagando: "faltam 3 thumbnails"; só pastas: "falta conferir 2 pastas"; sem botões de NAS', () => {
     const t = 'https://x.public.blob.vercel-storage.com/observatorio/thumbs/'
     const pasta = (n: number) => `observatorio/thumbs/00000000-0000-4000-8000-00000000000${n}/`
     const a = ok(fila({ esperando: [], apagando: [apagando(1, { pendentes: [t + 'a.jpg', t + 'b.jpg', t + 'c.jpg'] }), apagando(2, { pendentes: [pasta(1), pasta(2)] })] })).apagando
-    expect(a[0]!.falta).toBe('faltam 3 miniaturas no Blob')
-    expect(a[1]!.falta).toBe('falta conferir 2 pastas de miniatura')
+    expect(a[0]!.falta).toBe('faltam 3 thumbnails no Blob')
+    expect(a[1]!.falta).toBe('falta conferir 2 pastas de thumbnail')
     expect(JSON.stringify(a)).not.toMatch(/Ver os comandos|Já rodei/)
   })
 
@@ -209,7 +209,7 @@ describe('A5 E9 T10b: view model da fila', () => {
 
   it('ordem do mockup: "Guardado" resume dias, versões e mudanças', () => {
     const c = ok(fila({ esperando: [video(1)] })).cartoes[0]!
-    expect(c.guardado).toBe('41 dias de views, 3 títulos, 2 miniaturas, 1 descrição, 5 mudanças')
+    expect(c.guardado).toBe('41 dias de views, 3 títulos, 2 thumbnails, 1 descrição, 5 mudanças')
   })
 
   it('lerMostrar: múltiplo de 10 entre 10 e 200; o resto vira 10', () => {
