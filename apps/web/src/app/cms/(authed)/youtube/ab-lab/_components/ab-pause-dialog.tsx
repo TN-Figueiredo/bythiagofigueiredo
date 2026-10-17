@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useRef } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { pauseAbTest } from '../actions'
 import { YtPortal } from '../../_components/yt-portal'
@@ -15,13 +15,18 @@ interface AbPauseDialogProps {
 export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useModalFocusTrap(dialogRef, true, onClose)
 
   function handleConfirm() {
     startTransition(async () => {
-      await pauseAbTest(testId)
+      const result = await pauseAbTest(testId)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
       router.refresh()
       onClose()
     })
@@ -68,6 +73,7 @@ export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
             <p className="m-0">Pausar vai restaurar a thumbnail original imediatamente.</p>
             <p className="m-0">O ciclo atual sera fechado. Todos os dados coletados ficam preservados.</p>
             <p className="m-0">Voce pode retomar a qualquer momento — o teste continua de onde parou.</p>
+            {error && <p role="alert" className="m-0 text-cms-red">{error}</p>}
           </div>
 
           {/* Footer */}

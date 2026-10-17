@@ -14,6 +14,7 @@ import { AbLabDashboard } from './_components/ab-lab-dashboard'
 export const metadata = { title: 'A/B Lab' }
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // F-D3: settleOnAir (teto de 55 s) corre dentro das ações desta página
 
 export default async function AbLabPage() {
   const { siteId } = await getSiteContext()

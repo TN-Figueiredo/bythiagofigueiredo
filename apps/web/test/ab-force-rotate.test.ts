@@ -194,7 +194,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://blob.example/thumb-b.jpg')
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
@@ -219,7 +219,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(updateVideoMetadata).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       'Title B',
@@ -240,7 +240,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       expect.any(Buffer),
@@ -277,7 +277,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: false, error: 'Token inválido: token_invalid_401' })
+    expect(result).toMatchObject({ ok: false, error: 'Token inválido: token_invalid_401' })
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
@@ -287,7 +287,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('non-existent')
 
-    expect(result).toEqual({ ok: false, error: 'Test not found or not active' })
+    expect(result).toMatchObject({ ok: false, error: 'Test not found or not active' })
     expect(preflightTokenCheck).not.toHaveBeenCalled()
   })
 
@@ -297,7 +297,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-paused')
 
-    expect(result).toEqual({ ok: false, error: 'Test not found or not active' })
+    expect(result).toMatchObject({ ok: false, error: 'Test not found or not active' })
     expect(preflightTokenCheck).not.toHaveBeenCalled()
   })
 
@@ -334,7 +334,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://blob.example/original.jpg')
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
@@ -361,7 +361,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: false, error: 'Video not found' })
+    expect(result).toMatchObject({ ok: false, error: 'Video not found' })
     expect(preflightTokenCheck).not.toHaveBeenCalled()
   })
 
@@ -386,7 +386,7 @@ describe('forceRotate', () => {
 
     const result = await forceRotate('test-1')
 
-    expect(result).toEqual({ ok: false, error: 'unauthenticated' })
+    expect(result).toMatchObject({ ok: false, error: 'unauthenticated' })
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
   })
 })

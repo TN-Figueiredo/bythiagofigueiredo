@@ -204,7 +204,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(applyVariantToYouTube).toHaveBeenCalledWith(
       expect.objectContaining({
         youtubeVideoId: 'YT_VIDEO_123',
@@ -246,7 +246,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(insertCalls).toHaveLength(1)
     expect(insertCalls[0]!.table).toBe('ab_test_cycles')
     expect(insertCalls[0]!.data).toEqual(
@@ -267,7 +267,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(getNextVariantIndex).toHaveBeenCalledWith('round_robin', 2, 0)
   })
 
@@ -280,7 +280,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.',
     })
@@ -296,7 +296,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(applyVariantToYouTube).toHaveBeenCalled()
   })
 
@@ -305,7 +305,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({ ok: true })
+    expect(result).toMatchObject({ ok: true })
     expect(updateCalls).toHaveLength(1)
     expect(updateCalls[0]!.table).toBe('ab_tests')
     expect(updateCalls[0]!.data).toEqual(
@@ -326,7 +326,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       error: 'Only paused tests can be resumed',
     })
@@ -345,7 +345,7 @@ describe('resumeAbTest', () => {
 
     const result = await resumeAbTest('test-1')
 
-    expect(result).toEqual({ ok: false, error: 'quota' })
+    expect(result).toMatchObject({ ok: false, error: 'quota' })
     // Cycle should NOT be inserted on failure
     expect(revalidatePath).not.toHaveBeenCalled()
   })

@@ -408,13 +408,13 @@ export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuP
     startTransition(async () => {
       const result = action === 'pause'
         ? await pauseAbTest(abTest.id)
-        : await endAbTest(abTest.id)
+        : await endAbTest(abTest.id, { destino: 'original' }) // Y-D6: o destino explícito vale até o Logan decidir (T17)
       if (result.ok) {
         toast.success(action === 'pause' ? 'Teste pausado.' : 'Teste encerrado.')
         router.refresh()
         closeMenu()
       } else {
-        toast.error(result.error ?? 'Erro ao executar acao.')
+        toast.error(result.error)
         setConfirmAction(null)
       }
     })

@@ -14,7 +14,7 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
-import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
+import { forceRotate, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
@@ -92,7 +92,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           Forçar rotação
         </button>
       ) : (
-        <AdminOnlyNote action="forçar rotação ou aplicar vencedor" className="text-cms-text-dim" />
+        <AdminOnlyNote action="forçar rotação" className="text-cms-text-dim" />
       )}
       <button type="button" aria-label="Configurações" className={BTN}>
         <Settings size={14} aria-hidden="true" />
@@ -117,43 +117,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* ── Conditional Banners ── */}
-      {view.graceExpiresAt && !view.winnerAppliedAt && (
-        <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-medium text-amber-300">
-                Vencedor detectado — carência termina em{' '}
-                {Math.max(0, Math.ceil((new Date(view.graceExpiresAt).getTime() - Date.now()) / 3600000))}h
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {canAdminSite && (
-                <button
-                  onClick={async () => {
-                    const result = await applyWinnerNow(view.id)
-                    if (!result.ok) alert(result.error)
-                    else router.refresh()
-                  }}
-                  className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500"
-                >
-                  Aplicar Agora
-                </button>
-              )}
-              <button
-                onClick={async () => {
-                  const result = await cancelGracePeriod(view.id)
-                  if (!result.ok) alert(result.error)
-                  else router.refresh()
-                }}
-                className="rounded bg-cms-surface-hover px-3 py-1.5 text-xs font-medium text-cms-text hover:bg-cms-surface-hover"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE && (
         <div
           className="drift-banner mx-0 mb-4 flex gap-[14px] py-[18px] px-[20px]"

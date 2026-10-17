@@ -8,6 +8,7 @@ import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // F-D3: settleOnAir (teto de 55 s) corre dentro das ações desta página
 
 // ---------------------------------------------------------------------------
 // generateMetadata — show video title in the browser tab

@@ -46,13 +46,16 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
     startTransition(async () => {
       const result =
         selected === 'leading' && leadingVariant && !leadingVariant.is_original
-          ? await endAbTest(testId, leadingVariant.id)
-          : selected === 'original' && originalVariant
-            ? await endAbTest(testId, originalVariant.id)
-            : await endAbTest(testId)
+          ? await endAbTest(testId, { destino: 'variante', varianteId: leadingVariant.id })
+          : await endAbTest(testId, { destino: 'original' })
       if (!result.ok) {
         // O servidor é a verdade: a recusa aparece escrita, o diálogo não fecha como se tivesse dado certo.
-        setError(result.error ?? 'Não foi possível encerrar o teste.')
+        setError(result.error)
+        return
+      }
+      // precisa_confirmar só ocorre com variante e é o diálogo novo (T15) que sabe confirmar.
+      if (result.resultado === 'precisa_confirmar') {
+        setError('O campo no YouTube mudou desde o teste. Confira o vídeo no YouTube Studio antes de aplicar a variante.')
         return
       }
       router.refresh()

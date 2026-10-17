@@ -110,7 +110,7 @@ describe('ActiveDetail', () => {
       expect(editor.queryByText('Forçar rotação')).toBeNull()
       expect(editor.getByText('Pausar')).toBeTruthy()
       expect(editor.getByText('Encerrar')).toBeTruthy()
-      expect(editor.getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode forçar rotação ou aplicar vencedor.')
+      expect(editor.getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode forçar rotação.')
     } finally {
       siteAdmin.value = true
     }

@@ -6,7 +6,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { denyUnlessSiteAdmin, requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
 import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS, DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
@@ -32,7 +32,12 @@ import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
-import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
+import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
+import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
+import {
+  MSG_SEM_PERMISSAO_VARIANTE, daFormaAntiga, recusaDeSessao, traduzirSaida, varianteOriginalId,
+} from '@/lib/youtube/ab-acao-saida'
+import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 /** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
@@ -44,6 +49,18 @@ export async function getVideoTestHistory(
   ...args: Parameters<typeof _getVideoTestHistory>
 ): ReturnType<typeof _getVideoTestHistory> {
   return _getVideoTestHistory(...args)
+}
+
+export type { OpcaoEncerrar, ResultadoAcaoSaida }
+
+/** Traduz o resultado de settleOnAir e, se saiu do ar, invalida as telas. */
+async function concluirSaida(r: ResultadoSaida): Promise<ResultadoAcaoSaida> {
+  const out = traduzirSaida(r)
+  if (out.ok && out.resultado === 'feito') {
+    revalidateTag('youtube', { expire: 0 })
+    revalidatePath('/cms/youtube/ab-lab')
+  }
+  return out
 }
 
 async function requireEditAccess(): Promise<string> {
@@ -632,71 +649,14 @@ export async function startAbTest(
 // pauseAbTest
 // ---------------------------------------------------------------------------
 
-export async function pauseAbTest(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function pauseAbTest(testId: string): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, original_thumbnail_url')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (test.status !== 'active') return { ok: false, error: 'Only active tests can be paused' }
-
-  const { data: variants } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url')
-    .eq('test_id', testId)
-
-  const originalVariant = variants?.find(v => v.is_original)
-
-  try {
-    const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-    if (!channel.ok) return { ok: false, error: channel.error }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    const revertUrl = originalVariant?.blob_url ?? (test.original_thumbnail_url as string | null)
-    if (revertUrl) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(revertUrl)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  // Set paused first (prevents rotate cron from acting on this test)
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({ status: 'paused', paused_at: now, updated_at: now })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  // Now close the open cycle safely
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: now })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  revalidateTag('youtube', { expire: 0 })
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  return concluirSaida(await settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true }))
 }
 
 // ---------------------------------------------------------------------------
@@ -733,7 +693,12 @@ function recusaTipoForaDeUso(testType: unknown): string | null {
   return testType === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido'
 }
 
-export async function resumeAbTest(
+/** Corpo de T9 entra aqui; até lá devolve a forma antiga, adaptada pelo wrapper. */
+export async function resumeAbTest(testId: string): Promise<ResultadoAcaoSaida> {
+  return daFormaAntiga(await resumeAbTestLegado(testId))
+}
+
+async function resumeAbTestLegado(
   testId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   let siteId: string
@@ -836,103 +801,28 @@ export async function resumeAbTest(
 // endAbTest
 // ---------------------------------------------------------------------------
 
-export async function endAbTest(
-  testId: string,
-  winnerId?: string,
-): Promise<{ ok: boolean; error?: string }> {
-  // Degrau "administrar o site": aplicar uma variante vencedora troca o thumbnail no canal de
-  // verdade. A pergunta é feita no topo (antes de qualquer service client, falha fechado); a
-  // recusa sai assim que se sabe que o vencedor NÃO é o original. Encerrar restaurando o
-  // original (com ou sem `winnerId`) segue com a editora.
-  const siteAdmin = winnerId ? (await requireSiteAdminScope((await getSiteContext()).siteId)).ok : false
+export async function endAbTest(testId: string, opcao: OpcaoEncerrar): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
 
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, original_thumbnail_url')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (!['active', 'paused'].includes(test.status as string)) {
-    return { ok: false, error: 'Only active or paused tests can be ended' }
-  }
-
-  const { data: variants } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url')
-    .eq('test_id', testId)
-
-  if (!variants) return { ok: false, error: 'No variants found' }
-
-  // Validate winnerId belongs to this test
-  if (winnerId) {
-    const winnerExists = variants.some(v => v.id === winnerId)
-    if (!winnerExists) return { ok: false, error: 'Winner variant does not belong to this test' }
-    if (!siteAdmin && !variants.find(v => v.id === winnerId)?.is_original) {
-      return { ok: false, error: siteAdminOnlyMessage('encerrar um teste A/B aplicando um vencedor no canal') }
+  let destino: OpcoesSaida['destino'] = ORIGINAL
+  if (opcao.destino === 'variante') {
+    // O id da variante original equivale a "voltar ao original" e segue com a editora (17).
+    // Qualquer outra deixa uma variante no canal: degrau "administrar o site".
+    const originalId = await varianteOriginalId(testId, siteId)
+    if (opcao.varianteId !== originalId) {
+      if (await denyUnlessSiteAdmin(siteId, 'deixar uma variante no ar')) {
+        return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
+      }
+      destino = { tipo: 'variante', id: opcao.varianteId }
     }
   }
-
-  const targetVariant = winnerId
-    ? variants.find(v => v.id === winnerId)
-    : variants.find(v => v.is_original)
-
-  try {
-    const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-    if (!channel.ok) return { ok: false, error: channel.error }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    const applyUrl = targetVariant?.blob_url ?? (test.original_thumbnail_url as string | null)
-    if (applyUrl) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(applyUrl)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  // Close open cycle
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: now })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  const completedReason = winnerId ? 'manual_winner' : 'manual_archive'
-
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({
-      status: 'completed',
-      completed_at: now,
-      completed_reason: completedReason,
-      winner_variant_id: winnerId ?? null,
-      updated_at: now,
-    })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  if (winnerId) {
-    try { await autoImportWinner(testId, siteId) } catch { /* non-fatal */ }
-  }
-
-  revalidateTag('youtube', { expire: 0 })
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  const forcar = opcao.destino === 'variante' && opcao.forcar !== undefined ? { forcar: opcao.forcar } : {}
+  return concluirSaida(await settleOnAir(testId, { siteId, destino, motivo: 'encerrado', humano: true, ...forcar }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1122,7 +1012,11 @@ export async function updateTextVariant(
 // forceRotate
 // ---------------------------------------------------------------------------
 
-export async function forceRotate(testId: string): Promise<{ ok: boolean; error?: string }> {
+export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
+  return daFormaAntiga(await forceRotateLegado(testId))
+}
+
+async function forceRotateLegado(testId: string): Promise<{ ok: boolean; error?: string }> {
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
   const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'forçar a rotação de um teste A/B no canal')
@@ -1237,256 +1131,22 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 }
 
 // ---------------------------------------------------------------------------
-// applyWinnerNow — Manual early apply (skips grace period)
+// revertWinner — volta ao original (janela de 7 dias), por settleOnAir
 // ---------------------------------------------------------------------------
 
-export async function applyWinnerNow(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> {
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
-  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'aplicar o vencedor de um teste A/B no canal')
-  if (denied) return denied
+  const siteIdDaTela = (await getSiteContext()).siteId
+  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'reverter o vencedor de um teste A/B no canal')
+  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, grace_expires_at, winner_applied_at')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!test || !test.winner_variant_id || test.winner_applied_at) {
-    return { ok: false, error: 'Test not in grace period or already applied' }
-  }
-  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
-  if (tipoRecusado) return { ok: false, error: tipoRecusado }
-
-  // Get winner variant
-  const { data: variant } = await supabase
-    .from('ab_test_variants')
-    .select('id, blob_url, title_text, is_original')
-    .eq('id', test.winner_variant_id)
-    .single()
-
-  if (!variant) return { ok: false, error: 'Winner variant not found' }
-
-  // O canal DONO do vídeo — nunca "um canal qualquer do site": a escrita no
-  // YouTube tem de sair com o token dele.
-  const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-  if (!channel.ok) return { ok: false, error: channel.error }
-  const channelAccountId = channel.channelAccountId
-
-  // Pre-flight check
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channelAccountId)
-  if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
-
-  // Get YouTube video ID
-  const { data: video } = await supabase
-    .from('youtube_videos')
-    .select('youtube_video_id')
-    .eq('id', test.youtube_video_id)
-    .single()
-
-  if (!video?.youtube_video_id) return { ok: false, error: 'Video not found' }
-
-  // Apply based on test_type
-  const testType = test.test_type as string
-  const applyResult = await applyVariantToYouTube({
-    youtubeVideoId: video.youtube_video_id as string,
-    accessToken: preflight.accessToken,
-    testType: testType as TestType,
-    variant: {
-      id: variant.id as string,
-      blob_url: variant.blob_url as string | null,
-      title_text: variant.title_text as string | null,
-    },
-    originalTitle: test.original_title as string | null,
-  })
-
-  if (!applyResult.ok) {
-    return { ok: false, error: `YouTube API error: ${applyResult.error}` }
-  }
-
-  // Close the open cycle
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  // Mark applied
-  await supabase
-    .from('ab_tests')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      completed_reason: 'manual_apply',
-      winner_applied_at: new Date().toISOString(),
-      applied_by: 'manual',
-      revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
-      grace_expires_at: null,
-    })
-    .eq('id', testId)
-
-  // Auto-import winning thumbnail to library
-  try {
-    await autoImportWinner(testId, siteId)
-  } catch {
-    // Non-fatal — library import failure shouldn't block test completion
-  }
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
-}
-
-// ---------------------------------------------------------------------------
-// cancelGracePeriod — Cancel auto-apply, complete without applying winner
-// ---------------------------------------------------------------------------
-
-export async function cancelGracePeriod(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const supabase = getSupabaseServiceClient()
-
-  // Guard: ensure test is actually in grace period
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, status, grace_expires_at, youtube_video_id, original_thumbnail_url')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!test || !test.grace_expires_at || test.status !== 'active') {
-    return { ok: false, error: 'Test not in grace period' }
-  }
-
-  // Revert thumbnail to original before completing (best-effort)
-  try {
-    const revertUrl = test.original_thumbnail_url as string | null
-    if (revertUrl?.includes('blob.vercel-storage.com')) {
-      const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-      if (!channel.ok) throw new Error(channel.error)
-      const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-      const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-      if (youtubeVideoId) {
-        const { buffer, contentType } = await fetchVariantImageBuffer(revertUrl)
-        await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-      }
-    }
-  } catch (revertErr) {
-    Sentry.captureException(revertErr, { extra: { context: 'cancelGracePeriod-revert', testId } })
-  }
-
-  await supabase
-    .from('ab_tests')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      completed_reason: 'manual_no_apply',
-      grace_expires_at: null,
-    })
-    .eq('id', testId)
-    .eq('site_id', siteId)
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
-}
-
-// ---------------------------------------------------------------------------
-// revertWinner — Restore original (7-day window)
-// ---------------------------------------------------------------------------
-
-export async function revertWinner(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
-  // service client; falha fechado.
-  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'reverter o vencedor de um teste A/B no canal')
-  if (denied) return denied
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, revert_expires_at, winner_applied_at')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!test || !test.winner_applied_at) {
-    return { ok: false, error: 'Test has no applied winner' }
-  }
-  if (!TestTypeSchema.safeParse(test.test_type ?? 'thumbnail').success) {
-    return { ok: false, error: 'Teste antigo de descrição: restaure a descrição pelo Studio' }
-  }
-
-  if (!test.revert_expires_at || new Date(test.revert_expires_at as string) < new Date()) {
-    return { ok: false, error: 'Revert window expired (7 days)' }
-  }
-
-  // O canal DONO do vídeo — nunca "um canal qualquer do site": a escrita no
-  // YouTube tem de sair com o token dele.
-  const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-  if (!channel.ok) return { ok: false, error: channel.error }
-  const channelAccountId = channel.channelAccountId
-
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channelAccountId)
-  if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
-
-  const { data: video } = await supabase
-    .from('youtube_videos')
-    .select('youtube_video_id')
-    .eq('id', test.youtube_video_id)
-    .single()
-
-  if (!video?.youtube_video_id) return { ok: false, error: 'Video not found' }
-
-  const testType = test.test_type as string
-  try {
-    if ((testType === 'thumbnail' || testType === 'combo') && test.original_thumbnail_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url as string)
-      await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
-    }
-    if ((testType === 'title' || testType === 'combo') && test.original_title) {
-      await updateVideoMetadata(video.youtube_video_id as string, test.original_title as string, preflight.accessToken)
-    }
-  } catch (err) {
-    return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
-  }
-
-  // Clear applied state
-  await supabase
-    .from('ab_tests')
-    .update({
-      winner_applied_at: null,
-      revert_expires_at: null,
-      applied_by: null,
-    })
-    .eq('id', testId)
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  return concluirSaida(await settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true }))
 }
 
 // ---------------------------------------------------------------------------
