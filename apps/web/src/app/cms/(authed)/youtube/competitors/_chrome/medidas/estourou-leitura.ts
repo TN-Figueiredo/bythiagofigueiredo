@@ -68,6 +68,10 @@ export async function lerLeituraDoVideo(p: {
       mv = comSerie
     }
     if (!mv) return leituraDoVideo(null, null, hojeSP, video)
+    // "sem reação pública" com a reação que falhou ao ser calculada não é "curtidas ocultas": é leitura que não carregou
+    if (mv.m10.estado === 'nao_medido' && mv.m10.motivo === 'sem_reacao_publica' && mv.m7.estado === 'nao_medido' && (mv.m7.motivo === 'leitura_falhou' || mv.m7.motivo === 'calculo_falhou')) {
+      return leituraDoVideo(null, null, hojeSP, video)
+    }
     return leituraDoVideo(mv.m10, mv.m1[30], hojeSP, video)
   } catch (err) {
     Sentry.captureException(err, { tags: { component: 'observatorio', step: 'estourou-e-parou' } })

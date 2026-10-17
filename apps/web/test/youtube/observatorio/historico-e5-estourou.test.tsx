@@ -224,6 +224,12 @@ describe('lerLeituraDoVideo', () => {
     expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
     expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('série do vídeo não lida'), expect.objectContaining({ fingerprint: ['medidas-telas', 'estourou-serie', motivo] }))
   })
+  it('"sem reação pública" com a reação (M7) que falhou ao calcular: não carregou, nunca "curtidas ocultas" (M-2)', async () => {
+    const carregar = vi.fn().mockResolvedValue(siteCom(videoMedido({ m10: naoMedido('sem_reacao_publica'), m7: naoMedido('calculo_falhou') })))
+    expect((await pedir(obsDe(), carregar))?.tipo).toBe('nao_carregou')
+    const ocultas = vi.fn().mockResolvedValue(siteCom(videoMedido({ m10: naoMedido('sem_reacao_publica'), m7: naoMedido('sem_reacao_publica') })))
+    expect(await pedir(obsDe(), ocultas)).toMatchObject({ tipo: 'nao_medido', motivo: 'sem_reacao_publica' })
+  })
   it('canal que não carregou, vídeo ausente do canal e carregador que lança: não carregou, sem lançar', async () => {
     expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(null))))?.tipo).toBe('nao_carregou')
     expect((await pedir(obsDe(), vi.fn().mockResolvedValue(siteCom(videoMedido(), 'outro'))))?.tipo).toBe('nao_carregou')
