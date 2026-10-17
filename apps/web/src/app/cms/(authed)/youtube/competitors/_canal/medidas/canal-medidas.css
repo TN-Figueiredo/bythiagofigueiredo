@@ -305,3 +305,10 @@
 }
 [data-obs-screen="canal"] .pc-rq.esp{border:1.5px dotted var(--muted);background:transparent}
 [data-obs-screen="canal"] .pc-rq.nm{border:1.5px solid var(--nm-line);background:var(--nm-bg)}
+/* Gio trem 5, defeito 5: o ⓘ (.ri-ibtn) chega aqui sem a regra de ri.css e media 16x16, e os links de título e de atalho tinham 15 px de altura.
+   Base primeiro; o alvo de 44 px a 390 px (largura, não só ponteiro) vem depois, no mesmo arquivo. A margem negativa devolve a altura ao cabeçalho. */
+[data-obs-screen="canal"] .ri-ibtn{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:6px;padding:0}
+@media (pointer:coarse),(max-width:900px){
+[data-obs-screen="canal"] .ri-ibtn{min-width:44px;min-height:44px;margin:-10px -6px -10px -4px}
+[data-obs-screen="canal"] .pc-cmv a,[data-obs-screen="canal"] .pc-nav a{display:inline-flex;align-items:center;min-height:44px}
+}
