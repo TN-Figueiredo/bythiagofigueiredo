@@ -38,7 +38,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-med
 import { medidasDoVideoSoEstourou, tabelasDeMedidasDoVideo } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-medidas'
 import { EMPACOTAR } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia'
 
-const SINC: Leitura = { tipo: 'ainda_nao_existe', existeEm: '2099-01-10', esteVideoEm: '2099-01-10', hojeSP: '2099-01-01', casas: 'ppp' } as Leitura
+const SINC: Leitura = { tipo: 'ainda_nao_existe', existeEm: '2020-01-10', esteVideoEm: '2020-01-10', hojeSP: '2020-01-01', casas: 'ppp' } as Leitura
 const modeloDe = async () => (await EMPACOTAR.video!({ id: 'v1', sp: {} }))!.modelo as unknown as { medidas: { marca?: string; soEstourou?: boolean; estourou: unknown; falhou?: string[] } }
 
 beforeEach(() => { st.alvo = { doMotor: { id: 'v1', ch: 'c1' }, sincrona: 'ler' }; st.estourou = null; st.lanca = false; st.projetado = [] })
