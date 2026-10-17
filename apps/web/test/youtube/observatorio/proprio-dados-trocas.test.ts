@@ -93,7 +93,7 @@ describe('lerTrocas', () => {
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
   })
   it('lerTestesAb lança: versões ok, testes erro, um aviso; teto e banco têm motivo próprio', async () => {
-    vi.mocked(lerAb.lerTestesAb).mockRejectedValue(new ObservatoryLoadError('ab_tests', undefined, 'mais de 50 testes neste vídeo'))
+    vi.mocked(lerAb.lerTestesAb).mockRejectedValue(new ObservatoryLoadError('ab_tests', undefined, 'mais de 50 testes neste vídeo', true))
     const r = await lerTrocas(pedido())
     expect(r).toMatchObject({ acesso: 'ok', dado: { testes: { acesso: 'erro' }, motivoTestes: 'teto' } })
     if (r.acesso === 'ok') expect(r.dado.versoes.videos).toHaveLength(1)
@@ -101,6 +101,9 @@ describe('lerTrocas', () => {
     vi.mocked(lerAb.lerTestesAb).mockRejectedValue(new ObservatoryLoadError('ab_tests', '57014', 'timeout'))
     const r2 = await lerTrocas(pedido())
     expect(r2).toMatchObject({ acesso: 'ok', dado: { motivoTestes: 'banco' } })
+    // M-4 (portão L5): o teto é o campo `teto`, nunca o texto da mensagem
+    vi.mocked(lerAb.lerTestesAb).mockRejectedValue(new ObservatoryLoadError('ab_tests', undefined, 'mais de 50 testes neste vídeo'))
+    expect(await lerTrocas(pedido())).toMatchObject({ acesso: 'ok', dado: { motivoTestes: 'banco' } })
   })
   it('lerAlcanceDoVideo lança: versões e testes ok, alcance erro', async () => {
     vi.mocked(ler.lerAlcanceDoVideo).mockRejectedValue(new Error('boom'))

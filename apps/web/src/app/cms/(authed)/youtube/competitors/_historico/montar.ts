@@ -69,17 +69,18 @@ export type MontarVideo =
       recente: string | null; estado: Flat; privado: EstadoDoPrivado }
   | { tipo: 'concorrente'; pagina: Pagina; view: ReturnType<typeof buildHistoricoView>; recente: string | null; estado: Flat }
 
-/**
- * Do vídeo aberto ao modelo: a MESMA função monta a tela (a página) e o pacote "Perguntar a uma IA" (E17 degrau 1, Tarefa 8b). `id` é o do vídeo na
- * URL; a decisão própria/concorrente é do servidor, a partir do canal resolvido do vídeo. Vídeo desconhecido: `concorrente` com a vista "não encontrado"
- * do Histórico (`view.notFound`). O `siteId` não é parâmetro. Os cartões de período e a origem voltam como funções, para a página os pedir num `Suspense`.
- */
+/** Hora de São Paulo de um instante (dia dd/mm e hora hh:mm), para as frases das trocas. */
 const quandoSp = (iso: string): { dia: string; hora: string } => {
   const f = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(iso))
   const p = (t: string): string => f.find(x => x.type === t)?.value ?? ''
   return { dia: `${p('day')}/${p('month')}`, hora: `${p('hour')}:${p('minute')}` }
 }
 
+/**
+ * Do vídeo aberto ao modelo: a MESMA função monta a tela (a página) e o pacote "Perguntar a uma IA" (E17 degrau 1, Tarefa 8b). `id` é o do vídeo na
+ * URL; a decisão própria/concorrente é do servidor, a partir do canal resolvido do vídeo. Vídeo desconhecido: `concorrente` com a vista "não encontrado"
+ * do Histórico (`view.notFound`). O `siteId` não é parâmetro. Os cartões de período e a origem voltam como funções, para a página os pedir num `Suspense`.
+ */
 export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pagina> = () => openObservatoryPage(), opcoes: { trocas?: boolean } = {}): Promise<MontarVideo> {
   const pagina = await abrir()
   const { siteId, obs, savedNiche, now } = pagina
@@ -92,19 +93,21 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     // UMA leitura do dado privado, depois da guarda de edição; erro de leitura LANÇA (D5)
     const acesso = await acessoPrivado(siteId)
     const leitura = acesso.leitura
-    const dados = await lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura })
+    // as trocas (T16e): lidas DEPOIS da guarda de edição, com a mesma prova, em paralelo com o diário (não dependem dele); sem a opção (pacote da IA) nada é lido
+    const [dados, lidas] = await Promise.all([
+      lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura }),
+      opcoes.trocas ? lerTrocas({ canalId: proprio.id, ytId: base.header.ytId, videoUuid: id, agora: now, prova: leitura }) : Promise.resolve(null),
+    ])
     const hoje = dayPt(new Date(now))
-    // as trocas (T16e): lidas DEPOIS da guarda de edição, com a mesma prova; sem a opção (pacote da IA) nada é lido
     let trocas: TrocasView | null = null
-    if (opcoes.trocas) {
+    if (lidas) {
       const pub = obs.video(id)
-      const lidas = await lerTrocas({ canalId: proprio.id, ytId: base.header.ytId, videoUuid: id, agora: now, prova: leitura })
       trocas = buildTrocas({
         lidas, ytId: base.header.ytId, publicadoEm: pub ? dayPt(new Date(pub.pub)) : null, hojePt: hoje, podeEditar: acesso.edita,
         dm: dmDia, dmy: d => `${dmDia(d)}/${d.slice(0, 4)}`, quandoSp, diaPt: iso => dayPt(new Date(iso)), n: obs.fmt.int,
       })
     }
-    const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje, dm: dmDia, hrefVideo: hrefDeOutroVideo(sp, proprio.id), trocasNoGrafico: trocas && trocas.estado === 'ok' ? trocasNoGrafico(trocas) : null })
+    const blocos = buildVideoBlocos({ obs, videoId: id, dados, hoje, dm: dmDia, hrefVideo: hrefDeOutroVideo(sp, proprio.id), trocasNoGrafico: trocas && trocas.estado !== 'privado' ? trocasNoGrafico(trocas) : null })
     const barra = blocos.acesso === 'ok' ? blocos.assistido : null
     const diario = dados.acesso === 'ok' ? dados.dado.diario : null
     const ytIds = longosAcompanhadosDe(obs, proprio.id)
