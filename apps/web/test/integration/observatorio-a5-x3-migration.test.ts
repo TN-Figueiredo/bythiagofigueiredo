@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { readFileSync } from 'node:fs'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { semearCena, tenta, escalar, q1, iniciarComMg6, MG6_FIXTURE, type Cena } from '../helpers/mg6'
+import { semearCena, tenta, escalar, q1, lerSqlDaMg6, MG6_FIXTURE, type Cena } from '../helpers/mg6'
 import { emTransacaoComX3, lerSqlDaX3, garantirX3 } from '../helpers/x3'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -378,14 +378,16 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
       const ordem = `select table_name, filter_sql, period_sql, sum_sql, order_sql from public.obs_archive_registry()`
       const x3 = (await pg.query(ordem)).rows as Array<Record<string, unknown>>
       await pg.query('rollback')
-      const modo = process.env.E10_COM_X3
-      delete process.env.E10_COM_X3 // só a MG6 (22), mesmo na rodada da pasta da E10 com a X3 presente
-      try { await iniciarComMg6(pg) } finally { if (modo !== undefined) process.env.E10_COM_X3 = modo }
+      // só o texto da MG6 (22 linhas), sem o conserto do `garantirMg6` que, com a X3 já aplicada no banco (CI: o `supabase start`
+      // aplica todas as migrations) ou com `E10_COM_X3=1`, devolveria o registro a 27: a base de comparação é sempre a das 22.
+      await pg.query('begin')
+      await pg.query(lerSqlDaMg6())
       const mg6 = (await pg.query(ordem)).rows as Array<Record<string, unknown>>
       expect(mg6).toHaveLength(22)
       expect(x3.slice(0, 22)).toEqual(mg6)
       expect(x3.slice(22).map(r => r.table_name)).toEqual(CINCO)
       // o helper termina com rollback; reabre para o finally não falhar
+      await pg.query('rollback')
       await pg.query('begin')
     })
   })

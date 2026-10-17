@@ -51,6 +51,9 @@ const contagem = (x: unknown): number | null => {
 const proximaDe = (j: Record<string, unknown>): string | null => str(j.nextPageToken)
 const totalDe = (j: Record<string, unknown>): number | null => contagem(obj(j.pageInfo)?.totalResults)
 
+/** Limpa para o banco (sem NUL nem substituto solitário) e devolve como Json: o dado vem do JSON da API, então a forma é Json. */
+const limpo = (x: unknown): Json => sanitizeForDb(x).value as Json
+
 const semEtag = (item: Record<string, unknown>): Record<string, unknown> => {
   const { etag: _etag, ...resto } = item
   void _etag
@@ -66,7 +69,7 @@ export function hashDaPlaylist(item: unknown): string {
   const snippet = { ...(obj(it.snippet) ?? {}) }
   delete snippet.thumbnails
   delete snippet.publishedAt
-  const recorte = sanitizeForDb({ snippet, status: obj(it.status) ?? null, localizations: obj(it.localizations) ?? null } as unknown as Json).value
+  const recorte = limpo({ snippet, status: obj(it.status) ?? null, localizations: obj(it.localizations) ?? null })
   return sha256Hex(canonicalJson(recorte))
 }
 
@@ -88,7 +91,7 @@ export function lerPaginaDePlaylists(json: unknown): PaginaDePlaylists | Forma {
       item_count: contagem(obj(it.contentDetails)?.itemCount),
       privacy: texto(obj(it.status)?.privacyStatus),
       state_sha256: hashDaPlaylist(it),
-      raw: sanitizeForDb(semEtag(it) as unknown as Json).value,
+      raw: limpo(semEtag(it)),
     })
   }
   return { itens, proxima: proximaDe(j), total: totalDe(j), excluidas }
@@ -130,7 +133,7 @@ export function lerSecoes(json: unknown): SecoesLidas | Forma {
   const itens = com
     .map(c => obj(c.x))
     .filter((x): x is Record<string, unknown> => x !== undefined)
-    .map(x => sanitizeForDb(semEtag(x) as unknown as Json).value)
+    .map(x => limpo(semEtag(x)))
   return { itens, sha: sha256Hex(canonicalJson(itens)), raw: { items: itens } }
 }
 
