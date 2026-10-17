@@ -84,13 +84,17 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
         const linha = faixas.findIndex(g => g.k === f.k)   // uma linha por tipo de faixa
         const yF = 4 + (f.k === 'cheia' ? 0 : faixas.some(g => g.k === 'cheia') ? 1 : 0) * FAIXA_ALTURA_PX
         const x0 = L + f.i0 * bw, x1 = L + (f.i1 + 1) * bw
-        const rotCabe = (x1 - x0) > f.rotCurto.length * 6.4 + 12
+        // M-3: o rótulo fica no maior trecho entre as divisórias de ciclo em que cabe inteiro; nunca atravessa uma divisória
+        const larg = f.rotCurto.length * 6.4 + 12
+        const bordas = [x0, ...f.dentes.map(i => L + i * bw).filter(x => x > x0 && x < x1), x1]
+        let rotX = x0, melhor = larg, rotCabe = false
+        for (let b = 0; b + 1 < bordas.length; b++) { const w = bordas[b + 1]! - bordas[b]!; if (w > melhor) { melhor = w; rotX = bordas[b]!; rotCabe = true } }
         return (
           <g key={k + f.k + f.i0} className={'ic-faixa ic-faixa-' + f.k} data-linha={linha}>
             <rect className="ic-faixa-fundo" x={x0} y={yF} width={x1 - x0} height={FAIXA_ALTURA_PX - 6} rx="3" />
             {f.k === 'pontilhada' ? <line className="ic-faixa-corte" x1={x1} x2={x1} y1={yF} y2={T + PH} /> : null}
             {f.dentes.map(i => <line key={i} className="ic-faixa-dente" x1={L + i * bw} x2={L + i * bw} y1={yF} y2={yF + FAIXA_ALTURA_PX - 6} />)}
-            <text className="ic-faixa-rot" x={x0 + 6} y={yF + 12}>{rotCabe ? f.rotCurto : ''}</text>
+            <text className="ic-faixa-rot" x={rotX + 6} y={yF + 12}>{rotCabe ? f.rotCurto : ''}</text>
             {f.aberta && f.k === 'cheia' ? <text className="ic-faixa-seta" x={x1 - 12} y={yF + 12}>→</text> : null}
           </g>
         )
@@ -211,6 +215,8 @@ function Legenda({ view }: { view: ImpressoesView }) {
         <span key={l.situacao} className="ic-lg">
           {l.situacao === 'nao-medido'
             ? <i className="ic-sw nm obs-ch-nm" aria-hidden="true" />
+            : l.situacao === 'marca-triangulo' || l.situacao === 'marca-losango'
+            ? <i className="ic-sw-marca" aria-hidden="true">{l.situacao === 'marca-triangulo' ? '▲' : '◆'}</i>
             : l.situacao === 'faixa-cheia' || l.situacao === 'faixa-pontilhada'
             ? <i className={'ic-sw ' + l.situacao} aria-hidden="true" />
             : <i className={'ic-sw ' + (l.situacao === 'com-impressoes' ? 'imp' : l.situacao === 'cliques' ? 'cl' : l.situacao === 'publicacao' ? 'pub' : 'zero')} aria-hidden="true" />}

@@ -64,7 +64,7 @@ export interface CedoView {
   legenda: CedoLegendaItem[]
 }
 
-export interface LegendaItem { situacao: Situacao | 'cliques' | 'publicacao' | 'faixa-cheia' | 'faixa-pontilhada'; texto: string }
+export interface LegendaItem { situacao: Situacao | 'cliques' | 'publicacao' | 'faixa-cheia' | 'faixa-pontilhada' | 'marca-triangulo' | 'marca-losango'; texto: string }
 
 /** O que a página do vídeo manda para o gráfico (T22a): a faixa do teste A/B (cheia) ou do tempo sem registro (pontilhada). Dias do YouTube. */
 export interface FaixaDoGrafico {
@@ -569,9 +569,15 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   const colunas = dias.map((d, i) => colunaDe(d, i, n, teto, o))
   const { faixas, marcas } = recortarTrocas(colunas, o.faixas ?? [], o.marcas ?? [])
   const tipos = new Set(faixas.map(f => f.k))
-  const legendaFaixas: LegendaItem[] = (['cheia', 'pontilhada'] as const).filter(k => tipos.has(k)).map(k => ({
+  // G-3 (Gio 17/10): a legenda só cita o que o gráfico desenha; o gráfico só de zeros não desenha faixa nem marca
+  const legendaFaixas: LegendaItem[] = soZeros ? [] : (['cheia', 'pontilhada'] as const).filter(k => tipos.has(k)).map(k => ({
     situacao: k === 'cheia' ? 'faixa-cheia' as const : 'faixa-pontilhada' as const, texto: (faixas.find(f => f.k === k) as FaixaView).rotCurto,
   }))
+  // M-3: o que significam as marcas
+  if (!soZeros) {
+    if (marcas.some(x => x.forma === 'triangulo')) legendaFaixas.push({ situacao: 'marca-triangulo', texto: 'troca de thumbnail' })
+    if (marcas.some(x => x.forma === 'losango')) legendaFaixas.push({ situacao: 'marca-losango', texto: 'troca de título' })
+  }
   return {
     teto,
     ticks: soZeros ? [0] : [0, teto / 2, teto],
