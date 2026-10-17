@@ -298,6 +298,9 @@ export function fakeSupabase(
   // A5 E18 (Tarefa 6): as funções da MG12. `db.errors['rpc:yt_own_versions_apply_day']` tem precedência (função ausente).
   comVersoes(db)
 
+  // A5 E18 P2 (Tarefa 3): a cobertura de metadados da MG17a. `db.errors['rpc:yt_own_meta_cover']` tem precedência (função ausente).
+  comCoberturaMeta(db)
+
   db.client = {
     from: (tabela: string) => new Consulta(db, tabela),
     rpc: (name: string, args: Row = {}) => {
@@ -434,6 +437,16 @@ export function semearCobertura(db: FakeDb, videos: readonly Row[], hoje: string
       youtube_video_id: v.youtube_video_id, metric_set: 'base', covered_from: pub < hoje ? pub : hoje, covered_to: hoje,
       site_id: v.site_id, channel_id: v.channel_id, video_id: v.id ?? null, source: 'analytics_api', collected_at: new Date().toISOString(),
     })
+  }
+  return db
+}
+
+/** A5 E18 P2 (Tarefa 3): `yt_own_meta_cover` do falso, no estado da MG17a (só cobre; `indisponivel` = ainda sem a MG17). */
+export function comCoberturaMeta(db: FakeDb): FakeDb {
+  db.rpcHandlers.yt_own_meta_cover = (a) => {
+    const ate = String(a.p_day)
+    const linhas = (db.tables.yt_own_video_meta_daily ?? []).filter(r => r.channel_id === a.p_channel_id && String(r.day_pt) <= ate).length
+    return { data: { resultado: 'ok', dia: a.p_day, texto: 0, thumb: 0, linhas, descobertas: 0, sem_explicacao: 0, compactacao: 'indisponivel', compactadas: 0 }, error: null }
   }
   return db
 }

@@ -320,6 +320,8 @@ describe('passoMetadados: critérios e orçamento', () => {
     expect(ctx.falhas).toEqual([
       'erro de banco ao gravar yt_own_video_meta_daily',
       'metadados: Canal Um tem 0 de 2 vídeos com linha em 2026-10-06',
+      // A5 E18 P2 (Tarefa 3): a cobertura roda depois e não acha linha nenhuma do dia (a escrita foi recusada)
+      'metadados: cobertura de Canal Um não avaliou nenhuma linha',
     ])
     expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'erro_http', error: 'erro de banco' })
   })
@@ -510,7 +512,8 @@ describe('passoMetadados: o prazo acaba no meio de um item', () => {
     expect(tentativa(db, 'yt-3', 'thumbnail')).toBeUndefined()
     expect(db.tables.yt_own_collection_attempts!.some(r => r.outcome === 'erro_http')).toBe(false)
     // 2 de 2 devidos têm linha (o pendente sai da conta): nada vermelho.
-    expect(ctx.falhas).toEqual([])
+    // A5 E18 P2 (Tarefa 3): passo sem tempo no fim: a cobertura também não alcança o prazo, e diz isso (o critério de orçamento é o outro aviso)
+    expect(ctx.falhas).toEqual(['metadados: cobertura de metadados sem tempo em 1 canal(is)'])
   })
 
   it('a linha gravada sem thumbnail por falta de tempo leva o título e os campos de A/B certos', async () => {
@@ -530,7 +533,8 @@ describe('passoMetadados: o prazo acaba no meio de um item', () => {
       seconds_on_air_reporting: 86_400, seconds_other_reporting: 0,
     })
     nula(linha(db, 'yt-2'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture', 'thumbnail_sha256')
-    expect(ctx.falhas).toEqual([])
+    // A5 E18 P2 (Tarefa 3): passo sem tempo no fim: a cobertura também não alcança o prazo, e diz isso (o critério de orçamento é o outro aviso)
+    expect(ctx.falhas).toEqual(['metadados: cobertura de metadados sem tempo em 1 canal(is)'])
   })
 
   it('2ª execução do dia sem tempo na thumbnail: não repete a URL antiga nem apaga o que a 1ª capturou', async () => {
@@ -560,7 +564,8 @@ describe('passoMetadados: o prazo acaba no meio de um item', () => {
     expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
     expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'ok' })
     expect(db.tables.yt_own_collection_attempts!.some(r => r.outcome === 'erro_http')).toBe(false)
-    expect(ctx.falhas).toEqual([])
+    // A5 E18 P2 (Tarefa 3): passo sem tempo no fim: a cobertura também não alcança o prazo, e diz isso (o critério de orçamento é o outro aviso)
+    expect(ctx.falhas).toEqual(['metadados: cobertura de metadados sem tempo em 1 canal(is)'])
   })
 
   it('thumbnail sem tempo não conta como thumbnail que falhou: nem hoje, nem na leitura de ontem', async () => {
@@ -908,7 +913,8 @@ describe('passoMetadados: prazo próprio da captura (L1b)', () => {
     const resumo = await passoMetadados(ctx)
     expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
     expect(resumo).toMatchObject({ gravados: 0, pendentes: 2 })
-    expect(ctx.falhas).toEqual([])
+    // A5 E18 P2 (Tarefa 3): passo sem tempo no fim: a cobertura também não alcança o prazo, e diz isso (o critério de orçamento é o outro aviso)
+    expect(ctx.falhas).toEqual(['metadados: cobertura de metadados sem tempo em 1 canal(is)'])
   })
 
   it('dois canais, o primeiro esgota o prazo da captura: o segundo nem chama videosList; as linhas dos dois são gravadas', async () => {
@@ -1145,5 +1151,53 @@ describe('passoMetadados: onda de correção final (L1b)', () => {
     const db = fakeSupabase({ youtube_videos: [video(1, { tags: null })], youtube_channels: canais() })
     await passoMetadados(ctxDe(db))
     expect(linha(db, 'yt-1')).toMatchObject({ tags: [], tags_sha256: sha('[]') })
+  })
+})
+
+describe('passoMetadados: a cobertura (A5 E18 P2, Tarefa 3)', () => {
+  it('chama a cobertura uma vez por canal com vídeo, depois de gravar as linhas, com o dia gravado', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)] })
+    const vistas: number[] = []
+    const padrao = db.rpcHandlers.yt_own_meta_cover!
+    db.rpcHandlers.yt_own_meta_cover = (a) => { vistas.push((db.tables.yt_own_video_meta_daily ?? []).length); return padrao(a) }
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_meta_cover')).toEqual([
+      { name: 'yt_own_meta_cover', args: { p_site_id: 'site-1', p_channel_id: 'ch-1', p_day: DIA, p_compactar: true } },
+    ])
+    expect(vistas).toEqual([2]) // as duas linhas já estavam gravadas quando a função foi chamada
+    expect(resumo.cobertura).toMatchObject({ canais: 1, ok: 1, falhas: 0 })
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('canal sem vídeo publicado não é chamado (fronteira)', async () => {
+    const db = fakeSupabase({ youtube_videos: [] })
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(db.rpcCalls.filter(c => c.name === 'yt_own_meta_cover')).toEqual([])
+    expect(resumo.cobertura).toMatchObject({ canais: 0, ok: 0 })
+  })
+
+  it('função ausente: as linhas do dia são gravadas do mesmo jeito e a nota é schema_ausente: yt_own_meta_cover', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)] })
+    db.errors['rpc:yt_own_meta_cover'] = { code: 'PGRST202', message: 'Could not find the function public.yt_own_meta_cover' }
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    expect(resumo.gravados).toBe(2)
+    expect(linha(db, 'yt-1')).toBeDefined(); expect(linha(db, 'yt-2')).toBeDefined()
+    expect(ctx.falhas).toEqual(['schema_ausente: yt_own_meta_cover'])
+    expect(resumo.cobertura).toMatchObject({ ok: 0, falhas: 1 })
+  })
+
+  it('passo sem tempo no começo e passo que para por schema ausente da tabela diária: resumo sem a chave cobertura (dado ausente)', async () => {
+    const semTempo = fakeSupabase({ youtube_videos: [video(1)] })
+    const r1 = await passoMetadados(ctxDe(semTempo, 0))
+    expect(r1.cobertura).toBeUndefined()
+    expect(semTempo.rpcCalls.filter(c => c.name === 'yt_own_meta_cover')).toEqual([])
+
+    const sem = fakeSupabase({ youtube_videos: [video(1)] })
+    sem.errors.yt_own_video_meta_daily = { code: '42P01', message: 'relation "yt_own_video_meta_daily" does not exist' }
+    const r2 = await passoMetadados(ctxDe(sem))
+    expect(r2.cobertura).toBeUndefined()
+    expect(sem.rpcCalls.filter(c => c.name === 'yt_own_meta_cover')).toEqual([])
   })
 })

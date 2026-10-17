@@ -375,7 +375,7 @@ describe('passoVersoes', () => {
     m.db.client.rpc = ((n: string, a?: Record<string, unknown>) => { idas++; return original.rpc(n, a) }) as typeof m.db.client.rpc
     const r = await rodar(m)
     expect(r.dias_derivados).toBe(26)
-    expect(idas).toBeLessThanOrEqual(43)
+    expect(idas).toBeLessThanOrEqual(45) // A5 E18 P2 (Tarefa 5): eram 43; a leitura da cobertura soma 1 por canal
     expect(leituras.filter(([t, c]) => t === 'yt_own_video_meta_daily' && c.includes('description_text'))).toHaveLength(2)
     expect(leituras.filter(([t, c]) => t === 'yt_own_video_meta_daily' && c === 'day_pt')).toHaveLength(2)
     expect(versoes(m.db, { field: 'desc' })).toHaveLength(70)
@@ -822,5 +822,161 @@ describe('passoVersoes', () => {
       await rodar(z)
       expect(z.ctx.falhas.some(f => f.includes('sem estado de derivação'))).toBe(false)
     })
+  })
+})
+
+// ── A5 E18 parte 2, Tarefa 5: a cobertura de metadados entra na derivação (item 202) ─────────────────────────────────────────
+function cobre(db: FakeDb, ch: string, yt: string, de: string, ate: string, site = SITE, conjuntos: Array<'meta_texto' | 'meta_thumb'> = ['meta_texto', 'meta_thumb']): void {
+  for (const metric_set of conjuntos) {
+    ;(db.tables.yt_own_video_coverage ??= []).push({ site_id: site, channel_id: ch, youtube_video_id: yt, metric_set, covered_from: de, covered_to: ate, source: 'data_api' })
+  }
+}
+const correntesDe = (db: FakeDb, yt: string): Row[] => versoes(db, { youtube_video_id: yt, is_current: true })
+const leiturasDe = (m: Mundo): Array<[string, string]> => {
+  const out: Array<[string, string]> = []
+  m.db.erroNaLeitura = (t, _n, colunas) => { out.push([t, colunas]); return undefined }
+  return out
+}
+
+describe('passoVersoes: cobertura de metadados (E18 P2, Tarefa 5)', () => {
+  /** Estado derivado até dia(3), a última linha real em dia(3) (fora do intervalo), dias dia(2) e dia(1) cobertos e sem linha. */
+  function cena(comLinhaOntem = true): { m: Mundo; v: string } {
+    const m = mundo()
+    const [v] = videos(m.db, 'c1', 1) as [string]
+    estadoComCorrentes(m.db, 'c1', [v], dia(3))
+    linha(m.db, 'c1', v, dia(3))
+    if (comLinhaOntem) linha(m.db, 'c1', v, dia(0))
+    cobre(m.db, 'c1', v, dia(2), comLinhaOntem ? dia(1) : dia(0))
+    return { m, v }
+  }
+
+  it('1. dia normal: uma leitura de cobertura por canal e nenhuma leitura de última linha', async () => {
+    const m = mundo([canal('c1'), canal('c2')])
+    for (const ch of ['c1', 'c2']) {
+      const ids = videos(m.db, ch, 3)
+      for (let n = 2; n >= 0; n--) for (const yt of ids) linha(m.db, ch, yt, dia(n))
+      for (const yt of ids) cobre(m.db, ch, yt, dia(2), dia(0))
+    }
+    const leituras = leiturasDe(m)
+    const r = await rodar(m)
+    expect(r.cobertura_meta).toBe('lida')
+    expect(r.cobertos_sem_linha).toBe(0)
+    expect(leituras.filter(([t]) => t === 'yt_own_video_coverage')).toHaveLength(2)
+    expect(leituras.filter(([t, c]) => t === 'yt_own_video_meta_daily' && c.includes('thumbnail_blob_url'))).toHaveLength(2) // só a leitura do intervalo
+    expect(m.ctx.falhas).toEqual([])
+  })
+
+  it('2. tabela de cobertura ausente: deriva pelas linhas, cobertura_meta schema_ausente, nenhuma nota (dado ausente)', async () => {
+    const { m } = cena()
+    m.db.errors.yt_own_video_coverage = { code: '42P01', message: 'relation "yt_own_video_coverage" does not exist' }
+    const r = await rodar(m)
+    expect(r.cobertura_meta).toBe('schema_ausente')
+    expect(r.dias_derivados).toBeGreaterThan(0)
+    expect(estadoDe(m.db, 'c1')).toBe(ONTEM)
+    expect(m.ctx.falhas.filter(f => f.includes('yt_own_video_coverage'))).toEqual([]) // sem a tabela nada pode ter sido apagado: nenhuma nota dela
+    expect(m.ctx.falhas).toEqual([`versões: Canal c1 sem nenhuma linha diária em ${dia(2)}`, `versões: Canal c1 sem nenhuma linha diária em ${dia(1)}`]) // os buracos de hoje, como antes
+  })
+
+  it('3. erro ao ler a cobertura: deriva pelas linhas e dá nota vermelha de erro de banco', async () => {
+    const { m } = cena()
+    m.db.errors.yt_own_video_coverage = { code: '57014', message: `statement timeout ${SEGREDO}` }
+    const r = await rodar(m)
+    expect(r.cobertura_meta).toBe('erro')
+    expect(estadoDe(m.db, 'c1')).toBe(ONTEM)
+    expect(m.ctx.falhas).toEqual(['erro de banco ao ler yt_own_video_coverage', `versões: Canal c1 sem nenhuma linha diária em ${dia(2)}`, `versões: Canal c1 sem nenhuma linha diária em ${dia(1)}`])
+    expect(tudoTexto(m, r)).not.toContain(SEGREDO)
+  })
+
+  it('4. cobertura sem resposta até o prazo: o canal para com sem_tempo, sem nota de erro de banco', async () => {
+    const { m } = cena()
+    const from = m.db.client.from.bind(m.db.client)
+    const nunca = (): unknown => new Proxy({}, { get: (_t, k) => (k === 'then' ? () => undefined : () => nunca()) })
+    m.ctx.supabase = { from: (t: string) => (t === 'yt_own_video_coverage' ? nunca() : from(t)), rpc: m.db.client.rpc } as unknown as SupabaseClient
+    m.ctx.deadline = Date.now() + 1_700
+    const r = await rodar(m)
+    expect(r.sem_tempo).toBe(true)
+    expect(aplicacoes(m.db)).toHaveLength(0)
+    expect(m.ctx.falhas.some(f => f.includes('erro de banco'))).toBe(false)
+  })
+
+  it('5. dia coberto e sem linha: a versão corrente é confirmada (last_day_pt = o dia), last_seen_at não muda, cobertos_sem_linha conta', async () => {
+    const { m, v } = cena(false) // dia(2), dia(1) e dia(0) cobertos, nenhuma linha real depois de dia(3)
+    const r = await rodar(m)
+    expect(r.dias_derivados).toBe(3)
+    expect(r.cobertos_sem_linha).toBe(3)
+    expect(estadoDe(m.db, 'c1')).toBe(ONTEM)
+    const cur = correntesDe(m.db, v)
+    expect(cur).toHaveLength(3)
+    expect(cur.every(x => x.last_day_pt === ONTEM)).toBe(true)
+    expect(cur.every(x => x.last_seen_at === cap(dia(3)))).toBe(true) // o instante da última linha real
+    expect(versoes(m.db)).toHaveLength(3) // nenhuma versão nova
+    expect(m.ctx.falhas).toEqual([])
+  })
+
+  it('6. dia sem linha e sem cobertura: nada é confirmado para o vídeo (o caso de hoje)', async () => {
+    const m = mundo()
+    const [v] = videos(m.db, 'c1', 1) as [string]
+    estadoComCorrentes(m.db, 'c1', [v], dia(3))
+    linha(m.db, 'c1', v, dia(3))
+    linha(m.db, 'c1', v, dia(0))
+    const r = await rodar(m)
+    expect(r.dias_sem_linha).toBe(2)
+    expect(r.cobertos_sem_linha).toBe(0)
+    expect(aplicacoes(m.db).map(c => c.args.p_day)).toEqual([ONTEM])
+  })
+
+  it('7. fato repetido que abriria versão: canal parado, nota vermelha, apply_day não é chamada', async () => {
+    const m = mundo()
+    const [v] = videos(m.db, 'c1', 1) as [string]
+    estadoComCorrentes(m.db, 'c1', [v], dia(3)) // correntes com o título A
+    linha(m.db, 'c1', v, dia(3), { titulo: `${SEGREDO} titulo B` }) // a última linha guardada tem outro título: a cópia abriria versão
+    cobre(m.db, 'c1', v, dia(2), dia(0))
+    const r = await rodar(m)
+    expect(m.ctx.falhas).toContain(`versões: Canal c1 abriria versão em dia sem linha (${dia(2)})`)
+    expect(aplicacoes(m.db)).toHaveLength(0)
+    expect(estadoDe(m.db, 'c1')).toBe(dia(3))
+    expect(tudoTexto(m, r)).not.toContain(SEGREDO)
+  })
+
+  it('8. leitura da última linha passa do teto: nota "linhas demais" e os vídeos ficam sem fato', async () => {
+    const m = mundo()
+    const [v] = videos(m.db, 'c1', 1) as [string]
+    estadoComCorrentes(m.db, 'c1', [v], dia(3))
+    m.db.tables.yt_own_video_meta_daily = Array.from({ length: 20_001 }, (_, i) => ({
+      youtube_video_id: v, day_pt: dia(10), site_id: SITE, channel_id: 'c1', video_id: `u-${v}`, title_at_capture: 'x', description_sha256: 'h',
+      thumbnail_dhash: H0, thumbnail_sha256_at_capture: 's', thumbnail_blob_url: null, privacy_status: 'public', captured_at: cap(dia(10)), n: i,
+    }))
+    cobre(m.db, 'c1', v, dia(2), dia(1))
+    linha(m.db, 'c1', v, dia(0))
+    await rodar(m)
+    expect(m.ctx.falhas).toContain('versões: Canal c1 tem linhas demais para uma execução')
+    expect(aplicacoes(m.db).map(c => c.args.p_day)).toEqual([ONTEM]) // dia(2) e dia(1): sem fato, nada confirmado
+  })
+
+  it('9. mutação de canal e de site: cobertura de outro canal ou de outro site, do mesmo vídeo, não vira fato', async () => {
+    const m = mundo()
+    const [v] = videos(m.db, 'c1', 1) as [string]
+    estadoComCorrentes(m.db, 'c1', [v], dia(3))
+    linha(m.db, 'c1', v, dia(3))
+    linha(m.db, 'c1', v, dia(0))
+    cobre(m.db, 'c9', v, dia(2), dia(1)) // outro canal, mesmo site
+    cobre(m.db, 'c1', v, dia(2), dia(1), OUTRO_SITE) // mesmo canal, outro site
+    const r = await rodar(m)
+    expect(r.cobertos_sem_linha).toBe(0)
+    expect(r.dias_sem_linha).toBe(2)
+    expect(aplicacoes(m.db).map(c => c.args.p_day)).toEqual([ONTEM])
+  })
+
+  it('10. cobertura só de texto: a cópia vem sem dHash e não confirma a thumbnail como vista', async () => {
+    const m = mundo()
+    const [v] = videos(m.db, 'c1', 1) as [string]
+    estadoComCorrentes(m.db, 'c1', [v], dia(3))
+    linha(m.db, 'c1', v, dia(3))
+    cobre(m.db, 'c1', v, dia(2), dia(0), SITE, ['meta_texto'])
+    const r = await rodar(m)
+    expect(r.cobertos_sem_linha).toBe(3)
+    expect(estadoDe(m.db, 'c1')).toBe(ONTEM)
+    expect(versoes(m.db)).toHaveLength(3)
+    expect(m.ctx.falhas).toEqual([])
   })
 })
