@@ -76,6 +76,8 @@ export interface ObsChannel {
   pinnedCount?: number
   /** Vídeos guardados sem published_at: ficam fora de `videos` (não têm idade nem múltiplo) e a tela os lista no fim. Lista vazia = nenhum. */
   undated: UndatedVideo[]
+  /** `youtube_video_count` do concorrente (quantos vídeos o canal tem no YouTube). Ausente/null = não informado; o canal próprio não tem. */
+  youtubeVideoCount?: number | null
   sync: ChannelSync; activity: { state: 'ativo' | 'parado'; pausedDays?: number }
   lastIdx: number | null; snapshots: ChannelSnapshot[]
   /** Derived by the engine (Task 17). */

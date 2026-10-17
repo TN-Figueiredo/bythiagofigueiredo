@@ -17,6 +17,7 @@ import type { SoSeuCanalDado } from './so-seu-canal-model'
 import { planasDe, type MedidasDoCanalPack } from './medidas-do-lado'
 import type { MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
+import { anteriorCoberto } from '@/lib/youtube/observatorio/medidas-telas/cobertura'
 
 /** `abre`: o Histórico sabe abrir este vídeo. Vídeo sem data de publicação não está no conjunto do site (`obs.video` não o acha): aparece sem link. O destino do link depende do par e é montado pela tela. */
 export interface Top5Item { id: string; abre: boolean; titulo: string; thumb: string | null; viewsTexto: string; idadeTexto: string; short: boolean }
@@ -137,14 +138,27 @@ export function buildCompararPack(
     const medidasDoLado: MedidasDoCanalPack | undefined = medidas === undefined ? undefined : (() => {
       const r = ch.own ? null : medidas?.porCanal.get(ch.id)
       const extrasDoCanal = medidas?.extras.lido ? medidas.extras.dados.get(ch.id) ?? null : null
-      const l90 = vids.filter(v => v.fmt === 'long' && v.ageDays <= 90).length
-      const l180 = vids.filter(v => v.fmt === 'long' && v.ageDays > 90 && v.ageDays <= 180).length
+      // Só longos de formato confirmado, sem lives e sem estreias agendadas (as mesmas exclusões das leituras b/c). Idade fracionária: 0..90 e 90..180 (M1).
+      let l90 = 0, l180 = 0
+      const fora = { semFormato: 0, aoVivo: 0, agendados: 0 }
+      for (const v of vids) {
+        if (v.isShort === true) continue
+        const idade = (now - v.pub) / DAY
+        if (idade < 0) { fora.agendados++; continue }
+        if (idade > 180) continue
+        if (v.isShort === null) { fora.semFormato++; continue }
+        if (medidas?.videos?.get(v.id)?.wasLive === true) { fora.aoVivo++; continue }
+        if (idade <= 90) l90++; else l180++
+      }
+      const desde = vids.length ? vids.reduce((m, v) => (v.pub < m ? v.pub : m), Infinity) : null
+      const cob = anteriorCoberto({ desde, guardados, noYouTube: ch.youtubeVideoCount ?? null, backfill: ch.sync.state === 'backfill' }, now)
+      const cobertura = cob.ok ? cob : { ok: false as const, desde: cob.desde === null ? null : spDateOf(cob.desde) }
       const fonte: MedidasDoCanalPack['fonte'] = ch.own ? { tipo: 'canal_proprio' }
         : r && 'm3a' in r ? { tipo: 'medidas', m: planasDe(r), extras: extrasDoCanal ? JSON.parse(JSON.stringify(extrasDoCanal)) : null }
         : { tipo: 'nao_carregou', causa: r && 'naoCarregou' in r ? r.naoCarregou : 'leitura_falhou' }
       return {
         fonte, videosN: vids.length, buscando: ch.sync.state === 'backfill' || ch.undated.length > 0,
-        ultimaBoa: ch.sync.last == null ? null : D.dm(ch.sync.last), longos: { recente: l90, anterior: l180 },
+        ultimaBoa: ch.sync.last == null ? null : D.dm(ch.sync.last), longos: { recente: l90, anterior: l180, cobertura, fora },
       }
     })()
     return {
