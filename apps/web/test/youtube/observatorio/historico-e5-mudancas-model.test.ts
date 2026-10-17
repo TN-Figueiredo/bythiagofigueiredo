@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { dentroDosDiasAntes, numerarMudancas, tipoDaMudanca } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/mudancas-model'
+import { dentroDosDiasAntes, listaDeMudancas, numerarMudancas, tipoDaMudanca } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/mudancas-model'
 
 const H = 3600_000
 const base = Date.UTC(2026, 9, 10, 15, 0, 0)
@@ -18,5 +18,23 @@ describe('E5a T20, mudanças', () => {
     expect(dentroDosDiasAntes({ dia: '2026-10-02' }, '2026-10-16')).toBe(true)
     expect(dentroDosDiasAntes({ dia: '2026-10-01' }, '2026-10-16')).toBe(false)
     expect(dentroDosDiasAntes({ dia: '2026-10-16' }, '2026-10-16')).toBe(false)
+  })
+  it('frase-resumo e item de uma linha (trem 5.1): o tipo e a data aparecem uma vez', () => {
+    const l = numerarMudancas([
+      { campos: ['miniatura'], deMs: base, ateMs: base + 2 * H, precisao: '6h' },
+      { campos: ['titulo'], deMs: base, ateMs: base + 3 * H, precisao: '6h' },
+    ])
+    const r = listaDeMudancas(l, { subidaDia: null, inicioDoHistorico: '2026-10-01' })
+    expect(r.resumo).toEqual({ negrito: '2 mudanças, as duas em 10/10:', resto: ' miniatura e título.' })
+    expect(r.itens[0]!.quando.startsWith('em ')).toBe(false)
+    expect(JSON.stringify(r)).not.toContain('Mudou neste dia')
+    const um = listaDeMudancas(l.slice(0, 1), { subidaDia: null, inicioDoHistorico: '2026-10-01' })
+    expect(um.resumo?.negrito).toBe('1 mudança, em 10/10:')
+    const duas = numerarMudancas([
+      { campos: ['titulo'], deMs: base, ateMs: base + H, precisao: '6h' },
+      { campos: ['miniatura'], deMs: base + 48 * H, ateMs: base + 50 * H, precisao: '6h' },
+    ])
+    expect(listaDeMudancas(duas, { subidaDia: null, inicioDoHistorico: '2026-10-01' }).resumo?.negrito).toBe('2 mudanças entre 10/10 e 12/10.')
+    expect(listaDeMudancas([], { subidaDia: null, inicioDoHistorico: '2026-10-01' }).resumo).toBeNull()
   })
 })
