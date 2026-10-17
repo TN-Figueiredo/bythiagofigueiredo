@@ -196,7 +196,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   let curta: string
   let semColeta = false
   if (m.motivo === 'fecha_em' && m.fechaEm) {
-    frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${nBase === 1 ? 'já tem' : 'já têm'} o retrato de 30 dias; o primeiro dos outros fecha em ${dm(m.fechaEm)}.` }
+    frase = { negrito: '', resto: `Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${nBase === 1 ? 'já tem' : 'já têm'} o retrato de 30 dias; o primeiro dos outros fecha em ${dm(m.fechaEm)}. Quanto ele responde por vídeo ainda não é medido.` }
     curta = `não medido: o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}`
   } else if (m.motivo === 'poucos_videos') {
     frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${m.n ?? nBase} dos ${total} vídeos têm retrato de 30 dias, e a conta pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos}.` }

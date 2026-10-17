@@ -102,7 +102,7 @@ export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Prom
       <Lancamentos modelo={d.lanc.modelo} horas={<HorasDoCanal modelo={horasDoCanal({ videos: d.videos, horas, formato: d.formato, agoraMs: contexto.agoraMs })} />} />
       <LinhaDoTempoBloco modelo={tempo} />
       <RitmoBloco bloco={ritmo} />
-      {cr ? <CriadorResponde bloco={cr.modelo.bloco} lista={cr.lista} canalId={contexto.comentarios?.channelId} /> : <CriadorSemLeitura />}
+      {cr ? <CriadorResponde bloco={cr.modelo.bloco} lista={cr.lista} canalId={contexto.comentarios?.channelId} criador={contexto.criador} /> : <CriadorSemLeitura />}
     </div>
   )
 }

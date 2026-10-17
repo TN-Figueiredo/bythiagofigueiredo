@@ -6,6 +6,7 @@ import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
+import type { CriadorDoFio } from '../../_chrome/comentarios/fio-model'
 import { celulaDeDirecao } from '../../_canais/direcao-model'
 import { formatoDoCanal, type FormatoDoCanal } from './cabecalho-model'
 import { estadoDaPagina, type EstadoDaPagina, type SincDaPagina } from './estado-model'
@@ -24,6 +25,10 @@ export interface ContextoDoCanal {
   semVideos: boolean
   /** id do vídeo, título. */
   titulos: ReadonlyArray<readonly [string, string]>
+  /** id do vídeo, endereço da thumbnail (nulo sem `ytId`). */
+  thumbs: ReadonlyArray<readonly [string, string | null]>
+  /** O canal, para a foto e o nome do criador no fio. */
+  criador: CriadorDoFio
   trocas: readonly TrocaDoMotor[]
   /** C4: quem lê os comentários. Ausente = a leitura não é feita (célula "não pedida"). */
   comentarios?: { siteId: string; channelId: string; nome: string; provas: ProvasDeQuemVe | null; permissaoFalhou?: boolean }

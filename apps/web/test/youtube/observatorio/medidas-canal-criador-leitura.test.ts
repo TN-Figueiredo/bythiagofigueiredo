@@ -65,7 +65,7 @@ describe('I1: a lista tem os mesmos vídeos das casas com resposta vista', () =>
     expect(m.celula).toMatchObject({ k: 5, n: 14 })
     expect(r.respostas?.lido).toBe(true)
     const l = listaDoCriador({ nome: 'Matt', resposta: r.respostas, videos, titulos: new Map(), nBase: m.bloco.nBase })
-    expect(l.tipo === 'itens' ? l.itens.map(i => i.videoId).sort() : []).toEqual(COM)
+    expect(l.tipo === 'itens' ? l.grupos.map(g => g.videoId).sort() : []).toEqual(COM)
     expect(l.tipo === 'itens' ? l.nVideos : -1).toBe(m.bloco.casas.filter(x => x === 'com').length)
   })
   it('nível contagem: o total é só o dos 5 vídeos das casas, sem o Short nem o vídeo de 200 dias', async () => {

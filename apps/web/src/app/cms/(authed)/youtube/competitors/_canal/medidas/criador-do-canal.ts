@@ -8,11 +8,11 @@ import { listaDoCriador, type ModeloDaLista } from './criador-lista-model'
 export type ContextoDeComentarios = NonNullable<ContextoDoCanal['comentarios']>
 
 export function criadorComLeitura(
-  k: ContextoDeComentarios, contexto: Pick<ContextoDoCanal, 'agoraMs' | 'hojeSP'>, d: CanalDerivado, lidos: ComentariosDoCanal,
+  k: ContextoDeComentarios, contexto: Pick<ContextoDoCanal, 'agoraMs' | 'hojeSP' | 'thumbs'>, d: CanalDerivado, lidos: ComentariosDoCanal,
 ): { modelo: ModeloDoCriador; lista: ModeloDaLista | null } {
   const modelo = criadorDoCanal({ nome: k.nome, formato: d.formato, videos: d.videos, contagem: lidos.contagem, estado: d.estado, agoraMs: contexto.agoraMs, hojeSP: contexto.hojeSP })
   const lista = modelo.bloco.tipo === 'medido' || modelo.bloco.tipo === 'zero' || modelo.bloco.tipo === 'nao_medido'
-    ? listaDoCriador({ nome: k.nome, resposta: lidos.respostas, videos: d.videos, titulos: d.titulos, nBase: modelo.bloco.nBase, permissaoFalhou: k.permissaoFalhou })
+    ? listaDoCriador({ nome: k.nome, resposta: lidos.respostas, videos: d.videos, titulos: d.titulos, thumbs: new Map(contexto.thumbs), nBase: modelo.bloco.nBase, permissaoFalhou: k.permissaoFalhou })
     : null
   return { modelo, lista }
 }
