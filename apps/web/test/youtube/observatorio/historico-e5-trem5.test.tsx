@@ -91,3 +91,14 @@ describe('defeito 6: bloco de servidor não manda "tente de novo" onde não há 
     expect(t).not.toContain('O servidor não respondeu')
   })
 })
+
+describe('menor: rótulo da hora da live', () => {
+  it('live: "início da live", dizendo que as 72 horas contam daí; vídeo comum segue "publicado"', () => {
+    const live = blocoDeHoras(entH({ aoVivo: true }))
+    const comum = blocoDeHoras(entH({}))
+    if (live.tipo !== 'ok' || comum.tipo !== 'ok') throw new Error('esperava bloco ok')
+    expect(live.publicacao).toMatch(/^início da live .*as 72 horas contam daqui/)
+    expect(live.publicacao).not.toMatch(/^publicado/)
+    expect(comum.publicacao).toMatch(/^publicado /)
+  })
+})

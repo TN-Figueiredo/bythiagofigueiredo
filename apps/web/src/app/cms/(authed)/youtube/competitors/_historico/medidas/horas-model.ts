@@ -414,7 +414,11 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
   const sem = fraseDasHorasSemBarra(semBarra, totalLido)
   if (sem) frasesDasHoras.push(sem)
 
-  const publicacao = `publicado ${diaEDataSP(pub)}, ${horaSP(pub)}`
+  // Gio trem 5 (7): para uma live, as 72 horas contam do início real (a âncora `baseDaIdade`), não da hora marcada que o cabeçalho mostra.
+  // TEXTO-A-REVISAR: rótulo da âncora da live
+  const publicacao = e.aoVivo
+    ? `início da live ${diaEDataSP(pub)}, ${horaSP(pub)} (as 72 horas contam daqui; o cabeçalho mostra a hora de publicação marcada)`
+    : `publicado ${diaEDataSP(pub)}, ${horaSP(pub)}`
   return {
     tipo: 'ok', estado, publicacao,
     subtitulo: pc ? `Horário de São Paulo. Primeira contagem às ${primeiraHora} de ${dataSP(floorHour(pc.emMs))}.` : 'Horário de São Paulo.',
