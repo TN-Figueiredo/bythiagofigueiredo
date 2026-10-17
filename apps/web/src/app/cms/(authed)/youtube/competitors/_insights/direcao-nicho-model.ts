@@ -229,9 +229,16 @@ export interface OpcoesDaDirecao {
   nicho: string
   /** Os canais PRÓPRIOS do nicho: só o nome. Nunca passam pelo carregador de medidas. */
   seusCanais: readonly string[]
+  /** Ids dos canais cujo período anterior não está coberto pelo histórico guardado (`anteriorCoberto`). Só as leituras b e c usam. */
+  anteriorIncompleto?: readonly string[]
 }
 
-function infoDoCartao(): DirecaoNichoView['info'] {
+/** TEXTO-A-REVISAR (Logan): a nota das leituras b e c quando o histórico guardado não alcança o período anterior (portão Phil I2). */
+function notaAnteriorIncompleto(n: number): string {
+  return `Atenção: o período anterior pode estar incompleto em ${n} ${plural(n, 'canal', 'canais')}: o histórico guardado não alcança o começo dele, e a comparação pode puxar para cima.`
+}
+
+function infoDoCartao(nota: string | null = null): DirecaoNichoView['info'] {
   const lim = LIMITE_DA_REGUA, eq = Math.round(MEASURE_RULES.equalPct * 100), dias = MEASURE_RULES.direction.windowDays, jan = MEASURE_RULES.channelWindowDays
   return {
     regua: [
@@ -248,6 +255,7 @@ function infoDoCartao(): DirecaoNichoView['info'] {
       `Canal inteiro: as views ganhas nos últimos ${dias} dias contra as dos ${dias} anteriores, com ${2 * dias} dias de registro do canal; inclui Shorts e vídeos apagados.`,
       `Vídeos novos: a mediana das views dos longos publicados nos últimos ${jan} dias contra a dos ${jan} anteriores, com ${RULES.weakBase} longos em cada período; descer pode ser só idade.`,
       `Mesma idade: o mesmo, com as views de cada vídeo aos 30 dias de vida; passa a existir em ${dma(mesmaIdadeExisteEm())}.`,
+      ...(nota ? [nota] : []),
       FRASE_FIXA_DA_FONTE,
     ],
     seuCanal: ['O Observatório não coleta o dia a dia público do seu canal, e inventar uma direção para ele seria falsa precisão.', FRASE_FIXA_DA_FONTE],
@@ -264,8 +272,10 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
   const { leitura, hojeSP, nicho } = o
   const t = TEXTOS[leitura]
   const seuCanal = o.seusCanais.map(nome => ({ nome, texto: `seu canal · ${nome} · fora desta régua` }))
+  const incompletos = leitura === 'a' ? 0 : canais.filter(c => o.anteriorIncompleto?.includes(c.id)).length
+  const nota = incompletos ? notaAnteriorIncompleto(incompletos) : null
   const base = {
-    titulo: `Quem sobe e quem desce no nicho ${nicho}`, meta: t.meta, leitura, legenda: t.legenda, fonte: FRASE_FIXA_DA_FONTE, seuCanal, info: infoDoCartao(),
+    titulo: `Quem sobe e quem desce no nicho ${nicho}`, meta: t.meta, leitura, legenda: t.legenda, fonte: FRASE_FIXA_DA_FONTE, seuCanal, info: infoDoCartao(nota),
     sugestao: null, barra: null, avisos: [] as string[], eixo: false, linhas: [] as LinhaDaDirecao[],
   }
   const vazia: ContagemDaDirecao = { sobem: 0, descem: 0, estaveis: 0, naoMedidos: 0, naoCarregaram: 0, total: 0 }
@@ -346,7 +356,7 @@ export function direcaoDoNicho(medidas: MedidasDoSite | 'erro', canais: readonly
   const sugestao = !medidos.length && !unico && outra
     ? { key: outra.key, texto: `${TEXTOS[outra.key].nome} já mede ${outra.contagem.replace(' medidos', '')}.` } : null
 
-  const avisos: string[] = []
+  const avisos: string[] = nota ? [nota] : []
   if (leitura === 'a') {
     const aviso = avisoDeContagem({ de: somaDias(hojeSP, -2 * t.dias), ate: hojeSP, dias: 2 * t.dias })
     if (aviso) avisos.push(`Até ${dm(aviso.ate)}, os ${t.dias} dias anteriores incluem a mudança de contagem do YouTube (${dm(MEASURE_RULES.countChange)}).`)
