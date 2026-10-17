@@ -1,3 +1,5 @@
+import { estadoDoCanal, type EstadoCapturado } from './coleta/estado-proprio'
+
 const BASE = 'https://www.googleapis.com/youtube/v3'
 const TIMEOUT_MS = 15_000
 const MAX_RETRIES = 3
@@ -162,9 +164,12 @@ export async function fetchChannelStats(
   viewCountRaw: number | null
   videoCountRaw: number | null
   hidden: boolean
+  /** X2: o bruto do estado do canal; nulo quando `snippet` ou `status` não vieram (`estadoAusentes` diz quais). */
+  estado?: EstadoCapturado | null
+  estadoAusentes?: string[]
 }> {
   const params = new URLSearchParams({
-    part: 'snippet,statistics,brandingSettings',
+    part: 'snippet,statistics,brandingSettings,status,topicDetails,localizations',
     id: channelId,
     key: apiKey,
   })
@@ -180,6 +185,7 @@ export async function fetchChannelStats(
     return Number.isFinite(n) && n >= 0 ? n : null
   }
   const hidden = item?.statistics?.hiddenSubscriberCount === true
+  const est = estadoDoCanal(item)
   return {
     subscriberCount: parseInt(item?.statistics?.subscriberCount ?? '0', 10),
     videoCount: parseInt(item?.statistics?.videoCount ?? '0', 10),
@@ -189,6 +195,8 @@ export async function fetchChannelStats(
     viewCountRaw: rawOf(item?.statistics?.viewCount),
     videoCountRaw: rawOf(item?.statistics?.videoCount),
     hidden,
+    estado: est.estado,
+    estadoAusentes: est.ausentes,
   }
 }
 

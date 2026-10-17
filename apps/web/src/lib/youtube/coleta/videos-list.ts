@@ -3,6 +3,7 @@
 // 50 ids por chamada, 1 unidade de cota cada. O fetch vem de fora: quem chama passa o do prazo do passo.
 import { parseDuration } from '@/lib/youtube/api-client'
 import { motivoDoGoogle } from './google-erro'
+import { contadoresDoVideo, estadoDoVideo, type ContadoresPublicos, type EstadoCapturado } from './estado-proprio'
 
 const BASE = 'https://www.googleapis.com/youtube/v3/videos'
 export const LOTE_VIDEOS = 50
@@ -27,6 +28,11 @@ export interface VideoCapturado {
   durationSeconds: number | null
   /** Como o YouTube devolveu; quem grava decide o que fazer com um valor desconhecido. */
   privacyStatus: string | null
+  /** X1: o bruto do estado (sem o que o E18 versiona e sem o que nunca é público); nulo se uma das três partes não veio. */
+  estado: EstadoCapturado | null
+  estadoAusentes: string[]
+  /** X5: contadores públicos do momento; nulo se a parte `statistics` não veio. */
+  contadores: ContadoresPublicos | null
 }
 
 interface Item {
@@ -50,7 +56,7 @@ export async function videosList(token: string, ids: readonly string[], f: typeo
   const out = new Map<string, VideoCapturado>()
   for (let i = 0; i < ids.length; i += LOTE_VIDEOS) {
     const url = new URL(BASE)
-    url.searchParams.set('part', 'snippet,contentDetails,status')
+    url.searchParams.set('part', 'snippet,contentDetails,status,statistics')
     url.searchParams.set('id', ids.slice(i, i + LOTE_VIDEOS).join(','))
     const res = await f(url.toString(), { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) throw new DataApiError(res.status, await motivoDoGoogle(res))
@@ -62,6 +68,7 @@ export async function videosList(token: string, ids: readonly string[], f: typeo
     }
     for (const it of corpo.items ?? []) {
       if (!it.id) continue
+      const { estado, ausentes } = estadoDoVideo(it)
       out.set(it.id, {
         id: it.id,
         title: it.snippet?.title ?? null,
@@ -69,6 +76,9 @@ export async function videosList(token: string, ids: readonly string[], f: typeo
         tags: it.snippet?.tags ?? [],
         durationSeconds: duracaoEmSegundos(it.contentDetails?.duration),
         privacyStatus: it.status?.privacyStatus ?? null,
+        estado,
+        estadoAusentes: ausentes,
+        contadores: contadoresDoVideo(it),
       })
     }
   }

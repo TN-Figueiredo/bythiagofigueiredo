@@ -12,18 +12,18 @@ const item = (id: string, extra: Record<string, unknown> = {}) => ({
 const ok = (items: unknown[]) => new Response(JSON.stringify({ items }), { status: 200 })
 
 describe('videosList', () => {
-  it('uma chamada autenticada com o token do canal, sem chave de API, com as três partes', async () => {
+  it('uma chamada autenticada com o token do canal, sem chave de API, com as quatro partes', async () => {
     const f = vi.fn().mockResolvedValue(ok([item('aaaaaaaaaaa')]))
     const m = await videosList('tok-do-canal', ['aaaaaaaaaaa'], f as unknown as typeof fetch)
     expect(f).toHaveBeenCalledTimes(1)
     const [url, init] = f.mock.calls[0]!
     const u = new URL(String(url))
     expect(u.origin + u.pathname).toBe('https://www.googleapis.com/youtube/v3/videos')
-    expect(u.searchParams.get('part')).toBe('snippet,contentDetails,status')
+    expect(u.searchParams.get('part')).toBe('snippet,contentDetails,status,statistics')
     expect(u.searchParams.get('id')).toBe('aaaaaaaaaaa')
     expect(u.searchParams.has('key')).toBe(false)
     expect((init as RequestInit).headers).toEqual({ Authorization: 'Bearer tok-do-canal' })
-    expect(m.get('aaaaaaaaaaa')).toEqual({
+    expect(m.get('aaaaaaaaaaa')).toMatchObject({
       id: 'aaaaaaaaaaa', title: 'Título aaaaaaaaaaa', description: 'Descrição aaaaaaaaaaa', tags: ['a', 'b'],
       durationSeconds: 600, privacyStatus: 'public',
     })
@@ -50,8 +50,10 @@ describe('videosList', () => {
   it('campo que não veio é nulo, nunca inventado; sem tags vira lista vazia (o YouTube omite a chave quando não há)', async () => {
     const f = vi.fn().mockResolvedValue(ok([{ id: 'aaaaaaaaaaa', snippet: {}, contentDetails: {}, status: {} }, { id: 'bbbbbbbbbbb' }]))
     const m = await videosList('t', ['aaaaaaaaaaa', 'bbbbbbbbbbb'], f as unknown as typeof fetch)
-    expect(m.get('aaaaaaaaaaa')).toEqual({ id: 'aaaaaaaaaaa', title: null, description: null, tags: [], durationSeconds: null, privacyStatus: null })
-    expect(m.get('bbbbbbbbbbb')).toEqual({ id: 'bbbbbbbbbbb', title: null, description: null, tags: [], durationSeconds: null, privacyStatus: null })
+    // snippet/contentDetails/status presentes (mesmo vazios) e sem statistics: estado existe, contadores não (nulo, nunca 0)
+    expect(m.get('aaaaaaaaaaa')).toMatchObject({ id: 'aaaaaaaaaaa', title: null, description: null, tags: [], durationSeconds: null, privacyStatus: null, contadores: null, estadoAusentes: [] })
+    // item só com id: nenhuma parte veio, o estado não é gravado e a lista diz quais faltaram
+    expect(m.get('bbbbbbbbbbb')).toMatchObject({ id: 'bbbbbbbbbbb', title: null, description: null, tags: [], durationSeconds: null, privacyStatus: null, estado: null, estadoAusentes: ['snippet', 'contentDetails', 'status'], contadores: null })
   })
 
   it('resposta não-ok lança DataApiError só com status e reason; a mensagem não leva o corpo', async () => {

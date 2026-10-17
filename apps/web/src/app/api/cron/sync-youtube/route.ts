@@ -17,6 +17,7 @@ import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+import { canaisSemRetrato } from '@/lib/youtube/retrato-criterio'
 import type { YouTubeChannelRow, SyncMode } from '@/lib/youtube/types'
 
 export const runtime = 'nodejs'
@@ -317,7 +318,7 @@ export async function GET(req: NextRequest) {
           id: channel.id,
           name: channel.name,
           status: 'completed',
-          detail: `found=${result.videosFound} inserted=${result.videosInserted} updated=${result.videosUpdated} quota=${result.quotaUsed}`,
+          detail: `found=${result.videosFound} inserted=${result.videosInserted} updated=${result.videosUpdated} quota=${result.quotaUsed}${result.avisos && result.avisos.length > 0 ? ` avisos=[${result.avisos.join('; ')}]` : ''}`,
         })
 
         if (logId) {
@@ -327,6 +328,8 @@ export async function GET(req: NextRequest) {
             videos_inserted: result.videosInserted,
             videos_updated: result.videosUpdated,
             quota_used: result.quotaUsed,
+            // G-1: o aviso (retrato/estado do canal não gravado) fica onde o dono lê, não só no corpo da resposta HTTP
+            error_message: result.avisos && result.avisos.length > 0 ? result.avisos.join('; ') : null,
             completed_at: new Date().toISOString(),
           }).eq('id', logId)
         }
@@ -360,10 +363,16 @@ export async function GET(req: NextRequest) {
     revalidatePath('/cms/youtube')
 
     const failedChannels = channelResults.filter(c => c.status === 'failed')
-    if (failedChannels.length === 0) {
+    // G-1 (I-4): o catchall das 04:00 SP confere que cada canal ativo tem retrato de ontem ou de hoje; senão a execução fica vermelha.
+    const semRetrato = mode === 'catchall' ? await canaisSemRetrato(supabase, channels as YouTubeChannelRow[], Date.now()) : []
+    if (failedChannels.length === 0 && semRetrato.length === 0) {
       await recordCronSuccess('sync-youtube', 'critical')
     } else {
-      await recordCronFailure('sync-youtube', `${failedChannels.length} channel(s) failed`, 'critical')
+      const frases = [
+        ...(failedChannels.length > 0 ? [`${failedChannels.length} channel(s) failed`] : []),
+        ...semRetrato,
+      ]
+      await recordCronFailure('sync-youtube', frases.join('; '), 'critical')
     }
 
     return {
@@ -373,6 +382,7 @@ export async function GET(req: NextRequest) {
       updated: totalUpdated,
       quota_used: totalQuota,
       channels: channelResults,
+      ...(semRetrato.length > 0 ? { retrato_sem: semRetrato } : {}),
       health_written: true,
     }
   })

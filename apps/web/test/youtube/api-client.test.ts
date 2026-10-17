@@ -138,7 +138,7 @@ describe('fetchChannelStats', () => {
     )
 
     const stats = await fetchChannelStats('UCtest', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 4200, videoCount: 48, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 4200, viewCountRaw: null, videoCountRaw: 48, hidden: false })
+    expect(stats).toMatchObject({ subscriberCount: 4200, videoCount: 48, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 4200, viewCountRaw: null, videoCountRaw: 48, hidden: false })
   })
 
   it('extracts thumbnail and banner when present', async () => {
@@ -154,7 +154,7 @@ describe('fetchChannelStats', () => {
     )
 
     const stats = await fetchChannelStats('UCtest', 'test-key')
-    expect(stats).toEqual({
+    expect(stats).toMatchObject({
       subscriberCount: 100,
       videoCount: 10,
       thumbnailUrl: 'https://yt3.ggpht.com/avatar',
@@ -171,7 +171,7 @@ describe('fetchChannelStats', () => {
       new Response(JSON.stringify({ items: [] }), { status: 200 }),
     )
     const stats = await fetchChannelStats('UCgone', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false })
+    expect(stats).toMatchObject({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false })
   })
 
   it('returns zeroed defaults when items is undefined', async () => {
@@ -179,7 +179,7 @@ describe('fetchChannelStats', () => {
       new Response(JSON.stringify({}), { status: 200 }),
     )
     const stats = await fetchChannelStats('UCgone', 'test-key')
-    expect(stats).toEqual({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false })
+    expect(stats).toMatchObject({ subscriberCount: 0, videoCount: 0, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: null, viewCountRaw: null, videoCountRaw: null, hidden: false })
   })
 
   it('returns null thumbnailUrl when snippet exists but thumbnails.medium is missing', async () => {
@@ -197,7 +197,7 @@ describe('fetchChannelStats', () => {
     expect(stats.subscriberCount).toBe(50)
   })
 
-  it('requests snippet, statistics, and brandingSettings parts', async () => {
+  it('requests snippet, statistics, brandingSettings, status, topicDetails and localizations parts', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ items: [{ statistics: {} }] }), { status: 200 }),
     )
@@ -205,7 +205,7 @@ describe('fetchChannelStats', () => {
     await fetchChannelStats('UCtest', 'test-key')
 
     const url = new URL(fetchSpy.mock.calls[0][0] as string)
-    expect(url.searchParams.get('part')).toBe('snippet,statistics,brandingSettings')
+    expect(url.searchParams.get('part')).toBe('snippet,statistics,brandingSettings,status,topicDetails,localizations')
   })
 })
 
@@ -247,7 +247,7 @@ describe('ytFetch retry behavior', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(okResponse), { status: 200 }))
 
     const stats = await drainTimers(fetchChannelStats('UCtest', 'test-key'))
-    expect(stats).toEqual({ subscriberCount: 100, videoCount: 5, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 100, viewCountRaw: null, videoCountRaw: 5, hidden: false })
+    expect(stats).toMatchObject({ subscriberCount: 100, videoCount: 5, thumbnailUrl: null, bannerUrl: null, subscriberCountRaw: 100, viewCountRaw: null, videoCountRaw: 5, hidden: false })
     expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
@@ -283,5 +283,23 @@ describe('ytFetch retry behavior', () => {
 
     const ids = await drainTimers(fetchRecentVideoIds('PLtest', 'test-key'))
     expect(ids).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('fetchChannelStats: estado do canal (X2)', () => {
+  it('com snippet e status: devolve o hash e o bruto sem statistics; a lista de ausentes é vazia', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ items: [{
+      id: 'UC1', etag: 'e', snippet: { title: 'C' }, status: { privacyStatus: 'public' }, statistics: { subscriberCount: '10' }, brandingSettings: { channel: { keywords: 'k' } },
+    }] }), { status: 200 }))
+    const s = await fetchChannelStats('UC1', 'key')
+    expect(s.estadoAusentes).toEqual([])
+    expect(s.estado?.raw).toEqual({ id: 'UC1', snippet: { title: 'C' }, status: { privacyStatus: 'public' }, brandingSettings: { channel: { keywords: 'k' } } })
+    expect(s.estado?.sha).toMatch(/^[0-9a-f]{64}$/)
+  })
+  it('sem status: estado nulo e o motivo nomeado (nunca um estado parcial)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ snippet: {}, statistics: {} }] }), { status: 200 }))
+    const s = await fetchChannelStats('UC1', 'key')
+    expect(s.estado).toBeNull()
+    expect(s.estadoAusentes).toEqual(['status'])
   })
 })

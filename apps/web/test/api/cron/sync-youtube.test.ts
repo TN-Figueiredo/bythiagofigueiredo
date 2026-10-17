@@ -225,4 +225,71 @@ describe('GET /api/cron/sync-youtube', () => {
     expect(body.quota_used).toBe(10)
     expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
+
+  // G-1 (portão do L10, Yannis I-1): o aviso do canal fica em youtube_sync_log.error_message, não só no corpo HTTP
+  function rodarComAviso(avisos: string[] | undefined, mode?: string, snapshots: unknown = { data: [{ youtube_channel_id: 'ch-1' }], error: null }) {
+    const log = syncLogMock()
+    mockSyncChannel.mockResolvedValue({ videosFound: 1, videosInserted: 0, videosUpdated: 0, quotaUsed: 1, avisos })
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') return channelsQuery([{ id: 'ch-1', name: 'Canal', site_id: 'site-1', sync_enabled: true, sync_schedules: [] }])
+      if (table === 'youtube_sync_log') return log
+      if (table === 'yt_own_channel_snapshots') return snapshotsQuery(snapshots)
+      return {}
+    })
+    return { log, run: () => GET(makeRequest({ mode })) }
+  }
+  function snapshotsQuery(res: unknown) {
+    const result = Promise.resolve(res)
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_t, prop) {
+        if (prop === 'then') return result.then.bind(result)
+        return vi.fn(() => new Proxy({}, handler))
+      },
+    }
+    return new Proxy({}, handler)
+  }
+
+  it('canal com avisos: youtube_sync_log.update grava error_message com eles', async () => {
+    const { log, run } = rodarComAviso(['retrato do canal não gravado: x'])
+    await run()
+    expect(log.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'completed', error_message: 'retrato do canal não gravado: x' }))
+  })
+
+  it('canal sem avisos: error_message nulo', async () => {
+    const { log, run } = rodarComAviso(undefined)
+    await run()
+    expect(log.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'completed', error_message: null }))
+  })
+
+  // I-4: critério vermelho de 2 dias sem retrato (só no catchall)
+  it('catchall: canal ativo sem retrato de ontem nem de hoje deixa o cron vermelho', async () => {
+    const { run } = rodarComAviso(undefined, 'catchall', { data: [], error: null })
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+    const body = await (await run()).json()
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-youtube', 'canal Canal: 2 dias sem retrato público', 'critical')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    expect(body.retrato_sem).toEqual(['canal Canal: 2 dias sem retrato público'])
+  })
+
+  it('catchall: canal com retrato de ontem fica verde', async () => {
+    const { run } = rodarComAviso(undefined, 'catchall')
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+    await run()
+    expect(recordCronSuccess).toHaveBeenCalledWith('sync-youtube', 'critical')
+    expect(recordCronFailure).not.toHaveBeenCalled()
+  })
+
+  it('catchall: a leitura dos retratos falha = desconhecido, vermelho (não ok calado)', async () => {
+    const { run } = rodarComAviso(undefined, 'catchall', { data: null, error: { message: 'boom', code: 'XX' } })
+    const { recordCronFailure } = await import('@/lib/cron-health')
+    await run()
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-youtube', expect.stringContaining('não foi possível conferir'), 'critical')
+  })
+
+  it('fora do catchall o critério não roda (schedule sem retrato continua verde)', async () => {
+    const { run } = rodarComAviso(undefined, 'schedule', { data: [], error: null })
+    const { recordCronSuccess } = await import('@/lib/cron-health')
+    await run()
+    expect(recordCronSuccess).toHaveBeenCalled()
+  })
 })

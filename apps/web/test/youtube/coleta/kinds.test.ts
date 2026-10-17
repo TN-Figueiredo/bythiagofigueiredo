@@ -16,10 +16,10 @@ describe('catálogo de kind', () => {
       expect(COLLECTION_KINDS).toContain(k)
     }
   })
-  it('o catálogo tem os onze valores, na ordem do plano, e types.ts o reexporta', () => {
+  it('o catálogo tem os treze valores, na ordem do plano, e types.ts o reexporta', () => {
     expect([...COLLECTION_KINDS]).toEqual([
       'sondagem', 'meta', 'thumbnail', 'relatorio', 'diario', 'retencao_vida', 'retencao_7d', 'retencao_30d',
-      'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim',
+      'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim', 'retrato_canal', 'estado_canal',
     ])
     expect(REEXPORTADO).toBe(COLLECTION_KINDS)
   })

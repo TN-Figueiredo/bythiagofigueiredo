@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats, lookupChannelByHandle, YouTubeQuotaError } from './api-client'
+import { registrarTentativa } from './coleta/attempts'
+import type { Outcome } from './coleta/types'
 import { autoCategorize } from './auto-categorize'
 import type { YouTubeChannelRow, YouTubeCategoryRow, SyncMode } from './types'
 
@@ -10,6 +12,8 @@ interface SyncResult {
   videosInserted: number
   videosUpdated: number
   quotaUsed: number
+  /** G-1/X2: o que não foi gravado e por quê; a rota anota no resumo da execução. */
+  avisos?: string[]
 }
 
 export async function syncChannel(
@@ -150,37 +154,132 @@ async function updateChannelMeta(
 
   if (updateErr) throw new Error(`Failed to update channel metadata: ${updateErr.message}`)
 
-  await gravarRetratoPublico(supabase, channel.id, stats)
+  const avisos = (result.avisos ??= [])
+  await gravarRetratoPublico(supabase, channel, stats, avisos)
+  await gravarEstadoDoCanal(supabase, channel, stats, avisos)
+}
+
+/** Anota a tentativa onde o dono lê (`yt_own_collection_attempts`) e devolve o aviso. Nunca lança. */
+async function anotarTentativa(
+  supabase: SupabaseClient,
+  channel: Pick<YouTubeChannelRow, 'id' | 'site_id'>,
+  kind: 'retrato_canal' | 'estado_canal',
+  outcome: Outcome,
+  motivo: string | null,
+  avisos: string[],
+): Promise<void> {
+  try {
+    const falhas: string[] = []
+    await registrarTentativa(
+      { supabase, falhas, tentativas: [] },
+      { site_id: channel.site_id, scope_type: 'canal', scope_id: channel.id, kind, outcome, error: motivo, channel_id: channel.id },
+    )
+    // a anotação que não gravou não some calada: vira aviso (a rota o persiste em youtube_sync_log.error_message)
+    for (const f of falhas) avisos.push(`tentativa ${kind} não anotada: ${f}`)
+  } catch {
+    // a anotação nunca derruba a sincronização; o Sentry abaixo e o aviso na rota seguem
+  }
+}
+
+/**
+ * X2: estado do canal próprio (branding, status, tópicos, localizações) como série: grava só quando o hash muda.
+ * Parte que não veio não grava (nem zera): vira tentativa `sem_dado_na_janela` com o motivo.
+ */
+async function gravarEstadoDoCanal(
+  supabase: SupabaseClient,
+  channel: YouTubeChannelRow,
+  stats: Awaited<ReturnType<typeof fetchChannelStats>>,
+  avisos: string[],
+): Promise<void> {
+  if (!stats.estado) {
+    const motivo = `estado do canal não gravado: parte ausente (${(stats.estadoAusentes ?? ['desconhecida']).join(',')})`
+    avisos.push(motivo)
+    await anotarTentativa(supabase, channel, 'estado_canal', 'sem_dado_na_janela', motivo, avisos)
+    return
+  }
+  try {
+    const { error } = await supabase.rpc('yt_own_channel_state_record', {
+      p_rows: [{ channel_id: channel.id, site_id: channel.site_id, state_sha256: stats.estado.sha, raw: stats.estado.raw }],
+    })
+    if (error) {
+      const motivo = `estado do canal não gravado: ${error.code ?? error.message}`
+      avisos.push(motivo)
+      Sentry.captureMessage('sync-youtube: estado do canal próprio não gravado', {
+        level: 'error', fingerprint: ['sync-youtube', 'estado-proprio'], extra: { channelId: channel.id, code: error.code ?? error.message },
+      })
+      await anotarTentativa(supabase, channel, 'estado_canal', 'erro_http', motivo, avisos)
+      return
+    }
+    await anotarTentativa(supabase, channel, 'estado_canal', 'ok', null, avisos)
+  } catch (e) {
+    const motivo = `estado do canal não gravado: ${e instanceof Error ? e.message : String(e)}`
+    avisos.push(motivo)
+    await anotarTentativa(supabase, channel, 'estado_canal', 'erro_http', motivo, avisos)
+  }
 }
 
 /**
  * A5 R9a (MG20): retrato público diário do canal próprio. O primeiro do dia de São Paulo fica (`ignoreDuplicates`); o `catchall`
- * das 04:00 garante um por dia. Só grava se a linha diz algo sobre inscritos (número ou oculto). Falha aqui nunca para a sincronização.
+ * das 04:00 garante um por dia. Só grava se a linha diz algo sobre inscritos (número ou oculto). Falha aqui nunca para a sincronização,
+ * mas (G-1) também nunca some calada: vira tentativa `retrato_canal` com o motivo, aviso no resumo e Sentry em nível de erro.
  */
 async function gravarRetratoPublico(
   supabase: SupabaseClient,
-  channelId: string,
+  channel: YouTubeChannelRow,
   stats: Awaited<ReturnType<typeof fetchChannelStats>>,
+  avisos: string[],
 ): Promise<void> {
-  if (stats.subscriberCountRaw === null && !stats.hidden) return
+  const falhou = async (outcome: Outcome, motivo: string): Promise<void> => {
+    // O retrato é "o primeiro do dia de SP fica" e roda a cada 30 min: uma leitura posterior ruim NÃO pode pintar de falha um dia que
+    // já tem retrato (a tentativa é "última escrita vence"). Leitura que falha = desconhecido, segue o caminho da falha.
+    if (await retratoDoDiaExiste(supabase, channel.id)) {
+      await anotarTentativa(supabase, channel, 'retrato_canal', 'ok', null, avisos)
+      return
+    }
+    avisos.push(`retrato do canal não gravado: ${motivo}`)
+    avisarRetratoNaoGravado(channel.id, motivo)
+    await anotarTentativa(supabase, channel, 'retrato_canal', outcome, motivo, avisos)
+  }
+  if (stats.subscriberCountRaw === null && !stats.hidden) {
+    // O YouTube não mandou o número nem marcou oculto: o dia fica sem retrato e o motivo fica escrito.
+    await falhou('sem_dado_na_janela', 'subscriberCount ausente e não marcado como oculto')
+    return
+  }
   try {
     const { error } = await supabase.from('yt_own_channel_snapshots').upsert({
-      youtube_channel_id: channelId,
+      youtube_channel_id: channel.id,
       snapshot_date: spDateOf(Date.now()),
       subscriber_count: stats.subscriberCountRaw,
       subscribers_hidden: stats.hidden,
       view_count: stats.viewCountRaw,
       video_count: stats.videoCountRaw,
     }, { onConflict: 'youtube_channel_id,snapshot_date', ignoreDuplicates: true })
-    if (error) avisarRetratoNaoGravado(channelId, error.code ?? error.message)
+    if (error) { await falhou('erro_http', error.code ?? error.message); return }
+    await anotarTentativa(supabase, channel, 'retrato_canal', 'ok', null, avisos)
   } catch (e) {
-    avisarRetratoNaoGravado(channelId, e instanceof Error ? e.message : String(e))
+    await falhou('erro_http', e instanceof Error ? e.message : String(e))
+  }
+}
+
+/**
+ * O dia do retrato é de SP e o da tentativa (`attempt_day`) é UTC: 21:00-23:59 BRT caem no dia UTC seguinte. Por isso quem precisa
+ * saber se o dia tem retrato lê `yt_own_channel_snapshots` (I-4), nunca a tentativa.
+ */
+async function retratoDoDiaExiste(supabase: SupabaseClient, channelId: string): Promise<boolean> {
+  try {
+    const { count, error } = await supabase.from('yt_own_channel_snapshots')
+      .select('youtube_channel_id', { count: 'exact', head: true })
+      .eq('youtube_channel_id', channelId)
+      .eq('snapshot_date', spDateOf(Date.now()))
+    return !error && (count ?? 0) > 0
+  } catch {
+    return false
   }
 }
 
 function avisarRetratoNaoGravado(channelId: string, code: string): void {
   Sentry.captureMessage('sync-youtube: retrato do canal próprio não gravado', {
-    level: 'warning',
+    level: 'error',
     fingerprint: ['sync-youtube', 'retrato-proprio'],
     extra: { channelId, code },
   })

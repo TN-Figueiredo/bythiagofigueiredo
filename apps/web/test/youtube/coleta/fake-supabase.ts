@@ -73,6 +73,7 @@ export const CHAVES_UNICAS_L1A: Record<string, string[][]> = {
   yt_own_collection_attempts: [['scope_type', 'scope_id', 'kind', 'attempt_day']],
   yt_own_video_daily: [['youtube_video_id', 'day_pt']],
   yt_own_video_reach_daily: [['youtube_video_id', 'day_pt']],
+  yt_own_video_public_daily: [['youtube_video_id', 'day_pt']],
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}T/
@@ -294,6 +295,19 @@ export function fakeSupabase(
 
   // Tarefa 11a (E8): os fatos da retenção. `db.errors['rpc:yt_own_retention_facts']` tem precedência (função ausente).
   comRetencaoFatosPadrao(db)
+
+  // A5 X1: mesmo comportamento de public.yt_own_video_state_record: só insere quando o hash difere do da última linha do vídeo.
+  db.rpcHandlers.yt_own_video_state_record = (a) => {
+    const t = (db.tables.yt_own_video_state_raw ??= [])
+    let n = 0
+    for (const r of (a.p_rows as Row[])) {
+      const ult = [...t].reverse().find(x => x.youtube_video_id === r.youtube_video_id)
+      if (ult?.state_sha256 === r.state_sha256) continue
+      t.push({ ...r, id: t.length + 1, observed_at: new Date().toISOString() })
+      n++
+    }
+    return { data: n, error: null }
+  }
 
   // A5 E18 (Tarefa 6): as funções da MG12. `db.errors['rpc:yt_own_versions_apply_day']` tem precedência (função ausente).
   comVersoes(db)
