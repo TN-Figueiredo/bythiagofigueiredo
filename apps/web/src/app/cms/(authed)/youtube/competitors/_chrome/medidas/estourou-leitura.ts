@@ -13,7 +13,7 @@ import { leituraDoVideo, type Leitura } from './estourou-model'
 
 /** O pedaço do `Observatory` de que a leitura precisa: o vídeo e o canal dele, e o que o carregador das medidas pede. */
 export interface IObservatorioDaLeitura extends IObservatorioDeMedidas {
-  video(id: string): { id: string; ch: string; ageDays: number } | undefined
+  video(id: string): { id: string; ch: string; ageDays: number; pub?: number } | undefined
   channel(id: string): { id: string; name: string; own: boolean } | undefined
 }
 
@@ -28,7 +28,7 @@ export function leituraSemConsulta(obs: Pick<IObservatorioDaLeitura, 'video' | '
   const canal = obs.channel(v.ch)
   if (!canal || canal.own) return null
   const hojeSP = spDateOf(now)
-  if (aindaNaoExiste('estourou', hojeSP)) return leituraDoVideo(null, null, hojeSP, { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name })
+  if (aindaNaoExiste('estourou', hojeSP)) return leituraDoVideo(null, null, hojeSP, { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name, ...(v.pub !== undefined && Number.isFinite(v.pub) ? { publicadoSP: spDateOf(v.pub) } : {}) })
   return 'ler'
 }
 
@@ -47,7 +47,7 @@ export async function lerLeituraDoVideo(p: {
   const v = p.obs.video(p.videoId)!
   const canal = p.obs.channel(v.ch)!
   const hojeSP = spDateOf(p.now)
-  const video = { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name }
+  const video = { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name, ...(v.pub !== undefined && Number.isFinite(v.pub) ? { publicadoSP: spDateOf(v.pub) } : {}) }
   const carregar = p.carregar ?? carregarMedidasDoSite
   const doVideo = (m: MedidasDoSite): MedidasDoVideo | null => {
     const c = m.porCanal.get(canal.id)
@@ -94,7 +94,7 @@ export async function lerLeituraDoConjunto(p: {
   const v = p.obs.video(p.videoId)!
   const canal = p.obs.channel(v.ch)!
   const hojeSP = spDateOf(p.now)
-  const video = { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name }
+  const video = { idadeDias: Math.max(0, Math.floor(v.ageDays)), canal: canal.name, ...(v.pub !== undefined && Number.isFinite(v.pub) ? { publicadoSP: spDateOf(v.pub) } : {}) }
   try {
     const mv = 'naoCarregou' in p.c.medidas ? null : (p.c.medidas.porVideo.get(v.id) ?? null)
     if (mv === null) return await lerLeituraDoVideo(p)
