@@ -378,6 +378,11 @@
   [data-obs-screen="historico"] .lane.has-grp{--lt:48px}
   [data-obs-screen="historico"] .lane .mk{width:44px;height:44px;margin-left:-22px;top:calc(var(--lt) - 22px)}
 }
+/* ponteiro fino e viewport larga: o alvo do marcador é 24 px (WCAG 2.5.8), não 32; cobre 12 px do topo do clipe e não 16, e a miniatura estreita
+   embaixo mantém >= 24 px de alvo próprio (achado C5-M3, trem 6) */
+@media (pointer:fine) and (min-width:901px){
+  [data-obs-screen="historico"] .lane .mk{width:24px;height:24px;margin-left:-12px;top:calc(var(--lt) - 12px)}
+}
 /* destaque por imagem: cor do texto (não o roxo do campo, que já é a cor de tudo na faixa), contorno grosso e barra embaixo */
 [data-obs-screen="historico"] .clip.is-hl{border:2px solid var(--hl);background:var(--surface-2);color:var(--text);box-shadow:inset 0 -5px 0 var(--hl)}
 [data-obs-screen="historico"] .fcard.is-hl{border:2px solid var(--text);padding:7px;background:var(--surface-2)}

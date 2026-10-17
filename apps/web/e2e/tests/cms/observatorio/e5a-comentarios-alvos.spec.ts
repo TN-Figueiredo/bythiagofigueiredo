@@ -77,8 +77,7 @@ const HIST = [
 ] as const
 for (const c of HIST) {
   test(`histórico ${c.w}${c.coarse ? ' toque' : ''} ${c.theme}: miniatura estreita com alvo suficiente e sem invadir o vizinho`, async ({ browser, baseURL }) => {
-    // ACHADO C5-M3 (menor): a 1440 (ponteiro fino) o botao.mk de outra faixa cobre ~16 px do topo da miniatura #6 e o alvo dela fica com 23 px (< 24). Sai quando consertarem.
-    if (!c.coarse) test.fail()
+    // C5-M3 consertado no trem 6: a 1440 (ponteiro fino) o .mk tem 24 px e cobre 12 px do topo do clipe; a miniatura #6 mantém alvo >= 24.
     test.setTimeout(180_000)
     const ctx = await browser.newContext({ storageState: ADMIN_STATE, viewport: { width: c.w, height: 900 }, hasTouch: c.coarse, isMobile: c.coarse })
     const page = await ctx.newPage()
