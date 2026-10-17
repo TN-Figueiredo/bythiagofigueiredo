@@ -105,7 +105,7 @@ describe('C2 · modelo · motivo com zero dito', () => {
   }
   it('canal acompanhado e canal grande', () => {
     const p = lista({})
-    expect(p.legenda[2]!.texto).toBe('nenhum canal que você acompanha comentou')
+    expect(p.legenda[2]!.texto).toBe('0 comentários')
     expect(p.legenda[3]!.texto).toBe('nenhum canal grande entre os 20 mais curtidos')
   })
   it('com inscritos ocultos: "entre os 19 que deu para medir"', () => {
@@ -120,7 +120,7 @@ describe('C2 · modelo · motivo com zero dito', () => {
   it('um canal grande: legenda e base em duas escadas de três degraus', () => {
     const g = cartao(1, 'inscritos', { nosMarcos: [7], autor: { tipo: 'canal_grande' }, faixas: { tamanho: '1m_10m', razao: null } })
     const p = lista({}, [g, ...doze().slice(1).map(c => ({ ...c, nosMarcos: [7] as Marco[] }))])
-    expect(p.legenda[3]!.texto).toBe('1 de canal grande, entre os 20 mais curtidos')
+    expect(p.legenda[3]!.texto).toBe('1 comentário, entre os 20 mais curtidos')
     const v = p.cartoes.find(c => c.chave === 'g')!
     expect(v.base).toEqual({ tamanho: { degrau: 2, texto: 'de 1 a 10 milhões de inscritos' }, razao: 'nao_medida' })
     expect(v.autor).toEqual({ tipo: 'grande', faixa: '1m_10m' })

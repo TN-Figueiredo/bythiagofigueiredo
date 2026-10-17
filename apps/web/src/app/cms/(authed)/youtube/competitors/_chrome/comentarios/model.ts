@@ -289,10 +289,10 @@ function listaDoMarco(m: Marco, dados: ComentariosDoVideo, e: Extract<EstadoDoMa
     ? FRASES.entreOsDoVideo
     : semTamanho > 0 ? FRASES.entreOsMedidos(consultados - semTamanho) : FRASES.entreOs20(COMMENT_RULES.featuredLookup)
   const legenda: LegendaView[] = [
-    { chave: 'c', rotulo: FRASES.motivoCurtidos, n: nC, zero: nC === 0, texto: nC === 0 ? FRASES.zeroCurtidos : FRASES.legendaCurtidos(nC) },
-    { chave: 'k', rotulo: FRASES.motivoCriador, n: nK, zero: nK === 0, texto: nK === 0 ? FRASES.zeroCriador : FRASES.legendaCriador(nK) },
-    { chave: 'a', rotulo: FRASES.motivoAcompanhado, n: nA, zero: nA === 0, texto: nA === 0 ? FRASES.zeroAcompanhado : FRASES.legendaAcompanhado(nA) },
-    { chave: 'g', rotulo: FRASES.motivoGrande, n: nG, zero: nG === 0, texto: nG === 0 ? FRASES.zeroGrande(ate) : FRASES.legendaGrande(nG, ate) },
+    { chave: 'c', rotulo: FRASES.motivoCurtidos, n: nC, zero: nC === 0, texto: nC === 0 ? FRASES.zeroN : FRASES.legendaN(nC) },
+    { chave: 'k', rotulo: FRASES.motivoCriador, n: nK, zero: nK === 0, texto: nK === 0 ? FRASES.zeroN : FRASES.legendaNCriador(nK, resp) },
+    { chave: 'a', rotulo: FRASES.motivoAcompanhado, n: nA, zero: nA === 0, texto: nA === 0 ? FRASES.zeroN : FRASES.legendaN(nA) },
+    { chave: 'g', rotulo: FRASES.motivoGrande, n: nG, zero: nG === 0, texto: nG === 0 ? FRASES.zeroGrande(ate) : FRASES.legendaNGrande(nG, ate) },
   ]
 
   const movimento: MovimentoView = anterior === null

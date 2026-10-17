@@ -104,7 +104,7 @@ describe('C2 · lista', () => {
     render(<ListaDoPainel v={lista()} />)
     expect(screen.getByText(/guardamos 12 dos 100 primeiros/)).toBeTruthy()
     expect(screen.getAllByText('12 de 100').length).toBeGreaterThan(0)
-    expect(screen.getByText('nenhum canal que você acompanha comentou')).toBeTruthy()
+    expect(screen.getAllByText('0 comentários').length).toBeGreaterThan(0)
   })
   it('"Ver os N que saíram" abre os cartões dos que saíram', () => {
     const cs = doze().map((c, i) => ({ ...c, nosMarcos: (i < 10 ? [1, 7] : [1]) as Marco[] }))

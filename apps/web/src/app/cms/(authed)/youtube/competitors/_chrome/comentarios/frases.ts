@@ -36,7 +36,6 @@ export const FRASES = {
   legendaCurtidos: (n: number) => (n === 1 ? '1 mais curtido' : `${n} mais curtidos`),
   legendaCriador: (n: number, respondeu = 0) => `${n} com o criador${respondeu > 0 ? ` (ele respondeu a ${respondeu})` : ''}`,
   legendaAcompanhado: (n: number) => `${n} de canal que você acompanha`,
-  legendaGrande: (n: number, ate: string) => `${n} de canal grande, ${ate}`,
   legendaGrandeCurta: (n: number) => `${n} de canal grande`,
   // Frases de abertura da lista (singular no 1)
   abreTodos: (d: number, n: number) => `Com ${dias(d)}, guardamos ${n === 1 ? 'o único comentário do vídeo' : `todos os ${n} comentários do vídeo`}`,
@@ -45,9 +44,12 @@ export const FRASES = {
     `Com ${dias(d)}, guardamos ${n} dos ${de.toLocaleString('pt-BR')} primeiros comentários que o YouTube mostra, na ordem de relevância dele`,
   rotuloDaCasa: (i: number, n: number, motivo: string, curtidas: number | null, d: number) =>
     `Comentário ${i} de ${n}, ${motivo.toLowerCase()}${curtidas === null ? '' : `, ${curtidas === 1 ? '1 curtida' : `${curtidas.toLocaleString('pt-BR')} curtidas`} com ${dias(d)}`}`,
-  zeroCurtidos: '0 mais curtidos',
-  zeroCriador: '0 com o criador',
-  zeroAcompanhado: 'nenhum canal que você acompanha comentou',
+  // Legenda por motivo: o rótulo já diz o motivo, o texto diz só quantos (sem repetir o motivo: Gio C5 menor M2).
+  // TEXTO-A-REVISAR (Logan)
+  legendaN: (n: number) => (n === 1 ? '1 comentário' : `${n} comentários`),
+  legendaNCriador: (n: number, respondeu = 0) => `${n === 1 ? '1 comentário' : `${n} comentários`}${respondeu > 0 ? ` (ele respondeu a ${respondeu})` : ''}`,
+  legendaNGrande: (n: number, ate: string) => `${n === 1 ? '1 comentário' : `${n} comentários`}, ${ate}`,
+  zeroN: '0 comentários',
   zeroGrande: (ate: string) => `nenhum canal grande ${ate}`,
   entreOs20: (n: number) => `entre os ${n} mais curtidos`,
   entreOsMedidos: (n: number) => `entre os ${n} que deu para medir`,
