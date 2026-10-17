@@ -9,6 +9,7 @@ import { comTempo } from './gravar'
 import { nivelDeQuemVe, semMencoes } from './leitor-nivel'
 import type { ContagemDeRespostas, ParteLida, ProvasDeQuemVe, RespostaDoCriador, RespostasDoCriador } from './leitor-tipos'
 import { PAGINA, VOLTAS_MAX, blocos, bool, cortada, depoisDe, ForaDaForma, lerAgenda, linhasDe, marcoDe, msDe, naoLidaPorErro, num, txt } from './leitor'
+import { COMMENT_RULES } from './regras'
 import type { Marco } from './tipos'
 
 const idDe = (v: unknown): string => {
@@ -83,8 +84,8 @@ export async function lerRespostasDoCriador(
   try {
     const { nivel, siteId } = nivelDeQuemVe(p.provas, p.siteDaGuarda)
     const comTexto = nivel !== 'contagem'
-    const colunas = comTexto ? 'id, video_id, body, body_truncated' : 'id'
-    const topos: Array<{ id: string; videoId: string; texto: string; cortado: boolean }> = []
+    const colunas = comTexto ? 'id, video_id, body, body_truncated, published_at' : 'id'
+    const topos: Array<{ id: string; videoId: string; texto: string; cortado: boolean; publicadoMs: number }> = []
     let totalContagem = 0
     // passo 1: só os topos com resposta do criador, filtrados no banco e paginados por `id` (no nível contagem, só o `id` e o total)
     for (const bloco of blocos(p.videoIds)) {
@@ -101,7 +102,7 @@ export async function lerRespostasDoCriador(
         })
         const pagina = linhasDe(r)
         for (const x of pagina) {
-          if (comTexto) topos.push({ id: idDe(x.id), videoId: txt(x.video_id), texto: txt(x.body), cortado: bool(x.body_truncated) })
+          if (comTexto) topos.push({ id: idDe(x.id), videoId: txt(x.video_id), texto: txt(x.body), cortado: bool(x.body_truncated), publicadoMs: msDe(x.published_at) })
           else totalContagem += 1
         }
         depois = depoisDe(pagina)
@@ -140,14 +141,22 @@ export async function lerRespostasDoCriador(
     }
     const itens: RespostaDoCriador[] = []
     for (const t of topos) {
-      const resposta = (respostas.get(t.id) ?? []).sort((a, b) => a.publicadoMs - b.publicadoMs)[0]
-      if (resposta === undefined) continue
+      // da mais antiga para a mais nova; empate por id NUMÉRICO (o id é string de bigint: '10' ordenaria antes de '9')
+      const filhas = (respostas.get(t.id) ?? [])
+        .sort((a, b) => a.publicadoMs - b.publicadoMs || Number(BigInt(a.id) - BigInt(b.id)))
+        .slice(0, COMMENT_RULES.creatorRepliesMax)
+      if (filhas.length === 0) continue
       const a = semMencoes(t.texto)
-      const b = semMencoes(resposta.texto)
+      let trocadas = a.trocadas
+      const rs = filhas.map((f) => {
+        const b = semMencoes(f.texto)
+        trocadas += b.trocadas
+        return { texto: b.texto, cortado: f.cortado, publicadoEm: new Date(f.publicadoMs).toISOString() }
+      })
       const l = likes.get(t.id)
       itens.push({
-        videoId: t.videoId, texto: a.texto, cortado: t.cortado, respostaTexto: b.texto, respostaCortada: resposta.cortado,
-        curtidas: l?.curtidas ?? null, marco: l?.marco ?? null, mencoesTrocadas: a.trocadas + b.trocadas,
+        videoId: t.videoId, texto: a.texto, cortado: t.cortado, publicadoEm: new Date(t.publicadoMs).toISOString(), respostas: rs,
+        curtidas: l?.curtidas ?? null, marco: l?.marco ?? null, mencoesTrocadas: trocadas,
       })
     }
     // só os itens que a tela consegue listar: total e lista dizem o mesmo número

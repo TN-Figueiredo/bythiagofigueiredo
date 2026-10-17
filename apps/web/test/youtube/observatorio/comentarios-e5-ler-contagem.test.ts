@@ -142,7 +142,44 @@ describe('lerRespostasDoCriador (E5a C1)', () => {
   it('nível texto: o comentário, a resposta presa, as curtidas do marco mais recente e o vídeo; menções trocadas', async () => {
     const { r } = await pedir(provasTexto)
     if (!r.lido) throw new Error('esperava lido')
-    expect(r.dados.itens).toEqual([{ videoId: 'v1', texto: '@… adorei', cortado: false, respostaTexto: 'valeu @…', respostaCortada: false, curtidas: 25, marco: 7, mencoesTrocadas: 2 }])
+    expect(r.dados.itens).toEqual([{
+      videoId: 'v1', texto: '@… adorei', cortado: false, publicadoEm: iso(AGORA - 5 * H),
+      respostas: [{ texto: 'valeu @…', cortado: false, publicadoEm: iso(AGORA - 5 * H) }], curtidas: 25, marco: 7, mencoesTrocadas: 2,
+    }])
+  })
+  it('T1: a consulta das respostas leva is(missing_since, null)', async () => {
+    const { db } = await pedir(provasTexto)
+    const dasRespostas = db.pedidos.filter((p) => p.ins.parent_id !== undefined)
+    expect(dasRespostas.length).toBeGreaterThan(0)
+    for (const p of dasRespostas) expect(p.eqs['missing_since:is']).toBeNull()
+    expect(db.pedidos.some((p) => p.cols.includes('published_at') && p.ins.parent_id === undefined)).toBe(true)
+  })
+  it('T1: até 3 respostas por fio, da mais antiga à mais nova, empate por BigInt(id) (9 antes de 10); com 4, corta em 3', async () => {
+    const t = base()
+    const mesma = iso(AGORA - 3 * H)
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      coment(10, 'v1', { parent_id: 1, is_creator: true, body: 'dez', published_at: mesma }),
+      coment(9, 'v1', { parent_id: 1, is_creator: true, body: 'nove', published_at: mesma }),
+      coment(11, 'v1', { parent_id: 1, is_creator: true, body: 'onze @bia', published_at: iso(AGORA - 2 * H) }),
+    ]
+    const { r } = await pedir(provasTexto, {}, t)
+    if (!r.lido) throw new Error('esperava lido')
+    const it0 = r.dados.itens[0]
+    expect(it0?.respostas.map((x) => x.texto)).toEqual(['valeu @…', 'nove', 'dez'])
+    expect(it0?.respostas).toHaveLength(3)
+    expect(it0?.publicadoEm).toBe(iso(AGORA - 5 * H))
+    expect(it0?.mencoesTrocadas).toBe(2)
+  })
+  it('T1: as menções de todas as respostas somam em mencoesTrocadas', async () => {
+    const t = base()
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      coment(12, 'v1', { parent_id: 1, is_creator: true, body: 'oi @bia', published_at: iso(AGORA - 2 * H) }),
+    ]
+    const { r } = await pedir(provasTexto, {}, t)
+    if (!r.lido) throw new Error('esperava lido')
+    expect(r.dados.itens[0]?.mencoesTrocadas).toBe(3)
   })
   it('não consulta a tabela de identidade em nível nenhum (e a menção é trocada também no nível identidade)', async () => {
     for (const provas of [null, provasTexto, provasIdentidade]) {

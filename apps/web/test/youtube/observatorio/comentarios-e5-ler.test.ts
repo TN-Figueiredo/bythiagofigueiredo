@@ -189,6 +189,13 @@ describe('lerComentariosDeDestaque: o que cada cartão diz (E5a C1)', () => {
     const d = dados(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(provasTexto)))
     expect(JSON.stringify(d)).not.toContain('resp-saiu-sentinela')
   })
+  it('T1: a resposta do criador traz a data (ISO do published_at), em ordem da mais antiga', async () => {
+    const d = dados(await lerComentariosDeDestaque(falsoComentarios(base()).client, pedido(provasTexto)))
+    const rs = (d.comentarios as CartaoTexto[]).flatMap((c) => c.respostasDoCriador)
+    expect(rs.length).toBeGreaterThan(0)
+    for (const r of rs) expect(r.publicadoEm).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(rs[0]?.publicadoEm).toBe(iso(T0 + H))
+  })
   it('no máximo 3 respostas do criador por comentário, em ordem de data', async () => {
     const t = base()
     const extra = [10, 11, 12].map((id, i) => coment(id, { parent_id: 2, is_creator: true, body: 'r' + i, published_at: iso(T0 + (10 - i) * H) }))

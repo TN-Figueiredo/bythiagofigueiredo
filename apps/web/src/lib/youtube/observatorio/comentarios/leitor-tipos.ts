@@ -24,7 +24,8 @@ export interface Faixas { tamanho: string | null; razao: string | null }
 /** Curtidas num marco: o número lido, `fora_dos_12` (o marco foi retratado e o comentário não tem leitura nele) ou `ainda_nao` (marco sem retrato ok). */
 export type CurtidasNoMarco = number | 'fora_dos_12' | 'ainda_nao'
 
-export interface RespostaDoCriadorVista { texto: string; cortado: boolean }
+/** `publicadoEm` é o ISO do `published_at`; `null` quando a linha vier sem data (a fala então não escreve data). */
+export interface RespostaDoCriadorVista { texto: string; cortado: boolean; publicadoEm: string | null }
 
 /** Campos comuns a todo cartão, em qualquer nível. */
 export interface CartaoBase {
@@ -115,8 +116,10 @@ export interface RespostaDoCriador {
   videoId: string
   texto: string
   cortado: boolean
-  respostaTexto: string
-  respostaCortada: boolean
+  /** ISO do `published_at` do topo; `null` sem data. */
+  publicadoEm: string | null
+  /** Até `COMMENT_RULES.creatorRepliesMax`, da mais antiga para a mais nova. */
+  respostas: Array<{ texto: string; cortado: boolean; publicadoEm: string | null }>
   /** Curtidas no marco mais recente que tem leitura; nulo se nenhuma. */
   curtidas: number | null
   marco: Marco | null

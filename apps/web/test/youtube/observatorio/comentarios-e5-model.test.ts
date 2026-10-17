@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { secaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/model'
+import { autorDaFala, secaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/model'
 import { FRASES } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/frases'
 import type { ComentariosDoVideo, EstadoDoMarco } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import type { Marco } from '@/lib/youtube/observatorio/comentarios/tipos'
@@ -345,5 +345,13 @@ describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', 
     const p = s.paineis[7]
     if (p.kind !== 'lista') throw new Error('lista')
     expect(p.cartoes.map((x) => x.id)).toEqual(['cd-7-2', 'cd-7-1'])
+  })
+})
+
+describe('T1 · autorDaFala', () => {
+  it('o criador perde o nome (vem de CriadorDoFio); os outros passam iguais', () => {
+    expect(autorDaFala({ tipo: 'criador', nome: 'X' })).toEqual({ tipo: 'criador' })
+    expect(autorDaFala({ tipo: 'espectador' })).toEqual({ tipo: 'espectador' })
+    expect(autorDaFala({ tipo: 'grande', faixa: '1m_10m' })).toEqual({ tipo: 'grande', faixa: '1m_10m' })
   })
 })
