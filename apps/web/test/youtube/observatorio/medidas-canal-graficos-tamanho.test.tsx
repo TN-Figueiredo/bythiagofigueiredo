@@ -38,3 +38,10 @@ describe('graficos do canal: texto de tamanho fixo', () => {
     for (const m of css.matchAll(/\.(ic-ax|pc-idx|pc-pint|pc-hbt|pc-nmt)\{font:\d+ (\d+)px/g)) expect(Number(m[2])).toBeGreaterThanOrEqual(12)
   })
 })
+
+describe('"n = k" das celulas do canal (Gio T15-3)', () => {
+  it('o <small> da celula tem regra propria de >= 12 px (o padrao do navegador da 11,2 px)', () => {
+    const css = readFileSync('src/app/cms/(authed)/youtube/competitors/_canal/medidas/canal-medidas.css', 'utf8')
+    expect(css).toMatch(/\.pc-cel dd\.v small\{font-size:12px/)
+  })
+})
