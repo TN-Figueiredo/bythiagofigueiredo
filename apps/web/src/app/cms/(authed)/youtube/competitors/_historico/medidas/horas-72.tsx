@@ -31,7 +31,7 @@ function Grafico({ b }: { b: BlocoDeHorasOk }) {
   const base = TM + PH
   const H = (g: number): number => Math.max(2, (PH * g) / maxGanho)
   return (
-    <svg className="hv-svg72" viewBox={`0 0 ${W} ${base + 38}`} width="100%" aria-hidden="true">
+    <svg className="hv-svg72" viewBox={`0 0 ${W} ${base + 38}`} width={W} height={base + 38} aria-hidden="true">
       <defs>
         <pattern id="hv-h72" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" className="gl-nm-fundo" /><line x1="0" y1="0" x2="0" y2="6" className="gl-nm-risco" /></pattern>
       </defs>
@@ -110,6 +110,7 @@ export function Horas72({ bloco }: { bloco: BlocoDeHoras }) {
       >
         <Grafico b={b} />
       </GraficoLegivel>
+      <p className="hv-rola" data-rola>Role o gráfico para o lado para ver as 72 horas.</p>
       {b.antesDaPrimeira ? <p className="hv-mut" data-antes-texto>{b.antesDaPrimeira.texto}</p> : null}
       {b.frasesDasHoras.length > 0 ? <ul className="hv-lista-h" data-frases-das-horas>{b.frasesDasHoras.map((f) => <li key={f}>{f}</li>)}</ul> : null}
       <Regua72h regua={b.regua} />

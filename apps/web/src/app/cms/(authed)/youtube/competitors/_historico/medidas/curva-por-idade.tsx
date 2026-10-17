@@ -50,7 +50,7 @@ function Grafico({ pontos }: { pontos: PontoDeIdade[] }) {
   const tv = trechos((p) => (p.video.tipo === 'medido' ? p.video.views : null))
   const tn = trechos((p) => (p.normal.tipo === 'medido' ? p.normal.views : null))
   return (
-    <svg className="ic-svg" viewBox={`0 0 ${W} ${base + BM}`} width="100%" aria-hidden="true">
+    <svg className="ic-svg" viewBox={`0 0 ${W} ${base + BM}`} width={W} height={base + BM} aria-hidden="true">
       {[0, 0.5, 1].map((f) => (
         <g key={f}>
           <line className="gl-grade" x1={LM} x2={W - RM} y1={Y(ymax * f)} y2={Y(ymax * f)} />
@@ -122,6 +122,7 @@ export function CurvaPorIdade({ bloco }: { bloco: BlocoDeIdade }) {
           >
             <Grafico pontos={bloco.pontos} />
           </GraficoLegivel>
+          <p className="hv-rola" data-rola>Role o gráfico para o lado para ver todas as idades.</p>
           {futuro && futuro.video.tipo === 'ainda_nao_existe' && futuro.video.fechaEm ? <p className="hv-mut sr">O ponto de {futuro.rotulo} fecha em {dm(futuro.video.fechaEm)}.</p> : null}
         </div>
         <div>
