@@ -10,6 +10,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { Icon } from '../icons'
 import './graficos.css'
+import './medidas.css'
 
 export interface PontoLegivel { rotulo: string; fala: string }
 export interface TabelaLegivel { cabecalho: string[]; linhas: string[][] }
