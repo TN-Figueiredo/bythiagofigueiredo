@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisão 75: erro e restrito (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Mockup da decisão 75 (17/10/2026). Tokens: cópia literal de _chrome/chrome.css e tokens-telas.css (CMS real). Dados SINTÉTICOS.
+   Só hex e rgba literais (Opera renderiza color-mix() transparente). Texto >= 12 px. Responsivo por container query: o quadro de 390 px é o mesmo código.
+   O que muda: o que hoje é "não medido" por falha ou por falta de acesso ganha forma própria. "Não medido" continua só para o que não foi medido. */
+:root{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--danger:#F26B6B;--danger-text:#F26B6B;--danger-subtle:rgba(239,68,68,.14);--danger-line:#F26B6B;
+  --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);
+  --im-zero:#7A8FA6;--dir-up:#22c55e;--dir-dn:#F59E0B;--lado-o:#FF8240;--lado-b:#7CC8F8;
+  --res-bg:#16130F;--res-line:#A89D88;--res-ink:#F5EFE6;
+  --sans:Inter,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;--serif:Fraunces,Georgia,serif;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--danger:#B42318;--danger-text:#B42318;--danger-subtle:rgba(180,35,24,.08);--danger-line:#B42318;
+  --nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);
+  --im-zero:#5B6F86;--dir-up:#11692F;--dir-dn:#8A5A00;--lado-o:#B8481A;--lado-b:#0B6BA8;
+  --res-bg:#F2EBDF;--res-line:#5E5240;--res-ink:#231C14;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.92em;letter-spacing:-.01em}
+
+/* barra de controle do mockup (não é parte da tela) */
+.ctl{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.ctl b{font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:32px;padding:0 12px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--text);color:var(--bg);font-weight:600}
+.ctl nav{display:flex;flex-wrap:wrap;gap:4px 14px;margin-left:auto;font-size:13px}
+.ctl nav a{color:var(--muted)}
+
+.wrap{max-width:1440px;margin:0 auto;padding:24px 16px 80px}
+.stage{margin:0 auto;max-width:1408px}
+body[data-w="390"] .stage{max-width:390px}
+h1{font:600 30px/1.15 var(--serif);letter-spacing:-.01em;margin:8px 0 6px;font-variation-settings:"opsz" 72}
+.lede{max-width:70ch;color:var(--muted);margin:0 0 20px}
+h2{font:600 20px/1.25 var(--serif);margin:0 0 4px}
+h3{font:600 14px/1.3 var(--sans);margin:0}
+.sec{margin-top:40px;scroll-margin-top:64px}
+.sec>p.why{margin:0 0 14px;color:var(--muted);max-width:74ch}
+.file{font:400 12px/16px var(--mono);color:var(--dim)}
+
+/* ===== AS TRÊS PASTILHAS ===== */
+/* não medido: já existe (tokens-telas.css). Hachura rosa. */
+.nm{display:inline-block;padding:1px 6px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);font:400 12px/16px var(--sans);
+  background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+/* erro (NOVO): contorno vermelho cheio + triângulo de aviso + "falhou". Substitui .obs-md-nc ("Não carregou") e .vb-falhou. */
+.er{display:inline-flex;align-items:center;gap:5px;padding:1px 7px 1px 5px;border:1.5px solid var(--danger-line);border-radius:4px;background:var(--danger-subtle);
+  color:var(--text);font:600 12px/16px var(--sans);white-space:nowrap}
+.er svg{flex:none;color:var(--danger-text)}
+.er[data-novo="1"]{border-style:dashed}
+/* botão "Tentar de novo": FORA da pastilha, um por bloco, alvo de 44 px (WCAG 2.5.8 folgado; Naksu 2) */
+.retry{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:132px;padding:0 12px;font:500 13px/18px var(--sans);color:var(--text);background:var(--surface-2);border:1px solid var(--muted);border-radius:6px;cursor:pointer}
+.retry:hover{border-color:var(--text)}
+.retry[aria-disabled="true"]{cursor:progress;color:var(--muted);border-style:dashed}
+.retry-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px}
+.retry-row .frase{margin:0;flex:1 1 220px}
+.estado-val{display:flex;align-items:center;gap:8px;min-height:44px}
+.estado-val .val{font:600 20px/26px var(--sans)}
+.estado-val .val:focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+/* restrito (NOVO): chapa lisa, sem hachura, sem vermelho + cadeado + "restrito". É o mesmo desenho do .ov-bq da Origem, agora em pastilha. */
+.rs{display:inline-flex;align-items:center;gap:5px;padding:1px 7px 1px 5px;border:1px solid var(--res-line);border-radius:4px;background:var(--res-bg);
+  color:var(--res-ink);font:500 12px/16px var(--sans);white-space:nowrap}
+.rs svg{flex:none;color:var(--res-ink)}
+/* o quadradinho (sem texto): faixa do cabeçalho e cartões estreitos */
+.q{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;vertical-align:middle;flex:none}
+.q.nm{padding:0;border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}
+.q.er{padding:0;gap:0;border:1.5px solid var(--danger-line);background:var(--danger-subtle)}
+.q.rs{padding:0;gap:0;border:1px solid var(--res-line);background:var(--res-bg)}
+.q svg{width:12px;height:12px}
+
+/* quadro de uma tela: três colunas lado a lado */
+.frame{container-type:inline-size;margin-top:18px}
+.frame>.cap{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;margin-bottom:8px}
+.cmp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@container (max-width:760px){.cmp{grid-template-columns:minmax(0,1fr)}}
+.col{min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:12px 14px}
+.col>.tag{display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:12px;line-height:16px;color:var(--muted)}
+.col>.tag b{color:var(--text);font-weight:600}
+.col.na{background:none;border-style:dashed;color:var(--muted);font-size:13px}
+.col.old{background:var(--sunk)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.frase{margin:8px 0 0;font-size:13px;line-height:19px;max-width:62ch}
+.frase b{font-weight:600}
+.mut{color:var(--muted)}
+
+/* peças das telas (versões reduzidas do CMS real) */
+.faixa{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px 12px;margin:0}
+.faixa>div{min-width:0}
+.faixa dd{margin:0;min-height:26px;display:flex;align-items:center;font:600 20px/26px var(--sans)}
+.faixa dt{font-size:12px;line-height:16px;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.cv{border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:10px}
+.cv .th{height:64px;border-radius:5px;background:var(--sunk);border:1px solid var(--border-subtle);margin-bottom:8px}
+.cv h4{margin:0 0 6px;font:500 13px/18px var(--sans)}
+.cv .nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px}
+.cv .c{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cv .c i{font-style:normal;font-size:12px;line-height:16px;color:var(--muted)}
+.cv .c b{font:600 14px/18px var(--mono)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--border-subtle);text-align:left;vertical-align:middle}
+th{font-weight:500;color:var(--muted);font-size:12px}
+td.r,th.r{text-align:right}
+.tbl{overflow-x:auto}
+.ret{margin:0}
+.ret .row{display:flex;gap:10px;align-items:flex-start}
+.ret p{margin:0;font-size:13.5px;line-height:20px;max-width:64ch}
+.reg{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;margin:0}
+.reg .nome{font-size:13px}.reg .nome small{display:block;color:var(--muted);font-size:12px;line-height:16px}
+.reg .bar{display:block;width:110px;height:10px;border-radius:3px;background:var(--surface-2);border:1px dashed var(--dim)}
+.per{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@container (max-width:520px){.per{grid-template-columns:minmax(0,1fr)}}
+.per>div{border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:var(--surface-2);min-width:0}
+.per small{display:block;color:var(--muted);font-size:12px;line-height:16px;margin-top:4px}
+.sol .l{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:start;padding:7px 0;border-bottom:1px solid var(--border-subtle)}
+.sol .l:last-child{border:0}
+.sol .rt{font-size:13px}.sol .rt small{display:block;color:var(--muted);font-size:12px;line-height:16px}
+.aviso-linha{display:flex;gap:8px;align-items:flex-start;margin-top:8px}
+.dir{display:flex;align-items:center;gap:8px;padding:6px 0;min-height:44px}
+.chiptr{display:inline-block;padding:2px 8px;border-radius:999px;border:1.5px dashed var(--muted);font-size:12px;white-space:nowrap}
+
+/* legenda das regras */
+.regras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0 0}
+@container (max-width:760px){.regras{grid-template-columns:minmax(0,1fr)}}
+.regras>div{border-top:2px solid var(--border-strong);padding-top:8px}
+.regras .big{min-height:34px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.regras p{margin:6px 0 0;font-size:13px;line-height:19px;max-width:42ch}
+.cinza{filter:grayscale(1)}
+.hero{container-type:inline-size}
+.dec{margin:0;padding:0;list-style:none;display:grid;gap:6px;max-width:80ch;font-size:13.5px}
+.dec li{padding-left:14px;position:relative}.dec li:before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;background:var(--muted)}
+</style>
+</head>
+<body data-w="1440">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="g-aviso" viewBox="0 0 14 14"><path d="M7 1.8 12.8 12H1.2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 5.6v3M7 10.2v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="g-lock" viewBox="0 0 14 14"><rect x="2.6" y="6.2" width="8.8" height="6" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 6.2V4.4a2.4 2.4 0 0 1 4.8 0v1.8M7 8.6v1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="ctl" role="group" aria-label="Controles do mockup">
+  <b>Decisão 75</b>
+  <span class="seg" role="group" aria-label="Tema"><button type="button" data-tema="dark" aria-pressed="true">Escuro</button><button type="button" data-tema="light" aria-pressed="false">Claro</button></span>
+  <span class="seg" role="group" aria-label="Largura"><button type="button" data-larg="1440" aria-pressed="true">1440</button><button type="button" data-larg="390" aria-pressed="false">390</button></span>
+  <span class="seg" role="group" aria-label="Escala de cinza"><button type="button" data-cinza="0" aria-pressed="true">Cor</button><button type="button" data-cinza="1" aria-pressed="false">Cinza</button></span>
+  <nav aria-label="Telas"><a href="#regra">Regra</a><a href="#t1">Faixa</a><a href="#t2">Cartões</a><a href="#t3">Tabela</a><a href="#t4">Retenção</a><a href="#t5">Réguas</a><a href="#t6">% assistido</a><a href="#t7">Comparar</a><a href="#t8">Canais de fora</a><a href="#t9">Trocas</a></nav>
+</div>
+
+<div class="wrap" id="topo"><div class="stage" id="stage">
+
+<header class="hero">
+  <h1>Erro e restrito deixam de ser "não medido"</h1>
+  <p class="lede">Hoje três situações diferentes usam a mesma pastilha rosa hachurada: o YouTube não mediu, a leitura falhou ou quem olha não pode ver. Cada uma agora tem forma, símbolo e palavra próprios. A cor continua estável e nunca é o único sinal: o mockup tem o botão "Cinza" para provar.</p>
+
+  <section class="sec" id="regra" style="margin-top:12px">
+    <h2>As três pastilhas</h2>
+    <p class="why">Mesmo tamanho, mesma linha de base. O quadradinho (sem texto) é a versão da faixa do cabeçalho e dos cartões estreitos; a frase com o motivo mora sempre ao lado ou embaixo.</p>
+    <div class="regras" id="regras">
+      <div>
+        <div class="big"><span class="nm">não medido</span><span class="q nm" role="img" aria-label="não medido" title="não medido"></span></div>
+        <p><b>Hachura rosa.</b> O YouTube não mediu, ou ainda não há dado. Vale só para isso. Sem mudança.</p>
+      </div>
+      <div>
+        <div class="big"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><span class="q er" role="img" aria-label="falhou" title="falhou"><svg aria-hidden="true" style="color:var(--danger-text)"><use href="#g-aviso"/></svg></span></div>
+        <p><b>Contorno vermelho cheio e triângulo de aviso.</b> A leitura deu erro agora. Dá para tentar de novo: onde há botão, ele repete o bloco e a frase não manda recarregar; onde não há botão, a frase diz "recarregue a página". Nunca as duas coisas. Quando há botão, ele fica ao lado da pastilha (nunca dentro dela), um por bloco, com 44 px de alto.</p>
+      </div>
+      <div>
+        <div class="big"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><span class="q rs" role="img" aria-label="restrito" title="restrito"><svg aria-hidden="true"><use href="#g-lock"/></svg></span></div>
+        <p><b>Chapa lisa neutra e cadeado.</b> O dado existe, mas é só de quem edita o site. Sem vermelho (não é defeito) e sem hachura (não é ausência). É o desenho que a Origem das views já usa.</p>
+      </div>
+    </div>
+    <ul class="dec" style="margin-top:16px">
+      <li>Rótulos propostos: <b>não medido</b>, <b>falhou</b>, <b>restrito</b>. Verbos e adjetivo curtos, minúsculos como o "não medido" de hoje. O Logan decide a palavra final.</li>
+      <li>Restrito só existe em tela do canal próprio e no Comparar com o seu canal. Canal de fora nunca é restrito: lá só há "não medido" e "falhou".</li>
+      <li>Onde a pastilha não cabe (célula de 60 px), vale o quadradinho com <code>role="img"</code> e o nome no <code>aria-label</code>; a frase explica uma vez, sob o bloco.</li>
+    </ul>
+  </section>
+</header>
+
+<!-- ============ T1 ============ -->
+<section class="sec" id="t1">
+  <h2>1. Canal próprio: faixa do cabeçalho</h2>
+  <p class="why">Cinco números sem valor. Hoje sempre o mesmo quadradinho hachurado e o motivo numa frase abaixo. <span class="file">_proprio/proprio-header.tsx:32</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b> o relatório ainda não trouxe o dia</p>
+      <dl class="faixa">
+        <div><dd><span class="q nm" role="img" aria-label="não medido" title="não medido"></span></dd><dt>Impressões</dt></div>
+        <div><dd><span class="q nm" role="img" aria-label="não medido" title="não medido"></span></dd><dt>Cliques</dt></div>
+        <div><dd class="num">8,4 mil</dd><dt>Views, 28 dias</dt></div>
+      </dl>
+      <p class="frase"><b>Sem relatório.</b> O YouTube ainda não entregou o relatório de alcance deste período.</p></div>
+    <div class="col"><p class="tag"><b>Erro</b> a leitura falhou agora</p>
+      <dl class="faixa">
+        <div><dd><span class="q er" role="img" aria-label="falhou" title="falhou"><svg aria-hidden="true" style="color:var(--danger-text)"><use href="#g-aviso"/></svg></span></dd><dt>Impressões</dt></div>
+        <div><dd><span class="q er" role="img" aria-label="falhou" title="falhou"><svg aria-hidden="true" style="color:var(--danger-text)"><use href="#g-aviso"/></svg></span></dd><dt>Cliques</dt></div>
+        <div><dd class="num">8,4 mil</dd><dt>Views, 28 dias</dt></div>
+      </dl>
+      <p class="aviso-linha"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><span class="frase" style="margin:0" role="status">A leitura do alcance falhou agora; recarregue a página.</span></p></div>
+    <div class="col"><p class="tag"><b>Restrito</b> você só lê o site</p>
+      <dl class="faixa">
+        <div><dd><span class="q rs" role="img" aria-label="restrito" title="restrito"><svg aria-hidden="true"><use href="#g-lock"/></svg></span></dd><dt>Impressões</dt></div>
+        <div><dd><span class="q rs" role="img" aria-label="restrito" title="restrito"><svg aria-hidden="true"><use href="#g-lock"/></svg></span></dd><dt>Cliques</dt></div>
+        <div><dd class="num">8,4 mil</dd><dt>Views, 28 dias</dt></div>
+      </dl>
+      <p class="aviso-linha"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><span class="frase" style="margin:0">Só quem edita o site vê os números de alcance.</span></p></div>
+  </div></div>
+</section>
+
+<!-- ============ T2 ============ -->
+<section class="sec" id="t2">
+  <h2>2. Canal próprio: cartão de vídeo da grade</h2>
+  <p class="why">Impressões e múltiplo no cartão. Hoje a palavra do motivo ("só quem edita vê", "leitura falhou") fica dentro da pastilha rosa. Agora a palavra é a da pastilha e o motivo sobe para a nota da grade. <span class="file">_canal/video-card.tsx:35,42,59 e _proprio/videos-model.ts:91-92</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col old"><p class="tag"><b>Hoje</b> as duas situações dentro do rosa</p>
+      <div class="cards"><div class="cv"><div class="th"></div><h4>Cinco erros que quase me custaram a viagem</h4>
+        <div class="nums"><span class="c"><b>12,3 mil</b><i>views</i></span><span class="c"><span class="nm">leitura falhou</span><i>impressões</i></span><span class="c"><span class="nm">só quem edita vê</span><i>múltiplo</i></span></div></div></div></div>
+    <div class="col"><p class="tag"><b>Erro</b> falhou</p>
+      <div class="cards"><div class="cv"><div class="th"></div><h4>Cinco erros que quase me custaram a viagem</h4>
+        <div class="nums"><span class="c"><b>12,3 mil</b><i>views</i></span><span class="c"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><i>impressões</i></span><span class="c"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><i>múltiplo</i></span></div></div></div>
+      <p class="frase mut" role="status">Nota sob a grade, uma vez: a leitura do alcance falhou agora; recarregue a página.</p></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <div class="cards"><div class="cv"><div class="th"></div><h4>Cinco erros que quase me custaram a viagem</h4>
+        <div class="nums"><span class="c"><b>12,3 mil</b><i>views</i></span><span class="c"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><i>impressões</i></span><span class="c"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><i>múltiplo</i></span></div></div></div>
+      <p class="frase mut">Nota sob a grade, uma vez: só quem edita o site vê as impressões.</p></div>
+  </div></div>
+  <p class="frase mut" style="max-width:80ch">Nota: "múltiplo" sem impressão por falta de dado do vídeo continua "não medido". O múltiplo só herda erro ou restrito quando a causa é a leitura do alcance.</p>
+</section>
+
+<!-- ============ T3 ============ -->
+<section class="sec" id="t3">
+  <h2>3. Canal próprio: tabela de vídeos</h2>
+  <p class="why">Coluna de impressões e de cliques. Em tabela a pastilha se repete por linha, então é a menor possível e o motivo fica na nota única acima da tabela. <span class="file">_canal/tabela.tsx:98,110 e _proprio/videos-model.ts:131-135</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b> vídeo novo, sem dia de alcance</p>
+      <div class="tbl"><table><thead><tr><th>Vídeo</th><th class="r">Views</th><th class="r">Impressões</th></tr></thead><tbody>
+        <tr><td>Roteiro de 7 dias</td><td class="r num">9,1 mil</td><td class="r"><span class="nm">não medido</span></td></tr>
+        <tr><td>Mochila 40 L</td><td class="r num">4,2 mil</td><td class="r num">61,0 mil</td></tr></tbody></table></div></div>
+    <div class="col"><p class="tag"><b>Erro</b></p>
+      <div class="tbl"><table><thead><tr><th>Vídeo</th><th class="r">Views</th><th class="r">Impressões</th></tr></thead><tbody>
+        <tr><td>Roteiro de 7 dias</td><td class="r num">9,1 mil</td><td class="r"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></td></tr>
+        <tr><td>Mochila 40 L</td><td class="r num">4,2 mil</td><td class="r"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></td></tr></tbody></table></div>
+      <p class="frase mut" role="status">Nota acima da tabela: a leitura do alcance falhou agora; recarregue a página.</p></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <div class="tbl"><table><thead><tr><th>Vídeo</th><th class="r">Views</th><th class="r">Impressões</th></tr></thead><tbody>
+        <tr><td>Roteiro de 7 dias</td><td class="r num">9,1 mil</td><td class="r"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span></td></tr>
+        <tr><td>Mochila 40 L</td><td class="r num">4,2 mil</td><td class="r"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span></td></tr></tbody></table></div>
+      <p class="frase mut">Nota acima da tabela: só quem edita o site vê as impressões.</p></div>
+  </div></div>
+</section>
+
+<!-- ============ T4 ============ -->
+<section class="sec" id="t4">
+  <h2>4. Página do vídeo: Retenção</h2>
+  <p class="why">A seção já aprovada (decisão 74) tem hoje "não medido" para curva ausente, "falhou" para erro (<code>.vb-falhou</code>, sem ícone) e nenhuma pastilha para negado. Fica: não medido igual; erro ganha o triângulo; negado ganha "restrito". <span class="file">_proprio/video-blocos.tsx:114 e retencao-curva-model.ts:104</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b> curva não coletada</p>
+      <div class="ret"><div class="row"><span class="nm">não medido</span><p><b>Curva não coletada.</b> A retenção deste vídeo ainda não foi lida do YouTube.</p></div></div></div>
+    <div class="col"><p class="tag"><b>Erro</b></p>
+      <div class="ret"><div class="row"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><p role="status"><b>A leitura da curva falhou agora; recarregue a página.</b></p></div></div></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <div class="ret"><div class="row"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><p><b>Só quem edita o site vê a curva de retenção deste vídeo.</b></p></div></div></div>
+  </div></div>
+</section>
+
+<!-- ============ T5 ============ -->
+<section class="sec" id="t5">
+  <h2>5. Página do vídeo: réguas e nota privada</h2>
+  <p class="why">As linhas de impressão e cliques das réguas e a nota única que ocupa o lugar dos blocos privados. Hoje a nota de erro tem <code>.vb-falhou</code> e a de negado não tem pastilha. <span class="file">_proprio/reguas.tsx:154 e video-blocos.tsx:132</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b></p>
+      <div class="reg"><div class="nome">Views<small>no canal</small></div><div><span class="num">9,1 mil</span></div>
+        <div class="nome">Impressões<small>vídeo novo</small></div><div><span class="nm">não medido</span></div></div></div>
+    <div class="col"><p class="tag"><b>Erro</b></p>
+      <div class="reg"><div class="nome">Views<small>no canal</small></div><div><span class="num">9,1 mil</span></div>
+        <div class="nome">Impressões<small>no canal</small></div><div><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div></div>
+      <p class="aviso-linha"><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><span class="frase" style="margin:0" role="status">A leitura dos números deste vídeo falhou agora; recarregue a página.</span></p></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <div class="reg"><div class="nome">Views<small>no canal</small></div><div><span class="num">9,1 mil</span></div>
+        <div class="nome">Impressões<small>no canal</small></div><div><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span></div></div>
+      <p class="aviso-linha"><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><span class="frase" style="margin:0">Só quem edita o site vê as views por dia, as impressões e cliques, o % assistido e a posição deste vídeo.</span></p></div>
+  </div></div>
+</section>
+
+<!-- ============ T6 ============ -->
+<section class="sec" id="t6">
+  <h2>6. Página do vídeo: % assistido por período</h2>
+  <p class="why">Três cartões. Hoje o motivo vira texto solto dentro da pastilha rosa: "sem acesso", "não conseguimos ler". Agora são "restrito" e "falhou". <span class="file">_proprio/assistido-periodo-model.ts:130 e assistido-periodos.tsx:58,148</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col old"><p class="tag"><b>Hoje</b></p>
+      <div class="per"><div><span class="num">58%</span><small>Últimos 28 dias</small></div><div><span class="nm">sem acesso</span><small>Só quem edita…</small></div><div><span class="nm">não conseguimos ler</span><small>A leitura falhou…</small></div></div></div>
+    <div class="col"><p class="tag"><b>Erro</b></p>
+      <div class="per"><div><span class="num">58%</span><small>Últimos 28 dias</small></div><div><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><small>Primeiros 7 dias</small></div><div><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span><small>Desde a estreia</small></div></div>
+      <p class="frase mut" role="status">A leitura do % assistido falhou agora; recarregue a página.</p></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <div class="per"><div><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><small>Últimos 28 dias</small></div><div><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><small>Primeiros 7 dias</small></div><div><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span><small>Desde a estreia</small></div></div>
+      <p class="frase mut">Só quem edita o site vê o % assistido.</p></div>
+  </div></div>
+</section>
+
+<!-- ============ T7 ============ -->
+<section class="sec" id="t7">
+  <h2>7. Comparar: "Só o seu canal mede"</h2>
+  <p class="why">Cartão com as quatro linhas privadas. Já tem cadeado e erro com cores próprias, mas o quadradinho rosa ainda aparece na chamada e nas linhas sem número. Passa a usar as mesmas duas pastilhas. <span class="file">_comparar/so-seu-canal.tsx:52,72 e so-seu-canal-model.ts:286-287</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b></p>
+      <div class="sol"><div class="l"><div class="rt">Impressões<small>28 dias</small></div><span class="q nm" role="img" aria-label="não medido" title="não medido"></span></div>
+        <div class="l"><div class="rt">Taxa de clique<small>28 dias</small></div><span class="q nm" role="img" aria-label="não medido" title="não medido"></span></div></div>
+      <p class="frase mut">Sem relatório de alcance neste período.</p></div>
+    <div class="col"><p class="tag"><b>Erro</b></p>
+      <div class="sol"><div class="l"><div class="rt">Impressões<small>28 dias</small></div><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div>
+        <div class="l"><div class="rt">Taxa de clique<small>28 dias</small></div><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div></div>
+      <p class="frase mut" role="status">A leitura do alcance falhou agora; recarregue a página.</p></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <div class="sol"><div class="l"><div class="rt">Impressões<small>28 dias</small></div><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span></div>
+        <div class="l"><div class="rt">Taxa de clique<small>28 dias</small></div><span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span></div></div>
+      <p class="frase mut">Só quem edita o site vê estes números.</p></div>
+  </div></div>
+</section>
+
+<!-- ============ T8 ============ -->
+<section class="sec" id="t8">
+  <h2>8. Canais de fora: Direção, Ritmo e blocos da página do canal</h2>
+  <p class="why">Aqui nunca há restrito: o canal de fora não tem dado privado. O que existe hoje é "Não carregou" (contorno vermelho, sem símbolo, <code>.obs-md-nc</code>). Passa a ser a mesma pastilha "falhou", com o botão "Tentar de novo" fora da pastilha, um por bloco, e os três estados do toque desenhados abaixo. <span class="file">_chrome/medidas/marcas.tsx:30; _canal/medidas/celulas.tsx:17, ritmo-bloco.tsx:41, direcao-bloco.tsx:49,117</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b> menos de 3 vídeos</p>
+      <div class="dir"><b>Direção</b><span class="nm">não medido</span></div>
+      <p class="frase mut">O canal ainda não tem vídeos suficientes para uma direção.</p></div>
+    <div class="col"><p class="tag"><b>Erro</b> era "Não carregou"</p>
+      <div class="dir"><b>Direção</b><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div>
+      <div class="retry-row"><p class="frase mut" role="status">A leitura falhou: não deu para ler as medidas deste canal agora. Os números abaixo não valem.</p><button type="button" class="retry">Tentar de novo</button></div></div>
+    <div class="col na"><p class="tag"><b>Restrito</b></p><p style="margin:0">Não se aplica. Canal de fora só tem dado público, então ninguém fica sem acesso a ele.</p></div>
+  </div></div>
+  <h3 style="margin:26px 0 4px">Os três estados do "Tentar de novo"</h3>
+  <p class="why" style="max-width:74ch">Sem isto o toque parece não ter feito nada. Mesmo bloco em três momentos; no 390 as colunas empilham, no 1440 ficam lado a lado (use os botões 390/1440 do topo). A pastilha nunca muda de largura nem de palavra; só o botão e a frase mudam. Regra de recuperação (F1): onde há botão, a frase não manda recarregar.</p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>(a) Tentando</b> logo após o toque</p>
+      <div class="dir"><b>Direção</b><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div>
+      <div class="retry-row"><p class="frase mut" role="status">Lendo as medidas de novo…</p><button type="button" class="retry" aria-disabled="true" aria-busy="true">Tentando…</button></div></div>
+    <div class="col"><p class="tag"><b>(b) Falhou de novo</b> também vale para conexão caída no meio</p>
+      <div class="dir"><b>Direção</b><span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div>
+      <div class="retry-row"><p class="frase mut" role="status">Falhou de novo. Confira a conexão e tente mais uma vez.</p><button type="button" class="retry">Tentar de novo</button></div></div>
+    <div class="col"><p class="tag"><b>(c) Deu certo</b> o valor ocupa o lugar; o foco vai para ele</p>
+      <div class="estado-val"><b>Direção</b><span class="val" tabindex="-1">subindo</span></div>
+      <p class="frase mut" role="status" aria-live="polite">Medidas lidas agora.</p></div>
+  </div></div>
+  <h3 style="margin:22px 0 4px">Ao vivo</h3>
+  <p class="why" style="max-width:74ch">Toque no botão: 1ª vez falha de novo, 2ª dá certo. Leitor de tela: a frase é <code>role="status"</code> (polite) e o foco cai no valor.</p>
+  <div class="frame"><div class="col" id="vivo" style="max-width:520px">
+    <div class="dir" id="vivo-topo"><b>Direção</b><span class="er" id="vivo-pastilha"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></div>
+    <div class="retry-row" id="vivo-linha"><p class="frase mut" role="status" id="vivo-frase">A leitura falhou: não deu para ler as medidas deste canal agora. Os números abaixo não valem.</p><button type="button" class="retry" id="vivo-btn">Tentar de novo</button></div>
+  </div></div>
+</section>
+
+<!-- ============ T9 ============ -->
+<section class="sec" id="t9">
+  <h2>9. Trocas de título e miniatura</h2>
+  <p class="why">O chip "leitura falhou" é uma pílula tracejada sem ícone, parecida com "antes ainda não medido". E "Teste A/B (sem acesso)" é só texto. A pílula das trocas fica; só os dois estados mudam de forma, para não se parecerem com "não medido". <span class="file">_proprio/trocas-model.ts:117,124 e trocas.tsx:59,73</span></p>
+  <div class="frame"><div class="cmp">
+    <div class="col"><p class="tag"><b>Não medido</b></p>
+      <p style="margin:0 0 6px"><b>Título</b> <span class="mut">há 12 dias</span> <span class="chiptr">? antes ainda não medido</span></p></div>
+    <div class="col"><p class="tag"><b>Erro</b></p>
+      <p style="margin:0 0 6px"><b>Título</b> <span class="mut">há 12 dias</span> <span class="er"><svg width="14" height="14" aria-hidden="true"><use href="#g-aviso"/></svg>falhou</span></p>
+      <p class="frase mut" role="status">A leitura falhou: não foi possível ler as impressões deste vídeo agora. A troca está certa; o antes e o depois não puderam ser calculados.</p></div>
+    <div class="col"><p class="tag"><b>Restrito</b></p>
+      <p style="margin:0 0 6px"><b>Título</b> <span class="mut">há 12 dias</span> <span class="rs"><svg width="14" height="14" aria-hidden="true"><use href="#g-lock"/></svg>restrito</span></p>
+      <p class="frase mut">Teste A/B restrito: o teste que gerou esta troca só abre para quem edita o site.</p></div>
+  </div></div>
+</section>
+
+</div></div>
+
+<script>
+(function(){
+  var r=document.documentElement,b=document.body;
+  function marca(sel,attr,val){document.querySelectorAll(sel).forEach(function(x){x.setAttribute('aria-pressed',String(x.getAttribute(attr)===val))})}
+  document.querySelectorAll('[data-tema]').forEach(function(x){x.addEventListener('click',function(){var v=x.getAttribute('data-tema');r.setAttribute('data-theme',v);marca('[data-tema]','data-tema',v)})});
+  document.querySelectorAll('[data-larg]').forEach(function(x){x.addEventListener('click',function(){var v=x.getAttribute('data-larg');b.setAttribute('data-w',v);marca('[data-larg]','data-larg',v)})});
+  document.querySelectorAll('[data-cinza]').forEach(function(x){x.addEventListener('click',function(){var v=x.getAttribute('data-cinza');document.getElementById('stage').classList.toggle('cinza',v==='1');marca('[data-cinza]','data-cinza',v)})});
+  (function(){var btn=document.getElementById('vivo-btn');if(!btn)return;var n=0,busy=false;
+    var frase=document.getElementById('vivo-frase'),past=document.getElementById('vivo-pastilha'),topo=document.getElementById('vivo-topo'),linha=document.getElementById('vivo-linha');
+    btn.addEventListener('click',function(e){if(busy||btn.getAttribute('aria-disabled')==='true'){e.preventDefault();return}
+      busy=true;n++;btn.setAttribute('aria-disabled','true');btn.setAttribute('aria-busy','true');btn.textContent='Tentando\u2026';frase.textContent='Lendo as medidas de novo\u2026';
+      setTimeout(function(){busy=false;btn.removeAttribute('aria-busy');btn.removeAttribute('aria-disabled');
+        if(n%2===1){btn.textContent='Tentar de novo';frase.textContent='Falhou de novo. Confira a conexão e tente mais uma vez.'}
+        else{past.remove();btn.remove();var v=document.createElement('span');v.className='val';v.tabIndex=-1;v.textContent='subindo';
+          var w=document.createElement('div');w.className='estado-val';w.innerHTML='<b>Direção</b>';w.appendChild(v);topo.replaceWith(w);frase.textContent='Medidas lidas agora.';v.focus();}
+      },1100)})})();
+})();
+</script>
+</body>
+</html>
