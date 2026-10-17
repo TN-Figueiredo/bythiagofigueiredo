@@ -1014,10 +1014,12 @@ describe('conferências da E9 (fila "Saíram do YouTube", relativas ao dia do en
 describe('X3: conferências com data (A5 X3)', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
   afterEach(() => { vi.useRealTimers() })
-  it('X3_LIGADA nula: nenhuma entrada publicada; a constante está nula até ligar', () => {
-    expect(X3_LIGADA).toBeNull()
+  it('X3_LIGADA = 18/10 (1ª rodada da coleta): as três entradas publicadas; nula não publica nada', () => {
+    expect(X3_LIGADA).toBe('2026-10-18')
     expect(conferenciasX3(null)).toEqual([])
-    expect(CONFERENCIAS.some(x => x.id.startsWith('x3-'))).toBe(false)
+    expect(CONFERENCIAS.filter(x => x.id.startsWith('x3-')).map(x => [x.id, x.data])).toEqual([
+      ['x3-d1', '2026-10-19'], ['x3-d7', '2026-10-25'], ['x3-d30', '2026-11-17'],
+    ])
   })
   it('com data: D+1, D+7 e D+30 em ordem, do agente, com a consulta', () => {
     const l = conferenciasX3(dia(-40))

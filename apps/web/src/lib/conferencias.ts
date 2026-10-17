@@ -496,7 +496,7 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
 // depois da migration aplicada). `X3_LIGADA` é preenchida no commit desse dia; enquanto for `null`, as entradas NÃO existem. A X3 não tem número `E<n>`:
 // a etapa é `E21` só porque o guardião exige o formato (ids `x3-`); `E21` está RESERVADA à X3 e nenhuma etapa da A5 pode usá-la (Yannis M-6). As consultas estão na seção 11 do plano; a C1 ampliada (tamanho) é a da x3-d1.
 /** Dia de São Paulo (AAAA-MM-DD) em que a coleta de playlists foi ligada. `null` = ainda desligada. */
-export const X3_LIGADA: string | null = null
+export const X3_LIGADA: string | null = '2026-10-18' // variável ligada em 17/10 à noite; a 1ª rodada (07:00 de São Paulo) é a de 18/10
 
 const PLANO_X3 = 'docs/superpowers/plans/2026-10-17-a5-x3-playlists-e-secoes-plan.md (seção 11 e Tarefa 8); anotar o resultado em .superpowers/sdd/a5/x3/progress.md'
 
