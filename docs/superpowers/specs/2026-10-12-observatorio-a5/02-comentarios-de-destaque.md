@@ -82,6 +82,24 @@ Parâmetros em `rules.ts`: `commentsTarget = 12` (o alvo do dono), `commentsCrea
 7. **O que acompanha o comentário escolhido:** até 3 respostas **do criador** naquela conversa (as mais antigas entre as vistas), com o texto. **Nenhuma resposta de outra pessoa é gravada.**
 8. **Frase da tela** (o mockup fecha o texto): "12 comentários de 100 lidos por relevância · 6 mais curtidos · 4 com o criador · 1 de canal que você acompanha · 1 de canal grande (entre os 20 mais curtidos)". Com lote completo: "de todos os 37 comentários". O ⓘ explica a regra e o que ela não garante (linha 1 de 4.6.1).
 
+> **Emenda 17/10 ao item 7 (F2-coleta), decisão do dono 17/10** (`.superpowers/sdd/a5/decisoes-do-dono.md`, seção "17/10 noite — F2 dos comentários"; conta e desenho: `.superpowers/sdd/a5/noite/t7-cq-phil.md` §4 a §6; ordem: `noite/t7-hanna.md`). Vale sobre o item 7 acima e sobre a linha "respostas de quem não é o criador" da tabela de 4.6.6. Plano: `docs/superpowers/plans/2026-10-17-a5-comentarios-f2-coleta-plan.md`.
+>
+> 7a. **O que passa a ser gravado.** Nas conversas em que **há resposta do criador entre as vistas** (`criador_respondeu = sim`) e cujo topo é gravado (escolhido no retrato ou já guardado), grava-se também o texto das **respostas de outras pessoas que o lote já devolve**: o prefixo de até 5 respostas de `replies.comments`, que a conferência C0.3 (12/10) mediu serem as **5 mais antigas** (no máximo 4 de terceiros, porque ao menos 1 é do criador). Nenhuma chamada nova: **0 unidade de cota**. Criador que responde depois da 5ª pessoa não é visto pelo lote e o fio não entra (o limite do caso do dono, dito a ele em 17/10).
+>
+> 7b. **Tetos.** `COMMENT_RULES.thirdPartyRepliesMax = 20` respostas de terceiros **por vídeo**, somando os três marcos (as já guardadas contam), aplicado na função de escrita como o teto do criador; prioridade: a ordem dos escolhidos no retrato, e dentro do fio as mais antigas. `creatorRepliesMax` sobe de 3 para **5** (cabe no prefixo; sem isso, criador com 4 das 5 primeiras deixaria buraco no meio do fio). Os dois vão em `rule_params`, com `rule_version = 2`. Volume (Phil, 17/10): cerca de 0,67 MB por canal por ano no real estimado; teto de 1,8 MB (texto médio) a 5,2 MB (texto de 2.000 caracteres) por canal por ano.
+>
+> 7c. **Quem falou, sem guardar quem é.** Nenhum nome, foto, id de canal nem URL de espectador de resposta é gravado, **nem por 28 dias**: a resposta de terceiro nunca tem linha em `competitor_video_comment_authors`. Cada uma ganha `speaker_no` ("Espectador N"), numerado **na coleta, por fio**: o autor do topo, quando não é o criador, é o 1; resposta de quem já tem número no fio recebe o mesmo; de quem ainda não tem, o maior número do fio + 1; resposta sem id de canal legível recebe número novo. A comparação usa o `authorChannelId` que vem no lote e o descarta na mesma execução; não há chave nem segredo guardado (a chave de 28 dias foi recusada pelo dono). Limite, sem suavizar: o número vale dentro do fio; a mesma pessoa em dois fios tem dois números; se uma fala guardada sair do prefixo, uma fala nova da mesma pessoa pode ganhar número novo.
+>
+> 7d. **Retenção própria.** (i) Resposta de terceiro que deixa de vir (não veio no lote e a conferência por id não a achou) é **apagada na mesma execução**: não vai para a fila "Saíram do YouTube" (decisão 32 vale para topo e resposta do criador, não para ela) e não é registrada em `competitor_removed_items`. (ii) Quando o fio deixa de ter resposta do criador guardada **e presente** (`missing_since` nulo), as respostas de terceiros dele são apagadas na mesma transação: sem a resposta do criador, elas perdem a finalidade. (iii) Seguem o resto do ciclo do comentário: export por canal e mês (sem colunas de identidade, que não existem para elas), arquivo por idade (spec 06) e apagar canal ou vídeo.
+>
+> 7e. **Visto no lote.** Toda resposta de terceiro que veio no lote conta como vista, para não ir à conferência por id nos marcos 7 e 30 (com o teto de 20, o pior vídeo fica em cerca de 44 ids: 1 bloco, nenhuma unidade a mais).
+>
+> 7f. **Prova.** A chave `respostas_de_terceiros` da prova continua com o mesmo nome e passa a contar **o que está fora da regra** (vermelho acima de 0): resposta de terceiro sem `speaker_no`; em fio sem resposta do criador presente; com `missing_since` preenchido; acima de 20 no vídeo; e linha de identidade presa a qualquer resposta. O banco recusa `speaker_no` em topo ou em resposta do criador.
+>
+> 7g. **Fora desta emenda.** A tela (F2-tela: fio cronológico, "Espectador N", a frase "k de N" e as quatro regras dela, `t7-cq-phil.md` F4) vem depois da revisão visual final, com mockup novo aprovado e ao menos 7 dias de dados reais. Até lá **nenhum leitor de tela nem pacote de IA lê resposta de terceiro**: os leitores filtram `is_creator`, e o texto delas não entra em pacote da forja nem do Cowork (ressalva 1 de 4.6.8). Ordem de subida: trem 8b, depois do trem dos comentários fase 1 (trem 8); migration aplicada pelo dono antes do código.
+>
+> *Assinado: decisão do dono 17/10.*
+
 **Vale para longos e para Shorts** (61% dos vídeos guardados são Shorts), com a mesma regra [DONO, pergunta 12]. Ao vivo e estreia: comentário de vídeo entra; o **chat** da transmissão não é comentário e continua fora (12.1).
 
 #### 4.6.4 Quando coletar
@@ -126,7 +144,7 @@ Um retrato tem sempre uma linha com o estado. **Sem linha = "não coletado"**, q
 | **identidade do autor além de 28 dias** (nome, id do canal, foto) | **decisão do dono (12/10), abaixo:** fica 28 dias e é apagada; o texto fica |
 | o arquivo da foto de perfil | guarda-se só a **URL** (`authorProfileImageUrl`), nunca uma cópia: uma cópia no Blob teria URL pública e seria mais um lugar de onde apagar; com a URL, apagar a coluna basta. Custo: se o autor trocar a foto, a URL pode quebrar antes dos 28 dias, e a tela mostra a inicial |
 | a URL do canal do autor (`authorChannelUrl`) | deriva do id |
-| respostas de quem não é o criador | fora do pedido; multiplicaria o volume e o dado pessoal |
+| respostas de quem não é o criador | fora do pedido; multiplicaria o volume e o dado pessoal. **Emenda 17/10 (decisão do dono 17/10, 4.6.3 item 7a a 7g): passam a ser gravadas só em fio com resposta do criador, até 20 por vídeo, com `speaker_no` e sem identidade nenhuma** |
 | o lote inteiro (os até 100) e a resposta bruta da API | **não vai para `competitor_raw`**: guardaria texto, nome, foto e id de até 100 pessoas por vídeo para usar 12 |
 | versões antigas de um comentário editado | fica o texto da última leitura e a data de edição |
 | imagem anexada ao comentário, se a API a devolver | fora do pedido |
