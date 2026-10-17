@@ -407,7 +407,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
   return (
     <figure className="ic" ref={raiz} aria-labelledby={tid}>
       <div className="ic-t" id={tid}>{titulo}</div>
-      {view.vazio ? <p className="ic-vazio">{view.vazio}</p> : view.cedo ? <FaixaCedo cedo={view.cedo} /> : (
+      {view.vazio ? <p className="ic-vazio">{view.vazio}</p> : view.cedo ? <><FaixaCedo cedo={view.cedo} />{view.notaFaixas ? <p className="ic-nota-trocas">{view.notaFaixas}</p> : null}</> : (
         <>
           {view.resumo ? <p className="ic-res">{view.resumo}</p> : null}
           <div className="ic-meta">

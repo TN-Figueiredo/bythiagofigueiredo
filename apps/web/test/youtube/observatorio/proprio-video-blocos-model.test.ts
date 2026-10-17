@@ -162,6 +162,18 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     expect(b.grafico!.cedo!.frase).toContain('faltam 5 dias')
   })
 
+  it('vídeo novo e ainda cedo: a nota das trocas chega à faixa (o gráfico sem marcas não pode sair limpo)', () => {
+    const nota = 'As trocas não puderam ser lidas: o gráfico está sem as marcas.'
+    for (const dias of [1, 3]) {
+      const { w, id, dados } = comVidaDe(dias)
+      const b = buildVideoBlocos({ ...entrada(w, dados, id), trocasNoGrafico: { faixas: [], marcas: [], notaFaixas: nota } }).impressoes!
+      expect(b.grafico!.cedo ?? b.grafico!.notaFaixas).toBeTruthy()
+      expect(b.grafico!.notaFaixas).toBe(nota)
+    }
+    const { w, id, dados } = comVidaDe(1)
+    expect(blocos(w, dados, id).impressoes!.grafico!.notaFaixas).toBeNull()
+  })
+
   it('vídeo de 3 dias: um dia só no gráfico (o da publicação), o resto não existe; 400 impressões, 20 cliques', () => {
     const { w, id, dados } = comVidaDe(3)
     const b = blocos(w, dados, id).impressoes!

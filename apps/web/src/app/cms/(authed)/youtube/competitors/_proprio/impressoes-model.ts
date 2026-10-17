@@ -555,7 +555,7 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
   // vídeo novo e ainda cedo: a faixa de 7 casas no lugar do gráfico (antes da checagem de "sem relatório": o vídeo novo ainda não tem nenhum)
   if (!views && o.cedo && (o.cedo.tipo === 'video-novo' || o.cedo.tipo === 'ainda-cedo')) {
-    return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o) }
+    return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o), notaFaixas: o.notaFaixas ?? null }
   }
   if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : semRelatorioFrase(o.parouEm, o.dm), o)
   const dias = diasIn.map(semValorViraNaoMedido)
