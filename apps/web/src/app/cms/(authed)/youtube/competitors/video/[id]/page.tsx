@@ -56,7 +56,8 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
     // diagnóstico das trocas: UM evento só com contagens e o ytId (nunca título, imagem nem data); `diagnostico` não segue para nenhum componente
     if (trocas) {
       const d = trocas.diagnostico
-      if (d.foraDaJanelaSemCausa + d.fimNaoRegistrado + d.origemCms + d.estadoInesperado > 0) {
+      // só o caso sem causa conhecida: fim não registrado e origem cms são estados conhecidos e repetiriam o aviso a cada visita (portão L5, Phil M-1)
+      if (d.foraDaJanelaSemCausa + d.estadoInesperado > 0) {
         Sentry.captureMessage('observatório: trocas do vídeo com caso sem causa conhecida', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'trocas-modelo' }, extra: { ...d, ytId: base.header.ytId } })
       }
     }

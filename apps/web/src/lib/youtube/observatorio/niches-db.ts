@@ -4,7 +4,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { BUILTIN_NICHES, isNicheSlug, type NicheDef } from './niche'
 
 export class ObservatoryLoadError extends Error {
-  constructor(public table: string, public code: string | undefined, message: string) { super('observatório: falha ao ler ' + table + ': ' + message); this.name = 'ObservatoryLoadError' }
+  /** `teto`: a leitura parou num teto de linhas (não é falha de banco). */
+  constructor(public table: string, public code: string | undefined, message: string, public teto = false) { super('observatório: falha ao ler ' + table + ': ' + message); this.name = 'ObservatoryLoadError' }
 }
 
 export interface NicheRow { slug: string; label: string; color_dark: string; color_light: string; sort_order: number }

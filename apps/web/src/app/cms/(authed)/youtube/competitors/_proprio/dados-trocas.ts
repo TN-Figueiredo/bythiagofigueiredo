@@ -71,7 +71,7 @@ export async function lerTrocas(a: {
     else testes = testesR.value
   } else {
     falhou('testes', testesR.reason)
-    motivoTestes = testesR.reason instanceof ObservatoryLoadError && testesR.reason.code === undefined && /mais de \d/.test(testesR.reason.message) ? 'teto' : 'banco'
+    motivoTestes = testesR.reason instanceof ObservatoryLoadError && testesR.reason.teto ? 'teto' : 'banco'
   }
 
   let versoes: VersoesCanal | null = null
