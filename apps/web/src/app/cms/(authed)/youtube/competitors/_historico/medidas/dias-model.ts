@@ -143,10 +143,14 @@ export interface DiaDaBarra {
 
 const dia12 = (ms: number): string => spDateOfMs(ms)
 
-/** Último valor de cada dia de São Paulo (a leitura das 12:00 é a que fecha a barra). */
+/**
+ * Último valor DIÁRIO de cada dia de São Paulo (a leitura das 12:00 é a que fecha a barra). A leitura por hora das primeiras 72 horas
+ * (`porHora`) nunca entra: a última do dia seria a das 23:00 e a barra deixaria de ser "até as 12:00" (portão Phil I3).
+ */
 function porDia(leituras: readonly Leitura[]): Map<string, number> {
   const por = new Map<string, { t: number; views: number }>()
   for (const l of leituras) {
+    if (l.porHora === true) continue
     const d = dia12(l.t)
     const a = por.get(d)
     if (!a || l.t > a.t) por.set(d, { t: l.t, views: l.views })

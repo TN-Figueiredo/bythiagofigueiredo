@@ -146,6 +146,8 @@ describe('o que cada leitor devolve', () => {
     const r = await lerSeriesDoCanal(sb, { ...E, videoIds: ['a', 'estranho'], desde: DESDE })
     expect(r.lido && r.dados.foraDoCanal).toBe(1)
     expect(r.lido && r.dados.series.get('a')?.map((x) => x.views)).toEqual([10, 20, 30])
+    // a leitura por hora leva a marca; a diária não (portão Phil I3: o dia de contagem é o da diária)
+    expect(r.lido && r.dados.series.get('a')?.map((x) => x.porHora === true)).toEqual([true, true, false])
   })
   it('mudanças: o histórico de vídeo e o de campo, sem a primeira leitura', async () => {
     const { sb, consultas } = falsoPostgrest({

@@ -137,7 +137,8 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   // ───── mudanças e subida ─────
   const mudLidas = c.mudancas !== 'nao_pedida' && c.mudancas.lido ? (c.mudancas.dados.get(video.id) ?? []) : null
   const numeradas: MudancaNumerada[] | null = mudLidas === null ? null : numerarMudancas(mudancasDoModelo(mudLidas, leituras))
-  const diasDeContagem = leituras === null ? null : new Set(leituras.map((l) => spDateOf(l.t))).size
+  // dia de contagem = dia com a leitura diária das 12:00; o dia que só tem leitura por hora não conta (portão Phil I3)
+  const diasDeContagem = leituras === null ? null : new Set(leituras.filter((l) => l.porHora !== true).map((l) => spDateOf(l.t))).size
   const subidas: Medida<Subida[]> | null = medidas?.porVideo.get(video.id)?.m5 ?? null
   const subida = cartaoDaSubida({
     hojeSP, semanal, saiu: saiuEm !== null, diasDeContagem, subidas, mudancas: numeradas,
@@ -162,7 +163,8 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
     }
     normalHoras = tracaoDoCanal(daTracao, { formato, agoraMs })
   }
-  const primeiroDia = leituras && leituras.length > 0 ? spDateOf(Math.min(...leituras.map((l) => l.t))) : null
+  const diarias = leituras === null ? [] : leituras.filter((l) => l.porHora !== true)
+  const primeiroDia = diarias.length > 0 ? spDateOf(Math.min(...diarias.map((l) => l.t))) : null
   const horas = blocoDeHoras({
     agoraMs, publicadoEmMs: pub, descobertoEmMs: descobertoMs, aoVivo, viewsAgora: video.viewsAgora,
     horas: horasLidas, leituras: horasLidas?.porVideo.get(video.id) ?? [], toleranciaH: TOLERANCIA_HORARIA_H,

@@ -223,12 +223,12 @@ export async function lerSeriesDoCanal(sb: SupabaseClient, o: Escopo & { videoId
     const meus = o.videoIds.filter((id) => ids.dados.has(id))
     const series: Map<string, Leitura[]> = new Map()
     const max = o.maxPaginas ?? MAX_PAGINAS
-    const juntar = (linhas: Obj[]): void => {
+    const juntar = (linhas: Obj[], porHora = false): void => {
       for (const x of linhas) {
         const t = msDe(x.taken_at)
         if (typeof x.video_id !== 'string' || t === null || !ehNum(x.views)) continue
         const l = series.get(x.video_id) ?? []
-        l.push({ t, views: x.views, likes: numOuNulo(x.likes), comments: numOuNulo(x.comments) })
+        l.push({ t, views: x.views, likes: numOuNulo(x.likes), comments: numOuNulo(x.comments), ...(porHora ? { porHora: true as const } : {}) })
         series.set(x.video_id, l)
       }
     }
@@ -240,7 +240,7 @@ export async function lerSeriesDoCanal(sb: SupabaseClient, o: Escopo & { videoId
         .in('video_id', bloco).gte('taken_at', o.desde).order('video_id').order('taken_at').range(de, ate), max)
       if (!e.ok) return naoLido(e.causa)
       juntar(d.linhas)
-      juntar(e.linhas)
+      juntar(e.linhas, true)
     }
     for (const [id, l] of series) {
       l.sort((a, b) => a.t - b.t)

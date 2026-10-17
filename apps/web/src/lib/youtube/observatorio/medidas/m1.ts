@@ -8,7 +8,11 @@ import { medido, naoMedido, type FaltaDeMarca, type Formato, type Medida, type N
  * M1: views de um vídeo numa idade fixa (1, 7 ou 30 dias). Puro: nada de banco, rede nem relógio.
  * Não existe ponto virtual de 0 views na publicação (plano 4.2); o cálculo do múltiplo das telas continua em `multiplier.ts`.
  */
-export interface Leitura { t: number; views: number; likes: number | null; comments: number | null }
+export interface Leitura {
+  t: number; views: number; likes: number | null; comments: number | null
+  /** Veio de `competitor_video_early` (leitura por hora das primeiras horas), não da leitura diária das 12:00. Ausente = diária. */
+  porHora?: true
+}
 
 export type IdadeDeMarca = 1 | 7 | 30
 

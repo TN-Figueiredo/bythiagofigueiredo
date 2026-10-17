@@ -79,3 +79,14 @@ describe('derivarDoVideo: série não lida nunca vira zero dias (portão Phil I1
     expect(d.resumo.variante).toBe('vazio')
   })
 })
+
+describe('derivarDoVideo: dia de contagem é o da leitura diária (portão Phil I3)', () => {
+  it('diasDeContagem não conta o dia que só tem leitura por hora', () => {
+    const pub = Date.UTC(2026, 9, 20, 18, 0, 0) // 20/10 15:00 SP
+    const agora = pub + 3 * H + 10 * 60_000 // 20/10 18:10 SP: só há leituras por hora
+    const horarias = Array.from({ length: 3 }, (_, i) => ({ t: pub + (i + 1) * H, views: (i + 1) * 1000, likes: null, comments: null, porHora: true as const }))
+    const d = derivarDoVideo(canal(lidoDe(pub), { serie: serieDe(new Map([['v1', horarias]])) }), { ...pedido(pub), agoraMs: agora })
+    // série lida, mas nenhum dia de contagem diária: é "vazio" (a primeira contagem é amanhã às 12:00), não "1 dia de contagem"
+    expect(d.resumo.variante).toBe('vazio')
+  })
+})
