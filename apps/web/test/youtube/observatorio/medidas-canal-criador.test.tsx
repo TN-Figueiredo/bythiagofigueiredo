@@ -100,6 +100,14 @@ describe('criadorDoCanal: estados', () => {
     expect(m.bloco.frase.negrito).toBe('Ainda não dá para medir.')
     expect(m.bloco.frase.resto).toMatch(/fecha em \d{2}\/\d{2}/)
   })
+  it('item d do Gio (trem 6): vídeo anterior à coleta do canal, mas com retrato de 30 dias, conta como coletado na frase "Só N dos M"', () => {
+    const videos = [...Array.from({ length: 6 }, (_, i) => vid(i, 5 + i * 3)), vid(7, 60), vid(8, 70)]
+    const c = contagem(videos.map(v => [v.id, v.id === 'v7' ? 'ok' : null, false]), { coletaDoCanalDesdeMs: AGORA - 20 * DIA })
+    const b = criadorDoCanal(entrada(videos, c)).bloco
+    expect(b.legenda.map(l => l.texto).join('|')).toContain('1 vídeo em que não vimos resposta')
+    expect(b.frase.resto).toContain('Só 7 dos 8 vídeos')
+    expect(b.frase.resto).not.toContain('Só 0 dos')
+  })
   it('coleta parada', () => {
     const { videos, c } = quadro(6, 2)
     const parada = contagem(videos.map(v => [v.id, 'ok', false]), { ultimoOkDaTarefaMs: AGORA - 30 * DIA })
