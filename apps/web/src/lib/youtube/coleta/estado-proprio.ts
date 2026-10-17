@@ -10,8 +10,11 @@ import type { StepCtx } from './types'
 /** Partes sem as quais o estado não é gravado. `statistics` fica de fora: ela alimenta o contador, não o estado. */
 const PARTES_DO_ESTADO = ['snippet', 'contentDetails', 'status'] as const
 
-const SNIPPET_FORA = ['title', 'description', 'tags', 'thumbnails', 'localized']
-const STATUS_FORA = ['uploadStatus', 'failureReason', 'rejectionReason']
+// `channelTitle` é troca do CANAL (o X2 guarda), não do vídeo: renomear o canal não pode gerar uma linha em todos os vídeos.
+const SNIPPET_FORA = ['title', 'description', 'tags', 'thumbnails', 'localized', 'channelTitle']
+// Só o dono vê publishAt, selfDeclaredMadeForKids e hasCustomThumbnail (documentação da Data API): fora, pela regra "só o que é público".
+const STATUS_FORA = ['uploadStatus', 'failureReason', 'rejectionReason', 'publishAt', 'selfDeclaredMadeForKids']
+const CONTENT_DETAILS_FORA = ['hasCustomThumbnail']
 
 export interface EstadoCapturado { sha: string; raw: RawCapture['raw'] }
 export interface ContadoresPublicos { views: number | null; likes: number | null; comments: number | null }
@@ -30,7 +33,7 @@ export function estadoDoVideo(item: unknown): { estado: EstadoCapturado | null; 
   const it = obj(item) ?? {}
   const ausentes = PARTES_DO_ESTADO.filter(p => obj(it[p]) === null)
   if (ausentes.length > 0) return { estado: null, ausentes }
-  const podado = { ...it, snippet: sem(obj(it.snippet)!, SNIPPET_FORA), status: sem(obj(it.status)!, STATUS_FORA) }
+  const podado = { ...it, snippet: sem(obj(it.snippet)!, SNIPPET_FORA), contentDetails: sem(obj(it.contentDetails)!, CONTENT_DETAILS_FORA), status: sem(obj(it.status)!, STATUS_FORA) }
   const r = rawOf(podado)
   return { estado: { sha: r.sha, raw: r.raw }, ausentes: [] }
 }
@@ -124,9 +127,10 @@ export async function gravarEstadoProprio(
     }
     for (let i = 0; i < publicos.length; i += LOTE) {
       const lote = publicos.slice(i, i + LOTE)
-      const res = await ctx.supabase.from('yt_own_video_public_daily').upsert(lote, { onConflict: 'youtube_video_id,day_pt', ignoreDuplicates: true })
+      // `.select` devolve só as linhas realmente inseridas: na 2ª execução do dia (ignoreDuplicates) o resumo não diz que gravou o que já existia.
+      const res = await ctx.supabase.from('yt_own_video_public_daily').upsert(lote, { onConflict: 'youtube_video_id,day_pt', ignoreDuplicates: true }).select('youtube_video_id')
       if (conferirBanco(res, 'yt_own_video_public_daily', ctx.falhas) !== 'ok') continue
-      r.publicos_gravados += lote.length
+      r.publicos_gravados += Array.isArray(res.data) ? res.data.length : 0
     }
   } catch {
     pushUnico(ctx.falhas, 'erro ao gravar o estado do vídeo próprio')

@@ -54,8 +54,37 @@ describe.skipIf(skipIfNoLocalDb())('A5 X1/X2/X5: estado do vídeo e do canal pr�
     expect(r.rows.map(x => x.state_sha256)).toEqual(['A', 'B', 'A'])
   })
 
+  it('vídeo: o mesmo vídeo duas vezes no lote conta uma linha só (a última do lote vale)', async () => {
+    const v2 = 'x2' + randomUUID().replace(/-/g, '').slice(0, 9)
+    const l = (sha: string) => ({ ...linha(sha), youtube_video_id: v2 })
+    expect((await sb.rpc('yt_own_video_state_record', { p_rows: [l('D1'), l('D1')] })).data).toBe(1)
+    expect((await pg.query('select count(*)::int n from public.yt_own_video_state_raw where youtube_video_id = $1', [v2])).rows[0].n).toBe(1)
+  })
+
+  it('corrida (portão I-1): duas conexões com o mesmo estado novo gravam UMA linha, no vídeo e no canal', async () => {
+    const outra = new Client({ connectionString: PG_URL }); await outra.connect()
+    const v3 = 'x3' + randomUUID().replace(/-/g, '').slice(0, 9)
+    const pv = JSON.stringify([{ ...linha('R1'), youtube_video_id: v3 }])
+    const pc = JSON.stringify([{ channel_id: canal, site_id: site, state_sha256: 'corrida-canal', raw: {} }])
+    try {
+      await pg.query('begin')
+      await pg.query('select public.yt_own_video_state_record($1::jsonb), public.yt_own_channel_state_record($2::jsonb)', [pv, pc])
+      // a segunda conexão pede o mesmo estado ANTES de a primeira commitar: tem de esperar o lock e depois ver a linha
+      const segunda = outra.query('select public.yt_own_video_state_record($1::jsonb) v, public.yt_own_channel_state_record($2::jsonb) c', [pv, pc])
+      await new Promise(r => setTimeout(r, 1500))
+      await pg.query('commit')
+      const res = await segunda
+      expect(res.rows[0]).toEqual({ v: 0, c: 0 })
+      expect((await pg.query('select count(*)::int n from public.yt_own_video_state_raw where youtube_video_id = $1', [v3])).rows[0].n).toBe(1)
+      expect((await pg.query(`select count(*)::int n from public.yt_own_channel_state_raw where state_sha256 = 'corrida-canal'`)).rows[0].n).toBe(1)
+    } finally {
+      try { await pg.query('rollback') } catch { /* já commitado */ }
+      await outra.end()
+    }
+  })
+
   it('canal: grava só na mudança', async () => {
-    const rec = async (sha: string) => (await sb.rpc('yt_own_channel_state_record', { p_rows: [{ youtube_channel_id: canal, site_id: site, state_sha256: sha, raw: { k: sha } }] })).data
+    const rec = async (sha: string) => (await sb.rpc('yt_own_channel_state_record', { p_rows: [{ channel_id: canal, site_id: site, state_sha256: sha, raw: { k: sha } }] })).data
     expect(await rec('c1')).toBe(1)
     expect(await rec('c1')).toBe(0)
     expect(await rec('c2')).toBe(1)
@@ -94,6 +123,6 @@ describe.skipIf(skipIfNoLocalDb())('A5 X1/X2/X5: estado do vídeo e do canal pr�
     for (const t of ['yt_own_video_state_raw', 'yt_own_video_public_daily']) {
       expect((await pg.query(`select 1 from public.${t} where youtube_video_id = $1`, [vid])).rowCount, t).toBe(0)
     }
-    expect((await pg.query('select 1 from public.yt_own_channel_state_raw where youtube_channel_id = $1', [canal])).rowCount).toBe(0)
+    expect((await pg.query('select 1 from public.yt_own_channel_state_raw where channel_id = $1', [canal])).rowCount).toBe(0)
   })
 })

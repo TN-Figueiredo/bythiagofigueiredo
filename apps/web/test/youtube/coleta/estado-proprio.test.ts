@@ -31,6 +31,24 @@ describe('estadoDoVideo (X1)', () => {
     const d = estadoDoVideo({ ...base, status: { ...base.status, license: 'creativeCommon' } }).estado!.sha
     expect(d).not.toBe(a)
   })
+  it('campos que só o dono vê (publishAt, selfDeclaredMadeForKids, hasCustomThumbnail) ficam fora do bruto e do hash', () => {
+    const base = item()
+    const a = estadoDoVideo(base)
+    const b = estadoDoVideo({
+      ...base,
+      contentDetails: { ...base.contentDetails, hasCustomThumbnail: true },
+      status: { ...base.status, publishAt: '2026-11-01T10:00:00Z', selfDeclaredMadeForKids: false },
+    })
+    const json = JSON.stringify(b.estado!.raw)
+    for (const k of ['publishAt', 'selfDeclaredMadeForKids', 'hasCustomThumbnail']) expect(json).not.toContain(k)
+    expect(b.estado!.sha).toBe(a.estado!.sha)
+  })
+  it('renomear o canal (snippet.channelTitle) não gira o hash do vídeo', () => {
+    const base = item()
+    const a = estadoDoVideo({ ...base, snippet: { ...base.snippet, channelTitle: 'Antigo' } }).estado!.sha
+    const b = estadoDoVideo({ ...base, snippet: { ...base.snippet, channelTitle: 'Novo' } }).estado!.sha
+    expect(b).toBe(a)
+  })
   it.each(['snippet', 'contentDetails', 'status'])('parte %s ausente: estado nulo e a parte nomeada (não grava hash parcial)', (p) => {
     const it = item() as Record<string, unknown>
     delete it[p]
@@ -75,9 +93,9 @@ describe('gravarEstadoProprio', () => {
   const cap = (over: Partial<CapturaDoEstado> = {}): CapturaDoEstado => ({
     privacyStatus: 'public', estado: { sha: 'h', raw: { a: 1 } }, estadoAusentes: [], contadores: { views: 7, likes: 1, comments: 0 }, ...over,
   })
-  function db(rpcRes: unknown = { data: 2, error: null }, upRes: unknown = { error: null }) {
+  function db(rpcRes: unknown = { data: 2, error: null }, upRes: unknown = { data: [{ youtube_video_id: 'velho' }], error: null }) {
     const rpc = vi.fn(async () => rpcRes)
-    const upsert = vi.fn(async () => upRes)
+    const upsert = vi.fn(() => ({ select: async () => upRes }))
     return { rpc, upsert, supabase: { rpc, from: vi.fn(() => ({ upsert })) } as unknown as Parameters<typeof gravarEstadoProprio>[0]['supabase'] }
   }
 
@@ -94,6 +112,12 @@ describe('gravarEstadoProprio', () => {
     expect(linhas[0]).toMatchObject({ youtube_video_id: 'velho', day_pt: '2026-10-17', view_count: 7, like_count: 1, comment_count: 0 })
     expect((upsert.mock.calls[0] as unknown[])[1]).toEqual({ onConflict: 'youtube_video_id,day_pt', ignoreDuplicates: true })
     expect(falhas).toEqual([])
+  })
+
+  it('segunda execução do dia (ignoreDuplicates não insere nada): o resumo não diz que gravou o que já existia', async () => {
+    const { supabase } = db({ data: 0, error: null }, { data: [], error: null })
+    const r = await gravarEstadoProprio({ supabase, falhas: [] }, [vid('velho', 40)], new Map([['velho', cap()]]), AGORA)
+    expect(r.publicos_gravados).toBe(0)
   })
 
   it('dia de São Paulo: 02:30 UTC ainda é o dia anterior', async () => {
@@ -130,7 +154,7 @@ describe('gravarEstadoProprio', () => {
   })
 
   it('erro do banco e schema ausente viram nota, sem contar como gravado, sem lançar', async () => {
-    const { supabase } = db({ data: null, error: { code: '42883', message: 'x' } }, { error: { code: 'PGRST205', message: 'y' } })
+    const { supabase } = db({ data: null, error: { code: '42883', message: 'x' } }, { data: null, error: { code: 'PGRST205', message: 'y' } })
     const falhas: string[] = []
     const r = await gravarEstadoProprio({ supabase, falhas }, [vid('velho', 40)], new Map([['velho', cap()]]), AGORA)
     expect(r).toMatchObject({ estado_gravado: 0, publicos_gravados: 0 })
