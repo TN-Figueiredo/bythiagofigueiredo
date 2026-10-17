@@ -61,7 +61,7 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '../_canal/videos-model', '../_canal/lista',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
-  it('há nove empacotadores', () => { expect(empacotadores).toHaveLength(9) })
+  it('há dez empacotadores', () => { expect(empacotadores).toHaveLength(10) })
   for (const p of empacotadores) {
     it(`${nome(p)}: valor só de permitidos, de irmãos empacotar-* e de contexto-ia/; nenhum módulo importado tem 'use client'`, () => {
       for (const i of importacoes(ler(p))) {

@@ -19,7 +19,7 @@ export const TELAS_IA: Record<TelaId, TelaIa> = {
   outliers: { nome: 'Outliers', rota: 'outliers', pedeId: false, estado: 'existe', exemplos: ['O que estes vídeos têm em comum?', 'Isso muda o que eu devo publicar?'] },
   insights: { nome: 'Insights', rota: 'insights', pedeId: false, estado: 'existe', exemplos: ['O nicho está subindo ou descendo?', 'Onde o meu canal está nisso?'] },
   mudancas: { nome: 'Mudanças', rota: 'mudancas', pedeId: false, estado: 'existe', exemplos: ['Quem mexeu mais em títulos?', 'O que mudou antes de um vídeo subir?'] },
-  fila: { nome: 'Saíram do YouTube', rota: null, pedeId: false, estado: 'espera_a_tela', exemplos: ['Há algo nesta fila que eu deveria manter?'] },
+  fila: { nome: 'Saíram do YouTube', rota: 'saiu', pedeId: false, estado: 'existe', exemplos: ['Há algo nesta fila que eu deveria manter?'] },
   // As duas próprias dividem a rota com Canal e Vídeo e passam a `existe` nas Tarefas 7a e 7b.
   'canal-proprio': { nome: 'Canal próprio', rota: 'canal/[id]', pedeId: true, estado: 'existe', exemplos: ['O que melhorou nos meus últimos vídeos?', 'O que ainda não dá para medir?'] },
   'video-proprio': { nome: 'Vídeo próprio', rota: 'video/[id]', pedeId: true, estado: 'existe', exemplos: ['A miniatura está funcionando?', 'O que os comentários pedem?'] },

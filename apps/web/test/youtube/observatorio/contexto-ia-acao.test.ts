@@ -73,7 +73,7 @@ describe('a guarda e a forma do pedido', () => {
 
   it.each([
     ['tela desconhecida', { tela: 'nada', consulta: '' }],
-    ['tela em espera_a_tela', { tela: 'fila', consulta: '' }],
+    ['tela em espera_a_tela', { tela: 'ritmo', consulta: '' }],
     ["tela '__proto__'", { tela: '__proto__', consulta: '' }],
     ['tela ausente', { consulta: '' }],
     ['consulta que não é texto', { tela: 'outliers', consulta: 7 }],

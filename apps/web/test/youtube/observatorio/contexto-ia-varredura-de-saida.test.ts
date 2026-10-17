@@ -20,6 +20,7 @@ const USUARIO = '00000000-0000-4000-8000-0000000000cc'
 const EDICAO = Object.defineProperty({}, 'siteId', { value: SITE, enumerable: false }) as LeituraPrivadaDoSite
 const OWNS: OwnMenu = { itens: [{ id: w.canalId, name: 'Meu', nota: 'n', href: '/x' }], principal: null, listaHref: '/l' }
 
+const filaSt = vi.hoisted(() => ({ leitura: null as unknown }))
 const st = vi.hoisted(() => ({ acesso: { leitura: null as unknown, edita: false, negativa: null as string | null } }))
 vi.mock('server-only', () => ({}))
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) }, notFound: () => { throw new Error('NOT_FOUND') } }))
@@ -40,6 +41,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   lerDadosDoVideo: async () => ({ acesso: 'ok', dado: { alcance: (w.dados.alcance as { dado: unknown }).dado, diario: (w.dados.diario as { dado: unknown }).dado } }),
   lerDiarioLongo: async () => ({ acesso: 'erro' }), longosAcompanhadosDe: () => [],
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_saiu/dados', () => ({ abrirFila: async () => filaSt.leitura, contarParaAAba: async () => ({ visivel: false }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem', () => ({ lerOrigem: async () => ({ acesso: 'erro' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-termos', () => ({ lerTermosESites: async () => ({ acesso: 'negado' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () => ({
@@ -53,6 +55,7 @@ vi.mock('@/lib/youtube/observatorio/contexto-ia/regras', async (orig) => {
   return { ...m, CONTEXTO_IA_RULES: new Proxy(m.CONTEXTO_IA_RULES, { get: (t, k) => (k === 'ligado' ? modo.ligado : Reflect.get(t, k)) }) }
 })
 
+import { fila, video as itemVideo, canal as itemCanal, grupo as itemGrupo, apagando as itemApagando, respondidoMantido, respondidoApagado, voltouApagado } from './saiu-fixtures'
 import { gerarPacoteIa } from '@/app/cms/(authed)/youtube/competitors/contexto-ia-actions'
 
 const proprioVideo = w.obs.videos.find((v) => v.ch === w.canalId)!
@@ -68,7 +71,7 @@ const PEDIDOS: Record<TelaId, { id?: string; consulta: string } | null> = {
   mudancas: { consulta: '' },
   'canal-proprio': { id: w.canalId, consulta: '' },
   'video-proprio': { id: proprioVideo.id, consulta: '' },
-  fila: null,
+  fila: { consulta: '' },
   ritmo: null,
 }
 const TELAS_EXISTE = (Object.keys(TELAS_IA) as TelaId[]).filter((t) => TELAS_IA[t].estado === 'existe')
@@ -112,7 +115,8 @@ function violacoes(saida: string, regiao: string = saida): string[] {
   return v
 }
 
-beforeEach(() => { modo.ligado = true; st.acesso = { leitura: EDICAO, edita: true, negativa: null } })
+const FILA_CHEIA = () => fila({ esperando: [itemVideo(1), itemCanal(), itemGrupo()], apagando: [itemApagando(1)], voltaram: [voltouApagado()], respondidos: [respondidoMantido(), respondidoApagado()], respondidosTotal: 2 })
+beforeEach(() => { filaSt.leitura = FILA_CHEIA(); modo.ligado = true; st.acesso = { leitura: EDICAO, edita: true, negativa: null } })
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('a varredura de saída, por tela do registro', () => {

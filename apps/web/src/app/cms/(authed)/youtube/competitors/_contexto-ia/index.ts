@@ -11,6 +11,7 @@ import { buildPar } from '../_comparar/par-model'
 import { montarOutliers } from '../_outliers/montar'
 import { montarInsights } from '../_insights/montar'
 import { montarMudancas } from '../_mudancas/montar'
+import { montarFila } from '../_saiu/montar'
 import { acessoPrivado } from '../_proprio/dados'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { mascararCrus } from '@/lib/youtube/observatorio/contexto-ia/mascarar'
@@ -23,6 +24,7 @@ import { empacotarComparar, modeloDeComparar } from './empacotar-comparar'
 import { empacotarOutliers, modeloDeOutliers } from './empacotar-outliers'
 import { empacotarInsights, modeloDeInsights } from './empacotar-insights'
 import { empacotarMudancas, modeloDeMudancas } from './empacotar-mudancas'
+import { empacotarFila, modeloDeFila } from './empacotar-fila'
 
 export interface PedidoMontado { id?: string; sp: Record<string, string | undefined> }
 export interface PacoteMontado { modelo: PacoteModelo; recente: string | null; estado: Record<string, string> }
@@ -46,7 +48,7 @@ export function parametrosPlanos(consulta: string): Record<string, string | unde
 // A busca livre (`q`) nunca entra: vira `tem_busca`. O texto cru da URL fora desta forma é descartado, nunca cortado e gravado.
 const CHAVES_DE_ESTADO = new Set([
   'niche', 'fmt', 'sort', 'dir', 'tab', 'filter', 'direcao', 'scale', 'layout', 'channel', 'add', 'nicheEditor', 'ordr', 'ordi', 'aba', 'age', 'min', 'topic',
-  'formula', 'reading', 'asof', 'view', 'heat', 'win', 'period', 'ver', 'n', 'video', 'nums', 'a', 'b', 'from', 'saved', 'heroes',
+  'formula', 'reading', 'asof', 'view', 'heat', 'win', 'period', 'ver', 'n', 'video', 'nums', 'a', 'b', 'from', 'saved', 'heroes', 'mostrar',
 ])
 const VALOR_DE_ESTADO = /^[A-Za-z0-9_.:,-]{1,36}$/
 
@@ -141,6 +143,13 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
   mudancas: async ({ sp }) => {
     const m = await montarMudancas(sp)
     return { modelo: sem(empacotarMudancas(modeloDeMudancas(m.view, m.pagina.obs.nicheLabel(m.view.filters.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
+  },
+  fila: async ({ sp }) => {
+    const m = await montarFila(sp)
+    // sem acesso de edição a fila não existe para quem pede ("não encontrado"); falha de leitura NUNCA vira "fila vazia": lança e a ação responde `falhou`
+    if (m.view.estado === 'sem_acesso') return null
+    if (m.view.estado === 'erro') throw new Error('contexto-ia: a fila não pôde ser lida')
+    return { modelo: empacotarFila(modeloDeFila(m.view)), recente: m.recente, estado: textoDe(m.estado) }
   },
 }
 

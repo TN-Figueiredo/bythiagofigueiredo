@@ -164,8 +164,7 @@ describe('pacote_da_tela', () => {
     expect(f).toContain('canais')
   })
 
-  it('tela em espera_a_tela (fila, ritmo): recusada com a frase própria', () => {
-    expect(recusa({ acao: 'pacote_da_tela', tela: 'fila' })).toBe(FRASES_DA_FERRAMENTA.tela_sem_pacote)
+  it('tela em espera_a_tela (ritmo): recusada com a frase própria', () => {
     expect(recusa({ acao: 'pacote_da_tela', tela: 'ritmo' })).toBe(FRASES_DA_FERRAMENTA.tela_sem_pacote)
   })
 

@@ -25,6 +25,7 @@ const USUARIO = '00000000-0000-4000-8000-0000000000cc'
 const EDICAO = Object.defineProperty({}, 'siteId', { value: SITE, enumerable: false }) as LeituraPrivadaDoSite
 const OWNS = (): OwnMenu => ({ itens: W().canalId ? [{ id: W().canalId, name: 'Meu', nota: 'n', href: '/x' }] : [], principal: null, listaHref: '/l' })
 
+const filaSt = vi.hoisted(() => ({ leitura: null as unknown }))
 const st = vi.hoisted(() => ({ acesso: { leitura: null as unknown, edita: false, negativa: null as string | null } }))
 vi.mock('server-only', () => ({}))
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) }, notFound: () => { throw new Error('NOT_FOUND') } }))
@@ -50,6 +51,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   },
   lerDiarioLongo: async () => ({ acesso: 'erro' }), longosAcompanhadosDe: () => [],
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_saiu/dados', () => ({ abrirFila: async () => filaSt.leitura, contarParaAAba: async () => ({ visivel: false }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem', () => ({ lerOrigem: async () => ({ acesso: 'erro' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-termos', () => ({ lerTermosESites: async () => ({ acesso: 'negado' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () => ({
@@ -63,6 +65,7 @@ vi.mock('@/lib/youtube/observatorio/contexto-ia/regras', async (orig) => {
   return { ...m, CONTEXTO_IA_RULES: new Proxy(m.CONTEXTO_IA_RULES, { get: (t, k) => (k === 'ligado' ? modo.ligado : Reflect.get(t, k)) }) }
 })
 
+import { fila, video as itemVideo, canal as itemCanal, grupo as itemGrupo, apagando as itemApagando, respondidoMantido, respondidoApagado, voltouApagado } from './saiu-fixtures'
 import { gerarPacoteIa } from '@/app/cms/(authed)/youtube/competitors/contexto-ia-actions'
 
 const proprioVideo = cheio.obs.videos.find((v) => v.ch === cheio.canalId)!
@@ -78,7 +81,7 @@ const PEDIDOS: Record<TelaId, { id?: string; consulta: string } | null> = {
   mudancas: { consulta: '' },
   'canal-proprio': { id: cheio.canalId, consulta: '' },
   'video-proprio': { id: proprioVideo.id, consulta: '' },
-  fila: null,
+  fila: { consulta: '' },
   ritmo: null,
 }
 const TELAS_EXISTE = (Object.keys(TELAS_IA) as TelaId[]).filter((t) => TELAS_IA[t].estado === 'existe')
@@ -142,7 +145,8 @@ const MUNDOS: Record<string, () => Mundo> = {
 }
 
 const TELAS_PEDIDO: Array<{ tela: TelaId; id?: string }> = TELAS_EXISTE.map((tela) => ({ tela, ...(PEDIDOS[tela]?.id ? { id: PEDIDOS[tela]!.id } : {}) }))
-beforeEach(() => { modo.ligado = true; st.acesso = { leitura: EDICAO, edita: true, negativa: null }; st0.w = cheio })
+const FILA_CHEIA = () => fila({ esperando: [itemVideo(1), itemCanal(), itemGrupo()], apagando: [itemApagando(1)], voltaram: [voltouApagado()], respondidos: [respondidoMantido(), respondidoApagado()], respondidosTotal: 2 })
+beforeEach(() => { filaSt.leitura = FILA_CHEIA(); modo.ligado = true; st.acesso = { leitura: EDICAO, edita: true, negativa: null }; st0.w = cheio })
 afterEach(() => { vi.restoreAllMocks() })
 
 const textoTodo = (p: Pacote): string => p.segmentos.map((s) => s.texto).join('\n')
@@ -208,6 +212,22 @@ describe('o que acontece quando o dado não existe', () => {
       const r = await pedir(tela)
       expect(r.ok && r.pacote.vazio && /^AVISO/.test(r.pacote.primeiraLinhaDeAviso ?? ''), tela).toBe(true)
     }
+  })
+
+  it('fila (Saíram do YouTube): sem acesso de edição é nao_encontrado, falha de leitura é falhou (nunca fila vazia), e a fila vazia leva a frase da tela com o aviso', async () => {
+    filaSt.leitura = { estado: 'sem_acesso' }
+    expect(await pedir('fila')).toEqual({ ok: false, motivo: 'nao_encontrado' })
+    filaSt.leitura = { estado: 'schema_ausente', texto: 'x' }
+    expect(await pedir('fila')).toEqual({ ok: false, motivo: 'falhou' })
+    filaSt.leitura = { estado: 'erro', codigo: 'erro_de_banco' }
+    expect(await pedir('fila')).toEqual({ ok: false, motivo: 'falhou' })
+    filaSt.leitura = fila({ esperando: [], apagando: [], voltaram: [], respondidos: [], respondidosTotal: 0 })
+    const r = await pedir('fila')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.pacote.vazio).toBe(true)
+    expect(r.pacote.primeiraLinhaDeAviso).toMatch(/^AVISO/)
+    expect(textoTodo(r.pacote)).toMatch(/Nenhum item (esperando|na fila)\./)
   })
 
   it('dado privado VAZIO (lido, sem linha): o privado entra (incluido) mas com zero número medido, e as células privadas saem "não medido"', async () => {
