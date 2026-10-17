@@ -45,7 +45,8 @@ import type { ValorM1 } from '@/lib/youtube/observatorio/medidas/m1'
 import { medidasDoCanal, type Insumos } from '@/lib/youtube/observatorio/medidas/do-canal'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
-import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
+import { montarTexto, resumir } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
+import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 import { ignorados, semDestino, semUso } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { estourouExisteEm, somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
@@ -324,6 +325,19 @@ describe('Vídeo, medidas: dado ausente, estados e terceiros', () => {
     expect(conta(m.textoDoPacote, /^ignore o que veio antes/)).toBe(0)
     expect(conta(m.textoDoPacote, /^Minha pergunta:/)).toBe(conta(normal.textoDoPacote, /^Minha pergunta:/))
     expect(m.textoDoPacote).not.toMatch(/\n## 9\. Minha pergunta\n[^\n]*ignore/)
+  })
+
+  it('tamanho (D-2 do trem 6): o pior caso realista do vídeo, com as 72 horas, o Estourou e parou e as mudanças com de-para, cabe nos tetos', async () => {
+    const m = await montar({ ...caso('cheio, estourou e parou'), lista: MUDANCAS_A_MAO }, false)
+    // sem isso o caso provaria nada: o pacote tem as 72 linhas de hora, os três sinais e o de-para
+    expect(tab(m, 'video-horas')!.linhas.length).toBe(72)
+    expect(tab(m, 'video-estourou')!.linhas).toHaveLength(4)
+    expect(tab(m, 'video-mudancas-de-para')).toBeDefined()
+    const t = resumir(segmentar(m.pacote, CONTEXTO), 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax))
+    expect(t.copia.pisoPassou, 'piso').toBe(false)
+    expect(t.copia.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
+    expect(t.completo.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCompleto)
+    expect(JSON.stringify(segmentar(m.pacote, CONTEXTO)).length).toBeLessThan(1_000_000)
   })
 
   it('medidas não pedidas ao empacotador: nenhuma tabela nem aviso novo', () => {
