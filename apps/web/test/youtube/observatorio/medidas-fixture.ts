@@ -4,7 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type Linha = Record<string, unknown>
-export interface Consulta { tabela: string; colunas: string[]; filtros: Array<{ op: 'eq' | 'neq' | 'in' | 'gte'; coluna: string; valor: unknown }>; de: number | null; ate: number | null; ordem?: string[] }
+export interface Consulta { tabela: string; colunas: string[]; filtros: Array<{ op: 'eq' | 'neq' | 'in' | 'gte' | 'lt'; coluna: string; valor: unknown }>; de: number | null; ate: number | null; ordem?: string[] }
 export interface FalsoOpcoes {
   /** Erro devolvido (no campo `error`) a toda consulta desta tabela. */
   erros?: Record<string, { code: string; message: string }>
@@ -22,13 +22,17 @@ export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes
     from(tabela: string) {
       const c: Consulta = { tabela, colunas: [], filtros: [], de: null, ate: null }
       let ordem: string[] = []
+      const desc = new Set<string>()
+      let limite: number | null = null
       const b = {
         select(cols: string) { c.colunas = cols.split(',').map((x) => x.trim()).filter(Boolean); return b },
         eq(coluna: string, valor: unknown) { c.filtros.push({ op: 'eq', coluna, valor }); return b },
         neq(coluna: string, valor: unknown) { c.filtros.push({ op: 'neq', coluna, valor }); return b },
         in(coluna: string, valor: unknown[]) { c.filtros.push({ op: 'in', coluna, valor }); return b },
         gte(coluna: string, valor: unknown) { c.filtros.push({ op: 'gte', coluna, valor }); return b },
-        order(coluna: string) { ordem = [...ordem, coluna]; return b },
+        lt(coluna: string, valor: unknown) { c.filtros.push({ op: 'lt', coluna, valor }); return b },
+        limit(n: number) { limite = n; return b },
+        order(coluna: string, o?: { ascending?: boolean }) { ordem = [...ordem, coluna]; if (o?.ascending === false) desc.add(coluna); return b },
         range(de: number, ate: number) { c.ordem = ordem; c.de = de; c.ate = ate; return b },
         then(ok: (r: { data: unknown; error: unknown }) => unknown, falha?: (e: unknown) => unknown) {
           return executar().then(ok, falha)
@@ -49,14 +53,15 @@ export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes
           if (f.op === 'neq') return v !== f.valor
           if (f.op === 'in') return Array.isArray(f.valor) && f.valor.includes(v)
           const a = comparavel(v), z = comparavel(f.valor)
-          return a !== null && z !== null && a >= z
+          if (a === null || z === null) return false
+          return f.op === 'lt' ? a < z : a >= z
         }))
         if (ordem.length) {
           linhas = [...linhas].sort((x, y) => {
             for (const k of ordem) {
               const a = comparavel(x[k]), z = comparavel(y[k])
               if (a === null || z === null || a === z) continue
-              return a < z ? -1 : 1
+              return (a < z ? -1 : 1) * (desc.has(k) ? -1 : 1)
             }
             return 0
           })
@@ -64,6 +69,7 @@ export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes
         const de = c.de ?? 0
         const ate = c.ate === null ? de + 999 : Math.min(c.ate, de + 999)
         linhas = linhas.slice(de, ate + 1)
+        if (limite !== null) linhas = linhas.slice(0, limite)
         const cols = c.colunas
         return { data: linhas.map((l) => Object.fromEntries(cols.map((k) => [k, l[k] ?? null]))), error: null }
       }
@@ -158,4 +164,23 @@ export function insumosCheios(): Insumos {
     multiplos,
     comentarios: { lido: true, dados: { coletaDesdeMs: AGORA_CHEIA - 60 * D, porVideo: comentarios } },
   }
+}
+
+// ───── A5 E5a, Tarefa 14a: espião sobre o falso ─────
+export type Gancho = (tabela: string, eqs: unknown[], seguir: () => PromiseLike<unknown>) => PromiseLike<unknown>
+/** Embrulha o falso: cada consulta passa pelo gancho, que vê a tabela e os valores de `eq` e decide se segue ou substitui a resposta. */
+export function espiar(sb: SupabaseClient, gancho: Gancho): SupabaseClient {
+  return new Proxy(sb, { get(alvo, prop) {
+    if (prop !== 'from') return Reflect.get(alvo, prop)
+    return (tabela: string) => {
+      const eqs: unknown[] = []
+      const embrulhar = (x: Record<string, (...a: unknown[]) => unknown>): unknown => new Proxy(x, { get(_, k: string) {
+        if (k === 'then') return (ok: (v: unknown) => unknown, falha?: (e: unknown) => unknown) => Promise.resolve(gancho(tabela, eqs, () => new Promise((res, rej) => { (x.then as (o: unknown, f: unknown) => unknown)(res, rej) }))).then(ok, falha)
+        const v = x[k]
+        if (typeof v !== 'function') return v
+        return (...a: unknown[]) => { if (k === 'eq') eqs.push(a[1]); const r = v.apply(x, a); return r === x ? embrulhar(x) : r }
+      } })
+      return embrulhar(alvo.from(tabela) as unknown as Record<string, (...a: unknown[]) => unknown>)
+    }
+  } })
 }
