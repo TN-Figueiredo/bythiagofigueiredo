@@ -219,6 +219,7 @@
 [data-obs-screen="canal"] .pc-cs.zero{border:1px solid var(--im-zero);align-items:center;justify-content:center}
 [data-obs-screen="canal"] .pc-cs.zero .pc-zero{border:0;background:transparent;width:auto;height:auto}
 [data-obs-screen="canal"] .pc-cs.nm{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+[data-obs-screen="canal"] .pc-rola{display:none}
 [data-obs-screen="canal"] .pc-eixo{display:flex;justify-content:space-between;margin:0;padding-left:80px;font-size:12px;line-height:16px;color:var(--muted)}
 [data-obs-screen="canal"] .pc-par{grid-template-areas:"l g v";border-top:1px solid var(--border-subtle);border-bottom:0;padding-bottom:24px}
 [data-obs-screen="canal"] .pc-rp{grid-area:g;position:relative;height:14px;border:1px solid var(--dim);border-radius:4px;background:var(--sunk);margin:0 8px 0 0}
@@ -238,6 +239,8 @@
 [data-obs-screen="canal"] .pc-mets small{font-size:12px;color:var(--muted)}
 @media (max-width:760px){
 [data-obs-screen="canal"] .pc-par{grid-template-columns:minmax(0,1fr);grid-template-areas:"l" "g"}
+/* a/Gio: empilhada, a marca "típico" fica acima da régua e encostava no texto "desde o último…" de cima: a régua desce o que o rótulo ocupa (sem z-index) */
+[data-obs-screen="canal"] .pc-par .pc-rp{margin-top:24px}
 [data-obs-screen="canal"] .pc-mets{grid-template-columns:minmax(0,1fr)}
 [data-obs-screen="canal"] .pc-sem{grid-template-columns:58px minmax(0,1fr);gap:6px}
 [data-obs-screen="canal"] .pc-eixo{padding-left:64px}
@@ -301,6 +304,8 @@
 /* N3 (Naksu): a 390 px as 13 casas de Ritmo não cabem com dígito de 12 px; a faixa rola dentro dela, o dígito não encolhe nem encosta na borda */
 @media (max-width:520px){
 [data-obs-screen="canal"] .pc-cs-l{grid-template-columns:repeat(13,minmax(26px,1fr));overflow-x:auto;padding-bottom:2px}
+/* a/Gio: a raia de 13 casas rola a 390 px; o aviso de rolagem só aparece nesta largura */
+[data-obs-screen="canal"] .pc-rola{display:block;margin:0 0 4px;font-size:12px;line-height:16px;color:var(--muted)}
 [data-obs-screen="canal"] .pc-cs.com b{padding:0 2px;font-variant-numeric:tabular-nums}
 }
 /* N4 (Naksu): alvos de toque de 44 px por largura de tela, não só por ponteiro (a captura de 390 px não é coarse) */

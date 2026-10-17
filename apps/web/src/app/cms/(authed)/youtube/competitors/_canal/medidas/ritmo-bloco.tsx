@@ -64,6 +64,7 @@ export function RitmoBloco({ bloco }: { bloco: BlocoDeRitmo }) {
       <p className="pc-fr2" data-frase-do-bloco><span><b>{bloco.frase.negrito}</b>{bloco.frase.resto}</span></p>
       {bloco.raias.length > 0 ? (
         <div className="pc-sems">
+          <p className="pc-rola" data-rola>Arraste para o lado para ver as {n} semanas.</p>
           {bloco.raias.map(r => <Raia key={r.rotulo} r={r} />)}
           <p className="pc-eixo"><span>há {n} semanas</span><span>{bloco.eixoFim}</span></p>
         </div>

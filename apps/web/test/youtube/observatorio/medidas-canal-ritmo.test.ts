@@ -148,6 +148,13 @@ describe('bloco Ritmo: fronteiras e frases', () => {
     expect(b.ponteiro!.dias).toBeLessThanOrEqual(buraco.tipo === 'medido' ? parseInt(buraco.texto, 10) : 0)
     expect(buraco.tipo === 'medido' && buraco.pequeno).toMatch(/^sem longo desde \d\d\/\d\d$/)
   })
+  it('b (Gio): o buraco aberto e o ponteiro dizem os mesmos dias, com fração (14,6 d: 14 nos dois)', () => {
+    const vs = [14.6, 20, 25, 30, 35].map((d, i) => pub('f' + i, d))
+    const b = blocoDeRitmo(entrada(vs))
+    const buraco = b.cartoes.find(c => c.chave === 'buraco')!.valor
+    expect(b.ponteiro!.dias).toBe(14)
+    expect(buraco.tipo === 'medido' && buraco.texto).toBe('14 dias')
+  })
   it('coerência: casas com publicação = semanas com publicação da M6, com um vídeo de domingo 23:30 de São Paulo (segunda em UTC)', () => {
     // 2026-10-12 02:30 UTC é domingo 11/10 23:30 em São Paulo; a divisão em semanas é a da M6 (relativa ao agora), então concorda.
     const vs = [...seis, videoLido('dom', { publishedAt: '2026-10-12T02:30:00Z' })]
@@ -162,5 +169,15 @@ describe('bloco Ritmo: fronteiras e frases', () => {
     const e = entrada(seis)
     const b = blocoDeRitmo({ ...e, medidas: { ...e.medidas!, m8: { ...e.medidas!.m8, parado: medido({ dias: 3, limite: 31, ultimaEm: AGORA }, 1, J) } } })
     expect(b.ponteiro!.limite).toBe(31)
+  })
+})
+
+describe('a (Gio): Ritmo a 390 px', () => {
+  it('a raia traz o aviso de rolagem e o CSS empilhado desce a régua sem z-index', async () => {
+    const h = html(entrada(seis))
+    expect(h).toContain('data-rola')
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync('src/app/cms/(authed)/youtube/competitors/_canal/medidas/canal-medidas.css', 'utf8')
+    expect(css).toMatch(/\.pc-par \.pc-rp\{margin-top:24px\}/)
   })
 })
