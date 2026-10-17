@@ -50,7 +50,9 @@ export function listaDoCriador(e: {
   if (r.nivel === 'contagem') {
     return {
       tipo: 'contagem', total: r.total, aviso: e.permissaoFalhou ? { negrito: FRASES.permissaoNaoConferida, resto: '' } : FRASE_SO_CONTAGEM,
-      frase: { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário', 'comentários')} guardados.`, resto: '' },
+      frase: r.total === 0
+        ? { negrito: 'Nenhuma resposta do criador entre os comentários guardados.', resto: ` Isso não prova que ele não respondeu: só vemos os ${MAX_COMENTARIOS_GUARDADOS} guardados de cada vídeo.` }
+        : { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado', 'comentários guardados')}.`, resto: '' },
     }
   }
   if (r.itens.length === 0) {
@@ -66,7 +68,7 @@ export function listaDoCriador(e: {
   return {
     tipo: 'itens', total: r.total, nVideos: videos, itens, aMais: Math.max(0, ordenados.length - itens.length),
     frase: {
-      negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário', 'comentários')} guardados, em ${ptn(videos, 'vídeo', 'vídeos')}${e.nBase > 0 ? ' com retrato de 30 dias' : ''}.`,
+      negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado', 'comentários guardados')}, em ${ptn(videos, 'vídeo', 'vídeos')}${e.nBase > 0 ? ' com retrato de 30 dias' : ''}.`,
       resto: ' O vídeo mais recente primeiro.',
     },
   }

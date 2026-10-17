@@ -166,6 +166,18 @@ describe('a lista', () => {
     expect(html).toContain('Você vê o número, não o texto.')
     expect(html).not.toContain('ótimo')
   })
+  it('nível contagem com zero respostas: nunca "respondeu a 0 comentários" ao lado de "Não vimos resposta"', () => {
+    const l = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', total: 0, itens: [] }), videos, titulos, nBase: 6 })
+    expect(l.tipo).toBe('contagem')
+    if (l.tipo === 'contagem') {
+      const t = l.frase.negrito + l.frase.resto
+      expect(t).not.toMatch(/respondeu a 0/)
+      expect(t).toContain('Nenhuma resposta do criador entre os comentários guardados.')
+      expect(t).toContain('Isso não prova que ele não respondeu')
+    }
+    const um = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', total: 1, itens: [] }), videos, titulos, nBase: 6 })
+    if (um.tipo === 'contagem') expect(um.frase.negrito).toBe('Matt respondeu a 1 comentário guardados.'.replace('guardados', 'guardado'))
+  })
   it('lista falhou: não carregou', () => {
     expect(listaDoCriador({ nome: 'M', resposta: { lido: false, causa: 'erro_do_banco' } as ParteLida<RespostasDoCriador>, videos, titulos, nBase: 6 }).tipo).toBe('nao_carregou')
   })
