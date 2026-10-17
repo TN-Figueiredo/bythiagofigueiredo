@@ -4,6 +4,7 @@ import type { CriadorDoFio } from './fio-model'
 import { InfoDica } from '../../_proprio/info-dica'
 import { Abas } from './abas'
 import { EstadoDoPainel } from './estados'
+import { enxugarLista } from './enxuto'
 import { ListaDoPainel } from './lista'
 import { ResumoDaLista } from './resumo'
 import { MARCOS_DA_TELA, type PainelView, type SecaoView } from './model'
@@ -11,7 +12,7 @@ import './comentarios.css'
 import './fio.css'
 
 function Painel({ v, criador, hrefFilaSaiu }: { v: PainelView; criador: CriadorDoFio; hrefFilaSaiu?: string }) {
-  return v.kind === 'lista' ? <ListaDoPainel v={v} criador={criador} hrefFilaSaiu={hrefFilaSaiu} /> : <EstadoDoPainel v={v} />
+  return v.kind === 'lista' ? <ListaDoPainel v={enxugarLista(v)} criador={criador} hrefFilaSaiu={hrefFilaSaiu} /> : <EstadoDoPainel v={v} />
 }
 
 export function SecaoDeComentarios({ v, criador, hrefFilaSaiu }: { v: SecaoView; criador: CriadorDoFio; hrefFilaSaiu?: string }) {

@@ -38,7 +38,7 @@ function EstadoDoBloco({ bloco }: { bloco: BlocoDoCriador }) {
   }
 }
 
-export function CriadorResponde({ bloco, lista, canalId, criador }: { bloco: BlocoDoCriador; lista: ModeloDaLista | null; canalId?: string; criador?: CriadorDoFio }) {
+export function CriadorResponde({ bloco, lista, canalId, criador }: { bloco: BlocoDoCriador; lista: ModeloDaLista | null; canalId?: string; criador: CriadorDoFio }) {
   const mostra = lista && !(bloco.semColeta && lista.tipo === 'vazia') ? lista : null
   return (
     <section className="pc-sec cf-cq" id="criador" aria-labelledby="hCri" data-criador={bloco.tipo}>
@@ -63,7 +63,7 @@ export function CriadorResponde({ bloco, lista, canalId, criador }: { bloco: Blo
   )
 }
 
-function Lista({ m, canalId, criador }: { m: ModeloDaLista; canalId?: string; criador?: CriadorDoFio }) {
+function Lista({ m, canalId, criador }: { m: ModeloDaLista; canalId?: string; criador: CriadorDoFio }) {
   if (m.tipo === 'nao_carregou') return <p className="pc-fr2" data-lista-do-criador><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
   if (m.tipo === 'vazia') return <p className="pc-fr2" data-lista-do-criador><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
   if (m.tipo === 'contagem') {
@@ -74,12 +74,11 @@ function Lista({ m, canalId, criador }: { m: ModeloDaLista; canalId?: string; cr
       </div>
     )
   }
-  const quem: CriadorDoFio = criador ?? { nome: '', avatar: null, ini: '', color: '#3B2F8F' }
   return (
     <div data-lista-do-criador="itens">
       <ul className="pc-grupos">
         {m.grupos.map(g => (
-          <GrupoDoCriador key={g.videoId} fios={g.fios} criador={quem} cabeca={(
+          <GrupoDoCriador key={g.videoId} fios={g.fios} criador={criador} cabeca={(
             <div className="pc-grupo-cab">
               <span className="pc-grupo-th" aria-hidden="true">
                 {g.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={g.thumb} alt="" width={64} height={36} loading="lazy" /> : null}

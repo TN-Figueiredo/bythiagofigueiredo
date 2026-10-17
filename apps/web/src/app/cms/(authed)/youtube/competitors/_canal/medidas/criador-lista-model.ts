@@ -86,7 +86,10 @@ export function listaDoCriador(e: {
     })
   })
   const grupos = [...porVideo.values()]
-  for (const g of grupos) g.respostasDele = `${g.fios.length} ${g.fios.length === 1 ? 'resposta dele' : 'respostas dele'}`
+  for (const g of grupos) {
+    const n = g.fios.reduce((s, f) => s + f.respostas.length, 0)
+    g.respostasDele = `${n} ${n === 1 ? 'resposta dele' : 'respostas dele'}`
+  }
   const videos = grupos.length
   return {
     tipo: 'itens', total: r.total, nVideos: videos, grupos,

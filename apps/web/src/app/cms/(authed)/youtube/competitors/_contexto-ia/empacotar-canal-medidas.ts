@@ -454,7 +454,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
         return [
           terceiros(g.titulo, `${F}.titulo`), base(g.respostasDele, `${F}.respostasDele`), f.data !== null ? base(f.data, `${F}.fios[${fi}].data`) : rotulo(cri.sem, `${K}.sem`),
           f.curtidas !== null ? base(f.curtidas, `${F}.fios[${fi}].curtidas`) : rotulo(cri.sem, `${K}.sem`),
-          terceiros(f.texto, `${F}.fios[${fi}].texto`), terceiros(f.respostas, `${F}.fios[${fi}].respostas`),
+          terceiros(f.texto, `${F}.fios[${fi}].texto`), terceiros(f.respostas.split('\n').join(' · '), `${F}.fios[${fi}].respostas`),
         ]
       })) })
   }
