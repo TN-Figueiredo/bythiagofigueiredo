@@ -27,7 +27,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   private ordenar: { col: string; asc: boolean } | null = null
   private limite = Infinity
   private contar = false
-  constructor(private readonly linhas: Fila[], private readonly aoReler: () => void, private readonly unir?: (f: Fila) => Fila) {}
+  constructor(private readonly linhas: Fila[], private readonly aoReler: () => void, private readonly unir?: (f: Fila) => Fila, private readonly aoAtualizar?: (antes: Fila, depois: Fila) => void) {}
   select(cols?: string, o?: { count?: string; head?: boolean }) {
     if (this.modo === 'select' && cols === 'restore_seq') this.aoReler()
     if (o?.count) this.contar = true
@@ -36,6 +36,8 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   update(patch: Fila) { this.modo = 'update'; this.patch = patch; return this }
   eq(col: string, v: unknown) { this.filtros.push((f) => f[col] === v); return this }
   is(col: string, v: unknown) { this.filtros.push((f) => (f[col] ?? null) === v); return this }
+  neq(col: string, v: unknown) { this.filtros.push((f) => f[col] !== v); return this }
+  lte(col: string, v: string) { this.filtros.push((f) => String(f[col]) <= v); return this }
   lt(col: string, v: string) { this.filtros.push((f) => String(f[col]) < v); return this }
   gte(col: string, v: string) { this.filtros.push((f) => String(f[col]) >= v); return this }
   not(col: string, _op: string, v: unknown) { this.filtros.push((f) => (f[col] ?? null) !== v); return this }
@@ -43,7 +45,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   limit(n: number) { this.limite = n; return this }
   private executar(): Fila[] {
     let hit = this.linhas.filter((f) => this.filtros.every((g) => g(f)))
-    if (this.modo === 'update') hit.forEach((f) => Object.assign(f, this.patch))
+    if (this.modo === 'update') hit.forEach((f) => { const antes = structuredClone(f); Object.assign(f, this.patch); this.aoAtualizar?.(antes, f) })
     if (this.ordenar) { const { col, asc } = this.ordenar; hit = [...hit].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1)) }
     return hit.slice(0, this.limite).map((f) => structuredClone(this.unir ? this.unir(f) : f))
   }
@@ -55,12 +57,17 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   }
 }
 
-export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; diasNoAr?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number }
+export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; diasNoAr?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number
+  /** Rascunho/pausado etc. (padrão active). */ status?: string
+  /** Sem ciclo aberto (rascunho). */ semCiclos?: boolean
+  restoreStatus?: unknown
+  /** Outros testes do mesmo vídeo (campos sobrescrevem o modelo). */ extras?: Fila[]
+}
 
 export function criarBanco(o: OpcoesBanco = {}) {
   const teste: Fila = {
-    id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'thumbnail', status: 'active', restore_seq: o.restoreSeq ?? 0,
-    restore_status: null, original_title: 'Título A', original_thumbnail_url: BLOB('A'), last_applied_variant_id: o.marcador ?? null,
+    id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'thumbnail', status: o.status ?? 'active', restore_seq: o.restoreSeq ?? 0,
+    restore_status: o.restoreStatus ?? null, original_title: 'Título A', original_thumbnail_url: BLOB('A'), last_applied_variant_id: o.marcador ?? null,
     youtube_video_id: 'video-interno', config: o.config ?? { rotation_pattern: 'abba' }, winner_variant_id: null, winner_applied_at: null,
     revert_expires_at: null, status_note: null, paused_at: null, completed_at: null, completed_reason: null, applied_by: null,
     updated_at: new Date(AGORA.getTime() - (o.atualizadoHaMs ?? 600_000)).toISOString(),
@@ -68,13 +75,14 @@ export function criarBanco(o: OpcoesBanco = {}) {
     created_at: new Date(AGORA.getTime() - (o.diasNoAr ?? 3) * 86_400_000).toISOString(),
   }
   const variantes: Fila[] = [
-    { id: 'A', test_id: 'teste-1', sort_order: 0, is_original: true, blob_url: BLOB('A'), title_text: 'Título A', thumbnail_dhash: H.A },
-    { id: 'B', test_id: 'teste-1', sort_order: 1, is_original: false, blob_url: BLOB('B'), title_text: 'Título B', thumbnail_dhash: H.B },
+    { id: 'A', test_id: 'teste-1', label: 'original', sort_order: 0, is_original: true, blob_url: BLOB('A'), title_text: 'Título A', thumbnail_dhash: H.A },
+    { id: 'B', test_id: 'teste-1', label: 'B', sort_order: 1, is_original: false, blob_url: BLOB('B'), title_text: 'Título B', thumbnail_dhash: H.B },
   ]
   o.ajustar?.(variantes)
   const tabelas: Record<string, Fila[]> = {
-    ab_tests: [teste], ab_test_variants: variantes,
-    ab_test_cycles: [{ id: 'c0', test_id: 'teste-1', cycle_number: 0, variant_id: 'A', started_at: ONTEM, ended_at: null, end_reason: null }],
+    ab_tests: [teste, ...(o.extras ?? []).map((e) => ({ ...structuredClone(teste), restore_status: null, ...e }))], ab_test_variants: variantes,
+    ab_test_cycles: o.semCiclos ? [] : [{ id: 'c0', test_id: 'teste-1', cycle_number: 0, variant_id: 'A', started_at: ONTEM, ended_at: null, end_reason: null }],
+    ab_test_restores: [],
     ab_test_polls: [], youtube_videos: [{ id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', channel_id: 'ch-1', youtube_channels: { channel_id: 'UC1', name: 'Canal' } }],
     ops_alert_state: [],
   }
@@ -82,12 +90,31 @@ export function criarBanco(o: OpcoesBanco = {}) {
   const ganchos: Array<() => void> = []
   let ciclo = 0
   const t = () => tabelas.ab_tests[0] as Fila & { restore_seq: number; config: Fila }
+  const lancam = new Map<string, Error>()
+  // Emula tg_ab_tests_restore_log (com a guarda da P4a): uma linha por campo e por restore_seq quando o campo muda e não
+  // está em_andamento; regravar o valor anterior com restore_seq novo não cria linha.
+  const gatilhoDoHistorico = (antes: Fila, depois: Fila) => {
+    const rs = (depois.restore_status ?? null) as Record<string, Fila> | null
+    const rsAntes = (antes.restore_status ?? null) as Record<string, Fila> | null
+    for (const k of ['title', 'thumbnail']) {
+      const v = rs?.[k]
+      if (!v || v.estado === 'em_andamento') continue
+      if (JSON.stringify(rsAntes?.[k] ?? null) === JSON.stringify(v)) continue
+      const linhas = tabelas.ab_test_restores!
+      if (linhas.some((r) => r.test_id === depois.id && r.campo === k && Number(r.seq) < Number(depois.restore_seq)
+        && r.estado === v.estado && r.destino === v.destino && r.em === v.em && r.attempts === v.attempts)) continue
+      const i = linhas.findIndex((r) => r.test_id === depois.id && r.seq === depois.restore_seq && r.campo === k)
+      const nova = { test_id: depois.id, seq: depois.restore_seq, campo: k, estado: v.estado, destino: v.destino, escreveu: v.escreveu, forcado: v.forcado, motivo: v.motivo ?? null, attempts: v.attempts, em: v.em }
+      if (i >= 0) linhas[i] = nova; else linhas.push(nova)
+    }
+  }
   const supabase = {
     from(tabela: string) {
       const unir = tabela === 'ab_tests' ? (f: Fila) => ({ ...f, variants: tabelas.ab_test_variants }) : undefined
-      return new Consulta(tabelas[tabela]!, () => ganchos.forEach((g) => g()), unir)
+      return new Consulta(tabelas[tabela]!, () => ganchos.forEach((g) => g()), unir, tabela === 'ab_tests' ? gatilhoDoHistorico : undefined)
     },
     rpc(nome: string, a: Record<string, unknown>) {
+      if (lancam.has(nome)) return Promise.reject(lancam.get(nome))
       if (nome === 'ops_alert_claim') {
         const k = String(a.p_key)
         if (tabelas.ops_alert_state!.some((f) => f.key === k)) return Promise.resolve({ data: false, error: null })
@@ -107,6 +134,18 @@ export function criarBanco(o: OpcoesBanco = {}) {
         Object.assign(t(), { last_applied_variant_id: null, config: falhas ? { ...t().config, consecutive_failures: 0 } : t().config })
         return Promise.resolve({ data: id, error: null })
       }
+      if (nome === 'ab_resume_commit') {
+        const alvo = tabelas.ab_tests!.find((f) => f.id === a.p_test_id) as (Fila & { restore_seq: number }) | undefined
+        if (!alvo || alvo.status !== a.p_de || alvo.restore_seq !== a.p_seq) return Promise.resolve({ data: null, error: null })
+        const cs = tabelas.ab_test_cycles!.filter((c) => c.test_id === a.p_test_id)
+        const num = Math.max(-1, ...cs.map((c) => Number(c.cycle_number))) + 1
+        cs.filter((c) => c.ended_at == null).forEach((c) => Object.assign(c, { ended_at: agora, end_reason: alvo.paused_at ? 'pausa' : null }))
+        const id = `retomado-${++ciclo}`
+        tabelas.ab_test_cycles!.push({ id, test_id: a.p_test_id, cycle_number: num, variant_id: a.p_variant_id, started_at: agora, ended_at: null, applied_metadata: a.p_applied_metadata })
+        const cfg = (alvo.config ?? {}) as Fila
+        Object.assign(alvo, { status: 'active', paused_at: null, drift_acknowledged_at: null, status_note: null, restore_status: {}, updated_at: agora, config: Number(cfg.consecutive_failures ?? 0) ? { ...cfg, consecutive_failures: 0 } : cfg })
+        return Promise.resolve({ data: id, error: null })
+      }
       // ab_settle_claim
       const extra = a.p_extra as Fila
       if (!(a.p_de as string[]).includes(String(t().status)) || t().restore_seq !== a.p_seq) return Promise.resolve({ data: [], error: null })
@@ -123,6 +162,9 @@ export function criarBanco(o: OpcoesBanco = {}) {
     ciclos: () => tabelas.ab_test_cycles!, ciclosAbertos: () => tabelas.ab_test_cycles!.filter((c) => c.ended_at == null),
     cicloAberto: () => tabelas.ab_test_cycles!.find((c) => c.ended_at == null),
     cicloFechado: (i: number) => tabelas.ab_test_cycles!.filter((c) => c.ended_at != null)[i],
+    restores: () => tabelas.ab_test_restores!,
+    outro: (id: string) => tabelas.ab_tests!.find((f) => f.id === id) as Fila,
+    rpcLanca: (nome: string, e: Error) => { lancam.set(nome, e) },
     setPoll: (p: Fila) => { tabelas.ab_test_polls!.push({ test_id: 'teste-1', polled_at: AGORA.toISOString(), ...p }) },
     antesDaReleitura: (g: () => void) => { ganchos.push(g) },
     variantes: () => variantes as unknown as AbTestVariantRow[],

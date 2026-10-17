@@ -44,6 +44,7 @@ export class YouTubeFalso {
   private readonly atrasos = new Map<ChamadaFalsa, number>()
   private antes: Gancho[] = []
   private depois: Gancho[] = []
+  private titulosDaLeitura: string[] = []
   private ultimoPut: { id: string; snippet: Record<string, unknown> } | null = null
   readonly fetch: typeof fetch
 
@@ -53,6 +54,8 @@ export class YouTubeFalso {
     this.fetch = ((input: RequestInfo | URL, init?: RequestInit) => this.tratar(String(input), init)) as typeof fetch
   }
 
+  /** Cada leitura (videos.list) devolve o próximo título da lista; a última se repete (corrida entre dois inícios). */
+  lerTitulos(lista: string[]): void { this.titulosDaLeitura = [...lista] }
   registrarBlob(url: string, bytes: Buffer): void { this.o.blobs = { ...this.o.blobs, [url]: bytes } }
   recusar(chamada: ChamadaFalsa, status: number, reason: string, opcoes: { corpo?: string } = {}): void {
     this.recusas.set(chamada, { status, reason, corpo: opcoes.corpo ?? 'corpo' })
@@ -105,7 +108,7 @@ export class YouTubeFalso {
       }
       case 'videos.list':
         if (this.o.videoApagado) return new Response(JSON.stringify({ items: [] }))
-        return new Response(JSON.stringify({ items: [{ snippet: { title: this.titulo, description: this.o.descricao ?? 'Descrição', categoryId: this.o.categoria ?? '19' } }] }))
+        return new Response(JSON.stringify({ items: [{ snippet: { title: this.titulosDaLeitura.length > 1 ? this.titulosDaLeitura.shift()! : (this.titulosDaLeitura[0] ?? this.titulo), description: this.o.descricao ?? 'Descrição', categoryId: this.o.categoria ?? '19' } }] }))
       case 'videos.update': {
         const corpo = JSON.parse(String(init?.body)) as { id: string; snippet: Record<string, unknown> }
         this.ultimoPut = corpo

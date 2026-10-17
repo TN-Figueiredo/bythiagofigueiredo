@@ -1,352 +1,324 @@
+// @vitest-environment node
+// resumeAbTest (P4a T10): a action (sessão + invalidação) e o corpo `retomarTeste` rodam contra o banco falso único
+// (helpers/banco-ab) e o YouTubeFalso, com o código real de escrita (applyVariantToYouTube, lerSnippet, escreverTitulo).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import * as Sentry from '@sentry/nextjs'
+import { YouTubeFalso } from './helpers/youtube-falso'
+import { AGORA, BLOB, IMG, ONTEM, SITE, criarBanco, servicoAtual } from './helpers/banco-ab'
+import type { Fila, OpcoesBanco } from './helpers/banco-ab'
 
-// Mock modules before imports
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+const { fanOut, ensureFreshToken, canal, requireSiteScope } = vi.hoisted(() => ({
+  fanOut: vi.fn(), ensureFreshToken: vi.fn(), canal: vi.fn(), requireSiteScope: vi.fn(),
+}))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => servicoAtual.cliente }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn() }))
-vi.mock('@/lib/youtube/ab-youtube', () => ({
-  setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }),
-  fetchVariantImageBuffer: vi.fn(),
-}))
-vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
-vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
-vi.mock('@/lib/youtube/ab-apply', () => ({ applyVariantToYouTube: vi.fn() }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
-vi.mock('@/lib/cms/site-context', () => ({
-  getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }),
-}))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: fanOut }))
+vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }) }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   createServerClient: vi.fn().mockReturnValue({ auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }) } }),
-  requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
+  requireSiteScope,
 }))
-vi.mock('next/cache', () => ({
-  updateTag: vi.fn(),
-  revalidatePath: vi.fn(),
-  revalidateTag: vi.fn(),
-}))
+vi.mock('next/cache', () => ({ updateTag: vi.fn(), revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
-vi.mock('@/lib/youtube/ab-types', () => ({
-  AB_TEST_CONFIG_DEFAULTS: {},
-  AB_SITE_SETTINGS_DEFAULTS: {},
-  VARIANT_LABELS: ['A', 'B', 'C', 'D'],
-  DRIFT_STATUS_NOTE: 'Thumbnail alterado externamente',
-}))
-vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
+vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken }))
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/links/auto-link', () => ({ ensureTrackedLink: vi.fn() }))
 vi.mock('@/lib/youtube/scoring', () => ({ getChannelTier: vi.fn() }))
 vi.mock('@/lib/youtube/prompt-scoring', () => ({ scoreForPrompt: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: canal,
+}))
 
 import { resumeAbTest } from '@/app/cms/(authed)/youtube/ab-lab/actions'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { retomarTeste } from '@/lib/youtube/ab-resume'
+import type { PortasRetomar } from '@/lib/youtube/ab-resume'
+import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO } from '@/lib/youtube/ab-acao-saida'
 import { revalidatePath, revalidateTag } from 'next/cache'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const MINUTO = 60_000
+const antigo = (o: Fila = {}) => ({ estado: 'ok', destino: 'original', em: ONTEM, forcado: false, escreveu: true, erro: null, attempts: 0, ...o })
 
-function makeTest(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'test-1',
-    site_id: 'site-1',
-    status: 'paused',
-    status_note: null,
-    drift_acknowledged_at: null,
-    youtube_video_id: 'db-video-1',
-    test_type: 'thumbnail',
-    config: { rotation_pattern: 'abba' },
-    original_title: 'Original Title',
-    ...overrides,
-  }
+/** Teste pausado de 2 variantes (A original, B); o ciclo aberto padrão do banco é fechado como na pausa. */
+async function montar(o: OpcoesBanco = {}) {
+  const banco = criarBanco({ status: 'paused', restoreSeq: 3, restoreStatus: { thumbnail: antigo() }, ...o })
+  banco.setTeste({ paused_at: ONTEM })
+  Object.assign(banco.ciclos()[0]!, { ended_at: ONTEM, end_reason: 'pausa' })
+  servicoAtual.cliente = banco.supabase
+  const yt = new YouTubeFalso({ titulo: 'Título A', thumb: IMG.A, blobs: { [BLOB('A')]: IMG.A, [BLOB('B')]: IMG.B } })
+  vi.stubGlobal('fetch', yt.fetch)
+  const portas: PortasRetomar = { supabase: banco.supabase, agora: () => AGORA, token: async () => 'tok' }
+  return { banco, yt, portas, retomar: (p: Partial<PortasRetomar> = {}) => retomarTeste('teste-1', SITE, { ...portas, ...p }) }
 }
-
-const DEFAULT_VARIANTS = [
-  { id: 'v1', label: 'A', sort_order: 0, is_original: true, blob_url: 'https://blob.example/thumb-a.jpg', title_text: null },
-  { id: 'v2', label: 'B', sort_order: 1, is_original: false, blob_url: 'https://blob.example/thumb-b.jpg', title_text: null },
-]
-
-interface BuildMockOpts {
-  test?: unknown | null
-  variants?: unknown[] | null
-  video?: { youtube_video_id: string } | null
-  channel?: { channel_id: string } | null
-  cycleCount?: number
-  cycleInsertError?: { message: string } | null
-  testUpdateError?: { message: string } | null
-}
-
-function buildSupabaseMock(opts: BuildMockOpts = {}) {
-  const {
-    test = makeTest(),
-    variants = DEFAULT_VARIANTS,
-    video = { youtube_video_id: 'YT_VIDEO_123' },
-    channel = { channel_id: 'UC_CHANNEL_123' },
-    cycleCount = 0,
-    cycleInsertError = null,
-    testUpdateError = null,
-  } = opts
-
-  const updateCalls: { table: string; data: unknown; filters: string[] }[] = []
-  const insertCalls: { table: string; data: unknown }[] = []
-
-  const fromMock = vi.fn((table: string) => {
-    if (table === 'ab_tests') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: test, error: test ? null : { message: 'not found' } }),
-            }),
-          }),
-        }),
-        update: vi.fn((data: unknown) => {
-          updateCalls.push({ table: 'ab_tests', data, filters: [] })
-          return {
-            eq: vi.fn().mockResolvedValue({ data: null, error: testUpdateError }),
-          }
-        }),
-      }
-    }
-
-    if (table === 'ab_test_variants') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: variants, error: variants ? null : { message: 'not found' } }),
-          }),
-        }),
-      }
-    }
-
-    if (table === 'ab_test_cycles') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ count: cycleCount, data: null, error: null }),
-        }),
-        insert: vi.fn((data: unknown) => {
-          insertCalls.push({ table: 'ab_test_cycles', data })
-          return Promise.resolve({ data: null, error: cycleInsertError })
-        }),
-      }
-    }
-
-    if (table === 'youtube_videos') {
-      // resolveChannelAccountId uses a join: select('youtube_channels!inner(channel_id)')
-      // resolveYouTubeVideoId uses: select('youtube_video_id')
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue((() => {
-            const single = vi.fn().mockImplementation(async () => {
-              // Both resolveChannelAccountId and resolveYouTubeVideoId query the same table
-              // Return an object that satisfies both lookups
-              if (!video) return { data: null, error: { message: 'not found' } }
-              return {
-                data: {
-                  youtube_video_id: video.youtube_video_id,
-                  youtube_channels: channel ? { channel_id: channel.channel_id } : undefined,
-                },
-                error: null,
-              }
-            })
-            // `eq` de novo = o filtro de site do resolvedor do canal dono do vídeo
-            return { single, eq: vi.fn().mockReturnValue({ single }) }
-          })()),
-        }),
-      }
-    }
-
-    // Fallback
-    return {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    }
-  })
-
-  const client = { from: fromMock }
-  ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
-
-  return { client, fromMock, updateCalls, insertCalls }
-}
-
-// ---------------------------------------------------------------------------
-// Setup / teardown
-// ---------------------------------------------------------------------------
 
 beforeEach(() => {
   vi.clearAllMocks()
-  ;(getNextVariantIndex as ReturnType<typeof vi.fn>).mockReturnValue(1)
-  ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
-    accessToken: 'fresh-token-123',
-  })
-  ;(applyVariantToYouTube as ReturnType<typeof vi.fn>).mockResolvedValue({
-    ok: true,
-    appliedThumbnail: true,
-    appliedMetadata: false,
-    meta: { thumbnail_set: true, youtube_thumbnail_url: 'https://i.ytimg.com/vi/YT_VIDEO_123/hq.jpg' },
-  })
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(AGORA)
+  fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
+  ensureFreshToken.mockResolvedValue({ accessToken: 'fresh-token-123' })
+  canal.mockResolvedValue('UC1')
+  requireSiteScope.mockResolvedValue({ ok: true })
 })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
-afterEach(() => {
-  vi.unstubAllEnvs()
-})
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe('resumeAbTest', () => {
-  it('resumes paused test and calls applyVariantToYouTube', async () => {
-    buildSupabaseMock()
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({ ok: true })
-    expect(applyVariantToYouTube).toHaveBeenCalledWith(
-      expect.objectContaining({
-        youtubeVideoId: 'YT_VIDEO_123',
-        accessToken: 'fresh-token-123',
-        testType: 'thumbnail',
-        variant: expect.objectContaining({
-          id: 'v2',
-          blob_url: 'https://blob.example/thumb-b.jpg',
-        }),
-        originalTitle: 'Original Title',
-      }),
-    )
+describe('resumeAbTest (a action)', () => {
+  it('P4a-I6 (i): retomar com escrita ok -> active, restore_status {} (não nulo), um ciclo aberto com cycle_number = max + 1; invalida as telas', async () => {
+    const { banco, yt } = await montar()
+    const maxAntes = Math.max(...banco.ciclos().map((c) => Number(c.cycle_number)))
+    const r = await resumeAbTest('teste-1')
+    expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+    expect(banco.teste()).toMatchObject({ status: 'active', paused_at: null })
+    expect(banco.teste().restore_status).toEqual({})
+    expect(banco.ciclosAbertos()).toHaveLength(1)
+    expect(banco.cicloAberto()).toMatchObject({ cycle_number: maxAntes + 1, variant_id: 'B' })
+    expect(banco.cicloAberto()?.applied_metadata).toEqual({ thumbnail_set: true, youtube_thumbnail_url: 'https://i.ytimg.com/x.jpg' })
+    expect(yt.escritas()).toEqual(['thumbnails.set'])
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
     expect(revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
   })
-
-  it('teste pausado de tipo antigo (descrição): recusa, sem aplicar, sem ciclo e sem mudar status', async () => {
-    const { updateCalls, insertCalls } = buildSupabaseMock({ test: makeTest({ test_type: 'description' }) })
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result.ok).toBe(false)
-    expect(result.error).toBe('A descrição não participa mais do teste A/B')
-    expect(applyVariantToYouTube).not.toHaveBeenCalled()
-    expect(updateCalls).toHaveLength(0)
-    expect(insertCalls).toHaveLength(0)
-  })
-
-  it('stores applied_metadata on new cycle', async () => {
-    const meta = { thumbnail_set: true, youtube_thumbnail_url: 'https://i.ytimg.com/vi/YT_VIDEO_123/hq.jpg' }
-    ;(applyVariantToYouTube as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      appliedThumbnail: true,
-      appliedMetadata: false,
-      meta,
-    })
-
-    const { insertCalls } = buildSupabaseMock()
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({ ok: true })
-    expect(insertCalls).toHaveLength(1)
-    expect(insertCalls[0]!.table).toBe('ab_test_cycles')
-    expect(insertCalls[0]!.data).toEqual(
-      expect.objectContaining({
-        test_id: 'test-1',
-        variant_id: 'v2',
-        cycle_number: 0,
-        applied_metadata: meta,
-      }),
-    )
-    // started_at should be an ISO string
-    expect(insertCalls[0]!.data).toHaveProperty('started_at')
-  })
-
-  it('uses configured rotation_pattern (not hardcoded ABBA)', async () => {
-    const test = makeTest({ config: { rotation_pattern: 'round_robin' } })
-    buildSupabaseMock({ test })
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({ ok: true })
-    expect(getNextVariantIndex).toHaveBeenCalledWith('round_robin', 2, 0)
-  })
-
-  it('blocks resume when drift not acknowledged', async () => {
-    const test = makeTest({
-      status_note: 'Thumbnail alterado externamente',
-      drift_acknowledged_at: null,
-    })
-    buildSupabaseMock({ test })
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.',
-    })
-    expect(applyVariantToYouTube).not.toHaveBeenCalled()
-  })
-
-  it('allows resume when drift acknowledged', async () => {
-    const test = makeTest({
-      status_note: 'Thumbnail alterado externamente',
-      drift_acknowledged_at: '2026-06-01T12:00:00.000Z',
-    })
-    buildSupabaseMock({ test })
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({ ok: true })
-    expect(applyVariantToYouTube).toHaveBeenCalled()
-  })
-
-  it('clears paused_at, drift_acknowledged_at, status_note on resume', async () => {
-    const { updateCalls } = buildSupabaseMock()
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({ ok: true })
-    expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0]!.table).toBe('ab_tests')
-    expect(updateCalls[0]!.data).toEqual(
-      expect.objectContaining({
-        status: 'active',
-        paused_at: null,
-        drift_acknowledged_at: null,
-        status_note: null,
-      }),
-    )
-    // updated_at should be an ISO string
-    expect((updateCalls[0]!.data as Record<string, unknown>).updated_at).toEqual(expect.any(String))
-  })
-
-  it('rejects non-paused test', async () => {
-    const test = makeTest({ status: 'active' })
-    buildSupabaseMock({ test })
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: 'Only paused tests can be resumed',
-    })
-    expect(applyVariantToYouTube).not.toHaveBeenCalled()
-  })
-
-  it('handles applyVariantToYouTube failure', async () => {
-    ;(applyVariantToYouTube as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      appliedThumbnail: false,
-      appliedMetadata: false,
-      meta: {},
-      error: 'quota',
-    })
-    buildSupabaseMock()
-
-    const result = await resumeAbTest('test-1')
-
-    expect(result).toMatchObject({ ok: false, error: 'quota' })
-    // Cycle should NOT be inserted on failure
+  it('sessão sem permissão: sem_permissao, nada lido nem escrito', async () => {
+    const { banco, yt } = await montar()
+    requireSiteScope.mockResolvedValue({ ok: false, reason: 'forbidden' })
+    const r = await resumeAbTest('teste-1')
+    expect(r).toMatchObject({ ok: false, resultado: 'sem_permissao' })
+    expect(yt.chamadas).toEqual([])
+    expect(banco.teste()).toMatchObject({ status: 'paused', restore_seq: 3 })
     expect(revalidatePath).not.toHaveBeenCalled()
+  })
+  it('a action ignora o que a rede mandar além do testId (sem portas injetáveis)', () => {
+    expect(resumeAbTest.length).toBe(1)
+  })
+  it('falha tratada invalida as telas (o teste foi reivindicado e regravado)', async () => {
+    const { yt } = await montar()
+    yt.recusar('thumbnails.set', 403, 'forbidden')
+    const r = await resumeAbTest('teste-1')
+    expect(r).toMatchObject({ ok: false, resultado: 'erro' })
+    expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
+  })
+  it('recusa antes da reivindicação (não está pausado) não invalida as telas', async () => {
+    await montar({ status: 'active' })
+    const r = await resumeAbTest('teste-1')
+    expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+})
+
+describe('retomarTeste: validações antes de reivindicar', () => {
+  it('teste pausado de tipo antigo (descrição): recusa, sem escrever, sem reivindicar', async () => {
+    const { banco, yt, retomar } = await montar({ testType: 'description' as never })
+    const r = await retomar()
+    expect(r).toMatchObject({ ok: false, error: 'A descrição não participa mais do teste A/B' })
+    expect(yt.chamadas).toEqual([])
+    expect(banco.teste().restore_seq).toBe(3)
+  })
+  it('bloqueia a retomada quando o drift não foi reconhecido; libera quando foi', async () => {
+    const a = await montar()
+    a.banco.setTeste({ status_note: 'Thumbnail alterado externamente', drift_acknowledged_at: null })
+    expect(await a.retomar()).toMatchObject({ ok: false, error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.' })
+    expect(a.yt.escritas()).toEqual([])
+    a.banco.setTeste({ drift_acknowledged_at: '2026-06-01T12:00:00.000Z' })
+    expect((await a.retomar()).ok).toBe(true)
+  })
+  it('teste que não está pausado -> ja_encerrado, sem escrever', async () => {
+    const { yt, retomar } = await montar({ status: 'active' })
+    expect(await retomar()).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
+    expect(yt.chamadas).toEqual([])
+  })
+  it('usa o rotation_pattern configurado (round_robin com 1 ciclo: variante B) e o token do canal dono', async () => {
+    const { banco, retomar } = await montar({ config: { rotation_pattern: 'round_robin' } })
+    await retomar()
+    expect(banco.cicloAberto()?.variant_id).toBe('B')
+    expect(canal).toHaveBeenCalledWith(expect.anything(), SITE, 'video-interno')
+  })
+  it('guarda de conteúdo (T9 R1): variante da vez sem cópia no Blob -> não reivindica, não escreve', async () => {
+    const { banco, yt, retomar } = await montar({ ajustar: (v) => { v[1]!.blob_url = 'https://i.ytimg.com/vi/yt-1/hqdefault.jpg' } })
+    const r = await retomar()
+    expect(r).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringContaining('sem arquivo da thumbnail no Blob') })
+    expect(yt.chamadas).toEqual([])
+    expect(banco.teste()).toMatchObject({ status: 'paused', restore_seq: 3 })
+  })
+  it('guarda de conteúdo: teste de título com a variante sem texto -> não reivindica', async () => {
+    const { banco, yt, retomar } = await montar({ testType: 'title', ajustar: (v) => { v[1]!.title_text = '  ' } })
+    const r = await retomar()
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('sem texto de título') })
+    expect(yt.chamadas).toEqual([])
+    expect(banco.teste().restore_seq).toBe(3)
+  })
+  it('F-D4: retomar com campo em_andamento há 30 s -> em_andamento, zero reivindicação, zero escritas', async () => {
+    const em = new Date(AGORA.getTime() - 30_000).toISOString()
+    const { banco, yt, retomar } = await montar({ restoreStatus: { thumbnail: antigo({ estado: 'em_andamento', em, escreveu: null }) } })
+    const r = await retomar()
+    expect(r).toEqual({ ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO })
+    expect(yt.chamadas).toEqual([])
+    expect(banco.teste().restore_seq).toBe(3)
+  })
+  it('F-D4: em_andamento há 3 min (já passou dos 2) não barra a retomada', async () => {
+    const em = new Date(AGORA.getTime() - 3 * MINUTO).toISOString()
+    const { retomar } = await montar({ restoreStatus: { thumbnail: antigo({ estado: 'em_andamento', em, escreveu: null }) } })
+    expect((await retomar()).ok).toBe(true)
+  })
+  it('retomar com restore_seq trocado (retrato velho) -> não escreve; restore_status intocado', async () => {
+    const { banco, yt, retomar } = await montar()
+    const retrato = { ...banco.teste() }
+    const r = await retomar({ lerRetrato: async () => ({ ...retrato, restore_seq: 2 } as never) })
+    expect(r.ok).toBe(false)
+    expect(yt.escritas()).toEqual([])
+    expect(banco.teste().restore_status).toEqual({ thumbnail: antigo() })
+    expect(banco.teste().restore_seq).toBe(3)
+  })
+})
+
+describe('retomarTeste: reivindicação mantendo paused', () => {
+  it('durante a escrita o teste segue paused, com restore_seq + 1 e o campo em_andamento (destino = variante, em = agora, attempts anterior)', async () => {
+    const { banco, yt, retomar } = await montar({ restoreStatus: { thumbnail: antigo({ attempts: 2 }) } })
+    let visto: Fila | null = null
+    yt.antesDeEscrever(() => { visto = structuredClone(banco.teste()) })
+    await retomar()
+    expect(visto).toMatchObject({ status: 'paused', restore_seq: 4 })
+    expect((visto as unknown as Fila).restore_status).toEqual({
+      thumbnail: { estado: 'em_andamento', destino: 'B', em: AGORA.toISOString(), forcado: false, escreveu: null, erro: null, attempts: 2 },
+    })
+  })
+  it('combo: os dois campos entram em em_andamento na reivindicação', async () => {
+    const { banco, yt, retomar } = await montar({ testType: 'combo', restoreStatus: null })
+    let visto: Fila | null = null
+    yt.antesDeEscrever(() => { visto ??= structuredClone(banco.teste()) })
+    await retomar()
+    expect(Object.keys((visto as unknown as Fila).restore_status as object).sort()).toEqual(['thumbnail', 'title'])
+  })
+  it('retrato velho diz paused mas o banco já está active com o MESMO restore_seq: a guarda de status barra a reivindicação', async () => {
+    const { banco, yt, retomar } = await montar()
+    const retrato = { ...banco.teste() }
+    banco.setTeste({ status: 'active' })
+    const r = await retomar({ lerRetrato: async () => retrato as never })
+    expect(r.ok).toBe(false)
+    expect(yt.escritas()).toEqual([])
+    expect(banco.teste()).toMatchObject({ status: 'active', restore_seq: 3 })
+  })
+  it('duas retomadas ao mesmo tempo: só uma reivindica e escreve; a outra devolve em_andamento (guarda de status e de restore_seq)', async () => {
+    const { banco, yt, retomar } = await montar()
+    const [a, b] = await Promise.all([retomar(), retomar()])
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1)
+    expect([a, b].find((x) => !x.ok)).toMatchObject({ resultado: 'em_andamento' })
+    expect(yt.escritas()).toEqual(['thumbnails.set'])
+    expect(banco.ciclosAbertos()).toHaveLength(1)
+  })
+})
+
+describe('retomarTeste: desfechos', () => {
+  it('P4a-I6 (ii): sem NENHUMA escrita feita (thumbnails.set recusa) -> paused, restore_status igual ao anterior E count(ab_test_restores) igual (F-B2)', async () => {
+    const { banco, yt, retomar } = await montar()
+    // a linha que a reivindicação anterior deixou no histórico (a guarda do gatilho reconhece a regravação por ela)
+    banco.restores().push({ test_id: 'teste-1', seq: 2, campo: 'thumbnail', estado: 'ok', destino: 'original', em: ONTEM, attempts: 0 })
+    yt.recusar('thumbnails.set', 403, 'forbidden')
+    const anterior = structuredClone(banco.teste().restore_status)
+    const linhas = banco.restores().length
+    const r = await retomar()
+    expect(r).toMatchObject({ ok: false, resultado: 'erro' })
+    expect(banco.teste().status).toBe('paused')
+    expect(banco.teste().restore_status).toEqual(anterior)
+    expect(banco.restores()).toHaveLength(linhas)
+    expect(banco.ciclosAbertos()).toHaveLength(0)
+  })
+  it('P4a-I6 (ii-b) (Y-B2): combo, thumbnail aceita e título 403 -> paused; thumbnail = ok, destino B, escreveu true; title = o anterior; sem "voltou ao original"', async () => {
+    const tituloAntes = antigo({ estado: 'falhou', escreveu: false, erro: { status: 403, reason: 'forbidden', chamada: 'videos.update' }, attempts: 1 })
+    const { banco, yt, retomar } = await montar({ testType: 'combo', restoreStatus: { thumbnail: antigo(), title: tituloAntes } })
+    yt.recusar('videos.update', 403, 'forbidden')
+    const r = await retomar()
+    expect(r.ok).toBe(false)
+    expect(banco.teste().status).toBe('paused')
+    const rs = banco.teste().restore_status as Record<string, Fila>
+    expect(rs.thumbnail).toMatchObject({ estado: 'ok', destino: 'B', escreveu: true, forcado: false, erro: null, em: AGORA.toISOString() })
+    expect(rs.title).toEqual(tituloAntes)
+    expect(yt.escritas()).toEqual(['thumbnails.set', 'videos.update'])
+    expect(banco.ciclosAbertos()).toHaveLength(0)
+  })
+  it('Y-B2 (combo, anterior sem o campo do título): o título que não escreveu fica ausente, não vira em_andamento', async () => {
+    const { banco, yt, retomar } = await montar({ testType: 'combo', restoreStatus: { thumbnail: antigo() } })
+    yt.recusar('videos.update', 403, 'forbidden')
+    await retomar()
+    const rs = banco.teste().restore_status as Record<string, Fila>
+    expect(rs.title).toBeUndefined()
+    expect(rs.thumbnail).toMatchObject({ estado: 'ok', destino: 'B' })
+  })
+  it('F-P10: retomar que falha num teste ainda nulo (saiu do ar antes da P4a) regrava nulo', async () => {
+    const { banco, yt, retomar } = await montar({ restoreStatus: null })
+    yt.recusar('thumbnails.set', 403, 'forbidden')
+    await retomar()
+    expect(banco.teste().restore_status).toBeNull()
+    expect(banco.teste().status).toBe('paused')
+  })
+  it('F-P10 com escrita parcial num teste nulo: só o campo escrito aparece', async () => {
+    const { banco, yt, retomar } = await montar({ testType: 'combo', restoreStatus: null })
+    yt.recusar('videos.update', 403, 'forbidden')
+    await retomar()
+    const rs = banco.teste().restore_status as Record<string, Fila>
+    expect(Object.keys(rs)).toEqual(['thumbnail'])
+  })
+  it('a regravação da falha vale só para o restore_seq reivindicado (outro escritor no meio não é sobrescrito)', async () => {
+    const { banco, yt, retomar } = await montar()
+    yt.recusar('thumbnails.set', 403, 'forbidden')
+    yt.antesDeEscrever(() => { banco.setTeste({ restore_seq: 9, restore_status: { thumbnail: antigo({ estado: 'desistiu' }) } }) })
+    await retomar()
+    expect((banco.teste().restore_status as Record<string, Fila>).thumbnail!.estado).toBe('desistiu')
+  })
+  it('P4a-I6 (iii): função morta depois do envio (ab_resume_commit lança TypeError) -> campo em_andamento com destino = id da variante, status paused', async () => {
+    const { banco, retomar } = await montar()
+    banco.rpcLanca('ab_resume_commit', new TypeError('morreu'))
+    await expect(retomar()).rejects.toThrow('morreu')
+    expect(banco.teste().status).toBe('paused')
+    expect((banco.teste().restore_status as Record<string, Fila>).thumbnail).toMatchObject({ estado: 'em_andamento', destino: 'B' })
+  })
+  it('ab_resume_commit devolve erro -> lança (campo fica em_andamento para o vigia)', async () => {
+    const { banco, retomar } = await montar()
+    const original = banco.supabase.rpc.bind(banco.supabase)
+    ;(banco.supabase as unknown as { rpc: unknown }).rpc = (n: string, a: Record<string, unknown>) =>
+      n === 'ab_resume_commit' ? Promise.resolve({ data: null, error: { message: 'deadlock' } }) : original(n as never, a as never)
+    await expect(retomar()).rejects.toThrow(/deadlock/)
+    expect((banco.teste().restore_status as Record<string, Fila>).thumbnail!.estado).toBe('em_andamento')
+  })
+  it('Y-D4: retomar perde a vez entre a escrita e o fecho (outra aba encerra) -> ab_resume_commit nulo, nenhum ciclo aberto, status do outro escritor, aviso de cruzamento, sem Sentry de erro', async () => {
+    const { banco, yt, retomar } = await montar()
+    yt.depoisDeEscrever(() => { banco.setTeste({ status: 'completed', restore_seq: 5 }) })
+    const r = await retomar()
+    expect(r).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
+    expect(banco.ciclosAbertos()).toHaveLength(0)
+    expect(banco.teste().status).toBe('completed')
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+    expect(fanOut).toHaveBeenCalledTimes(1)
+    expect(fanOut.mock.calls[0]![0].message).toContain('yt-1')
+  })
+  it('perde a vez ANTES da primeira escrita (a releitura de restore_seq já veio trocada): nada é escrito e nenhum aviso de cruzamento sai', async () => {
+    const { banco, yt, retomar } = await montar()
+    banco.antesDaReleitura(() => { banco.setTeste({ restore_seq: 8, status: 'completed' }) })
+    const r = await retomar()
+    expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado' })
+    expect(yt.escritas()).toEqual([])
+    expect(fanOut).not.toHaveBeenCalled()
+    expect(banco.ciclosAbertos()).toHaveLength(0)
+  })
+  it('Y-D4: o fecho de retomar zera config.consecutive_failures', async () => {
+    const { banco, retomar } = await montar({ config: { rotation_pattern: 'abba', consecutive_failures: 3 } })
+    await retomar()
+    expect((banco.teste().config as Fila).consecutive_failures).toBe(0)
+  })
+  it('o fecho limpa status_note e drift_acknowledged_at e fecha o ciclo antigo deixado aberto', async () => {
+    const { banco, retomar } = await montar()
+    banco.setTeste({ status_note: 'Thumbnail alterado externamente', drift_acknowledged_at: ONTEM })
+    Object.assign(banco.ciclos()[0]!, { ended_at: null, end_reason: null })
+    await retomar()
+    expect(banco.teste()).toMatchObject({ status_note: null, drift_acknowledged_at: null })
+    expect(banco.ciclosAbertos()).toHaveLength(1)
+  })
+  it('falha tratada devolve a mensagem do YouTube em error, sem corpo de resposta', async () => {
+    const { yt, retomar } = await montar()
+    yt.recusar('thumbnails.set', 403, 'forbidden', { corpo: 'SEGREDO-NO-CORPO' })
+    const r = await retomar()
+    expect(r.ok).toBe(false)
+    expect(JSON.stringify(r)).not.toContain('SEGREDO-NO-CORPO')
   })
 })
