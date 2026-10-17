@@ -20,10 +20,10 @@ export const FRASES = {
   abaNaoColetado: 'não coletado',
   abaAntesDaColeta: 'antes da coleta',
   abaFechaEm: (dm: string) => `fecha em ${dm}`,
-  abaACaminho: 'a caminho', // TEXTO-A-REVISAR
-  abaParada: 'coleta parada', // TEXTO-A-REVISAR
-  abaNaoComecou: 'ainda não começou', // TEXTO-A-REVISAR
-  abaNaoCarregou: 'não carregou', // TEXTO-A-REVISAR
+  abaACaminho: 'a caminho',
+  abaParada: 'coleta parada',
+  abaNaoComecou: 'coleta não começou',
+  abaNaoCarregou: 'não carregou',
   // Motivos
   motivoCurtidos: 'Mais curtido',
   motivoCriador: 'Com o criador',
@@ -38,15 +38,15 @@ export const FRASES = {
   legendaAcompanhado: (n: number) => `${n} de canal que você acompanha`,
   legendaGrande: (n: number, ate: string) => `${n} de canal grande, ${ate}`,
   legendaGrandeCurta: (n: number) => `${n} de canal grande`,
-  // Frases de abertura da lista (singular no 1; TEXTO-A-REVISAR nas variações novas)
+  // Frases de abertura da lista (singular no 1)
   abreTodos: (d: number, n: number) => `Com ${dias(d)}, guardamos ${n === 1 ? 'o único comentário do vídeo' : `todos os ${n} comentários do vídeo`}`,
   abreDeTodos: (d: number, n: number, de: number) => `Com ${dias(d)}, guardamos ${n} de todos os ${de.toLocaleString('pt-BR')} comentários do vídeo`,
   abreDosPrimeiros: (d: number, n: number, de: number) =>
     `Com ${dias(d)}, guardamos ${n} dos ${de.toLocaleString('pt-BR')} primeiros comentários que o YouTube mostra, na ordem de relevância dele`,
   rotuloDaCasa: (i: number, n: number, motivo: string, curtidas: number | null, d: number) =>
     `Comentário ${i} de ${n}, ${motivo.toLowerCase()}${curtidas === null ? '' : `, ${curtidas === 1 ? '1 curtida' : `${curtidas.toLocaleString('pt-BR')} curtidas`} com ${dias(d)}`}`,
-  zeroCurtidos: 'nenhum mais curtido', // TEXTO-A-REVISAR
-  zeroCriador: 'nenhum com o criador', // TEXTO-A-REVISAR
+  zeroCurtidos: '0 mais curtidos',
+  zeroCriador: '0 com o criador',
   zeroAcompanhado: 'nenhum canal que você acompanha comentou',
   zeroGrande: (ate: string) => `nenhum canal grande ${ate}`,
   entreOs20: (n: number) => `entre os ${n} mais curtidos`,
@@ -88,7 +88,8 @@ export const FRASES = {
   // Curtidas
   foraDos12: 'fora dos 12',
   fechaEmCurto: (dm: string) => `fecha em ${dm}`,
-  semRetratoAinda: 'sem retrato', // TEXTO-A-REVISAR
+  semRetratoAinda: 'ainda sem retrato', // o marco ainda vai fechar ou a coleta voltará
+  semRetrato: 'sem retrato', // o marco encerrou sem retrato
   // Base do canal grande
   tamanho: { '100k_1m': 'de 100 mil a 1 milhão de inscritos', '1m_10m': 'de 1 a 10 milhões de inscritos', '10m_mais': 'mais de 10 milhões de inscritos' } as Record<string, string>,
   razao: { '10x_100x': 'de 10 a 100 vezes este canal', '100x_1000x': 'de 100 a 1.000 vezes este canal', '1000x_mais': 'mais de 1.000 vezes este canal' } as Record<string, string>,
@@ -124,18 +125,18 @@ export const FRASES = {
   listaVaziaCorpo: (dm: string, total: number | null) =>
     total === null || total <= 0
       ? `Em ${dm} o YouTube devolveu a lista vazia.`
-      : `Em ${dm} o vídeo tinha ${total === 1 ? '1 comentário' : `${total.toLocaleString('pt-BR')} comentários`} na última contagem, mas o YouTube devolveu a lista vazia.`, // TEXTO-A-REVISAR
+      : `Em ${dm} o vídeo tinha ${total === 1 ? '1 comentário' : `${total.toLocaleString('pt-BR')} comentários`} pela última contagem, mas o YouTube devolveu a lista vazia.`,
   listaVaziaNota: 'Isto não é “nenhum comentário”: a contagem diz que há.',
   erroCorpo: (dm: string, codigo: string) =>
-    codigo === 'proibido' ? `O YouTube não deixou ler os comentários deste vídeo em ${dm} (vídeo só para membros).` // TEXTO-A-REVISAR
-      : codigo === 'video_nao_encontrado' ? `O YouTube não encontrou este vídeo em ${dm}.` // TEXTO-A-REVISAR
-        : `A leitura do YouTube falhou em ${dm}.`, // TEXTO-A-REVISAR
+    codigo === 'proibido' ? `O YouTube não deixou ler os comentários deste vídeo em ${dm}. Pode ser vídeo só para membros.`
+      : codigo === 'video_nao_encontrado' ? `O YouTube não encontrou este vídeo em ${dm}.`
+        : `O YouTube não devolveu os comentários em ${dm}.`,
   erroSelo: (dm: string) => `motivo nosso · tentativa de ${dm}`,
   erroNota: (ate: string, encerrada: boolean) =>
-    encerrada ? `Tentamos até ${ate}; esta idade ficou sem retrato.` : `Tentamos de novo até ${ate}; se não vier, esta idade fica sem retrato.`, // TEXTO-A-REVISAR (versão encerrada)
+    encerrada ? `Tentamos até ${ate}; esta idade ficou sem retrato.` : `Tentamos de novo até ${ate}; se não vier, esta idade fica sem retrato.`,
   // desvio 16
   janelaPerdida: (d: number) => `Não coletado com ${dias(d)}: a coleta não rodou enquanto o vídeo tinha essa idade`,
-  janelaPerdidaNota: 'Isto não é “nenhum comentário”. Essa idade não terá retrato.', // TEXTO-A-REVISAR
+  janelaPerdidaNota: 'Isto não é “nenhum comentário”. Essa idade não terá retrato.',
   antesDaColetaTitulo: 'Este vídeo é anterior à coleta de comentários.',
   antesDaColetaCorpo: (coleta: string, publicado: string) => `A coleta começou em ${coleta}; o vídeo foi publicado em ${publicado}.`,
   antesDaColetaSelo: (coleta: string) => `a coleta começou em ${coleta}`,
@@ -143,20 +144,21 @@ export const FRASES = {
   fechaEmSelo: 'ainda não existe',
   fechaEmNota: (d: number, dm: string) => `O vídeo faz ${dias(d)} em ${dm}. Até lá não há o que mostrar, e isto não é zero.`,
   aCaminho: (d: number, fez: string, ate: string) => `Ainda não existe: o vídeo fez ${dias(d)} em ${fez}; o retrato sai na próxima coleta, até ${ate}.`,
-  aCaminhoSelo: 'a caminho', // TEXTO-A-REVISAR
+  aCaminhoSelo: 'chega na próxima coleta',
   naoComecou: 'A coleta de comentários ainda não começou.',
   parada: (dm: string) => `A coleta de comentários está parada desde ${dm}.`,
   paradaSemOk: (dm: string) => `A coleta de comentários está parada: sem execução completa desde ${dm}.`,
-  paradaSelo: 'coleta parada', // TEXTO-A-REVISAR
+  paradaSelo: 'coleta parada',
   carregando: 'Carregando os comentários guardados…',
   erroDeLeitura: 'Não deu para abrir os comentários agora. A leitura falhou.',
   tentarDeNovo: 'Tentar de novo',
   // ⓘ da seção
   infoParagrafos: (mencoesTrocadas: number): string[] => [
-    'Guardamos até 12 comentários por idade do vídeo, escolhidos entre os 100 primeiros que o YouTube mostra, na ordem de relevância dele: até 4 com o criador, até 2 de destaque e o resto dos mais curtidos.', // TEXTO-A-REVISAR
-    'As três idades (1, 7 e 30 dias) são retratos separados. “Fora dos 12” quer dizer que o comentário não estava entre os guardados naquele dia; não é zero curtidas.', // TEXTO-A-REVISAR
-    'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Um espectador”.', // TEXTO-A-REVISAR
-    'Guardamos até 3 respostas do criador por comentário.', // TEXTO-A-REVISAR
+    'Guardamos até 12 comentários por idade do vídeo.',
+    'Eles vêm dos 100 primeiros que o YouTube mostra: até 4 com o criador, até 2 de destaque e o resto, os mais curtidos.',
+    'As três idades (1, 7 e 30 dias) são retratos separados. “Fora dos 12” quer dizer que o comentário não estava entre os guardados naquele dia; não é zero curtidas.',
+    'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Um espectador”.',
+    'Guardamos até 3 respostas do criador por comentário.',
     ...(mencoesTrocadas > 0 ? ['Menções a outras pessoas aparecem como “@…”: o nome delas fica escondido.'] : []),
     'Cálculo do Observatório sobre dados públicos do YouTube.',
   ],

@@ -10,6 +10,7 @@ import { resolve } from 'node:path'
 import { canalDe, pacoteDe, type OpcoesCanal } from './par-helpers'
 import { NUMEROS, type NumeroId } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
 import type { CanalPack, CompararPack } from '@/app/cms/(authed)/youtube/competitors/_comparar/pack'
+import type { MedidasDoCanalPack, MedidasPlanas } from '@/app/cms/(authed)/youtube/competitors/_comparar/medidas-do-lado'
 import { buildPar, type ParView } from '@/app/cms/(authed)/youtube/competitors/_comparar/par-model'
 import { CompararScreen } from '@/app/cms/(authed)/youtube/competitors/_comparar/comparar-screen'
 import { definicoesDaTabela } from '@/app/cms/(authed)/youtube/competitors/_comparar/definicoes'
@@ -91,8 +92,21 @@ function colunasDe(m: ModeloComparar): Record<string, Record<string, string | re
     'notas-dos-numeros-b': { Medida: '.nome', Nota: '.b.nota' },
   }
   const privadas = Object.fromEntries(Object.entries(linhas).map(([k, v]) => [`privado-${k}`, v]))
+  const COL_CANAL = ['modelo.medidas.estado[0].canal', 'modelo.medidas.estado[1].canal']
+  const medida = (id: string) => ({
+    [id]: { Medida: '.titulo', [`${m.a.name} (lado A)`]: ['.a.texto', '.a.motivo'], [`${m.b.name} (lado B)`]: ['.b.texto', '.b.motivo'] },
+    [`${id}-relacao`]: { Medida: '.titulo', Relação: '.relacao' },
+    [`${id}-base`]: { Medida: '.titulo', Base: ['.notas[0]', '.notas[1]'] },
+    [`${id}-sentido-a`]: { Medida: '.titulo', Sentido: '.a.palavra' }, [`${id}-sentido-b`]: { Medida: '.titulo', Sentido: '.b.palavra' },
+    [`${id}-notas-a`]: { Medida: '.titulo', Nota: ['.a.notas[0]', '.a.notas[1]'] }, [`${id}-notas-b`]: { Medida: '.titulo', Nota: ['.b.notas[0]', '.b.notas[1]'] },
+  })
   return {
     ...linhas, ...privadas,
+    ...medida('direcao'), ...medida('primeiros-dias'), ...medida('acerto'), ...medida('reacao'),
+    'estado-dos-canais': { Canal: COL_CANAL, Estado: '.pastilha' },
+    'estado-dos-canais-detalhes': { Canal: COL_CANAL, Detalhe: ['.detalhes[0]', '.detalhes[1]', '.detalhes[2]', '.detalhes[3]'] },
+    'direcao-leitura-principal': { 'Leitura principal': 'modelo.medidas.leituraPrincipal' },
+    'direcao-frases': { Frase: ['modelo.medidas.frases[0]', 'modelo.medidas.frases[1]'] },
     'mais-vistos': { Canal: ['modelo.a.name', 'modelo.b.name'], Vídeo: '.titulo', Views: '.viewsTexto', Idade: '.idadeTexto', Formato: '.short' },
     'mais-vistos-notas': { Canal: ['modelo.a.name', 'modelo.b.name'], Nota: ['.a.top5Nota', '.b.top5Nota'] },
     'publicacoes-90-dias': { Canal: ['modelo.a.name', 'modelo.b.name'], Data: '.dataTexto', Formato: '.fmt' },
@@ -139,12 +153,52 @@ const SEM_VIDEOS = (): Cenario => ({
   ]), a: 's1', b: 's2', estado: SEM_PRIVADO,
 })
 
+
+// ───────────────────────── as medidas novas (A5 E5a T7): o pacote carrega as medidas planas, como o servidor as monta
+const JAN = { de: '2026-07-01', ate: '2026-09-30', dias: 90 }
+const medido = <T,>(valor: T, n = 10, notas: unknown[] = []) => ({ estado: 'medido' as const, valor, n, janela: JAN, notas })
+const naoMedido = (motivo: string, extra: Record<string, unknown> = {}) => ({ estado: 'nao_medido' as const, motivo, notas: [], ...extra })
+const planas = (o: Record<string, unknown> = {}): MedidasPlanas => ({
+  m3a: medido({ variacao: 0.3, direcao: 'subindo', ganhoRecente: 130_000, ganhoAnterior: 100_000 }),
+  m3b: medido({ variacao: 0.2, direcao: 'subindo', medianaRecente: 12_000, medianaAnterior: 10_000 }),
+  m3c: medido({ variacao: -0.2, direcao: 'descendo', medianaRecente: 8_000, medianaAnterior: 10_000 }),
+  m1: { 1: medido(1000), 7: medido(5000), 30: medido(9000) },
+  m4: medido({ acertos: 3, fracassos: 2, total: 12, pctAcerto: 0.25, pctFracasso: 0.17 }),
+  m7: medido(0.04),
+  m8: { estado: medido('ativo'), parado: medido({ dias: 3, limite: 40, ultimaEm: 1_790_000_000_000 }), queda: naoMedido('poucos_videos') },
+  ...o,
+} as unknown as MedidasPlanas)
+const doLado = (m: MedidasPlanas | null, o: Partial<MedidasDoCanalPack> = {}): MedidasDoCanalPack => ({
+  fonte: m ? { tipo: 'medidas', m, extras: null } : { tipo: 'nao_carregou', causa: 'leitura_falhou' },
+  videosN: 20, buscando: false, ultimaBoa: null, longos: { recente: 6, anterior: 5, cobertura: { ok: true }, fora: { semFormato: 0, aoVivo: 0, agendados: 0 } }, ...o,
+})
+const comMedidas = (c: Cenario, hojeSP: string, a: MedidasDoCanalPack | undefined, b: MedidasDoCanalPack | undefined): Cenario => ({
+  ...c, pack: { ...c.pack, hojeSP, canais: c.pack.canais.map((x) => (x.id === c.a ? { ...x, medidasDoLado: a } : x.id === c.b ? { ...x, medidasDoLado: b } : x)) },
+})
+const PARADO_EM_QUEDA = planas({
+  m8: { estado: medido('parado'), parado: medido({ dias: 45, limite: 40, ultimaEm: 1_790_000_000_000 }), queda: medido({ janelas: [-0.3, -0.2] }) },
+  m1: { 1: naoMedido('leitura_comecou_depois'), 7: medido(2500), 30: medido(9000) },
+  m4: medido({ acertos: 0, fracassos: 1, total: 9, pctAcerto: 0, pctFracasso: 0.11 }),
+  m7: medido(0.05, 10, [{ tipo: 'total_de_hoje' }]),
+})
+
 const MATRIZ: Array<[string, () => Cenario]> = [
   ['dois concorrentes', DOIS_CONCORRENTES],
   ['próprio contra concorrente, com acesso', () => proprioContraConcorrente({ eu: ALCANCE_LIDO }, ESTADO_OK, { vpd: 12.5, vpdPorMil: 2.1 })],
   ['próprio contra concorrente, negado', () => proprioContraConcorrente({ eu: { acesso: 'negado', view: null } }, ESTADO_NEGADO, { vpd: null, vpdPorMil: null })],
   ['canal sem vídeos (nenhum número medido)', SEM_VIDEOS],
   ['contagens parecidas', PAREDE],
+  ['medidas novas, depois das datas: (c) principal, um canal parado e em queda', () => comMedidas(DOIS_CONCORRENTES(), '2027-12-01', doLado(planas()), doLado(PARADO_EM_QUEDA))],
+  ['medidas novas, antes das datas: (c) ainda não existe, nichos diferentes, um lado que não carregou', () => {
+    const c = comMedidas(DOIS_CONCORRENTES(), '2026-10-16', doLado(planas({ m7: medido(0.04, 10, [{ tipo: 'so_curtidas' }]) })), doLado(null))
+    c.pack.canais = c.pack.canais.map((x) => (x.id === 'c2' ? { ...x, niche: 'culinaria', nicheLabel: 'Culinária' } : x))
+    return c
+  }],
+  ['medidas novas, canal próprio de um lado e quem saiu do YouTube', () => {
+    const c = proprioContraConcorrente({ eu: ALCANCE_LIDO }, ESTADO_OK, { vpd: 12.5, vpdPorMil: 2.1 })
+    const fora = planas({ m7: medido(0.04, 10, [{ tipo: 'so_curtidas' }]), m8: { estado: medido('fora_do_ar'), parado: naoMedido('poucos_videos'), queda: naoMedido('poucos_videos') } })
+    return comMedidas(c, '2027-12-01', { ...doLado(null), fonte: { tipo: 'canal_proprio' } }, doLado(fora, { ultimaBoa: '20/09' }))
+  }],
   ['próprio com zero medido de um lado (frase "você não publicou…" capitalizada pela tela)', () => proprioContraConcorrente({ eu: ALCANCE_COM_ZERO }, ESTADO_OK, { longos90: 0, vpd: 12.5, vpdPorMil: 2.1 })],
 ]
 

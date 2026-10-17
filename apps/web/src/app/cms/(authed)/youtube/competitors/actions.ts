@@ -40,8 +40,10 @@ async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
   return { siteId, userId: res.user.id }
 }
 
+const SEM_LOTE_NA_TELA = 'Antes de remover, é preciso exportar este canal. Peça ao agente.'
+
 /** (A5 E10) a frase de quando a coleta do canal está pausada (a trava do sync não toma canal pausado). */
-const FRASE_PAUSADA = 'A coleta deste canal está pausada.' // TEXTO-A-REVISAR
+const FRASE_PAUSADA = 'A coleta deste canal está pausada, então não dá para fazer isto agora.'
 
 const YT_API = 'https://www.googleapis.com/youtube/v3'
 const BAD_INPUT = 'Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).'
@@ -118,7 +120,7 @@ export async function addCompetitorChannel(
   // (A5 E9, D-11) O dono apagou este canal pela fila "Saíram do YouTube"? Não dá para saber = não adiciona (na dúvida não se coleta).
   // Achou: segue para as vagas e o insert; a volta só é registrada DEPOIS do insert (sem vaga, não fica auditoria de uma volta que não houve).
   const apagado = await canalApagado(supabase, siteId, ytId)
-  if (apagado !== null && 'erro' in apagado) return { ok: false, error: 'Não foi possível conferir se este canal já foi apagado. Tente de novo.' } // TEXTO-A-REVISAR
+  if (apagado !== null && 'erro' in apagado) return { ok: false, error: 'Não foi possível conferir se este canal já foi apagado. Nada foi adicionado. Tente de novo.' }
 
   // after the duplicate check: a channel already in the observatório says so even when there is no free slot
   const before = await getChannelSlots(siteId)
@@ -165,11 +167,11 @@ export async function addCompetitorChannel(
     if (falha !== null) {
       // o canal fica (nenhuma rotina lê return_decision de canal); a falha vai ao Sentry com o código, sem o nome do canal
       Sentry.captureException(new Error('competitors: volta do canal apagado não registrada'), { tags: { component: 'competitors', step: 'return-follow' }, extra: { siteId, itemId: apagado.itemId } })
-      aviso = 'O canal foi adicionado, mas não foi possível registrar a volta na fila.' // TEXTO-A-REVISAR
+      aviso = 'O canal foi adicionado, mas a volta dele não ficou registrada na fila “Saíram do YouTube”.'
     } else {
       const quando = new Date(apagado.apagadoEm)
       const dd = Number.isNaN(quando.getTime()) ? null : new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' }).format(quando)
-      aviso = `Você apagou este canal${dd ? ` em ${dd}` : ''}; ele entra de novo como novo, sem o histórico.` // TEXTO-A-REVISAR
+      aviso = `Você apagou este canal${dd ? ` em ${dd}` : ''}; ele entra de novo como novo, sem o histórico.`
     }
   }
 
@@ -223,7 +225,8 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   // (A5 E10) a remoção só passa pela função do banco: ela exige a exportação conferida e confirmada, grava o lote e só aceita quem
   // administra a organização (`sem_direito`); uma linha de outro site ou um id que não existe volta como falha com frase fixa
   const r = await removerCanalArquivado(supabase, { siteId, canalId: id, actorId: userId })
-  if (!r.ok) return { ok: false, error: r.frase }
+  // sem_lote: a frase longa é a do agente (CLI); o aviso da tela é a versão curta do Logan (cabe em 2 linhas do toast)
+  if (!r.ok) return { ok: false, error: r.codigo === 'sem_lote' ? SEM_LOTE_NA_TELA : r.frase }
   // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')

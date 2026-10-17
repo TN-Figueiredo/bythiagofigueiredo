@@ -179,14 +179,14 @@ describe('A5 E9 T10b: view model da fila', () => {
     expect(c.painel).toBeNull()
     expect(c.guardado).toBeNull()
     expect(c.fatos.some(f => f.rotulo === 'Guardado')).toBe(false)
-    expect(c.erroDaPrevia).toBe('Não foi possível contar o que há guardado deste item.')
+    expect(c.erroDaPrevia).toBe('Não deu para contar o que há guardado deste item.')
   })
 
   it('erro e schema ausente: a frase, e nenhum bloco de lista', () => {
     const e = buildFilaView({ estado: 'erro', codigo: 'erro_de_banco' }, { agoraMs: AGORA, mostrar: 10 })
     expect(e).toEqual({ estado: 'erro', frase: 'Não foi possível ler a fila agora.' })
     const s = buildFilaView({ estado: 'schema_ausente', texto: 'x' }, { agoraMs: AGORA, mostrar: 10 })
-    expect(s).toEqual({ estado: 'erro', frase: 'A fila não pode ser lida: a migration desta etapa ainda não foi aplicada.' })
+    expect(s).toEqual({ estado: 'erro', frase: 'A fila não pode ser lida agora: falta atualizar o banco. Peça ao agente.' })
     expect(buildFilaView({ estado: 'sem_acesso' }, { agoraMs: AGORA, mostrar: 10 }).estado).toBe('sem_acesso')
   })
 

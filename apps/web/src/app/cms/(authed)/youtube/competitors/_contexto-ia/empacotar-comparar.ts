@@ -14,7 +14,9 @@
 import type { Numero, NumeroId } from '../_comparar/numeros-model'
 import type { CanalPack, CompararPack, Pub90Item } from '../_comparar/pack'
 import type { LinhaPar, ParView, PosLado } from '../_comparar/par-model'
-import { definicoesDaTabela } from '../_comparar/definicoes'
+import { definicoesDaTabela, definicoesDasMedidas } from '../_comparar/definicoes'
+import { buildMedidasDoPar } from '../_comparar/medidas-do-par'
+import { modeloDasMedidas, type CelulaDoModeloMedidas, type LinhaDoModeloMedidas, type ModeloMedidas } from './modelo-medidas-comparar'
 import { reguaDaLinha } from '../_comparar/regua-da-linha'
 import { buildSoSeuCanal, INFO_SO_SEU_CANAL, type SoSeuCanalCartao } from '../_comparar/so-seu-canal-model'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
@@ -51,6 +53,8 @@ export interface ModeloComparar extends Omit<ParView, 'linhas'> {
   cartoes: CartaoDoModelo[]
   /** Nomes das linhas cuja régua está em escala comprimida (entram na definição "Régua"). */
   comprimidas: string[]
+  /** As medidas novas (A5 E5a T7) em texto, ou nulo quando o pacote da tela foi montado sem elas. */
+  medidas: ModeloMedidas | null
 }
 
 /**
@@ -73,6 +77,7 @@ function textoDaRelacao(r: NonNullable<LinhaPar['relacao']>, nomes: readonly str
 }
 
 export function modeloDeComparar(pack: CompararPack, par: ParView): ModeloComparar {
+  const doPar = buildMedidasDoPar(pack, par.a.id, par.b.id)
   const cartoes = buildSoSeuCanal({ a: par.a, b: par.b }, pack.soSeuCanal).map((c): CartaoDoModelo => ({
     ...c,
     linhas: c.linhas.map((l): LinhaDoCartao => ({
@@ -92,10 +97,24 @@ export function modeloDeComparar(pack: CompararPack, par: ParView): ModeloCompar
     eixo: pack.eixo,
     cartoes,
     comprimidas: par.linhas.filter((l) => reguaDaLinha(pack, par, l.id)?.comprimida).map((l) => l.nome),
+    medidas: doPar ? modeloDasMedidas(doPar, [par.a.name, par.b.name]) : null,
   }
 }
 
 // ───────────────────────── o inventário de folhas (item 160)
+const celulaDoInventario = (p: string): Inventario => ({
+  [`${p}.estado`]: { descartado: 'controle de tela' }, [`${p}.texto`]: 'numero', [`${p}.palavra`]: 'base', [`${p}.notas[]`]: 'base', [`${p}.motivo`]: 'motivo',
+})
+const linhaDoInventario = (p: string): Inventario => ({
+  [`${p}[].titulo`]: 'rotulo', [`${p}[].notas[]`]: 'base', [`${p}[].relacao`]: 'base', ...celulaDoInventario(`${p}[].a`), ...celulaDoInventario(`${p}[].b`),
+})
+/** As medidas novas: `medidas` nulo (pacote sem elas) é uma folha só. */
+const INVENTARIO_MEDIDAS: Inventario = {
+  medidas: { descartado: 'controle de tela' },
+  'medidas.leituraPrincipal': 'base', 'medidas.contexto': 'base', 'medidas.frases[]': 'base',
+  'medidas.estado[].canal': 'terceiros', 'medidas.estado[].pastilha': 'base', 'medidas.estado[].detalhes[]': 'base',
+  ...linhaDoInventario('medidas.direcao'), ...linhaDoInventario('medidas.primeiros'), ...linhaDoInventario('medidas.acerto'), ...linhaDoInventario('medidas.reacao'),
+}
 /** Todo caminho do modelo, com o destino. Chave com `[]` = qualquer posição de lista; `*` no fim casa o resto. */
 export const INVENTARIO_COMPARAR: Inventario = {
   // o canal de cada lado (CanalPack)
@@ -112,6 +131,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   'a.comDatas': { descartado: 'controle de tela' }, 'b.comDatas': { descartado: 'controle de tela' },
   'a.ultimo': { descartado: 'repetido' }, 'b.ultimo': { descartado: 'repetido' }, // é a base de "dias desde o último vídeo"
   'a.href': { descartado: 'endereço' }, 'b.href': { descartado: 'endereço' },
+  'a.medidasDoLado.*': { descartado: 'repetido' }, 'b.medidasDoLado.*': { descartado: 'repetido' }, // as mesmas de `modelo.medidas`, já em texto
   'a.numeros.*': { descartado: 'repetido' }, 'b.numeros.*': { descartado: 'repetido' }, // os mesmos de `modelo.linhas[].a` e `modelo.linhas[].b`
   'a.top5[].id': { descartado: 'identificador' }, 'b.top5[].id': { descartado: 'identificador' },
   'a.top5[].abre': { descartado: 'controle de tela' }, 'b.top5[].abre': { descartado: 'controle de tela' },
@@ -138,6 +158,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   serieDesde: 'base',
   'eixo[]': 'rotulo',
   'comprimidas[]': { descartado: 'repetido' }, // vai na definição "Régua"
+  ...INVENTARIO_MEDIDAS,
   // as linhas
   'linhas[].id': { descartado: 'identificador' },
   'linhas[].grupo': { descartado: 'controle de tela' },
@@ -181,7 +202,7 @@ export const formatoDoVideo = (short: unknown): string => (short === true ? 'Sho
 export const formatoDaPublicacao = (fmt: unknown): string => (fmt === 'short' ? 'Short' : 'longo')
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases de aviso e de "o que esta tela não mede" abaixo.
+// Revisto pelo Logan (17/10): as frases de aviso e de "o que esta tela não mede" abaixo.
 export const AVISO_FREQUENCIA = 'A contagem de publicados em 90 dias não mede frequência.' // fixo do item 163
 export const AVISO_PARCIAL = 'Parte do dado privado do canal não foi lida agora.'
 export const SEM_PAR = 'Para comparar, o site precisa acompanhar pelo menos dois canais.' // a frase que a tela escreve sem par
@@ -323,6 +344,67 @@ function tabelasDosCanais(m: ModeloComparar): Tabela[] {
   return saida
 }
 
+// ───────────────────────── as medidas novas (estado, Direção, primeiros dias, acerto, reação)
+/** Número de uma célula do modelo das medidas: texto (medido, ou "0" = zero medido) ou o motivo. */
+function celulaDaMedida(c: CelulaDoModeloMedidas, origem: string): Celula {
+  if (c.texto === null) return { papel: 'numero', estado: 'nao_medido', motivo: c.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  return { papel: 'numero', estado: c.texto === '0' ? 'zero_medido' : 'medido', texto: c.texto, x: c.texto === '0' ? 0 : null, origem: `${origem}.texto` }
+}
+
+/** Uma medida do grupo: os valores, a relação, o sentido (subindo, descendo) e as notas de cada lado, e a base da linha. */
+const MEDIDAS_DO_PAR = [
+  { id: 'direcao', titulo: 'Direção', caminho: 'direcao' },
+  { id: 'primeiros-dias', titulo: 'Primeiros dias dos vídeos longos', caminho: 'primeiros' },
+  { id: 'acerto', titulo: 'Acerto', caminho: 'acerto' },
+  { id: 'reacao', titulo: 'Reação do público', caminho: 'reacao' },
+] as const
+
+function tabelasDeUmaMedida(g: (typeof MEDIDAS_DO_PAR)[number], linhas: readonly LinhaDoModeloMedidas[], m: ModeloComparar): Tabela[] {
+  const { id, titulo, caminho } = g
+  if (linhas.length === 0) return []
+  const saida: Tabela[] = []
+  const o = (i: number) => `modelo.medidas.${caminho}[${i}]`
+  saida.push({
+    id, titulo, tipo: 'fixa', nomeNoCorte: `tabela de ${titulo.toLowerCase()}`, privada: false,
+    colunas: ['Medida', `${m.a.name} (lado A)`, `${m.b.name} (lado B)`],
+    linhas: linhas.map((l, i) => [rotulo(l.titulo, `${o(i)}.titulo`), celulaDaMedida(l.a, `${o(i)}.a`), celulaDaMedida(l.b, `${o(i)}.b`)]),
+  })
+  const rel = linhas.flatMap((l, i) => (l.relacao === null ? [] : [[rotulo(l.titulo, `${o(i)}.titulo`), base(l.relacao, `${o(i)}.relacao`)]]))
+  if (rel.length) saida.push({ id: `${id}-relacao`, titulo: `${titulo}: relação entre os lados`, tipo: 'fixa', nomeNoCorte: `relação de ${titulo.toLowerCase()}`, privada: false, colunas: ['Medida', 'Relação'], linhas: rel })
+  const bases = linhas.flatMap((l, i) => l.notas.map((n, j) => [rotulo(l.titulo, `${o(i)}.titulo`), base(n, `${o(i)}.notas[${j}]`)]))
+  if (bases.length) saida.push({ id: `${id}-base`, titulo: `${titulo}: base de cada medida`, tipo: 'fixa', nomeNoCorte: `base de ${titulo.toLowerCase()}`, privada: false, colunas: ['Medida', 'Base'], linhas: bases })
+  for (const k of ['a', 'b'] as const) {
+    const K = k.toUpperCase()
+    const canal = k === 'a' ? m.a.name : m.b.name
+    const sentido = linhas.flatMap((l, i) => (l[k].palavra === null ? [] : [[rotulo(l.titulo, `${o(i)}.titulo`), base(l[k].palavra!, `${o(i)}.${k}.palavra`)]]))
+    if (sentido.length) saida.push({ id: `${id}-sentido-${k}`, titulo: `${titulo}: sentido em ${canal} (lado ${K})`, tipo: 'fixa', nomeNoCorte: `sentido de ${titulo.toLowerCase()} (lado ${K})`, privada: false, colunas: ['Medida', 'Sentido'], linhas: sentido })
+    const notas = linhas.flatMap((l, i) => l[k].notas.map((n, j) => [rotulo(l.titulo, `${o(i)}.titulo`), base(n, `${o(i)}.${k}.notas[${j}]`)]))
+    if (notas.length) saida.push({ id: `${id}-notas-${k}`, titulo: `${titulo}: nota de ${canal} (lado ${K})`, tipo: 'fixa', nomeNoCorte: `notas de ${titulo.toLowerCase()} (lado ${K})`, privada: false, colunas: ['Medida', 'Nota'], linhas: notas })
+  }
+  return saida
+}
+
+function tabelasDasMedidas(m: ModeloComparar): Tabela[] {
+  const md = m.medidas
+  if (md === null) return []
+  const saida: Tabela[] = []
+  const estado = md.estado.flatMap((e, i) => (e.pastilha === null ? [] : [[terceiros(e.canal, `modelo.medidas.estado[${i}].canal`), base(e.pastilha, `modelo.medidas.estado[${i}].pastilha`)]]))
+  if (estado.length) saida.push({ id: 'estado-dos-canais', titulo: 'Estado de cada canal', tipo: 'fixa', nomeNoCorte: 'tabela de estado dos canais', privada: false, colunas: ['Canal', 'Estado'], linhas: estado })
+  const detalhes = md.estado.flatMap((e, i) => e.detalhes.map((d, j) => [terceiros(e.canal, `modelo.medidas.estado[${i}].canal`), base(d, `modelo.medidas.estado[${i}].detalhes[${j}]`)]))
+  if (detalhes.length) saida.push({ id: 'estado-dos-canais-detalhes', titulo: 'Estado de cada canal: detalhes', tipo: 'fixa', nomeNoCorte: 'detalhes do estado dos canais', privada: false, colunas: ['Canal', 'Detalhe'], linhas: detalhes })
+  saida.push({
+    id: 'direcao-leitura-principal', titulo: 'Direção: a leitura principal', tipo: 'fixa', nomeNoCorte: 'leitura principal da direção', privada: false, colunas: ['Leitura principal'],
+    linhas: [[base(md.leituraPrincipal, 'modelo.medidas.leituraPrincipal')]],
+  })
+  const [gDirecao, gPrimeiros, gAcerto, gReacao] = MEDIDAS_DO_PAR
+  saida.push(...tabelasDeUmaMedida(gDirecao, md.direcao, m))
+  if (md.frases.length) saida.push({ id: 'direcao-frases', titulo: 'Direção: a frase de cada lado', tipo: 'fixa', nomeNoCorte: 'frases da direção', privada: false, colunas: ['Frase'], linhas: md.frases.map((f, i) => [base(f, `modelo.medidas.frases[${i}]`)]) })
+  saida.push(...tabelasDeUmaMedida(gPrimeiros, md.primeiros, m))
+  saida.push(...tabelasDeUmaMedida(gAcerto, md.acerto, m))
+  saida.push(...tabelasDeUmaMedida(gReacao, md.reacao, m))
+  return saida
+}
+
 // ───────────────────────── o cartão "Só o seu canal mede" (dado privado)
 function tabelasDoCartao(c: CartaoDoModelo, k: number, lado: 'a' | 'b'): Tabela[] {
   if (c.linhas.length === 0) return []
@@ -374,7 +456,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
   }
   const privadas: Tabela[] = [...tabelasDasLinhas(modelo, indicesPrivados, true)]
   const avisosPrivados: string[] = []
-  const avisos: string[] = [AVISO_FREQUENCIA, modelo.rodape]
+  const avisos: string[] = [AVISO_FREQUENCIA, modelo.rodape, ...(modelo.medidas?.contexto ? [modelo.medidas.contexto] : [])]
   let cartoesLidos = 0
   for (const [k, , c] of proprios) {
     const achado = cartaoDe(c.id)
@@ -388,7 +470,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
     }
   }
 
-  const publicas = [...tabelasDasLinhas(modelo, indicesPublicos, false), ...tabelasDosCanais(modelo)]
+  const publicas = [...tabelasDasLinhas(modelo, indicesPublicos, false), ...tabelasDasMedidas(modelo), ...tabelasDosCanais(modelo)]
   const leitura: Tabela[] = modelo.leitura.length
     ? [{
       id: 'leitura-rapida', titulo: 'Leitura rápida', tipo: 'fixa', nomeNoCorte: 'leitura rápida', privada: false, colunas: ['Leitura'],
@@ -415,6 +497,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
   const definicoes: PacoteModelo['definicoes'] = definicoesDaTabela({ conjunto: modelo.conjunto, fora: modelo.fora, comprimidas }).map((d) => ({
     medida: `${d.termo}${d.depois}`.replace(/[:\s]+$/, ''), frase: d.frase, limiares: [],
   }))
+  if (modelo.medidas) for (const d of definicoesDasMedidas()) definicoes.push({ medida: `${d.termo}${d.depois}`.replace(/[:\s]+$/, ''), frase: d.frase, limiares: [] })
   if (cartoesLidos > 0) for (const i of INFO_SO_SEU_CANAL.itens) definicoes.push({ medida: i.forte.replace(/:$/, ''), frase: i.texto, limiares: [], privado: true })
 
   // as duas janelas do "Views por dia nos longos" diferem quando só um dos lados é seu (a tela escreve o aviso)

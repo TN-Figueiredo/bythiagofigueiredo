@@ -63,7 +63,7 @@ export async function lerTestesAb(sb: SupabaseClient, p: Pedido & { videoUuid: s
     .order('started_at').order('id').range(0, TETO_TESTES_AB)
   if (error) throw new ObservatoryLoadError('ab_tests', error.code, error.message)
   const lidos = (Array.isArray(data) ? data : []) as TesteRow[]
-  if (lidos.length > TETO_TESTES_AB) throw new ObservatoryLoadError('ab_tests', undefined, `mais de ${TETO_TESTES_AB} testes neste vídeo`)
+  if (lidos.length > TETO_TESTES_AB) throw new ObservatoryLoadError('ab_tests', undefined, `mais de ${TETO_TESTES_AB} testes neste vídeo`, true)
 
   let descartados = 0
   const testes: TesteAb[] = []
@@ -87,7 +87,7 @@ export async function lerTestesAb(sb: SupabaseClient, p: Pedido & { videoUuid: s
     if (e2) throw new ObservatoryLoadError('ab_test_cycles', e2.code, e2.message)
     const pagina = (Array.isArray(pg) ? pg : []) as CicloRow[]
     ciclos.push(...pagina)
-    if (ciclos.length > TETO_CICLOS_AB) throw new ObservatoryLoadError('ab_test_cycles', undefined, `mais de ${TETO_CICLOS_AB} ciclos nos testes deste vídeo`)
+    if (ciclos.length > TETO_CICLOS_AB) throw new ObservatoryLoadError('ab_test_cycles', undefined, `mais de ${TETO_CICLOS_AB} ciclos nos testes deste vídeo`, true)
     if (pagina.length < PAGINA) break
   }
   const porId = new Map(testes.map(t => [t.id, t]))

@@ -491,8 +491,8 @@ if (LIGADO) {
     }
 
     // G-6 (achado do reteste): com o ⓘ aberto por clique de verdade, o Esc fecha só o ⓘ nos dois primeiros ciclos; no terceiro fecha o diálogo inteiro.
-    // `test.fail`: fica vermelho quando consertar (trocar por `test`). Causa não confirmada (suspeita: regra do Chromium para o cancel do <dialog>).
-    test.fail('G-6: três ciclos "clicar no ⓘ, Esc" seguidos: o diálogo continua aberto depois de cada Esc', async ({ browser }) => {
+    // Consertado (L6, 16/10): `dialogo.tsx` cancela o keydown do Esc quando há ⓘ aberto, em vez de depender do `cancel` do <dialog>.
+    test('G-6: três ciclos "clicar no ⓘ, Esc" seguidos: o diálogo continua aberto depois de cada Esc', async ({ browser }) => {
       test.setTimeout(120_000)
       const ctx = await contexto(browser), page = await ctx.newPage()
       await irPara(page, amb!.urls.canais)
@@ -507,8 +507,8 @@ if (LIGADO) {
       await ctx.close()
     })
 
-    // G-7 (achado do reteste): o painel do ⓘ aberto cobre o próprio botão; o segundo clique cai no painel, não fecha. `test.fail`: vermelho quando consertar.
-    test.fail('G-7: com o painel do ⓘ aberto, o botão continua clicável (o segundo clique fecha o painel)', async ({ browser }) => {
+    // G-7 (achado do reteste): o painel do ⓘ aberto cobre o próprio botão; o segundo clique caía no painel. Consertado (L6): o botão aberto sobe acima do painel (`.ibtn[aria-expanded="true"]{z-index:1}`); o painel volta a receber clique (M1 do Yannis).
+    test('G-7: com o painel do ⓘ aberto, o botão continua clicável (o segundo clique fecha o painel)', async ({ browser }) => {
       test.setTimeout(60_000)
       const ctx = await contexto(browser), page = await ctx.newPage()
       await irPara(page, amb!.urls.canais)
@@ -518,6 +518,26 @@ if (LIGADO) {
       await expect(page.locator('#pi-i-metodo')).toBeVisible()
       await b.click({ timeout: 3_000 })
       await expect(page.locator('#pi-i-metodo')).toHaveCount(0)
+      await ctx.close()
+    })
+
+    // M1 (Yannis): o painel do ⓘ não pode ser inerte; um clique no MEIO dele não pode atravessá-lo e abrir o ⓘ de baixo (#pi-i-tamanho).
+    test('G-7b: clicar no meio de #pi-i-metodo não abre #pi-i-tamanho (o clique não atravessa o painel)', async ({ browser }) => {
+      test.setTimeout(60_000)
+      const ctx = await contexto(browser), page = await ctx.newPage()
+      await irPara(page, amb!.urls.canais)
+      await abrirDialogo(page)
+      await page.locator('[data-info="metodo"]').click()
+      const pop = page.locator('#pi-i-metodo')
+      await expect(pop).toBeVisible()
+      const box = await pop.boundingBox()
+      expect(box, 'o painel do ⓘ tem caixa medida').not.toBeNull()
+      // com `.pi-pop{pointer-events:none}` (o conserto antigo do G-7) o alvo do clique no meio do painel seria o que está embaixo; o painel tem de ser o alvo
+      const alvoEhOPainel = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#pi-i-metodo'), [box!.x + box!.width / 2, box!.y + box!.height / 2])
+      expect(alvoEhOPainel, 'o meio do painel do ⓘ recebe o clique (não é inerte)').toBe(true)
+      await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+      await expect(page.locator('#pi-i-tamanho'), 'o clique no painel atravessou e abriu o ⓘ de baixo').toHaveCount(0)
+      await expect(page.locator('#pi-i-numeros')).toHaveCount(0)
       await ctx.close()
     })
 

@@ -95,6 +95,7 @@ export const INVENTARIO_INSIGHTS: Inventario = {
   // o que a tela repete ou guarda para o menu do navegador (o chrome): nada disto é número da tela
   'reading*': { descartado: 'repetido' }, // a leitura da forja do nicho; o texto vem de `hero.view`
   'forja*': { descartado: 'controle de tela' }, // botão, estado da máquina e do pedido: chrome
+  'direcaoNicho*': { descartado: 'controle de tela' }, // PENDENTE-E17-PACOTE(direcaoNicho*): E5a T9, a direção do nicho ainda não vai no pacote; o portão de ligar a IA (G-5) exige esta lista vazia
   niche: { descartado: 'identificador' }, fmt: 'rotulo',
   'window.label': 'rotulo', 'window.dates': 'rotulo', 'window.title': { descartado: 'controle de tela' },
   'fmtOptions[].key': { descartado: 'identificador' }, 'fmtOptions[].label': 'rotulo', 'fmtOptions[].pressed': { descartado: 'controle de tela' },
@@ -225,6 +226,7 @@ export const INVENTARIO_INSIGHTS: Inventario = {
  * sem temas. Cada um tem teste sintético próprio, que monta o modelo à mão.
  */
 export const SEM_FOLHA_NA_MATRIZ_INSIGHTS: readonly string[] = [
+  'direcaoNicho*', // E5a T9: a matriz do teste monta o modelo sem as medidas do site; o cartão nasce em `montarInsights`
   'hero.statusChip', 'hero.statusChip.text', 'hero.statusChip.dot', 'hero.statusChip.pulse', 'hero.askLine', 'hero.publishedNote', 'hero.prevLabel',
   'hero.box', 'hero.box.*', 'derivado.hero.box[]', 'hero.view.notes[]',
   'formulas.empty.title', 'formulas.empty.text', 'formulas.rows[]sentence*',
@@ -241,7 +243,7 @@ export const SEM_FOLHA_NA_MATRIZ_INSIGHTS: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_INSIGHTS = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as três frases de "o que esta tela não mede" e as medidas dos títulos de tabela abaixo.
+// Revisto pelo Logan (17/10): as três frases de "o que esta tela não mede" e as medidas dos títulos de tabela abaixo.
 const NAO_MEDE_CAUSA = 'a causa de um padrão: fórmula de título, tema ou horário que aparece junto de vídeo forte não prova que o causou'
 const NAO_MEDE_HORA = 'o resultado de publicar numa hora: o mapa conta quando os concorrentes publicam e o múltiplo dos vídeos, não as views por hora de cada vídeo'
 const NAO_MEDE_RETENCAO = 'retenção, taxa de clique e recomendação por vídeo dos concorrentes: o YouTube só entrega esses dados ao dono do canal'

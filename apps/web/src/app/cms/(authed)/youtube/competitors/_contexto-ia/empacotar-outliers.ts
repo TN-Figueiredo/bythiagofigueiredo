@@ -100,6 +100,11 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   'empty.actions[].primary': APAR, 'empty.actions[].dest': ID,
   count: REP, 'pageIds[]': ID,
 
+  // PENDENTE-E17-PACOTE(idade*; groups[].cards[].idade*): o portão de ligar a IA (G-5) exige esta lista vazia.
+  // E5a T8 (colunas de 7 e 30 dias, faixa de cobertura, selo): a tela as mostra; o pacote ainda NÃO as leva (pendência declarada: o empacotador de Outliers
+  // ganha as duas colunas numa tarefa própria da E17, com a prova de paridade). Até lá a folha fica declarada como controle de tela, e não como número.
+  'idade*': CTRL, 'groups[].cards[].idade*': CTRL, 'sortOptions[].disabled': CTRL,
+
   // a forja: o botão e o estado do cabeçalho são chrome; a barra de leituras é desta tela
   'forja.*': CTRL,
   'forjaBar.bad': CTRL,
@@ -116,6 +121,8 @@ export const INVENTARIO_OUTLIERS: Inventario = {
 export const SEM_FOLHA_NA_MATRIZ_OUTLIERS: readonly string[] = [
   // o aviso do canal próprio e o pedido da forja em andamento: cada um tem teste sintético próprio, que monta a tela e o pacote
   'chips[].link.label', 'chips[].link.href',
+  // E5a T8: a opção por idade só existe quando a página trouxe os dados das marcas (a matriz monta o modelo sem eles)
+  'sortOptions[].disabled',
   'forjaBar.summary.chip', 'forjaBar.summary.chipCls', 'forjaBar.summary.line', 'forjaBar.summary.split', 'forjaBar.summary.statusText',
   'forjaBar.req.cls', 'forjaBar.req.text', 'forjaBar.req.trackHref', 'forjaBar.sideBad[]',
 ]
@@ -124,7 +131,7 @@ export const SEM_FOLHA_NA_MATRIZ_OUTLIERS: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_OUTLIERS = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as três frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
+// Revisto pelo Logan (17/10): as três frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
 const NAO_MEDE_CAUSA = 'a causa do sucesso de um vídeo: o múltiplo compara o vídeo com os outros do mesmo canal, não diz por que ele foi bem'
 const NAO_MEDE_SO_ACOMPANHADOS = 'os vídeos que o canal tem fora da lista acompanhada: o múltiplo só conta os vídeos que o site já viu de cada canal'
 const NAO_MEDE_RETENCAO = 'retenção, taxa de clique e recomendação por vídeo dos concorrentes: o YouTube só entrega esses dados ao dono do canal'

@@ -121,11 +121,13 @@ function SecRetencao({ r }: { r: BlocoRetencao }) {
 
 /** `origem` = o grupo "De onde vêm as views" já renderizado no servidor (o `Suspense` de `OrigemDoVideo`), na ordem: depois da Retenção. */
 /** `periodos` = os três cartões de % assistido por período, JÁ renderizados no servidor (o `Suspense` de `AssistidoDoVideo`): o bloco não espera a leitura. */
-export function VideoBlocos({ view, periodos, origem }: { view: VideoBlocosView; periodos?: ReactNode; origem?: ReactNode }) {
+export function VideoBlocos({ view, periodos, origem, linhaTrocas, trocas }: { view: VideoBlocosView; periodos?: ReactNode; origem?: ReactNode; linhaTrocas?: ReactNode; trocas?: ReactNode }) {
   return (
     <>
+      {view.acesso === 'ok' ? linhaTrocas : null}
       {view.acesso === 'ok' && view.views ? <SecViews b={view.views} /> : null}
       {view.acesso === 'ok' && view.impressoes ? <SecImpressoes b={view.impressoes} /> : null}
+      {view.acesso === 'ok' ? trocas : null}
       {view.acesso === 'ok' && view.assistido ? <SecAssistido a={view.assistido} periodos={periodos} /> : null}
       {view.nota ? <div className="vb-nml vb-privado">{view.acesso === 'erro' ? <span className="vb-falhou">falhou</span> : null}<p data-privado-nota="">{view.nota}</p></div> : null}
       <SecRetencao r={view.retencao} />
@@ -136,10 +138,12 @@ export function VideoBlocos({ view, periodos, origem }: { view: VideoBlocosView;
         {view.canal.notaDiario ? <NaoMedido frase={view.canal.notaDiario} /> : null}
       </section>
       <ForjaIndisponivelVideo view={view.forja} />
-      <section className="vb-sec" aria-labelledby="vb-ainda-h">
-        <h2 id="vb-ainda-h">O que ainda não há deste vídeo</h2>
-        <p className="vb-ainda">{view.ainda}</p>
-      </section>
+      {view.ainda ? (
+        <section className="vb-sec" aria-labelledby="vb-ainda-h">
+          <h2 id="vb-ainda-h">O que ainda não há deste vídeo</h2>
+          <p className="vb-ainda">{view.ainda}</p>
+        </section>
+      ) : null}
     </>
   )
 }

@@ -314,11 +314,12 @@ describe('7b: terceiros, endereços, versões da capa e causa', () => {
     expect(q.definicoes.filter(d => d.privado)).toEqual([])
   })
 
-  it('"o que esta tela não mede" não está vazio e leva a forja e o que ainda não há', () => {
+  it('"o que esta tela não mede" não está vazio e leva a forja ', () => {
     const m = modeloDe(CASOS[0]![1])
     const p = empacotarVideoProprio(m, lido(COM.canalId))
     expect(p.naoMede.join(' ')).toContain(m.blocos.forja.porque)
-    expect(p.naoMede).toContain(m.blocos.ainda)
+    expect(m.blocos.ainda).toBeNull()
+    expect(p.naoMede.every((x) => x !== 'null' && x.length > 0)).toBe(true)
   })
 
   it('nenhuma frase do pacote diz que uma troca ou uma capa "causou" a mudança (risco 34)', () => {
@@ -331,7 +332,7 @@ describe('7b: terceiros, endereços, versões da capa e causa', () => {
 
   it('de site externo sai só o domínio: o modelo do vídeo não carrega URL de fora, e o pacote não tem caminho nem parâmetro de URL', () => {
     const m = modeloDe(CASOS[1]![1])
-    const comUrl = { ...m, blocos: { ...m.blocos, ainda: `${m.blocos.ainda}` } }
+    const comUrl = { ...m, blocos: { ...m.blocos, ainda: 'texto de teste' } }
     const tudo = JSON.stringify(empacotarVideoProprio(comUrl, lido(COM.canalId)))
     expect(tudo).not.toMatch(/https?:\/\//)
     expect(tudo).not.toMatch(/[?&][a-z_]+=/)

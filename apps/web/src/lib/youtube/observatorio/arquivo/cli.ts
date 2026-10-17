@@ -220,13 +220,14 @@ const caminhoNoPrograma = (caminho: string): string => (/^[A-Za-z0-9._\/@%+=:,-]
 /**
  * Os comandos de recarga: um `\copy` por arquivo do manifesto, na ordem do manifesto (a do registro do banco: pai antes de filho,
  * porque a recarga não desliga chave estrangeira) e, depois de TODOS, o reajuste da sequência de cada tabela de identidade carregada
- * (o máximo só vale com tudo carregado). Puro: só imprime.
+ * (o máximo só vale com tudo carregado). `greatest` com o `last_value` da sequência: numa recarga sobre o banco vivo o `max(id)` nunca baixa a sequência
+ * abaixo de um id já entregue (revisão Yannis 17/10, M3). Puro: só imprime.
  */
 export function comandosDeRecarga(m: Manifesto, pasta: string): string[] {
   const copias = m.arquivos.map(a =>
     `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${caminhoNoPrograma(`${pasta}/${a.caminho}`)}' csv header`)
   const carregadas = [...new Set(m.arquivos.map(a => a.tabela))].filter(t => TABELAS_COM_IDENTIDADE.includes(t))
-  const ajustes = carregadas.map(t => `select setval(pg_get_serial_sequence('public.${t}', 'id'), (select max(id) from public.${t}));`)
+  const ajustes = carregadas.map(t => `select setval(pg_get_serial_sequence('public.${t}', 'id'), greatest((select max(id) from public.${t}), (select last_value from public.${t}_id_seq)));`)
   return [...copias, ...ajustes]
 }
 

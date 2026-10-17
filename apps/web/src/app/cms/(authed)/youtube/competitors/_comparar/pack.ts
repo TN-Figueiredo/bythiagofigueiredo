@@ -14,6 +14,10 @@ import { canalTemVideos, ownChannelHref } from '../_chrome/own-channels'
 import type { ExtrasProprio } from '../_proprio/extras'
 import { numerosDoCanal, type AvisoNumero, type Numero, type NumeroId } from './numeros-model'
 import type { SoSeuCanalDado } from './so-seu-canal-model'
+import { planasDe, type MedidasDoCanalPack } from './medidas-do-lado'
+import type { MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
+import { spDateOf } from '@/lib/youtube/observatorio/time'
+import { anteriorCoberto } from '@/lib/youtube/observatorio/medidas-telas/cobertura'
 
 /** `abre`: o Histórico sabe abrir este vídeo. Vídeo sem data de publicação não está no conjunto do site (`obs.video` não o acha): aparece sem link. O destino do link depende do par e é montado pela tela. */
 export interface Top5Item { id: string; abre: boolean; titulo: string; thumb: string | null; viewsTexto: string; idadeTexto: string; short: boolean }
@@ -36,6 +40,8 @@ export interface CanalPack {
   /** Um item por vídeo com data nos últimos 90 dias. `t` fica entre `inicio90` e `now`: o traço do vídeo de 90 dias e meio encosta no início do eixo e uma estreia agendada, em hoje; a data escrita é a real. */
   pub90: Pub90Item[]
   pub90Nota: string
+  /** E5a T7: as medidas novas do canal (M1, M3, M4, M7, M8) em dado simples. Ausente = o pacote foi montado sem pedir as medidas (nada novo aparece). */
+  medidasDoLado?: MedidasDoCanalPack
 }
 
 export interface CompararPack {
@@ -54,6 +60,8 @@ export interface CompararPack {
    * site a entrada é `{ acesso: 'negado', view: null }`, sem nenhum número (o pacote é serializado para o navegador).
    */
   soSeuCanal: Record<string, SoSeuCanalDado>
+  /** E5a T7: o dia de hoje em São Paulo (`AAAA-MM-DD`), calculado no servidor; o navegador não lê relógio. Ausente = pacote sem as medidas novas. */
+  hojeSP?: string
 }
 
 const NEGADO: SoSeuCanalDado = { acesso: 'negado', view: null }
@@ -77,7 +85,11 @@ const avisarSentry = (avisos: AvisoNumero[]) => {
  * `extras`: as views por dia do canal próprio, lidas no servidor para quem edita o site (ausente = não lidas).
  * `soSeuCanal`: o cartão de cada canal próprio, já montado no servidor; o canal próprio que não vier aqui entra como 'negado' (nunca com número).
  */
-export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry, extras?: ExtrasProprio, soSeuCanal: Record<string, SoSeuCanalDado> = {}): CompararPack {
+export function buildCompararPack(
+  obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry, extras?: ExtrasProprio, soSeuCanal: Record<string, SoSeuCanalDado> = {},
+  /** E5a T7: as medidas do site (`carregarMedidasDoSite`). `null` = não carregaram (cada lado diz "não carregou"); omitido = não pedidas (o pacote fica sem as medidas novas). */
+  medidas?: MedidasDoSite | null,
+): CompararPack {
   const avisos: AvisoNumero[] = []
   const owns = obs.ownChannels() // lança no conjunto de um canal: é a guarda de escopo
   const F = obs.fmt, D = obs.date
@@ -123,6 +135,32 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
       pub90Nota = `${F.plural(nl, 'longo', 'longos')} e ${F.plural(ns, 'Short', 'Shorts')} nos últimos 90 dias${nc ? ` e ${nc} de formato não confirmado` : ''}.${aindaSincroniza}`
     }
 
+    const medidasDoLado: MedidasDoCanalPack | undefined = medidas === undefined ? undefined : (() => {
+      const r = ch.own ? null : medidas?.porCanal.get(ch.id)
+      const extrasDoCanal = medidas?.extras.lido ? medidas.extras.dados.get(ch.id) ?? null : null
+      // Só longos de formato confirmado, sem lives e sem estreias agendadas (as mesmas exclusões das leituras b/c). Idade fracionária: 0..90 e 90..180 (M1).
+      let l90 = 0, l180 = 0
+      const fora = { semFormato: 0, aoVivo: 0, agendados: 0 }
+      for (const v of vids) {
+        if (v.isShort === true) continue
+        const idade = (now - v.pub) / DAY
+        if (idade < 0) { fora.agendados++; continue }
+        if (idade > 180) continue
+        if (v.isShort === null) { fora.semFormato++; continue }
+        if (medidas?.videos?.get(v.id)?.wasLive === true) { fora.aoVivo++; continue }
+        if (idade <= 90) l90++; else l180++
+      }
+      const desde = vids.length ? vids.reduce((m, v) => (v.pub < m ? v.pub : m), Infinity) : null
+      const cob = anteriorCoberto({ desde, guardados, noYouTube: ch.youtubeVideoCount ?? null, backfill: ch.sync.state === 'backfill' }, now)
+      const cobertura = cob.ok ? cob : { ok: false as const, desde: cob.desde === null ? null : spDateOf(cob.desde) }
+      const fonte: MedidasDoCanalPack['fonte'] = ch.own ? { tipo: 'canal_proprio' }
+        : r && 'm3a' in r ? { tipo: 'medidas', m: planasDe(r), extras: extrasDoCanal ? JSON.parse(JSON.stringify(extrasDoCanal)) : null }
+        : { tipo: 'nao_carregou', causa: r && 'naoCarregou' in r ? r.naoCarregou : 'leitura_falhou' }
+      return {
+        fonte, videosN: vids.length, buscando: ch.sync.state === 'backfill' || ch.undated.length > 0,
+        ultimaBoa: ch.sync.last == null ? null : D.dm(ch.sync.last), longos: { recente: l90, anterior: l180, cobertura, fora },
+      }
+    })()
     return {
       id: ch.id, name: ch.name, own: ch.own, niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null,
       avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, subsTexto: ch.subs == null ? null : F.subs(ch.subs),
@@ -130,6 +168,7 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
       // concorrente sempre tem página (sem vídeos ela diz "ainda não tem vídeos sincronizados"); o canal próprio só com vídeos
       href: ch.own ? (semVideos ? null : ownChannelHref(ch.id)) : link.canal(ch.id),
       numeros: numerosDoCanal(obs, ch.id, a => avisos.push(a), extras), top5, top5Nota, pub90, pub90Nota,
+      ...(medidasDoLado ? { medidasDoLado } : {}),
     }
   })
 
@@ -143,5 +182,6 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
     canais, ordem: [...owns.map(c => c.id), ...comps.map(c => c.id)],
     serieDesde: obs.SERIES_START_LABEL,
     soSeuCanal: Object.fromEntries(owns.map(c => [c.id, soSeuCanal[c.id] ?? NEGADO] as const)),
+    ...(medidas === undefined ? {} : { hojeSP: spDateOf(now) }),
   }
 }

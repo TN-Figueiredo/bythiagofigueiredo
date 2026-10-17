@@ -1,13 +1,13 @@
 /* A5 · E5a, Tarefa 3: peças comuns das telas de medidas. Hex e rgba literais herdados dos tokens; nunca color-mix(); camadas só por var(--z-*). */
 /* Direção: quadrado com o símbolo + percentual + palavra por extenso. A cor nunca fala sozinha. */
-[data-obs] .obs-md-dir{display:inline-flex;gap:7px;align-items:center;min-height:22px;--d:var(--dir-eq)}
+[data-obs] .obs-md-dir{display:inline-flex;flex-wrap:wrap;gap:2px 7px;align-items:center;min-height:22px;--d:var(--dir-eq)}
 [data-obs] .obs-md-dir.sobe{--d:var(--dir-up)}
 [data-obs] .obs-md-dir.desce{--d:var(--dir-dn)}
 [data-obs] .obs-md-dir.estavel{--d:var(--dir-eq)}
 [data-obs] .obs-md-dir-q{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-size:12px;line-height:1;color:var(--on-lado,#16130F);background:var(--d);border:1.5px solid var(--d)}
 [data-obs] .obs-md-dir.contorno .obs-md-dir-q{background:none;color:var(--d)}
-[data-obs] .obs-md-dir-n{font:500 15px/22px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace}
-[data-obs] .obs-md-dir-w{font-size:12.5px;color:var(--text)}
+[data-obs] .obs-md-dir-n{white-space:nowrap;font:500 15px/22px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace}
+[data-obs] .obs-md-dir-w{font-size:12.5px;color:var(--text);white-space:nowrap}
 [data-obs] .obs-md-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* As quatro formas que nunca trocam de aparência: zero medido, não medido, ainda não existe, não carregou. */

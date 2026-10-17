@@ -56,6 +56,8 @@ const state = {
   termos: vi.fn(async (_a: unknown): Promise<Privado<DetalheCanal>> => ({ acesso: 'negado' })),
   longo: vi.fn(async (_a: unknown): Promise<Privado<DiarioLongo>> => ({ acesso: 'erro' })),
   swipe: vi.fn(async () => []),
+  /** o que `lerTrocas` devolve: por padrão negado (a maioria dos testes não olha as trocas). */
+  trocas: vi.fn(async (_a: unknown): Promise<unknown> => ({ acesso: 'negado' })),
   /** `buildProprioVideoBase` da vez: por padrão o de verdade (a factory do mock o guarda em `real`); um teste troca para simular o cartão que não se achou. */
   base: vi.fn(),
   real: { base: null as null | typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/video-model').buildProprioVideoBase },
@@ -72,6 +74,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   lerDiarioLongo: (a: unknown) => state.longo(a),
   longosAcompanhadosDe: (_obs: unknown, id: string) => ['yt-longos-de-' + id],
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-trocas', () => ({ lerTrocas: (a: unknown) => state.trocas(a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem', () => ({ lerOrigem: (a: unknown) => state.origem(a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-termos', () => ({ lerTermosESites: (a: unknown) => state.termos(a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: () => state.swipe() }))
@@ -103,6 +106,7 @@ beforeEach(() => {
   state.origem.mockImplementation(async () => ({ acesso: 'erro' }))
   state.termos.mockImplementation(async () => ({ acesso: 'negado' }))
   state.dados.mockImplementation(async () => w.dados)
+  state.trocas.mockImplementation(async () => ({ acesso: 'negado' }))
   state.base.mockImplementation((...a: Parameters<NonNullable<typeof state.real.base>>) => state.real.base!(...a))
 })
 
@@ -387,6 +391,31 @@ describe('E5b T16 (d), "De onde vêm as views": a origem vai em Suspense própri
   it('a ordem das seções: a origem entra em VideoBlocos como `origem` e a constante "o que ainda não há" não cita mais a origem', async () => {
     const el = await rota(proprioVideo.id)
     expect(origemDe(el)).toBeDefined()
-    expect(blocos(el).ainda).not.toMatch(/origem do tráfego/i)
+    expect(blocos(el).ainda ?? "").not.toMatch(/origem do tráfego/i)
+  })
+})
+
+describe('portão L5 (Yannis I2): a nota das trocas chega ao gráfico em todo estado menos privado', () => {
+  /** os textos de `notaFaixas` achados em qualquer lugar do modelo dos blocos (views e impressões têm uma cada) */
+  /** um vídeo próprio com gráfico de impressões (o `proprioVideo` é novo e mostra a faixa de 7 casas no lugar do gráfico) */
+  const VIDEO_COM_GRAFICO = 'tnfigueiredo-l0'
+  const notas = (el: Moldura): string[] => [...JSON.stringify(blocos(el)).matchAll(/"notaFaixas":"((?:[^"\\]|\\.)*)"/g)].map(m => m[1]!)
+  it('leitura das trocas em erro: a nota "sem as marcas" nos dois gráficos', async () => {
+    state.trocas.mockImplementation(async () => ({ acesso: 'erro' }))
+    const n = notas(await rota(VIDEO_COM_GRAFICO, {}))
+    expect(n.length).toBeGreaterThanOrEqual(1)
+    for (const x of n) expect(x).toBe('As trocas não puderam ser lidas: o gráfico está sem as marcas.')
+  })
+  it('registro sem estado: a nota "trocas não registradas" nos dois gráficos', async () => {
+    state.trocas.mockImplementation(async () => ({
+      acesso: 'ok',
+      dado: { versoes: { canalId: w.canalId, estado: { estado: 'sem_estado' }, videos: [] }, testes: { acesso: 'ok', dado: { testes: [], descartados: 0 } }, motivoTestes: null, alcance: null },
+    }))
+    const n = notas(await rota(VIDEO_COM_GRAFICO, {}))
+    expect(n.length).toBeGreaterThanOrEqual(1)
+    for (const x of n) expect(x).toBe('trocas não registradas')
+  })
+  it('privado (sem prova): nenhuma nota', async () => {
+    expect(notas(await rota(VIDEO_COM_GRAFICO, {}))).toEqual([])
   })
 })

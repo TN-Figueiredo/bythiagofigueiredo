@@ -45,7 +45,9 @@ describe('anteDepoisDaTroca', () => {
     const r = sc(versao(), pouco)
     expect(r.estado).toBe('ainda_nao_da')
     if (r.estado !== 'ainda_nao_da') return
-    for (const l of [r.antes, r.depois]) { expect(l.taxa).toBeNull(); expect(l.lo).toBeNull(); expect(l.hi).toBeNull() }
+    // lado com menos de 100 impressões: sem taxa nem faixa; lado com 100 ou mais: taxa e faixa, sem veredito (decisão 10, opção B)
+    expect(r.antes.taxa).toBeNull(); expect(r.antes.lo).toBeNull(); expect(r.antes.hi).toBeNull()
+    expect(r.depois.taxa).not.toBeNull(); expect(r.depois.lo).not.toBeNull(); expect(r.depois.hi).not.toBeNull()
     expect(r.antes.imp).toBe(99); expect(r.depois.imp).toBe(5000)
     expect(sc(versao(), [...dias(-8, -8, 100), ...dias(1, 1, 100)]).estado).toBe('com_leitura')
   })
@@ -199,6 +201,39 @@ describe('anteDepoisDaTroca', () => {
 
   it('16. (portão 14/10, Yannis M4b) nenhum dia lido: antes_fora_da_janela_lida', () => {
     expect(sc(versao(), []).estado).toBe('antes_fora_da_janela_lida')
+  })
+
+  it('17. (portão L5, decisão 10 opção B) um lado com >=100 impressões leva taxa e faixa em sem_antes e depois_nao_medido; o veredito continua exigindo os dois lados', () => {
+    const semAntes = sc(versao(), [dia(addDays(D, -8), null, null, 'nao-medido'), ...dias(1, 7, 100)])
+    if (semAntes.estado !== 'sem_antes') throw new Error(semAntes.estado)
+    expect(semAntes.antes.taxa).toBeNull()
+    expect(semAntes.depois.taxa).not.toBeNull(); expect(semAntes.depois.lo).not.toBeNull(); expect(semAntes.depois.hi).not.toBeNull()
+    expect('leitura' in semAntes).toBe(false)
+    const semDepois = sc(versao(), dias(-8, -2, 100))
+    if (semDepois.estado !== 'depois_nao_medido') throw new Error(semDepois.estado)
+    expect(semDepois.antes.taxa).not.toBeNull(); expect(semDepois.depois.taxa).toBeNull()
+    expect('leitura' in semDepois).toBe(false)
+  })
+
+  it('18. (portão L5, Phil I-1) antes_fora_da_janela_lida devolve o depois medido, cortado pela troca vizinha, sem contar os dias da outra troca', () => {
+    // troca 1 em D, troca 2 em D+3 (1d cada): o depois da troca 1 é só D+1 (o dia D+2 e D+3 são da vizinha)
+    const t1 = versao()
+    const t2 = versao({ id: 'v-2', janela: { de: meio(addDays(D, 2)), ate: meio(addDays(D, 3)) }, primeiroDia: addDays(D, 3), ultimoDia: addDays(D, 3), vistaDesde: meio(addDays(D, 3)), vistaAte: meio(addDays(D, 3)) })
+    const r = anteDepoisDaTroca({ troca: t1, versoesDoVideo: [t1, t2], dias: dias(1, 12, 1000), publicadoEm: null })
+    if (r.estado !== 'antes_fora_da_janela_lida') throw new Error(r.estado)
+    expect(r.cortada).toBe(true)
+    expect(r.depois.diasCandidatos).toBe(1)
+    expect(r.depois.diasMedidos).toBe(1)
+    expect(r.depois.imp).toBe(1000)
+    expect(r.depois.taxa).not.toBeNull()
+    // sem vizinha: os 7 dias nominais
+    const so = sc(versao(), dias(1, 12, 1000))
+    if (so.estado !== 'antes_fora_da_janela_lida') throw new Error(so.estado)
+    expect(so.depois.diasCandidatos).toBe(7); expect(so.depois.imp).toBe(7000); expect(so.cortada).toBe(false)
+    // depois com menos de 100 impressões: lado sem taxa
+    const pouco = sc(versao(), dias(1, 1, 40))
+    if (pouco.estado !== 'antes_fora_da_janela_lida') throw new Error(pouco.estado)
+    expect(pouco.depois.taxa).toBeNull()
   })
 
   it('13. varredura do arquivo-fonte: nenhuma ocorrência de efeito, causou ou por causa', () => {

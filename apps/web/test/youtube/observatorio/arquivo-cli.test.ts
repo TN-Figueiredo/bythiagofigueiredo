@@ -181,8 +181,8 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     const ajustes = r.saida.filter(l => l.startsWith('select setval'))
     // só as tabelas de identidade que ESTÁ no manifesto (a lista fixa é conferida contra o catálogo na integração)
     expect(ajustes).toEqual([
-      `select setval(pg_get_serial_sequence('public.competitor_field_versions', 'id'), (select max(id) from public.competitor_field_versions));`,
-      `select setval(pg_get_serial_sequence('public.competitor_raw', 'id'), (select max(id) from public.competitor_raw));`,
+      `select setval(pg_get_serial_sequence('public.competitor_field_versions', 'id'), greatest((select max(id) from public.competitor_field_versions), (select last_value from public.competitor_field_versions_id_seq)));`,
+      `select setval(pg_get_serial_sequence('public.competitor_raw', 'id'), greatest((select max(id) from public.competitor_raw), (select last_value from public.competitor_raw_id_seq)));`,
     ])
     expect(copias.length + ajustes.length).toBe(r.saida.length)
     expect(r.saida.slice(0, copias.length)).toEqual(copias) // nenhum ajuste no meio dos \\copy: o máximo só vale com tudo carregado

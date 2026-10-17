@@ -80,6 +80,12 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { servico.criado++; return servico.cliente } }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+// A5 E5a T7: as medidas dos concorrentes são dado PÚBLICO e abrem para quem só lê; o carregador é trocado por um vazio para que o banco falso só veja a leitura PRIVADA.
+// A única criação do cliente de serviço que sobra é a dele (1); a leitura privada não cria outra.
+vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-site', () => ({
+  carregarMedidasDoSite: async () => ({ porCanal: new Map(), extras: { lido: false, causa: 'tempo_esgotado' }, falhas: [], esgotou: 0 }),
+}))
+const CLIENTES_DAS_MEDIDAS = 1
 // a página-base lê o conjunto PÚBLICO do site (sem o dado privado)
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openObservatoryPage: async () => ({ siteId: S, now: w.obs.NOW, rows: {}, obs: w.obs, meuCanalLembrado: null, savedNiche: 'todos', extra: undefined }),
@@ -139,7 +145,7 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     expect(document.querySelector('[data-so-seu-canal]')).not.toBeNull()
     expect(achados(SENTINELAS, html(), texto()).sort()).toEqual(SENTINELAS.map(x => `${x.grupo}: ${x.nome}`).sort())
     expect(db.trips.length).toBeGreaterThan(0)
-    expect(servico.criado).toBeGreaterThanOrEqual(1)
+    expect(servico.criado).toBeGreaterThan(CLIENTES_DAS_MEDIDAS) // o das medidas e o da leitura privada
     // a guarda da página (1) mais a prova de edição que a leitura dos termos faz por conta própria (1 por canal próprio do par; o par tem um)
     expect(guarda.chamadas).toBe(2)
   })
@@ -157,7 +163,7 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     guarda.ok = false
     render(await rota(PAR_PROPRIO))
     expect(achados(SENTINELAS, html(), texto())).toEqual([])
-    expect(servico.criado).toBe(0)
+    expect(servico.criado).toBe(CLIENTES_DAS_MEDIDAS)
     expect(db.trips).toEqual([])
     expect(document.querySelector('[data-obs-screen="comparar"]')).not.toBeNull() // a parte pública continua
     const cartao = document.querySelector('[data-so-seu-canal]')!
@@ -185,7 +191,7 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     // E17 passo 0: a prova de leitura privada pergunta a edição e, negada, a leitura (2 guardas, nenhuma a mais); depois disso nada
     expect(guarda.chamadas).toBe(2)
     expect(db.trips).toEqual([])
-    expect(servico.criado).toBe(0)
+    expect(servico.criado).toBe(CLIENTES_DAS_MEDIDAS)
   })
 
   it('o título da aba é estático: o mesmo objeto para quem edita e para quem só lê, sem sentinela', async () => {
@@ -207,6 +213,6 @@ describe('14 segurança da comparação: quem edita × quem só lê', () => {
     render(await rota(PAR_CONCORRENTES))
     expect(document.querySelector('[data-so-seu-canal]')).toBeNull()
     expect(db.trips).toEqual([])
-    expect(servico.criado).toBe(0)
+    expect(servico.criado).toBe(CLIENTES_DAS_MEDIDAS)
   })
 })

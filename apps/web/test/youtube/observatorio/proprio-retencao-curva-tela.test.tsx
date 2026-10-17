@@ -218,12 +218,12 @@ describe('o modelo: os outros quatro estados', () => {
     const v = view(retencao({ janelasIlegiveis: ['vida'], descartados: 1, ultimaResposta: { dia: D(1), resultado: 'ok' } }))
     expect(v.estado).toBe('erro')
     // C2: recarregar não resolve uma curva guardada e ilegível
-    expect(v.frase).toBe('Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve.')
+    expect(v.frase).toBe('Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve; peça ao agente.')
   })
   it('a última resposta foi `ok` mas não há curva nem curva ilegível: é incoerência do banco, e a tela diz que a leitura falhou', () => {
     const v = view(retencao({ ultimaResposta: { dia: D(1), resultado: 'ok' } }))
     expect(v.estado).toBe('erro')
-    expect(v.frase).toBe('Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve.')
+    expect(v.frase).toBe('Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve; peça ao agente.')
   })
   it('ilegível só nas janelas de 7 e 30 dias não derruba a vida (a tela só mostra a vida)', () => {
     expect(view(retencao({ janelasIlegiveis: ['primeiros_7_dias'], curvas: { vida: lida(curvaDe(cruzaEm35)) } })).estado).toBe('coletada')

@@ -26,7 +26,7 @@ export interface RowHandlers {
 /** `fm`: a coluna depende do formato (em "Todos" tem duas medidas e o rótulo sobe para o cabeçalho). */
 const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean; tip: string }> = [
   { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem', tip: 'Vídeos publicados por semana, nas últimas 13 semanas.' },
-  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 128, tip: 'Views por dia dos vídeos do canal, por mil inscritos. Compara canais de tamanhos diferentes.' },
+  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 112, tip: 'Views por dia dos vídeos do canal, por mil inscritos. Compara canais de tamanhos diferentes.' },
   { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias', tip: 'Vídeos com 2× ou mais as views típicas do canal, nos últimos 90 dias.' },
   { k: 'swaps', label: 'Trocas', unit: 'título e thumbnail, 30 d, longos e Shorts', tip: 'Mudanças de título e de thumbnail nos últimos 30 dias, longos e Shorts.' },
   { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true, tip: 'Inscritos que o canal ganhou (+) ou perdeu (−) em 30 dias. O YouTube arredonda os inscritos a 3 algarismos; é diferente da Direção, que mede views.' },

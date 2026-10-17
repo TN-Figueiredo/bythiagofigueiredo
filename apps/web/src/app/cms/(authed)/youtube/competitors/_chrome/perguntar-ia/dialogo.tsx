@@ -89,6 +89,9 @@ export function Dialogo(p: PropsDoDialogo) {
 
   const alternar = (id: InfoId): void => setInfo((x) => (x === id ? null : id))
   const aoTeclar = (e: KeyboardEvent<HTMLDialogElement>): void => {
+    // G-6 (Gio, 15/10): com o ⓘ aberto o Esc fecha só o ⓘ. O `cancel` do <dialog> deixa de ser cancelável no Chromium depois de Esc repetidos
+    // (o 3º ciclo fechava o diálogo inteiro); cancelar o keydown evita o pedido de fechamento na origem.
+    if (e.key === 'Escape' && info) { e.preventDefault(); e.stopPropagation(); setInfo(null); return }
     if (e.key !== 'Tab') return
     const d = ref.current
     if (!d) return

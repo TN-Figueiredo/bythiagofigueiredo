@@ -56,7 +56,7 @@ describe('calendário das medidas (E5a T1)', () => {
     deploy.valor = null
     try {
       expect(primeiras24hDesde()).toBeNull()
-      expect(fraseDasPrimeiras24h()).toMatch(/ainda sem data/)
+      expect(fraseDasPrimeiras24h()).toMatch(/a medida ainda não começou/)
     } finally { deploy.valor = '2026-10-13' }
     expect(fraseDasPrimeiras24h()).toContain('13/10/2026')
   })

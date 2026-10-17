@@ -433,7 +433,7 @@ describe('frases.ts e o mockup versionado', () => {
 
   /** A lista do texto novo, escrita à mão: uma frase nova que ninguém declarou aqui derruba o teste. */
   const NOVOS_DECLARADOS = [
-    'erro técnico na coleta (o detalhe fica só na tela)',
+    'erro na coleta; a causa não é enviada',
     'Listas completas do período; a tela mostra em páginas.',
     'Dado mais recente: não medido (nenhuma sincronização registrada)',
     '- (nada em foco nesta tela)',

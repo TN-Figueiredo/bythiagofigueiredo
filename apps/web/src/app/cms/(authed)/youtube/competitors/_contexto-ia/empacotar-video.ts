@@ -214,7 +214,7 @@ export const SEM_FOLHA_NA_MATRIZ_VIDEO: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_VIDEO = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
+// Revisto pelo Logan (17/10): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
 const NAO_MEDE_CAUSA = 'se uma troca explica a mudança nas views: o efeito compara o vídeo com os outros do canal sem troca, e mostra o que veio junto, não a origem'
 const NAO_MEDE_PRIVADO = 'o que só o dono do canal vê: impressões, taxa de clique, retenção e origem do tráfego de um concorrente'
 const SEM_CAUSA = 'Não prova causa.'

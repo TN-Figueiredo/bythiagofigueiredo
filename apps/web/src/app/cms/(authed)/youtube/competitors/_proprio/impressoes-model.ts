@@ -64,7 +64,39 @@ export interface CedoView {
   legenda: CedoLegendaItem[]
 }
 
-export interface LegendaItem { situacao: Situacao | 'cliques' | 'publicacao'; texto: string }
+export interface LegendaItem { situacao: Situacao | 'cliques' | 'publicacao' | 'faixa-cheia' | 'faixa-pontilhada' | 'marca-triangulo' | 'marca-losango'; texto: string }
+
+/** O que a página do vídeo manda para o gráfico (T22a): a faixa do teste A/B (cheia) ou do tempo sem registro (pontilhada). Dias do YouTube. */
+export interface FaixaDoGrafico {
+  k: 'cheia' | 'pontilhada'
+  de: DiaYt | null
+  /** null = o teste segue aberto (a faixa vai até o último dia e leva seta) */
+  ate: DiaYt | null
+  /** os dias em que o ciclo do teste virou (dentes da faixa cheia) */
+  dentes: readonly DiaYt[]
+  rot: string
+  rotCurto: string
+  fala: string
+}
+export interface MarcaDoGrafico { dia: DiaYt; n: number; forma: 'losango' | 'triangulo'; fala: string }
+/** A faixa já recortada nos dias do gráfico: colunas (índices inclusive). */
+export interface FaixaView { k: 'cheia' | 'pontilhada'; i0: number; i1: number; dentes: number[]; aberta: boolean; rot: string; rotCurto: string; fala: string }
+export interface MarcaView { i: number; n: number; forma: 'losango' | 'triangulo'; fala: string }
+
+/** Distância mínima, em px, entre duas marcas na mesma linha: a menos que isso a seguinte desce uma linha. */
+export const MARCA_MIN_PX = 28
+export const FAIXA_ALTURA_PX = 24
+
+/** Linha (0, 1, 2...) de cada marca, dadas as posições x em ordem de coluna: menos de 28 px da anterior da MESMA linha desce uma linha. */
+export function linhasDasMarcas(xs: readonly number[], minPx: number = MARCA_MIN_PX): number[] {
+  const ultimoX: number[] = []
+  return xs.map(x => {
+    let r = 0
+    while (ultimoX[r] != null && x - (ultimoX[r] as number) < minPx) r++
+    ultimoX[r] = x
+    return r
+  })
+}
 
 export interface ImpressoesView {
   teto: number
@@ -95,6 +127,12 @@ export interface ImpressoesView {
   cedo: CedoView | null
   /** Dia 7 em diante com todos os dias medidos em 0: o gráfico mostra só o 0, sem eixo inventado e sem a faixa dos cliques. */
   soZeros: boolean
+  /** T22a: faixas e marcas das trocas, recortadas nos dias do gráfico (vazias sem as opções). */
+  faixas: FaixaView[]
+  marcas: MarcaView[]
+  /** 24 px por tipo de faixa presente; 0 sem faixas. */
+  alturaFaixas: number
+  notaFaixas: string | null
 }
 
 export type Unidade = 'impressoes' | 'views'
@@ -122,6 +160,10 @@ export interface OpcoesImpressoes {
   viewsDoVideo?: number | null
   /** O dia do relatório mais novo do canal, sem janela: com o período vazio a frase diz desde quando a coleta parou, em vez de "ainda não há relatório". Ausente = nunca houve. */
   parouEm?: DiaYt | null
+  /** T22a: faixas (teste A/B, antes do registro), marcas (trocas) e a nota sob o gráfico. Ausentes = o gráfico de sempre, sem nada a mais. */
+  faixas?: readonly FaixaDoGrafico[]
+  marcas?: readonly MarcaDoGrafico[]
+  notaFaixas?: string | null
 }
 
 export const SEM_RELATORIO = 'Ainda não há relatório de alcance deste canal.'
@@ -405,6 +447,7 @@ const rotulos = (u: Unidade) => (u === 'views'
 const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
   const unidade = o.unidade ?? 'impressoes'
   return {
+    faixas: [], marcas: [], alturaFaixas: 0, notaFaixas: null,
     teto: 4, ticks: [0, 2, 4], colunas: [], periodoTexto: '', vazio, legenda: [], resumo: null, avisos: [], metodo: [], escopo: o.escopo, alturaArea: o.alturaArea,
     unidade, faixaCliques: unidade === 'impressoes', ...rotulos(unidade), cedo: null, soZeros: false,
   }
@@ -413,7 +456,7 @@ const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
 const quandoVolta = (dia7: DiaYt, faltam: number, dm: (d: DiaYt) => string): string =>
   `O gráfico volta no primeiro dia com impressão ou em ${dm(dia7)} (${faltam === 1 ? 'falta 1 dia, amanhã' : `faltam ${faltam} dias`}), a última casa da faixa.`
 
-// TEXTO-A-REVISAR: o mockup diz "Publicado há 17 horas" para o vídeo de menos de um dia; o modelo só tem o dia do YouTube.
+// Registrado pelo Logan (17/10), não bloqueia: o mockup diz "Publicado há 17 horas" para o vídeo de menos de um dia; o modelo só tem o dia do YouTube.
 const publicadoHa = (idade: number): string => (idade <= 0 ? 'Publicado hoje.' : `Publicado há ${plural(idade, 'dia', 'dias')}.`)
 
 function casasDoCedo(e: Extract<EstadoCedo, { casas: unknown }>, o: OpcoesImpressoes): CedoCasaView[] {
@@ -467,6 +510,43 @@ function resumoSoZeros(medidos: number, views: number | null | undefined): strin
 /** Um dia "com impressões" sem valor não é barra de 0: é não medido (este sistema falha em verde; as views entram por aqui também). */
 const semValorViraNaoMedido = (d: DiaAlcance): DiaAlcance => (d.situacao === 'com-impressoes' && d.imp == null ? { ...d, situacao: 'nao-medido', cliques: null } : d)
 
+/** Recorta faixas e marcas nos dias do gráfico; o que cai todo fora some (e a legenda some com ele). */
+function recortarTrocas(colunas: readonly ColunaView[], faixas: readonly FaixaDoGrafico[], marcas: readonly MarcaDoGrafico[]): { faixas: FaixaView[]; marcas: MarcaView[] } {
+  const n = colunas.length
+  if (n === 0) return { faixas: [], marcas: [] }
+  const primeiro = colunas[0]!.dia, ultimo = colunas[n - 1]!.dia
+  const fv: FaixaView[] = []
+  for (const f of faixas) {
+    const de = f.de ?? primeiro
+    if (de > ultimo || (f.ate != null && f.ate < primeiro)) continue
+    const i0 = colunas.findIndex(c => c.dia >= de)
+    let i1 = n - 1
+    for (let i = n - 1; i >= 0; i--) if (f.ate == null || colunas[i]!.dia <= f.ate) { i1 = i; break }
+    if (i0 < 0 || i1 < i0) continue
+    const dentes = f.dentes.map(d => colunas.findIndex(c => c.dia === d)).filter(i => i > i0 && i <= i1)
+    fv.push({ k: f.k, i0, i1, dentes, aberta: f.ate == null || f.ate > ultimo, rot: f.rot, rotCurto: f.rotCurto, fala: f.fala })
+  }
+  const mv: MarcaView[] = []
+  for (const m of marcas) {
+    const i = colunas.findIndex(c => c.dia === m.dia)
+    if (i >= 0) mv.push({ i, n: m.n, forma: m.forma, fala: m.fala })
+  }
+  mv.sort((a, b) => a.i - b.i || a.n - b.n)
+  return { faixas: fv, marcas: mv }
+}
+
+/** A frase do dia ganha o que a faixa e a marca dizem (a mesma na dica, na seta e na tabela). Sem faixa nem marca no dia, a coluna sai intacta. */
+function frasesDasTrocas(c: ColunaView, faixas: readonly FaixaView[], marcas: readonly MarcaView[], todas: readonly ColunaView[]): ColunaView {
+  const i = todas.indexOf(c)
+  const falas = [
+    ...faixas.filter(f => i >= f.i0 && i <= f.i1).map(f => f.fala),
+    ...marcas.filter(m => m.i === i).map(m => m.fala),
+  ]
+  if (falas.length === 0) return c
+  const extra = ' · ' + falas.join(' · ')
+  return { ...c, dica: c.dica + extra, situacaoTexto: c.situacaoTexto + extra }
+}
+
 export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo | null, o: OpcoesImpressoes): ImpressoesView {
   // sem permissão nada do dado privado entra na view, mesmo que alguém tenha passado os dias
   const unidade = o.unidade ?? 'impressoes'
@@ -475,7 +555,7 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
   // vídeo novo e ainda cedo: a faixa de 7 casas no lugar do gráfico (antes da checagem de "sem relatório": o vídeo novo ainda não tem nenhum)
   if (!views && o.cedo && (o.cedo.tipo === 'video-novo' || o.cedo.tipo === 'ainda-cedo')) {
-    return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o) }
+    return { ...vazioView('', o), vazio: null, cedo: cedoView(o.cedo, o), notaFaixas: o.notaFaixas ?? null }
   }
   if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : semRelatorioFrase(o.parouEm, o.dm), o)
   const dias = diasIn.map(semValorViraNaoMedido)
@@ -486,13 +566,25 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
   const r = resumir(dias)
   const n = dias.length
   const soZeros = o.cedo?.tipo === 'grafico' && o.cedo.soZeros && !views
+  const colunas = dias.map((d, i) => colunaDe(d, i, n, teto, o))
+  const { faixas, marcas } = recortarTrocas(colunas, o.faixas ?? [], o.marcas ?? [])
+  const tipos = new Set(faixas.map(f => f.k))
+  // G-3 (Gio 17/10): a legenda só cita o que o gráfico desenha; o gráfico só de zeros não desenha faixa nem marca
+  const legendaFaixas: LegendaItem[] = soZeros ? [] : (['cheia', 'pontilhada'] as const).filter(k => tipos.has(k)).map(k => ({
+    situacao: k === 'cheia' ? 'faixa-cheia' as const : 'faixa-pontilhada' as const, texto: (faixas.find(f => f.k === k) as FaixaView).rotCurto,
+  }))
+  // M-3: o que significam as marcas
+  if (!soZeros) {
+    if (marcas.some(x => x.forma === 'triangulo')) legendaFaixas.push({ situacao: 'marca-triangulo', texto: 'troca de thumbnail' })
+    if (marcas.some(x => x.forma === 'losango')) legendaFaixas.push({ situacao: 'marca-losango', texto: 'troca de título' })
+  }
   return {
     teto,
     ticks: soZeros ? [0] : [0, teto / 2, teto],
-    colunas: dias.map((d, i) => colunaDe(d, i, n, teto, o)),
+    colunas: colunas.map(c => frasesDasTrocas(c, faixas, marcas, colunas)),
     periodoTexto: `de ${o.dm(periodo.de)} a ${o.dm(periodo.ate)} · ${plural(periodo.dias, 'dia', 'dias')} · dia do YouTube`,
     vazio: null,
-    legenda: legendaDe(o.escopo, unidade).concat(dias.some(d => d.dia === o.publicadoEm) ? [{ situacao: 'publicacao', texto: 'dia da publicação' }] : []),
+    legenda: legendaDe(o.escopo, unidade).concat(dias.some(d => d.dia === o.publicadoEm) ? [{ situacao: 'publicacao', texto: 'dia da publicação' }] : []).concat(legendaFaixas),
     resumo: o.resumo !== undefined ? o.resumo : soZeros && o.cedo?.tipo === 'grafico' ? resumoSoZeros(o.cedo.diasMedidos, o.viewsDoVideo) : views ? resumoViews(r, n) : resumoTexto(r, n),
     avisos: avisosDe(r, periodo, o),
     metodo: metodoDe(o.escopo, unidade),
@@ -503,5 +595,9 @@ export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo 
     ...rotulos(unidade),
     cedo: null,
     soZeros,
+    faixas: soZeros ? [] : faixas,
+    marcas: soZeros ? [] : marcas,
+    alturaFaixas: soZeros ? 0 : tipos.size * FAIXA_ALTURA_PX,
+    notaFaixas: o.notaFaixas ?? null,
   }
 }

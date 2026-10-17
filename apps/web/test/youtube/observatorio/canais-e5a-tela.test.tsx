@@ -67,7 +67,7 @@ describe('E5a T5: dado ausente', () => {
   })
   it('sem o registro da borda: a data que faltou', () => {
     const v = vw({ medidas: medidasDoMotor(obs, { 'matt-wolfe': { m3a: naoMedido('sem_registro_na_borda', { desde: '2026-09-02' }) } }) })
-    expect(rowsOf(v).find(x => x.id === 'matt-wolfe')!.direcao).toMatchObject({ curta: 'sem registro em 02/09' })
+    expect(rowsOf(v).find(x => x.id === 'matt-wolfe')!.direcao).toMatchObject({ curta: 'sem leitura em 02/09' })
   })
   it('canal sem vídeo: estado "sem vídeos" e direção "sem views nos 56 dias para comparar"', () => {
     const w = a3World(ds => { ds.videos = ds.videos.filter(x => x.ch !== 'matt-wolfe') })

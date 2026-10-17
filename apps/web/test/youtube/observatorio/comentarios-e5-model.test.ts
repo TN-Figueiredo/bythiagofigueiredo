@@ -22,7 +22,7 @@ describe('C2 · modelo · nove estados sem lista', () => {
     ['a_caminho', { estado: 'a_caminho', fezEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA }, 'a caminho', 'Ainda não existe: o vídeo fez 7 dias em 13/10; o retrato sai na próxima coleta, até 16/10.'],
     ['coleta_parada', { estado: 'coleta_parada', desdeMs: T0 + 2 * DIA, semOk: false }, 'coleta parada', 'A coleta de comentários está parada desde 08/10.'],
     ['coleta_parada sem ok', { estado: 'coleta_parada', desdeMs: T0 + 2 * DIA, semOk: true }, 'coleta parada', 'A coleta de comentários está parada: sem execução completa desde 08/10.'],
-    ['coleta_nao_comecou', { estado: 'coleta_nao_comecou' }, 'ainda não começou', 'A coleta de comentários ainda não começou.'],
+    ['coleta_nao_comecou', { estado: 'coleta_nao_comecou' }, 'coleta não começou', 'A coleta de comentários ainda não começou.'],
   ]
   for (const [nome, e, aba, titulo] of casos) {
     it(nome, () => {
@@ -266,7 +266,7 @@ describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', 
     ({ estado: 'nao_coletado', porque: { causa: 'lista_vazia', tomadoEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada, totalDoDia: total } })
   it('lista vazia com total: a data e a contagem guardada; a nota "a contagem diz que há" só aqui', () => {
     const p = painel(vazia(57))
-    expect(p.corpo).toBe('Em 13/10 o vídeo tinha 57 comentários na última contagem, mas o YouTube devolveu a lista vazia.')
+    expect(p.corpo).toBe('Em 13/10 o vídeo tinha 57 comentários pela última contagem, mas o YouTube devolveu a lista vazia.')
     expect(p.nota).toContain('a contagem diz que há')
   })
   it('lista vazia sem total: nenhum algarismo de contagem, nenhum "diz que tem" e nenhuma nota de contagem', () => {
@@ -279,7 +279,7 @@ describe('N10b · modelo · lista vazia, erro encerrado, singular e posição', 
     const erro = (codigo: string): EstadoDoMarco => ({ estado: 'nao_coletado', porque: { causa: 'erro', tentouEmMs: T0 + 7 * DIA, ateMs: T0 + 10 * DIA, encerrada: false, codigo, totalDoDia: null } })
     expect(painel(erro('proibido')).corpo).toMatch(/só para membros/)
     expect(painel(erro('video_nao_encontrado')).corpo).toMatch(/não encontrou este vídeo/)
-    expect(painel(erro('rede')).corpo).toBe('A leitura do YouTube falhou em 13/10.')
+    expect(painel(erro('rede')).corpo).toBe('O YouTube não devolveu os comentários em 13/10.')
     expect(JSON.stringify(painel(erro('zz-texto-do-banco')))).not.toContain('zz-texto-do-banco')
   })
   it('janela encerrada: nenhuma frase promete "tentamos de novo" (erro e lista vazia)', () => {

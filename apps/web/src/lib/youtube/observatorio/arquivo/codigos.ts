@@ -43,7 +43,7 @@ export const FRASES_E10: Record<CodigoE10, string> = {
   forja_em_andamento: 'Há uma leitura da forja em andamento para um vídeo deste canal. Espere ela terminar e exporte de novo.',
   canal_nao_encontrado: 'Este canal não foi encontrado neste site.',
   nao_pausado: 'A coleta deste canal não está pausada. Pause a coleta antes de exportar.',
-  sem_lote: 'Este canal ainda não foi exportado.',
+  sem_lote: 'Este canal ainda não foi exportado, e a remoção exige a exportação conferida. Peça ao agente: pausar, exportar, conferir e confirmar a cópia no NAS.',
   lote_nao_conferido: 'A exportação deste canal ainda não foi conferida. Rode a conferência antes de continuar.',
   lote_nao_confirmado: 'Falta confirmar a cópia da exportação no NAS.',
   despausado_depois_do_export: 'A coleta deste canal foi retomada depois da exportação, então ela deixou de valer. Exporte de novo.',

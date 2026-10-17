@@ -188,6 +188,7 @@
 
 .pi-sw.nao-medido{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 3px,var(--nm-line) 3px 4px)}
 .pi-dlg{position:relative}
+.pi-dlg .ibtn[aria-expanded="true"]{position:relative;z-index:var(--z-conteudo)}
 .pi-pop{position:absolute;right:20px;top:64px;width:min(380px,calc(100% - 40px));padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);box-shadow:var(--shadow);font-size:13.5px;line-height:20px}
 .pi-pop h3{font:600 14px/20px var(--font-sans),system-ui,sans-serif;margin:0 0 6px}
 .pi-pop ul{margin:0;padding-left:18px;display:grid;gap:6px}

@@ -22,6 +22,13 @@ async function loginAs(page: import('@playwright/test').Page, area: 'admin' | 'c
   await page.locator('button[type="submit"]').click()
   await responsePromise
   await expect(page).toHaveURL(new RegExp(`\\/${area}`), { timeout: 15_000 })
+  // `/admin/login` também casa com `/admin`: só a URL não prova login. Sem cookie de sessão do Supabase o storageState sai vazio
+  // e as specs autenticadas caem na tela de login com o setup verde (visto com NODE_ENV=test e sem NEXT_PUBLIC_API_URL).
+  await expect(page, `login de ${email} não terminou fora da tela de login`).not.toHaveURL(/\/login(\?|$|\/)/, { timeout: 15_000 })
+  await expect.poll(
+    async () => (await page.context().cookies()).filter(c => /^sb-.+-auth-token/.test(c.name)).length,
+    { message: `nenhum cookie sb-*-auth-token depois do login de ${email}: o storageState ficaria sem sessão`, timeout: 15_000 },
+  ).toBeGreaterThan(0)
 }
 
 setup('authenticate as admin', async ({ page }) => {

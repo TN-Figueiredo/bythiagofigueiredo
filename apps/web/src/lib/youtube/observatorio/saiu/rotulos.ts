@@ -2,7 +2,7 @@
  * A5 · E9, Tarefa 3: os rótulos do painel "o que some" e a linha "Guardado". Puro. Tabela fora do catálogo aparece com o nome (nunca é omitida):
  * a contagem por catálogo do banco enxerga tabela nova de outra etapa e o painel não pode esconder linha apagada.
  */
-// TEXTO-A-REVISAR: todos os rótulos (singular/plural) seguem o mockup 10, mas o plano não os fixa letra por letra.
+// Rótulos revistos pelo Logan (17/10); única pendência: confirmar com a Naksu se "marca do vídeo" é o termo das telas do A/B (TEXTO-A-REVISAR em competitor_video_marks).
 import { ehTabelaDeIdentidade } from '../comentarios/identidade'
 
 export interface RotuloDaTabela { um: string; muitos: string; interno?: true }
@@ -10,7 +10,7 @@ export interface RotuloDaTabela { um: string; muitos: string; interno?: true }
 export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
   competitor_videos: { um: 'vídeo', muitos: 'vídeos' },
   competitor_channels: { um: 'canal', muitos: 'canais' },
-  competitor_video_daily: { um: 'dia de views por dia', muitos: 'dias de views por dia' },
+  competitor_video_daily: { um: 'dia de views', muitos: 'dias de views' },
   competitor_video_early: { um: 'leitura das primeiras horas', muitos: 'leituras das primeiras horas' },
   competitor_video_hourly: { um: 'leitura por hora', muitos: 'leituras por hora' },
   competitor_video_versions: { um: 'versão do vídeo', muitos: 'versões do vídeo' },
@@ -20,7 +20,7 @@ export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
   competitor_channel_snapshots: { um: 'dia de inscritos e views do canal', muitos: 'dias de inscritos e views do canal' },
   competitor_channel_hour_map: { um: 'mapa de horário do canal', muitos: 'mapas de horário do canal' },
   competitor_video_comments: { um: 'texto de comentário, de terceiros', muitos: 'textos de comentário, de terceiros' },
-  competitor_video_comment_marks: { um: 'contagem de curtidas e respostas, por marco de tempo', muitos: 'contagens de curtidas e respostas, por marco de tempo' },
+  competitor_video_comment_marks: { um: 'contagem de curtidas e respostas por idade', muitos: 'contagens de curtidas e respostas por idade' },
   competitor_video_comment_snaps: { um: 'retrato de comentários', muitos: 'retratos de comentários' },
   competitor_field_versions: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_raw: { um: 'registro interno', muitos: 'registros internos', interno: true },

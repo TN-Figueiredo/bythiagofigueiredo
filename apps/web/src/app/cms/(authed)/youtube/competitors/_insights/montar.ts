@@ -1,6 +1,50 @@
-import { parseNiche } from '@/lib/youtube/observatorio/niche'
+import * as Sentry from '@sentry/nextjs'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
+import { anteriorCoberto } from '@/lib/youtube/observatorio/medidas-telas/cobertura'
+import { spDateOf } from '@/lib/youtube/observatorio/time'
+import { parseNiche, type Niche } from '@/lib/youtube/observatorio/niche'
 import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
 import { buildInsightsView } from './view-model'
+import { direcaoDoNicho, parseLeitura } from './direcao-nicho-model'
+
+/**
+ * Quem sobe e quem desce (E5a T9). Carrega as medidas SÓ dos canais concorrentes do nicho: o canal próprio não tem entrada em `porCanal` e o modelo o
+ * escreve só com o nome. Nunca derruba a tela: se a leitura lançar por inteiro, o cartão vai em erro (sem posição nenhuma) e o erro vai ao Sentry.
+ */
+async function carregarDirecao(pagina: ObservatoryPage<undefined>, niche: Niche, leitura: string | undefined) {
+  const { siteId, now, obs } = pagina
+  const concorrentes = obs.channels.filter(c => !c.own && c.niche === niche)
+  let medidas: MedidasDoSite | 'erro' = 'erro'
+  if (concorrentes.length) {
+    try {
+      medidas = await carregarMedidasDoSite(getSupabaseServiceClient(), { siteId, obs, canais: concorrentes.map(c => c.id), agoraMs: now })
+    } catch (err) {
+      Sentry.captureException(err, { tags: { component: 'observatorio', step: 'medidas-telas-insights' } })
+    }
+  }
+  const cartoes = concorrentes.map(c => ({ id: c.id, name: c.name, href: obs.link.canais({ channel: c.id }) }))
+  // mesma regra do Comparar: o histórico guardado alcança o começo do período anterior? (portão Phil I2)
+  const pubs = new Map<string, number>()
+  for (const v of obs.videos) { const m = pubs.get(v.ch); if (m === undefined || v.pub < m) pubs.set(v.ch, v.pub) }
+  const contagem = new Map<string, number>()
+  for (const v of obs.videos) contagem.set(v.ch, (contagem.get(v.ch) ?? 0) + 1)
+  const anteriorIncompleto = concorrentes
+    .filter(c => !anteriorCoberto({ desde: pubs.get(c.id) ?? null, guardados: (contagem.get(c.id) ?? 0) + c.undated.length, noYouTube: c.youtubeVideoCount ?? null, backfill: c.sync.state === 'backfill' }, now).ok)
+    .map(c => c.id)
+  const opcoes = {
+    anteriorIncompleto,
+    leitura: parseLeitura(leitura), hojeSP: spDateOf(now), nicho: obs.nicheLabel(niche),
+    seusCanais: obs.channels.filter(c => c.own && c.niche === niche).map(c => c.name),
+  }
+  // o modelo também nunca derruba a página: dado fora da forma vira o cartão em erro, com o erro no Sentry (Yannis I2)
+  try {
+    return direcaoDoNicho(medidas, cartoes, opcoes)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'direcao-nicho-modelo' } })
+    return direcaoDoNicho('erro', cartoes, opcoes)
+  }
+}
 
 /**
  * Do conjunto aberto ao modelo de Insights: a MESMA função monta a tela (a página) e o pacote "Perguntar a uma IA" (E17 degrau 1,
@@ -14,7 +58,8 @@ export async function montarInsights(sp: Record<string, string | undefined>): Pr
   const { obs, savedNiche } = pagina
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
   const niche = obs.scopeOf(parseNiche(sp.niche) ?? savedNiche)
-  const view = buildInsightsView(obs, { niche, fmt: sp.fmt })
+  const base = buildInsightsView(obs, { niche, fmt: sp.fmt })
+  const view = niche === 'todos' ? base : { ...base, direcaoNicho: await carregarDirecao(pagina, niche, sp.leitura) }
   const heatMode = sp.heat === 'views' ? 'views' : 'uploads'
   return { pagina, view, heatMode, recente: obs.SYNC.last == null ? null : obs.SYNC.title, estado: { niche, fmt: sp.fmt, heat: heatMode } }
 }

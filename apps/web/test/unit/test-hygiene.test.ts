@@ -58,6 +58,12 @@ const ALLOWLIST = new Set([
   // funções puras do calendário das medidas (E5a T1) com data de entrada explícita e datas de 2027 como resultado do cálculo
   // (viradas de ano e de fevereiro); nenhuma lê o relógio
   'test/youtube/observatorio/medidas-telas-calendario.test.ts',
+  // Comparar (E5): hojeSP é ENTRADA explícita das funções puras ('2027-12-01' = "depois das datas fixas do calendário das medidas");
+  // nada aqui lê o relógio, e uma data relativa quebraria o sentido do teste (precisa ser posterior às marcas fixas de 2027)
+  'test/youtube/observatorio/comparar-e5-medidas.test.ts',
+  'test/youtube/observatorio/comparar-e5-tela.test.tsx',
+  'test/youtube/observatorio/comparar-longos-publicados.test.ts',
+  'test/youtube/observatorio/contexto-ia-comparar.test.tsx',
   // this guardian's own patterns
   'test/unit/test-hygiene.test.ts',
 ])

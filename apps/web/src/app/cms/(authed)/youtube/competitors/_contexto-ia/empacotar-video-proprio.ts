@@ -95,7 +95,7 @@ export const INVENTARIO_VIDEO_PROPRIO: Inventario = {
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_VIDEO_PROPRIO = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases abaixo.
+// Revisto pelo Logan (17/10): as frases abaixo.
 export const ITENS_PRIVADOS_VIDEO = 'views por dia, impressões, cliques estimados, taxa de clique, % assistido e retenção deste vídeo, e a posição dele entre os vídeos do canal nessas medidas'
 
 /** As linhas das réguas que vêm do alcance ou do diário (privadas); as outras vêm dos dados públicos do vídeo. */
@@ -270,7 +270,7 @@ export function empacotarVideoProprio(m: ModeloVideoProprio, privado: EstadoDoPr
 
   const f = b.forja
   const naoMede = [
-    NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, `${f.titulo}: ${f.estado}. ${f.oQue} ${f.porque}`, b.ainda,
+    NAO_MEDE_CAUSA, NAO_MEDE_OUTROS, `${f.titulo}: ${f.estado}. ${f.oQue} ${f.porque}`, ...(b.ainda ? [b.ainda] : []),
   ]
 
   return {
