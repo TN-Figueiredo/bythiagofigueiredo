@@ -64,6 +64,10 @@ const ALLOWLIST = new Set([
   'test/youtube/observatorio/comparar-e5-tela.test.tsx',
   'test/youtube/observatorio/comparar-longos-publicados.test.ts',
   'test/youtube/observatorio/contexto-ia-comparar.test.tsx',
+  // página do canal (E5a T16/T18): hojeSP é ENTRADA explícita das funções puras (blocoDeDirecao, linhaDoTempo); datas de 2027 simulam
+  // "hoje" depois das marcas fixas do calendário das medidas; nada aqui lê o relógio e uma data relativa quebraria o sentido do teste
+  'test/youtube/observatorio/medidas-canal-direcao.test.ts',
+  'test/youtube/observatorio/medidas-canal-linha-do-tempo.test.ts',
   // this guardian's own patterns
   'test/unit/test-hygiene.test.ts',
 ])
