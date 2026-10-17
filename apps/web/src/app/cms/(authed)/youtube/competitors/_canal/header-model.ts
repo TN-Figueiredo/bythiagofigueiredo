@@ -12,6 +12,12 @@ import { SEM_MENSAGEM } from '@/lib/youtube/observatorio/channels'
 import { WD } from '@/lib/youtube/observatorio/time'
 import { vpdText, durText, viewsMediana, duracaoMediana, trocas30 as contarTrocas30, acima2x as contarAcima2x } from './numeros'
 
+/** "há N dias" do último vídeo: dias completos de 24 h (`daysAgo`, a mesma regra de `ageDays` e do ponteiro do Ritmo); abaixo de 2 dias a hora, como no resto. */
+export const diasDesde = (D: { daysAgo(ms: number): number; ago(ms: number): string }, ms: number): string => {
+  const n = D.daysAgo(ms)
+  return n >= 2 ? `há ${n} dias` : D.ago(ms)
+}
+
 /** Uma célula de número. `value` null = sem dado: a tela mostra `missing` em .obs-ch-nm. `base` é o texto do ⓘ e nunca é vazio. */
 export interface NumCell { key: string; value: string | null; missing: string | null; label: string; n: string | null; base: string }
 
@@ -187,7 +193,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   const lastKl = kl.lastUpload, lastKs = ks.lastUpload
   const lastAt = lastKl == null ? lastKs : lastKs == null ? lastKl : Math.max(lastKl, lastKs)
   const ultimoVideo = cell('ultimoVideo', 'desde o último vídeo', {
-    value: lastAt == null ? null : D.ago(lastAt), missing: 'nenhum vídeo guardado',
+    value: lastAt == null ? null : diasDesde(D, lastAt), missing: 'nenhum vídeo guardado',
     base: lastAt == null ? 'o canal não tem vídeo com data de publicação guardado' : `publicado em ${D.dm(lastAt)} ${D.hm(lastAt)} (São Paulo)`,
   })
 

@@ -126,6 +126,17 @@ describe('E5a T0b: o retrato antes dos números', () => {
       }
       return r
     }
+    // Desvio 15 (trem 5.1, Gio b): "desde o último vídeo" do cabeçalho passa a contar dias completos de 24 h (floor, a regra do ponteiro do Ritmo), não
+    // arredondados: o N de "há N dias" pode cair 1. O número é provado em medidas-canal-cabecalho.test.ts; aqui só esse valor sai da comparação.
+    const diasCompletos = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(diasCompletos); return }
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>
+        if (r.key === 'ultimoVideo' && typeof r.value === 'string' && /^há \d+ dias$/.test(r.value)) r.value = 'há <N> dias'
+        Object.values(r).forEach(diasCompletos)
+      }
+    }
+    diasCompletos(atual); diasCompletos(novo)
     expect(soNumeroDoCrescimento(atual)).toEqual(soNumeroDoCrescimento(novo))
   })
 

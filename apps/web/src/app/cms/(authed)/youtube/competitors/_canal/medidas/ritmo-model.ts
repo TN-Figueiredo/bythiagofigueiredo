@@ -211,7 +211,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     cartoes.push(
       { chave: 'intervalo', rotulo: 'Intervalo típico (valor do meio)', valor: { tipo: 'medido', texto: `${umDia(v.intervaloMedianoDias)} ${v.intervaloMedianoDias === 1 ? 'dia' : 'dias'}`, pequeno: null } },
       { chave: 'semanas', rotulo: `Semanas com ${nome.um}`, valor: { tipo: 'medido', texto: `${v.semanasComPublicacao} de ${semanasLidas}`, pequeno: semanasLidas < SEMANAS ? 'semanas com leitura' : null } },
-      { chave: 'buraco', rotulo: rotuloBuraco, valor: { tipo: 'medido', texto: ptn(Math.round(v.maiorBuracoDias), 'dia', 'dias'), pequeno: b === null ? null : b.aberto ? `sem ${nome.um1} desde ${dm(b.de)}` : `${dm(b.de)} a ${dm(b.ate!)}` } },
+      { chave: 'buraco', rotulo: rotuloBuraco, valor: { tipo: 'medido', texto: ptn(Math.floor(v.maiorBuracoDias), 'dia', 'dias'), pequeno: b === null ? null : b.aberto ? `sem ${nome.um1} desde ${dm(b.de)}` : `${dm(b.de)} a ${dm(b.ate!)}` } },
     )
   } else if (e6.tipo === 'nao_carregou') {
     const nc: ValorDoCartao = { tipo: 'nao_carregou' }
