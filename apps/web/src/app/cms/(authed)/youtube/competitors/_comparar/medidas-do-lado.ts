@@ -137,7 +137,8 @@ export interface LadoMedidas {
 /** O motivo escrito: o contexto (n e mínimo da própria medida) vira a frase da linha; sem contexto, a curta da tabela única. */
 function porque(m: Extract<Medida<unknown>, { estado: 'nao_medido' }>, o: { unidade?: string; idade?: 1 | 7 | 30 } = {}): string {
   if (m.motivo === 'poucos_videos' && typeof m.n === 'number' && typeof m.minimo === 'number' && o.unidade) {
-    return `${m.n === 0 ? 'nenhum' : `só ${m.n}`} ${o.unidade}; precisa de ${m.minimo}`
+    const un = m.n <= 1 ? o.unidade.replace(/^longos/, 'longo') : o.unidade
+    return `${m.n === 0 ? 'nenhum' : `só ${m.n}`} ${un}; precisa de ${m.minimo}`
   }
   if (o.idade === 1 && m.motivo === 'leitura_comecou_depois') {
     const d = primeiras24hDesde()
@@ -272,6 +273,6 @@ export function medidasDoLado(c: { id: string; own: boolean; medidasDoLado?: Med
 /* ================================================================================================================== textos que a tela e o pacote escrevem igual */
 
 /** A janela de uma direção cruza a mudança de contagem do YouTube de 24/08. */
-export const textoDaMarca = (ate: string): string => `A janela cruza a mudança de contagem do YouTube de 24/08 (vale até ${ate}).`
+export const textoDaMarca = (ate: string): string => `A janela cruza a mudança de contagem do YouTube de 24/08 (vale até ${/^\d{4}-\d{2}-\d{2}$/.test(ate) ? dm(ate) : ate}).`
 /** A variação em % que o quadrado de direção mostra para a contagem de longos publicados (a mesma regra de ±10% das outras direções). */
 export const pctDaContagem = (c: { recente: number; anterior: number }): number | null => (c.anterior > 0 ? Math.round(((c.recente - c.anterior) / c.anterior) * 100) : null)

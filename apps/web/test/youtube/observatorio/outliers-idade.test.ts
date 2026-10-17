@@ -249,3 +249,12 @@ describe('dadosDeIdade (do conjunto das medidas do site aos dados da tela)', () 
     expect((dadosDeIdade(m, HOJE) as DadosDeIdade).videos.size).toBe(0)
   })
 })
+
+describe('fraseDaOrdem: nenhum medido e nenhum fechamento (Gio M-3)', () => {
+  it('não promete "nenhuma vai fechar" quando a idade já fechou e o cálculo é que falta', async () => {
+    const { fraseDaOrdem } = await import('@/app/cms/(authed)/youtube/competitors/_outliers/idade-model')
+    const txt = fraseDaOrdem(7, { medidos: 0, total: 18, zeros: 0 }, null).map(x => (typeof x === 'string' ? x : x.b)).join('')
+    expect(txt).not.toContain('vai fechar')
+    expect(txt).toContain('ainda não foi calculada')
+  })
+})

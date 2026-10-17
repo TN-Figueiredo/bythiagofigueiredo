@@ -275,3 +275,8 @@
 [data-obs-screen="comparar"] .cp-casas i.fail{border-style:dashed}
 [data-obs-screen="comparar"] .cp-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 [data-obs-screen="comparar"] .cp-chip{display:inline-block;padding:0 6px;border:1px solid var(--border-strong);border-radius:4px;font-size:12px;line-height:18px;color:var(--muted)}
+
+/* telas estreitas: a frase de cada lado e o subtítulo "Para conferir" ocupam a largura toda, não a primeira coluna da grade (Gio G-4) */
+@media (max-width:820px){
+  [data-obs-screen="comparar"] .cp-t tr.cp-fr,[data-obs-screen="comparar"] .cp-t tr.sub-grp{display:block}
+}

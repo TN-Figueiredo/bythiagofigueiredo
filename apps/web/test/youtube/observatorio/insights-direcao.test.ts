@@ -226,3 +226,11 @@ describe('direcaoDoNicho: falha de carga não é espera (Yannis I1, 17/10)', () 
     expect(v.frase).toMatch(/ainda.*1 canal não carregou\.$/)
   })
 })
+
+describe('direcaoDoNicho: views inteiras (Gio M-4)', () => {
+  it('a mediana de vídeos novos nunca tem meia view', () => {
+    const m = site({ x: { b: medido({ variacao: 0.1, direcao: 'subindo', medianaRecente: 47_806.5, medianaAnterior: 43_000 }, 8, { de: somaDias(HOJE, -180), ate: HOJE, dias: 180 }) } })
+    const v = direcaoDoNicho(m, [canal('x')], O('b'))
+    expect(v.linhas[0]!.base.join(' ')).not.toMatch(/,5/)
+  })
+})
