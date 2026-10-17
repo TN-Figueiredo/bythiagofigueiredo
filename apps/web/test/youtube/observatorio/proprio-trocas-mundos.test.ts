@@ -49,8 +49,9 @@ describe('os dez mundos do mockup 3b (E5B-13)', () => {
     expect(trocasDe(v)).toHaveLength(2); expect(nTestes(v)).toBe(1)
     expect(t!.antes!.forma).toBe('sem-dias'); expect(t!.antes!.causa).toMatch(/teste A\/B vem logo antes/)
     expect(t!.depois!.rotulo).toContain('4 dias'); expect(t!.depois!.rotulo).toContain('296 impressões')
-    // a E18 só devolve taxa e faixa com os dois lados (estado com_leitura); o mockup mostrava 4,1% aqui. Enquanto não devolver (pedido E18), o lado diz a causa certa, nunca "só 296 impressões"
-    expect(t!.depois!.taxa).toBeNull(); expect(t!.depois!.causa).not.toMatch(/^só /)
+    // decisão 10 do dono (opção B): a E18 devolve taxa e faixa do lado com 100 impressões ou mais, mesmo sem antes; o chip continua sem veredito
+    expect(t!.depois!.taxa).toBe('4,1%'); expect(t!.depois!.forma).toBe('numero'); expect(t!.depois!.faixa).not.toBeNull(); expect(t!.depois!.causa).toBeNull()
+    expect(['subiu', 'caiu']).not.toContain(t!.chip)
     expect(c!.chip).toBe('sem-diferenca')
     expect(v.diagnostico).toEqual({ foraDaJanelaSemCausa: 0, fimNaoRegistrado: 0, origemCms: 0, estadoInesperado: 0 })
   })
@@ -180,8 +181,11 @@ describe('200 mundos gerados com semente fixa (E5b-18)', () => {
     })
     const ult = addDays(hoje, -2)
     const nm = Array.from({ length: int(0, 3) }, () => addDays(hoje, -int(2, 30)))
-    const imp = int(0, 4) === 0 ? 0 : int(5, 400)
-    const a = serie(addDays(hoje, -int(20, 60)), ult, () => imp, () => 0.02 + r() * 0.06, nm)
+    // portão L5 (Yannis I1): as impressões são sorteadas POR LADO de um dia de corte, para os dois lados de uma troca poderem diferir muito
+    const sorteio = () => (int(0, 4) === 0 ? 0 : int(5, 400))
+    const impAntesDoCorte = sorteio(), impDepoisDoCorte = r() < 0.5 ? sorteio() : int(500, 5000)
+    const corte = addDays(hoje, -int(5, 35))
+    const a = serie(addDays(hoje, -int(20, 60)), ult, d => (d < corte ? impAntesDoCorte : impDepoisDoCorte), () => 0.02 + r() * 0.06, nm)
     const atraso = int(0, 3)
     const l = lidasCom(vs, a, ts, true, { atrasoDias: atraso, conferidoAte: addDays(hoje, -atraso) })
     const publicadoEm = addDays(hoje, -int(8, 120))
@@ -206,6 +210,11 @@ describe('200 mundos gerados com semente fixa (E5b-18)', () => {
         if (!lado) continue
         if (lado.forma !== 'numero') { expect(lado.taxa).toBeNull(); expect(lado.barra).toBeNull() }
         else { expect(lado.taxa).not.toBeNull(); expect(lado.barra!.lo).toBeLessThanOrEqual(lado.barra!.hi) }
+      }
+      // causa pelo OUTRO lado: se o texto diz que o outro lado não tem dia, o outro lado realmente não tem
+      for (const t of trocasDe(v)) for (const [lado, outro] of [[t.antes, t.depois], [t.depois, t.antes]] as const) {
+        if (lado?.causa?.includes('não tem dia')) expect(['nao-medido', 'sem-antes', 'sem-dias', 'cortado'], lado.causa).toContain(outro?.forma)
+        if (lado?.causa?.includes('o outro lado tem só')) expect(outro?.forma, lado.causa).toBe('poucas')
       }
       // atraso: com 2 dias ou mais, aviso; com menos, nenhum
       expect(v.atraso !== null).toBe(m.atraso >= 2)
