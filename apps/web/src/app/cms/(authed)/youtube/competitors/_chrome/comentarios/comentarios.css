@@ -64,3 +64,11 @@
 [data-obs] .cd-deg i{display:block;width:14px;height:8px;border-radius:2px;border:1px solid var(--cd);background:transparent}
 [data-obs] .cd-deg i.on{background:var(--cd)}
 [data-obs] .cd-rodape{font-size:12.5px;color:var(--muted)}
+/* Gio C5, defeito A: o título e o ⓘ da seção seguem o chrome dos outros blocos (h2 600 15px/22px como .hv-h h2; ⓘ 24 px, 44 px no toque e a 390),
+   porque as regras de .ibtn existentes são escopadas a outras telas e o ⓘ daqui media 0x21 px. */
+[data-obs] .cd-secao .cd-titulo{display:inline-block;margin:0 6px 0 0;font:600 15px/22px var(--font-sans),system-ui,sans-serif}
+[data-obs] .cd-secao .ibtn{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;vertical-align:middle;color:var(--muted);border-radius:50%;margin:-10px 0}
+[data-obs] .cd-secao .ibtn:hover{color:var(--text)}
+[data-obs] .cd-secao .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs] .cd-secao .ibtn svg{width:16px;height:16px}
+@media (pointer:coarse),(max-width:900px){ [data-obs] .cd-secao .ibtn{width:44px;height:44px;margin:-10px} }
