@@ -9,7 +9,7 @@ import { NaoCarregou } from '../../_chrome/medidas/marcas'
 import { RiInfo } from '../../_canais/ri-info'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { dm } from './formatos'
-import type { LinhaDoTempo, MarcaDaLinha, RaiaDaLinha } from './linha-do-tempo-model'
+import type { FormaDaMarca, LinhaDoTempo, MarcaDaLinha, RaiaDaLinha } from './linha-do-tempo-model'
 import './canal-medidas.css'
 
 const W = 760, LM = 66, RM = 12, TM = 10, PH = 120, RAIA = 22
@@ -32,7 +32,7 @@ function Raia({ raia }: { raia: RaiaDaLinha }) {
 
 /** N1 (Naksu): a amostra de cada item da legenda é o mesmo desenho e a mesma classe do gráfico. */
 function Amostra({ chave }: { chave: string }) {
-  const marca = (forma: MarcaDaLinha['forma']) => <Marca m={{ indice: -1, forma } as MarcaDaLinha} x={8} y={8} />
+  const marca = (forma: FormaDaMarca) => <Marca m={{ indice: -1, forma } as MarcaDaLinha} x={8} y={8} />
   let corpo: ReactNode = null
   if (chave === 'com' || chave === 'diminuiu') corpo = <rect className="gl-barra" x={1} y={3} width={14} height={10} />
   else if (chave === 'zero') corpo = <rect className="gl-zero" data-zero x={1} y={9} width={14} height={6} />
@@ -40,7 +40,7 @@ function Amostra({ chave }: { chave: string }) {
   else if (chave === 'fora') corpo = <rect className="gl-pontilhado" x={1} y={2} width={14} height={12} />
   else if (chave === 'corte') corpo = <line className="gl-corte" x1={8} x2={8} y1={1} y2={15} />
   else if (chave === 'longo' || chave === 'short' || chave === 'campo' || chave === 'titulo') corpo = marca(chave)
-  else if (chave === 'miniatura') corpo = marca('miniatura' as MarcaDaLinha['forma'])
+  else if (chave === 'miniatura') corpo = marca('miniatura')
   if (!corpo) return null
   return <svg className="pc-amostra" viewBox="0 0 16 16" width={16} height={16} aria-hidden="true">{corpo}</svg>
 }

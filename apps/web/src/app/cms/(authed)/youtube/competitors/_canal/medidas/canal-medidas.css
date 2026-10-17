@@ -291,3 +291,5 @@
 [data-obs-screen="canal"] .pc-esq-blocos .pc-sec i:nth-child(2){height:90px}
 [data-obs-screen="canal"] .pc-leg li{display:inline-flex;align-items:center;gap:6px}
 [data-obs-screen="canal"] .pc-amostra{flex:none;display:block}
+/* N2 (Naksu): a régua do bloco de direção ocupa a coluna inteira, alinhada ao texto, e não os 124 px do chrome compartilhado */
+[data-obs-screen="canal"] .pc-dg .obs-md-rg{width:100%;min-width:160px;max-width:420px}
