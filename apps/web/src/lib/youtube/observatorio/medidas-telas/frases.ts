@@ -1,6 +1,7 @@
 // A5 · E5a, Tarefa 1: as frases das telas. A frase LONGA de todo motivo é a da tabela única (`medidas-frases.ts`, dona: E7 T11);
 // este arquivo escreve só a CURTA, a classe do motivo, a frase das notas e a fonte fixa.
 import { FRASES_DE_MOTIVO, type ContextoDaFrase } from '../medidas-frases'
+import { MEASURE_RULES } from '../medidas/regras'
 import { MOTIVOS_NAO_MEDIDO, type MotivoNaoMedido, type Nota } from '../medidas/tipos'
 
 export type { ContextoDaFrase }
@@ -20,43 +21,43 @@ const comNumeros = (c: ContextoDaFrase, com: (n: number, min: number) => string,
   typeof c.n === 'number' && typeof c.minimo === 'number' ? com(c.n, c.minimo) : sem
 
 // A curta é a que cabe numa pastilha. Só `fecha_em` (mockup 16, "fecha em dd/mm" e "ainda sem data para fechar") vem fixada pelos
-// mockups; as outras são TEXTO-A-REVISAR (Logan/Naksu), escritas para caber em uma linha e sem jargão.
+// mockups; as outras passaram pelo Logan (17/10), escritas para caber em uma linha e sem jargão.
 const CURTAS: Record<MotivoNaoMedido, (c: ContextoDaFrase) => string> = {
-  leitura_comecou_depois: () => 'vídeo anterior à contagem', // TEXTO-A-REVISAR
-  descoberto_tarde: () => 'descoberto tarde demais', // TEXTO-A-REVISAR
-  leitura_parou_antes: () => 'contagem parou antes', // TEXTO-A-REVISAR
-  leituras_distantes: () => 'leituras longe da idade', // TEXTO-A-REVISAR
-  sem_leitura: () => 'sem leitura nessa idade', // TEXTO-A-REVISAR
-  views_ocultas: () => 'views ocultas pelo canal', // TEXTO-A-REVISAR
+  leitura_comecou_depois: () => 'vídeo anterior à coleta',
+  descoberto_tarde: () => 'visto só depois do prazo',
+  leitura_parou_antes: () => 'coleta parou antes',
+  leituras_distantes: () => 'sem leitura perto dessa idade',
+  sem_leitura: () => 'sem leitura nessa idade',
+  views_ocultas: () => 'views ocultas pelo canal',
   fecha_em: c => (c.fechaEm ? `fecha em ${dm(c.fechaEm)}` : 'ainda sem data para fechar'),
-  aguardando_calculo: () => 'cálculo ainda não rodou', // TEXTO-A-REVISAR
-  poucos_videos: c => comNumeros(c, (n, min) => `${n} de ${min} vídeos`, 'poucos vídeos'), // TEXTO-A-REVISAR
-  poucas_publicacoes: c => comNumeros(c, (n, min) => `${n} de ${min} publicações`, 'poucas publicações'), // TEXTO-A-REVISAR
-  ritmo_parcial: () => 'ritmo parcial', // TEXTO-A-REVISAR
-  sem_publicacao: () => 'sem data de publicação', // TEXTO-A-REVISAR
-  sem_registro_recente: () => 'sem registro recente', // TEXTO-A-REVISAR
-  sem_registro_na_borda: c => (c.desde ? `sem registro em ${dm(c.desde)}` : 'sem registro num dos dias'), // TEXTO-A-REVISAR
-  pouco_registro: () => 'poucos dias de registro', // TEXTO-A-REVISAR
-  janela_cruza_mudanca_de_contagem: c => (c.fechaEm ? `fecha em ${dm(c.fechaEm)}` : 'cruza a mudança de contagem'), // TEXTO-A-REVISAR
-  contagem_recuou: () => 'contagem recuou', // TEXTO-A-REVISAR
-  base_zero: () => 'base em zero', // TEXTO-A-REVISAR
-  poucas_views: () => 'poucas views', // TEXTO-A-REVISAR
-  poucas_curtidas: () => 'poucas curtidas', // TEXTO-A-REVISAR
-  sem_v30: () => 'sem views aos 30 dias', // TEXTO-A-REVISAR
-  idade_menor_que_90: () => 'ainda sem 90 dias', // TEXTO-A-REVISAR
-  ao_vivo_ou_estreia: () => 'ao vivo ou estreia', // TEXTO-A-REVISAR
-  formato_nao_confirmado: () => 'formato não confirmado', // TEXTO-A-REVISAR
-  sem_reacao_publica: () => 'sem reação pública para comparar', // TEXTO-A-REVISAR (mockup 14 usa esta frase)
-  curtidas_ocultas: () => 'curtidas ocultas', // TEXTO-A-REVISAR
-  retrato_ausente: () => 'sem leitura de comentários', // TEXTO-A-REVISAR
-  sem_multiplo: () => 'sem múltiplo', // TEXTO-A-REVISAR
-  serie_nao_pedida: () => 'contagem dia a dia não pedida', // TEXTO-A-REVISAR
-  serie_diaria_incompleta: () => 'contagem dia a dia incompleta', // TEXTO-A-REVISAR
-  arquivado: () => 'vídeo arquivado', // TEXTO-A-REVISAR
-  sem_permissao: () => 'só para quem edita', // TEXTO-A-REVISAR
-  leitura_falhou: () => 'não carregou', // TEXTO-A-REVISAR
-  calculo_falhou: () => 'não carregou', // TEXTO-A-REVISAR
-  coleta_pausada: () => 'coleta pausada', // TEXTO-A-REVISAR
+  aguardando_calculo: () => 'ainda não calculado',
+  poucos_videos: c => comNumeros(c, (n, min) => `só ${n} de ${min} vídeos`, 'poucos vídeos para medir'),
+  poucas_publicacoes: c => comNumeros(c, (n, min) => `só ${n} de ${min} publicações`, 'poucas publicações para medir'),
+  ritmo_parcial: () => 'ritmo de parte do período',
+  sem_publicacao: () => 'sem data de publicação',
+  sem_registro_recente: () => 'sem leitura recente',
+  sem_registro_na_borda: c => (c.desde ? `sem leitura em ${dm(c.desde)}` : 'sem leitura num dos dias'),
+  pouco_registro: () => 'poucos dias de leitura',
+  janela_cruza_mudanca_de_contagem: c => (c.fechaEm ? `fecha em ${dm(c.fechaEm)}` : `cruza a mudança de ${dm(MEASURE_RULES.countChange)} do YouTube`),
+  contagem_recuou: () => 'views diminuíram no período',
+  base_zero: () => 'período anterior com 0 views',
+  poucas_views: () => 'poucas views',
+  poucas_curtidas: () => 'poucas curtidas',
+  sem_v30: () => 'sem views aos 30 dias',
+  idade_menor_que_90: () => 'ainda sem 90 dias',
+  ao_vivo_ou_estreia: () => 'ao vivo ou estreia',
+  formato_nao_confirmado: () => 'formato não confirmado',
+  sem_reacao_publica: () => 'sem reação pública para comparar',
+  curtidas_ocultas: () => 'curtidas ocultas',
+  retrato_ausente: () => 'sem leitura de comentários',
+  sem_multiplo: () => 'múltiplo não calculado',
+  serie_nao_pedida: () => 'dia a dia não carregado nesta tela',
+  serie_diaria_incompleta: () => 'dia a dia incompleto',
+  arquivado: () => 'vídeo arquivado',
+  sem_permissao: () => 'só para quem edita',
+  leitura_falhou: () => 'não carregou',
+  calculo_falhou: () => 'não carregou',
+  coleta_pausada: () => 'coleta pausada',
   nao_se_aplica: () => 'esta medida é só dos vídeos longos: o Short não tem direção dos vídeos novos',
 }
 
@@ -72,18 +73,18 @@ export const FRASES: Record<MotivoNaoMedido, (c: ContextoDaFrase, tela?: TelaDeF
 
 const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`
 
-/** A frase de uma nota que a medida carrega. TEXTO-A-REVISAR (Logan/Naksu): o plano não fixa o texto das notas. */
+/** A frase de uma nota que a medida carrega. Textos revistos pelo Logan (17/10). */
 export function fraseDaNota(n: Nota): string {
   switch (n.tipo) {
-    case 'mudanca_de_contagem': return 'A janela cruza o dia em que o YouTube mudou a contagem de views.'
-    case 'ao_vivo_fora': return `${plural(n.n, 'transmissão ao vivo ficou', 'transmissões ao vivo ficaram')} fora da conta.`
-    case 'fora_do_ar_dentro': return `${plural(n.n, 'vídeo fora do ar entrou', 'vídeos fora do ar entraram')} na conta.`
-    case 'formato_nao_confirmado_fora': return `${plural(n.n, 'vídeo com formato não confirmado ficou', 'vídeos com formato não confirmado ficaram')} fora da conta.`
-    case 'ao_vivo_nao_se_sabe': return `Não se sabe se ${plural(n.n, 'vídeo foi', 'vídeos foram')} ao vivo.`
+    case 'mudanca_de_contagem': return `A janela inclui ${dm(MEASURE_RULES.countChange)}, dia em que o YouTube mudou como conta as views.`
+    case 'ao_vivo_fora': return `${plural(n.n, 'transmissão', 'transmissões')} ao vivo fora da conta.`
+    case 'fora_do_ar_dentro': return `${plural(n.n, 'vídeo', 'vídeos')} fora do ar na conta.`
+    case 'formato_nao_confirmado_fora': return `${plural(n.n, 'vídeo', 'vídeos')} de formato não confirmado fora da conta.`
+    case 'ao_vivo_nao_se_sabe': return `Não sabemos se ${plural(n.n, 'vídeo foi', 'vídeos foram')} ao vivo.`
     case 'total_de_hoje': return 'O número é o total de hoje, não o de uma data passada.'
     case 'so_curtidas': return 'Só as curtidas entram: os comentários estão desligados.'
     case 'so_comentarios': return 'Só os comentários entram: as curtidas estão ocultas.'
     case 'serie_semanal': return 'A contagem é semanal, não dia a dia.'
-    case 'agendado_fora': return `${plural(n.n, 'vídeo agendado ficou', 'vídeos agendados ficaram')} fora da conta.`
+    case 'agendado_fora': return `${plural(n.n, 'vídeo agendado', 'vídeos agendados')} fora da conta.`
   }
 }

@@ -314,7 +314,7 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_CANAL_PROPRIO = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases abaixo.
+// Revisto pelo Logan (17/10): as frases abaixo.
 export const AVISO_PARCIAL_PROPRIO = 'Parte do dado privado do canal não foi lida agora.'
 export const ITENS_PRIVADOS_PROPRIO = 'impressões, cliques estimados, taxa de clique, views por dia dos vídeos e % assistido'
 export const NAO_MEDE_CAUSA = 'a causa de uma mudança nos números: nada aqui prova que uma capa ou um título fez a diferença'
@@ -630,7 +630,7 @@ function tabelasDosPeriodos(m: ModeloCanalProprio): Tabela[] {
   const saida: Tabela[] = []
   const c = (i: number): string => `modelo.periodos.cartoes[${i}]`
   saida.push({
-    // TEXTO-A-REVISAR (Logan/Naksu): títulos e colunas das tabelas de período e de origem abaixo.
+    // Revisto pelo Logan (17/10): títulos e colunas das tabelas de período e de origem abaixo.
     id: 'privado-assistido-por-periodo', titulo: `${TITULO_ASSISTIDO}${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'tabela do % assistido por período', privada: true,
     colunas: ['Período', '% assistido', 'Legenda'],
     linhas: v.cartoes.map((x, i): Celula[] => [rot(x.rotulo, `${c(i)}.rotulo`), numero(x.valor, x.semNumero, `${c(i)}.valor`, x.semNumero ? `${c(i)}.semNumero` : `${c(i)}.valor`), bas(x.legenda, `${c(i)}.legenda`)]),

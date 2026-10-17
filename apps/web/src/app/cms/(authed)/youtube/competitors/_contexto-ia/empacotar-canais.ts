@@ -280,7 +280,7 @@ export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_CANAIS_VAZIA = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
+// Revisto pelo Logan (17/10): as frases de "o que esta tela não mede" e os títulos das tabelas abaixo.
 const NAO_MEDE_PRIVADO = 'o que só o dono do canal vê: impressões, taxa de clique, retenção e origem do tráfego de um concorrente'
 const NAO_MEDE_CAUSA = 'por que um canal sobe ou cai: a direção compara os 28 dias com os 28 anteriores do próprio canal, e não diz a causa'
 export const NAO_COBERTO = ['drawer'] as const

@@ -245,7 +245,7 @@ describe('A5 E9 T7: addCompetitorChannel e o canal que o dono apagou', () => {
   it('a conferência falha: não adiciona', async () => {
     const db: Db = { own: null, existing: null, inserted: [], removed: 'broken', volta: { updates: [], audits: [] } }
     setup(db)
-    expect(await (await load())(UC)).toEqual({ ok: false, error: 'Não foi possível conferir se este canal já foi apagado. Tente de novo.' })
+    expect(await (await load())(UC)).toEqual({ ok: false, error: 'Não foi possível conferir se este canal já foi apagado. Nada foi adicionado. Tente de novo.' })
     expect(db.inserted).toHaveLength(0)
   })
   it('canal nunca apagado: nada muda (sem aviso, sem gravação da volta)', async () => {
@@ -271,7 +271,7 @@ describe('A5 E9 T7: addCompetitorChannel e o canal que o dono apagou', () => {
       const res = await (await load())(UC)
       expect(res.ok, falha).toBe(true)
       expect(db.inserted, falha).toHaveLength(1)
-      expect(res.aviso, falha).toMatch(/não foi possível registrar a volta na fila/)
+      expect(res.aviso, falha).toMatch(/a volta dele não ficou registrada na fila/)
     }
   })
 })

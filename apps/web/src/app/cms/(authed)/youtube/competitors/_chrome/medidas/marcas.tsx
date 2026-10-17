@@ -22,16 +22,15 @@ const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 /** A leitura ainda não existe: a data é obrigatória (sem ela a tela inventaria uma promessa). */
 export function AindaNaoExiste({ existeEm }: { existeEm: string }) {
   if (!existeEm) throw new Error('ainda_nao_existe_sem_data')
-  // TEXTO-A-REVISAR (Logan/Naksu): a frase curta de "ainda não existe" não está fixada no plano.
   return <span className="obs-md-ainda">só a partir de {dm(existeEm)}</span>
 }
 
 /** "Não carregou" é falha, nunca "não medido" nem zero. O botão só existe quando quem chama dá a função. */
-export function NaoCarregou({ onTentar }: { onTentar?: () => void }) {
-  // TEXTO-A-REVISAR (Logan/Naksu): os textos de "não carregou" não estão fixados no plano.
+/** `medida` nomeia o que não carregou quando a célula está isolada ("Não carregou: views aos 30 dias"); dentro de tabela fica só "Não carregou". */
+export function NaoCarregou({ onTentar, medida }: { onTentar?: () => void; medida?: string }) {
   return (
     <span className="obs-md-nc" role="alert">
-      <span>Não carregou</span>
+      <span>{medida ? `Não carregou: ${medida}` : 'Não carregou'}</span>
       {onTentar ? <button type="button" onClick={onTentar}>Tentar de novo</button> : null}
     </span>
   )

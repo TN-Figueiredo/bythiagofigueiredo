@@ -69,9 +69,9 @@ const FRASE_FORA_DO_FORMATO = 'Não dá para dizer onde metade das pessoas sai: 
 const FRASE_INCOMPLETA = 'Não dá para dizer onde metade das pessoas sai: a curva coletada está incompleta.'
 const FRASE_ERRO = 'A leitura da curva falhou agora; recarregue a página.'
 /** Erro que recarregar não resolve (curva guardada e ilegível, ou `ok` sem curva): C2 do portão de UX. */
-const FRASE_ERRO_GUARDADA = 'Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve.'
+const FRASE_ERRO_GUARDADA = 'Esta curva está guardada, mas não deu para lê-la. Recarregar não resolve; peça ao agente.'
 /** Tabela da curva ausente (migration não aplicada): falha nossa, S4 do portão de UX. */
-const FRASE_ERRO_TABELA = 'A leitura da curva não está disponível agora. Recarregar não resolve.' // TEXTO-A-REVISAR
+const FRASE_ERRO_TABELA = 'A curva de retenção não pode ser lida agora por um problema nosso. Recarregar não resolve; peça ao agente.'
 const FRASE_NEGADO = 'Só quem edita o site vê a curva de retenção deste vídeo.'
 
 /** A curva da API vai até 100% por ponto; o desenho passa disso até este teto (o mockup corta em 120%). */

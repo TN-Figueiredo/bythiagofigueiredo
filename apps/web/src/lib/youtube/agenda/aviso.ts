@@ -68,12 +68,12 @@ function textoDe(a: Aviso, onde: string): { title: string; message: string } {
       }
     case 'banco_no_limite':
       return {
-        title: 'O banco do site está chegando ao limite do plano', // TEXTO-A-REVISAR
+        title: 'O banco do site está chegando ao limite do plano',
         message: frase + '. Confira o Observatório no CMS, em ' + onde + '.',
       }
     case 'coleta_pausada_esquecida':
       return {
-        title: 'Há canal com a coleta pausada há muito tempo', // TEXTO-A-REVISAR
+        title: 'Há canal com a coleta pausada há muito tempo',
         message: frase + '. Remova o canal ou retome a coleta. Confira o Observatório no CMS, em ' + onde + '.',
       }
   }

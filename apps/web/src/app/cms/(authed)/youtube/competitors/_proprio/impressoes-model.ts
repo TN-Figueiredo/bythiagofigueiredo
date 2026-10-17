@@ -413,7 +413,7 @@ const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
 const quandoVolta = (dia7: DiaYt, faltam: number, dm: (d: DiaYt) => string): string =>
   `O gráfico volta no primeiro dia com impressão ou em ${dm(dia7)} (${faltam === 1 ? 'falta 1 dia, amanhã' : `faltam ${faltam} dias`}), a última casa da faixa.`
 
-// TEXTO-A-REVISAR: o mockup diz "Publicado há 17 horas" para o vídeo de menos de um dia; o modelo só tem o dia do YouTube.
+// Registrado pelo Logan (17/10), não bloqueia: o mockup diz "Publicado há 17 horas" para o vídeo de menos de um dia; o modelo só tem o dia do YouTube.
 const publicadoHa = (idade: number): string => (idade <= 0 ? 'Publicado hoje.' : `Publicado há ${plural(idade, 'dia', 'dias')}.`)
 
 function casasDoCedo(e: Extract<EstadoCedo, { casas: unknown }>, o: OpcoesImpressoes): CedoCasaView[] {

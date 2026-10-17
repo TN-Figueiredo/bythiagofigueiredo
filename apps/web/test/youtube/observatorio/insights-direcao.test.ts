@@ -236,23 +236,23 @@ describe('direcaoDoNicho: views inteiras (Gio M-4)', () => {
 })
 
 describe('direcaoDoNicho: nota do período anterior incompleto (leituras b e c)', () => {
-  const NOTA = 'o período anterior pode estar incompleto em 1 canal'
+  const NOTA = 'em 1 canal falta histórico do período anterior'
   const medidas = () => site({ x: { b: b(0.3), c: b(0.3) }, y: { b: b(0.1), c: b(0.1) } })
   const canais = [canal('x'), canal('y')]
-  it('leitura b com um canal não coberto: nota sob a frase e no ⓘ', () => {
+  it('leitura b com um canal não coberto: nota sob a frase, sem repetir no ⓘ', () => {
     const v = direcaoDoNicho(medidas(), canais, { ...O('b'), anteriorIncompleto: ['x'] })
     expect(v.avisos.some(t => t.includes(NOTA))).toBe(true)
-    expect(v.info.leituras.some(t => t.includes(NOTA))).toBe(true)
+    expect(v.info.leituras.some(t => t.includes(NOTA))).toBe(false)
   })
   it('sem nota quando todos cobertos, ausente ou na leitura a', () => {
     expect(direcaoDoNicho(medidas(), canais, { ...O('b'), anteriorIncompleto: [] }).avisos).toEqual([])
     expect(direcaoDoNicho(medidas(), canais, O('b')).avisos).toEqual([])
     const a1 = direcaoDoNicho(medidas(), canais, { ...O('a'), anteriorIncompleto: ['x'] })
-    expect(a1.avisos.some(t => t.includes('incompleto'))).toBe(false)
-    expect(a1.info.leituras.some(t => t.includes('incompleto'))).toBe(false)
+    expect(a1.avisos.some(t => t.includes('falta histórico'))).toBe(false)
+    expect(a1.info.leituras.some(t => t.includes('falta histórico'))).toBe(false)
   })
   it('plural com dois canais', () => {
     const v = direcaoDoNicho(medidas(), canais, { ...O('b'), anteriorIncompleto: ['x', 'y'] })
-    expect(v.avisos.some(t => t.includes('incompleto em 2 canais'))).toBe(true)
+    expect(v.avisos.some(t => t.includes('em 2 canais falta histórico'))).toBe(true)
   })
 })

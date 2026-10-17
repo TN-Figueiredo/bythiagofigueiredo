@@ -202,7 +202,7 @@ export const formatoDoVideo = (short: unknown): string => (short === true ? 'Sho
 export const formatoDaPublicacao = (fmt: unknown): string => (fmt === 'short' ? 'Short' : 'longo')
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as frases de aviso e de "o que esta tela não mede" abaixo.
+// Revisto pelo Logan (17/10): as frases de aviso e de "o que esta tela não mede" abaixo.
 export const AVISO_FREQUENCIA = 'A contagem de publicados em 90 dias não mede frequência.' // fixo do item 163
 export const AVISO_PARCIAL = 'Parte do dado privado do canal não foi lida agora.'
 export const SEM_PAR = 'Para comparar, o site precisa acompanhar pelo menos dois canais.' // a frase que a tela escreve sem par

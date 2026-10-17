@@ -48,11 +48,11 @@ describe('E5a T5: célula de direção', () => {
   })
   it('sem o registro da borda: a data que faltou', () => {
     const c = celulaDeDirecao(naoMedido('sem_registro_na_borda', { desde: '2026-09-02' }), EX)
-    expect(c).toMatchObject({ tipo: 'nao_medido', motivo: 'sem_registro_na_borda', curta: 'sem registro em 02/09' })
+    expect(c).toMatchObject({ tipo: 'nao_medido', motivo: 'sem_registro_na_borda', curta: 'sem leitura em 02/09' })
   })
   it('canal sem vídeo: "sem views nos 56 dias para comparar"', () => {
     expect(celulaDeDirecao(naoMedido('base_zero'), EX, { semVideos: true })).toMatchObject({ tipo: 'nao_medido', curta: 'sem views nos 56 dias para comparar' })
-    expect(celulaDeDirecao(naoMedido('base_zero'), EX, { semVideos: false })).toMatchObject({ curta: 'base em zero' })
+    expect(celulaDeDirecao(naoMedido('base_zero'), EX, { semVideos: false })).toMatchObject({ curta: 'período anterior com 0 views' })
   })
   it('saiu do YouTube: a data vem dos extras e o motivo é o da medida', () => {
     const c = celulaDeDirecao(naoMedido('sem_registro_recente'), { ...EX, missingSince: '2026-10-04T12:00:00Z' })

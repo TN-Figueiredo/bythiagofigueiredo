@@ -13,7 +13,7 @@ export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'saiu'
 type AbaDoPacote = Exclude<ChromeTab, 'saiu'>
 const TABS: readonly AbaDoPacote[] = ['canais', 'mudancas', 'outliers', 'insights']
 const TAB_NAME: Record<AbaDoPacote, string> = { canais: 'Canais', mudancas: 'Mudanças', outliers: 'Outliers', insights: 'Insights' }
-// TEXTO-A-REVISAR: rótulo e títulos da quinta aba (o mockup fixa o rótulo "Saíram do YouTube"; os títulos não)
+// Rótulo e títulos da quinta aba (revistos pelo Logan, 17/10) (o mockup fixa o rótulo "Saíram do YouTube"; os títulos não)
 const SAIU_ROTULO = 'Saíram do YouTube'
 
 export const CHROME_TITLE = 'Observatório de Competidores' as const

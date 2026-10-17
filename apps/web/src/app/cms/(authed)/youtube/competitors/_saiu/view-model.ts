@@ -1,7 +1,7 @@
 /**
  * A5 · E9, Tarefa 10b: o view model PURO da tela "Saíram do YouTube". Tudo o que a tela escreve sai daqui; o componente só desenha.
  * Sem relógio próprio (o instante vem por parâmetro), sem banco, sem ações. Datas em São Paulo, `dd/mm`.
- * TEXTO-A-REVISAR: as frases daqui seguem o mockup aprovado (13/10) e a seção 8 do plano; o plano não as fixa letra a letra.
+ * Textos revistos pelo Logan (17/10): as frases daqui seguem o mockup aprovado (13/10) e a seção 8 do plano; o plano não as fixa letra a letra.
  */
 import {
   DATA_MG1, FILA_PAGINA, JANELA_FORJA_MIN, PALAVRA, RESPONDIDOS_PAGINA, estadoDaFilaVazia, faltaNoBlob, fraseDoErro,
@@ -141,7 +141,7 @@ const AJUDA = [
 function estaNaMensagemDeErro(l: LeituraDaFila): FilaView | null {
   if (l.estado === 'ok') return null
   if (l.estado === 'sem_acesso') return { estado: 'sem_acesso', frase: 'Você não tem acesso a esta fila.' }
-  if (l.estado === 'schema_ausente') return { estado: 'erro', frase: 'A fila não pode ser lida: a migration desta etapa ainda não foi aplicada.' }
+  if (l.estado === 'schema_ausente') return { estado: 'erro', frase: 'A fila não pode ser lida agora: falta atualizar o banco. Peça ao agente.' }
   return { estado: 'erro', frase: l.codigo === 'tempo_esgotado' ? 'Não foi possível ler a fila agora. Recarregue a página.' : 'Não foi possível ler a fila agora.' }
 }
 
@@ -252,7 +252,7 @@ function apagandoDe(a: ItemApagando, idx: number): ApagandoView {
   const partes: string[] = []
   if (f.miniaturas > 0) partes.push(`faltam ${pl(f.miniaturas, 'miniatura', 'miniaturas')} no Blob`)
   if (f.pastas > 0) partes.push(f.miniaturas > 0 ? `${pl(f.pastas, 'pasta', 'pastas')} a conferir` : `falta conferir ${pl(f.pastas, 'pasta', 'pastas')} de miniatura`)
-  if (a.arquivoPendente) partes.push('arquivo no NAS esperando')
+  if (a.arquivoPendente) partes.push('cópia no NAS esperando')
   const voltou = a.voltouEm ? `voltou ao ar em ${dm(a.voltouEm) ?? NAO_REGISTRADO}` : null
   return {
     chave: `${a.itemId}-${idx}`, itemId: a.itemId, tipo: a.tipo, codigo: a.codigo ?? NAO_REGISTRADO, desde: dm(a.decididoEm) ?? NAO_REGISTRADO,

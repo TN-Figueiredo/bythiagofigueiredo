@@ -47,10 +47,9 @@ export function primeiras24hDesde(): string | null {
 
 const dataBR = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
 
-// TEXTO-A-REVISAR (Logan/Naksu): a frase das primeiras 24 horas não está fixada no plano.
 export function fraseDasPrimeiras24h(): string {
   const d = primeiras24hDesde()
-  return d ? `Primeiras 24 horas medidas desde ${dataBR(d)}.` : 'Primeiras 24 horas: ainda sem data.'
+  return d ? `Primeiras 24 horas medidas desde ${dataBR(d)}.` : 'Primeiras 24 horas: a medida ainda não começou.'
 }
 
 /**

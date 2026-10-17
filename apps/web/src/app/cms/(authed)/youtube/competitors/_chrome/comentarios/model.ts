@@ -167,7 +167,8 @@ function curtidasDoCartao(c: CartaoBase, marcos: Record<Marco, EstadoDoMarco>, m
     if (v === 'fora_dos_12') return { marco: m, rotulo, tipo: 'fora' as const, texto: FRASES.foraDos12, pct: 0 }
     const e = marcos[m]
     if (e.estado === 'fecha_em') return { marco: m, rotulo, tipo: 'fecha' as const, texto: FRASES.fechaEmCurto(dmSP(e.fechaEmMs)), pct: 0 }
-    return { marco: m, rotulo, tipo: 'ainda' as const, texto: FRASES.semRetratoAinda, pct: 0 }
+    const vaiVir = e.estado === 'a_caminho' || e.estado === 'coleta_parada' || e.estado === 'coleta_nao_comecou'
+    return { marco: m, rotulo, tipo: 'ainda' as const, texto: vaiVir ? FRASES.semRetratoAinda : FRASES.semRetrato, pct: 0 }
   })
 }
 

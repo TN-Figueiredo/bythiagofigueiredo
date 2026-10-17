@@ -243,7 +243,7 @@ export const SEM_FOLHA_NA_MATRIZ_INSIGHTS: readonly string[] = [
 export const SEM_PROVA_POR_IGUALDADE_DIRETA_INSIGHTS = [] as const
 
 // ───────────────────────── textos do pacote que esta tela escreve
-// TEXTO-A-REVISAR (Logan/Naksu): as três frases de "o que esta tela não mede" e as medidas dos títulos de tabela abaixo.
+// Revisto pelo Logan (17/10): as três frases de "o que esta tela não mede" e as medidas dos títulos de tabela abaixo.
 const NAO_MEDE_CAUSA = 'a causa de um padrão: fórmula de título, tema ou horário que aparece junto de vídeo forte não prova que o causou'
 const NAO_MEDE_HORA = 'o resultado de publicar numa hora: o mapa conta quando os concorrentes publicam e o múltiplo dos vídeos, não as views por hora de cada vídeo'
 const NAO_MEDE_RETENCAO = 'retenção, taxa de clique e recomendação por vídeo dos concorrentes: o YouTube só entrega esses dados ao dono do canal'

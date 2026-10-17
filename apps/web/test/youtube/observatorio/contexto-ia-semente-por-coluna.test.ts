@@ -172,7 +172,7 @@ describe('varredura por valor-semente, por coluna', () => {
     const saida = JSON.stringify(r)
     expect(saida).toContain('não encontrado no YouTube (404)')
     expect(saida).not.toContain(MSG_CONHECIDA)
-    expect(saida).toContain('erro técnico na coleta (o detalhe fica só na tela)')
+    expect(saida).toContain('erro na coleta; a causa não é enviada')
   })
   it('controle: o sentinela de um campo que o pacote emite (título de vídeo de concorrente) aparece em alguma tela, só como texto de terceiros', async () => {
     let achado = 0

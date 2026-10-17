@@ -6,14 +6,14 @@ export type EstadoNaPastilha = 'ativo' | 'parado' | 'em_queda' | 'fora_do_ar' | 
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const diasTxt = (n: number): string => `${n} ${n === 1 ? 'dia' : 'dias'}`
 
-/** Texto da pastilha. Frases do mockup 16 (tabela de frases); `pausado` não está nele (TEXTO-A-REVISAR). */
+/** Texto da pastilha. Frases do mockup 16 (tabela de frases); `pausado` foi revisto pelo Logan (17/10). */
 function texto(estado: Exclude<EstadoNaPastilha, 'ativo'>, dataOuDias: string | number | null): string {
   switch (estado) {
     case 'parado': return typeof dataOuDias === 'number' ? `Parado há ${diasTxt(dataOuDias)} sem publicar` : 'Parado'
     case 'em_queda': return 'Em queda sustentada'
     case 'fora_do_ar': return typeof dataOuDias === 'string' ? `Saiu do YouTube em ${dm(dataOuDias)}` : 'Saiu do YouTube'
     case 'sem_videos': return 'Sem vídeos'
-    case 'pausado': return 'Coleta pausada' // TEXTO-A-REVISAR
+    case 'pausado': return 'Coleta pausada'
   }
 }
 

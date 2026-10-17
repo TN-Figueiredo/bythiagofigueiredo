@@ -69,7 +69,7 @@ describe('A5 E9 T3: modelo', () => {
 
   it('todo código de erro tem frase e a frase não repete o código cru; código desconhecido não lança', () => {
     expect(CODIGOS_DE_ERRO).toHaveLength(10)
-    expect(fraseDoErro('mes_destacado_em_transito')).toBe('O mês está saindo do banco; tente de novo depois que o copiador receber.')
+    expect(fraseDoErro('mes_destacado_em_transito')).toBe('Este mês está sendo enviado ao arquivo. Tente de novo depois que terminar.')
     expect(fraseDoErro('sem_direito')).toBe('Só quem administra a organização pode apagar canais. Nada foi apagado.')
     for (const c of CODIGOS_DE_ERRO) {
       const f = fraseDoErro(c)

@@ -73,10 +73,10 @@ function doSinal(e: EntradaExtras, out: ExtrasDoDisparo): void {
     const agendada = comAgenda && e.tamanhoDesligada !== true && horasDeAgenda < horasRed
     let linha = fraseDeNuncaMedido(v.diaDeLeitura, agendada)
     if (!agendada) {
-      if (e.agendaDesde === null) linha += ' A agenda está desligada: a medida das 05:00 não roda.' // TEXTO-A-REVISAR (P11)
-      else if (e.tamanhoDesligada === true) linha += ' A medida do tamanho do banco está desligada.' // TEXTO-A-REVISAR
+      if (e.agendaDesde === null) linha += ' A agenda está desligada: a medida das 05:00 não roda.'
+      else if (e.tamanhoDesligada === true) linha += ' A medida do tamanho do banco está desligada.'
       else if (comAgenda && horasDeAgenda >= horasRed) {
-        linha += ` A agenda roda há mais de ${horasRed} h e a medida não veio.` // TEXTO-A-REVISAR (P11)
+        linha += ` A medida do tamanho do banco não veio em mais de ${horasRed} h, com a agenda ligada.`
         out.problemas.push(linha)
       }
     }
@@ -84,7 +84,7 @@ function doSinal(e: EntradaExtras, out: ExtrasDoDisparo): void {
   }
   // com nenhuma legível a frase do estado já diz isso; não há cor nem previsão para duvidar
   if (v.ilegiveis > 0 && v.ultima !== null) {
-    out.acao.push(`tamanho do banco: ${v.ilegiveis} medida(s) ilegível(is) ficaram fora da conta; a cor e a previsão podem estar erradas`)
+    out.acao.push(`tamanho do banco: ${v.ilegiveis} medida(s) não puderam ser lidas e ficaram fora; a cor e a previsão podem estar erradas`)
   }
   // e-mail: amarelo uma vez por mês, vermelho uma vez por semana (por site)
   if ((v.cor === 'amarelo' || v.cor === 'vermelho') && e.todas) {

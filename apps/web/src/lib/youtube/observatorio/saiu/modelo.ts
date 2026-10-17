@@ -153,18 +153,18 @@ export function faltaNoBlob(pendentes: readonly string[]): { miniaturas: number;
   return { miniaturas, pastas }
 }
 
-// TEXTO-A-REVISAR: todas as frases abaixo (o plano fixa os códigos, não a redação).
+// Frases revistas pelo Logan (17/10): o plano fixa os códigos; a redação diz o que fazer, sem jargão.
 const FRASES_DE_ERRO: Record<CodigoDeErro, string> = {
-  schema_ausente: 'A migration desta etapa ainda não foi aplicada no banco.',
+  schema_ausente: 'Falta atualizar o banco para esta função. Nada foi apagado. Peça ao agente.',
   erro_de_banco: 'Não foi possível concluir agora. Nada foi apagado.',
   tempo_esgotado: 'O banco demorou demais e a operação foi cancelada. Nada foi apagado.',
   impasse: 'Outra operação estava mexendo nos mesmos dados. Nada foi apagado; tente de novo.',
-  impedido_por_tabela: 'Uma tabela impede o apagamento. Nada foi apagado.',
-  contagem_indisponivel: 'Não foi possível contar o que há guardado deste item.',
+  impedido_por_tabela: 'Algo ligado a este item ainda impede o apagamento. Nada foi apagado. Peça ao agente.',
+  contagem_indisponivel: 'Não deu para contar o que há guardado deste item.',
   resposta_inesperada: 'O banco respondeu algo que não esperávamos. Confira a fila antes de tentar de novo.',
-  blob_nao_configurado: 'O armazenamento das miniaturas não está configurado neste ambiente.',
+  blob_nao_configurado: 'As miniaturas não podem ser apagadas aqui: falta ligar o armazenamento delas. Nada foi apagado.',
   // M9 (aviso de 15/10): recusa de regra da manutenção, não falha; nada foi apagado
-  mes_destacado_em_transito: 'O mês está saindo do banco; tente de novo depois que o copiador receber.',
+  mes_destacado_em_transito: 'Este mês está sendo enviado ao arquivo. Tente de novo depois que terminar.',
   // Yannis M1 (15/10): recusa do banco pós-M3b (competitor_channel_remove exige org_admin); não é falha
   sem_direito: 'Só quem administra a organização pode apagar canais. Nada foi apagado.',
 }
@@ -195,7 +195,7 @@ export function fraseDoDesfecho(d: Desfecho, o: OpcoesDaFrase): string {
       const partes: string[] = []
       if (f.miniaturas > 0) partes.push(plural(f.miniaturas, 'miniatura', 'miniaturas'))
       if (f.pastas > 0) partes.push(plural(f.pastas, 'pasta de miniaturas', 'pastas de miniaturas'))
-      return partes.length > 0 ? `Apagando: faltam ${partes.join(' e ')} no Blob.` : 'Apagando: falta concluir a limpeza das miniaturas.'
+      return partes.length > 0 ? `Apagando: faltam ${partes.join(' e ')}.` : 'Apagando: falta concluir a limpeza das miniaturas.'
     }
     case 'no_ar':
       return o.tipo === 'canal' ? 'Este canal voltou a vir do YouTube; nada foi apagado.'
