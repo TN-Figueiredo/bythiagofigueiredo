@@ -31,6 +31,12 @@ export const ROTULO_DA_TABELA: Record<string, RotuloDaTabela> = {
   // achados pela integração da Tarefa 12 (a prévia devolvia o nome cru): tabelas das MG6 e MG4 que entram na cascata do canal e do vídeo
   competitor_collection_pauses: { um: 'registro interno', muitos: 'registros internos', interno: true },
   competitor_video_mark_misses: { um: 'registro interno', muitos: 'registros internos', interno: true },
+  // X3: playlists e seções do canal dos concorrentes
+  competitor_playlists: { um: 'playlist', muitos: 'playlists' },
+  competitor_playlist_versions: { um: 'versão da playlist', muitos: 'versões da playlist' },
+  competitor_playlist_items: { um: 'vídeo numa playlist', muitos: 'vídeos em playlists' },
+  competitor_playlist_reads: { um: 'registro interno', muitos: 'registros internos', interno: true },
+  competitor_channel_sections: { um: 'seção da página do canal', muitos: 'seções da página do canal' },
 }
 
 /** Ordem do mockup: o que o dono reconhece primeiro. */

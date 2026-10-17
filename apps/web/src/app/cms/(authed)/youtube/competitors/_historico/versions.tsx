@@ -46,7 +46,7 @@ export function Versions({ versions, hl, onHl, expanded = false, onToggle, targe
   return (
     <>
       <section className="card versions" aria-labelledby="hv-thh">
-        <div className="sec-h"><h3 id="hv-thh">Thumbnails</h3><span className="src">{thumbs.src}</span></div>
+        <div className="sec-h"><h3 id="hv-thh">Miniaturas</h3><span className="src">{thumbs.src}</span></div>
         {thumbs.notes.map((n, i) => (
           <div key={i} className="note">
             <span style={{ color: n.kind === 'ab' ? 'var(--t-thumb)' : 'var(--warning-text)' }}><HIcon name={n.kind === 'ab' ? 'ab' : 'warn'} /></span><span>{n.text}</span>
@@ -66,7 +66,7 @@ export function Versions({ versions, hl, onHl, expanded = false, onToggle, targe
         ) : null}
         <div className="film" id="hv-film">
           {cards.map(({ t, i }, j) => (
-            <div key={t.id} className={'fcard' + (is('thumb', i, thumbs.cards) ? ' is-hl' : '') + tcls('thumb', i)} role="group" aria-label={'Thumbnail ' + t.label + ', ' + t.span}
+            <div key={t.id} className={'fcard' + (is('thumb', i, thumbs.cards) ? ' is-hl' : '') + tcls('thumb', i)} role="group" aria-label={'Miniatura ' + t.label + ', ' + t.span}
               data-img={t.label} hidden={j < hiddenN} {...bind('thumb', i)}>
               {t.thumb ? <Thumb t={t.thumb} zoom={zoomOf?.(i)} /> : null}
               <div className="meta">

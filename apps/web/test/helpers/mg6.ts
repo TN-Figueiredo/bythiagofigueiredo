@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { M2_BLOCO_11 } from './m2'
+import { lerSqlDaX3, lerX3Registro } from './x3-sql'
 
 export const MG6_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e10-mg6.sql', import.meta.url))
 
@@ -37,6 +38,11 @@ export async function garantirMg6(c: Client): Promise<void> {
   await c.query(lerSqlDaMg6())
   // a fixture é a MG6 de produção byte a byte e recria duas funções sem saber de partição; o bloco 11 da M2 as recria com o conserto
   await c.query(M2_BLOCO_11)
+  // A5 X3: a MG6 reaplicada recria o registro com as 22; com a X3 presente no banco da transação o registro tem de voltar a 27
+  // (sem isso o `garantirMg6` de um teste da E10 deixaria `obs_archive_uncovered()` com as cinco tabelas novas).
+  // `E10_COM_X3=1` aplica a migration da X3 inteira na transação (rodar a pasta da E10 com a X3 presente, plano X3 T2 passo 5).
+  if (process.env.E10_COM_X3 === '1') await c.query(lerSqlDaX3())
+  else if ((await c.query(`select to_regclass('public.competitor_playlists') as t`)).rows[0]?.t) await c.query(lerX3Registro())
 }
 
 /**
@@ -170,7 +176,8 @@ export async function semearDadosDoVideo(c: Client, site: string, canal: string,
   await c.query(`insert into public.competitor_changes (site_id, video_id, change_type) values ($1, $2, 'title')`, [site, video])
 }
 
-export async function semearCena(c: Client): Promise<Cena> {
+/** `semX3`: os testes da própria X3 semeiam as tabelas de playlists à mão e não querem a semente padrão delas. */
+export async function semearCena(c: Client, opcoes: { semX3?: boolean } = {}): Promise<Cena> {
   const { org, site } = await criarSite(c)
   const admin = await criarUsuario(c)
   const comum = await criarUsuario(c)
@@ -192,7 +199,7 @@ export async function semearCena(c: Client): Promise<Cena> {
     `insert into public.competitor_video_comments (site_id, competitor_channel_id, video_id, youtube_comment_id, body, is_creator, published_at, first_seen_at, last_seen_at, featured_channel_id)
      values ($1, $2, $3, $4, 'comentário de B que aponta para A', false, now() - interval '1 day', now() - interval '1 day', now(), $5) returning id`,
     [site, canalB, videoB, 'cm' + randomUUID().replace(/-/g, '').slice(0, 10), canalA])).id as string
-  await semearRestoDoFecho(c, { site, canalA, canalB, videoA, videoB, comentarioA: cA, comentarioB: cB })
+  await semearRestoDoFecho(c, { site, canalA, canalB, videoA, videoB, comentarioA: cA, comentarioB: cB }, opcoes.semX3 === true)
   return { org, site, admin, comum, canalA, canalB, videoA, videoA2, videoB, comentarioDeBQueApontaParaA: cB }
 }
 
@@ -202,7 +209,7 @@ export async function semearCena(c: Client): Promise<Cena> {
  * marcas e retratos de comentário, tarefa e leitura da forja. Com a semente incompleta, o filtro quebrado de dez das vinte e duas
  * entradas do registro deixava os testes verdes (contava 0 com 0). Só as tabelas da MG4 e da MG18, que ainda não existem, ficam de fora.
  */
-async function semearRestoDoFecho(c: Client, o: { site: string; canalA: string; canalB: string; videoA: string; videoB: string; comentarioA: string; comentarioB: string }): Promise<void> {
+async function semearRestoDoFecho(c: Client, o: { site: string; canalA: string; canalB: string; videoA: string; videoB: string; comentarioA: string; comentarioB: string }, semX3: boolean): Promise<void> {
   const { site, canalA, canalB, videoA, videoB } = o
   const canais = [canalA, canalB]
   const videos: Array<[string, string]> = [[canalA, videoA], [canalB, videoB]]
@@ -234,6 +241,22 @@ async function semearRestoDoFecho(c: Client, o: { site: string; canalA: string; 
     [site, canalA, videoA, 'rp' + randomUUID().replace(/-/g, '').slice(0, 10), o.comentarioA])).id as string
   for (const comentario of [o.comentarioA, resposta, o.comentarioB]) {
     await c.query(`insert into public.competitor_video_comment_marks (comment_id, mark, site_id, likes) values ($1, 1, $2, 3)`, [comentario, site])
+  }
+  // A5 X3: quando as tabelas de playlists existem na transação, uma linha em cada uma, para os dois canais (sem a semente, o filtro
+  // quebrado de uma delas deixaria os testes verdes: contava 0 com 0)
+  if (!semX3 && (await c.query(`select to_regclass('public.competitor_playlists') as t`)).rows[0]?.t) {
+    for (const canal of canais) {
+      const ref = (await q1(c,
+        `insert into public.competitor_playlists (site_id, competitor_channel_id, playlist_id, title, item_count, state_sha256, first_seen_at, last_seen_at)
+         values ($1, $2, $3, 'sintética', 1, 'h', now() - interval '2 days', now() - interval '1 day') returning id`,
+        [site, canal, 'PL' + randomUUID().replace(/-/g, '').slice(0, 14)])).id as string
+      await c.query(`insert into public.competitor_playlist_versions (playlist_ref, site_id, state_sha256, raw, observed_at) values ($1, $2, 'h', '{}'::jsonb, now() - interval '2 days')`, [ref, site])
+      await c.query(`insert into public.competitor_playlist_items (playlist_ref, item_id, site_id, youtube_video_id, position, first_seen_at) values ($1, 'it1', $2, 'abcdefghijk', 0, now() - interval '2 days')`, [ref, site])
+      await c.query(`insert into public.competitor_channel_sections (competitor_channel_id, site_id, state_sha256, raw, observed_at) values ($1, $2, 'h', '{}'::jsonb, now() - interval '2 days')`, [canal, site])
+      await c.query(
+        `insert into public.competitor_playlist_reads (competitor_channel_id, site_id, first_visit_at, last_visit_at, last_visit_day, last_status, last_units)
+         values ($1, $2, now() - interval '2 days', now() - interval '1 day', current_date - 1, 'ok', 3)`, [canal, site])
+    }
   }
   // a forja: um nicho, uma tarefa por vídeo e a leitura que a tarefa gerou
   await c.query(`insert into public.youtube_niches (site_id, slug, label, color_dark, color_light) values ($1, 'sint', 'S', '#AAB4C0', '#4B5563')`, [site])

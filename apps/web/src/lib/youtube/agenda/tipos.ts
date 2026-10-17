@@ -66,6 +66,11 @@ export interface Tarefa {
   cedeA?: string[]
   /** Para `anular_identidade` (E14). */
   nuncaDesliga?: boolean
+  /**
+   * Nome de uma variável de ambiente que LIGA a tarefa: só o valor exato `on` a liga; ausente, vazio, `ON`, `1` ou qualquer outro valor = desligada
+   * (o despachante não a chama e o vigia não a cobra). Incompatível com `nuncaDesliga` (o catálogo recusa).
+   */
+  ligaCom?: string
   /** Código → frase em português, sem ponto final. Catálogo FECHADO da tarefa (frase fixa, sem número). */
   motivos: Record<string, string>
   /**

@@ -11,18 +11,28 @@ import { buildPar } from '../_comparar/par-model'
 import { montarOutliers } from '../_outliers/montar'
 import { montarInsights } from '../_insights/montar'
 import { montarMudancas } from '../_mudancas/montar'
+import { montarFila } from '../_saiu/montar'
 import { acessoPrivado } from '../_proprio/dados'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { mascararCrus } from '@/lib/youtube/observatorio/contexto-ia/mascarar'
 import { empacotarCanais, modeloDeCanais } from './empacotar-canais'
 import { empacotarCanal, modeloDeCanal } from './empacotar-canal'
+import { projetarMedidas } from './empacotar-canal-medidas'
+import { canalNaoCarregou } from '../_canal/medidas/canal-derivado-async'
+import { contextoDoCanal, lerComentariosDoCanalParaOPacote, lerMedidasDoCanal } from '../_canal/medidas/contexto-do-canal'
 import { empacotarCanalProprio, modeloDeCanalProprio } from './empacotar-canal-proprio'
 import { empacotarVideo, modeloDeVideo } from './empacotar-video'
+import { medidasDoVideoNaoCarregaram, projetarMedidasDoVideo, type MedidasVideoIa } from './empacotar-video-medidas'
+import { clienteDeServicoDoVideo, lerEstourouDoVideo, lerMedidasDoVideo } from '../_historico/medidas/ler-do-video'
+import { lerSecaoDeComentarios, resolverProvas } from '../_historico/comentarios-de-destaque'
+import { comentariosDoVideoNaoCarregaram, projetarComentariosDoVideo, type ComentariosVideoIa } from './empacotar-video-comentarios'
+import * as Sentry from '@sentry/nextjs'
 import { empacotarVideoProprio, modeloDeVideoProprio } from './empacotar-video-proprio'
 import { empacotarComparar, modeloDeComparar } from './empacotar-comparar'
 import { empacotarOutliers, modeloDeOutliers } from './empacotar-outliers'
 import { empacotarInsights, modeloDeInsights } from './empacotar-insights'
 import { empacotarMudancas, modeloDeMudancas } from './empacotar-mudancas'
+import { empacotarFila, modeloDeFila } from './empacotar-fila'
 
 export interface PedidoMontado { id?: string; sp: Record<string, string | undefined> }
 export interface PacoteMontado { modelo: PacoteModelo; recente: string | null; estado: Record<string, string> }
@@ -46,7 +56,7 @@ export function parametrosPlanos(consulta: string): Record<string, string | unde
 // A busca livre (`q`) nunca entra: vira `tem_busca`. O texto cru da URL fora desta forma é descartado, nunca cortado e gravado.
 const CHAVES_DE_ESTADO = new Set([
   'niche', 'fmt', 'sort', 'dir', 'tab', 'filter', 'direcao', 'scale', 'layout', 'channel', 'add', 'nicheEditor', 'ordr', 'ordi', 'aba', 'age', 'min', 'topic',
-  'formula', 'reading', 'asof', 'view', 'heat', 'win', 'period', 'ver', 'n', 'video', 'nums', 'a', 'b', 'from', 'saved', 'heroes',
+  'formula', 'reading', 'asof', 'view', 'heat', 'win', 'period', 'ver', 'n', 'video', 'nums', 'a', 'b', 'from', 'saved', 'heroes', 'mostrar',
 ])
 const VALOR_DE_ESTADO = /^[A-Za-z0-9_.:,-]{1,36}$/
 
@@ -95,9 +105,13 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
   canal: async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
-    const m = await montarCanal(alvo, sp)
+    // a MESMA leitura de medidas da página (uma vez só); `lerMedidasDoCanal` nunca lança: defeito vira "não carregou"
+    const m = await montarCanal(alvo, sp, { iniciarMedidas: lerMedidasDoCanal })
     if (m.tipo !== 'concorrente') return null
-    return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
+    const contexto = contextoDoCanal(m.obs, m.view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
+    const promessa = m.medidas ?? Promise.resolve(canalNaoCarregou())
+    const medidas = projetarMedidas(await promessa.catch(canalNaoCarregou), contexto, await lerComentariosDoCanalParaOPacote(promessa, contexto))
+    return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv, medidas)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'canal-proprio': async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
@@ -113,7 +127,43 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (alvo === null) return null
     const m = await montarVideo(alvo, sp)
     if (m.tipo !== 'concorrente' || m.view.notFound) return null
-    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
+    // as MESMAS medidas que a página lê (uma leitura só); defeito vira "não carregou" no pacote, nunca bloco vazio
+    const doMotor = !m.view.untracked && m.view.video ? m.pagina.obs.videos.find((x) => x.id === m.view.video!.id) : undefined
+    let medidas: MedidasVideoIa | null = null
+    let comentarios: ComentariosVideoIa | null = null
+    if (doMotor) {
+      const pedido = { obterSb: clienteDeServicoDoVideo, siteId: m.pagina.siteId, obs: m.pagina.obs, agoraMs: m.pagina.now, view: m.view, video: doMotor }
+      // as provas nascem ANTES da leitura das medidas, como na página (M2 do portão Yannis): a latência de `acessoPrivado` não soma em série
+      const provas = resolverProvas(acessoPrivado(m.pagina.siteId))
+      try {
+        const lidas = await lerMedidasDoVideo(pedido)
+        // a leitura de "Estourou e parou" falhar não apaga as medidas já lidas: só ela vira "não carregou" (I1 do portão Yannis)
+        let estourou: Awaited<ReturnType<typeof lerEstourouDoVideo>> = null
+        try {
+          estourou = await lerEstourouDoVideo({ ...pedido, lidas })
+        } catch (err) {
+          Sentry.captureException(err, { tags: { component: 'observatorio-video', step: 'contexto-ia-estourou' } })
+          estourou = { tipo: 'nao_carregou' }
+        }
+        medidas = lidas === null ? medidasDoVideoNaoCarregaram() : projetarMedidasDoVideo(lidas.d, estourou)
+        // a seção de comentários só existe na tela quando o conjunto foi lido; o nível é o do leitor, com as mesmas provas da página (edição: nula, como na página)
+        if (lidas !== null) {
+          const canais = new Map(m.pagina.obs.channels.map((x) => [x.id, { nome: x.name }] as const))
+          const canalNome = canais.get(doMotor.ch)?.nome ?? ''
+          const lida = await lerSecaoDeComentarios({
+            sb: lidas.sb, siteId: m.pagina.siteId, videoId: doMotor.id, agoraMs: m.pagina.now, canaisDoSite: canais, canalNome, provas,
+            video: { t0Ms: lidas.t0Ms, descobertoEmMs: lidas.descobertoMs, canalId: doMotor.ch },
+            origem: 'contexto-ia',
+          })
+          comentarios = projetarComentariosDoVideo(lida, canalNome)
+        } else comentarios = comentariosDoVideoNaoCarregaram()
+      } catch (err) {
+        Sentry.captureException(err, { tags: { component: 'observatorio-video', step: 'contexto-ia-medidas' } })
+        medidas = medidas ?? medidasDoVideoNaoCarregaram()
+        comentarios = comentarios ?? comentariosDoVideoNaoCarregaram()
+      }
+    }
+    return { modelo: sem(empacotarVideo(modeloDeVideo(m.view, medidas, comentarios)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
   'video-proprio': async ({ id, sp }) => {
     const alvo = EXIGE_ID(id)
@@ -141,6 +191,13 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
   mudancas: async ({ sp }) => {
     const m = await montarMudancas(sp)
     return { modelo: sem(empacotarMudancas(modeloDeMudancas(m.view, m.pagina.obs.nicheLabel(m.view.filters.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
+  },
+  fila: async ({ sp }) => {
+    const m = await montarFila(sp)
+    // sem acesso de edição a fila não existe para quem pede ("não encontrado"); falha de leitura NUNCA vira "fila vazia": lança e a ação responde `falhou`
+    if (m.view.estado === 'sem_acesso') return null
+    if (m.view.estado === 'erro') throw new Error('contexto-ia: a fila não pôde ser lida')
+    return { modelo: empacotarFila(modeloDeFila(m.view)), recente: m.recente, estado: textoDe(m.estado) }
   },
 }
 

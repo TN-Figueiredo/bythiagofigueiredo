@@ -3,7 +3,7 @@
 // (historico-video.html:1015-1021, 1051-1054) × 2 viewports × 2 themes. The "Pedido à forja" states are in forja.spec.ts.
 import { runFidelity, type ScreenSpec } from './fidelity'
 import { SEAL_R57 } from './seal'
-import { F4_HISTORICO_EXCLUDE } from './allowances'
+import { F4_HISTORICO_EXCLUDE, HISTORICO_MINIATURA_R_TREM6 } from './allowances'
 
 /** The mockup's pickStates() over the oracle (dados.js), one video per edge case. */
 export const PICK = {
@@ -28,7 +28,7 @@ export const HISTORICO: ScreenSpec = {
     // R64: the CMS shell is narrower than the mockup's chrome; the chart's per-day value labels follow the real width
     // (historico-video.html: only at ≥ 56 px per day) — the value labels of the views chart only
     ...(k === 'full' ? { exclude: { mockup: ['svg text.vl'], impl: ['svg text.vl'] } } : {}) })),
-  textAllow: SEAL_R57,
+  textAllow: [...SEAL_R57, HISTORICO_MINIATURA_R_TREM6],
   // R43: the per-video "Salvar no swipe file" is follow-up FU-2 (Task 26 report §5: the header has only "Abrir no YouTube")
   mockExclude: ['#saveBtn'],
   // R118 + "Ordem do cabeçalho do Histórico" (mockup 2026-10-06-historico-fixar-video, which is the one that rules here):

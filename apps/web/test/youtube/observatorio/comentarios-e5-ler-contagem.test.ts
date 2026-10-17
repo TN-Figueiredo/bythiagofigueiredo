@@ -184,6 +184,25 @@ describe('lerRespostasDoCriador (E5a C1)', () => {
     const { r: cont } = await pedir(null, {}, t)
     expect(cont).toMatchObject({ lido: true, dados: { total: 2 } })
   })
+  it('I-1 (trem 6): comentário de topo que saiu do YouTube e resposta do criador que saiu nunca entram, em nenhum nível', async () => {
+    const t = base()
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      coment(80, 'v1', { creator_replied: true, body: 'topo-saiu-' + SENT, missing_since: '2026-10-12' }),
+      coment(81, 'v1', { parent_id: 80, is_creator: true, body: 'resp-do-topo-que-saiu' }),
+      coment(82, 'v2', { creator_replied: true, body: 'topo-no-ar' }),
+      coment(83, 'v2', { parent_id: 82, is_creator: true, body: 'resp-saiu-' + SENT, missing_since: '2026-10-12' }),
+    ]
+    const { r: texto } = await pedir(provasTexto, {}, t)
+    if (!texto.lido) throw new Error('esperava lido')
+    const json = JSON.stringify(texto)
+    for (const proibido of ['topo-saiu-', 'resp-do-topo-que-saiu', 'resp-saiu-']) expect(json).not.toContain(proibido)
+    expect(texto.dados.itens.map((i) => i.videoId)).toEqual(['v1'])
+    expect(texto.dados.total).toBe(1)
+    const { r: cont } = await pedir(null, {}, t)
+    // no nível contagem o topo que saiu não conta; o topo no ar sem resposta presa conta (sem texto, não dá para saber)
+    expect(cont).toMatchObject({ lido: true, dados: { nivel: 'contagem', total: 2, itens: [] } })
+  })
   it('erro do banco: não lida', async () => {
     const db = falsoComentarios(base(), { erroEm: { competitor_video_comments: { code: 'XX000' } } })
     const r = await lerRespostasDoCriador(db.client, { siteDaGuarda: S, provas: null, channelId: CANAL, videoIds: ['v1'] })

@@ -50,14 +50,14 @@ describe('chegada pela troca, na tela', () => {
     expect(view.arrival).not.toBeNull()
     expect(pressed(root)).toBe(view.arrival!.pairK)
     expect(arrive(root)!.textContent).toBe(view.arrival!.line)
-    expect(arrive(root)!.textContent).toMatch(/^Aberta pela aba Trocas do canal: Thumbnail .+ → .+, \d\d\/\d\d \d\d:\d\d\.$/)
+    expect(arrive(root)!.textContent).toMatch(/^Aberta pela aba Trocas do canal: Miniatura .+ → .+, \d\d\/\d\d \d\d:\d\d\.$/)
     // a linha mora no cartão de "Antes e depois"
     expect(root.querySelector('#hv-compare')!.contains(arrive(root))).toBe(true)
   })
-  it('a precisão do <quando> segue a troca: minuto exato na thumbnail, janela de 6 h no título e na descrição (a forma, não o dado do modelo)', () => {
+  it('a precisão do <quando> segue a troca: minuto exato na miniatura, janela de 6 h no título e na descrição (a forma, não o dado do modelo)', () => {
     const desc = changes.find(c => c.type === 'desc')!
     const forma: Array<[typeof thumb, RegExp]> = [
-      [thumb, /^Aberta pela aba Trocas do canal: Thumbnail \w+ → \w+, \d\d\/\d\d \d\d:\d\d\.$/],
+      [thumb, /^Aberta pela aba Trocas do canal: Miniatura \w+ → \w+, \d\d\/\d\d \d\d:\d\d\.$/],
       [title, /^Aberta pela aba Trocas do canal: Título T\d+ → T\d+, entre \d\d\/\d\d \d\dh e \d\dh\.$/],
       [desc, /^Aberta pela aba Trocas do canal: Descrição D\d+ → D\d+, entre \d\d\/\d\d \d\dh e \d\dh\.$/],
     ]

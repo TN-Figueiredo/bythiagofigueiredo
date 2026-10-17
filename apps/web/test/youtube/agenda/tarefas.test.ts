@@ -1,6 +1,6 @@
 // @vitest-environment node
 // As três tarefas desta ordem (A5 E16, Tarefa 12): leitura_horaria, sincronizar_canais, serie_semanal, e o contrato de registro do catálogo.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -76,6 +76,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(schemaTablesReady).mockResolvedValue(null)
 })
+
+// A tarefa `playlists_semanais` só liga com `OBS_X3_PLAYLISTS=on`; os testes deste arquivo não são sobre ela (os dela: playlists-semanais.test.ts).
+beforeEach(() => { process.env.OBS_X3_PLAYLISTS = 'on' })
+afterEach(() => { delete process.env.OBS_X3_PLAYLISTS })
 
 describe('sincronizar_canais', () => {
   const rodar = (c = ctx()): Promise<ResultadoTarefa> => tarefa('sincronizar_canais').rodar(c)
@@ -231,10 +235,10 @@ describe('o catálogo real e a lista obedecem ao contrato de registro', () => {
       expect(typeof t.rodar, t.nome).toBe('function')
     }
   })
-  it('o catálogo tem o código das sete definições da lista única (a do vigia), na mesma ordem', () => {
+  it('o catálogo tem o código das nove definições da lista única (a do vigia), na mesma ordem', () => {
     expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
     for (const d of TODAS_AS_DEFINICOES) expect(CATALOGO.find(t => t.nome === d.nome)).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs, toleranciaVigiaH: d.toleranciaVigiaH, periodo: d.periodo })
-    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade'].sort())
+    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'playlists_semanais'].sort())
   })
   it('toda tarefa da lista é nuncaDesliga com fimAteMs ≤ LEVE_FIM_MS, e o maior da lista também (que é < BATCH_BUDGET_MS)', () => {
     for (const t of antesDoLoteAntigo) {

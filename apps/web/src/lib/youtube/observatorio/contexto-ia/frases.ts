@@ -93,6 +93,7 @@ export const foraPrivadoSemDireito = (itens: string) => `- Dado privado do canal
 export const foraPrivadoNaoConferido = (itens: string) => `- Dado privado do canal: NÃO incluído (${itens}). Não foi possível conferir o direito agora.` // novo
 export const foraPrivadoLeituraFalhou = (itens: string) => `- Dado privado do canal: NÃO incluído (${itens}). A leitura falhou agora.` // novo
 export const foraComentariosNa = '- Texto de comentários: esta tela não tem.' // do mockup
+export const foraComentariosNaoCarregou = '- Texto de comentários: a tela não conseguiu ler agora; não diga que o vídeo não tem comentários.' // novo
 export const foraComentariosIncluido = (n: number) => `- Texto de comentários: incluído, sem o nome de quem escreveu (${milhar(n)}).` // do mockup
 export const foraComentariosExcluido = (n: number) => `- Texto de comentários: NÃO incluído. Há ${milhar(n)} comentários que não foram incluídos.` // do mockup
 export const FORA_CHAVES = '- Chaves, senhas e links de acesso ao site: nunca entram.' // do mockup
@@ -143,6 +144,7 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
   { id: 'fora-privado', origem: 'mockup', parte: 'montagem', fragmentos: [foraPrivadoNa, '- Dado privado do canal: incluído (', '- Dado privado do canal: NÃO incluído (', '). Sem o direito.'] },
   { id: 'fora-privado-novos', origem: 'novo', parte: 'montagem', fragmentos: ['). Não foi possível conferir o direito agora.', '). A leitura falhou agora.'] },
   { id: 'fora-comentarios', origem: 'mockup', parte: 'montagem', fragmentos: [foraComentariosNa, '- Texto de comentários: incluído, sem o nome de quem escreveu (', '- Texto de comentários: NÃO incluído. Há ', ' comentários que não foram incluídos.'] },
+  { id: 'fora-comentarios-novos', origem: 'novo', parte: 'montagem', fragmentos: [foraComentariosNaoCarregou] },
   { id: 'fora-chaves', origem: 'mockup', parte: 'montagem', fragmentos: [FORA_CHAVES] },
   { id: 'estruturado', origem: 'mockup', parte: 'montagem', fragmentos: [ESTRUTURADO_TITULO] },
   { id: 'pergunta', origem: 'mockup', parte: 'montagem', fragmentos: [PERGUNTA_TITULO, PERGUNTA_ROTULO] },

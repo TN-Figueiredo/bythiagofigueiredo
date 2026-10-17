@@ -164,6 +164,7 @@ function linhaDoPrivado(p: PacoteSerializado): string {
 function linhaDosComentarios(p: PacoteSerializado): string {
   const c = p.comentarios
   if (c.estado === 'na') return F.foraComentariosNa
+  if (c.estado === 'nao_carregou') return F.foraComentariosNaoCarregou
   return c.estado === 'incluido' ? F.foraComentariosIncluido(c.quantos) : F.foraComentariosExcluido(c.quantos)
 }
 

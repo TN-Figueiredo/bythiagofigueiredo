@@ -111,7 +111,7 @@ describe('período: 30 dias por padrão', () => {
   it('a faixa "antes de 03/10, sem registro" continua no gráfico de 30 dias', () => {
     const v = hv(V.pre)
     expect(v.range!.cut).toBe(true)
-    // o vídeo de 91 dias foi publicado antes do arquivo: a faixa de thumbnail e o gráfico ainda mostram o trecho sem registro
+    // o vídeo de 91 dias foi publicado antes do arquivo: a faixa de miniatura e o gráfico ainda mostram o trecho sem registro
     expect(v.lanes.find(l => l.type === 'thumb')!.pre!.text).toMatch(/^antes de 03\/10/)
     expect(v.chart!.pre).not.toBeNull()
     expect(v.chart!.pre!.lines).toEqual(['sem registro por vídeo antes de ' + obs.SERIES_START_LABEL])
@@ -123,7 +123,7 @@ describe('chegada pela troca (troca=)', () => {
   const pairs = (v: ReturnType<typeof hv>) => v.comparisons.map(c => c.changeId)
 
   it('troca= de uma troca deste vídeo: arrival preenchido, defaultPair é o par dela, a linha e o status com o texto do spec 6.2', () => {
-    // uma troca de thumbnail (minuto exato) e uma de título (janela de 6 h) mostram as duas precisões
+    // uma troca de miniatura (minuto exato) e uma de título (janela de 6 h) mostram as duas precisões
     for (const c of [full.find(x => x.type === 'thumb' && !x.window)!, full.find(x => x.type === 'title')!]) {
       const v = hv(V.full, { troca: c.id })
       const a = v.arrival!
@@ -134,7 +134,7 @@ describe('chegada pela troca (troca=)', () => {
       const lane = v.lanes.find(l => l.type === c.type)!
       expect(lane.markers.find(m => m.changeId === c.id)!.idx).toBe(a.markerIdx)
       const quando = c.whenText
-      const nome = c.type === 'thumb' ? /^Thumbnail [A-Z]\d* → [A-Z]\d*$/ : /^Título T\d+ → T\d+$/
+      const nome = c.type === 'thumb' ? /^Miniatura [A-Z]\d* → [A-Z]\d*$/ : /^Título T\d+ → T\d+$/
       expect(a.line.startsWith('Aberta pela aba Trocas do canal: ')).toBe(true)
       expect(a.line.endsWith(', ' + quando + '.')).toBe(true)
       const nomeTroca = a.line.slice('Aberta pela aba Trocas do canal: '.length, -(quando.length + 3))

@@ -156,6 +156,38 @@ export const DEFINICAO_PODA_ACESSO_IA: Definicao = {
   },
 }
 
+/**
+ * `playlists_semanais` (A5 X3): lê as playlists e as seções de canal dos concorrentes (`competitor_x3_*`), uma visita por canal por dia, cada canal a cada 7 dias.
+ * Leve, a partir das 07:00 de São Paulo. **`ligaCom: 'OBS_X3_PLAYLISTS'`**: só liga com o valor exato `on` (ausente = desligada; ligar só depois da migration aplicada).
+ * `comecaAteMs: 50_000` é `X3_RULES.canalComecaAteMs` escrito por extenso (este módulo é leve e não importa código de coleta; um teste confere a igualdade, e os
+ * motivos contra `PRIORIDADE_DE_MOTIVOS`). `fimAteMs: 85_000` é `FIM_ATE_MS`. `ordem: 5.7` (depois de `marcas_de_idade`, antes das pesadas).
+ */
+export const DEFINICAO_PLAYLISTS_SEMANAIS: Definicao = {
+  nome: 'playlists_semanais', rotulo: 'playlists e seções dos concorrentes', ordem: 5.7, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 7,
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: 9,
+  comecaAteMs: 50_000, fimAteMs: 85_000, ligaCom: 'OBS_X3_PLAYLISTS',
+  motivos: {
+    canais_nao_lidos: 'não foi possível ler os canais',
+    api_falhou: 'o YouTube não respondeu às chamadas',
+    resposta_invalida: 'o YouTube devolveu uma resposta fora da forma esperada',
+    gravacao_falhou: 'não foi possível ler ou gravar as playlists',
+    canal_pausado: 'um canal foi pausado ou removido durante a leitura',
+    cota_esgotada: 'cota do YouTube esgotada',
+    lista_cortada: 'a lista de playlists de um canal ficou incompleta',
+    contagem_difere: 'a contagem do YouTube não bate com o que foi lido',
+    teto_por_canal: 'o teto de chamadas por canal cortou a leitura; o resto segue no dia seguinte',
+    itens_cortados: 'a leitura dos itens de uma playlist foi interrompida',
+    playlist_sumiu_no_meio: 'uma playlist sumiu entre a lista e os itens',
+    itens_incoerentes: 'o YouTube devolveu uma playlist vazia que tinha itens',
+    teto_itens: 'uma playlist tem mais itens do que o teto de leitura',
+    saida_em_massa_a_confirmar: 'muitos itens saíram de uma playlist; a confirmação fica para outro dia',
+    lista_vazia_a_confirmar: 'a lista de playlists de um canal veio vazia; a confirmação fica para outro dia',
+    secoes_vazias_a_confirmar: 'as seções de um canal vieram vazias; a confirmação fica para outro dia',
+    teto_do_dia: 'o teto de unidades do dia cortou a leitura',
+    sobrou: 'ficaram canais para o próximo disparo',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -163,7 +195,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -177,19 +209,26 @@ export function notaDoInterruptorDaAgenda(env: NodeJS.ProcessEnv = process.env):
   return 'valor não reconhecido em OBS_AGENDA; a agenda segue ligada'
 }
 
+/** A variável `ligaCom` de uma tarefa a liga só com o valor exato `on`. */
+export const ligadaPorVariavel = (t: Pick<Tarefa, 'ligaCom'>, env: NodeJS.ProcessEnv): boolean => t.ligaCom === undefined || env[t.ligaCom] === 'on'
+
 /**
  * `OBS_AGENDA_TASKS_OFF`: nomes de tarefa separados por vírgula (espaços e vazios ignorados; o nome é exato, minúsculo).
  * Nome que não é do catálogo vai em `desconhecidas` (o chamador põe numa nota visível); tarefa `nuncaDesliga` é ignorada, continua ligada e vai em `ignoradas` (o chamador mostra a nota).
+ * Tarefa com `ligaCom` cuja variável não é exatamente `on` entra em `desligadas` e em `naoLigadas` (para o vigia dizer o motivo); essa regra vem ANTES do
+ * retorno antecipado de `OBS_AGENDA_TASKS_OFF` ausente.
  */
 export function tarefasDesligadas(
   env: NodeJS.ProcessEnv,
-  catalogo: readonly Pick<Tarefa, 'nome' | 'nuncaDesliga'>[],
-): { desligadas: Set<string>; desconhecidas: string[]; ignoradas: string[] } {
+  catalogo: readonly Pick<Tarefa, 'nome' | 'nuncaDesliga' | 'ligaCom'>[],
+): { desligadas: Set<string>; desconhecidas: string[]; ignoradas: string[]; naoLigadas: Set<string> } {
   const desligadas = new Set<string>()
+  const naoLigadas = new Set<string>()
   const desconhecidas: string[] = []
   const ignoradas: string[] = []
+  for (const t of catalogo) if (!ligadaPorVariavel(t, env)) { desligadas.add(t.nome); naoLigadas.add(t.nome) }
   const cru = env.OBS_AGENDA_TASKS_OFF
-  if (typeof cru !== 'string') return { desligadas, desconhecidas, ignoradas }
+  if (typeof cru !== 'string') return { desligadas, desconhecidas, ignoradas, naoLigadas }
   for (const parte of cru.split(',')) {
     const nome = parte.trim()
     if (nome === '') continue
@@ -198,5 +237,5 @@ export function tarefasDesligadas(
     if (t.nuncaDesliga) { if (!ignoradas.includes(nome)) ignoradas.push(nome); continue }
     desligadas.add(nome)
   }
-  return { desligadas, desconhecidas, ignoradas }
+  return { desligadas, desconhecidas, ignoradas, naoLigadas }
 }

@@ -192,7 +192,9 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
     }
   }
   // não medido: as três frases de M11 da tabela do NOTAS 20 (fecha em, poucos vídeos, sem retrato do canal)
-  const comColeta = doFormato.filter(x => c.coletaDoCanalDesdeMs !== null && x.base >= c.coletaDoCanalDesdeMs).length
+  // tem coleta o vídeo que já tem retrato (de qualquer marco) OU que saiu depois do começo da coleta do canal: um vídeo anterior com retrato de 30 dias
+  // também foi coletado, e a frase não pode dizer "só 0" ao lado de uma legenda que conta esse vídeo (item d do Gio, trem 6)
+  const comColeta = doFormato.filter(x => retrato(x.v.id) !== null || (c.coletaDoCanalDesdeMs !== null && x.base >= c.coletaDoCanalDesdeMs)).length
   let frase: BlocoDoCriador['frase']
   let curta: string
   let semColeta = false

@@ -46,6 +46,9 @@ const porNome = (itens: ItemAgenda[], nome: string): ItemAgenda => {
   return i
 }
 
+/** A tarefa `playlists_semanais` só liga com `OBS_X3_PLAYLISTS=on`; estes testes não são sobre ela. */
+const ENV = { OBS_X3_PLAYLISTS: 'on' } as NodeJS.ProcessEnv
+
 describe('avaliarAgenda (puro)', () => {
   it('apagar os ok de uma tarefa a acusa pelo nome, com as outras em dia', () => {
     const e = estado({ sincronizar_canais: iso(AGORA - H), serie_semanal: iso(AGORA - 5 * H) }, iso(AGORA - 5 * H))
@@ -194,7 +197,7 @@ describe('lerAgendaDoVigia', () => {
 
   it('pede o estado das tarefas do catálogo real, com a chave do período corrente', async () => {
     const { sb, chamadas } = sbRpc(() => Promise.resolve(respostaDaAgenda({}, null)))
-    await lerAgendaDoVigia(sb as never, AGORA, {})
+    await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(chamadas).toHaveLength(1)
     expect(chamadas[0]!.fn).toBe('competitor_agenda_state')
     const a = chamadas[0]!.args as { p_tasks: string[]; p_period_keys: string[] }
@@ -204,7 +207,7 @@ describe('lerAgendaDoVigia', () => {
 
   it('tabela vazia: todas unknown, nenhuma ok', async () => {
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({}, null)))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens).toHaveLength(TODAS_AS_DEFINICOES.length)
     expect(r.itens.every(i => i.status === 'unknown')).toBe(true)
     expect(r.nota).toBeNull()
@@ -213,7 +216,7 @@ describe('lerAgendaDoVigia', () => {
   it('função da agenda ausente (PGRST202) e tabela ausente (PGRST205, 42P01): não conferida, sem nota de falha', async () => {
     for (const code of ['PGRST202', 'PGRST205', '42P01']) {
       const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code, message: 'TEXTO-SENTINELA-DO-BANCO' } }))
-      const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+      const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
       expect(r.itens.every(i => i.status === 'unknown' && i.motivo === 'não conferida (schema ausente)'), code).toBe(true)
       expect(JSON.stringify(r)).not.toContain('SENTINELA')
     }
@@ -221,7 +224,7 @@ describe('lerAgendaDoVigia', () => {
 
   it('o banco não respondeu (lança): UMA entrada agenda:leitura late, nota visível, sem texto do banco', async () => {
     const { sb } = sbRpc(() => Promise.reject(new Error('TEXTO-SENTINELA-DO-BANCO')))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status, i.motivo])).toEqual([['leitura', 'late', 'não foi possível ler a agenda']])
     expect(r.nota).toBe('agenda não conferida: o banco não respondeu')
     expect(JSON.stringify(r)).not.toContain('SENTINELA')
@@ -229,7 +232,7 @@ describe('lerAgendaDoVigia', () => {
 
   it('AbortError do prazo (cliente devolve código vazio, não lança): late, não some do relatório', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: '', message: 'AbortError: The operation was aborted due to timeout' } }))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
     const rel = buildCronHealthReport([], new Date(AGORA), r.itens)
     expect(rel.lateNames).toEqual(['agenda:leitura'])
@@ -237,20 +240,20 @@ describe('lerAgendaDoVigia', () => {
 
   it('erro de transporte (código sem forma de código do banco): late', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: 'ECONNRESET', message: 'fetch failed' } }))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
   })
 
   it('resposta nula sem erro: late (a agenda não pôde ser lida)', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: null, error: null }))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
   })
 
   it('o banco não responde nunca: o prazo corta e a agenda aparece late', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const { sb } = sbRpc(() => new Promise<Resp>(() => undefined))
-    const p = lerAgendaDoVigia(sb as never, AGORA, {})
+    const p = lerAgendaDoVigia(sb as never, AGORA, ENV)
     await vi.advanceTimersByTimeAsync(10_000)
     const r = await p
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
@@ -258,14 +261,14 @@ describe('lerAgendaDoVigia', () => {
   })
 
   it('cliente sem rpc (lança ao chamar): mesma saída, nunca propaga', async () => {
-    const r = await lerAgendaDoVigia({} as never, AGORA, {})
+    const r = await lerAgendaDoVigia({} as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
     expect(r.nota).not.toBeNull()
   })
 
   it('erro do banco com código (permissão): late, visível, sem o texto do banco', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: null, error: { code: '42501', message: 'TEXTO-SENTINELA-DO-BANCO' } }))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
     expect(r.nota).toBeNull()
     expect(JSON.stringify(r)).not.toContain('SENTINELA')
@@ -274,7 +277,7 @@ describe('lerAgendaDoVigia', () => {
 
   it('resposta fora da forma: late (não é "tudo ok")', async () => {
     const { sb } = sbRpc(() => Promise.resolve({ data: { agora: 'x' }, error: null }))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(r.itens.map(i => [i.nome, i.status])).toEqual([['leitura', 'late']])
   })
 
@@ -303,18 +306,18 @@ describe('lerAgendaDoVigia', () => {
 
 // ---- a junção com a E14: o vigia enxerga as CINCO tarefas ------------------------------------------------------------
 
-describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
+describe('o vigia enxerga as nove tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'playlists_semanais', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
 
-  it('o padrão do vigia são as sete, na ordem do catálogo', () => {
+  it('o padrão do vigia são as nove, na ordem do catálogo', () => {
     expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(TODAS)
   })
 
   it('(A5 E10) o vigia acusa tamanho_do_banco pelo nome: sem `ok` há mais de 36 h é late, com as outras em dia', async () => {
     const emDia = Object.fromEntries(TODAS.map(n => [n, HORAS(1)]))
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({ ...emDia, tamanho_do_banco: null }, HORAS(60))))
-    const a = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const a = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     expect(a.itens.filter(i => i.status === 'late').map(i => i.nome)).toEqual(['tamanho_do_banco'])
     expect(a.itens.find(i => i.nome === 'tamanho_do_banco')).toMatchObject({ toleranciaH: 36 })
   })
@@ -341,7 +344,7 @@ describe('o vigia enxerga as sete tarefas (as duas da E14, a medida do banco e a
 
   it('a anulação que nunca rodou numa agenda com mais de 36 h: late "sem leitura"; os retratos também', async () => {
     const { sb } = sbRpc(() => Promise.resolve(respostaDaAgenda({}, HORAS(40))))
-    const r = await lerAgendaDoVigia(sb as never, AGORA, {})
+    const r = await lerAgendaDoVigia(sb as never, AGORA, ENV)
     for (const nome of ['anular_identidade', 'retratos_comentarios']) expect(r.itens.find(i => i.nome === nome), nome).toMatchObject({ status: 'late', motivo: 'sem leitura' })
   })
 
@@ -481,6 +484,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubEnv('CRON_SECRET', SECRET)
+    vi.stubEnv('OBS_X3_PLAYLISTS', 'on')
     vi.stubEnv('NTFY_URL', 'https://ntfy.example/topico')
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -534,7 +538,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
   it('/api/health com a anulação parada: degraded e agenda:anular_identidade nomeada', async () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
       leitura_horaria: iso(Date.now() - H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H),
-      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), marcas_de_idade: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
+      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), marcas_de_idade: iso(Date.now() - H), playlists_semanais: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
     }, iso(Date.now() - 60 * H)))) as never)
     const res = await healthGET(reqHealth())
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }

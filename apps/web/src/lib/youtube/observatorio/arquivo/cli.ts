@@ -208,7 +208,8 @@ async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>
  * catálogo (revisão Phil 14/10, I-3); tabela nova com identidade no registro reprova o teste até entrar aqui.
  */
 export const TABELAS_COM_IDENTIDADE: readonly string[] = [
-  'competitor_collection_pauses', 'competitor_field_versions', 'competitor_raw', 'competitor_video_comments',
+  'competitor_channel_sections', 'competitor_collection_pauses', 'competitor_field_versions', 'competitor_playlist_versions', 'competitor_raw',
+  'competitor_video_comments',
 ]
 
 /**

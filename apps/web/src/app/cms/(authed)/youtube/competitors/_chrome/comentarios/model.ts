@@ -25,6 +25,8 @@ export interface EstadoView {
 export interface LegendaView { chave: ChaveDeMotivo; rotulo: string; texto: string; n: number; zero: boolean }
 export interface CurtidaView {
   marco: Marco; rotulo: string; tipo: 'n' | 'fora' | 'fecha' | 'ainda'; texto: string
+  /** O número cru quando `tipo === 'n'` (o pacote da IA lê daqui, nunca do texto formatado). */
+  n: number | null
   /** 0 a 100, na mesma escala de todos os cartões. */
   pct: number
 }
@@ -172,12 +174,12 @@ function curtidasDoCartao(c: CartaoBase, marcos: Record<Marco, EstadoDoMarco>, m
   return MARCOS_DA_TELA.map(m => {
     const v: CurtidasNoMarco = c.curtidas[m]
     const rotulo = dias(m)
-    if (typeof v === 'number') return { marco: m, rotulo, tipo: 'n' as const, texto: num(v), pct: maximo > 0 ? Math.max(v > 0 ? 4 : 0, Math.round((v / maximo) * 100)) : 0 }
-    if (v === 'fora_dos_12') return { marco: m, rotulo, tipo: 'fora' as const, texto: FRASES.foraDos12, pct: 0 }
+    if (typeof v === 'number') return { marco: m, rotulo, tipo: 'n' as const, texto: num(v), n: v, pct: maximo > 0 ? Math.max(v > 0 ? 4 : 0, Math.round((v / maximo) * 100)) : 0 }
+    if (v === 'fora_dos_12') return { marco: m, rotulo, tipo: 'fora' as const, n: null, texto: FRASES.foraDos12, pct: 0 }
     const e = marcos[m]
-    if (e.estado === 'fecha_em') return { marco: m, rotulo, tipo: 'fecha' as const, texto: FRASES.fechaEmCurto(dmSP(e.fechaEmMs)), pct: 0 }
+    if (e.estado === 'fecha_em') return { marco: m, rotulo, tipo: 'fecha' as const, n: null, texto: FRASES.fechaEmCurto(dmSP(e.fechaEmMs)), pct: 0 }
     const vaiVir = e.estado === 'a_caminho' || e.estado === 'coleta_parada' || e.estado === 'coleta_nao_comecou'
-    return { marco: m, rotulo, tipo: 'ainda' as const, texto: vaiVir ? FRASES.semRetratoAinda : FRASES.semRetrato, pct: 0 }
+    return { marco: m, rotulo, tipo: 'ainda' as const, n: null, texto: vaiVir ? FRASES.semRetratoAinda : FRASES.semRetrato, pct: 0 }
   })
 }
 

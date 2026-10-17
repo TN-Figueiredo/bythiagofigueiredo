@@ -436,3 +436,8 @@
 /* o cartão é o de Mudanças (as classes dele moram em mudancas.css); aqui só vira um cartão fechado */
 [data-obs-screen="canal"] .cl-card .forja{border:1px solid var(--forja-line);border-radius:8px}
 @media (pointer:coarse){[data-obs-screen="canal"] .cl-ask-btn{min-height:44px}}
+
+/* a busca da página do canal: alvo de 44 px sob toque e em viewport estreita (trem 6) */
+@media (pointer:coarse),(max-width:900px){
+  [data-obs-screen="canal"] .cv-search{min-height:44px;box-sizing:border-box}
+}

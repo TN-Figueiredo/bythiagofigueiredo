@@ -41,6 +41,8 @@ const PARAMETROS_RESOLVIDOS: Array<{ arquivo: string; ident: string; funcao: str
 const PROIBIDAS_POR_CRON = [
   'competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly', 'competitor_video_versions', 'competitor_field_versions',
   'competitor_raw', 'competitor_video_comments', 'competitor_channel_snapshots', 'yt_reporting_report_blobs', 'yt_own_video_daily',
+  // A5 X3: a coleta de playlists e seções não apaga nada (nenhum delete no código novo)
+  'competitor_playlist_items', 'competitor_playlist_versions', 'competitor_channel_sections', 'competitor_playlists',
 ]
 
 const PASTAS = [
@@ -226,7 +228,7 @@ describe('A5 E10 T10: a lista fechada do que apaga (estático)', () => {
   })
 
   it('o conjunto proibido não mudou sem querer', () => {
-    expect(PROIBIDAS_POR_CRON).toHaveLength(10)
-    expect(new Set(PROIBIDAS_POR_CRON).size).toBe(10)
+    expect(PROIBIDAS_POR_CRON).toHaveLength(14)
+    expect(new Set(PROIBIDAS_POR_CRON).size).toBe(14)
   })
 })

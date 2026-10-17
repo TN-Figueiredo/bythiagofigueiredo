@@ -8,6 +8,9 @@ import { dm, quandoMs } from './formatos'
 
 export type TipoDeEstadoDaPagina = 'saiu' | 'erro' | 'primeira_busca' | 'pausado' | 'parado' | 'em_queda' | 'ativo' | 'nao_carregou' | 'nao_medido'
 
+/** Os estados que têm faixa na tela (e a pastilha na faixa do pacote). */
+export const COM_FAIXA: ReadonlySet<TipoDeEstadoDaPagina> = new Set(['saiu', 'erro', 'primeira_busca', 'pausado'])
+
 export interface SincDaPagina {
   state: 'ok' | 'atrasado' | 'erro' | 'backfill'
   /** A última sincronização boa (ms), nula = nunca. */

@@ -7,12 +7,11 @@ import type { ReactNode } from 'react'
 import { EstourouInfo } from './estourou-info'
 import { EstourouCasas } from '../_chrome/medidas/estourou-casas'
 import { TextoIndicio } from '../_chrome/medidas/texto-indicio'
-import { dataBR, milhar, NOME_DA_LEITURA, pct, REGRAS_DA_LEITURA, vezes, type CartaoQuaseNada, type CartaoReacao, type CartaoViewsCedo, type Leitura, type PassaAExistir } from '../_chrome/medidas/estourou-model'
+import { dataBR, fraseAindaSemLeitura, milhar, TEXTOS_NAO_CARREGOU, TITULO_AINDA_SEM_LEITURA, NOME_DA_LEITURA, pct, REGRAS_DA_LEITURA, vezes, type CartaoQuaseNada, type CartaoReacao, type CartaoViewsCedo, type Leitura, type PassaAExistir } from '../_chrome/medidas/estourou-model'
 
 const R = REGRAS_DA_LEITURA
 const IND = <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 13.4 4.6 4l2.4 8.2h8" /></svg>
 const AVISO = <svg className="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 14.4 13.4H1.6Z" /><path d="M8 6.6v3.2M8 11.5v.1" /></svg>
-const dmBR = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const NM = <span className="lm-nm">não medido</span>
 
 function Cabeca({ rotulo, ainda = false }: { rotulo: boolean; ainda?: boolean }) {
@@ -180,16 +179,13 @@ export function EstourouEParou({ leitura }: { leitura: Leitura }) {
     case 'ainda_nao_existe':
       return sec(
         <p className="lm-sd">
-          <b>Ainda sem leitura.</b>{' '}
-          {leitura.esteVideoEm >= leitura.hojeSP
-            ? <>Este vídeo faz {R.minDias} dias em {dmBR(leitura.esteVideoEm)}; a leitura sai nesse dia se houver {R.minVideos} vídeos do canal com {R.minDias} dias para comparar.</>
-            : <>Este vídeo já fez {R.minDias} dias, em {dmBR(leitura.esteVideoEm)}; a leitura ainda não saiu porque o canal não tem {R.minVideos} vídeos com {R.minDias} dias para comparar.</>}
+          <b>{TITULO_AINDA_SEM_LEITURA}</b> {fraseAindaSemLeitura(leitura)}
         </p>, true, true)
     case 'nao_carregou':
       return sec(
         <div className="lm-err" role="alert">
           {AVISO}
-          <div className="tx"><b>Não foi possível calcular a leitura agora.</b><span>Isto não quer dizer que o vídeo não estourou: a leitura não foi calculada. Os números do vídeo acima estão certos.</span></div>
+          <div className="tx"><b>{TEXTOS_NAO_CARREGOU.titulo}</b><span>{TEXTOS_NAO_CARREGOU.corpo}</span></div>
           {/* G-3 (NOTAS 14, linha "Erro"): recarrega a mesma página; o componente é de servidor, então um link basta */}
           <a className="btn" href="">Tentar de novo</a>
         </div>, true)

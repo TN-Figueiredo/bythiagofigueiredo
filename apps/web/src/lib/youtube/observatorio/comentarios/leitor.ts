@@ -366,6 +366,7 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
       return r.texto
     }
     const respostasDoCriador = (filhos.get(c.id) ?? [])
+      .filter((f) => f.saiuDesde === null) // a resposta que saiu do YouTube nunca entra
       .sort((a, b) => (a.publicadoMs ?? 0) - (b.publicadoMs ?? 0) || Number(BigInt(a.id) - BigInt(b.id)))
       .slice(0, COMMENT_RULES.creatorRepliesMax)
       .map((f) => ({ texto: passar(f.texto ?? ''), cortado: f.cortado }))

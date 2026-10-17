@@ -68,3 +68,9 @@ export const F4_MUDANCAS_EXCLUDE_IMPL: string[] = ['[data-run]', '[data-run-note
  * Mockup 22 aprovado em 13/10/2026. Só o texto do botão; a comparação das telas a aplica enquanto o botão estiver ligado.
  */
 export const PERGUNTAR_IA_BOTAO: Allow = { drop: /Perguntar a uma IA/ }
+
+/**
+ * Trem 6 (validação do Gio, 17/10): o produto escreve "miniatura" onde o mockup de 02/10 escreve "thumbnail" no resumo "1 thumbnail (vista desde 03/10)"
+ * do Histórico anterior a 03/10. Nome decidido pelo dono (miniatura no Histórico); o resto do produto segue "Thumbnail" (dívida de nome anotada). Só esta frase.
+ */
+export const HISTORICO_MINIATURA_R_TREM6: Allow = /1 (?:thumbnail|miniatura)(?= \(vista desde)/

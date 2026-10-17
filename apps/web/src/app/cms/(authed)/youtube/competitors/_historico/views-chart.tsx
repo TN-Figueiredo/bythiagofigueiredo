@@ -45,7 +45,7 @@ export function shownTicks(px: number[], gap = 64): boolean[] {
 /** `el` = the marker or group counter the tooltip points at: the floating layer places it against that element. */
 interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; el: HTMLElement }
 /** The legend line that says what the thumbnail periods of the lane do (spec 6.3, trigger 4). */
-const ZOOM_HINT = 'clique duplo numa miniatura da faixa Thumbnail a amplia; o clique simples leva ao cartão da versão'
+const ZOOM_HINT = 'clique duplo numa miniatura da faixa Miniatura a amplia; o clique simples leva ao cartão da versão'
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer:coarse),(max-width:900px)').matches
 
 export function Timeline({ chart, axis, lanes: lanesIn, legend, pair, hl, onHl, onSelectPair, onGoVersion, onZoomVersion, range, onRange, groupLegend, arrivalId, acrescimos = null }: {
@@ -111,7 +111,7 @@ export function Timeline({ chart, axis, lanes: lanesIn, legend, pair, hl, onHl, 
   return (
     <section className="card timeline" aria-labelledby="hv-tlh">
       <div className="sec-h">
-        <h3 id="hv-tlh">{chart ? 'Views por dia e cada troca' : 'Trocas de título, thumbnail e descrição'}</h3>
+        <h3 id="hv-tlh">{chart ? 'Views por dia e cada troca' : 'Trocas de título, miniatura e descrição'}</h3>
         {range ? (
           <div className="rng-ctl" role="group" aria-labelledby="hv-rngl">
             <span className="rng-l" id="hv-rngl">Período</span>

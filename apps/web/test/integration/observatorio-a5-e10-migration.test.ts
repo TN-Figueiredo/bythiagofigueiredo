@@ -14,6 +14,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
+import { garantirX3 } from '../helpers/x3'
 import { TABELAS_COM_IDENTIDADE } from '@/lib/youtube/observatorio/arquivo/cli'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
@@ -78,7 +79,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
       expect([v1.tabelas_rls, v1.policies, v1.colunas, v1.so_service_role, v1.remendadas, v1.remendadas_com_grant, v1.bruto_sem_delete, v1.privilegio_indevido])
         .toEqual([3, 3, 2, 17, 4, 4, true, false])
       expect(await escalar<string[]>(pg, `select public.obs_archive_uncovered()`)).toEqual([])
-      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(22)
+      // 22 da MG6; 27 quando a X3 está presente no banco da transação (E10_COM_X3=1 ou aplicada de vez)
+      const comX3 = (await escalar<string | null>(pg, `select to_regclass('public.competitor_playlists')::text`)) !== null
+      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(comX3 ? 27 : 22)
       const ausentes = await pg.query(`select r.table_name from public.obs_archive_registry() r where to_regclass('public.' || r.table_name) is null`)
       for (const l of ausentes.rows as { table_name: string }[]) expect(DE_OUTRAS_ETAPAS).toContain(l.table_name)
     })
@@ -705,6 +708,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
 
   it('a lista fixa de tabelas com identidade do comando de recarga bate com o catálogo', async () => {
     await dentro(async () => {
+      await garantirX3(pg) // A5 X3: as duas tabelas novas com identidade só existem com a X3 (aplicada só dentro da transação)
       expect(await tabelasComIdentidade(pg)).toEqual([...TABELAS_COM_IDENTIDADE].sort())
     })
   })

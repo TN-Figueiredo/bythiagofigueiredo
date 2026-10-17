@@ -15,6 +15,25 @@ export const REGRAS_DA_LEITURA = {
 } as const
 export { somaDias as somaDiasBR }
 
+/** "dd/mm" de uma data "AAAA-MM-DD". */
+const diaMes = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+
+/**
+ * Os textos do estado "ainda sem leitura" e do "não carregou", UM lugar só: a tela (`EstourouEParou`) e o pacote da IA usam estas funções, e por
+ * isso uma mudança de palavra vale para os dois (I2 do portão Yannis, trem 6).
+ */
+export const TITULO_AINDA_SEM_LEITURA = 'Ainda sem leitura.'
+export function fraseAindaSemLeitura(l: { esteVideoEm: string; hojeSP: string }): string {
+  const R = REGRAS_DA_LEITURA
+  return l.esteVideoEm >= l.hojeSP
+    ? `Este vídeo faz ${R.minDias} dias em ${diaMes(l.esteVideoEm)}; a leitura sai nesse dia se houver ${R.minVideos} vídeos do canal com ${R.minDias} dias para comparar.`
+    : `Este vídeo já fez ${R.minDias} dias, em ${diaMes(l.esteVideoEm)}; a leitura ainda não saiu porque o canal não tem ${R.minVideos} vídeos com ${R.minDias} dias para comparar.`
+}
+export const TEXTOS_NAO_CARREGOU = {
+  titulo: 'Não foi possível calcular a leitura agora.',
+  corpo: 'Isto não quer dizer que o vídeo não estourou: a leitura não foi calculada. Os números do vídeo acima estão certos.',
+} as const
+
 /** Nome da leitura na tela (dúvida 1 do mockup 14, padrão adotado: a opção A). */
 export const NOME_DA_LEITURA = 'Estourou e parou'
 

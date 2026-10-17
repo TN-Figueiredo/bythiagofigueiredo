@@ -41,7 +41,7 @@ export interface PacoteSerializado {
     privadosMedidos: number
   }
   privado: PacoteModelo['privado']
-  comentarios: { estado: 'na' } | { estado: 'incluido' | 'excluido'; quantos: number }
+  comentarios: { estado: 'na' } | { estado: 'nao_carregou' } | { estado: 'incluido' | 'excluido'; quantos: number }
   primeiraLinhaDeAviso: string | null
   vazio: boolean
 }
@@ -203,7 +203,7 @@ function textoDoPrivadoExcluido(p: Extract<PacoteModelo['privado'], { estado: 'e
 }
 
 function textoDosComentarios(c: PacoteModelo['comentarios']): string | null {
-  if (c.estado === 'na') return null
+  if (c.estado === 'na' || c.estado === 'nao_carregou') return null
   if (c.estado === 'excluido') return bloco([F.COMENTARIOS_TITULO_SEM_TEXTO, F.comentariosFora(c.quantos)])
   if (c.itens.length === 0) return bloco([F.COMENTARIOS_TITULO, F.COMENTARIOS_NENHUM])
   const linhas: string[] = [F.COMENTARIOS_TITULO]
@@ -285,8 +285,8 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
     tabelas: m.tabelas.map((t) => ({ id: t.id, titulo: naCelula(t.titulo), nomeNoCorte: t.nomeNoCorte, tipo: t.tipo })),
     numeros: { medidos: n.medidos, zerosMedidos: n.zerosMedidos, naoMedidos: n.naoMedidos, privadosMedidos: n.privadosMedidos },
     privado: m.privado,
-    comentarios: m.comentarios.estado === 'na'
-      ? { estado: 'na' }
+    comentarios: m.comentarios.estado === 'na' || m.comentarios.estado === 'nao_carregou'
+      ? { estado: m.comentarios.estado }
       : m.comentarios.estado === 'incluido'
         ? { estado: 'incluido', quantos: m.comentarios.itens.length }
         : { estado: 'excluido', quantos: m.comentarios.quantos },

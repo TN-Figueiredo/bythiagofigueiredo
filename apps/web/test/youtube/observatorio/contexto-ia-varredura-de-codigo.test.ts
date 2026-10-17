@@ -57,11 +57,18 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
   /** Módulos de definição, de limiar e de formatador de folha crua de onde um empacotador pode importar VALOR. */
   const PERMITIDOS = new Set([
     '@/lib/youtube/observatorio/contexto-ia/frases', '@/lib/youtube/observatorio/medidas/regras',
-    '../_comparar/definicoes', '../_comparar/medidas-do-par', './modelo-medidas-comparar', '../_comparar/regua-da-linha', '../_comparar/so-seu-canal-model', '../_proprio/taxa-faixa-model', '../_proprio/retencao-model',
+    '../_comparar/definicoes', '../_comparar/medidas-do-par', './modelo-medidas-comparar', '../_comparar/regua-da-linha', '../_comparar/so-seu-canal-model', '../_proprio/taxa-faixa-model', '../_proprio/retencao-model', '../_chrome/comentarios/frases', '../_canal/medidas/criador-do-canal', '../_canal/medidas/criador-model', '../_canal/medidas/criador-lista-model',
     '../_canal/videos-model', '../_canal/lista',
+    // TG: os modelos puros das medidas da página do canal (os mesmos que a tela usa)
+    '../_canal/medidas/canal-derivado', '../_canal/medidas/cabecalho-model', '../_canal/medidas/estado-model', '../_canal/medidas/frase-do-topo', '../_canal/medidas/formatos',
+    '../_canal/medidas/direcao-model', '../_canal/medidas/ritmo-model', '../_canal/medidas/lancamentos-model', '../_canal/medidas/linha-do-tempo-model',
+    // TG: os modelos puros das medidas do Histórico do vídeo (os mesmos que a tela usa) e a leitura de "Estourou e parou"
+    '../_historico/medidas/formatos', '../_chrome/medidas/estourou-model', '@/lib/youtube/observatorio/medidas-telas/texto-m10',
+    // E5a: menções trocadas por marcador, módulo puro (sem server-only) separado do leitor-nivel por causa do portão do Phil I-1
+    '@/lib/youtube/observatorio/comentarios/leitor-mencao',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
-  it('há nove empacotadores', () => { expect(empacotadores).toHaveLength(9) })
+  it('há treze empacotadores', () => { expect(empacotadores).toHaveLength(13) })
   for (const p of empacotadores) {
     it(`${nome(p)}: valor só de permitidos, de irmãos empacotar-* e de contexto-ia/; nenhum módulo importado tem 'use client'`, () => {
       for (const i of importacoes(ler(p))) {

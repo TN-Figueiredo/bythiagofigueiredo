@@ -1,0 +1,84 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "etag": "e1",
+  "pageInfo": {
+    "totalResults": 5,
+    "resultsPerPage": 50
+  },
+  "items": [
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "i1",
+      "id": "item-aaa",
+      "snippet": {
+        "publishedAt": "2025-01-02T10:00:00Z",
+        "channelId": "UCsint",
+        "title": "Vídeo 1",
+        "description": "d",
+        "position": 0,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "abcdefghijk"
+        },
+        "videoOwnerChannelId": "UCdono",
+        "videoOwnerChannelTitle": "Dono"
+      },
+      "contentDetails": {
+        "videoId": "abcdefghijk",
+        "videoPublishedAt": "2024-12-30T08:00:00Z",
+        "note": "parte 1"
+      },
+      "status": {
+        "privacyStatus": "public"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "i2",
+      "id": "item-bbb",
+      "snippet": {
+        "publishedAt": "2025-01-03T10:00:00Z",
+        "title": "Deleted video",
+        "position": 1,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "lmnopqrstuv"
+        }
+      },
+      "contentDetails": {
+        "videoId": "lmnopqrstuv"
+      },
+      "status": {
+        "privacyStatus": "private"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "i3",
+      "id": "item-ccc",
+      "snippet": {
+        "title": "sem id",
+        "position": 2,
+        "resourceId": {
+          "kind": "youtube#video"
+        }
+      },
+      "contentDetails": {}
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "i4",
+      "id": "item-ddd",
+      "snippet": {
+        "title": "id curto",
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "curto"
+        }
+      },
+      "contentDetails": {
+        "videoId": "curto"
+      }
+    }
+  ]
+}

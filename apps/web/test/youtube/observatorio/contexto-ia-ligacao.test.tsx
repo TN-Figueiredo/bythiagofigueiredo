@@ -111,7 +111,7 @@ function aberturasDoChrome(fonte: string): string[] {
 }
 
 const PAGINAS: Array<[TelaId, string]> = [
-  ['canais', 'page.tsx'], ['mudancas', 'mudancas/page.tsx'], ['outliers', 'outliers/page.tsx'], ['insights', 'insights/page.tsx'], ['comparar', 'comparar/page.tsx'],
+  ['canais', 'page.tsx'], ['mudancas', 'mudancas/page.tsx'], ['outliers', 'outliers/page.tsx'], ['insights', 'insights/page.tsx'], ['comparar', 'comparar/page.tsx'], ['fila', 'saiu/page.tsx'],
 ]
 
 describe('as páginas passam perguntarIa ao chrome (leitura do código-fonte)', () => {
@@ -141,9 +141,6 @@ describe('as páginas passam perguntarIa ao chrome (leitura do código-fonte)', 
     expect(a.filter((x) => /perguntarIa=\{/.test(x)).some((x) => x.includes("'video-proprio'"))).toBe(true)
     expect(fonte).toMatch(/view\.notFound/)
     expect(fonte).toMatch(/perguntarIa=\{view\.notFound/)
-  })
-  it('a página de "Saíram do YouTube" não passa (está em PAGINA_SEM_EMPACOTADOR)', () => {
-    expect(lerPagina('saiu/page.tsx')).not.toMatch(/perguntarIa/)
   })
   it('controle negativo: o leitor de aberturas acha a prop num trecho com ela e não num sem ela', () => {
     expect(aberturasDoChrome('<TrailChrome crumbs={[{a:1}]} perguntarIa={x}>')[0]).toMatch(/perguntarIa/)

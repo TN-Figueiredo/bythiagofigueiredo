@@ -57,7 +57,7 @@ export interface PacoteModelo {
     | { estado: 'na' }
     | { estado: 'incluido'; itens: string }
     | { estado: 'excluido'; motivo: 'sem_direito' | 'nao_conferido' | 'leitura_falhou'; itens: string }
-  comentarios: { estado: 'na' } | { estado: 'incluido'; itens: Comentario[] } | { estado: 'excluido'; quantos: number }
+  comentarios: { estado: 'na' } | { estado: 'nao_carregou' } | { estado: 'incluido'; itens: Comentario[] } | { estado: 'excluido'; quantos: number }
   vazio: string | null
   motivoDoMagro: string | null
   /** Liga a linha do cabeçalho "Listas completas do período; a tela mostra em páginas.". */
