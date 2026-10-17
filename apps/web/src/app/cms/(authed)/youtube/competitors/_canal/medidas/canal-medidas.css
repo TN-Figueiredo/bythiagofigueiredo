@@ -6,8 +6,10 @@
 [data-obs-screen="canal"] .pc-est{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 9px;border-radius:6px;font:500 12.5px/1.2 var(--font-sans),system-ui,sans-serif;color:var(--text);border:1.5px solid var(--muted);background:transparent;white-space:nowrap}
 [data-obs-screen="canal"] .pc-est.ativo{border-color:var(--success)}
 [data-obs-screen="canal"] .pc-est.ativo .i{color:var(--success)}
-[data-obs-screen="canal"] .pc-est.parado, [data-obs-screen="canal"] .pc-est.queda{border-color:var(--dir-dn);background:var(--warn-subtle)}
-[data-obs-screen="canal"] .pc-est.parado .i, [data-obs-screen="canal"] .pc-est.queda .i{color:var(--dir-dn)}
+[data-obs-screen="canal"] .pc-est.parado{border-color:var(--lado-n);background:var(--warn-subtle)}
+[data-obs-screen="canal"] .pc-est.queda{border-color:var(--dir-dn);background:var(--warn-subtle)}
+[data-obs-screen="canal"] .pc-est.parado .i{color:var(--lado-n)}
+[data-obs-screen="canal"] .pc-est.queda .i{color:var(--dir-dn)}
 [data-obs-screen="canal"] .pc-est.fora{border-style:dashed;border-color:var(--muted)}
 [data-obs-screen="canal"] .pc-est.fora .i{color:var(--muted)}
 [data-obs-screen="canal"] .pc-est.novo{border-style:dotted;border-color:var(--muted)}
