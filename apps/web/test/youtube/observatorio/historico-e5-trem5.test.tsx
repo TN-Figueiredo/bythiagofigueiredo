@@ -50,3 +50,15 @@ describe('defeito 1: eixos a >= 12 px efetivos (svg em px, rola no .gl-sc)', () 
     expect(css).not.toMatch(/\.hv-svg72\{[^}]*min-width/)
   })
 })
+
+describe('defeito 4: legenda das 72 horas com a amostra de cada marca', () => {
+  it('cada item da legenda tem um svg de amostra com a mesma classe do gráfico', () => {
+    const s = html(<Horas72 bloco={blocoDeHoras(entH({}))} />)
+    const leg = s.match(/<ul class="ic-leg">[\s\S]*?<\/ul>/)![0]
+    expect(leg.match(/<li /g)).toHaveLength(4)
+    expect(leg.match(/class="hv-amostra"/g)).toHaveLength(4)
+    expect(leg).toContain('class="gl-barra"')
+    expect(leg).toContain('class="gl-zero"')
+    expect(leg).toContain('gl-nm-risco')
+  })
+})

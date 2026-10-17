@@ -4,6 +4,7 @@
  * diminuiu), pontilhado (ainda não existe) e a hachura do trecho antes da primeira contagem. O total e os marcos vêm do modelo (acumulado por
  * bordas), nunca da soma das barras aqui. Componente de servidor; leitura por teclado e tabela no `GraficoLegivel`.
  */
+import type { ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { NaoCarregou } from '../../_chrome/medidas/marcas'
 import { BlocoAindaNaoExiste, BlocoNaoMedido, CabecaDoBloco } from './hv-pecas'
@@ -68,6 +69,17 @@ function Grafico({ b }: { b: BlocoDeHorasOk }) {
   )
 }
 
+/** Defeito 4 (Gio): a amostra de cada item da legenda é o mesmo desenho e a mesma classe do gráfico (como o N1 da Linha do tempo). */
+function Amostra({ i }: { i: number }) {
+  let corpo: ReactNode = null
+  if (i === 0) corpo = <rect className="gl-barra" x={1} y={3} width={14} height={10} />
+  else if (i === 1) corpo = <rect className="gl-zero" x={1} y={9} width={14} height={6} />
+  else if (i === 2) corpo = <><rect className="gl-nm-fundo gl-nm" x={1} y={2} width={14} height={12} /><line className="gl-nm-risco" x1={2} y1={13} x2={14} y2={3} /></>
+  else if (i === 3) corpo = <line className="gl-grade hv-am-pub" x1={8} x2={8} y1={1} y2={15} />
+  if (!corpo) return null
+  return <svg className="hv-amostra" viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" data-amostra={i}>{corpo}</svg>
+}
+
 function Estado({ texto, tipo }: { texto: string; tipo: string }) {
   return <p className="hv-fr hv-mut" data-estado-da-leitura={tipo}>Leitura por hora: {texto}.</p>
 }
@@ -106,7 +118,7 @@ export function Horas72({ bloco }: { bloco: BlocoDeHoras }) {
         titulo="Views ganhas em cada uma das primeiras 72 horas do vídeo"
         pontos={b.barras.map((x) => ({ rotulo: `${x.data}, ${x.intervalo}`, fala: x.fala }))}
         tabela={{ cabecalho: ['Hora', 'Views ganhas', 'Contador no fim da hora'], linhas: b.barras.map((x) => [`${x.data}, ${x.intervalo}`, x.ganho === null ? (x.tipo === 'ainda_nao_existe' ? 'ainda não existe' : 'não medido') : milhar(x.ganho), x.acumulado === null ? '' : milhar(x.acumulado)]) }}
-        legenda={<ul className="ic-leg">{b.legenda.map((l) => <li key={l}>{l}</li>)}</ul>}
+        legenda={<ul className="ic-leg">{b.legenda.map((l, i) => <li key={l} className="hv-leg-a"><Amostra i={i} />{l}</li>)}</ul>}
       >
         <Grafico b={b} />
       </GraficoLegivel>
