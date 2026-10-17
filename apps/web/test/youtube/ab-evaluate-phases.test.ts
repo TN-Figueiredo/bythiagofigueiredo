@@ -265,7 +265,7 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     const r = await phaseEvaluateActiveTests(supabase)
     expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
     expect(settle).toHaveBeenCalledTimes(1)
-    expect(settle).toHaveBeenCalledWith('test-1', { siteId: 'site-1', destino: { tipo: 'original' }, motivo: 'duracao_maxima' })
+    expect(settle).toHaveBeenCalledWith('test-1', { siteId: 'site-1', destino: { tipo: 'original' }, motivo: 'duracao_maxima', prazo: expect.any(Number) })
     expect(escritas()).toHaveLength(0)
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
@@ -334,6 +334,27 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect(r).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
     expect(settle).not.toHaveBeenCalled()
     expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-evaluate: duração máxima adiada por tempo', expect.anything())
+  })
+
+  it('T8 r1 (Yannis DEVE-1, Phil DEVE-1): o prazo passado ao settle é o início da rota + 105 s (15 s ficam para longevidade, recordCron e escalada)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const inicio = Date.now() - 30_000
+      const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })])
+      await phaseEvaluateActiveTests(supabase, inicio)
+      expect(settle).toHaveBeenCalledWith('test-1', expect.objectContaining({ prazo: inicio + 105_000 }))
+    } finally { vi.useRealTimers() }
+  })
+
+  it('T8 r1: o corte de "não inicia" mede contra o mesmo fim (105 s): com 39 s até o fim adia, com 41 s inicia', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15, maxDuracao: 14 })])
+      await phaseEvaluateActiveTests(supabase, Date.now() - 66_000)
+      expect(settle).not.toHaveBeenCalled()
+      await phaseEvaluateActiveTests(supabase, Date.now() - 64_000)
+      expect(settle).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
   })
 
   it('F-D3: no limite (40 s sobrando) ainda inicia; o relógio anda entre dois testes e o segundo é adiado', async () => {

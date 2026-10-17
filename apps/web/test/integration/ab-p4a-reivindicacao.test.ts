@@ -59,6 +59,35 @@ describe.skipIf(skipIfNoLocalDb())('migration da P4a', () => {
     expect(x.data).toMatchObject({ last_applied_variant_id: null, config: { consecutive_failures: 0 } })
   })
 
+  it('T8 r1 (Phil DEVE-2): ab_rotate_commit limpa a nota da rotação (nova tentativa / cota / antigas) e preserva outra nota', async () => {
+    const s = clienteServico()
+    for (const nota of ['nova tentativa 2/3: sem permissão', 'cota do YouTube esgotada hoje; a rotação tenta de novo amanhã', 'retry 1/3', 'auto-paused after 3']) {
+      await s.from('ab_tests').update({ status_note: nota, restore_seq: 0 }).eq('id', t.testId)
+      const r = await s.rpc('ab_rotate_commit', { p_test_id: t.testId, p_seq: 0, p_variant_id: t.varB, p_cycle_number: 1, p_applied_metadata: {} })
+      expect(r.error).toBeNull()
+      const x = await s.from('ab_tests').select('status_note').eq('id', t.testId).single()
+      expect(x.data?.status_note, nota).toBeNull()
+      await s.from('ab_test_cycles').delete().eq('test_id', t.testId).neq('cycle_number', 0)
+      await s.from('ab_test_cycles').update({ ended_at: null, end_reason: null }).eq('test_id', t.testId)
+    }
+    await s.from('ab_tests').update({ status_note: 'drift: título mudou' }).eq('id', t.testId)
+    await s.rpc('ab_rotate_commit', { p_test_id: t.testId, p_seq: 0, p_variant_id: t.varB, p_cycle_number: 1, p_applied_metadata: {} })
+    const y = await s.from('ab_tests').select('status_note').eq('id', t.testId).single()
+    expect(y.data?.status_note).toBe('drift: título mudou')
+  })
+
+  it('T8 r1 (decisão 1): ab_settle_claim com limpar_carencia zera grace_expires_at; sem a chave preserva', async () => {
+    const s = clienteServico()
+    const futuro = new Date(Date.now() + 86_400_000).toISOString()
+    await s.from('ab_tests').update({ grace_expires_at: futuro }).eq('id', t.testId)
+    const sem = await s.rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 0, p_de: ['active'], p_para: 'paused', p_end_reason: null, p_restore_status: {}, p_extra: {} })
+    expect(sem.error).toBeNull()
+    expect((await s.from('ab_tests').select('grace_expires_at').eq('id', t.testId).single()).data?.grace_expires_at).not.toBeNull()
+    const com = await s.rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 1, p_de: ['paused'], p_para: 'completed', p_end_reason: null, p_restore_status: {}, p_extra: { limpar_carencia: true, status_note: null } })
+    expect(com.error).toBeNull()
+    expect((await s.from('ab_tests').select('grace_expires_at, status_note').eq('id', t.testId).single()).data).toMatchObject({ grace_expires_at: null, status_note: null })
+  })
+
   it('F-D7: ciclo 0 fechado, 1 aberto e 2 aberto (auto-pausa antiga + retomar); p_cycle_number = 2 → fecha os dois abertos e abre o 3, sem erro', async () => {
     const s = clienteServico()
     await s.from('ab_test_cycles').update({ ended_at: new Date().toISOString() }).eq('test_id', t.testId).eq('cycle_number', 0)

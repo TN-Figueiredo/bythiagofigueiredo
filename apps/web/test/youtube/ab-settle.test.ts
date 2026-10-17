@@ -88,6 +88,7 @@ function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[
       for (const k of ['status_note', 'completed_reason', 'winner_variant_id']) if (k in extra) t[k] = extra[k]
       if (extra.limpar_confianca) t.confidence_at_completion = null
       if (extra.limpar_drift_ack) t.drift_acknowledged_at = null
+      if (extra.limpar_carencia) t.grace_expires_at = null
       if ('consecutive_failures' in extra) t.config = { ...t.config, consecutive_failures: extra.consecutive_failures }
       if (a.p_end_reason) tabelas.ab_test_cycles.filter((c) => c.ended_at == null).forEach((c) => Object.assign(c, { ended_at: agora, end_reason: a.p_end_reason }))
       claimed = true

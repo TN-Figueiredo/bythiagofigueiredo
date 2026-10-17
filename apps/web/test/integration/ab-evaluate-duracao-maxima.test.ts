@@ -97,6 +97,7 @@ describe.skipIf(skipIfNoLocalDb())('ab-evaluate: duração máxima contra o banc
           winner_variant_id: variantes[1],
           grace_expires_at: new Date(Date.now() + DIA).toISOString(),
           confidence_at_completion: 0.97,
+          status_note: 'nova tentativa 2/3: sem permissão',
         })
         .eq('id', testeId)
       expect(eu).toBeNull()
@@ -127,7 +128,7 @@ describe.skipIf(skipIfNoLocalDb())('ab-evaluate: duração máxima contra o banc
     const t = await lerTeste(testeId)
     expect(t).toMatchObject({
       status: 'completed', completed_reason: 'inconclusive', confidence_at_completion: null,
-      winner_variant_id: null, winner_applied_at: null, applied_by: null,
+      winner_variant_id: null, winner_applied_at: null, applied_by: null, grace_expires_at: null, status_note: null,
     })
     expect(t.restore_status).toMatchObject({ thumbnail: { estado: 'falhou', destino: 'original' } })
     expect(t.restore_seq).toBe(1)

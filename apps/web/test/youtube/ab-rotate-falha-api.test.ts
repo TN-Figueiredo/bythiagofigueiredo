@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as Sentry from '@sentry/nextjs'
 import { AGORA } from '../helpers/banco-ab'
-import { montarRotacao } from '../helpers/montar-saida-automatica'
+import { montarRotacao, settleOnAirFalso } from '../helpers/montar-saida-automatica'
 import { YouTubeApiError } from '@/lib/youtube/youtube-api-error'
 
 const { fanOut, preflight, canal } = vi.hoisted(() => ({ fanOut: vi.fn(), preflight: vi.fn(), canal: vi.fn() }))
@@ -107,4 +107,81 @@ describe('rotação do cron: falha de API (T8)', () => {
     await expect(phaseRotateActiveTests(banco.supabase)).resolves.toMatchObject({ errors: 1 })
     expect(Sentry.captureException).toHaveBeenCalledWith(expect.objectContaining({ message: 'settle caiu' }), expect.anything())
   })
+
+  it.each(['dailyLimitExceeded', 'rateLimitExceeded'])('T8 r1: reason %s (403) é cota: não conta, nota da cota, sem saída', async (reason) => {
+    const { banco, settle } = montarRotacao({ consecutiveFailures: 2, erroApi: new YouTubeApiError(403, reason, 'thumbnails.set') })
+    await phaseRotateActiveTests(banco.supabase)
+    expect(banco.teste()).toMatchObject({ status: 'active', status_note: expect.stringMatching(/cota do YouTube esgotada hoje/) })
+    expect((banco.teste().config as { consecutive_failures: number }).consecutive_failures).toBe(2)
+    expect(settle).not.toHaveBeenCalled()
+  })
+
+  it('T8 r1: 429 com outro reason conta, com a nota "cota"', async () => {
+    const { banco } = montarRotacao({ consecutiveFailures: 0, erroApi: new YouTubeApiError(429, 'tooManyRequests', 'thumbnails.set') })
+    await phaseRotateActiveTests(banco.supabase)
+    expect((banco.teste().config as { consecutive_failures: number }).consecutive_failures).toBe(1)
+    expect(banco.teste().status_note).toMatch(/nova tentativa 1\/3: cota/)
+  })
+
+  it('T8 r1: 429 rateLimitExceeded não conta (é cota)', async () => {
+    const { banco } = montarRotacao({ consecutiveFailures: 0, erroApi: new YouTubeApiError(429, 'rateLimitExceeded', 'thumbnails.set') })
+    await phaseRotateActiveTests(banco.supabase)
+    expect((banco.teste().config as { consecutive_failures?: number }).consecutive_failures ?? 0).toBe(0)
+    expect(banco.teste().status_note).toMatch(/cota do YouTube esgotada/)
+  })
+
+  it('T8 r1: a gravação da nota de cota confere o seq: 0 linhas vai ao Sentry', async () => {
+    const { banco, yt } = montarRotacao({ consecutiveFailures: 0, erroApi: new YouTubeApiError(403, 'quotaExceeded', 'thumbnails.set') })
+    yt.antesDeEscrever(() => { banco.setTeste({ restore_seq: 9 }) })
+    await phaseRotateActiveTests(banco.supabase)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-rotate: nota de cota não gravada', expect.anything())
+  })
+
+  it('T8 r1 (dado ausente): config sem consecutive_failures e config nulo: 403 grava 1', async () => {
+    const semChave = montarRotacao({ erroApi: forbidden() }) // consecutiveFailures indefinido: a chave nem existe
+    expect('consecutive_failures' in (semChave.banco.teste().config as object)).toBe(false)
+    await phaseRotateActiveTests(semChave.banco.supabase)
+    expect((semChave.banco.teste().config as { consecutive_failures: number }).consecutive_failures).toBe(1)
+    const nulo = montarRotacao({ erroApi: forbidden() })
+    nulo.banco.setTeste({ config: null })
+    await phaseRotateActiveTests(nulo.banco.supabase)
+    expect((nulo.banco.teste().config as { consecutive_failures: number }).consecutive_failures).toBe(1)
+  })
+
+  it('T8 r1 (mutante do relido): o contador vem da releitura do banco, não de test.config', async () => {
+    const { banco, yt, settle } = montarRotacao({ consecutiveFailures: 0, erroApi: forbidden() })
+    yt.antesDeEscrever(() => { banco.setTeste({ config: { ...(banco.teste().config as object), consecutive_failures: 2 } }) })
+    await phaseRotateActiveTests(banco.supabase)
+    expect(settle).toHaveBeenCalledWith(banco.testId, expect.objectContaining({ consecutiveFailures: 3 }))
+  })
+
+  it('T8 r1: o settle da 3ª falha leva prazo limitado ao fim da rota (inicio + 285 s) e seqEsperado = seq reivindicado', async () => {
+    const { banco, yt } = montarRotacao({ consecutiveFailures: 2, erroApi: forbidden() })
+    const seqAntes = banco.teste().restore_seq as number
+    yt.antesDeEscrever(() => { vi.advanceTimersByTime(45_000) }) // a rotação lenta consome 45 s: 235 s da rota
+    await phaseRotateActiveTests(banco.supabase, AGORA.getTime() - 190_000)
+    const arg = settleArgs(banco.testId)
+    expect(arg.prazo).toBe(AGORA.getTime() + 95_000) // min(agora + 55 s = +100 s, início + 285 s = +95 s)
+    expect(arg.seqEsperado).toBe(seqAntes + 1) // a reivindicação da rotação anda o seq em 1
+  })
+
+  it('T8 r1: sem aperto de tempo o prazo é agora + 55 s', async () => {
+    const { banco } = montarRotacao({ consecutiveFailures: 2, erroApi: forbidden() })
+    await phaseRotateActiveTests(banco.supabase, AGORA.getTime())
+    expect(settleArgs(banco.testId).prazo).toBe(AGORA.getTime() + 55_000)
+  })
+
+  it.each(['em_andamento', 'ja_encerrado'])('T8 r1: settle da 3ª falha que devolve %s vai ao Sentry', async (resultado) => {
+    const { banco, settle } = montarRotacao({ consecutiveFailures: 2, erroApi: forbidden() })
+    settle.mockResolvedValueOnce({ resultado, campos: null })
+    await phaseRotateActiveTests(banco.supabase)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-rotate: pausa por falha não feita', expect.objectContaining({ extra: expect.objectContaining({ resultado }) }))
+  })
 })
+
+function settleArgs(id: string): { prazo: number; seqEsperado: number } {
+  const chamadas = (vi.mocked(settleOnAirFalso).mock.calls as unknown as Array<[string, { prazo: number; seqEsperado: number }]>)
+  const c = chamadas.find((x) => x[0] === id)
+  if (!c) throw new Error('settle não chamado')
+  return c[1]
+}

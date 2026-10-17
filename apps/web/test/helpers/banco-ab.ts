@@ -102,6 +102,8 @@ export function criarBanco(o: OpcoesBanco = {}) {
         const id = `novo-${++ciclo}`
         cs.push({ id, test_id: a.p_test_id, cycle_number: num, variant_id: a.p_variant_id, started_at: agora, ended_at: null, applied_metadata: a.p_applied_metadata })
         const falhas = Number((t().config as Fila).consecutive_failures ?? 0)
+        const nota = String(t().status_note ?? '')
+        if (/^(nova tentativa |cota do YouTube esgotada|retry |auto-paused)/.test(nota)) t().status_note = null
         Object.assign(t(), { last_applied_variant_id: null, config: falhas ? { ...t().config, consecutive_failures: 0 } : t().config })
         return Promise.resolve({ data: id, error: null })
       }
@@ -111,6 +113,7 @@ export function criarBanco(o: OpcoesBanco = {}) {
       Object.assign(t(), { status: a.p_para, restore_seq: t().restore_seq + 1, restore_status: a.p_restore_status, last_applied_variant_id: null })
       if (a.p_para === 'paused') t().paused_at = agora
       for (const k of ['status_note', 'completed_reason', 'winner_variant_id']) if (k in extra) t()[k] = extra[k]
+      if (extra.limpar_carencia) t().grace_expires_at = null
       if (a.p_end_reason) tabelas.ab_test_cycles!.filter((c) => c.ended_at == null).forEach((c) => Object.assign(c, { ended_at: agora, end_reason: a.p_end_reason }))
       return Promise.resolve({ data: [{ claimed_seq: t().restore_seq, stamped_at: agora }], error: null })
     },

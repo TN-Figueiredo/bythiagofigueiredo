@@ -30,10 +30,10 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 describe('ab-evaluate: duração máxima por settleOnAir', () => {
   it('thumbnail no ar é a variante B: volta ao original, teste completed/inconclusive, ciclo com end_reason duracao_maxima', async () => {
     const { banco, yt } = montarEvaluate({ testType: 'thumbnail', expirou: true })
-    banco.setTeste({ winner_variant_id: 'B' }) // vencedor sugerido por uma versão antiga: encerrar como inconclusivo o limpa (S-C8)
+    banco.setTeste({ winner_variant_id: 'B', grace_expires_at: new Date(AGORA.getTime() + 86_400_000).toISOString(), status_note: 'nova tentativa 2/3: sem permissão' }) // vencedor sugerido por uma versão antiga: encerrar como inconclusivo o limpa (S-C8)
     const r = await phaseEvaluateActiveTests(banco.supabase)
     expect(r).toEqual({ evaluated: 1, resolved: 1, errors: 0 })
-    expect(banco.teste()).toMatchObject({ status: 'completed', completed_reason: 'inconclusive', winner_variant_id: null })
+    expect(banco.teste()).toMatchObject({ status: 'completed', completed_reason: 'inconclusive', winner_variant_id: null, grace_expires_at: null, status_note: null })
     expect(banco.teste().restore_status).toMatchObject({ thumbnail: { estado: 'ok', destino: 'original', escreveu: true } })
     expect(banco.cicloFechado(0)).toMatchObject({ end_reason: 'duracao_maxima' })
     expect(yt.escritas()).toEqual(['thumbnails.set'])
@@ -63,5 +63,14 @@ describe('ab-evaluate: duração máxima por settleOnAir', () => {
     expect(r).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
     expect(banco.teste().status).toBe('active')
     expect(yt.chamadas).toEqual([])
+  })
+
+  it('dado ausente: teste vencido sem nenhum ciclo aberto encerra inconclusivo, sem erro e sem ciclo alterado', async () => {
+    const { banco } = montarEvaluate({ testType: 'thumbnail', expirou: true })
+    banco.ciclos().splice(0, banco.ciclos().length)
+    const r = await phaseEvaluateActiveTests(banco.supabase)
+    expect(r.errors).toBe(0)
+    expect(banco.teste()).toMatchObject({ status: 'completed', completed_reason: 'inconclusive' })
+    expect(banco.ciclos()).toHaveLength(0)
   })
 })
