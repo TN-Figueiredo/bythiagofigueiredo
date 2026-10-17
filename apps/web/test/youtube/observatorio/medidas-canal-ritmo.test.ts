@@ -84,15 +84,31 @@ describe('bloco Ritmo: dado ausente', () => {
   })
 })
 
+describe('bloco Ritmo: limite sempre inteiro na tela', () => {
+  it('limite fracionário (48,000277…) sai "48", na régua e no aria-label, nunca o float cru', () => {
+    const e = entrada(seis, { estado: ativo(48.000277777777775, 14) })
+    const e2 = { ...e, medidas: { ...e.medidas!, m8: m8('ativo', { limite: 48.000277777777775, dias: 14 }) } }
+    const p = blocoDeRitmo(e2).ponteiro!
+    expect(p.limite).toBe(48)
+    const h = html(e2)
+    expect(h).toContain('parado: 48 d')
+    expect(h).not.toMatch(/48\.0002/)
+    expect(h).toContain('típico: 12 d')
+  })
+})
+
 describe('bloco Ritmo: fronteiras e frases', () => {
   it('as frases são as da tabela do NOTAS (ativo, fechado)', () => {
     const b = blocoDeRitmo(entrada(seis))
-    expect(b.frase.negrito).toBe('Publica 0,5 vídeos longos por semana,')
-    expect(b.frase.resto).toMatch(/^ e teve um longo em 6 de 13 semanas\. O maior intervalo sem publicar um longo, em 26 semanas, (foi de \d+ dias|é o que começou em \d\d\/\d\d e ainda não acabou: \d+ dias)\.$/)
+    expect(b.frase.negrito).toBe('Publica um longo a cada 7 dias.')
+    expect(b.frase.resto).toBe(' O último saiu há 3 dias.')
+    expect(`${b.frase.negrito}${b.frase.resto}`).not.toMatch(/por semana/)
   })
-  it('canal parado diz "Publicou … nas últimas 13 semanas"', () => {
+  it('canal parado diz "Parado: nenhum longo há N dias." e o que publicava antes', () => {
     const e = entrada(seis.map((v, i) => pub('p' + i, [40, 47, 54, 61, 68, 100][i]!)), { estado: estadoDaPagina(m8('parado'), sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA) })
-    expect(blocoDeRitmo(e).frase.negrito).toMatch(/^Publicou .* por semana nas últimas 13 semanas,$/)
+    const f = blocoDeRitmo(e).frase
+    expect(f.negrito).toBe('Parado: nenhum longo há 40 dias.')
+    expect(f.resto).toBe(' Antes, publicava um longo a cada 7 dias.')
   })
   it('semana lida sem publicação é caixa vazada com 0; com publicação leva o número', () => {
     const b = blocoDeRitmo(entrada(seis))
@@ -106,10 +122,14 @@ describe('bloco Ritmo: fronteiras e frases', () => {
     const vs = [3, 10, 17, 24, 31].map((d, i) => pub('s' + i, d, { isShort: true, durationSeconds: 30 }))
     const b = blocoDeRitmo(entrada(vs))
     expect(b.raias[0]!.rotulo).toBe('Shorts')
-    expect(b.frase.negrito).toMatch(/Shorts por semana,$/)
-    expect(b.frase.resto).toContain('um Short')
+    expect(b.frase.negrito).toBe('Publica um Short a cada 7 dias.')
     expect(b.raias[1]).toMatchObject({ rotulo: 'Longos', ausente: true })
     expect(html(entrada(vs))).toContain('nenhum vídeo longo nas 13 semanas')
+  })
+  it('raia de Shorts toda zero vira uma linha só: "nenhum Short nas 13 semanas"', () => {
+    const h = html(entrada(seis))
+    expect(h).toContain('nenhum Short nas 13 semanas')
+    expect(h).not.toContain('aria-label="Publicações por semana, Shorts')
   })
   it('a conta "4 × o intervalo" só aparece acima de 28; o rótulo leva "(longo ou Short)" com os dois formatos', () => {
     const baixo = blocoDeRitmo(entrada(seis, { estado: ativo(28) })).ponteiro!
@@ -117,8 +137,8 @@ describe('bloco Ritmo: fronteiras e frases', () => {
     const e = entrada([...seis, pub('sh', 2, { isShort: true })])
     const alto = blocoDeRitmo({ ...e, medidas: { ...e.medidas!, m8: m8('ativo', { limite: 38 }) } }).ponteiro!
     expect(alto.conta).toBe('4 × o intervalo típico, 9,5 dias')
-    expect(alto.rotulo).toBe('Dias desde o último vídeo (longo ou Short)')
-    expect(baixo.rotulo).toBe('Dias desde o último vídeo')
+    expect(alto.rotulo).toBe('desde o último vídeo (longo ou Short)')
+    expect(baixo.rotulo).toBe('desde o último longo')
   })
   it('o ponteiro de dias nunca passa do maior buraco quando o buraco é o que está aberto', () => {
     const vs = [60, 70, 80, 90, 95].map((d, i) => pub('b' + i, d))

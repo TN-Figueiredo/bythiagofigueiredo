@@ -21,7 +21,7 @@ function Casa({ c }: { c: CasaDaSemana }) {
 
 function Raia({ r }: { r: RaiaDeRitmo }) {
   if (r.ausente) {
-    return <div className="pc-sem"><b className="pc-semr">{r.rotulo}</b><p className="pc-semz"><ZeroMedido />nenhum vídeo longo nas {MEASURE_RULES.rhythm.weeks} semanas</p></div>
+    return <div className="pc-sem"><b className="pc-semr">{r.rotulo}</b><p className="pc-semz"><ZeroMedido />{r.rotulo === 'Longos' ? 'nenhum vídeo longo' : 'nenhum Short'} nas {MEASURE_RULES.rhythm.weeks} semanas</p></div>
   }
   return (
     <div className="pc-sem">
@@ -71,23 +71,22 @@ export function RitmoBloco({ bloco }: { bloco: BlocoDeRitmo }) {
       {p ? (
         <div className="pc-par">
           <div className="pc-dl">
-            <b>{p.rotulo}</b>
-            <span>vira “parado” depois de {p.limite} dias{p.conta ? ` (${p.conta})` : ''}</span>
+            <span className="pc-dn">
+              {p.passou ? <span className="pc-sim dn" aria-hidden="true">‖</span> : null}
+              <b className={`num${p.passou ? ' dn' : ''}`}>{p.dias} {p.dias === 1 ? 'dia' : 'dias'}</b>
+            </span>
+            <span>{p.rotulo}{p.ate ? `, até ${dm(p.ate)}` : p.pelaBusca ? ', pelo que já foi buscado' : ''}</span>
           </div>
           <div
             className="pc-rp"
             role="img"
-            aria-label={`${p.dias} ${p.dias === 1 ? 'dia' : 'dias'} sem publicar${p.ate ? `, até ${dm(p.ate)}` : ''}; o limite para “parado” é ${p.limite} dias`}
+            aria-label={`${p.dias} ${p.dias === 1 ? 'dia' : 'dias'} sem publicar${p.ate ? `, até ${dm(p.ate)}` : ''}${p.tipico !== null ? `; o intervalo típico é ${Math.round(p.tipico)} dias` : ''}; o limite para “parado” é ${p.limite} dias`}
           >
             <span className={`pc-rp-f${p.passou ? ' dn' : ''}`} style={{ width: `${Math.min(100, (100 * p.dias) / p.escala).toFixed(1)}%` }} />
-            <span className="pc-rp-l" style={{ left: `${((100 * p.limite) / p.escala).toFixed(1)}%` }}><i /><em>{p.limite} dias</em></span>
-          </div>
-          <div className="pc-dv">
-            {p.passou ? <span className="pc-sim dn" aria-hidden="true">‖</span> : null}
-            <span className="pc-dvx">
-              <b className={`num${p.passou ? ' dn' : ''}`}>{p.dias} {p.dias === 1 ? 'dia' : 'dias'}</b>
-              {p.ate ? <small>até {dm(p.ate)}</small> : p.pelaBusca ? <small>pelo que já foi buscado</small> : null}
-            </span>
+            {p.tipico !== null && p.tipico < p.limite ? (
+              <span className="pc-rp-t" style={{ left: `${((100 * p.tipico) / p.escala).toFixed(1)}%` }}><i /><em>típico: {Math.round(p.tipico)} d</em></span>
+            ) : null}
+            <span className="pc-rp-l" style={{ left: `${((100 * p.limite) / p.escala).toFixed(1)}%` }}><i /><em>parado: {p.limite} d</em></span>
           </div>
         </div>
       ) : null}
