@@ -96,6 +96,8 @@ export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
     return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' as medidas deste canal não carregaram agora.' }], null) // TEXTO-A-REVISAR
   }
   switch (e.estado.tipo) {
+    case 'nao_medido': // TEXTO-A-REVISAR
+      return montar('eq', 'aviso', [{ t: 'Ainda sem base para o estado:', k: 'forte' }, { t: ` ${e.estado.base}.` }], oracaoNormal)
     case 'saiu':
       return montar('eq', 'x', [{ t: `Os números valem até ${ate ?? 'a última leitura'}.`, k: 'forte' }], oracaoParada)
     case 'erro':

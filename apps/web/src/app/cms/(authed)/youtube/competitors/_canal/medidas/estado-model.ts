@@ -3,9 +3,10 @@
 import type { CanalLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { M8DoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
 import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
+import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
 import { dm, quando } from './formatos'
 
-export type TipoDeEstadoDaPagina = 'saiu' | 'erro' | 'primeira_busca' | 'pausado' | 'parado' | 'em_queda' | 'ativo' | 'nao_carregou'
+export type TipoDeEstadoDaPagina = 'saiu' | 'erro' | 'primeira_busca' | 'pausado' | 'parado' | 'em_queda' | 'ativo' | 'nao_carregou' | 'nao_medido'
 
 export interface SincDaPagina {
   state: 'ok' | 'atrasado' | 'erro' | 'backfill'
@@ -48,8 +49,13 @@ export function estadoDaPagina(
   if (canal?.collectionPausedAt || (m8?.estado.estado === 'medido' && m8.estado.valor === 'pausado')) {
     return { tipo: 'pausado', pastilha: 'Coleta pausada', base: 'a coleta deste canal está pausada', ate }
   }
-  if (m8 === null || m8.estado.estado !== 'medido') {
+  if (m8 === null || (m8.estado.estado === 'nao_medido' && classeDoMotivo(m8.estado.motivo) === 'nao_carregou')) {
     return { tipo: 'nao_carregou', pastilha: 'Não carregou', base: 'não carregou', ate }
+  }
+  if (m8.estado.estado !== 'medido') {
+    // os dados carregaram e não há base para o estado: "não medido", nunca "não carregou"
+    const m = m8.estado
+    return { tipo: 'nao_medido', pastilha: 'Não medido', base: FRASES[m.motivo]({ desde: m.desde, fechaEm: m.fechaEm, n: m.n, minimo: m.minimo }, 'canal').longa, ate }
   }
   const quem = extras.doisFormatos ? 'último longo ou Short' : 'último vídeo'
   const ult = m8.parado.estado === 'medido' ? m8.parado.valor : null

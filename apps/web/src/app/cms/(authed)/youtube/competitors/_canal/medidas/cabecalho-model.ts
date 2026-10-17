@@ -94,6 +94,7 @@ export function celulasDoCabecalho(o: EntradaDoCabecalho): CelulaDoCabecalho[] {
   // 3. Estado (em erro o estado é "não confirmado" e a faixa dá o título)
   const e = o.estado
   if (e.tipo === 'nao_carregou') out.push({ chave: 'estado', rotulo: 'Estado', valor: 'nao_carregou', base: NAO_CARREGOU, motivo: NAO_CARREGOU, detalhe: { chave: 'estado', estado: e } })
+  else if (e.tipo === 'nao_medido') out.push({ chave: 'estado', rotulo: 'Estado', valor: 'nao_medido', base: e.base, motivo: e.base, detalhe: { chave: 'estado', estado: e } })
   else if (e.tipo === 'erro') out.push({ chave: 'estado', rotulo: 'Estado', valor: 'nao_medido', base: e.base, motivo: e.base, detalhe: { chave: 'estado', estado: e } })
   else out.push({ chave: 'estado', rotulo: 'Estado', valor: 'medido', base: e.base, motivo: null, detalhe: { chave: 'estado', estado: e } })
 

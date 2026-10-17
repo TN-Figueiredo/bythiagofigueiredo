@@ -10,8 +10,8 @@ import { dm } from './formatos'
 import type { CelulaDoCabecalho } from './cabecalho-model'
 import './canal-medidas.css'
 
-const PASTILHA_CLASSE: Record<string, string> = { ativo: 'ativo', parado: 'parado', em_queda: 'queda', saiu: 'fora', erro: 'erro', primeira_busca: 'novo', pausado: 'novo', nao_carregou: 'novo' }
-const PASTILHA_GLIFO: Record<string, string> = { ativo: '✓', parado: '⏸', em_queda: '▼', saiu: '✕', erro: '!', primeira_busca: '↻', pausado: '⏸', nao_carregou: '!' }
+const PASTILHA_CLASSE: Record<string, string> = { ativo: 'ativo', parado: 'parado', em_queda: 'queda', saiu: 'fora', erro: 'erro', primeira_busca: 'novo', pausado: 'novo', nao_carregou: 'novo', nao_medido: 'novo' }
+const PASTILHA_GLIFO: Record<string, string> = { ativo: '✓', parado: '⏸', em_queda: '▼', saiu: '✕', erro: '!', primeira_busca: '↻', pausado: '⏸', nao_carregou: '!', nao_medido: '–' }
 
 function Valor({ c }: { c: CelulaDoCabecalho }) {
   if (c.valor === 'nao_carregou') return <span className="obs-md-nc"><span>Não carregou</span></span>

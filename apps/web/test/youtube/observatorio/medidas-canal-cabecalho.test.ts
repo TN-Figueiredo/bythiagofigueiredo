@@ -58,6 +58,23 @@ describe('as seis células', () => {
     expect(por(cs, 'estado').detalhe).toMatchObject({ estado: { pastilha: 'Primeira busca' } })
     expect(JSON.stringify(cs)).not.toMatch(/Ativo|0 de /)
   })
+  it('Yannis I1: M8 não medido (sem base) é "não medido", nunca "não carregou"; erro do banco ou M8 ausente seguem "não carregou"', async () => {
+    const { fraseDoTopo } = await import('@/app/cms/(authed)/youtube/competitors/_canal/medidas/frase-do-topo')
+    const { celulaDeDirecao } = await import('@/app/cms/(authed)/youtube/competitors/_canais/direcao-model')
+    const semBase = { ...m8('ativo'), estado: naoMedido('sem_publicacao') } as ReturnType<typeof m8>
+    const medidas = medidasFalsas({ m8: semBase })
+    const estado = estadoDaPagina(medidas.m8, sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA)
+    expect(estado.tipo).toBe('nao_medido')
+    const c = por(celulasDoCabecalho(entrada({ medidas, estado })), 'estado')
+    expect(c.valor).toBe('nao_medido')
+    expect(c.motivo?.trim().length ?? 0).toBeGreaterThan(0)
+    const frase = fraseDoTopo({ estado, direcao: celulaDeDirecao(m3a(118, 100), null), formato: FMT, ritmo: null, acerto: null, parado: null, queda: null, ultimoVideo: { tipo: 'nenhum' }, hojeSP: HOJE } as unknown as Parameters<typeof fraseDoTopo>[0])
+    expect(frase.texto).not.toMatch(/Não carregou/)
+    const falhou = { ...m8('ativo'), estado: naoMedido('leitura_falhou') } as ReturnType<typeof m8>
+    const e2 = estadoDaPagina(falhou, sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA)
+    expect(e2.tipo).toBe('nao_carregou')
+    expect(estadoDaPagina(null, sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA).tipo).toBe('nao_carregou')
+  })
   it('sem o grupo C: Criador responde diz que a medida chega com a tela de comentários, sem "ainda não começou" nem "parada"', () => {
     const c = por(celulasDoCabecalho(entrada()), 'criador')
     expect(c.valor).toBe('nao_medido')
