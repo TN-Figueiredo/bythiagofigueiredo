@@ -1,6 +1,6 @@
 # A5, X3: coleta de playlists e seções dos canais concorrentes (plano de implementação)
 
-Escrito em 17/10/2026 (trem 6). **1º rascunho com a 1ª revisão aplicada** (Phil e Yannis: aprovado com consertos, seção "Consertos da 1ª revisão" abaixo; falta a re-revisão das emendas). Sem tela.
+Escrito em 17/10/2026 (trem 6). **1º rascunho com a 1ª revisão aplicada** (Phil e Yannis: aprovado com consertos, seção "Consertos da 1ª revisão" abaixo; a 2ª rodada (re-revisão Sonnet de Phil e Yannis) aplicada em seguida, seção "Consertos da 2ª rodada"; falta a re-revisão final). Sem tela.
 
 **Origem e liberação.** O dono reabriu a decisão 32 em 17/10 ("siga com as recomendações"). Pareceres:
 `.superpowers/sdd/a5/noite/decisoes-17-10-phil.md` (item 1), `decisoes-17-10-yannis.md` (item 1), `decisoes-17-10-hanna.md`
@@ -52,6 +52,29 @@ P-2 mantém 40/10/600; P-3 D-3; P-4 capa fora do hash e resposta inteira na vers
 | Yannis M-6 | "última versão" por `observed_at desc, id desc limit 1` | Apêndice |
 | P-1 a P-5 | decididos (seção 13) | §13 |
 | Q1 do Phil | medida em 17/10 (leitura horária em produção, 89 rodadas em 7 dias): p50 2,5 s, p90 3,3 s, p99 5,2 s; não aperta o orçamento de 50 s | §5 |
+
+---
+
+## Consertos da 2ª rodada (re-revisão de Phil e Yannis, 17/10, TK)
+
+Pareceres: `.superpowers/sdd/a5/noite/t6-x3-rerevisao-yannis.md` (J1 a J5 e menores) e `t6-x3-rerevisao-phil.md` (N1 a N5). Tudo aplicado;
+onde o corpo diz outra coisa, vale o corpo. Harmonização do controlador: J1 = N1, J3 = N2 (uma coluna só, `items_complete_at`), J2 + N5, J5 + N4.
+
+| Achado | O que mudou | Onde |
+|---|---|---|
+| J1 = N1 | **devido** = `last_cycle_at` nulo, **ou** 7 dias ou mais, **ou** `last_cycle_at < last_visit_at` (visita que não fechou a volta), e uma visita por dia (não lê `last_reason`); **playlist devida** = `items_read_at` nulo ou 6 dias ou mais (mais a que ficou com motivo recuperável em dia anterior, senão a saída em massa nunca confirmaria no dia seguinte); `p_ciclo` só com `playlists_left = 0`, lista completa (ou vazia já confirmada) e nenhum motivo recuperável na visita inteira, calculado por `calcularCiclo` (puro, com teste); estruturais (`teto_itens`, `contagem_difere`, `itens_incoerentes`) sempre estruturais, sem "duas visitas"; `lerCanais` devolve `items_status`/`items_reason` por playlist | §4.4 (0, 4), §4.5, §4.6, T4, T5, Apêndice `p_ciclo` |
+| J3 = N2 | coluna **`items_complete_at`** em `competitor_playlists`, carimbada só com `p_complete` **e** sem saída em massa pendente; `removed_after` = o valor anterior dela (nulo = "sem leitura completa anterior"); `items_read_at` só ordena a fila; x3-d30 aceita `removed_after` nulo nessa razão | §4.1, §4.2, T1, T8, §11, Apêndice |
+| J2 + N5 | portão monotônico no **topo** de `items_record` (`p_now` < `items_read_at` → devolve `{atrasada: true}` sem tocar em itens nem em `removed_since`) e em `playlists_record` (`p_now` < `max(last_seen_at)` do canal → `atrasada`) | §4.2, §6, T1, Apêndice |
+| J5 + N4 | `recordQuota` com `Promise.race` contra `BANCO_MS`, dentro de `try/finally` depois do `visit_close` (a cota entra mesmo se o fecho lançar); estouro ou erro = `cota_nao_registrada`; teste com promessa que nunca resolve | §4.4 passo 6, §4.6, T5 |
+| Phil N5 (leitura) | falha ao ler `youtube_quota_usage` no começo do `rodar` = `erro` `gravacao_falhou`, nunca 0 (linha ausente do dia = 0 legítimo) | §4.5, §4.6, §6, T6 |
+| Phil N3 / Yannis (extra) | `extra: { x3_teto_por_canal: 1 }` só nas visitas cortadas pelo teto; a soma (`p_add`) dá o número de visitas cortadas do dia | §4.6, T5, T6 |
+| J4 | coluna `first_visit_at` em `competitor_playlist_reads` (só no 1º insert); `canais_sem_volta_14d` conta `coalesce(last_cycle_at, first_visit_at) < now() - 14 d` (tarefa e x3-d7) | §4.1, §4.6, T4, T6, §11, Apêndice |
+| Yannis: `distinct on` | insert de versões com `distinct on (playlist_id)` | Apêndice (`playlists_record`), T1 |
+| Yannis: tri-state | `p_lista_vazia` e `p_secoes_vazias` nulos preservam `empty_streak`/`sections_empty_streak`; `false` zera; `true` soma | §4.2, T1, Apêndice |
+| Yannis: `lerCanais` | uma leitura **por disparo** (3 consultas com `in`: leituras, playlists, estado das seções), no lugar de `lerCanal` por canal | §4.4 (0), §4.6, T5, T6 |
+| Yannis: 1ª chamada barrada | se o relógio barra a **1ª** chamada à API da visita, ela não chama `visit_close` nem entra em `feitas` | §4.4 passo 5, T5 |
+| Yannis: `naoTerminouVermelhoEm` | 6 → **9** | §4.6 |
+| Dívidas declaradas (Yannis) | `position` reescreve a playlist com item no topo; `unfinished_n` compartilhado entre `parcial` e `adiada`: aceitos, no §12 | §12 |
 
 ---
 
@@ -135,10 +158,10 @@ playlist). Nenhuma chave estrangeira para `competitor_videos`: item de playlist 
 
 | Tabela | Uma linha por | Muda como |
 |---|---|---|
-| `competitor_playlist_reads` | canal | estado da última visita (dia de São Paulo, `ok`/`parcial`/`erro`, motivo, unidades, playlists que ficaram, última volta completa `last_complete_at` e última volta **terminada** `last_cycle_at`, contadores de "vazio a confirmar") |
-| `competitor_playlists` | playlist do canal (`unique (competitor_channel_id, playlist_id)`; `check` recusa `UU…`, `LL…`, `FL…`) | `last_seen_at` e `item_count` no lugar; `missing_since` só com lista completa; estado da leitura dos itens (`items_read_at`, `items_status`, `items_reason`, `mass_exit_day`) |
+| `competitor_playlist_reads` | canal | estado da última visita (dia de São Paulo, `ok`/`parcial`/`erro`, motivo, unidades, playlists que ficaram, última volta completa `last_complete_at` e última volta **terminada** `last_cycle_at`, `first_visit_at` (1ª visita, nunca muda), contadores de "vazio a confirmar") |
+| `competitor_playlists` | playlist do canal (`unique (competitor_channel_id, playlist_id)`; `check` recusa `UU…`, `LL…`, `FL…`) | `last_seen_at` e `item_count` no lugar; `missing_since` só com lista completa; estado da leitura dos itens (`items_read_at` só para a ordem da fila, `items_complete_at` = última leitura **completa** sem saída em massa pendente, `items_status`, `items_reason`, `mass_exit_day`) |
 | `competitor_playlist_versions` | estado distinto da playlist (título, descrição, idioma, privacidade, localizações) | insert só quando o hash muda (padrão X1); a 1ª linha é "pelo menos desde"; `raw` guarda o item inteiro da API sem `etag` (capa e `itemCount` de cada versão ficam de graça, P-4); `prev_seen_at` = quando o estado anterior foi visto pela última vez |
-| `competitor_playlist_items` | item de playlist (`primary key (playlist_ref, item_id)`; o `item_id` do YouTube muda se o vídeo sai e volta) | `position` no lugar quando muda; `removed_since` só com leitura completa e confirmada da playlist, com `removed_after` (a `items_read_at` anterior: a saída foi entre as duas); reaparecer limpa os dois; `note` do criador |
+| `competitor_playlist_items` | item de playlist (`primary key (playlist_ref, item_id)`; o `item_id` do YouTube muda se o vídeo sai e volta) | `position` no lugar quando muda; `removed_since` só com leitura completa e confirmada da playlist, com `removed_after` (o `items_complete_at` anterior da playlist: a saída foi entre as duas; nulo = sem leitura completa antes); reaparecer limpa os dois; `note` do criador |
 | `competitor_channel_sections` | estado distinto da vitrine (lista de seções ordenada por posição) | insert só quando o hash muda; `prev_seen_at` = `last_visit_at` anterior do canal |
 
 `competitor_playlists.id` é `uuid` (não o id do YouTube): o mesmo canal pode estar em dois sites, e o índice antigo do
@@ -153,10 +176,10 @@ com tupla morta); aceito para ~24 canais. Reavaliar com 3× canais.
 
 | Função | Faz | Recusa |
 |---|---|---|
-| `competitor_x3_playlists_record(p_site, p_channel, p_now, p_rows, p_complete)` | upsert das playlists vistas; versão nova quando o hash muda (com `prev_seen_at`); com `p_complete` marca `missing_since` nas não vistas e limpa nas que voltaram; devolve `{playlist_id → id}` | canal fora do site, ausente (`missing_since`) ou pausado (`collection_paused_at`) → `X3:canal_indisponivel`; linha `UU…` → `check` (23514) |
-| `competitor_x3_items_record(p_site, p_channel, p_playlist, p_now, p_rows, p_complete, p_status, p_reason)` | upsert dos itens; com `p_complete` marca `removed_since` (+ `removed_after`) nos não vistos, salvo saída em massa (> metade e > 5), que fica a confirmar por outro dia; grava o estado da leitura na playlist; monotônico em `p_now` | idem; playlist de outro canal → `X3:playlist_de_outro_canal` |
+| `competitor_x3_playlists_record(p_site, p_channel, p_now, p_rows, p_complete)` | upsert das playlists vistas; versão nova quando o hash muda (com `prev_seen_at`); com `p_complete` marca `missing_since` nas não vistas e limpa nas que voltaram; devolve `{playlist_id → id}`; portão monotônico (`p_now` < `max(last_seen_at)` do canal → `{atrasada: true}`, nada gravado) | canal fora do site, ausente (`missing_since`) ou pausado (`collection_paused_at`) → `X3:canal_indisponivel`; linha `UU…` → `check` (23514) |
+| `competitor_x3_items_record(p_site, p_channel, p_playlist, p_now, p_rows, p_complete, p_status, p_reason)` | upsert dos itens; com `p_complete` marca `removed_since` (+ `removed_after`) nos não vistos, salvo saída em massa (> metade e > 5), que fica a confirmar por outro dia; grava o estado da leitura na playlist e carimba `items_complete_at` só com `p_complete` sem saída em massa; **portão monotônico no topo** (`p_now` mais velho que `items_read_at` → `{atrasada: true}`, nada gravado) | idem; playlist de outro canal → `X3:playlist_de_outro_canal` |
 | `competitor_x3_sections_record(p_site, p_channel, p_now, p_sha, p_raw)` | insert só se o último hash do canal difere | idem |
-| `competitor_x3_visit_close(p_site, p_channel, p_now, p_status, p_reason, p_units, p_left, p_lista_vazia, p_secoes_vazias, p_ciclo)` | grava/atualiza a linha de `competitor_playlist_reads`; zera ou soma os contadores de vazio; carimba `last_complete_at` só com `ok` e `last_cycle_at` com `ok` ou `p_ciclo`; monotônico em `last_visit_at` (visita atrasada não sobrescreve a mais nova) | idem |
+| `competitor_x3_visit_close(p_site, p_channel, p_now, p_status, p_reason, p_units, p_left, p_lista_vazia, p_secoes_vazias, p_ciclo)` | grava/atualiza a linha de `competitor_playlist_reads`; grava `first_visit_at` só no 1º insert; contadores de vazio tri-state (`p_lista_vazia`/`p_secoes_vazias` nulo preserva, `false` zera, `true` soma); carimba `last_complete_at` só com `ok` e `last_cycle_at` com `ok` ou `p_ciclo`; monotônico em `last_visit_at` (visita atrasada não sobrescreve a mais nova) | idem |
 
 Cada função toma `pg_advisory_xact_lock(hashtextextended('x3:' || p_channel, 0))` antes de escrever (duas visitas do mesmo
 canal não se cruzam; a agenda já garante uma tomada por período, isto é defesa).
@@ -177,22 +200,27 @@ lê o catálogo. `TABELAS_COM_IDENTIDADE` ganha `competitor_playlist_versions` e
 ### 4.4 A visita de um canal (código)
 
 Ordem das chamadas, com o contador de unidades da visita (`u`) e o teto `RULES.x3.unidadesPorVisita`:
-0. `ops.lerCanal(siteId, channelId)` (Yannis M-3): playlists presentes do canal (`id`, `playlist_id`, `items_read_at`, `item_count`,
-   `missing_since`), `empty_streak`, `sections_empty_streak`, `ultima_secao_vazia`. **Falha na leitura = visita `erro`, nunca "nenhuma
+0. `ops.lerCanais(siteId, channelIds)` (Yannis M-3, J-menor): **uma vez por disparo**, 3 consultas com `in` (leituras de `competitor_playlist_reads`,
+   playlists presentes, estado das seções). Por canal: playlists presentes (`id`, `playlist_id`, `items_read_at`, `items_status`, `items_reason`,
+   `item_count`, `missing_since`), `empty_streak`, `sections_empty_streak`, `ultima_secao_vazia`. **Falha na leitura = tarefa `erro`, nunca "nenhuma
    vista"** (Phil M-5; senão a tarefa releria os 24 canais, ~290 unidades).
 1. `channelSections.list?part=snippet,contentDetails&channelId=…` (u+1).
 2. `playlists.list?part=snippet,contentDetails,status,localizations&channelId=…&maxResults=50&pageToken=…` até acabar o
    `nextPageToken` (u+1 por página). Filtra `UU`, `LL`, `FL` no código **e** o `check` do banco recusa.
 3. Grava a lista (`competitor_x3_playlists_record`) com `p_complete` verdadeiro **só se** todas as páginas vieram, nenhuma
    falhou, o teto não cortou, `pageInfo.totalResults` bate (ausente = `total: null`, nunca comparado com 0) e a lista não é "vazia a confirmar" (4.5).
-4. Para cada playlist, na ordem `items_read_at` mais antigo primeiro (nulo antes): `playlistItems.list?part=snippet,contentDetails,status&playlistId=…&maxResults=50`,
+4. Para cada playlist **devida** (`items_read_at` nulo ou de 6 dias ou mais, ou com motivo recuperável gravado em dia anterior; a de menos de 6 dias é pulada, a volta de 7 dias tem jitter de cron), na ordem `items_read_at` mais antigo primeiro (nulo antes): `playlistItems.list?part=snippet,contentDetails,status&playlistId=…&maxResults=50`,
    até `RULES.x3.paginasDeItensPorPlaylist` páginas (u+1 por página). Grava ao fim de cada playlist (o que foi lido fica
    mesmo se o tempo acabar). `p_complete` só quando (a) todas as páginas vieram sem erro e sem corte **e** (b) `pageInfo.totalResults`
    está presente e é igual ao número de itens lidos (antes do descarte de `videoId` inválido); (b) falhou → `items_status = 'parcial'`,
    `items_reason = 'contagem_difere'`, sem `removed_since`.
 5. Para quando `u` alcança o teto (antes de começar a chamada que passaria dele) ou quando o relógio da tarefa manda
    (nenhuma chamada nova depois de `chamadaComecaAteMs`, seção 4.6).
-6. Fecha a visita (`competitor_x3_visit_close`) e, em seguida, registra a cota **daquela visita** (`recordQuota`, 4.6).
+   Se o relógio barra a **1ª** chamada à API do canal, a visita não começou: não chama `visit_close` e não entra em `feitas`.
+6. `try { competitor_x3_visit_close(…, p_ciclo) } finally { recordQuota(…) }`: a cota **daquela visita** entra mesmo se o fecho lançar; o
+   `recordQuota` corre contra `Promise.race` de `BANCO_MS` (estouro ou erro = `cota_nao_registrada`, a visita não cai; J5, N4).
+   `playlists_left` = playlists devidas não lidas nesta visita. `p_ciclo = calcularCiclo(visita)` (puro): verdadeiro só se `playlists_left = 0`, a lista
+   veio completa (ou vazia já confirmada) e **nenhuma** playlist nem a lista ficou com motivo recuperável (4.5).
 
 O que se grava de cada item: `item_id`, `youtube_video_id` (11 caracteres, conferido), `position`, `added_at`
 (`snippet.publishedAt`), `video_published_at` (`contentDetails.videoPublishedAt`), `video_owner_channel_id`, `privacy`
@@ -221,7 +249,7 @@ O hash das seções é da lista ordenada por `snippet.position`, cada uma sem `e
 | Itens: lista vazia com `item_count > 0`, **ou** com `item_count` nulo e itens já presentes (Phil M-1) | nada, `items_status = 'parcial'` | `parcial`, `itens_incoerentes` |
 | Itens: leitura completa mas `totalResults` ausente ou diferente do lido (Phil I-1) | os itens lidos, sem `removed_since`; `items_status = 'parcial'` | `parcial`, `contagem_difere` |
 | Itens: leitura completa em que a saída atinge mais da metade dos presentes (e mais de 5) | os itens lidos, **sem** `removed_since`; `mass_exit_day` = hoje | `parcial`, `saida_em_massa_a_confirmar`; a visita seguinte, de outro dia, confirma e grava `removed_since` |
-| Falha ao ler o estado do canal no banco (`lerCanal`) ou `competitor_playlist_reads` (Phil M-5) | nada | `erro`, `gravacao_falhou`; nunca "nenhum visto" |
+| Falha ao ler o estado do canal no banco (`lerCanais`), `competitor_playlist_reads` (Phil M-5) ou `youtube_quota_usage` (Phil N5) | nada | `erro`, `gravacao_falhou`; nunca "nenhum visto" nem unidades 0 (linha ausente do dia = 0 legítimo; erro de leitura não) |
 | Playlist some entre a lista e os itens (404 `playlistNotFound`) | nada; `items_status = 'erro'`; **não** marca `missing_since` (só a lista completa marca) | `parcial`, `playlist_sumiu_no_meio` |
 | Seções: lista vazia e havia seção | não grava a versão vazia; `sections_empty_streak + 1` | `parcial`, `secoes_vazias_a_confirmar` |
 | `403 quotaExceeded` | o que já foi lido | visita `parcial`/`erro`, `cota_esgotada`; a tarefa **para** (nenhum outro canal) |
@@ -230,19 +258,24 @@ O hash das seções é da lista ordenada por `snippet.position`, cada uma sem `e
 `last_complete_at` só é carimbado com visita `ok` (lista completa, todas as playlists com itens `ok`, seções gravadas ou
 iguais).
 
-**Motivos recuperáveis × estruturais (Phil I-4, P-1).** Recuperáveis: `lista_cortada`, `cota_esgotada`, `sobrou`, `itens_cortados`,
-`teto_por_canal` com `playlists_left > 0`, `lista_vazia_a_confirmar`, `secoes_vazias_a_confirmar`, `saida_em_massa_a_confirmar`,
-`erro`: tornam o canal devido no dia seguinte. Estruturais (`teto_itens`, `contagem_difere`, `itens_incoerentes` na mesma
-playlist em duas visitas seguidas): **não** tornam; a visita fica `parcial` com o motivo (honesta) e grava `last_cycle_at` (volta
-terminada: toda playlist tentada até o teto, `p_ciclo`). **Devido** = `last_cycle_at` nulo ou com 7 dias ou mais, **ou** motivo
-recuperável numa visita de dia anterior. Uma visita por canal por dia de São Paulo, no máximo. Alarme do disparo: só canal sem
-`last_cycle_at` em 14 dias (`canais_sem_volta_14d`), nunca por condição que ninguém consegue consertar.
+**Motivos recuperáveis × estruturais, devido e volta (Phil I-4, P-1; 2ª rodada J1 = N1).** Recuperáveis: `lista_cortada`, `cota_esgotada`, `sobrou`,
+`itens_cortados`, `teto_por_canal` com `playlists_left > 0`, `lista_vazia_a_confirmar`, `lista_*_a_confirmar`, `secoes_vazias_a_confirmar`,
+`saida_em_massa_a_confirmar`, `erro`. Estruturais, **sempre** (sem "duas visitas seguidas": o motivo anterior por playlist não é gravado): `teto_itens`,
+`contagem_difere`, `itens_incoerentes`; a visita fica `parcial` honesta e o retorno natural é o da semana seguinte.
+- **Playlist devida:** `items_read_at` nulo ou de 6 dias ou mais; também a que ficou com `items_status` `parcial`/`erro` e motivo recuperável gravado em dia
+  anterior (senão a confirmação da saída em massa esperaria 6 dias). `playlists_left` = devidas não lidas nesta visita.
+- **`p_ciclo = true`** só se, ao fim da visita, `playlists_left = 0`, a lista veio completa (ou vazia já confirmada) e nenhum motivo recuperável apareceu na visita
+  inteira (lista, seções ou qualquer playlist). Canal de 400 playlists com teto 40 nunca carimba `last_cycle_at` por isso (`playlists_left > 0`).
+- **Canal devido** = `last_cycle_at` nulo, **ou** de 7 dias ou mais, **ou** `last_cycle_at < last_visit_at` (visita que não fechou a volta), e `last_visit_day`
+  anterior a hoje em São Paulo (uma visita por canal por dia, no máximo). Não lê `last_reason`: `contagem_difere` numa playlist não esconde a saída em massa de outra.
+- **Alarme do disparo:** `canais_sem_volta_14d` = canais com `coalesce(last_cycle_at, first_visit_at) < now() - 14 dias` (J4: canal que nunca terminou a volta
+  também conta, a partir da 1ª visita), nunca por condição que ninguém consegue consertar.
 
 ### 4.6 A tarefa na agenda
 
 `playlists_semanais`, rótulo "playlists e seções dos concorrentes", `ordem: 5.7` (depois de `marcas_de_idade`, antes das
 pesadas), peso `leve`, período `dia`, `aPartirDaHoraSP: 7`, `tetoTentativas: 12`, `toleranciaVigiaH: 36`,
-`naoTerminouVermelhoEm: 6`, `comecaAteMs: 50_000` (= `X3_RULES.canalComecaAteMs`, escrito por extenso porque `definicoes.ts` não importa código de coleta; teste confere a igualdade), `fimAteMs: 85_000`, **`ligaCom: 'OBS_X3_PLAYLISTS'`** (campo
+`naoTerminouVermelhoEm: 9`, `comecaAteMs: 50_000` (= `X3_RULES.canalComecaAteMs`, escrito por extenso porque `definicoes.ts` não importa código de coleta; teste confere a igualdade), `fimAteMs: 85_000`, **`ligaCom: 'OBS_X3_PLAYLISTS'`** (campo
 novo da `Definicao`: a tarefa só liga com o valor exato `on`; ausente, vazio, `ON`, `1` ou qualquer outro valor = desligada).
 `tarefasDesligadas` passa a pôr na lista as tarefas com `ligaCom` sem `on` (**a regra vem antes do retorno antecipado** de
 `OBS_AGENDA_TASKS_OFF` ausente, Yannis M-4; o tipo do catálogo vira `Pick<Tarefa, 'nome' | 'nuncaDesliga' | 'ligaCom'>`; o catálogo
@@ -251,9 +284,9 @@ escrever o motivo "tarefa ainda não ligada (OBS_X3_PLAYLISTS)". Assim o executo
 mesmo caminho das outras desligadas. `OBS_AGENDA=off` também a desliga (não é `nuncaDesliga`).
 
 `rodar`: guarda de schema das cinco tabelas (`schema_ausente` se a migration não foi aplicada, mesmo com a variável `on`);
-`linhas` nula → `canais_nao_lidos`; lê `competitor_playlist_reads` dos canais das linhas (uma consulta, `Map` por canal; **falha =
+`linhas` nula → `canais_nao_lidos`; lê o estado dos canais das linhas com `lerCanais` (3 consultas com `in`, `Map` por canal; **falha =
 `erro`**, nunca "nenhum visto", Phil M-5); lê **uma vez por disparo** `youtube_quota_usage.operations->>'competitors_playlists'`
-do dia do Pacífico (as unidades já gastas hoje); planeja (puro); visita os devidos em ordem (nunca vistos primeiro, depois
+do dia do Pacífico (as unidades já gastas hoje; **falha ao ler = `erro` `gravacao_falhou`, nunca 0**, Phil N5); planeja (puro); visita os devidos em ordem (nunca vistos primeiro, depois
 `last_visit_at` mais antigo).
 
 **Tempo (Phil I-3 = Yannis I-1, vale o mais estrito).** Nenhuma chamada à API começa depois de
@@ -263,9 +296,10 @@ cabem `items_record`, `recordQuota` e `visit_close` de 5 s cada, 83 s + 2 s de f
 **não gasta tentativa** (Yannis I-2; `competitor_agenda_claim` só perdoa `parcial` com progresso). `sobrou` só com `feitas >= 1`.
 `regras.ts` traz a fórmula e um teste a recalcula das constantes (padrão `relogio.ts`).
 
-**Cota por visita (Phil I-2 = Yannis I-3).** `recordQuota` com `mode: 'competitors_playlists'` e `extra: { x3_teto_por_canal: n }`
-é chamada **ao fim de cada visita**, depois da última chamada à API do canal e do `competitor_x3_visit_close`, com as unidades da
-visita. Falha dela não derruba a visita: soma em `detalhe.cota_nao_registrada` (convenção do despachante, que vira problema
+**Cota por visita (Phil I-2 = Yannis I-3).** `recordQuota` com `mode: 'competitors_playlists'`, e `extra: { x3_teto_por_canal: 1 }` **só** na visita cortada pelo teto
+(`extra` soma via `p_add`: o dia mostra o número de visitas cortadas, não 40 × visitas), é chamada **ao fim de cada visita**, num `try/finally`
+depois do `competitor_x3_visit_close`, com as unidades da visita e `Promise.race` contra `BANCO_MS` (promessa que nunca resolve não trava a tarefa).
+Falha, estouro ou `visit_close` que lançou não derrubam a visita nem a cota: soma em `detalhe.cota_nao_registrada` (convenção do despachante, que vira problema
 vermelho). Execução cortada por `passou_do_tempo` não perde a cota das visitas já feitas. O teto do dia soma o lido de
 `youtube_quota_usage` (começo do `rodar`) com as unidades gastas na execução.
 
@@ -317,9 +351,9 @@ Já na tabela de 4.5. Mais:
   falso (`erro`, `canal_pausado`). O export da E10 espera 6 min depois de pausar; a visita inteira cabe em 85 s.
 - **Canal removido no meio:** a cascata leva as linhas; a função seguinte recusa; idem.
 - **Gravação falha depois da leitura:** visita `erro` `gravacao_falhou`; nada marcado como lido; o canal volta no dia seguinte.
-- **Leitura de `competitor_playlist_reads`/`lerCanal` falha:** `erro`, nunca "nenhum visto" (Phil M-5).
+- **Leitura de `competitor_playlist_reads`/`lerCanais` ou de `youtube_quota_usage` falha:** `erro` `gravacao_falhou`, nunca "nenhum visto" nem 0 (Phil M-5, N5).
 - **Seções desligadas na origem (API devolve `[]` para todos):** falha em verde muda; o detalhe traz `canais_com_secoes` e a conferência x3-d7 cobra `> 0` (Phil M-2).
-- **Gravação atrasada de execução abandonada** (`passou_do_tempo`): as funções `visit_close` e `items_record` são monotônicas, não sobrescrevem estado mais novo (Yannis M-1).
+- **Gravação atrasada de execução abandonada** (`passou_do_tempo`): as funções `visit_close`, `items_record` (portão no topo, devolve `atrasada`) e `playlists_record` (`max(last_seen_at)`) são monotônicas e não sobrescrevem estado mais novo (Yannis M-1, J2; Phil N5).
 
 ## 7. Desvios do esboço do spec (§4.4)
 
@@ -409,7 +443,13 @@ A C1 (playlists e itens por canal, projeção em MB, portão de 15 MB) **saiu da
    - `visit_close`: `ok` carimba `last_complete_at` e `last_cycle_at`; `parcial` não carimba `last_complete_at`, e carimba `last_cycle_at`
      só com `p_ciclo`; `p_lista_vazia` soma `empty_streak`, `ok` zera; **monotônico** (Yannis M-1): `visit_close` com `p_now` 10:20 `ok`, depois
      com 10:00 `parcial` → a linha continua `ok` às 10:20; idem `items_read_at` em `items_record`;
-   - **janela da mudança** (Phil I-6): item some na 2ª leitura completa → `removed_after` = `items_read_at` da 1ª; versão nova de playlist →
+   - **portão monotônico** (J2, N5): `items_record` com `p_now` novo e depois `p_now` velho, `p_complete = true`, lista sem o item → nada marcado, retorno
+     `atrasada`; `playlists_record` com `p_now` velho → `atrasada`, nenhum `missing_since`;
+   - **`items_complete_at` e `removed_after`** (J3 = N2): completa em t1, parcial, completa sem o item → `removed_after` = t1; saída em massa no dia D e confirmada
+     em D+1 → `removed_after` = a última completa **antes** de D; parcial entre duas completas não move `removed_after`; playlist sem leitura completa anterior → nulo;
+   - **`first_visit_at`** (J4): 1º `visit_close` grava; o 2º não muda; **tri-state**: `p_lista_vazia` nulo preserva `empty_streak`, `false` zera, `true` soma (idem seções);
+     `playlists_record` com a mesma playlist duplicada em `p_rows` → uma versão só (`distinct on`);
+   - **janela da mudança** (Phil I-6): item some na 2ª leitura completa → `removed_after` = `items_complete_at` da 1ª; versão nova de playlist →
      `prev_seen_at` = `last_seen_at` anterior; versão nova de seção → `prev_seen_at` = `last_visit_at` anterior; item que volta limpa os dois;
    - **saída em massa** (Phil I-1): 30 presentes, leitura completa traz 10 → nenhum `removed_since`, `items_reason = 'saida_em_massa_a_confirmar'`,
      `mass_exit_day` = hoje; segunda vez em **outro dia** → marca 20 e zera `mass_exit_day`; segunda vez no mesmo dia → continua sem marcar;
@@ -498,7 +538,10 @@ fixtures em `apps/web/test/fixtures/youtube/x3-*.json` (das amostras da Tarefa 0
    há 6 dias e 23 h → não devido; há 7 dias → devido; `parcial` com motivo **recuperável** (`lista_cortada`) ontem → devido; `parcial`
    `teto_itens` ontem com `last_cycle_at` há 2 dias → **não** devido (Phil I-4); `parcial` hoje → não devido; canal com `missing_since`
    → fora; ordem: nunca vistos, depois `last_visit_at` mais antigo, desempate por id; dia de São Paulo na virada (02:59Z e 03:00Z);
-   `canais_sem_volta_14d` conta só canal sem `last_cycle_at` em 14 dias; o teto corta a lista quando
+   `canais_sem_volta_14d` conta `coalesce(last_cycle_at, first_visit_at)` com mais de 14 dias (J4: canal sem `last_cycle_at` visitado há 15 dias entra; há 10, não);
+   **J1/N1:** `last_cycle_at` < `last_visit_at` e visita de ontem → devido, mesmo com `last_reason = 'contagem_difere'`; `contagem_difere` numa playlist + `playlists_left = 3` → devido
+   amanhã; só `teto_itens` com todas tentadas → não devido; `p_ciclo`/`last_cycle_at` = `last_visit_at` hoje → não devido; playlist lida há 3 dias é pulada, há 6 dias é devida;
+   playlist com `saida_em_massa_a_confirmar` de ontem é devida; o teto corta a lista quando
    `unidadesJaGastasHoje + estimativa > unidadesPorDia`.
 2. Implementar com `Map` por canal (sem `find` em laço). O planejador recebe `unidadesJaGastasHoje: number` como **entrada** (lido de
    `youtube_quota_usage` pelo `rodar`, dia do Pacífico; Yannis M-5, Phil I-2); não existe `unidadesDeHoje` por `last_units`.
@@ -524,20 +567,25 @@ fixtures em `apps/web/test/fixtures/youtube/x3-*.json` (das amostras da Tarefa 0
      `p_complete` verdadeiro e lê o retorno `saida_em_massa_a_confirmar`) e a visita termina `parcial`;
    - **1º vazio** (Phil M-1): lista vazia de canal sem histórico → `lista_vazia_a_confirmar`, `parcial`; itens vazios com `item_count` nulo e
      itens já presentes → `itens_incoerentes`;
-   - **estado do canal** (Yannis M-3): `ops.lerCanal` falso com e sem playlist presente alimenta os casos de lista vazia e a ordem das playlists;
-     `lerCanal` lança → `erro` `gravacao_falhou`, nenhuma chamada à API (Phil M-5);
-   - **cota por visita** (Phil I-2): `recordQuota` chamada depois do `visit_close` de cada visita, com as unidades daquela visita;
-     `visit_close` lança `gravacao_falhou` → a cota da visita já foi registrada; `recordQuota` lança → `detalhe.cota_nao_registrada = u` e as
+   - **estado do canal** (Yannis M-3): `ops.lerCanais` falso com e sem playlist presente alimenta os casos de lista vazia e a ordem das playlists;
+     `lerCanais` lança → `erro` `gravacao_falhou`, nenhuma chamada à API (Phil M-5);
+   - **cota por visita** (Phil I-2, N4): `recordQuota` chamada depois do `visit_close` de cada visita, com as unidades daquela visita, em `try/finally`;
+     `visit_close` lança `gravacao_falhou` → a cota da visita **é** registrada (finally); `recordQuota` que nunca resolve (promessa pendente, relógio falso) → estoura em `BANCO_MS`,
+     `cota_nao_registrada`, a visita termina; duas visitas cortadas pelo teto → `extra.x3_teto_por_canal` = 1 em cada chamada (soma 2, não 80); visita não cortada → sem `extra`; `recordQuota` lança → `detalhe.cota_nao_registrada = u` e as
      visitas seguintes continuam;
    - **tempo** (Yannis I-1): relógio falso em 59,9 s com chamada de 8 s e duas gravações de 5 s → a visita termina antes de 85 s e o
      `visit_close` é chamado; com o relógio em 60,1 s nenhuma chamada nova sai; canal novo em 50,1 s não começa;
+   - **volta e `p_ciclo`** (J1 = N1, `calcularCiclo`): 400 playlists, teto 40 → `p_ciclo` falso e `playlists_left > 0`; só `teto_itens` e `contagem_difere` com todas tentadas → verdadeiro;
+     `contagem_difere` numa playlist + `saida_em_massa_a_confirmar` noutra → falso; lista `lista_vazia_a_confirmar` → falso; `lerCanais` devolve `items_status`/`items_reason` por playlist
+     e a playlist com motivo recuperável de ontem é relida, a `teto_itens` de ontem lida há 3 dias não;
+   - **1ª chamada barrada pelo tempo**: relógio em 60,1 s antes da 1ª chamada do canal → nenhum `visit_close`, nenhuma `recordQuota`, `feitas` não conta;
    - 403 `quotaExceeded` no meio → para, `cota_esgotada`, nenhuma chamada depois;
    - resposta sem `items` na primeira chamada de lista → `erro` `resposta_invalida`, nada gravado como completo;
    - relógio passou de `chamadaComecaAteMs` → não começa a chamada seguinte; o que foi lido está gravado;
    - gravação lança `X3:canal_indisponivel` → `erro` `canal_pausado`, nenhuma chamada depois;
    - a playlist `UU…` vinda da API nunca chega aos `ops`;
    - a ordem das playlists na leitura de itens: `items_read_at` nulo primeiro, depois o mais antigo.
-2. `gravar.ts`: `lerCanal` (uma consulta por tabela, `abortSignal(BANCO_MS)`) e os quatro `sb.rpc(...)` com `abortSignal(AbortSignal.timeout(BANCO_MS))`; erro com mensagem `X3:canal_indisponivel`
+2. `gravar.ts`: `lerCanais` (uma vez por disparo, 3 consultas com `in`, `abortSignal(BANCO_MS)`) e os quatro `sb.rpc(...)` com `abortSignal(AbortSignal.timeout(BANCO_MS))`; erro com mensagem `X3:canal_indisponivel`
    vira o código `canal_pausado`; outro erro vira `gravacao_falhou` (só código e SQLSTATE vão ao Sentry, nunca o texto).
 3. Commit: `feat: X3: visita de um canal com teto de unidades e estado honesto por lista (trem 6)`.
 
@@ -560,10 +608,12 @@ testes `test/youtube/agenda/{catalogo,saude,despachante,tarefas}.test.ts` e `tes
    - `rodar` (com `visitar` e `gravar` falsos): schema ausente → `erro` `schema_ausente`; `linhas` nula → `canais_nao_lidos`;
      nenhum devido → `ok` feitas 0; um `parcial` entre três → `parcial` com o motivo de maior gravidade; tempo acabou com
      canal devido e `feitas >= 1` → `parcial` `sobrou` com `deixadas` = canais; teto do dia → `teto_do_dia`, lido da linha de
-     `youtube_quota_usage` (não de `last_units`); `recordQuota` chamada **por visita** (três canais, três chamadas, cada uma com as unidades
+     `youtube_quota_usage` (não de `last_units`); `recordQuota` chamada **por visita**, com `Promise.race` (três canais, três chamadas, cada uma com as unidades
      da sua visita, `mode: 'competitors_playlists'`); `recordQuota` que lança na 2ª → `detalhe.cota_nao_registrada` = unidades da 2ª e as
      visitas seguintes continuam; falha de leitura de `competitor_playlist_reads` → `erro`, nunca "nenhum visto" (Phil M-5);
      `detalhe.canais_com_secoes`;
+   - falha ao ler `youtube_quota_usage` no começo → `erro` `gravacao_falhou`, nenhuma visita, **nunca** teto 0 (N5); linha do dia ausente → 0 e a tarefa segue;
+     `naoTerminouVermelhoEm` = 9 na definição;
    - o catálogo e `TODAS_AS_DEFINICOES` continuam iguais (teste existente) e os motivos todos casam `CODIGO_RE`.
 2. Implementar. `comecaAteMs` da definição = 50 000 por extenso, com teste de igualdade com `X3_RULES.canalComecaAteMs`. `definicoes.ts` continua sem importar código de coleta (os motivos escritos por extenso lá; um teste confere
    que batem com os de `visitar.ts`, como faz `marcas_de_idade`).
@@ -594,7 +644,7 @@ testes `test/youtube/agenda/{catalogo,saude,despachante,tarefas}.test.ts` e `tes
      ≤ 15 MB, senão desligar e voltar ao Phil, Phil I-7); C3;
    - `x3-d7`: todo canal ativo com `last_cycle_at` em até 7 dias; `canais_com_secoes > 0` (valor esperado: o número da C2); tamanho das
      cinco tabelas ≤ 1,5 × a projeção da C1; nenhuma linha com `reason = 'cota_nao_registrada'`; C4;
-   - `x3-d30`: versões por playlist por mês ≤ 1 (acima disso, rever o hash); `removed_after` preenchido em 100% das linhas com `removed_since`.
+   - `x3-d30`: versões por playlist por mês ≤ 1 (acima disso, rever o hash); `removed_after` preenchido em toda linha com `removed_since`, **exceto** a de playlist sem leitura completa anterior (`items_complete_at` nulo na época: nulo é honesto, J3 = N2).
 3. Commit: `docs: X3: variável OBS_X3_PLAYLISTS e conferências com data (trem 6)`.
 
 ### Tarefa 9: portão e envio
@@ -613,7 +663,7 @@ select c.id, c.channel_name from public.competitor_channels c
 -- x3-d7: estado por canal e canais sem volta terminada em 14 dias
 select r.last_status, r.last_reason, count(*) from public.competitor_playlist_reads r group by 1, 2 order by 3 desc;
 select c.id, c.channel_name from public.competitor_channels c join public.competitor_playlist_reads r on r.competitor_channel_id = c.id
- where r.last_cycle_at is null or r.last_cycle_at < now() - interval '14 days';
+ where coalesce(r.last_cycle_at, r.first_visit_at) < now() - interval '14 days';   -- J4: nunca terminou a volta conta a partir da 1ª visita
 -- C1 ampliada (x3-d1): itens por canal e projeção em MB (330 B por item com índices)
 select p.competitor_channel_id, count(*) as playlists, sum(coalesce(p.item_count, 0)) as itens,
        round(sum(coalesce(p.item_count, 0)) * 330 / 1048576.0, 2) as mb_projetado
@@ -633,6 +683,7 @@ select relname, pg_size_pretty(pg_total_relation_size(oid)) from pg_class
 - Playlist com mais de 500 itens nunca tem saída inferida.
 - **Perdas conscientes (Phil M-6, P-4):** a ordem dos itens (`position`) é sobrescrita (a história de reordenação se perde; guardar custaria uma
   versão por vídeo novo no topo, toda semana); a troca de capa **sozinha** não gera versão de playlist (a capa de cada versão fica no `raw`).
+- Dívidas declaradas (Yannis, 2ª rodada): `position` reescreve a playlist inteira quando entra item no topo; `unfinished_n` da agenda é compartilhado entre `parcial` e `adiada`. Aceitos.
 - A saída de item é uma janela (`removed_after` a `removed_since`), não um instante.
 - A primeira linha de cada versão é "pelo menos desde" o dia da ligação; o que saiu antes dela não volta (dito pelo spec).
 - `channelSections` pode ter mudado de comportamento (C2).
@@ -672,6 +723,7 @@ end $$;
 create table if not exists public.competitor_playlist_reads (
   competitor_channel_id uuid primary key references public.competitor_channels(id) on delete cascade,
   site_id uuid not null references public.sites(id) on delete cascade,
+  first_visit_at timestamptz not null,                           -- 1ª visita, nunca muda (J4: alarme de canal que nunca fecha a volta)
   last_visit_at timestamptz not null,
   last_visit_day date not null,                                  -- dia de São Paulo
   last_status text not null check (last_status in ('ok', 'parcial', 'erro')),
@@ -699,7 +751,8 @@ create table if not exists public.competitor_playlists (
   first_seen_at timestamptz not null,
   last_seen_at timestamptz not null,
   missing_since date,                                            -- só com lista completa
-  items_read_at timestamptz,
+  items_read_at timestamptz,                                     -- só a ordem da fila
+  items_complete_at timestamptz,                                 -- última leitura COMPLETA sem saída em massa pendente (J3 = N2)
   items_status text check (items_status in ('ok', 'parcial', 'erro')),
   items_reason text check (items_reason ~ '^[a-z0-9_]{1,60}$'),
   mass_exit_day date,                                            -- dia (SP) em que uma saída em massa ficou a confirmar (Phil I-1)
@@ -731,7 +784,7 @@ create table if not exists public.competitor_playlist_items (
   note text,                                                     -- contentDetails.note, texto do criador, sanitizado (Phil M-3)
   first_seen_at timestamptz not null,
   removed_since date,                                            -- só com leitura completa da playlist
-  removed_after timestamptz,                                     -- limite inferior da janela: items_read_at anterior (Phil I-6)
+  removed_after timestamptz,                                     -- limite inferior da janela: items_complete_at anterior da playlist (Phil I-6, J3; nulo = sem leitura completa antes)
   primary key (playlist_ref, item_id)
 );
 create index if not exists idx_cpli_site_video on public.competitor_playlist_items (site_id, youtube_video_id);
@@ -784,10 +837,16 @@ declare
   v_versoes integer;
   v_sumidas integer := 0;
   v_prev jsonb;
+  v_max timestamptz;
 begin
   perform public.competitor_x3_guard(p_site, p_channel);
   if p_now is null or jsonb_typeof(p_rows) <> 'array' or p_complete is null then
     raise exception 'X3:parametro_invalido' using errcode = '22023';
+  end if;
+  -- J2, N5: portão monotônico no topo; execução abandonada com p_now velho não marca sumidas nem grava versão
+  select max(q.last_seen_at) into v_max from public.competitor_playlists q where q.competitor_channel_id = p_channel;
+  if v_max is not null and p_now < v_max then
+    return jsonb_build_object('atrasada', true, 'ids', '{}'::jsonb, 'versoes', 0, 'sumidas', 0);
   end if;
   -- Phil I-6: o último "visto" de cada playlist, lido ANTES do upsert que o sobrescreve
   select coalesce(jsonb_object_agg(q.playlist_id, q.last_seen_at), '{}'::jsonb) into v_prev
@@ -812,7 +871,7 @@ begin
   -- versão nova só quando o hash difere do último gravado da playlist
   -- Yannis M-6: o "último" casa com o índice (observed_at desc, id desc), igual à X1
   insert into public.competitor_playlist_versions (playlist_ref, site_id, state_sha256, raw, prev_seen_at, observed_at)
-  select (v_ids ->> l.playlist_id)::uuid, p_site, l.state_sha256, l.raw, (v_prev ->> l.playlist_id)::timestamptz, p_now
+  select distinct on (l.playlist_id) (v_ids ->> l.playlist_id)::uuid, p_site, l.state_sha256, l.raw, (v_prev ->> l.playlist_id)::timestamptz, p_now   -- Yannis: distinct on
     from jsonb_to_recordset(p_rows) as l(playlist_id text, state_sha256 text, raw jsonb)
    where l.state_sha256 is distinct from (
      select m.state_sha256 from public.competitor_playlist_versions m
@@ -840,13 +899,14 @@ declare
   v_saidos integer := 0;
   v_massa boolean := false;
   v_ant timestamptz;
+  v_compl timestamptz;
   v_massa_dia date;
   v_hoje date := (p_now at time zone 'America/Sao_Paulo')::date;
   v_presentes integer;
   v_sairiam integer;
 begin
   perform public.competitor_x3_guard(p_site, p_channel);
-  select p.items_read_at, p.mass_exit_day into v_ant, v_massa_dia
+  select p.items_read_at, p.items_complete_at, p.mass_exit_day into v_ant, v_compl, v_massa_dia
     from public.competitor_playlists p where p.id = p_playlist and p.competitor_channel_id = p_channel;
   if not found then
     raise exception 'X3:playlist_de_outro_canal' using errcode = 'P0001';
@@ -854,6 +914,10 @@ begin
   if p_now is null or jsonb_typeof(p_rows) <> 'array' or p_complete is null
      or p_status not in ('ok', 'parcial', 'erro') or (p_complete and p_status <> 'ok') then
     raise exception 'X3:parametro_invalido' using errcode = '22023';
+  end if;
+  -- J2, N5: portão monotônico no TOPO (antes de tocar em itens e em removed_since): execução abandonada com p_now velho morre aqui
+  if v_ant is not null and p_now < v_ant then
+    return jsonb_build_object('gravados', 0, 'saidos', 0, 'saida_em_massa_a_confirmar', false, 'atrasada', true);
   end if;
   with lido as (
     select distinct on (x.item_id) x.*
@@ -882,9 +946,9 @@ begin
     if v_sairiam > 5 and v_sairiam * 2 > v_presentes and (v_massa_dia is null or v_massa_dia >= v_hoje) then
       v_massa := true;
     else
-      -- Phil I-6: removed_after = items_read_at da leitura anterior (lido antes do update final; v_ant)
+      -- Phil I-6, J3 = N2: removed_after = items_complete_at ANTERIOR da playlist (lido antes do update final; v_compl; nulo = sem leitura completa antes)
       update public.competitor_playlist_items i
-         set removed_since = v_hoje, removed_after = v_ant
+         set removed_since = v_hoje, removed_after = v_compl
        where i.playlist_ref = p_playlist and i.removed_since is null
          and i.item_id not in (select x.item_id from jsonb_to_recordset(p_rows) as x(item_id text));
       get diagnostics v_saidos = row_count;
@@ -892,12 +956,12 @@ begin
   end if;
   update public.competitor_playlists p
      set items_read_at = p_now,
+         items_complete_at = case when p_complete and not v_massa then p_now else p.items_complete_at end,
          items_status = case when v_massa then 'parcial' else p_status end,
          items_reason = case when v_massa then 'saida_em_massa_a_confirmar' else p_reason end,
          mass_exit_day = case when v_massa then coalesce(v_massa_dia, v_hoje) else null end
-   where p.id = p_playlist
-     and (p.items_read_at is null or p.items_read_at <= p_now);   -- Yannis M-1: gravação atrasada de execução abandonada não volta no tempo
-  return jsonb_build_object('gravados', v_novos, 'saidos', v_saidos, 'saida_em_massa_a_confirmar', v_massa);
+   where p.id = p_playlist;   -- o portão monotônico está no topo (J2)
+  return jsonb_build_object('gravados', v_novos, 'saidos', v_saidos, 'saida_em_massa_a_confirmar', v_massa, 'atrasada', false);
 end $$;
 
 -- 6. Seções: só quando o hash muda.
@@ -921,7 +985,7 @@ begin
   return k;
 end $$;
 
--- 7. Fecho da visita. p_ciclo = volta terminada (toda playlist tentada até o teto, mesmo com motivo estrutural; Phil I-4).
+-- 7. Fecho da visita. p_ciclo = volta terminada, calculado pelo código (`calcularCiclo`): playlists_left = 0, lista completa e nenhum motivo recuperável (J1 = N1).
 create or replace function public.competitor_x3_visit_close(
   p_site uuid, p_channel uuid, p_now timestamptz, p_status text, p_reason text, p_units integer, p_left integer,
   p_lista_vazia boolean, p_secoes_vazias boolean, p_ciclo boolean
@@ -932,9 +996,9 @@ begin
     raise exception 'X3:parametro_invalido' using errcode = '22023';
   end if;
   insert into public.competitor_playlist_reads as r
-    (competitor_channel_id, site_id, last_visit_at, last_visit_day, last_status, last_reason, last_units, playlists_left,
+    (competitor_channel_id, site_id, first_visit_at, last_visit_at, last_visit_day, last_status, last_reason, last_units, playlists_left,
      last_complete_at, last_cycle_at, empty_streak, sections_empty_streak)
-  values (p_channel, p_site, p_now, (p_now at time zone 'America/Sao_Paulo')::date, p_status, p_reason, p_units, p_left,
+  values (p_channel, p_site, p_now, p_now, (p_now at time zone 'America/Sao_Paulo')::date, p_status, p_reason, p_units, p_left,
           case when p_status = 'ok' then p_now end,
           case when p_status = 'ok' or coalesce(p_ciclo, false) then p_now end,
           case when coalesce(p_lista_vazia, false) then 1 else 0 end,
@@ -944,8 +1008,9 @@ begin
         last_reason = excluded.last_reason, last_units = excluded.last_units, playlists_left = excluded.playlists_left,
         last_complete_at = coalesce(excluded.last_complete_at, r.last_complete_at),
         last_cycle_at = coalesce(excluded.last_cycle_at, r.last_cycle_at),
-        empty_streak = case when coalesce(p_lista_vazia, false) then least(r.empty_streak + 1, 100) else 0 end,
-        sections_empty_streak = case when coalesce(p_secoes_vazias, false) then least(r.sections_empty_streak + 1, 100) else 0 end
+        -- tri-state (Yannis): nulo preserva, false zera, true soma; first_visit_at nunca é atualizado (J4)
+        empty_streak = case when p_lista_vazia is null then r.empty_streak when p_lista_vazia then least(r.empty_streak + 1, 100) else 0 end,
+        sections_empty_streak = case when p_secoes_vazias is null then r.sections_empty_streak when p_secoes_vazias then least(r.sections_empty_streak + 1, 100) else 0 end
     -- Yannis M-1: gravação atrasada de uma execução abandonada nunca sobrescreve a visita mais nova
     where r.last_visit_at <= excluded.last_visit_at;
 end $$;
