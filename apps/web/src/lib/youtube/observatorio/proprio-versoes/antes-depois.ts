@@ -20,7 +20,9 @@ export interface Lado {
 }
 
 export type LeituraDaTroca =
-  | { estado: 'nao_se_aplica' | 'em_teste_ab' | 'antes_fora_da_janela_lida' }
+  | { estado: 'nao_se_aplica' | 'em_teste_ab' }
+  // O antes está fora da janela lida (sem lado); o depois sai medido, já cortado pela troca vizinha (portão L5, Phil I-1).
+  | { estado: 'antes_fora_da_janela_lida'; depois: Lado; cortada: boolean }
   | { estado: 'sem_antes' | 'depois_nao_medido' | 'ainda_nao_da'; antes: Lado; depois: Lado; cortada: boolean }
   | { estado: 'com_leitura'; antes: Lado; depois: Lado; cortada: boolean; leitura: 'subiu' | 'caiu' | 'sem_diferenca_firme' }
 
@@ -43,6 +45,14 @@ function medir(candidatos: readonly DiaYt[], porDia: ReadonlyMap<DiaYt, DiaAlcan
     l.cliquesEst += x.cliques
   }
   return l
+}
+
+/** Taxa e faixa (Wilson) de UM lado com impressões suficientes, em qualquer estado (decisão 10 do dono, opção B). Nunca decide o veredito. */
+function comTaxa(l: Lado, minImp: number): void {
+  if (l.diasMedidos === 0 || l.imp < minImp) return
+  const f = wilson(l.cliquesEst, l.imp)
+  if (f === null) return // dado impossível: sem taxa
+  l.taxa = l.cliquesEst / l.imp; l.lo = f.lo; l.hi = f.hi
 }
 
 export function anteDepoisDaTroca(e: {
@@ -84,18 +94,21 @@ export function anteDepoisDaTroca(e: {
   const candAntes = diasDe(antesDe, antesAte).filter(d => !fora(d))
   const candDepois = diasDe(depoisDe, depoisAte).filter(d => !fora(d))
   const primeiroLido = e.dias.reduce<DiaYt | null>((m, d) => (m === null || d.dia < m ? d.dia : m), null)
-  if (candAntes.length > 0 && (primeiroLido === null || candAntes.every(d => d < primeiroLido))) return { estado: 'antes_fora_da_janela_lida' }
-
   const porDia = new Map(e.dias.map(d => [d.dia, d]))
+  if (candAntes.length > 0 && (primeiroLido === null || candAntes.every(d => d < primeiroLido))) {
+    const depoisSo = medir(candDepois, porDia)
+    comTaxa(depoisSo, regras.trocaMinImpressoesPorLado)
+    return { estado: 'antes_fora_da_janela_lida', depois: depoisSo, cortada }
+  }
+
   const antes = medir(candAntes, porDia), depois = medir(candDepois, porDia)
+  comTaxa(antes, regras.trocaMinImpressoesPorLado); comTaxa(depois, regras.trocaMinImpressoesPorLado)
   if (antes.diasMedidos === 0) return { estado: 'sem_antes', antes, depois, cortada }
   if (depois.diasMedidos === 0) return { estado: 'depois_nao_medido', antes, depois, cortada }
   if (antes.imp < regras.trocaMinImpressoesPorLado || depois.imp < regras.trocaMinImpressoesPorLado) return { estado: 'ainda_nao_da', antes, depois, cortada }
 
-  const fa = wilson(antes.cliquesEst, antes.imp), fd = wilson(depois.cliquesEst, depois.imp)
-  if (fa === null || fd === null) return { estado: 'ainda_nao_da', antes, depois, cortada } // dado impossível: não inventa leitura
-  antes.taxa = antes.cliquesEst / antes.imp; antes.lo = fa.lo; antes.hi = fa.hi
-  depois.taxa = depois.cliquesEst / depois.imp; depois.lo = fd.lo; depois.hi = fd.hi
+  if (antes.lo === null || antes.hi === null || depois.lo === null || depois.hi === null) return { estado: 'ainda_nao_da', antes, depois, cortada } // dado impossível: não inventa leitura
+  const fa = { lo: antes.lo, hi: antes.hi }, fd = { lo: depois.lo, hi: depois.hi }
   const leitura = fd.lo > fa.hi ? 'subiu' : fd.hi < fa.lo ? 'caiu' : 'sem_diferenca_firme'
   return { estado: 'com_leitura', antes, depois, cortada, leitura }
 }
