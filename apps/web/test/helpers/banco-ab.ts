@@ -22,7 +22,7 @@ export type Fila = Record<string, unknown>
 // ---------------------------------------------------------------------------
 class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: number }> {
   private filtros: Array<(f: Fila) => boolean> = []
-  private modo: 'select' | 'update' = 'select'
+  private modo: 'select' | 'update' | 'delete' = 'select'
   private patch: Fila = {}
   private ordenar: { col: string; asc: boolean } | null = null
   private limite = Infinity
@@ -34,8 +34,17 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
     return this
   }
   update(patch: Fila) { this.modo = 'update'; this.patch = patch; return this }
+  delete() { this.modo = 'delete'; return this }
   eq(col: string, v: unknown) { this.filtros.push((f) => f[col] === v); return this }
   is(col: string, v: unknown) { this.filtros.push((f) => (f[col] ?? null) === v); return this }
+  in(col: string, vs: unknown[]) { this.filtros.push((f) => vs.includes(f[col])); return this }
+  /** Só o filtro `restore_status->campo->>estado.eq.valor` (separado por vírgula = OU), o único que o vigia usa. */
+  or(expr: string) {
+    const alvos = expr.split(',').map((p) => /^restore_status->(\w+)->>estado\.eq\.(\w+)$/.exec(p))
+    if (alvos.some((m) => !m)) throw new Error(`banco-ab: or() não suportado: ${expr}`)
+    this.filtros.push((f) => alvos.some((m) => ((f.restore_status as Record<string, Fila> | null)?.[m![1]!]?.estado) === m![2]))
+    return this
+  }
   neq(col: string, v: unknown) { this.filtros.push((f) => f[col] !== v); return this }
   lte(col: string, v: string) { this.filtros.push((f) => String(f[col]) <= v); return this }
   lt(col: string, v: string) { this.filtros.push((f) => String(f[col]) < v); return this }
@@ -45,6 +54,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   limit(n: number) { this.limite = n; return this }
   private executar(): Fila[] {
     let hit = this.linhas.filter((f) => this.filtros.every((g) => g(f)))
+    if (this.modo === 'delete') { for (const f of hit) this.linhas.splice(this.linhas.indexOf(f), 1); return [] }
     if (this.modo === 'update') hit.forEach((f) => { const antes = structuredClone(f); Object.assign(f, this.patch); this.aoAtualizar?.(antes, f) })
     if (this.ordenar) { const { col, asc } = this.ordenar; hit = [...hit].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1)) }
     return hit.slice(0, this.limite).map((f) => structuredClone(this.unir ? this.unir(f) : f))
