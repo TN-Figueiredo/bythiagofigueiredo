@@ -53,6 +53,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   update(patch: Fila) { this.modo = 'update'; this.patch = patch; return this }
   eq(col: string, v: unknown) { this.filtros.push((f) => f[col] === v); return this }
   is(col: string, v: unknown) { this.filtros.push((f) => (f[col] ?? null) === v); return this }
+  lt(col: string, v: string) { this.filtros.push((f) => String(f[col]) < v); return this }
   gte(col: string, v: string) { this.filtros.push((f) => String(f[col]) >= v); return this }
   not(col: string, _op: string, v: unknown) { this.filtros.push((f) => (f[col] ?? null) !== v); return this }
   order(col: string, o?: { ascending?: boolean }) { this.ordenar = { col, asc: o?.ascending !== false }; return this }
@@ -71,7 +72,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   }
 }
 
-interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila }
+interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number }
 
 function criarBanco(o: OpcoesBanco = {}) {
   const teste: Fila = {
@@ -79,17 +80,20 @@ function criarBanco(o: OpcoesBanco = {}) {
     restore_status: null, original_title: 'Título A', original_thumbnail_url: BLOB('A'), last_applied_variant_id: o.marcador ?? null,
     youtube_video_id: 'video-interno', config: o.config ?? { rotation_pattern: 'abba' }, winner_variant_id: null, winner_applied_at: null,
     revert_expires_at: null, status_note: null, paused_at: null, completed_at: null, completed_reason: null, applied_by: null,
+    updated_at: new Date(AGORA.getTime() - (o.atualizadoHaMs ?? 600_000)).toISOString(),
   }
   const variantes: Fila[] = [
     { id: 'A', test_id: 'teste-1', sort_order: 0, is_original: true, blob_url: BLOB('A'), title_text: 'Título A', thumbnail_dhash: H.A },
     { id: 'B', test_id: 'teste-1', sort_order: 1, is_original: false, blob_url: BLOB('B'), title_text: 'Título B', thumbnail_dhash: H.B },
   ]
+  o.ajustar?.(variantes)
   const tabelas: Record<string, Fila[]> = {
     ab_tests: [teste], ab_test_variants: variantes,
     ab_test_cycles: [{ id: 'c0', test_id: 'teste-1', cycle_number: 0, variant_id: 'A', started_at: ONTEM, ended_at: null, end_reason: null }],
     ab_test_polls: [], youtube_videos: [{ id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', channel_id: 'ch-1', youtube_channels: { channel_id: 'UC1', name: 'Canal' } }],
     ops_alert_state: [],
   }
+  for (let i = 0; i < (o.ciclosFechados ?? 0); i++) tabelas.ab_test_cycles!.unshift({ id: `f${i}`, test_id: 'teste-1', cycle_number: -1 - i, variant_id: 'A', started_at: ONTEM, ended_at: ONTEM, end_reason: 'rotacao' })
   const ganchos: Array<() => void> = []
   let ciclo = 0
   const t = () => tabelas.ab_tests[0] as Fila & { restore_seq: number; config: Fila }
@@ -314,5 +318,133 @@ describe('phaseRotateActiveTests', () => {
     const c = await montar()
     await phaseRotateActiveTests(c.banco.supabase)
     expect(c.banco.cicloAberto()).toMatchObject({ variant_id: 'B' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Rodada 1 da T9 (pareceres de Yannis e Phil)
+// ---------------------------------------------------------------------------
+describe('R1 Yannis DEVE-1: marcador só é velho com idade (MARCADOR_VELHO_MS = 360 s)', () => {
+  it('(i) A reivindica; B roda DEPOIS, antes de A fechar → B não escreve, não alarma, nenhum ciclo novo', async () => {
+    const c = await montar()
+    await reivindicarRotacao(c.banco.supabase, 'teste-1', 0, 'B', null)          // A em voo: restore_seq 1, marcador B, updated_at = agora
+    const r = await phaseRotateActiveTests(c.banco.supabase)
+    expect(r).toEqual({ processed: 0, errors: 0 })
+    expect(c.yt.escritas()).toEqual([])
+    expect(fanOut).not.toHaveBeenCalled()
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+    expect(c.banco.ciclosAbertos()).toHaveLength(1)
+    expect(c.banco.teste()).toMatchObject({ restore_seq: 1, last_applied_variant_id: 'B' })
+  })
+  it('(ii) marcador com 7 min de idade (> 360 s) → reivindica e rotaciona', async () => {
+    const c = await montar({ marcador: 'B', restoreSeq: 4, atualizadoHaMs: 7 * 60_000 })
+    await phaseRotateActiveTests(c.banco.supabase)
+    expect(c.yt.escritas().length).toBeGreaterThan(0)
+    expect(c.banco.teste()).toMatchObject({ restore_seq: 5, last_applied_variant_id: null })
+  })
+  it('marcador com 6 min cravados menos 1 s (359 s) ainda é de rotação viva; reivindicarRotacao direto devolve null', async () => {
+    const c = await montar({ marcador: 'B', restoreSeq: 4, atualizadoHaMs: 359_000 })
+    expect(await reivindicarRotacao(c.banco.supabase, 'teste-1', 4, 'B', 'B')).toBeNull()
+    expect(c.banco.teste()).toMatchObject({ restore_seq: 4, last_applied_variant_id: 'B' })
+  })
+})
+
+describe('R1 Phil I-1: variante da vez sem conteúdo não é reivindicada nem escrita', () => {
+  function original(c: Awaited<ReturnType<typeof montar>>) { return c.banco.variantes()[0]! }
+  const semEscrita = (c: Awaited<ReturnType<typeof montar>>) => {
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.ciclosAbertos()).toHaveLength(1)
+    expect(c.banco.teste()).toMatchObject({ restore_seq: 0, last_applied_variant_id: null })
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('variante sem arquivo/título'), expect.anything())
+    expect(avisos.enviados()).toHaveLength(1)
+    expect(avisos.enviados()[0]!.message).toContain('Teste do Lab')
+  }
+  it('original cuja cópia é um i.ytimg (devolve a thumbnail CORRENTE) → pula com Sentry e aviso', async () => {
+    // abba: com 1 ciclo fechado antes, a vez cai na original (índice 0)
+    const vezDaOriginal = [0, 1, 2, 3].find((n) => getNextVariantIndex('abba', 2, n + 1) === 0)!
+    const c = await montar({ ciclosFechados: vezDaOriginal, ajustar: (v) => { v[0]!.blob_url = 'https://i.ytimg.com/vi/yt-1/hqdefault.jpg' } })
+    const r = await phaseRotateActiveTests(c.banco.supabase)
+    expect(r.errors).toBe(1)
+    expect(original(c).is_original).toBe(true)
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.teste()).toMatchObject({ restore_seq: 0, last_applied_variant_id: null })
+    expect(avisos.enviados()).toHaveLength(1)
+  })
+  it('variante B sem blob_url, teste de thumbnail → pula', async () => {
+    const c = await montar({ ajustar: (v) => { v[1]!.blob_url = null } })
+    await phaseRotateActiveTests(c.banco.supabase)
+    semEscrita(c)
+  })
+  it('variante B com title_text vazio, teste de título → pula (nunca escreve o título original no ciclo da B)', async () => {
+    const c = await montar({ testType: 'title', ajustar: (v) => { v[1]!.title_text = '   ' } })
+    await phaseRotateActiveTests(c.banco.supabase)
+    semEscrita(c)
+  })
+})
+
+describe('R1 Phil I-2: perdeu a vez DEPOIS de escrever avisa o dono', () => {
+  it('combo: a pausa reivindica depois da thumbnail → perdeu_a_vez com aviso do cruzamento', async () => {
+    const c = await montar({ testType: 'combo' })
+    await reivindicarRotacao(c.banco.supabase, 'teste-1', 0, 'B', null)
+    let uma = false
+    c.yt.depoisDeEscrever(async (ch) => { if (uma || ch !== 'thumbnails.set') return; uma = true; await pausar(c) })
+    const r = await aplicarRotacao(c.banco.supabase, { ...c.args, testType: 'combo' })
+    expect(r).toMatchObject({ ok: false, motivo: 'perdeu_a_vez' })
+    expect(avisos.enviados().map((a) => a.message).join('|')).toMatch(/a rotação e uma pausa se cruzaram/)
+  })
+})
+
+describe('R1 Yannis PODE-1: os dois guardas que só um cenário próprio prova', () => {
+  it('restore_seq é a ÚNICA guarda: A reivindica E fecha (marcador limpo), B reivindica com o retrato velho → null, zero escrita de B', async () => {
+    const c = await montar()
+    const seq = await reivindicarRotacao(c.banco.supabase, 'teste-1', 0, 'B', null)
+    expect(await aplicarRotacao(c.banco.supabase, { ...c.args, seq: seq! })).toMatchObject({ ok: true })
+    const escritasDeA = c.yt.escritas().length
+    expect(c.banco.teste()).toMatchObject({ last_applied_variant_id: null, restore_seq: 1 })
+    expect(await reivindicarRotacao(c.banco.supabase, 'teste-1', 0, 'B', null)).toBeNull()
+    expect(c.yt.escritas()).toHaveLength(escritasDeA)
+  })
+  it('status é a guarda contra pausa que NÃO sobe o restore_seq (auto-pause do catch, tipo fora de uso)', async () => {
+    const c = await montar()
+    c.banco.setTeste({ status: 'paused' })
+    expect(await reivindicarRotacao(c.banco.supabase, 'teste-1', 0, 'B', null)).toBeNull()
+    expect(c.banco.teste()).toMatchObject({ restore_seq: 0, last_applied_variant_id: null })
+  })
+})
+
+describe('R1 Yannis PODE-3: a releitura do restore_seq lança', () => {
+  it('erro de banco na releitura → nada escrito, marcador liberado, conta como erro', async () => {
+    const c = await montar()
+    c.banco.antesDaReleitura(() => { throw new Error('banco fora') })
+    const r = await phaseRotateActiveTests(c.banco.supabase)
+    expect(r.errors).toBe(1)
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.teste()).toMatchObject({ last_applied_variant_id: null, restore_seq: 1 })
+  })
+})
+
+describe('R1 Phil M-1: o corte do laço conta o tempo da fila', () => {
+  it('a rota já gastou 200 s (fila) → faltam 40 s < 50 s: o teste fica para amanhã, com Sentry', async () => {
+    const c = await montar()
+    const r = await phaseRotateActiveTests(c.banco.supabase, AGORA.getTime() - 200_000)
+    expect(r).toEqual({ processed: 0, errors: 0 })
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.teste().restore_seq).toBe(0)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-rotate: rotação adiada por tempo', expect.anything())
+  })
+  it('a rota gastou 100 s → rotaciona normalmente', async () => {
+    const c = await montar()
+    const r = await phaseRotateActiveTests(c.banco.supabase, AGORA.getTime() - 100_000)
+    expect(r).toEqual({ processed: 1, errors: 0 })
+  })
+})
+
+describe('R1 Phil M-2: poll mais velho que o ciclo aberto não vira "medido em zero"', () => {
+  it('poll de antes de o ciclo aberto começar → o fecho leva views/likes nulos', async () => {
+    const c = await montar()
+    c.banco.setPoll({ views: 500, likes: 40, polled_at: '2026-10-09T00:00:00.000Z' }) // ciclo aberto começou em ONTEM (11/10)
+    await reivindicarRotacao(c.banco.supabase, 'teste-1', 0, 'B', null)
+    expect(await aplicarRotacao(c.banco.supabase, c.args)).toMatchObject({ ok: true })
+    expect(c.banco.cicloFechado(0)).toMatchObject({ end_reason: 'rotacao', views: null, likes: null })
   })
 })

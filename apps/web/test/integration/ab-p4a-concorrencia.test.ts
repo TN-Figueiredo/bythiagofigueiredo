@@ -16,6 +16,7 @@ vi.mock('@/lib/youtube/channel-account', async (orig) => ({
 
 import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
 import { phaseRotateActiveTests } from '@/lib/youtube/ab-rotate-phases'
+import { reivindicarRotacao } from '@/lib/youtube/ab-rotate-claim'
 import type { PortasSaida } from '@/lib/youtube/ab-settle'
 
 const BLOB = (v: string) => `https://t7.public.blob.vercel-storage.com/${v}.png`
@@ -75,10 +76,29 @@ describe.skipIf(skipIfNoLocalDb())('P4a T7: concorrência de settleOnAir no banc
   // ── T9: a rotação do cron contra o banco real ────────────────────────────────────────────────────────────────
   describe('rotação do cron (T9)', () => {
     const DIA = 86_400_000
+    type Cliente = ReturnType<typeof clienteServico>
+    /** O mesmo cliente, mas a leitura de `ab_tests` (a dos ativos e as releituras) só enxerga o teste semeado aqui. */
+    const soEste = (db: Cliente): Cliente => new Proxy(db, {
+      get(alvo, prop) {
+        const v = Reflect.get(alvo, prop) as unknown
+        if (prop !== 'from') return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(alvo) : v
+        return (tabela: string) => {
+          const b = alvo.from(tabela)
+          if (tabela !== 'ab_tests') return b
+          return new Proxy(b, {
+            get(bt, p) {
+              const f = Reflect.get(bt, p) as unknown
+              if (p === 'select') return (...a: unknown[]) => ((f as (...x: unknown[]) => { eq: (c: string, v: string) => unknown }).apply(bt, a)).eq('id', t.testId)
+              return typeof f === 'function' ? (f as (...a: unknown[]) => unknown).bind(bt) : f
+            },
+          })
+        }
+      },
+    })
     beforeEach(async () => {
       const db = clienteServico()
-      // phaseRotateActiveTests varre todo teste ativo do banco: o bythiago_int é só nosso, então pausa os restos de outros arquivos.
-      await db.from('ab_tests').update({ status: 'paused' }).eq('status', 'active').neq('id', t.testId)
+      // phaseRotateActiveTests varre todo teste ativo do banco e o bythiago_int é compartilhado entre arquivos/agentes:
+      // não pausamos os dos outros; `soEste` restringe a leitura dos ativos ao teste semeado aqui.
       await db.from('ab_tests').update({ last_applied_variant_id: null }).eq('id', t.testId)
       await db.from('ab_test_cycles').update({ started_at: new Date(Date.now() - 2 * DIA).toISOString() }).eq('test_id', t.testId)
       // O Supabase fala por fetch também: só o que não é do banco local (127.0.0.1) vai para o YouTube falso.
@@ -89,7 +109,7 @@ describe.skipIf(skipIfNoLocalDb())('P4a T7: concorrência de settleOnAir no banc
     afterEach(() => { vi.unstubAllGlobals() })
 
     it('Y-P13 / (b): dois phaseRotateActiveTests ao mesmo tempo → uma escrita no YouTube, restore_seq +1, um ciclo aberto', async () => {
-      await Promise.all([phaseRotateActiveTests(clienteServico()), phaseRotateActiveTests(clienteServico())])
+      await Promise.all([phaseRotateActiveTests(soEste(clienteServico())), phaseRotateActiveTests(soEste(clienteServico()))])
       expect(yt.escritas().filter((e) => e === 'thumbnails.set')).toHaveLength(1)
       const t1 = await teste()
       expect(t1.restore_seq).toBe(1)
@@ -105,12 +125,25 @@ describe.skipIf(skipIfNoLocalDb())('P4a T7: concorrência de settleOnAir no banc
         { test_id: t.testId, variant_id: t.varB, cycle_number: 1, started_at: new Date(Date.now() - 4 * DIA).toISOString() },
         { test_id: t.testId, variant_id: t.varA, cycle_number: 2, started_at: new Date(Date.now() - 3 * DIA).toISOString() },
       ])
-      const r = await phaseRotateActiveTests(db)
+      const r = await phaseRotateActiveTests(soEste(db))
       expect(r).toMatchObject({ processed: 1, errors: 0 })
       const ciclos = await db.from('ab_test_cycles').select('cycle_number, ended_at, end_reason').eq('test_id', t.testId).order('cycle_number')
       expect(ciclos.data?.map((c) => c.cycle_number)).toEqual([0, 1, 2, 3])
       expect(ciclos.data?.filter((c) => c.ended_at === null).map((c) => c.cycle_number)).toEqual([3])
       expect(ciclos.data?.slice(1, 3).map((c) => c.end_reason)).toEqual(['rotacao', 'rotacao'])
+    })
+
+    it('R1 DEVE-1 (gêmeo): A reivindica e ainda não fechou; um segundo phaseRotateActiveTests depois → zero escritas, nenhum ciclo novo', async () => {
+      const db = clienteServico()
+      const seq = await reivindicarRotacao(db, t.testId, 0, t.varB, null)
+      expect(seq).toBe(1)
+      const r = await phaseRotateActiveTests(soEste(db))
+      expect(r).toEqual({ processed: 0, errors: 0 })
+      expect(yt.escritas()).toEqual([])
+      const t1 = await db.from('ab_tests').select('restore_seq, last_applied_variant_id').eq('id', t.testId).single()
+      expect(t1.data).toEqual({ restore_seq: 1, last_applied_variant_id: t.varB })
+      const ciclos = await db.from('ab_test_cycles').select('ended_at').eq('test_id', t.testId)
+      expect(ciclos.data?.filter((c) => c.ended_at === null)).toHaveLength(1)
     })
   })
 })

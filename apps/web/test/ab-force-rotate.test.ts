@@ -23,6 +23,7 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: vi.fn(),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({
   getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }),
@@ -52,6 +53,7 @@ vi.mock('@/lib/youtube/prompt-scoring', () => ({ scoreForPrompt: vi.fn() }))
 import { forceRotate } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
+import * as Sentry from '@sentry/nextjs'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import {
   setThumbnail,
@@ -76,8 +78,8 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
     variants: [
-      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg', is_original: true, title_text: null },
-      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg', is_original: false, title_text: null },
+      { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/thumb-a.jpg', is_original: true, title_text: null },
+      { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/thumb-b.jpg', is_original: false, title_text: null },
     ],
     ...overrides,
   }
@@ -154,7 +156,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
 
     if (table === 'ab_test_cycles') {
       return {
-        select: vi.fn().mockReturnValue({
+        select: vi.fn((cols?: string) => cols === 'started_at' ? { eq: vi.fn().mockReturnValue({ is: vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) } : {
           eq: vi.fn().mockReturnValue({
             not: vi.fn().mockResolvedValue({ count: cycleCount, data: null, error: null }),
           }),
@@ -231,7 +233,7 @@ describe('forceRotate', () => {
     const result = await forceRotate('test-1')
 
     expect(result).toMatchObject({ ok: true })
-    expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://blob.example/thumb-b.jpg')
+    expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://abc.public.blob.vercel-storage.com/thumb-b.jpg')
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       expect.any(Buffer),
@@ -268,8 +270,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'combo',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/a.jpg', is_original: true, title_text: 'Title A' },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/b.jpg', is_original: false, title_text: 'Title B' },
+        { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg', is_original: true, title_text: 'Title A' },
+        { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg', is_original: false, title_text: 'Title B' },
       ],
     })
     buildSupabaseMock({ test })
@@ -373,6 +375,41 @@ describe('forceRotate', () => {
     expect(reivindicacao.filters).not.toContainEqual({ col: 'last_applied_variant_id', op: 'is', valor: null })
   })
 
+  it('R1 DEVE-1: a reivindicação com marcador exige updated_at mais antigo que 360 s (marcador novo = rotação em voo)', async () => {
+    const { updateCalls } = buildSupabaseMock({ test: makeTest({ last_applied_variant_id: 'v9' }) })
+
+    await forceRotate('test-1')
+
+    const reivindicacao = updateCalls.find((c) => (c.data as Record<string, unknown>).restore_seq === 1)!
+    const corte = reivindicacao.filters.find((f) => f.col === 'updated_at' && f.op === 'lt')
+    expect(corte).toBeDefined()
+    expect(Date.now() - Date.parse(corte!.valor as string)).toBeGreaterThanOrEqual(359_000)
+    expect(Date.now() - Date.parse(corte!.valor as string)).toBeLessThan(362_000)
+  })
+
+  it.each([
+    ['original com cópia i.ytimg (thumbnail corrente)', 'thumbnail', { id: 'v1', sort_order: 0, blob_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', is_original: true, title_text: null }, 0],
+    ['variante sem blob_url', 'thumbnail', { id: 'v2', sort_order: 1, blob_url: null, is_original: false, title_text: null }, 1],
+    ['variante de título sem texto', 'title', { id: 'v2', sort_order: 1, blob_url: null, is_original: false, title_text: '  ' }, 1],
+  ])('R1 Phil I-1: %s → não reivindica, não escreve, erro ao dono', async (_nome, tipo, ruim, indiceDaVez) => {
+    const base = [
+      { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg', is_original: true, title_text: 'Title A' },
+      { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg', is_original: false, title_text: 'Title B' },
+    ]
+    base[indiceDaVez] = ruim as typeof base[number]
+    ;(getNextVariantIndex as ReturnType<typeof vi.fn>).mockReturnValue(indiceDaVez)
+    const { updateCalls, rpcCalls } = buildSupabaseMock({ test: makeTest({ test_type: tipo, variants: base }) })
+
+    const result = await forceRotate('test-1')
+
+    expect(result).toMatchObject({ ok: false, resultado: 'erro' })
+    expect(updateCalls).toHaveLength(0)
+    expect(rpcCalls).toHaveLength(0)
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('variante sem arquivo/título'), expect.anything())
+  })
+
   it('zero linhas na reivindicação (rotação ou pausa chegou antes): em_andamento, zero escrita', async () => {
     const { rpcCalls } = buildSupabaseMock({ test: makeTest(), reivindicadas: [] })
 
@@ -420,8 +457,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'combo',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/a.jpg', is_original: true, title_text: 'Title A' },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/b.jpg', is_original: false, title_text: 'Title B' },
+        { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg', is_original: true, title_text: 'Title A' },
+        { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg', is_original: false, title_text: 'Title B' },
       ],
     })
     const { updateCalls } = buildSupabaseMock({ test })
@@ -438,8 +475,8 @@ describe('forceRotate', () => {
     const test = makeTest({
       test_type: 'thumbnail',
       variants: [
-        { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/original.jpg', is_original: true, title_text: null },
-        { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/variant.jpg', is_original: false, title_text: null },
+        { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/original.jpg', is_original: true, title_text: null },
+        { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/variant.jpg', is_original: false, title_text: null },
       ],
     })
     buildSupabaseMock({ test })
@@ -449,7 +486,7 @@ describe('forceRotate', () => {
     const result = await forceRotate('test-1')
 
     expect(result).toMatchObject({ ok: true })
-    expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://blob.example/original.jpg')
+    expect(fetchVariantImageBuffer).toHaveBeenCalledWith('https://abc.public.blob.vercel-storage.com/original.jpg')
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
       expect.any(Buffer),
