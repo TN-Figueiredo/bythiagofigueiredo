@@ -87,6 +87,12 @@ describe('cabeçalho do canal', () => {
     expect(h.sync.at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/)
     expect(h.sync.atText).not.toBeNull(); expect(h.sync.text).toContain(h.sync.atText!)
   })
+  it('canal em erro sem mensagem registrada diz "Erro sem mensagem registrada." (Gio A1)', () => {
+    const w = canalWorld((ds, id) => { const s = ds.channels.find(x => x.id === id)!.sync; s.state = 'erro'; s.msg = null; s.errorSince = ds.now - 36e5 })
+    const h = buildCanalHeader(w.obs, w.chId)!
+    expect(h.sync.text).toContain('Erro sem mensagem registrada.')
+    expect(h.sync.text).not.toMatch(/Erro: erro sem/)
+  })
   it('sincronização atrasada e com erro mudam o tom e abrem a faixa', () => {
     const late = canalWorld((ds, id) => { const s = ds.channels.find(x => x.id === id)!.sync; s.state = 'atrasado' })
     const hl = buildCanalHeader(late.obs, late.chId)!

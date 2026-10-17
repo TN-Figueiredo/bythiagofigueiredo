@@ -52,9 +52,4 @@ describe('textos sem promessa de acao que a tela nao tem (Gio T15-4)', () => {
     expect(ler('src/app/cms/(authed)/youtube/competitors/_canal/medidas/frase-do-topo.ts')).not.toMatch(/tente de novo/)
     expect(ler('src/lib/youtube/observatorio/medidas-telas/frases-das-horas.ts')).not.toMatch(/tente de novo/)
   })
-  it('erro de sync sem mensagem diz "Erro sem mensagem registrada." e nunca "Erro: erro sem..."', () => {
-    const src = ler('src/app/cms/(authed)/youtube/competitors/_canal/header-model.ts')
-    expect(src).toContain("'Erro sem mensagem registrada'")
-    expect(src).not.toMatch(/Erro: erro sem/)
-  })
 })
