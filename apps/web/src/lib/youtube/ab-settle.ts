@@ -78,8 +78,8 @@ export interface PortasSaida {
   lerRetrato?: (testId: string, siteId: string) => Promise<Retrato | null>
 }
 
-const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `prazo`
-const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
+export const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `prazo`
+export const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
 const REVERT_MS = 7 * 86_400_000
 

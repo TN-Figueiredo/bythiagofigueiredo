@@ -10,11 +10,11 @@
  */
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
+import { applyVariantToYouTube, antesDeEscreverPorSeq } from '@/lib/youtube/ab-apply'
 import { avisarRotacaoCruzada, motivoVarianteSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, RestoreStatus } from '@/lib/youtube/ab-restore'
-import { emAndamentoRecente } from '@/lib/youtube/ab-settle'
+import { emAndamentoRecente, TETO_MS } from '@/lib/youtube/ab-settle'
 import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO } from '@/lib/youtube/ab-acao-saida'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
@@ -51,14 +51,7 @@ const COLUNAS = 'id, site_id, name, status, status_note, drift_acknowledged_at, 
 
 const erro = (error: string): ResultadoAcaoSaida => ({ ok: false, resultado: 'erro', error })
 
-/** Relê `restore_seq` antes de cada escrita (Y-D8): false = outra ação reivindicou o teste. */
-export function antesDeEscreverPorSeq(supabase: SupabaseClient, testId: string, seq: number): () => Promise<boolean> {
-  return async () => {
-    const { data, error } = await supabase.from('ab_tests').select('restore_seq').eq('id', testId).single()
-    if (error || !data) throw new Error(`ab-resume: releitura de restore_seq do teste ${testId}: ${error?.message ?? 'sem linha'}`)
-    return (data as { restore_seq: number }).restore_seq === seq
-  }
-}
+export { antesDeEscreverPorSeq }
 
 /** Teste de tipo fora dos três (descrição saiu do A/B): mensagem de recusa, ou null se o tipo vale. */
 export function recusaTipoForaDeUso(testType: unknown): string | null {
@@ -95,6 +88,7 @@ export function restoreStatusDaFalha(
 
 export async function retomarTeste(testId: string, siteId: string, portas: PortasRetomar): Promise<ResultadoAcaoSaida> {
   const { supabase } = portas
+  const prazo = portas.agora().getTime() + TETO_MS // F-D3: ação humana, início + 55 s
   const teste = await (portas.lerRetrato ?? ((t, s) => lerPadrao(supabase, t, s)))(testId, siteId)
   if (!teste) return erro('Test not found')
   if (teste.status !== 'paused') return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
@@ -131,10 +125,17 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
     return erro(`A retomada não foi feita: a variante da vez está ${semConteudo}. Abra o teste e confira as variantes.`)
   }
 
-  const canal = await resolveVideoChannel(supabase, siteId, teste.youtube_video_id)
-  if (!canal.ok) return erro(canal.error)
-  const accessToken = await portas.token(siteId, canal.channelAccountId)
-  const youtubeVideoId = await resolveYouTubeVideoId(supabase, teste.youtube_video_id)
+  // Falha de canal ou de token volta como resultado com a mensagem (o dono precisa saber que deve reconectar o canal).
+  let accessToken: string
+  let youtubeVideoId: string | null
+  try {
+    const canal = await resolveVideoChannel(supabase, siteId, teste.youtube_video_id)
+    if (!canal.ok) return erro(canal.error)
+    accessToken = await portas.token(siteId, canal.channelAccountId)
+    youtubeVideoId = await resolveYouTubeVideoId(supabase, teste.youtube_video_id)
+  } catch (e) {
+    return erro(e instanceof Error ? e.message : 'Não foi possível ler o canal do YouTube. Reconecte o canal.')
+  }
   if (!youtubeVideoId) return erro('YouTube video ID not found')
 
   // Reivindica mantendo `paused`: restore_seq + 1 e os campos que vai escrever em em_andamento (destino = a variante).
@@ -166,7 +167,7 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
       variant: { id: proxima.id, blob_url: proxima.blob_url, title_text: proxima.title_text },
       originalTitle: teste.original_title,
     },
-    { antesDeEscrever: antesDeEscreverPorSeq(supabase, testId, seq) },
+    { antesDeEscrever: antesDeEscreverPorSeq(supabase, testId, seq), prazo, agora: () => portas.agora().getTime() },
   )
 
   const nomeDoTeste = teste.name ?? ''
@@ -182,14 +183,19 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
     // Y-B2: resultado por campo. A thumbnail vai antes do título, então `appliedThumbnail && !appliedMetadata` é possível.
     const escritos: Partial<Record<CampoNome, boolean>> = {}
     for (const c of campos) escritos[c] = c === 'thumbnail' ? aplicado.appliedThumbnail : aplicado.appliedMetadata
-    const valor = restoreStatusDaFalha(anterior === null ? (anteriorBruto as RestoreStatus | null) : anterior, escritos, proxima.id, emIso, attemptsAnterior)
+    // Nada escrito: regrava o valor bruto anterior (F-P10). Com escrita, parte do parseado (o bruto ilegível não vai ao objeto novo).
+    const algumEscrito = Object.values(escritos).some(Boolean)
+    const valor = algumEscrito
+      ? restoreStatusDaFalha(anterior, escritos, proxima.id, emIso, attemptsAnterior)
+      : (anteriorBruto as RestoreStatus | null)
     const { error: erroGrava } = await supabase
       .from('ab_tests')
       .update({ restore_status: valor })
       .eq('id', testId)
       .eq('restore_seq', seq)
     if (erroGrava) throw new Error(`ab-resume: gravação do resultado da falha do teste ${testId}: ${erroGrava.message}`)
-    return erro(aplicado.error ?? 'apply failed')
+    // TEXTO-A-REVISAR (Logan, T17)
+    return erro(aplicado.tempoEsgotado ? 'O YouTube demorou demais. Tente de novo.' : (aplicado.error ?? 'apply failed'))
   }
 
   const { data: cicloId, error: erroFecho } = await supabase.rpc('ab_resume_commit', {

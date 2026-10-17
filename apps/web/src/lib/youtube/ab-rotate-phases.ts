@@ -24,39 +24,74 @@ export interface RotateResult {
 // ─── Phase 1: Process queued tests whose start time has arrived ──────────────
 
 const UM_DIA_MS = 86_400_000
+/** Tentativas diárias do início pela fila; na 7ª falha seguida o teste sai da fila (fica rascunho) com um aviso final. */
+export const MAX_TENTATIVAS_DA_FILA = 7
+
+interface TesteDaFila { id: string; site_id: string; name?: string | null; queue_start_after?: string | null; config?: unknown }
 
 /**
- * Início que falhou: a fila tenta de novo amanhã. O supabase-js não faz aritmética de coluna em `update`, então a data
- * nova sai do valor lido (ou de agora, o que for maior). `queue_start_after` NUNCA volta a nulo: a consulta da fila exige
- * não nulo e um teste `queued` com a data nula nunca mais seria pego (Y-D5). Um aviso por dia por teste.
+ * Início que falhou: a fila tenta de novo no dia seguinte. A data é ancorada em 00:00 UTC do dia seguinte (o cron roda
+ * uma vez por dia às 08:00 UTC, algum segundo depois do instante lido; "agora + 24 h" cairia depois da próxima execução
+ * e pularia um dia inteiro). `queue_start_after` NUNCA volta a nulo enquanto o teste está na fila: a consulta exige não
+ * nulo e um teste `queued` com a data nula nunca mais seria pego (Y-D5). O contador `config.queue_start_failures`
+ * limita a 7 tentativas: na 7ª o teste sai da fila e o dono recebe um aviso final. Só avisa "não começou" quando o
+ * adiamento foi gravado (erro ou zero linhas = o teste não está mais em rascunho: sem aviso). Um aviso por dia por teste.
  */
-async function adiarInicioDaFila(
-  supabase: SupabaseClient,
-  queued: { id: string; site_id: string; name?: string | null; queue_start_after?: string | null },
-  motivo: string,
-): Promise<void> {
+async function adiarInicioDaFila(supabase: SupabaseClient, queued: TesteDaFila, motivo: string): Promise<void> {
+  const config = ((queued.config ?? {}) as Record<string, unknown>)
+  const falhas = (Number(config.queue_start_failures) || 0) + 1
+  const configNova = { ...config, queue_start_failures: falhas }
+
+  if (falhas >= MAX_TENTATIVAS_DA_FILA) {
+    const { data, error } = await supabase
+      .from('ab_tests').update({ config: configNova }).eq('id', queued.id).eq('status', 'draft').select('id')
+    if (error) { Sentry.captureException(new Error(error.message), { extra: { testId: queued.id, context: 'fila-saida' } }); return }
+    if (!data || data.length === 0) return
+    await avisarFila(queued, {
+      // TEXTO-A-REVISAR (Logan, T17)
+      title: 'A/B: o teste saiu da fila',
+      message: `O teste "${queued.name ?? ''}" saiu da fila depois de ${MAX_TENTATIVAS_DA_FILA} tentativas (${motivo}). Ele continua como rascunho: abra o teste para corrigir e iniciar.`,
+      dedupKey: `ab-queue-saiu:${queued.id}`,
+    })
+    return
+  }
+
   const lido = queued.queue_start_after ? Date.parse(queued.queue_start_after) : Number.NaN
   const base = Math.max(Number.isNaN(lido) ? 0 : lido, Date.now())
-  await supabase
+  const amanha = Math.floor((base + UM_DIA_MS) / UM_DIA_MS) * UM_DIA_MS
+  const { data, error } = await supabase
     .from('ab_tests')
-    .update({ status: 'queued', queue_start_after: new Date(base + UM_DIA_MS).toISOString() })
+    .update({ status: 'queued', queue_start_after: new Date(amanha).toISOString(), config: configNova })
     .eq('id', queued.id)
     .eq('status', 'draft')
+    .select('id')
+  if (error) { Sentry.captureException(new Error(error.message), { extra: { testId: queued.id, context: 'fila-adiamento' } }); return }
+  if (!data || data.length === 0) return
   try {
     if (await claimAlert(supabase, `ab-queue:${queued.id}`, '1 day')) {
-      await fanOutToSiteAdminsDetailed({
-        siteId: queued.site_id,
-        domain: 'youtube',
-        type: 'youtube.ab_queue_start_failed',
-        priority: 1,
+      await avisarFila(queued, {
         // TEXTO-A-REVISAR (Logan, T17)
         title: 'A/B: o teste da fila não começou',
         message: `O teste "${queued.name ?? ''}" não conseguiu começar (${motivo}). O Lab tenta de novo amanhã.`,
         dedupKey: `ab-queue:${queued.id}:${new Date().toISOString().slice(0, 10)}`,
-        actionHref: `/cms/youtube/ab-lab/${queued.id}`,
-        payload: { testId: queued.id },
       })
     }
+  } catch (e) {
+    Sentry.captureException(e, { extra: { testId: queued.id, context: 'aviso-fila' } })
+  }
+}
+
+async function avisarFila(queued: TesteDaFila, a: { title: string; message: string; dedupKey: string }): Promise<void> {
+  try {
+    await fanOutToSiteAdminsDetailed({
+      siteId: queued.site_id,
+      domain: 'youtube',
+      type: 'youtube.ab_queue_start_failed',
+      priority: 1,
+      ...a,
+      actionHref: `/cms/youtube/ab-lab/${queued.id}`,
+      payload: { testId: queued.id },
+    })
   } catch (e) {
     Sentry.captureException(e, { extra: { testId: queued.id, context: 'aviso-fila' } })
   }
@@ -65,7 +100,7 @@ async function adiarInicioDaFila(
 export async function phaseProcessQueue(supabase: SupabaseClient): Promise<number> {
   const { data: queuedTests } = await supabase
     .from('ab_tests')
-    .select('id, site_id, youtube_video_id, name, queue_start_after')
+    .select('id, site_id, youtube_video_id, name, queue_start_after, config')
     .eq('status', 'queued')
     .not('queue_start_after', 'is', null)
     .lte('queue_start_after', new Date().toISOString())
@@ -75,11 +110,17 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
   let started = 0
   for (const queued of queuedTests) {
     try {
-      await supabase
+      const { data: pego, error: erroPego } = await supabase
         .from('ab_tests')
         .update({ status: 'draft', queue_start_after: null })
         .eq('id', queued.id)
         .eq('status', 'queued')
+        .select('id')
+      if (erroPego) {
+        Sentry.captureException(new Error(erroPego.message), { extra: { testId: queued.id, context: 'queue-claim' } })
+        continue
+      }
+      if (!pego || pego.length === 0) continue // outro processo pegou
 
       const result = await startAbTestInternal(queued.id, queued.site_id)
       if (result?.ok) {

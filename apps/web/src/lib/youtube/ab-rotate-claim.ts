@@ -106,6 +106,9 @@ export interface ArgsAplicarRotacao {
   cycleNumber: number
   /** Acrescentado ao `applied_metadata` do ciclo aberto (forçar rotação grava `{ trigger: 'manual' }`). */
   metaExtra?: Record<string, unknown>
+  /** Prazo absoluto (epoch ms) das ações humanas (forçar rotação); o cron não passa. Ver `OpcoesApply.prazo`. */
+  prazo?: number
+  agora?: () => number
 }
 
 export type ResultadoAplicarRotacao =
@@ -157,7 +160,7 @@ export async function aplicarRotacao(supabase: SupabaseClient, args: ArgsAplicar
       variant: { id: args.variante.id, blob_url: args.variante.blob_url, title_text: args.variante.title_text },
       originalTitle: args.originalTitle,
     },
-    { antesDeEscrever },
+    { antesDeEscrever, prazo: args.prazo, agora: args.agora },
   )
 
   if (aplicado.perdeuAVez) {
@@ -172,7 +175,8 @@ export async function aplicarRotacao(supabase: SupabaseClient, args: ArgsAplicar
     return {
       ok: false,
       motivo: 'youtube',
-      erro: aplicado.erroApi ?? new Error(aplicado.error ?? 'apply failed'),
+      // TEXTO-A-REVISAR (Logan, T17)
+      erro: aplicado.erroApi ?? new Error(aplicado.tempoEsgotado ? 'O YouTube demorou demais. Tente de novo.' : (aplicado.error ?? 'apply failed')),
       appliedThumbnail: aplicado.appliedThumbnail,
       appliedMetadata: aplicado.appliedMetadata,
     }

@@ -13,8 +13,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { channelAccountIdForVideo, CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
-import { antesDeEscreverPorSeq } from '@/lib/youtube/ab-resume'
+import { applyVariantToYouTube, antesDeEscreverPorSeq } from '@/lib/youtube/ab-apply'
+import { motivoVarianteSemConteudo } from '@/lib/youtube/ab-rotate-claim'
+import { MARGEM_ESCRITA_MS, TETO_MS } from '@/lib/youtube/ab-settle'
+import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { MSG_EM_ANDAMENTO } from '@/lib/youtube/ab-acao-saida'
 import { converterInterrompido, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
@@ -120,6 +122,25 @@ async function resolverPendenciasDoVideo(
 // startAbTestInternal
 // ---------------------------------------------------------------------------
 
+/** Aviso ao dono: a thumbnail da variante ficou no ar e a volta ao original falhou. TEXTO-A-REVISAR (Logan, T17). */
+async function avisarInicioParcial(siteId: string, testId: string, youtubeVideoId: string): Promise<void> {
+  try {
+    await fanOutToSiteAdminsDetailed({
+      siteId,
+      domain: 'youtube',
+      type: 'youtube.ab_start_partial',
+      priority: 1,
+      title: 'A/B: confira a thumbnail do vídeo',
+      message: `O teste não começou, mas a thumbnail da variante pode ter ficado no ar no vídeo ${youtubeVideoId}. Confira e troque pela original se precisar.`,
+      dedupKey: `ab-start-partial:${testId}:${new Date().toISOString().slice(0, 10)}`,
+      actionHref: `/cms/youtube/ab-lab/${testId}`,
+      payload: { testId },
+    })
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-start' }, extra: { testId, context: 'aviso-inicio-parcial' } })
+  }
+}
+
 /** Volta um teste reivindicado para `draft`, só se o restore_seq ainda é o nosso (nenhuma outra ação mexeu). */
 async function voltarParaRascunho(supabase: SupabaseClient, testId: string, seq: number): Promise<void> {
   const { error } = await supabase
@@ -165,6 +186,7 @@ export async function startAbTestInternal(
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = portas.supabase ?? getSupabaseServiceClient()
   const agora = portas.agora ?? (() => new Date())
+  const prazo = agora().getTime() + TETO_MS // F-D3: ação humana (e cron da fila), início + 55 s
 
   // 1. Fetch the test row and validate ownership + status.
   const { data: test, error: testError } = await supabase
@@ -204,6 +226,13 @@ export async function startAbTestInternal(
     return { ok: false, error: 'Invalid variant rotation index' }
   }
   const firstVariant = variants[firstIndex] as VarianteInicio
+
+  // Guarda de conteúdo (T9 R1): a 1ª variante, se vai ser escrita, precisa de cópia no Blob e de título.
+  if (!firstVariant.is_original) {
+    const semConteudo = motivoVarianteSemConteudo(testType, firstVariant, test.original_title as string | null)
+    // TEXTO-A-REVISAR (Logan, T17)
+    if (semConteudo) return { ok: false, error: `O teste não começou: a variante ${firstVariant.label} está ${semConteudo}. Abra o teste e confira as variantes.` }
+  }
 
   // 4. Canal e token (só leitura): falha aqui não toca em nada.
   let accessToken: string
@@ -296,6 +325,11 @@ export async function startAbTestInternal(
   // (3) Escreve a 1ª variante, se não for a original.
   const cycle0Meta: AppliedMetadata = {}
   if (!firstVariant.is_original) {
+    if (prazo - agora().getTime() < MARGEM_ESCRITA_MS) {
+      // TEXTO-A-REVISAR (Logan, T17)
+      return await desfazer('O YouTube demorou demais. Tente de novo.')
+    }
+    const opcoesApply = { antesDeEscrever: antesDeEscreverPorSeq(supabase, testId, seq), prazo, agora: () => agora().getTime() }
     const aplicado = await applyVariantToYouTube(
       {
         youtubeVideoId,
@@ -304,10 +338,27 @@ export async function startAbTestInternal(
         variant: { id: firstVariant.id, blob_url: firstVariant.blob_url, title_text: firstVariant.title_text },
         originalTitle: (patchTeste.original_title as string | undefined) ?? (test.original_title as string | null),
       },
-      { antesDeEscrever: antesDeEscreverPorSeq(supabase, testId, seq) },
+      opcoesApply,
     )
     if (aplicado.perdeuAVez) return { ok: false, error: MSG_EM_ANDAMENTO }
-    if (!aplicado.ok) return await desfazer(aplicado.error ?? 'apply failed')
+    if (!aplicado.ok && aplicado.appliedThumbnail && original) {
+      // Combo: a thumbnail da variante entrou e o título não. Volta a thumbnail original antes de `desfazer`.
+      const blobOriginal = guardada?.url ?? original.blob_url
+      const volta = blobOriginal
+        ? await applyVariantToYouTube(
+            { youtubeVideoId, accessToken, testType: 'thumbnail', variant: { id: original.id, blob_url: blobOriginal, title_text: null }, originalTitle: null },
+            opcoesApply,
+          )
+        : null
+      if (!volta?.ok) {
+        Sentry.captureMessage('ab-start: thumbnail da variante ficou no ar depois de falha no início', { level: 'error', extra: { testId } })
+        await avisarInicioParcial(siteId, testId, youtubeVideoId)
+      }
+    }
+    if (!aplicado.ok) {
+      // TEXTO-A-REVISAR (Logan, T17)
+      return await desfazer(aplicado.tempoEsgotado ? 'O YouTube demorou demais. Tente de novo.' : (aplicado.error ?? 'apply failed'))
+    }
     Object.assign(cycle0Meta, aplicado.meta)
   } else {
     // Original stays on YouTube — snapshot current URL for drift baseline

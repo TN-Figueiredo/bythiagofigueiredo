@@ -33,7 +33,7 @@ import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhas
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
 import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
-import { settleOnAir, ORIGINAL } from '@/lib/youtube/ab-settle'
+import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
   MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, recusaDeSessao, traduzirSaida, varianteOriginalId,
@@ -940,6 +940,7 @@ export async function updateTextVariant(
 // ---------------------------------------------------------------------------
 
 export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
+  const prazo = Date.now() + TETO_MS // F-D3: ação humana, início + 55 s
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
   const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'forçar a rotação de um teste A/B no canal')
@@ -1032,6 +1033,7 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
     originalTitle: test.original_title as string | null,
     cycleNumber: nextCycle,
     metaExtra: { trigger: 'manual' },
+    prazo,
   })
 
   if (!resultado.ok) {
