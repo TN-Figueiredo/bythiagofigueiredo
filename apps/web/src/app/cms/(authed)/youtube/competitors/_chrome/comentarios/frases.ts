@@ -168,6 +168,8 @@ export const FRASES = {
     'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Um espectador”.',
     'Guardamos até 3 respostas do criador por comentário.',
     ...(mencoesTrocadas > 0 ? ['Menções a outras pessoas aparecem como “@…”: o nome delas fica escondido.'] : []),
+    // TEXTO-A-REVISAR (Logan)
+    'Só as menções com @ são trocadas: um nome escrito por extenso dentro do texto do comentário não é trocado.',
     'Cálculo do Observatório sobre dados públicos do YouTube.',
   ],
 } as const

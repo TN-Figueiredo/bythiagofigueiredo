@@ -257,6 +257,8 @@ describe('C2 · frases', () => {
     expect(FRASES.paradaSemOk('08/10')).toContain('sem execução completa desde 08/10')
     expect(FRASES.aCaminho(7, '13/10', '16/10')).toContain('o retrato sai na próxima coleta, até 16/10')
     expect(FRASES.infoParagrafos(1).join(' ')).toContain('“@…”')
+    expect(FRASES.infoParagrafos(0).join(' ')).toContain('nome escrito por extenso')
+    expect(FRASES.infoParagrafos(1).join(' ')).toContain('não é trocado')
   })
   it('nenhuma frase diz "não respondeu"', () => expect(textos().join('\n')).not.toMatch(/não respondeu/i))
   it('o erro de leitura é o do plano', () => expect(FRASES.erroDeLeitura).toBe('Não deu para abrir os comentários agora.'))
