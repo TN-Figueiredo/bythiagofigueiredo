@@ -34,7 +34,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: RLS das cinco tabelas (banco
   }
 
   async function cenario() {
-    const c = await semearCena(pg)
+    const c = await semearCena(pg, { semX3: true })
     const editor = await criarUsuario(pg)
     await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'editor')`, [c.site, editor])
     const x = await criarSite(pg)

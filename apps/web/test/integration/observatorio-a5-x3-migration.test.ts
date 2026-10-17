@@ -60,7 +60,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   /** Cena + uma playlist `PLaaa` no canal A com `itens(1, k)` lidos completos em t1. */
   async function comPlaylist(k = 3) {
-    const c = await semearCena(pg)
+    const c = await semearCena(pg, { semX3: true })
     const r = await plRec(c, c.canalA, T(10), [pl('PLaaa')], true)
     const ref = idsDe(r)['PLaaa']!
     if (k > 0) await itRec(c, c.canalA, ref, T(10, 11), itens(1, k), true)
@@ -87,7 +87,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('playlist de envios, curtidos e favoritos (UU, LL, FL) √© recusada pelo banco (23514)', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       for (const id of ['UUabcdefg', 'UULFabcdefg', 'LLabcdefg', 'FLabcdefg']) {
         const r = await tenta(pg, `insert into public.competitor_playlists (site_id, competitor_channel_id, playlist_id, state_sha256, first_seen_at, last_seen_at)
                                    values ($1, $2, $3, 'h', now(), now())`, [c.site, c.canalA, id])
@@ -102,7 +102,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('playlists_record: vers√£o s√≥ quando o hash muda; missing_since s√≥ com lista completa; volta limpa', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       const r1 = await plRec(c, c.canalA, T(10), [pl('PLa'), pl('PLb')], true)
       expect(await n(`select count(*)::int from public.competitor_playlists where competitor_channel_id = $1`, [c.canalA])).toBe(2)
       expect(await n(`select count(*)::int from public.competitor_playlist_versions where site_id = $1`, [c.site])).toBe(2)
@@ -128,7 +128,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('distinct on: a mesma playlist duplicada em p_rows gera uma vers√£o s√≥', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       await plRec(c, c.canalA, T(10), [pl('PLa'), pl('PLa')], true)
       expect(await n(`select count(*)::int from public.competitor_playlist_versions where site_id = $1`, [c.site])).toBe(1)
     })
@@ -136,7 +136,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('"√∫ltimo" das vers√µes por observed_at desc, id desc: mesmo hash do √∫ltimo n√£o grava; hash antigo que volta grava', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       await plRec(c, c.canalA, T(10), [pl('PLa', 'A')], true)
       await plRec(c, c.canalA, T(11), [pl('PLa', 'B')], true)
       expect((await plRec(c, c.canalA, T(12), [pl('PLa', 'B')], true)).versoes).toBe(0)
@@ -180,7 +180,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('se√ß√µes: mesmo hash duas vezes = 1 linha; hash novo = 2; prev_seen_at = last_visit_at anterior do canal', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       const sec = (now: string, sha: string) => q1(pg, `select public.competitor_x3_sections_record($1, $2, $3::timestamptz, $4, '{"items":[]}'::jsonb) as k`, [c.site, c.canalA, now, sha])
       expect((await sec(T(10), 'h1')).k).toBe(1)
       await fecha(c, c.canalA, T(10, 12), 'ok')
@@ -196,7 +196,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('visit_close: ok carimba last_complete_at e last_cycle_at; parcial s√≥ com p_ciclo; tri-state; first_visit_at nunca muda', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       const ler = () => q1(pg, `select * from public.competitor_playlist_reads where competitor_channel_id = $1`, [c.canalA])
       const iso = (v: unknown) => (v === null ? null : new Date(v as string).toISOString())
       await fecha(c, c.canalA, T(10), 'parcial', { reason: 'lista_vazia_a_confirmar', lista: true })
@@ -231,7 +231,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
 
   it('monot√¥nico: visit_close atrasado n√£o sobrescreve; items_record e playlists_record atrasados devolvem atrasada e n√£o tocam em nada', async () => {
     await emTransacaoComX3(pg, async () => {
-      const c = await semearCena(pg)
+      const c = await semearCena(pg, { semX3: true })
       await fecha(c, c.canalA, T(10, 10, 20), 'ok')
       await fecha(c, c.canalA, T(10, 10, 0), 'parcial', { reason: 'lista_cortada' })
       const l = await q1(pg, `select last_status, last_visit_at from public.competitor_playlist_reads where competitor_channel_id = $1`, [c.canalA])
@@ -271,7 +271,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
       expect(l.k).toBe(20)
       expect(iso(l.ra as string)).toBe('2026-03-10T11:00:00.000Z')
       // playlist sem leitura completa anterior: removed_after nulo
-      const s = await semearCena(pg)
+      const s = await semearCena(pg, { semX3: true })
       const r = await plRec(s, s.canalA, T(10), [pl('PLsem')], true)
       const ref2 = idsDe(r)['PLsem']!
       await itRec(s, s.canalA, ref2, T(10, 11), itens(1, 2), false) // s√≥ parcial
@@ -326,7 +326,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
       await confere(chamadas(c.canalA, c.site), 'pausado')
       await pg.query(`update public.competitor_channels set missing_since = current_date where id = $1`, [c.canalB])
       await confere(chamadas(c.canalB, c.site), 'ausente')
-      const outro = await semearCena(pg)
+      const outro = await semearCena(pg, { semX3: true })
       await confere(chamadas(outro.canalA, c.site), 'outro site')
     })
   })
@@ -338,7 +338,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se√
       const ordem = `select table_name, filter_sql, period_sql, sum_sql, order_sql from public.obs_archive_registry()`
       const x3 = (await pg.query(ordem)).rows as Array<Record<string, unknown>>
       await pg.query('rollback')
-      await iniciarComMg6(pg) // s√≥ a MG6 (22)
+      const modo = process.env.E10_COM_X3
+      delete process.env.E10_COM_X3 // s√≥ a MG6 (22), mesmo na rodada da pasta da E10 com a X3 presente
+      try { await iniciarComMg6(pg) } finally { if (modo !== undefined) process.env.E10_COM_X3 = modo }
       const mg6 = (await pg.query(ordem)).rows as Array<Record<string, unknown>>
       expect(mg6).toHaveLength(22)
       expect(x3.slice(0, 22)).toEqual(mg6)
