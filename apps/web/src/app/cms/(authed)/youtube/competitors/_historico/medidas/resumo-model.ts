@@ -7,7 +7,7 @@ import { celulasDaFaixa, type BlocoDeIdade, type CelulaDeIdade, type PontoDeIdad
 import { LISTA_CURTA_ATE, dentroDosDiasAntes, type MudancaNumerada } from './mudancas-model'
 import { celulaDaSubida, type CartaoDaSubida, type CelulaDaSubida } from './subida-model'
 
-export type VarianteDoResumo = 'tipico' | 'magro' | 'zero' | 'nao_medido' | 'semanal' | 'saiu' | 'ao_vivo' | 'vazio' | 'simples'
+export type VarianteDoResumo = 'tipico' | 'magro' | 'zero' | 'nao_medido' | 'semanal' | 'saiu' | 'ao_vivo' | 'vazio' | 'simples' | 'nao_carregou'
 
 const ARTIGO: Record<string, string> = {
   título: 'o título', miniatura: 'a miniatura', descrição: 'a descrição', tags: 'as tags', categoria: 'a categoria', duração: 'a duração', capítulos: 'os capítulos', idioma: 'o idioma',
@@ -23,12 +23,12 @@ export interface EntradaDoResumo {
   mudancas: readonly MudancaNumerada[] | null
   semanal: boolean
   aoVivo: boolean
-  /** Dias com leitura (contagem por dia); zero = nenhuma ainda. */
-  diasDeContagem: number
+  /** Dias com leitura (contagem por dia); zero = nenhuma ainda; nulo = a série não foi lida (portão Phil I1). */
+  diasDeContagem: number | null
   /** Idade do vídeo em dias inteiros (para a frase simples). */
   idadeDoVideoDias: number
   /** Vídeo que saiu: o dia da saída e o da última contagem (`AAAA-MM-DD`). */
-  saiu: { em: string; ultimaContagem: string } | null
+  saiu: { em: string; ultimaContagem: string | null } | null
   /** Vídeo que entrou tarde na contagem: o dia em que entrou e o da contagem que falta. */
   entrouTarde: { em: string; falta: string | null } | null
   /** Dias (e horas) com zero medido, e quantos foram medidos. */
@@ -87,13 +87,20 @@ export function resumoDoVideo(e: EntradaDoResumo): Resumo {
   let variante: VarianteDoResumo
   let frase: string
   const views = e.viewsAgora
-  if (e.diasDeContagem === 0 && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
+  if (e.diasDeContagem === null && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
+    variante = 'nao_carregou'
+    // TEXTO-A-REVISAR: a série não foi lida; o histórico existe, só não carregou (nunca "ainda não há histórico")
+    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. O histórico por dia não carregou; tente de novo.`
+  } else if (e.diasDeContagem === 0 && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
     variante = 'vazio'
     frase = `O vídeo tem ${viewsTxt(views, true)} views agora. Ainda não há histórico: a primeira contagem por dia é às 12:00 de amanhã.`
   } else if (e.saiu !== null) {
     variante = 'saiu'
     const n = e.diasDeContagem
-    frase = `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. A última contagem, em ${dm(e.saiu.ultimaContagem)}, foi de ${viewsTxt(views, true)} views, depois de ${n} ${n === 1 ? 'dia' : 'dias'} de contagem. A contagem termina em ${dm(e.saiu.ultimaContagem)}.`
+    // sem leitura (ou série não lida) não há "última contagem": nem data nem número inventados
+    frase = e.saiu.ultimaContagem === null || n === null || n === 0
+      ? `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. ${n === null ? 'A contagem por dia não carregou' : 'Não há nenhuma contagem por dia dele'}, então não há última contagem para mostrar.`
+      : `O vídeo saiu do YouTube em ${dm(e.saiu.em)}. A última contagem, em ${dm(e.saiu.ultimaContagem)}, foi de ${viewsTxt(views, true)} views, depois de ${n} ${n === 1 ? 'dia' : 'dias'} de contagem. A contagem termina em ${dm(e.saiu.ultimaContagem)}.`
   } else if (e.aoVivo) {
     variante = 'ao_vivo'
     frase = `Vídeo ao vivo ou estreia: tem ${viewsTxt(views, false)} views e fica fora do normal do canal, que só conta vídeos comuns.${sub}`
@@ -129,7 +136,7 @@ export function resumoDoVideo(e: EntradaDoResumo): Resumo {
       viewsAgora: {
         rotulo: 'Views agora',
         texto: viewsTxt(views, saiu),
-        sub: saiu ? `última contagem, ${dm(e.saiu!.ultimaContagem)}` : 'contagem de hoje',
+        sub: saiu ? (e.saiu!.ultimaContagem === null ? 'sem contagem por dia' : `última contagem, ${dm(e.saiu!.ultimaContagem)}`) : 'contagem de hoje',
       },
       idades: celulasDaFaixa(e.idade),
       subida: celulaDaSubida(e.subida, e.diasDeContagem),

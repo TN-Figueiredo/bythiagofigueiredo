@@ -137,7 +137,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   // ───── mudanças e subida ─────
   const mudLidas = c.mudancas !== 'nao_pedida' && c.mudancas.lido ? (c.mudancas.dados.get(video.id) ?? []) : null
   const numeradas: MudancaNumerada[] | null = mudLidas === null ? null : numerarMudancas(mudancasDoModelo(mudLidas, leituras))
-  const diasDeContagem = leituras === null ? 0 : new Set(leituras.map((l) => spDateOf(l.t))).size
+  const diasDeContagem = leituras === null ? null : new Set(leituras.map((l) => spDateOf(l.t))).size
   const subidas: Medida<Subida[]> | null = medidas?.porVideo.get(video.id)?.m5 ?? null
   const subida = cartaoDaSubida({
     hojeSP, semanal, saiu: saiuEm !== null, diasDeContagem, subidas, mudancas: numeradas,
@@ -182,7 +182,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   const resumo = resumoDoVideo({
     hojeSP, inicioDaContagem: INICIO_DAS_MARCAS, viewsAgora: video.viewsAgora, idade, subida, mudancas: numeradas, semanal, aoVivo,
     diasDeContagem, idadeDoVideoDias: Math.max(0, Math.floor((agoraMs - pub) / DAY)),
-    saiu: saiuEm !== null ? { em: saiuEm, ultimaContagem: ultimaLeitura === null ? saiuEm : spDateOf(ultimaLeitura) } : null,
+    saiu: saiuEm !== null ? { em: saiuEm, ultimaContagem: ultimaLeitura === null ? null : spDateOf(ultimaLeitura) } : null,
     entrouTarde: horasAteEntrar !== null && horasAteEntrar > 72 && descobertoMs !== null ? { em: spDateOf(descobertoMs), falta: null } : null,
     zeros: {
       dias: zerosDias, diasMedidos: medidosDias,

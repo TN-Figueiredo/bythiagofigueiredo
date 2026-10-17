@@ -20,8 +20,8 @@ export interface EntradaDaSubida {
   /** O vídeo tem uma contagem por semana (`series_tier`). */
   semanal: boolean
   saiu: boolean
-  /** Dias com leitura (contagem por dia) até hoje. */
-  diasDeContagem: number
+  /** Dias com leitura (contagem por dia) até hoje. Nulo = a série não foi lida (nunca zero: zero é "lida e vazia"). */
+  diasDeContagem: number | null
   /** Nulo = a série não foi lida. */
   subidas: Medida<Subida[]> | null
   /** Nulo = as mudanças não foram lidas. */
@@ -87,23 +87,28 @@ export function cartaoDaSubida(e: EntradaDaSubida): CartaoDaSubida {
     const l = listaDosAntes(s, e.mudancas)
     return { tipo: 'subiu', dia: s.dia, ganho7: s.ganho7, fator: s.fator, fraseTopo, lista: l.texto, listaCarregou: l.carregou, nota: NOTA_DA_LISTA }
   }
-  // não medido
-  const feitos = Math.min(DIAS_NECESSARIOS, Math.max(0, e.diasDeContagem))
-  const fecha = subidaFechaEm(e.diasDeContagem, e.hojeSP)
+  // não medido. Série não lida, ou medida que falhou na E4 (leitura/cálculo) ou nem foi pedida: não se calcula "faltam N dias" (portão Phil I1, Yannis I-6)
+  const m = e.subidas
+  if (e.diasDeContagem === null || m.motivo === 'leitura_falhou' || m.motivo === 'calculo_falhou' || m.motivo === 'serie_nao_pedida') {
+    return { tipo: 'nao_carregou', frase: 'Subida: não carregou. A contagem por dia deste vídeo não foi lida; tente de novo.' }
+  }
+  const dias = e.diasDeContagem
+  const feitos = Math.min(DIAS_NECESSARIOS, Math.max(0, dias))
+  const fecha = subidaFechaEm(dias, e.hojeSP)
   const precisa = `Precisa de ${DIAS_NECESSARIOS} dias de contagem por dia (${R.days} antes, o dia da subida e ${R.days} depois)`
   const titulo = 'Subida: não medido.'
   if (e.saiu) {
     return {
       tipo: 'nao_medido', titulo, motivo: 'saiu', curto: 'o vídeo saiu antes', fechaEm: null, feitos, total: DIAS_NECESSARIOS,
-      texto: `${precisa}; o vídeo saiu do YouTube com ${e.diasDeContagem} ${e.diasDeContagem === 1 ? 'dia' : 'dias'} de contagem, então a subida não vai ser medida`,
+      texto: `${precisa}; o vídeo saiu do YouTube com ${dias} ${dias === 1 ? 'dia' : 'dias'} de contagem, então a subida não vai ser medida`,
     }
   }
-  if (e.diasDeContagem < DIAS_NECESSARIOS) {
-    const faltam = DIAS_NECESSARIOS - e.diasDeContagem
+  if (dias < DIAS_NECESSARIOS) {
+    const faltam = DIAS_NECESSARIOS - dias
     const comecou = e.publicadoAntesDoInicio ? ` (começou em ${dm(e.inicioDaContagem)})` : ''
     return {
       tipo: 'nao_medido', titulo, motivo: 'faltam_dias', curto: `fecha em ${dm(fecha)}`, fechaEm: fecha, feitos, total: DIAS_NECESSARIOS,
-      texto: `${precisa}; são ${e.diasDeContagem}${comecou}. Faltam ${faltam}: fecha em ${dm(fecha)}`,
+      texto: `${precisa}; são ${dias}${comecou}. Faltam ${faltam}: fecha em ${dm(fecha)}`,
     }
   }
   return {
@@ -124,13 +129,13 @@ export interface CelulaDaSubida {
   sub: string
 }
 
-export function celulaDaSubida(c: CartaoDaSubida, diasDeContagem: number): CelulaDaSubida {
+export function celulaDaSubida(c: CartaoDaSubida, diasDeContagem: number | null): CelulaDaSubida {
   switch (c.tipo) {
     case 'inconclusivo': return { rotulo: 'Subida', estado: 'neutro', valor: 'contagem por semana', razao: null, sub: 'não dá para ver o dia' }
     case 'nao_carregou': return { rotulo: 'Subida', estado: 'nao_carregou', valor: null, razao: null, sub: 'não carregou' }
     case 'subiu':
       return { rotulo: 'Subida', estado: 'ok', valor: dm(c.dia), razao: c.fator === null ? '▲' : `▲ ${dec(c.fator, 1)}× o ritmo`, sub: `${R.days} dias depois contra ${R.days} antes` }
-    case 'sem_subida': return { rotulo: 'Subida', estado: 'ok', valor: 'nenhuma', razao: '＝', sub: `em ${diasDeContagem} dias` }
+    case 'sem_subida': return { rotulo: 'Subida', estado: 'ok', valor: 'nenhuma', razao: '＝', sub: diasDeContagem === null ? 'não carregou' : `em ${diasDeContagem} dias` }
     case 'nao_medido': return { rotulo: 'Subida', estado: 'nao_medido', valor: null, razao: null, sub: c.curto }
   }
 }
