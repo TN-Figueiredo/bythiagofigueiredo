@@ -337,7 +337,6 @@ function tabelasDoEstourou(m: MedidasVideoIa, tabelas: Tabela[], avisos: string[
         ])))
     }
   }
-
 }
 
 /** As tabelas e os avisos dos blocos de medida do vídeo; vazio quando as medidas não foram pedidas ao empacotador. */
