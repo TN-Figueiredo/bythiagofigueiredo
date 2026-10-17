@@ -322,8 +322,8 @@ describe('portão L5 (17/10): consertos', () => {
     // lado com impressões de sobra e sem taxa; o outro tem dias medidos mas poucas impressões
     expect(causaSemTaxa({ imp: 7000 }, { imp: 21, diasMedidos: 7 }, 100, n)).toBe('sem comparação: o outro lado tem só 21 impressões')
     expect(causaSemTaxa({ imp: 7000 }, { imp: 0, diasMedidos: 0 }, 100, n)).toBe('sem comparação: o outro lado não tem dia medido')
-    expect(causaSemTaxa({ imp: 7000 }, { imp: 900, diasMedidos: 3 }, 100, n)).toBe('sem comparação')
-    expect(causaSemTaxa({ imp: 7000 }, undefined, 100, n)).toBe('sem comparação')
+    expect(causaSemTaxa({ imp: 7000 }, { imp: 900, diasMedidos: 3 }, 100, n)).toBe('sem comparação possível')
+    expect(causaSemTaxa({ imp: 7000 }, undefined, 100, n)).toBe('sem comparação possível')
     expect(causaSemTaxa({ imp: 21 }, { imp: 7000, diasMedidos: 7 }, 100, n)).toBe('só 21 impressões: sem faixa')
     expect(causaSemTaxa({ imp: 1 }, undefined, 100, n)).toBe('só 1 impressão: sem faixa')
   })

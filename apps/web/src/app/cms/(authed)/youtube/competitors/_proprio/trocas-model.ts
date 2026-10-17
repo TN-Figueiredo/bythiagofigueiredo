@@ -140,7 +140,7 @@ function base(estado: EstadoTrocas, motivo: MotivoNaoMedido | null): TrocasView 
 
 export const BLOQUEIO: readonly string[] = [ // TEXTO-A-REVISAR (Logan): texto do bloqueio inventado pelo plano
   'Você não vê as trocas deste vídeo.',
-  'As trocas guardam impressões e cliques, que são privados do canal e só aparecem para quem administra.',
+  'As trocas mostram impressões e cliques, dados privados do canal: só quem administra o site vê.',
 ]
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ function testeView(t: TesteAb, e: EntradaTrocas, diag: TrocasView['diagnostico']
   const de = e.diaPt(t.inicio)
   const ciclos = t.ciclos.map(c => e.diaPt(c.inicio))
   // TEXTO-A-REVISAR (Logan): "fim do teste não registrado" é texto inventado
-  const quando = ate && fim === 'registrado' ? `de ${e.dm(de)} a ${e.dm(ate)}` : fim === 'andamento' ? `desde ${e.dm(de)}, em andamento` : `desde ${e.dm(de)}, fim do teste não registrado`
+  const quando = ate && fim === 'registrado' ? `de ${e.dm(de)} a ${e.dm(ate)}` : fim === 'andamento' ? `desde ${e.dm(de)}, em andamento` : `desde ${e.dm(de)}, sem data de fim registrada`
   const resultado = t.vencedorAplicadoEm ? ` Resultado: o vencedor foi aplicado em ${e.dm(e.diaPt(t.vencedorAplicadoEm))}.` : t.pausadoEm ? ` O teste foi parado em ${e.dm(e.diaPt(t.pausadoEm))}.` : ''
   return {
     id: t.id, de, ate: fim === 'andamento' ? null : ate, andamento: fim === 'andamento', fim, ciclos, titulo: 'Teste A/B', quando,
@@ -255,8 +255,8 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
   if (lidas.acesso === 'erro') {
     const v = base('erro-de-leitura', null)
     v.notaGrafico = 'As trocas não puderam ser lidas: o gráfico está sem as marcas.'
-    v.avisos = ['Não foi possível atualizar as trocas. A leitura falhou agora.']
-    v.topo.partes = [{ t: 'Trocas deste vídeo:', b: true }, { t: ' não foi possível atualizar.' }]
+    v.avisos = ['Não conseguimos ler as trocas agora; recarregue a página.']
+    v.topo.partes = [{ t: 'Trocas deste vídeo:', b: true }, { t: ' não conseguimos ler agora.' }]
     return v
   }
   const L = lidas.dado
@@ -276,7 +276,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
     // portão L5, Phil I-2: registro atrasado e vídeo publicado depois da última conferência não é "nunca registrado": o atraso aparece
     if (estado.estado === 'registrando') {
       const saiuDepois = e.publicadoEm !== null && e.publicadoEm > estado.conferidoAte
-      if (saiuDepois) v.frase = `As trocas deste vídeo ainda não aparecem: o registro foi conferido até ${e.dm(estado.conferidoAte)} e o vídeo saiu depois.` // TEXTO-A-REVISAR (Logan)
+      if (saiuDepois) v.frase = `Ainda não conferimos as trocas deste vídeo: a última conferência foi em ${e.dm(estado.conferidoAte)} e o vídeo saiu depois.` // TEXTO-A-REVISAR (Logan)
       v.atraso = atrasoDe(estado, e)
       if (v.atraso || saiuDepois) v.topo.aviso = `A conferência das trocas parou em ${e.dm(estado.conferidoAte)}.`
     }
@@ -559,10 +559,10 @@ function vizinho(v: VersaoPropria, lado: 'antes' | 'depois', trocas: readonly Ve
  */
 export function causaSemTaxa(l: Pick<Lado, 'imp'>, outro: Pick<Lado, 'imp' | 'diasMedidos'> | undefined, minImp: number, n: (x: number) => string): string {
   if (l.imp < minImp) return `só ${n(l.imp)} ${l.imp === 1 ? 'impressão' : 'impressões'}: sem faixa`
-  if (outro === undefined) return 'sem comparação' // TEXTO-A-REVISAR (Logan)
+  if (outro === undefined) return 'sem comparação possível' // TEXTO-A-REVISAR (Logan)
   if (outro.diasMedidos === 0) return 'sem comparação: o outro lado não tem dia medido' // TEXTO-A-REVISAR (Logan)
   if (outro.imp < minImp) return `sem comparação: o outro lado tem só ${n(outro.imp)} ${outro.imp === 1 ? 'impressão' : 'impressões'}` // TEXTO-A-REVISAR (Logan)
-  return 'sem comparação'
+  return 'sem comparação possível'
 }
 
 function ladoDe(nome: 'Antes' | 'Depois', lado: 'antes' | 'depois', l: Lado, outro: Lado | undefined, v: VersaoPropria, trocas: readonly VersaoPropria[], video: VersoesDoVideo, ctx: Ctx, c: Contexto): LadoView {
