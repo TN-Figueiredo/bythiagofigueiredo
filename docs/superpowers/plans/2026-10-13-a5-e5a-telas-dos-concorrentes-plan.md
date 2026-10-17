@@ -322,6 +322,9 @@ Decisão do dono: Trocas = título mais miniatura. `tabCounts.mud` passa a filtr
 
 ---
 
+
+(emenda 17/10, portão Phil I2) §4.8: a página do Histórico do vídeo lê a série, as mudanças e as horas do canal inteiro com as janelas do canal (180 dias para série e mudanças, 90 para horas). Vídeo fora dessa janela: `completarVideoForaDaJanela` (`medidas-telas/carregar-do-video.ts`) lê só o dele, com os mesmos leitores, cache por (site, vídeo, okSyncedAt) de 900 s, < 500 linhas; dentro da janela, nenhuma consulta extra. O que falhar vira `semLeitura` e o bloco diz "não carregou", nunca "nenhuma mudança" nem "fecha em". "Estourou e parou" sai do mesmo conjunto (`lerLeituraDoConjunto`); só cai na leitura própria quando o vídeo está fora da série do conjunto. As horas contam da âncora `baseDaIdade` (início real da live ou estreia), e a M5 do vídeo é refeita só com a leitura diária das 12:00.
+
 ## 5. As contas
 
 **Linhas gravadas:** zero por dia e por ano. **Chamadas à API do YouTube:** zero. **Cron:** nenhum; os orçamentos acoplados (20 minutos do claim, 25 do cron, 30 do watchdog) não são tocados. **Interruptor:** não há variável; desligar é reverter o commit da tela (seção 7).
