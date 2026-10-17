@@ -111,6 +111,7 @@
 .ic-faixa-rot,.ic-faixa-seta{font:500 12px var(--font-mono),ui-monospace,Menlo,monospace;fill:var(--text)}
 .ic-marca-f{fill:var(--tr-marca);stroke:var(--ic-ring);stroke-width:1}
 .ic-marca-haste{stroke:var(--tr-marca);stroke-width:1;stroke-dasharray:2 2}
+.ic-sw-marca{font-style:normal;font-size:12px;line-height:1;color:var(--tr-marca)}
 .ic-marca-n{font:600 12px var(--font-mono),ui-monospace,Menlo,monospace;fill:var(--text)}
 .ic-sw.faixa-cheia{width:16px;height:9px;border-radius:2px;background:var(--ab-fundo);border:1.2px solid var(--ab-linha);box-sizing:border-box}
 .ic-sw.faixa-pontilhada{width:16px;height:9px;border-radius:2px;border:1.2px dotted var(--ab-linha);box-sizing:border-box}

@@ -46,6 +46,21 @@ describe('faixas', () => {
     expect(v.colunas[3]!.dica).not.toContain('teste A/B')
   })
 })
+describe('G-3 e M-3: a legenda só cita o que o gráfico desenha', () => {
+  const zeros: DiaAlcance[] = dias.map(x => ({ ...x, imp: 0, cliques: 0 }))
+  it('gráfico só de zeros com teste e troca: nem faixa, nem marca, nem "teste A/B" nem ▲/◆ na legenda', () => {
+    const v = buildImpressoes(zeros, periodo, { ...O, cedo: { tipo: 'grafico', soZeros: true, diasMedidos: 10 }, faixas: [ab(d(3), null)], marcas: [marca(d(4), 1)] })
+    expect(v.soZeros).toBe(true)
+    expect(v.faixas).toEqual([]); expect(v.marcas).toEqual([])
+    expect(v.legenda.map(l => l.texto).join('|')).not.toMatch(/teste A\/B|troca de/)
+    expect(v.legenda.some(l => l.situacao === 'faixa-cheia' || l.situacao.startsWith('marca-'))).toBe(false)
+  })
+  it('com marcas desenhadas a legenda explica ◆ (título) e ▲ (thumbnail), uma vez cada', () => {
+    const v = buildImpressoes(dias, periodo, { ...O, marcas: [marca(d(4), 1), marca(d(6), 2), { ...marca(d(8), 3), forma: 'triangulo' }] })
+    expect(v.legenda.filter(l => l.situacao === 'marca-losango')).toEqual([{ situacao: 'marca-losango', texto: 'troca de título' }])
+    expect(v.legenda.filter(l => l.situacao === 'marca-triangulo')).toHaveLength(1)
+  })
+})
 describe('marcas', () => {
   it('marca fora dos dias some; dentro leva a frase no dia', () => {
     const v = buildImpressoes(dias, periodo, { ...O, marcas: [marca(d(3), 1), marca('2026-09-01', 2)], notaFaixas: 'nota' })

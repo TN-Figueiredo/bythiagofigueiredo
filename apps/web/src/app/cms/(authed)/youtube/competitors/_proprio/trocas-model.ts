@@ -26,7 +26,7 @@ export interface LadoView {
   taxa: string | null
   /** "2,3% a 7,0%" */
   faixa: string | null
-  /** frações do eixo comum (a escala é a mesma para todos os lados da tela) */
+  /** frações do eixo comum (0 ao maior limite superior da tela, mais folga; a escala é a mesma para todos os lados) */
   barra: { taxa: number; lo: number; hi: number } | null
   /** a causa dita dentro da caixa dos lados sem número */
   causa: string | null
@@ -164,7 +164,7 @@ function testeView(t: TesteAb, e: EntradaTrocas, diag: TrocasView['diagnostico']
   return {
     id: t.id, de, ate: fim === 'andamento' ? null : ate, andamento: fim === 'andamento', fim, ciclos, titulo: 'Teste A/B', quando,
     nCiclos: plural(t.ciclos.length, 'ciclo', 'ciclos'),
-    frase: `${t.ciclos.length > 0 && fim !== 'andamento' ? `As ${t.ciclos.length} trocas de ciclo` : 'As trocas de ciclo'} não entram aqui.${resultado}`,
+    frase: `${t.ciclos.length === 1 && fim !== 'andamento' ? 'A troca de ciclo não entra' : t.ciclos.length > 1 && fim !== 'andamento' ? `As ${t.ciclos.length} trocas de ciclo não entram` : 'As trocas de ciclo não entram'} aqui.${resultado}`,
     teste: e.podeEditar ? { href: `/cms/youtube/ab-lab/${t.id}` } : 'sem-acesso',
   }
 }
@@ -357,7 +357,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
   const desdeTxt = desdeAPublicacao && e.publicadoEm ? `a publicação (${e.dm(e.publicadoEm)})` : e.dmy(desde)
   const desdeCurto = desdeAPublicacao && e.publicadoEm ? `a publicação (${e.dm(e.publicadoEm)})` : e.dm(desde)
   let frase: string
-  if (nT === 0 && nA === 0) frase = desdeAPublicacao ? `0 trocas registradas desde ${desdeTxt}.` : `0 trocas registradas desde ${e.dmy(desde)}, quando o registro deste vídeo começou.`
+  if (nT === 0 && nA === 0) frase = desdeAPublicacao ? `Nenhuma troca registrada desde ${desdeTxt}.` : `Nenhuma troca registrada desde ${e.dmy(desde)}, quando o registro deste vídeo começou.`
   else if (nT === 0) {
     const andamento = testes.some(t => t.andamento)
     frase = `0 trocas fora do A/B Lab desde ${desdeTxt} e ${plural(nA, 'teste A/B', 'testes A/B')}${andamento ? ' em andamento' : ''}, que não ${nA === 1 ? 'conta' : 'contam'} como troca.`
@@ -395,6 +395,8 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
   const rotacoesFora = video.versoes.filter(v => v.origem === 'ab_lab' && v.eventoAb === 'rotacao' && !testesLidos.some(t => t.id === v.abTestId)).length
   if (testesOk && rotacoesFora > 0) avisos.push(`${plural(rotacoesFora, 'troca de ciclo', 'trocas de ciclo')} de um teste que o A/B Lab não devolveu ${rotacoesFora === 1 ? 'ficou' : 'ficaram'} fora da lista.`)
 
+  reescalarBarras(itensTroca)
+
   // itens, em ordem cronológica
   const itens: TrocasView['itens'] = [
     ...testes.map(v => ({ tipo: 'teste' as const, v, d: v.de, h: 0 })),
@@ -431,6 +433,17 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 interface Contexto { alcancoErro: boolean; periodo: ReturnType<typeof montarDias>['periodo']; alcanceOk: { alcance: { relatorios: { dia: DiaYt }[]; ultimoRelatorio: DiaYt | null }; desde: DiaYt; primeiroRelatorio: DiaYt | null } | null; J: number; minImp: number; diag: TrocasView['diagnostico']; hojePt: DiaYt }
+
+/** G-2 (Gio 17/10): o eixo comum vai de 0 ao maior `hi` da tela (mais uma folga), não de 0 a 100%: taxas de clique de 2 a 6% numa régua de 0 a 100% viram um ponto colado à esquerda e a faixa some. */
+export const FOLGA_EIXO = 1.15
+export function reescalarBarras(trocas: readonly Pick<TrocaView, 'antes' | 'depois'>[]): number {
+  let max = 0
+  for (const t of trocas) for (const l of [t.antes, t.depois]) if (l?.barra && l.barra.hi > max) max = l.barra.hi
+  if (max <= 0) return 1
+  const eixo = Math.min(1, max * FOLGA_EIXO)
+  for (const t of trocas) for (const l of [t.antes, t.depois]) if (l?.barra) l.barra = { taxa: l.barra.taxa / eixo, lo: l.barra.lo / eixo, hi: l.barra.hi / eixo }
+  return eixo
+}
 
 function ladoErro(nome: string): LadoView {
   return { rotulo: `${nome}: não foi possível ler`, rotuloCurto: `${nome}: não foi possível ler`, forma: 'erro', taxa: null, faixa: null, barra: null, causa: 'não foi possível ler as impressões agora', aria: `${nome}: não foi possível ler as impressões agora` }

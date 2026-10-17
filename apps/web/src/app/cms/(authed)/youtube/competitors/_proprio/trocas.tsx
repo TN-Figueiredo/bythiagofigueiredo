@@ -105,7 +105,7 @@ export function Trocas({ view }: { view: TrocasView }) {
               <p className="tr-divisor">{view.reconstruida.divisor}</p>
             </div>
           ) : null}
-          {view.zero ? <div className="tr-vazio">0 trocas registradas.</div> : (
+          {view.zero ? <div className="tr-vazio">Nenhuma troca para listar.</div> : (
             <ol className="tr-lista">
               {view.itens.map(it => (it.tipo === 'teste' ? <LinhaTeste key={'t' + it.v.id} v={it.v} /> : <ItemTroca key={'c' + it.v.n} v={it.v} />))}
             </ol>

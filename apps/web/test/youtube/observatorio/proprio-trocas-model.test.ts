@@ -87,10 +87,10 @@ describe('estado do bloco', () => {
 })
 
 describe('vazio e só teste', () => {
-  it('vazio: "0 trocas registradas desde dd/mm/aaaa, quando o registro deste vídeo começou." e a caixa 0', () => {
+  it('vazio: "Nenhuma troca registrada desde dd/mm/aaaa, quando o registro deste vídeo começou." e a caixa 0', () => {
     const v = buildTrocas(entrada(lidas([base()]), { publicadoEm: '2026-08-01' }))
     expect(v.estado).toBe('ok'); expect(v.zero).toBe(true)
-    expect(v.frase).toBe(`0 trocas registradas desde ${dmy(REG)}, quando o registro deste vídeo começou.`)
+    expect(v.frase).toBe(`Nenhuma troca registrada desde ${dmy(REG)}, quando o registro deste vídeo começou.`)
     expect(v.topo.partes.map(p => p.t).join('')).toBe(`Trocas deste vídeo: nenhuma desde ${dm(REG)}.`)
     expect(v.topo.linkAntesDepois).toBe(false)
   })
@@ -115,6 +115,12 @@ describe('vazio e só teste', () => {
     expect(a.itens[0]).toMatchObject({ v: { fim: 'nao-registrado', ate: '2026-10-22', andamento: false } })
     expect(a.diagnostico.fimNaoRegistrado).toBe(1)
     expect(a.frase).not.toContain('em andamento')
+  })
+  it('M-1: teste concluído com 1 ciclo diz "A troca de ciclo", nunca "As 1 trocas"', () => {
+    const v = buildTrocas(entrada(lidas([base()], { testes: { acesso: 'ok', dado: { testes: [teste({ ciclos: [{ n: 1, inicio: meio('2026-10-22'), fim: null }] })], descartados: 0 } } })))
+    const f = (v.itens[0] as { v: { frase: string } }).v.frase
+    expect(f).toMatch(/^A troca de ciclo não entra aqui\./)
+    expect(f).not.toMatch(/As 1 /)
   })
   it('teste às 05:00 UTC começa no dia do Pacífico (a véspera do dia UTC)', () => {
     const v = buildTrocas(entrada(lidas([base()], { testes: { acesso: 'ok', dado: { testes: [teste({ inicio: '2026-10-21T05:00:00.000Z' })], descartados: 0 } } })))
@@ -145,6 +151,18 @@ describe('leitura de cada troca', () => {
     expect(t.antes?.taxa).toBe('2,0%'); expect(t.depois?.taxa).toBe('9,0%')
     expect(t.frase).toBe('Subiu de 2,0% para 9,0%. As faixas não se cruzam.')
     expect(t.depois?.barra).not.toBeNull()
+  })
+  it('G-2: a barra usa um eixo comum de 0 ao maior limite da tela (taxas de 2 a 9% não ficam coladas à esquerda e a faixa tem largura visível)', () => {
+    const dia = '2026-11-03'
+    const a = alcance(addDays(dia, -20), HOJE, 1000, 0.02)
+    for (const l of a.linhas) if (l.dia > dia) l.ctr = 0.09
+    const t = troca1(run([troca(dia)], a))
+    const lados = [t.antes!.barra!, t.depois!.barra!]
+    expect(Math.max(...lados.map(b => b.hi))).toBeGreaterThan(0.8)
+    expect(Math.max(...lados.map(b => b.hi))).toBeLessThanOrEqual(1)
+    for (const b of lados) { expect(b.hi - b.lo).toBeGreaterThanOrEqual(0.04); expect(b.lo).toBeLessThanOrEqual(b.taxa); expect(b.taxa).toBeLessThanOrEqual(b.hi) }
+    // a escala é a mesma nos dois lados: a taxa maior fica à direita da menor
+    expect(lados[1]!.taxa).toBeGreaterThan(lados[0]!.taxa)
   })
   it('sem diferença firme: faixas que se cruzam', () => {
     const dia = '2026-11-03'

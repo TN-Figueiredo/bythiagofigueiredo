@@ -125,9 +125,9 @@ describe('os dez mundos do mockup 3b (E5B-13)', () => {
     expect(v.reconstruida!.selos).toContain('sem antes e depois')
   })
 
-  it('vazio: "0 trocas registradas desde dd/mm/aaaa, quando o registro deste vídeo começou."', () => {
+  it('vazio: "Nenhuma troca registrada desde dd/mm/aaaa, quando o registro deste vídeo começou."', () => {
     const v = buildTrocas(entrada(lidasCom([base('title')], serie('2026-09-14', '2026-10-11', () => 1, () => 0.07), [], false, { conferidoAte: H13 }), { publicadoEm: '2026-07-14', hojePt: H13 }))
-    expect(v.zero).toBe(true); expect(v.frase).toContain('0 trocas registradas desde 07/10/2026')
+    expect(v.zero).toBe(true); expect(v.frase).toContain('Nenhuma troca registrada desde 07/10/2026')
     expect(v.atraso).toBeNull()
   })
 
