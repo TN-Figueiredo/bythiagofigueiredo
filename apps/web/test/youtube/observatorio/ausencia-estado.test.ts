@@ -1,7 +1,7 @@
 // @vitest-environment node
 /** Decisão 75, Task 1: a derivação do estado de ausência. */
 import { describe, it, expect } from 'vitest'
-import { ausenciaDoAcesso, ausenciaDoMotivoVpd, ausenciaDoMotivoNaoMedido, ROTULO_AUSENCIA, type NegativaPrivada } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
+import { ausenciaDoAcesso, ausenciaDoVpdComNegativa, ausenciaDoMotivoNaoMedido, ROTULO_AUSENCIA, type NegativaPrivada } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
 import { MOTIVOS_NAO_MEDIDO } from '@/lib/youtube/observatorio/medidas/tipos'
 import type { MotivoSemVpd } from '@/lib/youtube/observatorio/proprio/vpd'
 
@@ -16,13 +16,17 @@ describe('ausenciaDoAcesso', () => {
   })
 })
 
-describe('ausenciaDoMotivoVpd', () => {
+describe('ausenciaDoVpdComNegativa', () => {
   const casos: Array<[MotivoSemVpd, string]> = [
     ['sem-acesso', 'restrito'], ['leitura-falhou', 'falhou'], ['sem-diario', 'nao_medido'], ['diario-parado', 'nao_medido'],
     ['sem-longos', 'nao_medido'], ['poucos-dias', 'nao_medido'], ['fora-da-leitura', 'nao_medido'],
   ]
-  it.each(casos)('%s -> %s', (m, e) => expect(ausenciaDoMotivoVpd(m)).toBe(e))
-  it('null -> null', () => expect(ausenciaDoMotivoVpd(null)).toBeNull())
+  it.each(casos)('%s -> %s', (m, e) => expect(ausenciaDoVpdComNegativa(m, 'sem_direito')).toBe(e))
+  it('sem-acesso só é restrito com sem_direito', () => {
+    expect(ausenciaDoVpdComNegativa('sem-acesso', 'nao_foi_possivel_conferir')).toBe('falhou')
+    expect(ausenciaDoVpdComNegativa('sem-acesso', null)).toBe('falhou')
+  })
+  it('null -> null', () => expect(ausenciaDoVpdComNegativa(null, null)).toBeNull())
 })
 
 describe('ausenciaDoMotivoNaoMedido', () => {

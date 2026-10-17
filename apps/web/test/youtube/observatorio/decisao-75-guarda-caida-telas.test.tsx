@@ -28,9 +28,9 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 import { PastilhaAusencia } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/pastilhas'
 import { ROTULO_AUSENCIA, type EstadoAusencia } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
 import { acessoPrivado } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
-import { montarCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/montar'
+import { montarCanal, origemDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/montar'
 import { montarCanais } from '@/app/cms/(authed)/youtube/competitors/_canais/montar'
-import { montarVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/montar'
+import { montarVideo, origemDoVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/montar'
 import { montarComparar } from '@/app/cms/(authed)/youtube/competitors/_comparar/montar'
 
 const SITE = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a77'
@@ -133,5 +133,42 @@ describe('guarda caída: nenhuma tela vira cadeado', () => {
     const dom = pastilhasNoDom(achados)
     expect(dom.querySelectorAll('.obs-au-restrito')).toHaveLength(0)
     expect(dom.textContent).not.toContain(ROTULO_AUSENCIA.restrito)
+  })
+})
+
+describe('guarda caída: a Origem (canal e vídeo) e as Trocas também não viram "você não vê"', () => {
+  it('Origem do canal: guarda caída = bloco de erro (nunca so-aviso/semAcesso); sem_direito = só o aviso', async () => {
+    GUARDA_CAIDA()
+    await abrir()
+    const m = await montarCanal(wUm.canalId, {})
+    if (m.tipo !== 'proprio') throw new Error('esperava o canal próprio')
+    const o = await origemDoCanal(m.origemProps)
+    expect(o.nivel).not.toBe('so-aviso')
+    expect(o.semAcesso).toBeNull()
+    expect(JSON.stringify(o)).toContain('"erro"')
+    SEM_DIREITO()
+    await abrir()
+    const m2 = await montarCanal(wUm.canalId, {})
+    if (m2.tipo !== 'proprio') throw new Error('esperava o canal próprio')
+    const o2 = await origemDoCanal(m2.origemProps)
+    expect(o2.nivel).toBe('so-aviso')
+    expect(o2.semAcesso).not.toBeNull()
+  })
+  it('Origem do vídeo e Trocas: guarda caída = erro (nunca so-aviso nem "privado"); sem_direito = so-aviso e "privado"', async () => {
+    const video = w.obs.videos.find(v => v.ch === w.canalId)!
+    GUARDA_CAIDA()
+    await abrir()
+    const m = await montarVideo(video.id, {}, async () => pagina.site as ObservatoryPage<undefined>, { trocas: true })
+    if (m.tipo !== 'proprio') throw new Error('esperava o vídeo próprio')
+    const o = await origemDoVideo(m.origemProps)
+    expect(o.nivel).not.toBe('so-aviso')
+    expect(o.semAcesso).toBeNull()
+    expect(m.trocas!.estado).toBe('erro-de-leitura')
+    SEM_DIREITO()
+    await abrir()
+    const m2 = await montarVideo(video.id, {}, async () => pagina.site as ObservatoryPage<undefined>, { trocas: true })
+    if (m2.tipo !== 'proprio') throw new Error('esperava o vídeo próprio')
+    expect((await origemDoVideo(m2.origemProps)).nivel).toBe('so-aviso')
+    expect(m2.trocas!.estado).toBe('privado')
   })
 })

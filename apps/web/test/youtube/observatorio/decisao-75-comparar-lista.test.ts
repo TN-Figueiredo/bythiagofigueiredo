@@ -21,7 +21,8 @@ const extrasCom = (motivo: MotivoSemVpd, negativa?: NegativaPrivada): ExtrasProp
 
 describe('Numero.ausencia (Comparar)', () => {
   it('vpd do canal próprio com sem-acesso → restrito; leitura-falhou → falhou; sem-diario → nao_medido', () => {
-    expect(numerosDoCanal(W.obs, OWN, undefined, extrasCom('sem-acesso')).vpd.ausencia).toBe('restrito')
+    expect(numerosDoCanal(W.obs, OWN, undefined, extrasCom('sem-acesso', 'sem_direito')).vpd.ausencia).toBe('restrito')
+    expect(numerosDoCanal(W.obs, OWN, undefined, extrasCom('sem-acesso', 'nao_foi_possivel_conferir')).vpd.ausencia).toBe('falhou')
     expect(numerosDoCanal(W.obs, OWN, undefined, extrasCom('leitura-falhou')).vpd.ausencia).toBe('falhou')
     expect(numerosDoCanal(W.obs, OWN, undefined, extrasCom('sem-diario')).vpd.ausencia).toBe('nao_medido')
   })

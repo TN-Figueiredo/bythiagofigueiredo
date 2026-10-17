@@ -24,11 +24,11 @@ import { dmDia, type ExtrasProprio } from './extras'
  */
 export async function carregarExtrasProprio(
   obs: Observatory, siteId: string, agora: number, avisar?: (e: unknown, n: number) => void,
-  previo?: { leitura: LeituraPrivadaDoSite | null; canalId: string; diario: Privado<DiarioCanal>; negativa?: MotivoSemLeitura | null },
+  previo?: { leitura: LeituraPrivadaDoSite | null; canalId: string; diario: Privado<DiarioCanal>; negativa: MotivoSemLeitura | null },
 ): Promise<ExtrasProprio | undefined> {
   const owns = obs.ownChannels()
   if (owns.length === 0) return undefined
-  const acesso: AcessoPrivado = previo ? { leitura: previo.leitura, edita: false, negativa: previo.negativa ?? null } : await acessoPrivado(siteId)
+  const acesso: AcessoPrivado = previo ? { leitura: previo.leitura, edita: false, negativa: previo.negativa } : await acessoPrivado(siteId)
   const leitura = acesso.leitura
   // decisão 75: guarda caída (`nao_foi_possivel_conferir`) é `erro`, nunca `negado`: o `vpd` sai `leitura-falhou`, nunca o cadeado
   const semLeitura = ausenciaDaProva(acesso)
@@ -38,7 +38,7 @@ export async function carregarExtrasProprio(
   if (semLeitura !== 'ok' && semLeitura.acesso === 'erro') for (const c of owns) diarios.set(c.id, semLeitura)
   else if (previo) diarios.set(previo.canalId, previo.diario)
   const hoje = dayPt(new Date(agora))
-  const vpd = new Map<string, VpdCanal>(owns.map(c => [c.id, vpdDoCanal(diarios.get(c.id) ?? { acesso: 'negado' }, longos.get(c.id) ?? [], hoje)]))
+  const vpd = new Map<string, VpdCanal>(owns.map(c => [c.id, vpdDoCanal(diarios.get(c.id) ?? ({ acesso: 'erro' } as const), longos.get(c.id) ?? [], hoje)]))
   return { vpd, dm: dmDia, negativa: acesso.negativa }
 }
 

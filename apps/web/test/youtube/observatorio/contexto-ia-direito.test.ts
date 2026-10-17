@@ -35,7 +35,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openObservatoryPage: async () => ({ siteId: SITE, now: w.obs.NOW, rows: {}, obs: w.obs, meuCanalLembrado: null, savedNiche: 'todos', extra: { canUnlock: true, podeEditar: true, legacy: [], bookmarked: new Set<string>() } }),
   lerMeuCanalLembrado: async () => null,
 }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) => ({
+  ausenciaDaProva: (await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')>()).ausenciaDaProva,
   acessoPrivado: async () => st.acesso,
   lerDadosDoCanal: async () => st.dados,
   lerDadosDoVideo: async () => { const d = st.dados as { alcance: { acesso: string; dado?: unknown }; diario: { acesso: string; dado?: unknown } }; return d.alcance.acesso === 'ok' && d.diario.acesso === 'ok' ? { acesso: 'ok', dado: { alcance: d.alcance.dado, diario: d.diario.dado } } : { acesso: d.diario.acesso } },

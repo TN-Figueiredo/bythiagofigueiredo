@@ -130,7 +130,7 @@ describe('com `previo` (página do canal: posições)', () => {
     requireSiteScope.mockClear() // a guarda que vale é a da página; daqui em diante nenhuma chamada nova
     const { lidos } = banco()
     // o diário que a página já leu (100) é diferente do que está na tabela (2): o resultado diz de onde o número veio
-    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura, canalId: A, diario: diarioPrevio(A, 100) })
+    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura, canalId: A, diario: diarioPrevio(A, 100), negativa: null })
     expect(requireSiteScope).not.toHaveBeenCalled()
     expect(unico(lidos)).toEqual([B])
     expect(r!.vpd.get(A)).toMatchObject({ valor: 100, motivo: null })
@@ -139,7 +139,7 @@ describe('com `previo` (página do canal: posições)', () => {
 
   it('o diário "negado" da página vale para o canal dela, e o token nulo impede toda leitura dos outros', async () => {
     const { lidos, db } = banco()
-    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura: null, canalId: A, diario: { acesso: 'negado' } })
+    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura: null, canalId: A, diario: { acesso: 'negado' }, negativa: 'sem_direito' })
     expect(requireSiteScope).not.toHaveBeenCalled()
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
     expect(lidos).toEqual([])
@@ -151,7 +151,7 @@ describe('com `previo` (página do canal: posições)', () => {
     comPermissao()
     const leitura = await podeVerPrivado(SITE)
     const { lidos } = banco()
-    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura, canalId: A, diario: { acesso: 'erro' } })
+    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura, canalId: A, diario: { acesso: 'erro' }, negativa: null })
     expect(r!.vpd.get(A)).toMatchObject({ valor: null, motivo: 'leitura-falhou' })
     expect(r!.vpd.get(B)).toMatchObject({ valor: 4, motivo: null })
     expect(unico(lidos)).toEqual([B])
@@ -162,7 +162,7 @@ describe('com `previo` (página do canal: posições)', () => {
     const leitura = await podeVerPrivado(SITE)
     banco([B])
     const avisar = vi.fn()
-    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, avisar, { leitura, canalId: A, diario: diarioPrevio(A, 100) })
+    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, avisar, { leitura, canalId: A, diario: diarioPrevio(A, 100), negativa: null })
     expect(r!.vpd.get(B)).toMatchObject({ valor: null, motivo: 'leitura-falhou' })
     expect(r!.vpd.get(A)).toMatchObject({ valor: 100, motivo: null })
     expect(avisar).toHaveBeenCalledTimes(1)
@@ -172,7 +172,7 @@ describe('com `previo` (página do canal: posições)', () => {
     comPermissao()
     const leitura = await podeVerPrivado(SITE)
     const { lidos } = banco()
-    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura, canalId: A.toUpperCase() + '-x', diario: diarioPrevio(A, 100) })
+    const r = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura, canalId: A.toUpperCase() + '-x', diario: diarioPrevio(A, 100), negativa: null })
     expect(unico(lidos).sort()).toEqual([A, B].sort())
     expect(r!.vpd.get(A)).toMatchObject({ valor: 2, motivo: null })
     expect(r!.vpd.has(A.toUpperCase() + '-x')).toBe(false)

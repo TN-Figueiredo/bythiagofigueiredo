@@ -21,13 +21,6 @@ export function ausenciaDoAcesso(a: 'ok' | 'negado' | 'erro', negativa: Negativa
 /** O motivo escrito quando a ausência vem de negado sem prova de direito. */
 export const MOTIVO_GUARDA_CAIDA = 'não deu para conferir a permissão agora'
 
-export function ausenciaDoMotivoVpd(m: MotivoSemVpd | null): EstadoAusencia | null {
-  if (m === null) return null
-  if (m === 'sem-acesso') return 'restrito'
-  if (m === 'leitura-falhou') return 'falhou'
-  return 'nao_medido'
-}
-
 const MAPA: Record<MotivoNaoMedido, EstadoAusencia> = {
   leitura_comecou_depois: 'nao_medido', descoberto_tarde: 'nao_medido', leitura_parou_antes: 'nao_medido', leituras_distantes: 'nao_medido',
   sem_leitura: 'nao_medido', views_ocultas: 'nao_medido', fecha_em: 'nao_medido', aguardando_calculo: 'nao_medido', poucos_videos: 'nao_medido',

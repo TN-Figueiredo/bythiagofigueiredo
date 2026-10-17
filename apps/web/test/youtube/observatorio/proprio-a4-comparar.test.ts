@@ -18,10 +18,10 @@ const dados = vi.hoisted(() => ({ podeVerPrivado: vi.fn(), lerDiarioDosCanais: v
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: dados.abrir }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) => ({
+  ausenciaDaProva: (await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')>()).ausenciaDaProva,
   podeVerPrivado: dados.podeVerPrivado,
-  ausenciaDaProva: (a: { leitura: unknown; negativa: string | null }) => (a.leitura != null ? 'ok' : a.negativa === 'nao_foi_possivel_conferir' ? { acesso: 'erro' } : { acesso: 'negado' }),
-  acessoPrivado: async (s: string) => { const leitura = await dados.podeVerPrivado(s); return { leitura, edita: leitura != null, negativa: null } }, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
+  acessoPrivado: async (s: string) => { const leitura = await dados.podeVerPrivado(s); return { leitura, edita: leitura != null, negativa: leitura ? null : 'sem_direito' } }, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
 }))
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))

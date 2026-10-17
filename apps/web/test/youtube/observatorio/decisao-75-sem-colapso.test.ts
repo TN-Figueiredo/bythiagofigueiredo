@@ -18,7 +18,7 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi
 
 import { acessoPrivado, ausenciaDaProva } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import { carregarExtrasProprio, carregarProprioDaComparacao } from '@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras'
-import { ausenciaDoMotivoVpd } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
+import { ausenciaDoVpdComNegativa } from '@/app/cms/(authed)/youtube/competitors/_chrome/ausencia/estado'
 import { buildProprioVideos } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
 import { buildProprioHeader } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 import { buildImpressoes } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
@@ -64,13 +64,13 @@ describe('carregarExtrasProprio e carregarProprioDaComparacao com a guarda caíd
     expect(e).toBeDefined()
     for (const id of donos) {
       expect(e!.vpd.get(id)!.motivo).toBe('leitura-falhou')
-      expect(ausenciaDoMotivoVpd(e!.vpd.get(id)!.motivo)).toBe('falhou')
+      expect(ausenciaDoVpdComNegativa(e!.vpd.get(id)!.motivo, e!.negativa ?? null)).toBe('falhou')
     }
   })
   it('sem_direito: o views por dia sai "sem-acesso" (restrito); é o único caminho do cadeado', async () => {
     SEM_DIREITO()
     const e = await carregarExtrasProprio(W.obs, SITE, AGORA)
-    for (const id of donos) expect(ausenciaDoMotivoVpd(e!.vpd.get(id)!.motivo)).toBe('restrito')
+    for (const id of donos) expect(ausenciaDoVpdComNegativa(e!.vpd.get(id)!.motivo, 'sem_direito')).toBe('restrito')
   })
   it('com o `previo` da página do canal e a guarda caída, o canal da página também lê "leitura-falhou"', async () => {
     const e = await carregarExtrasProprio(W.obs, SITE, AGORA, undefined, { leitura: null, canalId: donos[0]!, diario: { acesso: 'negado' }, negativa: 'nao_foi_possivel_conferir' })
