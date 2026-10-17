@@ -298,6 +298,15 @@ Ressalva de política: III.E.4.h dá como exemplo do que não é permitido usar 
 11. **Onde aparece:** na página do vídeo de concorrente (mockup 13 ganha a seção, desenhada no 20); na página do canal, M11 no cabeçalho e uma lista "o que o criador respondeu"; nada na lista de Canais nem em Comparar nesta fase.
 12. Acrescenta à lista fechada de motivos de 6.1.5: "comentários desligados pelo canal" (já existia para a contagem), "a coleta de comentários começou em dd/mm", "não coletado na idade N", "o YouTube não diz se o criador respondeu (respostas cortadas)".
 
+(emenda 17/10, Tarefa C5 da E5a: o texto da tela como foi implementado; vale sobre os pontos 6, 9b e 12 acima onde divergir)
+
+**Ponto 6 (substituir):** "A amostra é dita no topo, sempre, numa frase só: `Com 7 dias, guardamos 12 dos 100 primeiros comentários que o YouTube mostra, na ordem de relevância dele: 8 mais curtidos e 4 com o criador (ele respondeu a 3).` O trecho `(ele respondeu a N)` só existe quando há resposta vista; lote completo diz `12 de todos os 37` ou `todos os 9`. Cada um está ali por motivo, por cor **e** símbolo."
+
+**Ponto 9b (substituir, decisão 67):** "Dois estados do autor: com identidade (nome e foto vindos da tabela de autores até dd/mm; foto que não carrega vira a inicial) e sem identidade (`Um espectador`), que é o estado de todo comentário com mais de 28 dias, **inclusive o do canal que você acompanha**: o banco zera `featured_channel_id`, mantém `featured_reason`, e a etiqueta `Canal que você acompanha` fica (é motivo, não identidade), sem nome, foto nem ligação. Só o criador aparece sempre com nome, vindo do cadastro."
+
+**Ponto 12 (lista de motivos, acrescentar):** os quatro motivos de seleção `Mais curtido`, `Com o criador`, `Canal que você acompanha`, `Canal grande`; e os selos de estado `motivo do canal` (comentários desligados), `motivo nosso · dd/mm` (não coletado, tardio) e `motivo nosso · tentativa de dd/mm` (erro).
+
+
 ## Itens de aceite deste arquivo (blocos da seção 10 do spec, com a numeração original)
 
 **E14: comentários de destaque (emenda v2.1)**
