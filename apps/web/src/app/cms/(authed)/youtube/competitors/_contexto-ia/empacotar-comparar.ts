@@ -180,7 +180,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   // o cartão "Só o seu canal mede" (dado privado do canal)
   'cartoes[].id': { descartado: 'identificador' },
   'cartoes[].canal': 'rotulo',
-  'cartoes[].frase': 'base',
+  'cartoes[].frase': 'base', 'cartoes[].ausencia': { descartado: 'controle de tela' },
   'cartoes[].naoMedido': { descartado: 'controle de tela' },
   'cartoes[].taxa': { descartado: 'repetido' }, 'cartoes[].taxa.*': { descartado: 'repetido' }, // cliques, impressões e taxa: as linhas do cartão
   'cartoes[].linhas[].chave': { descartado: 'identificador' },

@@ -22,6 +22,7 @@ import type { OrigemLida } from '../_proprio/dados-origem'
 import { buildOrigem, type BlocoView, type EntradaOrigem, type LinhaView, type PeriodoEntrada } from '../_proprio/origem-model'
 import { assistidoDoCanal, MIN_DIAS_ASSISTIDO, POUCAS_VIEWS, POUCAS_VIEWS_MEDIA, taxaDoCanal, type MotivoAssistidoCanal } from '../_proprio/canal-agregados'
 import { pctUm } from '../_proprio/taxa-faixa-model'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 
 export type ChaveLinha = 'impressoes' | 'cliques' | 'taxa' | 'assistido' | 'origem' | 'termos' | 'aparelho' | 'pais' | 'inscritos'
 
@@ -266,12 +267,13 @@ export function linhasDaOrigem(e: EntradaOrigemCartao | undefined): LinhaSoSeuCa
 }
 
 /** A View de um canal seu na tela: o id do canal é a chave da lista (dois canais podem ter o mesmo nome). */
-export type SoSeuCanalCartao = SoSeuCanalView & { id: string }
+/** `ausencia` (decisão 75): `restrito` no cartão negado, `falhou` no que não chegou; null no cartão com número. */
+export type SoSeuCanalCartao = SoSeuCanalView & { id: string; ausencia: EstadoAusencia | null }
 
 interface LadoDoPar { id: string; name: string; own: boolean }
 
 /** A View de um canal seu que não chegou com número: só a frase do motivo, sem linhas. */
-const semNumero = (id: string, canal: string, frase: string): SoSeuCanalCartao => ({ id, canal, frase, naoMedido: false, linhas: [], taxa: null })
+const semNumero = (id: string, canal: string, frase: string, ausencia: EstadoAusencia): SoSeuCanalCartao => ({ id, canal, frase, naoMedido: false, linhas: [], taxa: null, ausencia })
 
 /**
  * NAVEGADOR. Um cartão por lado que é canal seu (na ordem A, B); nenhum lado seu = []. Canal seu que o pacote não trouxe, ou com `acesso: 'ok'` sem
@@ -283,13 +285,13 @@ export function buildSoSeuCanal(par: { a: LadoDoPar; b: LadoDoPar }, dados: Reco
   for (const [lado, outro] of [[par.a, par.b], [par.b, par.a]] as const) {
     if (!lado.own) continue
     const dado = dados[lado.id]
-    if (dado?.acesso === 'negado') { out.push(semNumero(lado.id, lado.name, FRASE_NEGADO_CARTAO)); continue }
-    if (!dado || dado.acesso === 'erro' || dado.view == null) { out.push(semNumero(lado.id, lado.name, FRASE_ERRO_CARTAO)); continue }
+    if (dado?.acesso === 'negado') { out.push(semNumero(lado.id, lado.name, FRASE_NEGADO_CARTAO, 'restrito')); continue }
+    if (!dado || dado.acesso === 'erro' || dado.view == null) { out.push(semNumero(lado.id, lado.name, FRASE_ERRO_CARTAO, 'falhou')); continue }
     const v = dado.view
     const frase = !v.naoMedido && !outro.own
       ? `${v.frase} ${outro.name} não tem esses números aqui porque o YouTube não os entrega, ${NEGRITO_NAO_ZERO}.`
       : v.frase
-    out.push({ ...v, id: lado.id, canal: lado.name, frase })
+    out.push({ ...v, id: lado.id, canal: lado.name, frase, ausencia: null })
   }
   return out
 }

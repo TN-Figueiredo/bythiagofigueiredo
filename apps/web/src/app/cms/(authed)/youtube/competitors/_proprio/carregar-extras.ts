@@ -39,7 +39,7 @@ export async function carregarExtrasProprio(
   else if (previo) diarios.set(previo.canalId, previo.diario)
   const hoje = dayPt(new Date(agora))
   const vpd = new Map<string, VpdCanal>(owns.map(c => [c.id, vpdDoCanal(diarios.get(c.id) ?? { acesso: 'negado' }, longos.get(c.id) ?? [], hoje)]))
-  return { vpd, dm: dmDia }
+  return { vpd, dm: dmDia, negativa: acesso.negativa }
 }
 
 /**
@@ -99,5 +99,5 @@ export async function carregarProprioDaComparacao(
     const alcance: Privado<AlcanceCanal> = alcances.get(c.id) ?? SEM_PROVA
     soSeuCanal[c.id] = montarSoSeuCanalDado({ nome: c.name, alcance, diario: diarios.get(c.id) ?? SEM_PROVA, longos: longos.get(c.id) ?? [], dm: dmDia, F: obs.fmt, hoje, origem: origens.get(c.id) })
   }
-  return { extras: { vpd, dm: dmDia }, soSeuCanal }
+  return { extras: { vpd, dm: dmDia, negativa: acesso.negativa }, soSeuCanal }
 }

@@ -27,7 +27,7 @@ import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros
 import { NB, nbMilMi, numNb } from '../_canal/formato'
 import { quandoMs } from '../_canal/medidas/formatos'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
-import { SEM_LEITURA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
+import { SEM_LEITURA_NO_MAPA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
 import { baseVpdTexto, motivoVpdTexto, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
@@ -38,6 +38,7 @@ import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { celulaDeDirecao, resumoDeDirecao, type CelulaDeDirecao, type ResumoDeDirecao } from './direcao-model'
 import { contagemDosFiltros, estadoDaLinha, linhaNoFiltro, type ContagemDosFiltros, type EstadoDaLinha, type FiltroDeEstado } from './estado-model'
 import { fraseDoResumo } from './resumo-model'
+import { ausenciaDoVpdComNegativa, type EstadoAusencia } from '../_chrome/ausencia/estado'
 import { dicaCrescimento, dicaDirecao, dicaInscritos, dicaOutliers, dicaRitmo, dicaSync, dicaTrocas, dicaViewsDia, type Escrita } from './dicas-model'
 import { passoDoYouTube } from '@/lib/youtube/observatorio/inscritos-28d'
 
@@ -60,7 +61,8 @@ export type CadenceCell =
   | { kind: 'ok'; weeks: Array<{ long: number; short: number }>; label: string; pw: string; unit: string; sub: string | null; paused: string | null }
 export type VpdCell =
   /** `falta`: a frase é a da ausência do formato ("sem Shorts", "sem vídeos"); em "Todos" ela vem sem rótulo na frente. */
-  | { kind: 'na'; text: string; title: string; falta?: true }
+  /** `ausencia`: decisão 75, só no canal próprio com o diário lido (restrito/falhou/não medido); ausente = a célula de sempre. */
+  | { kind: 'na'; text: string; title: string; falta?: true; ausencia?: EstadoAusencia }
   /** `title`: a base escrita do número do canal próprio (a janela do diário); ausente nos concorrentes. */
   | { kind: 'ok'; big: string; abs: string | null; n: number; weak: boolean; tail: string | null; title?: string }
 export type OutCell =
@@ -384,7 +386,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const t = verb(g[0]!); return `${t.label} ${t.verb}, ${whenPh(g)}`
   }
   /** Views por dia do canal próprio, dos longos (D3): só com `extras`, só no formato longo e só para canal com vídeos. Concorrente: null. */
-  const vpdProprio = (c: ObsChannel, f: Fmt): VpdCanal | null => (extras && c.own && f === 'long' && obs.videos.some(x => x.ch === c.id) ? extras.vpd.get(c.id) ?? SEM_LEITURA : null)
+  const vpdProprio = (c: ObsChannel, f: Fmt): VpdCanal | null => (extras && c.own && f === 'long' && obs.videos.some(x => x.ch === c.id) ? extras.vpd.get(c.id) ?? SEM_LEITURA_NO_MAPA : null)
   /**
    * O número da coluna Views/dia de um canal: `abs` (absoluto) e `val` (na escala escolhida). O canal próprio com `extras` vem do diário, e o
    * por mil é valor ÷ (inscritos ÷ 1000), sem inscritos = null; o concorrente, e o canal próprio sem `extras`, vêm do motor como sempre.
@@ -503,7 +505,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
     if (v == null && c.own && S.tracked > 0) {
       // com o dado lido, a célula diz o motivo da ausência (a mesma frase da posição); sem ele, a de sempre
-      if (o.ev && extras) { const t = cap(motivoVpdTexto(o.ev.motivo ?? 'sem-diario', o.ev, extras.dm)) + '.'; return { kind: 'na', text: t, title: t } }
+      if (o.ev && extras) { const t = cap(motivoVpdTexto(o.ev.motivo ?? 'sem-diario', o.ev, extras.dm)) + '.'; return { kind: 'na', text: t, title: t, ausencia: ausenciaDoVpdComNegativa(o.ev.motivo, extras.negativa ?? null) ?? 'nao_medido' } }
       // Shorts e a segunda linha de "Todos": com o dado lido, a medida do canal próprio é só dos longos, e a célula diz o mesmo que o bloco
       if (extras && f !== 'long') { const t = cap(VPD_SO_LONGOS) + '.'; return { kind: 'na', text: t, title: t } }
       return { kind: 'na', text: 'Sem views diárias do seu canal.', title: SEM_VPD_PROPRIO_DICA }
