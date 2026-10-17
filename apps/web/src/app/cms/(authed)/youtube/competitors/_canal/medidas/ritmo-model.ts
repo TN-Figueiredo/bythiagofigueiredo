@@ -78,7 +78,7 @@ const publicacoes = (videos: readonly VideoLido[]): Pub[] => {
 }
 
 const umDia = (x: number): string => dec1(x).replace(/,0$/, '')
-const semLeituraParou = (e: EstadoDaPagina): boolean => e.tipo === 'erro' || e.tipo === 'saiu'
+const semLeituraParou = (e: EstadoDaPagina): boolean => e.tipo === 'erro' || e.tipo === 'saiu' || e.tipo === 'pausado'
 
 function raia(rotulo: 'Longos' | 'Shorts', f: Formato, pubs: readonly Pub[], o: EntradaDoRitmo, primeiraPubMs: number | null): RaiaDeRitmo {
   const contagem = new Array<number>(SEMANAS).fill(0)

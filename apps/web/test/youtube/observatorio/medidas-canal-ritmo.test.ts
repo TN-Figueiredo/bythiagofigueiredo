@@ -50,6 +50,17 @@ describe('bloco Ritmo: dado ausente', () => {
     expect(casas[0]!.estado).not.toBe('nao_lida')
     expect(b.eixoFim).toBe('semana de 04/10')
   })
+  it('Yannis I2: coleta pausada há 60 dias: nenhuma semana depois da última leitura é zero; a frase é "sem leitura"', () => {
+    const ultima = AGORA - 60 * DIA
+    const pausado = estadoDaPagina(m8('ativo'), { state: 'ok', last: ultima, errorSince: null }, { missingSince: null, doisFormatos: false }, { collectionPausedAt: new Date(ultima).toISOString(), missingSince: null }, HOJE, AGORA)
+    expect(pausado.tipo).toBe('pausado')
+    const b = blocoDeRitmo(entrada(seis.map((v, i) => pub('p' + i, [70, 77, 84, 91, 98, 120][i]!)), { estado: pausado, ultimaLeituraMs: ultima }))
+    const casas = b.raias[0]!.casas
+    expect(casas.some(c => c.estado === 'nao_lida')).toBe(true)
+    expect(casas[12]!.estado).toBe('nao_lida')
+    expect(b.frase.tom).toBe('sem_leitura')
+    expect(b.cartoes.every(c => c.valor.tipo === 'nao_medido')).toBe(true)
+  })
   it('semana não lida é "—" nas duas raias, com ou sem vídeo, e nunca zero', () => {
     const b = blocoDeRitmo(entrada(seis, { estado: erro(), ultimaLeituraMs: ultimaBoa }))
     const idx = (r: number) => b.raias[r]!.casas.map((c, i) => (c.estado === 'nao_lida' ? i : -1)).filter(i => i >= 0)
