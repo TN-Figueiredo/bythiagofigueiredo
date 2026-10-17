@@ -38,6 +38,13 @@ describe('rawOf', () => {
     expect(rawOf(a).sha).toBe(rawOf(b).sha)
     expect(rawOf({ ...a, topicDetails: { topicIds: ['/m/9'] } }).sha).not.toBe(rawOf(a).sha)
   })
+  it('X4: paidProductPlacementDetails, localizations e recordingDetails entram no raw e a ordem das chaves não muda o hash', () => {
+    const a = { ...item, paidProductPlacementDetails: { hasPaidProductPlacement: true }, localizations: { pt: { title: 'T', description: 'D' }, en: { title: 'E', description: 'F' } }, recordingDetails: { recordingDate: '2026-01-01T00:00:00Z' } }
+    const b = { ...item, recordingDetails: { recordingDate: '2026-01-01T00:00:00Z' }, localizations: { en: { description: 'F', title: 'E' }, pt: { description: 'D', title: 'T' } }, paidProductPlacementDetails: { hasPaidProductPlacement: true } }
+    for (const k of ['paidProductPlacementDetails', 'localizations', 'recordingDetails']) expect(rawOf(a).raw).toHaveProperty(k)
+    expect(rawOf(a).sha).toBe(rawOf(b).sha)
+    expect(rawOf({ ...a, localizations: { pt: { title: 'X', description: 'D' } } }).sha).not.toBe(rawOf(a).sha)
+  })
   it('(M-1) não altera o item de ENTRADA: statistics e concurrentViewers continuam nele', () => {
     const before = structuredClone(item)
     rawOf(item)

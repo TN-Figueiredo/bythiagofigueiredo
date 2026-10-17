@@ -24,7 +24,7 @@ import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from '../helpers/fake
 
 describe('I-7: partes pedidas', () => {
   it('videos.list e channels.list pedem as partes gratuitas novas', () => {
-    for (const p of ['status', 'topicDetails']) expect(VIDEO_PARTS.split(',')).toContain(p)
+    for (const p of ['status', 'topicDetails', 'paidProductPlacementDetails', 'localizations', 'recordingDetails']) expect(VIDEO_PARTS.split(',')).toContain(p)
     for (const p of ['brandingSettings', 'topicDetails', 'status']) expect(CHANNEL_PARTS.split(',')).toContain(p)
   })
 })
