@@ -2,7 +2,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getAbSiteSettings, getEligibleVideosForPicker, getAbDraftById } from '../queries'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { NewTestClient } from './client'
-import { resolverVideoPedido } from './resolver'
+import * as Sentry from '@sentry/nextjs'
+import { filtroBuscaVideo, resolverVideoPedido } from './resolver'
 import type { CompetitorContext } from './client'
 
 export const metadata = { title: 'Novo Teste: A/B Lab' }
@@ -32,18 +33,24 @@ export default async function NewAbTestPage({ searchParams }: Props) {
 
   // Chamadores mandam ora youtube_videos.id (uuid), ora o id do YouTube (Outliers).
   let idResolvido: string | null = null
+  let falhou = false
   const pedido = params.videoId?.trim() || undefined
-  if (pedido && !eligibleVideos.some((v) => v.id === pedido)) {
-    const { data } = await getSupabaseServiceClient()
+  const filtro = pedido ? filtroBuscaVideo(pedido) : null
+  if (pedido && filtro && !eligibleVideos.some((v) => v.id === pedido)) {
+    const { data, error } = await getSupabaseServiceClient()
       .from('youtube_videos')
       .select('id')
       .eq('site_id', siteId)
-      .or(`youtube_video_id.eq.${pedido.replace(/[^A-Za-z0-9_-]/g, '')},id.eq.${/^[0-9a-f-]{36}$/i.test(pedido) ? pedido : '00000000-0000-0000-0000-000000000000'}`)
+      .or(filtro)
       .limit(1)
       .maybeSingle()
+    if (error) {
+      falhou = true
+      Sentry.captureException(error)
+    }
     idResolvido = (data?.id as string | undefined) ?? null
   }
-  const entrada = resolverVideoPedido(eligibleVideos, pedido, idResolvido)
+  const entrada = resolverVideoPedido(eligibleVideos, pedido, idResolvido, falhou)
 
   const competitorContext: CompetitorContext | undefined =
     params.ref === 'competitor'
