@@ -199,7 +199,7 @@ export function buildProprioVideos(
 
   const nota = 'Múltiplo = views do vídeo ÷ mediana dos outros vídeos do seu canal, do mesmo formato e da mesma faixa de idade. '
     + 'De 2 a 5, alto; de 5 a 10, muito alto; 10 ou mais, topo. '
-    + `Impressões = vezes em que a miniatura do vídeo apareceu no YouTube, somadas ${periodoTxt ?? 'no período dos relatórios de alcance'}. `
+    + `Impressões = vezes em que a thumbnail do vídeo apareceu no YouTube, somadas ${periodoTxt ?? 'no período dos relatórios de alcance'}. `
     + 'Cliques = impressões × taxa de clique de cada dia, somados e arredondados só no fim; é contagem, nunca percentual. '
     + 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo. '
     + 'Caixa vazada com 0: o YouTube mediu o período e o vídeo não apareceu. Hachura: ainda não medido.'

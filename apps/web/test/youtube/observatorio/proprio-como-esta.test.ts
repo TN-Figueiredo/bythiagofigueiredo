@@ -52,11 +52,11 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
   })
 
   it('abaixo de 1.000 impressões: a frase do spec 16.5 com os números calculados (nunca fixa)', () => {
-    expect(v().frase).toBe('Com 140 impressões em 29 dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
+    expect(v().frase).toBe('Com 140 impressões em 29 dias, ainda é pouco para dizer qual vídeo ou qual thumbnail funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
     // outro volume, outro período: a frase acompanha
     const r = comImp(87, 1, { diasLidos: 12, diasComImpressao: 5 })
     const x = v({ resumo: r, periodo: { de: '2026-09-26', ate: '2026-10-07', dias: 12 } })
-    expect(x.frase).toBe('Com 87 impressões em 12 dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
+    expect(x.frase).toBe('Com 87 impressões em 12 dias, ainda é pouco para dizer qual vídeo ou qual thumbnail funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
     expect(x.recolhida).toBe('87 impressões e 1 clique estimado em 12 dias. 14º de 14 canais de Viagem em inscritos.')
   })
 
@@ -64,9 +64,9 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     expect(POUCO_VOLUME).toBe(1000)
     const abaixo = v({ resumo: comImp(999, 40) }).frase
     const igual = v({ resumo: comImp(1000, 40) }).frase
-    expect(abaixo).toBe('Com 999 impressões em 29 dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
-    expect(igual).toBe('Com 1.000 impressões em 29 dias dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma capa funciona melhor.')
-    expect(v({ resumo: comImp(12_345, 400) }).frase).toBe('Com 12.345 impressões em 29 dias dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma capa funciona melhor.')
+    expect(abaixo).toBe('Com 999 impressões em 29 dias, ainda é pouco para dizer qual vídeo ou qual thumbnail funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
+    expect(igual).toBe('Com 1.000 impressões em 29 dias dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma thumbnail funciona melhor.')
+    expect(v({ resumo: comImp(12_345, 400) }).frase).toBe('Com 12.345 impressões em 29 dias dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma thumbnail funciona melhor.')
     // nenhuma das duas frases promete comparar capas ou apontar a melhor
     for (const f of [abaixo, igual]) expect(f).not.toMatch(/a melhor capa|capa vencedora|compare as capas/i)
   })
@@ -117,7 +117,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     const r = comImp(140, 3.2, { diasLidos: 19, diasNaoMedidos: 10 })
     const x = v({ resumo: r })
     expect(x.recolhida).toBe('140 impressões e 3 cliques estimados em 19 dos 29 dias. 14º de 14 canais de Viagem em inscritos.')
-    expect(x.frase).toBe('Com 140 impressões em 19 dos 29 dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
+    expect(x.frase).toBe('Com 140 impressões em 19 dos 29 dias, ainda é pouco para dizer qual vídeo ou qual thumbnail funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
     // com a série cheia da fixture (19 lidos, 2 não medidos): a base é a lida, nunca o período inteiro
     const { dias, periodo } = montarDias(alcanceCheio(CANAL, ['yt1', 'yt2'], HOJE), { hoje: HOJE })
     const cheio = v({ resumo: resumir(dias), periodo })
@@ -130,7 +130,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     expect(r.diasLidos).toBe(2)
     const x = v({ resumo: r, periodo })
     expect(x.recolhida).toBe('9 impressões e 1 clique estimado em 2 dias. 14º de 14 canais de Viagem em inscritos.')
-    expect(x.frase).toBe('Com 9 impressões em 2 dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
+    expect(x.frase).toBe('Com 9 impressões em 2 dias, ainda é pouco para dizer qual vídeo ou qual thumbnail funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.')
     expect(x.frase).not.toMatch(/por dia|média/)
   })
 

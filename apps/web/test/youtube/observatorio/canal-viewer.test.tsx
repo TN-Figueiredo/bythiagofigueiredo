@@ -45,14 +45,14 @@ describe('o modelo entrega o visualizador a cada vídeo', () => {
   it('ChannelVideoView.viewer: uma versão por período, a atual é a última, abre na atual; o que já está na tela vai em preview', () => {
     const { all } = mountCanal({ mut: quatro })
     const v = all.find(x => x.id === primeiro)!
-    expect(v.viewer!.versions.map(x => x.label)).toEqual(['Capa A', 'Capa B', 'Capa A', 'Capa C'])
+    expect(v.viewer!.versions.map(x => x.label)).toEqual(['Thumbnail A', 'Thumbnail B', 'Thumbnail A', 'Thumbnail C'])
     expect(v.viewer!.start).toBe(3)
     expect(v.viewer!.title).toBe(v.title)
     expect(v.viewer!.versions[3]!.current).toBe(true)
     expect(v.viewer!.versions[3]!.youtubeId).toBe(v.ytId)
     expect(v.viewer!.versions[3]!.preview).toBe(v.thumbSrc)
     expect(v.viewer!.versions[1]!.archived).toBeNull()
-    expect(v.viewer!.versions[3]!.caption).toMatch(/^Capa C \(no ar\): .+; no ar por .+$/)
+    expect(v.viewer!.versions[3]!.caption).toMatch(/^Thumbnail C \(no ar\): .+; no ar por .+$/)
   })
   it('vídeo antigo, na forma enxuta, sem versões: só a thumbnail atual', () => {
     const { all } = mountCanal({ mut: ds => { ds.videos.find(x => x.id === primeiro)!.thumbs = [] } })
@@ -96,7 +96,7 @@ describe('gatilho 6: a grade e a Lista do canal', () => {
     const lupa = within(cardOf(primeiro)).getByRole('button', { name: 'Ampliar a thumbnail: ' + v.title })
     lupa.focus()
     fireEvent.click(lupa)
-    expect(posicao()).toBe('Capa C · 4 de 4')
+    expect(posicao()).toBe('Thumbnail C · 4 de 4')
     expect(dialog().querySelector('h2')!.textContent).toBe('Thumbnail: ' + v.title)
     expect(open).not.toHaveBeenCalled()
     fechar()
@@ -108,7 +108,7 @@ describe('gatilho 6: a grade e a Lista do canal', () => {
     const btn = within(cardOf(primeiro)).getByRole('button', { name: /^Ações do vídeo: / })
     await user.click(btn)
     await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Ampliar thumbnail' }))
-    expect(posicao()).toBe('Capa C · 4 de 4')
+    expect(posicao()).toBe('Thumbnail C · 4 de 4')
     fechar()
     expect(document.activeElement).toBe(btn)
   })
@@ -119,7 +119,7 @@ describe('gatilho 6: a grade e a Lista do canal', () => {
     const linha = [...document.querySelectorAll<HTMLElement>('tr.cv-row')].find(r => r.dataset.id === primeiro)!
     await user.click(within(linha).getByRole('button', { name: /^Ações do vídeo: / }))
     await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Ampliar thumbnail' }))
-    expect(posicao()).toBe('Capa C · 4 de 4')
+    expect(posicao()).toBe('Thumbnail C · 4 de 4')
     expect(open).not.toHaveBeenCalled()
   })
   it('vídeo antigo (forma enxuta, sem versões): abre só com a thumbnail atual, sem Anterior nem Próxima', () => {

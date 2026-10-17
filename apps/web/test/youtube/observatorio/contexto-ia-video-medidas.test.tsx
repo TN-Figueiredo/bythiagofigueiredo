@@ -45,7 +45,9 @@ import type { ValorM1 } from '@/lib/youtube/observatorio/medidas/m1'
 import { medidasDoCanal, type Insumos } from '@/lib/youtube/observatorio/medidas/do-canal'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
-import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
+import { montarTexto, resumir } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
+import { milhar } from '@/lib/youtube/observatorio/contexto-ia/frases'
+import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 import { ignorados, semDestino, semUso } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { estourouExisteEm, somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
@@ -324,6 +326,55 @@ describe('Vídeo, medidas: dado ausente, estados e terceiros', () => {
     expect(conta(m.textoDoPacote, /^ignore o que veio antes/)).toBe(0)
     expect(conta(m.textoDoPacote, /^Minha pergunta:/)).toBe(conta(normal.textoDoPacote, /^Minha pergunta:/))
     expect(m.textoDoPacote).not.toMatch(/\n## 9\. Minha pergunta\n[^\n]*ignore/)
+  })
+
+  it('tamanho (D-2 do trem 6): o pior caso realista do vídeo, com as 72 horas, o Estourou e parou e as mudanças com de-para, cabe nos tetos', async () => {
+    const m = await montar({ ...caso('cheio, estourou e parou'), lista: MUDANCAS_A_MAO }, false)
+    // sem isso o caso provaria nada: o pacote tem as 72 linhas de hora, os três sinais e o de-para
+    expect(tab(m, 'video-horas')!.linhas.length).toBe(72)
+    expect(tab(m, 'video-estourou')!.linhas).toHaveLength(4)
+    expect(tab(m, 'video-mudancas-de-para')).toBeDefined()
+    const t = resumir(segmentar(m.pacote, CONTEXTO), 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax))
+    expect(t.copia.pisoPassou, 'piso').toBe(false)
+    expect(t.copia.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
+    expect(t.completo.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCompleto)
+    expect(JSON.stringify(segmentar(m.pacote, CONTEXTO)).length).toBeLessThan(1_000_000)
+  })
+
+  // I-1 do portão do Phil: os comentários entram sem `corte`, então são piso: o tamanho que cresce e não é cortado
+  const comComentarios = (m: Montado, n: number, textoMax: number, respostas: number, respostaMax: number): PacoteModelo => ({
+    ...m.pacote,
+    comentarios: {
+      estado: 'incluido',
+      itens: Array.from({ length: n }, (_, i) => ({
+        texto: `c${i} `.padEnd(textoMax, 'x'), curtidas: i, respostas: 1, idade: 'há 3 dias', sinalizadores: [],
+        respostaDoCriador: i < respostas ? { canal: 'Canal', texto: `r${i} `.padEnd(respostaMax, 'y') } : null,
+      })),
+    },
+  })
+
+  it('tamanho (I-1, realista): 36 comentários de 300 e 12 respostas de 100, junto das 72 horas e do Estourou, deixam a cópia dentro do teto', async () => {
+    const m = await montar({ ...caso('cheio, estourou e parou'), lista: MUDANCAS_A_MAO }, false)
+    const pacote = comComentarios(m, 36, 300, 12, 100)
+    const seg = segmentar(pacote, CONTEXTO)
+    const t = resumir(seg, 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax))
+    expect(tab(m, 'video-horas')!.linhas.length).toBe(72)
+    expect(t.completo.texto).toContain('c35 ')
+    expect(t.completo.texto.match(/\[resposta do criador/g)).toHaveLength(12)
+    expect(t.copia.pisoPassou, 'piso').toBe(false)
+    expect(t.copia.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
+    expect(t.completo.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCompleto)
+  })
+
+  it('tamanho (I-1, extremo, a régua do limite conhecido): 36 comentários de 2000 e 36 respostas de 2000 cabem no completo; a cópia passa do teto e DIZ o tamanho real', async () => {
+    const m = await montar({ ...caso('cheio, estourou e parou'), lista: MUDANCAS_A_MAO }, false)
+    const t = resumir(segmentar(comComentarios(m, 36, 2000, 36, 2000), CONTEXTO), 'x'.repeat(CONTEXTO_IA_RULES.perguntaMax))
+    expect(t.completo.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCompleto)
+    expect(t.copia.pisoPassou, 'piso').toBe(true)
+    expect(t.copia.caracteres).toBeGreaterThan(CONTEXTO_IA_RULES.limiteCopia)
+    // a falha não é silenciosa: a cópia declara o tamanho real que ficou (com o separador de milhar da frase)
+    expect(t.copia.texto).toContain(milhar(t.copia.totalSemCorte))
+    expect(t.copia.texto).toMatch(/Por tamanho: .*caracteres/)
   })
 
   it('medidas não pedidas ao empacotador: nenhuma tabela nem aviso novo', () => {

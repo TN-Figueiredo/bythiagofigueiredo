@@ -15,7 +15,7 @@ export { imageLetters }
 export function viewerSoAtual(v: { title: string; ytId: string; thumbSrc: string | null }): ViewerInput | null {
   if (!v.ytId && !v.thumbSrc) return null
   const archived = v.thumbSrc && !isYoutubeUrl(v.thumbSrc) ? v.thumbSrc : null
-  const one: ViewerVersion = { label: 'Capa atual', current: true, archived, youtubeId: v.ytId || null, caption: 'Capa atual (no ar): a thumbnail que o YouTube mostra agora', from: '', to: 'agora', preview: v.thumbSrc }
+  const one: ViewerVersion = { label: 'Thumbnail atual', current: true, archived, youtubeId: v.ytId || null, caption: 'Thumbnail atual (no ar): a thumbnail que o YouTube mostra agora', from: '', to: 'agora', preview: v.thumbSrc }
   return { title: v.title, versions: [one], start: 0 }
 }
 
@@ -27,7 +27,7 @@ export function viewerOfVideo(obs: Observatory, v: ObsVideo, ch: ObsChannel, tit
   const ytId = v.ytId || null
   if (!v.thumbs.length) {
     if (!ytId) return null
-    const one: ViewerVersion = { label: 'Capa atual', current: true, archived: null, youtubeId: ytId, caption: 'Capa atual (no ar): a thumbnail que o YouTube mostra agora', from: '', to: 'agora', preview }
+    const one: ViewerVersion = { label: 'Thumbnail atual', current: true, archived: null, youtubeId: ytId, caption: 'Thumbnail atual (no ar): a thumbnail que o YouTube mostra agora', from: '', to: 'agora', preview }
     return { title, versions: [one], start: 0 }
   }
   const clock = versionClock(obs, v, ch)
@@ -36,7 +36,7 @@ export function viewerOfVideo(obs: Observatory, v: ObsVideo, ch: ObsChannel, tit
     const label = letter.get(t.key) ?? t.key, cur = !v.thumbs[i + 1]   // a atual é a última, como no Histórico
     const { startLbl, end, span, durTxt } = clock.timing('thumb', v.thumbs, i)
     return {
-      label: 'Capa ' + label, current: cur, archived: t.blobUrl ?? null, youtubeId: cur ? ytId : null,
+      label: 'Thumbnail ' + label, current: cur, archived: t.blobUrl ?? null, youtubeId: cur ? ytId : null,
       caption: thumbCaption(label, cur, clock.curWord('thumb'), span, durTxt),
       from: startLbl, to: end, span, preview: t.blobUrl ?? (cur ? preview : null),
     }

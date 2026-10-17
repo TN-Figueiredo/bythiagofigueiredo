@@ -68,6 +68,25 @@ describe('criadorDoCanal: sem contradição (trem 5.1)', () => {
   })
 })
 
+describe('criadorDoCanal: a frase só cita números que estão na legenda (C2 do Phil, trem 7)', () => {
+  it('1 com retrato de 30 dias, 6 em coleta, 7 anteriores à coleta: 14 vídeos, e a frase não inventa um "2"', () => {
+    const videos = [vid(0, 35), ...[3, 4, 5, 6, 7, 8].map((d, i) => vid(1 + i, d)), ...[50, 51, 52, 53, 54, 55, 56].map((d, i) => vid(7 + i, d))]
+    const porVideo: Array<[string, string | null, boolean]> = videos.map((v, i) => [v.id, i === 0 ? 'ok' : null, false])
+    const c = contagem(porVideo, { coletaDoSiteDesdeMs: AGORA - 9 * DIA, coletaDoCanalDesdeMs: AGORA - 9 * DIA })
+    const b = criadorDoCanal(entrada(videos, c)).bloco
+    expect(b.tipo).toBe('nao_medido')
+    const legenda = b.legenda.map(l => l.texto).join(' | ')
+    expect(legenda).toContain('6 em coleta, ainda sem os 30 dias')
+    expect(legenda).toContain('7 já tinham mais de 37 dias quando a coleta começou (15/10)')
+    expect(b.frase.resto).toMatch(/^ Só 1 dos 14 vídeos dos últimos \d+ dias já tem o retrato de 30 dias; o primeiro dos outros fecha em \d{2}\/\d{2}\.$/)
+    // os números da frase (fora a janela e a data) são os da legenda e da base
+    const numeros = (b.frase.resto.replace(/dos últimos \d+ dias/, '').replace(/retrato de 30 dias/, '').replace(/\d{2}\/\d{2}/, '').match(/\d+/g) ?? []).map(Number)
+    const nosDados = new Set([1, 6, 7, 14])
+    for (const n of numeros) expect(nosDados.has(n), `número ${n} sem par na legenda`).toBe(true)
+    expect(b.frase.resto).not.toContain('coleta de comentários')
+  })
+})
+
 describe('criadorDoCanal: sem coleta esconde a lista (D2 do Gio)', () => {
   const vazia = (videos: VideoLido[]) => listaDoCriador({ nome: 'Matt', resposta: ok({ nivel: 'texto', total: 0, itens: [] } as unknown as RespostasDoCriador), videos, titulos: new Map(), nBase: 0 })
   it('coleta que ainda não começou: a lista de respostas não renderiza', () => {
@@ -100,12 +119,12 @@ describe('criadorDoCanal: estados', () => {
     expect(m.bloco.frase.negrito).toBe('Ainda não dá para medir.')
     expect(m.bloco.frase.resto).toMatch(/fecha em \d{2}\/\d{2}/)
   })
-  it('item d do Gio (trem 6): vídeo anterior à coleta do canal, mas com retrato de 30 dias, conta como coletado na frase "Só N dos M"', () => {
+  it('item d do Gio (trem 6), refeito no C2: vídeo anterior à coleta mas com retrato de 30 dias é o "1" da frase; nunca "Só 0 dos"', () => {
     const videos = [...Array.from({ length: 6 }, (_, i) => vid(i, 5 + i * 3)), vid(7, 60), vid(8, 70)]
     const c = contagem(videos.map(v => [v.id, v.id === 'v7' ? 'ok' : null, false]), { coletaDoCanalDesdeMs: AGORA - 20 * DIA })
     const b = criadorDoCanal(entrada(videos, c)).bloco
     expect(b.legenda.map(l => l.texto).join('|')).toContain('1 vídeo em que não vimos resposta')
-    expect(b.frase.resto).toContain('Só 7 dos 8 vídeos')
+    expect(b.frase.resto).toContain('Só 1 dos 8 vídeos')
     expect(b.frase.resto).not.toContain('Só 0 dos')
   })
   it('coleta parada', () => {
@@ -120,6 +139,14 @@ describe('criadorDoCanal: estados', () => {
     const m = criadorDoCanal(entrada(videos, c))
     expect(m.celula.valor).toBe('nao_medido')
     expect(m.bloco.frase.resto).toContain('pelo menos 5')
+  })
+  it('poucos vídeos com N=1: verbo no singular na frase e na célula (Gio CO, trem 7)', () => {
+    const { videos, c } = quadro(1, 0)
+    const m = criadorDoCanal(entrada(videos, c))
+    expect(m.bloco.frase.resto).toContain('Só 1 dos 1 vídeos tem retrato de 30 dias')
+    expect(m.celula.motivo).toContain('só 1 de 1 vídeos tem retrato')
+    const dois = criadorDoCanal(entrada(...Object.values(quadro(2, 0)) as [VideoLido[], ParteLida<ContagemDeRespostas>]))
+    expect(dois.bloco.frase.resto).toContain('Só 2 dos 2 vídeos têm retrato')
   })
   it('desligados pelo canal', () => {
     const videos = Array.from({ length: 6 }, (_, i) => vid(i, 35 + i))
@@ -280,13 +307,13 @@ describe('I2: "anterior à coleta" usa o começo da coleta do SITE', () => {
     expect(textos).toContain('sem retrato de 30 dias')
     expect(textos).not.toContain('anterior')
   })
-  it('vídeo publicado antes da coleta do site: "anterior à coleta, que começou em" a data do site', () => {
+  it('vídeo publicado antes da coleta do site: "já tinha mais de 37 dias quando a coleta começou (data)" com a data do site', () => {
     const { videos } = quadro(6, 2)
     const velho = vid(51, 80)
     const c = contagem([...videos.map(v => [v.id, 'ok', false] as [string, string, boolean]), [velho.id, null, false]], { coletaDoSiteDesdeMs: AGORA - 50 * DIA, coletaDoCanalDesdeMs: AGORA - 40 * DIA })
     const m = criadorDoCanal(entrada([...videos, velho], c))
-    const l = m.bloco.legenda.find(x => x.texto.includes('anterior'))
-    expect(l?.texto).toMatch(/anterior à coleta, que começou em \d{2}\/\d{2}/)
+    const l = m.bloco.legenda.find(x => x.texto.includes('quando a coleta começou'))
+    expect(l?.texto).toMatch(/^1 já tinha mais de 37 dias quando a coleta começou \(\d{2}\/\d{2}\)$/)
     expect(l?.texto).toContain(new Date(AGORA - 50 * DIA).toISOString().slice(8, 10))
   })
 })

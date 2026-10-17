@@ -186,7 +186,7 @@ export function linhaDoTempo(o: EntradaDaLinhaDoTempo): LinhaDoTempo {
     ...(diminuiram + dias.filter(d => d.situacao === 'diminuiu').length > 0 ? [{ chave: 'diminuiu', texto: 'o total diminuiu' }] : []),
     ...(saiu ? [{ chave: 'fora', texto: 'depois que saiu do YouTube' }] : []),
     { chave: 'longo', texto: 'vídeo publicado' }, { chave: 'short', texto: 'Short publicado' }, { chave: 'campo', texto: 'mudança de campo' },
-    ...(temTroca('titulo') ? [{ chave: 'titulo', texto: 'troca de título' }] : []), ...(temTroca('miniatura') ? [{ chave: 'miniatura', texto: 'troca de miniatura' }] : []),
+    ...(temTroca('titulo') ? [{ chave: 'titulo', texto: 'troca de título' }] : []), ...(temTroca('miniatura') ? [{ chave: 'miniatura', texto: 'troca de thumbnail' }] : []),
     ...(barras.corte ? [{ chave: 'corte', texto: `${dm(MEASURE_RULES.countChange)}: o YouTube mudou a contagem` }] : []),
   ]
   void f
@@ -243,7 +243,7 @@ function eventosPorDia(o: EntradaDaLinhaDoTempo, de: string, fim: string): Map<s
     const n = ordens.get(t) ?? null
     poe(spDateOf(t.emMs), {
       tipo: 'troca', raia: 'trocas', forma: t.campo,
-      texto: `${t.campo === 'titulo' ? 'Trocou o título' : 'Trocou a miniatura'} de “${titulo(t.videoId)}”${n ? ` (troca ${n})` : ''}`,
+      texto: `${t.campo === 'titulo' ? 'Trocou o título' : 'Trocou a thumbnail'} de “${titulo(t.videoId)}”${n ? ` (troca ${n})` : ''}`,
     })
   }
   return out

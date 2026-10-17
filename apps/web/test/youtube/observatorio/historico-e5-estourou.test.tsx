@@ -152,7 +152,7 @@ describe('arquivos novos', () => {
   })
   it('a página: antes da data o bloco sai pronto (sem consulta); depois dela, vai como "ler" e sai do MESMO conjunto do canal (nenhuma leitura própria da página)', () => {
     const pagina = ler('video/[id]/page.tsx')
-    expect(pagina).toMatch(/leituraSemConsulta\(obs, view\.video\.id/)
+    expect(pagina).toMatch(/alvoDoHistorico\(view, obs, /)
     expect(pagina).toMatch(/sincrona === 'ler' \? 'ler'/)
     expect(pagina).not.toContain('lerLeituraDoVideo')
     expect(pagina).not.toContain('carregarMedidasDoSite')

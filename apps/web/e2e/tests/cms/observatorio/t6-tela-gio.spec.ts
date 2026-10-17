@@ -89,22 +89,20 @@ test('busca da pagina do canal a 390: alvo >= 44 px', async ({ page, context, ba
   expect(Math.round(b2!.height)).toBe(34)
 })
 
-test('Historico: nenhum "Thumbnail" visivel na tela (texto, title e aria-label), "Miniatura" presente', async ({ page, context, baseURL }) => {
+test('Historico: nenhum "Miniatura" visivel na tela (texto, title e aria-label), "Thumbnail" presente', async ({ page, context, baseURL }) => {
   for (const w of [1440, 390]) {
     await abrir(page, context, baseURL!, w, 'dark', '/cms/youtube/competitors/video/' + ids.video(MANY_VERSIONS_ID) + '?range=tudo', '[data-obs-screen]')
     const r = await page.evaluate(() => {
       const raiz = document.querySelector('[data-obs-screen]')!
       const texto = (raiz as HTMLElement).innerText
-      const attrs = [...raiz.querySelectorAll('[title],[aria-label]')].map(e => `${e.getAttribute('title') ?? ''} | ${e.getAttribute('aria-label') ?? ''}`).filter(s => /thumbnail/i.test(s))
-      const dado = /erros|trocas|Testei|Troquei|método|Como eu testo|entrou:|saiu:|maiúsculas/
-      return { texto: (texto.split('\n').filter(l => /thumbnail/i.test(l) && !dado.test(l))), attrs: attrs.filter(a => !dado.test(a)), miniatura: /miniatura/i.test(texto) }
+      const attrs = [...raiz.querySelectorAll('[title],[aria-label]')].map(e => `${e.getAttribute('title') ?? ''} | ${e.getAttribute('aria-label') ?? ''}`).filter(s => /miniatura/i.test(s))
+      return { texto: texto.split('\n').filter(l => /miniatura/i.test(l)), attrs, thumbnail: /thumbnail/i.test(texto) }
     })
     medida(`historico ${w}: ${JSON.stringify(r)}`)
     await page.screenshot({ path: path.join(SHOTS, `historico-${w}.png`) })
-    expect(r.miniatura).toBe(true)
-    expect(r.texto.filter(l => /Thumbnail/.test(l)), 'Thumbnail (rótulo com T maiúsculo) no texto visível').toEqual([])
-    medida(`historico ${w}: substantivo minúsculo restante: ${JSON.stringify(r.texto.filter(l => !/Thumbnail/.test(l)))}`)
-    expect(r.attrs, 'Thumbnail em title/aria-label').toEqual([])
+    expect(r.thumbnail).toBe(true)
+    expect(r.texto, 'Miniatura no texto visível').toEqual([])
+    expect(r.attrs, 'Miniatura em title/aria-label').toEqual([])
   }
 })
 

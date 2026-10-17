@@ -142,8 +142,8 @@ function fraseDoTopo(estado: Estado, a: EntradaComoEsta): string {
       const imp = plural(r.imp ?? 0, 'impressão', 'impressões')
       const dias = diasTexto(r, p!)
       return (r.imp ?? 0) < POUCO_VOLUME
-        ? `Com ${imp} em ${dias}, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.`
-        : `Com ${imp} em ${dias} dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma capa funciona melhor.`
+        ? `Com ${imp} em ${dias}, ainda é pouco para dizer qual vídeo ou qual thumbnail funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.`
+        : `Com ${imp} em ${dias} dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma thumbnail funciona melhor.`
     }
     default: { const nunca: never = estado; return nunca }
   }

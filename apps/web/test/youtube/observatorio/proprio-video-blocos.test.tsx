@@ -88,14 +88,14 @@ describe('impressões, cliques e taxa de clique', () => {
     expect(texto(taxa.querySelector('.vb-fr'))).toContain('A taxa real fica entre 3,1% e 32,8%. Pode ser igual à taxa do canal')
     expect(texto(taxa)).toContain('faixa tracejada: ainda não conclui')
     expect(taxa.querySelector('.tf-int.inc')).not.toBeNull()
-    expect(secao(container, 'Impressões e cliques').textContent).toContain('É pouco para dizer se a capa funciona: leia como contagem.')
+    expect(secao(container, 'Impressões e cliques').textContent).toContain('É pouco para dizer se a thumbnail funciona: leia como contagem.')
   })
 
-  it('nenhuma frase diz que a capa é boa ou ruim; nenhuma classe de direção (verde/âmbar) no bloco da taxa', () => {
+  it('nenhuma frase diz que a thumbnail é boa ou ruim; nenhuma classe de direção (verde/âmbar) no bloco da taxa', () => {
     for (const w of [W, mundoVideo({ mut: umaFaixa, alcance: { impFoco: 18, ctrFoco: 2 / 18 } })]) {
       const { container } = montar(w)
       const taxa = secao(container, 'Impressões e cliques')
-      expect(texto(taxa)).not.toMatch(/capa (boa|ruim)|funciona bem|funciona mal/i)
+      expect(texto(taxa)).not.toMatch(/thumbnail (boa|ruim)|funciona bem|funciona mal/i)
       expect(taxa.innerHTML).not.toMatch(/vb-dir-|dir-up|dir-dn|dir-eq/)
       cleanup()
     }

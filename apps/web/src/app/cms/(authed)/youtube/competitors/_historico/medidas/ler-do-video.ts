@@ -36,6 +36,22 @@ export interface MedidasLidasDoVideo {
   descobertoMs: number | null
 }
 
+/**
+ * Quem ganha o bloco do Histórico do vídeo, UMA regra para a página e para o pacote da IA: `doMotor` é o vídeo acompanhado que está em `obs.videos`
+ * (ganha os blocos de medidas); `sincrona` é a leitura de "Estourou e parou" que se sabe sem consultar nada (nula = sem o bloco, `'ler'` = depende do conjunto).
+ */
+export function alvoDoHistorico<V extends { id: string }>(
+  view: HistoricoView, obs: Pick<IObservatorioDaLeitura, 'video' | 'channel'> & { videos: readonly V[] }, agoraMs: number,
+): { doMotor: V | undefined; sincrona: Leitura | 'ler' | null } {
+  const acompanhado = !view.notFound && !view.untracked && view.video ? view.video : null
+  return { doMotor: acompanhado ? obs.videos.find((x) => x.id === acompanhado.id) : undefined, sincrona: leituraSincronaDoHistorico(view, obs, agoraMs) }
+}
+
+/** A leitura de "Estourou e parou" sem consulta: nula quando o vídeo não é acompanhado (não encontrado, untracked, sem cartão). */
+export function leituraSincronaDoHistorico(view: HistoricoView, obs: Pick<IObservatorioDaLeitura, 'video' | 'channel'>, agoraMs: number): Leitura | 'ler' | null {
+  return view.notFound || view.untracked || !view.video ? null : leituraSemConsulta(obs, view.video.id, agoraMs)
+}
+
 /** `null` = o conjunto do canal falhou (a base: canal, vídeos, marcas, retratos). Parte não lida de série, mudanças ou horas não é falha do conjunto. */
 export async function lerMedidasDoVideo(p: PedidoDeMedidasDoVideo): Promise<MedidasLidasDoVideo | null> {
   const sb = p.obterSb()
@@ -67,7 +83,7 @@ export async function lerMedidasDoVideo(p: PedidoDeMedidasDoVideo): Promise<Medi
  * leu depois dela. Nula = o vídeo não tem o bloco (não é do site, é de canal próprio, não é acompanhado) ou o conjunto falhou (a tela mostra o erro).
  */
 export async function lerEstourouDoVideo(p: PedidoDeMedidasDoVideo & { lidas: MedidasLidasDoVideo | null }): Promise<Leitura | null> {
-  const antes = p.view.notFound || p.view.untracked || !p.view.video ? null : leituraSemConsulta(p.obs, p.view.video.id, p.agoraMs)
+  const antes = leituraSincronaDoHistorico(p.view, p.obs, p.agoraMs)
   if (antes !== 'ler') return antes
   if (p.lidas === null) return null
   return lerLeituraDoConjunto({ c: p.lidas.c, sb: p.lidas.sb, siteId: p.siteId, obs: p.obs, videoId: p.video.id, now: p.agoraMs })

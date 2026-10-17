@@ -215,7 +215,7 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
         if (s.semanal_devidos_hoje && weeklyLate) problems.push(n(s.semanal_devidos_hoje, 'vídeo', 'vídeos') + ' da faixa semanal devidos hoje e ainda sem ponto')
       }
       // (emenda do portão: D-I4) a imagem que a origem sobrescreve: toda leitura confere a miniatura, então 9 dias sem cópia é falha
-      if (s.sem_miniatura_9d && o.thumbs !== false) problems.push(n(s.sem_miniatura_9d, 'vídeo', 'vídeos') + ' sem cópia da miniatura depois de 9 dias')
+      if (s.sem_miniatura_9d && o.thumbs !== false) problems.push(n(s.sem_miniatura_9d, 'vídeo', 'vídeos') + ' sem cópia da thumbnail depois de 9 dias')
       // só depois das 18:00 de São Paulo e com todos os canais da faixa tentados: antes disso faltar ponto é o esperado
       if (s.diaria_sem_ponto_hoje && s.hora_sp >= DAILY_DUE_FROM_HOUR_SP && o.slotDone) problems.push(n(s.diaria_sem_ponto_hoje, 'vídeo', 'vídeos') + ' da faixa diária sem ponto hoje')
       // Os totais com faixa (diaria_total e semanal_total) em zero, com canal lido hoje, é a classificação sem ter feito nada.

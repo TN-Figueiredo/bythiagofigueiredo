@@ -151,7 +151,7 @@ const FRASE_VIDEO_NOVO_VIEWS = 'Vídeo novo: o YouTube entrega as views de cada 
 const FRASE_SEM_DIARIO_VIEWS = 'A coleta diária de views ainda não rodou para este canal. Nenhum dia é zero: falta medir.'
 const FRASE_VIDEO_NOVO_IMPRESSOES = 'Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.'
 const POUCO_IMPRESSAO = 100
-const FRASE_POUCA_IMPRESSAO = 'É pouco para dizer se a capa funciona: leia como contagem.'
+const FRASE_POUCA_IMPRESSAO = 'É pouco para dizer se a thumbnail funciona: leia como contagem.'
 const semTaxaCtr = (dias: number): string => `Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de clique de ${plural(dias, 'dia', 'dias')} com impressões.`
 const ALTURA_GRAFICO = 110
 const MINUS = '−'
@@ -207,14 +207,14 @@ export function fraseVeredito(v: Veredito, faixaCanal: string): string | null {
       return v.quaseSeTocam
         ? `Fica um pouco ${v.direcao} da taxa do canal (${faixaCanal}): as duas faixas quase se tocam, então a diferença é pequena.`
         : `Fica ${v.direcao} da taxa do canal (${faixaCanal}), mesmo contando a incerteza.`
-    case 'igual': return `Pode ser igual à taxa do canal (${faixaCanal}): com este volume, não dá para dizer que a capa funciona melhor ou pior.`
+    case 'igual': return `Pode ser igual à taxa do canal (${faixaCanal}): com este volume, não dá para dizer que a thumbnail funciona melhor ou pior.`
     default: { const nunca: never = v.direcao; return nunca }
   }
 }
 
 const METODO_TAXA = [
   'Cliques estimados ÷ impressões, nos dias medidos. Os cliques são estimados por dia (impressões × taxa do dia), porque o YouTube não entrega a contagem de cliques.',
-  'A faixa colorida é o intervalo de 95% (Wilson). Com poucas impressões ela é larga e cobre a taxa do canal: por isso a tela diz “não dá para dizer”, em vez de chamar a capa de boa ou ruim. Quando a faixa é larga demais para concluir, ela fica tracejada e cinza.',
+  'A faixa colorida é o intervalo de 95% (Wilson). Com poucas impressões ela é larga e cobre a taxa do canal: por isso a tela diz “não dá para dizer”, em vez de chamar a thumbnail de boa ou ruim. Quando a faixa é larga demais para concluir, ela fica tracejada e cinza.',
 ]
 
 function taxaDe(video: TaxaComIntervalo, canal: TaxaComIntervalo | null, F: Observatory['fmt']): BlocoTaxa {

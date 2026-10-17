@@ -10,7 +10,7 @@ import { celulaDaSubida, type CartaoDaSubida, type CelulaDaSubida } from './subi
 export type VarianteDoResumo = 'tipico' | 'magro' | 'zero' | 'nao_medido' | 'semanal' | 'saiu' | 'ao_vivo' | 'vazio' | 'simples' | 'nao_carregou'
 
 const ARTIGO: Record<string, string> = {
-  título: 'o título', miniatura: 'a miniatura', descrição: 'a descrição', tags: 'as tags', categoria: 'a categoria', duração: 'a duração', capítulos: 'os capítulos', idioma: 'o idioma',
+  título: 'o título', miniatura: 'a thumbnail', descrição: 'a descrição', tags: 'as tags', categoria: 'a categoria', duração: 'a duração', capítulos: 'os capítulos', idioma: 'o idioma',
 }
 
 export interface EntradaDoResumo {

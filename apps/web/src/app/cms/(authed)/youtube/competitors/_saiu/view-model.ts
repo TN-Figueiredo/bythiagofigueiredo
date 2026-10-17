@@ -134,7 +134,7 @@ const AJUDA = [
   'O motivo: o YouTube devolve a mesma ausência para algo apagado pelo autor, privado, denunciado ou removido por ordem judicial. A tela não adivinha.',
   'Manter: continua guardado e entra nas medidas como os outros; a marca nas outras telas ainda não existe.',
   'Apagar: não dá para desfazer. Pede a palavra APAGAR e mostra antes a contagem do que some e do que fica.',
-  'Apagando: falta apagar miniaturas ou arquivos. O item conta no número da aba até acabar.',
+  'Apagando: falta apagar thumbnails ou arquivos. O item conta no número da aba até acabar.',
   'Um vídeo apagado e antigo que volte ao ar fora das páginas lidas do canal não é percebido.',
 ]
 
@@ -250,8 +250,8 @@ function voltaDe(v: ItemVoltou, idx: number): VoltaView {
 function apagandoDe(a: ItemApagando, idx: number): ApagandoView {
   const f = faltaNoBlob(a.pendentes)
   const partes: string[] = []
-  if (f.miniaturas > 0) partes.push(`faltam ${pl(f.miniaturas, 'miniatura', 'miniaturas')} no Blob`)
-  if (f.pastas > 0) partes.push(f.miniaturas > 0 ? `${pl(f.pastas, 'pasta', 'pastas')} a conferir` : `falta conferir ${pl(f.pastas, 'pasta', 'pastas')} de miniatura`)
+  if (f.miniaturas > 0) partes.push(`faltam ${pl(f.miniaturas, 'thumbnail', 'thumbnails')} no Blob`)
+  if (f.pastas > 0) partes.push(f.miniaturas > 0 ? `${pl(f.pastas, 'pasta', 'pastas')} a conferir` : `falta conferir ${pl(f.pastas, 'pasta', 'pastas')} de thumbnail`)
   if (a.arquivoPendente) partes.push('cópia no NAS esperando')
   const voltou = a.voltouEm ? `voltou ao ar em ${dm(a.voltouEm) ?? NAO_REGISTRADO}` : null
   return {

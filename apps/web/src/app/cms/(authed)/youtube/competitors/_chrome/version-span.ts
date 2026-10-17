@@ -112,5 +112,5 @@ export function versionClock(obs: Observatory, v: ObsVideo, ch: ObsChannel): Ver
 
 /** A legenda de uma versão de thumbnail no visualizador: a mesma frase nas duas telas. `tag` é a palavra da atual ("no ar", "última vista"). */
 export function thumbCaption(label: string, cur: boolean, tag: string, span: string, dur: string): string {
-  return 'Capa ' + label + (cur ? ' (' + tag + ')' : '') + ': ' + span + '; no ar por ' + dur
+  return 'Thumbnail ' + label + (cur ? ' (' + tag + ')' : '') + ': ' + span + '; no ar por ' + dur
 }
