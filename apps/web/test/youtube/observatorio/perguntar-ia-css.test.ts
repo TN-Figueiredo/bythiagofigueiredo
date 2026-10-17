@@ -22,4 +22,10 @@ describe('perguntar-ia.css', () => {
   it('botões do diálogo têm altura própria (não dependem da tela)', () => {
     expect(css).toMatch(/\.pi-dlg \.btn\s*\{[^}]*min-height:40px/)
   })
+  it('M1 (Yannis 17/10): o painel do ⓘ não é inerte (o clique não atravessa) e o botão aberto fica acima dele', () => {
+    const pop = css.match(/\.pi-pop\s*\{([^}]*)\}/)
+    expect(pop).not.toBeNull()
+    expect(pop![1]).not.toMatch(/pointer-events\s*:\s*none/)
+    expect(css).toMatch(/\.pi-dlg \.ibtn\[aria-expanded="true"\]\s*\{[^}]*position:relative;z-index:1/)
+  })
 })
